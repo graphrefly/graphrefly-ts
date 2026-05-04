@@ -166,6 +166,29 @@ export type NodeFnCleanup =
 			onRerun?: () => void;
 			onDeactivation?: () => void;
 			onInvalidate?: () => void;
+			/**
+			 * Phase 13.6.B QA D1 (Lock 6.D follow-up): fires from
+			 * `_resetForFreshLifecycle` — the post-terminal-resubscribable
+			 * reset path that runs WITHOUT `_deactivate`. Two callers:
+			 *   1. `subscribe()` after a terminal-resubscribable node was
+			 *      kept alive by another sink (multi-sub-stayed case);
+			 *   2. INVALIDATE on a terminal-resubscribable node.
+			 *
+			 * Pre-Lock-6.D the framework auto-wiped `ctx.store` on this
+			 * path. Post-flip the store preserves; operators with
+			 * one-shot store flags (`frozenContext.emitted`,
+			 * `take.completed`, etc.) need an explicit hook to clear
+			 * those flags when the node enters a fresh lifecycle without
+			 * deactivation.
+			 *
+			 * Distinct from `onDeactivation` because the cleanup contract
+			 * is different: `onDeactivation` may dispose timers /
+			 * subscriptions / external resources that must NOT be
+			 * disposed on a mid-life lifecycle reset. Use this slot ONLY
+			 * for store-state resets that need to fire on every "fresh
+			 * lifecycle" transition.
+			 */
+			onResubscribableReset?: () => void;
 	  };
 
 /**
@@ -187,8 +210,11 @@ export type NodeFnCleanup =
  *   - anything else → dep `i` sent ERROR, value is the error payload.
  *   Type is `readonly unknown[]` because `true | unknown` collapses to
  *   `unknown` anyway; the three states are documented contract, not type.
- * - `store` — mutable bag that persists across fn runs within one activation
- *   cycle. Wiped on deactivation and on resubscribable terminal reset.
+ * - `store` — mutable bag that persists across fn runs. Lock 6.D (Phase
+ *   13.6.B) flipped the default: store now PRESERVES across deactivation
+ *   and across terminal-resubscribable lifecycle reset. Operators that
+ *   want the old wipe-on-deactivation behavior must clear keys explicitly
+ *   in `onDeactivation`. See COMPOSITION-GUIDE-GRAPH §20.
  */
 export interface FnCtx {
 	readonly prevData: readonly unknown[];
@@ -280,6 +306,46 @@ export interface NodeOptions<T = unknown> {
 	 * - `"resumeAll"`: on RESUME, replay every buffered DATA (future).
 	 */
 	pausable?: boolean | "resumeAll";
+	/**
+	 * Spec §2.5 / Lock 6.G — circular buffer of last-N **outgoing** DATA
+	 * values. When set to a positive integer `N`, the node retains the last
+	 * `N` values it actually delivered to sinks. New (late) subscribers
+	 * receive the buffer as `[[START], [DATA, v0], [DATA, v1], …, [DATA, vK-1]]`
+	 * after the START handshake — see `defaultOnSubscribe`. Replaces the
+	 * old `replay()` operator + `wrapSubscribeHook` monkey-patching pattern.
+	 *
+	 * Semantic notes:
+	 * - **Outgoing-DATA-only (post-equals).** RESOLVED entries
+	 *   (equals-substitution collapses) are NOT buffered. Pause-buffered
+	 *   DATA is NOT pushed until the RESUME drain actually dispatches it
+	 *   to sinks — the buffer reflects what subscribers observed, not
+	 *   internal cache advances mid-pause. **On RESUME drain, each
+	 *   buffered wave re-runs through `_updateState` and re-applies
+	 *   equals-substitution against the walking cache; values that
+	 *   collapse to RESOLVED on replay also collapse out of the replay
+	 *   buffer, so a sequence of identical-value mid-pause emits
+	 *   contributes 0 entries.** This is the locked "post-equals
+	 *   outgoing" semantic (QA D6, Phase 13.6.B QA pass).
+	 * - **INVALIDATE preserves history.** INVALIDATE clears `_cached` and
+	 *   sets status to `"sentinel"` but does NOT touch the replay buffer:
+	 *   a late subscriber arriving post-INVALIDATE still receives the
+	 *   prior emission history. The buffer represents "values this node
+	 *   actually emitted", which an INVALIDATE doesn't retroactively erase.
+	 * - **Lifecycle reset clears.** TEARDOWN (`_deactivate`) and
+	 *   terminal-resubscribable lifecycle reset (`_resetForFreshLifecycle`)
+	 *   both null the buffer — matches the TLA+ model's
+	 *   `replaySnapshot' = <<>>` clear in `Resubscribe` (formal model
+	 *   batch 6 G).
+	 * - **Late-subscribe priority.** When the buffer has entries,
+	 *   `defaultOnSubscribe` delivers them INSTEAD of the cache-DATA push
+	 *   (the buffer's most-recent entry equals `_cached` at quiescence).
+	 *   When the buffer is empty (e.g. node has `initial:` but never
+	 *   emitted, or post-resubscribable-reset), the legacy cache-DATA
+	 *   push still fires.
+	 *
+	 * `0` / absent / non-positive values disable the buffer entirely.
+	 */
+	replayBuffer?: number;
 	guard?: NodeGuard;
 	versioning?: VersioningLevel;
 	versioningId?: string;
@@ -454,6 +520,15 @@ const defaultOnMessage: OnMessageHandler = (
  * value exists. Terminal nodes skip entirely so absence of START tells the
  * sink the stream is over (spec §2.2). Delivered through `downWithBatch` so
  * `subscribe()` inside `batch()` still defers the paired DATA correctly.
+ *
+ * Lock 6.G (spec §2.5): when `replayBuffer: N` is set and the buffer has
+ * entries, the buffer is delivered INSTEAD of the cache-DATA push (the
+ * buffer's most-recent entry equals `_cached` at quiescence — appending
+ * cache afterward would duplicate). When the buffer is empty (e.g. node
+ * has `initial:` but never emitted, or post-resubscribable-reset), the
+ * legacy cache-DATA push still fires. INVALIDATE clears `_cached` but
+ * NOT `_replayBuffer` — a late subscriber arriving post-INVALIDATE
+ * receives the prior emission history.
  */
 const defaultOnSubscribe: OnSubscribeHandler = (
 	node: NodeCtx,
@@ -464,8 +539,19 @@ const defaultOnSubscribe: OnSubscribeHandler = (
 	const impl = node as NodeImpl;
 	if (impl._status === "completed" || impl._status === "errored") return;
 	const cached = impl._cached;
-	const initial: Message[] =
-		cached === undefined ? [START_MSG] : [START_MSG, [DATA, cached] as Message];
+	const replayBuf = impl._replayBuffer;
+	const initial: Message[] = [START_MSG];
+	if (replayBuf != null && replayBuf.length > 0) {
+		// Replay buffer authoritative — its last entry mirrors `_cached`
+		// at quiescence, so we do NOT also push the cache-DATA frame.
+		// Post-INVALIDATE the buffer persists while `_cached` is cleared;
+		// a late subscriber still receives the prior history per spec
+		// §2.5 ("last N outgoing DATA values").
+		for (const v of replayBuf) initial.push([DATA, v] as Message);
+	} else if (cached !== undefined) {
+		// Buffer disabled or empty — legacy push-on-subscribe.
+		initial.push([DATA, cached] as Message);
+	}
 	// When the node is mid-wave (`"dirty"`), append a DIRTY so the late
 	// joiner participates in the in-flight wave. Without this, the next
 	// DATA/RESOLVED the sink receives lacks the preceding DIRTY required
@@ -667,6 +753,27 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	_equalsErrorLogged = false;
 
+	// --- Lock 6.G: replayBuffer (spec §2.5) ---
+	/**
+	 * Circular buffer of last-N **outgoing** DATA values for late-subscriber
+	 * catch-up. `null` when the option is unset or disabled (capacity 0).
+	 * Allocated lazily on first push so nodes that never emit DATA pay no
+	 * allocation cost. See `NodeOptions.replayBuffer` for full semantics.
+	 *
+	 * Cleared by `_deactivate` (TEARDOWN, last-unsub) and
+	 * `_resetForFreshLifecycle` (terminal-resubscribable reset). NOT cleared
+	 * by INVALIDATE on a non-terminal node — a late subscriber arriving
+	 * post-INVALIDATE still receives the prior emission history.
+	 */
+	_replayBuffer: T[] | null = null;
+	/**
+	 * Cap for `_replayBuffer`. Frozen at construction from
+	 * `opts.replayBuffer ?? 0`. `0` means the feature is disabled — push
+	 * site short-circuits and `defaultOnSubscribe` falls back to the
+	 * legacy cache-DATA handshake.
+	 */
+	readonly _replayBufferCapacity: number;
+
 	// --- Options (frozen at construction) ---
 	readonly _fn: NodeFn | undefined;
 	readonly _equals: (a: T, b: T) => boolean;
@@ -735,6 +842,15 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._autoComplete = opts.completeWhenDepsComplete ?? true;
 		this._autoError = opts.errorWhenDepsError ?? true;
 		this._pausable = opts.pausable ?? true;
+		// Lock 6.G (spec §2.5): clamp to a non-negative integer. Negative /
+		// fractional / NaN / Infinity all collapse to `0` (disabled). The
+		// push site short-circuits on capacity 0, so the field doubles as
+		// the on/off switch.
+		const replayCapRaw = opts.replayBuffer;
+		this._replayBufferCapacity =
+			typeof replayCapRaw === "number" && Number.isFinite(replayCapRaw) && replayCapRaw > 0
+				? Math.floor(replayCapRaw)
+				: 0;
 		this._guard = opts.guard;
 		this._fn = fn;
 		// Spec §2.7 first-run gate. Default `false` = gate ON — matches the
@@ -1223,11 +1339,45 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * stay attached; existing dep subscriptions stay live; pending cleanup
 	 * (e.g. an `invalidate?` hook on object-form cleanup) fires through the
 	 * caller's normal path after this returns.
+	 *
+	 * Phase 13.6.B QA D1 — fires `onResubscribableReset` (named-hook only)
+	 * on the active cleanup BEFORE clearing internal state. This is the
+	 * lifecycle hook for one-shot store-flag operators (`frozenContext`,
+	 * `take`, `last` etc.) that need to clear their flag whenever the
+	 * node enters a fresh lifecycle, even when `_deactivate` did not run
+	 * (multi-sub-stayed case). The hook fires AT MOST once per reset —
+	 * it's nulled out after firing so a follow-up `_deactivate` on the
+	 * same lifecycle instance doesn't re-fire it.
 	 */
 	private _resetForFreshLifecycle(): void {
+		// QA D1: fire `onResubscribableReset` BEFORE clearing internal
+		// state so the user hook sees a coherent pre-reset world (e.g.,
+		// `_cached` still populated for any "I am being torn down with
+		// value V" introspection). Function-shorthand cleanup form is
+		// NOT fired here — that shape conflates rerun / deactivation /
+		// invalidate and would overfire on a lifecycle reset boundary.
+		// Only the named-hook `onResubscribableReset` slot fires.
+		const c = this._cleanup;
+		if (c != null && typeof c !== "function") {
+			const hook = c.onResubscribableReset;
+			if (typeof hook === "function") {
+				c.onResubscribableReset = undefined;
+				try {
+					hook();
+				} catch {
+					/* best-effort — instrumentation must not break the data plane */
+				}
+			}
+		}
 		this._cached = undefined;
 		this._status = "sentinel";
-		this._store = {};
+		// Lock 6.D (Phase 13.6.B): `ctx.store` PRESERVES across lifecycle
+		// boundaries by default. Operators that depend on per-lifecycle
+		// reset (`take(n)` restart-from-zero, `scan` restart-from-seed,
+		// per-stream parser buffers) clear via `onDeactivation` (last-
+		// sink-detach / TEARDOWN) AND/OR `onResubscribableReset`
+		// (multi-sub-stayed terminal-resubscribable boundary, fired
+		// from this method above). See G.20 in COMPOSITION-GUIDE-GRAPH.
 		this._hasCalledFnOnce = false;
 		this._waveHasNewData = false;
 		this._hasNewTerminal = false;
@@ -1253,6 +1403,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._pauseStartNs = undefined;
 		this._pauseDroppedCount = 0;
 		this._pauseOverflowed = false;
+		// Lock 6.G (spec §2.5): terminal-resubscribable lifecycle reset
+		// drops replay history. The next subscription cycle starts fresh —
+		// matches the TLA+ model's `replaySnapshot' = <<>>` clear in
+		// `Resubscribe` (formal model batch 6 G).
+		this._replayBuffer = null;
 		for (const d of this._deps) resetDepRecord(d);
 		// Defensive invariant: the first-run gate (§2.7) assumes
 		// `_hasCalledFnOnce === false` above AND every DepRecord in
@@ -1508,7 +1663,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			resetDepRecord(d);
 		}
 
-		// Clear wave + store state.
+		// Clear wave state.
 		this._waveHasNewData = false;
 		this._hasNewTerminal = false;
 		this._waveHasInvalidate = false;
@@ -1517,7 +1672,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._pendingWave = false;
 		this._pendingRerun = false;
 		this._rerunDepth = 0;
-		this._store = {};
+		// Lock 6.D (Phase 13.6.B): `ctx.store` is NO LONGER wiped on
+		// deactivation. Preserve-across-deactivation is the new default
+		// (G.20 flip). Operators requiring auto-wipe (`take(n)`, `scan`,
+		// `pairwise`, parser-state operators, etc.) must explicitly clear
+		// in `onDeactivation`. The cleanup-hook firing path above (in
+		// `_deactivate`) gives them the hook; the store is left
+		// untouched here so user-installed `onDeactivation` runs first
+		// and decides what (if anything) to wipe.
 		// A3 counter reset with DepRecord bulk-reset.
 		this._dirtyDepCount = 0;
 		// DS-13.5.A Q16 idempotency: clear `_teardownDone` so a resubscribable
@@ -1542,6 +1704,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._pauseStartNs = undefined;
 		this._pauseDroppedCount = 0;
 		this._pauseOverflowed = false;
+		// Lock 6.G (spec §2.5): TEARDOWN / last-sink-detach is a hard
+		// reset — drop the replay history so a resubscribable node
+		// coming back into a fresh lifecycle doesn't ship pre-teardown
+		// values to its new subscribers. Mirrors `_pauseBuffer` clear
+		// above and the formal-model `replaySnapshot' = <<>>` clear in
+		// `Resubscribe` (TLA+ batch 6 G).
+		this._replayBuffer = null;
 
 		// ROM/RAM: compute nodes clear cache; pure state nodes preserve it.
 		if (this._fn != null) {
@@ -1976,11 +2145,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					onRerun?: unknown;
 					onDeactivation?: unknown;
 					onInvalidate?: unknown;
+					onResubscribableReset?: unknown;
 				};
 				if (
 					typeof o.onRerun === "function" ||
 					typeof o.onDeactivation === "function" ||
-					typeof o.onInvalidate === "function"
+					typeof o.onInvalidate === "function" ||
+					typeof o.onResubscribableReset === "function"
 				) {
 					this._cleanup = result as NodeFnCleanup;
 				}
@@ -2518,6 +2689,18 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					this._dispatchOrAccumulate(immediate);
 				}
 			} else {
+				// Lock 6.G (spec §2.5): push outgoing DATA into the replay
+				// buffer at the dispatch point — NOT inside `_updateState`.
+				// Reasoning: the spec mandates "last N **outgoing** DATA",
+				// i.e. values subscribers actually observed. Pushing inside
+				// `_updateState` would (a) count cache-advances mid-pause
+				// (which never reach sinks) and (b) re-push during RESUME
+				// drain when buffered waves are replayed through `_emit`
+				// and re-walk the cache. Both would corrupt the
+				// "values-seen" semantic. Pause-buffered tier-3 traffic
+				// reaches this branch only after RESUME drain dispatches
+				// it, at which point it gets pushed correctly.
+				this._pushReplayBuffer(finalMessages);
 				this._dispatchOrAccumulate(finalMessages);
 			}
 		}
@@ -2610,7 +2793,6 @@ export class NodeImpl<T = unknown> implements Node<T> {
 							if (this._config.equalsThrowPolicy === "log-and-continue") {
 								if (!this._equalsErrorLogged) {
 									this._equalsErrorLogged = true;
-									// biome-ignore lint/suspicious/noConsole: documented diagnostic per Lock 2.A.
 									console.error(
 										`Node "${this.name ?? "<unnamed>"}": equals threw — falling back to verbatim emit. ` +
 											"Subsequent equals throws on this node will be silently ignored. " +
@@ -2808,6 +2990,31 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				? ((rewritten ?? (messages.slice(0, abortedAt) as Messages)) as Messages)
 				: (rewritten ?? messages);
 		return equalsError != null ? { finalMessages: base, equalsError } : { finalMessages: base };
+	}
+
+	/**
+	 * @internal Lock 6.G (spec §2.5) — append outgoing DATA payloads from
+	 * `finalMessages` into `_replayBuffer`, dropping oldest on overflow.
+	 * No-op when `_replayBufferCapacity === 0`. RESOLVED entries are NOT
+	 * pushed (only DATA), per spec.
+	 *
+	 * Allocates the buffer lazily on first push so unused-buffer nodes
+	 * (the common case) pay no per-instance allocation cost.
+	 */
+	private _pushReplayBuffer(finalMessages: Messages): void {
+		if (this._replayBufferCapacity === 0) return;
+		for (const m of finalMessages) {
+			if (m[0] !== DATA || m.length < 2) continue;
+			if (this._replayBuffer == null) this._replayBuffer = [];
+			this._replayBuffer.push(m[1] as T);
+			// Drop-oldest on overflow. `shift()` is O(N) but N is the
+			// configured capacity (typical 1–50); for larger N a true ring
+			// buffer with head/tail pointers would beat this — flag in
+			// optimizations.md if a workload demands it.
+			if (this._replayBuffer.length > this._replayBufferCapacity) {
+				this._replayBuffer.shift();
+			}
+		}
 	}
 
 	private _deliverToSinks = (messages: Messages): void => {

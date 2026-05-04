@@ -3456,8 +3456,9 @@ const invariant53WindowCount: Invariant = {
 // (`pendingExtraDelivery`) has no runtime analogue. The runtime's
 // `_deliverToSinks` iterates sinks synchronously over a single shared
 // `messages` reference, so mid-iteration drift is not a representable state.
-// TLC #20 / #22 / #23 are also skipped pending runtime features (§2.5
-// `replayBuffer`, §2.3 meta TEARDOWN) that aren't implemented today.
+// TLC #20 / #22 / #23 are also skipped pending runtime features (§2.3 meta
+// TEARDOWN). §2.5 `replayBuffer` shipped in Phase 13.6.B B6 (Lock 6.G); the
+// TLC #20 / #23 mirrors are tracked separately in `docs/optimizations.md`.
 // ---------------------------------------------------------------------------
 
 interface CleanupWitnessEntry {
@@ -4854,7 +4855,10 @@ const invariant71ChangesetTopologyLifecycle: Invariant = {
 //   `_deliverToSinks` iterates sinks synchronously over a single shared
 //   `messages` reference; there is no mid-iteration pending queue to sweep.
 // - TLC #20 `ReplayBufferBounded` / #23 `LateSubscriberReceivesReplay` —
-//   §2.5 `replayBuffer: N` is not implemented in the TS runtime yet.
+//   §2.5 `replayBuffer: N` shipped in Phase 13.6.B B6 (Lock 6.G). The
+//   property-test mirrors of these TLC invariants haven't been ported yet;
+//   audit-sweep coverage lives in `phase-13-6-b6.test.ts`. Mirror port
+//   tracked under "Remaining rigor-infra follow-ons" in docs/optimizations.md.
 // - TLC #22 `MetaTeardownObservedPreReset` — §2.3 meta companion TEARDOWN
 //   tier-5 modeling is not in the TS runtime.
 // - TLC #28 `TerminatedImpliesBatchIdle` — TLA+ models `batchActive` as a

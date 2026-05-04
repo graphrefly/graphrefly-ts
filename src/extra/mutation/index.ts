@@ -177,6 +177,33 @@ export type MutationOpts<TArgs extends readonly unknown[], TResult, R extends Ba
 	seq?: Node<number>;
 	/** Optional handler version — stamped into the record (Audit 5). */
 	handlerVersion?: { id: string; version: string | number };
+	/**
+	 * Lock 4.B (A) (Phase 13.6.B B9) — explicit compensation hook for
+	 * closure-state mutations that the framework can't auto-rollback.
+	 *
+	 * `wrapMutation`'s `batch()` frame rolls back reactive state (cursors,
+	 * cache writes, log appends) on throw. Closure-state mutations
+	 * (`myMap.set(...)`, `counter++` in a closure) live outside the
+	 * reactive substrate — when the action throws partway, they leave
+	 * inconsistent state behind.
+	 *
+	 * Pass `compensate` to undo bespoke closure mutations. Fired exactly
+	 * once when the action throws, AFTER the batch's reactive rollback,
+	 * BEFORE the audit `onFailure` builder. A throw inside `compensate`
+	 * is logged via `console.error` but does not mask the original
+	 * action error (best-effort cleanup).
+	 *
+	 * Two complementary mechanisms tracked under Lock 4.B:
+	 * - (B) `registerMutable(node, value)` — opt-in auto-snapshot for
+	 *   common collections. **Not yet implemented**, see
+	 *   `docs/optimizations.md`.
+	 * - (C) Dev-mode Proxy detection of unregistered mutations. **Not
+	 *   yet implemented**, see `docs/optimizations.md`.
+	 *
+	 * **Provisional design** — revisit at Rust-port boundary; Rust's
+	 * ownership + `Drop` may obviate parts (A)/(B)/(C).
+	 */
+	compensate?: () => void;
 };
 
 export type WrapMutationOpts<
@@ -414,6 +441,34 @@ export function wrapMutation<TArgs extends readonly unknown[], TResult, R extend
 			// inner try (e.g. framework-level batch error before action ran).
 			// Re-throw the actual `outerErr` so the original isn't masked as
 			// `undefined`.
+			//
+			// Lock 4.B (A) (Phase 13.6.B B9): fire `compensate` AFTER the batch's
+			// reactive rollback (already done by re-throwing through the batch
+			// frame above) but BEFORE building the audit failure record. A
+			// throw inside `compensate` is logged but does not mask the
+			// original error.
+			//
+			// QA P2: gate on `captureSet` — `compensate` is documented as
+			// "fired exactly once when the action throws." If `captureSet ===
+			// false` the throw came from outside the inner try (framework-
+			// level batch-frame error before `action()` ran, e.g. `bumpCursor`
+			// rejecting a corrupt cursor cache). Firing compensate there
+			// would undo state the action never wrote — risking double-undo
+			// or throws inside the user's compensation that assume prior
+			// writes. Mirrors the existing `appendAudit` gate on the next
+			// branch.
+			if (captureSet && opts.compensate) {
+				try {
+					opts.compensate();
+				} catch (compErr) {
+					console.error(
+						`wrapMutation: compensate hook threw — original action error preserved (${
+							captured instanceof Error ? captured.name : typeof captured
+						}). Compensate error:`,
+						compErr,
+					);
+				}
+			}
 			if (captureSet && opts.audit && opts.onFailure) {
 				const errorType = captured instanceof Error ? captured.name : typeof captured;
 				appendAudit<TArgs, unknown, R, FailureMeta>(

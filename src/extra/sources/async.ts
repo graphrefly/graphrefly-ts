@@ -362,9 +362,22 @@ export function forEach<T>(source: Node<T>, fn: (value: T) => void, opts?: Extra
  * @category extra
  */
 export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
+	// Lock 6.D (Phase 13.6.B): clear the accumulator buffer on
+	// deactivation so a resubscribable toArray restarts with an empty
+	// array on the next cycle — pre-flip this came for free via
+	// `_deactivate`'s store wipe.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<T[]>(
 		[source as Node],
 		(data, actions, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.buf;
+					},
+				};
+			}
 			if (!ctx.store.buf) ctx.store.buf = [];
 			const buf = ctx.store.buf as T[];
 			// Accumulate DATA first — must happen before the COMPLETE check so
@@ -379,13 +392,14 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
 			if (ctx.terminalDeps[0] === true) {
 				actions.emit([...buf]);
 				actions.down([[COMPLETE]]);
-				return;
+				return cleanup;
 			}
 			// RESOLVED wave: propagate RESOLVED. Covers first-wave case; after first
 			// call the pre-fn skip handles this automatically.
 			if (batch0 == null || batch0.length === 0) {
 				actions.down([[RESOLVED]]);
 			}
+			return cleanup;
 		},
 		{
 			describeKind: "derived",

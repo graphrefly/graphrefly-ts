@@ -323,6 +323,10 @@ function fetchBackedGoogle(opts: GoogleAdapterOptions): LLMAdapter {
 	return {
 		provider: "google",
 		model: opts.model,
+		// QA D3 (Phase 13.6.B): adapter threads `invokeOpts.signal` into
+		// every fetch / SDK call, so `withBudgetGate`'s auto-abort lands
+		// end-to-end.
+		abortCapable: true,
 
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			const model = pickModel(invokeOpts);
@@ -401,6 +405,10 @@ function sdkBackedGoogle(opts: GoogleAdapterOptions): LLMAdapter {
 	return {
 		provider: "google",
 		model: opts.model,
+		// QA D3 (Phase 13.6.B): adapter threads `invokeOpts.signal` into
+		// every fetch / SDK call, so `withBudgetGate`'s auto-abort lands
+		// end-to-end.
+		abortCapable: true,
 
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			const body = toGeminiRequest(messages, invokeOpts);

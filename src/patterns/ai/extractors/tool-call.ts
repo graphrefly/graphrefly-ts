@@ -48,16 +48,28 @@ export function toolCallExtractor(
 	accumulatedText: Node<string>,
 	opts?: { name?: string },
 ): Node<readonly ExtractedToolCall[]> {
+	// Lock 6.D (Phase 13.6.B): clear scan state on deactivation so a
+	// resubscribed extractor doesn't ship stale per-stream cursors.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<readonly ExtractedToolCall[]>(
 		[accumulatedText],
 		(batchData, actions, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.calls;
+						delete store.scanFrom;
+					},
+				};
+			}
 			const data = batchData.map((batch, i) =>
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const text = data[0];
 			if (text == null) {
 				actions.emit([]);
-				return;
+				return cleanup;
 			}
 			const accumulated = text as string;
 
@@ -130,6 +142,7 @@ export function toolCallExtractor(
 			// Always return a fresh copy so downstream never holds a live
 			// reference to ctx.store.calls.
 			actions.emit(added ? [...calls] : calls.slice());
+			return cleanup;
 		},
 		{
 			name: opts?.name ?? "tool-call-extractor",

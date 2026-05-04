@@ -379,7 +379,16 @@ export function interval(periodMs: number, opts?: ExtraOpts): Node<number> {
 			a.emit(ctx.store.n as number);
 			ctx.store.n = (ctx.store.n as number) + 1;
 		}, periodMs);
-		return () => clearInterval(id);
+		// Lock 6.D (Phase 13.6.B): clear `n` on deactivation so a
+		// resubscribable interval restarts at 0 on the next cycle.
+		// Pre-flip this came for free via `_deactivate`'s store wipe.
+		const store = ctx.store;
+		return {
+			onDeactivation: () => {
+				clearInterval(id);
+				delete store.n;
+			},
+		};
 	}, operatorOpts(opts));
 }
 

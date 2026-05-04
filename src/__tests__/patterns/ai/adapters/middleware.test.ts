@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { memoryKv } from "../../../../extra/storage-tiers.js";
 import type { LLMAdapter, LLMResponse } from "../../../../patterns/ai/adapters/core/types.js";
 import { withBreaker } from "../../../../patterns/ai/adapters/middleware/breaker.js";
@@ -20,11 +20,16 @@ import {
 
 function mockAdapter(
 	responses: readonly (LLMResponse | Error)[] = [],
+	opts?: { abortCapable?: boolean },
 ): LLMAdapter & { calls: number } {
 	let i = 0;
 	const adapter: LLMAdapter & { calls: number } = {
 		provider: "mock",
 		model: "mock-m",
+		// QA D3 (Phase 13.6.B QA pass): default `abortCapable: true` so
+		// existing tests don't trigger the wire-time warning. Tests
+		// covering the warning explicitly pass `abortCapable: false`.
+		abortCapable: opts?.abortCapable ?? true,
 		calls: 0,
 		invoke(): Promise<LLMResponse> {
 			adapter.calls += 1;
@@ -60,6 +65,79 @@ describe("withBudgetGate", () => {
 		await expect(
 			Promise.resolve(adapter.invoke([{ role: "user", content: "c" }])),
 		).rejects.toBeInstanceOf(BudgetExhaustedError);
+	});
+
+	it("QA D2: dispose() exists and is idempotent", async () => {
+		const inner = mockAdapter([okResp(), okResp()]);
+		const { adapter, budget } = withBudgetGate(inner, { caps: { calls: 5 } });
+		await Promise.resolve(adapter.invoke([{ role: "user", content: "a" }]));
+		expect(typeof budget.dispose).toBe("function");
+		// First call releases; second is a no-op.
+		expect(() => {
+			budget.dispose();
+			budget.dispose();
+		}).not.toThrow();
+	});
+
+	it("QA D2: dispose() aborts in-flight controllers", async () => {
+		// Inner adapter that hangs forever unless its signal aborts.
+		let externalAbortReason: unknown;
+		const slowInner: LLMAdapter = {
+			provider: "slow",
+			model: "slow-m",
+			abortCapable: true,
+			invoke(_messages, opts): Promise<LLMResponse> {
+				return new Promise<LLMResponse>((_resolve, reject) => {
+					if (opts?.signal != null) {
+						if (opts.signal.aborted) {
+							externalAbortReason = opts.signal.reason;
+							reject(opts.signal.reason);
+							return;
+						}
+						opts.signal.addEventListener(
+							"abort",
+							() => {
+								externalAbortReason = (opts.signal as AbortSignal).reason;
+								reject((opts.signal as AbortSignal).reason);
+							},
+							{ once: true },
+						);
+					}
+				});
+			},
+			// biome-ignore lint/correctness/useYield: throws intentionally
+			async *stream() {
+				throw new Error("stream not implemented");
+			},
+		};
+		const { adapter, budget } = withBudgetGate(slowInner, { caps: { calls: 5 } });
+		// Kick off an invoke that will hang.
+		const inflight = Promise.resolve(adapter.invoke([{ role: "user", content: "a" }]));
+		// Dispose now — should abort the in-flight controller.
+		budget.dispose();
+		// The Promise should reject with the dispose reason.
+		await expect(inflight).rejects.toBeDefined();
+		expect(externalAbortReason).toBeDefined();
+	});
+
+	it("QA D3: emits dev-mode warning when adapter does not declare abortCapable", () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const inner = mockAdapter([], { abortCapable: false });
+		const { budget } = withBudgetGate(inner, { caps: { calls: 1 } });
+		expect(warnSpy).toHaveBeenCalledTimes(1);
+		expect(warnSpy.mock.calls[0]?.[0]).toMatch(/abortCapable/);
+		expect(warnSpy.mock.calls[0]?.[0]).toMatch(/Lock 3\.C/);
+		budget.dispose();
+		warnSpy.mockRestore();
+	});
+
+	it("QA D3: no warning when adapter declares abortCapable: true", () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const inner = mockAdapter([], { abortCapable: true });
+		const { budget } = withBudgetGate(inner, { caps: { calls: 1 } });
+		expect(warnSpy).not.toHaveBeenCalled();
+		budget.dispose();
+		warnSpy.mockRestore();
 	});
 
 	it("enforces usd cap via pricingFn", async () => {

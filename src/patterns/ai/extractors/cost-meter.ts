@@ -65,16 +65,30 @@ export function costMeterExtractor(
 		estimatedTokens: 0,
 		estimated: true,
 	};
+	// Lock 6.D (Phase 13.6.B): clear per-stream counters on deactivation
+	// so a resubscribed cost meter starts at zero on the next cycle.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<CostMeterReading>(
 		[deltaTopic.latest],
 		(batchData, actions, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.chunkCount;
+						delete store.charCount;
+						delete store.usageTokens;
+						delete store.sawUsage;
+					},
+				};
+			}
 			const data = batchData.map((batch, i) =>
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const d = data[0];
 			if (d === undefined) {
 				actions.emit(ZERO);
-				return;
+				return cleanup;
 			}
 			const delta = d as StampedDelta;
 
@@ -108,6 +122,7 @@ export function costMeterExtractor(
 				estimatedTokens,
 				estimated: !store.sawUsage,
 			});
+			return cleanup;
 		},
 		{
 			name: opts?.name ?? "cost-meter",

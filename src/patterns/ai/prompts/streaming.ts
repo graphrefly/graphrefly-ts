@@ -130,9 +130,21 @@ function parseAccumulated<T>(accumulated: string, format: "text" | "json"): T | 
  * COMPOSITION-GUIDE §20 — accumulator clears on deactivation.
  */
 function makeAccumulatedText(deltaTopic: TopicGraph<StampedDelta>, name: string): Node<string> {
+	// Lock 6.D (Phase 13.6.B): clear acc on deactivation so a resubscribed
+	// accumulator starts fresh. Pre-flip this came for free via
+	// `_deactivate`'s store wipe.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<string>(
 		[deltaTopic.latest],
 		(batchData, actions, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.acc;
+					},
+				};
+			}
 			const data = batchData.map((batch, i) =>
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
@@ -140,7 +152,7 @@ function makeAccumulatedText(deltaTopic: TopicGraph<StampedDelta>, name: string)
 			const store = ctx.store as { acc?: string };
 			if (d === undefined) {
 				actions.emit(store.acc ?? "");
-				return;
+				return cleanup;
 			}
 			const delta = d as StampedDelta;
 			// `seq === 0` marks the first delta of a fresh invocation — reset
@@ -153,6 +165,7 @@ function makeAccumulatedText(deltaTopic: TopicGraph<StampedDelta>, name: string)
 				store.acc = (store.acc ?? "") + delta.delta;
 			}
 			actions.emit(store.acc ?? "");
+			return cleanup;
 		},
 		{
 			name,

@@ -307,6 +307,10 @@ function fetchBackedAnthropic(opts: AnthropicAdapterOptions): LLMAdapter {
 	return {
 		provider: "anthropic",
 		model: opts.model,
+		// QA D3 (Phase 13.6.B): adapter threads `invokeOpts.signal` into
+		// every fetch / SDK call, so `withBudgetGate`'s auto-abort lands
+		// end-to-end. Suppresses the wire-time warning.
+		abortCapable: true,
 
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			const body = toAnthropicRequest(messages, invokeOpts, opts.model, false);
@@ -415,6 +419,10 @@ function sdkBackedAnthropic(opts: AnthropicAdapterOptions): LLMAdapter {
 	return {
 		provider: "anthropic",
 		model: opts.model,
+		// QA D3 (Phase 13.6.B): adapter threads `invokeOpts.signal` into
+		// every fetch / SDK call, so `withBudgetGate`'s auto-abort lands
+		// end-to-end. Suppresses the wire-time warning.
+		abortCapable: true,
 
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			const body = toAnthropicRequest(messages, invokeOpts, opts.model, false);

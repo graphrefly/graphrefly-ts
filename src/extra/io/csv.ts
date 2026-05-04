@@ -151,15 +151,24 @@ export function csvRows(source: Node<string>, opts?: FromCSVOptions): Node<CSVRo
 		...rest
 	} = opts ?? {};
 	const parse = parseLine ?? ((line: string) => parseCSVLine(line, delimiter));
+	// Lock 6.D (Phase 13.6.B): clear parser state on deactivation so
+	// `csvRows` under retry/resubscribe patterns doesn't leak a stale
+	// half-parsed line or sticky header detection from a prior run.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<CSVRow>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.buffer;
+						delete store.headers;
+					},
+				};
+			}
 			const batch0 = data[0];
-			if (batch0 == null || batch0.length === 0) return;
-			// Parser state lives in `ctx.store` so it resets automatically on
-			// deactivation / resubscribable terminal reset (COMPOSITION-GUIDE §20).
-			// That lets the operator sit under retry / resubscribe patterns without
-			// leaking a stale half-parsed line from a previous run.
+			if (batch0 == null || batch0.length === 0) return cleanup;
 			const s = ctx.store as { buffer: string; headers: string[] | undefined };
 			if (typeof s.buffer !== "string") s.buffer = "";
 			if (s.headers === undefined && explicitColumns) s.headers = explicitColumns.slice();
@@ -180,6 +189,7 @@ export function csvRows(source: Node<string>, opts?: FromCSVOptions): Node<CSVRo
 					a.emit(row);
 				}
 			}
+			return cleanup;
 		},
 		{ describeKind: "derived", ...rest } as NodeOptions<CSVRow>,
 	);

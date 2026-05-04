@@ -694,6 +694,13 @@ export class JobFlowGraph<T> extends Graph {
 									}
 								}
 								inflight.clear();
+								// Lock 6.D (Phase 13.6.B): drop the `inflight` key
+								// so the next activation re-initializes a fresh
+								// `InflightStore` with `terminated: false`. Without
+								// this, post-flip preserve-by-default keeps the
+								// stale `terminated: true` flag and silently
+								// suppresses inflight-counter emits forever.
+								delete ctx.store.inflight;
 							},
 						};
 					},

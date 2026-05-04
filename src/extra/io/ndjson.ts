@@ -17,14 +17,22 @@ import { type ExtraOpts, sourceOpts } from "./_internal.js";
  * @category extra
  */
 export function ndjsonRows<T = unknown>(source: Node<string>, opts?: ExtraOpts): Node<T> {
+	// Lock 6.D (Phase 13.6.B): clear parser buffer on deactivation so a
+	// resubscribed operator doesn't bleed a half-line from a prior run.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<T>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.buffer;
+					},
+				};
+			}
 			const batch0 = data[0];
-			if (batch0 == null || batch0.length === 0) return;
-			// Parser buffer in `ctx.store` resets on deactivation / resubscribable
-			// reset (COMPOSITION-GUIDE §20) so resubscribing the operator starts
-			// clean rather than bleeding a half-line from a previous run.
+			if (batch0 == null || batch0.length === 0) return cleanup;
 			const s = ctx.store as { buffer: string };
 			if (typeof s.buffer !== "string") s.buffer = "";
 			for (const chunkRaw of batch0) {
@@ -37,10 +45,11 @@ export function ndjsonRows<T = unknown>(source: Node<string>, opts?: ExtraOpts):
 						a.emit(JSON.parse(line) as T);
 					} catch (err) {
 						a.down([[ERROR, err]]);
-						return;
+						return cleanup;
 					}
 				}
 			}
+			return cleanup;
 		},
 		{ describeKind: "derived", ...(opts ?? {}) } as NodeOptions<T>,
 	);

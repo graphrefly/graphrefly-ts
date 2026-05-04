@@ -770,21 +770,44 @@
 
 > `ctx.store` **persists across deactivation→reactivation** by default. Rationale: many operators legitimately want store survival (long-running counters, parser state, persistent caches), and explicit cleanup via Lock 4.A's `onDeactivation` hook is the cleaner mental model.
 >
-> **Flips the prior G.20 default** (which wiped on deactivation). Operators relying on auto-wipe must explicitly clean in `onDeactivation`:
+> **Flips the prior G.20 default** (which wiped on deactivation). Operators relying on auto-wipe must explicitly clean in `onDeactivation`. **Capture `ctx.store` at first call so the cleanup closure references the underlying `_store`** — `ctx` itself is rebuilt per fn invocation, but `ctx.store === node._store` is reference-stable for the lifetime of the activation cycle:
 > ```ts
-> return {
->   onDeactivation: () => {
->     ctx.store = {};   // restore prior auto-wipe behavior
->   }
-> };
+> // Selective key clear — preferred
+> let cleanup: { onDeactivation: () => void } | undefined;
+> return node<T>(
+>   [src],
+>   (data, a, ctx) => {
+>     if (cleanup === undefined) {
+>       const store = ctx.store; // capture stable reference
+>       cleanup = {
+>         onDeactivation: () => {
+>           delete store.taken;
+>           delete store.done;
+>         },
+>       };
+>     }
+>     // ...
+>     return cleanup;
+>   },
+> );
 > ```
-> Or selectively clear specific keys:
+> Or wipe every key (preserves the underlying `_store` reference; reassigning the `ctx.store` local does NOT replace `_store`, so the wipe MUST iterate keys):
 > ```ts
-> return {
->   onDeactivation: () => {
->     delete ctx.store.taken;
->     delete ctx.store.done;
->   }
+> if (cleanup === undefined) {
+>   const store = ctx.store;
+>   cleanup = {
+>     onDeactivation: () => {
+>       for (const k of Object.keys(store)) delete store[k];
+>     },
+>   };
+> }
+> ```
+>
+> **QA D1 (Phase 13.6.B QA pass) — multi-sub-stayed terminal-resubscribable case.** `onDeactivation` fires on `_deactivate` (last-sink-detach / TEARDOWN) only. The other "fresh lifecycle" path is `_resetForFreshLifecycle` (subscribe-after-terminal-resubscribable; INVALIDATE on a terminal-resubscribable). For one-shot store-flag operators (`frozenContext.emitted`, `take.completed`, etc.) that need to clear their flag whenever the node enters a fresh lifecycle, also install **`onResubscribableReset`** to cover the multi-sub-stayed case where `_deactivate` never runs:
+> ```ts
+> cleanup = {
+>   onDeactivation: () => { delete store.emitted; },
+>   onResubscribableReset: () => { delete store.emitted; },
 > };
 > ```
 >

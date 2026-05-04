@@ -87,9 +87,27 @@ export function frozenContext<T>(
 				// latch so the next fn re-run captures a fresh snapshot.
 				// Without this, INVALIDATE clears the cache but the latch stays
 				// armed, so subscribers stay on the cleared (null) state forever.
+				//
+				// Lock 6.D (Phase 13.6.B): clear `emitted` on deactivation —
+				// the pre-flip auto-wipe handled this implicitly.
+				//
+				// QA D1 (Phase 13.6.B QA pass): `onResubscribableReset` covers
+				// the multi-sub-stayed terminal-resubscribable path where
+				// `_deactivate` does NOT run but the lifecycle reset still
+				// needs to clear the latch. Without this slot, a sibling sink
+				// that keeps the node alive past terminal would pin
+				// `emitted === true` into the next subscription cycle and
+				// suppress every future emission.
+				const store = ctx.store;
 				return {
 					onInvalidate: () => {
-						ctx.store.emitted = false;
+						store.emitted = false;
+					},
+					onDeactivation: () => {
+						delete store.emitted;
+					},
+					onResubscribableReset: () => {
+						delete store.emitted;
 					},
 				};
 			},

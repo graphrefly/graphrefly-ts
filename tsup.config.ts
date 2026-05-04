@@ -103,6 +103,9 @@ async function restoreNodePrefix(dir: string): Promise<void> {
 const ENTRY_POINTS = [
 	"src/index.ts",
 	"src/core/index.ts",
+	// Phase 13.6.B B9 (Lock 3.B): public testing utilities subpath —
+	// browser-safe by default; consumers add to their test runner only.
+	"src/testing/index.ts",
 	"src/extra/index.ts",
 	"src/extra/node.ts",
 	"src/extra/browser.ts",

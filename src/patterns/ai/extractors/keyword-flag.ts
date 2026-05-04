@@ -86,16 +86,28 @@ export function keywordFlagExtractor(
 		pattern: p.pattern,
 		compiled: new RegExp(p.pattern.source, `${p.pattern.flags.replace("g", "")}g`),
 	}));
+	// Lock 6.D (Phase 13.6.B): clear scan state on deactivation so a
+	// resubscribed extractor doesn't carry over per-stream cursors.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<readonly KeywordFlag[]>(
 		[accumulatedText],
 		(batchData, actions, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.flags;
+						delete store.scannedTo;
+					},
+				};
+			}
 			const data = batchData.map((batch, i) =>
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const text = data[0];
 			if (text == null) {
 				actions.emit([]);
-				return;
+				return cleanup;
 			}
 			const accumulated = text as string;
 
@@ -122,6 +134,7 @@ export function keywordFlagExtractor(
 			}
 			ctx.store.scannedTo = accumulated.length;
 			actions.emit(added ? [...flags] : flags.slice());
+			return cleanup;
 		},
 		{
 			name: opts.name ?? "keyword-flag-extractor",

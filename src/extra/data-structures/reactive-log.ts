@@ -5,11 +5,25 @@
  * into the public API (spec §5.12).
  *
  * **Audit 1 (2026-04-24):** Adds `view(spec)` consolidated views, `withLatest()`
- * with `meta.lastValue` / `meta.hasLatest` companion nodes, `attach(upstream)`
+ * with `meta.lastValue` companion node, `attach(upstream)`
  * for drain-from-source wiring, factory-level `mergeReactiveLogs(logs)` for
  * fan-in, `guard?` option on `entries`, and `attachStorage(tiers)` integration
  * with the Audit 4 storage layer. {@link LogBackend} gains `snapshot()` /
  * `restore()` for cold-tier load on startup.
+ *
+ * **Lock 5.A (Phase 13.6.B B8):** `T` no longer permits `undefined`. The
+ * SENTINEL family collapse retired the `T | undefined` exception that
+ * justified the `hasLatest` companion. Concrete API impact:
+ * - `lastValue` is now `Node<T>` (was `Node<T | undefined>`). `.cache`
+ *   still returns `T | undefined` at the protocol level when the log is
+ *   empty (sentinel state) — the type narrowing rules out *appending*
+ *   `undefined`, which is enforced via runtime guard in `append` /
+ *   `appendMany`.
+ * - `hasLatest` is REMOVED. Empty-vs-non-empty is unambiguous from the
+ *   wave shape: `[[RESOLVED]]` (R2 use, empty log) vs `[[DATA, v]]`
+ *   (non-empty). Callers that need a boolean reactively should derive
+ *   from `entries.length > 0`.
+ * - `append(undefined as T)` throws — same applies to `appendMany`.
  */
 import { batch } from "../../core/batch.js";
 import type { NodeGuard } from "../../core/guard.js";
@@ -65,9 +79,9 @@ export type ReactiveLogBundle<T> = {
 	/** Remove the first `n` entries (clamped to `size`). */
 	trimHead: (n: number) => void;
 	/**
-	 * Activate the {@link ReactiveLogBundle.lastValue} / {@link ReactiveLogBundle.hasLatest}
-	 * companion nodes (lazy — installed on first call, reused thereafter).
-	 * Returns `entries` so chaining reads naturally.
+	 * Activate the {@link ReactiveLogBundle.lastValue} companion node (lazy —
+	 * installed on first call, reused thereafter). Returns `entries` so
+	 * chaining reads naturally.
 	 *
 	 * **Companion-node access is on the bundle** (not `entries.meta`) because
 	 * `Node.meta` is frozen at construction; bundle-level lazy properties
@@ -75,25 +89,24 @@ export type ReactiveLogBundle<T> = {
 	 */
 	withLatest: () => Node<readonly T[]>;
 	/**
-	 * Most-recently-appended value, or `undefined` if no entries exist (spec
-	 * §5.12 SENTINEL alignment). Accessing this property activates the
+	 * Most-recently-appended value. Accessing this property activates the
 	 * companion lazily — same as calling {@link ReactiveLogBundle.withLatest}.
 	 *
 	 * **Empty-log path emits `RESOLVED`, not `DATA(undefined)`.** When the log
-	 * holds no entries, `lastValue` settles via `[[RESOLVED]]` so the §1.2
-	 * "DATA(undefined) is not a valid emission" invariant stands.
+	 * holds no entries, `lastValue` settles via `[[RESOLVED]]` (R2 dual-role
+	 * — wave settled, no value to advertise). The §1.2 "DATA(undefined) is
+	 * not a valid emission" invariant stands.
 	 *
-	 * **Caveat when `T` itself includes `undefined`:** if a literal `undefined`
-	 * value is appended, `lastValue` emits `[[DATA, undefined]]` for that
-	 * append wave — the per-value semantics are intentionally preserved so
-	 * subscribers can observe the transition. Use
-	 * {@link ReactiveLogBundle.hasLatest} to disambiguate "no entries yet"
-	 * from "an undefined value was appended"; `lastValue.cache` alone cannot
-	 * tell them apart.
+	 * **Lock 5.A (Phase 13.6.B B8):** `T` excludes `undefined`. Empty-vs-
+	 * non-empty distinguishes from the wave shape — RESOLVED for empty,
+	 * DATA(value) for non-empty. The pre-Lock-5.A `hasLatest` companion
+	 * was retired because the dual-role RESOLVED already disambiguates.
+	 *
+	 * Note: `.cache` may still return `undefined` when the log is empty
+	 * (sentinel state) — that's the protocol-level "never sent" signal,
+	 * not a valid `T` payload.
 	 */
-	readonly lastValue: Node<T | undefined>;
-	/** Reactive `true` once at least one entry has been appended. */
-	readonly hasLatest: Node<boolean>;
+	readonly lastValue: Node<T>;
 	/**
 	 * Reactive view per discriminated `ViewSpec`. Memoized per-spec — repeat
 	 * calls with identical spec return the same node.
@@ -512,15 +525,16 @@ export function reactiveLog<T>(
 	}
 
 	// withLatest companion activation (lazy, idempotent)
-	let lastValueCached: Node<T | undefined> | undefined;
-	let hasLatestCached: Node<boolean> | undefined;
+	let lastValueCached: Node<T> | undefined;
 	function activateMeta(): void {
 		if (lastValueCached !== undefined) return;
 		// M1: emit RESOLVED instead of DATA(undefined) when log is empty —
 		// `[[DATA, undefined]]` is a §1.2 protocol violation. Empty log
 		// means "nothing to advertise as latest", which is the RESOLVED
-		// semantic: this wave settled, no value change.
-		lastValueCached = node<T | undefined>(
+		// semantic: this wave settled, no value change. Lock 5.A retired
+		// the `hasLatest` companion in favor of the wave-shape disambiguation
+		// (RESOLVED = empty, DATA(v) = non-empty).
+		lastValueCached = node<T>(
 			[entries],
 			(batchData, actions, ctx) => {
 				const batch0 = batchData[0];
@@ -535,24 +549,13 @@ export function reactiveLog<T>(
 			{
 				name: name != null ? `${name}::lastValue` : "lastValue",
 				describeKind: "derived",
-				initial: backend.size === 0 ? undefined : (backend.at(backend.size - 1) as T),
-			},
-		);
-		hasLatestCached = node<boolean>(
-			[entries],
-			(batchData, actions, ctx) => {
-				const batch0 = batchData[0];
-				const s = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
-				actions.emit((s as readonly T[]).length > 0);
-			},
-			{
-				name: name != null ? `${name}::hasLatest` : "hasLatest",
-				describeKind: "derived",
-				initial: backend.size > 0,
+				// `initial` is `T | null` per `NodeOptions.initial` typing —
+				// when the log is empty we leave it absent (sentinel state)
+				// rather than fabricating a value.
+				...(backend.size === 0 ? {} : { initial: backend.at(backend.size - 1) as T }),
 			},
 		);
 		keepaliveDerived(lastValueCached);
-		keepaliveDerived(hasLatestCached);
 	}
 
 	const bundle: ReactiveLogBundle<T> = {
@@ -567,11 +570,29 @@ export function reactiveLog<T>(
 		},
 
 		append(value: T): void {
+			// Lock 5.A (Phase 13.6.B B8): `T` excludes `undefined`. A literal
+			// `undefined` would corrupt the empty-vs-non-empty wave-shape
+			// disambiguation that replaced the retired `hasLatest` companion.
+			if (value === undefined) {
+				throw new TypeError(
+					"reactiveLog.append(undefined) — `T` excludes undefined per Lock 5.A. " +
+						"Use `T | null` for an explicit null payload.",
+				);
+			}
 			wrapMutation(() => backend.append(value));
 		},
 
 		appendMany(values: readonly T[]): void {
 			if (values.length === 0) return;
+			// Lock 5.A: same `undefined` rejection at the bulk path.
+			for (let i = 0; i < values.length; i++) {
+				if (values[i] === undefined) {
+					throw new TypeError(
+						`reactiveLog.appendMany — values[${i}] is undefined; \`T\` excludes ` +
+							"undefined per Lock 5.A. Use `T | null` for explicit null payloads.",
+					);
+				}
+			}
 			wrapMutation(() => backend.appendMany(values));
 		},
 
@@ -588,14 +609,9 @@ export function reactiveLog<T>(
 			return entries;
 		},
 
-		get lastValue(): Node<T | undefined> {
+		get lastValue(): Node<T> {
 			activateMeta();
 			return lastValueCached!;
-		},
-
-		get hasLatest(): Node<boolean> {
-			activateMeta();
-			return hasLatestCached!;
 		},
 
 		view(spec): Node<readonly T[]> {

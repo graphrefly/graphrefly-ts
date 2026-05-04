@@ -111,6 +111,47 @@ export function jsonCodecFor<T>(): Codec<T> {
 // ── Layer 2 — Tier specializations ────────────────────────────────────────
 
 /**
+ * Lock 4.D (Phase 13.6.B B8) — canonical default values that every tier
+ * implementation honors when its corresponding option is omitted. Single
+ * source of truth so the COMPOSITION-GUIDE-GRAPH §27 defaults table doesn't
+ * drift from runtime behavior.
+ *
+ * Per-tier sub-rules describe **deviations** from these defaults; common
+ * behavior is described once here.
+ *
+ * - `debounceMs: 0` — sync-through flush at wave close. Set `>0` to batch
+ *   writes across a debounce window.
+ * - `compactEvery: undefined` — no forced flush cap (Lock 6.E). When set
+ *   to a positive integer N, the tier dispatches `flush()` every Nth
+ *   accepted write regardless of the debounce timer. Useful as a uniform
+ *   overflow guard on debounced tiers.
+ * - `filter: undefined` — save everything (snapshot / kv tiers only;
+ *   append-log tiers skip filtering).
+ * - `codec: jsonCodec` — built-in JSON codec; replaceable via tier opts
+ *   for binary / dag-cbor / zstd combinations.
+ * - `keyOf: undefined` — primitive-default key resolution per tier
+ *   (snapshot uses `() => name ?? "snapshot"`; append-log uses `() => name
+ *   ?? "append-log"`; kv tiers use the entry's natural key).
+ *
+ * Per-tier transaction model + atomicity (Lock 2.D) apply uniformly:
+ * each tier owns its own transaction; cross-tier atomicity is
+ * best-effort.
+ */
+export const defaultTierOpts = Object.freeze({
+	debounceMs: 0,
+	compactEvery: undefined as number | undefined,
+	filter: undefined as ((value: unknown) => boolean) | undefined,
+	codec: jsonCodec,
+	keyOf: undefined as ((value: unknown) => string) | undefined,
+}) as Readonly<{
+	debounceMs: number;
+	compactEvery: number | undefined;
+	filter: ((value: unknown) => boolean) | undefined;
+	codec: Codec<unknown>;
+	keyOf: ((value: unknown) => string) | undefined;
+}>;
+
+/**
  * Common tier surface: name + cadence knobs + transaction lifecycle.
  *
  * Lifecycle hooks (`flush` / `rollback`) implement Audit 4's "one wave = one
@@ -121,13 +162,22 @@ export function jsonCodecFor<T>(): Codec<T> {
  *    `tier.rollback()` if exposed — pending writes discarded.
  *  - Cross-tier atomicity is best-effort. Each tier is its own transaction.
  *
+ * Defaults: see {@link defaultTierOpts} (Lock 4.D / 6.E).
+ *
  * @category extra
  */
 export interface BaseStorageTier {
 	readonly name: string;
-	/** Debounce window (ms). `0` = sync-through; >0 batches across waves. */
+	/**
+	 * Debounce window (ms). `0` = sync-through (default per
+	 * {@link defaultTierOpts}); `>0` batches across waves.
+	 */
 	readonly debounceMs?: number;
-	/** Force flush every Nth write regardless of debounce. */
+	/**
+	 * Force flush every Nth write regardless of debounce. `undefined`
+	 * (default per {@link defaultTierOpts}) = no cap. Lock 6.E uniform
+	 * overflow guard for debounced tiers.
+	 */
 	readonly compactEvery?: number;
 	/** Commit pending; framework calls at wave-close / debounce-fire. */
 	flush?(): Promise<void>;

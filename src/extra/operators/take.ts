@@ -31,12 +31,26 @@ import { filter } from "./transform.js";
  */
 export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
 	if (count <= 0) {
+		// Lock 6.D (Phase 13.6.B): `ctx.store` no longer auto-wipes on
+		// deactivation. `take` semantically restarts on resubscribe, so
+		// install an `onDeactivation` cleanup that clears the
+		// `completed` flag.
+		let cleanup: { onDeactivation: () => void } | undefined;
 		return node<T>(
 			[source as Node],
 			(_d, a, ctx) => {
-				if (ctx.store.completed) return;
+				if (cleanup === undefined) {
+					const store = ctx.store;
+					cleanup = {
+						onDeactivation: () => {
+							delete store.completed;
+						},
+					};
+				}
+				if (ctx.store.completed) return cleanup;
 				ctx.store.completed = true;
 				a.down([[COMPLETE]]);
+				return cleanup;
 			},
 			{
 				...operatorOpts(opts),
@@ -45,24 +59,36 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 			},
 		);
 	}
+	// Lock 6.D: restart-from-zero semantic — clear `taken` / `done` on
+	// deactivation so a resubscribable `take(n)` cycle starts fresh.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<T>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.taken;
+						delete store.done;
+					},
+				};
+			}
 			if (!("taken" in ctx.store)) ctx.store.taken = 0;
 			if (ctx.store.done) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			// Upstream COMPLETE before count reached → forward COMPLETE.
 			if (ctx.terminalDeps[0] === true) {
 				ctx.store.done = true;
 				a.down([[COMPLETE]]);
-				return;
+				return cleanup;
 			}
 			const batch0 = data[0];
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			// DATA wave: iterate full batch, stop at count
 			for (const v of batch0) {
@@ -71,9 +97,10 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 				if ((ctx.store.taken as number) >= count) {
 					ctx.store.done = true;
 					a.down([[COMPLETE]]);
-					return;
+					return cleanup;
 				}
 			}
+			return cleanup;
 		},
 		{
 			...operatorOpts(opts),
@@ -101,15 +128,26 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
  * @category extra
  */
 export function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
+	// Lock 6.D: clear skip counter on deactivation so resubscribe starts
+	// over at zero (skip-window applies again on re-attach).
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<T>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.skipped;
+					},
+				};
+			}
 			if (!("skipped" in ctx.store)) ctx.store.skipped = 0;
 			const batch0 = data[0];
 			if (batch0 == null || batch0.length === 0) {
 				// RESOLVED wave — pass through
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			let emitted = false;
 			for (const v of batch0) {
@@ -122,6 +160,7 @@ export function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 				}
 			}
 			if (!emitted) a.down([[RESOLVED]]);
+			return cleanup;
 		},
 		operatorOpts(opts),
 	);
@@ -149,26 +188,38 @@ export function takeWhile<T>(
 	predicate: (value: T) => boolean,
 	opts?: ExtraOpts,
 ): Node<T> {
+	// Lock 6.D: restart predicate-gate semantic on resubscribe — clear
+	// `done` on deactivation.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<T>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.done;
+					},
+				};
+			}
 			if (ctx.store.done) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			const batch0 = data[0];
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			for (const v of batch0) {
 				if (!predicate(v as T)) {
 					ctx.store.done = true;
 					a.down([[COMPLETE]]);
-					return;
+					return cleanup;
 				}
 				a.emit(v as T);
 			}
+			return cleanup;
 		},
 		{
 			...operatorOpts(opts),
@@ -277,9 +328,21 @@ export function first<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
 export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: T }): Node<T> {
 	const { defaultValue, ...rest } = options ?? {};
 	const useDefault = options != null && Object.hasOwn(options, "defaultValue");
+	// Lock 6.D: clear accumulated last-value on deactivation so a fresh
+	// subscription cycle doesn't ship a stale "previous run's last".
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<T>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.has;
+						delete store.latest;
+					},
+				};
+			}
 			// COMPLETE (terminal === true): emit latest or default, then COMPLETE.
 			// ERROR: autoError propagates automatically.
 			if (ctx.terminalDeps[0] === true) {
@@ -289,18 +352,19 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 					a.emit(defaultValue as T);
 				}
 				a.down([[COMPLETE]]);
-				return;
+				return cleanup;
 			}
 			const batch0 = data[0];
 			// RESOLVED wave: propagate RESOLVED. Covers first-wave case; after first
 			// call the pre-fn skip handles this automatically.
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			// DATA: accumulate latest — emit nothing until COMPLETE.
 			ctx.store.latest = batch0.at(-1) as T;
 			ctx.store.has = true;
+			return cleanup;
 		},
 		{
 			...operatorOpts(rest),

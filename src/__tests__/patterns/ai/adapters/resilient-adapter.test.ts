@@ -15,6 +15,10 @@ function mockAdapter(
 	const adapter: LLMAdapter & { calls: number } = {
 		provider: "mock",
 		model: "mock-m",
+		// QA D3 (Phase 13.6.B): suppress the budget-gate wire-time
+		// warning. Test adapters that pass through `withBudgetGate`
+		// declare `abortCapable: true` to keep test output clean.
+		abortCapable: true,
 		calls: 0,
 		invoke(): Promise<LLMResponse> {
 			adapter.calls += 1;

@@ -310,6 +310,10 @@ function fetchBackedOpenAI(opts: OpenAICompatAdapterOptions): LLMAdapter {
 	return {
 		provider,
 		model: opts.model,
+		// QA D3 (Phase 13.6.B): adapter threads `invokeOpts.signal` into
+		// every fetch / SDK call, so `withBudgetGate`'s auto-abort lands
+		// end-to-end.
+		abortCapable: true,
 
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			const body = toOpenAIRequest(messages, invokeOpts, opts.model, false, opts.bodyExtras);
@@ -405,6 +409,10 @@ function sdkBackedOpenAI(opts: OpenAICompatAdapterOptions): LLMAdapter {
 	return {
 		provider,
 		model: opts.model,
+		// QA D3 (Phase 13.6.B): adapter threads `invokeOpts.signal` into
+		// every fetch / SDK call, so `withBudgetGate`'s auto-abort lands
+		// end-to-end.
+		abortCapable: true,
 
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			const body = toOpenAIRequest(messages, invokeOpts, opts.model, false, opts.bodyExtras);

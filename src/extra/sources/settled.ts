@@ -13,7 +13,7 @@
  * - {@link reactiveCounter} — capped counter exposed as a `Node<number>`.
  */
 
-import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
+import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 
 /**
@@ -110,65 +110,123 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 export function firstWhere<T>(
 	source: Node<T>,
 	predicate: (value: T) => boolean,
-	opts?: { skipCurrent?: boolean },
+	opts?: { skipCurrent?: boolean; kick?: () => void },
 ): Promise<T> {
-	return new Promise<T>((resolve, reject) => {
-		let settled = false;
-		let shouldUnsub = false;
-		let unsub: (() => void) | undefined;
-		// Push-on-subscribe (§2.2) delivers the cached value synchronously
-		// during the subscribe() call — i.e. before `subscribe()` returns.
-		// When `skipCurrent: true`, we swallow any message batch delivered
-		// in that synchronous window so the promise only observes *future*
-		// emissions. The flag flips to `false` as soon as subscribe() returns.
-		let inInitialSyncPhase = opts?.skipCurrent === true;
-		unsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (settled) return;
-				// During the initial sync phase, swallow only cached DATA
-				// (push-on-subscribe §2.2). Terminal ERROR / COMPLETE must
-				// still reject the promise — otherwise an already-terminated
-				// source synchronously delivering `[[ERROR, ...]]` or
-				// `[[COMPLETE]]` during `subscribe()` would hang forever
-				// under `skipCurrent: true`.
-				if (inInitialSyncPhase && m[0] === DATA) continue;
-				if (m[0] === DATA) {
-					const v = m[1] as T;
-					if (predicate(v)) {
-						settled = true;
-						resolve(v);
-						if (unsub) {
-							unsub();
-							unsub = undefined;
-						} else shouldUnsub = true;
-						return;
-					}
-				}
-				if (m[0] === ERROR) {
-					settled = true;
-					reject(m[1]);
-					if (unsub) {
-						unsub();
-						unsub = undefined;
-					} else shouldUnsub = true;
-					return;
-				}
-				if (m[0] === COMPLETE) {
-					settled = true;
-					reject(new Error("completed without matching value"));
-					if (unsub) {
-						unsub();
-						unsub = undefined;
-					} else shouldUnsub = true;
+	// Lock 3.A (Phase 13.6.B): subscribe synchronously inside the function
+	// body — NOT inside the Promise executor. Subscribing inside the
+	// executor would defer the subscription past any synchronous `kick()`
+	// the caller fires after the call returns, race-losing the very wave
+	// the caller wants to observe.
+	//
+	// To bridge sync-subscribe with the async Promise contract, we record
+	// any settlement that fires *before* the Promise constructor runs, and
+	// the executor immediately resolves/rejects with the recorded value.
+	// Settlements after the executor runs go straight through resolve/reject.
+	type Pending =
+		| { kind: "data"; value: T }
+		| { kind: "error"; err: unknown }
+		| { kind: "complete" };
+	let pending: Pending | undefined;
+	let resolveFn: ((value: T) => void) | undefined;
+	let rejectFn: ((err: unknown) => void) | undefined;
+	let settled = false;
+	let shouldUnsub = false;
+	let unsub: (() => void) | undefined;
+	let inInitialSyncPhase = opts?.skipCurrent === true;
+
+	// QA P1: every settler short-circuits when `settled === true` so a
+	// later settle attempt (e.g. `kick()` throwing AFTER it synchronously
+	// fired matching DATA, OR a `[DATA matched, ERROR]` wave during
+	// push-on-subscribe) cannot overwrite an earlier `pending` outcome.
+	// Without this gate, a kick that races sink-callback settlement could
+	// reject a Promise the user already has resolved-DATA for.
+	const settleData = (v: T): void => {
+		if (settled) return;
+		settled = true;
+		if (resolveFn != null) resolveFn(v);
+		else pending = { kind: "data", value: v };
+	};
+	const settleError = (err: unknown): void => {
+		if (settled) return;
+		settled = true;
+		if (rejectFn != null) rejectFn(err);
+		else pending = { kind: "error", err };
+	};
+	const settleComplete = (): void => {
+		if (settled) return;
+		settled = true;
+		const err = new Error("completed without matching value");
+		if (rejectFn != null) rejectFn(err);
+		else pending = { kind: "complete" };
+	};
+	const detach = (): void => {
+		if (unsub) {
+			unsub();
+			unsub = undefined;
+		} else shouldUnsub = true;
+	};
+
+	const sink: (msgs: Messages) => void = (msgs) => {
+		if (settled) return;
+		for (const m of msgs) {
+			if (settled) return;
+			// During the initial sync phase, swallow only cached DATA
+			// (push-on-subscribe §2.2). Terminal ERROR / COMPLETE must
+			// still reject the promise — otherwise an already-terminated
+			// source synchronously delivering `[[ERROR, ...]]` or
+			// `[[COMPLETE]]` during `subscribe()` would hang forever
+			// under `skipCurrent: true`.
+			if (inInitialSyncPhase && m[0] === DATA) continue;
+			if (m[0] === DATA) {
+				const v = m[1] as T;
+				if (predicate(v)) {
+					settleData(v);
+					detach();
 					return;
 				}
 			}
-		});
-		inInitialSyncPhase = false;
-		if (shouldUnsub) {
-			unsub?.();
-			unsub = undefined;
+			if (m[0] === ERROR) {
+				settleError(m[1]);
+				detach();
+				return;
+			}
+			if (m[0] === COMPLETE) {
+				settleComplete();
+				detach();
+				return;
+			}
 		}
+	};
+	unsub = source.subscribe(sink);
+	inInitialSyncPhase = false;
+	// Lock 3.A: fire `kick` AFTER subscribe is in place. With sync
+	// subscribe + sync kick, the resulting wave reaches `sink` before
+	// control returns — making subscribe-before-kick ordering structurally
+	// impossible to misuse.
+	if (opts?.kick != null && !settled) {
+		try {
+			opts.kick();
+		} catch (err) {
+			settleError(err);
+			detach();
+		}
+	}
+	if (shouldUnsub) {
+		unsub?.();
+		unsub = undefined;
+	}
+
+	return new Promise<T>((resolve, reject) => {
+		// If a settlement landed synchronously before the executor runs,
+		// flush it through immediately.
+		if (pending != null) {
+			if (pending.kind === "data") resolve(pending.value);
+			else if (pending.kind === "error") reject(pending.err);
+			else reject(new Error("completed without matching value"));
+			return;
+		}
+		resolveFn = resolve;
+		rejectFn = reject;
 	});
 }
 
@@ -221,12 +279,37 @@ let _nsPerMs: number | undefined;
 
 export async function awaitSettled<T>(
 	source: Node<T>,
-	opts?: { predicate?: (value: T) => boolean; timeoutMs?: number; skipCurrent?: boolean },
+	opts?: {
+		predicate?: (value: T) => boolean;
+		timeoutMs?: number;
+		skipCurrent?: boolean;
+		/**
+		 * Lock 3.A (Phase 13.6.B): fired AFTER subscribe is in place but
+		 * BEFORE the helper's async boundary is exposed to the caller.
+		 * Subscribe-before-kick is structurally enforced — the kick's
+		 * synchronous wave reaches `sink` before control returns. Replaces
+		 * the prior load-bearing-comment pattern (M.20-load-bearing) with
+		 * a misuse-impossible API shape.
+		 *
+		 * Common pattern:
+		 *   await awaitSettled(node, {
+		 *     skipCurrent: true,
+		 *     kick: () => producer.emit(value),
+		 *   });
+		 *
+		 * Omit `kick` for external-trigger cases where the wave is fired
+		 * by code outside the helper's caller; subscribe still lands
+		 * synchronously inside the helper body so the next external wave
+		 * is not lost.
+		 */
+		kick?: () => void;
+	},
 ): Promise<NonNullable<T>> {
 	const predicate = opts?.predicate ?? ((v: T) => v != null);
 	const skipCurrent = opts?.skipCurrent;
+	const kick = opts?.kick;
 	if (opts?.timeoutMs == null || opts.timeoutMs <= 0) {
-		return (await firstWhere(source, predicate, { skipCurrent })) as NonNullable<T>;
+		return (await firstWhere(source, predicate, { skipCurrent, kick })) as NonNullable<T>;
 	}
 	// Reactive composition: `timeout()` wraps the source as a Node that
 	// emits ERROR(TimeoutError) on deadline. `firstWhere` then resolves on
@@ -241,7 +324,7 @@ export async function awaitSettled<T>(
 		_nsPerMs = backoff.NS_PER_MS;
 	}
 	const guarded = _timeoutOp(source, { ns: opts.timeoutMs * (_nsPerMs as number) }).node;
-	return (await firstWhere(guarded, predicate, { skipCurrent })) as NonNullable<T>;
+	return (await firstWhere(guarded, predicate, { skipCurrent, kick })) as NonNullable<T>;
 }
 
 /**

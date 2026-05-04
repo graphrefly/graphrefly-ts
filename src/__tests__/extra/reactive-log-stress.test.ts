@@ -481,14 +481,13 @@ describe("reactiveLog with user-provided backend", () => {
 // ── Audit 1 — lifecycle composition ────────────────────────────────────
 
 describe("reactiveLog Audit 1 helpers — lifecycle composition", () => {
-	it("withLatest() lazy-activates lastValue and hasLatest companions", () => {
+	it("withLatest() lazy-activates lastValue (Lock 5.A: hasLatest retired)", () => {
 		const lg = reactiveLog<number>();
-		// Empty log → SENTINEL alignment: lastValue caches `undefined`,
-		// hasLatest caches `false`.
+		// Empty log → SENTINEL alignment: lastValue caches `undefined`.
+		// Lock 5.A retired `hasLatest` — empty-vs-non-empty is now
+		// distinguished by wave shape (RESOLVED vs DATA).
 		const lv = lg.lastValue;
-		const has = lg.hasLatest;
 		expect(lv.cache).toBeUndefined();
-		expect(has.cache).toBe(false);
 
 		// Returning entries from withLatest() is the documented chaining shape.
 		const entries = lg.withLatest();
@@ -496,7 +495,6 @@ describe("reactiveLog Audit 1 helpers — lifecycle composition", () => {
 
 		lg.append(7);
 		expect(lv.cache).toBe(7);
-		expect(has.cache).toBe(true);
 
 		lg.append(11);
 		expect(lv.cache).toBe(11);
@@ -529,15 +527,17 @@ describe("reactiveLog Audit 1 helpers — lifecycle composition", () => {
 		unsub();
 	});
 
-	it("hasLatest disambiguates `T | undefined` payloads from empty-log SENTINEL", () => {
-		const lg = reactiveLog<number | undefined>();
-		expect(lg.hasLatest.cache).toBe(false);
-
-		// Appending an actual `undefined` value flips hasLatest even though
-		// lastValue.cache stays `undefined` — same caveat as TopicGraph.
-		lg.append(undefined);
-		expect(lg.lastValue.cache).toBeUndefined();
-		expect(lg.hasLatest.cache).toBe(true);
+	it("Lock 5.A: append(undefined) is rejected at runtime", () => {
+		const lg = reactiveLog<number>();
+		// Lock 5.A narrows `T` to exclude `undefined`. The runtime guard
+		// rejects literal `undefined` so the empty-vs-non-empty wave-shape
+		// disambiguation (RESOLVED vs DATA) stays unambiguous.
+		expect(() => lg.append(undefined as unknown as number)).toThrow(/Lock 5\.A/);
+		expect(() => lg.appendMany([1, undefined as unknown as number, 2])).toThrow(/Lock 5\.A/);
+		// Earlier successful append still landed (single-value rejection
+		// throws synchronously before any backend mutation).
+		lg.append(1);
+		expect(lg.entries.cache).toEqual([1]);
 	});
 
 	it("attach(upstream) drains DATA into the log and disposer detaches", () => {

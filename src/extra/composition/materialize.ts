@@ -80,13 +80,26 @@ export function selector<TIn, TKey>(
 	opts?: SelectorOpts<TKey>,
 ): Node<TKey> {
 	const equals = opts?.equals ?? Object.is;
+	// Lock 6.D (Phase 13.6.B): clear prev/hasPrev on deactivation so a
+	// resubscribable selector doesn't dedupe the next cycle's first
+	// projected key against a stale prev from the prior cycle.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<TKey>(
 		[input as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.prev;
+						delete store.hasPrev;
+					},
+				};
+			}
 			const batch0 = data[0];
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			// A11 (QA fix 2026-05-01): pre-pass — compute every projected
 			// key + dedup decision FIRST, surface any user `equals` throw
@@ -120,11 +133,12 @@ export function selector<TIn, TKey>(
 			}
 			if (toEmit.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			ctx.store.prev = prev as TKey;
 			ctx.store.hasPrev = true;
 			for (const k of toEmit) a.emit(k);
+			return cleanup;
 		},
 		{
 			...operatorOpts(opts),

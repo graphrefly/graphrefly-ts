@@ -129,19 +129,31 @@ export function scan<T, R>(
 	seed: R,
 	opts?: ExtraOpts,
 ): Node<R> {
+	// Lock 6.D (Phase 13.6.B): clear `acc` on deactivation so a
+	// resubscribable scan restarts from `seed` on the next cycle.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<R>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.acc;
+					},
+				};
+			}
 			if (!("acc" in ctx.store)) ctx.store.acc = seed;
 			const batch0 = data[0];
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			for (const v of batch0) {
 				ctx.store.acc = reducer(ctx.store.acc as R, v as T);
 				a.emit(ctx.store.acc as R);
 			}
+			return cleanup;
 		},
 		{
 			...operatorOpts(opts),
@@ -179,28 +191,40 @@ export function reduce<T, R>(
 	seed: R,
 	opts?: ExtraOpts,
 ): Node<R> {
+	// Lock 6.D: clear acc on deactivation so a resubscribable reduce
+	// starts over with `seed` on the next cycle.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<R>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.acc;
+					},
+				};
+			}
 			if (!("acc" in ctx.store)) ctx.store.acc = seed;
 			// COMPLETE: emit accumulated value then COMPLETE.
 			// ERROR: autoError propagates automatically; nothing to emit.
 			if (ctx.terminalDeps[0] === true) {
 				a.emit(ctx.store.acc as R);
 				a.down([[COMPLETE]]);
-				return;
+				return cleanup;
 			}
 			const batch0 = data[0];
 			// RESOLVED wave (empty batch): propagate RESOLVED. After fn has run once
 			// the pre-fn skip handles this; this guard covers the first-wave case.
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			// DATA: accumulate silently — emit nothing until COMPLETE.
 			for (const v of batch0) {
 				ctx.store.acc = reducer(ctx.store.acc as R, v as T);
 			}
+			return cleanup;
 		},
 		{
 			...operatorOpts(opts),
@@ -232,13 +256,26 @@ export function distinctUntilChanged<T>(
 	equals: (a: T, b: T) => boolean = Object.is,
 	opts?: ExtraOpts,
 ): Node<T> {
+	// Lock 6.D: clear prev/hasPrev on deactivation so a resubscribable
+	// dedupe doesn't suppress the next cycle's first DATA against a stale
+	// "previous" value from the prior cycle.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<T>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.prev;
+						delete store.hasPrev;
+					},
+				};
+			}
 			const batch0 = data[0];
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			let emitted = false;
 			for (const val of batch0 as T[]) {
@@ -252,6 +289,7 @@ export function distinctUntilChanged<T>(
 				}
 			}
 			if (!emitted) a.down([[RESOLVED]]);
+			return cleanup;
 		},
 		{
 			...operatorOpts(opts),
@@ -277,13 +315,25 @@ export function distinctUntilChanged<T>(
  * @category extra
  */
 export function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T, T]> {
+	// Lock 6.D: clear prev/hasPrev on deactivation so a resubscribable
+	// pairwise restarts the "first value, no pair yet" state on each cycle.
+	let cleanup: { onDeactivation: () => void } | undefined;
 	return node<readonly [T, T]>(
 		[source as Node],
 		(data, a, ctx) => {
+			if (cleanup === undefined) {
+				const store = ctx.store;
+				cleanup = {
+					onDeactivation: () => {
+						delete store.prev;
+						delete store.hasPrev;
+					},
+				};
+			}
 			const batch0 = data[0];
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
-				return;
+				return cleanup;
 			}
 			let emitted = false;
 			for (const x of batch0 as T[]) {
@@ -299,6 +349,7 @@ export function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T
 				}
 			}
 			if (!emitted) a.down([[RESOLVED]]);
+			return cleanup;
 		},
 		operatorOpts(opts),
 	);
