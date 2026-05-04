@@ -17,8 +17,13 @@
 import { registerBuiltinCodecs } from "../graph/codec.js";
 import type { Actor } from "./actor.js";
 import { normalizeActor } from "./actor.js";
-import { downWithBatch, isExplicitlyBatching, registerBatchFlushHook } from "./batch.js";
-import { wallClockNs } from "./clock.js";
+import {
+	_setMaxBatchDrainIterationsGetter,
+	downWithBatch,
+	isExplicitlyBatching,
+	registerBatchFlushHook,
+} from "./batch.js";
+import { monotonicNs, wallClockNs } from "./clock.js";
 import type {
 	MessageContext,
 	NodeActions,
@@ -75,13 +80,6 @@ import {
  * fire after deactivation has set `dep.unsub = null`.
  */
 const noopUnsub: () => void = () => {};
-
-/**
- * Maximum `_pendingRerun` depth before we give up and emit ERROR. Bounds
- * autoTrackNode / `_addDep` discovery loops — a well-formed discovery
- * converges in O(n) total rounds for n deps, so 100 is ample.
- */
-const MAX_RERUN_DEPTH = 100;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -140,32 +138,34 @@ export type NodeTransportOptions = {
 /**
  * Cleanup return shape from a node {@link NodeFn}.
  *
- * Two forms, discriminated on return type:
+ * Lock 4.A (Phase 13.6.A) renamed the named-hook fields:
  *
- * - `() => void` — fires before the next fn run AND on deactivation AND on
- *   INVALIDATE. The simplest form: one cleanup function for every transition
- *   away from the current run. Use when the same teardown logic applies to
- *   all three.
+ * - `onRerun` fires before the next fn invocation (i.e. between waves once
+ *   fn has settled and is about to recompute).
+ * - `onDeactivation` fires on deactivation (last-sink unsubscribe or
+ *   TEARDOWN).
+ * - `onInvalidate` fires on INVALIDATE (spec v0.4 graph-wide flush signal).
  *
- * - `{ beforeRun?, deactivate?, invalidate? }` — granular hooks. Each hook
- *   fires exactly once on its named transition; missing hooks are no-ops.
- *   Use when only some transitions should flush resources (e.g. a measurement
- *   cache that should survive re-runs but reset on deactivation).
+ * Each hook is independent and fires exactly once on its named transition;
+ * missing hooks are no-ops. Returning `{}` (or no cleanup) is valid — the
+ * common case. Returning all three slots covers every lifecycle event.
  *
- *   - `beforeRun` fires before the next fn invocation (same point as the
- *     function-form cleanup's pre-run hook).
- *   - `deactivate` fires on deactivation (last-sink unsubscribe or TEARDOWN).
- *   - `invalidate` fires on INVALIDATE (spec v0.4 graph-wide flush signal).
+ * **Transitional shim:** the legacy `() => void` shorthand (single fn that
+ * fired on rerun + deactivation + invalidate) is still accepted at runtime,
+ * mapped to `{ onDeactivation: fn, onRerun: fn, onInvalidate: fn }` for
+ * back-compat during the 13.6.B sweep. The shorthand will be removed in a
+ * follow-up batch (tracked in `docs/optimizations.md`); new code should use
+ * the named-hook object form.
  *
- * Closure access: both forms are declared inside `NodeFn`, so hooks see the
- * same closure as the fn body (per-run locals, `ctx.store`, dep refs).
+ * Closure access: hooks are declared inside `NodeFn`, so they see the same
+ * closure as the fn body (per-run locals, `ctx.store`, dep refs).
  */
 export type NodeFnCleanup =
 	| (() => void)
 	| {
-			beforeRun?: () => void;
-			deactivate?: () => void;
-			invalidate?: () => void;
+			onRerun?: () => void;
+			onDeactivation?: () => void;
+			onInvalidate?: () => void;
 	  };
 
 /**
@@ -210,11 +210,11 @@ export interface FnCtx {
  *
  * Emission is explicit via `actions.emit(v)` (sugar: equals + framing) or
  * `actions.down(msgs)` (raw). Return a cleanup shape to register teardown:
- * `() => void` (fires on every transition) or
- * `{ beforeRun?, deactivate?, invalidate? }` (each hook fires on its named
- * transition only). See {@link NodeFnCleanup}. Any non-cleanup return value
- * is ignored. The `| void` leg lets arrow-block bodies satisfy `NodeFn`
- * without an explicit `return undefined`.
+ * `{ onRerun?, onDeactivation?, onInvalidate? }` (each hook fires on its
+ * named transition only — Lock 4.A, named-hooks only post-13.6.A). See
+ * {@link NodeFnCleanup}. Any non-cleanup return value is ignored. The
+ * `| void` leg lets arrow-block bodies satisfy `NodeFn` without an explicit
+ * `return undefined`.
  *
  * Sugar constructors (`derived`, `effect`, `dynamicNode`) unwrap `data[i]`
  * to a single scalar (`at(-1)` with `ctx.prevData[i]` fallback) so their
@@ -490,6 +490,11 @@ export const defaultConfig = new GraphReFlyConfig({
 });
 registerBuiltins(defaultConfig);
 registerBuiltinCodecs(defaultConfig);
+// Lock 2.F′ (Phase 13.6.A): wire `batch.ts`'s drain-cap getter to
+// `defaultConfig.maxBatchDrainIterations`. Batch deferral is process-global,
+// so the cap is necessarily tied to `defaultConfig` regardless of any
+// per-node `opts.config` isolation.
+_setMaxBatchDrainIterationsGetter(() => defaultConfig.maxBatchDrainIterations);
 
 /**
  * Apply configuration to {@link defaultConfig}. Must be called before the
@@ -620,13 +625,47 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	_pauseLocks: Set<unknown> | null = null;
 	/**
-	 * Buffered DATA messages held while paused. Only populated when
-	 * `_pausable === "resumeAll"` (bufferAll mode). On final lock release
-	 * the buffer is replayed through the node's outgoing pipeline in the
-	 * order received. Non-bufferAll pause mode drops DATA on the floor
-	 * (upstream is expected to honor PAUSE by suppressing production).
+	 * Buffered settle slices (tier-3 DATA/RESOLVED + tier-4 INVALIDATE)
+	 * held while paused. Only populated when `_pausable === "resumeAll"`
+	 * (bufferAll mode). Each entry is one **wave** — the tier-3+4 subset
+	 * of an entire `_emit` call's `finalMessages`, preserving wave shape
+	 * (single-DATA, multi-DATA, or single-RESOLVED). On final lock release
+	 * the buffer is replayed through `_emit` once per wave so the original
+	 * Lock 1.D wave-content invariants (multi-DATA waves emit verbatim with
+	 * no equals substitution; single-DATA waves equals-substitute against
+	 * the cache shaped by all prior buffered waves) hold across the pause
+	 * boundary. Non-bufferAll pause mode drops DATA on the floor (upstream
+	 * is expected to honor PAUSE by suppressing production).
+	 *
+	 * Source: Lock 2.C + 2.C′ + 2.C′-pre (Phase 13.6.A locks).
 	 */
-	_pauseBuffer: Message[] | null = null;
+	_pauseBuffer: Messages[] | null = null;
+	/**
+	 * Monotonic-ns timestamp of the first PAUSE that started the current
+	 * pause cycle. Cleared on final RESUME. Used to populate
+	 * `lockHeldDurationMs` in `pauseBufferMax` overflow ERRORs (Lock 6.A).
+	 */
+	_pauseStartNs: number | undefined;
+	/**
+	 * Cumulative count of waves dropped due to `pauseBufferMax` overflow
+	 * during the current pause cycle. Cleared on final RESUME. Reported in
+	 * the overflow ERROR diagnostic; useful for users tuning the cap.
+	 */
+	_pauseDroppedCount = 0;
+	/**
+	 * Whether an overflow ERROR has already been emitted for the current
+	 * pause cycle. Gates the ERROR to once per pause cycle so a producer
+	 * pushing thousands of waves over the cap doesn't spam errors. Cleared
+	 * on final RESUME. Source: Lock 6.A.
+	 */
+	_pauseOverflowed = false;
+	/**
+	 * Whether `_updateState` has already logged an `equals`-throw under
+	 * `equalsThrowPolicy: "log-and-continue"`. Gates the `console.error`
+	 * to once per node lifetime so a buggy `equals` doesn't spam logs at
+	 * production rates. Source: Lock 2.A (Phase 13.6.A).
+	 */
+	_equalsErrorLogged = false;
 
 	// --- Options (frozen at construction) ---
 	readonly _fn: NodeFn | undefined;
@@ -1206,6 +1245,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// swallow every emit.
 		this._pauseLocks = null;
 		this._pauseBuffer = null;
+		// Lock 6.A: clear pause-cycle bookkeeping so a resubscribable node
+		// coming back from terminal-overflow doesn't carry stale
+		// `_pauseOverflowed = true` (which would swallow the next cycle's
+		// overflow ERROR) or stale `_pauseStartNs` (which would yield a
+		// nonsense `lockHeldDurationMs`).
+		this._pauseStartNs = undefined;
+		this._pauseDroppedCount = 0;
+		this._pauseOverflowed = false;
 		for (const d of this._deps) resetDepRecord(d);
 		// Defensive invariant: the first-run gate (§2.7) assumes
 		// `_hasCalledFnOnce === false` above AND every DepRecord in
@@ -1418,10 +1465,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 *   preserve their current status.
 	 */
 	_deactivate(skipStatusUpdate = false): void {
-		// Fn cleanup — both () => void and object forms fire here.
-		// - Function form: fires on all three transitions (beforeRun, deactivate,
-		//   invalidate); this is the deactivate firing.
-		// - Object form: only the `deactivate` hook fires here.
+		// Fn cleanup — fires the `onDeactivation` hook (Lock 4.A).
+		// Function-form shorthand still fires here too (transitional, see
+		// `NodeFnCleanup` doc; tracked for removal in `docs/optimizations.md`).
 		// Note on cleanup-throw ERRORs: when deactivation runs as part of
 		// last-sink-unsubscribe, `_sinks` is already `null` by the time this
 		// method is reached, so any ERROR emitted here lands on
@@ -1437,13 +1483,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			} catch (err) {
 				this._emit([[ERROR, this._wrapFnError("cleanup threw", err)]]);
 			}
-		} else if (cleanup != null && typeof cleanup === "object") {
-			const hook = (cleanup as { deactivate?: unknown }).deactivate;
+		} else if (cleanup != null) {
+			const hook = cleanup.onDeactivation;
 			if (typeof hook === "function") {
 				try {
-					(hook as () => void)();
+					hook();
 				} catch (err) {
-					this._emit([[ERROR, this._wrapFnError("cleanup.deactivate threw", err)]]);
+					this._emit([[ERROR, this._wrapFnError("cleanup.onDeactivation threw", err)]]);
 				}
 			}
 		}
@@ -1490,6 +1536,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// lockset carried over from the previous lifecycle.
 		this._pauseLocks = null;
 		this._pauseBuffer = null;
+		// Lock 6.A: clear pause-cycle bookkeeping symmetric with the
+		// resubscribable-reset path so a resubscribable node coming back
+		// from terminal-overflow starts its next pause cycle clean.
+		this._pauseStartNs = undefined;
+		this._pauseDroppedCount = 0;
+		this._pauseOverflowed = false;
 
 		// ROM/RAM: compute nodes clear cache; pure state nodes preserve it.
 		if (this._fn != null) {
@@ -1848,10 +1900,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			return;
 		}
 
-		// Pre-run cleanup:
-		// - Function form: fires in full, then cleared (next run sets a fresh one).
-		// - Object form: fires only the `beforeRun` hook; the cleanup object
-		//   itself is preserved so `deactivate`/`invalidate` survive re-runs.
+		// Pre-run cleanup — fires the `onRerun` hook (Lock 4.A). The cleanup
+		// object itself is preserved so `onDeactivation`/`onInvalidate`
+		// survive re-runs; the `onRerun` slot is nulled out before
+		// invocation so a throw doesn't leave the hook armed for the next
+		// run (violating the "fires exactly once on its named transition"
+		// contract).
+		// Function-form shorthand still fires here too (transitional, see
+		// `NodeFnCleanup` doc; tracked for removal in `docs/optimizations.md`).
 		const prevCleanup = this._cleanup;
 		if (typeof prevCleanup === "function") {
 			this._cleanup = undefined;
@@ -1861,19 +1917,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				this._emit([[ERROR, this._wrapFnError("cleanup threw", err)]]);
 				return;
 			}
-		} else if (prevCleanup != null && typeof prevCleanup === "object") {
-			const hook = (prevCleanup as { beforeRun?: unknown }).beforeRun;
+		} else if (prevCleanup != null) {
+			const hook = prevCleanup.onRerun;
 			if (typeof hook === "function") {
-				// Null out the `beforeRun` field BEFORE invocation so a throw
-				// doesn't leave the hook armed for the next run (violating the
-				// documented "fires exactly once on its named transition"
-				// contract). Mirrors the function-form path's clear-before-call
-				// pattern at line 1583 above.
-				(prevCleanup as { beforeRun?: unknown }).beforeRun = undefined;
+				prevCleanup.onRerun = undefined;
 				try {
-					(hook as () => void)();
+					hook();
 				} catch (err) {
-					this._emit([[ERROR, this._wrapFnError("cleanup.beforeRun threw", err)]]);
+					this._emit([[ERROR, this._wrapFnError("cleanup.onRerun threw", err)]]);
 					return;
 				}
 			}
@@ -1915,20 +1966,21 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._isExecutingFn = true;
 		try {
 			const result = this._fn(batchData, this._actions, ctx);
+			// Lock 4.A (Phase 13.6.A): named-hook object form is the canonical
+			// shape. Function shorthand still accepted as a transitional shim
+			// (see `NodeFnCleanup` doc + `docs/optimizations.md`).
 			if (typeof result === "function") {
 				this._cleanup = result;
 			} else if (result != null && typeof result === "object") {
-				// Object form: store as-is if any recognized hook is a function.
-				// Other keys are ignored (forward-compat for future hooks).
 				const o = result as {
-					beforeRun?: unknown;
-					deactivate?: unknown;
-					invalidate?: unknown;
+					onRerun?: unknown;
+					onDeactivation?: unknown;
+					onInvalidate?: unknown;
 				};
 				if (
-					typeof o.beforeRun === "function" ||
-					typeof o.deactivate === "function" ||
-					typeof o.invalidate === "function"
+					typeof o.onRerun === "function" ||
+					typeof o.onDeactivation === "function" ||
+					typeof o.onInvalidate === "function"
 				) {
 					this._cleanup = result as NodeFnCleanup;
 				}
@@ -1945,16 +1997,28 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (this._pendingRerun) {
 				this._pendingRerun = false;
 				this._rerunDepth += 1;
-				if (this._rerunDepth > MAX_RERUN_DEPTH) {
+				// Lock 2.F′ (Phase 13.6.A): cap is read from
+				// `cfg.maxFnRerunDepth` so users can tune it at app startup
+				// (`configure((cfg) => cfg.maxFnRerunDepth = N)`) or per
+				// isolated config instance. Default 100.
+				const maxDepth = this._config.maxFnRerunDepth;
+				if (this._rerunDepth > maxDepth) {
+					const lastDiscoveredDeps =
+						this._deps.length > 0
+							? this._deps.map((d) => (d.node as Node).name ?? "<unnamed>")
+							: undefined;
 					this._rerunDepth = 0;
-					this._emit([
-						[
-							ERROR,
-							new Error(
-								`Node "${this.name}": _pendingRerun depth exceeded ${MAX_RERUN_DEPTH} — likely a reactive cycle`,
-							),
-						],
-					]);
+					const detail: Record<string, unknown> = {
+						nodeId: this.name,
+						currentDepth: maxDepth + 1,
+						configuredLimit: maxDepth,
+					};
+					if (lastDiscoveredDeps != null) detail.lastDiscoveredDeps = lastDiscoveredDeps;
+					const err = new Error(
+						`Node "${this.name}": _pendingRerun depth exceeded cfg.maxFnRerunDepth (${maxDepth}) — likely a reactive cycle`,
+					);
+					(err as Error & { detail?: unknown }).detail = detail;
+					this._emit([[ERROR, err]]);
 				} else {
 					this._maybeRunFnOnSettlement();
 				}
@@ -2223,11 +2287,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (this._pausable !== false) {
 				const lockId = m[1];
 				if (t === PAUSE) {
+					const wasPaused = this._paused;
 					if (this._pauseLocks == null) this._pauseLocks = new Set();
 					this._pauseLocks.add(lockId);
 					this._paused = true;
 					if (this._pausable === "resumeAll" && this._pauseBuffer == null) {
 						this._pauseBuffer = [];
+					}
+					// Lock 6.A: track pause-cycle start for `lockHeldDurationMs`
+					// in overflow diagnostics. First lock starts the cycle;
+					// subsequent locks while already paused don't reset.
+					if (!wasPaused) {
+						this._pauseStartNs = monotonicNs();
+						this._pauseDroppedCount = 0;
+						this._pauseOverflowed = false;
 					}
 				} else {
 					// RESUME
@@ -2238,38 +2311,59 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						this._pauseLocks.delete(lockId);
 						if (this._pauseLocks.size === 0) {
 							this._paused = false;
-							// Replay bufferAll buffer through the outgoing
-							// pipeline BEFORE forwarding RESUME — subscribers
-							// observe the deferred messages as part of the
-							// pre-RESUME wake-up.
+							// Lock 2.C / 2.C′ (Phase 13.6.A): replay buffered
+							// waves through `_emit` BEFORE forwarding RESUME so
+							// subscribers observe the deferred settle slices
+							// as part of the pre-RESUME wake-up.
 							//
-							// DS-13.5.A N3(a): drain each buffered message as
-							// its own `_emit` wave so the cross-tier ordering
-							// of DATA/RESOLVED and INVALIDATE is preserved.
-							// Replaying as one combined batch would re-frame
-							// + tier-sort the buffer, collapsing a sequence
-							// like `[DATA(v1), INVALIDATE, DATA(v2)]` into a
-							// single re-sorted wave that loses the user's
-							// intent (cache reset between v1 and v2). One
-							// emit per entry keeps each settle-class signal
-							// in its original position.
+							// One `_emit(wave)` per buffered wave preserves
+							// Lock 1.D wave-content invariants across the
+							// pause boundary: multi-DATA waves stay
+							// multi-DATA (no equals substitution; spec §1.3.3
+							// + Lock 1.D); single-DATA waves see equals
+							// against the cache shaped by all prior buffered
+							// waves having "happened" in the conceptual
+							// timeline; single-RESOLVED and single-INVALIDATE
+							// waves replay verbatim. The pre-13.6.A flat
+							// `Message[]` buffer + per-message replay would
+							// collapse multi-DATA waves into per-DATA single-
+							// DATA waves, wrongly applying equals substitution
+							// (Lock 2.C′ refactor target).
 							//
 							// D2 (2026-04-13) semantic note: each `_emit(...)`
-							// goes through the full pipeline including
-							// `_updateState`'s equals substitution. A buffered
-							// `[DATA, v]` whose value matches the *pre-pause*
-							// (or last-emitted) cache collapses to RESOLVED
-							// on replay — producer "pulses" that write the
-							// same value while paused are absorbed. Producers
-							// that need pulse semantics (every write
-							// observable regardless of value) should set
-							// `equals: () => false` on the node.
+							// goes through `_updateState` including equals
+							// substitution. A buffered single-DATA wave whose
+							// value matches `_cached` (set during the
+							// original wave's mid-pause processing) collapses
+							// to RESOLVED on replay — producer "pulses" that
+							// write the same value while paused are absorbed.
+							// Producers that need pulse semantics (every
+							// write observable regardless of value) should
+							// set `equals: () => false` on the node.
 							if (this._pauseBuffer != null && this._pauseBuffer.length > 0) {
 								const drain = this._pauseBuffer;
 								this._pauseBuffer = [];
-								for (const m of drain) {
-									this._emit([m]);
+								for (const wave of drain) {
+									this._emit(wave);
 								}
+							}
+							// Lock 6.A: clear the pause-cycle bookkeeping so
+							// the next pause cycle starts with a fresh
+							// dropped-count + overflow flag.
+							//
+							// Re-pause guard: if a downstream subscriber's
+							// reaction to one of the replayed waves issued an
+							// `up.pause(lockId2)` mid-drain — re-entering the
+							// node into a NEW pause cycle whose
+							// `_pauseStartNs` was just initialised by the
+							// `wasPaused === false` check above — clearing
+							// here would clobber the fresh cycle's
+							// bookkeeping. Only clear when the node has
+							// genuinely exited the paused state.
+							if (!this._paused) {
+								this._pauseStartNs = undefined;
+								this._pauseDroppedCount = 0;
+								this._pauseOverflowed = false;
 							}
 							// Kick the held wave forward if one was pending.
 							if (this._pendingWave) {
@@ -2333,27 +2427,91 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		if (finalMessages.length > 0) {
 			// BufferAll: while paused with `pausable: "resumeAll"`, buffer
 			// the settle slice — tier-3 (DATA/RESOLVED) and tier-4 (INVALIDATE,
-			// per DS-13.5.A Q7) — in arrival order. Everything else —
-			// tier 0–2 (START/DIRTY/PAUSE/RESUME), tier 5 (COMPLETE/ERROR),
-			// and tier 6 (TEARDOWN) — dispatches synchronously so
-			// subscribers, downstream pausers, and graph teardown observe
-			// them regardless of flow control. Tier-5 stream-lifecycle
-			// signals must reach subscribers even when a controller holds
-			// a lock and never issues RESUME — the alternative strands
-			// observers without an end-of-stream signal (leaked-controller
-			// + source-terminates = subscriber waits indefinitely).
-			// Cache/status advance has already happened via `_updateState`,
-			// so the replay later just pushes the deferred messages back
-			// through `downWithBatch`. Spec §2.6 bufferAll.
+			// per DS-13.5.A Q7) — as one **wave entry** per `_emit` call,
+			// preserving wave shape for replay (Lock 2.C + 2.C′ + 2.C′-pre).
+			// Everything else — tier 0–2 (START/DIRTY/PAUSE/RESUME), tier 5
+			// (COMPLETE/ERROR), and tier 6 (TEARDOWN) — dispatches
+			// synchronously so subscribers, downstream pausers, and graph
+			// teardown observe them regardless of flow control. Tier-5
+			// stream-lifecycle signals must reach subscribers even when a
+			// controller holds a lock and never issues RESUME — the
+			// alternative strands observers without an end-of-stream signal
+			// (leaked-controller + source-terminates = subscriber waits
+			// indefinitely). Cache/status advance has already happened via
+			// `_updateState`, so the replay later just re-walks the deferred
+			// wave through `_emit` (which calls `_updateState` again,
+			// idempotently advancing cache to the same value). Spec §2.6
+			// bufferAll.
 			if (this._paused && this._pausable === "resumeAll" && this._pauseBuffer != null) {
 				const tierOf = this._config.tierOf;
+				const settleSlice: Message[] = [];
 				const immediate: Message[] = [];
 				for (const m of finalMessages) {
 					const tier = tierOf(m[0]);
 					if (tier === 3 || tier === 4) {
-						this._pauseBuffer.push(m);
+						settleSlice.push(m);
 					} else {
 						immediate.push(m);
+					}
+				}
+				if (settleSlice.length > 0) {
+					this._pauseBuffer.push(settleSlice as Messages);
+					// Lock 6.A: enforce the configured cap. Drop oldest
+					// waves while over-cap; emit one ERROR per pause cycle
+					// (gated on `_pauseOverflowed`) carrying cumulative
+					// drop count so a producer pushing thousands of waves
+					// over the cap doesn't spam ERROR.
+					const max = this._config.pauseBufferMax;
+					if (this._pauseBuffer.length > max) {
+						const dropped = this._pauseBuffer.length - max;
+						this._pauseBuffer.splice(0, dropped);
+						this._pauseDroppedCount += dropped;
+						if (!this._pauseOverflowed) {
+							this._pauseOverflowed = true;
+							const lockHeldDurationMs =
+								this._pauseStartNs != null
+									? Math.trunc((monotonicNs() - this._pauseStartNs) / 1_000_000)
+									: 0;
+							// Build the overflow error directly (no
+							// `_wrapFnError` wrapping — that would double the
+							// `Node "X":` prefix that the inner message
+							// already carries).
+							const overflowError = new Error(
+								`Node "${this.name ?? "<unnamed>"}": pause-replay buffer ` +
+									`exceeded pauseBufferMax (${max} waves) — dropping oldest ` +
+									"buffered wave(s). Bump `cfg.pauseBufferMax` if a higher " +
+									"sustained backlog is expected, or release pause locks " +
+									"sooner.",
+							);
+							(overflowError as Error & { detail?: unknown }).detail = {
+								nodeId: this.name,
+								droppedCount: this._pauseDroppedCount,
+								configuredMax: max,
+								lockHeldDurationMs,
+							};
+							// Lock 6.A semantic: "The error propagates
+							// downstream per default error semantics (rule
+							// 1.4)." Rule 1.4 makes ERROR a terminal
+							// lifecycle signal — the source transitions to
+							// `"errored"` and stops accepting further DATA.
+							// Route through a recursive `_emit` so the ERROR
+							// goes through `_updateState` (which sets
+							// `_status = "errored"`) and the standard
+							// terminal-message dispatch path. The recursive
+							// call dispatches synchronously even while paused
+							// (tier-5 bypasses the buffer below).
+							//
+							// Buffered waves still pending in `_pauseBuffer`
+							// remain there; they will NOT replay because
+							// post-terminal `_emit` is a no-op for non-
+							// terminal-class messages. This is a design
+							// trade-off: heavy-hand termination on overflow
+							// guarantees no silent shedding past the first
+							// drop. Bump `cfg.pauseBufferMax` if your
+							// producer's sustained pause backlog exceeds the
+							// default 10_000.
+							this._emit([[ERROR, overflowError]]);
+						}
 					}
 				}
 				if (immediate.length > 0) {
@@ -2435,12 +2593,39 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						try {
 							unchanged = this._equals(this._cached as T, m[1] as T);
 						} catch (err) {
-							// Abort walk on equals throw: deliver successfully-walked
-							// prefix, then caller emits ERROR. Excludes the throwing
-							// message from the prefix.
-							equalsError = this._wrapFnError("equals threw", err);
-							abortedAt = i;
-							break;
+							// Lock 2.A (Phase 13.6.A): branch on
+							// `cfg.equalsThrowPolicy`.
+							//
+							// `"rethrow"` (dev default) — abort the walk,
+							// deliver the successfully-walked prefix, then
+							// `_emit` emits a fresh ERROR batch annotated with
+							// node id + wave context. The buggy `equals`
+							// surfaces immediately to the developer.
+							//
+							// `"log-and-continue"` (prod default) — log once
+							// per node lifetime, treat as `unchanged === false`
+							// (emit DATA verbatim; the wire stays alive). One
+							// bad equals doesn't kill the wave or cascade an
+							// ERROR through every downstream consumer.
+							if (this._config.equalsThrowPolicy === "log-and-continue") {
+								if (!this._equalsErrorLogged) {
+									this._equalsErrorLogged = true;
+									// biome-ignore lint/suspicious/noConsole: documented diagnostic per Lock 2.A.
+									console.error(
+										`Node "${this.name ?? "<unnamed>"}": equals threw — falling back to verbatim emit. ` +
+											"Subsequent equals throws on this node will be silently ignored. " +
+											'Set `cfg.equalsThrowPolicy = "rethrow"` to surface them.',
+										err,
+									);
+								}
+								// unchanged stays false → fall through to the
+								// DATA emission path below, which advances cache
+								// and emits the value verbatim.
+							} else {
+								equalsError = this._wrapFnError("equals threw", err);
+								abortedAt = i;
+								break;
+							}
 						}
 					}
 					if (unchanged) {
@@ -2563,12 +2748,26 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						// never settled, fn never re-ran).
 						this._status = "sentinel";
 					}
-					// Cleanup firing on INVALIDATE:
-					// - Function form: fires in full (all three transitions share
-					//   the function) and is cleared.
-					// - Object form: fires only the `invalidate` hook; the cleanup
-					//   object itself is preserved so `deactivate` still fires
-					//   later if the node deactivates.
+					// Cleanup firing on INVALIDATE — fires the `onInvalidate`
+					// hook (Lock 4.A). The cleanup object itself is preserved
+					// so `onDeactivation` still fires later if the node
+					// deactivates; the `onInvalidate` slot is nulled before
+					// invocation so:
+					//   (a) a throw inside the hook doesn't leave it armed for
+					//       a second fire (consistent with `onRerun`'s
+					//       null-out-on-fire pattern in `_execFn`);
+					//   (b) when an INVALIDATE wave is buffered through
+					//       `pausable: "resumeAll"` and replayed on RESUME
+					//       (Lock 2.C′-pre), the replay walk's INVALIDATE does
+					//       NOT re-fire the hook a second time;
+					//   (c) two INVALIDATE waves arriving without a fn rerun
+					//       between them (rare cross-wave case) only fire the
+					//       hook once — semantically correct since the second
+					//       INVALIDATE arrives at an already-`"sentinel"` node
+					//       with `_cached === undefined`.
+					// Function-form shorthand still fires here too
+					// (transitional, see `NodeFnCleanup` doc; tracked for
+					// removal in `docs/optimizations.md`).
 					const c = this._cleanup;
 					if (typeof c === "function") {
 						this._cleanup = undefined;
@@ -2577,11 +2776,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						} catch {
 							/* best-effort */
 						}
-					} else if (c != null && typeof c === "object") {
-						const hook = (c as { invalidate?: unknown }).invalidate;
+					} else if (c != null) {
+						const hook = c.onInvalidate;
 						if (typeof hook === "function") {
+							c.onInvalidate = undefined;
 							try {
-								(hook as () => void)();
+								hook();
 							} catch {
 								/* best-effort */
 							}

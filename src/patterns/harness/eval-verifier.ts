@@ -234,7 +234,7 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 		// subgraph is a fresh namespace. Cleanup attaches to `raw`'s
 		// deactivate hook so the segment is removed when JobFlow
 		// unsubscribes after ack/nack (canonical "last unsubscribe"
-		// signal via the existing NodeFnCleanup.deactivate protocol).
+		// signal via the existing NodeFnCleanup.onDeactivation protocol).
 		const claimId = job.id;
 		// QA A7: only append a `_${seq}` suffix when this claimId has
 		// already been mounted (collision case). Distinct claimIds
@@ -276,7 +276,7 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 		const cleanup =
 			parentGraph != null
 				? () => ({
-						deactivate: () => {
+						onDeactivation: () => {
 							// Auto-unmount on JobFlow's pump unsubscribe after
 							// ack/nack (DS-13.5.D.4). Idempotent: try/catch
 							// covers the case where the segment was already

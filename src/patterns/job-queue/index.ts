@@ -675,7 +675,7 @@ export class JobFlowGraph<T> extends Graph {
 							processed += 1;
 						}
 						return {
-							deactivate: () => {
+							onDeactivation: () => {
 								// qa F-F: set terminated BEFORE draining so any
 								// `cleanupSub` racing via the deferred-microtask path
 								// (`Promise.resolve().then(() => unsub?.())`) sees

@@ -212,6 +212,13 @@ export class GraphReFlyConfig {
 	);
 	private _globalInspector?: GlobalInspectorHook;
 	private _rigorRecorder?: RigorRecorder;
+	private _maxFnRerunDepth = 100;
+	private _maxBatchDrainIterations = 1000;
+	private _pauseBufferMax = 10_000;
+	private _equalsThrowPolicy: "rethrow" | "log-and-continue" =
+		typeof process !== "undefined" && process.env?.NODE_ENV === "production"
+			? "log-and-continue"
+			: "rethrow";
 	private _frozen = false;
 
 	/**
@@ -355,6 +362,84 @@ export class GraphReFlyConfig {
 	}
 	set rigorRecorder(v: RigorRecorder | undefined) {
 		this._rigorRecorder = v;
+	}
+
+	/**
+	 * Depth cap on `_pendingRerun` chains inside `NodeImpl._execFn`. Covers
+	 * re-entrance, dep delivery during fn execution, and `autoTrackNode`
+	 * dep-discovery loops. When `_rerunDepth > maxFnRerunDepth`, the
+	 * dispatcher emits `[[ERROR, { nodeId, currentDepth, configuredLimit,
+	 * lastDiscoveredDeps? }]]` and resets `_rerunDepth := 0`.
+	 *
+	 * Default `100`. Settable at any time — operational, not protocol-shaping,
+	 * so it does NOT trigger config freeze.
+	 *
+	 * Source: Lock 2.F′ (Phase 13.6.A locks). Replaces the prior
+	 * module-level `MAX_RERUN_DEPTH` constant in `node.ts`.
+	 */
+	get maxFnRerunDepth(): number {
+		return this._maxFnRerunDepth;
+	}
+	set maxFnRerunDepth(v: number) {
+		this._maxFnRerunDepth = v;
+	}
+
+	/**
+	 * Iteration cap on the batch drain loop in `core/batch.ts`. When iterations
+	 * exceed `maxBatchDrainIterations`, drain throws with diagnostic
+	 * `{ phase, queueSizeAtThrow, configuredLimit }`.
+	 *
+	 * Default `1000`. Settable at any time.
+	 *
+	 * Source: Lock 2.F′ (Phase 13.6.A locks). Replaces the prior
+	 * module-level `MAX_DRAIN_ITERATIONS` constant in `batch.ts`.
+	 */
+	get maxBatchDrainIterations(): number {
+		return this._maxBatchDrainIterations;
+	}
+	set maxBatchDrainIterations(v: number) {
+		this._maxBatchDrainIterations = v;
+	}
+
+	/**
+	 * Cap on the PAUSE-replay buffer (`_pauseBuffer: Messages[]` per Lock 2.C).
+	 * Counts buffered waves (each containing one or more tier-3/tier-4
+	 * messages). On overflow, the dispatcher drops oldest waves and emits
+	 * `[[ERROR, { nodeId, droppedCount, configuredMax, lockHeldDurationMs }]]`
+	 * once per overflow event.
+	 *
+	 * Default `10_000` waves. Loud-fail-with-drop is preferable to silent
+	 * bloat or process kill when a lock is held for minutes under high emit
+	 * rate.
+	 *
+	 * Source: Lock 6.A (Phase 13.6.A locks).
+	 */
+	get pauseBufferMax(): number {
+		return this._pauseBufferMax;
+	}
+	set pauseBufferMax(v: number) {
+		this._pauseBufferMax = v;
+	}
+
+	/**
+	 * Behavior when a user-provided `equals` callback throws inside dispatch.
+	 *
+	 * - `"rethrow"` (dev default) — dispatcher rethrows the error annotated with
+	 *   node id + wave context, surfacing the buggy `equals` immediately.
+	 * - `"log-and-continue"` (prod default — `NODE_ENV === "production"`) —
+	 *   dispatcher catches, logs once per node, and proceeds as if equals
+	 *   returned `false` (emit DATA verbatim). One bad equals doesn't kill
+	 *   the wave.
+	 *
+	 * Settable at any time.
+	 *
+	 * Source: Lock 2.A (Phase 13.6.A locks).
+	 */
+	get equalsThrowPolicy(): "rethrow" | "log-and-continue" {
+		return this._equalsThrowPolicy;
+	}
+	set equalsThrowPolicy(v: "rethrow" | "log-and-continue") {
+		this._equalsThrowPolicy = v;
 	}
 
 	// --- Registry (writes require unfrozen; reads are free lookups) ---

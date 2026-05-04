@@ -791,7 +791,7 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 	 * stays mounted while the returned `projection` has at least one
 	 * subscriber. When the last subscriber unsubscribes, projection's
 	 * `deactivate` cleanup hook fires (canonical "last unsubscribe" signal
-	 * via the existing `NodeFnCleanup.deactivate` protocol), which calls
+	 * via the existing `NodeFnCleanup.onDeactivation` protocol), which calls
 	 * `parent.remove(retrieve_${id})` and tears the per-call topology
 	 * down via TEARDOWN cascade (post-DS-13.5.A Q16, COMPLETE auto-precedes).
 	 *
@@ -893,7 +893,7 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 
 		// DS-13.5.C: projection stays as raw `node()` (not `sub.derived`)
 		// because the keepalive disposer is wired via the fn's
-		// `NodeFnCleanup.deactivate` hook — projection's cleanup-on-last-
+		// `NodeFnCleanup.onDeactivation` hook — projection's cleanup-on-last-
 		// unsubscribe is what drives `parent.remove(segment)`. The Graph
 		// `.derived()` helper drops the cleanup return, so the raw form
 		// is required here. `equals: packedEquals` is preserved verbatim.
@@ -905,7 +905,7 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 				);
 				actions.emit((data[0] as { packed: ReadonlyArray<RetrievalEntry<TMem>> }).packed);
 				return {
-					deactivate: () => {
+					onDeactivation: () => {
 						// Auto-unmount on last unsubscribe (DS-13.5.C).
 						// Idempotent: try/catch covers the case where the
 						// segment was already removed (e.g. parent destroy

@@ -1205,7 +1205,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				measureCache.clear();
 				adapter.clearCache?.();
 			};
-			return { deactivate: flush, invalidate: flush };
+			return { onDeactivation: flush, onInvalidate: flush };
 		},
 		{
 			name: "segments",

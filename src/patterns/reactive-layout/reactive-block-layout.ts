@@ -335,7 +335,7 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 				measureCache.clear();
 				adapters.text.clearCache?.();
 			};
-			return { deactivate: flush, invalidate: flush };
+			return { onDeactivation: flush, onInvalidate: flush };
 		},
 		{
 			name: "measured-blocks",

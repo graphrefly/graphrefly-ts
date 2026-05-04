@@ -169,6 +169,12 @@ function createDerivedAtom<T>(
 			...options,
 			resubscribable: true,
 			resetOnTeardown: true,
+			// Jotai `atom(read)` consumers expect `read(get)` to return a
+			// well-typed `T`, not `undefined` from a freshly-discovered branch
+			// dep. Opt OUT of Lock 6.C′'s `partial:true` default — fn is
+			// gated until every tracked dep delivers DATA so `get(a)` always
+			// returns the atom's value.
+			partial: false,
 		},
 	);
 

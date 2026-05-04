@@ -88,7 +88,7 @@ export function frozenContext<T>(
 				// Without this, INVALIDATE clears the cache but the latch stays
 				// armed, so subscribers stay on the cleared (null) state forever.
 				return {
-					invalidate: () => {
+					onInvalidate: () => {
 						ctx.store.emitted = false;
 					},
 				};

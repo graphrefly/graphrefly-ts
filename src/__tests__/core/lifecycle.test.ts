@@ -120,7 +120,7 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 			const cv = data[1].at(-1) ?? 0;
 			actions.emit((bv as number) + (cv as number));
 			return {
-				invalidate: () => {
+				onInvalidate: () => {
 					invalidates += 1;
 				},
 			};
@@ -173,7 +173,7 @@ describe("NodeFnCleanup object form — granular hooks", () => {
 		const n = node([src], (_data, _actions, _ctx) => {
 			fnRuns += 1;
 			return {
-				beforeRun: () => {
+				onRerun: () => {
 					beforeRuns += 1;
 				},
 			};
@@ -200,7 +200,7 @@ describe("NodeFnCleanup object form — granular hooks", () => {
 		const src = node<number>({ initial: 0 });
 		let deactivates = 0;
 		const n = node([src], (_data, _actions, _ctx) => ({
-			deactivate: () => {
+			onDeactivation: () => {
 				deactivates += 1;
 			},
 		}));
@@ -221,7 +221,7 @@ describe("NodeFnCleanup object form — granular hooks", () => {
 		const src = node<number>({ initial: 0 });
 		let invalidates = 0;
 		const n = node([src], (_data, _actions, _ctx) => ({
-			invalidate: () => {
+			onInvalidate: () => {
 				invalidates += 1;
 			},
 		}));
@@ -244,13 +244,13 @@ describe("NodeFnCleanup object form — granular hooks", () => {
 		let de = 0;
 		let iv = 0;
 		const n = node([src], (_data, _actions, _ctx) => ({
-			beforeRun: () => {
+			onRerun: () => {
 				br += 1;
 			},
-			deactivate: () => {
+			onDeactivation: () => {
 				de += 1;
 			},
-			invalidate: () => {
+			onInvalidate: () => {
 				iv += 1;
 			},
 		}));
@@ -298,7 +298,7 @@ describe("NodeFnCleanup object form — granular hooks", () => {
 		const src = node<number>({ initial: 0 });
 		let deactivates = 0;
 		const n = node([src], (_data, _actions, _ctx) => ({
-			deactivate: () => {
+			onDeactivation: () => {
 				deactivates += 1;
 			},
 		}));
@@ -317,7 +317,7 @@ describe("NodeFnCleanup object form — granular hooks", () => {
 		const src = node<number>({ initial: 0 });
 		let beforeRuns = 0;
 		const n = node([src], (_data, _actions, _ctx) => ({
-			beforeRun: () => {
+			onRerun: () => {
 				beforeRuns += 1;
 			},
 		}));

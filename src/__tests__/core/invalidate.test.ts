@@ -460,7 +460,7 @@ describe("DS-13.5.A Q9 — INVALIDATE+INVALIDATE collapse fires cleanup hook exa
 			(_batchData, actions) => {
 				actions.emit(1);
 				return {
-					invalidate: () => {
+					onInvalidate: () => {
 						invalidateHookFired += 1;
 					},
 				};

@@ -131,7 +131,7 @@ export function switchMap<T, R>(
 			// Deactivate-only cleanup: must NOT fire before fn reruns
 			// because the terminal wave needs to see innerUnsub intact.
 			return {
-				deactivate: () => {
+				onDeactivation: () => {
 					clearInner();
 					sourceDone = false;
 				},
@@ -202,7 +202,7 @@ export function exhaustMap<T, R>(
 			}
 
 			return {
-				deactivate: () => {
+				onDeactivation: () => {
 					clearInner();
 					sourceDone = false;
 				},
@@ -287,7 +287,7 @@ export function concatMap<T, R>(
 			}
 
 			return {
-				deactivate: () => {
+				onDeactivation: () => {
 					clearInner();
 					queue.length = 0;
 					sourceDone = false;
@@ -410,7 +410,7 @@ export function mergeMap<T, R>(
 			}
 
 			return {
-				deactivate: () => {
+				onDeactivation: () => {
 					clearAll();
 					sourceDone = false;
 				},

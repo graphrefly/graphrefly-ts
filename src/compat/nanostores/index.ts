@@ -200,6 +200,13 @@ export function computed<T>(stores: any, fn: (...args: any[]) => T): NanoCompute
 			resubscribable: true,
 			resetOnTeardown: true,
 			equals: Object.is as any,
+			// nanostores `computed` calls `fn(a, b, ...)` with the resolved dep
+			// values; producing `undefined` for not-yet-delivered deps would
+			// hand `fn` arguments it never expected (e.g. `NaN` from `undefined
+			// + 3`). Opt OUT of Lock 6.C′'s `partial:true` default — fn is
+			// gated until every dep delivers DATA, matching nanostores'
+			// store-shaped consumer contract.
+			partial: false,
 		},
 	);
 

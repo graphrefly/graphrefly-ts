@@ -394,7 +394,7 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 				measureCache.clear();
 				adapter.clearCache?.();
 			};
-			return { deactivate: flush, invalidate: flush };
+			return { onDeactivation: flush, onInvalidate: flush };
 		},
 		{ name: "segments", describeKind: "derived" },
 	);

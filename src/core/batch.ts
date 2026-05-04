@@ -45,7 +45,23 @@
 
 import type { Messages } from "./messages.js";
 
-const MAX_DRAIN_ITERATIONS = 1000;
+/**
+ * Lock 2.F′ (Phase 13.6.A): the drain-iteration cap is read from
+ * `cfg.maxBatchDrainIterations` via a getter callback that `node.ts`
+ * registers at module-init time. The callback indirection avoids the
+ * `batch.ts` → `node.ts` import cycle (`node.ts` imports `batch.ts`'s
+ * `downWithBatch` / `isBatching`).
+ *
+ * Default `() => 1000` is in force until `node.ts` registers its getter
+ * (which reads `defaultConfig.maxBatchDrainIterations`). Test isolation
+ * with `new GraphReFlyConfig(...)` does NOT route through the global
+ * drain cap — batch deferral is process-global, so the cap is necessarily
+ * a process-global setting tied to `defaultConfig`.
+ */
+let _maxBatchDrainIterationsGetter: () => number = () => 1000;
+export function _setMaxBatchDrainIterationsGetter(getter: () => number): void {
+	_maxBatchDrainIterationsGetter = getter;
+}
 
 let batchDepth = 0;
 let flushInProgress = false;
@@ -179,13 +195,26 @@ function drainPending(): void {
 				continue; // restart loop — hooks may have enqueued tier-3+ work or more hooks
 			}
 			iterations += 1;
-			if (iterations > MAX_DRAIN_ITERATIONS) {
+			const maxIterations = _maxBatchDrainIterationsGetter();
+			if (iterations > maxIterations) {
+				// Lock 2.F′ broadens the diagnostic: capture which phase queue
+				// is non-empty + total queued size at throw + the configured
+				// limit so callers tracking down a reactive cycle see what
+				// queue is unbounded.
+				const phase = drainPhase2.length > 0 ? 2 : drainPhase3.length > 0 ? 3 : 4;
+				const queueSizeAtThrow = drainPhase2.length + drainPhase3.length + drainPhase4.length;
 				drainPhase2.length = 0;
 				drainPhase3.length = 0;
 				drainPhase4.length = 0;
-				throw new Error(
-					`batch drain exceeded ${MAX_DRAIN_ITERATIONS} iterations — likely a reactive cycle`,
+				const err = new Error(
+					`batch drain exceeded cfg.maxBatchDrainIterations (${maxIterations}) at phase ${phase} — likely a reactive cycle`,
 				);
+				(err as Error & { detail?: unknown }).detail = {
+					phase,
+					queueSizeAtThrow,
+					configuredLimit: maxIterations,
+				};
+				throw err;
 			}
 			// Always drain the lowest non-empty phase. Re-enqueues at any level
 			// cause the next iteration to restart from phase 2 if needed.

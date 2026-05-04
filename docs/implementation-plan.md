@@ -1221,6 +1221,18 @@ Audit confirmed Phase 12.D's `extends Graph` migration is complete across all el
 - Parallelizable across layers; expect 3–6 implementation sub-sessions (one per layer + cross-cutting tidy-ups).
 - Output: code changes across `src/`, possibly minor spec/guide tightening as the audit process surfaces ambiguities.
 
+**Phase 13.6.B sub-sessions in flight:**
+- ✅ **B1** — config field foundations (Locks 2.A field, 2.F′ fields, 6.A field) + tiny fixes (Lock 6.C′ `partial:true` flip, Lock 6.H verified, Lock 4.C verified). Landed 2026-05-03.
+- ✅ **B2** — cleanup hook field rename (Lock 4.A: `beforeRun → onRerun`, `deactivate → onDeactivation`, `invalidate → onInvalidate`; Lock 4.A′ all firing sites updated). Landed 2026-05-03. **Carry:** Lock 4.A drop-`() => void` shorthand call-site sweep (~48 files) deferred — see `docs/optimizations.md`.
+- ✅ **B3** — PAUSE buffer reshape (Lock 2.C structural + Lock 2.C′ + Lock 2.C′-pre + Lock 6.A enforcement). `_pauseBuffer: Messages[]`, per-wave replay, tier-3+4 settle slice, `pauseBufferMax` overflow → terminal ERROR. Landed 2026-05-03. **Carry:** Lock 2.C pre-pause cache-snapshot for replay-equals semantics deferred — see `docs/optimizations.md`.
+- ✅ **B4 (folded into QA pass on B1+B2+B3, 2026-05-03)** — Lock 2.F′ wired (`MAX_RERUN_DEPTH` and `MAX_DRAIN_ITERATIONS` removed from module level; both reads route through `cfg.maxFnRerunDepth` / `cfg.maxBatchDrainIterations`; diagnostics broadened to carry `{ phase, queueSizeAtThrow, configuredLimit }` and `{ nodeId, currentDepth, configuredLimit, lastDiscoveredDeps? }`).
+- ✅ **B5 (folded into QA pass, 2026-05-03)** — Lock 2.A wired (`equalsThrowPolicy` branched in `_updateState`'s equals-throw catch: `"rethrow"` keeps existing abort-walk-then-emit-ERROR semantics; `"log-and-continue"` logs once per node via `console.error` and treats throw as `unchanged === false` to emit DATA verbatim).
+- ⏳ **B6** — Lock 6.F (Q16 auto-COMPLETE-before-TEARDOWN — already landed in DS-13.5.A) + Lock 6.G (`replayBuffer: N` implementation — NOT YET in core; spec documents it but `_invariants.ts` confirms missing).
+- ⏳ **B7** — Lock 6.D `ctx.store` default flip (preserve-across-deactivation). ~90 sites across `src/extra/operators/`, `src/extra/sources/`, `src/extra/io/`. Per-operator `onDeactivation` cleanup migration where current behavior depends on auto-wipe.
+- ⏳ **B8** — extras data-structure cleanup: Lock 5.A reactiveLog narrowing (`T` excludes `undefined`, remove `hasLatest`, append guard); Lock 4.D `defaultTierOpts`; Lock 6.E `compactEvery` on tiers.
+- ⏳ **B9** — patterns + testing: Lock 3.A `awaitSettled` callback reshape; Lock 3.B `assertDirtyPrecedesTerminalData` helper + new `src/testing/`; Lock 3.C `withBudgetGate` auto-wires adapter abort; Lock 4.B `wrapMutation` A+B+C (compensate, registerMutable, dev-mode Proxy detection); Lock 1.A retest of 5 imperative-controller primitives.
+- ⏳ **B10** — spec/doc edits (`~/src/graphrefly/`) + audit sweeps: Lock 1.B retire `G.3-never-undefined` + dead-code sweep; Lock 1.C three-category cache rule + sweep; Lock 1.E carve-out; Lock 2.B Meta TEARDOWN ordering test; Lock 2.D atomicity elevation; Lock 4.E `latestData → prevData` rename; Lock 4.F versioning split note; Lock 5.B/5.C/5.D consolidations; Lock 7.A move M.7/M.8/M.9/M.14/M.18/M.19 out of canonical invariants set.
+
 **Why now:** the DS-13.5 walks repeatedly hit "is this principle codified anywhere?" — for the cases we hit (e.g., §44 `T | Node<T>` widening), the answer was "no, lock-down session was the first time." Implies more such gaps. A dedicated audit phase before Phase 14 sets the substrate cleanly.
 
 **Rust-port deferral classification (guardrail for 13.6.B scope)**

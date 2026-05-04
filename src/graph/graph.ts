@@ -2021,9 +2021,9 @@ export class Graph {
 	 * `node() + graph.add()`. fn receives `up.pause(lockId)` /
 	 * `up.resume(lockId)` for upstream backpressure only.
 	 *
-	 * **Cleanup.** Return a cleanup function or granular hooks
-	 * (`{ beforeRun?, deactivate?, invalidate? }`) — see
-	 * {@link NodeFnCleanup}. Graph teardown triggers `deactivate`.
+	 * **Cleanup.** Return granular hooks
+	 * (`{ onRerun?, onDeactivation?, onInvalidate? }`) — see
+	 * {@link NodeFnCleanup}. Graph teardown triggers `onDeactivation`.
 	 *
 	 * **`keepAlive: true`** — installs an internal subscription so the
 	 * effect stays activated even without an external subscriber.

@@ -57,9 +57,16 @@ export type DynamicFn<T> = (track: TrackFn, ctx: FnCtx) => T | undefined | null;
 
 /**
  * Exposes dep values via a `track(dep)` proxy instead of positional
- * `data[i]`. All declared `allDeps` participate in wave tracking, so
- * the first fn run waits for every dep to settle. Unused deps that
- * update just re-run fn; `equals` absorbs unchanged outputs as RESOLVED.
+ * `data[i]`. All declared `allDeps` participate in wave tracking; unused
+ * deps that update just re-run fn, and `equals` absorbs unchanged outputs
+ * as RESOLVED.
+ *
+ * **First-run gate (Lock 6.C′):** `dynamicNode` defaults `partial: true`.
+ * fn runs as soon as the wave machinery has any data to compute on; deps
+ * that have not yet emitted return `undefined` via `track(dep)`. The fn
+ * must handle `undefined` for those deps. Pass `{ partial: false }` to
+ * opt into core's first-run gate (spec §2.7) when you need to wait for
+ * every declared dep to settle before fn fires.
  *
  * P3-compliant: `track(dep)` reads from the framework-managed
  * `DepRecord.prevData` populated by the protocol, never from
@@ -95,7 +102,11 @@ export function dynamicNode<T = unknown>(
 		actions.emit(fn(track, ctx));
 		return undefined;
 	};
-	return node<T>(allDeps, wrapped, { describeKind: "derived", ...opts });
+	// Lock 6.C′ (Phase 13.6.A): `dynamicNode` defaults `partial: true` — the
+	// "selective deps" use case (read whichever subset is relevant for the
+	// current branch) does not fit gate-all-deps semantics. Users can still
+	// pass `partial: false` to opt into the first-run gate.
+	return node<T>(allDeps, wrapped, { describeKind: "derived", partial: true, ...opts });
 }
 
 // ---------------------------------------------------------------------------
@@ -140,21 +151,22 @@ export function dynamicNode<T = unknown>(
  */
 export interface AutoTrackOptions<T> extends NodeOptions<T> {
 	/**
-	 * When `true`, fn may run before all known deps have delivered their first
-	 * DATA. Unknown deps return `undefined` via `track()`, which the fn must
-	 * handle explicitly. Useful when some deps are "nice-to-have" — e.g. a
-	 * primary computation should continue while a secondary dep is still
-	 * initialising.
+	 * When `true` (default for `autoTrackNode` per Lock 6.C′), fn may run
+	 * before all known deps have delivered their first DATA. Unknown deps
+	 * return `undefined` via `track()`, which the fn must handle explicitly.
+	 * This matches `autoTrackNode`'s discovery semantics: deps are unknown
+	 * until fn runs, so a gate-all-declared-deps wait would deadlock.
 	 *
-	 * When `false` (default), fn is held until every declared dep has delivered
-	 * at least one DATA value — core's first-run gate (spec §2.7) handles this.
-	 * Delegates to {@link NodeOptions.partial}; both semantics are aligned: the
-	 * gate is first-run-only (`_hasCalledFnOnce`), so INVALIDATE on a dep does
-	 * NOT re-gate after fn has fired once. Pull-based compat layers (Signals,
-	 * Jotai) that rely on "consistent compute across INVALIDATE" should
-	 * explicitly wrap their dep reads with null/undefined handling in fn.
+	 * Pass `partial: false` to opt into core's first-run gate (spec §2.7) —
+	 * fn is held until every declared dep has delivered at least one DATA
+	 * value. Useful only for compat layers that pre-declare all deps in
+	 * `opts.deps` (rare). Note: the gate is first-run-only
+	 * (`_hasCalledFnOnce`), so INVALIDATE on a dep does NOT re-gate after fn
+	 * has fired once. Pull-based compat layers (Signals, Jotai) that rely on
+	 * "consistent compute across INVALIDATE" should explicitly wrap their
+	 * dep reads with null/undefined handling in fn.
 	 *
-	 * @default false
+	 * @default true
 	 */
 	partial?: boolean;
 }
@@ -222,8 +234,14 @@ export function autoTrackNode<T = unknown>(
 		return undefined;
 	};
 
+	// Lock 6.C′ (Phase 13.6.A): `autoTrackNode` defaults `partial: true` —
+	// runtime dep discovery requires fn to run before deps are known, so a
+	// gate-all-declared-deps semantic doesn't fit. Users can still pass
+	// `partial: false` to opt into the first-run gate (rare; typically only
+	// for compat layers that pre-declare all deps in `opts`).
 	implRef = new NodeImpl<T>([], wrappedFn, {
 		describeKind: "derived",
+		partial: true,
 		...opts,
 	});
 	return implRef;

@@ -132,6 +132,13 @@ class SignalComputed<T> implements AnySignal<T> {
 				describeKind: "derived",
 				resubscribable: true,
 				resetOnTeardown: true,
+				// TC39 Signal semantics require `Signal.Computed` to return
+				// the user-provided computation value, never `undefined` from
+				// a not-yet-discovered branch dep. Opt OUT of Lock 6.C′'s
+				// partial:true default — the gate suppresses fn until newly
+				// discovered branch deps deliver their first DATA, so `track`
+				// never returns `undefined` after a branch flip.
+				partial: false,
 			},
 		);
 	}
