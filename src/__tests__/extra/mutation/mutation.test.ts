@@ -5,8 +5,7 @@ import {
 	type BaseAuditRecord,
 	bumpCursor,
 	createAuditLog,
-	lightMutation,
-	wrapMutation,
+	mutate,
 } from "../../../extra/mutation/index.js";
 import { Graph } from "../../../graph/graph.js";
 
@@ -24,12 +23,13 @@ function makeAuditLog() {
 	return { audit, dispose: unsub };
 }
 
-describe("imperative-audit / lightMutation", () => {
+describe("mutate frame:inline", () => {
 	it("happy path: returns the action result and appends a success record", () => {
 		const { audit, dispose } = makeAuditLog();
-		const setKey = lightMutation((key: string, value: number) => `${key}=${value}`, {
-			audit,
-			onSuccess: ([key], _r, m) => ({ action: "set" as const, key, t_ns: m.t_ns }),
+		const setKey = mutate((key: string, value: number) => `${key}=${value}`, {
+			frame: "inline",
+			log: audit,
+			onSuccessRecord: ([key], _r, m) => ({ action: "set" as const, key, t_ns: m.t_ns }),
 		});
 
 		const result = setKey("foo", 1);
@@ -50,14 +50,15 @@ describe("imperative-audit / lightMutation", () => {
 		// is an implementation detail; don't lock that in.
 		const { audit, dispose } = makeAuditLog();
 		const seenFrozen: boolean[] = [];
-		const op = lightMutation(
+		const op = mutate(
 			(arg: { v: number }) => {
 				seenFrozen.push(Object.isFrozen(arg));
 				return arg.v;
 			},
 			{
-				audit,
-				onSuccess: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns }),
+				frame: "inline",
+				log: audit,
+				onSuccessRecord: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns }),
 			},
 		);
 		op({ v: 1 });
@@ -68,16 +69,17 @@ describe("imperative-audit / lightMutation", () => {
 	it("freeze: false opt-out leaves args mutable in the action body", () => {
 		const { audit, dispose } = makeAuditLog();
 		const seenFrozen: boolean[] = [];
-		const op = lightMutation(
+		const op = mutate(
 			(arg: { v: number }) => {
 				seenFrozen.push(Object.isFrozen(arg));
 				arg.v = 42;
 				return arg.v;
 			},
 			{
-				audit,
+				frame: "inline",
+				log: audit,
 				freeze: false,
-				onSuccess: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns }),
+				onSuccessRecord: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns }),
 			},
 		);
 		const input = { v: 1 };
@@ -93,14 +95,15 @@ describe("imperative-audit / lightMutation", () => {
 		class MyError extends Error {
 			override name = "MyError";
 		}
-		const op = lightMutation(
+		const op = mutate(
 			() => {
 				throw new MyError("boom");
 			},
 			{
-				audit,
-				onSuccess: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns }),
-				onFailure: (_a, _err, m) => ({
+				frame: "inline",
+				log: audit,
+				onSuccessRecord: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns }),
+				onFailureRecord: (_a, _err, m) => ({
 					action: "fail" as const,
 					t_ns: m.t_ns,
 					errorType: m.errorType,
@@ -121,17 +124,18 @@ describe("imperative-audit / lightMutation", () => {
 		const cursor = node<number>([], { name: "seq", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 		let callIndex = 0;
-		const op = lightMutation(
+		const op = mutate(
 			() => {
 				callIndex += 1;
 				if (callIndex === 2) throw new TypeError("fail-second");
 				return callIndex;
 			},
 			{
-				audit,
+				frame: "inline",
+				log: audit,
 				seq: cursor,
-				onSuccess: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns, seq: m.seq }),
-				onFailure: (_a, _e, m) => ({
+				onSuccessRecord: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns, seq: m.seq }),
+				onFailureRecord: (_a, _e, m) => ({
 					action: "fail" as const,
 					t_ns: m.t_ns,
 					seq: m.seq,
@@ -162,10 +166,11 @@ describe("imperative-audit / lightMutation", () => {
 
 	it("handlerVersion is stamped onto every record", () => {
 		const { audit, dispose } = makeAuditLog();
-		const op = lightMutation((key: string) => key, {
-			audit,
+		const op = mutate((key: string) => key, {
+			frame: "inline",
+			log: audit,
 			handlerVersion: { id: "h1", version: "v1" },
-			onSuccess: ([key], _r, m) => ({ action: "set" as const, key, t_ns: m.t_ns }),
+			onSuccessRecord: ([key], _r, m) => ({ action: "set" as const, key, t_ns: m.t_ns }),
 		});
 		op("x");
 		const entries = audit.entries.cache as readonly TestRecord[];
@@ -175,9 +180,10 @@ describe("imperative-audit / lightMutation", () => {
 
 	it("undefined record from builder skips the append", () => {
 		const { audit, dispose } = makeAuditLog();
-		const op = lightMutation(() => undefined, {
-			audit,
-			onSuccess: () => undefined,
+		const op = mutate(() => undefined, {
+			frame: "inline",
+			log: audit,
+			onSuccessRecord: () => undefined,
 		});
 		op();
 		expect(audit.entries.cache as readonly TestRecord[]).toHaveLength(0);
@@ -190,48 +196,49 @@ describe("imperative-audit / lightMutation", () => {
 		const sub = cursor.subscribe(() => undefined);
 		const seenFrozen: boolean[] = [];
 
-		const op = lightMutation(
+		const op = mutate(
 			(arg: { v: number }) => {
 				seenFrozen.push(Object.isFrozen(arg));
 				return arg.v;
 			},
-			{ seq: cursor }, // no audit, no onSuccess/onFailure
+			{ frame: "inline", seq: cursor }, // no log, no onSuccessRecord/onFailureRecord
 		);
 
 		// Freeze contract preserved.
 		op({ v: 1 });
 		expect(seenFrozen[0]).toBe(true);
-		// seq advanced even without audit.
+		// seq advanced even without log.
 		expect(cursor.cache).toBe(1);
 
-		// Throw still re-throws — and no audit is emitted (there is no audit log).
-		const throwingOp = lightMutation(
+		// Throw still re-throws — and no record is emitted (there is no log).
+		const throwingOp = mutate(
 			() => {
 				throw new Error("boom");
 			},
-			{ seq: cursor },
+			{ frame: "inline", seq: cursor },
 		);
 		expect(() => throwingOp()).toThrow(/boom/);
-		// seq advanced once more for the failed call (lightMutation is no-batch).
+		// seq advanced once more for the failed call (inline frame is no-batch).
 		expect(cursor.cache).toBe(2);
 
 		sub();
 	});
 });
 
-describe("imperative-audit / wrapMutation regression", () => {
+describe("mutate frame:transactional", () => {
 	it("success: appends success record with stamped seq and handlerVersion", () => {
 		const { audit, dispose } = makeAuditLog();
 		const cursor = node<number>([], { name: "seq", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 
-		const op = wrapMutation((key: string) => key.toUpperCase(), {
-			audit,
+		const op = mutate((key: string) => key.toUpperCase(), {
+			frame: "transactional",
+			log: audit,
 			seq: cursor,
 			handlerVersion: { id: "h", version: 1 },
-			onSuccess: ([key], result, m) =>
+			onSuccessRecord: ([key], result, m) =>
 				({ action: "set" as const, key, t_ns: m.t_ns, seq: m.seq }) satisfies TestRecord,
-			onFailure: (_a, _e, m) => ({
+			onFailureRecord: (_a, _e, m) => ({
 				action: "fail" as const,
 				t_ns: m.t_ns,
 				seq: m.seq,
@@ -256,15 +263,16 @@ describe("imperative-audit / wrapMutation regression", () => {
 		const cursor = node<number>([], { name: "seq", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 
-		const op = wrapMutation(
+		const op = mutate(
 			() => {
 				throw new TypeError("nope");
 			},
 			{
-				audit,
+				frame: "transactional",
+				log: audit,
 				seq: cursor,
-				onSuccess: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns, seq: m.seq }),
-				onFailure: (_a, _e, m) => ({
+				onSuccessRecord: (_a, _r, m) => ({ action: "set" as const, t_ns: m.t_ns, seq: m.seq }),
+				onFailureRecord: (_a, _e, m) => ({
 					action: "fail" as const,
 					t_ns: m.t_ns,
 					seq: m.seq,
@@ -287,18 +295,19 @@ describe("imperative-audit / wrapMutation regression", () => {
 		dispose();
 	});
 
-	it("throw: the failure-audit append is NOT itself swallowed by the batch rollback", () => {
-		// Sanity check — the post-refactor wrapMutation must still call
-		// `appendAudit(onFailure, ...)` AFTER the batch rejects, not inside it.
+	it("throw: the failure record is NOT itself swallowed by the batch rollback", () => {
+		// Sanity check — mutate(frame:transactional) must still call
+		// `appendAudit(onFailureRecord, ...)` AFTER the batch rejects, not inside it.
 		// Validates the captureSet path in the catch block.
 		const { audit, dispose } = makeAuditLog();
-		const op = wrapMutation(
+		const op = mutate(
 			() => {
 				throw new Error("e");
 			},
 			{
-				audit,
-				onFailure: (_a, _e, m) => ({
+				frame: "transactional",
+				log: audit,
+				onFailureRecord: (_a, _e, m) => ({
 					action: "fail" as const,
 					t_ns: m.t_ns,
 					errorType: m.errorType,
@@ -311,36 +320,61 @@ describe("imperative-audit / wrapMutation regression", () => {
 		dispose();
 	});
 
-	// Tier 8 γ-0: audit-optional opt-in.
-	it("audit omitted: re-throws and freezes args, but skips audit emission", () => {
-		// wrapMutation without audit still opens a batch frame, freezes args,
-		// advances seq, and re-throws. There is no audit log surface; no
-		// records are appended.
+	// Tier 8 γ-0: log-optional opt-in.
+	it("log omitted: re-throws and freezes args, but skips record emission", () => {
+		// mutate(frame:transactional) without log still opens a batch frame,
+		// freezes args, advances seq, and re-throws.
 		const cursor = node<number>([], { name: "c", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 		const seenFrozen: boolean[] = [];
 
-		const op = wrapMutation(
+		const op = mutate(
 			(arg: { v: number }) => {
 				seenFrozen.push(Object.isFrozen(arg));
 				return arg.v;
 			},
-			{ seq: cursor }, // no audit
+			{ frame: "transactional", seq: cursor }, // no log
 		);
 
 		op({ v: 1 });
 		expect(seenFrozen[0]).toBe(true);
 
-		// Throw still propagates without an audit log.
-		const throwingOp = wrapMutation(
+		// Throw still propagates without a log.
+		const throwingOp = mutate(
 			() => {
 				throw new Error("nope");
 			},
-			{ seq: cursor }, // no audit
+			{ frame: "transactional", seq: cursor }, // no log
 		);
 		expect(() => throwingOp()).toThrow(/nope/);
 
 		sub();
+	});
+
+	it("down hook fires on throw after batch rollback", () => {
+		const { audit, dispose } = makeAuditLog();
+		let downCalled = false;
+		let downArgs: unknown[] = [];
+
+		const op = mutate(
+			{ up: (key: string) => { throw new Error("fail"); }, down: (key: string) => { downCalled = true; downArgs = [key]; } },
+			{
+				frame: "transactional",
+				log: audit,
+				onFailureRecord: (_a, _e, m) => ({
+					action: "fail" as const,
+					t_ns: m.t_ns,
+					errorType: m.errorType,
+				}),
+			},
+		);
+
+		expect(() => op("test-key")).toThrow(/fail/);
+		expect(downCalled).toBe(true);
+		expect(downArgs).toEqual(["test-key"]);
+		// Failure record still persists
+		expect(audit.entries.cache as readonly TestRecord[]).toHaveLength(1);
+		dispose();
 	});
 });
 

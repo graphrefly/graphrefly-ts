@@ -11,9 +11,12 @@
  * with a cap is not).
  */
 import { batch } from "../../core/batch.js";
+import { wallClockNs } from "../../core/clock.js";
 import { DATA, DIRTY } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import type { VersioningLevel } from "../../core/versioning.js";
+import type { ListChange, ListChangePayload } from "./change.js";
+import { type ReactiveLogBundle, reactiveLog } from "./reactive-log.js";
 
 export type ReactiveListOptions<T> = {
 	name?: string;
@@ -28,6 +31,15 @@ export type ReactiveListOptions<T> = {
 	 * monotonic version counter, or `1` for V1 + content-addressed cid.
 	 */
 	versioning?: VersioningLevel;
+	/**
+	 * Enable the `mutationLog` delta companion log. When set, every mutation
+	 * appends a typed `ListChange<T>` record in the same batch frame as
+	 * the snapshot emission (same-wave consistency).
+	 *
+	 * - `true` — creates a log with default options.
+	 * - `{ maxSize?, name? }` — forwards to the inner `reactiveLog`.
+	 */
+	mutationLog?: true | { maxSize?: number; name?: string };
 };
 
 export type ReactiveListBundle<T> = {
@@ -47,6 +59,12 @@ export type ReactiveListBundle<T> = {
 	/** Remove and return the value at `index` (default: last). Negative indices Python-style. Throws on empty / out-of-range. */
 	pop: (index?: number) => T;
 	clear: () => void;
+	/**
+	 * Delta companion log. Present iff `mutationLog` option was configured.
+	 * Each mutation appends a typed `ListChange<T>` record in the same
+	 * batch frame as the snapshot emission (same-wave consistency).
+	 */
+	readonly mutationLog?: ReactiveLogBundle<ListChange<T>>;
 	/**
 	 * Releases any internal keepalive subscriptions so the bundle can be
 	 * GC'd. `reactiveList` currently holds none (no internal derived nodes),
@@ -231,8 +249,22 @@ export function reactiveList<T>(
 	initial?: readonly T[],
 	options: ReactiveListOptions<T> = {},
 ): ReactiveListBundle<T> {
-	const { name, versioning, backend: userBackend } = options;
+	const { name, versioning, backend: userBackend, mutationLog: mutLogOpt } = options;
 	const backend: ListBackend<T> = userBackend ?? new NativeListBackend<T>(initial);
+
+	// ── Mutations companion log (Phase 14.3) ─────────────────────────────────
+	const mutLog: ReactiveLogBundle<ListChange<T>> | undefined = mutLogOpt
+		? reactiveLog<ListChange<T>>(undefined, {
+				name: mutLogOpt === true ? (name ? `${name}.mutationLog` : undefined) : mutLogOpt.name,
+				maxSize: mutLogOpt === true ? undefined : mutLogOpt.maxSize,
+			})
+		: undefined;
+	let mutVersion = 0;
+	let pendingChanges: ListChangePayload<T>[] = [];
+	function enqueueChange(payload: ListChangePayload<T>): void {
+		if (!mutLog) return;
+		pendingChanges.push(payload);
+	}
 
 	const items = node<readonly T[]>([], {
 		initial: backend.toArray(),
@@ -244,9 +276,20 @@ export function reactiveList<T>(
 
 	function pushSnapshot(): void {
 		const snapshot = backend.toArray();
+		const changes = pendingChanges;
+		pendingChanges = [];
 		batch(() => {
 			items.down([[DIRTY]]);
 			items.down([[DATA, snapshot]]);
+			for (const c of changes) {
+				mutLog!.append({
+					structure: "list",
+					version: ++mutVersion,
+					t_ns: wallClockNs(),
+					lifecycle: "data",
+					change: c,
+				});
+			}
 		});
 	}
 
@@ -263,6 +306,7 @@ export function reactiveList<T>(
 			return op();
 		} finally {
 			if (backend.version !== prev) pushSnapshot();
+			else pendingChanges.length = 0;
 		}
 	}
 
@@ -278,32 +322,53 @@ export function reactiveList<T>(
 		},
 
 		append(value: T): void {
-			wrapMutation(() => backend.append(value));
+			wrapMutation(() => {
+				backend.append(value);
+				enqueueChange({ kind: "append", value });
+			});
 		},
 
 		appendMany(values: readonly T[]): void {
-			wrapMutation(() => backend.appendMany(values));
+			wrapMutation(() => {
+				backend.appendMany(values);
+				if (values.length > 0) enqueueChange({ kind: "appendMany", values });
+			});
 		},
 
 		insert(index: number, value: T): void {
-			wrapMutation(() => backend.insert(index, value));
+			wrapMutation(() => {
+				backend.insert(index, value);
+				enqueueChange({ kind: "insert", index, value });
+			});
 		},
 
 		insertMany(index: number, values: readonly T[]): void {
-			wrapMutation(() => backend.insertMany(index, values));
+			wrapMutation(() => {
+				backend.insertMany(index, values);
+				if (values.length > 0) enqueueChange({ kind: "insertMany", index, values });
+			});
 		},
 
 		pop(index = -1): T {
-			return wrapMutation(() => backend.pop(index));
+			return wrapMutation(() => {
+				const resolvedIndex = index < 0 ? backend.size + index : index;
+				const value = backend.pop(index);
+				enqueueChange({ kind: "pop", index: resolvedIndex, value });
+				return value;
+			});
 		},
 
 		clear(): void {
-			wrapMutation(() => backend.clear());
+			wrapMutation(() => {
+				const count = backend.clear();
+				if (count > 0) enqueueChange({ kind: "clear", count });
+			});
 		},
 
+		mutationLog: mutLog,
+
 		dispose(): void {
-			// D6(a): no internal keepalives — no-op for API parity. If a future
-			// refactor adds a keepalive, wire its disposer here.
+			if (mutLog) mutLog.dispose();
 		},
 	};
 }

@@ -2,7 +2,7 @@
  * Messaging audit-record schemas (DS-13.5.E, locked 2026-05-01 alt A).
  *
  * Per-site discriminated-union audit records for the four messaging mutation
- * sites that route through `lightMutation`:
+ * sites that route through `mutate`:
  *
  * - {@link TopicPublishRecord} — `Topic.publish`
  * - {@link SubscriptionAckRecord} — `Subscription.ack`
@@ -10,23 +10,24 @@
  * - {@link HubRemoveTopicRecord} — `Hub.removeTopic`
  *
  * **Opt-in usage.** None of the four mutation sites enable an audit log by
- * default — caller wires audit visibility by composing `lightMutation` with
+ * default — caller wires audit visibility by composing `mutate` with
  * an audit `ReactiveLogBundle<R>` of the matching record type and an
  * `onSuccess`/`onFailure` builder:
  *
  * ```ts
- * import { createAuditLog, lightMutation } from "@graphrefly/graphrefly/extra";
+ * import { createAuditLog, mutate } from "@graphrefly/graphrefly/extra";
  * import {
  *   type TopicPublishRecord,
  *   topicPublishKeyOf,
  * } from "@graphrefly/graphrefly/patterns/messaging";
  *
  * const audit = createAuditLog<TopicPublishRecord>({ name: "publishes" });
- * const publish = lightMutation(
+ * const publish = mutate(
  *   (item: MyMessage) => topic.publish(item),
  *   {
- *     audit,
- *     onSuccess: ([item], _r, m) => ({
+ *     frame: "inline",
+ *     log: audit,
+ *     onSuccessRecord: ([item], _r, m) => ({
  *       t_ns: m.t_ns,
  *       seq: m.seq,
  *       kind: "topic.publish",
@@ -42,7 +43,7 @@
  *
  * **Composability.** All four records extend {@link BaseAuditRecord} so they
  * carry the cross-cutting `t_ns` / `seq?` / `handlerVersion?` fields stamped
- * by `lightMutation` (Audit 2 / Audit 5).
+ * by `mutate` (Audit 2 / Audit 5).
  *
  * **Per-record keyOf.** Each record exports a recommended `keyOf` for
  * keyed-storage adapters (Rule G.27-keyOf-recommended) — partition the audit

@@ -16,7 +16,7 @@ import {
 	type BaseAuditRecord,
 	bumpCursor,
 	createAuditLog,
-	lightMutation,
+	mutate,
 	registerCursor,
 } from "../../extra/mutation/index.js";
 import { reactiveList } from "../../extra/reactive-list.js";
@@ -79,7 +79,7 @@ export class JobQueueGraph<T> extends Graph {
 	/** Alias for {@link JobQueueGraph.events} — Audit 2 `.audit` duplication. */
 	readonly audit: ReactiveLogBundle<JobEvent<T>>;
 
-	// Tier 8 / COMPOSITION-GUIDE §35: lightMutation wrappers for the four
+	// Tier 8 / COMPOSITION-GUIDE §35: mutate wrappers for the four
 	// single-record mutation methods. Assigned in the constructor (NOT via
 	// class-field initializers) because field initializers run before the
 	// constructor body — `this.events` and `this._seqCursor` aren't ready yet.
@@ -127,11 +127,11 @@ export class JobQueueGraph<T> extends Graph {
 		this._seqCursor = registerCursor(this, "seq", 0);
 
 		// `freeze: false` everywhere because the payload may be large and
-		// per-mutation cost matters on hot paths. lightMutation bumps `seq` via
+		// per-mutation cost matters on hot paths. mutate bumps `seq` via
 		// the registered cursor BEFORE the action runs, so action bodies that
 		// need the just-bumped value (e.g. enqueue's auto-id) read
 		// `this._seqCursor.cache`.
-		this._enqueueImpl = lightMutation<
+		this._enqueueImpl = mutate<
 			[T, { id?: string; metadata?: Record<string, unknown> }],
 			string,
 			JobEvent<T>
@@ -154,10 +154,11 @@ export class JobQueueGraph<T> extends Graph {
 				return id;
 			},
 			{
-				audit: this.events,
+				frame: "inline",
+				log: this.events,
 				seq: this._seqCursor,
 				freeze: false,
-				onSuccess: ([payload], id, { t_ns, seq }) => ({
+				onSuccessRecord: ([payload], id, { t_ns, seq }) => ({
 					action: "enqueue",
 					id,
 					payload,
@@ -167,15 +168,16 @@ export class JobQueueGraph<T> extends Graph {
 			},
 		);
 
-		this._ackImpl = lightMutation<[string, JobEnvelope<T>], void, JobEvent<T>>(
+		this._ackImpl = mutate<[string, JobEnvelope<T>], void, JobEvent<T>>(
 			(id, _job): void => {
 				this._jobs.delete(id);
 			},
 			{
-				audit: this.events,
+				frame: "inline",
+				log: this.events,
 				seq: this._seqCursor,
 				freeze: false,
-				onSuccess: ([id, job], _r, { t_ns, seq }) => ({
+				onSuccessRecord: ([id, job], _r, { t_ns, seq }) => ({
 					action: "ack",
 					id,
 					attempts: job.attempts,
@@ -185,7 +187,7 @@ export class JobQueueGraph<T> extends Graph {
 			},
 		);
 
-		this._nackImpl = lightMutation<[string, JobEnvelope<T>, boolean], void, JobEvent<T>>(
+		this._nackImpl = mutate<[string, JobEnvelope<T>, boolean], void, JobEvent<T>>(
 			(id, job, requeue): void => {
 				if (requeue) {
 					this._jobs.set(id, { ...job, state: "queued" });
@@ -195,10 +197,11 @@ export class JobQueueGraph<T> extends Graph {
 				}
 			},
 			{
-				audit: this.events,
+				frame: "inline",
+				log: this.events,
 				seq: this._seqCursor,
 				freeze: false,
-				onSuccess: ([id, job], _r, { t_ns, seq }) => ({
+				onSuccessRecord: ([id, job], _r, { t_ns, seq }) => ({
 					action: "nack",
 					id,
 					attempts: job.attempts,
@@ -208,7 +211,7 @@ export class JobQueueGraph<T> extends Graph {
 			},
 		);
 
-		this._removeByIdImpl = lightMutation<[string, JobEnvelope<T>], void, JobEvent<T>>(
+		this._removeByIdImpl = mutate<[string, JobEnvelope<T>], void, JobEvent<T>>(
 			(id, job): void => {
 				if (job.state === "queued") {
 					const pending = this.pending.cache as readonly string[];
@@ -218,10 +221,11 @@ export class JobQueueGraph<T> extends Graph {
 				this._jobs.delete(id);
 			},
 			{
-				audit: this.events,
+				frame: "inline",
+				log: this.events,
 				seq: this._seqCursor,
 				freeze: false,
-				onSuccess: ([id, job], _r, { t_ns, seq }) => ({
+				onSuccessRecord: ([id, job], _r, { t_ns, seq }) => ({
 					action: "remove",
 					id,
 					attempts: job.attempts,
@@ -262,7 +266,7 @@ export class JobQueueGraph<T> extends Graph {
 			};
 			this._jobs.set(id, inflight);
 			out.push(inflight);
-			// claim emits one audit record per claimed job; lightMutation wraps a
+			// claim emits one audit record per claimed job; mutate wraps a
 			// single call → single record, so claim stays inline and bumps the
 			// cursor directly via the shared `bumpCursor` helper.
 			this.events.append({

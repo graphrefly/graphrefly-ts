@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { node } from "../../core/node.js";
 
-import { createAuditLog, lightMutation } from "../../extra/mutation/index.js";
+import { createAuditLog, mutate } from "../../extra/mutation/index.js";
 import { jobFlow, jobQueue } from "../../patterns/job-queue/index.js";
 import {
 	DEFERRED_TOPIC,
@@ -678,17 +678,18 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 		expect(keys).toEqual(["t::k", "s::1", "s::2", "t"]);
 	});
 
-	it("TopicPublishRecord composes with lightMutation audit opts (opt-in emission)", () => {
+	it("TopicPublishRecord composes with mutate audit opts (opt-in emission)", () => {
 		const t = topic<{ id: string; payload: string }>("orders");
 		const log = createAuditLog<TopicPublishRecord>({ name: "publishes" });
 		// Activate the entries node so .cache reflects appends synchronously.
 		const unsub = log.entries.subscribe(() => undefined);
 
-		const auditedPublish = lightMutation(
+		const auditedPublish = mutate(
 			(item: { id: string; payload: string }): void => t.publish(item),
 			{
-				audit: log,
-				onSuccess: ([item], _r, m) => ({
+				frame: "inline",
+				log,
+				onSuccessRecord: ([item], _r, m) => ({
 					t_ns: m.t_ns,
 					seq: m.seq,
 					kind: "topic.publish" as const,
@@ -711,7 +712,7 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 		unsub();
 	});
 
-	it("SubscriptionAckRecord composes with lightMutation audit opts", () => {
+	it("SubscriptionAckRecord composes with mutate audit opts", () => {
 		const t = topic<number>("nums");
 		t.publish(10);
 		t.publish(20);
@@ -721,9 +722,10 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 		const log = createAuditLog<SubscriptionAckRecord>({ name: "acks" });
 		const unsub = log.entries.subscribe(() => undefined);
 
-		const auditedAck = lightMutation((count: number): number => sub.ack(count), {
-			audit: log,
-			onSuccess: (_args, cursor, m) => ({
+		const auditedAck = mutate((count: number): number => sub.ack(count), {
+			frame: "inline",
+			log,
+			onSuccessRecord: (_args, cursor, m) => ({
 				t_ns: m.t_ns,
 				seq: m.seq,
 				kind: "subscription.ack" as const,
@@ -745,7 +747,7 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 		unsub();
 	});
 
-	it("SubscriptionPullAndAckRecord composes with lightMutation audit opts", () => {
+	it("SubscriptionPullAndAckRecord composes with mutate audit opts", () => {
 		const t = topic<string>("letters");
 		t.publish("a");
 		t.publish("b");
@@ -755,9 +757,10 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 		const log = createAuditLog<SubscriptionPullAndAckRecord>({ name: "pulls" });
 		const unsub = log.entries.subscribe(() => undefined);
 
-		const auditedPullAndAck = lightMutation((limit: number) => sub.pullAndAck(limit), {
-			audit: log,
-			onSuccess: (_args, result, m) => ({
+		const auditedPullAndAck = mutate((limit: number) => sub.pullAndAck(limit), {
+			frame: "inline",
+			log,
+			onSuccessRecord: (_args, result, m) => ({
 				t_ns: m.t_ns,
 				seq: m.seq,
 				kind: "subscription.pullAndAck" as const,
@@ -780,7 +783,7 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 		unsub();
 	});
 
-	it("HubRemoveTopicRecord composes with lightMutation audit opts", () => {
+	it("HubRemoveTopicRecord composes with mutate audit opts", () => {
 		const hub = messagingHub("hub");
 		hub.topic<number>("alpha");
 		hub.topic<number>("beta");
@@ -788,9 +791,10 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 		const log = createAuditLog<HubRemoveTopicRecord>({ name: "removals" });
 		const unsub = log.entries.subscribe(() => undefined);
 
-		const auditedRemove = lightMutation((name: string): boolean => hub.removeTopic(name), {
-			audit: log,
-			onSuccess: ([name], removed, m) =>
+		const auditedRemove = mutate((name: string): boolean => hub.removeTopic(name), {
+			frame: "inline",
+			log,
+			onSuccessRecord: ([name], removed, m) =>
 				removed
 					? {
 							t_ns: m.t_ns,
@@ -813,7 +817,7 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 	});
 
 	it("audit field stays optional — Topic.publish without audit opts emits no records", () => {
-		// Without lightMutation/audit wiring, the topic's mutation site does
+		// Without mutate/audit wiring, the topic's mutation site does
 		// not emit any records (audit field stays optional at all four sites).
 		const t = topic<number>("plain");
 		t.publish(1);

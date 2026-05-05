@@ -1,16 +1,19 @@
 /**
- * Audited-mutation framework (Audit 2 — locked 2026-04-24; promoted to
- * `extra/mutation/` per consolidation plan §1, Tier 2.2).
+ * Universal mutation framework (Phase 14 — DS-14 locked 2026-05-05).
+ *
+ * Single `mutate(act, opts)` factory replaces the prior `lightMutation` +
+ * `wrapMutation` two-tier split (pre-1.0 break per Q-O2).
+ *
+ * Two frames:
+ * - `"inline"` — no batch; up() runs raw. Seq bumps before action; persists
+ *   on throw. Hot-path-friendly for atomic single-write mutations.
+ * - `"transactional"` — opens `batch(() => up(...))`. On throw: batch discards
+ *   deferred deliveries, then `down()` runs (if provided), then failure record.
  *
  * Phase-4 primitives share the same shape: imperative mutation methods +
  * closure state + reactive audit log + freeze-at-entry + rollback-on-throw.
  * This module factors out the common machinery so each primitive becomes
- * declarative wiring over typed audit records:
- *  - `approvalGate`, `pipeline.approvalGate`  (Wave A.2 Unit 8)
- *  - `JobQueueGraph`                          (Wave B.3 Unit 15)
- *  - `CqrsGraph.dispatch`                     (Wave C.2 Unit 20)
- *  - `CqrsGraph.saga`                         (Wave C.3 Unit 22)
- *  - `processManager`                         (Wave 7)
+ * declarative wiring over typed audit records.
  */
 
 import { batch } from "../../core/batch.js";
@@ -123,28 +126,20 @@ export function createAuditLog<R extends BaseAuditRecord>(
 	return log;
 }
 
-// ── Mutation framework (two tiers) ───────────────────────────────────────
+// ── Universal mutation factory (Phase 14 — DS-14 lock Q-O2/Q-O3) ────────
 //
-// Both `lightMutation` (substrate-tier) and `wrapMutation` (orchestration-tier)
-// share the same audit-record stamping and seq-cursor semantics via the
-// `appendAudit` + `bumpCursor` helpers below. They differ only in the top-level
-// frame:
+// Single `mutate(act, opts)` factory. Two frames:
 //
-// - `lightMutation` runs the action plain (no batch, no rollback). Use for
-//   atomic single-write mutations where rollback-on-throw is not needed
-//   (memory primitive `upsert/remove/clear/link/unlink/rescore/reindex`,
-//   `TopicGraph.publish`, `JobQueueGraph.enqueue/ack/nack`).
+// - `"inline"` — no batch frame; up() runs raw. Seq bumps before action;
+//   persists on throw. Hot-path-friendly for atomic single-write mutations.
 //
-// - `wrapMutation` opens a `batch()` frame around the action so an in-flight
-//   throw rolls back partial state. Use for orchestration-tier multi-step
-//   mutations (`gate.approve/reject/modify/open/close`, `CqrsGraph.dispatch`,
-//   `CqrsGraph.saga`, `processManager.start/cancel`).
+// - `"transactional"` — opens `batch(() => up(...))`. On throw: batch discards
+//   deferred deliveries, then `down()` runs, then failure record persists.
 //
 // **Heuristic:** if your imperative method's body is one or two lines (mutate
-// state, emit), use `lightMutation`. If it runs a user-supplied handler or
+// state, emit), use `frame: "inline"`. If it runs a user-supplied handler or
 // has multiple steps that could leave inconsistent state mid-throw, use
-// `wrapMutation`. Audit log shape is identical; only orchestration overhead
-// differs.
+// `frame: "transactional"`.
 
 export type FailureMeta = {
 	t_ns: number;
@@ -157,66 +152,44 @@ export type SuccessMeta = {
 	seq?: number;
 };
 
-/** Common opts shared by both tiers. */
-export type MutationOpts<TArgs extends readonly unknown[], TResult, R extends BaseAuditRecord> = {
+/**
+ * Mutation action shape. Plain function shorthand auto-wraps as `{ up: fn }`.
+ *
+ * - `up` — the mutation action (the "up migration").
+ * - `down` — optional rollback for closure mutations that `batch()` can't
+ *   reach. Receives the SAME frozen args as `up`. Runs AFTER batch reactive
+ *   rollback, BEFORE the failure record. Throws inside `down` are
+ *   console.error'd without masking the original error. Only meaningful
+ *   with `frame: "transactional"`.
+ */
+export type MutationAct<TArgs extends readonly unknown[], TResult> = {
+	up: (...args: TArgs) => TResult;
+	down?: (...args: TArgs) => void;
+};
+
+export type MutationFrame = "inline" | "transactional";
+
+export type MutateOpts<TArgs extends readonly unknown[], TResult, R extends BaseAuditRecord> = {
+	/** Frame mode. `"inline"` = no batch; `"transactional"` = batch + rollback. */
+	frame: MutationFrame;
 	/**
-	 * Optional audit log. When omitted, the wrapper still provides freeze /
-	 * seq-advance / rollback-on-throw (`wrapMutation`) but skips audit-record
-	 * emission entirely — useful for primitives that want centralized mutation
-	 * semantics without a dedicated audit log surface (e.g. `Topic.publish`).
-	 * Pair with `onSuccess` / `onFailure` to emit records.
+	 * Optional log to append records to. When omitted, the wrapper still
+	 * provides freeze / seq-advance / rollback-on-throw but skips record
+	 * emission — useful for primitives that want centralized mutation
+	 * semantics without a dedicated log surface (e.g. `Topic.publish`).
 	 */
-	audit?: ReactiveLogBundle<R>;
+	log?: ReactiveLogBundle<R>;
 	/** Build the success record from the action's args + result + meta. */
-	onSuccess?: (args: TArgs, result: TResult, meta: SuccessMeta) => R | undefined;
+	onSuccessRecord?: (args: TArgs, result: TResult, meta: SuccessMeta) => R | undefined;
 	/** Build the failure record from the args + error + meta. */
-	onFailure?: (args: TArgs, error: unknown, meta: FailureMeta) => R | undefined;
-	/** Freeze inputs at entry (default `true`). Pass `false` for hot paths. */
+	onFailureRecord?: (args: TArgs, error: unknown, meta: FailureMeta) => R | undefined;
+	/** Deep-freeze args at entry (default `true`). Opt out for hot paths. */
 	freeze?: boolean;
 	/** Optional sequence cursor — auto-advanced and stamped onto records. */
 	seq?: Node<number>;
-	/** Optional handler version — stamped into the record (Audit 5). */
+	/** Optional handler version — stamped per Audit 5. */
 	handlerVersion?: { id: string; version: string | number };
-	/**
-	 * Lock 4.B (A) (Phase 13.6.B B9) — explicit compensation hook for
-	 * closure-state mutations that the framework can't auto-rollback.
-	 *
-	 * `wrapMutation`'s `batch()` frame rolls back reactive state (cursors,
-	 * cache writes, log appends) on throw. Closure-state mutations
-	 * (`myMap.set(...)`, `counter++` in a closure) live outside the
-	 * reactive substrate — when the action throws partway, they leave
-	 * inconsistent state behind.
-	 *
-	 * Pass `compensate` to undo bespoke closure mutations. Fired exactly
-	 * once when the action throws, AFTER the batch's reactive rollback,
-	 * BEFORE the audit `onFailure` builder. A throw inside `compensate`
-	 * is logged via `console.error` but does not mask the original
-	 * action error (best-effort cleanup).
-	 *
-	 * Two complementary mechanisms tracked under Lock 4.B:
-	 * - (B) `registerMutable(node, value)` — opt-in auto-snapshot for
-	 *   common collections. **Not yet implemented**, see
-	 *   `docs/optimizations.md`.
-	 * - (C) Dev-mode Proxy detection of unregistered mutations. **Not
-	 *   yet implemented**, see `docs/optimizations.md`.
-	 *
-	 * **Provisional design** — revisit at Rust-port boundary; Rust's
-	 * ownership + `Drop` may obviate parts (A)/(B)/(C).
-	 */
-	compensate?: () => void;
 };
-
-export type WrapMutationOpts<
-	TArgs extends readonly unknown[],
-	TResult,
-	R extends BaseAuditRecord,
-> = MutationOpts<TArgs, TResult, R>;
-
-export type LightMutationOpts<
-	TArgs extends readonly unknown[],
-	TResult,
-	R extends BaseAuditRecord,
-> = MutationOpts<TArgs, TResult, R>;
 
 function deepFreeze<T>(value: T): T {
 	if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -224,6 +197,121 @@ function deepFreeze<T>(value: T): T {
 		deepFreeze((value as Record<string, unknown>)[k]);
 	}
 	return Object.freeze(value);
+}
+
+/**
+ * Universal mutation factory (Phase 14 — DS-14 Q-O2).
+ *
+ * Replaces the prior `lightMutation` + `wrapMutation` two-tier split.
+ * Single factory with `frame: "inline" | "transactional"` discriminant.
+ *
+ * @param act - The mutation action. Either a plain function (auto-wrapped as
+ *   `{ up: fn }`) or a `{ up, down? }` object for explicit rollback.
+ * @param opts - Configuration: frame, log, record builders, freeze, seq.
+ * @returns A typed wrapper function with the same signature as `act.up`.
+ */
+export function mutate<TArgs extends readonly unknown[], TResult, R extends BaseAuditRecord>(
+	act: MutationAct<TArgs, TResult> | ((...args: TArgs) => TResult),
+	opts: MutateOpts<TArgs, TResult, R>,
+): (...args: TArgs) => TResult {
+	const { up, down } = typeof act === "function" ? { up: act, down: undefined } : act;
+	const freeze = opts.freeze ?? true;
+
+	if (opts.frame === "inline") {
+		return function wrapped(...args: TArgs): TResult {
+			const sealed = freeze ? (args.map(deepFreeze) as unknown as TArgs) : args;
+			const t_ns = wallClockNs();
+			const seq = opts.seq ? bumpCursor(opts.seq) : undefined;
+			try {
+				const result = up(...sealed);
+				if (opts.log && opts.onSuccessRecord) {
+					appendAudit<TArgs, TResult, R, SuccessMeta>(
+						opts.log,
+						opts.onSuccessRecord,
+						sealed,
+						result,
+						{ t_ns, seq },
+						opts.handlerVersion,
+					);
+				}
+				return result;
+			} catch (err) {
+				if (opts.log && opts.onFailureRecord) {
+					const errorType = err instanceof Error ? err.name : typeof err;
+					appendAudit<TArgs, unknown, R, FailureMeta>(
+						opts.log,
+						opts.onFailureRecord,
+						sealed,
+						err,
+						{ t_ns, seq, errorType },
+						opts.handlerVersion,
+					);
+				}
+				throw err;
+			}
+		};
+	}
+
+	// frame === "transactional"
+	return function wrapped(...args: TArgs): TResult {
+		const sealed = freeze ? (args.map(deepFreeze) as unknown as TArgs) : args;
+		const t_ns = wallClockNs();
+		let result: TResult;
+		let captured: unknown;
+		let captureSet = false;
+		let seq: number | undefined;
+		try {
+			batch(() => {
+				if (opts.seq) seq = bumpCursor(opts.seq);
+				try {
+					result = up(...sealed);
+					if (opts.log && opts.onSuccessRecord) {
+						appendAudit<TArgs, TResult, R, SuccessMeta>(
+							opts.log,
+							opts.onSuccessRecord,
+							sealed,
+							result,
+							{ t_ns, seq },
+							opts.handlerVersion,
+						);
+					}
+				} catch (err) {
+					captured = err;
+					captureSet = true;
+					throw err;
+				}
+			});
+		} catch (outerErr) {
+			// Fire `down` AFTER batch's reactive rollback, BEFORE failure record.
+			// Gate on `captureSet` — if the throw came from outside the inner try
+			// (framework-level batch error before action ran), don't fire down.
+			if (captureSet && down) {
+				try {
+					down(...sealed);
+				} catch (downErr) {
+					console.error(
+						`mutate: down hook threw — original action error preserved (${
+							captured instanceof Error ? captured.name : typeof captured
+						}). Down error:`,
+						downErr,
+					);
+				}
+			}
+			if (captureSet && opts.log && opts.onFailureRecord) {
+				const errorType = captured instanceof Error ? captured.name : typeof captured;
+				appendAudit<TArgs, unknown, R, FailureMeta>(
+					opts.log,
+					opts.onFailureRecord,
+					sealed,
+					captured,
+					{ t_ns, seq, errorType },
+					opts.handlerVersion,
+				);
+			}
+			throw captureSet ? captured : outerErr;
+		}
+		return result!;
+	};
 }
 
 /**
@@ -297,194 +385,6 @@ export function appendAudit<
 	audit.append(stamped);
 }
 
-/**
- * Substrate-tier wrapper: run `action`, optionally append a typed audit record
- * on success or failure, advance an optional `seq` cursor. No batch frame —
- * this is the hot-path-friendly variant for atomic single-write mutations.
- *
- * Behavior contract:
- * 1. Freeze args at entry (default `true`; opt out with `freeze: false` for
- *    hot paths — e.g. wrapping `vectorIndex.upsert(id, vector[768], meta)`
- *    where the deep-freeze of a 768-dim vector is a measurable tax).
- * 2. Bump `seq` (if provided) BEFORE the action runs. There is no batch frame,
- *    so the bump persists even on throw — the failure-audit record stamps the
- *    same `seq` so audit consumers see a contiguous sequence.
- * 3. Run `action(args)`. On success, if `audit` is provided AND `onSuccess`
- *    is set, `appendAudit(onSuccess, ...)`.
- * 4. On throw, if `audit` is provided AND `onFailure` is set,
- *    `appendAudit(onFailure, ...)` then re-throw. When `audit` is omitted the
- *    wrapper still provides freeze + seq + re-throw semantics — useful for
- *    primitives that want centralized mutation contracts without an audit log
- *    surface (e.g. `Topic.publish`).
- *
- * **Distinguish from {@link wrapMutation}:** `wrapMutation` opens a `batch()`
- * frame (rollback-on-throw, seq advance discarded on rollback) and is the
- * right choice when the action runs a user-supplied handler or a multi-step
- * sequence that could leave inconsistent state mid-throw.
- *
- * **Cursor / log alignment caveat (substrate-tier):** `seq` is bumped BEFORE
- * `action()` runs, and the audit-log append happens AFTER. There is no batch
- * frame, so a synchronous subscriber to `seq` that fires between the two —
- * including a subscriber on `audit.entries` itself if the substrate causes
- * it to fire transitively — observes `seq=N` while the corresponding record
- * is not yet in the log. Audit consumers that join `seq` and `audit.entries`
- * reactively must tolerate this one-tick lag, or use {@link wrapMutation}
- * (whose `batch()` frame defers downstream delivery until commit, so cursor
- * and log appear together to subscribers). The same caveat applies to
- * **re-entrant** invocation: if an `audit.entries` / `seq` subscriber
- * triggers another `lightMutation`, the inner record can land on the log
- * before the outer call's success/failure record.
- *
- * @category internal
- */
-export function lightMutation<TArgs extends readonly unknown[], TResult, R extends BaseAuditRecord>(
-	action: (...args: TArgs) => TResult,
-	opts: LightMutationOpts<TArgs, TResult, R>,
-): (...args: TArgs) => TResult {
-	const freeze = opts.freeze ?? true;
-	return function wrapped(...args: TArgs): TResult {
-		const sealed = freeze ? (args.map(deepFreeze) as unknown as TArgs) : args;
-		const t_ns = wallClockNs();
-		const seq = opts.seq ? bumpCursor(opts.seq) : undefined;
-		try {
-			const result = action(...sealed);
-			if (opts.audit && opts.onSuccess) {
-				appendAudit<TArgs, TResult, R, SuccessMeta>(
-					opts.audit,
-					opts.onSuccess,
-					sealed,
-					result,
-					{ t_ns, seq },
-					opts.handlerVersion,
-				);
-			}
-			return result;
-		} catch (err) {
-			if (opts.audit && opts.onFailure) {
-				const errorType = err instanceof Error ? err.name : typeof err;
-				appendAudit<TArgs, unknown, R, FailureMeta>(
-					opts.audit,
-					opts.onFailure,
-					sealed,
-					err,
-					{ t_ns, seq, errorType },
-					opts.handlerVersion,
-				);
-			}
-			throw err;
-		}
-	};
-}
-
-/**
- * Orchestration-tier wrapper: like {@link lightMutation} but adds a `batch()`
- * frame around the action so an in-flight throw rolls back partial state.
- *
- * Behavior contract:
- *  1. Freeze args at entry (default `true`).
- *  2. Open a batch frame (rollback-on-throw via core batch — Audit 2 #6).
- *  3. Bump `seq` INSIDE the batch so a framework-level rollback discards the
- *     cursor advance (cursor stays in sync with audit log). M5.
- *  4. Run `action(args)` and capture result.
- *  5. On success: if `audit` is provided AND `onSuccess` is set,
- *     `appendAudit(onSuccess, ...)` inside the batch.
- *  6. On throw: catch OUTSIDE the batch so the failure record (if any) emits
- *     in a fresh transaction after rollback — it persists. Re-throw so callers
- *     see the failure. When `audit` is omitted the wrapper still provides
- *     batch + freeze + rollback + re-throw semantics — useful for primitives
- *     that want orchestration-tier mutation contracts without an audit log
- *     surface.
- *
- * **Distinguish from the file-private `wrapMutation` in
- * `src/extra/reactive-map.ts:540`:** that helper is a transactional wrapper
- * for the reactiveMap version counter (`pre/post-version` snapshot diffing,
- * read vs. mutation gating). Different concern, file-private, not exported.
- * This `wrapMutation` is the public Phase-4 audit framework.
- *
- * @category internal
- */
-export function wrapMutation<TArgs extends readonly unknown[], TResult, R extends BaseAuditRecord>(
-	action: (...args: TArgs) => TResult,
-	opts: WrapMutationOpts<TArgs, TResult, R>,
-): (...args: TArgs) => TResult {
-	const freeze = opts.freeze ?? true;
-	return function wrapped(...args: TArgs): TResult {
-		const sealed = freeze ? (args.map(deepFreeze) as unknown as TArgs) : args;
-		const t_ns = wallClockNs();
-		let result: TResult;
-		let captured: unknown;
-		let captureSet = false;
-		let seq: number | undefined;
-		try {
-			batch(() => {
-				if (opts.seq) seq = bumpCursor(opts.seq);
-				try {
-					result = action(...sealed);
-					if (opts.audit && opts.onSuccess) {
-						appendAudit<TArgs, TResult, R, SuccessMeta>(
-							opts.audit,
-							opts.onSuccess,
-							sealed,
-							result,
-							{ t_ns, seq },
-							opts.handlerVersion,
-						);
-					}
-				} catch (err) {
-					captured = err;
-					captureSet = true;
-					throw err;
-				}
-			});
-		} catch (outerErr) {
-			// C4: when `captureSet === false` the throw came from outside the
-			// inner try (e.g. framework-level batch error before action ran).
-			// Re-throw the actual `outerErr` so the original isn't masked as
-			// `undefined`.
-			//
-			// Lock 4.B (A) (Phase 13.6.B B9): fire `compensate` AFTER the batch's
-			// reactive rollback (already done by re-throwing through the batch
-			// frame above) but BEFORE building the audit failure record. A
-			// throw inside `compensate` is logged but does not mask the
-			// original error.
-			//
-			// QA P2: gate on `captureSet` — `compensate` is documented as
-			// "fired exactly once when the action throws." If `captureSet ===
-			// false` the throw came from outside the inner try (framework-
-			// level batch-frame error before `action()` ran, e.g. `bumpCursor`
-			// rejecting a corrupt cursor cache). Firing compensate there
-			// would undo state the action never wrote — risking double-undo
-			// or throws inside the user's compensation that assume prior
-			// writes. Mirrors the existing `appendAudit` gate on the next
-			// branch.
-			if (captureSet && opts.compensate) {
-				try {
-					opts.compensate();
-				} catch (compErr) {
-					console.error(
-						`wrapMutation: compensate hook threw — original action error preserved (${
-							captured instanceof Error ? captured.name : typeof captured
-						}). Compensate error:`,
-						compErr,
-					);
-				}
-			}
-			if (captureSet && opts.audit && opts.onFailure) {
-				const errorType = captured instanceof Error ? captured.name : typeof captured;
-				appendAudit<TArgs, unknown, R, FailureMeta>(
-					opts.audit,
-					opts.onFailure,
-					sealed,
-					captured,
-					{ t_ns, seq, errorType },
-					opts.handlerVersion,
-				);
-			}
-			throw captureSet ? captured : outerErr;
-		}
-		return result!;
-	};
-}
 
 // ── registerCursor / registerCursorMap ───────────────────────────────────
 

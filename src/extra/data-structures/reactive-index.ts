@@ -9,9 +9,12 @@
  * on the backend tracks mutations — foundation for post-1.0 op-log changesets.
  */
 import { batch } from "../../core/batch.js";
+import { wallClockNs } from "../../core/clock.js";
 import { DATA, DIRTY } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import type { VersioningLevel } from "../../core/versioning.js";
+import type { IndexChange, IndexChangePayload } from "./change.js";
+import { type ReactiveLogBundle, reactiveLog } from "./reactive-log.js";
 
 export type IndexRow<K, V = unknown> = {
 	readonly primary: K;
@@ -43,6 +46,15 @@ export type ReactiveIndexOptions<K, V = unknown> = {
 	 * `NodeOptions.equals` on the core `node()` primitive.
 	 */
 	equals?: (existing: IndexRow<K, V>, next: IndexRow<K, V>) => boolean;
+	/**
+	 * Enable the `mutationLog` delta companion log. When set, every mutation
+	 * appends a typed `IndexChange<K, V>` record in the same batch frame as
+	 * the snapshot emission (same-wave consistency).
+	 *
+	 * - `true` — creates a log with default options.
+	 * - `{ maxSize?, name? }` — forwards to the inner `reactiveLog`.
+	 */
+	mutationLog?: true | { maxSize?: number; name?: string };
 };
 
 export type ReactiveIndexBundle<K, V = unknown> = {
@@ -84,6 +96,12 @@ export type ReactiveIndexBundle<K, V = unknown> = {
 	 */
 	deleteMany: (primaries: Iterable<K>) => void;
 	clear: () => void;
+	/**
+	 * Delta companion log. Present iff `mutationLog` option was configured.
+	 * Each mutation appends a typed `IndexChange<K, V>` record in the same
+	 * batch frame as the snapshot emission (same-wave consistency).
+	 */
+	readonly mutationLog?: ReactiveLogBundle<IndexChange<K, V>>;
 	/**
 	 * Releases internal keepalive subscriptions (on `byPrimary`) so the bundle
 	 * can be GC'd. Safe to call more than once (subsequent calls are no-ops).
@@ -376,8 +394,22 @@ function keepaliveDerived(n: Node<unknown>): () => void {
 export function reactiveIndex<K, V = unknown>(
 	options: ReactiveIndexOptions<K, V> = {},
 ): ReactiveIndexBundle<K, V> {
-	const { name, versioning, equals: defaultEquals, backend: userBackend } = options;
+	const { name, versioning, equals: defaultEquals, backend: userBackend, mutationLog: mutLogOpt } = options;
 	const backend: IndexBackend<K, V> = userBackend ?? new NativeIndexBackend<K, V>();
+
+	// ── Mutations companion log (Phase 14.3) ─────────────────────────────────
+	const mutLog: ReactiveLogBundle<IndexChange<K, V>> | undefined = mutLogOpt
+		? reactiveLog<IndexChange<K, V>>(undefined, {
+				name: mutLogOpt === true ? (name ? `${name}.mutationLog` : undefined) : mutLogOpt.name,
+				maxSize: mutLogOpt === true ? undefined : mutLogOpt.maxSize,
+			})
+		: undefined;
+	let mutVersion = 0;
+	let pendingChanges: IndexChangePayload<K, V>[] = [];
+	function enqueueChange(payload: IndexChangePayload<K, V>): void {
+		if (!mutLog) return;
+		pendingChanges.push(payload);
+	}
 
 	// F1 override: merge factory-level `equals` into per-call UpsertOptions
 	// so callers who set it once at construction get idempotent-key semantics
@@ -413,9 +445,20 @@ export function reactiveIndex<K, V = unknown>(
 
 	function pushSnapshot(): void {
 		const snapshot = backend.toArray();
+		const changes = pendingChanges;
+		pendingChanges = [];
 		batch(() => {
 			ordered.down([[DIRTY]]);
 			ordered.down([[DATA, snapshot]]);
+			for (const c of changes) {
+				mutLog!.append({
+					structure: "index",
+					version: ++mutVersion,
+					t_ns: wallClockNs(),
+					lifecycle: "data",
+					change: c,
+				});
+			}
 		});
 	}
 
@@ -431,6 +474,7 @@ export function reactiveIndex<K, V = unknown>(
 			return op();
 		} finally {
 			if (backend.version !== prev) pushSnapshot();
+			else pendingChanges.length = 0;
 		}
 	}
 
@@ -451,44 +495,57 @@ export function reactiveIndex<K, V = unknown>(
 		},
 
 		upsert(primary: K, secondary: unknown, value: V, opts?: UpsertOptions<K, V>): boolean {
-			return wrapMutation(() => backend.upsert(primary, secondary, value, withDefaultEquals(opts)));
+			return wrapMutation(() => {
+				const result = backend.upsert(primary, secondary, value, withDefaultEquals(opts));
+				enqueueChange({ kind: "upsert", primary, secondary, value });
+				return result;
+			});
 		},
 
 		upsertMany(
 			rows: Iterable<{ primary: K; secondary: unknown; value: V }>,
 			opts?: UpsertOptions<K, V>,
 		): void {
-			// Extra: materialize the iterable at the public wrapper so a
-			// caller who passes (e.g.) `index.ordered.cache` as input can't
-			// have the splice-during-iteration semantics observed by the
-			// backend. The backend mutates `_buf` on each upsert; if `rows`
-			// aliased `_buf` (directly or via a wrapping iterator), iteration
-			// would observe mid-mutation state. Arrays are iterator-snapshot
-			// safe.
 			const list = [...rows];
 			if (list.length === 0) return;
-			wrapMutation(() => backend.upsertMany(list, withDefaultEquals(opts)));
+			wrapMutation(() => {
+				backend.upsertMany(list, withDefaultEquals(opts));
+				for (const r of list) {
+					enqueueChange({ kind: "upsert", primary: r.primary, secondary: r.secondary, value: r.value });
+				}
+			});
 		},
 
 		delete(primary: K): void {
-			wrapMutation(() => backend.delete(primary));
+			wrapMutation(() => {
+				backend.delete(primary);
+				enqueueChange({ kind: "delete", primary });
+			});
 		},
 
 		deleteMany(primaries: Iterable<K>): void {
-			// Extra: materialize before mutating — same reasoning as upsertMany.
 			const list = [...primaries];
 			if (list.length === 0) return;
-			wrapMutation(() => backend.deleteMany(list));
+			wrapMutation(() => {
+				backend.deleteMany(list);
+				enqueueChange({ kind: "deleteMany", primaries: list });
+			});
 		},
 
 		clear(): void {
-			wrapMutation(() => backend.clear());
+			wrapMutation(() => {
+				const count = backend.clear();
+				if (count > 0) enqueueChange({ kind: "clear", count });
+			});
 		},
+
+		mutationLog: mutLog,
 
 		dispose(): void {
 			if (disposed) return;
 			disposed = true;
 			disposeByPrimaryKeepalive();
+			if (mutLog) mutLog.dispose();
 		},
 	};
 }

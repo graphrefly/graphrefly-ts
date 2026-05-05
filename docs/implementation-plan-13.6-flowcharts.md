@@ -7,7 +7,7 @@
 2. ✅ Node lifecycle
 3. ✅ Graph + sugar surface
 4. ✅ Utilities, design principles, versioning
-5. ✅ Patterns layer
+5. ✅ Patterns layer (updated Phase 14: `mutate` factory, `mutationLog` companion, `BaseChange<T>`)
 6. ✅ Storage/persistence
 7. ✅ Phase 13.8 — Rewire substrate (post-13.6.A addition; experimental, internal-only)
 
@@ -2217,7 +2217,7 @@ flowchart LR
 
 ## Batch 5 — Patterns layer
 
-**Verified against code:** Pattern modules under `src/patterns/` (16 sub-directories). Key files: `harness/presets/harness-loop.ts`, `cqrs/index.ts:383`, `process/index.ts:517`, `memory/index.ts`, `messaging/index.ts:61-588`, `job-queue/index.ts:70-781`, `extra/mutation/` for `wrapMutation` / `createAuditLog` / `registerCursor`. Drift items reference §11 Implementation Deltas where applicable.
+**Verified against code:** Pattern modules under `src/patterns/` (16 sub-directories). Key files: `harness/presets/harness-loop.ts`, `cqrs/index.ts:383`, `process/index.ts:517`, `memory/index.ts`, `messaging/index.ts:61-588`, `job-queue/index.ts:70-781`, `extra/mutation/` for `mutate` / `createAuditLog` / `registerCursor`. Drift items reference §11 Implementation Deltas where applicable. Phase 14 additions: `extra/data-structures/change.ts` (BaseChange envelope + per-structure payloads), `mutationLog` companion on all four reactive bundles, `reactiveLog.scan`.
 
 ### 5.1 Pattern catalog map (R8.1)
 
@@ -2232,7 +2232,8 @@ flowchart LR
         Operators["operators/<br/>(map / filter / scan /<br/>switchMap / mergeMap / etc.)"]
         Sources["sources/<br/>(fromTimer / fromCron /<br/>fromPromise / fromIter)"]
         Structures["data-structures/<br/>(reactiveMap / reactiveLog /<br/>reactiveList)"]
-        Mutation["mutation/<br/>(wrapMutation /<br/>createAuditLog /<br/>registerCursor /<br/>registerMutable Lock 4.B-B)"]
+        Mutation["mutation/<br/>(mutate /<br/>createAuditLog /<br/>registerCursor /<br/>registerMutable Lock 4.B-B)"]
+        ChangeTypes["data-structures/change.ts<br/>(BaseChange&lt;T&gt; envelope /<br/>MapChange / ListChange /<br/>LogChange / IndexChange)"]
     end
     
     subgraph Patterns["Patterns layer (src/patterns/)"]
@@ -2428,7 +2429,7 @@ flowchart TB
     PromptInput["promptNode.context (input)"]
     FrozenWrap["frozenContext (R8.L2.33)<br/>stabilize prefix across turns<br/>refresh on stage transitions"]
     
-    AuditLog["events log<br/>(every mutation via lightMutation)"]
+    AuditLog["events log<br/>(every mutation via mutate)"]
     
     ReactiveReads["Reactive reads only:<br/>itemNode / hasNode / searchNode / relatedNode<br/>(per memory module locked 2026-04-25)"]
     
@@ -2449,7 +2450,7 @@ flowchart TB
     
     Memory -.-> ReactiveReads
     
-    Note["Imperative mutations (upsert/remove/clear/<br/>link/unlink/rescore/reindex) wrapped via<br/>lightMutation → typed audit record on events log.<br/>No imperative reads (Lock 1.A grandfathering applies)."]
+    Note["Imperative mutations (upsert/remove/clear/<br/>link/unlink/rescore/reindex) wrapped via<br/>mutate → typed audit record on events log.<br/>No imperative reads (Lock 1.A grandfathering applies)."]
     
     AuditLog -.-> Note
     
@@ -2506,24 +2507,32 @@ classDiagram
         +readonly audit: ReactiveLogBundle~AuditRecord~
         +readonly cursor: Node~number~
         
-        +imperativeMethod(args) void
+        +imperativeMethod: mutate(act, opts)
     }
     
-    class wrapMutation {
-        <<helper from extra/mutation/>>
-        +wrapMutation(args, fn, opts?) void
-        Note: 1. Object.freeze(structuredClone(args))
-        Note: 2. Open batch()
-        Note: 3. Run fn (emit + bumpCursor)
-        Note: 4. On throw: discard emissions + cursor seq
-        Note: 5. Commit on success
+    class MutateFactory {
+        <<factory from extra/mutation/>>
+        +mutate(act, opts) (...args) => TResult
+        act: MutationAct~TArgs, TResult~ or plain fn
+        frame: "inline" | "transactional"
+        log?: ReactiveLogBundle~R~
+        onSuccessRecord?: (args, result, meta) => R
+        onFailureRecord?: (args, error, meta) => R
+        seq?: Node~number~
+        freeze?: boolean
+        handlerVersion?: id + version
+    }
+    
+    class MutationAct {
+        <<up/down pair>>
+        +up: (...args) => TResult
+        +down?: (args, result, error) => void
     }
     
     class BaseAuditRecord {
         +seq: number
-        +timestamp_ns: number (wallClockNs)
-        +actor: Actor
-        +handlerVersion?: string | number
+        +t_ns: number (wallClockNs)
+        +handlerVersion?: id + version
     }
     
     class FivePrimitives {
@@ -2537,15 +2546,16 @@ classDiagram
     
     class ClosureRollback {
         <<Lock 4.B — provisional>>
-        A. compensate hook in wrapMutation opts
+        A. down hook in MutationAct
         B. registerMutable(node, value) opt-in snapshot
         C. dev-mode Proxy detection on Map/Set/Array
     }
     
     ControllerGraph --|> FivePrimitives
-    ControllerGraph ..> wrapMutation : uses
+    ControllerGraph ..> MutateFactory : uses
     ControllerGraph ..> BaseAuditRecord : audit shape
     ControllerGraph ..> ClosureRollback : mitigation options
+    MutateFactory ..> MutationAct : accepts
     
     note for FivePrimitives "Grandfathered per Lock 1.A:<br/>backing structure is reactive cursor;<br/>alternative would shift imperative<br/>call to producer.emit() upstream<br/>(stop the work in vain)"
     
@@ -2554,27 +2564,27 @@ classDiagram
 
 ---
 
-### 5.9 wrapMutation transactional flow (R8.6.2, R8.6.5)
+### 5.9 mutate transactional flow (R8.6.2, R8.6.5)
 
 ```mermaid
 sequenceDiagram
     participant U as User code
-    participant M as wrapMutation
+    participant M as mutate(act, opts)
     participant N as Internal nodes
     participant A as Audit log
-    participant C as cursor
+    participant C as cursor (seq)
     participant CS as Closure state<br/>(unwrapped)
     
-    U->>+M: wrapMutation(args, fn, &#123;compensate?&#125;)
-    M->>M: Object.freeze(structuredClone(args))
-    M->>M: open batch()
+    U->>+M: wrapped(...args)
+    M->>M: Object.freeze(structuredClone(args)) [if freeze]
+    M->>M: open batch() [if frame:"transactional"]
     
     rect rgba(255, 240, 200, 0.3)
-        Note over M,CS: User fn body
-        M->>+N: fn(args, ...) emits to internal nodes
+        Note over M,CS: act.up(...args) body
+        M->>+N: up() emits to internal nodes
         N->>N: tier-3 messages deferred (R1.3.6)
-        M->>A: audit.append(record) — pending
-        M->>C: bumpCursor(c) — cursor incremented
+        M->>A: log.append(onSuccessRecord(...)) — pending
+        M->>C: bumpCursor(seq) — cursor incremented
         opt closure mutations (HAZARD)
             M->>CS: myMap.set(k, v)
             M->>CS: counter++
@@ -2582,19 +2592,20 @@ sequenceDiagram
         end
     end
     
-    alt fn returned successfully
+    alt up returned successfully
         M->>M: close batch — all defers commit
         M->>+N: deferred emissions delivered
         N-->>-M: sinks notified
         M->>A: audit record committed
-        M-->>-U: return
-    else fn threw
+        M-->>-U: return result
+    else up threw
         M->>M: catch in open batch
         M->>M: discard reactive emissions<br/>(drainPhase queues cleared)
         M->>C: roll back cursor seq
         M->>A: discard pending audit record
-        opt opts.compensate provided (Lock 4.B Option A)
-            M->>CS: compensate() — explicit cleanup
+        M->>A: log.append(onFailureRecord(...)) if configured
+        opt act.down provided (Lock 4.B Option A)
+            M->>CS: act.down(args, undefined, error) — explicit cleanup
             Note over CS: ✅ Closure state restored
         end
         opt registerMutable(node, value) Lock 4.B Option B
@@ -2602,8 +2613,93 @@ sequenceDiagram
             Note over CS: ✅ Closure state restored
         end
         M-->>U: re-throw
-        Note over M,U: Without A or B, closure state stays mutated 🟥
+        Note over M,U: Without down hook or registerMutable, closure state stays mutated 🟥
     end
+```
+
+---
+
+### 5.9b mutationLog companion flow (R8.6.8, Phase 14.3)
+
+```mermaid
+sequenceDiagram
+    participant U as User code
+    participant B as Bundle (e.g. reactiveMap)
+    participant BE as Backend
+    participant PS as pushSnapshot
+    participant ML as mutationLog (ReactiveLogBundle)
+    participant S as Subscriber
+
+    U->>+B: bundle.set(key, value)
+    B->>B: wrapMutation(() => { ... })
+    B->>B: capture prev = backend.version
+    B->>BE: backend.set(key, value)
+    BE->>BE: version++
+    B->>B: enqueueChange({ kind:"set", key, value })
+    Note over B: change buffered, NOT yet flushed
+
+    B->>B: finally: version !== prev → pushSnapshot()
+    B->>+PS: pushSnapshot()
+    PS->>PS: snapshot = backend.toMap()
+    PS->>PS: changes = pendingChanges; pendingChanges = []
+
+    rect rgba(200, 255, 200, 0.3)
+        Note over PS,ML: Single batch() frame (same-wave)
+        PS->>S: entries.down([[DIRTY]])
+        PS->>S: entries.down([[DATA, snapshot]])
+        loop each buffered change
+            PS->>ML: mutationLog.append(BaseChange)
+        end
+    end
+    PS-->>-B: batch committed
+    B-->>-U: return
+```
+
+```mermaid
+classDiagram
+    class BaseChange~T~ {
+        <<universal envelope>>
+        +structure: string
+        +version: number | string
+        +t_ns: number
+        +seq?: number
+        +lifecycle: ChangeLifecycle
+        +change: T
+    }
+
+    class ChangeLifecycle {
+        <<enum>>
+        "spec"
+        "data"
+        "ownership"
+    }
+
+    class MapChangePayload~K,V~ {
+        set: key + value
+        delete: key + previous + reason
+        clear: count
+    }
+
+    class ListChangePayload~T~ {
+        append / appendMany
+        insert / insertMany
+        pop / clear
+    }
+
+    class LogChangePayload~T~ {
+        append / appendMany
+        clear / trimHead
+    }
+
+    class IndexChangePayload~K,V~ {
+        upsert / delete / deleteMany / clear
+    }
+
+    BaseChange --> ChangeLifecycle
+    BaseChange --> MapChangePayload : structure="map"
+    BaseChange --> ListChangePayload : structure="list"
+    BaseChange --> LogChangePayload : structure="log"
+    BaseChange --> IndexChangePayload : structure="index"
 ```
 
 ---
@@ -2637,7 +2733,7 @@ stateDiagram-v2
     end note
     
     note right of Terminated
-        State persists to audit log via wrapMutation.
+        State persists to audit log via mutate.
         ProcessStateSnapshot via processStateKeyOf.
     end note
 ```
@@ -2668,7 +2764,7 @@ stateDiagram-v2
         claim() returns next-pending OR null
         ack(jobId) marks done + emit ackEvent
         nack(jobId, reason) re-queues per policy
-        All wrapped in wrapMutation + audit log
+        All wrapped in mutate + audit log
     end note
 ```
 
@@ -2839,7 +2935,8 @@ flowchart TB
 | 5.6 agentMemory composition | R8.4 | — | — |
 | 5.7 Resilient pipeline | R8.5 | 3.C | — |
 | 5.8 Controller-with-audit class | R8.6 | 1.A, 4.B | A+B+C provisional |
-| 5.9 wrapMutation transactional flow | R8.6.2, R8.6.5 | 4.B | closure-state hazard visible |
+| 5.9 mutate transactional flow | R8.6.2, R8.6.5 | 4.B | closure-state hazard visible |
+| 5.9b mutationLog companion flow | R8.6.8 | Phase 14.3 | same-wave consistency, BaseChange envelope |
 | 5.10 ProcessManager flow | R8.7 | 2.E (reserve _process_*) | — |
 | 5.11 JobQueueGraph state machine | R8.6.1 | 1.A | — |
 | 5.12 Messaging topology | R8 messaging | 5.A (publish(undefined) reject) | — |

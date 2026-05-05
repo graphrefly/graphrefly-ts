@@ -1261,7 +1261,7 @@ The spec defines **behavior**. Implementations choose syntax, concurrency model,
 **Rust specifics (port plan):**
 - Same `Node<T>` / `Graph` types; sugars (`state` / `producer` / `derived` / `effect`) standalone in core per Implementation Delta #18.
 - Cleanup: enum or struct with named slots — Rust may use `Drop` + structured cleanup struct.
-- Ownership model lets `wrapMutation` rollback be structurally enforced (revisit Lock 4.B at Rust port).
+- Ownership model lets `mutate` rollback be structurally enforced (revisit Lock 4.B at Rust port).
 - `Option::None` SENTINEL (Rust's natural zero-value sentinel).
 
 ### 6.2 Output Slot Optimization (informative)
@@ -1445,7 +1445,7 @@ collection (reactiveMap)
 
 **R8.4.4 — Reactive reads only** (per memory module module docstring, locked 2026-04-25). Public-face primitives expose `itemNode` / `hasNode` / `searchNode` / `relatedNode` for reactive observation. One-shot snapshots use `node.cache` after `awaitSettled`, or `firstValueFrom(node)`.
 
-**R8.4.5 — Audit logs.** Every imperative mutation (`upsert`, `remove`, `clear`, `link`, `unlink`, `rescore`, `reindex`) is wrapped via `lightMutation` (R8.L2.35) and appends a typed record to a public `events` log on the bundle / graph.
+**R8.4.5 — Audit logs.** Every imperative mutation (`upsert`, `remove`, `clear`, `link`, `unlink`, `rescore`, `reindex`) is wrapped via `mutate` (R8.L2.35, Phase 14.1) and appends a typed record to a public `events` log on the bundle / graph.
 
 ### 8.5 Resilient pipeline composition (R8.5 = R8.L3.Pipeline)
 
@@ -1491,40 +1491,44 @@ const pipeline = pipe(
 - **`saga`** — `advance()`, `compensate()` with `"advance"` (default) / `"hold"` error policy.
 - **`processManager`** (`src/patterns/process/index.ts:517`) — `handle(event)`, `cancel(correlationId)`.
 
-**R8.6.2 — Shared shape:**
+**R8.6.2 — Shared shape (Phase 14.1 — `mutate` factory):**
 
 ```ts
 class ControllerGraph extends Graph {
   readonly audit: ReactiveLogBundle<AuditRecord>;  // typed audit log
   readonly cursor: Node<number>;                    // bumped per mutation
 
-  imperativeMethod(...args): void {
-    wrapMutation(args, () => {
-      // user-supplied logic
-      // emits to internal nodes
-      // appends to this.audit
-      bumpCursor(this.cursor);
-    }, { compensate?: () => void });  // Lock 4.B Option A
-  }
+  imperativeMethod = mutate(
+    { up: (...args) => { /* user-supplied logic */ }, down?: () => { /* rollback */ } },
+    {
+      frame: "transactional",            // "inline" | "transactional"
+      log: this.audit,
+      onSuccessRecord: (args, result, meta) => ({ ... }),
+      seq: this.cursor,
+      handlerVersion: { id: "method", version: 1 },
+    },
+  );
 }
 ```
 
-**R8.6.3 — Helper machinery (verified `src/extra/mutation/`):**
+**R8.6.3 — Helper machinery (verified `src/extra/mutation/`, Phase 14.1):**
 
+- `mutate(act, opts)` — unified factory replacing the prior `lightMutation` + `wrapMutation` two-tier split. `act` is either a plain function (inline) or a `MutationAct<TArgs, TResult>` with `up`/`down` hooks. Two frame modes:
+  - `frame: "inline"` — no batch rollback; audit + freeze only.
+  - `frame: "transactional"` — surrounds action with **freeze-at-entry** (`Object.freeze(structuredClone(args))`); catches throws inside open `batch()`; discards reactive emissions + cursor seq on throw; fires `down` hook for closure-state rollback.
+- `MutationAct<TArgs, TResult> = { up: (...args) => TResult, down?: (args, result, error) => void }` — DB up/down framing for rollback. `down` replaces the prior `compensate` option.
 - `createAuditLog<T>()` — creates typed `ReactiveLogBundle<T>` for audit records.
-- `wrapMutation(args, fn, opts?)` — surrounds action with **freeze-at-entry** (`Object.freeze(structuredClone(args))`); catches throws inside open `batch()`; discards reactive emissions + cursor seq on throw.
 - `registerCursor(node, initial)` — elevates closure counter to state node for observability.
 - `registerCursorMap(node, fn)` — same for keyed cursors (e.g. per-claim cursors).
 - `registerMutable(node, value)` — Lock 4.B Option B: opt-in auto-snapshot for closure mutables (Maps, Sets, counters).
-- `lightMutation(args, fn)` — lighter variant for memory primitives (no batch rollback, just audit).
 - `DEFAULT_AUDIT_GUARD` — denies external writes; allows `observe` / `signal`.
 
 **R8.6.4 — Two-layer rollback** (R8.L2.35-rollback-layers):
-- **Helper-level (`wrapMutation`)**: catches throws in open `batch()`; discards reactive emissions + cursor seq.
+- **Helper-level (`mutate` with `frame: "transactional"`)**: catches throws in open `batch()`; discards reactive emissions + cursor seq; fires `down` hook.
 - **Spec-level**: any user code in `batch()` benefits from batch throw rollback (R4.3.2).
 
 **R8.6.5 — Closure-state hazard** (Lock 4.B): closure mutations (array splices, `Map.set`, plain JS counters) **do not roll back automatically**. Mitigations:
-- **(A) `compensate` hook** — explicit declaration (`wrapMutation(args, fn, { compensate: () => { myMap.delete(key); counter--; } })`).
+- **(A) `down` hook** — explicit declaration in `MutationAct` (`{ up: fn, down: () => { myMap.delete(key); counter--; } }`).
 - **(B) `registerMutable(node, value)`** — opt-in auto-snapshot for common collections.
 - **(C) Dev-mode Proxy detection** — wraps `Map`/`Set`/`Array` inside transaction; logs unregistered mutations.
 
@@ -1535,13 +1539,35 @@ Provisional per Lock 4.B; revisit at Rust port.
 ```ts
 interface BaseAuditRecord {
   seq: number;                 // cursor at time of record
-  timestamp_ns: number;        // wallClockNs() per R4.2.3
-  actor: Actor;                // who initiated the mutation
-  handlerVersion?: string | number;  // optional version stamp
+  t_ns: number;                // wallClockNs() per R4.2.3
+  handlerVersion?: { id: string; version: string | number };
 }
 ```
 
 Every controller's audit record extends this base.
+
+**R8.6.7 — `BaseChange<T>` universal change envelope (Phase 14.2):**
+
+```ts
+interface BaseChange<T> {
+  structure: string;           // "map" | "list" | "log" | "index" | ...
+  version: number | string;    // monotonic per-structure
+  t_ns: number;                // wallClockNs()
+  seq?: number;                // optional cursor position
+  lifecycle: ChangeLifecycle;  // "spec" | "data" | "ownership"
+  change: T;                   // per-structure discriminated payload
+}
+```
+
+Per-structure payload unions: `MapChangePayload<K,V>` (set/delete/clear), `ListChangePayload<T>` (append/appendMany/insert/insertMany/pop/clear), `LogChangePayload<T>` (append/appendMany/clear/trimHead), `IndexChangePayload<K,V>` (upsert/delete/deleteMany/clear). Types defined in `src/extra/data-structures/change.ts`.
+
+**R8.6.8 — `mutationLog` companion on reactive data structures (Phase 14.3):**
+
+Every reactive data-structure bundle (`reactiveMap`, `reactiveList`, `reactiveLog`, `reactiveIndex`) accepts an optional `mutationLog: true | { maxSize?, name? }` option. When configured, a companion `ReactiveLogBundle<StructureChange>` is exposed on the bundle as `bundle.mutationLog`. Each mutation enqueues a typed change record and flushes it inside the same `batch()` frame as the main snapshot emission (same-wave consistency). When the bundle is disposed, the companion log is also disposed. If a mutation is a no-op (backend version unchanged), pending change records are discarded.
+
+**R8.6.9 — `reactiveLog.scan(initial, step)` incremental aggregate (Phase 14.4):**
+
+O(1) per append — applies `step` only to entries appended since the last emission. Full rescan on `trimHead`/`clear`. Returns `Node<TAcc>`. Standalone `scanLog(log, initial, step)` delegates to `log.scan()`.
 
 ### 8.7 Process manager pattern (R8.7 = R8.L2.36)
 

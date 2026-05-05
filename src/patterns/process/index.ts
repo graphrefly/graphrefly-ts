@@ -33,8 +33,8 @@ import { type Node, node } from "../../core/node.js";
 import {
 	type BaseAuditRecord,
 	createAuditLog,
+	mutate,
 	registerCursor,
-	wrapMutation,
 } from "../../extra/mutation/index.js";
 import { valve } from "../../extra/operators/control.js";
 import { mergeMap } from "../../extra/operators/higher-order.js";
@@ -566,9 +566,9 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	// Tier 8 γ-7-A (2026-04-28): seq cursor promoted from `let seq = 0` closure
 	// to a `state(0)` node mounted on the per-process subgraph (visible in
 	// `describe()` at `__processManagers__/<name>::seq`). The audit-record
-	// stamping routes through `wrapMutation` for centralized freeze + seq
+	// stamping routes through `mutate` for centralized freeze + seq
 	// advance + `handlerVersion` stamping + batch-frame rollback. The batch
-	// frame closes EH-17 (lightMutation re-entrancy hazard).
+	// frame closes EH-17 (re-entrancy hazard).
 	const seqCursor = registerCursor(subgraph, "seq", 0);
 
 	// D4 (qa lock): `freeze: true` so step-handler-supplied state values
@@ -577,20 +577,21 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	// flags), so the `deepFreeze` tax is negligible — the safety vs. mutation
 	// trade-off favors freeze. (The 768-dim-vector concern that motivates
 	// `freeze: false` in memory primitives doesn't apply here.)
-	const appendRecord = wrapMutation<
+	const appendRecord = mutate<
 		[string, TState, ProcessInstance<TState>["status"], string | undefined],
 		void,
 		ProcessInstance<TState>
 	>(
 		// No closure-state mutation in the action — the audit-record append IS
-		// the effect, performed by the framework via `onSuccess`.
+		// the effect, performed by the framework via `onSuccessRecord`.
 		() => undefined,
 		{
-			audit: instances,
+			frame: "transactional",
+			log: instances,
 			seq: seqCursor,
 			freeze: true,
 			...(opts.handlerVersion !== undefined ? { handlerVersion: opts.handlerVersion } : {}),
-			onSuccess: ([correlationId, state, status, reason], _r, { t_ns, seq }) => ({
+			onSuccessRecord: ([correlationId, state, status, reason], _r, { t_ns, seq }) => ({
 				correlationId,
 				state,
 				status,
@@ -609,7 +610,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	/**
 	 * Build the snapshot payload + iterate tiers. Returns the iterator over
 	 * tiers so the caller decides whether sync throws propagate (B4 — start
-	 * path inside wrapMutation) or are swallowed (step path, fire-and-forget).
+	 * path inside mutate) or are swallowed (step path, fire-and-forget).
 	 */
 	const buildSnapshot = (
 		correlationId: string,
@@ -654,7 +655,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	};
 
 	/**
-	 * Throwing variant (B4 — used inside `startInternal`'s wrapMutation
+	 * Throwing variant (B4 — used inside `startInternal`'s mutate
 	 * action body so a sync-throwing tier rolls back the audit-log append +
 	 * seq cursor advance). Async rejections from `tier.save()` still cannot
 	 * unwind the synchronous batch frame — that's a known limitation of
@@ -1022,10 +1023,10 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 
 	// ── Public API ────────────────────────────────────────────────────────
 
-	// Tier 8 γ-7-A (2026-04-28): `start()` body is wrapMutation-wrapped so the
+	// Tier 8 γ-7-A (2026-04-28): `start()` body is mutate-wrapped so the
 	// synthetic-start-event emit + the running audit record commit in one
 	// batch frame. If `_appendEvent` throws (e.g. event stream terminated),
-	// wrapMutation rolls back the in-band batch (audit append discarded, seq
+	// mutate rolls back the in-band batch (audit append discarded, seq
 	// cursor advance discarded) and re-throws to the caller. Pre-1.0 behavior
 	// change vs. γ-7-B: the previous form silently swallowed `_appendEvent`
 	// failures and still appended the running record. Per COMPOSITION-GUIDE
@@ -1040,7 +1041,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	// closure mutations stay (instanceStates / activeInstances / startedAt
 	// are already set), but the audit-log + persisted-snapshot are coherent
 	// with each other: both absent on throw, both present on success.
-	const startInternal = wrapMutation<[string, unknown], void, ProcessInstance<TState>>(
+	const startInternal = mutate<[string, unknown], void, ProcessInstance<TState>>(
 		(correlationId, initialPayload) => {
 			// Synthetic start event first (potentially throws). Closure
 			// mutations below only run if this call succeeds — per §35,
@@ -1066,11 +1067,12 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			persistStateThrowing(correlationId, "running");
 		},
 		{
-			audit: instances,
+			frame: "transactional",
+			log: instances,
 			seq: seqCursor,
 			freeze: true,
 			...(opts.handlerVersion !== undefined ? { handlerVersion: opts.handlerVersion } : {}),
-			onSuccess: ([correlationId], _r, { t_ns, seq }) => ({
+			onSuccessRecord: ([correlationId], _r, { t_ns, seq }) => ({
 				correlationId,
 				state: opts.initial,
 				status: "running",
@@ -1096,7 +1098,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	function start(correlationId: string, initialPayload?: unknown): void {
 		if (_disposed) return;
 		if (activeInstances.has(correlationId)) return;
-		// B4 (D2): persistState now lives INSIDE `startInternal`'s wrapMutation
+		// B4 (D2): persistState now lives INSIDE `startInternal`'s mutate
 		// action body so sync-throwing tiers roll back the audit-log entry too.
 		startInternal(correlationId, initialPayload);
 	}

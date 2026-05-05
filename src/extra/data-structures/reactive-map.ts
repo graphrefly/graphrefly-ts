@@ -10,10 +10,12 @@
  * emit (fixes the former `size`-getter stale-snapshot gap).
  */
 import { batch } from "../../core/batch.js";
-import { monotonicNs } from "../../core/clock.js";
+import { monotonicNs, wallClockNs } from "../../core/clock.js";
 import { DATA, DIRTY } from "../../core/messages.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
 import type { VersioningLevel } from "../../core/versioning.js";
+import type { MapChange, MapChangePayload } from "./change.js";
+import { type ReactiveLogBundle, type ReactiveLogOptions, reactiveLog } from "./reactive-log.js";
 
 export type ReactiveMapOptions<K, V> = {
 	/** Optional registry name for `describe()` / debugging. */
@@ -55,6 +57,15 @@ export type ReactiveMapOptions<K, V> = {
 	 * Mutually exclusive with top-level `maxSize` (LRU). Pass one or the other.
 	 */
 	retention?: ReactiveMapRetention<K, V>;
+	/**
+	 * Enable the `mutationLog` delta companion log. When set, every mutation
+	 * appends a typed `MapChange<K, V>` record in the same batch frame as
+	 * the snapshot emission (same-wave consistency).
+	 *
+	 * - `true` — creates a log with default options.
+	 * - `{ maxSize?, name? }` — forwards to the inner `reactiveLog`.
+	 */
+	mutationLog?: true | { maxSize?: number; name?: string };
 } & Omit<NodeOptions, "initial" | "describeKind" | "equals" | "versioning">;
 
 /**
@@ -156,6 +167,12 @@ export type ReactiveMapBundle<K, V> = {
 	readonly size: number;
 	/** Explicitly prunes all expired entries. Emits if any were removed. */
 	pruneExpired: () => void;
+	/**
+	 * Delta companion log. Present iff `mutationLog` option was configured.
+	 * Each mutation appends a typed `MapChange<K, V>` record in the same
+	 * batch frame as the snapshot emission (same-wave consistency).
+	 */
+	readonly mutationLog?: ReactiveLogBundle<MapChange<K, V>>;
 	/**
 	 * Releases any internal keepalive subscriptions so the bundle can be
 	 * GC'd. `reactiveMap` currently holds none (the `entries` node lives only
@@ -452,7 +469,7 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
  * @category extra
  */
 export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMapBundle<K, V> {
-	const { name, maxSize, defaultTtl, versioning, backend: userBackend, retention } = options;
+	const { name, maxSize, defaultTtl, versioning, backend: userBackend, retention, mutationLog: mutLogOpt } = options;
 	if (retention && maxSize !== undefined) {
 		throw new RangeError(
 			"reactiveMap: `maxSize` (LRU) and `retention` (score-based) are mutually exclusive. Pick one eviction policy.",
@@ -466,6 +483,20 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	const backend: MapBackend<K, V> =
 		userBackend ?? new NativeMapBackend<K, V>({ maxSize, defaultTtl });
 
+	// ── Mutation log companion (Phase 14.3) ──────────────────────────────────
+	const mutLog: ReactiveLogBundle<MapChange<K, V>> | undefined = mutLogOpt
+		? reactiveLog<MapChange<K, V>>(undefined, {
+				name: mutLogOpt === true ? (name ? `${name}.mutationLog` : undefined) : mutLogOpt.name,
+				maxSize: mutLogOpt === true ? undefined : mutLogOpt.maxSize,
+			})
+		: undefined;
+	let mutVersion = 0;
+	let pendingChanges: MapChangePayload<K, V>[] = [];
+	function enqueueChange(payload: MapChangePayload<K, V>): void {
+		if (!mutLog) return;
+		pendingChanges.push(payload);
+	}
+
 	const n = node<ReadonlyMap<K, V>>([], {
 		initial: backend.toMap(),
 		name,
@@ -476,9 +507,20 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 
 	function pushSnapshot(): void {
 		const map = backend.toMap();
+		const changes = pendingChanges;
+		pendingChanges = [];
 		batch(() => {
 			n.down([[DIRTY]]);
 			n.down([[DATA, map]]);
+			for (const c of changes) {
+				mutLog!.append({
+					structure: "map",
+					version: ++mutVersion,
+					t_ns: wallClockNs(),
+					lifecycle: "data",
+					change: c,
+				});
+			}
 		});
 	}
 
@@ -520,6 +562,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			if (!archiveSet.has(s.key)) continue;
 			retention.onArchive?.(s.key, s.value, s.score);
 			backend.delete(s.key);
+			enqueueChange({ kind: "delete", key: s.key, previous: s.value, reason: "lru-evict" });
 		}
 	}
 
@@ -537,11 +580,11 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	 * low-scored entries. Users reading a TTL map expect read-time expiry
 	 * pruning; they do NOT expect a `.get(x)` call to archive key `y`.
 	 *
-	 * **Distinguish from `wrapMutation` in `src/patterns/_internal/imperative-audit.ts`:**
-	 * that helper is the public Phase-4 audit framework
-	 * (`wrapMutation` / `lightMutation`) — orchestration-tier batch + freeze
-	 * + audit-record stamping. This `wrapMutation` is a file-private snapshot-
-	 * delivery guard for the reactiveMap version counter. Different concern.
+	 * **Distinguish from `mutate` in `src/extra/mutation/index.ts`:**
+	 * that factory is the public Phase-4 audit framework — orchestration-tier
+	 * batch + freeze + audit-record stamping. This `wrapMutation` is a file-
+	 * private snapshot-delivery guard for the reactiveMap version counter.
+	 * Different concern.
 	 */
 	function wrapMutation<T>(op: () => T, kind: "mutation" | "read" = "mutation"): T {
 		const prev = backend.version;
@@ -551,6 +594,8 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			if (backend.version !== prev) {
 				if (kind === "mutation") applyRetention();
 				pushSnapshot();
+			} else {
+				pendingChanges.length = 0;
 			}
 		}
 	}
@@ -567,23 +612,52 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		},
 
 		set(key: K, value: V, opts?: { ttl?: number }): void {
-			wrapMutation(() => backend.set(key, value, opts?.ttl));
+			wrapMutation(() => {
+				backend.set(key, value, opts?.ttl);
+				enqueueChange({ kind: "set", key, value });
+			});
 		},
 
 		setMany(entries: Iterable<readonly [K, V]>, opts?: { ttl?: number }): void {
-			wrapMutation(() => backend.setMany(entries, opts?.ttl));
+			wrapMutation(() => {
+				// Materialize so we can emit per-entry changes.
+				const arr = Array.isArray(entries) ? entries : [...entries];
+				backend.setMany(arr, opts?.ttl);
+				for (const [k, v] of arr) enqueueChange({ kind: "set", key: k, value: v });
+			});
 		},
 
 		delete(key: K): void {
-			wrapMutation(() => backend.delete(key));
+			wrapMutation(() => {
+				const previous = backend.get(key);
+				const removed = backend.delete(key);
+				if (removed && previous !== undefined) {
+					enqueueChange({ kind: "delete", key, previous, reason: "explicit" });
+				}
+			});
 		},
 
 		deleteMany(keys: Iterable<K>): void {
-			wrapMutation(() => backend.deleteMany(keys));
+			wrapMutation(() => {
+				const arr = Array.isArray(keys) ? keys : [...keys];
+				// Capture previous values before deletion.
+				const prevs: Array<{ key: K; previous: V }> = [];
+				for (const k of arr) {
+					const v = backend.get(k);
+					if (v !== undefined) prevs.push({ key: k, previous: v });
+				}
+				backend.deleteMany(arr);
+				for (const p of prevs) {
+					enqueueChange({ kind: "delete", key: p.key, previous: p.previous, reason: "explicit" });
+				}
+			});
 		},
 
 		clear(): void {
-			wrapMutation(() => backend.clear());
+			wrapMutation(() => {
+				const count = backend.clear();
+				if (count > 0) enqueueChange({ kind: "clear", count });
+			});
 		},
 
 		pruneExpired(): void {
@@ -607,11 +681,10 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			return backend.size;
 		},
 
+		mutationLog: mutLog,
+
 		dispose(): void {
-			// D6(a): no internal keepalives yet — no-op for API parity with
-			// reactive-index / reactive-list / reactive-log. If a future
-			// refactor adds a keepalive (e.g. on `entries`), wire its
-			// disposer here.
+			if (mutLog) mutLog.dispose();
 		},
 	};
 }

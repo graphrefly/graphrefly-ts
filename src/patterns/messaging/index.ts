@@ -43,7 +43,7 @@ export {
 import { batch, COMPLETE, DATA, type Node } from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
-import { lightMutation } from "../../extra/mutation/index.js";
+import { mutate } from "../../extra/mutation/index.js";
 import { reactiveLog } from "../../extra/reactive-log.js";
 import { keepalive } from "../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
@@ -145,17 +145,17 @@ export class TopicGraph<T> extends Graph {
 		// have already unsubscribed in their COMPLETE handler above).
 		this.addDisposer(() => this._log.disposeAllViews());
 
-		// Tier 8 / COMPOSITION-GUIDE §35: route publish through `lightMutation`
+		// Tier 8 / COMPOSITION-GUIDE §35: route publish through `mutate`
 		// for centralized freeze + re-throw semantics. No audit log surface
 		// (per Tier 8 γ-0): the topic's `events` log already records every
 		// successful publish, so a separate audit Node would be redundant.
 		// `freeze: false` because topic payloads can be large and per-publish
 		// cost matters on hot paths.
-		this._publishImpl = lightMutation<[T], void, never>(
+		this._publishImpl = mutate<[T], void, never>(
 			(value): void => {
 				this._log.append(value);
 			},
-			{ freeze: false },
+			{ frame: "inline", freeze: false },
 		);
 	}
 
@@ -306,13 +306,13 @@ export class SubscriptionGraph<T> extends Graph {
 		}
 
 		// Tier 8 / COMPOSITION-GUIDE §35: route ack + pullAndAck through
-		// `lightMutation` for centralized freeze + re-throw semantics. No audit
+		// `mutate` for centralized freeze + re-throw semantics. No audit
 		// log surface (per Tier 8 γ-0): the cursor's own emission stream already
 		// records every advance, so a separate audit Node would be redundant.
 		// `freeze: false` because count/limit are simple numbers; freezing is
 		// pointless overhead. Disposed-checks stay outside the wrapper so a
 		// no-op call doesn't unnecessarily run the wrapper.
-		this._ackImpl = lightMutation<[number | undefined], number, never>(
+		this._ackImpl = mutate<[number | undefined], number, never>(
 			(count): number => {
 				const available = this.available.cache as readonly T[];
 				const requested =
@@ -328,10 +328,10 @@ export class SubscriptionGraph<T> extends Graph {
 				this.cursor.emit(next);
 				return next;
 			},
-			{ freeze: false },
+			{ frame: "inline", freeze: false },
 		);
 
-		this._pullAndAckImpl = lightMutation<[number | undefined], PullAndAckResult<T>, never>(
+		this._pullAndAckImpl = mutate<[number | undefined], PullAndAckResult<T>, never>(
 			(limit): PullAndAckResult<T> => {
 				const available = this.available.cache as readonly T[];
 				const max =
@@ -344,7 +344,7 @@ export class SubscriptionGraph<T> extends Graph {
 				this.cursor.emit(next);
 				return { items, cursor: next };
 			},
-			{ freeze: false },
+			{ frame: "inline", freeze: false },
 		);
 	}
 
@@ -616,18 +616,18 @@ export class MessagingHubGraph extends Graph {
 		this._defaultTopicOptions = { ...(opts.defaultTopicOptions ?? {}) };
 
 		// Tier 8 / COMPOSITION-GUIDE §35: route the registry-delete branch of
-		// `removeTopic` through `lightMutation` for centralized re-throw
+		// `removeTopic` through `mutate` for centralized re-throw
 		// semantics. No audit log surface (per Tier 8 γ-0).
 		// `freeze: false` because the only arg is a string name (freeze pointless).
 		// **Closure-state caveat (γ-4):** the inner `try/finally` mutates
-		// `_registry` (a `Map`) and emits the version bump. lightMutation has no
+		// `_registry` (a `Map`) and emits the version bump. mutate has no
 		// `batch()` frame, so reactive emissions are NOT rolled back on throw —
 		// and even if it did, `Map.delete` on closure state is invisible to the
 		// batch and can't be unwound. The pre-existing try/finally on
 		// `Graph.remove` is what guarantees registry/version converge to a
-		// consistent state when `remove()` throws; `lightMutation` adds nothing
+		// consistent state when `remove()` throws; `mutate` adds nothing
 		// to that contract beyond the re-throw.
-		this._removeTopicImpl = lightMutation<[string], void, never>(
+		this._removeTopicImpl = mutate<[string], void, never>(
 			(topicName): void => {
 				try {
 					this.remove(topicName); // unmounts, drops edges, tears down
@@ -637,7 +637,7 @@ export class MessagingHubGraph extends Graph {
 					this.version.emit(cur + 1);
 				}
 			},
-			{ freeze: false },
+			{ frame: "inline", freeze: false },
 		);
 	}
 
@@ -731,7 +731,7 @@ export class MessagingHubGraph extends Graph {
 	 *
 	 * **Closure-state caveat:** the registry mutation (`_registry.delete`) and
 	 * version bump happen in a `try/finally`, so registry/version converge to
-	 * a consistent state even when {@link Graph.remove} throws. `lightMutation`
+	 * a consistent state even when {@link Graph.remove} throws. `mutate`
 	 * does not roll back this mutation on throw — `Map.delete` on closure
 	 * state is invisible to any batch frame. The pre-existing try/finally is
 	 * load-bearing for that invariant.

@@ -10,6 +10,8 @@
  * primitive and lives in `extra/io/sink.ts`.
  */
 
+export * from "./change.js";
+export * from "./log-ops.js";
 export * from "./reactive-index.js";
 export * from "./reactive-list.js";
 export * from "./reactive-log.js";

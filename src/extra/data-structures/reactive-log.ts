@@ -26,10 +26,12 @@
  * - `append(undefined as T)` throws — same applies to `appendMany`.
  */
 import { batch } from "../../core/batch.js";
+import { wallClockNs } from "../../core/clock.js";
 import type { NodeGuard } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import type { VersioningLevel } from "../../core/versioning.js";
+import type { LogChange, LogChangePayload } from "./change.js";
 import { keepalive } from "../sources/index.js";
 import type { AppendLogStorageTier } from "../storage/tiers.js";
 
@@ -54,6 +56,15 @@ export type ReactiveLogOptions<T> = {
 	 * the {@link LogBackend} interface.
 	 */
 	backend?: LogBackend<T>;
+	/**
+	 * Enable the `mutationLog` delta companion log. When set, every mutation
+	 * appends a typed `LogChange<T>` record in the same batch frame as
+	 * the snapshot emission (same-wave consistency).
+	 *
+	 * - `true` — creates a companion log with default options.
+	 * - `{ maxSize?, name? }` — forwards to the inner companion log.
+	 */
+	mutationLog?: true | { maxSize?: number; name?: string };
 };
 
 /**
@@ -124,6 +135,21 @@ export type ReactiveLogBundle<T> = {
 	 * transaction model (Audit 4). Returns a disposer.
 	 */
 	attachStorage: (tiers: readonly AppendLogStorageTier<T>[]) => () => void;
+	/**
+	 * Incremental running aggregate over the log. O(1) per append — only
+	 * applies `step` to entries appended since the last emission. Returns a
+	 * `Node<TAcc>` that emits the current accumulator on every log mutation.
+	 *
+	 * Replay via the log's `replayBuffer: N` per Lock 6.G (no scan-internal
+	 * buffering). Returns `Node<TAcc>` per Lock 5.A (no `| undefined`).
+	 */
+	scan: <TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc) => Node<TAcc>;
+	/**
+	 * Delta companion log. Present iff `mutationLog` option was configured.
+	 * Each mutation appends a typed `LogChange<T>` record in the same
+	 * batch frame as the snapshot emission (same-wave consistency).
+	 */
+	readonly mutationLog?: ReactiveLogBundle<LogChange<T>>;
 	/** Releases all cached views (tail + slice + fromCursor). */
 	disposeAllViews: () => void;
 	/** Releases all internal keepalives. Idempotent. */
@@ -391,8 +417,24 @@ export function reactiveLog<T>(
 	initial?: readonly T[],
 	options: ReactiveLogOptions<T> = {},
 ): ReactiveLogBundle<T> {
-	const { name, maxSize, versioning, guard, backend: userBackend } = options;
+	const { name, maxSize, versioning, guard, backend: userBackend, mutationLog: mutLogOpt } = options;
 	const backend: LogBackend<T> = userBackend ?? new NativeLogBackend<T>(initial, maxSize);
+
+	// ── Mutations companion log (Phase 14.3) ─────────────────────────────────
+	// Uses a separate `reactiveLog` instance (never recurses — companion logs
+	// are always created WITHOUT their own `mutationLog` option).
+	const mutLog: ReactiveLogBundle<LogChange<T>> | undefined = mutLogOpt
+		? reactiveLog<LogChange<T>>(undefined, {
+				name: mutLogOpt === true ? (name ? `${name}.mutationLog` : undefined) : mutLogOpt.name,
+				maxSize: mutLogOpt === true ? undefined : mutLogOpt.maxSize,
+			})
+		: undefined;
+	let mutVersion = 0;
+	let pendingChanges: LogChangePayload<T>[] = [];
+	function enqueueChange(payload: LogChangePayload<T>): void {
+		if (!mutLog) return;
+		pendingChanges.push(payload);
+	}
 
 	const entries = node<readonly T[]>([], {
 		initial: backend.toArray(),
@@ -405,12 +447,23 @@ export function reactiveLog<T>(
 
 	function pushSnapshot(): void {
 		const snapshot = backend.toArray();
+		const changes = pendingChanges;
+		pendingChanges = [];
 		batch(() => {
 			// `internal: true` so deny-write guards (e.g., Audit 2's
 			// DEFAULT_AUDIT_GUARD on audit logs) don't reject the log's own
 			// internal pipeline. Guards apply only to external `entries.emit`.
 			entries.down([[DIRTY]], { internal: true });
 			entries.down([[DATA, snapshot]], { internal: true });
+			for (const c of changes) {
+				mutLog!.append({
+					structure: "log",
+					version: ++mutVersion,
+					t_ns: wallClockNs(),
+					lifecycle: "data",
+					change: c,
+				});
+			}
 		});
 	}
 
@@ -441,6 +494,7 @@ export function reactiveLog<T>(
 			return op();
 		} finally {
 			if (backend.version !== prev) pushSnapshot();
+			else pendingChanges.length = 0;
 		}
 	}
 
@@ -579,7 +633,10 @@ export function reactiveLog<T>(
 						"Use `T | null` for an explicit null payload.",
 				);
 			}
-			wrapMutation(() => backend.append(value));
+			wrapMutation(() => {
+				backend.append(value);
+				enqueueChange({ kind: "append", value });
+			});
 		},
 
 		appendMany(values: readonly T[]): void {
@@ -593,15 +650,24 @@ export function reactiveLog<T>(
 					);
 				}
 			}
-			wrapMutation(() => backend.appendMany(values));
+			wrapMutation(() => {
+				backend.appendMany(values);
+				enqueueChange({ kind: "appendMany", values });
+			});
 		},
 
 		clear(): void {
-			wrapMutation(() => backend.clear());
+			wrapMutation(() => {
+				const count = backend.clear();
+				if (count > 0) enqueueChange({ kind: "clear", count });
+			});
 		},
 
 		trimHead(n: number): void {
-			wrapMutation(() => backend.trimHead(n));
+			wrapMutation(() => {
+				const trimmed = backend.trimHead(n);
+				if (trimmed > 0) enqueueChange({ kind: "trimHead", n: trimmed });
+			});
 		},
 
 		withLatest(): Node<readonly T[]> {
@@ -699,6 +765,39 @@ export function reactiveLog<T>(
 			return () => sub();
 		},
 
+		scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc): Node<TAcc> {
+			let acc = initial;
+			let lastProcessedSize = 0;
+			return node<TAcc>([entries], (data, actions) => {
+				const arr = data[0] as readonly T[] | null | undefined;
+				if (arr == null || arr.length === 0) {
+					// Log cleared or empty — reset accumulator.
+					acc = initial;
+					lastProcessedSize = 0;
+					actions.emit(acc);
+					return;
+				}
+				const currentSize = arr.length;
+				if (currentSize < lastProcessedSize) {
+					// Log was trimmed/cleared — full rescan.
+					acc = initial;
+					for (let i = 0; i < currentSize; i++) {
+						acc = step(acc, arr[i]!);
+					}
+					lastProcessedSize = currentSize;
+				} else {
+					// Incremental — apply only new entries.
+					for (let i = lastProcessedSize; i < currentSize; i++) {
+						acc = step(acc, arr[i]!);
+					}
+					lastProcessedSize = currentSize;
+				}
+				actions.emit(acc);
+			});
+		},
+
+		mutationLog: mutLog,
+
 		disposeAllViews(): void {
 			for (const entry of tailCache.values()) entry.dispose();
 			tailCache.clear();
@@ -715,6 +814,7 @@ export function reactiveLog<T>(
 			sliceCache.clear();
 			for (const entry of cursorCache.values()) entry.dispose();
 			cursorCache.clear();
+			if (mutLog) mutLog.dispose();
 		},
 	};
 

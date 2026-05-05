@@ -23,7 +23,7 @@ import {
 	START,
 } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { wrapMutation } from "../../extra/mutation/index.js";
+import { mutate } from "../../extra/mutation/index.js";
 import { firstWhere } from "../../extra/sources/settled.js";
 import { assertDirtyPrecedesTerminalData } from "../../testing/index.js";
 
@@ -60,45 +60,40 @@ describe("Phase 13.6.B QA P1 — firstWhere settle helpers gate on !settled", ()
 	});
 });
 
-describe("Phase 13.6.B QA P2 — wrapMutation compensate gates on captureSet", () => {
-	it("compensate does NOT fire when the action body never ran (framework-level batch error)", () => {
-		const compensateCalls: string[] = [];
+describe("Phase 13.6.B QA P2 — mutate down gates on captureSet", () => {
+	it("down does NOT fire when the action body never ran (framework-level batch error)", () => {
+		const downCalls: string[] = [];
 		// Force a pre-action throw: pass an invalid `seq` cursor whose
 		// `down([DIRTY, DATA])` rejects synchronously. The thrown error
 		// bubbles out of `bumpCursor` BEFORE `action()` runs → captureSet
-		// stays false → compensate must NOT fire (P2 contract).
+		// stays false → down must NOT fire (P2 contract).
 		const seq = node<number>([], { initial: 0 });
 		const downSpy = vi.spyOn(seq, "down").mockImplementation(() => {
 			throw new Error("cursor down threw");
 		});
-		const action = wrapMutation(
-			() => {
-				compensateCalls.push("action ran");
-				return "ok";
-			},
+		const action = mutate(
 			{
-				seq,
-				compensate: () => compensateCalls.push("compensate fired"),
+				up: () => { downCalls.push("action ran"); return "ok"; },
+				down: () => downCalls.push("down fired"),
 			},
+			{ frame: "transactional", seq },
 		);
 		expect(() => action()).toThrow(/cursor down threw/);
-		expect(compensateCalls).toEqual([]);
+		expect(downCalls).toEqual([]);
 		downSpy.mockRestore();
 	});
 
-	it("compensate DOES fire when the action body throws", () => {
+	it("down DOES fire when the action body throws", () => {
 		const out: string[] = [];
-		const action = wrapMutation(
-			() => {
-				out.push("action partial");
-				throw new Error("action threw");
-			},
+		const action = mutate(
 			{
-				compensate: () => out.push("compensate fired"),
+				up: () => { out.push("action partial"); throw new Error("action threw"); },
+				down: () => out.push("down fired"),
 			},
+			{ frame: "transactional" },
 		);
 		expect(() => action()).toThrow(/action threw/);
-		expect(out).toEqual(["action partial", "compensate fired"]);
+		expect(out).toEqual(["action partial", "down fired"]);
 	});
 });
 

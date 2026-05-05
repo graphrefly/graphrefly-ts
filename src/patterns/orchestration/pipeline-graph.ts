@@ -22,7 +22,7 @@ import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
 import { factoryTag, placeholderArgs } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
-import { type BaseAuditRecord, createAuditLog, wrapMutation } from "../../extra/mutation/index.js";
+import { type BaseAuditRecord, createAuditLog, mutate } from "../../extra/mutation/index.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../../graph/graph.js";
 
@@ -459,17 +459,18 @@ export class PipelineGraph extends Graph {
 			isOpenNode.emit(false);
 		};
 
-		const approve = wrapMutation(approveImpl, {
-			audit: decisions,
+		const approve = mutate(approveImpl, {
+			frame: "transactional",
+			log: decisions,
 			freeze: false,
-			onSuccess: (args, _r, m) =>
+			onSuccessRecord: (args, _r, m) =>
 				({
 					action: "approve",
 					count: (args[0] as number | undefined) ?? 1,
 					t_ns: m.t_ns,
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
-			onFailure: (_a, _e, m) =>
+			onFailureRecord: (_a, _e, m) =>
 				({
 					action: "drop",
 					t_ns: m.t_ns,
@@ -477,17 +478,18 @@ export class PipelineGraph extends Graph {
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
 		});
-		const reject = wrapMutation(rejectImpl, {
-			audit: decisions,
+		const reject = mutate(rejectImpl, {
+			frame: "transactional",
+			log: decisions,
 			freeze: false,
-			onSuccess: (args, _r, m) =>
+			onSuccessRecord: (args, _r, m) =>
 				({
 					action: "reject",
 					count: (args[0] as number | undefined) ?? 1,
 					t_ns: m.t_ns,
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
-			onFailure: (_a, _e, m) =>
+			onFailureRecord: (_a, _e, m) =>
 				({
 					action: "drop",
 					t_ns: m.t_ns,
@@ -495,17 +497,18 @@ export class PipelineGraph extends Graph {
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
 		});
-		const modify = wrapMutation(modifyImpl, {
-			audit: decisions,
+		const modify = mutate(modifyImpl, {
+			frame: "transactional",
+			log: decisions,
 			freeze: false,
-			onSuccess: (args, _r, m) =>
+			onSuccessRecord: (args, _r, m) =>
 				({
 					action: "modify",
 					count: (args[1] as number | undefined) ?? 1,
 					t_ns: m.t_ns,
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
-			onFailure: (_a, _e, m) =>
+			onFailureRecord: (_a, _e, m) =>
 				({
 					action: "drop",
 					t_ns: m.t_ns,
@@ -513,16 +516,17 @@ export class PipelineGraph extends Graph {
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
 		});
-		const open = wrapMutation(openImpl, {
-			audit: decisions,
+		const open = mutate(openImpl, {
+			frame: "transactional",
+			log: decisions,
 			freeze: false,
-			onSuccess: (_a, _r, m) =>
+			onSuccessRecord: (_a, _r, m) =>
 				({
 					action: "open",
 					t_ns: m.t_ns,
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
-			onFailure: (_a, _e, m) =>
+			onFailureRecord: (_a, _e, m) =>
 				({
 					action: "drop",
 					t_ns: m.t_ns,
@@ -530,16 +534,17 @@ export class PipelineGraph extends Graph {
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
 		});
-		const close = wrapMutation(closeImpl, {
-			audit: decisions,
+		const close = mutate(closeImpl, {
+			frame: "transactional",
+			log: decisions,
 			freeze: false,
-			onSuccess: (_a, _r, m) =>
+			onSuccessRecord: (_a, _r, m) =>
 				({
 					action: "close",
 					t_ns: m.t_ns,
 					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
 				}) as Decision<T>,
-			onFailure: (_a, _e, m) =>
+			onFailureRecord: (_a, _e, m) =>
 				({
 					action: "drop",
 					t_ns: m.t_ns,

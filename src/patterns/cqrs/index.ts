@@ -17,10 +17,9 @@ import { DATA, type Node, node, placeholderArgs } from "../../core/index.js";
 import {
 	type BaseAuditRecord,
 	createAuditLog,
-	lightMutation,
+	mutate,
 	registerCursor,
 	registerCursorMap,
-	wrapMutation,
 } from "../../extra/mutation/index.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
 import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
@@ -806,7 +805,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 	 * error and the exception is re-thrown.
 	 *
 	 * **Tier 8 / COMPOSITION-GUIDE §35:** dispatch routes through the shared
-	 * {@link wrapMutation} framework so freeze / rollback-on-throw / seq-cursor
+	 * {@link mutate} framework so freeze / rollback-on-throw / seq-cursor
 	 * advance / audit-record stamping flow through one centralized helper.
 	 * Failure records emit OUTSIDE the rolled-back batch (M5 / C4 invariants
 	 * preserved by the framework).
@@ -884,11 +883,12 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		};
 
 		try {
-			wrapMutation<[T], void, DispatchRecord>(action, {
-				audit: this.dispatches,
+			mutate<[T], void, DispatchRecord>(action, {
+				frame: "transactional",
+				log: this.dispatches,
 				seq: this._dispatchSeqCursor,
 				freeze: this._freezeCommandPayload,
-				onSuccess: ([sealed], _result, { t_ns, seq }) => ({
+				onSuccessRecord: ([sealed], _result, { t_ns, seq }) => ({
 					commandName,
 					payload: sealed,
 					outcome: "success",
@@ -897,7 +897,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 					seq: seq ?? 0,
 					...(reg.handlerVersion !== undefined ? { handlerVersion: reg.handlerVersion } : {}),
 				}),
-				onFailure: ([sealed], err, { t_ns, seq, errorType }) => {
+				onFailureRecord: ([sealed], err, { t_ns, seq, errorType }) => {
 					const wrapped =
 						err instanceof CommandHandlerError ? err : new CommandHandlerError(commandName, err);
 					return {
@@ -917,7 +917,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 			// C4 preservation: only stamp `cmdNode.meta.error` when the user
 			// handler threw (not when framework infra threw before the action
 			// ran). The framework already routed onFailure for the action-throw
-			// case via `wrapMutation` outside the rolled-back batch.
+			// case via `mutate` outside the rolled-back batch.
 			if (actionThrew) {
 				cmdNode.meta.error.emit(outerErr, { internal: true });
 			}
@@ -1224,30 +1224,31 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		}
 
 		// Tier 8 / COMPOSITION-GUIDE §35: per-event handler invocation routes
-		// through `lightMutation` so handler-version stamping + audit-record
+		// through `mutate` so handler-version stamping + audit-record
 		// shape stay centralized. Failure path re-throws — the saga's outer
 		// try/catch honors `errorPolicy` ("advance" vs "hold"). Action takes
 		// `(ev, eName)` so the wrapper can be hoisted once for all event types.
-		const auditedHandler = lightMutation<[CqrsEvent<T>, string], void, SagaInvocation<T>>(
+		const auditedHandler = mutate<[CqrsEvent<T>, string], void, SagaInvocation<T>>(
 			(ev, _eName) => {
 				handler(ev);
 			},
 			{
-				audit: invocations,
+				frame: "inline",
+				log: invocations,
 				freeze: false,
 				...(opts.handlerVersion !== undefined ? { handlerVersion: opts.handlerVersion } : {}),
 				// D5 (qa lock): always include the `aggregateId` key (even when
 				// undefined) for parity with the pre-Tier-8 saga record shape.
 				// Consumers using `Object.hasOwn(record, "aggregateId")` or JSON
 				// serialization shape would observe a pre-1.0 break otherwise.
-				onSuccess: ([ev, eName], _r, { t_ns }) => ({
+				onSuccessRecord: ([ev, eName], _r, { t_ns }) => ({
 					eventType: eName,
 					outcome: "success",
 					aggregateId: ev.aggregateId,
 					event: ev,
 					t_ns,
 				}),
-				onFailure: ([ev, eName], err, { t_ns, errorType }) => ({
+				onFailureRecord: ([ev, eName], err, { t_ns, errorType }) => ({
 					eventType: eName,
 					outcome: "failure",
 					error: err,

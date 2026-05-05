@@ -20,7 +20,7 @@
  * `firstValueFrom(node)`.
  *
  * **Audit logs.** Every imperative mutation (`upsert / remove / clear / link /
- * unlink / rescore / reindex`) is wrapped via {@link lightMutation} and appends a
+ * unlink / rescore / reindex`) is wrapped via {@link mutate} and appends a
  * typed record to a public `events` log on the bundle / graph.
  *
  * @module
@@ -33,7 +33,7 @@ import {
 	type BaseAuditRecord,
 	bumpCursor,
 	createAuditLog,
-	lightMutation,
+	mutate,
 	registerCursor,
 } from "../../extra/mutation/index.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
@@ -501,25 +501,29 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 		items.setMany(updates);
 	};
 
-	const upsert = lightMutation(upsertImpl, {
-		audit: events,
+	const upsert = mutate(upsertImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: ([id], _r, m) => ({ action: "upsert" as const, id, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: ([id], _r, m) => ({ action: "upsert" as const, id, t_ns: m.t_ns, seq: m.seq }),
 	});
-	const remove = lightMutation(removeImpl, {
-		audit: events,
+	const remove = mutate(removeImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: ([id], _r, m) => ({ action: "remove" as const, id, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: ([id], _r, m) => ({ action: "remove" as const, id, t_ns: m.t_ns, seq: m.seq }),
 	});
-	const clear = lightMutation(clearImpl, {
-		audit: events,
+	const clear = mutate(clearImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: (_args, _r, m) => ({ action: "clear" as const, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: (_args, _r, m) => ({ action: "clear" as const, t_ns: m.t_ns, seq: m.seq }),
 	});
-	const rescore = lightMutation(rescoreImpl, {
-		audit: events,
+	const rescore = mutate(rescoreImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: (_args, _r, m) => ({ action: "rescore" as const, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: (_args, _r, m) => ({ action: "rescore" as const, t_ns: m.t_ns, seq: m.seq }),
 	});
 
 	function itemNode(id: NodeOrValue<string>): Node<CollectionEntry<T> | undefined> {
@@ -842,26 +846,30 @@ export function vectorIndex<TMeta>(opts: VectorIndexOptions<TMeta> = {}): Vector
 	// `freeze: false` for `upsert` — deep-freezing a 768-dim vector is a
 	// measurable hot-path tax, and the wrapper does its own defensive copy
 	// (`vector: [...vector]`) before persisting. See §B.2 of the audit lock.
-	const upsert = lightMutation(upsertImpl, {
-		audit: events,
+	const upsert = mutate(upsertImpl, {
+		frame: "inline",
+		log: events,
 		freeze: false,
 		seq: seqCursor,
-		onSuccess: ([id], _r, m) => ({ action: "upsert" as const, id, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: ([id], _r, m) => ({ action: "upsert" as const, id, t_ns: m.t_ns, seq: m.seq }),
 	});
-	const remove = lightMutation(removeImpl, {
-		audit: events,
+	const remove = mutate(removeImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: ([id], _r, m) => ({ action: "remove" as const, id, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: ([id], _r, m) => ({ action: "remove" as const, id, t_ns: m.t_ns, seq: m.seq }),
 	});
-	const clear = lightMutation(clearImpl, {
-		audit: events,
+	const clear = mutate(clearImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: (_args, _r, m) => ({ action: "clear" as const, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: (_args, _r, m) => ({ action: "clear" as const, t_ns: m.t_ns, seq: m.seq }),
 	});
-	const reindex = lightMutation(reindexImpl, {
-		audit: events,
+	const reindex = mutate(reindexImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: (_args, _r, m) => ({ action: "reindex" as const, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: (_args, _r, m) => ({ action: "reindex" as const, t_ns: m.t_ns, seq: m.seq }),
 	});
 
 	function searchNode(
@@ -1272,20 +1280,23 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 		applyOrphanGC([from, to]);
 	};
 
-	const upsertEntity = lightMutation(upsertEntityImpl, {
-		audit: events,
+	const upsertEntity = mutate(upsertEntityImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: ([id], _r, m) => ({ action: "upsertEntity" as const, id, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: ([id], _r, m) => ({ action: "upsertEntity" as const, id, t_ns: m.t_ns, seq: m.seq }),
 	});
-	const removeEntity = lightMutation(removeEntityImpl, {
-		audit: events,
+	const removeEntity = mutate(removeEntityImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: ([id], _r, m) => ({ action: "removeEntity" as const, id, t_ns: m.t_ns, seq: m.seq }),
+		onSuccessRecord: ([id], _r, m) => ({ action: "removeEntity" as const, id, t_ns: m.t_ns, seq: m.seq }),
 	});
-	const link = lightMutation(linkImpl, {
-		audit: events,
+	const link = mutate(linkImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: ([from, to, relation, weight], _r, m) => ({
+		onSuccessRecord: ([from, to, relation, weight], _r, m) => ({
 			action: "link" as const,
 			from,
 			to,
@@ -1295,10 +1306,11 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 			seq: m.seq,
 		}),
 	});
-	const unlink = lightMutation(unlinkImpl, {
-		audit: events,
+	const unlink = mutate(unlinkImpl, {
+		frame: "inline",
+		log: events,
 		seq: seqCursor,
-		onSuccess: ([from, to, relation], _r, m) => ({
+		onSuccessRecord: ([from, to, relation], _r, m) => ({
 			action: "unlink" as const,
 			from,
 			to,

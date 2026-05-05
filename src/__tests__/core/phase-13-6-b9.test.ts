@@ -9,7 +9,7 @@
  *   `__tests__/testing/assertions.test.ts`.
  * - Lock 3.C — `withBudgetGate` auto-wires adapter abort: budget exhaustion
  *   fires AbortController on every in-flight call.
- * - Lock 4.B (A) — `wrapMutation` accepts `compensate` for closure-state
+ * - Lock 4.B (A) — `mutate` accepts `down` hook for closure-state
  *   rollback. Lock 4.B (B) `registerMutable` and (C) dev-mode Proxy are
  *   deferred carries (see docs/optimizations.md).
  * - Lock 1.A retest — audit-only; no code change in this batch.
@@ -17,7 +17,7 @@
 
 import { describe, expect, it } from "vitest";
 import { node } from "../../core/node.js";
-import { wrapMutation } from "../../extra/mutation/index.js";
+import { mutate } from "../../extra/mutation/index.js";
 import { firstWhere } from "../../extra/sources/settled.js";
 
 describe("Phase 13.6.B B9 — Lock 3.A awaitSettled / firstWhere `kick` callback", () => {
@@ -54,58 +54,55 @@ describe("Phase 13.6.B B9 — Lock 3.A awaitSettled / firstWhere `kick` callback
 	});
 });
 
-describe("Phase 13.6.B B9 — Lock 4.B (A) wrapMutation `compensate` hook", () => {
-	it("fires compensate on action throw, after batch rollback", () => {
+describe("Phase 13.6.B B9 — Lock 4.B (A) mutate `down` hook", () => {
+	it("fires down on action throw, after batch rollback", () => {
 		const out: string[] = [];
 		const myMap = new Map<string, number>();
-		const action = wrapMutation(
-			(key: string, value: number) => {
-				myMap.set(key, value); // closure-state mutation
-				out.push(`set ${key}=${value}`);
-				if (value < 0) throw new Error("negative not allowed");
-				return value;
-			},
+		const action = mutate(
 			{
-				compensate: () => {
-					out.push("compensate");
+				up: (key: string, value: number) => {
+					myMap.set(key, value); // closure-state mutation
+					out.push(`set ${key}=${value}`);
+					if (value < 0) throw new Error("negative not allowed");
+					return value;
+				},
+				down: () => {
+					out.push("down");
 					myMap.clear();
 				},
 			},
+			{ frame: "transactional" },
 		);
 
-		// Success path — compensate is NOT fired.
+		// Success path — down is NOT fired.
 		action("a", 1);
 		expect(myMap.get("a")).toBe(1);
 		expect(out).toEqual(["set a=1"]);
 
-		// Failure path — compensate fires.
+		// Failure path — down fires.
 		expect(() => action("b", -1)).toThrow(/negative/);
-		expect(out).toEqual(["set a=1", "set b=-1", "compensate"]);
-		expect(myMap.size).toBe(0); // compensate cleared the closure map
+		expect(out).toEqual(["set a=1", "set b=-1", "down"]);
+		expect(myMap.size).toBe(0); // down cleared the closure map
 	});
 
-	it("compensate that throws does NOT mask the original action error", () => {
-		const action = wrapMutation(
-			() => {
-				throw new Error("original error");
-			},
+	it("down that throws does NOT mask the original action error", () => {
+		const action = mutate(
 			{
-				compensate: () => {
-					throw new Error("compensate boom");
-				},
+				up: () => { throw new Error("original error"); },
+				down: () => { throw new Error("down boom"); },
 			},
+			{ frame: "transactional" },
 		);
 		// Original error wins.
 		expect(() => action()).toThrow(/original error/);
 	});
 
-	it("compensate is not fired on successful action", () => {
+	it("down is not fired on successful action", () => {
 		let fired = 0;
-		const action = wrapMutation(() => 42, {
-			compensate: () => {
-				fired += 1;
-			},
-		});
+		const action = mutate(
+			{ up: () => 42, down: () => { fired += 1; } },
+			{ frame: "transactional" },
+		);
 		expect(action()).toBe(42);
 		expect(fired).toBe(0);
 	});
