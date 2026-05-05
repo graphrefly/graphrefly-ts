@@ -445,12 +445,550 @@ These are real but should NOT block 13.6.A; flag in `docs/optimizations.md` for 
 6. **Implementation-plan amendments**: Rust-port deferral guardrails added to Phase 13.6 and Phase 14 with explicit DON'T DEFER / STRONG DEFER lists.
 7. **CRDT and ACID hardening**: strong defer to Rust port. Don't bolt onto TS.
 
+### Decisions locked 2026-05-05 (post-Phase-14, Rust port greenlit)
+
+8. **Rust port greenlit.** Phase 14 landed on main; preconditions satisfied.
+9. **Part 10 simplifications approved** — all §10.1–10.18 simplifications are locked design direction for the Rust port.
+10. **Versioning (V0–V3) unified with mutate** — `MutationGuard::drop()` advances version + computes blake3 CID + emits changeset atomically. V2/V3 become trait bounds and struct fields, not separate machinery.
+11. **Guard/ABAC moves to core as data** — `Policy` is a serializable struct (not a closure), enforced at subgraph level. Ownership claim = policy mutation. V3 caps = CID of `Policy`.
+12. **Subgraph IS the enforcement boundary** — `&mut Subgraph` acquisition checks policy. No per-node guard stacking.
+13. **L0–L3 staircase in core** — expiry/heartbeat logic is a `u64` compare in the write-path guard; `ownershipController()` convenience stays binding-side.
+
 ## DECISIONS DEFERRED (NOT MADE THIS SESSION)
 
-- Whether to actually commit to the Rust port (waiting for 13.6 + Phase 14 close).
+- ~~Whether to actually commit to the Rust port (waiting for 13.6 + Phase 14 close).~~ **RESOLVED 2026-05-05:** Phase 14 landed; Rust port greenlit.
 - Whether to ship a parallel pure-TS distribution post-Rust-port (probably no — feature-gated Rust + WASM serves all the same use cases).
 - Specific MSRV (Minimum Supported Rust Version) — pin during M1.
 - Whether to publish to crates.io for direct Rust-user consumption, or only via the language bindings.
+
+---
+
+## PART 10: RUST SIMPLIFICATION ANALYSIS (2026-05-05, post-Phase-14 lock)
+
+Phase 14 landed on `main`. This section catalogs concrete simplifications Rust enables — TS workarounds that disappear, data structures that collapse, protocol mechanisms that become cheaper or cleaner.
+
+### 10.1 Message Protocol → Enum Dispatch (eliminates array allocations)
+
+**TS:** Messages are `[type, payload?]` tuples — each emit allocates `[[DATA, v]]` wrapper arrays. Inner tuples are heap-allocated objects. Type discrimination is `m[0] === DATA` integer comparison after array dereference.
+
+**Rust:**
+```rust
+#[repr(u8)]
+enum Message<T> {
+    Dirty,
+    Data(T),
+    Resolved,
+    Invalidate,
+    Complete,
+    Error(Box<dyn Error>),
+    Pause(LockId),
+    Resume(LockId),
+    Start,
+    Teardown,
+}
+```
+
+Stack-allocated for small `T`. Zero wrapper indirection. Pattern matching is exhaustive — impossible to forget a message type. Estimated 100+ ns → 10–20 ns per dispatch.
+
+### 10.2 PAUSE/RESUME → State Enum + VecDeque (eliminates 4 fields)
+
+**TS:** Four separate fields: `_pauseLocks: Set<unknown>`, `_pauseBuffer: Messages[] | null`, `_pauseDroppedCount: number`, `_pauseOverflowed: boolean`, `_pauseStartNs: number`.
+
+**Rust:**
+```rust
+enum PauseState {
+    Active,
+    Paused {
+        locks: SmallVec<[LockId; 2]>,  // typically 1–2 locks
+        buffer: VecDeque<Message<HandleId>>,
+        dropped: u32,
+        started_at: u64,
+    },
+}
+```
+
+- Impossible to access buffer fields when not paused (compiler refuses).
+- `VecDeque` is a ring buffer natively — O(1) push/pop, no `Array.shift()` O(n).
+- `LockId` is a newtype `u64` — no collision risk, no `Set<unknown>` runtime overhead.
+- Replay on resume: `while let Some(msg) = self.buffer.pop_front() { ... }` — no array copy.
+
+### 10.3 Diamond Resolution → Explicit Bitmask (eliminates overloaded `undefined`)
+
+**TS:** Uses `_cached === undefined` to mean BOTH "never populated" AND "reset this wave." Counter-correctness depends on `dep.dirty` pre-check ordering. No explicit bitmask.
+
+**Rust:**
+```rust
+struct WaveTracker {
+    settled: u64,           // bit per dep (up to 64; BitVec for more)
+    all_deps_mask: u64,     // precomputed at subscribe time
+}
+
+impl WaveTracker {
+    fn mark_settled(&mut self, dep_idx: usize) { self.settled |= 1 << dep_idx; }
+    fn is_complete(&self) -> bool { self.settled == self.all_deps_mask }
+    fn reset(&mut self) { self.settled = 0; }
+}
+```
+
+- Single atomic compare for "all deps settled" — O(1) instead of O(n) scan.
+- No semantic overloading; cache state is a separate enum:
+```rust
+enum CacheState<T> {
+    Never,         // first-run gate holds
+    Invalidated,   // reset this wave
+    Live(T),       // has value
+}
+```
+
+### 10.4 DepRecord → Struct with Compile-Time Guarantees
+
+**TS:** `_deps.indexOf(record)` is O(n) per callback because `_setDeps` can reorder. Each DepRecord has 6 mutable fields with subtle interaction ordering.
+
+**Rust:**
+```rust
+struct DepRecord {
+    node_id: NodeId,
+    slot_index: u32,        // stable index into parent's dep array
+    prev_data: HandleId,    // NO_HANDLE = sentinel
+    dirty: bool,
+    involved_this_wave: bool,
+    data_batch: SmallVec<[HandleId; 1]>,  // typically 0–1 items
+    terminal: Option<Terminal>,
+}
+
+enum Terminal { Complete, Error(HandleId) }
+```
+
+- `slot_index` is assigned at subscribe-time and never changes — O(1) lookup always.
+- `SmallVec<[HandleId; 1]>` avoids heap allocation for the common case (single DATA per wave).
+- `Option<Terminal>` replaces overloaded `undefined` / `true` / error-payload triple.
+
+### 10.5 Batch Coalescing → Generational Arena (eliminates per-node closure hooks)
+
+**TS:** Each node registers a flush closure in a global `flushHooks[]` array on first emit during batch. N active nodes = N closures. `_batchPendingMessages: Message[] | null` per node.
+
+**Rust:**
+```rust
+struct BatchFrame {
+    pending: Vec<(NodeId, SmallVec<[Message<HandleId>; 4]>)>,
+    // OR: arena-allocated flat buffer
+}
+
+thread_local! {
+    static BATCH: RefCell<Option<BatchFrame>> = RefCell::new(None);
+}
+```
+
+- Single allocation for the frame, not per-node.
+- No closure captures — flush iterates the `pending` vec directly.
+- `SmallVec<[Message; 4]>` keeps small batches on the stack.
+
+### 10.6 Multi-Sink Delivery → Iterator (eliminates `[...Set]` spread)
+
+**TS:** `const snapshot = [...this._sinks]; for (const sink of snapshot) sink(messages);` — allocates array copy every delivery to handle mid-iteration unsub.
+
+**Rust:**
+```rust
+// Option A: epoch-based iteration
+struct SinkList {
+    sinks: Vec<Option<SinkFn>>,  // None = tombstoned
+    epoch: u64,
+}
+
+// Option B: SmallVec with swap-remove
+// Option C: generational arena (thunderdome crate)
+```
+
+- Tombstone + epoch avoids all per-delivery allocation.
+- For typical 1–3 sinks: `SmallVec<[SinkFn; 4]>` keeps everything on the stack.
+
+### 10.7 `T | Node<T>` → Trait-Based Resolution (eliminates `isNode()`)
+
+**TS:** Runtime `instanceof NodeImpl` / `x.subscribe !== undefined` duck-typing scattered across patterns, resilience, memory factories.
+
+**Rust:**
+```rust
+trait IntoNodeInput<T> {
+    fn into_input(self, graph: &Graph) -> NodeId;
+}
+
+impl<T: Send + Sync + 'static> IntoNodeInput<T> for T {
+    fn into_input(self, graph: &Graph) -> NodeId {
+        graph.state(self)  // wrap plain value in state node
+    }
+}
+
+impl<T> IntoNodeInput<T> for NodeId {
+    fn into_input(self, _: &Graph) -> NodeId { self }
+}
+```
+
+Compile-time resolution. Zero runtime checks. Callers pass either — compiler monomorphizes.
+
+### 10.8 Reactive Data Structures → `imbl` + RAII MutationGuard
+
+**TS pain points eliminated:**
+1. **O(n) snapshot copies** → `imbl::HashMap::clone()` is O(1) structural sharing
+2. **`wrapMutation` try-finally × 4 structures** → single `MutationGuard` with `Drop` impl
+3. **`pendingChanges` buffer** → inline append to mutation log (snapshot is cheap)
+4. **Ring buffer for logs** → `VecDeque<T>` (IS a ring buffer natively)
+5. **Keepalive `subscribe(() => {})`** → `Arc<Subscription>` drops automatically
+6. **View cache LRU** → `lru::LruCache` with `Drop`-based cleanup
+7. **Backend version tracking** → `AtomicU64::fetch_add` (single CPU instruction)
+
+### 10.9 Resilience State Machines → Enums (eliminates flag fields)
+
+**Retry:**
+```rust
+enum RetryState {
+    Connecting { attempt: u32 },
+    Running { sub: Subscription },
+    WaitingBackoff { attempt: u32, delay: Duration, timer: Timer },
+    Completed,
+    Errored(Box<dyn Error>),
+    Cancelled,
+}
+```
+
+**Circuit Breaker:**
+```rust
+enum CircuitState {
+    Closed { failure_count: u32 },
+    Open { opened_at: Instant, cooldown: Duration, cycle: u32 },
+    HalfOpen { attempts: u32, max: u32 },
+}
+```
+
+- State data lives IN the variant — no separate `_failureCount`, `_lastOpenedAt`, `_halfOpenAttempts` fields.
+- Pattern match is exhaustive — impossible to read `_halfOpenAttempts` in `Closed` state.
+- Transitions are explicit `match + return new variant` — no stale field accumulation.
+
+### 10.10 Timer Cleanup → RAII (eliminates ResettableTimer)
+
+**TS:** `ResettableTimer` class with generation counter to detect stale callbacks. Every operator that uses timers manually calls `timer.cancel()` in cleanup.
+
+**Rust:**
+```rust
+struct Timer {
+    handle: Option<JoinHandle<()>>,  // or tokio::time::Sleep
+}
+
+impl Drop for Timer {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle.take() { h.abort(); }
+    }
+}
+```
+
+- Goes out of scope → cancelled. No manual `.cancel()` calls.
+- No generation counter needed — ownership proves freshness.
+
+### 10.11 Backpressure → Channel Semantics (simplifies rate limiter)
+
+**TS:** Manual `pending` queue + `syncState()` emission + `droppedCount` companion node + watermark controller with Symbol-based lockIds.
+
+**Rust:** The core dispatcher can use bounded channels internally:
+```rust
+struct BackpressureSlot<T> {
+    sender: crossbeam::Sender<T>,  // blocks when full (sync) or returns TrySendError
+    capacity: usize,
+}
+```
+
+- Backpressure is structural (channel capacity) rather than advisory (PAUSE/RESUME signals).
+- For the reactive layer, PAUSE/RESUME still exists as protocol messages, but the implementation is backed by real bounded queues rather than manual bookkeeping.
+
+### 10.12 Subscription Lifecycle → RAII (eliminates unsub arrays)
+
+**TS:** `const unsubs: (() => void)[] = []; ... for (const u of unsubs) u();` repeated in every operator.
+
+**Rust:**
+```rust
+struct SubscriptionSet {
+    subs: Vec<Subscription>,  // Subscription implements Drop
+}
+
+impl Drop for SubscriptionSet {
+    fn drop(&mut self) {
+        // Each Subscription::drop() unsubscribes automatically
+    }
+}
+```
+
+No manual iteration. No forgetting to call unsub. Scope exit = cleanup.
+
+### 10.13 First-Run Gate → Bitmask (O(1) instead of O(n) scan)
+
+**TS:** O(n) scan over `_deps` checking `d.dataBatch.length === 0 && d.prevData === undefined && d.terminal === undefined` for each dep.
+
+**Rust:** Same bitmask as diamond resolution:
+```rust
+fn check_first_run_gate(&self) -> bool {
+    self.wave_tracker.settled != 0 || self.has_called_fn  // one compare
+}
+```
+
+Or a dedicated `received_mask: u64` that tracks "has ever received DATA" per dep. First-run gate holds until `received_mask == all_deps_mask`.
+
+---
+
+### 10.14 Optimizations.md Items Resolved by Rust
+
+| Item | Status | How Rust Resolves |
+|---|---|---|
+| **Lock 4.B** (transactional rollback) | Deferred | Ownership + Drop = zero-cost auto-rollback |
+| **DF4** (V8 backing-store deopt) | Deferred | No V8; stable memory layout |
+| **DF3** (HeadIndexQueue 3× memory) | Deferred | Custom allocators; predictable resize |
+| **DF5** (rateLimiter lazy-activation) | Deferred | Monomorphic codegen eliminates dead paths |
+| **DF7** (policyGate PY sync) | Deferred | Borrow checker proves safety; no RLock |
+| **Fan-out scaling** (179 ns/emit) | Profiled | Arena + epoch iteration; 3–6× improvement |
+| **Message array allocs** | Partial | Enum dispatch + stack alloc; 5–10× improvement |
+| **Lock 2.D** (cross-tier atomicity) | Deferred | Type-system enforcement |
+| **Worker bridge deltas** | Post-1.0 | Structural sharing + bincode; 5–10× wire savings |
+
+---
+
+### 10.15 What Does NOT Simplify
+
+- **Wave protocol semantics** — same invariants regardless of language
+- **Batch phase ordering** (tier 0–6 drain sequence) — algorithmic, not language-bound
+- **Retention scoring** — still O(n log n) sort
+- **Graph topology bookkeeping** — same `describe`/`observe`/`explain` logic
+- **Custom equals oracle** — still crosses FFI boundary per check
+- **User fn execution** — still crosses FFI per fire
+
+### 10.16 Versioning (V0–V3) → Unified with Mutate + Ownership
+
+**Current TS state:** V0 (id + monotonic counter) and V1 (+ CID + prev link) shipped. V2 (schema validation at boundaries) and V3 (caps = serialized guard policy + cross-graph refs) are post-1.0.
+
+**TS pain points:**
+1. Version advancement is a side-effect inside `_emit()` — buried in node.ts line ~3383, conditional on `lastDataIdx` position.
+2. CID computation uses vendored sync SHA-256 + JSON canonicalization — slow (JSON.stringify + sort keys + hash) and cross-language determinism is fragile.
+3. `NodeVersionInfo = V0 | V1` union requires runtime `"cid" in info` checks.
+4. Version info is separate from mutations/changesets — no unified "this mutation advanced version X → X+1" record.
+
+**Rust simplification:**
+
+```rust
+enum VersionInfo {
+    V0 { id: Uuid, version: u64 },
+    V1 { id: Uuid, version: u64, cid: Blake3Hash, prev: Option<Blake3Hash> },
+    V2 { /* V1 + schema: SchemaId */ },
+    V3 { /* V2 + caps: PolicyCid, refs: Vec<GraphRef> */ },
+}
+```
+
+Key wins:
+1. **CID computation = blake3** — single-pass, zero-copy, parallelizable. No JSON canonicalization needed: hash the dag-cbor bytes directly (deterministic by construction). ~100× faster than SHA-256-of-JSON.
+2. **Version advancement inside `MutationGuard::drop()`** — the same RAII guard that pushes snapshots also advances version. No buried side-effect in emit path.
+3. **Unified with `BaseChange<T>`** — each change record already carries `version: number`. In Rust, the `MutationGuard` produces `(new_version, cid, change_record)` as an atomic triple. Version/CID/changeset are one operation, not three scattered sites.
+4. **V2 schema validation** becomes a compile-time trait bound: `trait SchemaValidated { fn validate(&self) -> Result<(), SchemaError>; }`. Nodes parameterized by schema run validation in the guard, not at "boundaries" (which are vague in TS).
+5. **V3 caps (serialized guard policy)** — falls out naturally when guards are Rust-native (see §10.17 below). A cap = a serialized `Policy` struct identified by its blake3 CID. Cross-graph refs = `(GraphId, NodeId)` tuples — trivial in Rust's type system.
+6. **`prev` chain → Merkle DAG for free** — blake3 CID of each version links to prev CID. This IS an IPLD-style linked list. With `serde_ipld_dagcbor`, the version chain is a content-addressed DAG natively — no extra work.
+
+**Net effect:** V0–V3 collapse into a single enum that's a field on the Rust `NodeState`. `mutate()` guard advances it. Changesets record it. All three concerns (version, mutation, changeset) are unified in one code path.
+
+### 10.17 Guard / ABAC → Trait-Based Enforcement in Subgraph Lock
+
+**Current TS state:**
+- `NodeGuard = (actor: Actor, action: GuardAction) => boolean` — function type
+- `policy((allow, deny) => { ... })` — builder pattern returns a `NodeGuard`
+- `_guard` + `_extraGuards: Set<NodeGuard>` per node — AND semantics (all must pass)
+- `policyGate` in inspect pattern — mounts guards dynamically via `_pushGuard()`
+- Ownership protocol (L5–L6 from DS-14.5.A) → claim auto-mounts policy guard on subgraph
+
+**TS pain points:**
+1. Guards are opaque functions — can't serialize, can't content-address (V3 caps blocked by this).
+2. `_extraGuards: Set<NodeGuard>` is a runtime-growable set — no static analysis of what policies apply.
+3. `_pushGuard()` / topology watching for dynamic coverage is complex plumbing (~400 lines in `audit.ts`).
+4. Ownership claim → guard update is a multi-step side-effect chain (claim event → derive new policy → push to node → update topology watch).
+5. No structural relationship between guard and subgraph boundary — guards are per-node, ownership is per-subgraph.
+
+**Rust simplification — guards as first-class subgraph-level trait:**
+
+```rust
+/// A policy is data, not a closure — serializable, content-addressable.
+#[derive(Clone, Serialize, Deserialize, Hash)]
+struct Policy {
+    rules: Vec<PolicyRule>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Hash)]
+struct PolicyRule {
+    effect: Effect,           // Allow | Deny
+    actions: ActionSet,       // bitflags: Write | Signal | Observe
+    actor_filter: ActorFilter, // ByType, ById, ByClaims, Any
+}
+
+/// Subgraph carries its own policy (not individual nodes)
+struct Subgraph {
+    nodes: Vec<NodeId>,
+    owner: Option<OwnershipClaim>,
+    policy: Policy,           // enforced at subgraph boundary
+    // ...
+}
+
+/// Ownership claim IS a policy mutation
+impl Subgraph {
+    fn claim(&mut self, actor: ActorId, level: OwnershipLevel, opts: ClaimOpts) {
+        self.owner = Some(OwnershipClaim { actor, level, expires_at: opts.ttl_ns, .. });
+        // Policy auto-derives from ownership — single source of truth
+        self.policy = Policy::from_ownership(&self.owner);
+    }
+
+    fn check_write(&self, actor: &Actor) -> Result<(), GuardDenied> {
+        self.policy.evaluate(actor, Action::Write)
+    }
+}
+```
+
+Key wins:
+
+1. **Policy is data, not closure** — serializable → content-addressable → V3 caps for free. `Policy` struct has a blake3 CID. Cross-graph "can this graph write to that graph?" becomes CID comparison.
+
+2. **Subgraph-level enforcement** — guards check at subgraph boundary, not per-node. Ownership IS a policy — no separate plumbing. Claim/release/override mutate the subgraph's `Policy` field directly.
+
+3. **No `_pushGuard` / `_extraGuards`** — single `Policy` per subgraph, derived from ownership state. AND-composition becomes `Policy::merge(base, overlay)` — a pure data operation.
+
+4. **Ownership → Guard is structural, not reactive wiring:**
+   - TS: claim event → subscription → derive policy fn → pushGuard → topology watch for new nodes
+   - Rust: `subgraph.claim(actor, level)` → `self.policy = Policy::from_ownership(...)` — one field assignment
+
+5. **L0–L3 staircase maps to enum cleanly:**
+```rust
+enum OwnershipLevel {
+    Static,      // L0: spec annotation only, no runtime expiry
+    Ttl,         // L1: expires_at checked on each write
+    Heartbeat,   // L2: renewed by heartbeat; expires on miss
+    Supervisor,  // L3: always wins regardless of timestamp
+}
+
+impl OwnershipClaim {
+    fn is_valid(&self, now_ns: u64) -> bool {
+        match self.level {
+            Static => true,
+            Ttl => now_ns < self.expires_at,
+            Heartbeat => now_ns < self.last_heartbeat_ns + self.ttl_ns,
+            Supervisor => true, // never expires; explicit release only
+        }
+    }
+}
+```
+
+6. **Heartbeat (L2) = reactive source into Rust core:**
+   - Binding-side creates a reactive source (timer or activity-derived)
+   - Each emission crosses FFI as `core.heartbeat(subgraph_id)` → updates `last_heartbeat_ns`
+   - Expiry check is a single `u64` compare in the write-path guard — zero allocation
+
+7. **`validateOwnership` PR lint** — in Rust, spec snapshots carry `Policy` CID per subgraph. Diff two snapshots → any subgraph whose policy CID changed AND committer ≠ owner → fail. Pure data comparison, no function evaluation.
+
+**Integration with `mutate()` guard:**
+
+```rust
+/// The MutationGuard checks ownership + policy in one path
+struct MutationGuard<'a> {
+    subgraph: &'a mut Subgraph,
+    actor: ActorId,
+    prev_version: u64,
+}
+
+impl<'a> MutationGuard<'a> {
+    fn new(subgraph: &'a mut Subgraph, actor: ActorId) -> Result<Self, GuardDenied> {
+        // 1. Check ownership validity (TTL/heartbeat expiry)
+        if let Some(ref claim) = subgraph.owner {
+            if !claim.is_valid(monotonic_ns()) {
+                subgraph.release_expired();
+            }
+        }
+        // 2. Check policy
+        subgraph.check_write(&actor)?;
+        // 3. Return guard that will advance version on drop
+        Ok(Self { subgraph, actor, prev_version: subgraph.version() })
+    }
+}
+
+impl Drop for MutationGuard<'_> {
+    fn drop(&mut self) {
+        if self.subgraph.version() != self.prev_version {
+            // Version advanced, CID computed, changeset emitted — all in one place
+            self.subgraph.advance_version_and_emit();
+        }
+    }
+}
+```
+
+**Net effect:** The write path becomes: `MutationGuard::new()` → checks ownership expiry + policy → allows/denies → on success, caller mutates → guard drops → version advances + changeset emits. One code path unifies: guard check, ownership enforcement, version advancement, and changeset emission.
+
+### 10.18 Revised Port Scope Adjustments
+
+| Original Milestone | Adjustment |
+|---|---|
+| M5 (`graphrefly-structures`) was late | **Pull earlier to M2–M3 timeframe** — `imbl` + `VecDeque` makes structures simpler than TS, and Phase 14 `mutations` companion bundles are part of the same substrate |
+| Patterns stay binding-side | **Confirmed** — but `mutate()` factory is generic enough to be a core primitive (it's just RAII guard + batch + audit append) |
+| `T \| Node<T>` is binding-side | **Moves to core** — becomes `IntoNodeInput<T>` trait resolved at compile time |
+| Resilience operators stay binding-side | **Reconsidered** — state machines are Rust's strength; port to `graphrefly-operators` crate. Only the `NodeOrValue<T>` option-mirror pattern stays binding-side |
+| Guard enforcement is patterns-layer | **Moves to core** — policy is data (not closure); enforcement at subgraph level in `graphrefly-core`. V3 caps become CID of the `Policy` struct |
+| Versioning is separate from mutations | **Unified** — `MutationGuard::drop()` advances version + emits changeset atomically. V0–V3 is one enum field on node/subgraph state |
+| Ownership is patterns-layer preset | **Split** — L0–L3 staircase logic (expiry check, heartbeat tracking) moves to `graphrefly-core` (it's just a `u64` compare in the guard path). `ownershipController()` convenience API stays binding-side |
+
+---
+
+## PART 11: IMPLEMENTATION DIRECTIVE — ACTIVE OPTIMIZATION MINDSET
+
+**This section is a standing directive for all agents working on the Rust port.**
+
+### Correctness first, then exploit Rust's advantages
+
+The Rust port must maintain **complete behavioral parity** with the TS implementation — every invariant in `GRAPHREFLY-SPEC.md`, every TLA+-verified property, every composition-guide rule. The existing TS test suite (translated) is the correctness oracle.
+
+However: **do not blindly transliterate TS patterns into Rust.** At each implementation stage, actively ask:
+
+1. **"Does this TS workaround exist because of a language limitation?"** If yes, replace it with the idiomatic Rust solution. Examples:
+   - `T | Node<T>` runtime checks → `IntoNodeInput<T>` trait (§10.7)
+   - `_pauseLocks: Set<unknown>` + 4 flags → `PauseState` enum (§10.2)
+   - `[...this._sinks]` spread → epoch iteration (§10.6)
+   - Try-finally version check → `MutationGuard` Drop (§10.8)
+   - `Array.shift()` replay buffer → `VecDeque` (§10.2)
+
+2. **"Can Rust's type system enforce this invariant at compile time?"** If yes, encode it. Examples:
+   - Diamond resolution → bitmask with `is_complete()` (§10.3)
+   - Cache state overloading → `CacheState` enum (§10.3)
+   - State machine flags → enum variants with embedded data (§10.9)
+   - Guard closure → serializable `Policy` struct (§10.17)
+
+3. **"Does this allocation exist because JS/TS forces heap allocation here?"** If yes, use stack/SmallVec/arena. Examples:
+   - Message tuples → `enum Message<T>` on stack (§10.1)
+   - Per-dep `dataBatch: unknown[]` → `SmallVec<[HandleId; 1]>` (§10.4)
+   - Per-node batch hooks → single `BatchFrame` vec (§10.5)
+   - Subscription arrays → `SubscriptionSet` with Drop (§10.12)
+
+4. **"Can these separate concerns be unified in Rust?"** Examples:
+   - Version + mutation + changeset → single `MutationGuard::drop()` (§10.16)
+   - Guard + ownership + subgraph lock → `&mut Subgraph` acquisition (§10.17)
+   - Snapshot copy + structural sharing → `imbl::HashMap::clone()` O(1) (§10.8)
+
+5. **"Is there a zero-cost abstraction that eliminates this runtime cost?"** Examples:
+   - `messageTier()` utility → compile-time tier from enum discriminant
+   - `isNode()` runtime check → monomorphized trait impl
+   - Lazy-activation violation (DF5) → dead-code elimination on unused paths
+   - V8 backing-store deopt (DF4) → stable memory layout by construction
+
+### What NOT to optimize
+
+- **Do not sacrifice readability for micro-optimization.** Rust's compiler optimizes aggressively — write clear code and let LLVM work.
+- **Do not break the handle-protocol cleaving plane.** Core sees `HandleId`, never `T`. User values stay in the binding-side registry.
+- **Do not add unsafe without justification.** If you reach for `unsafe`, document exactly which invariant you're upholding and why safe Rust can't express it.
+- **Do not pre-optimize hot paths before profiling.** Use `criterion` benchmarks to identify actual bottlenecks. The §10 analysis identifies *likely* wins — verify with data.
+
+### Per-milestone checklist
+
+At the start of each milestone (M1–M6), review the relevant §10.x sections for that layer. At the end, verify:
+- [ ] No TS workaround transliterated without justification
+- [ ] All state machines use enums (not flag fields)
+- [ ] All cleanup uses RAII (not manual unsub/dispose)
+- [ ] All buffers use appropriate size (SmallVec/VecDeque/arena, not blind Vec)
+- [ ] All version/guard/changeset concerns unified where applicable
+- [ ] Benchmark comparison against TS baseline for the ported layer
 
 ---
 
