@@ -779,6 +779,25 @@ graph.setVersioning(level)                                # bulk apply versionin
 
 **R3.3.1 — Edges are derived, not stored.** `graph.edges(opts?)` returns `ReadonlyArray<[from, to]>` derived from each node's construction-time `_deps` array plus the mount hierarchy. **No stored edge registry.** No explicit `connect` / `disconnect`. Topology visible through `describe()` and diagram formats purely as a function of `(nodes, deps, mounts)`.
 
+**R3.3.1.1 (exploratory, Phase 13.8) — Post-construction dep mutation via internal substrate primitives.** `_deps` is mutable post-construction via three external-facing substrate APIs and one internal-escape-hatch:
+
+- `_addDepInternal(depNode, opts?: { fn?: NodeFn })` — append a dep without validation guards. Used by `autoTrackNode` (runtime discovery from inside `_execFn`) and `Graph.connect` (post-construction wiring). Q1 terminal-non-resubscribable rejection still applies. **`fn` is OPTIONAL on this internal path** — autoTrack discovery doesn't change fn.
+- `_addDep(depNode, fn: NodeFn)` — external entry point with full validation: rejects mid-fn (`_isExecutingFn`), terminal-`this`, self-dep, cycle, reentrancy, and Q1 terminal-non-resubscribable. **`fn` is REQUIRED.**
+- `_removeDep(depNode, fn: NodeFn)` — symmetric removal. Idempotent on absent deps (the fn swap still applies). Auto-settles wave if removed dep was the sole DIRTY contributor. **`fn` is REQUIRED.**
+- `_setDeps(newDeps, fn: NodeFn)` — atomic replace. Surgical: kept deps' subscriptions and DepRecords are untouched; only removed deps unsubscribed and only added deps freshly subscribed. **`fn` is REQUIRED.**
+
+Graph-layer wrappers `Graph._addDep(name, dep, fn)`, `Graph._removeDep(name, dep, fn)`, `Graph._rewire(name, newDeps, fn)` provide path-aware (`mount::leaf`) access plus a `GraphRewireAudit`. `TopologyEvent { kind: "rewired", audit }` carries diff visibility on `graph.topology`.
+
+**Required `fn` parameter (Phase 13.8 lock).** The three external-facing substrate APIs (and their Graph wrappers) require `fn` at every call site — even when the caller intends to preserve the existing fn. Rationale: user fns read `data[i]` / `prevData[i]` positionally; dep-shape changes (count or order) silently misroute reads unless the caller acknowledges the fn-deps pairing at every call site. The required-fn signature forces that audit step at the API boundary, making the call site self-documenting in code review and AI-controller logs. Callers preserve the existing fn by passing the fn ref explicitly (`g._rewire("x", [y], oldFn)` — define fns as named consts when reuse is needed, or read `(node as NodeImpl)._fn` for ad-hoc retrieval).
+
+Old fn's `onRerun` cleanup hook fires on the next `_execFn` invocation (clean wrap-up); if no further `_execFn` runs (immediate deactivation), `onRerun` is silently dropped — `onDeactivation` still fires.
+
+**Surgical kept-dep semantics + Option C dispatch.** Subscription callbacks bind to the DepRecord reference, not a closure-captured index; the current `depIndex` is looked up dynamically via `_deps.indexOf(record)` at dispatch time. This means kept deps may shift position freely without re-subscribing — reorder + interior-remove are allowed.
+
+**Reentrancy guard.** A `_inDepMutation` flag set in try/finally rejects synchronous re-entry from a subscribe-handshake or topology-subscriber callback (TLA+ atomicity assumption — `wave_protocol_rewire.tla`).
+
+**Status:** experimental, internal-only API (single-underscore). Surface may change in DS-14. Canonical lock targeted for DS-14 alongside the delta protocol (op-log changesets, `restoreSnapshot mode: "diff"`, etc.). See [docs/research/rewire-design-notes.md](research/rewire-design-notes.md) and [docs/research/rewire-gap-findings.md](research/rewire-gap-findings.md) for the design lock + gap-findings record.
+
 **R3.3.2 — `opts.recursive: true`** walks mounted subgraphs with qualified `::` paths; default is local-only.
 
 **R3.3.3 — Decorative edges not representable.** If `describe()` shows an edge, there is a protocol subscription behind it. Factories that need a reactive wire between two already-constructed nodes must use runtime discovery primitives (`autoTrackNode`).
@@ -818,7 +837,9 @@ graph.mount(name: string, builder: (sub: Graph) => void): Graph # create + build
 
 ### 3.6 Introspection
 
-**R3.6.1 — `describe(opts?)`** — static structure snapshot. Heavily overloaded; primary forms:
+**R3.6.1 — `describe(opts?)`** — heavily overloaded structure-query entry point. Mode is selected by opts shape; runtime throws `TypeError` on conflicting modes (e.g. `explain` + `reachable` together).
+
+**Static modes** (return-by-value snapshot):
 
 ```ts
 graph.describe()                                 → GraphDescribeOutput  // JSON
@@ -826,9 +847,34 @@ graph.describe({ format: "pretty" })             → string               // hum
 graph.describe({ format: "mermaid" })            → string               // mermaid diagram
 graph.describe({ format: "d2" })                 → string               // D2 diagram
 graph.describe({ format: "stage-log" })          → string               // multi-line by stage
-graph.describe({ reachable: { ... } })           → ReachableResult      // reachability query
 graph.describe({ detail: "minimal"|"full" })     → variant detail levels
+graph.describe({ filter: {...} })                → filtered subset
+graph.describe({ explain: { from, to, ... } })   → CausalChain          // walkback path
+graph.describe({ reachable: { ... } })           → string[] | ReachableResult
 ```
+
+**Reactive modes** (return-by-Node, live stream):
+
+```ts
+graph.describe({ reactive: true })               → ReactiveDescribeHandle<GraphDescribeOutput>
+                                                   // live snapshot — emits whole new GraphDescribeOutput
+                                                   // on every topology change.
+
+graph.describe({ reactive: "diff" })             → ReactiveDescribeHandle<DescribeChangeset>
+                                                   // diff stream — emits only the per-change
+                                                   // delta (added/removed/mutated nodes).
+
+graph.describe({ explain: {...}, reactive: true })
+                                                 → { node: Node<CausalChain>; dispose: () => void }
+                                                   // live causal chain.
+```
+
+**Mode interactions:**
+- `reactive: true` is mutually exclusive with `format` (use `derived([describe({ reactive: true }).node], render)` to compose).
+- `reachable` has no reactive form — compose via `derived` over a reactive describe Node.
+- `explain` accepts both static and reactive forms.
+
+**Static-only sentinel:** `reactive: false | undefined` opt narrows the static-form return type and rejects `name`/`reactiveName` (which only apply in reactive mode).
 
 **`GraphDescribeOutput` shape:**
 
@@ -869,12 +915,13 @@ The `type` field comes from `describeKind` set by sugar constructors; when not s
 - Deps, with fn → `"derived"` (default for compute nodes)
 - No fn, with deps → passthrough (labeled `"derived"`)
 
-**R3.6.2 — `observe(path?, opts?)`** — live message stream. Returns a subscribable handle:
+**R3.6.2 — `observe(path?, opts?)`** — live observation of message flow. Mode is selected by opts shape; the **default** is the sink-style API, NOT a Node, NOT an async iterable. Reactive Nodes and async iterables are opt-in.
+
+**Default (sink-style)** — `GraphObserveOne` / `GraphObserveAll`:
 
 ```ts
-graph.observe("validate")                         // messages from one node
-graph.observe()                                   // messages from all nodes (path-prefixed)
-graph.observe("validate", { changeset: true })    // returns Node<GraphChange>
+graph.observe("validate")     → GraphObserveOne   // { subscribe(sink), up(messages) }
+graph.observe()               → GraphObserveAll   // { subscribe(sink: (path, msgs) => …), up(path, msgs) }
 ```
 
 The single-node handle exposes:
@@ -884,6 +931,38 @@ The single-node handle exposes:
 The all-nodes handle:
 - `subscribe(sink: (path, messages) => void)` — receives `(path, messages)` tuples.
 - `up(path, messages)` — direct upstream by path.
+
+**Reactive modes** (return-by-Node):
+
+```ts
+graph.observe("validate", { reactive: true })     → Node<ObserveChangeset>
+                                                    // coalesces all observed events for one
+                                                    // outermost batch flush into a single
+                                                    // ObserveChangeset DATA wave.
+
+graph.observe("validate", { changeset: true })    → Node<GraphChange>
+                                                    // one DATA per discrete change (data flow +
+                                                    // topology + batch boundaries) with edge
+                                                    // attribution (`fromPath` + `fromDepIndex`).
+                                                    // Mutually exclusive with reactive: true.
+```
+
+**Async-iterable mode** — `ObserveResult` (sink + async-iterable hybrid):
+
+```ts
+graph.observe("validate", { structured: true })   → ObserveResult
+graph.observe("validate", { timeline: true })     → ObserveResult
+graph.observe("validate", { causal: true })       → ObserveResult
+graph.observe("validate", { detail: "minimal" })  → ObserveResult
+// (any StructuredTriggers opt enables ObserveResult: structured / timeline / causal / derived
+//  / detail other than the default)
+for await (const ev of graph.observe("validate", { structured: true })) { ... }
+```
+
+**Mode interactions:**
+- Default sink-style is NOT iterable. `for await (const ev of graph.observe("p"))` throws "not async iterable" — pass a `StructuredTriggers` opt to get `ObserveResult`.
+- `reactive: true` and `changeset: true` are mutually exclusive.
+- Reactive variants compose with `derived` for downstream reactive consumption: `derived([graph.observe("p", { reactive: true })], (cs) => …)`.
 
 The `changeset: true` variant returns a `Node<GraphChange>` for reactive consumption of structural deltas (additions, removals, mutations) — see Phase 14 op-log changeset protocol.
 
@@ -1192,6 +1271,17 @@ Implementations MAY optimize the common single-message tier-3 path by short-circ
 ### 6.3 DepRecord (per-dep state)
 
 Full shape documented at R2.9.b. Cross-language note: `involvedThisWave` field is essential for distinguishing `data[i] === []` (RESOLVED-this-wave) from `data[i] === undefined` (not-involved). Rust port retains this field (perhaps as a packed bool with `dirty`).
+
+**R6.3.1 (Phase 13.8) — Subscription-callback closure binding to DepRecord reference, not array index.** Every dep subscription's callback closes over the DepRecord ref `dep` (or `record`). At dispatch time the closure resolves `depIdx = this._deps.indexOf(dep)` dynamically and passes that into `MessageContext.depIndex` and `_onDepMessage`. **A closure-captured numeric index would silently misroute messages after a `_setDeps` reorder/interior-remove, because surgical kept-dep semantics keep the DepRecord identity stable but shift its position.** Public surfaces (`MessageContext.depIndex`, `NodeInspectorHookEvent.depIndex`) stay numbers; they just reflect the current position rather than a stale snapshot. Stale closures (post-unsub) early-return on the `dep.unsub === null` liveness check OR on `indexOf` returning `-1` (for the rollback case where the record was spliced out of `_deps`).
+
+Rust port: same pattern — store the dep reference (e.g. `Arc<DepRecord>` or `NodeId`) in the closure, look up the index dynamically. O(N) `indexOf` is acceptable for the typical small N; promote to a parallel `HashMap<DepRecordId, usize>` cache if profiling warrants.
+
+**R6.3.2 (Phase 13.8) — Failed-add rollback.** When `_addDepInternal` or `_setDeps` subscribe-throws on a freshly-added dep, the catch path:
+1. Nulls `record.unsub` so any drainPhase2 closures from the partial subscribe are dropped via the liveness check.
+2. Decrements `_dirtyDepCount` if the record was pre-dirtied.
+3. Splices the failed record out of `_deps` so it is not visible to any subsequent in-flight callbacks (which would otherwise see `indexOf(record) !== -1`) and so a subsequent `_setDeps` does not treat it as kept-and-live.
+4. If `[DIRTY]` was already emitted downstream, emits `[ERROR, err]` to close the wave deterministically (R1.3.1.a — DIRTY without follow-up is invalid).
+5. Rethrows.
 
 ---
 
@@ -1835,6 +1925,8 @@ Same state → same JSON bytes → git can diff.
 | 18 | R2.8.1 — `state` / `producer` / `derived` / `effect` are NOT standalone exports | Only `dynamicNode` / `autoTrackNode` / `pipe` exported from `core/sugar.ts`. Named sugar lives ONLY as `Graph` methods (`graph.state` / `graph.derived` / `graph.effect` / `graph.producer`) | **TS: keep current shape** (sugars on Graph). **Spec-only TS update**: clarify in `~/src/graphrefly/GRAPHREFLY-SPEC.md` §2.8 that named sugar is on Graph, not standalone. JSDoc examples in `src/extra/` may stay as illustrative shorthand. **Rust port: realign by putting sugars BACK in core** alongside `dynamicNode` / `autoTrackNode` (per user direction 2026-05-03). Rust `state` / `producer` / `derived` / `effect` return `Node<T>` standalone; Graph methods become thin wrappers (`fn graph.state(name, ...) → graph.add(name, state(...))`). | (no lock — TS no-op; Rust-port directive) |
 | 19 | R1.3.7 — Tier table per DS-13.5.A: tier 4 = INVALIDATE, tier 5 = COMPLETE/ERROR, tier 6 = TEARDOWN | `src/core/batch.ts` doc comments use **pre-DS-13.5.A numbering**: "Tier 4 — deferred to drainPhase3" calls tier 4 "COMPLETE/ERROR"; "Tier 5 — deferred to drainPhase4" calls tier 5 "TEARDOWN". Actual code logic at line 228 (`tier >= 5 ? drainPhase4 : tier === 4 ? drainPhase3 : drainPhase2`) maps correctly | Comment-only sweep: `src/core/batch.ts` lines 22-25, 38-43, 204-208. Update wording to match canonical tier table. Plus `node.ts:2113-2125` `_emit` BufferAll comment uses same old numbering. | (no lock — comment cleanup) |
 | 20 | R4.3 — Batch drain iteration cap should be central config | `src/core/batch.ts:31` defines `MAX_DRAIN_ITERATIONS = 1000` as module-level constant. Same anti-pattern as `MAX_RERUN_DEPTH` (Lock 2.F′). | Move to `cfg.maxBatchDrainIterations` (default `1000`). Diagnostic at line 169-171 also vague — broaden to `{ phase, queueSizeAtThrow, configuredLimit }`. | Lock 2.F′ extended per F7 — covers both `maxFnRerunDepth` and `maxBatchDrainIterations` |
+
+**Phase 13.8 substrate additions (post-13.6.A, exploratory):** the rewire substrate primitives (`_setDeps`, `_addDep`, `_addDepInternal`, `_removeDep` on `NodeImpl`; `_rewire`, `_addDep`, `_removeDep` on `Graph`) are NEW additions that extend §3.3 and §6.3. They are NOT deltas in the sense of "TS impl drifts from canonical" — the canonical spec text in R3.3.1.1 / R6.3.1 / R6.3.2 was added simultaneously with the TS implementation. Status: experimental, internal-only API; final canonical lock targeted for DS-14. See [research/rewire-design-notes.md](research/rewire-design-notes.md) and [research/rewire-gap-findings.md](research/rewire-gap-findings.md).
 
 **Flag for handoff:** Items 6, 12, 13 are non-trivial **net-new code** (versioning equals path, Q16 synthesis, replayBuffer machinery). Items 8, 9, 10 are subtle **behavior changes** with downstream test impact. Items 1, 4, 14 are largely **documentation/rename** with low risk. Item 3 is a **migration** with broad impact.
 

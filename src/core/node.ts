@@ -474,6 +474,35 @@ function resetDepRecord(d: DepRecord): void {
 	d.terminal = undefined;
 }
 
+/**
+ * @internal Returns `true` if `target` is reachable from `from` via upstream
+ * dep traversal (i.e. `from` already transitively depends on `target`).
+ *
+ * Used by `_setDeps` cycle prevention: adding edge `from → target` (which
+ * happens when `from` becomes a dep of `target`) closes a cycle iff
+ * `target` is already reachable upstream from `from`.
+ *
+ * O(V + E) over the visited subgraph. Bounded by the universe of nodes
+ * reachable upstream from `from`, NOT the global node count.
+ */
+function _reachableUpstream(from: Node, target: Node): boolean {
+	if (from === target) return true;
+	const visited = new Set<Node>();
+	const stack: Node[] = [from];
+	while (stack.length > 0) {
+		const n = stack.pop() as Node;
+		if (visited.has(n)) continue;
+		visited.add(n);
+		const deps = (n as NodeImpl)._deps;
+		if (deps == null) continue;
+		for (const d of deps) {
+			if (d.node === target) return true;
+			if (!visited.has(d.node)) stack.push(d.node);
+		}
+	}
+	return false;
+}
+
 // ---------------------------------------------------------------------------
 // Normalization helper
 // ---------------------------------------------------------------------------
@@ -666,6 +695,18 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_isExecutingFn = false;
 	_pendingRerun = false;
 	_rerunDepth = 0;
+	/**
+	 * @internal Phase 13.8 reentrancy guard for `_setDeps` / `_addDep` /
+	 * `_removeDep`. Set on entry, cleared in `finally`. A reentrant
+	 * substrate call (typically synchronous re-entry from a push-on-
+	 * subscribe DATA → downstream subscriber → re-call) is rejected with
+	 * a clear error; the TLA+ spec assumes single-step atomicity, this
+	 * flag enforces that contract at the substrate boundary.
+	 *
+	 * Distinct from `_isExecutingFn` (which guards mid-fn rewires) — this
+	 * guards mid-rewire reentry.
+	 */
+	_inDepMutation = false;
 
 	// --- Settlement counter (A3) ---
 	/**
@@ -775,7 +816,17 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _replayBufferCapacity: number;
 
 	// --- Options (frozen at construction) ---
-	readonly _fn: NodeFn | undefined;
+	/**
+	 * The user-supplied transform fn. Mutable post-construction ONLY via
+	 * `_setDeps` / `_addDep` / `_removeDep` `opts.fn` (Phase 13.8). Callers
+	 * MUST NOT assign directly — the substrate ensures the next `_execFn`
+	 * reads the new value at the right wave boundary, fires old cleanup's
+	 * `onRerun`, and updates `_cleanup` from the new fn's return.
+	 *
+	 * @internal Direct mutation outside `_setDeps`/`_addDep`/`_removeDep`
+	 *   would skip the cleanup wrap-up and is a bug.
+	 */
+	_fn: NodeFn | undefined;
 	readonly _equals: (a: T, b: T) => boolean;
 	readonly _resubscribable: boolean;
 	readonly _resetOnTeardown: boolean;
@@ -1469,8 +1520,22 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		let subscribedCount = 0;
 		try {
 			for (let i = 0; i < initialLen; i++) {
-				const depIdx = i;
 				const dep = this._deps[i];
+				// Phase 13.8 QA G2-H: re-check Q1 terminal-non-resubscribable
+				// at activation time. `_setDeps` and `_addDepInternal` validate
+				// upfront, but on an inactive node the actual `subscribe()` is
+				// deferred to here — the dep may have transitioned to non-
+				// resubscribable terminal in the interim. `defaultOnSubscribe`
+				// would silently no-op, leaving the edge wedged. Re-check now.
+				const depImpl = dep.node as NodeImpl;
+				if (
+					(depImpl._status === "completed" || depImpl._status === "errored") &&
+					!depImpl._resubscribable
+				) {
+					throw new Error(
+						`_activate: dep "${depImpl.name}" entered non-resubscribable terminal state (${depImpl._status}) between dep declaration and first activation; the subscribe handshake would silently no-op and wedge node "${this.name}". Use a resubscribable dep, a fresh node, or remove the edge before activation.`,
+					);
+				}
 				// Pre-set to noopUnsub so the liveness check inside the callback
 				// passes during synchronous push-on-subscribe (dep.unsub is non-null),
 				// while still blocking stale drainPhase2 closures that fire after
@@ -1481,6 +1546,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					// cancelled by _deactivate. Drop deliveries from stale drainPhase2
 					// closures that outlived the subscription.
 					if (dep.unsub === null) return;
+					// Phase 13.8: dispatch via current index of this DepRecord in
+					// `_deps`, not a closure-captured index. Surgical `_setDeps`
+					// may shift kept deps' positions; binding via record reference
+					// keeps stale closures impossible. `indexOf` is O(N) but N is
+					// typically small; promote to a Map cache if profiling demands.
+					const depIdx = this._deps.indexOf(dep);
+					if (depIdx === -1) return; // record evicted by `_setDeps`
 					// Track whether any tier-3+ settlement-class message arrived
 					// (DATA/RESOLVED at tier 3, INVALIDATE at tier 4,
 					// COMPLETE/ERROR at tier 5). Fire
@@ -1528,34 +1600,60 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
-	 * @internal Append a dep post-construction. Used by `autoTrackNode`
-	 * (runtime dep discovery) and `Graph.connect()` (post-construction
-	 * wiring). Subscribes immediately — if DATA arrives synchronously
-	 * during subscribe and fn is currently executing, the re-run is
-	 * deferred via `_pendingRerun` flag (see `_execFn` guard).
+	 * @internal **Substrate-level dep append** (no validation guards).
+	 * Used by `autoTrackNode` (runtime dep discovery) and `Graph.connect()`
+	 * (post-construction wiring) — both of which need cycle/self-dep/mid-fn
+	 * checks intentionally bypassed (autoTrackNode runs from inside
+	 * `_execFn`, where the public `_addDep` would reject).
 	 *
-	 * **Dedup:** idempotent on duplicate `depNode` — if `depNode` is
-	 * already in `_deps`, returns the existing index without mutating
-	 * state. Callers can safely invoke `_addDep` without their own
-	 * "already added" check. `autoTrackNode` still keeps a `depIndexMap`
-	 * as a fast-path lookup for known deps (returning cached `data[idx]`
-	 * without calling `_addDep` at all); this internal dedup is the
-	 * backstop for any caller that doesn't track its own dep set.
+	 * **External callers** (Phase 13.8 `Graph._addDep`, harness/AI rewrite
+	 * code) should use {@link _addDep} which layers validation on top of
+	 * this primitive.
 	 *
-	 * @returns The index of the new dep in `_deps`, or the existing index
-	 *   if the dep was already present.
+	 * **Dedup:** idempotent on duplicate `depNode`.
+	 *
+	 * **Q1 terminal-non-resubscribable rejection** stays here (correctness
+	 * fix for a pre-existing wedge bug, applies regardless of caller).
+	 *
+	 * **Subscribe ordering (Phase 13.8 QA D):** the synthetic `[DIRTY]`
+	 * downstream emit happens AFTER the dep subscribe succeeds, so a
+	 * subscribe-throw never leaves an orphan DIRTY downstream (spec
+	 * §5.11 R1.3.1.a — DIRTY without a follow-up DATA/RESOLVED is invalid).
 	 */
-	_addDep(depNode: Node): number {
+	_addDepInternal(depNode: Node, opts?: { fn?: NodeFn }): number {
 		// Dedup: idempotent on repeated adds of the same dep. Matches
 		// reference equality — the DepRecord is keyed by `node` identity,
 		// so a caller with a fresh `depNode` that observes as equal but
 		// is a distinct object is treated as a new dep.
 		for (let i = 0; i < this._deps.length; i++) {
-			if (this._deps[i].node === depNode) return i;
+			if (this._deps[i].node === depNode) {
+				// Idempotent on dep, but still apply fn swap if requested.
+				if (opts?.fn !== undefined) this._fn = opts.fn;
+				return i;
+			}
+		}
+		// Phase 13.8 Q1: reject non-resubscribable terminal deps.
+		// `defaultOnSubscribe` silently no-ops on terminal non-resubscribable
+		// nodes — adding one would wedge N (no DATA, no terminal, no
+		// auto-cascade). Resubscribable terminals are accepted because
+		// `subscribe()` triggers `_resetForFreshLifecycle` on them.
+		const depImpl = depNode as NodeImpl;
+		if (
+			(depImpl._status === "completed" || depImpl._status === "errored") &&
+			!depImpl._resubscribable
+		) {
+			throw new Error(
+				`_addDep: cannot add non-resubscribable terminal dep "${depImpl.name}" (status=${depImpl._status}). The subscribe handshake is silent for terminal non-resubscribable nodes, which would leave the new edge wedged.`,
+			);
 		}
 		const depIdx = this._deps.length;
 		const record = createDepRecord(depNode);
 		this._deps.push(record);
+
+		// Phase 13.8: optional fn replacement. Land before any subscribe so
+		// the next `_execFn` (possibly triggered by push-on-subscribe below)
+		// uses the new fn.
+		if (opts?.fn !== undefined) this._fn = opts.fn;
 
 		// If the node is inactive (no subscribers yet), defer subscribe to
 		// _activate(). Subscribing here would create a duplicate subscription
@@ -1573,11 +1671,16 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// dirty (we're inside an in-flight wave and have already emitted).
 		// `_depDirtied` can't do this for us because `record.dirty` was
 		// pre-set above, which short-circuits its DIRTY-emit path.
-		if (this._status !== "dirty") this._emit(DIRTY_ONLY_BATCH);
+		const dirtyEmitted = this._status !== "dirty";
+		if (dirtyEmitted) this._emit(DIRTY_ONLY_BATCH);
 		record.unsub = noopUnsub;
 		try {
 			record.unsub = depNode.subscribe((msgs) => {
 				if (record.unsub === null) return;
+				// Phase 13.8: dispatch via current index of this DepRecord
+				// (see `_activate` callback for full rationale).
+				const idx = this._deps.indexOf(record);
+				if (idx === -1) return;
 				// Tier-3+ classification via central `tierOf` per spec §5.11
 				// (Bug 1 fix — see _activate for details).
 				const tierOf = this._config.tierOf;
@@ -1587,25 +1690,485 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					this._config.onMessage(
 						this as unknown as NodeCtx,
 						m,
-						{ direction: "down-in", depIndex: depIdx },
+						{ direction: "down-in", depIndex: idx },
 						this._actions,
 					);
 				}
 				if (sawSettlement) this._maybeRunFnOnSettlement();
 			});
 		} catch (err) {
-			// Rollback: remove the dep record we just pushed and undo the dirty
-			// counter. record.unsub stays null (already cleared below) so any
-			// drainPhase2 closures queued by subscribe before it threw are
-			// treated as stale and dropped by the liveness check.
+			// Phase 13.8 QA D: rollback AND close the orphan DIRTY downstream.
+			// Previously the comment claimed `_execFn`'s catch would emit
+			// ERROR — but that only holds when called from autoTrackNode
+			// inside `_execFn`. For external callers (`Graph._addDep`), the
+			// DIRTY would orphan downstream. Emit ERROR explicitly so the
+			// wave closes deterministically.
 			record.unsub = null;
 			this._deps.pop();
 			this._dirtyDepCount--;
-			// Propagate: _execFn's catch block will emit ERROR, which settles
-			// downstream nodes that received the DIRTY we emitted above.
+			if (dirtyEmitted) {
+				this._emit([[ERROR, err]]);
+			}
 			throw err;
 		}
 		return depIdx;
+	}
+
+	/**
+	 * @internal **EXPERIMENTAL — Phase 13.8.** Append a dep post-construction
+	 * with full validation guards. Wraps {@link _addDepInternal}.
+	 *
+	 * **Rejects** (symmetric with `_setDeps`/`_removeDep`):
+	 * - Self-dep (`depNode === this`).
+	 * - Cycle introduction (`depNode` already transitively depends on `this`).
+	 * - Mid-fn (`_isExecutingFn === true`).
+	 * - Terminal `this` (`_status` ∈ `{completed, errored}`).
+	 * - Reentrant call (another `_setDeps`/`_addDep`/`_removeDep` is in
+	 *   flight on `this`).
+	 *
+	 * `autoTrackNode` and other internal autoTrack/connect-time callers must
+	 * use {@link _addDepInternal} directly — they intentionally run from
+	 * inside `_execFn` and rely on the substrate-level discovery semantics.
+	 *
+	 * **Required `fn` parameter (Phase 13.8 lock).** Appending a dep grows
+	 * `data.length` by 1; the caller must declare the fn that consumes
+	 * the new shape — even if it's the same as the prior fn. Old cleanup's
+	 * `onRerun` fires on the next `_execFn` invocation, NOT at swap time.
+	 * If no further `_execFn` runs (e.g., immediate deactivation),
+	 * `onRerun` is silently dropped — `onDeactivation` still fires.
+	 *
+	 * @returns The index of the new dep in `_deps`, or the existing index
+	 *   if the dep was already present.
+	 */
+	_addDep(depNode: Node, fn: NodeFn, _opts?: Record<string, never>): number {
+		if (this._status === "completed" || this._status === "errored") {
+			throw new Error(
+				`_addDep: cannot add dep on node "${this.name}" in terminal state "${this._status}"`,
+			);
+		}
+		if (this._isExecutingFn) {
+			throw new Error(
+				`_addDep: cannot add dep on node "${this.name}" while its fn is executing (mid-fn topology mutation). Use _addDepInternal for autoTrackNode-style discovery from inside fn.`,
+			);
+		}
+		if (this._inDepMutation) {
+			throw new Error(
+				`_addDep: reentrant dep mutation rejected on node "${this.name}". Another _setDeps/_addDep/_removeDep is in flight (likely a synchronous re-entry from a subscribe handshake or topology subscriber).`,
+			);
+		}
+		if (depNode === (this as unknown as Node)) {
+			throw new Error(
+				`_addDep: self-dependency rejected for node "${this.name}" — passing this node as its own dep is not supported`,
+			);
+		}
+		// Cycle reject — DFS through transitive `_deps[*].node` looking for
+		// `this`. If reachable, adding the edge `depNode → this` would close
+		// a cycle. Skip when dep is already present (dedup will catch it
+		// inside `_addDepInternal` anyway, and the existing edge can't
+		// introduce a new cycle).
+		if (
+			!this._deps.some((r) => r.node === depNode) &&
+			_reachableUpstream(depNode, this as unknown as Node)
+		) {
+			throw new Error(
+				`_addDep: would create cycle — dep "${(depNode as NodeImpl).name}" already transitively depends on "${this.name}"`,
+			);
+		}
+		this._inDepMutation = true;
+		try {
+			return this._addDepInternal(depNode, { fn });
+		} finally {
+			this._inDepMutation = false;
+		}
+	}
+
+	/**
+	 * @internal **EXPERIMENTAL — Phase 13.8.**
+	 *
+	 * Remove a dep. Symmetric counterpart to `_addDep`. Idempotent — if
+	 * `depNode` is not currently in `_deps`, this is a no-op (still
+	 * applies the fn swap). Removing the last dep is allowed; N becomes
+	 * a degenerate fn-with-no-deps shape (cache preserved per Q7; no
+	 * further fires until a fresh wave arrives).
+	 *
+	 * **Required `fn` parameter (Phase 13.8 lock).** Removing a dep
+	 * shrinks `data.length`; the caller must declare the fn that consumes
+	 * the new shape. Even when the dep is absent (idempotent path), the
+	 * fn swap still applies — the API enforces fn-deps pairing at every
+	 * call site.
+	 *
+	 * **Auto-settle.** If the removed dep was the sole DIRTY contributor
+	 * and the node was waiting on it, the wave settles via the standard
+	 * settlement path (Q6). DepRecord state for surviving deps is
+	 * preserved (DepRecord-ref dispatch handles position shifts).
+	 *
+	 * **Rejects:**
+	 * - Mid-fn (`_isExecutingFn === true`).
+	 * - Terminal `this` (`_status` ∈ `{completed, errored}`).
+	 *
+	 * @param depNode — the dep Node to remove.
+	 * @param fn — transform fn for the post-remove shape; replaces `this._fn`.
+	 * @param _opts — reserved for future expansion.
+	 */
+	_removeDep(depNode: Node, fn: NodeFn, _opts?: Record<string, never>): void {
+		if (this._status === "completed" || this._status === "errored") {
+			throw new Error(
+				`_removeDep: cannot remove dep on node "${this.name}" in terminal state "${this._status}"`,
+			);
+		}
+		if (this._isExecutingFn) {
+			throw new Error(
+				`_removeDep: cannot remove dep on node "${this.name}" while its fn is executing (mid-fn topology mutation)`,
+			);
+		}
+		if (this._inDepMutation) {
+			throw new Error(
+				`_removeDep: reentrant dep mutation rejected on node "${this.name}". Another _setDeps/_addDep/_removeDep is in flight.`,
+			);
+		}
+		this._inDepMutation = true;
+		try {
+			const idx = this._deps.findIndex((r) => r.node === depNode);
+			if (idx === -1) {
+				// Not present — idempotent on the dep, but fn swap still lands
+				// (Phase 13.8 lock: fn-deps pairing is required at every call).
+				this._fn = fn;
+				return;
+			}
+			const rec = this._deps[idx];
+			if (rec.unsub != null) {
+				const u = rec.unsub;
+				rec.unsub = null;
+				try {
+					u();
+				} catch {
+					/* best-effort: dep unsub errors are secondary */
+				}
+			}
+			const removedDirtyContributor = rec.dirty;
+			if (rec.dirty) this._dirtyDepCount--;
+			this._deps.splice(idx, 1);
+			this._fn = fn;
+			// Q6 auto-settle: if the only dirty contributor was the removed
+			// dep and the wave is now empty, fire fn settlement so downstream
+			// sees a coherent close-of-wave.
+			if (
+				removedDirtyContributor &&
+				this._dirtyDepCount === 0 &&
+				this._status === "dirty" &&
+				this._sinks != null
+			) {
+				this._maybeRunFnOnSettlement();
+			}
+		} finally {
+			this._inDepMutation = false;
+		}
+	}
+
+	/**
+	 * @internal **EXPERIMENTAL — Phase 13.8 exploratory impl.**
+	 *
+	 * Replace this node's upstream deps atomically. Used by
+	 * `Graph._rewire(name, newDeps)` to support AI self-pruning of harness
+	 * topology (per `project_rewire_gap` memory).
+	 *
+	 * **Variant: surgical (kept deps untouched).** A dep that appears in
+	 * BOTH the old and new dep sets is left completely alone — its
+	 * subscription stays attached, its DepRecord (`prevData`, `dirty`,
+	 * `dataBatch`, `terminal`) is unchanged, the dep does not see N
+	 * unsub-then-resub. Only **removed** deps are unsubscribed (and their
+	 * DepRecord discarded), and only **added** deps get a fresh DepRecord
+	 * + subscription.
+	 *
+	 * **Reorder + interior-remove are allowed.** Subscription callbacks
+	 * bind to the DepRecord reference (Phase 13.8 Option C); they look
+	 * up the current index dynamically via `_deps.indexOf(record)` at
+	 * dispatch time. So kept deps may shift position freely without
+	 * needing to re-subscribe. The user's `newDeps` order determines
+	 * `_deps` order verbatim.
+	 *
+	 * **Preserves** (per Q2/Q3/Q7 of rewire-design-notes.md + the surgical
+	 * lock):
+	 * - `_cached` (compute-node cache survives rewire — Q7)
+	 * - `_hasCalledFnOnce` (first-run gate not re-armed — Q2)
+	 * - `_pauseLocks` / `_pauseBuffer` (Q3 — N's outgoing pause state)
+	 * - `_replayBuffer` (N's outgoing replay history)
+	 * - `_store` / `_cleanup` (per-node scratch + cleanup hooks)
+	 * - **Kept deps' DepRecords** — `prevData`, `dirty`, `dataBatch`,
+	 *   `terminal` all carry through verbatim.
+	 *
+	 * **Discards** — only state owned by removed deps' DepRecords.
+	 *
+	 * **Rejects** (per `rewire-design-notes.md` post-design resolutions):
+	 * - Self-rewire (`this` ∈ `newDeps`).
+	 * - Cycle introduction (DFS through transitive `_deps`).
+	 * - Mid-fn rewire (`_isExecutingFn === true`).
+	 * - Terminal `this` (`_status` ∈ `{completed, errored}`).
+	 * - **Phase 13.8 design pass:** any `newDeps` entry that is currently
+	 *   in non-resubscribable terminal state. (`defaultOnSubscribe`
+	 *   silently no-ops on terminal non-resubscribable nodes — adding
+	 *   one would wedge N. Resubscribable terminals ARE allowed because
+	 *   `subscribe()` triggers `_resetForFreshLifecycle` on them.)
+	 *
+	 * **Required `fn` parameter (Phase 13.8 lock).** Every dep mutation
+	 * MUST pair with an explicit fn — even if it's the same as the old
+	 * one. Rationale: user fns read `data[i]` / `prevData[i]` positionally;
+	 * dep-shape changes (count or order) silently misroute reads unless
+	 * the caller acknowledges the fn-deps pairing at every call site.
+	 * Forcing fn at the API boundary makes the audit step mandatory.
+	 *
+	 * The next `_execFn` invocation fires the old cleanup's `onRerun` hook
+	 * (clean wrap-up) and runs the new fn. `_store`, `_hasCalledFnOnce`,
+	 * cache, replay buffer, and pause locks are all preserved.
+	 *
+	 * Callers that want to keep the prior fn must hold a reference to it
+	 * (define fns as named consts rather than inline lambdas, or read
+	 * `(node as NodeImpl)._fn` for ad-hoc retrieval).
+	 *
+	 * @param newDeps — full new dep set (deduplicated by reference identity).
+	 * @param fn — transform fn for the rewired node; replaces `this._fn`
+	 *   atomically with the dep mutation. Pass the existing fn ref to
+	 *   preserve behavior when only the dep set changes.
+	 * @param _opts — reserved for future expansion.
+	 */
+	_setDeps(newDeps: readonly Node[], fn: NodeFn, _opts?: Record<string, never>): void {
+		// --- Validation: this-side ---
+		if (this._status === "completed" || this._status === "errored") {
+			throw new Error(
+				`_setDeps: cannot rewire node "${this.name}" in terminal state "${this._status}"`,
+			);
+		}
+		if (this._isExecutingFn) {
+			throw new Error(
+				`_setDeps: cannot rewire node "${this.name}" while its fn is executing (mid-fn topology mutation)`,
+			);
+		}
+		if (this._inDepMutation) {
+			throw new Error(
+				`_setDeps: reentrant dep mutation rejected on node "${this.name}". Another _setDeps/_addDep/_removeDep is in flight (likely a synchronous re-entry from a subscribe handshake or topology subscriber).`,
+			);
+		}
+
+		// Dedupe by reference identity (mirrors `_addDep`).
+		const seen = new Set<Node>();
+		const dedupedNewDeps: Node[] = [];
+		for (const d of newDeps) {
+			if (seen.has(d)) continue;
+			seen.add(d);
+			dedupedNewDeps.push(d);
+		}
+		if (seen.has(this as unknown as Node)) {
+			throw new Error(
+				`_setDeps: self-dependency rejected for node "${this.name}" — pass a deps array that does not include this node`,
+			);
+		}
+
+		// --- Cycle reject ---
+		for (const d of dedupedNewDeps) {
+			if (_reachableUpstream(d, this as unknown as Node)) {
+				throw new Error(
+					`_setDeps: would create cycle — dep "${(d as NodeImpl).name}" already transitively depends on "${this.name}"`,
+				);
+			}
+		}
+
+		// --- Diff: compute removed, added, kept ---
+		// Map each old dep node to its DepRecord for O(1) lookup. Kept deps
+		// can shift position freely because subscription callbacks bind to
+		// the DepRecord reference, not the index (Phase 13.8 Option C).
+		const oldRecordByNode = new Map<Node, DepRecord>();
+		for (const rec of this._deps) {
+			oldRecordByNode.set(rec.node, rec);
+		}
+
+		// --- Validation: terminal-non-resubscribable on added deps ---
+		// Resubscribable terminals are accepted: subscribe() triggers
+		// `_resetForFreshLifecycle` on them, putting them in a clean
+		// sentinel state for the new edge.
+		for (const d of dedupedNewDeps) {
+			if (oldRecordByNode.has(d)) continue; // kept, no new subscription
+			const impl = d as NodeImpl;
+			if ((impl._status === "completed" || impl._status === "errored") && !impl._resubscribable) {
+				throw new Error(
+					`_setDeps: cannot add non-resubscribable terminal dep "${impl.name}" (status=${impl._status}). The subscribe handshake is silent for terminal non-resubscribable nodes, which would leave the new edge wedged. Either remove the dep from the rewire, mark the dep as resubscribable, or add a fresh node.`,
+				);
+			}
+		}
+
+		this._inDepMutation = true;
+		try {
+			// --- Phase 1: disconnect removed deps ---
+			// Walk old `_deps`; whatever is no longer present in newDeps gets
+			// unsubscribed and its DepRecord state cleaned up. Track whether
+			// we removed a dirty contributor — if so we may need to settle.
+			const newDepsSet = seen; // already populated above
+			let removedDirtyContributor = false;
+			for (const oldRec of this._deps) {
+				if (newDepsSet.has(oldRec.node)) continue; // kept
+				// removed
+				if (oldRec.unsub != null) {
+					const u = oldRec.unsub;
+					oldRec.unsub = null;
+					try {
+						u();
+					} catch {
+						/* best-effort: dep unsub errors are secondary on rewire */
+					}
+				}
+				if (oldRec.dirty) {
+					removedDirtyContributor = true;
+					this._dirtyDepCount--;
+				}
+				// DepRecord garbage-collected when we replace `_deps` below.
+			}
+
+			// --- Phase 2: build new _deps array ---
+			// Reuse existing DepRecords for kept deps (preserving prevData,
+			// dirty, dataBatch, terminal). Create fresh DepRecords for added.
+			// Kept deps may end up at a different index than before — that's
+			// fine because subscription callbacks bind to record references.
+			const newRecords: DepRecord[] = new Array(dedupedNewDeps.length);
+			const addedIndices: number[] = [];
+			for (let i = 0; i < dedupedNewDeps.length; i++) {
+				const d = dedupedNewDeps[i];
+				const existing = oldRecordByNode.get(d);
+				if (existing !== undefined) {
+					newRecords[i] = existing;
+				} else {
+					newRecords[i] = createDepRecord(d);
+					addedIndices.push(i);
+				}
+			}
+			this._deps = newRecords;
+
+			// --- Phase 2.5: required fn replacement (Phase 13.8 lock) ---
+			// Land the new fn BEFORE any auto-settle / re-fire path so the next
+			// `_execFn` call uses it. Old cleanup stays attached; the existing
+			// rerun-cleanup path in `_execFn` will fire its `onRerun` hook
+			// before invoking the new fn (clean wrap-up of old fn's last run).
+			// `fn` is required at the API boundary — same fn is fine, but the
+			// caller must always declare what fn the new dep set pairs with.
+			this._fn = fn;
+
+			// --- Phase 3: subscribe added deps ---
+			// Inactive node (`_sinks == null`): defer. `_activate()` will
+			// subscribe every `_deps` entry from scratch on first sink.
+			if (this._sinks == null) {
+				// Honor the auto-settle Q6 case here too, even though we
+				// haven't subscribed: if the only dirty contributors got
+				// removed and the node was waiting for them, the wave is
+				// already settled in spirit.
+				if (
+					removedDirtyContributor &&
+					addedIndices.length === 0 &&
+					this._dirtyDepCount === 0 &&
+					this._status === "dirty"
+				) {
+					this._maybeRunFnOnSettlement();
+				}
+				return;
+			}
+
+			// Pre-dirty added deps so the wave gate accounts for them. Mirror
+			// `_addDepInternal`'s pre-dirty + counter bump.
+			const hadAdded = addedIndices.length > 0;
+			let dirtyEmitted = false;
+			if (hadAdded) {
+				for (const i of addedIndices) {
+					const rec = this._deps[i];
+					rec.dirty = true;
+					this._dirtyDepCount++;
+				}
+				// Topology change introducing new in-flight deps → emit DIRTY
+				// downstream once if not already in a wave. Mirrors `_addDepInternal`.
+				if (this._status !== "dirty") {
+					this._emit(DIRTY_ONLY_BATCH);
+					dirtyEmitted = true;
+				}
+			}
+
+			// Subscribe each added dep. Closure binds to the DepRecord; index
+			// looked up dynamically via `_deps.indexOf(record)` so future
+			// `_setDeps` calls that shift this dep's position remain correct.
+			// Kept deps' subscriptions remain in place untouched.
+			let subscribedCount = 0;
+			try {
+				for (const i of addedIndices) {
+					const rec = this._deps[i];
+					rec.unsub = noopUnsub;
+					rec.unsub = rec.node.subscribe((msgs) => {
+						if (rec.unsub === null) return;
+						const idx = this._deps.indexOf(rec);
+						if (idx === -1) return;
+						const tierOf = this._config.tierOf;
+						let sawSettlement = false;
+						for (const m of msgs) {
+							if (tierOf(m[0]) >= 3) sawSettlement = true;
+							this._config.onMessage(
+								this as unknown as NodeCtx,
+								m,
+								{ direction: "down-in", depIndex: idx },
+								this._actions,
+							);
+						}
+						if (sawSettlement) this._maybeRunFnOnSettlement();
+					});
+					subscribedCount++;
+				}
+			} catch (err) {
+				// Phase 13.8 QA D: rollback the partially-subscribed state
+				// AND emit a settlement downstream to close the orphan DIRTY
+				// (R1.3.1.a — DIRTY without follow-up DATA/RESOLVED is a spec
+				// violation). Strategy:
+				//   1. Null `unsub` on every not-yet-successfully-subscribed
+				//      record so any drainPhase2 closures dropped.
+				//   2. Splice failed records out of `_deps` so `indexOf`
+				//      returns -1 in any in-flight callback AND so the next
+				//      `_setDeps` call doesn't see them as "kept-and-live".
+				//   3. Decrement `_dirtyDepCount` for the dropped records.
+				//   4. If we already emitted DIRTY downstream, emit ERROR
+				//      downstream so the wave closes deterministically.
+				const failedIndices: number[] = [];
+				for (let k = subscribedCount; k < addedIndices.length; k++) {
+					failedIndices.push(addedIndices[k]);
+				}
+				for (const idx of failedIndices) {
+					const failedRec = this._deps[idx];
+					if (failedRec == null) continue;
+					failedRec.unsub = null;
+					if (failedRec.dirty) {
+						failedRec.dirty = false;
+						this._dirtyDepCount--;
+					}
+				}
+				if (failedIndices.length > 0) {
+					const failedSet = new Set(failedIndices);
+					this._deps = this._deps.filter((_, idx) => !failedSet.has(idx));
+				}
+				if (dirtyEmitted) {
+					// Close the orphan DIRTY downstream with an ERROR carrying
+					// the cause. Emit BEFORE rethrow so subscribers see a
+					// well-formed wave: DIRTY → ERROR.
+					this._emit([[ERROR, err]]);
+				}
+				throw err;
+			}
+
+			// Q6 auto-settle: if the only dirty contributors were removed
+			// and no added deps replaced them, and the wave is empty but
+			// the node is still marked dirty — let the settlement path
+			// decide whether to fire fn (e.g. with stale prevData).
+			if (
+				removedDirtyContributor &&
+				!hadAdded &&
+				this._dirtyDepCount === 0 &&
+				this._status === "dirty"
+			) {
+				this._maybeRunFnOnSettlement();
+			}
+		} finally {
+			this._inDepMutation = false;
+		}
 	}
 
 	/**

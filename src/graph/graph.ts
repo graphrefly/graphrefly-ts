@@ -595,6 +595,15 @@ export type TopologyEvent =
 			name: string;
 			nodeKind: "node" | "mount";
 			audit: GraphRemoveAudit;
+	  }
+	| {
+			/**
+			 * @experimental Phase 13.8 — emitted by {@link Graph._rewire}.
+			 * Internal-only; surface may change.
+			 */
+			kind: "rewired";
+			name: string;
+			audit: GraphRewireAudit;
 	  };
 
 /**
@@ -1854,6 +1863,154 @@ export class Graph {
 			internal,
 			delivery: "write",
 		});
+	}
+
+	/**
+	 * @experimental Phase 13.8 — Atomically replace the upstream deps of a
+	 * registered node. Internal/exploratory API; NOT exported publicly.
+	 *
+	 * **Variant: surgical (Phase 13.8 lock).** Kept deps untouched —
+	 * subscription stays attached, DepRecord state survives. Only removed
+	 * deps are unsubscribed and only added deps get fresh subscriptions.
+	 * Subscription callbacks bind to DepRecord references (Option C), so
+	 * reorder + interior-remove are allowed without re-subscribing kept
+	 * deps. See `NodeImpl._setDeps` and `docs/research/rewire-design-notes.md`.
+	 *
+	 * **Path resolution.** `name` accepts a local name or a `mount::leaf`
+	 * qualified path. Each `newDeps` entry is either a Node instance or a
+	 * path string (resolved via {@link Graph.resolve}). Cycle detection
+	 * runs on resolved Node identity at the `_setDeps` substrate, so
+	 * cross-mount cycles ARE caught.
+	 *
+	 * **Optional fn replacement (`opts.fn`).** When the dep shape change
+	 * would break the existing fn's positional reads, pass a fresh fn.
+	 * Old cleanup's `onRerun` fires on the next `_execFn` invocation.
+	 *
+	 * **Audit emission.** Returns a {@link GraphRewireAudit} listing the
+	 * dep diff. Also emits a `TopologyEvent { kind: "rewired" }` on
+	 * `this.topology`.
+	 *
+	 * **Errors.** Surfaces `_setDeps` errors verbatim (self-rewire, cycle,
+	 * mid-fn, terminal, terminal-non-resubscribable-newDep). Throws if
+	 * `name` resolves to a foreign Node not registered on this graph or
+	 * any reachable mount.
+	 *
+	 * @param name - Local name or `::` qualified path of the node to rewire.
+	 * @param newDeps - Full new dep set; entries may be Node instances or
+	 *   path strings. Order is preserved (modulo dedupe by reference).
+	 * @param fn - Required new transform fn for the rewired node. Pass the
+	 *   existing fn ref to preserve behavior; pass a fresh fn when the dep
+	 *   shape change requires it. The API enforces fn-deps pairing — see
+	 *   `NodeImpl._setDeps` JSDoc for rationale.
+	 * @returns Audit record describing the dep set diff.
+	 */
+	_rewire(name: string, newDeps: readonly (Node | string)[], fn: NodeFn): GraphRewireAudit {
+		const target = this.node(name);
+		if (!(target instanceof NodeImpl)) {
+			throw new Error(
+				`Graph "${this.name}": _rewire target "${name}" is not a NodeImpl — only NodeImpl-backed nodes can be rewired`,
+			);
+		}
+		const resolvedDeps: Node[] = newDeps.map((d) => (typeof d === "string" ? this.resolve(d) : d));
+		const oldDeps = (target as NodeImpl)._deps.map((dr) => dr.node);
+		const oldSet = new Set(oldDeps);
+		const newSet = new Set(resolvedDeps);
+		const removedNodes = oldDeps.filter((n) => !newSet.has(n));
+		const addedNodes = resolvedDeps.filter((n) => !oldSet.has(n));
+		const keptNodes = oldDeps.filter((n) => newSet.has(n));
+
+		// Fire substrate primitive — performs validation, surgical diff,
+		// required fn swap.
+		(target as NodeImpl)._setDeps(resolvedDeps, fn);
+
+		const labelOf = (n: Node): string => {
+			const local = this._nodeToName.get(n);
+			if (local != null) return local;
+			// Walk mounts for a qualified path.
+			for (const [mountName, child] of this._mounts) {
+				const found = child._findNamePath(n);
+				if (found != null) return `${mountName}${PATH_SEP}${found}`;
+			}
+			return "<unregistered>";
+		};
+		const audit: GraphRewireAudit = {
+			name,
+			removed: removedNodes.map(labelOf).sort(),
+			added: addedNodes.map(labelOf).sort(),
+			kept: keptNodes.map(labelOf).sort(),
+		};
+		// Phase 13.8 QA L: topology emission runs AFTER `_setDeps` mutated
+		// state. If a subscriber throws, we must not propagate — the rewire
+		// has already landed and the caller would see a misleading exception
+		// suggesting it was rolled back. Best-effort isolate.
+		try {
+			this._emitTopology({ kind: "rewired", name, audit });
+		} catch {
+			/* topology subscriber errors are observability-layer faults;
+			   do not leak them through the substrate mutation path */
+		}
+		return audit;
+	}
+
+	/**
+	 * @internal Recursive helper for `_rewire` to find a Node's qualified
+	 * path inside a mounted subgraph. Returns the mount-relative path or
+	 * `undefined` if not found at any depth.
+	 */
+	private _findNamePath(n: Node): string | undefined {
+		const local = this._nodeToName.get(n);
+		if (local != null) return local;
+		for (const [mountName, child] of this._mounts) {
+			const found = child._findNamePath(n);
+			if (found != null) return `${mountName}${PATH_SEP}${found}`;
+		}
+		return undefined;
+	}
+
+	/**
+	 * @experimental Phase 13.8 — append a dep to a registered node.
+	 * Internal/exploratory API. Wraps `NodeImpl._addDep`.
+	 *
+	 * @param name - Local name or qualified path of the node to extend.
+	 * @param dep - Node instance or path string for the dep to append.
+	 * @param fn - Required new transform fn (see `_addDep` for fn-swap
+	 *   semantics — old cleanup's `onRerun` fires on next `_execFn` run).
+	 *   Pass the existing fn ref to preserve behavior.
+	 * @returns Index of the new dep in the target's `_deps`, or the existing
+	 *   index if the dep was already present (idempotent).
+	 */
+	_addDep(name: string, dep: Node | string, fn: NodeFn): number {
+		const target = this.node(name);
+		if (!(target instanceof NodeImpl)) {
+			throw new Error(
+				`Graph "${this.name}": _addDep target "${name}" is not a NodeImpl — only NodeImpl-backed nodes can be edited`,
+			);
+		}
+		const resolved = typeof dep === "string" ? this.resolve(dep) : dep;
+		return (target as NodeImpl)._addDep(resolved, fn);
+	}
+
+	/**
+	 * @experimental Phase 13.8 — remove a dep from a registered node.
+	 * Internal/exploratory API. Wraps `NodeImpl._removeDep`.
+	 *
+	 * Idempotent — if `dep` is not currently a dep of `name`, this is a
+	 * no-op for the dep set (the fn swap still applies).
+	 *
+	 * @param name - Local name or qualified path of the node to edit.
+	 * @param dep - Node instance or path string for the dep to remove.
+	 * @param fn - Required new transform fn (removed dep shrinks
+	 *   `data.length`; declare the fn that consumes the new shape).
+	 */
+	_removeDep(name: string, dep: Node | string, fn: NodeFn): void {
+		const target = this.node(name);
+		if (!(target instanceof NodeImpl)) {
+			throw new Error(
+				`Graph "${this.name}": _removeDep target "${name}" is not a NodeImpl — only NodeImpl-backed nodes can be edited`,
+			);
+		}
+		const resolved = typeof dep === "string" ? this.resolve(dep) : dep;
+		(target as NodeImpl)._removeDep(resolved, fn);
 	}
 
 	// ——————————————————————————————————————————————————————————————
@@ -3956,6 +4113,15 @@ export class Graph {
 								if (!inTier("mount")) return;
 								emitOne((env): GraphChangeMount => ({ type: "mount", ...env }), qualified);
 							}
+						} else if (event.kind === "rewired") {
+							// Phase 13.8 experimental: observe-tree currently
+							// ignores rewire events. Subscriptions follow nodes,
+							// not edges, so a rewired node's identity is stable
+							// — existing inspector/sink hooks remain valid. Edge
+							// observers are not part of the observe-tree contract;
+							// surfaces `topology.subscribe` directly for callers
+							// that need rewire visibility.
+							return;
 						} else {
 							// removed
 							if (event.nodeKind === "node") {
@@ -5443,6 +5609,22 @@ export type GraphRemoveAudit = {
 	 * descendants in depth-first order.
 	 */
 	mounts: string[];
+};
+
+/**
+ * @experimental Phase 13.8 — Audit record returned by {@link Graph._rewire}.
+ *
+ * Reports the dep set diff. `name` is the resolved qualified path of the
+ * rewired node. `removed` / `added` / `kept` are sorted lists of dep
+ * descriptors (qualified path when the dep was registered on `this` graph
+ * or a reachable mount; `<unregistered>` when the dep is a foreign Node
+ * not owned by the graph).
+ */
+export type GraphRewireAudit = {
+	name: string;
+	removed: string[];
+	added: string[];
+	kept: string[];
 };
 
 /** Direction for {@link reachable} graph traversal. */

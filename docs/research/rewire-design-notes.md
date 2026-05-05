@@ -140,3 +140,45 @@ When M1 implements `setDeps()` in `graphrefly-rs/crates/graphrefly-core/`:
 1. **Multi-hop verification.** Integrate SetDeps action into the full `wave_protocol.tla` post-M1 — exercises rewire × multi-sink, rewire × INVALIDATE, rewire × replay-buffer cross-axes.
 2. **Graph-layer `graph.rewire(name, newDeps)`.** Wraps `node.setDeps()`; adds mount-aware behavior, audit record emission. Cycle detection lives at Core (per resolution above). Mount-aware path resolution lives at Graph layer. Designed post-M1.
 3. **Concurrent rewire on same node.** Two `setDeps(N, ...)` calls in flight simultaneously must serialize. Rust `RwLock` discipline handles this; TLA+ models single-step atomicity which subsumes the concern.
+
+## TS impl findings (Phase 13.8 — appended 2026-05-04, design-session iterated)
+
+The exploratory TS impl ([src/core/node.ts](../../src/core/node.ts) `_setDeps` + [src/graph/graph.ts](../../src/graph/graph.ts) `_rewire`) ran 34 integration tests against the production dispatcher to surface gaps the Rust substrate impl couldn't exercise. Full report: [rewire-gap-findings.md](rewire-gap-findings.md).
+
+**Variant locked (after multi-pass design iteration):** surgical (Option C: DepRecord-ref dispatch) + optional `fn` replacement on all three substrate APIs (`_setDeps`, `_addDep`, `_removeDep`). Kept deps untouched (subscription stays attached, DepRecord survives), removed deps unsubscribed, added deps freshly subscribed. Subscription callbacks bind to the DepRecord reference; the current index is looked up dynamically via `_deps.indexOf(record)` so kept deps can shift position freely without re-subscribing. When the dep-shape change would break the user fn's positional reads (`data[i]`, `prevData[i]`), the caller passes `opts.fn` to swap the transform fn atomically with the dep mutation.
+
+**Iteration trail:**
+1. Initial probe: full disconnect/resubscribe (per user "expose as many issues as possible" instruction). Surfaced G1 (wedge) and cacheless-producer fragility.
+2. First design-session lock: surgical-strict + same-index-kept rule. User questioned the UX cost.
+3. Second iteration: surgical + Option C (DepRecord-ref dispatch). Removed the same-index constraint.
+4. Third iteration (user-proposed): noticed Option C alone is silently unsafe at the user-fn level (positional fn semantics break under reorder). User proposed `opts.fn` on `setDep`, `addDep`, and a new `removeDep` for symmetry.
+5. Final lock: surgical + Option C + opts.fn on all three substrate APIs + new `_removeDep`. Substrate routes messages correctly via DepRecord refs; user-fn correctness is preserved by passing a fresh fn at rewire time when shape changes.
+
+**Findings (final after design iteration):**
+
+1. **G1 — Rewire-to-terminal-non-resubscribable dep wedge state — RESOLVED via reject.** `_setDeps` and `_addDep` both reject non-resubscribable terminal deps with a clear error. Resubscribable terminals are accepted (subscribe path resets their lifecycle). Pre-existing `_addDep` bug also fixed.
+
+2. **G2 — Auto-complete cascade tail-check — DISSOLVED.** Q1 = reject precludes the failure case.
+
+3. **G3 — Synthetic DIRTY downstream on rewire — KEEP AS-IS.** Topology observers use `graph.topology.subscribe(...)`. Implementation note: `_setDeps` does emit `[DIRTY]` downstream when ADDING new deps (mirrors `_addDep`'s wave-state machinery), but that's wave-tracking, not "synthetic from rewire."
+
+4. **G4 — Surgical chosen as default, with Option C (DepRecord-ref dispatch).** Subscription callbacks bind to DepRecord references; current index looked up via `_deps.indexOf(record)` at dispatch time. Kept deps may reorder freely. Eliminates the cacheless-producer fragility entirely (no kept-dep handshake replay) AND avoids the UX cost of a same-index-kept rule.
+
+5. **G5 — Mid-fn rewire structurally rejected.** Re-entrancy hazard in cleanup-hook-triggered rewire is a TLA+ follow-up.
+
+6. **G6 — Cycle detection is O(V+E) per call.** Not a perf concern for AI self-pruning rates; flag for Rust port if relevant.
+
+7. **(Pre-existing bug discovered)** — `_addDep` had the same wedge bug as G1: adding a non-resubscribable terminal dep via `autoTrackNode` would silently produce a phantom subscription. Now also rejected.
+
+**Validated by integration tests:**
+- Mid-batch rewire (Scenario 1) — clean.
+- INVALIDATE × rewire (Scenario 2) — Q1/Q4 hold.
+- Pause × rewire (Scenario 3) — Q3 holds across pause/RESUME boundary.
+- TEARDOWN cascade (Scenario 4) — full disconnect cleanly severs the cascade path; rewire on terminal N rejected.
+- Replay buffer (Scenario 5) — preserved across rewire (Buffer Fate table verified).
+- Meta companions (Scenario 6) — orthogonal to deps; meta identity + cache untouched.
+- COMPLETE/ERROR cascade (Scenario 7) — rewire-away-from-completed clean. Scenario 7b is G1.
+- Resubscribable terminal-reset → rewire (Scenario 8) — clean re-arm.
+- Cross-mount rewire (Scenario 9) — `mount::leaf` resolution + cycle detection both work.
+
+**TLA+ spec is consistent with Option C lock.** The MC's `prevData' = [...EXCEPT ![n][d] = SENTINEL] for d \in (removed ∪ added)` matches surgical semantics — kept deps' `prevData` survives. The DepRecord-ref dispatch refactor is an implementation detail invisible to the protocol model.

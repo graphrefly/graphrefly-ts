@@ -8,7 +8,8 @@
 3. ✅ Graph + sugar surface
 4. ✅ Utilities, design principles, versioning
 5. ✅ Patterns layer
-6. ✅ Storage/persistence (this section)
+6. ✅ Storage/persistence
+7. ✅ Phase 13.8 — Rewire substrate (post-13.6.A addition; experimental, internal-only)
 
 **Conventions:**
 - `_methodName` — implementation-internal method (underscore prefix, not public API).
@@ -1705,83 +1706,143 @@ sequenceDiagram
 
 ### 3.11 `graph.observe` modes (R3.6.2)
 
+Mode dispatch is by opts shape. **Default is the sink-style API — NOT a Node, NOT an async iterable.** Async iteration requires a `StructuredTriggers` opt; reactive Node return requires `reactive: true` or `changeset: true`.
+
 ```mermaid
 flowchart TB
     Call["graph.observe(path?, opts?)"]
-    
-    PathCheck{"path provided?"}
-    
-    subgraph SingleNode["Single-node observe"]
-        SN_Resolve["n = this.resolve(path)"]
-        SN_Sub["return &#123;<br/>  subscribe(sink): return n.subscribe(sink),<br/>  up(messages): n.up(messages, &#123; internal: true &#125;)<br/>&#125;"]
-        SN_Note["receives initial [[DATA, cached]]<br/>push if cached value present (R1.2.3)"]
+
+    OptsRoute{"opts shape?"}
+
+    subgraph Default["DEFAULT — sink-style"]
+        D_Path{"path provided?"}
+        subgraph SingleNode["Single-node observe<br/>(GraphObserveOne)"]
+            SN_Resolve["n = this.resolve(path)"]
+            SN_Sub["return {<br/>subscribe(sink): n.subscribe(sink),<br/>up(messages): n.up(messages, { internal: true })<br/>}"]
+            SN_Note["receives initial [[DATA, cached]]<br/>push if cached value present (R1.2.3)"]
+        end
+        subgraph AllNodes["All-nodes observe<br/>(GraphObserveAll)"]
+            AN_Iter["snapshot of this._nodes (and mounted)"]
+            AN_Sub["return {<br/>subscribe(sink: (path, msgs) => void):<br/>for each node, subscribe(msgs =><br/>sink(qualifiedPath, msgs)),<br/>up(path, messages):<br/>this.resolve(path).up(messages)<br/>}"]
+        end
     end
-    
-    subgraph AllNodes["All-nodes observe"]
-        AN_Iter["snapshot of this._nodes (and mounted)"]
-        AN_Sub["return &#123;<br/>  subscribe(sink: (path, msgs) =&gt; void):<br/>    for each node, subscribe(msgs =&gt;<br/>      sink(qualifiedPath, msgs)),<br/>  up(path, messages):<br/>    this.resolve(path).up(messages)<br/>&#125;"]
+
+    subgraph Reactive["REACTIVE — Node return"]
+        subgraph ReactiveOpt["opts.reactive === true"]
+            R_Build["return Node&lt;ObserveChangeset&gt;"]
+            R_Coalesce["coalesces all observed events<br/>for one outermost batch flush<br/>into a single ObserveChangeset DATA wave"]
+        end
+        subgraph ChangesetOpt["opts.changeset === true"]
+            CS_Build["return Node&lt;GraphChange&gt;"]
+            CS_Per["one DATA per discrete change<br/>with edge attribution<br/>(fromPath + fromDepIndex)"]
+            CS_Excl["mutually exclusive with reactive: true<br/>(throws TypeError on both)"]
+        end
     end
-    
-    subgraph Changeset["opts.changeset === true"]
-        CS_Build["build a Node&lt;GraphChange&gt;"]
-        CS_Reactive["emits structural deltas:<br/>add / remove / mutate events<br/>(Phase 14 op-log changeset protocol)"]
+
+    subgraph AsyncIter["ASYNC-ITERABLE — ObserveResult"]
+        AI_Triggers["opts has any of:<br/>structured | timeline | causal |<br/>derived | detail (non-default)"]
+        AI_Build["return ObserveResult<br/>(sink + async-iterable hybrid)"]
+        AI_Use["for await (const ev of obs) { ... }<br/>OR obs.subscribe(sink)"]
     end
-    
-    Call --> PathCheck
-    PathCheck -- "yes, no opts.changeset" --> SingleNode
-    PathCheck -- "yes, opts.changeset === true" --> Changeset
-    PathCheck -- "no" --> AllNodes
-    
+
+    Call --> OptsRoute
+    OptsRoute -- "no opts<br/>OR plain detail/filter only" --> Default
+    OptsRoute -- "{ reactive: true }" --> ReactiveOpt
+    OptsRoute -- "{ changeset: true }" --> ChangesetOpt
+    OptsRoute -- "{ structured | timeline |<br/>causal | derived | detail-extra }" --> AsyncIter
+
+    Default --> D_Path
+    D_Path -- "yes" --> SingleNode
+    D_Path -- "no" --> AllNodes
     SingleNode --> SN_Resolve
     SN_Resolve --> SN_Sub
     SN_Sub -.-> SN_Note
-    
     AllNodes --> AN_Iter
     AN_Iter --> AN_Sub
-    
-    Changeset --> CS_Build
-    CS_Build --> CS_Reactive
-    
-    Note["Guard interaction:<br/>If a node guard denies an up() message,<br/>it is silently dropped (R3.6.2)."]
-    
-    SN_Sub -.-> Note
-    AN_Sub -.-> Note
+
+    ReactiveOpt --> R_Build
+    R_Build --> R_Coalesce
+    ChangesetOpt --> CS_Build
+    CS_Build --> CS_Per
+    CS_Build -.-> CS_Excl
+
+    AsyncIter --> AI_Triggers
+    AI_Triggers --> AI_Build
+    AI_Build --> AI_Use
+
+    GuardNote["Guard interaction:<br/>If a node guard denies an up() message,<br/>it is silently dropped (R3.6.2).<br/>Applies to all sink-style modes."]
+    SN_Sub -.-> GuardNote
+    AN_Sub -.-> GuardNote
+    AI_Build -.-> GuardNote
+
+    style Default fill:#e7f5ff
+    style Reactive fill:#fff3bf
+    style AsyncIter fill:#d3f9d8
 ```
+
+**Common pitfall:** `for await (const ev of graph.observe(path)) { ... }` throws `"not async iterable"` because the default return is `GraphObserveOne` (sink-style). Pass a `StructuredTriggers` opt (e.g. `{ structured: true }`) to get an `ObserveResult` that supports `for await`.
 
 ---
 
 ### 3.12 `graph.describe` shape + format dispatch (R3.6.1)
 
+`describe` is heavily overloaded — mode dispatched by opts shape. **Default is static** (returns by-value snapshot). Reactive variants opt in via `reactive: true` (full snapshot Node) or `reactive: "diff"` (diff stream Node). `explain` and `reachable` are mutually exclusive sub-modes.
+
 ```mermaid
 flowchart TB
     Call["graph.describe(opts?)"]
-    
+
     OptsRoute{"opts shape?"}
-    
-    PrettyFormat["format: 'pretty' / 'mermaid' / 'd2' / 'stage-log'<br/>→ string render of GraphDescribeOutput"]
-    Reachable["reachable: ReachableInput<br/>→ ReachableResult OR string[]<br/>(walks deps to determine reachable nodes)"]
-    DetailVariant["detail: 'minimal' | 'full'<br/>→ varies node detail in output"]
-    Default["no opts<br/>→ GraphDescribeOutput JSON"]
-    
-    BuildOutput["GraphDescribeOutput shape:<br/>&#123;<br/>  name: string,<br/>  nodes: Record&lt;path, &#123;<br/>    type: 'state'|'producer'|'derived'|'effect',<br/>    status: NodeStatus,<br/>    value?: unknown,<br/>    deps: string[],<br/>    meta: object<br/>  &#125;&gt;,<br/>  edges: &#123; from, to &#125;[],<br/>  subgraphs: string[]<br/>&#125;"]
-    
-    TypeInference["type field comes from describeKind:<br/>- explicit (set by sugar)<br/>- inferred fallback:<br/>  no deps + no fn → 'state'<br/>  no deps + fn → 'producer'<br/>  deps + fn → 'derived'<br/>  no fn + deps → passthrough ('derived')"]
-    
+
+    subgraph Static["STATIC — by-value return"]
+        S_Default["no opts<br/>→ GraphDescribeOutput (JSON)"]
+        S_Format["format: 'pretty' / 'mermaid' /<br/>'d2' / 'stage-log'<br/>→ string render"]
+        S_Detail["detail: 'minimal' | 'full' | 'spec'<br/>→ varies node detail"]
+        S_Filter["filter: { status / type / paths }<br/>→ filtered subset"]
+    end
+
+    subgraph Reactive["REACTIVE — by-Node return"]
+        R_Full["{ reactive: true }<br/>→ ReactiveDescribeHandle&lt;GraphDescribeOutput&gt;<br/>(emits whole new snapshot per topology change)"]
+        R_Diff["{ reactive: 'diff' }<br/>→ ReactiveDescribeHandle&lt;DescribeChangeset&gt;<br/>(emits per-change delta only —<br/>added / removed / mutated nodes)"]
+        R_Excl["mutually exclusive with format<br/>(use derived(handle.node, render))"]
+    end
+
+    subgraph Explain["EXPLAIN — causal walkback"]
+        E_Static["{ explain: { from, to, ...} }<br/>→ CausalChain (static)"]
+        E_Reactive["{ explain: {...}, reactive: true }<br/>→ { node: Node&lt;CausalChain&gt;,<br/>dispose: () => void }"]
+        E_Excl["explain XOR reachable<br/>(throws TypeError if both)"]
+    end
+
+    subgraph Reachable_Mode["REACHABLE — dep-walk"]
+        Re_Flat["{ reachable: { from, ... } }<br/>→ string[] (sorted paths)"]
+        Re_Detail["{ reachable: {<br/>from, withDetail: true } }<br/>→ ReachableResult"]
+        Re_NoReactive["no reactive form;<br/>compose: derived([describe({reactive:true}).node],<br/>(g) => reachable(g, ...))"]
+    end
+
+    BuildOutput["GraphDescribeOutput shape:<br/>{<br/>name: string,<br/>nodes: Record&lt;path, {<br/>type: 'state'|'producer'|'derived'|'effect',<br/>status: NodeStatus,<br/>value?: unknown,<br/>deps: string[],<br/>meta: object<br/>}&gt;,<br/>edges: { from, to }[],<br/>subgraphs: string[]<br/>}"]
+
+    TypeInference["type field comes from describeKind:<br/>- explicit (set by sugar)<br/>- inferred fallback:<br/>no deps + no fn → 'state'<br/>no deps + fn → 'producer'<br/>deps + fn → 'derived'<br/>no fn + deps → passthrough ('derived')"]
+
     Call --> OptsRoute
-    OptsRoute -- "format" --> PrettyFormat
-    OptsRoute -- "reachable" --> Reachable
-    OptsRoute -- "detail" --> DetailVariant
-    OptsRoute -- "default" --> Default
-    
-    PrettyFormat --> BuildOutput
-    Default --> BuildOutput
-    DetailVariant --> BuildOutput
+    OptsRoute -- "no opts / format / detail / filter" --> Static
+    OptsRoute -- "{ reactive: true } | { reactive: 'diff' }" --> Reactive
+    OptsRoute -- "{ explain: ... }" --> Explain
+    OptsRoute -- "{ reachable: ... }" --> Reachable_Mode
+
+    Static --> BuildOutput
+    Reactive --> BuildOutput
     BuildOutput --> TypeInference
-    
-    Note["Knobs vs Gauges are FILTER VIEWS over describe(),<br/>NOT separate APIs. Filter for:<br/>- Knobs: type === 'state' AND writable AND has meta<br/>- Gauges: has meta.description OR meta.format"]
-    
-    BuildOutput -.-> Note
+
+    KnobsNote["Knobs vs Gauges are FILTER VIEWS over describe(),<br/>NOT separate APIs. Filter for:<br/>- Knobs: type === 'state' AND writable AND has meta<br/>- Gauges: has meta.description OR meta.format"]
+    BuildOutput -.-> KnobsNote
+
+    style Static fill:#e7f5ff
+    style Reactive fill:#fff3bf
+    style Explain fill:#ffe3e3
+    style Reachable_Mode fill:#d3f9d8
 ```
+
+**Common pitfall:** `describe({ reactive: true })` returns a `ReactiveDescribeHandle` — a wrapper exposing `{ node, dispose }`, NOT a Node directly. Use `handle.node` when composing into a `derived`. Also note `format` is incompatible with `reactive: true` — render via `derived` over the handle's node.
 
 ---
 
@@ -3262,3 +3323,367 @@ flowchart TB
 | 6.8 GraphCheckpointRecord shape | R9.7.4, R9.8 | — | what's captured, what's not |
 | 6.9 Snapshot/restore APIs | R9.8 | — | three formats, four consumers |
 | 6.10 Cascading cache + CAS | R9.9, R9.10 | — | first-tier-wins, V1 cid keys |
+
+---
+
+## Batch 7 — Phase 13.8 Rewire substrate
+
+*Post-13.6.A addition (2026-05-04). Experimental, internal-only API for AI self-pruning of harness topology. Canonical spec rules: R3.3.1.1, R6.3.1, R6.3.2. See [research/rewire-design-notes.md](research/rewire-design-notes.md) and [research/rewire-gap-findings.md](research/rewire-gap-findings.md) for the design lock + gap-findings record. Final canonical lock targeted for DS-14.*
+
+### 7.1 Substrate API surface (R3.3.1.1)
+
+```mermaid
+classDiagram
+    class NodeImpl {
+        <<internal substrate>>
+        _deps: DepRecord[]
+        _fn: NodeFn | undefined
+        _inDepMutation: boolean
+        _addDepInternal(dep, opts?) number
+        _addDep(dep, fn) number
+        _removeDep(dep, fn) void
+        _setDeps(newDeps, fn) void
+    }
+    class Graph {
+        <<wrapper>>
+        _addDep(name, dep, fn) number
+        _removeDep(name, dep, fn) void
+        _rewire(name, newDeps, fn) GraphRewireAudit
+    }
+    class autoTrackNode {
+        <<sugar>>
+        depRecordMap: Map~Node, DepRecord~
+        track(dep) value
+    }
+    class GraphConnect {
+        <<connect path>>
+    }
+
+    Graph --> NodeImpl: _addDep / _removeDep / _rewire<br/>delegate to NodeImpl<br/>(via path resolution)<br/>fn passed through verbatim
+    autoTrackNode --> NodeImpl: _addDepInternal<br/>(no checks; fn? optional —<br/>autoTrack doesn't change fn)
+    GraphConnect --> NodeImpl: _addDepInternal<br/>(no checks — connect-time wiring)
+
+    note for NodeImpl "Required-fn lock (Phase 13.8): _setDeps / _addDep / _removeDep<br/>require fn at every call site. _addDepInternal keeps fn? optional<br/>for the autoTrack/connect internal paths.<br/>Old cleanup's onRerun fires on next _execFn (clean wrap-up).<br/>_inDepMutation reentrancy guard set in try/finally."
+
+    note for Graph "Path-aware wrappers. mount::leaf paths<br/>resolved via Graph.resolve(). Audit emitted<br/>on graph.topology as TopologyEvent { kind: 'rewired' }.<br/>Callers pass fn explicitly (use named-const fns for reuse,<br/>or read (node as NodeImpl)._fn ad-hoc)."
+```
+
+### 7.2 `_setDeps` — surgical kept-deps + Option C dispatch (R3.3.1.1, R6.3.1)
+
+```mermaid
+flowchart TD
+    Start([_setDeps newDeps opts])
+
+    Start --> ValTerm{_status<br/>terminal?}
+    ValTerm -->|completed/errored| ThrowTerm["throw 'cannot rewire<br/>in terminal state'"]
+    ValTerm -->|no| ValMidFn{_isExecutingFn?}
+    ValMidFn -->|true| ThrowMidFn["throw 'mid-fn<br/>topology mutation'"]
+    ValMidFn -->|false| ValReentry{_inDepMutation?}
+    ValReentry -->|true| ThrowReentry["throw 'reentrant<br/>dep mutation'"]
+    ValReentry -->|false| Dedupe["dedupe newDeps<br/>by reference identity"]
+
+    Dedupe --> ValSelf{this in newDeps?}
+    ValSelf -->|yes| ThrowSelf["throw 'self-dependency<br/>rejected'"]
+    ValSelf -->|no| Cycle{_reachableUpstream<br/>for any added dep?}
+    Cycle -->|yes| ThrowCycle["throw 'would create cycle'"]
+    Cycle -->|no| ValTermDep{any added dep<br/>in non-resub<br/>terminal state?}
+    ValTermDep -->|yes| ThrowTermDep["throw 'cannot add<br/>non-resub terminal dep'<br/>(Q1 — handshake silent<br/>→ wedge)"]
+    ValTermDep -->|no| EnterMutation["_inDepMutation := true<br/>(begin try-finally)"]
+
+    EnterMutation --> Diff["compute diff:<br/>oldRecordByNode = Map oldDep → record<br/>removed = oldDeps - newDeps<br/>added = newDeps - oldDeps<br/>kept = oldDeps ∩ newDeps"]
+
+    Diff --> Phase1["**Phase 1: disconnect removed**<br/>for each removed oldRec:<br/>nullify unsub, run u<br/>if dirty: _dirtyDepCount--<br/>removedDirtyContrib |= dirty"]
+
+    Phase1 --> Phase2["**Phase 2: build _deps**<br/>newRecords = newDeps.map d:<br/>has → reuse record (kept)<br/>else → createDepRecord (added)<br/>this._deps = newRecords"]
+
+    Phase2 --> Phase25["**Phase 2.5: fn swap**<br/>if opts.fn: this._fn = opts.fn"]
+
+    Phase25 --> Inactive{_sinks == null?<br/>(inactive node)}
+    Inactive -->|yes| InactiveSettle{removed dirty contrib<br/>+ no added<br/>+ status=dirty?}
+    InactiveSettle -->|yes| MaybeSettle[_maybeRunFnOnSettlement]
+    InactiveSettle -->|no| ExitInactive["finally:<br/>_inDepMutation = false<br/>return"]
+    MaybeSettle --> ExitInactive
+
+    Inactive -->|no (active)| PreDirty["**Pre-dirty added**<br/>for each added rec:<br/>rec.dirty = true<br/>_dirtyDepCount++"]
+
+    PreDirty --> EmitDirty{hadAdded<br/>+ status≠dirty?}
+    EmitDirty -->|yes| Emit["_emit(DIRTY_ONLY_BATCH)<br/>(downstream sees<br/>wave incoming)"]
+    EmitDirty -->|no| Subscribe
+    Emit --> Subscribe
+
+    Subscribe["**Phase 3: subscribe added**<br/>for each added rec:<br/>rec.unsub = noopUnsub<br/>rec.unsub = rec.node.subscribe(closure)<br/>closure binds to rec ref<br/>idx = _deps.indexOf(rec) at dispatch"]
+
+    Subscribe --> SubError{subscribe<br/>throws?}
+    SubError -->|yes (QA D)| Rollback["**Rollback failed-add**<br/>(R6.3.2):<br/>1. nullify failed unsubs<br/>2. decrement count for failed<br/>3. splice failed out of _deps<br/>4. if dirtyEmitted:<br/>_emit ERROR<br/>(close orphan DIRTY)<br/>5. rethrow"]
+    Rollback --> Finally
+    SubError -->|no| AutoSettle{removedDirtyContrib<br/>+ no added<br/>+ count=0<br/>+ status=dirty?}
+
+    AutoSettle -->|yes (Q6)| MaybeSettle2[_maybeRunFnOnSettlement]
+    AutoSettle -->|no| Finally
+    MaybeSettle2 --> Finally["**finally**:<br/>_inDepMutation = false"]
+    Finally --> End([return])
+
+    style ThrowTerm fill:#ff6b6b,stroke:#c92a2a
+    style ThrowMidFn fill:#ff6b6b,stroke:#c92a2a
+    style ThrowReentry fill:#ff6b6b,stroke:#c92a2a
+    style ThrowSelf fill:#ff6b6b,stroke:#c92a2a
+    style ThrowCycle fill:#ff6b6b,stroke:#c92a2a
+    style ThrowTermDep fill:#ff6b6b,stroke:#c92a2a
+    style Rollback fill:#ffe066,stroke:#fab005
+```
+
+### 7.3 `_addDep` (full guards) vs `_addDepInternal` (substrate-level) (R3.3.1.1)
+
+```mermaid
+flowchart TD
+    External([External caller<br/>e.g. Graph._addDep])
+    AutoTrack([autoTrackNode.track])
+    Connect([Graph.connect])
+
+    External --> PublicAdd[_addDep dep opts]
+    AutoTrack --> InternalAdd[_addDepInternal dep opts]
+    Connect --> InternalAdd
+
+    PublicAdd --> ValTerm{_status<br/>terminal?}
+    ValTerm -->|yes| Throw1[throw]
+    ValTerm -->|no| ValExec{_isExecutingFn?}
+    ValExec -->|yes| Throw2[throw mid-fn]
+    ValExec -->|no| ValRe{_inDepMutation?}
+    ValRe -->|yes| Throw3[throw reentrant]
+    ValRe -->|no| ValSelf{dep === this?}
+    ValSelf -->|yes| Throw4[throw self-dep]
+    ValSelf -->|no| ValCycle{already a dep?<br/>(skip cycle check)}
+    ValCycle -->|no| CycleCheck{_reachableUpstream<br/>dep this?}
+    CycleCheck -->|yes| Throw5[throw would create cycle]
+    CycleCheck -->|no| EnterMutation
+    ValCycle -->|yes (idempotent)| EnterMutation[_inDepMutation := true]
+
+    EnterMutation --> InternalAdd
+
+    InternalAdd --> Dedup{depNode<br/>already in _deps?}
+    Dedup -->|yes (idempotent)| FnSwapDedup{opts.fn?}
+    FnSwapDedup -->|yes| SetFnDedup[this._fn = opts.fn]
+    FnSwapDedup -->|no| ReturnIdx
+    SetFnDedup --> ReturnIdx[return existing idx]
+
+    Dedup -->|no (new)| ValQ1{dep terminal<br/>+ NOT resubscribable?}
+    ValQ1 -->|yes| ThrowQ1["throw non-resub<br/>terminal dep<br/>(handshake silent → wedge)"]
+    ValQ1 -->|no| Push["depIdx = _deps.length<br/>record = createDepRecord<br/>_deps.push(record)"]
+
+    Push --> FnSwap{opts.fn?}
+    FnSwap -->|yes| SetFn[this._fn = opts.fn]
+    FnSwap -->|no| InactiveCheck
+    SetFn --> InactiveCheck{_sinks == null?}
+
+    InactiveCheck -->|yes (inactive)| ReturnInactive["return depIdx<br/>(_activate will subscribe)"]
+    InactiveCheck -->|no (active)| PreDirty["record.dirty = true<br/>_dirtyDepCount++<br/>dirtyEmitted = (status ≠ dirty)<br/>if dirtyEmitted: _emit DIRTY"]
+
+    PreDirty --> Sub["record.unsub = noopUnsub<br/>record.unsub = dep.subscribe(closure)"]
+
+    Sub --> SubError{subscribe<br/>throws?}
+    SubError -->|yes| Rollback["record.unsub = null<br/>_deps.pop<br/>_dirtyDepCount--<br/>if dirtyEmitted:<br/>_emit ERROR<br/>(close orphan DIRTY)<br/>rethrow"]
+    SubError -->|no| ReturnIdx
+
+    Rollback --> ExitFinally
+    ReturnIdx --> ExitFinally["finally: if entered _addDep:<br/>_inDepMutation = false"]
+    ReturnInactive --> ExitFinally
+    ExitFinally --> End([return depIdx])
+
+    style Throw1 fill:#ff6b6b
+    style Throw2 fill:#ff6b6b
+    style Throw3 fill:#ff6b6b
+    style Throw4 fill:#ff6b6b
+    style Throw5 fill:#ff6b6b
+    style ThrowQ1 fill:#ff6b6b
+    style Rollback fill:#ffe066
+    style InternalAdd fill:#a5d8ff,stroke:#1c7ed6
+    style PublicAdd fill:#b2f2bb,stroke:#2f9e44
+```
+
+### 7.4 `_removeDep` flow with auto-settle (R3.3.1.1)
+
+```mermaid
+flowchart TD
+    Start([_removeDep dep opts])
+
+    Start --> ValTerm{_status<br/>terminal?}
+    ValTerm -->|yes| Throw1[throw]
+    ValTerm -->|no| ValExec{_isExecutingFn?}
+    ValExec -->|yes| Throw2[throw mid-fn]
+    ValExec -->|no| ValRe{_inDepMutation?}
+    ValRe -->|yes| Throw3[throw reentrant]
+    ValRe -->|no| Enter[_inDepMutation := true]
+
+    Enter --> Find{_deps.findIndex<br/>r.node === dep?}
+    Find -->|-1 (absent)| FnSwapAbsent{opts.fn?}
+    FnSwapAbsent -->|yes| SetFnAbsent["this._fn = opts.fn<br/>(idempotent on absent dep,<br/>fn swap still applies)"]
+    FnSwapAbsent -->|no| Finally
+    SetFnAbsent --> Finally["finally:<br/>_inDepMutation = false"]
+
+    Find -->|idx ≥ 0| Unsub{rec.unsub != null?}
+    Unsub -->|yes| DoUnsub["u = rec.unsub<br/>rec.unsub = null<br/>try u catch (best-effort)"]
+    Unsub -->|no| TrackDirty
+    DoUnsub --> TrackDirty["removedDirtyContrib = rec.dirty<br/>if rec.dirty:<br/>_dirtyDepCount--"]
+
+    TrackDirty --> Splice["_deps.splice(idx, 1)<br/>(record dropped<br/>any in-flight callback<br/>indexOf returns -1)"]
+
+    Splice --> FnSwap{opts.fn?}
+    FnSwap -->|yes| SetFn[this._fn = opts.fn]
+    FnSwap -->|no| AutoSettle
+    SetFn --> AutoSettle{removedDirtyContrib<br/>+ count=0<br/>+ status=dirty<br/>+ _sinks!=null?}
+
+    AutoSettle -->|yes (Q6)| MaybeSettle[_maybeRunFnOnSettlement]
+    AutoSettle -->|no| Finally
+    MaybeSettle --> Finally
+    Finally --> End([return])
+
+    style Throw1 fill:#ff6b6b
+    style Throw2 fill:#ff6b6b
+    style Throw3 fill:#ff6b6b
+```
+
+### 7.5 Subscribe-callback closure binding (Option C, R6.3.1)
+
+**The key invariant:** subscription callbacks bind to the **DepRecord reference**, NOT a closure-captured numeric index. Surgical `_setDeps` may shift kept-deps' positions in `_deps`; the DepRecord identity is stable but its index isn't. At dispatch time the closure resolves the current index dynamically — so kept deps may reorder freely without re-subscribing.
+
+```mermaid
+sequenceDiagram
+    participant DepNode as dep.node<br/>(upstream)
+    participant Closure as Subscription callback<br/>(closes over rec)
+    participant N as NodeImpl (this)
+    participant DepsArr as this._deps
+    participant OnMsg as this._config.onMessage
+    participant OnDep as _onDepMessage
+
+    Note over Closure: closes over `rec` (DepRecord ref)<br/>NOT `depIdx` (number)
+
+    DepNode->>Closure: subscribe callback fires<br/>with msgs: Messages
+
+    Closure->>Closure: liveness check:<br/>if rec.unsub === null: return<br/>(stale post-unsub closure)
+
+    Closure->>DepsArr: const idx = this._deps.indexOf(rec)<br/>(O(N) — N typically small)
+    DepsArr-->>Closure: idx (current position) or -1
+
+    Closure->>Closure: if idx === -1: return<br/>(record evicted by _setDeps rollback)
+
+    loop for each m in msgs
+        Closure->>Closure: tierOf m[0] >= 3?<br/>→ sawSettlement = true
+        Closure->>OnMsg: onMessage(this, m,<br/>{ direction: down-in,<br/>depIndex: idx },<br/>this._actions)
+        OnMsg->>OnDep: _onDepMessage(idx, m)
+        OnDep->>DepsArr: const dep = this._deps[idx]<br/>(public surface unchanged:<br/>still numeric idx)
+        OnDep->>OnDep: dispatch by tier<br/>(_depDirtied / _depSettledAsData /<br/>_depSettledAsTerminal /<br/>_depInvalidated / _emit forward)
+    end
+
+    alt sawSettlement
+        Closure->>N: _maybeRunFnOnSettlement
+    end
+
+    Note over Closure,DepsArr: After _setDeps reorder:<br/>rec stays the same object<br/>but its idx in _deps may differ.<br/>Each callback re-resolves idx<br/>per dispatch — no stale state.
+```
+
+### 7.6 `Graph._rewire` audit emission + audit-emit safety (R3.3.1.1, QA L)
+
+```mermaid
+flowchart TD
+    Start([Graph._rewire name newDeps opts])
+
+    Start --> Resolve["target = this.node(name)<br/>(throws if unknown)"]
+    Resolve --> NodeImpl{target instanceof<br/>NodeImpl?}
+    NodeImpl -->|no| ThrowImpl[throw 'not a NodeImpl']
+    NodeImpl -->|yes| ResolveDeps["resolvedDeps = newDeps.map d:<br/>typeof === string<br/>? this.resolve(d)<br/>: d"]
+
+    ResolveDeps --> Snapshot["snapshot oldDeps = target._deps.map<br/>compute removed/added/kept<br/>(BEFORE _setDeps mutation)"]
+
+    Snapshot --> CallSetDeps["target._setDeps(resolvedDeps, opts)<br/>(may throw — propagates;<br/>state NOT yet mutated if it does)"]
+
+    CallSetDeps --> SetDepsOk{_setDeps<br/>succeeded?}
+    SetDepsOk -->|no — throws| Propagate["throw to caller<br/>(state unchanged)"]
+    SetDepsOk -->|yes| BuildAudit["build GraphRewireAudit:<br/>name<br/>removed: removedNodes.map(labelOf).sort<br/>added: addedNodes.map(labelOf).sort<br/>kept: keptNodes.map(labelOf).sort"]
+
+    BuildAudit --> Label["labelOf(n):<br/>this._nodeToName.get(n)<br/>or walk mounts via _findNamePath<br/>or '<unregistered>'"]
+
+    Label --> EmitTopology["**QA L safety**:<br/>try {<br/>this._emitTopology kind:rewired name audit<br/>} catch {<br/>// swallow —<br/>// substrate state already<br/>// committed; throwing here<br/>// would mislead the caller<br/>}"]
+
+    EmitTopology --> Return[return audit]
+    Return --> End([audit: GraphRewireAudit])
+
+    Propagate --> Done([propagated error])
+
+    style Propagate fill:#ff6b6b
+    style EmitTopology fill:#a5d8ff
+```
+
+### 7.7 `autoTrackNode` post-Phase-13.8 cache (R6.3.1, QA A)
+
+**Cache shape changed from `Map<Node, number>` to `Map<Node, DepRecord>`.** Surgical `_setDeps` may shift kept-deps' positions; storing the DepRecord ref + dynamic `_deps.indexOf(record)` per-call lookup matches the substrate dispatch pattern.
+
+```mermaid
+flowchart TD
+    Start([wrappedFn run])
+    Start --> TrackCall[track dep called from user fn body]
+
+    TrackCall --> CacheLookup{depRecordMap.get dep?}
+
+    CacheLookup -->|hit (known dep)| Resolve[idx = implRef._deps.indexOf record]
+    Resolve --> ValidIdx{idx !== -1<br/>+ idx < batchData.length?}
+    ValidIdx -->|yes| ReadBatch["batch = batchData[idx]<br/>if batch.length > 0:<br/>return batch.at(-1)<br/>else:<br/>return ctx.prevData[idx]"]
+    ValidIdx -->|no (record evicted<br/>via _setDeps)| Fallback["return dep.cache<br/>(P3 boundary fallback)"]
+
+    CacheLookup -->|miss (unknown dep)| Discover["foundNew = true<br/>newIdx = implRef._addDepInternal(dep)<br/>(no checks — autoTrackNode<br/>runs from inside _execFn)"]
+    Discover --> CacheRecord["depRecordMap.set(dep,<br/>implRef._deps[newIdx])<br/>(cache the record ref,<br/>NOT the index)"]
+    CacheRecord --> ReturnCache["return dep.cache<br/>(P3 boundary —<br/>discovery stub)"]
+
+    ReadBatch --> Done([value])
+    Fallback --> Done
+    ReturnCache --> Done
+
+    style Discover fill:#a5d8ff
+    style CacheRecord fill:#a5d8ff
+```
+
+### 7.8 `_activate` Q1 re-check for inactive-node race (QA H)
+
+The Q1 terminal-non-resubscribable rejection runs at `_setDeps`/`_addDep` call time. But on an inactive node the actual `subscribe()` is deferred to `_activate()`; the dep can transition to non-resubscribable terminal in between. Without a re-check, `defaultOnSubscribe` would silently no-op and wedge the node. The re-check at activation time closes that race.
+
+```mermaid
+flowchart TD
+    Start([_activate])
+    Start --> EmptyDeps{_deps.length === 0?}
+    EmptyDeps -->|yes| MaybeFire[if _fn: _execFn producer]
+    MaybeFire --> ReturnEarly([return])
+
+    EmptyDeps -->|no| Init["_dirtyDepCount = 0<br/>initialLen = _deps.length"]
+    Init --> Loop[for i in 0..initialLen]
+
+    Loop --> ReadDep[dep = _deps i]
+    ReadDep --> Q1Recheck{**QA H re-check**<br/>dep.node terminal<br/>+ NOT resubscribable?}
+    Q1Recheck -->|yes| ThrowReact["throw '_activate: dep entered<br/>non-resub terminal between<br/>declaration and first activation;<br/>handshake would silently no-op'"]
+    Q1Recheck -->|no| PreNoop[dep.unsub = noopUnsub]
+
+    PreNoop --> Subscribe["dep.unsub = dep.node.subscribe(closure)<br/>(closure binds to dep ref<br/>per Option C, see 7.5)"]
+
+    Subscribe --> SubError{subscribe<br/>throws?}
+    SubError -->|yes| Rollback["null all subscribed-so-far<br/>unsubs; reset state;<br/>throw"]
+    SubError -->|no| Bump[subscribedCount++]
+    Bump --> Next{more deps?}
+    Next -->|yes| Loop
+    Next -->|no| Done([return])
+
+    style ThrowReact fill:#ff6b6b
+    style Q1Recheck fill:#a5d8ff
+```
+
+### Recap — Batch 7 cross-references
+
+| Diagram | Spec rules | Status | Notes |
+|---|---|---|---|
+| 7.1 Substrate API surface | R3.3.1.1 | exploratory | Internal-only, single-underscore. DS-14 lock target. |
+| 7.2 `_setDeps` flow | R3.3.1.1, R6.3.2 | exploratory | Surgical kept-deps + Option C dispatch + reentrancy guard. |
+| 7.3 `_addDep` vs `_addDepInternal` | R3.3.1.1 | exploratory | Split for autoTrack/connect (no checks) vs external (full). |
+| 7.4 `_removeDep` flow | R3.3.1.1 | exploratory | Q6 auto-settle on sole-DIRTY removal. |
+| 7.5 Subscribe-callback binding | R6.3.1 | exploratory | DepRecord-ref dispatch — kept-deps reorder without resubscribe. |
+| 7.6 `Graph._rewire` audit | R3.3.1.1 | exploratory | Audit-emit isolated in try/catch (QA L). |
+| 7.7 `autoTrackNode` cache | R6.3.1 | exploratory | `Map<Node, DepRecord>` + dynamic `indexOf` per-call (QA A). |
+| 7.8 `_activate` Q1 re-check | QA H | exploratory | Inactive-node race — terminal transition between decl and activation. |
+
+**Phase 13.8 design history:** four design-session passes — full-disconnect probe → surgical-strict (with same-index guard) → Option C (DepRecord-ref dispatch) → opts.fn for fn replacement → /qa pass surfaced 4 architectural fixes (split addDep, autoTrack cache refactor, reentrancy guard, orphan-DIRTY closure) + ~12 auto-applied fixes. **2969 tests passing post-QA**, lint clean, build green.

@@ -1327,9 +1327,41 @@ Default: (b) — DS-14 locks before any further Rust work.
 
 ---
 
-### Phase 13.8 — TS rewire exploratory impl + integration gap-finding
+### Phase 13.8 — TS rewire exploratory impl + integration gap-finding ✅ landed (2026-05-04, exploratory deliverable)
 
 *Source: 2026-05-04 dev-dispatch follow-up after Phase 13.7 v0 bench landed. The disconnect/resubscribe DS produced a TLA+-verified `node.setDeps` substrate primitive (`docs/research/wave_protocol_rewire.tla`, 35,950 distinct states clean) and 9 integration tests in the M1 Rust core (`~/src/graphrefly-rs/crates/graphrefly-core/tests/setdeps.rs`). The Rust impl validates the **substrate** semantics; it cannot exercise interactions with the **full graphrefly feature set** (PAUSE/RESUME, INVALIDATE, TEARDOWN, replay buffer, meta companions, batch coalescing, COMPLETE/ERROR cascade) because those are M1 parity work deferred behind DS-14.*
+
+**Landed 2026-05-04 (design-iterated):** [src/core/node.ts](../src/core/node.ts) `NodeImpl._setDeps` + [src/graph/graph.ts](../src/graph/graph.ts) `Graph._rewire` (single-underscore internal-only). 34 new tests passing (25 in [src/__tests__/core/rewire-integration.test.ts](../src/__tests__/core/rewire-integration.test.ts), 9 in [src/__tests__/core/rewire-mock-harness.test.ts](../src/__tests__/core/rewire-mock-harness.test.ts)). Total suite: 2949 tests passing, lint clean, build green.
+
+**Final variant lock: surgical (Option C: DepRecord-ref dispatch) + optional `fn` replacement on all three substrate APIs + reentrancy guard.** Kept deps untouched (subscription stays attached, DepRecord survives), removed deps unsubscribed, added deps freshly subscribed. Subscription callbacks bind to DepRecord references; current index looked up dynamically via `_deps.indexOf(record)` so reorder + interior-remove are allowed without re-subscribing kept deps. All three substrate APIs (`_setDeps`, `_addDep`, new `_removeDep`) accept `opts?: { fn?: NodeFn }` — atomically swap the transform fn alongside the dep mutation, since the user-fn signature is positional (`data[i]`, `prevData[i]` by index) and may need replacement when the dep shape changes. Old fn's `onRerun` cleanup hook fires on the next `_execFn` invocation (clean wrap-up).
+
+**Substrate split (post-QA):** `_addDep` (full validation) for external callers; `_addDepInternal` (no checks) for autoTrackNode + `Graph.connect` (which legitimately run from inside `_execFn`). `_inDepMutation` reentrancy guard rejects synchronous re-entry from subscribe-handshake / topology-subscriber paths.
+
+**Real-consumer ergonomics validation (post-QA):** 10 scenarios in [src/__tests__/core/rewire-real-consumer.test.ts](../src/__tests__/core/rewire-real-consumer.test.ts) exercise realistic AI self-pruning shapes (no-op stage drop, broken-tool swap, dep extension, dep stripping, external-driver pattern, cascade isolation, audit trail, observe coherence, shape-mismatch foot-gun). Two ergonomic foot-guns surfaced; **FG2 closed via required-fn API lock** (all three external substrate APIs + Graph wrappers now take `fn` as a required positional second argument — type system enforces fn-deps pairing at every call site). FG1 (subscriber-driven rewire rejected mid-fn) remains a constraint on AI-controller patterns; documented as DS-14 input.
+
+**Final API shape (Phase 13.8 lock):**
+```ts
+nodeImpl._setDeps(newDeps, fn)            // fn REQUIRED
+nodeImpl._addDep(dep, fn)                 // fn REQUIRED
+nodeImpl._removeDep(dep, fn)              // fn REQUIRED
+nodeImpl._addDepInternal(dep, opts?)      // fn? OPTIONAL — autoTrack/connect escape hatch
+graph._rewire(name, newDeps, fn)          // fn REQUIRED
+graph._addDep(name, dep, fn)              // fn REQUIRED
+graph._removeDep(name, dep, fn)           // fn REQUIRED
+```
+
+**Total suite: 2979 tests passing, lint clean, build green.**
+
+Four design-session passes were required: original full-disconnect probe surfaced wedge bug + cacheless-producer issue; first surgical-strict lock had UX cost; Option C combined surgical purity with reorder freedom; opts.fn closes the silent fn-shape-mismatch concern; QA pass surfaced the addDep-asymmetry / orphan-DIRTY-on-throw / autoTrack-cache-staleness / reentrancy issues and applied 4 architectural + ~12 auto-applied fixes. **2969 tests passing, lint clean, build green.**
+
+**Q1–Q5 design resolutions** (full detail in [docs/research/rewire-gap-findings.md](research/rewire-gap-findings.md)):
+- **Q1:** reject non-resubscribable terminal deps in both `_setDeps` AND `_addDep` (pre-existing `_addDep` wedge bug also fixed); accept resubscribable terminal deps (subscribe path resets lifecycle).
+- **Q2:** dissolved by Q1 = reject.
+- **Q3:** keep as-is (no synthetic DIRTY on rewire; `graph.topology` is the channel for topology observers).
+- **Q4:** surgical + Option C (DepRecord-ref dispatch) — kept deps truly invisible AND reorder/interior-remove allowed.
+- **Q5:** R3.3.1.1 stub cross-reference deferred; full spec lock with DS-14.
+
+Carried-forward follow-ups: late-subscriber-to-terminal-node-delivers-nothing universal foot-gun (open as separate spec session), mid-fn rewire re-entrancy hazard (TLA+ follow-up), cycle-detection perf for high-frequency rewires (Rust port concern).
 
 **Placement:** runs in parallel with Phase 13.7's re-decision pause; lands BEFORE DS-14 design opens. Gap-finding here directly informs DS-14 (changesets/diff touches every reactive primitive — rewire interactions are part of that surface).
 

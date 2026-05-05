@@ -17,6 +17,7 @@
  */
 
 import {
+	type DepRecord,
 	type FnCtx,
 	type Node,
 	type NodeFn,
@@ -176,27 +177,37 @@ export function autoTrackNode<T = unknown>(
 	opts?: AutoTrackOptions<T>,
 ): Node<T> {
 	let implRef: NodeImpl<T>;
-	const depIndexMap = new Map<Node, number>();
+	// Phase 13.8: cache `Node → DepRecord` (not `Node → index`). Surgical
+	// `_setDeps` may shift kept-deps' positions in `_deps`; the DepRecord
+	// reference is stable across reorders, but a cached numeric index isn't.
+	// At track-time we resolve the current index dynamically via
+	// `_deps.indexOf(record)` — same pattern as the substrate's subscribe
+	// callbacks.
+	const depRecordMap = new Map<Node, DepRecord>();
 
 	const wrappedFn: NodeFn = (batchData, actions, ctx) => {
 		let foundNew = false;
 		const track: TrackFn = (dep) => {
-			const idx = depIndexMap.get(dep);
-			if (idx !== undefined) {
-				// Known dep — return latest protocol-delivered value.
-				// batch non-null+non-empty → latest from this wave;
-				// otherwise fall back to ctx.prevData (last known value).
-				if (idx < batchData.length) {
+			const record = depRecordMap.get(dep);
+			if (record !== undefined) {
+				// Known dep — re-resolve the current index. If the dep was
+				// removed via `_setDeps` between waves, `indexOf` returns -1
+				// and we fall back to dep.cache.
+				const idx = implRef._deps.indexOf(record);
+				if (idx !== -1 && idx < batchData.length) {
 					const batch = batchData[idx];
 					if (batch != null && batch.length > 0) return batch.at(-1);
 					return ctx.prevData[idx];
 				}
 				return dep.cache;
 			}
-			// Unknown dep — discovery phase.
+			// Unknown dep — discovery phase. Use `_addDepInternal` to skip
+			// the public `_addDep` validation guards: autoTrackNode runs from
+			// inside `_execFn` (where `_isExecutingFn === true`), which the
+			// public `_addDep` deliberately rejects.
 			foundNew = true;
-			const newIdx = implRef._addDep(dep);
-			depIndexMap.set(dep, newIdx);
+			const newIdx = implRef._addDepInternal(dep);
+			depRecordMap.set(dep, implRef._deps[newIdx]);
 			return dep.cache; // P3 boundary exception (discovery stub)
 		};
 
