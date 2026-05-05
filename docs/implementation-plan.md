@@ -1439,15 +1439,15 @@ Default: pause again, integrate findings into DS-14 design when it opens.
 
 Pre-1.0 placement justified by user re-prio: lands AFTER Phase 13 multi-agent ships so the agent-layer ergonomics don't get rewritten under us, and BEFORE Phase 15 evals so eval-side reactivity benefits from the new delta protocol.
 
-**DESIGN-SESSION-NEEDED (DS-14):** substantial 9Q audit. Co-design five threads in one session because they share the version-counter substrate (Wave 4 `*Backend.version: number` already shipped):
+**DS-14 LOCKED 2026-05-05** — see [archive/docs/SESSION-DS-14-changesets-design.md](../archive/docs/SESSION-DS-14-changesets-design.md). Five threads co-designed against a unified substrate:
 
-1. **Op-log changeset protocol** — `reactiveMap` / `reactiveList` / `reactiveLog` / `reactiveIndex` emit `{ version, ops, rootRef? }` instead of full snapshots.
-2. **Worker bridge wire-protocol Option B** — drop `lastSent` closure diffing; emit full snapshots on real changes only via `equals`-based RESOLVED suppression.
-3. **`lens.flow` delta companion** — `Node<FlowDelta>` peer of `.entries`; O(1) per event regardless of subscriber count.
-4. **`reactiveLog.scan(initial, step)` incremental-reduce operator** — O(1) per append for `withBudgetGate`-style aggregates.
-5. **`restoreSnapshot mode: "diff"` WAL replay** — depends on (1)+(2)+the `StorageTier.listByPrefix(prefix)` / `readWAL(key)` extension.
+1. **Universal `BaseChange<T>` envelope** — `{ structure, version: number|string, t_ns, seq?, lifecycle: "spec"|"data"|"ownership", change: T }`. Two-level discriminant (envelope `structure`; payload `kind`).
+2. **`mutations` companion bundle** — every reactive primitive (`reactiveMap` / `reactiveList` / `reactiveLog` / `reactiveIndex` / `pubsub` / `lens.flow`) optionally exposes `bundle.mutations: ReactiveLogBundle<Change<T>>` via `mutations: ReactiveLogConfig | true` opt. Same-wave `batch()` consistency with snapshot emission. TTL/LRU prune emits Change records with `reason` discriminant.
+3. **Universal `mutate(act, opts)` factory** — replaces `lightMutation` + `wrapMutation` (pre-1.0 break). `MutationAct = { up, down? }` (DB up/down framing). Frames `"inline"` / `"transactional"`. `onSuccessRecord` / `onFailureRecord` builders. Canonical rollback layers L0 (substrate batch) / L1 (user `down`) / L2 (post-Rust ownership).
+4. **`reactiveLog.scan(initial, step)` operator** — O(1) per-append running aggregates; method form + standalone `scanLog` export.
+5. **`restoreSnapshot mode:"diff"` lifecycle filter** — `lifecycle?: readonly ("spec"|"data"|"ownership")[]` enforces design-time / runtime / ownership boundaries. Cross-scope replay ordering: spec → data → ownership.
 
-Co-design rationale: all five rest on a delta protocol with `version` field = the per-substrate counter. Designing in isolation produces incompatible deltas. Landing across 2–3 implementation sessions afterward.
+Backend `changesSince(version)` is OPTIONAL on each backend interface — bundles own the log when absent (CRDT escape hatch preserved). Worker-bridge Option B and WAL replay land as separate sessions on top of this substrate; wire format pre-locked to `{ t:"c", lifecycle, path, change }`.
 
 **Rust-port deferral classification (guardrail for Phase 14 land scope)**
 
