@@ -3,6 +3,26 @@ SESSION: harness-engineering-strategy
 DATE: April 6, 2026
 TOPIC: Harness engineering gap analysis, three-wave announcement plan, eval system design, ecosystem infiltration strategy
 REPO: graphrefly-ts (primary), graphrefly-py (parity scope)
+SUPERSEDED: 2026-05-04 by DS-14.5.A (Wave 2 framing only)
+---
+
+> **⚠️ SUPERSEDED 2026-05-04 — Wave 2 framing only.** See [`SESSION-DS-14.5-A-narrative-reframe.md`](SESSION-DS-14.5-A-narrative-reframe.md).
+>
+> The "harness builder" / "harness engineering category" positioning collides with [Archon](https://github.com/coleam00/Archon)'s tagline ("**The first open-source harness builder for AI coding**") at 20.7K⭐. DS-14.5.A reframed Wave 2 to **"spec is code's blueprint; multi-agent worktrees co-edit it without colliding"** — differentiates from both Archon (manual YAML, single-agent worktree) and Hermes (auto-skill-extract, single-agent compounding).
+>
+> **What's still active in this doc:**
+> - 8-requirement harness engineering coverage analysis (PART 2) — accurate as a substrate map
+> - Eval system design (PART 5) — folded into Phase 15 / DS-15
+> - vs LangGraph comparison (PART 7) — useful for Phase 16 §9.2 deliverables
+> - MCP / ecosystem infiltration analysis (PART 6) — but reframed: MCP server is user-host toolkit, not library distribution headline
+>
+> **What's been replaced:**
+> - "Anti-stealth decision" + "Three-wave announcement plan" Wave 2 framing (PART 3 + PART 4) → see DS-14.5.A
+> - "Nobody buys an engine" / "harness layer" tagline (PART 7) → see DS-14.5.A new positioning
+> - MCP Server as "highest leverage distribution priority" (PART 6) → reframed as user-host toolkit per DS-14.5.A L2
+>
+> Read DS-14.5.A first; consult this doc for the original analysis and substrate-map context.
+
 ---
 
 ## CONTEXT

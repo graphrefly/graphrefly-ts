@@ -332,9 +332,11 @@ The Wave 1 announcement payload. Folds in former §9.4 (scorecard).
 
 ---
 
-### Wave 2: "The Harness Layer" — claim the category (Weeks 4-9)
+### Wave 2: "The Shared Blueprint" — spec-as-projection + multi-agent co-edit (Weeks 4-9)
 
-Goal: ship the audit/explain layer + MCP server + scorecard. This is where GraphReFly explicitly becomes "harness engineering."
+> **Reframed 2026-05-04 per DS-14.5.A** ([archive/docs/SESSION-DS-14.5-A-narrative-reframe.md](../archive/docs/SESSION-DS-14.5-A-narrative-reframe.md)). Original framing was "harness builder" — collides directly with [Archon](https://github.com/coleam00/Archon)'s tagline at 20.7K⭐. New positioning: **spec is code's blueprint; multi-agent worktrees co-edit it without colliding.** Differentiates from Archon (manual YAML, single-agent worktree) and Hermes (auto-skill-extract, single-agent compounding).
+
+Goal: ship the audit/explain layer + MCP server (reframed as user-host toolkit) + scorecard + the L0–L3 multi-agent ownership protocol that nobody else has. This is where GraphReFly's "shared blueprint for code, agents, and humans" story is concrete.
 
 #### 9.2 — Audit & accountability (8.4 → 9.2)
 

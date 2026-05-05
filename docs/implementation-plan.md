@@ -1536,6 +1536,63 @@ Captured here so Phase 16 doesn't underbid scope:
 *Source: roadmap.md "Inspection Tool Consolidation > PY consolidation/new tools"*
 **PARKED with PY parity umbrella.** PY `spy()` → `observe(format=)`, `trace_log()` → `trace()`, `Graph.diff()` port, `harness_trace()` Python implementation, runner `__repr__` diagnostics. All gated on the PY parity reopen post-1.0.
 
+#### 14.5.11 — DS-14.5.A: Spec-as-projection narrative reframe + multi-agent subgraph ownership
+*Source: 2026-05-04 conversation triggered by Xiaohongshu sop-runtime research. Catalog/spec UX gap surfaced — the `llmCompose → human copy-paste → freeze in git` workflow is not opinionated and competitor framing (Archon "harness builder" 20.7K⭐, Hermes auto-skill 96K⭐) overlaps Wave 2 positioning. User reframe: **GraphSpec is code's projection, not LLM's authoring surface.** Catalog becomes user-host concern, not library headline. Multi-agent worktree co-edit becomes the differentiating narrative.*
+
+**Why now:** ties directly to Phase 14 changesets (in flight). The ownership protocol's L3 supervisor-override layer co-designs with op-log changesets' `version` field — design DS-14 to accommodate "ownership claim" as a first-class op type, not bolt on later. The 9Q walk for DS-14.5.A runs **after DS-14 locks** (so changeset substrate is concrete) but **before Phase 16 launch copy is finalized** (so README / Wave 2 / MCP server framing all rebase on the same story).
+
+**Locked decisions (L1–L8) from 2026-05-04 conversation:**
+
+- **L1 — GraphSpec authoring direction reversed.** Code is source of truth; spec is auto-generated projection. `factoryTag` + `decompileSpec` round-trip already supports this. `llmCompose` retained as user-host MCP tool, not library headline.
+- **L2 — Catalog is user-host responsibility, not library headline.** `@graphrefly/mcp-server` reframes from "distribution headline" to "toolkit + default-empty-catalog binary for inspection." Library ships `buildMcpServer({ catalog })` factory; users wire their own catalogs. Three-tier client capability fallback: (a) code-aware client → grep fn names from spec; (b) catalog-uploadable client → richer answers; (c) zero-context → guess from spec + descriptions only.
+- **L3 — Spec auto-checkpoint trigger: topology-change-only.** Not per-wave (noisy), not at `messageTier ≥ 3` (different lifecycle from value snapshot). Requires a new "topology dirty" signal — small but new substrate work. Extends `Graph.attachStorage` to persist `describe({ detail: "spec" })` snapshot alongside state checkpoint when topology changes (mount / unmount / `tagFactory` / `add` / `remove` / `setDeps`-when-shipped).
+- **L4 — Cross-language stays blueprint-only.** Spec is JSON-portable for LLM context (PY agent reads TS-generated spec to understand topology), NOT executable across languages. No `graphrefly://` URI standardization. Cross-language executable spec defers to post-1.0 with `peerGraph(transport)` (Phase 8.5).
+- **L5 — Subgraph ownership staircase L0–L3.**
+  - **L0 (static):** spec annotation `meta.owner: string`; `validateOwnership(spec, prDiff)` lint helper enforces at PR time.
+  - **L1 (TTL):** ownership claim carries `expiresAt`; expired claims auto-release.
+  - **L2 (heartbeat):** claim renewed via heartbeat topic; missed N renewals → auto-release.
+  - **L3 (supervisor):** central supervisor agent's decision **always wins regardless of timestamp** — option (b) "layered authorization", NOT version vector. Supervisor publishes claims at higher-priority topic; non-supervisor agents subscribe to both regular ownership topic and supervisor override topic.
+- **L6 — Ownership protocol implementable as recipe + preset, NO new primitive.** `ownershipController({ ttl, heartbeatNs?, supervisor? })` factory wires `messaging hub` + `topic.latest` + `derived` + existing `Actor / Guard ABAC`. Lives in COMPOSITION-GUIDE-PATTERNS as new section ("Multi-agent subgraph ownership protocol").
+- **L7 — Wave 2 narrative reframe.** Drop "harness builder" phrasing (collides with Archon's tagline at 20.7K stars). New positioning: **"spec is code's blueprint; multi-agent worktrees co-edit it without colliding."** Differentiates from Archon (manual YAML workflow runner) and Hermes (auto-generated Python skill module). README + Wave 2 launch copy + Phase 16 §9.2 deliverables all need rewriting.
+- **L8 — `validateSpec` becomes PR lint, not just runtime check.** New `graphrefly check-spec` CLI subcommand: build graph in test/dev mode, call `describe({ detail: "spec" })`, deep-equal against committed spec. Drift fails CI. Lands with `@graphrefly/cli` (Phase 16 §9.3c).
+
+**Implementation deltas (sequenced):**
+
+| # | Work | Size | Phase | Dep |
+|---|---|---|---|---|
+| 1 | README + Wave 2 launch copy rewrite | S | NOW (post-DS-14 lock) | None |
+| 2 | Phase 16 MCP server reframe (toolkit, not headline) | S | NOW (post-DS-14 lock) | None |
+| 3 | `meta.owner` spec annotation in [GRAPHREFLY-SPEC.md](~/src/graphrefly/GRAPHREFLY-SPEC.md) | S | Phase 14.5 | None |
+| 4 | COMPOSITION-GUIDE-PATTERNS §N "Multi-agent subgraph ownership" | M | Phase 14.5 | DS-14.5.A walk |
+| 5 | `validateOwnership(spec, prDiff)` lint helper | S | Phase 14.5 | (3) |
+| 6 | `graphrefly check-spec` CLI subcommand | S | Phase 16 §9.3c | None |
+| 7 | `Graph.attachStorage` spec-snapshot extension (topology-dirty triggered) | M | Phase 14.5 | Phase 14 changeset substrate stable |
+| 8 | `ownershipController({ ttl, heartbeatNs?, supervisor? })` preset (L1+L2; L3 hook) | M | Phase 14.5 | (4), (7) |
+
+**Phase 14 interaction points (FLAG for in-flight changeset work):**
+
+- **Op-log changeset `version` field:** ownership claims should ride the same monotonic version mechanism so L3 supervisor overrides are atomic deltas in the same protocol — DS-14 should accommodate "ownership claim" as a first-class op type, not bolt on later.
+- **`lens.flow` delta companion:** ownership topic events are exactly the high-frequency O(1)-per-event stream `lens.flow` is designed for. Verify the API shape works for this consumer.
+- **`restoreSnapshot mode: "diff"`:** spec snapshots interact with this — restoring an old spec shouldn't wipe live ownership claims. Lifecycle separation needs explicit decision.
+
+**9Q walk completed 2026-05-05 — Q1–Q10 locked:**
+
+- **Q10 — `OwnershipChange.level` semantics:** abstraction layer / priority, **NOT** mechanism declaration. L0/L1/L2/L3 names retained (DS-14 already shipped). Override arbitration is pure level comparison; expiry/heartbeat is independent axis.
+- **Q4 — TTL-period agent crash:** L1 honors TTL strictly. Crash recovery requires upgrading to L2. Configured guidance: L1 TTL ≤ 60s; longer holds use L2 heartbeat. Reasoning: clean staircase semantics + double-owner risk > hold-too-long risk + caller-explicit-contract honoring.
+- **Q2 — L2 heartbeat lifecycle:** `heartbeat: NodeInput<unknown>` accepts any reactive trigger Node. TTL field semantics unified across L1/L2 = "max tolerance since last sign of life"; L2 emission resets countdown. Rejected (a)agent-side-timer per `feedback_no_imperative`; rejected (b)library-shipped-producer per `feedback_no_imperative_wrap_as_primitive`.
+- **Q7 — `meta.owner` runtime enforcement:** hard-block via Actor/Guard ABAC. Claim auto-mounts a `policy({ allowed: [actor] })` Guard on the subgraph; release/override updates/swaps it. Side-effect: Guard primitive will need reactive-options widening (Node-form `allowed`) — naturally aligns with DS-13.5.B already-landed widening pattern.
+- **Q5 — `validateOwnership` PR lint:** hard-fail on cross-owner edits when node has `meta.owner` annotation; no annotation = silent. Override mechanism: `Override-Owner: <reason>` commit trailer, available to ANY committer (sub-lock i — pure audit-trail enforcement). Sub-flag: PR-diff-to-spec-node mapping mechanism (`meta.factory` resolution vs explicit `meta.ownerPath` glob) deferred to delta (5) implementation.
+- **Q3 — Supervisor override delivery:** (resolved by DS-14 directly) shared ownership topic with `kind: "override"` payload discriminant carrying `previousActor` + `reason`. NOT a separate priority topic.
+- **Q1 — Topology-dirty signal:** explicit `_topologyVersion: number` counter on Graph; bumped at every `add` / `remove` / `mount` / `unmount` / `tagFactory` / `setDeps`-when-shipped. O(1) per mutation. Distinct from `_versioningLevel` / `_schemaVersion` (codec / migration concerns).
+- **Q8 — High-churn topology debounce:** wave-boundary `registerBatchFlushHook` checks `_topologyVersion === lastPersistedVersion` and skips on equality. NO time-window debounce. Optional payload-equality fallback for the (rare) case where same-wave bumps net out to identical spec. Reuses existing `_describeReactive` / `_explainReactive` substrate.
+- **Q9 — User-host catalog convention:** soft convention. Default location `<repo>/catalog.ts` exporting `default GraphSpecCatalog`. Override via `package.json#graphrefly.catalogPath`. Tooling fallback chain: package.json field → catalog.ts default → not found = inspection-only mode (`describe` / `observe` / `explain` work; `compileSpec` / `validateSpec` warn). Catalog file format must be TS module (closures can't JSON-encode); JSON-only catalog ruled out by reality.
+- **Q6 — README/narrative rewrite cadence:** single PR with limited scope. Touches: `README.md`, `CLAUDE.md`, `docs/roadmap.md` Wave 2/3 framings, `archive/docs/SESSION-harness-engineering-strategy.md` SUPERSEDED banner, NEW `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md`. Explicitly EXCLUDES from this PR: `~/src/graphrefly_github/profile/README.md` (separate repo, separate PR); `packages/mcp-server/README.md` (rides delta #2 reframe PR); Wave 1/2/3 blog drafts (post-substrate); "GraphReFly vs Archon" comparison page (Phase 16 §9.2).
+
+**Cross-refs:**
+- Trigger conversation: 2026-05-04 (this session) — research started from Xiaohongshu `Riceneeder/sop-runtime` post; competitor analysis vs `coleam00/Archon` (20.7K⭐) + `nousresearch/hermes-agent` (~96K⭐).
+- Related sessions: [SESSION-first-principles-audit.md](archive/docs/SESSION-first-principles-audit.md) (PART 7 SQL argument — applies to NL-only path; reframe extends to code-aware path); [SESSION-harness-engineering-strategy.md](archive/docs/SESSION-harness-engineering-strategy.md) (existing Wave 2 narrative being reframed).
+- Memory references: `project_harness_engineering_strategy.md`, `project_dynamic_graph_visualization.md`, `project_universal_reduction_layer.md`.
+
 ---
 
 ### Phase 15 — Eval program
@@ -1629,4 +1686,5 @@ Numbered for cross-reference in PRs:
 | **DS-13.I** ✅ LOCKED 2026-04-30 | Strategy-key axis extension | `(presetId × rootCause × intervention) → successRate`; inline with 13.I | Phase 13.I |
 | **DS-13.L** ✅ LOCKED 2026-04-30 | `settle` operator | Name = `settle`; reactive operator form of `awaitSettled` | Phase 13.L |
 | **DS-14** | Unified changesets/diff design | 9Q audit; co-designs 5 threads (op-log / worker-wire / lens.flow delta / reactiveLog.scan / restoreSnapshot diff) | Phase 14; substantial |
+| **DS-14.5.A** ✅ LOCKED 2026-05-05 | Spec-as-projection narrative reframe + multi-agent subgraph ownership | L1–L8 (2026-05-04) + Q1–Q10 9Q walk (2026-05-05) all locked. See §14.5.11 for full record. Awaiting `/dev-dispatch` invocation per delta sequencing (#1–#8). | Phase 14.5; medium-substantial |
 | **DS-15** | Eval program shape | Two-tier design + catalog automation + scorecard | Phase 15; substantial |

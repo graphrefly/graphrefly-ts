@@ -1,8 +1,8 @@
 # GraphReFly
 
-**The reactive harness layer for agent workflows.** Describe in plain language, review visually, run persistently, trace every decision.
+**The reactive graph your code, your agents, and your humans share as a blueprint.** Compose in code, review the projected spec, co-edit across agents without colliding, trace every decision.
 
-GraphReFly makes long-running human + LLM co-operation reactive, resumable, and causally explainable. State pushes downstream on change (no re-reading), nodes have lifecycles (not infinite append), and every decision has a traceable causal chain — the substrate underneath tools, agents, and personal automations.
+GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is the source of truth — `factoryTag`-stamped factories project automatically into a `GraphSpec` blueprint that humans and agents read, diff, and review together. Multi-agent worktrees claim subgraph ownership through a structural protocol (TTL → heartbeat → supervisor) so concurrent edits don't corrupt shared topology. Every decision has a causal chain — `graph.explain()` walks back through dependencies and tells you exactly why a value is what it is.
 
 [![npm](https://img.shields.io/npm/v/@graphrefly/graphrefly?color=blue)](https://www.npmjs.com/package/@graphrefly/graphrefly)
 [![license](https://img.shields.io/github/license/graphrefly/graphrefly-ts)](./LICENSE)
@@ -52,11 +52,13 @@ count.set(3);
 
 ## How it works
 
-You describe what you need — an LLM composes a reactive graph (like SQL for data flows). The graph runs persistently, checkpoints its state, and traces every decision through a causal chain. Ask "why?" at any point and get a human-readable explanation from source to conclusion.
+Code is the source of truth. You compose a reactive graph using primitives (`state`, `derived`, `effect`, `producer`) and factories (`agentLoop`, `harnessLoop`, `agentMemory`, …). `factoryTag`-stamped factories carry self-description into the live graph. `graph.describe({ detail: "spec" })` projects the topology into a JSON `GraphSpec` blueprint — the same shape the original spec was written from, but always in sync with what's actually running. Spec is what your agents read to understand the topology. Code is what they (and you) actually edit.
 
-## Harness engineering coverage
+The graph runs persistently, checkpoints state on `messageTier ≥ 3` and topology on `_topologyVersion` bump, and traces every decision through a causal chain. Ask "why?" at any point — `graph.explain(from, to)` walks backward through dependencies and returns a structured chain that's both human-readable and LLM-parseable.
 
-The eight requirements of a production agent harness cluster into a handful of composed blocks that sit on top of the reactive graph primitives:
+## Substrate coverage
+
+The eight requirements of a production agent system cluster into a handful of composed blocks that sit on top of the reactive graph primitives:
 
 | Need | GraphReFly |
 |---|---|
@@ -68,23 +70,25 @@ The eight requirements of a production agent harness cluster into a handful of c
 | Human governance | `gate` — reactive `pending` / `isOpen` with `approve` / `reject` / `modify(fn, n)` |
 | Verification | Multi-model eval harness with regression gates |
 | Continuous improvement | Strategy model: `rootCause × intervention → successRate` |
+| Multi-agent coordination | `ownershipController()` — L0 static / L1 TTL / L2 heartbeat / L3 supervisor staircase; `Actor / Guard ABAC` enforces claims at write time; `validateOwnership` lints PR diffs |
 
 The library computes structured facts reactively; LLMs and UIs render them. Natural language is never the library's job — which keeps the whole stack model-agnostic and testable.
 
 ## Why GraphReFly?
 
-|  | Zustand / Jotai | RxJS | XState | LangGraph | TC39 Signals | **GraphReFly** |
-|--|-----------------|------|--------|-----------|-------------|---------------|
-| Simple store API | yes | no | no | no | yes | **yes** |
-| Streaming operators | no | yes | no | no | no | **yes** |
-| Diamond resolution | no | n/a | n/a | n/a | partial | **glitch-free** |
-| Graph introspection | no | no | visual | checkpoints | no | **describe / observe / diagram** |
-| Causal tracing | no | no | no | no | no | **explain every decision** |
-| Durable checkpoints | no | no | persistence | yes | no | **file / SQLite / IndexedDB** |
-| LLM orchestration | no | no | no | yes | no | **agentLoop / chatStream / toolRegistry** |
-| NL → graph composition | no | no | no | no | no | **graphFromSpec / llmCompose** |
-| Framework adapters | React | Angular | React / Vue | n/a | varies | **React / Vue / Svelte / Solid / NestJS** |
-| Dependencies | 0 | 0 | 0 | many | n/a | **0** |
+|  | Zustand / Jotai | RxJS | XState | LangGraph | Archon | Hermes | **GraphReFly** |
+|--|-----------------|------|--------|-----------|--------|--------|---------------|
+| Simple store API | yes | no | no | no | n/a | n/a | **yes** |
+| Streaming operators | no | yes | no | no | no | no | **yes** |
+| Diamond resolution | no | n/a | n/a | n/a | n/a | n/a | **glitch-free** |
+| Graph introspection | no | no | visual | checkpoints | YAML view | no | **describe / observe / diagram** |
+| Causal tracing | no | no | no | no | no | no (black-box) | **explain every decision** |
+| Durable checkpoints | no | no | persistence | yes | sqlite | yes | **file / SQLite / IndexedDB** |
+| LLM orchestration | no | no | no | yes | yes (workflow) | yes (skills) | **agentLoop / chatStream / toolRegistry** |
+| Auto-projection: code → spec | no | no | no | no | no (manual YAML) | partial (skill emit) | **factoryTag round-trip** |
+| Multi-agent on shared topology | no | no | no | no | no (worktree-isolated) | no (skill-isolated) | **L0–L3 ownership protocol** |
+| Framework adapters | React | Angular | React / Vue | n/a | n/a | n/a | **React / Vue / Svelte / Solid / NestJS** |
+| Dependencies | 0 | 0 | 0 | many | many | many | **0** |
 
 ## One primitive
 
