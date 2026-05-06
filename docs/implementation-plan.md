@@ -1433,6 +1433,82 @@ Default: pause again, integrate findings into DS-14 design when it opens.
 
 ---
 
+### Phase 13.9 — Pure-TS oracle cleave + binding shim architecture
+
+*Source: 2026-05-05 dev-dispatch on Rust port packaging strategy. With M1 closed and M2 Slice D opening the `Graph` container in `~/src/graphrefly-rs`, the public-package shape needs to be decided **before** the binding's user surface widens through M3 (operators) and beyond. The session doc and `graphrefly-rs/CLAUDE.md` working assumption was "TS impl migrates to a thin shim over the napi-rs binding"; the locked direction (2026-05-05) is to **preserve the current pure-TS implementation as a frozen parity oracle alongside the shim**, so the existing 2780-test suite drives BOTH impls and any divergence surfaces as a Rust-port regression.*
+
+**Locked decisions (Q1–Q7, 2026-05-05):**
+
+| # | Decision | Lock |
+|---|---|---|
+| Q1 | Naming for the preserved pure-TS package | `@graphrefly/legacy-pure-ts` |
+| Q2 | Location | `packages/legacy-pure-ts/` in this monorepo (pnpm workspace) |
+| Q3 | Surface scope | **Full surface** — `core/` + `graph/` + `extra/` + `patterns/` + `compat/` |
+| Q4 | Lifetime | Sunset on 1.0 ship — oracle exists to land 1.0; archived after |
+| Q5 | Test architecture | **Contract-trace** (rigor-infra Project 2 shape) is the lock; **interim parameterized runner** until the trace harness lands (see Q5-interim below) |
+| Q6 | How `@graphrefly/graphrefly` consumes the binding | **Shim package** — public package is a thin TS layer that delegates to `@graphrefly/native` (napi binding); falls back to `@graphrefly/legacy-pure-ts` when native binary is unavailable |
+| Q7 | Spec ↔ impl authority during transition | Spec authority lives in `~/src/graphrefly/GRAPHREFLY-SPEC.md` + TLA+; both impls implement against the spec. Pure-TS becomes a *historical implementation*, not a spec source |
+
+**Q5-interim (locked 2026-05-05):** the contract-trace approach (Q5=c lock) requires the rigor-infrastructure Project 2 harness (`archive/docs/SESSION-rigor-infrastructure-plan.md` — TS↔PY executable contract traces). That harness has not landed yet, and the cleave does NOT block on it:
+
+- **Phase 13.9.A** ships a parameterized vitest runner (`describe.each([{ impl: legacyImpl }, { impl: rustImpl }])`) over the existing test files. Same coverage as today; doubles test runtime; modest scaffolding cost. Lands per the timing schedule below.
+- **Phase 13.9.B** ships the contract-trace migration once the rigor-infra harness lands. The parameterized runner deletes; the trace harness becomes the parity gate.
+
+**Placement:** AFTER M2 Slice D close (Graph container with `Arc<Core>` pass-through) and BEFORE the next M2 slice that widens the binding surface (mount/unmount/describe/observe). The cleave needs to happen while the binding's public surface is small enough that the shim layer is trivial. Runs in parallel with subsequent M2 + M3 work — the parity test surface widens per Rust milestone close.
+
+**Scope — six implementation steps:**
+
+1. **Snapshot the current `src/`** to `packages/legacy-pure-ts/src/` via `git mv` (preserves history). Bump its `package.json` to `@graphrefly/legacy-pure-ts`. Freeze versioning at the current 0.44.x; future releases bump only for parity-fix backports OR spec-amendment lockstep updates. Update `pnpm-workspace.yaml` (no change needed — `packages/*` glob already covers it).
+
+2. **Reshape root package** — `@graphrefly/graphrefly` becomes a shim consuming the napi binding (Q6). Initial state: re-exports from `@graphrefly/legacy-pure-ts` so the public API is unchanged at the moment of cleave. As Rust milestones close, swap each export over per-milestone:
+   - M2 Slice E close (`describe`/`observe`/snapshot) → swap `Graph` constructor + topology export
+   - M3 close → swap operators (`extra/operators/*`)
+   - M5 close → swap reactive data structures
+   - M6 close → swap Python bindings (parallel work in `graphrefly-py`)
+
+3. **Native binding package** — `@graphrefly/native` published from `~/src/graphrefly-rs/crates/graphrefly-bindings-js/`. Replaces the current absolute-path `require` from [src/__bench__/ffi-cost.bench.ts](src/__bench__/ffi-cost.bench.ts). Per session doc Part 9: per-platform binaries (`@graphrefly/native-linux-x64-gnu`, `-darwin-arm64`, `-win32-x64-msvc`, etc.) loaded on install via the `optionalDependencies` napi-rs convention. WASM target ships as `@graphrefly/native-wasm` for edge runtimes / sandboxed JS where the cdylib won't load.
+
+4. **Parity test layer** at `packages/parity-tests/` — vitest runner. Phase 13.9.A interim shape: `describe.each([{ name: "legacy-pure-ts", impl: legacyImpl }, { name: "rust-via-napi", impl: rustImpl }])` over test files in `packages/parity-tests/scenarios/` (initially mirrors a small subset of `src/__tests__/`; widens per-milestone). Phase 13.9.B target shape: contract-trace replay — record trace from one impl, assert byte-equal sequence against the other (per rigor-infra Project 2). Initially most scenarios run only against legacy (parity surface narrow); each Rust milestone widens the parameterized set. Divergences fail loud and gate main-branch merges.
+
+5. **Documentation** — `packages/legacy-pure-ts/README.md` explicitly states "frozen reference impl, no new features, parity-fix + spec-lockstep backports only." `packages/legacy-pure-ts/CHANGELOG.md` only logs parity fixes and spec amendments. Public docs at `website/` continue to document the public API impl-agnostic — readers don't see the cleave, only that some platforms run on Rust and some on pure TS.
+
+6. **CI** — workspace-level `pnpm test` runs both impl test suites independently. The parity job (cross-impl scenario assertions in `packages/parity-tests/`) is a separate CI job that gates main-branch merges once it stabilizes. CI builds `@graphrefly/native` binaries via the existing `~/src/graphrefly-rs/.github/workflows/ci.yml` `bindings-js` job; this repo's CI consumes the published artifacts (or path-resolved local builds during Phase 13.9.A).
+
+**Sunset trigger (Q4 = sunset on 1.0):**
+- Once 1.0 ships — full surface parity verified across N consecutive zero-divergence releases on the parity job — `git mv packages/legacy-pure-ts/ archive/legacy-pure-ts/`. `pnpm remove` from workspace. npm package deprecated with a pointer to `@graphrefly/graphrefly`. Archive remains git-blame-able for forensics. The parity test suite either retires or migrates into the main `src/__tests__/` against the Rust impl only.
+- Unblocks the working-assumption end-state from `graphrefly-rs/CLAUDE.md`: "TS impl migrates to a thin shim over the napi-rs binding."
+
+**Per-milestone parity checkpoint (added to `~/src/graphrefly-rs/docs/migration-status.md` table):**
+- M2 Slice E close → parity-tests cover Graph constructor, mount/unmount, describe, observe.
+- M3 close → parity-tests cover all `extra/operators/*` shipped in legacy-pure-ts.
+- M4 close → parity-tests cover storage tier semantics (Node-only).
+- M5 close → parity-tests cover reactive data structures + Phase 14 op-log changesets.
+- M6 close → parity-tests cross-language (TS ↔ PY ↔ Rust via the same trace format, if Q5=c has landed by then).
+- 1.0 ship → sunset trigger.
+
+**Acceptance bar for Phase 13.9.A close:**
+- `packages/legacy-pure-ts/` exists with full surface ported via `git mv` (history preserved).
+- `@graphrefly/graphrefly` published as a shim re-exporting legacy-pure-ts (so existing consumers' install is unchanged at the cleave moment).
+- `packages/parity-tests/` parameterized vitest runner exists with at least the M1 + M2-Slice-D scenarios (Core dispatcher + Graph container) running against both impls and green.
+- CI gate active: parity job blocks main-branch merges.
+- `~/src/graphrefly-rs/docs/migration-status.md` updated with the per-milestone parity-checkpoint column.
+
+**Acceptance bar for Phase 13.9.B close:**
+- Rigor-infra Project 2 contract-trace harness has shipped (gate dependency).
+- `packages/parity-tests/scenarios/*` migrated from `describe.each` parameterized runner to trace-record / trace-replay shape.
+- Parameterized runner scaffolding deleted.
+- Same parity-job CI gate, now driven by trace-replay.
+
+**STRONG DEFER — explicitly NOT in this phase:**
+- The Python parity oracle story (analogous `@graphrefly/legacy-pure-py` under the same model) — separate decision, depends on `graphrefly-py` Rust binding progress (M6).
+- WASM distribution (`@graphrefly/native-wasm`) shape beyond the placeholder above — overlaps with Q3/Q6 but follows the M-roadmap and is post-M5.
+- Multi-distribution `lite` / `standard` / `full` feature-gated builds (session doc Part 9) — orthogonal to oracle existence; both layers compose. Lands per Rust workspace's own slicing.
+- Sunset of any non-`@graphrefly/graphrefly` package (`@graphrefly/cli`, `@graphrefly/mcp-server`) — those track the public API and continue to consume `@graphrefly/graphrefly` (which transparently delegates to the appropriate impl).
+
+**Tracker:** this phase + `~/src/graphrefly-rs/docs/migration-status.md` (per-milestone parity checkpoint column). Cross-ref the locked Q1–Q7 in [archive/docs/SESSION-rust-port-architecture.md](../archive/docs/SESSION-rust-port-architecture.md) Part 12 (added 2026-05-05).
+
+---
+
 ### Phase 14 — Post-1.0 changesets / diff (single unified design session)
 
 *Source: optimizations.md "Store-mutation-events protocol (deferred post-1.0...)"*

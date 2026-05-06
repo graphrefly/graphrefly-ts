@@ -368,6 +368,13 @@ One Rust workspace. CI builds N variants from the same source. Each variant publ
 @graphrefly/standard-wasm        ← wasm target, "standard"       ~900 KB
 ```
 
+Plus the parity-oracle / pure-TS distribution (added 2026-05-05; see Part 12 below):
+
+```
+@graphrefly/legacy-pure-ts       ← frozen pure-TS impl, oracle    ~150 KB (no native)
+                                   sunset on 1.0 ship per Part 12 Q4
+```
+
 Same shape on PyPI (Python "extras" syntax: `pip install graphrefly[full]`).
 
 ### Three layers of feature gating
@@ -453,6 +460,12 @@ These are real but should NOT block 13.6.A; flag in `docs/optimizations.md` for 
 11. **Guard/ABAC moves to core as data** — `Policy` is a serializable struct (not a closure), enforced at subgraph level. Ownership claim = policy mutation. V3 caps = CID of `Policy`.
 12. **Subgraph IS the enforcement boundary** — `&mut Subgraph` acquisition checks policy. No per-node guard stacking.
 13. **L0–L3 staircase in core** — expiry/heartbeat logic is a `u64` compare in the write-path guard; `ownershipController()` convenience stays binding-side.
+
+### Decisions locked 2026-05-05 (parity oracle Q1–Q7)
+
+14. **Pure-TS preserved as parity oracle.** Current TS implementation does NOT migrate to a thin shim immediately; instead, it survives as `@graphrefly/legacy-pure-ts` to drive parity tests against the Rust binding through 1.0. See Part 12 for Q1–Q7 lock detail. Implements via Phase 13.9 in `docs/implementation-plan.md`.
+15. **Shim package architecture for `@graphrefly/graphrefly`.** Public package becomes a thin TS layer delegating to `@graphrefly/native` (napi binding) with fallback to `@graphrefly/legacy-pure-ts` when native binary is unavailable (sandboxed JS, edge runtimes without WASM, restricted enterprise environments).
+16. **Sunset on 1.0 ship.** The pure-TS oracle is 1.0-bound infrastructure; archived to `archive/legacy-pure-ts/` after 1.0 ships and parity has held across N consecutive zero-divergence releases. Restores the working-assumption end-state from `graphrefly-rs/CLAUDE.md` ("TS impl migrates to a thin shim").
 
 ## DECISIONS DEFERRED (NOT MADE THIS SESSION)
 
@@ -1013,3 +1026,114 @@ At the start of each milestone (M1–M6), review the relevant §10.x sections fo
 - TS suite: 2780/2780 passing (was 2771; +9 from new extension tests, +13 from core tests, -13 already counted; actual delta +9 net)
 - Biome lint: clean across all new files
 - TLC: 5 scenario MCs verified clean, 39,331 distinct states total, ~10s combined runtime
+
+---
+
+## PART 12: PARITY ORACLE STRATEGY (2026-05-05, post-M1, M2 Slice D opening)
+
+This part documents the locked strategy for preserving the current pure-TS implementation as a frozen parity oracle alongside the napi-rs binding. Implementation lives in Phase 13.9 of `docs/implementation-plan.md`. This part is the architectural narrative; that phase is the operational sequencing.
+
+### Why an oracle (not just a shim)
+
+The default working assumption in `~/src/graphrefly-rs/CLAUDE.md` was: "TS impl migrates to a thin shim over the napi-rs binding once Rust port reaches parity." That assumption has two problems for the M1→1.0 stretch:
+
+1. **Behavioral parity is asserted, not verified.** The Rust impl ports the spec + the TS test suite; both are static reference points. But the *living TS impl* — battle-tested across 2780 tests, the existing patterns layer, the existing examples and demos — is the highest-fidelity behavior oracle available. Deleting it before 1.0 ships throws away the most valuable regression-detection asset on the project.
+2. **Coverage gap during the cleave.** M1 closed the dispatcher; M2/M3/M4/M5/M6 are still ahead. Each Rust milestone exposes a slice of the surface; the binding's user-visible API only reaches the current TS surface around M5–M6. Until then, "the public package" needs a story for surfaces the binding doesn't cover yet. Either the public package's API regresses (unacceptable; pre-1.0 we can break, but the *features* shouldn't disappear) OR it transparently delegates to the pure-TS for un-ported surfaces.
+
+The oracle resolves both. The pure-TS package becomes the parity reference (#1) AND the fallback impl during the cleave (#2). It sunsets when 1.0 ships full surface parity verified across N consecutive zero-divergence releases.
+
+### Locked decisions (Q1–Q7, all 2026-05-05)
+
+| # | Question | Lock | Rationale |
+|---|---|---|---|
+| Q1 | Naming | `@graphrefly/legacy-pure-ts` | "legacy" reads as sunset signal; deliberate — communicates this is reference / oracle scope, not the long-term distribution strategy. |
+| Q2 | Location | `packages/legacy-pure-ts/` in this monorepo | pnpm workspace already in place (`pnpm-workspace.yaml` `packages/*` glob); cross-package tests trivial; CI matrix simple. Spec-amendment lockstep updates land in the same PR as the legacy-pure-ts edit. |
+| Q3 | Scope | Full surface — `core/` + `graph/` + `extra/` + `patterns/` + `compat/` | Maximum oracle value. Catches divergence in operators, patterns, compat layers — exactly the surfaces where Rust port can drift in subtle ways. Cost: every Rust-side feature must reach parity through the relevant milestone before its TS counterpart can be considered authoritative. |
+| Q4 | Lifetime | Sunset on 1.0 ship | Oracle exists to land 1.0 with high confidence. After 1.0, the Rust impl + spec + TLA+ are sufficient regression substrate. Trade-off: removes the safety net for post-1.0 Rust regressions; mitigated by the fact that the parity test suite either retires or migrates against the Rust impl only. |
+| Q5 | Test architecture | Contract-trace (rigor-infra Project 2 shape); interim parameterized runner | Trace-replay is the right long-term shape (highest fidelity, cross-language compatible TS↔PY↔Rust). Blocks on `archive/docs/SESSION-rigor-infrastructure-plan.md` Project 2. Phase 13.9.A interim ships parameterized vitest `describe.each` over both impls; Phase 13.9.B migrates to traces when the harness lands. |
+| Q6 | Public package shape | Shim package — `@graphrefly/graphrefly` delegates to `@graphrefly/native` (napi binding) with `@graphrefly/legacy-pure-ts` fallback | Composes with Part 9 multi-distribution model. Users on platforms that ban native binaries (sandboxed JS, restricted enterprise, edge runtimes without WASM) get the pure-TS fallback transparently. Users on supported platforms get the Rust binding without thinking about it. |
+| Q7 | Spec ↔ impl authority | Spec authority lives in `~/src/graphrefly/`; both impls implement against the spec. Pure-TS is a *historical implementation*, not a spec source. | Eliminates the ambiguity that "the TS impl is *de facto* spec." After cleave, spec edits land in `GRAPHREFLY-SPEC.md` + TLA+ first, then propagate to BOTH impls in the same lockstep PR. |
+
+### Three-layer package architecture (post-cleave)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ @graphrefly/graphrefly (public; thin TS shim)               │
+│   - Selects native impl per platform / availability         │
+│   - Re-exports the chosen impl's surface                    │
+└──────┬──────────────────────────────────────────┬───────────┘
+       │ default                                  │ fallback
+       ▼                                          ▼
+┌──────────────────────┐                 ┌────────────────────────┐
+│ @graphrefly/native   │                 │ @graphrefly/            │
+│ (napi-rs binding)    │                 │   legacy-pure-ts        │
+│ - linux-x64-gnu      │                 │ - frozen 0.44.x impl    │
+│ - linux-arm64-gnu    │                 │ - parity-fix backports  │
+│ - darwin-arm64       │                 │ - spec-amendment        │
+│ - darwin-x64         │                 │   lockstep updates      │
+│ - win32-x64-msvc     │                 │ - sunsets on 1.0 ship   │
+│ - wasm (edge / WASM) │                 │                         │
+└──────────────────────┘                 └────────────────────────┘
+       │
+       ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Rust workspace (~/src/graphrefly-rs/)                        │
+│   crates/graphrefly-{core,graph,operators,storage,structures}│
+│   crates/graphrefly-bindings-{js,py,wasm}                    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**`@graphrefly/native` selection** — the public package uses the napi-rs `optionalDependencies` convention: per-platform binary packages (`@graphrefly/native-linux-x64-gnu` etc.) listed as optional deps; npm installs only the matching one; runtime `require` resolves it. If no native binary matches the platform AND `@graphrefly/native-wasm` doesn't satisfy (e.g. CJS-only runtime, WASM disabled), the shim falls back to `@graphrefly/legacy-pure-ts`.
+
+**`@graphrefly/legacy-pure-ts` consumption surface** — direct import is supported (users who want the zero-native-dep build can pin `@graphrefly/legacy-pure-ts` directly). This is also the migration path for users on banned-native-binary platforms even after sunset (the package ships its 0.44-frozen API for the duration of 1.0; post-1.0 sunset means npm-deprecated, not removed).
+
+### Coverage growth model (per-milestone parity expansion)
+
+The parity test surface widens per Rust milestone close. Each milestone gates on:
+
+| Milestone | Rust crate | Parity-tests added | Shim swap-over |
+|---|---|---|---|
+| M1 (closed 2026-05-05) | `graphrefly-core` | dispatcher, lifecycle, PAUSE/RESUME, INVALIDATE, terminal cascade, TEARDOWN, meta companions, RAII Subscription, set_deps | (none — no public surface yet) |
+| M2 Slice D (opened 2026-05-05) | `graphrefly-graph` (Graph container) | Graph constructor, sugar constructors, lifecycle pass-throughs | (none — Slice D is internal) |
+| M2 Slice E (M2 close) | `graphrefly-graph` (full) | mount/unmount, describe, observe, snapshot, namespace, mutate() | `Graph` constructor + topology APIs |
+| M3 close | `graphrefly-operators` | all `extra/operators/*` | operators surface |
+| M4 close | `graphrefly-storage` | tier dispatch, Node-only persistence | storage surface |
+| M5 close | `graphrefly-structures` | reactive data structures, Phase 14 op-log changesets | structures + changeset surface |
+| M6 close | `graphrefly-bindings-py` | (cross-language) | (parallel to `graphrefly-py` cleave) |
+| 1.0 ship | (full surface) | (all) | (sunset trigger — see below) |
+
+**Until each milestone closes, the shim's swap-over for that surface delegates to `@graphrefly/legacy-pure-ts`.** Users see no API regression; they see the implementation backing each surface flip from pure-TS to Rust as milestones close.
+
+### Sunset trigger (Q4 = sunset on 1.0)
+
+Once 1.0 ships AND parity has held across N consecutive zero-divergence releases on the parity job (specific N TBD during 1.0 release planning):
+
+1. `git mv packages/legacy-pure-ts/ archive/legacy-pure-ts/` — preserves history.
+2. `pnpm remove` from workspace.
+3. npm package `@graphrefly/legacy-pure-ts` deprecated with a pointer to `@graphrefly/graphrefly`. NOT removed — still installable for users on banned-native-binary platforms who haven't migrated to WASM.
+4. Parity test suite either retires (parity-job CI gate removed) OR migrates into `src/__tests__/` running against the Rust impl only.
+5. `@graphrefly/graphrefly` shim drops its legacy-pure-ts fallback path. Native + WASM only. `optionalDependencies` matrix becomes the sole resolution mechanism.
+
+Post-sunset state matches the original `graphrefly-rs/CLAUDE.md` working assumption: "TS impl migrates to a thin shim over the napi-rs binding."
+
+### Q5-interim (parameterized → trace-replay migration path; locked 2026-05-05)
+
+The contract-trace approach (Q5=c lock) is gated on the rigor-infrastructure Project 2 harness in `archive/docs/SESSION-rigor-infrastructure-plan.md`. That harness has not landed yet, and the cleave does NOT block on it:
+
+- **Phase 13.9.A** ships `packages/parity-tests/` with vitest `describe.each([{ impl: legacyImpl }, { impl: rustImpl }])` over the existing test files. Same coverage as today's `src/__tests__/`; doubles test runtime; modest scaffolding cost. Lands per the Phase 13.9 timing schedule (see `docs/implementation-plan.md` Phase 13.9); gates main-branch merges.
+- **Phase 13.9.B** migrates `packages/parity-tests/scenarios/*` from `describe.each` to trace-record + trace-replay. Parameterized runner deletes. Same parity-job CI gate, now driven by trace-replay. Lands when rigor-infra Project 2 ships — asynchronous to the M-milestones.
+
+### Why Q4=sunset (rebuttal to Q4=perpetual)
+
+Perpetual oracle has real product value: some platforms ban native binaries (sandboxed JS environments, restricted enterprise, certain edge runtimes without WASM). Keeping `@graphrefly/legacy-pure-ts` as a permanent zero-native-dep distribution alongside Rust would serve those users.
+
+The rebuttal: WASM coverage is the right answer for those platforms, not a parallel pure-TS impl. By 1.0 ship, `@graphrefly/native-wasm` should cover all the platform-restriction cases; if it doesn't, that's a Rust-port gap to fix, not a perpetual TS-impl maintenance burden. Sunset trigger explicitly conditional on parity-stability metric — if parity wobbles, sunset waits.
+
+The deprecated-but-installable status (sunset step 3 above) preserves the migration on-ramp for stragglers. Post-sunset, the package is npm-deprecated but resolvable; users who can't move to WASM yet keep pinning it; new users get `@graphrefly/graphrefly` which is native-or-WASM only.
+
+### What this part does NOT cover
+
+- **The Python parity oracle** — analogous `@graphrefly/legacy-pure-py` story. Separate decision; depends on `graphrefly-py` Rust binding progress (M6).
+- **WASM distribution shape beyond placeholder** — `@graphrefly/native-wasm` packaging, edge-runtime testing matrix, COOP/COEP requirements for SharedArrayBuffer. Lands per M-roadmap, not in this part.
+- **Multi-distribution lite/standard/full feature-gated builds** — Part 9 strategy. Orthogonal to oracle existence; both layers compose. The lite/standard/full split lives within `@graphrefly/native-*`; the public `@graphrefly/graphrefly` shim selects the right variant per platform AND per consumer's feature tier.
+- **Sunset of `@graphrefly/cli` / `@graphrefly/mcp-server`** — those track the public API and continue to consume `@graphrefly/graphrefly` (which transparently delegates). Not affected by the cleave.
