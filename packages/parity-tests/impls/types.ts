@@ -15,6 +15,20 @@ import type * as legacy from "@graphrefly/legacy-pure-ts";
 // structural typing.
 export interface Impl {
 	readonly name: string;
+
+	// M1 dispatcher surface
 	readonly node: typeof legacy.node;
 	readonly DATA: typeof legacy.DATA;
+
+	// M2 Graph surface (added by the M2 parity-tests widening — D6 in
+	// `~/src/graphrefly-rs/docs/porting-deferred.md`).
+	readonly Graph: typeof legacy.Graph;
+
+	// Tier-1/2/4/5/6 message constants used by signal() and observe assertions.
+	readonly INVALIDATE: typeof legacy.INVALIDATE;
+	readonly PAUSE: typeof legacy.PAUSE;
+	readonly RESUME: typeof legacy.RESUME;
+	readonly COMPLETE: typeof legacy.COMPLETE;
+	readonly ERROR: typeof legacy.ERROR;
+	readonly TEARDOWN: typeof legacy.TEARDOWN;
 }
