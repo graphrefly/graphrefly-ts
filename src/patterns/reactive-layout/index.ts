@@ -1,12 +1,3 @@
-/**
- * Reactive layout pattern — standalone subpath export.
- *
- * ```ts
- * import { reactiveLayout, CliMeasureAdapter } from "@graphrefly/graphrefly-ts/reactive-layout";
- * ```
- */
-
-export * from "./measurement-adapters.js";
-export * from "./reactive-block-layout.js";
-export * from "./reactive-flow-layout.js";
-export * from "./reactive-layout.js";
+// Phase 13.9.A shim — re-export from frozen pure-TS oracle until
+// @graphrefly/native (napi binding) and per-milestone swap-overs land.
+export * from "@graphrefly/legacy-pure-ts/patterns/reactive-layout";

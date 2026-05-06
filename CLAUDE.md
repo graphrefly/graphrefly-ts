@@ -33,13 +33,19 @@
 
 ## Commands
 
-**TypeScript (this repo):**
+**TypeScript (this repo) — post-Phase-13.9.A cleave:**
 ```bash
-pnpm test          # vitest run
-pnpm run lint      # biome check
-pnpm run lint:fix   # biome check --write
-pnpm run build     # tsup
+pnpm test                  # legacy-pure-ts test suite + parity-tests
+pnpm test:legacy           # just packages/legacy-pure-ts (~2980 tests)
+pnpm test:parity           # just packages/parity-tests
+pnpm run lint              # biome check (workspace-wide)
+pnpm run lint:fix          # biome check --write
+pnpm run build             # legacy-pure-ts build → root shim build
+pnpm run build:shim        # only the shim (assumes legacy already built)
+pnpm bench                 # legacy-pure-ts vitest bench
 ```
+
+For watch-mode work inside the legacy package: `pnpm --filter @graphrefly/legacy-pure-ts test:watch`.
 
 **Python (`~/src/graphrefly-py`):**
 ```bash
@@ -64,12 +70,18 @@ Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv
 
 ## Layout
 
-**TypeScript (`graphrefly-ts`):**
-- `src/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
-- `src/graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
-- `src/extra/` — operators, sources, data structures, resilience (Phase 2–3). Browser-safe by default; Node-only additions in `extra/node.ts`, browser-only additions in `extra/browser.ts`.
-- `src/patterns/` — domain-layer APIs (Phase 4+). Each domain is its own folder (`patterns/<name>/index.ts`). Node-only additions in `patterns/<name>/node.ts`, browser-only in `patterns/<name>/browser.ts`.
-- `src/compat/` — framework adapters: NestJS (Phase 5+)
+**TypeScript (`graphrefly-ts`) — post-Phase-13.9.A cleave (2026-05-05):**
+- Root `src/` — thin **shim** for `@graphrefly/graphrefly`. Each entry is a one-liner re-export from `@graphrefly/legacy-pure-ts/<subpath>`. Nothing else lives here. Until per-Rust-milestone swap-overs land, every public-API import flows through these re-exports.
+- `packages/legacy-pure-ts/src/` — the **frozen pure-TS implementation**. All real source code lives here. Layered structure unchanged from pre-cleave:
+  - `core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
+  - `graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
+  - `extra/` — operators, sources, data structures, resilience (Phase 2–3). Browser-safe by default; Node-only additions in `extra/node.ts`, browser-only additions in `extra/browser.ts`.
+  - `patterns/` — domain-layer APIs (Phase 4+). Each domain is its own folder (`patterns/<name>/index.ts`). Node-only in `<name>/node.ts`, browser-only in `<name>/browser.ts`.
+  - `compat/` — framework adapters: NestJS (Phase 5+)
+- `packages/parity-tests/` — cross-impl parity scenarios (vitest `describe.each([legacyImpl, rustImpl])`). Currently legacy-only; the rust arm activates when `@graphrefly/native` publishes. See `packages/parity-tests/README.md` for the per-Rust-milestone surface widening schedule.
+- `packages/cli`, `packages/mcp-server` — workspace consumers of `@graphrefly/graphrefly`. Their vitest configs alias `@graphrefly/graphrefly` directly to `packages/legacy-pure-ts/src/index.ts` (the shim is just re-exports; nothing new to test through it).
+
+The cleave is governed by Phase 13.9.A in `docs/implementation-plan.md` and Part 12 of `archive/docs/SESSION-rust-port-architecture.md`. Sunset trigger (Q4): on 1.0 ship with parity stable across N consecutive zero-divergence releases, `git mv packages/legacy-pure-ts → archive/legacy-pure-ts/` and the shim drops the legacy fallback.
 
 ### Browser / Node / Universal subpath convention (TS)
 
@@ -79,7 +91,7 @@ Public TS APIs are split into three tiers so browser and Node consumers pull onl
 - **Node-only** (`@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/patterns/<domain>/node`) — may import `node:*`. Use for `fileStorage`, `sqliteStorage`, `fromGitHook`, `fromFSWatch`, the node `fallbackAdapter` variant, etc.
 - **Browser-only** (`@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/patterns/<domain>/browser`) — may use DOM globals. Use for `indexedDbStorage`, `webllmAdapter`, `chromeNanoAdapter`, browser cascade presets.
 
-The build enforces this via `assertBrowserSafeBundles` in `tsup.config.ts` `onSuccess` — any universal entry that transitively imports a Node builtin fails the build with a `via X → Y → Z` chain. Adding a new subpath requires updating `tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` when Node-only) AND `package.json` `exports`. See `docs/docs-guidance.md` § "Browser / Node / Universal split" for the full convention.
+The build enforces this via `assertBrowserSafeBundles` in `packages/legacy-pure-ts/tsup.config.ts` `onSuccess` — any universal entry that transitively imports a Node builtin fails the build with a `via X → Y → Z` chain. Adding a new subpath requires updating BOTH `packages/legacy-pure-ts/tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` when Node-only) AND `packages/legacy-pure-ts/package.json` `exports`, then mirroring the entry in the root shim (`tsup.config.ts` + `package.json` `exports` + a one-liner `src/<subpath>.ts`). See `docs/docs-guidance.md` § "Browser / Node / Universal split" for the full convention.
 
 **Python (`graphrefly-py`):**
 - `src/graphrefly/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)

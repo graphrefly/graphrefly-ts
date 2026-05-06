@@ -1,0 +1,574 @@
+{
+	"name": "@graphrefly/legacy-pure-ts",
+	"version": "0.44.0",
+	"description": "Frozen pure-TypeScript implementation of GraphReFly. Parity oracle for the Rust port; not for new feature work. See README.",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/graphrefly/graphrefly-ts",
+		"directory": "packages/legacy-pure-ts"
+	},
+	"bugs": {
+		"url": "https://github.com/graphrefly/graphrefly-ts/issues"
+	},
+	"homepage": "https://graphrefly.dev",
+	"type": "module",
+	"sideEffects": false,
+	"main": "dist/index.cjs",
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		},
+		"./core": {
+			"import": {
+				"types": "./dist/core/index.d.ts",
+				"default": "./dist/core/index.js"
+			},
+			"require": {
+				"types": "./dist/core/index.d.cts",
+				"default": "./dist/core/index.cjs"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./dist/testing/index.d.ts",
+				"default": "./dist/testing/index.js"
+			},
+			"require": {
+				"types": "./dist/testing/index.d.cts",
+				"default": "./dist/testing/index.cjs"
+			}
+		},
+		"./extra": {
+			"import": {
+				"types": "./dist/extra/index.d.ts",
+				"default": "./dist/extra/index.js"
+			},
+			"require": {
+				"types": "./dist/extra/index.d.cts",
+				"default": "./dist/extra/index.cjs"
+			}
+		},
+		"./extra/node": {
+			"import": {
+				"types": "./dist/extra/node.d.ts",
+				"default": "./dist/extra/node.js"
+			},
+			"require": {
+				"types": "./dist/extra/node.d.cts",
+				"default": "./dist/extra/node.cjs"
+			}
+		},
+		"./extra/browser": {
+			"import": {
+				"types": "./dist/extra/browser.d.ts",
+				"default": "./dist/extra/browser.js"
+			},
+			"require": {
+				"types": "./dist/extra/browser.d.cts",
+				"default": "./dist/extra/browser.cjs"
+			}
+		},
+		"./extra/sources": {
+			"import": {
+				"types": "./dist/extra/sources.d.ts",
+				"default": "./dist/extra/sources.js"
+			},
+			"require": {
+				"types": "./dist/extra/sources.d.cts",
+				"default": "./dist/extra/sources.cjs"
+			}
+		},
+		"./extra/operators": {
+			"import": {
+				"types": "./dist/extra/operators.d.ts",
+				"default": "./dist/extra/operators.js"
+			},
+			"require": {
+				"types": "./dist/extra/operators.d.cts",
+				"default": "./dist/extra/operators.cjs"
+			}
+		},
+		"./extra/reactive": {
+			"import": {
+				"types": "./dist/extra/reactive.d.ts",
+				"default": "./dist/extra/reactive.js"
+			},
+			"require": {
+				"types": "./dist/extra/reactive.d.cts",
+				"default": "./dist/extra/reactive.cjs"
+			}
+		},
+		"./extra/storage-core": {
+			"import": {
+				"types": "./dist/extra/storage-core.d.ts",
+				"default": "./dist/extra/storage-core.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-core.d.cts",
+				"default": "./dist/extra/storage-core.cjs"
+			}
+		},
+		"./extra/storage-node": {
+			"import": {
+				"types": "./dist/extra/storage-node.d.ts",
+				"default": "./dist/extra/storage-node.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-node.d.cts",
+				"default": "./dist/extra/storage-node.cjs"
+			}
+		},
+		"./extra/storage-browser": {
+			"import": {
+				"types": "./dist/extra/storage-browser.d.ts",
+				"default": "./dist/extra/storage-browser.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-browser.d.cts",
+				"default": "./dist/extra/storage-browser.cjs"
+			}
+		},
+		"./extra/storage-tiers": {
+			"import": {
+				"types": "./dist/extra/storage-tiers.d.ts",
+				"default": "./dist/extra/storage-tiers.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-tiers.d.cts",
+				"default": "./dist/extra/storage-tiers.cjs"
+			}
+		},
+		"./extra/storage-tiers-node": {
+			"import": {
+				"types": "./dist/extra/storage-tiers-node.d.ts",
+				"default": "./dist/extra/storage-tiers-node.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-tiers-node.d.cts",
+				"default": "./dist/extra/storage-tiers-node.cjs"
+			}
+		},
+		"./extra/storage-tiers-browser": {
+			"import": {
+				"types": "./dist/extra/storage-tiers-browser.d.ts",
+				"default": "./dist/extra/storage-tiers-browser.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-tiers-browser.d.cts",
+				"default": "./dist/extra/storage-tiers-browser.cjs"
+			}
+		},
+		"./extra/render": {
+			"import": {
+				"types": "./dist/extra/render/index.d.ts",
+				"default": "./dist/extra/render/index.js"
+			},
+			"require": {
+				"types": "./dist/extra/render/index.d.cts",
+				"default": "./dist/extra/render/index.cjs"
+			}
+		},
+		"./graph": {
+			"import": {
+				"types": "./dist/graph/index.d.ts",
+				"default": "./dist/graph/index.js"
+			},
+			"require": {
+				"types": "./dist/graph/index.d.cts",
+				"default": "./dist/graph/index.cjs"
+			}
+		},
+		"./compat": {
+			"import": {
+				"types": "./dist/compat/index.d.ts",
+				"default": "./dist/compat/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/index.d.cts",
+				"default": "./dist/compat/index.cjs"
+			}
+		},
+		"./compat/jotai": {
+			"import": {
+				"types": "./dist/compat/jotai/index.d.ts",
+				"default": "./dist/compat/jotai/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/jotai/index.d.cts",
+				"default": "./dist/compat/jotai/index.cjs"
+			}
+		},
+		"./compat/nanostores": {
+			"import": {
+				"types": "./dist/compat/nanostores/index.d.ts",
+				"default": "./dist/compat/nanostores/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/nanostores/index.d.cts",
+				"default": "./dist/compat/nanostores/index.cjs"
+			}
+		},
+		"./compat/zustand": {
+			"import": {
+				"types": "./dist/compat/zustand/index.d.ts",
+				"default": "./dist/compat/zustand/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/zustand/index.d.cts",
+				"default": "./dist/compat/zustand/index.cjs"
+			}
+		},
+		"./compat/react": {
+			"import": {
+				"types": "./dist/compat/react/index.d.ts",
+				"default": "./dist/compat/react/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/react/index.d.cts",
+				"default": "./dist/compat/react/index.cjs"
+			}
+		},
+		"./compat/vue": {
+			"import": {
+				"types": "./dist/compat/vue/index.d.ts",
+				"default": "./dist/compat/vue/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/vue/index.d.cts",
+				"default": "./dist/compat/vue/index.cjs"
+			}
+		},
+		"./compat/svelte": {
+			"import": {
+				"types": "./dist/compat/svelte/index.d.ts",
+				"default": "./dist/compat/svelte/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/svelte/index.d.cts",
+				"default": "./dist/compat/svelte/index.cjs"
+			}
+		},
+		"./compat/solid": {
+			"import": {
+				"types": "./dist/compat/solid/index.d.ts",
+				"default": "./dist/compat/solid/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/solid/index.d.cts",
+				"default": "./dist/compat/solid/index.cjs"
+			}
+		},
+		"./compat/nestjs": {
+			"import": {
+				"types": "./dist/compat/nestjs/index.d.ts",
+				"default": "./dist/compat/nestjs/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/nestjs/index.d.cts",
+				"default": "./dist/compat/nestjs/index.cjs"
+			}
+		},
+		"./patterns/ai": {
+			"import": {
+				"types": "./dist/patterns/ai/index.d.ts",
+				"default": "./dist/patterns/ai/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/ai/index.d.cts",
+				"default": "./dist/patterns/ai/index.cjs"
+			}
+		},
+		"./patterns/ai/node": {
+			"import": {
+				"types": "./dist/patterns/ai/node.d.ts",
+				"default": "./dist/patterns/ai/node.js"
+			},
+			"require": {
+				"types": "./dist/patterns/ai/node.d.cts",
+				"default": "./dist/patterns/ai/node.cjs"
+			}
+		},
+		"./patterns/ai/browser": {
+			"browser": {
+				"import": {
+					"types": "./dist/patterns/ai/browser.d.ts",
+					"default": "./dist/patterns/ai/browser.js"
+				},
+				"require": {
+					"types": "./dist/patterns/ai/browser.d.cts",
+					"default": "./dist/patterns/ai/browser.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/patterns/ai/browser.d.ts",
+				"default": "./dist/patterns/ai/browser.js"
+			},
+			"require": {
+				"types": "./dist/patterns/ai/browser.d.cts",
+				"default": "./dist/patterns/ai/browser.cjs"
+			}
+		},
+		"./patterns/cqrs": {
+			"import": {
+				"types": "./dist/patterns/cqrs/index.d.ts",
+				"default": "./dist/patterns/cqrs/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/cqrs/index.d.cts",
+				"default": "./dist/patterns/cqrs/index.cjs"
+			}
+		},
+		"./patterns/demo-shell": {
+			"import": {
+				"types": "./dist/patterns/demo-shell/index.d.ts",
+				"default": "./dist/patterns/demo-shell/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/demo-shell/index.d.cts",
+				"default": "./dist/patterns/demo-shell/index.cjs"
+			}
+		},
+		"./patterns/domain-templates": {
+			"import": {
+				"types": "./dist/patterns/domain-templates/index.d.ts",
+				"default": "./dist/patterns/domain-templates/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/domain-templates/index.d.cts",
+				"default": "./dist/patterns/domain-templates/index.cjs"
+			}
+		},
+		"./patterns/graphspec": {
+			"import": {
+				"types": "./dist/patterns/graphspec/index.d.ts",
+				"default": "./dist/patterns/graphspec/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/graphspec/index.d.cts",
+				"default": "./dist/patterns/graphspec/index.cjs"
+			}
+		},
+		"./patterns/harness": {
+			"import": {
+				"types": "./dist/patterns/harness/index.d.ts",
+				"default": "./dist/patterns/harness/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/harness/index.d.cts",
+				"default": "./dist/patterns/harness/index.cjs"
+			}
+		},
+		"./patterns/inspect": {
+			"import": {
+				"types": "./dist/patterns/inspect/index.d.ts",
+				"default": "./dist/patterns/inspect/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/inspect/index.d.cts",
+				"default": "./dist/patterns/inspect/index.cjs"
+			}
+		},
+		"./patterns/job-queue": {
+			"import": {
+				"types": "./dist/patterns/job-queue/index.d.ts",
+				"default": "./dist/patterns/job-queue/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/job-queue/index.d.cts",
+				"default": "./dist/patterns/job-queue/index.cjs"
+			}
+		},
+		"./patterns/memory": {
+			"import": {
+				"types": "./dist/patterns/memory/index.d.ts",
+				"default": "./dist/patterns/memory/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/memory/index.d.cts",
+				"default": "./dist/patterns/memory/index.cjs"
+			}
+		},
+		"./patterns/messaging": {
+			"import": {
+				"types": "./dist/patterns/messaging/index.d.ts",
+				"default": "./dist/patterns/messaging/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/messaging/index.d.cts",
+				"default": "./dist/patterns/messaging/index.cjs"
+			}
+		},
+		"./patterns/orchestration": {
+			"import": {
+				"types": "./dist/patterns/orchestration/index.d.ts",
+				"default": "./dist/patterns/orchestration/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/orchestration/index.d.cts",
+				"default": "./dist/patterns/orchestration/index.cjs"
+			}
+		},
+		"./patterns/process": {
+			"import": {
+				"types": "./dist/patterns/process/index.d.ts",
+				"default": "./dist/patterns/process/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/process/index.d.cts",
+				"default": "./dist/patterns/process/index.cjs"
+			}
+		},
+		"./patterns/reactive-layout": {
+			"import": {
+				"types": "./dist/patterns/reactive-layout/index.d.ts",
+				"default": "./dist/patterns/reactive-layout/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/reactive-layout/index.d.cts",
+				"default": "./dist/patterns/reactive-layout/index.cjs"
+			}
+		},
+		"./patterns/reduction": {
+			"import": {
+				"types": "./dist/patterns/reduction/index.d.ts",
+				"default": "./dist/patterns/reduction/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/reduction/index.d.cts",
+				"default": "./dist/patterns/reduction/index.cjs"
+			}
+		},
+		"./patterns/surface": {
+			"import": {
+				"types": "./dist/patterns/surface/index.d.ts",
+				"default": "./dist/patterns/surface/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/surface/index.d.cts",
+				"default": "./dist/patterns/surface/index.cjs"
+			}
+		},
+		"./patterns/topology-view": {
+			"import": {
+				"types": "./dist/patterns/topology-view/index.d.ts",
+				"default": "./dist/patterns/topology-view/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/topology-view/index.d.cts",
+				"default": "./dist/patterns/topology-view/index.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist",
+		"LICENSE"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"build": "tsup",
+		"test": "vitest run",
+		"bench": "vitest bench",
+		"bench:baseline": "vitest bench --outputJson ../../benchmarks/vitest-baseline.json",
+		"test:watch": "vitest"
+	},
+	"keywords": [
+		"reactive",
+		"graph",
+		"automation",
+		"workflow",
+		"llm",
+		"ai-agents",
+		"harness-engineering",
+		"agent-harness",
+		"causal-trace",
+		"orchestration",
+		"state-management",
+		"signals",
+		"streaming",
+		"observable",
+		"causal-tracing",
+		"human-in-the-loop",
+		"natural-language",
+		"durable-workflow",
+		"framework-agnostic",
+		"react",
+		"vue",
+		"svelte",
+		"nestjs",
+		"zero-dependency"
+	],
+	"license": "MIT",
+	"peerDependencies": {
+		"@nestjs/common": ">=10",
+		"react": ">=18",
+		"react-dom": ">=18",
+		"rxjs": ">=7",
+		"solid-js": ">=1",
+		"svelte": ">=4",
+		"vue": ">=3"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		},
+		"react-dom": {
+			"optional": true
+		},
+		"solid-js": {
+			"optional": true
+		},
+		"svelte": {
+			"optional": true
+		},
+		"vue": {
+			"optional": true
+		},
+		"@nestjs/common": {
+			"optional": true
+		},
+		"rxjs": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@anthropic-ai/sdk": "^0.82.0",
+		"@google/genai": "^1.48.0",
+		"@nestjs/common": "^11.1.17",
+		"@nestjs/core": "^11.1.17",
+		"@nestjs/platform-express": "^11.1.18",
+		"@nestjs/platform-ws": "^11.1.18",
+		"@nestjs/testing": "^11.1.17",
+		"@nestjs/websockets": "^11.1.18",
+		"@solidjs/testing-library": "^0.8.10",
+		"@testing-library/react": "^16.3.2",
+		"@testing-library/svelte": "^5.3.1",
+		"@testing-library/vue": "^8.1.0",
+		"@types/node": "^25.5.0",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"fast-check": "^4.7.0",
+		"jsdom": "^29.0.1",
+		"openai": "^6.34.0",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4",
+		"reflect-metadata": "^0.2.2",
+		"rxjs": "^7.8.2",
+		"solid-js": "^1.9.12",
+		"svelte": "^5.55.1",
+		"tsup": "^8.5.1",
+		"typescript": "^5.7.0",
+		"vitest": "^3.0.0",
+		"vue": "^3.5.31"
+	}
+}

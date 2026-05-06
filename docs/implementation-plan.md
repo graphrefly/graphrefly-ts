@@ -1487,14 +1487,14 @@ Default: pause again, integrate findings into DS-14 design when it opens.
 - 1.0 ship → sunset trigger.
 
 **Acceptance bar for Phase 13.9.A close:**
-- `packages/legacy-pure-ts/` exists with full surface ported via `git mv` (history preserved).
-- `@graphrefly/graphrefly` published as a shim re-exporting legacy-pure-ts (so existing consumers' install is unchanged at the cleave moment).
-- `packages/parity-tests/` parameterized vitest runner exists with at least the M1 + M2-Slice-D scenarios (Core dispatcher + Graph container) running against both impls and green.
-- CI gate active: parity job blocks main-branch merges.
-- `~/src/graphrefly-rs/docs/migration-status.md` updated with the per-milestone parity-checkpoint column.
+- `packages/legacy-pure-ts/` exists with full surface ported via `git mv` (history preserved). ✅ landed 2026-05-05.
+- `@graphrefly/graphrefly` published as a shim re-exporting legacy-pure-ts (so existing consumers' install is unchanged at the cleave moment). ✅ landed 2026-05-05.
+- `packages/parity-tests/` parameterized vitest runner exists with at least the M1 + M2-Slice-D scenarios (Core dispatcher + Graph container) running against both impls and green. **Partially landed 2026-05-05** — scaffold + M1 dispatcher scenario green against `legacyImpl`. The `rustImpl` arm activates when `@graphrefly/native` publishes its package shape (currently only a Cargo crate at `~/src/graphrefly-rs/crates/graphrefly-bindings-js/`; no `package.json`, no per-platform sub-packages). Tracked in `docs/optimizations.md` § "Phase 13.9 follow-on: rustImpl arm + CI gate".
+- CI gate active: parity job blocks main-branch merges. **Deferred** until `rustImpl` arm activates — until then, `pnpm test:parity` with one impl arm is equivalent to running narrow scenarios against legacy-pure-ts only, which the workspace `pnpm test` already covers. No incremental signal; no separate job needed yet. Tracked in `docs/optimizations.md` (same item).
+- `~/src/graphrefly-rs/docs/migration-status.md` updated with the per-milestone parity-checkpoint column. **Pending** in `graphrefly-rs/` (separate repo, separate session).
 
 **Acceptance bar for Phase 13.9.B close:**
-- Rigor-infra Project 2 contract-trace harness has shipped (gate dependency).
+- Rigor-infra Project 2 contract-trace harness has shipped (gate dependency). **Currently DEFERRED** per `archive/docs/SESSION-rigor-infrastructure-plan.md` § Project 2 — Phase 13.9.B cannot proceed until that harness lands.
 - `packages/parity-tests/scenarios/*` migrated from `describe.each` parameterized runner to trace-record / trace-replay shape.
 - Parameterized runner scaffolding deleted.
 - Same parity-job CI gate, now driven by trace-replay.

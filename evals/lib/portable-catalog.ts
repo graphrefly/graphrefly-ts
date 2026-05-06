@@ -19,12 +19,12 @@
  * the Run-4 gap analysis that motivates Treatment D additions.
  */
 
-import { node } from "../../src/core/node.js";
+import { node } from "../../packages/legacy-pure-ts/src/core/node.js";
 import type {
 	CatalogFnEntry,
 	CatalogSourceEntry,
 	GraphSpecCatalog,
-} from "../../src/patterns/graphspec/index.js";
+} from "../../packages/legacy-pure-ts/src/patterns/graphspec/index.js";
 
 // ---------------------------------------------------------------------------
 // Tag constants — section headers, matched exactly to the manual prompt

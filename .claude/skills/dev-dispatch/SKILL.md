@@ -29,15 +29,15 @@ Read in parallel:
 - `docs/test-guidance.md` — checklist for the relevant layer (core protocol, node, graph, extra)
 - `docs/roadmap.md` — **vision / wave context only** (no longer the sequencer per 2026-04-30 migration — implementation-plan.md is canonical). Read for the strategic frame on a feature, not to find what's next.
 - Any files the user referenced in $ARGUMENTS
-- Relevant source files in the area you'll modify (TS: `src/`, PY: `~/src/graphrefly-py/src/graphrefly/`)
-- Existing tests for the area (TS: `src/__tests__/`, PY: `~/src/graphrefly-py/tests/`)
+- Relevant source files in the area you'll modify (TS: `packages/legacy-pure-ts/src/`, PY: `~/src/graphrefly-py/src/graphrefly/`)
+- Existing tests for the area (TS: `packages/legacy-pure-ts/src/__tests__/`, PY: `~/src/graphrefly-py/tests/`)
 
-**Mandatory for patterns/ work:** If the task touches any file in `src/patterns/` or `src/compat/`, reading `~/src/graphrefly/COMPOSITION-GUIDE.md` is **mandatory**, not optional. The harness, orchestration, messaging, and all Phase 4+ code are composed factories — modifying their tests or implementation requires understanding composition patterns (lazy activation, subscription ordering, feedback cycles, SENTINEL gate).
+**Mandatory for patterns/ work:** If the task touches any file in `packages/legacy-pure-ts/src/patterns/` or `packages/legacy-pure-ts/src/compat/`, reading `~/src/graphrefly/COMPOSITION-GUIDE.md` is **mandatory**, not optional. The harness, orchestration, messaging, and all Phase 4+ code are composed factories — modifying their tests or implementation requires understanding composition patterns (lazy activation, subscription ordering, feedback cycles, SENTINEL gate).
 
 **Roadmap §2.3 (sources & sinks):** implement as thin wrappers over the **`node` primitive** (`node`, `producer`, `derived`, `effect`) and the message protocol — no parallel source/sink protocol outside `node`.
 
 While planning, explicitly validate proposed changes against these invariants (from the spec and roadmap):
-- **Tier placement (TS)** — every new TS public symbol picks a tier: **universal** (default, browser + Node safe), **node-only** (`<x>/node` subpath, may import `node:*`), or **browser-only** (`<x>/browser` subpath, may use DOM globals). See `docs/docs-guidance.md` § "Browser / Node / Universal split". If the symbol imports `node:fs`, `node:path`, `node:crypto`, `node:sqlite`, `node:child_process`, etc., it belongs in `<x>/node` — NOT in the universal barrel. If it imports `window` / `document` / `indexedDB` / DOM types, it belongs in `<x>/browser`. Adding a new subpath means updating `tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` for node-only) AND `package.json` `exports`.
+- **Tier placement (TS)** — every new TS public symbol picks a tier: **universal** (default, browser + Node safe), **node-only** (`<x>/node` subpath, may import `node:*`), or **browser-only** (`<x>/browser` subpath, may use DOM globals). See `docs/docs-guidance.md` § "Browser / Node / Universal split". If the symbol imports `node:fs`, `node:path`, `node:crypto`, `node:sqlite`, `node:child_process`, etc., it belongs in `<x>/node` — NOT in the universal barrel. If it imports `window` / `document` / `indexedDB` / DOM types, it belongs in `<x>/browser`. Adding a new subpath means updating `packages/legacy-pure-ts/tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` for node-only) AND `packages/legacy-pure-ts/package.json` `exports`.
 - **Control flows through the graph** — lifecycle and coordination use messages and topology, not imperative bypasses around the graph (spec §5.1).
 - **Messages are always** `[[Type, Data?], ...]` — no single-message shorthand.
 - **DIRTY before DATA/RESOLVED** in the same logical update where two-phase push applies; **batch** defers DATA, not DIRTY.
@@ -64,7 +64,7 @@ Do NOT start implementing yet.
 
 **HALT and report to the user before implementing.** Present:
 
-1. **Architecture assumptions** — how this fits into `src/core/`, `src/graph/`, `src/extra/`
+1. **Architecture assumptions** — how this fits into `packages/legacy-pure-ts/src/core/`, `packages/legacy-pure-ts/src/graph/`, `packages/legacy-pure-ts/src/extra/`
 2. **New patterns** — any new patterns not yet in this repo
 3. **Options considered** — alternatives with pros/cons
 4. **Recommendation** — preferred approach and why
@@ -101,10 +101,10 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
    - Treat `~/src/graphrefly/GRAPHREFLY-SPEC.md` as non-negotiable for behavior
    - If existing code drifts from the spec, align toward the spec as part of the change
 2. Create tests following `docs/test-guidance.md`:
-   - Put tests in the most specific existing file under `src/__tests__/` (or colocated `*.test.ts` per project convention)
+   - Put tests in the most specific existing file under `packages/legacy-pure-ts/src/__tests__/` (or colocated `*.test.ts` per project convention)
    - Use **`Graph.observe()`** / **`graph.observe()`** for live message assertions when the Graph API exists; until then, test at the **node** and **message** level per test-guidance
 3. Run checks:
-   - **TS:** `pnpm test` — and when the change touches `src/extra/` or `src/patterns/<x>/`, also `pnpm run build` so the post-build `assertBrowserSafeBundles` guardrail catches any Node-builtin that leaked into a universal entry.
+   - **TS:** `pnpm test` — and when the change touches `packages/legacy-pure-ts/src/extra/` or `packages/legacy-pure-ts/src/patterns/<x>/`, also `pnpm run build` so the post-build `assertBrowserSafeBundles` guardrail catches any Node-builtin that leaked into a universal entry.
    - **PY:** `cd ~/src/graphrefly-py && uv run pytest && uv run ruff check src/ tests/ && uv run mypy src/`
 4. Fix any failures
 

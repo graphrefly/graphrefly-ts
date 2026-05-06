@@ -23,8 +23,8 @@ Determine scope from $ARGUMENTS:
 
 Read in parallel:
 - **Operational docs (this repo):** `docs/implementation-plan.md` (canonical pre-1.0 sequencer; the matching phase tells you what's locked vs in-flight), `docs/optimizations.md` (active items + deferred, line-item state for `[py-parity-*]` carries), `archive/optimizations/*.jsonl` (cross-language notes, resolved decisions — search with `grep`), `docs/roadmap.md` (vision context only; do NOT use as the sequencer), `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
-- **Composition guide:** `~/src/graphrefly/COMPOSITION-GUIDE.md` — **mandatory** when the scoped area includes `src/patterns/` or `src/compat/` in either repo. Composed factories require understanding lazy activation, subscription ordering, null guards, wiring order, feedback cycles, and SENTINEL gate patterns.
-- **TS source:** `src/` and `src/__tests__/` in the scoped area
+- **Composition guide:** `~/src/graphrefly/COMPOSITION-GUIDE.md` — **mandatory** when the scoped area includes `packages/legacy-pure-ts/src/patterns/` or `packages/legacy-pure-ts/src/compat/` in either repo. Composed factories require understanding lazy activation, subscription ordering, null guards, wiring order, feedback cycles, and SENTINEL gate patterns.
+- **TS source:** `packages/legacy-pure-ts/src/` and `packages/legacy-pure-ts/src/__tests__/` in the scoped area
 - **PY source:** `~/src/graphrefly-py/src/graphrefly/` and `~/src/graphrefly-py/tests/` in the scoped area
 
 **Important:** Read `archive/optimizations/cross-language-notes.jsonl` entries with `id` prefix `divergence-`. These are **confirmed intentional divergences** — do NOT re-raise them as parity gaps or QA findings. Filter them out before presenting results.

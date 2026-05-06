@@ -1,10 +1,3 @@
-/**
- * Storage tier interfaces and shared in-memory backends. Moved into `./storage/tiers.ts` per consolidation
- * plan §2 (Phase 12.B).
- *
- * Public-facing source of truth is `./storage/tiers.ts`. This shim
- * preserves the legacy `src/extra/storage-tiers.ts` import path so internal
- * and external consumers do not have to migrate.
- */
-
-export * from "./storage/tiers.js";
+// Phase 13.9.A shim — re-export from frozen pure-TS oracle until
+// @graphrefly/native (napi binding) and per-milestone swap-overs land.
+export * from "@graphrefly/legacy-pure-ts/extra/storage-tiers";

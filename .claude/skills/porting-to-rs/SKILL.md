@@ -57,9 +57,10 @@ These supersede / consolidate the multi-file TS authority for Rust port purposes
 - **`archive/docs/SESSION-rust-port-architecture.md`** — the migration plan: 6-milestone phasing, layer-by-layer port recommendation, deferral guardrails. Read FIRST when picking up port work in a new area.
 - **`docs/research/handle-protocol.tla` + `handle_protocol_MC.tla`** — TLA+ refinement of `wave_protocol.tla` over the handle abstraction. The Rust port must satisfy the same invariants.
 - **`docs/research/handle-protocol-audit-input.md`** — per-rule classification (which 13.6 invariants are Core-internal vs binding-layer). Use as the layer-classification key during M1–M5.
-- **`src/__experiments__/handle-core/core.ts` + `bindings.ts`** — TS prototype reference impl (~370 lines each, 22 invariant tests). The Rust port mirrors this module-for-module for the M1 dispatcher slice.
-- **`src/core/node.ts` + supporting files** — TS production dispatcher. Reference for parity behavior, NOT for code structure (the Rust port follows the canonical spec, not the current TS shape — see §11 Implementation Deltas).
-- **`docs/implementation-plan.md`** Phase 13.7 / 13.8 — Rust M1 bench feasibility study + TS rewire integration tests. Cross-reference for what bench data exists / what's been tested in TS.
+- **`packages/legacy-pure-ts/src/__experiments__/handle-core/core.ts` + `bindings.ts`** — TS prototype reference impl (~370 lines each, 22 invariant tests). The Rust port mirrors this module-for-module for the M1 dispatcher slice. (Post-Phase-13.9.A cleave: the pure-TS impl moved from root `src/` to `packages/legacy-pure-ts/src/`. The root `src/` is now the `@graphrefly/graphrefly` shim — re-exports only, no logic.)
+- **`packages/legacy-pure-ts/src/core/node.ts` + supporting files** — TS production dispatcher. Reference for parity behavior, NOT for code structure (the Rust port follows the canonical spec, not the current TS shape — see §11 Implementation Deltas).
+- **`packages/parity-tests/`** — cross-impl parity scenarios (Phase 13.9.A). When a Rust slice closes a milestone listed in `packages/parity-tests/README.md` schedule (M1 dispatcher, M2 Slice E Graph, M3 operators, M4 storage, M5 structures), the slice should ALSO add corresponding scenarios to `packages/parity-tests/scenarios/<layer>/<feature>.test.ts` parameterized via `describe.each(impls)`. The `rustImpl` arm currently exports `null` and activates when `@graphrefly/native` (the napi binding) publishes its package shape — until then, scenarios run against `legacyImpl` only but the structural parameterization is in place.
+- **`docs/implementation-plan.md`** Phase 13.7 / 13.8 / 13.9 — Rust M1 bench feasibility study + TS rewire integration tests + the parity oracle cleave. Cross-reference for what bench data exists / what's been tested in TS / how the cleaved package architecture works.
 
 ### Rust workspace layout
 
@@ -158,6 +159,18 @@ Do NOT consider backward compatibility at this early stage (pre-1.0).
 
 **Cross-repo decision log:** If Phase 1–2 surface an architectural or product-level question (canonical-spec ambiguity, parity divergence, refcount discipline gap), record it under "Active work items" in `docs/optimizations.md` (the graphrefly-ts source of truth for cross-language decisions). Rust-specific deferrals go in `~/src/graphrefly-rs/docs/porting-deferred.md`. Mark cross-references both ways.
 
+**Decision logging:** For each question you ask during HALT, after the user answers, append the decision to `docs/rust-port-decisions.md` using the format:
+
+```markdown
+### DXXX — [short title]
+- **Date:** YYYY-MM-DD
+- **Context:** [what prompted the question]
+- **Options:** A) … B) … C) …
+- **Decision:** [what user chose]
+- **Rationale:** [why]
+- **Affects:** [which modules/milestones]
+```
+
 **Wait for user approval before proceeding.**
 
 ### Light mode — Skip unless escalation needed
@@ -220,7 +233,18 @@ cd crates/graphrefly-bindings-wasm && wasm-pack build
 
 Fix any failures. **Do NOT use `--workspace`** for `cargo build` / `cargo test` unless you have all binding toolchains installed — the workspace excludes bindings from default-members for this reason.
 
-### 3d. Document the slice
+### 3d. Widen the parity-test surface (when slice closes a milestone or adds public API)
+
+If the slice closes (or partially fills) a milestone row in the `packages/parity-tests/README.md` schedule table, add cross-impl scenarios under `~/src/graphrefly-ts/packages/parity-tests/scenarios/<layer>/`:
+
+1. Pick the layer subfolder (`scenarios/core/` for M1 dispatcher, `scenarios/graph/` for M2 Slice E, `scenarios/operators/` for M3, etc. — create the folder if needed).
+2. Write the scenario as `describe.each(impls)("<rule-id> parity — $name", (impl) => { test(...); })`. Reference symbols only via `impl.<name>`, not direct imports — that's what makes the scenario impl-agnostic.
+3. If the scenario references new symbols not yet in `packages/parity-tests/impls/types.ts` `Impl`, widen the interface (and provide the field on `legacyImpl` in `impls/legacy.ts`). Until `@graphrefly/native` publishes, `rustImpl` is `null` and scenarios only run against `legacyImpl` — but the parameterization stays in place so activation only requires a one-line `rust.ts` flip.
+4. Test: `pnpm --filter @graphrefly/parity-tests test`. Scenario must pass against `legacyImpl`. When `rustImpl` activates later, mismatches fail loud.
+
+**Skip this step** if the slice is an internal refactor that doesn't change public surface (e.g., a §10 perf simplification under an unchanged API). The parity-tests layer is for surface-visible behavior, not internals.
+
+### 3e. Document the slice
 
 Update both Rust-side operational docs as the work lands:
 
@@ -240,9 +264,38 @@ Update both Rust-side operational docs as the work lands:
 
 4. **TS-side `docs/optimizations.md`** — only when the slice surfaces a cross-language design question that needs to be tracked alongside TS / PY work. Rust-only deferrals go in `porting-deferred.md`, not `optimizations.md`.
 
-### 3e. Closing the slice
+### 3f. Closing the slice
 
-When done:
+When done, produce these deliverables:
+
+**A. Behavioral trace table** — for each new/changed module, show a plain-English table:
+
+```
+Module: [name] (milestone)
+Scenario: [description of the most representative scenario]
+
+Step | Event              | Internal state change        | Observable output
+1    | ...                | ...                          | ...
+```
+
+The user verifies this against the spec without reading Rust. If the trace is correct AND parity tests pass, the impl is correct.
+
+**B. Simplification delta** — table showing what the Rust version does differently from TS:
+
+| TS pattern | Rust replacement | Why simpler / Why different |
+|---|---|---|
+
+Flag any entry where Rust is MORE complex than TS — that's a potential over-engineering signal.
+
+**C. Deferred item stubs** — for each new deferred item, confirm a `#[ignore]` test exists in the Rust source:
+
+```rust
+#[test]
+#[ignore = "deferred: <description> (<spec ref>)"]
+fn <test_name>() { /* impl when feature lands */ }
+```
+
+**D. Standard closing checklist:**
 
 1. List files changed and new public types / methods added.
 2. Cite the migration-status.md row this slice closes (or moves toward closing).
@@ -266,5 +319,6 @@ If implementation **closes a Rust-side milestone-pre-condition** in `docs/implem
 3. Read porting-deferred.md to know what NOT to re-introduce
 4. (Full mode) Halt with architecture proposal citing R<x.y.z> rules
 5. (User approval) Implement + tests + clippy + fmt
-6. Update migration-status.md + porting-deferred.md
-7. Suggest `/qa`
+6. **If the slice closes a milestone or adds public API:** widen `~/src/graphrefly-ts/packages/parity-tests/scenarios/<layer>/` with new `describe.each(impls)` scenarios; verify `pnpm --filter @graphrefly/parity-tests test` green
+7. Update migration-status.md + porting-deferred.md
+8. Suggest `/qa`

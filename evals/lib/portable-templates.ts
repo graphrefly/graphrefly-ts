@@ -17,11 +17,11 @@
  * full motivation and `docs/roadmap.md` §9.1.2 (Treatment D prerequisites).
  */
 
-import { factoryTag } from "../../src/core/meta.js";
+import { factoryTag } from "../../packages/legacy-pure-ts/src/core/meta.js";
 import type {
 	GraphSpecFeedbackEdge,
 	GraphSpecTemplate,
-} from "../../src/patterns/graphspec/index.js";
+} from "../../packages/legacy-pure-ts/src/patterns/graphspec/index.js";
 
 export const resilientFetchTemplate: GraphSpecTemplate = {
 	params: ["$source"],
