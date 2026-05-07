@@ -53,4 +53,17 @@ export interface Impl {
 	readonly combine: typeof legacy.combine;
 	readonly withLatestFrom: typeof legacy.withLatestFrom;
 	readonly merge: typeof legacy.merge;
+
+	// M3 Slice C-3 — flow operators (Rust port: `graphrefly-operators`,
+	// landed 2026-05-06 per `~/src/graphrefly-rs/docs/migration-status.md`).
+	// TS legacy from `packages/legacy-pure-ts/src/extra/operators/take.ts`.
+	// `takeUntil` is intentionally NOT included — Rust port defers it to a
+	// later subscription-managed slice (D020 category B).
+	readonly take: typeof legacy.take;
+	readonly skip: typeof legacy.skip;
+	readonly takeWhile: typeof legacy.takeWhile;
+	readonly last: typeof legacy.last;
+	readonly first: typeof legacy.first;
+	readonly find: typeof legacy.find;
+	readonly elementAt: typeof legacy.elementAt;
 }
