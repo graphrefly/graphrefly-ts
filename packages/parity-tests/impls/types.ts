@@ -57,8 +57,6 @@ export interface Impl {
 	// M3 Slice C-3 — flow operators (Rust port: `graphrefly-operators`,
 	// landed 2026-05-06 per `~/src/graphrefly-rs/docs/migration-status.md`).
 	// TS legacy from `packages/legacy-pure-ts/src/extra/operators/take.ts`.
-	// `takeUntil` is intentionally NOT included — Rust port defers it to a
-	// later subscription-managed slice (D020 category B).
 	readonly take: typeof legacy.take;
 	readonly skip: typeof legacy.skip;
 	readonly takeWhile: typeof legacy.takeWhile;
@@ -66,4 +64,16 @@ export interface Impl {
 	readonly first: typeof legacy.first;
 	readonly find: typeof legacy.find;
 	readonly elementAt: typeof legacy.elementAt;
+
+	// M3 Slice D-ops — subscription-managed combinators (Rust port:
+	// `graphrefly-operators::ops_impl`, landed 2026-05-06 per
+	// `~/src/graphrefly-rs/docs/migration-status.md`). TS legacy from
+	// `packages/legacy-pure-ts/src/extra/operators/combine.ts` (zip /
+	// concat / race) and `take.ts` (takeUntil). All four are
+	// producer-shape ops that subscribe to upstream sources from inside
+	// their fn body.
+	readonly zip: typeof legacy.zip;
+	readonly concat: typeof legacy.concat;
+	readonly race: typeof legacy.race;
+	readonly takeUntil: typeof legacy.takeUntil;
 }

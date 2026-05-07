@@ -7,6 +7,7 @@
 import {
 	COMPLETE,
 	combine,
+	concat,
 	DATA,
 	DIRTY,
 	distinctUntilChanged,
@@ -23,6 +24,7 @@ import {
 	node,
 	PAUSE,
 	pairwise,
+	race,
 	RESOLVED,
 	RESUME,
 	reduce,
@@ -30,8 +32,10 @@ import {
 	skip,
 	TEARDOWN,
 	take,
+	takeUntil,
 	takeWhile,
 	withLatestFrom,
+	zip,
 } from "@graphrefly/legacy-pure-ts";
 import type { Impl } from "./types.js";
 
@@ -64,4 +68,8 @@ export const legacyImpl: Impl = {
 	first,
 	find,
 	elementAt,
+	zip,
+	concat,
+	race,
+	takeUntil,
 };
