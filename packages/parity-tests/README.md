@@ -12,7 +12,9 @@ Parameterized vitest runner via `describe.each(impls)`. The set of impls in
 | Phase 13.9.A cleave (now) | `[legacyImpl]` | rust arm deferred until `@graphrefly/native` publishes |
 | `@graphrefly/native` first publish | `[legacyImpl, rustImpl]` | activates per-Rust-milestone surface coverage below |
 | M2 Slice E close (Graph container) | + Graph constructor, mount/unmount, describe, observe, snapshot scenarios | shim swap-over for Graph topology |
-| M3 close | + `extra/operators/*` scenarios | shim swap-over for operators |
+| M3 Slice C-1 transform (landed 2026-05-06) | + `scenarios/operators/transform.test.ts` (8 scenarios — map/filter/scan/reduce/distinctUntilChanged/pairwise) | substrate landed in `graphrefly-operators`; rust arm activates with napi operator wiring |
+| M3 Slice C-2 combinator (landed 2026-05-06) | + `scenarios/operators/combine.test.ts` (6 scenarios — combine/withLatestFrom/merge) | substrate landed in `graphrefly-operators`; rust arm activates with napi operator wiring |
+| M3 close | + remaining operator modules (temporal/flow/switching/gating/resilience) | shim swap-over for operators |
 | M4 close | + storage tier dispatch (Node-only) | shim swap-over for storage |
 | M5 close | + reactive data structures + Phase 14 op-log changesets | shim swap-over for structures |
 | M6 close | + cross-language traces (TS ↔ PY ↔ Rust) | requires Phase 13.9.B harness |

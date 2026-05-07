@@ -19,6 +19,8 @@ export interface Impl {
 	// M1 dispatcher surface
 	readonly node: typeof legacy.node;
 	readonly DATA: typeof legacy.DATA;
+	readonly RESOLVED: typeof legacy.RESOLVED;
+	readonly DIRTY: typeof legacy.DIRTY;
 
 	// M2 Graph surface (added by the M2 parity-tests widening — D6 in
 	// `~/src/graphrefly-rs/docs/porting-deferred.md`).
@@ -31,4 +33,24 @@ export interface Impl {
 	readonly COMPLETE: typeof legacy.COMPLETE;
 	readonly ERROR: typeof legacy.ERROR;
 	readonly TEARDOWN: typeof legacy.TEARDOWN;
+
+	// M3 Slice C-1 — transform operators (Rust port: `graphrefly-operators`,
+	// landed 2026-05-06 per `~/src/graphrefly-rs/docs/migration-status.md`).
+	// TS legacy carries the existing derived-fn shapes from
+	// `packages/legacy-pure-ts/src/extra/operators/transform.ts`. When the
+	// Rust napi binding ships an operator surface, the rustImpl arm wires
+	// these up against the napi factories.
+	readonly map: typeof legacy.map;
+	readonly filter: typeof legacy.filter;
+	readonly scan: typeof legacy.scan;
+	readonly reduce: typeof legacy.reduce;
+	readonly distinctUntilChanged: typeof legacy.distinctUntilChanged;
+	readonly pairwise: typeof legacy.pairwise;
+
+	// M3 Slice C-2 — combinator operators (Rust port: `graphrefly-operators`,
+	// landed 2026-05-06 per `~/src/graphrefly-rs/docs/migration-status.md`).
+	// TS legacy from `packages/legacy-pure-ts/src/extra/operators/combine.ts`.
+	readonly combine: typeof legacy.combine;
+	readonly withLatestFrom: typeof legacy.withLatestFrom;
+	readonly merge: typeof legacy.merge;
 }
