@@ -76,4 +76,15 @@ export interface Impl {
 	readonly concat: typeof legacy.concat;
 	readonly race: typeof legacy.race;
 	readonly takeUntil: typeof legacy.takeUntil;
+
+	// M3 Slice E — higher-order operators (Rust port:
+	// `graphrefly-operators::higher_order`, landed 2026-05-07 per
+	// `~/src/graphrefly-rs/docs/migration-status.md`). TS legacy from
+	// `packages/legacy-pure-ts/src/extra/operators/higher-order.ts`.
+	// All four are producer-shape ops that project each outer DATA to
+	// an inner Node and subscribe to it.
+	readonly switchMap: typeof legacy.switchMap;
+	readonly exhaustMap: typeof legacy.exhaustMap;
+	readonly concatMap: typeof legacy.concatMap;
+	readonly mergeMap: typeof legacy.mergeMap;
 }
