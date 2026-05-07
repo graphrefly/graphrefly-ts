@@ -36,6 +36,7 @@ import {
 	DIRTY,
 	ERROR,
 	INVALIDATE,
+	type Messages,
 	PAUSE,
 	RESOLVED,
 	RESUME,
@@ -4846,6 +4847,250 @@ const invariant71ChangesetTopologyLifecycle: Invariant = {
 			},
 		),
 };
+
+/**
+ * #72 — single-invalidate-settles (mirrors TLC #29 `InvalidateSettlesWave`,
+ * DS-13.5.A 2026-05-02 lock Q14 / Q15).
+ *
+ * The deadlock counter-test the DS-13.5.A INVALIDATE redesign closed:
+ * pre-redesign, an INVALIDATE arriving alone at a derived's only dep would
+ * NOT clear the dep's bit from `_dirtyDepCount`, leaving the derived stuck
+ * in `status = "dirty"` forever. The runtime fix
+ * (`_depInvalidated` decrements `_dirtyDepCount`, mirroring RESOLVED) means
+ * subsequent emits propagate freshly.
+ *
+ * Property: drive `(emit(v), invalidate)` cycles N times. Assert:
+ *   - Wave balance holds: every DIRTY paired with one settle (DATA, RESOLVED,
+ *     or INVALIDATE).
+ *   - Each cycle's emit value reaches the sink as a DATA (the wave isn't
+ *     stuck — a regression that drops the dirtyDepCount decrement would
+ *     prevent later emits from firing fn).
+ *   - Trace contains exactly N INVALIDATE arrivals (cleanup messages
+ *     observable to the sink).
+ *
+ * Topology: `state → derived` (single-dep, identity fn). The minimum
+ * topology where INVALIDATE-alone wave behavior surfaces.
+ *
+ * Catches: DS-13.5.A regression — any future change that drops the
+ * `_dirtyDepCount` decrement on INVALIDATE delivery would either (a) hang
+ * the test (no DATA arrives because fn never fires) or (b) trip the wave-
+ * balance assertion if the substrate also stops recording trace messages.
+ */
+const invariant72SingleInvalidateSettles: Invariant = {
+	name: "single-invalidate-settles",
+	description:
+		"An INVALIDATE arriving alone at a derived's only dep settles the wave without deadlock — subsequent emits propagate freshly without leftover dirty state.",
+	specRef:
+		"wave_protocol.tla #29 InvalidateSettlesWave (DS-13.5.A 2026-05-02 Q14; via src/core/node.ts:_onDepMessage INVALIDATE branch)",
+	property: () =>
+		fc.property(
+			// QA P1 (2026-05-07): use `uniqueArray` so consecutive emits never
+			// carry the same value. With duplicates allowed, a derived using
+			// default Object.is equals could absorb a repeated emit into
+			// RESOLVED (cache stays the same) even though the source side
+			// never absorbs (its `equals: () => false` override). The post-
+			// invalidate cache reset on the source clears `prevData[s-slot]`
+			// at the dependent but not the dependent's own cache, so cycle-N's
+			// DATA(v) followed by cycle-(N+1)'s same-value DATA(v) at the dep
+			// would emit RESOLVED. uniqueArray sidesteps the equals-axis
+			// interaction entirely, keeping this property focused on the
+			// wave-settlement guarantee.
+			fc.uniqueArray(fc.integer({ min: 1, max: 100 }), {
+				minLength: 2,
+				maxLength: 5,
+			}),
+			(values) => {
+				const s = node<number>([], { initial: 0, equals: () => false });
+				const d = node<number>(
+					[s],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batchEntry, i) =>
+							batchEntry != null && batchEntry.length > 0 ? batchEntry.at(-1) : ctx.prevData[i],
+						);
+						actions.emit(data[0] as number);
+					},
+					{ describeKind: "derived" },
+				);
+
+				const trace: symbol[] = [];
+				const dataValues: number[] = [];
+				const unsub = d.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === START) continue;
+						trace.push(msg[0]);
+						if (msg[0] === DATA) dataValues.push(msg[1] as number);
+					}
+				});
+
+				// Drive (emit, invalidate) cycles. Each cycle: emit a fresh DATA,
+				// then INVALIDATE. After each INVALIDATE the derived's wave must
+				// settle so the next emit propagates a new DATA.
+				for (const v of values) {
+					s.emit(v);
+					s.down([[INVALIDATE]]);
+				}
+
+				unsub();
+
+				// 1. Wave balance: DIRTY count = (DATA + RESOLVED + INVALIDATE) count.
+				let pending = 0;
+				for (const t of trace) {
+					if (t === DIRTY) pending += 1;
+					else if (t === DATA || t === RESOLVED || t === INVALIDATE) pending -= 1;
+					if (pending < 0) return false;
+				}
+				if (pending !== 0) return false;
+
+				// 2. Each emit value must have appeared as a DATA at the sink.
+				//    This is the deadlock counter-test: if INVALIDATE doesn't
+				//    settle the wave, the next emit never fires fn so DATA is
+				//    missing. The handshake DATA(0) precedes the first cycle
+				//    DATA, so we expect `values.length + 1` DATAs total — an
+				//    initial DATA(0) from subscribe handshake, then one DATA(v)
+				//    per cycle.
+				if (dataValues.length !== values.length + 1) return false;
+				// QA P3 (2026-05-07): assert the handshake DATA carries the
+				// initial value. Without this, a regression that misroutes the
+				// handshake DATA to a wrong value would still pass the count
+				// check vacuously.
+				if (dataValues[0] !== 0) return false;
+				for (let i = 0; i < values.length; i++) {
+					if (dataValues[i + 1] !== values[i]) return false;
+				}
+
+				// 3. Trace must contain exactly `values.length` INVALIDATE messages.
+				const invCount = trace.filter((t) => t === INVALIDATE).length;
+				if (invCount !== values.length) return false;
+
+				return true;
+			},
+		),
+};
+
+/**
+ * #73 — invalidate-merge-order-independent (mirrors TLC #30
+ * `MergeRulesRespected`, DS-13.5.A 2026-05-02 lock Q9 + tier-sort).
+ *
+ * Within a single `down(messages)` call on the source, any permutation of
+ * {≤1 [DATA, v], N [INVALIDATE]} entries produces the same outcome at the
+ * source's observer because tier-sort + Q9 collapse normalize the order:
+ *
+ *   - tier-sort: DATA (tier 3) sorts before INVALIDATE (tier 4) regardless
+ *     of input order. So `[INV, DATA]` and `[DATA, INV]` both deliver as
+ *     `[DIRTY, DATA(v), INVALIDATE]` to the observer.
+ *
+ *   - Q9 collapse (DS-13.5.A): K INVALIDATE entries in a single down() call
+ *     collapse to exactly ONE outgoing INVALIDATE. So
+ *     `[INV, INV, ..., INV]` delivers as `[DIRTY, INVALIDATE]` regardless
+ *     of K.
+ *
+ *   - With both DATA and INVs: `[DATA, INV*K]` (any permutation) delivers
+ *     as `[DIRTY, DATA(v), INVALIDATE]` — DATA before INV, INVs collapsed.
+ *
+ * Note: Q1/Q3 explicit "DATA/RESOLVED wins" merges were retired during
+ * implementation (see implementation-plan.md DS-13.5.A row N1) — natural
+ * tier-sort handles `[DATA(v), INVALIDATE]` correctly: BOTH messages
+ * deliver to observers, cache ends cleared (INVALIDATE runs after DATA
+ * in tier order, clearing the cache that DATA just set). Cache outcome
+ * vs DATA's cache assignment is the LOCAL sequencing on the source; both
+ * messages remain observable.
+ *
+ * Topology: subscribe directly to the source. The merge happens inside
+ * `_frameBatch` on `down()`; observing the source is the cleanest way to
+ * see the merged stream without derived-fn interactions.
+ *
+ * Catches: regressions to the Q9 collapse logic (e.g., a refactor that
+ * forwards K INVs as K outgoing INVALIDATEs) or to tier-sort (e.g., a
+ * refactor that emits INV before DATA when input order was [INV, DATA]).
+ */
+const invariant73InvalidateMergeOrderIndependent: Invariant = {
+	name: "invalidate-merge-order-independent",
+	description:
+		"Within a single down() call, any permutation of {≤1 [DATA, v], N [INVALIDATE]} entries delivers as ONE DIRTY + tier-sorted [DATA?, INVALIDATE] at the observer — DATA before INV (tier-sort), all INVs collapsed to one (Q9).",
+	specRef:
+		"wave_protocol.tla #30 MergeRulesRespected (DS-13.5.A 2026-05-02 Q9 + tier-sort; via src/core/node.ts:_frameBatch tier-sort + Q9 collapse)",
+	property: () =>
+		fc.property(
+			// Either an emit value (1..10), or null meaning all-INV input.
+			// Value 0 excluded so DATA-vs-RESOLVED distinction is unambiguous
+			// (initial cache = 0; non-zero value forces DATA).
+			fc.option(fc.integer({ min: 1, max: 10 }), { nil: null }),
+			fc.integer({ min: 1, max: 4 }), // numInvs (≥1 to make Q9 meaningful)
+			fc.integer({ min: 0, max: 0xffffff }), // permutation seed
+			(emitValue, numInvs, seed) => {
+				const s = node<number>([], { initial: 0 });
+
+				const trace: symbol[] = [];
+				const traceValues: unknown[] = [];
+				const unsub = s.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === START) continue;
+						trace.push(msg[0]);
+						traceValues.push(msg[1]);
+					}
+				});
+
+				// Drop handshake messages — only post-handshake settles matter.
+				const activationEnd = trace.length;
+
+				// Build messages: ≤1 [DATA, v] + N [INVALIDATE].
+				type RawMsg = readonly [symbol, unknown?];
+				const messages: RawMsg[] = [];
+				if (emitValue !== null) messages.push([DATA, emitValue] as const);
+				for (let i = 0; i < numInvs; i++) messages.push([INVALIDATE] as const);
+
+				// Permute via seeded Fisher-Yates so shrinking still works.
+				const shuffled = [...messages];
+				let rng = seed | 0;
+				for (let i = shuffled.length - 1; i > 0; i--) {
+					rng = (rng * 1103515245 + 12345) & 0x7fffffff;
+					const j = rng % (i + 1);
+					[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+				}
+
+				// Single down() call — exercises _frameBatch tier-sort + Q9 collapse
+				// on a multi-message input. Returning false on any structural
+				// violation lets fast-check shrink to the smallest counter-example.
+				s.down(shuffled as Messages);
+
+				unsub();
+
+				// Slice trace to post-handshake observations.
+				const post = trace.slice(activationEnd);
+				const postValues = traceValues.slice(activationEnd);
+
+				// Expected shape independent of permutation:
+				//   - emitValue !== null: [DIRTY, DATA(emitValue), INVALIDATE]
+				//   - emitValue === null: [DIRTY, INVALIDATE] (Q9 collapse)
+				const dirtyCount = post.filter((t) => t === DIRTY).length;
+				const dataCount = post.filter((t) => t === DATA).length;
+				const resolvedCount = post.filter((t) => t === RESOLVED).length;
+				const invCount = post.filter((t) => t === INVALIDATE).length;
+
+				// Exactly one DIRTY (auto-prefix).
+				if (dirtyCount !== 1) return false;
+				// Always exactly one INVALIDATE (Q9 collapses K → 1).
+				if (invCount !== 1) return false;
+				// No spurious RESOLVED (cache=0, emitValue ∈ 1..10 always differs).
+				if (resolvedCount !== 0) return false;
+
+				if (emitValue !== null) {
+					// Exactly one DATA carrying emitValue.
+					if (dataCount !== 1) return false;
+					const dataIdx = post.indexOf(DATA);
+					if (postValues[dataIdx] !== emitValue) return false;
+					// Tier-sort: DATA must precede INVALIDATE.
+					const invIdx = post.indexOf(INVALIDATE);
+					if (dataIdx >= invIdx) return false;
+				} else {
+					// All-INV input → no DATA in output.
+					if (dataCount !== 0) return false;
+				}
+
+				return true;
+			},
+		),
+};
 // ---------------------------------------------------------------------------
 // Dropped TLC mirrors (tracked in docs/optimizations.md "Remaining rigor-infra
 // follow-ons"):
@@ -4953,6 +5198,8 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant69ChangesetVersionMonotonic,
 	invariant70ChangesetBatchFramePairing,
 	invariant71ChangesetTopologyLifecycle,
+	invariant72SingleInvalidateSettles,
+	invariant73InvalidateMergeOrderIndependent,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract

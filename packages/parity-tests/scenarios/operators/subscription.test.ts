@@ -362,6 +362,19 @@ describe.each(impls)("R5.7 subscription — takeUntil parity — $name", (impl) 
 		}
 	});
 
+	// D6 (Slice F doc cleanup, 2026-05-07): empty-source edge cases for
+	// zip / race — `impl.zip()` and `impl.race()` with zero sources. Both
+	// have ambiguous canonical semantics:
+	//   - zip(): vacuous tuple — could complete immediately (degenerate
+	//     all-queues-non-empty trivially true) or stay pending.
+	//   - race(): no winner possible — could complete immediately or stay
+	//     pending.
+	// TS legacy behavior is not pinned by spec; Rust port behavior likewise
+	// undecided. Defer until either impl ships a concrete answer + we can
+	// pin parity. Captured as todos so the gap doesn't get lost.
+	test.todo("zip with zero sources — semantics undecided (D6 deferral)");
+	test.todo("race with zero sources — semantics undecided (D6 deferral)");
+
 	test("takeUntil does not forward notifier value", () => {
 		const src = impl.node<number>([], { name: "src" });
 		const notif = impl.node<unknown>([], { name: "notif" });

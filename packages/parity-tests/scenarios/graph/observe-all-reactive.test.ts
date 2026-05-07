@@ -80,4 +80,43 @@ describe.each(impls)("R3.6.2 observe-all-reactive parity — $name", (impl) => {
 		expect(received).toBe(before);
 		g.destroy();
 	});
+
+	// MP4 (Slice F doc cleanup, 2026-05-07): pins the per-sink unsubscribe
+	// semantics across impls. The pre-Slice-F single-sink test conflated
+	// "this sink stops" with "the underlying observation deactivates" — both
+	// give the same observable behavior with one sink. This two-sink variant
+	// distinguishes them: with two subscribers, unsubscribing ONE must NOT
+	// silence the other.
+	test("observe({ reactive: true }) unsubscribing one sink keeps the other receiving", () => {
+		const g = new impl.Graph("root");
+		g.state<number>("v", 1);
+
+		const obsNode = g.observe({ reactive: true });
+		let recA = 0;
+		let recB = 0;
+
+		const unsubA = obsNode.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === impl.DATA) recA += 1;
+			}
+		});
+		const _unsubB = obsNode.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === impl.DATA) recB += 1;
+			}
+		});
+
+		// Both saw the initial snapshot.
+		const baselineA = recA;
+		const baselineB = recB;
+
+		unsubA();
+
+		// Mutate; only B should observe.
+		g.set("v", 42);
+
+		expect(recA).toBe(baselineA);
+		expect(recB).toBeGreaterThan(baselineB);
+		g.destroy();
+	});
 });
