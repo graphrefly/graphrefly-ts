@@ -4,12 +4,12 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
 	resolve: {
 		alias: [
-			// Resolve legacy-pure-ts to source so parity tests don't require a
+			// Resolve pure-ts to source so parity tests don't require a
 			// pre-build. Mirrors the alias pattern in
 			// packages/{cli,mcp-server}/vitest.config.ts.
 			{
-				find: /^@graphrefly\/legacy-pure-ts$/,
-				replacement: fileURLToPath(new URL("../legacy-pure-ts/src/index.ts", import.meta.url)),
+				find: /^@graphrefly\/pure-ts$/,
+				replacement: fileURLToPath(new URL("../pure-ts/src/index.ts", import.meta.url)),
 			},
 		],
 	},

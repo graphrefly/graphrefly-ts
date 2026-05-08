@@ -587,7 +587,7 @@ Filter drops RESOLVED for failed batch entries → tier-3 counter drift. Low pri
 **Blocked by:** operator-layer-wide review session (deferred).
 
 ### 10.6 `restoreSnapshot` rejects `mode: "diff"` records
-**Blocked by:** §8.7 WAL replay (prerequisite for diff replay).
+**Unblocked 2026-05-08** by [SESSION-DS-14-storage-wal-replay.md](../archive/docs/SESSION-DS-14-storage-wal-replay.md) (9Q lock — frame format, replay ordering, recovery boundary, codec contract, `BaseStorageTier.listByPrefix`, §8.7 spec amendment folded). Lands during [Phase 14.6](#phase-146--storage-wal-replay-implementation-ds-14-storage-substrate) (~4.5 days) post `/dev-dispatch` approval. Closes [optimizations.md "Surface restoreSnapshot rejects mode: 'diff' records"](optimizations.md).
 
 ### 10.7 Performance follow-ups
 - Message-array allocation in hot path (A2 landed; tier-3 DATA/ERROR has further headroom).
@@ -888,7 +888,7 @@ Single home for design sessions that are decision-locked or scoped but not yet i
 - Q12 `invalidateWhenDepsInvalidate?: boolean` opt + sugar-layer auto-cascade (`undefined | null` returns).
 - Q10 replay-buffer clearing on INVALIDATE.
 - ~~Q14 TLA+ `Invalidate` action + new invariants + MC config.~~ **✅ landed 2026-05-07** ([wave_protocol.tla](../../graphrefly/formal/wave_protocol.tla) + [wave_protocol_q14_MC.tla](../../graphrefly/formal/wave_protocol_q14_MC.tla)). INVALIDATE retiered tier-1 → tier-4 (Q15); `Invalidate(n)` + `DeliverInvalidate(p,c)` enqueue the auto-DIRTY-prefix pair `<<DIRTY, INVALIDATE>>`; `DeliverInvalidate` clears `p` from `dirtyMask[c]` (settles wave); new `BatchEmitWithInv(src, items)` action models in-batch Q1/Q3/Q9 coalesce; `NoInvalidateAnywhere` removed from tier-3 emit/deliver gates (kept on tier-5 terminal). Three new invariants ship: `InvalidateSettlesWave` (#29 — quiesced state has empty dirtyMask, deadlock counter-test), `MergeRulesRespected` (#30 — `NoAdjacentInvalidates` ∧ `NoEmitToInvNoDirtySandwich`), `InvalidateNotInValueDomain` (#31 — Q8 structural guard). `EqualsFaithful` (#5) comment extended to document Q8. New 4-node diamond MC `wave_protocol_q14_MC` exercises all three invariants under `BatchInvSeqsMC` covering Q1/Q3/Q9: 931,506 distinct states, depth 69, ~41s, no errors. Counter-test confirmed `dirtyMask` clear is load-bearing (reverting trips `BalancedWaves` at depth 13). New invariants added to all 18 MC cfgs for regression coverage; all pass clean. Bonus: `wave_protocol_gap.cfg` cleaned up — `MultiDepHandshakeClean` removed from its INVARIANTS list with rationale (it's the documented historical counter-example MC; substrate has been fixed since fast-check #10 landed, so the MC now serves as the "all-other-invariants-still-hold-under-gap-aware-shape" regression guard rather than a known-failing test).
-- ~~Q14 fast-check `single-invalidate-settles` + `invalidate-merge-order-independent` properties.~~ **✅ landed 2026-05-07** ([_invariants.ts](../packages/legacy-pure-ts/src/__tests__/properties/_invariants.ts)). New invariants #72 (`single-invalidate-settles`) and #73 (`invalidate-merge-order-independent`) ship in the registry. #72 mirrors TLC #29 — drives N (emit, invalidate) cycles, asserts wave balance (DIRTY = DATA + RESOLVED + INVALIDATE) AND every emit reaches as DATA (the deadlock counter-test: regression that fails to settle the wave on INVALIDATE would prevent later emits from firing fn). #73 mirrors TLC #30 — under a single `down(messages)` call with a permuted mix of `[DATA, v]` + N `[INVALIDATE]` entries, asserts the observer sees exactly ONE DIRTY + tier-sorted `[DATA?, INVALIDATE]` regardless of input order (Q9 collapse + tier-sort normalization). Note: implementation-plan's original Q1/Q3 "DATA wins" / "RESOLVED wins" merges were retired during DS-13.5.A impl ([N1 decision](#)); runtime uses natural tier-sort + Q9 collapse, so #73 tests the surviving rules. All 2982 tests pass; lint clean on the touched file.
+- ~~Q14 fast-check `single-invalidate-settles` + `invalidate-merge-order-independent` properties.~~ **✅ landed 2026-05-07** ([_invariants.ts](../packages/pure-ts/src/__tests__/properties/_invariants.ts)). New invariants #72 (`single-invalidate-settles`) and #73 (`invalidate-merge-order-independent`) ship in the registry. #72 mirrors TLC #29 — drives N (emit, invalidate) cycles, asserts wave balance (DIRTY = DATA + RESOLVED + INVALIDATE) AND every emit reaches as DATA (the deadlock counter-test: regression that fails to settle the wave on INVALIDATE would prevent later emits from firing fn). #73 mirrors TLC #30 — under a single `down(messages)` call with a permuted mix of `[DATA, v]` + N `[INVALIDATE]` entries, asserts the observer sees exactly ONE DIRTY + tier-sorted `[DATA?, INVALIDATE]` regardless of input order (Q9 collapse + tier-sort normalization). Note: implementation-plan's original Q1/Q3 "DATA wins" / "RESOLVED wins" merges were retired during DS-13.5.A impl ([N1 decision](#)); runtime uses natural tier-sort + Q9 collapse, so #73 tests the surviving rules. All 2982 tests pass; lint clean on the touched file.
 
   - **/qa pass 2026-05-07** auto-applied 3 patches: P1 (#72 values widened to `fc.uniqueArray` so duplicates can't trigger a default-equals RESOLVED at the derived and break the count assertion), P2 (`InvalidateNotInValueDomain` (#31) extended to cover `pendingExtraDelivery` + `extraSinkTrace` — vacuous in current MCs but load-bearing for any future multi-sink + INV MC), P3 (#72 strengthened to assert `dataValues[0] === 0` so a regression that misroutes the handshake DATA value can't slide past the count check). Acknowledged deferrals: `BatchInvSeqs` structural ASSUME, sink-with-parents `BalancedWaves` coverage, `Invalidate(n)` bufferAll guard (Q7 reading-A scope), TLA+ sentinel-vs-settled status abstraction, `BatchEmitWithInv` ≤1-EMIT precondition, `MaxEmitsMC = 2` budget, fast-check #73 LCG vs `fc.shuffledSubarray`. All 18 TLC MCs + 2982 vitest tests pass after fixes.
 - PY parity (per dev-dispatch scope decision 2026-05-02).
@@ -916,7 +916,7 @@ Single home for design sessions that are decision-locked or scoped but not yet i
 **Additional ungated questions (lean-locked, pending implementation):**
 
 - `withStatus` interaction: stays in current status on INVALIDATE; defer `invalidated?: number` companion until consumer demand.
-- `attachStorage` / WAL: persist INVALIDATE for replay determinism; spec amendment to §8.7.
+- ~~`attachStorage` / WAL: persist INVALIDATE for replay determinism; spec amendment to §8.7.~~ **Folded into [SESSION-DS-14-storage-wal-replay.md](../archive/docs/SESSION-DS-14-storage-wal-replay.md) Q7 (2026-05-08).** INVALIDATE persistence resolves as natural consequence of the locked WAL frame format (Q1) + replay ordering (Q2) + recovery boundary (Q3); §8.7 amendment drafted in six sub-sections (§8.7.1–§8.7.6).
 - Worker bridge wire protocol: fold into DS-14 (bridge protocol changes anyway under changesets/delta work).
 - Codec envelope (`Graph.snapshot()`): no change — codec writes whatever's in `_cached` at snapshot time; INVALIDATE-then-snapshot writes a SENTINEL slot naturally.
 
@@ -1437,32 +1437,34 @@ Default: pause again, integrate findings into DS-14 design when it opens.
 
 ### Phase 13.9 — Pure-TS oracle cleave + binding shim architecture
 
-*Source: 2026-05-05 dev-dispatch on Rust port packaging strategy. With M1 closed and M2 Slice D opening the `Graph` container in `~/src/graphrefly-rs`, the public-package shape needs to be decided **before** the binding's user surface widens through M3 (operators) and beyond. The session doc and `graphrefly-rs/CLAUDE.md` working assumption was "TS impl migrates to a thin shim over the napi-rs binding"; the locked direction (2026-05-05) is to **preserve the current pure-TS implementation as a frozen parity oracle alongside the shim**, so the existing 2780-test suite drives BOTH impls and any divergence surfaces as a Rust-port regression.*
+> **Framing reset (2026-05-08, PART 13 of `archive/docs/SESSION-rust-port-architecture.md`):** the "frozen parity oracle / sunset on 1.0" framing below is superseded by D084 — pure-TS becomes a permanent first-class peer alongside `@graphrefly/native` (napi) and `@graphrefly/wasm` (wasm-bindgen). Q4 changes from "Sunset on 1.0" to "Permanent peer (no sunset)." The cleave mechanics (Q1–Q3, Q5–Q7), per-milestone parity expansion, and Phase 13.9.A/B sequencing remain valid. Read PART 13 first for the post-2026-05-08 framing.
+
+*Source: 2026-05-05 dev-dispatch on Rust port packaging strategy. With M1 closed and M2 Slice D opening the `Graph` container in `~/src/graphrefly-rs`, the public-package shape needs to be decided **before** the binding's user surface widens through M3 (operators) and beyond. The session doc and `graphrefly-rs/CLAUDE.md` working assumption was "TS impl migrates to a thin shim over the napi-rs binding"; the originally-locked direction (2026-05-05) was to preserve the pure-TS implementation as a frozen parity oracle alongside the shim. The 2026-05-08 reframe (PART 13) keeps the cleave mechanics but flips the lifetime to permanent peer.*
 
 **Locked decisions (Q1–Q7, 2026-05-05):**
 
 | # | Decision | Lock |
 |---|---|---|
-| Q1 | Naming for the preserved pure-TS package | `@graphrefly/legacy-pure-ts` |
-| Q2 | Location | `packages/legacy-pure-ts/` in this monorepo (pnpm workspace) |
+| Q1 | Naming for the preserved pure-TS package | `@graphrefly/pure-ts` |
+| Q2 | Location | `packages/pure-ts/` in this monorepo (pnpm workspace) |
 | Q3 | Surface scope | **Full surface** — `core/` + `graph/` + `extra/` + `patterns/` + `compat/` |
-| Q4 | Lifetime | Sunset on 1.0 ship — oracle exists to land 1.0; archived after |
+| Q4 | Lifetime | ~~Sunset on 1.0 ship~~ → **Permanent peer (D084, 2026-05-08).** Pure-TS continues post-1.0 as the universal fallback alongside `@graphrefly/native` and `@graphrefly/wasm`. |
 | Q5 | Test architecture | **Contract-trace** (rigor-infra Project 2 shape) is the lock; **interim parameterized runner** until the trace harness lands (see Q5-interim below) |
-| Q6 | How `@graphrefly/graphrefly` consumes the binding | **Shim package** — public package is a thin TS layer that delegates to `@graphrefly/native` (napi binding); falls back to `@graphrefly/legacy-pure-ts` when native binary is unavailable |
+| Q6 | How `@graphrefly/graphrefly` consumes the binding | **Shim package** — public package is a thin TS layer that delegates to `@graphrefly/native` (napi binding); falls back to `@graphrefly/pure-ts` when native binary is unavailable |
 | Q7 | Spec ↔ impl authority during transition | Spec authority lives in `~/src/graphrefly/GRAPHREFLY-SPEC.md` + TLA+; both impls implement against the spec. Pure-TS becomes a *historical implementation*, not a spec source |
 
 **Q5-interim (locked 2026-05-05):** the contract-trace approach (Q5=c lock) requires the rigor-infrastructure Project 2 harness (`archive/docs/SESSION-rigor-infrastructure-plan.md` — TS↔PY executable contract traces). That harness has not landed yet, and the cleave does NOT block on it:
 
-- **Phase 13.9.A** ships a parameterized vitest runner (`describe.each([{ impl: legacyImpl }, { impl: rustImpl }])`) over the existing test files. Same coverage as today; doubles test runtime; modest scaffolding cost. Lands per the timing schedule below.
+- **Phase 13.9.A** ships a parameterized vitest runner (`describe.each([{ impl: pureTsImpl }, { impl: rustImpl }])`) over the existing test files. Same coverage as today; doubles test runtime; modest scaffolding cost. Lands per the timing schedule below.
 - **Phase 13.9.B** ships the contract-trace migration once the rigor-infra harness lands. The parameterized runner deletes; the trace harness becomes the parity gate.
 
 **Placement:** AFTER M2 Slice D close (Graph container with `Arc<Core>` pass-through) and BEFORE the next M2 slice that widens the binding surface (mount/unmount/describe/observe). The cleave needs to happen while the binding's public surface is small enough that the shim layer is trivial. Runs in parallel with subsequent M2 + M3 work — the parity test surface widens per Rust milestone close.
 
 **Scope — six implementation steps:**
 
-1. **Snapshot the current `src/`** to `packages/legacy-pure-ts/src/` via `git mv` (preserves history). Bump its `package.json` to `@graphrefly/legacy-pure-ts`. Freeze versioning at the current 0.44.x; future releases bump only for parity-fix backports OR spec-amendment lockstep updates. Update `pnpm-workspace.yaml` (no change needed — `packages/*` glob already covers it).
+1. **Snapshot the current `src/`** to `packages/pure-ts/src/` via `git mv` (preserves history). Bump its `package.json` to `@graphrefly/pure-ts`. Freeze versioning at the current 0.44.x; future releases bump only for parity-fix backports OR spec-amendment lockstep updates. Update `pnpm-workspace.yaml` (no change needed — `packages/*` glob already covers it).
 
-2. **Reshape root package** — `@graphrefly/graphrefly` becomes a shim consuming the napi binding (Q6). Initial state: re-exports from `@graphrefly/legacy-pure-ts` so the public API is unchanged at the moment of cleave. As Rust milestones close, swap each export over per-milestone:
+2. **Reshape root package** — `@graphrefly/graphrefly` becomes a shim consuming the napi binding (Q6). Initial state: re-exports from `@graphrefly/pure-ts` so the public API is unchanged at the moment of cleave. As Rust milestones close, swap each export over per-milestone:
    - M2 Slice E close (`describe`/`observe`/snapshot) → swap `Graph` constructor + topology export
    - M3 close → swap operators (`extra/operators/*`)
    - M5 close → swap reactive data structures
@@ -1470,29 +1472,32 @@ Default: pause again, integrate findings into DS-14 design when it opens.
 
 3. **Native binding package** — `@graphrefly/native` published from `~/src/graphrefly-rs/crates/graphrefly-bindings-js/`. Replaces the current absolute-path `require` from [src/__bench__/ffi-cost.bench.ts](src/__bench__/ffi-cost.bench.ts). Per session doc Part 9: per-platform binaries (`@graphrefly/native-linux-x64-gnu`, `-darwin-arm64`, `-win32-x64-msvc`, etc.) loaded on install via the `optionalDependencies` napi-rs convention. WASM target ships as `@graphrefly/native-wasm` for edge runtimes / sandboxed JS where the cdylib won't load.
 
-4. **Parity test layer** at `packages/parity-tests/` — vitest runner. Phase 13.9.A interim shape: `describe.each([{ name: "legacy-pure-ts", impl: legacyImpl }, { name: "rust-via-napi", impl: rustImpl }])` over test files in `packages/parity-tests/scenarios/` (initially mirrors a small subset of `src/__tests__/`; widens per-milestone). Phase 13.9.B target shape: contract-trace replay — record trace from one impl, assert byte-equal sequence against the other (per rigor-infra Project 2). Initially most scenarios run only against legacy (parity surface narrow); each Rust milestone widens the parameterized set. Divergences fail loud and gate main-branch merges.
+4. **Parity test layer** at `packages/parity-tests/` — vitest runner. Phase 13.9.A interim shape: `describe.each([{ name: "pure-ts", impl: pureTsImpl }, { name: "rust-via-napi", impl: rustImpl }])` over test files in `packages/parity-tests/scenarios/` (initially mirrors a small subset of `src/__tests__/`; widens per-milestone). Phase 13.9.B target shape: contract-trace replay — record trace from one impl, assert byte-equal sequence against the other (per rigor-infra Project 2). Initially most scenarios run only against pure-ts (parity surface narrow); each Rust milestone widens the parameterized set. Divergences fail loud and gate main-branch merges.
 
-5. **Documentation** — `packages/legacy-pure-ts/README.md` explicitly states "frozen reference impl, no new features, parity-fix + spec-lockstep backports only." `packages/legacy-pure-ts/CHANGELOG.md` only logs parity fixes and spec amendments. Public docs at `website/` continue to document the public API impl-agnostic — readers don't see the cleave, only that some platforms run on Rust and some on pure TS.
+5. **Documentation** — `packages/pure-ts/README.md` documents the pure-TS sibling. Per D084 (2026-05-08, PART 13), pure-TS is a **permanent first-class peer**, not a frozen oracle — it gets feature parity with native + wasm siblings indefinitely (default policy strict parity; tiered parity revisited at 1.0 if cost exceeds value, per PART 13 Deferred 4). `packages/pure-ts/CHANGELOG.md` logs feature additions in lockstep with native + wasm. Public docs at `website/` continue to document the public API impl-agnostic — readers don't see the cleave, only that some platforms run on Rust and some on pure TS.
 
 6. **CI** — workspace-level `pnpm test` runs both impl test suites independently. The parity job (cross-impl scenario assertions in `packages/parity-tests/`) is a separate CI job that gates main-branch merges once it stabilizes. CI builds `@graphrefly/native` binaries via the existing `~/src/graphrefly-rs/.github/workflows/ci.yml` `bindings-js` job; this repo's CI consumes the published artifacts (or path-resolved local builds during Phase 13.9.A).
 
-**Sunset trigger (Q4 = sunset on 1.0):**
-- Once 1.0 ships — full surface parity verified across N consecutive zero-divergence releases on the parity job — `git mv packages/legacy-pure-ts/ archive/legacy-pure-ts/`. `pnpm remove` from workspace. npm package deprecated with a pointer to `@graphrefly/graphrefly`. Archive remains git-blame-able for forensics. The parity test suite either retires or migrates into the main `src/__tests__/` against the Rust impl only.
-- Unblocks the working-assumption end-state from `graphrefly-rs/CLAUDE.md`: "TS impl migrates to a thin shim over the napi-rs binding."
+**Sunset trigger:** ~~Q4 = sunset on 1.0~~ — **superseded by D084 (2026-05-08, PART 13).** No sunset. Pure-TS is a permanent peer; the historical sunset framing is preserved here for context only:
+
+> ~~Once 1.0 ships — full surface parity verified across N consecutive zero-divergence releases on the parity job — `git mv packages/pure-ts/ archive/pure-ts/`. `pnpm remove` from workspace. npm package deprecated with a pointer to `@graphrefly/graphrefly`. Archive remains git-blame-able for forensics. The parity test suite either retires or migrates into the main `src/__tests__/` against the Rust impl only.~~
+> ~~Unblocks the working-assumption end-state from `graphrefly-rs/CLAUDE.md`: "TS impl migrates to a thin shim over the napi-rs binding."~~
+
+**Replacement post-1.0 state (PART 13):** facade `@graphrefly/graphrefly` resolves to one of three siblings — `@graphrefly/native` (Node fast path, optionalDep), `@graphrefly/wasm` (browser fast path, opt-in via `/wasm` subpath), `@graphrefly/pure-ts` (universal fallback, always present). Patterns + downstream consumers depend on the facade only.
 
 **Per-milestone parity checkpoint (added to `~/src/graphrefly-rs/docs/migration-status.md` table):**
 - M2 Slice E close → parity-tests cover Graph constructor, mount/unmount, describe, observe.
-- M3 close → parity-tests cover all `extra/operators/*` shipped in legacy-pure-ts.
+- M3 close → parity-tests cover all `extra/operators/*` shipped in pure-ts.
 - M4 close → parity-tests cover storage tier semantics (Node-only).
 - M5 close → parity-tests cover reactive data structures + Phase 14 op-log changesets.
 - M6 close → parity-tests cross-language (TS ↔ PY ↔ Rust via the same trace format, if Q5=c has landed by then).
-- 1.0 ship → sunset trigger.
+- 1.0 ship → ~~sunset trigger~~ → facade build + WASM impl land (PART 13 Deferred 1 + 2). Pure-TS continues as permanent peer (D084).
 
 **Acceptance bar for Phase 13.9.A close:**
-- `packages/legacy-pure-ts/` exists with full surface ported via `git mv` (history preserved). ✅ landed 2026-05-05.
-- `@graphrefly/graphrefly` published as a shim re-exporting legacy-pure-ts (so existing consumers' install is unchanged at the cleave moment). ✅ landed 2026-05-05.
-- `packages/parity-tests/` parameterized vitest runner exists with at least the M1 + M2-Slice-D scenarios (Core dispatcher + Graph container) running against both impls and green. **Partially landed 2026-05-05** — scaffold + M1 dispatcher scenario green against `legacyImpl`. The `rustImpl` arm activates when `@graphrefly/native` publishes its package shape (currently only a Cargo crate at `~/src/graphrefly-rs/crates/graphrefly-bindings-js/`; no `package.json`, no per-platform sub-packages). Tracked in `docs/optimizations.md` § "Phase 13.9 follow-on: rustImpl arm + CI gate".
-- CI gate active: parity job blocks main-branch merges. **Deferred** until `rustImpl` arm activates — until then, `pnpm test:parity` with one impl arm is equivalent to running narrow scenarios against legacy-pure-ts only, which the workspace `pnpm test` already covers. No incremental signal; no separate job needed yet. Tracked in `docs/optimizations.md` (same item).
+- `packages/pure-ts/` exists with full surface ported via `git mv` (history preserved). ✅ landed 2026-05-05.
+- `@graphrefly/graphrefly` published as a shim re-exporting pure-ts (so existing consumers' install is unchanged at the cleave moment). ✅ landed 2026-05-05.
+- `packages/parity-tests/` parameterized vitest runner exists with at least the M1 + M2-Slice-D scenarios (Core dispatcher + Graph container) running against both impls and green. **Partially landed 2026-05-05** — scaffold + M1 dispatcher scenario green against `pureTsImpl`. The `rustImpl` arm activates when `@graphrefly/native` publishes its package shape (currently only a Cargo crate at `~/src/graphrefly-rs/crates/graphrefly-bindings-js/`; no `package.json`, no per-platform sub-packages). Tracked in `docs/optimizations.md` § "Phase 13.9 follow-on: rustImpl arm + CI gate".
+- CI gate active: parity job blocks main-branch merges. **Deferred** until `rustImpl` arm activates — until then, `pnpm test:parity` with one impl arm is equivalent to running narrow scenarios against pure-ts only, which the workspace `pnpm test` already covers. No incremental signal; no separate job needed yet. Tracked in `docs/optimizations.md` (same item).
 - `~/src/graphrefly-rs/docs/migration-status.md` updated with the per-milestone parity-checkpoint column. **Pending** in `graphrefly-rs/` (separate repo, separate session).
 
 **Acceptance bar for Phase 13.9.B close:**
@@ -1502,7 +1507,7 @@ Default: pause again, integrate findings into DS-14 design when it opens.
 - Same parity-job CI gate, now driven by trace-replay.
 
 **STRONG DEFER — explicitly NOT in this phase:**
-- The Python parity oracle story (analogous `@graphrefly/legacy-pure-py` under the same model) — separate decision, depends on `graphrefly-py` Rust binding progress (M6).
+- The Python parity oracle story (analogous `@graphrefly/pure-py` under the same model) — separate decision, depends on `graphrefly-py` Rust binding progress (M6).
 - WASM distribution (`@graphrefly/native-wasm`) shape beyond the placeholder above — overlaps with Q3/Q6 but follows the M-roadmap and is post-M5.
 - Multi-distribution `lite` / `standard` / `full` feature-gated builds (session doc Part 9) — orthogonal to oracle existence; both layers compose. Lands per Rust workspace's own slicing.
 - Sunset of any non-`@graphrefly/graphrefly` package (`@graphrefly/cli`, `@graphrefly/mcp-server`) — those track the public API and continue to consume `@graphrefly/graphrefly` (which transparently delegates to the appropriate impl).
@@ -1523,9 +1528,9 @@ Pre-1.0 placement justified by user re-prio: lands AFTER Phase 13 multi-agent sh
 2. **`mutations` companion bundle** — every reactive primitive (`reactiveMap` / `reactiveList` / `reactiveLog` / `reactiveIndex` / `pubsub` / `lens.flow`) optionally exposes `bundle.mutations: ReactiveLogBundle<Change<T>>` via `mutations: ReactiveLogConfig | true` opt. Same-wave `batch()` consistency with snapshot emission. TTL/LRU prune emits Change records with `reason` discriminant.
 3. **Universal `mutate(act, opts)` factory** — replaces `lightMutation` + `wrapMutation` (pre-1.0 break). `MutationAct = { up, down? }` (DB up/down framing). Frames `"inline"` / `"transactional"`. `onSuccessRecord` / `onFailureRecord` builders. Canonical rollback layers L0 (substrate batch) / L1 (user `down`) / L2 (post-Rust ownership).
 4. **`reactiveLog.scan(initial, step)` operator** — O(1) per-append running aggregates; method form + standalone `scanLog` export.
-5. **`restoreSnapshot mode:"diff"` lifecycle filter** — `lifecycle?: readonly ("spec"|"data"|"ownership")[]` enforces design-time / runtime / ownership boundaries. Cross-scope replay ordering: spec → data → ownership.
+5. **`restoreSnapshot mode:"diff"` lifecycle filter** ✅ DESIGN LOCKED 2026-05-08 — see [SESSION-DS-14-storage-wal-replay.md](../archive/docs/SESSION-DS-14-storage-wal-replay.md) (9Q walk Q1–Q9). Implementation tracked in [Phase 14.6](#phase-146--storage-wal-replay-implementation-ds-14-storage-substrate) (~4.5 days, gated on user "implement DS-14-storage"). M4 (`graphrefly-storage` crate) has a stable target — TS impl + Rust M4 are independent threads coupling only at parity tests.
 
-Backend `changesSince(version)` is OPTIONAL on each backend interface — bundles own the log when absent (CRDT escape hatch preserved). Worker-bridge Option B and WAL replay land as separate sessions on top of this substrate; wire format pre-locked to `{ t:"c", lifecycle, path, change }`.
+Backend `changesSince(version)` is OPTIONAL on each backend interface — bundles own the log when absent (CRDT escape hatch preserved). Worker-bridge Option B remains a separate session on top of this substrate; wire format pre-locked to `{ t:"c", lifecycle, path, change }` and now extended by DS-14-storage-wal-replay Q1 with on-disk additions.
 
 **Rust-port deferral classification (guardrail for Phase 14 land scope)**
 
@@ -1670,6 +1675,45 @@ Captured here so Phase 16 doesn't underbid scope:
 - Trigger conversation: 2026-05-04 (this session) — research started from Xiaohongshu `Riceneeder/sop-runtime` post; competitor analysis vs `coleam00/Archon` (20.7K⭐) + `nousresearch/hermes-agent` (~96K⭐).
 - Related sessions: [SESSION-first-principles-audit.md](archive/docs/SESSION-first-principles-audit.md) (PART 7 SQL argument — applies to NL-only path; reframe extends to code-aware path); [SESSION-harness-engineering-strategy.md](archive/docs/SESSION-harness-engineering-strategy.md) (existing Wave 2 narrative being reframed).
 - Memory references: `project_harness_engineering_strategy.md`, `project_dynamic_graph_visualization.md`, `project_universal_reduction_layer.md`.
+
+---
+
+### Phase 14.6 — Storage WAL replay implementation (DS-14 storage substrate)
+
+*Source: [SESSION-DS-14-storage-wal-replay.md](../archive/docs/SESSION-DS-14-storage-wal-replay.md) (locked 2026-05-08). 9Q walk lands the user contract + frame format + replay ordering that Rust port M4 (`graphrefly-storage` crate) consumes as a stable target. Carved out from DS-14 ([implementation-plan.md:1514](#phase-14--post-10-changesets--diff-single-unified-design-session)) as a separate session per [DS-14:312](../archive/docs/SESSION-DS-14-changesets-design.md:312).*
+
+**Status:** ✅ DESIGN LOCKED 2026-05-08 (Q1–Q9). Implementation gated on user "implement DS-14-storage" per `feedback_no_implement_without_approval`. Total scope ~4.5 days TS-side. Unblocks [§10.6](#106-restoresnapshot-rejects-mode-diff-records) and closes the §8.7 ungated-question entry [above](#additional-ungated-questions-lean-locked-pending-implementation).
+
+**Parallelism with Rust M4:** Independent threads. M4 consumes the design contract (locked); TS impl produces the pure-ts oracle. Couple only at step 5 (parity tests), which gates main-branch merges once both impls ship `WALFrame` records into `packages/parity-tests/scenarios/storage-wal/`.
+
+**Locked decisions (Q1–Q9, 2026-05-08):**
+
+| # | Lock |
+|---|---|
+| Q1 | `WALFrame<T> = { t:"c", lifecycle, path, change, frame_seq, frame_t_ns, checksum }`. `frame_seq` ≠ `change.seq` (WAL-level vs bundle-level cursor); `frame_t_ns` ≠ `change.t_ns` (write-time vs mutation-entry); BLAKE3 32-byte checksum. Per-frame codec hint rejected. |
+| Q2 | Within-lifecycle order: `frame_seq` ASC. Cross-scope: `spec → data → ownership` (DS-14). Partial-restore: per-phase `batch()` transactions; failed phase rolls back, earlier phases stay; `RestoreError("phase-failed")`. `atomicAllPhases?` deferred (default `false` falls out of `batch()` rollback for free). |
+| Q3 | Recovery: most-recent `mode:"full"` baseline + WAL tail walk filtered by `frame_seq > baseline.seq`. Drop-tail on checksum mismatch; abort on mid-stream mismatch. Best-effort caveat documented. `compactEvery: 10` default retained. |
+| Q4 | `jsonCodec` default; `DagCborCodec` opt-in for content-addressed; `cborCodec` opt-in for non-CA loose CBOR. Tier-level uniformity; mixed codecs in single WAL rejected at restore. `format_version` extended to `WALFrame` per-tier; codec migration via baseline rewrite. |
+| Q5 | `BaseStorageTier.listByPrefix?(prefix): AsyncIterable<{key, value}>`. Lazy, NOT eager. Key format `${prefix}/${frame_seq.padStart(20, '0')}` for lex-ASC = numeric ASC. Literal byte-prefix. Backends without `list?` throw `StorageError("backend-no-list-support")` on first iteration. `readWAL(key)` declined as redundant. |
+| Q6 | TS-side LOCKED: API surface, frame format, replay ordering, codec contract, `listByPrefix`, compaction, §8.7 amendment. Rust-side STRONG DEFER (M4 close): ACID via `redb`, `imbl::Versioned<T>` O(log n) replay, cross-replica WAL merging, auto-tuning compaction, forward recovery past mid-stream torn writes, `loom`-checked concurrency. Fence stays clean. |
+| Q7 | §8.7 spec amendment FOLDED into this session. Six sub-sections drafted (§8.7.1 frame structure, §8.7.2 replay ordering, §8.7.3 recovery boundary, §8.7.4 codec contract, §8.7.5 listByPrefix, §8.7.6 INVALIDATE persistence). Closes [implementation-plan.md:919](#additional-ungated-questions-lean-locked-pending-implementation). |
+| Q8 | `truncateOnCompact: false` default for TS (conservative; no ACID); `true` default for M4 Rust (`redb`-backed). New `tier.compact(): Promise<void>` opt-in method forces immediate baseline. |
+| Q9 | `restoreSnapshot({ mode:"diff", source, lifecycle?, targetSeq?, onTornWrite? }): Promise<RestoreResult>`. `source` accepts pre-collected stream OR `{ tier, walTier? }` handle. `RestoreResult` returns `{ replayedFrames, skippedFrames, finalSeq, phases }` for inspection-as-test-harness. |
+
+**Implementation steps (gated on `/dev-dispatch implement DS-14-storage`):**
+
+| # | Work | Size | Dep |
+|---|---|---|---|
+| 14.6.1 | `WALFrame<T>` type + `BaseStorageTier.listByPrefix` interface + `StorageError` discriminants. Type-only file at [packages/pure-ts/src/extra/storage/wal.ts](../packages/pure-ts/src/extra/storage/wal.ts). Extend `BaseStorageTier` at [tiers.ts:169](../packages/pure-ts/src/extra/storage/tiers.ts:169). | S (~0.5 day) | None |
+| 14.6.2 | `attachStorage` writes WAL frames per `mode:"diff"` record. Extend `runFlush` ([graph.ts:5082](../packages/pure-ts/src/graph/graph.ts:5082)) to emit a `WALFrame` per diff (in addition to the existing `GraphCheckpointRecord`). BLAKE3 checksum at write time. INVALIDATE messages persist per Q7. | M (~1 day) | 14.6.1 |
+| 14.6.3 | `restoreSnapshot mode:"diff"` replay path. Baseline + WAL walk + per-lifecycle `batch()` phases + torn-write handling + `RestoreResult` telemetry. Update [src/patterns/surface/snapshot.ts](../packages/pure-ts/src/patterns/surface/snapshot.ts) `unwrapCheckpoint` to dispatch `mode:"diff"` to the new path (closes [§10.6](#106-restoresnapshot-rejects-mode-diff-records)). | L (~1.5 days) | 14.6.1, 14.6.2 |
+| 14.6.4 | §8.7 spec amendment (cross-repo edit to `~/src/graphrefly/GRAPHREFLY-SPEC.md`). Six sub-sections per Q7. | S (~0.5 day) | None |
+| 14.6.5 | Parity tests at [packages/parity-tests/scenarios/storage-wal/](../packages/parity-tests/scenarios/storage-wal/). Frame format, replay ordering, torn-write recovery. Activates legacy-only at first; rust arm activates per M4 close. | S (~0.5 day) | 14.6.3 |
+| 14.6.6 | JSDoc + COMPOSITION-GUIDE-GRAPH §27 update. Defaults table refresh; loud caveat on best-effort cross-tier atomicity. | S (~0.5 day) | 14.6.3 |
+
+**Sequencing note:** 14.6.1 → 14.6.2 → 14.6.3 sequential; 14.6.4 / 14.6.5 / 14.6.6 parallel after 14.6.3 lands. Total critical path ~3 days; full scope ~4.5 days.
+
+**Rust-port alignment:** locks the stable target for [SESSION-rust-port-architecture.md:250](../archive/docs/SESSION-rust-port-architecture.md:250) M4 close — `graphrefly-storage` crate consumes `WALFrame<T>` + `BaseStorageTier::list_by_prefix` traits per [PART 7 of the session doc](../archive/docs/SESSION-DS-14-storage-wal-replay.md). User to flip `~/src/graphrefly-rs/docs/migration-status.md` M4 row to "ready" when picking up the substrate port.
 
 ---
 

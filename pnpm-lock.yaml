@@ -8,9 +8,9 @@ importers:
 
   .:
     dependencies:
-      '@graphrefly/legacy-pure-ts':
+      '@graphrefly/pure-ts':
         specifier: workspace:^
-        version: link:packages/legacy-pure-ts
+        version: link:packages/pure-ts
     devDependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.82.0
@@ -502,7 +502,45 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/debug@4.1.13)(@types/node@25.5.0)(jsdom@29.0.1)(tsx@4.21.0)
 
-  packages/legacy-pure-ts:
+  packages/mcp-server:
+    dependencies:
+      '@graphrefly/graphrefly':
+        specifier: workspace:*
+        version: link:../..
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.0
+        version: 1.29.0(zod@3.25.76)
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.5.0)(jsdom@29.0.1)(tsx@4.21.0)
+
+  packages/parity-tests:
+    dependencies:
+      '@graphrefly/native':
+        specifier: link:../../../graphrefly-rs/crates/graphrefly-bindings-js
+        version: link:../../../graphrefly-rs/crates/graphrefly-bindings-js
+      '@graphrefly/pure-ts':
+        specifier: workspace:*
+        version: link:../pure-ts
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.5.0)(jsdom@29.0.1)(tsx@4.21.0)
+
+  packages/pure-ts:
     devDependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.82.0
@@ -588,44 +626,6 @@ importers:
       vue:
         specifier: ^3.5.31
         version: 3.5.31(typescript@5.9.3)
-
-  packages/mcp-server:
-    dependencies:
-      '@graphrefly/graphrefly':
-        specifier: workspace:*
-        version: link:../..
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.0.0
-        version: 1.29.0(zod@3.25.76)
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
-    devDependencies:
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.5.0)(jsdom@29.0.1)(tsx@4.21.0)
-
-  packages/parity-tests:
-    dependencies:
-      '@graphrefly/legacy-pure-ts':
-        specifier: workspace:*
-        version: link:../legacy-pure-ts
-      '@graphrefly/native':
-        specifier: link:../../../graphrefly-rs/crates/graphrefly-bindings-js
-        version: link:../../../graphrefly-rs/crates/graphrefly-bindings-js
-    devDependencies:
-      '@types/node':
-        specifier: ^25.5.0
-        version: 25.5.0
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.5.0)(jsdom@29.0.1)(tsx@4.21.0)
 
   website:
     dependencies:

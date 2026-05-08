@@ -52,7 +52,7 @@ describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
 		await g.destroy();
 	});
 
-	// Skipped: TS legacy-pure-ts clears the namespace BEFORE firing TEARDOWN
+	// Skipped: TS pure-ts clears the namespace BEFORE firing TEARDOWN
 	// (graph.ts `remove()` lines 1759–1767). The Rust port's Slice F /qa P1
 	// reorders this to match canonical R3.7.3 (clear AFTER cascade). When the
 	// TS impl is backported OR rustImpl activates and this divergence becomes

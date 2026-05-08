@@ -20,8 +20,8 @@ packages/parity-tests/
 │   └── invariants/      ← cross-cutting spec invariants (§5.8–5.12)
 ├── impls/
 │   ├── types.ts         ← Impl interface (widens per milestone)
-│   ├── registry.ts      ← [legacyImpl, rustImpl] when both active
-│   ├── legacy.ts        ← @graphrefly/legacy-pure-ts arm
+│   ├── registry.ts      ← [pureTsImpl, rustImpl] when both active
+│   ├── legacy.ts        ← @graphrefly/pure-ts arm
 │   └── rust.ts          ← @graphrefly/native arm (activates when napi binding publishes)
 └── traces/              ← (Phase 13.9.B) recorded message traces for replay
 ```

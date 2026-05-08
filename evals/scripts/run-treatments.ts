@@ -44,21 +44,21 @@
  * @module
  */
 
-import { DATA } from "../../packages/legacy-pure-ts/src/core/messages.js";
-import type { Node } from "../../packages/legacy-pure-ts/src/core/node.js";
+import { DATA } from "../../packages/pure-ts/src/core/messages.js";
+import type { Node } from "../../packages/pure-ts/src/core/node.js";
 import {
 	actuatorExecutor,
 	autoSolidify,
 	evalVerifier,
 	type HarnessExecutor,
 	type HarnessVerifier,
-} from "../../packages/legacy-pure-ts/src/patterns/harness/index.js";
-import { harnessLoop } from "../../packages/legacy-pure-ts/src/patterns/harness/loop.js";
+} from "../../packages/pure-ts/src/patterns/harness/index.js";
+import { harnessLoop } from "../../packages/pure-ts/src/patterns/harness/loop.js";
 import type {
 	IntakeItem,
 	TriagedItem,
 	VerifyResult,
-} from "../../packages/legacy-pure-ts/src/patterns/harness/types.js";
+} from "../../packages/pure-ts/src/patterns/harness/types.js";
 import { catalogAwareEvaluator } from "../lib/catalog-aware-evaluator.js";
 import {
 	type CatalogOverlayBundle,

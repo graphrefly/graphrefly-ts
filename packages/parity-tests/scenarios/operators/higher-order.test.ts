@@ -13,7 +13,7 @@
  * `~/src/graphrefly-rs/docs/migration-status.md`).
  *
  * Until `@graphrefly/native` publishes `rustImpl` in `impls/rust.ts`,
- * these scenarios run against `legacyImpl` only. When `rustImpl` flips
+ * these scenarios run against `pureTsImpl` only. When `rustImpl` flips
  * non-null, divergences fail loud.
  */
 

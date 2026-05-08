@@ -32,7 +32,7 @@
  * scenarios run against legacy only.
  */
 
-import * as legacy from "@graphrefly/legacy-pure-ts";
+import * as legacy from "@graphrefly/pure-ts";
 import { afterEach } from "vitest";
 import type { Impl, ImplGraph, ImplNode, Message, SinkFn, UnsubFn } from "./types.js";
 
@@ -391,7 +391,7 @@ class RustGraph implements ImplGraph {
 	}
 
 	async derived<T>(
-		name: string,
+		_name: string,
 		_deps: ReadonlyArray<ImplNode<unknown>>,
 		_fn: (data: ReadonlyArray<ReadonlyArray<unknown>>) => ReadonlyArray<T>,
 	): Promise<ImplNode<T>> {
@@ -566,15 +566,9 @@ class RustGraph implements ImplGraph {
 		};
 	}
 
-	async observe(
-		path?: string,
-		opts?: { reactive: true },
-	): Promise<unknown> {
+	async observe(path?: string, opts?: { reactive: true }): Promise<unknown> {
 		const sinks = new Set<
-			(
-				pathOrMsgs: string | ReadonlyArray<unknown>,
-				msgs?: ReadonlyArray<unknown>,
-			) => void
+			(pathOrMsgs: string | ReadonlyArray<unknown>, msgs?: ReadonlyArray<unknown>) => void
 		>();
 		const dispatchAll = (name: string, encoded: number[]) => {
 			const decoded = decodeMessages(encoded, this.registry);
@@ -592,10 +586,7 @@ class RustGraph implements ImplGraph {
 		}
 		return {
 			subscribe: (
-				sink: (
-					pathOrMsgs: string | ReadonlyArray<unknown>,
-					msgs?: ReadonlyArray<unknown>,
-				) => void,
+				sink: (pathOrMsgs: string | ReadonlyArray<unknown>, msgs?: ReadonlyArray<unknown>) => void,
 			) => {
 				sinks.add(sink);
 				return () => {
@@ -852,11 +843,9 @@ export const rustImpl: Impl | null = native
 				edges(opts?: { recursive?: boolean }) {
 					return this.impl.edges(opts);
 				}
-				// biome-ignore lint/suspicious/noExplicitAny: overloaded signature; impl handles dispatch
 				describe(opts?: any) {
 					return this.impl.describe(opts);
 				}
-				// biome-ignore lint/suspicious/noExplicitAny: overloaded signature
 				observe(path?: string, opts?: any) {
 					return this.impl.observe(path, opts);
 				}

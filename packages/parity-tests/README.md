@@ -9,8 +9,8 @@ Parameterized vitest runner via `describe.each(impls)`. The set of impls in
 
 | Milestone | Impls registered | Notes |
 |---|---|---|
-| Phase 13.9.A cleave | `[legacyImpl]` | rust arm deferred until `@graphrefly/native` publishes |
-| **Phase E rustImpl activation (D074, 2026-05-07)** | **`[legacyImpl, rustImpl]` when `@graphrefly/native` is built locally; otherwise `[legacyImpl]`** | **All scenario tests are now async-shaped per D077; legacy wraps in `Promise.resolve()`. Rust arm activates after `pnpm --filter @graphrefly/native build` produces the host `.node` artifact.** |
+| Phase 13.9.A cleave | `[pureTsImpl]` | rust arm deferred until `@graphrefly/native` publishes |
+| **Phase E rustImpl activation (D074, 2026-05-07)** | **`[pureTsImpl, rustImpl]` when `@graphrefly/native` is built locally; otherwise `[pureTsImpl]`** | **All scenario tests are now async-shaped per D077; legacy wraps in `Promise.resolve()`. Rust arm activates after `pnpm --filter @graphrefly/native build` produces the host `.node` artifact.** |
 | M2 Slice E close (Graph container) | + Graph constructor, mount/unmount, describe, observe, snapshot scenarios | shim swap-over for Graph topology |
 | M3 Slice C-1 transform (landed 2026-05-06) | + `scenarios/operators/transform.test.ts` (8 scenarios — map/filter/scan/reduce/distinctUntilChanged/pairwise) | substrate landed in `graphrefly-operators`; rust arm activates with napi operator wiring |
 | M3 Slice C-2 combinator (landed 2026-05-06) | + `scenarios/operators/combine.test.ts` (6 scenarios — combine/withLatestFrom/merge) | substrate landed in `graphrefly-operators`; rust arm activates with napi operator wiring |
@@ -18,7 +18,7 @@ Parameterized vitest runner via `describe.each(impls)`. The set of impls in
 | M4 close | + storage tier dispatch (Node-only) | shim swap-over for storage |
 | M5 close | + reactive data structures + Phase 14 op-log changesets | shim swap-over for structures |
 | M6 close | + cross-language traces (TS ↔ PY ↔ Rust) | requires Phase 13.9.B harness |
-| 1.0 ship | (full surface) | sunset trigger for `@graphrefly/legacy-pure-ts` |
+| 1.0 ship | (full surface) | sunset trigger for `@graphrefly/pure-ts` |
 
 ## Async-shaped Impl interface (D077)
 
@@ -49,7 +49,7 @@ fn / cross-Core mount. See `~/src/graphrefly-rs/docs/porting-deferred.md`
 Divergences fail loud and gate main-branch merges. The CI parity job
 materializes once the rust arm activates — until then, `pnpm test` from this
 package is equivalent to running the (narrow) parity scenarios against
-legacy-pure-ts only.
+pure-ts only.
 
 ## Phase 13.9.B target shape (deferred)
 
@@ -69,7 +69,7 @@ acceptance bar.
 packages/parity-tests/
   impls/
     types.ts        — Impl interface (narrow public surface)
-    legacy.ts       — legacy-pure-ts arm
+    legacy.ts       — pure-ts arm
     rust.ts         — rust-via-napi arm (currently null; activates with @graphrefly/native publish)
     registry.ts     — exported set of active impls (filters out null)
   scenarios/

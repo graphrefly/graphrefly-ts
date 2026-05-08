@@ -4,10 +4,10 @@
  * 2. Files that use `node()` but only have `import type { Node }` (no value import)
  */
 
-import { execSync } from "child_process";
-import { readFileSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { execSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
@@ -39,7 +39,7 @@ function needsNodeValueImport(src) {
 	if (hasValueImport) return false;
 
 	// Has only type import?
-	const hasTypeOnlyImport =
+	const _hasTypeOnlyImport =
 		/import\s+type\s*\{[^}]*Node[^}]*\}\s*from\s*["'][^"']*core\/node\.js["']/.test(src);
 	return true; // needs a value import
 }
@@ -123,7 +123,7 @@ for (const filePath of files) {
 	if (src !== original) {
 		writeFileSync(filePath, src, "utf8");
 		fixed++;
-		console.log(`Fixed: ${filePath.replace(REPO_ROOT + "/", "")}`);
+		console.log(`Fixed: ${filePath.replace(`${REPO_ROOT}/`, "")}`);
 	}
 }
 
@@ -147,11 +147,11 @@ try {
 			if (fixed2 !== src) {
 				writeFileSync(filePath, fixed2, "utf8");
 				addedNodeImport++;
-				console.log(`Added node import: ${filePath.replace(REPO_ROOT + "/", "")}`);
+				console.log(`Added node import: ${filePath.replace(`${REPO_ROOT}/`, "")}`);
 			}
 		}
 	}
-} catch (e) {
+} catch (_e) {
 	// ignore
 }
 
@@ -168,7 +168,7 @@ try {
 		if (src !== original) {
 			writeFileSync(filePath, src, "utf8");
 			fixed++;
-			console.log(`Fixed eval: ${filePath.replace(REPO_ROOT + "/", "")}`);
+			console.log(`Fixed eval: ${filePath.replace(`${REPO_ROOT}/`, "")}`);
 		}
 	}
 } catch {}

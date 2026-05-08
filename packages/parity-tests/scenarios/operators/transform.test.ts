@@ -17,7 +17,7 @@
  * - R5.7 pairwise first-value swallow + (prev, current) emission
  *
  * Until `@graphrefly/native` publishes `rustImpl` in `impls/rust.ts`,
- * these scenarios run against `legacyImpl` only. When `rustImpl` flips
+ * these scenarios run against `pureTsImpl` only. When `rustImpl` flips
  * non-null, divergences fail loud — the rust arm uses the same
  * `impl.<name>` surface.
  */

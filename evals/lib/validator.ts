@@ -10,7 +10,7 @@ import {
 	type GraphSpec,
 	type GraphSpecValidation,
 	validateSpec as realValidateSpec,
-} from "../../packages/legacy-pure-ts/src/patterns/graphspec/index.js";
+} from "../../packages/pure-ts/src/patterns/graphspec/index.js";
 
 export type { GraphSpecValidation as ValidationResult };
 

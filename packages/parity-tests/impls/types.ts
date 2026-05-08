@@ -1,12 +1,23 @@
 /**
- * The narrow public surface a parity scenario uses, parameterized over impls.
+ * **Canonical public-API contract for the three sibling impls.**
+ *
+ * Every method here is part of GraphReFly's public surface and must be
+ * implemented by `@graphrefly/pure-ts`, `@graphrefly/native`, and
+ * `@graphrefly/wasm`. Widening this interface IS a public-API decision
+ * — treat additions deliberately, not as test scaffolding.
+ *
+ * Authority: PART 13 of `archive/docs/SESSION-rust-port-architecture.md`
+ * (D080–D084, locked 2026-05-08).
  *
  * **Phase E (D077) — async-everywhere.** All methods that touch the
  * dispatcher are `Promise`-returning so the napi-rs Rust impl (which
  * runs Core on a tokio blocking-pool thread per D070) can satisfy the
- * same interface as the synchronous TS legacy impl. The legacy impl
+ * same interface as the synchronous TS pure-ts impl. The pure-ts impl
  * wraps each sync method in `async` (negligible Promise.resolve
  * overhead); the rust impl exposes its napi async methods directly.
+ * D080 extends this lock to all three sibling impls, including
+ * `@graphrefly/wasm` whose `__wbg_init()` is hidden behind every public
+ * method via the same async-everywhere shape.
  *
  * Sink-completion semantics: any method that triggers Core dispatch
  * (`subscribe`, `down`, lifecycle ops, signal broadcast) resolves AFTER
@@ -16,7 +27,7 @@
  * resolves.
  */
 
-import type * as legacy from "@graphrefly/legacy-pure-ts";
+import type * as legacy from "@graphrefly/pure-ts";
 
 /** Tier symbol; one of DATA / RESOLVED / DIRTY / INVALIDATE / PAUSE / RESUME / COMPLETE / ERROR / TEARDOWN. */
 export type Tier = symbol;

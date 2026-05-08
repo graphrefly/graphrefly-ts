@@ -20,19 +20,14 @@
  * @module
  */
 
-import {
-	COMPLETE,
-	DATA,
-	ERROR,
-	type Messages,
-} from "../../packages/legacy-pure-ts/src/core/messages.js";
-import { type Node, node } from "../../packages/legacy-pure-ts/src/core/node.js";
-import type { GraphSpecCatalog } from "../../packages/legacy-pure-ts/src/patterns/graphspec/index.js";
+import { COMPLETE, DATA, ERROR, type Messages } from "../../packages/pure-ts/src/core/messages.js";
+import { type Node, node } from "../../packages/pure-ts/src/core/node.js";
+import type { GraphSpecCatalog } from "../../packages/pure-ts/src/patterns/graphspec/index.js";
 import type {
 	DatasetItem,
 	EvalResult,
 	Evaluator,
-} from "../../packages/legacy-pure-ts/src/patterns/refine-loop/index.js";
+} from "../../packages/pure-ts/src/patterns/refine-loop/index.js";
 import type { CatalogOverlayBundle } from "./catalog-overlay.js";
 
 /**

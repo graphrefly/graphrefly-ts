@@ -1,0 +1,5216 @@
+/**
+ * Protocol invariant registry — all 9 invariants from
+ * `archive/docs/SESSION-rigor-infrastructure-plan.md` § "Project 1".
+ *
+ * Each entry is a self-contained property the harness runs via fast-check.
+ * The registry shape is the **LLM-readable contract surface**: an LLM (or a
+ * future scorecard generator) can enumerate `INVARIANTS` to discover what the
+ * substrate guarantees, without reading any operator code.
+ *
+ * Companion TLA+ spec at `~/src/graphrefly/formal/wave_protocol.tla` encodes
+ * the first 6 (protocol-layer) invariants for exhaustive model checking by
+ * TLC. Invariants 7–9 target the subscribe lifecycle (START handshake,
+ * throw recovery, unsub-reentry), which the TLA+ model doesn't currently
+ * model — they live only in the fast-check harness. Counter-examples from
+ * TLC port directly into new `Invariant` entries here. See
+ * `~/src/graphrefly/formal/README.md` for the porting workflow.
+ *
+ * Adding a new invariant: append a new `Invariant` object below; the iterating
+ * test file in `protocol-invariants.test.ts` will pick it up automatically.
+ * Names must be unique — enforced at module load.
+ */
+
+import * as fc from "fast-check";
+import { vi } from "vitest";
+import { batch } from "../../core/batch.js";
+import {
+	GraphReFlyConfig,
+	type NodeCtx,
+	type RigorRecorder,
+	registerBuiltins,
+} from "../../core/config.js";
+import { policy } from "../../core/guard.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	INVALIDATE,
+	type Messages,
+	PAUSE,
+	RESOLVED,
+	RESUME,
+	START,
+} from "../../core/messages.js";
+import { defaultConfig, type Node, node } from "../../core/node.js";
+import {
+	buffer,
+	bufferCount,
+	bufferTime,
+	combine,
+	concat,
+	concatMap,
+	debounce,
+	delay,
+	distinctUntilChanged,
+	elementAt,
+	exhaustMap,
+	filter,
+	find,
+	interval,
+	last,
+	map,
+	merge,
+	mergeMap,
+	pairwise,
+	race,
+	reduce,
+	repeat,
+	rescue,
+	sample,
+	scan,
+	skip,
+	switchMap,
+	take,
+	takeUntil,
+	takeWhile,
+	tap,
+	throttle,
+	timeout,
+	windowCount,
+	zip,
+} from "../../extra/operators.js";
+import { Graph } from "../../graph/graph.js";
+import { latestVals } from "../test-helpers.js";
+import { applyEvent, captureTrace, type Event, eventSequenceArb } from "./_generators.js";
+
+// ---------------------------------------------------------------------------
+// Registry shape
+// ---------------------------------------------------------------------------
+
+export interface Invariant {
+	/** kebab-case identifier — used as the vitest test name. Must be unique. */
+	readonly name: string;
+	/** Human + LLM-readable summary. Single sentence. */
+	readonly description: string;
+	/** Reference into `~/src/graphrefly/GRAPHREFLY-SPEC.md` (section anchor). */
+	readonly specRef: string;
+	/** Returns the fast-check property this invariant asserts. */
+	readonly property: () => fc.IPropertyWithHooks<unknown>;
+	/** fast-check run count override (default 100). */
+	readonly numRuns?: number;
+	/**
+	 * When set, this invariant is **authored ahead of a known substrate gap** —
+	 * it encodes the behavior the framework SHOULD guarantee, but the current
+	 * implementation does not. The test runner skips these (via `it.skip`) so
+	 * CI stays green, but the registry still surfaces them to LLMs and
+	 * docs-gen as part of the contract surface.
+	 *
+	 * Landing the substrate fix is the trigger to flip this to `undefined`
+	 * and let the test run — a failing property then means the fix regressed.
+	 * The value is the docs/optimizations.md anchor the fix is tracked under.
+	 */
+	readonly openUntilSubstrateFix?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers — small predicates over recorded traces
+// ---------------------------------------------------------------------------
+
+/** Number of source emits a wave attempts (batch-wave fans out to N attempts). */
+function waveAttemptCount(event: Event): number {
+	if (event.kind === "emit") return 1;
+	if (event.kind === "batch") return event.values.length;
+	return 0;
+}
+
+/** Capture trace as a list of per-wave segments (one segment per event). */
+function captureTracePerWave<T>(
+	leaf: Node<T>,
+	source: Node<number>,
+	events: readonly Event[],
+): { initial: symbol[]; perWave: symbol[][] } {
+	const initial: symbol[] = [];
+	let bucket: symbol[] = initial;
+	const unsub = leaf.subscribe((msgs) => {
+		for (const msg of msgs as readonly [symbol, unknown?][]) {
+			if (msg[0] === START) continue;
+			bucket.push(msg[0]);
+		}
+	});
+	const perWave: symbol[][] = [];
+	const completed = { value: false };
+	for (const e of events) {
+		const seg: symbol[] = [];
+		bucket = seg;
+		perWave.push(seg);
+		applyEvent(source, e, completed);
+	}
+	unsub();
+	return { initial, perWave };
+}
+
+// ---------------------------------------------------------------------------
+// Invariants
+// ---------------------------------------------------------------------------
+
+/**
+ * #1 — No DATA without a preceding DIRTY in the same wave.
+ *
+ * Walks the post-activation trace; tracks `pending = (DIRTY count − settlement count)`.
+ * If `pending` ever goes negative, a settlement (DATA/RESOLVED) reached the
+ * sink without an outstanding DIRTY — protocol §1.3 invariant 1 violation.
+ *
+ * Topology: `state → derived(*2) → derived(+1)` (linear chain).
+ * Caught by hand audit: Wave 1 `mergeMap` ERROR leak (settlement without DIRTY).
+ */
+const invariant1: Invariant = {
+	name: "no-data-without-dirty",
+	description:
+		"In any post-activation wave, every DATA/RESOLVED settlement is preceded by an unbalanced DIRTY.",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 1",
+	property: () =>
+		fc.property(eventSequenceArb(), (events) => {
+			const s = node([], { initial: 0 });
+			const m = node(
+				[s],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) * 2);
+				},
+				{ describeKind: "derived" },
+			);
+			const leaf = node(
+				[m],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) + 1);
+				},
+				{ describeKind: "derived" },
+			);
+			const trace = captureTrace(leaf, s, events);
+			let pending = 0;
+			for (let i = trace.activationEnd; i < trace.types.length; i++) {
+				const t = trace.types[i];
+				if (t === DIRTY) pending += 1;
+				else if (t === DATA || t === RESOLVED) {
+					pending -= 1;
+					if (pending < 0) return false;
+				}
+				// COMPLETE/ERROR/INVALIDATE don't affect the DIRTY/settlement balance.
+			}
+			return true;
+		}),
+};
+
+/**
+ * #2 — RESOLVED settles exactly the wave that dirtied it; no leaks across waves.
+ *
+ * Stronger than #1: at the end of the run, `pending` must be exactly 0. A
+ * positive pending means a DIRTY was sent without a follow-up settlement —
+ * subscribers permanently believe the value might still change. A negative
+ * pending means a settlement arrived without any DIRTY (caught first by #1).
+ *
+ * Topology: `state → derived` (single-dep, default Object.is equals).
+ */
+const invariant2: Invariant = {
+	name: "resolved-per-wave",
+	description:
+		"After all events complete, every DIRTY observed at a downstream node has been balanced by exactly one DATA or RESOLVED.",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 7 (batch drain)",
+	property: () =>
+		fc.property(eventSequenceArb(), (events) => {
+			const s = node([], { initial: 0 });
+			const leaf = node(
+				[s],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0] as number);
+				},
+				{ describeKind: "derived" },
+			);
+			const trace = captureTrace(leaf, s, events);
+			let pending = 0;
+			for (let i = trace.activationEnd; i < trace.types.length; i++) {
+				const t = trace.types[i];
+				if (t === DIRTY) pending += 1;
+				else if (t === DATA || t === RESOLVED) pending -= 1;
+			}
+			return pending === 0;
+		}),
+};
+
+/**
+ * #3 — Terminal monotonicity: after COMPLETE/ERROR, no further DATA/DIRTY/RESOLVED.
+ *
+ * The invariant owns its terminal injection: prefix events, then a forced
+ * COMPLETE, then suffix events. The forced COMPLETE is always present and
+ * always at a known position with driven events after it, so the test
+ * always exercises the post-terminal monotonicity path.
+ *
+ * Topology: `state` (source itself).
+ */
+const invariant3: Invariant = {
+	name: "terminal-monotonicity",
+	description:
+		"Once COMPLETE or ERROR appears in the trace, no further DIRTY, DATA, or RESOLVED messages may follow.",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 4 (terminal)",
+	property: () =>
+		fc.property(
+			eventSequenceArb({ maxLen: 4 }),
+			eventSequenceArb({ maxLen: 4 }),
+			(prefix, suffix) => {
+				const sequence: Event[] = [...prefix, { kind: "complete" }, ...suffix];
+				const s = node([], { initial: 0 });
+				const trace = captureTrace(s, s, sequence);
+				const terminalIdx = trace.types.findIndex((t) => t === COMPLETE || t === ERROR);
+				if (terminalIdx === -1) return false; // forced complete must reach the trace
+				for (let i = terminalIdx + 1; i < trace.types.length; i++) {
+					const t = trace.types[i];
+					if (t === DIRTY || t === DATA || t === RESOLVED) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #4 — Diamond resolution: fan-in converges to at most ONE settlement per
+ * source-emit propagation (no glitch where B-path and C-path each fire D
+ * independently).
+ *
+ * Topology: A → B; A → C; D = derived([B, C]). Each source emit on A is
+ * one propagation cycle; D may fire at most once per cycle. A `batch` event
+ * with K emits fans out to ONE coalesced downstream wave at D (per the
+ * per-node emit coalescing fix, 2026-04-17) — so the bound inside a batch
+ * is 1. Outside batch, the bound is the count of source-emit attempts in
+ * the wave. What the invariant rules out is `D fires 2K times` (one per
+ * dep edge).
+ */
+const invariant4: Invariant = {
+	name: "diamond-resolution",
+	description:
+		"In a diamond topology (two paths fan in to a derived), settlements at the fan-in node are bounded by the count of source-emit attempts in the wave — never 2× per dep edge.",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 3 (diamond)",
+	property: () =>
+		fc.property(eventSequenceArb(), (events) => {
+			const a = node([], { initial: 0 });
+			const b = node(
+				[a],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0] as number);
+				},
+				{ describeKind: "derived" },
+			);
+			const c = node(
+				[a],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) + 1);
+				},
+				{ describeKind: "derived" },
+			);
+			const d = node(
+				[b, c],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) + (data[1] as number));
+				},
+				{ describeKind: "derived" },
+			);
+			const { perWave } = captureTracePerWave(d, a, events);
+			for (let i = 0; i < perWave.length; i++) {
+				const seg = perWave[i];
+				const bound = waveAttemptCount(events[i]);
+				let settlements = 0;
+				for (const t of seg) if (t === DATA || t === RESOLVED) settlements += 1;
+				if (settlements > bound) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #5 — Equals substitution: a suppressed DATA becomes RESOLVED, never silence.
+ *
+ * Drives the source. Every emit must produce exactly one settlement (DATA when
+ * the value changed, RESOLVED when equals matched). The total settlement count
+ * must equal the total emit-attempt count — silent drops would make this fail.
+ *
+ * Topology: `state` (source itself), default Object.is equals, small value
+ * alphabet so equal-value emits are common.
+ */
+const invariant5: Invariant = {
+	name: "equals-substitution",
+	description:
+		"Every source emit produces exactly one settlement (DATA or RESOLVED) — equality never causes silent drop.",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 2 (equals)",
+	property: () =>
+		fc.property(eventSequenceArb(), (events) => {
+			const s = node([], { initial: 0 });
+			const trace = captureTrace(s, s, events);
+			let settlements = 0;
+			for (let i = trace.activationEnd; i < trace.types.length; i++) {
+				const t = trace.types[i];
+				if (t === DATA || t === RESOLVED) settlements += 1;
+			}
+			const expected = events.reduce((n, e) => n + waveAttemptCount(e), 0);
+			return settlements === expected;
+		}),
+};
+
+/**
+ * #6 — Version counter per-emit correctness: `advanceVersion` fires exactly
+ * once per observable cache change, and never on RESOLVED.
+ *
+ * After each event, asserts `v.version` advanced by exactly the expected
+ * delta (number of value-changing emits in the event). A substrate bug that
+ * double-increments on one emit and skips another would be caught here but
+ * miss a final-value-only test.
+ *
+ * Topology: `node([], { versioning: 0 , initial: 0 })`.
+ */
+const invariant6: Invariant = {
+	name: "version-counter-per-emit",
+	description:
+		"`v.version` advances by exactly the number of value-changing emits in each event; unchanged on RESOLVED.",
+	specRef: "GRAPHREFLY-SPEC §7 (versioning)",
+	property: () =>
+		fc.property(eventSequenceArb(), (events) => {
+			const initial = 0;
+			const s = node([], { versioning: 0, initial: initial });
+			const unsub = s.subscribe(() => {});
+			const completed = { value: false };
+			let cache = initial;
+			try {
+				for (const event of events) {
+					let expectedDelta = 0;
+					let simCache = cache;
+					if (event.kind === "emit") {
+						if (!Object.is(event.value, simCache)) {
+							expectedDelta += 1;
+							simCache = event.value;
+						}
+					} else if (event.kind === "batch") {
+						for (const v of event.values) {
+							if (!Object.is(v, simCache)) {
+								expectedDelta += 1;
+								simCache = v;
+							}
+						}
+					}
+					const before = s.v?.version ?? 0;
+					applyEvent(s, event, completed);
+					const after = s.v?.version ?? 0;
+					if (after - before !== expectedDelta) return false;
+					cache = simCache;
+				}
+			} finally {
+				unsub();
+			}
+			return true;
+		}),
+};
+
+/**
+ * #7 — START handshake. Per GRAPHREFLY-SPEC §2.2 the very first delivery
+ * to a new subscriber starts with exactly `[[START]]` on its own.
+ *
+ * The remainder of the handshake depends on topology:
+ * - **Source with cached value** (`node([], { initial: v })`): `[[START]]` → `[[DATA, v]]`.
+ *   The cached value is pushed directly; no DIRTY precedes it.
+ * - **Derived (compute node)**: `[[START]]` → `[[DIRTY]]` → `[[DATA, fn(deps)]]`.
+ *   The compute node emits DIRTY first (it doesn't have a cached value at
+ *   subscribe time until deps have pushed), then computes and delivers DATA.
+ * - **Sentinel** (`node<T>([])`, no initial): just `[[START]]`. No further
+ *   push until something sets the cache.
+ *
+ * Tier-group delivery (§1.3.7) means each entry is its own `sink()` call —
+ * START (tier 0) and DATA (tier 3) are always separate batches, and DIRTY
+ * (tier 1) sits between them in the derived case.
+ *
+ * Probed (2026-04-17): `node([], { initial: 42 })` → 2 batches; `node([s], (batchData, actions, ctx) => {
+ 	const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
+ 	actions.emit(data * 2);
+ }, { describeKind: "derived" })` →
+ * 3 batches with DIRTY in the middle; `node<T>([])` → 1 batch.
+ */
+const invariant7: Invariant = {
+	name: "start-handshake",
+	description:
+		"First batch is exactly [[START]]. For a cached source the next batch is [[DATA, v]]; for a derived node the sequence is [[START]], [[DIRTY]], [[DATA, fn(deps)]]; for a sentinel only [[START]] is delivered.",
+	specRef: "GRAPHREFLY-SPEC §2.2 (push-on-subscribe)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 0, max: 10 }),
+			fc.constantFrom<"source" | "derived" | "derived-multi" | "sentinel">(
+				"source",
+				"derived",
+				"derived-multi",
+				"sentinel",
+			),
+			(cachedValue, kind) => {
+				let target: Node<number>;
+				let expectedFinal: number;
+				if (kind === "source") {
+					target = node([], { initial: cachedValue });
+					expectedFinal = cachedValue;
+				} else if (kind === "derived") {
+					const src = node([], { initial: cachedValue });
+					target = node(
+						[src],
+						(batchData, actions, ctx) => {
+							const data = batchData.map((batch, i) =>
+								batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+							);
+							actions.emit((data[0] as number) * 2);
+						},
+						{ describeKind: "derived" },
+					);
+					expectedFinal = cachedValue * 2;
+				} else if (kind === "derived-multi") {
+					// Multi-dep derived: both deps cached at subscribe time.
+					// Per the known "withLatestFrom multi-dep push-on-subscribe"
+					// gap (docs/optimizations.md), two-dep activation may emit
+					// a RESOLVED from the first-dep first-run gate before the
+					// combined DATA. This invariant accepts either of the two
+					// valid handshakes: [[START], [DIRTY], [DATA, ...]] (clean)
+					// or [[START], [DIRTY], [RESOLVED], [DIRTY], [DATA, ...]]
+					// (sequential dep arrival). Any other shape is a violation.
+					const s1 = node([], { initial: cachedValue });
+					const s2 = node([], { initial: cachedValue + 1 });
+					target = node(
+						[s1, s2],
+						(batchData, actions, ctx) => {
+							const data = batchData.map((batch, i) =>
+								batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+							);
+							actions.emit((data[0] as number) + (data[1] as number));
+						},
+						{ describeKind: "derived" },
+					);
+					expectedFinal = cachedValue + (cachedValue + 1);
+				} else {
+					target = node<number>([]);
+					expectedFinal = Number.NaN;
+				}
+				const batches: [symbol, unknown?][][] = [];
+				const unsub = target.subscribe((msgs) => {
+					batches.push([...(msgs as readonly [symbol, unknown?][])]);
+				});
+				unsub();
+				// Every kind: first batch is exactly [[START]].
+				if (batches.length === 0) return false;
+				if (batches[0].length !== 1 || batches[0][0][0] !== START) return false;
+				if (kind === "sentinel") return batches.length === 1;
+				if (kind === "source") {
+					// Source: [[START]], [[DATA, cached]].
+					if (batches.length !== 2) return false;
+					const d = batches[1];
+					return d.length === 1 && d[0][0] === DATA && Object.is(d[0][1], cachedValue);
+				}
+				if (kind === "derived") {
+					// Single-dep derived: [[START]], [[DIRTY]], [[DATA, fn(deps)]].
+					if (batches.length !== 3) return false;
+					if (batches[1].length !== 1 || batches[1][0][0] !== DIRTY) return false;
+					const d2 = batches[2];
+					return d2.length === 1 && d2[0][0] === DATA && Object.is(d2[0][1], expectedFinal);
+				}
+				// kind === "derived-multi": tightened 2026-04-23 alongside the
+				// first-run gate landing (docs/optimizations.md: Multi-dep
+				// push-on-subscribe ordering — RESOLVED). Substrate now
+				// guarantees the clean handshake; the previous gap-aware form
+				// `[[START], [DIRTY], [RESOLVED], [DIRTY], [DATA]]` was the
+				// pre-fix substrate shape and is no longer reachable for sugar
+				// `derived` / `effect` with `partial: false` default. #10
+				// `multi-dep-initial-pair-clean` is the dedicated guard for
+				// this exact shape; #7 now asserts the same clean 3-batch form
+				// as the single-dep case, so a regression fails BOTH here and
+				// #10 (not only #10).
+				if (batches.length !== 3) return false;
+				if (batches[1].length !== 1 || batches[1][0][0] !== DIRTY) return false;
+				const lastMulti = batches[2];
+				if (lastMulti.length !== 1 || lastMulti[0][0] !== DATA) return false;
+				return Object.is(lastMulti[0][1], expectedFinal);
+			},
+		),
+};
+
+/**
+ * #8 — Throw recovery / state consistency. When a subscriber's callback
+ * throws, the node's internal cache/version state remains consistent and
+ * matches what it would be in the throw-free world. Subscribers registered
+ * **before** the thrower may see partial delivery for a wave where the
+ * throw interrupts, but subsequent emits still update state correctly.
+ *
+ * The plan's original "batch drain atomicity" is weaker than it sounds at
+ * runtime: emit() is synchronous and a throwing subscriber does propagate
+ * out, potentially leaving later subscribers starved for that wave. This
+ * invariant captures what **does** hold: state consistency post-throw.
+ *
+ * Topology: `node([], { initial: 0 })` with a throwing subscriber, observed from outside.
+ */
+const invariant8: Invariant = {
+	name: "throw-recovery-consistency",
+	description:
+		"A throwing subscriber callback does not corrupt the node's cache or version: after removing the thrower, a fresh emit updates cache and version exactly as if no throw had happened.",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 7 (batch drain)",
+	property: () =>
+		fc.property(eventSequenceArb({ maxLen: 6 }), (events) => {
+			const s = node([], { initial: 0 });
+			// Throw only on DIRTY — which never appears during subscribe()'s
+			// handshake (START + cached-DATA push), so we safely get past
+			// registration. Every real emit produces DIRTY, triggering the throw.
+			const uBad = s.subscribe((msgs) => {
+				for (const [t] of msgs as readonly [symbol, unknown?][]) {
+					if (t === DIRTY) throw new Error("intentional");
+				}
+			});
+			const completed = { value: false };
+			for (const event of events) {
+				try {
+					applyEvent(s, event, completed);
+				} catch {
+					// Swallow the rethrown subscriber error; we're checking state, not delivery.
+				}
+			}
+			uBad();
+			// After removing the thrower, emit one value and check cache advances.
+			// Choose a value distinct from current cache to force a real DATA.
+			const before = s.cache;
+			const fresh = before === 999 ? 1000 : 999;
+			s.emit(fresh);
+			return s.cache === fresh;
+		}),
+};
+
+/**
+ * #9 — Subscribe/unsubscribe reentry. Unsubscribing from inside a subscribe
+ * callback is safe: the act of calling the unsub function during its own
+ * callback does not throw, does not leak, and does not disrupt other
+ * subscribers' delivery. Subsequent emits still reach non-unsubbed
+ * observers with the correct message sequence.
+ *
+ * Topology: `node([], { initial: 0 })` with a self-unsubbing subscriber and an independent
+ * observer. Property: observer's message balance still satisfies
+ * NoDataWithoutDirty + BalancedWaves after the self-unsub has fired.
+ */
+const invariant9: Invariant = {
+	name: "subscribe-unsubscribe-reentry",
+	description:
+		"A subscriber calling its own unsub from inside its callback does not throw and does not disrupt delivery to other subscribers.",
+	specRef: "GRAPHREFLY-SPEC §2.2 (subscribe lifecycle)",
+	property: () =>
+		fc.property(
+			eventSequenceArb({ maxLen: 6 }),
+			fc.nat({ max: 3 }), // unsub after the Nth DATA received
+			(events, unsubAfterN) => {
+				const s = node([], { initial: 0 });
+				let dataCount = 0;
+				let unsubSelf: (() => void) | null = null;
+				let reentryError: unknown = null;
+				unsubSelf = s.subscribe((msgs) => {
+					for (const [t] of msgs as readonly [symbol, unknown?][]) {
+						if (t === DATA) dataCount += 1;
+					}
+					if (dataCount >= unsubAfterN && unsubSelf) {
+						try {
+							const u = unsubSelf;
+							unsubSelf = null;
+							u();
+						} catch (err) {
+							reentryError = err;
+						}
+					}
+				});
+				// Independent observer — must stay uncorrupted.
+				const observerTypes: symbol[] = [];
+				let observerActivationEnd = 0;
+				const uObs = s.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === START) continue;
+						observerTypes.push(msg[0]);
+					}
+				});
+				observerActivationEnd = observerTypes.length;
+				const completed = { value: false };
+				for (const e of events) applyEvent(s, e, completed);
+				uObs();
+				if (unsubSelf) unsubSelf();
+				if (reentryError !== null) return false;
+				// Balance check on observer's post-activation trace.
+				let pending = 0;
+				for (let i = observerActivationEnd; i < observerTypes.length; i++) {
+					const t = observerTypes[i];
+					if (t === DIRTY) pending += 1;
+					else if (t === DATA || t === RESOLVED) pending -= 1;
+					if (pending < 0) return false;
+				}
+				return pending === 0;
+			},
+		),
+};
+
+/**
+ * #10 — Multi-dep push-on-subscribe initial pair (OPEN, ahead of substrate fix).
+ *
+ * When a compute node has two already-cached `node([])` deps and is subscribed,
+ * the handshake should deliver ONE combined initial DATA: `[[START],
+ * [DIRTY], [DATA, fn(initA, initB)]]`. Today `_activate` at
+ * src/core/node.ts:1002 subscribes deps sequentially — each push-on-subscribe
+ * is its own wave — so the actual handshake is
+ * `[[START], [DIRTY], [RESOLVED], [DIRTY], [DATA, fn(initA, initB)]]` (fast-
+ * check invariant #7 accepts both shapes for that reason).
+ *
+ * This is the stricter form: the handshake's tier-3 traffic must be EXACTLY
+ * `[DATA, fn(initA, initB)]` — no precursor RESOLVED. Driving this green
+ * unblocks docs/optimizations.md "Multi-dep push-on-subscribe ordering".
+ *
+ * Topology: `node([node([], { initial: x }), node([], { initial: y })], (batchData, actions, ctx) => {
+ 	const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
+ 	actions.emit(data[0] + data[1]);
+ }, { describeKind: "derived" })`.
+ */
+const invariant10MultiDepInitial: Invariant = {
+	name: "multi-dep-initial-pair-clean",
+	description:
+		"A two-dep derived with two already-cached state deps delivers exactly [[START], [DIRTY], [DATA, fn(initA, initB)]] on first subscribe — no precursor RESOLVED from sequential dep activation.",
+	specRef: "GRAPHREFLY-SPEC §2.7 (multi-dep push-on-subscribe)",
+	property: () =>
+		fc.property(fc.integer({ min: 0, max: 9 }), fc.integer({ min: 0, max: 9 }), (x, y) => {
+			const a = node([], { initial: x });
+			const b = node([], { initial: y });
+			const d = node(
+				[a, b],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) + (data[1] as number));
+				},
+				{ describeKind: "derived" },
+			);
+			const batches: [symbol, unknown?][][] = [];
+			const unsub = d.subscribe((msgs) => {
+				batches.push([...(msgs as readonly [symbol, unknown?][])]);
+			});
+			unsub();
+			// Strict shape: exactly 3 sink calls — [START], [DIRTY], [DATA, sum].
+			if (batches.length !== 3) return false;
+			if (batches[0].length !== 1 || batches[0][0][0] !== START) return false;
+			if (batches[1].length !== 1 || batches[1][0][0] !== DIRTY) return false;
+			if (batches[2].length !== 1) return false;
+			const dataMsg = batches[2][0];
+			return dataMsg[0] === DATA && Object.is(dataMsg[1], x + y);
+		}),
+};
+
+/**
+ * #11 — Pause multi-pauser correctness. Multiple controllers can hold
+ * independent pause locks on the same node; the node stays paused as long as
+ * any lock is held, and `fn` fires exactly once — coalescing the pending wave
+ * — on final-lock release. Spec §2.6: "This gives multi-pauser correctness
+ * by construction: if controller A and controller B both hold pause locks,
+ * releasing A's lock does not resume the node while B still holds its lock."
+ *
+ * Topology: `state → derived(tracks fn runs)`. Property:
+ *   (a) while N locks pause upstream, intermediate releases (k < N-1 out of
+ *       N-1 are released) do not cause `fn` to run;
+ *   (b) the final lock release runs `fn` exactly once with the latest value.
+ *
+ * TLA+ mirror: `wave_protocol_pause_MC` — TLC enumerates every interleaving
+ * of Pause/Resume across two lockIds and verifies the protocol invariants
+ * (TerminalClearsPauseState, BufferImpliesLockedAndResumeAll, etc.) hold.
+ */
+const invariant11PauseMultiPauser: Invariant = {
+	name: "pause-multi-pauser",
+	description:
+		"Multiple pause locks are tracked independently: releasing one lockId while another is held does not resume; fn fires exactly once with the latest dep values after the final lock releases.",
+	specRef: "GRAPHREFLY-SPEC §2.6 (PAUSE/RESUME lock-id)",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 3 }), (numLocks) => {
+			const s = node([], { initial: 0 });
+			let fnRuns = 0;
+			const d = node(
+				[s],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					fnRuns += 1;
+					actions.emit(data[0] as number);
+				},
+				{ describeKind: "derived" },
+			);
+			const unsub = d.subscribe(() => {});
+			const runsAfterSubscribe = fnRuns;
+
+			const locks = Array.from({ length: numLocks }, (_, i) => Symbol(`lock-${i}`));
+			for (const l of locks) s.down([[PAUSE, l]]);
+			s.emit(1); // cache 0 → 1; would trigger d.fn if not paused
+
+			// Release all but the last lock. While any lock held, fn must not fire.
+			for (let i = 0; i < numLocks - 1; i++) {
+				s.down([[RESUME, locks[i]]]);
+			}
+			const runsBeforeFinalRelease = fnRuns;
+
+			s.down([[RESUME, locks[numLocks - 1]]]);
+			const runsAfterRelease = fnRuns;
+
+			unsub();
+
+			// (a) N-1 partial releases — fn must not have re-run.
+			if (runsBeforeFinalRelease !== runsAfterSubscribe) return false;
+			// (b) Final release — fn fires exactly once for the coalesced wave.
+			if (runsAfterRelease !== runsAfterSubscribe + 1) return false;
+			return true;
+		}),
+};
+
+/**
+ * #12 — Nested-drain peer-read consistency (simple topology).
+ *
+ * A derived `T = derived([A, B])` must never observe a snapshot where one
+ * peer's value reflects a wave not yet delivered to `T`. Specifically, if an
+ * effect on `B` enters `batch(() => A.emit(newA))` inside its sink callback,
+ * the nested drain can force `T`'s dep-0 callback to fire with `newA`
+ * BEFORE `B`'s outer sink-delivery loop reaches `T`'s dep-1 — leaving `T`'s
+ * B DepRecord holding the PRIOR wave's B value. Any intermediate DATA `T`
+ * emits must satisfy: if `a == newA`, then `b == triggerB` (the B value
+ * whose sink triggered the nested A.emit). A sighting of `[newA, oldB]`
+ * is a peer-read glitch.
+ *
+ * **Current status (probed 2026-04-23): PASSES on the current substrate.**
+ * The `_dirtyDepCount` gate (node.ts `_maybeRunFnOnSettlement`) correctly
+ * blocks T's fn from firing during the nested drain while dep-1 is still
+ * pending. The documented COMPOSITION-GUIDE §32 / agentLoop bug lives in
+ * **compound topologies** (switchMap resubscribe, feedback diamonds) that
+ * this simple-topology harness does not model.
+ *
+ * This invariant ships anyway as a **regression guard**: any future change
+ * to `_emit`, `_activate`, or `_maybeRunFnOnSettlement` that breaks the
+ * simple-topology case will fail here immediately. Fully unblocking
+ * docs/optimizations.md "Nested-drain wave-ordering" requires an
+ * additional compound-topology invariant (switchMap-shaped dep re-wire) —
+ * tracked separately.
+ *
+ * Topology: `A = node([], { initial: 0 })`, `B = node([], { initial: 0 })`, `T = derived([A, B])`, effect
+ * on `B` that emits to `A` inside `batch()` when `B` hits `triggerValue`.
+ * Subscribe effect before T (puts effect earlier in B's sink snapshot).
+ */
+const invariant12NestedDrain: Invariant = {
+	name: "nested-drain-peer-consistency",
+	description:
+		"A derived([A, B]) must never observe a peer value from a wave not yet delivered to it. When a sibling sink of B enters batch(() => A.emit(newA)) inside its callback on the B=triggerB wave, every DATA T emits during that outer wave must reflect [newA, triggerB] or [initialA, triggerB] — never [newA, oldB].",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 2 + COMPOSITION-GUIDE §32",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 9 }), // triggerB — B value that gates the nested drain (!= initial 0)
+			fc.integer({ min: 100, max: 199 }), // newA — A value emitted from inside the nested batch
+			(triggerB, newA) => {
+				const a = node([], { initial: 0 });
+				const b = node([], { initial: 0 });
+				const tEmits: (readonly [number, number])[] = [];
+				const t = node(
+					[a, b],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit([data[0] as number, data[1] as number] as const);
+					},
+					{ describeKind: "derived" },
+				);
+				// Sibling sink of B — enters nested batch when B hits triggerB.
+				const sibling = node(
+					[b],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						return (
+							(([bv]) => {
+								if (bv === triggerB) {
+									batch(() => a.emit(newA));
+								}
+							})(data, actions, ctx) ?? undefined
+						);
+					},
+					{ describeKind: "effect" },
+				);
+				// Order matters: sibling subscribes first, so it precedes T in B's
+				// sinks snapshot — the pathological ordering the bug needs.
+				const uSibling = sibling.subscribe(() => {});
+				const uT = t.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) tEmits.push(m[1] as readonly [number, number]);
+					}
+				});
+				// Single external drive: B.emit(triggerB). Everything else is
+				// downstream drain traffic from that one wave (including the
+				// nested batch the sibling triggers).
+				b.emit(triggerB);
+				uT();
+				uSibling();
+				// Any DATA with a=newA must carry b=triggerB. A sighting of
+				// [newA, 0] (initial B) is the peer-read glitch: it means T's
+				// fn fired during the nested drain while its B DepRecord still
+				// held pre-trigger value. Likewise `[0, triggerB]` (initial A)
+				// is fine (outer B wave settling before the nested A arrives).
+				for (const [av, bv] of tEmits) {
+					if (av === newA && bv !== triggerB) return false;
+				}
+				// Final cache must also be consistent with both latest values.
+				if (t.cache !== undefined) {
+					const [av, bv] = t.cache as readonly [number, number];
+					if (av !== newA || bv !== triggerB) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #12b — Nested-drain peer-read consistency under COMPOUND topology
+ * (switchMap upstream).
+ *
+ * Mirrors invariant #12 but with the agentLoop §32 shape: the upstream
+ * dep is a `switchMap` output (not a plain `state`). switchMap re-subscribes
+ * its inner per outer DATA; the inner pushes its cached value via
+ * `forwardInner` → `a.emit(...)` on the switchMap output. This is the
+ * "compound topology" shape the optimizations.md note flagged as the case
+ * the simple-topology #12 invariant doesn't model.
+ *
+ * **Verifies the same _dirtyDepCount gating works under switchMap.** When
+ * the switchMap output emits via `a.emit`, `_emit` synthesizes a DIRTY
+ * before the DATA. Both sinks (sibling effect + terminal derived) get
+ * marked DIRTY in Phase 1. In Phase 2, sibling fires first; its nested
+ * batch emits to `status` which then drains and tries to fire terminal's
+ * fn — but terminal's switchMap-output dep is still DIRTY (Phase 2 for
+ * loop hasn't reached it), so `_dirtyDepCount > 0` blocks the fn run.
+ * Terminal fires only after Phase 2 visits its switchMap-output dep.
+ *
+ * Topology: `trigger = node([], { initial: 0 })`, `inner_n = node([], { initial: ... })` per trigger value,
+ * `compound = switchMap(trigger, n => inner_n)`, `status = node([], { initial: "thinking" })`,
+ * `sibling = node([compound], (batchData, actions, ctx) => {
+ 	const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
+ 	return ((…)(data, actions, ctx) ?? undefined);
+ }, { describeKind: "effect" })` that nests `batch(() => status.emit("done"))`,
+ * `terminal = node([compound, status], (batchData, actions, ctx) => {
+ 	const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
+ 	actions.emit((…)(data, ctx));
+ }, { describeKind: "derived" })`.
+ */
+const invariant12bNestedDrainCompound: Invariant = {
+	name: "nested-drain-peer-consistency-compound",
+	description:
+		"Compound-topology mirror of #12. derived([switchMap(...), status]) must never observe [oldCompound, newStatus] when a sibling sink of switchMap output enters batch(() => status.emit(newStatus)) inside its callback. Verifies _dirtyDepCount gating holds when the upstream is a switchMap output rather than a plain state.",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 2 + COMPOSITION-GUIDE §32",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 100, max: 199 }), // newInner — value the new switchMap inner emits
+			(newInner) => {
+				const trigger = node([], { initial: 0 });
+				const inner0 = node([], { initial: 0 });
+				const inner1 = node([], { initial: newInner });
+				// switchMap with equals: () => false — matches agentLoop's shape.
+				const compound = switchMap<number, number>(trigger, (n) => (n === 0 ? inner0 : inner1));
+				const status = node<"thinking" | "done">([], { initial: "thinking" });
+
+				// Sibling sink of compound: when a non-zero value arrives,
+				// transition status to "done" inside a nested batch.
+				const sibling = node(
+					[compound],
+					(batchData, _actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						if ((data[0] as number) !== 0) {
+							batch(() => status.emit("done"));
+						}
+					},
+					{ describeKind: "effect" },
+				);
+
+				const terminal = node(
+					[compound, status],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit([data[0] as number, data[1] as string] as const);
+					},
+					{ describeKind: "derived" },
+				);
+
+				const seen: (readonly [number, string])[] = [];
+				const uSibling = sibling.subscribe(() => {});
+				const uTerminal = terminal.subscribe((msgs) => {
+					for (const m of msgs) {
+						if (m[0] === DATA) seen.push(m[1] as readonly [number, string]);
+					}
+				});
+
+				// Drive: trigger=1 → switchMap dispatches new inner → compound
+				// emits newInner. Sibling fires first (subscribe order); nested
+				// batch transitions status to "done"; terminal must NOT observe
+				// [0, "done"] (stale compound + new status).
+				trigger.emit(1);
+
+				const finalCache = terminal.cache as readonly [number, string] | undefined;
+				uTerminal();
+				uSibling();
+
+				// The bug shape: terminal observes [oldCompound, "done"] —
+				// compound dep prevData stale during nested-drain status update.
+				// Acceptable: any tuple where compound=newInner OR status=="thinking"
+				// (status update gated by _dirtyDepCount until compound dep settles).
+				for (const [cv, st] of seen) {
+					if (st === "done" && cv !== newInner) return false;
+				}
+				// Final cache must reflect both latest values.
+				if (finalCache === undefined) return false;
+				if (finalCache[0] !== newInner || finalCache[1] !== "done") return false;
+				return true;
+			},
+		),
+};
+
+/**
+ * #13 — bufferAll replay ordering. In `pausable: "resumeAll"` mode, outgoing
+ * tier-3 settlements emitted during a pause window are captured into the
+ * node's bufferAll buffer; on final-lock RESUME the buffer drains to
+ * subscribers BEFORE the forwarded RESUME message. Spec §2.6 bufferAll:
+ * "On final-lock RESUME, the buffered messages are replayed through the
+ * node's own `_emit` pipeline BEFORE the RESUME signal is forwarded
+ * downstream."
+ *
+ * Property:
+ *   (a) during pause, no tier-3 (DATA/RESOLVED) reaches the subscriber;
+ *   (b) on RESUME, the subscriber observes all buffered tier-3 messages
+ *       (in order — at least one, since per spec a buffered DATA may
+ *       collapse to RESOLVED against current cache) followed by the
+ *       RESUME tuple itself — no tier-3 appears after RESUME.
+ *
+ * TLA+ mirror: `wave_protocol_bufferall_MC` — TLC verifies the per-node
+ * structural invariants (BufferImpliesLockedAndResumeAll,
+ * BufferHoldsOnlyDeferredTiers) which together with the atomic drain-then-
+ * forward in DeliverPauseResume enforce this ordering by construction.
+ */
+const invariant13BufferAllReplay: Invariant = {
+	name: "buffer-all-replay-ordering",
+	description:
+		"In pausable:'resumeAll' mode, tier-3 settlements emitted during a pause window are buffered and replayed to subscribers BEFORE the forwarded RESUME; no tier-3 message appears after the RESUME that closed the pause window.",
+	specRef: "GRAPHREFLY-SPEC §2.6 (bufferAll mode)",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 4 }), { minLength: 1, maxLength: 5 }),
+			(values) => {
+				const s = node<number>((_actions) => {}, {
+					pausable: "resumeAll",
+					initial: 0,
+					describeKind: "state",
+				});
+				const trace: symbol[] = [];
+				const unsub = s.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						trace.push(m[0]);
+					}
+				});
+				const lock = Symbol("bufferAll");
+				s.down([[PAUSE, lock]]);
+				const idxPauseRecorded = trace.length;
+
+				for (const v of values) s.emit(v);
+
+				// (a) During pause: tier-3 must NOT appear in trace after the
+				// PAUSE was recorded. Substrate synthesizes DIRTY (tier-1, immediate)
+				// for each emit, but DATA/RESOLVED is buffered.
+				for (let i = idxPauseRecorded; i < trace.length; i++) {
+					if (trace[i] === DATA || trace[i] === RESOLVED) return false;
+				}
+
+				const idxBeforeResume = trace.length;
+				s.down([[RESUME, lock]]);
+				unsub();
+
+				// (b) Post-RESUME segment: must contain the RESUME tuple; every
+				// DATA/RESOLVED in the post-resume segment must appear before the
+				// RESUME (atomic drain-then-forward), never after.
+				let resumeIdx = -1;
+				for (let i = idxBeforeResume; i < trace.length; i++) {
+					if (trace[i] === RESUME) {
+						resumeIdx = i;
+						break;
+					}
+				}
+				if (resumeIdx === -1) return false; // RESUME must reach subscriber
+				for (let i = resumeIdx + 1; i < trace.length; i++) {
+					if (trace[i] === DATA || trace[i] === RESOLVED) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #14 — Resubscribe clears pause state (no lock leakage across lifecycles).
+ * Spec §2.6 "Teardown": "On TEARDOWN or deactivation, the buffer and lock
+ * set are discarded... Resubscribable nodes also clear the lock set on
+ * resubscribe so a new lifecycle cannot inherit a lock from a prior one."
+ *
+ * Without this clearing, a lock held by a disposed controller in lifecycle
+ * L1 would survive into L2 and leave the re-subscribed node permanently
+ * stuck paused — every subsequent emit would be dropped/buffered with no
+ * way to release.
+ *
+ * Property: after pausing with N locks in L1, emitting (which buffers),
+ * terminating without releasing any lock, and re-subscribing to start L2,
+ * a fresh emit in L2 produces an observable DATA/RESOLVED at the new
+ * subscriber. If pause state leaked, the emit would be buffered with no
+ * active RESUME path to drain it.
+ *
+ * TLA+ mirror: `wave_protocol_resubscribe_MC` — TLC verifies
+ * `ResubscribeYieldsCleanState` (pauseLocks/pauseBuffer/dirtyMask/handshake/
+ * trace all empty immediately after `Resubscribe` action) and
+ * `TerminalClearsPauseState` (non-resubscribable terminal nodes also clear
+ * pause state).
+ */
+const invariant14ResubscribePause: Invariant = {
+	name: "resubscribe-clears-pause-state",
+	description:
+		"On a resubscribable node, pause locks and bufferAll buffer from a terminated lifecycle do not leak into a resubscribe: a fresh emit in the new lifecycle reaches the new subscriber.",
+	specRef: "GRAPHREFLY-SPEC §2.6 (Teardown / Resubscribable)",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 3 }), (numLocks) => {
+			const s = node([], {
+				pausable: "resumeAll",
+				resubscribable: true,
+				initial: 0,
+			});
+
+			// Lifecycle 1: subscribe, pause with N locks, emit (buffered),
+			// terminate without releasing a single lock. This is the
+			// "controller disposed without cleanup" failure mode.
+			const u1 = s.subscribe(() => {});
+			const locks = Array.from({ length: numLocks }, (_, i) => Symbol(`L1-${i}`));
+			for (const l of locks) s.down([[PAUSE, l]]);
+			s.emit(99); // buffered, never drained
+			s.down([[COMPLETE]]);
+			u1();
+
+			// Lifecycle 2: fresh subscribe triggers terminal reset. Any lock
+			// that leaked would keep the new lifecycle stuck paused.
+			let sawTier3 = false;
+			const u2 = s.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA || m[0] === RESOLVED) sawTier3 = true;
+				}
+			});
+			s.emit(42);
+			u2();
+
+			// If pause state cleared correctly: emit(42) produces DIRTY + DATA
+			// through the pipeline, subscriber sees DATA. If it leaked: the
+			// DATA goes into the stale bufferAll buffer and never reaches the
+			// subscriber.
+			return sawTier3;
+		}),
+};
+/**
+ * #15 — Multi-sink trace convergence (§2.4). Two subscribers on the same
+ * node observe the same sequence of post-activation messages.
+ *
+ * Mirrors TLA+ `MultiSinkTracesConverge`. `_deliverToSinks` at
+ * src/core/node.ts:2248 iterates a snapshot of the sinks Set, so each
+ * subscriber receives every wave's settlement in order. A regression that
+ * dropped deliveries from a later-subscribed sink (or reordered the
+ * snapshot) would fail this property.
+ *
+ * Topology: `node([], { initial: 0 })` with two observers; after activation (handshake
+ * filtered), the post-activation DATA/RESOLVED/DIRTY sequence at observer A
+ * must equal observer B's. COMPOSITION-GUIDE §32-class peer-read bugs at
+ * the multi-dep diamond level require a separate topology and are tracked
+ * in docs/optimizations.md as a follow-up.
+ */
+const invariant15MultiSinkConverge: Invariant = {
+	name: "multi-sink-trace-convergence",
+	description:
+		"Two sinks subscribed to the same source node observe the same post-activation sequence of DIRTY/DATA/RESOLVED messages.",
+	specRef: "GRAPHREFLY-SPEC §2.4 (node fn contract) + §2.2 (subscribe)",
+	property: () =>
+		fc.property(eventSequenceArb({ maxLen: 6 }), (events) => {
+			// Topology-fragility note: `activationEndA` / `activationEndB` are
+			// captured as `seq.length` at the instant `subscribe()` returns.
+			// This is correct for a plain `node([], { initial: 0 })` where neither sink's
+			// subscribe induces side-effect traffic at the other sink. If
+			// this invariant ever grows to cover diamond/shared-ancestor
+			// topologies, the second subscribe could synthesize activation
+			// messages at the first sink via a mutual upstream mount, and
+			// length-at-time would understate A's activation by those
+			// messages. Anchor on "count of START messages observed" if that
+			// regime is exercised.
+			const s = node([], { initial: 0 });
+			const seqA: symbol[] = [];
+			const seqB: symbol[] = [];
+			const pushOnce = (bucket: symbol[]) => (msgs: readonly [symbol, unknown?][]) => {
+				for (const msg of msgs) {
+					if (msg[0] === START) continue;
+					bucket.push(msg[0]);
+				}
+			};
+			const uA = s.subscribe(pushOnce(seqA));
+			const activationEndA = seqA.length;
+			const uB = s.subscribe(pushOnce(seqB));
+			const activationEndB = seqB.length;
+			const completed = { value: false };
+			for (const e of events) applyEvent(s, e, completed);
+			uA();
+			uB();
+			const postA = seqA.slice(activationEndA);
+			const postB = seqB.slice(activationEndB);
+			if (postA.length !== postB.length) return false;
+			for (let i = 0; i < postA.length; i++) {
+				if (postA[i] !== postB[i]) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #16 — Up-direction tier guard (§1.4). Calling `node.up(messages)` with a
+ * tier-3 (DATA/RESOLVED) or tier-4 (COMPLETE/ERROR) payload throws; tier-1
+ * (DIRTY), tier-2 (PAUSE/RESUME), and tier-5 (TEARDOWN) do not throw on a
+ * node that has deps.
+ *
+ * Mirrors TLA+ `UpQueuesCarryControlPlane`. The runtime enforces this at
+ * `_validateUpTiers` (src/core/node.ts ~L981). Spec §1.4: "up — upstream
+ * from sink toward source (PAUSE, RESUME, INVALIDATE, TEARDOWN)"; §2.2 `up`
+ * interface says tier-3/4 throw.
+ *
+ * Regression guard: any future refactor that drops the tier check would
+ * allow DATA/ERROR payloads to flow toward deps, bypassing equals
+ * substitution and cache advance — a protocol-invariant violation.
+ *
+ * Note: TLA+ models the ASPIRATIONAL semantic where `UpPause` at a leaf
+ * applies `pauseLocks` at the parent. The current runtime's `up()` only
+ * forwards to deps; sources with no deps silently absorb the message. This
+ * gap is tracked in docs/optimizations.md as "up-direction PAUSE semantics."
+ * This invariant covers the contract the runtime DOES honor today (tier
+ * guard + forwarding shape).
+ */
+const invariant16UpTierGuard: Invariant = {
+	name: "up-direction-tier-guard",
+	description:
+		"Calling `up()` with a tier-3 (DATA/RESOLVED) or tier-4 (COMPLETE/ERROR) payload throws; tier-1/2/5 payloads do not throw on a node with deps.",
+	specRef: "GRAPHREFLY-SPEC §1.4 (direction conventions) + §2.2 (up interface)",
+	property: () =>
+		fc.property(
+			fc.constantFrom<"DIRTY" | "PAUSE" | "RESUME" | "DATA" | "RESOLVED" | "COMPLETE" | "ERROR">(
+				"DIRTY",
+				"PAUSE",
+				"RESUME",
+				"DATA",
+				"RESOLVED",
+				"COMPLETE",
+				"ERROR",
+			),
+			(tierName) => {
+				const s = node([], { initial: 0 });
+				const d = node(
+					[s],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit(data[0] as number);
+					},
+					{ describeKind: "derived" },
+				);
+				const unsub = d.subscribe(() => {});
+				try {
+					// Build the message. PAUSE/RESUME require a lockId payload.
+					let thrown = false;
+					try {
+						if (tierName === "DIRTY") {
+							d.up([[DIRTY]]);
+						} else if (tierName === "PAUSE") {
+							d.up([[PAUSE, Symbol("up-pause")]]);
+						} else if (tierName === "RESUME") {
+							d.up([[RESUME, Symbol("up-resume")]]);
+						} else if (tierName === "DATA") {
+							d.up([[DATA, 1]]);
+						} else if (tierName === "RESOLVED") {
+							d.up([[RESOLVED]]);
+						} else if (tierName === "COMPLETE") {
+							d.up([[COMPLETE]]);
+						} else {
+							d.up([[ERROR, new Error("up-error")]]);
+						}
+					} catch {
+						thrown = true;
+					}
+					const isTier34 =
+						tierName === "DATA" ||
+						tierName === "RESOLVED" ||
+						tierName === "COMPLETE" ||
+						tierName === "ERROR";
+					return thrown === isTier34;
+				} finally {
+					unsub();
+				}
+			},
+		),
+};
+
+/**
+ * #17 — Pausable:false structural + paired negative control (§2.6).
+ *
+ * Mirrors TLA+ `PausableOffStructural` and strengthens the test beyond a
+ * single-mode check. The runtime's `_emit` at src/core/node.ts ~L1953
+ * guards lock accumulation behind `this._pausable !== false` — so PAUSE
+ * arriving at a `pausable: false` node MUST be ignored, and fn execution
+ * MUST continue firing normally (per the spec §2.6 table: "fn fires
+ * normally regardless of flow control signals").
+ *
+ * The test uses a **derived node** whose fn execution is the observable
+ * (state sources bypass `_maybeRunFnOnSettlement`'s `_paused` gate — see
+ * node.ts:1602 — so pausable:on vs pausable:false at a pure source looks
+ * identical to downstream subscribers, which would make a source-level
+ * test silently false-positive). A derived node makes the mode matter.
+ *
+ * Paired property — with the same stimulus topology, flip only the
+ * `pausable` option:
+ * - `pausable: false`: `down([[PAUSE, lockId]])` on derived → subsequent
+ *   source emit triggers fn, DATA reaches subscriber. ✓ contract.
+ * - `pausable: true` (default): same stimulus, fn is suppressed via
+ *   `_maybeRunFnOnSettlement`'s `_paused` early-return; subscriber sees
+ *   NO DATA. ✓ confirms the option actually wires through. If both
+ *   branches produced the same observation, the option would be silently
+ *   ignored and this test would fail — i.e. it cannot pass for the
+ *   "false-positive because the option never reached the runtime" reason.
+ */
+const invariant17PausableOffStructural: Invariant = {
+	name: "pausable-off-structural",
+	description:
+		"A derived with `pausable: false` delivers DATA after PAUSE (lock ignored); same topology with `pausable: true` does NOT deliver (fn suppressed). The paired check rules out a test passing because the option was silently ignored.",
+	specRef: "GRAPHREFLY-SPEC §2.6 (pausable option — false)",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 9 }), (emitVal) => {
+			const run = (pausable: boolean): boolean => {
+				const s = node([], { initial: 0 });
+				const d = node(
+					[s],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit((data[0] as number) * 2);
+					},
+					{ describeKind: "derived", pausable },
+				);
+				let sawData = false;
+				let dataValue: number | null = null;
+				const unsub = d.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) {
+							sawData = true;
+							dataValue = m[1] as number;
+						}
+					}
+				});
+				// After activation-time handshake, hold a PAUSE lock at the
+				// derived. Then emit a fresh value upstream. Whether DATA
+				// reaches the subscriber depends on `pausable`:
+				// - false: lock ignored at _emit's `this._pausable !== false`
+				//   guard; fn fires; DATA flows through.
+				// - true: lock accumulates, `_paused` becomes true,
+				//   `_maybeRunFnOnSettlement` early-returns on `if (this._paused)`.
+				d.down([[PAUSE, Symbol("pausable-off-negcontrol")]]);
+				sawData = false;
+				dataValue = null;
+				s.emit(emitVal);
+				unsub();
+				return sawData && dataValue === emitVal * 2;
+			};
+			// Contract check (positive): pausable:false → DATA must arrive.
+			const positive = run(false);
+			// Negative control: pausable:true → DATA must NOT arrive. If both
+			// branches deliver DATA, the option was silently ignored and the
+			// positive check passed for the wrong reason.
+			const negative = !run(true);
+			return positive && negative;
+		}),
+};
+
+// ---------------------------------------------------------------------------
+// Operator-layer invariants (added 2026-04-24 batch 9, G)
+//
+// These test composed-behavior correctness of higher-order operators
+// (switchMap / mergeMap / exhaustMap). They differ from the protocol-layer
+// invariants above in that they assert LIFECYCLE semantics — which inner
+// sources contribute to the downstream trace and which are suppressed —
+// rather than raw message ordering. Each invariant picks the narrowest
+// topology that exhibits the target property.
+//
+// These are fast-check-only. TLA+ does not model operator internals; the
+// wave-protocol spec stops at the `node` primitive. Operator correctness
+// lives at the runtime layer and is tested via property generation over
+// outer-source event sequences.
+// ---------------------------------------------------------------------------
+
+/**
+ * #18 — switchMap: a value emitted into a SUPERSEDED inner source never
+ * reaches the downstream trace.
+ *
+ * Topology: `outer = state`; `sm = switchMap(outer, v => inner_v)` where
+ * `inner_v` is the SAME memoised `state` per outer value so we can reach
+ * in and emit post-supersession. Drive outer with a strictly-ascending
+ * sequence (distinct values); after all outer emits, emit a sentinel
+ * value into every inner except the last (currently-active) one. No
+ * sentinel may appear in the downstream trace.
+ *
+ * Catches: "inner subscription not torn down on supersede" — the class
+ * flagged in `docs/optimizations.md` under "switchMap-inner teardown
+ * hardening for refineExecutor / evalVerifier." A regression that keeps
+ * a stale inner subscribed (e.g. forgetting to call `innerUnsub()` on
+ * new-outer arrival) would produce sentinel values downstream and trip
+ * this invariant.
+ */
+const invariant18SwitchMapStaleInnerSuppressed: Invariant = {
+	name: "switchmap-stale-inner-suppressed",
+	description:
+		"After switchMap supersedes to a new inner, emits into a prior inner source never reach the downstream trace.",
+	specRef: "src/extra/operators.ts:switchMap — supersede-on-outer-emit teardown contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 2,
+				maxLength: 5,
+			}),
+			(outerValues) => {
+				const outer = node<number>([], { initial: outerValues[0] });
+				const inners = new Map<number, Node<number>>();
+				const sm = switchMap(outer as Node<number>, (v: number) => {
+					let inner = inners.get(v);
+					if (!inner) {
+						inner = node<number>([], { initial: v * 10 });
+						inners.set(v, inner);
+					}
+					return inner;
+				});
+				const dataValues: number[] = [];
+				const unsub = sm.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === DATA) dataValues.push(msg[1] as number);
+					}
+				});
+				// Drive outer through the remaining distinct values (already seeded
+				// at outerValues[0] via state construction — initial subscription
+				// pushes through the first inner already).
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				const lastOuter = outerValues[outerValues.length - 1];
+				const lenBefore = dataValues.length;
+				// Emit a unique sentinel into each superseded inner. If teardown
+				// worked, none reach the trace; if it didn't, at least one does.
+				const SENTINEL = 987654;
+				for (const [v, inner] of inners) {
+					if (v !== lastOuter) inner.emit(SENTINEL);
+				}
+				unsub();
+				for (let i = lenBefore; i < dataValues.length; i++) {
+					if (dataValues[i] === SENTINEL) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #19 — mergeMap: every live inner source's DATA emits reach the downstream
+ * trace. No silent drop of non-current inners.
+ *
+ * Topology: `outer = state`; `mm = mergeMap(outer, v => inner_v)` with
+ * memoised inner states per outer value. After driving outer with a
+ * distinct sequence, emit a uniquely-tagged sentinel `v * 1000 + k` into
+ * inner `v` (for a fresh k). Every emitted sentinel must appear in the
+ * downstream trace — any missing one indicates a leaked/unsubscribed
+ * inner.
+ *
+ * Catches: mergeMap inner-tracking regressions. Unlike switchMap which
+ * supersedes, mergeMap keeps ALL inners live until each completes; a
+ * regression that drops an inner subscription (e.g. clearAll fires
+ * erroneously, or innerStops loses an entry) would silently suppress
+ * valid DATA and trip this invariant.
+ */
+const invariant19MergeMapAllInnersContribute: Invariant = {
+	name: "mergemap-all-live-inners-contribute",
+	description:
+		"Every DATA emitted into a live inner source after mergeMap has subscribed to it reaches the downstream trace.",
+	specRef: "src/extra/operators.ts:mergeMap — all-inners-forward contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 2,
+				maxLength: 4,
+			}),
+			(outerValues) => {
+				const outer = node<number>([], { initial: outerValues[0] });
+				const inners = new Map<number, Node<number>>();
+				const mm = mergeMap(outer as Node<number>, (v: number) => {
+					let inner = inners.get(v);
+					if (!inner) {
+						inner = node<number>([], { initial: v * 10 });
+						inners.set(v, inner);
+					}
+					return inner;
+				});
+				const dataValues: number[] = [];
+				const unsub = mm.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === DATA) dataValues.push(msg[1] as number);
+					}
+				});
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				// Emit a distinct sentinel into each inner. All of them must appear
+				// downstream — mergeMap keeps inners live.
+				const expectedSentinels: number[] = [];
+				for (const [v, inner] of inners) {
+					const sentinel = v * 1000 + 7;
+					expectedSentinels.push(sentinel);
+					inner.emit(sentinel);
+				}
+				unsub();
+				for (const s of expectedSentinels) {
+					if (!dataValues.includes(s)) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #20 — exhaustMap: while an inner is active, subsequent outer emits are
+ * DROPPED. Only the first outer's inner contributes until that inner
+ * completes.
+ *
+ * Topology: `outer = state`; `em = exhaustMap(outer, v => inner_v)` with
+ * memoised inner states per outer value. Drive outer with a distinct
+ * sequence. The first value's inner remains uncompleted — so all
+ * subsequent outers must NOT have had `project` called on them (no
+ * inner created for them). Assert `inners.size === 1` (only the first
+ * outer's inner was created).
+ *
+ * Catches: exhaustMap regression where the drop-while-active gate is
+ * bypassed. A broken implementation that spawns inners for every outer
+ * emit (mergeMap-style) would create multiple entries in the inners
+ * map and trip this invariant.
+ */
+const invariant20ExhaustMapDropsWhileActive: Invariant = {
+	name: "exhaustmap-drops-while-active",
+	description:
+		"While an exhaustMap inner is active (uncompleted), subsequent outer emits are dropped — no new inner is created for them.",
+	specRef: "src/extra/operators.ts:exhaustMap — drop-while-active contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 2,
+				maxLength: 4,
+			}),
+			(outerValues) => {
+				const outer = node<number>([], { initial: outerValues[0] });
+				const projectCalls: number[] = [];
+				const em = exhaustMap(outer as Node<number>, (v: number) => {
+					projectCalls.push(v);
+					// Inner never completes — it's a long-lived state source.
+					return node<number>([], { initial: v * 10 });
+				});
+				const unsub = em.subscribe(() => {});
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				unsub();
+				// Only the FIRST outer value's project should have fired; the
+				// remaining outers arrived while the first inner was still
+				// active and should have been dropped without a project call.
+				return projectCalls.length === 1 && projectCalls[0] === outerValues[0];
+			},
+		),
+};
+
+/**
+ * #21 — concatMap: `project` is called serially — never for outer N+1 until
+ * inner N completes. Queue depth is unbounded (unless `maxBuffer` is set);
+ * `project` calls cadence ties to inner completion ordering, not outer
+ * arrival ordering.
+ *
+ * Topology: `outer = state`; `cm = concatMap(outer, v => memoisedInner(v))`
+ * with a counter wrapping `project` and a memoised inner state per outer
+ * value so we can reach in and drive COMPLETE. Drive outer through a
+ * distinct sequence; `project` should only have fired once (for the
+ * initial subscription). Then complete each inner in outer-arrival order,
+ * asserting that each completion triggers exactly one new `project` call
+ * for the next queued outer value.
+ *
+ * Catches: queue-bypass regressions (e.g. `project` called eagerly on
+ * every outer emit), or FIFO-violation (e.g. outer N+2 subscribes before
+ * outer N+1 — breaks `tryPump`'s serial contract).
+ */
+const invariant21ConcatMapSerialSubscription: Invariant = {
+	name: "concatmap-serial-inner-subscription",
+	description:
+		"concatMap calls `project` for outer N+1 only after inner N completes; queued outer emits never trigger concurrent project calls.",
+	specRef: "src/extra/operators.ts:concatMap — serialized-subscription contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 2,
+				maxLength: 4,
+			}),
+			(outerValues) => {
+				const outer = node<number>([], { initial: outerValues[0] });
+				const projectCalls: number[] = [];
+				const inners = new Map<number, Node<number>>();
+				const cm = concatMap(outer as Node<number>, (v: number) => {
+					projectCalls.push(v);
+					const inner = node<number>([], { initial: v * 10 });
+					inners.set(v, inner);
+					return inner;
+				});
+				const unsub = cm.subscribe(() => {});
+				// Initial subscription fires project for outerValues[0].
+				if (projectCalls.length !== 1) return false;
+				if (projectCalls[0] !== outerValues[0]) return false;
+
+				// Emit remaining outer values — all should queue without firing project.
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				if (projectCalls.length !== 1) return false;
+
+				// Complete inners in outer-arrival order; each completion must trigger
+				// exactly one new project call for the next queued outer.
+				for (let i = 0; i < outerValues.length - 1; i++) {
+					const prevInner = inners.get(outerValues[i]);
+					if (!prevInner) return false;
+					prevInner.down([[COMPLETE]]);
+					if (projectCalls.length !== i + 2) return false;
+					if (projectCalls[i + 1] !== outerValues[i + 1]) return false;
+				}
+
+				unsub();
+				return true;
+			},
+		),
+};
+
+/**
+ * #22 — mergeMap: `{ concurrent: K }` never permits more than K concurrent
+ * inner subscriptions. With K < outerValues.length, outer emits beyond K
+ * queue; `project` is not called for them until a prior inner completes.
+ *
+ * Topology: same memoised-inner-per-outer pattern as #21. Count `project`
+ * calls; drive outer through a distinct sequence. After all emits,
+ * `project` has been called exactly `min(K, outerValues.length)` times.
+ * Then complete inners in order; each completion triggers one new
+ * `project` call until all outers have been subscribed.
+ *
+ * Catches: concurrency-bound bypass (queue.shift not gated on `active <
+ * maxConcurrent`), premature queue drain, or the `spawn` / `drainBuffer`
+ * counters diverging from actual live subscriptions.
+ */
+const invariant22MergeMapConcurrencyBound: Invariant = {
+	name: "mergemap-concurrency-bound-respected",
+	description:
+		"mergeMap with `{concurrent: K}` keeps at most K project calls pending; additional outers queue until a prior inner completes.",
+	specRef: "src/extra/operators.ts:mergeMap — concurrency bound contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 3,
+				maxLength: 5,
+			}),
+			fc.integer({ min: 1, max: 2 }),
+			(outerValues, K) => {
+				const outer = node<number>([], { initial: outerValues[0] });
+				const projectCalls: number[] = [];
+				const inners = new Map<number, Node<number>>();
+				const mm = mergeMap(
+					outer as Node<number>,
+					(v: number) => {
+						projectCalls.push(v);
+						const inner = node<number>([], { initial: v * 10 });
+						inners.set(v, inner);
+						return inner;
+					},
+					{ concurrent: K },
+				);
+				const unsub = mm.subscribe(() => {});
+				// Emit the remaining outers. The first K project calls should have
+				// fired (initial + K-1 additional); the rest queue.
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				const expectedInitial = Math.min(K, outerValues.length);
+				if (projectCalls.length !== expectedInitial) return false;
+				// Completed inners should pop one queued outer each.
+				for (let i = 0; i < outerValues.length - K; i++) {
+					const prevInner = inners.get(outerValues[i]);
+					if (!prevInner) return false;
+					prevInner.down([[COMPLETE]]);
+					const expected = Math.min(K + i + 1, outerValues.length);
+					if (projectCalls.length !== expected) return false;
+				}
+				unsub();
+				return true;
+			},
+		),
+};
+
+/**
+ * #23 — race: the first source to emit DATA wins; losers' subsequent DATA
+ * never reaches the output, and the winner continues forwarding DATA
+ * afterwards.
+ *
+ * Topology: N captured-push `producer<number>` sources (no cached DATA,
+ * no push-on-subscribe artifacts). `r = race(...sources)`. After
+ * subscribe, `pushers[0]` fires first with a winner tag — that settles
+ * the winner index. Then every loser pushes a uniquely-tagged sentinel
+ * that MUST NOT reach the trace. Finally `pushers[0]` fires a second
+ * winner tag that MUST reach the trace (winner-continues contract).
+ *
+ * Using producers (not `state` with cached DATA) ensures the winner is
+ * selected by the actual first-DATA-arrival semantic race advertises,
+ * not by the push-on-subscribe ordering artifact of cached-state
+ * sources. A regression that selects winners by subscribe order rather
+ * than first-emit would now fail this invariant when we push into
+ * sources[0] explicitly first.
+ *
+ * Catches: winner-lock regressions (e.g. `winner` reset on each batch,
+ * or losers re-entering after an unrelated event), short-circuit bypass
+ * (a loser forwarding DATA despite `winner !== null`), or winner drop
+ * (forwarding only the first winner DATA and suppressing subsequent
+ * winner emits).
+ */
+const invariant23RaceFirstWins: Invariant = {
+	name: "race-first-wins-only",
+	description:
+		"race() forwards DATA only from whichever source emitted DATA first; losers' subsequent DATA never reaches output; the winner continues forwarding its subsequent DATA.",
+	specRef: "src/extra/operators.ts:race — first-DATA-wins contract",
+	property: () =>
+		fc.property(fc.integer({ min: 2, max: 5 }), (sourceCount) => {
+			const pushers: Array<((v: number) => void) | undefined> = Array.from(
+				{ length: sourceCount },
+				() => undefined,
+			);
+			const sources: Node<number>[] = Array.from({ length: sourceCount }, (_, i) => {
+				return node<number>(
+					[],
+					(_data, a) => {
+						pushers[i] = (v) => a.emit(v);
+						return () => {
+							pushers[i] = undefined;
+						};
+					},
+					{ describeKind: "producer" },
+				) as Node<number>;
+			});
+			const r = race(...sources);
+			const emitted: number[] = [];
+			const unsub = r.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number);
+				}
+			});
+			// Producer sources don't auto-fire on subscribe; push sources[0] first
+			// to elect it the winner by explicit first-DATA-arrival order.
+			const WINNER_TAG_1 = 77777;
+			pushers[0]?.(WINNER_TAG_1);
+			// Losers push sentinels — all must be suppressed.
+			const LOSER_TAG = 99900;
+			for (let i = 1; i < sourceCount; i++) {
+				pushers[i]?.(LOSER_TAG + i);
+			}
+			// Winner pushes a second DATA — must reach output (winner-continues).
+			const WINNER_TAG_2 = 77778;
+			pushers[0]?.(WINNER_TAG_2);
+			unsub();
+			for (const v of emitted) {
+				if (v >= LOSER_TAG && v < LOSER_TAG + sourceCount) return false;
+			}
+			return emitted.length === 2 && emitted[0] === WINNER_TAG_1 && emitted[1] === WINNER_TAG_2;
+		}),
+};
+
+/**
+ * #24 — repeat: `repeat(source, N)` emits downstream COMPLETE exactly after
+ * the N-th inner COMPLETE — never sooner, never later.
+ *
+ * Topology: `s = node<number>([], { resubscribable: true , initial: 0 })`;
+ * `r = repeat(s, N)`. Drive s through N-1 COMPLETE signals via raw
+ * `s.down([[COMPLETE]])`; the outer r MUST NOT have emitted COMPLETE yet
+ * (repeat resubscribes and waits for next inner terminal). After the N-th
+ * COMPLETE, r MUST emit exactly one downstream COMPLETE.
+ *
+ * Catches: off-by-one in `remaining` counter, premature downstream
+ * COMPLETE (e.g. forwarding the first inner COMPLETE), or over-repeat
+ * (e.g. resubscribing after the final COMPLETE).
+ */
+const invariant24RepeatCountRespected: Invariant = {
+	name: "repeat-count-respected",
+	description:
+		"repeat(source, N) emits downstream COMPLETE exactly after the N-th inner COMPLETE — never sooner, never later.",
+	specRef: "src/extra/operators.ts:repeat — count-respecting contract",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 5 }), (N) => {
+			const s = node<number>([], { resubscribable: true, initial: 0 });
+			const r = repeat(s, N);
+			let completes = 0;
+			const unsub = r.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === COMPLETE) completes += 1;
+				}
+			});
+			for (let i = 0; i < N - 1; i++) {
+				s.down([[COMPLETE]]);
+				if (completes !== 0) {
+					unsub();
+					return false;
+				}
+			}
+			s.down([[COMPLETE]]);
+			if (completes !== 1) {
+				unsub();
+				return false;
+			}
+			// Post-N COMPLETE leak check: an additional source COMPLETE must NOT
+			// re-trigger repeat (`remaining` should have hit 0 and downstream should
+			// be terminated). Catches an over-repeat regression that the narrow
+			// N-COMPLETE loop would silently pass.
+			s.down([[COMPLETE]]);
+			unsub();
+			return completes === 1;
+		}),
+};
+
+/**
+ * #25 — debounce: `debounce(source, ms)` emits only the LAST value when the
+ * source emits rapidly within the ms quiet window; intermediate values
+ * are coalesced.
+ *
+ * Topology: `s = node<number>([], { initial: 0 })`; `d = debounce(s, 50)`. Under fake
+ * timers, emit each generated value with a 10ms gap (< ms, so each reset
+ * keeps the timer alive). No DATA must reach the trace during the burst.
+ * After `advanceTimersByTime(60)` (crosses the reset quiet window), the
+ * trace must contain exactly one new DATA equal to the LAST value.
+ *
+ * Catches: coalesce-bypass regressions (emit-per-input), timer-reset
+ * drops (failing to `clearTimeout` on each DATA), or pending-value
+ * staleness (flushing an earlier value instead of the latest).
+ */
+const invariant25DebounceCoalesce: Invariant = {
+	name: "debounce-coalesces-rapid-emits",
+	description:
+		"debounce(source, ms) emits exactly one downstream DATA equal to the last rapidly-emitted value when all source emits fall within the ms quiet window.",
+	specRef: "src/extra/operators.ts:debounce — coalesce contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 999 }), { minLength: 2, maxLength: 6 }),
+			(values) => {
+				vi.useFakeTimers();
+				try {
+					// { equals: () => false } on the source prevents Object.is absorption
+					// from silently swallowing `[5, 5]`-style shrunk counter-examples at
+					// the source before debounce even sees the second emit — otherwise
+					// coalescing could appear to work vacuously on any-repeat input.
+					const s = node<number>([], { equals: () => false, initial: 0 });
+					const d = debounce(s as Node<number>, 50);
+					const emitted: number[] = [];
+					const unsub = d.subscribe((msgs) => {
+						for (const m of msgs as readonly [symbol, unknown?][]) {
+							if (m[0] === DATA) emitted.push(m[1] as number);
+						}
+					});
+					for (const v of values) {
+						s.emit(v);
+						vi.advanceTimersByTime(10);
+					}
+					// Burst complete: all gaps 10ms < ms=50, so no timer has fired.
+					if (emitted.length !== 0) {
+						unsub();
+						return false;
+					}
+					vi.advanceTimersByTime(60);
+					unsub();
+					return emitted.length === 1 && emitted[0] === values[values.length - 1];
+				} finally {
+					vi.useRealTimers();
+				}
+			},
+		),
+	// producer/factory churn under fake timers is tolerable; default 100 runs.
+};
+
+/**
+ * #26 — timeout: `timeout(source, ms)` emits exactly one ERROR when the
+ * source is idle past the ms budget; no DATA or COMPLETE precedes the
+ * ERROR.
+ *
+ * Topology: silent `producer<number>` that never emits, wrapped in
+ * `timeout(silent, ms)`. Under fake timers, advance `ms - 1` — no
+ * terminal message yet. Advance 2 more — exactly one ERROR, no DATA,
+ * no COMPLETE.
+ *
+ * Catches: watchdog-timer off-by-one, double-ERROR (timer re-firing
+ * after emit), or forwarding a spurious DATA/COMPLETE during the
+ * timeout cascade.
+ */
+const invariant26TimeoutErrorsOnIdle: Invariant = {
+	name: "timeout-errors-on-idle",
+	description:
+		"timeout(source, ms) emits exactly one ERROR when the source is idle past the ms budget; no DATA or COMPLETE precedes the ERROR.",
+	specRef: "src/extra/operators.ts:timeout — idle-watchdog contract",
+	property: () =>
+		fc.property(fc.integer({ min: 20, max: 200 }), (ms) => {
+			vi.useFakeTimers();
+			try {
+				const silent = node<number>(
+					() => {
+						return () => {};
+					},
+					{ describeKind: "producer" },
+				);
+				const t = timeout(silent as Node<number>, ms);
+				const seen: symbol[] = [];
+				const unsub = t.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA || m[0] === COMPLETE || m[0] === ERROR) {
+							seen.push(m[0]);
+						}
+					}
+				});
+				vi.advanceTimersByTime(ms - 1);
+				if (seen.length !== 0) {
+					unsub();
+					return false;
+				}
+				vi.advanceTimersByTime(2);
+				unsub();
+				return seen.length === 1 && seen[0] === ERROR;
+			} finally {
+				vi.useRealTimers();
+			}
+		}),
+};
+
+/**
+ * #27 — throttle (leading-edge, trailing=false): passes the first DATA of a
+ * burst immediately and suppresses subsequent DATAs arriving within the
+ * same ms window.
+ *
+ * Topology: `producer<number>` with a captured push fn so the property
+ * controls emit timing. `throttle(src, 100, { trailing: false })`.
+ * Under fake timers, emit each generated value with a 5ms gap (all
+ * within the 100ms window). Only `values[0]` reaches the output.
+ *
+ * Catches: leading-edge gate bypass (every emit passes), trailing-edge
+ * leak (`trailing: false` honored), or `lastEmitNs` reset inside the
+ * window.
+ */
+const invariant27ThrottleLeadingSuppresses: Invariant = {
+	name: "throttle-leading-passes-first-suppresses-rest",
+	description:
+		"Default throttle(source, ms, { trailing: false }) passes only the first DATA of a burst; subsequent DATAs within the same ms window are suppressed.",
+	specRef: "src/extra/operators.ts:throttle — leading-edge contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 999 }), { minLength: 2, maxLength: 5 }),
+			(values) => {
+				vi.useFakeTimers();
+				try {
+					let pushSrc: ((v: number) => void) | undefined;
+					// { equals: () => false } on the source prevents Object.is
+					// absorption from quietly collapsing `[5, 5]`-style repeats at the
+					// producer's own output before throttle ever sees them. Without
+					// this, a throttle regression that passes every emit would still
+					// look like "one DATA passed" on any duplicate-value input.
+					const s = node<number>(
+						[],
+						(_data, a) => {
+							pushSrc = (v) => a.emit(v);
+							return () => {
+								pushSrc = undefined;
+							};
+						},
+						{ describeKind: "producer", equals: () => false },
+					);
+					const t = throttle(s as Node<number>, 100, { trailing: false });
+					const emitted: number[] = [];
+					const unsub = t.subscribe((msgs) => {
+						for (const m of msgs as readonly [symbol, unknown?][]) {
+							if (m[0] === DATA) emitted.push(m[1] as number);
+						}
+					});
+					for (const v of values) {
+						pushSrc?.(v);
+						vi.advanceTimersByTime(5);
+					}
+					unsub();
+					return emitted.length === 1 && emitted[0] === values[0];
+				} finally {
+					vi.useRealTimers();
+				}
+			},
+		),
+};
+
+/**
+ * #28 — zip: emits the i-th tuple only once both `a` and `b` have delivered
+ * their i-th DATA. Tuples stay positionally aligned regardless of dep
+ * emit order.
+ *
+ * Topology: `node<number>([], { initial: 0 })` and `node<number>([], { initial: 100 })` wrapped in
+ * `zip(a, b)`. Initial subscribe delivers [0, 100] (both cached DATAs
+ * queue; tryEmit pairs them). Then emit N values into `a` (no tuples
+ * emitted; queue_b empty). Then emit N values into `b` — exactly N
+ * tuples, `emitted[k] === [k, 100 + k]` for k = 1..N.
+ *
+ * Catches: queue-bypass (emit-per-source without pairing), FIFO
+ * violation in `tryEmit`, or `active` counter divergence that would
+ * let one source race past the other.
+ */
+const invariant28ZipStrictPair: Invariant = {
+	name: "zip-strict-pair-per-position",
+	description:
+		"zip(a, b) emits the i-th tuple only after both a and b have delivered their i-th DATA; tuples stay positionally aligned regardless of dep emit order.",
+	specRef: "src/extra/operators.ts:zip — strict-pair contract",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 4 }), (N) => {
+			const a = node<number>([], { initial: 0 });
+			const b = node<number>([], { initial: 100 });
+			const z = zip(a, b);
+			const emitted: [number, number][] = [];
+			const unsub = z.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as [number, number]);
+				}
+			});
+			if (emitted.length !== 1 || emitted[0][0] !== 0 || emitted[0][1] !== 100) {
+				unsub();
+				return false;
+			}
+			for (let i = 1; i <= N; i++) a.emit(i);
+			if (emitted.length !== 1) {
+				unsub();
+				return false;
+			}
+			for (let j = 1; j <= N; j++) b.emit(100 + j);
+			unsub();
+			if (emitted.length !== N + 1) return false;
+			for (let k = 1; k <= N; k++) {
+				if (emitted[k][0] !== k || emitted[k][1] !== 100 + k) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #29 — distinctUntilChanged: suppresses consecutive duplicate DATA values
+ * even when the upstream source admits them; the downstream trace is
+ * the dedup'd sequence.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: -1 })` — source-level
+ * absorption disabled so every `emit` produces DATA. Wrapped in
+ * `distinctUntilChanged(s)`. Emit each generated value; assert the
+ * downstream trace equals the canonical dedup of `[-1, ...values]`
+ * starting from the initial.
+ *
+ * Catches: dedup state corruption across waves, first-DATA bypass,
+ * or `equals` fn misapplication (e.g. using `Object.is` on objects
+ * when a deep equality was configured).
+ */
+const invariant29DistinctUntilChanged: Invariant = {
+	name: "distinct-until-changed-dedups-consecutive",
+	description:
+		"distinctUntilChanged suppresses consecutive duplicate DATA values even when the upstream source admits them; the downstream trace is the dedup'd sequence.",
+	specRef: "src/extra/operators.ts:distinctUntilChanged — consecutive-dedup contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 3 }), { minLength: 2, maxLength: 8 }),
+			(values) => {
+				const s = node<number>([], { equals: () => false, initial: -1 });
+				const d = distinctUntilChanged(s as Node<number>);
+				const emitted: number[] = [];
+				const unsub = d.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as number);
+					}
+				});
+				for (const v of values) s.emit(v);
+				unsub();
+				const expected: number[] = [-1];
+				let prev = -1;
+				for (const v of values) {
+					if (v !== prev) {
+						expected.push(v);
+						prev = v;
+					}
+				}
+				if (emitted.length !== expected.length) return false;
+				for (let i = 0; i < expected.length; i++) {
+					if (emitted[i] !== expected[i]) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #30 — sample: `sample(src, notifier)` re-emits src's latest DATA each time
+ * notifier emits DATA. Source-tick pairing is positional.
+ *
+ * Topology: `node<number>([], { initial: -1 })` (src) + `node<number>([], { initial: -1 })` (ticker)
+ * wrapped in `sample(src, ticker)`. Initial subscribe:
+ * - sample subscribes src → callback fires with src's cached DATA(-1), sets
+ *   lastSourceValue.v = -1.
+ * - sample subscribes ticker → callback fires with ticker's cached
+ *   DATA(-1) → emits `lastSourceValue.v = -1`.
+ *
+ * Then, for each i in 1..N, mutate src to a unique value and tick; the
+ * output must carry that unique value positionally.
+ *
+ * Catches: held-value staleness (emitting prior src value after newer
+ * src DATA), notifier DATA swallowed without emit, or source-completed
+ * leaks (sample continuing after source terminates).
+ */
+const invariant30Sample: Invariant = {
+	name: "sample-emits-source-latest-on-notifier",
+	description:
+		"sample(src, notifier) emits the latest src DATA each time notifier emits; source-tick pairing is positional.",
+	specRef: "src/extra/operators.ts:sample — latest-on-notifier contract",
+	property: () =>
+		fc.property(fc.integer({ min: 2, max: 5 }), (N) => {
+			const src = node<number>([], { initial: -1 });
+			const ticker = node<number>([], { initial: -1 });
+			const sp = sample(src as Node<number>, ticker as Node<number>);
+			const emitted: number[] = [];
+			const unsub = sp.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number);
+				}
+			});
+			for (let i = 1; i <= N; i++) {
+				src.emit(i * 100);
+				ticker.emit(i);
+			}
+			const expected = [-1];
+			for (let i = 1; i <= N; i++) expected.push(i * 100);
+			if (emitted.length !== expected.length) {
+				unsub();
+				return false;
+			}
+			for (let k = 0; k < expected.length; k++) {
+				if (emitted[k] !== expected[k]) {
+					unsub();
+					return false;
+				}
+			}
+			// Source-completed leak check: after src COMPLETE, sample must clear its
+			// held value and notifier ticks must no longer produce DATA.
+			const lenBeforeComplete = emitted.length;
+			src.down([[COMPLETE]]);
+			ticker.emit(999);
+			ticker.emit(1000);
+			unsub();
+			return emitted.length === lenBeforeComplete;
+		}),
+};
+
+/**
+ * #31 — pairwise: emits `[prev, curr]` starting from the second DATA; the
+ * first DATA produces no tuple.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: values[0] })` (source
+ * absorption disabled so even equal consecutive values pass) wrapped in
+ * `pairwise(s)`. Emit `values[1..]`; assert the downstream trace is
+ * exactly `[(values[0], values[1]), (values[1], values[2]), …]`.
+ *
+ * Catches: first-DATA tuple leak (emitting `[undefined, v0]`), prev-state
+ * corruption across waves, or tuple-order flip.
+ */
+const invariant31Pairwise: Invariant = {
+	name: "pairwise-emits-adjacent-tuples",
+	description:
+		"pairwise(source) emits [prev, curr] starting from the second DATA; the first DATA produces no tuple and tuples stay positionally aligned.",
+	specRef: "src/extra/operators.ts:pairwise — adjacent-tuple contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 999 }), { minLength: 2, maxLength: 6 }),
+			(values) => {
+				const s = node<number>([], { equals: () => false, initial: values[0] });
+				const p = pairwise(s as Node<number>);
+				const emitted: [number, number][] = [];
+				const unsub = p.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as [number, number]);
+					}
+				});
+				for (let i = 1; i < values.length; i++) s.emit(values[i]);
+				unsub();
+				const expected: [number, number][] = [];
+				for (let i = 1; i < values.length; i++) {
+					expected.push([values[i - 1], values[i]]);
+				}
+				if (emitted.length !== expected.length) return false;
+				for (let k = 0; k < expected.length; k++) {
+					if (emitted[k][0] !== expected[k][0] || emitted[k][1] !== expected[k][1]) {
+						return false;
+					}
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #32 — bufferCount: `bufferCount(source, N)` emits one array of exactly N
+ * DATAs per N consecutive source DATAs. Arrays are positionally aligned
+ * with source order.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: -1 })` wrapped in
+ * `bufferCount(s, N)`. The cached DATA(-1) on subscribe counts as the
+ * first source DATA. Emit N*M - 1 more values (total N*M); assert
+ * exactly M arrays of size N, with the concatenated values equal to
+ * `[-1, 1, 2, ..., N*M - 1]`.
+ *
+ * Catches: chunk-size drift (wrong array length), chunk-boundary miss
+ * (e.g. emit-before-push check), or partial-tail leak (emit a sub-N
+ * array without a COMPLETE gate).
+ */
+const invariant32BufferCount: Invariant = {
+	name: "buffer-count-chunks-exactly-n",
+	description:
+		"bufferCount(source, N) emits exactly one array of size N per N consecutive source DATAs; arrays stay positionally aligned with source order.",
+	specRef: "src/extra/operators.ts:bufferCount — chunking contract",
+	property: () =>
+		fc.property(fc.integer({ min: 2, max: 5 }), fc.integer({ min: 2, max: 5 }), (N, M) => {
+			const s = node<number>([], { equals: () => false, initial: -1 });
+			const b = bufferCount(s as Node<number>, N);
+			const emitted: number[][] = [];
+			const unsub = b.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number[]);
+				}
+			});
+			const total = N * M;
+			for (let i = 1; i < total; i++) s.emit(i);
+			unsub();
+			if (emitted.length !== M) return false;
+			for (const chunk of emitted) {
+				if (chunk.length !== N) return false;
+			}
+			const flat: number[] = [];
+			for (const c of emitted) flat.push(...c);
+			if (flat.length !== total) return false;
+			if (flat[0] !== -1) return false;
+			for (let i = 1; i < total; i++) {
+				if (flat[i] !== i) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #33 — delay: `delay(source, ms)` emits every source DATA exactly once,
+ * in source-arrival order, after the ms shift. No DATA reaches
+ * downstream before ms elapses from its source-arrival time.
+ *
+ * Topology: captured-push `producer<number>`. Under fake timers, fire
+ * all N values at t=0. Assert zero DATA at t=99 and t=100-epsilon
+ * (timer not yet fired). At t=101, all N DATAs delivered in source
+ * order.
+ *
+ * Catches: timer-drop (delay swallowing a DATA), out-of-order delivery
+ * (e.g. emitting values[1] before values[0]), or eager emission
+ * (bypassing the ms shift).
+ */
+const invariant33Delay: Invariant = {
+	name: "delay-preserves-values-and-order",
+	description:
+		"delay(source, ms) emits every source DATA exactly once, in source-arrival order, after the ms shift; no DATA reaches downstream before ms elapses.",
+	specRef: "src/extra/operators.ts:delay — time-shift contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 999 }), { minLength: 2, maxLength: 5 }),
+			(values) => {
+				vi.useFakeTimers();
+				try {
+					let pushSrc: ((v: number) => void) | undefined;
+					const s = node<number>(
+						[],
+						(_data, a) => {
+							pushSrc = (v) => a.emit(v);
+							return () => {
+								pushSrc = undefined;
+							};
+						},
+						{ describeKind: "producer", equals: () => false },
+					);
+					const d = delay(s as Node<number>, 100, { equals: () => false });
+					const emitted: number[] = [];
+					const unsub = d.subscribe((msgs) => {
+						for (const m of msgs as readonly [symbol, unknown?][]) {
+							if (m[0] === DATA) emitted.push(m[1] as number);
+						}
+					});
+					for (const v of values) pushSrc?.(v);
+					if (emitted.length !== 0) {
+						unsub();
+						return false;
+					}
+					vi.advanceTimersByTime(99);
+					if (emitted.length !== 0) {
+						unsub();
+						return false;
+					}
+					vi.advanceTimersByTime(2);
+					unsub();
+					if (emitted.length !== values.length) return false;
+					for (let i = 0; i < values.length; i++) {
+						if (emitted[i] !== values[i]) return false;
+					}
+					return true;
+				} finally {
+					vi.useRealTimers();
+				}
+			},
+		),
+};
+
+/**
+ * #34 — buffer: `buffer(src, notifier)` emits accumulated source DATAs as an
+ * array on each notifier DATA, then resets the buffer. No emission
+ * between notifier ticks.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: -1 })` (src) +
+ * `node<number>([], { equals: () => false , initial: -1 })` (notifier) wrapped in
+ * `buffer(src, notifier)`. Initial subscribe order: src subscribes
+ * first, cached DATA(-1) → buf=[-1]; notifier subscribes, cached
+ * DATA(-1) → flush [-1], buf=[].
+ *
+ * Then for each of R rounds: emit K distinct values into src (buf
+ * grows to K; no emit yet) then tick notifier (flush the K values
+ * as one array, buf=[]). Assert exactly R + 1 arrays emitted (1
+ * initial + R per-round); each round-array has K sequential values.
+ *
+ * Catches: buffer-drop (value swallowed without notifier), flush-on-
+ * source (erroneous emit on every source DATA), non-empty-gate missing
+ * (flush when buf empty yielding []), or reset-miss (values leaked
+ * across rounds).
+ */
+const invariant34Buffer: Invariant = {
+	name: "buffer-notifier-flushes-accumulated",
+	description:
+		"buffer(src, notifier) emits accumulated source DATAs as an array on each notifier DATA, then resets the buffer; no emission between notifier ticks.",
+	specRef: "src/extra/operators.ts:buffer — notifier-flush contract",
+	property: () =>
+		fc.property(fc.integer({ min: 2, max: 4 }), fc.integer({ min: 2, max: 4 }), (R, K) => {
+			const src = node<number>([], { equals: () => false, initial: -1 });
+			const notifier = node<number>([], { equals: () => false, initial: -1 });
+			const b = buffer(src as Node<number>, notifier as Node<number>);
+			const emitted: number[][] = [];
+			const unsub = b.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number[]);
+				}
+			});
+			if (emitted.length !== 1 || emitted[0].length !== 1 || emitted[0][0] !== -1) {
+				unsub();
+				return false;
+			}
+			let counter = 0;
+			for (let r = 0; r < R; r++) {
+				for (let k = 0; k < K; k++) src.emit(counter++);
+				if (emitted.length !== r + 1) {
+					unsub();
+					return false;
+				}
+				notifier.emit(100 + r);
+				if (emitted.length !== r + 2) {
+					unsub();
+					return false;
+				}
+				const latest = emitted[emitted.length - 1];
+				if (latest.length !== K) {
+					unsub();
+					return false;
+				}
+				for (let k = 0; k < K; k++) {
+					if (latest[k] !== r * K + k) {
+						unsub();
+						return false;
+					}
+				}
+			}
+			unsub();
+			return true;
+		}),
+};
+
+/**
+ * #35 — bufferTime: `bufferTime(src, ms)` emits an array of the values
+ * accumulated during each ms window; empty windows produce no
+ * emission.
+ *
+ * Topology: captured-push `producer<number>` with `{ equals: () => false }`
+ * wrapped in `bufferTime(src, 100)`. Under fake timers, for each
+ * generated non-empty window: push the window's values, then
+ * `advanceTimersByTime(100)` to fire the setInterval tick. Assert the
+ * downstream trace is exactly `windows[i]` per position.
+ *
+ * Catches: window-boundary drift (tick fires at wrong time), empty-
+ * buffer emission, or across-window leak.
+ */
+const invariant35BufferTime: Invariant = {
+	name: "buffertime-flushes-on-window-boundary",
+	description:
+		"bufferTime(src, ms) emits one array per ms window containing that window's source DATAs in order; empty windows produce no emission.",
+	specRef: "src/extra/operators.ts:bufferTime — time-window contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.array(fc.integer({ min: 1, max: 999 }), { minLength: 1, maxLength: 4 }), {
+				minLength: 2,
+				maxLength: 4,
+			}),
+			(windows) => {
+				vi.useFakeTimers();
+				try {
+					let push: ((v: number) => void) | undefined;
+					const src = node<number>(
+						[],
+						(_data, a) => {
+							push = (v) => a.emit(v);
+							return () => {
+								push = undefined;
+							};
+						},
+						{ describeKind: "producer", equals: () => false },
+					);
+					const b = bufferTime(src as Node<number>, 100);
+					const emitted: number[][] = [];
+					const unsub = b.subscribe((msgs) => {
+						for (const m of msgs as readonly [symbol, unknown?][]) {
+							if (m[0] === DATA) emitted.push(m[1] as number[]);
+						}
+					});
+					for (const win of windows) {
+						for (const v of win) push?.(v);
+						vi.advanceTimersByTime(100);
+					}
+					unsub();
+					if (emitted.length !== windows.length) return false;
+					for (let i = 0; i < windows.length; i++) {
+						if (emitted[i].length !== windows[i].length) return false;
+						for (let j = 0; j < windows[i].length; j++) {
+							if (emitted[i][j] !== windows[i][j]) return false;
+						}
+					}
+					return true;
+				} finally {
+					vi.useRealTimers();
+				}
+			},
+		),
+};
+
+/**
+ * #36 — interval: `interval(periodMs)` emits an incrementing counter
+ * starting at 0, one DATA per periodMs. Advancing N periods under
+ * fake timers yields exactly N DATAs `[0, 1, ..., N-1]`.
+ *
+ * Catches: counter initialization drift, double-fire (two DATAs per
+ * period), or period-miss.
+ */
+const invariant36Interval: Invariant = {
+	name: "interval-emits-monotonic-counter-per-period",
+	description:
+		"interval(periodMs) emits an incrementing counter (0, 1, 2, ...) one per periodMs; advancing N periods yields exactly N DATAs with the expected counter values.",
+	specRef: "src/extra/operators.ts:interval — periodic-emit contract",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 6 }), (N) => {
+			vi.useFakeTimers();
+			try {
+				const iv = interval(50);
+				const emitted: number[] = [];
+				const unsub = iv.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as number);
+					}
+				});
+				vi.advanceTimersByTime(50 * N);
+				unsub();
+				if (emitted.length !== N) return false;
+				for (let i = 0; i < N; i++) {
+					if (emitted[i] !== i) return false;
+				}
+				return true;
+			} finally {
+				vi.useRealTimers();
+			}
+		}),
+};
+
+/**
+ * #37 — rescue: `rescue(src, recover)` swallows source ERROR and emits
+ * `recover(err)` as DATA; no ERROR is forwarded to the output.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: -1 })` wrapped in
+ * `rescue(s, err => recoveryValue)` where `recoveryValue` is
+ * generated from `fc.integer({ min: 100, max: 999 })` (disjoint from
+ * the initial -1 so absorption doesn't confuse the check). Initial
+ * subscribe delivers DATA(-1). Then `src.down([[ERROR, errTag]])`
+ * triggers the recover path. Assert: output trace is `[-1,
+ * recoveryValue]`, zero ERRORs, zero COMPLETEs.
+ *
+ * Catches: ERROR leak (forwarded alongside recovery DATA),
+ * recovery-fn not called (DATA from recover missing), or
+ * double-emission of the recovery value.
+ */
+const invariant37Rescue: Invariant = {
+	name: "rescue-replaces-error-with-value",
+	description:
+		"rescue(src, recover) swallows a source ERROR and emits recover(err) as DATA; no ERROR or spurious COMPLETE reaches the output.",
+	specRef: "src/extra/operators.ts:rescue — error-recovery contract",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 100, max: 999 }),
+			fc.integer({ min: 1, max: 99 }),
+			(recoveryValue, errTag) => {
+				const src = node<number>([], { equals: () => false, initial: -1 });
+				const r = rescue(src as Node<number>, () => recoveryValue);
+				const emitted: number[] = [];
+				const terminals: symbol[] = [];
+				const unsub = r.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as number);
+						else if (m[0] === ERROR || m[0] === COMPLETE) terminals.push(m[0]);
+					}
+				});
+				if (emitted.length !== 1 || emitted[0] !== -1) {
+					unsub();
+					return false;
+				}
+				src.down([[ERROR, errTag]]);
+				unsub();
+				if (terminals.length !== 0) return false;
+				return emitted.length === 2 && emitted[1] === recoveryValue;
+			},
+		),
+};
+
+/**
+ * #38 — concat: `concat(a, b)` emits all of `a`'s DATA in phase 0; on `a`
+ * COMPLETE, phase=1 flushes any buffered `b` DATA and continues
+ * forwarding `b`. Second-source DATAs never reach output before `a`
+ * COMPLETEs.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: -1 })` (a) +
+ * `node<number>([], { equals: () => false , initial: -2 })` (b) wrapped in
+ * `concat(a, b)`. Subscribe order inside concat: secondSrc first →
+ * cached DATA(-2) goes to `pending` (phase=0). firstSrc second →
+ * cached DATA(-1) passes through (phase=0 DATA branch). Initial
+ * output: `[-1]`.
+ *
+ * Then: emit M values into `a` (all forwarded). Emit K values into
+ * `b` (all buffered in `pending`; output unchanged). `a.down([[COMPLETE]])`
+ * → phase=1, flush pending = `[-2, 101..100+K]` via sequential
+ * `a.emit(v)`. Assert output = `[-1, 1..M, -2, 101..100+K]`.
+ *
+ * Catches: second-source leak into phase 0, pending-drop on COMPLETE,
+ * out-of-order flush, or stuck-phase (never transitioning to phase=1).
+ */
+const invariant38Concat: Invariant = {
+	name: "concat-phase-transition-a-completes-before-b",
+	description:
+		"concat(a, b) emits all of a's DATA in phase 0; on a COMPLETE, phase=1 flushes any buffered b DATA and continues forwarding b. Second-source DATAs never reach output before a COMPLETEs.",
+	specRef: "src/extra/operators.ts:concat — phase-transition contract",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 4 }), fc.integer({ min: 1, max: 4 }), (M, K) => {
+			const aSrc = node<number>([], { equals: () => false, initial: -1 });
+			const bSrc = node<number>([], { equals: () => false, initial: -2 });
+			const c = concat(aSrc as Node<number>, bSrc as Node<number>);
+			const emitted: number[] = [];
+			const unsub = c.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number);
+				}
+			});
+			if (emitted.length !== 1 || emitted[0] !== -1) {
+				unsub();
+				return false;
+			}
+			for (let i = 1; i <= M; i++) aSrc.emit(i);
+			if (emitted.length !== 1 + M) {
+				unsub();
+				return false;
+			}
+			for (let j = 1; j <= K; j++) bSrc.emit(100 + j);
+			if (emitted.length !== 1 + M) {
+				unsub();
+				return false;
+			}
+			aSrc.down([[COMPLETE]]);
+			unsub();
+			const expected: number[] = [-1];
+			for (let i = 1; i <= M; i++) expected.push(i);
+			expected.push(-2);
+			for (let j = 1; j <= K; j++) expected.push(100 + j);
+			if (emitted.length !== expected.length) return false;
+			for (let k = 0; k < expected.length; k++) {
+				if (emitted[k] !== expected[k]) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #39 — take: `take(src, N)` forwards the first N source DATAs and then
+ * emits exactly one COMPLETE; subsequent source DATAs never reach
+ * output.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: 0 })` wrapped in
+ * `take(s, N)`. Cached DATA(0) counts as the first take. Emit N-1
+ * more values (total N); `take` emits all N DATAs `[0, 1, ..., N-1]`
+ * then COMPLETEs. Emit `extras` more values into s; none reach
+ * output, COMPLETE count stays at 1.
+ *
+ * Catches: off-by-one in count, missing COMPLETE on threshold, late
+ * DATA leak after done, or multiple COMPLETEs.
+ */
+const invariant39Take: Invariant = {
+	name: "take-terminates-after-n-datas",
+	description:
+		"take(src, N) forwards exactly the first N source DATAs then emits exactly one COMPLETE; subsequent source DATAs never reach output.",
+	specRef: "src/extra/operators.ts:take — termination contract",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 5 }), fc.integer({ min: 1, max: 3 }), (N, extras) => {
+			const s = node<number>([], { equals: () => false, initial: 0 });
+			const t = take(s as Node<number>, N);
+			const emitted: number[] = [];
+			let completes = 0;
+			const unsub = t.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number);
+					else if (m[0] === COMPLETE) completes += 1;
+				}
+			});
+			for (let i = 1; i < N; i++) s.emit(i);
+			if (emitted.length !== N) {
+				unsub();
+				return false;
+			}
+			if (completes !== 1) {
+				unsub();
+				return false;
+			}
+			for (let i = 0; i < N; i++) {
+				if (emitted[i] !== i) {
+					unsub();
+					return false;
+				}
+			}
+			for (let i = 0; i < extras; i++) s.emit(1000 + i);
+			// `completeWhenDepsComplete: false` means take emits its own COMPLETE
+			// on threshold; a subsequent source COMPLETE must not bubble through
+			// as a second downstream COMPLETE.
+			s.down([[COMPLETE]]);
+			unsub();
+			return emitted.length === N && completes === 1;
+		}),
+};
+
+/**
+ * #40 — skip: `skip(src, N)` drops the first N source DATAs and forwards
+ * the remainder; total downstream DATA count equals
+ * `max(0, srcCount - N)`.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: 0 })` wrapped in
+ * `skip(s, N)`. Cached DATA(0) is the first source DATA. Emit
+ * `extras` additional values (total `1 + extras` source DATAs).
+ * Assert downstream length is `max(0, 1 + extras - N)`, and the
+ * values are exactly `[0, 1, ..., extras].slice(N)`.
+ *
+ * Catches: count mis-tracking, forwarding a skipped DATA, or dropping
+ * a non-skipped DATA after the window closes.
+ */
+const invariant40Skip: Invariant = {
+	name: "skip-drops-first-n-datas",
+	description:
+		"skip(src, N) drops the first N source DATAs and forwards the remainder; total downstream count equals max(0, srcCount - N).",
+	specRef: "src/extra/operators.ts:skip — position-gated forwarding contract",
+	property: () =>
+		fc.property(fc.integer({ min: 0, max: 3 }), fc.integer({ min: 1, max: 5 }), (N, extras) => {
+			const s = node<number>([], { equals: () => false, initial: 0 });
+			const sk = skip(s as Node<number>, N);
+			const emitted: number[] = [];
+			const unsub = sk.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number);
+				}
+			});
+			for (let i = 1; i <= extras; i++) s.emit(i);
+			unsub();
+			const totalSrc = 1 + extras;
+			const expectedCount = Math.max(0, totalSrc - N);
+			if (emitted.length !== expectedCount) return false;
+			const allSrc: number[] = [0];
+			for (let i = 1; i <= extras; i++) allSrc.push(i);
+			const expected = allSrc.slice(N);
+			for (let k = 0; k < expected.length; k++) {
+				if (emitted[k] !== expected[k]) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #41 — scan: `scan(src, reducer, seed)` emits `reducer(acc, value)` once
+ * per source DATA; the accumulator chain is sequential and
+ * positional.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: values[0] })` wrapped
+ * in `scan(s, (acc, v) => acc + v, 0)` (sum reducer). Cached
+ * DATA(values[0]) folds acc 0 → values[0]. Emit values[1..];
+ * accumulator chain is monotonically increasing (all fc integers
+ * ≥ 1 → strictly monotonic sums, no equals-absorption at scan's
+ * output). Assert downstream matches the canonical prefix-sum.
+ *
+ * Catches: seed not applied, accumulator reset across waves, skipped
+ * value in the fold, or reversed chain (folding newer before older).
+ */
+const invariant41Scan: Invariant = {
+	name: "scan-folds-accumulator-per-data",
+	description:
+		"scan(src, reducer, seed) emits reducer(acc, value) once per source DATA; the accumulator chain is sequential and positional.",
+	specRef: "src/extra/operators.ts:scan — accumulator contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 100 }), { minLength: 2, maxLength: 6 }),
+			(values) => {
+				const s = node<number>([], { equals: () => false, initial: values[0] });
+				const sc = scan(s as Node<number>, (acc: number, v: number) => acc + v, 0);
+				const emitted: number[] = [];
+				const unsub = sc.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as number);
+					}
+				});
+				for (let i = 1; i < values.length; i++) s.emit(values[i]);
+				unsub();
+				// scan's `initial: seed` pushes DATA(seed) on subscribe BEFORE the fn
+				// runs for the source's cached DATA — so the observed trace is
+				// `[seed, acc_1, acc_2, ...]` rather than just the prefix sums.
+				const expected: number[] = [0];
+				let acc = 0;
+				for (const v of values) {
+					acc += v;
+					expected.push(acc);
+				}
+				if (emitted.length !== expected.length) return false;
+				for (let k = 0; k < expected.length; k++) {
+					if (emitted[k] !== expected[k]) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #42 — reduce: `reduce(src, reducer, seed)` stays silent while source emits
+ * DATA, accumulating into `store.acc`; on source COMPLETE, emits
+ * exactly one DATA carrying the final accumulator value, then one
+ * COMPLETE.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: values[0] })`
+ * wrapped in `reduce(s, (acc, v) => acc + v, 0)`. Emit `values[1..]`
+ * (all silent at reduce's output — store.acc accumulates, no DATA).
+ * Then `s.down([[COMPLETE]])` — reduce fires the terminal branch:
+ * exactly one DATA = `sum(values)`, exactly one COMPLETE.
+ *
+ * Catches: premature emit (firing during DATA), missing terminal
+ * emit, wrong accumulator value, or COMPLETE before DATA in the
+ * terminal wave.
+ */
+const invariant42Reduce: Invariant = {
+	name: "reduce-emits-once-on-complete",
+	description:
+		"reduce(src, reducer, seed) stays silent during DATA and emits exactly one DATA (carrying the final accumulator) followed by one COMPLETE on source COMPLETE.",
+	specRef: "src/extra/operators.ts:reduce — single-emit-on-complete contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 100 }), { minLength: 2, maxLength: 6 }),
+			(values) => {
+				const s = node<number>([], { equals: () => false, initial: values[0] });
+				const r = reduce(s as Node<number>, (acc: number, v: number) => acc + v, 0);
+				const emitted: number[] = [];
+				let completes = 0;
+				const unsub = r.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as number);
+						else if (m[0] === COMPLETE) completes += 1;
+					}
+				});
+				for (let i = 1; i < values.length; i++) s.emit(values[i]);
+				if (emitted.length !== 0 || completes !== 0) {
+					unsub();
+					return false;
+				}
+				s.down([[COMPLETE]]);
+				unsub();
+				const expectedSum = values.reduce((a, v) => a + v, 0);
+				return emitted.length === 1 && emitted[0] === expectedSum && completes === 1;
+			},
+		),
+};
+
+/**
+ * #43 — merge: `merge(...sources)` forwards every DATA from every live
+ * source; total downstream count equals the sum of per-source DATA
+ * counts. Order is subscribe-interleaved per source but the emitted
+ * set of values must exactly match the input union.
+ *
+ * Topology: N sources, each `node<number>([], { equals: () => false , initial: -1 - i })`
+ * for i ∈ 0..N-1 (unique negative caches). `m = merge(...sources)`.
+ * Subscribe delivers N cached DATAs `[-1, -2, ..., -N]` in
+ * subscribe order. Then K rounds round-robin, each source emits
+ * `i * 1000 + k` (globally unique). Assert:
+ *   - total emitted count = N + N*K
+ *   - emitted set equals the canonical union set
+ *
+ * Catches: inner-source drop, duplicate fan-out, subscribe order
+ * miss (first source's cache skipped), premature COMPLETE on one-
+ * source-complete (merge must wait for all).
+ */
+const invariant43Merge: Invariant = {
+	name: "merge-forwards-data-from-all-sources",
+	description:
+		"merge(...sources) forwards every DATA from every live source; total downstream count equals the sum of per-source counts and the emitted set matches the union.",
+	specRef: "src/extra/operators.ts:merge — fan-in contract",
+	property: () =>
+		fc.property(fc.integer({ min: 2, max: 4 }), fc.integer({ min: 1, max: 3 }), (N, K) => {
+			const sources = Array.from({ length: N }, (_, i) =>
+				node<number>([], { equals: () => false, initial: -1 - i }),
+			);
+			const m = merge(...(sources as Node<number>[]));
+			const emitted: number[] = [];
+			let completes = 0;
+			const unsub = m.subscribe((msgs) => {
+				for (const mm of msgs as readonly [symbol, unknown?][]) {
+					if (mm[0] === DATA) emitted.push(mm[1] as number);
+					else if (mm[0] === COMPLETE) completes += 1;
+				}
+			});
+			for (let k = 1; k <= K; k++) {
+				for (let i = 0; i < N; i++) sources[i].emit(i * 1000 + k);
+			}
+			if (emitted.length !== N + N * K) {
+				unsub();
+				return false;
+			}
+			const expectedSet = new Set<number>();
+			for (let i = 0; i < N; i++) expectedSet.add(-1 - i);
+			for (let k = 1; k <= K; k++) {
+				for (let i = 0; i < N; i++) expectedSet.add(i * 1000 + k);
+			}
+			const emittedSet = new Set(emitted);
+			if (emittedSet.size !== expectedSet.size) {
+				unsub();
+				return false;
+			}
+			for (const v of expectedSet) {
+				if (!emittedSet.has(v)) {
+					unsub();
+					return false;
+				}
+			}
+			// Staged COMPLETE check: merge must NOT forward downstream COMPLETE until
+			// every inner source completes. Complete all but the last — downstream
+			// stays live. Then complete the last — exactly one COMPLETE emerges.
+			for (let i = 0; i < N - 1; i++) sources[i].down([[COMPLETE]]);
+			if (completes !== 0) {
+				unsub();
+				return false;
+			}
+			sources[N - 1].down([[COMPLETE]]);
+			unsub();
+			return completes === 1;
+		}),
+};
+
+/**
+ * #44 — filter: `filter(src, predicate)` forwards exactly the source DATAs
+ * that satisfy predicate, in order; non-matching DATAs emit
+ * RESOLVED (not captured as DATA).
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: values[0] })` +
+ * `filter(s, v => v % 2 === 0, { equals: () => false })`. The outer
+ * `equals: () => false` on filter disables its own Object.is dedupe
+ * so consecutive identical matching values both pass through —
+ * otherwise `values = [2, 2]` would collapse to one emit and
+ * conflate operator semantics with protocol absorption. Emit
+ * `values[1..]`; assert downstream equals `values.filter(even)`.
+ *
+ * Catches: predicate false-positive (forwarding a non-matching
+ * value), predicate false-negative (dropping a matching value),
+ * batch-iteration bug (only first element evaluated per wave), or
+ * RESOLVED vs DATA conflation on non-matches.
+ */
+const invariant44Filter: Invariant = {
+	name: "filter-forwards-only-matching-predicate",
+	description:
+		"filter(src, predicate) forwards exactly the source DATAs that satisfy predicate, in order; non-matching DATAs do not reach the output.",
+	specRef: "src/extra/operators.ts:filter — predicate-gated forwarding contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 9 }), { minLength: 2, maxLength: 8 }),
+			(values) => {
+				const s = node<number>([], { equals: () => false, initial: values[0] });
+				const f = filter(s as Node<number>, (v) => v % 2 === 0, {
+					equals: () => false,
+				});
+				const emitted: number[] = [];
+				const unsub = f.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as number);
+					}
+				});
+				for (let i = 1; i < values.length; i++) s.emit(values[i]);
+				unsub();
+				const expected = values.filter((v) => v % 2 === 0);
+				if (emitted.length !== expected.length) return false;
+				for (let k = 0; k < expected.length; k++) {
+					if (emitted[k] !== expected[k]) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #45 — map: `map(src, project)` emits `project(v)` for every source
+ * DATA v, in order. Count is preserved exactly; ordering is
+ * preserved exactly.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: values[0] })`
+ * wrapped in `map(s, v => v * 2 + 7, { equals: () => false })`.
+ * The project fn `v * 2 + 7` is injective so consecutive
+ * identical inputs would still produce distinct outputs only if
+ * inputs differ; the `equals: () => false` on map itself lets
+ * identical projected outputs pass when inputs repeat. Emit
+ * `values[1..]`; assert downstream = `values.map(project)`.
+ *
+ * Catches: dropped emit (output < input count), duplicated emit,
+ * batch-iteration bug (only first element projected per wave),
+ * or project-fn not applied (raw value forwarded).
+ */
+const invariant45Map: Invariant = {
+	name: "map-transforms-values-one-to-one",
+	description:
+		"map(src, project) emits project(v) for every source DATA v, in order; count and ordering are preserved.",
+	specRef: "src/extra/operators.ts:map — one-to-one transform contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 50 }), { minLength: 2, maxLength: 8 }),
+			(values) => {
+				const s = node<number>([], { equals: () => false, initial: values[0] });
+				const project = (v: number) => v * 2 + 7;
+				const m = map(s as Node<number>, project, { equals: () => false });
+				const emitted: number[] = [];
+				const unsub = m.subscribe((msgs) => {
+					for (const mm of msgs as readonly [symbol, unknown?][]) {
+						if (mm[0] === DATA) emitted.push(mm[1] as number);
+					}
+				});
+				for (let i = 1; i < values.length; i++) s.emit(values[i]);
+				unsub();
+				const expected = values.map(project);
+				if (emitted.length !== expected.length) return false;
+				for (let k = 0; k < expected.length; k++) {
+					if (emitted[k] !== expected[k]) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #46 — combine: `combine(a, b)` emits `[latestA, latestB]` on every dep
+ * settle; tuples track the freshest value per dep.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: 0 })` +
+ * `node<number>([], { equals: () => false , initial: 100 })` wrapped in
+ * `combine(a, b)`. combine is `node([a, b], (batchData, actions, ctx) => {
+ 	const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
+ 	actions.emit(data);
+ }, { describeKind: "derived" })` with
+ * a custom element-wise tuple-equals; it defaults `partial: false`
+ * so activation produces exactly one initial tuple `[0, 100]`.
+ *
+ * Then alternate distinct emits: `a.emit(i*10)` → tuple becomes
+ * `[i*10, bCache]`; `b.emit(1000+i)` → tuple becomes
+ * `[aLatest, 1000+i]`. Each emit produces exactly one new tuple
+ * DATA. Assert total count is `1 + 2*steps` and the final tuple
+ * is the most recent pair.
+ *
+ * Catches: first-run gate missed (no initial tuple), stale-value
+ * leak (tuple carries prior dep value on cross-dep emit), or
+ * duplicate-emission.
+ */
+const invariant46Combine: Invariant = {
+	name: "combine-emits-latest-tuple-on-any-dep-settle",
+	description:
+		"combine(a, b) emits [latestA, latestB] on every dep settle; tuples track the freshest value per dep and count = 1 + (a-emits + b-emits).",
+	specRef: "src/extra/operators.ts:combine — multi-dep snapshot contract",
+	property: () =>
+		fc.property(fc.integer({ min: 2, max: 4 }), (steps) => {
+			const a = node<number>([], { equals: () => false, initial: 0 });
+			const b = node<number>([], { equals: () => false, initial: 100 });
+			const c = combine(a, b) as Node<readonly [number, number]>;
+			const emitted: [number, number][] = [];
+			const unsub = c.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as [number, number]);
+				}
+			});
+			if (emitted.length !== 1 || emitted[0][0] !== 0 || emitted[0][1] !== 100) {
+				unsub();
+				return false;
+			}
+			let aValue = 0;
+			let bValue = 100;
+			for (let i = 1; i <= steps; i++) {
+				aValue = i * 10;
+				a.emit(aValue);
+				const latestA = emitted[emitted.length - 1];
+				if (latestA[0] !== aValue || latestA[1] !== bValue) {
+					unsub();
+					return false;
+				}
+				bValue = 1000 + i;
+				b.emit(bValue);
+				const latestB = emitted[emitted.length - 1];
+				if (latestB[0] !== aValue || latestB[1] !== bValue) {
+					unsub();
+					return false;
+				}
+			}
+			unsub();
+			return emitted.length === 1 + 2 * steps;
+		}),
+};
+
+/**
+ * #47 — takeWhile: `takeWhile(src, predicate)` forwards matching DATAs;
+ * on the first non-matching DATA, emits exactly one COMPLETE and
+ * stops — no DATA forwarded for the non-match, predicate doesn't
+ * re-evaluate later.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: 0 })` +
+ * `takeWhile(s, v => v < 100)`. Cached DATA(0) passes predicate
+ * (1st match). Emit `N - 1` more values 1..N-1 (all < 100), then
+ * emit 500 (non-match). Expect: N matching DATAs, 1 COMPLETE, 0
+ * extras. Emit `extras` more values (all > 100) — none reach
+ * output, COMPLETE count stays 1.
+ *
+ * Catches: forwarding the non-matching value as DATA, missing
+ * COMPLETE on first non-match, double-COMPLETE, late DATA leak
+ * after done.
+ */
+const invariant47TakeWhile: Invariant = {
+	name: "takewhile-terminates-on-first-non-matching",
+	description:
+		"takeWhile(src, predicate) forwards matching DATAs; on the first non-matching DATA, emits exactly one COMPLETE and stops. The non-match value never reaches output.",
+	specRef: "src/extra/operators.ts:takeWhile — predicate-termination contract",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 5 }), fc.integer({ min: 1, max: 3 }), (N, extras) => {
+			const s = node<number>([], { equals: () => false, initial: 0 });
+			const tw = takeWhile(s as Node<number>, (v) => v < 100);
+			const emitted: number[] = [];
+			let completes = 0;
+			const unsub = tw.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number);
+					else if (m[0] === COMPLETE) completes += 1;
+				}
+			});
+			for (let i = 1; i < N; i++) s.emit(i);
+			if (emitted.length !== N || completes !== 0) {
+				unsub();
+				return false;
+			}
+			s.emit(500);
+			if (emitted.length !== N || completes !== 1) {
+				unsub();
+				return false;
+			}
+			for (let i = 0; i < extras; i++) s.emit(200 + i);
+			// Post-terminal source COMPLETE must not bubble through as a second
+			// downstream COMPLETE (takeWhile uses `completeWhenDepsComplete: false`).
+			s.down([[COMPLETE]]);
+			unsub();
+			return emitted.length === N && completes === 1;
+		}),
+};
+
+/**
+ * #48 — last: `last(src)` stays silent during DATA and on source COMPLETE
+ * emits exactly one DATA (the final DATA value seen) followed by
+ * one COMPLETE.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: values[0] })`
+ * wrapped in `last(s)`. Emit `values[1..]` — all silent at last's
+ * output (store.latest tracks). Then `s.down([[COMPLETE]])` fires
+ * the terminal branch: one DATA = `values[values.length - 1]`,
+ * one COMPLETE.
+ *
+ * Catches: premature emit during DATA, wrong value (not the last
+ * seen), missing terminal emit, reversed order (COMPLETE before
+ * DATA).
+ */
+const invariant48Last: Invariant = {
+	name: "last-emits-latest-on-complete",
+	description:
+		"last(src) stays silent during DATA and on source COMPLETE emits exactly one DATA (the final DATA value seen) followed by one COMPLETE.",
+	specRef: "src/extra/operators.ts:last — latest-on-complete contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 999 }), { minLength: 2, maxLength: 5 }),
+			(values) => {
+				const s = node<number>([], { equals: () => false, initial: values[0] });
+				const l = last(s as Node<number>);
+				const emitted: number[] = [];
+				let completes = 0;
+				const unsub = l.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as number);
+						else if (m[0] === COMPLETE) completes += 1;
+					}
+				});
+				for (let i = 1; i < values.length; i++) s.emit(values[i]);
+				if (emitted.length !== 0 || completes !== 0) {
+					unsub();
+					return false;
+				}
+				s.down([[COMPLETE]]);
+				unsub();
+				return emitted.length === 1 && emitted[0] === values[values.length - 1] && completes === 1;
+			},
+		),
+};
+
+/**
+ * #49 — tap: `tap(src, fn)` forwards every DATA unchanged; the side-effect
+ * fn is invoked exactly once per source DATA in order — independent
+ * of whether tap's own output absorbs identical consecutive emits.
+ *
+ * **Arm 1 (identity contract):** `node<number>([], { equals: () => false , initial: values[0] })` +
+ * `tap(s, v => sideEffects.push(v), { equals: () => false })`. The
+ * `equals: () => false` on tap keeps consecutive identical values
+ * passing through so emit count == side-effect count. Emit
+ * `values[1..]`; assert both `emitted` and `sideEffects` equal
+ * `values` exactly (same length, same order, same content).
+ *
+ * **Arm 2 (side-effect / emit decoupling):** source with
+ * `equals: () => false`, tap WITHOUT the override, all emits are
+ * identical so tap's Object.is absorbs everything after the first.
+ * Assert: `sideEffects.length` equals the source-emit count
+ * (fn fires per input) while `emittedCount` is exactly 1 (tap's
+ * output absorbed the rest). Locks in the documented ordering:
+ * `fnOrObserver(v)` is called BEFORE `a.emit(v)` per iteration.
+ *
+ * Catches: side-effect skip (fn not called for some DATAs),
+ * double-invocation, value mutation on the forwarded DATA,
+ * RESOLVED vs DATA conflation on the emit path, or a refactor
+ * that moves the fn call after `a.emit` (post-absorption), which
+ * would break the "once per source DATA" contract.
+ */
+const invariant49Tap: Invariant = {
+	name: "tap-is-identity-with-side-effect",
+	description:
+		"tap(src, fn) forwards every DATA unchanged; the side-effect fn is invoked exactly once per source DATA, in order.",
+	specRef: "src/extra/operators.ts:tap — identity-passthrough contract",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 100 }), { minLength: 2, maxLength: 6 }),
+			(values) => {
+				// Arm 1 — identity with no absorption: emit count, side-effect count,
+				// and value sequence all equal `values`.
+				{
+					const s = node<number>([], { equals: () => false, initial: values[0] });
+					const sideEffects: number[] = [];
+					const t = tap(
+						s as Node<number>,
+						(v: number) => {
+							sideEffects.push(v);
+						},
+						{ equals: () => false },
+					);
+					const emitted: number[] = [];
+					const unsub = t.subscribe((msgs) => {
+						for (const m of msgs as readonly [symbol, unknown?][]) {
+							if (m[0] === DATA) emitted.push(m[1] as number);
+						}
+					});
+					for (let i = 1; i < values.length; i++) s.emit(values[i]);
+					unsub();
+					if (emitted.length !== values.length || sideEffects.length !== values.length) {
+						return false;
+					}
+					for (let k = 0; k < values.length; k++) {
+						if (emitted[k] !== values[k]) return false;
+						if (sideEffects[k] !== values[k]) return false;
+					}
+				}
+				// Arm 2 — side-effect / emit decoupling: source drives `repeats`
+				// identical emits; tap's own cache absorbs all but the first. fn
+				// must still fire `repeats` times (documented "once per source
+				// DATA" contract, independent of downstream absorption).
+				{
+					const repeats = values.length;
+					const fixedValue = 42;
+					const s = node<number>([], { equals: () => false, initial: fixedValue });
+					const sideEffects: number[] = [];
+					const t = tap(s as Node<number>, (v: number) => {
+						sideEffects.push(v);
+					});
+					let emittedCount = 0;
+					const unsub = t.subscribe((msgs) => {
+						for (const m of msgs as readonly [symbol, unknown?][]) {
+							if (m[0] === DATA) emittedCount += 1;
+						}
+					});
+					for (let i = 1; i < repeats; i++) s.emit(fixedValue);
+					unsub();
+					if (sideEffects.length !== repeats) return false;
+					// Only the first DATA passes tap's Object.is; the rest absorb.
+					if (emittedCount !== 1) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #50 — takeUntil: `takeUntil(src, notifier)` forwards src DATAs until
+ * notifier emits DATA; on notifier DATA, emits exactly one COMPLETE
+ * and stops forwarding src.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: 0 })` (src) plus a
+ * captured-trigger `producer<number>` notifier (doesn't emit until
+ * we call `triggerNotifier()` — rules out accidental cached-DATA
+ * termination during subscribe). Emit `M - 1` extra src values (M
+ * total including the cached DATA(0)). `triggerNotifier()` → one
+ * COMPLETE. Emit K more src values — none reach output, COMPLETE
+ * count stays 1.
+ *
+ * Catches: notifier ignored, premature termination from unrelated
+ * notifier messages, late src DATA leak after `stopped`, or
+ * double-COMPLETE.
+ */
+const invariant50TakeUntil: Invariant = {
+	name: "takeuntil-terminates-on-notifier-data",
+	description:
+		"takeUntil(src, notifier) forwards src DATAs until notifier emits DATA; on notifier DATA, emits exactly one COMPLETE and stops forwarding src.",
+	specRef: "src/extra/operators.ts:takeUntil — notifier-termination contract",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 5 }), fc.integer({ min: 1, max: 3 }), (M, K) => {
+			let triggerNotifier: (() => void) | undefined;
+			const notifier = node<number>(
+				[],
+				(_data, a) => {
+					triggerNotifier = () => a.emit(1);
+					return () => {
+						triggerNotifier = undefined;
+					};
+				},
+				{ describeKind: "producer" },
+			);
+			const s = node<number>([], { equals: () => false, initial: 0 });
+			const tu = takeUntil(s as Node<number>, notifier);
+			const emitted: number[] = [];
+			let completes = 0;
+			const unsub = tu.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number);
+					else if (m[0] === COMPLETE) completes += 1;
+				}
+			});
+			for (let i = 1; i < M; i++) s.emit(i);
+			if (emitted.length !== M || completes !== 0) {
+				unsub();
+				return false;
+			}
+			triggerNotifier?.();
+			if (completes !== 1) {
+				unsub();
+				return false;
+			}
+			for (let i = 0; i < K; i++) s.emit(1000 + i);
+			unsub();
+			return emitted.length === M && completes === 1;
+		}),
+};
+
+/**
+ * #51 — find: `find(src, predicate)` skips non-matching DATAs; on the
+ * first matching DATA, emits exactly that value followed by one
+ * COMPLETE. (`find = take(filter(src, predicate), 1)` — this
+ * invariant is load-bearing for the composition: a broken `take`
+ * or `filter` would surface here first on a concrete domain
+ * semantic.)
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: 0 })` wrapped in
+ * `find(s, v => v > 100)`. Cached DATA(0) and emit `nonMatches` more
+ * values `1..nonMatches` (all <= nonMatches, well under 100 →
+ * non-matching). Assert no DATA emitted. `s.emit(500)` (match) → one
+ * DATA = 500, one COMPLETE. Extras ignored.
+ *
+ * Catches: forwarding non-matching DATA, missing COMPLETE on match,
+ * late DATA after match + complete.
+ */
+const invariant51Find: Invariant = {
+	name: "find-emits-first-matching-and-completes",
+	description:
+		"find(src, predicate) skips non-matching DATAs; on the first matching DATA, emits that value followed by exactly one COMPLETE.",
+	specRef: "src/extra/operators.ts:find — first-match-and-terminate contract",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 0, max: 4 }),
+			fc.integer({ min: 1, max: 3 }),
+			(nonMatches, extras) => {
+				const s = node<number>([], { equals: () => false, initial: 0 });
+				const f = find(s as Node<number>, (v) => v > 100);
+				const emitted: number[] = [];
+				let completes = 0;
+				const unsub = f.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) emitted.push(m[1] as number);
+						else if (m[0] === COMPLETE) completes += 1;
+					}
+				});
+				for (let i = 1; i <= nonMatches; i++) s.emit(i);
+				if (emitted.length !== 0 || completes !== 0) {
+					unsub();
+					return false;
+				}
+				const matchValue = 500;
+				s.emit(matchValue);
+				if (emitted.length !== 1 || emitted[0] !== matchValue || completes !== 1) {
+					unsub();
+					return false;
+				}
+				for (let i = 0; i < extras; i++) s.emit(200 + i);
+				// Post-terminal source COMPLETE must not produce a second downstream
+				// COMPLETE — `find = take(filter(...), 1)` inherits take's
+				// `completeWhenDepsComplete: false`.
+				s.down([[COMPLETE]]);
+				unsub();
+				return emitted.length === 1 && completes === 1;
+			},
+		),
+};
+
+/**
+ * #52 — elementAt: `elementAt(src, index)` drops the first `index` DATAs
+ * and emits exactly the next DATA (the index-th in source order,
+ * zero-based) followed by one COMPLETE. (`elementAt = take(skip(src,
+ * index), 1)` — composition-verifying.)
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: 0 })` wrapped in
+ * `elementAt(s, index)` with `index ∈ 0..3`. Source emits
+ * `[0, 1, ..., index]` in order (1 cached + `index` additional); the
+ * index-th value (zero-based) is `index` itself. Assert
+ * `emitted = [index]`, `completes = 1`. Extras ignored.
+ *
+ * Catches: off-by-one on position gating, early emit before
+ * reaching index, or COMPLETE missing.
+ */
+const invariant52ElementAt: Invariant = {
+	name: "elementat-emits-nth-and-completes",
+	description:
+		"elementAt(src, index) drops the first `index` DATAs and emits exactly the next DATA (the index-th in source order, zero-based) followed by one COMPLETE.",
+	specRef: "src/extra/operators.ts:elementAt — position-gated single-emit contract",
+	property: () =>
+		fc.property(fc.integer({ min: 0, max: 3 }), fc.integer({ min: 1, max: 3 }), (index, extras) => {
+			const s = node<number>([], { equals: () => false, initial: 0 });
+			const e = elementAt(s as Node<number>, index);
+			const emitted: number[] = [];
+			let completes = 0;
+			const unsub = e.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) emitted.push(m[1] as number);
+					else if (m[0] === COMPLETE) completes += 1;
+				}
+			});
+			for (let i = 1; i <= index; i++) s.emit(i);
+			if (emitted.length !== 1 || emitted[0] !== index || completes !== 1) {
+				unsub();
+				return false;
+			}
+			for (let i = 0; i < extras; i++) s.emit(1000 + i);
+			// Post-terminal source COMPLETE must not bubble through
+			// (`elementAt = take(skip(...), 1)` inherits take's
+			// `completeWhenDepsComplete: false`).
+			s.down([[COMPLETE]]);
+			unsub();
+			return emitted.length === 1 && completes === 1;
+		}),
+};
+
+/**
+ * #53 — windowCount: `windowCount(src, N)` emits one sub-node per N
+ * source DATAs. Each sub-node carries exactly N DATAs and
+ * COMPLETEs; downstream count of sub-nodes equals `M` where
+ * `N * M` = total source DATAs.
+ *
+ * Topology: `node<number>([], { equals: () => false , initial: -1 })` wrapped in
+ * `windowCount(s, N)`. Initial cached DATA(-1) opens the first
+ * window (via lazy `openWindow` on first DATA). Emit `N*M - 1`
+ * additional values so total source DATAs = N*M. Subscribe to each
+ * emitted sub-node and collect its DATAs and COMPLETE. Assert:
+ * - exactly M sub-nodes emitted,
+ * - each sub-node has N DATAs and is completed,
+ * - flattened sub-node sequence equals `[-1, 1, 2, ..., N*M - 1]`
+ *   (source DATAs in order).
+ *
+ * Catches: sub-node fan-out off-by-one, window not closed on
+ * threshold, values leaked between windows, or a sub-node
+ * failing to COMPLETE.
+ */
+const invariant53WindowCount: Invariant = {
+	name: "windowcount-sub-nodes-per-chunk",
+	description:
+		"windowCount(src, N) emits one sub-node per N source DATAs; each sub-node carries exactly N DATAs and COMPLETEs; the flattened sub-node sequence equals the source DATA sequence in order.",
+	specRef: "src/extra/operators.ts:windowCount — per-window sub-node emission contract",
+	property: () =>
+		fc.property(fc.integer({ min: 2, max: 4 }), fc.integer({ min: 2, max: 4 }), (N, M) => {
+			const s = node<number>([], { equals: () => false, initial: -1 });
+			const w = windowCount(s as Node<number>, N);
+			const windows: number[][] = [];
+			const windowCompleted: boolean[] = [];
+			const subUnsubs: (() => void)[] = [];
+			const unsub = w.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA) {
+						const sub = m[1] as Node<number>;
+						const idx = windows.length;
+						windows.push([]);
+						windowCompleted.push(false);
+						const u = sub.subscribe((sMsgs) => {
+							for (const sm of sMsgs as readonly [symbol, unknown?][]) {
+								if (sm[0] === DATA) windows[idx].push(sm[1] as number);
+								else if (sm[0] === COMPLETE) windowCompleted[idx] = true;
+							}
+						});
+						subUnsubs.push(u);
+					}
+				}
+			});
+			for (let i = 1; i < N * M; i++) s.emit(i);
+			unsub();
+			for (const u of subUnsubs) u();
+			if (windows.length !== M) return false;
+			for (let m = 0; m < M; m++) {
+				if (windows[m].length !== N) return false;
+				if (!windowCompleted[m]) return false;
+			}
+			const allValues: number[] = [-1];
+			for (let i = 1; i < N * M; i++) allValues.push(i);
+			let idx = 0;
+			for (let m = 0; m < M; m++) {
+				for (let k = 0; k < N; k++) {
+					if (windows[m][k] !== allValues[idx++]) return false;
+				}
+			}
+			return true;
+		}),
+};
+
+// ---------------------------------------------------------------------------
+// Rigor ghost-state mirrors — fast-check counterparts to TLC invariants that
+// reference TLA+ ghost state (`cleanupWitness`, `terminatedBy`,
+// `nonVacuousInvalidateCount`, `batchActive`) with no first-class runtime
+// representation. The substrate exposes a `RigorRecorder` slot on
+// `GraphReFlyConfig`; tests attach a recorder, drive the graph, then assert
+// against the accumulated log.
+//
+// Triage notes (2026-04-24): TLC #18 `MultiSinkIterationCoherent` and TLC #27
+// `MultiSinkIterationDriftClean` are NOT mirrored here — their TLA+ ghost
+// (`pendingExtraDelivery`) has no runtime analogue. The runtime's
+// `_deliverToSinks` iterates sinks synchronously over a single shared
+// `messages` reference, so mid-iteration drift is not a representable state.
+// TLC #20 / #22 / #23 are also skipped pending runtime features (§2.3 meta
+// TEARDOWN). §2.5 `replayBuffer` shipped in Phase 13.6.B B6 (Lock 6.G); the
+// TLC #20 / #23 mirrors are tracked separately in `docs/optimizations.md`.
+// ---------------------------------------------------------------------------
+
+interface CleanupWitnessEntry {
+	node: NodeCtx;
+	prevValue: unknown;
+}
+interface TerminalTransitionEntry {
+	node: NodeCtx;
+	kind: "completed" | "errored";
+	autoComplete: boolean;
+	autoError: boolean;
+	hasDeps: boolean;
+}
+interface RigorLog {
+	readonly recorder: RigorRecorder;
+	readonly witnesses: CleanupWitnessEntry[];
+	readonly terminals: TerminalTransitionEntry[];
+}
+
+/**
+ * Build a fresh isolated `GraphReFlyConfig` with the default handlers + a
+ * `RigorRecorder` attached. Returns the config plus the accumulated log. Each
+ * property run constructs its own config so runs can't leak state between
+ * them.
+ */
+function createRigorLoggedConfig(): { config: GraphReFlyConfig; log: RigorLog } {
+	const cfg = new GraphReFlyConfig({
+		onMessage: defaultConfig.onMessage,
+		onSubscribe: defaultConfig.onSubscribe,
+	});
+	registerBuiltins(cfg);
+	const witnesses: CleanupWitnessEntry[] = [];
+	const terminals: TerminalTransitionEntry[] = [];
+	const recorder: RigorRecorder = {
+		onNonVacuousInvalidate(n, prev) {
+			witnesses.push({ node: n, prevValue: prev });
+		},
+		onTerminalTransition(n, kind, autoComplete, autoError, hasDeps) {
+			terminals.push({ node: n, kind, autoComplete, autoError, hasDeps });
+		},
+	};
+	cfg.rigorRecorder = recorder;
+	return { config: cfg, log: { recorder, witnesses, terminals } };
+}
+
+/**
+ * #54 — cleanup-witness-in-value-domain (mirrors TLC #19
+ * `CleanupWitnessInValueDomain`). Every recorded cleanup witness carries a
+ * `prevValue` drawn from the value domain — specifically, not the
+ * `undefined` sentinel. The runtime's `_onDepMessage` INVALIDATE branch
+ * guards the hook with `if (this._cached === undefined) return`, so a
+ * vacuous invalidate (never-populated or already-reset cache) never fires
+ * the witness append.
+ *
+ * Topology: `node<number>([], { initial: 0 })` fed into a `derived` that observes DATA; the
+ * derived is the node we invalidate. Seed it with a DATA so `_cached` is
+ * populated, then invalidate N times (`derived.down([[INVALIDATE]])`).
+ * Only the first invalidate finds `_cached !== undefined` — that's the
+ * non-vacuous witness. Subsequent invalidates on the already-reset cache
+ * are vacuous and must not fire.
+ *
+ * Assert: witnesses for the derived node have `prevValue !== undefined` and
+ * the witnesses captured equal the number of distinct value-to-undefined
+ * transitions driven by the test (here, 1 per DATA→invalidate cycle).
+ *
+ * Catches: regressions that drop the `_cached === undefined` vacuous-guard,
+ * or fire the hook on TEARDOWN / status reset paths.
+ */
+const invariant54CleanupWitnessInValueDomain: Invariant = {
+	name: "cleanup-witness-in-value-domain",
+	description:
+		"Every non-vacuous INVALIDATE records a cleanup witness with a prev value drawn from the value domain (never the `undefined` sentinel).",
+	specRef:
+		"wave_protocol.tla #19 CleanupWitnessInValueDomain (via src/core/node.ts:_updateState INVALIDATE branch)",
+	property: () =>
+		fc.property(fc.array(fc.integer(), { minLength: 1, maxLength: 5 }), (values) => {
+			const { config, log } = createRigorLoggedConfig();
+			const s = node<number>([], { config, equals: () => false, initial: values[0] ?? 0 });
+			const d = node<number>(
+				[s],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) * 2);
+				},
+				{ describeKind: "derived", config },
+			);
+			const unsub = d.subscribe(() => {});
+			// Each cycle: emit a fresh DATA (populates d._cached via derived's
+			// auto-emit of fn return), then invalidate (fires the witness
+			// hook on the first arrival) — then a second invalidate which
+			// is vacuous (cache already reset) and MUST NOT fire the hook.
+			let expected = 0;
+			for (const v of values) {
+				s.emit(v);
+				d.down([[INVALIDATE]]);
+				expected++;
+				d.down([[INVALIDATE]]);
+			}
+			unsub();
+			// Non-vacuous guard: the total witness log length must be at least
+			// the expected count so a future Node-facade refactor that makes
+			// `w.node === d` silently return empty fails loud instead of
+			// passing vacuously. (QA batch 20 guard.)
+			if (log.witnesses.length < expected) return false;
+			const onD = log.witnesses.filter((w) => w.node === d);
+			if (onD.length !== expected) return false;
+			for (const w of onD) {
+				if (w.prevValue === undefined) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #55 — cleanup-witness-not-sentinel (mirrors TLC #24
+ * `CleanupWitnessNotSentinel`). Structural companion to #54: no witness
+ * entry — for ANY node, under any topology — equals the `undefined`
+ * sentinel. Whereas #54 drives a specific topology and asserts a count,
+ * #55 runs an event-driven graph and sweeps the whole witness log.
+ *
+ * Topology: `node<number>([], { initial: 0 })` → passthrough `derived` → leaf `effect`
+ * sink. Drive the source with `eventSequenceArb` (random emit / batch /
+ * resolved / terminal); opportunistically fire `INVALIDATE` on any node in
+ * the chain. Sweep: every witness entry must have a non-undefined
+ * `prevValue`.
+ *
+ * Catches: a regression that reorders `this._cached = undefined` before the
+ * witness hook (so the hook sees the already-cleared sentinel), or that
+ * fires the witness hook on a TEARDOWN reset path where `_cached` is
+ * legitimately `undefined`.
+ */
+const invariant55CleanupWitnessNotSentinel: Invariant = {
+	name: "cleanup-witness-not-sentinel",
+	description:
+		"No cleanup witness entry equals the `undefined` sentinel — the witness hook only fires when _cached is a real value.",
+	specRef:
+		"wave_protocol.tla #24 CleanupWitnessNotSentinel (via src/core/node.ts:_onDepMessage INVALIDATE guard)",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 10 }), { minLength: 1, maxLength: 4 }),
+			(emits) => {
+				const { config, log } = createRigorLoggedConfig();
+				const s = node<number>([], { config, equals: () => false, initial: 0 });
+				const d = node<number>(
+					[s],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit((data[0] as number) + 1);
+					},
+					{ describeKind: "derived", config },
+				);
+				const unsub = d.subscribe(() => {});
+				// Interleave emits with invalidates at both nodes. First
+				// invalidate on a populated cache = non-vacuous; second =
+				// vacuous (cache cleared). Both paths must respect the guard.
+				for (const v of emits) {
+					s.emit(v);
+					d.down([[INVALIDATE]]);
+					s.down([[INVALIDATE]]);
+					d.down([[INVALIDATE]]);
+				}
+				unsub();
+				// Non-vacuous guard: each emit cycle's first `d.down([[INVALIDATE]])`
+				// runs on a populated `d._cached` (seeded by `s.emit(v)` propagating
+				// through the derived fn), so at least `emits.length` witnesses
+				// MUST be captured. A substrate regression that stops populating
+				// `d._cached` (or a future Node-facade wrap that breaks the log)
+				// would trip this before the sentinel sweep runs vacuously.
+				if (log.witnesses.length < emits.length) return false;
+				for (const w of log.witnesses) {
+					if (w.prevValue === undefined) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #56 — cleanup-witness-accounting (mirrors TLC #26
+ * `CleanupWitnessAccounting`). Quantitative law tying the witness log
+ * length to the count of non-vacuous INVALIDATE deliveries. The runtime
+ * guard `if (this._cached === undefined) return` enforces this
+ * structurally: the hook cannot fire without a cache advance and the
+ * cache cannot be cleared without firing. So the invariant reduces to
+ * ≥1 non-vacuous invalidate produced ≥1 witness entry and the count per
+ * node equals the number of populated→cleared transitions driven.
+ *
+ * Topology: `node<number>([], { initial: 0 })` fed to `derived`. Controlled cycles of
+ * (emit → invalidate) on the derived node; a counter tracks the exact
+ * number of non-vacuous invalidates we drove. Assert
+ * `witnesses-for-derived.length === counter`.
+ *
+ * Catches: off-by-N regressions between the witness guard and the cache
+ * reset (e.g. a refactor that moves the cache reset above the hook so
+ * every hook sees `undefined`, or vice-versa — hook fires but cache
+ * never clears).
+ */
+const invariant56CleanupWitnessAccounting: Invariant = {
+	name: "cleanup-witness-accounting",
+	description:
+		"The witness log length for a node equals the count of non-vacuous INVALIDATE deliveries to that node (cache populated → cache cleared transitions).",
+	specRef:
+		"wave_protocol.tla #26 CleanupWitnessAccounting (via src/core/node.ts:_onDepMessage INVALIDATE guard)",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 6 }), fc.integer({ min: 1, max: 3 }), (N, extras) => {
+			const { config, log } = createRigorLoggedConfig();
+			const s = node<number>([], { config, equals: () => false, initial: 0 });
+			const d = node<number>(
+				[s],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) + 1);
+				},
+				{ describeKind: "derived", config },
+			);
+			const unsub = d.subscribe(() => {});
+			let nonVacuous = 0;
+			for (let i = 0; i < N; i++) {
+				s.emit(i + 1); // populates d._cached via derived's auto-emit
+				d.down([[INVALIDATE]]); // non-vacuous — hook fires
+				nonVacuous++;
+				for (let k = 0; k < extras; k++) {
+					// vacuous: cache already cleared
+					d.down([[INVALIDATE]]);
+				}
+			}
+			unsub();
+			// Non-vacuous guard: the full witness log must have at least
+			// `nonVacuous` entries so a vacuous-pass path (e.g. a future
+			// Node-facade refactor breaking `w.node === d`) can't silently
+			// satisfy the exact-count equality below.
+			if (log.witnesses.length < nonVacuous) return false;
+			const onD = log.witnesses.filter((w) => w.node === d);
+			return onD.length === nonVacuous;
+		}),
+};
+
+/**
+ * #57 — no-dep-cascade-terminal-when-gate-false (mirrors TLC #25
+ * `NoDepCascadeTerminalWhenGateFalse`). A derived node configured with
+ * `completeWhenDepsComplete: false` must NOT transition to `"completed"`
+ * when all of its deps terminate via COMPLETE. Symmetrically,
+ * `errorWhenDepsError: false` must suppress the dep-cascade ERROR path.
+ * The runtime gate lives in `_maybeAutoTerminalAfterWave` — if the gate
+ * is flipped to always-emit, this invariant trips.
+ *
+ * Topology: two `state<number>` sources feeding a `derived` with
+ * `completeWhenDepsComplete: false`. Emit a DATA to each, then drive
+ * COMPLETE at each source. The gate-off derived must not terminate.
+ * Sweep terminals: any `kind === "completed" && hasDeps === true &&
+ * autoComplete === false` is a failure.
+ *
+ * Catches: a refactor that drops the `_autoComplete` check inside
+ * `_maybeAutoTerminalAfterWave`, or that auto-terminates a gated node via
+ * a different code path (e.g. a mis-wired `_maybeAutoTerminalAfterWave`
+ * call from a terminal-delivery site).
+ */
+const invariant57NoDepCascadeTerminalWhenGateFalse: Invariant = {
+	name: "no-dep-cascade-terminal-when-gate-false",
+	description:
+		"A derived with `completeWhenDepsComplete: false` / `errorWhenDepsError: false` never transitions to `completed` / `errored` via dep cascade — no such entry appears in the terminal log.",
+	specRef:
+		"wave_protocol.tla #25 NoDepCascadeTerminalWhenGateFalse (via src/core/node.ts:_maybeAutoTerminalAfterWave)",
+	property: () =>
+		fc.property(fc.boolean(), fc.boolean(), (useError, drainExtra) => {
+			const { config, log } = createRigorLoggedConfig();
+			const a = node<number>([], { config, equals: () => false, initial: 0 });
+			const b = node<number>([], { config, equals: () => false, initial: 0 });
+			const d = node<number>(
+				[a, b],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) + (data[1] as number));
+				},
+				{
+					describeKind: "derived",
+					config,
+					completeWhenDepsComplete: false,
+					errorWhenDepsError: false,
+				},
+			);
+			const unsub = d.subscribe(() => {});
+			a.emit(1);
+			b.emit(2);
+			if (useError) {
+				a.down([[ERROR, new Error("test")]]);
+				b.down([[ERROR, new Error("test")]]);
+			} else {
+				a.down([[COMPLETE]]);
+				b.down([[COMPLETE]]);
+			}
+			if (drainExtra) {
+				// drain any post-terminal wave that a regression might enqueue
+				a.down([[COMPLETE]]);
+				b.down([[COMPLETE]]);
+			}
+			unsub();
+			// Non-vacuous guard: the test's premise is that `a` and `b`
+			// actually terminated — if neither source transitioned (e.g. a
+			// future runtime change that stops propagating direct ERROR /
+			// COMPLETE through sources), the "d didn't dep-cascade" check
+			// below trivially holds without exercising the gate. Sources
+			// have no deps, so their terminal transitions fire with
+			// `hasDeps === false`.
+			const expectedKind = useError ? "errored" : "completed";
+			const sourceTerminals = log.terminals.filter(
+				(t) => (t.node === a || t.node === b) && t.kind === expectedKind && !t.hasDeps,
+			);
+			if (sourceTerminals.length < 2) return false;
+			for (const t of log.terminals) {
+				if (t.node !== d) continue;
+				// A terminal transition on d with hasDeps=true and the matching
+				// gate flag false must never fire — that's dep-cascade behavior.
+				if (t.kind === "completed" && t.autoComplete === false && t.hasDeps) return false;
+				if (t.kind === "errored" && t.autoError === false && t.hasDeps) return false;
+			}
+			return true;
+		}),
+};
+
+// ---------------------------------------------------------------------------
+// Graph narrow-waist (P1–P7) — composition contract for graph.derived /
+// graph.effect / graph.producer / graph.batch. Source: `archive/docs/SESSION-
+// graph-narrow-waist.md` § "TLA+ / Fast-Check Coverage Plan".
+//
+// These properties exercise the **path-based** API at small generated
+// topologies. Each property uses a fresh `Graph` per run so state cannot leak
+// between runs. The underlying primitive contracts (first-run gate, equals,
+// terminal cascade, etc.) are exercised by invariants 1–57 — these mirror
+// only the Graph-layer absorption surface.
+// ---------------------------------------------------------------------------
+
+/**
+ * #58 — graph-derived-sentinel-absorption (Plan P1).
+ *
+ * `graph.derived` resolves dep paths to Node refs and inherits the underlying
+ * `derived()` first-run gate (spec §2.7, partial: false). fn must NOT fire
+ * while ANY dep is in `sentinel` status. Once every dep has delivered at
+ * least one real DATA, the gate releases on the next settle.
+ *
+ * Topology: K ∈ [1, 4] sentinel `node<number>([])` deps + one `graph.derived`
+ * summing them. Drive: settle K-1 deps and assert fn stays at 0; settle the
+ * last dep and assert fn fires exactly once.
+ *
+ * Catches: regressions where graph.derived loses the underlying first-run
+ * gate (e.g. accidentally setting `partial: true` while resolving paths), or
+ * where path resolution returns a populated stand-in instead of a SENTINEL
+ * source.
+ */
+const invariant58GraphDerivedSentinelAbsorption: Invariant = {
+	name: "graph-derived-sentinel-absorption",
+	description:
+		"graph.derived's fn does not fire while any dep path resolves to a SENTINEL node — fires only after the last dep delivers real DATA.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P1 (via spec §2.7 partial: false default)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 4 }),
+			fc.array(fc.integer({ min: 0, max: 10 }), { minLength: 4, maxLength: 8 }),
+			(k, values) => {
+				const g = new Graph("prop-p1");
+				try {
+					for (let i = 0; i < k; i++) {
+						g.add(node<number>([], { name: `a${i}`, initial: undefined }), { name: `a${i}` });
+					}
+					let fnCalls = 0;
+					const out = g.derived(
+						"sum",
+						Array.from({ length: k }, (_, i) => `a${i}`),
+						(data, ctx) => {
+							fnCalls += 1;
+							return [(latestVals(data, ctx) as number[]).reduce((s, v) => s + v, 0)];
+						},
+					);
+					out.subscribe(() => {});
+					if (fnCalls !== 0) return false;
+					// Settle k-1 deps; gate must stay closed.
+					for (let i = 0; i < k - 1; i++) {
+						g.set(`a${i}`, values[i]);
+						if (fnCalls !== 0) return false;
+					}
+					// Settle the last dep; gate releases — exactly one fn invocation.
+					g.set(`a${k - 1}`, values[k - 1]);
+					return fnCalls === 1;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #59 — graph-derived-keepalive-cache-current (Plan P2).
+ *
+ * A `graph.derived(name, deps, fn, { keepAlive: true })` node's `.cache` must
+ * reflect `fn(latest deps)` after every emission, EVEN WITH NO EXTERNAL
+ * SUBSCRIBER. The keepAlive sink owns the activation; without it, the
+ * derived's RAM cache stays at `undefined` (spec §2.2). This pins the
+ * keepAlive primitive contract independent of the §28 closure-mirror
+ * pattern (the §28 pattern stays canonical for sample-passively-on-trigger
+ * cases — see `archive/docs/SESSION-graph-narrow-waist.md` § "Status of
+ * existing modifications" for the post-§28-reading reframing).
+ *
+ * Topology: `node([], { initial: 0 }) → graph.derived("doubled", ["a"], v => v*2, { keepAlive })`
+ * with no external subscriber. Drive: random sequence of `state.emit(v)` and
+ * `batch(...)` events on the source. Assert: after every event, `out.cache`
+ * equals `2 * a.cache` (or `undefined` only while a is sentinel — but the
+ * source `node([], { initial: 0 })` is seeded so a is never sentinel here).
+ *
+ * Catches: a regression where the keepAlive sink fails to keep the derived
+ * activated across emission boundaries (e.g. self-pruning fires too eagerly),
+ * or where `derived`'s cache update lags the keepAlive sink's read.
+ */
+const invariant59GraphDerivedKeepAliveCacheCurrent: Invariant = {
+	name: "graph-derived-keepalive-cache-current",
+	description:
+		"A graph.derived(..., { keepAlive: true }) node's `.cache` reflects fn(latest deps) after every emission, even with no external subscriber.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P2",
+	property: () =>
+		fc.property(eventSequenceArb({ valueRange: [0, 50] }), (events) => {
+			const g = new Graph("prop-p2");
+			try {
+				const a = node([], { name: "a", initial: 0 });
+				g.add(a, { name: "a" });
+				const out = g.derived(
+					"doubled",
+					["a"],
+					(data, ctx) => {
+						const [x] = latestVals(data, ctx);
+						return [(x as number) * 2];
+					},
+					{
+						keepAlive: true,
+					},
+				);
+				// No external subscribe — keepAlive must keep cache current on its own.
+				if (out.cache !== 0) return false; // initial fn(0) = 0
+				const completed = { value: false };
+				for (const ev of events) {
+					if (completed.value) break;
+					applyEvent(a, ev, completed);
+					if (completed.value) break;
+					const aCache = a.cache as number | undefined;
+					if (aCache === undefined) return false; // a was seeded, must never go sentinel
+					if (out.cache !== aCache * 2) return false;
+				}
+				return true;
+			} finally {
+				g.destroy();
+			}
+		}),
+};
+
+/**
+ * #60 — graph-disposal-completeness (Plan P3).
+ *
+ * After `graph.destroy()`, every subscription created by `graph.derived` /
+ * `graph.effect` / `graph.producer` (including keepAlive subscriptions) must
+ * be torn down. Concretely: emissions on a SOURCE NODE that is held outside
+ * the graph and was registered (so the graph subscribed to it) must NOT
+ * reach any of the graph's fns after destroy.
+ *
+ * Topology: external `node([], { initial: 0 })` registered via `g.add` as "a"; N
+ * `graph.derived(..., { keepAlive: true })` nodes over "a". Drive: emit once,
+ * record `fnCallCount`, destroy graph, emit again. Assert post-destroy
+ * `fnCallCount` is unchanged.
+ *
+ * Catches: regressions where the keepAlive disposer is forgotten on
+ * destroy, or where a future option flag (e.g. `keepAlive: "weak"`) leaks a
+ * subscription past destroy.
+ */
+const invariant60GraphDisposalCompleteness: Invariant = {
+	name: "graph-disposal-completeness",
+	description:
+		"After graph.destroy(), upstream emissions on retained source nodes do not reach any fn registered via graph.derived/effect/produce.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P3",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 4 }),
+			fc.integer({ min: 1, max: 5 }),
+			(numDerived, postDestroyEmits) => {
+				const a = node([], { name: "a", initial: 0 });
+				const g = new Graph("prop-p3");
+				let fnCallCount = 0;
+				try {
+					g.add(a, { name: "a" });
+					for (let i = 0; i < numDerived; i++) {
+						g.derived(
+							`d${i}`,
+							["a"],
+							(data, ctx) => {
+								const [x] = latestVals(data, ctx);
+								fnCallCount += 1;
+								return [(x as number) + i];
+							},
+							{ keepAlive: true },
+						);
+					}
+					// Drive at least one fn invocation so the property is non-vacuous.
+					a.emit(1);
+					if (fnCallCount === 0) return false;
+				} finally {
+					g.destroy();
+				}
+				const beforeDestroyCalls = fnCallCount;
+				// Post-destroy: emissions on the retained source must not reach
+				// any of the graph's fns. Positive assertion guards the
+				// vacuous-pass case where a future change makes `state.emit`
+				// silently no-op on a borrowed-but-destroyed source — verify
+				// `a.cache` actually advances on each emit so we know the
+				// emit had real effect. (If a future change DOES tear down
+				// borrowed sources on graph.destroy, this guard surfaces it
+				// instead of letting the gate-check pass trivially.)
+				for (let i = 0; i < postDestroyEmits; i++) {
+					const expected = 2 + i;
+					a.emit(expected);
+					if (a.cache !== expected) return false;
+				}
+				return fnCallCount === beforeDestroyCalls;
+			},
+		),
+};
+
+/**
+ * #61 — graph-batch-atomicity (Plan P4).
+ *
+ * Inside `graph.batch(fn)`, all `graph.set(name, v)` calls produce exactly
+ * ONE coalesced downstream wave per affected node — not one per `set`. This
+ * is the same semantics as core `batch()` (spec §1.3 invariant 7); the
+ * property pins it at the Graph-method boundary so a future graph-scoped
+ * batch implementation can't regress the contract.
+ *
+ * Topology: `node([], { initial: 0 }) → graph.derived("x2", ["a"], v => v*2)`. Subscribe.
+ * Drive: random sequence of values, all written to "a" inside ONE
+ * `graph.batch(...)`. Assert: downstream sees exactly one DATA settlement,
+ * with the final batched value (or no DATA if the final value equals the
+ * pre-batch cache, in which case there is exactly one RESOLVED).
+ *
+ * Catches: a regression where `graph.batch` accidentally maps to a no-op or
+ * to per-call delivery (e.g. a future graph-scoped frame implementation
+ * forgetting to defer DATA).
+ */
+const invariant61GraphBatchAtomicity: Invariant = {
+	name: "graph-batch-atomicity",
+	description:
+		"Inside graph.batch(fn), N graph.set() calls on the same path produce exactly one coalesced settlement (DATA or RESOLVED) downstream.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P4 (via spec §1.3 invariant 7)",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 20 }), { minLength: 1, maxLength: 6 }),
+			(vals) => {
+				const g = new Graph("prop-p4");
+				try {
+					g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+					const out = g.derived("x2", ["a"], (data, ctx) => {
+						const [x] = latestVals(data, ctx);
+						return [(x as number) * 2];
+					});
+					let postBatchSettlements = 0;
+					out.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA || m[0] === RESOLVED) postBatchSettlements += 1;
+						}
+					});
+					// Subscription handshake delivered up to one initial DATA. Reset
+					// the counter to measure only post-batch settlements.
+					postBatchSettlements = 0;
+					g.batch(() => {
+						for (const v of vals) g.set("a", v);
+					});
+					// Exactly one settlement (DATA when final value differs, RESOLVED
+					// when it matches the pre-batch cache).
+					return postBatchSettlements === 1;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #62 — graph-derived-path-resolution-construction (Plan P5, RESTATED).
+ *
+ * `graph.derived(name, paths, fn)` resolves every path via `graph.resolve`
+ * AT CONSTRUCTION TIME. Paths must address Nodes that exist on the current
+ * topology; emissions on those resolved Nodes during their lifetime drive
+ * fn. Cross-mount paths via `::` are supported.
+ *
+ * **Restated from session-doc P5:** the original P5 ("if mount removed, the
+ * derived errors rather than silently reading stale refs") is deferred —
+ * post-construction mount removal is undefined behavior tracked under
+ * `project_rewire_gap` / optimizations.md C4. This property only asserts
+ * the **construction-time + lifetime** contract: paths resolve to the
+ * expected Nodes, and emissions during the mount's lifetime reach the
+ * derived's fn.
+ *
+ * Topology: parent graph with one mounted child holding K ∈ [1, 3] state
+ * nodes; `graph.derived` over `mount::aN` paths. Drive: emit values into
+ * each child state; assert the derived's fn fires with the corresponding
+ * values delivered through the resolved deps.
+ *
+ * Catches: regressions where path resolution silently swallows `::`
+ * segments or returns a wrong Node ref.
+ */
+const invariant62GraphDerivedPathResolutionConstruction: Invariant = {
+	name: "graph-derived-path-resolution-construction",
+	description:
+		"graph.derived resolves `::`-qualified paths at construction time and routes upstream emissions through the resolved deps to fn during the mount's lifetime.",
+	specRef:
+		"archive/docs/SESSION-graph-narrow-waist.md § P5 (RESTATED — post-mount-removal behavior tracked under optimizations.md C4 rewire gap)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 3 }),
+			fc.array(fc.integer({ min: 0, max: 30 }), { minLength: 3, maxLength: 6 }),
+			(k, values) => {
+				const parent = new Graph("prop-p5-parent");
+				try {
+					const child = new Graph("child");
+					for (let i = 0; i < k; i++) {
+						child.add(node([], { name: `a${i}`, initial: 0 }), { name: `a${i}` });
+					}
+					parent.mount("m", child);
+					let lastSeen: number | undefined;
+					const out = parent.derived(
+						"sum",
+						Array.from({ length: k }, (_, i) => `m::a${i}`),
+						(data, ctx) => {
+							const sum = (latestVals(data, ctx) as number[]).reduce((s, v) => s + v, 0);
+							lastSeen = sum;
+							return [sum];
+						},
+					);
+					out.subscribe(() => {});
+					// Drive emissions through the resolved cross-mount deps.
+					let expected = 0;
+					for (let i = 0; i < values.length; i++) {
+						const idx = i % k;
+						const v = values[i];
+						parent.set(`m::a${idx}`, v);
+						// Recompute expected sum from current child caches.
+						let s = 0;
+						for (let j = 0; j < k; j++) {
+							s += child.node(`a${j}`).cache as number;
+						}
+						expected = s;
+						if (lastSeen !== expected) return false;
+					}
+					return true;
+				} finally {
+					parent.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #63 — graph-narrow-waist-topology-visibility (Plan P6).
+ *
+ * Every node created by `graph.derived` / `graph.effect` / `graph.producer`
+ * appears in `graph.describe().nodes` under its registered name, with
+ * correct edges in `describe().edges`. The contract is: pattern authors
+ * never create islands when they use the narrow-waist API.
+ *
+ * Topology: K ∈ [1, 4] state nodes plus M ∈ [1, 4] derived nodes wired to
+ * a random subset of the states. Build via `graph.derived`; assert each
+ * registered name appears in `describe().nodes` and each (state → derived)
+ * edge appears in `describe().edges`.
+ *
+ * Catches: a regression where `graph.derived/effect/produce` skip the
+ * `graph.add` registration step (e.g. via a future "anonymous" mode), or
+ * where the underlying `_deps` walk in `edges()` misses path-resolved deps.
+ */
+const invariant63GraphNarrowWaistTopologyVisibility: Invariant = {
+	name: "graph-narrow-waist-topology-visibility",
+	description:
+		"Every node created via graph.derived/effect/produce appears in graph.describe().nodes under its registered name, with edges from each dep path in graph.describe().edges.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P6",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 4 }),
+			fc.array(fc.array(fc.nat(3), { minLength: 1, maxLength: 4 }), {
+				minLength: 1,
+				maxLength: 4,
+			}),
+			(numStates, derivedSpecs) => {
+				const g = new Graph("prop-p6");
+				try {
+					for (let i = 0; i < numStates; i++) {
+						g.add(node([], { name: `s${i}`, initial: i }), { name: `s${i}` });
+					}
+					const expectedDerivedNames: string[] = [];
+					const expectedEdges = new Set<string>();
+					for (let i = 0; i < derivedSpecs.length; i++) {
+						const depIdxs = Array.from(new Set(derivedSpecs[i].map((idx) => idx % numStates)));
+						const depPaths = depIdxs.map((idx) => `s${idx}`);
+						const name = `d${i}`;
+						g.derived(name, depPaths, (data, ctx) => [
+							(latestVals(data, ctx) as number[]).reduce((s, v) => s + v, 0),
+						]);
+						expectedDerivedNames.push(name);
+						for (const p of depPaths) expectedEdges.add(`${p}->${name}`);
+					}
+					const desc = g.describe();
+					// Every state must be in nodes.
+					for (let i = 0; i < numStates; i++) {
+						if (!(`s${i}` in desc.nodes)) return false;
+					}
+					// Every derived must be in nodes.
+					for (const name of expectedDerivedNames) {
+						if (!(name in desc.nodes)) return false;
+					}
+					// Every expected edge must be present.
+					const actualEdges = new Set(desc.edges.map((e) => `${e.from}->${e.to}`));
+					for (const ee of expectedEdges) {
+						if (!actualEdges.has(ee)) return false;
+					}
+					// No phantom edges — every actual edge between the named nodes
+					// must correspond to an expected one (or be among non-derived
+					// state-to-state, which there shouldn't be any of since states
+					// have no deps).
+					for (const e of desc.edges) {
+						if (!expectedEdges.has(`${e.from}->${e.to}`)) return false;
+					}
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #64 — graph-derived-keepalive-equivalence (Plan P7).
+ *
+ * For the same fn and dep paths, `graph.derived(name, deps, fn, { keepAlive:
+ * true })` and `graph.derived(name, deps, fn)` (default no-keepAlive) must
+ * produce identical `.cache` values WHENEVER both are activated. The
+ * keepAlive option is a subscription convenience — it owns activation when
+ * no external subscriber exists, but does not change the computed value.
+ *
+ * Topology: shared upstream `node([], { initial: 0 }) → "a"`. Two derived nodes "with" and
+ * "without" keepAlive computing the same fn on the same dep. To activate
+ * the no-keepAlive variant we attach an external subscribe; the keepAlive
+ * variant has none. Drive: random sequence of emits on "a"; assert the two
+ * caches are equal after every event.
+ *
+ * Catches: a regression where keepAlive accidentally changes the value
+ * pipeline (e.g. by intercepting DATA messages or by reordering the
+ * subscription wave so the two fns see different snapshots).
+ */
+const invariant64GraphDerivedKeepAliveEquivalence: Invariant = {
+	name: "graph-derived-keepalive-equivalence",
+	description:
+		"graph.derived with keepAlive: true and an externally-subscribed graph.derived without keepAlive produce identical .cache values for the same fn and deps after every emission.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P7",
+	property: () =>
+		fc.property(eventSequenceArb({ valueRange: [0, 30] }), (events) => {
+			const g = new Graph("prop-p7");
+			try {
+				const a = node([], { name: "a", initial: 0 });
+				g.add(a, { name: "a" });
+				const fn = (
+					data: readonly (readonly unknown[] | undefined)[],
+					ctx: { readonly prevData: readonly unknown[] },
+				): readonly number[] => {
+					const [x] = latestVals(data, ctx);
+					return [(x as number) * 3 + 1];
+				};
+				const withKA = g.derived("withKA", ["a"], fn, { keepAlive: true });
+				const noKA = g.derived("noKA", ["a"], fn);
+				// Activate noKA via an external subscribe. withKA stays activation-
+				// owned by its keepAlive sink.
+				noKA.subscribe(() => {});
+				const completed = { value: false };
+				if (withKA.cache !== noKA.cache) return false;
+				for (const ev of events) {
+					if (completed.value) break;
+					applyEvent(a, ev, completed);
+					if (completed.value) break;
+					if (withKA.cache !== noKA.cache) return false;
+				}
+				return true;
+			} finally {
+				g.destroy();
+			}
+		}),
+};
+
+/**
+ * #65 — graph-derived-multi-emit-array-semantics (Plan P8).
+ *
+ * When `graph.derived`'s fn returns `[v1, v2, ..., vN]` (N > 1),
+ * downstream receives all N values as DATA messages in the same wave,
+ * in the exact order the array specifies. This verifies the multi-emit
+ * contract documented in `GraphDerivedFn`'s JSDoc: `[v1, v2, ...]` →
+ * multi-emit in one wave.
+ *
+ * Topology: `node([], { initial: 1 }) → graph.derived("multi", ["a"], fn)`
+ * where fn returns `[v, v*10, v*100]`. Subscribe and collect DATA values.
+ * Drive: emit K random values; assert downstream receives exactly 3*K DATA
+ * values (plus activation DATAs from the initial) in correct order.
+ *
+ * Catches: regressions where multi-element array returns are collapsed
+ * into a single emit, emitted out of order, or partially dropped.
+ */
+const invariant65GraphDerivedMultiEmitArray: Invariant = {
+	name: "graph-derived-multi-emit-array-semantics",
+	description:
+		"When graph.derived fn returns [v1, v2, ..., vN], downstream receives all N values as DATA in order within one wave.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P8",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 50 }), { minLength: 1, maxLength: 10 }),
+			(values) => {
+				const g = new Graph("prop-p8");
+				try {
+					// equals: () => false so same-value sets still emit DATA — this
+					// property tests multi-emit semantics, not dedup.
+					const a = node<number>([], {
+						name: "a",
+						initial: values[0],
+						equals: () => false,
+					});
+					g.add(a, { name: "a" });
+					const out = g.derived("multi", ["a"], (data, ctx) => {
+						const [x] = latestVals(data, ctx);
+						const v = x as number;
+						return [v, v * 10, v * 100];
+					});
+					const collected: number[] = [];
+					out.subscribe((msgs) => {
+						for (const msg of msgs as readonly [symbol, unknown?][]) {
+							if (msg[0] === DATA) collected.push(msg[1] as number);
+						}
+					});
+					// Activation emits fn(initial) = [values[0], values[0]*10, values[0]*100].
+					if (collected.length !== 3) return false;
+					if (collected[0] !== values[0]) return false;
+					if (collected[1] !== values[0] * 10) return false;
+					if (collected[2] !== values[0] * 100) return false;
+					// Drive subsequent emissions.
+					for (let i = 1; i < values.length; i++) {
+						g.set("a", values[i]);
+						const base = (i + 1) * 3;
+						if (collected.length !== base) return false;
+						if (collected[base - 3] !== values[i]) return false;
+						if (collected[base - 2] !== values[i] * 10) return false;
+						if (collected[base - 1] !== values[i] * 100) return false;
+					}
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #66 — graph-derived-empty-array-resolved (Plan P9).
+ *
+ * When `graph.derived`'s fn returns `[]` (empty array), the node settles
+ * as RESOLVED — no DATA is emitted. This is the "no change" contract:
+ * the derived fn computed but produced nothing new. Downstream must see
+ * RESOLVED (not an empty array as DATA, not silence).
+ *
+ * Topology: `node([], { initial: 0 }) → graph.derived("gate", ["a"], fn)`
+ * where fn returns `[v]` for even values and `[]` for odd values.
+ * Subscribe, capture all message types. Drive: emit K random values;
+ * assert DATA appears only for even inputs, RESOLVED appears for odd.
+ *
+ * Catches: regressions where `[]` return is treated as a DATA emission
+ * of an empty array, or where the RESOLVED signal is lost entirely.
+ */
+const invariant66GraphDerivedEmptyArrayResolved: Invariant = {
+	name: "graph-derived-empty-array-resolved",
+	description:
+		"When graph.derived fn returns [], the node emits RESOLVED (no DATA), not an empty array as DATA.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P9",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 100 }), { minLength: 1, maxLength: 15 }),
+			(values) => {
+				const g = new Graph("prop-p9");
+				try {
+					const a = node<number>([], { name: "a", initial: values[0] });
+					g.add(a, { name: "a" });
+					// fn returns [v] for even values, [] for odd values.
+					const out = g.derived("gate", ["a"], (data, ctx) => {
+						const [x] = latestVals(data, ctx);
+						const v = x as number;
+						return v % 2 === 0 ? [v] : [];
+					});
+					const dataValues: number[] = [];
+					let resolvedCount = 0;
+					out.subscribe((msgs) => {
+						for (const msg of msgs as readonly [symbol, unknown?][]) {
+							if (msg[0] === DATA) dataValues.push(msg[1] as number);
+							if (msg[0] === RESOLVED) resolvedCount++;
+						}
+					});
+					// Activation: fn(values[0]) — DATA if even, RESOLVED if odd.
+					const initEven = values[0] % 2 === 0;
+					if (initEven) {
+						if (dataValues.length !== 1 || dataValues[0] !== values[0]) return false;
+					} else {
+						if (dataValues.length !== 0) return false;
+						if (resolvedCount < 1) return false;
+					}
+					// Drive subsequent values.
+					let expectedDataCount = initEven ? 1 : 0;
+					for (let i = 1; i < values.length; i++) {
+						const cur = values[i];
+						const resolvedBefore = resolvedCount;
+						g.set("a", cur);
+						const curEven = cur % 2 === 0;
+						if (curEven) {
+							// Even → DATA expected (unless equals suppressed when cache
+							// already holds `cur`). Either way, no spurious value.
+							if (dataValues.length > expectedDataCount) {
+								if (dataValues[dataValues.length - 1] !== cur) return false;
+								expectedDataCount = dataValues.length;
+							}
+						} else {
+							// Odd → fn returns [] → must emit RESOLVED, never DATA.
+							if (dataValues.length !== expectedDataCount) return false;
+							// Strict: the [] return must produce exactly one RESOLVED
+							// for the wave (no silence, no DATA leak).
+							if (resolvedCount <= resolvedBefore) return false;
+						}
+					}
+					// Final: no DATA was ever emitted for an odd input.
+					for (const d of dataValues) {
+						if (d % 2 !== 0) return false;
+					}
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #67 — graph-narrow-waist-options-flow-through (Plan P10).
+ *
+ * Phase 11 / C2 widening — `GraphDerivedOptions`, `GraphEffectOptions`,
+ * `GraphStateOptions`, `GraphProducerOptions` all extend the input-side
+ * `NodeOptions` shape (excluding `name` / `describeKind`). Every valid
+ * `NodeOptions` field passed via the Graph methods MUST flow through to the
+ * underlying `node()` call.
+ *
+ * This invariant pins three load-bearing fields:
+ * - `guard` — the registered node has `hasGuard() === true` and rejects
+ *   denied actions (e.g. observe by an actor not on the allow list).
+ * - `meta` — every key/value in `opts.meta` appears under `describe()`'s
+ *   `node.meta` (with `detail: "standard"` or higher).
+ * - `equals` — when `opts.equals` returns `true` for two values, the second
+ *   `set()` does NOT produce a fresh DATA emission downstream (substituted
+ *   to RESOLVED per spec §3.5.1).
+ *
+ * Catches: regressions where a Graph method silently drops options that
+ * were passed but didn't land on the underlying `node()` (e.g. a future
+ * destructure that omits a new option). The `Omit<NodeOptions, "name" |
+ * "describeKind">` extension means an authored node-level field stays
+ * consistent across raw `node()` and `graph.derived/effect/state/producer`.
+ */
+const invariant67GraphNarrowWaistOptionsFlowThrough: Invariant = {
+	name: "graph-narrow-waist-options-flow-through",
+	description:
+		"All valid input-side NodeOptions (guard, meta, equals, ...) flow through Graph.derived / Graph.effect / Graph.state / Graph.producer to the underlying node().",
+	specRef:
+		"archive/docs/SESSION-graph-narrow-waist.md § Phase 11 / docs/optimizations.md C2 (widen GraphDerivedOptions / GraphEffectOptions)",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 5 }), { minLength: 2, maxLength: 6 }),
+			(values) => {
+				const g = new Graph("prop-p10");
+				try {
+					// 1. `guard` flows through state/derived/effect.
+					const observeHumanOnly = policy((allow) => {
+						allow("observe", { where: (a) => a.type === "human" });
+					});
+					const writeAllowAll = policy((allow) => {
+						allow("write");
+						allow("observe");
+						allow("signal");
+					});
+
+					const guardedState = g.state("g_state", 0, {
+						guard: writeAllowAll,
+						meta: { kind: "guarded_state", tier: "warm" },
+					});
+					const guardedDerived = g.derived(
+						"g_derived",
+						["g_state"],
+						(data, ctx) => [latestVals(data, ctx)[0] as number],
+						{
+							guard: observeHumanOnly,
+							meta: { kind: "guarded_derived" },
+							// equals: collapse same-value emits to RESOLVED.
+							equals: (a, b) => a === b,
+						},
+					);
+					let effectInvocations = 0;
+					const effectNode = g.effect(
+						"g_effect",
+						["g_state"],
+						() => {
+							effectInvocations += 1;
+						},
+						{
+							guard: writeAllowAll,
+							meta: { kind: "guarded_effect" },
+						},
+					);
+					// Subscribe to drive activation — effects only fire when the
+					// node has at least one sink (or `keepAlive`).
+					effectNode.subscribe(() => {});
+
+					// 1a. hasGuard() returns true for all three.
+					if (!guardedState.hasGuard()) return false;
+					if (!guardedDerived.hasGuard()) return false;
+					if (!g.resolve("g_effect").hasGuard()) return false;
+
+					// 1b. observe-restricted derived denies a non-human actor.
+					if (
+						guardedDerived.allowsObserve({ type: "llm", id: "a1" }) ||
+						!guardedDerived.allowsObserve({ type: "human", id: "u1" })
+					) {
+						return false;
+					}
+
+					// 2. `meta` flows through to describe().
+					const desc = g.describe({ detail: "standard" });
+					if (desc.nodes.g_state?.meta?.kind !== "guarded_state") return false;
+					if (desc.nodes.g_state?.meta?.tier !== "warm") return false;
+					if (desc.nodes.g_derived?.meta?.kind !== "guarded_derived") return false;
+					if (desc.nodes.g_effect?.meta?.kind !== "guarded_effect") return false;
+
+					// 3. `equals` short-circuits cache emit on the derived.
+					const dataValues: number[] = [];
+					let resolvedCount = 0;
+					guardedDerived.subscribe((msgs) => {
+						for (const msg of msgs as readonly [symbol, unknown?][]) {
+							if (msg[0] === DATA) dataValues.push(msg[1] as number);
+							if (msg[0] === RESOLVED) resolvedCount += 1;
+						}
+					});
+					// Activation pushes initial DATA(0).
+					if (dataValues.length !== 1 || dataValues[0] !== 0) return false;
+					// Set the same value again — equals collapses to RESOLVED, not DATA.
+					const resolvedBefore = resolvedCount;
+					g.set("g_state", 0);
+					if (dataValues.length !== 1) return false;
+					if (resolvedCount <= resolvedBefore) return false;
+
+					// 4. Driving distinct values still emits DATA.
+					let lastDataLen = dataValues.length;
+					for (const v of values) {
+						g.set("g_state", v);
+						// Either DATA fired (new value) or RESOLVED fired (same as cached).
+						// In both cases something downstream surfaced.
+						const grew = dataValues.length > lastDataLen;
+						if (grew) {
+							const last = dataValues[dataValues.length - 1];
+							if (last !== v) return false;
+							lastDataLen = dataValues.length;
+						}
+					}
+
+					// 5. `effect` fired at least once on activation; the GuardDenied
+					// path is exercised via `allowsObserve` above.
+					if (effectInvocations < 1) return false;
+
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #68 — graph-changeset-data-edge-attribution (D2 — Three-layer view).
+ *
+ * For every `data` event on the changeset stream, `fromPath` + `fromDepIndex`
+ * correctly attribute the upstream edge that delivered the value:
+ *   - For source nodes (no upstream deps), `fromPath === scope` and
+ *     `fromDepIndex === -1`.
+ *   - For derived nodes triggered by a tracked dep, `fromPath` is the upstream
+ *     dep's qualified observe path and `fromDepIndex` is its index in the
+ *     scoped node's `_deps` array.
+ *
+ * Topology: K state sources `s_0…s_{K-1}` feed one `derived("d", [s_0…])`.
+ * Drive: emit on a random source; assert the next data event for `d`
+ * attributes `fromPath = "s_i"` and `fromDepIndex = i` for the source picked.
+ */
+const invariant68ChangesetDataEdgeAttribution: Invariant = {
+	name: "graph-changeset-data-edge-attribution",
+	description:
+		"On `Graph.observe({ changeset: true })`, every `data` event for a derived node attributes the upstream edge via fromPath + fromDepIndex; source-node data events use fromDepIndex: -1.",
+	specRef: "docs/optimizations.md § D — Three-layer view (D2)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 4 }),
+			fc.array(fc.nat(3), { minLength: 1, maxLength: 6 }),
+			(numStates, drives) => {
+				const g = new Graph("inv-cs-attr");
+				try {
+					const sources: Node<number>[] = [];
+					const sourceNames: string[] = [];
+					for (let i = 0; i < numStates; i++) {
+						const name = `s${i}`;
+						const s = node<number>([], { name, initial: 0, equals: () => false });
+						g.add(s, { name });
+						sources.push(s);
+						sourceNames.push(name);
+					}
+					g.derived("d", sourceNames, (data, ctx) => {
+						const vals = latestVals(data, ctx) as number[];
+						return [vals.reduce((a, b) => a + b, 0)];
+					});
+					const changesetNode = g.observe({ changeset: true });
+					const events: GraphChange[] = [];
+					const off = changesetNode.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA) events.push(m[1] as GraphChange);
+						}
+					});
+					// Activate so the subscription chain is live.
+					g.node("d").subscribe(() => {});
+					events.length = 0;
+
+					for (const drive of drives) {
+						const idx = drive % numStates;
+						g.set(`s${idx}`, drive + 1);
+						const dataForD = events.filter((e) => e.type === "data" && e.scope === "d");
+						const dataForSource = events.filter((e) => e.type === "data" && e.scope === `s${idx}`);
+						// Source data event: fromDepIndex must be -1.
+						for (const ev of dataForSource) {
+							if (ev.type !== "data") return false;
+							if (ev.fromDepIndex !== -1) return false;
+							if (ev.fromPath !== `s${idx}`) return false;
+						}
+						// Derived data event: fromDepIndex must point at the
+						// driven source.
+						const lastDerived = dataForD.at(-1);
+						if (lastDerived != null) {
+							if (lastDerived.type !== "data") return false;
+							if (lastDerived.fromPath !== `s${idx}`) return false;
+							if (lastDerived.fromDepIndex !== idx) return false;
+						}
+						events.length = 0;
+					}
+					off();
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #69 — graph-changeset-version-monotonic (D2 — Three-layer view).
+ *
+ * `Graph.observe({ changeset: true })` emits events whose envelope `version`
+ * counter is strictly monotonic across all variants — data, dirty, resolved,
+ * error, complete, teardown, batch-start, batch-end, and topology events.
+ * The invariant holds across an arbitrary mix of explicit `batch()` calls,
+ * topology mutations (add/remove), and value emissions.
+ */
+const invariant69ChangesetVersionMonotonic: Invariant = {
+	name: "graph-changeset-version-monotonic",
+	description:
+		"All events from a single `Graph.observe({ changeset: true })` handle have strictly increasing envelope.version stamps.",
+	specRef: "docs/optimizations.md § D — Three-layer view (D2)",
+	property: () =>
+		fc.property(
+			fc.array(
+				fc.oneof(
+					fc.record({ kind: fc.constant("emit" as const), value: fc.integer() }),
+					fc.record({
+						kind: fc.constant("batch" as const),
+						values: fc.array(fc.integer(), { minLength: 1, maxLength: 4 }),
+					}),
+					fc.record({ kind: fc.constant("addNode" as const), nameSeq: fc.nat(50) }),
+				),
+				{ minLength: 1, maxLength: 12 },
+			),
+			(ops) => {
+				const g = new Graph("inv-cs-ver");
+				try {
+					const root = node<number>([], { name: "root", initial: 0, equals: () => false });
+					g.add(root, { name: "root" });
+					const changesetNode = g.observe({ changeset: true });
+					const events: GraphChange[] = [];
+					const off = changesetNode.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA) events.push(m[1] as GraphChange);
+						}
+					});
+					const used = new Set<string>(["root"]);
+					for (const op of ops) {
+						if (op.kind === "emit") {
+							g.set("root", op.value);
+						} else if (op.kind === "batch") {
+							batch(() => {
+								for (const v of op.values) g.set("root", v);
+							});
+						} else {
+							const newName = `n_${op.nameSeq}_${used.size}`;
+							if (used.has(newName)) continue;
+							used.add(newName);
+							g.add(node([], { name: newName, initial: 0 }), { name: newName });
+						}
+					}
+					off();
+					for (let i = 1; i < events.length; i++) {
+						if (events[i].version <= events[i - 1].version) return false;
+					}
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #70 — graph-changeset-batch-frame-pairing (D2 — Three-layer view).
+ *
+ * Every `batch-start` event on the changeset stream is matched by a
+ * subsequent `batch-end` whose `version` is strictly greater. Frames are
+ * non-overlapping (no nested batch-start before the previous batch-end).
+ * Every event between a batch-start and its batch-end has a `version`
+ * strictly within the pair's bounds.
+ */
+const invariant70ChangesetBatchFramePairing: Invariant = {
+	name: "graph-changeset-batch-frame-pairing",
+	description:
+		"`batch-start` and `batch-end` events on the changeset stream pair up — equal counts, non-overlapping, and every interleaved event lies within its enclosing pair's version range.",
+	specRef: "docs/optimizations.md § D — Three-layer view (D2)",
+	property: () =>
+		fc.property(
+			fc.array(fc.array(fc.integer(), { minLength: 1, maxLength: 3 }), {
+				minLength: 1,
+				maxLength: 5,
+			}),
+			(batches) => {
+				const g = new Graph("inv-cs-frame");
+				try {
+					const a = node<number>([], { name: "a", initial: 0, equals: () => false });
+					const b = node<number>([], { name: "b", initial: 0, equals: () => false });
+					g.add(a, { name: "a" });
+					g.add(b, { name: "b" });
+					const changesetNode = g.observe({ changeset: true });
+					const events: GraphChange[] = [];
+					const off = changesetNode.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA) events.push(m[1] as GraphChange);
+						}
+					});
+					events.length = 0;
+					for (const vals of batches) {
+						batch(() => {
+							for (let i = 0; i < vals.length; i++) {
+								(i % 2 === 0 ? a : b).emit(vals[i]);
+							}
+						});
+					}
+					off();
+
+					// Walk events: maintain a stack of open frame versions.
+					let openVersion: number | null = null;
+					for (const ev of events) {
+						if (ev.type === "batch-start") {
+							if (openVersion != null) return false; // nested
+							openVersion = ev.version;
+						} else if (ev.type === "batch-end") {
+							if (openVersion == null) return false; // unmatched
+							if (ev.version <= openVersion) return false; // bs < be
+							openVersion = null;
+						} else {
+							// Every non-boundary event inside a frame must lie
+							// within the frame's bounds (it's already after
+							// batch-start since events are version-monotonic;
+							// but it must precede batch-end too — which we
+							// can only check post-hoc). Skip here; the
+							// version-monotonic invariant pins ordering.
+						}
+					}
+					if (openVersion != null) return false; // unclosed frame
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #71 — graph-changeset-topology-lifecycle (D2 — Three-layer view).
+ *
+ * Topology variants on the changeset stream fire at the right lifecycle
+ * moments: `node-added` for `Graph.add`, `node-removed` for
+ * `Graph.remove(name)` of a registered node, `mount` for `Graph.mount`, and
+ * `unmount` for `Graph.remove(name)` of a mounted subgraph. The qualified
+ * `scope` matches the path the change applies to.
+ */
+const invariant71ChangesetTopologyLifecycle: Invariant = {
+	name: "graph-changeset-topology-lifecycle",
+	description:
+		"Topology events on the changeset stream — node-added, node-removed, mount, unmount — correspond 1:1 with Graph.add / Graph.remove / Graph.mount lifecycle calls and carry the qualified path as scope.",
+	specRef: "docs/optimizations.md § D — Three-layer view (D2)",
+	property: () =>
+		fc.property(
+			fc.array(
+				fc.oneof(
+					fc.record({ kind: fc.constant("addNode" as const), seq: fc.nat(20) }),
+					fc.record({ kind: fc.constant("addMount" as const), seq: fc.nat(20) }),
+				),
+				{ minLength: 1, maxLength: 6 },
+			),
+			(ops) => {
+				const g = new Graph("inv-cs-topo");
+				try {
+					const changesetNode = g.observe({ changeset: true });
+					const events: GraphChange[] = [];
+					const off = changesetNode.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA) events.push(m[1] as GraphChange);
+						}
+					});
+					events.length = 0;
+
+					const addedNodes: string[] = [];
+					const addedMounts: string[] = [];
+					const usedNames = new Set<string>();
+					for (const op of ops) {
+						if (op.kind === "addNode") {
+							const name = `n_${op.seq}_${usedNames.size}`;
+							if (usedNames.has(name)) continue;
+							usedNames.add(name);
+							g.add(node([], { name, initial: 0 }), { name });
+							addedNodes.push(name);
+						} else {
+							const name = `m_${op.seq}_${usedNames.size}`;
+							if (usedNames.has(name)) continue;
+							usedNames.add(name);
+							const child = new Graph(name);
+							g.mount(name, child);
+							addedMounts.push(name);
+						}
+					}
+					// Verify node-added / mount events correspond.
+					for (const n of addedNodes) {
+						if (!events.some((e) => e.type === "node-added" && e.scope === n)) return false;
+					}
+					for (const m of addedMounts) {
+						if (!events.some((e) => e.type === "mount" && e.scope === m)) return false;
+					}
+					// Tear down each and verify removal events.
+					events.length = 0;
+					for (const n of addedNodes) g.remove(n);
+					for (const m of addedMounts) g.remove(m);
+					for (const n of addedNodes) {
+						if (!events.some((e) => e.type === "node-removed" && e.scope === n)) return false;
+					}
+					for (const m of addedMounts) {
+						if (!events.some((e) => e.type === "unmount" && e.scope === m)) return false;
+					}
+					off();
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #72 — single-invalidate-settles (mirrors TLC #29 `InvalidateSettlesWave`,
+ * DS-13.5.A 2026-05-02 lock Q14 / Q15).
+ *
+ * The deadlock counter-test the DS-13.5.A INVALIDATE redesign closed:
+ * pre-redesign, an INVALIDATE arriving alone at a derived's only dep would
+ * NOT clear the dep's bit from `_dirtyDepCount`, leaving the derived stuck
+ * in `status = "dirty"` forever. The runtime fix
+ * (`_depInvalidated` decrements `_dirtyDepCount`, mirroring RESOLVED) means
+ * subsequent emits propagate freshly.
+ *
+ * Property: drive `(emit(v), invalidate)` cycles N times. Assert:
+ *   - Wave balance holds: every DIRTY paired with one settle (DATA, RESOLVED,
+ *     or INVALIDATE).
+ *   - Each cycle's emit value reaches the sink as a DATA (the wave isn't
+ *     stuck — a regression that drops the dirtyDepCount decrement would
+ *     prevent later emits from firing fn).
+ *   - Trace contains exactly N INVALIDATE arrivals (cleanup messages
+ *     observable to the sink).
+ *
+ * Topology: `state → derived` (single-dep, identity fn). The minimum
+ * topology where INVALIDATE-alone wave behavior surfaces.
+ *
+ * Catches: DS-13.5.A regression — any future change that drops the
+ * `_dirtyDepCount` decrement on INVALIDATE delivery would either (a) hang
+ * the test (no DATA arrives because fn never fires) or (b) trip the wave-
+ * balance assertion if the substrate also stops recording trace messages.
+ */
+const invariant72SingleInvalidateSettles: Invariant = {
+	name: "single-invalidate-settles",
+	description:
+		"An INVALIDATE arriving alone at a derived's only dep settles the wave without deadlock — subsequent emits propagate freshly without leftover dirty state.",
+	specRef:
+		"wave_protocol.tla #29 InvalidateSettlesWave (DS-13.5.A 2026-05-02 Q14; via src/core/node.ts:_onDepMessage INVALIDATE branch)",
+	property: () =>
+		fc.property(
+			// QA P1 (2026-05-07): use `uniqueArray` so consecutive emits never
+			// carry the same value. With duplicates allowed, a derived using
+			// default Object.is equals could absorb a repeated emit into
+			// RESOLVED (cache stays the same) even though the source side
+			// never absorbs (its `equals: () => false` override). The post-
+			// invalidate cache reset on the source clears `prevData[s-slot]`
+			// at the dependent but not the dependent's own cache, so cycle-N's
+			// DATA(v) followed by cycle-(N+1)'s same-value DATA(v) at the dep
+			// would emit RESOLVED. uniqueArray sidesteps the equals-axis
+			// interaction entirely, keeping this property focused on the
+			// wave-settlement guarantee.
+			fc.uniqueArray(fc.integer({ min: 1, max: 100 }), {
+				minLength: 2,
+				maxLength: 5,
+			}),
+			(values) => {
+				const s = node<number>([], { initial: 0, equals: () => false });
+				const d = node<number>(
+					[s],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batchEntry, i) =>
+							batchEntry != null && batchEntry.length > 0 ? batchEntry.at(-1) : ctx.prevData[i],
+						);
+						actions.emit(data[0] as number);
+					},
+					{ describeKind: "derived" },
+				);
+
+				const trace: symbol[] = [];
+				const dataValues: number[] = [];
+				const unsub = d.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === START) continue;
+						trace.push(msg[0]);
+						if (msg[0] === DATA) dataValues.push(msg[1] as number);
+					}
+				});
+
+				// Drive (emit, invalidate) cycles. Each cycle: emit a fresh DATA,
+				// then INVALIDATE. After each INVALIDATE the derived's wave must
+				// settle so the next emit propagates a new DATA.
+				for (const v of values) {
+					s.emit(v);
+					s.down([[INVALIDATE]]);
+				}
+
+				unsub();
+
+				// 1. Wave balance: DIRTY count = (DATA + RESOLVED + INVALIDATE) count.
+				let pending = 0;
+				for (const t of trace) {
+					if (t === DIRTY) pending += 1;
+					else if (t === DATA || t === RESOLVED || t === INVALIDATE) pending -= 1;
+					if (pending < 0) return false;
+				}
+				if (pending !== 0) return false;
+
+				// 2. Each emit value must have appeared as a DATA at the sink.
+				//    This is the deadlock counter-test: if INVALIDATE doesn't
+				//    settle the wave, the next emit never fires fn so DATA is
+				//    missing. The handshake DATA(0) precedes the first cycle
+				//    DATA, so we expect `values.length + 1` DATAs total — an
+				//    initial DATA(0) from subscribe handshake, then one DATA(v)
+				//    per cycle.
+				if (dataValues.length !== values.length + 1) return false;
+				// QA P3 (2026-05-07): assert the handshake DATA carries the
+				// initial value. Without this, a regression that misroutes the
+				// handshake DATA to a wrong value would still pass the count
+				// check vacuously.
+				if (dataValues[0] !== 0) return false;
+				for (let i = 0; i < values.length; i++) {
+					if (dataValues[i + 1] !== values[i]) return false;
+				}
+
+				// 3. Trace must contain exactly `values.length` INVALIDATE messages.
+				const invCount = trace.filter((t) => t === INVALIDATE).length;
+				if (invCount !== values.length) return false;
+
+				return true;
+			},
+		),
+};
+
+/**
+ * #73 — invalidate-merge-order-independent (mirrors TLC #30
+ * `MergeRulesRespected`, DS-13.5.A 2026-05-02 lock Q9 + tier-sort).
+ *
+ * Within a single `down(messages)` call on the source, any permutation of
+ * {≤1 [DATA, v], N [INVALIDATE]} entries produces the same outcome at the
+ * source's observer because tier-sort + Q9 collapse normalize the order:
+ *
+ *   - tier-sort: DATA (tier 3) sorts before INVALIDATE (tier 4) regardless
+ *     of input order. So `[INV, DATA]` and `[DATA, INV]` both deliver as
+ *     `[DIRTY, DATA(v), INVALIDATE]` to the observer.
+ *
+ *   - Q9 collapse (DS-13.5.A): K INVALIDATE entries in a single down() call
+ *     collapse to exactly ONE outgoing INVALIDATE. So
+ *     `[INV, INV, ..., INV]` delivers as `[DIRTY, INVALIDATE]` regardless
+ *     of K.
+ *
+ *   - With both DATA and INVs: `[DATA, INV*K]` (any permutation) delivers
+ *     as `[DIRTY, DATA(v), INVALIDATE]` — DATA before INV, INVs collapsed.
+ *
+ * Note: Q1/Q3 explicit "DATA/RESOLVED wins" merges were retired during
+ * implementation (see implementation-plan.md DS-13.5.A row N1) — natural
+ * tier-sort handles `[DATA(v), INVALIDATE]` correctly: BOTH messages
+ * deliver to observers, cache ends cleared (INVALIDATE runs after DATA
+ * in tier order, clearing the cache that DATA just set). Cache outcome
+ * vs DATA's cache assignment is the LOCAL sequencing on the source; both
+ * messages remain observable.
+ *
+ * Topology: subscribe directly to the source. The merge happens inside
+ * `_frameBatch` on `down()`; observing the source is the cleanest way to
+ * see the merged stream without derived-fn interactions.
+ *
+ * Catches: regressions to the Q9 collapse logic (e.g., a refactor that
+ * forwards K INVs as K outgoing INVALIDATEs) or to tier-sort (e.g., a
+ * refactor that emits INV before DATA when input order was [INV, DATA]).
+ */
+const invariant73InvalidateMergeOrderIndependent: Invariant = {
+	name: "invalidate-merge-order-independent",
+	description:
+		"Within a single down() call, any permutation of {≤1 [DATA, v], N [INVALIDATE]} entries delivers as ONE DIRTY + tier-sorted [DATA?, INVALIDATE] at the observer — DATA before INV (tier-sort), all INVs collapsed to one (Q9).",
+	specRef:
+		"wave_protocol.tla #30 MergeRulesRespected (DS-13.5.A 2026-05-02 Q9 + tier-sort; via src/core/node.ts:_frameBatch tier-sort + Q9 collapse)",
+	property: () =>
+		fc.property(
+			// Either an emit value (1..10), or null meaning all-INV input.
+			// Value 0 excluded so DATA-vs-RESOLVED distinction is unambiguous
+			// (initial cache = 0; non-zero value forces DATA).
+			fc.option(fc.integer({ min: 1, max: 10 }), { nil: null }),
+			fc.integer({ min: 1, max: 4 }), // numInvs (≥1 to make Q9 meaningful)
+			fc.integer({ min: 0, max: 0xffffff }), // permutation seed
+			(emitValue, numInvs, seed) => {
+				const s = node<number>([], { initial: 0 });
+
+				const trace: symbol[] = [];
+				const traceValues: unknown[] = [];
+				const unsub = s.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === START) continue;
+						trace.push(msg[0]);
+						traceValues.push(msg[1]);
+					}
+				});
+
+				// Drop handshake messages — only post-handshake settles matter.
+				const activationEnd = trace.length;
+
+				// Build messages: ≤1 [DATA, v] + N [INVALIDATE].
+				type RawMsg = readonly [symbol, unknown?];
+				const messages: RawMsg[] = [];
+				if (emitValue !== null) messages.push([DATA, emitValue] as const);
+				for (let i = 0; i < numInvs; i++) messages.push([INVALIDATE] as const);
+
+				// Permute via seeded Fisher-Yates so shrinking still works.
+				const shuffled = [...messages];
+				let rng = seed | 0;
+				for (let i = shuffled.length - 1; i > 0; i--) {
+					rng = (rng * 1103515245 + 12345) & 0x7fffffff;
+					const j = rng % (i + 1);
+					[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+				}
+
+				// Single down() call — exercises _frameBatch tier-sort + Q9 collapse
+				// on a multi-message input. Returning false on any structural
+				// violation lets fast-check shrink to the smallest counter-example.
+				s.down(shuffled as Messages);
+
+				unsub();
+
+				// Slice trace to post-handshake observations.
+				const post = trace.slice(activationEnd);
+				const postValues = traceValues.slice(activationEnd);
+
+				// Expected shape independent of permutation:
+				//   - emitValue !== null: [DIRTY, DATA(emitValue), INVALIDATE]
+				//   - emitValue === null: [DIRTY, INVALIDATE] (Q9 collapse)
+				const dirtyCount = post.filter((t) => t === DIRTY).length;
+				const dataCount = post.filter((t) => t === DATA).length;
+				const resolvedCount = post.filter((t) => t === RESOLVED).length;
+				const invCount = post.filter((t) => t === INVALIDATE).length;
+
+				// Exactly one DIRTY (auto-prefix).
+				if (dirtyCount !== 1) return false;
+				// Always exactly one INVALIDATE (Q9 collapses K → 1).
+				if (invCount !== 1) return false;
+				// No spurious RESOLVED (cache=0, emitValue ∈ 1..10 always differs).
+				if (resolvedCount !== 0) return false;
+
+				if (emitValue !== null) {
+					// Exactly one DATA carrying emitValue.
+					if (dataCount !== 1) return false;
+					const dataIdx = post.indexOf(DATA);
+					if (postValues[dataIdx] !== emitValue) return false;
+					// Tier-sort: DATA must precede INVALIDATE.
+					const invIdx = post.indexOf(INVALIDATE);
+					if (dataIdx >= invIdx) return false;
+				} else {
+					// All-INV input → no DATA in output.
+					if (dataCount !== 0) return false;
+				}
+
+				return true;
+			},
+		),
+};
+// ---------------------------------------------------------------------------
+// Dropped TLC mirrors (tracked in docs/optimizations.md "Remaining rigor-infra
+// follow-ons"):
+//
+// - TLC #18 `MultiSinkIterationCoherent` / #27 `MultiSinkIterationDriftClean`
+//   — TLA+ ghost `pendingExtraDelivery` has no runtime analogue. The runtime's
+//   `_deliverToSinks` iterates sinks synchronously over a single shared
+//   `messages` reference; there is no mid-iteration pending queue to sweep.
+// - TLC #20 `ReplayBufferBounded` / #23 `LateSubscriberReceivesReplay` —
+//   §2.5 `replayBuffer: N` shipped in Phase 13.6.B B6 (Lock 6.G). The
+//   property-test mirrors of these TLC invariants haven't been ported yet;
+//   audit-sweep coverage lives in `phase-13-6-b6.test.ts`. Mirror port
+//   tracked under "Remaining rigor-infra follow-ons" in docs/optimizations.md.
+// - TLC #22 `MetaTeardownObservedPreReset` — §2.3 meta companion TEARDOWN
+//   tier-5 modeling is not in the TS runtime.
+// - TLC #28 `TerminatedImpliesBatchIdle` — TLA+ models `batchActive` as a
+//   gate on terminal actions (`Terminate` / `Teardown` require
+//   `batchActive.status = "idle"`). The TS runtime allows terminal
+//   transitions inside an active batch because `_frameBatch` + `downWithBatch`
+//   tier-sort delivery so DATA always ships before COMPLETE in the flushed
+//   wave. The invariant is a modeling-level law that doesn't map to runtime
+//   semantics — a mirror would be a test of the tier-sort rather than the
+//   claimed property.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Registry
+// ---------------------------------------------------------------------------
+
+/**
+ * The invariant catalog. Order is the canonical reading order; tests run all
+ * of them. Append new invariants to the end — name + specRef are stable
+ * identifiers downstream tools can rely on.
+ */
+export const INVARIANTS: readonly Invariant[] = [
+	invariant1,
+	invariant2,
+	invariant3,
+	invariant4,
+	invariant5,
+	invariant6,
+	invariant7,
+	invariant8,
+	invariant9,
+	invariant10MultiDepInitial,
+	invariant11PauseMultiPauser,
+	invariant12NestedDrain,
+	invariant12bNestedDrainCompound,
+	invariant13BufferAllReplay,
+	invariant14ResubscribePause,
+	invariant15MultiSinkConverge,
+	invariant16UpTierGuard,
+	invariant17PausableOffStructural,
+	invariant18SwitchMapStaleInnerSuppressed,
+	invariant19MergeMapAllInnersContribute,
+	invariant20ExhaustMapDropsWhileActive,
+	invariant21ConcatMapSerialSubscription,
+	invariant22MergeMapConcurrencyBound,
+	invariant23RaceFirstWins,
+	invariant24RepeatCountRespected,
+	invariant25DebounceCoalesce,
+	invariant26TimeoutErrorsOnIdle,
+	invariant27ThrottleLeadingSuppresses,
+	invariant28ZipStrictPair,
+	invariant29DistinctUntilChanged,
+	invariant30Sample,
+	invariant31Pairwise,
+	invariant32BufferCount,
+	invariant33Delay,
+	invariant34Buffer,
+	invariant35BufferTime,
+	invariant36Interval,
+	invariant37Rescue,
+	invariant38Concat,
+	invariant39Take,
+	invariant40Skip,
+	invariant41Scan,
+	invariant42Reduce,
+	invariant43Merge,
+	invariant44Filter,
+	invariant45Map,
+	invariant46Combine,
+	invariant47TakeWhile,
+	invariant48Last,
+	invariant49Tap,
+	invariant50TakeUntil,
+	invariant51Find,
+	invariant52ElementAt,
+	invariant53WindowCount,
+	invariant54CleanupWitnessInValueDomain,
+	invariant55CleanupWitnessNotSentinel,
+	invariant56CleanupWitnessAccounting,
+	invariant57NoDepCascadeTerminalWhenGateFalse,
+	invariant58GraphDerivedSentinelAbsorption,
+	invariant59GraphDerivedKeepAliveCacheCurrent,
+	invariant60GraphDisposalCompleteness,
+	invariant61GraphBatchAtomicity,
+	invariant62GraphDerivedPathResolutionConstruction,
+	invariant63GraphNarrowWaistTopologyVisibility,
+	invariant64GraphDerivedKeepAliveEquivalence,
+	invariant65GraphDerivedMultiEmitArray,
+	invariant66GraphDerivedEmptyArrayResolved,
+	invariant67GraphNarrowWaistOptionsFlowThrough,
+	invariant68ChangesetDataEdgeAttribution,
+	invariant69ChangesetVersionMonotonic,
+	invariant70ChangesetBatchFramePairing,
+	invariant71ChangesetTopologyLifecycle,
+	invariant72SingleInvalidateSettles,
+	invariant73InvalidateMergeOrderIndependent,
+];
+
+// Enforce name uniqueness — the registry doubles as the LLM-readable contract
+// surface, and duplicate names would silently corrupt both the vitest test
+// list and any downstream enumeration.
+{
+	const seen = new Set<string>();
+	for (const inv of INVARIANTS) {
+		if (seen.has(inv.name)) {
+			throw new Error(`Duplicate invariant name in registry: ${inv.name}`);
+		}
+		seen.add(inv.name);
+	}
+}

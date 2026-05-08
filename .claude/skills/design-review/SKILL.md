@@ -11,7 +11,7 @@ This skill applies the 5 design-review questions used in `archive/docs/SESSION-a
 
 **When to use this skill:**
 
-- Before implementing a new public API in `packages/legacy-pure-ts/src/patterns/` or `packages/legacy-pure-ts/src/extra/`
+- Before implementing a new public API in `packages/pure-ts/src/patterns/` or `packages/pure-ts/src/extra/`
 - Right after sketching a new factory / bundle / primitive, before tests are written
 - When two slightly-different implementations exist and you need a principled pick
 - When `/dev-dispatch` Phase 2 (architecture discussion) needs to go deeper than the default 4-question template
@@ -31,7 +31,7 @@ User context: $ARGUMENTS
 
 Determine the review target(s) from `$ARGUMENTS`:
 
-1. **`--diff` (or no args)** — review the new public symbols introduced in the current uncommitted diff. Run `git diff --name-only HEAD` and `git status --short` to enumerate. Filter to files in `packages/legacy-pure-ts/src/patterns/`, `packages/legacy-pure-ts/src/extra/`, `packages/legacy-pure-ts/src/core/`, `packages/legacy-pure-ts/src/graph/`, `packages/legacy-pure-ts/src/compat/`, or `packages/legacy-pure-ts/src/integrations/` that introduce new exports.
+1. **`--diff` (or no args)** — review the new public symbols introduced in the current uncommitted diff. Run `git diff --name-only HEAD` and `git status --short` to enumerate. Filter to files in `packages/pure-ts/src/patterns/`, `packages/pure-ts/src/extra/`, `packages/pure-ts/src/core/`, `packages/pure-ts/src/graph/`, `packages/pure-ts/src/compat/`, or `packages/pure-ts/src/integrations/` that introduce new exports.
 2. **`<file path>`** — review the public symbols in that file (single-file scope).
 3. **`<symbol name>`** — locate the symbol with Grep, then review it (single-symbol scope).
 4. **Multiple targets** — apply Q5–Q9 to each, then add Phase 2 cross-cutting synthesis.
@@ -47,7 +47,7 @@ Read these in parallel before reviewing:
 - 1–2 closest existing primitives in the same directory (precedent)
 - Optionally `~/src/callbag-recharge/` for analogous prior art (NOT spec authority)
 
-If the target imports anything from `packages/legacy-pure-ts/src/patterns/`, `~/src/graphrefly/COMPOSITION-GUIDE.md` is **mandatory** reading — composition primitives have non-obvious load-bearing patterns documented there.
+If the target imports anything from `packages/pure-ts/src/patterns/`, `~/src/graphrefly/COMPOSITION-GUIDE.md` is **mandatory** reading — composition primitives have non-obvious load-bearing patterns documented there.
 
 ---
 
@@ -203,7 +203,7 @@ Resolved decisions move to `archive/optimizations/resolved-decisions.jsonl` per 
 2. **`~/src/graphrefly/COMPOSITION-GUIDE.md`** — composition patterns
 3. **`docs/implementation-plan.md`** — pre-1.0 phase locks (canonical sequencer); the matching phase entry holds locked design decisions for active work
 4. **`docs/test-guidance.md`** — testability shape
-5. Existing patterns in `packages/legacy-pure-ts/src/` — only when the above are silent
+5. Existing patterns in `packages/pure-ts/src/` — only when the above are silent
 6. **`docs/roadmap.md`** — vision context only; consult for strategic frame, not phase scope
 
 If a finding seems to conflict with a higher-authority document, surface it explicitly — DO NOT silently override.

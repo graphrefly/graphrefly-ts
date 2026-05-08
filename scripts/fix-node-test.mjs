@@ -2,9 +2,9 @@
  * Fix remaining derived() calls in node.test.ts which already had its
  * sugar import manually removed but still has derived() call sites.
  */
-import { readFileSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
@@ -55,9 +55,10 @@ function transformDerived(src, funcName = "derived") {
 	const pattern = new RegExp(`\\b${funcName}(<[^>]*>)?\\(`, "g");
 	let result = "";
 	let lastEnd = 0;
-	let match;
 
-	while ((match = pattern.exec(src)) !== null) {
+	for (;;) {
+		const match = pattern.exec(src);
+		if (match === null) break;
 		const before = src.slice(0, match.index);
 		if (before.endsWith(".")) continue;
 		if (before.length > 0 && /\w/.test(before[before.length - 1])) continue;
@@ -91,7 +92,7 @@ function transformDerived(src, funcName = "derived") {
 		const lineStart = src.lastIndexOf("\n", match.index) + 1;
 		const linePrefix = src.slice(lineStart, match.index);
 		const indent = getIndent(linePrefix);
-		const inner = indent + "\t";
+		const inner = `${indent}\t`;
 
 		let optsStr;
 		if (optsArg) {

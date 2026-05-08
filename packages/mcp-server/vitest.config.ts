@@ -5,12 +5,12 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			// Resolve workspace-local @graphrefly/graphrefly straight to the
-			// legacy-pure-ts source (the shim is just one-line re-exports;
+			// pure-ts source (the shim is just one-line re-exports;
 			// avoids building the library just to test packages/*).
 			// Phase 13.9.A cleave.
 			{
 				find: /^@graphrefly\/graphrefly$/,
-				replacement: fileURLToPath(new URL("../legacy-pure-ts/src/index.ts", import.meta.url)),
+				replacement: fileURLToPath(new URL("../pure-ts/src/index.ts", import.meta.url)),
 			},
 		],
 	},

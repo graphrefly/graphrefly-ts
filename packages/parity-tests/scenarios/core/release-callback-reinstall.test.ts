@@ -11,7 +11,7 @@
  *    notifications.
  * 2. The OLD callback does NOT continue firing (no double-delivery).
  *
- * Rust-only — `legacy-pure-ts` doesn't have TSFN-backed release
+ * Rust-only — `pure-ts` doesn't have TSFN-backed release
  * callbacks; this is a Rust binding regression test, not a
  * cross-impl parity test. Gated `test.runIf(impl.name === "rust-via-napi")`.
  */
@@ -27,7 +27,6 @@ describe.each(impls)("F17 release_callback re-install — $name", (impl) => {
 			// release_callback was already installed by `getState()`. Construct
 			// a fresh BenchCore directly to control the callback lifecycle.
 			//
-			// biome-ignore lint/suspicious/noExplicitAny: pulling native module via require for direct construction
 			const native = require("@graphrefly/native") as typeof import("@graphrefly/native");
 			const core = new native.BenchCore();
 

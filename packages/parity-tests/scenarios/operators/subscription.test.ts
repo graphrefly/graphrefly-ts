@@ -10,7 +10,7 @@
  * (Slice D-ops, landed 2026-05-06 per `~/src/graphrefly-rs/docs/migration-status.md`).
  *
  * Until `@graphrefly/native` publishes `rustImpl` in `impls/rust.ts`,
- * these scenarios run against `legacyImpl` only. When `rustImpl` flips
+ * these scenarios run against `pureTsImpl` only. When `rustImpl` flips
  * non-null, divergences fail loud — the rust arm uses the same
  * `impl.<name>` surface.
  */
@@ -164,11 +164,11 @@ describe.each(impls)("R5.7 subscription — concat parity — $name", (impl) => 
 	// second's COMPLETE fires once and won't be re-observed.
 	//
 	// PER-IMPL: TS legacy has the pre-fix behavior (concat hangs); Rust
-	// port D041 has the fix. `runIf(impl.name !== "legacy-pure-ts")`
+	// port D041 has the fix. `runIf(impl.name !== "pure-ts")`
 	// activates the assertion for any non-legacy impl (including
 	// `rustImpl` once it publishes), so the divergence becomes a
 	// loud failure instead of a silent skip.
-	test.runIf(impl.name !== "legacy-pure-ts")(
+	test.runIf(impl.name !== "pure-ts")(
 		"concat self-completes when second completes during phase zero (Rust-port-only fix; D041 / D-ops /qa D4)",
 		async () => {
 			const s1 = await impl.node<number>([], { name: "s1" });
@@ -284,10 +284,10 @@ describe.each(impls)("R5.7 subscription — race parity — $name", (impl) => {
 	// PER-IMPL: TS legacy has different semantics (first COMPLETE from
 	// ANY source while no-winner immediately ends the race). Rust port
 	// D-ops /qa P4 chose all-complete-without-winner.
-	// `runIf(impl.name !== "legacy-pure-ts")` activates the assertion
+	// `runIf(impl.name !== "pure-ts")` activates the assertion
 	// for any non-legacy impl; spec amendment may harmonize the two in
 	// a future revision.
-	test.runIf(impl.name !== "legacy-pure-ts")(
+	test.runIf(impl.name !== "pure-ts")(
 		"race completes when all sources complete without a winner (Rust-port-only semantics; D-ops /qa P4)",
 		async () => {
 			const s1 = await impl.node<number>([], { name: "s1" });

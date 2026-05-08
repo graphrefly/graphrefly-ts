@@ -54,27 +54,27 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { DATA } from "../../packages/legacy-pure-ts/src/core/messages.js";
-import { type Node, node } from "../../packages/legacy-pure-ts/src/core/node.js";
-import { fileStorage } from "../../packages/legacy-pure-ts/src/extra/storage-node.js";
-import type { GraphPersistSnapshot } from "../../packages/legacy-pure-ts/src/graph/graph.js";
-import { agentMemory } from "../../packages/legacy-pure-ts/src/patterns/ai/index.js";
+import { DATA } from "../../packages/pure-ts/src/core/messages.js";
+import { type Node, node } from "../../packages/pure-ts/src/core/node.js";
+import { fileStorage } from "../../packages/pure-ts/src/extra/storage-node.js";
+import type { GraphPersistSnapshot } from "../../packages/pure-ts/src/graph/graph.js";
+import { agentMemory } from "../../packages/pure-ts/src/patterns/ai/index.js";
 import {
 	type EvalRunResult,
 	evalIntakeBridge,
-} from "../../packages/legacy-pure-ts/src/patterns/harness/bridge.js";
+} from "../../packages/pure-ts/src/patterns/harness/bridge.js";
 import {
 	actuatorExecutor,
 	autoSolidify,
 	evalVerifier,
 	type HarnessExecutor,
 	type HarnessVerifier,
-} from "../../packages/legacy-pure-ts/src/patterns/harness/index.js";
-import { harnessLoop } from "../../packages/legacy-pure-ts/src/patterns/harness/loop.js";
+} from "../../packages/pure-ts/src/patterns/harness/index.js";
+import { harnessLoop } from "../../packages/pure-ts/src/patterns/harness/loop.js";
 import type {
 	TriagedItem,
 	VerifyResult,
-} from "../../packages/legacy-pure-ts/src/patterns/harness/types.js";
+} from "../../packages/pure-ts/src/patterns/harness/types.js";
 import { catalogAwareEvaluator } from "../lib/catalog-aware-evaluator.js";
 import {
 	type CatalogOverlayBundle,

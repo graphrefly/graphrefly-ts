@@ -2,14 +2,14 @@
 	"name": "@graphrefly/parity-tests",
 	"version": "0.0.0",
 	"private": true,
-	"description": "Cross-impl parity test runner. Phase E rustImpl activation slice (D074): parameterized vitest describe.each over (legacyImpl, rustImpl). Phase 13.9.B target: trace-record/trace-replay (rigor-infra Project 2).",
+	"description": "Cross-impl parity test runner. Phase E rustImpl activation slice (D074): parameterized vitest describe.each over (pureTsImpl, rustImpl). Phase 13.9.B target: trace-record/trace-replay (rigor-infra Project 2).",
 	"type": "module",
 	"scripts": {
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},
 	"dependencies": {
-		"@graphrefly/legacy-pure-ts": "workspace:*",
+		"@graphrefly/pure-ts": "workspace:*",
 		"@graphrefly/native": "link:../../../graphrefly-rs/crates/graphrefly-bindings-js"
 	},
 	"devDependencies": {

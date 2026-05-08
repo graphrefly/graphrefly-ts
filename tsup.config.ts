@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 // Phase 13.9.A shim build — `@graphrefly/graphrefly` is a thin re-export layer
-// over `@graphrefly/legacy-pure-ts`. Each entry is a one-liner `export *`. The
+// over `@graphrefly/pure-ts`. Each entry is a one-liner `export *`. The
 // browser-safety guardrail lives in the legacy package's tsup config; the shim
 // doesn't introduce any imports of its own beyond the external legacy package,
 // so node:* leakage cannot originate here.
@@ -67,7 +67,7 @@ export default defineConfig({
 	platform: "neutral",
 	target: "es2022",
 	external: [
-		"@graphrefly/legacy-pure-ts",
+		"@graphrefly/pure-ts",
 		"@graphrefly/native",
 		"@nestjs/common",
 		"@nestjs/core",

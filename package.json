@@ -479,13 +479,13 @@
 		"docs:dev": "pnpm --dir website dev",
 		"docs:build": "pnpm build && pnpm --dir website build && pnpm --dir demos/compat-matrix build && pnpm --dir demos/reactive-layout build && pnpm --dir demos/knowledge-graph build && pnpm --dir demos/pagerduty-triage build && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/ && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/ && cp -r demos/knowledge-graph/dist/. website/dist/demos/knowledge-graph/ && cp -r demos/pagerduty-triage/dist/. website/dist/demos/pagerduty-triage/",
 		"docs:preview": "pnpm --dir website preview",
-		"build": "pnpm --filter @graphrefly/legacy-pure-ts build && tsup",
+		"build": "pnpm --filter @graphrefly/pure-ts build && tsup",
 		"build:shim": "tsup",
-		"test": "pnpm --filter @graphrefly/legacy-pure-ts test && pnpm --filter @graphrefly/parity-tests test",
-		"test:legacy": "pnpm --filter @graphrefly/legacy-pure-ts test",
+		"test": "pnpm --filter @graphrefly/pure-ts test && pnpm --filter @graphrefly/parity-tests test",
+		"test:pure-ts": "pnpm --filter @graphrefly/pure-ts test",
 		"test:parity": "pnpm --filter @graphrefly/parity-tests test",
-		"bench": "pnpm --filter @graphrefly/legacy-pure-ts bench",
-		"bench:baseline": "pnpm --filter @graphrefly/legacy-pure-ts bench:baseline",
+		"bench": "pnpm --filter @graphrefly/pure-ts bench",
+		"bench:baseline": "pnpm --filter @graphrefly/pure-ts bench:baseline",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
@@ -526,7 +526,7 @@
 	],
 	"license": "MIT",
 	"dependencies": {
-		"@graphrefly/legacy-pure-ts": "workspace:^"
+		"@graphrefly/pure-ts": "workspace:^"
 	},
 	"peerDependencies": {
 		"@nestjs/common": ">=10",

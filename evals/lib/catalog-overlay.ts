@@ -24,18 +24,18 @@
  * @module
  */
 
-import type { Node } from "../../packages/legacy-pure-ts/src/core/node.js";
-import { node } from "../../packages/legacy-pure-ts/src/core/node.js";
+import type { Node } from "../../packages/pure-ts/src/core/node.js";
+import { node } from "../../packages/pure-ts/src/core/node.js";
 import {
 	type ReactiveMapBundle,
 	reactiveMap,
-} from "../../packages/legacy-pure-ts/src/extra/reactive-map.js";
+} from "../../packages/pure-ts/src/extra/reactive-map.js";
 import type {
 	CatalogFnEntry,
 	CatalogSourceEntry,
 	GraphSpecCatalog,
 	GraphSpecTemplate,
-} from "../../packages/legacy-pure-ts/src/patterns/graphspec/index.js";
+} from "../../packages/pure-ts/src/patterns/graphspec/index.js";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -11,8 +11,8 @@
  */
 
 import { describe, expect, test } from "vitest";
-import type { ReactiveDescribeHandle } from "../../impls/types.js";
 import { impls } from "../../impls/registry.js";
+import type { ReactiveDescribeHandle } from "../../impls/types.js";
 
 describe.each(impls)("R3.6.1 describe-reactive parity — $name", (impl) => {
 	test("describe({ reactive: true }) pushes initial snapshot on subscribe", async () => {

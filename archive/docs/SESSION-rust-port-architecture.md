@@ -1106,6 +1106,8 @@ The parity test surface widens per Rust milestone close. Each milestone gates on
 
 ### Sunset trigger (Q4 = sunset on 1.0)
 
+> **Superseded by PART 13 (D084, 2026-05-08).** `@graphrefly/pure-ts` (renamed from `legacy-pure-ts`) is now a permanent first-class peer alongside `@graphrefly/native` and `@graphrefly/wasm` — not an oracle that gets npm-deprecated at 1.0. The parity-test mechanics described in PART 12 still apply; only the sunset framing changes. Read PART 13 first; this section is preserved for historical record.
+
 Once 1.0 ships AND parity has held across N consecutive zero-divergence releases on the parity job (specific N TBD during 1.0 release planning):
 
 1. `git mv packages/legacy-pure-ts/ archive/legacy-pure-ts/` — preserves history.
@@ -1137,3 +1139,399 @@ The deprecated-but-installable status (sunset step 3 above) preserves the migrat
 - **WASM distribution shape beyond placeholder** — `@graphrefly/native-wasm` packaging, edge-runtime testing matrix, COOP/COEP requirements for SharedArrayBuffer. Lands per M-roadmap, not in this part.
 - **Multi-distribution lite/standard/full feature-gated builds** — Part 9 strategy. Orthogonal to oracle existence; both layers compose. The lite/standard/full split lives within `@graphrefly/native-*`; the public `@graphrefly/graphrefly` shim selects the right variant per platform AND per consumer's feature tier.
 - **Sunset of `@graphrefly/cli` / `@graphrefly/mcp-server`** — those track the public API and continue to consume `@graphrefly/graphrefly` (which transparently delegates). Not affected by the cleave.
+
+---
+
+## PART 13: PUBLIC PACKAGE ARCHITECTURE — POST-PORT END-STATE (2026-05-08, post-Phase-E)
+
+**Context.** Captures the post-port public-package architecture decisions surfaced during a planning conversation on 2026-05-08, after Phase E `rustImpl` activation (D074) landed. Supersedes PART 12 §"Sunset trigger" — pure-TS becomes a permanent first-class peer, not a deprecated parity oracle. PART 12's parity-test mechanics (`packages/parity-tests/`, three-arm registry, milestone-gated coverage growth) still apply.
+
+**Premise change from PART 12.** PART 12 framed `@graphrefly/legacy-pure-ts` as a parity oracle that gets npm-deprecated at 1.0 sunset, with WASM positioned as "the right answer for banned-native-binary platforms." This part rejects that framing: pure-TS continues post-1.0 as the universal fallback because (a) WASM still has bundle-size and instantiation-cost overhead pure-TS doesn't, (b) a real subset of users will choose to never depend on Rust artifacts (security audits, restricted runtimes, simplicity preference), and (c) the maintenance cost of permanent feature parity is real but accepted.
+
+### Decisions locked this conversation
+
+| ID | Decision | Rationale |
+|---|---|---|
+| **D080** | Async-everywhere public API across all three sibling impls. | Phase E (D077) already locked async-everywhere for the parity contract because Rust+napi requires it. Extending to public API is the natural conclusion: WASM init is also async, so the contract is forced async whenever the user might run on either fast path. Once locked, this is also load-bearing for hiding WASM's `__wbg_init()` step behind every public method call. |
+| **D081** | Facade package keeps the name `@graphrefly/graphrefly`. | Zero migration churn for existing consumers. The name carries no architectural meaning; renaming pre-1.0 is allowed but unnecessary. |
+| **D082** | Three sibling impls: `@graphrefly/native` (napi-rs), `@graphrefly/wasm` (wasm-bindgen), `@graphrefly/pure-ts` (renamed from `legacy-pure-ts`). | Symmetric model: Node fast path (native) + browser fast path (wasm) + universal fallback (pure-ts). Each sibling exposes the same public TS shape; structural conformance via the `Impl` interface (see Item B below). |
+| **D083** | Browser resolution: **opt-in via subpath**, not auto-fallback. Default browser bundle = pure-TS; consumers who want WASM `import { ... } from "@graphrefly/graphrefly/wasm"`. | Pure-TS in browsers is small + tree-shakable + instant. Forcing every browser consumer to fetch+instantiate WASM (auto-fallback) is a bad default. Mirrors lightningcss / swc / esbuild — Node auto-fast, browser opt-in. |
+| **D084** | Pure-TS is a permanent first-class peer, not a deprecation track. PART 12 §"Sunset trigger" replaced. | A real subset of users will choose zero-Rust-dep installs indefinitely. Pure-TS serves them. Maintenance cost: every new operator/pattern/storage adapter lands in pure-TS too. Default policy is strict feature parity; tiered parity revisited at 1.0 if cost exceeds value. |
+
+### Sibling end-state shape (replaces PART 12 §"Sunset trigger")
+
+```
+@graphrefly/native        — napi-rs Rust binding (Node only)
+                            per-platform sub-packages via napi-rs convention
+                            (@graphrefly/native-darwin-arm64, etc.)
+                            async TS surface; `--dts` generated from #[napi] attrs
+
+@graphrefly/wasm          — wasm-bindgen Rust binding (browsers/Workers/Deno/Bun)
+                            single package; .wasm artifact + glue
+                            async TS surface; `--typescript` generated from Rust
+                            init promise hidden behind every public method
+                            (D080 async-everywhere is load-bearing for this)
+
+@graphrefly/pure-ts       — pure TypeScript implementation (universal)
+                            published rename of packages/legacy-pure-ts
+                            sync internals; published surface async-wrapped via Promise.resolve()
+                            zero Rust toolchain anywhere in dep tree
+
+@graphrefly/graphrefly    — facade (kept name)
+                            optionalDependencies: @graphrefly/native (Node fast path)
+                            dependencies: @graphrefly/pure-ts (universal fallback)
+                            "exports" conditions:
+                              - "node":    try-require native; catch → pure-ts
+                              - "browser": pure-ts
+                              - "./wasm":  forces @graphrefly/wasm (browser opt-in subpath)
+                            re-exports the resolved Impl
+
+@graphrefly/patterns/*    — peerDependencies: @graphrefly/graphrefly
+                            no native/wasm/pure-ts awareness
+                            inherits whatever the facade resolved
+```
+
+### Pre-port slice (NEXT — picked up via `/porting-to-rs`)
+
+**Goal.** Land the cheap-now-expensive-later structural work BEFORE continuing M2 → M3 → M4 → M5. Two items: rename pure-ts to its publication name, and promote the parity-test `Impl` interface to public-API-grade policy. Defers all genuinely premature work (facade build, wasm impl, `exports` conditions) to near-1.0.
+
+**Why pre-port.** Each milestone close (M2 Slice E, M3, M4, M5) widens `Impl` and adds `legacy-pure-ts` references in tests/docs/examples. Doing the rename + policy lock now means every subsequent milestone lands into the canonical shape; doing it later means a single bigger refactor sweeping all milestone-era artifacts.
+
+**Why these two and no more.** Building the facade now requires resolution code for two impls that don't fully exist. Building `@graphrefly/wasm` now requires the underlying Core/Graph/operator features to be ported first. Both are wasted iteration. The rename + policy lock are the only items that grow more expensive linearly with milestone count.
+
+#### Item A: Rename `packages/legacy-pure-ts` → `packages/pure-ts` and republish as `@graphrefly/pure-ts`
+
+**Scope.** Rename the package directory, update the npm name, update all references across the workspace + docs. Sync internals stay sync — the async-wrapped published face is deferred to facade-build time (Deferred 1 below).
+
+**File-by-file changes:**
+
+1. `git mv packages/legacy-pure-ts packages/pure-ts`
+2. `packages/pure-ts/package.json` — set `"name": "@graphrefly/pure-ts"`. Sweep description / keywords for "legacy" wording.
+3. `packages/pure-ts/tsup.config.ts` — verify `assertBrowserSafeBundles` paths still resolve (no hardcoded `legacy-pure-ts` strings in error messages).
+4. Root `package.json` (shim) — replace `@graphrefly/legacy-pure-ts` deps + scripts referencing the package path.
+5. Root `src/*.ts` — change every one-liner `from "@graphrefly/legacy-pure-ts/*"` → `from "@graphrefly/pure-ts/*"`.
+6. Root `tsup.config.ts` — any remaining path/build references.
+7. `packages/parity-tests/`:
+   - `package.json` — replace dep.
+   - `impls/types.ts` — `import type * as legacy from "@graphrefly/pure-ts"`. Optionally rename the local alias `legacy` → `pureTs` for clarity (not load-bearing; can defer if it adds churn).
+   - `impls/legacy.ts` → rename file to `impls/pure-ts.ts`. Rename export `legacyImpl` → `pureTsImpl`. Update `impl.name` from `"legacy-pure-ts"` to `"pure-ts"`. The "legacy" framing was specifically PART 12's parity-oracle frame; under PART 13 framing this arm IS the pure-TS first-class peer.
+   - `impls/registry.ts` — update import + export name.
+   - `scenarios/**/*.test.ts` — update any `impl.name === "legacy-pure-ts"` checks; update any imports.
+   - `README.md` — sweep "legacy" wording where it referred to the parity-oracle frame; preserve where it refers to historical Phase 13.9.A timing.
+8. `packages/cli/`:
+   - `package.json` — replace dep.
+   - `vitest.config.ts` — alias path `packages/legacy-pure-ts/src/index.ts` → `packages/pure-ts/src/index.ts`.
+   - source / test imports — rename.
+9. `packages/mcp-server/` — same pattern as cli.
+10. `pnpm-lock.yaml` — regenerate via `pnpm install`.
+11. `pnpm-workspace.yaml` — verify `packages/*` glob still matches (it will).
+12. **`CLAUDE.md`** (this repo): global find/replace `legacy-pure-ts` → `pure-ts`. Update the cleave-architecture paragraph: drop "frozen pure-TS implementation" + "Sunset trigger (Q4)" framing. Cite PART 13 of this session doc as authority for the new framing (pure-TS as permanent peer).
+13. **Docs:**
+    - `docs/implementation-plan.md` Phase 13.9.A entries — language sweep.
+    - `archive/docs/SESSION-rust-port-architecture.md` — DO NOT mass-edit historical content. PART 12 already has the "Superseded by PART 13" callout; leave the rest of PART 12 intact.
+    - Other `archive/docs/SESSION-*.md` — leave alone (historical sessions; future readers cross-reference PART 13).
+14. `~/src/graphrefly-rs/docs/migration-status.md` — language sweep where it references the TS package by name. Add a single-line note that 13.9.A's "legacy" framing is superseded.
+15. `~/src/graphrefly-rs/CLAUDE.md` — language sweep if it references the TS package by name.
+
+**Acceptance criteria:**
+
+- `pnpm test` green (pure-ts test suite + parity-tests).
+- `pnpm test:parity` green (with rust arm activation if `@graphrefly/native` is built; without otherwise).
+- `pnpm run lint` clean.
+- `pnpm run build` clean (root shim builds against renamed `@graphrefly/pure-ts`).
+- `pnpm bench` runs (no broken refs).
+- Grep verify no remaining `legacy-pure-ts` references in non-historical files: `git grep -i "legacy-pure-ts" -- ':!archive/'` returns zero results.
+- The renamed parity-tests arm exports `pureTsImpl`; `scenarios/` use `impl.name === "pure-ts"` if any check exists.
+
+**Out of scope for this slice:**
+
+- Adding the async-wrapped published face (deferred to facade-build slice).
+- Building `@graphrefly/graphrefly` facade (deferred to near-1.0).
+- Building `@graphrefly/wasm` (deferred to post-M5).
+- `exports` conditions / browser opt-in subpath (deferred to facade-build).
+- Migration tooling / codemod for external users (pre-1.0 — no external users to migrate).
+
+#### Item B: Promote `Impl` interface to public-API-grade policy (no code move)
+
+**Scope.** A docstring update + a CLAUDE.md note establishing that `Impl` interface widening IS a public-API decision, not a "test scaffolding" addition. No code structure changes; no file moves; no contract package extraction.
+
+**File-by-file changes:**
+
+1. `packages/parity-tests/impls/types.ts` top-of-file docstring — replace the "narrow public surface a parity scenario uses" framing with: "**Canonical public-API contract for the three sibling impls.** Every method here is part of GraphReFly's public surface and must be implemented by `@graphrefly/pure-ts`, `@graphrefly/native`, and `@graphrefly/wasm`. Widening this interface is a public-API decision; treat additions deliberately." Reference PART 13 of this session doc as authority.
+2. **`CLAUDE.md`** — add a one-line note under the parity-tests bullet in §Layout: "`packages/parity-tests/impls/types.ts` `Impl` interface IS the public-API contract — widening it is a public API decision (cite PART 13 of `archive/docs/SESSION-rust-port-architecture.md`)."
+
+**Acceptance criteria:**
+
+- The docstring is in place at `packages/parity-tests/impls/types.ts`.
+- The CLAUDE.md note is in place.
+- No code changes; no test changes.
+
+**Why no extraction to a separate `@graphrefly/contract` package.** TS structural typing means impls don't need to import a separate contract module — they conform structurally. A contract package adds maintenance cost without correctness gain. The `Impl` location at `packages/parity-tests/impls/types.ts` is fine; only the policy framing changes.
+
+### Deferred to near-1.0 (after M5 close, public-release prep)
+
+These items wait until the Rust port is feature-complete (M5 closed). Building any earlier means writing resolution code / bindings for features that don't exist yet.
+
+#### Deferred 1: Build the `@graphrefly/graphrefly` facade with three-way resolution
+
+- `try { require("@graphrefly/native") } catch { import("@graphrefly/pure-ts") }` for Node.
+- `package.json` `exports` conditions:
+  - `"node"`: native fall-through to pure-ts.
+  - `"browser"`: pure-ts only.
+  - `"./wasm"`: forces `@graphrefly/wasm` regardless of env (browser opt-in subpath, per D083).
+- Re-export the resolved Impl as the package's public surface.
+- Async-wrap the pure-TS internals (`Promise.resolve()` shim) — published surface is async-everywhere across all three siblings (D080).
+
+#### Deferred 2: Implement `@graphrefly/wasm` from the wasm-bindgen scaffold
+
+- Scaffold lives at `~/src/graphrefly-rs/crates/graphrefly-bindings-wasm/` (currently feature-flagged, no real impl).
+- Surface mirrors `@graphrefly/native`'s napi-rs binding (same `Impl`-conformant TS exports), via wasm-bindgen.
+- `wasm-bindgen --typescript` generates `.d.ts` from Rust attrs (analogous to napi `--dts`).
+- WASM init wrinkle: every public method is intercepted with a one-time init promise. First call awaits `__wbg_init()`; subsequent calls hit a resolved promise. Hidden from user. **Load-bearing on D080.**
+- Feature-gated builds (lite / standard / full per PART 9) compose with the wasm crate — D082's sibling layer is orthogonal to PART 9's feature-tier layer.
+
+#### Deferred 3: parity-tests three-arm registry
+
+- `packages/parity-tests/impls/registry.ts` widens to `[pureTsImpl, rustImpl, wasmImpl]` filtered for null.
+- `wasmImpl` adapter file mirrors `rustImpl` shape but loads `@graphrefly/wasm`.
+- jsdom or happy-dom env for the wasm arm test environment.
+- Three-way divergences fail loud across all three impls — meaningful correctness multiplier (wasm-bindgen has different marshalling + GC timing + init semantics from napi-rs).
+
+#### Deferred 4: Pure-TS feature-parity policy
+
+D084 commits pure-TS to permanent feature parity. Real cost: every new operator/pattern/storage adapter lands in pure-TS too. **Open decision** for near-1.0:
+
+- **Strict parity** (default): every public API has a pure-TS implementation, possibly slow.
+- **Tiered parity**: core protocol + common operators in pure-TS; high-perf adapters native+wasm only with pure-TS getting a "no-op or naive" implementation that throws or degrades gracefully.
+
+Default to strict parity until evidence forces tiering. Worth revisiting at 1.0.
+
+#### Deferred 5: Migration messaging
+
+- README + website framing of "three siblings, one facade."
+- Patterns docs: clarify that `import from "@graphrefly/graphrefly"` is the always-correct choice; subpath-import only for explicit WASM opt-in.
+- Wave 2 launch copy: depending on `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md` framing, may need adjustment if pure-TS-as-permanent-peer affects positioning.
+
+### Open questions (revisit at or near 1.0)
+
+- **Browser resolution model.** D083 locked browser opt-in via subpath (model 2). Could later evolve to auto-fallback (model 1) if user demand justifies forcing every browser consumer to use WASM.
+- **WASM single-package vs feature-split.** PART 9 sketched lite/standard/full WASM builds. Whether `@graphrefly/wasm` is one package (with feature-gated runtime opts) or three peer packages (`@graphrefly/wasm-lite`, `@graphrefly/wasm-standard`, `@graphrefly/wasm-full`) is a separate decision deferred to the wasm-impl slice.
+- **Pure-TS feature parity policy** (Deferred 4 above).
+- **Python parity oracle.** Analogous `@graphrefly/legacy-pure-py` story for the Python side. Separate decision; depends on `graphrefly-py` Rust binding progress (M6). Not addressed here.
+
+### Cross-references
+
+- **PART 12 §"Sunset trigger"** — superseded by D084 (one-line callout added in PART 12).
+- **PART 9 §"Use cases + distribution strategy"** — feature-gated build matrix still applies; composes with D082 (sibling layer is orthogonal to feature-tier layer).
+- **Phase 13.9.A in `docs/implementation-plan.md`** — needs a follow-up entry referencing PART 13 / Item A as the pre-port slice that lands before M2 Slice E continues.
+- **`archive/docs/SESSION-DS-14.5-A-narrative-reframe.md`** — Wave 2 messaging may need adjustment if pure-TS-as-permanent-peer affects positioning. Flagged in Deferred 5; not assumed.
+
+### Slice handoff for `/porting-to-rs`
+
+When `/porting-to-rs` picks this up next:
+
+1. Read PART 13 in full (this section).
+2. Phase 1: read CLAUDE.md, `packages/parity-tests/impls/types.ts`, `packages/parity-tests/impls/legacy.ts`, `packages/legacy-pure-ts/package.json`, root `package.json`, root `src/index.ts` and any other shim entry points to enumerate the rename surface.
+3. Phase 2 (HALT): present the file-by-file rename plan with any deltas from §"File-by-file changes" above (e.g., files that exist now but didn't when this PART was written). Confirm `@graphrefly/legacy-pure-ts` references in `~/src/graphrefly-rs/docs/migration-status.md` and `~/src/graphrefly-rs/CLAUDE.md` are still in scope.
+4. Phase 3: implement Items A + B together as one PR (rename + policy update). Land BEFORE the next M-milestone slice opens.
+5. After: log decisions D080–D084 in `docs/rust-port-decisions.md`. Add a Phase 13.9.A follow-up entry in `docs/implementation-plan.md` cross-referencing this PART.
+
+This slice is **not a Rust-port slice** — no canonical-spec rules touched, no `~/src/graphrefly-rs/` source changes (only doc updates). Pure refactor + policy lock. The skill's Phase 2 HALT is still warranted because the multi-file rename touches public-facing surfaces.
+
+---
+
+## PART 14: RELEASE PROCESS — REGISTRIES, CI, PRE-PORT ACTION ITEMS (2026-05-08)
+
+**Context.** Companion to PART 13 covering the release/CI process for the three-sibling-plus-facade architecture. Captures registry semantics (crates.io flat namespace, no orgs), what's published where, the two-stage automated pipeline shape, and a pre-port action-item list of cheap-now items separate from PART 13's pre-port slice.
+
+### Registry semantics
+
+| Registry | Namespacing | Reservation | Notes |
+|---|---|---|---|
+| **crates.io** | Flat global namespace, first-come-first-served. **No orgs / scopes.** | Publish at least once at any version; that claims the name. Owners can be added via `cargo owner --add github:<user>/<team>`. | One account per publisher; auth via `cargo login <token>`. PyPI-style ownership but flatter. |
+| **npm** | Scoped (`@graphrefly/*`) — scope-owner controls all sub-package names. | Scope `@graphrefly` already owned (you have `@graphrefly/legacy-pure-ts`). Just publish new sub-packages. | Per-platform sub-packages for napi-rs are also `@graphrefly/*` — no extra ownership concerns. |
+| **PyPI** | Flat namespace (orgs exist but optional, don't affect naming). | Publish at any version to claim. | Will be `graphrefly-py` per current naming; M6+. |
+
+### What gets published WHERE
+
+| Artifact | Registry | Format | Notes |
+|---|---|---|---|
+| `graphrefly-core` | crates.io | Rust crate | Foundational — must publish first in dep order |
+| `graphrefly-graph` | crates.io | Rust crate | Depends on `-core` |
+| `graphrefly-operators` | crates.io | Rust crate | Depends on `-core` |
+| `graphrefly-storage` | crates.io | Rust crate | Depends on `-core`, `-graph` |
+| `graphrefly-structures` | crates.io | Rust crate | Depends on `-core`, `-graph` |
+| `graphrefly` (umbrella, optional) | crates.io | Rust crate | Re-exports the above for one-import Rust consumers (decision deferred — ship if Rust users emerge) |
+| `graphrefly-bindings-js` | **`publish = false`** | — | Built locally → `@graphrefly/native-*` |
+| `graphrefly-bindings-wasm` | **`publish = false`** | — | Built locally → `@graphrefly/wasm` |
+| `graphrefly-bindings-py` | **`publish = false`** | — | Built locally → `graphrefly-py` |
+| `@graphrefly/native` | npm | umbrella JS package | Tiny loader; picks per-platform sub-package at runtime |
+| `@graphrefly/native-darwin-arm64` | npm | per-platform binary | Built by napi-rs on a darwin-arm64 runner |
+| `@graphrefly/native-darwin-x64` | npm | per-platform binary | |
+| `@graphrefly/native-linux-x64-gnu` | npm | per-platform binary | |
+| `@graphrefly/native-linux-arm64-gnu` | npm | per-platform binary | |
+| `@graphrefly/native-linux-x64-musl` | npm | per-platform binary | |
+| `@graphrefly/native-win32-x64-msvc` | npm | per-platform binary | |
+| `@graphrefly/wasm` | npm | single .wasm + glue | Platform-independent; one artifact |
+| `@graphrefly/pure-ts` | npm | pure JS/TS | Standard npm publish |
+| `@graphrefly/graphrefly` | npm | facade | Re-exports resolved sibling; depends on `@graphrefly/pure-ts` (always), `@graphrefly/native` (optional) |
+| `graphrefly-py` | PyPI | per-platform wheels | Built by maturin on matrix runners (M6+) |
+
+**Key insight:** the bindings crates (`-bindings-js`, `-bindings-wasm`, `-bindings-py`) **never go to crates.io.** They're Cargo workspace members purely so they can consume the user-facing crates as path deps at build time. Their output is npm/PyPI artifacts. Mark them `publish = false` defensively to prevent accidental publish.
+
+### Two-stage CI release pipeline
+
+```
+Stage 1 — Rust libraries → crates.io
+  Triggered by: release-plz PR merge OR git tag push (e.g. v0.5.0)
+
+  release-plz handles:
+    - Compute version bumps from conventional commits
+    - Generate changelogs
+    - cargo publish -p graphrefly-core         (foundational; no in-workspace deps)
+    - wait for crates.io index (~30s–2min)
+    - cargo publish -p graphrefly-graph        (depends on -core)
+    - cargo publish -p graphrefly-operators
+    - cargo publish -p graphrefly-storage
+    - cargo publish -p graphrefly-structures
+    - cargo publish -p graphrefly              (umbrella, if shipping)
+
+Stage 2 — npm packages → npm
+  Depends on: Stage 1 (some packages reference crate versions in build).
+
+  @graphrefly/pure-ts:
+    one runner → tsup build → npm publish
+
+  @graphrefly/native (matrix build):
+    GH Actions matrix:
+      darwin-arm64, darwin-x64,
+      linux-x64-gnu, linux-arm64-gnu, linux-x64-musl,
+      win32-x64-msvc
+    each runner: cargo build --release + napi build → upload .node artifact
+    final job: download all artifacts → napi prepublish → npm publish per-platform + umbrella
+
+  @graphrefly/wasm:
+    one linux runner → wasm-pack build → npm publish
+
+  @graphrefly/graphrefly (facade, last):
+    one runner → tsup build → npm publish
+
+Stage 3 — PyPI (M6+, parallel matrix via maturin publish)
+```
+
+### Tool recommendations
+
+- **[`release-plz`](https://release-plz.dev/)** — Rust side. PR-based versioning + automated `cargo publish` in dep order. Modern, GH-integrated, well-maintained. Roughly the Rust analog of `changesets`.
+- **[`changesets`](https://github.com/changesets/changesets)** — npm side. Per-package version bumps + changelogs from intent files. Standard for monorepos.
+- **[`@napi-rs/cli`](https://napi.rs)** — provides `napi build`, `napi prepublish`, and a default GH Actions workflow template. Don't write the platform matrix from scratch.
+- **[`wasm-pack`](https://rustwasm.github.io/wasm-pack/)** — one-command build + publish for `@graphrefly/wasm`.
+- **[`maturin`](https://www.maturin.rs/)** — analogous role for `graphrefly-py` (M6+).
+
+### One-time manual setup (genuinely manual, ~30 min total)
+
+```
+A. crates.io account
+  1. Create account at https://crates.io (link via GitHub OAuth).
+  2. Generate API token; cargo login <token> on local machine.
+  3. Add CRATES_IO_TOKEN to GitHub Actions secrets for CI bot.
+  4. After first publish per crate, run:
+       cargo owner --add github:graphrefly/<bot-team-name> graphrefly-core
+     (or whichever team you give CI publish access to)
+
+B. npm scope @graphrefly
+  Already owned. Just confirm GH Actions bot has publish rights:
+    npm token list (under your npm account)
+  Add NPM_TOKEN to GitHub Actions secrets if not present.
+
+C. GitHub Actions secrets
+  - CRATES_IO_TOKEN (Stage 1)
+  - NPM_TOKEN       (Stage 2)
+  - PYPI_TOKEN      (Stage 3, M6+)
+
+D. Reserve crate names on crates.io (cheap-now, prevents squatting)
+  See "Pre-port action items" below — Item C.
+```
+
+### Pre-port action items (do BEFORE next M-milestone slice opens)
+
+These are PART 14's pre-port items, complementary to PART 13's Item A (rename) and Item B (Impl policy). Order doesn't matter; can land in same PR or separately.
+
+#### Item C: Mark bindings crates as `publish = false`
+
+**Why now:** defensive. Prevents accidental publish to crates.io of crates that have no business being there. Also signals intent to anyone reading `Cargo.toml`. Cost: trivial. Three edits.
+
+**Files:**
+- `~/src/graphrefly-rs/crates/graphrefly-bindings-js/Cargo.toml` — add `publish = false` to `[package]`.
+- `~/src/graphrefly-rs/crates/graphrefly-bindings-py/Cargo.toml` — same.
+- `~/src/graphrefly-rs/crates/graphrefly-bindings-wasm/Cargo.toml` — same.
+
+**Acceptance:** `cargo check` clean (no functional change); `cargo publish --dry-run -p graphrefly-bindings-js` errors with "this package is marked publish = false."
+
+#### Item D: Reserve `graphrefly-*` crate names on crates.io
+
+**Why now:** crates.io is flat global namespace — anyone can claim `graphrefly-core` if you wait. Niche name + low-traffic project means real squatting risk is small, but reservation is ~10 minutes once `cargo login` is set up. Cheapest insurance available.
+
+**Prerequisite:** A crates.io account + `cargo login <token>` on a publishing machine (your local machine is fine for the reservation publish; CI takes over from there).
+
+**Steps (manual; requires your auth):**
+
+```bash
+# One-time:
+#   1. https://crates.io → "Account Settings" → "API Tokens" → New Token
+#   2. cargo login <token>
+#   3. Bump workspace.version from "0.0.0" to "0.0.1" in
+#      ~/src/graphrefly-rs/Cargo.toml — crates.io accepts 0.0.x but the
+#      0.0.0 placeholder is unpublishable on some setups; 0.0.1 is the
+#      minimum sane reservation version.
+
+# Reservation script (run from ~/src/graphrefly-rs/):
+cargo publish -p graphrefly-core
+sleep 60   # wait for crates.io index propagation
+cargo publish -p graphrefly-graph
+cargo publish -p graphrefly-operators   # only depends on -core
+sleep 30
+cargo publish -p graphrefly-storage
+cargo publish -p graphrefly-structures
+
+# After successful reservation, you can roll workspace.version forward
+# whenever you want — these reservations don't lock the version.
+```
+
+A helper script lives at `~/src/graphrefly-rs/scripts/reserve-crate-names.sh` with the same flow + dry-run support.
+
+**What gets published:** the actual current state of each crate at version 0.0.1. This is real code on crates.io. Pre-1.0 + license + repository are set, so this is a legitimate (if early) release. Subsequent dev continues at 0.0.x or whatever you bump to.
+
+**Acceptance:** `cargo search graphrefly-core` shows your crate; same for the other four. Each crate page on crates.io shows the README excerpt + link to your repo.
+
+**Defer if:** you're not ready to make `~/src/graphrefly-rs` public yet (the repo URL in `Cargo.toml` becomes a clickable link from crates.io). In that case, swap the `repository` field to a placeholder before publish + revert after, OR simply defer reservation until the repo is public.
+
+#### Item E: Add `release-plz` workflow scaffold (optional, defer if rushed)
+
+Stub the GH Actions workflow at `.github/workflows/release-plz.yml` so future-you doesn't context-switch when 1.0 approaches. release-plz auto-generates a starter via `cargo binstall release-plz && release-plz init`.
+
+Cost: ~15 min. Benefit: future-you isn't reading release-plz docs at 1.0 launch time.
+
+**Defer if:** Rust port still has months to run. Easier to set up release-plz against a stable workspace shape than against one that's still moving.
+
+### What this part does NOT cover
+
+- **Per-platform npm sub-package reservation.** `@graphrefly/native-darwin-arm64` etc. are within your scope; nobody can squat them. Defer.
+- **release-plz / changesets configuration tuning.** Default templates work fine; per-project tuning waits for real release pressure.
+- **CHANGELOG generation policy.** release-plz uses conventional commits by default. If you want a different convention, configure later.
+- **Code signing / SBOM / supply-chain attestation.** Material at scale; not blocking on initial release.
+- **Yanking / version retraction policy.** crates.io and npm both support `cargo yank` / `npm deprecate`. Establish policy if/when needed.
+
+### Cross-references
+
+- **PART 13 §"Pre-port slice"** — Items A (rename) + B (Impl policy). Items C–E here are independent; can land in same or separate PR.
+- **PART 9 §"Use cases + distribution strategy"** — feature-gated WASM builds (lite/standard/full) compose with the per-package release flow described here. Deferred to wasm-impl slice.
+- **`docs/implementation-plan.md`** — Phase 13.9.A and the Rust-port phases reference this part for release prerequisites once M5 closes.
+
+### Slice handoff for `/porting-to-rs` (extends PART 13's handoff)
+
+When `/porting-to-rs` picks up the pre-port work:
+
+1. PART 13 Items A + B (rename + policy) — primary slice.
+2. PART 14 Item C (`publish = false` on bindings) — small enough to fold into the same PR.
+3. PART 14 Item D (reserve crate names) — REQUIRES user's crates.io auth; agent prepares the script and instructions, user runs after `cargo login`.
+4. PART 14 Item E (release-plz scaffold) — defer unless user explicitly wants it now.

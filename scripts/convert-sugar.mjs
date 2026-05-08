@@ -10,9 +10,9 @@
  *   producer(fn, opts) → node((_data, actions, ctx) => { ... }, { describeKind: "producer" })
  */
 
-import { readFileSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // All files to transform, relative to repo root
 const FILES = [
@@ -87,7 +87,7 @@ function processFile(relPath) {
 	let src;
 	try {
 		src = readFileSync(filePath, "utf8");
-	} catch (e) {
+	} catch (_e) {
 		console.warn(`SKIP (not found): ${relPath}`);
 		return;
 	}
@@ -99,7 +99,7 @@ function processFile(relPath) {
 		return;
 	}
 
-	const original = src;
+	const _original = src;
 
 	// Determine which sugar symbols are imported
 	const sugarImportMatch = src.match(/import\s*\{([^}]*)\}\s*from\s*["'][^"']*core\/sugar\.js["']/);

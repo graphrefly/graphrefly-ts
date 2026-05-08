@@ -11,13 +11,13 @@ import type {
 	LLMResponse as AdapterLLMResponse,
 	ChatMessage,
 	LLMAdapter,
-} from "../../packages/legacy-pure-ts/src/patterns/ai/index.js";
+} from "../../packages/pure-ts/src/patterns/ai/index.js";
 import {
 	type GraphSpec,
 	generateCatalogPrompt,
 	llmRefine,
 	validateSpecAgainstCatalog,
-} from "../../packages/legacy-pure-ts/src/patterns/graphspec/index.js";
+} from "../../packages/pure-ts/src/patterns/graphspec/index.js";
 import { estimateTokenCost, totalCost } from "./cost.js";
 import { loadJudgePrompt, loadRubric, scoreRubric } from "./judge.js";
 import {

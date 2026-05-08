@@ -3,9 +3,9 @@
  * Run: node scripts/convert-sugar-transform.mjs
  */
 
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
@@ -32,9 +32,10 @@ function transformState(src) {
 	const statePattern = /\bstate(<[^>]*>)?\(/g;
 	let result = "";
 	let lastEnd = 0;
-	let match;
 
-	while ((match = statePattern.exec(src)) !== null) {
+	for (;;) {
+		const match = statePattern.exec(src);
+		if (match === null) break;
 		// Make sure it's not in a comment or string (simplified check)
 		const before = src.slice(0, match.index);
 		// Skip if preceded by '.' (method call, not our sugar)
@@ -108,9 +109,10 @@ function transformDerived(src, funcName = "derived") {
 	const pattern = new RegExp(`\\b${funcName}(<[^>]*>)?\\(`, "g");
 	let result = "";
 	let lastEnd = 0;
-	let match;
 
-	while ((match = pattern.exec(src)) !== null) {
+	for (;;) {
+		const match = pattern.exec(src);
+		if (match === null) break;
 		const before = src.slice(0, match.index);
 		if (before.endsWith(".")) continue;
 		if (before.length > 0 && /\w/.test(before[before.length - 1])) continue;
@@ -149,11 +151,11 @@ function transformDerived(src, funcName = "derived") {
 
 		// Determine indentation from context
 		const lineStart = src.lastIndexOf("\n", match.index) + 1;
-		const indent = getIndent(src.slice(lineStart, match.index + 1).trimEnd() + "x").replace(
+		const indent = getIndent(`${src.slice(lineStart, match.index + 1).trimEnd()}x`).replace(
 			/x$/,
 			"",
 		);
-		const inner = indent + "\t";
+		const inner = `${indent}\t`;
 
 		// Build the replacement
 		let optsStr;
@@ -190,9 +192,10 @@ function transformEffect(src, funcName = "effect") {
 	const pattern = new RegExp(`\\b${funcName}(<[^>]*>)?\\(`, "g");
 	let result = "";
 	let lastEnd = 0;
-	let match;
 
-	while ((match = pattern.exec(src)) !== null) {
+	for (;;) {
+		const match = pattern.exec(src);
+		if (match === null) break;
 		const before = src.slice(0, match.index);
 		if (before.endsWith(".")) continue;
 		if (before.length > 0 && /\w/.test(before[before.length - 1])) continue;
@@ -224,11 +227,11 @@ function transformEffect(src, funcName = "effect") {
 		const optsArg = topLevelArgs[2] ? topLevelArgs[2].trim() : null;
 
 		const lineStart = src.lastIndexOf("\n", match.index) + 1;
-		const indent = getIndent(src.slice(lineStart, match.index + 1).trimEnd() + "x").replace(
+		const indent = getIndent(`${src.slice(lineStart, match.index + 1).trimEnd()}x`).replace(
 			/x$/,
 			"",
 		);
-		const inner = indent + "\t";
+		const inner = `${indent}\t`;
 
 		let optsStr;
 		if (optsArg) {
@@ -262,9 +265,10 @@ function transformProducer(src) {
 	const pattern = /\bproducer(<[^>]*>)?\(/g;
 	let result = "";
 	let lastEnd = 0;
-	let match;
 
-	while ((match = pattern.exec(src)) !== null) {
+	for (;;) {
+		const match = pattern.exec(src);
+		if (match === null) break;
 		const before = src.slice(0, match.index);
 		if (before.endsWith(".")) continue;
 		if (before.length > 0 && /\w/.test(before[before.length - 1])) continue;
@@ -397,7 +401,7 @@ const REMOVED_SUGAR = [
 	"EffectFn",
 ];
 
-function updateImports(src, filePath) {
+function updateImports(src, _filePath) {
 	// Find the sugar import
 	const sugarImportRe = /import\s*\{([^}]*)\}\s*from\s*["']([^"']*core\/sugar\.js)["']/g;
 	let newSrc = src;

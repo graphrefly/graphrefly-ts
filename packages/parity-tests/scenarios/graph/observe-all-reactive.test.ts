@@ -10,8 +10,8 @@
  */
 
 import { describe, expect, test } from "vitest";
-import type { ObserveSubscription } from "../../impls/types.js";
 import { impls } from "../../impls/registry.js";
+import type { ObserveSubscription } from "../../impls/types.js";
 
 describe.each(impls)("R3.6.2 observe-all-reactive parity — $name", (impl) => {
 	test("observe(undefined, { reactive: true }) receives messages from initially-named nodes", async () => {
