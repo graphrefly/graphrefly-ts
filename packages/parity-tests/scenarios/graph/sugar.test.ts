@@ -90,11 +90,12 @@ describe.each(impls)("R3.2.1 named-sugar parity — $name", (impl) => {
 	test("g.set chained through derived produces propagated DATA", async () => {
 		const g = new impl.Graph("root");
 		const s = await g.state<number>("src", 1);
-		const d = await g.derived<number>("dbl", [s], (data) => {
-			const batch0 = data[0];
-			if (batch0 == null || batch0.length === 0) return [];
-			return batch0.map((v) => (v as number) * 2);
-		});
+		// Build the derived via impl.map(src, fn) + g.add(name, node) so the
+		// scenario runs against both impls (rustImpl's `g.derived(name, deps, fn)`
+		// with arbitrary JS fn is out-of-scope per D074 carry-forward; this
+		// shape exercises the same observable behavior — named DATA propagation
+		// through a transform — against both arms).
+		const d = await g.add("dbl", await impl.map(s, (v: number) => v * 2));
 
 		const seen: number[] = [];
 		const unsub = await d.subscribe((msgs) => {

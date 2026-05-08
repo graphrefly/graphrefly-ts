@@ -12,15 +12,17 @@ import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
+	// These tests need a derived node with named deps, but only verify
+	// `edges()` topology output. The transform's body is irrelevant — what
+	// matters is that the node is registered with name "c" (or "z") and
+	// declares deps on `a`/`b` (or `y`/`x`). We use impl.combine(...) +
+	// g.add(name, node) to land an N-ary node with named deps that works
+	// against both impls.
 	test("edges() returns local-only edges by default", async () => {
 		const g = new impl.Graph("root");
 		const a = await g.state<number>("a", 1);
 		const b = await g.state<number>("b", 2);
-		const c = await g.derived<number>("c", [a, b], (data) => {
-			const x = data[0]?.[data[0].length - 1] ?? 0;
-			const y = data[1]?.[data[1].length - 1] ?? 0;
-			return [(x as number) + (y as number)];
-		});
+		const c = await g.add("c", await impl.combine([a, b], (vals) => vals));
 
 		const edges = g.edges();
 		const edgeSet = new Set(edges.map((e) => `${e[0]}->${e[1]}`));
@@ -40,11 +42,7 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		const x = await g.state<number>("x", 1);
 		const child = await g.mount("sub");
 		const y = await child.state<number>("y", 2);
-		const _z = await child.derived<number>("z", [y, x], (data) => {
-			const yv = data[0]?.[data[0].length - 1] ?? 0;
-			const xv = data[1]?.[data[1].length - 1] ?? 0;
-			return [(yv as number) + (xv as number)];
-		});
+		const _z = await child.add("z", await impl.combine([y, x], (vals) => vals));
 		void _z;
 
 		const edges = g.edges({ recursive: true });
@@ -62,10 +60,7 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		const _x = await g.state<number>("x", 1);
 		const child = await g.mount("sub");
 		const y = await child.state<number>("y", 2);
-		const _z = await child.derived<number>("z", [y], (data) => {
-			const yv = data[0]?.[data[0].length - 1] ?? 0;
-			return [(yv as number) * 2];
-		});
+		const _z = await child.add("z", await impl.map(y, (v: number) => v * 2));
 		void _x;
 		void _z;
 

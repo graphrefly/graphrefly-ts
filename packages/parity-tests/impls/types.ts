@@ -113,8 +113,55 @@ export interface ImplGraph {
 
 	/** Static edges snapshot — `[from_path, to_path][]`. */
 	edges(opts?: { recursive?: boolean }): Array<[string, string]>;
-	/** JSON-serialized describe snapshot. */
+
+	/**
+	 * Describe snapshot. Static `describe()` returns the current
+	 * `GraphDescribeOutput` JSON; reactive `describe({ reactive: true })`
+	 * returns a [`ReactiveDescribeHandle`] whose sink fires on
+	 * push-on-subscribe + every namespace mutation per canonical R3.6.1.
+	 *
+	 * `await dispose()` unsubscribes — for the rust impl the unsubscribe
+	 * runs on a tokio blocking thread so `Subscription::Drop`'s mutex
+	 * acquisition can't stall libuv (mirrors `BenchCore::dispose`).
+	 */
 	describe(): unknown;
+	describe(opts: { reactive: true }): Promise<ReactiveDescribeHandle>;
+
+	/**
+	 * Observe message flow. Canonical R3.6.2:
+	 * - `observe()` — sink-style fan-out across all named nodes
+	 *   (snapshot at call time, NOT auto-subscribe).
+	 * - `observe(path)` — sink-style single-node tap.
+	 * - `observe(undefined, { reactive: true })` — reactive all-nodes
+	 *   variant that auto-subscribes late-added nodes.
+	 */
+	observe(): Promise<ObserveSubscription>;
+	observe(path: string): Promise<ObserveSubscription>;
+	observe(path: string | undefined, opts: { reactive: true }): Promise<ObserveSubscription>;
+}
+
+/**
+ * Reactive describe subscription. `subscribe(sink)` registers a snapshot
+ * callback; the sink fires immediately with the initial snapshot
+ * (push-on-subscribe per R3.6.1) and again on every namespace mutation.
+ * Returns a sync unsubscribe fn for the registered sink.
+ */
+export interface ReactiveDescribeHandle {
+	subscribe(sink: (snapshot: unknown) => void): () => void;
+	dispose(): Promise<void>;
+}
+
+/** Returned by `observe()` / `observe(path)` / `observe(_, { reactive: true })`. */
+export interface ObserveSubscription {
+	/**
+	 * Register a sink. For all-nodes variants the sink receives
+	 * `(path, msgs)`; for single-node sink-style the sink receives
+	 * `(msgs)` only (path is implicit). Returns a sync unsubscribe fn.
+	 */
+	subscribe(
+		sink: (pathOrMsgs: string | ReadonlyArray<Message>, msgs?: ReadonlyArray<Message>) => void,
+	): () => void;
+	dispose(): Promise<void>;
 }
 
 /** The cross-impl surface. */

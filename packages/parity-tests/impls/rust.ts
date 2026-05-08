@@ -33,6 +33,7 @@
  */
 
 import * as legacy from "@graphrefly/legacy-pure-ts";
+import { afterEach } from "vitest";
 import type { Impl, ImplGraph, ImplNode, Message, SinkFn, UnsubFn } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,51 @@ function tierForCode(code: number): symbol {
 		default:
 			return Symbol(`unknown-tier-${code}`);
 	}
+}
+
+/**
+ * Decode a flat `[code_0, payload_0, code_1, payload_1, ...]` array into
+ * the legacy `Message<T>` tuple shape, using the JS-side registry to
+ * resolve handle payloads to T values. Skips `Start` (user sinks
+ * don't see the per-subscription handshake — legacy filters it).
+ *
+ * Used by `RustGraph.observe()` (Slice X2) and the per-node
+ * `RustNode.subscribe` flow (which inlines the same logic but with
+ * cache-mirror update side effects).
+ *
+ * Slice X3 /qa Group 2 #1: throws on missing-handle for DATA/ERROR
+ * payloads instead of silently coercing to `undefined`. Per spec
+ * §2.2.1, `undefined` DATA payload is the SENTINEL guard for
+ * "never emitted" — silently producing `[DATA, undefined]` from a
+ * registry-mirror miss would be misinterpreted by downstream sinks.
+ * Mirrors the `closure_h_to_h` panic-on-unknown-HandleId discipline
+ * (operator_bindings.rs).
+ */
+function decodeMessages<T>(flat: ReadonlyArray<number>, registry: JSValueRegistry): Message<T>[] {
+	const messages: Message<T>[] = [];
+	for (let i = 0; i < flat.length; i += 2) {
+		const code = flat[i];
+		const payload = flat[i + 1];
+		if (code === MSG_CODE_START) continue;
+		if (code === MSG_CODE_DATA || code === MSG_CODE_ERROR) {
+			if (!registry.has(payload)) {
+				throw new Error(
+					`[parity-tests rust] decodeMessages: unknown HandleId(${payload}) for ` +
+						`code=${code === MSG_CODE_DATA ? "DATA" : "ERROR"}; registry mirror missing. ` +
+						`Possible Rust-side handle was leaked or release_callback didn't fire.`,
+				);
+			}
+			messages.push([
+				code === MSG_CODE_DATA ? legacy.DATA : legacy.ERROR,
+				registry.get<T>(payload) as T,
+			] as Message<T>);
+		} else if (code === MSG_CODE_PAUSE || code === MSG_CODE_RESUME) {
+			messages.push([tierForCode(code), payload] as Message<T>);
+		} else {
+			messages.push([tierForCode(code)] as Message<T>);
+		}
+	}
+	return messages;
 }
 
 function symbolToCode(sym: symbol): number {
@@ -462,8 +508,105 @@ class RustGraph implements ImplGraph {
 		return result;
 	}
 
-	describe(): unknown {
+	describe(opts?: { reactive: true }): unknown {
+		if (opts?.reactive) {
+			return this._describeReactive();
+		}
 		return JSON.parse(this.bench.describeJson());
+	}
+
+	private async _describeReactive() {
+		// Slice X2: Phase E2 reactive describe wrapper.
+		//
+		// Slice X3 /qa D+E (2026-05-08): no synchronous `describeJson()`
+		// seed. Pre-fix:
+		//   1. JS thread called `JSON.parse(this.bench.describeJson())`
+		//      synchronously to seed `latest`. That call internally
+		//      acquires Core's mutex (via `Graph::describe`'s `cache_of`
+		//      walk). If a tokio thread was mid-wave (parked in a TSFN
+		//      bridge), the JS thread blocked → libuv stalled → tokio
+		//      blocked. Same deadlock vector D080 closed for `BenchCore`.
+		//   2. The seed + TSFN's push-on-subscribe both delivered the
+		//      same initial snapshot to the first subscriber, violating
+		//      R3.6.1 "exactly one initial snapshot."
+		//
+		// New shape: `latest` starts undefined. The Rust-side
+		// `describe_reactive` fires push-on-subscribe via TSFN as part
+		// of its activation; the first TSFN delivery hydrates `latest`
+		// and fans out to all currently-subscribed sinks. Subscribers
+		// added BEFORE first TSFN arrive sit in `sinks` and fire once
+		// when it lands. Subscribers added AFTER replay `latest`
+		// immediately. No duplicate delivery, no JS-thread Core-mutex
+		// acquisition.
+		const sinks = new Set<(snapshot: unknown) => void>();
+		let latest: unknown | undefined;
+		const handle = await this.bench.describeReactive((json: string) => {
+			const snapshot = JSON.parse(json);
+			latest = snapshot;
+			for (const sink of sinks) {
+				sink(snapshot);
+			}
+		});
+		return {
+			subscribe: (sink: (snapshot: unknown) => void) => {
+				sinks.add(sink);
+				// Replay latest if first TSFN already arrived; else the
+				// next TSFN delivery will fire this sink via the Set.
+				if (latest !== undefined) {
+					sink(latest);
+				}
+				return () => {
+					sinks.delete(sink);
+				};
+			},
+			dispose: async () => {
+				sinks.clear();
+				await handle.dispose();
+			},
+		};
+	}
+
+	async observe(
+		path?: string,
+		opts?: { reactive: true },
+	): Promise<unknown> {
+		const sinks = new Set<
+			(
+				pathOrMsgs: string | ReadonlyArray<unknown>,
+				msgs?: ReadonlyArray<unknown>,
+			) => void
+		>();
+		const dispatchAll = (name: string, encoded: number[]) => {
+			const decoded = decodeMessages(encoded, this.registry);
+			for (const sink of sinks) {
+				sink(name, decoded);
+			}
+		};
+		let handle: import("@graphrefly/native").BenchObserveReactiveHandle;
+		if (opts?.reactive) {
+			// Reactive all-nodes (auto-subscribe late additions).
+			handle = await this.bench.observeAllReactive(dispatchAll);
+		} else {
+			// Sink-style — uses observeSubscribe with optional path.
+			handle = await this.bench.observeSubscribe(path ?? null, dispatchAll);
+		}
+		return {
+			subscribe: (
+				sink: (
+					pathOrMsgs: string | ReadonlyArray<unknown>,
+					msgs?: ReadonlyArray<unknown>,
+				) => void,
+			) => {
+				sinks.add(sink);
+				return () => {
+					sinks.delete(sink);
+				};
+			},
+			dispose: async () => {
+				sinks.clear();
+				await handle.dispose();
+			},
+		};
 	}
 }
 
@@ -494,6 +637,34 @@ function getState(): RustImplState {
 	}
 	return cachedState;
 }
+
+// F11 (Slice X3, Phase E /qa carry-forward): null `cachedState` between
+// tests so each test gets a fresh BenchCore + operators + registry.
+// Vitest isolates across files (process-per-file) but NOT within a file —
+// without this hook, tests that abort mid-execution before `g.destroy()`
+// leak nodes / handles into subsequent tests in the same file. Filed in
+// `~/src/graphrefly-rs/docs/porting-deferred.md` "F11 — `getState()`
+// singleton causes cross-test pollution".
+//
+// Vitest's `afterEach` is a top-level hook auto-registered for every
+// `test.runIf` / `test` in any file that imports this module (via the
+// registry that pulls in `rustImpl`).
+//
+// Slice X3 /qa B (2026-05-08): `await dispose()` BEFORE nulling
+// `cachedState` so the prior BenchCore's subscription drop runs on a
+// tokio blocking thread, not on the JS thread during the next test's
+// startup. Mirrors the D080 dispose discipline — without this, a
+// reactive sink with an in-flight TSFN delivery in test N could
+// re-introduce the JS-thread/Core-mutex deadlock in test N+1's GC.
+// `.catch(() => {})` swallows shutdown errors (e.g., dispose during
+// vitest's process teardown when the tokio runtime may already be
+// winding down).
+afterEach(async () => {
+	if (cachedState) {
+		await cachedState.core.dispose().catch(() => {});
+		cachedState = null;
+	}
+});
 
 // ---------------------------------------------------------------------------
 // Operator helpers
@@ -681,8 +852,13 @@ export const rustImpl: Impl | null = native
 				edges(opts?: { recursive?: boolean }) {
 					return this.impl.edges(opts);
 				}
-				describe() {
-					return this.impl.describe();
+				// biome-ignore lint/suspicious/noExplicitAny: overloaded signature; impl handles dispatch
+				describe(opts?: any) {
+					return this.impl.describe(opts);
+				}
+				// biome-ignore lint/suspicious/noExplicitAny: overloaded signature
+				observe(path?: string, opts?: any) {
+					return this.impl.observe(path, opts);
 				}
 			},
 
