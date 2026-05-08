@@ -1,5 +1,5 @@
 /**
- * R3.2.3 / R3.7.3 — `g.remove(name)` namespace-during-cascade ordering.
+ * R3.2.3 / R3.7.3 — `await g.remove(name)` namespace-during-cascade ordering.
  *
  * Sinks observing the TEARDOWN cascade must still resolve `name_of(node)`
  * mid-cascade — namespace clears AFTER the teardown fires, not before.
@@ -12,44 +12,44 @@ import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
-	test("remove(name) emits TEARDOWN and clears the namespace", () => {
+	test("remove(name) emits TEARDOWN and clears the namespace", async () => {
 		const g = new impl.Graph("root");
-		const s = g.state<number>("temp", 0);
+		const s = await g.state<number>("temp", 0);
 
 		const seen: symbol[] = [];
-		const unsub = s.subscribe((msgs) => {
+		const unsub = await s.subscribe((msgs) => {
 			for (const m of msgs) seen.push(m[0] as symbol);
 		});
 
 		seen.length = 0;
-		g.remove("temp");
+		await g.remove("temp");
 
 		expect(seen).toContain(impl.TEARDOWN);
 		// Post-remove, the name no longer resolves.
 		expect(g.tryResolve("temp")).toBeUndefined();
 
-		unsub();
-		g.destroy();
+		await unsub();
+		await g.destroy();
 	});
 
-	test("remove() of a mounted subgraph delegates to unmount + cascades teardown", () => {
+	test("remove() of a mounted subgraph delegates to unmount + cascades teardown", async () => {
 		const g = new impl.Graph("root");
-		const child = g.mount("child");
-		const c = child.state<number>("inner", 1);
+		const child = await g.mount("child");
+		const c = await child.state<number>("inner", 1);
 
 		const seen: symbol[] = [];
-		const unsub = c.subscribe((msgs) => {
+		const unsub = await c.subscribe((msgs) => {
 			for (const m of msgs) seen.push(m[0] as symbol);
 		});
 
 		seen.length = 0;
-		g.remove("child");
+		await g.remove("child");
 
 		expect(seen).toContain(impl.TEARDOWN);
 		expect(g.tryResolve("child::inner")).toBeUndefined();
 
-		unsub();
-		g.destroy();
+		await unsub();
+		await g.destroy();
 	});
 
 	// Skipped: TS legacy-pure-ts clears the namespace BEFORE firing TEARDOWN
@@ -57,12 +57,12 @@ describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
 	// reorders this to match canonical R3.7.3 (clear AFTER cascade). When the
 	// TS impl is backported OR rustImpl activates and this divergence becomes
 	// active in CI, re-enable this test.
-	test.skip("namespace remains resolvable from inside the TEARDOWN sink (R3.7.3 ordering)", () => {
+	test.skip("namespace remains resolvable from inside the TEARDOWN sink (R3.7.3 ordering)", async () => {
 		const g = new impl.Graph("root");
-		const s = g.state<number>("ephemeral", 0);
+		const s = await g.state<number>("ephemeral", 0);
 
 		let nameDuringTeardown: string | undefined;
-		const unsub = s.subscribe((msgs) => {
+		const unsub = await s.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === impl.TEARDOWN) {
 					nameDuringTeardown = g.nameOf(s);
@@ -70,12 +70,12 @@ describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
 			}
 		});
 
-		g.remove("ephemeral");
+		await g.remove("ephemeral");
 
 		expect(nameDuringTeardown).toBe("ephemeral");
 		expect(g.nameOf(s)).toBeUndefined();
 
-		unsub();
-		g.destroy();
+		await unsub();
+		await g.destroy();
 	});
 });

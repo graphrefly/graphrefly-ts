@@ -12,11 +12,11 @@ import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
-	test("edges() returns local-only edges by default", () => {
+	test("edges() returns local-only edges by default", async () => {
 		const g = new impl.Graph("root");
-		const a = g.state<number>("a", 1);
-		const b = g.state<number>("b", 2);
-		const c = g.derived<number>("c", [a, b], (data) => {
+		const a = await g.state<number>("a", 1);
+		const b = await g.state<number>("b", 2);
+		const c = await g.derived<number>("c", [a, b], (data) => {
 			const x = data[0]?.[data[0].length - 1] ?? 0;
 			const y = data[1]?.[data[1].length - 1] ?? 0;
 			return [(x as number) + (y as number)];
@@ -32,15 +32,15 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		expect(edges).toHaveLength(2);
 
 		void c;
-		g.destroy();
+		await g.destroy();
 	});
 
-	test("edges({ recursive: true }) walks mounted subgraphs with `::` paths", () => {
+	test("edges({ recursive: true }) walks mounted subgraphs with `::` paths", async () => {
 		const g = new impl.Graph("root");
-		const x = g.state<number>("x", 1);
-		const child = g.mount("sub");
-		const y = child.state<number>("y", 2);
-		const _z = child.derived<number>("z", [y, x], (data) => {
+		const x = await g.state<number>("x", 1);
+		const child = await g.mount("sub");
+		const y = await child.state<number>("y", 2);
+		const _z = await child.derived<number>("z", [y, x], (data) => {
 			const yv = data[0]?.[data[0].length - 1] ?? 0;
 			const xv = data[1]?.[data[1].length - 1] ?? 0;
 			return [(yv as number) + (xv as number)];
@@ -54,15 +54,15 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		expect(edgeSet.has("x->sub::z")).toBe(true);
 		expect(edgeSet.has("sub::y->sub::z")).toBe(true);
 
-		g.destroy();
+		await g.destroy();
 	});
 
-	test("edges() without recursive omits subgraph internals", () => {
+	test("edges() without recursive omits subgraph internals", async () => {
 		const g = new impl.Graph("root");
-		const _x = g.state<number>("x", 1);
-		const child = g.mount("sub");
-		const y = child.state<number>("y", 2);
-		const _z = child.derived<number>("z", [y], (data) => {
+		const _x = await g.state<number>("x", 1);
+		const child = await g.mount("sub");
+		const y = await child.state<number>("y", 2);
+		const _z = await child.derived<number>("z", [y], (data) => {
 			const yv = data[0]?.[data[0].length - 1] ?? 0;
 			return [(yv as number) * 2];
 		});
@@ -76,6 +76,6 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 			expect(to.startsWith("sub::")).toBe(false);
 		}
 
-		g.destroy();
+		await g.destroy();
 	});
 });

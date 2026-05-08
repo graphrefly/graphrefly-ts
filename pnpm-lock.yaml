@@ -613,6 +613,9 @@ importers:
       '@graphrefly/legacy-pure-ts':
         specifier: workspace:*
         version: link:../legacy-pure-ts
+      '@graphrefly/native':
+        specifier: link:../../../graphrefly-rs/crates/graphrefly-bindings-js
+        version: link:../../../graphrefly-rs/crates/graphrefly-bindings-js
     devDependencies:
       '@types/node':
         specifier: ^25.5.0

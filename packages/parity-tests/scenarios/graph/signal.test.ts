@@ -1,5 +1,5 @@
 /**
- * R3.7.1 — `g.signal(messages)` general broadcast.
+ * R3.7.1 — `await g.signal(messages)` general broadcast.
  *
  * Delivers a message batch to every registered node in this graph and,
  * recursively, in mounted child graphs. Tier 3 (DATA / RESOLVED) is rejected
@@ -15,66 +15,66 @@ import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("R3.7.1 signal parity — $name", (impl) => {
-	test("signal([[INVALIDATE]]) reaches every named node", () => {
+	test("signal([[INVALIDATE]]) reaches every named node", async () => {
 		const g = new impl.Graph("root");
-		const a = g.state<number>("a", 1);
-		const b = g.state<number>("b", 2);
+		const a = await g.state<number>("a", 1);
+		const b = await g.state<number>("b", 2);
 
 		const aSeen: symbol[] = [];
 		const bSeen: symbol[] = [];
-		const unsubA = a.subscribe((msgs) => {
+		const unsubA = await a.subscribe((msgs) => {
 			for (const m of msgs) aSeen.push(m[0] as symbol);
 		});
-		const unsubB = b.subscribe((msgs) => {
+		const unsubB = await b.subscribe((msgs) => {
 			for (const m of msgs) bSeen.push(m[0] as symbol);
 		});
 
 		aSeen.length = 0;
 		bSeen.length = 0;
-		g.signal([[impl.INVALIDATE]]);
+		await g.signal([[impl.INVALIDATE]]);
 
 		expect(aSeen).toContain(impl.INVALIDATE);
 		expect(bSeen).toContain(impl.INVALIDATE);
 
-		unsubA();
-		unsubB();
-		g.destroy();
+		await unsubA();
+		await unsubB();
+		await g.destroy();
 	});
 
-	test("signal() recurses into mounted subgraphs", () => {
+	test("signal() recurses into mounted subgraphs", async () => {
 		const g = new impl.Graph("root");
-		const top = g.state<number>("top", 1);
-		const child = g.mount("child");
-		const inner = child.state<number>("inner", 2);
+		const top = await g.state<number>("top", 1);
+		const child = await g.mount("child");
+		const inner = await child.state<number>("inner", 2);
 
 		const topSeen: symbol[] = [];
 		const innerSeen: symbol[] = [];
-		const unsub1 = top.subscribe((msgs) => {
+		const unsub1 = await top.subscribe((msgs) => {
 			for (const m of msgs) topSeen.push(m[0] as symbol);
 		});
-		const unsub2 = inner.subscribe((msgs) => {
+		const unsub2 = await inner.subscribe((msgs) => {
 			for (const m of msgs) innerSeen.push(m[0] as symbol);
 		});
 
 		topSeen.length = 0;
 		innerSeen.length = 0;
-		g.signal([[impl.INVALIDATE]]);
+		await g.signal([[impl.INVALIDATE]]);
 
 		expect(topSeen).toContain(impl.INVALIDATE);
 		expect(innerSeen).toContain(impl.INVALIDATE);
 
-		unsub1();
-		unsub2();
-		g.destroy();
+		await unsub1();
+		await unsub2();
+		await g.destroy();
 	});
 
-	test("signal() rejects tier-3 (DATA) externally", () => {
+	test("signal() rejects tier-3 (DATA) externally", async () => {
 		const g = new impl.Graph("root");
-		g.state<number>("a", 1);
+		await g.state<number>("a", 1);
 
 		// DATA is a tier-3 message; signal() must throw on external broadcast.
-		expect(() => g.signal([[impl.DATA, 99]])).toThrow();
+		await expect(g.signal([[impl.DATA, 99]])).rejects.toThrow();
 
-		g.destroy();
+		await g.destroy();
 	});
 });

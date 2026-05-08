@@ -25,46 +25,49 @@ import { impls } from "../../impls/registry.js";
 // =====================================================================
 
 describe.each(impls)("R8.L2 switchMap parity — $name", (impl) => {
-	test("switchMap cancels prior inner on new outer DATA", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const inner1 = impl.node<number>([], { name: "inner1" });
-		const inner2 = impl.node<number>([], { name: "inner2" });
+	test("switchMap cancels prior inner on new outer DATA", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		const inner1 = await impl.node<number>([], { name: "inner1" });
+		const inner2 = await impl.node<number>([], { name: "inner2" });
 		const inners = [inner1, inner2];
-		const m = impl.switchMap<number, number>(outer, () => inners.shift()!);
+		const m = await impl.switchMap<number, number>(outer, () => inners.shift()!);
 
 		const seen: number[] = [];
-		const unsub = m.subscribe((msgs) => {
+		const unsub = await m.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === impl.DATA) seen.push(msg[1] as number);
 		});
 
 		try {
-			outer.down([[impl.DATA, 1]]); // -> inner1
-			inner1.down([[impl.DATA, 100]]);
+			await outer.down([[impl.DATA, 1]]); // -> inner1
+			await inner1.down([[impl.DATA, 100]]);
 			expect(seen).toEqual([100]);
 
-			outer.down([[impl.DATA, 2]]); // -> cancel inner1, subscribe inner2
-			inner1.down([[impl.DATA, 999]]); // ignored
-			inner2.down([[impl.DATA, 200]]);
+			await outer.down([[impl.DATA, 2]]); // -> cancel inner1, subscribe inner2
+			await inner1.down([[impl.DATA, 999]]); // ignored
+			await inner2.down([[impl.DATA, 200]]);
 			expect(seen).toEqual([100, 200]);
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 
-	test("switchMap completes when outer completes with no active inner", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const m = impl.switchMap<number, number>(outer, () => impl.node<number>([], {}));
+	test("switchMap completes when outer completes with no active inner", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		// Inner factory needs to be sync (project fn returns ImplNode synchronously);
+		// pre-construct the inner outside the projector closure.
+		const innerProto = await impl.node<number>([], {});
+		const m = await impl.switchMap<number, number>(outer, () => innerProto);
 
 		let completed = false;
-		const unsub = m.subscribe((msgs) => {
+		const unsub = await m.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === impl.COMPLETE) completed = true;
 		});
 
 		try {
-			outer.down([[impl.COMPLETE]]);
+			await outer.down([[impl.COMPLETE]]);
 			expect(completed).toBe(true);
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 });
@@ -74,54 +77,54 @@ describe.each(impls)("R8.L2 switchMap parity — $name", (impl) => {
 // =====================================================================
 
 describe.each(impls)("R8.L2 exhaustMap parity — $name", (impl) => {
-	test("exhaustMap drops outer DATA while inner is active", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const inner1 = impl.node<number>([], { name: "inner1" });
+	test("exhaustMap drops outer DATA while inner is active", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		const inner1 = await impl.node<number>([], { name: "inner1" });
 		let projectCount = 0;
-		const m = impl.exhaustMap<number, number>(outer, () => {
+		const m = await impl.exhaustMap<number, number>(outer, () => {
 			projectCount++;
 			return inner1;
 		});
 
 		const seen: number[] = [];
-		const unsub = m.subscribe((msgs) => {
+		const unsub = await m.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === impl.DATA) seen.push(msg[1] as number);
 		});
 
 		try {
-			outer.down([[impl.DATA, 1]]); // -> inner1 active
-			outer.down([[impl.DATA, 2]]); // dropped
-			outer.down([[impl.DATA, 3]]); // dropped
+			await outer.down([[impl.DATA, 1]]); // -> inner1 active
+			await outer.down([[impl.DATA, 2]]); // dropped
+			await outer.down([[impl.DATA, 3]]); // dropped
 			expect(projectCount).toBe(1);
 
-			inner1.down([[impl.DATA, 100]]);
+			await inner1.down([[impl.DATA, 100]]);
 			expect(seen).toEqual([100]);
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 
-	test("exhaustMap accepts new outer DATA after inner completes", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const inner1 = impl.node<number>([], { name: "inner1" });
-		const inner2 = impl.node<number>([], { name: "inner2" });
+	test("exhaustMap accepts new outer DATA after inner completes", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		const inner1 = await impl.node<number>([], { name: "inner1" });
+		const inner2 = await impl.node<number>([], { name: "inner2" });
 		const inners = [inner1, inner2];
-		const m = impl.exhaustMap<number, number>(outer, () => inners.shift()!);
+		const m = await impl.exhaustMap<number, number>(outer, () => inners.shift()!);
 
 		const seen: number[] = [];
-		const unsub = m.subscribe((msgs) => {
+		const unsub = await m.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === impl.DATA) seen.push(msg[1] as number);
 		});
 
 		try {
-			outer.down([[impl.DATA, 1]]);
-			inner1.down([[impl.DATA, 100]]);
-			inner1.down([[impl.COMPLETE]]); // window closed
-			outer.down([[impl.DATA, 2]]); // -> inner2
-			inner2.down([[impl.DATA, 200]]);
+			await outer.down([[impl.DATA, 1]]);
+			await inner1.down([[impl.DATA, 100]]);
+			await inner1.down([[impl.COMPLETE]]); // window closed
+			await outer.down([[impl.DATA, 2]]); // -> inner2
+			await inner2.down([[impl.DATA, 200]]);
 			expect(seen).toEqual([100, 200]);
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 });
@@ -131,65 +134,65 @@ describe.each(impls)("R8.L2 exhaustMap parity — $name", (impl) => {
 // =====================================================================
 
 describe.each(impls)("R8.L2 concatMap parity — $name", (impl) => {
-	test("concatMap processes inners sequentially", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const inner1 = impl.node<number>([], { name: "inner1" });
-		const inner2 = impl.node<number>([], { name: "inner2" });
-		const inner3 = impl.node<number>([], { name: "inner3" });
+	test("concatMap processes inners sequentially", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		const inner1 = await impl.node<number>([], { name: "inner1" });
+		const inner2 = await impl.node<number>([], { name: "inner2" });
+		const inner3 = await impl.node<number>([], { name: "inner3" });
 		const inners = [inner1, inner2, inner3];
 		let projectCount = 0;
-		const m = impl.concatMap<number, number>(outer, () => {
+		const m = await impl.concatMap<number, number>(outer, () => {
 			projectCount++;
 			return inners.shift()!;
 		});
 
 		const seen: number[] = [];
-		const unsub = m.subscribe((msgs) => {
+		const unsub = await m.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === impl.DATA) seen.push(msg[1] as number);
 		});
 
 		try {
-			outer.down([[impl.DATA, 1]]);
-			outer.down([[impl.DATA, 2]]);
-			outer.down([[impl.DATA, 3]]);
+			await outer.down([[impl.DATA, 1]]);
+			await outer.down([[impl.DATA, 2]]);
+			await outer.down([[impl.DATA, 3]]);
 			expect(projectCount).toBe(1); // 2/3 queued
 
-			inner1.down([[impl.DATA, 10]]);
-			inner1.down([[impl.COMPLETE]]);
+			await inner1.down([[impl.DATA, 10]]);
+			await inner1.down([[impl.COMPLETE]]);
 			expect(projectCount).toBe(2);
 
-			inner2.down([[impl.DATA, 20]]);
-			inner2.down([[impl.COMPLETE]]);
+			await inner2.down([[impl.DATA, 20]]);
+			await inner2.down([[impl.COMPLETE]]);
 			expect(projectCount).toBe(3);
 
-			inner3.down([[impl.DATA, 30]]);
+			await inner3.down([[impl.DATA, 30]]);
 			expect(seen).toEqual([10, 20, 30]);
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 
-	test("concatMap completes after outer + queued inners drain", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const inner1 = impl.node<number>([], { name: "inner1" });
-		const inner2 = impl.node<number>([], { name: "inner2" });
+	test("concatMap completes after outer + queued inners drain", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		const inner1 = await impl.node<number>([], { name: "inner1" });
+		const inner2 = await impl.node<number>([], { name: "inner2" });
 		const inners = [inner1, inner2];
-		const m = impl.concatMap<number, number>(outer, () => inners.shift()!);
+		const m = await impl.concatMap<number, number>(outer, () => inners.shift()!);
 
 		let completed = false;
-		const unsub = m.subscribe((msgs) => {
+		const unsub = await m.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === impl.COMPLETE) completed = true;
 		});
 
 		try {
-			outer.down([[impl.DATA, 1]]);
-			outer.down([[impl.DATA, 2]]);
-			outer.down([[impl.COMPLETE]]);
-			inner1.down([[impl.COMPLETE]]);
-			inner2.down([[impl.COMPLETE]]);
+			await outer.down([[impl.DATA, 1]]);
+			await outer.down([[impl.DATA, 2]]);
+			await outer.down([[impl.COMPLETE]]);
+			await inner1.down([[impl.COMPLETE]]);
+			await inner2.down([[impl.COMPLETE]]);
 			expect(completed).toBe(true);
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 });
@@ -199,90 +202,90 @@ describe.each(impls)("R8.L2 concatMap parity — $name", (impl) => {
 // =====================================================================
 
 describe.each(impls)("R8.L2 mergeMap parity — $name", (impl) => {
-	test("mergeMap unbounded spawns all inners in parallel", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const inner1 = impl.node<number>([], { name: "inner1" });
-		const inner2 = impl.node<number>([], { name: "inner2" });
-		const inner3 = impl.node<number>([], { name: "inner3" });
+	test("mergeMap unbounded spawns all inners in parallel", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		const inner1 = await impl.node<number>([], { name: "inner1" });
+		const inner2 = await impl.node<number>([], { name: "inner2" });
+		const inner3 = await impl.node<number>([], { name: "inner3" });
 		const inners = [inner1, inner2, inner3];
-		const m = impl.mergeMap<number, number>(outer, () => inners.shift()!);
+		const m = await impl.mergeMap<number, number>(outer, () => inners.shift()!);
 
 		const seen: number[] = [];
-		const unsub = m.subscribe((msgs) => {
+		const unsub = await m.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === impl.DATA) seen.push(msg[1] as number);
 		});
 
 		try {
-			outer.down([[impl.DATA, 1]]);
-			outer.down([[impl.DATA, 2]]);
-			outer.down([[impl.DATA, 3]]);
+			await outer.down([[impl.DATA, 1]]);
+			await outer.down([[impl.DATA, 2]]);
+			await outer.down([[impl.DATA, 3]]);
 
-			inner1.down([[impl.DATA, 10]]);
-			inner2.down([[impl.DATA, 20]]);
-			inner3.down([[impl.DATA, 30]]);
+			await inner1.down([[impl.DATA, 10]]);
+			await inner2.down([[impl.DATA, 20]]);
+			await inner3.down([[impl.DATA, 30]]);
 
 			expect([...seen].sort((a, b) => a - b)).toEqual([10, 20, 30]);
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 
-	test("mergeMap with concurrency=2 caps active inners", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const inner1 = impl.node<number>([], { name: "inner1" });
-		const inner2 = impl.node<number>([], { name: "inner2" });
-		const inner3 = impl.node<number>([], { name: "inner3" });
+	test("mergeMap with concurrency=2 caps active inners", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		const inner1 = await impl.node<number>([], { name: "inner1" });
+		const inner2 = await impl.node<number>([], { name: "inner2" });
+		const inner3 = await impl.node<number>([], { name: "inner3" });
 		const inners = [inner1, inner2, inner3];
 		let projectCount = 0;
-		const m = impl.mergeMap<number, number>(
+		const m = await impl.mergeMap<number, number>(
 			outer,
 			() => {
 				projectCount++;
 				return inners.shift()!;
 			},
-			{ concurrent: 2 },
+			2,
 		);
 
-		const unsub = m.subscribe(() => {});
+		const unsub = await m.subscribe(() => {});
 
 		try {
-			outer.down([[impl.DATA, 1]]);
-			outer.down([[impl.DATA, 2]]);
-			outer.down([[impl.DATA, 3]]);
+			await outer.down([[impl.DATA, 1]]);
+			await outer.down([[impl.DATA, 2]]);
+			await outer.down([[impl.DATA, 3]]);
 			expect(projectCount).toBe(2); // third buffered
 
-			inner1.down([[impl.COMPLETE]]);
+			await inner1.down([[impl.COMPLETE]]);
 			expect(projectCount).toBe(3); // third drains
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 
-	test("mergeMap completes after outer + all inners complete", () => {
-		const outer = impl.node<number>([], { name: "outer" });
-		const inner1 = impl.node<number>([], { name: "inner1" });
-		const inner2 = impl.node<number>([], { name: "inner2" });
+	test("mergeMap completes after outer + all inners complete", async () => {
+		const outer = await impl.node<number>([], { name: "outer" });
+		const inner1 = await impl.node<number>([], { name: "inner1" });
+		const inner2 = await impl.node<number>([], { name: "inner2" });
 		const inners = [inner1, inner2];
-		const m = impl.mergeMap<number, number>(outer, () => inners.shift()!);
+		const m = await impl.mergeMap<number, number>(outer, () => inners.shift()!);
 
 		let completed = false;
-		const unsub = m.subscribe((msgs) => {
+		const unsub = await m.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === impl.COMPLETE) completed = true;
 		});
 
 		try {
-			outer.down([[impl.DATA, 1]]);
-			outer.down([[impl.DATA, 2]]);
-			outer.down([[impl.COMPLETE]]);
+			await outer.down([[impl.DATA, 1]]);
+			await outer.down([[impl.DATA, 2]]);
+			await outer.down([[impl.COMPLETE]]);
 			expect(completed).toBe(false);
 
-			inner1.down([[impl.COMPLETE]]);
+			await inner1.down([[impl.COMPLETE]]);
 			expect(completed).toBe(false);
 
-			inner2.down([[impl.COMPLETE]]);
+			await inner2.down([[impl.COMPLETE]]);
 			expect(completed).toBe(true);
 		} finally {
-			unsub();
+			await unsub();
 		}
 	});
 });

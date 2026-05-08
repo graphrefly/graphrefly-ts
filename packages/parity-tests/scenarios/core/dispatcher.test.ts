@@ -8,21 +8,21 @@
  *
  * This scenario is the seed scenario for the Phase 13.9.A acceptance bar:
  * "at least the M1 + M2-Slice-D scenarios (Core dispatcher + Graph
- * container) running against both impls and green." Until `@graphrefly/native`
- * publishes (`impls/rust.ts`), only the legacy-pure-ts arm runs.
+ * container) running against both impls and green." Phase E (D077)
+ * activates the Rust arm; the test is async-shaped per `Impl` interface.
  */
 
 import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("M1 dispatcher parity — $name", (impl) => {
-	test("node([], { initial }) replays cached DATA on subscribe (push-on-subscribe, spec §2.2)", () => {
-		const n = impl.node<number>([], { initial: 42, name: "answer" });
+	test("node([], { initial }) replays cached DATA on subscribe (push-on-subscribe, spec §2.2)", async () => {
+		const n = await impl.node<number>([], { initial: 42, name: "answer" });
 
 		expect(n.cache).toBe(42);
 
 		const seen: Array<readonly [symbol, unknown]> = [];
-		const unsubscribe = n.subscribe((msgs) => {
+		const unsubscribe = await n.subscribe((msgs) => {
 			for (const m of msgs) seen.push([m[0] as symbol, m[1]]);
 		});
 		try {
@@ -30,7 +30,7 @@ describe.each(impls)("M1 dispatcher parity — $name", (impl) => {
 			expect(data).toBeDefined();
 			expect(data?.[1]).toBe(42);
 		} finally {
-			unsubscribe();
+			await unsubscribe();
 		}
 	});
 });
