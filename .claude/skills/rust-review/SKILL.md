@@ -108,7 +108,7 @@ Present a summary:
 
 ## Phase 7: Maintain `flowcharts.md`
 
-`~/src/graphrefly-rs/docs/flowcharts.md` is the standing visual aid for the repo. After reporting, sync it with the slice you just reviewed.
+`~/src/graphrefly-rs/docs/flowcharts.md` is the standing visual aid for the repo and **the canonical source** for the review-site flowcharts. After reporting, sync it with the slice you just reviewed.
 
 For **each new public method, state machine, or distinctive pattern** you traced in Phase 2 that isn't already diagrammed:
 
@@ -123,6 +123,83 @@ For **diagrams that became stale** (impl changed shape, e.g. a lock-held callbac
 
 Keep diagrams concise — one diagram per concept. If a diagram grows past ~30 nodes, split it.
 
+**Mermaid syntax pitfalls** (verified to fail in mermaid v10):
+- `;` in sequenceDiagram message text (use `,` or `—` instead).
+- `:` inside stateDiagram-v2 state descriptions when followed by `{...}` (use `note right of <state>` blocks instead).
+- Generics with `<T>` inside class/state diagrams — use `~T~` (single token, no spaces, no commas inside).
+- Stray `activate`/`deactivate` pairs across `alt`/`else` branches (mermaid counts them globally; either omit them or close every branch).
+- Bracket labels `["…"]` containing parens or `::` — replace with `[…]` plain text or use entities.
+- After authoring, run a sweep render check (Phase 8 step 3 below).
+
+---
+
+## Phase 8: Append a new review report + keep the review website fresh
+
+The review site at `~/src/graphrefly-rs/docs/review/` is the persistent record across all `/rust-review` invocations. **Every run extends the record** — never rewrite earlier reports.
+
+Layout (all relative to `~/src/graphrefly-rs/`):
+
+```
+docs/
+├── flowcharts.md                  ← canonical (Phase 7 edits land here)
+└── review/
+    ├── README.md
+    ├── reports-NNN-<slug>.md      ← Phase 8.1 adds new ones
+    └── site/                      ← static HTML/CSS/JS (no build step)
+        └── js/app.js              ← REPORTS array updated in Phase 8.4
+```
+
+### 8.1 Append a new report file
+
+Add a new file `~/src/graphrefly-rs/docs/review/reports-NNN-<slug>.md` where `NNN` is the next zero-padded integer (e.g. if `reports-005-…md` exists, your new file is `reports-006-…md`). The slug is a short kebab-cased descriptor of $ARGUMENTS (e.g. `m4-storage-wal`, `slice-i-mount-cross-core`).
+
+Required sections, mirroring the existing reports' shape:
+
+1. **Header** — slices covered, landed dates, test count progression, any /qa rounds.
+2. **Why this slice exists** — short premise paragraph.
+3. **Behavioral traces** — copy from Phase 2 (each with spec-rule citations).
+4. **Simplification delta** — copy from Phase 3.
+5. **Deferred gaps audit** — copy from Phase 4.
+6. **Parity test coverage** — copy from Phase 5.
+7. **Recommended actions** — punch list.
+8. **Overall assessment** — spec-fidelity / over-engineering risk / deferred items / HALT or no.
+
+**Reference flowcharts using markdown links of the form `[F<batch>.<n>](#fc-<batch>-<n>)`** (e.g. `[F7.2](#fc-7.2)`). The site renderer rewrites those into clickable chips that open the diagram in a draggable modal. Do NOT use bare `[F7.2]` — markdown won't render it as a link.
+
+### 8.2 Update the overview index
+
+Edit `~/src/graphrefly-rs/docs/review/reports-000-overview.md`:
+- Append a row to the **"Current state at a glance"** table for the slice you reviewed (status, test count, one-line note).
+- Append a row to the **"Reports in this set"** table pointing at the new file.
+- Update the review date in the header.
+
+### 8.3 No flowcharts.md sync needed — site fetches canonical directly
+
+The website at `docs/review/site/` fetches `../../flowcharts.md` (i.e. `~/src/graphrefly-rs/docs/flowcharts.md`) — there is no longer a sync'd copy. Phase 7 edits are picked up on browser refresh.
+
+After Phase 7 edits, verify every diagram still renders. Either:
+- (preferred) Run the review site via `preview_start` with the `rust-review` launch profile (port 8765, serves `~/src/graphrefly-rs/docs/`), then in the browser run a sweep — fetch `../../flowcharts.md`, parse each `### x.y` heading + next ` ```mermaid ` block, call `mermaid.render()` on each. Report any failures by `(id, batch, error)`.
+- (fallback) Open each newly-added diagram individually in the running site by clicking its sidebar entry; confirm no error overlay appears.
+
+If sweep finds failures, fix the diagram source in `~/src/graphrefly-rs/docs/flowcharts.md` directly and re-sweep until clean. Common fixes are listed under "Mermaid syntax pitfalls" in Phase 7.
+
+### 8.4 No file-rename / no link-breakage rule
+
+- Existing report filenames are immutable. Adding `reports-006-…md` is fine; renaming `reports-005-…md` to `reports-005-…-old.md` is not.
+- The `REPORTS` array in `~/src/graphrefly-rs/docs/review/site/js/app.js` MUST be updated to include each new report file in chronological order (oldest first). The order in that array is the order in the sidebar.
+- If a slice gets retroactively reorganized (rare), prefer adding a new short corrigendum report rather than mutating an old one. Past reports are dated artifacts.
+
+### 8.5 Smoke-check the site before declaring done
+
+After Phase 8.1–8.4:
+
+1. `preview_start` with the `rust-review` profile (defined in `~/src/graphrefly-rs/.claude/launch.json`; serves on port 8765, document root is `docs/`).
+2. Navigate to `http://localhost:8765/review/site/#<new-report-id>`; confirm the chips render and at least one chip opens its modal cleanly.
+3. Confirm the new diagrams appear in the sidebar's "Flowcharts (canonical)" tree under their batch.
+4. Page-scroll while a modal is open to confirm the body scrolls underneath (regression check).
+
+If any of those fail, fix before reporting done. Each `/rust-review` run leaves the site in a working state.
+
 ---
 
 ## When to escalate
@@ -132,3 +209,4 @@ If during the review you find:
 - A simplification delta row suggesting the Rust impl added unnecessary machinery → suggest removal
 - A deferred item that the current code depends on for correctness → flag as critical gap
 - A flowchart diagram that contradicts the actual code (drift) → fix the diagram in Phase 7 and call out the drift in the report
+- A mermaid sweep failure that you cannot fix in two attempts → leave the diagram in but note the failure in the report's "Recommended actions" so it gets followup attention
