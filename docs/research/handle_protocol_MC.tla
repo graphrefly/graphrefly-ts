@@ -27,6 +27,7 @@ ValuesMC      == {0, 1, 2}
 DefaultInitMC == 0
 MaxEmitsMC    == 2
 BatchSeqsMC   == {}
+BatchInvSeqsMC == {}    \* Q14 (2026-05-07) — see wave_protocol.tla §"BatchInvSeqs". Empty disables the BatchEmitWithInv action, matching all pre-Q14 MC files in graphrefly/formal/.
 
 GapAwareActivationMC == FALSE
 SinkNestedEmitsMC == {}
