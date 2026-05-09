@@ -1,7 +1,7 @@
 # Handle-protocol audit input for Phase 13.6.A
 
 *Created 2026-05-02 as research artifact. Companion to:*
-- `docs/research/handle-protocol.tla` — refinement spec EXTENDS `wave_protocol`
+- `docs/research/handle_protocol.tla` — refinement spec EXTENDS `wave_protocol`
 - `docs/research/handle_protocol_MC.tla` + `.cfg` — diamond scenario MC
 - `src/__experiments__/handle-core/` — TS prototype (22 vitest tests passing)
 
@@ -187,7 +187,7 @@ pnpm test src/__experiments__/handle-core/
 
 # TLA+ — copy spec + scenarios into a working dir alongside tla2tools.jar
 cp ~/src/graphrefly/formal/wave_protocol.tla /tmp/tla-check/
-cp docs/research/handle-protocol.tla /tmp/tla-check/handle_protocol.tla
+cp docs/research/handle_protocol.tla /tmp/tla-check/handle_protocol.tla
 cp docs/research/handle_protocol_MC.tla /tmp/tla-check/
 cp docs/research/handle_protocol_MC.cfg /tmp/tla-check/
 cd /tmp/tla-check && \

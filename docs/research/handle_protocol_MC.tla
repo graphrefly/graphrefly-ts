@@ -7,7 +7,7 @@ invariants run alongside the handle-specific ones.
 
 To run:
     cp ~/src/graphrefly/formal/wave_protocol.tla /tmp/tla-check/
-    cp docs/research/handle-protocol.tla /tmp/tla-check/handle_protocol.tla
+    cp docs/research/handle_protocol.tla /tmp/tla-check/handle_protocol.tla
     cp docs/research/handle_protocol_MC.tla /tmp/tla-check/
     cp docs/research/handle_protocol_MC.cfg /tmp/tla-check/
     cd /tmp/tla-check && \

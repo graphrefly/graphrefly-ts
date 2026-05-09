@@ -55,7 +55,7 @@ These supersede / consolidate the multi-file TS authority for Rust port purposes
 ### Cross-repo context (READ AS NEEDED)
 
 - **`archive/docs/SESSION-rust-port-architecture.md`** — the migration plan: 6-milestone phasing, layer-by-layer port recommendation, deferral guardrails. Read FIRST when picking up port work in a new area.
-- **`docs/research/handle-protocol.tla` + `handle_protocol_MC.tla`** — TLA+ refinement of `wave_protocol.tla` over the handle abstraction. The Rust port must satisfy the same invariants.
+- **`docs/research/handle_protocol.tla` + `handle_protocol_MC.tla`** — TLA+ refinement of `wave_protocol.tla` over the handle abstraction. The Rust port must satisfy the same invariants.
 - **`docs/research/handle-protocol-audit-input.md`** — per-rule classification (which 13.6 invariants are Core-internal vs binding-layer). Use as the layer-classification key during M1–M5.
 - **`packages/pure-ts/src/__experiments__/handle-core/core.ts` + `bindings.ts`** — TS prototype reference impl (~370 lines each, 22 invariant tests). The Rust port mirrors this module-for-module for the M1 dispatcher slice. (Post-Phase-13.9.A cleave: the pure-TS impl moved from root `src/` to `packages/pure-ts/src/`. The root `src/` is now the `@graphrefly/graphrefly` shim — re-exports only, no logic.)
 - **`packages/pure-ts/src/core/node.ts` + supporting files** — TS production dispatcher. Reference for parity behavior, NOT for code structure (the Rust port follows the canonical spec, not the current TS shape — see §11 Implementation Deltas).
