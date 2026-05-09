@@ -1,7 +1,8 @@
 {
 	"name": "@graphrefly/mcp-server",
 	"version": "0.0.2",
-	"description": "Model Context Protocol server for GraphReFly — expose graph operations (create, describe, observe, explain, reduce, snapshot) as MCP tools.",
+	"private": true,
+	"description": "Model Context Protocol server for GraphReFly — expose graph operations (create, describe, observe, explain, reduce, snapshot) as MCP tools. NOT YET PUBLISHED — see docs/known-issues.md.",
 	"license": "MIT",
 	"mcpName": "io.github.graphrefly/mcp-server",
 	"repository": {

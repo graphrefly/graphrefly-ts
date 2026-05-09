@@ -42,3 +42,22 @@ Path A is the cheaper restore. Punt the decision until after the Rust port settl
      cp -r demos/pagerduty-triage/dist/. website/dist/demos/pagerduty-triage/
    ```
 3. Delete this section from `known-issues.md`.
+
+## `@graphrefly/cli` and `@graphrefly/mcp-server` marked private
+
+**Symptom:** changesets `pnpm release` fails with TypeScript build errors when trying to publish these packages — `Property 'explain' does not exist on type 'Graph'`, `Module '"@graphrefly/graphrefly"' has no exported member 'memoryStorage'`, `Module '"@graphrefly/graphrefly/extra/node"' has no exported member 'fileStorage'`, etc.
+
+**Cause:** Same root cause as the demos above — these packages reference removed/renamed APIs (`Graph.explain`, `memoryStorage`, `StorageTier`, `fileStorage`) that drifted during Phase 4+ refactors. Additionally `cli` imports from `@graphrefly/mcp-server`, which isn't on npm yet — chicken/egg.
+
+**Workaround in place:** Both packages marked `"private": true` in their `package.json`. Changesets respects the flag and skips publishing them. They still build via `pnpm build` for local dev (no publish guard there), but `prepublishOnly` is gated behind the privacy flag.
+
+**Decision deferred to:** same window as the demo migration (post-Rust-port). Restoration:
+1. Migrate `cli/src/dispatch.ts` and `mcp-server/src/{session,tools}.ts` to current API (Graph methods, current storage symbols).
+2. Decide cli↔mcp-server dependency model:
+   - Option A: cli imports mcp-server via `workspace:*` (already does), publish cli AFTER mcp-server lands on npm.
+   - Option B: cli inlines the mcp-server entry it needs, drops the dependency.
+3. Remove `"private": true` from both `package.json` files.
+4. Restore the `NOT YET PUBLISHED — see docs/known-issues.md` text in `description` to the original.
+5. Set up npm trusted-publisher config for both at `https://www.npmjs.com/package/<name>/access`.
+6. Push a changeset that bumps both → next release publishes them.
+7. Delete this section from `known-issues.md`.
