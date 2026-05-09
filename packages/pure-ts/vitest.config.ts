@@ -21,6 +21,13 @@ export default defineConfig({
 		environment: "node",
 	},
 	benchmark: {
+		// CI-eligible benches use the `*.bench.ts` suffix.
+		// Maintainer-local profiling tools that hardcode
+		// `/Users/davidchenallio/src/graphrefly-rs/target/release/...` paths
+		// or run as standalone scripts (without `bench()` blocks) use the
+		// `*.bench.local.ts` suffix and are excluded from this glob. Run them
+		// directly via `vitest bench src/__bench__/<file>` after
+		// `pnpm --filter @graphrefly/native build`.
 		include: ["src/__bench__/**/*.bench.ts"],
 		environment: "node",
 	},

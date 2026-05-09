@@ -6,11 +6,25 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel an in-flight CI run if a newer commit lands on the same ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
+# Skip CI on PR sync events from the changesets/release-plz bot. Same
+# rationale as graphrefly-rs/.github/workflows/ci.yml — see the long
+# comment block there. In short: the bot's release PRs add only
+# mechanical version bumps + changelog entries on top of code that was
+# already tested by the push:main run that triggered the bot. The
+# post-merge "chore: release packages" push will run CI again before
+# changesets-action publishes.
+
 jobs:
   check:
+    if: ${{ github.event_name != 'pull_request' || github.actor != 'graphrefly-write-content[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
