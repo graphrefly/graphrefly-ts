@@ -65,7 +65,9 @@ export function checkpointToS3(
 		// S3 tier is write-only here — one object per checkpoint timestamp,
 		// no canonical "latest" key for load.
 	};
-	return graph.attachSnapshotStorage([tier], { onError: (err: unknown) => onError?.(err) });
+	return graph.attachSnapshotStorage([{ snapshot: tier }], {
+		onError: (err: unknown) => onError?.(err),
+	});
 }
 
 /** Duck-typed Redis client for checkpoint storage. */
@@ -131,5 +133,7 @@ export function checkpointToRedis(
 			}
 		},
 	};
-	return graph.attachSnapshotStorage([tier], { onError: (err: unknown) => onError?.(err) });
+	return graph.attachSnapshotStorage([{ snapshot: tier }], {
+		onError: (err: unknown) => onError?.(err),
+	});
 }

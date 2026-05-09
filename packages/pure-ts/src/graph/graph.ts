@@ -37,9 +37,27 @@ import {
 } from "../core/node.js";
 import type { VersioningLevel } from "../core/versioning.js";
 import { type DescribeChangeset, topologyDiff } from "../extra/composition/topology-diff.js";
+import type {
+	GraphValueChange,
+	GraphValueChangePayload,
+	SpecChange,
+	SpecChangePayload,
+} from "../extra/data-structures/change.js";
 import { keepalive } from "../extra/sources.js";
 import type { StorageHandle } from "../extra/storage-core.js";
-import type { SnapshotStorageTier } from "../extra/storage-tiers.js";
+import type { BaseStorageTier, SnapshotStorageTier } from "../extra/storage-tiers.js";
+import {
+	graphWalPrefix,
+	iterateWalFrames,
+	REPLAY_ORDER,
+	RestoreError,
+	type RestoreResult,
+	type StorageError,
+	verifyWalFrameChecksum,
+	type WALFrame,
+	walFrameChecksum,
+	walFrameKey,
+} from "../extra/storage-wal.js";
 import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
 import type {
@@ -555,6 +573,78 @@ export type GraphCheckpointRecord = {
 	timestamp_ns: number;
 	format_version: number;
 } & ({ mode: "full"; snapshot: GraphPersistSnapshot } | { mode: "diff"; diff: GraphWALDiff });
+
+/**
+ * Paired tier slot for {@link Graph.attachSnapshotStorage} (Phase 14.6 —
+ * DS-14-storage Q3 lock B).
+ *
+ * `snapshot` holds the `mode:"full"` baseline records (one per `compactEvery`
+ * window). `wal` is the optional companion that captures intermediate
+ * `WALFrame<T>` records between baselines so `Graph.restoreSnapshot({ mode:
+ * "diff" })` can replay state at frame-level granularity. When `wal` is
+ * omitted, the slot writes only baselines (effectively `compactEvery=1`) —
+ * intermediate state is unrecoverable but the latest snapshot always is.
+ */
+export type AttachSnapshotTierPair = {
+	snapshot: SnapshotStorageTier<GraphCheckpointRecord>;
+	/**
+	 * WAL companion. Must implement {@link BaseStorageTier.listByPrefix}
+	 * (the default `kvStorage` factory does). Omit to skip WAL emission and
+	 * fall back to baseline-only persistence.
+	 */
+	wal?: BaseStorageTier;
+};
+
+/**
+ * Options for {@link Graph.restoreSnapshot} (Phase 14.6 — DS-14-storage Q9
+ * lock).
+ *
+ * @category graph
+ */
+export type GraphRestoreSnapshotOptions = {
+	/** Replay mode. Currently only `"diff"` (WAL replay) is implemented. */
+	readonly mode: "diff";
+	/**
+	 * Source of frames. Two forms:
+	 * - Pre-collected `AsyncIterable<WALFrame>` — caller assembled the WAL
+	 *   externally (fixture stream, network replay). Frame ordering must be
+	 *   stable across iterations and `frame_seq` values must be unique
+	 *   per stream — cross-tier merging without an explicit total-order
+	 *   resolver isn't supported in Phase 14.6.
+	 * - Tier handle `{ tier, walTier }` — load the latest `mode:"full"`
+	 *   baseline from `tier`, then enumerate WAL frames via
+	 *   `walTier.listByPrefix`. Both fields are required (Phase 14.6 fix
+	 *   B1 — the snapshot tier doesn't expose `listByPrefix`, so the
+	 *   former `walTier ?? tier` fallback was misleading).
+	 */
+	readonly source:
+		| AsyncIterable<WALFrame>
+		| {
+				readonly tier: SnapshotStorageTier<GraphCheckpointRecord>;
+				readonly walTier: BaseStorageTier;
+		  };
+	/**
+	 * DS-14 lifecycle filter. Default: full set `("spec" | "data" |
+	 * "ownership")`. Pass narrower set to scope the rewind ("spec-only",
+	 * "data-only", etc. — DS-14 PART 4).
+	 */
+	readonly lifecycle?: readonly ("spec" | "data" | "ownership")[];
+	/**
+	 * Point-in-time recovery — replay up to a specific `frame_seq` ceiling
+	 * (inclusive). Default: WAL tail.
+	 */
+	readonly targetSeq?: number;
+	/**
+	 * Torn-frame policy. Returns `"skip"` to drop the frame and continue,
+	 * `"abort"` to throw `RestoreError("torn-write-mid-stream")`. Default
+	 * (when omitted) is `"skip"` at WAL tail and `"abort"` mid-stream
+	 * (Q3 lock).
+	 */
+	readonly onTornWrite?: (info: {
+		readonly frame_seq: number;
+		readonly reason: string;
+	}) => "skip" | "abort";
+};
 
 /** Options for {@link Graph.attachSnapshotStorage}. */
 export type GraphAttachStorageOptions = {
@@ -5028,138 +5118,259 @@ export class Graph {
 
 	/**
 	 * Unified persistence surface (§3.8). Cascades snapshot records through
-	 * one or more {@link SnapshotStorageTier}s, each with its own `debounceMs` /
+	 * one or more paired-tier slots, each with its own `debounceMs` /
 	 * `compactEvery` cadence and independent diff baseline.
+	 *
+	 * **Paired tier shape (Phase 14.6 — DS-14-storage Q3 lock B).** Each
+	 * `AttachSnapshotTierPair` pairs a snapshot tier (holds `mode:"full"`
+	 * baselines under `${graph.name}`) with an optional WAL companion
+	 * (holds `WALFrame<T>` records under `${graph.name}/wal/...`). Diff
+	 * records no longer overwrite the snapshot tier; they decompose into
+	 * one DS-14 `BaseChange<T>`-wrapped frame per discrete change and route
+	 * to the WAL tier. Replay via {@link Graph.restoreSnapshot} filters
+	 * `frame_seq > baseline.seq` against either tier's shared per-slot
+	 * counter. Omitting `wal` falls back to baseline-only persistence —
+	 * intermediate state isn't recoverable, but every flush writes a full.
 	 *
 	 * Subscription gates on {@link messageTier} ≥ 3 (DATA/RESOLVED/terminal),
 	 * never on tier-0/1/2 control waves (START/DIRTY/INVALIDATE/PAUSE/RESUME)
 	 * or tier-5 TEARDOWN (graceful shutdown is the caller's responsibility).
 	 *
-	 * Per-tier cadence lets the hot tier stay sync while cold tiers absorb
-	 * async writes without blocking the hot path. Each tier holds its own
-	 * `{lastSnapshot, lastVersionFingerprint}` so cold-tier diff baselines
-	 * aren't polluted by hot-tier flushes. Tiers with `debounceMs === 0`
-	 * share a single snapshot computation per observe event; debounced tiers
+	 * Per-slot cadence lets the hot tier stay sync while cold tiers absorb
+	 * async writes without blocking the hot path. Each slot holds its own
+	 * `{lastSnapshot, lastFingerprint, seq}` so cold-tier diff baselines
+	 * aren't polluted by hot-tier flushes. Slots with `debounceMs === 0`
+	 * share a single snapshot computation per observe event; debounced slots
 	 * compute their own snapshot when their timer fires.
+	 *
+	 * **Cross-tier atomicity is best-effort** (Phase 14 STRONG DEFER). M4
+	 * Rust impl with `redb` write-transactions wraps snapshot+WAL atomically;
+	 * pure-TS impl is best-effort under crash. See
+	 * `archive/docs/SESSION-DS-14-storage-wal-replay.md` Q3+Q6.
+	 *
+	 * @category graph
 	 */
 	attachSnapshotStorage(
-		tiers: readonly SnapshotStorageTier<GraphCheckpointRecord>[],
+		pairs: readonly AttachSnapshotTierPair[],
 		options: GraphAttachStorageOptions = {},
 	): StorageHandle {
 		type TierState = {
-			tier: SnapshotStorageTier<GraphCheckpointRecord>;
+			snapshotTier: SnapshotStorageTier<GraphCheckpointRecord>;
+			walTier: BaseStorageTier | undefined;
+			walPrefix: string;
 			debounceMs: number;
 			compactEvery: number;
 			timer: ResettableTimer | undefined;
+			/**
+			 * Shared write-cursor (Phase 14.6 — DS-14-storage Q1+Q3 lock).
+			 * Increments by 1 per `mode:"full"` baseline write OR per WAL
+			 * frame written. Frames carry `frame_seq = seq` at write time;
+			 * baselines carry `seq` so replay can filter
+			 * `frame_seq > baseline.seq`.
+			 */
 			seq: number;
+			/** Per-flush counter — drives `compactEvery` cadence independent of seq. */
+			flushCount: number;
 			lastSnapshot: GraphPersistSnapshot | undefined;
 			lastFingerprint: string;
 			disposed: boolean;
-			// Chain of pending async saves for this tier. Each flush awaits the
-			// previous one so baseline advances only after persistence confirms;
-			// on rejection the chain resets (next flush starts from the last
-			// successfully-persisted baseline). Sync tiers never populate this.
 			savePending: Promise<void> | undefined;
+			/** Resolves once `seq` has been bootstrapped from existing WAL frames. */
+			bootstrap: Promise<void> | undefined;
 		};
-		const states: TierState[] = tiers.map((tier) => ({
-			tier,
-			debounceMs: Math.max(0, tier.debounceMs ?? 0),
-			compactEvery: Math.max(1, tier.compactEvery ?? 10),
+		const states: TierState[] = pairs.map((pair) => ({
+			snapshotTier: pair.snapshot,
+			walTier: pair.wal,
+			walPrefix: graphWalPrefix(this.name),
+			debounceMs: Math.max(0, pair.snapshot.debounceMs ?? 0),
+			compactEvery: Math.max(1, pair.snapshot.compactEvery ?? 10),
 			timer: undefined,
 			seq: 0,
+			flushCount: 0,
 			lastSnapshot: undefined,
 			lastFingerprint: "",
 			disposed: false,
 			savePending: undefined,
+			bootstrap: undefined,
 		}));
+
+		const snapshotTiers = pairs.map((p) => p.snapshot);
+
+		// Phase 14.6 fix C — validate WAL tiers expose save(key, value) at
+		// attach time, not lazily inside writeFrames. A misconfigured tier
+		// surfaces immediately rather than after the first flush attempt.
+		for (const pair of pairs) {
+			if (pair.wal == null) continue;
+			const walSave = (
+				pair.wal as BaseStorageTier & {
+					save?: (key: string, value: unknown) => void | Promise<void>;
+				}
+			).save;
+			if (typeof walSave !== "function") {
+				throw new TypeError(
+					`Graph.attachSnapshotStorage: WAL tier "${pair.wal.name}" does not expose save(key, value); use kvStorage(...) or an equivalent BaseStorageTier with save(key, value).`,
+				);
+			}
+		}
 
 		if (options.autoRestore === true) {
 			// Fire-and-forget cascade restore; errors surface via onError with
 			// the specific tier that failed.
-			void this._cascadeRestore(tiers, options.onError);
+			void this._cascadeRestore(snapshotTiers, options.onError);
 		}
 
+		// Eager-bootstrap each tier's `seq` from existing WAL frames so a
+		// re-attach to a populated tier never collides with prior writes.
+		// On bootstrap failure we poison the slot (`s.disposed = true`) — we
+		// have no valid starting `seq` and any further write risks
+		// overwriting prior frames at low frame_seq values. Users see the
+		// error via `options.onError` and can re-attach with fresh state.
+		for (const s of states) {
+			if (s.walTier == null) continue;
+			const walTier = s.walTier;
+			s.bootstrap = (async () => {
+				try {
+					let highest = 0;
+					for await (const entry of iterateWalFrames(walTier, s.walPrefix)) {
+						const fseq = entry.frame.frame_seq;
+						if (fseq > highest) highest = fseq;
+					}
+					if (highest > s.seq) s.seq = highest;
+				} catch (err) {
+					options.onError?.(err, s.snapshotTier);
+					s.disposed = true;
+				}
+			})();
+		}
+
+		// Phase 14.6 fix A — `runFlush` serializes the entire body through
+		// `s.savePending` so back-to-back flushes never race on `s.seq` /
+		// `s.flushCount` / `s.lastSnapshot`. The async `performWork` is
+		// invoked AFTER `prev` resolves (not concurrently), and it awaits
+		// `s.bootstrap` at the top so first-flush-on-re-attach reads the
+		// correct starting `seq`. State mutations only commit after the
+		// underlying tier write resolves; on failure none of `seq`,
+		// `flushCount`, `lastSnapshot`, or `lastFingerprint` advance, so the
+		// next flush retries against the last persisted state.
 		const runFlush = (s: TierState, snapshot: GraphPersistSnapshot): void => {
 			if (s.disposed) return;
-			const fingerprint = computeVersionFingerprint(snapshot.nodes);
-			if (s.lastSnapshot != null && fingerprint !== "" && fingerprint === s.lastFingerprint) {
-				return;
-			}
-			const nextSeq = s.seq + 1;
-			// Persisted records carry wall-clock attribution (CLAUDE.md time-util
-			// rule). Internal event-order timestamps use monotonicNs — this is the
-			// output-to-durable-store boundary, so wall clock is correct and
-			// cross-source comparable with surface.saveSnapshot records.
-			const timestamp_ns = wallClockNs();
-			const isFirst = s.lastSnapshot == null;
-			const shouldCompact = isFirst || nextSeq % s.compactEvery === 0;
-			const record: GraphCheckpointRecord = shouldCompact
-				? {
+
+			const performWork = async (): Promise<void> => {
+				if (s.bootstrap) await s.bootstrap;
+				if (s.disposed) return;
+
+				const fingerprint = computeVersionFingerprint(snapshot.nodes);
+				if (s.lastSnapshot != null && fingerprint !== "" && fingerprint === s.lastFingerprint) {
+					return;
+				}
+				const timestamp_ns = wallClockNs();
+				const isFirst = s.lastSnapshot == null;
+				const nextFlushCount = s.flushCount + 1;
+				// Compact when this slot has no WAL companion (no other
+				// channel captures intermediate state), on first write (need
+				// a baseline before any frames), or on the configured
+				// cadence.
+				const shouldCompact = isFirst || s.walTier == null || nextFlushCount % s.compactEvery === 0;
+
+				if (shouldCompact) {
+					const baselineSeq = s.seq + 1;
+					const record: GraphCheckpointRecord = {
 						name: this.name,
 						mode: "full",
 						snapshot,
-						seq: nextSeq,
-						timestamp_ns,
-						format_version: SNAPSHOT_VERSION,
-					}
-				: {
-						name: this.name,
-						mode: "diff",
-						diff: diffForWAL(s.lastSnapshot!, snapshot),
-						seq: nextSeq,
+						seq: baselineSeq,
 						timestamp_ns,
 						format_version: SNAPSHOT_VERSION,
 					};
-			if (s.tier.filter && !s.tier.filter(record)) {
-				// Filter rejected — don't advance seq or baseline.
-				return;
-			}
-			let result: void | Promise<void>;
-			try {
-				result = s.tier.save(record);
-			} catch (error) {
-				// Synchronous throw — baseline untouched; surface and bail.
-				options.onError?.(error, s.tier);
-				return;
-			}
-			if (result && typeof (result as Promise<void>).then === "function") {
-				// Async tier: defer baseline + seq advance until the promise
-				// settles. Chain saves per-tier so they land in order without
-				// overlapping baselines. On rejection, baseline is left intact
-				// so the next flush diffs against the last successfully
-				// persisted snapshot.
-				const prev = s.savePending ?? Promise.resolve();
-				const chained = prev.then(
-					() => result as Promise<void>,
-					// Previous rejection already surfaced; don't block this save.
-					() => result as Promise<void>,
-				);
-				const final = chained.then(
-					() => {
-						if (s.disposed) return;
-						s.seq = nextSeq;
-						s.lastSnapshot = snapshot;
-						s.lastFingerprint = fingerprint;
-					},
-					(err) => {
-						options.onError?.(err, s.tier);
-					},
-				);
-				s.savePending = final.finally(() => {
-					if (s.savePending === final) s.savePending = undefined;
-				});
-			} else {
-				s.seq = nextSeq;
+					if (s.snapshotTier.filter && !s.snapshotTier.filter(record)) {
+						return;
+					}
+					try {
+						await Promise.resolve(s.snapshotTier.save(record));
+					} catch (error) {
+						options.onError?.(error, s.snapshotTier);
+						return;
+					}
+					if (s.disposed) return;
+					s.seq = baselineSeq;
+					s.flushCount = nextFlushCount;
+					s.lastSnapshot = snapshot;
+					s.lastFingerprint = fingerprint;
+					return;
+				}
+
+				// WAL path.
+				const walTier = s.walTier;
+				if (walTier == null) return;
+				const diff = diffForWAL(s.lastSnapshot!, snapshot);
+				const frames = decomposeDiffToFrames(diff, timestamp_ns);
+				if (frames.length === 0) {
+					s.flushCount = nextFlushCount;
+					s.lastSnapshot = snapshot;
+					s.lastFingerprint = fingerprint;
+					return;
+				}
+				const walSave = (
+					walTier as BaseStorageTier & {
+						save: (key: string, value: unknown) => void | Promise<void>;
+					}
+				).save;
+				// `walSave` validated at attach time per fix C above.
+				let localSeq = s.seq;
+				for (const partial of frames) {
+					if (s.disposed) return;
+					localSeq += 1;
+					const bodied: Omit<WALFrame, "checksum"> = {
+						t: "c",
+						lifecycle: partial.lifecycle,
+						path: partial.path,
+						change: partial.change,
+						frame_seq: localSeq,
+						frame_t_ns: timestamp_ns,
+					};
+					const checksum = await walFrameChecksum(bodied);
+					const frame: WALFrame = { ...bodied, checksum };
+					await Promise.resolve(walSave.call(walTier, walFrameKey(s.walPrefix, localSeq), frame));
+				}
+				if (s.disposed) return;
+				// Advance state atomically AFTER all frames in the batch
+				// landed. On partial-tear failure none of these advance and
+				// the next flush re-emits frames at higher seqs (idempotent
+				// for `node.set` / `node.invalidate`); see §3.8 "WAL replay"
+				// best-effort caveat.
+				s.seq = localSeq;
+				s.flushCount = nextFlushCount;
 				s.lastSnapshot = snapshot;
 				s.lastFingerprint = fingerprint;
-			}
+			};
+
+			const prev = s.savePending ?? Promise.resolve();
+			// Calling `performWork()` inside the `then` callbacks (rather
+			// than passing an already-running Promise) guarantees the work
+			// only starts after `prev` resolves. This is the linchpin of fix
+			// A — without it back-to-back `runFlush` invocations spawn
+			// concurrent IIFEs that race on `s.seq` and `s.flushCount`.
+			const next = prev.then(
+				() => performWork(),
+				() => performWork(),
+			);
+			s.savePending = next
+				.catch((err) => {
+					// Final safety net — `performWork` already routes tier
+					// save failures through `onError`; this catches checksum /
+					// codec / unexpected throws so the chain stays alive.
+					options.onError?.(err, s.snapshotTier);
+				})
+				.finally(() => {
+					if (s.savePending === next) s.savePending = undefined;
+				});
 		};
 
 		const flushTier = (s: TierState, snapshot: GraphPersistSnapshot): void => {
 			try {
 				runFlush(s, snapshot);
 			} catch (error) {
-				options.onError?.(error, s.tier);
+				options.onError?.(error, s.snapshotTier);
 			}
 		};
 
@@ -5225,6 +5436,261 @@ export class Graph {
 		};
 		this._storageDisposers.add(dispose);
 		return { dispose };
+	}
+
+	/**
+	 * Replay a WAL stream onto this graph (Phase 14.6 — DS-14-storage Q9
+	 * lock). Apply intermediate {@link WALFrame}s in cross-scope order
+	 * `spec → data → ownership` per DS-14 PART 4; within a scope, frames
+	 * apply in `frame_seq` ASC. Each lifecycle phase runs inside one
+	 * `graph.batch()` so a phase failure rolls back its own writes without
+	 * tearing down earlier phases (Q2 lock).
+	 *
+	 * **Source forms.** `source` may be either a pre-collected
+	 * `AsyncIterable<WALFrame>` (caller assembled the WAL externally for
+	 * tests, network replays, or fixtures) or a tier handle
+	 * `{ tier, walTier }`. With the tier-handle form the latest
+	 * `mode:"full"` baseline is loaded from `tier`, applied as the starting
+	 * state, then frames with `frame_seq > baseline.seq` are replayed from
+	 * `walTier`. Both fields are required — Phase 14.6 fix B1 dropped the
+	 * `walTier ?? tier` fallback because the snapshot tier doesn't expose
+	 * `listByPrefix`.
+	 *
+	 * **Pre-collected stream constraints.** `frame_seq` values must be
+	 * unique across the AsyncIterable; cross-tier merging requires an
+	 * explicit total-order resolver and isn't supported in Phase 14.6.
+	 *
+	 * **Torn-write handling.** Each frame's checksum is verified before
+	 * apply. On mismatch at the WAL tail (no later frame in the stream) the
+	 * default policy is `"skip"` — drop the frame, count it in
+	 * `skippedFrames`, and continue. Mid-stream mismatches default to
+	 * `"abort"` and throw `RestoreError("torn-write-mid-stream")`. Override
+	 * either via the `onTornWrite` callback (Q3 lock).
+	 *
+	 * **Replay-vs-active-storage caveat.** Replay applies frames via
+	 * `graph.set` / `graph.invalidate` inside `graph.batch()`. If
+	 * `attachSnapshotStorage` is currently attached on this graph, those
+	 * mutations also fire observe events that schedule fresh WAL writes.
+	 * Disposing the existing handle (or calling `restoreSnapshot` BEFORE
+	 * `attachSnapshotStorage`) keeps the WAL stream from echoing replayed
+	 * frames back into itself.
+	 *
+	 * **Phase 14.6 deferred limitations.** `applyWalFrame` is best-effort
+	 * within each lifecycle: only state-typed `graph.add` slices and
+	 * `node.set` / `node.invalidate` apply on replay. Subgraph mounts
+	 * (`graph.mount` / `graph.unmount`), non-state node reconstruction,
+	 * `graph.connect` / rewire frames, and V0 `node.versionBump` are all
+	 * persisted but skipped on apply — surface them via factories on a
+	 * fresh `Graph.fromSnapshot(baseline, { factories })` if you need full
+	 * topology fidelity.
+	 *
+	 * **Payload constraints.** `node.set` frames serialize the value via
+	 * the WAL tier's codec (`jsonCodec` default per Q4). User payloads
+	 * must round-trip through that codec — `Map`, `Set`, `Date`, `BigInt`,
+	 * and circular structures don't survive `jsonCodec` and will silently
+	 * lose fidelity. Use a binary codec (DagCbor when the post-1.0 IPLD
+	 * substrate ships) for non-JSON payloads.
+	 *
+	 * **Best-effort caveat.** Cross-tier atomicity is NOT guaranteed in the
+	 * pure-TS impl (Phase 14 STRONG DEFER). M4 Rust impl with `redb`
+	 * write-transactions wraps snapshot+WAL atomically. See
+	 * `archive/docs/SESSION-DS-14-storage-wal-replay.md` Q3+Q6.
+	 *
+	 * @category graph
+	 */
+	async restoreSnapshot(opts: GraphRestoreSnapshotOptions): Promise<RestoreResult> {
+		if (opts.mode !== "diff") {
+			throw new RestoreError(
+				"baseline-missing",
+				`Graph.restoreSnapshot: only mode:"diff" is implemented. For mode:"full" use Graph.restore(snapshot) directly or Graph.fromStorage(name, tiers).`,
+				{ mode: opts.mode as string },
+			);
+		}
+
+		// Phase 14.6 fix J — `lifecycle: []` silently no-ops (filter rejects
+		// every frame), masking a likely caller bug. Omit the field for the
+		// default full set, or include at least one of "spec" / "data" /
+		// "ownership" to scope the rewind.
+		if (opts.lifecycle != null && opts.lifecycle.length === 0) {
+			throw new RestoreError(
+				"phase-failed",
+				'Graph.restoreSnapshot: empty lifecycle filter [] would replay no frames; omit `lifecycle` for the default full set, or include at least one of "spec" | "data" | "ownership".',
+				{},
+			);
+		}
+		const lifecycleFilter = new Set(opts.lifecycle ?? REPLAY_ORDER);
+		const targetSeq = opts.targetSeq ?? Number.POSITIVE_INFINITY;
+		const onTornWrite = opts.onTornWrite;
+
+		// Phase 1 — resolve source + (when applicable) load + apply baseline.
+		let baselineSeq = 0;
+		const collected: WALFrame[] = [];
+		if (Symbol.asyncIterator in (opts.source as object)) {
+			for await (const frame of opts.source as AsyncIterable<WALFrame>) {
+				if (frame.frame_seq > targetSeq) continue;
+				collected.push(frame);
+			}
+		} else {
+			const handle = opts.source as {
+				tier: SnapshotStorageTier<GraphCheckpointRecord>;
+				walTier: BaseStorageTier;
+			};
+			if (handle.walTier == null) {
+				throw new RestoreError(
+					"wal-tier-required",
+					'Graph.restoreSnapshot({ mode: "diff", source: { tier, walTier } }): walTier is required for tier-handle source. The snapshot tier does not expose listByPrefix; pass an explicit BaseStorageTier (e.g. kvStorage(...)) for the WAL companion.',
+					{ tier: handle.tier.name },
+				);
+			}
+			const walTier = handle.walTier;
+			let raw: unknown;
+			try {
+				raw = await Promise.resolve(handle.tier.load?.());
+			} catch (err) {
+				throw new RestoreError(
+					"baseline-missing",
+					`Graph.restoreSnapshot: snapshot tier "${handle.tier.name}" load() threw — cannot establish baseline.`,
+					{ tier: handle.tier.name, cause: err instanceof Error ? err.message : String(err) },
+				);
+			}
+			if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+				throw new RestoreError(
+					"baseline-missing",
+					`Graph.restoreSnapshot: snapshot tier "${handle.tier.name}" returned no record; cannot replay WAL without a baseline.`,
+					{ tier: handle.tier.name },
+				);
+			}
+			const record = raw as GraphCheckpointRecord;
+			if (record.mode !== "full") {
+				throw new RestoreError(
+					"baseline-missing",
+					`Graph.restoreSnapshot: snapshot tier "${handle.tier.name}" holds a non-full record; baselines must be mode:"full".`,
+					{ tier: handle.tier.name, mode: record.mode },
+				);
+			}
+			// Phase 14.6 fix D — point-in-time recovery up to a `targetSeq`
+			// strictly older than the latest baseline isn't expressible in
+			// this API: replay would restore the (newer) baseline and then
+			// filter every frame, leaving the user at a state more recent
+			// than they asked for. Surface explicitly so callers either
+			// stage their own older baseline or drop `targetSeq`.
+			if (record.seq > targetSeq) {
+				throw new RestoreError(
+					"phase-failed",
+					`Graph.restoreSnapshot: targetSeq=${targetSeq} is below baseline.seq=${record.seq}; the snapshot tier holds a newer baseline than the requested point-in-time. Stage an older baseline or omit targetSeq.`,
+					{ targetSeq, baselineSeq: record.seq, tier: handle.tier.name },
+				);
+			}
+			this.restore(record.snapshot);
+			baselineSeq = record.seq;
+
+			let listError: unknown;
+			try {
+				for await (const entry of iterateWalFrames(walTier, graphWalPrefix(this.name))) {
+					const fseq = entry.frame.frame_seq;
+					if (fseq <= baselineSeq) continue;
+					if (fseq > targetSeq) continue;
+					collected.push(entry.frame);
+				}
+			} catch (err) {
+				listError = err;
+			}
+			if (listError != null) {
+				const code: "wal-tier-required" | "phase-failed" =
+					(listError as StorageError | undefined)?.name === "StorageError"
+						? "wal-tier-required"
+						: "phase-failed";
+				throw new RestoreError(
+					code,
+					`Graph.restoreSnapshot: WAL tier "${walTier.name}" listByPrefix failed; cannot enumerate frames.`,
+					{
+						tier: walTier.name,
+						cause: listError instanceof Error ? listError.message : String(listError),
+					},
+				);
+			}
+		}
+
+		// Phase 2 — verify checksums + classify torn writes; preserve
+		// frame_seq order (lex-ASC keys already align numerically up to
+		// 10^20, but pre-collected streams may be unordered).
+		collected.sort((a, b) => a.frame_seq - b.frame_seq);
+		const verified: WALFrame[] = [];
+		let skippedFrames = 0;
+		for (let i = 0; i < collected.length; i++) {
+			const frame = collected[i] as WALFrame;
+			const ok = await verifyWalFrameChecksum(frame);
+			if (ok) {
+				verified.push(frame);
+				continue;
+			}
+			const isTail = i === collected.length - 1;
+			const policy =
+				onTornWrite?.({ frame_seq: frame.frame_seq, reason: "checksum-mismatch" }) ??
+				(isTail ? "skip" : "abort");
+			if (policy === "abort" || (!isTail && policy !== "skip")) {
+				throw new RestoreError(
+					"torn-write-mid-stream",
+					`Graph.restoreSnapshot: frame at frame_seq=${frame.frame_seq} failed checksum mid-stream; aborting per Q3 lock.`,
+					{ frame_seq: frame.frame_seq, isTail },
+				);
+			}
+			skippedFrames++;
+		}
+
+		// Phase 3 — group by lifecycle, apply per-phase via batch().
+		const grouped: Record<"spec" | "data" | "ownership", WALFrame[]> = {
+			spec: [],
+			data: [],
+			ownership: [],
+		};
+		for (const frame of verified) {
+			if (!lifecycleFilter.has(frame.lifecycle)) continue;
+			grouped[frame.lifecycle].push(frame);
+		}
+
+		const phaseResults: Array<{
+			lifecycle: "spec" | "data" | "ownership";
+			frames: number;
+		}> = [];
+		let highestSeq = baselineSeq;
+		let replayedFrames = 0;
+
+		for (const lifecycle of REPLAY_ORDER) {
+			const lifeFrames = grouped[lifecycle];
+			if (lifeFrames.length === 0) {
+				phaseResults.push({ lifecycle, frames: 0 });
+				continue;
+			}
+			try {
+				this.batch(() => {
+					for (const frame of lifeFrames) {
+						applyWalFrame(this, frame);
+						if (frame.frame_seq > highestSeq) highestSeq = frame.frame_seq;
+					}
+				});
+				replayedFrames += lifeFrames.length;
+				phaseResults.push({ lifecycle, frames: lifeFrames.length });
+			} catch (err) {
+				throw new RestoreError(
+					"phase-failed",
+					`Graph.restoreSnapshot: lifecycle "${lifecycle}" replay phase failed; ${
+						err instanceof Error ? err.message : String(err)
+					}`,
+					{
+						lifecycle,
+						cause: err instanceof Error ? err.message : String(err),
+					},
+				);
+			}
+		}
+
+		return {
+			replayedFrames,
+			skippedFrames,
+			finalSeq: highestSeq,
+			phases: phaseResults,
+		};
 	}
 
 	/**
@@ -5574,6 +6040,188 @@ export function diffForWAL(a: GraphDescribeOutput, b: GraphDescribeOutput): Grap
 		if (slice != null) nodesAddedFull[path] = slice;
 	}
 	return { ...base, nodesAddedFull };
+}
+
+/**
+ * One element of {@link decomposeDiffToFrames}'s output: the bridge-shape
+ * subset of a {@link WALFrame} (Phase 14.6 — DS-14-storage Q2 lock A).
+ *
+ * Drops `frame_seq` / `frame_t_ns` / `checksum` — those are filled in by
+ * the WAL writer at write time so a single decomposition can be checksummed
+ * with the wall clock at flush time.
+ */
+type DecomposedFrame =
+	| {
+			readonly lifecycle: "spec";
+			readonly path: string;
+			readonly change: SpecChange;
+	  }
+	| {
+			readonly lifecycle: "data";
+			readonly path: string;
+			readonly change: GraphValueChange;
+	  };
+
+/**
+ * Decompose a {@link GraphWALDiff} into one DS-14 `BaseChange<T>`-wrapped
+ * frame per discrete change (Phase 14.6 — DS-14-storage Q2 lock A). The WAL
+ * writer fills `frame_seq` + `frame_t_ns` + `checksum` per element at write
+ * time.
+ *
+ * Lifecycle scoping (DS-14 PART 4):
+ * - Topology mutations (`nodesAdded` / `nodesRemoved` / `subgraphsAdded` /
+ *   `subgraphsRemoved`) → `"spec"`
+ * - Value drift (`nodesChanged` field=`value`, `versionChanges`) → `"data"`
+ *
+ * `edgesAdded` / `edgesRemoved` are intentionally NOT decomposed — edges
+ * follow structurally from node `_deps`; the rewire path emits topology
+ * changes via Phase 13.8's `_rewire` audit which is `@experimental` and
+ * deferred to a follow-up frame kind.
+ */
+function decomposeDiffToFrames(
+	diff: GraphWALDiff,
+	timestamp_ns: number,
+): readonly DecomposedFrame[] {
+	const frames: DecomposedFrame[] = [];
+	const wrap = <T>(structure: string, lifecycle: "spec" | "data", payload: T) => ({
+		structure,
+		version: SNAPSHOT_VERSION,
+		t_ns: timestamp_ns,
+		lifecycle,
+		change: payload,
+	});
+
+	for (const nodeId of diff.nodesAdded) {
+		const slice = diff.nodesAddedFull[nodeId];
+		const payload: SpecChangePayload =
+			slice != null ? { kind: "graph.add", nodeId, slice } : { kind: "graph.add", nodeId };
+		frames.push({
+			lifecycle: "spec",
+			path: nodeId,
+			change: wrap("graph.spec", "spec", payload) as SpecChange,
+		});
+	}
+	for (const nodeId of diff.nodesRemoved) {
+		const payload: SpecChangePayload = { kind: "graph.remove", nodeId };
+		frames.push({
+			lifecycle: "spec",
+			path: nodeId,
+			change: wrap("graph.spec", "spec", payload) as SpecChange,
+		});
+	}
+	for (const path of diff.subgraphsAdded) {
+		// Subgraph identity is not retrievable from the diff alone — we emit
+		// a placeholder `subgraphId` so replay can opt-in to a factories map
+		// keyed by `path`. Tracked as a Phase 14.6+ follow-up.
+		const payload: SpecChangePayload = { kind: "graph.mount", path, subgraphId: path };
+		frames.push({
+			lifecycle: "spec",
+			path,
+			change: wrap("graph.spec", "spec", payload) as SpecChange,
+		});
+	}
+	for (const path of diff.subgraphsRemoved) {
+		const payload: SpecChangePayload = { kind: "graph.unmount", path };
+		frames.push({
+			lifecycle: "spec",
+			path,
+			change: wrap("graph.spec", "spec", payload) as SpecChange,
+		});
+	}
+	for (const change of diff.nodesChanged) {
+		// Only `field === "value"` round-trips through replay (other field
+		// drift like `meta.tag` mutations decomposes via separate frames in
+		// the meta sub-namespace, which Phase 14.6 doesn't cover yet). Skip.
+		if (change.field !== "value") continue;
+		// INVALIDATE persistence (Q7 §8.7.6): a transition to `undefined`
+		// (the global SENTINEL per spec §2.5) is INVALIDATE on the wire,
+		// not a `node.set(undefined)`. Emit a dedicated invalidate frame so
+		// replay restores the SENTINEL slot with `graph.invalidate(path)`.
+		const payload: GraphValueChangePayload =
+			change.to === undefined
+				? { kind: "node.invalidate", path: change.path }
+				: { kind: "node.set", path: change.path, value: change.to };
+		frames.push({
+			lifecycle: "data",
+			path: change.path,
+			change: wrap("graph.value", "data", payload) as GraphValueChange,
+		});
+	}
+	for (const v of diff.versionChanges) {
+		const payload: GraphValueChangePayload = {
+			kind: "node.versionBump",
+			path: v.path,
+			id: v.id,
+			version: v.to,
+		};
+		frames.push({
+			lifecycle: "data",
+			path: v.path,
+			change: wrap("graph.value", "data", payload) as GraphValueChange,
+		});
+	}
+	return frames;
+}
+
+/**
+ * Apply a single {@link WALFrame} onto a {@link Graph} (Phase 14.6 —
+ * DS-14-storage Q9 replay path). Best-effort within the lifecycle: kinds
+ * that need additional context (factories for non-state nodes, subgraph
+ * registry for `graph.mount`) are silently skipped — callers that need
+ * full-fidelity spec replay should hydrate via {@link Graph.fromSnapshot}
+ * + factories before invoking `restoreSnapshot`.
+ *
+ * @internal
+ */
+function applyWalFrame(graph: Graph, frame: WALFrame): void {
+	const envelope = frame.change as unknown;
+	if (envelope == null || typeof envelope !== "object") return;
+	const inner = (envelope as { change?: unknown }).change;
+	if (inner == null || typeof inner !== "object") return;
+	const payload = inner as { kind?: string };
+
+	if (frame.lifecycle === "spec") {
+		switch (payload.kind) {
+			case "graph.add": {
+				const p = payload as SpecChangePayload & { kind: "graph.add" };
+				if (graph.tryResolve(p.nodeId) != null) return; // already present
+				const slice = p.slice;
+				if (slice == null || slice.type !== "state") return; // skip non-state for now
+				const initial = "value" in slice ? (slice as { value: unknown }).value : undefined;
+				const n = node([], { initial, name: p.nodeId });
+				graph.add(n, { name: p.nodeId });
+				return;
+			}
+			case "graph.remove": {
+				const p = payload as SpecChangePayload & { kind: "graph.remove" };
+				if (graph.tryResolve(p.nodeId) != null) graph.remove(p.nodeId);
+				return;
+			}
+			// graph.mount, graph.unmount, schema.upgrade — Phase 14.6 deferred
+			default:
+				return;
+		}
+	}
+
+	if (frame.lifecycle === "data") {
+		switch (payload.kind) {
+			case "node.set": {
+				const p = payload as GraphValueChangePayload & { kind: "node.set" };
+				if (graph.tryResolve(p.path) != null) graph.set(p.path, p.value);
+				return;
+			}
+			case "node.invalidate": {
+				const p = payload as GraphValueChangePayload & { kind: "node.invalidate" };
+				if (graph.tryResolve(p.path) != null) graph.invalidate(p.path);
+				return;
+			}
+			// node.versionBump — V0 versioning is internal; replay deferred
+			default:
+				return;
+		}
+	}
+
+	// ownership lifecycle — Phase 13 ownership-bundle work; out of scope here
 }
 
 /** A single field change within a diff. */

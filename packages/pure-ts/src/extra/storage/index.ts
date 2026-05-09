@@ -16,3 +16,4 @@ export * from "./cascading-cache.js";
 export * from "./content-addressed.js";
 export * from "./core.js";
 export * from "./tiers.js";
+export * from "./wal.js";

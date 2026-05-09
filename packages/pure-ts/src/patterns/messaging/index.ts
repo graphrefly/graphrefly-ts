@@ -177,7 +177,8 @@ export class TopicGraph<T> extends Graph {
 	 *
 	 * Named `attachEventStorage` (not `attachStorage`) to avoid colliding with
 	 * the inherited {@link Graph.attachSnapshotStorage} which takes the
-	 * snapshot-based `StorageTier[]` shape.
+	 * paired `AttachSnapshotTierPair[]` shape (Phase 14.6) — distinct
+	 * concerns, distinct surfaces.
 	 *
 	 * @returns Disposer.
 	 */

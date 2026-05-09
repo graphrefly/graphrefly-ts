@@ -167,6 +167,16 @@
 				"default": "./dist/extra/storage-tiers-browser.cjs"
 			}
 		},
+		"./extra/storage-wal": {
+			"import": {
+				"types": "./dist/extra/storage-wal.d.ts",
+				"default": "./dist/extra/storage-wal.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-wal.d.cts",
+				"default": "./dist/extra/storage-wal.cjs"
+			}
+		},
 		"./extra/render": {
 			"import": {
 				"types": "./dist/extra/render/index.d.ts",

@@ -1,0 +1,11 @@
+{
+	"$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
+	"changelog": ["@changesets/changelog-github", { "repo": "graphrefly/graphrefly-ts" }],
+	"commit": false,
+	"fixed": [["@graphrefly/graphrefly", "@graphrefly/pure-ts"]],
+	"linked": [],
+	"access": "public",
+	"baseBranch": "main",
+	"updateInternalDependencies": "patch",
+	"ignore": ["@graphrefly/parity-tests"]
+}

@@ -97,7 +97,7 @@ function unwrapCheckpoint(raw: unknown, snapshotId: string): GraphPersistSnapsho
 		if (record.mode === "diff") {
 			throw new SurfaceError(
 				"restore-failed",
-				`snapshot "${snapshotId}" is a diff record; restore the baseline and replay WAL instead`,
+				`snapshot "${snapshotId}" is a diff record (legacy/non-paired tier write); under the Phase 14.6 paired-tier shape snapshot tiers hold only baselines. For WAL replay use Graph.restoreSnapshot({ mode: "diff", source: { tier, walTier } }).`,
 				{ snapshotId, mode: "diff" },
 			);
 		}

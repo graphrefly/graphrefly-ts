@@ -95,7 +95,7 @@ export type AckableMessage<T> = {
 /** Duck-typed graph shape consumed by `checkpointToS3` / `checkpointToRedis`. */
 export type AttachStorageGraphLike = {
 	attachSnapshotStorage: (
-		tiers: readonly SnapshotStorageTier<GraphCheckpointRecord>[],
+		pairs: readonly { snapshot: SnapshotStorageTier<GraphCheckpointRecord> }[],
 		opts?: unknown,
 	) => { dispose(): void };
 	name: string;

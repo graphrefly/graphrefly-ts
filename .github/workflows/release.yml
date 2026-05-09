@@ -1,21 +1,34 @@
-# Publishes to npm when conventional commits on main warrant a release.
+# Changesets-based release workflow with npm Trusted Publishing (OIDC).
 #
-# GitHub API / git push: uses a GitHub App installation token (not the default GITHUB_TOKEN).
-# Organization (or repo) configuration — create these names or map your existing ones:
-#   Variable: GRAPHREFLY_WRITE_CONTENT_APP_ID        → numeric App ID
-#   Secret:   GRAPHREFLY_WRITE_CONTENT_APP_PRIVATE_KEY → PEM private key (full key, including BEGIN/END lines)
+# How this works:
+#   1. Contributors add a changeset file (`pnpm changeset`) per PR describing
+#      affected packages + bump kind. Changesets accumulate in `.changeset/`.
+#   2. On every push to main, this workflow runs `changesets/action@v1`:
+#      - If unreleased changesets exist: opens / updates a "Version Packages"
+#        PR that bumps versions + generates CHANGELOGs. The PR sits open
+#        until you merge it.
+#      - If the most recent push merged that PR (= no pending changesets,
+#        but committed version bumps): runs the `publish` script, which
+#        runs `pnpm changeset publish` to push tags + publish to npm.
+#   3. npm publish uses OIDC trusted publishing — no NPM_TOKEN secret.
+#      Each package's npm trusted-publisher config must point at this
+#      workflow file (`release.yml`) for OIDC to be accepted.
 #
-# Install the app on the org (or this repo) with permissions semantic-release needs:
-#   Contents: Read and write  (push release commit, tags)
-#   Issues: Write             (release comments on issues)
-#   Pull requests: Write      (release comments on PRs)
-#   Metadata: Read            (default)
+# Manual prerequisites (one-time, for each public package):
+#   - First publish must be manual to claim the npm name + bootstrap
+#     trusted-publisher config. After that, this workflow handles updates.
+#   - Configure trusted publisher at
+#     https://www.npmjs.com/package/<name>/access → Trusted Publisher →
+#     GitHub Actions → org=graphrefly, repo=graphrefly-ts, workflow=release.yml
 #
-# npm Trusted Publishing: package settings on npmjs.com must list this repo + this workflow file.
-# Requires @semantic-release/npm ^13 and id-token: write. Optional secret NPM_TOKEN if not using OIDC.
-# https://docs.npmjs.com/trusted-publishers
-#
-# Repo Settings → Actions → General: allow workflows to create pull requests if your org policy blocks it.
+# Packages currently in scope (from .changeset/config.json):
+#   - @graphrefly/graphrefly + @graphrefly/pure-ts (fixed pair, always
+#     released at same version — shim + impl)
+#   - @graphrefly/cli (independent versioning)
+#   - @graphrefly/mcp-server (independent versioning)
+# Ignored:
+#   - @graphrefly/parity-tests (private)
+
 name: Release
 
 on:
@@ -25,6 +38,7 @@ on:
 permissions:
   contents: read
 
+# Prevent concurrent release runs racing on the version PR.
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -34,36 +48,16 @@ jobs:
     name: Release
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-latest
-    env:
-      NODE_ENV: production
     permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Create GitHub App installation token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ vars.GRAPHREFLY_WRITE_CONTENT_APP_ID }}
-          private-key: ${{ secrets.GRAPHREFLY_WRITE_CONTENT_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-issues: write
-          permission-pull-requests: write
+      contents: write           # changesets-action commits to version PR + creates GitHub releases
+      pull-requests: write      # opens / updates the Version Packages PR
+      id-token: write           # REQUIRED for npm OIDC trusted publishing
 
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-          persist-credentials: true
-
-      - name: Configure Git committer (GitHub App)
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          user_id=$(gh api "users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
-          git config user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
-          git config user.email "${user_id}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+          fetch-depth: 0          # changesets needs full history to compute diffs
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -71,26 +65,39 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: "24"      # >= 22 required for npm OIDC trusted publishing
+          registry-url: "https://registry.npmjs.org"
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test
-        run: NODE_ENV=test pnpm test
-
       - name: Lint
         run: pnpm run lint
 
-      # Build once here; do not use prepublishOnly — npm publish would run a second full tsup+DTS
-      # build in a subprocess (OOM / flaky on runners). semantic-release prepare only bumps version.
-      - name: Build package
+      - name: Test
+        run: NODE_ENV=test pnpm test
+
+      # Build before publishing — pure-ts ships pre-built dist/, and
+      # downstream packages import from it. semantic-release's prepublishOnly
+      # ran a duplicate build; the changesets flow runs build once here.
+      - name: Build
         env:
           NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm run build
 
-      - name: Release
+      # changesets/action handles BOTH paths (open PR or publish on merge).
+      - name: Create Release PR or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          # `pnpm release` runs `changeset publish` which publishes any
+          # packages whose version on disk is ahead of npm. Defined in
+          # root package.json scripts.
+          publish: pnpm run release
+          version: pnpm run version-packages
+          commit: "chore: release packages"
+          title: "chore: release packages"
+          createGithubReleases: true
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: pnpm exec semantic-release
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

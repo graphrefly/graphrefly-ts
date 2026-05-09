@@ -522,8 +522,8 @@ describe("checkpointToS3", () => {
 		let capturedTier: Tier | undefined;
 		const mockGraph = {
 			name: "test-graph",
-			attachSnapshotStorage: (tiers: readonly Tier[], _opts?: unknown) => {
-				capturedTier = tiers[0];
+			attachSnapshotStorage: (pairs: readonly { snapshot: Tier }[], _opts?: unknown) => {
+				capturedTier = pairs[0]?.snapshot;
 				return { dispose: () => {} };
 			},
 		};
@@ -554,8 +554,8 @@ describe("checkpointToRedis", () => {
 		let capturedTier: Tier | undefined;
 		const mockGraph = {
 			name: "my-graph",
-			attachSnapshotStorage: (tiers: readonly Tier[], _opts?: unknown) => {
-				capturedTier = tiers[0];
+			attachSnapshotStorage: (pairs: readonly { snapshot: Tier }[], _opts?: unknown) => {
+				capturedTier = pairs[0]?.snapshot;
 				return { dispose: () => {} };
 			},
 		};

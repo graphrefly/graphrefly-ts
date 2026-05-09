@@ -7,6 +7,8 @@
  * @module
  */
 
+import type { DescribeNodeOutput } from "../../core/meta.js";
+
 // ── Universal envelope ──────────────────────────────────────────────────────
 
 /**
@@ -94,12 +96,65 @@ export type LensFlowChange = BaseChange<LensFlowChangePayload>;
 // ── "spec" lifecycle ────────────────────────────────────────────────────────
 
 export type SpecChangePayload =
-	| { readonly kind: "graph.add"; readonly nodeId: string; readonly tag?: string }
+	| {
+			readonly kind: "graph.add";
+			readonly nodeId: string;
+			readonly tag?: string;
+			/**
+			 * Full node slice (Phase 14.6 — DS-14-storage Q1). Carried so WAL
+			 * replay can reconstruct nodes added between full anchors without a
+			 * follow-on "set value" frame. Optional for non-WAL emitters that
+			 * only need topology auditing.
+			 */
+			readonly slice?: DescribeNodeOutput;
+	  }
 	| { readonly kind: "graph.mount"; readonly path: string; readonly subgraphId: string }
 	| { readonly kind: "graph.remove"; readonly nodeId: string }
+	| {
+			/**
+			 * Subgraph unmount (Phase 14.6 — distinct from `graph.remove` which
+			 * targets a single node by `nodeId`).
+			 */
+			readonly kind: "graph.unmount";
+			readonly path: string;
+	  }
 	| { readonly kind: "schema.upgrade"; readonly level: number };
 
 export type SpecChange = BaseChange<SpecChangePayload>;
+
+// ── "data" lifecycle — graph-level value changes ────────────────────────────
+
+/**
+ * Graph-level value change payloads (Phase 14.6 — DS-14-storage Q2 lock A).
+ * Distinct from per-bundle change payloads (`MapChange`, `LogChange`, etc.) —
+ * these target nodes addressed by their qualified graph path rather than
+ * bundle-local keys.
+ *
+ * Emitted by `Graph.attachSnapshotStorage` when a tier flushes a `mode:"diff"`
+ * record: every value drift in the graph snapshot decomposes into one
+ * `node.set` frame; every V0 version bump decomposes into one
+ * `node.versionBump` frame. Lifecycle scope is `"data"`.
+ */
+export type GraphValueChangePayload =
+	| { readonly kind: "node.set"; readonly path: string; readonly value: unknown }
+	| {
+			/**
+			 * INVALIDATE-as-frame (Phase 14.6 — DS-14-storage Q7 §8.7.6).
+			 * Replays as `graph.invalidate(path)`; restores the SENTINEL slot
+			 * so downstream `prevData[i] === undefined` detectors work
+			 * deterministically post-replay.
+			 */
+			readonly kind: "node.invalidate";
+			readonly path: string;
+	  }
+	| {
+			readonly kind: "node.versionBump";
+			readonly path: string;
+			readonly id: string;
+			readonly version: number;
+	  };
+
+export type GraphValueChange = BaseChange<GraphValueChangePayload>;
 
 // ── "ownership" lifecycle ───────────────────────────────────────────────────
 

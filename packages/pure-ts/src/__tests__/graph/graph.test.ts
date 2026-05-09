@@ -1203,7 +1203,7 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 			debounceMs: 5,
 			compactEvery: 2,
 		};
-		const h = g.attachSnapshotStorage([tier]);
+		const h = g.attachSnapshotStorage([{ snapshot: tier }]);
 		// Wait for any initial push-on-subscribe checkpoint to drain
 		await new Promise((r) => setTimeout(r, 15));
 		saves.length = 0;

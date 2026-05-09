@@ -26,6 +26,7 @@ const ENTRY_POINTS = [
 	"src/extra/storage-tiers.ts",
 	"src/extra/storage-tiers-node.ts",
 	"src/extra/storage-tiers-browser.ts",
+	"src/extra/storage-wal.ts",
 	"src/extra/render/index.ts",
 	"src/graph/index.ts",
 	"src/compat/index.ts",

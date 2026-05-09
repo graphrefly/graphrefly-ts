@@ -107,7 +107,6 @@ export class MemoryWithVectorsGraph<TMem> extends Graph {
 
 	constructor(opts: MemoryWithVectorsOptions<TMem>) {
 		super(opts.name ?? "memory-vectors", opts.graph);
-		this._store = opts.store;
 		this.vectors = vectorIndex<TMem>({ dimension: opts.dimension });
 		this.mount("vectorIndex", this.vectors);
 
@@ -487,7 +486,7 @@ export class MemoryWithTiersGraph<TRaw, TMem> extends Graph {
 		let archiveHandle: StorageHandle | null = null;
 		if (opts.archiveTier) {
 			archiveHandle = this.attachSnapshotStorage(
-				[opts.archiveTier],
+				[{ snapshot: opts.archiveTier }],
 				opts.archiveStorageOptions ?? {},
 			);
 			this.addDisposer(() => archiveHandle?.dispose());

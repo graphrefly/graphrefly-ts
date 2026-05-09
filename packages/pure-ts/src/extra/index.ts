@@ -62,6 +62,7 @@ export * from "./single-from-any.js";
 export * from "./sources.js";
 export * from "./storage-core.js";
 export * from "./storage-tiers.js";
+export * from "./storage-wal.js";
 export * from "./stratify.js";
 export { ResettableTimer } from "./timer.js";
 export { decay } from "./utils/decay.js";

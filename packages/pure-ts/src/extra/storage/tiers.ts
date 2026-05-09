@@ -25,6 +25,7 @@
  */
 
 import { stableJsonString } from "./core.js";
+import { StorageError } from "./wal.js";
 
 // ── Layer 1 — StorageBackend (bytes I/O) ──────────────────────────────────
 
@@ -183,6 +184,27 @@ export interface BaseStorageTier {
 	flush?(): Promise<void>;
 	/** Discard pending; framework calls on wave-throw. */
 	rollback?(): Promise<void>;
+	/**
+	 * Lazily enumerate records under a literal byte-prefix (Phase 14.6 —
+	 * DS-14-storage Q5 lock). Frames yield in lex-ASC key order; for the
+	 * canonical WAL key format `${prefix}/${frame_seq.padStart(20)}` that
+	 * coincides with numeric `frame_seq` ASC up to `frame_seq < 10^20`.
+	 *
+	 * Backends without `list?` should throw a `StorageError` with code
+	 * `"backend-no-list-support"` on first iteration (lazy throw — caller
+	 * sees it at consumption time, not at attach).
+	 *
+	 * Optional: tiers that don't carry replay-able state (snapshot tiers
+	 * holding one record per key) can omit it.
+	 */
+	listByPrefix?<T>(prefix: string): AsyncIterable<{ key: string; value: T }>;
+	/**
+	 * Force a `mode:"full"` baseline immediately (Phase 14.6 — DS-14-storage
+	 * Q8 lock). Bypasses `compactEvery` cadence; useful at deploy boundaries,
+	 * end-of-process drains, or test fixtures. Tier owners that don't write
+	 * baselines (kv tiers, append-log tiers) can omit.
+	 */
+	compact?(): Promise<void>;
 }
 
 /**
@@ -650,6 +672,32 @@ export function kvStorage<T>(
 			return backend.list(prefix);
 		},
 
+		async *listByPrefix<U>(prefix: string): AsyncIterable<{ key: string; value: U }> {
+			// Lazy implementation per Phase 14.6 / DS-14-storage Q5: pull keys
+			// in the backend's natural order, then read+decode one at a time.
+			// Backends without `list?` produce no entries and surface the
+			// missing-capability via a thrown `StorageError` so callers don't
+			// silently iterate empty.
+			if (!backend.list) {
+				throw new StorageError(
+					"backend-no-list-support",
+					`storage tier "${name}" backend "${backend.name}" does not implement list(); WAL replay requires it`,
+					{ tier: name, backend: backend.name },
+				);
+			}
+			const keys = await Promise.resolve(backend.list(prefix));
+			// `list?` may return non-prefixed entries from older backends;
+			// re-filter so the lazy contract is exact (lex-ASC over prefix
+			// matches by literal byte-equality).
+			const ordered = [...keys].filter((k) => k.startsWith(prefix)).sort();
+			for (const key of ordered) {
+				const raw = await Promise.resolve(backend.read(key));
+				if (raw === undefined || raw.length === 0) continue;
+				const value = codec.decode(raw) as unknown as U;
+				yield { key, value };
+			}
+		},
+
 		async flush() {
 			await flushNow();
 		},
@@ -814,10 +862,14 @@ export function dictKv<T>(
  *
  * @example
  * ```ts
- * import { dictSnapshot } from "@graphrefly/graphrefly/extra";
+ * import { dictKv, dictSnapshot } from "@graphrefly/graphrefly/extra";
  *
  * const store: Record<string, Uint8Array> = {};
- * graph.attachSnapshotStorage([dictSnapshot(store, { name: graph.name })]);
+ * // Phase 14.6 paired-tier shape — pair with a kv tier for WAL replay,
+ * // or omit `wal` for baseline-only persistence.
+ * graph.attachSnapshotStorage([
+ *   { snapshot: dictSnapshot(store, { name: graph.name }), wal: dictKv(store) },
+ * ]);
  * ```
  *
  * @category extra

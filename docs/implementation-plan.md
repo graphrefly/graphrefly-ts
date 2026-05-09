@@ -586,8 +586,8 @@ Assert ≤1 DATA per input wave in dev mode.
 Filter drops RESOLVED for failed batch entries → tier-3 counter drift. Low priority; no current consumer affected.
 **Blocked by:** operator-layer-wide review session (deferred).
 
-### 10.6 `restoreSnapshot` rejects `mode: "diff"` records
-**Unblocked 2026-05-08** by [SESSION-DS-14-storage-wal-replay.md](../archive/docs/SESSION-DS-14-storage-wal-replay.md) (9Q lock — frame format, replay ordering, recovery boundary, codec contract, `BaseStorageTier.listByPrefix`, §8.7 spec amendment folded). Lands during [Phase 14.6](#phase-146--storage-wal-replay-implementation-ds-14-storage-substrate) (~4.5 days) post `/dev-dispatch` approval. Closes [optimizations.md "Surface restoreSnapshot rejects mode: 'diff' records"](optimizations.md).
+### 10.6 `restoreSnapshot` rejects `mode: "diff"` records ✅ landed (2026-05-08)
+Closed by [Phase 14.6](#phase-146--storage-wal-replay-implementation-ds-14-storage-substrate-landed-2026-05-08-ts-side). Diff records no longer land on the snapshot tier under the paired-tier shape; surface `unwrapCheckpoint` retains the diff-record reject defensively (legacy/non-paired writes) and points callers at `Graph.restoreSnapshot({ mode: "diff", source: { tier, walTier } })` for WAL replay. Original entry at [optimizations.md "Surface restoreSnapshot rejects mode: 'diff' records"](optimizations.md).
 
 ### 10.7 Performance follow-ups
 - Message-array allocation in hot path (A2 landed; tier-3 DATA/ERROR has further headroom).
@@ -1678,11 +1678,11 @@ Captured here so Phase 16 doesn't underbid scope:
 
 ---
 
-### Phase 14.6 — Storage WAL replay implementation (DS-14 storage substrate)
+### Phase 14.6 — Storage WAL replay implementation (DS-14 storage substrate) ✅ landed (2026-05-08, TS-side)
 
 *Source: [SESSION-DS-14-storage-wal-replay.md](../archive/docs/SESSION-DS-14-storage-wal-replay.md) (locked 2026-05-08). 9Q walk lands the user contract + frame format + replay ordering that Rust port M4 (`graphrefly-storage` crate) consumes as a stable target. Carved out from DS-14 ([implementation-plan.md:1514](#phase-14--post-10-changesets--diff-single-unified-design-session)) as a separate session per [DS-14:312](../archive/docs/SESSION-DS-14-changesets-design.md:312).*
 
-**Status:** ✅ DESIGN LOCKED 2026-05-08 (Q1–Q9). Implementation gated on user "implement DS-14-storage" per `feedback_no_implement_without_approval`. Total scope ~4.5 days TS-side. Unblocks [§10.6](#106-restoresnapshot-rejects-mode-diff-records) and closes the §8.7 ungated-question entry [above](#additional-ungated-questions-lean-locked-pending-implementation).
+**Status:** ✅ TS-side landed 2026-05-08 via `/dev-dispatch` + `/qa`. Q1 deviation: pure-ts ships **SHA-256 hex** for the checksum field instead of BLAKE3 (zero-dependency posture; M4 Rust matches via `sha2` + `hex`); BLAKE3 returns when post-1.0 DagCbor IPLD content-addressing lands. /qa fixes folded in: A — runFlush concurrency refactor (serialize all state mutations through a single `savePending` chain; bootstrap-on-failure poisons the slot); B1 — `walTier` is required for tier-handle source (snapshot tier's no `listByPrefix` so the fallback was misleading); C — `walTier.save(key, value)` validated at attach time; D — `targetSeq < baseline.seq` rejected with `RestoreError`; J — empty `lifecycle: []` rejected; plus 6 doc/JSDoc patches and 6 new tests. Closes [§10.6](#106-restoresnapshot-rejects-mode-diff-records) and the §8.7 ungated-question entry. M4 Rust still STRONG-DEFER per Q6.
 
 **Parallelism with Rust M4:** Independent threads. M4 consumes the design contract (locked); TS impl produces the pure-ts oracle. Couple only at step 5 (parity tests), which gates main-branch merges once both impls ship `WALFrame` records into `packages/parity-tests/scenarios/storage-wal/`.
 
