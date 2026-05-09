@@ -1,5 +1,11 @@
 # Changelog — @graphrefly/pure-ts
 
+## 0.45.0
+
+### Minor Changes
+
+- [`64ab268`](https://github.com/graphrefly/graphrefly-ts/commit/64ab26858804265f60f169f69f95343793e5afde) Thanks [@clfhhc](https://github.com/clfhhc)! - minor fix
+
 ## Unreleased — package rename + framing reset (PART 13 of `archive/docs/SESSION-rust-port-architecture.md`)
 
 - Renamed: `@graphrefly/legacy-pure-ts` → `@graphrefly/pure-ts` (D082).
