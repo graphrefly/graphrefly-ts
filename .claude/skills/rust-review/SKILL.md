@@ -82,7 +82,7 @@ Check `packages/parity-tests/scenarios/`:
 
 ## Phase 6: Report
 
-Present a summary:
+Present an in-conversation summary in this shape (the persistent file is written in Phase 8.1 using the **directive markdown** described below — write that file in the journal format, not the bare-tables format).
 
 ### Behavioral Traces
 [traces from Phase 2]
@@ -103,6 +103,109 @@ Present a summary:
 - Spec-fidelity: [high/medium/low + why]
 - Over-engineering risk: [high/medium/low + which rows]
 - Recommended actions: [bullet list]
+
+---
+
+## Phase 6.5: Journal directive vocabulary
+
+The review website (`docs/review/site/`) renders reports as a structured engineering journal. To get rich cards, inline-rendered figures, and severity-coded findings, write the report file in Phase 8.1 using these **directive blocks** alongside ordinary markdown.
+
+A directive block is delimited by `:::`. Attributes use `key="value"` form. Content between the open/close fences may itself be markdown — tables, paragraphs, lists are all parsed inside.
+
+**Five directive kinds.** Use them; don't invent more.
+
+### `::: trace` — wraps each behavioral trace from Phase 2
+
+```markdown
+::: trace id="T1" title="Pause-overflow ERROR synthesis" rules="R1.3.8.c, Lock 6.A" diagrams="11.1, 11.2"
+| Step | Event | Internal state change | Observable output |
+|------|-------|----------------------|-------------------|
+| 1 | … | … | — |
+| 2 | … | … | sink: `[Error(diag)]` |
+
+Pre-Slice-F this was a silent drop. Now structured ERROR with `{nodeId, droppedCount, …}`.
+:::
+```
+
+- `id` — short label (T1, T2…) used in the card's left badge.
+- `title` — one-line scenario description.
+- `rules` — comma-separated spec rule citations; each becomes a green spec chip.
+- `diagrams` — comma-separated figure IDs; each becomes a clickable F-chip in the card header.
+- Body: the step table + any commentary.
+
+### `::: finding` — for caveats, limitations, optimization opportunities, correctness bugs
+
+```markdown
+::: finding kind="bug" title="Diamond resolution overflow at fan-in >32" severity="major"
+where="crates/graphrefly-core/src/dispatcher.rs:142" rule="R5.8" status="open" recommendation="Switch to BigInt-backed mask"
+
+Current bitmask is a `u32` and silently overflows when fan-in exceeds 32. Reproducer: `tests/wide_fanin_diamond.rs:T_diamond_w33`. TS uses `Uint32Array` + chained `BigInt` to support arbitrarily wide fans.
+:::
+```
+
+- `kind` — one of:
+  - `bug`     — correctness divergence from canonical spec (red ribbon)
+  - `limit`   — known v1 limitation, deferred (amber ribbon)
+  - `warn`    — same visual as `limit`; use when the issue isn't a deferral but a caveat the user should know
+  - `opp`     — simplification or optimization opportunity (green ribbon)
+  - `note`    — informational observation (steel-blue ribbon)
+- `title`        — short headline.
+- `severity`     — optional badge: `critical`, `major`, `minor`. Renders as a small uppercase tag.
+- `where`        — file/line reference; renders as `<code>` inside a structured field block.
+- `rule`         — single spec rule citation; renders as spec chip.
+- `slice`, `status`, `recommendation` — additional optional structured fields.
+- Body: prose explanation. Markdown allowed.
+
+**Pick the kind carefully.** A finding with `kind="bug"` is a claim that the Rust impl is wrong against the canonical spec; reserve it for that. `kind="limit"` is for items already in `porting-deferred.md`. `kind="opp"` is for "Rust-simpler-than-TS" rows in the simplification delta worth surfacing as a card, OR for performance/cleanup opportunities the review uncovered.
+
+### `::: figure` — embeds a flowchart inline at the point you want it to appear
+
+```markdown
+::: figure id="11.1" caption="Pause overflow ERROR synthesis path — lock-held edge"
+:::
+```
+
+- `id` — must match a `### x.y` heading in `flowcharts.md`.
+- `caption` — optional; falls back to no caption.
+- Body — optional; if present, used as caption (overrides attribute).
+
+The renderer embeds the actual Mermaid diagram in a captioned `<figure>` block with a "↗ enlarge" button. Subsequent `[F11.1](#fc-11.1)` chips in the same report scroll to this inline figure (with a brief flash highlight). If no `::: figure` is declared for a chip, the chip opens the diagram in a draggable modal — old behavior preserved.
+
+**Place an `::: figure` directly after the trace card (or finding) that first cites it.** That way the diagram appears in the natural reading flow, not in a separate index.
+
+### `::: stats` — visual metric tiles (use at the top of the report or section breaks)
+
+```markdown
+::: stats
+- Tests: 411 → 438
+- Slices closed — 5 (F, F /qa, G, E1, H)
+- 🟢 Divergences resolved: 10+
+- 🟡 Open deferred items: 5
+- 🔴 Correctness holes: 0
+:::
+```
+
+- One bullet per tile. `Label : Value` (`:`, `—`, `–`, or `-` separator). Optional leading `🔴`/`🟡`/`🟢`/`🔵` colors the tile's left ribbon.
+
+### `::: assessment` — the verdict card (use at the very bottom of the report)
+
+```markdown
+::: assessment title="Overall assessment"
+**Spec-fidelity:** very high. Closed >10 documented divergences.
+**Over-engineering risk:** low. 2 Rust-adds-complexity rows; both forced by multi-thread.
+**Correctness holes:** none.
+**HALT:** no.
+:::
+```
+
+Each `**Label:**` line becomes a row in the verdict card. Recognized levels (`very high`, `high`, `medium`, `low`, `none`, `yes`, `no`) get a colored chip.
+
+### Style guidance
+
+- Don't replace ordinary section headings with directives. The report still has `## 1. Why this slice exists`, `## 2. Behavioral traces`, etc. Directives go *inside* those sections to render specific items as cards.
+- Tables that don't fit a directive (e.g. the simplification delta) stay as plain markdown tables — the journal stylesheet already renders them well.
+- One `::: figure` per diagram per report. Subsequent references should be `[F<x.y>](#fc-<x.y>)` chips.
+- Don't put H2/H3 headings *inside* a directive — keep card content flat (paragraphs, tables, bullets, code).
 
 ---
 
@@ -153,18 +256,18 @@ docs/
 
 Add a new file `~/src/graphrefly-rs/docs/review/reports-NNN-<slug>.md` where `NNN` is the next zero-padded integer (e.g. if `reports-005-…md` exists, your new file is `reports-006-…md`). The slug is a short kebab-cased descriptor of $ARGUMENTS (e.g. `m4-storage-wal`, `slice-i-mount-cross-core`).
 
-Required sections, mirroring the existing reports' shape:
+Required sections, mirroring the existing reports' shape — but render the *content within each section* using the journal directives from Phase 6.5:
 
-1. **Header** — slices covered, landed dates, test count progression, any /qa rounds.
-2. **Why this slice exists** — short premise paragraph.
-3. **Behavioral traces** — copy from Phase 2 (each with spec-rule citations).
-4. **Simplification delta** — copy from Phase 3.
-5. **Deferred gaps audit** — copy from Phase 4.
-6. **Parity test coverage** — copy from Phase 5.
-7. **Recommended actions** — punch list.
-8. **Overall assessment** — spec-fidelity / over-engineering risk / deferred items / HALT or no.
+1. **Header** — H1 + immediately-following `**Label:** value · **Label:** value` paragraphs (slices covered, landed dates, test count progression, any /qa rounds). The renderer auto-extracts those into a metadata strip — no directive needed. Optionally follow with a `::: stats` block to surface the headline numbers as tiles.
+2. **Why this slice exists** — short premise paragraph (plain prose, no directive).
+3. **Behavioral traces** — one `::: trace` block per scenario (Phase 2 output). Place a `::: figure id="x.y"` directly after the first trace that cites a given diagram so the figure renders inline.
+4. **Simplification delta** — plain markdown table (Phase 3). For the most striking rows (Rust-simpler-than-TS wins, or Rust-harder-than-TS rows that need explanation), follow the table with a `::: finding kind="opp"` or `kind="note"` card.
+5. **Deferred gaps audit** — short prose summary, then one `::: finding kind="limit"` per open item that warrants visual emphasis. Closed items can stay in a plain bullet list with ✅.
+6. **Parity test coverage** — plain prose + numbered list of suggested scenarios.
+7. **Recommended actions** — numbered list. For each non-trivial item, optionally a `::: finding kind="opp"` card with a `recommendation=` field.
+8. **Overall assessment** — a single `::: assessment` block at the bottom. Lines like `**Spec-fidelity:** very high.` become rows.
 
-**Reference flowcharts using markdown links of the form `[F<batch>.<n>](#fc-<batch>-<n>)`** (e.g. `[F7.2](#fc-7.2)`). The site renderer rewrites those into clickable chips that open the diagram in a draggable modal. Do NOT use bare `[F7.2]` — markdown won't render it as a link.
+**Reference flowcharts using markdown links of the form `[F<batch>.<n>](#fc-<batch>-<n>)`** (e.g. `[F7.2](#fc-7.2)`). The site renderer rewrites those into clickable chips. Inside trace cards, prefer the `diagrams="x.y, …"` attribute over inline chips — the renderer puts those in the card header. Do NOT use bare `[F7.2]` — markdown won't render it as a link.
 
 ### 8.2 Update the overview index
 

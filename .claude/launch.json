@@ -46,8 +46,8 @@
 		{
 			"name": "rust-review",
 			"runtimeExecutable": "python3",
-			"runtimeArgs": ["-m", "http.server", "8765", "--directory", "/Users/davidchenallio/src/graphrefly-rs/docs"],
-			"port": 8765
+			"runtimeArgs": ["-m", "http.server", "8769", "--directory", "/Users/davidchenallio/src/graphrefly-rs/docs"],
+			"port": 8769
 		}
 	]
 }

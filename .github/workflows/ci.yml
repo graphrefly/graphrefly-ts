@@ -24,7 +24,7 @@ env:
 
 jobs:
   check:
-    if: ${{ github.event_name != 'pull_request' || github.actor != 'graphrefly-write-content[bot]' }}
+    if: "${{ (github.event_name != 'pull_request' || github.actor != 'graphrefly-write-content[bot]') && (github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'chore: release')) }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
