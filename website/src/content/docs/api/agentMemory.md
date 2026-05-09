@@ -8,6 +8,9 @@ Pre-wired agentic memory graph. Sugar over `distill` plus the
 composers. Power users who want a subset of capabilities can call those
 composers directly; this factory bundles them into one ergonomic call.
 
+Returns an AgentMemoryGraph subclass instance — `instanceof
+AgentMemoryGraph` narrows in callers (e.g. Phase 13.G `agent(spec)`).
+
 ## Signature
 
 ```ts

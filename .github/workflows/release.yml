@@ -54,10 +54,40 @@ jobs:
       id-token: write           # REQUIRED for npm OIDC trusted publishing
 
     steps:
+      # Mint a GitHub App installation token. Default GITHUB_TOKEN can't
+      # create PRs when the org disallows "Allow GitHub Actions to create
+      # and approve pull requests" — and PRs created by GITHUB_TOKEN don't
+      # trigger downstream workflows. The App token sidesteps both. Org-
+      # level var + secret (set on the graphrefly org once, accessible by
+      # all repos that have the App installed):
+      #   - var:    GRAPHREFLY_WRITE_CONTENT_APP_ID
+      #   - secret: GRAPHREFLY_WRITE_CONTENT_APP_PRIVATE_KEY
+      # The GitHub App must be installed on this repo with permissions:
+      # Contents=write, Issues=write, Pull requests=write, Metadata=read.
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.GRAPHREFLY_WRITE_CONTENT_APP_ID }}
+          private-key: ${{ secrets.GRAPHREFLY_WRITE_CONTENT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0          # changesets needs full history to compute diffs
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: true
+
+      - name: Configure Git committer (GitHub App)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          user_id=$(gh api "users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
+          git config user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config user.email "${user_id}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -100,4 +130,4 @@ jobs:
           title: "chore: release packages"
           createGithubReleases: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

@@ -9,11 +9,14 @@ Deliver pre-sorted messages through `sink` with tier-based deferral applied.
 `node.ts`); the walker exploits that invariant to find phase cuts in one
 pass without re-sorting.
 
-Behavior:
+Behavior (post-DS-13.5.A tier renumbering):
 - Tier 0–2 — delivered synchronously.
-- Tier 3 — deferred to drainPhase2 when batching, else synchronous.
-- Tier 4 — deferred to drainPhase3 when batching, else synchronous.
-- Tier 5 — deferred to drainPhase4 when batching, else synchronous.
+- Tier 3 (DATA/RESOLVED) — deferred to drainPhase2 when batching.
+- Tier 4 (INVALIDATE) — deferred to drainPhase2 alongside the value
+  settlements (the "settle slice" — INVALIDATE settles a wave so it must
+  land in the same drain phase as DATA/RESOLVED).
+- Tier 5 (COMPLETE/ERROR) — deferred to drainPhase3 when batching.
+- Tier 6 (TEARDOWN) — deferred to drainPhase4 when batching.
 
 Tier-classification uses the caller-supplied `tierOf` so that batch stays
 decoupled from `GraphReFlyConfig`. NodeImpl passes `config.tierOf` (a
