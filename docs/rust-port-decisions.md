@@ -674,3 +674,110 @@ Decisions made during the Rust port, recorded after inline discussion.
   - Q4: B — all four ops: emit, complete, error, AND subscribe. Subscribe deferral uses `DeferredProducerOp::Callback(Box<dyn FnOnce() + Send>)` to avoid graphrefly-core → graphrefly-operators dependency.
 - **Rationale:** Per-method errors match the codebase pattern. Per-Core deferred queue avoids the cross-Core contamination that sank WaveState-based `in_tick`/`currently_firing` (D114 F1/F2). Internal-only preserves API stability. Q4 B is necessary because removing `IN_PRODUCER_BUILD` exposes build-closure subscribes to the H+ check.
 - **Affects:** `graphrefly-core` (node.rs: PartitionOrderViolation + deferred queue on Core; batch.rs: begin_batch_for returns Result internally, BatchGuard::drop drains deferred ops post-wave_guards; held_partitions: check_and_acquire returns Result). `graphrefly-operators` (producer.rs: remove ProducerSinkGuard, use try_subscribe + Callback defer; ops_impl.rs + higher_order.rs: sink closures use emit_or_defer/complete_or_defer/error_or_defer). Removes IN_PRODUCER_BUILD thread-local + FiringGuard::is_producer_build.
+
+### D116 — B1: closed as already-done via Slice F A4 range reservation
+- **Date:** 2026-05-10
+- **Context:** Porting-deferred "alloc_lock_id can collide with user-supplied LockId::new(N)" — `LockId(u64)` exposes a `pub fn new(n: u64)` letting users mint colliding ids. TS uses opaque `Symbol()` for guaranteed uniqueness.
+- **Options:** A) Restrict `LockId::new` to `pub(crate)` + new `LockId::user(u32)` for user range; update napi bindings. B) Keep as-is — strike through entry as already-done via Slice F A4 range reservation. C) Same as B + fix `1<<32` vs `1<<31` doc-vs-code drift in handle.rs:118-133.
+- **Decision:** B — closed as already-done. No code change.
+- **Rationale:** User picked (a) initially, then on Phase 2 research surfaced that Slice F A4 (2026-05-07) already shipped option (b) of the original deferred entry's lift options: `next_lock_id` initialized at `1u64 << 31` so dispatcher-allocated ids cannot collide with u32-marshalled user ids in `[0, 2^31)`. The range reservation is sufficient — option (a)'s additional compile-time guarantee is marginal over the existing range invariant. Originally-picked option (a) would also force a napi binding refactor (`core_bindings.rs` + `graph_bindings.rs` use `LockId::new(u64::from(u32))` for u32→LockId marshalling).
+- **Affects:** `porting-deferred.md` strike-through for "alloc_lock_id can collide with user-supplied LockId::new(N)." No source change.
+
+### D117 — B3: empty-deps mid-wave queues auto-Resolved via `pending_auto_resolve`
+- **Date:** 2026-05-10
+- **Context:** Porting-deferred "set_deps mid-wave full-removal leaves stuck DIRTY without RESOLVED" — `set_deps(N, &[])` while N is mid-wave dirty leaves an unpaired DIRTY in `pending_notify[N]`, violating R1.3.1.b.
+- **Options:** A) Reject `set_deps(N, &[])` on derived/dynamic with `SetDepsError::EmptyDepsOnComputeNode`. B) Permit + queue auto-Resolved at wave-end via existing `pending_auto_resolve` machinery.
+- **Decision:** B — push N to `pending_auto_resolve` when `new_deps.is_empty()` AND N has any pending tier-1 in `pending_notify`. The existing wave-end sweep handles routing (incl. paused-children).
+- **Rationale:** Less surface change; symmetric with the existing diamond-resolution auto-resolve path. Rejecting (A) would be a behavior break with no consumer pressure.
+- **Affects:** `graphrefly-core::node::Core::set_deps` (post-mutation block adds the conditional push); test `set_deps_full_removal_mid_wave_queues_resolved`.
+
+### D118 — B4: subscribe-after-terminal — clean split by `resubscribable` flag
+- **Date:** 2026-05-10
+- **Context:** Phase 13.8 carry-forward "Late-subscriber-to-terminal-node-delivers-nothing." Initial proposal split by `has_received_teardown` (replay for not-torn-down, reject for torn-down). User pushed back: that's wrong semantics — `resubscribable` IS the property that gates whether late subscribe re-activates; TEARDOWN is the cleanup signal of the previous activation, not "permanent destruction." The conflation came from Slice A+B F3 audit which made `!has_received_teardown` a guard on reset; that was over-defensive.
+- **Final design (canonical-spec change R2.2.7.a + R2.2.7.b, 2026-05-10):**
+  - **Resubscribable + terminal (any torn_down state)** → reset to fresh lifecycle on subscribe. Drops the F3 `!has_received_teardown` guard. `wipe_ctx` fires on every reset including post-teardown.
+  - **Non-resubscribable + terminal (any torn_down state)** → `try_subscribe` returns `Err(SubscribeError::TornDown { node })`. Public `subscribe` panics with TornDown diagnostic. Operators (producer.rs / higher_order.rs) match on the error variant — defer for `PartitionOrderViolation`, skip the source for `TornDown`.
+  - The `torn_down` flag is irrelevant to the rejection / reset decision — `terminal.is_some()` alone gates it.
+- **Cross-impl scope (D118, locked 2026-05-10):**
+  - **Canonical spec:** R2.2.7.a + R2.2.7.b added; R2.6.4 / Lock 6.F note clarifies TEARDOWN ≠ permanent destruction.
+  - **Rust this batch:** `Core::subscribe` reset condition relaxed; `SubscribeError` enum added; `try_subscribe` returns `Result<Subscription, SubscribeError>`; `reset_for_fresh_lifecycle` clears `has_received_teardown`; producer.rs + higher_order.rs callers match on variant; ~3-5 tests rewritten + new rejection tests.
+  - **TS follow-up (deferred):** mirror in `packages/pure-ts/src/core/node.ts`. Tracked as a Phase 13.X follow-up to close parity-tests gap; not in scope this Rust batch.
+- **Rationale:** "Resubscribable" matches behavior — late subs reactivate, period. Non-resubscribable + terminal = stream over; honest error beats confusing handshake of past events. The Rust port targets the canonical spec, not the current TS — R2.2.7.a/b is the spec position; current TS is the divergence.
+- **Affects:** Rust core (subscribe / try_subscribe / reset_for_fresh_lifecycle / SubscribeError); Rust operators (producer.rs subscribe_to / higher_order.rs); ~5 existing Rust tests rewritten; ~3 new tests; canonical spec R2.2 + R2.6.4.
+
+### D119 — A (Phase G): state nodes preserve `cached` on deactivation; compute nodes clear (R2.2.7/R2.2.8 ROM/RAM)
+- **Date:** 2026-05-10
+- **Context:** Phase G `cleanup_node` activation. Spec R2.2.7 "State nodes retain `.cache` and status (ROM); compute nodes clear `.cache` and transition to `\"sentinel\"` (RAM)." TS `_deactivate` (`pure-ts/src/core/node.ts:2278-2281`): `if (this._fn != null) { this._cached = undefined; }`.
+- **Options:** A) State nodes also clear (symmetric, "deactivation = forget"). B) State nodes preserve, compute nodes clear (TS parity).
+- **Decision:** B — match TS / spec exactly.
+- **Rationale:** State nodes are intrinsic-value carriers (the value IS the node); compute nodes are function-of-deps and the cache is a memo. Clearing state cache would change resubscribe semantics (resubscribe would see SENTINEL instead of the persisted value).
+- **Affects:** `Subscription::Drop` Phase G cache-clear branch — `if rec.fn_id.is_some() || rec.op.is_some() { release rec.cached; rec.cached = NO_HANDLE }`.
+
+### D120 — A (Phase G): ordering = user hooks → Core cache-clear (matches TS `_deactivate`)
+- **Date:** 2026-05-10
+- **Context:** Phase G adds Core internal cache-clear to `Subscription::Drop`'s last-sub branch. Existing order: `cleanup_for(OnDeactivation) → producer_deactivate → wipe_ctx`.
+- **Options:** A) Cache-clear FIRST, then user hooks. B) Cache-clear AFTER user hooks (matches TS `_deactivate` step ordering).
+- **Decision:** B — Core cache-clear runs LAST.
+- **Rationale:** TS does cleanup callback first (step 1), THEN disconnects from deps (step 2), THEN clears Core state (step 3-5). User cleanup may reference cached value or per-dep state via the binding-side `ctx.store`; clearing first would surprise the cleanup closure. Mirrors the existing D056 ordering rationale for cleanup-before-producer-deactivate.
+- **Affects:** `Subscription::Drop` — new cache-clear block runs after the existing `cleanup_for / producer_deactivate / wipe_ctx` calls.
+
+### D121 — A (Phase G): per-node `terminal` slot kept on deactivation; per-dep `dep_terminals[i]` slots released
+- **Date:** 2026-05-10
+- **Context:** "Non-resubscribable terminal Error handles leak via diamond cascade" — each terminal node retains 1 share in its own `terminal` slot AND 1 share per consumer's `dep_terminals[idx]` slot. The leak is per-cascade-destination.
+- **Options:** A) Release both on deactivation. B) Release per-dep `dep_terminals[i]`; keep per-node `terminal` slot.
+- **Decision:** B — release consumer-side per-edge retains; keep producer-side own terminal slot.
+- **Rationale:** The producer's `terminal` slot IS the durable record needed for late-subscriber replay (resubscribable on next subscribe-cycle reset; non-resubscribable for B4 handshake replay). Releasing it would lose the terminal value. The per-cascade-destination leak (the actual reported issue) is fully closed by releasing per-dep slots in the CONSUMER's deactivation cleanup.
+- **Affects:** Phase G cache-clear walks `rec.dep_records[i]` releasing `prev_data` + `data_batch` retains + `terminal` Error handles; does NOT touch `rec.terminal`.
+
+### D122 — B2 + C closed as "already done" — porting-deferred entries struck through, no implementation work
+- **Date:** 2026-05-10
+- **Context:** Phase 1 research surfaced that B2 (pause-buffer overflow ERROR synthesis) is fully implemented in Slice F A3 (2026-05-07) — `BindingBoundary::synthesize_pause_overflow_error` in boundary.rs:366; synth call in batch.rs:856; tests in `slice_f_corrections.rs:332-440`. Similarly C (`take_until` port) is fully implemented in `ops_impl.rs:610` with 4 cargo tests in `tests/subscription.rs:389+`.
+- **Options:** A) Re-implement / re-validate. B) Strike through stale porting-deferred entries; doc-only cleanup.
+- **Decision:** B — doc-only cleanup. The existing impls are tested + green.
+- **Rationale:** No re-implementation needed. The porting-deferred entries are stale — they predate the slices that closed them.
+- **Affects:** `porting-deferred.md` strike-through for "Pause-buffer overflow does not synthesize ERROR" + "M3 Slice C-3 — take_until not yet ported."
+
+### D123 — /qa F1: Phase G re-checks `subscribers.is_empty()` to handle user-hook re-entrance
+- **Date:** 2026-05-10
+- **Context:** Adversarial /qa pass on the B+A batch surfaced that Phase G's cache-clear runs AFTER user `cleanup_for(OnDeactivation)` / `producer_deactivate` / `wipe_ctx` hooks. If a user hook re-subscribes during the lock-released window, the new subscriber's handshake delivers the live `cache` handle to its sink (with a pending_notify retain); Phase G then reacquires the state lock and releases `cache` via `release_handle`, dropping the registry slot to refcount-zero while the new subscriber still holds it via `pending_notify`. Use-after-release in production bindings.
+- **Options:** A) Re-check `rec.subscribers.is_empty()` inside Phase G's state-lock acquire and skip if non-empty. B) Hold the state lock across the user hooks (breaks D045 re-entrance contract). C) Document and ship the bug.
+- **Decision:** A — skip Phase G if re-entrance re-activated the node.
+- **Rationale:** Cleanest fix; matches D119 intent. The TS analog doesn't have the bug because JS is single-threaded with no released-lock window; Rust's lock-released hook discipline opens the window, so the re-check is necessary for refcount soundness. Re-acquire happens atomically with the recheck under the state lock.
+- **Affects:** `crates/graphrefly-core/src/node.rs` Subscription::Drop Phase G — new `if !rec.subscribers.is_empty() { return; }` gate. Test `phase_g_skips_cache_clear_when_cleanup_hook_re_subscribes` in `tests/phase_g_cleanup_node.rs`.
+
+### D124 — /qa F8: Phase G releases op_scratch (non-resubscribable only)
+- **Date:** 2026-05-10
+- **Context:** /qa surfaced that Phase G releases per-edge handles (`prev_data` / `data_batch` / `dep_terminals` Error) but leaves `op_scratch` retains untouched. For non-resubscribable nodes that never re-subscribe, this is a permanent leak (Last.latest, Scan.acc, etc. retained forever). Asymmetric with the per-edge cleanup.
+- **Options:** A) Release op_scratch unconditionally. B) Release ONLY for non-resubscribable nodes (resubscribable's `reset_for_fresh_lifecycle` handles release-with-take-before-release ordering for the seed-aliasing-acc invariant). C) Document as carry-forward; don't fix.
+- **Decision:** B — gate F8 on `!rec.resubscribable`.
+- **Rationale:** Option (A) initially attempted but broke `last_releases_buffered_latest_on_lifecycle_reset` test — eager release collapses the seed-handle registry slot before the next resubscribe's reset can take its retain (Slice C-3 /qa P1 invariant). Gating closes the leak for the non-resubscribable case (the actual D028 carry-forward concern) without breaking the resubscribable cycle.
+- **Affects:** `crates/graphrefly-core/src/node.rs` Subscription::Drop Phase G — `if rec.resubscribable { None } else { std::mem::take(&mut rec.op_scratch) }`. Lock-released `release_handles` call mirrors `ScratchReleaseGuard::drop`. Closes D028 partially.
+
+### D125 — /qa F6: B3 predicate counts unpaired DIRTYs (excludes tier-4 INVALIDATE)
+- **Date:** 2026-05-10
+- **Context:** /qa surfaced that the B3 `pending_auto_resolve` predicate used `any tier >= 3` as the "has_settle" check — but INVALIDATE (tier 4) is NOT a settle for R1.3.1.b two-phase pairing. A wave like `[DIRTY, INVALIDATE]` would short-circuit the auto-resolve. Additionally, multi-emit waves like `[DIRTY, RESOLVED, DIRTY]` left one trailing unpaired DIRTY that the original predicate missed.
+- **Decision:** Walk `pending_notify` in arrival order, counting unpaired DIRTYs. Settles are tier-3 (DATA/RESOLVED) AND tier-5 (COMPLETE/ERROR); INVALIDATE / PAUSE / RESUME / TEARDOWN / START are NOT settles.
+- **Affects:** `crates/graphrefly-core/src/node.rs` set_deps empty-deps block.
+
+### D126 — /qa F2: SubscribeOutcome substrate + per-operator Dead handling
+- **Date:** 2026-05-10
+- **Context:** /qa surfaced that `producer::subscribe_to`'s silent-skip-on-TornDown wedged most producer-pattern operators (zip waits on a queue that never fills; concat doesn't advance; race doesn't mark completed; take_until waits for notifier indefinitely; merge_map's `s.active` counter leaks; switch_map/exhaust_map's `[Data, Complete]` batched outer projected to dead inner wedges). User direction (F2 = a): substrate-level outcome enum + per-op Dead handlers.
+- **Options:** A) `SubscribeOutcome { Live, Deferred, Dead }` enum returned by `subscribe_to`; per-op Dead handling. B) Inline match on `SubscribeError` per operator. C) Defer to follow-up.
+- **Decision:** A — substrate-level outcome enum.
+- **Rationale:** Per-domain status-string-union pattern (matches TS's `RefineStatus` / `AgentStatus` / process status `"running" | "completed" | "errored" | "cancelled"`). No single canonical `Outcome<T>` type in TS or Rust; each domain owns its outcome enum. `SubscribeOutcome` documents the producer-layer dead-source contract; operators match on it.
+- **Per-op handling:** zip self-Completes on Dead (queue never fills); concat advances phase on Dead first / sets second_completed on Dead second; race marks `completed[idx]=true` and self-Completes if all Dead; take_until self-Completes on Dead source, ignores Dead notifier; switch_map / exhaust_map / merge_map invoke `on_complete_for_dead()` to synthesize inner-Complete and trigger the operator's self-Complete-when-done logic.
+- **Affects:** `crates/graphrefly-operators/src/producer.rs` (new `SubscribeOutcome` enum, widened `subscribe_to` return); `crates/graphrefly-operators/src/ops_impl.rs` (zip/concat/race/take_until Dead handling); `crates/graphrefly-operators/src/higher_order.rs` (switch_map/exhaust_map/merge_map TornDown synthesizes on_complete); `crates/graphrefly-operators/src/lib.rs` export. End-to-end Dead-path testing constrained by partition-acquire ordering — substrate-level coverage via `SubscribeError::TornDown` unit tests in `tests/resubscribable.rs`.
+
+### D127 — /qa F3: TornDownError class + trySubscribeOrDead helper (TS substrate)
+- **Date:** 2026-05-10
+- **Context:** /qa surfaced that the TS-side R2.2.7.b throw (Node.subscribe throws Error) is not type-discriminable by operator code. ~25 TS operator subscribe sites (buffer / take / control / combine / time / higher-order) silently break on dead-upstream consumers post-D118.
+- **Options:** A) Typed `TornDownError` class + `trySubscribeOrDead()` helper + audit operators. B) Catch-all try/catch. C) Defer.
+- **Decision:** A — substrate landed; full operator audit deferred to a focused follow-up batch.
+- **Rationale:** Substrate (typed error class + helper) is the load-bearing change; without it operators have no clean discriminator. The 25-site operator audit is mechanical but large; ship the substrate and document the audit as carry-forward (consumer pressure will drive the per-operator migrations).
+- **Affects:** `packages/pure-ts/src/core/subscribe-error.ts` (new file — TornDownError + isTornDownError + SubscribeOutcome type + trySubscribeOrDead helper). `packages/pure-ts/src/core/node.ts` subscribe throws TornDownError instance. `packages/pure-ts/src/core/index.ts` exports. Carry-forward: per-operator audit (buffer / take / control / combine / time / higher-order).
+
+### D128 — /qa F5 + F7 + F10 + F11 + spec wording fixes (auto-applied)
+- **Date:** 2026-05-10
+- **Context:** /qa surfaced four small-scope items: F5 dead-code branches in `try_subscribe` post-D118 (terminal-replay + teardown-replay arms unreachable after R2.2.7.a/b enforcement); F7 TS error message wording drift (`(status=...)` substring not in canonical or Rust); F10 TS test regex too loose; F11 missing race-window regression test for mid-wave subscribe between `complete()` and TEARDOWN auto-cascade; spec §1 TEARDOWN table row contradicted R2.2.7.a's "not permanent destruction" framing.
+- **Decisions (all auto-applied):** F5 removed; F7 routes through TornDownError class (canonical wording); F10 tightened to `/non-resubscribable.*terminated.*R2\.2\.7\.b/`; F11 added; spec §1 row updated in both canonical spec docs.
+- **Affects:** node.rs handshake builder (F5); node.ts subscribe (F7); session1-foundation.test.ts (F10); phase_g_cleanup_node.rs (F11); GRAPHREFLY-SPEC.md + implementation-plan-13.6-canonical-spec.md (spec wording).

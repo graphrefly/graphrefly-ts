@@ -58,6 +58,7 @@ import {
 	TEARDOWN,
 	TEARDOWN_ONLY_BATCH,
 } from "./messages.js";
+import { TornDownError } from "./subscribe-error.js";
 import {
 	advanceVersion,
 	createVersioning,
@@ -1271,7 +1272,25 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			}
 		}
 
-		// Resubscribable terminal reset.
+		// R2.2.7.b (D118, 2026-05-10): non-resubscribable + terminal →
+		// reject. The stream is permanently over; late subscribers get an
+		// honest error instead of a courtesy replay of past lifecycle
+		// events. Operators (zip / concat / race / take_until / switch_map
+		// / merge_map / etc.) that subscribe to upstream sources MUST
+		// handle this by skipping the source. The previous behavior
+		// (replay [START, DATA?, COMPLETE|ERROR, TEARDOWN?]) was a
+		// courtesy that conflated "subscribe to a live stream" with
+		// "receive a replay of past events"; R2.2.7.b makes the contract
+		// explicit.
+		if (this._isTerminal && !this._resubscribable) {
+			throw new TornDownError(this.name ?? "<anonymous>", this._status);
+		}
+
+		// R2.2.7.a (D118, 2026-05-10): resubscribable + terminal → reset
+		// to fresh lifecycle. TEARDOWN does NOT block reset — TEARDOWN is
+		// the cleanup signal of the prior activation cycle, not permanent
+		// destruction. `_resetForFreshLifecycle` clears `_teardownDone`
+		// along with the rest of the per-lifecycle state.
 		const wasTerminal = this._isTerminal;
 		const afterTerminalReset = wasTerminal && this._resubscribable;
 		if (afterTerminalReset) {

@@ -67,7 +67,7 @@ There is no single-message shorthand. Even one message arrives as `[[DATA, 42]]`
 | `RESET` | — | INVALIDATE then push initial |
 | `PAUSE` | lockId (mandatory) | Suspend (lockId identifies pauser) |
 | `RESUME` | lockId (mandatory, must match) | Resume after pause |
-| `TEARDOWN` | — | Permanent cleanup, release resources |
+| `TEARDOWN` | — | Cleanup of current lifecycle (resubscribable nodes may re-activate per R2.2.7.a) |
 | `COMPLETE` | — | Clean termination |
 | `ERROR` | error (non-`undefined`) | Error termination |
 
@@ -341,6 +341,17 @@ node.down([[COMPLETE]])              — terminate
 
 **R2.2.7 — `unsubscribe()`.** Disconnect from upstream deps. State nodes retain `.cache` and status (ROM); compute nodes clear `.cache` and transition to `"sentinel"` (RAM). Lazy reconnect on next downstream subscribe.
 
+**R2.2.7.a — Subscribe to a terminal `resubscribable: true` node resets the lifecycle.** When a late `subscribe()` arrives at a node that has terminated (received `[COMPLETE]` or `[ERROR, h]`) AND has `resubscribable: true`, the dispatcher resets the node to a fresh lifecycle BEFORE installing the new sink: `terminal` cleared, `_hasCalledFnOnce` cleared, all per-dep `prevData` / `dataBatch` / `terminal` cleared, pause lockset drained, replay buffer cleared. The new subscriber receives a fresh `[START]` (cache survives for state nodes per R2.2.8; sentinel for compute). **The `[TEARDOWN]` history of the prior lifecycle does NOT block reset** — TEARDOWN is the cleanup signal of the previous activation cycle, not permanent destruction. The `wipe_ctx` cleanup hook fires on reset so binding-side `ctx.store` starts fresh per R2.4.6.
+
+**R2.2.7.b — Subscribe to a terminal `resubscribable: false` node is rejected.** When a late `subscribe()` arrives at a node that has terminated AND has `resubscribable: false`, the dispatcher refuses the subscription. The stream is permanently over; the late subscriber receives no handshake. Each implementation surfaces this via its idiomatic error channel:
+
+- **Rust:** `Core::try_subscribe` returns `Err(SubscribeError::TornDown { node })`. `Core::subscribe` (the panic-on-error variant) panics with the `TornDown` diagnostic.
+- **TS / PY:** `subscribe()` throws (TS `Error`, PY `RuntimeError`).
+
+The `torn_down` (i.e. has-received-TEARDOWN) flag is irrelevant for the rejection decision — `terminal.is_some()` alone gates rejection on non-resubscribable nodes. Operators (zip / concat / race / take_until / merge / switch_map / etc.) that subscribe to upstream sources MUST handle the rejection by skipping that source (e.g., concat advances to the next source on `TornDown`).
+
+**Rationale.** The current Rust impl prior to D118 treated TEARDOWN as "permanent destruction" (Slice A+B F3) and replayed the full terminal lifecycle to late subscribers regardless of resubscribable flag. R2.2.7.a / R2.2.7.b clean up that conflation: `resubscribable` IS the property that gates whether late subscribe re-activates; TEARDOWN is the cleanup signal of the previous activation, not an exception to that property. Non-resubscribable terminal nodes refuse rather than silently replay so callers get a clear error rather than a confusing handshake of past events.
+
 **R2.2.8 — ROM/RAM cache semantics.** State nodes retain cached value across disconnect — the value is intrinsic and non-volatile (ROM). Compute nodes (producer, derived, dynamic, effect) clear cache on `_deactivate` because their value is a function of live subscriptions; reconnect re-runs fn from scratch.
 
 | Node kind | `.cache` after disconnect | Reconnect behavior |
@@ -539,6 +550,8 @@ Default `Object.is` handles all cases. Custom `equals` need only handle the valu
 **R2.6.4 — TEARDOWN auto-precedes with COMPLETE (DS-13.5.A Q16).** When `[[TEARDOWN]]` arrives at a node not yet terminal, dispatcher synthesizes `[COMPLETE]` prefix in the same outgoing wave: `[[TEARDOWN]]` → `[[COMPLETE], [TEARDOWN]]`. Sinks observe a clean "complete-then-teardown" lifecycle pair — bridge subscribers like `firstWhere` / `firstValueFrom` resolve from COMPLETE before subscription unwires.
 
 Applies to `"sentinel"`-status nodes too — a state node that never delivered DATA (e.g. `node<T>([])` with no `initial`, or just-INVALIDATE'd node) still gets the synthetic COMPLETE on TEARDOWN. Bridge subscribers waiting on a stream that never emitted need COMPLETE to reject cleanly with "completed without matching value" rather than hang.
+
+**TEARDOWN is the cleanup signal of the previous activation cycle, NOT permanent destruction of the node** (D118 / R2.2.7.a). On `resubscribable: true` nodes, a late subscribe AFTER TEARDOWN resets the lifecycle and the node begins a fresh activation cycle — the prior cycle's TEARDOWN was just its cleanup, not a death sentence. On `resubscribable: false` nodes, late subscribe is rejected per R2.2.7.b. The `_teardownDone` (TS) / `has_received_teardown` (Rust/PY) flag is wave-scoped bookkeeping for the synthesis-skip in R2.6.4 above; it does NOT gate resubscribable reset.
 
 Auto-precede is **idempotent** via `_teardownProcessed: boolean` flag: subsequent arrivals deliver `[[TEARDOWN]]` alone without re-emitting COMPLETE. Skips when wave already carries a terminal lifecycle signal (`COMPLETE` or `ERROR`).
 
@@ -1978,7 +1991,7 @@ INVALIDATE    [INVALIDATE]            Clear cache (status → "sentinel" per Loc
 RESET         [RESET]                 INVALIDATE + push initial
 PAUSE         [PAUSE, lockId]         Suspend (lockId mandatory per R1.2.6)
 RESUME        [RESUME, lockId]        Resume (must match PAUSE lockId; unknown lockId = no-op)
-TEARDOWN      [TEARDOWN]              Permanent cleanup (auto-precedes COMPLETE per R2.6.4 / Lock 6.F)
+TEARDOWN      [TEARDOWN]              Cleanup of current lifecycle (resubscribable nodes may re-activate per R2.2.7.a; auto-precedes COMPLETE per R2.6.4 / Lock 6.F)
 COMPLETE      [COMPLETE]              Clean termination
 ERROR         [ERROR, payload]        Error termination (payload MUST NOT be undefined per R1.2.5)
 START         [START]                 Subscribe handshake (R1.2.3 — first message on every subscription)
