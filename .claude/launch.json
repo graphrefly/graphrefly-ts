@@ -44,16 +44,10 @@
 			"port": 5174
 		},
 		{
-			"name": "rust-review",
+			"name": "rust-audit",
 			"runtimeExecutable": "python3",
 			"runtimeArgs": ["-m", "http.server", "8769", "--directory", "/Users/davidchenallio/src/graphrefly-rs/docs"],
 			"port": 8769
-		},
-		{
-			"name": "rust-audit",
-			"runtimeExecutable": "python3",
-			"runtimeArgs": ["-m", "http.server", "8770", "--directory", "/Users/davidchenallio/src/graphrefly-rs/docs"],
-			"port": 8770
 		}
 	]
 }
