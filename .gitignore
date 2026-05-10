@@ -59,3 +59,12 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# TLC model-checker scratch files (mirrors ~/src/graphrefly/formal/.gitignore).
+# `states/` holds per-worker BFS state snapshots + fingerprint files,
+# regenerated on every TLC run. `MC.out`, the tooling-generated `MC.tla`,
+# and `MC.cfg` are TLC's internal harness copies (NOT our authored
+# `*_MC.tla` / `*_MC.cfg` source files — those are tracked).
+docs/research/states/
+docs/research/*.toolbox/
+docs/research/MC.out

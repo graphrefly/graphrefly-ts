@@ -476,3 +476,42 @@ Decisions made during the Rust port, recorded after inline discussion.
 - **Decision:** All 5.
 - **Rationale:** User direction. Trimming to deadlock-essentials would land Y1+Y2 without verifying the (3) drop-cascade and (5) union/split + reentrancy-rejection paths — exactly the new Y1 paths most likely to harbor subtle bugs. The TLA+ model is the strongest verification we have for cross-partition lock interactions; the marginal cost of modeling all 5 is low relative to the implementation cost. Acceptance bar: each of the 5 items is encoded as a property and MC-checks under representative configs.
 - **Affects:** New `docs/research/wave_protocol_partitioned.tla` (extends `wave_protocol_rewire.tla`) + `wave_protocol_partitioned_MC.tla`; `.github/workflows/ci.yml` `tlc` job widened to also check the new MC; CI README pointer.
+
+### D095 — Phase H/I/K/L bundled as one closing slice for D3
+- **Date:** 2026-05-09
+- **Context:** Slice Y1+Y2 in-flight; Phases B–F + J landed in `d21a5d8`. Carry-forward enumerates Phase H (comprehensive parallelism tests), I (TLA+ extension), K (CLAUDE.md invariant 3 wording), L (closing docs + git tag). Each is small in isolation; bundling avoids three handoffs with D3 sitting "locked-but-not-closed".
+- **Options:** A) Four separate slices in sequence; B) One bundled closing slice.
+- **Decision:** B.
+- **Rationale:** Phase L can only land after H/I/K (it cites them); the natural commit cadence is one combined commit. Estimated ~600–1200 LOC across tests + TLA+ + docs, no production code changes (D3 implementation already in `d21a5d8`). Falls within slice-size guidelines.
+- **Affects:** `crates/graphrefly-core/tests/per_subgraph_parallelism.rs` (new); `docs/research/wave_protocol_partitioned.tla` (new) + `_MC.tla` (new); `CLAUDE.md` Rust invariant 3; `docs/migration-status.md` Y1+Y2 closing section; `docs/porting-deferred.md` D3 strikethrough; `archive/docs/SESSION-rust-port-d3-per-subgraph-parallelism.md` § 6 status.
+
+### D096 — Loom budget: defaults for CI smoke, env-overridable for local exhaustive
+- **Date:** 2026-05-09
+- **Context:** Phase H Q-B. Loom interleaving counts grow combinatorially. CI needs a smoke check that completes in seconds; local exhaustive runs benefit from larger thread/branch budgets to surface complex bugs.
+- **Options:** A) Hardcoded small budget (CI-friendly, local can't easily widen); B) Hardcoded large budget (local-friendly, CI runs slow); C) Loom defaults + document env-var override pattern (`LOOM_MAX_THREADS` / `LOOM_MAX_BRANCHES` / `LOOM_MAX_PREEMPTIONS`).
+- **Decision:** C.
+- **Rationale:** Loom already reads its model parameters from env vars by default; the test code stays minimal and the user can run aggressively locally (`LOOM_MAX_BRANCHES=100000 cargo test ...`) without affecting CI throughput. Existing `tests/loom_subscription.rs` follows the same shape — defaults sufficient for the bounded D5 scenario; no env-var tuning needed for current tests.
+- **Affects:** `crates/graphrefly-core/tests/per_subgraph_parallelism.rs` documentation; no Cargo.toml or CI changes.
+
+### D097 — One-batch landing; user commits and tags at the end
+- **Date:** 2026-05-09
+- **Context:** Phase H/I/K/L Q-C. Whether the slice should auto-commit + tag.
+- **Decision:** No commit, no tag. User commits at end; release-plz handles version cadence.
+- **Rationale:** User direction. Avoids divergence from the `chore: release vX` cadence pattern; user retains explicit control over the closing commit.
+- **Affects:** Workflow only — no code/docs change.
+
+### D098 — Defer N-thread criterion bench widening to Q2+Q3+Q-beyond batch
+- **Date:** 2026-05-09
+- **Context:** Phase H Q-D. Session-doc § Q8 calls for an N-thread parallel-emit bench validating sub-linear scaling; Phase J landed 2t/4t scenarios. The clean sub-linear-scaling shape was implied but not in the carry-forward list.
+- **Options:** A) Widen now in Phase H bundle; B) Defer to the Q2+Q3+Q-beyond per-partition state-shard refactor batch.
+- **Decision:** B.
+- **Rationale:** Wide-spectrum parallelism (the regime the bench would highlight) only emerges after Q-beyond. Benching it now, when Regime A still serializes on the state mutex, would lock in 0.7× numbers as the "scaling baseline" — misleading. Defer to the batch where the win actually lands.
+- **Affects:** `docs/porting-deferred.md` Q2+Q3+Q-beyond entry — already names this as part of its bench scope.
+
+### D099 — Producer-pattern subscribe-during-fire deadlock loom test added with `#[ignore]`
+- **Date:** 2026-05-09
+- **Context:** Phase H Q-E. The Phase H+ deferred entry calls for a loom test of cross-partition `Core::subscribe`-during-fire — a documented AB/BA hazard. Question: include the test now or defer until the structural fix lands?
+- **Options:** A) Don't add the test until the fix lands; B) Add the test now as `#[ignore = "deferred: ..."]` so the asset is preserved and the hazard is flagged in CI; C) Add the test ungated (would fail CI).
+- **Decision:** B.
+- **Rationale:** Preserves the test asset (no need to rewrite when the structural fix lands); doesn't fail CI; the `#[ignore]` reason string surfaces the hazard during `cargo test --ignored` listing. Matches the canonical pattern for deferred-feature tests in this repo.
+- **Affects:** `crates/graphrefly-core/tests/per_subgraph_parallelism.rs` — one test gated `#[ignore]` with a hazard description.

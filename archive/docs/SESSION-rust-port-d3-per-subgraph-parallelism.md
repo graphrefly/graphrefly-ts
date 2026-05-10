@@ -476,7 +476,41 @@ Mandatory before X5/Y1 acceptance.
 
 ## 6. Status
 
-**Current state:** **LOCKED 2026-05-08.** All 8 questions answered;
+**Current state:** **IMPLEMENTED + CLOSED 2026-05-09.** All 8 questions
+answered; D3 closure batch landed across Slice X5 (substrate) and Slice
+Y1+Y2 Phases B–L (wave-engine migration + split-eager + bench + Phase H
+comprehensive tests + Phase I TLA+ verification + Phase K CLAUDE.md
+invariant lift + Phase L closing docs). See
+[`migration-status.md` Slice Y1+Y2 closing section](https://github.com/graphrefly/graphrefly-rs/blob/main/docs/migration-status.md)
+and the strikethrough D3 entry in
+[`porting-deferred.md`](https://github.com/graphrefly/graphrefly-rs/blob/main/docs/porting-deferred.md).
+Decisions D089–D099 logged in
+[`docs/rust-port-decisions.md`](../docs/rust-port-decisions.md).
+
+**Outcome relative to acceptance bar:** disjoint-partition fn-fire-heavy
+waves verified parallel (1.82× at 2 threads, 2.16× disjoint-vs-same
+separation per Phase J bench); cross-partition `begin_batch_for`
+ascending-`SubgraphId` acquisition + mid-wave reentrancy rejection +
+union/split discipline verified deadlock-free across the TLA+ MC
+configuration (3 nodes × 2 threads × MaxOps=7, see
+`docs/research/wave_protocol_partitioned_MC.cfg`). **Important
+spec-vs-impl note:** the TLA+ spec models the SAFE PROTOCOL — the
+ascending-`SubgraphId` rule applied to EVERY acquire including
+nested ones from inside a fire. The shipped Rust impl enforces the
+rule WITHIN a single `compute_touched_partitions`-driven batch but
+NOT across successive `begin_batch_for` calls on the same thread;
+that gap is the deferred Phase H+ scope (see `porting-deferred.md`
+"Cross-partition acquire-during-fire deadlock"). `Subscription::Drop`
+in the v1 impl does NOT acquire wave_owners; the
+`BeginSubscriptionDropCleanup` action in the spec is forward-compat
+infra for the Q5 lift if/when Drop is widened to the cascade
+shape. Tight-emit Regime A is the documented carry-forward —
+addressed by the next batch ("Per-partition state-shard refactor
+(Q2 + Q3 + Q-beyond)" in `porting-deferred.md`, bundled with the
+H+ fix per the 2026-05-09 amendment).
+
+**Original lock state (preserved for archive):** **LOCKED 2026-05-08.**
+All 8 questions answered;
 implementation gated only on Slice X5 / Y1 batch entry.
 
 **Implementation summary:**
