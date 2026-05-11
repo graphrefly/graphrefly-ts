@@ -874,3 +874,158 @@ Decisions made during the Rust port, recorded after inline discussion.
     - `DescribeValue::Rendered(Value::Null)` JSON-indistinguishable from sentinel-cache `None`.
 - **Affects:** docs (`migration-status.md`, `porting-deferred.md`); rustdoc on `boundary.rs` + `node.rs`; tests (`mount.rs`, `phase_g_op_scratch.rs`); operator semantics (`time.ts`). All 539 cargo + 142 parity + 3008 pure-ts tests pass.
 
+### D138 — M4.A canonical-JSON algorithm: serde_json route through `Value` (not hand-roll, not RFC 8785)
+- **Date:** 2026-05-10
+- **Context:** WAL frame SHA-256 checksum must be byte-identical across TS / Rust (spec §a — `GRAPHREFLY-SPEC.md:1201-1206`). TS's `stableJsonString` is "recursively sort object keys, then `JSON.stringify(_, undefined, 0)`". Rust needs an equivalent canonical encoder.
+- **Options:** A) `serde_jcs` crate (RFC 8785 canonical JSON — exhaustive but doesn't match TS algorithm bit-for-bit, especially for numbers); B) hand-roll a recursive key-sort canonicalizer; C) route through `serde_json::Value` → `serde_json::Map` (BTreeMap-backed by default) → `serde_json::to_string` (sorted iteration falls out of BTreeMap).
+- **Decision:** C — pick this for Rust then assert TS/PY match. Verified post-implementation that TS already produces the same output for the WAL schema; no TS/PY backport needed.
+- **Rationale:** (a) `serde_json::Map<String, Value>` is a type alias for `BTreeMap<String, Value>` when the (off-by-default) `preserve_order` feature isn't enabled; iteration is sorted-by-key by construction. (b) Routing typed structs through `to_value` flattens to `Map` recursively — sorting is recursive too. (c) Zero new deps (serde_json already workspace). (d) Algorithm matches TS bit-for-bit on the WAL frame schema (ASCII keys, integer numerics, no floats). Parity caveats — UTF-16-vs-UTF-8 sort divergence on non-BMP keys, float subnormal divergence — documented in `wal.rs` module doc; lifts when a real consumer surfaces non-ASCII identifiers / float payloads.
+- **Affects:** `crates/graphrefly-storage/src/wal.rs::canonical_json` (3 LOC). Parity fixture at `wal.rs::checksum_parity_fixture_minimal_frame` pins the byte-identical output (hand-canonicalized JSON + SHA-256 hex computed via `shasum -a 256`).
+
+### D139 — M4.A `Version` field: `enum { Counter(u64), Cid(String) }` with `#[serde(untagged)]`
+- **Date:** 2026-05-10
+- **Context:** TS `BaseChange<T>.version` is typed `number | string` (V0 counter vs V1+ CID). Rust port needs an enum that serializes bit-identical to either form on the wire.
+- **Options:** A) `enum Version { Counter(u64), Cid(String) }` with `#[serde(untagged)]`; B) `String` only (would break wire parity since TS V0 serializes as JSON number); C) `serde_json::Value` — too loose.
+- **Decision:** A.
+- **Rationale:** `#[serde(untagged)]` makes serialization emit a bare number for `Counter` and a bare string for `Cid` — wire-identical to TS's `number | string` union. Deserialization tries variants in declaration order; numbers parse as `Counter` and strings parse as `Cid`. Mixed-type sequences across versions remain user-resolved per spec.
+- **Affects:** `crates/graphrefly-structures/src/changeset.rs::Version`.
+
+### D140 — M4.A `BaseChange<T>` lives in `graphrefly-structures` (not `graphrefly-storage`)
+- **Date:** 2026-05-10
+- **Context:** TS has `BaseChange<T>` in `extra/data-structures/change.ts` because reactive Map/List/Log/Index emit them. Rust port: where should it live? Options span storage (M4) and structures (M5).
+- **Options:** A) Live in `graphrefly-storage` (storage-internal type, structures port lifts it later); B) Live in `graphrefly-structures` even though that crate is otherwise blocked on M5 (just add the changeset module now, defer the reactive collections); C) Live in `graphrefly-core` (forces everyone to depend on it).
+- **Decision:** B — new `changeset` module in `graphrefly-structures`; `graphrefly-storage` consumes via `graphrefly-structures = { workspace = true }`.
+- **Rationale:** Many sites that need changeset/diff envelopes (storage WAL frames, bridge wire format, M5 reactive structures) all consume the same type. Putting it close to its primary emitters (reactive structures) matches the TS architecture without requiring a future migration when M5 lands. Dep chain stays acyclic (`storage → structures → graph → core`). The `serde-support` feature gates the codec footprint so structures consumers that don't need serde stay light.
+- **Affects:** `crates/graphrefly-structures/src/changeset.rs` (new); `crates/graphrefly-structures/Cargo.toml` (dev-dep `serde_json` for tests); `crates/graphrefly-storage/Cargo.toml` (new dep on structures).
+
+### D141 — M4.A checksum field type: `String` (hex), not `[u8; 32]`
+- **Date:** 2026-05-10
+- **Context:** TS ships SHA-256 as hex string because `jsonCodec` corrupts `Uint8Array` to numeric-keyed dict on JSON round-trip. Rust serde-cbor / serde-json handles `[u8; 32]` natively but would serialize differently from TS unless we constrain the codec.
+- **Options:** A) `[u8; 32]` field, serialize as raw bytes (CBOR-friendly, breaks JSON round-trip parity with TS); B) `String` field, 64-char lowercase hex (wire-parity with TS, ~2× bytes on disk vs raw).
+- **Decision:** B.
+- **Rationale:** Cross-impl WAL readability is the constraint that wins. The 32-byte vs 64-char overhead is trivial relative to the frame payload size. M4.E parity tests will assert byte-identical files across TS / Rust impls; this field shape makes that assertion easy.
+- **Affects:** `WALFrame::checksum: String`.
+
+### D142 — M4.A slice scope: substrate-only (no tier traits, no backends, no Graph integration)
+- **Date:** 2026-05-10
+- **Context:** M4 storage is ~1200+ TS lines of substrate before Graph integration — too big for one slice. Need to break it into landable sub-slices.
+- **Options:** A) Land M4 in one mega-slice (~3000-5000 Rust LOC); B) M4.A substrate-only (WAL frame type + checksum + errors), then M4.B tier traits + memory backend, then M4.C file backend, then M4.D redb backend, then M4.E Graph integration, then M4.F parity tests; C) Skip ahead to M4.E directly (no substrate work, just port everything).
+- **Decision:** B with M4.A landing first.
+- **Rationale:** M4.A is self-contained (~370 LOC + 19 tests), gives M4.B-F a stable target, and lets the substrate parity-fixture lock byte-equivalence with TS before tier abstractions arrive. Other sub-slices can land out of order based on consumer pressure (e.g. M4.D redb might land before M4.C file if a real consumer surfaces).
+- **Affects:** Sequencing of M4 sub-slices. Migration-status M4 row stays 🟢 ready; new "M4.A — landed 2026-05-10" section documents what landed.
+
+### D143 — M4.B `StorageBackend` + `BaseStorageTier` API: sync, NOT async
+- **Date:** 2026-05-10
+- **Context:** TS uses `void | Promise<void>` polymorphism (sync OR async backends interchangeable). Rust needs to pick a shape.
+- **Options:** A) All sync — `fn save(&self, ...)`; memory/redb/std::fs all work; tokio backends wrap async surface at adapter layer; B) Async via `async_trait` macro — every method `async fn`, matches TS Promise-shape; C) Dual sync + async traits.
+- **Decision:** A — sync everywhere.
+- **Rationale:** redb is sync; the hot path (Graph wave-close → tier flush) is sync in the dispatcher. The actual data flow for the M4.B-D scope (memory + file + redb) is fully sync-compatible. Forcing async semantics through everywhere via `async_trait` adds `Pin<Box<dyn Future>>` overhead per call and pulls async-trait machinery for no measurable benefit. Network-backed backends (M4 post-1.0) can wrap their async surface via `tokio::Handle::block_on` at the adapter layer. CLAUDE.md "No async runtime in Core" stays preserved; `tokio` only enters at M4.E (Graph integration) via the reactive timer source — not at the storage layer.
+- **Affects:** `StorageBackend` trait, `BaseStorageTier` trait, all sub-traits. Codec is sync via Q4 — `encode(&T) -> Result<Vec<u8>, _>`. `list_by_prefix_bytes` returns sync `Iterator`, not `Stream`.
+
+### D144 — M4.B `debounce_ms` semantics: API surface lands, runtime semantics defer to M4.E
+- **Date:** 2026-05-10
+- **Context:** TS uses `setTimeout`-driven flush at the tier level; Rust has no sync timer. Without `tokio::time::sleep` (which would require pulling tokio into storage) or a per-tier OS thread (CLAUDE.md "no polling"), the tier can't drive a debounce timer itself.
+- **Options:** A) Defer the knob entirely (drop `debounce_ms` from options + accessor; add at M4.E); B) Ship the API surface, runtime is "buffer until explicit flush"; tier-level no-op; document carry-forward; C) Land tier-level tokio-driven timers (pulls tokio into storage, complicates the sync-only D143 invariant); D) Per-tier OS thread (forbidden by CLAUDE.md "no polling").
+- **Decision:** B.
+- **Rationale:** `debounce_ms` is correctly tier-level **metadata** that the Graph layer should consume. Architectural split: tier owns the buffer; Graph schedules `flush()` via its own reactive timer (`from_timer` / `from_cron`) at attach time. This is a deliberate Rust-port refinement over TS's tier-level setTimeout — concentrating timer ownership at Graph removes the double-spend when both Graph and tiers each try to drive timers. M4.B ships the field + accessor; M4.E wires the timer. Users who want debounced flush before M4.E call `tier.flush()` explicitly.
+- **Affects:** `SnapshotStorageOptions` / `KvStorageOptions` / `AppendLogStorageOptions` carry `debounce_ms: Option<u32>`. `BaseStorageTier::debounce_ms() -> Option<u32>` accessor. Buffer-until-flush behavior documented inline at `tier.rs` module doc + `porting-deferred.md` lift entry.
+
+### D145 — M4.B `list_by_prefix_bytes` dyn-safety: bytes-level on `BaseStorageTier`, typed via free helpers
+- **Date:** 2026-05-10
+- **Context:** TS `listByPrefix<U>(prefix): AsyncIterable<{key, value: U}>` is a generic method on `BaseStorageTier`. Rust generic methods on trait objects are not dyn-safe — `&dyn BaseStorageTier` couldn't call this.
+- **Options:** A) Bytes-level on `BaseStorageTier` (`list_by_prefix_bytes -> Box<dyn Iterator<Item = Result<(String, Vec<u8>), _>>>`), typed decoding via free helpers (`wal::iterate_wal_frames<T>(tier, prefix)`); B) Typed on each sub-trait only (`SnapshotStorageTier<T>::list_by_prefix`), losing `&dyn BaseStorageTier` enumeration; C) Type-erased `Box<dyn Any>` yields.
+- **Decision:** A.
+- **Rationale:** Matches the M4.A `iterate_wal_frames<T>(tier, prefix)` shape — bytes-level enumeration is the dyn-safe primitive; typed helpers decode at the consumption site. Mirrors how `serde`'s `Serializer` is dyn-safe while typed encoding is via generic free functions. Concrete generic tier structs still expose typed convenience methods (`KvStorage::load(key) -> Result<Option<T>>`); the trait surface stays narrow + dyn-compatible. New `ListByPrefixIter<'a>` type alias keeps the signature readable + satisfies clippy's complex-type lint.
+- **Affects:** `BaseStorageTier::list_by_prefix_bytes`, `tier::ListByPrefixIter<'a>`, internal `PrefixIter<B>` adapter.
+
+### D146 — M4.B tier impl strategy: concrete generic structs + trait impls (not `impl Trait` factories or `Box<dyn>`)
+- **Date:** 2026-05-10
+- **Context:** TS factories return interfaces — caller codes against `BaseStorageTier`. Rust options for factory shape: `impl Trait`, `Box<dyn>`, concrete struct.
+- **Options:** A) `impl SnapshotStorageTier<T>` — opaque, static dispatch only; B) `Box<dyn SnapshotStorageTier<T> + Send + Sync>` — dyn cost everywhere; C) Concrete generic struct (`SnapshotStorage<B, T, C>`) with trait impls.
+- **Decision:** C.
+- **Rationale:** Caller gets both static dispatch (concrete type via factory return) AND dyn-safety (cast to `&dyn SnapshotStorageTier<T>` for heterogeneous Vec storage). Matches `redb::Database` / `tokio::fs::File` ergonomics — concrete struct first, traits second. Generic `<B, T, C>` lets the same struct serve any backend + codec combo without separate types per pair.
+- **Affects:** `SnapshotStorage<B, T, C>` / `AppendLogStorage<B, T, C>` / `KvStorage<B, T, C>` with `C: Codec<T>` default to `JsonCodec`.
+
+### D147 — M4.B backend ownership: `Arc<B>` with generic `B`, not `Box<dyn>` or owned-move
+- **Date:** 2026-05-10
+- **Context:** Graph attaches multiple tiers; tiers may share a backend (`{ snapshot, wal }` paired-tier shape from DS-14-storage §a).
+- **Options:** A) `SnapshotStorage<B>` owns `B` by move — one backend per tier; B) `Arc<B>` with generic `B` — shared backend across tiers, static dispatch on B; C) `Arc<dyn StorageBackend + Send + Sync>` — full type erasure.
+- **Decision:** B — `Arc<B>` with `B: StorageBackend + ?Sized`.
+- **Rationale:** Multi-tier-sharing-one-backend is the canonical pattern. TS does `attachStorage([{ snapshot: snapshotStorage(b), wal: kvStorage(b) }])` with `b` reused. The `?Sized` bound on `B` lets users pass either a concrete `Arc<MemoryBackend>` (static dispatch) OR `Arc<dyn StorageBackend>` (type-erased Vec). Best of both worlds — type-driven by default, erasable when needed.
+- **Affects:** `SnapshotStorage::backend: Arc<B>`, factories take `Arc<B>`.
+
+### D148 — M4.B `Codec<T>`: zero-sized `JsonCodec` implementing `Codec<T>` for all `T: Serialize + DeserializeOwned`
+- **Date:** 2026-05-10
+- **Context:** TS `jsonCodec` is `Codec<unknown>`; consumers cast. Rust can be more typed.
+- **Options:** A) Generic struct `JsonCodec<T>(PhantomData<T>)` — typed by construction, more type parameter noise; B) Zero-sized `JsonCodec` implementing `Codec<T>` for all `T: Serialize + DeserializeOwned + Send + Sync` — one unit struct usable for any T; C) Free function `json_codec<T>() -> impl Codec<T>` returning opaque impl.
+- **Decision:** B.
+- **Rationale:** Less type-parameter noise at consumption sites — caller writes `JsonCodec` and the trait bound at the tier struct's `C: Codec<T>` does the rest. Matches the `serde_json::to_string` / `to_value` shape (no T on the encoder side). Canonical JSON encoding (sorted keys via the `to_value` → BTreeMap → `to_vec` route) matches TS `jsonCodec` byte-for-byte on the value schemas Graph emits.
+- **Affects:** `codec::JsonCodec`, `Codec<T>` trait, default `C = JsonCodec` on the three tier structs.
+
+### D149 — M4.B `key_of` / `filter` closures: `Option<Box<dyn Fn(...) + Send + Sync>>`, not generic type params
+- **Date:** 2026-05-10
+- **Context:** TS `keyOf?: (T) => string` and `filter?: (T) => boolean` are stored as optional functions. Rust options: boxed `dyn Fn` vs generic type params.
+- **Options:** A) `Option<Box<dyn Fn(&T) -> String + Send + Sync>>` — boxed dyn, matches TS optional-function shape; B) Generic type params `K: Fn(&T) -> String` — static dispatch, more type parameters; C) Concrete enum variants for common cases.
+- **Decision:** A.
+- **Rationale:** Closures are uncommon enough that boxing is fine (one virtual call per save). Static-dispatch generics here would force every tier consumer to spell out closure types — `SnapshotStorage<MemoryBackend, Snap, JsonCodec, impl Fn(&Snap) -> String + Send + Sync, impl Fn(&Snap) -> bool + Send + Sync>` is unusable. Default `key_of` falls back to a captured closure returning `tier.name`. Clippy `type_complexity` lint kept happy by extracting `FilterFn<T>` / `KeyOfFn<T>` / `KvFilterFn<T>` type aliases.
+- **Affects:** `SnapshotStorageOptions::filter` / `key_of`, `KvStorageOptions::filter`, `AppendLogStorageOptions::key_of`.
+
+
+
+
+### D150 — /qa F2: `compact_every` boundary-crossing trigger (cross-impl)
+- **Date:** 2026-05-10
+- **Context:** /qa surfaced that strict-modulo trigger (`count % N == 0`) skips the trigger when a batch save jumps multiple `compact_every` boundaries. `append_entries(&[5_items])` with `compact_every=3` bumps count 0→5; `5 % 3 != 0` → no flush. Pre-fix Rust + TS both had this gap.
+- **Options:** A) Match TS modulo and document the batch gap; B) Boundary-crossing trigger (`prev / N != new / N`) in both impls; C) Defer.
+- **Decision:** B — apply boundary-crossing to all 3 tier impls in Rust AND TS.
+- **Rationale:** F2 is a real correctness gap for batch save APIs; the AppendLog tier already exposes the batch surface (`append_entries`). Boundary-crossing is semantically equivalent for single-save callers (count crosses one boundary per save) and correct for batch saves (one flush per boundary). Cross-language coordination preserves cross-impl behavior parity for the cadence semantic.
+- **Affects:** Rust `crates/graphrefly-storage/src/memory.rs` (3 sites); TS `packages/pure-ts/src/extra/storage/tiers.ts` (3 factories: `snapshotStorage`, `appendLogStorage`, `kvStorage`).
+
+### D151 — /qa A1: Snapshot compact-trigger race fix
+- **Date:** 2026-05-10
+- **Context:** Pre-fix `SnapshotStorage::save` released the pending lock between writing `pending = Some(snapshot)` and calling `flush()`. A concurrent save could overwrite pending in that window — the wrong snapshot persists.
+- **Decision:** Hold pending lock across the count update + trigger decision + capture; if trigger fires, take pending atomically with the decision.
+- **Rationale:** Closes a real race window with minimal restructure. Pending capture is now atomic with the trigger decision; the snapshot that caused the cadence is the one persisted.
+- **Affects:** `crates/graphrefly-storage/src/memory.rs:206-240`.
+
+### D152 — /qa A2: `KvStorage::delete` error-path ordering swap
+- **Date:** 2026-05-10
+- **Context:** Pre-fix order: `pending.lock().remove(key); self.backend.delete(key)`. If `backend.delete` fails, pending is gone but backend still holds the old value — silent stale-read on next `load(key)`.
+- **Decision:** Swap order — `backend.delete(key)?` THEN `pending.remove(key)`. Failure leaves pending intact so caller can retry.
+- **Rationale:** Matches the canonical error-recovery shape: side effects fire first, local state updates only on success.
+- **Affects:** `crates/graphrefly-storage/src/memory.rs:617-622`.
+
+### D153 — /qa A3: `From<ChecksumError> for StorageError`
+- **Date:** 2026-05-10
+- **Context:** `wal_frame_checksum` returns `Result<String, ChecksumError>`. `StorageError` had no `From<ChecksumError>` impl, so M4.E call sites would need explicit error mapping at every checksum call.
+- **Decision:** Add `From<ChecksumError> for StorageError` mapping `CanonicalJsonFailed(serde_json::Error) → Codec(CodecError::Encode(err.to_string()))`.
+- **Rationale:** Lets `?` propagate checksum failures at the tier-flush boundary without boilerplate. The canonical-JSON failure is semantically a codec-encode failure; the variant choice is consistent.
+- **Affects:** `crates/graphrefly-storage/src/error.rs`.
+
+### D154 — /qa A4: Reject `compact_every: Some(0)` at construction
+- **Date:** 2026-05-10
+- **Context:** `Some(0)` was silently equivalent to `None` because the `matches!` guard `n > 0` short-circuited. Pre-1.0 footgun.
+- **Decision:** Panic with clear diagnostic in all 3 factory functions ("use `None` to disable; `Some(n)` requires n >= 1").
+- **Rationale:** Pre-1.0; loud failure is preferable to silent no-op. Three `#[should_panic]` tests pin the behavior. TS-side has the same silent-no-op behavior; left as-is for now (TS users see a different stack trace shape but the behavior is equally permissive — flag for cross-impl conformance review later if needed).
+- **Affects:** `crates/graphrefly-storage/src/memory.rs` `snapshot_storage` / `kv_storage` / `append_log_storage` factories.
+
+### D155 — /qa A10: `preserve_order` feature canary test
+- **Date:** 2026-05-10
+- **Context:** Canonical-JSON parity depends on `serde_json::Map<String, Value>` being `BTreeMap`-backed (sorted iteration). If any workspace consumer enables `serde_json/preserve_order` via Cargo feature unification, `Map` switches to `IndexMap` (insertion-order) and parity silently breaks.
+- **Decision:** Add a runtime canary test that builds a `Value::Object` with reverse-alphabetical insertion order and asserts `to_string` produces alphabetical output. Test fails loud with a diagnostic referencing `cargo tree -e features | grep preserve_order` if unification enables the feature.
+- **Rationale:** Compile-time detection isn't straightforward (serde_json doesn't expose a `cfg` for `preserve_order` in downstream crates). The runtime canary is cheap (one assertion in unit tests) and high-signal.
+- **Affects:** `crates/graphrefly-storage/src/wal.rs::tests::preserve_order_feature_is_not_enabled`.
+
+### D156 — /qa A11: Remove redundant `prefix_owned` allocation in `PrefixIter::new`
+- **Date:** 2026-05-10
+- **Context:** Pre-fix had `let prefix_owned = prefix.to_string(); keys.retain(|k| k.starts_with(&prefix_owned));`. The String clone is unnecessary because `starts_with` accepts `&str` via `Pattern`.
+- **Decision:** Drop the clone; pass `prefix: &str` directly to `starts_with`.
+- **Rationale:** One String allocation per `list_by_prefix_bytes` call eliminated; minor perf win without changing correctness.
+- **Affects:** `crates/graphrefly-storage/src/tier.rs:206-213`.
+
+### D157 — /qa A5+A6+A7+A8+A13: test surface widening
+- **Date:** 2026-05-10
+- **Context:** Multiple test-coverage gaps surfaced by /qa: only `Lifecycle::Data` had a parity fixture; only `seq: None` was tested; `WalTag` deserialization tests only covered "wrong string"; filter+compact_every interaction was un-tested; `WALFrame<()>` and `WALFrame<serde_json::Value>` round-trips weren't pinned.
+- **Decision:** Add 12 new tests covering each gap.
+- **Rationale:** Each gap was at least plausible regression risk. Locking byte-equivalence for all 3 Lifecycle variants closes a parity-drift hole at the canonical-JSON layer. The boundary-crossing F2 fix also needed regression tests covering the batch-save + multi-boundary scenarios.
+- **Affects:** `crates/graphrefly-storage/src/wal.rs::tests` (6 new), `crates/graphrefly-storage/tests/tier.rs` (6 new test groups including 3 panic tests + boundary tests + filter+compact interaction + backend.delete error path).

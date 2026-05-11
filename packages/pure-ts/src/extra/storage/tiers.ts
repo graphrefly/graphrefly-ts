@@ -360,8 +360,19 @@ export function snapshotStorage<T>(
 		save(snapshot) {
 			if (opts.filter && !opts.filter(snapshot)) return;
 			pending = { snapshot };
+			// /qa F2 (D138-followup, 2026-05-10): boundary-crossing trigger
+			// matches the Rust-side fix. Pre-fix used strict modulo
+			// (`writeCount % compactEvery === 0`); a batch of N saves jumping
+			// the boundary by multiple multiples would still trigger only on
+			// exact divisibility. Snapshot does single-save so this is
+			// semantically equivalent for snapshot, but kept symmetric with
+			// appendLog and kv where batch increments matter.
+			const prev = writeCount;
 			writeCount += 1;
-			if (compactEvery !== undefined && writeCount % compactEvery === 0) {
+			if (
+				compactEvery !== undefined &&
+				Math.floor(prev / compactEvery) !== Math.floor(writeCount / compactEvery)
+			) {
 				return flushNow();
 			}
 			if (!opts.debounceMs) {
@@ -475,8 +486,18 @@ export function appendLogStorage<T>(
 				}
 				bucket.push(entry);
 			}
+			// /qa F2 (D138-followup, 2026-05-10): boundary-crossing trigger
+			// matches the Rust-side fix. Pre-fix `appendCount % compactEvery
+			// === 0` would miss the trigger when a batch jumped multiple
+			// compactEvery boundaries — e.g. compactEvery=3 + batch of 5
+			// bumps appendCount 0→5; `5 % 3 !== 0` so no flush fired even
+			// though we crossed the boundary at 3.
+			const prev = appendCount;
 			appendCount += entries.length;
-			if (compactEvery !== undefined && appendCount % compactEvery === 0) {
+			if (
+				compactEvery !== undefined &&
+				Math.floor(prev / compactEvery) !== Math.floor(appendCount / compactEvery)
+			) {
 				return flushNow();
 			}
 			if (!opts.debounceMs) {
@@ -640,8 +661,17 @@ export function kvStorage<T>(
 		save(key: string, value: T): void | Promise<void> {
 			if (opts.filter && !opts.filter(key, value)) return;
 			pending.set(key, value);
+			// /qa F2 (D138-followup, 2026-05-10): boundary-crossing trigger
+			// matches the Rust-side fix. Single-save is semantically
+			// equivalent to the prior modulo check (count goes prev → prev+1,
+			// boundary crosses only at exact multiples), but pinned this way
+			// so future batch-save APIs inherit the right semantic.
+			const prev = writeCount;
 			writeCount += 1;
-			if (compactEvery !== undefined && writeCount % compactEvery === 0) {
+			if (
+				compactEvery !== undefined &&
+				Math.floor(prev / compactEvery) !== Math.floor(writeCount / compactEvery)
+			) {
 				return flushNow();
 			}
 			if (!opts.debounceMs) {
