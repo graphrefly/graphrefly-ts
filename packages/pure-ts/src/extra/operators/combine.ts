@@ -6,9 +6,10 @@
  * cycle), `concat` (sequential), `race` (first DATA wins).
  */
 
-import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
+import { COMPLETE, DATA, ERROR, type Messages, RESOLVED } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
+import { subscribeOr } from "../../core/subscribe-error.js";
 import { type ExtraOpts, gatedOperatorOpts, operatorOpts } from "./_internal.js";
 
 /**
@@ -221,23 +222,48 @@ export function merge<T>(...args: ReadonlyArray<Node<T> | ExtraOpts | undefined>
 		(_data, a) => {
 			const n = sources.length;
 			let completed = 0;
+			let terminated = false;
 			const unsubs: (() => void)[] = [];
 			for (const src of sources) {
-				const u = src.subscribe((msgs) => {
-					for (const m of msgs) {
-						if (m[0] === DATA) {
-							a.emit(m[1] as T);
-						} else if (m[0] === COMPLETE) {
-							completed += 1;
-							if (completed >= n) {
-								a.down([[COMPLETE]]);
+				// /qa F5 (2026-05-10): guard the subscribe loop with
+				// `terminated` so a synchronous Dead-handler fired by
+				// the all-completed branch doesn't leave subsequent
+				// iterations subscribing into an already-completed
+				// operator (which would leak unsubs not pushed into
+				// `unsubs` due to the synchronous re-entry).
+				if (terminated) break;
+				// R2.2.7.b: Dead source counts as Complete for merge's
+				// completion tracking (no DATA will ever flow); if all
+				// sources are Dead/Complete, self-COMPLETE.
+				const u = subscribeOr<unknown>(
+					src as Node,
+					(msgs) => {
+						for (const m of msgs as Messages) {
+							if (m[0] === DATA) {
+								a.emit(m[1] as T);
+							} else if (m[0] === COMPLETE) {
+								completed += 1;
+								if (completed >= n && !terminated) {
+									terminated = true;
+									a.down([[COMPLETE]]);
+								}
+							} else if (m[0] === ERROR) {
+								if (!terminated) {
+									terminated = true;
+									a.down([m]);
+								}
 							}
-						} else if (m[0] === ERROR) {
-							a.down([m]);
+							// DIRTY, RESOLVED, START silently absorbed
 						}
-						// DIRTY, RESOLVED, START silently absorbed
-					}
-				});
+					},
+					() => {
+						completed += 1;
+						if (completed >= n && !terminated) {
+							terminated = true;
+							a.down([[COMPLETE]]);
+						}
+					},
+				);
 				unsubs.push(u);
 			}
 			return () => {
@@ -286,23 +312,45 @@ export function zip<const T extends readonly unknown[]>(
 		}
 
 		const unsubs: (() => void)[] = [];
+		let zipTerminated = false;
 		for (let i = 0; i < n; i++) {
+			if (zipTerminated) break;
 			const idx = i;
-			const u = (sources[i] as Node).subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA) {
-						queues[idx].push(m[1]);
-						tryEmit();
-					} else if (m[0] === COMPLETE) {
-						active -= 1;
-						if (active === 0 || queues[idx].length === 0) {
-							a.down([[COMPLETE]]);
+			// R2.2.7.b: Dead source → zip can never form a tuple (this
+			// source's queue will be permanently empty), self-COMPLETE.
+			const u = subscribeOr<unknown>(
+				sources[i] as Node,
+				(msgs) => {
+					for (const m of msgs as Messages) {
+						if (zipTerminated) return;
+						if (m[0] === DATA) {
+							queues[idx].push(m[1]);
+							tryEmit();
+						} else if (m[0] === COMPLETE) {
+							// /qa F4 (2026-05-10): check `zipTerminated`
+							// so a prior Dead-source's COMPLETE doesn't
+							// race with this live-source's COMPLETE
+							// (would otherwise emit COMPLETE twice).
+							active -= 1;
+							if (!zipTerminated && (active === 0 || queues[idx].length === 0)) {
+								zipTerminated = true;
+								a.down([[COMPLETE]]);
+							}
+						} else if (m[0] === ERROR) {
+							if (!zipTerminated) {
+								zipTerminated = true;
+								a.down([m]);
+							}
 						}
-					} else if (m[0] === ERROR) {
-						a.down([m]);
 					}
-				}
-			});
+				},
+				() => {
+					if (!zipTerminated) {
+						zipTerminated = true;
+						a.down([[COMPLETE]]);
+					}
+				},
+			);
 			unsubs.push(u);
 		}
 		return () => {
@@ -338,39 +386,66 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
 		const pending: unknown[] = [];
 		let firstUnsub: (() => void) | undefined;
 		let secondUnsub: (() => void) | undefined;
+		let secondCompleted = false;
 
-		secondUnsub = secondSrc.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (phase === 0) {
-					if (m[0] === DATA) pending.push(m[1]);
-					else if (m[0] === ERROR) a.down([m]);
-				} else {
-					// phase 1 — forward everything from second
-					if (m[0] === DATA) a.emit(m[1] as T);
-					else if (m[0] === COMPLETE || m[0] === ERROR) a.down([m]);
-				}
-			}
-		});
-
-		firstUnsub = firstSrc.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (phase === 0) {
-					if (m[0] === DATA) {
-						a.emit(m[1] as T);
-					} else if (m[0] === COMPLETE) {
-						phase = 1;
-						// Flush buffered second-source DATA
-						for (const v of pending) {
-							a.emit(v as T);
-						}
-						pending.length = 0;
-					} else if (m[0] === ERROR) {
-						a.down([m]);
+		// R2.2.7.b: Dead secondSrc → mark second-completed flag; if
+		// first eventually completes, immediately self-COMPLETE
+		// (mirrors Rust concat's `second_completed` D041 fix).
+		secondUnsub = subscribeOr<unknown>(
+			secondSrc as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (phase === 0) {
+						if (m[0] === DATA) pending.push(m[1]);
+						else if (m[0] === COMPLETE) secondCompleted = true;
+						else if (m[0] === ERROR) a.down([m]);
+					} else {
+						// phase 1 — forward everything from second
+						if (m[0] === DATA) a.emit(m[1] as T);
+						else if (m[0] === COMPLETE || m[0] === ERROR) a.down([m]);
 					}
 				}
-				// phase 1: ignore further first-source messages
-			}
-		});
+			},
+			() => {
+				secondCompleted = true;
+			},
+		);
+
+		// R2.2.7.b: Dead firstSrc → advance phase immediately, drain
+		// pending, and if second is also done, self-COMPLETE.
+		firstUnsub = subscribeOr<unknown>(
+			firstSrc as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (phase === 0) {
+						if (m[0] === DATA) {
+							a.emit(m[1] as T);
+						} else if (m[0] === COMPLETE) {
+							phase = 1;
+							// Flush buffered second-source DATA
+							for (const v of pending) {
+								a.emit(v as T);
+							}
+							pending.length = 0;
+							if (secondCompleted) a.down([[COMPLETE]]);
+						} else if (m[0] === ERROR) {
+							a.down([m]);
+						}
+					}
+					// phase 1: ignore further first-source messages
+				}
+			},
+			() => {
+				if (phase === 0) {
+					phase = 1;
+					for (const v of pending) {
+						a.emit(v as T);
+					}
+					pending.length = 0;
+					if (secondCompleted) a.down([[COMPLETE]]);
+				}
+			},
+		);
 
 		return () => {
 			firstUnsub?.();
@@ -418,22 +493,58 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 	// Producer pattern: first DATA wins.
 	return node<T>((_data, a) => {
 		let winner: number | null = null;
+		// /qa F3 (2026-05-10): tracks both Dead-at-subscribe AND
+		// live-COMPLETE-without-DATA. Pre-fix this was `completedDead`
+		// and only flipped from the onDead path, so mixed Dead+live
+		// scenarios where a live source completed without ever
+		// emitting DATA wouldn't trigger the all-completed self-Complete.
+		const completed = new Array<boolean>(sources.length).fill(false);
+		let raceTerminated = false;
 		const unsubs: (() => void)[] = [];
 		for (let i = 0; i < sources.length; i++) {
+			if (raceTerminated) break;
 			const idx = i;
-			const u = (sources[i] as Node).subscribe((msgs) => {
-				for (const m of msgs) {
-					if (winner !== null && idx !== winner) return;
-					if (m[0] === DATA) {
-						if (winner === null) winner = idx;
-						a.emit(m[1] as T);
-					} else if (m[0] === COMPLETE || m[0] === ERROR) {
-						if (winner === null || idx === winner) {
-							a.down([m]);
+			// R2.2.7.b: Dead source → mark completed[idx]; if all
+			// sources are Dead or have completed-without-DATA, self-COMPLETE.
+			const u = subscribeOr<unknown>(
+				sources[i] as Node,
+				(msgs) => {
+					for (const m of msgs as Messages) {
+						if (raceTerminated) return;
+						if (winner !== null && idx !== winner) return;
+						if (m[0] === DATA) {
+							if (winner === null) winner = idx;
+							a.emit(m[1] as T);
+						} else if (m[0] === COMPLETE) {
+							if (winner === null || idx === winner) {
+								completed[idx] = true;
+								if (winner === idx) {
+									// Winner completed; race is over.
+									raceTerminated = true;
+									a.down([m]);
+								} else if (winner === null && completed.every((c) => c)) {
+									// All sources completed-without-DATA; no
+									// winner; self-COMPLETE.
+									raceTerminated = true;
+									a.down([m]);
+								}
+							}
+						} else if (m[0] === ERROR) {
+							if (winner === null || idx === winner) {
+								raceTerminated = true;
+								a.down([m]);
+							}
 						}
 					}
-				}
-			});
+				},
+				() => {
+					completed[idx] = true;
+					if (winner === null && !raceTerminated && completed.every((c) => c)) {
+						raceTerminated = true;
+						a.down([[COMPLETE]]);
+					}
+				},
+			);
 			unsubs.push(u);
 		}
 		return () => {

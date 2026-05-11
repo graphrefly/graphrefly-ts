@@ -781,3 +781,96 @@ Decisions made during the Rust port, recorded after inline discussion.
 - **Context:** /qa surfaced four small-scope items: F5 dead-code branches in `try_subscribe` post-D118 (terminal-replay + teardown-replay arms unreachable after R2.2.7.a/b enforcement); F7 TS error message wording drift (`(status=...)` substring not in canonical or Rust); F10 TS test regex too loose; F11 missing race-window regression test for mid-wave subscribe between `complete()` and TEARDOWN auto-cascade; spec §1 TEARDOWN table row contradicted R2.2.7.a's "not permanent destruction" framing.
 - **Decisions (all auto-applied):** F5 removed; F7 routes through TornDownError class (canonical wording); F10 tightened to `/non-resubscribable.*terminated.*R2\.2\.7\.b/`; F11 added; spec §1 row updated in both canonical spec docs.
 - **Affects:** node.rs handshake builder (F5); node.ts subscribe (F7); session1-foundation.test.ts (F10); phase_g_cleanup_node.rs (F11); GRAPHREFLY-SPEC.md + implementation-plan-13.6-canonical-spec.md (spec wording).
+
+### D129 — D-α Phase G op_scratch resubscribable defer queue (closes D028)
+- **Date:** 2026-05-10
+- **Context:** /qa F8 (D124) closed the non-resubscribable case of D028 ("flow operator counters reset only on resubscribable terminal cycle") via eager `op_scratch` release in Phase G. The resubscribable + non-terminal deactivate-reactivate path remained leaky because Phase G's eager release would drop the seed/acc share BEFORE `reset_for_fresh_lifecycle`'s retain-before-release window (Slice C-3 /qa P1 invariant — verified by `scan_resubscribable_reset_with_seed_aliasing_acc_does_not_collapse_registry`).
+- **Options:** α) Per-Core `pending_scratch_release` defer queue draining on next `reset_for_fresh_lifecycle` or Core drop. β) Operator factory holds registration-time seed in a separate registry slot; Phase G releases scratch unconditionally; reset re-retains from the registration slot. γ) Defer to consumer pressure.
+- **Decision:** α — per-Core defer queue.
+- **Rationale:** Smaller diff. Mirrors the F8 STRICT deferred-op discipline (per-Core queue draining at a known synchronization point). Preserves the Slice C-3 /qa P1 retain-before-release invariant by routing the OLD scratch release through the queue, drained AFTER reset's Phase 2 fresh retain.
+- **Implementation:** Phase G on resubscribable + has-op: take old `op_scratch`, build fresh via `Core::make_op_scratch_with_binding` (new static variant — Subscription::Drop holds only `&dyn BindingBoundary`), install fresh, push old to `CoreState::pending_scratch_release: Vec<Box<dyn OperatorScratch>>`. Queue drains in `reset_for_fresh_lifecycle` Phase 3b (after Phase 2 fresh retain) and in `Drop for CoreState`.
+- **Affects:** `crates/graphrefly-core/src/node.rs` — Subscription::Drop Phase G branch; `reset_for_fresh_lifecycle` Phase 3b drain; `Drop for CoreState` D-α catch-all drain; new static `Core::make_op_scratch_with_binding`. 5 new tests in `crates/graphrefly-operators/tests/phase_g_op_scratch.rs`. Closes [`porting-deferred.md` D028](https://github.com/graphrefly/graphrefly-rs/blob/main/docs/porting-deferred.md).
+
+### D130 — E sub-slice: signal_invalidate two-phase tree-wide gather
+- **Date:** 2026-05-10
+- **Context:** Original `signal_invalidate` recursed per-graph (each child's recursion locks its own inner, builds its own snapshot, runs its own invalidate cascade). New nodes added between recursion levels were missed; mid-recursion mutations to not-yet-visited subgraphs were visible. The "Why divergent" section of the deferred entry defended this as preserving the Graph→Core lock-ordering rule (Core invalidate cascade re-enters Graph layer), but a tighter shape was achievable.
+- **Decision:** Two-phase split — Phase 1 walk the whole mount tree under per-graph locks gathering a flat `Vec<NodeId>`; Phase 2 invalidate the flat list with no Graph locks held.
+- **Rationale:** Same lock-ordering preservation (Graph locks released before Core cascade). Tighter snapshot semantics — invalidate ordering is deterministic DFS pre-order across the entire tree; mid-walk mutations only affect not-yet-snapshotted subgraphs (smaller window than the per-subgraph model). Easier to reason about for future maintainers.
+- **Affects:** `crates/graphrefly-graph/src/graph.rs` — `signal_invalidate` refactored + new recursive helper `collect_signal_invalidate_ids`. 3 new tests in `crates/graphrefly-graph/tests/mount.rs` (deep tree, destroyed subtree, re-entrant Graph access during Core cascade).
+
+### D131 — F sub-slice: DebugBindingBoundary extension trait + DescribeValue enum
+- **Date:** 2026-05-10
+- **Context:** `Graph::describe()` surfaced `value: Option<HandleId>` — raw u64. Canonical TS surfaces `value: T`. Lifting required either (a) a Core-side binding callback (violates handle-protocol cleaving plane), or (b) a binding-side extension trait outside the hot path.
+- **Options:** A) Add `handle_to_debug` method directly on `BindingBoundary` (intrusive — every binding pays the impl cost). B) Separate optional `DebugBindingBoundary` extension trait in graphrefly-core (forces serde_json dep into core). C) Separate optional `DebugBindingBoundary` extension trait in graphrefly-graph (where serde_json already lives).
+- **Decision:** C — `DebugBindingBoundary` in `graphrefly-graph/src/debug.rs`.
+- **Rationale:** Keeps graphrefly-core serde-free (preserves "core stays lean" invariant — bindings that don't ship describe-rendering don't pay the dep cost). The trait is colocated with `Graph::describe`'s output type. Bindings opt in by implementing both `BindingBoundary` (hot-path, always) and `DebugBindingBoundary` (cold-path, only if they support describe-rendering).
+- **Implementation:** `NodeDescribe.value` refactored from `Option<HandleId>` to `Option<DescribeValue>` enum with `Handle(HandleId)` (raw) + `Rendered(serde_json::Value)` (binding-rendered) variants. Serialized uniformly (number or arbitrary JSON, no tag). `Graph::describe()` returns `Handle`; `Graph::describe_with_debug(debug: &dyn DebugBindingBoundary)` invokes the trait per node.
+- **Affects:** `crates/graphrefly-graph/src/debug.rs` (new); `crates/graphrefly-graph/src/describe.rs` (refactor + new `describe_with_debug`); `crates/graphrefly-graph/src/lib.rs` (exports). Existing test assertions updated: `Option<HandleId>` → `Option<DescribeValue::Handle(...)>`. 3 new tests in `crates/graphrefly-graph/tests/describe.rs::debug_render`.
+
+### D132 — B sub-slice: partition-coherent test helper for F2 e2e tests
+- **Date:** 2026-05-10
+- **Context:** D126 substrate (SubscribeOutcome::Dead + per-op Dead handlers) landed but the e2e Dead-path tests deferred because reaching the immediate-Dead path (vs Phase H+ STRICT Deferred path) requires source + producer partitions both held by the activation wave's current thread. Existing meta-companion test workarounds hit Deferred, not Dead.
+- **Decision:** New `OpRuntime::with_all_partitions_held(f)` helper wrapping `f` in `core.batch()`.
+- **Rationale:** `core.batch()` acquires every existing partition's `wave_owner` in ascending order via the retry-validate loop. Re-entrant on parking_lot::ReentrantMutex, so the producer's activation wave's `try_subscribe(dead_source)` acquires the source's partition via the already-held lock and the H+ STRICT ascending-order check passes. The source's `resubscribable=false + terminal=Some(...)` state surfaces synchronously as `SubscribeError::TornDown` → `SubscribeOutcome::Dead`.
+- **Affects:** `crates/graphrefly-operators/tests/common/mod.rs` (new `with_all_partitions_held`); `crates/graphrefly-operators/tests/dead_source_e2e.rs` (new — 8 tests covering zip / concat / race / take_until per-op Dead semantics).
+
+### D133 — A sub-slice: TS operator audit (D127 follow-up)
+- **Date:** 2026-05-10
+- **Context:** D127 landed the TS substrate (`TornDownError` + `isTornDownError` + `SubscribeOutcome` + `trySubscribeOrDead`). 25 operator subscribe sites across 6 files still called raw `source.subscribe(...)` — would throw uncaught from `onSubscribe` on dead-upstream consumers.
+- **Decision:** Add `subscribeOr(source, sink, onDead)` convenience helper + migrate 25 sites mechanically.
+- **Rationale:** The match-on-outcome boilerplate at every site is repetitive; the helper captures the common "live → return unsub; dead → invoke per-op handler + return no-op unsub" pattern. Drop-in replacement for `source.subscribe(sink)`, minimal diff per site.
+- **Per-op semantics mirror Rust impl:**
+  - buffer / bufferCount / bufferTime / windowCount / windowTime / window source → flush remainder + self-COMPLETE
+  - window notifier → no-op (operator passes through source as single open window)
+  - takeUntil source → self-COMPLETE; takeUntil notifier → no-op
+  - timeout / repeat / rescue source → self-COMPLETE
+  - debounce / throttle / sample source → flush pending + self-COMPLETE; sample notifier → self-COMPLETE
+  - audit / delay source → flush latest + self-COMPLETE
+  - merge / zip / concat / race per-source → per-op Dead-source handling (mirrors Rust ops_impl.rs)
+  - higher-order inner (`forwardInner`) → `finish()` (treats as immediate inner-Complete; mirrors Rust `on_complete_for_dead`)
+- **Affects:** `packages/pure-ts/src/core/subscribe-error.ts` (new `subscribeOr` helper); `packages/pure-ts/src/core/index.ts` (export); `packages/pure-ts/src/extra/operators/{buffer,take,control,combine,time,higher-order}.ts` (25 sites migrated). All 3008 pure-ts tests pass post-migration.
+
+### D134 — /qa F1: forwardInner Dead-path return-type widening (critical)
+- **Date:** 2026-05-10
+- **Context:** /qa Blind Hunter critical + Edge Hunter M4 surfaced the same bug: `forwardInner`'s subscribeOr-based shape returned a no-op `() => {}` on Dead inner, which the caller's outer-scope assignment (`innerUnsub = forwardInner(...)`) wrote into the slot AFTER the synchronous `onInnerComplete()` → `clearInner()` had nilled it. Concrete regressions: switchMap never self-completes after Dead inner (`if (!innerUnsub) a.down([[COMPLETE]])` evaluates against the truthy no-op); exhaustMap silently drops next outer DATA (`if (innerUnsub === undefined)` false); concatMap queue stuck (`if (!actions || innerUnsub !== undefined) return` returns early); mergeMap stores undefined-or-no-op in `innerStops` set.
+- **Options:** α) Change `forwardInner` return type to `(() => void) | undefined`; switch to `trySubscribeOrDead` directly + outcome-match. β) Add a flag in shared closure state, callers check explicitly. γ) Defer until consumer reports.
+- **Decision:** α — return-type widening + outcome match.
+- **Rationale:** Smaller diff per caller (all already use `(() => void) | undefined` slot); explicit Dead return preserves the cleared state from `onInnerComplete`'s synchronous `clearInner()` chain. The previous bug was a subtle ordering issue inherent to subscribeOr's "always returns a cleanup closure" contract; widening to "may return undefined" makes the Dead path's "no cleanup needed" state representable.
+- **Affects:** `packages/pure-ts/src/extra/operators/higher-order.ts` — `forwardInner` returns `(() => void) | undefined`; `mergeMap.spawn` guards `if (stop) innerStops.add(stop)`. No caller signature changes (all already assign to `(() => void) | undefined` slots). All 3008 pure-ts tests pass.
+
+### D135 — /qa F3+F4+F5: combine.ts race / zip / merge terminated-guard fixes
+- **Date:** 2026-05-10
+- **Context:** /qa surfaced three related concurrency-window issues in `combine.ts`:
+  - **F3 race:** `completedDead` only tracked Dead, not live-COMPLETE-without-DATA. Mixed Dead + live-completed scenarios never self-completed.
+  - **F4 zip:** `zipTerminated` flag set in onDead but never checked in the live-msg COMPLETE/ERROR branches → could fire double-COMPLETE.
+  - **F5 merge:** synchronous Dead handler's `a.down([[COMPLETE]])` mid-subscribe-loop left subsequent iterations subscribing into an already-terminated operator (unsubs leaked).
+- **Decisions (all auto-applied):**
+  - F3: rename `completedDead` → `completed`; track from both branches; add `raceTerminated` flag for double-COMPLETE prevention.
+  - F4: add `zipTerminated` checks in live-msg COMPLETE/ERROR; for-loop entry guard.
+  - F5: add `terminated` flag to merge; for-loop entry guard; live-msg COMPLETE/ERROR branches check + set.
+- **Affects:** `packages/pure-ts/src/extra/operators/combine.ts` race / zip / merge implementations. All 3008 pure-ts tests pass.
+
+### D136 — /qa F6: TS audit scope clarification (sources/patterns carry-forward)
+- **Date:** 2026-05-10
+- **Context:** /qa Edge Hunter M3 surfaced that D133's "TS operator audit RESOLVED" strikethrough was scoped too broadly — only `extra/operators/*` was migrated; `extra/sources/{settled.ts, async.ts}` still has ~8 raw `source.subscribe(...)` calls in `firstWhere` / `firstValueFrom` / `subscribeAndAwaitDone` / async-iter paths that will throw uncaught `TornDownError` on dead upstreams. Patterns-layer not swept either.
+- **Decision:** Update `porting-deferred.md` D127 entry from `~~strikethrough~~` to "PARTIALLY RESOLVED (scope: extra/operators)" + add explicit remaining-scope carry-forward bullet for sources/patterns audit.
+- **Rationale:** Document the actual scope to prevent future maintainers from missing the gap. Don't widen the audit now — consumer pressure (e.g. someone calling `firstValueFrom(dead)`) will drive prioritization.
+- **Affects:** `~/src/graphrefly-rs/docs/porting-deferred.md` D127 entry.
+
+### D137 — /qa doc + test polish batch
+- **Date:** 2026-05-10
+- **Context:** /qa surfaced 15+ minor findings around docs, test assertions, and rustdoc strength.
+- **Decisions (auto-applied):**
+  - `migration-status.md` typo fix: "2 TS test assertion updates" → "2 Rust test assertion updates".
+  - `mount.rs::signal_invalidate_skips_destroyed_subtree` tightened: assert child still in mount tree (proves destroyed-skip path exercised); pre-invalidate cache snapshot + post-invalidate equality check (state nodes preserve cache per R2.2.8 ROM, so post must equal pre).
+  - `phase_g_op_scratch.rs`: `_diag` → `_keep_alive`; explicit baseline assertions (`assert_eq!(baseline, 2)`, `assert_eq!(refcount(seed), 3)` post-registration); seed-aliasing assertion uses `> baseline` rather than weak `> 0`.
+  - `boundary.rs`: `BindingBoundary::release_handle` + `retain_handle` rustdoc strengthened with HARD leaf-operation contract — explicit list of forbidden operations (any Core::emit / subscribe / register* / etc.) and safe operations (registry bookkeeping, logging, leaf-op binding methods).
+  - `node.rs CoreState.pending_scratch_release`: rustdoc note on growth bound (N entries per N non-terminal deactivate cycles since last terminal-reset; typical O(few KB); degenerate workloads should call complete()/error() periodically).
+  - `common/mod.rs::with_all_partitions_held`: rustdoc scope caveats — new partitions inside closure NOT pre-held; cross-Core out of scope; retry-validate panic possibility.
+  - `time.ts throttle`: live-COMPLETE now flushes trailing pending (symmetry with debounce's live-COMPLETE + with throttle's own Dead branch).
+  - New defer entries in `porting-deferred.md`:
+    - `release_handles` / `release_handle` lock-held during Phase 3/3b/5 (established pattern, expanded by D-α).
+    - `signal_invalidate` unbounded recursion stack overflow risk.
+    - `DescribeValue::Rendered(Value::Null)` JSON-indistinguishable from sentinel-cache `None`.
+- **Affects:** docs (`migration-status.md`, `porting-deferred.md`); rustdoc on `boundary.rs` + `node.rs`; tests (`mount.rs`, `phase_g_op_scratch.rs`); operator semantics (`time.ts`). All 539 cargo + 142 parity + 3008 pure-ts tests pass.
+

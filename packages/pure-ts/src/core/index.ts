@@ -74,6 +74,7 @@ export {
 export {
 	isTornDownError,
 	type SubscribeOutcome,
+	subscribeOr,
 	TornDownError,
 	trySubscribeOrDead,
 } from "./subscribe-error.js";

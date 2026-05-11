@@ -106,3 +106,47 @@ export function trySubscribeOrDead<T>(
 		throw err;
 	}
 }
+
+/**
+ * Convenience helper for operators that want to wrap a subscribe site
+ * with R2.2.7.b Dead-source handling but don't want the verbose
+ * `match outcome.kind === "dead"` boilerplate.
+ *
+ * On a live subscribe, returns the unsub function (drop-in
+ * replacement for `source.subscribe(sink)`). On a Dead subscribe,
+ * invokes `onDead` (per-op semantics — typically
+ * `actions.down([[COMPLETE]])` for stream-transforming operators
+ * that have nothing to emit when the source is permanently over) and
+ * returns a no-op unsub function so the caller's cleanup chain stays
+ * uniform.
+ *
+ * @example
+ * ```ts
+ * const srcUnsub = subscribeOr(source, (msgs) => {
+ *   // normal sink body
+ * }, () => {
+ *   // Dead source: per-op handling (e.g., self-Complete).
+ *   a.down([[COMPLETE]]);
+ * });
+ * ```
+ *
+ * @param source - The upstream node.
+ * @param sink - Message-handling closure (matches the source's
+ *   `subscribe` callback shape).
+ * @param onDead - Called when the source rejects with `TornDownError`
+ *   (non-resubscribable + terminal). Per-op handlers go here.
+ * @returns Unsubscribe function. No-op when source was Dead; the
+ *   real `() => void` from `subscribe` otherwise.
+ */
+export function subscribeOr<T>(
+	source: { subscribe: (sink: (msgs: readonly unknown[]) => void) => () => void; name?: string },
+	sink: (msgs: readonly T[]) => void,
+	onDead: () => void,
+): () => void {
+	const outcome = trySubscribeOrDead<T>(source, sink);
+	if (outcome.kind === "dead") {
+		onDead();
+		return () => {};
+	}
+	return outcome.unsub;
+}

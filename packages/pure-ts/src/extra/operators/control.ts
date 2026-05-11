@@ -12,6 +12,7 @@ import type { Message, Messages } from "../../core/messages.js";
 import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
+import { subscribeOr } from "../../core/subscribe-error.js";
 import { type ExtraOpts, operatorOpts, partialOperatorOpts } from "./_internal.js";
 
 /**
@@ -208,17 +209,25 @@ export function timeout<T>(
 		// Arm immediately on subscribe
 		arm();
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					arm();
-					a.emit(m[1] as T);
-				} else if (m[0] === COMPLETE || m[0] === ERROR) {
-					clearTimeout(timer);
-					a.down([m]);
+		// R2.2.7.b: Dead source → cancel timer, self-COMPLETE.
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						arm();
+						a.emit(m[1] as T);
+					} else if (m[0] === COMPLETE || m[0] === ERROR) {
+						clearTimeout(timer);
+						a.down([m]);
+					}
 				}
-			}
-		});
+			},
+			() => {
+				clearTimeout(timer);
+				a.down([[COMPLETE]]);
+			},
+		);
 
 		return () => {
 			srcUnsub();
@@ -251,22 +260,32 @@ export function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Nod
 
 		const start = (): void => {
 			innerU?.();
-			innerU = source.subscribe((msgs) => {
-				let completed = false;
-				const fwd: Message[] = [];
-				for (const m of msgs) {
-					if (m[0] === COMPLETE) completed = true;
-					else fwd.push(m);
-				}
-				if (fwd.length > 0) a.down(fwd as unknown as Messages);
-				if (completed) {
-					innerU?.();
+			// R2.2.7.b: Dead source → cannot replay, self-COMPLETE.
+			// (source went terminal mid-repeat between rounds; remaining
+			// rounds are unreachable.)
+			innerU = subscribeOr<unknown>(
+				source as Node,
+				(msgs) => {
+					let completed = false;
+					const fwd: Message[] = [];
+					for (const m of msgs as Messages) {
+						if (m[0] === COMPLETE) completed = true;
+						else fwd.push(m);
+					}
+					if (fwd.length > 0) a.down(fwd as unknown as Messages);
+					if (completed) {
+						innerU?.();
+						innerU = undefined;
+						remaining -= 1;
+						if (remaining > 0) start();
+						else a.down([[COMPLETE]]);
+					}
+				},
+				() => {
 					innerU = undefined;
-					remaining -= 1;
-					if (remaining > 0) start();
-					else a.down([[COMPLETE]]);
-				}
-			});
+					a.down([[COMPLETE]]);
+				},
+			);
 		};
 
 		start();
@@ -333,21 +352,29 @@ export function rescue<T>(
 	opts?: ExtraOpts,
 ): Node<T> {
 	return node<T>((_data, a) => {
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					a.emit(m[1] as T);
-				} else if (m[0] === ERROR) {
-					try {
-						a.emit(recover(m[1]));
-					} catch (recoverErr) {
-						a.down([[ERROR, recoverErr]]);
+		// R2.2.7.b: Dead source → no DATA / ERROR can ever flow through
+		// recover; self-COMPLETE.
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						a.emit(m[1] as T);
+					} else if (m[0] === ERROR) {
+						try {
+							a.emit(recover(m[1]));
+						} catch (recoverErr) {
+							a.down([[ERROR, recoverErr]]);
+						}
+					} else if (m[0] === COMPLETE) {
+						a.down([[COMPLETE]]);
 					}
-				} else if (m[0] === COMPLETE) {
-					a.down([[COMPLETE]]);
 				}
-			}
-		});
+			},
+			() => {
+				a.down([[COMPLETE]]);
+			},
+		);
 		return () => {
 			srcUnsub();
 		};

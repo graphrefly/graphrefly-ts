@@ -6,9 +6,17 @@
  * downstream output.
  */
 
-import { COMPLETE, DATA, ERROR, type Message, RESOLVED } from "../../core/messages.js";
+import {
+	COMPLETE,
+	DATA,
+	ERROR,
+	type Message,
+	type Messages,
+	RESOLVED,
+} from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
+import { subscribeOr } from "../../core/subscribe-error.js";
 import { type ExtraOpts, operatorOpts } from "./_internal.js";
 import { filter } from "./transform.js";
 
@@ -258,28 +266,47 @@ export function takeUntil<T>(
 	return node<T>(
 		(_data, a) => {
 			let stopped = false;
-			const srcUnsub = source.subscribe((msgs) => {
-				if (stopped) return;
-				for (const m of msgs) {
+			// R2.2.7.b: Dead source → take_until has nothing to forward,
+			// self-COMPLETE.
+			const srcUnsub = subscribeOr<unknown>(
+				source as Node,
+				(msgs) => {
 					if (stopped) return;
-					if (m[0] === DATA) a.emit(m[1] as T);
-					else if (m[0] === COMPLETE || m[0] === ERROR) {
-						stopped = true;
-						a.down([m]);
+					for (const m of msgs as Messages) {
+						if (stopped) return;
+						if (m[0] === DATA) a.emit(m[1] as T);
+						else if (m[0] === COMPLETE || m[0] === ERROR) {
+							stopped = true;
+							a.down([m]);
+						}
 					}
-				}
-			});
-			const notUnsub = notifier.subscribe((msgs) => {
-				if (stopped) return;
-				for (const m of msgs) {
-					if (stopped) return;
-					if (pred(m)) {
+				},
+				() => {
+					if (!stopped) {
 						stopped = true;
 						a.down([[COMPLETE]]);
-						return;
 					}
-				}
-			});
+				},
+			);
+			// R2.2.7.b: Dead notifier → operator reduces to passthrough
+			// of source (notifier signal never fires).
+			const notUnsub = subscribeOr<unknown>(
+				notifier as Node,
+				(msgs) => {
+					if (stopped) return;
+					for (const m of msgs as Messages) {
+						if (stopped) return;
+						if (pred(m)) {
+							stopped = true;
+							a.down([[COMPLETE]]);
+							return;
+						}
+					}
+				},
+				() => {
+					// no-op — notifier signal never fires; passthrough source.
+				},
+			);
 			return () => {
 				srcUnsub();
 				notUnsub();
