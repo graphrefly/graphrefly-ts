@@ -9,7 +9,25 @@
  */
 
 import * as legacy from "@graphrefly/pure-ts";
-import type { Impl, ImplGraph, ImplNode, Message, SinkFn, UnsubFn } from "./types.js";
+import * as storage from "@graphrefly/pure-ts/extra";
+import type {
+	Impl,
+	ImplAppendLogTier,
+	ImplCheckpointSnapshotTier,
+	ImplGraph,
+	ImplKvTier,
+	ImplMemoryBackend,
+	ImplNode,
+	ImplSnapshotTier,
+	ImplStorageHandle,
+	ImplWalKvTier,
+	Message,
+	RestoreResultOutput,
+	SinkFn,
+	StorageImpl,
+	TierOpts,
+	UnsubFn,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // ImplNode wrapper for legacy.Node
@@ -564,4 +582,255 @@ export const pureTsImpl: Impl = {
 		);
 		return wrap(inner as legacy.Node<U>);
 	},
+
+	// Storage (M4.F).
+	storage: buildPureTsStorage(),
 };
+
+// ---------------------------------------------------------------------------
+// Pure-TS storage impl (M4.F)
+// ---------------------------------------------------------------------------
+
+function buildPureTsStorage(): StorageImpl {
+	return {
+		memoryBackend(): ImplMemoryBackend {
+			const b = storage.memoryBackend();
+			const impl: ImplMemoryBackend & { _raw: ReturnType<typeof storage.memoryBackend> } = {
+				_raw: b,
+				readRaw(key: string) {
+					// memoryBackend().read is always sync
+					const bytes = b.read(key) as Uint8Array | undefined;
+					if (!bytes || bytes.length === 0) return undefined;
+					return new TextDecoder().decode(bytes);
+				},
+				list(prefix: string) {
+					// memoryBackend().list is always sync
+					return [...(b.list!(prefix) as readonly string[])];
+				},
+			};
+			return impl;
+		},
+
+		snapshotTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplSnapshotTier {
+			const b = (backend as any)._raw as ReturnType<typeof storage.memoryBackend>;
+			const tier = storage.snapshotStorage(b, {
+				name: opts?.name,
+				compactEvery: opts?.compactEvery,
+				debounceMs: opts?.debounceMs,
+			});
+			return {
+				get name() {
+					return tier.name;
+				},
+				get debounceMs() {
+					return tier.debounceMs;
+				},
+				get compactEvery() {
+					return tier.compactEvery;
+				},
+				save(value: unknown) {
+					tier.save(value);
+				},
+				load() {
+					return tier.load();
+				},
+				flush() {
+					return tier.flush?.();
+				},
+				rollback() {
+					return tier.rollback?.();
+				},
+			};
+		},
+
+		kvTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplKvTier {
+			const b = (backend as any)._raw as ReturnType<typeof storage.memoryBackend>;
+			const tier = storage.kvStorage(b, {
+				name: opts?.name,
+				compactEvery: opts?.compactEvery,
+				debounceMs: opts?.debounceMs,
+			});
+			return {
+				get name() {
+					return tier.name;
+				},
+				save(key: string, value: unknown) {
+					tier.save(key, value);
+				},
+				load(key: string) {
+					return tier.load(key) as unknown | undefined;
+				},
+				delete(key: string) {
+					tier.delete?.(key);
+				},
+				list(prefix: string) {
+					return [...((tier.list?.(prefix) ?? []) as readonly string[])];
+				},
+				flush() {
+					return tier.flush?.();
+				},
+				rollback() {
+					return tier.rollback?.();
+				},
+			};
+		},
+
+		appendLogTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplAppendLogTier {
+			const b = (backend as any)._raw as ReturnType<typeof storage.memoryBackend>;
+			const tier = storage.appendLogStorage(b, {
+				name: opts?.name,
+				compactEvery: opts?.compactEvery,
+				debounceMs: opts?.debounceMs,
+			});
+			return {
+				get name() {
+					return tier.name;
+				},
+				appendEntries(entries: unknown[]) {
+					tier.appendEntries(entries);
+				},
+				async loadEntries(keyFilter?: string): Promise<unknown[]> {
+					const result = await tier.loadEntries?.({ keyFilter });
+					return result ? [...result.entries] : [];
+				},
+				flush() {
+					return tier.flush?.();
+				},
+				rollback() {
+					return tier.rollback?.();
+				},
+			};
+		},
+
+		checkpointSnapshotTier(
+			backend: ImplMemoryBackend,
+			opts?: TierOpts,
+		): ImplCheckpointSnapshotTier {
+			const b = (backend as any)._raw as ReturnType<typeof storage.memoryBackend>;
+			const tier = storage.snapshotStorage(b, {
+				name: opts?.name,
+				compactEvery: opts?.compactEvery,
+			});
+			const wrapper: ImplCheckpointSnapshotTier & { _rawTier: typeof tier } = {
+				_rawTier: tier,
+				get name() {
+					return tier.name;
+				},
+				save(record: unknown) {
+					tier.save(record);
+				},
+				load() {
+					return tier.load();
+				},
+				flush() {
+					return tier.flush?.();
+				},
+				rollback() {
+					return tier.rollback?.();
+				},
+			};
+			return wrapper;
+		},
+
+		walKvTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplWalKvTier {
+			const b = (backend as any)._raw as ReturnType<typeof storage.memoryBackend>;
+			const tier = storage.kvStorage(b, {
+				name: opts?.name,
+				compactEvery: opts?.compactEvery,
+			});
+			const wrapper: ImplWalKvTier & { _rawTier: typeof tier } = {
+				_rawTier: tier,
+				get name() {
+					return tier.name;
+				},
+				save(key: string, frame: unknown) {
+					tier.save(key, frame);
+				},
+				load(key: string) {
+					return tier.load(key) as unknown | undefined;
+				},
+				delete(key: string) {
+					tier.delete?.(key);
+				},
+				list(prefix: string) {
+					return [...((tier.list?.(prefix) ?? []) as readonly string[])];
+				},
+				flush() {
+					return tier.flush?.();
+				},
+				rollback() {
+					return tier.rollback?.();
+				},
+			};
+			return wrapper;
+		},
+
+		async attachSnapshotStorage(
+			graph: ImplGraph,
+			snapshot: ImplCheckpointSnapshotTier,
+			wal?: ImplWalKvTier,
+		): Promise<ImplStorageHandle> {
+			const g = (graph as any).impl?.inner as legacy.Graph | undefined;
+			if (!g) throw new Error("storage: could not access raw graph from ImplGraph");
+			const pair = {
+				snapshot: (snapshot as any)._rawTier,
+				wal: wal ? (wal as any)._rawTier : undefined,
+			};
+			const handle = g.attachSnapshotStorage([pair]);
+			return {
+				async dispose() {
+					handle.dispose();
+				},
+			};
+		},
+
+		async restoreSnapshot(
+			graph: ImplGraph,
+			snapshot: ImplCheckpointSnapshotTier,
+			wal: ImplWalKvTier,
+			opts?: { targetSeq?: number },
+		): Promise<RestoreResultOutput> {
+			const g = (graph as any).impl?.inner as legacy.Graph | undefined;
+			if (!g) throw new Error("storage: could not access raw graph from ImplGraph");
+			const result = await g.restoreSnapshot({
+				mode: "diff",
+				source: {
+					tier: (snapshot as any)._rawTier,
+					walTier: (wal as any)._rawTier,
+				},
+				targetSeq: opts?.targetSeq,
+			});
+			return {
+				replayedFrames: result.replayedFrames,
+				skippedFrames: result.skippedFrames,
+				finalSeq: result.finalSeq,
+				phases: result.phases.map((p: any) => ({
+					lifecycle: p.lifecycle,
+					frames: p.frames,
+				})),
+			};
+		},
+
+		async graphSnapshot(graph: ImplGraph): Promise<unknown> {
+			const g = (graph as any).impl?.inner as legacy.Graph | undefined;
+			if (!g) throw new Error("storage: could not access raw graph from ImplGraph");
+			return g.snapshot();
+		},
+
+		walFrameKey(prefix: string, frameSeq: number): string {
+			return storage.walFrameKey(prefix, frameSeq);
+		},
+
+		async walFrameChecksum(frame: unknown): Promise<string> {
+			return storage.walFrameChecksum(frame as any);
+		},
+
+		async verifyWalFrameChecksum(frame: unknown): Promise<boolean> {
+			return storage.verifyWalFrameChecksum(frame as any);
+		},
+
+		walReplayOrder(): string[] {
+			return [...storage.REPLAY_ORDER];
+		},
+	};
+}

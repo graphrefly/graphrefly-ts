@@ -32,7 +32,7 @@ import {
 	throwError,
 	toArray,
 } from "../../extra/sources.js";
-import { fromFSWatch } from "../../extra/sources-fs.js";
+import { type FSEvent, fromFSWatch } from "../../extra/sources-fs.js";
 import { collect } from "../test-helpers.js";
 
 /** Next macrotick (GraphReFly + Vitest: do not use `vi.waitFor` with a sync boolean — it resolves immediately). */
@@ -359,46 +359,80 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		unsub();
 	});
 
-	it("fromFSWatch emits debounced filesystem changes without polling", async () => {
+	it("fromFSWatch scans existing files on startup", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "graphrefly-fswatch-"));
+		const fileTs = join(dir, "alpha.ts");
+		const fileTxt = join(dir, "ignore.txt");
+		await writeFile(fileTs, "existing");
+		await writeFile(fileTxt, "also-existing");
 		try {
-			const fileTs = join(dir, "alpha.ts");
-			const fileTxt = join(dir, "ignore.txt");
 			const fsNode = fromFSWatch(dir, {
 				debounce: 25,
 				recursive: true,
 				include: ["**/*.ts"],
 			});
 			const { batches, unsub } = collect(fsNode);
-			await writeFile(fileTs, "v1");
-			await writeFile(fileTs, "v2");
-			await writeFile(fileTxt, "nope");
-			await tick(200);
-			const events = batches
-				.flat()
-				.filter((m) => m[0] === DATA)
-				.map(
-					(m) =>
-						m[1] as {
-							type: "change" | "create" | "delete" | "rename";
-							path: string;
-							root: string;
-							relative_path: string;
-							timestamp_ns: number;
-						},
-				);
-			expect(events.some((evt) => evt.path.endsWith("alpha.ts"))).toBe(true);
-			expect(events.some((evt) => evt.path.endsWith("ignore.txt"))).toBe(false);
-			expect(events.length).toBeGreaterThanOrEqual(1);
-			expect(events[0]?.root).toContain("graphrefly-fswatch-");
-			expect(events[0]?.relative_path).toBe("alpha.ts");
-			expect(["change", "create", "delete", "rename"]).toContain(events[0]?.type);
-			expect(typeof events[0]?.timestamp_ns).toBe("number");
+			const dataEvents = () =>
+				batches
+					.flat()
+					.filter((m) => m[0] === DATA)
+					.map((m) => m[1] as FSEvent);
+			await vi.waitFor(() => expect(dataEvents().length).toBeGreaterThanOrEqual(1), {
+				timeout: 3000,
+				interval: 25,
+			});
+			const events = dataEvents();
+			expect(events.some((e) => e.path.endsWith("alpha.ts"))).toBe(true);
+			expect(events.some((e) => e.path.endsWith("ignore.txt"))).toBe(false);
+			const alphaEvt = events.find((e) => e.path.endsWith("alpha.ts"))!;
+			expect(alphaEvt.type).toBe("create");
+			expect(alphaEvt.root).toContain("graphrefly-fswatch-");
+			expect(alphaEvt.relative_path).toBe("alpha.ts");
+			expect(typeof alphaEvt.timestamp_ns).toBe("number");
 			unsub();
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	it(
+		"fromFSWatch emits live filesystem changes without polling",
+		async () => {
+			const dir = await mkdtemp(join(tmpdir(), "graphrefly-fswatch-"));
+			try {
+				const fsNode = fromFSWatch(dir, {
+					debounce: 25,
+					recursive: true,
+					include: ["**/*.ts"],
+				});
+				const { batches, unsub } = collect(fsNode);
+				const dataEvents = () =>
+					batches
+						.flat()
+						.filter((m) => m[0] === DATA)
+						.map((m) => m[1] as FSEvent);
+				// macOS FSEvents activation in tmp dirs is non-deterministic;
+				// retry writes until the watcher proves it is live.
+				await vi.waitFor(
+					async () => {
+						await writeFile(join(dir, "alpha.ts"), `v${Date.now()}`);
+						await tick(50);
+						expect(dataEvents().some((e) => e.path.endsWith("alpha.ts"))).toBe(true);
+					},
+					{ timeout: 8000, interval: 200 },
+				);
+				// Excluded file must not appear.
+				batches.length = 0;
+				await writeFile(join(dir, "ignore.txt"), "nope");
+				await tick(200);
+				expect(dataEvents().some((e) => e.path.endsWith("ignore.txt"))).toBe(false);
+				unsub();
+			} finally {
+				await rm(dir, { recursive: true, force: true });
+			}
+		},
+		{ timeout: 15_000 },
+	);
 
 	it("fromFSWatch surfaces watcher setup failures as ERROR tuples", async () => {
 		const badPath = join(tmpdir(), "graphrefly-fswatch-missing", `${Date.now()}`);

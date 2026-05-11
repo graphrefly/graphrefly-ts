@@ -239,4 +239,101 @@ export interface Impl {
 		project: (x: T) => ImplNode<U>,
 		concurrency?: number,
 	): Promise<ImplNode<U>>;
+
+	// Storage (M4.F — D176). `undefined` when the impl doesn't support storage.
+	readonly storage?: StorageImpl;
+}
+
+// ── Storage sub-interface (M4.F) ─────────────────────────────────────────
+
+export interface ImplMemoryBackend {
+	readRaw(key: string): string | undefined;
+	list(prefix: string): string[];
+}
+
+export interface ImplBaseTier {
+	readonly name: string;
+	flush(): void | Promise<void>;
+	rollback(): void | Promise<void>;
+}
+
+export interface ImplSnapshotTier extends ImplBaseTier {
+	save(value: unknown): void;
+	load(): unknown | undefined;
+	readonly debounceMs?: number;
+	readonly compactEvery?: number;
+}
+
+export interface ImplKvTier extends ImplBaseTier {
+	save(key: string, value: unknown): void;
+	load(key: string): unknown | undefined;
+	delete(key: string): void;
+	list(prefix: string): string[];
+}
+
+export interface ImplAppendLogTier extends ImplBaseTier {
+	appendEntries(entries: unknown[]): void | Promise<void>;
+	loadEntries(keyFilter?: string): Promise<unknown[]>;
+}
+
+export interface ImplCheckpointSnapshotTier extends ImplBaseTier {
+	save(record: unknown): void;
+	load(): unknown | undefined;
+}
+
+export interface ImplWalKvTier extends ImplBaseTier {
+	save(key: string, frame: unknown): void;
+	load(key: string): unknown | undefined;
+	delete(key: string): void;
+	list(prefix: string): string[];
+}
+
+export interface ImplStorageHandle {
+	dispose(): Promise<void>;
+}
+
+export interface RestoreResultOutput {
+	replayedFrames: number;
+	skippedFrames: number;
+	finalSeq: number;
+	phases: Array<{ lifecycle: string; frames: number }>;
+}
+
+export interface TierOpts {
+	name?: string;
+	compactEvery?: number;
+	debounceMs?: number;
+}
+
+export interface StorageImpl {
+	memoryBackend(): ImplMemoryBackend;
+
+	// Generic value tiers (Tier 1 tests).
+	snapshotTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplSnapshotTier;
+	kvTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplKvTier;
+	appendLogTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplAppendLogTier;
+
+	// Graph-specific tiers (Tier 2+3 tests).
+	checkpointSnapshotTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplCheckpointSnapshotTier;
+	walKvTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplWalKvTier;
+
+	// Graph integration.
+	attachSnapshotStorage(
+		graph: ImplGraph,
+		snapshot: ImplCheckpointSnapshotTier,
+		wal?: ImplWalKvTier,
+	): Promise<ImplStorageHandle>;
+	restoreSnapshot(
+		graph: ImplGraph,
+		snapshot: ImplCheckpointSnapshotTier,
+		wal: ImplWalKvTier,
+		opts?: { targetSeq?: number },
+	): Promise<RestoreResultOutput>;
+	graphSnapshot(graph: ImplGraph): Promise<unknown>;
+
+	// WAL utilities.
+	walFrameKey(prefix: string, frameSeq: number): string;
+	walFrameChecksum(frame: unknown): Promise<string>;
+	verifyWalFrameChecksum(frame: unknown): Promise<boolean>;
+	walReplayOrder(): string[];
 }

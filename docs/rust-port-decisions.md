@@ -1029,3 +1029,155 @@ Decisions made during the Rust port, recorded after inline discussion.
 - **Decision:** Add 12 new tests covering each gap.
 - **Rationale:** Each gap was at least plausible regression risk. Locking byte-equivalence for all 3 Lifecycle variants closes a parity-drift hole at the canonical-JSON layer. The boundary-crossing F2 fix also needed regression tests covering the batch-save + multi-boundary scenarios.
 - **Affects:** `crates/graphrefly-storage/src/wal.rs::tests` (6 new), `crates/graphrefly-storage/tests/tier.rs` (6 new test groups including 3 panic tests + boundary tests + filter+compact interaction + backend.delete error path).
+
+### D158 — M4.C `FileBackend` API shape: struct + builder + `Arc` factory
+- **Date:** 2026-05-10
+- **Context:** Need a public surface for the file backend that mirrors `MemoryBackend` precedent while exposing the new `include_hidden` filter without options-struct creep.
+- **Options:** A) `FileBackend::new(dir)` + `file_backend(dir) -> Arc<FileBackend>` + consuming builder method `with_include_hidden(bool)`. B) Add a `FileBackendOptions { include_hidden: bool }` struct + `FileBackend::with_options(dir, opts)` constructor. C) Free-function variants `file_backend(dir)` + `file_backend_with_options(dir, opts)`.
+- **Decision:** A. Constructor + Arc factory + consuming-self builder method.
+- **Rationale:** One configuration knob doesn't warrant an options struct. Builder pattern is chainable and extensible — future knobs (e.g. `with_fsync(true)` post-1.0) add methods without breaking callers. `file_backend(dir)` matches `memory_backend()` precedent for the common Arc-shared case; non-default config goes through `Arc::new(FileBackend::new(dir).with_include_hidden(true))`.
+- **Affects:** `crates/graphrefly-storage/src/file.rs` `FileBackend` struct + `file_backend` factory.
+
+### D159 — M4.C key→filename encoding: byte-identical with TS `pathFor` / `keyFromFilename`
+- **Date:** 2026-05-10
+- **Context:** Cross-impl files-on-disk should be interchangeable: a Rust-written `.bin` must load with TS's `fileBackend(dir)` and vice versa. TS uses `[a-zA-Z0-9_-]` unencoded + lowercase `%xx` UTF-8 escape; Rust must match exactly.
+- **Options:** A) Match TS byte-for-byte (`is_ascii_alphanumeric() || ch == '_' || ch == '-'`; lowercase hex). B) Rust-idiomatic stricter encoder (reject control chars outright; require explicit opt-in for non-ASCII). C) Use `percent-encoding` crate's `NON_ALPHANUMERIC` set.
+- **Decision:** A. Hand-rolled encoder matching TS exactly. Decode also matches TS edge cases (truncated `%x` falls through to literal bytes; invalid-hex falls through; case-insensitive hex).
+- **Rationale:** Cross-impl byte parity is the load-bearing requirement; even minor encoder divergence breaks file interop. The `percent-encoding` crate would import a different char set and introduce a code dep for ~30 lines of logic. Hand-rolled mirrors TS algorithmically and includes a test for each encoder/decoder branch + non-ASCII rejection on the decode side (filenames containing literal non-ASCII chars can't have come from our encoder).
+- **Affects:** `crates/graphrefly-storage/src/file.rs` `encode_key_to_filename` / `decode_filename_to_key` / `nibble` helpers.
+
+### D160 — M4.C atomic-rename via `tempfile::NamedTempFile::persist`, NOT hand-rolled temp + rename
+- **Date:** 2026-05-10
+- **Context:** TS uses `randomBytes(8) + writeFileSync + renameSync`; Rust can either replicate or use `tempfile::NamedTempFile`. The `tempfile` crate is already a workspace dep gated behind the `file` feature.
+- **Options:** A) `NamedTempFile::new_in(&dir)?.persist(target)?` — idiomatic Rust; Drop-cleanup if `persist` never called. B) Hand-rolled `random` filename + `File::create` + `rename` (1:1 TS algorithm port).
+- **Decision:** A. Use `NamedTempFile::persist` with overwriting semantics (NOT `persist_noclobber`).
+- **Rationale:** Semantically identical to TS — same-dir atomic rename on POSIX + Windows REPLACE_EXISTING — but with RAII cleanup for the temp file on panic between create and commit (the TS catch-block-unlink shape, automated by Drop). `persist` (overwriting) matches TS `renameSync` for the common overwrite case (snapshot save); `persist_noclobber` would error on the second save of the same key, which doesn't match TS semantics. The leading-`.` prefix in `NamedTempFile`'s default (`.tmpXXXXXX`) also serves as a free natural hidden-filter for D161.
+- **Affects:** `crates/graphrefly-storage/src/file.rs` `StorageBackend::write` impl.
+
+### D161 — M4.C `include_hidden` filter — configurable, default `false`
+- **Date:** 2026-05-10
+- **Context:** Default `list()` should exclude in-flight tempfile names (`tempfile::NamedTempFile` uses leading-`.` `.tmpXXXXXX` prefix). But that filter also hides legitimate keys whose percent-encoding produces a leading-`.` filename (rare but possible — e.g. user explicitly writes key `".hidden-app"`).
+- **Options:** A) Always skip dotfiles. B) Always include. C) Configurable, default skip.
+- **Decision:** C. `with_include_hidden(bool)` builder method, default `false`.
+- **Rationale:** Default-skip is the safe choice — protects against concurrent-flush leakage with zero user opt-in. The override surfaces the rare case where the user actually wants dotfiles visible (e.g. encoded keys, or a debug `list()` over a directory that includes hand-placed dotfiles). The configurable knob is preferable to forcing all-or-nothing because both extremes have legitimate use cases. Note: even with `include_hidden: true`, filenames without `.bin` suffix are still filtered (so the `tempfile` `.tmpABCDEF` raw names without `.bin` still don't leak).
+- **Affects:** `crates/graphrefly-storage/src/file.rs` `FileBackend::with_include_hidden` + `list()`.
+
+### D162 — M4.D table strategy: single `"graphrefly"` table for all keys
+- **Date:** 2026-05-11
+- **Context:** `RedbBackend` needs a table layout. Tiers already namespace keys via prefixes (`"graph/wal/00000..."`, `"snapshot:my-graph"`, etc.).
+- **Options:** A) Single `"graphrefly"` table — flat kv matching MemoryBackend/FileBackend. B) Per-tier table — requires `RedbBackend` to know tier name at construction or dynamically create tables.
+- **Decision:** A. Single table. Tiers namespace via key prefixes.
+- **Rationale:** Matches the flat-kv model of the other two backends. Simpler, no dynamic table management, consistent StorageBackend contract. Per-tier tables add complexity without benefit at the StorageBackend layer.
+- **Affects:** `crates/graphrefly-storage/src/redb.rs` `TABLE` const.
+
+### D163 — M4.D write granularity: per-call ACID transaction
+- **Date:** 2026-05-11
+- **Context:** Each `StorageBackend::write()` call could either commit its own transaction (like FileBackend's atomic rename) or batch writes into a held transaction committed on `flush()`.
+- **Options:** A) Per-write transaction — simple, matches FileBackend pattern, ACID per call. B) Batched transaction committed on `flush()` — cross-key atomicity but changes StorageBackend contract semantics.
+- **Decision:** A. Per-write transaction.
+- **Rationale:** The tier layer already buffers; by the time bytes reach the backend, each `write()` is one logical unit. Per-write transactions structurally close F3 (concurrent flush race — redb serializes writers). Cross-key atomicity is a M4.E concern (Graph-level batched flush).
+- **Affects:** `crates/graphrefly-storage/src/redb.rs` `StorageBackend::write` + `flush` impls.
+
+### D164 — M4.D compact semantics: `Database::compact()` for space reclamation
+- **Date:** 2026-05-11
+- **Context:** Q8 `truncate_on_compact: true` default for Rust. Tier-level compact truncates WAL prefix keys (tier calls `backend.delete(old_key)` per truncated frame); backend-level compact reclaims freed space.
+- **Options:** A) `RedbBackend::compact()` = no-op. B) `RedbBackend::compact()` = `db.compact()`.
+- **Decision:** B. `compact()` delegates to `db.compact()`.
+- **Rationale:** After tier-level truncation deletes WAL keys, redb's B-tree retains the freed pages. `Database::compact()` reclaims them. The tier owns the "what to delete" logic; the backend owns the "reclaim space" logic.
+- **Affects:** `crates/graphrefly-storage/src/redb.rs` (currently uses default `BaseStorageTier::compact` which calls `flush`; backend-level compact is a future addition when the RedbBackend surface grows).
+
+### D165 — F1 tier-level pending data loss fix (take-then-restore)
+- **Date:** 2026-05-11
+- **Context:** Pre-fix, all three tier `flush()` impls used `mem::take` on pending state BEFORE encode/write. If encode failed or write failed, pending was already gone — data lost, no retry path. This was the F1 deferred concern from M4.B /qa.
+- **Options:** A) Clone pending before take (requires T: Clone). B) Take-then-restore on error (returns T back to pending via error tuple). C) Defer to M4.D redb (redb transactions mask the issue at the backend level).
+- **Decision:** B. Restructured `SnapshotStorage::try_flush` to return `Err((T, StorageError))` on failure so the caller can restore pending. KV and AppendLog flush restructured to restore remaining unprocessed entries on error.
+- **Rationale:** B works without adding `T: Clone` bounds (which would be a public API change). The structural fix returns ownership of the unconsumed value on error. Redb transactions (D163) close the backend-level race, but the tier-level encode failure was still losing data — now fixed.
+- **Affects:** `crates/graphrefly-storage/src/memory.rs` — all three flush impls + `SnapshotStorageTier::save`.
+
+### D166 — M4.E1 BindingBoundary extension: `serialize_handle` / `deserialize_value`
+- **Date:** 2026-05-11
+- **Context:** `Graph::snapshot()` needs to serialize user values (which live binding-side) into portable JSON. Core only holds `HandleId`. Snapshot must cross the cleaving plane.
+- **Options:** A) Extend `BindingBoundary` with `serialize_handle(HandleId) -> Option<serde_json::Value>` and `deserialize_value(serde_json::Value) -> HandleId`. B) Keep snapshots at HandleId level; let binding layer wrap with value serialization. C) Use `DebugBindingBoundary` (already exists for describe rendering).
+- **Decision:** A. Two new default methods on `BindingBoundary`.
+- **Rationale:** B defeats the purpose of snapshots (they wouldn't survive process restart). C conflates debug rendering with persistence serialization (different fidelity needs). A cleanly extends the cleaving plane for the persistence use case — binding owns the value→JSON and JSON→value mapping.
+- **Affects:** `graphrefly-core::BindingBoundary` trait; all binding impls (`TestBinding`, napi-rs, pyo3, wasm).
+
+### D167 — M4.E1 `Graph::from_snapshot` lives as associated fn on `Graph`
+- **Date:** 2026-05-11
+- **Context:** TS uses `Graph.fromSnapshot(data, opts?)` as a static method. Rust can do `Graph::from_snapshot(...)` or a free fn.
+- **Options:** A) Associated fn `Graph::from_snapshot(...)`. B) Free fn `from_snapshot(...)`.
+- **Decision:** A.
+- **Rationale:** Mirrors TS ergonomics; discoverable via `Graph::` namespace; consistent with `Graph::new` / `Graph::with_existing_core` constructor family.
+- **Affects:** `graphrefly-graph::Graph` public API.
+
+### D168 — M4.E1 both `from_snapshot` modes (auto-hydration + builder)
+- **Date:** 2026-05-11
+- **Context:** TS `fromSnapshot` has two modes: (a) auto-hydration — reconstruct topology from snapshot; (b) builder — user provides builder fn, snapshot only restores state. Both are useful: (a) for cold boot from storage; (b) for tests and user-controlled topology.
+- **Options:** A) Builder only, defer auto-hydration. B) Both modes.
+- **Decision:** B.
+- **Rationale:** Auto-hydration is needed for `Graph::fromStorage` (M4.E2) and is the primary cold-boot path. Builder mode is simpler but insufficient for the storage use case.
+- **Affects:** `Graph::from_snapshot` signature — accepts an optional builder closure + optional factory registry.
+
+### D169 — M4.E1 defer edges in snapshot
+- **Date:** 2026-05-11
+- **Context:** TS snapshot includes `edges` derived from deps. Rust `Graph::edges()` already computes these on demand. Including edges redundantly in snapshot adds cross-impl portability but also payload bloat.
+- **Options:** A) Include edges (cross-impl portability). B) Omit edges (derived on demand).
+- **Decision:** B (defer).
+- **Rationale:** Edges are derived from deps (R3.3 — "edges derived, not stored"). Including them is a convenience for external tools; can be added later without breaking the snapshot format (additive field). Keeps the initial implementation lean.
+- **Affects:** `GraphPersistSnapshot` struct — no `edges` field in v1.
+
+### D170 — M4.E2 `attach_snapshot_storage` + `restore_snapshot` as free fns in graphrefly-storage
+- **Date:** 2026-05-11
+- **Context:** TS puts `attachSnapshotStorage` and `restoreSnapshot` as methods on `Graph`. In Rust, `graphrefly-graph` does not depend on `graphrefly-storage` (opposite direction: storage→graph). Circular deps are not allowed.
+- **Options:** A) Free fns in `graphrefly-storage` (which already depends on `graphrefly-graph`). B) New integration crate. C) Reverse the dep direction.
+- **Decision:** A.
+- **Rationale:** Preserves the existing DAG. Free fns taking `&Graph` as first arg are ergonomic. No new crate overhead.
+- **Affects:** `graphrefly-storage` public API; `attach_snapshot_storage(graph, pairs)` and `restore_snapshot(graph, opts)`.
+
+### D171 — M4.E2 debounce timer wiring deferred
+- **Date:** 2026-05-11
+- **Context:** TS `attachSnapshotStorage` wires `ResettableTimer` for `debounceMs > 0` tiers. Rust has no `from_timer` reactive source yet; `std::thread::spawn` per tier violates CLAUDE.md "no polling".
+- **Options:** A) Implement thread-based timer. B) Defer; sync-through only (`debounceMs=0`). C) Implement `from_timer` first.
+- **Decision:** B.
+- **Rationale:** Sync-through is the primary production mode. Timer wiring lands when reactive timer sources are ported (M5+ or a focused operators slice). `debounce_ms > 0` at attach triggers a clear warning.
+- **Affects:** `attach_snapshot_storage` — `debounce_ms > 0` warns + treats as 0.
+
+### D172 — M4.E2 snapshot-diff strategy for WAL frame generation
+- **Date:** 2026-05-11
+- **Context:** TS diffs two `GraphDescribeOutput` snapshots to produce WAL frames. Alternative: intercept individual messages at the observe level.
+- **Options:** A) Diff two `GraphPersistSnapshot`s (simpler; already have the type from M4.E1). B) Diff `GraphDescribeOutput`s (mirrors TS exactly). C) Intercept messages in the observe sink.
+- **Decision:** A.
+- **Rationale:** `GraphPersistSnapshot` already carries JSON-serialized values and dep info. Simpler than going through describe (which adds handle→value rendering overhead at diff time). The diff output maps to the same WAL frame structure.
+- **Affects:** New `diff_snapshots` + `decompose_diff_to_frames` fns in graphrefly-storage.
+
+### D173 — M4.E2 manifest persistence at `<graph.name>/manifest` key
+- **Date:** 2026-05-11
+- **Context:** TS `SnapshotStorage::last_saved_key` is process-local; lost across restarts (F4). Manifest at `<graph.name>/manifest` provides cross-restart key recovery.
+- **Options:** A) Implement now (closes F4). B) Defer.
+- **Decision:** A.
+- **Rationale:** Manifest is needed for reliable restore_snapshot and closes a known gap. Small effort (one JSON entry per baseline write + read on restore).
+- **Affects:** `attach_snapshot_storage` writes manifest on baseline writes; `restore_snapshot` reads manifest for key recovery. Format: `{ snapshot_key, last_frame_seq, timestamp_ns }`.
+
+### D174 — M4.E2 `key_of` derived from `graph.name` at attach boundary (closes F8)
+- **Date:** 2026-05-11
+- **Context:** TS default `key_of` peeks into snapshot's `name` field (structural erasure). Rust default `key_of` uses `tier.name`. Cross-impl divergence at the tier level. Graph-level attach can close this by deriving `key_of` from `graph.name`.
+- **Options:** A) At attach, pass `key_of = |record| record.name.clone()`. B) Change the tier-level default.
+- **Decision:** A.
+- **Rationale:** Graph embeds its name in `GraphCheckpointRecord.name`. Deriving `key_of` from the record at the attach boundary eliminates the cross-impl divergence without changing tier-level defaults (which serve non-Graph use cases).
+- **Affects:** `attach_snapshot_storage` passes `key_of` override to snapshot tier.
+
+### D175 — M4.F napi-rs storage binding design
+- **Date:** 2026-05-11
+- **Context:** Parity tests need storage APIs accessible from JS via napi-rs. Storage types are generic over `B: StorageBackend`, `T`, `C: Codec`. napi-rs doesn't support generic structs. `attach_snapshot_storage` takes `Box<dyn Trait>` (ownership) but JS needs shared access to inspect tiers post-attach.
+- **Options:** A) Single "BenchStorage" class hiding all internals. B) Per-type napi classes with Arc-wrapper newtypes for shared trait delegation. C) All-JSON boundary (pass config, Rust creates tiers internally).
+- **Decision:** B — typed napi classes: `BenchMemoryBackend`, `BenchValueSnapshotTier`, `BenchValueKvTier`, `BenchValueAppendLogTier` (generic value tiers), `BenchCheckpointSnapshotTier`, `BenchWalKvTier` (graph-integration tiers), `BenchStorageHandle`. Arc-wrapper newtypes delegate trait impls so the same tier is shared between the napi class (for inspection) and `attach_snapshot_storage` (which takes `Box<dyn Trait>`). Graph integration as napi free functions, not BenchGraph methods, to avoid cross-module `#[napi] impl` blocks.
+- **Rationale:** Typed classes give parity tests direct access to tier operations (save/load/flush/rollback) for verification. Arc sharing solves the ownership vs. inspection tension. Free functions avoid napi-rs multi-module impl-block risks.
+- **Affects:** New `storage_bindings.rs` in graphrefly-bindings-js, gated on `#[cfg(feature = "storage")]`.
+
+### D176 — M4.F parity test scope: all 4 tiers, runIf gating
+- **Date:** 2026-05-11
+- **Context:** Parity scenarios for storage covering Tier 1 (core tier ops), Tier 2 (WAL + attachment), Tier 3 (restore/replay), Tier 4+5 (backends, listing, errors). Rust arm available via napi bindings built in this slice.
+- **Options:** A) Gate rustImpl with `test.runIf` until verified. B) Pure-ts-only tests lifted later.
+- **Decision:** A — `describe.each(impls)` with `test.runIf(impl.name !== "rust-via-napi")` gating for any scenario where the rust binding doesn't yet support the operation. Build napi bindings in this slice so most scenarios run against both arms.
+- **Rationale:** Maximizes parity validation surface. The binding work is bounded (memory backends only, no file/redb at napi boundary). runIf gating is acceptable for genuinely unsupported operations, unlike the F9 anti-pattern which gated entire test files.
+- **Affects:** `packages/parity-tests/scenarios/storage-*/*.test.ts`, `packages/parity-tests/impls/types.ts` (Impl widening).

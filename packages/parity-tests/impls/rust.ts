@@ -34,7 +34,24 @@
 
 import * as legacy from "@graphrefly/pure-ts";
 import { afterEach } from "vitest";
-import type { Impl, ImplGraph, ImplNode, Message, SinkFn, UnsubFn } from "./types.js";
+import type {
+	Impl,
+	ImplAppendLogTier,
+	ImplCheckpointSnapshotTier,
+	ImplGraph,
+	ImplKvTier,
+	ImplMemoryBackend,
+	ImplNode,
+	ImplSnapshotTier,
+	ImplStorageHandle,
+	ImplWalKvTier,
+	Message,
+	RestoreResultOutput,
+	SinkFn,
+	StorageImpl,
+	TierOpts,
+	UnsubFn,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Native binding load (graceful fallback if not built).
@@ -1048,5 +1065,260 @@ export const rustImpl: Impl | null = native
 				);
 				return wrapAsRustNode<U>(state, id);
 			},
+			// Storage (M4.F).
+			storage: buildRustStorage(),
 		} as Impl)
 	: null;
+
+// ---------------------------------------------------------------------------
+// Rust storage impl (M4.F — D175)
+// ---------------------------------------------------------------------------
+
+function buildRustStorage(): StorageImpl | undefined {
+	if (!native) return undefined;
+	// Cast to `any` — storage binding types are generated at napi build time
+	// and won't exist in the .d.ts until the native module is rebuilt with
+	// --features storage. The parity test runner validates shapes at runtime.
+	const n = native as any;
+	// Feature-detect: if the native module wasn't built with `--features storage`,
+	// these classes won't exist.
+	if (typeof n.BenchMemoryBackend !== "function") return undefined;
+
+	return {
+		memoryBackend(): ImplMemoryBackend {
+			const b = new n.BenchMemoryBackend();
+			const impl: ImplMemoryBackend & { _raw: InstanceType<typeof n.BenchMemoryBackend> } = {
+				_raw: b,
+				readRaw(key: string) {
+					return b.readRaw(key) ?? undefined;
+				},
+				list(prefix: string) {
+					return b.list(prefix);
+				},
+			};
+			return impl;
+		},
+
+		snapshotTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplSnapshotTier {
+			const b = (backend as any)._raw as InstanceType<typeof n.BenchMemoryBackend>;
+			const tier = n.BenchValueSnapshotTier.create(
+				b,
+				opts?.name ?? null,
+				opts?.compactEvery ?? null,
+				opts?.debounceMs ?? null,
+			);
+			return {
+				get name() {
+					return tier.name;
+				},
+				get debounceMs() {
+					return tier.debounceMs ?? undefined;
+				},
+				get compactEvery() {
+					return tier.compactEvery ?? undefined;
+				},
+				save(value: unknown) {
+					tier.save(JSON.stringify(value));
+				},
+				load() {
+					const json = tier.load();
+					return json != null ? JSON.parse(json) : undefined;
+				},
+				flush() {
+					tier.flush();
+				},
+				rollback() {
+					tier.rollback();
+				},
+			};
+		},
+
+		kvTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplKvTier {
+			const b = (backend as any)._raw as InstanceType<typeof n.BenchMemoryBackend>;
+			const tier = n.BenchValueKvTier.create(
+				b,
+				opts?.name ?? null,
+				opts?.compactEvery ?? null,
+				opts?.debounceMs ?? null,
+			);
+			return {
+				get name() {
+					return tier.name;
+				},
+				save(key: string, value: unknown) {
+					tier.save(key, JSON.stringify(value));
+				},
+				load(key: string) {
+					const json = tier.load(key);
+					return json != null ? JSON.parse(json) : undefined;
+				},
+				delete(key: string) {
+					tier.delete(key);
+				},
+				list(prefix: string) {
+					return tier.list(prefix);
+				},
+				flush() {
+					tier.flush();
+				},
+				rollback() {
+					tier.rollback();
+				},
+			};
+		},
+
+		appendLogTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplAppendLogTier {
+			const b = (backend as any)._raw as InstanceType<typeof n.BenchMemoryBackend>;
+			const tier = n.BenchValueAppendLogTier.create(
+				b,
+				opts?.name ?? null,
+				opts?.compactEvery ?? null,
+				opts?.debounceMs ?? null,
+			);
+			return {
+				get name() {
+					return tier.name;
+				},
+				appendEntries(entries: unknown[]) {
+					tier.appendEntries(JSON.stringify(entries));
+				},
+				async loadEntries(keyFilter?: string): Promise<unknown[]> {
+					const json = tier.loadEntries(keyFilter ?? null);
+					return JSON.parse(json);
+				},
+				flush() {
+					tier.flush();
+				},
+				rollback() {
+					tier.rollback();
+				},
+			};
+		},
+
+		checkpointSnapshotTier(
+			backend: ImplMemoryBackend,
+			opts?: TierOpts,
+		): ImplCheckpointSnapshotTier {
+			const b = (backend as any)._raw as InstanceType<typeof n.BenchMemoryBackend>;
+			const tier = n.BenchCheckpointSnapshotTier.create(
+				b,
+				opts?.name ?? null,
+				opts?.compactEvery ?? null,
+			);
+			const wrapper: ImplCheckpointSnapshotTier & { _rawTier: typeof tier } = {
+				_rawTier: tier,
+				get name() {
+					return tier.name;
+				},
+				save(record: unknown) {
+					tier.save(JSON.stringify(record));
+				},
+				load() {
+					const json = tier.load();
+					return json != null ? JSON.parse(json) : undefined;
+				},
+				flush() {
+					tier.flush();
+				},
+				rollback() {
+					tier.rollback();
+				},
+			};
+			return wrapper;
+		},
+
+		walKvTier(backend: ImplMemoryBackend, opts?: TierOpts): ImplWalKvTier {
+			const b = (backend as any)._raw as InstanceType<typeof n.BenchMemoryBackend>;
+			const tier = n.BenchWalKvTier.create(b, opts?.name ?? null, opts?.compactEvery ?? null);
+			const wrapper: ImplWalKvTier & { _rawTier: typeof tier } = {
+				_rawTier: tier,
+				get name() {
+					return tier.name;
+				},
+				save(key: string, frame: unknown) {
+					tier.save(key, JSON.stringify(frame));
+				},
+				load(key: string) {
+					const json = tier.load(key);
+					return json != null ? JSON.parse(json) : undefined;
+				},
+				delete(key: string) {
+					tier.delete(key);
+				},
+				list(prefix: string) {
+					return tier.list(prefix);
+				},
+				flush() {
+					tier.flush();
+				},
+				rollback() {
+					tier.rollback();
+				},
+			};
+			return wrapper;
+		},
+
+		async attachSnapshotStorage(
+			graph: ImplGraph,
+			snapshot: ImplCheckpointSnapshotTier,
+			wal?: ImplWalKvTier,
+		): Promise<ImplStorageHandle> {
+			const bench = (graph as any).bench;
+			if (!bench) throw new Error("storage: could not access raw BenchGraph from ImplGraph");
+			const snapTier = (snapshot as any)._rawTier;
+			const walTier = wal ? (wal as any)._rawTier : undefined;
+			const handle = await n.benchAttachSnapshotStorage(bench, snapTier, walTier ?? null);
+			return {
+				async dispose() {
+					await handle.dispose();
+				},
+			};
+		},
+
+		async restoreSnapshot(
+			graph: ImplGraph,
+			snapshot: ImplCheckpointSnapshotTier,
+			wal: ImplWalKvTier,
+			opts?: { targetSeq?: number },
+		): Promise<RestoreResultOutput> {
+			const bench = (graph as any).bench;
+			if (!bench) throw new Error("storage: could not access raw BenchGraph from ImplGraph");
+			const snapTier = (snapshot as any)._rawTier;
+			const walTier = (wal as any)._rawTier;
+			const json = await n.benchRestoreSnapshot(bench, snapTier, walTier, opts?.targetSeq ?? null);
+			const result = JSON.parse(json);
+			return {
+				replayedFrames: result.replayed_frames,
+				skippedFrames: result.skipped_frames,
+				finalSeq: result.final_seq,
+				phases: result.phases.map((p: any) => ({
+					lifecycle: p.lifecycle,
+					frames: p.frames,
+				})),
+			};
+		},
+
+		async graphSnapshot(graph: ImplGraph): Promise<unknown> {
+			const bench = (graph as any).bench;
+			if (!bench) throw new Error("storage: could not access raw BenchGraph from ImplGraph");
+			const json = await n.benchGraphSnapshot(bench);
+			return JSON.parse(json);
+		},
+
+		walFrameKey(prefix: string, frameSeq: number): string {
+			return n.benchWalFrameKey(prefix, frameSeq);
+		},
+
+		async walFrameChecksum(frame: unknown): Promise<string> {
+			return n.benchWalFrameChecksum(JSON.stringify(frame));
+		},
+
+		async verifyWalFrameChecksum(frame: unknown): Promise<boolean> {
+			return n.benchVerifyWalFrameChecksum(JSON.stringify(frame));
+		},
+
+		walReplayOrder(): string[] {
+			return n.benchReplayOrder();
+		},
+	};
+}
