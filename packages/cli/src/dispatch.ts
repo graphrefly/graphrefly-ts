@@ -12,7 +12,6 @@
  * - `reduce <spec> --input <path|-> [--output Y]` — one-shot run
  * - `snapshot diff <a> <b>` — snapshot file diff (no tier)
  * - `snapshot validate <file>` — structural snapshot validation
- * - `mcp` — boot the MCP server on stdio
  *
  * `--format=json|pretty` toggles stdout formatting.
  *
@@ -90,8 +89,6 @@ export async function dispatch(argv: Argv, opts?: DispatchOptions): Promise<numb
 				return await reduceCmd(argv, catalog);
 			case "snapshot":
 				return snapshotCmd(argv);
-			case "mcp":
-				return await mcpCmd(argv, catalog);
 			case "help":
 			case "--help":
 			case "-h":
@@ -243,17 +240,6 @@ function snapshotCmd(argv: Argv): number {
 	}
 }
 
-async function mcpCmd(_argv: Argv, catalog: GraphSpecCatalog): Promise<number> {
-	// Lazy import so non-MCP CLI calls don't pay the dependency cost.
-	const { startStdioServer } = await import("@graphrefly/mcp-server");
-	const storageDir = process.env.GRAPHREFLY_STORAGE_DIR;
-	await startStdioServer({
-		catalog,
-		...(storageDir != null ? { storageDir } : {}),
-	});
-	return 0;
-}
-
 function printHelp(): void {
 	process.stdout.write(`graphrefly — reactive harness CLI
 
@@ -267,7 +253,6 @@ COMMANDS
   reduce   <spec> --input <path|->    Run a one-shot input → pipeline → output.
   snapshot diff     <a> <b>           Diff two snapshot files.
   snapshot validate <file>            Validate a snapshot file envelope.
-  mcp                                 Start the MCP server on stdio.
 
 COMMON FLAGS
   --format=json|pretty                Stdout format (json default).
@@ -276,9 +261,5 @@ COMMON FLAGS
 SPEC SOURCES
   A <spec> positional is either a path to a .json file or "-" for stdin.
   Same applies to --input for reduce.
-
-MCP SERVER
-  When launched via 'graphrefly mcp', snapshots default to in-memory.
-  Set GRAPHREFLY_STORAGE_DIR to persist across restarts.
 `);
 }

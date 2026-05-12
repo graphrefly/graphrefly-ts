@@ -1,6 +1,6 @@
 /**
  * Surface layer (§9.3-core) — shared, JSON-safe operations consumed by
- * `@graphrefly/mcp-server` and `@graphrefly/cli`.
+ * `@graphrefly/cli` and user-host applications.
  *
  * The surface is a thin projection of existing Graph APIs (`describe`,
  * `observe`, `explain`, `snapshot`, `restore`, static `diff`), plus two

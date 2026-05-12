@@ -6,7 +6,7 @@ export default defineConfig({
 		alias: [
 			// Resolve pure-ts to source so parity tests don't require a
 			// pre-build. Mirrors the alias pattern in
-			// packages/{cli,mcp-server}/vitest.config.ts.
+			// packages/cli/vitest.config.ts.
 			{
 				find: /^@graphrefly\/pure-ts$/,
 				replacement: fileURLToPath(new URL("../pure-ts/src/index.ts", import.meta.url)),

@@ -83,7 +83,7 @@ streamingPromptNode (or any streaming source)
         ├─→ piiRedactor        (regex/NER → redaction events → gate blocks output)
         ├─→ invariantChecker   (design invariant keywords → flags topic)
         ├─→ toolCallExtractor  (detects tool_call JSON mid-stream → interception chain from §11)
-        ├─→ thinkingRenderer   (accumulates reasoning → human subscriber: CLI, UI, MCP)
+        ├─→ thinkingRenderer   (accumulates reasoning → human subscriber: CLI, UI)
         ├─→ costMeter          (token count → budgetGate)
         └─→ streamExtractor(fn) (user-defined: any derived/effect on the stream)
 ```
@@ -328,7 +328,7 @@ The Wave 1 announcement payload. Folds in former §9.4 (scorecard).
 - [ ] Open-source the eval runner (already in repo — make it prominent)
 - [ ] Multi-model comparison results page
 - [ ] "Reproduce our evals" guide (portable prompts for anyone)
-- [ ] **Pre-launch outreach: 20-30 personalized "design partner" emails** (see marketing strategy §16A) — send 1-2 weeks before Wave 1 announcement. Target: harness engineering blog authors, LangGraph/CrewAI contributors, reactive programming maintainers, agent reliability researchers, MCP ecosystem builders.
+- [ ] **Pre-launch outreach: 20-30 personalized "design partner" emails** (see marketing strategy §16A) — send 1-2 weeks before Wave 1 announcement. Target: harness engineering blog authors, LangGraph/CrewAI contributors, reactive programming maintainers, agent reliability researchers.
 
 ---
 
@@ -336,7 +336,7 @@ The Wave 1 announcement payload. Folds in former §9.4 (scorecard).
 
 > **Reframed 2026-05-04 per DS-14.5.A** ([archive/docs/SESSION-DS-14.5-A-narrative-reframe.md](../archive/docs/SESSION-DS-14.5-A-narrative-reframe.md)). Original framing was "harness builder" — collides directly with [Archon](https://github.com/coleam00/Archon)'s tagline at 20.7K⭐. New positioning: **spec is code's blueprint; multi-agent worktrees co-edit it without colliding.** Differentiates from Archon (manual YAML, single-agent worktree) and Hermes (auto-skill-extract, single-agent compounding).
 
-Goal: ship the audit/explain layer + MCP server (reframed as user-host toolkit) + scorecard + the L0–L3 multi-agent ownership protocol that nobody else has. This is where GraphReFly's "shared blueprint for code, agents, and humans" story is concrete.
+Goal: ship the audit/explain layer + scorecard + the L0–L3 multi-agent ownership protocol that nobody else has. This is where GraphReFly's "shared blueprint for code, agents, and humans" story is concrete.
 
 #### 9.2 — Audit & accountability (8.4 → 9.2)
 
@@ -349,38 +349,17 @@ The missing layer that makes "harness" real, not just "substrate."
 - [x] `graph.explain(from, to, { reactive: true })` — `Node<CausalChain>` that recomputes on graph mutations; foundation for `graphLens.why(node)` (§9.0b). Tier 3.5 (2026-04-27) deleted the standalone `reactiveExplainPath` wrapper in favor of the consolidated `Graph.explain` overload (mental-model parity with `describe` / `observe`); the overload also accepts reactive `from` / `to` / `maxDepth` / `findCycle` per F.9 carve-out. (TS shipped)
 - [ ] PY parity — tracked under "PY 9.2" below.
 
-#### 9.3 — MCP Server (`@graphrefly/mcp-server`)
+#### ~~9.3 — MCP Server (`@graphrefly/mcp-server`)~~ — REMOVED 2026-05-11
 
-Thin surface over the shared **9.3-core** domain layer (see 9.3c). MCP and CLI are two projections of the same operations — the core lives in `src/patterns/surface/` and re-exports from both packages.
+> **Removed from library scope.** MCP server is user-host application responsibility, not library distribution. `packages/mcp-server/` moved to TRASH. Client-side `fromMCP` adapter in `extra/io/mcp.ts` remains (reactive source for consuming MCP notifications). The 9.3-core surface layer (`src/patterns/surface/`) and CLI projection (§9.3c) remain as the library's inspection/operation interface.
 
-**Design note — the delta from the original roadmap sketch:** §9.2 and the graph-module 24-unit review already shipped most of the operations the roadmap called out (`graph.describe`, `graph.observe` with progressive detail levels + structured/causal/timeline flags, `graph.explain` returning `CausalChain`, `graph.snapshot`/`restore`, static `Graph.diff`, `Graph.attachStorage` over multi-tier `StorageTier` with full/diff `GraphCheckpointRecord`). The surface layer is therefore a thin projection: a typed-error envelope (`SurfaceError`), a `createGraph` wrapper over `compileSpec`, and one genuinely new operation — `runReduction` (named to avoid collision with the reactive `reduce` operator in `extra/operators.ts`). Snapshot save/restore/diff/list reuses the existing `StorageTier` substrate — a surface-saved snapshot is a `mode: "full"` `GraphCheckpointRecord` interoperable with `attachStorage({autoRestore: true})`. No new wire format. The registry (`graphId → Graph`) lives in the MCP server session, not in core — consistent with the graph-module review's "derive from live state, don't maintain a parallel registry" principle.
+~~Thin surface over the shared **9.3-core** domain layer (see 9.3c). MCP and CLI are two projections of the same operations — the core lives in `src/patterns/surface/` and re-exports from both packages.~~
 
-- [x] **9.3-core** — shared surface core in `src/patterns/surface/` (TS shipped):
-  - `createGraph(spec, opts?)` — wraps `compileSpec` with typed `SurfaceError` on validation failure
-  - `runReduction(spec, input, opts?)` — one-shot `input → pipeline → output`, subscribe-before-push ordering to catch both sync and async graphs
-  - `saveSnapshot` / `restoreSnapshot` / `diffSnapshots` / `listSnapshots` / `deleteSnapshot` — over existing `StorageTier` adapters
-  - `SurfaceError` — JSON-safe `{code, message, details?}` + `toJSON()`; codes: `invalid-spec`, `graph-not-found`, `snapshot-not-found`, `node-not-found`, `reduce-timeout`, `catalog-error`, `restore-failed`, `snapshot-failed`, `tier-no-list`, `internal-error`
-  - `StorageTier.list?()` added as optional method; implemented on `memoryStorage`, `dictStorage`, `fileStorage`, `sqliteStorage`
-  - Top-level + namespaced exports: `import { createGraph } from "@graphrefly/graphrefly"` or `import { patterns } from "@graphrefly/graphrefly"; patterns.surface.createGraph`
-- [x] **MCP Server package** (`packages/mcp-server/`, TS shipped) exposing 9.3-core as tools:
-  - `graphrefly_create` — compile a GraphSpec into a graph registered under `graphId`
-  - `graphrefly_describe` — topology + values snapshot with progressive detail + mermaid/d2 export
-  - `graphrefly_observe` — one-shot node/graph state (live streaming is a wrapper concern, not a stdio tool)
-  - `graphrefly_explain` — causal chain via `graph.explain` (requires §9.2 `explainPath`, shipped)
-  - `graphrefly_reduce` — wraps `runReduction` for stateless pipeline runs
-  - `graphrefly_snapshot_save` / `_restore` / `_diff` / `_list` / `_delete` — checkpoint/restore over the session's storage tier
-  - `graphrefly_delete` / `graphrefly_list` — registry lifecycle
-  - Session holds `Map<graphId, Graph>` + default `memoryStorage` (opt-in `fileStorage` via `GRAPHREFLY_STORAGE_DIR` env or `storageDir` option)
-  - Server operators register fn/source catalog at startup (`buildMcpServer(session, { catalog })`) — catalog delivery over the wire is a separate design pass
-  - Errors throw `SurfaceError`; wrap layer converts to MCP `isError` content
-- [x] NL→spec (`llmCompose`) bridged through `graphrefly_compose` — SHIPPED 2026-04-21. See §9.3d bullet above.
-- [ ] Publish to npm as `@graphrefly/mcp-server`
-- [ ] Submit to: official MCP registry (`registry.modelcontextprotocol.io`), Cline Marketplace, PulseMCP
-- [ ] "Try it with Claude Code in 2 minutes" quickstart
+*Historical: 9.3-core surface layer (`src/patterns/surface/`) remains shipped and in use by the CLI (§9.3c). The MCP Server package that projected 9.3-core as MCP tools was removed 2026-05-11 — MCP server construction is user-host application responsibility per DS-14.5.A L2.*
 
 #### 9.3b — OpenClaw Context Engine Plugin (`@graphrefly/openclaw-context-engine`)
 
-Reactive agent memory as an OpenClaw ContextEngine plugin. Implements the 3-hook interface (select, budget, compact) with GraphReFly's reactive memory graph underneath. Lower effort than MCP Server, deeper integration (controls what the agent remembers), reaches all OpenClaw users (250k+).
+Reactive agent memory as an OpenClaw ContextEngine plugin. Implements the 3-hook interface (select, budget, compact) with GraphReFly's reactive memory graph underneath. Deep integration (controls what the agent remembers), reaches all OpenClaw users (250k+).
 
 **Design reference:** `archive/docs/SESSION-openclaw-context-engine-research.md`
 
@@ -399,7 +378,7 @@ Reactive agent memory as an OpenClaw ContextEngine plugin. Implements the 3-hook
 
 Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / Codex CLI / Gemini CLI / Aider audience that already has a Bash tool — zero plugin install, usable from shell pipes, CI, and humans. Distribution vehicle for Wave 1 eval story (blog-quotable commands).
 
-**Rationale:** April-2026 landscape — three dominant terminal agents, Uni-CLI pattern (declarative adapters → `unicli mcp serve` auto-registers MCP tools), ~80 tokens per CLI invocation vs. MCP's schema/discovery overhead for high-frequency calls. Non-MCP contexts (Aider, CI, bash-tool-only, humans) win too.
+**Rationale:** April-2026 landscape — three dominant terminal agents, Uni-CLI pattern. ~80 tokens per CLI invocation. Non-MCP contexts (Aider, CI, bash-tool-only, humans) win too.
 
 - [x] `graphrefly` binary (Node, shipped as `@graphrefly/cli`) — TS shipped. Subcommands:
   - `graphrefly describe <spec>` — compile + emit topology (JSON default, `--format=pretty|mermaid|d2`)
@@ -408,15 +387,14 @@ Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / 
   - `graphrefly reduce <spec> --input <path|->` — one-shot `runReduction`
   - `graphrefly snapshot diff <a> <b>` — diff two snapshot files
   - `graphrefly snapshot validate <file>` — validate a snapshot file envelope
-  - `graphrefly mcp` — start the MCP server on stdio from the same binary (Uni-CLI pattern, lazy-imports `@graphrefly/mcp-server`)
 - [x] Output contract — stdout = JSON by default, `--format=pretty` toggles pretty JSON; `describe` supports `--format=mermaid|d2` for diagram export; stderr = `SurfaceError` JSON payload on failure; exit codes `0` (ok), `1` (error), `2` (usage)
 - [x] Stdin pipe support — any `<spec>` positional accepts `-` for stdin; `reduce --input -` piping works (`cat input.json | graphrefly reduce spec.json --input -`)
 - [x] Zero external args-parser — hand-rolled dispatcher. Keeps the package dependency surface tiny; no `commander`/`yargs`.
 - [ ] `graphrefly eval [run|matrix|scorecard]` — deferred. Existing `tsx evals/scripts/run-all.ts` pipelines cover the workflow today; folding into CLI requires deciding whether eval logic moves into `@graphrefly/cli` or stays in the repo's `evals/` dir.
 - [ ] Publish to npm as `@graphrefly/cli`, single `bin` entry, `npx @graphrefly/cli` works without install
 - [ ] "Try it in 30 seconds" section in README: single `npx` command producing visible eval output
-- [ ] Man page / `--help` parity with MCP tool descriptions (shared JSDoc source) — `printHelp()` stub exists, parity pass deferred
-- [ ] CI: smoke test every subcommand in GitHub Actions alongside MCP server tests
+- [ ] Man page / `--help` parity with 9.3-core operations (shared JSDoc source) — `printHelp()` stub exists, parity pass deferred
+- [ ] CI: smoke test every subcommand in GitHub Actions
 - [ ] Homebrew formula (post-Wave 2, if demand warrants)
 
 **Constraint:** The CLI MUST NOT duplicate graph logic. If a command can't be a thin shell around 9.3-core, the gap belongs in 9.3-core, not in the CLI package.
@@ -427,7 +405,7 @@ Full adapter layer archived to `archive/optimizations/resolved-decisions.jsonl` 
 
 - [x] **`resilientAdapter()` call-path wrapper** — SHIPPED 2026-04-21 at [src/patterns/ai/adapters/middleware/resilient-adapter.ts](../src/patterns/ai/adapters/middleware/resilient-adapter.ts). Composes `withRateLimiter` + `withBudgetGate` + `withBreaker` + `withTimeout` + `withRetry` + `cascadingLlmAdapter` fallback in the documented order; per-attempt deadline rearm; `withTimeout` re-throws `LLMTimeoutError` (so retry's default predicate recognizes it against real fetch/SDK providers). Follow-ups tracked in [docs/optimizations.md](optimizations.md): `onFallback`/`onExhausted` surface, shared limiter across calls.
 - [ ] **`evals/lib/` migration** — fresh eval work after §9.1 will use the new adapter layer directly; the existing imperative stack at `evals/lib/{llm-client, rate-limiter, budget-gate, replay-cache, limits}.ts` stays untouched until then (per QA direction).
-- [x] **MCP `llmCompose` wiring** — SHIPPED 2026-04-21 as `graphrefly_compose` tool in [packages/mcp-server/src/tools.ts](../packages/mcp-server/src/tools.ts) with `composeAdapter` + `composeModelAllowlist` options on `BuildMcpServerOptions`. Compose-only (returns validated spec; caller follows with `graphrefly_create`). New surface error codes: `compose-not-configured`, `compose-failed`.
+- [x] ~~**MCP `llmCompose` wiring**~~ — WAS SHIPPED 2026-04-21 in `packages/mcp-server/` (now removed). The `llmCompose` capability remains available via the adapter layer; user-host applications wire it into their own MCP/CLI surfaces.
 - [ ] **Limits registry population** — library ships shape only. Users populate a `CapabilitiesRegistry` with their own data. A first-party curated table can ship as an opt-in `@graphrefly/capabilities-*` package post-1.0 if demand warrants.
 
 
@@ -435,7 +413,7 @@ Full adapter layer archived to `archive/optimizations/resolved-decisions.jsonl` 
 
 > **Moved to §9.1.5** — folded into the Eval Program external deliverables. The scorecard is an eval artifact, not a separate work stream.
 
-#### 9.3e — Spending Alerts demo (Wave 2, pairs with MCP + CLI launch)
+#### 9.3e — Spending Alerts demo (Wave 2, pairs with CLI launch)
 
 Minimal demo that backs homepage pain point 02 ("Action Without Explanation") and proves `explainPath` as the P0 differentiator. Intentionally simple — no NL→GraphSpec, just a reactive pipeline with a visible causal chain.
 
@@ -454,9 +432,8 @@ fromTimer(interval) → fetchTransactions → anomalyDetector → flagNode
 
 **Presentation:** `examples/spending-alerts/` (runnable code) + `website/src/content/docs/demos/spending-alerts.md` (code walkthrough + causal chain output as structured text). Homepage "Demo: Spending Alerts →" links here. No GIF required — static walkthrough is sufficient for Wave 2.
 
-**Try it yourself CTA (two paths):**
+**Try it yourself CTA:**
 - CLI: `npx @graphrefly/cli explain spending-alerts.json --from transactions --to flag` — zero install, copy-paste in terminal, best for blog post
-- MCP: `graphrefly_explain` from Claude Code — best for the "inside your agent" story
 
 - [x] `examples/spending-alerts/` — SHIPPED 2026-04-21. 5-hop deterministic pipeline (`txFeed → anomalyScore → thresholdGate → reasonFactors → alertMessage`, with `vendorStats`/`userProfile` as side inputs). Runnable via `pnpm --filter @graphrefly-examples/spending-alerts start`.
 - [x] `website/src/content/docs/demos/spending-alerts.md` — SHIPPED 2026-04-21. Walkthrough + causal chain output + "how you get this in your own code" + agent-extension path (swap `alertMessage` for a `promptNode` with `resilientAdapter`).
@@ -465,7 +442,6 @@ fromTimer(interval) → fetchTransactions → anomalyDetector → flagNode
 
 #### 9.2 deliverables for announcement
 
-- [ ] `@graphrefly/mcp-server` on npm
 - [ ] `@graphrefly/cli` on npm (`npx @graphrefly/cli explain` as the demo CTA — copy-pasteable in blog posts)
 - [ ] Spending Alerts demo page live (`website/src/content/docs/demos/spending-alerts.md`) — backs homepage 02 and proves `explainPath`
 - [ ] Harness scorecard page live (owned by §9.1.5)
@@ -491,7 +467,7 @@ NL → GraphSpec → flow view → run → persist → explain. The demo that pr
 #### 9.6 — Framework infiltration packages
 
 - [ ] **Vercel AI SDK middleware** (`@graphrefly/ai-sdk`) — `graphreflyMiddleware` wraps any model with reactive graph state. Intercepts calls to inject context, captures outputs as node updates.
-- [ ] **LangGraph TS tools** (`@graphrefly/langgraph`) — Zod-validated tools exposing graph operations. Note: LangGraph also consumes MCP natively, so 9.3 MCP server may suffice.
+- [ ] **LangGraph TS tools** (`@graphrefly/langgraph`) — Zod-validated tools exposing graph operations.
 - [ ] **3 golden template repos** — standalone starter projects:
   - Incident triage reduction (observabilityGraph + fromOTel)
   - Agent run observatory (agentLoop + tracing)
@@ -506,7 +482,7 @@ The harness engineering showcase and the full self-improving loop in one screen.
 ```
 agentLoop (multi-step task)
   → something fails mid-task
-  → graphrefly_explain shows WHY (causal chain to the failure node)
+  → graph.explain() shows WHY (causal chain to the failure node)
   → REFLECT distills into agentMemory + strategy model update
   → re-run: different routing, failure avoided
 ```
@@ -744,7 +720,7 @@ Items not needed for harness engineering adoption. Build when demanded by users/
 
 ## Python-Specific Active Items
 
-> Python tracks TS for core parity. Eval harness is TS-primary (corpus, rubrics, runner). MCP server and framework infiltration packages are TS-only. Python focus: §9.2 parity + backpressure + polish.
+> Python tracks TS for core parity. Eval harness is TS-primary (corpus, rubrics, runner). Framework infiltration packages are TS-only. Python focus: §9.2 parity + backpressure + polish.
 
 ### PY Wave 2: Audit & accountability parity (Weeks 4-9)
 

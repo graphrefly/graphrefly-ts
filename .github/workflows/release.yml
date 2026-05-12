@@ -25,7 +25,6 @@
 #   - @graphrefly/graphrefly + @graphrefly/pure-ts (fixed pair, always
 #     released at same version — shim + impl)
 #   - @graphrefly/cli (independent versioning)
-#   - @graphrefly/mcp-server (independent versioning)
 # Ignored:
 #   - @graphrefly/parity-tests (private)
 

@@ -1,9 +1,9 @@
 /**
  * Typed errors for the surface layer (§9.3-core).
  *
- * The surface layer is consumed by `@graphrefly/mcp-server` and
- * `@graphrefly/cli`. Both have native error channels (MCP's `isError` flag,
- * CLI's exit codes), so surface functions throw a {@link SurfaceError}
+ * The surface layer is consumed by `@graphrefly/cli` and user-host
+ * applications. Consumers have native error channels (CLI exit codes,
+ * MCP `isError` flag, etc.), so surface functions throw a {@link SurfaceError}
  * carrying a structured code + details payload that wrappers can map to
  * their native shape. No `Result` envelope — keep the callsite idiom
  * `try/catch` and let each wrapper surface the error its own way.

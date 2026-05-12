@@ -11,10 +11,6 @@ export default defineConfig({
 				find: /^@graphrefly\/graphrefly$/,
 				replacement: fileURLToPath(new URL("../pure-ts/src/index.ts", import.meta.url)),
 			},
-			{
-				find: /^@graphrefly\/mcp-server$/,
-				replacement: fileURLToPath(new URL("../mcp-server/src/index.ts", import.meta.url)),
-			},
 		],
 	},
 	test: {

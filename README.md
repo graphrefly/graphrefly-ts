@@ -14,8 +14,7 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is th
 | Package | What it is |
 |---|---|
 | [`@graphrefly/graphrefly`](https://www.npmjs.com/package/@graphrefly/graphrefly) | The library — reactive graph primitives, operators, `Graph` container, framework adapters. |
-| [`@graphrefly/mcp-server`](./packages/mcp-server) | Model Context Protocol server — expose GraphReFly to Claude Desktop, Claude Code, Cline, Cursor, and any MCP client as `graphrefly_*` tools. |
-| [`@graphrefly/cli`](./packages/cli) | Stateless command-line shell — `describe`, `explain`, `observe`, `reduce`, `snapshot`, and `mcp` (boot the server) from your terminal or CI. |
+| [`@graphrefly/cli`](./packages/cli) | Stateless command-line shell — `describe`, `explain`, `observe`, `reduce`, `snapshot` from your terminal or CI. |
 
 ---
 

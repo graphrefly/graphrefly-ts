@@ -761,7 +761,7 @@ This section sequences all remaining open work from `docs/optimizations.md`, `do
 4. **Phase 14 — Post-1.0 changesets / diff (single unified design session).** Op-log changesets + worker-bridge wire-protocol B + `lens.flow` delta + `reactiveLog.scan` + WAL replay for `restoreSnapshot mode: "diff"`. Co-designed because they share the version-counter substrate.
 5. **Phase 14.5 — Roadmap residuals.** Pre-1.0 polish unblocked by Phase 13 (`refineExecutor`, `toolInterceptor` sugar, `mockLLM` promotion); Phase 7.6 verification pass; surfacing items that flow to Phase 16 (framework packages, demo deck) or Parked (Phase 8.x scale, Phase 6.x content addressing depth, Phase 7.4/7.5 quality hardening).
 6. **Phase 15 — Eval program.** Pushed AFTER core / extras / graph / patterns / solutions stabilize (post-Phase-13). Two-tier (synthetic + human-graded) eval design + catalog automation + harness scorecard + eval adapter stack migration.
-7. **Phase 16 — Launch wave.** MCP server, CLI surface, OpenClaw context engine plugin, demos (Demo 0 / Demo 2 multi-agent / Demo 6 / inbox-stream), framework infiltration packages, npm publish, README + docs site. Lands when Phase 15 ships.
+7. **Phase 16 — Launch wave.** CLI surface, OpenClaw context engine plugin, demos (Demo 0 / Demo 2 multi-agent / Demo 6 / inbox-stream), framework infiltration packages, npm publish, README + docs site. Lands when Phase 15 ships.
 8. **Parked until 1.0:** PY parity (umbrella), Path X (Node-returning mutations), G10 atomic registry hot-swap, codec lazy decode, dormant subgraph eviction, AG-UI / A2UI translation adapters, Phase 8.5 distributed (peerGraph / shardedGraph), Phase 8.6 pluggable codec, Phase 8.8 memory optimization, Phase 6.x content-addressing depth, Phase 7.3 Demos 1/3/4/5/7, Phase 7.4 scenario tests, Phase 7.5 inspection stress.
 
 ### Sequencing rationale
@@ -816,7 +816,6 @@ DONE items from §11.1–§11.10 archived to [archive/roadmap/phase-11-cleanup.j
 - **WAIT:** Tier R3.7 `executeAndVerify` unified harness slot.
 - **WAIT:** Tier R3.8 `actuatorExecutor` `mode: supersede|queue|drop`; `dispose` hook + late-resolution suppression.
 - **WAIT:** `appendLogStorage.loadEntries` pagination cursor.
-- **WAIT:** MCP session graph-registry race (`packages/mcp-server/src/tools.ts`) under future HTTP/SSE transports.
 - **WAIT:** Demo Flow chapter useEffect-owned rAF subscription. Pragmatic shape until a second physics-integrator consumer.
 - **POST-1.0:** `withStatus` decomposition into `statusOf` + `errorOf`.
 - **POST-1.0:** `processManager` lone `queueMicrotask` cleanup. Soft-violation, defensive.
@@ -1510,7 +1509,7 @@ Default: pause again, integrate findings into DS-14 design when it opens.
 - The Python parity oracle story (analogous `@graphrefly/pure-py` under the same model) — separate decision, depends on `graphrefly-py` Rust binding progress (M6).
 - WASM distribution (`@graphrefly/native-wasm`) shape beyond the placeholder above — overlaps with Q3/Q6 but follows the M-roadmap and is post-M5.
 - Multi-distribution `lite` / `standard` / `full` feature-gated builds (session doc Part 9) — orthogonal to oracle existence; both layers compose. Lands per Rust workspace's own slicing.
-- Sunset of any non-`@graphrefly/graphrefly` package (`@graphrefly/cli`, `@graphrefly/mcp-server`) — those track the public API and continue to consume `@graphrefly/graphrefly` (which transparently delegates to the appropriate impl).
+- Sunset of `@graphrefly/cli` — it tracks the public API and continues to consume `@graphrefly/graphrefly` (which transparently delegates to the appropriate impl).
 
 **Tracker:** this phase + `~/src/graphrefly-rs/docs/migration-status.md` (per-milestone parity checkpoint column). Cross-ref the locked Q1–Q7 in [archive/docs/SESSION-rust-port-architecture.md](../archive/docs/SESSION-rust-port-architecture.md) Part 12 (added 2026-05-05).
 
@@ -1587,7 +1586,7 @@ This phase captures roadmap items that didn't fit elsewhere in the new sequencin
 *Source: roadmap.md §9.6 "Framework infiltration packages"; lands in Phase 16 launch wave*
 Captured here so Phase 16 doesn't underbid scope:
 - `@graphrefly/ai-sdk` — Vercel AI SDK middleware (`graphreflyMiddleware` wrapping any model).
-- `@graphrefly/langgraph` — LangGraph TS tools (Zod-validated tools exposing graph operations). Note: LangGraph consumes MCP natively, so §9.3 MCP server may suffice.
+- `@graphrefly/langgraph` — LangGraph TS tools (Zod-validated tools exposing graph operations).
 - 3 golden template repos: incident triage reduction; agent run observatory; alert dedup/prioritization.
 
 #### 14.5.6 §9.7 Demo 6 stream extractor showcase + Demo 2 Multi-Agent Task Board
@@ -1622,12 +1621,12 @@ Captured here so Phase 16 doesn't underbid scope:
 #### 14.5.11 — DS-14.5.A: Spec-as-projection narrative reframe + multi-agent subgraph ownership
 *Source: 2026-05-04 conversation triggered by Xiaohongshu sop-runtime research. Catalog/spec UX gap surfaced — the `llmCompose → human copy-paste → freeze in git` workflow is not opinionated and competitor framing (Archon "harness builder" 20.7K⭐, Hermes auto-skill 96K⭐) overlaps Wave 2 positioning. User reframe: **GraphSpec is code's projection, not LLM's authoring surface.** Catalog becomes user-host concern, not library headline. Multi-agent worktree co-edit becomes the differentiating narrative.*
 
-**Why now:** ties directly to Phase 14 changesets (in flight). The ownership protocol's L3 supervisor-override layer co-designs with op-log changesets' `version` field — design DS-14 to accommodate "ownership claim" as a first-class op type, not bolt on later. The 9Q walk for DS-14.5.A runs **after DS-14 locks** (so changeset substrate is concrete) but **before Phase 16 launch copy is finalized** (so README / Wave 2 / MCP server framing all rebase on the same story).
+**Why now:** ties directly to Phase 14 changesets (in flight). The ownership protocol's L3 supervisor-override layer co-designs with op-log changesets' `version` field — design DS-14 to accommodate "ownership claim" as a first-class op type, not bolt on later. The 9Q walk for DS-14.5.A runs **after DS-14 locks** (so changeset substrate is concrete) but **before Phase 16 launch copy is finalized** (so README / Wave 2 framing all rebase on the same story).
 
 **Locked decisions (L1–L8) from 2026-05-04 conversation:**
 
-- **L1 — GraphSpec authoring direction reversed.** Code is source of truth; spec is auto-generated projection. `factoryTag` + `decompileSpec` round-trip already supports this. `llmCompose` retained as user-host MCP tool, not library headline.
-- **L2 — Catalog is user-host responsibility, not library headline.** `@graphrefly/mcp-server` reframes from "distribution headline" to "toolkit + default-empty-catalog binary for inspection." Library ships `buildMcpServer({ catalog })` factory; users wire their own catalogs. Three-tier client capability fallback: (a) code-aware client → grep fn names from spec; (b) catalog-uploadable client → richer answers; (c) zero-context → guess from spec + descriptions only.
+- **L1 — GraphSpec authoring direction reversed.** Code is source of truth; spec is auto-generated projection. `factoryTag` + `decompileSpec` round-trip already supports this. `llmCompose` retained as user-host concern, not library headline.
+- **L2 — Catalog is user-host responsibility, not library headline.** MCP server removed from library scope (2026-05-11) — building an MCP server over GraphReFly is the user-host application's responsibility. Library ships the reactive primitives and inspection tools (`describe` / `observe` / `explain`); the CLI provides the terminal projection. Three-tier client capability fallback: (a) code-aware client → grep fn names from spec; (b) catalog-uploadable client → richer answers; (c) zero-context → guess from spec + descriptions only.
 - **L3 — Spec auto-checkpoint trigger: topology-change-only.** Not per-wave (noisy), not at `messageTier ≥ 3` (different lifecycle from value snapshot). Requires a new "topology dirty" signal — small but new substrate work. Extends `Graph.attachStorage` to persist `describe({ detail: "spec" })` snapshot alongside state checkpoint when topology changes (mount / unmount / `tagFactory` / `add` / `remove` / `setDeps`-when-shipped).
 - **L4 — Cross-language stays blueprint-only.** Spec is JSON-portable for LLM context (PY agent reads TS-generated spec to understand topology), NOT executable across languages. No `graphrefly://` URI standardization. Cross-language executable spec defers to post-1.0 with `peerGraph(transport)` (Phase 8.5).
 - **L5 — Subgraph ownership staircase L0–L3.**
@@ -1644,7 +1643,7 @@ Captured here so Phase 16 doesn't underbid scope:
 | # | Work | Size | Phase | Dep |
 |---|---|---|---|---|
 | 1 | README + Wave 2 launch copy rewrite | S | NOW (post-DS-14 lock) | None |
-| 2 | Phase 16 MCP server reframe (toolkit, not headline) | S | NOW (post-DS-14 lock) | None |
+| ~~2~~ | ~~Phase 16 MCP server reframe~~ — REMOVED 2026-05-11; MCP server dropped from library scope | - | - | - |
 | 3 | `meta.owner` spec annotation in [GRAPHREFLY-SPEC.md](~/src/graphrefly/GRAPHREFLY-SPEC.md) | S | Phase 14.5 | None |
 | 4 | COMPOSITION-GUIDE-PATTERNS §N "Multi-agent subgraph ownership" | M | Phase 14.5 | DS-14.5.A walk |
 | 5 | `validateOwnership(spec, prDiff)` lint helper | S | Phase 14.5 | (3) |
@@ -1669,7 +1668,7 @@ Captured here so Phase 16 doesn't underbid scope:
 - **Q1 — Topology-dirty signal:** explicit `_topologyVersion: number` counter on Graph; bumped at every `add` / `remove` / `mount` / `unmount` / `tagFactory` / `setDeps`-when-shipped. O(1) per mutation. Distinct from `_versioningLevel` / `_schemaVersion` (codec / migration concerns).
 - **Q8 — High-churn topology debounce:** wave-boundary `registerBatchFlushHook` checks `_topologyVersion === lastPersistedVersion` and skips on equality. NO time-window debounce. Optional payload-equality fallback for the (rare) case where same-wave bumps net out to identical spec. Reuses existing `_describeReactive` / `_explainReactive` substrate.
 - **Q9 — User-host catalog convention:** soft convention. Default location `<repo>/catalog.ts` exporting `default GraphSpecCatalog`. Override via `package.json#graphrefly.catalogPath`. Tooling fallback chain: package.json field → catalog.ts default → not found = inspection-only mode (`describe` / `observe` / `explain` work; `compileSpec` / `validateSpec` warn). Catalog file format must be TS module (closures can't JSON-encode); JSON-only catalog ruled out by reality.
-- **Q6 — README/narrative rewrite cadence:** single PR with limited scope. Touches: `README.md`, `CLAUDE.md`, `docs/roadmap.md` Wave 2/3 framings, `archive/docs/SESSION-harness-engineering-strategy.md` SUPERSEDED banner, NEW `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md`. Explicitly EXCLUDES from this PR: `~/src/graphrefly_github/profile/README.md` (separate repo, separate PR); `packages/mcp-server/README.md` (rides delta #2 reframe PR); Wave 1/2/3 blog drafts (post-substrate); "GraphReFly vs Archon" comparison page (Phase 16 §9.2).
+- **Q6 — README/narrative rewrite cadence:** single PR with limited scope. Touches: `README.md`, `CLAUDE.md`, `docs/roadmap.md` Wave 2/3 framings, `archive/docs/SESSION-harness-engineering-strategy.md` SUPERSEDED banner, NEW `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md`. Explicitly EXCLUDES from this PR: `~/src/graphrefly_github/profile/README.md` (separate repo, separate PR); Wave 1/2/3 blog drafts (post-substrate); "GraphReFly vs Archon" comparison page (Phase 16 §9.2).
 
 **Cross-refs:**
 - Trigger conversation: 2026-05-04 (this session) — research started from Xiaohongshu `Riceneeder/sop-runtime` post; competitor analysis vs `coleam00/Archon` (20.7K⭐) + `nousresearch/hermes-agent` (~96K⭐).
@@ -1738,7 +1737,7 @@ Captured here so Phase 16 doesn't underbid scope:
 Lands when Phase 15 ships. Major items, each potentially its own session:
 
 **Distribution / packages:**
-- **§9.3 MCP Server** (`@graphrefly/mcp-server`) — distribution priority per `archive/docs/SESSION-harness-engineering-strategy.md`. Publish to npm; submit to MCP registry, Cline Marketplace, PulseMCP; "Try it with Claude Code in 2 minutes" quickstart.
+- ~~**§9.3 MCP Server**~~ — REMOVED 2026-05-11. MCP server is user-host application responsibility, not library scope. `packages/mcp-server/` moved to TRASH. Client-side `fromMCP` adapter in `extra/io/mcp.ts` remains (reactive source for consuming MCP notifications).
 - **§9.3b OpenClaw Context Engine Plugin** (`@graphrefly/openclaw-context-engine`) — ContextEngine 3-hook interface; reactive memory graph with `Graph.attachStorage`. Publish + plugin-registry submission.
 - **§9.3c CLI surface** (`@graphrefly/cli`) — publish to npm with single `bin` entry; `npx @graphrefly/cli` zero-install; CI smoke test every subcommand.
 - **§9.6 Framework infiltration** (per Phase 14.5.5):

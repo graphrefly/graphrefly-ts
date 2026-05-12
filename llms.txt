@@ -17,7 +17,7 @@ This file is an AI-oriented index for the TypeScript repo. It intentionally poin
 ## Active strategy docs (read for current direction)
 
 - `archive/docs/SESSION-reactive-collaboration-harness.md` — 7-stage reactive collaboration loop, gate port from callbag-recharge, `promptNode`, `valve` rename, strategy model, `harnessLoop()` factory
-- `archive/docs/SESSION-harness-engineering-strategy.md` — 8-requirement coverage, three-wave announcement plan, MCP Server priority, eval system design
+- `archive/docs/SESSION-harness-engineering-strategy.md` — 8-requirement coverage, three-wave announcement plan, eval system design
 - `archive/docs/SESSION-marketing-promotion-strategy.md` — positioning pillars, wave plan, reply-marketing playbooks, competitive intel, prompt optimization algorithms, blog content plan
 
 ## Primary links

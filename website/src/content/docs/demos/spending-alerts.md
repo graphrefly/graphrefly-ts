@@ -103,15 +103,6 @@ npx @graphrefly/cli explain spending-alerts.json \
   --from txFeed --to alertMessage
 ```
 
-From inside a Claude Code / Codex CLI / any MCP client — the `@graphrefly/mcp-server` exposes `graphrefly_explain`:
-
-```
-> use the graphrefly MCP and explain why transaction tx-003 was flagged
-
-[tool call: graphrefly_explain(graphId="alerts", from="txFeed", to="alertMessage")]
-[result: Causal path: txFeed → … → alertMessage (5 step(s)) …]
-```
-
 ## Extending to an agent (and why it still works)
 
 The demo's `alertMessage` uses a deterministic template. Swap it for a `promptNode` wrapping Chrome Nano (or any [adapter](https://github.com/graphrefly/graphrefly-ts/tree/main/src/patterns/ai/adapters) — Anthropic, OpenAI-compat, Google) and `graph.describe({ explain })` works identically:

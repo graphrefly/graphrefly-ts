@@ -25,7 +25,7 @@ export * as reduction from "./reduction/index.js";
 // `refine` (refineLoop) was moved to `harness/presets/refine-loop.ts` per
 // Tier 9.1 γ-β; reach it via `harness.refineLoop`.
 // Surface layer (§9.3-core): top-level + namespaced. The surface is the
-// entry point for @graphrefly/mcp-server and @graphrefly/cli, so named
+// entry point for @graphrefly/cli and user-host applications, so named
 // exports live at the root alongside `core`/`graph`/`extra` style.
 export * from "./surface/index.js";
 export * as surface from "./surface/index.js";

@@ -1,6 +1,6 @@
 # @graphrefly/cli
 
-Stateless command-line shell for [GraphReFly](https://graphrefly.dev). Compile a `GraphSpec`, inspect its topology, trace causal chains, run one-shot reductions, diff snapshots, and boot a stdio MCP server — all without writing code.
+Stateless command-line shell for [GraphReFly](https://graphrefly.dev). Compile a `GraphSpec`, inspect its topology, trace causal chains, run one-shot reductions, and diff snapshots — all without writing code.
 
 ## Install
 
@@ -53,7 +53,6 @@ cat pricing.json | npx @graphrefly/cli describe -
 | `reduce   <spec> --input <path\|-> [--input-path P] [--output-path Q] [--timeout-ms N]` | Stateless run: push `input` to `inputPath` (default `input`), await first `DATA` on `outputPath` (default `output`), print result, dispose. |
 | `snapshot diff <a> <b>` | Diff two snapshot files on disk. |
 | `snapshot validate <file>` | Structural validation of a snapshot envelope. |
-| `mcp` | Boot the GraphReFly MCP server on stdio (same as running `graphrefly-mcp`). Uses `GRAPHREFLY_STORAGE_DIR` if set. |
 | `help` / `--help` / `-h` | Print the help text. |
 
 ### Common flags
@@ -83,12 +82,6 @@ One-shot reduction (stateless pipeline-as-function):
 
 ```bash
 echo '{"query":"hello"}' | npx @graphrefly/cli reduce pipeline.json --input -
-```
-
-Boot the MCP server for Claude Desktop / Cline:
-
-```bash
-GRAPHREFLY_STORAGE_DIR=~/.graphrefly/snapshots npx @graphrefly/cli mcp
 ```
 
 ## Exit codes
