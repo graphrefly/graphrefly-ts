@@ -1181,3 +1181,82 @@ Decisions made during the Rust port, recorded after inline discussion.
 - **Decision:** A — `describe.each(impls)` with `test.runIf(impl.name !== "rust-via-napi")` gating for any scenario where the rust binding doesn't yet support the operation. Build napi bindings in this slice so most scenarios run against both arms.
 - **Rationale:** Maximizes parity validation surface. The binding work is bounded (memory backends only, no file/redb at napi boundary). runIf gating is acceptable for genuinely unsupported operations, unlike the F9 anti-pattern which gated entire test files.
 - **Affects:** `packages/parity-tests/scenarios/storage-*/*.test.ts`, `packages/parity-tests/impls/types.ts` (Impl widening).
+
+### D177 — M5.A Core-level reactive structure integration (not Graph-level)
+- **Date:** 2026-05-11
+- **Context:** Reactive data structures (Map, List, Log, Index) need to emit DIRTY→DATA snapshots on mutation. Two integration options: (C1) structures own a BindingBoundary impl, each type manages its own handle allocation; (C2) structures operate at Graph level via `Graph::state()` + `Graph::set()`.
+- **Options:** A) Core-level — structures take `WeakCore` + `Arc<dyn BindingBoundary>`, register state nodes directly, manage handles themselves. B) Graph-level — structures take `&Graph` reference, use `graph.state()` + `graph.set()`.
+- **Decision:** A — Core-level integration.
+- **Rationale:** User requested standalone structures without Graph dependency. Matches TS where structures are standalone (no Graph required). Structures become building blocks that Graph can compose, not Graph-only consumers.
+- **Affects:** `graphrefly-structures` depends on `graphrefly-core` only (drop `graphrefly-graph` dep for structures themselves). All 4 structures take `WeakCore` + `Arc<dyn BindingBoundary>` at construction.
+
+### D178 — M5.A Vec default backends (imbl deferred)
+- **Date:** 2026-05-11
+- **Context:** Cargo.toml already depends on `imbl` for persistent collections. TS uses plain JS arrays/Maps as defaults. For Rust v1, Vec/HashMap is simpler and faster for small-to-medium collections. imbl gives O(log n) snapshot-and-revert but adds complexity.
+- **Options:** A) Vec/HashMap defaults now, imbl backends as opt-in later. B) imbl from the start.
+- **Decision:** A — Vec/HashMap defaults; imbl backends deferred until bench evidence justifies.
+- **Rationale:** Simpler v1. The backend trait abstraction means imbl can slot in later without API changes. No current workload benefits from persistent-collection semantics yet.
+- **Affects:** Default backends for all 4 structures use `Vec<T>` / `HashMap<K, V>`. `imbl` dep stays in Cargo.toml for future use.
+
+### D179 — M5.A all 4 structures in single slice
+- **Date:** 2026-05-11
+- **Context:** Original plan was Log+List first (M5.A), Map+Index in M5.B. User requested bigger scope.
+- **Options:** A) All 4 in one slice. B) Split into 2 slices.
+- **Decision:** A — all 4 structures in M5.A with base operations.
+- **Rationale:** Structures share the same integration pattern (Core-level state node, backend trait, change envelope). Implementing all 4 together avoids duplicating the design discussion and ensures consistent API shape. Advanced features (TTL, LRU, views, scan, attach) deferred to M5.B.
+- **Affects:** M5.A scope covers ReactiveLog, ReactiveList, ReactiveMap, ReactiveIndex with base CRUD operations, backend traits, change envelope types, and mutation log companions.
+
+### D180 — M5.B Arc<Mutex> refactoring for ReactiveLog subscription features
+- **Date:** 2026-05-11
+- **Context:** ReactiveLog views/scan/attach require closures that capture `inner` for read access inside Core subscriber callbacks. `Mutex<LogInner<T>>` can't be cloned into multiple closures.
+- **Options:** A) `Arc<Mutex<LogInner<T>>>` (shared ownership). B) Unsafe pointer sharing. C) Channel-based approach.
+- **Decision:** A — `Arc<Mutex<LogInner<T>>>` for ReactiveLog only.
+- **Rationale:** Clean, safe, minimal overhead. Only ReactiveLog needs this change (subscription-based features). ReactiveList/Map/Index remain `Mutex<Inner>` since they have no subscription-based features in M5.B. `#![forbid(unsafe_code)]` preserved.
+- **Affects:** `ReactiveLog.inner` field type, all closure captures in `view`/`scan`/`attach`/`attach_storage`.
+
+### D181 — M5.B ReactiveMap::new returns Result for config validation
+- **Date:** 2026-05-11
+- **Context:** TTL + LRU + retention policies have mutual exclusivity constraints (LRU and retention are mutually exclusive). Need to validate at construction time.
+- **Options:** A) Panic on invalid config. B) Return `Result<Self, MapConfigError>`. C) Silently ignore conflicting options.
+- **Decision:** B — fallible construction.
+- **Rationale:** Matches Rust conventions. Typed `MapConfigError` enum gives callers clear error handling. Existing callers add `.unwrap()` (test ergonomics preserved). Panicking on config errors is user-hostile; silent override hides bugs.
+- **Affects:** All `ReactiveMap::new` call sites (7 in tests, updated to `.unwrap()`).
+
+### D182 — M5.B attach ascending-order constraint (Phase H+ compliance)
+- **Date:** 2026-05-11
+- **Context:** `ReactiveLog::attach(upstream, read_value)` subscribes to upstream and emits to the log's `node_id` inside the callback. Core's Phase H+ ascending-order invariant requires subscriber-side emits to target nodes with higher `SubgraphId` than the source.
+- **Options:** A) Document ordering constraint (upstream must be registered before the log). B) Create bridge node to ensure correct ordering. C) Use deferred emission queue.
+- **Decision:** A — document the constraint. Callers must ensure upstream has a lower `SubgraphId` than the log.
+- **Rationale:** TS doesn't have this constraint (single-threaded). The Rust Core's ascending-order invariant is fundamental to lock-free parallel dispatch. A bridge node adds complexity for minimal benefit. The constraint is natural in practice (data sources are typically created before their consumers). Deferred emission would require exposing `pub(crate)` Core internals across crate boundaries.
+- **Affects:** `ReactiveLog::attach` callers. Documented in migration-status.md M5.B section.
+
+### D183 — M5.B parity: `MapChange::Delete` carries `previous: V`
+- **Date:** 2026-05-11
+- **Context:** TS `MapChangePayload` includes `previous: V` on delete for audit trails. Rust M5.B initial landing omitted it.
+- **Decision:** Add `previous: V` to Rust `MapChange::Delete`. Capture value before backend deletion in all paths (explicit, expired, LRU evict, archived).
+- **Rationale:** Audit trails need the deleted value. Matches TS semantics. Slight perf cost (one extra `backend.get()` before delete) is acceptable for correctness.
+- **Affects:** All `MapChange::Delete` construction sites in `reactive.rs`. `prune_expired_inner` and `lru_evict` now return `Vec<(K, V)>`.
+
+### D184 — M5.B parity: `"archived"` reason replaces `"lru-evict"` for retention archival (TS fix)
+- **Date:** 2026-05-11
+- **Context:** TS used `"lru-evict"` as the deletion reason for score-based retention archival — semantically wrong. Rust already had dedicated `DeleteReason::Archived`.
+- **Decision:** Add `"archived"` to TS `MapChangePayload.reason` union. Change retention archival code to emit `reason: "archived"`.
+- **Rationale:** Rust's design is better. `"lru-evict"` should only mean LRU eviction. Pre-1.0, no backward compat needed.
+- **Affects:** TS `change.ts` type union, `reactive-map.ts` `applyRetention()`.
+
+### D185 — M5.B parity: mutation log records only effective upsert rows (TS fix)
+- **Date:** 2026-05-11
+- **Context:** TS `upsertMany` reactive wrapper logged ALL input rows to mutation log, including those skipped by equals. Rust only logged effective (non-skipped) rows.
+- **Decision:** Fix TS to match Rust — pre-filter through equals before logging.
+- **Rationale:** Logging skipped rows is misleading for audit consumers. Rust behavior is correct. Added `getRow(primary)` O(1) method to `IndexBackend` (both TS and Rust) for the pre-filter lookup.
+- **Affects:** TS `reactive-index.ts` `upsertMany` wrapper, `NativeIndexBackend.getRow`, Rust `IndexBackend::get_row`.
+
+### D186 — M5.B /qa: 4 correctness fixes from adversarial review
+- **Date:** 2026-05-11
+- **Context:** /qa adversarial review (Blind Hunter + Edge Case Hunter) found 4 actionable bugs across Rust and TS.
+- **Fixes applied:**
+  1. **Rust `has()`/`get()` early-return emission bug.** Expired target key was deleted from backend but early-return skipped emission + mutation log. Subscribers saw stale state. Fixed: expired target flows through normal collection and emission path.
+  2. **Rust per-call TTL validation.** `set_with_ttl`/`set_many_with_ttl` accepted negative/NaN f64 values, silently causing instant expiry. Fixed: assert panics on non-positive or non-finite per-call TTL.
+  3. **TS `MapChangePayload.reason` made required.** Was `reason?:` (optional) while Rust `DeleteReason` is required. All call sites already provided a reason. Removed `?` for cross-language parity.
+  4. **Rust NaN-safe retention sort.** `apply_retention_inner` used `partial_cmp().unwrap_or(Equal)`, making NaN-scored entries nondeterministic. Changed to `total_cmp()` which places NaN below -Infinity.
+- **Affects:** Rust `reactive.rs` (`has`, `get`, `set_with_ttl`, `set_many_with_ttl`, `apply_retention_inner`). TS `change.ts` (`MapChangePayload`).
