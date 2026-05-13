@@ -87,6 +87,55 @@ tests/
 
 **Rule:** Add new tests to the narrowest existing file; create a new file only when the area is clearly separate.
 
+### Rust (`graphrefly-rs`)
+
+- **Runner:** `cargo test --workspace`. Config: per-crate `Cargo.toml`.
+- **Discovery:** `crates/*/tests/*.rs` (integration tests) + `#[test]` in `src/` (unit tests).
+
+```
+crates/
+├── graphrefly-core/tests/        # protocol, node, batch, diamond, lifecycle
+├── graphrefly-graph/tests/       # Graph mount, describe, observe, snapshot, signal
+├── graphrefly-operators/tests/   # operators, sources, producers, higher-order
+│   └── common/mod.rs             # shared test infrastructure (see below)
+├── graphrefly-storage/tests/     # WAL, tiers, graph integration, restore
+└── graphrefly-structures/tests/  # reactive data structures
+```
+
+#### Two-layer test architecture (handle protocol boundary)
+
+Rust tests mirror the handle protocol split between Core and the binding layer:
+
+| Layer | Asserts on | Where | Why |
+|-------|-----------|-------|-----|
+| **Core** (`graphrefly-core`) | `HandleId`, `Message`, `NodeId` | `crates/graphrefly-core/tests/` | Core sees only opaque `HandleId` tokens — no user values. Tests verify message routing, batching, lifecycle. |
+| **Operators** (`graphrefly-operators`) | `TestValue`, `RecordedEvent` | `crates/graphrefly-operators/tests/` | Operator semantics require value visibility — "did `map` transform 1→2?" Raw `HandleId` assertions would be opaque and fragile. |
+
+#### Test infrastructure (`tests/common/mod.rs`)
+
+The operators crate provides shared test helpers:
+
+- **`TestValue`** — small enum (`Int(i64)`, `Str(String)`, `Pair(…)`, `Tuple(…)`) that serves as the user-facing `T` type in the binding's value registry.
+- **`InnerBinding`** — implements both `BindingBoundary` and `OperatorBinding`. Maintains a `HandleId ↔ TestValue` registry with refcounting, plus closure registries for projectors, predicates, folders, packers, etc.
+- **`OpRuntime`** — glues `Core` + `InnerBinding` together. Provides convenience methods: `intern_int(n)`, `state_int(initial)`, `emit_int(node, n)`, `subscribe_recorder(node)`.
+- **`Recorder`** / **`RecordedEvent`** — sink that resolves `HandleId` → `TestValue` at record time, producing readable assertions:
+
+```rust
+let rec = rt.subscribe_recorder(node);
+assert_eq!(rec.events(), vec![
+    RecordedEvent::Start,
+    RecordedEvent::Dirty,
+    RecordedEvent::Data(TestValue::Int(42)),
+    RecordedEvent::Complete,
+]);
+// Or extract just data values:
+assert_eq!(rec.data_values(), vec![TestValue::Int(42)]);
+```
+
+**When to use `events()` vs `data_values()`:** Use `events()` when testing lifecycle ordering (Dirty before Data, Start/Complete presence). Use `data_values()` when only the transformed values matter and lifecycle events are noise.
+
+**Producer tests:** `subscribe_recorder(node)` triggers the producer's build closure synchronously (first subscriber activates the producer). Assert on the recorder immediately after — no async wait needed for cold/sync producers.
+
 ---
 
 ## What to test — core protocol & node
