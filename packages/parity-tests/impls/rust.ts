@@ -776,7 +776,7 @@ export const rustImpl: Impl | null = native
 
 			async node<T>(
 				_deps: ReadonlyArray<ImplNode<unknown>>,
-				opts?: { initial?: T; name?: string },
+				opts?: { initial?: T; name?: string; resubscribable?: boolean },
 			): Promise<ImplNode<T>> {
 				const state = getState();
 				let id: number;
@@ -786,6 +786,9 @@ export const rustImpl: Impl | null = native
 					id = await state.core.registerStateWithHandle(handle);
 				} else {
 					id = await state.core.registerStateSentinel();
+				}
+				if (opts?.resubscribable) {
+					await state.core.setResubscribable(id, true);
 				}
 				const node = new RustNode<T>(state.core, id, state.registry);
 				if (opts && opts.initial !== undefined) {
@@ -1065,6 +1068,145 @@ export const rustImpl: Impl | null = native
 				);
 				return wrapAsRustNode<U>(state, id);
 			},
+			// Control operators (Slice U napi parity).
+			async tap<T>(src: ImplNode<T>, fn: (x: T) => void): Promise<ImplNode<T>> {
+				const state = getState();
+				const callback = (h: number): void => {
+					fn(state.registry.get<T>(h) as T);
+				};
+				const id = await state.operators.registerTap(unwrap(src), callback);
+				return wrapAsRustNode<T>(state, id);
+			},
+			async tapObserver<T>(
+				src: ImplNode<T>,
+				opts: { data?: (x: T) => void; error?: (e: unknown) => void; complete?: () => void },
+			): Promise<ImplNode<T>> {
+				const state = getState();
+				const dataCb = opts.data
+					? (h: number): void => {
+							opts.data!(state.registry.get<T>(h) as T);
+						}
+					: undefined;
+				const errorCb = opts.error
+					? (h: number): void => {
+							opts.error!(state.registry.get(h));
+						}
+					: undefined;
+				const completeCb = opts.complete ?? undefined;
+				const id = await state.operators.registerTapObserver(
+					unwrap(src),
+					dataCb ?? null,
+					errorCb ?? null,
+					completeCb ?? null,
+				);
+				return wrapAsRustNode<T>(state, id);
+			},
+			async onFirstData<T>(src: ImplNode<T>, fn: (x: T) => void): Promise<ImplNode<T>> {
+				const state = getState();
+				const callback = (h: number): void => {
+					fn(state.registry.get<T>(h) as T);
+				};
+				const id = await state.operators.registerOnFirstData(unwrap(src), callback);
+				return wrapAsRustNode<T>(state, id);
+			},
+			async rescue<T>(src: ImplNode<T>, fn: (err: unknown) => T | undefined): Promise<ImplNode<T>> {
+				const state = getState();
+				const callback = (errorHandle: number): number => {
+					const errValue = state.registry.get(errorHandle);
+					const result = fn(errValue);
+					if (result === undefined) return -1;
+					const outH = state.core.allocExternalHandle();
+					state.registry.set(outH, result);
+					return outH;
+				};
+				const id = await state.operators.registerRescue(unwrap(src), callback);
+				return wrapAsRustNode<T>(state, id);
+			},
+			async valve<T>(
+				src: ImplNode<T>,
+				control: ImplNode<unknown>,
+				gate: (x: unknown) => boolean,
+			): Promise<ImplNode<T>> {
+				const state = getState();
+				const gateCb = (h: number): boolean => {
+					return gate(state.registry.get(h));
+				};
+				const id = await state.operators.registerValve(unwrap(src), unwrap(control), gateCb);
+				return wrapAsRustNode<T>(state, id);
+			},
+			async settle<T>(
+				src: ImplNode<T>,
+				quietWaves: number,
+				maxWaves?: number,
+			): Promise<ImplNode<T>> {
+				const state = getState();
+				const id = await state.operators.registerSettle(unwrap(src), quietWaves, maxWaves ?? null);
+				return wrapAsRustNode<T>(state, id);
+			},
+			async repeat<T>(src: ImplNode<T>, count: number): Promise<ImplNode<T>> {
+				const state = getState();
+				const id = await state.operators.registerRepeat(unwrap(src), count);
+				return wrapAsRustNode<T>(state, id);
+			},
+
+			// Buffer operators (Slice U napi parity).
+			async buffer<T>(src: ImplNode<T>, notifier: ImplNode<unknown>): Promise<ImplNode<T[]>> {
+				const state = getState();
+				const packer = (handles: number[]): number => {
+					const values = handles.map((h) => state.registry.get(h));
+					const outH = state.core.allocExternalHandle();
+					state.registry.set(outH, values as T[]);
+					return outH;
+				};
+				const id = await state.operators.registerBuffer(unwrap(src), unwrap(notifier), packer);
+				return wrapAsRustNode<T[]>(state, id);
+			},
+			async bufferCount<T>(src: ImplNode<T>, count: number): Promise<ImplNode<T[]>> {
+				const state = getState();
+				const packer = (handles: number[]): number => {
+					const values = handles.map((h) => state.registry.get(h));
+					const outH = state.core.allocExternalHandle();
+					state.registry.set(outH, values as T[]);
+					return outH;
+				};
+				const id = await state.operators.registerBufferCount(unwrap(src), count, packer);
+				return wrapAsRustNode<T[]>(state, id);
+			},
+
+			// Cold sources (Slice 3e/3f napi parity).
+			async fromIter<T>(values: T[]): Promise<ImplNode<T>> {
+				const state = getState();
+				const handles = values.map((v) => {
+					const h = state.core.allocExternalHandle();
+					state.registry.set(h, v);
+					return h;
+				});
+				const id = await state.operators.registerFromIter(handles);
+				return wrapAsRustNode<T>(state, id);
+			},
+			async of<T>(values: T[]): Promise<ImplNode<T>> {
+				const state = getState();
+				const handles = values.map((v) => {
+					const h = state.core.allocExternalHandle();
+					state.registry.set(h, v);
+					return h;
+				});
+				const id = await state.operators.registerOf(handles);
+				return wrapAsRustNode<T>(state, id);
+			},
+			async empty<T>(): Promise<ImplNode<T>> {
+				const state = getState();
+				const id = await state.operators.registerEmpty();
+				return wrapAsRustNode<T>(state, id);
+			},
+			async throwError<T>(error: unknown): Promise<ImplNode<T>> {
+				const state = getState();
+				const h = state.core.allocExternalHandle();
+				state.registry.set(h, error);
+				const id = await state.operators.registerThrowError(h);
+				return wrapAsRustNode<T>(state, id);
+			},
+
 			// Storage (M4.F).
 			storage: buildRustStorage(),
 		} as Impl)

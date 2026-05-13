@@ -43,6 +43,26 @@ import type {
 	SpecChange,
 	SpecChangePayload,
 } from "../extra/data-structures/change.js";
+import {
+	type ReactiveIndexBundle,
+	type ReactiveIndexOptions,
+	reactiveIndex,
+} from "../extra/data-structures/reactive-index.js";
+import {
+	type ReactiveListBundle,
+	type ReactiveListOptions,
+	reactiveList,
+} from "../extra/data-structures/reactive-list.js";
+import {
+	type ReactiveLogBundle,
+	type ReactiveLogOptions,
+	reactiveLog,
+} from "../extra/data-structures/reactive-log.js";
+import {
+	type ReactiveMapBundle,
+	type ReactiveMapOptions,
+	reactiveMap,
+} from "../extra/data-structures/reactive-map.js";
 import { keepalive } from "../extra/sources.js";
 import type { StorageHandle } from "../extra/storage-core.js";
 import type { BaseStorageTier, SnapshotStorageTier } from "../extra/storage-tiers.js";
@@ -2393,6 +2413,75 @@ export class Graph {
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
 		this._wireSignalToRemove(name, signal);
 		return n;
+	}
+
+	// ——————————————————————————————————————————————————————————————
+	//  Reactive structure sugar (Phase 2–3 data-structures)
+	// ——————————————————————————————————————————————————————————————
+
+	/**
+	 * Creates a {@link ReactiveLogBundle} and registers its `entries` node
+	 * under `name` on this graph. The `name` option is set automatically;
+	 * remaining options forwarded to `reactiveLog()`.
+	 */
+	log<T>(name: string, opts?: Omit<ReactiveLogOptions<T>, "name">): ReactiveLogBundle<T> {
+		const full: ReactiveLogOptions<T> = { ...(opts as ReactiveLogOptions<T>), name };
+		const bundle = reactiveLog<T>(undefined, full);
+		this.add(bundle.entries, { name });
+		return bundle;
+	}
+
+	/**
+	 * Creates a {@link ReactiveListBundle} and registers its `items` node
+	 * under `name` on this graph. When the `mutationLog` option is set, the
+	 * companion log's `entries` node is also registered under
+	 * `name + "/mutationLog"`. Remaining options forwarded to `reactiveList()`.
+	 */
+	list<T>(name: string, opts?: Omit<ReactiveListOptions<T>, "name">): ReactiveListBundle<T> {
+		const full: ReactiveListOptions<T> = { ...(opts as ReactiveListOptions<T>), name };
+		const bundle = reactiveList<T>(undefined, full);
+		this.add(bundle.items, { name });
+		if (bundle.mutationLog) {
+			this.add(bundle.mutationLog.entries, { name: `${name}/mutationLog` });
+		}
+		return bundle;
+	}
+
+	/**
+	 * Creates a {@link ReactiveMapBundle} and registers its `entries` node
+	 * under `name` on this graph. When the `mutationLog` option is set, the
+	 * companion log's `entries` node is also registered under
+	 * `name + "/mutationLog"`. Remaining options forwarded to `reactiveMap()`.
+	 */
+	map<K, V>(name: string, opts?: Omit<ReactiveMapOptions<K, V>, "name">): ReactiveMapBundle<K, V> {
+		const full: ReactiveMapOptions<K, V> = { ...(opts as ReactiveMapOptions<K, V>), name };
+		const bundle = reactiveMap<K, V>(full);
+		this.add(bundle.entries, { name });
+		if (bundle.mutationLog) {
+			this.add(bundle.mutationLog.entries, { name: `${name}/mutationLog` });
+		}
+		return bundle;
+	}
+
+	/**
+	 * Creates a {@link ReactiveIndexBundle} and registers its `ordered` node
+	 * under `name` on this graph. The `byPrimary` companion is registered
+	 * under `name + "/byPrimary"`, and when `mutationLog` is set, the log's
+	 * `entries` node is registered under `name + "/mutationLog"`. Remaining
+	 * options forwarded to `reactiveIndex()`.
+	 */
+	index<K, V = unknown>(
+		name: string,
+		opts?: Omit<ReactiveIndexOptions<K, V>, "name">,
+	): ReactiveIndexBundle<K, V> {
+		const full: ReactiveIndexOptions<K, V> = { ...(opts as ReactiveIndexOptions<K, V>), name };
+		const bundle = reactiveIndex<K, V>(full);
+		this.add(bundle.ordered, { name });
+		this.add(bundle.byPrimary, { name: `${name}/byPrimary` });
+		if (bundle.mutationLog) {
+			this.add(bundle.mutationLog.entries, { name: `${name}/mutationLog` });
+		}
+		return bundle;
 	}
 
 	/**

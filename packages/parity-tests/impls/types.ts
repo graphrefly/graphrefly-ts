@@ -194,7 +194,7 @@ export interface Impl {
 	// Standalone state factory.
 	node<T>(
 		deps: ReadonlyArray<ImplNode<unknown>>,
-		opts?: { initial?: T; name?: string },
+		opts?: { initial?: T; name?: string; resubscribable?: boolean },
 	): Promise<ImplNode<T>>;
 
 	// Graph constructor.
@@ -239,6 +239,32 @@ export interface Impl {
 		project: (x: T) => ImplNode<U>,
 		concurrency?: number,
 	): Promise<ImplNode<U>>;
+
+	// Control operators (Slice U napi parity).
+	tap<T>(src: ImplNode<T>, fn: (x: T) => void): Promise<ImplNode<T>>;
+	tapObserver<T>(
+		src: ImplNode<T>,
+		opts: { data?: (x: T) => void; error?: (e: unknown) => void; complete?: () => void },
+	): Promise<ImplNode<T>>;
+	onFirstData<T>(src: ImplNode<T>, fn: (x: T) => void): Promise<ImplNode<T>>;
+	rescue<T>(src: ImplNode<T>, fn: (err: unknown) => T | undefined): Promise<ImplNode<T>>;
+	valve<T>(
+		src: ImplNode<T>,
+		control: ImplNode<unknown>,
+		gate: (x: unknown) => boolean,
+	): Promise<ImplNode<T>>;
+	settle<T>(src: ImplNode<T>, quietWaves: number, maxWaves?: number): Promise<ImplNode<T>>;
+	repeat<T>(src: ImplNode<T>, count: number): Promise<ImplNode<T>>;
+
+	// Buffer operators (Slice U napi parity).
+	buffer<T>(src: ImplNode<T>, notifier: ImplNode<unknown>): Promise<ImplNode<T[]>>;
+	bufferCount<T>(src: ImplNode<T>, count: number): Promise<ImplNode<T[]>>;
+
+	// Cold sources (Slice 3e/3f napi parity).
+	fromIter<T>(values: T[]): Promise<ImplNode<T>>;
+	of<T>(values: T[]): Promise<ImplNode<T>>;
+	empty<T>(): Promise<ImplNode<T>>;
+	throwError<T>(error: unknown): Promise<ImplNode<T>>;
 
 	// Storage (M4.F — D176). `undefined` when the impl doesn't support storage.
 	readonly storage?: StorageImpl;

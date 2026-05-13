@@ -404,6 +404,7 @@ export const pureTsImpl: Impl = {
 		const n = legacy.node<T>(innerDeps, {
 			initial: opts?.initial,
 			name: opts?.name,
+			resubscribable: opts?.resubscribable,
 		} as legacy.NodeOptions<T>);
 		return wrap(n);
 	},
@@ -581,6 +582,66 @@ export const pureTsImpl: Impl = {
 			concurrency !== undefined ? { concurrent: concurrency } : undefined,
 		);
 		return wrap(inner as legacy.Node<U>);
+	},
+
+	// Control operators (Slice U napi parity).
+	async tap<T>(src: ImplNode<T>, fn: (x: T) => void): Promise<ImplNode<T>> {
+		return wrap(legacy.tap(unwrap(src), fn));
+	},
+	async tapObserver<T>(
+		src: ImplNode<T>,
+		opts: { data?: (x: T) => void; error?: (e: unknown) => void; complete?: () => void },
+	): Promise<ImplNode<T>> {
+		return wrap(legacy.tap(unwrap(src), opts));
+	},
+	async onFirstData<T>(src: ImplNode<T>, fn: (x: T) => void): Promise<ImplNode<T>> {
+		return wrap(legacy.onFirstData(unwrap(src), fn));
+	},
+	async rescue<T>(src: ImplNode<T>, fn: (err: unknown) => T | undefined): Promise<ImplNode<T>> {
+		return wrap(
+			legacy.rescue(unwrap(src), (err) => {
+				const result = fn(err);
+				if (result === undefined) throw err;
+				return result;
+			}),
+		);
+	},
+	async valve<T>(
+		src: ImplNode<T>,
+		control: ImplNode<unknown>,
+		gate: (x: unknown) => boolean,
+	): Promise<ImplNode<T>> {
+		// Legacy valve takes Node<boolean>; map control through gate predicate.
+		const boolControl = legacy.map(unwrap(control), gate);
+		return wrap(legacy.valve(unwrap(src), boolControl));
+	},
+	async settle<T>(src: ImplNode<T>, quietWaves: number, maxWaves?: number): Promise<ImplNode<T>> {
+		return wrap(legacy.settle(unwrap(src), { quietWaves, maxWaves }));
+	},
+	async repeat<T>(src: ImplNode<T>, count: number): Promise<ImplNode<T>> {
+		return wrap(legacy.repeat(unwrap(src), count));
+	},
+
+	// Buffer operators (Slice U napi parity).
+	async buffer<T>(src: ImplNode<T>, notifier: ImplNode<unknown>): Promise<ImplNode<T[]>> {
+		return wrap(legacy.buffer(unwrap(src), unwrap(notifier)));
+	},
+	async bufferCount<T>(src: ImplNode<T>, count: number): Promise<ImplNode<T[]>> {
+		return wrap(legacy.bufferCount(unwrap(src), count));
+	},
+
+	// Cold sources (Slice 3e/3f napi parity).
+	async fromIter<T>(values: T[]): Promise<ImplNode<T>> {
+		return wrap(legacy.fromIter(values));
+	},
+	async of<T>(values: T[]): Promise<ImplNode<T>> {
+		return wrap(legacy.of(...values));
+	},
+	async empty<T>(): Promise<ImplNode<T>> {
+		return wrap(legacy.empty<T>());
+	},
+	async throwError<T>(error: unknown): Promise<ImplNode<T>> {
+		return wrap(legacy.throwError(error) as legacy.Node<T>);
 	},
 
 	// Storage (M4.F).
