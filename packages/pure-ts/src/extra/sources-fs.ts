@@ -183,52 +183,62 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
 		// 2. Covers the OS watcher activation window — by the time readdir
 		//    finishes, fs.watch has had time to become live. Any events that
 		//    arrive during the scan are buffered and flushed on becomeReady().
+		// F1 /qa (2026-05-12): inner try/catch guards the scan IIFE so
+		// a throw from a.down() (e.g. downstream node throwing
+		// synchronously) surfaces as ERROR rather than an unhandled
+		// rejection. Using inner try/catch (not .catch() on the
+		// promise) to avoid microtask-scheduling changes that affect
+		// FSEvents timing in tests.
 		(async () => {
-			if (stopped || terminalEmitted) return;
+			try {
+				if (stopped || terminalEmitted) return;
 
-			const scanMessages: Message[] = [];
-			for (const basePath of list) {
-				try {
-					const resolved = resolvePath(basePath);
-					let isDir: boolean;
+				const scanMessages: Message[] = [];
+				for (const basePath of list) {
 					try {
-						isDir = statSync(resolved).isDirectory();
-					} catch {
-						isDir = false;
-					}
-					if (!isDir) continue;
-					const entries = await readdir(resolved, { recursive });
-					for (const entry of entries) {
-						if (stopped || terminalEmitted) return;
-						const rel = String(entry).replaceAll("\\", "/");
-						const abs = join(resolved, String(entry));
-						const normalized = abs.replaceAll("\\", "/");
-						const relForMatch = rel.startsWith("./") ? rel.slice(2) : rel;
-						if (!matchesFilters(normalized, relForMatch)) continue;
+						const resolved = resolvePath(basePath);
+						let isDir: boolean;
 						try {
-							if (!statSync(abs).isFile()) continue;
+							isDir = statSync(resolved).isDirectory();
 						} catch {
-							continue;
+							isDir = false;
 						}
-						scanMessages.push([
-							DATA,
-							{
-								type: "create" as FSEventType,
-								path: normalized,
-								root: resolved.replaceAll("\\", "/"),
-								relative_path: relForMatch,
-								timestamp_ns: wallClockNs(),
-							},
-						]);
+						if (!isDir) continue;
+						const entries = await readdir(resolved, { recursive });
+						for (const entry of entries) {
+							if (stopped || terminalEmitted) return;
+							const rel = String(entry).replaceAll("\\", "/");
+							const abs = join(resolved, String(entry));
+							const normalized = abs.replaceAll("\\", "/");
+							const relForMatch = rel.startsWith("./") ? rel.slice(2) : rel;
+							if (!matchesFilters(normalized, relForMatch)) continue;
+							try {
+								if (!statSync(abs).isFile()) continue;
+							} catch {
+								continue;
+							}
+							scanMessages.push([
+								DATA,
+								{
+									type: "create" as FSEventType,
+									path: normalized,
+									root: resolved.replaceAll("\\", "/"),
+									relative_path: relForMatch,
+									timestamp_ns: wallClockNs(),
+								},
+							]);
+						}
+					} catch {
+						// readdir failed (permission, path gone) — skip silently.
 					}
-				} catch {
-					// readdir failed (permission, path gone) — skip silently.
 				}
-			}
-			if (stopped || terminalEmitted) return;
-			if (scanMessages.length > 0) a.down(scanMessages);
+				if (stopped || terminalEmitted) return;
+				if (scanMessages.length > 0) a.down(scanMessages);
 
-			becomeReady();
+				becomeReady();
+			} catch (err) {
+				if (!stopped && !terminalEmitted) emitError(err);
+			}
 		})();
 
 		return () => {

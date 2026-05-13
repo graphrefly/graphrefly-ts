@@ -44,10 +44,16 @@ export class TornDownError extends Error {
 
 /**
  * Discriminator helper for matching the rejection branch without
- * `instanceof` (useful in minified / cross-realm setups).
+ * `instanceof` (useful in minified / cross-realm setups where the
+ * `Error` constructor differs across realms).
  */
 export function isTornDownError(err: unknown): err is TornDownError {
-	return err instanceof Error && (err as Error).name === "TornDownError";
+	return (
+		err != null &&
+		typeof err === "object" &&
+		"name" in err &&
+		(err as { name: unknown }).name === "TornDownError"
+	);
 }
 
 /**

@@ -498,13 +498,15 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 		// and only flipped from the onDead path, so mixed Dead+live
 		// scenarios where a live source completed without ever
 		// emitting DATA wouldn't trigger the all-completed self-Complete.
-		const completed = new Array<boolean>(sources.length).fill(false);
+		// /qa F6 (2026-05-12): replaced per-index boolean array +
+		// `completed.every()` O(n) check with a counter for O(1).
+		let completedCount = 0;
 		let raceTerminated = false;
 		const unsubs: (() => void)[] = [];
 		for (let i = 0; i < sources.length; i++) {
 			if (raceTerminated) break;
 			const idx = i;
-			// R2.2.7.b: Dead source → mark completed[idx]; if all
+			// R2.2.7.b: Dead source → increment completedCount; if all
 			// sources are Dead or have completed-without-DATA, self-COMPLETE.
 			const u = subscribeOr<unknown>(
 				sources[i] as Node,
@@ -517,12 +519,12 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 							a.emit(m[1] as T);
 						} else if (m[0] === COMPLETE) {
 							if (winner === null || idx === winner) {
-								completed[idx] = true;
+								completedCount += 1;
 								if (winner === idx) {
 									// Winner completed; race is over.
 									raceTerminated = true;
 									a.down([m]);
-								} else if (winner === null && completed.every((c) => c)) {
+								} else if (winner === null && completedCount >= sources.length) {
 									// All sources completed-without-DATA; no
 									// winner; self-COMPLETE.
 									raceTerminated = true;
@@ -538,8 +540,8 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 					}
 				},
 				() => {
-					completed[idx] = true;
-					if (winner === null && !raceTerminated && completed.every((c) => c)) {
+					completedCount += 1;
+					if (winner === null && !raceTerminated && completedCount >= sources.length) {
 						raceTerminated = true;
 						a.down([[COMPLETE]]);
 					}

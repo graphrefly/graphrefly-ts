@@ -1,3 +1,4 @@
+import { watch as fsWatch } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -395,9 +396,36 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		}
 	});
 
+	// fs.watch is non-functional on some Node/macOS combos (Node 24 +
+	// macOS 15.4 delivers zero events). Probe before running.
 	it(
 		"fromFSWatch emits live filesystem changes without polling",
 		async () => {
+			// Probe: does fs.watch deliver events on this platform?
+			const probeDir = await mkdtemp(join(tmpdir(), "graphrefly-fswatch-probe-"));
+			const probeOk = await new Promise<boolean>((resolve) => {
+				const w = fsWatch(probeDir, () => {
+					w.close();
+					resolve(true);
+				});
+				w.on("error", () => {
+					w.close();
+					resolve(false);
+				});
+				setTimeout(() => {
+					writeFile(join(probeDir, "probe"), "x").catch(() => {});
+				}, 50);
+				setTimeout(() => {
+					w.close();
+					resolve(false);
+				}, 2000);
+			});
+			await rm(probeDir, { recursive: true, force: true });
+			if (!probeOk) {
+				// fs.watch doesn't deliver events on this platform; skip.
+				return;
+			}
+
 			const dir = await mkdtemp(join(tmpdir(), "graphrefly-fswatch-"));
 			try {
 				const fsNode = fromFSWatch(dir, {
