@@ -18,6 +18,10 @@ import type {
 	ImplKvTier,
 	ImplMemoryBackend,
 	ImplNode,
+	ImplReactiveIndex,
+	ImplReactiveList,
+	ImplReactiveLog,
+	ImplReactiveMap,
 	ImplSnapshotTier,
 	ImplStorageHandle,
 	ImplWalKvTier,
@@ -25,6 +29,7 @@ import type {
 	RestoreResultOutput,
 	SinkFn,
 	StorageImpl,
+	StructuresImpl,
 	TierOpts,
 	UnsubFn,
 } from "./types.js";
@@ -646,6 +651,9 @@ export const pureTsImpl: Impl = {
 
 	// Storage (M4.F).
 	storage: buildPureTsStorage(),
+
+	// Structures (M5).
+	structures: buildPureTsStructures(),
 };
 
 // ---------------------------------------------------------------------------
@@ -892,6 +900,125 @@ function buildPureTsStorage(): StorageImpl {
 
 		walReplayOrder(): string[] {
 			return [...storage.REPLAY_ORDER];
+		},
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Pure-TS structures impl (M5)
+// ---------------------------------------------------------------------------
+
+function buildPureTsStructures(): StructuresImpl {
+	return {
+		reactiveLog<T>(opts?: { maxSize?: number }): ImplReactiveLog<T> {
+			const bundle = storage.reactiveLog<T>([], {
+				maxSize: opts?.maxSize,
+			});
+			const node = wrap(bundle.entries);
+			return {
+				node,
+				get size() {
+					return bundle.size;
+				},
+				async append(value: T) {
+					bundle.append(value);
+				},
+				async appendMany(values: T[]) {
+					bundle.appendMany(values);
+				},
+				async clear() {
+					bundle.clear();
+				},
+				async trimHead(n: number) {
+					bundle.trimHead(n);
+				},
+				at(index: number) {
+					return bundle.at(index);
+				},
+			};
+		},
+
+		reactiveList<T>(): ImplReactiveList<T> {
+			const bundle = storage.reactiveList<T>();
+			const node = wrap(bundle.items);
+			return {
+				node,
+				get size() {
+					return bundle.size;
+				},
+				async append(value: T) {
+					bundle.append(value);
+				},
+				async appendMany(values: T[]) {
+					bundle.appendMany(values);
+				},
+				async insert(index: number, value: T) {
+					bundle.insert(index, value);
+				},
+				async pop(index?: number) {
+					return bundle.pop(index);
+				},
+				async clear() {
+					bundle.clear();
+				},
+				at(index: number) {
+					return bundle.at(index);
+				},
+			};
+		},
+
+		reactiveMap<K, V>(opts?: { maxSize?: number }): ImplReactiveMap<K, V> {
+			const bundle = storage.reactiveMap<K, V>({
+				maxSize: opts?.maxSize,
+			});
+			const node = wrap(bundle.entries);
+			return {
+				node,
+				get size() {
+					return bundle.size;
+				},
+				async set(key: K, value: V) {
+					bundle.set(key, value);
+				},
+				get(key: K) {
+					return bundle.get(key);
+				},
+				has(key: K) {
+					return bundle.has(key);
+				},
+				async delete(key: K) {
+					bundle.delete(key);
+				},
+				async clear() {
+					bundle.clear();
+				},
+			};
+		},
+
+		reactiveIndex<K, V>(): ImplReactiveIndex<K, V> {
+			const bundle = storage.reactiveIndex<K, V>();
+			const node = wrap(bundle.ordered);
+			return {
+				node,
+				get size() {
+					return bundle.size;
+				},
+				async upsert(primary: K, secondary: string, value: V) {
+					return bundle.upsert(primary, secondary, value);
+				},
+				async delete(primary: K) {
+					bundle.delete(primary);
+				},
+				async clear() {
+					bundle.clear();
+				},
+				has(primary: K) {
+					return bundle.has(primary);
+				},
+				get(primary: K) {
+					return bundle.get(primary);
+				},
+			};
 		},
 	};
 }

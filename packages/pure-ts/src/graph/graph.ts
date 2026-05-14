@@ -739,7 +739,7 @@ export const SNAPSHOT_VERSION = 1;
  * surfaced via `console.error` rather than silently swallowed so leaks in
  * cleanup code remain visible.
  */
-function drainDisposers(set: Set<() => void>, graphName: string): void {
+function drainDisposers(set: Set<() => void | Promise<void>>, graphName: string): void {
 	const cap = Math.max(16, set.size * 4);
 	let iterations = 0;
 	while (set.size > 0) {
@@ -1528,7 +1528,7 @@ export class Graph {
 	 * reparenting rejection + O(depth) ancestor walks.
 	 */
 	_parent: Graph | undefined = undefined;
-	private readonly _storageDisposers = new Set<() => void>();
+	private readonly _storageDisposers = new Set<() => void | Promise<void>>();
 	private readonly _disposers = new Set<() => void>();
 	/** @internal Set in {@link destroy} / `_destroyClearOnly`; surfaced via {@link destroyed}. */
 	private _destroyed = false;
@@ -5515,8 +5515,14 @@ export class Graph {
 			off = this.observe().subscribe((path, messages) => onEvent(path, messages));
 		}
 
-		const dispose = () => {
+		const dispose = async () => {
 			off();
+			// Drain in-flight saves before marking disposed so late
+			// performWork() calls don't bail on the disposed guard
+			// while frames are still being written (race with
+			// crypto.subtle.digest in walFrameChecksum).
+			const pending = states.map((s) => s.savePending).filter((p): p is Promise<void> => p != null);
+			if (pending.length > 0) await Promise.all(pending);
 			for (const s of states) {
 				s.disposed = true;
 				s.timer?.cancel();

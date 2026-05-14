@@ -268,6 +268,62 @@ export interface Impl {
 
 	// Storage (M4.F — D176). `undefined` when the impl doesn't support storage.
 	readonly storage?: StorageImpl;
+
+	// Reactive structures (M5). `undefined` when the impl doesn't support structures.
+	readonly structures?: StructuresImpl;
+}
+
+// ── Reactive structures sub-interface (M5) ──────────────────────────────
+
+/** Wrapper for a reactive log instance. Values are JS values (both impls
+ * resolve handles to values at the boundary). */
+export interface ImplReactiveLog<T> {
+	/** The underlying node (subscribable for snapshot emissions). */
+	readonly node: ImplNode<readonly T[]>;
+	readonly size: number;
+	append(value: T): Promise<void>;
+	appendMany(values: T[]): Promise<void>;
+	clear(): Promise<void>;
+	trimHead(n: number): Promise<void>;
+	at(index: number): T | undefined;
+}
+
+export interface ImplReactiveList<T> {
+	readonly node: ImplNode<readonly T[]>;
+	readonly size: number;
+	append(value: T): Promise<void>;
+	appendMany(values: T[]): Promise<void>;
+	insert(index: number, value: T): Promise<void>;
+	pop(index?: number): Promise<T>;
+	clear(): Promise<void>;
+	at(index: number): T | undefined;
+}
+
+export interface ImplReactiveMap<K, V> {
+	readonly node: ImplNode<unknown>;
+	readonly size: number;
+	set(key: K, value: V): Promise<void>;
+	get(key: K): V | undefined;
+	has(key: K): boolean;
+	delete(key: K): Promise<void>;
+	clear(): Promise<void>;
+}
+
+export interface ImplReactiveIndex<K, V> {
+	readonly node: ImplNode<unknown>;
+	readonly size: number;
+	upsert(primary: K, secondary: string, value: V): Promise<boolean>;
+	delete(primary: K): Promise<void>;
+	clear(): Promise<void>;
+	has(primary: K): boolean;
+	get(primary: K): V | undefined;
+}
+
+export interface StructuresImpl {
+	reactiveLog<T>(opts?: { maxSize?: number }): ImplReactiveLog<T>;
+	reactiveList<T>(): ImplReactiveList<T>;
+	reactiveMap<K, V>(opts?: { maxSize?: number }): ImplReactiveMap<K, V>;
+	reactiveIndex<K, V>(): ImplReactiveIndex<K, V>;
 }
 
 // ── Storage sub-interface (M4.F) ─────────────────────────────────────────

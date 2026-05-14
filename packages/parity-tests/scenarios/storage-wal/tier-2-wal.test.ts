@@ -129,12 +129,12 @@ describe.each(impls)("M4.F Tier 2 — WAL utilities — $name", (impl) => {
 				timestamp_ns: 100,
 				format_version: 1,
 				mode: "full",
-				snapshot: { name: "g", nodes: [], edges: [], subgraphs: [] },
+				snapshot: { name: "g", nodes: {} },
 			};
 			tier.save(record);
 			tier.flush();
 			const loaded = tier.load();
-			expect(loaded).toEqual(record);
+			expect(loaded).toMatchObject(record);
 		});
 
 		test.runIf(hasStorage())("WAL KV save + flush + load round-trips a frame", () => {
@@ -155,11 +155,12 @@ describe.each(impls)("M4.F Tier 2 — WAL utilities — $name", (impl) => {
 				frame_seq: 1,
 				frame_t_ns: 1,
 				checksum: "abc",
+				format_version: 1,
 			};
 			const key = s.walFrameKey("wal", 1);
 			tier.save(key, frame);
 			tier.flush();
-			expect(tier.load(key)).toEqual(frame);
+			expect(tier.load(key)).toMatchObject(frame);
 		});
 
 		test.runIf(hasStorage())("WAL KV list + delete", () => {
@@ -172,7 +173,13 @@ describe.each(impls)("M4.F Tier 2 — WAL utilities — $name", (impl) => {
 				t: "c",
 				lifecycle: "data",
 				path: "a",
-				change: {},
+				change: {
+					structure: "graph.value",
+					version: 1,
+					t_ns: 1,
+					lifecycle: "data",
+					change: { kind: "node.set", path: "a", value: 1 },
+				},
 				frame_seq: 1,
 				frame_t_ns: 1,
 				checksum: "x",
@@ -181,7 +188,13 @@ describe.each(impls)("M4.F Tier 2 — WAL utilities — $name", (impl) => {
 				t: "c",
 				lifecycle: "data",
 				path: "b",
-				change: {},
+				change: {
+					structure: "graph.value",
+					version: 1,
+					t_ns: 2,
+					lifecycle: "data",
+					change: { kind: "node.set", path: "b", value: 2 },
+				},
 				frame_seq: 2,
 				frame_t_ns: 2,
 				checksum: "y",

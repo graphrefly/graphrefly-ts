@@ -42,6 +42,10 @@ import type {
 	ImplKvTier,
 	ImplMemoryBackend,
 	ImplNode,
+	ImplReactiveIndex,
+	ImplReactiveList,
+	ImplReactiveLog,
+	ImplReactiveMap,
 	ImplSnapshotTier,
 	ImplStorageHandle,
 	ImplWalKvTier,
@@ -49,6 +53,7 @@ import type {
 	RestoreResultOutput,
 	SinkFn,
 	StorageImpl,
+	StructuresImpl,
 	TierOpts,
 	UnsubFn,
 } from "./types.js";
@@ -799,9 +804,12 @@ export const rustImpl: Impl | null = native
 
 			Graph: class implements ImplGraph {
 				private impl: RustGraph;
+				/** @internal — exposed for storage binding access. */
+				readonly _bench: import("@graphrefly/native").BenchGraph;
 				constructor(name: string) {
 					const state = getState();
 					const bench = native!.BenchGraph.fromCore(state.core, name);
+					this._bench = bench;
 					this.impl = new RustGraph(bench, state.core, state.registry);
 				}
 				tryResolve(path: string) {
@@ -1209,6 +1217,9 @@ export const rustImpl: Impl | null = native
 
 			// Storage (M4.F).
 			storage: buildRustStorage(),
+
+			// Structures (M5).
+			structures: buildRustStructures(),
 		} as Impl)
 	: null;
 
@@ -1405,7 +1416,7 @@ function buildRustStorage(): StorageImpl | undefined {
 			snapshot: ImplCheckpointSnapshotTier,
 			wal?: ImplWalKvTier,
 		): Promise<ImplStorageHandle> {
-			const bench = (graph as any).bench;
+			const bench = (graph as any)._bench;
 			if (!bench) throw new Error("storage: could not access raw BenchGraph from ImplGraph");
 			const snapTier = (snapshot as any)._rawTier;
 			const walTier = wal ? (wal as any)._rawTier : undefined;
@@ -1423,7 +1434,7 @@ function buildRustStorage(): StorageImpl | undefined {
 			wal: ImplWalKvTier,
 			opts?: { targetSeq?: number },
 		): Promise<RestoreResultOutput> {
-			const bench = (graph as any).bench;
+			const bench = (graph as any)._bench;
 			if (!bench) throw new Error("storage: could not access raw BenchGraph from ImplGraph");
 			const snapTier = (snapshot as any)._rawTier;
 			const walTier = (wal as any)._rawTier;
@@ -1441,7 +1452,7 @@ function buildRustStorage(): StorageImpl | undefined {
 		},
 
 		async graphSnapshot(graph: ImplGraph): Promise<unknown> {
-			const bench = (graph as any).bench;
+			const bench = (graph as any)._bench;
 			if (!bench) throw new Error("storage: could not access raw BenchGraph from ImplGraph");
 			const json = await n.benchGraphSnapshot(bench);
 			return JSON.parse(json);
@@ -1461,6 +1472,238 @@ function buildRustStorage(): StorageImpl | undefined {
 
 		walReplayOrder(): string[] {
 			return n.benchReplayOrder();
+		},
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Rust structures impl (M5)
+// ---------------------------------------------------------------------------
+
+function buildRustStructures(): StructuresImpl | undefined {
+	if (!native) return undefined;
+	const n = native as any;
+	// Feature-detect: structures binding classes exist only when built
+	// with `--features structures`. napi classes are JS functions, not objects.
+	if (typeof n.BenchReactiveLog?.create !== "function") {
+		return undefined;
+	}
+
+	return {
+		reactiveLog<T>(opts?: { maxSize?: number }): ImplReactiveLog<T> {
+			const state = getState();
+			const packer = (handles: number[]): number => {
+				const values = handles.map((h) => state.registry.get(h));
+				const out = state.core.allocExternalHandle();
+				state.registry.set(out, values as readonly T[]);
+				return out;
+			};
+			const log = n.BenchReactiveLog.create(
+				state.core,
+				packer,
+				opts?.maxSize != null ? opts.maxSize : null,
+			);
+			const node = wrapAsRustNode<readonly T[]>(state, log.nodeId);
+			return {
+				node,
+				get size() {
+					return log.size;
+				},
+				async append(value: T) {
+					const h = state.core.allocExternalHandle();
+					state.registry.set(h, value);
+					await log.append(h);
+				},
+				async appendMany(values: T[]) {
+					const handles = values.map((v) => {
+						const h = state.core.allocExternalHandle();
+						state.registry.set(h, v);
+						return h;
+					});
+					await log.appendMany(handles);
+				},
+				async clear() {
+					await log.clear();
+				},
+				async trimHead(n_: number) {
+					await log.trimHead(n_);
+				},
+				at(index: number) {
+					const h = log.at(index);
+					if (h === 0) return undefined;
+					return state.registry.get<T>(h) as T | undefined;
+				},
+			};
+		},
+
+		reactiveList<T>(): ImplReactiveList<T> {
+			const state = getState();
+			const packer = (handles: number[]): number => {
+				const values = handles.map((h) => state.registry.get(h));
+				const out = state.core.allocExternalHandle();
+				state.registry.set(out, values as readonly T[]);
+				return out;
+			};
+			const list = n.BenchReactiveList.create(state.core, packer);
+			const node = wrapAsRustNode<readonly T[]>(state, list.nodeId);
+			return {
+				node,
+				get size() {
+					return list.size;
+				},
+				async append(value: T) {
+					const h = state.core.allocExternalHandle();
+					state.registry.set(h, value);
+					await list.append(h);
+				},
+				async appendMany(values: T[]) {
+					const handles = values.map((v) => {
+						const h = state.core.allocExternalHandle();
+						state.registry.set(h, v);
+						return h;
+					});
+					await list.appendMany(handles);
+				},
+				async insert(index: number, value: T) {
+					const h = state.core.allocExternalHandle();
+					state.registry.set(h, value);
+					await list.insert(index, h);
+				},
+				async pop(index?: number) {
+					const h = await list.pop(index ?? null);
+					return state.registry.get<T>(h) as T;
+				},
+				async clear() {
+					await list.clear();
+				},
+				at(index: number) {
+					const h = list.at(index);
+					if (h === 0) return undefined;
+					return state.registry.get<T>(h) as T | undefined;
+				},
+			};
+		},
+
+		reactiveMap<K, V>(opts?: { maxSize?: number }): ImplReactiveMap<K, V> {
+			const state = getState();
+			const packer = (handles: number[]): number => {
+				// Handles arrive as [k, v, k, v, ...] from the map intern fn.
+				const pairs: [K, V][] = [];
+				for (let i = 0; i < handles.length; i += 2) {
+					pairs.push([
+						state.registry.get<K>(handles[i]) as K,
+						state.registry.get<V>(handles[i + 1]) as V,
+					]);
+				}
+				const out = state.core.allocExternalHandle();
+				state.registry.set(out, new Map<K, V>(pairs));
+				return out;
+			};
+			const map = n.BenchReactiveMap.create(
+				state.core,
+				packer,
+				opts?.maxSize != null ? opts.maxSize : null,
+				null, // defaultTtl
+			);
+			const node = wrapAsRustNode<unknown>(state, map.nodeId);
+			// Per-key handle registry for get/has lookups.
+			const keyHandles = new Map<K, number>();
+			return {
+				node,
+				get size() {
+					return map.size;
+				},
+				async set(key: K, value: V) {
+					let kh = keyHandles.get(key);
+					if (kh == null) {
+						kh = state.core.allocExternalHandle();
+						state.registry.set(kh, key);
+						keyHandles.set(key, kh);
+					}
+					const vh = state.core.allocExternalHandle();
+					state.registry.set(vh, value);
+					await map.set(kh, vh, null);
+				},
+				get(key: K) {
+					const kh = keyHandles.get(key);
+					if (kh == null) return undefined;
+					const vh = map.get(kh);
+					if (vh === 0) return undefined;
+					return state.registry.get<V>(vh) as V | undefined;
+				},
+				has(key: K) {
+					const kh = keyHandles.get(key);
+					if (kh == null) return false;
+					return map.has(kh);
+				},
+				async delete(key: K) {
+					const kh = keyHandles.get(key);
+					if (kh == null) return;
+					await map.delete(kh);
+				},
+				async clear() {
+					await map.clear();
+					keyHandles.clear();
+				},
+			};
+		},
+
+		reactiveIndex<K, V>(): ImplReactiveIndex<K, V> {
+			const state = getState();
+			const packer = (handles: number[]): number => {
+				// Handles arrive as [primary, value, primary, value, ...].
+				const rows: { primary: K; value: V }[] = [];
+				for (let i = 0; i < handles.length; i += 2) {
+					rows.push({
+						primary: state.registry.get<K>(handles[i]) as K,
+						value: state.registry.get<V>(handles[i + 1]) as V,
+					});
+				}
+				const out = state.core.allocExternalHandle();
+				state.registry.set(out, rows);
+				return out;
+			};
+			const index = n.BenchReactiveIndex.create(state.core, packer);
+			const node = wrapAsRustNode<unknown>(state, index.nodeId);
+			const primaryHandles = new Map<K, number>();
+			return {
+				node,
+				get size() {
+					return index.size;
+				},
+				async upsert(primary: K, secondary: string, value: V) {
+					let ph = primaryHandles.get(primary);
+					if (ph == null) {
+						ph = state.core.allocExternalHandle();
+						state.registry.set(ph, primary);
+						primaryHandles.set(primary, ph);
+					}
+					const vh = state.core.allocExternalHandle();
+					state.registry.set(vh, value);
+					return index.upsert(ph, secondary, vh);
+				},
+				async delete(primary: K) {
+					const ph = primaryHandles.get(primary);
+					if (ph == null) return;
+					await index.delete(ph);
+				},
+				async clear() {
+					await index.clear();
+					primaryHandles.clear();
+				},
+				has(primary: K) {
+					const ph = primaryHandles.get(primary);
+					if (ph == null) return false;
+					return index.has(ph);
+				},
+				get(primary: K) {
+					const ph = primaryHandles.get(primary);
+					if (ph == null) return undefined;
+					const vh = index.get(ph);
+					if (vh === 0) return undefined;
+					return state.registry.get<V>(vh) as V | undefined;
+				},
+			};
 		},
 	};
 }
