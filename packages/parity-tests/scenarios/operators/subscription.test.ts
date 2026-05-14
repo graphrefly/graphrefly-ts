@@ -163,44 +163,39 @@ describe.each(impls)("R5.7 subscription — concat parity — $name", (impl) => 
 	// transition after draining `pending`. Pre-fix concat hangs because
 	// second's COMPLETE fires once and won't be re-observed.
 	//
-	// PER-IMPL: TS legacy has the pre-fix behavior (concat hangs); Rust
-	// port D041 has the fix. `runIf(impl.name !== "pure-ts")`
-	// activates the assertion for any non-legacy impl (including
-	// `rustImpl` once it publishes), so the divergence becomes a
-	// loud failure instead of a silent skip.
-	test.runIf(impl.name !== "pure-ts")(
-		"concat self-completes when second completes during phase zero (Rust-port-only fix; D041 / D-ops /qa D4)",
-		async () => {
-			const s1 = await impl.node<number>([], { name: "s1" });
-			const s2 = await impl.node<number>([], { name: "s2" });
-			const c = await impl.concat(s1, s2);
+	// CROSS-IMPL: both pure-ts and Rust port carry the D041 fix
+	// (pure-ts confirmed via `secondCompleted` flag in
+	// `combine.ts::concat`; Rust port via `RaceState`'s phase tracking).
+	test("concat self-completes when second completes during phase zero (D041 / D-ops /qa D4)", async () => {
+		const s1 = await impl.node<number>([], { name: "s1" });
+		const s2 = await impl.node<number>([], { name: "s2" });
+		const c = await impl.concat(s1, s2);
 
-			const seen: number[] = [];
-			let completed = false;
-			const unsub = await c.subscribe((msgs) => {
-				for (const msg of msgs) {
-					if (msg[0] === impl.DATA) seen.push(msg[1] as number);
-					else if (msg[0] === impl.COMPLETE) completed = true;
-				}
-			});
-
-			try {
-				await s1.down([[impl.DATA, 1]]);
-				await s2.down([[impl.DATA, 99]]);
-				await s2.down([[impl.COMPLETE]]);
-				// Concat must NOT have completed yet — s1 still going.
-				expect(completed).toBe(false);
-
-				await s1.down([[impl.COMPLETE]]);
-				// Phase transition drains pending(99), then sees second already
-				// completed → self-completes.
-				expect(seen).toEqual([1, 99]);
-				expect(completed).toBe(true);
-			} finally {
-				await unsub();
+		const seen: number[] = [];
+		let completed = false;
+		const unsub = await c.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === impl.DATA) seen.push(msg[1] as number);
+				else if (msg[0] === impl.COMPLETE) completed = true;
 			}
-		},
-	);
+		});
+
+		try {
+			await s1.down([[impl.DATA, 1]]);
+			await s2.down([[impl.DATA, 99]]);
+			await s2.down([[impl.COMPLETE]]);
+			// Concat must NOT have completed yet — s1 still going.
+			expect(completed).toBe(false);
+
+			await s1.down([[impl.COMPLETE]]);
+			// Phase transition drains pending(99), then sees second already
+			// completed → self-completes.
+			expect(seen).toEqual([1, 99]);
+			expect(completed).toBe(true);
+		} finally {
+			await unsub();
+		}
+	});
 
 	// D6: concat error during phase 0 from `second` propagates the ERROR
 	// (and abandons `first`). Pre-fix audit confirmed this works; pinning
@@ -281,39 +276,34 @@ describe.each(impls)("R5.7 subscription — race parity — $name", (impl) => {
 	// itself completes (P4 in Rust port — no-winner all-complete
 	// termination).
 	//
-	// PER-IMPL: TS legacy has different semantics (first COMPLETE from
-	// ANY source while no-winner immediately ends the race). Rust port
-	// D-ops /qa P4 chose all-complete-without-winner.
-	// `runIf(impl.name !== "pure-ts")` activates the assertion
-	// for any non-legacy impl; spec amendment may harmonize the two in
-	// a future revision.
-	test.runIf(impl.name !== "pure-ts")(
-		"race completes when all sources complete without a winner (Rust-port-only semantics; D-ops /qa P4)",
-		async () => {
-			const s1 = await impl.node<number>([], { name: "s1" });
-			const s2 = await impl.node<number>([], { name: "s2" });
-			const r = await impl.race([s1, s2]);
+	// CROSS-IMPL: both pure-ts and Rust port carry the P4 semantics
+	// (pure-ts via `completedCount` counter in `combine.ts::race`;
+	// Rust port via `RaceState::completed[]`). Slice W harmonized the
+	// two — first-COMPLETE-from-any was wrong.
+	test("race completes when all sources complete without a winner (D-ops /qa P4)", async () => {
+		const s1 = await impl.node<number>([], { name: "s1" });
+		const s2 = await impl.node<number>([], { name: "s2" });
+		const r = await impl.race([s1, s2]);
 
-			let completed = false;
-			const seen: number[] = [];
-			const unsub = await r.subscribe((msgs) => {
-				for (const msg of msgs) {
-					if (msg[0] === impl.DATA) seen.push(msg[1] as number);
-					else if (msg[0] === impl.COMPLETE) completed = true;
-				}
-			});
-
-			try {
-				await s1.down([[impl.COMPLETE]]);
-				expect(completed).toBe(false); // s2 still alive
-				await s2.down([[impl.COMPLETE]]);
-				expect(seen).toEqual([]);
-				expect(completed).toBe(true);
-			} finally {
-				await unsub();
+		let completed = false;
+		const seen: number[] = [];
+		const unsub = await r.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === impl.DATA) seen.push(msg[1] as number);
+				else if (msg[0] === impl.COMPLETE) completed = true;
 			}
-		},
-	);
+		});
+
+		try {
+			await s1.down([[impl.COMPLETE]]);
+			expect(completed).toBe(false); // s2 still alive
+			await s2.down([[impl.COMPLETE]]);
+			expect(seen).toEqual([]);
+			expect(completed).toBe(true);
+		} finally {
+			await unsub();
+		}
+	});
 
 	// D6: a pre-winner ERROR from any source propagates the error
 	// immediately; subsequent traffic from any source is ignored.
@@ -368,18 +358,15 @@ describe.each(impls)("R5.7 subscription — takeUntil parity — $name", (impl) 
 		}
 	});
 
-	// D6 (Slice F doc cleanup, 2026-05-07): empty-source edge cases for
-	// zip / race — `await impl.zip()` and `await impl.race()` with zero sources. Both
-	// have ambiguous canonical semantics:
-	//   - zip(): vacuous tuple — could complete immediately (degenerate
-	//     all-queues-non-empty trivially true) or stay pending.
-	//   - race(): no winner possible — could complete immediately or stay
-	//     pending.
-	// TS legacy behavior is not pinned by spec; Rust port behavior likewise
-	// undecided. Defer until either impl ships a concrete answer + we can
-	// pin parity. Captured as todos so the gap doesn't get lost.
-	test.todo("zip with zero sources — semantics undecided (D6 deferral)");
-	test.todo("race with zero sources — semantics undecided (D6 deferral)");
+	// D6 (Slice W decision, 2026-05-13): zip / race with zero sources
+	// throw at construction. Canonical spec R5.7.x — vacuous-tuple /
+	// no-winner-possible semantics rejected; both ops require ≥1 source.
+	test("zip with zero sources throws at construction (R5.7.x)", async () => {
+		await expect(impl.zip([])).rejects.toThrow(/at least one source/);
+	});
+	test("race with zero sources throws at construction (R5.7.x)", async () => {
+		await expect(impl.race([])).rejects.toThrow(/at least one source/);
+	});
 
 	test("takeUntil does not forward notifier value", async () => {
 		const src = await impl.node<number>([], { name: "src" });

@@ -1667,8 +1667,11 @@ export class Graph {
 	 * currently has no sinks — zero cost for graphs nobody observes.
 	 */
 	private _emitTopology(event: TopologyEvent): void {
-		if (this._topology == null || this._topologyEmitters.size === 0) return;
-		for (const h of this._topologyEmitters) h(event);
+		if (this._topologyEmitters.size === 0) return;
+		// Snapshot to array so handler additions during iteration don't visit
+		// the freshly-added handler in this same loop (e.g., `_observeReactive`
+		// late-subscribe path may register/unregister handlers indirectly).
+		for (const h of [...this._topologyEmitters]) h(event);
 	}
 
 	// ——————————————————————————————————————————————————————————————
@@ -1717,6 +1720,18 @@ export class Graph {
 	 * ownership, wrap them in a local proxy derived (see the `proxy` factory
 	 * pattern used by `pipelineGraph.approvalGate` / `gatedStream` /
 	 * `stratify`).
+	 *
+	 * **TEARDOWN sink re-register caveat (R3.7.3 ordering, Slice W).** During
+	 * a `remove()`-triggered TEARDOWN cascade, the cross-graph ownership
+	 * stamp is released BEFORE the TEARDOWN sink fires (so cross-graph
+	 * `g2.add(node, ...)` from inside the sink works), but `_nodes` /
+	 * `_nodeToName` clear AFTER the cascade (so `g1.nameOf(node)` stays
+	 * resolvable inside the sink, per canonical R3.7.3). Consequence:
+	 * **same-graph re-register under a NEW name from inside the TEARDOWN
+	 * sink is NOT supported** — `g1.add(node, {name: "y"})` from within the
+	 * sink throws `"node instance already registered as 'x'"`. Do same-graph
+	 * re-registration after `remove()` returns (the namespace clear is
+	 * complete by then).
 	 *
 	 * @param node - Node instance to own.
 	 * @param opts - `{ name?, annotation? }`.
@@ -1866,15 +1881,26 @@ export class Graph {
 		if (!node) {
 			throw new Error(`Graph "${this.name}": unknown node or mount "${name}"`);
 		}
-		this._nodes.delete(name);
-		this._nodeToName.delete(node);
-		// C3 — release the cross-graph ownership stamp BEFORE the TEARDOWN
-		// cascade so a "freshly-detached" Node may be re-registered on
-		// another Graph in the same tick (see Graph.add JSDoc).
+		// R3.7.3 — clear namespace AFTER TEARDOWN cascade so sinks can still
+		// resolve `nameOf(node)` from inside their TEARDOWN handler. Mirrors
+		// canonical "After cascade, graph internal registries are cleared"
+		// (matches Rust port Slice F /qa P1 ordering).
+		// C3 — release the cross-graph ownership stamp BEFORE TEARDOWN so a
+		// TEARDOWN sink that re-registers the node on another Graph in the
+		// same tick succeeds (the namespace-clear-after-cascade preserves
+		// `nameOf` resolvability, but ownership transfer needs the stamp gone).
 		if (GRAPH_OWNER.get(node) === this) {
 			GRAPH_OWNER.delete(node);
 		}
-		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
+		// `finally` guarantees registry cleanup even if a TEARDOWN sink throws
+		// (otherwise the registry would be left with a torn-down node still
+		// indexed under `name`).
+		try {
+			node.down([[TEARDOWN]] satisfies Messages, { internal: true });
+		} finally {
+			this._nodes.delete(name);
+			this._nodeToName.delete(node);
+		}
 		const audit: GraphRemoveAudit = { kind: "node", nodes: [name], mounts: [] };
 		this._emitTopology({ kind: "removed", name, nodeKind: "node", audit });
 		return audit;
@@ -4008,10 +4034,63 @@ export class Graph {
 				// future per-listener filtering is one move away.
 				void tierSet;
 
+				// R3.6.2 reactive mode — auto-subscribe to nodes added AFTER
+				// the initial namespace snapshot. Only applies when no path is
+				// given (mode === "all"). Mirrors Rust port's
+				// `GraphObserveAllReactive` topology subscription (Slice V3 D2).
+				// Limitation: mounts added after subscribe don't recurse into
+				// their interiors (each mount would need its own topology
+				// listener); track if a real consumer needs it.
+				//
+				// Map keyed by name so:
+				//   - `removed` events dispose the matching late handle (no
+				//     accumulation in long-lived dynamic graphs).
+				//   - re-add of the same name dedupes (no duplicate
+				//     subscription if a name churns add → remove → add).
+				const lateHandles = new Map<
+					string,
+					{ handle: ObserveResult; off: () => void }
+				>();
+				let topoDetach: (() => void) | undefined;
+				if (path == null) {
+					const topoHandler = (event: TopologyEvent): void => {
+						if (disposed) return;
+						if (event.nodeKind !== "node") return;
+						if (event.kind === "added") {
+							const targetName = event.name;
+							if (lateHandles.has(targetName)) return;
+							const lateHandle = this.observe(
+								targetName,
+								obsOpts,
+							) as unknown as ObserveResult;
+							for (const ev of lateHandle.events) onEventListener(ev);
+							const lateOff = lateHandle.onEvent(onEventListener);
+							lateHandles.set(targetName, { handle: lateHandle, off: lateOff });
+						} else if (event.kind === "removed") {
+							const entry = lateHandles.get(event.name);
+							if (entry) {
+								entry.off();
+								entry.handle.dispose();
+								lateHandles.delete(event.name);
+							}
+						}
+					};
+					this._topologyEmitters.add(topoHandler);
+					topoDetach = () => this._topologyEmitters.delete(topoHandler);
+				}
+
 				return () => {
 					disposed = true;
+					// Detach topology handler FIRST so no new lateHandles
+					// accumulate between `disposed = true` and the dispose pass.
+					if (topoDetach) topoDetach();
 					off();
 					handle.dispose();
+					for (const entry of lateHandles.values()) {
+						entry.off();
+						entry.handle.dispose();
+					}
+					lateHandles.clear();
 				};
 			},
 			{

@@ -52,12 +52,10 @@ describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
 		await g.destroy();
 	});
 
-	// Skipped: TS pure-ts clears the namespace BEFORE firing TEARDOWN
-	// (graph.ts `remove()` lines 1759–1767). The Rust port's Slice F /qa P1
-	// reorders this to match canonical R3.7.3 (clear AFTER cascade). When the
-	// TS impl is backported OR rustImpl activates and this divergence becomes
-	// active in CI, re-enable this test.
-	test.skip("namespace remains resolvable from inside the TEARDOWN sink (R3.7.3 ordering)", async () => {
+	// Slice W (2026-05-13): pure-ts backported to clear namespace AFTER
+	// TEARDOWN cascade, matching Rust port's Slice F /qa P1 and canonical
+	// R3.7.3 ("After cascade, graph internal registries are cleared").
+	test("namespace remains resolvable from inside the TEARDOWN sink (R3.7.3 ordering)", async () => {
 		const g = new impl.Graph("root");
 		const s = await g.state<number>("ephemeral", 0);
 

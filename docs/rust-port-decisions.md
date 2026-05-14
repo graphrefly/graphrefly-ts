@@ -1260,3 +1260,49 @@ Decisions made during the Rust port, recorded after inline discussion.
   3. **TS `MapChangePayload.reason` made required.** Was `reason?:` (optional) while Rust `DeleteReason` is required. All call sites already provided a reason. Removed `?` for cross-language parity.
   4. **Rust NaN-safe retention sort.** `apply_retention_inner` used `partial_cmp().unwrap_or(Equal)`, making NaN-scored entries nondeterministic. Changed to `total_cmp()` which places NaN below -Infinity.
 - **Affects:** Rust `reactive.rs` (`has`, `get`, `set_with_ttl`, `set_many_with_ttl`, `apply_retention_inner`). TS `change.ts` (`MapChangePayload`).
+
+### D187 — Slice W Q1/Q2: `zip([])` / `race([])` throw at construction
+- **Date:** 2026-05-13
+- **Context:** Parity tests carried `test.todo` placeholders for empty-source zip/race since Slice F doc cleanup (2026-05-07). Both impls historically allowed empty input — pure-ts emitted `[]+COMPLETE` for zip and lone COMPLETE for race; Rust mirrored TS. Canonical spec was silent. Slice W picked a definitive semantics.
+- **Options:** A) Immediate COMPLETE (vacuous-tuple / no-winner-completes). B) Throw at construction ("requires ≥1 source"). C) Hang forever (degenerate operator).
+- **Decision:** B — throw at construction with message `"<op>(): requires at least one source"`.
+- **Rationale:** zip and race are conjunctions (zip requires all queues; race requires ≥1 winner). The empty set is ill-defined for both. Throwing surfaces the call-site bug instead of producing silently-ambiguous behavior. Mirrors `combineLatest([])` precedent in mainstream Rx libraries. `merge([])` is exempt — union over the empty set is well-defined (immediate COMPLETE preserved).
+- **Affects:** TS `combine.ts::zip` / `combine.ts::race` throw at top of factory. Rust `ops_impl::zip` / `ops_impl::race` `assert!` at top; napi binding (`register_zip` / `register_race`) pre-rejects with `NapiError::from_reason` so panic doesn't cross FFI. Canonical spec Appendix E (Subscription Operator Empty-Source Contracts) ports the rule.
+
+### D188 — Slice W Q3 (D041): pure-ts concat phase-zero self-complete confirmed correct
+- **Date:** 2026-05-13
+- **Context:** Parity test gated `test.runIf(impl.name !== "pure-ts")` based on "TS legacy pre-fix behavior". Source-level inspection of `combine.ts::concat` (lines 379-455 of pure-ts.git) showed the `secondCompleted` flag already implements the D041 fix — the test gate was stale.
+- **Decision:** Remove the `runIf` gate; assertion now runs cross-impl. No pure-ts code change required.
+- **Rationale:** Pure-ts already mirrors Rust port's phase-transition drain logic. The stale gate originated when this test was added before the pure-ts fix landed. Verification: parity test `concat self-completes when second completes during phase zero` passes for both `pure-ts` and `rust-via-napi`.
+
+### D189 — Slice W Q4 (D-ops P4): pure-ts race all-complete-no-winner confirmed correct
+- **Date:** 2026-05-13
+- **Context:** Parity test gated `test.runIf(impl.name !== "pure-ts")` based on "TS legacy first-COMPLETE-from-any wins". Source-level inspection of `combine.ts::race` (lines 472-555 of pure-ts.git) showed the `completedCount` counter (line 503 + line 522-532) implements the all-complete-no-winner semantics — the test gate was stale.
+- **Decision:** Remove the `runIf` gate; assertion now runs cross-impl. No pure-ts code change required.
+- **Rationale:** Both impls correctly require ALL sources to complete (without a winner emerging) before race itself completes. Verification: parity test `race completes when all sources complete without a winner` passes for both impls.
+
+### D190 — Slice W Q5: pure-ts `observe(undefined, { reactive: true })` auto-subscribes late-added nodes
+- **Date:** 2026-05-13
+- **Context:** R3.6.2 reactive mode should be "live observation" per canonical spec. Pure-ts `_observeReactive` snapshotted namespace at call time via `_collectObserveTargets`; nodes added later were invisible. Rust port shipped auto-subscribe via `Core::subscribe_topology` (Slice V3 D5).
+- **Decision:** Backport — pure-ts `_observeReactive` (graph.ts) now installs a topology emitter directly into `_topologyEmitters`. On `node-added` events (when no path given), it calls `this.observe(event.name, obsOpts)` and pumps the resulting `ObserveResult.onEvent` through the same accumulator listener as the initial snapshot. Mounts deferred — recursing into late-added subgraphs would require per-mount topology hooks (no current consumer pressure).
+- **Affects:** `packages/pure-ts/src/graph/graph.ts` `_observeReactive` + `_emitTopology` (dropped redundant `_topology == null` guard so direct emitter registration is honored before the lazy topology companion is instantiated).
+- **Rationale:** "Live observation" requires the namespace view to track mutations. Snapshot-at-call-time conflicts with `reactive: true` semantics. Default sink-style `observe()` continues to snapshot — only the `reactive: true` opt-in changes.
+
+### D191 — Slice W Q6 (R3.7.3): pure-ts `graph.remove()` clears namespace AFTER TEARDOWN cascade
+- **Date:** 2026-05-13
+- **Context:** Rust port Slice F /qa P1 reordered `Graph::remove` to clear the namespace AFTER firing TEARDOWN so sinks can resolve `nameOf(node)` from their TEARDOWN handler. Canonical R3.7.3 for `destroy()` says "After cascade, graph internal registries are cleared." Pure-ts `graph.ts::remove()` (lines 1864-1879 before fix) deleted from `_nodes` + `_nodeToName` BEFORE firing `node.down([[TEARDOWN]])`.
+- **Decision:** Reorder pure-ts to match Rust + canonical. Fire `node.down([[TEARDOWN]])` first, then delete from `_nodes` + `_nodeToName`. The cross-graph ownership stamp (`GRAPH_OWNER`) is still released BEFORE TEARDOWN so a sink that re-registers the node on another Graph in the same tick succeeds (the namespace-clear-after-cascade preserves `nameOf` resolvability while ownership transfer needs the stamp gone).
+- **Affects:** `packages/pure-ts/src/graph/graph.ts` `remove()` local-node branch.
+- **Rationale:** Canonical-spec alignment + symmetrical "namespace lives until cascade completes" invariant across `destroy()` and `remove()`. Verification: parity test `namespace remains resolvable from inside the TEARDOWN sink (R3.7.3 ordering)` passes for both impls (was `test.skip`).
+
+### D192 — Slice W /qa: 5 correctness fixes from adversarial review
+- **Date:** 2026-05-13
+- **Context:** /qa adversarial review (Blind Hunter + Edge Case Hunter) on Slice W found 5 actionable issues across TS and Rust.
+- **Fixes applied:**
+  1. **F1 — pure-ts `_observeReactive` lateHandle leak + duplicate-subscribe + race window.** Switched `lateHandles[]/lateOffs[]` arrays to a `Map<string, {handle, off}>`. The topology handler now (a) dedupes by name (re-add of same name no-ops), (b) handles `removed` events by disposing+deleting the matching entry (no accumulation in long-lived dynamic graphs), and (c) the cleanup closure detaches the topology handler FIRST so no new lateHandles accumulate during disposal.
+  2. **F2 — `Graph._emitTopology` re-entrant Set iteration.** Snapshotted `[...this._topologyEmitters]` before iterating so handler additions during iteration (e.g., the new `_observeReactive` topology hook) don't visit the freshly-added handler in the same loop.
+  3. **F3 — `Graph.remove()` registry inconsistency on TEARDOWN throw.** Wrapped `node.down([[TEARDOWN]])` in `try { ... } finally { _nodes.delete(name); _nodeToName.delete(node); }` so a throwing TEARDOWN sink still leaves the registry consistent (otherwise a torn-down node would remain indexed under `name`).
+  4. **F4 — Rust `ops_impl::zip` / `race` panic on user-facing path.** Replaced `assert!(!sources.is_empty(), ...)` with `Result<NodeId, OperatorFactoryError>` returning `OperatorFactoryError::EmptySources` on empty input. Mirrors the `combine::combine` precedent. The napi binding pre-check was removed (Result handles it via `operator_factory_error_to_napi`). Test callers in `tests/{subscription, arc_cycle_break, dead_source_e2e}.rs` updated to `.unwrap()` the Result. Future bindings (pyo3, wasm) get a typed error instead of a panic across FFI.
+  5. **F5 — `Graph.add()` JSDoc clarification.** Added explicit caveat that R3.7.3 ordering means cross-graph re-register from a TEARDOWN sink works (stamp released pre-cascade) but same-graph re-register-under-a-new-name does not (`_nodeToName` is still populated during the sink) — do same-graph re-register after `remove()` returns.
+- **Rejected as false positives or pre-existing:** disposed-flag ordering (already covered by early-return), `_emitTopology` pre-init events (no real path to fire), defensive try-catch around late-subscribe inner observe (hides bugs), annotation-install ordering (pre-existing, not Slice W), race COMPLETE double-count (protocol-illegal), concat phase-zero ERROR state-machine consistency (pure-ts tests pass; defensive only), F19 TTL parity test gap (real, but coverage-not-bug; queued as follow-up), Appendix E text consistency (verified clean), mount-recursion limitation (documented).
+- **Affects:** TS `packages/pure-ts/src/graph/graph.ts` (`_emitTopology`, `remove()`, `_observeReactive`, `add()` JSDoc). Rust `crates/graphrefly-operators/src/ops_impl.rs` (`zip`, `race` signatures + body cleanup), `crates/graphrefly-bindings-js/src/operator_bindings.rs` (`register_zip`, `register_race`), `crates/graphrefly-operators/tests/{subscription, arc_cycle_break, dead_source_e2e}.rs` (`.unwrap()` callers). Canonical spec Appendix E (Rust impl text updated to reflect Result migration). Test counts: pure-ts 3011 / parity 289+1 skipped / cargo operators 184 — all green; `cargo clippy -p graphrefly-operators --all-targets -D warnings` clean.

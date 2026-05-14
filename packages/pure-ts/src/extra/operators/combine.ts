@@ -293,11 +293,9 @@ export function zip<const T extends readonly unknown[]>(
 	...sources: { [K in keyof T]: Node<T[K]> }
 ): Node<T> {
 	const n = sources.length;
+	// R5.7.x — zip requires ≥1 source; vacuous-tuple semantics rejected.
 	if (n === 0) {
-		return node<T>((_data, a) => {
-			a.emit([] as unknown as T);
-			a.down([[COMPLETE]]);
-		}, operatorOpts());
+		throw new Error("zip(): requires at least one source");
 	}
 	// Producer pattern: manage queues internally.
 	return node<T>((_data, a) => {
@@ -457,7 +455,7 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
 /**
  * First source to emit **`DATA`** wins; later traffic follows only the winner (Rx-style `race`).
  *
- * @param sources - Contestants (variadic; empty completes immediately; one node is identity).
+ * @param sources - Contestants (variadic; throws at construction when empty; one node is identity).
  * @returns `Node<T>` - Winning stream.
  *
  * @example
@@ -470,10 +468,9 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
  * @category extra
  */
 export function race<T>(...sources: readonly Node<T>[]): Node<T> {
+	// R5.7.x — race requires ≥1 source; no-winner-possible rejected at construction.
 	if (sources.length === 0) {
-		return node<T>((_data, a) => {
-			a.down([[COMPLETE]]);
-		}, operatorOpts());
+		throw new Error("race(): requires at least one source");
 	}
 	if (sources.length === 1) {
 		// Identity passthrough — full batch iteration, not derived's .at(-1).

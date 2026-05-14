@@ -43,44 +43,40 @@ describe.each(impls)("R3.6.2 observe-all-reactive parity — $name", (impl) => {
 		await g.destroy();
 	});
 
-	// Auto-subscribe-late is a Rust-port-only enhancement (per
-	// `migration-status.md` Slice F+ "Rust-port-only enhancements not yet
-	// backported" + `porting-deferred.md` "observe({ reactive: true })
-	// auto-subscribe-late-nodes"). Legacy's reactive observe snapshots
-	// the namespace at call time only. Test runs against rust-via-napi
-	// only; legacy backport tracked as the lift-point.
-	test.runIf(impl.name === "rust-via-napi")(
-		"observe(undefined, { reactive: true }) auto-subscribes late-added nodes (Rust-port-only)",
-		async () => {
-			const g = new impl.Graph("root");
-			await g.state<number>("a", 1);
+	// Slice W (2026-05-13): cross-impl parity — both pure-ts and Rust
+	// port auto-subscribe to nodes added AFTER the initial namespace
+	// snapshot. Pure-ts achieves this via a `_topologyEmitters` hook in
+	// `_observeReactive`; Rust port via `GraphObserveAllReactive`
+	// subscribing to `Core::subscribe_topology`.
+	test("observe(undefined, { reactive: true }) auto-subscribes late-added nodes", async () => {
+		const g = new impl.Graph("root");
+		await g.state<number>("a", 1);
 
-			const handle = (await g.observe(undefined, {
-				reactive: true,
-			})) as ObserveSubscription;
+		const handle = (await g.observe(undefined, {
+			reactive: true,
+		})) as ObserveSubscription;
 
-			const events: Array<{ path: string }> = [];
-			const unsub = handle.subscribe((pathOrMsgs, msgs) => {
-				if (typeof pathOrMsgs === "string" && msgs && msgs.length > 0) {
-					events.push({ path: pathOrMsgs });
-				}
-			});
+		const events: Array<{ path: string }> = [];
+		const unsub = handle.subscribe((pathOrMsgs, msgs) => {
+			if (typeof pathOrMsgs === "string" && msgs && msgs.length > 0) {
+				events.push({ path: pathOrMsgs });
+			}
+		});
 
-			// Add a late node AFTER subscribe — Rust auto-subscribes it.
-			const b = await g.state<number>("b", 2);
-			await new Promise((r) => setTimeout(r, 0));
+		// Add a late node AFTER subscribe — Rust auto-subscribes it.
+		const b = await g.state<number>("b", 2);
+		await new Promise((r) => setTimeout(r, 0));
 
-			await b.down([[impl.DATA, 99]]);
-			await new Promise((r) => setTimeout(r, 0));
+		await b.down([[impl.DATA, 99]]);
+		await new Promise((r) => setTimeout(r, 0));
 
-			const bEvents = events.filter((e) => e.path === "b");
-			expect(bEvents.length).toBeGreaterThanOrEqual(1);
+		const bEvents = events.filter((e) => e.path === "b");
+		expect(bEvents.length).toBeGreaterThanOrEqual(1);
 
-			unsub();
-			await handle.dispose();
-			await g.destroy();
-		},
-	);
+		unsub();
+		await handle.dispose();
+		await g.destroy();
+	});
 
 	test("observe(undefined, { reactive: true }) stops firing after dispose()", async () => {
 		const g = new impl.Graph("root");

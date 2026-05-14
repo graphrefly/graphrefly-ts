@@ -2112,7 +2112,26 @@ Folded into main spec sections; cross-references for traceability:
 
   Applies to `compat/jotai/`, `compat/nanostores/`, `compat/signals/`, and any future compat layer.
 
-### Appendix E — Verification
+### Appendix E — Subscription Operator Empty-Source Contracts
+
+Subscription-managed combinators (`zip`, `race`, `concat`, `takeUntil`, `merge`) subscribe to upstream sources from inside their fn body (R2.2.7.b operator semantics). For each, the empty-source / single-source edge cases are pinned as follows (Slice W lock, 2026-05-13):
+
+| Operator | 0 sources | 1 source | N sources |
+|----------|-----------|----------|-----------|
+| `zip(...sources)` | **Throw at construction** ("requires at least one source"). Vacuous-tuple semantics rejected — there is no well-defined value to emit. | Pair source DATA into 1-tuple stream. | N-wise pairing across all queues. |
+| `race(...sources)` | **Throw at construction** ("requires at least one source"). No winner possible. | Identity passthrough. | First DATA wins; losers ignored; race completes when all complete without a winner (Slice W D-ops P4); winner's COMPLETE/ERROR terminates the race. |
+| `concat(first, second)` | N/A — fixed arity 2. | N/A. | Phase 0 buffers `second` DATA; on `first` COMPLETE, drain pending then enter phase 1. If `second` already completed during phase 0, race self-completes after drain (Slice W D041). |
+| `takeUntil(src, notifier)` | N/A — fixed arity 2. | N/A. | Forward `src` DATA until `notifier` emits DATA; notifier's DATA payload is not forwarded. |
+| `merge(...sources)` | Empty-merge completes immediately (existing TS + Rust behavior — vacuous union has no contributors). | Identity passthrough. | Interleave all source DATA; complete when all sources complete; ERROR propagates first-error-terminates (D022). |
+
+**Rationale for zip/race at 0 sources** (vs `merge` at 0): `merge` is a union; the empty union is well-defined (the empty stream). `zip` and `race` are conjunctions (zip requires all sources to produce; race requires at least one) and are ill-defined on the empty set. Throwing at construction surfaces the call-site bug rather than producing silently-ambiguous "vacuous COMPLETE" or "hang forever" behavior. Mirrors `combineLatest([])` precedent in mainstream Rx libraries.
+
+**Implementations:**
+- **TS pure-ts:** `zip()` / `race()` throw `Error("…(): requires at least one source")` at top of factory before producer setup (combine.ts).
+- **Rust:** `ops_impl::zip` / `ops_impl::race` return `Result<NodeId, OperatorFactoryError>` and surface `OperatorFactoryError::EmptySources` ("operator factory: at least one source is required") on empty input. Mirrors the `combine::combine` precedent. napi binding translates via `operator_factory_error_to_napi` → `NapiError`. **No `assert!` or panic on user-facing paths** (per `graphrefly-rs/CLAUDE.md` invariant #5).
+- **Parity tests:** `await expect(impl.zip([])).rejects.toThrow(/at least one source/)` — regex matches both the TS message ("zip(): requires at least one source") and the Rust message ("operator factory: at least one source is required").
+
+### Appendix F — Verification
 
 Two formal substrates back the protocol invariants:
 
