@@ -1,7 +1,7 @@
 import { DATA, node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
-import { InspectGraph, inspect } from "../../../utils/inspect/index.js";
+import { InspectGraph, inspect } from "../../../presets/inspect/index.js";
 
 describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => {
 	it("returns an InspectGraph subclass", () => {

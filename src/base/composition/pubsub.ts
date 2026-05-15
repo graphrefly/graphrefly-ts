@@ -12,7 +12,13 @@
  * (no substrate core/graph dependency on pubsub found).
  */
 
-import { batch, type Node, node, TEARDOWN } from "@graphrefly/pure-ts/core";
+import { batch, type Node, node, TEARDOWN, wallClockNs } from "@graphrefly/pure-ts/core";
+import {
+	type PubSubChange,
+	type PubSubChangePayload,
+	type ReactiveLogBundle,
+	reactiveLog,
+} from "@graphrefly/pure-ts/extra";
 
 // ── Backend interface ─────────────────────────────────────────────────────
 
@@ -88,6 +94,23 @@ export type PubSubHubOptions = {
 	 * monitoring / mirror-to-external-broker use cases.
 	 */
 	backend?: PubSubBackend;
+	/**
+	 * DS-14 / DS14R2 — opt-in delta companion. When set, the hub appends a
+	 * typed {@link PubSubChange} record in the **same batch frame** as the
+	 * topic emission / teardown (same-wave consistency — subscribers reading
+	 * both a topic and `mutationLog` never see torn state).
+	 *
+	 * Records the locked `PubSubChange` verbs that apply to this last-value
+	 * hub: `publish` (per `publish` / `publishMany`) and `remove` (per
+	 * `removeTopic`). The `ack` verb is a cursor concern of `messagingHub()`
+	 * and does not apply here. **Note:** the locked `publish` payload carries
+	 * `value` only (no topic name) — callers needing per-topic delta
+	 * correlation should embed identity in the value or use `messagingHub()`.
+	 *
+	 * `true` = defaults; object form forwards `maxSize` / `name` to the inner
+	 * `reactiveLog`.
+	 */
+	mutationLog?: true | { maxSize?: number; name?: string };
 };
 
 /**
@@ -125,6 +148,11 @@ export interface PubSubHub {
 	readonly size: number;
 	/** Iterator over topic names. */
 	topicNames(): IterableIterator<string>;
+	/**
+	 * DS14R2 — present iff `mutationLog` was configured. Append-only log of
+	 * `publish` / `remove` deltas, same-wave-consistent with topic emissions.
+	 */
+	readonly mutationLog?: ReactiveLogBundle<PubSubChange>;
 }
 
 /**
@@ -157,9 +185,28 @@ export interface PubSubHub {
  * @category base
  */
 export function pubsub(options: PubSubHubOptions = {}): PubSubHub {
-	const { backend: userBackend } = options;
+	const { backend: userBackend, mutationLog: mutLogOpt } = options;
 	const backend: PubSubBackend = userBackend ?? new NativePubSubBackend();
 	const nodes = new Map<string, Node<unknown>>();
+
+	// ── DS14R2 — mutation log companion ──────────────────────────────────────
+	const mutLog: ReactiveLogBundle<PubSubChange> | undefined = mutLogOpt
+		? reactiveLog<PubSubChange>(undefined, {
+				name: mutLogOpt === true ? "pubsub.mutationLog" : (mutLogOpt.name ?? "pubsub.mutationLog"),
+				maxSize: mutLogOpt === true ? undefined : mutLogOpt.maxSize,
+			})
+		: undefined;
+	let mutVersion = 0;
+	function recordChange(change: PubSubChangePayload): void {
+		if (!mutLog) return;
+		mutLog.append({
+			structure: "pubsub",
+			version: ++mutVersion,
+			t_ns: wallClockNs(),
+			lifecycle: "data",
+			change,
+		});
+	}
 
 	function ensureTopic(name: string): Node<unknown> {
 		let n = nodes.get(name);
@@ -177,13 +224,22 @@ export function pubsub(options: PubSubHubOptions = {}): PubSubHub {
 		},
 
 		publish(name: string, value: unknown): void {
-			ensureTopic(name).emit(value);
+			if (!mutLog) {
+				ensureTopic(name).emit(value);
+				return;
+			}
+			// Same-wave: topic emit + change record in one batch frame.
+			batch(() => {
+				ensureTopic(name).emit(value);
+				recordChange({ kind: "publish", value });
+			});
 		},
 
 		publishMany(entries: Iterable<[string, unknown]>): void {
 			batch(() => {
 				for (const [name, value] of entries) {
 					ensureTopic(name).emit(value);
+					recordChange({ kind: "publish", value });
 				}
 			});
 		},
@@ -193,7 +249,17 @@ export function pubsub(options: PubSubHubOptions = {}): PubSubHub {
 			if (n === undefined) return false;
 			nodes.delete(name);
 			backend.removeTopic(name);
-			n.down([[TEARDOWN]]);
+			if (!mutLog) {
+				n.down([[TEARDOWN]]);
+				return true;
+			}
+			batch(() => {
+				// QA P3: record BEFORE TEARDOWN. A subscriber wired to both a
+				// topic and `mutationLog` that self-detaches on TEARDOWN would
+				// otherwise miss the `remove` delta (same-wave consistency).
+				recordChange({ kind: "remove", name });
+				n.down([[TEARDOWN]]);
+			});
 			return true;
 		},
 
@@ -208,5 +274,7 @@ export function pubsub(options: PubSubHubOptions = {}): PubSubHub {
 		topicNames(): IterableIterator<string> {
 			return backend.topicNames();
 		},
+
+		mutationLog: mutLog,
 	};
 }

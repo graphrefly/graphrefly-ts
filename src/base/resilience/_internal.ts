@@ -1,13 +1,16 @@
 /**
  * Internal helpers shared by resilience sub-files.
  *
- * Not part of the public surface — sub-files (`retry.ts`, `breaker.ts`,
- * `rate-limiter.ts`, `fallback.ts`, `status.ts`, `timeout.ts`) import what they
- * need from here so the barrel stays a thin re-export shell.
+ * Not part of the public surface. The base-layer resilience operators
+ * co-located here (`retry.ts`, `status.ts`, `timeout.ts`) import what they
+ * need from this file directly; the utils-layer resilience primitives that
+ * stayed in `utils/resilience/` (`breaker.ts`, `rate-limiter.ts`,
+ * `fallback.ts`) import it top-down via `../../base/resilience/_internal.js`.
  *
- * `NodeOrValue<T>` is the only export re-surfaced via `./index.ts` — every
- * resilience primitive that accepts reactive options uses it as the option-arg
- * shape.
+ * `NodeOrValue<T>` is the only export re-surfaced publicly — there is no
+ * `base/resilience/index.ts`; it ships through `utils/resilience/index.ts`
+ * (and `utils/memory/index.ts`). Every resilience primitive that accepts
+ * reactive options uses it as the option-arg shape.
  */
 
 import type { Node, NodeOptions } from "@graphrefly/pure-ts/core";

@@ -66,6 +66,13 @@ export type ReactiveIndexBundle<K, V = unknown> = {
 	has: (primary: K) => boolean;
 	/** O(1) value lookup by primary key. */
 	get: (primary: K) => V | undefined;
+	/**
+	 * F20 (D205). Values whose **primary key** sorts within `[start, end)`
+	 * (inclusive start, exclusive end), in ascending primary-key order.
+	 * `start >= end` (or no matches) → `[]`. Independent of the secondary
+	 * sort axis.
+	 */
+	rangeByPrimary: (start: K, end: K) => V[];
 	/** Number of rows currently in the index (O(1)). */
 	readonly size: number;
 	/**
@@ -500,6 +507,15 @@ export function reactiveIndex<K, V = unknown>(
 
 		get(primary: K): V | undefined {
 			return backend.get(primary);
+		},
+
+		rangeByPrimary(start: K, end: K): V[] {
+			if (cmpOrd(start, end) >= 0) return [];
+			const rows = [...backend.toPrimaryMap().entries()].filter(
+				([p]) => cmpOrd(p, start) >= 0 && cmpOrd(p, end) < 0,
+			);
+			rows.sort(([a], [b]) => cmpOrd(a, b));
+			return rows.map(([, v]) => v);
 		},
 
 		get size(): number {

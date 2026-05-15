@@ -14,7 +14,7 @@
 
 import { monotonicNs } from "@graphrefly/pure-ts/core";
 import type { ObserveEvent, ObserveResult } from "@graphrefly/pure-ts/graph";
-import type { HarnessGraph } from "../../presets/harness/harness-loop.js";
+import type { HarnessGraph } from "./harness-loop.js";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -39,7 +39,6 @@ import { keepalive } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { aiMeta } from "../../utils/ai/_internal.js";
 import type { LLMResponse } from "../../utils/ai/adapters/core/types.js";
-import type { AgentBundle, AgentSpec, AgentStatus } from "../../utils/ai/agents/agent.js";
 import {
 	type MessagingHubGraph,
 	SPAWNS_TOPIC,
@@ -49,6 +48,7 @@ import {
 	type TopicMessage,
 	topic,
 } from "../../utils/messaging/index.js";
+import type { AgentBundle, AgentSpec, AgentStatus } from "../ai/agent.js";
 import type { PresetRegistryBundle } from "../ai/agents.js";
 import { agent } from "../ai/agents.js";
 

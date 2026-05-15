@@ -17,14 +17,9 @@ import {
 	node,
 	wallClockNs,
 } from "@graphrefly/pure-ts/core";
-// NOTE: A1 batch — keep this import through the `../resilience.js` shim. Going
-// direct to `../resilience/index.js` triggers a vitest SSR module-resolution
-// quirk that desynchronises `withStatus` bindings between this file and the
-// `extra/index.ts` re-export (which still routes through the shim), causing
-// agentLoop / gatedStream tests to time out. Tracked as a deferred A1 follow-up.
 import { type AsyncSourceOpts, fromTimer, switchMap } from "@graphrefly/pure-ts/extra";
-import { NS_PER_MS, NS_PER_SEC } from "../../utils/resilience/backoff.js";
-import { type WithStatusBundle, withStatus } from "../../utils/resilience/status.js";
+import { NS_PER_MS, NS_PER_SEC } from "../resilience/backoff.js";
+import { type WithStatusBundle, withStatus } from "../resilience/status.js";
 import { type ExtraOpts, sourceOpts } from "./_internal.js";
 import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 

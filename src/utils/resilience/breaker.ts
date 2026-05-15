@@ -18,8 +18,14 @@ import {
 	node,
 	RESOLVED,
 } from "@graphrefly/pure-ts/core";
-import { clampNonNegative, isNode, msgVal, type NodeOrValue, operatorOpts } from "./_internal.js";
-import { type BackoffStrategy, NS_PER_SEC } from "./backoff.js";
+import {
+	clampNonNegative,
+	isNode,
+	msgVal,
+	type NodeOrValue,
+	operatorOpts,
+} from "../../base/resilience/_internal.js";
+import { type BackoffStrategy, NS_PER_SEC } from "../../base/resilience/backoff.js";
 import type { GateState } from "./gate-state.js";
 
 export type CircuitState = "closed" | "open" | "half-open";

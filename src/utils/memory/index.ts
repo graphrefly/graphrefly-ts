@@ -38,8 +38,8 @@ import {
 	mutate,
 	registerCursor,
 } from "../../base/mutation/index.js";
+import type { NodeOrValue } from "../../base/resilience/_internal.js";
 import { decay } from "../../base/utils/decay.js";
-import type { NodeOrValue } from "../resilience/_internal.js";
 
 // ── Shared helpers ───────────────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ function searchResultsEqual<TMeta>(
 // ── Common types ─────────────────────────────────────────────────────────
 
 /** Public alias for the `Node | value` shape accepted by reactive read factories. */
-export type { NodeOrValue } from "../resilience/_internal.js";
+export type { NodeOrValue } from "../../base/resilience/_internal.js";
 
 // ── Unit 2 (Tier 2.3 fold): collection (formerly lightCollection + collection)
 //

@@ -1,28 +1,4 @@
 {
-	"_comment": "Cleave A layer-boundary residuals \u2014 the 4-layer DAG is structurally violated in 23 shipped-source spots the cleave introduced (masked until D201's rule existed). FULL re-layering (class A: reclassify domain-agnostic resilience backoff/_internal/status -> base/; class B: utils/<domain> barrels must stop re-exporting presets \u2014 load-bearing for ~82 test imports, needs codemod; class C: genuine utils->presets code inversions in harness/* + ai/agents/agent.ts) is deferred to the next batch as ONE coherent slice with its own gate run. Tracked in docs/optimizations.md 'Cleave A layer-boundary residuals'. RATCHET: a NEW violation (not listed) fails the build; a listed entry no longer firing ALSO fails (forces removal as fixes land). Do NOT add entries to silence new violations \u2014 fix the layering.",
-	"baseline": [
-		"src/base/io/_sink.ts -> ../../utils/resilience/backoff.js",
-		"src/base/io/clickhouse-watch.ts -> ../../utils/resilience/backoff.js",
-		"src/base/io/http.ts -> ../../utils/resilience/backoff.js",
-		"src/base/io/http.ts -> ../../utils/resilience/status.js",
-		"src/base/io/prometheus.ts -> ../../utils/resilience/backoff.js",
-		"src/base/io/websocket.ts -> ../../utils/resilience/index.js",
-		"src/base/sources/settled.ts -> ../../utils/resilience/backoff.js",
-		"src/base/sources/settled.ts -> ../../utils/resilience/index.js",
-		"src/utils/ai/agents/agent.ts -> ../../../presets/ai/agent-loop.js",
-		"src/utils/ai/agents/agent.ts -> ../../../presets/ai/agent-memory.js",
-		"src/utils/ai/index.ts -> ../../presets/ai/agent-loop.js",
-		"src/utils/ai/index.ts -> ../../presets/ai/agent-memory.js",
-		"src/utils/ai/index.ts -> ../../presets/ai/agents.js",
-		"src/utils/harness/eval-verifier.ts -> ../../presets/harness/refine-loop.js",
-		"src/utils/harness/index.ts -> ../../presets/harness/harness-loop.js",
-		"src/utils/harness/index.ts -> ../../presets/harness/refine-loop.js",
-		"src/utils/harness/index.ts -> ../../presets/harness/spawnable.js",
-		"src/utils/harness/profile.ts -> ../../presets/harness/harness-loop.js",
-		"src/utils/harness/refine-executor.ts -> ../../presets/harness/refine-loop.js",
-		"src/utils/harness/trace.ts -> ../../presets/harness/harness-loop.js",
-		"src/utils/inspect/index.ts -> ../../presets/inspect/composite.js",
-		"src/utils/inspect/index.ts -> ../../presets/inspect/guarded-execution.js",
-		"src/utils/resilience/index.ts -> ../../presets/resilience/resilient-pipeline.js"
-	]
+	"_comment": "Cleave A layer-boundary residuals — CLOSED 2026-05-15. The 4-layer DAG is now structurally clean: Class A (zero-domain resilience backoff/_internal/status/retry/timeout reclassified -> base/), Class B (utils/<domain> barrels no longer re-export presets; utils-path consumers repointed at presets/<domain>), Class C (preset-coupled files relocated out of utils/: ai/agents/agent.ts -> presets/ai/agent.ts; harness/{profile,trace,eval-verifier,refine-executor}.ts -> presets/harness/) all landed. Baseline is empty: the ratchet now fails ANY layer-boundary violation as a hard error. Do NOT add entries to silence new violations — fix the layering. Provenance: docs/optimizations.md 'Cleave A layer-boundary residuals', archive/docs/SESSION-DS-cleave-A-file-moves.md.",
+	"baseline": []
 }

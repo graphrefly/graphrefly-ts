@@ -2,12 +2,10 @@ import { DATA, node, TEARDOWN } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { awaitSettled } from "../../../base/sources/settled.js";
+import { AgentLoopGraph, agentLoop, agentMemory } from "../../../presets/ai/index.js";
 import {
-	AgentLoopGraph,
 	admissionFilter3D,
 	admissionScored,
-	agentLoop,
-	agentMemory,
 	type ChatMessage,
 	ChatStreamGraph,
 	chatStream,

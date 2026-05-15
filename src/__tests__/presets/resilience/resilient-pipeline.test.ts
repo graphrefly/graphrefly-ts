@@ -7,12 +7,12 @@ import {
 	node,
 } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
+import { NS_PER_MS, NS_PER_SEC } from "../../../base/resilience/backoff.js";
 import {
 	ResilientPipelineGraph,
 	type ResilientPipelineOptions,
 	resilientPipeline,
 } from "../../../presets/resilience/resilient-pipeline.js";
-import { NS_PER_MS, NS_PER_SEC } from "../../../utils/resilience/backoff.js";
 
 function collect<T>(n: { subscribe: (fn: (msgs: unknown[][]) => void) => () => void }): {
 	events: T[];

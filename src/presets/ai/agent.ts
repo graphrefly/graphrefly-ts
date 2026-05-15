@@ -6,7 +6,7 @@
  * Composes the existing substrate (`agentLoop`, `toolRegistry`,
  * `agentMemory`) into a typed inbox/outbox subgraph that other parts of a
  * multi-agent system can wire to. Sibling preset `agent()` (in
- * `./presets.ts`) is the ergonomic factory; this file is the contract.
+ * `./agents.ts`) is the ergonomic factory; this file is the contract.
  *
  * **Cross-cut #1 lock (no `agent.run()`):** caller-side runtime entry is
  * `bundle.in.emit(input)` + `awaitSettled(bundle.out)`. The legacy
@@ -22,15 +22,7 @@
 import { batch, DATA, INVALIDATE, type Node, node, RESOLVED } from "@graphrefly/pure-ts/core";
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
-import { type AgentLoopGraph, agentLoop } from "../../../presets/ai/agent-loop.js";
-import type { AgentMemoryGraph } from "../../../presets/ai/agent-memory.js";
-import {
-	type SubscriptionGraph,
-	subscription,
-	type TopicGraph,
-	topic,
-} from "../../messaging/index.js";
-import { aiMeta } from "../_internal.js";
+import { aiMeta } from "../../utils/ai/_internal.js";
 import type {
 	InputTokens,
 	LLMAdapter,
@@ -38,7 +30,15 @@ import type {
 	OutputTokens,
 	TokenUsage,
 	ToolDefinition,
-} from "../adapters/core/types.js";
+} from "../../utils/ai/adapters/core/types.js";
+import {
+	type SubscriptionGraph,
+	subscription,
+	type TopicGraph,
+	topic,
+} from "../../utils/messaging/index.js";
+import { type AgentLoopGraph, agentLoop } from "./agent-loop.js";
+import type { AgentMemoryGraph } from "./agent-memory.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -196,7 +196,7 @@ export function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
 }
 
 /**
- * Spec for {@link agent} (in `./presets.ts`). Required fields are minimal —
+ * Spec for {@link agent} (in `./agents.ts`). Required fields are minimal —
  * `name` and `adapter` cover the common case where the input is a string
  * and the output is the raw `LLMResponse`. Optional fields shape the
  * agent's behavior:
@@ -292,7 +292,7 @@ const TERMINAL_STATUSES = new Set<AgentStatus>(["done", "error"]);
  * surface the bundle contract as top-level nodes.
  *
  * Construction is internal — use the {@link agent} factory in
- * `./presets.ts` for normal use. Direct `new AgentGraph(name, spec)` is
+ * `./agents.ts` for normal use. Direct `new AgentGraph(name, spec)` is
  * supported for callers that want full control over mount order.
  *
  * **Topology:**

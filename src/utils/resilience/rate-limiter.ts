@@ -18,8 +18,13 @@ import {
 	RingBuffer,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
-import { isNode, type NodeOrValue, operatorOpts, resolveReactiveOption } from "./_internal.js";
-import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
+import {
+	isNode,
+	type NodeOrValue,
+	operatorOpts,
+	resolveReactiveOption,
+} from "../../base/resilience/_internal.js";
+import { NS_PER_MS, NS_PER_SEC } from "../../base/resilience/backoff.js";
 import type { GateState } from "./gate-state.js";
 
 // `adaptiveRateLimiter` lives in extra/adaptive-rate-limiter.ts (kept independent

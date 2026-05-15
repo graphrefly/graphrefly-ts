@@ -19,23 +19,22 @@ import { batch, type Node, node } from "@graphrefly/pure-ts/core";
 import { filter } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import type {
-	DatasetItem,
-	EvalResult,
-	Evaluator,
-	RefineLoopOptions,
-	RefineStrategy,
-} from "../../presets/harness/refine-loop.js";
-import type { JobEnvelope } from "../job-queue/index.js";
-import { refineExecutor } from "./refine-executor.js";
-
-import type {
 	ExecuteOutput,
 	HarnessExecutor,
 	HarnessJobPayload,
 	HarnessVerifier,
 	TriagedItem,
 	VerifyOutput,
-} from "./types.js";
+} from "../../utils/harness/types.js";
+import type { JobEnvelope } from "../../utils/job-queue/index.js";
+import { refineExecutor } from "./refine-executor.js";
+import type {
+	DatasetItem,
+	EvalResult,
+	Evaluator,
+	RefineLoopOptions,
+	RefineStrategy,
+} from "./refine-loop.js";
 
 /** Summary of the re-eval wave passed to a custom `toOutput` mapper. */
 export interface EvalVerifierSummary {

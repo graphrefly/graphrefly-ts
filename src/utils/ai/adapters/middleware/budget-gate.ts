@@ -274,23 +274,11 @@ export function withBudgetGate(
 	// "two pieces needed" rule (observability bubble + auto-wired abort)
 	// into the primitive itself — no manual hookup required.
 	//
-	// QA D3 (Phase 13.6.B QA pass): emit a one-shot dev-mode warning
-	// when the wrapped adapter does not declare `abortCapable: true`.
-	// Honest cost control needs BOTH the observability bubble AND
-	// abort that actually cancels the underlying I/O. Adapters that
-	// ignore `opts.signal` produce silent burn-through at the budget
-	// boundary; the warning surfaces the gap so users can either swap
-	// to an abort-capable adapter or accept the trade-off knowingly.
-	if (inner.abortCapable !== true) {
-		console.warn(
-			`withBudgetGate(${inner.provider ?? "<unknown>"}${inner.model ? `/${inner.model}` : ""}): ` +
-				"adapter has not declared `abortCapable: true`. The budget gate's auto-abort " +
-				"on exhaustion will fan out an AbortSignal, but adapters that ignore " +
-				"`opts.signal` continue to natural completion — burning tokens past the cap. " +
-				"Honest cost control requires the adapter to honor abort end-to-end. See " +
-				"Lock 3.C in `docs/implementation-plan-13.6-locks-draft.md`.",
-		);
-	}
+	// DS-14.5 / AB-1: honoring `opts.signal` is now a hard adapter
+	// contract (the `abortCapable` flag + this dev-mode warning were
+	// removed pre-1.0). The budget gate fans out the AbortSignal on
+	// exhaustion and every adapter is required to cancel its underlying
+	// I/O — no escape hatch, no silent burn-through.
 	const inflight = new Set<AbortController>();
 	let isOpenSeeded = false;
 	let isOpenWasOpen = true;

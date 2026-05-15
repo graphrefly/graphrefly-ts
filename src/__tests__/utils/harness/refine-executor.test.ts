@@ -10,19 +10,14 @@
 import { DATA, type Node, node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
+import { evalVerifier, harnessLoop, refineExecutor } from "../../../presets/harness/index.js";
 import type {
 	DatasetItem,
 	EvalResult,
 	Evaluator,
 	RefineStrategy,
 } from "../../../presets/harness/refine-loop.js";
-import {
-	evalVerifier,
-	type HarnessJobPayload,
-	harnessLoop,
-	refineExecutor,
-	type VerifyResult,
-} from "../../../utils/harness/index.js";
+import type { HarnessJobPayload, VerifyResult } from "../../../utils/harness/index.js";
 import type { JobEnvelope } from "../../../utils/job-queue/index.js";
 import { mockLLM } from "../../helpers/mock-llm.js";
 

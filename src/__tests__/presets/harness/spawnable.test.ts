@@ -4,9 +4,10 @@
 
 import { DATA } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
+import type { AgentBundle, AgentSpec } from "../../../presets/ai/index.js";
+import { presetRegistry } from "../../../presets/ai/index.js";
 import { type SpawnRejection, spawnable } from "../../../presets/harness/spawnable.js";
-import type { AgentSpec, LLMAdapter, LLMResponse } from "../../../utils/ai/index.js";
-import { type AgentBundle, presetRegistry } from "../../../utils/ai/index.js";
+import type { LLMAdapter, LLMResponse } from "../../../utils/ai/index.js";
 import { type Message, messagingHub, SPAWNS_TOPIC } from "../../../utils/messaging/index.js";
 
 // ---------------------------------------------------------------------------

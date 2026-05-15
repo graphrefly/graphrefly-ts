@@ -56,8 +56,8 @@ import {
 	mutate,
 	registerCursor,
 } from "../../base/mutation/index.js";
+import type { StatusValue } from "../../base/resilience/status.js";
 import { firstWhere } from "../../base/sources/settled.js";
-import type { StatusValue } from "../../utils/resilience/status.js";
 import type { CqrsEvent, CqrsEventMap, CqrsGraph } from "../cqrs/index.js";
 
 // ---------------------------------------------------------------------------

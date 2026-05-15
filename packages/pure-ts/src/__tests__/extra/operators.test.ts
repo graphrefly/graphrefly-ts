@@ -1876,6 +1876,64 @@ describe("valve abortInFlight (Phase 13.E / DS-13.E)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// DS-14.5 — AB-2 (*Map.abortInFlight) + AB-3 (factory form)
+// ---------------------------------------------------------------------------
+
+describe("DS-14.5 AB-2/AB-3 — abortInFlight on valve + *Map", () => {
+	it("AB-3: valve factory form mints/aborts the live controller per cycle", () => {
+		let live: AbortController | undefined;
+		const src = node<number>([], { initial: 1 });
+		const open = node<boolean>([], { initial: true });
+		const { unsub } = collect(valve(src, open, { abortInFlight: () => live }));
+
+		const c1 = new AbortController();
+		live = c1;
+		open.emit(false);
+		expect(c1.signal.aborted).toBe(true);
+
+		open.emit(true);
+		const c2 = new AbortController();
+		live = c2;
+		open.emit(false);
+		expect(c2.signal.aborted).toBe(true);
+		expect(c1.signal.aborted).toBe(true); // c1 stays spent
+		unsub();
+	});
+
+	it("AB-2: switchMap supersede fires abortInFlight for the prior inner", () => {
+		let current: AbortController | undefined;
+		const srcN = node<number>([], { initial: 1 });
+		const out = switchMap(
+			srcN,
+			(n) => {
+				current = new AbortController();
+				return node<number>([], { initial: n as number });
+			},
+			{ abortInFlight: () => current },
+		);
+		const { unsub } = collect(out);
+		const first = current;
+		expect(first?.signal.aborted).toBe(false);
+		srcN.emit(2); // supersede
+		expect(first?.signal.aborted).toBe(true);
+		unsub();
+	});
+
+	it("AB-2: mergeMap aborts all in-flight inners on source ERROR", () => {
+		const ctrl = new AbortController();
+		const srcN = node<number>([], { initial: 1 });
+		const out = mergeMap(srcN, (n) => node<number>([], { initial: n as number }), {
+			abortInFlight: ctrl,
+		});
+		const { unsub } = collect(out);
+		expect(ctrl.signal.aborted).toBe(false);
+		srcN.down([[ERROR, new Error("boom")]]);
+		expect(ctrl.signal.aborted).toBe(true);
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Phase 13.L — `settle` operator
 // ---------------------------------------------------------------------------
 

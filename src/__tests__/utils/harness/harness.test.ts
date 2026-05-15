@@ -1548,7 +1548,7 @@ describe("harnessLoop with mockLLM", () => {
 		const harness = harnessLoop("mock-gate-modify", { adapter: mock });
 
 		// Wire harnessTrace with structured events to validate stage ordering
-		const { harnessTrace } = await import("../../../utils/harness/trace.js");
+		const { harnessTrace } = await import("../../../presets/harness/trace.js");
 		const trace = harnessTrace(harness);
 
 		harness.intake.publish({
@@ -1653,7 +1653,7 @@ describe("harnessLoop with mockLLM", () => {
 			maxReingestions: 0,
 		});
 
-		const { harnessProfile } = await import("../../../utils/harness/profile.js");
+		const { harnessProfile } = await import("../../../presets/harness/profile.js");
 		const before = harnessProfile(harness);
 		expect(before.nodeCount).toBeGreaterThan(0);
 		expect(before.strategyEntries).toBe(0);
@@ -1774,7 +1774,7 @@ describe("harnessLoop with mockLLM", () => {
 		});
 
 		const lines: string[] = [];
-		const { harnessTrace } = await import("../../../utils/harness/trace.js");
+		const { harnessTrace } = await import("../../../presets/harness/trace.js");
 		const handle = harnessTrace(harness, { logger: (line) => lines.push(line) });
 
 		harness.intake.publish({

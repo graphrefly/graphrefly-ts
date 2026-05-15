@@ -63,19 +63,12 @@ export type AdapterStreamFn = (
 export function adapterWrapper(
 	inner: LLMAdapter,
 	impl: { invoke: AdapterInvokeFn; stream: AdapterStreamFn },
-	override?: Partial<Pick<LLMAdapter, "provider" | "model" | "capabilities" | "abortCapable">>,
+	override?: Partial<Pick<LLMAdapter, "provider" | "model" | "capabilities">>,
 ): LLMAdapter {
 	return {
 		provider: override?.provider ?? inner.provider,
 		model: override?.model ?? inner.model,
 		capabilities: override?.capabilities ?? inner.capabilities?.bind(inner),
-		// QA D3 (Phase 13.6.B): propagate `abortCapable` from inner so a
-		// chain of middleware wraps preserves the inner adapter's abort
-		// guarantee. Each middleware that threads `opts.signal` through
-		// to its wrapped call (the universal pattern) inherits the flag
-		// transparently. Middlewares that BREAK abort (rare — would
-		// have to swallow signal) override explicitly to `false`.
-		abortCapable: override?.abortCapable ?? inner.abortCapable,
 		invoke: impl.invoke,
 		stream: impl.stream,
 	};

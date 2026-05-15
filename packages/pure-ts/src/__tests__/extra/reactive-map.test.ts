@@ -81,4 +81,95 @@ describe("extra reactiveMap (roadmap §3.2)", () => {
 		unsub();
 		expect(m.size).toBe(0);
 	});
+
+	// ── DS14R1 — TTL/LRU prune fidelity in mutationLog ───────────────────────
+	describe("DS14R1 — prune fidelity (mutationLog stays synced with entries)", () => {
+		type AnyMapChange = {
+			structure: string;
+			lifecycle: string;
+			change:
+				| { kind: "set"; key: string; value: number }
+				| { kind: "delete"; key: string; previous: number; reason: string }
+				| { kind: "clear"; count: number };
+		};
+
+		/** Last full snapshot array emitted by a reactiveLog `entries` node. */
+		function lastLog(node: Parameters<typeof collect>[0]): AnyMapChange[] {
+			const { messages, unsub } = collect(node, { flat: true });
+			unsub();
+			let out: AnyMapChange[] = [];
+			for (const m of messages) if (m[0] === DATA) out = m[1] as AnyMapChange[];
+			return out;
+		}
+		function lastEntries(node: Parameters<typeof collect>[0]): ReadonlyMap<string, number> {
+			const { messages, unsub } = collect(node, { flat: true });
+			unsub();
+			let out: ReadonlyMap<string, number> = new Map();
+			for (const m of messages) if (m[0] === DATA) out = m[1] as ReadonlyMap<string, number>;
+			return out;
+		}
+
+		it("read-time TTL expiry appends delete{reason:'expired'} synced with entries", () => {
+			vi.useFakeTimers();
+			const m = reactiveMap<string, number>({ defaultTtl: 0.1, mutationLog: true });
+			m.set("k", 1);
+			vi.advanceTimersByTime(150);
+			// Pure read that discovers the expired entry → prunes it.
+			expect(m.get("k")).toBeUndefined();
+			const log = lastLog(m.mutationLog!.entries);
+			const del = log.find((c) => c.change.kind === "delete");
+			expect(del).toBeDefined();
+			expect(del?.change).toMatchObject({ kind: "delete", key: "k", reason: "expired" });
+			expect(del?.structure).toBe("map");
+			expect(del?.lifecycle).toBe("data");
+			// entries snapshot is consistent with the read (key absent).
+			expect(lastEntries(m.entries).has("k")).toBe(false);
+			vi.useRealTimers();
+		});
+
+		it("LRU eviction appends delete{reason:'lru-evict'}", () => {
+			const m = reactiveMap<string, number>({ maxSize: 2, mutationLog: true });
+			m.set("a", 1);
+			m.set("b", 2);
+			m.set("c", 3); // evicts "a"
+			const log = lastLog(m.mutationLog!.entries);
+			const evict = log.find((c) => c.change.kind === "delete" && c.change.reason === "lru-evict");
+			expect(evict?.change).toMatchObject({ kind: "delete", key: "a", reason: "lru-evict" });
+			expect(lastEntries(m.entries).has("a")).toBe(false);
+		});
+
+		it("replaying mutationLog reconstructs entries exactly (desync regression)", () => {
+			vi.useFakeTimers();
+			const m = reactiveMap<string, number>({ maxSize: 3, mutationLog: true });
+			m.set("a", 1);
+			m.set("b", 2, { ttl: 0.1 });
+			m.set("c", 3);
+			vi.advanceTimersByTime(150);
+			expect(m.has("b")).toBe(false); // TTL prune on read
+			m.set("d", 4);
+			m.set("e", 5); // LRU pressure → evicts oldest live key
+			const log = lastLog(m.mutationLog!.entries);
+			const replay = new Map<string, number>();
+			for (const c of log) {
+				if (c.change.kind === "set") replay.set(c.change.key, c.change.value);
+				else if (c.change.kind === "delete") replay.delete(c.change.key);
+				else if (c.change.kind === "clear") replay.clear();
+			}
+			expect([...replay.entries()].sort()).toEqual([...lastEntries(m.entries).entries()].sort());
+			vi.useRealTimers();
+		});
+
+		it("no mutationLog configured → prune still works, zero records, no throw", () => {
+			vi.useFakeTimers();
+			const m = reactiveMap<string, number>({ defaultTtl: 0.1 });
+			const { batches, unsub } = collect(m.entries);
+			m.set("k", 1);
+			vi.advanceTimersByTime(150);
+			expect(m.get("k")).toBeUndefined(); // prune path with trackPrunes off
+			expect(batches.length).toBeGreaterThan(0);
+			expect(m.mutationLog).toBeUndefined();
+			unsub();
+			vi.useRealTimers();
+		});
+	});
 });

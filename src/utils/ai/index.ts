@@ -85,8 +85,6 @@ export * from "./safety/redactor.js";
 // Agents (chat, tools, multi-agent routing — building blocks)
 // ---------------------------------------------------------------------------
 
-export * from "../../presets/ai/agents.js";
-export * from "./agents/agent.js";
 export * from "./agents/chat-stream.js";
 export * from "./agents/handoff.js";
 export * from "./agents/tool-execution.js";
@@ -101,16 +99,6 @@ export * from "./memory/admission.js";
 export * from "./memory/memory-composers.js";
 export * from "./memory/retrieval.js";
 export * from "./memory/tiers.js";
-
-// ---------------------------------------------------------------------------
-// Presets (Tier 9.1 γ-form γ-β) — opinionated multi-block compositions.
-// `agentLoop` composes promptNode + toolRegistry + toolExecution + chat +
-// status + multi-turn; `agentMemory` composes collection + vectorIndex +
-// knowledgeGraph + retrieval + LLM extraction + tiers + decay.
-// ---------------------------------------------------------------------------
-
-export * from "../../presets/ai/agent-loop.js";
-export * from "../../presets/ai/agent-memory.js";
 
 // ---------------------------------------------------------------------------
 // Graph ↔ LLM integration (knobs, gauges, spec round-trip)

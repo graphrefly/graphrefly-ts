@@ -29,6 +29,7 @@ export {
 	topicPublishKeyOf,
 } from "./audit-records.js";
 export {
+	CONTEXT_TOPIC,
 	DEFERRED_TOPIC,
 	INJECTIONS_TOPIC,
 	type JsonSchema,
@@ -37,6 +38,7 @@ export {
 	SPAWNS_TOPIC,
 	STANDARD_TOPICS,
 	type StandardTopic,
+	TODOS_TOPIC,
 	type TopicMessage,
 } from "./message.js";
 

@@ -1535,6 +1535,11 @@ function buildRustStructures(): StructuresImpl | undefined {
 				opts?.maxSize != null ? opts.maxSize : null,
 			);
 			const node = wrapAsRustNode<readonly T[]>(state, log.nodeId);
+			// RAII handles (BenchLogView / BenchScanHandle / BenchLogSubscription)
+			// dispose their Core subscriptions on Drop — retain them for the
+			// lifetime of the log so non-deterministic JS GC can't sever the
+			// view/scan/attach wiring mid-test.
+			const keepAlive: unknown[] = [];
 			return {
 				node,
 				get size() {
@@ -1563,6 +1568,55 @@ function buildRustStructures(): StructuresImpl | undefined {
 					const h = log.at(index);
 					if (h === 0) return undefined;
 					return state.registry.get<T>(h) as T | undefined;
+				},
+				async view(spec) {
+					let v: { nodeId: number };
+					if (spec.kind === "tail") {
+						v = await log.viewTail(packer, spec.n);
+					} else if (spec.kind === "slice") {
+						v = await log.viewSlice(packer, spec.start, spec.stop ?? null);
+					} else {
+						const cursorNodeId = spec.cursor.inner as number;
+						const readCursor = (handles: number[]): number => {
+							// Fail loud: a missing/non-numeric cursor value must
+							// NOT silently default to 0 (= "replay entire log"),
+							// which would let a Rust handshake regression pass.
+							const cv = state.registry.get(handles[0]);
+							if (typeof cv !== "number" || !Number.isInteger(cv) || cv < 0) {
+								throw new Error(
+									`view(fromCursor): cursor must resolve to a non-negative integer position, got ${String(cv)}`,
+								);
+							}
+							return cv;
+						};
+						v = await log.viewFromCursor(packer, cursorNodeId, readCursor);
+					}
+					keepAlive.push(v);
+					return wrapAsRustNode<readonly T[]>(state, v.nodeId);
+				},
+				async scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc) {
+					const seedH = state.core.allocExternalHandle();
+					state.registry.set(seedH, initial);
+					const folder = (handles: number[]): number => {
+						const acc = state.registry.get<TAcc>(handles[0]) as TAcc;
+						const val = state.registry.get<T>(handles[1]) as T;
+						const next = step(acc, val);
+						const outH = state.core.allocExternalHandle();
+						state.registry.set(outH, next);
+						return outH;
+					};
+					const sc = (await log.scan(seedH, folder)) as { nodeId: number };
+					keepAlive.push(sc);
+					return wrapAsRustNode<TAcc>(state, sc.nodeId);
+				},
+				async attach(upstream) {
+					const sub = (await log.attach(upstream.inner as number)) as {
+						dispose: () => void;
+					};
+					keepAlive.push(sub);
+					return async () => {
+						sub.dispose();
+					};
 				},
 			};
 		},
@@ -1697,6 +1751,11 @@ function buildRustStructures(): StructuresImpl | undefined {
 			const index = n.BenchReactiveIndex.create(state.core, packer);
 			const node = wrapAsRustNode<unknown>(state, index.nodeId);
 			const primaryHandles = new Map<K, number>();
+			// D205: the rust `rangeByPrimary` mirror is keyed by an `i64`
+			// numeric primary. A non-numeric primary can't enter the mirror,
+			// so `rangeByPrimary` would silently return a PARTIAL result.
+			// Track it and fail loud rather than diverge from pure-ts.
+			let sawNonNumericPrimary = false;
 			return {
 				node,
 				get size() {
@@ -1711,12 +1770,17 @@ function buildRustStructures(): StructuresImpl | undefined {
 					}
 					const vh = state.core.allocExternalHandle();
 					state.registry.set(vh, value);
-					return index.upsert(ph, secondary, vh);
+					// F20/D205: pass the user-meaningful numeric primary so
+					// the binding's range mirror orders by it, not by handle.
+					const numericKey = typeof primary === "number" ? primary : null;
+					if (numericKey === null) sawNonNumericPrimary = true;
+					return index.upsert(ph, secondary, vh, numericKey);
 				},
 				async delete(primary: K) {
 					const ph = primaryHandles.get(primary);
 					if (ph == null) return;
-					await index.delete(ph);
+					const numericKey = typeof primary === "number" ? primary : null;
+					await index.delete(ph, numericKey);
 				},
 				async clear() {
 					await index.clear();
@@ -1733,6 +1797,16 @@ function buildRustStructures(): StructuresImpl | undefined {
 					const vh = index.get(ph);
 					if (vh === 0) return undefined;
 					return state.registry.get<V>(vh) as V | undefined;
+				},
+				rangeByPrimary(start: number, end: number) {
+					if (sawNonNumericPrimary) {
+						throw new Error(
+							"rangeByPrimary requires numeric primary keys on the rust arm " +
+								"(D205: the i64 mirror cannot represent non-numeric primaries)",
+						);
+					}
+					const handles = index.rangeByPrimary(start, end) as number[];
+					return handles.map((h) => state.registry.get<V>(h) as V);
 				},
 			};
 		},

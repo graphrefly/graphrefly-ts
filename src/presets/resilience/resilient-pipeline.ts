@@ -46,7 +46,7 @@ import { ERROR, type Node, node, placeholderArgs } from "@graphrefly/pure-ts/cor
 import { switchMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { domainMeta } from "../../base/meta/domain-meta.js";
-import { NS_PER_MS } from "../../utils/resilience/backoff.js";
+import { NS_PER_MS } from "../../base/resilience/backoff.js";
 import {
 	type BreakerState,
 	type BudgetConstraint,

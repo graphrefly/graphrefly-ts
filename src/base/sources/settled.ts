@@ -284,10 +284,10 @@ export function firstWhere<T>(
  *
  * @category extra
  */
-// Lazy module-cache to avoid the `resilience.ts` → `sources.ts` circular
-// import (`resilience.ts` imports `fromAny`). First call pays the one-shot
-// dynamic import; subsequent calls hit cached references.
-let _timeoutOp: typeof import("../../utils/resilience/index.js").withTimeout | undefined;
+// Lazy module-cache for the `withTimeout` resilience operator. The dynamic
+// import keeps `settled` free of an eager edge into the resilience family;
+// first call pays the one-shot import, subsequent calls hit cached refs.
+let _timeoutOp: typeof import("../resilience/timeout.js").withTimeout | undefined;
 let _nsPerMs: number | undefined;
 
 export async function awaitSettled<T>(
@@ -329,11 +329,11 @@ export async function awaitSettled<T>(
 	// the first matching DATA or rejects on that ERROR. One async boundary
 	// (the returned Promise), everything inside is sync reactive.
 	if (_timeoutOp === undefined) {
-		const [resilience, backoff] = await Promise.all([
-			import("../../utils/resilience/index.js"),
-			import("../../utils/resilience/backoff.js"),
+		const [timeoutMod, backoff] = await Promise.all([
+			import("../resilience/timeout.js"),
+			import("../resilience/backoff.js"),
 		]);
-		_timeoutOp = resilience.withTimeout;
+		_timeoutOp = timeoutMod.withTimeout;
 		_nsPerMs = backoff.NS_PER_MS;
 	}
 	const guarded = _timeoutOp(source, { ns: opts.timeoutMs * (_nsPerMs as number) }).node;

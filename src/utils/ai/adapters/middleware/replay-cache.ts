@@ -32,7 +32,7 @@
 
 import { monotonicNs, ResettableTimer, wallClockNs } from "@graphrefly/pure-ts/core";
 import type { KvStorageTier } from "@graphrefly/pure-ts/extra";
-import { canonicalJson, fromAny } from "@graphrefly/pure-ts/extra";
+import { fromAny } from "@graphrefly/pure-ts/extra";
 import { singleFromAny } from "../../../../base/composition/single-from-any.js";
 import { firstValueFrom } from "../../../../base/sources/settled.js";
 import { contentAddressedCache } from "../_internal/content-addressed-cache.js";

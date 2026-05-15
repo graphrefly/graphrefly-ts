@@ -17,6 +17,7 @@
 import { COMPLETE, DATA, ERROR, type Messages, type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
+import { defaultLlmExecutor, defaultLlmVerifier } from "../../../presets/harness/index.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -25,8 +26,6 @@ import type {
 } from "../../../utils/ai/index.js";
 import {
 	actuatorExecutor,
-	defaultLlmExecutor,
-	defaultLlmVerifier,
 	type HarnessJobPayload,
 	type TriagedItem,
 } from "../../../utils/harness/index.js";
@@ -317,7 +316,7 @@ describe("evalVerifier — async-evaluator §9a coverage", () => {
 		// coalescing; async emits skip the §9a hazard entirely (no nested
 		// emit during subscribe), so the JobFlow pump should still see the
 		// final settled scores via the standard first-DATA capture path.
-		const { evalVerifier } = await import("../../../utils/harness/eval-verifier.js");
+		const { evalVerifier } = await import("../../../presets/harness/eval-verifier.js");
 		type Row = { id: string };
 		type Score = { taskId: string; score: number };
 		const evaluator = (cands: Node<readonly string[]>, ds: Node<readonly Row[]>) => {
@@ -387,7 +386,7 @@ describe("evalVerifier — synchronous-emit-during-subscribe evaluator coalescin
 	it("coalesces evaluator's intra-construction emits via batch() so first DATA is the settled value", async () => {
 		// Import inside the test to avoid pulling refine-loop types into the
 		// top-level deps when not needed elsewhere.
-		const { evalVerifier } = await import("../../../utils/harness/eval-verifier.js");
+		const { evalVerifier } = await import("../../../presets/harness/eval-verifier.js");
 		// A "presenceEvaluator"-shaped evaluator: subscribes to candidates AND
 		// dataset; each subscribe-callback fires synchronously with the cached
 		// value, calls recompute() which emits to `out`. Without the §9a

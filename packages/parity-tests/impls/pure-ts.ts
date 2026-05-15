@@ -944,6 +944,22 @@ function buildPureTsStructures(): StructuresImpl {
 				at(index: number) {
 					return bundle.at(index);
 				},
+				async view(spec) {
+					const pureSpec =
+						spec.kind === "fromCursor"
+							? { kind: "fromCursor" as const, cursor: unwrap(spec.cursor) }
+							: spec;
+					return wrap(bundle.view(pureSpec));
+				},
+				async scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc) {
+					return wrap(bundle.scan(initial, step));
+				},
+				async attach(upstream) {
+					const off = bundle.attach(unwrap(upstream));
+					return async () => {
+						off();
+					};
+				},
 			};
 		},
 
@@ -1026,6 +1042,9 @@ function buildPureTsStructures(): StructuresImpl {
 				},
 				get(primary: K) {
 					return bundle.get(primary);
+				},
+				rangeByPrimary(start: number, end: number) {
+					return bundle.rangeByPrimary(start as unknown as K, end as unknown as K);
 				},
 			};
 		},

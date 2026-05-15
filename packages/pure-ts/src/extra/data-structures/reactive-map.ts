@@ -244,12 +244,34 @@ export interface MapBackend<K, V> {
 	pruneExpired(): number;
 	/** Fresh snapshot of non-expired entries (does NOT mutate state). */
 	toMap(): ReadonlyMap<K, V>;
+	/**
+	 * DS14R1 — drains internal-prune change records (TTL-expiry, LRU-eviction)
+	 * buffered since the last drain, resetting the buffer. The reactive wrapper
+	 * calls this on every `version` advance and folds the records into
+	 * `mutationLog` so the delta stream stays in sync with `entries` snapshots.
+	 *
+	 * Optional. Backends that don't track internal prunes — custom backends, or
+	 * {@link NativeMapBackend} when `mutationLog` was not configured — omit it
+	 * (or return an empty iterable). Without it, `mutationLog` is missing
+	 * `reason:"expired"|"lru-evict"` delete records on read-time TTL prune / LRU
+	 * eviction (the prunes still apply correctly to `entries`; only the delta
+	 * stream desyncs). Same optionality posture as the post-1.0 `changesSince`.
+	 */
+	drainPruneRecords?(): Iterable<MapChangePayload<K, V>>;
 }
 
 export type NativeMapBackendOptions = {
 	maxSize?: number;
 	/** Default TTL in seconds. */
 	defaultTtl?: number;
+	/**
+	 * DS14R1 — when `true`, buffer `{kind:"delete",reason:"expired"|"lru-evict"}`
+	 * records on internal TTL prune / LRU eviction so {@link drainPruneRecords}
+	 * can hand them to the reactive layer's `mutationLog`. Default `false` — the
+	 * reactive wrapper enables it only when `mutationLog` is configured, so maps
+	 * without a delta companion pay zero buffering cost.
+	 */
+	trackPrunes?: boolean;
 };
 
 type MapEntry<V> = { value: V; expiresAt?: number };
@@ -277,9 +299,12 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
 	private readonly _store = new Map<K, MapEntry<V>>();
 	private readonly _maxSize?: number;
 	private readonly _defaultTtl?: number;
+	private readonly _trackPrunes: boolean;
+	/** DS14R1 — internal-prune change buffer; drained by {@link drainPruneRecords}. */
+	private _pruneBuf: MapChangePayload<K, V>[] = [];
 
 	constructor(options: NativeMapBackendOptions = {}) {
-		const { maxSize, defaultTtl } = options;
+		const { maxSize, defaultTtl, trackPrunes } = options;
 		if (maxSize !== undefined && maxSize < 1) {
 			throw new RangeError("maxSize must be >= 1");
 		}
@@ -288,6 +313,7 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
 		}
 		this._maxSize = maxSize;
 		this._defaultTtl = defaultTtl;
+		this._trackPrunes = trackPrunes ?? false;
 	}
 
 	get version(): number {
@@ -302,6 +328,9 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
 		const e = this._store.get(key);
 		if (e === undefined) return false;
 		if (this._isExpired(e)) {
+			if (this._trackPrunes) {
+				this._pruneBuf.push({ kind: "delete", key, previous: e.value, reason: "expired" });
+			}
 			this._store.delete(key);
 			this._version += 1;
 			return false;
@@ -314,6 +343,9 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
 		const e = this._store.get(key);
 		if (e === undefined) return undefined;
 		if (this._isExpired(e)) {
+			if (this._trackPrunes) {
+				this._pruneBuf.push({ kind: "delete", key, previous: e.value, reason: "expired" });
+			}
 			this._store.delete(key);
 			this._version += 1;
 			return undefined;
@@ -383,6 +415,9 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
 		let removed = 0;
 		for (const [k, e] of this._store) {
 			if (this._isExpired(e, now)) {
+				if (this._trackPrunes) {
+					this._pruneBuf.push({ kind: "delete", key: k, previous: e.value, reason: "expired" });
+				}
 				this._store.delete(k);
 				removed += 1;
 			}
@@ -427,8 +462,32 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
 		while (this._store.size > this._maxSize) {
 			const first = this._store.keys().next().value as K | undefined;
 			if (first === undefined) break;
+			if (this._trackPrunes) {
+				const e = this._store.get(first);
+				if (e !== undefined) {
+					this._pruneBuf.push({
+						kind: "delete",
+						key: first,
+						previous: e.value,
+						reason: "lru-evict",
+					});
+				}
+			}
 			this._store.delete(first);
 		}
+	}
+
+	/**
+	 * DS14R1 — returns and clears the internal-prune buffer (TTL-expiry +
+	 * LRU-eviction records accumulated since the last drain). Returns an empty
+	 * array when `trackPrunes` is off (the reactive wrapper still calls it
+	 * unconditionally; the cost is one empty-array allocation).
+	 */
+	drainPruneRecords(): Iterable<MapChangePayload<K, V>> {
+		if (this._pruneBuf.length === 0) return [];
+		const out = this._pruneBuf;
+		this._pruneBuf = [];
+		return out;
 	}
 }
 
@@ -489,7 +548,8 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		);
 	}
 	const backend: MapBackend<K, V> =
-		userBackend ?? new NativeMapBackend<K, V>({ maxSize, defaultTtl });
+		userBackend ??
+		new NativeMapBackend<K, V>({ maxSize, defaultTtl, trackPrunes: mutLogOpt != null });
 
 	// ── Mutation log companion (Phase 14.3) ──────────────────────────────────
 	const mutLog: ReactiveLogBundle<MapChange<K, V>> | undefined = mutLogOpt
@@ -600,6 +660,13 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			return op();
 		} finally {
 			if (backend.version !== prev) {
+				// DS14R1: fold backend-internal prunes (TTL-expiry / LRU-evict)
+				// into the same wave's change set BEFORE retention + snapshot, so
+				// `mutationLog` replays to exactly the emitted `entries` state.
+				// `enqueueChange` no-ops when no `mutationLog` is configured.
+				if (backend.drainPruneRecords) {
+					for (const rec of backend.drainPruneRecords()) enqueueChange(rec);
+				}
 				if (kind === "mutation") applyRetention();
 				pushSnapshot();
 			} else {

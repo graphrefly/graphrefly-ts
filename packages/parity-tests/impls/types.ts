@@ -297,6 +297,19 @@ export interface ImplReactiveLog<T> {
 	clear(): Promise<void>;
 	trimHead(n: number): Promise<void>;
 	at(index: number): T | undefined;
+
+	// F18 (D203 native-ship). `view` mirrors pure-ts's discriminated
+	// `ViewSpec`; the returned node emits `readonly T[]` snapshots.
+	view(
+		spec:
+			| { kind: "tail"; n: number }
+			| { kind: "slice"; start: number; stop?: number }
+			| { kind: "fromCursor"; cursor: ImplNode<number> },
+	): Promise<ImplNode<readonly T[]>>;
+	/** Running aggregate; node emits the current accumulator. */
+	scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc): Promise<ImplNode<TAcc>>;
+	/** Append every upstream DATA value into this log. Returns an unsub. */
+	attach(upstream: ImplNode<T>): Promise<UnsubFn>;
 }
 
 export interface ImplReactiveList<T> {
@@ -328,6 +341,21 @@ export interface ImplReactiveIndex<K, V> {
 	clear(): Promise<void>;
 	has(primary: K): boolean;
 	get(primary: K): V | undefined;
+	/**
+	 * F20 (D205). Values whose **numeric** primary key sorts within
+	 * `[start, end)` (inclusive start, exclusive end), ascending by
+	 * primary. Scenarios use numeric primaries so range comparison is
+	 * user-meaningful (never opaque-handle order). `start >= end` →
+	 * `[]`.
+	 *
+	 * **Numeric-primary-only on the rust arm:** the `@graphrefly/native`
+	 * mirror is keyed by `i64`, so a non-numeric primary cannot enter the
+	 * range mirror. The rust adapter THROWS if `rangeByPrimary` is called
+	 * after a non-numeric `upsert` (rather than silently returning a
+	 * partial result). pure-ts ranges the real primary map and supports
+	 * any orderable key. New range scenarios must use numeric primaries.
+	 */
+	rangeByPrimary(start: number, end: number): V[];
 }
 
 export interface StructuresImpl {

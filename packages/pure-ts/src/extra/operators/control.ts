@@ -13,7 +13,13 @@ import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 import { subscribeOr } from "../../core/subscribe-error.js";
-import { type ExtraOpts, operatorOpts, partialOperatorOpts } from "./_internal.js";
+import {
+	type AbortInFlightOpt,
+	type ExtraOpts,
+	fireAbortInFlight,
+	operatorOpts,
+	partialOperatorOpts,
+} from "./_internal.js";
 
 /**
  * Observer shape for {@link tap} — side effects for data, error, and/or complete.
@@ -397,9 +403,14 @@ export type ValveOpts = ExtraOpts & {
 	 * **Caller contract.** The caller threads `controller.signal` into the
 	 * async boundary they want to cancel (e.g. `adapter.invoke({ signal })`).
 	 * `valve` only fires `controller.abort()` — it does not own the
-	 * controller's lifecycle. If the controller is reused across multiple
-	 * valve cycles, the caller is responsible for minting a fresh one when
-	 * the gate re-opens.
+	 * controller's lifecycle.
+	 *
+	 * **AB-3 factory form.** Pass `() => AbortController | undefined` instead
+	 * of a bare controller to fix the panic-toggle (open→closed→open→closed)
+	 * re-mint ergonomics: `valve` calls the factory on each truthy→falsy edge
+	 * to obtain the controller currently wired into the in-flight call, so
+	 * the caller can mint a fresh controller per cycle without re-constructing
+	 * the valve. Returning `undefined` (nothing in flight) is a no-op.
 	 *
 	 * **Edge cases.**
 	 * - Already-aborted controller: `valve` calls `abort()` again, which is a
@@ -412,7 +423,7 @@ export type ValveOpts = ExtraOpts & {
 	 *   caller's signal handling on the async boundary already covers
 	 *   terminal-error cases.
 	 */
-	abortInFlight?: AbortController;
+	abortInFlight?: AbortInFlightOpt;
 };
 
 /**
@@ -465,7 +476,7 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ValveOp
 				// Truthy → falsy edge: fire abort. Skip if the prior state was
 				// also falsy (no edge) or undefined (activation, no prior).
 				if (prevControlValue === true && !controlValue) {
-					abortInFlight.abort();
+					fireAbortInFlight(abortInFlight);
 				}
 				prevControlValue = controlValue ? true : controlValue == null ? undefined : false;
 			}

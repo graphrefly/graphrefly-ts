@@ -158,7 +158,20 @@ export const DEFERRED_TOPIC = "deferred";
 export const SPAWNS_TOPIC = "spawns";
 
 /**
- * Tuple of all five well-known topic constants — useful for "register all
+ * DS-14.6.A D-B3 — well-known topic for the dynamic `actorPool()` shared
+ * tagged-context pool. Actors publish `ContextEntry` here; per-actor views
+ * render their own compressed slice.
+ */
+export const CONTEXT_TOPIC = "context";
+
+/**
+ * DS-14.6.A D-B3 — well-known topic for the `actorPool()` shared todo list.
+ * Any actor may `enqueueTodo`; actors pull assigned todos via their cursor.
+ */
+export const TODOS_TOPIC = "todos";
+
+/**
+ * Tuple of all well-known topic constants — useful for "register all
  * standard topics on a hub" patterns and for compile-time exhaustiveness
  * checks.
  */
@@ -168,9 +181,11 @@ export const STANDARD_TOPICS = [
 	INJECTIONS_TOPIC,
 	DEFERRED_TOPIC,
 	SPAWNS_TOPIC,
+	CONTEXT_TOPIC,
+	TODOS_TOPIC,
 ] as const;
 
 /**
- * Union of all five well-known topic name string literals.
+ * Union of all well-known topic name string literals.
  */
 export type StandardTopic = (typeof STANDARD_TOPICS)[number];

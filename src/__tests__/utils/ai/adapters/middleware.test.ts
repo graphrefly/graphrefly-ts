@@ -20,16 +20,11 @@ import {
 
 function mockAdapter(
 	responses: readonly (LLMResponse | Error)[] = [],
-	opts?: { abortCapable?: boolean },
 ): LLMAdapter & { calls: number } {
 	let i = 0;
 	const adapter: LLMAdapter & { calls: number } = {
 		provider: "mock",
 		model: "mock-m",
-		// QA D3 (Phase 13.6.B QA pass): default `abortCapable: true` so
-		// existing tests don't trigger the wire-time warning. Tests
-		// covering the warning explicitly pass `abortCapable: false`.
-		abortCapable: opts?.abortCapable ?? true,
 		calls: 0,
 		invoke(): Promise<LLMResponse> {
 			adapter.calls += 1;
@@ -85,7 +80,6 @@ describe("withBudgetGate", () => {
 		const slowInner: LLMAdapter = {
 			provider: "slow",
 			model: "slow-m",
-			abortCapable: true,
 			invoke(_messages, opts): Promise<LLMResponse> {
 				return new Promise<LLMResponse>((_resolve, reject) => {
 					if (opts?.signal != null) {
@@ -120,20 +114,9 @@ describe("withBudgetGate", () => {
 		expect(externalAbortReason).toBeDefined();
 	});
 
-	it("QA D3: emits dev-mode warning when adapter does not declare abortCapable", () => {
+	it("AB-1: withBudgetGate emits no abortCapable warning (flag removed)", () => {
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-		const inner = mockAdapter([], { abortCapable: false });
-		const { budget } = withBudgetGate(inner, { caps: { calls: 1 } });
-		expect(warnSpy).toHaveBeenCalledTimes(1);
-		expect(warnSpy.mock.calls[0]?.[0]).toMatch(/abortCapable/);
-		expect(warnSpy.mock.calls[0]?.[0]).toMatch(/Lock 3\.C/);
-		budget.dispose();
-		warnSpy.mockRestore();
-	});
-
-	it("QA D3: no warning when adapter declares abortCapable: true", () => {
-		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-		const inner = mockAdapter([], { abortCapable: true });
+		const inner = mockAdapter([]);
 		const { budget } = withBudgetGate(inner, { caps: { calls: 1 } });
 		expect(warnSpy).not.toHaveBeenCalled();
 		budget.dispose();

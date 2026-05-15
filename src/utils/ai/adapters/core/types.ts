@@ -278,22 +278,16 @@ export interface LLMAdapter {
 	/** Optional capability lookup; typically delegates to a `CapabilitiesRegistry`. */
 	capabilities?(model?: string): import("./capabilities.js").ModelCapabilities | undefined;
 	/**
-	 * Lock 3.C / QA D3 (Phase 13.6.B) — capability flag. When `true`, the
-	 * adapter promises to honor `opts.signal: AbortSignal` end-to-end:
-	 * mid-call aborts cancel the underlying I/O (`fetch` request,
-	 * child-process kill, DB cancel) and propagate as a rejection / thrown
-	 * error to the caller. When `false` / absent, the adapter does NOT
-	 * cooperate with abort — `withBudgetGate` falls back to "gate cuts
-	 * propagation; in-flight call's tokens still burn until natural
-	 * completion" and emits a one-shot dev-mode warning at wire time so
-	 * the gap is observable.
-	 *
-	 * SDK-backed adapters (anthropic, openai, google) should default this
-	 * to `true` once their `invoke` / `stream` implementations thread
-	 * `signal` into the SDK call site. Hand-rolled / mock adapters opt in
-	 * once they wire abort.
+	 * DS-14.5 / AB-1 — honoring `opts.signal: AbortSignal` end-to-end is a
+	 * **hard adapter contract**, not an opt-in capability. Every adapter MUST
+	 * thread `opts.signal` into its underlying I/O (`fetch` request,
+	 * child-process kill, DB cancel) so a mid-call abort cancels the work and
+	 * surfaces as a rejection / thrown error. The prior optional
+	 * `abortCapable?: boolean` flag (Lock 3.C / QA D3) was removed pre-1.0:
+	 * the capability-flag escape hatch silently permitted token burn-through
+	 * past `valve`-close / `switchMap`-supersede / budget exhaustion. There is
+	 * no longer a flag to set and no dev-mode warning — abort just works.
 	 */
-	readonly abortCapable?: boolean;
 }
 
 /** Discriminator for downstream type guards. */

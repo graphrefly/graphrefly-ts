@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createAuditLog, mutate } from "../../../base/mutation/index.js";
 import { jobFlow, jobQueue } from "../../../utils/job-queue/index.js";
 import {
+	CONTEXT_TOPIC,
 	DEFERRED_TOPIC,
 	type HubRemoveTopicRecord,
 	hubRemoveTopicKeyOf,
@@ -21,6 +22,7 @@ import {
 	subscription,
 	subscriptionAckKeyOf,
 	subscriptionPullAndAckKeyOf,
+	TODOS_TOPIC,
 	type TopicPublishRecord,
 	topic,
 	topicBridge,
@@ -520,21 +522,25 @@ describe("patterns.messagingHub", () => {
 // ---------------------------------------------------------------------------
 
 describe("patterns.messaging — Message envelope + standard topic constants (Phase 13.B)", () => {
-	it("exposes the five well-known topic constants with stable names", () => {
+	it("exposes the well-known topic constants with stable names", () => {
 		expect(PROMPTS_TOPIC).toBe("prompts");
 		expect(RESPONSES_TOPIC).toBe("responses");
 		expect(INJECTIONS_TOPIC).toBe("injections");
 		expect(DEFERRED_TOPIC).toBe("deferred");
 		expect(SPAWNS_TOPIC).toBe("spawns");
+		expect(CONTEXT_TOPIC).toBe("context");
+		expect(TODOS_TOPIC).toBe("todos");
 	});
 
-	it("STANDARD_TOPICS tuple contains all five constants in declared order", () => {
+	it("STANDARD_TOPICS tuple contains all well-known constants in declared order", () => {
 		expect(STANDARD_TOPICS).toEqual([
 			PROMPTS_TOPIC,
 			RESPONSES_TOPIC,
 			INJECTIONS_TOPIC,
 			DEFERRED_TOPIC,
 			SPAWNS_TOPIC,
+			CONTEXT_TOPIC,
+			TODOS_TOPIC,
 		]);
 		// Compile-time check: StandardTopic is the union of the literal types.
 		const _t: StandardTopic = "prompts";

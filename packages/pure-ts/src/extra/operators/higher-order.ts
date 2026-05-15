@@ -23,7 +23,32 @@ import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 import { trySubscribeOrDead } from "../../core/subscribe-error.js";
 import { fromAny, type NodeInput } from "../sources/index.js";
-import { type ExtraOpts, operatorOpts } from "./_internal.js";
+import {
+	type AbortInFlightOpt,
+	type ExtraOpts,
+	fireAbortInFlight,
+	operatorOpts,
+} from "./_internal.js";
+
+/** DS-14.5 / AB-2 — shared `*Map` opts: `ExtraOpts` + `abortInFlight`. */
+export type HigherOrderOpts = ExtraOpts & {
+	/**
+	 * AB-2/AB-3 — fired when the operator force-tears an in-flight inner
+	 * (supersede / source-ERROR / deactivation), so an inner that wraps an
+	 * `adapter.invoke({ signal })` LLM call actually stops instead of burning
+	 * tokens past the cut. Bare `AbortController` or factory `() =>
+	 * AbortController | undefined` (see {@link AbortInFlightOpt}). Natural
+	 * inner completion does NOT fire it.
+	 *
+	 * **`mergeMap` + `concurrent > 1` caveat:** `clearAll()` fires
+	 * `abortInFlight` ONCE for the whole batch, so the factory form yields a
+	 * single controller — only one of N concurrent in-flight calls is
+	 * cancelled. For per-inner cancellation under concurrency, thread a
+	 * distinct signal into each inner inside the `project` fn instead of
+	 * relying on this opt.
+	 */
+	abortInFlight?: AbortInFlightOpt;
+};
 
 /**
  * Forward an inner node's messages into the outer operator's actions.
@@ -136,8 +161,9 @@ function forwardInner<R>(
 export function switchMap<T, R>(
 	source: Node<T>,
 	project: (value: T) => NodeInput<R>,
-	opts?: ExtraOpts,
+	opts?: HigherOrderOpts,
 ): Node<R> {
+	const { abortInFlight, ...nodeOpts } = opts ?? {};
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
 
@@ -145,13 +171,18 @@ export function switchMap<T, R>(
 		innerUnsub?.();
 		innerUnsub = undefined;
 	}
+	/** Tear an in-flight inner due to force-cancel (supersede / deactivation). */
+	function cancelInner(): void {
+		if (innerUnsub) fireAbortInFlight(abortInFlight);
+		clearInner();
+	}
 
 	return node<R>(
 		[source as Node],
 		(data, a, ctx) => {
-			// Source ERROR: cleanup inner, autoError forwards
+			// Source ERROR: force-cancel inner, autoError forwards
 			if (ctx.terminalDeps[0] != null && ctx.terminalDeps[0] !== true) {
-				clearInner();
+				cancelInner();
 				return;
 			}
 			// Source COMPLETE
@@ -167,8 +198,9 @@ export function switchMap<T, R>(
 
 			// Switch: only the latest value matters; skip to the last in the
 			// batch to avoid creating and immediately discarding N-1 inners.
-			// clearInner() runs once to cancel any prior-wave inner.
-			clearInner();
+			// cancelInner() supersedes any prior-wave inner — fires
+			// abortInFlight so its in-flight async boundary (LLM call) stops.
+			cancelInner();
 			innerUnsub = forwardInner(
 				fromAny(project(batch0[batch0.length - 1] as T), { iter: true }),
 				a,
@@ -182,15 +214,15 @@ export function switchMap<T, R>(
 			// because the terminal wave needs to see innerUnsub intact.
 			return {
 				onDeactivation: () => {
-					clearInner();
+					cancelInner();
 					sourceDone = false;
 				},
 			};
 		},
 		{
-			...operatorOpts(opts),
+			...operatorOpts(nodeOpts),
 			completeWhenDepsComplete: false,
-			meta: { ...factoryTag("switchMap"), ...(opts?.meta ?? {}) },
+			meta: { ...factoryTag("switchMap"), ...(nodeOpts.meta ?? {}) },
 		},
 	);
 }
@@ -214,8 +246,9 @@ export function switchMap<T, R>(
 export function exhaustMap<T, R>(
 	source: Node<T>,
 	project: (value: T) => NodeInput<R>,
-	opts?: ExtraOpts,
+	opts?: HigherOrderOpts,
 ): Node<R> {
+	const { abortInFlight, ...nodeOpts } = opts ?? {};
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
 
@@ -223,12 +256,16 @@ export function exhaustMap<T, R>(
 		innerUnsub?.();
 		innerUnsub = undefined;
 	}
+	function cancelInner(): void {
+		if (innerUnsub) fireAbortInFlight(abortInFlight);
+		clearInner();
+	}
 
 	return node<R>(
 		[source as Node],
 		(data, a, ctx) => {
 			if (ctx.terminalDeps[0] != null && ctx.terminalDeps[0] !== true) {
-				clearInner();
+				cancelInner();
 				return;
 			}
 			if (ctx.terminalDeps[0] === true) {
@@ -253,12 +290,12 @@ export function exhaustMap<T, R>(
 
 			return {
 				onDeactivation: () => {
-					clearInner();
+					cancelInner();
 					sourceDone = false;
 				},
 			};
 		},
-		{ ...operatorOpts(opts), completeWhenDepsComplete: false },
+		{ ...operatorOpts(nodeOpts), completeWhenDepsComplete: false },
 	);
 }
 
@@ -281,9 +318,9 @@ export function exhaustMap<T, R>(
 export function concatMap<T, R>(
 	source: Node<T>,
 	project: (value: T) => NodeInput<R>,
-	opts?: ExtraOpts & { maxBuffer?: number },
+	opts?: HigherOrderOpts & { maxBuffer?: number },
 ): Node<R> {
-	const { maxBuffer: maxBuf, ...concatNodeOpts } = opts ?? {};
+	const { maxBuffer: maxBuf, abortInFlight, ...concatNodeOpts } = opts ?? {};
 	const queue: T[] = [];
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
@@ -292,6 +329,10 @@ export function concatMap<T, R>(
 	function clearInner(): void {
 		innerUnsub?.();
 		innerUnsub = undefined;
+	}
+	function cancelInner(): void {
+		if (innerUnsub) fireAbortInFlight(abortInFlight);
+		clearInner();
 	}
 
 	function tryPump(): void {
@@ -319,7 +360,7 @@ export function concatMap<T, R>(
 			actions = a;
 
 			if (ctx.terminalDeps[0] != null && ctx.terminalDeps[0] !== true) {
-				clearInner();
+				cancelInner();
 				queue.length = 0;
 				return;
 			}
@@ -338,7 +379,7 @@ export function concatMap<T, R>(
 
 			return {
 				onDeactivation: () => {
-					clearInner();
+					cancelInner();
 					queue.length = 0;
 					sourceDone = false;
 				},
@@ -349,7 +390,7 @@ export function concatMap<T, R>(
 }
 
 /** Options for {@link mergeMap}. */
-export type MergeMapOptions = ExtraOpts & {
+export type MergeMapOptions = HigherOrderOpts & {
 	/** Maximum number of concurrent inner subscriptions. Default: `Infinity` (unbounded). */
 	concurrent?: number;
 };
@@ -388,7 +429,7 @@ export function mergeMap<T, R>(
 	project: (value: T) => NodeInput<R>,
 	opts?: MergeMapOptions,
 ): Node<R> {
-	const { concurrent: concurrentOpt, ...mergeNodeOpts } = opts ?? {};
+	const { concurrent: concurrentOpt, abortInFlight, ...mergeNodeOpts } = opts ?? {};
 	const maxConcurrent =
 		concurrentOpt != null && concurrentOpt > 0 ? concurrentOpt : Number.POSITIVE_INFINITY;
 
@@ -435,6 +476,9 @@ export function mergeMap<T, R>(
 	}
 
 	function clearAll(): void {
+		// Force-teardown of all active inners (source-ERROR / deactivation) —
+		// fire abortInFlight so their in-flight async boundaries stop.
+		if (innerStops.size > 0) fireAbortInFlight(abortInFlight);
 		for (const u of innerStops) u();
 		innerStops.clear();
 		active = 0;

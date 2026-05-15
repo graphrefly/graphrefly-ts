@@ -36,7 +36,7 @@ import {
 	type BackoffStrategy,
 	NS_PER_MS,
 	resolveBackoffPreset,
-} from "../../utils/resilience/backoff.js";
+} from "../resilience/backoff.js";
 
 /**
  * Dual-mode buffer for the sink's backpressure queue.

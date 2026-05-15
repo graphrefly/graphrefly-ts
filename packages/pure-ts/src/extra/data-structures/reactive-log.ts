@@ -775,8 +775,16 @@ export function reactiveLog<T>(
 		scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc): Node<TAcc> {
 			let acc = initial;
 			let lastProcessedSize = 0;
-			return node<TAcc>([entries], (data, actions) => {
-				const arr = data[0] as readonly T[] | null | undefined;
+			return node<TAcc>([entries], (data, actions, ctx) => {
+				// `data[0]` is the BATCH of `entries` snapshots emitted this
+				// wave (`NodeFn` contract), not a single snapshot. Unwrap to
+				// the latest snapshot; fall back to `ctx.prevData[0]` when the
+				// wave carried no new DATA (`undefined` = entries never
+				// emitted → empty-log branch).
+				const batch = data[0];
+				const arr = (
+					batch !== undefined && batch.length > 0 ? batch[batch.length - 1] : ctx.prevData[0]
+				) as readonly T[] | null | undefined;
 				if (arr == null || arr.length === 0) {
 					// Log cleared or empty — reset accumulator.
 					acc = initial;

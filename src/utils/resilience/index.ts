@@ -2,25 +2,21 @@
  * Resilience utilities — roadmap §3.1 + §3.1c (retry, breaker, rate limit, status,
  * fallback, cache, timeout, budgetGate).
  *
- * This module is a thin barrel: every primitive lives in its own sub-file
- * (`retry.ts`, `breaker.ts`, `rate-limiter.ts`, `fallback.ts`, `status.ts`,
- * `timeout.ts`, plus the standalone `budget-gate.ts`, `resilient-pipeline.ts`,
- * and `backoff.ts` shim). Shared helpers + `NodeOrValue<T>` live in
- * `_internal.ts` and are re-surfaced here.
+ * This module is a thin barrel: domain-level primitives live in their own
+ * sub-file (`breaker.ts`, `rate-limiter.ts`, `fallback.ts`, plus the
+ * standalone `budget-gate.ts`). The zero-domain reactive operators
+ * (`retry`, `withStatus`, `withTimeout`, backoff strategies, `NodeOrValue<T>`)
+ * are base-layer — they live in `base/resilience/` and are re-surfaced here
+ * so the resilience family ships through one barrel. The `resilientPipeline`
+ * preset that composes these lives in `presets/resilience/`.
  */
 
-// resilientPipeline preset — moved from patterns/resilient-pipeline/ per
-// Tier 9.1 γ-form γ-R-2 (semantically belongs with the resilience family,
-// not under ai/).
-export {
-	ResilientPipelineGraph,
-	type ResilientPipelineOptions,
-	resilientPipeline,
-} from "../../presets/resilience/resilient-pipeline.js";
-// `NodeOrValue<T>` — the reactive-option type alias used by every primitive
-// in this folder. Sourced from `_internal.ts` so all sub-files share one
-// definition.
-export type { NodeOrValue } from "./_internal.js";
+// Zero-domain reactive operators — base-layer, re-surfaced here so the
+// resilience family ships through one barrel.
+export type { NodeOrValue } from "../../base/resilience/_internal.js";
+export * from "../../base/resilience/retry.js";
+export * from "../../base/resilience/status.js";
+export * from "../../base/resilience/timeout.js";
 export * from "./breaker.js";
 // budgetGate lives in its own file per Tier 2.2 (promoted from
 // patterns/reduction/) — re-export here so it ships through the barrel.
@@ -35,6 +31,3 @@ export {
 export * from "./fallback.js";
 export type { GateState } from "./gate-state.js";
 export * from "./rate-limiter.js";
-export * from "./retry.js";
-export * from "./status.js";
-export * from "./timeout.js";

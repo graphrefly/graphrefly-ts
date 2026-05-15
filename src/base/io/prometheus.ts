@@ -8,7 +8,7 @@
 import { COMPLETE, ERROR, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import type { AsyncSourceOpts } from "@graphrefly/pure-ts/extra";
 import { fromTimer, switchMap } from "@graphrefly/pure-ts/extra";
-import { NS_PER_MS, NS_PER_SEC } from "../../utils/resilience/backoff.js";
+import { NS_PER_MS, NS_PER_SEC } from "../resilience/backoff.js";
 
 /** Parsed Prometheus metric. */
 export type PrometheusMetric = {

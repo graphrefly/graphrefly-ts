@@ -340,3 +340,54 @@ describe("pubsub with user-provided backend", () => {
 		expect(backend.removeLog).toEqual(["a"]);
 	});
 });
+
+describe("pubsub DS14R2 — mutationLog", () => {
+	type AnyPubSubChange = {
+		structure: string;
+		lifecycle: string;
+		change:
+			| { kind: "publish"; value: unknown }
+			| { kind: "remove"; name: string }
+			| { kind: "ack"; count: number; cursor: number };
+	};
+	function lastLog(node: Parameters<typeof collect>[0]): AnyPubSubChange[] {
+		const { messages, unsub } = collect(node, { flat: true });
+		unsub();
+		let out: AnyPubSubChange[] = [];
+		for (const m of messages) if (m[0] === DATA) out = m[1] as AnyPubSubChange[];
+		return out;
+	}
+
+	it("absent by default; present when configured", () => {
+		expect(pubsub().mutationLog).toBeUndefined();
+		expect(pubsub({ mutationLog: true }).mutationLog).toBeDefined();
+	});
+
+	it("publish / publishMany / removeTopic append typed records", () => {
+		const hub = pubsub({ mutationLog: true });
+		hub.publish("a", 1);
+		hub.publishMany([
+			["a", 2],
+			["b", 3],
+		]);
+		hub.removeTopic("a");
+		const log = lastLog(hub.mutationLog!.entries);
+		expect(log.map((c) => c.change.kind)).toEqual(["publish", "publish", "publish", "remove"]);
+		expect(log.every((c) => c.structure === "pubsub" && c.lifecycle === "data")).toBe(true);
+		const rem = log.find((c) => c.change.kind === "remove");
+		expect(rem?.change).toMatchObject({ kind: "remove", name: "a" });
+	});
+
+	it("same-wave: a topic subscriber and a mutationLog subscriber see consistent state", () => {
+		const hub = pubsub({ mutationLog: true });
+		const topicSeen: unknown[] = [];
+		const unsubT = hub.topic("t").subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) topicSeen.push(m[1]);
+		});
+		hub.publish("t", 42);
+		const log = lastLog(hub.mutationLog!.entries);
+		expect(topicSeen).toContain(42);
+		expect(log.at(-1)?.change).toMatchObject({ kind: "publish", value: 42 });
+		unsubT();
+	});
+});

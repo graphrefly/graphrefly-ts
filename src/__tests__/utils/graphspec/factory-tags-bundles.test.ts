@@ -16,11 +16,11 @@ import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { distill } from "../../../base/composition/distill.js";
 import { verifiable } from "../../../base/composition/verifiable.js";
+import { withStatus } from "../../../base/resilience/status.js";
 import { handoff } from "../../../utils/ai/agents/handoff.js";
 import { toolSelector } from "../../../utils/ai/agents/tool-selector.js";
 import { circuitBreaker, withBreaker } from "../../../utils/resilience/breaker.js";
 import { fallback } from "../../../utils/resilience/fallback.js";
-import { withStatus } from "../../../utils/resilience/status.js";
 
 describe("Tier 1.5.3 Phase 2.5 — bundle-factory primary-node tagging", () => {
 	it("verifiable.verified self-tags with factory: 'verifiable'", () => {

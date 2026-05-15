@@ -11,13 +11,12 @@
 import { COMPLETE, DATA, type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
+import { evalVerifier, harnessLoop } from "../../../presets/harness/index.js";
 import type { DatasetItem, EvalResult, Evaluator } from "../../../presets/harness/refine-loop.js";
 import {
 	actuatorExecutor,
 	dispatchActuator,
-	evalVerifier,
 	type HarnessJobPayload,
-	harnessLoop,
 	type TriagedItem,
 	type VerifyResult,
 } from "../../../utils/harness/index.js";

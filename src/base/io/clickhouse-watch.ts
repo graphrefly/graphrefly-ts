@@ -6,7 +6,7 @@
 
 import { COMPLETE, ERROR, type Node, node } from "@graphrefly/pure-ts/core";
 import { type AsyncSourceOpts, fromTimer, switchMap } from "@graphrefly/pure-ts/extra";
-import { NS_PER_MS, NS_PER_SEC } from "../../utils/resilience/backoff.js";
+import { NS_PER_MS, NS_PER_SEC } from "../resilience/backoff.js";
 
 /** Structured ClickHouse query result row. */
 export type ClickHouseRow = Record<string, unknown>;

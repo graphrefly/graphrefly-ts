@@ -10,6 +10,39 @@ import type { NodeOptions } from "../../core/node.js";
 
 export type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
 
+/**
+ * DS-14.5 / AB-2 + AB-3 — `abortInFlight` opt shared by `valve` and the
+ * `*Map` higher-order family. When the operator cancels an in-flight inner
+ * (gate close for `valve`; supersede / source-ERROR / deactivation teardown
+ * for `switchMap`/`exhaustMap`/`concatMap`/`mergeMap`), it fires this so the
+ * underlying async boundary (e.g. an `adapter.invoke({ signal })` LLM call)
+ * actually stops instead of burning tokens past the cut.
+ *
+ * - **Bare `AbortController`** (AB-2): the controller `valve`/`*Map` aborts
+ *   on the cancel edge. One-shot — once aborted it stays aborted; re-mint
+ *   for the next cycle (or use the factory form).
+ * - **Factory `() => AbortController | undefined`** (AB-3): called on every
+ *   cancel edge to obtain the controller to abort. Lets the caller hand the
+ *   operator "the controller currently wired into the in-flight call" each
+ *   cycle without re-constructing the operator — fixes the panic-toggle
+ *   (open→closed→open→closed) re-mint ergonomics. Returning `undefined`
+ *   (nothing in flight) is a no-op.
+ */
+export type AbortInFlightOpt = AbortController | (() => AbortController | undefined);
+
+/**
+ * Fires an {@link AbortInFlightOpt} on a cancel edge. Resolves the factory
+ * form, skips already-aborted / absent controllers (idempotent — aborting a
+ * settled request is a harmless no-op per the `AbortController` spec, so
+ * callers may invoke this on every teardown without distinguishing
+ * natural-completion from force-cancel).
+ */
+export function fireAbortInFlight(a: AbortInFlightOpt | undefined): void {
+	if (a == null) return;
+	const ctrl = typeof a === "function" ? a() : a;
+	if (ctrl != null && !ctrl.signal.aborted) ctrl.abort();
+}
+
 export function operatorOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
 	return { describeKind: "derived", ...opts } as NodeOptions<T>;
 }

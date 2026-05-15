@@ -22,7 +22,7 @@
 
 import { DATA, monotonicNs, type Node, node, ResettableTimer } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput } from "@graphrefly/pure-ts/extra";
-import { NS_PER_SEC } from "./backoff.js";
+import { NS_PER_SEC } from "../../base/resilience/backoff.js";
 import { type TokenBucket, tokenBucket } from "./rate-limiter.js";
 
 // ---------------------------------------------------------------------------

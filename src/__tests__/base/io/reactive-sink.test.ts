@@ -12,7 +12,7 @@ function makeSrc<T>(): { src: import("../../core/node.js").Node<T>; emit: (v: T)
 }
 
 import { reactiveSink, type SinkFailure, type SinkTransportError } from "../../../base/io/_sink.js";
-import { constant, NS_PER_MS } from "../../../utils/resilience/backoff.js";
+import { constant, NS_PER_MS } from "../../../base/resilience/backoff.js";
 
 type CompanionSnap = {
 	sent: unknown[];

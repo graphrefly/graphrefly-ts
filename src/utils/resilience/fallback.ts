@@ -18,7 +18,12 @@ import {
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
 import { fromAny } from "@graphrefly/pure-ts/extra";
-import { isAsyncIterable, isNode, isThenable, operatorOpts } from "./_internal.js";
+import {
+	isAsyncIterable,
+	isNode,
+	isThenable,
+	operatorOpts,
+} from "../../base/resilience/_internal.js";
 
 /** Inputs accepted by {@link fallback}. */
 export type FallbackInput<T> = T | Node<T> | PromiseLike<T> | AsyncIterable<T>;

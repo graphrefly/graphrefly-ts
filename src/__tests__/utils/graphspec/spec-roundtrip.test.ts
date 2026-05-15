@@ -206,7 +206,7 @@ describe("compileSpec reads meta.factory directly (Tier 1.5.3 Phase 3)", () => {
 describe("Phase 2 — tagged factories surface meta.factory in describe()", () => {
 	it("rateLimiter tags itself", async () => {
 		const { rateLimiter } = await import("../../../utils/resilience/index.js");
-		const { NS_PER_SEC } = await import("../../../utils/resilience/backoff.js");
+		const { NS_PER_SEC } = await import("../../../base/resilience/backoff.js");
 
 		const src = node([], { initial: 0 });
 		const { node: limited } = rateLimiter(src, {
@@ -233,7 +233,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 
 	it("timeout tags itself", async () => {
 		const { withTimeout: timeout } = await import("../../../utils/resilience/index.js");
-		const { NS_PER_SEC } = await import("../../../utils/resilience/backoff.js");
+		const { NS_PER_SEC } = await import("../../../base/resilience/backoff.js");
 
 		const src = node([], { initial: 0 });
 		const timed = timeout(src, { ns: 5 * NS_PER_SEC }).node;

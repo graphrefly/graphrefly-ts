@@ -12,7 +12,7 @@ import {
 	NS_PER_SEC,
 	resolveBackoffPreset,
 	withMaxAttempts,
-} from "../../../utils/resilience/backoff.js";
+} from "../../../base/resilience/backoff.js";
 import {
 	type BudgetGateState,
 	budgetGate,

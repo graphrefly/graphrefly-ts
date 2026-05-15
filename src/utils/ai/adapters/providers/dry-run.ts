@@ -110,11 +110,6 @@ export function dryRunAdapter(opts: DryRunAdapterOptions = {}): LLMAdapter {
 	return {
 		provider,
 		model,
-		// QA D3 (Phase 13.6.B): adapter honors `invokeOpts.signal` —
-		// `sleep(latencyMs, signal)` aborts mid-latency, the post-sleep
-		// guard rejects with `makeAbortError()`. Suppresses the
-		// budget-gate wire-time warning.
-		abortCapable: true,
 
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			await sleep(latencyMs, invokeOpts?.signal);
