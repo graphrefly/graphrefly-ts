@@ -7,8 +7,8 @@
 //   const msgs$   = toObservable(myNode, { raw: true });    // Observable<Messages>
 // ---------------------------------------------------------------------------
 
-import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core";
 import type { Node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core";
 import { Observable } from "rxjs";
 
 /** Options for {@link toObservable}. */

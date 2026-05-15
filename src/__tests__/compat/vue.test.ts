@@ -1,5 +1,4 @@
-import { DATA } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { effectScope, isReadonly, isRef, nextTick, ref } from "vue";
 import { useStore, useSubscribe, useSubscribeRecord } from "../../compat/vue/index.js";

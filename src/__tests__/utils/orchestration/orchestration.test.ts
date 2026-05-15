@@ -1,5 +1,4 @@
-import { DATA, TEARDOWN } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, node, TEARDOWN } from "@graphrefly/pure-ts/core";
 import { delay, valve } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";

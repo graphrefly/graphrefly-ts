@@ -9,8 +9,7 @@
  * - `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` — convenience factory
  * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
-import { monotonicNs } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { emitToMeta } from "../../base/meta/emit-to-meta.js";

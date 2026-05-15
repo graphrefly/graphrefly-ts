@@ -15,12 +15,20 @@
  * Construction: `pipelineGraph(name, opts?)` or `new PipelineGraph(name, opts)`.
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { wallClockNs } from "@graphrefly/pure-ts/core";
 import type { NodeActions } from "@graphrefly/pure-ts/core";
-import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
-import { factoryTag, placeholderArgs } from "@graphrefly/pure-ts/core";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	COMPLETE,
+	DATA,
+	ERROR,
+	factoryTag,
+	type Node,
+	type NodeOptions,
+	node,
+	placeholderArgs,
+	RESOLVED,
+	wallClockNs,
+} from "@graphrefly/pure-ts/core";
 import type { ReactiveLogBundle } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { domainMeta } from "../../base/meta/domain-meta.js";

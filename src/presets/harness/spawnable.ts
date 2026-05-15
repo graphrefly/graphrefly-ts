@@ -34,22 +34,19 @@
  * `valve` per the recipe.
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { wallClockNs } from "@graphrefly/pure-ts/core";
-import { DATA } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { batch, DATA, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { aiMeta } from "../../utils/ai/_internal.js";
 import type { LLMResponse } from "../../utils/ai/adapters/core/types.js";
 import type { AgentBundle, AgentSpec, AgentStatus } from "../../utils/ai/agents/agent.js";
 import {
-	type TopicMessage,
 	type MessagingHubGraph,
 	SPAWNS_TOPIC,
 	type SubscriptionGraph,
 	subscription,
 	type TopicGraph,
+	type TopicMessage,
 	topic,
 } from "../../utils/messaging/index.js";
 import type { PresetRegistryBundle } from "../ai/agents.js";

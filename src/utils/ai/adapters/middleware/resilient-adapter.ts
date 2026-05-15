@@ -40,9 +40,9 @@
  * @module
  */
 
-import type { LLMAdapter } from "../core/types.js";
-import type { CircuitBreaker } from "../../../resilience/breaker.js";
 import type { AdaptiveRateLimiterBundle } from "../../../resilience/adaptive-rate-limiter.js";
+import type { CircuitBreaker } from "../../../resilience/breaker.js";
+import type { LLMAdapter } from "../core/types.js";
 import type { CascadeExhaustionReport } from "../routing/cascading.js";
 import { cascadingLlmAdapter } from "../routing/cascading.js";
 import { type WithBreakerOptions, withLLMBreaker } from "./breaker.js";

@@ -1,5 +1,4 @@
-import { DATA } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { distill } from "../../../base/composition/distill.js";
 import { verifiable } from "../../../base/composition/verifiable.js";

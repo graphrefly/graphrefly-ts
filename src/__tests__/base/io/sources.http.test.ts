@@ -1,5 +1,4 @@
-import { DATA } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, node } from "@graphrefly/pure-ts/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fromHTTP, toHTTP } from "../../../base/io/http.js";
 

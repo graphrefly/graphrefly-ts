@@ -13,9 +13,9 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { LLMAdapter } from "../core/types.js";
 import type { KvStorageTier } from "@graphrefly/pure-ts/extra";
 import { fileKv } from "@graphrefly/pure-ts/extra/node";
+import type { LLMAdapter } from "../core/types.js";
 import {
 	type FallbackAdapterOptions as BaseFallbackAdapterOptions,
 	fallbackAdapter as baseFallbackAdapter,

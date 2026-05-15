@@ -2,8 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { DATA } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, node } from "@graphrefly/pure-ts/core";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { useStore, useSubscribe, useSubscribeRecord } from "../../compat/react/index.js";

@@ -4,9 +4,7 @@
  * sink). Compatible with `amqplib`-style channels.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core";
-import { ERROR } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { ERROR, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import { type AckableMessage, type ExtraOpts, sourceOpts } from "./_internal.js";
 import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 

@@ -12,11 +12,11 @@
  * and abort paths.
  */
 
-import { ResettableTimer } from "../../../../base/utils/resettable-timer.js";
-import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { firstValueFrom } from "../../../../base/sources/settled.js";
+import { ResettableTimer } from "../../../../base/utils/resettable-timer.js";
 import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
+import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 
 export interface WithRetryOptions {
 	/** Max total attempts (including the first). Default 3. */

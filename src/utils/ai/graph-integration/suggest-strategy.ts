@@ -2,10 +2,8 @@
 // suggestStrategy
 // ---------------------------------------------------------------------------
 
-import type { Actor } from "@graphrefly/pure-ts/core";
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
-import type { Node } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import type { Actor, Node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, ERROR, node } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput, switchMap, withLatestFrom } from "@graphrefly/pure-ts/extra";
 import type { Graph } from "@graphrefly/pure-ts/graph";
 import { resolveToolHandlerResult } from "../_internal.js";

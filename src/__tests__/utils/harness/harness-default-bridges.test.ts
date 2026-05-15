@@ -14,8 +14,7 @@
  *      sees `signal.aborted === true` (qa F2 regression for actuator-executor).
  */
 
-import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR, type Messages, type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
 import type {

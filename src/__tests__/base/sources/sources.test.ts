@@ -1,8 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, DIRTY, ERROR, node, RESOLVED } from "@graphrefly/pure-ts/core";
 // Substrate sources (fromTimer, fromIter, etc.) from pure-ts
 import {
 	empty,

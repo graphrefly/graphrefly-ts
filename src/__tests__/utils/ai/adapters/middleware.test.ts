@@ -1,7 +1,7 @@
 import { memoryKv } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
 import type { LLMAdapter, LLMResponse } from "../../../../utils/ai/adapters/core/types.js";
-import { withBreaker } from "../../../../utils/ai/adapters/middleware/breaker.js";
+import { withLLMBreaker } from "../../../../utils/ai/adapters/middleware/breaker.js";
 import {
 	BudgetExhaustedError,
 	withBudgetGate,
@@ -226,7 +226,7 @@ describe("withTimeout", () => {
 describe("withBreaker", () => {
 	it("opens after failureThreshold consecutive errors", async () => {
 		const inner = mockAdapter([new Error("e1"), new Error("e2"), new Error("e3"), okResp()]);
-		const { adapter } = withBreaker(inner, { failureThreshold: 2 });
+		const { adapter } = withLLMBreaker(inner, { failureThreshold: 2 });
 		await expect(Promise.resolve(adapter.invoke([{ role: "user", content: "a" }]))).rejects.toThrow(
 			"e1",
 		);

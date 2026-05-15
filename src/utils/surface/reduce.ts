@@ -21,8 +21,8 @@
  * @module
  */
 
-import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
 import type { Node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
 import type { GraphSpec, GraphSpecCatalog } from "../graphspec/index.js";
 import { createGraph } from "./create.js";
 import { SurfaceError } from "./errors.js";

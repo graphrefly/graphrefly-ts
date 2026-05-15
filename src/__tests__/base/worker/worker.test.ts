@@ -1,15 +1,15 @@
 import { MessageChannel } from "node:worker_threads";
-import { batch } from "@graphrefly/pure-ts/core";
 import type { Messages } from "@graphrefly/pure-ts/core";
 import {
+	batch,
 	COMPLETE,
 	DATA,
 	DIRTY,
 	ERROR,
+	node,
 	RESOLVED,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { workerBridge } from "../../../base/worker/bridge.js";

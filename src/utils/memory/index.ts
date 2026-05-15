@@ -26,8 +26,7 @@
  * @module
  */
 
-import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core";
-import { type Node, NodeImpl, node } from "@graphrefly/pure-ts/core";
+import { monotonicNs, type Node, NodeImpl, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import type { ReactiveLogBundle } from "@graphrefly/pure-ts/extra";
 import { fromTimer, keepalive, reactiveMap } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";

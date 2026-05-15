@@ -15,16 +15,19 @@
  *
  * @module
  */
-import type { Actor } from "@graphrefly/pure-ts/core";
-import { batch } from "@graphrefly/pure-ts/core";
-import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core";
-import type { GuardAction, NodeGuard, PolicyRuleData } from "@graphrefly/pure-ts/core";
-import { policyFromRules } from "@graphrefly/pure-ts/core";
-import { DATA } from "@graphrefly/pure-ts/core";
-import { placeholderArgs } from "@graphrefly/pure-ts/core";
-import { type Node, NodeImpl, node } from "@graphrefly/pure-ts/core";
-
-import { defaultHash } from "@graphrefly/pure-ts/core";
+import type { Actor, GuardAction, NodeGuard, PolicyRuleData } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	DATA,
+	defaultHash,
+	monotonicNs,
+	type Node,
+	NodeImpl,
+	node,
+	placeholderArgs,
+	policyFromRules,
+	wallClockNs,
+} from "@graphrefly/pure-ts/core";
 import { keepalive, reactiveLog } from "@graphrefly/pure-ts/extra";
 import {
 	Graph,

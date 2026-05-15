@@ -14,9 +14,7 @@
  *   values round-trip through `meta.factoryArgs.initial` (path (a)).
  */
 
-import { DATA } from "@graphrefly/pure-ts/core";
-import { factoryTag } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, factoryTag, node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { compileSpec, decompileSpec, type GraphSpec } from "../../../utils/graphspec/index.js";
@@ -245,7 +243,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		g.add(timed, { name: "timed" });
 		const spec = g.describe({ detail: "spec" });
 
-		expect(spec.nodes.timed?.meta?.factory).toBe("timeout");
+		expect(spec.nodes.timed?.meta?.factory).toBe("deadline");
 		const args = spec.nodes.timed?.meta?.factoryArgs as { ns: number };
 		expect(args.ns).toBe(5 * NS_PER_SEC);
 

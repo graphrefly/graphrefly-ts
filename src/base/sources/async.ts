@@ -10,9 +10,22 @@
  * `base/composition/single-from-any.ts`.
  */
 
-import { COMPLETE, DATA, ERROR, RESOLVED, START } from "@graphrefly/pure-ts/core";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
-import { type AsyncSourceOpts, type NodeInput, sourceOpts, wrapSubscribeHook } from "@graphrefly/pure-ts/extra";
+import {
+	COMPLETE,
+	DATA,
+	ERROR,
+	type Node,
+	type NodeOptions,
+	node,
+	RESOLVED,
+	START,
+} from "@graphrefly/pure-ts/core";
+import {
+	type AsyncSourceOpts,
+	type NodeInput,
+	sourceOpts,
+	wrapSubscribeHook,
+} from "@graphrefly/pure-ts/extra";
 
 /** Options for presentation-layer async operators: NodeOptions without `describeKind`. */
 type ExtraOpts = Omit<NodeOptions, "describeKind">;

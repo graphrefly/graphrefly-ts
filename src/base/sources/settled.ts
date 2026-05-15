@@ -20,8 +20,15 @@
  * - {@link reactiveCounter} — capped counter exposed as a `Node<number>`.
  */
 
-import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	type Messages,
+	type Node,
+	node,
+} from "@graphrefly/pure-ts/core";
 
 /**
  * Converts the first `DATA` on `source` into a Promise; rejects on `ERROR` or `COMPLETE` without data.

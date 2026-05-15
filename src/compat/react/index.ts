@@ -11,7 +11,7 @@
 //   const [count, setCount] = useStore(counter); // [T | undefined, setter]
 // ---------------------------------------------------------------------------
 
-import { DATA, DIRTY, type Messages, RESOLVED, type Node } from "@graphrefly/pure-ts/core";
+import { DATA, DIRTY, type Messages, type Node, RESOLVED } from "@graphrefly/pure-ts/core";
 import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 
 /**

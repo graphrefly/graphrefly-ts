@@ -2,8 +2,7 @@
  * `topologyView` integration tests (D3 — Three-layer view).
  */
 
-import { DATA } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, node } from "@graphrefly/pure-ts/core";
 import { Graph, type GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { layoutFrameToSvg } from "../../../base/render/index.js";

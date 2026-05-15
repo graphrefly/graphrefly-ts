@@ -20,21 +20,23 @@
  *   touching callback soup.
  */
 
-import { RingBuffer } from "./_ring-buffer.js";
 import {
 	COMPLETE,
 	DATA,
+	defaultConfig,
 	ERROR,
 	type Message,
+	type Node,
+	node,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
-import { defaultConfig, type Node, node } from "@graphrefly/pure-ts/core";
 import {
 	type BackoffPreset,
 	type BackoffStrategy,
 	NS_PER_MS,
 	resolveBackoffPreset,
 } from "../../utils/resilience/backoff.js";
+import { RingBuffer } from "./_ring-buffer.js";
 
 /**
  * Dual-mode buffer for the sink's backpressure queue.

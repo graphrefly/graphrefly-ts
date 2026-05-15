@@ -5,8 +5,7 @@
  * `Node<string>` upstreams.
  */
 
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, ERROR, type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 import { type ExtraOpts, sourceOpts } from "./_internal.js";
 
 /**

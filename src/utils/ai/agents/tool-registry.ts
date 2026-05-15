@@ -1,5 +1,4 @@
-import { ERROR, type Messages } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { ERROR, type Messages, type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAsyncIter, fromPromise, keepalive, reactiveMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { aiMeta, isNodeLike } from "../_internal.js";

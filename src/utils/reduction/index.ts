@@ -8,9 +8,16 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { COMPLETE, DATA, ERROR, type Message } from "@graphrefly/pure-ts/core";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	COMPLETE,
+	DATA,
+	ERROR,
+	type Message,
+	type Node,
+	type NodeOptions,
+	node,
+} from "@graphrefly/pure-ts/core";
 
 import { merge } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
@@ -20,11 +27,11 @@ import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 // ---------------------------------------------------------------------------
 
 export type { StepRef } from "../orchestration/pipeline-graph.js";
-import type { StepRef } from "../orchestration/pipeline-graph.js";
 
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import { domainMeta } from "../../base/meta/domain-meta.js";
 import { tryIncrementBounded } from "../../base/mutation/index.js";
+import type { StepRef } from "../orchestration/pipeline-graph.js";
 
 function baseMeta(kind: string, meta?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("reduction", kind, meta);

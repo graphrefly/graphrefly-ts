@@ -21,10 +21,7 @@
 // decision.
 // ---------------------------------------------------------------------------
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { monotonicNs } from "@graphrefly/pure-ts/core";
-import { DATA } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { batch, DATA, monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 import type { StorageHandle } from "@graphrefly/pure-ts/extra";
 import {
 	fromAny,

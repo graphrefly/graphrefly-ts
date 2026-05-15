@@ -16,8 +16,7 @@
  * └── meta: { block-count, layout-time-ns }
  * ```
  */
-import { monotonicNs } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { emitToMeta } from "../../base/meta/emit-to-meta.js";

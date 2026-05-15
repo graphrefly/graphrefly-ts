@@ -2,8 +2,7 @@
  * Tests for reactiveSink factory (src/extra/reactive-sink.ts).
  */
 
-import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR, type Messages, node } from "@graphrefly/pure-ts/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Helper: SENTINEL source that never pushes on subscribe but supports .down().

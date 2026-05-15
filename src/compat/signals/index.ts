@@ -1,4 +1,15 @@
-import { batch, COMPLETE, DATA, DIRTY, ERROR, type Messages, type Node, node, autoTrackNode, type TrackFn } from "@graphrefly/pure-ts/core";
+import {
+	autoTrackNode,
+	batch,
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	type Messages,
+	type Node,
+	node,
+	type TrackFn,
+} from "@graphrefly/pure-ts/core";
 
 /**
  * Options for creating signals.

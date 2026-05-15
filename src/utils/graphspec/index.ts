@@ -19,11 +19,7 @@
 
 import type { DescribeNodeOutput } from "@graphrefly/pure-ts/core";
 import { type Node, node } from "@graphrefly/pure-ts/core";
-import {
-	GRAPH_META_SEGMENT,
-	Graph,
-	type GraphDescribeOutput,
-} from "@graphrefly/pure-ts/graph";
+import { GRAPH_META_SEGMENT, Graph, type GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../ai/index.js";
 import { feedback as feedbackPrimitive } from "../reduction/index.js";
 

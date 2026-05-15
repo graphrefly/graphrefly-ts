@@ -33,15 +33,20 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { monotonicNs } from "@graphrefly/pure-ts/core";
-import { DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
-import { placeholderArgs } from "@graphrefly/pure-ts/core";
 // `createNode` is the local alias for `node` so calls don't shadow
 // `Graph.prototype.node` when the file's body inadvertently references the
 // graph's `.node()` method. B5f keeps protocol-primitive construction visually
 // distinct from graph-instance method dispatch.
-import { node as createNode, type Node } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	node as createNode,
+	DATA,
+	ERROR,
+	monotonicNs,
+	type Node,
+	placeholderArgs,
+	RESOLVED,
+} from "@graphrefly/pure-ts/core";
 import type { NodeInput } from "@graphrefly/pure-ts/extra";
 import { switchMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";

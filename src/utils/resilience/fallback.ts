@@ -11,11 +11,12 @@ import {
 	DATA,
 	DIRTY,
 	ERROR,
+	factoryTag,
+	type Node,
+	node,
 	RESOLVED,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
-import { factoryTag } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { isAsyncIterable, isNode, isThenable, operatorOpts } from "./_internal.js";
 

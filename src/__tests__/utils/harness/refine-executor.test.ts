@@ -7,8 +7,7 @@
  * works when the caller doesn't pass `executor` / `verifier`.
  */
 
-import { DATA } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { DATA, type Node, node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import type {

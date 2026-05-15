@@ -42,9 +42,7 @@
  *
  * @module
  */
-import { ERROR } from "@graphrefly/pure-ts/core";
-import { placeholderArgs } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { ERROR, type Node, node, placeholderArgs } from "@graphrefly/pure-ts/core";
 import { switchMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { domainMeta } from "../../base/meta/domain-meta.js";
@@ -55,8 +53,10 @@ import {
 	budgetGate,
 	type CircuitBreakerOptions,
 	circuitBreaker,
+	deadline,
 	type FallbackInput,
 	fallback,
+	type NodeOrValue,
 	type RateLimiterOptions,
 	type RateLimiterState,
 	type RetryOptions,
@@ -66,10 +66,8 @@ import {
 	type StatusValue,
 	type TimeoutOptions,
 	type TimeoutState,
-	deadline,
 	withBreaker,
 	withStatus,
-	type NodeOrValue,
 } from "../../utils/resilience/index.js";
 
 // ---------------------------------------------------------------------------

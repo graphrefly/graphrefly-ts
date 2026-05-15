@@ -5,10 +5,17 @@
  * `error` reactive nodes for UI and meta-snapshot consumers.
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
-import { factoryTag } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	factoryTag,
+	type Node,
+	node,
+	RESOLVED,
+} from "@graphrefly/pure-ts/core";
 import { msgVal, operatorOpts } from "./_internal.js";
 
 /**

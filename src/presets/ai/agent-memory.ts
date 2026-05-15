@@ -14,9 +14,7 @@
 // narrowing on agent-memory subgraphs.
 // ---------------------------------------------------------------------------
 
-import { DATA, RESOLVED } from "@graphrefly/pure-ts/core";
-import { placeholderArgs } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { DATA, type Node, node, placeholderArgs, RESOLVED } from "@graphrefly/pure-ts/core";
 import { fromAny, fromTimer, type NodeInput, switchMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import {
@@ -25,6 +23,7 @@ import {
 	distill,
 	type Extraction,
 } from "../../base/composition/distill.js";
+import type { LLMAdapter } from "../../utils/ai/adapters/core/types.js";
 import {
 	type MemoryWithTiersGraph,
 	memoryRetrieval,
@@ -36,7 +35,6 @@ import type { RetrievalEntry, RetrievalQuery } from "../../utils/ai/memory/retri
 import type { MemoryTiersBundle, MemoryTiersOptions } from "../../utils/ai/memory/tiers.js";
 import { llmConsolidator, llmExtractor } from "../../utils/ai/prompts/prompt-call.js";
 import type { KnowledgeGraph, VectorIndexGraph } from "../../utils/memory/index.js";
-import type { LLMAdapter } from "../../utils/ai/adapters/core/types.js";
 
 export type AgentMemoryOptions<TMem = unknown> = {
 	graph?: GraphOptions;

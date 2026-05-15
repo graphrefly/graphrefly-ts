@@ -10,8 +10,7 @@
  * @module
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 import { decay } from "../../base/utils/decay.js";
 import {
 	type AuditedSuccessTrackerGraph,

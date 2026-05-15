@@ -15,11 +15,13 @@ import {
 	DIRTY,
 	ERROR,
 	type Message,
+	type Node,
+	type NodeOptions,
+	node,
 	PAUSE,
 	RESOLVED,
 	RESUME,
 } from "@graphrefly/pure-ts/core";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 import { domainMeta } from "../../base/meta/domain-meta.js";
 import type { GateState } from "./gate-state.js";
 

@@ -8,11 +8,11 @@
  * `extra/resilience.ts` (spec §5.10 escape hatch documented on the class).
  */
 
-import { ResettableTimer } from "../../../../base/utils/resettable-timer.js";
-import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { firstValueFrom } from "../../../../base/sources/settled.js";
+import { ResettableTimer } from "../../../../base/utils/resettable-timer.js";
 import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
+import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 
 export class LLMTimeoutError extends Error {
 	override name = "LLMTimeoutError";

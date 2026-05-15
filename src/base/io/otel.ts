@@ -4,8 +4,8 @@
  * and wires the registrar callback to OTLP routes.
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
 import type { Node } from "@graphrefly/pure-ts/core";
+import { batch } from "@graphrefly/pure-ts/core";
 import { type BundleTriad, externalBundle } from "../composition/external-register.js";
 import type { ExtraOpts } from "./_internal.js";
 

@@ -2,9 +2,8 @@
  * Tests for 5.2d storage & sink adapters (src/extra/adapters.ts).
  */
 
-import { COMPLETE, DATA, DIRTY, ERROR } from "@graphrefly/pure-ts/core";
 import type { Node } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, DIRTY, ERROR, node } from "@graphrefly/pure-ts/core";
 import { fromIter } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
 import {

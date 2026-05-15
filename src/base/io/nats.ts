@@ -3,9 +3,7 @@
  * (publish sink). Compatible with `nats.js`-style clients.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core";
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, ERROR, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import { type ExtraOpts, sourceOpts } from "./_internal.js";
 import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 

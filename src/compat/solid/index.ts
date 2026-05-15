@@ -11,7 +11,7 @@
 //   const [count, setCount] = useStore(countNode); // [Accessor<number | undefined>, Setter]
 // ---------------------------------------------------------------------------
 
-import { DATA, DIRTY, type Messages, RESOLVED, type Node } from "@graphrefly/pure-ts/core";
+import { DATA, DIRTY, type Messages, type Node, RESOLVED } from "@graphrefly/pure-ts/core";
 import { createSignal, getOwner, onCleanup } from "solid-js";
 
 /** Solid accessor function — returns current value when called. */

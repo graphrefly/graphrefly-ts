@@ -19,11 +19,7 @@
  * `totals` / `log` surface.
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core";
-import { DATA } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
-import type { CallStatsEvent } from "../core/observable.js";
-import type { PricingFn } from "../core/pricing.js";
+import { DATA, monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 import { keepalive, type ReactiveLogBundle, reactiveLog } from "@graphrefly/pure-ts/extra";
 import {
 	adapterWrapper,
@@ -32,6 +28,8 @@ import {
 	emptyUsageStub,
 	withLayer,
 } from "../_internal/wrappers.js";
+import type { CallStatsEvent } from "../core/observable.js";
+import type { PricingFn } from "../core/pricing.js";
 import type {
 	ChatMessage,
 	LLMAdapter,

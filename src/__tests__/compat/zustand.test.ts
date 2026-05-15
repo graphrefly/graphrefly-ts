@@ -1,5 +1,4 @@
-import { DATA } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it, vi } from "vitest";
 import { create } from "../../compat/zustand/index.js";
 

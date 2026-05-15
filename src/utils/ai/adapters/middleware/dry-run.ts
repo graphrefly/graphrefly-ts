@@ -12,9 +12,9 @@
  * be GC'd.
  */
 
-import type { LLMAdapter } from "../core/types.js";
 import { fromAny, keepalive, type NodeInput } from "@graphrefly/pure-ts/extra";
 import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
+import type { LLMAdapter } from "../core/types.js";
 import { dryRunAdapter } from "../providers/dry-run.js";
 
 export interface WithDryRunOptions {

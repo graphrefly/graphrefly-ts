@@ -15,11 +15,9 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { batch, type Node, node } from "@graphrefly/pure-ts/core";
 import { filter } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
-import type { JobEnvelope } from "../job-queue/index.js";
 import type {
 	DatasetItem,
 	EvalResult,
@@ -27,6 +25,7 @@ import type {
 	RefineLoopOptions,
 	RefineStrategy,
 } from "../../presets/harness/refine-loop.js";
+import type { JobEnvelope } from "../job-queue/index.js";
 import { refineExecutor } from "./refine-executor.js";
 
 import type {

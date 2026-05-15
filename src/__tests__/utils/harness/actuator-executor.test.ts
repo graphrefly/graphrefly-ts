@@ -8,8 +8,7 @@
  *   - end-to-end pairing with `evalVerifier` through `harnessLoop`
  */
 
-import { COMPLETE, DATA } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
 import type { DatasetItem, EvalResult, Evaluator } from "../../../presets/harness/refine-loop.js";

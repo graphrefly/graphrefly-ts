@@ -1,5 +1,4 @@
-import { factoryTag } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { factoryTag, type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput } from "@graphrefly/pure-ts/extra";
 import { aiMeta } from "../_internal.js";
 import type { ToolDefinition } from "../adapters/core/types.js";

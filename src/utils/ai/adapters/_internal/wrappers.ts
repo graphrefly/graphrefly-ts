@@ -21,11 +21,9 @@
  *   way they inspect graph topology.
  */
 
-import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core";
-import { ERROR } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
-import type { CallStatsEvent } from "../core/observable.js";
+import { ERROR, monotonicNs, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import { fromAny, onFirstData } from "@graphrefly/pure-ts/extra";
+import type { CallStatsEvent } from "../core/observable.js";
 import type {
 	ChatMessage,
 	LLMAdapter,

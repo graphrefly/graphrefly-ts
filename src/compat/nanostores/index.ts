@@ -1,4 +1,13 @@
-import { batch, DATA, ERROR, type Messages, type Node, node, dynamicNode, type TrackFn } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	DATA,
+	dynamicNode,
+	ERROR,
+	type Messages,
+	type Node,
+	node,
+	type TrackFn,
+} from "@graphrefly/pure-ts/core";
 
 /**
  * A Nanostores-compatible atom.

@@ -16,7 +16,16 @@
  * declarative wiring over typed audit records.
  */
 
-import { batch, wallClockNs, type NodeGuard, policy, DATA, DIRTY, type Node, node } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	DATA,
+	DIRTY,
+	type Node,
+	type NodeGuard,
+	node,
+	policy,
+	wallClockNs,
+} from "@graphrefly/pure-ts/core";
 import {
 	type ReactiveLogBundle,
 	type ReactiveLogOptions,

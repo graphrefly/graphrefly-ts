@@ -8,8 +8,7 @@
  * @module
  */
 
-import type { GraphChange } from "@graphrefly/pure-ts/graph";
-import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
+import type { GraphChange, GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 
 /**
  * One node placement in cell-grid coordinates.

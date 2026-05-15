@@ -50,6 +50,7 @@ export {
 	type DescribeDetail,
 	type DescribeField,
 	type DescribeNodeOutput,
+	describeNode,
 	factoryTag,
 	placeholderArgs,
 	resolveDescribeFields,

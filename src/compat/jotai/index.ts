@@ -1,4 +1,11 @@
-import { DATA, ERROR, type Messages, type Node, node, autoTrackNode } from "@graphrefly/pure-ts/core";
+import {
+	autoTrackNode,
+	DATA,
+	ERROR,
+	type Messages,
+	type Node,
+	node,
+} from "@graphrefly/pure-ts/core";
 
 /**
  * Options for creating an atom.

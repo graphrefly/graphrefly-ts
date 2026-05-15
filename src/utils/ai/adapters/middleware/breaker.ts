@@ -6,7 +6,6 @@
  * `CircuitOpenError` instead of hitting the provider.
  */
 
-import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { firstValueFrom } from "../../../../base/sources/settled.js";
 import {
@@ -16,6 +15,7 @@ import {
 	circuitBreaker,
 } from "../../../../utils/resilience/index.js";
 import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
+import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 
 export interface WithBreakerOptions extends CircuitBreakerOptions {
 	/**

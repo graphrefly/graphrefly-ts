@@ -1,5 +1,4 @@
-import { COMPLETE, DATA, type Messages, PAUSE, RESUME } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, type Messages, node, PAUSE, RESUME } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it, vi } from "vitest";
 import { createWatermarkController } from "../../../base/composition/backpressure.js";

@@ -10,8 +10,7 @@
  */
 
 import { type SpawnOptions, spawn } from "node:child_process";
-import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR, type Messages, type Node, node } from "@graphrefly/pure-ts/core";
 
 // ---------------------------------------------------------------------------
 // Types

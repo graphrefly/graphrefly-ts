@@ -25,11 +25,8 @@
  *
  * @module
  */
-import type { Actor } from "@graphrefly/pure-ts/core";
-import { monotonicNs } from "@graphrefly/pure-ts/core";
-import type { PolicyRuleData } from "@graphrefly/pure-ts/core";
-import { DATA } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import type { Actor, PolicyRuleData } from "@graphrefly/pure-ts/core";
+import { DATA, monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import {
 	type DescribeFilter,

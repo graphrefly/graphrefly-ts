@@ -9,9 +9,17 @@
  * project-wide `query(sql, params)` convention used by Postgres/ClickHouse.
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { COMPLETE, DATA, ERROR, TEARDOWN } from "@graphrefly/pure-ts/core";
-import { defaultConfig, type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	COMPLETE,
+	DATA,
+	defaultConfig,
+	ERROR,
+	type Node,
+	type NodeOptions,
+	node,
+	TEARDOWN,
+} from "@graphrefly/pure-ts/core";
 import type { ExtraOpts } from "./_internal.js";
 import {
 	type ReactiveSinkHandle,

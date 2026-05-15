@@ -1,5 +1,4 @@
-import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR, node, RESOLVED } from "@graphrefly/pure-ts/core";
 import { throwError } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { afterEach, describe, expect, it, vi } from "vitest";

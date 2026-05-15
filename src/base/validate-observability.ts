@@ -20,8 +20,8 @@
  * @module
  */
 
-import type { CausalChain } from "@graphrefly/pure-ts/graph/explain.js";
 import type { Graph, GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
+import type { CausalChain } from "@graphrefly/pure-ts/graph/explain.js";
 import {
 	graphSpecToAscii,
 	graphSpecToD2,

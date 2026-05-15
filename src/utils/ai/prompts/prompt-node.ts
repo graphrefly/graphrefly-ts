@@ -43,8 +43,7 @@
  * @module
  */
 
-import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR, type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput, switchMap } from "@graphrefly/pure-ts/extra";
 import { nodeSignal } from "../../../base/sources/settled.js";
 import { aiMeta, stripFences } from "../_internal.js";

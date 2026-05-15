@@ -5,8 +5,8 @@
  */
 
 import { wallClockNs } from "@graphrefly/pure-ts/core";
-import type { GraphCheckpointRecord } from "@graphrefly/pure-ts/graph";
 import type { SnapshotStorageTier } from "@graphrefly/pure-ts/extra/storage";
+import type { GraphCheckpointRecord } from "@graphrefly/pure-ts/graph";
 import type { AttachStorageGraphLike } from "./_internal.js";
 import type { S3ClientLike } from "./to-s3.js";
 

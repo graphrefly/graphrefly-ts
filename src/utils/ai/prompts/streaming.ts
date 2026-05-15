@@ -22,10 +22,7 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { wallClockNs } from "@graphrefly/pure-ts/core";
-import { factoryTag } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { batch, factoryTag, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import { filter, fromAny, keepalive, type NodeInput, switchMap } from "@graphrefly/pure-ts/extra";
 import type { Graph } from "@graphrefly/pure-ts/graph";
 import { type TopicGraph, topic } from "../../messaging/index.js";

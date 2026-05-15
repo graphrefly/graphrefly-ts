@@ -1,6 +1,11 @@
-import { DATA, ERROR } from "@graphrefly/pure-ts/core";
-import { describeNode } from "@graphrefly/pure-ts/core";
-import { type NodeActions, type NodeFn, node } from "@graphrefly/pure-ts/core";
+import {
+	DATA,
+	describeNode,
+	ERROR,
+	type NodeActions,
+	type NodeFn,
+	node,
+} from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import {
 	ResilientPipelineGraph,

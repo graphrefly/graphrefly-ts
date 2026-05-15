@@ -10,14 +10,7 @@
  * via their registered key.
  */
 
-import {
-	COMPLETE,
-	ERROR,
-	INVALIDATE,
-	PAUSE,
-	RESUME,
-	TEARDOWN,
-} from "@graphrefly/pure-ts/core";
+import { COMPLETE, ERROR, INVALIDATE, PAUSE, RESUME, TEARDOWN } from "@graphrefly/pure-ts/core";
 
 // ---------------------------------------------------------------------------
 // Wire message types

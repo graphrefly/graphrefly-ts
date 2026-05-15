@@ -1,5 +1,4 @@
-import { type PolicyRuleData, policy } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
+import { node, type PolicyRuleData, policy } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { auditTrail, complianceSnapshot, policyGate } from "../../../utils/inspect/audit.js";

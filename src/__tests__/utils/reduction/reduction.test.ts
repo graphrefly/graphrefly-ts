@@ -3,15 +3,15 @@
 //   Graph "...": connect(source, target) — target must include source in its constructor deps (same node reference)
 // The underlying pattern factories use Graph.connect() which now enforces deps.
 
-import { batch } from "@graphrefly/pure-ts/core";
 import {
+	batch,
 	COMPLETE,
 	DATA,
 	ERROR,
 	type Messages,
+	node,
 	RESOLVED,
 } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core";
 import { type StratifyRule, stratify } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";

@@ -5,10 +5,14 @@
  * `dynamicNode`, `fromAny`) without introducing new protocol semantics.
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { DATA } from "@graphrefly/pure-ts/core";
-import { factoryTag } from "@graphrefly/pure-ts/core";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
+import {
+	batch,
+	DATA,
+	factoryTag,
+	type Node,
+	type NodeOptions,
+	node,
+} from "@graphrefly/pure-ts/core";
 import {
 	fromAny,
 	merge,
@@ -21,10 +25,10 @@ import { forEach } from "../sources/async.js";
 // Re-export distill from its canonical module (co-located here pre-split;
 // moved to distill.ts to avoid duplicate-export conflict at the barrel level).
 export {
-	type Extraction,
-	type DistillOptions,
 	type DistillBundle,
+	type DistillOptions,
 	distill,
+	type Extraction,
 } from "./distill.js";
 
 /**

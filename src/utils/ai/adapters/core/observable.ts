@@ -6,8 +6,7 @@
  * telemetry, budget breakers) as derived layers on top.
  */
 
-import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { monotonicNs, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import { keepalive, type ReactiveLogBundle, reactiveLog } from "@graphrefly/pure-ts/extra";
 import {
 	adapterWrapper,

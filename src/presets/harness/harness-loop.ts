@@ -27,9 +27,7 @@
  * @module
  */
 
-import { type Node, node } from "@graphrefly/pure-ts/core";
-import { monotonicNs } from "@graphrefly/pure-ts/core";
-import { placeholderArgs } from "@graphrefly/pure-ts/core";
+import { monotonicNs, type Node, node, placeholderArgs } from "@graphrefly/pure-ts/core";
 import { merge, withLatestFrom } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { tryIncrementBounded } from "../../base/mutation/index.js";

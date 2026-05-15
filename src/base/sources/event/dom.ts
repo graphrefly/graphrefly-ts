@@ -4,9 +4,7 @@
  * Moved from extra/sources/event.ts (fromEvent, fromRaf) during cleave A2.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core";
-import { ERROR } from "@graphrefly/pure-ts/core";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
+import { ERROR, type Node, type NodeOptions, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;

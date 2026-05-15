@@ -12,9 +12,7 @@
  * (no substrate core/graph dependency on pubsub found).
  */
 
-import { batch } from "@graphrefly/pure-ts/core";
-import { TEARDOWN } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
+import { batch, type Node, node, TEARDOWN } from "@graphrefly/pure-ts/core";
 
 // ── Backend interface ─────────────────────────────────────────────────────
 

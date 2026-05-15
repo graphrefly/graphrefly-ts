@@ -1,16 +1,18 @@
 import "reflect-metadata";
-import { DEFAULT_ACTOR } from "@graphrefly/pure-ts/core";
-import { GuardDenied, policy } from "@graphrefly/pure-ts/core";
 import {
 	COMPLETE,
 	DATA,
+	DEFAULT_ACTOR,
 	DIRTY,
 	ERROR,
+	GuardDenied,
 	type Messages,
+	type Node,
+	node,
+	policy,
 	START,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
-import { type Node, node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { Injectable } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
