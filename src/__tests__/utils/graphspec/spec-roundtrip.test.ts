@@ -232,7 +232,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("timeout tags itself", async () => {
-		const { deadline: timeout } = await import("../../../utils/resilience/index.js");
+		const { withTimeout: timeout } = await import("../../../utils/resilience/index.js");
 		const { NS_PER_SEC } = await import("../../../utils/resilience/backoff.js");
 
 		const src = node([], { initial: 0 });
@@ -243,7 +243,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		g.add(timed, { name: "timed" });
 		const spec = g.describe({ detail: "spec" });
 
-		expect(spec.nodes.timed?.meta?.factory).toBe("deadline");
+		expect(spec.nodes.timed?.meta?.factory).toBe("withTimeout");
 		const args = spec.nodes.timed?.meta?.factoryArgs as { ns: number };
 		expect(args.ns).toBe(5 * NS_PER_SEC);
 

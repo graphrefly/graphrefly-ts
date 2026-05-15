@@ -29,7 +29,7 @@ import {
 	TimeoutError,
 	type TimeoutOptions,
 	type TimeoutState,
-	deadline as timeout,
+	withTimeout as timeout,
 	tokenBucket,
 	withBreaker,
 	withStatus,

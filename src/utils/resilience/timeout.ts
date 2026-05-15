@@ -32,7 +32,7 @@ import { isNode, operatorOpts } from "./_internal.js";
 import { NS_PER_MS } from "./backoff.js";
 
 /**
- * Thrown by {@link deadline} when no `DATA` arrives within the deadline.
+ * Thrown by {@link withTimeout} when no `DATA` arrives within the deadline.
  *
  * @category extra
  */
@@ -44,7 +44,7 @@ export class TimeoutError extends Error {
 }
 
 /**
- * Options accepted by {@link deadline}.
+ * Options accepted by {@link withTimeout}.
  *
  * - `ns` — deadline in nanoseconds (must be `> 0`). Required at the
  *   first opts settle; missing / non-positive values throw at
@@ -61,7 +61,7 @@ export interface TimeoutOptions {
 }
 
 /**
- * Lifecycle-shaped state companion emitted by {@link deadline}.
+ * Lifecycle-shaped state companion emitted by {@link withTimeout}.
  *
  * Default `equals` dedups on the `status` field — subscribers don't
  * re-fire on identical-shape transitions, but DO fire on every state
@@ -77,7 +77,7 @@ export type TimeoutState =
 	| { status: "errored"; firedAt_ns: number; deadline_ns: number };
 
 /**
- * Bundle returned by {@link deadline}: the timeout-wrapped output node and
+ * Bundle returned by {@link withTimeout}: the timeout-wrapped output node and
  * its lifecycle-shaped state companion.
  *
  * **Single-subscriber / pipeline-only contract (DS-13.5.B QA, N1, 2026-05-03).**
@@ -140,7 +140,7 @@ interface TimeoutExtraOpts {
  *
  * @category extra
  */
-export function deadline<T>(
+export function withTimeout<T>(
 	source: Node<T>,
 	opts: Partial<TimeoutOptions> | Node<Partial<TimeoutOptions>>,
 	extraOpts?: TimeoutExtraOpts,
@@ -161,7 +161,7 @@ export function deadline<T>(
 			!Number.isFinite(staticOpts.ns) ||
 			staticOpts.ns <= 0
 		) {
-			throw new RangeError("deadline: opts.ns must be a positive finite number");
+			throw new RangeError("withTimeout: opts.ns must be a positive finite number");
 		}
 		latestOpts = {
 			ns: staticOpts.ns,
@@ -178,7 +178,9 @@ export function deadline<T>(
 				!Number.isFinite(cached.ns) ||
 				cached.ns <= 0
 			) {
-				throw new RangeError("deadline: opts.ns must be a positive finite number on first settle");
+				throw new RangeError(
+					"withTimeout: opts.ns must be a positive finite number on first settle",
+				);
 			}
 			latestOpts = {
 				ns: cached.ns,
@@ -331,7 +333,7 @@ export function deadline<T>(
 										[
 											ERROR,
 											new RangeError(
-												"deadline: opts.ns must be a positive finite number on first settle",
+												"withTimeout: opts.ns must be a positive finite number on first settle",
 											),
 										],
 									]);
@@ -371,7 +373,7 @@ export function deadline<T>(
 		{
 			...operatorOpts(),
 			initial: source.cache,
-			meta: { ...(callerMeta ?? {}), ...factoryTag("deadline", factoryArgs) },
+			meta: { ...(callerMeta ?? {}), ...factoryTag("withTimeout", factoryArgs) },
 		},
 	);
 

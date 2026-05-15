@@ -288,7 +288,7 @@ export function firstWhere<T>(
 // Lazy module-cache to avoid the `resilience.ts` → `sources.ts` circular
 // import (`resilience.ts` imports `fromAny`). First call pays the one-shot
 // dynamic import; subsequent calls hit cached references.
-let _timeoutOp: typeof import("../../utils/resilience/index.js").deadline | undefined;
+let _timeoutOp: typeof import("../../utils/resilience/index.js").withTimeout | undefined;
 let _nsPerMs: number | undefined;
 
 export async function awaitSettled<T>(
@@ -334,7 +334,7 @@ export async function awaitSettled<T>(
 			import("../../utils/resilience/index.js"),
 			import("../../utils/resilience/backoff.js"),
 		]);
-		_timeoutOp = resilience.deadline;
+		_timeoutOp = resilience.withTimeout;
 		_nsPerMs = backoff.NS_PER_MS;
 	}
 	const guarded = _timeoutOp(source, { ns: opts.timeoutMs * (_nsPerMs as number) }).node;

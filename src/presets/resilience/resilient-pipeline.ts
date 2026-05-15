@@ -53,7 +53,6 @@ import {
 	budgetGate,
 	type CircuitBreakerOptions,
 	circuitBreaker,
-	deadline,
 	type FallbackInput,
 	fallback,
 	type NodeOrValue,
@@ -68,6 +67,7 @@ import {
 	type TimeoutState,
 	withBreaker,
 	withStatus,
+	withTimeout,
 } from "../../utils/resilience/index.js";
 
 // ---------------------------------------------------------------------------
@@ -382,7 +382,7 @@ export class ResilientPipelineGraph<T> extends Graph {
 				// describe() walks see the full topology (dry-run /
 				// real-run equivalence per CLAUDE.md).
 				this.add(optsBridge, { name: "timeoutOptsBridge" });
-				const bundle = deadline(current, optsBridge, {
+				const bundle = withTimeout(current, optsBridge, {
 					meta: domainMeta("resilient", "timeout"),
 				});
 				current = bundle.node;
@@ -391,7 +391,7 @@ export class ResilientPipelineGraph<T> extends Graph {
 				this.add(timeoutState, { name: "timeoutState" });
 			} else {
 				assertTimeoutMsValid(opts.timeoutMs);
-				const bundle = deadline(
+				const bundle = withTimeout(
 					current,
 					{ ns: opts.timeoutMs * NS_PER_MS },
 					{
