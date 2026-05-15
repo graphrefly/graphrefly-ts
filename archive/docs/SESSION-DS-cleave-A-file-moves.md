@@ -546,3 +546,27 @@ Two agent failure modes recurred and cost rework: (1) Sonnet agents reported "al
 A2: `9905525` (codemod) → `1426808` (split) → `414a6dc` (fix imports) → `eea9bd3` (merge) → `179f018` (missing test-helpers).
 A3: `ebd9c9c` (bulk) → `a48261b` (merge) → `f719ef6` (leaked residual) → `42589d1` (describeNode + rename test alignment + lint:fix) → `203704b` (untrack worktrees).
 A4: this doc + CLAUDE.md Layout + optimizations.md provenance + design-archive-index entry.
+/qa fixes: `703f335` (Group 2 A1–A4 — fromCron relocation, withLLMBreaker label, dead-file deletion, doc fixes). Adversarial pass = Blind Hunter + Edge Case Hunter.
+
+---
+
+## OPEN /qa FOLLOW-UPS (not yet landed — come back to these)
+
+These were surfaced by the post-cleave adversarial /qa (2026-05-15) and **deliberately NOT landed from the cleave session** because they collide with a **parallel porting session** that had uncommitted D203 F18/F20 work in the shared working tree (`packages/parity-tests/impls/{pure-ts,rust,types}.ts`, `packages/pure-ts/src/extra/data-structures/reactive-index.ts`, two new scenario files, + uncommitted `docs/optimizations.md` / `rust-port-decisions.md` / `design-archive-index.jsonl` edits).
+
+### N1 — substrate-contract gap (Group 1, user-approved option (a), NOT YET IMPLEMENTED)
+
+**Decision (locked 2026-05-15, user-approved):** the 6 symbols the dedup fix (`4dd5758`) + A3 barrel additions exposed on `@graphrefly/pure-ts` public barrels — **`RingBuffer`, `ResettableTimer`** (core barrel), **`describeNode`, `sha256Hex`** (core barrel), **`sourceOpts`, `wrapSubscribeHook`** (extra barrel) — are NOT in the `Impl` parity contract (`packages/parity-tests/impls/types.ts`; verified grep-count 0). Presentation code (`src/utils/resilience/{retry,rate-limiter}.ts`, `src/base/sources/async.ts`, etc.) imports them from the substrate peer, so **`@graphrefly/graphrefly` breaks the moment `@graphrefly/native` is the substrate provider** (native only promises `Impl`).
+
+**What to do (option (a)):** add these 6 to `packages/parity-tests/impls/types.ts` `Impl` (and the `pure-ts` impl adapter that satisfies it), so `@graphrefly/native` MUST expose them. **Fold into the D203 native-publish batch** (`~/src/graphrefly-rs/docs/migration-status.md` § "NEXT BATCH — Ship `@graphrefly/native`" — add as scope item 8).
+
+**Why it wasn't done here:** `impls/types.ts` is the exact file the parallel porting session has open + modified. Landing N1 from the cleave session would clobber their live edits. **Action: relay N1 to / land it in the porting session**, not duplicated from here.
+
+### Group 3 — pre-existing gaps (NOT cleave-introduced; the split made them visible)
+
+Worth a ticket (recommend logging to `docs/optimizations.md` once the porting session's uncommitted edits to that file are committed — held to avoid cross-session doc entanglement):
+
+- **Edge #2 — `replay`/`cached`/`shareReplay` double-deliver the most-recent value to late subscribers.** `wrapSubscribeHook` flushes the replay buffer via `before(sink)`, then `origSubscribe` also push-on-subscribes the wrapper's cache → last value delivered twice. `src/base/sources/async.ts` (`replay`) + `packages/pure-ts/src/extra/sources/_internal.ts:83` (`wrapSubscribeHook`). Test `src/__tests__/base/sources/sources.test.ts` only checks `slice(0,2)` so it misses the dup. Suggested: build the wrapper with `initial: undefined` (suppress push-on-subscribe; the buf flush IS the replay).
+- **Edge #3 — `graph.destroy()` drops the async storage disposer's Promise.** `drainDisposers` is synchronous (`() => void | Promise<void>`), discards returned Promises; the async dispose only awaits when called directly, not via `destroy()`'s drain loop → in-flight WAL saves abandoned. `packages/pure-ts/src/graph/graph.ts` (`drainDisposers` ~742, `destroy()` ~4904, `async dispose` ~5591). Pre-existing ("fix: parity tests" era). Suggested: `destroyAsync(): Promise<void>` that awaits storage disposers, or warn on sync-drained Promise.
+
+Minor / doc-only (note, no ticket needed): Edge #5/#9 `fromRaf`/`fromCron` use `performance.now()`/`new Date()` (pre-existing, browser-native API contract / structurally unavoidable for calendar match — consider injectable clock for tests); Edge #8 `distill` local `keepalive` shadow discards unsub (pre-existing from `composite.ts`); Edge #10 `defer` drops DIRTY-before-terminal in same batch (spec-violation defense); Edge #7/#11 observe/remove throw-site docs.
