@@ -2,7 +2,7 @@
  * Graph container: registry, wiring, introspection (Phase 1).
  */
 
-export { OVERHEAD as SIZEOF_OVERHEAD, SIZEOF_SYMBOL, sizeof } from "../extra/utils/sizeof.js";
+export { OVERHEAD as SIZEOF_OVERHEAD, SIZEOF_SYMBOL, sizeof } from "../core/_internal/sizeof.js";
 export type {
 	GraphChange,
 	GraphChangeBatchEnd,
@@ -107,10 +107,5 @@ export {
 	type ValidateNoIslandsResult,
 	validateNoIslands,
 } from "./validate-no-islands.js";
-export {
-	type ObservabilityCheck,
-	type ObservabilityDescribeFormat,
-	type ValidateObservabilityOptions,
-	type ValidateObservabilityResult,
-	validateGraphObservability,
-} from "./validate-observability.js";
+// validateGraphObservability moved to root src/base/validate-observability.ts (cleave A2)
+// It depends on render (presentation layer) so it cannot live in the substrate.

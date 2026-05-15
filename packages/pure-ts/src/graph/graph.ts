@@ -1,3 +1,5 @@
+import { RingBuffer } from "../core/_internal/ring-buffer.js";
+import { ResettableTimer } from "../core/_internal/timer.js";
 import { type Actor, DEFAULT_ACTOR } from "../core/actor.js";
 import { batch, isBatching, registerBatchFlushHook } from "../core/batch.js";
 import { monotonicNs, wallClockNs } from "../core/clock.js";
@@ -43,9 +45,29 @@ import type {
 	SpecChange,
 	SpecChangePayload,
 } from "../extra/data-structures/change.js";
-import { keepalive } from "../extra/sources.js";
-import type { StorageHandle } from "../extra/storage-core.js";
-import type { BaseStorageTier, SnapshotStorageTier } from "../extra/storage-tiers.js";
+import {
+	type ReactiveIndexBundle,
+	type ReactiveIndexOptions,
+	reactiveIndex,
+} from "../extra/data-structures/reactive-index.js";
+import {
+	type ReactiveListBundle,
+	type ReactiveListOptions,
+	reactiveList,
+} from "../extra/data-structures/reactive-list.js";
+import {
+	type ReactiveLogBundle,
+	type ReactiveLogOptions,
+	reactiveLog,
+} from "../extra/data-structures/reactive-log.js";
+import {
+	type ReactiveMapBundle,
+	type ReactiveMapOptions,
+	reactiveMap,
+} from "../extra/data-structures/reactive-map.js";
+import { keepalive } from "../extra/sources/_keepalive.js";
+import type { StorageHandle } from "../extra/storage/core.js";
+import type { BaseStorageTier, SnapshotStorageTier } from "../extra/storage/tiers.js";
 import {
 	graphWalPrefix,
 	iterateWalFrames,
@@ -57,9 +79,7 @@ import {
 	type WALFrame,
 	walFrameChecksum,
 	walFrameKey,
-} from "../extra/storage-wal.js";
-import { ResettableTimer } from "../extra/timer.js";
-import { RingBuffer } from "../extra/utils/ring-buffer.js";
+} from "../extra/storage/wal.js";
 import type {
 	GraphChange,
 	GraphChangeBatchEnd,
@@ -719,7 +739,7 @@ export const SNAPSHOT_VERSION = 1;
  * surfaced via `console.error` rather than silently swallowed so leaks in
  * cleanup code remain visible.
  */
-function drainDisposers(set: Set<() => void>, graphName: string): void {
+function drainDisposers(set: Set<() => void | Promise<void>>, graphName: string): void {
 	const cap = Math.max(16, set.size * 4);
 	let iterations = 0;
 	while (set.size > 0) {
@@ -1508,7 +1528,7 @@ export class Graph {
 	 * reparenting rejection + O(depth) ancestor walks.
 	 */
 	_parent: Graph | undefined = undefined;
-	private readonly _storageDisposers = new Set<() => void>();
+	private readonly _storageDisposers = new Set<() => void | Promise<void>>();
 	private readonly _disposers = new Set<() => void>();
 	/** @internal Set in {@link destroy} / `_destroyClearOnly`; surfaced via {@link destroyed}. */
 	private _destroyed = false;
@@ -1647,8 +1667,11 @@ export class Graph {
 	 * currently has no sinks — zero cost for graphs nobody observes.
 	 */
 	private _emitTopology(event: TopologyEvent): void {
-		if (this._topology == null || this._topologyEmitters.size === 0) return;
-		for (const h of this._topologyEmitters) h(event);
+		if (this._topologyEmitters.size === 0) return;
+		// Snapshot to array so handler additions during iteration don't visit
+		// the freshly-added handler in this same loop (e.g., `_observeReactive`
+		// late-subscribe path may register/unregister handlers indirectly).
+		for (const h of [...this._topologyEmitters]) h(event);
 	}
 
 	// ——————————————————————————————————————————————————————————————
@@ -1697,6 +1720,18 @@ export class Graph {
 	 * ownership, wrap them in a local proxy derived (see the `proxy` factory
 	 * pattern used by `pipelineGraph.approvalGate` / `gatedStream` /
 	 * `stratify`).
+	 *
+	 * **TEARDOWN sink re-register caveat (R3.7.3 ordering, Slice W).** During
+	 * a `remove()`-triggered TEARDOWN cascade, the cross-graph ownership
+	 * stamp is released BEFORE the TEARDOWN sink fires (so cross-graph
+	 * `g2.add(node, ...)` from inside the sink works), but `_nodes` /
+	 * `_nodeToName` clear AFTER the cascade (so `g1.nameOf(node)` stays
+	 * resolvable inside the sink, per canonical R3.7.3). Consequence:
+	 * **same-graph re-register under a NEW name from inside the TEARDOWN
+	 * sink is NOT supported** — `g1.add(node, {name: "y"})` from within the
+	 * sink throws `"node instance already registered as 'x'"`. Do same-graph
+	 * re-registration after `remove()` returns (the namespace clear is
+	 * complete by then).
 	 *
 	 * @param node - Node instance to own.
 	 * @param opts - `{ name?, annotation? }`.
@@ -1846,15 +1881,26 @@ export class Graph {
 		if (!node) {
 			throw new Error(`Graph "${this.name}": unknown node or mount "${name}"`);
 		}
-		this._nodes.delete(name);
-		this._nodeToName.delete(node);
-		// C3 — release the cross-graph ownership stamp BEFORE the TEARDOWN
-		// cascade so a "freshly-detached" Node may be re-registered on
-		// another Graph in the same tick (see Graph.add JSDoc).
+		// R3.7.3 — clear namespace AFTER TEARDOWN cascade so sinks can still
+		// resolve `nameOf(node)` from inside their TEARDOWN handler. Mirrors
+		// canonical "After cascade, graph internal registries are cleared"
+		// (matches Rust port Slice F /qa P1 ordering).
+		// C3 — release the cross-graph ownership stamp BEFORE TEARDOWN so a
+		// TEARDOWN sink that re-registers the node on another Graph in the
+		// same tick succeeds (the namespace-clear-after-cascade preserves
+		// `nameOf` resolvability, but ownership transfer needs the stamp gone).
 		if (GRAPH_OWNER.get(node) === this) {
 			GRAPH_OWNER.delete(node);
 		}
-		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
+		// `finally` guarantees registry cleanup even if a TEARDOWN sink throws
+		// (otherwise the registry would be left with a torn-down node still
+		// indexed under `name`).
+		try {
+			node.down([[TEARDOWN]] satisfies Messages, { internal: true });
+		} finally {
+			this._nodes.delete(name);
+			this._nodeToName.delete(node);
+		}
 		const audit: GraphRemoveAudit = { kind: "node", nodes: [name], mounts: [] };
 		this._emitTopology({ kind: "removed", name, nodeKind: "node", audit });
 		return audit;
@@ -2393,6 +2439,75 @@ export class Graph {
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
 		this._wireSignalToRemove(name, signal);
 		return n;
+	}
+
+	// ——————————————————————————————————————————————————————————————
+	//  Reactive structure sugar (Phase 2–3 data-structures)
+	// ——————————————————————————————————————————————————————————————
+
+	/**
+	 * Creates a {@link ReactiveLogBundle} and registers its `entries` node
+	 * under `name` on this graph. The `name` option is set automatically;
+	 * remaining options forwarded to `reactiveLog()`.
+	 */
+	log<T>(name: string, opts?: Omit<ReactiveLogOptions<T>, "name">): ReactiveLogBundle<T> {
+		const full: ReactiveLogOptions<T> = { ...(opts as ReactiveLogOptions<T>), name };
+		const bundle = reactiveLog<T>(undefined, full);
+		this.add(bundle.entries, { name });
+		return bundle;
+	}
+
+	/**
+	 * Creates a {@link ReactiveListBundle} and registers its `items` node
+	 * under `name` on this graph. When the `mutationLog` option is set, the
+	 * companion log's `entries` node is also registered under
+	 * `name + "/mutationLog"`. Remaining options forwarded to `reactiveList()`.
+	 */
+	list<T>(name: string, opts?: Omit<ReactiveListOptions<T>, "name">): ReactiveListBundle<T> {
+		const full: ReactiveListOptions<T> = { ...(opts as ReactiveListOptions<T>), name };
+		const bundle = reactiveList<T>(undefined, full);
+		this.add(bundle.items, { name });
+		if (bundle.mutationLog) {
+			this.add(bundle.mutationLog.entries, { name: `${name}/mutationLog` });
+		}
+		return bundle;
+	}
+
+	/**
+	 * Creates a {@link ReactiveMapBundle} and registers its `entries` node
+	 * under `name` on this graph. When the `mutationLog` option is set, the
+	 * companion log's `entries` node is also registered under
+	 * `name + "/mutationLog"`. Remaining options forwarded to `reactiveMap()`.
+	 */
+	map<K, V>(name: string, opts?: Omit<ReactiveMapOptions<K, V>, "name">): ReactiveMapBundle<K, V> {
+		const full: ReactiveMapOptions<K, V> = { ...(opts as ReactiveMapOptions<K, V>), name };
+		const bundle = reactiveMap<K, V>(full);
+		this.add(bundle.entries, { name });
+		if (bundle.mutationLog) {
+			this.add(bundle.mutationLog.entries, { name: `${name}/mutationLog` });
+		}
+		return bundle;
+	}
+
+	/**
+	 * Creates a {@link ReactiveIndexBundle} and registers its `ordered` node
+	 * under `name` on this graph. The `byPrimary` companion is registered
+	 * under `name + "/byPrimary"`, and when `mutationLog` is set, the log's
+	 * `entries` node is registered under `name + "/mutationLog"`. Remaining
+	 * options forwarded to `reactiveIndex()`.
+	 */
+	index<K, V = unknown>(
+		name: string,
+		opts?: Omit<ReactiveIndexOptions<K, V>, "name">,
+	): ReactiveIndexBundle<K, V> {
+		const full: ReactiveIndexOptions<K, V> = { ...(opts as ReactiveIndexOptions<K, V>), name };
+		const bundle = reactiveIndex<K, V>(full);
+		this.add(bundle.ordered, { name });
+		this.add(bundle.byPrimary, { name: `${name}/byPrimary` });
+		if (bundle.mutationLog) {
+			this.add(bundle.mutationLog.entries, { name: `${name}/mutationLog` });
+		}
+		return bundle;
 	}
 
 	/**
@@ -3919,10 +4034,57 @@ export class Graph {
 				// future per-listener filtering is one move away.
 				void tierSet;
 
+				// R3.6.2 reactive mode — auto-subscribe to nodes added AFTER
+				// the initial namespace snapshot. Only applies when no path is
+				// given (mode === "all"). Mirrors Rust port's
+				// `GraphObserveAllReactive` topology subscription (Slice V3 D2).
+				// Limitation: mounts added after subscribe don't recurse into
+				// their interiors (each mount would need its own topology
+				// listener); track if a real consumer needs it.
+				//
+				// Map keyed by name so:
+				//   - `removed` events dispose the matching late handle (no
+				//     accumulation in long-lived dynamic graphs).
+				//   - re-add of the same name dedupes (no duplicate
+				//     subscription if a name churns add → remove → add).
+				const lateHandles = new Map<string, { handle: ObserveResult; off: () => void }>();
+				let topoDetach: (() => void) | undefined;
+				if (path == null) {
+					const topoHandler = (event: TopologyEvent): void => {
+						if (disposed) return;
+						if (event.kind === "rewired" || event.nodeKind !== "node") return;
+						if (event.kind === "added") {
+							const targetName = event.name;
+							if (lateHandles.has(targetName)) return;
+							const lateHandle = this.observe(targetName, obsOpts) as unknown as ObserveResult;
+							for (const ev of lateHandle.events) onEventListener(ev);
+							const lateOff = lateHandle.onEvent(onEventListener);
+							lateHandles.set(targetName, { handle: lateHandle, off: lateOff });
+						} else if (event.kind === "removed") {
+							const entry = lateHandles.get(event.name);
+							if (entry) {
+								entry.off();
+								entry.handle.dispose();
+								lateHandles.delete(event.name);
+							}
+						}
+					};
+					this._topologyEmitters.add(topoHandler);
+					topoDetach = () => this._topologyEmitters.delete(topoHandler);
+				}
+
 				return () => {
 					disposed = true;
+					// Detach topology handler FIRST so no new lateHandles
+					// accumulate between `disposed = true` and the dispose pass.
+					if (topoDetach) topoDetach();
 					off();
 					handle.dispose();
+					for (const entry of lateHandles.values()) {
+						entry.off();
+						entry.handle.dispose();
+					}
+					lateHandles.clear();
 				};
 			},
 			{
@@ -5426,8 +5588,14 @@ export class Graph {
 			off = this.observe().subscribe((path, messages) => onEvent(path, messages));
 		}
 
-		const dispose = () => {
+		const dispose = async () => {
 			off();
+			// Drain in-flight saves before marking disposed so late
+			// performWork() calls don't bail on the disposed guard
+			// while frames are still being written (race with
+			// crypto.subtle.digest in walFrameChecksum).
+			const pending = states.map((s) => s.savePending).filter((p): p is Promise<void> => p != null);
+			if (pending.length > 0) await Promise.all(pending);
 			for (const s of states) {
 				s.disposed = true;
 				s.timer?.cancel();

@@ -10,9 +10,12 @@ import { describe, expect, it, vi } from "vitest";
 import { batch } from "../../core/batch.js";
 import { DATA, DIRTY } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-
-import { combine } from "../../extra/operators.js";
-import { type MapBackend, NativeMapBackend, reactiveMap } from "../../extra/reactive-map.js";
+import {
+	type MapBackend,
+	NativeMapBackend,
+	reactiveMap,
+} from "../../extra/data-structures/reactive-map.js";
+import { combine } from "../../extra/operators/index.js";
 import { collect } from "../test-helpers.js";
 
 describe("reactiveMap stress tests", () => {

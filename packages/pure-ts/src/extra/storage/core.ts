@@ -15,7 +15,7 @@
 
 /** Handle returned by `Graph.attachSnapshotStorage` — dispose to stop observing. */
 export interface StorageHandle {
-	dispose(): void;
+	dispose(): void | Promise<void>;
 }
 
 /** Recursively sort object keys so `JSON.stringify` output is order-independent. */

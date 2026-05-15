@@ -8,10 +8,13 @@
  */
 
 import { monotonicNs } from "../../core/clock.js";
-import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
+import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import { NS_PER_MS } from "../resilience/backoff.js";
+import { subscribeOr } from "../../core/subscribe-error.js";
+
+const NS_PER_MS = 1_000_000;
+
 import { type ExtraOpts, operatorOpts } from "./_internal.js";
 
 /**
@@ -38,30 +41,40 @@ export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 			timers.clear();
 		}
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					const id = setTimeout(() => {
-						timers.delete(id);
-						a.emit(m[1] as T);
-					}, ms);
-					timers.add(id);
-				} else if (m[0] === COMPLETE) {
-					// Wait for all pending timers, then complete
-					const id = setTimeout(() => {
-						timers.delete(id);
-						a.down([[COMPLETE]]);
-					}, ms);
-					timers.add(id);
-				} else if (m[0] === ERROR) {
-					clearAll();
-					a.down([m]);
+		// R2.2.7.b: Dead source → no more DATA possible, self-COMPLETE
+		// (after any in-flight delayed timers drain via their own
+		// callbacks).
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						const id = setTimeout(() => {
+							timers.delete(id);
+							a.emit(m[1] as T);
+						}, ms);
+						timers.add(id);
+					} else if (m[0] === COMPLETE) {
+						// Wait for all pending timers, then complete
+						const id = setTimeout(() => {
+							timers.delete(id);
+							a.down([[COMPLETE]]);
+						}, ms);
+						timers.add(id);
+					} else if (m[0] === ERROR) {
+						clearAll();
+						a.down([m]);
+					}
+					// DIRTY from source is NOT forwarded — delay transforms the
+					// timeline. a.emit(v) in the timer callback handles full
+					// DIRTY+DATA framing atomically at the delayed time.
 				}
-				// DIRTY from source is NOT forwarded — delay transforms the
-				// timeline. a.emit(v) in the timer callback handles full
-				// DIRTY+DATA framing atomically at the delayed time.
-			}
-		});
+			},
+			() => {
+				clearAll();
+				a.down([[COMPLETE]]);
+			},
+		);
 
 		return () => {
 			srcUnsub();
@@ -99,27 +112,38 @@ export function debounce<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node
 				}
 			}
 
-			const srcUnsub = source.subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA) {
-						clearTimer();
-						pending = m[1] as T;
-						timer = setTimeout(() => {
-							timer = undefined;
-							a.emit(pending as T);
-						}, ms);
-					} else if (m[0] === COMPLETE) {
-						if (timer !== undefined) {
+			// R2.2.7.b: Dead source → flush pending if any, self-COMPLETE.
+			const srcUnsub = subscribeOr<unknown>(
+				source as Node,
+				(msgs) => {
+					for (const m of msgs as Messages) {
+						if (m[0] === DATA) {
 							clearTimer();
-							a.emit(pending as T);
+							pending = m[1] as T;
+							timer = setTimeout(() => {
+								timer = undefined;
+								a.emit(pending as T);
+							}, ms);
+						} else if (m[0] === COMPLETE) {
+							if (timer !== undefined) {
+								clearTimer();
+								a.emit(pending as T);
+							}
+							a.down([[COMPLETE]]);
+						} else if (m[0] === ERROR) {
+							clearTimer();
+							a.down([m]);
 						}
-						a.down([[COMPLETE]]);
-					} else if (m[0] === ERROR) {
-						clearTimer();
-						a.down([m]);
 					}
-				}
-			});
+				},
+				() => {
+					if (timer !== undefined) {
+						clearTimer();
+						a.emit(pending as T);
+					}
+					a.down([[COMPLETE]]);
+				},
+			);
 
 			return () => {
 				srcUnsub();
@@ -137,6 +161,11 @@ export type ThrottleOptions = { leading?: boolean; trailing?: boolean };
 
 /**
  * Rate-limits emissions to at most once per `ms` window (`throttleTime`).
+ *
+ * When `trailing: true`, pending trailing values are flushed on source
+ * COMPLETE (and on Dead-source R2.2.7.b). This intentionally diverges from
+ * RxJS `throttleTime` v7 (which drops trailing pending on COMPLETE) for
+ * symmetry with `debounce`'s live-COMPLETE behavior.
  *
  * @param source - Upstream node.
  * @param ms - Minimum spacing in milliseconds.
@@ -175,49 +204,79 @@ export function throttle<T>(
 				}
 			}
 
-			const srcUnsub = source.subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA) {
-						const v = m[1] as T;
-						const nowNs = monotonicNs();
-						if (leading && nowNs - lastEmitNs >= windowNs) {
-							lastEmitNs = nowNs;
-							a.emit(v);
-							clearTimer();
-							if (trailing) {
-								timer = setTimeout(() => {
-									timer = undefined;
-									if (hasPending) {
-										lastEmitNs = monotonicNs();
-										a.emit(pending as T);
-										hasPending = false;
-									}
-								}, ms);
-							}
-						} else if (trailing) {
-							pending = v;
-							hasPending = true;
-							if (timer === undefined) {
-								const elapsedMs = (nowNs - lastEmitNs) / NS_PER_MS;
-								timer = setTimeout(
-									() => {
+			// R2.2.7.b: Dead source → flush trailing pending if any,
+			// self-COMPLETE.
+			const srcUnsub = subscribeOr<unknown>(
+				source as Node,
+				(msgs) => {
+					for (const m of msgs as Messages) {
+						if (m[0] === DATA) {
+							const v = m[1] as T;
+							const nowNs = monotonicNs();
+							if (leading && nowNs - lastEmitNs >= windowNs) {
+								lastEmitNs = nowNs;
+								a.emit(v);
+								clearTimer();
+								if (trailing) {
+									timer = setTimeout(() => {
 										timer = undefined;
 										if (hasPending) {
 											lastEmitNs = monotonicNs();
 											a.emit(pending as T);
 											hasPending = false;
 										}
-									},
-									Math.max(0, ms - elapsedMs),
-								);
+									}, ms);
+								}
+							} else if (trailing) {
+								pending = v;
+								hasPending = true;
+								if (timer === undefined) {
+									const elapsedMs = (nowNs - lastEmitNs) / NS_PER_MS;
+									timer = setTimeout(
+										() => {
+											timer = undefined;
+											if (hasPending) {
+												lastEmitNs = monotonicNs();
+												a.emit(pending as T);
+												hasPending = false;
+											}
+										},
+										Math.max(0, ms - elapsedMs),
+									);
+								}
 							}
+						} else if (m[0] === COMPLETE) {
+							// /qa m21 (2026-05-10): flush trailing pending
+							// on live-COMPLETE for symmetry with the Dead
+							// branch and with `debounce`'s live-COMPLETE
+							// behavior. Pre-fix the live-COMPLETE path
+							// silently discarded any trailing-mode pending
+							// value, which diverged from the Dead branch
+							// (and from user intuition: throttle's
+							// trailing-mode contract is "emit the latest
+							// value seen in each window", so the final
+							// pending should flush on terminal).
+							clearTimer();
+							if (hasPending) {
+								a.emit(pending as T);
+								hasPending = false;
+							}
+							a.down([m]);
+						} else if (m[0] === ERROR) {
+							clearTimer();
+							a.down([m]);
 						}
-					} else if (m[0] === COMPLETE || m[0] === ERROR) {
-						clearTimer();
-						a.down([m]);
 					}
-				}
-			});
+				},
+				() => {
+					clearTimer();
+					if (hasPending) {
+						a.emit(pending as T);
+						hasPending = false;
+					}
+					a.down([[COMPLETE]]);
+				},
+			);
 
 			return () => {
 				srcUnsub();
@@ -260,39 +319,59 @@ export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 		let terminated = false;
 		let sourceCompleted = false;
 
-		const srcUnsub = source.subscribe((msgs) => {
-			if (terminated) return;
-			for (const m of msgs) {
+		// R2.2.7.b: Dead source → no value to sample; mark source-
+		// completed so notifier fires become no-ops.
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
 				if (terminated) return;
-				if (m[0] === DATA) {
-					lastSourceValue = { v: m[1] as T };
-				} else if (m[0] === ERROR) {
-					terminated = true;
-					a.down([m]);
-				} else if (m[0] === COMPLETE) {
-					sourceCompleted = true;
-					lastSourceValue = undefined;
-				}
-			}
-		});
-
-		const notUnsub = notifier.subscribe((msgs) => {
-			if (terminated) return;
-			for (const m of msgs) {
-				if (terminated) return;
-				if (m[0] === DATA) {
-					if (lastSourceValue !== undefined && !sourceCompleted) {
-						a.emit(lastSourceValue.v);
+				for (const m of msgs as Messages) {
+					if (terminated) return;
+					if (m[0] === DATA) {
+						lastSourceValue = { v: m[1] as T };
+					} else if (m[0] === ERROR) {
+						terminated = true;
+						a.down([m]);
+					} else if (m[0] === COMPLETE) {
+						sourceCompleted = true;
+						lastSourceValue = undefined;
 					}
-				} else if (m[0] === ERROR) {
-					terminated = true;
-					a.down([m]);
-				} else if (m[0] === COMPLETE) {
+				}
+			},
+			() => {
+				sourceCompleted = true;
+				lastSourceValue = undefined;
+			},
+		);
+
+		// R2.2.7.b: Dead notifier → no sampling triggers will ever
+		// fire; self-COMPLETE (operator has no further work).
+		const notUnsub = subscribeOr<unknown>(
+			notifier as Node,
+			(msgs) => {
+				if (terminated) return;
+				for (const m of msgs as Messages) {
+					if (terminated) return;
+					if (m[0] === DATA) {
+						if (lastSourceValue !== undefined && !sourceCompleted) {
+							a.emit(lastSourceValue.v);
+						}
+					} else if (m[0] === ERROR) {
+						terminated = true;
+						a.down([m]);
+					} else if (m[0] === COMPLETE) {
+						terminated = true;
+						a.down([[COMPLETE]]);
+					}
+				}
+			},
+			() => {
+				if (!terminated) {
 					terminated = true;
 					a.down([[COMPLETE]]);
 				}
-			}
-		});
+			},
+		);
 
 		return () => {
 			srcUnsub();
@@ -330,25 +409,37 @@ export function audit<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 			}
 		}
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					latest = m[1] as T;
-					has = true;
-					clearTimer();
-					timer = setTimeout(() => {
-						timer = undefined;
-						if (has) {
-							has = false;
-							a.emit(latest as T);
-						}
-					}, ms);
-				} else if (m[0] === COMPLETE || m[0] === ERROR) {
-					clearTimer();
-					a.down([m]);
+		// R2.2.7.b: Dead source → emit any pending latest, self-COMPLETE.
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						latest = m[1] as T;
+						has = true;
+						clearTimer();
+						timer = setTimeout(() => {
+							timer = undefined;
+							if (has) {
+								has = false;
+								a.emit(latest as T);
+							}
+						}, ms);
+					} else if (m[0] === COMPLETE || m[0] === ERROR) {
+						clearTimer();
+						a.down([m]);
+					}
 				}
-			}
-		});
+			},
+			() => {
+				clearTimer();
+				if (has) {
+					has = false;
+					a.emit(latest as T);
+				}
+				a.down([[COMPLETE]]);
+			},
+		);
 
 		return () => {
 			srcUnsub();

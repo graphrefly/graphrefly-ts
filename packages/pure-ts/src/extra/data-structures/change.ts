@@ -43,7 +43,7 @@ export type MapChangePayload<K, V> =
 			readonly kind: "delete";
 			readonly key: K;
 			readonly previous: V;
-			readonly reason?: "expired" | "lru-evict" | "explicit";
+			readonly reason: "expired" | "lru-evict" | "archived" | "explicit";
 	  }
 	| { readonly kind: "clear"; readonly count: number };
 

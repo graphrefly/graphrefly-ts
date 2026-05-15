@@ -1,32 +1,19 @@
 /**
- * Core reactive sources, sinks, and utilities (roadmap §2.3).
+ * Substrate sources barrel (cleave A2, 2026-05-14).
  *
- * Thin barrel — every API lives in a category sub-file:
- * - `iter.ts` — sync sources (`fromIter`, `of`, `empty`, `never`, `throwError`)
- * - `event.ts` — `fromTimer`, `fromRaf`, `fromCron`, `fromEvent`
- * - `async.ts` — Promise / AsyncIter / NodeInput bridges, `defer`, `forEach`,
- *   `share` / `replay` / `cached`, `singleFromAny` (re-export)
- * - `settled.ts` — `firstValueFrom`, `firstWhere`, `awaitSettled`, `nodeSignal`,
- *   `keepalive`, `reactiveCounter`
- * - `_internal.ts` — shared types (`AsyncSourceOpts`, `NodeInput`,
- *   `ExtraOpts`) and helpers (`escapeRegexChar`, `globToRegExp`,
- *   `matchesAnyPattern`, `wrapSubscribeHook`).
+ * Exports substrate-only sources after the cleave:
+ * - sync/iter (fromIter, of, empty, never, throwError)
+ * - event/timer (fromTimer)
+ * - _internal (NodeInput, AsyncSourceOpts, etc.)
  *
- * Protocol/system/ingest adapters (fromHTTP, fromWebSocket, fromKafka, etc.)
- * live in {@link ../adapters.ts}.
+ * Presentation sources (async, settled, fromCron, fromEvent, fromRaf,
+ * singleFromAny, keepalive, reactiveCounter) moved to root src/base/sources/.
  */
 
-// DO NOT re-export ./git.js or ./fs.js here — they are Node-only and would
-// break the universal subpath. Node-only sources go through extra/sources/node.ts
-// via the patterns/extra/node.ts barrel.
+// DO NOT re-export ./git.js or ./fs.js here — they are Node-only and were
+// moved to root src/base/sources/node/ as presentation sources.
 
-// `singleFromAny` / `singleNodeFromAny` live in extra/single-from-any.ts (kept
-// independent because it imports `firstValueFrom` and would form a cycle if
-// we re-exported via async.ts during eager-eval init).
-export { singleFromAny, singleNodeFromAny } from "../single-from-any.js";
-// Public type aliases sourced from `_internal.ts`. Keep `escapeRegexChar` /
-// `globToRegExp` / `matchesAnyPattern` re-exported because `extra/adapters.ts`
-// and `extra/sources-fs.ts` import them via this barrel.
+// Substrate shared types — stay in pure-ts
 export {
 	type AsyncSourceOpts,
 	escapeRegexChar,
@@ -34,7 +21,11 @@ export {
 	matchesAnyPattern,
 	type NodeInput,
 } from "./_internal.js";
+// keepalive — substrate (graph.ts depends on this)
+export * from "./_keepalive.js";
+// Async sources — substrate (higher-order operators depend on fromAny)
 export * from "./async.js";
-export * from "./event.js";
-export * from "./iter.js";
-export * from "./settled.js";
+// Timer source — substrate
+export * from "./event/timer.js";
+// Sync sources — substrate
+export * from "./sync/iter.js";

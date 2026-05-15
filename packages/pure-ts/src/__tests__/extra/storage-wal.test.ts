@@ -11,7 +11,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { node } from "../../core/node.js";
-import { kvStorage, memoryBackend, memorySnapshot } from "../../extra/storage-tiers.js";
+import { kvStorage, memoryBackend, memorySnapshot } from "../../extra/storage/tiers.js";
 import {
 	graphWalPrefix,
 	REPLAY_ORDER,
@@ -21,7 +21,7 @@ import {
 	type WALFrame,
 	walFrameChecksum,
 	walFrameKey,
-} from "../../extra/storage-wal.js";
+} from "../../extra/storage/wal.js";
 import { Graph } from "../../graph/graph.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -639,7 +639,7 @@ describe("attachSnapshotStorage runFlush concurrency (Phase 14.6 fix A)", () => 
 		{
 			const g = new Graph("g");
 			g.add(node([], { initial: 0, name: "a" }), { name: "a" });
-			const snapTier = (await import("../../extra/storage-tiers.js")).snapshotStorage<
+			const snapTier = (await import("../../extra/storage/tiers.js")).snapshotStorage<
 				import("../../graph/graph.js").GraphCheckpointRecord
 			>(snapBackend, { name: "g", compactEvery: 100 });
 			const walTier = kvStorage<WALFrame>(sharedBackend, { name: "g-wal" });
@@ -668,7 +668,7 @@ describe("attachSnapshotStorage runFlush concurrency (Phase 14.6 fix A)", () => 
 		{
 			const g = new Graph("g");
 			g.add(node([], { initial: 0, name: "a" }), { name: "a" });
-			const snapTier = (await import("../../extra/storage-tiers.js")).snapshotStorage<
+			const snapTier = (await import("../../extra/storage/tiers.js")).snapshotStorage<
 				import("../../graph/graph.js").GraphCheckpointRecord
 			>(snapBackend, { name: "g", compactEvery: 100 });
 			const walTier = kvStorage<WALFrame>(sharedBackend, { name: "g-wal" });
@@ -689,7 +689,7 @@ describe("attachSnapshotStorage runFlush concurrency (Phase 14.6 fix A)", () => 
 		const session2Seqs = allSeqs.filter((s) => s > session1Tail);
 		expect(session2Seqs.length).toBeGreaterThan(0);
 		const baselineSnap = (await (
-			await import("../../extra/storage-tiers.js")
+			await import("../../extra/storage/tiers.js")
 		)
 			.snapshotStorage<import("../../graph/graph.js").GraphCheckpointRecord>(snapBackend, {
 				name: "g",

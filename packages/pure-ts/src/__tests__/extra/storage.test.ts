@@ -2,8 +2,8 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { fromIDBRequest, fromIDBTransaction } from "../../../../../src/base/sources/browser/idb.js";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
-import { fromIDBRequest, fromIDBTransaction } from "../../extra/storage-browser.js";
 import {
 	appendLogStorage,
 	dictKv,
@@ -12,9 +12,9 @@ import {
 	memoryKv,
 	memorySnapshot,
 	snapshotStorage,
-} from "../../extra/storage-tiers.js";
-import { indexedDbKv } from "../../extra/storage-tiers-browser.js";
-import { fileKv, sqliteKv } from "../../extra/storage-tiers-node.js";
+} from "../../extra/storage/tiers.js";
+import { indexedDbKv } from "../../extra/storage/tiers-browser.js";
+import { fileKv, sqliteKv } from "../../extra/storage/tiers-node.js";
 import { collect } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {

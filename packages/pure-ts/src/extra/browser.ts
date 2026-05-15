@@ -1,18 +1,21 @@
 /**
- * Browser-only barrel for the extra surface.
+ * Browser-only barrel for the extra substrate surface.
  *
- * Consumers that need DOM-bound storage (`indexedDbKv`) or IDB helpers
- * import from `@graphrefly/graphrefly/extra/browser`. The universal
- * `@graphrefly/graphrefly/extra` entry stays DOM-free.
+ * Consumers that need DOM-bound storage (`indexedDbKv`) import
+ * from `@graphrefly/pure-ts/extra/browser`. The universal
+ * `@graphrefly/pure-ts/extra` entry stays DOM-free.
+ *
+ * Presentation-layer browser sources (fromEvent, fromRaf, fromIDBRequest,
+ * fromIDBTransaction) are in `@graphrefly/graphrefly/extra/browser`
+ * (root shim), not here.
  *
  * @module
  */
 
-export { fromIDBRequest, fromIDBTransaction } from "./storage-browser.js";
 export {
 	type IndexedDbBackendSpec,
 	indexedDbAppendLog,
 	indexedDbBackend,
 	indexedDbKv,
 	indexedDbSnapshot,
-} from "./storage-tiers-browser.js";
+} from "./storage/tiers-browser.js";

@@ -10,6 +10,7 @@
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
+import { subscribeOr } from "../../core/subscribe-error.js";
 import { type ExtraOpts, operatorOpts } from "./_internal.js";
 
 /**
@@ -32,35 +33,58 @@ export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 	return node<T[]>((_data, a) => {
 		const buf: T[] = [];
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					buf.push(m[1] as T);
-				} else if (m[0] === COMPLETE) {
-					if (buf.length > 0) a.emit([...buf]);
-					buf.length = 0;
-					a.down([[COMPLETE]]);
-				} else if (m[0] === ERROR) {
-					a.down([m]);
-				}
-			}
-		});
-
-		const notUnsub = notifier.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					if (buf.length > 0) {
-						a.emit([...buf]);
+		// R2.2.7.b: Dead source → flush any buffered + self-COMPLETE
+		// (source is permanently over; no more DATA can ever arrive
+		// to buffer).
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						buf.push(m[1] as T);
+					} else if (m[0] === COMPLETE) {
+						if (buf.length > 0) a.emit([...buf]);
 						buf.length = 0;
+						a.down([[COMPLETE]]);
+					} else if (m[0] === ERROR) {
+						a.down([m]);
 					}
-				} else if (m[0] === COMPLETE) {
-					// Notifier complete — forward
-					a.down([[COMPLETE]]);
-				} else if (m[0] === ERROR) {
-					a.down([m]);
 				}
-			}
-		});
+			},
+			() => {
+				if (buf.length > 0) {
+					a.emit([...buf]);
+					buf.length = 0;
+				}
+				a.down([[COMPLETE]]);
+			},
+		);
+
+		// R2.2.7.b: Dead notifier → operator reduces to "buffer until
+		// source completes" — no notifier signal will ever fire, so
+		// no flushes happen mid-stream. Source's COMPLETE path still
+		// emits the final buffer.
+		const notUnsub = subscribeOr<unknown>(
+			notifier as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						if (buf.length > 0) {
+							a.emit([...buf]);
+							buf.length = 0;
+						}
+					} else if (m[0] === COMPLETE) {
+						// Notifier complete — forward
+						a.down([[COMPLETE]]);
+					} else if (m[0] === ERROR) {
+						a.down([m]);
+					}
+				}
+			},
+			() => {
+				// no-op — notifier signal never fires; passthrough source.
+			},
+		);
 
 		return () => {
 			srcUnsub();
@@ -91,22 +115,33 @@ export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
 	return node<T[]>((_data, a) => {
 		const buf: T[] = [];
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					buf.push(m[1] as T);
-					if (buf.length >= count) {
-						a.emit(buf.splice(0, buf.length));
+		// R2.2.7.b: Dead source → flush remainder + self-COMPLETE.
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						buf.push(m[1] as T);
+						if (buf.length >= count) {
+							a.emit(buf.splice(0, buf.length));
+						}
+					} else if (m[0] === COMPLETE) {
+						if (buf.length > 0) a.emit([...buf]);
+						buf.length = 0;
+						a.down([[COMPLETE]]);
+					} else if (m[0] === ERROR) {
+						a.down([m]);
 					}
-				} else if (m[0] === COMPLETE) {
-					if (buf.length > 0) a.emit([...buf]);
-					buf.length = 0;
-					a.down([[COMPLETE]]);
-				} else if (m[0] === ERROR) {
-					a.down([m]);
 				}
-			}
-		});
+			},
+			() => {
+				if (buf.length > 0) {
+					a.emit([...buf]);
+					buf.length = 0;
+				}
+				a.down([[COMPLETE]]);
+			},
+		);
 
 		return () => {
 			srcUnsub();
@@ -150,27 +185,36 @@ export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
 			a.emit(s);
 		}
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					if (!winDown) openWindow();
-					winDown?.([[DATA, m[1]]]);
-					n += 1;
-					if (n >= count) {
+		// R2.2.7.b: Dead source → close current window + self-COMPLETE.
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						if (!winDown) openWindow();
+						winDown?.([[DATA, m[1]]]);
+						n += 1;
+						if (n >= count) {
+							winDown?.([[COMPLETE]]);
+							winDown = undefined;
+						}
+					} else if (m[0] === COMPLETE) {
 						winDown?.([[COMPLETE]]);
 						winDown = undefined;
+						a.down([[COMPLETE]]);
+					} else if (m[0] === ERROR) {
+						winDown?.([m]);
+						winDown = undefined;
+						a.down([m]);
 					}
-				} else if (m[0] === COMPLETE) {
-					winDown?.([[COMPLETE]]);
-					winDown = undefined;
-					a.down([[COMPLETE]]);
-				} else if (m[0] === ERROR) {
-					winDown?.([m]);
-					winDown = undefined;
-					a.down([m]);
 				}
-			}
-		});
+			},
+			() => {
+				winDown?.([[COMPLETE]]);
+				winDown = undefined;
+				a.down([[COMPLETE]]);
+			},
+		);
 
 		return () => {
 			srcUnsub();
@@ -208,24 +252,37 @@ export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
 				}
 			}, ms);
 
-			const srcUnsub = source.subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA) {
-						buf.push(m[1] as T);
-					} else if (m[0] === COMPLETE) {
-						clearInterval(iv);
-						if (buf.length > 0) a.emit([...buf]);
-						buf.length = 0;
-						a.down([[COMPLETE]]);
-					} else if (m[0] === ERROR) {
-						clearInterval(iv);
-						a.down([m]);
+			// R2.2.7.b: Dead source → cancel interval, flush remainder,
+			// self-COMPLETE.
+			const srcUnsub = subscribeOr<unknown>(
+				source as Node,
+				(msgs) => {
+					for (const m of msgs as Messages) {
+						if (m[0] === DATA) {
+							buf.push(m[1] as T);
+						} else if (m[0] === COMPLETE) {
+							clearInterval(iv);
+							if (buf.length > 0) a.emit([...buf]);
+							buf.length = 0;
+							a.down([[COMPLETE]]);
+						} else if (m[0] === ERROR) {
+							clearInterval(iv);
+							a.down([m]);
+						}
+						// DIRTY from source is NOT forwarded — bufferTime
+						// transforms the timeline. a.emit(buf) handles full
+						// DIRTY+DATA framing when the interval fires.
 					}
-					// DIRTY from source is NOT forwarded — bufferTime
-					// transforms the timeline. a.emit(buf) handles full
-					// DIRTY+DATA framing when the interval fires.
-				}
-			});
+				},
+				() => {
+					clearInterval(iv);
+					if (buf.length > 0) {
+						a.emit([...buf]);
+						buf.length = 0;
+					}
+					a.down([[COMPLETE]]);
+				},
+			);
 
 			return () => {
 				srcUnsub();
@@ -282,22 +339,32 @@ export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
 			openWindow();
 		}, ms);
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					winDown?.([[DATA, m[1]]]);
-				} else if (m[0] === COMPLETE) {
-					clearInterval(iv);
-					closeWindow();
-					a.down([[COMPLETE]]);
-				} else if (m[0] === ERROR) {
-					clearInterval(iv);
-					winDown?.([m]);
-					closeWindow();
-					a.down([m]);
+		// R2.2.7.b: Dead source → cancel interval, close window,
+		// self-COMPLETE.
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						winDown?.([[DATA, m[1]]]);
+					} else if (m[0] === COMPLETE) {
+						clearInterval(iv);
+						closeWindow();
+						a.down([[COMPLETE]]);
+					} else if (m[0] === ERROR) {
+						clearInterval(iv);
+						winDown?.([m]);
+						closeWindow();
+						a.down([m]);
+					}
 				}
-			}
-		});
+			},
+			() => {
+				clearInterval(iv);
+				closeWindow();
+				a.down([[COMPLETE]]);
+			},
+		);
 
 		return () => {
 			srcUnsub();
@@ -347,30 +414,46 @@ export function window<T>(
 			a.emit(s);
 		}
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					if (!winDown) openWindow();
-					winDown?.([[DATA, m[1]]]);
-				} else if (m[0] === COMPLETE) {
-					closeWindow();
-					a.down([[COMPLETE]]);
-				} else if (m[0] === ERROR) {
-					winDown?.([m]);
-					winDown = undefined;
-					a.down([m]);
+		// R2.2.7.b: Dead source → close window + self-COMPLETE.
+		const srcUnsub = subscribeOr<unknown>(
+			source as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						if (!winDown) openWindow();
+						winDown?.([[DATA, m[1]]]);
+					} else if (m[0] === COMPLETE) {
+						closeWindow();
+						a.down([[COMPLETE]]);
+					} else if (m[0] === ERROR) {
+						winDown?.([m]);
+						winDown = undefined;
+						a.down([m]);
+					}
 				}
-			}
-		});
+			},
+			() => {
+				closeWindow();
+				a.down([[COMPLETE]]);
+			},
+		);
 
-		const notUnsub = notifier.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					closeWindow();
-					openWindow();
+		// R2.2.7.b: Dead notifier → no-op (no window transitions will
+		// fire; operator passes source through as one open window).
+		const notUnsub = subscribeOr<unknown>(
+			notifier as Node,
+			(msgs) => {
+				for (const m of msgs as Messages) {
+					if (m[0] === DATA) {
+						closeWindow();
+						openWindow();
+					}
 				}
-			}
-		});
+			},
+			() => {
+				// no-op — notifier never fires.
+			},
+		);
 
 		return () => {
 			srcUnsub();

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compileSpec, decompileSpec } from "../../../../../src/utils/graphspec/index.js";
 import { DEFAULT_ACTOR } from "../../core/actor.js";
 import { batch } from "../../core/batch.js";
 import { GuardDenied, policy } from "../../core/guard.js";
@@ -19,7 +20,6 @@ import {
 	type ObserveResult,
 	reachable,
 } from "../../graph/graph.js";
-import { compileSpec, decompileSpec } from "../../patterns/graphspec/index.js";
 import { latestVals } from "../test-helpers.js";
 import { assertDescribeMatchesAppendixB } from "./validate-describe-appendix-b.js";
 

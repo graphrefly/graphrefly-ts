@@ -55,7 +55,7 @@ import {
 	windowTime,
 	withLatestFrom,
 	zip,
-} from "../../extra/operators.js";
+} from "../../extra/operators/index.js";
 import {
 	globalDirtyBeforePhase2,
 	sawResolved,

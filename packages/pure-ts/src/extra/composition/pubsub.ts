@@ -13,6 +13,9 @@
  * consistency with other `extra/` factories. New bundle APIs: `has(name)`,
  * `size`, `topicNames()`, `publishMany(entries)`. `removeTopic` → `TEARDOWN`
  * semantics preserved.
+ *
+ * Substrate primitive (pure-ts). Canonical source after cleave A2.
+ * Presentation re-export at root src/base/composition/pubsub.ts.
  */
 
 import { batch } from "../../core/batch.js";
@@ -151,7 +154,7 @@ export interface PubSubHub {
  *
  * @example
  * ```ts
- * import { pubsub } from "@graphrefly/graphrefly-ts";
+ * import { pubsub } from "@graphrefly/pure-ts";
  *
  * const hub = pubsub();
  * const t = hub.topic("events");

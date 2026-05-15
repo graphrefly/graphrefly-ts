@@ -1,69 +1,53 @@
 /**
- * Extra layer: operators, sources, sinks (Phase 2+).
+ * Extra layer — substrate-only universal barrel (cleave A2, 2026-05-14).
+ *
+ * After the cleave, @graphrefly/pure-ts/extra exports substrate-only APIs
+ * that are browser + Node safe (no `node:*` builtins, no DOM globals):
+ * - operators (protocol-level transforms)
+ * - data-structures (reactiveMap, reactiveList, reactiveLog, reactiveIndex)
+ * - storage/core (StorageHandle, jsonCodec, etc.)
+ * - storage/tiers (memoryBackend, memorySnapshot, memoryKv, memoryAppendLog)
+ * - storage/wal (walFrameChecksum, etc.)
+ * - storage/cascading-cache (cascadingCache)
+ * - storage/content-addressed (contentAddressedStorage, canonicalJson)
+ * - composition/stratify (reactive branch routing)
+ * - composition/topology-diff (topologyDiff, DescribeChangeset)
+ * - composition/pubsub (pubsub, PubSubHandle)
+ * - sources/sync (fromIter, of, empty, never, throwError)
+ * - sources/event/timer (fromTimer)
+ * - sources/async (fromPromise, fromAsyncIter, fromAny)
+ * - sources/_keepalive (keepalive)
+ * - sources/_internal types (NodeInput, AsyncSourceOpts)
+ *
+ * Node-only APIs: @graphrefly/pure-ts/extra/node (file/sqlite storage tiers)
+ * Browser-only APIs: @graphrefly/pure-ts/extra/browser (IndexedDB storage tiers)
+ * Presentation APIs: @graphrefly/graphrefly (root src/)
  */
 
-export * from "./adapters.js";
-export * from "./backoff.js";
-export * from "./backpressure.js";
-export * from "./cascading-cache.js";
-export * from "./composite.js";
-export * from "./composition/audited-success-tracker.js";
-export * from "./composition/materialize.js";
-export type {
-	DescribeChangeset,
-	DescribeEvent,
-	Meta as DescribeNodeMeta,
-} from "./composition/topology-diff.js";
-export { topologyDiff } from "./composition/topology-diff.js";
-export * from "./content-addressed-storage.js";
-export * from "./cron.js";
-export * from "./external-register.js";
-export * from "./http-error.js";
-export * from "./meta.js";
-export * from "./mutation/index.js";
-export * from "./observable.js";
-export * from "./operators.js";
-export * from "./pubsub.js";
-export * from "./reactive-index.js";
-export * from "./reactive-list.js";
-export * from "./reactive-log.js";
-export * from "./reactive-map.js";
-export * from "./reactive-sink.js";
-// Re-export resilience explicitly to avoid `timeout` / `pipe` conflicts with operators.js
+// Composition — substrate only (stratify + topology-diff + pubsub)
+export * from "./composition/pubsub.js";
+export * from "./composition/stratify.js";
+export * from "./composition/topology-diff.js";
+// Data structures — substrate
+export * from "./data-structures/index.js";
+// Operators — substrate
+export * from "./operators/index.js";
 export {
-	type BudgetConstraint,
-	type BudgetGateOptions,
-	budgetGate,
-	type CircuitBreaker,
-	type CircuitBreakerOptions,
-	CircuitOpenError,
-	type CircuitState,
-	circuitBreaker,
-	type FallbackInput,
-	fallback,
-	type GateState,
-	type RateLimiterOptions,
-	RateLimiterOverflowError,
-	type RateLimiterOverflowPolicy,
-	type RetryOptions,
-	rateLimiter,
-	retry,
-	type StatusValue,
-	TimeoutError,
-	type TokenBucket,
-	timeout,
-	tokenBucket,
-	type WithBreakerBundle,
-	type WithStatusBundle,
-	withBreaker,
-	withStatus,
-} from "./resilience.js";
-export * from "./single-from-any.js";
-export * from "./sources.js";
-export * from "./storage-core.js";
-export * from "./storage-tiers.js";
-export * from "./storage-wal.js";
-export * from "./stratify.js";
-export { ResettableTimer } from "./timer.js";
-export { decay } from "./utils/decay.js";
-export * from "./worker/index.js";
+	type AsyncSourceOpts,
+	escapeRegexChar,
+	globToRegExp,
+	matchesAnyPattern,
+	type NodeInput,
+} from "./sources/_internal.js";
+export * from "./sources/_keepalive.js";
+export * from "./sources/async.js";
+export * from "./sources/event/timer.js";
+// Sources — substrate (sync + async + timer + keepalive)
+export * from "./sources/sync/iter.js";
+export * from "./storage/cascading-cache.js";
+export * from "./storage/content-addressed.js";
+// Storage — substrate (universal: core + memory tiers + WAL + cascading + content-addressed)
+// NOTE: tiers-node.js and tiers-browser.js are NOT included here (use /extra/node and /extra/browser)
+export * from "./storage/core.js";
+export * from "./storage/tiers.js";
+export * from "./storage/wal.js";

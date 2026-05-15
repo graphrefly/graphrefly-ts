@@ -1,39 +1,13 @@
 /**
- * Renderers barrel — pure functions over `GraphDescribeOutput` (Tier 2.1 A2).
+ * Render barrel — re-exports from root src/base/render/ (presentation layer).
  *
- * Each function takes a describe snapshot and returns a formatted string.
- * Compose with `derived` for live formatted output:
+ * The render functions were moved to root src/base/render/ during cleave A2
+ * (2026-05-14) since they are presentation, not substrate.
  *
- * ```ts
- * import { graphSpecToMermaid } from "@graphrefly/graphrefly/extra/render";
- * import { derived } from "@graphrefly/graphrefly";
+ * This stub preserves the old import path so substrate tests that haven't
+ * been migrated to root src/__tests__/ yet continue to work.
  *
- * const live = derived(
- *   [graph.describe({ reactive: true }).node],
- *   ([g]) => graphSpecToMermaid(g),
- * );
- * ```
- *
- * Replaces the old `describe({ format })` dispatch — the `format` sugar option
- * was removed in the D1 three-layer-view refactor (pre-1.0 breaking, no shim).
- *
- * @module
+ * Tests importing from here should be migrated to src/__tests__/ with imports
+ * updated to use the presentation package path.
  */
-
-export type { DiagramDirection } from "./_internal.js";
-export type { LayoutDirection } from "./_layout-sugiyama.js";
-export { type GraphSpecToAsciiOptions, graphSpecToAscii } from "./graph-spec-to-ascii.js";
-export { type GraphSpecToD2Options, graphSpecToD2 } from "./graph-spec-to-d2.js";
-export { type GraphSpecToJsonOptions, graphSpecToJson } from "./graph-spec-to-json.js";
-export { type GraphSpecToMermaidOptions, graphSpecToMermaid } from "./graph-spec-to-mermaid.js";
-export {
-	type GraphSpecToMermaidUrlOptions,
-	graphSpecToMermaidUrl,
-	type MermaidLiveTheme,
-	mermaidLiveUrl,
-} from "./graph-spec-to-mermaid-url.js";
-export { type GraphSpecToPrettyOptions, graphSpecToPretty } from "./graph-spec-to-pretty.js";
-export {
-	type LayoutFrameToSvgOptions,
-	layoutFrameToSvg,
-} from "./layout-frame-to-svg.js";
+export * from "../../../../../src/base/render/index.js";

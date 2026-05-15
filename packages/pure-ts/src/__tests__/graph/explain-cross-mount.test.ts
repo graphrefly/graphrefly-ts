@@ -22,10 +22,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-
+import { topic, topicBridge } from "../../../../../src/utils/messaging/index.js";
 import { node } from "../../core/node.js";
 import { Graph } from "../../graph/graph.js";
-import { topic, topicBridge } from "../../patterns/messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Case 1: parent → child (one-hop down)

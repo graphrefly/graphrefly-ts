@@ -21,7 +21,7 @@ import {
 	switchMap,
 	throttle,
 	timeout,
-} from "../../extra/operators.js";
+} from "../../extra/operators/index.js";
 import { collect } from "../test-helpers.js";
 
 function msgs(batches: unknown[][]): unknown[][] {
@@ -132,6 +132,52 @@ describe("P0: throttle COMPLETE/ERROR forwarding", () => {
 
 		s.down([[ERROR, new Error("x")]]);
 		expect(hasMsg(batches, ERROR)).toBe(true);
+		unsub();
+	});
+});
+
+describe("P0: throttle trailing-COMPLETE flushes pending", () => {
+	// /qa F3 (2026-05-12): regression test for the trailing-COMPLETE flush
+	// behavior added in /qa m21. GraphReFly intentionally diverges from
+	// RxJS (which drops trailing pending on COMPLETE) — we flush for
+	// symmetry with debounce's live-COMPLETE behavior and with throttle's
+	// own Dead-source branch. See cross-language-notes divergence entry.
+	it("flushes trailing pending value before COMPLETE", () => {
+		vi.useFakeTimers();
+		const s = node<number>([], { initial: 0 });
+		const t = throttle(s, 100, { trailing: true });
+		const { batches, unsub } = collect(t);
+
+		// First value goes through (leading edge)
+		s.down([[DATA, 1]]);
+		// Second value within the window becomes pending
+		s.down([[DATA, 2]]);
+		// Source completes while pending=2 is waiting for trailing timer
+		s.down([[COMPLETE]]);
+
+		// The pending trailing value should have been flushed before COMPLETE
+		const values = dataValues(batches);
+		expect(values).toContain(2);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("no trailing flush when nothing is pending", () => {
+		vi.useFakeTimers();
+		const s = node<number>([], { initial: 0 });
+		const t = throttle(s, 100, { trailing: true });
+		const { batches, unsub } = collect(t);
+
+		// Emit and let the window expire
+		s.down([[DATA, 1]]);
+		vi.advanceTimersByTime(200);
+		// Now complete with nothing pending
+		s.down([[COMPLETE]]);
+
+		const values = dataValues(batches);
+		// initial:0 goes through as leading, then 1 goes through as leading
+		expect(values).toEqual([0, 1]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
 		unsub();
 	});
 });

@@ -10,24 +10,65 @@
  */
 
 import type { NodeActions } from "../../core/config.js";
-import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, START } from "../../core/messages.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	type Messages,
+	RESOLVED,
+	START,
+} from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
+import { trySubscribeOrDead } from "../../core/subscribe-error.js";
 import { fromAny, type NodeInput } from "../sources/index.js";
 import { type ExtraOpts, operatorOpts } from "./_internal.js";
 
-function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => void): () => void {
-	let unsub: (() => void) | undefined;
+/**
+ * Forward an inner node's messages into the outer operator's actions.
+ *
+ * Returns `() => void` on a live inner subscription (caller stores in
+ * its `innerUnsub` slot); returns `undefined` when the inner is Dead
+ * at subscribe time (R2.2.7.b — non-resubscribable + terminal). In the
+ * Dead case `onInnerComplete()` fires SYNCHRONOUSLY before returning so
+ * the outer operator's tracker (switchMap's `innerUnsub`, mergeMap's
+ * `innerStops` set, concatMap's queue, etc.) sees the "inner is done"
+ * state before observing `undefined` as the return — i.e., when the
+ * caller assigns the return value to its slot, the slot was ALREADY
+ * cleared by `onInnerComplete`'s `clearInner()` / equivalent. The
+ * undefined return preserves that cleared state.
+ *
+ * Prior shape (subscribeOr-based) had a critical bug: subscribeOr
+ * returned `() => {}` no-op on Dead, which the caller assigned to its
+ * `innerUnsub` slot AFTER `clearInner()` had nilled it during the
+ * synchronous Dead path. Result: `innerUnsub` ended up truthy
+ * (no-op closure), breaking switchMap's "source done && no inner →
+ * COMPLETE" check, exhaustMap's "no inner → start next" gate, and
+ * concatMap's queue-pump guard. Fix: return `undefined` so the
+ * cleared state propagates to the caller's slot.
+ */
+function forwardInner<R>(
+	inner: Node<R>,
+	a: NodeActions,
+	onInnerComplete: () => void,
+): (() => void) | undefined {
 	let finished = false;
 	const finish = (): void => {
 		if (finished) return;
 		finished = true;
 		onInnerComplete();
 	};
-	unsub = inner.subscribe((msgs) => {
+
+	// R2.2.7.b: Dead inner → treat as immediate inner-Complete so the
+	// *Map operator advances (mergeMap decrements active, switchMap
+	// looks for the next outer DATA, concatMap drains queue, etc.).
+	// Mirrors Rust higher_order.rs `on_complete_for_dead` plumbing.
+	let unsubLive: (() => void) | undefined;
+	const outcome = trySubscribeOrDead<unknown>(inner as Node, (msgs) => {
 		let sawComplete = false;
 		let sawError = false;
-		for (const m of msgs) {
+		for (const m of msgs as Messages) {
 			if (m[0] === START) continue;
 			if (m[0] === DATA) {
 				a.emit(m[1] as R);
@@ -50,19 +91,28 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
 			// no backpressure forwarding in merge-style operators.
 		}
 		if (sawError) {
-			unsub?.();
-			unsub = undefined;
+			unsubLive?.();
+			unsubLive = undefined;
 			finish();
 		} else if (sawComplete) {
 			finish();
 		}
 	});
+
+	if (outcome.kind === "dead") {
+		// Dead inner → fire onInnerComplete synchronously, no live
+		// subscription, no cleanup closure to return.
+		finish();
+		return undefined;
+	}
+
+	unsubLive = outcome.unsub;
 	// P4 START handshake guarantees: subscribe delivers [[START], [DATA, cache]]
 	// synchronously for settled nodes. Any relevant state is already handled by
 	// the callback above — no post-subscribe .status/.cache reads needed.
 	return () => {
-		unsub?.();
-		unsub = undefined;
+		unsubLive?.();
+		unsubLive = undefined;
 	};
 }
 
@@ -366,7 +416,11 @@ export function mergeMap<T, R>(
 			drainBuffer();
 			tryComplete();
 		});
-		innerStops.add(stop);
+		// forwardInner returns `undefined` for Dead inners (R2.2.7.b);
+		// the onInnerComplete callback has already decremented `active`
+		// and run drainBuffer/tryComplete synchronously. Nothing to
+		// register in `innerStops`.
+		if (stop) innerStops.add(stop);
 	}
 
 	function drainBuffer(): void {

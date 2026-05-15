@@ -72,6 +72,13 @@ export {
 	node,
 } from "./node.js";
 export {
+	isTornDownError,
+	type SubscribeOutcome,
+	subscribeOr,
+	TornDownError,
+	trySubscribeOrDead,
+} from "./subscribe-error.js";
+export {
 	type AutoTrackOptions,
 	autoTrackNode,
 	type DynamicFn,

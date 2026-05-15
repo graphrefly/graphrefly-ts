@@ -43,7 +43,7 @@ import {
 	valve,
 	withLatestFrom,
 	zip,
-} from "../../extra/operators.js";
+} from "../../extra/operators/index.js";
 import { collect } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {

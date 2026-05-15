@@ -190,6 +190,8 @@ export interface IndexBackend<K, V = unknown> {
 	has(primary: K): boolean;
 	/** Value lookup by primary key. */
 	get(primary: K): V | undefined;
+	/** Full row lookup by primary key. */
+	getRow(primary: K): IndexRow<K, V> | undefined;
 	/**
 	 * Insert or replace a row. Returns `true` if a row was inserted (primary
 	 * didn't exist), `false` otherwise (updated OR skipped via `opts.equals`).
@@ -258,6 +260,10 @@ export class NativeIndexBackend<K, V = unknown> implements IndexBackend<K, V> {
 
 	get(primary: K): V | undefined {
 		return this._byPrimary.get(primary)?.value;
+	}
+
+	getRow(primary: K): IndexRow<K, V> | undefined {
+		return this._byPrimary.get(primary);
 	}
 
 	upsert(primary: K, secondary: unknown, value: V, opts?: UpsertOptions<K, V>): boolean {
@@ -515,8 +521,22 @@ export function reactiveIndex<K, V = unknown>(
 			const list = [...rows];
 			if (list.length === 0) return;
 			wrapMutation(() => {
-				backend.upsertMany(list, withDefaultEquals(opts));
-				for (const r of list) {
+				const mergedOpts = withDefaultEquals(opts);
+				// Pre-filter idempotent rows so mutation log only records effective changes.
+				const effective = mergedOpts?.equals
+					? list.filter((r) => {
+							const existing = backend.getRow(r.primary);
+							if (existing === undefined) return true;
+							return !mergedOpts.equals!(existing, {
+								primary: r.primary,
+								secondary: r.secondary,
+								value: r.value,
+							});
+						})
+					: list;
+				if (effective.length === 0) return;
+				backend.upsertMany(effective, mergedOpts);
+				for (const r of effective) {
 					enqueueChange({
 						kind: "upsert",
 						primary: r.primary,

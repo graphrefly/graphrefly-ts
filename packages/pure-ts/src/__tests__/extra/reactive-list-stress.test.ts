@@ -10,9 +10,12 @@ import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
 import { DATA, DIRTY } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-
-import { combine } from "../../extra/operators.js";
-import { type ListBackend, NativeListBackend, reactiveList } from "../../extra/reactive-list.js";
+import {
+	type ListBackend,
+	NativeListBackend,
+	reactiveList,
+} from "../../extra/data-structures/reactive-list.js";
+import { combine } from "../../extra/operators/index.js";
 import { collect } from "../test-helpers.js";
 
 describe("reactiveList stress tests", () => {

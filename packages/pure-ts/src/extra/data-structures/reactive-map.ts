@@ -570,7 +570,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			if (!archiveSet.has(s.key)) continue;
 			retention.onArchive?.(s.key, s.value, s.score);
 			backend.delete(s.key);
-			enqueueChange({ kind: "delete", key: s.key, previous: s.value, reason: "lru-evict" });
+			enqueueChange({ kind: "delete", key: s.key, previous: s.value, reason: "archived" });
 		}
 	}
 

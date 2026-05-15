@@ -457,14 +457,17 @@ describe("fromAny + onFirstData composition (Wave A Unit 10/11 use case)", () =>
 		const tapped = onFirstData(bridged, () => {
 			recorded++;
 		});
-		// Activate
+		// Activate — the Promise resolves and `tapped` terminates with COMPLETE.
 		const unsub = tapped.subscribe(() => {});
 		await new Promise((r) => setTimeout(r, 5));
 		unsub();
-		// Re-subscribe should NOT re-fire (closure fires flag is node-scoped).
-		const unsub2 = tapped.subscribe(() => {});
-		await new Promise((r) => setTimeout(r, 5));
-		unsub2();
+		// R2.2.7.b (D118, 2026-05-10): re-subscribe to a non-resubscribable
+		// terminated node throws — the stream is permanently over.
+		// Pre-D118 the second subscribe replayed the terminal as a courtesy;
+		// the new semantic makes the contract explicit. The original test
+		// intent ("re-subscribe should NOT re-fire") still holds — rejection
+		// trivially doesn't re-fire — and is now exercised via the throw.
+		expect(() => tapped.subscribe(() => {})).toThrow(/non-resubscribable.*terminated.*R2\.2\.7\.b/);
 		expect(recorded).toBe(1);
 	});
 });
