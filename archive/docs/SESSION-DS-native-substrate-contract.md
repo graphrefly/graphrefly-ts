@@ -3,8 +3,8 @@ SESSION: DS-native-substrate-contract
 DATE: 2026-05-15
 TOPIC: Reconcile the unresolved conflict between D080 (async-everywhere public API across all substrate siblings, explicitly deferred to near-1.0) and Q28/D198 (install-time `overrides` drop-in: redirect `@graphrefly/pure-ts` → `@graphrefly/native`, "locked 2026-05-14"). Surfaced while attempting cleave-/qa N1's "build the real @graphrefly/native wrapper": the drop-in is non-functional and not well-posed. Decide the sync-vs-async public substrate contract + sequencing before any native-wrapper effort.
 REPO: graphrefly-ts (TS-primary; the conflict spans graphrefly-ts presentation + graphrefly-rs napi)
-STATUS: DESIGN — NOTHING LOCKED. For user review. Recommendation = Option A; open questions Q-S1..Q-S4 await an explicit lock.
-SUPERSEDES: nothing yet. If a lock is taken it will annotate Q28/D198 (CLAUDE.md "Three-package install-time model") and the D080 "Deferred 1" note in SESSION-rust-port-architecture.md.
+STATUS: ✅ RESOLVED 2026-05-15 — locked as **D206** (`docs/rust-port-decisions.md`). Q-S1 = Option **A** + Option **C** as a committed follow-on slice. See "RESOLUTION (LOCKED — D206)" below.
+SUPERSEDES: Q28/D198's "install-time overrides drop-in is a locked working mechanism" framing (CLAUDE.md "Three-package install-time model") is hereby **deferred pending D080**; the D080 "Deferred 1" note in SESSION-rust-port-architecture.md is reconciled here (D206).
 ---
 
 ## CONTEXT
@@ -109,16 +109,32 @@ Nothing here is locked. The following must be decided by the user.
 
 ---
 
-## OPEN QUESTIONS (for the user to lock — nothing decided)
+## RESOLUTION (LOCKED — D206, user-ratified 2026-05-15)
 
-- **Q-S1 — Adopt Option A?** Or B (async-everywhere now) / C (separate async native surface)? Recommendation: A.
-- **Q-S2 — If A, what is the explicit revisit trigger + owner?** Proposed: "memo:Re premium-backend native swap becomes blocking (post-M5 + DS-14.7-napi)" opens a dedicated `/design-review` → `/dev-dispatch` session. Confirm or set a different trigger.
-- **Q-S3 — Decision-record bookkeeping.** Should Q28/D198 be (a) annotated "drop-in deferred — see this session" in CLAUDE.md (done provisionally) and a new D-number assigned recording the A lock + the D080↔Q28/D198 reconciliation, or (b) handled differently? Who assigns the D-number (`docs/rust-port-decisions.md` lives in graphrefly-rs).
-- **Q-S4 — D203 native-publish premise.** D203 ("native-publish is an explicit user goal — a downstream is forced onto pure-ts") is partly contradicted by `project_memo_re_consumer.md` (memo:Re *chose* pure-ts; native is a future non-blocking swap). Does the native-publish milestone stay scheduled, get demoted to "publish a clearly-labeled validation artifact", or fold into the future async-contract session? This decides whether the gated publish ever happens pre-D080.
+- **Q-S1 → Option A + Option C-as-committed-follow-on.** `@graphrefly/native` publishes now as the honest **async preview** (`0.0.1`) + stays the parity-validation arm; `@graphrefly/pure-ts` remains the sole working sync substrate for `@graphrefly/graphrefly`; the D080 async-everywhere presentation rebase (Option B) stays deferred. **Escalation:** Option C — a hand-written **ergonomic async** `@graphrefly/native` public surface (subpath `exports` + TS over `Bench*`, mirroring the async `Impl` contract) for direct async-tolerant consumers — is a **committed follow-on slice** (planned below; not built this session). C is NOT a pure-ts sync drop-in and does NOT make `@graphrefly/graphrefly` consume native (that stays B/D080, deferred).
+- **Q-S2 → trigger locked.** The "can `@graphrefly/graphrefly` consume native?" (B) decision re-opens as its own design→dev-dispatch session when EITHER memo:Re's premium-backend native swap becomes actually-blocking (post-M5 + DS-14.7-napi) OR a concrete consumer files D196 parity-scenario pressure.
+- **Q-S3 → recorded as D206** (`docs/rust-port-decisions.md`). Q28/D198's overrides-drop-in is formally deferred pending D080; CLAUDE.md/optimizations.md/migration-status.md updated to point here + D206.
+- **Q-S4 → publish proceeds, reframed.** The "downstream forced onto pure-ts" urgency is acknowledged-inaccurate (memo:Re *chose* pure-ts; native is a future non-blocking swap). Publish value = stake the npm name, make the Rust port publicly real, enable early async-native adopters, ready the future backend swap, open the D196 pressure channel. Publish-prep landed (rs `5424047`: `0.0.1`, `publishConfig.access=public`, honest description). The `native-v0.0.1` tag push remains the deliberate human action (D204); prereqs = `@graphrefly` npm org + `NPM_TOKEN` automation secret on graphrefly-rs.
+
+## Option C — committed follow-on slice plan
+
+**Goal:** a hand-written ergonomic **async** public surface for `@graphrefly/native` so a direct async-tolerant Node consumer can `import { ... } from "@graphrefly/native"` and get a typed API mirroring the async `Impl` contract — WITHOUT it being a `@graphrefly/pure-ts` sync drop-in and WITHOUT `@graphrefly/graphrefly` depending on it. Presentation stays sync/pure-ts (Option B / D080 unchanged, deferred).
+
+**Scope (one slice, ~medium):**
+1. **Public surface module(s)** in `crates/graphrefly-bindings-js/` (hand-written TS, NOT the napi-auto `index.d.ts`): an async `node()/graph()/operators` facade over `BenchCore`/`BenchGraph`/`BenchOperators` whose shape mirrors `packages/parity-tests/impls/types.ts` `Impl` (the already-async contract). Reuse the `rust.ts` adapter logic as the reference implementation — factor the `RustNode`/`RustGraph` wrappers out of the parity harness into a shipped module the harness then imports (single source of truth; eliminates the parity-vs-real divergence N1 flagged).
+2. **`package.json` `exports` map** — add the bare entry + any subpaths the surface needs; keep `main` (napi loader) intact. Bump minor (e.g. `0.1.0`/`0.2.0` — a feature release over the `0.0.1` preview).
+3. **The N1 five** (`RingBuffer`, `ResettableTimer`, `describeNode`, `sha256Hex`, `sourceOpts`) exposed on the native public surface so the `Impl` contract is genuinely satisfied by native (closes N1's real native-side obligation — D203 item 8 — *as an async surface*, not a sync drop-in). `sha256Hex`/`describeNode` = the Rust napi bindings the earlier N1 investigation scoped; `RingBuffer`/`ResettableTimer`/`sourceOpts` = thin TS over the napi core (per that investigation).
+4. **Parity wiring** — `rust.ts` consumes the shipped surface (not its own private adapter); flip `as unknown as Impl` → `as Impl`; un-skip any rust-arm scenarios that were gated only by the missing surface.
+5. **Docs** — `@graphrefly/native` README/description updated from "preview, parity-only" to "async public API available (not a pure-ts drop-in)"; migration-status D203 item-8 marked done-as-async.
+
+**Explicit non-goals (stay deferred to B/D080):** sync signatures; `n.cache` readable synchronously at construction; `@graphrefly/graphrefly` consuming native; the `overrides` redirect. Those remain impossible without the async-everywhere presentation rebase.
+
+**Sequencing:** independent of the `native-v0.0.1` preview publish (that ships the raw `Bench*` now). Option C is the next `/porting-to-rs` slice; it lands as a subsequent native minor version. Gate as its own dev-dispatch with its own /qa.
 
 ---
 
-## WHAT WAS DONE THIS SESSION (no decisions taken)
+## WHAT WAS DONE THIS SESSION
 
-- Doc-truth corrections (no-regrets, applied per user direction): `src/index.ts:11+` header, `@graphrefly/native` `package.json` description, `CLAUDE.md` install-time-model section, `docs/optimizations.md` "Native substrate contract" entry, `~/src/graphrefly-rs/docs/migration-status.md` item-8 block — all now state the drop-in is non-functional / design-pending and point here.
-- This design doc authored for review. Native wrapper + native publish remain BLOCKED pending Q-S1.
+- Doc-truth corrections (commits ts `efd4e61` / rs `16e28a8`): `src/index.ts:11+` header, `@graphrefly/native` `package.json` description, `CLAUDE.md` install-time-model section, `docs/optimizations.md`, `~/src/graphrefly-rs/docs/migration-status.md`.
+- Native publish-prep (commit rs `5424047`): `0.0.1`, `publishConfig.access=public`, honest async-preview description; `npm publish --dry-run` clean; gitignored binary verified (CI umbrella ships binary-free).
+- 9Q walk authored; **user-ratified → D206**: Q-S1 = Option A + Option C committed follow-on slice (plan above). Native publish UNBLOCKED (preview); Option C is the next `/porting-to-rs` slice; B/D080 stays deferred. `native-v0.0.1` tag push remains the human action.
