@@ -33,7 +33,7 @@ function fileKv<T>(
 ```ts
 import { fileKv } from "@graphrefly/graphrefly/extra/node";
 
-const kv = fileKv<{ score: number }>("./scores");
+const kv = fileKv<{ score: number }>("../scores");
 await kv.save("player1", { score: 100 });
 const val = await kv.load("player1");
 ```

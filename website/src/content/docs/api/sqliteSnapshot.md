@@ -34,7 +34,7 @@ function sqliteSnapshot<T>(
 ```ts
 import { sqliteSnapshot } from "@graphrefly/graphrefly/extra/node";
 
-const tier = sqliteSnapshot<{ count: number }>("./state.db", { name: "counter" });
+const tier = sqliteSnapshot<{ count: number }>("../state.db", { name: "counter" });
 await tier.save({ count: 42 });
 tier.close();
 ```

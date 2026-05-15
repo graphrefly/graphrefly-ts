@@ -11,7 +11,7 @@ Enqueues each outer value and subscribes to inners one at a time (`concatMap`).
 function concatMap<T, R>(
 	source: Node<T>,
 	project: (value: T) => NodeInput<R>,
-	opts?: ExtraOpts & { maxBuffer?: number },
+	opts?: HigherOrderOpts & { maxBuffer?: number },
 ): Node<R>
 ```
 
@@ -21,7 +21,7 @@ function concatMap<T, R>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `project` | `(value: T) =&gt; NodeInput&lt;R&gt;` | Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via fromAny. |
-| `opts` | `ExtraOpts & { maxBuffer?: number }` | Optional NodeOptions (excluding `describeKind`). |
+| `opts` | `HigherOrderOpts & { maxBuffer?: number }` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

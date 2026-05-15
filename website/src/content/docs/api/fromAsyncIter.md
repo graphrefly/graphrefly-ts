@@ -1,9 +1,10 @@
 ---
 title: "fromAsyncIter()"
-description: "Reads an async iterable; each `next()` value becomes `DATA`; `COMPLETE` when done; `ERROR` on failure."
+description: "Reads an async iterable; each `next()` value becomes `DATA`; `COMPLETE`\nwhen done; `ERROR` on failure."
 ---
 
-Reads an async iterable; each `next()` value becomes `DATA`; `COMPLETE` when done; `ERROR` on failure.
+Reads an async iterable; each `next()` value becomes `DATA`; `COMPLETE`
+when done; `ERROR` on failure.
 
 ## Signature
 
@@ -21,14 +22,3 @@ function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceOpts): N
 ## Returns
 
 `Node&lt;T&gt;` — async pull stream.
-
-## Basic Usage
-
-```ts
-import { fromAsyncIter } from "@graphrefly/graphrefly-ts";
-
-async function* gen() {
-  yield 1;
-}
-fromAsyncIter(gen());
-```

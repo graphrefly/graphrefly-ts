@@ -25,7 +25,7 @@ function fromTimer(ms: number, opts?: AsyncSourceOpts & { period?: number }): No
 ## Basic Usage
 
 ```ts
-import { fromTimer } from "@graphrefly/graphrefly-ts";
+import { fromTimer } from "@graphrefly/pure-ts";
 
 fromTimer(250, { period: 1_000 });
 ```

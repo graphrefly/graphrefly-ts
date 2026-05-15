@@ -1,9 +1,14 @@
 ---
 title: "throttle()"
-description: "Rate-limits emissions to at most once per `ms` window (`throttleTime`)."
+description: "Rate-limits emissions to at most once per `ms` window (`throttleTime`).\n\nWhen `trailing: true`, pending trailing values are flushed on source\nCOMPLETE (and on D"
 ---
 
 Rate-limits emissions to at most once per `ms` window (`throttleTime`).
+
+When `trailing: true`, pending trailing values are flushed on source
+COMPLETE (and on Dead-source R2.2.7.b). This intentionally diverges from
+RxJS `throttleTime` v7 (which drops trailing pending on COMPLETE) for
+symmetry with `debounce`'s live-COMPLETE behavior.
 
 ## Signature
 

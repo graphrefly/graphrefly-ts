@@ -12,7 +12,7 @@ callers can subscribe to the bundle for dashboards.
 function withBudgetGate(
 	inner: LLMAdapter,
 	opts: WithBudgetGateOptions,
-): { adapter: LLMAdapter; budget: BudgetGateBundle }
+): { adapter: LLMAdapter; budget: LLMBudgetGateBundle }
 ```
 
 ## Parameters

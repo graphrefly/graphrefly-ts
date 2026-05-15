@@ -33,8 +33,12 @@ function dictSnapshot<T>(
 ## Basic Usage
 
 ```ts
-import { dictSnapshot } from "@graphrefly/graphrefly/extra";
+import { dictKv, dictSnapshot } from "@graphrefly/graphrefly/extra";
 
 const store: Record<string, Uint8Array> = {};
-graph.attachSnapshotStorage([dictSnapshot(store, { name: graph.name })]);
+// Phase 14.6 paired-tier shape — pair with a kv tier for WAL replay,
+// or omit `wal` for baseline-only persistence.
+graph.attachSnapshotStorage([
+    { snapshot: dictSnapshot(store, { name: graph.name }), wal: dictKv(store) },
+  ]);
 ```

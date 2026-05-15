@@ -34,7 +34,7 @@ function sqliteAppendLog<T>(
 ```ts
 import { sqliteAppendLog } from "@graphrefly/graphrefly/extra/node";
 
-const tier = sqliteAppendLog<{ type: string }>("./events.db", { name: "events" });
+const tier = sqliteAppendLog<{ type: string }>("../events.db", { name: "events" });
 await tier.appendEntries([{ type: "created" }]);
 tier.close();
 ```

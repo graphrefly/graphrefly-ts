@@ -34,7 +34,7 @@ function sqliteKv<T>(
 ```ts
 import { sqliteKv } from "@graphrefly/graphrefly/extra/node";
 
-const kv = sqliteKv<{ score: number }>("./scores.db");
+const kv = sqliteKv<{ score: number }>("../scores.db");
 await kv.save("player1", { score: 100 });
 kv.close();
 ```

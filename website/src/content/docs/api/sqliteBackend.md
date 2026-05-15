@@ -30,7 +30,7 @@ function sqliteBackend(path: string): StorageBackend & { close(): void }
 ```ts
 import { sqliteBackend, snapshotStorage } from "@graphrefly/graphrefly/extra/node";
 
-const backend = sqliteBackend("./state.db");
+const backend = sqliteBackend("../state.db");
 const tier = snapshotStorage(backend, { name: "my-graph" });
 await tier.save({ name: "my-graph", state: { count: 1 } });
 backend.close();

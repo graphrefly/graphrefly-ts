@@ -25,7 +25,7 @@ Hub with lazy `topic()` / `publish()` / `publishMany()` / `removeTopic()` /
 ## Basic Usage
 
 ```ts
-import { pubsub } from "@graphrefly/graphrefly-ts";
+import { pubsub } from "@graphrefly/graphrefly";
 
 const hub = pubsub();
 const t = hub.topic("events");
@@ -38,8 +38,7 @@ hub.publishMany([["events", 1], ["status", "ready"]]);
 
 - **Scope:** Each topic is a sentinel node — retains only the last published
 value (no push-on-subscribe before the first publish). For Pulsar-inspired
-retention + cursor reading, use
-`messagingHub()` in `patterns/messaging.ts`.
+retention + cursor reading, use `messagingHub()` in `utils/messaging`.
 
 **`removeTopic`:** Sends `TEARDOWN` to the topic node; all subscribers receive
 the TEARDOWN message. Subsequent `publish(name, value)` silently recreates the

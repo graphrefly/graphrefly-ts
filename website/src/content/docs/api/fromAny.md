@@ -1,33 +1,26 @@
 ---
 title: "fromAny()"
-description: "Coerces a value to a `Node` by shape: existing `Node` passthrough, thenable → fromPromise,\nasync iterable → fromAsyncIter, sync iterable → fromIter, else scalar"
+description: "Coerces a `NodeInput<T>` (Node, scalar, Promise, Iterable, or AsyncIterable)\nto a `Node<T>`. Used by higher-order operators to normalise project returns.\n\nPass "
 ---
 
-Coerces a value to a `Node` by shape: existing `Node` passthrough, thenable → fromPromise,
-async iterable → fromAsyncIter, sync iterable → fromIter, else scalar → of.
+Coerces a `NodeInput&lt;T&gt;` (Node, scalar, Promise, Iterable, or AsyncIterable)
+to a `Node&lt;T&gt;`. Used by higher-order operators to normalise project returns.
+
+Pass `{ iter: true }` to opt into fromIter dispatch for Iterables
+(otherwise Iterables are treated as single-value scalars via `of`).
 
 ## Signature
 
 ```ts
-function fromAny<T>(input: NodeInput<T>, opts?: AsyncSourceOpts): Node<T>
+function fromAny<T>(
+	input: NodeInput<T>,
+	opts?: AsyncSourceOpts & { iter?: boolean },
+): Node<T>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `input` | `NodeInput&lt;T&gt;` | Any value to wrap. |
-| `opts` | `AsyncSourceOpts` | Passed through when a Promise/async path is chosen. |
-
-## Returns
-
-`Node` of the inferred element type.
-
-## Basic Usage
-
-```ts
-import { fromAny, state } from "@graphrefly/graphrefly-ts";
-
-fromAny(state(1));
-fromAny(Promise.resolve(2));
-```
+| `input` | `NodeInput&lt;T&gt;` |  |
+| `opts` | `AsyncSourceOpts & { iter?: boolean }` |  |

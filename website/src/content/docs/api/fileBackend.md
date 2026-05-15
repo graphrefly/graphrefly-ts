@@ -29,7 +29,7 @@ function fileBackend(dir: string): StorageBackend
 ```ts
 import { fileBackend, snapshotStorage } from "@graphrefly/graphrefly/extra/node";
 
-const backend = fileBackend("./checkpoints");
+const backend = fileBackend("../checkpoints");
 const tier = snapshotStorage(backend, { name: "my-graph" });
 await tier.save({ name: "my-graph", state: { count: 1 } });
 ```

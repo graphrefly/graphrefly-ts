@@ -11,7 +11,7 @@ Like switchMap, but ignores outer `DATA` while an inner subscription is active (
 function exhaustMap<T, R>(
 	source: Node<T>,
 	project: (value: T) => NodeInput<R>,
-	opts?: ExtraOpts,
+	opts?: HigherOrderOpts,
 ): Node<R>
 ```
 
@@ -21,7 +21,7 @@ function exhaustMap<T, R>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `project` | `(value: T) =&gt; NodeInput&lt;R&gt;` | Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via fromAny. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| `opts` | `HigherOrderOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

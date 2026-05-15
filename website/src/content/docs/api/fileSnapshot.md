@@ -33,6 +33,6 @@ function fileSnapshot<T>(
 ```ts
 import { fileSnapshot } from "@graphrefly/graphrefly/extra/node";
 
-const tier = fileSnapshot<{ count: number }>("./checkpoints", { name: "counter" });
+const tier = fileSnapshot<{ count: number }>("../checkpoints", { name: "counter" });
 await tier.save({ count: 1 });
 ```

@@ -33,6 +33,6 @@ function fileAppendLog<T>(
 ```ts
 import { fileAppendLog } from "@graphrefly/graphrefly/extra/node";
 
-const tier = fileAppendLog<{ type: string; id: number }>("./events");
+const tier = fileAppendLog<{ type: string; id: number }>("../events");
 await tier.appendEntries([{ type: "created", id: 1 }]);
 ```
