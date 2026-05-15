@@ -236,6 +236,72 @@ describe("attachSnapshotStorage paired tier shape (Q3 lock B)", () => {
 	});
 });
 
+// ── Group-3 Edge #3: destroyAsync awaits in-flight storage saves ──────────
+
+describe("Graph.destroyAsync awaits storage disposers (Group-3 Edge #3)", () => {
+	function gatedSlowTier() {
+		let release!: () => void;
+		const gate = new Promise<void>((r) => {
+			release = r;
+		});
+		let saveCompleted = false;
+		const tier = {
+			name: "slow",
+			compactEvery: 10,
+			async save(_record: unknown) {
+				await gate;
+				saveCompleted = true;
+			},
+			load() {
+				return undefined;
+			},
+		};
+		return { tier, release, isDone: () => saveCompleted };
+	}
+
+	it("destroyAsync() blocks on an in-flight save until it completes", async () => {
+		const { tier, release, isDone } = gatedSlowTier();
+		const g = new Graph("g");
+		g.add(node([], { initial: 0, name: "a" }), { name: "a" });
+		g.attachSnapshotStorage([{ snapshot: tier }]);
+		await settle();
+		g.set("a", 1); // triggers a baseline flush → save() in-flight (gated)
+
+		const destroyP = g.destroyAsync();
+		// destroyAsync must NOT resolve while the save is gated.
+		const raced = await Promise.race([
+			destroyP.then(() => "destroyed" as const),
+			new Promise<"pending">((r) => setTimeout(() => r("pending"), 30)),
+		]);
+		expect(raced).toBe("pending");
+		expect(isDone()).toBe(false);
+
+		release(); // let the save complete
+		await destroyP;
+		expect(isDone()).toBe(true); // destroyAsync awaited it
+		expect(g.destroyed).toBe(true);
+	});
+
+	it("sync destroy() does NOT await the save (fire-and-forget — the bug destroyAsync fixes)", async () => {
+		const { tier, release, isDone } = gatedSlowTier();
+		const g = new Graph("g");
+		g.add(node([], { initial: 0, name: "a" }), { name: "a" });
+		g.attachSnapshotStorage([{ snapshot: tier }]);
+		await settle();
+		g.set("a", 1);
+
+		g.destroy(); // sync — returns immediately, save still gated
+		expect(isDone()).toBe(false);
+		expect(g.destroyed).toBe(true);
+
+		// The abandoned save still runs once released, but destroy() never
+		// waited for it — exactly the durability gap destroyAsync closes.
+		release();
+		await settle();
+		expect(isDone()).toBe(true);
+	});
+});
+
 // ── Graph.restoreSnapshot({ mode: "diff" }) replay ────────────────────────
 
 describe('Graph.restoreSnapshot({ mode: "diff" }) (Q9 lock)', () => {

@@ -214,6 +214,10 @@ class LegacyGraph implements ImplGraph {
 		this.inner.destroy();
 	}
 
+	async destroyAsync(): Promise<void> {
+		await this.inner.destroyAsync();
+	}
+
 	edges(opts?: { recursive?: boolean }): Array<[string, string]> {
 		const result = this.inner.edges(opts);
 		return result.map(([a, b]) => [a, b] as [string, string]);
@@ -474,6 +478,9 @@ export const pureTsImpl: Impl = {
 		}
 		destroy() {
 			return this.impl.destroy();
+		}
+		destroyAsync() {
+			return this.impl.destroyAsync();
 		}
 		edges(opts?: { recursive?: boolean }) {
 			return this.impl.edges(opts);

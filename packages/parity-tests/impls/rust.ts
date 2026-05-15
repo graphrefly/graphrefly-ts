@@ -521,6 +521,16 @@ class RustGraph implements ImplGraph {
 		this.nodesByName.clear();
 	}
 
+	async destroyAsync(): Promise<void> {
+		// Group-3 Edge #3: pure-ts distinguishes sync destroy() (fire-and-
+		// forget storage disposers) from destroyAsync() (awaits them). The
+		// napi BenchGraph.destroy() is already async-shaped; awaiting it is
+		// the rust-arm analogue. True async-storage-disposer parity is part
+		// of the @graphrefly/native wrapper work (D203 item 8).
+		await this.bench.destroy();
+		this.nodesByName.clear();
+	}
+
 	edges(opts?: { recursive?: boolean }): Array<[string, string]> {
 		const flat = this.bench.edges(opts?.recursive ?? false);
 		const result: Array<[string, string]> = [];
@@ -883,6 +893,9 @@ export const rustImpl: Impl | null = native
 				}
 				destroy() {
 					return this.impl.destroy();
+				}
+				destroyAsync() {
+					return this.impl.destroyAsync();
 				}
 				edges(opts?: { recursive?: boolean }) {
 					return this.impl.edges(opts);

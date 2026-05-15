@@ -121,6 +121,13 @@ export interface ImplGraph {
 	mount(name: string, child?: ImplGraph): Promise<ImplGraph>;
 	unmount(name: string): Promise<{ nodeCount: number; mountCount: number }>;
 	destroy(): Promise<void>;
+	/**
+	 * Async teardown that awaits attached-storage disposers (Group-3
+	 * Edge #3, 2026-05-15). `destroy()` drains storage disposers
+	 * fire-and-forget; `destroyAsync()` awaits in-flight WAL/snapshot
+	 * saves so persisted state is durable before resolution.
+	 */
+	destroyAsync(): Promise<void>;
 
 	/** Static edges snapshot — `[from_path, to_path][]`. */
 	edges(opts?: { recursive?: boolean }): Array<[string, string]>;

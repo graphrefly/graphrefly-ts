@@ -763,6 +763,39 @@ function drainDisposers(set: Set<() => void | Promise<void>>, graphName: string)
 }
 
 /**
+ * Async sibling of {@link drainDisposers}: `await`s each disposer's returned
+ * Promise so in-flight async cleanup (e.g. a storage tier draining pending
+ * WAL saves) completes before the drain returns. Used by
+ * {@link Graph.destroyAsync}; the sync {@link Graph.destroy} keeps using
+ * {@link drainDisposers} (fire-and-forget) for callers that don't await.
+ */
+async function drainDisposersAsync(
+	set: Set<() => void | Promise<void>>,
+	graphName: string,
+): Promise<void> {
+	const cap = Math.max(16, set.size * 4);
+	let iterations = 0;
+	while (set.size > 0) {
+		if (iterations++ >= cap) {
+			console.error(
+				`[Graph "${graphName}".destroyAsync] disposer drain exceeded cap (${cap}); ${set.size} disposer(s) discarded`,
+			);
+			set.clear();
+			return;
+		}
+		const it = set.values().next();
+		if (it.done) return;
+		const dispose = it.value;
+		set.delete(dispose);
+		try {
+			await dispose();
+		} catch (err) {
+			console.error(`[Graph "${graphName}".destroyAsync] disposer threw:`, err);
+		}
+	}
+}
+
+/**
  * Duck-type a `Node<unknown>` from the `Actor | Node<Actor>` union so
  * {@link Graph.describe} can accept either form. Mirrors the local helpers in
  * `src/extra/resilience.ts:886` and `src/extra/sources.ts:509`, but also tests
@@ -4913,6 +4946,39 @@ export class Graph {
 	}
 
 	/**
+	 * Async {@link destroy}. Identical teardown, but `await`s storage
+	 * disposers so in-flight async cleanup (e.g. a snapshot/WAL tier
+	 * draining pending saves) completes before the Promise resolves.
+	 *
+	 * `destroy()` drains `_storageDisposers` via the sync
+	 * {@link drainDisposers}, which invokes each `async` disposer but
+	 * discards the returned Promise — so in-flight WAL saves are abandoned
+	 * when a graph with attached storage is torn down. Callers that need
+	 * the persisted state to be durable (graceful shutdown, test
+	 * teardown that then asserts on the backend) must `await
+	 * graph.destroyAsync()` instead. Mounted children with their own
+	 * attached storage are drained recursively and also awaited.
+	 */
+	async destroyAsync(): Promise<void> {
+		drainDisposers(this._disposers, this.name);
+		for (const node of this._nodes.values()) {
+			if (GRAPH_OWNER.get(node) === this) {
+				GRAPH_OWNER.delete(node);
+			}
+		}
+		this.signal([[TEARDOWN]] satisfies Messages, { internal: true });
+		await drainDisposersAsync(this._storageDisposers, this.name);
+		for (const child of [...this._mounts.values()]) {
+			child._parent = undefined;
+			await child._destroyClearOnlyAsync();
+		}
+		this._mounts.clear();
+		this._nodes.clear();
+		this._parent = undefined;
+		this._destroyed = true;
+	}
+
+	/**
 	 * @internal C3 — drop the cross-graph ownership stamp for every locally
 	 * registered node whose stamp still points at `this`. Recurses into mounted
 	 * children so the entire subtree releases ownership in one synchronous
@@ -4973,6 +5039,25 @@ export class Graph {
 		for (const child of [...this._mounts.values()]) {
 			child._parent = undefined;
 			child._destroyClearOnly();
+		}
+		this._mounts.clear();
+		this._nodes.clear();
+		this._parent = undefined;
+		this._destroyed = true;
+	}
+
+	/**
+	 * Async mirror of {@link _destroyClearOnly} — used by
+	 * {@link destroyAsync} so a subtree reached via the parent's TEARDOWN
+	 * cascade still awaits its own attached-storage disposers.
+	 */
+	private async _destroyClearOnlyAsync(): Promise<void> {
+		drainDisposers(this._disposers, this.name);
+		this._releaseOwnershipStamps();
+		await drainDisposersAsync(this._storageDisposers, this.name);
+		for (const child of [...this._mounts.values()]) {
+			child._parent = undefined;
+			await child._destroyClearOnlyAsync();
 		}
 		this._mounts.clear();
 		this._nodes.clear();
