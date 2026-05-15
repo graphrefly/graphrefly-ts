@@ -1,7 +1,7 @@
-import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
-import { type PolicyRuleData, policy } from "@graphrefly/pure-ts/core/guard.js";
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import type { Actor } from "@graphrefly/pure-ts/core";
+import { type PolicyRuleData, policy } from "@graphrefly/pure-ts/core";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { firstValueFrom } from "../../../base/sources/settled.js";

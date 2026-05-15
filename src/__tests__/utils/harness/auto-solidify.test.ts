@@ -9,8 +9,8 @@
  *   - completes when verifyResults completes
  */
 
-import { DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA, ERROR } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 
 import { autoSolidify } from "../../../utils/harness/auto-solidify.js";

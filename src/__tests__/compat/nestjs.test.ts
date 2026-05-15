@@ -1,6 +1,6 @@
 import "reflect-metadata";
-import { DEFAULT_ACTOR } from "@graphrefly/pure-ts/core/actor.js";
-import { GuardDenied, policy } from "@graphrefly/pure-ts/core/guard.js";
+import { DEFAULT_ACTOR } from "@graphrefly/pure-ts/core";
+import { GuardDenied, policy } from "@graphrefly/pure-ts/core";
 import {
 	COMPLETE,
 	DATA,
@@ -9,9 +9,9 @@ import {
 	type Messages,
 	START,
 	TEARDOWN,
-} from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+} from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { Injectable } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
 import { firstValueFrom as rxFirstValueFrom, take, toArray } from "rxjs";
@@ -92,7 +92,7 @@ describe("nestjs compat — RxJS bridge", () => {
 	});
 
 	it("toObservable: skips protocol-internal signals (DIRTY, RESOLVED)", async () => {
-		const { RESOLVED } = await import("@graphrefly/pure-ts/core/messages.js");
+		const { RESOLVED } = await import("@graphrefly/pure-ts/core");
 		const s = node<number>();
 		const values: number[] = [];
 		const sub = toObservable(s).subscribe((v) => values.push(v));

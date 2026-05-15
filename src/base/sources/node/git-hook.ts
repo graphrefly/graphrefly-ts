@@ -9,9 +9,9 @@
  * @module
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 import { fromTimer, globToRegExp, matchesAnyPattern, switchMap } from "@graphrefly/pure-ts/extra";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;

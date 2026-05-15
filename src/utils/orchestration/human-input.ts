@@ -25,13 +25,13 @@
  * semantics). To run parallel requests, instantiate two humanInput nodes.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { COMPLETE, DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput } from "@graphrefly/pure-ts/extra";
 import {
 	type JsonSchema,
-	type Message,
+	type TopicMessage,
 	type MessagingHubGraph,
 	PROMPTS_TOPIC,
 	RESPONSES_TOPIC,
@@ -86,7 +86,7 @@ export interface HumanInputOpts {
  * `prompt` mints a fresh request:
  *
  * 1. Mints a fresh `correlationId` (via `opts.idGenerator` if provided).
- * 2. Publishes `Message<HumanPromptPayload>` to {@link PROMPTS_TOPIC}
+ * 2. Publishes `TopicMessage<HumanPromptPayload>` to {@link PROMPTS_TOPIC}
  *    (`{ id, schema?, correlationId, payload: { prompt, schema? } }`).
  * 3. Watches {@link RESPONSES_TOPIC} for an envelope whose
  *    `correlationId` matches.
@@ -128,8 +128,8 @@ export interface HumanInputOpts {
 export function humanInput<T>(opts: HumanInputOpts): Node<T> {
 	const { hub, prompt, schema, idGenerator } = opts;
 	const promptNode = fromAny<string>(prompt);
-	const promptsTopic = hub.topic<Message<HumanPromptPayload>>(PROMPTS_TOPIC);
-	const responsesTopic = hub.topic<Message<T>>(RESPONSES_TOPIC);
+	const promptsTopic = hub.topic<TopicMessage<HumanPromptPayload>>(PROMPTS_TOPIC);
+	const responsesTopic = hub.topic<TopicMessage<T>>(RESPONSES_TOPIC);
 
 	const nextId = idGenerator ?? defaultIdGenerator();
 
@@ -163,13 +163,13 @@ export function humanInput<T>(opts: HumanInputOpts): Node<T> {
 					// envelope whose `correlationId` happens to match if the
 					// caller's id-generator is non-unique).
 					const responseCursorAtSubscribe =
-						(responsesTopic.events.cache as readonly Message<T>[] | undefined)?.length ?? 0;
+						(responsesTopic.events.cache as readonly TopicMessage<T>[] | undefined)?.length ?? 0;
 
 					// Publish the prompt envelope. Schema is carried at
-					// envelope-level only (Phase 13.B Message<T> contract);
+					// envelope-level only (Phase 13.B TopicMessage<T> contract);
 					// the payload itself is `HumanPromptPayload` and stays
 					// schema-free.
-					const envelope: Message<HumanPromptPayload> = {
+					const envelope: TopicMessage<HumanPromptPayload> = {
 						id: correlationId,
 						correlationId,
 						payload: { prompt: promptStr },
@@ -183,9 +183,9 @@ export function humanInput<T>(opts: HumanInputOpts): Node<T> {
 					respUnsub = responsesTopic.events.subscribe((rspMsgs) => {
 						for (const rm of rspMsgs) {
 							if (rm[0] !== DATA) continue;
-							const arr = rm[1] as readonly Message<T>[];
+							const arr = rm[1] as readonly TopicMessage<T>[];
 							for (let i = responseCursorAtSubscribe; i < arr.length; i++) {
-								const env = arr[i] as Message<T>;
+								const env = arr[i] as TopicMessage<T>;
 								if (env.correlationId === activeCorrelationId) {
 									a.emit(env.payload);
 									// One-shot per prompt — next prompt re-arms the watcher.

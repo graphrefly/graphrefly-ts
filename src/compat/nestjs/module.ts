@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AppendLogStorageTier } from "@graphrefly/pure-ts/extra";
-import { Graph, type GraphPersistSnapshot } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph, type GraphPersistSnapshot } from "@graphrefly/pure-ts/graph";
 import {
 	type DynamicModule,
 	Module,
@@ -21,7 +21,7 @@ import {
 	Scope,
 } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
-import { type CqrsGraph, type CqrsOptions, cqrs } from "../../patterns/cqrs/index.js";
+import { type CqrsGraph, type CqrsOptions, cqrs } from "../../utils/cqrs/index.js";
 import { GraphReflyEventExplorer } from "./explorer.js";
 import {
 	GRAPHREFLY_REQUEST_GRAPH,
@@ -55,7 +55,7 @@ export interface GraphReflyCqrsOptions {
 	/** Build callback — registers commands, events, projections, sagas on the CqrsGraph. */
 	build?: (graph: CqrsGraph) => void;
 	/** Append-log storage tiers for event persistence (wired via `attachEventStorage()`). */
-	eventStorage?: readonly AppendLogStorageTier<import("../../patterns/cqrs/index.js").CqrsEvent>[];
+	eventStorage?: readonly AppendLogStorageTier<import("../../utils/cqrs/index.js").CqrsEvent>[];
 	/**
 	 * Node paths (local to this feature) to expose as injectable providers.
 	 * Tokens are auto-qualified as `featureName::path`.

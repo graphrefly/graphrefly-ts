@@ -1,7 +1,4 @@
-import { DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core/messages.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
-import { autoTrackNode } from "@graphrefly/pure-ts/core/sugar.js";
+import { DATA, ERROR, type Messages, type Node, node, autoTrackNode } from "@graphrefly/pure-ts/core";
 
 /**
  * Options for creating an atom.

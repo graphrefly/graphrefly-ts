@@ -25,20 +25,20 @@
  *
  * @module
  */
-import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import type { PolicyRuleData } from "@graphrefly/pure-ts/core/guard.js";
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import type { Actor } from "@graphrefly/pure-ts/core";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
+import type { PolicyRuleData } from "@graphrefly/pure-ts/core";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { keepalive } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	type DescribeFilter,
 	Graph,
 	type GraphDescribeOptions,
 	type GraphDescribeOutput,
 	type GraphOptions,
-} from "../../graph/index.js";
+} from "@graphrefly/pure-ts/graph";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	type PolicyGateGraph,
 	type PolicyViolation,

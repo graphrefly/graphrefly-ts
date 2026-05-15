@@ -10,7 +10,7 @@
  * lets callers swap retry config reactively (re-validates on each attempt).
  */
 
-import { ResettableTimer } from "@graphrefly/pure-ts/core/_internal/timer.js";
+import { ResettableTimer } from "../../base/utils/resettable-timer.js";
 import {
 	COMPLETE,
 	DATA,
@@ -18,9 +18,9 @@ import {
 	ERROR,
 	type Message,
 	RESOLVED,
-} from "@graphrefly/pure-ts/core/messages.js";
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+} from "@graphrefly/pure-ts/core";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { coerceDelayNs, isNode, msgVal, type NodeOrValue, operatorOpts } from "./_internal.js";
 import {
 	type BackoffPreset,

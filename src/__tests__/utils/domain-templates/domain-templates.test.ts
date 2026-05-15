@@ -4,8 +4,8 @@
 // The underlying pattern factories (stratify, feedback, etc.) use Graph.connect() which now
 // enforces that the target node already has the source in its deps array.
 
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 
 import {

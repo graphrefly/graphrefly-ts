@@ -6,7 +6,7 @@
  *
  * Wraps a {@link MessagingHubGraph} + {@link presetRegistry} +
  * (per-request) {@link agent} mounting + depth-cap + termination contract.
- * Consumers emit a `Message<SpawnPayload>` to the well-known
+ * Consumers emit a `TopicMessage<SpawnPayload>` to the well-known
  * {@link SPAWNS_TOPIC}; `spawnable()` mints a fresh agent from the
  * matching preset, mounts it, and tracks it in `activeSlot` until the
  * agent settles or expires. Out-of-policy requests (depth-cap exceeded,
@@ -34,17 +34,17 @@
  * `valve` per the recipe.
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { keepalive } from "@graphrefly/pure-ts/extra";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { aiMeta } from "../../utils/ai/_internal.js";
 import type { LLMResponse } from "../../utils/ai/adapters/core/types.js";
 import type { AgentBundle, AgentSpec, AgentStatus } from "../../utils/ai/agents/agent.js";
 import {
-	type Message,
+	type TopicMessage,
 	type MessagingHubGraph,
 	SPAWNS_TOPIC,
 	type SubscriptionGraph,
@@ -74,7 +74,7 @@ export interface SpawnPayload<TIn> {
  * is denied. `reason` is a short human-readable code.
  */
 export interface SpawnRejection<TIn> {
-	readonly request: Message<SpawnPayload<TIn>>;
+	readonly request: TopicMessage<SpawnPayload<TIn>>;
 	readonly reason: string;
 }
 
@@ -109,15 +109,15 @@ export interface SpawnableOpts<TIn, TOut> {
 	 * from the envelope to gate). The substrate itself does NOT ship a
 	 * JSON-Schema validator; the `Message.schema` field is wire convention.
 	 */
-	readonly validate?: (request: Message<SpawnPayload<TIn>>) => boolean;
+	readonly validate?: (request: TopicMessage<SpawnPayload<TIn>>) => boolean;
 }
 
 /**
  * The bundle returned by {@link spawnable}.
  */
 export interface SpawnableBundle<TIn, TOut> {
-	/** The well-known spawn topic — emit `Message<SpawnPayload<TIn>>` here. */
-	readonly spawnTopic: TopicGraph<Message<SpawnPayload<TIn>>>;
+	/** The well-known spawn topic — emit `TopicMessage<SpawnPayload<TIn>>` here. */
+	readonly spawnTopic: TopicGraph<TopicMessage<SpawnPayload<TIn>>>;
 	/** Reactive map of currently-active agent bundles, keyed by request id. */
 	readonly activeSlot: Node<ReadonlyMap<string, AgentBundle<TIn, TOut>>>;
 	/** Topic of rejected requests with reason. */
@@ -146,13 +146,13 @@ export interface SpawnableBundle<TIn, TOut> {
  * ```
  */
 export class SpawnableGraph<TIn, TOut> extends Graph {
-	readonly spawnTopic: TopicGraph<Message<SpawnPayload<TIn>>>;
+	readonly spawnTopic: TopicGraph<TopicMessage<SpawnPayload<TIn>>>;
 	readonly rejected: TopicGraph<SpawnRejection<TIn>>;
 	readonly activeSlot: Node<ReadonlyMap<string, AgentBundle<TIn, TOut>>>;
-	private readonly _spawnSub: SubscriptionGraph<Message<SpawnPayload<TIn>>>;
+	private readonly _spawnSub: SubscriptionGraph<TopicMessage<SpawnPayload<TIn>>>;
 	private readonly _registry: PresetRegistryBundle<AgentSpec<TIn, TOut>>;
 	private readonly _depthCap: number | undefined;
-	private readonly _validate: ((req: Message<SpawnPayload<TIn>>) => boolean) | undefined;
+	private readonly _validate: ((req: TopicMessage<SpawnPayload<TIn>>) => boolean) | undefined;
 	private _disposed = false;
 
 	constructor(opts: SpawnableOpts<TIn, TOut>) {
@@ -164,7 +164,7 @@ export class SpawnableGraph<TIn, TOut> extends Graph {
 		this._validate = opts.validate;
 
 		// Spawn topic on the hub (well-known name; lazy-created if absent).
-		this.spawnTopic = opts.hub.topic<Message<SpawnPayload<TIn>>>(SPAWNS_TOPIC);
+		this.spawnTopic = opts.hub.topic<TopicMessage<SpawnPayload<TIn>>>(SPAWNS_TOPIC);
 
 		// Rejected topic is private to this spawnable subgraph.
 		this.rejected = topic<SpawnRejection<TIn>>("rejected");
@@ -187,7 +187,7 @@ export class SpawnableGraph<TIn, TOut> extends Graph {
 		// instances on the same hub get independent cursors.
 		// Default `from: "now"` skips pre-construction retained requests —
 		// older requests are NOT replayed unless the caller opts in.
-		this._spawnSub = subscription<Message<SpawnPayload<TIn>>>("spawn-sub", this.spawnTopic, {
+		this._spawnSub = subscription<TopicMessage<SpawnPayload<TIn>>>("spawn-sub", this.spawnTopic, {
 			from: opts.from ?? "now",
 		});
 		this.mount("spawn-sub", this._spawnSub);
@@ -198,7 +198,7 @@ export class SpawnableGraph<TIn, TOut> extends Graph {
 			if (this._disposed) return;
 			for (const m of msgs) {
 				if (m[0] !== DATA) continue;
-				const items = m[1] as readonly Message<SpawnPayload<TIn>>[];
+				const items = m[1] as readonly TopicMessage<SpawnPayload<TIn>>[];
 				if (items.length === 0) continue;
 				for (const req of items) {
 					if (this._disposed) return;
@@ -216,7 +216,7 @@ export class SpawnableGraph<TIn, TOut> extends Graph {
 		this.addDisposer(keepalive(activeSlotNode));
 	}
 
-	private _processRequest(req: Message<SpawnPayload<TIn>>): void {
+	private _processRequest(req: TopicMessage<SpawnPayload<TIn>>): void {
 		if (this._disposed) return;
 
 		// Custom validation.

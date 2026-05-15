@@ -12,7 +12,7 @@
  * emits pure deltas.
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
 import type {
 	ChatMessage,
 	LLMAdapter,

@@ -11,7 +11,7 @@ import {
 	type GraphProfileOptions,
 	type GraphProfileResult,
 	graphProfile,
-} from "@graphrefly/pure-ts/graph/profile.js";
+} from "@graphrefly/pure-ts/graph";
 import type { HarnessGraph } from "../../presets/harness/harness-loop.js";
 import { QUEUE_NAMES } from "./defaults.js";
 import type { QueueRoute, TriagedItem } from "./types.js";

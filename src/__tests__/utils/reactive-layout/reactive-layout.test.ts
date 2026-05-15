@@ -5,7 +5,7 @@
  * so tests are environment-independent (no Canvas/DOM).
  */
 
-import { INVALIDATE } from "@graphrefly/pure-ts/core/messages.js";
+import { INVALIDATE } from "@graphrefly/pure-ts/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	analyzeAndMeasure,

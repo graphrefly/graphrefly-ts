@@ -5,7 +5,7 @@
  * fixed sizes for images/SVGs) so tests are environment-independent.
  */
 
-import { INVALIDATE } from "@graphrefly/pure-ts/core/messages.js";
+import { INVALIDATE } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import {
 	ImageSizeAdapter,

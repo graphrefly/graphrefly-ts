@@ -8,7 +8,7 @@
  * @module
  */
 
-import { type Messages, PAUSE, RESUME } from "@graphrefly/pure-ts/core/messages.js";
+import { type Messages, PAUSE, RESUME } from "@graphrefly/pure-ts/core";
 
 // ---------------------------------------------------------------------------
 // Types

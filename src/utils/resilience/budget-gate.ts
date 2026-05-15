@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { NodeActions } from "@graphrefly/pure-ts/core/config.js";
+import type { NodeActions } from "@graphrefly/pure-ts/core";
 import {
 	COMPLETE,
 	DATA,
@@ -18,8 +18,8 @@ import {
 	PAUSE,
 	RESOLVED,
 	RESUME,
-} from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+} from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 import { domainMeta } from "../../base/meta/domain-meta.js";
 import type { GateState } from "./gate-state.js";
 

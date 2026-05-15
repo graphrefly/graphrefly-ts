@@ -1,8 +1,4 @@
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core/messages.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
-import { dynamicNode, type TrackFn } from "@graphrefly/pure-ts/core/sugar.js";
+import { batch, DATA, ERROR, type Messages, type Node, node, dynamicNode, type TrackFn } from "@graphrefly/pure-ts/core";
 
 /**
  * A Nanostores-compatible atom.

@@ -2,8 +2,8 @@
 // 5.4 — LLM tool integration
 // ---------------------------------------------------------------------------
 
-import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Actor } from "@graphrefly/pure-ts/core";
+import type { Graph } from "@graphrefly/pure-ts/graph";
 import type { ToolDefinition } from "../adapters/core/types.js";
 
 /** OpenAI function-calling tool schema. */

@@ -21,7 +21,7 @@
  */
 
 import type { CausalChain } from "@graphrefly/pure-ts/graph/explain.js";
-import type { Graph, GraphDescribeOutput } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Graph, GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 import {
 	graphSpecToAscii,
 	graphSpecToD2,

@@ -6,7 +6,7 @@
  * `CircuitOpenError` instead of hitting the provider.
  */
 
-import type { LLMAdapter, LLMResponse, StreamDelta } from "@graphrefly/pure-ts/core/types.js";
+import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { firstValueFrom } from "../../../../base/sources/settled.js";
 import {
@@ -25,7 +25,7 @@ export interface WithBreakerOptions extends CircuitBreakerOptions {
 	breaker?: CircuitBreaker;
 }
 
-export function withBreaker(
+export function withLLMBreaker(
 	inner: LLMAdapter,
 	opts: WithBreakerOptions = {},
 ): { adapter: LLMAdapter; breaker: CircuitBreaker } {

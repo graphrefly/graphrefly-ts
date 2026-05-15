@@ -24,7 +24,7 @@
  * `project_reactive_tracker`) reuse the same primitive.
  */
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import type { Node } from "@graphrefly/pure-ts/core";
 import {
 	DEFERRED_TOPIC,
 	type MessagingHubGraph,

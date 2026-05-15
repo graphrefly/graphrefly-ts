@@ -5,7 +5,7 @@
  * use: fallback tier in `cascadingLlmAdapter` after a BYOK cloud adapter.
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
 import type {
 	ChatMessage,
 	LLMAdapter,

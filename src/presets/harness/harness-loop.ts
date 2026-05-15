@@ -28,10 +28,10 @@
  */
 
 import { type Node, node } from "@graphrefly/pure-ts/core";
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
+import { placeholderArgs } from "@graphrefly/pure-ts/core";
 import { merge, withLatestFrom } from "@graphrefly/pure-ts/extra";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { tryIncrementBounded } from "../../base/mutation/index.js";
 import { _oneShotLlmCall, stripFences } from "../../utils/ai/_internal.js";
 import type { ChatMessage, LLMAdapter } from "../../utils/ai/index.js";

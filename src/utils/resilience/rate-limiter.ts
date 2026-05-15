@@ -4,9 +4,9 @@
  * `adaptiveRateLimiter` from its standalone module.
  */
 
-import { RingBuffer } from "@graphrefly/pure-ts/core/_internal/ring-buffer.js";
-import { ResettableTimer } from "@graphrefly/pure-ts/core/_internal/timer.js";
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
+import { RingBuffer } from "../../base/utils/ring-buffer.js";
+import { ResettableTimer } from "../../base/utils/resettable-timer.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
 import {
 	COMPLETE,
 	DATA,
@@ -14,9 +14,9 @@ import {
 	ERROR,
 	RESOLVED,
 	TEARDOWN,
-} from "@graphrefly/pure-ts/core/messages.js";
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+} from "@graphrefly/pure-ts/core";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { isNode, type NodeOrValue, operatorOpts, resolveReactiveOption } from "./_internal.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 import type { GateState } from "./gate-state.js";

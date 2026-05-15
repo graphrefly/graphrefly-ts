@@ -8,18 +8,19 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { COMPLETE, DATA, ERROR, type Message } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR, type Message } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 
 import { merge } from "@graphrefly/pure-ts/extra";
-import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 
 // ---------------------------------------------------------------------------
 // Shared helpers (same pattern as orchestration.ts)
 // ---------------------------------------------------------------------------
 
-export type StepRef = string | Node<unknown>;
+export type { StepRef } from "../orchestration/pipeline-graph.js";
+import type { StepRef } from "../orchestration/pipeline-graph.js";
 
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import { domainMeta } from "../../base/meta/domain-meta.js";

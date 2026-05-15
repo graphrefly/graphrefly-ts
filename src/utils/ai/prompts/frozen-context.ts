@@ -4,8 +4,8 @@
  * @module
  */
 
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node as nodeFactory } from "@graphrefly/pure-ts/core/node.js";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, node as nodeFactory } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput } from "@graphrefly/pure-ts/extra";
 import { aiMeta } from "../_internal.js";
 

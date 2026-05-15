@@ -1,7 +1,7 @@
-import { RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { RESOLVED } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { keepalive, type ReactiveLogBundle, reactiveLog } from "@graphrefly/pure-ts/extra";
-import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { aiMeta } from "../_internal.js";
 import type { ChatMessage } from "../adapters/core/types.js";
 

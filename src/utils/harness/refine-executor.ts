@@ -21,7 +21,7 @@
  * @module
  */
 
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { node } from "@graphrefly/pure-ts/core";
 import { filter } from "@graphrefly/pure-ts/extra";
 import {
 	type DatasetItem,

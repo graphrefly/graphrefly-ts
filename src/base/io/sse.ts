@@ -5,8 +5,8 @@
  * source).
  */
 
-import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import { defaultConfig, type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
+import { defaultConfig, type Node, node } from "@graphrefly/pure-ts/core";
 import { type ExtraOpts, sourceOpts } from "./_internal.js";
 
 /** Options for {@link toSSE}. */

@@ -1,7 +1,7 @@
 import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it, vi } from "vitest";
 import { HarnessGraph, harnessLoop } from "../../../presets/harness/harness-loop.js";
 import { contentGate, redactor } from "../../../utils/ai/index.js";

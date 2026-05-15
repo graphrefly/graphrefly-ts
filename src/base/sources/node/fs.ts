@@ -1,9 +1,9 @@
 /**
- * Filesystem sources (Node-only). Re-exports from `../sources-fs.js`.
+ * Filesystem sources (Node-only). Re-exports from `./fs-root.js`.
  *
  * Importing this sub-file pulls a Node builtin transitively; only consume from
- * `@graphrefly/graphrefly/extra/node` (which re-exports the underlying file)
- * and not from the browser-safe `@graphrefly/graphrefly/extra` barrel.
+ * `@graphrefly/graphrefly/base/sources/node` and not from the browser-safe
+ * `@graphrefly/graphrefly/base/sources` barrel.
  */
 
-export * from "../sources-fs.js";
+export * from "./fs-root.js";

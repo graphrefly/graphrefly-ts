@@ -3,8 +3,8 @@
  * one `DATA` containing the full mapped row array, then `COMPLETE`.
  */
 
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 import type { ExtraOpts } from "./_internal.js";
 
 /**

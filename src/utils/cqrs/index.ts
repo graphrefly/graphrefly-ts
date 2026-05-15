@@ -11,9 +11,7 @@
  * - `CqrsGraph.saga(name, events, handler)` — event-driven side effects
  */
 
-import { DATA, type Node, node, placeholderArgs } from "@graphrefly/pure-ts/core";
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { policy } from "@graphrefly/pure-ts/core/guard.js";
+import { DATA, type Node, node, placeholderArgs, wallClockNs, policy } from "@graphrefly/pure-ts/core";
 import type { AppendLogStorageTier } from "@graphrefly/pure-ts/extra";
 import { type ReactiveLogBundle, reactiveLog } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
@@ -1106,7 +1104,7 @@ export class CqrsGraph<_EM extends CqrsEventMap = Record<string, unknown>> exten
 					// Tiers may hold events from other projections; filtering keeps reducer
 					// correctness when the tier is shared across projections.
 					const watchedEvents = new Set<string>(eventNames as readonly string[]);
-					let cursor: import("../../extra/storage-tiers.js").AppendCursor | undefined;
+					let cursor: import("@graphrefly/pure-ts/extra").AppendCursor | undefined;
 					let done = false;
 					while (!done) {
 						const result = await tier.loadEntries({ cursor, pageSize });

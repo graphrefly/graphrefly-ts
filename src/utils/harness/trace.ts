@@ -12,9 +12,9 @@
  * @module
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import type { ObserveEvent, ObserveResult } from "@graphrefly/pure-ts/graph/graph.js";
-import type { HarnessGraph } from "./presets/harness-loop.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
+import type { ObserveEvent, ObserveResult } from "@graphrefly/pure-ts/graph";
+import type { HarnessGraph } from "../../presets/harness/harness-loop.js";
 
 // ---------------------------------------------------------------------------
 // Types

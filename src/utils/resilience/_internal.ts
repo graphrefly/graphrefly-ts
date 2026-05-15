@@ -10,8 +10,8 @@
  * shape.
  */
 
-import { DATA, type Message } from "@graphrefly/pure-ts/core/messages.js";
-import type { Node, NodeOptions } from "@graphrefly/pure-ts/core/node.js";
+import { DATA, type Message } from "@graphrefly/pure-ts/core";
+import type { Node, NodeOptions } from "@graphrefly/pure-ts/core";
 
 export type ExtraOpts = Omit<NodeOptions, "describeKind">;
 

@@ -10,7 +10,7 @@
 // flows through node `policy()` guards reactively.
 // ---------------------------------------------------------------------------
 
-import { type Actor, DEFAULT_ACTOR, normalizeActor } from "@graphrefly/pure-ts/core/actor.js";
+import { type Actor, DEFAULT_ACTOR, normalizeActor } from "@graphrefly/pure-ts/core";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 
 /**

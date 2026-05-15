@@ -56,8 +56,8 @@ export const DEFAULT_SEVERITY_WEIGHTS: Record<Severity, number> = {
 	low: 10,
 };
 
-/** Default decay rate: ~7-day half-life. */
-export const DEFAULT_DECAY_RATE = Math.LN2 / (7 * 24 * 3600);
+/** Default decay rate: ~7-day half-life. Re-exported from `base/utils/decay.ts`. */
+export { DEFAULT_DECAY_RATE } from "../../base/utils/decay.js";
 
 // ---------------------------------------------------------------------------
 // Strategy model

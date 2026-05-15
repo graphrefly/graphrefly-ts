@@ -2,12 +2,12 @@
 // suggestStrategy
 // ---------------------------------------------------------------------------
 
-import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import type { Actor } from "@graphrefly/pure-ts/core";
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
+import type { Node } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput, switchMap, withLatestFrom } from "@graphrefly/pure-ts/extra";
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Graph } from "@graphrefly/pure-ts/graph";
 import { resolveToolHandlerResult } from "../_internal.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../adapters/core/types.js";
 

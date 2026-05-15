@@ -1,4 +1,4 @@
-import { GuardDenied } from "@graphrefly/pure-ts/core/guard.js";
+import { GuardDenied } from "@graphrefly/pure-ts/core";
 import { memoryAppendLog, mergeReactiveLogs } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
 import { OptimisticConcurrencyError, UndeclaredEmitError } from "../../../utils/_errors/index.js";

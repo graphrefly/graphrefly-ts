@@ -1,7 +1,7 @@
-import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { throwError } from "@graphrefly/pure-ts/extra";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	constant,
@@ -30,7 +30,7 @@ import {
 	TimeoutError,
 	type TimeoutOptions,
 	type TimeoutState,
-	timeout,
+	deadline as timeout,
 	tokenBucket,
 	withBreaker,
 	withStatus,

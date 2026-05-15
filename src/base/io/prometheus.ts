@@ -5,12 +5,12 @@
  * exposition-format parser as a pure helper.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { switchMap } from "@graphrefly/pure-ts/extra/operators/index.js";
-import type { AsyncSourceOpts } from "@graphrefly/pure-ts/extra/sources/index.js";
-import { fromTimer } from "@graphrefly/pure-ts/extra/sources/index.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
+import { switchMap } from "@graphrefly/pure-ts/extra";
+import type { AsyncSourceOpts } from "@graphrefly/pure-ts/extra";
+import { fromTimer } from "@graphrefly/pure-ts/extra";
 import { NS_PER_MS, NS_PER_SEC } from "../../utils/resilience/backoff.js";
 
 /** Parsed Prometheus metric. */

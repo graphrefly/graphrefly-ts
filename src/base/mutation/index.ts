@@ -16,17 +16,13 @@
  * declarative wiring over typed audit records.
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { type NodeGuard, policy } from "@graphrefly/pure-ts/core/guard.js";
-import { DATA, DIRTY } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch, wallClockNs, type NodeGuard, policy, DATA, DIRTY, type Node, node } from "@graphrefly/pure-ts/core";
 import {
 	type ReactiveLogBundle,
 	type ReactiveLogOptions,
 	reactiveLog,
-} from "@graphrefly/pure-ts/extra/data-structures/reactive-log.js";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+} from "@graphrefly/pure-ts/extra";
+import { Graph } from "@graphrefly/pure-ts/graph";
 
 // ── tryIncrementBounded ──────────────────────────────────────────────────
 

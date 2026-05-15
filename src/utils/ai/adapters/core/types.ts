@@ -11,7 +11,7 @@
  * user-populated (see `pricing.ts` and `capabilities.ts`).
  */
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import type { Node } from "@graphrefly/pure-ts/core";
 import type { NodeInput } from "@graphrefly/pure-ts/extra";
 
 // ---------------------------------------------------------------------------

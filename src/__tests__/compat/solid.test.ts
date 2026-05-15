@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { createRoot } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { useStore, useSubscribe, useSubscribeRecord } from "../../compat/solid/index.js";

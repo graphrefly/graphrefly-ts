@@ -23,11 +23,17 @@
  * - Phase 13.I `spawnable()` mounts agent slots via `materialize`.
  */
 
-import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { type ExtraOpts, operatorOpts } from "@graphrefly/pure-ts/extra/operators/_internal.js";
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
+import type { Graph } from "@graphrefly/pure-ts/graph";
+
+/** Options for operator nodes: NodeOptions without `describeKind` (set internally). */
+export type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
+
+function operatorOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
+	return { describeKind: "derived", ...opts } as NodeOptions<T>;
+}
 
 // ---------------------------------------------------------------------------
 // selector

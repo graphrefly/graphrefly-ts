@@ -9,7 +9,7 @@
  * @module
  */
 
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 
 /** Options for {@link redactor}. */
 export type RedactorOptions = {

@@ -15,25 +15,25 @@
  *
  * @module
  */
-import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import type { GuardAction, NodeGuard, PolicyRuleData } from "@graphrefly/pure-ts/core/guard.js";
-import { policyFromRules } from "@graphrefly/pure-ts/core/guard.js";
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, NodeImpl, node } from "@graphrefly/pure-ts/core/node.js";
+import type { Actor } from "@graphrefly/pure-ts/core";
+import { batch } from "@graphrefly/pure-ts/core";
+import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core";
+import type { GuardAction, NodeGuard, PolicyRuleData } from "@graphrefly/pure-ts/core";
+import { policyFromRules } from "@graphrefly/pure-ts/core";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { placeholderArgs } from "@graphrefly/pure-ts/core";
+import { type Node, NodeImpl, node } from "@graphrefly/pure-ts/core";
 
-import { defaultHash } from "@graphrefly/pure-ts/core/versioning.js";
+import { defaultHash } from "@graphrefly/pure-ts/core";
 import { keepalive, reactiveLog } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	Graph,
 	type GraphOptions,
 	type GraphPersistSnapshot,
 	type TopologyEvent,
 	watchTopologyTree,
-} from "../../graph/index.js";
+} from "@graphrefly/pure-ts/graph";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import { TopicGraph } from "../messaging/index.js";
 
 // ---------------------------------------------------------------------------

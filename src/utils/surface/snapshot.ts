@@ -15,15 +15,15 @@
  * @module
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
 import type { KvStorageTier } from "@graphrefly/pure-ts/extra";
-import { Graph, SNAPSHOT_VERSION } from "@graphrefly/pure-ts/graph/graph.js";
 import type {
 	GraphCheckpointRecord,
 	GraphDiffResult,
 	GraphNodeFactory,
 	GraphPersistSnapshot,
-} from "../../graph/graph.js";
+} from "@graphrefly/pure-ts/graph";
+import { Graph, SNAPSHOT_VERSION } from "@graphrefly/pure-ts/graph";
 import { SurfaceError } from "./errors.js";
 
 /**

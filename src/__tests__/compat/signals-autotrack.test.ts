@@ -8,7 +8,7 @@
  * runs exactly N times."
  */
 
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
+import { DATA } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { Signal } from "../../compat/signals/index.js";
 

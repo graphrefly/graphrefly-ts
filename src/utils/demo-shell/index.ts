@@ -8,10 +8,8 @@
  * The shell graph is headless and fully testable.
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { describeNode, resolveDescribeFields } from "@graphrefly/pure-ts/core/meta.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { batch, node } from "@graphrefly/pure-ts/core";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { graphSpecToMermaid } from "../../base/render/index.js";
 import type { MeasurementAdapter } from "../reactive-layout/reactive-layout.js";
 import { analyzeAndMeasure, computeLineBreaks } from "../reactive-layout/reactive-layout.js";
@@ -358,8 +356,6 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 	});
 	g.add(inspectSelected, { name: "inspect/selected-node" });
 
-	const standardFields = resolveDescribeFields("standard");
-
 	const inspectNodeDetail = node(
 		[inspectSelected, demoGraphRef, demoGraphTick],
 		(batchData, actions, ctx) => {
@@ -373,9 +369,13 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 				return;
 			}
 			try {
-				const nd = demo.resolve(p);
-				const nodeDesc = describeNode(nd, standardFields);
-				actions.emit({ path: p, ...nodeDesc, value: nd.cache });
+				const snap = demo.describe({ detail: "standard" });
+				const nodeDesc = snap.nodes[p];
+				if (!nodeDesc) {
+					actions.emit(null);
+					return;
+				}
+				actions.emit({ path: p, ...nodeDesc });
 			} catch {
 				actions.emit(null);
 			}

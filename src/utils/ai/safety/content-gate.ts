@@ -3,7 +3,7 @@
  * @module
  */
 
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 
 /** Content safety decision. */
 export type ContentDecision = "allow" | "block" | "review";

@@ -10,7 +10,7 @@
  * @module
  */
 
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Graph } from "@graphrefly/pure-ts/graph";
 import type { CompileSpecOptions, GraphSpec } from "../graphspec/index.js";
 import { compileSpec, validateSpec, validateSpecAgainstCatalog } from "../graphspec/index.js";
 import { SurfaceError } from "./errors.js";

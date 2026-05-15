@@ -2,8 +2,8 @@
  * Phase 13.F — `humanInput<T>` + `tracker` regression tests.
  */
 
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import {
 	DEFERRED_TOPIC,

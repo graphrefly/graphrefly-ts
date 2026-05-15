@@ -33,18 +33,18 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import { DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
+import { DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
+import { placeholderArgs } from "@graphrefly/pure-ts/core";
 // `createNode` is the local alias for `node` so calls don't shadow
 // `Graph.prototype.node` when the file's body inadvertently references the
 // graph's `.node()` method. B5f keeps protocol-primitive construction visually
 // distinct from graph-instance method dispatch.
-import { node as createNode, type Node } from "@graphrefly/pure-ts/core/node.js";
+import { node as createNode, type Node } from "@graphrefly/pure-ts/core";
 import type { NodeInput } from "@graphrefly/pure-ts/extra";
 import { switchMap } from "@graphrefly/pure-ts/extra";
-import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { tryIncrementBounded } from "../../base/mutation/index.js";
 import { messagingHub, type TopicGraph } from "../../utils/messaging/index.js";
 

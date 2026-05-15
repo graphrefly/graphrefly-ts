@@ -1,4 +1,4 @@
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
 import { describe, expect, it, vi } from "vitest";
 import { Signal } from "../../compat/signals/index.js";
 

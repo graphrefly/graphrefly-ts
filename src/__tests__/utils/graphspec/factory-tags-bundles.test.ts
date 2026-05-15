@@ -11,8 +11,8 @@
  * indirectly via the existing AI-tests when they exercise the bundles.
  */
 
-import { node } from "@graphrefly/pure-ts/core/node.js";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { node } from "@graphrefly/pure-ts/core";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { distill } from "../../../base/composition/distill.js";
 import { verifiable } from "../../../base/composition/verifiable.js";

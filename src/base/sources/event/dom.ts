@@ -5,8 +5,8 @@
  */
 
 import { wallClockNs } from "@graphrefly/pure-ts/core";
-import { ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;

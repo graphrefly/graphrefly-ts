@@ -4,7 +4,7 @@
  * @module
  */
 
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 
 import { fromAny, keepalive, type NodeInput } from "@graphrefly/pure-ts/extra";
 import { aiMeta } from "../_internal.js";

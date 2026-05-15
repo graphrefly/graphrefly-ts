@@ -2,7 +2,7 @@
  * Tests for 5.2c ingest adapters (src/extra/adapters.ts).
  */
 
-import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
+import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core";
 import { fromIter } from "@graphrefly/pure-ts/extra";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {

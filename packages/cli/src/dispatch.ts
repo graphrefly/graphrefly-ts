@@ -153,8 +153,8 @@ function explainCmd(argv: Argv, catalog: GraphSpecCatalog): number {
 	}
 	const g = createGraph(spec, { catalog });
 	try {
-		const chain = g.explain(from, to);
-		writeOutput(chain.toJSON(), resolveFormat(argv));
+		const chain = g.describe({ explain: { from, to } });
+		writeOutput((chain as { toJSON(): unknown }).toJSON(), resolveFormat(argv));
 		return 0;
 	} finally {
 		g.destroy();

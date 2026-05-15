@@ -15,8 +15,8 @@
  * in-flight deadline — new `ns` applies to next attempt only.
  */
 
-import { ResettableTimer } from "@graphrefly/pure-ts/core/_internal/timer.js";
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
+import { ResettableTimer } from "../../base/utils/resettable-timer.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
 import {
 	COMPLETE,
 	DATA,
@@ -24,14 +24,14 @@ import {
 	ERROR,
 	RESOLVED,
 	TEARDOWN,
-} from "@graphrefly/pure-ts/core/messages.js";
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+} from "@graphrefly/pure-ts/core";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { isNode, operatorOpts } from "./_internal.js";
 import { NS_PER_MS } from "./backoff.js";
 
 /**
- * Thrown by {@link timeout} when no `DATA` arrives within the deadline.
+ * Thrown by {@link deadline} when no `DATA` arrives within the deadline.
  *
  * @category extra
  */
@@ -43,7 +43,7 @@ export class TimeoutError extends Error {
 }
 
 /**
- * Options accepted by {@link timeout}.
+ * Options accepted by {@link deadline}.
  *
  * - `ns` — deadline in nanoseconds (must be `> 0`). Required at the
  *   first opts settle; missing / non-positive values throw at
@@ -60,7 +60,7 @@ export interface TimeoutOptions {
 }
 
 /**
- * Lifecycle-shaped state companion emitted by {@link timeout}.
+ * Lifecycle-shaped state companion emitted by {@link deadline}.
  *
  * Default `equals` dedups on the `status` field — subscribers don't
  * re-fire on identical-shape transitions, but DO fire on every state
@@ -76,7 +76,7 @@ export type TimeoutState =
 	| { status: "errored"; firedAt_ns: number; deadline_ns: number };
 
 /**
- * Bundle returned by {@link timeout}: the timeout-wrapped output node and
+ * Bundle returned by {@link deadline}: the timeout-wrapped output node and
  * its lifecycle-shaped state companion.
  *
  * **Single-subscriber / pipeline-only contract (DS-13.5.B QA, N1, 2026-05-03).**
@@ -139,7 +139,7 @@ interface TimeoutExtraOpts {
  *
  * @category extra
  */
-export function timeout<T>(
+export function deadline<T>(
 	source: Node<T>,
 	opts: Partial<TimeoutOptions> | Node<Partial<TimeoutOptions>>,
 	extraOpts?: TimeoutExtraOpts,
@@ -160,7 +160,7 @@ export function timeout<T>(
 			!Number.isFinite(staticOpts.ns) ||
 			staticOpts.ns <= 0
 		) {
-			throw new RangeError("timeout: opts.ns must be a positive finite number");
+			throw new RangeError("deadline: opts.ns must be a positive finite number");
 		}
 		latestOpts = {
 			ns: staticOpts.ns,
@@ -177,7 +177,7 @@ export function timeout<T>(
 				!Number.isFinite(cached.ns) ||
 				cached.ns <= 0
 			) {
-				throw new RangeError("timeout: opts.ns must be a positive finite number on first settle");
+				throw new RangeError("deadline: opts.ns must be a positive finite number on first settle");
 			}
 			latestOpts = {
 				ns: cached.ns,
@@ -330,7 +330,7 @@ export function timeout<T>(
 										[
 											ERROR,
 											new RangeError(
-												"timeout: opts.ns must be a positive finite number on first settle",
+												"deadline: opts.ns must be a positive finite number on first settle",
 											),
 										],
 									]);
@@ -370,7 +370,7 @@ export function timeout<T>(
 		{
 			...operatorOpts(),
 			initial: source.cache,
-			meta: { ...(callerMeta ?? {}), ...factoryTag("timeout", factoryArgs) },
+			meta: { ...(callerMeta ?? {}), ...factoryTag("deadline", factoryArgs) },
 		},
 	);
 

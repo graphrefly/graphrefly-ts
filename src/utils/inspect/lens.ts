@@ -36,16 +36,16 @@
  *
  * @module
  */
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { keepalive } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	type Graph,
 	type GraphDescribeOutput,
 	type ObserveChangeset,
 	type ObserveEvent,
 	reachable,
-} from "../../graph/index.js";
+} from "@graphrefly/pure-ts/graph";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 
 export { watchTopologyTree } from "@graphrefly/pure-ts/graph";
 

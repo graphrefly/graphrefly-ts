@@ -13,8 +13,8 @@
  *   - switchMap supersede aborts in-flight handler signal
  */
 
-import { DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA, ERROR } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { awaitSettled } from "../../../../base/sources/settled.js";
 import type { ToolCall } from "../../../../utils/ai/adapters/core/types.js";

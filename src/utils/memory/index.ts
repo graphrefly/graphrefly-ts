@@ -26,11 +26,11 @@
  * @module
  */
 
-import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { type Node, NodeImpl, node } from "@graphrefly/pure-ts/core/node.js";
+import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core";
+import { type Node, NodeImpl, node } from "@graphrefly/pure-ts/core";
 import type { ReactiveLogBundle } from "@graphrefly/pure-ts/extra";
 import { fromTimer, keepalive, reactiveMap } from "@graphrefly/pure-ts/extra";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	type BaseAuditRecord,
@@ -40,6 +40,7 @@ import {
 	registerCursor,
 } from "../../base/mutation/index.js";
 import { decay } from "../../base/utils/decay.js";
+import type { NodeOrValue } from "../resilience/_internal.js";
 
 // ── Shared helpers ───────────────────────────────────────────────────────
 
@@ -130,7 +131,7 @@ function searchResultsEqual<TMeta>(
 // ── Common types ─────────────────────────────────────────────────────────
 
 /** Public alias for the `Node | value` shape accepted by reactive read factories. */
-export type NodeOrValue<T> = T | Node<T>;
+export type { NodeOrValue } from "../resilience/_internal.js";
 
 // ── Unit 2 (Tier 2.3 fold): collection (formerly lightCollection + collection)
 //

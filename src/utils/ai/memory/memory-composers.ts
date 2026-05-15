@@ -21,10 +21,10 @@
 // decision.
 // ---------------------------------------------------------------------------
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import type { StorageHandle } from "@graphrefly/pure-ts/extra";
 import {
 	fromAny,
@@ -34,7 +34,7 @@ import {
 	type ReactiveMapRetention,
 	reactiveMap,
 } from "@graphrefly/pure-ts/extra";
-import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import {
 	type DistillBundle,
 	type DistillOptions,

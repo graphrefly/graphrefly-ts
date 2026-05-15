@@ -1,23 +1,34 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { derived, type GraphSpecCatalog } from "@graphrefly/graphrefly";
+import { type GraphSpecCatalog, node } from "@graphrefly/graphrefly";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatch, parseArgv } from "../src/index.js";
 
 const catalog: GraphSpecCatalog = {
 	fns: {
-		double: (deps) => derived(deps, ([v]) => (v as number) * 2),
-		addOne: (deps) => derived(deps, ([v]) => (v as number) + 1),
+		double: (deps) =>
+			node(deps, (batchData, actions) => actions.emit((batchData[0]?.at(-1) as number) * 2), {
+				describeKind: "derived",
+			}),
+		addOne: (deps) =>
+			node(deps, (batchData, actions) => actions.emit((batchData[0]?.at(-1) as number) + 1), {
+				describeKind: "derived",
+			}),
 	},
 };
 
 const basicSpec = {
 	name: "basic",
 	nodes: {
-		input: { type: "state", initial: 0 },
-		doubled: { type: "derived", deps: ["input"], fn: "double" },
-		output: { type: "derived", deps: ["doubled"], fn: "addOne" },
+		input: {
+			type: "state",
+			deps: [],
+			value: 0,
+			meta: { factory: "state", factoryArgs: { initial: 0 } },
+		},
+		doubled: { type: "derived", deps: ["input"], meta: { factory: "double" } },
+		output: { type: "derived", deps: ["doubled"], meta: { factory: "addOne" } },
 	},
 };
 

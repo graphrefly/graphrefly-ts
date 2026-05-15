@@ -4,9 +4,9 @@
  * sink). For Kafka-on-Pulsar (KoP), use the Kafka adapter instead.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { type AckableMessage, type ExtraOpts, sourceOpts } from "./_internal.js";
 import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 

@@ -13,9 +13,9 @@ import {
 	ERROR,
 	RESOLVED,
 	TEARDOWN,
-} from "@graphrefly/pure-ts/core/messages.js";
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+} from "@graphrefly/pure-ts/core";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { isAsyncIterable, isNode, isThenable, operatorOpts } from "./_internal.js";
 

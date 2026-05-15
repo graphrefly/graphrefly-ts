@@ -1,5 +1,5 @@
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
 import { decay } from "../../../base/utils/decay.js";

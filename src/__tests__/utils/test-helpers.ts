@@ -1,7 +1,7 @@
 /**
  * Shared test utilities for subscribing to nodes and collecting messages.
  */
-import { START } from "@graphrefly/pure-ts/core/messages.js";
+import { START } from "@graphrefly/pure-ts/core";
 
 type Subscribable = { subscribe: (fn: (m: unknown) => void) => () => void };
 

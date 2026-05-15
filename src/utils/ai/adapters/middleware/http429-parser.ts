@@ -11,7 +11,7 @@
  * - Error message regex fallbacks for providers without structured headers
  */
 
-import type { RateLimitSignal } from "../../../../extra/adaptive-rate-limiter.js";
+import type { RateLimitSignal } from "../../../resilience/adaptive-rate-limiter.js";
 
 export interface HttpErrorLike {
 	status?: number;

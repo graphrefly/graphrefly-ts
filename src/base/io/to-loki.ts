@@ -3,8 +3,8 @@
  * entries via the duck-typed {@link LokiClientLike} `push()` surface.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import type { Node } from "@graphrefly/pure-ts/core";
 import type { ExtraOpts } from "./_internal.js";
 import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 

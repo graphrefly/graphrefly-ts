@@ -16,7 +16,7 @@
  * - `promptTokensDetails[]`                            → `input.{image,audio,video}` per modality
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
 import { makeHttpError } from "../../../../base/io/http-error.js";
 import { parseSSEStream } from "../../../../base/io/sse.js";
 import type {

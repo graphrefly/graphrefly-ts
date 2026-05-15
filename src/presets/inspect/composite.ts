@@ -45,11 +45,10 @@
  * @module
  */
 
-import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
-import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import type { CausalChain } from "@graphrefly/pure-ts/graph/explain.js";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Actor } from "@graphrefly/pure-ts/core";
+import { placeholderArgs } from "@graphrefly/pure-ts/core";
+import type { Node } from "@graphrefly/pure-ts/core";
+import { Graph, type CausalChain } from "@graphrefly/pure-ts/graph";
 import {
 	type AuditTrailGraph,
 	type AuditTrailOptions,

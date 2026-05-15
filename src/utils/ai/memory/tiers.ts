@@ -2,12 +2,12 @@
 // Memory Tiers
 // ---------------------------------------------------------------------------
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import type { Node } from "@graphrefly/pure-ts/core";
 import type { SnapshotStorageTier, StorageHandle } from "@graphrefly/pure-ts/extra";
 import type {
 	GraphAttachStorageOptions,
 	GraphCheckpointRecord,
-} from "@graphrefly/pure-ts/graph/graph.js";
+} from "@graphrefly/pure-ts/graph";
 import { DEFAULT_DECAY_RATE } from "../../../base/utils/decay.js";
 import type { CollectionGraph } from "../../memory/index.js";
 

@@ -3,7 +3,7 @@
  * notification surface as a reactive source via `externalProducer`.
  */
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import type { Node } from "@graphrefly/pure-ts/core";
 import { externalProducer } from "../composition/external-register.js";
 import type { ExtraOpts } from "./_internal.js";
 

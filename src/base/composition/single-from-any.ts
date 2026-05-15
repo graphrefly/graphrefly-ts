@@ -27,15 +27,14 @@
  * @category extra
  */
 
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
+import type { Node } from "@graphrefly/pure-ts/core";
 // Import directly from the source sub-files (rather than the `./sources.js`
 // barrel) so the `single-from-any` module is NOT part of any cycle that runs
 // through `extra/sources/index.ts` — eager re-exports through the barrel were
 // observed to leave `firstValueFrom` / `keepalive` unresolved during nested
 // import chains under vite-node.
-import type { NodeInput } from "@graphrefly/pure-ts/extra/sources/_internal.js";
-import { fromAny } from "../sources/async.js";
+import { fromAny, type NodeInput } from "@graphrefly/pure-ts/extra";
 import { firstValueFrom } from "../sources/settled.js";
 
 export interface SingleFromAnyOptions<K> {
