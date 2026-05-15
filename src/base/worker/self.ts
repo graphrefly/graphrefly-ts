@@ -18,9 +18,9 @@
  *   5. Updates proxy nodes -> triggers local effects
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { DATA, ERROR, type Messages, TEARDOWN } from "@graphrefly/pure-ts/core/messages.js";
-import { defaultConfig, type Node, type NodeSink, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { DATA, ERROR, type Messages, TEARDOWN } from "@graphrefly/pure-ts/core";
+import { defaultConfig, type Node, type NodeSink, node } from "@graphrefly/pure-ts/core";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";
 import type { WorkerTransport } from "./transport.js";

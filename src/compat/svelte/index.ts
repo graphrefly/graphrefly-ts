@@ -13,8 +13,7 @@
 //   // $count = 42
 // ---------------------------------------------------------------------------
 
-import { DATA, DIRTY, type Messages, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA, DIRTY, type Messages, RESOLVED, type Node } from "@graphrefly/pure-ts/core";
 
 /** Svelte store contract — implements the minimal `subscribe` method. */
 export interface SvelteReadable<T> {

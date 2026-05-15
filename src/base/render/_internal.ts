@@ -7,7 +7,7 @@
  * Tier 2.1 A2.
  */
 
-import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph/graph.js";
+import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 
 /** Direction options for diagram exports. */
 export type DiagramDirection = "TD" | "LR" | "BT" | "RL";

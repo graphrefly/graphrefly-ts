@@ -4,12 +4,12 @@
 
 export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { DATA, ERROR, INVALIDATE, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node, node as nodeFactory } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { DATA, ERROR, INVALIDATE, RESOLVED } from "@graphrefly/pure-ts/core";
+import { placeholderArgs } from "@graphrefly/pure-ts/core";
+import { type Node, node, node as nodeFactory } from "@graphrefly/pure-ts/core";
 import { fromAny, keepalive, switchMap } from "@graphrefly/pure-ts/extra";
-import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { awaitSettled } from "../../base/sources/settled.js";
 import { aiMeta } from "../../utils/ai/_internal.js";
 import type {

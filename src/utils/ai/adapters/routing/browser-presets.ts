@@ -10,8 +10,8 @@
  * @module
  */
 
-import { createAdapter } from "@graphrefly/pure-ts/core/factory.js";
-import type { LLMAdapter } from "@graphrefly/pure-ts/core/types.js";
+import { createAdapter } from "../core/factory.js";
+import type { LLMAdapter } from "../core/types.js";
 import { chromeNanoAdapter } from "../providers/browser/chrome-nano.js";
 import { webllmAdapter } from "../providers/browser/webllm.js";
 import { type CascadingLlmAdapterOptions, cascadingLlmAdapter } from "./cascading.js";

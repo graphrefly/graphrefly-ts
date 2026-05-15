@@ -2,7 +2,7 @@
  * Tests for externalProducer / externalBundle (src/extra/external-register.ts).
  */
 
-import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core/messages.js";
+import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type BundleTriad,

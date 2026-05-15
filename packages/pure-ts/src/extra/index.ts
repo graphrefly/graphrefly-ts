@@ -1,5 +1,5 @@
 /**
- * Extra layer — substrate-only universal barrel (cleave A2, 2026-05-14).
+ * Extra layer — substrate-only universal barrel (cleave A2+A3, 2026-05-14).
  *
  * After the cleave, @graphrefly/pure-ts/extra exports substrate-only APIs
  * that are browser + Node safe (no `node:*` builtins, no DOM globals):
@@ -12,20 +12,21 @@
  * - storage/content-addressed (contentAddressedStorage, canonicalJson)
  * - composition/stratify (reactive branch routing)
  * - composition/topology-diff (topologyDiff, DescribeChangeset)
- * - composition/pubsub (pubsub, PubSubHandle)
  * - sources/sync (fromIter, of, empty, never, throwError)
  * - sources/event/timer (fromTimer)
  * - sources/async (fromPromise, fromAsyncIter, fromAny)
  * - sources/_keepalive (keepalive)
  * - sources/_internal types (NodeInput, AsyncSourceOpts)
  *
+ * pubsub moved to @graphrefly/graphrefly/base/composition (cleave A3 — no
+ * substrate core/graph dependency found; presentation-layer placement confirmed).
+ *
  * Node-only APIs: @graphrefly/pure-ts/extra/node (file/sqlite storage tiers)
  * Browser-only APIs: @graphrefly/pure-ts/extra/browser (IndexedDB storage tiers)
  * Presentation APIs: @graphrefly/graphrefly (root src/)
  */
 
-// Composition — substrate only (stratify + topology-diff + pubsub)
-export * from "./composition/pubsub.js";
+// Composition — substrate only (stratify + topology-diff)
 export * from "./composition/stratify.js";
 export * from "./composition/topology-diff.js";
 // Data structures — substrate

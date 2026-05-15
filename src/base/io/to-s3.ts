@@ -6,8 +6,8 @@
  * `S3ClientLike` is also used by `checkpointToS3` (in `./checkpoint.ts`).
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import type { Node } from "@graphrefly/pure-ts/core";
 import type { ExtraOpts } from "./_internal.js";
 import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 

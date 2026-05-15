@@ -40,14 +40,14 @@
  * @module
  */
 
-import type { LLMAdapter } from "@graphrefly/pure-ts/core/types.js";
-import type { CircuitBreaker } from "@graphrefly/pure-ts/extra";
-import type { AdaptiveRateLimiterBundle } from "../../../../extra/adaptive-rate-limiter.js";
+import type { LLMAdapter } from "../core/types.js";
+import type { CircuitBreaker } from "../../../resilience/breaker.js";
+import type { AdaptiveRateLimiterBundle } from "../../../resilience/adaptive-rate-limiter.js";
 import type { CascadeExhaustionReport } from "../routing/cascading.js";
 import { cascadingLlmAdapter } from "../routing/cascading.js";
-import { type WithBreakerOptions, withBreaker } from "./breaker.js";
+import { type WithBreakerOptions, withLLMBreaker } from "./breaker.js";
 import {
-	type BudgetGateBundle,
+	type LLMBudgetGateBundle,
 	type WithBudgetGateOptions,
 	withBudgetGate,
 } from "./budget-gate.js";
@@ -106,7 +106,7 @@ export interface ResilientAdapterBundle {
 	/** Rate-limiter internals (for dashboards). Present only when `opts.rateLimit` was set. */
 	rateLimiter?: AdaptiveRateLimiterBundle;
 	/** Budget gate internals (for dashboards). Present only when `opts.budget` was set. */
-	budget?: BudgetGateBundle;
+	budget?: LLMBudgetGateBundle;
 	/** Circuit breaker (for dashboards). Present only when `opts.breaker` was set. */
 	breaker?: CircuitBreaker;
 }
@@ -148,7 +148,7 @@ export function resilientAdapter(
 		bundle.budget = wrapped.budget;
 	}
 	if (opts.breaker) {
-		const wrapped = withBreaker(current, opts.breaker);
+		const wrapped = withLLMBreaker(current, opts.breaker);
 		current = wrapped.adapter;
 		bundle.breaker = wrapped.breaker;
 	}

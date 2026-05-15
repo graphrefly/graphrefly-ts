@@ -1,4 +1,4 @@
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 
 import {

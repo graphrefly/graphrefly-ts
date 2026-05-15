@@ -1040,10 +1040,8 @@ async function rewriteImports(absFile: string, moveLookup: Map<string, string>):
 		spec: string;
 		index: number;
 	}> = [];
-	let m: RegExpExecArray | null;
-
 	importRe.lastIndex = 0;
-	while ((m = importRe.exec(src)) !== null) {
+	for (let m = importRe.exec(src); m !== null; m = importRe.exec(src)) {
 		matches.push({ full: m[0], prefix: m[1], quote: m[2], spec: m[3], index: m.index });
 	}
 

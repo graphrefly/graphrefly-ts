@@ -11,7 +11,7 @@
  * equality.
  */
 
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { policyGate } from "../../../utils/inspect/audit.js";

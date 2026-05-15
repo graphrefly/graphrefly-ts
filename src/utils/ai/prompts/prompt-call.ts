@@ -12,8 +12,9 @@
 // `llmExtractor` / `llmConsolidator` are now thin wrappers over `promptCall`.
 // ---------------------------------------------------------------------------
 
-import { node } from "@graphrefly/pure-ts/core/node.js";
-import type { Extraction, NodeInput } from "@graphrefly/pure-ts/extra";
+import { node } from "@graphrefly/pure-ts/core";
+import type { NodeInput } from "@graphrefly/pure-ts/extra";
+import type { Extraction } from "../../../base/composition/distill.js";
 import type { LLMAdapter } from "../adapters/core/types.js";
 import { promptNode } from "./prompt-node.js";
 

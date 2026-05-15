@@ -4,11 +4,9 @@
  * in-flight queries) and emits one `DATA` per result row per scrape.
  */
 
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { switchMap } from "@graphrefly/pure-ts/extra/operators/index.js";
-import type { AsyncSourceOpts } from "@graphrefly/pure-ts/extra/sources/index.js";
-import { fromTimer } from "@graphrefly/pure-ts/extra/sources/index.js";
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
+import { type AsyncSourceOpts, fromTimer, switchMap } from "@graphrefly/pure-ts/extra";
 import { NS_PER_MS, NS_PER_SEC } from "../../utils/resilience/backoff.js";
 
 /** Structured ClickHouse query result row. */

@@ -4,8 +4,8 @@
  * the adapter only wires the `emit` triad.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import type { Node } from "@graphrefly/pure-ts/core";
 import {
 	type EmitTriad,
 	type ExternalRegister,

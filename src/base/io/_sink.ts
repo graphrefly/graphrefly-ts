@@ -20,15 +20,15 @@
  *   touching callback soup.
  */
 
-import { RingBuffer } from "@graphrefly/pure-ts/core/_internal/ring-buffer.js";
+import { RingBuffer } from "./_ring-buffer.js";
 import {
 	COMPLETE,
 	DATA,
 	ERROR,
 	type Message,
 	TEARDOWN,
-} from "@graphrefly/pure-ts/core/messages.js";
-import { defaultConfig, type Node, node } from "@graphrefly/pure-ts/core/node.js";
+} from "@graphrefly/pure-ts/core";
+import { defaultConfig, type Node, node } from "@graphrefly/pure-ts/core";
 import {
 	type BackoffPreset,
 	type BackoffStrategy,

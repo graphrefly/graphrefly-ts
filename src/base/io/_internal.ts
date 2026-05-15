@@ -11,10 +11,10 @@
  *   `checkpointToS3` / `checkpointToRedis`.
  */
 
-import type { Node, NodeOptions } from "@graphrefly/pure-ts/core/node.js";
-import type { GraphCheckpointRecord } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Node, NodeOptions } from "@graphrefly/pure-ts/core";
+import type { GraphCheckpointRecord } from "@graphrefly/pure-ts/graph";
 import type { EmitTriad } from "../composition/external-register.js";
-import type { SnapshotStorageTier } from "../storage/tiers.js";
+import type { SnapshotStorageTier } from "@graphrefly/pure-ts/extra/storage";
 import type { SinkTransportError } from "./_sink.js";
 
 export type ExtraOpts = Omit<NodeOptions, "describeKind">;

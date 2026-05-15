@@ -4,9 +4,9 @@
  * {@link SnapshotStorageTier}.
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import type { GraphCheckpointRecord } from "@graphrefly/pure-ts/graph/graph.js";
-import type { SnapshotStorageTier } from "../storage/tiers.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import type { GraphCheckpointRecord } from "@graphrefly/pure-ts/graph";
+import type { SnapshotStorageTier } from "@graphrefly/pure-ts/extra/storage";
 import type { AttachStorageGraphLike } from "./_internal.js";
 import type { S3ClientLike } from "./to-s3.js";
 

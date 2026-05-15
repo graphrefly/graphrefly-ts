@@ -2,10 +2,10 @@
 // graphFromSpec
 // ---------------------------------------------------------------------------
 
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput, switchMap } from "@graphrefly/pure-ts/extra";
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Graph } from "@graphrefly/pure-ts/graph";
 import { compileSpec, type GraphSpec, type GraphSpecCatalog } from "../../graphspec/index.js";
 import { resolveToolHandlerResult, stripFences } from "../_internal.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../adapters/core/types.js";

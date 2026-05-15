@@ -2,9 +2,9 @@
  * Phase 13.C — `selector` + `materialize` regression tests.
  */
 
-import { COMPLETE, DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { COMPLETE, DATA } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { type GraphFactory, materialize, selector } from "../../../base/composition/materialize.js";
 import { collect } from "../test-helpers.js";

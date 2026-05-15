@@ -17,9 +17,9 @@
  *   torn down.
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 
 type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
 

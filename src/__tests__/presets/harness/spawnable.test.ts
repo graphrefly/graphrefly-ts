@@ -2,7 +2,7 @@
  * Phase 13.I — `spawnable()` regression tests.
  */
 
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
+import { DATA } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { type SpawnRejection, spawnable } from "../../../presets/harness/spawnable.js";
 import type { AgentSpec, LLMAdapter, LLMResponse } from "../../../utils/ai/index.js";

@@ -14,7 +14,7 @@
  * @category extra
  */
 
-import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph/graph.js";
+import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 import { renderGrid } from "./_ascii-grid.js";
 import { countCells, truncateToCells } from "./_ascii-width.js";
 import type { LayoutDirection } from "./_layout-sugiyama.js";

@@ -18,7 +18,7 @@
  */
 
 import { type ReactiveMapBundle, reactiveMap } from "@graphrefly/pure-ts/extra";
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Graph } from "@graphrefly/pure-ts/graph";
 import type { LLMResponse } from "../../utils/ai/adapters/core/types.js";
 import { type AgentBundle, AgentGraph, type AgentSpec } from "../../utils/ai/agents/agent.js";
 

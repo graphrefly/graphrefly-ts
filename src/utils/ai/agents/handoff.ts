@@ -1,5 +1,5 @@
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput, switchMap } from "@graphrefly/pure-ts/extra";
 
 // ---------------------------------------------------------------------------

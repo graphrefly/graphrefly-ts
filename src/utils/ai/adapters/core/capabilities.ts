@@ -7,8 +7,8 @@
  * tables, no drift-prone catalog.
  */
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import type { Node } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 
 import { reactiveMap } from "@graphrefly/pure-ts/extra";
 import type { ModelPricing } from "./pricing.js";

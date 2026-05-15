@@ -6,10 +6,8 @@
 
 import {
 	batch,
-	DATA,
 	factoryTag,
 	type Node,
-	type NodeOptions,
 	node,
 } from "@graphrefly/pure-ts/core";
 import {

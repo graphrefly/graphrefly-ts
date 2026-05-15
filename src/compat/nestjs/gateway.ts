@@ -8,15 +8,8 @@
 // see DATA values from nodes their Actor is allowed to observe.
 // ---------------------------------------------------------------------------
 
-import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
-import {
-	COMPLETE,
-	DATA,
-	ERROR,
-	type Messages,
-	TEARDOWN,
-} from "@graphrefly/pure-ts/core/messages.js";
-import type { Graph, GraphObserveOne } from "@graphrefly/pure-ts/graph/graph.js";
+import { type Actor, COMPLETE, DATA, ERROR, type Messages, TEARDOWN } from "@graphrefly/pure-ts/core";
+import type { Graph, GraphObserveOne } from "@graphrefly/pure-ts/graph";
 import {
 	createWatermarkController,
 	type WatermarkController,

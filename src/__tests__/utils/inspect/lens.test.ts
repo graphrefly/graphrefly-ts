@@ -1,6 +1,6 @@
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { describeNode } from "@graphrefly/pure-ts/core/meta.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { describeNode } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { type FlowEntry, graphLens, type HealthReport } from "../../../utils/inspect/lens.js";

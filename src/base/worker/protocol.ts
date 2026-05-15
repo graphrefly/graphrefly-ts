@@ -17,7 +17,7 @@ import {
 	PAUSE,
 	RESUME,
 	TEARDOWN,
-} from "@graphrefly/pure-ts/core/messages.js";
+} from "@graphrefly/pure-ts/core";
 
 // ---------------------------------------------------------------------------
 // Wire message types

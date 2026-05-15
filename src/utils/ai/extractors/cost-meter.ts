@@ -11,7 +11,7 @@
  * @module
  */
 
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import type { TopicGraph } from "../../messaging/index.js";
 import { aiMeta } from "../_internal.js";
 import { sumInputTokens, sumOutputTokens } from "../adapters/core/types.js";

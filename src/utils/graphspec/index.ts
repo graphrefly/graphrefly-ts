@@ -17,13 +17,13 @@
  * @module
  */
 
-import type { DescribeNodeOutput } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import type { DescribeNodeOutput } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import {
 	GRAPH_META_SEGMENT,
 	Graph,
 	type GraphDescribeOutput,
-} from "@graphrefly/pure-ts/graph/graph.js";
+} from "@graphrefly/pure-ts/graph";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../ai/index.js";
 import { feedback as feedbackPrimitive } from "../reduction/index.js";
 
@@ -200,7 +200,7 @@ export type CatalogSourceEntry = {
  *
  * Tier 1.5.3 Phase 2.5 (DG1=B, 2026-04-27).
  */
-export type GraphFactory = (factoryArgs: unknown) => Graph;
+export type GraphSpecFactory = (factoryArgs: unknown) => Graph;
 
 /**
  * Fn/source lookup table passed to compileSpec and llmCompose.
@@ -216,7 +216,7 @@ export type GraphFactory = (factoryArgs: unknown) => Graph;
 export type GraphSpecCatalog = {
 	fns?: Record<string, FnFactory | CatalogFnEntry>;
 	sources?: Record<string, SourceFactory | CatalogSourceEntry>;
-	graphFactories?: Record<string, GraphFactory>;
+	graphFactories?: Record<string, GraphSpecFactory>;
 };
 
 // ---------------------------------------------------------------------------

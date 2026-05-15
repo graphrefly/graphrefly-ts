@@ -21,10 +21,10 @@
  *   way they inspect graph topology.
  */
 
-import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import type { CallStatsEvent } from "@graphrefly/pure-ts/core/observable.js";
+import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core";
+import { ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
+import type { CallStatsEvent } from "../core/observable.js";
 import { fromAny, onFirstData } from "@graphrefly/pure-ts/extra";
 import type {
 	ChatMessage,

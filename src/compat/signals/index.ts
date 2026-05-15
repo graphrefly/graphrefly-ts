@@ -1,8 +1,4 @@
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "@graphrefly/pure-ts/core/messages.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
-import { autoTrackNode, type TrackFn } from "@graphrefly/pure-ts/core/sugar.js";
+import { batch, COMPLETE, DATA, DIRTY, ERROR, type Messages, type Node, node, autoTrackNode, type TrackFn } from "@graphrefly/pure-ts/core";
 
 /**
  * Options for creating signals.

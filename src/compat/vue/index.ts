@@ -11,8 +11,7 @@
 //   const status = useSubscribe(wsStatusNode); // Readonly<Ref<string | undefined>>
 // ---------------------------------------------------------------------------
 
-import { DATA, DIRTY } from "@graphrefly/pure-ts/core/messages.js";
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA, DIRTY, type Node } from "@graphrefly/pure-ts/core";
 import {
 	computed,
 	getCurrentScope,

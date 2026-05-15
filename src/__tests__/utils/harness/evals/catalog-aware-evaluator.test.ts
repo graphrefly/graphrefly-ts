@@ -6,8 +6,8 @@
  *   - surfaces `runEvalSuite` rejects as ERROR
  */
 
-import { DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { DATA, ERROR } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { catalogAwareEvaluator } from "../../../../../evals/lib/catalog-aware-evaluator.js";
 import { catalogOverlay } from "../../../../../evals/lib/catalog-overlay.js";

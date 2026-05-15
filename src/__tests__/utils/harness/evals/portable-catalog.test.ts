@@ -1,4 +1,4 @@
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
+import { factoryTag } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import {
 	portableCatalog,

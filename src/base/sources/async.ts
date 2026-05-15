@@ -1,211 +1,27 @@
 /**
- * Async sources, sinks, and multicast — Promise / AsyncIterable / NodeInput
- * bridges plus the share / replay / cached / toArray composition family.
+ * Async sources, sinks, and multicast — presentation layer.
+ *
+ * `fromPromise`, `fromAsyncIter`, `fromAny` are substrate primitives; they are
+ * re-exported here from `@graphrefly/pure-ts` for ergonomic single-import use.
+ * This file owns the presentation-only async utilities: `defer`, `forEach`,
+ * `toArray`, `share`, `replay`, `cached`, `shareReplay`.
  *
  * `singleFromAny` and `singleNodeFromAny` (keyed singleflight) live in
- * `extra/single-from-any.ts` and are re-surfaced here.
- *
- * Lazy-loaded `awaitSettled` bridge to `extra/resilience.ts` lives in
- * `settled.ts` so this file stays free of resilience-side imports.
+ * `base/composition/single-from-any.ts`.
  */
 
-import { COMPLETE, DATA, ERROR, RESOLVED, START } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
-import { fromIter, of } from "@graphrefly/pure-ts/extra";
-import {
-	type AsyncSourceOpts,
-	type ExtraOpts,
-	isNode,
-	isThenable,
-	type NodeInput,
-	sourceOpts,
-	wrapSubscribeHook,
-} from "@graphrefly/pure-ts/extra/sources/_internal.js";
+import { COMPLETE, DATA, ERROR, RESOLVED, START } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
+import { type AsyncSourceOpts, type NodeInput, sourceOpts, wrapSubscribeHook } from "@graphrefly/pure-ts/extra";
 
-/**
- * Lifts a Promise (or thenable) to a single-value stream: one `DATA` then `COMPLETE`, or `ERROR` on rejection.
- *
- * @param p - Promise to await.
- * @param opts - Producer options plus optional `signal` for abort → `ERROR` with reason.
- * @returns `Node<T>` — settles once.
- *
- * @example
- * ```ts
- * import { fromPromise } from "@graphrefly/graphrefly-ts";
- *
- * fromPromise(Promise.resolve(42));
- * ```
- *
- * @category extra
- */
-export function fromPromise<T>(p: Promise<T> | PromiseLike<T>, opts?: AsyncSourceOpts): Node<T> {
-	const { signal, ...rest } = opts ?? {};
-	return node<T>((_data, a) => {
-		let settled = false;
-		const onAbort = () => {
-			if (settled) return;
-			settled = true;
-			a.down([[ERROR, signal!.reason]]);
-		};
-		if (signal?.aborted) {
-			onAbort();
-			return;
-		}
-		signal?.addEventListener("abort", onAbort, { once: true });
-		void Promise.resolve(p).then(
-			(v) => {
-				if (settled) return;
-				settled = true;
-				signal?.removeEventListener("abort", onAbort);
-				a.emit(v as T);
-				a.down([[COMPLETE]]);
-			},
-			(e) => {
-				if (settled) return;
-				settled = true;
-				signal?.removeEventListener("abort", onAbort);
-				a.down([[ERROR, e]]);
-			},
-		);
-		return () => {
-			settled = true;
-			signal?.removeEventListener("abort", onAbort);
-		};
-	}, sourceOpts(rest));
-}
+/** Options for presentation-layer async operators: NodeOptions without `describeKind`. */
+type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
-/**
- * Reads an async iterable; each `next()` value becomes `DATA`; `COMPLETE` when done; `ERROR` on failure.
- *
- * @param iterable - Async source (`for await` shape).
- * @param opts - Producer options plus optional `signal` to abort the pump.
- * @returns `Node<T>` — async pull stream.
- *
- * @example
- * ```ts
- * import { fromAsyncIter } from "@graphrefly/graphrefly-ts";
- *
- * async function* gen() {
- *   yield 1;
- * }
- * fromAsyncIter(gen());
- * ```
- *
- * @category extra
- */
-export function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceOpts): Node<T> {
-	const { signal: outerSignal, ...rest } = opts ?? {};
-	return node<T>((_data, a) => {
-		const ac = new AbortController();
-		const onOuterAbort = () => ac.abort(outerSignal?.reason);
-		if (outerSignal?.aborted) {
-			ac.abort(outerSignal.reason);
-		} else {
-			outerSignal?.addEventListener("abort", onOuterAbort, { once: true });
-		}
-		const signal = outerSignal ?? ac.signal;
-		let cancelled = false;
-		const it = iterable[Symbol.asyncIterator]();
-		// Each pump() call chains directly into the next via Promise.then —
-		// no queueMicrotask needed; Promise resolution already yields to the
-		// microtask queue. COMPLETE is delivered synchronously after the last
-		// value, same as fromIter semantics.
-		const pump = (): void => {
-			if (cancelled || signal.aborted) return;
-			void Promise.resolve(it.next()).then(
-				(step) => {
-					if (cancelled || signal.aborted) return;
-					if (step.done) {
-						a.down([[COMPLETE]]);
-						return;
-					}
-					a.emit(step.value as T);
-					pump();
-				},
-				(e) => {
-					if (!cancelled && !signal.aborted) a.down([[ERROR, e]]);
-				},
-			);
-		};
-		pump();
-		return () => {
-			cancelled = true;
-			outerSignal?.removeEventListener("abort", onOuterAbort);
-			ac.abort();
-			void Promise.resolve(it.return?.()).catch(() => undefined);
-		};
-	}, sourceOpts(rest));
-}
-
-/**
- * Coerces a value to a `Node` by shape, treating sync values as **single
- * DATA payloads** by default (including arrays, Sets, Maps, and other sync
- * iterables). For per-element streaming over a sync iterable, pass
- * `{ iter: true }` to opt into {@link fromIter} dispatch.
- *
- * Dispatch table (default — `iter !== true`):
- * - existing `Node` → passthrough
- * - thenable → {@link fromPromise} (one DATA on resolve)
- * - async iterable → {@link fromAsyncIter} (per-yield DATA stream)
- * - everything else (scalar, array, Set, Map, generator, ...) → {@link of}
- *   (one DATA + COMPLETE; sync values emit immediately at subscribe time)
- *
- * Dispatch table (with `{ iter: true }`):
- * - same as above EXCEPT sync iterables (incl. arrays / Sets / Maps) →
- *   {@link fromIter} (per-element DATA stream)
- *
- * **Why arrays default to single-value semantics (DS-13.5 follow-up,
- * 2026-05-01):** the previous implementation dispatched every sync iterable
- * to `fromIter`, which conflated "I have a list-shaped value" (most common
- * caller intent — `tier.list()`, snapshot arrays, batched results) with "I
- * have a stream of N values to emit one-by-one." The footgun bit the
- * `processManager` restore pipeline. Pre-1.0 lock: per-element streaming is
- * an explicit opt via `{ iter: true }` OR an explicit `fromIter(...)` call;
- * everything else is a value.
- *
- * @param input - Any value to wrap.
- * @param opts - Passed through when a Promise/async path is chosen.
- *   `iter: true` opts a sync iterable into per-element streaming.
- * @returns `Node` of the inferred element type.
- *
- * @example
- * ```ts
- * import { fromAny, state } from "@graphrefly/graphrefly-ts";
- *
- * fromAny(state(1));                        // Node passthrough
- * fromAny(Promise.resolve(2));              // one DATA on resolve
- * fromAny([1, 2, 3]);                       // one DATA = [1, 2, 3]
- * fromAny([1, 2, 3], { iter: true });       // three DATA: 1, 2, 3
- * fromAny(asyncGenerator());                // per-yield DATA stream
- * ```
- *
- * @category extra
- */
-export function fromAny<T>(
-	input: NodeInput<T>,
-	opts?: AsyncSourceOpts & { iter?: boolean },
-): Node<T> {
-	if (isNode(input)) {
-		return input as Node<T>;
-	}
-	if (isThenable(input)) {
-		return fromPromise(input as PromiseLike<T>, opts);
-	}
-	if (input !== null && input !== undefined) {
-		const candidate = input as { [Symbol.asyncIterator]?: unknown; [Symbol.iterator]?: unknown };
-		if (typeof candidate[Symbol.asyncIterator] === "function") {
-			return fromAsyncIter(input as AsyncIterable<T>, opts);
-		}
-		if (opts?.iter === true && typeof candidate[Symbol.iterator] === "function") {
-			return fromIter(input as Iterable<T>, opts);
-		}
-	}
-	// Default: treat as single value. `of(input)` emits one DATA + COMPLETE
-	// synchronously at subscribe time, regardless of whether the value is a
-	// scalar, array, Set, Map, generator, or anything else. Per-element
-	// streaming requires explicit `{ iter: true }` or `fromIter(...)`.
-	return of(input as T);
-}
+// Import fromAny from substrate — used internally by defer. The three async
+// substrate sources (fromAny, fromAsyncIter, fromPromise) are already
+// re-exported from @graphrefly/pure-ts; do NOT re-export here to avoid
+// duplicate-export conflicts at the root barrel level.
+import { fromAny } from "@graphrefly/pure-ts/extra";
 
 /**
  * Lazily constructs a {@link Node} from a thunk that runs at **activation

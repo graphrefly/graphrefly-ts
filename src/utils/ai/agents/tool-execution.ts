@@ -21,7 +21,7 @@
  * @module
  */
 
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { rescue, switchMap } from "@graphrefly/pure-ts/extra";
 import { retry } from "../../resilience/retry.js";
 import type { ToolCall } from "../adapters/core/types.js";

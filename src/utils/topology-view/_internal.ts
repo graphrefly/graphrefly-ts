@@ -12,7 +12,7 @@
  * @module
  */
 
-import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph/graph.js";
+import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 import {
 	type LayoutDirection,
 	type LayoutEdgePoint,

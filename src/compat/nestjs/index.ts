@@ -9,8 +9,8 @@
 //     from '@graphrefly/graphrefly-ts/compat/nestjs';
 // ---------------------------------------------------------------------------
 
-// RxJS bridge (re-exported from extra for convenience)
-export { type ToObservableOptions, toObservable } from "@graphrefly/pure-ts/extra";
+// RxJS bridge (re-exported from base/composition for convenience)
+export { type ToObservableOptions, toObservable } from "../../base/composition/observable.js";
 
 // Decorators
 export {

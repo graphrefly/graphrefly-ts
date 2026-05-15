@@ -1,4 +1,4 @@
-import { TEARDOWN } from "@graphrefly/pure-ts/core/messages.js";
+import { TEARDOWN } from "@graphrefly/pure-ts/core";
 import type { KvStorageTier } from "@graphrefly/pure-ts/extra";
 import { cascadingCache, lru } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";

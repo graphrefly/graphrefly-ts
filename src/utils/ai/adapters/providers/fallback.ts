@@ -67,8 +67,8 @@
  * @module
  */
 
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { sha256Hex } from "@graphrefly/pure-ts/core/hash.js";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { sha256Hex } from "@graphrefly/pure-ts/core";
 import { type KvStorageTier, memoryKv } from "@graphrefly/pure-ts/extra";
 import type {
 	ChatMessage,
@@ -77,8 +77,8 @@ import type {
 	LLMResponse,
 	StreamDelta,
 } from "../core/types.js";
+import { canonicalJson } from "@graphrefly/pure-ts/extra";
 import {
-	canonicalJson,
 	type ReplayCacheKeyContext,
 	ReplayCacheMissError,
 	withReplayCache,

@@ -18,9 +18,9 @@
  *   5. Bidirectional value flow begins
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { DATA, ERROR, type Messages, TEARDOWN } from "@graphrefly/pure-ts/core/messages.js";
-import { defaultConfig, type Node, type NodeSink, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { DATA, ERROR, type Messages, TEARDOWN } from "@graphrefly/pure-ts/core";
+import { defaultConfig, type Node, type NodeSink, node } from "@graphrefly/pure-ts/core";
 import { filter, first, fromTimer, map, merge } from "@graphrefly/pure-ts/extra";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";

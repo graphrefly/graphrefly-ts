@@ -1,7 +1,7 @@
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { memoryKv } from "@graphrefly/pure-ts/extra";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import type { GraphSpec, GraphSpecCatalog } from "../../../utils/graphspec/index.js";
 import {

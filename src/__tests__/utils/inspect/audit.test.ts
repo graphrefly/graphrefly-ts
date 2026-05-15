@@ -1,5 +1,5 @@
-import { type PolicyRuleData, policy } from "@graphrefly/pure-ts/core/guard.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { type PolicyRuleData, policy } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { auditTrail, complianceSnapshot, policyGate } from "../../../utils/inspect/audit.js";
@@ -496,7 +496,7 @@ describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
 	});
 
 	it("D5: debounces recompute across a batch — N events in one batch → one recompute", async () => {
-		const { batch } = await import("@graphrefly/pure-ts/core/batch.js");
+		const { batch } = await import("@graphrefly/pure-ts/core");
 		const g = new Graph("g");
 		const a = node([], { name: "a", initial: 1 });
 		const b = node(

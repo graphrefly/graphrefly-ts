@@ -3,7 +3,7 @@
  * via the duck-typed {@link PostgresClientLike} `query()` surface.
  */
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import type { Node } from "@graphrefly/pure-ts/core";
 import type { ExtraOpts } from "./_internal.js";
 import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 

@@ -7,10 +7,10 @@
  *   `Node<CircuitState>` companion (`bundle.breakerState`) for telemetry.
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "@graphrefly/pure-ts/core";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { clampNonNegative, isNode, msgVal, type NodeOrValue, operatorOpts } from "./_internal.js";
 import { type BackoffStrategy, NS_PER_SEC } from "./backoff.js";
 import type { GateState } from "./gate-state.js";

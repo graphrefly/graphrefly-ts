@@ -205,10 +205,9 @@ async function fixFile(absFile: string): Promise<void> {
 	let changed = false;
 	let result = src;
 	const edits: Array<{ from: number; to: number; replacement: string }> = [];
-	let m: RegExpExecArray | null;
 
 	importRe.lastIndex = 0;
-	while ((m = importRe.exec(src)) !== null) {
+	for (let m = importRe.exec(src); m !== null; m = importRe.exec(src)) {
 		const spec = m[3];
 		if (!spec.startsWith(".")) continue;
 

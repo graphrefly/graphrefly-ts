@@ -1,9 +1,9 @@
 /**
- * Standard `Message<T>` envelope for hub topics + well-known topic name
+ * Standard `TopicMessage<T>` envelope for hub topics + well-known topic name
  * constants (Phase 13.B; spec source: archive/docs/SESSION-human-llm-intervention-primitives.md
  * §6 + archive/docs/SESSION-multi-agent-gap-analysis.md §6 cross-cut).
  *
- * `Message<T>` is the **recommended** wrapper for cross-agent / cross-graph
+ * `TopicMessage<T>` is the **recommended** wrapper for cross-agent / cross-graph
  * topic payloads — it carries identity, schema, deadline, and correlation
  * metadata alongside the typed `payload`. It is NOT a required protocol
  * type; raw `topic<T>` continues to work for in-process payloads where the
@@ -27,7 +27,7 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Minimal JSON Schema shape, scoped to what `Message<T>` validates against.
+ * Minimal JSON Schema shape, scoped to what `TopicMessage<T>` validates against.
  * Locked DS-13.B (2026-04-30): zero-dep posture, structural shape only — no
  * full validator shipped. Callers that want full validation supply their own
  * (e.g. `ajv`, `zod`, `valibot`) and read `Message.schema` as the rule
@@ -65,7 +65,7 @@ export interface JsonSchema {
 }
 
 // ---------------------------------------------------------------------------
-// Message<T> envelope
+// TopicMessage<T> envelope
 // ---------------------------------------------------------------------------
 
 /**
@@ -93,8 +93,8 @@ export interface JsonSchema {
  * Reactive composition with the envelope:
  *
  * ```ts
- * const requests = hub.topic<Message<RequestBody>>(PROMPTS_TOPIC);
- * const responses = hub.topic<Message<ResponseBody>>(RESPONSES_TOPIC);
+ * const requests = hub.topic<TopicMessage<RequestBody>>(PROMPTS_TOPIC);
+ * const responses = hub.topic<TopicMessage<ResponseBody>>(RESPONSES_TOPIC);
  *
  * // Filter responses to one correlation
  * const myResponse = derived([responses.latest], ([msg]) =>
@@ -102,7 +102,7 @@ export interface JsonSchema {
  * );
  * ```
  */
-export interface Message<T> {
+export interface TopicMessage<T> {
 	readonly id: string;
 	readonly schema?: JsonSchema;
 	readonly expiresAt?: string;
@@ -116,7 +116,7 @@ export interface Message<T> {
 
 /**
  * Well-known topic name for human / LLM prompts directed at the harness.
- * Example payload: `Message<{ prompt: string; context?: object }>`.
+ * Example payload: `TopicMessage<{ prompt: string; context?: object }>`.
  *
  * Co-locked with {@link RESPONSES_TOPIC} per the human-LLM intervention
  * session §6 #4 (paired request / response convention).
@@ -126,14 +126,14 @@ export const PROMPTS_TOPIC = "prompts";
 /**
  * Well-known topic name for responses to {@link PROMPTS_TOPIC} entries.
  * Producers pair the response to its prompt via `correlationId`. Example
- * payload: `Message<{ content: string; finishReason?: string }>`.
+ * payload: `TopicMessage<{ content: string; finishReason?: string }>`.
  */
 export const RESPONSES_TOPIC = "responses";
 
 /**
  * Well-known topic name for out-of-band injections — runtime overrides /
  * hot-fixes / human nudges that bypass the normal request flow. Example
- * payload: `Message<{ kind: "context-patch" | "policy-override" | ...;
+ * payload: `TopicMessage<{ kind: "context-patch" | "policy-override" | ...;
  * data: unknown }>`. Per-injection consumers decide how (and whether) to
  * apply.
  */
@@ -143,15 +143,15 @@ export const INJECTIONS_TOPIC = "injections";
  * Well-known topic name for items the harness deferred for later attention
  * (parked queue, follow-up tracker, "I'll get back to this"). Producer is
  * usually the harness itself; consumer is a tracker / dashboard / human.
- * Example payload: `Message<{ reason: string; original: unknown }>`.
+ * Example payload: `TopicMessage<{ reason: string; original: unknown }>`.
  */
 export const DEFERRED_TOPIC = "deferred";
 
 /**
  * Well-known topic name for spawn requests (Phase 13.I `spawnable()`
- * surface). Producer emits a `Message<SpawnRequest>` to request a child
+ * surface). Producer emits a `TopicMessage<SpawnRequest>` to request a child
  * agent / subgraph; consumer is the materializer that mints the slot.
- * Example payload: `Message<{ presetId: string; taskInput: unknown;
+ * Example payload: `TopicMessage<{ presetId: string; taskInput: unknown;
  * depth?: number }>`. `correlationId` links the spawn to its parent
  * conversation; `expiresAt` enforces TTL on long-lived requests.
  */

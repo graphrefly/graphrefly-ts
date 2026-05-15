@@ -14,7 +14,7 @@
  * - `server_tool_use.web_search_requests`         → `auxiliary.webSearchRequests`
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
 import { makeHttpError } from "../../../../base/io/http-error.js";
 import { parseSSEStream } from "../../../../base/io/sse.js";
 import type {

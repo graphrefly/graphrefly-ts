@@ -22,12 +22,12 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { factoryTag } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { filter, fromAny, keepalive, type NodeInput, switchMap } from "@graphrefly/pure-ts/extra";
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Graph } from "@graphrefly/pure-ts/graph";
 import { type TopicGraph, topic } from "../../messaging/index.js";
 import { type GateController, type GateOptions, pipelineGraph } from "../../orchestration/index.js";
 import { aiMeta, stripFences } from "../_internal.js";

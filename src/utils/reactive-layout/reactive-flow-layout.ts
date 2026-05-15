@@ -28,10 +28,10 @@
  * `segments` stays cached (text hasn't changed). Callers drive obstacles via a
  * reactive source like `fromRaf()` piped into a state node.
  */
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { emitToMeta } from "../../base/meta/emit-to-meta.js";
 import {
 	analyzeAndMeasure,

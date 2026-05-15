@@ -9,7 +9,7 @@
  * @category extra
  */
 
-import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph/graph.js";
+import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 import { type GraphSpecToMermaidOptions, graphSpecToMermaid } from "./graph-spec-to-mermaid.js";
 
 export type MermaidLiveTheme = "default" | "dark" | "forest" | "neutral" | "base";

@@ -5,7 +5,7 @@
  * Cloudflare Workers, etc.).
  */
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import type { Node } from "@graphrefly/pure-ts/core";
 import {
 	type EmitTriad,
 	type ExternalRegister,

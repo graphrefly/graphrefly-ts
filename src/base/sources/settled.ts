@@ -20,8 +20,8 @@
  * - {@link reactiveCounter} — capped counter exposed as a `Node<number>`.
  */
 
-import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 
 /**
  * Converts the first `DATA` on `source` into a Promise; rejects on `ERROR` or `COMPLETE` without data.
@@ -281,7 +281,7 @@ export function firstWhere<T>(
 // Lazy module-cache to avoid the `resilience.ts` → `sources.ts` circular
 // import (`resilience.ts` imports `fromAny`). First call pays the one-shot
 // dynamic import; subsequent calls hit cached references.
-let _timeoutOp: typeof import("../../utils/resilience/index.js").timeout | undefined;
+let _timeoutOp: typeof import("../../utils/resilience/index.js").deadline | undefined;
 let _nsPerMs: number | undefined;
 
 export async function awaitSettled<T>(
@@ -327,7 +327,7 @@ export async function awaitSettled<T>(
 			import("../../utils/resilience/index.js"),
 			import("../../utils/resilience/backoff.js"),
 		]);
-		_timeoutOp = resilience.timeout;
+		_timeoutOp = resilience.deadline;
 		_nsPerMs = backoff.NS_PER_MS;
 	}
 	const guarded = _timeoutOp(source, { ns: opts.timeoutMs * (_nsPerMs as number) }).node;

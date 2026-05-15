@@ -8,7 +8,7 @@
  * @category extra
  */
 
-import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph/graph.js";
+import type { GraphDescribeOutput } from "@graphrefly/pure-ts/graph";
 import { describeData } from "./_internal.js";
 
 export type GraphSpecToPrettyOptions = {

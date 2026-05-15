@@ -39,8 +39,8 @@
  * @module
  */
 
-import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 
 import type { VerifyResult } from "./types.js";
 

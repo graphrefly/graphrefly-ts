@@ -13,7 +13,7 @@
  * @module
  */
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import type { Node } from "@graphrefly/pure-ts/core";
 import { keepalive, type ReactiveMapBundle, reactiveMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 

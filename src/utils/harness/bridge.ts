@@ -8,9 +8,9 @@
  * @module
  */
 
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { fromAny, switchMap } from "@graphrefly/pure-ts/extra";
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Graph } from "@graphrefly/pure-ts/graph";
 import type { TopicGraph } from "../messaging/index.js";
 
 import type { IntakeItem, Severity, TriagedItem } from "./types.js";

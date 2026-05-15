@@ -5,7 +5,7 @@
  * and fromWebSocket (register-callback overload).
  */
 
-import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
+import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core";
 import type { WebSocketRegister } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
 import { fromWebhook, fromWebSocket } from "../../../base/io/index.js";

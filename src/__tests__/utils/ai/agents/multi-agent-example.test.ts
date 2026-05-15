@@ -38,7 +38,7 @@
 
 import { batch, DATA } from "@graphrefly/pure-ts/core";
 import { valve } from "@graphrefly/pure-ts/extra";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import type { SpawnPayload } from "../../../../presets/harness/presets/spawnable.js";
 import { agentLoop, type LLMAdapter, type LLMResponse } from "../../../../utils/ai/index.js";

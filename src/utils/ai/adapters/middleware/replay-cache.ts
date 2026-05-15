@@ -30,10 +30,10 @@
  * Without `captureStreamCadence`, replay is instant regardless.
  */
 
-import { ResettableTimer } from "@graphrefly/pure-ts/core/_internal/timer.js";
-import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
+import { ResettableTimer } from "../../../../base/utils/resettable-timer.js";
+import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core";
 import type { KvStorageTier } from "@graphrefly/pure-ts/extra";
-import { canonicalJson as extraCanonicalJson, fromAny } from "@graphrefly/pure-ts/extra";
+import { canonicalJson, fromAny } from "@graphrefly/pure-ts/extra";
 import { singleFromAny } from "../../../../base/composition/single-from-any.js";
 import { firstValueFrom } from "../../../../base/sources/settled.js";
 import { contentAddressedCache } from "../_internal/content-addressed-cache.js";
@@ -266,9 +266,6 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 	return wrap;
 }
 
-/**
- * Canonical JSON — re-exported from `src/extra/content-addressed-storage.ts`
- * so `fallbackAdapter` and other cache-adjacent code that historically
- * imported from here continue to work. Same behavior.
- */
-export const canonicalJson = extraCanonicalJson;
+// canonicalJson is no longer re-exported here — consumers import directly from
+// @graphrefly/pure-ts/extra. The presentation-layer re-export caused a
+// duplicate-export conflict at the root barrel level (A3 build gate).

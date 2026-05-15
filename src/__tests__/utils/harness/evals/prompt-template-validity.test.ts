@@ -13,7 +13,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
+import { factoryTag } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { portableCatalog } from "../../../../../evals/lib/portable-catalog.js";
 import {

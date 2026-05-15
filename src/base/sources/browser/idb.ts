@@ -12,8 +12,8 @@
  */
 /// <reference lib="dom" />
 
-import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 
 // IndexedDbStorageSpec is no longer needed here — it's defined in storage-tiers-browser.ts.
 

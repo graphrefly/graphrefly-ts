@@ -13,10 +13,10 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { reactiveLog, type StratifyRule, stratify } from "@graphrefly/pure-ts/extra";
-import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { feedback, scorer } from "../reduction/index.js";
 
 // ---------------------------------------------------------------------------

@@ -26,18 +26,16 @@
  * @module
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
-import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core";
+import { type Messages, type Node, node } from "@graphrefly/pure-ts/core";
 import type {
 	AppendLogStorageTier,
 	KvStorageTier,
 	ReactiveLogBundle,
 } from "@graphrefly/pure-ts/extra";
-import { fromAny, fromIter, fromTimer, type NodeInput } from "@graphrefly/pure-ts/extra";
-import { valve } from "@graphrefly/pure-ts/extra/operators/control.js";
-import { mergeMap } from "@graphrefly/pure-ts/extra/operators/higher-order.js";
+import { fromAny, fromIter, fromTimer, mergeMap, type NodeInput, valve } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import {
 	type BaseAuditRecord,
@@ -997,7 +995,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		// restore drop on the floor (the per-event activeInstances.has guard).
 		let lastCount = 0;
 
-		const unsub = gated.subscribe((msgs) => {
+		const unsub = gated.subscribe((msgs: Messages) => {
 			for (const m of msgs) {
 				if (m[0] !== DATA) continue;
 				const events = m[1] as readonly CqrsEvent[];
@@ -1199,7 +1197,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			// each key triggers a fresh load via mergeMap.
 			return mergeMap(
 				fromIter(keys),
-				(key) => fromAny(tierLoad(key)) as Node<ProcessStateSnapshot<TState> | undefined>,
+				(key: string) => fromAny(tierLoad(key)) as Node<ProcessStateSnapshot<TState> | undefined>,
 				// Bound concurrent in-flight loads (D2, 2026-05-01) so a
 				// large persisted-instance count doesn't exhaust file
 				// handles / connection pools on the storage backend.

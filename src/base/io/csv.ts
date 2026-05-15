@@ -6,8 +6,8 @@
  * uniformly.
  */
 
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 import { type ExtraOpts, sourceOpts } from "./_internal.js";
 
 /** Parsed CSV row. */

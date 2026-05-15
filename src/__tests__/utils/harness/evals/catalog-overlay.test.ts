@@ -8,7 +8,7 @@
  *   - `effective` re-emits exactly when overlay state changes
  */
 
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
+import { DATA } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { type CatalogPatch, catalogOverlay } from "../../../../../evals/lib/catalog-overlay.js";
 import { portableCatalog, portableFns } from "../../../../../evals/lib/portable-catalog.js";

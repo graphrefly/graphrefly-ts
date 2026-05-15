@@ -1,6 +1,5 @@
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { node as nodeFactory } from "@graphrefly/pure-ts/core/node.js";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { DATA, node as nodeFactory } from "@graphrefly/pure-ts/core";
+import { Graph } from "@graphrefly/pure-ts/graph";
 
 // Zustand fires listeners on every setState, regardless of reference
 // equality. Configure the state node with a permissive equals so every

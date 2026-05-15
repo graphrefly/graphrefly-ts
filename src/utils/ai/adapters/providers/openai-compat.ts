@@ -20,7 +20,7 @@
  * them over the OpenAI-style `cached_tokens` for cache-read attribution.
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
 import { makeHttpError } from "../../../../base/io/http-error.js";
 import { parseSSEStream } from "../../../../base/io/sse.js";
 import type {

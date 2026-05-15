@@ -32,7 +32,7 @@ export {
 	DEFERRED_TOPIC,
 	INJECTIONS_TOPIC,
 	type JsonSchema,
-	type Message,
+	type TopicMessage,
 	PROMPTS_TOPIC,
 	RESPONSES_TOPIC,
 	SPAWNS_TOPIC,
@@ -41,7 +41,7 @@ export {
 } from "./message.js";
 
 import { batch, COMPLETE, DATA, type Node } from "@graphrefly/pure-ts/core";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { node } from "@graphrefly/pure-ts/core";
 import { keepalive, reactiveLog } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { domainMeta } from "../../base/meta/domain-meta.js";
@@ -182,7 +182,7 @@ export class TopicGraph<T> extends Graph {
 	 * @returns Disposer.
 	 */
 	attachEventStorage(
-		tiers: readonly import("../../extra/storage-tiers.js").AppendLogStorageTier<T>[],
+		tiers: readonly import("@graphrefly/pure-ts/extra").AppendLogStorageTier<T>[],
 	): () => void {
 		return this._log.attachStorage(tiers);
 	}

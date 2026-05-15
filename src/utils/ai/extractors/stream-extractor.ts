@@ -12,7 +12,7 @@
  * @module
  */
 
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { aiMeta } from "../_internal.js";
 
 /**

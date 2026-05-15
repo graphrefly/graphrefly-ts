@@ -2,8 +2,8 @@
 // gaugesAsContext
 // ---------------------------------------------------------------------------
 
-import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
-import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Actor } from "@graphrefly/pure-ts/core";
+import type { Graph } from "@graphrefly/pure-ts/graph";
 
 export type GaugesAsContextOptions = {
 	/** Group gauges by `meta.tags` (default true). */

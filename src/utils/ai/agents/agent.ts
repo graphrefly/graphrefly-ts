@@ -19,11 +19,11 @@
  * shared instance for §29 handoff context-transfer.
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { DATA, INVALIDATE, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { DATA, INVALIDATE, RESOLVED } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { keepalive } from "@graphrefly/pure-ts/extra";
-import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { type AgentLoopGraph, agentLoop } from "../../../presets/ai/agent-loop.js";
 import type { AgentMemoryGraph } from "../../../presets/ai/agent-memory.js";
 import {

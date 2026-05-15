@@ -19,11 +19,11 @@
  * `totals` / `log` surface.
  */
 
-import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import { DATA } from "@graphrefly/pure-ts/core/messages.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import type { CallStatsEvent } from "@graphrefly/pure-ts/core/observable.js";
-import type { PricingFn } from "@graphrefly/pure-ts/core/pricing.js";
+import { monotonicNs } from "@graphrefly/pure-ts/core";
+import { DATA } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
+import type { CallStatsEvent } from "../core/observable.js";
+import type { PricingFn } from "../core/pricing.js";
 import { keepalive, type ReactiveLogBundle, reactiveLog } from "@graphrefly/pure-ts/extra";
 import {
 	adapterWrapper,
@@ -67,7 +67,7 @@ export interface BudgetTotals {
 	usd: number;
 }
 
-export interface BudgetGateBundle {
+export interface LLMBudgetGateBundle {
 	totals: Node<BudgetTotals>;
 	isOpen: Node<boolean>;
 	log: ReactiveLogBundle<CallStatsEvent>;
@@ -136,7 +136,7 @@ const makeEmptyTotals = (): BudgetTotals => ({
 export function withBudgetGate(
 	inner: LLMAdapter,
 	opts: WithBudgetGateOptions,
-): { adapter: LLMAdapter; budget: BudgetGateBundle } {
+): { adapter: LLMAdapter; budget: LLMBudgetGateBundle } {
 	const log = reactiveLog<CallStatsEvent>(undefined, {
 		name: opts.name ? `${opts.name}/log` : "budgetGate/log",
 		maxSize: opts.logMax ?? 1000,

@@ -6,9 +6,13 @@
  * publishMany semantics, pluggable backend, version counter.
  */
 
-import { DATA, TEARDOWN } from "@graphrefly/pure-ts/core/messages.js";
-import { NativePubSubBackend, type PubSubBackend, pubsub } from "@graphrefly/pure-ts/extra";
+import { DATA, TEARDOWN } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
+import {
+	NativePubSubBackend,
+	type PubSubBackend,
+	pubsub,
+} from "../../../base/composition/pubsub.js";
 import { collect } from "../test-helpers.js";
 
 describe("pubsub stress tests", () => {

@@ -42,9 +42,9 @@
  *
  * @module
  */
-import { ERROR } from "@graphrefly/pure-ts/core/messages.js";
-import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
-import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { ERROR } from "@graphrefly/pure-ts/core";
+import { placeholderArgs } from "@graphrefly/pure-ts/core";
+import { type Node, node } from "@graphrefly/pure-ts/core";
 import { switchMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { domainMeta } from "../../base/meta/domain-meta.js";
@@ -66,9 +66,10 @@ import {
 	type StatusValue,
 	type TimeoutOptions,
 	type TimeoutState,
-	timeout,
+	deadline,
 	withBreaker,
 	withStatus,
+	type NodeOrValue,
 } from "../../utils/resilience/index.js";
 
 // ---------------------------------------------------------------------------
@@ -95,7 +96,7 @@ import {
  * bundle. Callers needing both reactive options AND companions wait for
  * primitive-side widening.
  */
-export type NodeOrValue<T> = T | Node<T>;
+// NodeOrValue re-imported from utils/resilience (same type, avoid barrel duplicate).
 
 function isNode<T>(x: unknown): x is Node<T> {
 	return (
@@ -383,7 +384,7 @@ export class ResilientPipelineGraph<T> extends Graph {
 				// describe() walks see the full topology (dry-run /
 				// real-run equivalence per CLAUDE.md).
 				this.add(optsBridge, { name: "timeoutOptsBridge" });
-				const bundle = timeout(current, optsBridge, {
+				const bundle = deadline(current, optsBridge, {
 					meta: domainMeta("resilient", "timeout"),
 				});
 				current = bundle.node;
@@ -392,7 +393,7 @@ export class ResilientPipelineGraph<T> extends Graph {
 				this.add(timeoutState, { name: "timeoutState" });
 			} else {
 				assertTimeoutMsValid(opts.timeoutMs);
-				const bundle = timeout(
+				const bundle = deadline(
 					current,
 					{ ns: opts.timeoutMs * NS_PER_MS },
 					{

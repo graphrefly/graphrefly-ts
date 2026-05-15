@@ -26,9 +26,8 @@
  * @module
  */
 
-import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import type { GraphChange } from "@graphrefly/pure-ts/graph/changeset.js";
-import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import type { Node } from "@graphrefly/pure-ts/core";
+import { Graph, type GraphChange, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { defaultLayout } from "./_internal.js";
 import type { LayoutFn, LayoutFrame } from "./types.js";
 

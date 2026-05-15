@@ -13,11 +13,11 @@
  * 3. Surprising patterns or guide gaps are documented
  */
 
-import { batch } from "@graphrefly/pure-ts/core/batch.js";
-import { DATA, DIRTY } from "@graphrefly/pure-ts/core/messages.js";
-import { node } from "@graphrefly/pure-ts/core/node.js";
+import { batch } from "@graphrefly/pure-ts/core";
+import { DATA, DIRTY } from "@graphrefly/pure-ts/core";
+import { node } from "@graphrefly/pure-ts/core";
 import { merge, scan, withLatestFrom } from "@graphrefly/pure-ts/extra";
-import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
+import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import {
 	chatStream,
