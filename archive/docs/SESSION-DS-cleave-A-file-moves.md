@@ -500,9 +500,12 @@ Discovered during A2 because `packages/pure-ts/src/graph/graph.ts` and `extra/op
 | `topology-diff` (`topologyDiff`, `DescribeChangeset`) | Q4 → `base/composition/` (presentation) | **substrate** → `packages/pure-ts/src/extra/composition/topology-diff.ts` | `graph.ts` line ~41 imports it for reactive `describe()` |
 | `keepalive` | Q8 → `base/meta/` (presentation) | **substrate** → `packages/pure-ts/src/extra/sources/_keepalive.ts` | `graph.ts` uses it for self-pruning subscriptions in `describe()`/`explain()` |
 | `fromPromise`, `fromAsyncIter`, `fromAny` | Q7 → `base/sources/async.ts` (presentation) | **substrate** → `packages/pure-ts/src/extra/sources/async.ts` | `extra/operators/higher-order.ts` uses `fromAny` via `sources/index.js` |
-| `pubsub` | Q4 → `base/composition/` (presentation) | **substrate** → `packages/pure-ts/src/extra/composition/pubsub.ts` | substrate stress tests depend on it; kept substrate-side for single source of truth |
+
+So **3 reclassifications**, not 4. `pubsub` was flagged by the A2 agent as a substrate *candidate* but A3 verified zero substrate consumers (`grep` of `core/`+`graph/` empty) and correctly kept it **presentation** at `src/base/composition/pubsub.ts` (`@graphrefly/graphrefly`) — matches the original A1 Q4 lock. (An earlier draft of this section + the batch report wrongly listed pubsub as substrate; corrected here.)
 
 `src/base/sources/async.ts` re-exports the 3 async functions from `@graphrefly/pure-ts`; `defer/forEach/toArray/share/replay/cached/shareReplay` remain genuine presentation in that file. `core/_internal/{ring-buffer,sizeof,timer}.ts` is the substrate-internal home for utilities used by `graph/` (Q2/Q19/Q20 confirmed correct).
+
+**ResettableTimer/RingBuffer duplication — RESOLVED 2026-05-15 (commit `4dd5758`).** A3 had created local presentation copies in `src/base/utils/`. Fixed by exporting `RingBuffer` + `ResettableTimer` from the public `@graphrefly/pure-ts/core` barrel (physical home stays `core/_internal/`, surfaced via `core/index.ts` like `describeNode`), deleting the 2 presentation copies + the dead `src/base/io/_ring-buffer.ts` shim, and rewiring 10 consumers to import from `@graphrefly/pure-ts/core`.
 
 ### Public-API renames (collision resolution at root barrel)
 
