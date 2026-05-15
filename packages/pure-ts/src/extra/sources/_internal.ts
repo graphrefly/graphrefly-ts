@@ -10,8 +10,7 @@
  * matching — keep them as named exports.
  */
 
-import { RESOLVED } from "../../core/messages.js";
-import { type Node, type NodeOptions, type NodeSink, node } from "../../core/node.js";
+import type { Node, NodeOptions } from "../../core/node.js";
 
 export type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
 
@@ -74,31 +73,4 @@ export function isNode(x: unknown): x is Node {
 		"cache" in x &&
 		typeof (x as Node).subscribe === "function"
 	);
-}
-
-/**
- * Wraps `inner` so that each `subscribe()` call first runs `before(sink)`
- * (used by `replay` to flush its replay buffer before the live stream).
- */
-export function wrapSubscribeHook<T>(inner: Node<T>, before: (sink: NodeSink) => void): Node<T> {
-	// node() passthrough instead of derived([inner], ([v]) => v) — derived uses
-	// .at(-1) and would drop intermediate values from multi-DATA batches (D1 gap).
-	const wrapper = node<T>(
-		[inner as Node],
-		(data, a) => {
-			const batch0 = data[0];
-			if (batch0 == null || batch0.length === 0) {
-				a.down([[RESOLVED]]);
-				return;
-			}
-			for (const v of batch0) a.emit(v as T);
-		},
-		{ describeKind: "derived", initial: inner.cache as T },
-	);
-	const origSubscribe = wrapper.subscribe.bind(wrapper);
-	(wrapper as { subscribe: typeof wrapper.subscribe }).subscribe = (sink, actor) => {
-		before(sink);
-		return origSubscribe(sink, actor);
-	};
-	return wrapper;
 }

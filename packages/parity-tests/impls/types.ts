@@ -315,7 +315,7 @@ export interface Impl {
 
 	// ── Substrate infra surfaced on the public barrels (N1) ────────────
 	//
-	// These 6 symbols are re-exported on `@graphrefly/pure-ts`'s public
+	// These 5 symbols are re-exported on `@graphrefly/pure-ts`'s public
 	// **core** / **extra** barrels and the presentation package
 	// (`@graphrefly/graphrefly`) imports them directly from the substrate
 	// peer (e.g. `src/utils/resilience/*`, `src/base/sources/async.ts`,
@@ -326,11 +326,17 @@ export interface Impl {
 	// user-approved option (a)) pins them as a native obligation; folded
 	// into the D203 native-publish batch as scope item 8.
 	//
+	// `wrapSubscribeHook` was originally pinned here too (6th symbol) but
+	// was DELETED from the substrate when `replay`/`cached`/`shareReplay`
+	// migrated to the built-in `replayBuffer` NodeOption (Group-3 Edge #2
+	// fix, 2026-05-15) — the substrate explicitly supersedes the old
+	// `wrapSubscribeHook` monkey-patch (spec §2.5 / Lock 6.G). It is no
+	// longer a public symbol, so it is no longer a native obligation.
+	//
 	// `RingBuffer` / `ResettableTimer` are constructors (sync — infra,
 	// not dispatcher ops, so they keep their natural shape rather than
 	// the async-everywhere wrapping). `sha256Hex` is genuinely async in
-	// every impl. `wrapSubscribeHook` returns a wrapped node so it takes
-	// the async-everywhere `Promise<ImplNode>` shape like the operators.
+	// every impl.
 	RingBuffer: new <T>(
 		capacity: number,
 	) => ImplRingBuffer<T>;
@@ -338,7 +344,6 @@ export interface Impl {
 	describeNode(node: ImplNode<unknown>): unknown;
 	sha256Hex(input: string | Uint8Array): Promise<string>;
 	sourceOpts(opts?: Record<string, unknown>): Record<string, unknown>;
-	wrapSubscribeHook<T>(inner: ImplNode<T>, before: (sink: SinkFn<T>) => void): Promise<ImplNode<T>>;
 }
 
 // ── Reactive structures sub-interface (M5) ──────────────────────────────

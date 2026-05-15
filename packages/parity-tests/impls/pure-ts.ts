@@ -678,12 +678,6 @@ export const pureTsImpl: Impl = {
 	sourceOpts(opts?: Record<string, unknown>): Record<string, unknown> {
 		return storage.sourceOpts(opts as any) as Record<string, unknown>;
 	},
-	async wrapSubscribeHook<T>(
-		inner: ImplNode<T>,
-		before: (sink: SinkFn<T>) => void,
-	): Promise<ImplNode<T>> {
-		return wrap(storage.wrapSubscribeHook(unwrap(inner), before as any));
-	},
 };
 
 // ---------------------------------------------------------------------------

@@ -304,7 +304,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		b.unsub();
 	});
 
-	it("replay replays buffer to late subscriber", async () => {
+	it("replay replays buffer to late subscriber WITHOUT double-delivering the last value", async () => {
 		const s = node([], { initial: 0 });
 		const r = replay(s, 2);
 		const first = collect(r);
@@ -318,7 +318,12 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 			.flat()
 			.filter((m) => m[0] === DATA)
 			.map((m) => m[1]);
-		expect(earlyData.slice(0, 2)).toEqual([1, 2]);
+		// Group-3 Edge #2 regression: the late subscriber must receive the
+		// last-2 buffer EXACTLY ([1, 2]) — not [1, 2, 2]. The old
+		// wrapSubscribeHook pattern flushed the buffer AND push-on-subscribed
+		// the cache, double-delivering `2`. The `.slice(0, 2)` the prior
+		// assertion used masked that dup. Assert the full sequence.
+		expect(earlyData).toEqual([1, 2]);
 		first.unsub();
 		second.unsub();
 	});

@@ -20,12 +20,7 @@ import {
 	RESOLVED,
 	START,
 } from "@graphrefly/pure-ts/core";
-import {
-	type AsyncSourceOpts,
-	type NodeInput,
-	sourceOpts,
-	wrapSubscribeHook,
-} from "@graphrefly/pure-ts/extra";
+import { type AsyncSourceOpts, type NodeInput, sourceOpts } from "@graphrefly/pure-ts/extra";
 
 /** Options for presentation-layer async operators: NodeOptions without `describeKind`. */
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
@@ -284,25 +279,19 @@ export function share<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
  */
 export function replay<T>(source: Node<T>, bufferSize: number, opts?: ExtraOpts): Node<T> {
 	if (bufferSize < 1) throw new RangeError("replay expects bufferSize >= 1");
-	const buf: T[] = [];
-	const inner = node<T>(
+	// Spec §2.5 / Lock 6.G: the built-in `replayBuffer` NodeOption retains the
+	// last-N outgoing DATA and `defaultOnSubscribe` delivers them to a late
+	// subscriber INSTEAD of the cache-DATA push — so there is no double-deliver
+	// of the most-recent value. Supersedes the old `wrapSubscribeHook` +
+	// manual-buffer pattern (which flushed the buffer AND then push-on-
+	// subscribed the cache, double-delivering the last value).
+	return node<T>(
 		(_data, a) =>
 			source.subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA) {
-						buf.push(m[1] as T);
-						if (buf.length > bufferSize) buf.shift();
-					}
-				}
 				a.down(msgs);
 			}),
-		{ ...sourceOpts<T>(opts), initial: source.cache },
+		{ ...sourceOpts<T>(opts), initial: source.cache, replayBuffer: bufferSize },
 	);
-	return wrapSubscribeHook(inner, (sink) => {
-		for (const v of buf) {
-			sink([[DATA, v]]);
-		}
-	});
 }
 
 /**
