@@ -39,6 +39,8 @@ export {
 	globToRegExp,
 	matchesAnyPattern,
 	type NodeInput,
+	sourceOpts,
+	wrapSubscribeHook,
 } from "./sources/_internal.js";
 export * from "./sources/_keepalive.js";
 export * from "./sources/async.js";

@@ -9,7 +9,7 @@
  */
 
 import { COMPLETE, ERROR } from "../../core/messages.js";
-import { type Node, type NodeOptions, node } from "../../core/node.js";
+import { type Node, node } from "../../core/node.js";
 import {
 	type AsyncSourceOpts,
 	isNode,

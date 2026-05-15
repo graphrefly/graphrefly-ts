@@ -4,12 +4,7 @@
  * Moved to base/composition/distill.ts during cleave A2.
  */
 
-import {
-	batch,
-	factoryTag,
-	type Node,
-	node,
-} from "@graphrefly/pure-ts/core";
+import { batch, factoryTag, type Node, node } from "@graphrefly/pure-ts/core";
 import {
 	fromAny,
 	type NodeInput,

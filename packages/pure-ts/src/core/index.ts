@@ -18,6 +18,7 @@ export {
 	type SubscribeContext,
 } from "./config.js";
 export * from "./guard.js";
+export { sha256Hex } from "./hash.js";
 export {
 	COMPLETE,
 	COMPLETE_MSG,

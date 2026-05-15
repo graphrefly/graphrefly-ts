@@ -42,6 +42,23 @@
 	},
 	"overrides": [
 		{
+			"includes": ["scripts/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noAssignInExpressions": "off"
+					},
+					"correctness": {
+						"noUnusedImports": "off",
+						"noUnusedVariables": "off"
+					},
+					"style": {
+						"useTemplate": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["demos/compat-matrix/**", "demos/reactive-layout/**"],
 			"linter": {
 				"rules": {
