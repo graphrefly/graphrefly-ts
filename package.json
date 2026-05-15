@@ -545,7 +545,7 @@
 		"test:graphrefly": "vitest run",
 		"test:pure-ts": "pnpm --filter @graphrefly/pure-ts test",
 		"test:parity": "pnpm --filter @graphrefly/parity-tests test",
-		"test:hermes": "node scripts/hermes-smoke/run.mjs",
+		"test:hermes": "pnpm --filter @graphrefly/pure-ts build && node scripts/hermes-smoke/run.mjs",
 		"bench": "pnpm --filter @graphrefly/pure-ts bench",
 		"bench:baseline": "pnpm --filter @graphrefly/pure-ts bench:baseline",
 		"changeset": "changeset",
