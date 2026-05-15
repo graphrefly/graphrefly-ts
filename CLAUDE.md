@@ -70,19 +70,18 @@ Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv
 
 ## Layout
 
-**TypeScript (`graphrefly-ts`) — post-Phase-13.9.A cleave (2026-05-05); install-time model locked 2026-05-14:**
+**TypeScript (`graphrefly-ts`) — cleave A executed 2026-05-15 (slices A1–A4); install-time model locked 2026-05-14:**
 
-Three published packages with an explicit substrate-vs-presentation split (see "Three-package install-time model" below):
+Three published packages with an explicit substrate-vs-presentation split (see "Three-package install-time model" below). **Cleave A is DONE** — see `archive/docs/SESSION-DS-cleave-A-file-moves.md` for the file-move record + post-execution corrections.
 
-- Root `src/` — currently a thin **shim** that re-exports everything from `@graphrefly/pure-ts`. **Pending cleave** (Unit 6 D198, 2026-05-14): trim to ONLY the presentation layer — patterns + binding-only extras + compat. Substrate re-exports drop; users install one of `@graphrefly/pure-ts` or `@graphrefly/native` as a peer.
-- `packages/pure-ts/src/` — the **pure-TS substrate implementation**. Permanent first-class peer alongside `@graphrefly/native` (and a future `@graphrefly/wasm` if a consumer surfaces; see Unit 6 note below). Layered structure unchanged from pre-cleave:
-  - `core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
+- Root `src/` — the **presentation package `@graphrefly/graphrefly`**. Post-cleave it owns the 4-layer structure (`base/ utils/ presets/ solutions/`) + `compat/`, and `src/index.ts` re-exports substrate from `@graphrefly/pure-ts` (peer) for ergonomic single-import UX. Substrate provider is chosen at install time: install `@graphrefly/pure-ts` (default) OR redirect to `@graphrefly/native` via npm/pnpm `overrides` (Q28 lock = option c). Legacy Phase-13.9.A shim folders (`src/{patterns,extra,core,graph,testing}/*`) were deleted — no backward-compat paths.
+- `packages/pure-ts/src/` — the **pure-TS substrate implementation**. Permanent first-class peer alongside `@graphrefly/native` (and a future `@graphrefly/wasm` if a consumer surfaces; see Unit 6 note below). Substrate-only post-cleave:
+  - `core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0). `core/_internal/` holds substrate-internal utilities (`ring-buffer`, `sizeof`, `timer`/`ResettableTimer`) used by `graph/` + reactive structures.
   - `graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
-  - `extra/` — operators, sources, data structures, resilience (Phase 2–3). Browser-safe by default; Node-only additions in `extra/node.ts`, browser-only additions in `extra/browser.ts`. **Substrate-vs-presentation classification per `extra/` row is locked in `~/src/graphrefly-rs/CLAUDE.md` § "extra/ row classification".**
-  - `patterns/` — domain-layer APIs (Phase 4+). **All `patterns/*` are presentation per Unit 1 (D193)** and live in `@graphrefly/graphrefly`, not in pure-ts. Pre-cleave the folder is co-located here; post-cleave it moves into the root shim's `@graphrefly/graphrefly` content. Each domain is its own folder (`patterns/<name>/index.ts`). Node-only in `<name>/node.ts`, browser-only in `<name>/browser.ts`.
-  - `compat/` — framework adapters: NestJS (Phase 5+). Presentation (binding-only) — moves to `@graphrefly/graphrefly` with the cleave.
+  - `extra/` — operators, sync sources, `sources/event/timer` (`fromTimer`), data structures, storage (Node tiers), `composition/{stratify,topology-diff,pubsub}`, `sources/async` (`fromPromise`/`fromAsyncIter`/`fromAny`), `sources/_keepalive`. **Substrate-vs-presentation classification per `extra/` row is locked in `~/src/graphrefly-rs/CLAUDE.md` § "extra/ row classification"; post-execution corrections to A1 doc Q4/Q7/Q8 are recorded in `archive/docs/SESSION-DS-cleave-A-file-moves.md`.**
+  - `patterns/`, `compat/` — **removed from pure-ts.** All `patterns/*` are presentation (D193) and now live in `@graphrefly/graphrefly` (root `src/{utils,presets}/`); `compat/*` moved to root `src/compat/`.
 - `packages/parity-tests/` — cross-impl parity scenarios (vitest `describe.each([pureTsImpl, rustImpl])`). Currently pure-ts-only; the rust arm activates when `@graphrefly/native` publishes. See `packages/parity-tests/README.md` for the per-Rust-milestone surface widening schedule + the "parity scenarios are the consumer pressure signal" rule (D196). **`packages/parity-tests/impls/types.ts` `Impl` interface IS the public-API contract** for the substrate peers (`@graphrefly/pure-ts` and `@graphrefly/native`) — widening it is a public API decision.
-- `packages/cli` — workspace consumer of `@graphrefly/graphrefly`. Its vitest config aliases `@graphrefly/graphrefly` directly to `packages/pure-ts/src/index.ts` (the shim is just re-exports; nothing new to test through it).
+- `packages/cli` — workspace consumer of `@graphrefly/graphrefly`. Imports presentation (e.g. `SurfaceError`) from the root package barrel; substrate flows through the root shim's `export * from "@graphrefly/pure-ts"`.
 
 ### Three-package install-time model (Unit 6 D198, locked 2026-05-14)
 
