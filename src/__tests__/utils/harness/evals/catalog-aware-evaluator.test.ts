@@ -12,9 +12,8 @@ import { describe, expect, it } from "vitest";
 import { catalogAwareEvaluator } from "../../../../../evals/lib/catalog-aware-evaluator.js";
 import { catalogOverlay } from "../../../../../evals/lib/catalog-overlay.js";
 import { portableCatalog, portableFns } from "../../../../../evals/lib/portable-catalog.js";
-
-import type { CatalogFnEntry } from "../../patterns/graphspec/index.js";
-import type { DatasetItem, EvalResult } from "../../patterns/harness/presets/refine-loop.js";
+import type { DatasetItem, EvalResult } from "../../../presets/harness/refine-loop.js";
+import type { CatalogFnEntry } from "../../../utils/graphspec/index.js";
 
 const sentinelEntry: CatalogFnEntry = {
 	factory: () =>

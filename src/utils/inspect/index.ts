@@ -22,7 +22,7 @@
  * @module
  */
 
+export * from "../../presets/inspect/composite.js";
+export * from "../../presets/inspect/guarded-execution.js";
 export * from "./audit.js";
-export * from "./guarded-execution.js";
 export * from "./lens.js";
-export * from "./presets/inspect.js";

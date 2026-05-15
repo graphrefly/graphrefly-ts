@@ -1,3 +1,2 @@
-// Phase 13.9.A shim — re-export from pure-TS sibling until
-// @graphrefly/native (napi binding) and per-milestone swap-overs land.
-export * from "@graphrefly/pure-ts/patterns/process";
+// A2 redirect: patterns/process moved to utils/process
+export * from "../../utils/process/index.js";

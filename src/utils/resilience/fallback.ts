@@ -16,7 +16,7 @@ import {
 } from "@graphrefly/pure-ts/core/messages.js";
 import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { fromAny } from "../sources/index.js";
+import { fromAny } from "@graphrefly/pure-ts/extra";
 import { isAsyncIterable, isNode, isThenable, operatorOpts } from "./_internal.js";
 
 /** Inputs accepted by {@link fallback}. */

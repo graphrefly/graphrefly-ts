@@ -20,7 +20,7 @@ import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
-import { emitToMeta } from "../_internal/index.js";
+import { emitToMeta } from "../../base/meta/emit-to-meta.js";
 import {
 	analyzeAndMeasure,
 	type CharPosition,

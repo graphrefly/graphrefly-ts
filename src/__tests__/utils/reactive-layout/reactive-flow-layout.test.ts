@@ -9,7 +9,7 @@ import {
 	computeFlowLines,
 	reactiveFlowLayout,
 	rectIntervalForBand,
-} from "../../../patterns/reactive-layout/reactive-flow-layout.js";
+} from "../../../utils/reactive-layout/reactive-flow-layout.js";
 import {
 	analyzeAndMeasure,
 	carveTextLineSlots,
@@ -17,7 +17,7 @@ import {
 	layoutNextLine,
 	type MeasurementAdapter,
 	type PreparedSegment,
-} from "../../../patterns/reactive-layout/reactive-layout.js";
+} from "../../../utils/reactive-layout/reactive-layout.js";
 
 const CHAR_WIDTH = 8;
 

@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import { describe, expect, it } from "vitest";
-import { fromSpawn, runProcess } from "../../extra/sources-process.js";
+import { fromSpawn, runProcess } from "../../../../base/sources/node/process.js";
 
 // ---------------------------------------------------------------------------
 // Helper: collect all messages until COMPLETE or ERROR, with timeout.

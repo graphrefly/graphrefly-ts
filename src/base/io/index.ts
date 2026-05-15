@@ -55,7 +55,6 @@
  * browser-safe (those entries are reached via `extra/node`).
  */
 
-export type { SinkTransportError } from "../reactive-sink.js";
 // Shared public re-exports from helpers + reactive-sink. Kept here so the
 // barrel surface still includes `SinkHandle` / `AdapterHandlers` / etc. that
 // historically lived alongside the bodies.
@@ -65,6 +64,7 @@ export type {
 	BufferedSinkHandle,
 	SinkHandle,
 } from "./_internal.js";
+export type { SinkTransportError } from "./_sink.js";
 
 export * from "./checkpoint.js";
 export * from "./clickhouse-watch.js";

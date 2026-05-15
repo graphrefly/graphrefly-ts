@@ -12,16 +12,16 @@ import type {
 	LLMAdapter,
 	LLMResponse,
 	StreamDelta,
-} from "../../../../patterns/ai/adapters/core/types.js";
+} from "../../../../utils/ai/adapters/core/types.js";
 // Filesystem-backed fixture options (`fixturesDir`, `record.dir`) live in the
 // node subpath — the base `fallbackAdapter` is browser-safe and only accepts
 // inline `fixtures` or a pre-built `fixturesStorage` tier.
-import { fallbackAdapter } from "../../../../patterns/ai/adapters/providers/fallback-node.js";
+import { fallbackAdapter } from "../../../../utils/ai/adapters/providers/fallback-node.js";
 import {
 	dryRunAdapter,
 	type FallbackFixture,
 	FallbackMissError,
-} from "../../../../patterns/ai/adapters/providers/index.js";
+} from "../../../../utils/ai/adapters/providers/index.js";
 
 function tmp(): string {
 	return mkdtempSync(join(tmpdir(), "fallback-test-"));

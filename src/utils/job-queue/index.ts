@@ -22,14 +22,14 @@ import {
 	reactiveMap,
 } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
-import { domainMeta } from "../../extra/meta.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	type BaseAuditRecord,
 	bumpCursor,
 	createAuditLog,
 	mutate,
 	registerCursor,
-} from "../../extra/mutation/index.js";
+} from "../../base/mutation/index.js";
 
 const DEFAULT_MAX_PER_PUMP = 256;
 const DEFAULT_COMPLETED_RETAINED_LIMIT = 1024;

@@ -36,7 +36,7 @@ import {
 	toPulsar,
 	toRabbitMQ,
 	toRedisStream,
-} from "../../extra/adapters.js";
+} from "../../../../base/io/index.js";
 
 function tick(ms = 0): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));

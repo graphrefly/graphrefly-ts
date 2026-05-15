@@ -29,8 +29,8 @@ import {
 	systemPromptBuilder,
 	type ToolDefinition,
 	toolRegistry,
-} from "../patterns/ai/index.js";
-import { pipelineGraph } from "../patterns/orchestration/index.js";
+} from "../../../utils/ai/index.js";
+import { pipelineGraph } from "../../../utils/orchestration/index.js";
 
 // ---------------------------------------------------------------------------
 // Mock adapter

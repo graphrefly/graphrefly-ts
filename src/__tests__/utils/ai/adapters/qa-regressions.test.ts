@@ -2,14 +2,14 @@
  * Regression tests for the second-round QA fixes (P1–P10, ND1–ND2).
  */
 
-import { tokenBucket } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
-import { adaptiveRateLimiter } from "../../../../extra/adaptive-rate-limiter.js";
-import { singleFromAny } from "../../../../extra/single-from-any.js";
-import type { LLMAdapter, LLMResponse } from "../../../../patterns/ai/adapters/core/types.js";
-import { withBudgetGate } from "../../../../patterns/ai/adapters/middleware/budget-gate.js";
-import { withDryRun } from "../../../../patterns/ai/adapters/middleware/dry-run.js";
-import { dryRunAdapter } from "../../../../patterns/ai/adapters/providers/dry-run.js";
+import { singleFromAny } from "../../../../base/composition/single-from-any.js";
+import type { LLMAdapter, LLMResponse } from "../../../../utils/ai/adapters/core/types.js";
+import { withBudgetGate } from "../../../../utils/ai/adapters/middleware/budget-gate.js";
+import { withDryRun } from "../../../../utils/ai/adapters/middleware/dry-run.js";
+import { dryRunAdapter } from "../../../../utils/ai/adapters/providers/dry-run.js";
+import { adaptiveRateLimiter } from "../../../../utils/resilience/adaptive-rate-limiter.js";
+import { tokenBucket } from "../../../../utils/resilience/rate-limiter.js";
 
 // ---------------------------------------------------------------------------
 // P1 — canonicalJson: sibling shared references should NOT be flagged as cycles
@@ -18,7 +18,7 @@ import { dryRunAdapter } from "../../../../patterns/ai/adapters/providers/dry-ru
 // sub-objects produce the same cache key as freshly-reconstructed equivalents.
 
 import { memoryKv } from "@graphrefly/pure-ts/extra";
-import { withReplayCache } from "../../../../patterns/ai/adapters/middleware/replay-cache.js";
+import { withReplayCache } from "../../../../utils/ai/adapters/middleware/replay-cache.js";
 
 function mockAdapter(responses: LLMResponse[]): LLMAdapter & { calls: number } {
 	let i = 0;
@@ -187,7 +187,7 @@ describe("P5 adaptiveRateLimiter: putBack targets the acquire-time bucket", () =
 // ND1 — cascadingLlmAdapter: no onExhausted when single tier commits mid-stream
 // ---------------------------------------------------------------------------
 
-import { cascadingLlmAdapter } from "../../../../patterns/ai/adapters/routing/cascading.js";
+import { cascadingLlmAdapter } from "../../../../utils/ai/adapters/routing/cascading.js";
 
 describe("ND1 cascadingLlmAdapter: mid-stream commit failure doesn't call onExhausted", () => {
 	it("onExhausted is NOT called when the current tier throws after yielding", async () => {

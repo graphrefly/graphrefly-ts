@@ -45,10 +45,10 @@
 import { ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { switchMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
-import { domainMeta } from "../meta.js";
-import { switchMap } from "../operators/index.js";
-import { NS_PER_MS } from "./backoff.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
+import { NS_PER_MS } from "../../utils/resilience/backoff.js";
 import {
 	type BreakerState,
 	type BudgetConstraint,
@@ -69,7 +69,7 @@ import {
 	timeout,
 	withBreaker,
 	withStatus,
-} from "./index.js";
+} from "../../utils/resilience/index.js";
 
 // ---------------------------------------------------------------------------
 // Reactive-option helpers

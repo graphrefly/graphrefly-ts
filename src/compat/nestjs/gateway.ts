@@ -16,8 +16,11 @@ import {
 	type Messages,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core/messages.js";
-import { createWatermarkController, type WatermarkController } from "@graphrefly/pure-ts/extra";
 import type { Graph, GraphObserveOne } from "@graphrefly/pure-ts/graph/graph.js";
+import {
+	createWatermarkController,
+	type WatermarkController,
+} from "../../base/composition/backpressure.js";
 
 // ---------------------------------------------------------------------------
 // Shared types

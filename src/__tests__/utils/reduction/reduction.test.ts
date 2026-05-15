@@ -15,8 +15,8 @@ import { node } from "@graphrefly/pure-ts/core/node.js";
 import { type StratifyRule, stratify } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
-import { budgetGate } from "../../extra/resilience/budget-gate.js";
-import { feedback, funnel, scorer } from "../../patterns/reduction/index.js";
+import { feedback, funnel, scorer } from "../../../utils/reduction/index.js";
+import { budgetGate } from "../../../utils/resilience/budget-gate.js";
 
 // ---------------------------------------------------------------------------
 // stratify

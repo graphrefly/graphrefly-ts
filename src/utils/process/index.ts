@@ -35,13 +35,7 @@ import type {
 	KvStorageTier,
 	ReactiveLogBundle,
 } from "@graphrefly/pure-ts/extra";
-import {
-	firstWhere,
-	fromAny,
-	fromIter,
-	fromTimer,
-	type NodeInput,
-} from "@graphrefly/pure-ts/extra";
+import { fromAny, fromIter, fromTimer, type NodeInput } from "@graphrefly/pure-ts/extra";
 import { valve } from "@graphrefly/pure-ts/extra/operators/control.js";
 import { mergeMap } from "@graphrefly/pure-ts/extra/operators/higher-order.js";
 import { Graph } from "@graphrefly/pure-ts/graph";
@@ -50,8 +44,9 @@ import {
 	createAuditLog,
 	mutate,
 	registerCursor,
-} from "../../extra/mutation/index.js";
-import type { StatusValue } from "../../extra/resilience/status.js";
+} from "../../base/mutation/index.js";
+import { firstWhere } from "../../base/sources/settled.js";
+import type { StatusValue } from "../../utils/resilience/status.js";
 import type { CqrsEvent, CqrsEventMap, CqrsGraph } from "../cqrs/index.js";
 
 // ---------------------------------------------------------------------------

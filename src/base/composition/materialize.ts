@@ -26,8 +26,8 @@
 import { COMPLETE, DATA, ERROR, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
 import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { type ExtraOpts, operatorOpts } from "@graphrefly/pure-ts/extra/operators/_internal.js";
 import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
-import { type ExtraOpts, operatorOpts } from "../operators/_internal.js";
 
 // ---------------------------------------------------------------------------
 // selector

@@ -3,41 +3,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
+// Substrate sources (fromTimer, fromIter, etc.) from pure-ts
 import {
-	fromMCP,
-	fromWebhook,
-	fromWebSocket,
-	toSSE,
-	toWebSocket,
-	valve,
-} from "@graphrefly/pure-ts/extra";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseCron } from "../../extra/cron.js";
-import { fromGitHook } from "../../extra/git-hook.js";
-import {
-	awaitSettled,
-	cached,
-	defer,
 	empty,
-	firstValueFrom,
-	firstWhere,
-	forEach,
 	fromAny,
 	fromAsyncIter,
-	fromCron,
-	fromEvent,
 	fromIter,
 	fromPromise,
-	fromRaf,
 	fromTimer,
 	never,
 	of,
-	replay,
-	share,
 	throwError,
-	toArray,
-} from "../../extra/sources.js";
-import { fromFSWatch } from "../../extra/sources-fs.js";
+	valve,
+} from "@graphrefly/pure-ts/extra";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fromMCP } from "../../../base/io/mcp.js";
+import { toSSE } from "../../../base/io/sse.js";
+import { fromWebhook } from "../../../base/io/webhook.js";
+import { fromWebSocket, toWebSocket } from "../../../base/io/websocket.js";
+// Presentation sources from base/sources
+import { cached, defer, forEach, replay, share, toArray } from "../../../base/sources/async.js";
+import { parseCron } from "../../../base/sources/event/cron.js";
+import { fromCron, fromEvent, fromRaf } from "../../../base/sources/event/dom.js";
+import { fromFSWatch } from "../../../base/sources/node/fs-root.js";
+import { fromGitHook } from "../../../base/sources/node/git-hook.js";
+import { awaitSettled, firstValueFrom, firstWhere } from "../../../base/sources/settled.js";
 import { collect } from "../test-helpers.js";
 
 /** Next macrotick (GraphReFly + Vitest: do not use `vi.waitFor` with a sync boolean — it resolves immediately). */

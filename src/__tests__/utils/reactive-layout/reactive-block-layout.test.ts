@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
 	ImageSizeAdapter,
 	SvgBoundsAdapter,
-} from "../../../patterns/reactive-layout/measurement-adapters.js";
+} from "../../../utils/reactive-layout/measurement-adapters.js";
 import {
 	type BlockAdapters,
 	type ContentBlock,
@@ -21,8 +21,8 @@ import {
 	measureBlocks,
 	type PositionedBlock,
 	reactiveBlockLayout,
-} from "../../../patterns/reactive-layout/reactive-block-layout.js";
-import type { MeasurementAdapter } from "../../../patterns/reactive-layout/reactive-layout.js";
+} from "../../../utils/reactive-layout/reactive-block-layout.js";
+import type { MeasurementAdapter } from "../../../utils/reactive-layout/reactive-layout.js";
 
 // ---------------------------------------------------------------------------
 // Mock adapters

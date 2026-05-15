@@ -3,7 +3,7 @@ import {
 	type GoogleSdkLike,
 	type GoogleSdkRequestParams,
 	googleAdapter,
-} from "../../../../patterns/ai/adapters/providers/google.js";
+} from "../../../../utils/ai/adapters/providers/google.js";
 
 function mockFetch(body: unknown, opts?: { status?: number }): typeof fetch {
 	return (async () =>

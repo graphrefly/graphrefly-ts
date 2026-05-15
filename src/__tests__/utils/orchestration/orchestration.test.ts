@@ -3,7 +3,7 @@ import { node } from "@graphrefly/pure-ts/core/node.js";
 import { delay, valve } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
-import { pipelineGraph } from "../../patterns/orchestration/index.js";
+import { pipelineGraph } from "../../../utils/orchestration/index.js";
 
 describe("patterns.orchestration", () => {
 	it("pipelineGraph creates a PipelineGraph container", () => {

@@ -5,15 +5,15 @@ import {
 	kvStorage,
 	memoryAppendLog,
 	memoryBackend,
-} from "../../extra/storage-tiers.js";
-import type { CqrsEvent } from "../../patterns/cqrs/index.js";
-import { cqrs } from "../../patterns/cqrs/index.js";
+} from "../../../extra/storage-tiers.js";
+import type { CqrsEvent } from "../../../utils/cqrs/index.js";
+import { cqrs } from "../../../utils/cqrs/index.js";
 import {
 	type ProcessInstance,
 	type ProcessStateSnapshot,
 	processInstanceKeyOf,
 	processManager,
-} from "../../patterns/process/index.js";
+} from "../../../utils/process/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

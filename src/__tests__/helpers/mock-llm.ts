@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai/index.js";
+import type { ChatMessage, LLMAdapter, LLMResponse } from "../../utils/ai/index.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -132,7 +132,7 @@ export function mockLLM(script: MockScript = {}): MockLLMAdapter {
 	}
 
 	async function* stream(): AsyncIterable<
-		import("../../patterns/ai/adapters/core/types.js").StreamDelta
+		import("../../utils/ai/adapters/core/types.js").StreamDelta
 	> {
 		yield { type: "token", delta: "mock stream" };
 		yield { type: "usage", usage: { input: { regular: 0 }, output: { regular: 0 } } };

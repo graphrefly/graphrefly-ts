@@ -85,10 +85,10 @@ export * from "./safety/redactor.js";
 // Agents (chat, tools, multi-agent routing — building blocks)
 // ---------------------------------------------------------------------------
 
+export * from "../../presets/ai/agents.js";
 export * from "./agents/agent.js";
 export * from "./agents/chat-stream.js";
 export * from "./agents/handoff.js";
-export * from "./agents/presets.js";
 export * from "./agents/tool-execution.js";
 export * from "./agents/tool-registry.js";
 export * from "./agents/tool-selector.js";
@@ -109,8 +109,8 @@ export * from "./memory/tiers.js";
 // knowledgeGraph + retrieval + LLM extraction + tiers + decay.
 // ---------------------------------------------------------------------------
 
-export * from "./presets/agent-loop.js";
-export * from "./presets/agent-memory.js";
+export * from "../../presets/ai/agent-loop.js";
+export * from "../../presets/ai/agent-memory.js";
 
 // ---------------------------------------------------------------------------
 // Graph ↔ LLM integration (knobs, gauges, spec round-trip)

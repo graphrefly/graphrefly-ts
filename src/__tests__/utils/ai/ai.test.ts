@@ -1,8 +1,8 @@
 import { DATA, TEARDOWN } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
-import { awaitSettled } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
+import { awaitSettled } from "../../../base/sources/settled.js";
 import {
 	AgentLoopGraph,
 	admissionFilter3D,
@@ -44,7 +44,7 @@ import {
 	toolRegistry,
 	toolSelector,
 	validateGraphDef,
-} from "../../patterns/ai/index.js";
+} from "../../../utils/ai/index.js";
 
 // ---------------------------------------------------------------------------
 // Mock LLM adapter

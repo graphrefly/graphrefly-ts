@@ -12,11 +12,11 @@
 
 import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
+import { decay } from "../../base/utils/decay.js";
 import {
 	type AuditedSuccessTrackerGraph,
 	auditedSuccessTracker,
-} from "../../extra/composition/audited-success-tracker.js";
-import { decay } from "../../extra/utils/decay.js";
+} from "../orchestration/audited-success-tracker.js";
 
 import {
 	DEFAULT_DECAY_RATE,

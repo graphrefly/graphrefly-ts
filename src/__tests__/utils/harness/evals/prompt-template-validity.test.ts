@@ -20,7 +20,7 @@ import {
 	type GraphSpec,
 	generateCatalogPrompt,
 	validateSpec,
-} from "../../patterns/graphspec/index.js";
+} from "../../../../utils/graphspec/index.js";
 
 /** Extract every ```json … ``` block from a markdown file as parsed JSON. */
 function extractJsonBlocks(md: string): unknown[] {

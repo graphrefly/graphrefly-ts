@@ -12,13 +12,13 @@
 import { batch } from "@graphrefly/pure-ts/core/batch.js";
 import { COMPLETE, DATA, ERROR, TEARDOWN } from "@graphrefly/pure-ts/core/messages.js";
 import { defaultConfig, type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import type { ExtraOpts } from "./_internal.js";
 import {
 	type ReactiveSinkHandle,
 	reactiveSink,
 	type SinkFailure,
 	type SinkTransportError,
-} from "../reactive-sink.js";
-import type { ExtraOpts } from "./_internal.js";
+} from "./_sink.js";
 
 /**
  * Duck-typed synchronous SQLite database.

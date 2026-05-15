@@ -9,7 +9,7 @@ import {
 	type EmitTriad,
 	externalBundle,
 	externalProducer,
-} from "../../extra/external-register.js";
+} from "../../../base/composition/external-register.js";
 
 type Collected<T> = {
 	values: T[];

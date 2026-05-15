@@ -12,12 +12,8 @@ function makeSrc<T>(): { src: import("../../core/node.js").Node<T>; emit: (v: T)
 	return { src, emit: (v: T) => src.down([[DATA, v]]) };
 }
 
-import { constant, NS_PER_MS } from "@graphrefly/pure-ts/extra";
-import {
-	reactiveSink,
-	type SinkFailure,
-	type SinkTransportError,
-} from "../../extra/reactive-sink.js";
+import { reactiveSink, type SinkFailure, type SinkTransportError } from "../../../base/io/_sink.js";
+import { constant, NS_PER_MS } from "../../../utils/resilience/backoff.js";
 
 type CompanionSnap = {
 	sent: unknown[];

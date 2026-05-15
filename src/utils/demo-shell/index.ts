@@ -12,7 +12,7 @@ import { batch } from "@graphrefly/pure-ts/core/batch.js";
 import { describeNode, resolveDescribeFields } from "@graphrefly/pure-ts/core/meta.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
-import { graphSpecToMermaid } from "../../extra/render/index.js";
+import { graphSpecToMermaid } from "../../base/render/index.js";
 import type { MeasurementAdapter } from "../reactive-layout/reactive-layout.js";
 import { analyzeAndMeasure, computeLineBreaks } from "../reactive-layout/reactive-layout.js";
 

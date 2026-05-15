@@ -15,11 +15,11 @@
 
 import { DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
-import { awaitSettled } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
-import type { ToolCall } from "../../../../patterns/ai/adapters/core/types.js";
-import { type ToolResult, toolExecution } from "../../../../patterns/ai/agents/tool-execution.js";
-import { toolRegistry } from "../../../../patterns/ai/agents/tool-registry.js";
+import { awaitSettled } from "../../../../base/sources/settled.js";
+import type { ToolCall } from "../../../../utils/ai/adapters/core/types.js";
+import { type ToolResult, toolExecution } from "../../../../utils/ai/agents/tool-execution.js";
+import { toolRegistry } from "../../../../utils/ai/agents/tool-registry.js";
 
 function call(id: string, name: string, args: Record<string, unknown> = {}): ToolCall {
 	return { id, name, arguments: args };

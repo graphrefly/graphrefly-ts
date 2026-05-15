@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dryRunAdapter } from "../../../../patterns/ai/adapters/providers/dry-run.js";
+import { dryRunAdapter } from "../../../../utils/ai/adapters/providers/dry-run.js";
 
 describe("DryRunAdapter", () => {
 	it("echoes last user message by default", async () => {

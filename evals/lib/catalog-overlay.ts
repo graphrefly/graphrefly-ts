@@ -29,13 +29,13 @@ import { node } from "../../packages/pure-ts/src/core/node.js";
 import {
 	type ReactiveMapBundle,
 	reactiveMap,
-} from "../../packages/pure-ts/src/extra/reactive-map.js";
+} from "../../packages/pure-ts/src/extra/data-structures/reactive-map.js";
 import type {
 	CatalogFnEntry,
 	CatalogSourceEntry,
 	GraphSpecCatalog,
 	GraphSpecTemplate,
-} from "../../packages/pure-ts/src/patterns/graphspec/index.js";
+} from "../../src/utils/graphspec/index.js";
 
 // ---------------------------------------------------------------------------
 // Types

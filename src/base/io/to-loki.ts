@@ -5,12 +5,8 @@
 
 import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
 import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import {
-	type ReactiveSinkHandle,
-	reactiveSink,
-	type SinkTransportError,
-} from "../reactive-sink.js";
 import type { ExtraOpts } from "./_internal.js";
+import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 
 /** Loki log stream entry. */
 export type LokiStream = {

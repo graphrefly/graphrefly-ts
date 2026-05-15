@@ -1,7 +1,8 @@
 import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
-import { distill, verifiable } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
+import { distill } from "../../../base/composition/distill.js";
+import { verifiable } from "../../../base/composition/verifiable.js";
 
 function tick(ms = 0): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));

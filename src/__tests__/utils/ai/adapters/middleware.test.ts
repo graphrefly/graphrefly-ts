@@ -1,18 +1,15 @@
 import { memoryKv } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
-import type { LLMAdapter, LLMResponse } from "../../../../patterns/ai/adapters/core/types.js";
-import { withBreaker } from "../../../../patterns/ai/adapters/middleware/breaker.js";
+import type { LLMAdapter, LLMResponse } from "../../../../utils/ai/adapters/core/types.js";
+import { withBreaker } from "../../../../utils/ai/adapters/middleware/breaker.js";
 import {
 	BudgetExhaustedError,
 	withBudgetGate,
-} from "../../../../patterns/ai/adapters/middleware/budget-gate.js";
-import { withDryRun } from "../../../../patterns/ai/adapters/middleware/dry-run.js";
-import { withReplayCache } from "../../../../patterns/ai/adapters/middleware/replay-cache.js";
-import { withRetry } from "../../../../patterns/ai/adapters/middleware/retry.js";
-import {
-	LLMTimeoutError,
-	withTimeout,
-} from "../../../../patterns/ai/adapters/middleware/timeout.js";
+} from "../../../../utils/ai/adapters/middleware/budget-gate.js";
+import { withDryRun } from "../../../../utils/ai/adapters/middleware/dry-run.js";
+import { withReplayCache } from "../../../../utils/ai/adapters/middleware/replay-cache.js";
+import { withRetry } from "../../../../utils/ai/adapters/middleware/retry.js";
+import { LLMTimeoutError, withTimeout } from "../../../../utils/ai/adapters/middleware/timeout.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -327,8 +324,8 @@ describe("withReplayCache", () => {
 // withRateLimiter — A2: shared limiter across wraps
 // ---------------------------------------------------------------------------
 
-import { adaptiveRateLimiter } from "../../../../extra/adaptive-rate-limiter.js";
-import { withRateLimiter } from "../../../../patterns/ai/adapters/middleware/rate-limiter.js";
+import { withRateLimiter } from "../../../../utils/ai/adapters/middleware/rate-limiter.js";
+import { adaptiveRateLimiter } from "../../../../utils/resilience/adaptive-rate-limiter.js";
 
 describe("withRateLimiter", () => {
 	it("A2: shared AdaptiveRateLimiterBundle is reused across wraps", () => {

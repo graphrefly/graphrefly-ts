@@ -1,5 +1,5 @@
-import { tokenBucket } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
+import { tokenBucket } from "../../../utils/resilience/rate-limiter.js";
 
 describe("TokenBucket.putBack", () => {
 	it("returns consumed tokens to the bucket", () => {

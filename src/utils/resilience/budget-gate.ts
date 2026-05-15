@@ -9,7 +9,6 @@
  */
 
 import type { NodeActions } from "@graphrefly/pure-ts/core/config.js";
-import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
 import {
 	COMPLETE,
 	DATA,
@@ -19,8 +18,9 @@ import {
 	PAUSE,
 	RESOLVED,
 	RESUME,
-} from "../../core/messages.js";
-import { domainMeta } from "../meta.js";
+} from "@graphrefly/pure-ts/core/messages.js";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import type { GateState } from "./gate-state.js";
 
 /** A reactive constraint for {@link budgetGate}. */

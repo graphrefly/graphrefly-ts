@@ -14,9 +14,8 @@
  */
 
 import type { Node } from "@graphrefly/pure-ts/core/node.js";
+import { keepalive, type ReactiveMapBundle, reactiveMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
-import { type ReactiveMapBundle, reactiveMap } from "../data-structures/reactive-map.js";
-import { keepalive } from "../sources/index.js";
 
 /** A single success-rate record for one key. */
 export interface AuditedSuccessEntry<TKey extends string = string> {

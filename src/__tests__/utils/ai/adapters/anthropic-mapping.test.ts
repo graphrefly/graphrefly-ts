@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anthropicAdapter } from "../../../../patterns/ai/adapters/providers/anthropic.js";
+import { anthropicAdapter } from "../../../../utils/ai/adapters/providers/anthropic.js";
 
 /** Build a mock fetch returning a fixed JSON body. */
 function mockFetch(body: unknown, opts?: { status?: number; contentType?: string }): typeof fetch {

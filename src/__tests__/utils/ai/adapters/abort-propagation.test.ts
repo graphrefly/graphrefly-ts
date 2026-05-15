@@ -24,11 +24,11 @@
  * `sdk.*.stream({ signal })` rather than just the one-shot fetch init.
  */
 import { describe, expect, it } from "vitest";
-import { anthropicAdapter } from "../../../../patterns/ai/adapters/providers/anthropic.js";
-import { chromeNanoAdapter } from "../../../../patterns/ai/adapters/providers/browser/chrome-nano.js";
-import { webllmAdapter } from "../../../../patterns/ai/adapters/providers/browser/webllm.js";
-import { googleAdapter } from "../../../../patterns/ai/adapters/providers/google.js";
-import { openAICompatAdapter } from "../../../../patterns/ai/adapters/providers/openai-compat.js";
+import { anthropicAdapter } from "../../../../utils/ai/adapters/providers/anthropic.js";
+import { chromeNanoAdapter } from "../../../../utils/ai/adapters/providers/browser/chrome-nano.js";
+import { webllmAdapter } from "../../../../utils/ai/adapters/providers/browser/webllm.js";
+import { googleAdapter } from "../../../../utils/ai/adapters/providers/google.js";
+import { openAICompatAdapter } from "../../../../utils/ai/adapters/providers/openai-compat.js";
 
 interface CapturedFetch {
 	calls: Array<{ url: string; init: RequestInit | undefined }>;

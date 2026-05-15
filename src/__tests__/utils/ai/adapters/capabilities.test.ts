@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	createCapabilitiesRegistry,
 	type ModelCapabilities,
-} from "../../../../patterns/ai/adapters/core/capabilities.js";
+} from "../../../../utils/ai/adapters/core/capabilities.js";
 
 const cap = (
 	id: string,

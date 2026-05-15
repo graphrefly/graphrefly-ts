@@ -6,7 +6,7 @@ import {
 	bumpCursor,
 	createAuditLog,
 	mutate,
-} from "../../../extra/mutation/index.js";
+} from "../../../base/mutation/index.js";
 
 interface TestRecord extends BaseAuditRecord {
 	readonly action: "set" | "fail";

@@ -8,6 +8,11 @@
  * @module
  */
 
+// Tier 9.1 γ-form γ-β: presets live under `presets/`. `harnessLoop` and
+// `refineLoop` are presets composing the building blocks above.
+export * from "../../presets/harness/harness-loop.js";
+export * from "../../presets/harness/refine-loop.js";
+export * from "../../presets/harness/spawnable.js";
 export * from "./actuator-executor.js";
 export * from "./auto-solidify.js";
 export * from "./bridge.js";
@@ -17,11 +22,6 @@ export * from "./defaults.js";
 // — re-exported via `@graphrefly/graphrefly-ts/extra` for general use. The
 // (zero-consumer) `effectivenessTracker(opts?)` factory shape was not retained.
 export * from "./eval-verifier.js";
-// Tier 9.1 γ-form γ-β: presets live under `presets/`. `harnessLoop` and
-// `refineLoop` are presets composing the building blocks above.
-export * from "./presets/harness-loop.js";
-export * from "./presets/refine-loop.js";
-export * from "./presets/spawnable.js";
 export * from "./profile.js";
 export * from "./refine-executor.js";
 export * from "./strategy.js";

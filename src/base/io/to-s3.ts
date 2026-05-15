@@ -8,12 +8,8 @@
 
 import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
 import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import {
-	type ReactiveSinkHandle,
-	reactiveSink,
-	type SinkTransportError,
-} from "../reactive-sink.js";
 import type { ExtraOpts } from "./_internal.js";
+import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 
 /** Duck-typed S3 client (compatible with AWS SDK v3 `S3Client.send(PutObjectCommand(...))`). */
 export type S3ClientLike = {

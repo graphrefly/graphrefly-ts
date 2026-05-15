@@ -38,7 +38,7 @@
  */
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 import { keepalive } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../extra/meta.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	type Graph,
 	type GraphDescribeOutput,

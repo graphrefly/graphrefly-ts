@@ -3,7 +3,7 @@ import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
-import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai/index.js";
+import type { ChatMessage, LLMAdapter, LLMResponse } from "../../../utils/ai/index.js";
 import {
 	compileSpec,
 	decompileSpec,
@@ -13,7 +13,7 @@ import {
 	llmRefine,
 	specDiff,
 	validateSpec,
-} from "../../patterns/graphspec/index.js";
+} from "../../../utils/graphspec/index.js";
 
 // ---------------------------------------------------------------------------
 // helpers

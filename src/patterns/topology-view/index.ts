@@ -1,3 +1,2 @@
-// Phase 13.9.A shim — re-export from pure-TS sibling until
-// @graphrefly/native (napi binding) and per-milestone swap-overs land.
-export * from "@graphrefly/pure-ts/patterns/topology-view";
+// A2 redirect: patterns/topology-view moved to utils/topology-view
+export * from "../../utils/topology-view/index.js";

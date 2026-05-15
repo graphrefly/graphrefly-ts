@@ -17,7 +17,8 @@
  */
 
 import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
-import { makeHttpError, parseSSEStream } from "@graphrefly/pure-ts/extra";
+import { makeHttpError } from "../../../../base/io/http-error.js";
+import { parseSSEStream } from "../../../../base/io/sse.js";
 import type {
 	ChatMessage,
 	LLMAdapter,

@@ -10,14 +10,13 @@
  *   the post-call actual usage is fed back via `limiter.recordUsage()`.
  */
 
-import { emptyUsage, sumInputTokens, sumOutputTokens } from "@graphrefly/pure-ts/core/types.js";
-import type { NodeInput } from "@graphrefly/pure-ts/extra";
-import { firstValueFrom, fromAny } from "@graphrefly/pure-ts/extra";
+import { fromAny, type NodeInput } from "@graphrefly/pure-ts/extra";
+import { firstValueFrom } from "../../../../base/sources/settled.js";
 import {
 	type AdaptiveRateLimiterBundle,
 	adaptiveRateLimiter,
 	type RateLimitSignal,
-} from "../../../../extra/adaptive-rate-limiter.js";
+} from "../../../resilience/adaptive-rate-limiter.js";
 import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 import type {
 	ChatMessage,
@@ -26,6 +25,7 @@ import type {
 	LLMResponse,
 	StreamDelta,
 } from "../core/types.js";
+import { emptyUsage, sumInputTokens, sumOutputTokens } from "../core/types.js";
 import { parseRateLimitFromError } from "./http429-parser.js";
 
 export interface WithRateLimiterOptions {

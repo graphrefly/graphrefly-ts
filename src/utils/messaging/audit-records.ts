@@ -58,7 +58,7 @@
  * @module patterns/messaging/audit-records
  */
 
-import type { BaseAuditRecord } from "../../extra/mutation/index.js";
+import type { BaseAuditRecord } from "../../base/mutation/index.js";
 
 // ── Topic.publish ────────────────────────────────────────────────────────
 

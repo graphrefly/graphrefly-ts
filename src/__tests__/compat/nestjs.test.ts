@@ -1,13 +1,22 @@
 import "reflect-metadata";
 import { DEFAULT_ACTOR } from "@graphrefly/pure-ts/core/actor.js";
 import { GuardDenied, policy } from "@graphrefly/pure-ts/core/guard.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	type Messages,
+	START,
+	TEARDOWN,
+} from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { toObservable } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { Injectable } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
 import { firstValueFrom as rxFirstValueFrom, take, toArray } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toObservable } from "../../base/composition/observable.js";
 import {
 	ACTOR_KEY,
 	COMMAND_HANDLERS,
@@ -38,16 +47,7 @@ import {
 	SAGA_HANDLERS,
 	SagaHandler,
 } from "../../compat/nestjs/index.js";
-import {
-	COMPLETE,
-	DATA,
-	DIRTY,
-	ERROR,
-	type Messages,
-	START,
-	TEARDOWN,
-} from "../../core/messages.js";
-import type { CommandActions, CqrsEvent, CqrsGraph } from "../../patterns/cqrs/index.js";
+import type { CommandActions, CqrsEvent, CqrsGraph } from "../../utils/cqrs/index.js";
 
 // ---------------------------------------------------------------------------
 // RxJS bridge
@@ -92,7 +92,7 @@ describe("nestjs compat — RxJS bridge", () => {
 	});
 
 	it("toObservable: skips protocol-internal signals (DIRTY, RESOLVED)", async () => {
-		const { RESOLVED } = await import("../../core/messages.js");
+		const { RESOLVED } = await import("@graphrefly/pure-ts/core/messages.js");
 		const s = node<number>();
 		const values: number[] = [];
 		const sub = toObservable(s).subscribe((v) => values.push(v));

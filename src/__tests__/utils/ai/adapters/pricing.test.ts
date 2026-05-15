@@ -5,8 +5,8 @@ import {
 	createPricingRegistry,
 	type ModelPricing,
 	registryPricing,
-} from "../../../../patterns/ai/adapters/core/pricing.js";
-import type { TokenUsage } from "../../../../patterns/ai/adapters/core/types.js";
+} from "../../../../utils/ai/adapters/core/pricing.js";
+import type { TokenUsage } from "../../../../utils/ai/adapters/core/types.js";
 
 const usage1k = (): TokenUsage => ({
 	input: { regular: 1_000_000 }, // 1M tokens

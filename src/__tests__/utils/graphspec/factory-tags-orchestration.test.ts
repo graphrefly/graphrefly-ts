@@ -14,8 +14,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { cqrs } from "../../patterns/cqrs/index.js";
-import { jobFlow } from "../../patterns/job-queue/index.js";
+import { cqrs } from "../../../utils/cqrs/index.js";
+import { jobFlow } from "../../../utils/job-queue/index.js";
 
 describe("Tier 1.5.3 Phase 2.5 — factory tags (orchestration)", () => {
 	it("cqrs tags the CqrsGraph with factory='cqrs' and factoryArgs", () => {

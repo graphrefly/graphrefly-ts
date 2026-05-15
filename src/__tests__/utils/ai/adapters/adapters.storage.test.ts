@@ -34,7 +34,7 @@ import {
 	toS3,
 	toSqlite,
 	toTempo,
-} from "../../extra/adapters.js";
+} from "../../../../base/io/index.js";
 import { collectFlat } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {

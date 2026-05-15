@@ -1,8 +1,8 @@
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { describe, expect, it } from "vitest";
 
-import { createAuditLog, mutate } from "../../extra/mutation/index.js";
-import { jobFlow, jobQueue } from "../../patterns/job-queue/index.js";
+import { createAuditLog, mutate } from "../../../base/mutation/index.js";
+import { jobFlow, jobQueue } from "../../../utils/job-queue/index.js";
 import {
 	DEFERRED_TOPIC,
 	type HubRemoveTopicRecord,
@@ -25,7 +25,7 @@ import {
 	topic,
 	topicBridge,
 	topicPublishKeyOf,
-} from "../../patterns/messaging/index.js";
+} from "../../../utils/messaging/index.js";
 
 describe("patterns.messaging", () => {
 	it("topic retains events and updates latest value", () => {

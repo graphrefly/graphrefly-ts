@@ -45,7 +45,8 @@
 
 import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { fromAny, type NodeInput, nodeSignal, switchMap } from "@graphrefly/pure-ts/extra";
+import { fromAny, type NodeInput, switchMap } from "@graphrefly/pure-ts/extra";
+import { nodeSignal } from "../../../base/sources/settled.js";
 import { aiMeta, stripFences } from "../_internal.js";
 import type {
 	ChatMessage,

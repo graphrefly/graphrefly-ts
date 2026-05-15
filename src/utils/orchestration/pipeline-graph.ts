@@ -23,8 +23,8 @@ import { factoryTag, placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
 import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
 import type { ReactiveLogBundle } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
-import { domainMeta } from "../../extra/meta.js";
-import { type BaseAuditRecord, createAuditLog, mutate } from "../../extra/mutation/index.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
+import { type BaseAuditRecord, createAuditLog, mutate } from "../../base/mutation/index.js";
 
 export type StepRef = string | Node<unknown>;
 

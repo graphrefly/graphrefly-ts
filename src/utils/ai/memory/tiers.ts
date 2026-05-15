@@ -8,7 +8,7 @@ import type {
 	GraphAttachStorageOptions,
 	GraphCheckpointRecord,
 } from "@graphrefly/pure-ts/graph/graph.js";
-import { DEFAULT_DECAY_RATE } from "../../../extra/utils/decay.js";
+import { DEFAULT_DECAY_RATE } from "../../../base/utils/decay.js";
 import type { CollectionGraph } from "../../memory/index.js";
 
 export type MemoryTier = "permanent" | "active" | "archived";

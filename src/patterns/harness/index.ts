@@ -1,3 +1,3 @@
-// Phase 13.9.A shim — re-export from pure-TS sibling until
-// @graphrefly/native (napi binding) and per-milestone swap-overs land.
-export * from "@graphrefly/pure-ts/patterns/harness";
+// A2 redirect: patterns/harness moved to utils/harness
+// Note: presets (harnessLoop, refineLoop, spawnable) are in presets/harness/
+export * from "../../utils/harness/index.js";

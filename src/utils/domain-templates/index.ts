@@ -24,7 +24,7 @@ import { feedback, scorer } from "../reduction/index.js";
 // ---------------------------------------------------------------------------
 
 import { keepalive } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../extra/meta.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 
 function baseMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("domain_template", kind, extra);

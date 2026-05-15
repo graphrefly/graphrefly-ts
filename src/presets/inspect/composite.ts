@@ -57,8 +57,8 @@ import {
 	type ComplianceSnapshotResult,
 	complianceSnapshot,
 	type PolicyGateGraph,
-} from "../audit.js";
-import { type GraphLensView, graphLens } from "../lens.js";
+} from "../../utils/inspect/audit.js";
+import { type GraphLensView, graphLens } from "../../utils/inspect/lens.js";
 
 /** Options for {@link inspect}. */
 export interface InspectOptions {

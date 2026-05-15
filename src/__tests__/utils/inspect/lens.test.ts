@@ -3,7 +3,7 @@ import { describeNode } from "@graphrefly/pure-ts/core/meta.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
-import { type FlowEntry, graphLens, type HealthReport } from "../../patterns/inspect/lens.js";
+import { type FlowEntry, graphLens, type HealthReport } from "../../../utils/inspect/lens.js";
 
 function getHealthCache(node: { cache: unknown }): HealthReport {
 	return node.cache as HealthReport;

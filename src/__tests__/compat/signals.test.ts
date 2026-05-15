@@ -1,6 +1,6 @@
+import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import { describe, expect, it, vi } from "vitest";
-import { Signal } from "../../../src/compat/signals/index.js";
-import { COMPLETE, ERROR } from "../../../src/core/messages.js";
+import { Signal } from "../../compat/signals/index.js";
 
 describe("compat/signals", () => {
 	it("State sets and gets values synchronously", () => {

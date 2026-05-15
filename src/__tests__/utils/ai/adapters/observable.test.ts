@@ -1,7 +1,7 @@
-import { firstValueFrom } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
-import { observableAdapter } from "../../../../patterns/ai/adapters/core/observable.js";
-import { dryRunAdapter } from "../../../../patterns/ai/adapters/providers/dry-run.js";
+import { firstValueFrom } from "../../../../base/sources/settled.js";
+import { observableAdapter } from "../../../../utils/ai/adapters/core/observable.js";
+import { dryRunAdapter } from "../../../../utils/ai/adapters/providers/dry-run.js";
 
 describe("observableAdapter", () => {
 	it("records invoke calls to allCalls + totals", async () => {

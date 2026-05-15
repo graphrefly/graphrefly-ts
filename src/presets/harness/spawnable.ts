@@ -40,11 +40,9 @@ import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
-import { aiMeta } from "../../ai/_internal.js";
-import type { LLMResponse } from "../../ai/adapters/core/types.js";
-import type { AgentBundle, AgentSpec, AgentStatus } from "../../ai/agents/agent.js";
-import type { PresetRegistryBundle } from "../../ai/agents/presets.js";
-import { agent } from "../../ai/agents/presets.js";
+import { aiMeta } from "../../utils/ai/_internal.js";
+import type { LLMResponse } from "../../utils/ai/adapters/core/types.js";
+import type { AgentBundle, AgentSpec, AgentStatus } from "../../utils/ai/agents/agent.js";
 import {
 	type Message,
 	type MessagingHubGraph,
@@ -53,7 +51,9 @@ import {
 	subscription,
 	type TopicGraph,
 	topic,
-} from "../../messaging/index.js";
+} from "../../utils/messaging/index.js";
+import type { PresetRegistryBundle } from "../ai/agents.js";
+import { agent } from "../ai/agents.js";
 
 // ---------------------------------------------------------------------------
 // Types

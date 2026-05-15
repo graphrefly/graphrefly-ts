@@ -1,12 +1,12 @@
-import { CircuitOpenError } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
 import type {
 	LLMAdapter,
 	LLMResponse,
 	StreamDelta,
-} from "../../../../patterns/ai/adapters/core/types.js";
-import { BudgetExhaustedError } from "../../../../patterns/ai/adapters/middleware/budget-gate.js";
-import { resilientAdapter } from "../../../../patterns/ai/adapters/middleware/resilient-adapter.js";
+} from "../../../../utils/ai/adapters/core/types.js";
+import { BudgetExhaustedError } from "../../../../utils/ai/adapters/middleware/budget-gate.js";
+import { resilientAdapter } from "../../../../utils/ai/adapters/middleware/resilient-adapter.js";
+import { CircuitOpenError } from "../../../../utils/resilience/breaker.js";
 
 function mockAdapter(
 	responses: readonly (LLMResponse | Error)[] = [],

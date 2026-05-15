@@ -7,10 +7,11 @@
  * @module
  */
 
+import { ResettableTimer } from "@graphrefly/pure-ts/core/_internal/timer.js";
 import { COMPLETE, DATA, ERROR, type Messages } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { fromAny, type NodeInput, ResettableTimer } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../extra/meta.js";
+import { fromAny, type NodeInput } from "@graphrefly/pure-ts/extra";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import type {
 	ChatMessage,
 	LLMAdapter,

@@ -23,12 +23,13 @@
  * from "all tiers failed".
  */
 
-import { firstValueFrom, fromAny } from "@graphrefly/pure-ts/extra";
+import { fromAny } from "@graphrefly/pure-ts/extra";
+import { firstValueFrom } from "../../../../base/sources/settled.js";
 import {
 	type CircuitBreaker,
 	type CircuitBreakerOptions,
 	circuitBreaker,
-} from "../../../../extra/resilience.js";
+} from "../../../../utils/resilience/index.js";
 import { withLayer } from "../_internal/wrappers.js";
 import type {
 	ChatMessage,

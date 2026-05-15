@@ -31,15 +31,15 @@ import { type Node, NodeImpl, node } from "@graphrefly/pure-ts/core/node.js";
 import type { ReactiveLogBundle } from "@graphrefly/pure-ts/extra";
 import { fromTimer, keepalive, reactiveMap } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
-import { domainMeta } from "../../extra/meta.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	type BaseAuditRecord,
 	bumpCursor,
 	createAuditLog,
 	mutate,
 	registerCursor,
-} from "../../extra/mutation/index.js";
-import { decay } from "../../extra/utils/decay.js";
+} from "../../base/mutation/index.js";
+import { decay } from "../../base/utils/decay.js";
 
 // ── Shared helpers ───────────────────────────────────────────────────────
 

@@ -17,7 +17,7 @@ import {
 	type ModerationResult,
 	observabilityGraph,
 	type ValidationResult,
-} from "../../patterns/domain-templates/index.js";
+} from "../../../utils/domain-templates/index.js";
 
 // ---------------------------------------------------------------------------
 // observabilityGraph

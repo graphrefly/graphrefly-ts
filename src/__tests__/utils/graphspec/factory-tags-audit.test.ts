@@ -14,7 +14,7 @@
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
-import { policyGate } from "../../patterns/inspect/audit.js";
+import { policyGate } from "../../../utils/inspect/audit.js";
 
 describe("Tier 1.5.3 Phase 2.5 — factory tags (audit)", () => {
 	it("policyGate tags the PolicyGateGraph with factory='policyGate' and factoryArgs", () => {

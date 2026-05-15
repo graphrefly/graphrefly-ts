@@ -45,8 +45,8 @@ import { node as createNode, type Node } from "@graphrefly/pure-ts/core/node.js"
 import type { NodeInput } from "@graphrefly/pure-ts/extra";
 import { switchMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
-import { tryIncrementBounded } from "../../../extra/mutation/index.js";
-import { messagingHub, type TopicGraph } from "../../messaging/index.js";
+import { tryIncrementBounded } from "../../base/mutation/index.js";
+import { messagingHub, type TopicGraph } from "../../utils/messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Core types

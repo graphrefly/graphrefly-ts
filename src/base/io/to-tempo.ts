@@ -4,12 +4,8 @@
  */
 
 import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import {
-	type ReactiveSinkHandle,
-	reactiveSink,
-	type SinkTransportError,
-} from "../reactive-sink.js";
 import type { ExtraOpts } from "./_internal.js";
+import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 
 /** Duck-typed Tempo span push client (OTLP/HTTP shape). */
 export type TempoClientLike = {

@@ -12,18 +12,15 @@
  */
 
 import { node } from "@graphrefly/pure-ts/core/node.js";
-import {
-	circuitBreaker,
-	distill,
-	fallback,
-	verifiable,
-	withBreaker,
-	withStatus,
-} from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
-import { handoff } from "../../patterns/ai/agents/handoff.js";
-import { toolSelector } from "../../patterns/ai/agents/tool-selector.js";
+import { distill } from "../../../base/composition/distill.js";
+import { verifiable } from "../../../base/composition/verifiable.js";
+import { handoff } from "../../../utils/ai/agents/handoff.js";
+import { toolSelector } from "../../../utils/ai/agents/tool-selector.js";
+import { circuitBreaker, withBreaker } from "../../../utils/resilience/breaker.js";
+import { fallback } from "../../../utils/resilience/fallback.js";
+import { withStatus } from "../../../utils/resilience/status.js";
 
 describe("Tier 1.5.3 Phase 2.5 — bundle-factory primary-node tagging", () => {
 	it("verifiable.verified self-tags with factory: 'verifiable'", () => {

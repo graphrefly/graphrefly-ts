@@ -3,9 +3,9 @@ import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it, vi } from "vitest";
-
-import { trackingKey } from "../../patterns/_internal/index.js";
-import { contentGate, redactor } from "../../patterns/ai/index.js";
+import { HarnessGraph, harnessLoop } from "../../../presets/harness/harness-loop.js";
+import { contentGate, redactor } from "../../../utils/ai/index.js";
+import { trackingKey } from "../../../utils/harness/_internal.js";
 import {
 	affectedTaskFilter,
 	beforeAfterCompare,
@@ -15,13 +15,12 @@ import {
 	evalIntakeBridge,
 	evalSource,
 	notifyEffect,
-} from "../../patterns/harness/bridge.js";
-import { HarnessGraph, harnessLoop } from "../../patterns/harness/presets/harness-loop.js";
+} from "../../../utils/harness/bridge.js";
 import {
 	priorityScore,
 	type StrategySnapshot,
 	strategyModel,
-} from "../../patterns/harness/strategy.js";
+} from "../../../utils/harness/strategy.js";
 import {
 	DEFAULT_PRESET_ID,
 	defaultErrorClassifier,
@@ -29,9 +28,9 @@ import {
 	type IntakeItem,
 	strategyKey,
 	type TriagedItem,
-} from "../../patterns/harness/types.js";
-import { TopicGraph, topic } from "../../patterns/messaging/index.js";
-import { mockLLM } from "../helpers/mock-llm.js";
+} from "../../../utils/harness/types.js";
+import { TopicGraph, topic } from "../../../utils/messaging/index.js";
+import { mockLLM } from "../../helpers/mock-llm.js";
 
 // ---------------------------------------------------------------------------
 // types
@@ -1550,7 +1549,7 @@ describe("harnessLoop with mockLLM", () => {
 		const harness = harnessLoop("mock-gate-modify", { adapter: mock });
 
 		// Wire harnessTrace with structured events to validate stage ordering
-		const { harnessTrace } = await import("../../patterns/harness/trace.js");
+		const { harnessTrace } = await import("../../../utils/harness/trace.js");
 		const trace = harnessTrace(harness);
 
 		harness.intake.publish({
@@ -1655,7 +1654,7 @@ describe("harnessLoop with mockLLM", () => {
 			maxReingestions: 0,
 		});
 
-		const { harnessProfile } = await import("../../patterns/harness/profile.js");
+		const { harnessProfile } = await import("../../../utils/harness/profile.js");
 		const before = harnessProfile(harness);
 		expect(before.nodeCount).toBeGreaterThan(0);
 		expect(before.strategyEntries).toBe(0);
@@ -1776,7 +1775,7 @@ describe("harnessLoop with mockLLM", () => {
 		});
 
 		const lines: string[] = [];
-		const { harnessTrace } = await import("../../patterns/harness/trace.js");
+		const { harnessTrace } = await import("../../../utils/harness/trace.js");
 		const handle = harnessTrace(harness, { logger: (line) => lines.push(line) });
 
 		harness.intake.publish({

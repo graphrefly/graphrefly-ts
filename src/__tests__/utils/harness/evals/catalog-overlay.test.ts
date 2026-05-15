@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { type CatalogPatch, catalogOverlay } from "../../../../../evals/lib/catalog-overlay.js";
 import { portableCatalog, portableFns } from "../../../../../evals/lib/portable-catalog.js";
 import { portableTemplates } from "../../../../../evals/lib/portable-templates.js";
-import type { CatalogFnEntry, GraphSpecCatalog } from "../../patterns/graphspec/index.js";
+import type { CatalogFnEntry, GraphSpecCatalog } from "../../../utils/graphspec/index.js";
 
 const sentinelEntry: CatalogFnEntry = {
 	factory: () =>

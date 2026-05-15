@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { LLMAdapter, LLMResponse } from "../../../../patterns/ai/adapters/core/types.js";
+import type { LLMAdapter, LLMResponse } from "../../../../utils/ai/adapters/core/types.js";
 import {
 	AllTiersExhaustedError,
 	cascadingLlmAdapter,
-} from "../../../../patterns/ai/adapters/routing/cascading.js";
+} from "../../../../utils/ai/adapters/routing/cascading.js";
 
 function tierAdapter(responses: readonly (LLMResponse | Error)[]): LLMAdapter & { calls: number } {
 	let i = 0;

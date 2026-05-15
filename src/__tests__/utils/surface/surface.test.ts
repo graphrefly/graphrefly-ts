@@ -3,7 +3,7 @@ import { node } from "@graphrefly/pure-ts/core/node.js";
 import { memoryKv } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
-import type { GraphSpec, GraphSpecCatalog } from "../../../patterns/graphspec/index.js";
+import type { GraphSpec, GraphSpecCatalog } from "../../../utils/graphspec/index.js";
 import {
 	createGraph,
 	deleteSnapshot,
@@ -13,7 +13,7 @@ import {
 	runReduction,
 	SurfaceError,
 	saveSnapshot,
-} from "../../../patterns/surface/index.js";
+} from "../../../utils/surface/index.js";
 
 /** Shared catalog for surface tests. Mirrors the style in graphspec tests. */
 const catalog: GraphSpecCatalog = {

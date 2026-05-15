@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openAICompatAdapter } from "../../../../patterns/ai/adapters/providers/openai-compat.js";
+import { openAICompatAdapter } from "../../../../utils/ai/adapters/providers/openai-compat.js";
 
 function mockFetch(body: unknown, opts?: { status?: number }): typeof fetch {
 	return (async () =>

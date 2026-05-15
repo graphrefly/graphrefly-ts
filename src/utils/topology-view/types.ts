@@ -14,4 +14,4 @@ export type {
 	LayoutEdge,
 	LayoutFn,
 	LayoutFrame,
-} from "../../extra/render/layout-types.js";
+} from "../../base/render/layout-types.js";

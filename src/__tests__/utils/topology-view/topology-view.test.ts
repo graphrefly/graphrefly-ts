@@ -6,12 +6,12 @@ import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { Graph, type GraphDescribeOutput } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
-import { layoutFrameToSvg } from "../../extra/render/index.js";
+import { layoutFrameToSvg } from "../../../base/render/index.js";
 import {
 	type LayoutFn,
 	type LayoutFrame,
 	topologyView,
-} from "../../patterns/topology-view/index.js";
+} from "../../../utils/topology-view/index.js";
 
 // ---------------------------------------------------------------------------
 // Helper — build a small target graph with N source nodes

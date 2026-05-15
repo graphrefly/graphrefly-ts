@@ -1,14 +1,14 @@
 import { COMPLETE, DATA, type Messages, PAUSE, RESUME } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
-import { createWatermarkController } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it, vi } from "vitest";
+import { createWatermarkController } from "../../../base/composition/backpressure.js";
 import {
 	ObserveGateway,
 	type ObserveWsMessage,
 	observeSSE,
 	observeSubscription,
-} from "../../compat/nestjs/gateway.js";
+} from "../../../compat/nestjs/gateway.js";
 
 // ---------------------------------------------------------------------------
 // WatermarkController unit tests

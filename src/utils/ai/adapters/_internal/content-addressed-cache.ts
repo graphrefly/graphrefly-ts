@@ -16,13 +16,13 @@
  * @module
  */
 
-import type { ChatMessage, LLMInvokeOptions } from "@graphrefly/pure-ts/core/types.js";
 import type { KvStorageTier } from "@graphrefly/pure-ts/extra";
 import {
 	type ContentAddressedMode,
 	type ContentAddressedStorage,
 	contentAddressedStorage,
-} from "../../../../extra/content-addressed-storage.js";
+} from "@graphrefly/pure-ts/extra";
+import type { ChatMessage, LLMInvokeOptions } from "../core/types.js";
 
 /**
  * Context object passed to the 1-arg {@link ContentAddressedCacheOptions.keyFn}

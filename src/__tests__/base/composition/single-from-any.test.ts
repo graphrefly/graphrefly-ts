@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { singleFromAny, singleNodeFromAny } from "../../extra/single-from-any.js";
+import { singleFromAny, singleNodeFromAny } from "../../../base/composition/single-from-any.js";
 
 describe("singleFromAny", () => {
 	it("dedupes concurrent calls with the same key", async () => {

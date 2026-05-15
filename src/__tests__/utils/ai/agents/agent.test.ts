@@ -5,22 +5,22 @@
 
 import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
-import { awaitSettled } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
+import { awaitSettled } from "../../../../base/sources/settled.js";
+import { agent, presetRegistry } from "../../../../presets/ai/agents.js";
 import type {
 	LLMAdapter,
 	LLMResponse,
 	ToolDefinition,
-} from "../../../../patterns/ai/adapters/core/types.js";
+} from "../../../../utils/ai/adapters/core/types.js";
 import {
 	type AgentBundle,
 	AgentGraph,
 	type AgentSpec,
 	type CostState,
 	ZERO_COST,
-} from "../../../../patterns/ai/agents/agent.js";
-import { agent, presetRegistry } from "../../../../patterns/ai/agents/presets.js";
+} from "../../../../utils/ai/agents/agent.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -17,7 +17,7 @@ import {
 	type LayoutDirection,
 	type LayoutEdgePoint,
 	sugiyamaLayout,
-} from "../../extra/render/_layout-sugiyama.js";
+} from "../../base/render/_layout-sugiyama.js";
 import type { LayoutFn, LayoutFrame } from "./types.js";
 
 const MIN_W = 3;

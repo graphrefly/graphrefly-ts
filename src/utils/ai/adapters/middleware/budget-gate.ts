@@ -24,7 +24,6 @@ import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 import type { CallStatsEvent } from "@graphrefly/pure-ts/core/observable.js";
 import type { PricingFn } from "@graphrefly/pure-ts/core/pricing.js";
-import { sumInputTokens, sumOutputTokens } from "@graphrefly/pure-ts/core/types.js";
 import { keepalive, type ReactiveLogBundle, reactiveLog } from "@graphrefly/pure-ts/extra";
 import {
 	adapterWrapper,
@@ -41,6 +40,7 @@ import type {
 	StreamDelta,
 	TokenUsage,
 } from "../core/types.js";
+import { sumInputTokens, sumOutputTokens } from "../core/types.js";
 
 export class BudgetExhaustedError extends Error {
 	override name = "BudgetExhaustedError";

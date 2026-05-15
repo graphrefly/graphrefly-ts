@@ -5,8 +5,8 @@
  */
 
 import type { Node } from "@graphrefly/pure-ts/core/node.js";
-import type { ReactiveSinkHandle, SinkTransportError } from "../reactive-sink.js";
 import type { ExtraOpts } from "./_internal.js";
+import type { ReactiveSinkHandle, SinkTransportError } from "./_sink.js";
 import { type FileWriterLike, toFile } from "./to-file.js";
 
 /** Options for {@link toCSV}. */

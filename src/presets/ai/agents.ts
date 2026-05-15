@@ -17,13 +17,10 @@
  * runtime is `bundle.in.emit(input)` + `awaitSettled(bundle.out)`.
  */
 
+import { type ReactiveMapBundle, reactiveMap } from "@graphrefly/pure-ts/extra";
 import type { Graph } from "@graphrefly/pure-ts/graph/graph.js";
-import {
-	type ReactiveMapBundle,
-	reactiveMap,
-} from "../../../extra/data-structures/reactive-map.js";
-import type { LLMResponse } from "../adapters/core/types.js";
-import { type AgentBundle, AgentGraph, type AgentSpec } from "./agent.js";
+import type { LLMResponse } from "../../utils/ai/adapters/core/types.js";
+import { type AgentBundle, AgentGraph, type AgentSpec } from "../../utils/ai/agents/agent.js";
 
 // ---------------------------------------------------------------------------
 // agent() factory

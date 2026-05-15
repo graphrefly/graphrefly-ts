@@ -1,3 +1,2 @@
-// Phase 13.9.A shim — re-export from pure-TS sibling until
-// @graphrefly/native (napi binding) and per-milestone swap-overs land.
-export * from "@graphrefly/pure-ts/patterns/job-queue";
+// A2 redirect: patterns/job-queue moved to utils/job-queue
+export * from "../../utils/job-queue/index.js";

@@ -32,25 +32,11 @@ import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
 import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
 import { merge, withLatestFrom } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
-import { tryIncrementBounded } from "../../../extra/mutation/index.js";
-import { trackingKey } from "../../_internal/index.js";
-import { _oneShotLlmCall, stripFences } from "../../ai/_internal.js";
-import type { ChatMessage, LLMAdapter } from "../../ai/index.js";
-import { promptNode } from "../../ai/index.js";
-import {
-	type JobEnvelope,
-	type JobFlowGraph,
-	type JobQueueGraph,
-	jobFlow,
-	jobQueue,
-} from "../../job-queue/index.js";
-import {
-	type MessagingHubGraph,
-	messagingHub,
-	type TopicGraph,
-	topicBridge,
-} from "../../messaging/index.js";
-import { type GateController, pipelineGraph } from "../../orchestration/index.js";
+import { tryIncrementBounded } from "../../base/mutation/index.js";
+import { _oneShotLlmCall, stripFences } from "../../utils/ai/_internal.js";
+import type { ChatMessage, LLMAdapter } from "../../utils/ai/index.js";
+import { promptNode } from "../../utils/ai/index.js";
+import { trackingKey } from "../../utils/harness/_internal.js";
 import {
 	DEFAULT_DECAY_RATE,
 	DEFAULT_EXECUTE_PROMPT,
@@ -61,8 +47,12 @@ import {
 	defaultErrorClassifier,
 	QUEUE_NAMES,
 	resolvePromptFn,
-} from "../defaults.js";
-import { type StrategyModelGraph, type StrategySnapshot, strategyModel } from "../strategy.js";
+} from "../../utils/harness/defaults.js";
+import {
+	type StrategyModelGraph,
+	type StrategySnapshot,
+	strategyModel,
+} from "../../utils/harness/strategy.js";
 import type {
 	ErrorClassifier,
 	ExecuteOutput,
@@ -79,8 +69,22 @@ import type {
 	VerifyOutput,
 	VerifyPromptFn,
 	VerifyResult,
-} from "../types.js";
-import { DEFAULT_PRESET_ID, strategyKey } from "../types.js";
+} from "../../utils/harness/types.js";
+import { DEFAULT_PRESET_ID, strategyKey } from "../../utils/harness/types.js";
+import {
+	type JobEnvelope,
+	type JobFlowGraph,
+	type JobQueueGraph,
+	jobFlow,
+	jobQueue,
+} from "../../utils/job-queue/index.js";
+import {
+	type MessagingHubGraph,
+	messagingHub,
+	type TopicGraph,
+	topicBridge,
+} from "../../utils/messaging/index.js";
+import { type GateController, pipelineGraph } from "../../utils/orchestration/index.js";
 
 // ---------------------------------------------------------------------------
 // Hub topic names (internal constants — strings are the routing API)

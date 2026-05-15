@@ -9,7 +9,7 @@ import { resolve as resolvePath } from "node:path";
 import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
 import { DATA, ERROR, type Message } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
-import { globToRegExp, matchesAnyPattern } from "./sources.js";
+import { globToRegExp, matchesAnyPattern } from "@graphrefly/pure-ts/extra";
 
 type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
 

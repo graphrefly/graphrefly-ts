@@ -24,6 +24,8 @@ import { DATA, INVALIDATE, RESOLVED } from "@graphrefly/pure-ts/core/messages.js
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
+import { type AgentLoopGraph, agentLoop } from "../../../presets/ai/agent-loop.js";
+import type { AgentMemoryGraph } from "../../../presets/ai/agent-memory.js";
 import {
 	type SubscriptionGraph,
 	subscription,
@@ -39,8 +41,6 @@ import type {
 	TokenUsage,
 	ToolDefinition,
 } from "../adapters/core/types.js";
-import { type AgentLoopGraph, agentLoop } from "../presets/agent-loop.js";
-import type { AgentMemoryGraph } from "../presets/agent-memory.js";
 
 // ---------------------------------------------------------------------------
 // Types

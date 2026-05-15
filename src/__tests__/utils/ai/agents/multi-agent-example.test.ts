@@ -40,9 +40,9 @@ import { batch, DATA } from "@graphrefly/pure-ts/core";
 import { valve } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
-import { agentLoop, type LLMAdapter, type LLMResponse } from "../../../../patterns/ai/index.js";
-import type { SpawnPayload } from "../../../../patterns/harness/presets/spawnable.js";
-import { type Message, messagingHub, topic } from "../../../../patterns/messaging/index.js";
+import type { SpawnPayload } from "../../../../presets/harness/presets/spawnable.js";
+import { agentLoop, type LLMAdapter, type LLMResponse } from "../../../../utils/ai/index.js";
+import { type Message, messagingHub, topic } from "../../../../utils/messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

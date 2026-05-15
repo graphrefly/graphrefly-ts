@@ -12,6 +12,7 @@ import { COMPLETE, DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 import { fromAny } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
+import type { DatasetItem, EvalResult, Evaluator } from "../../../presets/harness/refine-loop.js";
 import {
 	actuatorExecutor,
 	dispatchActuator,
@@ -20,14 +21,9 @@ import {
 	harnessLoop,
 	type TriagedItem,
 	type VerifyResult,
-} from "../../patterns/harness/index.js";
-import type {
-	DatasetItem,
-	EvalResult,
-	Evaluator,
-} from "../../patterns/harness/presets/refine-loop.js";
-import type { JobEnvelope } from "../../patterns/job-queue/index.js";
-import { mockLLM } from "../helpers/mock-llm.js";
+} from "../../../utils/harness/index.js";
+import type { JobEnvelope } from "../../../utils/job-queue/index.js";
+import { mockLLM } from "../../helpers/mock-llm.js";
 
 const SAMPLE_ITEM: TriagedItem = {
 	source: "eval",

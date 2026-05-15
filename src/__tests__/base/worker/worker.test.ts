@@ -12,15 +12,15 @@ import {
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { workerBridge } from "../../extra/worker/bridge.js";
+import { workerBridge } from "../../../base/worker/bridge.js";
 import {
 	deserializeError,
 	nameToSignal,
 	serializeError,
 	signalToName,
-} from "../../extra/worker/protocol.js";
-import { workerSelf } from "../../extra/worker/self.js";
-import type { WorkerTransport } from "../../extra/worker/transport.js";
+} from "../../../base/worker/protocol.js";
+import { workerSelf } from "../../../base/worker/self.js";
+import type { WorkerTransport } from "../../../base/worker/transport.js";
 import { collect } from "../test-helpers.js";
 
 /** Create a pair of WorkerTransport backed by a node:worker_threads MessageChannel. */

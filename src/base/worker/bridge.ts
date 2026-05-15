@@ -21,8 +21,7 @@
 import { batch } from "@graphrefly/pure-ts/core/batch.js";
 import { DATA, ERROR, type Messages, TEARDOWN } from "@graphrefly/pure-ts/core/messages.js";
 import { defaultConfig, type Node, type NodeSink, node } from "@graphrefly/pure-ts/core/node.js";
-import { filter, first, map, merge } from "../operators/index.js";
-import { fromTimer } from "../sources/index.js";
+import { filter, first, fromTimer, map, merge } from "@graphrefly/pure-ts/extra";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";
 import type { WorkerTransport } from "./transport.js";

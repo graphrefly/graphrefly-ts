@@ -34,9 +34,9 @@ import type { Node } from "@graphrefly/pure-ts/core/node.js";
 // through `extra/sources/index.ts` — eager re-exports through the barrel were
 // observed to leave `firstValueFrom` / `keepalive` unresolved during nested
 // import chains under vite-node.
-import type { NodeInput } from "./sources/_internal.js";
-import { fromAny } from "./sources/async.js";
-import { firstValueFrom } from "./sources/settled.js";
+import type { NodeInput } from "@graphrefly/pure-ts/extra/sources/_internal.js";
+import { fromAny } from "../sources/async.js";
+import { firstValueFrom } from "../sources/settled.js";
 
 export interface SingleFromAnyOptions<K> {
 	/**

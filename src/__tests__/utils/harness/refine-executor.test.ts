@@ -11,21 +11,21 @@ import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
+import type {
+	DatasetItem,
+	EvalResult,
+	Evaluator,
+	RefineStrategy,
+} from "../../../presets/harness/refine-loop.js";
 import {
 	evalVerifier,
 	type HarnessJobPayload,
 	harnessLoop,
 	refineExecutor,
 	type VerifyResult,
-} from "../../patterns/harness/index.js";
-import type {
-	DatasetItem,
-	EvalResult,
-	Evaluator,
-	RefineStrategy,
-} from "../../patterns/harness/presets/refine-loop.js";
-import type { JobEnvelope } from "../../patterns/job-queue/index.js";
-import { mockLLM } from "../helpers/mock-llm.js";
+} from "../../../utils/harness/index.js";
+import type { JobEnvelope } from "../../../utils/job-queue/index.js";
+import { mockLLM } from "../../helpers/mock-llm.js";
 
 const REQUIRED = ["reactive", "composable", "inspectable"] as const;
 const DATASET: readonly DatasetItem[] = REQUIRED.map((kw) => ({ id: kw }));

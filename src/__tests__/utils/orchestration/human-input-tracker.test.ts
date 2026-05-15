@@ -11,8 +11,8 @@ import {
 	messagingHub,
 	PROMPTS_TOPIC,
 	RESPONSES_TOPIC,
-} from "../../../patterns/messaging/index.js";
-import { humanInput, tracker } from "../../../patterns/orchestration/index.js";
+} from "../../../utils/messaging/index.js";
+import { humanInput, tracker } from "../../../utils/orchestration/index.js";
 
 // ---------------------------------------------------------------------------
 // humanInput

@@ -26,20 +26,22 @@ import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
 import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 import type { StorageHandle } from "@graphrefly/pure-ts/extra";
-import { fromAny, keepalive, type NodeInput } from "@graphrefly/pure-ts/extra";
+import {
+	fromAny,
+	keepalive,
+	type NodeInput,
+	type ReactiveMapBundle,
+	type ReactiveMapRetention,
+	reactiveMap,
+} from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
 import {
 	type DistillBundle,
 	type DistillOptions,
 	distill,
 	type Extraction,
-} from "../../../extra/composite.js";
-import {
-	type ReactiveMapBundle,
-	type ReactiveMapRetention,
-	reactiveMap,
-} from "../../../extra/reactive-map.js";
-import { decay } from "../../../extra/utils/decay.js";
+} from "../../../base/composition/distill.js";
+import { decay } from "../../../base/utils/decay.js";
 import {
 	collection,
 	cosineSimilarity,

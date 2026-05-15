@@ -5,9 +5,10 @@
  * and fromWebSocket (register-callback overload).
  */
 
+import { COMPLETE, DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import type { WebSocketRegister } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
-import { COMPLETE, DATA, ERROR, fromWebhook, fromWebSocket } from "../index.js";
+import { fromWebhook, fromWebSocket } from "../../../base/io/index.js";
 import { collectFlat } from "./test-helpers.js";
 
 // ---------------------------------------------------------------------------

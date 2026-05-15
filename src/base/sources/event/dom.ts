@@ -4,6 +4,40 @@
  * Moved from extra/sources/event.ts (fromEvent, fromRaf) during cleave A2.
  */
 
+import { wallClockNs } from "@graphrefly/pure-ts/core";
+import { ERROR } from "@graphrefly/pure-ts/core/messages.js";
+import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
+
+type ExtraOpts = Omit<NodeOptions, "describeKind">;
+type AsyncSourceOpts = ExtraOpts & { signal?: AbortSignal };
+
+function sourceOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
+	return { describeKind: "producer", ...opts } as NodeOptions<T>;
+}
+
+/** Options for {@link fromCron}. */
+export type FromCronOptions = ExtraOpts & {
+	/** Polling interval in ms. Default `60_000`. */
+	tickMs?: number;
+	/** Output format: `"timestamp_ns"` (default) emits wall-clock nanoseconds; `"date"` emits a `Date` object. */
+	output?: "timestamp_ns" | "date";
+};
+
+/** DOM-style event target (browser or `node:events`). */
+export type EventTargetLike = {
+	addEventListener(
+		type: string,
+		listener: (ev: unknown) => void,
+		options?: boolean | { capture?: boolean; passive?: boolean; once?: boolean },
+	): void;
+	removeEventListener(
+		type: string,
+		listener: (ev: unknown) => void,
+		options?: boolean | { capture?: boolean; passive?: boolean; once?: boolean },
+	): void;
+};
+
 export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
 	const { signal, ...rest } = opts ?? {};
 	return node<number>((_data, a) => {

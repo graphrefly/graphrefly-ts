@@ -7,13 +7,14 @@
  */
 
 import type { LLMAdapter, LLMResponse, StreamDelta } from "@graphrefly/pure-ts/core/types.js";
-import { firstValueFrom, fromAny } from "@graphrefly/pure-ts/extra";
+import { fromAny } from "@graphrefly/pure-ts/extra";
+import { firstValueFrom } from "../../../../base/sources/settled.js";
 import {
 	type CircuitBreaker,
 	type CircuitBreakerOptions,
 	CircuitOpenError,
 	circuitBreaker,
-} from "../../../../extra/resilience.js";
+} from "../../../../utils/resilience/index.js";
 import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 
 export interface WithBreakerOptions extends CircuitBreakerOptions {

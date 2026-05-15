@@ -1,7 +1,7 @@
 import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
-import { fromHTTP, toHTTP } from "@graphrefly/pure-ts/extra";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fromHTTP, toHTTP } from "../../../base/io/http.js";
 
 describe("fromHTTP", () => {
 	const originalFetch = global.fetch;

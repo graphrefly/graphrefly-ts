@@ -15,6 +15,7 @@
  * in-flight deadline — new `ns` applies to next attempt only.
  */
 
+import { ResettableTimer } from "@graphrefly/pure-ts/core/_internal/timer.js";
 import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
 import {
 	COMPLETE,
@@ -26,7 +27,6 @@ import {
 } from "@graphrefly/pure-ts/core/messages.js";
 import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { ResettableTimer } from "../timer.js";
 import { isNode, operatorOpts } from "./_internal.js";
 import { NS_PER_MS } from "./backoff.js";
 

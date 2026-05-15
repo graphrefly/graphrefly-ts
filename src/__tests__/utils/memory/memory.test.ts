@@ -2,7 +2,7 @@ import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { keepalive } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
-import { decay } from "../../extra/utils/decay.js";
+import { decay } from "../../../base/utils/decay.js";
 import {
 	type CollectionEntry,
 	collection,
@@ -13,7 +13,7 @@ import {
 	type VectorIndexAuditRecord,
 	type VectorSearchResult,
 	vectorIndex,
-} from "../../patterns/memory/index.js";
+} from "../../../utils/memory/index.js";
 
 describe("patterns.memory.decay", () => {
 	it("decays score with floor", () => {

@@ -16,7 +16,7 @@ import {
 	type PreparedSegment,
 	reactiveLayout,
 	type SegmentMeasureStats,
-} from "../../../patterns/reactive-layout/reactive-layout.js";
+} from "../../../utils/reactive-layout/reactive-layout.js";
 
 // ---------------------------------------------------------------------------
 // Mock adapter: 8px per character (deterministic, no Canvas)

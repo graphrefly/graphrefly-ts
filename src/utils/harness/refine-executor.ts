@@ -23,7 +23,6 @@
 
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { filter } from "@graphrefly/pure-ts/extra";
-import type { JobEnvelope } from "../job-queue/index.js";
 import {
 	type DatasetItem,
 	type Evaluator,
@@ -31,7 +30,8 @@ import {
 	type RefineStatus,
 	type RefineStrategy,
 	refineLoop,
-} from "./presets/refine-loop.js";
+} from "../../presets/harness/refine-loop.js";
+import type { JobEnvelope } from "../job-queue/index.js";
 
 import type { ExecuteOutput, HarnessExecutor, HarnessJobPayload, TriagedItem } from "./types.js";
 

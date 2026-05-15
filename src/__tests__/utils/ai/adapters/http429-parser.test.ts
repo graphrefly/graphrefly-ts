@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRateLimitFromError } from "../../../../patterns/ai/adapters/middleware/http429-parser.js";
+import { parseRateLimitFromError } from "../../../../utils/ai/adapters/middleware/http429-parser.js";
 
 describe("parseRateLimitFromError", () => {
 	it("extracts retry-after seconds from 429", () => {

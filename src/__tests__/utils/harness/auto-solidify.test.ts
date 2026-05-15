@@ -13,8 +13,8 @@ import { DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { describe, expect, it } from "vitest";
 
-import { autoSolidify } from "../../patterns/harness/auto-solidify.js";
-import type { ExecutionResult, TriagedItem, VerifyResult } from "../../patterns/harness/types.js";
+import { autoSolidify } from "../../../utils/harness/auto-solidify.js";
+import type { ExecutionResult, TriagedItem, VerifyResult } from "../../../utils/harness/types.js";
 
 const SAMPLE_ITEM: TriagedItem = {
 	source: "eval",

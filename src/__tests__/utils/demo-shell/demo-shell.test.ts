@@ -7,9 +7,9 @@ import {
 	type GraphLabelSize,
 	type HighlightCallbacks,
 	type NodeRegistry,
-} from "../../patterns/demo-shell/index.js";
-import { CliMeasureAdapter } from "../../patterns/reactive-layout/measurement-adapters.js";
-import type { LineBreaksResult } from "../../patterns/reactive-layout/reactive-layout.js";
+} from "../../../utils/demo-shell/index.js";
+import { CliMeasureAdapter } from "../../../utils/reactive-layout/measurement-adapters.js";
+import type { LineBreaksResult } from "../../../utils/reactive-layout/reactive-layout.js";
 
 describe("patterns.demoShell", () => {
 	// ── Factory & graph shape ────────────────────────────

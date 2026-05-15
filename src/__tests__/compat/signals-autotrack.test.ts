@@ -7,9 +7,10 @@
  * Signals only specify "cb fires on genuine value changes," not "fn
  * runs exactly N times."
  */
+
+import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { describe, expect, it } from "vitest";
-import { Signal } from "../../../src/compat/signals/index.js";
-import { DATA } from "../../../src/core/messages.js";
+import { Signal } from "../../compat/signals/index.js";
 
 describe("compat/signals — autoTrackNode semantics", () => {
 	it("conditional branch switching fires cb only on value changes", () => {

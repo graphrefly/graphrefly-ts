@@ -11,7 +11,7 @@ import {
 	type Feedback,
 	type RefineStrategy,
 	refineLoop,
-} from "../../patterns/harness/presets/refine-loop.js";
+} from "../../../presets/harness/refine-loop.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

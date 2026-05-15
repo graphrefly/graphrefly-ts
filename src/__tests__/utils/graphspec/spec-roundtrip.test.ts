@@ -19,7 +19,7 @@ import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
 import { Graph } from "@graphrefly/pure-ts/graph/graph.js";
 import { describe, expect, it } from "vitest";
-import { compileSpec, decompileSpec, type GraphSpec } from "../../patterns/graphspec/index.js";
+import { compileSpec, decompileSpec, type GraphSpec } from "../../../utils/graphspec/index.js";
 
 describe("describe({ detail: 'spec' })", () => {
 	it("projects type/deps/meta and strips runtime fields", () => {
@@ -207,8 +207,8 @@ describe("compileSpec reads meta.factory directly (Tier 1.5.3 Phase 3)", () => {
 
 describe("Phase 2 — tagged factories surface meta.factory in describe()", () => {
 	it("rateLimiter tags itself", async () => {
-		const { rateLimiter } = await import("../../extra/resilience.js");
-		const { NS_PER_SEC } = await import("../../extra/backoff.js");
+		const { rateLimiter } = await import("../../../utils/resilience/index.js");
+		const { NS_PER_SEC } = await import("../../../utils/resilience/backoff.js");
 
 		const src = node([], { initial: 0 });
 		const { node: limited } = rateLimiter(src, {
@@ -234,8 +234,8 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("timeout tags itself", async () => {
-		const { timeout } = await import("../../extra/resilience.js");
-		const { NS_PER_SEC } = await import("../../extra/backoff.js");
+		const { timeout } = await import("../../../utils/resilience/index.js");
+		const { NS_PER_SEC } = await import("../../../utils/resilience/backoff.js");
 
 		const src = node([], { initial: 0 });
 		const timed = timeout(src, { ns: 5 * NS_PER_SEC }).node;
@@ -253,7 +253,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("retry tags itself", async () => {
-		const { retry } = await import("../../extra/resilience.js");
+		const { retry } = await import("../../../utils/resilience/index.js");
 
 		const src = node([], { initial: 0 });
 		const wrapped = retry(src, { count: 3, backoff: "exponential" }).node;
@@ -272,7 +272,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("retry omits non-serializable backoff function from factoryArgs", async () => {
-		const { retry } = await import("../../extra/resilience.js");
+		const { retry } = await import("../../../utils/resilience/index.js");
 
 		const src = node([], { initial: 0 });
 		const wrapped = retry(src, { count: 2, backoff: () => 100 }).node;
@@ -291,7 +291,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("scan tags itself", async () => {
-		const { scan } = await import("../../extra/operators.js");
+		const { scan } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 
 		const src = node([], { initial: 0 });
 		const wrapped = scan(src, (a: number, x: number) => a + x, 10);
@@ -309,7 +309,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("distinctUntilChanged tags itself", async () => {
-		const { distinctUntilChanged } = await import("../../extra/operators.js");
+		const { distinctUntilChanged } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 
 		const src = node([], { initial: 0 });
 		const wrapped = distinctUntilChanged(src);
@@ -327,7 +327,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("merge tags itself", async () => {
-		const { merge } = await import("../../extra/operators.js");
+		const { merge } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 
 		const a = node([], { initial: 1 });
 		const b = node([], { initial: 2 });
@@ -346,7 +346,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("switchMap tags itself", async () => {
-		const { switchMap } = await import("../../extra/operators.js");
+		const { switchMap } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 
 		const src = node([], { initial: 0 });
 		const wrapped = switchMap(src, (n: number) => node([], { initial: n * 2 }));
@@ -364,7 +364,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("debounce tags itself", async () => {
-		const { debounce } = await import("../../extra/operators.js");
+		const { debounce } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 
 		const src = node([], { initial: 0 });
 		const wrapped = debounce(src, 50);
@@ -382,7 +382,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("throttle tags itself", async () => {
-		const { throttle } = await import("../../extra/operators.js");
+		const { throttle } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 
 		const src = node([], { initial: 0 });
 		const wrapped = throttle(src, 75, { trailing: true });
@@ -406,7 +406,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("bufferTime tags itself", async () => {
-		const { bufferTime } = await import("../../extra/operators.js");
+		const { bufferTime } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 
 		const src = node([], { initial: 0 });
 		const wrapped = bufferTime(src, 100);
@@ -424,7 +424,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 
 	it("frozenContext tags itself", async () => {
-		const { frozenContext } = await import("../../patterns/ai/prompts/frozen-context.js");
+		const { frozenContext } = await import("../../../utils/ai/prompts/frozen-context.js");
 
 		const src = node([], { initial: "hello" });
 		const wrapped = frozenContext(src, { name: "ctx" });
@@ -444,7 +444,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 
 describe("decompileSpec is the canonical name (Phase 3)", () => {
 	it("decompileGraph is no longer exported", async () => {
-		const mod = await import("../../patterns/graphspec/index.js");
+		const mod = await import("../../../utils/graphspec/index.js");
 		expect((mod as Record<string, unknown>).decompileGraph).toBeUndefined();
 	});
 
@@ -560,7 +560,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 	});
 
 	it("Tier 3.4: placeholderArgs substitutes a Node<readonly string[]> field as `<Node>` (regression for reactive `paths` factory-tag round-trip)", async () => {
-		const { placeholderArgs } = await import("../../core/meta.js");
+		const { placeholderArgs } = await import("@graphrefly/pure-ts/core/meta.js");
 		// Mirrors the Tier 3.4 `policyEnforcer({ paths: stateNode })` shape:
 		// `paths` may be a static array OR a Node-of-array. Both must survive
 		// `placeholderArgs` cleanly — the Node form collapses to `"<Node>"`,
@@ -585,7 +585,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 	});
 
 	it("placeholderArgs substitutes non-JSON fields with descriptive strings (DG2=ii)", async () => {
-		const { placeholderArgs } = await import("../../core/meta.js");
+		const { placeholderArgs } = await import("@graphrefly/pure-ts/core/meta.js");
 		const adapter = { invoke: () => ({ content: "x" }) }; // not a Node, but has a function
 		const sourceNode = node([], { initial: 0 });
 		const args = placeholderArgs({
@@ -646,7 +646,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 	});
 
 	it("pipelineGraph self-tags with factory: 'pipelineGraph' (flagship Phase 2.5 migration)", async () => {
-		const { pipelineGraph } = await import("../../patterns/orchestration/index.js");
+		const { pipelineGraph } = await import("../../../utils/orchestration/index.js");
 		const p = pipelineGraph("flow", { traceCapacity: 256 });
 		const out = p.describe();
 		expect(out.factory).toBe("pipelineGraph");
@@ -656,7 +656,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 
 describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom self-tag", () => {
 	it("map tags itself", async () => {
-		const { map } = await import("../../extra/operators.js");
+		const { map } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 		const src = node([], { initial: 0 });
 		const m = map(src, (v) => v * 2);
 		const off = m.subscribe(() => {});
@@ -667,7 +667,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 	});
 
 	it("filter tags itself", async () => {
-		const { filter } = await import("../../extra/operators.js");
+		const { filter } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 		const src = node([], { initial: 0 });
 		const f = filter(src, (v) => v > 0);
 		const off = f.subscribe(() => {});
@@ -678,7 +678,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 	});
 
 	it("reduce tags itself with initial seed", async () => {
-		const { reduce } = await import("../../extra/operators.js");
+		const { reduce } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 		const src = node([], { initial: 1 });
 		const r = reduce(src, (a, v) => a + v, 100);
 		const off = r.subscribe(() => {});
@@ -691,7 +691,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 	});
 
 	it("take tags itself with count", async () => {
-		const { take } = await import("../../extra/operators.js");
+		const { take } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 		const src = node([], { initial: 0 });
 		const t = take(src, 3);
 		const off = t.subscribe(() => {});
@@ -704,7 +704,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 	});
 
 	it("tap tags itself (function form)", async () => {
-		const { tap } = await import("../../extra/operators.js");
+		const { tap } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 		const src = node([], { initial: 0 });
 		const t = tap(src, () => undefined);
 		const off = t.subscribe(() => {});
@@ -715,7 +715,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 	});
 
 	it("withLatestFrom tags itself", async () => {
-		const { withLatestFrom } = await import("../../extra/operators.js");
+		const { withLatestFrom } = await import("@graphrefly/pure-ts/extra/operators/index.js");
 		const a = node([], { initial: 1 });
 		const b = node([], { initial: 2 });
 		const w = withLatestFrom(a, b);

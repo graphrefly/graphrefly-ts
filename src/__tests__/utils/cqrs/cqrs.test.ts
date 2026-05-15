@@ -1,11 +1,8 @@
 import { GuardDenied } from "@graphrefly/pure-ts/core/guard.js";
 import { memoryAppendLog, mergeReactiveLogs } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
-import {
-	OptimisticConcurrencyError,
-	UndeclaredEmitError,
-} from "../../patterns/_internal/errors.js";
-import { type CqrsEvent, CqrsGraph, cqrs } from "../../patterns/cqrs/index.js";
+import { OptimisticConcurrencyError, UndeclaredEmitError } from "../../../utils/_errors/index.js";
+import { type CqrsEvent, CqrsGraph, cqrs } from "../../../utils/cqrs/index.js";
 
 describe("cqrs — roadmap §4.5", () => {
 	// -- Factory --------------------------------------------------------------
@@ -166,7 +163,7 @@ describe("cqrs — roadmap §4.5", () => {
 		expect(() => app.dispatch("bad", {})).toThrow("handler boom");
 
 		const dispatches = app.dispatches.entries
-			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
+			.cache as readonly import("../../../utils/cqrs/index.js").DispatchRecord[];
 		expect(dispatches).toHaveLength(1);
 		const record = dispatches[0];
 		expect(record.outcome).toBe("failure");
@@ -187,7 +184,7 @@ describe("cqrs — roadmap §4.5", () => {
 		expect(() => app.dispatch("multi", {})).toThrow("mid-flight throw");
 
 		const dispatches = app.dispatches.entries
-			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
+			.cache as readonly import("../../../utils/cqrs/index.js").DispatchRecord[];
 		expect(dispatches[0].outcome).toBe("failure");
 		expect(dispatches[0].emittedEvents).toEqual(["a", "b"]);
 		app.destroy();
@@ -202,7 +199,7 @@ describe("cqrs — roadmap §4.5", () => {
 		app.dispatch("place", { id: "x" });
 
 		const dispatches = app.dispatches.entries
-			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
+			.cache as readonly import("../../../utils/cqrs/index.js").DispatchRecord[];
 		expect(dispatches).toHaveLength(1);
 		expect(dispatches[0].outcome).toBe("success");
 		expect(dispatches[0].emittedEvents).toEqual(["orderPlaced"]);

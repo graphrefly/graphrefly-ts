@@ -11,6 +11,7 @@
 
 import { COMPLETE, DATA, ERROR, RESOLVED, START } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
+import { fromIter, of } from "@graphrefly/pure-ts/extra";
 import {
 	type AsyncSourceOpts,
 	type ExtraOpts,
@@ -19,8 +20,7 @@ import {
 	type NodeInput,
 	sourceOpts,
 	wrapSubscribeHook,
-} from "./_internal.js";
-import { fromIter, of } from "./iter.js";
+} from "@graphrefly/pure-ts/extra/sources/_internal.js";
 
 /**
  * Lifts a Promise (or thenable) to a single-value stream: one `DATA` then `COMPLETE`, or `ERROR` on rejection.

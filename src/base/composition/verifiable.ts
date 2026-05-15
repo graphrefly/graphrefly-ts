@@ -10,12 +10,18 @@ import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
 import { type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core/node.js";
 import {
+	fromAny,
+	merge,
+	type NodeInput,
+	switchMap,
+	withLatestFrom,
+} from "@graphrefly/pure-ts/extra";
+import {
 	type ReactiveMapBundle,
 	type ReactiveMapOptions,
 	reactiveMap,
-} from "../data-structures/reactive-map.js";
-import { merge, switchMap, withLatestFrom } from "../operators/index.js";
-import { forEach, fromAny, type NodeInput } from "../sources/index.js";
+} from "@graphrefly/pure-ts/extra/data-structures/reactive-map.js";
+import { forEach } from "../sources/async.js";
 
 function isNodeLike<T>(value: unknown): value is Node<T> {
 	return (

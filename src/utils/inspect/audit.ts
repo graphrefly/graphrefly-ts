@@ -26,7 +26,7 @@ import { type Node, NodeImpl, node } from "@graphrefly/pure-ts/core/node.js";
 
 import { defaultHash } from "@graphrefly/pure-ts/core/versioning.js";
 import { keepalive, reactiveLog } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../extra/meta.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	Graph,
 	type GraphOptions,

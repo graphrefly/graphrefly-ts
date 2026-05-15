@@ -22,12 +22,8 @@
 
 import { COMPLETE, DATA, ERROR, type Messages } from "../../packages/pure-ts/src/core/messages.js";
 import { type Node, node } from "../../packages/pure-ts/src/core/node.js";
-import type { GraphSpecCatalog } from "../../packages/pure-ts/src/patterns/graphspec/index.js";
-import type {
-	DatasetItem,
-	EvalResult,
-	Evaluator,
-} from "../../packages/pure-ts/src/patterns/refine-loop/index.js";
+import type { DatasetItem, EvalResult, Evaluator } from "../../src/presets/harness/refine-loop.js";
+import type { GraphSpecCatalog } from "../../src/utils/graphspec/index.js";
 import type { CatalogOverlayBundle } from "./catalog-overlay.js";
 
 /**

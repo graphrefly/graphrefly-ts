@@ -30,15 +30,12 @@
  * Without `captureStreamCadence`, replay is instant regardless.
  */
 
+import { ResettableTimer } from "@graphrefly/pure-ts/core/_internal/timer.js";
 import { monotonicNs, wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
 import type { KvStorageTier } from "@graphrefly/pure-ts/extra";
-import {
-	canonicalJson as extraCanonicalJson,
-	firstValueFrom,
-	fromAny,
-	ResettableTimer,
-} from "@graphrefly/pure-ts/extra";
-import { singleFromAny } from "../../../../extra/single-from-any.js";
+import { canonicalJson as extraCanonicalJson, fromAny } from "@graphrefly/pure-ts/extra";
+import { singleFromAny } from "../../../../base/composition/single-from-any.js";
+import { firstValueFrom } from "../../../../base/sources/settled.js";
 import { contentAddressedCache } from "../_internal/content-addressed-cache.js";
 import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 import type {

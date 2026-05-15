@@ -23,7 +23,7 @@ import {
 	mutate,
 	registerCursor,
 	registerCursorMap,
-} from "../../extra/mutation/index.js";
+} from "../../base/mutation/index.js";
 import {
 	CommandHandlerError,
 	DuplicateRegistrationError,
@@ -31,7 +31,7 @@ import {
 	RebuildError,
 	UndeclaredEmitError,
 	UnknownCommandError,
-} from "../_internal/errors.js";
+} from "../_errors/index.js";
 
 // ---------------------------------------------------------------------------
 // Guards
@@ -63,7 +63,7 @@ const EVENT_GUARD = policy((allow, deny) => {
 // ---------------------------------------------------------------------------
 
 import { keepalive } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../extra/meta.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 
 function cqrsMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("cqrs", kind, extra);

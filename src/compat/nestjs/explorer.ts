@@ -13,10 +13,11 @@
 // ---------------------------------------------------------------------------
 
 import { DATA, type Messages } from "@graphrefly/pure-ts/core/messages.js";
-import { fromCron, fromTimer } from "@graphrefly/pure-ts/extra";
+import { fromTimer } from "@graphrefly/pure-ts/extra";
 import type { Graph, GraphObserveOne } from "@graphrefly/pure-ts/graph/graph.js";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import type { ModuleRef } from "@nestjs/core";
+import { fromCron } from "../../base/sources/event/dom.js";
 import type { CqrsGraph } from "../../patterns/cqrs/index.js";
 import {
 	COMMAND_HANDLERS,

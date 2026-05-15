@@ -1,13 +1,13 @@
 import { DATA, ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import { describeNode } from "@graphrefly/pure-ts/core/meta.js";
 import { type NodeActions, type NodeFn, node } from "@graphrefly/pure-ts/core/node.js";
-import { NS_PER_MS, NS_PER_SEC } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
 import {
 	ResilientPipelineGraph,
 	type ResilientPipelineOptions,
 	resilientPipeline,
-} from "../../extra/resilience/index.js";
+} from "../../../presets/resilience/resilient-pipeline.js";
+import { NS_PER_MS, NS_PER_SEC } from "../../../utils/resilience/backoff.js";
 
 function collect<T>(n: { subscribe: (fn: (msgs: unknown[][]) => void) => () => void }): {
 	events: T[];

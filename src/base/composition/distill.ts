@@ -13,14 +13,24 @@ import {
 	node,
 } from "@graphrefly/pure-ts/core";
 import {
-	forEach,
 	fromAny,
+	type NodeInput,
 	type ReactiveMapBundle,
 	type ReactiveMapOptions,
 	reactiveMap,
 	switchMap,
 	withLatestFrom,
 } from "@graphrefly/pure-ts/extra";
+import { forEach } from "../sources/async.js";
+
+function isNodeLike<T>(value: unknown): value is Node<T> {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"cache" in (value as Node<T>) &&
+		typeof (value as Node<T>).subscribe === "function"
+	);
+}
 
 export type Extraction<TMem> = {
 	upsert: Array<{ key: string; value: TMem }>;

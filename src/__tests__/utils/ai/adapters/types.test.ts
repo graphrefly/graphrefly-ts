@@ -5,7 +5,7 @@ import {
 	sumInputTokens,
 	sumOutputTokens,
 	type TokenUsage,
-} from "../../../../patterns/ai/adapters/core/types.js";
+} from "../../../../utils/ai/adapters/core/types.js";
 
 describe("TokenUsage helpers", () => {
 	it("sumInputTokens sums all input classes + extensions", () => {

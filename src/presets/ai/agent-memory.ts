@@ -24,19 +24,19 @@ import {
 	type DistillOptions,
 	distill,
 	type Extraction,
-} from "../../../extra/composite.js";
-import type { KnowledgeGraph, VectorIndexGraph } from "../../memory/index.js";
-import type { LLMAdapter } from "../adapters/core/types.js";
+} from "../../base/composition/distill.js";
 import {
 	type MemoryWithTiersGraph,
 	memoryRetrieval,
 	memoryWithKG,
 	memoryWithTiers,
 	memoryWithVectors,
-} from "../memory/memory-composers.js";
-import type { RetrievalEntry, RetrievalQuery } from "../memory/retrieval.js";
-import type { MemoryTiersBundle, MemoryTiersOptions } from "../memory/tiers.js";
-import { llmConsolidator, llmExtractor } from "../prompts/prompt-call.js";
+} from "../../utils/ai/memory/memory-composers.js";
+import type { RetrievalEntry, RetrievalQuery } from "../../utils/ai/memory/retrieval.js";
+import type { MemoryTiersBundle, MemoryTiersOptions } from "../../utils/ai/memory/tiers.js";
+import { llmConsolidator, llmExtractor } from "../../utils/ai/prompts/prompt-call.js";
+import type { KnowledgeGraph, VectorIndexGraph } from "../../utils/memory/index.js";
+import type { LLMAdapter } from "../adapters/core/types.js";
 
 export type AgentMemoryOptions<TMem = unknown> = {
 	graph?: GraphOptions;

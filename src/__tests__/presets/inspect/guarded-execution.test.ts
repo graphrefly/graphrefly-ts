@@ -2,14 +2,14 @@ import type { Actor } from "@graphrefly/pure-ts/core/actor.js";
 import { type PolicyRuleData, policy } from "@graphrefly/pure-ts/core/guard.js";
 import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { node } from "@graphrefly/pure-ts/core/node.js";
-import { firstValueFrom } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
+import { firstValueFrom } from "../../../base/sources/settled.js";
 import {
 	type GuardedExecutionLint,
 	type GuardedScope,
 	guardedExecution,
-} from "../../patterns/inspect/guarded-execution.js";
+} from "../../../presets/inspect/guarded-execution.js";
 
 const alice: Actor = { type: "human", id: "alice" };
 const bob: Actor = { type: "human", id: "bob" };

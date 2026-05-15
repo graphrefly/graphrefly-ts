@@ -4,6 +4,8 @@
  * `adaptiveRateLimiter` from its standalone module.
  */
 
+import { RingBuffer } from "@graphrefly/pure-ts/core/_internal/ring-buffer.js";
+import { ResettableTimer } from "@graphrefly/pure-ts/core/_internal/timer.js";
 import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
 import {
 	COMPLETE,
@@ -15,15 +17,13 @@ import {
 } from "@graphrefly/pure-ts/core/messages.js";
 import { factoryTag } from "@graphrefly/pure-ts/core/meta.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import { ResettableTimer } from "../timer.js";
-import { RingBuffer } from "../utils/ring-buffer.js";
 import { isNode, type NodeOrValue, operatorOpts, resolveReactiveOption } from "./_internal.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 import type { GateState } from "./gate-state.js";
 
 // `adaptiveRateLimiter` lives in extra/adaptive-rate-limiter.ts (kept independent
 // because it has its own internal control-loop machinery).
-export * from "../adaptive-rate-limiter.js";
+export * from "./adaptive-rate-limiter.js";
 
 export interface TokenBucket {
 	/**

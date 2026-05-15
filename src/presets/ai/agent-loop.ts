@@ -8,21 +8,22 @@ import { batch } from "@graphrefly/pure-ts/core/batch.js";
 import { DATA, ERROR, INVALIDATE, RESOLVED } from "@graphrefly/pure-ts/core/messages.js";
 import { placeholderArgs } from "@graphrefly/pure-ts/core/meta.js";
 import { type Node, node, node as nodeFactory } from "@graphrefly/pure-ts/core/node.js";
-import { awaitSettled, fromAny, keepalive, switchMap } from "@graphrefly/pure-ts/extra";
+import { fromAny, keepalive, switchMap } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph/graph.js";
-import { aiMeta } from "../_internal.js";
+import { awaitSettled } from "../../base/sources/settled.js";
+import { aiMeta } from "../../utils/ai/_internal.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
 	LLMResponse,
 	ToolCall,
 	ToolDefinition,
-} from "../adapters/core/types.js";
-import { type ChatStreamGraph, chatStream } from "../agents/chat-stream.js";
-import { type ToolResult, toolExecution } from "../agents/tool-execution.js";
-import { type ToolRegistryGraph, toolRegistry } from "../agents/tool-registry.js";
+} from "../../utils/ai/adapters/core/types.js";
+import { type ChatStreamGraph, chatStream } from "../../utils/ai/agents/chat-stream.js";
+import { type ToolResult, toolExecution } from "../../utils/ai/agents/tool-execution.js";
+import { type ToolRegistryGraph, toolRegistry } from "../../utils/ai/agents/tool-registry.js";
 
-export type { ToolResult } from "../agents/tool-execution.js";
+export type { ToolResult } from "../../utils/ai/agents/tool-execution.js";
 
 // ---------------------------------------------------------------------------
 // agentLoop

@@ -13,7 +13,7 @@ import {
 	NS_PER_SEC,
 	resolveBackoffPreset,
 	withMaxAttempts,
-} from "../../extra/backoff.js";
+} from "../../../utils/resilience/backoff.js";
 import {
 	type BudgetGateState,
 	budgetGate,
@@ -34,7 +34,7 @@ import {
 	tokenBucket,
 	withBreaker,
 	withStatus,
-} from "../../extra/resilience.js";
+} from "../../../utils/resilience/index.js";
 import { collect } from "../test-helpers.js";
 
 describe("extra resilience (roadmap §3.1)", () => {

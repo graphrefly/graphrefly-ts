@@ -31,7 +31,7 @@ import type { PolicyRuleData } from "@graphrefly/pure-ts/core/guard.js";
 import { DATA } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
 import { keepalive } from "@graphrefly/pure-ts/extra";
-import { domainMeta } from "../../extra/meta.js";
+import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
 	type DescribeFilter,
 	Graph,
@@ -39,8 +39,12 @@ import {
 	type GraphDescribeOutput,
 	type GraphOptions,
 } from "../../graph/index.js";
-import { TopicGraph } from "../messaging/index.js";
-import { type PolicyGateGraph, type PolicyViolation, policyGate } from "./audit.js";
+import {
+	type PolicyGateGraph,
+	type PolicyViolation,
+	policyGate,
+} from "../../utils/inspect/audit.js";
+import { TopicGraph } from "../../utils/messaging/index.js";
 
 function isNode<T>(x: unknown): x is Node<T> {
 	return (

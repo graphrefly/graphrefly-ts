@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	adaptiveRateLimiter,
 	type RateLimitSignal,
-} from "../../../../extra/adaptive-rate-limiter.js";
+} from "../../../../utils/resilience/adaptive-rate-limiter.js";
 
 describe("adaptiveRateLimiter", () => {
 	it("acquire() resolves when rpm has capacity", async () => {

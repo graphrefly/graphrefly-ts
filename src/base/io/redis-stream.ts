@@ -7,12 +7,8 @@
 import { wallClockNs } from "@graphrefly/pure-ts/core/clock.js";
 import { ERROR } from "@graphrefly/pure-ts/core/messages.js";
 import { type Node, node } from "@graphrefly/pure-ts/core/node.js";
-import {
-	type ReactiveSinkHandle,
-	reactiveSink,
-	type SinkTransportError,
-} from "../reactive-sink.js";
 import { type ExtraOpts, sourceOpts } from "./_internal.js";
+import { type ReactiveSinkHandle, reactiveSink, type SinkTransportError } from "./_sink.js";
 
 /** Duck-typed Redis client (compatible with ioredis, redis). */
 export type RedisClientLike = {
