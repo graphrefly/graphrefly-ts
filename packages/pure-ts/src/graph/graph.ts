@@ -1,3 +1,5 @@
+import { RingBuffer } from "../core/_internal/ring-buffer.js";
+import { ResettableTimer } from "../core/_internal/timer.js";
 import { type Actor, DEFAULT_ACTOR } from "../core/actor.js";
 import { batch, isBatching, registerBatchFlushHook } from "../core/batch.js";
 import { monotonicNs, wallClockNs } from "../core/clock.js";
@@ -63,9 +65,9 @@ import {
 	type ReactiveMapOptions,
 	reactiveMap,
 } from "../extra/data-structures/reactive-map.js";
-import { keepalive } from "../extra/sources.js";
-import type { StorageHandle } from "../extra/storage-core.js";
-import type { BaseStorageTier, SnapshotStorageTier } from "../extra/storage-tiers.js";
+import { keepalive } from "../extra/sources/_keepalive.js";
+import type { StorageHandle } from "../extra/storage/core.js";
+import type { BaseStorageTier, SnapshotStorageTier } from "../extra/storage/tiers.js";
 import {
 	graphWalPrefix,
 	iterateWalFrames,
@@ -77,9 +79,7 @@ import {
 	type WALFrame,
 	walFrameChecksum,
 	walFrameKey,
-} from "../extra/storage-wal.js";
-import { ResettableTimer } from "../extra/timer.js";
-import { RingBuffer } from "../extra/utils/ring-buffer.js";
+} from "../extra/storage/wal.js";
 import type {
 	GraphChange,
 	GraphChangeBatchEnd,
@@ -4052,7 +4052,7 @@ export class Graph {
 				if (path == null) {
 					const topoHandler = (event: TopologyEvent): void => {
 						if (disposed) return;
-						if (event.nodeKind !== "node") return;
+						if (event.kind === "rewired" || event.nodeKind !== "node") return;
 						if (event.kind === "added") {
 							const targetName = event.name;
 							if (lateHandles.has(targetName)) return;

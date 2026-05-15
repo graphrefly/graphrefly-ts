@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { DATA, DIRTY } from "../../core/messages.js";
-import { reactiveMap } from "../../extra/reactive-map.js";
+import { reactiveMap } from "../../extra/data-structures/reactive-map.js";
 import { collect } from "../test-helpers.js";
 
 describe("extra reactiveMap (roadmap §3.2)", () => {

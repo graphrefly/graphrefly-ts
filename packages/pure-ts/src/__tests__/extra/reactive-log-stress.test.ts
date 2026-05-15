@@ -9,14 +9,13 @@
 import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-
-import { combine } from "../../extra/operators.js";
 import {
 	type LogBackend,
 	mergeReactiveLogs,
 	NativeLogBackend,
 	reactiveLog,
-} from "../../extra/reactive-log.js";
+} from "../../extra/data-structures/reactive-log.js";
+import { combine } from "../../extra/operators/index.js";
 import { collect } from "../test-helpers.js";
 
 describe("reactiveLog stress tests", () => {

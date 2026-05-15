@@ -8,8 +8,8 @@
  * @module
  */
 
+import { sizeof } from "../core/_internal/sizeof.js";
 import { type Node, NodeImpl } from "../core/node.js";
-import { sizeof } from "../extra/utils/sizeof.js";
 import type { Graph, GraphDescribeOutput } from "./graph.js";
 
 // ---------------------------------------------------------------------------

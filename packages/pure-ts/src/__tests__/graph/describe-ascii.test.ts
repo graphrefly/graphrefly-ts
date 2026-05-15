@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { graphSpecToAscii } from "../../../../../src/base/render/index.js";
 import { node } from "../../core/node.js";
-
-import { graphSpecToAscii } from "../../extra/render/index.js";
 import { Graph } from "../../graph/graph.js";
 
 /**

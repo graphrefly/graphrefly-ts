@@ -100,61 +100,35 @@ async function restoreNodePrefix(dir: string): Promise<void> {
 
 // Authoritative list of entry points — the guardrail uses this to distinguish
 // real entries from shared chunks without relying on filename heuristics.
+//
+// Post-cleave A2 (2026-05-14): pure-ts ships the SUBSTRATE ONLY.
+// Presentation layer (patterns, compat, io adapters, framework bindings)
+// lives in `@graphrefly/graphrefly` (root shim). See CLAUDE.md § Layout.
 const ENTRY_POINTS = [
+	// Root barrel (substrate surface)
 	"src/index.ts",
+	// Core layer: node primitive, messages, batch, sugar constructors
 	"src/core/index.ts",
 	// Phase 13.6.B B9 (Lock 3.B): public testing utilities subpath —
 	// browser-safe by default; consumers add to their test runner only.
 	"src/testing/index.ts",
+	// Extra: operators, sources, data-structures, storage (substrate only)
 	"src/extra/index.ts",
+	// Node-only extra: file/sqlite storage backends
 	"src/extra/node.ts",
+	// Browser-only extra: IndexedDB storage backends
 	"src/extra/browser.ts",
-	"src/extra/sources.ts",
-	"src/extra/operators.ts",
-	"src/extra/reactive.ts",
-	"src/extra/storage-core.ts",
-	"src/extra/storage-node.ts",
-	"src/extra/storage-browser.ts",
-	"src/extra/storage-tiers.ts",
-	"src/extra/storage-tiers-node.ts",
-	"src/extra/storage-tiers-browser.ts",
-	"src/extra/storage-wal.ts",
-	"src/extra/render/index.ts",
+	// Operators subpath (substrate operators)
+	"src/extra/operators/index.ts",
+	// Sources subpath (substrate sources: iter, timer, async, keepalive)
+	"src/extra/sources/index.ts",
+	// Storage subpaths (substrate storage tiers)
+	"src/extra/storage/index.ts",
+	"src/extra/storage/tiers-node.ts",
+	"src/extra/storage/tiers-browser.ts",
+	"src/extra/storage/wal.ts",
+	// Graph layer: Graph container, describe, observe, snapshot
 	"src/graph/index.ts",
-	"src/compat/index.ts",
-	"src/compat/jotai/index.ts",
-	"src/compat/nanostores/index.ts",
-	"src/compat/zustand/index.ts",
-	"src/compat/react/index.ts",
-	"src/compat/vue/index.ts",
-	"src/compat/solid/index.ts",
-	"src/compat/svelte/index.ts",
-	"src/compat/nestjs/index.ts",
-	// Each pattern is its own sub-package, browser-safe by default.
-	// Node-only additions under `<pattern>/node`; browser-only under `<pattern>/browser`.
-	"src/patterns/ai/index.ts",
-	"src/patterns/ai/node.ts",
-	"src/patterns/ai/browser.ts",
-	"src/patterns/cqrs/index.ts",
-	"src/patterns/demo-shell/index.ts",
-	"src/patterns/domain-templates/index.ts",
-	"src/patterns/graphspec/index.ts",
-	"src/patterns/harness/index.ts",
-	// Tier 9.1 γ-form γ-ii: `audit` + `lens` + `guarded-execution` merged
-	// into a single `inspect/` folder.
-	"src/patterns/inspect/index.ts",
-	"src/patterns/job-queue/index.ts",
-	"src/patterns/memory/index.ts",
-	"src/patterns/messaging/index.ts",
-	"src/patterns/orchestration/index.ts",
-	"src/patterns/process/index.ts",
-	"src/patterns/reactive-layout/index.ts",
-	"src/patterns/reduction/index.ts",
-	// Tier 9.1 γ-form: `resilientPipeline` is now in `extra/resilience/` (γ-R-2)
-	// and ships through the existing `extra/` entry. `refineLoop` is now a
-	// harness preset (γ-β) and ships through `patterns/harness/`.
-	"src/patterns/surface/index.ts",
-	"src/patterns/topology-view/index.ts",
 ];
 
 export default defineConfig({
@@ -205,10 +179,9 @@ async function assertBrowserSafeBundles(dir: string): Promise<void> {
 	// entry to a sub-folder must update both lists or assertBrowserSafeBundles
 	// will silently pass.
 	const nodeOnlyEntries = new Set<string>([
+		// Node-only substrate entries (may import node:* builtins)
 		"extra/node",
-		"extra/storage-node",
-		"extra/storage-tiers-node",
-		"patterns/ai/node",
+		"extra/storage/tiers-node",
 	]);
 
 	// Derive the canonical set of entry paths (no ext) from `ENTRY_POINTS` so

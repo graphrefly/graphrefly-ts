@@ -12,7 +12,9 @@ import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 import { subscribeOr } from "../../core/subscribe-error.js";
-import { NS_PER_MS } from "../resilience/backoff.js";
+
+const NS_PER_MS = 1_000_000;
+
 import { type ExtraOpts, operatorOpts } from "./_internal.js";
 
 /**

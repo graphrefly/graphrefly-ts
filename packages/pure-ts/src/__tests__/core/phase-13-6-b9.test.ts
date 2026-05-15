@@ -16,9 +16,9 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { mutate } from "../../../../../src/base/mutation/index.js";
+import { firstWhere } from "../../../../../src/base/sources/settled.js";
 import { node } from "../../core/node.js";
-import { mutate } from "../../extra/mutation/index.js";
-import { firstWhere } from "../../extra/sources/settled.js";
 
 describe("Phase 13.6.B B9 — Lock 3.A awaitSettled / firstWhere `kick` callback", () => {
 	it("kick fires after subscribe — synchronous emission lands in the Promise", async () => {

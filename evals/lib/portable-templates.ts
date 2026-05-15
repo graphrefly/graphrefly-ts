@@ -18,10 +18,7 @@
  */
 
 import { factoryTag } from "../../packages/pure-ts/src/core/meta.js";
-import type {
-	GraphSpecFeedbackEdge,
-	GraphSpecTemplate,
-} from "../../packages/pure-ts/src/patterns/graphspec/index.js";
+import type { GraphSpecFeedbackEdge, GraphSpecTemplate } from "../../src/utils/graphspec/index.js";
 
 export const resilientFetchTemplate: GraphSpecTemplate = {
 	params: ["$source"],

@@ -21,7 +21,7 @@ import {
 	switchMap,
 	throttle,
 	timeout,
-} from "../../extra/operators.js";
+} from "../../extra/operators/index.js";
 import { collect } from "../test-helpers.js";
 
 function msgs(batches: unknown[][]): unknown[][] {

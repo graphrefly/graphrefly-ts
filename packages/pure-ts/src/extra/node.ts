@@ -1,23 +1,16 @@
 /**
- * Node-only barrel for the extra surface.
+ * Node-only barrel for the extra substrate surface.
  *
- * Consumers that need filesystem sources (`fromFileChange`, `fromGlob`) or
- * Node-only storage backends (`fileKv`, `sqliteKv`) import from
- * `@graphrefly/graphrefly/extra/node`. The universal `@graphrefly/graphrefly/extra`
+ * Consumers that need Node-only storage backends (`fileKv`, `sqliteKv`) import
+ * from `@graphrefly/pure-ts/extra/node`. The universal `@graphrefly/pure-ts/extra`
  * entry stays browser-safe.
+ *
+ * Presentation-layer Node sources (fromGitHook, fromFSWatch, fromSpawn) are
+ * in `@graphrefly/graphrefly/extra/node` (root shim), not here.
  *
  * @module
  */
 
-export type { FromGitHookOptions, GitEvent, GitHookType } from "./git-hook.js";
-export { fromGitHook } from "./git-hook.js";
-export * from "./sources-fs.js";
-export {
-	type FromSpawnOptions,
-	fromSpawn,
-	runProcess,
-	type SpawnEvent,
-} from "./sources-process.js";
 export {
 	fileAppendLog,
 	fileBackend,
@@ -27,4 +20,4 @@ export {
 	sqliteBackend,
 	sqliteKv,
 	sqliteSnapshot,
-} from "./storage-tiers-node.js";
+} from "./storage/tiers-node.js";

@@ -13,6 +13,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { mutate } from "../../../../../src/base/mutation/index.js";
+import { firstWhere } from "../../../../../src/base/sources/settled.js";
 import {
 	COMPLETE,
 	DATA,
@@ -23,8 +25,6 @@ import {
 	START,
 } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { mutate } from "../../extra/mutation/index.js";
-import { firstWhere } from "../../extra/sources/settled.js";
 import { assertDirtyPrecedesTerminalData } from "../../testing/index.js";
 
 describe("Phase 13.6.B QA P1 — firstWhere settle helpers gate on !settled", () => {

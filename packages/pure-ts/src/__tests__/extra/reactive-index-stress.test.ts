@@ -9,14 +9,13 @@
 import { describe, expect, it } from "vitest";
 import { DATA, DIRTY } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-
-import { combine } from "../../extra/operators.js";
 import {
 	type IndexBackend,
 	type IndexRow,
 	NativeIndexBackend,
 	reactiveIndex,
-} from "../../extra/reactive-index.js";
+} from "../../extra/data-structures/reactive-index.js";
+import { combine } from "../../extra/operators/index.js";
 import { collect } from "../test-helpers.js";
 
 describe("reactiveIndex stress tests", () => {

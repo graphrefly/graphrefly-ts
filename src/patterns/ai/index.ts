@@ -1,3 +1,6 @@
-// Phase 13.9.A shim — re-export from pure-TS sibling until
-// @graphrefly/native (napi binding) and per-milestone swap-overs land.
-export * from "@graphrefly/pure-ts/patterns/ai";
+// A2 redirect: patterns/ai moved to utils/ai + presets/ai
+
+export * from "../../presets/ai/agent-loop.js";
+export * from "../../presets/ai/agent-memory.js";
+export * from "../../presets/ai/agents.js";
+export * from "../../utils/ai/index.js";

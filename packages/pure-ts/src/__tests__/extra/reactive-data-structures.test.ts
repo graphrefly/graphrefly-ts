@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DATA, DIRTY } from "../../core/messages.js";
-import { pubsub } from "../../extra/pubsub.js";
-import { reactiveIndex } from "../../extra/reactive-index.js";
-import { reactiveList } from "../../extra/reactive-list.js";
-import { reactiveLog } from "../../extra/reactive-log.js";
+import { reactiveIndex } from "../../extra/data-structures/reactive-index.js";
+import { reactiveList } from "../../extra/data-structures/reactive-list.js";
+import { reactiveLog } from "../../extra/data-structures/reactive-log.js";
 import { collect } from "../test-helpers.js";
 
 describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
@@ -64,22 +63,5 @@ describe("extra reactiveList (roadmap §3.2)", () => {
 		expect(lst.items.cache).toEqual([0, 1]);
 		expect(lst.pop()).toBe(1);
 		expect(lst.items.cache).toEqual([0]);
-	});
-});
-
-describe("extra pubsub (roadmap §3.2)", () => {
-	it("creates topics lazily and delivers publishes", () => {
-		const hub = pubsub();
-		const t = hub.topic("x");
-		const seen: unknown[] = [];
-		const unsub = t.subscribe((msgs) => {
-			for (const m of msgs as [symbol, unknown][]) {
-				if (m[0] === DATA) seen.push(m[1]);
-			}
-		});
-		hub.publish("x", 42);
-		unsub();
-		// Topics start in sentinel state — no push-on-subscribe. Only published values arrive.
-		expect(seen).toEqual([42]);
 	});
 });

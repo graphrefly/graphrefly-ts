@@ -1,23 +1,15 @@
 /**
- * Composition barrel — graph-level composition helpers (verifiable, distill,
- * stratify, externalProducer/Bundle, toObservable, pubsub, backpressure,
- * topologyDiff).
+ * Composition barrel — substrate-only composition helpers (cleave A2, 2026-05-14).
  *
- * Per the consolidation plan §2, this folder gathers the existing
- * top-level composition files for category-level discoverability. Most
- * physical files remain at `src/extra/<name>.ts` (deferred move).
+ * After the cleave, only substrate composition helpers remain here:
+ * - stratify (reactive branch routing)
+ * - topology-diff (pure structural diff over GraphDescribeOutput)
  *
- * `topology-diff.ts` already lives inside this folder from wave 1; the
- * sibling `composite.ts` / `external-register.ts` / `stratify.ts` /
- * `observable.ts` / `pubsub.ts` / `backpressure.ts` are barrel-only re-exports.
+ * Presentation helpers (verifiable, distill, pubsub, backpressure, composite,
+ * externalProducer, materialize, observable, audited-success-tracker) moved to
+ * root src/base/composition/.
  */
 
-export * from "./audited-success-tracker.js";
-export * from "./backpressure.js";
-export * from "./composite.js";
-export * from "./external-register.js";
-export * from "./materialize.js";
-export * from "./observable.js";
 export * from "./pubsub.js";
 export * from "./stratify.js";
 export type {

@@ -79,7 +79,7 @@ import {
 	timeout,
 	windowCount,
 	zip,
-} from "../../extra/operators.js";
+} from "../../extra/operators/index.js";
 import { Graph } from "../../graph/graph.js";
 import { latestVals } from "../test-helpers.js";
 import { applyEvent, captureTrace, type Event, eventSequenceArb } from "./_generators.js";
