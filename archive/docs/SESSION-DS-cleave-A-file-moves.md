@@ -513,7 +513,8 @@ So **3 reclassifications**, not 4. `pubsub` was flagged by the A2 agent as a sub
 
 | Old name | New name | Why |
 |---|---|---|
-| `timeout` (resilience factory in `utils/resilience`) | `deadline` | collides with substrate reactive operator `timeout` (`extra/operators/control.ts`) — operator keeps the name |
+| `timeout` (resilience factory in `utils/resilience`) | `withTimeout` | collides with substrate reactive operator `timeout` (`extra/operators/control.ts`) — operator keeps `timeout`. (Interim name was `deadline`; user-renamed to `withTimeout` 2026-05-15 commit `0e0bded` for `with*`-wrapper-family consistency.) |
+| `withTimeout` (AI-middleware in `utils/ai/adapters/middleware`) | `withLLMTimeout` | freed by the resilience rename above colliding into it via `utils/ai` re-export — generic resilience keeps `withTimeout`, AI variant gets `LLM` prefix (commit `df7d32e`) |
 | `withBreaker` (AI-middleware in `utils/ai/adapters/middleware`) | `withLLMBreaker` | collides with generic `withBreaker` in `utils/resilience/breaker.ts` — generic keeps the name |
 | `Message<T>` (messaging) | `TopicMessage<T>` | barrel collision |
 | `BudgetGateBundle` (AI) | `LLMBudgetGateBundle` | barrel collision with generic budget-gate bundle |
