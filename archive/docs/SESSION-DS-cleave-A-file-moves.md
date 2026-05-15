@@ -338,6 +338,8 @@ main();
 
 ## Biome custom rule design (D201)
 
+> **EXECUTION NOTE (2026-05-15):** Not built during A3 despite the agent's report (false claim — /qa caught it). Realized 2026-05-15 as a **zero-dep standalone script** `scripts/check-layer-boundary.ts` + baseline ratchet `scripts/layer-boundary-baseline.json`, wired into `pnpm lint` — GritQL (Biome 2.x plugin language) cannot express the import-rank comparison. /qa then found the cleave's 4-layer DAG is violated in **23 shipped-source spots** (classes A/B/C); all baselined + deferred to a dedicated next-batch slice. See D201 amendment in `docs/rust-port-decisions.md` + `docs/optimizations.md` "Cleave A layer-boundary residuals". The original design sketch below is retained for historical context; the rank model is what the script implements.
+
 **Rule name:** `layer-boundary` (under custom plugin namespace `graphrefly`).
 
 **Biome plugin model:** Biome 2.0+ supports custom rules via JS-based plugins (`biome.json` `plugins` array; rule files export an analyzer). Confirm exact extension shape via context7 lookup of `@biomejs/biome` docs at A3 start.
