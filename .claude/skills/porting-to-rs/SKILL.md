@@ -1,7 +1,6 @@
 ---
 name: porting-to-rs
 description: "Port a slice of GraphReFly from TS to Rust (graphrefly-rs). Use when user says 'port to rust', 'porting-to-rs', or provides a task to add/extend functionality in the Rust workspace. Mirrors /dev-dispatch's plan→halt→implement→self-test loop, specialized for cross-repo Rust port work. Run /qa afterward for adversarial review."
-disable-model-invocation: true
 argument-hint: "[--light] [task description or context]"
 ---
 

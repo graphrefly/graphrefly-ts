@@ -1,7 +1,6 @@
 ---
 name: rust-review
 description: "Post-implementation quality review for Rust port slices. Runs the audit-data extractor, then appends one structured row to reviews.jsonl + new rows to findings.jsonl + (if applicable) edits flowcharts.md. Output is data, not prose — every behavioral trace, simplification delta, and finding lands in the audit dashboard. Use after /porting-to-rs completes a slice, or standalone when you want to verify a Rust module's correctness without reading Rust."
-disable-model-invocation: true
 argument-hint: "[module or slice name, e.g. 'batch coalescing' or 'M1 Slice C']"
 ---
 

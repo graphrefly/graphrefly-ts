@@ -1,7 +1,6 @@
 ---
 name: qa
 description: "Adversarial code review, apply fixes, final checks (test/lint/build), and doc updates. Run after /dev-dispatch or any manual implementation. Use when user says 'qa', 'review', or 'code review'. Supports --skip-docs to skip documentation phase."
-disable-model-invocation: true
 argument-hint: "[--skip-docs] [optional context about what was implemented]"
 ---
 

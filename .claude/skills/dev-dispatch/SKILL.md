@@ -1,7 +1,6 @@
 ---
 name: dev-dispatch
 description: "Implement feature/fix with planning and self-test. Use when user says 'dispatch', 'dev-dispatch', or provides a task with implementation context. Supports --light flag for bug fixes and small changes. Run /qa afterward for code review and final checks."
-disable-model-invocation: true
 argument-hint: "[--light] [task description or context]"
 ---
 

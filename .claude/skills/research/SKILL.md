@@ -1,7 +1,6 @@
 ---
 name: research
 description: "Research a topic triggered by curiosity or a post the user saw. Uses web search to analyze latest trends, competitor landscape, user patterns, future demands, and how findings relate to GraphReFly's roadmap and gaps. Triggers: 'research', 'look into', 'what's the landscape for', 'I saw this post about', 'trend check', 'competitor analysis'."
-disable-model-invocation: true
 argument-hint: "<topic or URL or paste of post>"
 ---
 
