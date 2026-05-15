@@ -1251,7 +1251,16 @@ export const rustImpl: Impl | null = native
 
 			// Structures (M5).
 			structures: buildRustStructures(),
-		} as Impl)
+
+			// N1 (2026-05-15): the 6 substrate-infra symbols pinned onto
+			// `Impl` (RingBuffer, ResettableTimer, describeNode, sha256Hex,
+			// sourceOpts, wrapSubscribeHook) are NOT yet exposed by
+			// `@graphrefly/native` — implementing them in this adapter +
+			// the napi surface is D203 NEXT-BATCH scope item 8. Until then
+			// the rust arm is structurally incomplete by design; widen the
+			// assertion through `unknown`. The D203 batch tightens this
+			// back to `as Impl` once the 6 land in the rust adapter.
+		} as unknown as Impl)
 	: null;
 
 // ---------------------------------------------------------------------------

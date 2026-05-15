@@ -175,6 +175,36 @@ export interface ObserveSubscription {
 	dispose(): Promise<void>;
 }
 
+/**
+ * Fixed-capacity ring buffer (drop-oldest / FIFO eviction). Substrate
+ * infra surfaced on the `@graphrefly/pure-ts` **core** barrel; the
+ * presentation package (`@graphrefly/graphrefly`) and substrate internals
+ * (`reactiveLog`, the reasoning-trace ring, drop-oldest backpressure)
+ * depend on it. N1 (locked 2026-05-15, option (a)) pins it so
+ * `@graphrefly/native` MUST expose an equivalent.
+ */
+export interface ImplRingBuffer<T> {
+	readonly size: number;
+	readonly maxSize: number;
+	push(item: T): void;
+	shift(): T | undefined;
+	at(i: number): T | undefined;
+	toArray(): T[];
+	clear(): void;
+}
+
+/**
+ * Resettable deadline timer — spec §5.10 escape hatch used by the
+ * resilience operators (`timeout`/`retry`/`rateLimiter`) and their
+ * presentation-layer middleware, which import it from the substrate
+ * **core** barrel. Pinned by N1.
+ */
+export interface ImplResettableTimer {
+	start(delayMs: number, callback: () => void): void;
+	cancel(): void;
+	readonly pending: boolean;
+}
+
 /** The cross-impl surface. */
 export interface Impl {
 	readonly name: string;
@@ -282,6 +312,33 @@ export interface Impl {
 
 	// Reactive structures (M5). `undefined` when the impl doesn't support structures.
 	readonly structures?: StructuresImpl;
+
+	// ── Substrate infra surfaced on the public barrels (N1) ────────────
+	//
+	// These 6 symbols are re-exported on `@graphrefly/pure-ts`'s public
+	// **core** / **extra** barrels and the presentation package
+	// (`@graphrefly/graphrefly`) imports them directly from the substrate
+	// peer (e.g. `src/utils/resilience/*`, `src/base/sources/async.ts`,
+	// `src/base/io/*`, `src/utils/ai/adapters/*`). They were NOT in this
+	// contract (grep-count 0 pre-cleave), so `@graphrefly/graphrefly`
+	// would break the moment `@graphrefly/native` is the substrate
+	// provider — native only promises `Impl`. N1 (locked 2026-05-15,
+	// user-approved option (a)) pins them as a native obligation; folded
+	// into the D203 native-publish batch as scope item 8.
+	//
+	// `RingBuffer` / `ResettableTimer` are constructors (sync — infra,
+	// not dispatcher ops, so they keep their natural shape rather than
+	// the async-everywhere wrapping). `sha256Hex` is genuinely async in
+	// every impl. `wrapSubscribeHook` returns a wrapped node so it takes
+	// the async-everywhere `Promise<ImplNode>` shape like the operators.
+	RingBuffer: new <T>(
+		capacity: number,
+	) => ImplRingBuffer<T>;
+	ResettableTimer: new () => ImplResettableTimer;
+	describeNode(node: ImplNode<unknown>): unknown;
+	sha256Hex(input: string | Uint8Array): Promise<string>;
+	sourceOpts(opts?: Record<string, unknown>): Record<string, unknown>;
+	wrapSubscribeHook<T>(inner: ImplNode<T>, before: (sink: SinkFn<T>) => void): Promise<ImplNode<T>>;
 }
 
 // ── Reactive structures sub-interface (M5) ──────────────────────────────

@@ -663,6 +663,27 @@ export const pureTsImpl: Impl = {
 
 	// Structures (M5).
 	structures: buildPureTsStructures(),
+
+	// Substrate infra surfaced on the public barrels (N1, option (a)).
+	// `RingBuffer`/`ResettableTimer` are passed through directly — their
+	// pure-ts classes already satisfy the structural Impl* interfaces.
+	RingBuffer: legacy.RingBuffer,
+	ResettableTimer: legacy.ResettableTimer,
+	describeNode(node: ImplNode<unknown>): unknown {
+		return legacy.describeNode(node.inner as legacy.Node);
+	},
+	async sha256Hex(input: string | Uint8Array): Promise<string> {
+		return legacy.sha256Hex(input);
+	},
+	sourceOpts(opts?: Record<string, unknown>): Record<string, unknown> {
+		return storage.sourceOpts(opts as any) as Record<string, unknown>;
+	},
+	async wrapSubscribeHook<T>(
+		inner: ImplNode<T>,
+		before: (sink: SinkFn<T>) => void,
+	): Promise<ImplNode<T>> {
+		return wrap(storage.wrapSubscribeHook(unwrap(inner), before as any));
+	},
 };
 
 // ---------------------------------------------------------------------------
