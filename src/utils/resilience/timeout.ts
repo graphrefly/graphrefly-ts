@@ -25,9 +25,9 @@ import {
 	type Node,
 	node,
 	RESOLVED,
+	ResettableTimer,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
-import { ResettableTimer } from "../../base/utils/resettable-timer.js";
 import { isNode, operatorOpts } from "./_internal.js";
 import { NS_PER_MS } from "./backoff.js";
 

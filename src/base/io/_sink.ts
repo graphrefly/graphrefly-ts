@@ -28,6 +28,7 @@ import {
 	type Message,
 	type Node,
 	node,
+	RingBuffer,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
 import {
@@ -36,7 +37,6 @@ import {
 	NS_PER_MS,
 	resolveBackoffPreset,
 } from "../../utils/resilience/backoff.js";
-import { RingBuffer } from "./_ring-buffer.js";
 
 /**
  * Dual-mode buffer for the sink's backpressure queue.

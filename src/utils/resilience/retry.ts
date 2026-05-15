@@ -20,8 +20,8 @@ import {
 	type Node,
 	node,
 	RESOLVED,
+	ResettableTimer,
 } from "@graphrefly/pure-ts/core";
-import { ResettableTimer } from "../../base/utils/resettable-timer.js";
 import { coerceDelayNs, isNode, msgVal, type NodeOrValue, operatorOpts } from "./_internal.js";
 import {
 	type BackoffPreset,

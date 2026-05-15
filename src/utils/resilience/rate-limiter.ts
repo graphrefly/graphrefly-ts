@@ -14,10 +14,10 @@ import {
 	type Node,
 	node,
 	RESOLVED,
+	ResettableTimer,
+	RingBuffer,
 	TEARDOWN,
 } from "@graphrefly/pure-ts/core";
-import { ResettableTimer } from "../../base/utils/resettable-timer.js";
-import { RingBuffer } from "../../base/utils/ring-buffer.js";
 import { isNode, type NodeOrValue, operatorOpts, resolveReactiveOption } from "./_internal.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 import type { GateState } from "./gate-state.js";

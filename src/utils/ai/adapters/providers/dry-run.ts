@@ -15,7 +15,7 @@
  * abort so retry/timeout middleware can classify it.
  */
 
-import { ResettableTimer } from "../../../../base/utils/resettable-timer.js";
+import { ResettableTimer } from "@graphrefly/pure-ts/core";
 import type {
 	ChatMessage,
 	LLMAdapter,

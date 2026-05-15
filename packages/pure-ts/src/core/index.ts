@@ -1,6 +1,9 @@
 /**
  * Core layer: message protocol, node primitive, lifecycle (Phase 0).
  */
+
+export { RingBuffer } from "./_internal/ring-buffer.js";
+export { ResettableTimer } from "./_internal/timer.js";
 export * from "./actor.js";
 export { batch, downWithBatch, isBatching } from "./batch.js";
 export { monotonicNs, wallClockNs } from "./clock.js";

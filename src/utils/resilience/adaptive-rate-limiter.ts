@@ -20,9 +20,8 @@
  * Design lives in `docs/optimizations.md` § "Reactive adaptive rate limiter".
  */
 
-import { DATA, monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
+import { DATA, monotonicNs, type Node, node, ResettableTimer } from "@graphrefly/pure-ts/core";
 import { fromAny, type NodeInput } from "@graphrefly/pure-ts/extra";
-import { ResettableTimer } from "../../base/utils/resettable-timer.js";
 import { NS_PER_SEC } from "./backoff.js";
 import { type TokenBucket, tokenBucket } from "./rate-limiter.js";
 
