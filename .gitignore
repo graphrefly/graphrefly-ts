@@ -68,3 +68,4 @@ Thumbs.db
 docs/research/states/
 docs/research/*.toolbox/
 docs/research/MC.out
+.claude/worktrees/
