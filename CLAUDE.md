@@ -70,18 +70,75 @@ Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv
 
 ## Layout
 
-**TypeScript (`graphrefly-ts`) — post-Phase-13.9.A cleave (2026-05-05):**
-- Root `src/` — thin **shim** for `@graphrefly/graphrefly`. Each entry is a one-liner re-export from `@graphrefly/pure-ts/<subpath>`. Nothing else lives here. Until the facade build lands (PART 13 Deferred 1), every public-API import flows through these re-exports.
-- `packages/pure-ts/src/` — the **pure-TS implementation**. All real source code lives here. Permanent first-class peer alongside `@graphrefly/native` and `@graphrefly/wasm` (PART 13 D082 + D084). Layered structure unchanged from pre-cleave:
+**TypeScript (`graphrefly-ts`) — post-Phase-13.9.A cleave (2026-05-05); install-time model locked 2026-05-14:**
+
+Three published packages with an explicit substrate-vs-presentation split (see "Three-package install-time model" below):
+
+- Root `src/` — currently a thin **shim** that re-exports everything from `@graphrefly/pure-ts`. **Pending cleave** (Unit 6 D198, 2026-05-14): trim to ONLY the presentation layer — patterns + binding-only extras + compat. Substrate re-exports drop; users install one of `@graphrefly/pure-ts` or `@graphrefly/native` as a peer.
+- `packages/pure-ts/src/` — the **pure-TS substrate implementation**. Permanent first-class peer alongside `@graphrefly/native` (and a future `@graphrefly/wasm` if a consumer surfaces; see Unit 6 note below). Layered structure unchanged from pre-cleave:
   - `core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
   - `graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
-  - `extra/` — operators, sources, data structures, resilience (Phase 2–3). Browser-safe by default; Node-only additions in `extra/node.ts`, browser-only additions in `extra/browser.ts`.
-  - `patterns/` — domain-layer APIs (Phase 4+). Each domain is its own folder (`patterns/<name>/index.ts`). Node-only in `<name>/node.ts`, browser-only in `<name>/browser.ts`.
-  - `compat/` — framework adapters: NestJS (Phase 5+)
-- `packages/parity-tests/` — cross-impl parity scenarios (vitest `describe.each([pureTsImpl, rustImpl])`). Currently pure-ts-only; the rust arm activates when `@graphrefly/native` publishes. See `packages/parity-tests/README.md` for the per-Rust-milestone surface widening schedule. **`packages/parity-tests/impls/types.ts` `Impl` interface IS the public-API contract** for the three sibling impls (`@graphrefly/pure-ts`, `@graphrefly/native`, `@graphrefly/wasm`) — widening it is a public API decision (PART 13 of `archive/docs/SESSION-rust-port-architecture.md`).
+  - `extra/` — operators, sources, data structures, resilience (Phase 2–3). Browser-safe by default; Node-only additions in `extra/node.ts`, browser-only additions in `extra/browser.ts`. **Substrate-vs-presentation classification per `extra/` row is locked in `~/src/graphrefly-rs/CLAUDE.md` § "extra/ row classification".**
+  - `patterns/` — domain-layer APIs (Phase 4+). **All `patterns/*` are presentation per Unit 1 (D193)** and live in `@graphrefly/graphrefly`, not in pure-ts. Pre-cleave the folder is co-located here; post-cleave it moves into the root shim's `@graphrefly/graphrefly` content. Each domain is its own folder (`patterns/<name>/index.ts`). Node-only in `<name>/node.ts`, browser-only in `<name>/browser.ts`.
+  - `compat/` — framework adapters: NestJS (Phase 5+). Presentation (binding-only) — moves to `@graphrefly/graphrefly` with the cleave.
+- `packages/parity-tests/` — cross-impl parity scenarios (vitest `describe.each([pureTsImpl, rustImpl])`). Currently pure-ts-only; the rust arm activates when `@graphrefly/native` publishes. See `packages/parity-tests/README.md` for the per-Rust-milestone surface widening schedule + the "parity scenarios are the consumer pressure signal" rule (D196). **`packages/parity-tests/impls/types.ts` `Impl` interface IS the public-API contract** for the substrate peers (`@graphrefly/pure-ts` and `@graphrefly/native`) — widening it is a public API decision.
 - `packages/cli` — workspace consumer of `@graphrefly/graphrefly`. Its vitest config aliases `@graphrefly/graphrefly` directly to `packages/pure-ts/src/index.ts` (the shim is just re-exports; nothing new to test through it).
 
-The cleave is governed by Phase 13.9.A in `docs/implementation-plan.md` and Parts 12–13 of `archive/docs/SESSION-rust-port-architecture.md`. **No sunset** — pure-TS is a permanent peer (PART 13 D084 supersedes PART 12's sunset trigger). Future state: `@graphrefly/graphrefly` becomes a facade with `optionalDependencies: { "@graphrefly/native": "*" }` and falls back to `@graphrefly/pure-ts`; `@graphrefly/wasm` is opt-in via subpath import (PART 13 D083). Building all of this is deferred to near-1.0 (PART 13 Deferred 1).
+### Three-package install-time model (Unit 6 D198, locked 2026-05-14)
+
+| Package | Contains | Build artifact | Substrate or presentation? |
+|---|---|---|---|
+| `@graphrefly/pure-ts` | Full TS implementation of the Rust-portable substrate: `core/`, `graph/`, `extra/operators/`, `extra/sources/sync` + `fromTimer`, `extra/data-structures/`, `extra/storage/` (Node tiers), `extra/composition/stratify`. | TS only — browser + Node | substrate |
+| `@graphrefly/native` | Rust impl of the same substrate via napi. Thin TS wrapper exposes the napi surface. | `.node` binary + TS wrapper | substrate (Node-only) |
+| `@graphrefly/graphrefly` | The parts that **never go to Rust**: `patterns/*`, `extra/io/*`, `extra/composition/*` (except `stratify`), `extra/mutation/*`, `extra/sources/event` (`fromEvent`, `fromRaf`), browser sources, graph-sugar (`graph.log/list/map/index`), `compat/*`. | TS only | presentation |
+
+```
+@graphrefly/graphrefly  ← presentation only
+       │  peerDependency: pick ONE substrate provider
+       ▼
+@graphrefly/pure-ts   OR   @graphrefly/native
+```
+
+Both substrate packages MUST expose the same public API — enforced by `packages/parity-tests/`. **No facade with runtime fallback**: the user picks at install time. Supersedes PART 13 Deferred 1's `optionalDependencies` facade plan. `@graphrefly/wasm` is deferred — adds when a browser-Rust consumer surfaces; until then `@graphrefly/pure-ts` is the universal fallback.
+
+Layering predicate that decides which package gets a new symbol lives in `~/src/graphrefly-rs/CLAUDE.md` § "Layering predicate — substrate vs presentation" (single source of truth, D193).
+
+### 4-layer model inside `@graphrefly/graphrefly` (Unit 8 D200, locked 2026-05-14)
+
+Strict top-down dependency layering (CI-enforced via Biome custom rule, D201):
+
+| Layer | Charter | Examples |
+|---|---|---|
+| `base/` | **Domain-agnostic infrastructure.** Helpers with NO domain semantics. | io (http/ws/sse/webhook), composition helpers (verifiable, distill, pubsub, backpressure, externalProducer), mutation wrappers (lightMutation, auditLog), worker bridge, browser/runtime sources (fromEvent, fromRaf, fromGitHook, fromFSWatch), meta (domainMeta, keepalive) |
+| `utils/` | **Domain building blocks.** Single-purpose factories returning a `Node` or `Graph` (was consolidation-plan's "building blocks"). | messaging (topic, subscription, hub, topicBridge), orchestration (pipelineGraph, approvalGate, humanInput, tracker, classify, catch), cqrs, reduction, memory, ai/{prompts, agents, safety, extractors, adapters}, inspect, harness (stage types, evalSource, beforeAfterCompare) |
+| `presets/` | **Opinionated compositions of utils** (≥3 utils typically). Single-factory products. Vocabulary preserved from consolidation plan. | agentLoop, agentMemory, resilientPipeline, harnessLoop, refineLoop, spawnable, inspect (composite), guardedExecution, reactiveFactStore, taggedContextPool, heterogeneousDebate, actorPool |
+| `solutions/` | **User-facing packaged products.** Top-level barrel re-exports presets + per-vertical multi-preset starter kits (D202 = (c) both). | `solutions/index.ts` barrel re-exports; vertical folders (`solutions/customer-support-bot/`, `solutions/code-review-agent/`, etc.) deferred until consumer pressure |
+| `compat/` | External framework adapters (NestJS, React, Vue, Solid, Svelte, ag-ui translator, a2ui). | sits alongside the 4 layers; depends on solutions/presets/utils/base in top-down order |
+
+Dependency rules:
+
+```
+substrate (@graphrefly/pure-ts | @graphrefly/native)
+   ▲
+   │
+base/         (no domain semantics)
+   ▲
+   │
+utils/        (domain building blocks)
+   ▲
+   │
+presets/      (opinionated compositions of utils)
+   ▲
+   │
+solutions/    (user-facing packaged products)
+   ▲
+   │
+compat/       (external framework adapters)
+```
+
+Within a layer: free composition (e.g., `utils/orchestration/human-input.ts` may import `utils/messaging/topic.ts` — both utils). Cross-layer: strictly top-down. Circular within-layer rejected. Layer-placement rubric: "zero domain → base; single-domain primitive returning Node/Graph → utils; ≥3 utils composition → preset; ≥2 presets or full vertical with adapters/storage wiring → solution."
+
+Source: `archive/docs/SESSION-rust-port-layer-boundary.md` Units 6, 8 (user-locked 2026-05-14).
 
 ### Browser / Node / Universal subpath convention (TS)
 

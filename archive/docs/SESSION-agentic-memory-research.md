@@ -5,6 +5,8 @@ TOPIC: Agentic Memory SOTA Research Synthesis + Default Strategy Design for agen
 ORIGIN: Adapted from callbag-recharge research (~/src/callbag-recharge/src/archive/docs/SESSION-agentic-memory-research.md, March 17–26 2026) and user-provided notes on advanced memory write mechanisms (March 31 2026)
 ---
 
+> **2026-05-13 update — superseded for substrate design by [SESSION-DS-14.7-reactive-fact-store.md](SESSION-DS-14.7-reactive-fact-store.md) (LOCKED).** Triggered by Hassabis YC × DeepMind Startup School talk (2026-04-29, continual learning + REM-replay framing) + MEME paper ([arXiv:2605.12477](https://arxiv.org/abs/2605.12477), Cascade L2 = 3% / Absence L3 = 1% on default config across 6 systems). DS-14.7 formalizes the static-topology `reactiveFactStore<T>()` pattern that supplies the MEME L2/L3 + continual-learning substrate, superseding Part 6 "Second Half" §"opportunity #1" (outcome-feedback gap). The SOTA landscape + four advanced write strategies below remain the canonical research record.
+
 ## KEY DISCUSSION
 
 ### Goal

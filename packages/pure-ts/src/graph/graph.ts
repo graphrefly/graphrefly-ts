@@ -4047,10 +4047,7 @@ export class Graph {
 				//     accumulation in long-lived dynamic graphs).
 				//   - re-add of the same name dedupes (no duplicate
 				//     subscription if a name churns add → remove → add).
-				const lateHandles = new Map<
-					string,
-					{ handle: ObserveResult; off: () => void }
-				>();
+				const lateHandles = new Map<string, { handle: ObserveResult; off: () => void }>();
 				let topoDetach: (() => void) | undefined;
 				if (path == null) {
 					const topoHandler = (event: TopologyEvent): void => {
@@ -4059,10 +4056,7 @@ export class Graph {
 						if (event.kind === "added") {
 							const targetName = event.name;
 							if (lateHandles.has(targetName)) return;
-							const lateHandle = this.observe(
-								targetName,
-								obsOpts,
-							) as unknown as ObserveResult;
+							const lateHandle = this.observe(targetName, obsOpts) as unknown as ObserveResult;
 							for (const ev of lateHandle.events) onEventListener(ev);
 							const lateOff = lateHandle.onEvent(onEventListener);
 							lateHandles.set(targetName, { handle: lateHandle, off: lateOff });

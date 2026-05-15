@@ -736,6 +736,22 @@ function makeEquals<T>(
 	};
 }
 
+function makeStratifyClassifier<T, R>(
+	state: RustImplState,
+	classifier: (rules: R, value: T) => boolean,
+): (rulesH: number, valueH: number) => boolean {
+	const { registry } = state;
+	return (rulesH: number, valueH: number): boolean => {
+		const rules = registry.get<R>(rulesH);
+		const value = registry.get<T>(valueH);
+		try {
+			return classifier(rules as R, value as T);
+		} catch {
+			return false;
+		}
+	};
+}
+
 function makePackerArray<T>(state: RustImplState): (handles: number[]) => number {
 	const { core, registry } = state;
 	return (handles: number[]): number => {
@@ -1212,6 +1228,21 @@ export const rustImpl: Impl | null = native
 				const h = state.core.allocExternalHandle();
 				state.registry.set(h, error);
 				const id = await state.operators.registerThrowError(h);
+				return wrapAsRustNode<T>(state, id);
+			},
+
+			// Stratify substrate (D199).
+			async stratifyBranch<T, R>(
+				src: ImplNode<T>,
+				rules: ImplNode<R>,
+				classifier: (rules: R, value: T) => boolean,
+			): Promise<ImplNode<T>> {
+				const state = getState();
+				const id = await state.operators.registerStratifyBranch(
+					unwrap(src),
+					unwrap(rules),
+					makeStratifyClassifier(state, classifier),
+				);
 				return wrapAsRustNode<T>(state, id);
 			},
 

@@ -95,37 +95,47 @@ export function stratify<T>(
 	return g;
 }
 
-function _addBranch<T>(
-	graph: Graph,
+/**
+ * Substrate operator: per-branch routing under a reactive rules cache.
+ *
+ * Internally used by {@link stratify} to construct one routing
+ * operator per rule, with a closure that captures the rule name +
+ * predicate. Exposed as a public substrate function so the Rust port
+ * (`graphrefly_operators::stratify_branch`, D199 of
+ * `archive/docs/SESSION-rust-port-layer-boundary.md`) has a cross-impl
+ * parity surface — both substrate impls (`@graphrefly/pure-ts` and
+ * `@graphrefly/native`) implement the same shape.
+ *
+ * Semantics:
+ * - Subscribes to BOTH `source` and `rules`.
+ * - `rules` DATA: caches the rules value (no downstream emission —
+ *   "future items only").
+ * - `source` DATA: invokes `classifier(rules, value)`. If `true`,
+ *   emits `value`; if `false`, drops silently. Throws are caught and
+ *   treated as `false`.
+ * - `source` COMPLETE / ERROR / TEARDOWN: forwarded.
+ * - `rules` COMPLETE / ERROR / TEARDOWN: silently absorbed (branch
+ *   keeps its last-seen rules cache).
+ * - Two-dep gating: DIRTY from either dep is buffered until both
+ *   settle in the same wave, eliminating the stale-rules race when
+ *   both update inside the same `batch()`.
+ *
+ * @category extra
+ */
+export function stratifyBranch<T, R>(
 	source: Node<T>,
-	rulesNode: Node<ReadonlyArray<StratifyRule<T>>>,
-	rule: StratifyRule<T>,
-): void {
-	const branchName = `branch/${rule.name}`;
-
-	// Two-dep gating: intercepts messages from BOTH source (dep 0) and rules
-	// (dep 1). Classification is deferred until all dirty deps have settled,
-	// eliminating the stale-rules race when both are updated in the same batch().
-	//
-	// Protocol: DIRTY is buffered until DATA arrives. If the classifier matches,
-	// emit [DIRTY, DATA]. If not, emit [DIRTY, RESOLVED] so downstream exits
-	// dirty status cleanly (spec §1.3.1). Source RESOLVED forwards as RESOLVED.
-	// Rules-only changes produce no downstream emission ("future items only").
-	//
-	// Producer pattern with `[]` deps: the framework does NOT auto-propagate
-	// DIRTY/RESOLVED/COMPLETE from source or rules. We forward source terminals
-	// explicitly below, and we silently absorb rules signals — preserving the
-	// "future items only" semantic (rules changes are invisible downstream).
+	rules: Node<R>,
+	classifier: (rules: R, value: T) => boolean,
+	opts?: { branchMeta?: Record<string, unknown> },
+): Node<T> {
 	const _noValue: unique symbol = Symbol("noValue");
 	let sourceDirty = false;
 	let rulesDirty = false;
 	let sourcePhase2 = false;
 	let sourceValue: T | typeof _noValue = _noValue;
 	let pendingDirty = false;
-	// Latest rules DATA, seeded at factory time (wiring-time external read —
-	// allowed per foundation-redesign §3.6). Updated by the rules subscribe
-	// handler so `resolve()` never reads `rulesNode.cache` from a reactive context.
-	let latestRules: ReadonlyArray<StratifyRule<T>> = rulesNode.cache ?? [];
+	let latestRules: R | typeof _noValue =
+		(rules.cache as R | undefined) === undefined ? _noValue : (rules.cache as R);
 
 	function resolve(actions: NodeActions): void {
 		if (sourcePhase2) {
@@ -133,59 +143,31 @@ function _addBranch<T>(
 			const value = sourceValue;
 			sourceValue = _noValue;
 			if (value !== _noValue) {
-				const currentRule = latestRules.find((r) => r.name === rule.name);
 				let matches = false;
-				try {
-					matches = currentRule?.classify(value) ?? false;
-				} catch {
-					matches = false;
+				if (latestRules !== _noValue) {
+					try {
+						matches = classifier(latestRules as R, value);
+					} catch {
+						matches = false;
+					}
 				}
 				if (matches) {
 					pendingDirty = false;
 					actions.emit(value);
-				} else {
-					if (pendingDirty) {
-						pendingDirty = false;
-						actions.down([[DIRTY], [RESOLVED]]);
-					}
-				}
-			} else {
-				if (pendingDirty) {
+				} else if (pendingDirty) {
 					pendingDirty = false;
 					actions.down([[DIRTY], [RESOLVED]]);
-				} else {
-					actions.down([[RESOLVED]]);
 				}
+			} else if (pendingDirty) {
+				pendingDirty = false;
+				actions.down([[DIRTY], [RESOLVED]]);
+			} else {
+				actions.down([[RESOLVED]]);
 			}
 		}
 	}
 
-	const filterNode = node<T>(
-		[],
-		(_data, filterActions) => {
-			const srcUnsub = (source as Node).subscribe((msgs) => {
-				for (const msg of msgs) {
-					_handleStratifyMessage(msg, 0, filterActions);
-				}
-			});
-			const rulesUnsub = (rulesNode as Node).subscribe((msgs) => {
-				for (const msg of msgs) {
-					_handleStratifyMessage(msg, 1, filterActions);
-				}
-			});
-			return () => {
-				srcUnsub();
-				rulesUnsub();
-			};
-		},
-		{
-			describeKind: "derived",
-			meta: { kind: "stratify_branch", branch: rule.name },
-			completeWhenDepsComplete: false,
-		} as NodeOptions<T>,
-	);
-
-	function _handleStratifyMessage(msg: Message, depIndex: number, actions: NodeActions): boolean {
+	function handle(msg: Message, depIndex: number, actions: NodeActions): boolean {
 		const t = msg[0];
 
 		if (t === DIRTY) {
@@ -205,7 +187,7 @@ function _addBranch<T>(
 				sourceValue = t === DATA ? (msg[1] as T) : _noValue;
 			} else {
 				if (t === DATA) {
-					latestRules = msg[1] as ReadonlyArray<StratifyRule<T>>;
+					latestRules = msg[1] as R;
 				}
 				rulesDirty = false;
 			}
@@ -232,6 +214,49 @@ function _addBranch<T>(
 
 		return false;
 	}
+
+	return node<T>(
+		[],
+		(_data, filterActions) => {
+			const srcUnsub = (source as Node).subscribe((msgs) => {
+				for (const msg of msgs) {
+					handle(msg, 0, filterActions);
+				}
+			});
+			const rulesUnsub = (rules as Node).subscribe((msgs) => {
+				for (const msg of msgs) {
+					handle(msg, 1, filterActions);
+				}
+			});
+			return () => {
+				srcUnsub();
+				rulesUnsub();
+			};
+		},
+		{
+			describeKind: "derived",
+			meta: { kind: "stratify_branch", ...(opts?.branchMeta ?? {}) },
+			completeWhenDepsComplete: false,
+		} as NodeOptions<T>,
+	);
+}
+
+function _addBranch<T>(
+	graph: Graph,
+	source: Node<T>,
+	rulesNode: Node<ReadonlyArray<StratifyRule<T>>>,
+	rule: StratifyRule<T>,
+): void {
+	const branchName = `branch/${rule.name}`;
+	const filterNode = stratifyBranch(
+		source,
+		rulesNode,
+		(rules, value) => {
+			const current = rules.find((r) => r.name === rule.name);
+			return current?.classify(value) ?? false;
+		},
+		{ branchMeta: { branch: rule.name } },
+	);
 
 	graph.add(filterNode as Node<unknown>, { name: branchName });
 

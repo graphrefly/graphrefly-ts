@@ -266,6 +266,17 @@ export interface Impl {
 	empty<T>(): Promise<ImplNode<T>>;
 	throwError<T>(error: unknown): Promise<ImplNode<T>>;
 
+	// Stratify substrate (D199 — Unit 5 Q9.2 of SESSION-rust-port-
+	// layer-boundary). Single classifier-routing branch — the TS-side
+	// `stratify(...) → Graph` factory composes N instances of this one
+	// per rule, passing a closure that captures the branch name and
+	// reads the rule from the latest rules-array handle.
+	stratifyBranch<T, R>(
+		src: ImplNode<T>,
+		rules: ImplNode<R>,
+		classifier: (rules: R, value: T) => boolean,
+	): Promise<ImplNode<T>>;
+
 	// Storage (M4.F — D176). `undefined` when the impl doesn't support storage.
 	readonly storage?: StorageImpl;
 

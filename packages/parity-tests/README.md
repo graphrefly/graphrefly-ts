@@ -51,6 +51,47 @@ materializes once the rust arm activates — until then, `pnpm test` from this
 package is equivalent to running the (narrow) parity scenarios against
 pure-ts only.
 
+## Parity scenarios are the consumer-pressure signal (D196, locked 2026-05-14)
+
+Per `archive/docs/SESSION-rust-port-layer-boundary.md` Unit 4 (Q9.1 = B), this
+repo's scenarios are the **canonical pressure signal** that triggers napi
+widening on the Rust side. A Rust-core substrate surface gets a napi binding
+when EITHER:
+
+1. A non-pattern JS/TS consumer materializes outside the parity-tests harness,
+   OR
+2. A scenario in `scenarios/<layer>/<feature>.test.ts` exercises it
+   cross-impl via `describe.each(impls)`.
+
+If you're authoring a scenario that references a Rust-core symbol whose napi
+binding doesn't yet exist:
+
+- Confirm the symbol is **substrate** per the layering predicate in
+  `~/src/graphrefly-rs/CLAUDE.md` § "Layering predicate — substrate vs
+  presentation". Presentation symbols never enter `impls/types.ts` `Impl`
+  and never bind to napi.
+- If substrate: file (or update) the corresponding entry in
+  `~/src/graphrefly-rs/docs/porting-deferred.md` so the binding work is
+  visible in the next-slice candidate list.
+- Until the binding lands, narrow the scenario to the legacy arm with a
+  comment pointing at the gating Rust deferred-item ID (F18, F20, F24, etc.).
+  When the binding lands, drop the gate and the scenario activates
+  cross-impl.
+
+This is why F18 (`ReactiveLog::view`/`scan`/`attach`) and F20
+(`ReactiveIndex::range_by_primary`) stay deferred — no parity scenario
+exercises them yet, even though the Rust substrate is shipped. The honest
+reason for "no binding" is "no parity scenario," not "no consumer pressure."
+
+Presentation symbols (everything in `@graphrefly/graphrefly` per the
+three-package install-time model — `patterns/*`, `extra/io/*`,
+`extra/composition/*` except `stratify`, `extra/mutation/*`,
+`extra/sources/event/{fromEvent, fromRaf}`, graph-sugar, `compat/*`)
+are **not part of the substrate contract**. They get their own parity
+scenarios parameterized via the two substrate impls — but they never become
+methods on `Impl` themselves; instead, scenarios import them directly from
+`@graphrefly/graphrefly` while reaching for substrate via `impl.*`.
+
 ## Phase 13.9.B target shape (deferred)
 
 Trace-record / trace-replay — record an event trace from one impl, assert

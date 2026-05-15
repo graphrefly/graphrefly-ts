@@ -1306,3 +1306,83 @@ Decisions made during the Rust port, recorded after inline discussion.
   5. **F5 — `Graph.add()` JSDoc clarification.** Added explicit caveat that R3.7.3 ordering means cross-graph re-register from a TEARDOWN sink works (stamp released pre-cascade) but same-graph re-register-under-a-new-name does not (`_nodeToName` is still populated during the sink) — do same-graph re-register after `remove()` returns.
 - **Rejected as false positives or pre-existing:** disposed-flag ordering (already covered by early-return), `_emitTopology` pre-init events (no real path to fire), defensive try-catch around late-subscribe inner observe (hides bugs), annotation-install ordering (pre-existing, not Slice W), race COMPLETE double-count (protocol-illegal), concat phase-zero ERROR state-machine consistency (pure-ts tests pass; defensive only), F19 TTL parity test gap (real, but coverage-not-bug; queued as follow-up), Appendix E text consistency (verified clean), mount-recursion limitation (documented).
 - **Affects:** TS `packages/pure-ts/src/graph/graph.ts` (`_emitTopology`, `remove()`, `_observeReactive`, `add()` JSDoc). Rust `crates/graphrefly-operators/src/ops_impl.rs` (`zip`, `race` signatures + body cleanup), `crates/graphrefly-bindings-js/src/operator_bindings.rs` (`register_zip`, `register_race`), `crates/graphrefly-operators/tests/{subscription, arc_cycle_break, dead_source_e2e}.rs` (`.unwrap()` callers). Canonical spec Appendix E (Rust impl text updated to reflect Result migration). Test counts: pure-ts 3011 / parity 289+1 skipped / cargo operators 184 — all green; `cargo clippy -p graphrefly-operators --all-targets -D warnings` clean.
+
+### D193 — Layering predicate: substrate-vs-presentation with hot-path tie-breaker
+- **Date:** 2026-05-14
+- **Context:** Unit 1 of `archive/docs/SESSION-rust-port-layer-boundary.md`. PART 5 of `SESSION-rust-port-architecture.md` locked the *folder-level* layering ("port core / graph / extras / lower part of orchestration + messaging") but did not give a *symbol-level* predicate. Every napi-widening slice silently picked a side — violating `feedback_no_autonomous_decisions.md`. F18's "no consumer pressure" deferral rationale was itself an unstated predicate.
+- **Options:** A) status quo (per-slice decision); B) hot-path predicate only; C) substrate-vs-presentation predicate, hot-path tie-breaker; D) cross-language sharability predicate.
+- **Decision:** C.
+- **Rationale:** (C) discriminates the cases (B) gets wrong (e.g., `mutation/` initially classified as substrate by hot-path heuristic; correct answer is presentation — it's a decorator over `reactiveLog`). Aligns with PART 5 spirit. (D) is too coarse on its own (every pattern is "shared" in spirit). Documented in `~/src/graphrefly-rs/CLAUDE.md` § "Layering predicate — substrate vs presentation" — single source of truth, cross-linked from `~/src/graphrefly-ts/CLAUDE.md` § "Three-package install-time model".
+- **Affects:** all future Rust-port slices; the napi widening policy (D196); the `extra/` row classification (D197); package-content split (D198); folder structure inside `@graphrefly/graphrefly` (D200).
+
+### D194 — Unit 2: no new Rust crate for `patterns/messaging`
+- **Date:** 2026-05-14
+- **Context:** Unit 2 of `SESSION-rust-port-layer-boundary.md`. User's earlier folder-level lock said "port lower part of orchestration + messaging into Rust." Honest symbol-level review revealed: **the lower part is already in Rust** (reactiveLog + reactiveList + state + derived + mutate). The user-visible classes in `patterns/messaging/` (TopicGraph, SubscriptionGraph, TopicBridgeGraph, MessagingHubGraph) are thin composition wrappers — pure presentation under D193.
+- **Options:** A) open `graphrefly-messaging` crate; B) open `graphrefly-flow` combining messaging+orchestration; C) NO new crate — patterns stay binding-side; D) defer F18 napi until first non-pattern consumer.
+- **Decision:** C.
+- **Rationale:** Opening a crate would duplicate `graphrefly-structures` + `graphrefly-graph`. (C) and (D) converge under the napi widening policy (D196): F18 napi (`ReactiveLog::view({fromCursor})`) activates the moment a parity scenario authors against `subscription`. Cross-checked against `SESSION-human-llm-intervention-primitives.md` (§5: "only two true primitives = hub+envelope and valve"), `SESSION-DS-14.6-A-multi-agent-context-architecture.md` (L7: actorPool composes over existing substrate), `SESSION-DS-14.7-reactive-fact-store.md` ("zero spec change, zero envelope change") — all three confirm zero new messaging substrate primitives.
+- **Affects:** `crates/graphrefly-*` (no new crate created); `packages/parity-tests/scenarios/messaging/` (next implementation slice authors first scenario, which then triggers F18 binding work per D196).
+
+### D195 — Unit 3: no new Rust crate for `patterns/orchestration`
+- **Date:** 2026-05-14
+- **Context:** Unit 3 of `SESSION-rust-port-layer-boundary.md`. Same finding as D194 applied to orchestration. `PipelineGraph.{task, classify, combine, approvalGate, approval, catch}` + `humanInput<T>` + `tracker<T>` all decompose into existing Rust substrate. `approvalGate` is the meatiest (~150 LOC state machine) but its substrate is `valve` (Slice U) + `ReactiveList` (M5) + `reactiveLog` (M5) + `mutate` (binding-side audit decorator) — no new Rust primitive needed.
+- **Options:** A) open `graphrefly-orchestration` or `graphrefly-flow` crate; B) port just `approvalGate` state machine as a Rust primitive; C) no new crate — patterns stay binding-side, parity scenarios are the cross-language spec.
+- **Decision:** C (symmetric with D194).
+- **Rationale:** (B) buys nothing — the state machine isn't shared between TS and PY at the implementation level (each language implements its own audit-decorator idiom). Re-implementing the ~150 LOC in each binding is cheaper than FFI-ing through napi/pyo3. Confirmed by `SESSION-human-llm-intervention-primitives.md` cataloging humanInput / approvalGate / tracker as sibling presets ("only two true primitives = hub+envelope and valve"), `SESSION-DS-14.6-A` (delta #3: actorPool composes over context-pool + todo-list + hub + spawnable), `SESSION-DS-14.7` (Q5: reactiveIndexedTable parked as post-v1 extraction candidate).
+- **Affects:** `crates/graphrefly-*` (no new crate); `packages/parity-tests/scenarios/orchestration/` (~4–6 scenarios queued for next slice + future PY port).
+
+### D196 — napi widening policy: consumer-pressure-driven + parity-test gated
+- **Date:** 2026-05-14
+- **Context:** Unit 4 of `SESSION-rust-port-layer-boundary.md`. F18 (`ReactiveLog::view`/`scan`/`attach`), F20 (`ReactiveIndex::range_by_primary`), and every future Rust-core surface hit the "bind eagerly or wait for pressure" question. Pre-2026-05-14, decisions were ad hoc; "consumer pressure" was itself an unwritten predicate that conflicted with chicken-and-egg dynamics (pure-ts patterns reach Rust only via napi → the test of pressure is gated by the binding's existence).
+- **Options:** A) eager binding for every Rust-core surface in its shipping slice; B) consumer-pressure-driven, parity-test gated; C) per-milestone snapshot audit; D) hybrid — substrate eager, presentation never.
+- **Decision:** B (= D under D193's predicate).
+- **Rationale:** B is the only policy that scales — the parity-test gate ensures bindings exist for everything users actually rely on, without forcing speculative TSFN-bridging for surfaces nobody calls. Scenarios serve double duty: they're the test surface AND the pressure signal. F18 / F20 stay deferred under B until parity scenarios author against them; F24 / D171 are in-scope because existing scenarios + clear substrate need are already on file. Documented in `packages/parity-tests/README.md` § "Parity scenarios are the consumer-pressure signal".
+- **Affects:** `~/src/graphrefly-rs/docs/migration-status.md` § "Layering"; `packages/parity-tests/README.md`; all future Rust-port slice scoping.
+
+### D197 — Unit 5: `extra/` row classification — `composition/stratify` only substrate add
+- **Date:** 2026-05-14
+- **Context:** Unit 5 of `SESSION-rust-port-layer-boundary.md`. Five `extra/` sub-folders had no written classification (sources/event, io, composition, mutation, data-structures graph sugar). Earlier draft proposed porting `mutation/` to Rust — honest review revealed it's a decorator over `reactiveLog` (already substrate), so the wrapper is presentation. Anti-pattern: TS surface that looks like substrate may actually be a thin decorator over already-existing substrate — check before classifying.
+- **Options:** A) lock the corrected table (substrate = `stratify` only; rest binding-side per the predicate); B) also port `mutation/` as substrate; C) port nothing extra.
+- **Decision:** A.
+- **Rationale:** (B) is the wrong-on-review draft. (C) leaves classifier routing duplicated between TS and PY (stratify IS genuinely substrate — classifier-routing operator, consumed by orchestration `classify`). Final table locked in `~/src/graphrefly-rs/CLAUDE.md` § "`extra/` row classification". Planning-doc cross-check: `SESSION-DS-14.6-A` `taggedContextPool`/`renderContextView`/`tierCompress` are explicitly patterns/extras layer per L10 ("policy-as-data" lock); `SESSION-DS-14.7` `reactiveIndexedTable` is parked as post-v1 extraction candidate (Q5 lock). Zero additional substrate from the three planning docs.
+- **Affects:** Single Rust substrate add — `composition/stratify` → ~50 LOC `crates/graphrefly-operators/src/stratify.rs` + `register_stratify` napi binding + 1 parity scenario (next implementation slice, D199).
+
+### D198 — Three-package install-time model: `@graphrefly/{pure-ts, native, graphrefly}`; no facade
+- **Date:** 2026-05-14
+- **Context:** Unit 6 of `SESSION-rust-port-layer-boundary.md`. Today's `@graphrefly/graphrefly` (post-Phase-13.9.A cleave) blanket re-exports everything from `@graphrefly/pure-ts`. PART 13 of `SESSION-rust-port-architecture.md` planned a facade-with-fallback (`optionalDependencies: { "@graphrefly/native": "*" }`) at Phase 13 Deferred 1. User redirected 2026-05-14: three explicit packages, user picks substrate at install time, no facade.
+- **Options:** A) three independent packages, user picks at install (chosen); B) re-export model (transitional); C) facade-only with runtime fallback (PART 13 original plan); D) single package with feature flags.
+- **Decision:** A — user-locked 2026-05-14.
+- **Rationale:** Clean separation. One PR to cleave content. Caveats: peer-dependency UX (npm/pnpm warns but doesn't fail; doc the install combinations prominently); substrate drift between pure-ts and native is the maintenance burden (mitigated by `packages/parity-tests/` scenarios as the receipt). `@graphrefly/wasm` and the facade-with-fallback are explicitly **canceled** — Phase 13 Deferred 1 is superseded. `@graphrefly/wasm` adds when a browser-Rust consumer surfaces (none today); until then `@graphrefly/pure-ts` is the universal fallback (browser + Node).
+- **Affects:** Phase 13 Deferred 1 (`docs/implementation-plan.md`) — canceled; `~/src/graphrefly-ts/CLAUDE.md` § "Three-package install-time model" — added; future package cleave PR (queued; not in current doc-only slice).
+
+### D199 — `composition/stratify` substrate port queued for next implementation slice
+- **Date:** 2026-05-14
+- **Context:** Unit 5 Q9.2 of `SESSION-rust-port-layer-boundary.md`. Only Rust-side substrate add from the design session. ~50 LOC operator into `graphrefly-operators` + napi binding + 1 parity scenario.
+- **Options:** A) bundle into the next napi-widening slice; B) defer until orchestration parity tests author classifier scenarios.
+- **Decision:** A (bundle into Unit 7 Q9.2 next-turn slice: F24 + D171 + parity scenarios + stratify).
+- **Rationale:** Substrate need is independently clear (`patterns/orchestration` `classify` uses it; PY port will too). Scenario author for orchestration `classify` is the load-bearing receipt; pre-binding stratify avoids the parity scenario blocking on substrate.
+- **Affects:** `crates/graphrefly-operators/src/stratify.rs` (new file, ~50 LOC); `crates/graphrefly-bindings-js/src/operator_bindings.rs` (`register_stratify`); `packages/parity-tests/scenarios/operators/stratify.test.ts` (new file).
+
+### D200 — Unit 8: 4-layer folder model inside `@graphrefly/graphrefly` — `base/utils/presets/solutions/compat`
+- **Date:** 2026-05-14
+- **Context:** Unit 8 of `SESSION-rust-port-layer-boundary.md`. With the three-package split locked (D198), `@graphrefly/graphrefly` needs an internal layering. Consolidation-plan introduced `_internal/` (base), per-domain `patterns/<domain>/index.ts` (building blocks), per-domain `patterns/<domain>/presets.ts` (presets). User clarified 2026-05-14: preserve "presets" vocabulary; split "below presets" into two layers (base + utils); add "solutions" on top.
+- **Options:** A) 4-layer model `base / utils / presets / solutions / compat`; B) 3-layer model (collapse base + utils); C) status quo (`extra/` + `patterns/_internal/` + `patterns/<domain>/{index,presets}.ts`).
+- **Decision:** A — user-locked 2026-05-14.
+- **Rationale:** Preserves consolidation-plan's "presets" semantics (opinionated compositions of utils) — single rename "building blocks → utils". `base/` distinguishes domain-agnostic infrastructure from `utils/` domain building blocks. `solutions/` is the new top layer for user-facing packaged products. Layer-placement rubric: "zero domain → base; single-domain primitive returning Node/Graph → utils; ≥3 utils composition → preset; ≥2 presets or full vertical with adapters/storage wiring → solution." Within-layer: free composition. Cross-layer: strictly top-down. CI lint via Biome custom rule (D201). Migration bundled into next-turn implementation slice (Unit 8 Q9.4 = D201).
+- **Affects:** Future cleave PR (`packages/graphrefly/` content restructure); Biome custom rule (D201); 4-criterion placement rubric; new factory placement (`actorPool`, `heterogeneousDebate`, `reactiveFactStore`, `taggedContextPool` → all go in `presets/{harness, ai, memory, context}/`).
+
+### D201 — Layer-boundary CI enforcement: Biome custom rule (no extra eslint dep)
+- **Date:** 2026-05-14
+- **Context:** Unit 8 Q9.2 of `SESSION-rust-port-layer-boundary.md`. 4-layer model (D200) needs CI enforcement to prevent drift. Choice between Biome custom rule vs adding an eslint dependency just for layer-boundary linting.
+- **Options:** A) Biome custom rule (this repo already uses Biome); B) add eslint + eslint-plugin-import-boundaries.
+- **Decision:** A — user-locked 2026-05-14.
+- **Rationale:** Avoid adding an eslint dependency just for one rule. Biome custom rules are written in TypeScript and integrate with the existing `pnpm run lint`. Implementation deferred to the cleave PR.
+- **Affects:** `biome.json` (custom rule registration); `tools/biome-rules/layer-boundary.ts` (new file, deferred); `pnpm run lint` continues to be the single lint entry point.
+
+### D202 — Unit 8 Q9.5: `solutions/` = (c) both — top-level barrels + per-vertical multi-preset starter kits
+- **Date:** 2026-05-14
+- **Context:** Unit 8 Q9.5 of `SESSION-rust-port-layer-boundary.md`. Three candidate interpretations of `solutions/`: (a) curated re-export layer (thin); (b) vertical bundles / starter kits (thick); (c) both.
+- **Options:** A) (a) curated re-export only; B) (b) verticals only; C) (c) both.
+- **Decision:** C — user-locked 2026-05-14.
+- **Rationale:** `solutions/index.ts` (and per-domain `solutions/<domain>/index.ts` barrels) curate headline-product re-exports of presets — the front door users see when they `import { agentLoop, harnessLoop, reactiveFactStore } from "@graphrefly/graphrefly"`. `solutions/<vertical>/` folders hold multi-preset starter kits with adapters + storage tiers + sensible defaults (e.g., `solutions/customer-support-bot/`, `solutions/code-review-agent/`). Verticals add value when composition crosses ≥2 presets AND requires adapter wiring AND requires storage configuration AND the use case is concrete enough for sensible defaults. **Verticals are deferred** until specific use cases land — initial scope (Phase 14.5 / Phase 15) = barrels only; verticals follow consumer pressure.
+- **Affects:** Initial scope in next cleave PR = `solutions/index.ts` curated barrel only. Verticals queued behind consumer-pressure signal (Phase 14.5+ candidates).

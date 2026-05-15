@@ -649,6 +649,15 @@ export const pureTsImpl: Impl = {
 		return wrap(legacy.throwError(error) as legacy.Node<T>);
 	},
 
+	// Stratify substrate (D199).
+	async stratifyBranch<T, R>(
+		src: ImplNode<T>,
+		rules: ImplNode<R>,
+		classifier: (rules: R, value: T) => boolean,
+	): Promise<ImplNode<T>> {
+		return wrap(legacy.stratifyBranch(unwrap(src), unwrap(rules), classifier));
+	},
+
 	// Storage (M4.F).
 	storage: buildPureTsStorage(),
 
