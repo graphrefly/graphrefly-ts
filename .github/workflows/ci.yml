@@ -43,6 +43,14 @@ jobs:
 
       - run: pnpm test
 
+      # graphrefly-ts#4 — ongoing indicator that pure-ts stays
+      # compatible with the Hermes engine React Native ships. Fast:
+      # RN's pinned hermesc (npm, no build) + Node semantics. The
+      # on-device VM tier (apps/rn-hermes-fixture) runs periodically,
+      # not here. See scripts/hermes-smoke/README.md.
+      - name: RN/Hermes engine smoke
+        run: pnpm test:hermes
+
       - run: pnpm run lint
 
       - run: pnpm run build

@@ -1,0 +1,26 @@
+{
+	"name": "@graphrefly/rn-hermes-fixture",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Periodic on-device RN/Hermes verification for @graphrefly/pure-ts (graphrefly-ts#4). Expo SDK 55 official matrix (RN 0.83.6). Real Hermes VM + RN polyfills, dev + release/bytecode. The per-commit faithful compile gate lives in scripts/hermes-smoke.",
+	"main": "index.ts",
+	"scripts": {
+		"start": "expo start --dev-client",
+		"ios": "expo run:ios",
+		"ios:release": "expo run:ios --configuration Release",
+		"android": "expo run:android",
+		"android:release": "expo run:android --variant release",
+		"bundle:check": "expo export --platform ios --output-dir .export-check --clear"
+	},
+	"dependencies": {
+		"@graphrefly/pure-ts": "workspace:*",
+		"expo": "^55.0.0",
+		"expo-status-bar": "~3.0.0",
+		"react": "19.2.0",
+		"react-native": "0.83.6"
+	},
+	"devDependencies": {
+		"@types/react": "~19.2.0",
+		"typescript": "~5.9.2"
+	}
+}
