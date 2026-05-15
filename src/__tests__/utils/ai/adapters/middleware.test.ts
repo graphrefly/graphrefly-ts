@@ -9,7 +9,10 @@ import {
 import { withDryRun } from "../../../../utils/ai/adapters/middleware/dry-run.js";
 import { withReplayCache } from "../../../../utils/ai/adapters/middleware/replay-cache.js";
 import { withRetry } from "../../../../utils/ai/adapters/middleware/retry.js";
-import { LLMTimeoutError, withTimeout } from "../../../../utils/ai/adapters/middleware/timeout.js";
+import {
+	LLMTimeoutError,
+	withLLMTimeout,
+} from "../../../../utils/ai/adapters/middleware/timeout.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -193,10 +196,10 @@ describe("withRetry", () => {
 });
 
 // ---------------------------------------------------------------------------
-// withTimeout
+// withLLMTimeout
 // ---------------------------------------------------------------------------
 
-describe("withTimeout", () => {
+describe("withLLMTimeout", () => {
 	it("aborts after ms elapse", async () => {
 		const slow: LLMAdapter = {
 			provider: "slow",
@@ -212,7 +215,7 @@ describe("withTimeout", () => {
 			},
 			async *stream() {},
 		};
-		const adapter = withTimeout(slow, 20);
+		const adapter = withLLMTimeout(slow, 20);
 		await expect(
 			Promise.resolve(adapter.invoke([{ role: "user", content: "x" }])),
 		).rejects.toBeInstanceOf(LLMTimeoutError);

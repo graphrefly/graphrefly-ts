@@ -278,7 +278,7 @@ export function withLayer<A extends LLMAdapter>(
  * @example
  * ```ts
  * const stack = describeAdapterStack(resilientAdapter(anthropicAdapter(), opts).adapter);
- * // → ["withTimeout", "withRetry", "withBreaker", "withBudgetGate", "withRateLimiter", "cascade"]
+ * // → ["withLLMTimeout", "withRetry", "withLLMBreaker", "withBudgetGate", "withRateLimiter", "cascade"]
  * ```
  *
  * @category extra

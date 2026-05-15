@@ -53,7 +53,7 @@ describe("resilientAdapter", () => {
 	it("applies retry + timeout (timeout rearms per attempt; default predicate retries)", async () => {
 		let call = 0;
 		// Model a real fetch-style adapter: rejects aborted requests with an
-		// AbortError regardless of `signal.reason`. `withTimeout` must
+		// AbortError regardless of `signal.reason`. `withLLMTimeout` must
 		// convert its own timer-fire path into `LLMTimeoutError` so the
 		// default retry predicate recognizes it.
 		const slow: LLMAdapter = {

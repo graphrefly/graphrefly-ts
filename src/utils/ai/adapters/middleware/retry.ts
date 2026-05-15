@@ -161,8 +161,8 @@ function defaultShouldRetry(err: unknown, _attempt: number): boolean {
 	if (err == null) return false;
 	const e = err as { name?: string; status?: number; code?: string; message?: string };
 	// Timeout-family errors — retry by default so each attempt re-arms the
-	// per-attempt deadline set by `withTimeout`. Checked BEFORE the abort
-	// guards below because `withTimeout` re-throws its timer-fire path as
+	// per-attempt deadline set by `withLLMTimeout`. Checked BEFORE the abort
+	// guards below because `withLLMTimeout` re-throws its timer-fire path as
 	// `LLMTimeoutError` even when the underlying fetch rejected with
 	// AbortError.
 	if (e.name === "LLMTimeoutError") return true;

@@ -1,5 +1,5 @@
 /**
- * `withTimeout` — cancel `invoke()` / `stream()` after `ms` elapse.
+ * `withLLMTimeout` — cancel `invoke()` / `stream()` after `ms` elapse.
  *
  * Wires a child AbortSignal so provider adapters can honor the cancellation
  * (all shipped adapters forward `signal` through to their fetch / SDK call).
@@ -21,8 +21,8 @@ export class LLMTimeoutError extends Error {
 	}
 }
 
-export function withTimeout(inner: LLMAdapter, ms: number): LLMAdapter {
-	if (ms <= 0) throw new RangeError("withTimeout: ms must be > 0");
+export function withLLMTimeout(inner: LLMAdapter, ms: number): LLMAdapter {
+	if (ms <= 0) throw new RangeError("withLLMTimeout: ms must be > 0");
 
 	const linkedSignal = (
 		parent?: AbortSignal,
@@ -115,6 +115,6 @@ export function withTimeout(inner: LLMAdapter, ms: number): LLMAdapter {
 			}
 		},
 	});
-	withLayer(wrap, "withTimeout", inner);
+	withLayer(wrap, "withLLMTimeout", inner);
 	return wrap;
 }

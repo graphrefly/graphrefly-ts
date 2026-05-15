@@ -1,6 +1,6 @@
 /**
  * `resilientAdapter` — compose `withRateLimiter` + `withBudgetGate` +
- * `withBreaker` + `withTimeout` + `withRetry` + fallback over an {@link LLMAdapter}.
+ * `withLLMBreaker` + `withLLMTimeout` + `withRetry` + fallback over an {@link LLMAdapter}.
  *
  * Call-path peer of {@link resilientPipeline} (which operates on a reactive
  * `Node<T>` chain). Use `resilientPipeline` when composing graph sources; use
@@ -54,7 +54,7 @@ import {
 import { type WithRateLimiterOptions, withRateLimiter } from "./rate-limiter.js";
 import { type WithReplayCacheOptions, withReplayCache } from "./replay-cache.js";
 import { type WithRetryOptions, withRetry } from "./retry.js";
-import { withTimeout } from "./timeout.js";
+import { withLLMTimeout } from "./timeout.js";
 
 /** Options for {@link resilientAdapter}. Every field is optional — omit to skip that layer. */
 export interface ResilientAdapterOptions {
@@ -153,7 +153,7 @@ export function resilientAdapter(
 		bundle.breaker = wrapped.breaker;
 	}
 	if (opts.timeoutMs != null) {
-		current = withTimeout(current, opts.timeoutMs);
+		current = withLLMTimeout(current, opts.timeoutMs);
 	}
 	if (opts.retry) {
 		current = withRetry(current, opts.retry);
