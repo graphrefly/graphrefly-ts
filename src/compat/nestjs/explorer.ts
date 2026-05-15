@@ -17,7 +17,7 @@ import { fromTimer } from "@graphrefly/pure-ts/extra";
 import type { Graph, GraphObserveOne } from "@graphrefly/pure-ts/graph";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import type { ModuleRef } from "@nestjs/core";
-import { fromCron } from "../../base/sources/event/dom.js";
+import { fromCron } from "../../base/sources/event/cron.js";
 import type { CqrsGraph } from "../../utils/cqrs/index.js";
 import {
 	COMMAND_HANDLERS,

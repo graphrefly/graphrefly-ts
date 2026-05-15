@@ -4,8 +4,7 @@
  * Moved from extra/sources/event.ts (fromEvent, fromRaf) during cleave A2.
  */
 
-import { ERROR, type Node, type NodeOptions, node, wallClockNs } from "@graphrefly/pure-ts/core";
-import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
+import { ERROR, type Node, type NodeOptions, node } from "@graphrefly/pure-ts/core";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 type AsyncSourceOpts = ExtraOpts & { signal?: AbortSignal };
@@ -13,14 +12,6 @@ type AsyncSourceOpts = ExtraOpts & { signal?: AbortSignal };
 function sourceOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
 	return { describeKind: "producer", ...opts } as NodeOptions<T>;
 }
-
-/** Options for {@link fromCron}. */
-export type FromCronOptions = ExtraOpts & {
-	/** Polling interval in ms. Default `60_000`. */
-	tickMs?: number;
-	/** Output format: `"timestamp_ns"` (default) emits wall-clock nanoseconds; `"date"` emits a `Date` object. */
-	output?: "timestamp_ns" | "date";
-};
 
 /** DOM-style event target (browser or `node:events`). */
 export type EventTargetLike = {
@@ -111,53 +102,6 @@ export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
 		scheduleNext();
 		return cleanup;
 	}, sourceOpts(rest));
-}
-
-/**
- * Polls on an interval; when the current minute matches a 5-field cron expression, emits once (see {@link parseCron}).
- *
- * @param expr - Cron string (`min hour dom month dow`).
- * @param opts - Producer options plus `tickMs` (default `60_000`) and `output` (`timestamp_ns` default, or `date` for `Date` values).
- * @returns `Node<number>` (nanosecond timestamp) or `Node<Date>` when `output: "date"`.
- *
- * @example
- * ```ts
- * import { fromCron } from "@graphrefly/graphrefly-ts";
- *
- * fromCron("0 9 * * 1");
- * ```
- *
- * @category extra
- */
-export function fromCron(expr: string, opts?: FromCronOptions & { output: "date" }): Node<Date>;
-export function fromCron(expr: string, opts?: FromCronOptions): Node<number>;
-export function fromCron(expr: string, opts?: FromCronOptions): Node<number | Date> {
-	const schedule: CronSchedule = parseCron(expr);
-	const { tickMs: tickOpt, output, ...rest } = opts ?? {};
-	const tickMs = tickOpt ?? 60_000;
-	const emitDate = output === "date";
-	return node<number | Date>(
-		(_data, a) => {
-			let lastFiredKey = -1;
-			const check = () => {
-				const now = new Date();
-				const key =
-					now.getFullYear() * 100_000_000 +
-					(now.getMonth() + 1) * 1_000_000 +
-					now.getDate() * 10_000 +
-					now.getHours() * 100 +
-					now.getMinutes();
-				if (key !== lastFiredKey && matchesCron(schedule, now)) {
-					lastFiredKey = key;
-					a.emit(emitDate ? now : wallClockNs());
-				}
-			};
-			check();
-			const id = setInterval(check, tickMs);
-			return () => clearInterval(id);
-		},
-		{ ...sourceOpts(rest), name: rest.name ?? `cron:${expr}` },
-	);
 }
 
 /**

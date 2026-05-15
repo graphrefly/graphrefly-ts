@@ -2,7 +2,8 @@
  * Settled/signal helpers.
  *
  * Moved from extra/sources/settled.ts during cleave A2.
- * keepalive extracted to base/meta/keepalive.ts.
+ * `keepalive` is substrate — it lives at `@graphrefly/pure-ts`
+ * (`packages/pure-ts/src/extra/sources/_keepalive.ts`), not here.
  */
 
 /**
@@ -15,8 +16,6 @@
  *   `timeout` from `extra/resilience` (lazy import to avoid a
  *   resilience → sources cycle).
  * - {@link nodeSignal} — `Node<boolean>` → `AbortSignal` bridge.
- * - {@link keepalive} — empty subscription that keeps a derived node wired
- *   for `.cache` reads.
  * - {@link reactiveCounter} — capped counter exposed as a `Node<number>`.
  */
 

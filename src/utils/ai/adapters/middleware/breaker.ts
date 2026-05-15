@@ -55,7 +55,7 @@ export function withLLMBreaker(
 			}
 		},
 	});
-	withLayer(adapter, "withBreaker", inner);
+	withLayer(adapter, "withLLMBreaker", inner);
 
 	return { adapter, breaker };
 }

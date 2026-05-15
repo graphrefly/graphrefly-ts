@@ -52,10 +52,10 @@ export default defineConfig({
 			"**/node_modules/**",
 			"dist/**",
 			"**/*.bench.ts",
-			// Presentation-layer tests: import adapters, SSE, webhooks, git-hook, cron,
-			// content-addressed-storage, etc. — moved to root src/__tests__/ by A2 cleave.
+			// Presentation-layer test moved to root src/__tests__/ by A2 cleave;
+			// pre-cleave substrate sources test (extra/sources.test.ts) was deleted
+			// in the post-cleave /qa pass (superseded by root sources test).
 			"src/__tests__/extra/session1-foundation.test.ts",
-			"src/__tests__/extra/sources.test.ts",
 		],
 		environment: "node",
 	},

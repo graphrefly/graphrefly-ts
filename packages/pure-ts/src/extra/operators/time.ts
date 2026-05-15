@@ -13,6 +13,9 @@ import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 import { subscribeOr } from "../../core/subscribe-error.js";
 
+// Inlined during cleave A2 (was imported from resilience/backoff.ts, which
+// moved to the presentation package — substrate must not import upward).
+// Keep in sync with the canonical NS_PER_MS in src/utils/resilience/backoff.ts.
 const NS_PER_MS = 1_000_000;
 
 import { type ExtraOpts, operatorOpts } from "./_internal.js";
