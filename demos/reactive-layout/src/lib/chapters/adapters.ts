@@ -1,4 +1,4 @@
-import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import {
 	analyzeAndMeasure,
 	CliMeasureAdapter,
@@ -6,7 +6,7 @@ import {
 	PrecomputedAdapter,
 	type ReactiveLayoutBundle,
 	reactiveLayout,
-} from "@graphrefly/graphrefly/patterns/reactive-layout";
+} from "@graphrefly/graphrefly/utils/reactive-layout";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
 
 export const ADAPTERS_SOURCE = `// Same topology, three adapters.

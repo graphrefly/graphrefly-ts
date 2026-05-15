@@ -1,5 +1,5 @@
-import type { Graph } from "@graphrefly/graphrefly/graph";
-import type { DemoShellHandle } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { Graph } from "@graphrefly/graphrefly";
+import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
 import { useEffect, useState } from "react";
 
 type NodeDetail = {

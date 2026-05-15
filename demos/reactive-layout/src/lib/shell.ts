@@ -1,9 +1,9 @@
-import type { Graph } from "@graphrefly/graphrefly/graph";
+import type { Graph } from "@graphrefly/graphrefly";
 import {
 	type DemoShellHandle,
 	demoShell,
 	type NodeRegistry,
-} from "@graphrefly/graphrefly/patterns/demo-shell";
+} from "@graphrefly/graphrefly/utils/demo-shell";
 import { getMeasurementAdapter, LAYOUT_FONT } from "./measure-adapter.js";
 
 /**

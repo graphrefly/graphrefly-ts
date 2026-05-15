@@ -1,10 +1,10 @@
-import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import {
 	type ContentBlock,
 	type ReactiveBlockLayoutBundle,
 	reactiveBlockLayout,
 	SvgBoundsAdapter,
-} from "@graphrefly/graphrefly/patterns/reactive-layout";
+} from "@graphrefly/graphrefly/utils/reactive-layout";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
 
 export const BLOCKS_SOURCE = `// Mixed content as a reactive graph.

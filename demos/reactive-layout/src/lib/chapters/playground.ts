@@ -1,9 +1,9 @@
-import type { Graph } from "@graphrefly/graphrefly/graph";
-import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { Graph } from "@graphrefly/graphrefly";
+import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import {
 	type ReactiveLayoutBundle,
 	reactiveLayout,
-} from "@graphrefly/graphrefly/patterns/reactive-layout";
+} from "@graphrefly/graphrefly/utils/reactive-layout";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
 
 export const PLAYGROUND_SOURCE = `// Create one reactive-layout graph. The 4 state inputs are the knobs;

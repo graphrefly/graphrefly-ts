@@ -1,10 +1,10 @@
-import { DATA } from "@graphrefly/graphrefly/core";
-import { fromRaf } from "@graphrefly/graphrefly/extra/sources";
+import { DATA } from "@graphrefly/graphrefly";
+import { fromRaf } from "@graphrefly/graphrefly/base/sources/browser";
 import type {
 	FlowContainer,
 	Obstacle,
 	PositionedLine,
-} from "@graphrefly/graphrefly/patterns/reactive-layout";
+} from "@graphrefly/graphrefly/utils/reactive-layout";
 import { useEffect, useRef, useState } from "react";
 import { buildFlowChapter, type FlowChapter } from "../../lib/chapters/flow.js";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types.js";

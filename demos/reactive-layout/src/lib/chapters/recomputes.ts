@@ -1,5 +1,5 @@
-import { monotonicNs } from "@graphrefly/graphrefly/core";
-import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
+import { monotonicNs } from "@graphrefly/graphrefly";
+import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import {
 	analyzeAndMeasure,
 	computeCharPositions,
@@ -9,7 +9,7 @@ import {
 	type PreparedSegment,
 	type ReactiveLayoutBundle,
 	reactiveLayout,
-} from "@graphrefly/graphrefly/patterns/reactive-layout";
+} from "@graphrefly/graphrefly/utils/reactive-layout";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
 
 export const RECOMPUTES_SOURCE = `// Reactive mode — incremental recompute via equals + per-dep fan-out.

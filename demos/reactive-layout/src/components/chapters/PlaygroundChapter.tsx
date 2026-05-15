@@ -1,5 +1,5 @@
-import type { DATA as _DATA } from "@graphrefly/graphrefly/core";
-import type { ReactiveLayoutBundle } from "@graphrefly/graphrefly/patterns/reactive-layout";
+import type { DATA as _DATA } from "@graphrefly/graphrefly";
+import type { ReactiveLayoutBundle } from "@graphrefly/graphrefly/utils/reactive-layout";
 import { useState } from "react";
 import { buildPlaygroundChapter, type PlaygroundChapter } from "../../lib/chapters/playground";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types";
