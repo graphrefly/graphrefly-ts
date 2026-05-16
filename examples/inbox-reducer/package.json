@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/inbox-reducer",
 	"private": true,
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"type": "module",
 	"description": "Inbox reducer — 50 mock emails → 3-bullet morning brief. Exercises resilientAdapter, withReplayCache, withDryRun + observableAdapter, promptNode, and graph.explain against a real LLM provider.",
 	"scripts": {
