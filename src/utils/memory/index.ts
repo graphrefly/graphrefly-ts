@@ -1416,3 +1416,30 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 	}) as KnowledgeGraph<TEntity, TRelation>;
 	return out;
 }
+
+// ── DS-14.7: reactiveFactStore (static-topology MEME L2/L3 substrate) ─────
+// Lives in its own file (`fact-store.ts`) — re-exported here so the
+// `utils/memory` barrel stays the single import surface alongside
+// collection / vectorIndex / knowledgeGraph.
+export {
+	type AdmissionFilter,
+	type CascadeEvent,
+	type CascadeOverflow,
+	type CascadeReason,
+	type DecayPolicy,
+	type DependentsIndex,
+	type FactId,
+	type FactStore,
+	type FactStoreAuditRecord,
+	type MemoryAnswer,
+	type MemoryFragment,
+	type MemoryQuery,
+	type OutcomeSignal,
+	type ReactiveFactStoreConfig,
+	type ReactiveFactStoreGraph,
+	type ReviewRequest,
+	reactiveFactStore,
+	type ScoringPolicy,
+	type ShardKey,
+	type StoreReadHandle,
+} from "./fact-store.js";
