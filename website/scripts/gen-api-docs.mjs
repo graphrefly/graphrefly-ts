@@ -384,6 +384,34 @@ function findExportedConstAlias(sourceFile, name) {
 	return hit;
 }
 
+/**
+ * `export const foo = (...) => ...` (or a function expression) — an arrow/function
+ * literal bound to an exported const. JSDoc lives on the VariableStatement, params
+ * and return type live on the arrow node itself.
+ */
+function findExportedConstArrow(sourceFile, name) {
+	let hit = null;
+	function walk(node) {
+		if (hit != null) return;
+		if (ts.isVariableStatement(node)) {
+			const isExported = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+			if (isExported) {
+				for (const d of node.declarationList.declarations) {
+					if (!ts.isIdentifier(d.name) || d.name.text !== name) continue;
+					const init = d.initializer;
+					if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
+						hit = { statement: node, declaration: d, arrow: init };
+						return;
+					}
+				}
+			}
+		}
+		ts.forEachChild(node, walk);
+	}
+	walk(sourceFile);
+	return hit;
+}
+
 // ─── JSDoc extraction ───────────────────────────────────────────────────────
 
 /**
@@ -563,6 +591,23 @@ function getOverloadSignatures(overloads, source) {
 	});
 }
 
+/**
+ * Build a declaration-style signature for an arrow/function-expression const
+ * (the arrow node itself carries no name, so reattach it).
+ */
+function getArrowSignatureText(name, arrow) {
+	const asyncMod = arrow.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)
+		? "async "
+		: "";
+	const tps =
+		arrow.typeParameters && arrow.typeParameters.length > 0
+			? `<${arrow.typeParameters.map((t) => t.getText()).join(", ")}>`
+			: "";
+	const ps = arrow.parameters.map((p) => p.getText()).join(", ");
+	const rt = arrow.type ? `: ${arrow.type.getText()}` : "";
+	return `${asyncMod}${name}${tps}(${ps})${rt}`;
+}
+
 // ─── Parameter table from function params ───────────────────────────────────
 
 function extractParams(node, jsdocParams, source) {
@@ -735,6 +780,25 @@ function processFunction(name, filePath) {
 
 	const primaryNode = implementation || overloads[overloads.length - 1];
 	if (!primaryNode) {
+		// `export const x = (...) => ...` — arrow/function-expression literal.
+		const arrowConst = findExportedConstArrow(sourceFile, name);
+		if (arrowConst) {
+			const jsDoc = getJSDoc(arrowConst.statement) ?? getJSDoc(arrowConst.declaration);
+			const jsdocData = extractJSDocData(jsDoc);
+			return {
+				name,
+				description: jsdocData.description,
+				signatures: [getArrowSignatureText(name, arrowConst.arrow)],
+				params: extractParams(arrowConst.arrow, jsdocData.params ?? [], source),
+				returns: jsdocData.returns,
+				returnsTable: jsdocData.returnsTable,
+				remarks: jsdocData.remarks,
+				examples: jsdocData.examples,
+				seeAlso: jsdocData.seeAlso,
+				optionsRows: jsdocData.optionsRows || [],
+				optionsTypeName: jsdocData.optionsType,
+			};
+		}
 		// Try as a class (e.g., Graph)
 		const cls = findExportedClass(sourceFile, name);
 		if (cls) {
