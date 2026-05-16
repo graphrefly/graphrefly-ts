@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@graphrefly/pure-ts':
-        specifier: workspace:^
+        specifier: workspace:>=0.45.0
         version: link:packages/pure-ts
     devDependencies:
       '@anthropic-ai/sdk':
