@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/framework-vue",
 	"private": true,
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"type": "module",
 	"description": "Vue 3 binding for GraphReFly — useStore / useSubscribe.",
 	"scripts": {
