@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/framework-solid",
 	"private": true,
-	"version": "0.0.2",
+	"version": "0.0.1",
 	"type": "module",
 	"description": "SolidJS binding for GraphReFly — useStore / useSubscribe.",
 	"scripts": {

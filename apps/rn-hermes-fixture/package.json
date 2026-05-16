@@ -1,6 +1,6 @@
 {
 	"name": "@graphrefly/rn-hermes-fixture",
-	"version": "0.0.1",
+	"version": "0.0.0",
 	"private": true,
 	"description": "Periodic on-device RN/Hermes verification for @graphrefly/pure-ts (graphrefly-ts#4). Expo SDK 55 official matrix (RN 0.83.6). Real Hermes VM + RN polyfills, dev + release/bytecode. The per-commit faithful compile gate lives in scripts/hermes-smoke.",
 	"main": "index.ts",

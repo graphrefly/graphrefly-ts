@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/spending-alerts",
 	"private": true,
-	"version": "0.0.2",
+	"version": "0.0.1",
 	"type": "module",
 	"description": "Spending alerts — 7-hop deterministic pipeline showing structural causal tracing via explainPath. Node-runnable mirror of the browser demo.",
 	"scripts": {

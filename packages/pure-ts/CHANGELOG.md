@@ -1,11 +1,5 @@
 # Changelog — @graphrefly/pure-ts
 
-## 1.0.0
-
-### Minor Changes
-
-- [`93198c2`](https://github.com/graphrefly/graphrefly-ts/commit/93198c226f94f6a404ba2df729d808985ea3fa6c) Thanks [@clfhhc](https://github.com/clfhhc)! - substrate changes
-
 ## 0.45.0
 
 ### Minor Changes

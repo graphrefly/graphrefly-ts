@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/nestjs-order-flow",
 	"private": true,
-	"version": "0.0.2",
+	"version": "0.0.1",
 	"type": "module",
 	"description": "NestJS + GraphReFly — full CQRS order flow with SSE, WebSocket, and admin endpoints.",
 	"scripts": {
