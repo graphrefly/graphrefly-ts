@@ -3,7 +3,7 @@ SESSION: DS-native-substrate-contract
 DATE: 2026-05-15
 TOPIC: Reconcile the unresolved conflict between D080 (async-everywhere public API across all substrate siblings, explicitly deferred to near-1.0) and Q28/D198 (install-time `overrides` drop-in: redirect `@graphrefly/pure-ts` → `@graphrefly/native`, "locked 2026-05-14"). Surfaced while attempting cleave-/qa N1's "build the real @graphrefly/native wrapper": the drop-in is non-functional and not well-posed. Decide the sync-vs-async public substrate contract + sequencing before any native-wrapper effort.
 REPO: graphrefly-ts (TS-primary; the conflict spans graphrefly-ts presentation + graphrefly-rs napi)
-STATUS: ✅ RESOLVED 2026-05-15 — locked as **D206** (`docs/rust-port-decisions.md`). Q-S1 = Option **A** + Option **C** as a committed follow-on slice. See "RESOLUTION (LOCKED — D206)" below.
+STATUS: ✅ RESOLVED 2026-05-15 — locked as **D206** (`docs/rust-port-decisions.md`). Q-S1 = Option **A** + Option **C** as a committed follow-on slice. **Option C LANDED 2026-05-15** (`/porting-to-rs`, D206/D207) — see "OPTION C — LANDED" below. See "RESOLUTION (LOCKED — D206)" below.
 SUPERSEDES: Q28/D198's "install-time overrides drop-in is a locked working mechanism" framing (CLAUDE.md "Three-package install-time model") is hereby **deferred pending D080**; the D080 "Deferred 1" note in SESSION-rust-port-architecture.md is reconciled here (D206).
 ---
 
@@ -138,3 +138,15 @@ Nothing here is locked. The following must be decided by the user.
 - Doc-truth corrections (commits ts `efd4e61` / rs `16e28a8`): `src/index.ts:11+` header, `@graphrefly/native` `package.json` description, `CLAUDE.md` install-time-model section, `docs/optimizations.md`, `~/src/graphrefly-rs/docs/migration-status.md`.
 - Native publish-prep (commit rs `5424047`): `0.0.1`, `publishConfig.access=public`, honest async-preview description; `npm publish --dry-run` clean; gitignored binary verified (CI umbrella ships binary-free).
 - 9Q walk authored; **user-ratified → D206**: Q-S1 = Option A + Option C committed follow-on slice (plan above). Native publish UNBLOCKED (preview); Option C is the next `/porting-to-rs` slice; B/D080 stays deferred. `native-v0.0.1` tag push remains the human action.
+
+## OPTION C — LANDED 2026-05-15 (`/porting-to-rs`, D206/D207)
+
+The committed follow-on slice is **DONE**. `@graphrefly/native` now ships a hand-written ergonomic ASYNC public surface; the parity harness consumes it.
+
+- **Shipped wrapper:** `~/src/graphrefly-rs/crates/graphrefly-bindings-js/wrapper.js` (+ `wrapper.d.ts`) — `createNativeImpl()` over the napi `Bench*` classes, shape-mirroring the async `Impl` contract; no `@graphrefly/pure-ts` dep; owns its own protocol symbols. Factored OUT of the parity harness's former private ~1800-LOC adapter (single source of truth — parity-vs-real divergence eliminated).
+- **`package.json`:** `exports` map (bare `.` → wrapper; raw napi → `./napi`; `main` napi loader kept); `0.0.1` → `0.1.0`; description/`comment_for_humans` reframed to async-public-API.
+- **2 new napi fns:** `BenchCore.describeNode` (sync; D207 — reuses Core read-side describe-projection accessors, NO new `graphrefly-core` method) + `BenchCore.sha256Hex` (async at boundary; sync hashing in new `graphrefly_core::hash::sha256_hex` — NO tokio in Core per D070/D077).
+- **N1 = 5** (`RingBuffer`, `ResettableTimer`, `describeNode`, `sha256Hex`, `sourceOpts`) exposed on the surface. `wrapSubscribeHook` is NOT a 6th — deleted from the substrate in `c196981`; `types.ts` is authoritative. Stale "6/wrapSubscribeHook" wording corrected in migration-status item 8 + rust.ts comment.
+- **Parity wiring:** `packages/parity-tests/impls/rust.ts` rewritten (~1836 → ~135 LOC) consuming the shipped surface via a per-test-disposing proxy; cast tightened `as unknown as Impl` → **`as Impl`**. `pnpm test:parity` = 30 files / 331 passed / 1 skipped (intentional `tier-3-restore:95`) / 0 failed.
+- **Docs:** `~/src/graphrefly-rs/docs/migration-status.md` item-8 marked DONE-as-async + N1=5 correction + closing section; `porting-deferred.md` Option-C known-limitations entry added. `docs/rust-port-decisions.md` D206/D207 already logged centrally (not edited here).
+- **Explicit non-goals preserved:** still NOT a sync drop-in; `@graphrefly/graphrefly` still does NOT consume native (Option B / D080 stays deferred).

@@ -23,11 +23,12 @@ describe.each(impls)("F17 release_callback re-install — $name", (impl) => {
 	test.runIf(impl.name === "rust-via-napi")(
 		"second setReleaseCallback overrides first; old TSFN no longer fires",
 		async () => {
-			// We can't reuse `getState()`'s shared BenchCore — the singleton's
-			// release_callback was already installed by `getState()`. Construct
-			// a fresh BenchCore directly to control the callback lifecycle.
-			//
-			const native = require("@graphrefly/native") as typeof import("@graphrefly/native");
+			// This Rust-only regression test pokes the raw napi `BenchCore`
+			// directly to control the release-callback lifecycle. Since the
+			// Option C slice (D206/D207) added an `exports` map — bare
+			// `@graphrefly/native` now resolves to the hand-written async
+			// wrapper — the raw napi classes live at the `/napi` subpath.
+			const native = require("@graphrefly/native/napi") as typeof import("@graphrefly/native/napi");
 			const core = new native.BenchCore();
 
 			const aReleases: number[] = [];
