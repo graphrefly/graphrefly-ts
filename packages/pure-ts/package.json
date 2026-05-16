@@ -1,6 +1,6 @@
 {
 	"name": "@graphrefly/pure-ts",
-	"version": "0.45.0",
+	"version": "0.46.0",
 	"description": "Pure TypeScript implementation of GraphReFly. Universal fallback sibling for the @graphrefly/graphrefly facade — works without Rust deps. Permanent first-class peer alongside @graphrefly/native and @graphrefly/wasm.",
 	"repository": {
 		"type": "git",
