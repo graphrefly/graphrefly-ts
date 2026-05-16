@@ -592,6 +592,16 @@ export type GraphCheckpointRecord = {
 	seq: number;
 	timestamp_ns: number;
 	format_version: number;
+	/**
+	 * DS-14.5.A delta #7 (Q3/Q8) — lifecycle scope tag. Absent / `"data"` for
+	 * the value-driven baseline+WAL path (the existing Phase 14.6 behavior;
+	 * lifecycle is then carried per-`WALFrame`). `"spec"` marks a
+	 * topology-version-triggered spec snapshot: a `mode:"full"` record whose
+	 * `snapshot` is the `describe({ detail:"spec" })` projection, written at
+	 * wave boundary only when `_topologyVersion` advanced (Q8 squelch). Restore
+	 * filters these via `restoreSnapshot({ lifecycle:["spec"] })`.
+	 */
+	lifecycle?: "spec" | "data";
 } & ({ mode: "full"; snapshot: GraphPersistSnapshot } | { mode: "diff"; diff: GraphWALDiff });
 
 /**
@@ -1589,6 +1599,43 @@ export class Graph {
 	private _factory?: string;
 	private _factoryArgs?: unknown;
 
+	/**
+	 * Monotonic topology-mutation counter (DS-14.5.A Q1 lock; spec-snapshot
+	 * trigger). Bumped O(1) at every structural mutation: `add`, `remove`
+	 * (node + mount-cycle/unmount path), `mount`, `tagFactory`, and
+	 * `setDeps`/`_setDeps` rewire. Read at wave boundary by
+	 * `attachSnapshotStorage`'s spec-snapshot hook (Q8 squelch:
+	 * `_topologyVersion === lastPersistedSpecVersion` → skip).
+	 *
+	 * **Distinct from `_versioningLevel` / `_schemaVersion`** (V0 codec /
+	 * migration concerns) — this counter tracks *shape* drift only, never
+	 * value or schema. Not persisted in the snapshot envelope; it is a
+	 * runtime-local dirty signal, recomputed from zero on a fresh process.
+	 */
+	private _topologyVersion = 0;
+
+	/**
+	 * @internal O(1) topology-version bump. Called from every structural
+	 * mutation site. Pure increment — no allocation, no emission (the
+	 * spec-snapshot consumer reads this lazily at wave boundary; eager
+	 * emission here would re-introduce the per-wave noise Q8 rejects).
+	 */
+	private _bumpTopologyVersion(): void {
+		this._topologyVersion += 1;
+	}
+
+	/**
+	 * Current topology-mutation version (DS-14.5.A Q1). Increments by 1 per
+	 * structural mutation. Inspection / test surface for the spec-snapshot
+	 * trigger; consumers gate persistence on equality with their last
+	 * persisted value rather than diffing the graph.
+	 *
+	 * @category observability
+	 */
+	get topologyVersion(): number {
+		return this._topologyVersion;
+	}
+
 	constructor(name: string, opts?: GraphOptions) {
 		if (name === "") {
 			throw new Error("Graph name must be non-empty");
@@ -1633,6 +1680,10 @@ export class Graph {
 		// (otherwise `tagFactory("a", {x:1})` then `tagFactory("b")` keeps {x:1}
 		// paired with "b", which is mismatched provenance).
 		this._factoryArgs = factoryArgs;
+		// DS-14.5.A Q1 — `tagFactory` mutates the spec projection (`meta.factory`
+		// surfaces in `describe({detail:"spec"})`), so it is a topology-dirty
+		// site even though it emits no `TopologyEvent`.
+		this._bumpTopologyVersion();
 		return this;
 	}
 
@@ -1827,6 +1878,7 @@ export class Graph {
 		GRAPH_OWNER.set(node, this);
 		// Edges are derived on demand from node `_deps` (see `edges()`) — no
 		// stored registry to keep in sync. See Unit 7 of the graph review.
+		this._bumpTopologyVersion(); // DS-14.5.A Q1
 		this._emitTopology({ kind: "added", name, nodeKind: "node" });
 		// Install the initial annotation, if supplied. The `_annotations` map
 		// always gets the entry so annotations aren't silently lost when the
@@ -1905,6 +1957,7 @@ export class Graph {
 			this._mounts.delete(name);
 			child._parent = undefined;
 			teardownMountedGraph(child);
+			this._bumpTopologyVersion(); // DS-14.5.A Q1 (unmount path)
 			this._emitTopology({ kind: "removed", name, nodeKind: "mount", audit });
 			return audit;
 		}
@@ -1935,6 +1988,7 @@ export class Graph {
 			this._nodeToName.delete(node);
 		}
 		const audit: GraphRemoveAudit = { kind: "node", nodes: [name], mounts: [] };
+		this._bumpTopologyVersion(); // DS-14.5.A Q1
 		this._emitTopology({ kind: "removed", name, nodeKind: "node", audit });
 		return audit;
 	}
@@ -2108,6 +2162,10 @@ export class Graph {
 			added: addedNodes.map(labelOf).sort(),
 			kept: keptNodes.map(labelOf).sort(),
 		};
+		// DS-14.5.A Q1 — bump BEFORE the isolated emit: the rewire already
+		// landed in `_setDeps`, so the spec projection is dirty regardless of
+		// whether a topology subscriber throws.
+		this._bumpTopologyVersion();
 		// Phase 13.8 QA L: topology emission runs AFTER `_setDeps` mutated
 		// state. If a subscriber throws, we must not propagate — the rewire
 		// has already landed and the caller would see a misleading exception
@@ -2707,6 +2765,7 @@ export class Graph {
 		walkMountSubtree(child as Graph);
 		this._mounts.set(name, child);
 		child._parent = this;
+		this._bumpTopologyVersion(); // DS-14.5.A Q1
 		this._emitTopology({ kind: "added", name, nodeKind: "mount" });
 		return child;
 	}
@@ -5424,6 +5483,17 @@ export class Graph {
 			savePending: Promise<void> | undefined;
 			/** Resolves once `seq` has been bootstrapped from existing WAL frames. */
 			bootstrap: Promise<void> | undefined;
+			/**
+			 * DS-14.5.A delta #7 (Q8 squelch) — the `_topologyVersion` value at
+			 * the last `lifecycle:"spec"` snapshot write for this tier. The
+			 * wave-boundary hook skips when `graph._topologyVersion ===
+			 * lastPersistedSpecVersion` (no shape drift since last spec write).
+			 * Seeded to `graph._topologyVersion` at attach time — the spec at
+			 * attach is the implicit reference baseline, so only post-attach
+			 * topology drift is persisted (Q8). Advanced to the version
+			 * actually written on each spec flush.
+			 */
+			lastPersistedSpecVersion: number;
 		};
 		const states: TierState[] = pairs.map((pair) => ({
 			snapshotTier: pair.snapshot,
@@ -5439,6 +5509,12 @@ export class Graph {
 			disposed: false,
 			savePending: undefined,
 			bootstrap: undefined,
+			// DS-14.5.A Q8 — the spec at attach time is the implicit
+			// reference baseline; only topology DRIFT *after* attach is
+			// persisted as a spec snapshot. Seeding to the current version
+			// (not -1) prevents an attach-time spurious spec write that would
+			// otherwise collide with the value baseline on a shared tier.
+			lastPersistedSpecVersion: this._topologyVersion,
 		}));
 
 		const snapshotTiers = pairs.map((p) => p.snapshot);
@@ -5621,6 +5697,107 @@ export class Graph {
 			}
 		};
 
+		// DS-14.5.A delta #7 — spec-snapshot write (Q3/Q8). A
+		// topology-version-triggered `mode:"full"`, `lifecycle:"spec"` record
+		// whose `snapshot` is the `describe({detail:"spec"})` projection.
+		// Serialized through the SAME `s.savePending` chain as `runFlush` so a
+		// value flush and a spec flush never race on `s.seq`. Q8 squelch: the
+		// caller (`maybeFlushSpec`) only invokes this when `_topologyVersion`
+		// advanced past `s.lastPersistedSpecVersion`; this fn re-reads the
+		// version at write commit time so the recorded watermark reflects the
+		// actual persisted shape (handles same-wave bump-and-collapse).
+		const runSpecFlush = (s: TierState): void => {
+			if (s.disposed) return;
+			const performWork = async (): Promise<void> => {
+				if (s.bootstrap) await s.bootstrap;
+				if (s.disposed) return;
+				const versionAtWrite = this._topologyVersion;
+				// Re-check under serialization: an earlier queued spec flush in
+				// this same chain may have already persisted this version.
+				if (versionAtWrite === s.lastPersistedSpecVersion) return;
+				const { expand: _e, ...spec } = this.describe({ detail: "spec" });
+				const specSnapshot = { ...spec, version: 1 } as GraphPersistSnapshot;
+				const baselineSeq = s.seq + 1;
+				const record: GraphCheckpointRecord = {
+					name: this.name,
+					mode: "full",
+					lifecycle: "spec",
+					snapshot: specSnapshot,
+					seq: baselineSeq,
+					timestamp_ns: wallClockNs(),
+					format_version: SNAPSHOT_VERSION,
+				};
+				if (s.snapshotTier.filter && !s.snapshotTier.filter(record)) {
+					// Filtered out — still advance the watermark so we don't
+					// re-attempt the identical filtered write every wave.
+					s.lastPersistedSpecVersion = versionAtWrite;
+					return;
+				}
+				try {
+					await Promise.resolve(s.snapshotTier.save(record));
+				} catch (error) {
+					options.onError?.(error, s.snapshotTier);
+					return;
+				}
+				if (s.disposed) return;
+				s.seq = baselineSeq;
+				s.lastPersistedSpecVersion = versionAtWrite;
+			};
+			const prev = s.savePending ?? Promise.resolve();
+			const next = prev.then(
+				() => performWork(),
+				() => performWork(),
+			);
+			s.savePending = next
+				.catch((err) => {
+					options.onError?.(err, s.snapshotTier);
+				})
+				.finally(() => {
+					if (s.savePending === next) s.savePending = undefined;
+				});
+		};
+
+		// Q8 squelch gate — skip the spec write when no topology mutation has
+		// landed since this tier's last spec snapshot. O(1) integer compare;
+		// no graph diff.
+		const maybeFlushSpec = (s: TierState): void => {
+			if (s.disposed) return;
+			if (this._topologyVersion === s.lastPersistedSpecVersion) return;
+			try {
+				runSpecFlush(s);
+			} catch (error) {
+				options.onError?.(error, s.snapshotTier);
+			}
+		};
+
+		// Wave-boundary coalescer (Q8 — NO timer, reuse the `_describeReactive`
+		// `registerBatchFlushHook` pattern). Subscribing to `this.topology`
+		// fires the producer for every structural mutation; we coalesce N
+		// per-wave topology events into ONE spec-version check at the head of
+		// the next drain. Outside an explicit batch the hook fires immediately
+		// (sync-wave parity). `tagFactory` emits no `TopologyEvent`, so a
+		// dedicated check also runs at dispose and is reachable via the
+		// version compare on the next topology event; callers needing an
+		// immediate spec flush after a lone `tagFactory` can dispose the
+		// handle (dispose drains pending saves).
+		let specBumpPending = false;
+		const scheduleSpecCheck = (): void => {
+			if (specBumpPending) return;
+			specBumpPending = true;
+			registerBatchFlushHook(() => {
+				specBumpPending = false;
+				for (const s of states) maybeFlushSpec(s);
+			});
+		};
+		const specTopoUnsub = this.topology.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					scheduleSpecCheck();
+					return;
+				}
+			}
+		});
+
 		const onEvent = (path: string, messages: Messages): void => {
 			const triggeredByTier = messages.some((m) => {
 				const tier = this.config.messageTier(m[0]);
@@ -5675,6 +5852,12 @@ export class Graph {
 
 		const dispose = async () => {
 			off();
+			specTopoUnsub();
+			// DS-14.5.A delta #7 — final spec-version reconciliation. Covers
+			// the lone-`tagFactory` case (emits no `TopologyEvent`, so the
+			// wave-boundary subscriber never fired) and any pending coalesced
+			// bump: persist the current shape before draining if it drifted.
+			for (const s of states) maybeFlushSpec(s);
 			// Drain in-flight saves before marking disposed so late
 			// performWork() calls don't bail on the disposed guard
 			// while frames are still being written (race with
@@ -5758,6 +5941,50 @@ export class Graph {
 				`Graph.restoreSnapshot: only mode:"diff" is implemented. For mode:"full" use Graph.restore(snapshot) directly or Graph.fromStorage(name, tiers).`,
 				{ mode: opts.mode as string },
 			);
+		}
+
+		// DS-14.5.A delta #7 — spec-only restore fast path. A
+		// `lifecycle:"spec"` checkpoint is a `mode:"full"` baseline (the
+		// `describe({detail:"spec"})` projection), NOT a diff stream — replay
+		// it by applying the full snapshot, skipping the WAL walk entirely.
+		//
+		// Engages ONLY when (a) the filter is exactly `["spec"]`, (b) the
+		// source is a tier handle, AND (c) the tier's latest record is
+		// actually a `lifecycle:"spec"` full baseline. When the tier holds a
+		// normal value baseline (no `lifecycle` tag, or `"data"`), this is a
+		// `["spec"]`-scoped *diff* replay over a value baseline — fall through
+		// to the existing WAL-diff path, which applies the value baseline then
+		// filters WAL frames to the spec lifecycle (the pre-existing Phase
+		// 14.6 semantic). Peeking `load()` here is cheap and idempotent
+		// (the diff path re-loads it).
+		if (
+			opts.lifecycle != null &&
+			opts.lifecycle.length === 1 &&
+			opts.lifecycle[0] === "spec" &&
+			!(Symbol.asyncIterator in (opts.source as object))
+		) {
+			const handle = opts.source as {
+				tier: SnapshotStorageTier<GraphCheckpointRecord>;
+			};
+			let raw: unknown;
+			try {
+				raw = await Promise.resolve(handle.tier.load?.());
+			} catch {
+				raw = undefined; // defer error semantics to the diff path below
+			}
+			if (raw != null && typeof raw === "object" && !Array.isArray(raw)) {
+				const record = raw as GraphCheckpointRecord;
+				if (record.mode === "full" && record.lifecycle === "spec") {
+					this.restore(record.snapshot);
+					return {
+						replayedFrames: 0,
+						skippedFrames: 0,
+						finalSeq: record.seq,
+						phases: [{ lifecycle: "spec", frames: 0 }],
+					};
+				}
+			}
+			// else: not a spec baseline — fall through to the diff path.
 		}
 
 		// Phase 14.6 fix J — `lifecycle: []` silently no-ops (filter rejects
