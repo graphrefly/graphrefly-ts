@@ -1,5 +1,33 @@
 # [0.44.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.43.0...v0.44.0) (2026-04-29)
 
+## 0.47.0
+
+### Minor Changes
+
+- [`f08b7cf`](https://github.com/graphrefly/graphrefly-ts/commit/f08b7cf8b62ad522a1da5c4664ef719e19e5d7f0) Thanks [@clfhhc](https://github.com/clfhhc)! - memo:Re consumer follow-ups (rebuildable-projection story + ergonomics):
+
+  - **`reactiveFactStore`** — opt-in `recordIngest?: boolean` config exposes a
+    payload-carrying `ingestLog: ReactiveLogBundle<MemoryFragment<T>>`.
+    `attachStorage` it (with `bigintJsonCodecFor`) and replay entries into
+    `config.ingest` on restart to rebuild a byte-identical store (cascade
+    `validTo` is now deterministically derived from the triggering root).
+  - **`appendLogStorage`** — new `mode?: "append" | "overwrite"` option
+    (`"append"` default = accumulate/read-merge, unchanged; `"overwrite"` =
+    snapshot, replace key per flush). Contradictory JSDoc clarified — it is a
+    true logical append log; callers do not need a custom tier.
+  - **`ReactiveLogBundle.attach`** — new `attach(upstream, { skipCachedReplay })`
+    option to drop the push-on-subscribe cached-replay burst (avoids
+    double-counting when attaching after a replay).
+
+  Migration note: `harnessLoop` moved export paths — it is now
+  `@graphrefly/graphrefly/presets/harness` (was
+  `@graphrefly/pure-ts/patterns/harness`, which now errors with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`). The root barrel re-export is unchanged.
+
+### Patch Changes
+
+- [`36ff7df`](https://github.com/graphrefly/graphrefly-ts/commit/36ff7df3e4fd843ce630ad388921ff33e64a37e1) Thanks [@clfhhc](https://github.com/clfhhc)! - fix rxjs dependencies and data dispatch in agentic memory
+
 ## 0.46.0
 
 ### Minor Changes

@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/harness-refine-hello",
 	"private": true,
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"type": "module",
 	"description": "Smallest possible end-to-end wiring of harnessLoop + refineExecutor + evalVerifier. One intake item, one refined artifact, one reactive re-eval.",
 	"scripts": {
