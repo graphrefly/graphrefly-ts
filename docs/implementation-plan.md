@@ -1644,12 +1644,12 @@ Captured here so Phase 16 doesn't underbid scope:
 |---|---|---|---|---|
 | 1 | README + Wave 2 launch copy rewrite | S | NOW (post-DS-14 lock) | None |
 | ~~2~~ | ~~Phase 16 MCP server reframe~~ — REMOVED 2026-05-11; MCP server dropped from library scope | - | - | - |
-| 3 | `meta.owner` spec annotation in [GRAPHREFLY-SPEC.md](~/src/graphrefly/GRAPHREFLY-SPEC.md) | S | Phase 14.5 | None |
-| 4 | COMPOSITION-GUIDE-PATTERNS §N "Multi-agent subgraph ownership" | M | Phase 14.5 | DS-14.5.A walk |
-| 5 | `validateOwnership(spec, prDiff)` lint helper | S | Phase 14.5 | (3) |
+| 3 ✅ | `meta.owner` spec annotation in [GRAPHREFLY-SPEC.md](~/src/graphrefly/GRAPHREFLY-SPEC.md) — landed 2026-05-15 (`/dev-dispatch` Phase 3): spec §2.3a + INV-OWNER-1 (Q7 runtime ABAC) / INV-OWNER-2 (Q5 PR lint) | S | Phase 14.5 | None |
+| 4 ✅ | COMPOSITION-GUIDE-PATTERNS §47 "Multi-agent subgraph ownership" — landed 2026-05-15: registry row + §47 (lazy/subscription-order/topic-wire-back/no-imperative; cross-refs §35/§44/§46) | M | Phase 14.5 | DS-14.5.A walk |
+| 5 ✅ | `validateOwnership(spec, prDiff)` lint helper — landed 2026-05-15 in `src/utils/graphspec/index.ts` (alongside `validateSpec`); `meta.factory` mapping (Q5 sub-flag locked), `Override-Owner:` trailer bypass; 11 tests | S | Phase 14.5 | (3) |
 | 6 | `graphrefly check-spec` CLI subcommand | S | Phase 16 §9.3c | None |
-| 7 | `Graph.attachStorage` spec-snapshot extension (topology-dirty triggered) | M | Phase 14.5 | Phase 14 changeset substrate stable |
-| 8 | `ownershipController({ ttl, heartbeatNs?, supervisor? })` preset (L1+L2; L3 hook) | M | Phase 14.5 | (4), (7) |
+| 7 ✅ | `Graph.attachStorage` spec-snapshot extension (topology-dirty triggered) — landed 2026-05-15: `Graph._topologyVersion` + `.topologyVersion` getter, 6 bump sites, `GraphCheckpointRecord.lifecycle:"spec"`, Q8 wave-boundary squelch (no timer), `restoreSnapshot({lifecycle:["spec"]})` fast path; 9 tests | M | Phase 14.5 | Phase 14 changeset substrate stable |
+| 8 ✅ | `ownershipController({ ttl, heartbeat?, supervisor? })` preset (L1+L2; L3 hook) — landed 2026-05-15 in `src/presets/harness/ownership-controller.ts` (name drift `heartbeatNs?`→`heartbeat?` resolved per Q2); consumes existing DS-14 `OwnershipChange`; Guard widened via `policyAllowing` (Q7, DS-13.5.B pattern); 10 tests | M | Phase 14.5 | (4), (7) |
 
 **Phase 14 interaction points (FLAG for in-flight changeset work):**
 

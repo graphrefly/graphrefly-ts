@@ -1,4 +1,5 @@
 import type { Actor } from "./actor.js";
+import { type Node, NodeImpl } from "./node.js";
 
 /**
  * Actions checked by {@link NodeGuard}. `write` covers both {@link Node.down} and
@@ -181,6 +182,60 @@ export function policyFromRules(rules: readonly PolicyRuleData[]): NodeGuard {
 			}
 		}
 	});
+}
+
+/**
+ * Reactive-options widening of {@link policy} (DS-14.5.A delta #8, Q7;
+ * follows the DS-13.5.B reactive-options pattern landed 2026-05-03).
+ *
+ * The closure-builder `policy()` form freezes its rules at construction.
+ * Multi-agent subgraph ownership needs the allow-set to *re-point* when an
+ * ownership claim is made / released / overridden, without rebuilding graph
+ * topology. `policyAllowing` accepts either a static actor-id allow-list OR a
+ * `Node<readonly string[]>` whose current cache is the live allow-list; the
+ * returned `NodeGuard` reads the latest value synchronously at write-check
+ * time (`Node.cache` is a sync getter — no async in the guard path).
+ *
+ * Semantics:
+ * - `action === "write"` (and `"signal"`): allowed iff `actor.id` is in the
+ *   current allow-set. Deny-by-default when the set is empty / SENTINEL
+ *   (`cache == null`) — an unclaimed subgraph denies every writer until a
+ *   claim names an owner (Q7 hard-block; the un-claimed case is closed, not
+ *   open).
+ * - `action === "observe"`: always allowed — ownership gates *writes*, not
+ *   reads (reviewers / supervisors must still inspect an owned subgraph).
+ * - other custom actions: deny-by-default (same as `policy()`).
+ *
+ * @param allowed - Static `readonly string[]` of permitted `Actor.id`s, OR a
+ *   `Node<readonly string[]>` reactive option (claim/release/override
+ *   re-emits the set).
+ *
+ * @example
+ * ```ts
+ * const owner = state<readonly string[]>(["agent-a"]);
+ * const g = policyAllowing(owner);
+ * g({ type: "llm", id: "agent-a" }, "write"); // true
+ * g({ type: "llm", id: "agent-b" }, "write"); // false
+ * owner.set(["agent-b"]);                       // claim handed over
+ * g({ type: "llm", id: "agent-b" }, "write"); // true (re-pointed, no rewire)
+ * ```
+ */
+export function policyAllowing(allowed: readonly string[] | Node<readonly string[]>): NodeGuard {
+	const readAllow = (): readonly string[] => {
+		if (allowed instanceof NodeImpl) {
+			const c = (allowed as Node<readonly string[]>).cache;
+			return Array.isArray(c) ? c : [];
+		}
+		return allowed as readonly string[];
+	};
+	return (actor, action) => {
+		if (action === "observe") return true;
+		if (action === "write" || action === "signal") {
+			const set = readAllow();
+			return set.includes(String(actor.id ?? ""));
+		}
+		return false;
+	};
 }
 
 const STANDARD_WRITE_TYPES = ["human", "llm", "wallet", "system"] as const;

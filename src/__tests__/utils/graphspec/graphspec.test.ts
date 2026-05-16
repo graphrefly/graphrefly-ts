@@ -10,6 +10,7 @@ import {
 	llmCompose,
 	llmRefine,
 	specDiff,
+	validateOwnership,
 	validateSpec,
 } from "../../../utils/graphspec/index.js";
 
@@ -281,6 +282,134 @@ describe("graphspec.validateSpec", () => {
 		});
 		expect(result.valid).toBe(false);
 		expect(result.errors.some((e) => e.includes("$b") && e.includes("not bound"))).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// validateOwnership (DS-14.5.A #5 — multi-agent subgraph ownership PR lint)
+// ---------------------------------------------------------------------------
+
+describe("graphspec.validateOwnership", () => {
+	/** A 2-node spec: "rl" tagged factory "rateLimiter" owned by "agent-a". */
+	const ownedSpec = {
+		name: "g",
+		nodes: {
+			rl: { type: "derived", deps: [], meta: { factory: "rateLimiter", owner: "agent-a" } },
+			plain: { type: "state", deps: [], meta: { factory: "state" } },
+		},
+	};
+
+	it("OK when the PR author IS the owner", () => {
+		const r = validateOwnership(ownedSpec, {
+			editedFactories: ["rateLimiter"],
+			author: "agent-a",
+		});
+		expect(r.ok).toBe(true);
+		expect(r.violations).toHaveLength(0);
+		expect(r.overridden).toHaveLength(0);
+	});
+
+	it("hard-fails on cross-owner edit (author !== meta.owner)", () => {
+		const r = validateOwnership(ownedSpec, {
+			editedFactories: ["rateLimiter"],
+			author: "agent-b",
+		});
+		expect(r.ok).toBe(false);
+		expect(r.violations).toHaveLength(1);
+		expect(r.violations[0]).toMatchObject({
+			node: "rl",
+			owner: "agent-a",
+			author: "agent-b",
+			factory: "rateLimiter",
+		});
+	});
+
+	it("silent when the edited node has no meta.owner annotation", () => {
+		const r = validateOwnership(ownedSpec, {
+			editedFactories: ["state"], // maps only to `plain` (no owner)
+			author: "agent-z",
+		});
+		expect(r.ok).toBe(true);
+		expect(r.violations).toHaveLength(0);
+	});
+
+	it("silent when the diff factory maps to no spec node (unmappable)", () => {
+		const r = validateOwnership(ownedSpec, {
+			editedFactories: ["somethingUnrelated"],
+			author: "agent-b",
+		});
+		expect(r.ok).toBe(true);
+		expect(r.violations).toHaveLength(0);
+	});
+
+	it("Override-Owner trailer bypasses the hard-fail and records audit trail", () => {
+		const r = validateOwnership(ownedSpec, {
+			editedFactories: ["rateLimiter"],
+			author: "agent-b",
+			commitMessage: "fix: urgent hotfix\n\nOverride-Owner: pager incident #42",
+		});
+		expect(r.ok).toBe(true);
+		expect(r.violations).toHaveLength(0);
+		expect(r.overridden).toHaveLength(1);
+		expect(r.overridden[0]).toMatchObject({ node: "rl", owner: "agent-a" });
+		expect(r.overrideReason).toBe("pager incident #42");
+	});
+
+	it("Override-Owner trailer is case-insensitive on the key", () => {
+		const r = validateOwnership(ownedSpec, {
+			editedFactories: ["rateLimiter"],
+			author: "agent-b",
+			commitMessage: "override-owner: lowercase works",
+		});
+		expect(r.ok).toBe(true);
+		expect(r.overrideReason).toBe("lowercase works");
+	});
+
+	it("empty-reason Override-Owner trailer does NOT bypass (must be non-empty)", () => {
+		const r = validateOwnership(ownedSpec, {
+			editedFactories: ["rateLimiter"],
+			author: "agent-b",
+			commitMessage: "Override-Owner:   ",
+		});
+		expect(r.ok).toBe(false);
+		expect(r.violations).toHaveLength(1);
+		expect(r.overrideReason).toBeUndefined();
+	});
+
+	it("meta.factory mapping flags every node sharing the edited factory", () => {
+		const multi = {
+			name: "g",
+			nodes: {
+				a: { type: "derived", deps: [], meta: { factory: "shared", owner: "agent-a" } },
+				b: { type: "derived", deps: [], meta: { factory: "shared", owner: "agent-a" } },
+				c: { type: "derived", deps: [], meta: { factory: "other", owner: "agent-a" } },
+			},
+		};
+		const r = validateOwnership(multi, { editedFactories: ["shared"], author: "agent-x" });
+		expect(r.ok).toBe(false);
+		expect(r.violations.map((v) => v.node).sort()).toEqual(["a", "b"]);
+	});
+
+	it("nodes without meta.factory are never flagged (cannot map from code diff)", () => {
+		const noFactory = {
+			name: "g",
+			nodes: { x: { type: "state", deps: [], meta: { owner: "agent-a" } } },
+		};
+		const r = validateOwnership(noFactory, { editedFactories: ["anything"], author: "agent-b" });
+		expect(r.ok).toBe(true);
+		expect(r.violations).toHaveLength(0);
+	});
+
+	it("non-object / malformed spec is silently OK (no spurious lint failure)", () => {
+		expect(validateOwnership(null, { editedFactories: ["x"], author: "a" }).ok).toBe(true);
+		expect(validateOwnership({}, { editedFactories: ["x"], author: "a" }).ok).toBe(true);
+		expect(validateOwnership({ nodes: [] }, { editedFactories: ["x"], author: "a" }).ok).toBe(true);
+	});
+
+	it("empty editedFactories yields no violations (nothing was edited)", () => {
+		const r = validateOwnership(ownedSpec, { editedFactories: [], author: "agent-b" });
+		expect(r.ok).toBe(true);
+		expect(r.violations).toHaveLength(0);
 	});
 });
 

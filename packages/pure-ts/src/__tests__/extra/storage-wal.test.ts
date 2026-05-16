@@ -764,3 +764,161 @@ describe("attachSnapshotStorage runFlush concurrency (Phase 14.6 fix A)", () => 
 		expect(baselineSnap.seq).toBeGreaterThan(session1Tail);
 	});
 });
+
+// ── DS-14.5.A delta #7: _topologyVersion + spec-snapshot persistence ───────
+
+describe("Graph._topologyVersion counter (DS-14.5.A Q1)", () => {
+	it("bumps once per `add`", () => {
+		const g = new Graph("g");
+		const v0 = g.topologyVersion;
+		g.add(node([], { initial: 1, name: "a" }), { name: "a" });
+		expect(g.topologyVersion).toBe(v0 + 1);
+		g.add(node([], { initial: 2, name: "b" }), { name: "b" });
+		expect(g.topologyVersion).toBe(v0 + 2);
+	});
+
+	it("bumps on `remove` (node path)", () => {
+		const g = new Graph("g");
+		g.add(node([], { initial: 1, name: "a" }), { name: "a" });
+		const v = g.topologyVersion;
+		g.remove("a");
+		expect(g.topologyVersion).toBe(v + 1);
+	});
+
+	it("bumps on `mount` and on unmount (`remove` mount-cycle path)", () => {
+		const g = new Graph("g");
+		const child = new Graph("c");
+		const vMount = g.topologyVersion;
+		g.mount("c", () => {});
+		expect(g.topologyVersion).toBe(vMount + 1);
+		// Mount a real child then unmount via remove().
+		g.mount("c2", (sub) => {
+			sub.add(node([], { initial: 0, name: "x" }), { name: "x" });
+		});
+		const vUnmount = g.topologyVersion;
+		g.remove("c2");
+		expect(g.topologyVersion).toBe(vUnmount + 1);
+		void child;
+	});
+
+	it("bumps on `tagFactory` (no TopologyEvent emitted, but spec drifts)", () => {
+		const g = new Graph("g");
+		const v = g.topologyVersion;
+		g.tagFactory("myFactory", { k: 1 });
+		expect(g.topologyVersion).toBe(v + 1);
+	});
+
+	it("bumps on `setDeps`/`_setDeps` rewire (via Graph._rewire)", () => {
+		const g = new Graph("g");
+		g.add(node([], { initial: 1, name: "a" }), { name: "a" });
+		g.add(node([], { initial: 2, name: "b" }), { name: "b" });
+		g.add(
+			node<number>([g.node("a")], (data, actions, ctx) => {
+				actions.emit((data[0]?.[0] ?? ctx.prevData[0]) as number);
+			}),
+			{ name: "c" },
+		);
+		const v = g.topologyVersion;
+		g._rewire("c", ["b"], (data, actions, ctx) => {
+			actions.emit((data[0]?.[0] ?? ctx.prevData[0]) as number);
+		});
+		expect(g.topologyVersion).toBe(v + 1);
+	});
+
+	it("is distinct from value mutations (set does NOT bump)", () => {
+		const g = new Graph("g");
+		g.add(node([], { initial: 1, name: "a" }), { name: "a" });
+		const v = g.topologyVersion;
+		g.set("a", 99);
+		expect(g.topologyVersion).toBe(v);
+	});
+});
+
+describe("attachSnapshotStorage spec snapshot (DS-14.5.A delta #7, Q8)", () => {
+	it("writes a lifecycle:'spec' mode:'full' record when topology drifts", async () => {
+		const g = new Graph("g");
+		const saves: import("../../graph/graph.js").GraphCheckpointRecord[] = [];
+		const tier = {
+			name: "g-spec",
+			save(r: import("../../graph/graph.js").GraphCheckpointRecord) {
+				saves.push(r);
+			},
+		};
+		// paths:[] → no value-event subscriptions; ONLY the topology hook fires.
+		const h = g.attachSnapshotStorage([{ snapshot: tier }], { paths: [] });
+		g.add(node([], { initial: 0, name: "a" }), { name: "a" });
+		await settle();
+		const specRecs = saves.filter((r) => r.lifecycle === "spec");
+		expect(specRecs.length).toBeGreaterThan(0);
+		expect(specRecs[0]!.mode).toBe("full");
+		await h.dispose();
+	});
+
+	it("Q8 squelch: a wave with NO topology change writes no extra spec record", async () => {
+		const g = new Graph("g");
+		g.add(node([], { initial: 0, name: "a" }), { name: "a" });
+		const saves: import("../../graph/graph.js").GraphCheckpointRecord[] = [];
+		const tier = {
+			name: "g-spec",
+			save(r: import("../../graph/graph.js").GraphCheckpointRecord) {
+				saves.push(r);
+			},
+		};
+		const h = g.attachSnapshotStorage([{ snapshot: tier }], { paths: [] });
+		g.add(node([], { initial: 1, name: "b" }), { name: "b" });
+		await settle();
+		const afterFirst = saves.filter((r) => r.lifecycle === "spec").length;
+		expect(afterFirst).toBeGreaterThan(0);
+		// A pure value mutation — no topology bump — must not add a spec record.
+		g.set("a", 42);
+		await settle();
+		const afterValue = saves.filter((r) => r.lifecycle === "spec").length;
+		expect(afterValue).toBe(afterFirst);
+		await h.dispose();
+	});
+
+	it("spec snapshot round-trips via restoreSnapshot({ lifecycle:['spec'] })", async () => {
+		const author = new Graph("g");
+		const backend = memoryBackend();
+		// Dedicated spec tier — keep value baselines out by using paths:[].
+		const { snapshotStorage } = await import("../../extra/storage/tiers.js");
+		const specTier = snapshotStorage<import("../../graph/graph.js").GraphCheckpointRecord>(
+			backend,
+			{ name: "g" },
+		);
+		const h = author.attachSnapshotStorage([{ snapshot: specTier }], { paths: [] });
+		author.add(node([], { initial: 0, name: "alpha" }), { name: "alpha" });
+		author.add(node([], { initial: 0, name: "beta" }), { name: "beta" });
+		author.tagFactory("authoredGraph", { v: 1 });
+		await settle();
+		await h.dispose(); // dispose drains + reconciles the lone tagFactory bump
+
+		// Round-trip property (DS-14.5.A L1: spec IS code's projection): the
+		// persisted lifecycle:"spec" baseline captures exactly
+		// `describe({detail:"spec"})`.
+		const persisted = (await specTier.load?.()) as
+			| import("../../graph/graph.js").GraphCheckpointRecord
+			| undefined;
+		expect(persisted?.lifecycle).toBe("spec");
+		expect(persisted?.mode).toBe("full");
+		const { expand: _e, ...authorSpec } = author.describe({ detail: "spec" });
+		expect((persisted as { snapshot: unknown }).snapshot).toEqual({
+			...authorSpec,
+			version: 1,
+		});
+
+		// And `restoreSnapshot({ lifecycle:["spec"] })` replays it via the
+		// spec-only fast path (full baseline, no WAL walk).
+		const replayer = new Graph("g");
+		const result = await replayer.restoreSnapshot({
+			mode: "diff",
+			lifecycle: ["spec"],
+			source: {
+				tier: specTier,
+				walTier: kvStorage(memoryBackend(), { name: "g-wal" }),
+			},
+		});
+		expect(result.phases).toEqual([{ lifecycle: "spec", frames: 0 }]);
+		expect(result.replayedFrames).toBe(0);
+	});
+});

@@ -695,6 +695,179 @@ export function validateSpec(spec: unknown): GraphSpecValidation {
 }
 
 // ---------------------------------------------------------------------------
+// validateOwnership — multi-agent subgraph ownership PR lint (DS-14.5.A #5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Read `meta.owner` from a spec node. Pure read — no normalization.
+ * Empty / non-string is treated as "no annotation" (silent, INV-OWNER-2).
+ */
+function readOwner(node: GraphSpecNode): string | undefined {
+	const o = (node.meta as Record<string, unknown> | undefined)?.owner;
+	return typeof o === "string" && o.length > 0 ? o : undefined;
+}
+
+/**
+ * The change-set fed to {@link validateOwnership}. Mirrors the minimal slice
+ * of a PR diff the lint needs: the set of factory identifiers whose
+ * implementation the diff touches, plus the PR author and (optionally) the
+ * raw commit-message text so the `Override-Owner:` trailer can be detected.
+ *
+ * **Why factory-keyed (not path-keyed) — locked decision (DS-14.5.A Q5
+ * sub-flag).** PR-diff → spec-node mapping resolves through `meta.factory`
+ * provenance, NOT a `meta.ownerPath` glob. A diff that edits the
+ * implementation of factory `"rateLimiter"` maps to *every* spec node whose
+ * `meta.factory === "rateLimiter"`. This reuses the existing
+ * `factoryTag` / `decompileSpec` round-trip (the same `meta.factory` field
+ * `compileSpec` consumes) — no parallel ownership-path indexing scheme.
+ */
+export type OwnershipPrDiff = {
+	/**
+	 * Factory identifiers (the `meta.factory` value) whose source the PR
+	 * modifies. A spec node is "edited by this PR" iff its `meta.factory` is
+	 * in this set. Nodes without `meta.factory` cannot be mapped from a code
+	 * diff and are therefore never flagged (silent — consistent with the
+	 * un-annotated rule).
+	 */
+	readonly editedFactories: readonly string[];
+	/** PR author's `Actor.id`. Compared against each edited node's `meta.owner`. */
+	readonly author: string;
+	/**
+	 * Raw commit message(s) text. If any line is an `Override-Owner: <reason>`
+	 * trailer (case-insensitive key, non-empty reason) the lint hard-fail is
+	 * bypassed and recorded as an audit-trail override (Q5 sub-lock i — any
+	 * committer may use it; it is recorded, never silently granted).
+	 */
+	readonly commitMessage?: string;
+};
+
+/** One cross-owner violation surfaced by {@link validateOwnership}. */
+export type OwnershipViolation = {
+	/** Spec node path that carries `meta.owner` and was edited by a non-owner. */
+	readonly node: string;
+	/** The `meta.owner` value on that node. */
+	readonly owner: string;
+	/** The PR author who edited it. */
+	readonly author: string;
+	/** The `meta.factory` that mapped the diff onto this node. */
+	readonly factory: string;
+};
+
+/** Result of {@link validateOwnership}. */
+export type OwnershipValidation = {
+	/**
+	 * `true` when no hard-fail applies — either no cross-owner edit, or every
+	 * cross-owner edit is bypassed by a valid `Override-Owner:` trailer.
+	 */
+	readonly ok: boolean;
+	/** Cross-owner edits that hard-fail (empty when `ok`). */
+	readonly violations: readonly OwnershipViolation[];
+	/**
+	 * Cross-owner edits that WOULD have failed but were bypassed by an
+	 * `Override-Owner:` commit trailer. Pure audit trail — CI / reviewers
+	 * grep this to surface override abuse. Present (possibly empty) so callers
+	 * can read `.overridden.length` without a null check.
+	 */
+	readonly overridden: readonly OwnershipViolation[];
+	/**
+	 * The override reason parsed from the `Override-Owner:` trailer, when one
+	 * was present and applied. `undefined` when no trailer was used.
+	 */
+	readonly overrideReason?: string;
+};
+
+const OVERRIDE_OWNER_TRAILER = /^\s*override-owner\s*:\s*(.+?)\s*$/im;
+
+/**
+ * Detect an `Override-Owner: <reason>` commit trailer (case-insensitive key;
+ * reason must be non-empty after trim). Returns the trimmed reason, or
+ * `undefined` when absent.
+ */
+function parseOverrideOwner(commitMessage: string | undefined): string | undefined {
+	if (commitMessage == null) return undefined;
+	const m = OVERRIDE_OWNER_TRAILER.exec(commitMessage);
+	const reason = m?.[1]?.trim();
+	return reason != null && reason.length > 0 ? reason : undefined;
+}
+
+/**
+ * Multi-agent subgraph ownership PR lint (DS-14.5.A delta #5, L0 rung;
+ * spec §2.3a INV-OWNER-2).
+ *
+ * Hard-fails a pull request whose code diff edits a spec node carrying
+ * `meta.owner` when the PR author is not that owner. Nodes **without**
+ * `meta.owner` are silent (no advisory, no failure) — "shared infrastructure"
+ * is exactly the un-annotated case; no separate allow-list is maintained.
+ *
+ * **Rules (Q5 lock):**
+ * - Edited node has no `meta.owner` → silent.
+ * - Edited node has `meta.owner` AND `author === meta.owner` → OK.
+ * - Edited node has `meta.owner` AND `author !== meta.owner` → **violation**
+ *   (hard-fail) unless an `Override-Owner: <reason>` commit trailer is present,
+ *   in which case the violation is moved to `overridden` (audit trail) and
+ *   `ok` stays `true`.
+ *
+ * **PR-diff → spec-node mapping (Q5 sub-flag lock):** `meta.factory`
+ * resolution. A node is "edited" iff its `meta.factory` appears in
+ * `prDiff.editedFactories`. This reuses the `factoryTag` / `decompileSpec`
+ * round-trip rather than introducing a `meta.ownerPath` glob. Nodes without
+ * `meta.factory` can't be mapped from a code diff and are never flagged.
+ *
+ * Pure function — no `Node` / `Graph` returned, no side effects. Designed to
+ * be called from a `graphrefly check-spec`-adjacent CI step (delta #6, Phase
+ * 16) or any host PR gate.
+ *
+ * @param spec - The committed GraphSpec (or any `describe({ detail: "spec" })`
+ *   projection / structural superset).
+ * @param prDiff - The factory-keyed diff slice + author + commit text.
+ */
+export function validateOwnership(spec: unknown, prDiff: OwnershipPrDiff): OwnershipValidation {
+	const violations: OwnershipViolation[] = [];
+	const overridden: OwnershipViolation[] = [];
+
+	if (spec == null || typeof spec !== "object") {
+		return { ok: true, violations, overridden };
+	}
+	const s = spec as Record<string, unknown>;
+	const nodes = s.nodes;
+	if (nodes == null || typeof nodes !== "object" || Array.isArray(nodes)) {
+		return { ok: true, violations, overridden };
+	}
+
+	const edited = new Set(prDiff.editedFactories);
+	if (edited.size > 0) {
+		for (const [path, nRaw] of Object.entries(nodes as Record<string, unknown>)) {
+			if (nRaw == null || typeof nRaw !== "object") continue;
+			const n = nRaw as GraphSpecNode;
+			const factory = readFactory(n);
+			// Unmappable from a code diff (no factory provenance) → silent.
+			if (factory == null || !edited.has(factory)) continue;
+			const owner = readOwner(n);
+			// No annotation → silent (INV-OWNER-2: un-annotated == shared).
+			if (owner == null) continue;
+			// Author IS the owner → OK.
+			if (owner === prDiff.author) continue;
+			violations.push({ node: path, owner, author: prDiff.author, factory });
+		}
+	}
+
+	const overrideReason = parseOverrideOwner(prDiff.commitMessage);
+	if (violations.length > 0 && overrideReason != null) {
+		// Trailer bypasses ALL cross-owner violations in this PR (the trailer
+		// is PR-scoped and a pure audit-trail record per Q5 sub-lock i).
+		overridden.push(...violations);
+		return { ok: true, violations: [], overridden, overrideReason };
+	}
+
+	return {
+		ok: violations.length === 0,
+		violations,
+		overridden,
+		...(overrideReason != null ? { overrideReason } : {}),
+	};
+}
+
+// ---------------------------------------------------------------------------
 // compileSpec
 // ---------------------------------------------------------------------------
 
