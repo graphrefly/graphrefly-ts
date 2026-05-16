@@ -268,7 +268,7 @@ Backpressure: receiver acks every applied change; sender pauses or falls back to
 bundle.scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc): Node<TAcc>;
 
 // Standalone export (pipe-builder friendly):
-import { scanLog } from "@graphrefly/graphrefly/extra";
+import { scanLog } from "@graphrefly/pure-ts/extra";
 scanLog<T, TAcc>(log: ReactiveLogBundle<T>, initial: TAcc, step: (acc, v) => TAcc): Node<TAcc>;
 ```
 

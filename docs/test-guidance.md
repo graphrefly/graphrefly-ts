@@ -89,7 +89,7 @@ tests/
 
 ### Rust (`graphrefly-rs`)
 
-- **Runner:** `cargo test --workspace`. Config: per-crate `Cargo.toml`.
+- **Runner:** `cargo-nextest` — `cargo nextest run` for the fast inner loop (the `cascade_depth` stack-safety stress tests are quarantined out of the default profile; see `graphrefly-rs/.config/nextest.toml`), `cargo nextest run --profile ci` (alias `cargo tc`) for the full suite incl. those guards (this is what CI runs and what gates a merge). `scripts/dev-test.sh` wraps the default loop with a per-worktree `CARGO_TARGET_DIR` so parallel sessions never block on the shared `target/` build lock. **Legacy `cargo test` is fallback-only** and does not honor the nextest profiles (it always runs everything, with no slow-timeout hang-kill). **Exception:** loom concurrency tests stay on `cargo test -p graphrefly-core --features loom-checked` (loom needs the `--cfg loom` build, not a nextest run). Config: per-crate `Cargo.toml` + workspace `.config/nextest.toml`.
 - **Discovery:** `crates/*/tests/*.rs` (integration tests) + `#[test]` in `src/` (unit tests).
 
 ```

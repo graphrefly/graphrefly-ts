@@ -6,7 +6,10 @@ import { fromIDBRequest, fromIDBTransaction } from "../../../../../src/base/sour
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import {
 	appendLogStorage,
+	bigintJsonCodec,
+	bigintJsonCodecFor,
 	dictKv,
+	jsonCodec,
 	memoryAppendLog,
 	memoryBackend,
 	memoryKv,
@@ -485,5 +488,105 @@ describe("storage tier transaction semantics (Audit 4)", () => {
 		const bytes = backend.read("log") as Uint8Array;
 		expect(bytes).toBeDefined();
 		expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual([{ id: 1 }, { id: 2 }]);
+	});
+});
+
+describe("bigintJsonCodec — BigInt-safe persistence (memo:Re P1)", () => {
+	it("plain jsonCodec throws on a bigint field (the consumer pain)", () => {
+		expect(() => jsonCodec.encode({ t_ns: 123n })).toThrow();
+	});
+
+	it("round-trips bigint fields losslessly", () => {
+		const value = {
+			t_ns: 1_700_000_000_000_000_000n,
+			validTo: 42n,
+			payload: "x",
+			n: 7,
+		};
+		const back = bigintJsonCodec.decode(bigintJsonCodec.encode(value));
+		expect(back).toEqual(value);
+		expect(typeof (back as { t_ns: unknown }).t_ns).toBe("bigint");
+		expect(typeof (back as { n: unknown }).n).toBe("number");
+	});
+
+	it("round-trips nested arrays of bigint-carrying fragments (FactStore shape)", () => {
+		const codec =
+			bigintJsonCodecFor<ReadonlyArray<{ id: string; t_ns: bigint; validTo?: bigint }>>();
+		const frags = [
+			{ id: "a", t_ns: 10n },
+			{ id: "b", t_ns: 20n, validTo: 25n },
+		];
+		expect(codec.decode(codec.encode(frags))).toEqual(frags);
+	});
+
+	it("preserves stable key order (order-independent encoding)", () => {
+		const a = bigintJsonCodec.encode({ z: 1n, a: 2n });
+		const b = bigintJsonCodec.encode({ a: 2n, z: 1n });
+		expect(new TextDecoder().decode(a)).toBe(new TextDecoder().decode(b));
+	});
+
+	it("persists a bigint-carrying snapshot through a real tier", async () => {
+		const backend = memoryBackend();
+		type S = { t_ns: bigint; label: string };
+		const tier = snapshotStorage<S>(backend, {
+			codec: bigintJsonCodecFor<S>(),
+		});
+		await tier.save({ t_ns: 999n, label: "frag" });
+		await tier.flush?.();
+		expect(await tier.load?.()).toEqual({ t_ns: 999n, label: "frag" });
+	});
+
+	it("reviver does NOT throw or coerce on a non-decimal $bigint tag (collision/tamper safe)", () => {
+		// Each is a legitimate single-key user object that must round-trip
+		// UNCHANGED — never BigInt("notnum") (throws), BigInt("") (→0n),
+		// BigInt("0x1f") (→31n), BigInt("1e3") (throws).
+		for (const bad of ["notnum", "", "0x1f", "1e3", "  12  ", "+5", "01"]) {
+			const v = { payload: { $bigint: bad } };
+			expect(bigintJsonCodec.decode(bigintJsonCodec.encode(v))).toEqual(v);
+		}
+		// Canonical base-10 (incl. negative / zero) DOES revive.
+		expect(bigintJsonCodec.decode(bigintJsonCodec.encode({ x: -12n }))).toEqual({ x: -12n });
+		expect(bigintJsonCodec.decode(bigintJsonCodec.encode({ x: 0n }))).toEqual({ x: 0n });
+		// A two-key object that merely contains $bigint is left alone.
+		const multi = { $bigint: "5", other: 1 };
+		expect(bigintJsonCodec.decode(bigintJsonCodec.encode(multi))).toEqual(multi);
+	});
+});
+
+describe("appendLogStorage — mode: append | overwrite (memo:Re P1)", () => {
+	const read = (b: ReturnType<typeof memoryBackend>, k: string) =>
+		JSON.parse(new TextDecoder().decode(b.read(k) as Uint8Array));
+
+	it("append (default) accumulates across flushes", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<number>(backend, { name: "L" });
+		await Promise.resolve(tier.appendEntries([1, 2]));
+		await tier.flush?.();
+		await Promise.resolve(tier.appendEntries([3]));
+		await tier.flush?.();
+		expect(read(backend, "L")).toEqual([1, 2, 3]);
+	});
+
+	it("append: a fresh tier over an existing key continues accumulation", async () => {
+		const backend = memoryBackend();
+		const t1 = appendLogStorage<string>(backend, { name: "L" });
+		await Promise.resolve(t1.appendEntries(["a", "b"]));
+		await t1.flush?.();
+		const t2 = appendLogStorage<string>(backend, { name: "L" });
+		await Promise.resolve(t2.appendEntries(["c"]));
+		await t2.flush?.();
+		expect(read(backend, "L")).toEqual(["a", "b", "c"]);
+	});
+
+	it("overwrite replaces the key per flush (no read-merge, no growth)", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<number>(backend, { name: "L", mode: "overwrite" });
+		await Promise.resolve(tier.appendEntries([1, 2]));
+		await tier.flush?.();
+		expect(read(backend, "L")).toEqual([1, 2]);
+		await Promise.resolve(tier.appendEntries([9]));
+		await tier.flush?.();
+		// Only the latest flush's entries — prior [1,2] discarded.
+		expect(read(backend, "L")).toEqual([9]);
 	});
 });

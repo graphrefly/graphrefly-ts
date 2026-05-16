@@ -438,7 +438,7 @@ export type GraphDescribeOptions = {
 	 * Reactive describe (D2):
 	 * - `true` — return `{ node, dispose }` where `node` emits a fresh
 	 *   `GraphDescribeOutput` every time the graph state settles. Same
-	 *   coalescing as {@link Graph.explain} with `{ reactive: true }`.
+	 *   coalescing as `describe({ explain, reactive: true })`.
 	 * - `"diff"` — return `{ node, dispose }` where `node` emits a
 	 *   {@link DescribeChangeset} per topology change. Empty changesets are
 	 *   suppressed; the initial cache is a synthetic full-add diff so a fresh
@@ -838,7 +838,7 @@ function resolveActorOption(actor: Actor | Node<Actor> | undefined): Actor | und
 
 /**
  * Tier 3.5 (F.9 reactive primitive carve-out): generic Node-shape duck check
- * for `Graph.explain` reactive args (`from`/`to: string | Node<string>`,
+ * for `describe({ explain })` reactive args (`from`/`to: string | Node<string>`,
  * `maxDepth: number | Node<number>`, `findCycle: boolean | Node<boolean>`).
  * Mirrors `isActorNode` — tests for `subscribe` AND `cache` AND `down` so a
  * primitive value cannot accidentally pass as a Node.
@@ -6940,7 +6940,7 @@ export function reachable(
 
 /**
  * Structural equals for a causal-chain step sequence, used by
- * {@link Graph.explain} in reactive mode to suppress RESOLVED re-emits when
+ * `describe({ explain })` in reactive mode to suppress RESOLVED re-emits when
  * the chain is unchanged between observe events.
  */
 function causalStepsEqual(a: readonly CausalStep[], b: readonly CausalStep[]): boolean {

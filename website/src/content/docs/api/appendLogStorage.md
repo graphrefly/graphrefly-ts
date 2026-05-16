@@ -9,9 +9,16 @@ Buffer model: `appendEntries(entries)` accumulates per-key buckets in
 memory. `flush()` encodes each bucket as a JSON array via codec and writes
 under that bucket key. `rollback()` discards pending appends.
 
-Storage shape: each backend key holds a JSON array of all entries for that
-partition, growing on every flush. Adapters that need true append semantics
-(versus rewrite) should layer their own tier impl over the same backend.
+Storage shape & semantics: each backend key holds a JSON array of entries
+for that partition. This is a true **logical append log** — `mode:"append"`
+(default) read-merges the key's existing array and persists
+`[...prior, ...pending]`, so the key accumulates monotonically and a
+*fresh* tier over an existing key continues the accumulation (no entries
+lost). The *physical* write rewrites the whole per-key array each flush
+(not a byte-level backend append); that is an implementation detail, not a
+semantic limitation — callers do **not** need to layer their own tier for
+append semantics. Set `mode:"overwrite"` for snapshot semantics (each flush
+replaces the key with only that flush's entries, no read-merge).
 
 ## Signature
 

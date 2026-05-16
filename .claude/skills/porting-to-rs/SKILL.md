@@ -75,7 +75,7 @@ These supersede / consolidate the multi-file TS authority for Rust port purposes
 └── crates/graphrefly-bindings-wasm/ # WASM target
 ```
 
-`cargo build` / `cargo test` (no `--workspace`) excludes the bindings crates by default — `default-members` skips them since they need their own toolchains (napi-rs, maturin, wasm-pack). Use `cargo test -p graphrefly-core` for the typical Rust-only test loop.
+`cargo build` / `cargo nextest run` (no `--workspace`) excludes the bindings crates by default — `default-members` skips them since they need their own toolchains (napi-rs, maturin, wasm-pack). **Use `cargo-nextest`, not legacy `cargo test`:** `cargo nextest run -p graphrefly-core` for the typical Rust-only inner loop (the `cascade_depth` stack-safety stress tests are quarantined from the default profile — see `graphrefly-rs/.config/nextest.toml`); `cargo nextest run --profile ci` (alias `cargo tc`) for the full merge-gating suite incl. those guards; `scripts/dev-test.sh` to run the default loop with a per-worktree-isolated target dir (parallel sessions never share the `target/` build lock). Legacy `cargo test` is fallback-only and ignores the nextest profiles + slow-timeout hang-kill. Loom is the one exception — it stays on `cargo test -p graphrefly-core --features loom-checked`.
 
 ### Reads to perform in parallel
 
@@ -130,7 +130,7 @@ Do NOT start implementing yet.
 
 **HALT and report to the user before implementing.** Present:
 
-1. **Current state confirmation** — what's already in `graphrefly-rs` for this area (cite migration-status.md milestone status; cite specific files / line ranges; verify `cargo test -p <crate>` is clean before changes).
+1. **Current state confirmation** — what's already in `graphrefly-rs` for this area (cite migration-status.md milestone status; cite specific files / line ranges; verify `cargo nextest run -p <crate>` is clean before changes).
 2. **Slice scope** — what the slice will and will NOT include. Slices should be:
    - Coherent (single feature or audit-fix bucket)
    - Reasonably small (~500–2000 lines including tests for a typical M1-style slice)
@@ -217,8 +217,8 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
 Run from `~/src/graphrefly-rs`:
 
 ```bash
-cargo test -p graphrefly-core            # core tests
-cargo test                               # default-members workspace
+cargo nextest run --profile ci -p graphrefly-core   # core tests, incl. cascade_depth guards
+cargo nextest run --profile ci                      # default-members, full suite (== `cargo tc`)
 cargo clippy -p graphrefly-core --all-targets
 cargo fmt --check                        # or `cargo fmt && cargo fmt --check`
 ```
@@ -230,7 +230,7 @@ cd crates/graphrefly-bindings-py && maturin develop # pyo3 build
 cd crates/graphrefly-bindings-wasm && wasm-pack build
 ```
 
-Fix any failures. **Do NOT use `--workspace`** for `cargo build` / `cargo test` unless you have all binding toolchains installed — the workspace excludes bindings from default-members for this reason.
+Fix any failures. **Do NOT use `--workspace`** for `cargo build` / `cargo nextest run` unless you have all binding toolchains installed — the workspace excludes bindings from default-members for this reason. (Self-check uses `--profile ci` to run the full suite incl. the `cascade_depth` stack-safety guards before closing a slice; the quarantined default profile is for the inner loop only.)
 
 ### 3d. Widen the parity-test surface (when slice closes a milestone or adds public API)
 

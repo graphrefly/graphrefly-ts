@@ -127,8 +127,18 @@ export type ReactiveLogBundle<T> = {
 	 * Subscribe to `upstream` and append every DATA into this log. Returns a
 	 * disposer. ERROR / COMPLETE on `upstream` propagate through the disposer
 	 * (caller is responsible for terminal handling on the log).
+	 *
+	 * **Push-on-subscribe caveat:** subscribing replays the upstream's
+	 * subscribe-handshake frame — its cached value, or the *full* `replayBuffer`
+	 * if one is configured (spec §2.2 / §2.5) — so that history is appended at
+	 * attach time, double-counting if `upstream` already fed this log before
+	 * `attach`. Pass `{ skipCachedReplay: true }` to drop the **entire
+	 * subscribe-handshake frame** (cached value *or* full replay buffer);
+	 * subsequent live emissions are appended. The drop is keyed off the first
+	 * sink delivery, not a synchronous window, so it works even when `attach`
+	 * runs inside `batch()` (the handshake DATA is `downWithBatch`-deferred).
 	 */
-	attach: (upstream: Node<T>) => () => void;
+	attach: (upstream: Node<T>, opts?: { skipCachedReplay?: boolean }) => () => void;
 	/**
 	 * Wire one or more append-log storage tiers. Each tier receives entries on
 	 * every append wave; tier-internal flush/rollback honors the wave-as-
@@ -698,8 +708,33 @@ export function reactiveLog<T>(
 			}
 		},
 
-		attach(upstream): () => void {
+		attach(upstream, opts): () => void {
+			// `defaultOnSubscribe` replays the cached value / full replay buffer
+			// as the handshake. `downWithBatch` splits that frame by tier:
+			// `[START]` lands phase-1 (always synchronous), the replay `[DATA…]`
+			// lands phase-2 as ONE slice (synchronous, or `batch()`-deferred to
+			// the drain). Live emissions are later, separate deliveries. So:
+			// skip the FIRST data-bearing delivery — but only when the upstream
+			// actually holds a cached value (`cache !== undefined`, the spec
+			// SENTINEL), exactly the condition under which `defaultOnSubscribe`
+			// pushes the replay. Cold upstream → nothing to skip, so the first
+			// live emission is NOT dropped. (Niche: a post-INVALIDATE upstream
+			// whose replay buffer outlives its cleared cache is not detected
+			// here — `cache` is the only public signal.)
+			let pendingHandshakeSkip = opts?.skipCachedReplay === true && upstream.cache !== undefined;
 			const sub = upstream.subscribe((msgs) => {
+				let hasData = false;
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						hasData = true;
+						break;
+					}
+				}
+				if (pendingHandshakeSkip && hasData) {
+					// The single replay slice — drop it whole, then resume.
+					pendingHandshakeSkip = false;
+					return;
+				}
 				for (const m of msgs) {
 					if (m[0] === DATA) bundle.append(m[1] as T);
 				}
@@ -709,6 +744,23 @@ export function reactiveLog<T>(
 
 		attachStorage(tiers): () => void {
 			if (tiers.length === 0) return () => {};
+			// `attachStorage` ships per-wave DELTAS (`arr.slice(last)`), relying
+			// on the tier to accumulate. An `appendLogStorage({ mode:
+			// "overwrite" })` tier does NOT accumulate — each flush replaces the
+			// key with only that flush's entries — so feeding it deltas would
+			// silently truncate the log to the last wave (the memo:Re-P0
+			// failure class). Reject up front rather than lose data silently.
+			for (const t of tiers) {
+				if ((t as { mode?: string }).mode === "overwrite") {
+					throw new Error(
+						`reactiveLog.attachStorage: tier "${t.name}" has mode:"overwrite", ` +
+							`which is incompatible with attachStorage's per-wave delta shipping ` +
+							`(it would truncate the log to the last wave). Use mode:"append" ` +
+							`(the default) for attachStorage, or drive the overwrite tier ` +
+							`directly with the full entry set each flush.`,
+					);
+				}
+			}
 			// Track delivered count per tier so we only ship deltas. Initialised
 			// to current backend.size below; the post-restore IIFE updates the
 			// restored-from tier so we don't double-write its own data back.

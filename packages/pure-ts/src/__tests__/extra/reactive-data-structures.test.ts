@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../../core/batch.js";
 import { DATA, DIRTY } from "../../core/messages.js";
+import { node } from "../../core/node.js";
 import { reactiveIndex } from "../../extra/data-structures/reactive-index.js";
 import { reactiveList } from "../../extra/data-structures/reactive-list.js";
 import { reactiveLog } from "../../extra/data-structures/reactive-log.js";
@@ -231,6 +233,100 @@ describe("extra reactiveIndex (roadmap §3.2)", () => {
 		idx.delete("p2");
 		const m = idx.byPrimary.cache as Map<string, string>;
 		expect([...m.keys()]).toEqual(["p1"]);
+	});
+});
+
+describe("reactiveLog.attach — skipCachedReplay (memo:Re P2)", () => {
+	it("default: appends the upstream's cached value on subscribe (push-on-subscribe)", () => {
+		const up = node<number>([], { initial: undefined });
+		up.emit(1);
+		up.emit(2);
+		const log = reactiveLog<number>();
+		const dispose = log.attach(up);
+		// Cached last value (2) replayed at subscribe → appended.
+		expect(log.entries.cache).toEqual([2]);
+		up.emit(3);
+		expect(log.entries.cache).toEqual([2, 3]);
+		dispose();
+	});
+
+	it("skipCachedReplay: drops the cached-replay burst, keeps live emissions", () => {
+		const up = node<number>([], { initial: undefined });
+		up.emit(1);
+		up.emit(2);
+		const log = reactiveLog<number>();
+		const dispose = log.attach(up, { skipCachedReplay: true });
+		// Cached 2 delivered synchronously during subscribe → skipped.
+		expect(log.entries.cache).toEqual([]);
+		// Subsequent live emissions still append.
+		up.emit(3);
+		up.emit(4);
+		expect(log.entries.cache).toEqual([3, 4]);
+		dispose();
+	});
+
+	it("skipCachedReplay on a cold upstream is a no-op (nothing to skip)", () => {
+		const up = node<number>([], { initial: undefined });
+		const log = reactiveLog<number>();
+		const dispose = log.attach(up, { skipCachedReplay: true });
+		up.emit(1);
+		expect(log.entries.cache).toEqual([1]);
+		dispose();
+	});
+
+	it("skipCachedReplay works when attach() runs inside batch() (handshake is downWithBatch-deferred)", () => {
+		const up = node<number>([], { initial: undefined });
+		up.emit(1);
+		up.emit(2);
+		const log = reactiveLog<number>();
+		let dispose = () => {};
+		// Under batch(), the cached handshake DATA is deferred to drain —
+		// AFTER attach() returns. A synchronous-window flag would miss it and
+		// append 2 anyway; the first-frame skip must still catch it.
+		batch(() => {
+			dispose = log.attach(up, { skipCachedReplay: true });
+		});
+		expect(log.entries.cache).toEqual([]);
+		up.emit(3);
+		expect(log.entries.cache).toEqual([3]);
+		dispose();
+	});
+
+	it("skipCachedReplay drops the FULL replay buffer handshake, not just the last value", () => {
+		const up = node<number>([], { initial: undefined, replayBuffer: 3 });
+		up.emit(1);
+		up.emit(2);
+		up.emit(3);
+		const log = reactiveLog<number>();
+		const dispose = log.attach(up, { skipCachedReplay: true });
+		// Entire [1,2,3] replay-buffer handshake frame dropped.
+		expect(log.entries.cache).toEqual([]);
+		up.emit(4);
+		expect(log.entries.cache).toEqual([4]);
+		dispose();
+	});
+
+	it("attachStorage throws on an overwrite-mode tier (delta-ship would truncate)", () => {
+		const log = reactiveLog<number>();
+		const tier = appendLogStorage<number>(memoryBackend(), {
+			name: "L",
+			mode: "overwrite",
+		});
+		expect(() => log.attachStorage([tier])).toThrow(/overwrite/);
+		// An append-mode tier is accepted.
+		const ok = appendLogStorage<number>(memoryBackend(), { name: "L2" });
+		expect(() => log.attachStorage([ok])()).not.toThrow();
+	});
+
+	it("default (no opt) still appends the full replay buffer on attach", () => {
+		const up = node<number>([], { initial: undefined, replayBuffer: 3 });
+		up.emit(1);
+		up.emit(2);
+		up.emit(3);
+		const log = reactiveLog<number>();
+		const dispose = log.attach(up);
+		expect(log.entries.cache).toEqual([1, 2, 3]);
+		dispose();
 	});
 });
 

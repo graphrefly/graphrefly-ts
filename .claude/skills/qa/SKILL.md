@@ -109,8 +109,8 @@ Run all checks for the affected repo(s) and fix any failures (do NOT skip or ign
 4. `cd ~/src/graphrefly-py && uv run mypy src/`
 
 **Rust (if Rust code was changed in `~/src/graphrefly-rs/`):**
-1. `cd ~/src/graphrefly-rs && cargo test -p graphrefly-core` — primary core tests
-2. `cd ~/src/graphrefly-rs && cargo test` — default-members workspace (excludes binding crates by design)
+1. `cd ~/src/graphrefly-rs && cargo nextest run --profile ci -p graphrefly-core` — primary core tests. **Use `cargo-nextest`, not legacy `cargo test`.** The `ci` profile is required: it sets `default-filter = "all()"` so the `cascade_depth` stack-safety stress tests (quarantined out of the fast local default profile — see `graphrefly-rs/.config/nextest.toml`) DO run in a QA gate.
+2. `cd ~/src/graphrefly-rs && cargo nextest run --profile ci` — default-members workspace, full suite incl. cascade_depth guards (alias `cargo tc`; excludes binding crates by design). Loom is the one exception — `cargo test -p graphrefly-core --features loom-checked` (loom needs the `--cfg loom` build).
 3. `cd ~/src/graphrefly-rs && cargo clippy -p graphrefly-core --all-targets` — must be clean (`clippy::pedantic` + `rust_2018_idioms` warn-by-default per CLAUDE.md). Allows must have inline comments justifying them.
 4. `cd ~/src/graphrefly-rs && cargo fmt --check` — apply `cargo fmt` if needed; verify clean
 5. Verify `#![forbid(unsafe_code)]` is preserved at every crate root
@@ -120,7 +120,7 @@ When the diff touches binding crates:
 - `cd crates/graphrefly-bindings-py && maturin develop` (pyo3 — only when verifying py bindings, not part of default flow)
 - `cd crates/graphrefly-bindings-wasm && wasm-pack build` (wasm-bindgen)
 
-Do NOT use `cargo build --workspace` / `cargo test --workspace` unless all binding toolchains are installed; the workspace excludes them from default-members for this reason.
+Do NOT use `cargo build --workspace` / `cargo nextest run --workspace` unless all binding toolchains are installed; the workspace excludes them from default-members for this reason.
 
 If a failure is related to an implementation design question, **HALT** and raise it to the user before fixing.
 

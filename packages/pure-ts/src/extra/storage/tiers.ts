@@ -24,7 +24,7 @@
  * @module
  */
 
-import { stableJsonString } from "./core.js";
+import { sortJsonValue, stableJsonString } from "./core.js";
 import { StorageError } from "./wal.js";
 
 // ── Layer 1 — StorageBackend (bytes I/O) ──────────────────────────────────
@@ -107,6 +107,87 @@ export const jsonCodec: Codec<unknown> = {
  */
 export function jsonCodecFor<T>(): Codec<T> {
 	return jsonCodec as unknown as Codec<T>;
+}
+
+/**
+ * Sentinel key used to tag a serialized `bigint`. A value `123n` round-trips
+ * as the single-key object `{"$bigint":"123"}`.
+ */
+const BIGINT_TAG = "$bigint";
+/** Exactly what `BigInt.prototype.toString()` (radix 10) can produce. */
+const BIGINT_DECIMAL_RE = /^-?(?:0|[1-9]\d*)$/;
+
+function bigintReplacer(_key: string, value: unknown): unknown {
+	return typeof value === "bigint" ? { [BIGINT_TAG]: value.toString() } : value;
+}
+
+function bigintReviver(_key: string, value: unknown): unknown {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		return value;
+	}
+	const obj = value as Record<string, unknown>;
+	const tag = obj[BIGINT_TAG];
+	// Only revive a value WE produced: single-key `$bigint` whose string is a
+	// canonical base-10 integer. A non-matching string (collision / tamper)
+	// falls through UNCHANGED — never `BigInt("notnum")` (throws, crashes the
+	// whole decode) and never `BigInt("0x1f")`/`BigInt("")` (silent wrong/zero).
+	if (typeof tag === "string" && Object.keys(obj).length === 1 && BIGINT_DECIMAL_RE.test(tag)) {
+		return BigInt(tag);
+	}
+	return value;
+}
+
+/**
+ * BigInt-safe JSON codec — same UTF-8 / stable-key-order contract as
+ * {@link jsonCodec}, but `bigint` fields round-trip losslessly via a tagged
+ * `{"$bigint":"<decimal>"}` envelope (plain `JSON.stringify` throws on
+ * `bigint`).
+ *
+ * Use this for any state carrying `bigint` fields — notably the DS-14.7
+ * {@link reactiveFactStore} `MemoryFragment` (`t_ns` / `validFrom` /
+ * `validTo`). The injected envelope has a single fixed key, so
+ * `stableJsonString`'s order-independence is preserved.
+ *
+ * **Collision caveat:** a literal user object of the exact shape
+ * `{ "$bigint": "<canonical-base-10-int>" }` (one key, e.g. `{"$bigint":"42"}`)
+ * decodes back to a `BigInt`. The reviver is strict — a non-decimal tag value
+ * (`"0x1f"`, `"1e3"`, `""`, `"notnum"`) falls through **unchanged** (never
+ * throws, never coerces). Still, since `MemoryFragment<T>` embeds arbitrary
+ * user `payload`, only use this codec when that payload cannot contain a
+ * single-key `$bigint`-with-decimal-string object; otherwise such a value
+ * round-trips to a `BigInt`.
+ *
+ * @category extra
+ */
+export const bigintJsonCodec: Codec<unknown> = {
+	name: "json-bigint",
+	version: 1,
+	encode(value): Uint8Array {
+		return textEncoder.encode(JSON.stringify(sortJsonValue(value), bigintReplacer, 0));
+	},
+	decode(bytes): unknown {
+		return JSON.parse(textDecoder.decode(bytes), bigintReviver) as unknown;
+	},
+};
+
+/**
+ * Returns the {@link bigintJsonCodec} cast to `Codec<T>`. Pure typing helper —
+ * no runtime overhead. Use when a generic tier API requires a `Codec<T>` and
+ * `T` carries `bigint` fields.
+ *
+ * @example
+ * ```ts
+ * import { memoryBackend, snapshotStorage, bigintJsonCodecFor } from "@graphrefly/pure-ts/extra";
+ *
+ * const tier = snapshotStorage<FactStore>(memoryBackend(), {
+ *   codec: bigintJsonCodecFor<FactStore>(),
+ * });
+ * ```
+ *
+ * @category extra
+ */
+export function bigintJsonCodecFor<T>(): Codec<T> {
+	return bigintJsonCodec as unknown as Codec<T>;
 }
 
 // ── Layer 2 — Tier specializations ────────────────────────────────────────
@@ -242,6 +323,13 @@ export interface AppendLogStorageTier<T = unknown> extends BaseStorageTier {
 	}): AppendLoadResult<T> | Promise<AppendLoadResult<T>>;
 	/** Partition key per-entry (default `() => name ?? "append-log"`). */
 	keyOf?: (entry: T) => string;
+	/**
+	 * Persistence mode (see {@link AppendLogStorageOptions.mode}). Exposed so
+	 * delta-shipping drivers (e.g. `ReactiveLogBundle.attachStorage`) can
+	 * reject an `"overwrite"` tier — feeding per-wave deltas into an
+	 * overwrite tier silently truncates the log to the last wave.
+	 */
+	readonly mode?: "append" | "overwrite";
 }
 
 /** Opaque cursor for windowed `loadEntries` pagination. */
@@ -424,6 +512,19 @@ export type AppendLogStorageOptions<T> = {
 	keyOf?: (entry: T) => string;
 	debounceMs?: number;
 	compactEvery?: number;
+	/**
+	 * Per-key persistence semantics. Default `"append"`.
+	 *
+	 * - `"append"` — accumulate: each flush read-merges the backend's existing
+	 *   entries for the key and writes `[...prior, ...pending]`. The key grows
+	 *   monotonically across flushes; a *fresh* tier over an existing key
+	 *   continues the accumulation. This is a true logical append log.
+	 * - `"overwrite"` — snapshot: each flush writes only that flush's buffered
+	 *   entries, replacing the key (no read-merge). Use when the upstream
+	 *   already supplies the full set each wave and you don't want unbounded
+	 *   growth.
+	 */
+	mode?: "append" | "overwrite";
 };
 
 /**
@@ -433,9 +534,16 @@ export type AppendLogStorageOptions<T> = {
  * memory. `flush()` encodes each bucket as a JSON array via codec and writes
  * under that bucket key. `rollback()` discards pending appends.
  *
- * Storage shape: each backend key holds a JSON array of all entries for that
- * partition, growing on every flush. Adapters that need true append semantics
- * (versus rewrite) should layer their own tier impl over the same backend.
+ * Storage shape & semantics: each backend key holds a JSON array of entries
+ * for that partition. This is a true **logical append log** — `mode:"append"`
+ * (default) read-merges the key's existing array and persists
+ * `[...prior, ...pending]`, so the key accumulates monotonically and a
+ * *fresh* tier over an existing key continues the accumulation (no entries
+ * lost). The *physical* write rewrites the whole per-key array each flush
+ * (not a byte-level backend append); that is an implementation detail, not a
+ * semantic limitation — callers do **not** need to layer their own tier for
+ * append semantics. Set `mode:"overwrite"` for snapshot semantics (each flush
+ * replaces the key with only that flush's entries, no read-merge).
  *
  * @param backend - Bytes-level backend to persist log entries into.
  * @param opts - Optional name, codec, per-entry key extractor, debounce window, and compaction interval.
@@ -461,6 +569,7 @@ export function appendLogStorage<T>(
 	const name = opts.name ?? backend.name ?? "append-log";
 	const keyOf = opts.keyOf ?? ((_e: T) => name);
 	const compactEvery = opts.compactEvery;
+	const overwrite = opts.mode === "overwrite";
 	let pending: Map<string, T[]> = new Map();
 	let appendCount = 0;
 	// C3: serialize concurrent flushes against a per-tier promise chain.
@@ -480,6 +589,7 @@ export function appendLogStorage<T>(
 		name,
 		debounceMs: opts.debounceMs,
 		compactEvery,
+		mode: overwrite ? "overwrite" : "append",
 		keyOf,
 		appendEntries(entries) {
 			if (entries.length === 0) return;
@@ -586,7 +696,14 @@ export function appendLogStorage<T>(
 		if (scheduledEpoch !== rollbackEpoch) return;
 		const promises: Promise<void>[] = [];
 		for (const [key, bucket] of buckets) {
-			// Read existing, append new, write back. Sync-or-async per backend.
+			// Overwrite mode: snapshot — write only this flush's entries, no
+			// read-merge (skips the backend read entirely).
+			if (overwrite) {
+				const w = backend.write(key, codec.encode(bucket));
+				if (w instanceof Promise) promises.push(w);
+				continue;
+			}
+			// Append mode: read existing, accumulate, write back.
 			const prev = backend.read(key);
 			const merge = (existing: Uint8Array | undefined): void | Promise<void> => {
 				const prior =

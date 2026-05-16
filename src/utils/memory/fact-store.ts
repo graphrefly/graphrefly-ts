@@ -48,9 +48,9 @@
  * @module
  */
 
-import { monotonicNs, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
+import { type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import type { ReactiveLogBundle } from "@graphrefly/pure-ts/extra";
-import { keepalive } from "@graphrefly/pure-ts/extra";
+import { keepalive, reactiveLog } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { domainMeta } from "../../base/meta/domain-meta.js";
 import {
@@ -152,6 +152,22 @@ export interface CascadeEvent {
 	readonly factId: FactId;
 	readonly rootFactId: FactId;
 	readonly reason: CascadeReason;
+	/**
+	 * The triggering root fact's own `validTo`. Cascade-invalidated dependents
+	 * inherit this (NOT a fresh wall-clock read), so the store is a
+	 * deterministic rebuildable projection: replaying the same ingest stream
+	 * yields byte-identical `validTo` on cascade-invalidated fragments. Each
+	 * dependent inherits the `validTo` of the *nearest obsolete fact that
+	 * drove its invalidation*: in a pure chain A→B→C where only A is
+	 * explicitly obsoleted, B and C both inherit A's `validTo` (B has no own
+	 * `validTo`, so when B becomes a cascade root the detector reads
+	 * `B.validTo` === A's value). If an intermediate B is itself explicitly
+	 * obsoleted with its *own* `validTo`, B's dependents inherit B's value,
+	 * not A's — "stale from when its driving source was invalidated."
+	 * Deterministic either way. Always defined: only obsolete facts
+	 * (`validTo` set) drive the cascade as roots.
+	 */
+	readonly rootValidTo: bigint;
 	/** Cascade recursion depth (1 = first wave). Bounded by `cascadeMaxIterations`. */
 	readonly iteration: number;
 	/**
@@ -217,6 +233,62 @@ export interface ReactiveFactStoreConfig<T> {
 	readonly cascadeMaxIterations?: number;
 	/** Confidence below which a {@link ReviewRequest} is emitted. Default 0.3. */
 	readonly reviewThreshold?: number;
+
+	// Persistence.
+	/**
+	 * Record every committed fragment (post-admission-filter, with full
+	 * payload) into a replayable {@link ReactiveFactStoreGraph.ingestLog}.
+	 * Default `false` (the log retains every fragment in memory — opt in only
+	 * when you intend to persist + replay).
+	 *
+	 * Enables the canonical **rebuildable-projection** recipe: the store is a
+	 * deterministic projection of its ingest stream (cascade `validTo` is
+	 * derived from the triggering root, not wall-clock; consolidator successors
+	 * are re-derived from replayed state, not logged — the projection is still
+	 * deterministic), so persisting the ingest log and replaying it on restart
+	 * reconstructs a byte-identical store. Pair with the BigInt-safe codec
+	 * ({@link MemoryFragment} carries `bigint` time fields). The tier MUST be
+	 * `mode:"append"` (the default) — `attachStorage` ships per-wave deltas, so
+	 * an `"overwrite"` tier would truncate the log (and `attachStorage` now
+	 * throws on one).
+	 *
+	 * **First run — persist:**
+	 * ```ts
+	 * import { reactiveFactStore } from "@graphrefly/graphrefly";
+	 * import { appendLogStorage, bigintJsonCodecFor } from "@graphrefly/pure-ts/extra";
+	 *
+	 * const tier = appendLogStorage(backend, {
+	 *   name: "facts-ingest",
+	 *   codec: bigintJsonCodecFor<readonly MemoryFragment<Doc>[]>(),
+	 * });
+	 * const mem = reactiveFactStore<Doc>({ ingest, extractDependencies, recordIngest: true });
+	 * mem.ingestLog!.attachStorage([tier]); // forwards every committed fragment
+	 * ```
+	 *
+	 * **Restart — replay (rebuild the projection):** read the persisted entries
+	 * and feed them through `config.ingest`. Replay is just the reactive input —
+	 * there is no imperative restore primitive.
+	 * ```ts
+	 * const { entries } = await tier.loadEntries!();
+	 * const mem = reactiveFactStore<Doc>({ ingest, extractDependencies });
+	 * for (const f of entries) ingest.emit(f); // identical store rebuilt
+	 * ```
+	 *
+	 * **Do NOT do both at once.** On restart, either replay through `ingest`
+	 * (above) **or** rely on `attachStorage`'s auto-restore — never both:
+	 * `attachStorage` restores the persisted entries into a fresh `ingestLog`,
+	 * and a manual replay loop would then re-append + re-persist them (doubling
+	 * the durable log every restart). If you want continued persistence on the
+	 * rebuilt store, set `recordIngest:true` and call `attachStorage([tier])`
+	 * **after** the replay loop completes (the log already holds the replayed
+	 * fragments, so `attachStorage` ships no spurious deltas).
+	 *
+	 * **Memory:** the in-memory log is unbounded (every committed fragment is
+	 * retained for the store's lifetime). For a long-lived high-volume store,
+	 * `ingestLog.trimHead(n)` after a confirmed `tier.flush()` bounds it (the
+	 * durable tier remains the full record).
+	 */
+	readonly recordIngest?: boolean;
 }
 
 export interface ReactiveFactStoreGraph<T> extends Graph {
@@ -232,6 +304,14 @@ export interface ReactiveFactStoreGraph<T> extends Graph {
 	readonly review: Node<ReviewRequest | null>;
 	readonly consolidated: Node<readonly MemoryFragment<T>[]>;
 	readonly events: ReactiveLogBundle<FactStoreAuditRecord>;
+	/**
+	 * Payload-carrying, replayable log of every committed fragment. Present iff
+	 * {@link ReactiveFactStoreConfig.recordIngest} is `true`. Unlike
+	 * {@link ReactiveFactStoreGraph.events} (action-only audit), each entry is
+	 * the full {@link MemoryFragment} — `attachStorage` it for a durable,
+	 * replayable projection source (see `recordIngest` docs for the recipe).
+	 */
+	readonly ingestLog?: ReactiveLogBundle<MemoryFragment<T>>;
 	/** Reactive read: a single fact by id (SENTINEL until the fact exists). */
 	itemNode(id: FactId): Node<MemoryFragment<T> | undefined>;
 }
@@ -353,6 +433,13 @@ export function reactiveFactStore<T>(
 		graph,
 	});
 	const seqCursor = registerCursor(graph, "seq", 0);
+
+	// Opt-in payload-carrying ingest log (rebuildable-projection source).
+	// Fed from `ingestAudit` (every committed fragment, post-admission).
+	const ingestLog: ReactiveLogBundle<MemoryFragment<T>> | undefined = config.recordIngest
+		? reactiveLog<MemoryFragment<T>>([], { name: "ingest_log" })
+		: undefined;
+	if (ingestLog) graph.addDisposer(() => ingestLog.dispose());
 
 	// ── shards: state<FactStore<T>> ──────────────────────────────────────
 	const emptyStore = (): FactStore<T> => ({ byId: new Map() });
@@ -560,6 +647,8 @@ export function reactiveFactStore<T>(
 						factId: dep,
 						rootFactId: f.id,
 						reason: "obsolete",
+						// `obsolete` guard above guarantees `f.validTo` is set.
+						rootValidTo: f.validTo as bigint,
 						iteration: cascadeIteration + 1,
 						causalReason: `dependentsIndex[${f.id}] → ${dep} (obsolete: validTo set)`,
 					});
@@ -664,10 +753,13 @@ export function reactiveFactStore<T>(
 			// `[...shards]`) — that IS the recursion edge. No separate trigger
 			// node is needed; the detector's "still live" predicate plus the
 			// empty-emit fixpoint reset terminate the cycle.
-			const now = monotonicNs();
-			for (const [id] of byId) {
+			// Deterministic: the dependent inherits the triggering root's own
+			// `validTo` (NOT a fresh `monotonicNs()` read), so replaying the
+			// same ingest stream yields byte-identical `validTo`. Transitive
+			// chains inherit the original root's time.
+			for (const [id, e] of byId) {
 				replaceFragment(id, (prev) =>
-					prev.validTo !== undefined ? prev : { ...prev, validTo: BigInt(now) },
+					prev.validTo !== undefined ? prev : { ...prev, validTo: e.rootValidTo },
 				);
 			}
 			actions.emit([...byId.values()]);
@@ -846,6 +938,9 @@ export function reactiveFactStore<T>(
 					t_ns: wallClockNs(),
 					seq: bumpCursor(seqCursor),
 				});
+				// Payload-carrying replay log (opt-in). Append the full
+				// committed fragment so the store is a rebuildable projection.
+				ingestLog?.append(f);
 			}
 			actions.emit(f ?? null);
 		},
@@ -885,6 +980,7 @@ export function reactiveFactStore<T>(
 		review,
 		consolidated,
 		events,
+		...(ingestLog ? { ingestLog } : {}),
 		itemNode,
 	}) as ReactiveFactStoreGraph<T>;
 	return out;

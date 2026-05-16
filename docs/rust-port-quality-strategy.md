@@ -115,7 +115,7 @@ fn wave_content_invariant_dev_mode_check() {
 }
 ```
 
-**Why:** Makes gaps visible in `cargo test` output. Prevents us from shipping code that accidentally depends on unimplemented behavior. You can see the gap count shrink over time without reading Rust.
+**Why:** Makes gaps visible in `cargo nextest run` output. Prevents us from shipping code that accidentally depends on unimplemented behavior. You can see the gap count shrink over time without reading Rust.
 
 ### Current deferred items to track:
 

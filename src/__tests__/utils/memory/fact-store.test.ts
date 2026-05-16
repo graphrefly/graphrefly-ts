@@ -1,5 +1,10 @@
 import { DATA, monotonicNs, node } from "@graphrefly/pure-ts/core";
-import { keepalive } from "@graphrefly/pure-ts/extra";
+import {
+	appendLogStorage,
+	bigintJsonCodecFor,
+	keepalive,
+	memoryBackend,
+} from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
 import {
 	type CascadeEvent,
@@ -148,6 +153,82 @@ describe("utils.memory.reactiveFactStore — MEME L2 (cascade)", () => {
 		// Transitive: a obsolete → b flipped → c flipped. Fixpoint, no overflow.
 		expect((cN.cache as MemoryFragment<string>).validTo).toBeDefined();
 		expect(mem.cascadeOverflow.cache).toBeNull();
+		mem.destroy();
+	});
+});
+
+// ── Deterministic cascade validTo (memo:Re P1 — rebuildable projection) ──
+
+describe("utils.memory.reactiveFactStore — deterministic cascade validTo", () => {
+	it("cascade-invalidated dependent inherits the root's validTo, not a fresh clock read", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({ ingest, extractDependencies: (f) => f.sources });
+		mem.cascade.subscribe(() => undefined);
+		const dep = mem.itemNode("commute");
+		dep.subscribe(() => undefined);
+		ingest.emit(frag("home", "Beijing"));
+		ingest.emit(frag("commute", "15-min bike", { sources: ["home"] }));
+		// Obsolete `home` with an explicit, well-known validTo.
+		const ROOT_VALID_TO = 1_234_567_890n;
+		ingest.emit(frag("home", "Shanghai", { validTo: ROOT_VALID_TO }));
+		expect((dep.cache as MemoryFragment<string>).validTo).toBe(ROOT_VALID_TO);
+		mem.destroy();
+	});
+
+	it("transitive chain inherits the original root's validTo at every link", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({ ingest, extractDependencies: (f) => f.sources });
+		mem.cascade.subscribe(() => undefined);
+		const bN = mem.itemNode("b");
+		const cN = mem.itemNode("c");
+		bN.subscribe(() => undefined);
+		cN.subscribe(() => undefined);
+		ingest.emit(frag("a", "A"));
+		ingest.emit(frag("b", "B", { sources: ["a"] }));
+		ingest.emit(frag("c", "C", { sources: ["b"] }));
+		const ROOT_VALID_TO = 999_000n;
+		ingest.emit(frag("a", "A2", { validTo: ROOT_VALID_TO }));
+		expect((bN.cache as MemoryFragment<string>).validTo).toBe(ROOT_VALID_TO);
+		expect((cN.cache as MemoryFragment<string>).validTo).toBe(ROOT_VALID_TO);
+		mem.destroy();
+	});
+
+	it("replaying the same ingest stream yields byte-identical cascade validTo", () => {
+		const run = () => {
+			const ingest = ingestNode<string>();
+			const mem = reactiveFactStore<string>({
+				ingest,
+				extractDependencies: (f) => f.sources,
+			});
+			mem.cascade.subscribe(() => undefined);
+			const dep = mem.itemNode("y");
+			dep.subscribe(() => undefined);
+			ingest.emit(frag("x", "X"));
+			ingest.emit(frag("y", "Y", { sources: ["x"] }));
+			ingest.emit(frag("x", "X2", { validTo: 555n }));
+			const v = (dep.cache as MemoryFragment<string>).validTo;
+			mem.destroy();
+			return v;
+		};
+		// Two independent runs of the identical stream → identical store.
+		expect(run()).toBe(run());
+		expect(run()).toBe(555n);
+	});
+
+	it("CascadeEvent carries the deterministic rootValidTo", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({ ingest, extractDependencies: (f) => f.sources });
+		const seen: CascadeEvent[] = [];
+		mem.cascade.subscribe((msgs) => {
+			for (const m of msgs)
+				if (m[0] === DATA) for (const e of m[1] as readonly CascadeEvent[]) seen.push(e);
+		});
+		ingest.emit(frag("p", "P"));
+		ingest.emit(frag("q", "Q", { sources: ["p"] }));
+		ingest.emit(frag("p", "P2", { validTo: 7777n }));
+		const ev = seen.find((e) => e.factId === "q");
+		expect(ev).toBeDefined();
+		expect(ev!.rootValidTo).toBe(7777n);
 		mem.destroy();
 	});
 });
@@ -610,5 +691,86 @@ describe("utils.memory.reactiveFactStore — cascade convergence (F1/F5/F3)", ()
 		expect(c.total).toBeLessThan(40);
 		expect(c.nonEmpty).toBeLessThanOrEqual(6);
 		mem.destroy();
+	});
+});
+
+// ── Opt-in payload-carrying ingest log (memo:Re P1 — rebuildable proj.) ──
+
+describe("utils.memory.reactiveFactStore — recordIngest / ingestLog", () => {
+	it("ingestLog is absent unless recordIngest is enabled", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({ ingest, extractDependencies: (f) => f.sources });
+		expect(mem.ingestLog).toBeUndefined();
+		mem.destroy();
+	});
+
+	it("records every committed fragment with full payload", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			recordIngest: true,
+		});
+		expect(mem.ingestLog).toBeDefined();
+		mem.ingestLog!.entries.subscribe(() => undefined);
+		ingest.emit(frag("a", "A"));
+		ingest.emit(frag("b", "B", { sources: ["a"] }));
+		const logged = mem.ingestLog!.entries.cache as readonly MemoryFragment<string>[];
+		expect(logged.map((f) => [f.id, f.payload])).toEqual([
+			["a", "A"],
+			["b", "B"],
+		]);
+		mem.destroy();
+	});
+
+	it("persist ingestLog + replay rebuilds a byte-identical store", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<MemoryFragment<string>>(backend, {
+			name: "facts-ingest",
+			codec: bigintJsonCodecFor<readonly MemoryFragment<string>[]>(),
+		});
+
+		// ── Original store: ingest a→b, then obsolete `a` (cascade flips b). ──
+		const ingest1 = ingestNode<string>();
+		const mem1 = reactiveFactStore<string>({
+			ingest: ingest1,
+			extractDependencies: (f) => f.sources,
+			recordIngest: true,
+		});
+		mem1.cascade.subscribe(() => undefined);
+		mem1.factStore.subscribe(() => undefined);
+		mem1.ingestLog!.attachStorage([tier]);
+		ingest1.emit(frag("a", "A", { t_ns: 100n }));
+		ingest1.emit(frag("b", "B", { sources: ["a"], t_ns: 200n }));
+		ingest1.emit(frag("a", "A2", { t_ns: 300n, validTo: 4242n }));
+		await tier.flush?.();
+		const store1 = (mem1.factStore.cache as { byId: ReadonlyMap<string, MemoryFragment<string>> })
+			.byId;
+		mem1.destroy();
+
+		// ── Restart: replay persisted fragments into a fresh store. ──
+		const { entries } = await tier.loadEntries!();
+		const ingest2 = ingestNode<string>();
+		const mem2 = reactiveFactStore<string>({
+			ingest: ingest2,
+			extractDependencies: (f) => f.sources,
+		});
+		mem2.cascade.subscribe(() => undefined);
+		mem2.factStore.subscribe(() => undefined);
+		for (const f of entries) ingest2.emit(f);
+		const store2 = (mem2.factStore.cache as { byId: ReadonlyMap<string, MemoryFragment<string>> })
+			.byId;
+
+		// Byte-identical: same ids, payloads, and (deterministic) validTo.
+		expect([...store2.keys()].sort()).toEqual([...store1.keys()].sort());
+		for (const [id, f1] of store1) {
+			const f2 = store2.get(id)!;
+			expect(f2.payload).toBe(f1.payload);
+			expect(f2.validTo).toBe(f1.validTo);
+			expect(f2.t_ns).toBe(f1.t_ns);
+		}
+		// `b` was cascade-invalidated; its validTo is the deterministic root time.
+		expect(store2.get("b")!.validTo).toBe(4242n);
+		mem2.destroy();
 	});
 });

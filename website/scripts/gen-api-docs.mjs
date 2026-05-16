@@ -135,8 +135,9 @@ const REGISTRY = {
 	indexedDbAppendLog: "packages/pure-ts/src/extra/storage/tiers-browser.ts",
 	indexedDbKv: "packages/pure-ts/src/extra/storage/tiers-browser.ts",
 	// Codec helpers.
-	// jsonCodec is an `export const` object literal — not supported by the function/class parser.
+	// jsonCodec / bigintJsonCodec are `export const` object literals — not supported by the function/class parser.
 	jsonCodecFor: "packages/pure-ts/src/extra/storage/tiers.ts",
+	bigintJsonCodecFor: "packages/pure-ts/src/extra/storage/tiers.ts",
 	// IDB reactive sources (DOM globals).
 	fromIDBRequest: "src/base/sources/browser/idb.ts",
 	fromIDBTransaction: "src/base/sources/browser/idb.ts",
