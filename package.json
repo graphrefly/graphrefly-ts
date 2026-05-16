@@ -592,7 +592,7 @@
 	],
 	"license": "MIT",
 	"peerDependencies": {
-		"@graphrefly/pure-ts": "workspace:^",
+		"@graphrefly/pure-ts": "workspace:>=0.45.0",
 		"@nestjs/common": ">=10",
 		"react": ">=18",
 		"react-dom": ">=18",
