@@ -58,7 +58,7 @@ describe("utils.memory.reactiveFactStore — topology", () => {
 			"cascade_overflow",
 			"review",
 			"answer",
-			"consolidator",
+			"consolidated",
 		]) {
 			expect(names).toContain(n);
 		}
@@ -435,6 +435,180 @@ describe("utils.memory.reactiveFactStore — SENTINEL / null guards", () => {
 		const r = mem.review.cache as ReviewRequest;
 		expect(r.factId).toBe("lo");
 		expect(r.confidence).toBe(0.1);
+		mem.destroy();
+	});
+});
+
+// ── F1/F5/F3 cascade-termination semantic fixes ──────────────────────────
+
+describe("utils.memory.reactiveFactStore — cascade convergence (F1/F5/F3)", () => {
+	// Count non-empty cascade DATA emissions — the convergence witness.
+	function cascadeCounter(mem: ReturnType<typeof reactiveFactStore<string>>) {
+		let nonEmpty = 0;
+		let total = 0;
+		mem.cascade.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] !== DATA) continue;
+				total += 1;
+				if ((m[1] as readonly CascadeEvent[]).length > 0) nonEmpty += 1;
+			}
+		});
+		return {
+			get nonEmpty() {
+				return nonEmpty;
+			},
+			get total() {
+				return total;
+			},
+		};
+	}
+
+	it("F1/F5(a): a low-confidence-but-still-live root does NOT drive the cascade (no perpetual re-emit)", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			reviewThreshold: 0.5,
+		});
+		const c = cascadeCounter(mem);
+		mem.review.subscribe(() => undefined);
+		mem.addDisposer(keepalive(mem.review));
+		const depItem = mem.itemNode("dep");
+		depItem.subscribe(() => undefined);
+
+		// `root` is low-confidence (0.1 < 0.5) but NEVER obsolete (no validTo);
+		// `dep` is a live dependent. Pre-fix this looped: the detector re-emitted
+		// a cascade for `dep` on every detector pass forever.
+		ingest.emit(frag("root", "R", { confidence: 0.1 }));
+		ingest.emit(frag("dep", "D", { sources: ["root"], confidence: 0.9 }));
+
+		// Convergence: the low-confidence root produced ZERO cascade waves and
+		// the dependent stays live. The fact is surfaced through `review`.
+		expect(c.nonEmpty).toBe(0);
+		expect((depItem.cache as MemoryFragment<string>).validTo).toBeUndefined();
+		expect((mem.review.cache as ReviewRequest).factId).toBe("root");
+		expect(mem.cascadeOverflow.cache).toBeNull();
+
+		// Re-running the detector (another ingest) still emits no cascade for
+		// the still-live low-confidence root — bounded, not perpetual.
+		ingest.emit(frag("other", "O", { confidence: 0.95 }));
+		expect(c.nonEmpty).toBe(0);
+		mem.destroy();
+	});
+
+	it("F1/F5(b): an obsolete root emits its cascade exactly once across waves", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+		});
+		const c = cascadeCounter(mem);
+		const dItem = mem.itemNode("d");
+		dItem.subscribe(() => undefined);
+
+		ingest.emit(frag("r", "R"));
+		ingest.emit(frag("d", "D", { sources: ["r"] }));
+		const before = c.nonEmpty;
+		// `r` → obsolete: drives the cascade exactly once.
+		ingest.emit(frag("r", "R2", { validTo: BigInt(monotonicNs()) }));
+		expect((dItem.cache as MemoryFragment<string>).validTo).toBeDefined();
+		const afterFirst = c.nonEmpty;
+		expect(afterFirst).toBe(before + 1);
+
+		// Many subsequent unrelated ingests re-run the detector; `r` stays
+		// obsolete but is in processedRoots → no further cascade waves.
+		for (let i = 0; i < 20; i += 1) ingest.emit(frag(`x${i}`, `v${i}`));
+		expect(c.nonEmpty).toBe(afterFirst);
+		expect(mem.cascadeOverflow.cache).toBeNull();
+		mem.destroy();
+	});
+
+	it("F1/F5: concurrent wire-back ingest during an in-flight cascade still converges", () => {
+		const ingest = ingestNode<string>();
+		const trigger = node<number>([], { initial: undefined });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			// Consolidator wire-back ingests a successor mid-life; pre-fix this
+			// reset the shared counter and could defeat the backstop.
+			consolidateTrigger: trigger,
+			consolidate: (store) => {
+				if (!store.has("a")) return [];
+				return [frag("summary", `n:${store.size}`, { sources: ["a"] })];
+			},
+		});
+		const c = cascadeCounter(mem);
+		const bItem = mem.itemNode("b");
+		bItem.subscribe(() => undefined);
+		mem.consolidated.subscribe(() => undefined);
+
+		ingest.emit(frag("a", "A"));
+		ingest.emit(frag("b", "B", { sources: ["a"] }));
+		// Fire a consolidation wire-back (commits `summary` dep on `a`), THEN
+		// make `a` obsolete. Cascade must converge despite the interleaved
+		// ingest-driven counter reset.
+		trigger.emit(1);
+		ingest.emit(frag("a", "A2", { validTo: BigInt(monotonicNs()) }));
+
+		expect((bItem.cache as MemoryFragment<string>).validTo).toBeDefined();
+		// Bounded number of cascade waves (finite, no hang). The exact count is
+		// small; we assert a generous upper bound to prove convergence.
+		expect(c.total).toBeLessThan(50);
+		expect(mem.cascadeOverflow.cache).toBeNull();
+		mem.destroy();
+	});
+
+	it("F3: phantom edge (extractDependencies names an un-ingested id) converges", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({
+			ingest,
+			// `b` declares a dependency on `ghost`, which is never ingested.
+			extractDependencies: (f) => f.sources,
+		});
+		const c = cascadeCounter(mem);
+		mem.cascade.subscribe(() => undefined);
+
+		ingest.emit(frag("real", "R"));
+		ingest.emit(frag("b", "B", { sources: ["ghost", "real"] }));
+		// `real` becomes obsolete; its dependent set via dependentsIndex is
+		// empty (b depends on ghost+real but the index keys by source id).
+		ingest.emit(frag("real", "R2", { validTo: BigInt(monotonicNs()) }));
+		// Now make `ghost`'s phantom presence the trigger: ingest then obsolete
+		// a fact that lists a never-existing dependent path. The phantom-edge
+		// `!depFact` guard prevents an infinite cascade.
+		ingest.emit(frag("ghost", "G", { validTo: BigInt(monotonicNs()) }));
+
+		// Converges: bounded waves, no overflow, no hang.
+		expect(c.total).toBeLessThan(50);
+		expect(mem.cascadeOverflow.cache).toBeNull();
+		mem.destroy();
+	});
+
+	it("F1/F5: transitive chain fully propagates and converges (no overflow) within the iteration budget", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			// Budget comfortably exceeds the chain length so termination is
+			// the per-root contract + empty-array fixpoint, not the backstop.
+			cascadeMaxIterations: 16,
+		});
+		const c = cascadeCounter(mem);
+		const tail = mem.itemNode("f5");
+		tail.subscribe(() => undefined);
+		// f0 → f1 → ... → f5 chain. Each link becomes obsolete in turn and
+		// drives its cascade exactly once; the wave count is bounded and the
+		// cascade converges to the tail without tripping the overflow cap.
+		ingest.emit(frag("f0", "v0"));
+		for (let i = 1; i <= 5; i += 1) {
+			ingest.emit(frag(`f${i}`, `v${i}`, { sources: [`f${i - 1}`] }));
+		}
+		ingest.emit(frag("f0", "v0b", { validTo: BigInt(monotonicNs()) }));
+		expect((tail.cache as MemoryFragment<string>).validTo).toBeDefined();
+		expect(mem.cascadeOverflow.cache).toBeNull();
+		// Bounded, finite emission count — the convergence witness.
+		expect(c.total).toBeLessThan(40);
+		expect(c.nonEmpty).toBeLessThanOrEqual(6);
 		mem.destroy();
 	});
 });

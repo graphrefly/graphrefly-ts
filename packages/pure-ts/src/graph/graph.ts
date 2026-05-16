@@ -2214,7 +2214,12 @@ export class Graph {
 			);
 		}
 		const resolved = typeof dep === "string" ? this.resolve(dep) : dep;
-		return (target as NodeImpl)._addDep(resolved, fn);
+		const idx = (target as NodeImpl)._addDep(resolved, fn);
+		// DS-14.5.A Q1 (F1) — `_addDep` mutates `_deps` shape, so the spec
+		// projection is dirty. Bump AFTER the substrate call returns, mirroring
+		// `_rewire`'s placement (the edit has already landed).
+		this._bumpTopologyVersion();
+		return idx;
 	}
 
 	/**
@@ -2238,6 +2243,9 @@ export class Graph {
 		}
 		const resolved = typeof dep === "string" ? this.resolve(dep) : dep;
 		(target as NodeImpl)._removeDep(resolved, fn);
+		// DS-14.5.A Q1 (F1) — `_removeDep` mutates `_deps` shape (spec
+		// projection drift); bump AFTER the substrate call, mirroring `_rewire`.
+		this._bumpTopologyVersion();
 	}
 
 	// ——————————————————————————————————————————————————————————————
@@ -6046,6 +6054,21 @@ export class Graph {
 					"baseline-missing",
 					`Graph.restoreSnapshot: snapshot tier "${handle.tier.name}" holds a non-full record; baselines must be mode:"full".`,
 					{ tier: handle.tier.name, mode: record.mode },
+				);
+			}
+			// DS-14.5.A F6 — a `lifecycle:"spec"` record's `snapshot` is a
+			// `describe({detail:"spec"})` topology projection, NOT a value
+			// baseline; `this.restore()` on it would corrupt graph state. The
+			// spec-only fast path above (filter exactly `["spec"]`) is the ONLY
+			// sanctioned consumer of a spec baseline. Reaching here with a spec
+			// record means the tier mixes spec + value lifecycles on one tier
+			// without a `["spec"]` filter — spec snapshots require a dedicated
+			// snapshot tier. Fail fast rather than load a projection as values.
+			if (record.lifecycle === "spec") {
+				throw new RestoreError(
+					"baseline-missing",
+					`Graph.restoreSnapshot: snapshot tier "${handle.tier.name}" holds a lifecycle:"spec" baseline, which is a topology projection — not a value baseline. Use restoreSnapshot({ lifecycle:["spec"] }) for the spec-only fast path, or give spec snapshots a dedicated tier separate from value baselines.`,
+					{ tier: handle.tier.name, lifecycle: record.lifecycle },
 				);
 			}
 			// Phase 14.6 fix D — point-in-time recovery up to a `targetSeq`

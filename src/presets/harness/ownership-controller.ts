@@ -43,9 +43,9 @@
  * @module
  */
 
-import { monotonicNs, type Node, type NodeGuard, policyAllowing } from "@graphrefly/pure-ts/core";
+import { type Node, type NodeGuard, policyAllowing, wallClockNs } from "@graphrefly/pure-ts/core";
 import type { NodeInput, OwnershipChange, OwnershipChangePayload } from "@graphrefly/pure-ts/extra";
-import { fromAny, keepalive } from "@graphrefly/pure-ts/extra";
+import { fromAny } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { type TopicGraph, topic } from "../../utils/messaging/index.js";
 
@@ -95,9 +95,24 @@ export type OwnershipState = {
 	readonly level: OwnershipLevel | null;
 	/** Allow-set fed to the Guard. `[]` (deny-all) when `owner === null`. */
 	readonly allowed: readonly string[];
+	/**
+	 * Internal (F3/F4) — last sign-of-life (wall-clock ns) for the *current*
+	 * claim: `max(claim.sinceNs, last in-window heartbeat)`. Carried in the
+	 * derivation's OWN emitted state (read back via `ctx.prevData`) so the
+	 * fold is pure — same (folded log, beat-this-wave, now, prevState) →
+	 * same output. NEVER an instance field. `null` when unclaimed. Scoped to
+	 * the active claim: a value older than the active claim's `sinceNs` (a
+	 * prior owner's beat) is discarded so it cannot extend a new owner.
+	 */
+	readonly signOfLifeNs: number | null;
 };
 
-const EMPTY_STATE: OwnershipState = { owner: null, level: null, allowed: [] };
+const EMPTY_STATE: OwnershipState = {
+	owner: null,
+	level: null,
+	allowed: [],
+	signOfLifeNs: null,
+};
 
 type ActiveOwner = { owner: string; level: OwnershipLevel; sinceNs: number };
 
@@ -124,13 +139,18 @@ export class OwnershipControllerGraph extends Graph {
 
 	private readonly _ttlNs: number;
 	private readonly _supervisor: string | undefined;
-	/** Last heartbeat sign-of-life (monotonic ns); 0 until first beat. */
-	private _lastHeartbeatNs = 0;
+	/**
+	 * Whether a heartbeat `NodeInput` was supplied at construction (F14 —
+	 * `claim()`'s `level` default is `"L2"` when wired, else `"L1"`). NOT a
+	 * mutable accumulator — set once in the constructor, read-only after.
+	 */
+	private readonly _hasHeartbeat: boolean;
 
 	constructor(name: string, opts: OwnershipControllerOptions) {
 		super(name);
 		this._ttlNs = Math.max(0, opts.ttl) * 1_000_000;
 		this._supervisor = opts.supervisor;
+		this._hasHeartbeat = opts.heartbeat != null;
 
 		this.topic = topic<OwnershipChange>(`${name}__ownership`, {
 			retainedLimit: opts.retainedLimit ?? 256,
@@ -155,7 +175,11 @@ export class OwnershipControllerGraph extends Graph {
 			"currentOwner",
 			deps,
 			(batchData, ctx) => {
-				const nowNs = monotonicNs();
+				// Wall-clock (F2) — must match `makeChange`'s `t_ns` stamp so
+				// `nowNs - active.sinceNs` compares like-for-like. Mixing
+				// monotonic + wall clocks (the prior bug) made TTL math
+				// nonsense once the two clocks diverged.
+				const nowNs = wallClockNs();
 				// Did the heartbeat dep emit this wave? `batchData[i]` is the
 				// array of values dep `i` emitted THIS wave; a non-empty
 				// heartbeat batch is one or more beats.
@@ -190,31 +214,60 @@ export class OwnershipControllerGraph extends Graph {
 					}
 				}
 
-				// L1/L2 expiry, then conditional heartbeat renewal.
-				// "Max tolerance since last sign of life": the live window is
-				// `[signOfLife, signOfLife + ttl)` where signOfLife is the
-				// claim time or the last VALID heartbeat (whichever is newer).
-				// A heartbeat only renews if it arrives BEFORE the window
-				// lapses (Q4 strict — a late beat must NOT resurrect an
-				// already-expired claim; recompute order: expire first, then
-				// accept a still-timely beat).
+				// F3/F4 — PURE sign-of-life. Read the prior `signOfLifeNs`
+				// from THIS derivation's own previously-emitted state
+				// (`ctx.prevData[0]` for the `current` node is unavailable —
+				// `prevData[0]` is the topic dep — so we read `ctx.cache`,
+				// the node's own last emit). No instance field anywhere.
+				const prevState = (ctx.cache ?? undefined) as OwnershipState | undefined;
+
+				let nextActive: ActiveOwner | null = active;
+				let signOfLifeNs: number | null = null;
+
 				if (active != null && this._ttlNs > 0) {
-					const priorSignOfLife = Math.max(active.sinceNs, this._lastHeartbeatNs);
-					const lapsed = nowNs - priorSignOfLife >= this._ttlNs;
+					// Carry the prior sign-of-life ONLY if it belongs to THIS
+					// claim (>= the active claim's `sinceNs`). A value from a
+					// prior owner (older than `sinceNs`) is discarded so a
+					// stale beat cannot extend a freshly-claimed window. A new
+					// owner therefore starts from its own claim time.
+					const carried =
+						prevState?.signOfLifeNs != null && prevState.signOfLifeNs >= active.sinceNs
+							? prevState.signOfLifeNs
+							: active.sinceNs;
+					// Expire FIRST against the carried sign-of-life (Q4 strict —
+					// a late beat must NOT resurrect an already-lapsed claim),
+					// THEN accept a still-timely beat THIS wave. `signOfLifeNs`
+					// only ever advances on an actual beat-this-wave, so a
+					// recompute storm with no beat cannot renew a dead claim
+					// (idempotent re-fold).
+					const lapsed = nowNs - carried >= this._ttlNs;
 					if (lapsed) {
-						active = null;
+						nextActive = null;
+						signOfLifeNs = null;
 					} else if (beatThisWave) {
-						this._lastHeartbeatNs = nowNs; // timely beat → renew
+						signOfLifeNs = nowNs; // timely beat → renew
+					} else {
+						signOfLifeNs = carried; // unchanged — carry forward
 					}
-				} else if (beatThisWave && active != null) {
-					// No TTL configured — a beat is still a sign of life.
-					this._lastHeartbeatNs = nowNs;
+				} else if (active != null) {
+					// No TTL configured — never expires; sign-of-life still
+					// tracked (owner-scoped) for completeness/observability.
+					const carried =
+						prevState?.signOfLifeNs != null && prevState.signOfLifeNs >= active.sinceNs
+							? prevState.signOfLifeNs
+							: active.sinceNs;
+					signOfLifeNs = beatThisWave ? nowNs : carried;
 				}
 
 				return [
-					active == null
+					nextActive == null
 						? EMPTY_STATE
-						: { owner: active.owner, level: active.level, allowed: [active.owner] },
+						: {
+								owner: nextActive.owner,
+								level: nextActive.level,
+								allowed: [nextActive.owner],
+								signOfLifeNs,
+							},
 				];
 			},
 			{ keepAlive: true },
@@ -232,7 +285,9 @@ export class OwnershipControllerGraph extends Graph {
 			},
 			{ keepAlive: true },
 		);
-		this.addDisposer(keepalive(this.allowed));
+		// F12 — `keepAlive: true` above already installs a self-pruning
+		// keepalive subscription (same as `current`); a second
+		// `keepalive(this.allowed)` disposer was redundant double-subscription.
 
 		// Q7 — the reactive-options Guard. `policyAllowing` reads
 		// `this.allowed.cache` synchronously at write-check time, so
@@ -246,7 +301,9 @@ export class OwnershipControllerGraph extends Graph {
 	 * when this controller has a heartbeat wired, else `"L1"`.
 	 */
 	claim(actor: string, level?: OwnershipLevel): void {
-		const lvl = level ?? "L1";
+		// F14 — documented default (JSDoc + §47): L2 when a heartbeat
+		// NodeInput was wired at construction, else L1.
+		const lvl = level ?? (this._hasHeartbeat ? "L2" : "L1");
 		this.topic.publish(makeChange({ kind: "claim", subgraphId: this.name, actor, level: lvl }));
 	}
 
@@ -269,7 +326,10 @@ export class OwnershipControllerGraph extends Graph {
 
 /** Wrap an {@link OwnershipChangePayload} in the DS-14 {@link OwnershipChange} envelope. */
 function makeChange(payload: OwnershipChangePayload): OwnershipChange {
-	const t = monotonicNs();
+	// F2 — `BaseChange.t_ns` is contractually wall-clock (`wallClockNs()`,
+	// see change.ts). The fold compares `nowNs (wallClockNs)` against
+	// `ch.t_ns` for TTL/expiry, so stamp + compare MUST use the same clock.
+	const t = wallClockNs();
 	return { structure: "ownership", version: t, t_ns: t, lifecycle: "ownership", change: payload };
 }
 
@@ -290,10 +350,11 @@ function applyChange(
 	supervisor: string | undefined,
 ): ActiveOwner | null {
 	const p = ch.change;
-	// Use the change's publish timestamp (`t_ns`, stamped in `makeChange`) as
-	// the claim time — NOT the fold time. The log is re-folded from scratch on
-	// every recompute (§47), so stamping `monotonicNs()` here would re-baseline
-	// the TTL window every recompute and the claim would never expire.
+	// Use the change's publish timestamp (`t_ns` — wall-clock, stamped in
+	// `makeChange`) as the claim time — NOT the fold time. The log is re-folded
+	// from scratch on every recompute (§47), so stamping a fresh clock read
+	// here would re-baseline the TTL window every recompute and the claim would
+	// never expire. The fold compares against `wallClockNs()` (F2 — same clock).
 	if (p.kind === "claim") {
 		if (active != null && LEVEL_RANK[active.level] > LEVEL_RANK[p.level]) return active;
 		return { owner: p.actor, level: p.level, sinceNs: ch.t_ns };
@@ -302,9 +363,14 @@ function applyChange(
 		if (active != null && active.owner === p.actor) return null;
 		return active;
 	}
-	// override
+	// override (F5) — a `kind:"override"` only seizes ownership when the
+	// publishing actor IS the configured supervisor. The prior disjunction
+	// `|| LEVEL_RANK.L3 >= LEVEL_RANK[active.level]` was a tautology (L3 is the
+	// max rank ⇒ always true), so ANY actor's override took over. If no
+	// supervisor is configured, overrides are explicitly disabled (a non-null
+	// `supervisor` is the gate, not an accidental fall-through).
 	const isSupervisor = supervisor != null && p.actor === supervisor;
-	if (isSupervisor || active == null || LEVEL_RANK.L3 >= LEVEL_RANK[active.level]) {
+	if (isSupervisor) {
 		return { owner: p.actor, level: "L3", sinceNs: ch.t_ns };
 	}
 	return active;

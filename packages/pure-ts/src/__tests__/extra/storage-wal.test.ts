@@ -825,6 +825,28 @@ describe("Graph._topologyVersion counter (DS-14.5.A Q1)", () => {
 		expect(g.topologyVersion).toBe(v + 1);
 	});
 
+	it("bumps on `_addDep` and `_removeDep` (DS-14.5.A F1 — dep-shape drift)", () => {
+		const g = new Graph("g");
+		g.add(node([], { initial: 1, name: "a" }), { name: "a" });
+		g.add(node([], { initial: 2, name: "b" }), { name: "b" });
+		g.add(
+			node<number>([g.node("a")], (data, actions, ctx) => {
+				actions.emit((data[0]?.[0] ?? ctx.prevData[0]) as number);
+			}),
+			{ name: "c" },
+		);
+		const vAdd = g.topologyVersion;
+		g._addDep("c", "b", (data, actions, ctx) => {
+			actions.emit((data[0]?.[0] ?? ctx.prevData[0]) as number);
+		});
+		expect(g.topologyVersion).toBe(vAdd + 1);
+		const vRemove = g.topologyVersion;
+		g._removeDep("c", "b", (data, actions, ctx) => {
+			actions.emit((data[0]?.[0] ?? ctx.prevData[0]) as number);
+		});
+		expect(g.topologyVersion).toBe(vRemove + 1);
+	});
+
 	it("is distinct from value mutations (set does NOT bump)", () => {
 		const g = new Graph("g");
 		g.add(node([], { initial: 1, name: "a" }), { name: "a" });
@@ -875,6 +897,73 @@ describe("attachSnapshotStorage spec snapshot (DS-14.5.A delta #7, Q8)", () => {
 		const afterValue = saves.filter((r) => r.lifecycle === "spec").length;
 		expect(afterValue).toBe(afterFirst);
 		await h.dispose();
+	});
+
+	it("F6 — restoreSnapshot (default scope) rejects a lifecycle:'spec' baseline as a value baseline", async () => {
+		const author = new Graph("g");
+		const backend = memoryBackend();
+		const { snapshotStorage } = await import("../../extra/storage/tiers.js");
+		const specTier = snapshotStorage<import("../../graph/graph.js").GraphCheckpointRecord>(
+			backend,
+			{ name: "g" },
+		);
+		const h = author.attachSnapshotStorage([{ snapshot: specTier }], { paths: [] });
+		author.add(node([], { initial: 0, name: "alpha" }), { name: "alpha" });
+		await settle();
+		await h.dispose();
+
+		// The tier now holds ONLY a lifecycle:"spec" baseline. A default-scope
+		// (no `lifecycle` filter) diff restore must NOT this.restore() that
+		// topology projection as a value baseline — it fails fast (F6).
+		const replayer = new Graph("g");
+		await expect(
+			replayer.restoreSnapshot({
+				mode: "diff",
+				source: {
+					tier: specTier,
+					walTier: kvStorage(memoryBackend(), { name: "g-wal" }),
+				},
+			}),
+		).rejects.toBeInstanceOf(RestoreError);
+	});
+
+	it("F7 — restoreSnapshot({ lifecycle:['spec'] }) over a VALUE baseline falls through: value baseline applied, spec-filtered frames replayed", async () => {
+		// Author a NORMAL value baseline + data WAL frames (no topology drift
+		// after attach → snapshot tier holds a value, non-spec baseline).
+		const author = new Graph("g");
+		author.add(node([], { initial: 0, name: "a" }), { name: "a" });
+		const snapTier = memorySnapshot({ name: "g", compactEvery: 100 });
+		const walTier = kvStorage<WALFrame>(memoryBackend(), { name: "g-wal" });
+		const h = author.attachSnapshotStorage([{ snapshot: snapTier, wal: walTier }]);
+		await settle();
+		author.set("a", 7);
+		await settle();
+		author.set("a", 11);
+		await settle();
+		await h.dispose();
+
+		// Sanity: the baseline is a value baseline (not lifecycle:"spec"), so
+		// the spec-only fast path must NOT engage — we fall through to the
+		// WAL-diff path which applies the value baseline then filters WAL
+		// frames to the "spec" lifecycle (data frames dropped → 0 frames).
+		const baseline = (await snapTier.load?.()) as { lifecycle?: string };
+		expect(baseline.lifecycle).not.toBe("spec");
+
+		const replayer = new Graph("g");
+		replayer.add(node([], { initial: 0, name: "a" }), { name: "a" });
+		const result = await replayer.restoreSnapshot({
+			mode: "diff",
+			source: { tier: snapTier, walTier },
+			lifecycle: ["spec"],
+		});
+		// Value baseline WAS applied (cache reflects the baseline's captured
+		// value, NOT the latest WAL value — data frames are spec-filtered out).
+		expect(replayer.node("a").cache).toBe(0);
+		// The spec phase ran with zero matching frames (fall-through semantic,
+		// NOT the fast-path `phases:[{lifecycle:"spec",frames:0}]` shape — the
+		// WAL walk produced a per-lifecycle phase set).
+		expect(result.phases.find((p) => p.lifecycle === "data")?.frames).toBe(0);
+		expect(result.replayedFrames).toBe(0);
 	});
 
 	it("spec snapshot round-trips via restoreSnapshot({ lifecycle:['spec'] })", async () => {

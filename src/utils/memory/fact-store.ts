@@ -7,8 +7,13 @@
  * reactive node per fact. ~12 fixed operator nodes never grow regardless of how
  * many facts the store holds; facts live as columnar DATA inside an indexed
  * `state<FactStore>` (optionally sharded), and cascade is implemented as
- * bounded recursive message emission with `batch()` dedupe replicating
- * spec §1.4 diamond-merge at message granularity.
+ * bounded recursive message emission. Termination rests on a per-root
+ * semantic contract — a fact only drives the cascade when it transitions to
+ * obsolete (`validTo` set), and each obsolete root emits its cascade exactly
+ * once across all waves — plus an empty-array fixpoint short-circuit. The
+ * cascade is modeled as DATA arrays (NOT INVALIDATE messages), so spec §1.4's
+ * idempotent-within-a-wave INVALIDATE guarantee does NOT govern this loop;
+ * convergence is the per-root contract, not a spec §1.4 diamond-merge.
  *
  * Canonical design: `archive/docs/SESSION-DS-14.7-reactive-fact-store.md`
  * (9Q walk complete; Q9-open items 1–9 all resolved).
@@ -16,6 +21,8 @@
  * Locked decisions baked in here:
  * - `cascadeMaxIterations` default **8**; overflow emits a per-batch summary
  *   `{ droppedCount, sample, rootFactId }` to `cascadeOverflow` (Q9-open-4).
+ *   The overflow `sample` is capped at `OVERFLOW_SAMPLE_SIZE` (8),
+ *   independent of `cascadeMaxIterations`.
  * - `shardBy` default hash-mod **4**; caller override; `dependentsIndex`
  *   unsharded for v1 (Q9-open-1).
  * - `MemoryFragment` adds `embedding? / parent_fragment_id? / provenance?`
@@ -71,7 +78,7 @@ export type ShardKey = string | number;
 export interface MemoryFragment<T> {
 	readonly id: FactId;
 	readonly payload: T;
-	/** Transaction time (when learned). `monotonicNs()` bigint. */
+	/** Transaction time (when learned). `bigint` ns (e.g. `BigInt(monotonicNs())`). */
 	readonly t_ns: bigint;
 	/** Valid-time start. `undefined` = unbounded past. */
 	readonly validFrom?: bigint;
@@ -193,7 +200,7 @@ export interface ReactiveFactStoreConfig<T> {
 	readonly query?: Node<MemoryQuery>;
 	/**
 	 * Consolidator trigger — a reactive timer/cron Node (e.g. `fromCron(...)`).
-	 * When supplied, the `consolidator` node maps each tick to summarized
+	 * When supplied, the `consolidated` node maps each tick to summarized
 	 * fragments emitted on the `consolidated` topic and default-wired back to
 	 * the internal ingest path.
 	 */
@@ -228,6 +235,15 @@ export interface ReactiveFactStoreGraph<T> extends Graph {
 	/** Reactive read: a single fact by id (SENTINEL until the fact exists). */
 	itemNode(id: FactId): Node<MemoryFragment<T> | undefined>;
 }
+
+// ── Constants ────────────────────────────────────────────────────────────
+
+/**
+ * Max number of dropped cascade-target ids included in a {@link CascadeOverflow}
+ * `sample`. Deliberately decoupled from `cascadeMaxIterations` — it bounds the
+ * diagnostic payload size, not the recursion budget.
+ */
+const OVERFLOW_SAMPLE_SIZE = 8;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -290,7 +306,8 @@ function lastOf<X>(batch: readonly unknown[] | undefined, prev: unknown): X | un
  *  - `cascadeOverflow` — per-batch overflow summary node.
  *  - `queryOp` / `answer` — structured `MemoryQuery` → results (SENTINEL-safe).
  *  - `outcomeProcessor` — outcome signal → confidence write-back.
- *  - `consolidator` — cron-tick → summarized fragments on `consolidated`,
+ *  - `consolidated` — cron-tick → summarized fragments on the
+ *    `consolidated` topic,
  *    default-wired back into the ingest path.
  *  - `review` — low-confidence proactive-verification requests.
  *
@@ -314,7 +331,19 @@ export function reactiveFactStore<T>(
 	// Cascade recursion depth counter. Reset to 0 on every external ingest
 	// (a fresh root = a fresh cascade budget) and on a true fixpoint (detector
 	// emits `[]`). Bounded by `maxIterations`; overflow stops the recursion.
+	// This counter is a *backstop* for pathological cycles only — primary
+	// termination is the per-root semantic contract below (F1/F5).
 	let cascadeIteration = 0;
+
+	// F1/F5 — per-root cascade dedupe across waves. A fact only enters the
+	// cascade as a root when it transitions to obsolete (`validTo` set), and
+	// a given obsolete root emits its cascade exactly ONCE across all waves.
+	// `processedRoots` tracks root ids that have already emitted; a root
+	// re-detected in a later wave WITHOUT a new obsolescence transition does
+	// not re-emit. This bounds the loop by the finite set of newly-obsolete
+	// roots per external change, independent of `cascadeIteration` resets
+	// (which an ingest / consolidator wire-back would otherwise defeat).
+	const processedRoots = new Set<FactId>();
 
 	const graph = new Graph("reactive_fact_store") as ReactiveFactStoreGraph<T>;
 
@@ -427,6 +456,19 @@ export function reactiveFactStore<T>(
 			describeKind: "derived",
 			initial: emptyStore(),
 			meta: factMeta("factstore", { role: "read_view" }),
+			// F10a: `allFacts()` builds a fresh Map every detector retrigger.
+			// Fragments are immutable (replaced wholesale on mutation), so a
+			// same-size + per-key-identity check is a sound structural equality
+			// that stops `factStore` (and its `review` dependent) from re-firing
+			// every cascade wave when nothing actually changed.
+			equals: (a: FactStore<T>, b: FactStore<T>) => {
+				if (a === b) return true;
+				if (a.byId.size !== b.byId.size) return false;
+				for (const [k, v] of a.byId) {
+					if (b.byId.get(k) !== v) return false;
+				}
+				return true;
+			},
 		},
 	);
 	graph.add(factStore, { name: "fact_store" });
@@ -451,6 +493,11 @@ export function reactiveFactStore<T>(
 			const deps = config.extractDependencies(f);
 			// External ingest = a fresh cascade root → reset the depth budget.
 			cascadeIteration = 0;
+			// F1/F5: a (re-)ingested id is a fresh fact version. Clear it from
+			// `processedRoots` so a NEW obsolescence transition on this id
+			// (e.g. re-ingest with `validTo` set) re-drives the cascade exactly
+			// once, rather than being permanently suppressed.
+			processedRoots.delete(f.id);
 			// Synchronous + atomic: commit fragment, then index its dep edges.
 			commitFragment(f);
 			indexFragment(f, deps);
@@ -466,15 +513,18 @@ export function reactiveFactStore<T>(
 	graph.addDisposer(keepalive(extractOp));
 
 	// ── invalidationDetector: store → cascade messages ───────────────────
-	// Scans for facts that became obsolete (`validTo` set) or fell below the
-	// review threshold, resolves dependents via `dependentsIndex`, and emits
-	// one cascade message per affected dependent that is **still live** (no
-	// `validTo` yet). The "still live" predicate is what makes the cascade
-	// cycle terminate naturally at a fixpoint: once every transitively-reachable
-	// dependent has been flipped, the detector emits `[]` and the recursion
-	// stops without needing the `cascadeMaxIterations` guard (the guard only
-	// fires for pathological cycles, e.g. an LLM-extracted A→B→A loop, where
-	// flipping never settles).
+	// F1/F5 per-root semantic contract: a fact drives the cascade as a root
+	// ONLY when it is obsolete (`validTo` set). A low-confidence-but-still-live
+	// fact (no `validTo`) does NOT by itself emit a cascade — it surfaces via
+	// the `review` topic instead, so it cannot perpetually re-emit a cascade
+	// every detector pass. Each obsolete root emits its cascade exactly once
+	// across all waves (`processedRoots` dedupe): a root re-detected in a later
+	// wave without a fresh obsolescence transition is skipped. Termination is
+	// therefore bounded by the finite set of newly-obsolete roots per external
+	// change — robust against `cascadeIteration` resets from ingest /
+	// consolidator wire-back. The empty-array emit is the fixpoint
+	// short-circuit; `cascadeMaxIterations` remains a backstop for pathological
+	// LLM-extracted cycles (A→B→A) only.
 	const invalidationDetector = node<readonly CascadeEvent[]>(
 		[...shards],
 		(batchData, actions, ctx) => {
@@ -485,31 +535,39 @@ export function reactiveFactStore<T>(
 			const out: CascadeEvent[] = [];
 			const seen = new Set<FactId>();
 			for (const f of facts.values()) {
+				// F1/F5(a): ONLY obsolete facts drive the cascade as roots. A
+				// low-confidence-but-still-live fact is handled by `review`,
+				// never by the cascade loop.
 				const obsolete = f.validTo !== undefined;
-				const lowConf = f.confidence < reviewThreshold;
-				if (!obsolete && !lowConf) continue;
+				if (!obsolete) continue;
+				// F1/F5(b): each obsolete root emits its cascade exactly once
+				// across all waves. A root re-detected later (still obsolete,
+				// no fresh transition) is skipped — convergence is independent
+				// of `cascadeIteration` resets.
+				if (processedRoots.has(f.id)) continue;
 				const dependents = index.get(f.id) ?? [];
 				for (const dep of dependents) {
-					// Only cascade onto dependents that are still live — a
-					// dependent already carrying `validTo` is a settled node in
-					// the diamond and must not re-emit (this is the fixpoint
-					// condition replicating spec §1.4 diamond-merge).
+					// F3: only cascade onto dependents that are still live. A
+					// non-existent fact (phantom edge — `extractDependencies`
+					// named an un-ingested FactId) is NOT a live dependent;
+					// neither is a dependent already carrying `validTo`.
 					const depFact = facts.get(dep);
-					if (depFact && depFact.validTo !== undefined) continue;
+					if (!depFact || depFact.validTo !== undefined) continue;
 					const k = `${f.id}->${dep}`;
 					if (seen.has(k)) continue;
 					seen.add(k);
-					const reason: CascadeReason = obsolete ? "obsolete" : "cascade";
 					out.push({
 						factId: dep,
 						rootFactId: f.id,
-						reason,
+						reason: "obsolete",
 						iteration: cascadeIteration + 1,
-						causalReason: `dependentsIndex[${f.id}] → ${dep} (${reason}: ${
-							obsolete ? "validTo set" : `confidence ${f.confidence} < ${reviewThreshold}`
-						})`,
+						causalReason: `dependentsIndex[${f.id}] → ${dep} (obsolete: validTo set)`,
 					});
 				}
+				// Mark the root processed once considered (whether or not it
+				// had a still-live dependent) — it must not re-drive a later
+				// wave without a fresh obsolescence transition.
+				processedRoots.add(f.id);
 			}
 			if (out.length === 0) {
 				// True fixpoint — reset the depth counter so the next external
@@ -556,9 +614,12 @@ export function reactiveFactStore<T>(
 	graph.addDisposer(keepalive(cascadeOverflow));
 
 	// ── cascadeProcessor (SYNCHRONOUS, meta.cycle:"cascade") ─────────────
-	// `batch()` at message granularity replicates spec §1.4 fact-level
-	// diamond-merge: dedupe by factId, mark each dependent obsolete (write-back
-	// → re-triggers invalidationDetector), bounded by `cascadeMaxIterations`.
+	// Per-wave dedupe by target factId, mark each dependent obsolete
+	// (write-back → re-triggers invalidationDetector), bounded by
+	// `cascadeMaxIterations`. NOTE: this is DATA-array dedupe, NOT spec §1.4
+	// INVALIDATE idempotency — termination comes from the detector's
+	// obsolete-only + per-root-once contract plus the empty-array fixpoint
+	// short-circuit, not a spec §1.4 guarantee.
 	const cascadeProcessor = node<readonly CascadeEvent[]>(
 		[cascade],
 		(batchData, actions, ctx) => {
@@ -580,7 +641,7 @@ export function reactiveFactStore<T>(
 				// the cycle breaks. `cascadeIteration` stays above the cap until
 				// the next external ingest resets it (via extractOp), so a
 				// degenerate cycle cannot immediately re-enter.
-				const sample = [...byId.keys()].slice(0, 8);
+				const sample = [...byId.keys()].slice(0, OVERFLOW_SAMPLE_SIZE);
 				const rootFactId = evts[0]?.rootFactId ?? "";
 				cascadeOverflow.emit({
 					droppedCount: byId.size,
@@ -647,6 +708,10 @@ export function reactiveFactStore<T>(
 			describeKind: "derived",
 			initial: null,
 			meta: factMeta("review"),
+			// F10a: dedupe on the requested factId (null === no request) so a
+			// stable low-confidence fact does not re-emit a review every wave.
+			equals: (a: ReviewRequest | null, b: ReviewRequest | null) =>
+				(a?.factId ?? null) === (b?.factId ?? null),
 		},
 	);
 	graph.add(review, { name: "review" });
@@ -744,6 +809,10 @@ export function reactiveFactStore<T>(
 			// can subscribe to `consolidated` and intercept.
 			for (const f of fragments) {
 				const deps = config.extractDependencies(f);
+				// F1/F5: wired-back successor is a fresh fact version — same
+				// processedRoots reset as the ingest path so a later obsolescence
+				// of this id can re-cascade exactly once.
+				processedRoots.delete(f.id);
 				commitFragment(f);
 				indexFragment(f, deps);
 				events.append({
@@ -756,13 +825,13 @@ export function reactiveFactStore<T>(
 			actions.emit(fragments);
 		},
 		{
-			name: "consolidator",
+			name: "consolidated",
 			describeKind: "derived",
 			initial: [] as readonly MemoryFragment<T>[],
 			meta: factMeta("consolidator"),
 		},
 	);
-	graph.add(consolidated, { name: "consolidator" });
+	graph.add(consolidated, { name: "consolidated" });
 	graph.addDisposer(keepalive(consolidated));
 
 	// ── ingest audit (records every committed fragment) ──────────────────

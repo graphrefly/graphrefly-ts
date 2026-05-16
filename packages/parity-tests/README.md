@@ -17,6 +17,7 @@ Parameterized vitest runner via `describe.each(impls)`. The set of impls in
 | M3 close (✅ active 2026-05-07) | + flow / subscription / higher-order operators | substrate landed; rust arm activates per Phase E above |
 | M4 close | + storage tier dispatch (Node-only) | shim swap-over for storage |
 | M5 close | + reactive data structures + Phase 14 op-log changesets | shim swap-over for structures |
+| N1 infra behavioral parity (Finding 8, 2026-05-15) | + `scenarios/core/n1-infra.test.ts` — `sha256Hex` (UTF-8 string/`Uint8Array` encoding contract), `RingBuffer` (drop-oldest FIFO eviction), `ResettableTimer` (`pending`/cancel/reset-supersede) cross-impl | closes the "N1 `as Impl` cast enforces *presence* but no scenario asserts *behavior*" gap. `describeNode` rust-skipped/deferred — Core-projection shape diverges from pure-ts `DescribeNodeOutput` by design (see `~/src/graphrefly-rs/docs/porting-deferred.md` § "Option C … known limitations" → describeNode); a field-equality assertion would be a false regression. |
 | M6 close | + cross-language traces (TS ↔ PY ↔ Rust) | requires Phase 13.9.B harness |
 | 1.0 ship | (full surface) | sunset trigger for `@graphrefly/pure-ts` |
 
