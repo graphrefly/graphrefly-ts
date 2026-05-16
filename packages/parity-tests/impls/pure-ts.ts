@@ -878,8 +878,14 @@ function buildPureTsStorage(): StorageImpl {
 			};
 			const handle = g.attachSnapshotStorage([pair]);
 			return {
+				// `handle.dispose()` is async — it drains in-flight WAL flushes
+				// (each gated on the async `walFrameChecksum` digest) before
+				// resolving. Awaiting it here is load-bearing: dropping the
+				// promise let `restoreSnapshot` race a still-pending tail frame
+				// write, surfacing as a flaky stale WAL value under parallel-
+				// file CPU contention.
 				async dispose() {
-					handle.dispose();
+					await handle.dispose();
 				},
 			};
 		},
