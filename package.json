@@ -596,7 +596,6 @@
 		"@nestjs/common": ">=10",
 		"react": ">=18",
 		"react-dom": ">=18",
-		"rxjs": ">=7",
 		"solid-js": ">=1",
 		"svelte": ">=4",
 		"vue": ">=3"
@@ -621,9 +620,6 @@
 			"optional": true
 		},
 		"@nestjs/common": {
-			"optional": true
-		},
-		"rxjs": {
 			"optional": true
 		}
 	},

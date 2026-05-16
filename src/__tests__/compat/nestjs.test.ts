@@ -18,7 +18,6 @@ import { Injectable } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
 import { firstValueFrom as rxFirstValueFrom, take, toArray } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { toObservable } from "../../base/composition/observable.js";
 import {
 	ACTOR_KEY,
 	COMMAND_HANDLERS,
@@ -48,6 +47,7 @@ import {
 	QueryHandler,
 	SAGA_HANDLERS,
 	SagaHandler,
+	toObservable,
 } from "../../compat/nestjs/index.js";
 import type { CommandActions, CqrsEvent, CqrsGraph } from "../../utils/cqrs/index.js";
 

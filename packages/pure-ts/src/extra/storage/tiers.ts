@@ -469,6 +469,12 @@ export function appendLogStorage<T>(
 	// the first's contribution. Sync backends never wait, so the chain is
 	// essentially a no-op for them.
 	let flushChain: Promise<void> | undefined;
+	// Strong-rollback generation token (QA): `rollback()` bumps this; a
+	// `doFlush` whose buckets were captured under an older epoch is skipped at
+	// entry. Aborts in-flight chained writes scheduled BEFORE the rollback;
+	// writes scheduled after get the new epoch and proceed. Best-effort: a
+	// `backend.write` already past the entry check cannot be un-sent.
+	let rollbackEpoch = 0;
 
 	const tier: AppendLogStorageTier<T> = {
 		name,
@@ -526,31 +532,46 @@ export function appendLogStorage<T>(
 			await flushNow();
 		},
 		async rollback() {
+			rollbackEpoch++; // invalidate any in-flight doFlush scheduled pre-rollback
 			pending = new Map();
 		},
 	};
 
 	function flushNow(): void | Promise<void> {
-		if (pending.size === 0) return;
+		// Nothing newly buffered, but prior appendEntries() calls may have
+		// scheduled microtask-chained doFlush()es still in flight (no-debounce
+		// tiers schedule one per append wave; attachStorage fire-and-forgets
+		// the returned chain by design). flush() must await them — callers
+		// expect durability on resolve — so return the outstanding chain tail
+		// rather than undefined.
+		if (pending.size === 0) return flushChain;
 		const buckets = pending;
 		pending = new Map();
 		// Chain this flush after any prior in-flight flush so reads/writes
 		// don't interleave. Sync backends short-circuit (the chained `.then`
 		// resolves immediately if `doFlush` returned undefined).
+		// Capture the rollback epoch at schedule time; doFlush skips if a
+		// rollback() bumped it before this chained task actually runs.
+		const scheduledEpoch = rollbackEpoch;
 		const next: Promise<void> = (flushChain ?? Promise.resolve()).then(
 			() => {
-				const w = doFlush(buckets);
+				const w = doFlush(buckets, scheduledEpoch);
 				return w instanceof Promise ? w : Promise.resolve();
 			},
 			// Previous flush rejected — already surfaced; don't block this one.
 			() => {
-				const w = doFlush(buckets);
+				const w = doFlush(buckets, scheduledEpoch);
 				return w instanceof Promise ? w : Promise.resolve();
 			},
 		);
-		flushChain = next.finally(() => {
-			if (flushChain === next) flushChain = undefined;
+		// Compare against the assigned `.finally` promise (NOT `next`) — the
+		// guard must reference the value actually stored in `flushChain`, so an
+		// idle chain clears to `undefined` (bounded; the `flush()` empty-pending
+		// path returns `undefined` when fully drained instead of a stale tail).
+		const chained: Promise<void> = next.finally(() => {
+			if (flushChain === chained) flushChain = undefined;
 		});
+		flushChain = chained;
 		// Sync fast-path: if no async work was queued by `doFlush`, return
 		// undefined so callers don't `await` an unnecessary microtask.
 		// We can't probe doFlush's sync-ness without running it; the awaitable
@@ -558,7 +579,11 @@ export function appendLogStorage<T>(
 		return flushChain;
 	}
 
-	function doFlush(buckets: Map<string, T[]>): void | Promise<void> {
+	function doFlush(buckets: Map<string, T[]>, scheduledEpoch: number): void | Promise<void> {
+		// Strong rollback: a rollback() after this task was scheduled bumped
+		// the epoch — discard these buckets instead of persisting rolled-back
+		// entries (the chain still settles so flush() resolves correctly).
+		if (scheduledEpoch !== rollbackEpoch) return;
 		const promises: Promise<void>[] = [];
 		for (const [key, bucket] of buckets) {
 			// Read existing, append new, write back. Sync-or-async per backend.

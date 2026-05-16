@@ -9,9 +9,6 @@
 //     from '@graphrefly/graphrefly-ts/compat/nestjs';
 // ---------------------------------------------------------------------------
 
-// RxJS bridge (re-exported from base/composition for convenience)
-export { type ToObservableOptions, toObservable } from "../../base/composition/observable.js";
-
 // Decorators
 export {
 	COMMAND_HANDLERS,
@@ -69,6 +66,10 @@ export {
 	GraphReflyModule,
 	type GraphReflyRootOptions,
 } from "./module.js";
+// RxJS bridge — NestJS-flavored: returns a real rxjs `Observable` (the base
+// `toObservable` is dependency-free and returns a Symbol.observable interop;
+// this layer wraps it with rxjs `from()` since `@nestjs/common` pulls rxjs).
+export { type ToObservableOptions, toObservable } from "./observable.js";
 // Injection tokens
 export {
 	GRAPHREFLY_REQUEST_GRAPH,

@@ -1,6 +1,15 @@
 # SESSION — Rust port D3: per-subgraph parallelism design
 
-**Status:** LOCKED 2026-05-08. Implementation unblocked for Slice X5 / Y1.
+> **⚠️ SUPERSEDED 2026-05-16 by the §7 single-threaded substrate +
+> `SerializationGroupId` contract** (`SESSION-rust-port-perf-value-investigation.md`
+> §7; `docs/rust-port-decisions.md` D208–D212). The union-find
+> per-subgraph partitioning described here (and decisions **D085 / D086**)
+> is **deleted** in `graphrefly-rs` — replaced by static, user-declared
+> serialization groups (no `find`/path-compression/epoch/`PARTITION_CACHE`/
+> split/merge/retry-validate). Retained as historical design context
+> only; do not implement against it.
+
+**Status:** SUPERSEDED 2026-05-16 (was: LOCKED 2026-05-08, Slice X5 / Y1).
 **Authority:** This session doc gates the Slice X5 / Y1 D3 implementation
 batch in `graphrefly-rs`. The v1 single-`wave_owner` mutex stays in place
 until X5/Y1 lands the per-partition substrate.

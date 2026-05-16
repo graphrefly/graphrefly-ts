@@ -31,7 +31,7 @@ import type { NodeGuard } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import type { VersioningLevel } from "../../core/versioning.js";
-import { keepalive } from "../sources/index.js";
+import { fromTimer, keepalive } from "../sources/index.js";
 import type { AppendLogStorageTier } from "../storage/tiers.js";
 import type { LogChange, LogChangePayload } from "./change.js";
 
@@ -769,7 +769,52 @@ export function reactiveLog<T>(
 					}
 				}
 			});
-			return () => sub();
+			// F9 (QA, option A): a tier with `debounceMs > 0` buffers entries
+			// in its own `pending` and has NO internal flush timer; the
+			// per-wave auto-flush path is suppressed for it and `attachStorage`
+			// never calls `flush()` itself → without a driver it buffers
+			// forever (silent data loss on teardown). Drive each debounced
+			// tier's `flush()` from a reactive timer (spec §5.8 no-polling /
+			// §5.10 no raw setTimeout — `fromTimer` is the sanctioned reactive
+			// timer source; `flush()` is the IO-sink boundary, fire-and-forget
+			// with catch, mirroring the per-wave appendEntries pattern above).
+			const timerUnsubs: Array<() => void> = [];
+			for (const tier of tiers) {
+				const d = tier.debounceMs ?? 0;
+				if (d <= 0 || typeof tier.flush !== "function") continue;
+				const ticks = fromTimer(d, { period: d });
+				const tsub = ticks.subscribe((msgs) => {
+					for (const m of msgs) {
+						if (m[0] !== DATA) continue;
+						try {
+							const r = tier.flush?.();
+							if (r instanceof Promise) r.catch(() => {});
+						} catch {
+							/* flush error swallowed; surfaced via explicit flush() */
+						}
+					}
+				});
+				timerUnsubs.push(tsub);
+			}
+			return () => {
+				sub();
+				for (const u of timerUnsubs) u();
+				// Final best-effort drain so the last buffered debounce window
+				// isn't lost on teardown (disposer is sync; the flush() promise
+				// is fire-and-forget — graph async-dispose awaits via its own
+				// storage-disposer path, see Graph.destroyAsync).
+				for (const tier of tiers) {
+					if ((tier.debounceMs ?? 0) <= 0 || typeof tier.flush !== "function") {
+						continue;
+					}
+					try {
+						const r = tier.flush();
+						if (r instanceof Promise) r.catch(() => {});
+					} catch {
+						/* swallowed */
+					}
+				}
+			};
 		},
 
 		scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc): Node<TAcc> {

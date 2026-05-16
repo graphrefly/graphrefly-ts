@@ -390,12 +390,14 @@ describe("storage tier transaction semantics (Audit 4)", () => {
 		});
 
 		// Each `appendEntries` triggers an auto-flush (no debounceMs) that
-		// returns a Promise on the per-tier serialized write chain. Awaiting
-		// each in turn drains the chain — `tier.flush()` alone is not enough
-		// because it short-circuits when `pending` is already empty.
-		await Promise.resolve(tier.appendEntries([{ topic: "orders", id: 1 }]));
-		await Promise.resolve(tier.appendEntries([{ topic: "shipments", id: 10 }]));
-		await Promise.resolve(tier.appendEntries([{ topic: "orders", id: 2 }]));
+		// schedules a microtask-chained write on the per-tier serialized chain.
+		// `tier.flush()` alone now drains the full in-flight chain (memo:Re P0
+		// fix 2026-05-16 — flushNow returns the outstanding flushChain when
+		// `pending` is empty), so the per-call awaits are no longer required.
+		tier.appendEntries([{ topic: "orders", id: 1 }]);
+		tier.appendEntries([{ topic: "shipments", id: 10 }]);
+		tier.appendEntries([{ topic: "orders", id: 2 }]);
+		await tier.flush?.();
 
 		const orders = JSON.parse(new TextDecoder().decode(backend.read("orders") as Uint8Array));
 		const shipments = JSON.parse(new TextDecoder().decode(backend.read("shipments") as Uint8Array));

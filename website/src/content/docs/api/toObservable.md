@@ -9,11 +9,11 @@ description: "API reference for toObservable."
 function toObservable<T>(
 	node: Node<T>,
 	options?: ToObservableOptions & { raw?: false },
-): Observable<T>
+): InteropObservable<T>
 function toObservable<T>(
 	node: Node<T>,
 	options: ToObservableOptions & { raw: true },
-): Observable<Messages>
+): InteropObservable<Messages>
 ```
 
 ## Parameters
