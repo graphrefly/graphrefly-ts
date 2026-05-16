@@ -1,5 +1,16 @@
 # [0.44.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.43.0...v0.44.0) (2026-04-29)
 
+## 1.0.0
+
+### Minor Changes
+
+- [`93198c2`](https://github.com/graphrefly/graphrefly-ts/commit/93198c226f94f6a404ba2df729d808985ea3fa6c) Thanks [@clfhhc](https://github.com/clfhhc)! - substrate changes
+
+### Patch Changes
+
+- Updated dependencies [[`93198c2`](https://github.com/graphrefly/graphrefly-ts/commit/93198c226f94f6a404ba2df729d808985ea3fa6c)]:
+  - @graphrefly/pure-ts@1.0.0
+
 ## 0.45.0
 
 ### Minor Changes
