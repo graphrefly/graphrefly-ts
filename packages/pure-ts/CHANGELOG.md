@@ -1,5 +1,11 @@
 # Changelog — @graphrefly/pure-ts
 
+## 0.47.1
+
+### Patch Changes
+
+- [`76d35c7`](https://github.com/graphrefly/graphrefly-ts/commit/76d35c73eb84a2871ac34907a10a0514674745ca) Thanks [@clfhhc](https://github.com/clfhhc)! - fix dead queue
+
 ## 0.47.0
 
 ### Minor Changes

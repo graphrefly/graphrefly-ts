@@ -1,6 +1,6 @@
 {
 	"name": "@graphrefly/cli",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"private": true,
 	"description": "Command-line interface for GraphReFly — stateless shell over the surface layer (describe, explain, reduce, snapshot). NOT YET PUBLISHED — see docs/known-issues.md.",
 	"license": "MIT",

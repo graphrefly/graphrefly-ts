@@ -1,5 +1,11 @@
 # [0.44.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.43.0...v0.44.0) (2026-04-29)
 
+## 0.47.1
+
+### Patch Changes
+
+- [`76d35c7`](https://github.com/graphrefly/graphrefly-ts/commit/76d35c73eb84a2871ac34907a10a0514674745ca) Thanks [@clfhhc](https://github.com/clfhhc)! - fix dead queue
+
 ## 0.47.0
 
 ### Minor Changes
