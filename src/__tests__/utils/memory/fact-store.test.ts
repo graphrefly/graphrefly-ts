@@ -14,6 +14,8 @@ import {
 	type MemoryFragment,
 	type MemoryQuery,
 	type OutcomeSignal,
+	type PersistentReactiveFactStoreGraph,
+	persistentReactiveFactStore,
 	type ReviewRequest,
 	reactiveFactStore,
 	type ScoringPolicy,
@@ -772,5 +774,172 @@ describe("utils.memory.reactiveFactStore — recordIngest / ingestLog", () => {
 		// `b` was cascade-invalidated; its validTo is the deterministic root time.
 		expect(store2.get("b")!.validTo).toBe(4242n);
 		mem2.destroy();
+	});
+});
+
+describe("utils.memory.persistentReactiveFactStore", () => {
+	async function until(cond: () => boolean, tries = 200): Promise<void> {
+		for (let i = 0; i < tries; i += 1) {
+			if (cond()) return;
+			await new Promise((r) => setTimeout(r, 0));
+		}
+		throw new Error("persistentReactiveFactStore: condition timed out");
+	}
+
+	it("is a SYNCHRONOUS factory returning the fact-store graph (no Promise)", () => {
+		const ingest = ingestNode<string>();
+		const mem = persistentReactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			storage: memoryBackend(),
+		});
+		// Not a thenable — `utils/` stays reactive/composable, no await path.
+		expect((mem as unknown as { then?: unknown }).then).toBeUndefined();
+		expect(mem.factStore).toBeDefined();
+		expect(mem.ingestLog).toBeDefined();
+		expect(mem.cascade).toBeDefined();
+		expect(mem.position).toBeDefined();
+		expect(mem.replayedCount).toBeDefined();
+		expect(mem.tier).toBeDefined();
+		expect(typeof mem.flush).toBe("function");
+		mem.destroy();
+	});
+
+	it("first run: live fragments persist; flush() makes them durable; replay-dedup on restart", async () => {
+		const backend = memoryBackend();
+
+		// ── Run 1: ingest a→b, then obsolete `a` (cascade flips b). ──
+		const ingest1 = ingestNode<string>();
+		const mem1 = persistentReactiveFactStore<string>({
+			ingest: ingest1,
+			extractDependencies: (f) => f.sources,
+			storage: backend,
+		});
+		ingest1.emit(frag("a", "A", { t_ns: 100n }));
+		ingest1.emit(frag("b", "B", { sources: ["a"], t_ns: 200n }));
+		ingest1.emit(frag("a", "A2", { t_ns: 300n, validTo: 4242n }));
+		// 3 committed ingests; pre-attach (emitted in the construction tick) —
+		// the one-shot reconciliation must still persist them.
+		await until(() => (mem1.position.cache as number) === 3);
+		await mem1.flush();
+		const persisted1 = await mem1.tier.loadEntries!();
+		expect(persisted1.entries).toHaveLength(3);
+		const store1 = (mem1.factStore.cache as { byId: ReadonlyMap<string, MemoryFragment<string>> })
+			.byId;
+		mem1.destroy();
+
+		// ── Run 2 (restart, same backend): replay rebuilds the store
+		//    automatically; no double-persist. ──
+		const ingest2 = ingestNode<string>();
+		const mem2 = persistentReactiveFactStore<string>({
+			ingest: ingest2,
+			extractDependencies: (f) => f.sources,
+			storage: backend,
+		});
+		await until(() => (mem2.replayedCount.cache as number) === 3);
+		await until(() => (mem2.position.cache as number) === 3);
+
+		const store2 = (mem2.factStore.cache as { byId: ReadonlyMap<string, MemoryFragment<string>> })
+			.byId;
+		// Byte-identical rebuild incl. deterministic cascade validTo.
+		expect([...store2.keys()].sort()).toEqual([...store1.keys()].sort());
+		for (const [id, f1] of store1) {
+			const f2 = store2.get(id)!;
+			expect(f2.payload).toBe(f1.payload);
+			expect(f2.validTo).toBe(f1.validTo);
+			expect(f2.t_ns).toBe(f1.t_ns);
+		}
+		expect(store2.get("b")!.validTo).toBe(4242n);
+
+		// No double-persist: replayed history is NOT re-written (substrate-owned
+		// cursor). Still exactly 3 after a restart flush.
+		await mem2.flush();
+		const persisted2 = await mem2.tier.loadEntries!();
+		expect(persisted2.entries).toHaveLength(3);
+
+		// A NEW live fragment after replay DOES persist (cursor advances).
+		ingest2.emit(frag("c", "C", { t_ns: 400n }));
+		await until(() => (mem2.position.cache as number) === 4);
+		await mem2.flush();
+		const persisted3 = await mem2.tier.loadEntries!();
+		expect(persisted3.entries).toHaveLength(4);
+		mem2.destroy();
+	});
+
+	it("position is 0 until replay completes, then tracks the durable count", async () => {
+		const backend = memoryBackend();
+		const ingest1 = ingestNode<string>();
+		const mem1 = persistentReactiveFactStore<string>({
+			ingest: ingest1,
+			extractDependencies: (f) => f.sources,
+			storage: backend,
+		});
+		// Synchronously after construction, before the async replay drains.
+		expect(mem1.position.cache).toBe(0);
+		expect(mem1.replayedCount.cache).toBe(0);
+		ingest1.emit(frag("x", "X", { t_ns: 1n }));
+		await until(() => (mem1.position.cache as number) === 1);
+		await mem1.flush();
+		mem1.destroy();
+
+		// Restart: replayedCount reflects the rebuilt history.
+		const ingest2 = ingestNode<string>();
+		const mem2: PersistentReactiveFactStoreGraph<string> = persistentReactiveFactStore<string>({
+			ingest: ingest2,
+			extractDependencies: (f) => f.sources,
+			storage: backend,
+		});
+		await until(() => (mem2.replayedCount.cache as number) === 1);
+		expect(mem2.position.cache).toBe(1);
+		mem2.destroy();
+	});
+
+	it("empty backend: replay completes with nothing; live ingest still persists", async () => {
+		const backend = memoryBackend();
+		const ingest = ingestNode<string>();
+		const mem = persistentReactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			storage: backend,
+		});
+		// Give the (empty) replay a chance to COMPLETE + attach, then ingest.
+		await new Promise((r) => setTimeout(r, 0));
+		await new Promise((r) => setTimeout(r, 0));
+		ingest.emit(frag("only", "ONE", { t_ns: 9n }));
+		await until(() => (mem.position.cache as number) === 1);
+		await mem.flush();
+		const { entries } = await mem.tier.loadEntries!();
+		expect(entries.map((f) => f.id)).toEqual(["only"]);
+		mem.destroy();
+	});
+
+	it("destroy() mid-replay aborts cleanly — no throw, no unhandled rejection (QA-G)", async () => {
+		const backend = memoryBackend();
+		// Seed durable history so a restart has something to replay.
+		const ingest1 = ingestNode<string>();
+		const mem1 = persistentReactiveFactStore<string>({
+			ingest: ingest1,
+			extractDependencies: (f) => f.sources,
+			storage: backend,
+		});
+		ingest1.emit(frag("a", "A", { t_ns: 1n }));
+		ingest1.emit(frag("b", "B", { t_ns: 2n }));
+		await until(() => (mem1.position.cache as number) === 2);
+		await mem1.flush();
+		mem1.destroy();
+
+		// Restart, then destroy synchronously BEFORE the async replay drains.
+		const ingest2 = ingestNode<string>();
+		const mem2 = persistentReactiveFactStore<string>({
+			ingest: ingest2,
+			extractDependencies: (f) => f.sources,
+			storage: backend,
+		});
+		expect(mem2.replayedCount.cache).toBe(0); // replay hasn't run yet
+		expect(() => mem2.destroy()).not.toThrow();
+		// Let the aborted replay async chain settle — must not throw / leak.
+		await new Promise((r) => setTimeout(r, 0));
+		await new Promise((r) => setTimeout(r, 0));
+		expect(() => mem2.destroy()).not.toThrow(); // idempotent double-dispose
 	});
 });

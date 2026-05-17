@@ -1443,7 +1443,13 @@ export {
 	type ShardKey,
 	type StoreReadHandle,
 } from "./fact-store.js";
-
+// DS-14.7 follow-up #2 (persistence half) — durable, event-sourced fact store
+// with substrate-owned replay/dedup (memo:Re Story 6.4 back-derivation).
+export {
+	type PersistentReactiveFactStoreConfig,
+	type PersistentReactiveFactStoreGraph,
+	persistentReactiveFactStore,
+} from "./persistent-fact-store.js";
 // DS-14.7 follow-up #1: recipe library — 8 shipped compositions over the
 // four extension faces. Re-exported here so `utils/memory` stays the single
 // import surface.

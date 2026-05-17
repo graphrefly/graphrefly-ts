@@ -31,6 +31,14 @@ then B** — parallelizing 627 ns work is pointless.
 
 ## Slice A — dispatcher floor rewrite (D217)
 
+> **OUTCOME 2026-05-16 (D217-AMEND / D217-AMEND-2) — the plan below is HISTORICAL; superseded by the attribution data.**
+>
+> Pre-implementation premise check falsified D217's lever ranking: the 83 ns mirror uses the **same `HashMap` node store** production does (slower `std` SipHash) — the node store is not a lever (`require_node` ~261/4767 samples; `RefCell` ≈ 0). Empirical attribution (`examples/profile_st_emit.rs` + macOS `sample`) instead found the dominant single frame was per-wave `mem::take(&mut ws.pending_notify)` (~1250 samples — fresh `IndexMap::default()`/ahash-reseed/realloc every wave).
+>
+> **Landed (user-locked = bounded alloc-elimination, no <150 ns target):** `pending_notify` recycle via a persistent `WaveState::pending_notify_recycle` spare (swap + `.clear()`, zero `IndexMap::default()` after thread init). Clean 100-sample release bench: **`SingleThreadCell` 627→515 ns (~18%)**, **`LockedCell` 652→579 ns (~11%)**. 304/304 green; clippy/fmt clean; `forbid(unsafe)` intact.
+>
+> **Decisive structural finding:** the *remaining* 7.6× is **uniformly-distributed full-protocol machinery with NO 80/20 lever** (~⅓ allocator churn, ~⅓ per-wave structure construct/destruct, ~⅓ protocol bookkeeping; no symbol >~6%). The other `mem::take`-per-wave hash containers early-out empty on the hot path → no further bounded alloc win. `<150 ns` is **unreachable by incremental shaving** — the mirror is fast because it implements a strict *subset* of the protocol (does less), confirming/generalizing §5b. **Slice A is CAPPED at the bounded win** (§7 union-find ≈4% + this recycle ≈18% is the realizable single-thread improvement; ~515 ns is structural to the full-protocol dispatcher — consistent with "Rust perf = secondary/workload-gated; primary value = safety + canonical impl"). **Pivot to Slice B** (per-shard parallelism — a throughput win independent of the single-thread floor). The 5-step plan below did NOT execute past the data-driven cap; retained as the historical design intent + the rejected-rewrite (A3) reference.
+
 **Goal:** real `Core<C>` hot path **< 150 ns** (user bar: "6xx ns does
 not justify parallelism; <150 ns is fine"). The mirror at 83 ns is the
 existence proof of the endpoint; the gap is representation, not

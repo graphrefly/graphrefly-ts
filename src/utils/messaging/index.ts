@@ -43,7 +43,7 @@ export {
 } from "./message.js";
 
 import { batch, COMPLETE, DATA, type Node, node } from "@graphrefly/pure-ts/core";
-import { keepalive, reactiveLog } from "@graphrefly/pure-ts/extra";
+import { keepalive, type ReactiveLogBundle, reactiveLog } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
 import { domainMeta } from "../../base/meta/domain-meta.js";
 import { mutate } from "../../base/mutation/index.js";
@@ -799,4 +799,270 @@ export function topicBridge<TIn, TOut = TIn>(
 	opts?: TopicBridgeOptions<TIn, TOut>,
 ): TopicBridgeGraph<TIn, TOut> {
 	return new TopicBridgeGraph<TIn, TOut>(name, sourceTopic, targetTopic, opts);
+}
+
+// ── LogProjector ──────────────────────────────────────────────────────────
+//
+// Promotion 2 (memo:Re Story 6.4 back-derivation, design-review-locked
+// 2026-05-16). A cursor-driven projector over a log/topic where a per-item
+// sink can poison-fail. memo:Re hand-rolled `createProjectorCursor` and got
+// the failure mode wrong: a bare `catch { break; }` conflated a *transient*
+// condition (a native feature not yet available → retry later) with a
+// *poison* entry (will never project) → a permanent head-of-line block of
+// every newer entry. The fix is a real, observable, subscribable dead-letter
+// topic + a typed failure policy.
+//
+// Built ON `subscription()` (TopicGraph source) / the bundle's `fromCursor`
+// view (ReactiveLogBundle source) — the same hardened cursor machinery
+// `SubscriptionGraph` itself uses — so the consumer never hand-rolls cursor
+// persistence/durability (the Med "durability skew" + parse-leniency findings
+// dissolve). Scope is deliberately bounded: `halt | deadLetter` only, NO
+// programmatic retry/backoff (compose a downstream subscription on
+// `deadLetter` for that — avoids the §44 wrap-imperative-as-primitive trap).
+
+export type ProjectorPoisonPolicy = "halt" | "deadLetter";
+
+/** A poison entry routed to {@link LogProjectorGraph.deadLetter}. */
+export type DeadLetterEntry<T> = {
+	readonly item: T;
+	/** `Error.message` (or `String(thrown)`) from the failing `sink`. */
+	readonly error: string;
+	/** Absolute 0-based log position of the poisoned item. */
+	readonly cursorPos: number;
+};
+
+export type LogProjectorOptions<T> = {
+	graph?: GraphOptions;
+	/**
+	 * Per-item side-effecting projection.
+	 *
+	 * **Transient-vs-poison contract (read this).** The projector cannot tell
+	 * "this will project later" from "this will never project" — only the sink
+	 * knows. So the contract is:
+	 * - **Return normally** (sync return, or a resolved Promise) → the item is
+	 *   *handled*; the cursor advances. Use this for the success path AND for
+	 *   any transient/skip condition the sink wants to no-op (e.g. an optional
+	 *   native feature not yet available — return without throwing; the entry
+	 *   is simply considered done for this projector).
+	 * - **Throw / reject** → the item is *poison*; the {@link onPoison} policy
+	 *   applies. Do NOT throw for transient conditions or the item is
+	 *   dead-lettered (or halts the stream).
+	 */
+	readonly sink: (item: T) => void | Promise<void>;
+	/**
+	 * Behaviour when `sink` throws/rejects on an item (poison):
+	 * - `"halt"` (default) — stop projecting at the poison item; the cursor
+	 *   does NOT advance past it (head-of-line stop). `position` stalls — that
+	 *   is the observable signal. No retry/backoff is built in.
+	 * - `"deadLetter"` — publish `{ item, error, cursorPos }` to the
+	 *   {@link LogProjectorGraph.deadLetter} topic and advance past it, so
+	 *   newer entries still project.
+	 */
+	readonly onPoison?: ProjectorPoisonPolicy;
+	/**
+	 * Initial cursor position. `"retained"` (default) projects all history;
+	 * `"now"` skips existing entries (project only future appends); a number
+	 * starts at that absolute index.
+	 */
+	readonly from?: "retained" | "now" | number;
+	/** Retained window for the `deadLetter` topic. Default 1024. */
+	readonly deadLetterRetainedLimit?: number;
+};
+
+/**
+ * Cursor-driven projector over a {@link TopicGraph} or {@link ReactiveLogBundle}.
+ *
+ * Topology (mounted on the returned graph):
+ *  - `subscription` (TopicGraph source only) — the hardened
+ *    {@link SubscriptionGraph} cursor; or a local `cursor` state + the
+ *    bundle's `fromCursor` view (ReactiveLogBundle source).
+ *  - `drain` — an `effect` that, on every not-yet-projected wave, schedules a
+ *    serialized async pass that calls `sink` per item (mirrors the
+ *    `SubscriptionGraph.ackPump` / `TopicBridge.ackPump` effect precedent +
+ *    memo:Re's `inFlight` chain — one wave processed at a time).
+ *  - `deadLetter` — a real {@link TopicGraph} (NOT a callback): poison entries
+ *    are observable in `describe()` and subscribable, instead of memo:Re's
+ *    silent `break`.
+ *
+ * **No imperative reads.** Observe `position` (cursor) / subscribe to
+ * `deadLetter`. `idle()` is a test-only await convenience.
+ *
+ * @category patterns
+ */
+export class LogProjectorGraph<T> extends Graph {
+	/** Reactive count of fully-projected entries (the cursor; read-only). */
+	readonly position: Node<number>;
+	/**
+	 * Poison entries (populated when `onPoison: "deadLetter"`). A real topic —
+	 * subscribable + visible in `describe()`.
+	 */
+	readonly deadLetter: TopicGraph<DeadLetterEntry<T>>;
+	private _inFlight: Promise<void> = Promise.resolve();
+
+	constructor(
+		name: string,
+		source: TopicGraph<T> | ReactiveLogBundle<T>,
+		opts: LogProjectorOptions<T>,
+	) {
+		super(name, opts.graph);
+		const onPoison: ProjectorPoisonPolicy = opts.onPoison ?? "halt";
+		const sink = opts.sink;
+
+		const dl = new TopicGraph<DeadLetterEntry<T>>(`${name}_dead_letter`, {
+			retainedLimit: opts.deadLetterRetainedLimit ?? DEFAULT_TOPIC_RETAINED_LIMIT,
+		});
+		this.mount("deadLetter", dl);
+		this.deadLetter = dl;
+
+		// Uniform cursor surface over either source kind. A TopicGraph reuses
+		// the hardened SubscriptionGraph cursor; a ReactiveLogBundle uses a
+		// local state cursor + the bundle's `fromCursor` view — the very
+		// machinery SubscriptionGraph is itself built on.
+		let available: Node<readonly T[]>;
+		let cursorBase: () => number;
+		let advance: (n: number) => void;
+
+		if (source instanceof TopicGraph) {
+			const sub = new SubscriptionGraph<T>(`${name}_subscription`, source, {
+				from: opts.from ?? "retained",
+			});
+			this.mount("subscription", sub);
+			available = sub.available;
+			this.position = sub.cursor;
+			cursorBase = () => sub.cursor.cache as number;
+			advance = (n) => {
+				if (n > 0) sub.ack(n);
+			};
+		} else {
+			const log = source;
+			let initialCursor: number;
+			if (opts.from === "now") {
+				initialCursor = log.size;
+			} else if (typeof opts.from === "number") {
+				initialCursor = requireNonNegativeInt(opts.from, "logProjector from");
+			} else {
+				initialCursor = 0; // "retained"
+			}
+			const cursor = this.state<number>("cursor", initialCursor, {
+				meta: messagingMeta("log_projector_cursor"),
+			});
+			this.position = cursor;
+			cursorBase = () => cursor.cache as number;
+			available = log.view({ kind: "fromCursor", cursor });
+			advance = (n) => {
+				if (n > 0) cursor.emit((cursor.cache as number) + n);
+			};
+		}
+
+		// `halt` is a HARD LATCH (QA-C): on the first poison under `onPoison:
+		// "halt"`, `sink` has been invoked exactly once on the poison item;
+		// the projector then freezes — no further `sink` calls, no rescheduled
+		// drains — so a later unrelated append cannot re-invoke the (possibly
+		// side-effecting, non-idempotent) sink on the poison. The stalled
+		// `position` + frozen stream IS the observable signal. v1 has no retry
+		// (compose downstream of `deadLetter` if you need that).
+		let halted = false;
+
+		// Serialized async drain. One wave processed at a time (the inFlight
+		// chain) so an async `sink` cannot interleave; the cursor is advanced
+		// ONCE per pass after the captured snapshot is processed (mirrors
+		// memo:Re's `runPump` + the ackPump effect precedent).
+		const runDrain = async (): Promise<void> => {
+			if (halted) return;
+			const snapshot = (available.cache as readonly T[] | undefined) ?? [];
+			if (snapshot.length === 0) return;
+			let consumed = 0;
+			for (let i = 0; i < snapshot.length; i += 1) {
+				const item = snapshot[i] as T;
+				try {
+					await sink(item);
+					consumed += 1;
+				} catch (e) {
+					const error = e instanceof Error ? e.message : String(e);
+					if (onPoison === "deadLetter") {
+						dl.publish({ item, error, cursorPos: cursorBase() + consumed });
+						consumed += 1; // advance past the poison
+						continue;
+					}
+					// "halt" — latch and stop here; do NOT advance past the
+					// poison, do NOT re-invoke `sink` on any later wave.
+					halted = true;
+					break;
+				}
+			}
+			if (consumed > 0) advance(consumed);
+		};
+		const schedule = (): void => {
+			if (halted) return; // latched — no further drains
+			this._inFlight = this._inFlight.then(runDrain, runDrain);
+		};
+
+		// Effect: every wave that exposes not-yet-projected entries schedules a
+		// drain. Side-effecting (sink / cursor advance / dead-letter publish) →
+		// an `effect` node, not a pure derived (COMPOSITION-GUIDE §35; exact
+		// `SubscriptionGraph.advancePump` precedent — never calls `emit` on its
+		// own node, kept warm via `keepalive`).
+		const drain = node<unknown>(
+			[available],
+			(batchData, _actions, ctx) => {
+				const b = batchData[0];
+				const snap = (b != null && b.length > 0 ? b.at(-1) : ctx.prevData[0]) as
+					| readonly T[]
+					| undefined;
+				if (snap && snap.length > 0) schedule();
+			},
+			{
+				name: "drain",
+				describeKind: "effect",
+				meta: messagingMeta("log_projector_drain"),
+			},
+		);
+		this.add(drain, { name: "drain" });
+		this.addDisposer(keepalive(drain));
+	}
+
+	/**
+	 * Await any in-flight drain pass. **Test convenience only** — the canonical
+	 * reactive observable is {@link LogProjectorGraph.position}.
+	 */
+	idle(): Promise<void> {
+		return this._inFlight;
+	}
+}
+
+/**
+ * Creates a cursor-driven log/topic projector with a typed poison-failure
+ * policy and an observable dead-letter topic.
+ *
+ * @example
+ * ```ts
+ * import { logProjector, topic } from "@graphrefly/graphrefly";
+ *
+ * const events = topic<Doc>("docs");
+ * const proj = logProjector("indexer", events, {
+ *   sink: async (doc) => { await index(doc); },   // throw ⇒ poison
+ *   onPoison: "deadLetter",
+ * });
+ * proj.deadLetter.events.subscribe(/* observe poison *​/);
+ * ```
+ *
+ * @remarks
+ * **Use an UNBOUNDED source for durable / long-lived projection.** The cursor
+ * is an absolute index; the underlying `fromCursor` view slices the source's
+ * *current* entries array. A `TopicGraph` with a `retainedLimit` (or a
+ * `ReactiveLogBundle` with `maxSize`) trims its head, so an absolute cursor
+ * past the retained window reads the wrong offset (skips entries or stalls).
+ * This is inherited `subscription()` / `fromCursor` behaviour, not specific to
+ * `logProjector` — but it matters here because projection is typically
+ * long-lived. For unbounded projection pass a source with NO `retainedLimit` /
+ * `maxSize` (memo:Re's `changesetLog` is unbounded ✓).
+ *
+ * @category patterns
+ */
+export function logProjector<T>(
+	name: string,
+	source: TopicGraph<T> | ReactiveLogBundle<T>,
+	opts: LogProjectorOptions<T>,
+): LogProjectorGraph<T> {
+	return new LogProjectorGraph<T>(name, source, opts);
 }

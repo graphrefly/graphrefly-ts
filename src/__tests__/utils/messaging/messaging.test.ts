@@ -1,4 +1,5 @@
-import { node } from "@graphrefly/pure-ts/core";
+import { DATA, node } from "@graphrefly/pure-ts/core";
+import { reactiveLog } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
 
 import { createAuditLog, mutate } from "../../../base/mutation/index.js";
@@ -6,9 +7,11 @@ import { jobFlow, jobQueue } from "../../../utils/job-queue/index.js";
 import {
 	CONTEXT_TOPIC,
 	DEFERRED_TOPIC,
+	type DeadLetterEntry,
 	type HubRemoveTopicRecord,
 	hubRemoveTopicKeyOf,
 	INJECTIONS_TOPIC,
+	logProjector,
 	type Message,
 	type MessagingAuditRecord,
 	messagingHub,
@@ -831,5 +834,214 @@ describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
 		// No audit log to assert against — the absence of an audit surface IS
 		// the contract. Confirm the topic still works as expected.
 		expect(t.retained()).toEqual([1, 2]);
+	});
+});
+
+describe("patterns.messaging.logProjector", () => {
+	// Drain the serialized async chain until `position` stops advancing.
+	// NOTE (QA-G): every test below constructs the projector AFTER the
+	// synchronous `topic.publish(...)`/`log.append(...)` seeding, so the
+	// `keepalive(drain)` push-on-subscribe schedules the first drain
+	// synchronously during construction — `_inFlight` is a real chain before
+	// `settle` runs (so it cannot vacuously return at position 0 before any
+	// projection). Keep that ordering when adding cases.
+	async function settle(proj: {
+		idle: () => Promise<void>;
+		position: { cache: unknown };
+	}): Promise<void> {
+		let prev = -1;
+		for (let i = 0; i < 30; i += 1) {
+			await proj.idle();
+			const pos = proj.position.cache as number;
+			if (pos === prev) return;
+			prev = pos;
+		}
+	}
+
+	it("projects retained + live entries in order; position tracks the cursor (topic source)", async () => {
+		const t = topic<number>("nums");
+		t.publish(1);
+		t.publish(2);
+		const seen: number[] = [];
+		const proj = logProjector("p", t, { sink: (n) => void seen.push(n) });
+		await settle(proj);
+		expect(seen).toEqual([1, 2]);
+		expect(proj.position.cache).toBe(2);
+
+		t.publish(3);
+		await settle(proj);
+		expect(seen).toEqual([1, 2, 3]);
+		expect(proj.position.cache).toBe(3);
+		proj.destroy();
+	});
+
+	it("from:'now' skips retained history (projects only future appends)", async () => {
+		const t = topic<string>("evts");
+		t.publish("old");
+		const seen: string[] = [];
+		const proj = logProjector("p", t, { from: "now", sink: (s) => void seen.push(s) });
+		await settle(proj);
+		expect(seen).toEqual([]);
+		t.publish("new");
+		await settle(proj);
+		expect(seen).toEqual(["new"]);
+		proj.destroy();
+	});
+
+	it("onPoison:'deadLetter' routes the poison entry and projects newer ones", async () => {
+		const t = topic<number>("nums");
+		t.publish(1);
+		t.publish(2); // poison
+		t.publish(3);
+		const seen: number[] = [];
+		const proj = logProjector<number>("p", t, {
+			onPoison: "deadLetter",
+			sink: (n) => {
+				if (n === 2) throw new Error("boom-2");
+				seen.push(n);
+			},
+		});
+		await settle(proj);
+		// 1 and 3 projected; 2 dead-lettered; cursor advanced past all three.
+		expect(seen).toEqual([1, 3]);
+		expect(proj.position.cache).toBe(3);
+		const dl = proj.deadLetter.retained() as readonly DeadLetterEntry<number>[];
+		expect(dl).toHaveLength(1);
+		expect(dl[0]!.item).toBe(2);
+		expect(dl[0]!.error).toBe("boom-2");
+		expect(dl[0]!.cursorPos).toBe(1); // 0-based position of the poison entry
+		proj.destroy();
+	});
+
+	it("onPoison:'halt' (default) stops at the poison — head-of-line, position stalls", async () => {
+		const t = topic<number>("nums");
+		t.publish(1);
+		t.publish(2); // poison
+		t.publish(3);
+		const seen: number[] = [];
+		const proj = logProjector<number>("p", t, {
+			sink: (n) => {
+				if (n === 2) throw new Error("stuck");
+				seen.push(n);
+			},
+		});
+		await settle(proj);
+		expect(seen).toEqual([1]); // 1 projected, halted before 2
+		expect(proj.position.cache).toBe(1); // cursor did NOT pass the poison
+		// A newer append does not unblock — still head-of-line on the poison.
+		t.publish(4);
+		await settle(proj);
+		expect(seen).toEqual([1]);
+		expect(proj.position.cache).toBe(1);
+		// No dead-letter under halt.
+		expect(proj.deadLetter.retained() as readonly unknown[]).toHaveLength(0);
+		proj.destroy();
+	});
+
+	it("serializes an async sink; processes items strictly in order", async () => {
+		const t = topic<number>("nums");
+		for (let i = 1; i <= 5; i += 1) t.publish(i);
+		const seen: number[] = [];
+		let active = 0;
+		let maxConcurrent = 0;
+		const proj = logProjector<number>("p", t, {
+			sink: async (n) => {
+				active += 1;
+				maxConcurrent = Math.max(maxConcurrent, active);
+				await Promise.resolve();
+				seen.push(n);
+				active -= 1;
+			},
+		});
+		await settle(proj);
+		expect(seen).toEqual([1, 2, 3, 4, 5]);
+		expect(maxConcurrent).toBe(1); // strictly serialized
+		expect(proj.position.cache).toBe(5);
+		proj.destroy();
+	});
+
+	it("transient-vs-poison contract: a sink that RETURNS (skips) advances; only THROW is poison", async () => {
+		const t = topic<number>("nums");
+		t.publish(1);
+		t.publish(2); // sink chooses to skip (returns, no throw) — handled
+		t.publish(3);
+		const handled: number[] = [];
+		const proj = logProjector<number>("p", t, {
+			onPoison: "deadLetter",
+			sink: (n) => {
+				if (n === 2) return; // transient/skip = sink's responsibility, NOT poison
+				handled.push(n);
+			},
+		});
+		await settle(proj);
+		expect(handled).toEqual([1, 3]);
+		expect(proj.position.cache).toBe(3); // 2 was advanced past (handled, not poison)
+		expect(proj.deadLetter.retained() as readonly unknown[]).toHaveLength(0);
+		proj.destroy();
+	});
+
+	it("works over a ReactiveLogBundle source (memo:Re's changesetLog shape)", async () => {
+		const log = reactiveLog<string>([], { name: "changeset" });
+		log.append("a");
+		log.append("b");
+		const seen: string[] = [];
+		const proj = logProjector<string>("p", log, { sink: (s) => void seen.push(s) });
+		await settle(proj);
+		expect(seen).toEqual(["a", "b"]);
+		expect(proj.position.cache).toBe(2);
+		log.append("c");
+		await settle(proj);
+		expect(seen).toEqual(["a", "b", "c"]);
+		expect(proj.position.cache).toBe(3);
+		proj.destroy();
+		log.dispose();
+	});
+
+	it("dead-letter is a real, subscribable topic node (visible in describe)", async () => {
+		const t = topic<number>("nums");
+		t.publish(7); // poison
+		const dlSeen: DeadLetterEntry<number>[] = [];
+		const proj = logProjector<number>("p", t, {
+			onPoison: "deadLetter",
+			sink: () => {
+				throw new Error("always");
+			},
+		});
+		proj.deadLetter.events.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					for (const e of m[1] as readonly DeadLetterEntry<number>[]) dlSeen.push(e);
+				}
+			}
+		});
+		await settle(proj);
+		expect(dlSeen.at(-1)?.item).toBe(7);
+		// Mounted under the projector graph → present in describe().
+		expect(Object.keys(proj.describe().nodes).length).toBeGreaterThan(0);
+		proj.destroy();
+	});
+
+	it("halt latches: sink is invoked on the poison item EXACTLY ONCE, even after later appends (QA-C)", async () => {
+		const t = topic<number>("nums");
+		t.publish(1);
+		t.publish(2); // poison
+		const calls: number[] = [];
+		const proj = logProjector<number>("p", t, {
+			sink: (n) => {
+				calls.push(n);
+				if (n === 2) throw new Error("poison");
+			},
+		});
+		await settle(proj);
+		expect(calls).toEqual([1, 2]); // 1 ok, 2 thrown — once
+		// Subsequent unrelated appends must NOT re-invoke sink on the poison
+		// (pre-fix this hot-looped sink(2) once per append, forever).
+		t.publish(3);
+		t.publish(4);
+		await settle(proj);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(calls).toEqual([1, 2]); // still exactly once on the poison; frozen
+		expect(proj.position.cache).toBe(1);
+		proj.destroy();
 	});
 });
