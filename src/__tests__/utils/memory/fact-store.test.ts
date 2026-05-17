@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type CascadeEvent,
 	type CascadeOverflow,
+	type DecayPolicy,
 	type FactStore,
 	type MemoryAnswer,
 	type MemoryFragment,
@@ -423,6 +424,218 @@ describe("utils.memory.reactiveFactStore — extension faces", () => {
 		const s = summary.cache as MemoryFragment<string>;
 		expect(s.payload).toBe("consolidated:2");
 		expect(s.parent_fragment_id).toBe("e1");
+		mem.destroy();
+	});
+});
+
+// ── ② decay face (DS-14.7 PART 4.1 / §5.8) ───────────────────────────────
+
+describe("utils.memory.reactiveFactStore — decay face", () => {
+	it("decayTrigger tick applies the policy and clamps to [0,1]", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		const decay = node<DecayPolicy>([], { initial: (c) => c * 0.5 });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+		});
+		const item = mem.itemNode("a");
+		item.subscribe(() => undefined);
+		ingest.emit(frag("a", "A", { confidence: 1 }));
+		decayTrigger.emit(1);
+		expect((item.cache as MemoryFragment<string>).confidence).toBe(0.5);
+		decayTrigger.emit(2);
+		expect((item.cache as MemoryFragment<string>).confidence).toBe(0.25);
+		mem.destroy();
+	});
+
+	it("skips obsolete facts (validTo set) — decay never resurrects", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		const decay = node<DecayPolicy>([], { initial: () => 0 });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+		});
+		const item = mem.itemNode("g");
+		item.subscribe(() => undefined);
+		ingest.emit(frag("g", "G", { confidence: 0.9, validTo: 42n }));
+		decayTrigger.emit(1);
+		const f = item.cache as MemoryFragment<string>;
+		expect(f.confidence).toBe(0.9); // untouched
+		expect(f.validTo).toBe(42n);
+		mem.destroy();
+	});
+
+	it("policy swap is push-on-update (decay Node is a reactive dep)", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		// Identity policy — a trigger tick is a quiescent no-op.
+		const decay = node<DecayPolicy>([], { initial: (c) => c });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+		});
+		const item = mem.itemNode("p");
+		item.subscribe(() => undefined);
+		ingest.emit(frag("p", "P", { confidence: 1 }));
+		decayTrigger.emit(1);
+		expect((item.cache as MemoryFragment<string>).confidence).toBe(1); // no-op
+		// Swapping the policy itself fires the processor (push-on-update).
+		decay.emit((c) => c * 0.25);
+		expect((item.cache as MemoryFragment<string>).confidence).toBe(0.25);
+		mem.destroy();
+	});
+
+	it("a confidence drop below reviewThreshold surfaces via review (no validTo set)", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		const decay = node<DecayPolicy>([], { initial: (c) => c * 0.2 });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+			reviewThreshold: 0.3,
+		});
+		const item = mem.itemNode("r");
+		item.subscribe(() => undefined);
+		mem.review.subscribe(() => undefined);
+		ingest.emit(frag("r", "R", { confidence: 1 }));
+		decayTrigger.emit(1); // 1 → 0.2 (< 0.3)
+		expect(mem.review.cache as ReviewRequest).toMatchObject({
+			factId: "r",
+			threshold: 0.3,
+		});
+		// Decay mutates confidence only — it must not set validTo / cascade.
+		expect((item.cache as MemoryFragment<string>).validTo).toBeUndefined();
+		mem.destroy();
+	});
+
+	it("emits one `decay` audit record per tick that changed ≥1 fact; none on a no-op", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		const decay = node<DecayPolicy>([], { initial: (c) => c * 0.5 });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+		});
+		mem.events.entries.subscribe(() => undefined);
+		ingest.emit(frag("a", "A", { confidence: 1 }));
+		decayTrigger.emit(1); // 1 → 0.5 (change)
+		decayTrigger.emit(2); // 0.5 → 0.25 (change)
+		const decayRecs = (mem.events.entries.cache ?? []).filter((r) => r.action === "decay");
+		expect(decayRecs.length).toBe(2);
+		mem.destroy();
+	});
+
+	it("decayTrigger without a decay policy is an inert documented no-op", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decayTrigger, // no `decay`
+		});
+		const item = mem.itemNode("n");
+		item.subscribe(() => undefined);
+		mem.events.entries.subscribe(() => undefined);
+		ingest.emit(frag("n", "N", { confidence: 0.7 }));
+		expect(() => decayTrigger.emit(1)).not.toThrow();
+		expect((item.cache as MemoryFragment<string>).confidence).toBe(0.7);
+		expect((mem.events.entries.cache ?? []).some((r) => r.action === "decay")).toBe(false);
+		mem.destroy();
+	});
+
+	it("age-aware policy receives a sane monotonic ageNs (not a wall-clock-domain garbage age)", () => {
+		// Regression for the clock-domain bug: `t_ns` is monotonic-stamped (see
+		// `frag()`), so `ageNs` MUST be `monotonicNs() - t_ns` — a small
+		// non-negative duration, NOT `wallClockNs() - t_ns` (≈ Unix-epoch ns,
+		// ~1.8e18, a ~57-year garbage age that breaks every forgetting curve).
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		let captured: bigint | undefined;
+		const decay = node<DecayPolicy>([], {
+			initial: (c, age) => {
+				captured = age;
+				return c;
+			},
+		});
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+		});
+		mem.itemNode("a").subscribe(() => undefined);
+		ingest.emit(frag("a", "A", { confidence: 1 }));
+		decayTrigger.emit(1);
+		expect(captured).toBeDefined();
+		expect(captured! >= 0n).toBe(true);
+		// A freshly-ingested fact's age is sub-second; anything ≥ ~11 days
+		// (1e15 ns) means the wall-clock/monotonic domains were mixed.
+		expect(captured! < 1_000_000_000_000_000n).toBe(true);
+		mem.destroy();
+	});
+
+	it("decays every live fact across all shards in one tick", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		const decay = node<DecayPolicy>([], { initial: (c) => c * 0.5 });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+		});
+		const ids = ["fa", "fb", "fc", "fd", "fe", "ff", "fg", "fh"]; // FNV-spread across 4 shards
+		const items = ids.map((id) => mem.itemNode(id));
+		for (const it of items) it.subscribe(() => undefined);
+		for (const id of ids) ingest.emit(frag(id, id, { confidence: 1 }));
+		decayTrigger.emit(1);
+		for (const it of items) {
+			expect((it.cache as MemoryFragment<string>).confidence).toBe(0.5);
+		}
+		const decayRecs = (mem.events.entries.cache ?? []).filter((r) => r.action === "decay");
+		expect(decayRecs.length).toBe(1); // ONE batch record for the whole tick
+		mem.destroy();
+	});
+
+	it("resurrection guard: a fact obsoleted by an in-flight cascade is not re-confidence'd by decay", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		const decay = node<DecayPolicy>([], { initial: (c) => c * 0.5 });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+		});
+		const a = mem.itemNode("a");
+		const b = mem.itemNode("b");
+		a.subscribe(() => undefined);
+		b.subscribe(() => undefined);
+		ingest.emit(frag("a", "A", { confidence: 1 }));
+		ingest.emit(frag("b", "B", { confidence: 1, sources: ["a"] }));
+		// Obsolete A → cascade sets b.validTo (b becomes obsolete).
+		ingest.emit(frag("a", "A2", { confidence: 1, validTo: 999n }));
+		const bObs = b.cache as MemoryFragment<string>;
+		expect(bObs.validTo).toBeDefined();
+		const bConfBefore = bObs.confidence;
+		// Decay tick: a (obsolete) + b (cascade-obsoleted) both skipped; no drift.
+		decayTrigger.emit(1);
+		const bAfter = b.cache as MemoryFragment<string>;
+		expect(bAfter.confidence).toBe(bConfBefore); // untouched
+		expect(bAfter.validTo).toBe(bObs.validTo); // still obsolete
+		expect((mem.events.entries.cache ?? []).some((r) => r.action === "decay")).toBe(false);
 		mem.destroy();
 	});
 });

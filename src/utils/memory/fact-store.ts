@@ -48,7 +48,7 @@
  * @module
  */
 
-import { type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
+import { monotonicNs, type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
 import type { ReactiveLogBundle } from "@graphrefly/pure-ts/extra";
 import { keepalive, reactiveLog } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
@@ -192,7 +192,7 @@ export interface ReviewRequest {
 }
 
 export interface FactStoreAuditRecord extends BaseAuditRecord {
-	readonly action: "ingest" | "invalidate" | "outcome" | "consolidate" | "overflow";
+	readonly action: "ingest" | "invalidate" | "outcome" | "consolidate" | "decay" | "overflow";
 	readonly id?: FactId;
 	readonly reason?: CascadeReason;
 }
@@ -207,6 +207,44 @@ export interface ReactiveFactStoreConfig<T> {
 
 	// ② Node<Policy> hooks (reactive — policy itself can evolve).
 	readonly scoring?: Node<ScoringPolicy<T>>;
+	/**
+	 * Forgetting-curve policy `(confidence, ageNs) => confidence'` (MEME L1
+	 * time-drift / Hassabis forgetting curve, DS-14.7 PART 4.1 face ②). `ageNs`
+	 * is the fact's monotonic age (`monotonicNs() - t_ns`, a `bigint`
+	 * nanosecond duration — `Number()` it for float math; precision degrades
+	 * for ages beyond `Number.MAX_SAFE_INTEGER` ns ≈ 104 days of process
+	 * uptime). Reactive: the policy itself can evolve (e.g.
+	 * `derived([outcome], …)` for continual learning — spec §1.4
+	 * push-on-update).
+	 *
+	 * **Activation contract.** The decay processor exists only when
+	 * {@link decayTrigger} is *configured*. Once it is, **both** a
+	 * `decayTrigger` tick **and** a `decay` policy emit drive a full pass
+	 * (push-on-update — the `outcomeProcessor`+`scoring` precedent). A policy
+	 * Node's *initial* value therefore runs a pass on first resolution: if you
+	 * build `decay` via `derived(...)`, expect a store-wide pass when it first
+	 * settles. With no `decayTrigger` configured the face is fully inert
+	 * (mirrors {@link consolidate}/{@link consolidateTrigger}).
+	 *
+	 * Each pass applies the current policy to every *live* fact (`validTo`
+	 * unset), clamps to `[0, 1]`, and writes back only facts whose confidence
+	 * actually changed (a fact obsoleted earlier in the same tick is never
+	 * resurrected). A drop below {@link reviewThreshold} surfaces via the
+	 * `review` topic; decay never sets `validTo`, so it cannot itself drive the
+	 * cascade.
+	 *
+	 * **Quiescence is the policy's responsibility.** The only no-op guard is
+	 * exact-equality (`next === confidence`). A policy with no reachable
+	 * fixpoint (e.g. plain geometric `c => c * 0.5`) therefore re-decays and
+	 * re-emits **every** live fact on **every** tick forever (silent CPU/GC +
+	 * audit-log churn — never an error). Bound it in the policy: clamp to a
+	 * floor and return `confidence` unchanged once at/below it (so the
+	 * exact-equality guard quiesces the store). The {@link decayExponential}
+	 * recipe is the ergonomic alternative that owns its own `fromTimer` +
+	 * `floor`/`epsilon` and writes through the `ingest` face (no
+	 * `decay`/`decayTrigger` wiring). Use this face when you want the store to
+	 * own decay as a reactive, swappable policy and you are providing the floor.
+	 */
 	readonly decay?: Node<DecayPolicy>;
 	readonly admissionFilter?: Node<AdmissionFilter<T>>;
 
@@ -214,6 +252,16 @@ export interface ReactiveFactStoreConfig<T> {
 	readonly ingest: Node<MemoryFragment<T>>;
 	readonly outcome?: Node<OutcomeSignal>;
 	readonly query?: Node<MemoryQuery>;
+	/**
+	 * Decay trigger — a reactive timer/cron Node (e.g. `fromTimer(...)` /
+	 * `fromCron(...)`). Configuring it creates the decay processor; each tick
+	 * then re-applies the current {@link decay} policy to every live fact (a
+	 * `decay` policy emit also drives a pass — see {@link decay}'s "Activation
+	 * contract"). A tick before any `decay` policy has emitted is a no-op.
+	 * Without this field the `decay` face is fully inert (mirrors
+	 * {@link consolidateTrigger}/{@link consolidate}).
+	 */
+	readonly decayTrigger?: Node<unknown>;
 	/**
 	 * Consolidator trigger — a reactive timer/cron Node (e.g. `fromCron(...)`).
 	 * When supplied, the `consolidated` node maps each tick to summarized
@@ -925,6 +973,80 @@ export function reactiveFactStore<T>(
 	);
 	graph.add(consolidated, { name: "consolidated" });
 	graph.addDisposer(keepalive(consolidated));
+
+	// ── decayProcessor: trigger tick → apply DecayPolicy → confidence drift ─
+	// Face ② `decay` (DS-14.7 PART 4.1 / §5.8). Deps on the caller's reactive
+	// trigger (+ the policy Node so a policy swap is push-on-update, the
+	// `outcomeProcessor`/`extractOp` ②-face precedent). Reads the store
+	// advisory off `allFacts()` (COMPOSITION-GUIDE-GRAPH §7 — NOT a shards dep,
+	// no within-wave cycle); write-back via `replaceFragment` re-triggers
+	// `invalidationDetector` exactly like `consolidated`/`cascadeProcessor`
+	// (already-bounded recursion edge). Decay only mutates `confidence`, never
+	// `validTo`, so it cannot itself become a cascade root — a confidence drop
+	// below `reviewThreshold` surfaces through `review` instead.
+	if (config.decayTrigger) {
+		const decayProcessor = node<readonly MemoryFragment<T>[]>(
+			config.decay ? [config.decayTrigger, config.decay] : [config.decayTrigger],
+			(batchData, actions, ctx) => {
+				const policy = config.decay
+					? lastOf<DecayPolicy>(batchData[1], ctx.prevData[1])
+					: undefined;
+				// Inert until a policy exists (SENTINEL guard) or if `decay` was
+				// never supplied — `decayTrigger` alone is documented no-op.
+				if (!policy) {
+					actions.emit([]);
+					return;
+				}
+				// `ageNs` is a DURATION → monotonic clock (CLAUDE.md "Time utility
+				// rule"); `MemoryFragment.t_ns` is monotonic-stamped (field JSDoc
+				// + fixture). Wall-clock here would mix domains and hand the
+				// policy a ~epoch-sized garbage age. The `decay` audit record
+				// below keeps `wallClockNs()` (wall-clock attribution, like every
+				// other audit append).
+				const now = BigInt(monotonicNs());
+				const changes: { id: FactId; next: number }[] = [];
+				for (const f of allFacts().values()) {
+					if (f.validTo !== undefined) continue; // obsolete — don't drift
+					const ageNs = now - f.t_ns;
+					const raw = policy(f.confidence, ageNs);
+					if (!Number.isFinite(raw)) continue; // policy overflow guard
+					const next = raw < 0 ? 0 : raw > 1 ? 1 : raw;
+					if (next === f.confidence) continue; // no-op → quiescent store
+					changes.push({ id: f.id, next });
+				}
+				const decayed: MemoryFragment<T>[] = [];
+				for (const { id, next } of changes) {
+					// Resurrection guard: re-read the LIVE shard — a fact obsoleted
+					// by an in-flight cascade earlier this same tick must not be
+					// re-confidence'd from the pre-cascade snapshot.
+					const idx = findShardOf(id);
+					const fs = idx < 0 ? undefined : (shards[idx]!.cache as FactStore<T> | undefined);
+					const live = fs?.byId.get(id);
+					if (!live || live.validTo !== undefined) continue;
+					replaceFragment(id, (prev) =>
+						prev.validTo !== undefined ? prev : { ...prev, confidence: next },
+					);
+					decayed.push({ ...live, confidence: next });
+				}
+				if (decayed.length > 0) {
+					events.append({
+						action: "decay",
+						t_ns: wallClockNs(),
+						seq: bumpCursor(seqCursor),
+					});
+				}
+				actions.emit(decayed);
+			},
+			{
+				name: "decay_processor",
+				describeKind: "derived",
+				initial: [] as readonly MemoryFragment<T>[],
+				meta: factMeta("decay"),
+			},
+		);
+		graph.add(decayProcessor, { name: "decay_processor" });
+		graph.addDisposer(keepalive(decayProcessor));
+	}
 
 	// ── ingest audit (records every committed fragment) ──────────────────
 	const ingestAudit = node<MemoryFragment<T> | null>(

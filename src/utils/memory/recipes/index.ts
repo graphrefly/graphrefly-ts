@@ -10,7 +10,7 @@
  * | Recipe | Face | Closes |
  * |---|---|---|
  * | {@link scoringByOutcome}    | ② `scoring`        | Hassabis continual learning |
- * | {@link decayExponential}    | ③ `ingest` (timer) | Forgetting curve (the `decay` face is unwired in v1 — see its docs) |
+ * | {@link decayExponential}    | ③ `ingest` (timer) | Forgetting curve (ergonomic self-contained alternative to the wired `decay`/`decayTrigger` face) |
  * | {@link consolidationRem}    | ① `consolidate`+③  | REM replay consolidation |
  * | {@link admissionLlmJudge}   | ② `admissionFilter`| LLM gatekeeper (sync-face adapter) |
  * | {@link shardByTenant}       | ① `shardBy`        | Multi-tenant isolation |

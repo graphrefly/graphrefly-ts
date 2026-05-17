@@ -278,6 +278,19 @@ const REGISTRY = {
 	memoryWithTiers: "src/utils/ai/memory/memory-composers.ts",
 	memoryRetrieval: "src/utils/ai/memory/memory-composers.ts",
 
+	// DS-14.7 — reactive fact store + persistence + recipe library
+	reactiveFactStore: "src/utils/memory/fact-store.ts",
+	persistentReactiveFactStore: "src/utils/memory/persistent-fact-store.ts",
+	scoringByOutcome: "src/utils/memory/recipes/scoring-by-outcome.ts",
+	decayExponential: "src/utils/memory/recipes/decay-exponential.ts",
+	consolidationRem: "src/utils/memory/recipes/consolidation-rem.ts",
+	admissionLlmJudge: "src/utils/memory/recipes/admission-llm-judge.ts",
+	shardByTenant: "src/utils/memory/recipes/shard-by-tenant.ts",
+	invalidationTracer: "src/utils/memory/recipes/invalidation-tracer.ts",
+	bitemporalQuery: "src/utils/memory/recipes/bitemporal-query.ts",
+	influenceAnalysis: "src/utils/memory/recipes/influence-analysis.ts",
+	logProjector: "src/utils/messaging/index.ts",
+
 	// extra/composition — domain-agnostic substrates (Class B audit Alt E, 2026-04-30)
 	auditedSuccessTracker: "src/utils/orchestration/audited-success-tracker.ts",
 	llmExtractor: "src/utils/ai/prompts/prompt-call.ts",

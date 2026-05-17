@@ -11,14 +11,15 @@
  * re-ingest write commits **synchronously this tick** (graphrefly push is
  * synchronous) and the next tick decays from there.
  *
- * > **Why a recipe, not the `decay` face.** `ReactiveFactStoreConfig.decay:
- * > Node<DecayPolicy>` is a *locked design face* (DS-14.7 PART 4.1) but the
- * > shipped `reactiveFactStore()` v1 factory does **not** consume it (tracked
- * > as a factory-gap item in `docs/optimizations.md`). This recipe delivers the
- * > §5.8 "`decay` recipe uses `fromTimer` for periodic confidence drift"
- * > behavior over the **wired** `ingest` face instead — fully spec-compliant
- * > and zero-core-change. It composes regardless of whether the `decay` face is
- * > later wired.
+ * > **Recipe vs the `decay` face.** `ReactiveFactStoreConfig.decay:
+ * > Node<DecayPolicy>` (DS-14.7 PART 4.1 face ②) **is wired** in the factory —
+ * > pair it with `decayTrigger` and the store owns decay as a reactive,
+ * > swappable policy. This recipe is the **ergonomic alternative**: it owns its
+ * > own `fromTimer` and writes through the already-wired `ingest` face, so the
+ * > caller wires no `decay`/`decayTrigger` and the recipe composes whether or
+ * > not the face is also used. Both deliver the §5.8 "`fromTimer` for periodic
+ * > confidence drift" behavior; pick the face for a caller-controlled policy
+ * > Node, this recipe for a self-contained drop-in forgetting curve.
  *
  * **Convergence (conditional — read this).** Per-id decay is computed against
  * the elapsed time since this fact was last decayed (recipe-owned closure
