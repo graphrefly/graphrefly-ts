@@ -58,9 +58,11 @@ Path A is the cheaper restore. Punt the decision until after the Rust port settl
 5. Push a changeset that bumps → next release publishes.
 6. Delete this section from `known-issues.md`.
 
-## First-consumer P0s (memo:Re Story 6.4, 0.46.0) — see `optimizations.md`
+## ✅ RESOLVED — First-consumer P0s (memo:Re Story 6.4) — fixed in `0.47.0`
 
-Two **consumer-blocking** defects surfaced by memo:Re (first real consumer). Full repros + prioritization in `docs/optimizations.md` § "memo:Re (cognitive-buddy) — first-real-consumer findings (recorded 2026-05-16)":
+Both consumer-blocking defects surfaced by memo:Re (first real consumer) were **fixed in `0.47.0`** (`dc7c34e fix p0`) and **independently verified by the consumer** against the installed build:
 
-- **`ReactiveLogBundle.attachStorage()` silently persists only the FIRST append wave on a standalone (non-graph-mounted) `reactiveLog`** (`appendMany` single-wave is fine; N sequential `append()`s lose all but the first — append-only-log data loss with no error).
-- **`@graphrefly/graphrefly` root barrel + `/base` hard-require the OPTIONAL `rxjs` peer** → `Cannot find module 'rxjs'` bricks any RN/Hermes/Metro build that imports the root barrel.
+- **`ReactiveLogBundle.attachStorage()` first-wave-only data loss on a standalone `reactiveLog`** — FIXED (every append wave now forwarded; repro that lost `['b','c','d']` now persists all four).
+- **`@graphrefly/graphrefly` root/`/base` hard-require of optional `rxjs`** — FIXED (root import no longer throws; `no-rxjs-in-loaded-path` test added upstream).
+
+Full history + repros in `docs/optimizations.md` (resolution stamp at top of the memo:Re entry). Tombstone retained for provenance; remove this section per the known-issues archival convention when convenient.

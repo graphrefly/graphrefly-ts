@@ -1443,3 +1443,8 @@ export {
 	type ShardKey,
 	type StoreReadHandle,
 } from "./fact-store.js";
+
+// DS-14.7 follow-up #1: recipe library — 8 shipped compositions over the
+// four extension faces. Re-exported here so `utils/memory` stays the single
+// import surface.
+export * from "./recipes/index.js";
