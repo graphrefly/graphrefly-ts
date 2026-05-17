@@ -1,7 +1,12 @@
 import { DATA, describeNode, node } from "@graphrefly/pure-ts/core";
+import type { LensFlowChange } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
 import { type FlowEntry, graphLens, type HealthReport } from "../../../utils/inspect/lens.js";
+
+function getLogCache(n: { cache: unknown }): readonly LensFlowChange[] {
+	return (n.cache ?? []) as readonly LensFlowChange[];
+}
 
 function getHealthCache(node: { cache: unknown }): HealthReport {
 	return node.cache as HealthReport;
@@ -252,6 +257,160 @@ describe("graphLens — flow", () => {
 		} finally {
 			lens.dispose();
 		}
+	});
+});
+
+describe("graphLens — flowMutations (delta companion)", () => {
+	it("is absent by default (zero overhead, off)", () => {
+		const g = new Graph("g");
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		const lens = graphLens(g);
+		try {
+			expect(lens.flowMutations).toBeUndefined();
+			// `flow` still works with the companion disabled.
+			lens.flow.subscribe(() => {});
+			g.set("a", 1);
+			expect(getFlowCache(lens.flow).get("a")?.count).toBeGreaterThanOrEqual(1);
+		} finally {
+			lens.dispose();
+		}
+	});
+
+	it("appends a typed tick LensFlowChange per per-path DATA emission", () => {
+		const g = new Graph("g");
+		const a = node([], { name: "a", initial: 0 });
+		g.add(a, { name: "a" });
+
+		const lens = graphLens(g, { mutations: true });
+		try {
+			expect(lens.flowMutations).toBeDefined();
+			lens.flow.subscribe(() => {});
+			lens.flowMutations!.entries.subscribe(() => {});
+			a.emit(1);
+			a.emit(2);
+
+			const log = getLogCache(lens.flowMutations!.entries);
+			const ticks = log.filter((c) => c.change.kind === "tick");
+			expect(ticks.length).toBeGreaterThanOrEqual(2);
+			for (const rec of ticks) {
+				expect(rec.structure).toBe("lensFlow");
+				expect(rec.lifecycle).toBe("data");
+				expect(typeof rec.t_ns).toBe("number");
+				if (rec.change.kind === "tick") expect(rec.change.path).toBe("a");
+			}
+			// `version` is strictly monotonic across the companion.
+			const versions = log.map((c) => c.version as number);
+			for (let i = 1; i < versions.length; i++) {
+				expect(versions[i]!).toBeGreaterThan(versions[i - 1]!);
+			}
+			// tick `count` mirrors the snapshot counter for the same path.
+			const lastTick = [...ticks].reverse().find((c) => c.change.kind === "tick");
+			if (lastTick?.change.kind === "tick") {
+				expect(lastTick.change.count).toBe(getFlowCache(lens.flow).get("a")?.count);
+			}
+		} finally {
+			lens.dispose();
+		}
+	});
+
+	it("appends an evict LensFlowChange when a tracked path drops from topology", () => {
+		const g = new Graph("g");
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
+
+		const lens = graphLens(g, { mutations: true });
+		try {
+			lens.flow.subscribe(() => {});
+			lens.flowMutations!.entries.subscribe(() => {});
+			g.set("a", 1);
+			g.set("b", 1);
+			expect(getFlowCache(lens.flow).has("b")).toBe(true);
+
+			g.remove("b");
+			expect(getFlowCache(lens.flow).has("b")).toBe(false);
+
+			const evicts = getLogCache(lens.flowMutations!.entries).filter(
+				(c) => c.change.kind === "evict",
+			);
+			expect(evicts.some((c) => c.change.kind === "evict" && c.change.path === "b")).toBe(true);
+		} finally {
+			lens.dispose();
+		}
+	});
+
+	it("honors a bounded maxSize on the companion log", () => {
+		const g = new Graph("g");
+		const a = node([], { name: "a", initial: 0 });
+		g.add(a, { name: "a" });
+
+		const lens = graphLens(g, { mutations: { maxSize: 2 } });
+		try {
+			lens.flow.subscribe(() => {});
+			lens.flowMutations!.entries.subscribe(() => {});
+			for (let i = 1; i <= 6; i++) a.emit(i);
+			expect(getLogCache(lens.flowMutations!.entries).length).toBeLessThanOrEqual(2);
+		} finally {
+			lens.dispose();
+		}
+	});
+
+	it("captures the initial tick even when the lens is built over already-cached state (QA-P1)", () => {
+		const g = new Graph("g");
+		const a = node([], { name: "a", initial: 0 });
+		g.add(a, { name: "a" });
+		// Drive emissions BEFORE the lens exists so describe/observe have
+		// cached changesets — pre-fix `keepalive(flow)` ran before the
+		// drain was wired, so this activation's deltas were collapsed into
+		// the drain's first flush. Post-fix the drain is subscribed first.
+		a.emit(1);
+		a.emit(2);
+
+		const lens = graphLens(g, { mutations: true });
+		try {
+			lens.flow.subscribe(() => {});
+			lens.flowMutations!.entries.subscribe(() => {});
+			a.emit(3);
+
+			const ticks = getLogCache(lens.flowMutations!.entries).filter(
+				(c) => c.change.kind === "tick",
+			);
+			// At least the post-construction tick is present and its count
+			// mirrors the live snapshot counter (no collapse/loss).
+			expect(ticks.length).toBeGreaterThanOrEqual(1);
+			const last = [...ticks].reverse().find((c) => c.change.kind === "tick");
+			if (last?.change.kind === "tick") {
+				expect(last.change.count).toBe(getFlowCache(lens.flow).get("a")?.count);
+			}
+		} finally {
+			lens.dispose();
+		}
+	});
+
+	it("stops appending + is idempotent after dispose() even with flow kept warm (QA-P2/P3)", () => {
+		const g = new Graph("g");
+		const a = node([], { name: "a", initial: 0 });
+		g.add(a, { name: "a" });
+
+		const lens = graphLens(g, { mutations: true });
+		// External subscriber keeps `flow` warm past dispose().
+		const stop = lens.flow.subscribe(() => {});
+		lens.flowMutations!.entries.subscribe(() => {});
+		a.emit(1);
+		a.emit(2);
+		const beforeDispose = getLogCache(lens.flowMutations!.entries).length;
+		expect(beforeDispose).toBeGreaterThan(0);
+
+		lens.dispose();
+		// Idempotent — second dispose must not throw.
+		expect(() => lens.dispose()).not.toThrow();
+
+		// `flow` is still warm (stop not called) — drive more activity.
+		a.emit(3);
+		a.emit(4);
+		// QA-P3: buffer push is gated on !disposed → no new records.
+		expect(getLogCache(lens.flowMutations!.entries).length).toBe(beforeDispose);
+
+		stop();
 	});
 });
 

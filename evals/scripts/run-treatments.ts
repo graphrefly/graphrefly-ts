@@ -46,19 +46,19 @@
 
 import { DATA } from "../../packages/pure-ts/src/core/messages.js";
 import type { Node } from "../../packages/pure-ts/src/core/node.js";
+// D2 (post-cleave repath): see run-harness.ts. harness utils →
+// src/utils/harness, harness presets → src/presets/harness.
+import { evalVerifier, harnessLoop } from "../../src/presets/harness/index.js";
+import type { LLMAdapter } from "../../src/utils/ai/index.js";
 import {
 	actuatorExecutor,
 	autoSolidify,
-	evalVerifier,
 	type HarnessExecutor,
 	type HarnessVerifier,
-} from "../../packages/pure-ts/src/patterns/harness/index.js";
-import { harnessLoop } from "../../packages/pure-ts/src/patterns/harness/loop.js";
-import type {
-	IntakeItem,
-	TriagedItem,
-	VerifyResult,
-} from "../../packages/pure-ts/src/patterns/harness/types.js";
+	type IntakeItem,
+	type TriagedItem,
+	type VerifyResult,
+} from "../../src/utils/harness/index.js";
 import { catalogAwareEvaluator } from "../lib/catalog-aware-evaluator.js";
 import {
 	type CatalogOverlayBundle,
@@ -354,7 +354,10 @@ async function runTreatment(
 	const stack = cfg.actuate ? buildActuationStack() : null;
 
 	const harness = harnessLoop<CatalogPatch>(`treatment-${cfg.id}`, {
-		adapter,
+		// DOGFOOD: `mockAdapter()` predates the `LLMAdapter` interface
+		// (`provider`/`stream`/`NodeInput<LLMResponse>`); cast. Unverifiable
+		// without the eval harness (not in CI). See optimizations.md.
+		adapter: adapter as unknown as LLMAdapter,
 		maxRetries: 1,
 		maxReingestions: 0,
 		executor: stack?.executor,

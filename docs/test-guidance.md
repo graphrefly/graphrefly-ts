@@ -365,6 +365,146 @@ uv run pytest -x
 
 ---
 
+## Running long commands reliably / diagnosing a stuck run
+
+This is the single source of truth for running ANY long command (cargo
+build/test/bench, `mise run gate`, `pnpm test`, a long script) and
+**reliably knowing its terminal state** — success, failure, timeout, or
+crash — with **zero false "is it hung?"**. Read this before backgrounding
+or monitoring anything long.
+
+### Why this exists
+
+A graphrefly-rs Slice B-2 session burned ~2h+ not on a real deadlock but
+on the **observation layer**: the agent repeatedly could not tell whether
+a long command was hung, finished, or stalled. The recurrence had distinct
+root causes, every one of which is a *structural* trap, not a "be more
+careful" problem:
+
+| # | False-hang cause | Why the agent was fooled |
+|---|---|---|
+| a | Monitor grepped a string the command does not **guarantee** to emit (or grepped harness-buffered tool output) | The command finished; the monitor timed out waiting for a pattern that never comes |
+| b | Output piped through `tail`/a buffered pipe | Nothing appears until EOF → looks hung the whole time it is actually working |
+| c | macOS misreads | `vm_stat "Pages free"` is **not** memory pressure; there is no GNU `timeout(1)` and no `setsid`; BSD `ps`/`sed`/`grep` differ from GNU |
+| d | Subagent-spawned background process leaked | Nothing is running, but a stale parent-session task entry says "running" |
+| e | Monitor cadence vs the prompt-cache window | A flat 300s sleep is worst-case: cache miss with no amortization |
+| f | cargo's own `Blocking waiting for file lock on artifact directory` line invisible | Hidden by (b); the deterministic contention signal never surfaced |
+
+### The sanctioned mechanism — never hand-roll this
+
+`~/src/graphrefly-rs/scripts/run-logged.sh` makes the failure
+**structurally impossible**. Use it for *any* long command:
+
+```bash
+mise run run-logged -- cargo build --release      # from anywhere in graphrefly-rs
+scripts/run-logged.sh -l bench -t 1800 -- cargo bench
+scripts/run-logged.sh -- pnpm test
+```
+
+It guarantees four things; `scripts/gate.sh` **sources** it (the gate adds
+only its mutex + RAM precheck + cargo thrash-vs-deadlock signature on top —
+`mise run gate` / `mise run gate:core` as before):
+
+1. **Direct unbuffered file log.** Command stdout+stderr append straight to
+   a file — **never** piped through `tail`/`grep`/a subshell. cargo's
+   lock-wait line (f) is visible the instant cargo prints it.
+2. **Guaranteed terminal sentinel.** On *every* terminal path — success,
+   failure, self-timeout, signal, crash — exactly one canonical line is
+   emitted to **both stdout and the log**:
+
+   ```
+   <<<RUN-LOGGED:DONE>>> exit=<rc> reason=<ok|fail|timeout|signal|crash> elapsed=<N>s end=<ISO> label="..." log=<path>
+   ```
+
+3. **Process-group launch + teardown.** Job-control monitor mode →
+   `kill -- -PGID` reaps the command and every child. macOS-portable
+   `setsid` substitute. Zero orphans → nothing leaks as a stale "running"
+   entry (d).
+4. **Self-timeout with a macOS-correct diagnostic.** Built-in watchdog (no
+   `timeout(1)` on macOS). On expiry it classifies the stall — process
+   `STAT` codes, `memory_pressure`, `vm.swapusage`, `vm_stat` page-ins,
+   `lsof` lock holders, the hoisted cargo lock-wait line — then tears down
+   and still emits the sentinel (`reason=timeout`).
+
+### Monitor / observation rules (non-negotiable)
+
+- **A Monitor's until-condition MUST grep the guaranteed terminal
+  sentinel** the command emits on *every* terminal path. For run-logged.sh
+  / gate.sh that is the literal token `<<<RUN-LOGGED:DONE>>>` (in the log
+  *or* the captured stdout). Never grep a progress string the command does
+  not guarantee on failure/timeout/crash.
+- **Never grep harness-buffered tool output** (a `run_in_background`
+  Bash/Monitor's own captured stream may be chunked/delayed). Grep the
+  **direct log file** the command writes, or the sentinel on stdout.
+- **Never `tail`/pipe a long command to "watch" it.** Pipes buffer until
+  EOF and hide cargo's lock-wait line. Let run-logged.sh write the direct
+  log; `tail -f` that file *yourself* in a separate shell if you want a
+  live view — never as the command's own stdout path.
+- **Cadence vs the prompt-cache 5-min window.** Do **not** pick a flat
+  300s — worst case (cache miss, no amortization). Active watch (something
+  about to change): 60–270s, cache stays warm. Genuinely idle wait:
+  1200–1800s (one cache miss buys a long wait). Match the delay to *what
+  you are waiting for*, not a round number of minutes.
+
+### Before deciding something is "hung" — checklist
+
+Run through ALL of these; a "hang" is almost never a hang:
+
+1. **Process state, not %CPU:** `ps -axo pid,stat,rss,command | grep -E 'cargo|rustc|nextest'`. `D`=uninterruptible-IO/swap, `T`=stopped, `Z`=zombie, `R`=running. Uniform `S`/`SN` + tiny RSS + swap-full = **swap thrash from overlapping builds**, not a code deadlock.
+2. **Memory the macOS way:** `memory_pressure` (free %) and `sysctl -n vm.swapusage` — **not** `vm_stat "Pages free"` (it ignores the compressor/file cache and lies low).
+3. **Is the log direct, or tail-piped?** If you cannot see fresh lines, the command is probably fine and the *pipe* is the problem. Read the run-logged.sh log file directly.
+4. **Is the monitor grepping a guaranteed sentinel?** If it greps a non-guaranteed string or buffered tool output, the monitor is the bug. Grep `<<<RUN-LOGGED:DONE>>>`.
+5. **Lock contention:** `lsof ~/.cache/graphrefly-rs-target/<key>/.cargo-lock` (and `…/debug/.cargo-lock`). A holder + a `Blocking waiting for file lock` log line ⇒ a *second* cargo is running. One cargo per target — kill by **process group**, never stack a second run.
+6. **Leaked vs real:** a stale UI "running" entry with **no** matching `pgrep -fl cargo-nextest` / `pgrep -fl rustc` is a leaked entry (d), not a process — there is nothing to kill; dismiss it.
+
+### Subagent background-process hygiene
+
+Review/probe subagents (e.g. `/qa`, `/rust-review`, `/porting-to-rs`
+self-test) **must not** leave backgrounded work behind. A subagent that
+ends while a `run_in_background` cargo is still going leaks as a stale
+parent-session "running" task entry (cause d) — indistinguishable in the
+UI from a real hang.
+
+Rule: **a subagent that runs verification runs it synchronously** (no
+backgrounded cargo/long command) **or tears it down before returning**.
+Prefer `mise run gate` / `mise run run-logged -- …` *foreground* inside
+the subagent and wait for the sentinel. If something must be backgrounded,
+the subagent kills it by process group before its final message. Never
+return with a live background process.
+
+### Disk discipline — `target/` growth & the gate.sh doubling tradeoff
+
+`cargo` **never** garbage-collects `target/`. A long porting/gate session
+recompiles the workspace + ~27 integration-test binaries + benches +
+`criterion/` HTML dozens of times and **nothing prunes stale artifacts** —
+a single project `target/` reaching 50–60 GB is normal-but-unbounded.
+
+`scripts/gate.sh` (and `dev-test.sh`) deliberately use a **separate
+per-worktree** `CARGO_TARGET_DIR` = `~/.cache/graphrefly-rs-target/<key>`,
+**by design**: it isolates the gate from rust-analyzer / a parallel
+`cargo test` so they never fight the single `target/.cargo-lock` (the
+exact contention that caused the original 2h thrash). The tradeoff is
+**deliberate disk-for-isolation**: you now carry **≥2 full trees** (repo
+`target/` + one isolated tree per worktree key, ~5 GB+ each). Do **not**
+"fix" this by pointing gate.sh at the repo `target/` — that reintroduces
+the lock-contention false-hang class this whole section exists to kill.
+
+Discipline instead:
+
+- Treat **all** of `target/` and `~/.cache/graphrefly-rs-target/*` as
+  regenerable. Reclaiming is `cd ~/src/graphrefly-rs && cargo clean`
+  (repo tree) — use `cargo clean`, not `rm` — plus removing stale
+  `~/.cache/graphrefly-rs-target/<key>` dirs for worktrees you no longer
+  use. Next build is a cold ~6-min compile; that is the price, knowingly paid.
+- Periodically (e.g. end of a long porting arc, or when `du -sh
+  ~/src/graphrefly-rs/target` crosses ~40–50 GB) run `cargo clean` rather
+  than letting it grow unbounded.
+- macOS free-space caveat: `df -h /` shows the **sealed read-only system
+  volume** (~13 GiB), not real headroom. Use `df -h ~` or
+  `df -h /System/Volumes/Data`.
+
+---
+
 ## Async tests and runner selection (PY)
 
 When writing async tests (`async def test_*`) in Python:

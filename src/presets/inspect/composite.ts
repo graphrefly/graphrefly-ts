@@ -243,7 +243,7 @@ export class InspectGraph extends Graph {
  *
  * @example
  * ```ts
- * import { inspect } from "@graphrefly/graphrefly/patterns/inspect";
+ * import { inspect } from "@graphrefly/graphrefly/presets/inspect";
  *
  * const target = buildMyApp();
  * const view = inspect(target, { actor: { id: "ops-bot", role: "monitor" } });

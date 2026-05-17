@@ -22,7 +22,7 @@ export interface ExecutionResult {
 /**
  * Validate a GraphSpec JSON object against the real schema.
  *
- * Delegates to `src/patterns/graphspec.ts → validateSpec()`.
+ * Delegates to `src/utils/graphspec/ → validateSpec()`.
  */
 export function validateSpec(spec: unknown): GraphSpecValidation {
 	return realValidateSpec(spec);

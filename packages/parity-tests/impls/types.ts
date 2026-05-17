@@ -27,6 +27,7 @@
  * resolves.
  */
 
+import type * as native from "@graphrefly/native";
 import type * as legacy from "@graphrefly/pure-ts";
 
 /** Tier symbol; one of DATA / RESOLVED / DIRTY / INVALIDATE / PAUSE / RESUME / COMPLETE / ERROR / TEARDOWN. */
@@ -218,15 +219,30 @@ export interface Impl {
 
 	// Tier symbols — protocol identifiers (per D066, both impls share
 	// legacy's symbols; rust re-exports them).
-	readonly DATA: typeof legacy.DATA;
-	readonly RESOLVED: typeof legacy.RESOLVED;
-	readonly DIRTY: typeof legacy.DIRTY;
-	readonly INVALIDATE: typeof legacy.INVALIDATE;
-	readonly PAUSE: typeof legacy.PAUSE;
-	readonly RESUME: typeof legacy.RESUME;
-	readonly COMPLETE: typeof legacy.COMPLETE;
-	readonly ERROR: typeof legacy.ERROR;
-	readonly TEARDOWN: typeof legacy.TEARDOWN;
+	//
+	// D3 (post-rustImpl-activation parity cleanup): each is the
+	// **intersection** of both shipped impls' types, not `legacy`-only.
+	// `@graphrefly/native` typing its tier consts as the wide `Tier`
+	// (= `symbol`) keeps the intersection at legacy's `unique symbol`
+	// (so existing scenarios still type-check), but the `& typeof
+	// native.X` arm makes a *missing* / structurally-incompatible native
+	// tier export a hard type error here.
+	//
+	// ✅ ENFORCED 2026-05-17: `scripts/check-typecheck.ts` `tsc --noEmit`s
+	// this package on every `pnpm lint` (no baseline — the package was
+	// driven to zero errors in the same batch). A `@graphrefly/native`
+	// wrapper signature drifting from this contract now fails `pnpm lint`
+	// — the first-line parity gate D3 asked for. Do NOT add a baseline to
+	// silence a new error; fix the drift.
+	readonly DATA: typeof legacy.DATA & typeof native.DATA;
+	readonly RESOLVED: typeof legacy.RESOLVED & typeof native.RESOLVED;
+	readonly DIRTY: typeof legacy.DIRTY & typeof native.DIRTY;
+	readonly INVALIDATE: typeof legacy.INVALIDATE & typeof native.INVALIDATE;
+	readonly PAUSE: typeof legacy.PAUSE & typeof native.PAUSE;
+	readonly RESUME: typeof legacy.RESUME & typeof native.RESUME;
+	readonly COMPLETE: typeof legacy.COMPLETE & typeof native.COMPLETE;
+	readonly ERROR: typeof legacy.ERROR & typeof native.ERROR;
+	readonly TEARDOWN: typeof legacy.TEARDOWN & typeof native.TEARDOWN;
 
 	// Standalone state factory.
 	node<T>(

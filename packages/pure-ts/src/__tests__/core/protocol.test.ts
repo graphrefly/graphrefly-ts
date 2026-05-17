@@ -687,6 +687,51 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 		unsub();
 	});
 
+	it("R2.6.0 boundary: pausable: resumeAll DOES buffer a leaf source's direct external down([[DATA,v]]) and replays on RESUME (vs default mode = immediate)", () => {
+		// Spec §2.6 R2.6.0 (Option A, pinned 2026-05-17): the default-vs-
+		// resumeAll distinction for a leaf source's *direct external*
+		// `down([[DATA, v]])` push.
+		//   - **default `pausable: true`**: no dep wave to coalesce → the
+		//     direct push is delivered IMMEDIATELY (cross-impl-pinned in
+		//     `packages/parity-tests/scenarios/core/pause-resume.test.ts`,
+		//     and raw-API-pinned by the default-mode tests in this file).
+		//   - **`pausable: "resumeAll"`** (this test): the explicit
+		//     opt-in to buffer the node's outgoing tier-3/4 settle slices
+		//     while paused — INCLUDING a leaf source's own direct
+		//     `down([[DATA,v]])` — replaying them on final-lock RESUME.
+		// So the two modes are NOT equivalent for a self-paused leaf
+		// source's external push: default = keep producing; resumeAll =
+		// buffer & replay everything the node emits.
+		const s = node<number>([], {
+			pausable: "resumeAll",
+			initial: 0,
+			describeKind: "state",
+		});
+		const log: number[] = [];
+		const unsub = s.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) log.push(m[1] as number);
+			}
+		});
+		const baseLen = log.length;
+
+		const lock = Symbol("r2.6.0-self-down");
+		s.down([[PAUSE, lock]]);
+
+		// Direct external self-emit while self-paused — NOT `s.emit(...)`.
+		// Under "resumeAll" this is captured into the pause buffer.
+		s.down([[DATA, 42]]);
+		expect(log.slice(baseLen)).toEqual([]); // buffered, NOT delivered live
+		expect(s.cache).toBe(42); // cache still advances mid-pause (R2.6.1)
+
+		// Final-lock RESUME drains the buffer — the sink observes 42 now.
+		s.down([[RESUME, lock]]);
+		expect(log.slice(baseLen)).toEqual([42]);
+		expect(s.cache).toBe(42);
+
+		unsub();
+	});
+
 	it("pausable: resumeAll — COMPLETE bypasses bufferAll and reaches subscribers even while paused", () => {
 		// Spec §2.6 bufferAll: tier-5 (COMPLETE/ERROR) dispatches synchronously
 		// even while a pause lock is held — stream-lifecycle signals must

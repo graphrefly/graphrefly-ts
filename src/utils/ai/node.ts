@@ -3,8 +3,8 @@
  *
  * Re-exports the Node-specific `fallbackAdapter` variant (with filesystem
  * convenience options like `fixturesDir` / `record.dir`). Import from
- * `@graphrefly/graphrefly/patterns/ai/node` in Node environments when you
- * want those ergonomics; otherwise the universal `@graphrefly/graphrefly/patterns/ai`
+ * `@graphrefly/graphrefly/utils/ai/node` in Node environments when you
+ * want those ergonomics; otherwise the universal `@graphrefly/graphrefly/utils/ai`
  * entry covers everything without `node:*` imports.
  *
  * @module

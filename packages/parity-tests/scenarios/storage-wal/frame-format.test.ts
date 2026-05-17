@@ -12,6 +12,7 @@
 
 import {
 	Graph,
+	type GraphCheckpointRecord,
 	graphWalPrefix,
 	kvStorage,
 	memoryBackend,
@@ -45,6 +46,7 @@ describe("storage-wal parity (pure-ts arm)", () => {
 				},
 				frame_seq: 1,
 				frame_t_ns: 1,
+				format_version: 1,
 			};
 			const checksum = await walFrameChecksum(body);
 			expect(checksum).toMatch(/^[0-9a-f]{64}$/);
@@ -66,6 +68,7 @@ describe("storage-wal parity (pure-ts arm)", () => {
 				},
 				frame_seq: 1,
 				frame_t_ns: 1,
+				format_version: 1,
 			};
 			const frame: WALFrame = { ...body, checksum: await walFrameChecksum(body) };
 			expect(await verifyWalFrameChecksum(frame)).toBe(true);
@@ -92,7 +95,7 @@ describe("storage-wal parity (pure-ts arm)", () => {
 		it("frame_seq > baseline.seq filter recovers post-baseline state", async () => {
 			const author = new Graph("g");
 			author.add(node([], { initial: 0, name: "a" }), { name: "a" });
-			const snapTier = memorySnapshot({ name: "g", compactEvery: 100 });
+			const snapTier = memorySnapshot<GraphCheckpointRecord>({ name: "g", compactEvery: 100 });
 			const walTier = kvStorage(memoryBackend(), { name: "g-wal" });
 			const h = author.attachSnapshotStorage([{ snapshot: snapTier, wal: walTier }]);
 			await settle();
@@ -115,7 +118,7 @@ describe("storage-wal parity (pure-ts arm)", () => {
 		it("listByPrefix yields entries in frame_seq ASC", async () => {
 			const author = new Graph("g");
 			author.add(node([], { initial: 0, name: "a" }), { name: "a" });
-			const snapTier = memorySnapshot({ name: "g", compactEvery: 100 });
+			const snapTier = memorySnapshot<GraphCheckpointRecord>({ name: "g", compactEvery: 100 });
 			const walTier = kvStorage(memoryBackend(), { name: "g-wal" });
 			const h = author.attachSnapshotStorage([{ snapshot: snapTier, wal: walTier }]);
 			await settle();

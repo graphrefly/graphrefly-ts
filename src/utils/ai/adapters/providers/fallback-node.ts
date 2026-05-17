@@ -3,9 +3,9 @@
  * directory convenience options (`fixturesDir`, `record.dir`) that rely on
  * `node:fs` / `node:path` / `fileKv`.
  *
- * This module intentionally lives outside the main `patterns/ai` entry so
+ * This module intentionally lives outside the main `utils/ai` entry so
  * browser bundles don't pull `node:fs` / `node:path`. Import this variant
- * from `@graphrefly/graphrefly/patterns/ai/node` in Node
+ * from `@graphrefly/graphrefly/utils/ai/node` in Node
  * environments when you want the ergonomic directory options.
  *
  * @module
@@ -97,7 +97,7 @@ function validateDirShape(dir: string): void {
  * `fileKv(...)` tiers and delegates to the base `fallbackAdapter`.
  *
  * For browser-safe usage, import `fallbackAdapter` from
- * `@graphrefly/graphrefly/patterns/ai` instead — that variant only accepts
+ * `@graphrefly/graphrefly/utils/ai` instead — that variant only accepts
  * `fixtures` and `fixturesStorage`, no `node:*` imports.
  */
 export function fallbackAdapter(opts: NodeFallbackAdapterOptions = {}): LLMAdapter {

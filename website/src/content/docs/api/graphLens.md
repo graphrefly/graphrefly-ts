@@ -8,7 +8,7 @@ Reactive observability preset over a target Graph.
 ## Signature
 
 ```ts
-function graphLens(target: Graph): GraphLensView
+function graphLens(target: Graph, opts: GraphLensOptions = {}): GraphLensView
 ```
 
 ## Parameters
@@ -16,6 +16,7 @@ function graphLens(target: Graph): GraphLensView
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `target` | `Graph` | The graph to observe. |
+| `opts` | `GraphLensOptions` |  |
 
 ## Basic Usage
 

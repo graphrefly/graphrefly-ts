@@ -43,7 +43,7 @@ export type HandoffOptions = {
  *
  * @example Full handoff on a triage signal.
  * ```ts
- * import { handoff, promptNode } from "@graphrefly/graphrefly/patterns/ai";
+ * import { handoff, promptNode } from "@graphrefly/graphrefly/utils/ai";
  *
  * const triage = promptNode(adapter, [userMessage], (msg) =>
  *   `Classify urgency of: ${msg}. Reply "high" or "normal".`);

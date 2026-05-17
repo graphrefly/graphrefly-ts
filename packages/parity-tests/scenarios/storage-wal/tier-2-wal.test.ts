@@ -183,6 +183,7 @@ describe.each(impls)("M4.F Tier 2 — WAL utilities — $name", (impl) => {
 				frame_seq: 1,
 				frame_t_ns: 1,
 				checksum: "x",
+				format_version: 1,
 			});
 			tier.save(k2, {
 				t: "c",
@@ -198,6 +199,7 @@ describe.each(impls)("M4.F Tier 2 — WAL utilities — $name", (impl) => {
 				frame_seq: 2,
 				frame_t_ns: 2,
 				checksum: "y",
+				format_version: 1,
 			});
 			tier.flush();
 			expect(tier.list("wal/").sort()).toEqual([k1, k2].sort());

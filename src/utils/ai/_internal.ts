@@ -2,7 +2,7 @@
  * @internal — shared helpers for the AI pattern modules.
  *
  * NOT part of the public API. Consumers reach public symbols through
- * `@graphrefly/graphrefly/patterns/ai` (the barrel).
+ * `@graphrefly/graphrefly/utils/ai` (the barrel).
  *
  * @module
  */

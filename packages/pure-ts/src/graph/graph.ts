@@ -76,6 +76,7 @@ import {
 	type RestoreResult,
 	type StorageError,
 	verifyWalFrameChecksum,
+	WAL_FORMAT_VERSION,
 	type WALFrame,
 	walFrameChecksum,
 	walFrameKey,
@@ -5664,6 +5665,7 @@ export class Graph {
 						change: partial.change,
 						frame_seq: localSeq,
 						frame_t_ns: timestamp_ns,
+						format_version: WAL_FORMAT_VERSION,
 					};
 					const checksum = await walFrameChecksum(bodied);
 					const frame: WALFrame = { ...bodied, checksum };

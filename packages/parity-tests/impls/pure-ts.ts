@@ -26,6 +26,8 @@ import type {
 	ImplStorageHandle,
 	ImplWalKvTier,
 	Message,
+	ObserveSubscription,
+	ReactiveDescribeHandle,
 	RestoreResultOutput,
 	SinkFn,
 	StorageImpl,
@@ -223,6 +225,12 @@ class LegacyGraph implements ImplGraph {
 		return result.map(([a, b]) => [a, b] as [string, string]);
 	}
 
+	// Overloads mirror the `ImplGraph` contract exactly; the impl body
+	// already returns the matching runtime shapes (a `ReactiveDescribeHandle`
+	// for `{reactive:true}`, the raw describe JSON otherwise). Declaring the
+	// overloads is type-level conformance only — no behavior change.
+	describe(): unknown;
+	describe(opts: { reactive: true }): Promise<ReactiveDescribeHandle>;
 	describe(opts?: { reactive: true }): unknown {
 		if (opts?.reactive) {
 			// Legacy `describe({ reactive: true })` returns
@@ -250,6 +258,9 @@ class LegacyGraph implements ImplGraph {
 		return this.inner.describe();
 	}
 
+	observe(): Promise<ObserveSubscription>;
+	observe(path: string): Promise<ObserveSubscription>;
+	observe(path: string | undefined, opts: { reactive: true }): Promise<ObserveSubscription>;
 	async observe(path?: string, opts?: { reactive: true }): Promise<unknown> {
 		if (opts?.reactive) {
 			// Reactive: legacy returns a `Node<ObserveChangeset>` whose
@@ -407,7 +418,7 @@ export const pureTsImpl: Impl = {
 
 	async node<T>(
 		deps: ReadonlyArray<ImplNode<unknown>>,
-		opts?: { initial?: T; name?: string },
+		opts?: { initial?: T; name?: string; resubscribable?: boolean },
 	): Promise<ImplNode<T>> {
 		const innerDeps = deps.map((d) => d.inner as legacy.Node);
 		const n = legacy.node<T>(innerDeps, {
@@ -485,11 +496,24 @@ export const pureTsImpl: Impl = {
 		edges(opts?: { recursive?: boolean }) {
 			return this.impl.edges(opts);
 		}
-		describe(opts?: any) {
-			return this.impl.describe(opts);
+		// Same `ImplGraph` overloads as `LegacyGraph`; delegates to the
+		// inner `LegacyGraph` (cast on the internal call to sidestep
+		// overload-resolution on the optional-arg delegation — external
+		// contract is the declared overloads).
+		describe(): unknown;
+		describe(opts: { reactive: true }): Promise<ReactiveDescribeHandle>;
+		describe(opts?: { reactive: true }): unknown {
+			return (this.impl as { describe(o?: unknown): unknown }).describe(opts);
 		}
-		observe(path?: string, opts?: any) {
-			return this.impl.observe(path, opts);
+		observe(): Promise<ObserveSubscription>;
+		observe(path: string): Promise<ObserveSubscription>;
+		observe(path: string | undefined, opts: { reactive: true }): Promise<ObserveSubscription>;
+		observe(path?: string, opts?: { reactive: true }): Promise<unknown> {
+			return (
+				this.impl as {
+					observe(p?: string, o?: unknown): Promise<unknown>;
+				}
+			).observe(path, opts);
 		}
 	},
 
@@ -732,6 +756,17 @@ function buildPureTsStorage(): StorageImpl {
 					tier.save(value);
 				},
 				load() {
+					// QA-P4: `load` is optional on the base tier type but
+					// the snapshot/checkpoint tiers always provide it. A
+					// missing `load` is a real contract gap (relevant for
+					// native parity) — fail LOUD + located, never silently
+					// return `undefined` (which would false-pass a replay
+					// scenario or surface as a confusing downstream error).
+					if (!tier.load) {
+						throw new Error(
+							"pure-ts parity adapter: storage tier has no load() — contract violation",
+						);
+					}
 					return tier.load();
 				},
 				flush() {
@@ -820,6 +855,17 @@ function buildPureTsStorage(): StorageImpl {
 					tier.save(record);
 				},
 				load() {
+					// QA-P4: `load` is optional on the base tier type but
+					// the snapshot/checkpoint tiers always provide it. A
+					// missing `load` is a real contract gap (relevant for
+					// native parity) — fail LOUD + located, never silently
+					// return `undefined` (which would false-pass a replay
+					// scenario or surface as a confusing downstream error).
+					if (!tier.load) {
+						throw new Error(
+							"pure-ts parity adapter: storage tier has no load() — contract violation",
+						);
+					}
 					return tier.load();
 				},
 				flush() {

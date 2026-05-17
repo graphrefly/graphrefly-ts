@@ -19,7 +19,7 @@
  * **Retry / replay-cache.** Stack middleware on the adapter:
  *
  * ```ts
- * import { withRetry, withReplayCache } from "@graphrefly/graphrefly/patterns/ai";
+ * import { withRetry, withReplayCache } from "@graphrefly/graphrefly/utils/ai";
  *
  * const adapter = withRetry(
  *   withReplayCache(baseAdapter, { keyFn: (ctx) => ctx.messages[0].content }),

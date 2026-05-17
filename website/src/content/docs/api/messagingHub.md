@@ -22,7 +22,7 @@ function messagingHub(name: string, opts?: MessagingHubOptions): MessagingHubGra
 ## Basic Usage
 
 ```ts
-import { messagingHub } from "@graphrefly/graphrefly/patterns/messaging";
+import { messagingHub } from "@graphrefly/graphrefly";
 
 const hub = messagingHub("main", { defaultTopicOptions: { retainedLimit: 256 } });
 hub.publish("orders", { id: 1 });

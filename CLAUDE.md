@@ -144,9 +144,9 @@ Source: `archive/docs/SESSION-rust-port-layer-boundary.md` Units 6, 8 (user-lock
 
 Public TS APIs are split into three tiers so browser and Node consumers pull only runnable code:
 
-- **Universal default** (`@graphrefly/graphrefly`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/patterns/<domain>`) — browser + Node safe. Zero `node:*` imports, zero DOM globals.
-- **Node-only** (`@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/patterns/<domain>/node`) — may import `node:*`. Use for `fileStorage`, `sqliteStorage`, `fromGitHook`, `fromFSWatch`, the node `fallbackAdapter` variant, etc.
-- **Browser-only** (`@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/patterns/<domain>/browser`) — may use DOM globals. Use for `indexedDbStorage`, `webllmAdapter`, `chromeNanoAdapter`, browser cascade presets.
+- **Universal default** (`@graphrefly/graphrefly`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/utils/<domain>`) — browser + Node safe. Zero `node:*` imports, zero DOM globals.
+- **Node-only** (`@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/utils/<domain>/node`) — may import `node:*`. Use for `fileStorage`, `sqliteStorage`, `fromGitHook`, `fromFSWatch`, the node `fallbackAdapter` variant, etc.
+- **Browser-only** (`@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/utils/<domain>/browser`) — may use DOM globals. Use for `indexedDbStorage`, `webllmAdapter`, `chromeNanoAdapter`, browser cascade presets.
 
 The build enforces this via `assertBrowserSafeBundles` in `packages/pure-ts/tsup.config.ts` `onSuccess` — any universal entry that transitively imports a Node builtin fails the build with a `via X → Y → Z` chain. Adding a new subpath requires updating BOTH `packages/pure-ts/tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` when Node-only) AND `packages/pure-ts/package.json` `exports`, then mirroring the entry in the root shim (`tsup.config.ts` + `package.json` `exports` + a one-liner `src/<subpath>.ts`). See `docs/docs-guidance.md` § "Browser / Node / Universal split" for the full convention.
 

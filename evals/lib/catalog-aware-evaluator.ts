@@ -21,7 +21,7 @@
  */
 
 import { COMPLETE, DATA, ERROR, type Messages } from "../../packages/pure-ts/src/core/messages.js";
-import { type Node, node } from "../../packages/pure-ts/src/core/node.js";
+import { type Node, type NodeFn, node } from "../../packages/pure-ts/src/core/node.js";
 import type { DatasetItem, EvalResult, Evaluator } from "../../src/presets/harness/refine-loop.js";
 import type { GraphSpecCatalog } from "../../src/utils/graphspec/index.js";
 import type { CatalogOverlayBundle } from "./catalog-overlay.js";
@@ -108,8 +108,14 @@ export function catalogAwareEvaluator<T>(config: CatalogAwareEvaluatorConfig<T>)
 		candidates: Node<readonly T[]>,
 		dataset: Node<readonly DatasetItem[]>,
 	): Node<readonly EvalResult[]> => {
+		// DOGFOOD: this producer returns a cleanup `() => void`; that
+		// shape predates the current `NodeFn` return contract. Cast to the
+		// factory's first-param type. Eval harness runs via tsx (not CI).
 		return node<readonly EvalResult[]>(
-			(_data, actions) => {
+			((
+				_data: readonly (readonly unknown[] | undefined)[],
+				actions: { down(msgs: Messages): void },
+			) => {
 				let latestCandidates: readonly T[] | null = null;
 				let latestDataset: readonly DatasetItem[] | null = null;
 				let pending: AbortController | null = null;
@@ -194,7 +200,7 @@ export function catalogAwareEvaluator<T>(config: CatalogAwareEvaluatorConfig<T>)
 				return () => {
 					tearDown();
 				};
-			},
+			}) as unknown as NodeFn,
 			{ describeKind: "producer", name },
 		);
 	};

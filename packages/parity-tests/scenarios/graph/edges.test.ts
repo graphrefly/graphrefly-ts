@@ -22,7 +22,7 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		const g = new impl.Graph("root");
 		const a = await g.state<number>("a", 1);
 		const b = await g.state<number>("b", 2);
-		const c = await g.add("c", await impl.combine([a, b], (vals) => vals));
+		const c = await g.add("c", await impl.combine([a, b]));
 
 		const edges = g.edges();
 		const edgeSet = new Set(edges.map((e) => `${e[0]}->${e[1]}`));
@@ -42,7 +42,7 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		const x = await g.state<number>("x", 1);
 		const child = await g.mount("sub");
 		const y = await child.state<number>("y", 2);
-		const _z = await child.add("z", await impl.combine([y, x], (vals) => vals));
+		const _z = await child.add("z", await impl.combine([y, x]));
 		void _z;
 
 		const edges = g.edges({ recursive: true });

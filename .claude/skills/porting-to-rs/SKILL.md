@@ -232,6 +232,8 @@ cd crates/graphrefly-bindings-wasm && wasm-pack build
 
 Fix any failures. **Do NOT use `--workspace`** for `cargo build` / `cargo nextest run` unless you have all binding toolchains installed — the workspace excludes bindings from default-members for this reason. (Self-check uses `--profile ci` to run the full suite incl. the `cascade_depth` stack-safety guards before closing a slice; the quarantined default profile is for the inner loop only.)
 
+> **Run the self-check via the sanctioned long-runner, synchronously.** Use `mise run gate` / `mise run gate:core` (or `mise run run-logged -- <cmd>`) and **wait foreground for the `<<<RUN-LOGGED:DONE>>>` sentinel** — never background cargo and monitor a non-guaranteed string. **Subagent hygiene:** if this skill runs in a spawned subagent, it MUST run verification synchronously or tear down any backgrounded command (kill by process group) **before returning** — a live background process leaks as a stale parent-session "running" entry indistinguishable from a real hang. See `~/src/graphrefly-ts/docs/test-guidance.md` § "Running long commands reliably / diagnosing a stuck run" and memories `feedback_long_command_observation.md` / `feedback_subagent_bg_hygiene.md`.
+
 ### 3d. Widen the parity-test surface (when slice closes a milestone or adds public API)
 
 If the slice closes (or partially fills) a milestone row in the `packages/parity-tests/README.md` schedule table, add cross-impl scenarios under `~/src/graphrefly-ts/packages/parity-tests/scenarios/<layer>/`:

@@ -2,10 +2,10 @@
  * Curated `cascadingLlmAdapter` presets that depend on browser-only adapters
  * (`webllmAdapter`, `chromeNanoAdapter`).
  *
- * Split out from `routing/presets.ts` so that importing `patterns/ai` in a
+ * Split out from `routing/presets.ts` so that importing `utils/ai` in a
  * Node bundle doesn't transitively pull in `@mlc-ai/web-llm` / Chrome Nano
  * dynamic imports, and so browser-only consumers can opt in cleanly via
- * the `@graphrefly/graphrefly/patterns/ai/browser` subpath.
+ * the `@graphrefly/graphrefly/utils/ai/browser` subpath.
  *
  * @module
  */

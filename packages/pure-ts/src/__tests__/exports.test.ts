@@ -28,8 +28,13 @@ import {
 } from "../index.js";
 
 describe("graphrefly substrate (pure-ts)", () => {
-	it("exports version", () => {
-		expect(version).toBe("0.0.0");
+	it("exports version (D4: build-injected; source = dev sentinel)", () => {
+		// D4: `version` is build-time injected from package.json via the
+		// tsup `define` for `process.env.GRAPHREFLY_PKG_VERSION`. This
+		// suite runs the UNBUILT source (no define), so it sees the honest
+		// `"0.0.0-dev"` sentinel — never the misleading old `"0.0.0"`.
+		// The real semver is asserted against the built artifact instead.
+		expect(version).toBe("0.0.0-dev");
 	});
 
 	it("exports layer namespaces", () => {

@@ -596,7 +596,7 @@ Closed by [Phase 14.6](#phase-146--storage-wal-replay-implementation-ds-14-stora
 ### 10.8 Design follow-ups (deferred — file in optimizations.md when re-opened)
 - `graphLens` 50k-node scaling (incremental delta stats vs full describe-per-tick). `graphLens(target)` still ships as a standalone factory; the `inspect()` preset embeds an instance as `inspect.lens.*` (Tier 9.1) — the scaling concern applies in both consumption modes.
 - `graphLens.health` V2 (`completed` / `disconnected` flag classes; aggregate metrics).
-- `lens.flow` delta companion.
+- ~~`lens.flow` delta companion.~~ ✅ LANDED 2026-05-17 (`graphLens(_, {mutations}).flowMutations`).
 - TopicGraph reactive `retainedLimit` (unblocks reactive `violationsLimit` on `policyGate` — `policyGate` now lives at [patterns/inspect/audit.ts](src/patterns/inspect/audit.ts) post Tier 9.1 γ-ii merge).
 - `Graph.explain({reactive: true})` file-path-scoped observe (composes with Tier 1.5.2 `tiers` filter — natural follow-on for `pathScope` opt). The legacy `reactiveExplainPath` was deleted in Tier 3.5; the equivalent capability lives on `Graph.explain(...)` with `reactive: true` per Tier 1.5 / 3.5.
 - End-of-batch `_handleBudgetMessage` boolean-return / forward-unknown audit across producer-pattern factories.
@@ -1521,19 +1521,19 @@ Default: pause again, integrate findings into DS-14 design when it opens.
 
 Pre-1.0 placement justified by user re-prio: lands AFTER Phase 13 multi-agent ships so the agent-layer ergonomics don't get rewritten under us, and BEFORE Phase 15 evals so eval-side reactivity benefits from the new delta protocol.
 
-> **⚠️ STATUS RECONCILED 2026-05-17 (drift correction).** This section read as "the big open phase" but the DS-14 substrate has **substantially landed in code** (Phase 14.3/14.4 markers). Verified during the 2026-05-17 optimizations.md reconciliation sweep; cross-ref `docs/optimizations.md` "Store-mutation-events protocol — 4 of 5 sub-points LANDED" + archive id `store-mutation-events-phase14-3-4-landed-2026-05-17`. Per-thread truth:
+> **✅ STATUS: DS-14 SUBSTRATE FULLY CLOSED 2026-05-17.** The lone genuinely-open thread — the `lens.flow` delta companion — LANDED 2026-05-17 (`/dev-dispatch`), alongside the `format_version` residual. The DS-14 substrate spec-conformance line is complete; only the consumer-driven Lock 4.B (B/C) hardening remains deferred (provisional — Rust port may obviate). Cross-ref `docs/optimizations.md` "Store-mutation-events protocol — ALL 5 sub-points LANDED". Per-thread truth:
 > - **Thread 1 `BaseChange<T>` envelope** ✅ LANDED — `packages/pure-ts/src/extra/data-structures/change.ts` (`BaseChange<T>` + `MapChange`/`ListChange`/`LogChange`/`IndexChange`/`PubSubChange`/`SpecChange`); DS-14 BaseChange-wrapped WAL frames `graph/graph.ts:5449,6575`.
-> - **Thread 2 `mutations`/`mutationLog` companion** ✅ LANDED for `reactiveMap` (`reactive-map.ts:171-175`) + `reactiveLog` (`reactive-log.ts:159-162`). 🟠 **OPEN: the `lens.flow` delta companion** — `LensFlowChange`/`LensFlowChangePayload` types exist (`change.ts:90-94`) but are **unwired** in `src/utils/inspect/lens.ts` (flow still a plain snapshot `Node<ReadonlyMap<string,FlowEntry>>`, `lens.ts:87,:216-269`). **This is the lone genuinely-open DS-14-substrate item.**
+> - **Thread 2 `mutations`/`mutationLog` companion** ✅ LANDED — `reactiveMap` (`reactive-map.ts:171-175`) + `reactiveLog` (`reactive-log.ts:159-162`) + **`lens.flow` companion LANDED 2026-05-17** (`graphLens(_, {mutations})` → `GraphLensView.flowMutations?: ReactiveLogBundle<LensFlowChange>`, `src/utils/inspect/lens.ts`; opt-in, effect-drained from `flow`'s pending-buffer in-wave; 4 tests). Thread 2 fully closed.
 > - **Thread 3 `mutate(act,opts)` factory** ✅ LANDED — `src/base/mutation/index.ts:218` (replaced `lightMutation`/`wrapMutation`; `act.down` rollback hook). `registerMutable`/dev-Proxy hardening (Lock 4.B B/C) still deferred-consumer-driven (optimizations.md).
 > - **Thread 4 `reactiveLog.scan`/`scanLog`** ✅ LANDED — `packages/pure-ts/src/extra/data-structures/log-ops.ts:16` `scanLog`; `reactive-log.ts:156`/`:872-894` `log.scan` (O(1)/append).
-> - **Thread 5 `restoreSnapshot mode:"diff"`** ✅ LANDED — Phase 14.6 (TS-side 2026-05-08). Residual: TS `WALFrame` `format_version` field (now TS-only — Rust has it; optimizations.md).
+> - **Thread 5 `restoreSnapshot mode:"diff"`** ✅ LANDED — Phase 14.6 (TS-side 2026-05-08). Residual **CLOSED 2026-05-17**: `WALFrame<T>.format_version` + `WAL_FORMAT_VERSION` added (excluded from checksum body — matches Rust `ChecksumBody`; +2 regression tests).
 >
-> **Net: the Phase 14 substrate is done except `lens.flow` delta + the focused residuals (format_version, Lock 4.B B/C).** Next-pickup should treat Phase 14 as substantially closed, not a greenfield phase. The design record below is preserved as the locked DS-14 spec.
+> **Net: the Phase 14 substrate is FULLY CLOSED** (all 5 threads + format_version residual landed). Only consumer-driven Lock 4.B (B/C) hardening remains deferred (provisional). Treat Phase 14 as closed, not a greenfield phase. The design record below is preserved as the locked DS-14 spec.
 
 **DS-14 LOCKED 2026-05-05** — see [archive/docs/SESSION-DS-14-changesets-design.md](../archive/docs/SESSION-DS-14-changesets-design.md). Five threads co-designed against a unified substrate:
 
 1. **✅ LANDED — Universal `BaseChange<T>` envelope** — `{ structure, version: number|string, t_ns, seq?, lifecycle: "spec"|"data"|"ownership", change: T }`. Two-level discriminant (envelope `structure`; payload `kind`).
-2. **🟠 PARTIAL — `mutations` companion bundle** — every reactive primitive (`reactiveMap` / `reactiveList` / `reactiveLog` / `reactiveIndex` / `pubsub` / `lens.flow`) optionally exposes `bundle.mutations: ReactiveLogBundle<Change<T>>` via `mutations: ReactiveLogConfig | true` opt. Same-wave `batch()` consistency with snapshot emission. TTL/LRU prune emits Change records with `reason` discriminant. **Landed for map/log; `lens.flow` companion still unwired (the one open item).**
+2. **✅ LANDED — `mutations` companion bundle** — reactive primitives optionally expose a `ReactiveLogBundle<Change<T>>` delta companion via a `mutations`/`mutationLog` opt with same-wave consistency. Landed: `reactiveMap`/`reactiveList`/`reactiveLog`/`pubsub` (`mutationLog`); `lens.flow` (`graphLens(_, {mutations}).flowMutations`, 2026-05-17 — closed the last open companion).
 3. **✅ LANDED — Universal `mutate(act, opts)` factory** — replaces `lightMutation` + `wrapMutation` (pre-1.0 break). `MutationAct = { up, down? }` (DB up/down framing). Frames `"inline"` / `"transactional"`. `onSuccessRecord` / `onFailureRecord` builders. Canonical rollback layers L0 (substrate batch) / L1 (user `down`) / L2 (post-Rust ownership).
 4. **✅ LANDED — `reactiveLog.scan(initial, step)` operator** — O(1) per-append running aggregates; method form + standalone `scanLog` export.
 5. **✅ LANDED — `restoreSnapshot mode:"diff"` lifecycle filter** ✅ DESIGN LOCKED 2026-05-08 — see [SESSION-DS-14-storage-wal-replay.md](../archive/docs/SESSION-DS-14-storage-wal-replay.md) (9Q walk Q1–Q9). Implementation tracked in [Phase 14.6](#phase-146--storage-wal-replay-implementation-ds-14-storage-substrate) (~4.5 days, gated on user "implement DS-14-storage"). M4 (`graphrefly-storage` crate) has a stable target — TS impl + Rust M4 are independent threads coupling only at parity tests.
@@ -1547,7 +1547,7 @@ Backend `changesSince(version)` is OPTIONAL on each backend interface — bundle
 **DON'T DEFER — do in TS during Phase 14 land:**
 - Op-log changeset protocol shape (`{ version, ops, rootRef? }`) — user-facing API, must validate in TS.
 - Delta protocol `version` field semantics — both impls share.
-- `lens.flow` delta companion API shape — public surface.
+- ~~`lens.flow` delta companion API shape — public surface.~~ ✅ LANDED 2026-05-17 (`GraphLensOptions.mutations` → `GraphLensView.flowMutations`).
 - `restoreSnapshot mode: "diff"` user contract — semantics, not perf.
 - All five DS-14 threads' API shapes — the *surface*, not the substrate.
 - Codec envelope evolution for delta-aware codecs (`DagCborCodec` integration with version-counter substrate).

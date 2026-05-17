@@ -36,8 +36,14 @@
  *
  * @module
  */
-import { type Node, node } from "@graphrefly/pure-ts/core";
-import { keepalive } from "@graphrefly/pure-ts/extra";
+import { type Node, node, wallClockNs } from "@graphrefly/pure-ts/core";
+import {
+	keepalive,
+	type LensFlowChange,
+	type LensFlowChangePayload,
+	type ReactiveLogBundle,
+	reactiveLog,
+} from "@graphrefly/pure-ts/extra";
 import {
 	type Graph,
 	type GraphDescribeOutput,
@@ -77,6 +83,22 @@ export interface FlowEntry {
 	lastUpdate_ns: number | null;
 }
 
+/**
+ * Options for {@link graphLens}.
+ *
+ * Shape mirrors `reactiveMap`/`pubsub`'s `mutationLog` option so the
+ * delta-companion ergonomics are uniform across structures.
+ */
+export interface GraphLensOptions {
+	/**
+	 * Enable the {@link GraphLensView.flowMutations} delta companion log.
+	 * `true` for defaults, or `{ maxSize, name }` to bound / name the
+	 * underlying `reactiveLog`. Off by default — zero overhead (no buffer
+	 * accumulation, no companion node) when omitted.
+	 */
+	mutations?: true | { maxSize?: number; name?: string };
+}
+
 /** Output of {@link graphLens}. */
 export interface GraphLensView {
 	/** Live describe snapshot. Re-emits on structural change AND status transitions. */
@@ -85,6 +107,17 @@ export interface GraphLensView {
 	health: Node<HealthReport>;
 	/** Per-path DATA counter map. Re-emits per outermost batch flush. */
 	flow: Node<ReadonlyMap<string, FlowEntry>>;
+	/**
+	 * Delta companion to {@link flow}. Present iff {@link GraphLensOptions.mutations}
+	 * was configured. Each per-path `tick` (a DATA emission incremented
+	 * the counter) and each `evict` (a path dropped during topology
+	 * reconciliation) appends one typed {@link LensFlowChange} record in
+	 * the same batch frame as the corresponding `flow` snapshot — an
+	 * O(1)-per-event peer of the snapshot, mirroring `reactiveMap`'s
+	 * `mutationLog`. Lets consumers tail *what changed* without diffing
+	 * successive `flow` map snapshots.
+	 */
+	flowMutations?: ReactiveLogBundle<LensFlowChange>;
 	/**
 	 * Tear down the underlying `describe({reactive:true})` subscription.
 	 * The `flow` node activates lazily; subscribing-then-unsubscribing reclaims
@@ -171,7 +204,21 @@ export function healthReportEqual(a: HealthReport, b: HealthReport): boolean {
  *
  * @category observability
  */
-export function graphLens(target: Graph): GraphLensView {
+export function graphLens(target: Graph, opts: GraphLensOptions = {}): GraphLensView {
+	const mutLogOpt = opts.mutations;
+	const mutationsEnabled = mutLogOpt != null;
+	// Closure buffer: the `flow` derived fills this per wave with the
+	// tick/evict deltas it just applied; a sibling effect drains it into
+	// `flowMutations` in the SAME wave (sanctioned side-effect-in-effect
+	// pattern — mirrors the bridge.ts `topic.publish`-from-effect and
+	// reactiveMap's pending-changes-flushed-in-the-snapshot-batch shape).
+	// Single source of truth for the diff stays the `flow` fn.
+	const pendingFlowChanges: LensFlowChangePayload[] = [];
+	// Hoisted (QA-P3) so the `flow` fn's buffer push can short-circuit
+	// once `dispose()` ran — a still-warm `flow` (external subscriber)
+	// must not keep growing `pendingFlowChanges` with no drain alive.
+	let disposed = false;
+
 	const topologyHandle = target.describe({
 		reactive: true,
 		detail: "standard",
@@ -243,11 +290,15 @@ export function graphLens(target: Graph): GraphLensView {
 					const path = event.path;
 					if (path == null || path === "") continue;
 					const prior = flowMap.get(path);
+					const count = (prior?.count ?? 0) + 1;
 					flowMap.set(path, {
 						path,
-						count: (prior?.count ?? 0) + 1,
+						count,
 						lastUpdate_ns: c.flushedAt_ns,
 					});
+					if (mutationsEnabled && !disposed) {
+						pendingFlowChanges.push({ kind: "tick", path, count });
+					}
 				}
 			}
 
@@ -256,7 +307,12 @@ export function graphLens(target: Graph): GraphLensView {
 			if (desc != null && flowMap.size > 0) {
 				const valid = new Set(Object.keys(desc.nodes));
 				for (const k of [...flowMap.keys()]) {
-					if (!valid.has(k)) flowMap.delete(k);
+					if (!valid.has(k)) {
+						flowMap.delete(k);
+						if (mutationsEnabled && !disposed) {
+							pendingFlowChanges.push({ kind: "evict", path: k });
+						}
+					}
 				}
 			}
 
@@ -269,16 +325,84 @@ export function graphLens(target: Graph): GraphLensView {
 			meta: domainMeta("lens", "flow"),
 		},
 	);
+	// ── flow delta companion (Phase 14 — last DS-14-substrate thread) ────────
+	// `flow` is otherwise just a snapshot map; tailing *what changed*
+	// previously required diffing successive map snapshots. The companion
+	// surfaces each per-path `tick` / `evict` as a typed `LensFlowChange`,
+	// O(1) per event, in the same batch frame as the snapshot — mirroring
+	// `reactiveMap`/`pubsub` `mutationLog`. Opt-in (zero overhead off).
+	//
+	// QA-P1: the drain effect is created + kept alive BEFORE
+	// `keepalive(flow)` (below) so it is subscribed to `flow` before
+	// `flow`'s first activation. Otherwise `keepalive(flow)`'s
+	// push-on-subscribe would replay cached changeset(s) into
+	// `pendingFlowChanges` before the drain exists, collapsing pre-wiring
+	// deltas into the drain's first flush and breaking the "same batch
+	// frame as the snapshot" contract (COMPOSITION-GUIDE §2 — wire
+	// observers before emitters).
+	let flowMutations: ReactiveLogBundle<LensFlowChange> | undefined;
+	let stopFlowMutKeep: (() => void) | undefined;
+	if (mutLogOpt != null) {
+		const log = reactiveLog<LensFlowChange>(undefined, {
+			name:
+				mutLogOpt === true
+					? "graphLens.flowMutations"
+					: (mutLogOpt.name ?? "graphLens.flowMutations"),
+			maxSize: mutLogOpt === true ? undefined : mutLogOpt.maxSize,
+		});
+		flowMutations = log;
+		let mutVersion = 0;
+		// Effect dependent on `flow`: it fires in the SAME wave `flow`
+		// emits, so the appended records coalesce into the same outermost
+		// batch flush as the snapshot (the `mutationLog` "same batch
+		// frame" contract). Side-effecting append from an `effect` node is
+		// the sanctioned home (cf. bridge.ts `topic.publish`-from-effect);
+		// `flow`'s fn stays the single source of the diff.
+		const flowMutationsDrain = node(
+			[flow],
+			(_batchData, _actions, _ctx) => {
+				if (pendingFlowChanges.length === 0) return;
+				const drained = pendingFlowChanges.splice(0);
+				for (const change of drained) {
+					log.append({
+						structure: "lensFlow",
+						version: ++mutVersion,
+						t_ns: wallClockNs(),
+						lifecycle: "data",
+						change,
+					});
+				}
+			},
+			{
+				name: "graphLens.flowMutationsDrain",
+				describeKind: "effect",
+				meta: domainMeta("lens", "flowMutations"),
+			},
+		);
+		stopFlowMutKeep = keepalive(flowMutationsDrain);
+	}
+
+	// AFTER the drain is wired (QA-P1) so `flow`'s push-on-subscribe
+	// reaches the drain in the same wave.
 	const stopFlowKeep = keepalive(flow);
 
-	let disposed = false;
 	return {
 		topology,
 		health,
 		flow,
+		...(flowMutations ? { flowMutations } : {}),
 		dispose() {
 			if (disposed) return;
 			disposed = true;
+			stopFlowMutKeep?.();
+			// QA-P2: release the reactiveLog bundle's own internal
+			// keepalives (view caches / lastValue / nested mutLog), not
+			// just the drain effect's keepalive.
+			flowMutations?.dispose();
+			// QA-P3: a still-warm `flow` (external subscriber) keeps
+			// running its fn post-dispose; the buffer push is gated on
+			// `!disposed`, but drop any residue so it can't be replayed.
+			pendingFlowChanges.length = 0;
 			stopFlowKeep();
 			stopHealthKeep();
 			topologyHandle.dispose();

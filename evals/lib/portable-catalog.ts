@@ -50,7 +50,7 @@ const passthroughDerived: CatalogFnEntry["factory"] = (deps) =>
 			const data = batchData.map((batch, i) =>
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
-			actions.emit((([v]) => v)(data, ctx));
+			actions.emit((([v]) => v)(data));
 		},
 		{ describeKind: "derived" },
 	);

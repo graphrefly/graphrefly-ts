@@ -8,7 +8,7 @@
  * specific shape for the catalog-automation experiment described in
  * `archive/docs/SESSION-ai-harness-module-review.md` and the harness
  * memory item `project_harness_closed_loop_gap`. The library primitive
- * (`actuatorExecutor` in `src/patterns/harness/`) is generic; this file
+ * (`actuatorExecutor` in `src/utils/harness/`) is generic; this file
  * is the dogfood composer that wires it to our catalog data.
  *
  * **Closed-loop topology** the overlay enables:
@@ -204,7 +204,7 @@ export function catalogOverlay(options: CatalogOverlayOptions = {}): CatalogOver
 							sourceLive as ReadonlyMap<string, CatalogSourceEntry | TombstoneMarker>,
 						),
 					};
-				})(data, ctx),
+				})(data),
 			);
 		},
 		{ describeKind: "derived", ...{ name: "catalog-overlay/effective" } },
@@ -221,7 +221,7 @@ export function catalogOverlay(options: CatalogOverlayOptions = {}): CatalogOver
 					mergeRecord(
 						baseTemplates,
 						live as ReadonlyMap<string, GraphSpecTemplate | TombstoneMarker>,
-					))(data, ctx),
+					))(data),
 			);
 		},
 		{ describeKind: "derived", name: "catalog-overlay/effective-templates" },

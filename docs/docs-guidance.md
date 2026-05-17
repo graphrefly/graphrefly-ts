@@ -30,9 +30,9 @@ The TS library ships a **three-tier subpath convention** so browser and Node con
 
 | Tier | Subpath shape | Contains | Allowed imports |
 |------|--------------|----------|-----------------|
-| **Universal** (default) | `@graphrefly/graphrefly`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/patterns/<domain>` | Protocol, operators, reactive data structures, pattern factories that don't touch filesystem / DOM | Core, `core/hash` (uses `globalThis.crypto.subtle`), `storage-core`, other universal extras. Zero `node:*`. Zero DOM globals. |
-| **Node-only** | `@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/patterns/<domain>/node` | Filesystem sources, SQLite storage, `child_process` adapters, Node-specific middleware | May import `node:*`. May import universal modules. |
-| **Browser-only** | `@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/patterns/<domain>/browser` | IndexedDB storage, WebLLM / Chrome Nano adapters, DOM-specific helpers | May use `window`, `document`, `indexedDB`, `Worker` globals. May import universal modules. |
+| **Universal** (default) | `@graphrefly/graphrefly`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/utils/<domain>` | Protocol, operators, reactive data structures, pattern factories that don't touch filesystem / DOM | Core, `core/hash` (uses `globalThis.crypto.subtle`), `storage-core`, other universal extras. Zero `node:*`. Zero DOM globals. |
+| **Node-only** | `@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/utils/<domain>/node` | Filesystem sources, SQLite storage, `child_process` adapters, Node-specific middleware | May import `node:*`. May import universal modules. |
+| **Browser-only** | `@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/utils/<domain>/browser` | IndexedDB storage, WebLLM / Chrome Nano adapters, DOM-specific helpers | May use `window`, `document`, `indexedDB`, `Worker` globals. May import universal modules. |
 
 **Rule of thumb:** pick the lowest tier that can execute your code. A pattern factory that *mentions* `fileStorage` in its JSDoc but doesn't import it stays universal; a factory that *calls* `fileStorage()` must live under `<domain>/node`.
 

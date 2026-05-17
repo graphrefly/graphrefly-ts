@@ -74,7 +74,30 @@ export interface WALFrame<T = unknown> {
 	 * on roundtrip; M4 Rust impl matches via `hex` crate output.
 	 */
 	readonly checksum: string;
+	/**
+	 * Codec version tag (canonical spec §"format_version extends from
+	 * `GraphCheckpointRecord` to `WALFrame` per-tier"). All current frames
+	 * are version `1` (JSON codec); codec migration is a baseline rewrite,
+	 * not in-place upgrade.
+	 *
+	 * **Excluded from the checksum body** ({@link walFrameChecksum} hashes
+	 * `{t, lifecycle, path, change, frame_seq, frame_t_ns}` only) — the tag
+	 * describes the encoding, not the integrity-protected payload, so a
+	 * codec bump never invalidates the stored checksum. Parity-locked with
+	 * the Rust impl's `#[serde(default = "default_format_version")] u32`
+	 * (`graphrefly-storage/src/wal.rs`), whose `ChecksumBody` likewise omits
+	 * it.
+	 */
+	readonly format_version: number;
 }
+
+/**
+ * Current WAL codec version. Bump only on a breaking on-disk encoding
+ * change; a bump implies a baseline rewrite (no in-place frame migration).
+ *
+ * @category extra
+ */
+export const WAL_FORMAT_VERSION = 1;
 
 /**
  * Minimal `BaseChange<T>` shape this module references. The full canonical
@@ -312,6 +335,20 @@ export async function* iterateWalFrames<T = unknown>(
 		key: string;
 		value: unknown;
 	}>) {
-		yield { key: entry.key, frame: entry.value as WALFrame<T> };
+		const frame = entry.value as WALFrame<T>;
+		// QA-P7-B: mirror Rust's `#[serde(default = "default_format_version")]`
+		// (`graphrefly-storage/src/wal.rs`). A frame written before this
+		// field existed (or by a non-TS author) deserializes without the
+		// key; default it on read so the required-`number` type is honest
+		// and cross-impl byte-parity holds. Present-field frames (every
+		// frame this impl writes) pass through by identity — no per-frame
+		// realloc on the common path.
+		yield {
+			key: entry.key,
+			frame:
+				frame.format_version === undefined
+					? { ...frame, format_version: WAL_FORMAT_VERSION }
+					: frame,
+		};
 	}
 }

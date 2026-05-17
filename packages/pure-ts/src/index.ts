@@ -10,7 +10,14 @@
  * extra/resilience, extra/sources/async, extra/sources/settled, etc.) moved to
  * @graphrefly/graphrefly (root src/).
  */
-export const version = "0.0.0";
+/**
+ * Package version. Build-time injected from `package.json` via the tsup
+ * `define` for `process.env.GRAPHREFLY_PKG_VERSION` (D4) so there is one
+ * source of truth. Unbuilt source consumers (parity-tests' src alias,
+ * evals' tsx) see `"0.0.0-dev"` — an honest "running unbuilt source"
+ * sentinel, not a misleading real-looking `"0.0.0"`.
+ */
+export const version: string = process.env.GRAPHREFLY_PKG_VERSION ?? "0.0.0-dev";
 
 // Named re-exports enable finer-grained tree-shaking for consumers.
 export * from "./core/index.js";

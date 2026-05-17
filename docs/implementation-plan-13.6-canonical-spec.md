@@ -541,9 +541,11 @@ Default `Object.is` handles all cases. Custom `equals` need only handle the valu
 
 | Value | Behavior |
 |-------|----------|
-| `true` (default) | On PAUSE, suppress fn execution. On RESUME, fire fn once with latest dep values. |
+| `true` (default) | On PAUSE, suppress fn execution. On RESUME, fire fn once with latest dep values. (Leaf-source self-emit: see R2.6.2.a.) |
 | `"resumeAll"` | On RESUME, replay every outgoing tier-3/4 message buffered while paused, in order. See R1.3.8. |
 | `false` | Ignore PAUSE/RESUME — fn fires normally regardless of flow control. Appropriate for sources like reactive timers that must keep ticking regardless of downstream backpressure. |
+
+**R2.6.2.a — Default-mode leaf-source self-emit (corollary of R1.3.8.b; upstream `GRAPHREFLY-SPEC` §2.6 R2.6.0, "Option A", pinned 2026-05-17).** This is an explicit *corollary* of the already-locked R1.3.8.b (buffering is `"resumeAll"`-scoped only), not a new behavioral rule. Default `pausable: true` gating is **dep-wave-scoped only** — it coalesces dep-driven fn re-execution (the `true` row). A **leaf source** (a node with no deps) under a held pause lock that emits via a **direct external `down([[DATA, v]])`** has no dep wave to coalesce; since R1.3.8.b allocates the pause buffer **only** under `"resumeAll"`, that self-emitted DATA is **delivered to sinks immediately at `down()` time** in default mode (cache advances immediately, RESUME replays nothing, no PAUSE tier synthesized) — regardless of whether the lock is held by the source itself or an external controller (the gate is `lockSet.size > 0`, pauser-agnostic). `"resumeAll"` remains the explicit opt-in that *does* buffer+replay a leaf source's direct push (R1.3.8.b); the two modes are therefore **not equivalent** for a depless source's external push. *Implementation: a prior Rust `mode_buffers_tier3` `Default => is_state()` violated R1.3.8.b by buffering Default+state; corrected to `Default => false` (graphrefly-rs `ab133d7`). Cross-ref: graphrefly-ts `docs/cross-track-ledger.md` §2; raw-API pin `packages/pure-ts/src/__tests__/core/protocol.test.ts` "R2.6.0 boundary"; cross-impl pin `packages/parity-tests/scenarios/core/pause-resume.test.ts`.*
 
 **R2.6.3 — Lock-id mandatory** — see R1.2.6 + R1.3.8.a. Bare `[[PAUSE]]` / `[[RESUME]]` throws.
 

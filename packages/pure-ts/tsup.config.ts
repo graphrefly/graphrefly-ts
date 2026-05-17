@@ -1,6 +1,32 @@
+import { readFileSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { defineConfig } from "tsup";
+
+// D4 (post-rustImpl-activation parity cleanup): the published `version`
+// export is build-time injected from package.json so there is ONE source
+// of truth. `src/index.ts` keeps a `process.env.GRAPHREFLY_PKG_VERSION`
+// indirection with a `"0.0.0-dev"` fallback for unbuilt source consumers
+// (parity-tests' src alias, evals' tsx) — no source consumer reads
+// `.version`, and the `define` below strips the `process.env` reference
+// from every shipped chunk (so `assertBrowserSafeBundles` stays clean).
+const PKG_VERSION = (
+	JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
+		version: string;
+	}
+).version;
+// QA-P6: fail the build LOUD if version is absent/empty. Without this,
+// `JSON.stringify(undefined)` makes the esbuild `define` a no-op →
+// `process.env.GRAPHREFLY_PKG_VERSION` survives into shipped chunks,
+// silently breaking BOTH the `version` export and the browser-safety
+// invariant the define is responsible for.
+if (!PKG_VERSION || typeof PKG_VERSION !== "string") {
+	throw new Error(
+		`tsup.config: package.json "version" is missing/empty (got ${JSON.stringify(
+			PKG_VERSION,
+		)}). The version-inject define cannot proceed.`,
+	);
+}
 
 // Which built-in modules we import from source — esbuild strips the `node:`
 // prefix at bundle time (evanw/esbuild#2535) even with `platform: "node"` and
@@ -136,6 +162,9 @@ export default defineConfig({
 	format: ["esm", "cjs"],
 	dts: true,
 	clean: true,
+	define: {
+		"process.env.GRAPHREFLY_PKG_VERSION": JSON.stringify(PKG_VERSION),
+	},
 	sourcemap: process.env.NODE_ENV !== "production",
 	minify: process.env.NODE_ENV === "production",
 	platform: "node",

@@ -1,8 +1,13 @@
 {
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
-		"rootDir": ".",
-		"outDir": "../dist/evals",
+		// evals legitimately imports source cross-tree (`../../src/*`,
+		// `../../packages/pure-ts/src/*`) and runs via tsx (never emitted).
+		// rootDir = repo root + declaration off removes the spurious
+		// TS6059 "not under rootDir" noise so the typecheck gate sees only
+		// real errors.
+		"rootDir": "..",
+		"declaration": false,
 		"noEmit": true
 	},
 	"include": ["**/*.ts"],

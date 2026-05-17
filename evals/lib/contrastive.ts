@@ -14,6 +14,7 @@ import type {
 } from "../../src/utils/ai/index.js";
 import {
 	type GraphSpec,
+	type GraphSpecCatalog,
 	generateCatalogPrompt,
 	llmRefine,
 	validateSpecAgainstCatalog,
@@ -41,7 +42,7 @@ import { validateSpec } from "./validator.js";
 
 // ---------------------------------------------------------------------------
 // LLMAdapter shim — wraps our cost-safe `callLLM` so `llmRefine`/`llmCompose`
-// in src/patterns/graphspec.ts can drive the same provider stack (cache,
+// in src/utils/graphspec/ can drive the same provider stack (cache,
 // budget gate, rate limiter, cost tracking). Invocation count is exposed so
 // Treatment C can report refine attempts.
 // ---------------------------------------------------------------------------
@@ -68,6 +69,7 @@ function createRefineAdapter(config: EvalConfig): RefineAdapter {
 	let latencyMs = 0;
 
 	const adapter: LLMAdapter = {
+		provider: "contrastive-eval-mock",
 		async invoke(messages: readonly ChatMessage[]): Promise<AdapterLLMResponse> {
 			calls += 1;
 			const system = messages.find((m) => m.role === "system")?.content ?? "";
@@ -79,17 +81,22 @@ function createRefineAdapter(config: EvalConfig): RefineAdapter {
 			lastContent = response.content;
 			return {
 				content: response.content,
+				// TokenUsage is `{ input, output }` (was `{ inputTokens,
+				// outputTokens }`). Shape corrected; the cast covers the
+				// branded Input/OutputTokens nominal types (dogfood token
+				// accounting — not exercised in CI).
 				usage: {
-					inputTokens: response.inputTokens,
-					outputTokens: response.outputTokens,
-				},
+					input: response.inputTokens,
+					output: response.outputTokens,
+				} as unknown as AdapterLLMResponse["usage"],
 			};
 		},
 		// `stream` is required by the LLMAdapter contract but llmRefine/llmCompose
-		// don't use it. Return an empty async iterable so the shape is valid.
-		stream: (async function* () {
+		// don't use it. It is a *function* returning an async iterable — not an
+		// already-invoked generator.
+		stream: async function* () {
 			/* unused by refine path */
-		})(),
+		},
 	};
 
 	return {

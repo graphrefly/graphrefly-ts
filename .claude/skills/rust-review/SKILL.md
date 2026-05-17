@@ -212,6 +212,8 @@ mise run audit-extract
    - **Repo Map** → drill into any file you logged a finding on; verify the sidecar shows the new finding.
 4. Note in the conversation any tabs that didn't update as expected.
 
+> **Subagent / background hygiene.** `mise run audit-serve` is a long-lived background server; if you reproduce a finding with a Rust command, run it through `mise run run-logged -- <cmd>` (or `mise run gate:core`) and wait foreground for the `<<<RUN-LOGGED:DONE>>>` sentinel — never monitor a non-guaranteed string. If this skill runs in a spawned subagent, it MUST stop the audit server / tear down any backgrounded command (kill by process group) **before returning** — a live background process leaks as a stale parent-session "running" entry indistinguishable from a real hang. See `~/src/graphrefly-ts/docs/test-guidance.md` § "Running long commands reliably / diagnosing a stuck run" and memory `feedback_subagent_bg_hygiene.md`.
+
 ---
 
 ## When to escalate

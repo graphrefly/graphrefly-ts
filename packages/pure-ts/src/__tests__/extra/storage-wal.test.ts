@@ -18,6 +18,7 @@ import {
 	RestoreError,
 	StorageError,
 	verifyWalFrameChecksum,
+	WAL_FORMAT_VERSION,
 	type WALFrame,
 	walFrameChecksum,
 	walFrameKey,
@@ -48,6 +49,7 @@ describe("walFrameChecksum", () => {
 			},
 			frame_seq: 1,
 			frame_t_ns: 1,
+			format_version: 1,
 		};
 		const sum = await walFrameChecksum(frame);
 		expect(sum).toMatch(/^[0-9a-f]{64}$/);
@@ -67,6 +69,7 @@ describe("walFrameChecksum", () => {
 			},
 			frame_seq: 5,
 			frame_t_ns: 100,
+			format_version: 1,
 		};
 		const a = await walFrameChecksum(frame);
 		const b = await walFrameChecksum(frame);
@@ -87,6 +90,7 @@ describe("walFrameChecksum", () => {
 			},
 			frame_seq: 1,
 			frame_t_ns: 7,
+			format_version: 1,
 		};
 		const checksum = await walFrameChecksum(body);
 		const frame: WALFrame = { ...body, checksum };
@@ -95,6 +99,31 @@ describe("walFrameChecksum", () => {
 		// Tamper: bump frame_seq without re-checksumming → must reject.
 		const torn: WALFrame = { ...frame, frame_seq: 999 };
 		expect(await verifyWalFrameChecksum(torn)).toBe(false);
+	});
+
+	it("excludes format_version from the checksum body (codec tag, parity-locked w/ Rust ChecksumBody)", async () => {
+		const body: Omit<WALFrame, "checksum"> = {
+			t: "c",
+			lifecycle: "data",
+			path: "n",
+			change: {
+				structure: "graph.value",
+				version: 1,
+				t_ns: 3,
+				lifecycle: "data",
+				change: { kind: "node.set", path: "n", value: 1 },
+			},
+			frame_seq: 1,
+			frame_t_ns: 3,
+			format_version: WAL_FORMAT_VERSION,
+		};
+		const base = await walFrameChecksum(body);
+		// A codec bump must NOT invalidate a stored checksum — the tag
+		// describes the encoding, not the integrity-protected payload.
+		const bumped = await walFrameChecksum({ ...body, format_version: 7 });
+		expect(bumped).toBe(base);
+		// And a frame whose ONLY drift is format_version still verifies.
+		expect(await verifyWalFrameChecksum({ ...body, format_version: 7, checksum: base })).toBe(true);
 	});
 });
 
@@ -359,6 +388,31 @@ describe('Graph.restoreSnapshot({ mode: "diff" }) (Q9 lock)', () => {
 		// Spec-only: data frames are dropped → cache stays at the baseline value (0).
 		expect(replayer.node("a").cache).toBe(0);
 		expect(specOnly.phases.find((p) => p.lifecycle === "data")?.frames).toBe(0);
+	});
+
+	it("production-emitted frames carry format_version = WAL_FORMAT_VERSION", async () => {
+		const author = new Graph("g");
+		author.add(node([], { initial: 0, name: "a" }), { name: "a" });
+		const snapTier = memorySnapshot({ name: "g", compactEvery: 100 });
+		const walTier = kvStorage(memoryBackend(), { name: "g-wal" });
+		const h = author.attachSnapshotStorage([{ snapshot: snapTier, wal: walTier }]);
+		await settle();
+		author.set("a", 1);
+		await settle();
+		author.set("a", 2);
+		await settle();
+		h.dispose();
+
+		let n = 0;
+		for await (const e of walTier.listByPrefix?.<WALFrame>(`${graphWalPrefix("g")}/`) ?? []) {
+			n++;
+			expect(e.value.format_version).toBe(WAL_FORMAT_VERSION);
+			// Tag is genuinely written, not a deserialization default.
+			expect(Object.hasOwn(e.value, "format_version")).toBe(true);
+			// And the persisted checksum still verifies (tag excluded from body).
+			expect(await verifyWalFrameChecksum(e.value)).toBe(true);
+		}
+		expect(n).toBeGreaterThanOrEqual(2);
 	});
 
 	it("targetSeq scopes replay up to a specific frame_seq", async () => {

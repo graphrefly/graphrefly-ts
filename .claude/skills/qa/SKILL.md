@@ -109,13 +109,40 @@ Run all checks for the affected repo(s) and fix any failures (do NOT skip or ign
 4. `cd ~/src/graphrefly-py && uv run mypy src/`
 
 **Rust (if Rust code was changed in `~/src/graphrefly-rs/`):**
-1. `cd ~/src/graphrefly-rs && cargo nextest run --profile ci -p graphrefly-core` — primary core tests. **Use `cargo-nextest`, not legacy `cargo test`.** The `ci` profile is required: it sets `default-filter = "all()"` so the `cascade_depth` stack-safety stress tests (quarantined out of the fast local default profile — see `graphrefly-rs/.config/nextest.toml`) DO run in a QA gate.
-2. `cd ~/src/graphrefly-rs && cargo nextest run --profile ci` — default-members workspace, full suite incl. cascade_depth guards (alias `cargo tc`; excludes binding crates by design). Loom is the one exception — `cargo test -p graphrefly-core --features loom-checked` (loom needs the `--cfg loom` build).
-3. `cd ~/src/graphrefly-rs && cargo clippy -p graphrefly-core --all-targets` — must be clean (`clippy::pedantic` + `rust_2018_idioms` warn-by-default per CLAUDE.md). Allows must have inline comments justifying them.
-4. `cd ~/src/graphrefly-rs && cargo fmt --check` — apply `cargo fmt` if needed; verify clean
-5. Verify `#![forbid(unsafe_code)]` is preserved at every crate root
 
-When the diff touches binding crates:
+1. `cd ~/src/graphrefly-rs && mise run gate` — **the sanctioned QA gate.** ONE
+   command runs fmt --check → clippy (default-members) → `cargo nextest run
+   --profile ci` (incl. the `cascade_depth` stack-safety guards) *sequentially*
+   under an atomic mutex with process-group teardown, a direct log, a
+   self-timeout diagnostic, and a GUARANTEED terminal sentinel. Do **NOT**
+   hand-run the 4 cargo commands separately in a QA pass — concurrent/stacked
+   cargo invocations fighting the single target lock is the exact swap-thrash
+   foot-gun this gate exists to prevent (`feedback_no_chained_background_cargo.md`).
+   Use `mise run gate:core` for the fast `-p graphrefly-core`-scoped variant
+   during iteration; the **full `mise run gate` is required before the slice
+   closes**. `GATE_CLIPPY_DENY=1 mise run gate` to treat clippy warnings as
+   errors. (The gate runs `cargo-nextest`, never legacy `cargo test`.)
+2. **Monitor it by the sentinel, never a guessed string.** `mise run gate`
+   emits `<<<RUN-LOGGED:DONE>>> exit=… reason=ok|fail|timeout|signal|crash …`
+   on *every* terminal path (stdout AND the `.gate/*.log`). A Monitor's
+   until-condition MUST grep that token — never harness-buffered tool output,
+   never a non-guaranteed progress line. **Subagent hygiene:** if this QA pass
+   runs in a spawned subagent, run the gate **synchronously** (foreground, wait
+   for the sentinel) or tear down any backgrounded command (kill by process
+   group) **before returning** — a live background process leaks as a stale
+   parent-session "running" entry indistinguishable from a real hang. Full
+   rationale + the "is it hung?" checklist + the disk/`target/`-growth
+   tradeoff: `~/src/graphrefly-ts/docs/test-guidance.md` § "Running long
+   commands reliably / diagnosing a stuck run" (memories
+   `feedback_long_command_observation.md`, `feedback_subagent_bg_hygiene.md`).
+3. **Not covered by the gate — check these manually:**
+   - Loom: `cargo test -p graphrefly-core --features loom-checked` (needs the
+     `--cfg loom` build; nextest can't run it). Run via
+     `mise run run-logged -- cargo test -p graphrefly-core --features loom-checked`.
+   - Verify `#![forbid(unsafe_code)]` is preserved at every crate root.
+
+When the diff touches binding crates (also via `mise run run-logged -- …` so a
+slow build is observable, not a false-hang):
 - `cd crates/graphrefly-bindings-js && pnpm build` (napi-rs)
 - `cd crates/graphrefly-bindings-py && maturin develop` (pyo3 — only when verifying py bindings, not part of default flow)
 - `cd crates/graphrefly-bindings-wasm && wasm-pack build` (wasm-bindgen)
