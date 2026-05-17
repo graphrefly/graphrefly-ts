@@ -1,5 +1,11 @@
 # Changelog — @graphrefly/pure-ts
 
+## 0.47.2
+
+### Patch Changes
+
+- [`fda9432`](https://github.com/graphrefly/graphrefly-ts/commit/fda94326c6656c27008c2733f305a5c077f8ff09) Thanks [@clfhhc](https://github.com/clfhhc)! - fix legacy cleanup
+
 ## 0.47.1
 
 ### Patch Changes
