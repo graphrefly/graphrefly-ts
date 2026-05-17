@@ -15,11 +15,12 @@
  * `onSuccess`/`onFailure` builder:
  *
  * ```ts
- * import { createAuditLog, mutate } from "@graphrefly/graphrefly/extra";
  * import {
+ *   createAuditLog,
+ *   mutate,
  *   type TopicPublishRecord,
  *   topicPublishKeyOf,
- * } from "@graphrefly/graphrefly/patterns/messaging";
+ * } from "@graphrefly/graphrefly";
  *
  * const audit = createAuditLog<TopicPublishRecord>({ name: "publishes" });
  * const publish = mutate(

@@ -466,6 +466,94 @@ describe("storage tier transaction semantics (Audit 4)", () => {
 		expect(result?.entries).toEqual([{ id: 1 }]);
 	});
 
+	it("appendLogStorage.loadEntries honors pageSize + cursor (windowed pagination)", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<{ id: number }>(backend, { name: "log" });
+		tier.appendEntries([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		await tier.flush?.();
+
+		// Page 1
+		const p1 = await tier.loadEntries?.({ pageSize: 2 });
+		expect(p1?.entries).toEqual([{ id: 1 }, { id: 2 }]);
+		expect(p1?.cursor).toBeDefined();
+		// Page 2 — resume from the returned cursor
+		const p2 = await tier.loadEntries?.({ pageSize: 2, cursor: p1?.cursor });
+		expect(p2?.entries).toEqual([{ id: 3 }, { id: 4 }]);
+		expect(p2?.cursor).toBeDefined();
+		// Page 3 — last partial page; cursor undefined signals done
+		const p3 = await tier.loadEntries?.({ pageSize: 2, cursor: p2?.cursor });
+		expect(p3?.entries).toEqual([{ id: 5 }]);
+		expect(p3?.cursor).toBeUndefined();
+
+		// Walk the whole log via the cursor protocol — reconstructs the full
+		// stream with no gaps/dups.
+		const walked: { id: number }[] = [];
+		let cur = (await tier.loadEntries?.({ pageSize: 2 })) ?? {
+			entries: [],
+			cursor: undefined,
+		};
+		walked.push(...cur.entries);
+		while (cur.cursor !== undefined) {
+			cur = (await tier.loadEntries?.({ pageSize: 2, cursor: cur.cursor })) ?? {
+				entries: [],
+				cursor: undefined,
+			};
+			walked.push(...cur.entries);
+		}
+		expect(walked).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+	});
+
+	it("appendLogStorage.loadEntries back-compat: no opts returns whole log + cursor undefined", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<{ id: number }>(backend, { name: "log" });
+		tier.appendEntries([{ id: 1 }, { id: 2 }, { id: 3 }]);
+		await tier.flush?.();
+
+		const all = await tier.loadEntries?.();
+		expect(all?.entries).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+		expect(all?.cursor).toBeUndefined();
+
+		// pageSize larger than the log → one full page, cursor undefined.
+		const big = await tier.loadEntries?.({ pageSize: 100 });
+		expect(big?.entries).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+		expect(big?.cursor).toBeUndefined();
+
+		// Empty log → empty page, cursor undefined (graceful).
+		const empty = appendLogStorage<{ id: number }>(memoryBackend(), {
+			name: "empty",
+		});
+		const e = await empty.loadEntries?.({ pageSize: 2 });
+		expect(e?.entries).toEqual([]);
+		expect(e?.cursor).toBeUndefined();
+
+		// Cursor past the end → empty page, cursor undefined.
+		const past = await tier.loadEntries?.({
+			pageSize: 2,
+			cursor: { position: 99 } as never,
+		});
+		expect(past?.entries).toEqual([]);
+		expect(past?.cursor).toBeUndefined();
+
+		// /qa-Blind#4: no `pageSize` + a cursor honors `cursor.position`
+		// (forward-only tail). Pin the locked behaviour — pre-change `cursor`
+		// was never returned without `pageSize` so no prior caller observed
+		// the old cursor-ignored shape; this is contract definition, not a
+		// reachable regression.
+		const tail = await tier.loadEntries?.({
+			cursor: { position: 1 } as never,
+		});
+		expect(tail?.entries).toEqual([{ id: 2 }, { id: 3 }]);
+		expect(tail?.cursor).toBeUndefined();
+
+		// /qa-Blind#6: non-integer / Infinity pageSize degrades to the
+		// whole-tail path (no silent float-window slice).
+		for (const bad of [2.5, Number.POSITIVE_INFINITY, Number.NaN]) {
+			const r = await tier.loadEntries?.({ pageSize: bad });
+			expect(r?.entries).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+			expect(r?.cursor).toBeUndefined();
+		}
+	});
+
 	it("appendLogStorage compactEvery auto-flushes every N writes regardless of debounce", async () => {
 		const backend = memoryBackend();
 		const tier = appendLogStorage<{ id: number }>(backend, {

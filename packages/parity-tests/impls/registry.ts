@@ -1,7 +1,7 @@
 /**
- * The set of impl arms a scenario parameterizes over. Currently pure-ts-only
- * — `rustImpl` activates when `@graphrefly/native` publishes (see
- * `./rust.ts` for activation sequence). Future: `wasmImpl` joins as the
+ * The set of impl arms a scenario parameterizes over. Both `pureTsImpl` and
+ * `rustImpl` are active (`@graphrefly/native` shipped 2026-05-15, D203/D206/D207;
+ * see `./rust.ts`). Future: `wasmImpl` joins as the
  * third arm when `@graphrefly/wasm` lands (PART 13 Deferred 3 of
  * `archive/docs/SESSION-rust-port-architecture.md`).
  *

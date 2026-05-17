@@ -105,7 +105,7 @@ Layering predicate that decides which package gets a new symbol lives in `~/src/
 
 ### 4-layer model inside `@graphrefly/graphrefly` (Unit 8 D200, locked 2026-05-14)
 
-Strict top-down dependency layering (CI-enforced via `scripts/check-layer-boundary.ts`, wired into `pnpm lint`; D201 — mechanism amended 2026-05-15 from "Biome custom rule" to a zero-dep script since GritQL can't express rank comparison. 23 cleave-introduced violations are baselined in `scripts/layer-boundary-baseline.json` and deferred to the next batch — see `docs/optimizations.md` "Cleave A layer-boundary residuals"; the ratchet fails NEW violations and stale baseline entries):
+Strict top-down dependency layering (CI-enforced via `scripts/check-layer-boundary.ts`, wired into `pnpm lint`; D201 — mechanism amended 2026-05-15 from "Biome custom rule" to a zero-dep script since GritQL can't express rank comparison. Cleave-A layer-boundary residuals CLOSED 2026-05-15: `scripts/layer-boundary-baseline.json` baseline is now empty (`[]`) — the ratchet hard-fails ANY layer-boundary violation. Do not add baseline entries to silence new violations; fix the layering instead):
 
 | Layer | Charter | Examples |
 |---|---|---|

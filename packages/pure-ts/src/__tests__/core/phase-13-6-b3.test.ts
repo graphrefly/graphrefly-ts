@@ -70,22 +70,24 @@ describe("Phase 13.6.B B3 — Lock 2.C wave-shape preserved across pause boundar
 		unsub();
 	});
 
-	it("repeated single-DATA pulses with the same value during pause are absorbed (current impl)", () => {
-		// Two consecutive single-DATA waves with the same value. **Current
-		// 13.6.B B3 impl** advances `_cached` during the original mid-pause
-		// wave's `_updateState`, so by replay time the cache already equals
-		// the buffered DATA's payload — both replayed waves collapse to
-		// RESOLVED via equals substitution. This is the long-standing
-		// "absorbed pulse" semantic (D2, 2026-04-13).
+	it("Lock 2.C: repeated same-value pulses during pause replay against the pre-pause baseline (wave 1 DATA, wave 2 RESOLVED)", () => {
+		// Two consecutive single-DATA waves with the same value during a
+		// `resumeAll` pause, against a node whose pre-pause cache is 0.
 		//
-		// Lock 2.C's spec-intent ("cache reference for replay equals = end
-		// of *previous wave in the buffer*, starting from pre-pause cache")
-		// would make wave 1 emit DATA(7) and wave 2 collapse to RESOLVED —
-		// see `docs/optimizations.md` "Lock 2.C — pre-pause cache snapshot
-		// for replay equals" for the deferred follow-up that brings the
-		// impl into spec alignment. Producers that need pulse semantics
-		// (every write observable regardless of value) should set
-		// `equals: () => false` on the node today.
+		// Lock 2.C (Phase 13.6.A) spec-intent: the equals reference for a
+		// replayed wave is "the cache as at the end of the *previous wave
+		// in the buffer*, starting from pre-pause cache". So:
+		//   - wave 1 (DATA 7) replays vs pre-pause cache 0 → 7 ≠ 0 → DATA(7)
+		//   - wave 2 (DATA 7) replays vs cache 7 (shaped by wave 1) → equals
+		//     → RESOLVED
+		// `s.cache` ends at 7.
+		//
+		// Pre-2026-05-17 the mid-pause `_updateState` advanced `_cached` to
+		// 7 BEFORE the buffer drained, so BOTH waves collapsed to RESOLVED
+		// (the old D2 "absorbed pulse" semantic). The `_prePauseSnapshot`
+		// restore-before-drain (Lock 2.C impl) brings this into spec
+		// alignment. Producers wanting every write observable regardless of
+		// value still set `equals: () => false` (no collapse at all).
 		const s = node<number>([], { pausable: "resumeAll", initial: 0 });
 		const seen: Array<[symbol, unknown?]> = [];
 		const unsub = s.subscribe((msgs) => {
@@ -93,7 +95,7 @@ describe("Phase 13.6.B B3 — Lock 2.C wave-shape preserved across pause boundar
 		});
 		const baseLen = seen.length;
 
-		const lock = Symbol("collapse");
+		const lock = Symbol("baseline-replay");
 		s.down([[PAUSE, lock]]);
 		s.emit(7);
 		s.emit(7);
@@ -102,10 +104,97 @@ describe("Phase 13.6.B B3 — Lock 2.C wave-shape preserved across pause boundar
 		const tail = seen.slice(baseLen);
 		const dataPayloads = tail.filter(([t]) => t === DATA).map(([, v]) => v);
 		const resolvedCount = tail.filter(([t]) => t === RESOLVED).length;
-		// Current behavior: both waves collapse to RESOLVED on replay.
-		expect(dataPayloads).toEqual([]);
-		expect(resolvedCount).toBeGreaterThanOrEqual(2);
+		// Spec-aligned: wave 1 emits DATA(7), wave 2 collapses to RESOLVED.
+		expect(dataPayloads).toEqual([7]);
+		expect(resolvedCount).toBeGreaterThanOrEqual(1);
 		expect(s.cache).toBe(7);
+		unsub();
+	});
+
+	it("Lock 2.C: a distinct-then-same pulse sequence during pause replays DATA then RESOLVED", () => {
+		// pre-pause cache 0; mid-pause emits 1, 2, 2. Spec-intent replay:
+		//   wave 1 (DATA 1) vs 0 → DATA(1)
+		//   wave 2 (DATA 2) vs 1 → DATA(2)
+		//   wave 3 (DATA 2) vs 2 → RESOLVED
+		const s = node<number>([], { pausable: "resumeAll", initial: 0 });
+		const seen: Array<[symbol, unknown?]> = [];
+		const unsub = s.subscribe((msgs) => {
+			for (const m of msgs) seen.push([m[0], m[1]]);
+		});
+		const baseLen = seen.length;
+		const lock = Symbol("seq");
+		s.down([[PAUSE, lock]]);
+		s.emit(1);
+		s.emit(2);
+		s.emit(2);
+		s.down([[RESUME, lock]]);
+		const tail = seen.slice(baseLen);
+		const dataPayloads = tail.filter(([t]) => t === DATA).map(([, v]) => v);
+		expect(dataPayloads).toEqual([1, 2]);
+		expect(tail.filter(([t]) => t === RESOLVED).length).toBeGreaterThanOrEqual(1);
+		expect(s.cache).toBe(2);
+		unsub();
+	});
+
+	it("Lock 2.C /qa-Blind#1: every pause cycle re-captures its own pre-pause baseline (not just the first)", () => {
+		// The pre-fix bug keyed snapshot capture on `_pauseBuffer == null`,
+		// but the buffer stays `[]` (not nulled) after a cycle's drain — so
+		// only the FIRST pause cycle ever captured a snapshot. The 2nd+ cycle
+		// had `_prePauseSnapshot === null` → restore skipped → the old D2
+		// "absorbed pulse" bug silently resurfaced for every later cycle.
+		// (Mid-drain re-pause is one motivating instance; the general defect
+		// is per-cycle and is reproduced deterministically here with two
+		// SEQUENTIAL cycles, no fragile reentrancy.)
+		const s = node<number>([], { pausable: "resumeAll", initial: 0 });
+		const data: number[] = [];
+		const unsub = s.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) data.push(m[1] as number);
+		});
+		const base = data.length;
+
+		// Cycle 1 (the only one the buggy code snapshots): baseline 0.
+		const l1 = Symbol("c1");
+		s.down([[PAUSE, l1]]);
+		s.emit(5); // 5 ≠ baseline 0 → replays as DATA(5); cache → 5
+		s.down([[RESUME, l1]]);
+
+		// Cycle 2 (fresh, sequential): baseline must be re-captured as 5.
+		const l2 = Symbol("c2");
+		s.down([[PAUSE, l2]]);
+		s.emit(9); // 9 ≠ baseline 5 → DATA(9) buffered; cache → 9
+		s.emit(9); // 9 === 9 → RESOLVED buffered
+		s.down([[RESUME, l2]]);
+
+		// Fix: cycle-2 snapshot = 5 (re-captured at l2's first PAUSE via the
+		// `!wasPaused` gate). Restore → 5; replay DATA(9) vs 5 → DATA(9),
+		// then RESOLVED. Total [5, 9].
+		// Pre-fix: no cycle-2 snapshot → restore skipped → cache stays the
+		// mid-pause-advanced 9 → replay DATA(9) vs 9 → RESOLVED. Total [5].
+		expect(data.slice(base)).toEqual([5, 9]);
+		expect(s.cache).toBe(9);
+		unsub();
+	});
+
+	it("Lock 2.C /qa-Edge#1: V1 versioning cid/prev chain rebuilt off the pre-pause baseline (no fabricated self-link)", () => {
+		const s = node<number>([], {
+			pausable: "resumeAll",
+			versioning: 1,
+			initial: 0,
+		});
+		const c0 = (s.v as { cid: string }).cid; // pre-pause cid = hash(0)
+		const unsub = s.subscribe(() => {});
+		const lock = Symbol("v1-chain");
+		s.down([[PAUSE, lock]]);
+		s.emit(1); // mid-pause: advanceVersion sets prev=c0, cid=hash(1)
+		s.down([[RESUME, lock]]);
+		const v = s.v as { version: number; cid: string; prev: string | null };
+		// With the fix: restore cid→c0/prev→null pre-drain, then the replayed
+		// DATA(1) rebuilds prev=c0, cid=hash(1). Without it (only `version`
+		// restored), the replay's advanceVersion reads the mid-pause cid as
+		// `prev` → prev === cid, a fabricated self-referential audit edge.
+		expect(v.prev).toBe(c0);
+		expect(v.cid).not.toBe(v.prev);
+		expect(v.version).toBe(1);
 		unsub();
 	});
 

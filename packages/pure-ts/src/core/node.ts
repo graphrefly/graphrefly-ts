@@ -789,6 +789,42 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	_pauseOverflowed = false;
 	/**
+	 * Lock 2.C — pre-pause cache/status/versioning snapshot. Captured on the
+	 * FIRST PAUSE of a pause cycle (only under `_pausable === "resumeAll"`),
+	 * in the SAME `if (!wasPaused)` block as `_pauseStartNs` so a mid-drain
+	 * re-pause (a subscriber's reaction to a replayed wave issuing a fresh
+	 * PAUSE) re-captures the new cycle's baseline — the `_pauseBuffer == null`
+	 * guard is NOT a valid "first pause of cycle" signal during the drain
+	 * (the drain sets `_pauseBuffer = []`, not `null`, before replaying).
+	 * Restored just before the RESUME drain replays buffered waves so each
+	 * replayed wave's `_updateState` re-derives equals/version from the
+	 * **pre-pause baseline forward** — spec §2.6 (Lock 2.C): "the cache as at
+	 * the end of the previous wave in the buffer, starting from pre-pause
+	 * cache". Without the restore a mid-pause `_updateState` already advanced
+	 * `_cached`, so every buffered same-value single-DATA wave collapsed to
+	 * RESOLVED on replay (the old D2 "absorbed pulse" semantic, now retired).
+	 *
+	 * `versioning` captures the **mutable** version state (`version`, plus V1
+	 * `cid`/`prev`) — NOT the whole `NodeVersionInfo` object: `_versioning`
+	 * object identity is stable across the synchronous PAUSE→drain→RESUME
+	 * window (`_upgradeVersioning`/`_applyVersioning` is rejected mid-fn and
+	 * cannot interleave), so restoring fields onto the live object is sound
+	 * and keeps `id` intact. Restoring only `version` (the V0 counter) would
+	 * leave V1's `cid`/`prev` linked-history chain pointing at a mid-pause
+	 * cid — a fabricated audit edge (spec §7). Value snapshots are by
+	 * reference: spec treats node values as immutable, so an in-place mutation
+	 * of `_cached` across a pause is a caller contract violation, not a
+	 * substrate concern.
+	 *
+	 * `null` = not in a bufferAll pause cycle. Cleared on final RESUME,
+	 * `_deactivate`, and `_resetForFreshLifecycle`.
+	 */
+	_prePauseSnapshot: {
+		cached: T | undefined;
+		status: NodeStatus;
+		versioning: { version: number; cid?: string; prev?: string | null } | undefined;
+	} | null = null;
+	/**
 	 * Whether `_updateState` has already logged an `equals`-throw under
 	 * `equalsThrowPolicy: "log-and-continue"`. Gates the `console.error`
 	 * to once per node lifetime so a buggy `equals` doesn't spam logs at
@@ -1466,6 +1502,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// swallow every emit.
 		this._pauseLocks = null;
 		this._pauseBuffer = null;
+		this._prePauseSnapshot = null; // Lock 2.C
 		// Lock 6.A: clear pause-cycle bookkeeping so a resubscribable node
 		// coming back from terminal-overflow doesn't carry stale
 		// `_pauseOverflowed = true` (which would swallow the next cycle's
@@ -2274,6 +2311,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// lockset carried over from the previous lifecycle.
 		this._pauseLocks = null;
 		this._pauseBuffer = null;
+		this._prePauseSnapshot = null; // Lock 2.C
 		// Lock 6.A: clear pause-cycle bookkeeping symmetric with the
 		// resubscribable-reset path so a resubscribable node coming back
 		// from terminal-overflow starts its next pause cycle clean.
@@ -3037,6 +3075,30 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						this._pauseStartNs = monotonicNs();
 						this._pauseDroppedCount = 0;
 						this._pauseOverflowed = false;
+						// Lock 2.C: snapshot the pre-pause baseline on the
+						// first PAUSE of the cycle — SAME `!wasPaused` gate as
+						// `_pauseStartNs` so a mid-drain re-pause (drain set
+						// `_paused = false` then replays; a subscriber's PAUSE
+						// reaction sees `wasPaused === false`) RE-captures the
+						// new cycle's baseline. Keying this off
+						// `_pauseBuffer == null` would miss it (the drain
+						// leaves `_pauseBuffer = []`, not `null`). The RESUME
+						// drain restores this so replayed waves re-derive
+						// equals + version from the conceptual timeline, not
+						// the mid-pause-advanced cache.
+						if (this._pausable === "resumeAll") {
+							const v = this._versioning;
+							this._prePauseSnapshot = {
+								cached: this._cached,
+								status: this._status,
+								versioning:
+									v == null
+										? undefined
+										: "cid" in v
+											? { version: v.version, cid: v.cid, prev: v.prev }
+											: { version: v.version },
+							};
+						}
 					}
 				} else {
 					// RESUME
@@ -3066,19 +3128,57 @@ export class NodeImpl<T = unknown> implements Node<T> {
 							// DATA waves, wrongly applying equals substitution
 							// (Lock 2.C′ refactor target).
 							//
-							// D2 (2026-04-13) semantic note: each `_emit(...)`
-							// goes through `_updateState` including equals
-							// substitution. A buffered single-DATA wave whose
-							// value matches `_cached` (set during the
-							// original wave's mid-pause processing) collapses
-							// to RESOLVED on replay — producer "pulses" that
-							// write the same value while paused are absorbed.
-							// Producers that need pulse semantics (every
-							// write observable regardless of value) should
-							// set `equals: () => false` on the node.
+							// Lock 2.C / spec R2.6.1 (amended 2026-05-17):
+							// the restore below rolls `_cached`/`_status`/
+							// `_versioning` back to the pre-pause baseline
+							// FIRST, so each replayed wave's `_updateState`
+							// equals reference is "the cache as at the end of
+							// the previous buffered wave, starting pre-pause"
+							// — wave 1 vs pre-pause cache, wave N vs cache
+							// shaped by waves 1..N-1. This RETIRES the old D2
+							// (2026-04-13) "absorbed pulse" semantic where
+							// `_cached` was already mid-pause-advanced at drain
+							// time so every same-value pulse collapsed to
+							// RESOLVED. Now only a genuine no-op write (same
+							// value vs the conceptual-timeline cache) collapses.
+							// Producers wanting EVERY write observable
+							// regardless of value still set
+							// `equals: () => false` on the node.
 							if (this._pauseBuffer != null && this._pauseBuffer.length > 0) {
 								const drain = this._pauseBuffer;
 								this._pauseBuffer = [];
+								// Lock 2.C: restore the pre-pause baseline so
+								// each replayed wave's `_updateState`
+								// re-derives equals/version from the
+								// conceptual timeline (wave 1 vs pre-pause
+								// cache; wave N vs cache shaped by waves
+								// 1..N-1) — NOT the mid-pause-advanced cache
+								// (the old D2 "absorbed pulse" collapse).
+								// Skip the restore if the node went terminal
+								// mid-pause: a buffered tier-3/4 replay is
+								// already a post-terminal no-op, and rolling
+								// `_status` back would resurrect a dead node.
+								const snap = this._prePauseSnapshot;
+								if (snap != null && this._status !== "completed" && this._status !== "errored") {
+									this._cached = snap.cached;
+									this._status = snap.status;
+									const sv = snap.versioning;
+									const lv = this._versioning;
+									if (sv != null && lv != null) {
+										// Identity-stable across the synchronous
+										// pause cycle (no mid-pause upgrade) —
+										// roll back the mutable counter, and the
+										// V1 linked-history (`cid`/`prev`) so the
+										// replayed waves rebuild the chain off
+										// the pre-pause cid, not a mid-pause one.
+										lv.version = sv.version;
+										if ("cid" in lv && sv.cid !== undefined) {
+											const v1 = lv as { cid: string; prev: string | null };
+											v1.cid = sv.cid;
+											v1.prev = sv.prev ?? null;
+										}
+									}
+								}
 								for (const wave of drain) {
 									this._emit(wave);
 								}
@@ -3100,6 +3200,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 								this._pauseStartNs = undefined;
 								this._pauseDroppedCount = 0;
 								this._pauseOverflowed = false;
+								// Lock 2.C: drop the snapshot on final RESUME.
+								// Guarded by the same re-pause check — a
+								// mid-drain re-pause already captured a fresh
+								// snapshot for the new cycle (the PAUSE branch
+								// fires with `_pauseBuffer == null`), so we
+								// must not null it here.
+								this._prePauseSnapshot = null;
 							}
 							// Kick the held wave forward if one was pending.
 							if (this._pendingWave) {

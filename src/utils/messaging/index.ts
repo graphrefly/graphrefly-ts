@@ -761,7 +761,7 @@ export function topic<T>(name: string, opts?: TopicOptions): TopicGraph<T> {
  *
  * @example
  * ```ts
- * import { messagingHub } from "@graphrefly/graphrefly/patterns/messaging";
+ * import { messagingHub } from "@graphrefly/graphrefly";
  *
  * const hub = messagingHub("main", { defaultTopicOptions: { retainedLimit: 256 } });
  * hub.publish("orders", { id: 1 });

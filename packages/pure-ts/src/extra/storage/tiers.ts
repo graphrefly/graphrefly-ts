@@ -629,14 +629,72 @@ export function appendLogStorage<T>(
 						? [filter]
 						: [name]
 					: await Promise.resolve(backend.list(filter));
+			// Windowed pagination over the flattened entry stream. `position`
+			// is an absolute offset into the concatenation of every key's
+			// decoded entries, in `backend.list()` order.
+			//
+			// CONTRACT: paginated `loadEntries` is forward-only over a
+			// **stable, append-only** log — the absolute offset is meaningful
+			// only if `backend.list()` returns a stable key order across the
+			// paged calls AND the log is not compacted/reordered between
+			// pages. All shipped backends sort their keys (`memoryBackend`,
+			// `fileKv`, `sqliteKv`, `indexedDbKv`), so the in-tree path is
+			// safe; a custom `BackendStore` whose `list()` is unstable, OR
+			// compaction between page calls, breaks the offset (gaps/dups).
+			// (Cross-track-ledger §2 carries the same obligation for the
+			// native `@graphrefly/native` mirror.)
+			//
+			// - `pageSize` undefined/≤0/non-integer → whole-log path: return
+			//   the tail from `cursor.position` (default 0) + `cursor:
+			//   undefined`. A bare `loadEntries()` (no opts) is byte-for-byte
+			//   the prior behaviour. `loadEntries({ cursor })` without a
+			//   `pageSize` now honors `cursor.position` (forward-only tail) —
+			//   pre-change `cursor` was never returned without `pageSize`, so
+			//   no prior caller could observe the old cursor-ignored shape.
+			// - `pageSize` a positive integer → return `[start, start+pageSize)`
+			//   and a forward-only cursor; `cursor: undefined` signals "no
+			//   more entries" so callers loop until done.
+			//
+			// Decoding short-circuits one entry past the requested window
+			// (`want = start + pageSize + 1` lookahead) so a *partitioned*
+			// multi-key log does not decode keys beyond the window. A
+			// single-key log still decodes its one array blob in full —
+			// inherent to the per-key codec-blob model; pagination here bounds
+			// the *consumer's* per-page working set, not the tier's per-key
+			// decode. (Backend-level windowing would need a streaming codec /
+			// per-entry framing — tracked separately, not in scope.)
+			const start = loadOpts?.cursor?.position ?? 0;
+			const pageSize = loadOpts?.pageSize;
+			// Only a positive integer pages; fractional/`Infinity`/`NaN`/≤0
+			// degrade to the whole-tail path for a predictable contract
+			// (avoids `slice` silently truncating a float window).
+			const paged =
+				pageSize !== undefined && Number.isInteger(pageSize) && (pageSize as number) > 0;
+			const want = paged ? start + (pageSize as number) + 1 : undefined;
 			const all: T[] = [];
 			for (const k of keys) {
+				if (want !== undefined && all.length >= want) break;
 				const result = await Promise.resolve(backend.read(k));
 				if (result === undefined || result.length === 0) continue;
 				const entries = codec.decode(result) as readonly T[];
 				if (Array.isArray(entries)) all.push(...entries);
 			}
-			return { entries: all, cursor: undefined };
+			if (!paged) {
+				return {
+					entries: start > 0 ? all.slice(start) : all,
+					cursor: undefined,
+				};
+			}
+			const size = pageSize as number;
+			const page = all.slice(start, start + size);
+			const nextPos = start + page.length;
+			const hasMore = all.length > start + size;
+			return {
+				entries: page,
+				cursor: hasMore
+					? ({ position: nextPos, __brand: "AppendCursor" } as AppendCursor)
+					: undefined,
+			};
 		},
 		async flush() {
 			await flushNow();
