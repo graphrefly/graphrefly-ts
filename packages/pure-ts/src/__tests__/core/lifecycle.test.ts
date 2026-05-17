@@ -69,9 +69,11 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 	it("INVALIDATE runs fn cleanup once", () => {
 		const src = node<number>({ initial: 0 });
 		let cleanups = 0;
-		const n = node([src], (_data, _actions, _ctx) => () => {
-			cleanups += 1;
-		});
+		const n = node([src], (_data, _actions, _ctx) => ({
+			onInvalidate: () => {
+				cleanups += 1;
+			},
+		}));
 		const unsub = n.subscribe(() => undefined);
 
 		expect(cleanups).toBe(0);
@@ -265,33 +267,6 @@ describe("NodeFnCleanup object form — granular hooks", () => {
 
 		unsub();
 		expect([br, de, iv]).toEqual([1, 1, 1]);
-	});
-
-	it("function-form cleanup still fires on all three transitions (backward compat)", () => {
-		const src = node<number>({ initial: 0 });
-		let cleanups = 0;
-		const n = node([src], (_data, _actions, _ctx) => () => {
-			cleanups += 1;
-		});
-		const unsub = n.subscribe(() => undefined);
-		expect(cleanups).toBe(0);
-
-		// Re-run: pre-run cleanup fires, new cleanup attached.
-		src.down([[DIRTY], [DATA, 1]]);
-		expect(cleanups).toBe(1);
-
-		// INVALIDATE: current cleanup fires and is cleared (NOT replaced
-		// until fn re-runs).
-		n.down([[INVALIDATE]]);
-		expect(cleanups).toBe(2);
-
-		// Next DATA re-runs fn and attaches a fresh cleanup.
-		src.down([[DIRTY], [DATA, 2]]);
-		expect(cleanups).toBe(2);
-
-		// Deactivate: the fresh cleanup fires.
-		unsub();
-		expect(cleanups).toBe(3);
 	});
 
 	it("object cleanup is preserved across re-runs (deactivate still fires after many re-runs)", () => {

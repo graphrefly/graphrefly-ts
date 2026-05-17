@@ -235,9 +235,11 @@ export function timeout<T>(
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			clearTimeout(timer);
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				clearTimeout(timer);
+			},
 		};
 	}, operatorOpts(timeoutNodeOpts));
 }
@@ -295,8 +297,10 @@ export function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Nod
 		};
 
 		start();
-		return () => {
-			innerU?.();
+		return {
+			onDeactivation: () => {
+				innerU?.();
+			},
 		};
 	}, operatorOpts(opts));
 }
@@ -381,8 +385,10 @@ export function rescue<T>(
 				a.down([[COMPLETE]]);
 			},
 		);
-		return () => {
-			srcUnsub();
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+			},
 		};
 	}, operatorOpts(opts));
 }

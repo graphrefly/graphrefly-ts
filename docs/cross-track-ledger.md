@@ -48,6 +48,7 @@ arm is tight (`packages/parity-tests/impls/rust.ts` casts `as Impl`, not
 | Date | Symbols | Presentation consumer(s) | TS side (`types.ts` + `pure-ts.ts`) | Native side (`@graphrefly/native` + `rust.ts` tight cast) | Status |
 |---|---|---|---|---|---|
 | 2026-05-15 (N1) | `RingBuffer`, `ResettableTimer`, `describeNode`, `sha256Hex`, `sourceOpts` — `wrapSubscribeHook` dropped by Group-3 Edge #2 → N1 is **5, not 6** | `src/utils/resilience/*`, `src/base/sources/async.ts`, `src/base/io/*`, `src/utils/ai/adapters/*` | ✅ `7437fb7` (Impl-contract pin) | ✅ Option C: rs `5b5c041`, ts `d441648` (`rust.ts` tight `as Impl`); `@graphrefly/native@0.0.1` published | ✅ **RESOLVED** (archive on next sweep) |
+| 2026-05-16 (CT-1, Lock 4.A) | `legacyCleanup` (transient migration shim) | (was 42 presentation files) | **Resolved by REMOVAL, not by pin.** `legacyCleanup` was deleted entirely — helper, `@graphrefly/pure-ts/core` barrel export, and all 115 call sites (52 source files + test fixtures) narrowed to explicit `{ onDeactivation }` / `{ onInvalidate }` hooks. No substrate-peer symbol, no presentation import, no `Impl` widening. | **N/A — symbol no longer exists.** Nothing for `@graphrefly/native` to implement; the hazard class is gone by construction. | ✅ **RESOLVED 2026-05-16** (same-session removal). `grep -rn 'legacyCleanup' src packages/pure-ts/src --include='*.ts'` == empty. Gates: pure-ts 1209 / graphrefly 1935 / parity 353(+1 skip) / lint+build clean. Archive on next sweep. |
 
 ## §2 — Substrate behavior / parity-coupled changes (no new symbol)
 

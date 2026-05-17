@@ -363,11 +363,13 @@ export function withTimeout<T>(
 				attachSource();
 			}
 
-			return () => {
-				stopped = true;
-				timer.cancel();
-				if (srcUnsub) srcUnsub();
-				if (optsUnsub) optsUnsub();
+			return {
+				onDeactivation: () => {
+					stopped = true;
+					timer.cancel();
+					if (srcUnsub) srcUnsub();
+					if (optsUnsub) optsUnsub();
+				},
 			};
 		},
 		{

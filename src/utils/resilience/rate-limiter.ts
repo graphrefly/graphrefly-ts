@@ -544,11 +544,13 @@ export function rateLimiter<T>(
 				}
 			});
 
-			return () => {
-				terminated = true;
-				timer.cancel();
-				unsub();
-				optMirror.unsub();
+			return {
+				onDeactivation: () => {
+					terminated = true;
+					timer.cancel();
+					unsub();
+					optMirror.unsub();
+				},
 			};
 		},
 		{

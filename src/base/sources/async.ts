@@ -130,9 +130,11 @@ export function defer<T>(thunk: () => NodeInput<T>, opts?: AsyncSourceOpts): Nod
 			const safe = err === undefined ? new Error("defer: thunk threw undefined") : err;
 			a.down([[ERROR, safe]]);
 		}
-		return () => {
-			stopped = true;
-			unsub?.();
+		return {
+			onDeactivation: () => {
+				stopped = true;
+				unsub?.();
+			},
 		};
 	}, merged);
 }
@@ -251,10 +253,11 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
  */
 export function share<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
 	return node<T>(
-		(_data, a) =>
-			source.subscribe((msgs) => {
+		(_data, a) => ({
+			onDeactivation: source.subscribe((msgs) => {
 				a.down(msgs);
 			}),
+		}),
 		{ ...sourceOpts<T>(opts), initial: source.cache },
 	);
 }
@@ -286,10 +289,11 @@ export function replay<T>(source: Node<T>, bufferSize: number, opts?: ExtraOpts)
 	// manual-buffer pattern (which flushed the buffer AND then push-on-
 	// subscribed the cache, double-delivering the last value).
 	return node<T>(
-		(_data, a) =>
-			source.subscribe((msgs) => {
+		(_data, a) => ({
+			onDeactivation: source.subscribe((msgs) => {
 				a.down(msgs);
 			}),
+		}),
 		{ ...sourceOpts<T>(opts), initial: source.cache, replayBuffer: bufferSize },
 	);
 }

@@ -44,9 +44,11 @@ export function fromIDBRequest<T>(req: IDBRequest<T>): Node<T> {
 			clear();
 			a.down([[ERROR, req.error ?? new Error("IndexedDB request failed")]]);
 		};
-		return () => {
-			done = true;
-			clear();
+		return {
+			onDeactivation: () => {
+				done = true;
+				clear();
+			},
 		};
 	});
 }
@@ -86,9 +88,11 @@ export function fromIDBTransaction(tx: IDBTransaction): Node<void> {
 			clear();
 			a.down([[ERROR, tx.error ?? new Error("IndexedDB transaction aborted")]]);
 		};
-		return () => {
-			done = true;
-			clear();
+		return {
+			onDeactivation: () => {
+				done = true;
+				clear();
+			},
 		};
 	});
 }

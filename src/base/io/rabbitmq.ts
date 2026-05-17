@@ -213,11 +213,13 @@ export function fromRabbitMQ<T = unknown>(
 
 			void start();
 
-			return () => {
-				active = false;
-				if (consumerTag !== undefined) {
-					void channel.cancel(consumerTag);
-				}
+			return {
+				onDeactivation: () => {
+					active = false;
+					if (consumerTag !== undefined) {
+						void channel.cancel(consumerTag);
+					}
+				},
 			};
 		},
 		sourceOpts(rest),

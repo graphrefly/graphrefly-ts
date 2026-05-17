@@ -79,9 +79,11 @@ export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			clearAll();
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				clearAll();
+			},
 		};
 	}, operatorOpts(opts));
 }
@@ -148,9 +150,11 @@ export function debounce<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node
 				},
 			);
 
-			return () => {
-				srcUnsub();
-				clearTimer();
+			return {
+				onDeactivation: () => {
+					srcUnsub();
+					clearTimer();
+				},
 			};
 		},
 		{
@@ -281,9 +285,11 @@ export function throttle<T>(
 				},
 			);
 
-			return () => {
-				srcUnsub();
-				clearTimer();
+			return {
+				onDeactivation: () => {
+					srcUnsub();
+					clearTimer();
+				},
 			};
 		},
 		{
@@ -376,9 +382,11 @@ export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			notUnsub();
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				notUnsub();
+			},
 		};
 	}, operatorOpts(opts));
 }
@@ -444,9 +452,11 @@ export function audit<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			clearTimer();
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				clearTimer();
+			},
 		};
 	}, operatorOpts(opts));
 }

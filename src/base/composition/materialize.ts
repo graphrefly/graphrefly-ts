@@ -319,11 +319,13 @@ export function materialize<TKey, TGraph extends Graph>(
 				}
 			});
 
-			return () => {
-				terminated = true;
-				keyUnsub();
-				facUnsub();
-				unmountCurrent();
+			return {
+				onDeactivation: () => {
+					terminated = true;
+					keyUnsub();
+					facUnsub();
+					unmountCurrent();
+				},
 			};
 		},
 		{

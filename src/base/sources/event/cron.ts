@@ -163,7 +163,7 @@ export function fromCron(expr: string, opts?: FromCronOptions): Node<number | Da
 			};
 			check();
 			const id = setInterval(check, tickMs);
-			return () => clearInterval(id);
+			return { onDeactivation: () => clearInterval(id) };
 		},
 		{ ...sourceOpts(rest), name: rest.name ?? `cron:${expr}` },
 	);

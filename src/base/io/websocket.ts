@@ -101,9 +101,11 @@ export function fromWebSocket<T = unknown>(
 				} catch (err) {
 					terminate([ERROR, err]);
 				}
-				return () => {
-					active = false;
-					runCleanup();
+				return {
+					onDeactivation: () => {
+						active = false;
+						runCleanup();
+					},
 				};
 			}
 
@@ -120,9 +122,11 @@ export function fromWebSocket<T = unknown>(
 				ws.removeEventListener("close", onClose);
 				if (closeOnTeardown) ws.close();
 			};
-			return () => {
-				active = false;
-				runCleanup();
+			return {
+				onDeactivation: () => {
+					active = false;
+					runCleanup();
+				},
 			};
 		},
 		sourceOpts(rest),

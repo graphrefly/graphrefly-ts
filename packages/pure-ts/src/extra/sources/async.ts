@@ -58,9 +58,11 @@ export function fromPromise<T>(p: Promise<T> | PromiseLike<T>, opts?: AsyncSourc
 				a.down([[ERROR, e]]);
 			},
 		);
-		return () => {
-			settled = true;
-			signal?.removeEventListener("abort", onAbort);
+		return {
+			onDeactivation: () => {
+				settled = true;
+				signal?.removeEventListener("abort", onAbort);
+			},
 		};
 	}, sourceOpts(rest));
 }
@@ -97,9 +99,11 @@ export function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceO
 			}
 		};
 		void pump();
-		return () => {
-			if (!done) ac.abort();
-			outerSignal?.removeEventListener("abort", onOuterAbort);
+		return {
+			onDeactivation: () => {
+				if (!done) ac.abort();
+				outerSignal?.removeEventListener("abort", onOuterAbort);
+			},
 		};
 	}, sourceOpts(rest));
 }

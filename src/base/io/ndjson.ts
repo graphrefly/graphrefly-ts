@@ -118,8 +118,10 @@ export function fromNDJSON<T = unknown>(
 
 			void run();
 
-			return () => {
-				cancelled = true;
+			return {
+				onDeactivation: () => {
+					cancelled = true;
+				},
 			};
 		},
 		sourceOpts(opts),

@@ -409,7 +409,7 @@ export function withBreaker<T>(
 					}
 				});
 				syncState();
-				return unsub;
+				return { onDeactivation: unsub };
 			},
 			{
 				...operatorOpts(),

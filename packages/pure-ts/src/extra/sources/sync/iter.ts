@@ -38,8 +38,10 @@ export function fromIter<T>(iterable: Iterable<T>, opts?: ExtraOpts): Node<T> {
 		} catch (e) {
 			if (!cancelled) a.down([[ERROR, e]]);
 		}
-		return () => {
-			cancelled = true;
+		return {
+			onDeactivation: () => {
+				cancelled = true;
+			},
 		};
 	}, sourceOpts(opts));
 }

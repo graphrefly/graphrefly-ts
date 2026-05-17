@@ -212,9 +212,11 @@ export function heterogeneousDebate(
 							if (!cancelled) actions.down([[ERROR, err]]);
 						}
 					})();
-					return () => {
-						cancelled = true;
-						ac.abort();
+					return {
+						onDeactivation: () => {
+							cancelled = true;
+							ac.abort();
+						},
 					};
 				},
 				{ describeKind: "producer", name: `${name}.round-work` },

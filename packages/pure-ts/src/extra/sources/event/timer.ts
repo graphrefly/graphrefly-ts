@@ -66,6 +66,6 @@ export function fromTimer(ms: number, opts?: AsyncSourceOpts & { period?: number
 		}
 		t = setTimeout(finish, ms);
 		signal?.addEventListener("abort", onAbort, { once: true });
-		return cleanup;
+		return { onDeactivation: cleanup };
 	}, sourceOpts(rest));
 }

@@ -266,8 +266,10 @@ export function merge<T>(...args: ReadonlyArray<Node<T> | ExtraOpts | undefined>
 				);
 				unsubs.push(u);
 			}
-			return () => {
-				for (const u of unsubs) u();
+			return {
+				onDeactivation: () => {
+					for (const u of unsubs) u();
+				},
 			};
 		},
 		{ ...operatorOpts(opts), meta: { ...factoryTag("merge"), ...(opts?.meta ?? {}) } },
@@ -351,8 +353,10 @@ export function zip<const T extends readonly unknown[]>(
 			);
 			unsubs.push(u);
 		}
-		return () => {
-			for (const u of unsubs) u();
+		return {
+			onDeactivation: () => {
+				for (const u of unsubs) u();
+			},
 		};
 	}, operatorOpts());
 }
@@ -445,9 +449,11 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
 			},
 		);
 
-		return () => {
-			firstUnsub?.();
-			secondUnsub?.();
+		return {
+			onDeactivation: () => {
+				firstUnsub?.();
+				secondUnsub?.();
+			},
 		};
 	}, operatorOpts(opts));
 }
@@ -546,8 +552,10 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 			);
 			unsubs.push(u);
 		}
-		return () => {
-			for (const u of unsubs) u();
+		return {
+			onDeactivation: () => {
+				for (const u of unsubs) u();
+			},
 		};
 	}, operatorOpts());
 }

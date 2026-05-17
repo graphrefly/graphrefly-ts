@@ -221,7 +221,7 @@ export function feedback(
 					}
 				}
 			});
-			return () => unsub();
+			return { onDeactivation: () => unsub() };
 		},
 		{
 			name: feedbackEffectName,

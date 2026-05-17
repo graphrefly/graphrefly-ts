@@ -497,8 +497,10 @@ export class RefineLoopGraph<T> extends Graph {
 										if (!cancelled) actions.down([[ERROR, err]]);
 									},
 								);
-								return () => {
-									cancelled = true;
+								return {
+									onDeactivation: () => {
+										cancelled = true;
+									},
 								};
 							}
 							actions.emit({ iter, items: result });

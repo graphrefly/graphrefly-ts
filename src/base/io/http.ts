@@ -164,11 +164,12 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 
 	const sourceNode = node<T>(
 		[],
-		(_data, a) =>
-			runFetch({
+		(_data, a) => ({
+			onDeactivation: runFetch({
 				emit: (v) => a.emit(v),
 				down: (msgs) => a.down(msgs as unknown as [symbol, unknown?][]),
 			}),
+		}),
 		{
 			...sourceOpts(rest),
 			// `resubscribable: true` when refetchOnSubscribe — each new activation
@@ -346,7 +347,7 @@ export function fromHTTPStream(url: string, opts?: FromHTTPStreamOptions): Node<
 			const abort = new AbortController();
 			if (externalSignal?.aborted) {
 				a.down([[ERROR, externalSignal.reason ?? new Error("Aborted")]]);
-				return () => {};
+				return { onDeactivation: () => {} };
 			}
 			externalSignal?.addEventListener("abort", () => abort.abort(externalSignal.reason), {
 				once: true,
@@ -378,9 +379,11 @@ export function fromHTTPStream(url: string, opts?: FromHTTPStreamOptions): Node<
 				}
 			};
 			void run();
-			return () => {
-				active = false;
-				abort.abort();
+			return {
+				onDeactivation: () => {
+					active = false;
+					abort.abort();
+				},
 			};
 		},
 		sourceOpts(rest),

@@ -412,9 +412,11 @@ function _retrySource<T>(
 			const merged = makeMergedOptsMirror<RetryOptions>(opts);
 			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(merged.current());
 			const inner = _runRetryStateMachine(getCfg, () => source, a, emitState);
-			return () => {
-				inner();
-				merged.unsub();
+			return {
+				onDeactivation: () => {
+					inner();
+					merged.unsub();
+				},
 			};
 		},
 		{
@@ -444,9 +446,11 @@ function _retryFactory<T>(
 			const merged = makeMergedOptsMirror<RetryFactoryOptions<T>>(opts);
 			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(merged.current());
 			const inner = _runRetryStateMachine(getCfg, factory, a, emitState);
-			return () => {
-				inner();
-				merged.unsub();
+			return {
+				onDeactivation: () => {
+					inner();
+					merged.unsub();
+				},
 			};
 		},
 		{

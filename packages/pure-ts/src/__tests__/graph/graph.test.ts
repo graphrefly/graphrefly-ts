@@ -2664,8 +2664,10 @@ describe("Graph narrow-waist — graph.effect", () => {
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		let cleanups = 0;
 		const fx = g.effect("fx", ["a"], () => {
-			return () => {
-				cleanups += 1;
+			return {
+				onDeactivation: () => {
+					cleanups += 1;
+				},
 			};
 		});
 		fx.subscribe(() => {});
@@ -2733,8 +2735,10 @@ describe("Graph narrow-waist — graph.effect", () => {
 			"fx",
 			["a"],
 			() => {
-				return () => {
-					cleanups += 1;
+				return {
+					onDeactivation: () => {
+						cleanups += 1;
+					},
 				};
 			},
 			{ keepAlive: true },
@@ -2818,8 +2822,10 @@ describe("Graph narrow-waist — graph.producer", () => {
 		const g = new Graph("nw-producer-cleanup");
 		let cleanedUp = false;
 		const n = g.producer("p", () => {
-			return () => {
-				cleanedUp = true;
+			return {
+				onDeactivation: () => {
+					cleanedUp = true;
+				},
 			};
 		});
 		// Subscribe to activate the node (setup fn runs on first subscriber).
@@ -2874,9 +2880,11 @@ describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
 		const fx = g.effect(
 			"fx",
 			["a"],
-			() => () => {
-				cleanups += 1;
-			},
+			() => ({
+				onDeactivation: () => {
+					cleanups += 1;
+				},
+			}),
 			{ signal: ac.signal },
 		);
 		fx.subscribe(() => {});
@@ -2955,6 +2963,34 @@ describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
 		// recompute through the version-bump coalescer.
 		handle.node.subscribe(() => {});
 		expect(handle.node.cache?.found).toBe(true);
+		handle.dispose();
+	});
+
+	// DF13 regression: the static explain overload must REJECT
+	// `reactive: true` and reactive-only `name`/`reactiveName` slots, and
+	// must type its return as `CausalChain` (not a reactive handle) so a
+	// caller who meant a live Node cannot silently get a one-shot
+	// snapshot. The `@ts-expect-error`s below are the compile-time lock —
+	// they fail the typecheck/DTS build if the narrowing regresses.
+	it("DF13: static explain overload type-rejects reactive-only options", () => {
+		const g = new Graph("explain-df13-narrowing");
+		const a = node([], { name: "a", initial: 1 });
+		g.add(a, { name: "a" });
+		// Static form → CausalChain. `.found` is a CausalChain field;
+		// `.node` is NOT (present only on the reactive handle).
+		const chain = g.describe({ explain: { from: "a", to: "a" } });
+		expect(chain.found).toBe(true);
+		// @ts-expect-error — static explain returns CausalChain, not a handle.
+		expect(chain.node).toBeUndefined();
+		// @ts-expect-error — `name` is a reactive-mode-only slot.
+		g.describe({ explain: { from: "a", to: "a" }, name: "x" });
+		// @ts-expect-error — `reactiveName` is a reactive-mode-only slot.
+		g.describe({ explain: { from: "a", to: "a" }, reactiveName: "x" });
+		// Reactive form → { node, dispose }; narrows away from CausalChain.
+		const handle = g.describe({ explain: { from: "a", to: "a" }, reactive: true });
+		expect(handle.node.subscribe).toBeDefined();
+		// @ts-expect-error — reactive handle has no `.found` (that's CausalChain).
+		expect(handle.found).toBeUndefined();
 		handle.dispose();
 	});
 

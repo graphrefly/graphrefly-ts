@@ -115,8 +115,10 @@ export function fromCSV(source: AsyncIterable<string>, opts?: FromCSVOptions): N
 
 			void run();
 
-			return () => {
-				cancelled = true;
+			return {
+				onDeactivation: () => {
+					cancelled = true;
+				},
 			};
 		},
 		sourceOpts(rest),

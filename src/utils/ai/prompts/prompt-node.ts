@@ -295,8 +295,10 @@ export function promptNode<T = string>(
 					} catch (err) {
 						done = true;
 						actions.down([[ERROR, err]]);
-						return () => {
-							abortDispose?.();
+						return {
+							onDeactivation: () => {
+								abortDispose?.();
+							},
 						};
 					}
 
@@ -390,14 +392,16 @@ export function promptNode<T = string>(
 						}
 					});
 
-					return () => {
-						cancelled = true;
-						sub();
-						// F-7: cleanup callback's abortDispose call is idempotent —
-						// the terminal-branch dispose above sets `abortDispose =
-						// undefined` so this is a no-op when terminal-fired.
-						abortDispose?.();
-						abortDispose = undefined;
+					return {
+						onDeactivation: () => {
+							cancelled = true;
+							sub();
+							// F-7: cleanup callback's abortDispose call is idempotent —
+							// the terminal-branch dispose above sets `abortDispose =
+							// undefined` so this is a no-op when terminal-fired.
+							abortDispose?.();
+							abortDispose = undefined;
+						},
 					};
 				},
 				{

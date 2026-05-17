@@ -94,8 +94,10 @@ export function fromClickHouseWatch(
 				}
 			};
 			void run();
-			return () => {
-				active = false;
+			return {
+				onDeactivation: () => {
+					active = false;
+				},
 			};
 		}),
 	);

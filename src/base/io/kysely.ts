@@ -70,8 +70,10 @@ export function fromKysely<T = unknown, U = T>(
 					}
 				});
 
-			return () => {
-				active = false;
+			return {
+				onDeactivation: () => {
+					active = false;
+				},
 			};
 		},
 		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false } as NodeOptions<U[]>,

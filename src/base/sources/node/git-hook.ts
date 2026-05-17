@@ -71,18 +71,18 @@ export function fromGitHook(repoPath: string, opts?: FromGitHookOptions): Node<G
 				const head = gitQuery(["rev-parse", "HEAD"]);
 				if (!head) {
 					consecutiveErrors = 0;
-					return () => {};
+					return { onDeactivation: () => {} };
 				}
 				if (lastSeen === undefined) {
 					// First poll: record baseline; stay idle until next tick
 					// disposes this inner.
 					lastSeen = head;
 					consecutiveErrors = 0;
-					return () => {};
+					return { onDeactivation: () => {} };
 				}
 				if (head === lastSeen) {
 					consecutiveErrors = 0;
-					return () => {};
+					return { onDeactivation: () => {} };
 				}
 				let files = gitQuery(["diff", "--name-only", `${lastSeen}..${head}`])
 					.split("\n")
@@ -112,7 +112,7 @@ export function fromGitHook(repoPath: string, opts?: FromGitHookOptions): Node<G
 				}
 				// else: transient error — next tick will retry; don't spam ERROR.
 			}
-			return () => {};
+			return { onDeactivation: () => {} };
 		}),
 	);
 }

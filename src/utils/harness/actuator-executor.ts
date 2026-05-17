@@ -178,9 +178,11 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 					inner = fromAny<R>(rawResult, { signal: ac.signal });
 				} catch (err) {
 					emitOnce(onError(err, item));
-					return () => {
-						unlinkParent();
-						ac.abort();
+					return {
+						onDeactivation: () => {
+							unlinkParent();
+							ac.abort();
+						},
 					};
 				}
 				unsub = inner.subscribe((batch) => {
@@ -209,11 +211,13 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 					unsub();
 					unsub = null;
 				}
-				return () => {
-					unlinkParent();
-					ac.abort();
-					unsub?.();
-					unsub = null;
+				return {
+					onDeactivation: () => {
+						unlinkParent();
+						ac.abort();
+						unsub?.();
+						unsub = null;
+					},
 				};
 			},
 			{ name: `${name}/inner`, describeKind: "producer" },

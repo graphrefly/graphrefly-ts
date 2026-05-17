@@ -183,8 +183,10 @@ export function autoSolidify<R, T = R>(config: AutoSolidifyConfig<R, T>): Node<T
 				unsub();
 				unsub = null;
 			}
-			return () => {
-				tearDown();
+			return {
+				onDeactivation: () => {
+					tearDown();
+				},
 			};
 		},
 		{ name, describeKind: "producer" },

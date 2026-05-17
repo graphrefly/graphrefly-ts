@@ -80,31 +80,4 @@ describe("Phase 13.6.B B2 — Lock 4.A cleanup-hook rename", () => {
 		expect(seen).toEqual([1, 2]);
 		unsub();
 	});
-
-	it("transitional shim: function-form `() => void` still fires on all three transitions", () => {
-		// This shim is documented for removal — see optimizations.md "Lock
-		// 4.A — drop () => void cleanup-shorthand call-site sweep". The
-		// behavioural test pins the back-compat path so the eventual sweep
-		// removes both the call site AND the test together.
-		let count = 0;
-		const src = node<number>([], { initial: 1 });
-		const d = node<number>([src], (data, a) => {
-			a.emit((data[0]?.at(-1) as number) ?? 0);
-			return () => {
-				count++;
-			};
-		});
-		const unsub = d.subscribe(() => undefined);
-		expect(count).toBe(0);
-		// Re-run fires the shim and clears it.
-		src.down([[DATA, 2]]);
-		expect(count).toBe(1);
-		// Next run installed a fresh shim; INVALIDATE fires + clears.
-		src.down([[INVALIDATE]]);
-		expect(count).toBe(2);
-		unsub();
-		// Deactivation: no cleanup armed at deactivation (cleared by
-		// INVALIDATE above), so count stays at 2.
-		expect(count).toBe(2);
-	});
 });

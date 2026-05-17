@@ -113,9 +113,11 @@ export function fallback<T>(
 				}
 			});
 
-			return () => {
-				sourceUnsub?.();
-				fallbackUnsub?.();
+			return {
+				onDeactivation: () => {
+					sourceUnsub?.();
+					fallbackUnsub?.();
+				},
 			};
 		},
 		{

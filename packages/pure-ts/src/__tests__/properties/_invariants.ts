@@ -1716,8 +1716,10 @@ const invariant23RaceFirstWins: Invariant = {
 					[],
 					(_data, a) => {
 						pushers[i] = (v) => a.emit(v);
-						return () => {
-							pushers[i] = undefined;
+						return {
+							onDeactivation: () => {
+								pushers[i] = undefined;
+							},
 						};
 					},
 					{ describeKind: "producer" },
@@ -1884,7 +1886,7 @@ const invariant26TimeoutErrorsOnIdle: Invariant = {
 			try {
 				const silent = node<number>(
 					() => {
-						return () => {};
+						return { onDeactivation: () => {} };
 					},
 					{ describeKind: "producer" },
 				);
@@ -1946,8 +1948,10 @@ const invariant27ThrottleLeadingSuppresses: Invariant = {
 						[],
 						(_data, a) => {
 							pushSrc = (v) => a.emit(v);
-							return () => {
-								pushSrc = undefined;
+							return {
+								onDeactivation: () => {
+									pushSrc = undefined;
+								},
 							};
 						},
 						{ describeKind: "producer", equals: () => false },
@@ -2258,8 +2262,10 @@ const invariant33Delay: Invariant = {
 						[],
 						(_data, a) => {
 							pushSrc = (v) => a.emit(v);
-							return () => {
-								pushSrc = undefined;
+							return {
+								onDeactivation: () => {
+									pushSrc = undefined;
+								},
 							};
 						},
 						{ describeKind: "producer", equals: () => false },
@@ -2398,8 +2404,10 @@ const invariant35BufferTime: Invariant = {
 						[],
 						(_data, a) => {
 							push = (v) => a.emit(v);
-							return () => {
-								push = undefined;
+							return {
+								onDeactivation: () => {
+									push = undefined;
+								},
 							};
 						},
 						{ describeKind: "producer", equals: () => false },
@@ -3237,8 +3245,10 @@ const invariant50TakeUntil: Invariant = {
 				[],
 				(_data, a) => {
 					triggerNotifier = () => a.emit(1);
-					return () => {
-						triggerNotifier = undefined;
+					return {
+						onDeactivation: () => {
+							triggerNotifier = undefined;
+						},
 					};
 				},
 				{ describeKind: "producer" },

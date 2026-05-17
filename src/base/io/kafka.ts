@@ -138,8 +138,10 @@ export function fromKafka<T = unknown>(
 
 			void start();
 
-			return () => {
-				active = false;
+			return {
+				onDeactivation: () => {
+					active = false;
+				},
 			};
 		},
 		sourceOpts(rest),

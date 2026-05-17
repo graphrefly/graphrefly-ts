@@ -110,10 +110,12 @@ export function fromPrometheus(
 				}
 			};
 			void run();
-			return () => {
-				active = false;
-				clearTimeout(timeoutId);
-				abort.abort();
+			return {
+				onDeactivation: () => {
+					active = false;
+					clearTimeout(timeoutId);
+					abort.abort();
+				},
 			};
 		}),
 	);

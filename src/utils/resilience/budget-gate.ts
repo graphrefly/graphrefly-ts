@@ -376,8 +376,10 @@ export function budgetGate<T>(
 					}),
 				);
 			}
-			return () => {
-				for (const u of unsubs) u();
+			return {
+				onDeactivation: () => {
+					for (const u of unsubs) u();
+				},
 			};
 		},
 		{

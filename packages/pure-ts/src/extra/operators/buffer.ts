@@ -86,10 +86,12 @@ export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			notUnsub();
-			buf.length = 0;
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				notUnsub();
+				buf.length = 0;
+			},
 		};
 	}, operatorOpts(opts));
 }
@@ -143,9 +145,11 @@ export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			buf.length = 0;
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				buf.length = 0;
+			},
 		};
 	}, operatorOpts(opts));
 }
@@ -177,8 +181,10 @@ export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
 		function openWindow(): void {
 			const s = node<T>((_data2, actions) => {
 				winDown = actions.down.bind(actions);
-				return () => {
-					winDown = undefined;
+				return {
+					onDeactivation: () => {
+						winDown = undefined;
+					},
 				};
 			}, operatorOpts());
 			n = 0;
@@ -216,10 +222,12 @@ export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			winDown?.([[COMPLETE]]);
-			winDown = undefined;
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				winDown?.([[COMPLETE]]);
+				winDown = undefined;
+			},
 		};
 	}, operatorOpts(opts));
 }
@@ -284,10 +292,12 @@ export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
 				},
 			);
 
-			return () => {
-				srcUnsub();
-				clearInterval(iv);
-				buf.length = 0;
+			return {
+				onDeactivation: () => {
+					srcUnsub();
+					clearInterval(iv);
+					buf.length = 0;
+				},
 			};
 		},
 		{
@@ -326,8 +336,10 @@ export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
 		function openWindow(): void {
 			const s = node<T>((_data2, actions) => {
 				winDown = actions.down.bind(actions);
-				return () => {
-					winDown = undefined;
+				return {
+					onDeactivation: () => {
+						winDown = undefined;
+					},
 				};
 			}, operatorOpts());
 			a.emit(s);
@@ -366,10 +378,12 @@ export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			clearInterval(iv);
-			closeWindow();
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				clearInterval(iv);
+				closeWindow();
+			},
 		};
 	}, operatorOpts(opts));
 }
@@ -407,8 +421,10 @@ export function window<T>(
 		function openWindow(): void {
 			const s = node<T>((_data2, actions) => {
 				winDown = actions.down.bind(actions);
-				return () => {
-					winDown = undefined;
+				return {
+					onDeactivation: () => {
+						winDown = undefined;
+					},
 				};
 			}, operatorOpts());
 			a.emit(s);
@@ -455,10 +471,12 @@ export function window<T>(
 			},
 		);
 
-		return () => {
-			srcUnsub();
-			notUnsub();
-			closeWindow();
+		return {
+			onDeactivation: () => {
+				srcUnsub();
+				notUnsub();
+				closeWindow();
+			},
 		};
 	}, operatorOpts(opts));
 }

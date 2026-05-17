@@ -126,17 +126,21 @@ export function externalProducer<T = unknown>(
 			cleanup = typeof ret === "function" ? ret : undefined;
 		} catch (err) {
 			triad.error(err);
-			return () => {
-				active = false;
+			return {
+				onDeactivation: () => {
+					active = false;
+				},
 			};
 		}
-		return () => {
-			active = false;
-			try {
-				cleanup?.();
-			} catch {
-				/* registrar cleanup failure is not a reactive signal */
-			}
+		return {
+			onDeactivation: () => {
+				active = false;
+				try {
+					cleanup?.();
+				} catch {
+					/* registrar cleanup failure is not a reactive signal */
+				}
+			},
 		};
 	}, sourceOpts(opts));
 }
@@ -215,19 +219,21 @@ export function externalBundle<TChannels extends Record<string, unknown>>(
 		const n = node<TChannels[typeof ch]>(
 			(_data, _a) => {
 				activatedCount++;
-				return () => {
-					teardownCount++;
-					// Cleanup fires once every channel has activated at least once
-					// and then deactivated. Channels that never subscribe do not
-					// gate cleanup — use the explicit `.dispose()` method for
-					// unconditional teardown.
-					if (
-						activatedCount > 0 &&
-						teardownCount >= activatedCount &&
-						teardownCount >= channels.length
-					) {
-						finishCleanup();
-					}
+				return {
+					onDeactivation: () => {
+						teardownCount++;
+						// Cleanup fires once every channel has activated at least once
+						// and then deactivated. Channels that never subscribe do not
+						// gate cleanup — use the explicit `.dispose()` method for
+						// unconditional teardown.
+						if (
+							activatedCount > 0 &&
+							teardownCount >= activatedCount &&
+							teardownCount >= channels.length
+						) {
+							finishCleanup();
+						}
+					},
 				};
 			},
 			sourceOpts({ ...chOpts, name }),

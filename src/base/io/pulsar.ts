@@ -185,8 +185,10 @@ export function fromPulsar<T = unknown>(
 
 			void loop();
 
-			return () => {
-				active = false;
+			return {
+				onDeactivation: () => {
+					active = false;
+				},
 			};
 		},
 		sourceOpts(rest),

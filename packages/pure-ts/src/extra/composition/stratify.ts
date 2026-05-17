@@ -228,9 +228,11 @@ export function stratifyBranch<T, R>(
 					handle(msg, 1, filterActions);
 				}
 			});
-			return () => {
-				srcUnsub();
-				rulesUnsub();
+			return {
+				onDeactivation: () => {
+					srcUnsub();
+					rulesUnsub();
+				},
 			};
 		},
 		{

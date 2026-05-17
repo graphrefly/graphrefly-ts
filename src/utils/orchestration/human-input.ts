@@ -197,9 +197,11 @@ export function humanInput<T>(opts: HumanInputOpts): Node<T> {
 				}
 			});
 
-			return () => {
-				promptUnsub();
-				respUnsub?.();
+			return {
+				onDeactivation: () => {
+					promptUnsub();
+					respUnsub?.();
+				},
 			};
 		},
 		{

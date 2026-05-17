@@ -307,9 +307,11 @@ export function takeUntil<T>(
 					// no-op — notifier signal never fires; passthrough source.
 				},
 			);
-			return () => {
-				srcUnsub();
-				notUnsub();
+			return {
+				onDeactivation: () => {
+					srcUnsub();
+					notUnsub();
+				},
 			};
 		},
 		operatorOpts(restOpts as ExtraOpts),

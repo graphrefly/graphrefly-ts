@@ -114,16 +114,20 @@ export class ToolRegistryGraph extends Graph {
 					// still aborts the controller for symmetry (no-op if no
 					// signal listeners attached).
 					actions.down([[ERROR, err]] satisfies Messages);
-					return () => {
-						ac.abort();
+					return {
+						onDeactivation: () => {
+							ac.abort();
+						},
 					};
 				}
 				const unsub = inner.subscribe((batch) => {
 					actions.down(batch as Messages);
 				});
-				return () => {
-					ac.abort();
-					unsub();
+				return {
+					onDeactivation: () => {
+						ac.abort();
+						unsub();
+					},
 				};
 			},
 			{

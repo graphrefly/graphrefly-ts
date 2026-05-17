@@ -136,13 +136,15 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
 		} catch (err) {
 			emitError(err);
 		}
-		return () => {
-			stopped = true;
-			generation += 1;
-			if (timer !== undefined) clearTimeout(timer);
-			timer = undefined;
-			closeWatchers();
-			pending.clear();
+		return {
+			onDeactivation: () => {
+				stopped = true;
+				generation += 1;
+				if (timer !== undefined) clearTimeout(timer);
+				timer = undefined;
+				closeWatchers();
+				pending.clear();
+			},
 		};
 	}, sourceOpts(rest));
 }

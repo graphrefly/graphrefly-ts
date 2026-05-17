@@ -221,9 +221,11 @@ export function _oneShotLlmCall<T>(
 				invokeResult = adapter.invoke(messages, { ...config.invokeOpts, signal: ac.signal });
 			} catch (err) {
 				emitOnce(config.onFailure("throw", err));
-				return () => {
-					unlinkParent();
-					ac.abort();
+				return {
+					onDeactivation: () => {
+						unlinkParent();
+						ac.abort();
+					},
 				};
 			}
 			const callNode = fromAny<LLMResponse>(invokeResult, { signal: ac.signal });
@@ -259,11 +261,13 @@ export function _oneShotLlmCall<T>(
 				unsub();
 				unsub = null;
 			}
-			return () => {
-				unlinkParent();
-				ac.abort();
-				unsub?.();
-				unsub = null;
+			return {
+				onDeactivation: () => {
+					unlinkParent();
+					ac.abort();
+					unsub?.();
+					unsub = null;
+				},
 			};
 		},
 		{ describeKind: "producer" },

@@ -170,9 +170,11 @@ export function graphFromSpecReactive(
 						if (cancelled) return;
 						actions.down([[ERROR, err]]);
 					});
-				return () => {
-					cancelled = true;
-					controller.abort();
+				return {
+					onDeactivation: () => {
+						cancelled = true;
+						controller.abort();
+					},
 				};
 			},
 			{ describeKind: "producer", ...{ name: "graphFromSpec::call" } },

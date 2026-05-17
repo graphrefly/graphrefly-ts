@@ -164,6 +164,66 @@ describe("extra resilience (roadmap §3.1)", () => {
 			expect(data.some((m) => m[1] === 42)).toBe(true);
 			unsub();
 		});
+
+		// DF2 regression: an ERROR delivered in the SAME wave as a COMPLETE
+		// (after disconnectUpstream() runs but before the teardown closure
+		// would set `stopped`) must NOT schedule a new retry timer. The
+		// COMPLETE branch sets `stopped = true` synchronously so the trailing
+		// ERROR hits the `if (stopped) return` guard in
+		// `scheduleRetryOrFinish`. Without the fix, `count: 5 + backoff:0`
+		// would arm a timer that re-subscribes a completed machine.
+		it("DF2: ERROR in the same wave as COMPLETE does not schedule a retry", async () => {
+			vi.useFakeTimers();
+			let runs = 0;
+			const src = node(
+				[],
+				(_data, a) => {
+					runs += 1;
+					// COMPLETE then ERROR in one batch — the race window.
+					a.down([[COMPLETE], [ERROR, new Error("late ERROR after COMPLETE")]]);
+				},
+				{ describeKind: "producer", resubscribable: true },
+			);
+			const out = retry(src, { count: 5, backoff: constant(0) }).node;
+			const { batches, unsub } = collect(out);
+			// If the race were live, a retry timer would fire here and re-run
+			// the producer (runs === 2) and re-deliver the trailing ERROR.
+			await vi.advanceTimersByTimeAsync(100);
+			expect(runs).toBe(1);
+			const flat = batches.flat();
+			expect(flat.filter((m) => m[0] === COMPLETE).length).toBe(1);
+			// The trailing ERROR is swallowed by the stopped-machine guard —
+			// it must NOT propagate downstream as a fresh ERROR after COMPLETE.
+			expect(flat.some((m) => m[0] === ERROR)).toBe(false);
+			unsub();
+		});
+
+		// DF6 regression: source-mode retry on a non-`resubscribable` upstream
+		// warns exactly once per source (WeakSet dedup), and never warns when
+		// the upstream IS resubscribable.
+		it("DF6: warns once when source is not resubscribable", () => {
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+			try {
+				// Default node — `_resubscribable === false`.
+				const src = node([], (_data, a) => a.down([[ERROR, new Error("x")]]), {
+					describeKind: "producer",
+				});
+				retry(src, { count: 1, backoff: constant(0) });
+				retry(src, { count: 1, backoff: constant(0) }); // same source — deduped
+				expect(warnSpy).toHaveBeenCalledTimes(1);
+				expect(warnSpy.mock.calls[0]?.[0]).toMatch(/requires `resubscribable: true`/);
+
+				// A resubscribable source must not trip the warn.
+				const ok = node([], (_data, a) => a.down([[ERROR, new Error("x")]]), {
+					describeKind: "producer",
+					resubscribable: true,
+				});
+				retry(ok, { count: 1, backoff: constant(0) });
+				expect(warnSpy).toHaveBeenCalledTimes(1);
+			} finally {
+				warnSpy.mockRestore();
+			}
+		});
 	});
 
 	describe("retry + withMaxAttempts", () => {
@@ -343,8 +403,10 @@ describe("extra resilience (roadmap §3.1)", () => {
 				builds += 1;
 				return node<number>(
 					(_a) => {
-						return () => {
-							innerTeardowns += 1;
+						return {
+							onDeactivation: () => {
+								innerTeardowns += 1;
+							},
 						};
 					},
 					{ describeKind: "producer" },

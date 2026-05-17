@@ -149,7 +149,7 @@ export function withStatus<T>(
 				}
 			});
 
-			return unsub;
+			return { onDeactivation: unsub };
 		},
 		{
 			...operatorOpts(),

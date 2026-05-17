@@ -149,48 +149,49 @@ export type NodeTransportOptions = {
  *
  * Each hook is independent and fires exactly once on its named transition;
  * missing hooks are no-ops. Returning `{}` (or no cleanup) is valid — the
- * common case. Returning all three slots covers every lifecycle event.
+ * common case. The three normal-lifecycle slots (`onRerun` /
+ * `onDeactivation` / `onInvalidate`) cover every ordinary lifecycle event;
+ * `onResubscribableReset` (below) is a fourth slot for the
+ * post-terminal-resubscribable reset path that runs WITHOUT `_deactivate`.
  *
- * **Transitional shim:** the legacy `() => void` shorthand (single fn that
- * fired on rerun + deactivation + invalidate) is still accepted at runtime,
- * mapped to `{ onDeactivation: fn, onRerun: fn, onInvalidate: fn }` for
- * back-compat during the 13.6.B sweep. The shorthand will be removed in a
- * follow-up batch (tracked in `docs/optimizations.md`); new code should use
- * the named-hook object form.
+ * **Lock 4.A:** the legacy `() => void` cleanup shorthand was removed
+ * entirely — from the type, from every runtime firing site, and from every
+ * call site. There is no shim. Every site declares the exact transition(s)
+ * it means: a resource disposed when the node deactivates uses
+ * `{ onDeactivation }`; a per-rerun reset uses `{ onRerun }`; an
+ * INVALIDATE-time flush uses `{ onInvalidate }`.
  *
  * Closure access: hooks are declared inside `NodeFn`, so they see the same
  * closure as the fn body (per-run locals, `ctx.store`, dep refs).
  */
-export type NodeFnCleanup =
-	| (() => void)
-	| {
-			onRerun?: () => void;
-			onDeactivation?: () => void;
-			onInvalidate?: () => void;
-			/**
-			 * Phase 13.6.B QA D1 (Lock 6.D follow-up): fires from
-			 * `_resetForFreshLifecycle` — the post-terminal-resubscribable
-			 * reset path that runs WITHOUT `_deactivate`. Two callers:
-			 *   1. `subscribe()` after a terminal-resubscribable node was
-			 *      kept alive by another sink (multi-sub-stayed case);
-			 *   2. INVALIDATE on a terminal-resubscribable node.
-			 *
-			 * Pre-Lock-6.D the framework auto-wiped `ctx.store` on this
-			 * path. Post-flip the store preserves; operators with
-			 * one-shot store flags (`frozenContext.emitted`,
-			 * `take.completed`, etc.) need an explicit hook to clear
-			 * those flags when the node enters a fresh lifecycle without
-			 * deactivation.
-			 *
-			 * Distinct from `onDeactivation` because the cleanup contract
-			 * is different: `onDeactivation` may dispose timers /
-			 * subscriptions / external resources that must NOT be
-			 * disposed on a mid-life lifecycle reset. Use this slot ONLY
-			 * for store-state resets that need to fire on every "fresh
-			 * lifecycle" transition.
-			 */
-			onResubscribableReset?: () => void;
-	  };
+export type NodeFnCleanup = {
+	onRerun?: () => void;
+	onDeactivation?: () => void;
+	onInvalidate?: () => void;
+	/**
+	 * Phase 13.6.B QA D1 (Lock 6.D follow-up): fires from
+	 * `_resetForFreshLifecycle` — the post-terminal-resubscribable
+	 * reset path that runs WITHOUT `_deactivate`. Two callers:
+	 *   1. `subscribe()` after a terminal-resubscribable node was
+	 *      kept alive by another sink (multi-sub-stayed case);
+	 *   2. INVALIDATE on a terminal-resubscribable node.
+	 *
+	 * Pre-Lock-6.D the framework auto-wiped `ctx.store` on this
+	 * path. Post-flip the store preserves; operators with
+	 * one-shot store flags (`frozenContext.emitted`,
+	 * `take.completed`, etc.) need an explicit hook to clear
+	 * those flags when the node enters a fresh lifecycle without
+	 * deactivation.
+	 *
+	 * Distinct from `onDeactivation` because the cleanup contract
+	 * is different: `onDeactivation` may dispose timers /
+	 * subscriptions / external resources that must NOT be
+	 * disposed on a mid-life lifecycle reset. Use this slot ONLY
+	 * for store-state resets that need to fire on every "fresh
+	 * lifecycle" transition.
+	 */
+	onResubscribableReset?: () => void;
+};
 
 /**
  * Fn-time context exposing per-wave metadata and a per-node persistent
@@ -1423,12 +1424,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// QA D1: fire `onResubscribableReset` BEFORE clearing internal
 		// state so the user hook sees a coherent pre-reset world (e.g.,
 		// `_cached` still populated for any "I am being torn down with
-		// value V" introspection). Function-shorthand cleanup form is
-		// NOT fired here — that shape conflates rerun / deactivation /
-		// invalidate and would overfire on a lifecycle reset boundary.
-		// Only the named-hook `onResubscribableReset` slot fires.
+		// value V" introspection). Only the named-hook
+		// `onResubscribableReset` slot fires on a lifecycle-reset boundary;
+		// sites that only wire `onDeactivation` / `onRerun` are deliberately
+		// NOT fired here, so a reset never overfires their teardown body.
 		const c = this._cleanup;
-		if (c != null && typeof c !== "function") {
+		if (c != null) {
 			const hook = c.onResubscribableReset;
 			if (typeof hook === "function") {
 				c.onResubscribableReset = undefined;
@@ -2202,9 +2203,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 *   preserve their current status.
 	 */
 	_deactivate(skipStatusUpdate = false): void {
-		// Fn cleanup — fires the `onDeactivation` hook (Lock 4.A).
-		// Function-form shorthand still fires here too (transitional, see
-		// `NodeFnCleanup` doc; tracked for removal in `docs/optimizations.md`).
+		// Fn cleanup — fires the `onDeactivation` hook (Lock 4.A; named-hook
+		// object form only — the legacy function-form leg was removed).
 		// Note on cleanup-throw ERRORs: when deactivation runs as part of
 		// last-sink-unsubscribe, `_sinks` is already `null` by the time this
 		// method is reached, so any ERROR emitted here lands on
@@ -2214,13 +2214,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// `configure()`.
 		const cleanup = this._cleanup;
 		this._cleanup = undefined;
-		if (typeof cleanup === "function") {
-			try {
-				cleanup();
-			} catch (err) {
-				this._emit([[ERROR, this._wrapFnError("cleanup threw", err)]]);
-			}
-		} else if (cleanup != null) {
+		if (cleanup != null) {
 			const hook = cleanup.onDeactivation;
 			if (typeof hook === "function") {
 				try {
@@ -2657,18 +2651,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// invocation so a throw doesn't leave the hook armed for the next
 		// run (violating the "fires exactly once on its named transition"
 		// contract).
-		// Function-form shorthand still fires here too (transitional, see
-		// `NodeFnCleanup` doc; tracked for removal in `docs/optimizations.md`).
+		// Named-hook object form only (Lock 4.A; function-form leg removed).
 		const prevCleanup = this._cleanup;
-		if (typeof prevCleanup === "function") {
-			this._cleanup = undefined;
-			try {
-				prevCleanup();
-			} catch (err) {
-				this._emit([[ERROR, this._wrapFnError("cleanup threw", err)]]);
-				return;
-			}
-		} else if (prevCleanup != null) {
+		if (prevCleanup != null) {
 			const hook = prevCleanup.onRerun;
 			if (typeof hook === "function") {
 				prevCleanup.onRerun = undefined;
@@ -2717,12 +2702,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._isExecutingFn = true;
 		try {
 			const result = this._fn(batchData, this._actions, ctx);
-			// Lock 4.A (Phase 13.6.A): named-hook object form is the canonical
-			// shape. Function shorthand still accepted as a transitional shim
-			// (see `NodeFnCleanup` doc + `docs/optimizations.md`).
-			if (typeof result === "function") {
-				this._cleanup = result;
-			} else if (result != null && typeof result === "object") {
+			// Lock 4.A: the named-hook object form is the ONLY accepted
+			// cleanup shape (the legacy `() => void` shorthand was removed
+			// entirely — type, firing sites, and call sites).
+			if (result != null && typeof result === "object") {
 				const o = result as {
 					onRerun?: unknown;
 					onDeactivation?: unknown;
@@ -3529,18 +3512,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					//       hook once — semantically correct since the second
 					//       INVALIDATE arrives at an already-`"sentinel"` node
 					//       with `_cached === undefined`.
-					// Function-form shorthand still fires here too
-					// (transitional, see `NodeFnCleanup` doc; tracked for
-					// removal in `docs/optimizations.md`).
+					// Named-hook object form only (Lock 4.A; the legacy
+					// function-form leg was removed).
 					const c = this._cleanup;
-					if (typeof c === "function") {
-						this._cleanup = undefined;
-						try {
-							c();
-						} catch {
-							/* best-effort */
-						}
-					} else if (c != null) {
+					if (c != null) {
 						const hook = c.onInvalidate;
 						if (typeof hook === "function") {
 							c.onInvalidate = undefined;

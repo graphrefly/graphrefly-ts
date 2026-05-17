@@ -236,11 +236,13 @@ export function toSSEBytes<T>(source: Node<T>, opts?: ToSSEOptions): Node<Uint8A
 		}
 		if (signal?.aborted) onAbort();
 		else signal?.addEventListener("abort", onAbort, { once: true });
-		return () => {
-			active = false;
-			if (keepAlive !== undefined) clearInterval(keepAlive);
-			signal?.removeEventListener("abort", onAbort);
-			unsub();
+		return {
+			onDeactivation: () => {
+				active = false;
+				if (keepAlive !== undefined) clearInterval(keepAlive);
+				signal?.removeEventListener("abort", onAbort);
+				unsub();
+			},
 		};
 	});
 }
@@ -530,9 +532,11 @@ export function fromSSE<T = string>(
 				}
 			};
 			void run();
-			return () => {
-				active = false;
-				ctrl.abort();
+			return {
+				onDeactivation: () => {
+					active = false;
+					ctrl.abort();
+				},
 			};
 		},
 		sourceOpts(rest),

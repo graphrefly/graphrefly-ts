@@ -127,20 +127,22 @@ export function fromSpawn(
 				] satisfies Messages);
 			});
 
-			return () => {
-				if (alive) {
-					alive = false;
-					child.stdout?.removeAllListeners();
-					child.stderr?.removeAllListeners();
-					child.removeAllListeners("error");
-					child.removeAllListeners("exit");
-					child.removeAllListeners("close");
-					try {
-						child.kill("SIGTERM");
-					} catch {
-						// already dead — ignore
+			return {
+				onDeactivation: () => {
+					if (alive) {
+						alive = false;
+						child.stdout?.removeAllListeners();
+						child.stderr?.removeAllListeners();
+						child.removeAllListeners("error");
+						child.removeAllListeners("exit");
+						child.removeAllListeners("close");
+						try {
+							child.kill("SIGTERM");
+						} catch {
+							// already dead — ignore
+						}
 					}
-				}
+				},
 			};
 		},
 		{ name: "from_spawn" },
@@ -249,20 +251,22 @@ export function runProcess(
 				] satisfies Messages);
 			});
 
-			return () => {
-				if (alive) {
-					alive = false;
-					child.stdout?.removeAllListeners();
-					child.stderr?.removeAllListeners();
-					child.removeAllListeners("error");
-					child.removeAllListeners("exit");
-					child.removeAllListeners("close");
-					try {
-						child.kill("SIGTERM");
-					} catch {
-						// already dead — ignore
+			return {
+				onDeactivation: () => {
+					if (alive) {
+						alive = false;
+						child.stdout?.removeAllListeners();
+						child.stderr?.removeAllListeners();
+						child.removeAllListeners("error");
+						child.removeAllListeners("exit");
+						child.removeAllListeners("close");
+						try {
+							child.kill("SIGTERM");
+						} catch {
+							// already dead — ignore
+						}
 					}
-				}
+				},
 			};
 		},
 		{ name: "run_process" },

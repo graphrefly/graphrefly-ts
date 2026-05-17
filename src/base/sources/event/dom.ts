@@ -90,8 +90,12 @@ export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
 		};
 
 		if (signal?.aborted) {
+			// Already aborted before activation — `onAbort()` ran `cleanup()`
+			// and emitted ERROR. No listeners/timers were registered yet, so
+			// there is nothing to tear down on deactivation; returning a
+			// cleanup here would just re-run the (idempotent) no-op.
 			onAbort();
-			return cleanup;
+			return;
 		}
 		signal?.addEventListener("abort", onAbort, { once: true });
 		abortListenerAdded = signal !== undefined;
@@ -100,7 +104,7 @@ export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
 			visibilityListenerAdded = true;
 		}
 		scheduleNext();
-		return cleanup;
+		return { onDeactivation: cleanup };
 	}, sourceOpts(rest));
 }
 
@@ -133,6 +137,6 @@ export function fromEvent<T = unknown>(
 		};
 		const options = { capture, passive, once };
 		target.addEventListener(type, handler, options);
-		return () => target.removeEventListener(type, handler, options);
+		return { onDeactivation: () => target.removeEventListener(type, handler, options) };
 	}, sourceOpts(rest));
 }

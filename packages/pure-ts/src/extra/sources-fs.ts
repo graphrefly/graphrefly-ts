@@ -174,7 +174,7 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
 			}
 		} catch (err) {
 			emitError(err);
-			return () => {};
+			return { onDeactivation: () => {} };
 		}
 
 		// --- Phase 2: async init (scan existing files, then become ready) ---
@@ -241,14 +241,16 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
 			}
 		})();
 
-		return () => {
-			stopped = true;
-			generation += 1;
-			if (timer !== undefined) clearTimeout(timer);
-			timer = undefined;
-			closeWatchers();
-			pending.clear();
-			buffered.clear();
+		return {
+			onDeactivation: () => {
+				stopped = true;
+				generation += 1;
+				if (timer !== undefined) clearTimeout(timer);
+				timer = undefined;
+				closeWatchers();
+				pending.clear();
+				buffered.clear();
+			},
 		};
 	}, sourceOpts(rest));
 }

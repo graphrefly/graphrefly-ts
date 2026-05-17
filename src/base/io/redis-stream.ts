@@ -120,8 +120,10 @@ export function fromRedisStream<T = unknown>(
 
 			void poll();
 
-			return () => {
-				active = false;
+			return {
+				onDeactivation: () => {
+					active = false;
+				},
 			};
 		},
 		sourceOpts(rest),

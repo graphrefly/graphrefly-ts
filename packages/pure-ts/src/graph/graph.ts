@@ -1735,8 +1735,10 @@ export class Graph {
 						actions.emit(event);
 					};
 					this._topologyEmitters.add(handler);
-					return () => {
-						this._topologyEmitters.delete(handler);
+					return {
+						onDeactivation: () => {
+							this._topologyEmitters.delete(handler);
+						},
 					};
 				},
 				{ name: `${this.name}_topology`, describeKind: "producer" },
@@ -4173,18 +4175,20 @@ export class Graph {
 					topoDetach = () => this._topologyEmitters.delete(topoHandler);
 				}
 
-				return () => {
-					disposed = true;
-					// Detach topology handler FIRST so no new lateHandles
-					// accumulate between `disposed = true` and the dispose pass.
-					if (topoDetach) topoDetach();
-					off();
-					handle.dispose();
-					for (const entry of lateHandles.values()) {
-						entry.off();
-						entry.handle.dispose();
-					}
-					lateHandles.clear();
+				return {
+					onDeactivation: () => {
+						disposed = true;
+						// Detach topology handler FIRST so no new lateHandles
+						// accumulate between `disposed = true` and the dispose pass.
+						if (topoDetach) topoDetach();
+						off();
+						handle.dispose();
+						for (const entry of lateHandles.values()) {
+							entry.off();
+							entry.handle.dispose();
+						}
+						lateHandles.clear();
+					},
 				};
 			},
 			{
@@ -4494,13 +4498,15 @@ export class Graph {
 					});
 				});
 
-				return () => {
-					disposed = true;
-					for (const unsub of subscriptionsByPath.values()) unsub();
-					for (const detach of inspectorDetachesByPath.values()) detach();
-					subscriptionsByPath.clear();
-					inspectorDetachesByPath.clear();
-					offTopology();
+				return {
+					onDeactivation: () => {
+						disposed = true;
+						for (const unsub of subscriptionsByPath.values()) unsub();
+						for (const detach of inspectorDetachesByPath.values()) detach();
+						subscriptionsByPath.clear();
+						inspectorDetachesByPath.clear();
+						offTopology();
+					},
 				};
 			},
 			{
