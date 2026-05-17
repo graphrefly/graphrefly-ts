@@ -1,5 +1,12 @@
 # @graphrefly-examples/compat-nanostores
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [[`fda9432`](https://github.com/graphrefly/graphrefly-ts/commit/fda94326c6656c27008c2733f305a5c077f8ff09)]:
+  - @graphrefly/graphrefly@0.47.2
+
 ## 0.0.4
 
 ### Patch Changes

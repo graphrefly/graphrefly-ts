@@ -1,5 +1,11 @@
 # [0.44.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.43.0...v0.44.0) (2026-04-29)
 
+## 0.47.2
+
+### Patch Changes
+
+- [`fda9432`](https://github.com/graphrefly/graphrefly-ts/commit/fda94326c6656c27008c2733f305a5c077f8ff09) Thanks [@clfhhc](https://github.com/clfhhc)! - fix legacy cleanup
+
 ## 0.47.1
 
 ### Patch Changes

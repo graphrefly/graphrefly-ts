@@ -1,5 +1,12 @@
 # @graphrefly/rn-hermes-fixture
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [[`fda9432`](https://github.com/graphrefly/graphrefly-ts/commit/fda94326c6656c27008c2733f305a5c077f8ff09)]:
+  - @graphrefly/pure-ts@0.47.2
+
 ## 0.0.3
 
 ### Patch Changes
