@@ -17,9 +17,9 @@ import type {
 	Evaluator,
 	RefineStrategy,
 } from "../../../presets/harness/refine-loop.js";
+import { mockLLM } from "../../../testing/mock-llm.js";
 import type { HarnessJobPayload, VerifyResult } from "../../../utils/harness/index.js";
 import type { JobEnvelope } from "../../../utils/job-queue/index.js";
-import { mockLLM } from "../../helpers/mock-llm.js";
 
 const REQUIRED = ["reactive", "composable", "inspectable"] as const;
 const DATASET: readonly DatasetItem[] = REQUIRED.map((kw) => ({ id: kw }));

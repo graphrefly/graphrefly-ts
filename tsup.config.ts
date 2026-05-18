@@ -56,6 +56,8 @@ const ENTRY_POINTS = [
 	"src/presets/resilience/index.ts",
 	// Solutions layer
 	"src/solutions/index.ts",
+	// Testing — public test utilities (universal)
+	"src/testing/index.ts",
 	// Compat — per-framework adapters
 	"src/compat/index.ts",
 	"src/compat/jotai/index.ts",

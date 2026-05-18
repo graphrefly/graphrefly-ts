@@ -3,6 +3,7 @@ import { monotonicNs } from "@graphrefly/pure-ts/core/clock.js";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it, vi } from "vitest";
 import { HarnessGraph, harnessLoop } from "../../../presets/harness/harness-loop.js";
+import { mockLLM } from "../../../testing/mock-llm.js";
 import { contentGate, redactor } from "../../../utils/ai/index.js";
 import { trackingKey } from "../../../utils/harness/_internal.js";
 import {
@@ -29,7 +30,6 @@ import {
 	type TriagedItem,
 } from "../../../utils/harness/types.js";
 import { TopicGraph, topic } from "../../../utils/messaging/index.js";
-import { mockLLM } from "../../helpers/mock-llm.js";
 
 // ---------------------------------------------------------------------------
 // types

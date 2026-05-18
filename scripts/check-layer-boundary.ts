@@ -45,6 +45,12 @@ const RANK: Record<string, number> = {
 	presets: 3,
 	solutions: 4,
 	compat: 5,
+	// `testing/` ships the `mockLLM` test fixture on the public
+	// `@graphrefly/graphrefly/testing` subpath. Ranked ABOVE every production
+	// layer so the ratchet hard-fails any base/utils/presets/solutions/compat
+	// source that imports a test mock into shipped code. Test files
+	// (`src/__tests__/**`) stay unranked and may import it freely.
+	testing: 6,
 };
 
 /**

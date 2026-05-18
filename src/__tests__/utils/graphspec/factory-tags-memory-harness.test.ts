@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { agentLoop } from "../../../presets/ai/agent-loop.js";
 import { agentMemory } from "../../../presets/ai/agent-memory.js";
 import { harnessLoop } from "../../../presets/harness/harness-loop.js";
-import { mockLLM } from "../../helpers/mock-llm.js";
+import { mockLLM } from "../../../testing/mock-llm.js";
 
 describe("Tier 1.5.3 Phase 2.5 — factory tags (memory + harness + agent)", () => {
 	it("agentMemory tags the Graph with factory='agentMemory' and factoryArgs", () => {

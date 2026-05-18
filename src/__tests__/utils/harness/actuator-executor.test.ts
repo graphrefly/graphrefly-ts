@@ -13,6 +13,7 @@ import { fromAny } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it, vi } from "vitest";
 import { evalVerifier, harnessLoop } from "../../../presets/harness/index.js";
 import type { DatasetItem, EvalResult, Evaluator } from "../../../presets/harness/refine-loop.js";
+import { mockLLM } from "../../../testing/mock-llm.js";
 import {
 	actuatorExecutor,
 	dispatchActuator,
@@ -21,7 +22,6 @@ import {
 	type VerifyResult,
 } from "../../../utils/harness/index.js";
 import type { JobEnvelope } from "../../../utils/job-queue/index.js";
-import { mockLLM } from "../../helpers/mock-llm.js";
 
 const SAMPLE_ITEM: TriagedItem = {
 	source: "eval",

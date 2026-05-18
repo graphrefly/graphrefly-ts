@@ -88,6 +88,7 @@ export * from "./safety/redactor.js";
 export * from "./agents/chat-stream.js";
 export * from "./agents/handoff.js";
 export * from "./agents/tool-execution.js";
+export * from "./agents/tool-interceptor.js";
 export * from "./agents/tool-registry.js";
 export * from "./agents/tool-selector.js";
 
