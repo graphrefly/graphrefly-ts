@@ -15,14 +15,14 @@ import { COMPLETE, DATA, DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN } from "../.
 import type { NodeFn, NodeImpl } from "../../core/node.js";
 import { node } from "../../core/node.js";
 
-// Test-only helper: the substrate `_setDeps` requires `fn` at every call site
+// Test-only helper: the substrate `setDeps` requires `fn` at every call site
 // to enforce explicit fn-deps pairing (Phase 13.8 lock). Tests that don't
 // intend to swap fn pass `undefined` here and the helper retrieves the current
 // `_fn` from the node — pragmatic test ergonomics. Tests that DO swap fn pass
 // a fresh NodeFn.
 const setDeps = (n: unknown, deps: readonly unknown[], fn?: NodeFn): void => {
 	const impl = n as NodeImpl;
-	impl._setDeps(deps as Parameters<NodeImpl["_setDeps"]>[0], fn ?? (impl._fn as NodeFn));
+	impl.setDeps(deps as Parameters<NodeImpl["setDeps"]>[0], fn ?? (impl._fn as NodeFn));
 };
 
 // Test-only no-op fn for guard-rejection paths where the fn argument never runs.
@@ -692,7 +692,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 
 		// Swap order [a, b] → [b, a] AND swap fn so user-visible computation
 		// stays a*10 + b (now reading from new positions).
-		(c as unknown as NodeImpl)._setDeps([b, a], (data, actions, ctx) => {
+		(c as unknown as NodeImpl).setDeps([b, a], (data, actions, ctx) => {
 			const bv = data[0]?.[0] ?? ctx.prevData[0];
 			const av = data[1]?.[0] ?? ctx.prevData[1];
 			actions.emit(((av as number) ?? 0) * 10 + ((bv as number) ?? 0));
@@ -714,7 +714,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		expect(c.cache).toBe(70);
 
 		// Swap fn only; dep set unchanged. Cache preserved per Q7.
-		(c as unknown as NodeImpl)._setDeps([a], (data, actions, ctx) => {
+		(c as unknown as NodeImpl).setDeps([a], (data, actions, ctx) => {
 			const v = data[0]?.[0] ?? ctx.prevData[0];
 			actions.emit((v as number) + 100);
 		});
@@ -738,7 +738,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		// Initial run: onRerun was set but hasn't fired yet (first run, no prior).
 		expect(oldRerunFired).toBe(0);
 
-		(c as unknown as NodeImpl)._setDeps([a], (data, actions, ctx) => {
+		(c as unknown as NodeImpl).setDeps([a], (data, actions, ctx) => {
 			const v = data[0]?.[0] ?? ctx.prevData[0];
 			actions.emit((v as number) + 1000);
 			return { onRerun: () => newRerunFired++ };
@@ -769,7 +769,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		expect(c.cache).toBe(10);
 
 		// Append b AND swap fn to consume both deps.
-		(c as unknown as NodeImpl)._addDep(b, (data, actions, ctx) => {
+		(c as unknown as NodeImpl).addDep(b, (data, actions, ctx) => {
 			const av = data[0]?.[0] ?? ctx.prevData[0];
 			const bv = data[1]?.[0] ?? ctx.prevData[1];
 			actions.emit(((av as number) ?? 0) + ((bv as number) ?? 0));
@@ -792,7 +792,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		const c = node<number>({ initial: 5 });
 		c.subscribe(() => {});
 
-		expect(() => (c as unknown as NodeImpl)._addDep(aTerm, noopFn)).toThrowError(
+		expect(() => (c as unknown as NodeImpl).addDep(aTerm, noopFn)).toThrowError(
 			/non-resubscribable terminal dep/,
 		);
 	});
@@ -815,7 +815,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 
 		// Same fn — still required at API; this is a fn-preservation rewire.
 		const cFn = (c as unknown as NodeImpl)._fn as NodeFn;
-		expect(() => (c as unknown as NodeImpl)._addDep(aTerm, cFn)).not.toThrow();
+		expect(() => (c as unknown as NodeImpl).addDep(aTerm, cFn)).not.toThrow();
 		expect(aTerm.status).toBe("pending");
 	});
 
@@ -830,7 +830,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		c.down([[COMPLETE]]);
 		expect(c.status).toBe("completed");
 
-		expect(() => (c as unknown as NodeImpl)._addDep(b, noopFn)).toThrowError(/terminal state/);
+		expect(() => (c as unknown as NodeImpl).addDep(b, noopFn)).toThrowError(/terminal state/);
 	});
 
 	it("_addDep rejects self-dependency", () => {
@@ -841,7 +841,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		});
 		c.subscribe(() => {});
 
-		expect(() => (c as unknown as NodeImpl)._addDep(c, noopFn)).toThrowError(/self-dependency/);
+		expect(() => (c as unknown as NodeImpl).addDep(c, noopFn)).toThrowError(/self-dependency/);
 	});
 
 	it("_addDep rejects cycle introduction", () => {
@@ -852,7 +852,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		});
 		b.subscribe(() => {});
 		// Try to make `a` depend on `b` — would close cycle a→b→a.
-		expect(() => (a as unknown as NodeImpl)._addDep(b, noopFn)).toThrowError(/would create cycle/);
+		expect(() => (a as unknown as NodeImpl).addDep(b, noopFn)).toThrowError(/would create cycle/);
 	});
 
 	it("_addDep rejects mid-fn (with autoTrackNode escape hatch via _addDepInternal)", () => {
@@ -863,7 +863,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 			actions.emit((v as number) * 10);
 			// Try to mutate deps mid-fn — public _addDep should reject.
 			try {
-				(c as unknown as NodeImpl)._addDep(b, noopFn);
+				(c as unknown as NodeImpl).addDep(b, noopFn);
 			} catch (err) {
 				ctx.store.midFnAddDepError = (err as Error).message;
 			}
@@ -895,7 +895,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 			for (const m of msgs) {
 				if (m[0] === DIRTY) {
 					try {
-						(c as unknown as NodeImpl)._setDeps([b], noopFn);
+						(c as unknown as NodeImpl).setDeps([b], noopFn);
 					} catch (err) {
 						reentrantError = (err as Error).message;
 						return;
@@ -926,7 +926,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 			for (const m of msgs) {
 				if (m[0] === DIRTY) {
 					try {
-						(c2 as unknown as NodeImpl)._setDeps([b], noopFn);
+						(c2 as unknown as NodeImpl).setDeps([b], noopFn);
 					} catch (err) {
 						outerSetDepsReentrantError = (err as Error).message;
 						return;
@@ -936,7 +936,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		});
 		// Now call _setDeps on c2. It emits DIRTY downstream → subscriber
 		// fires reentrantly → guard rejects.
-		(c2 as unknown as NodeImpl)._setDeps([a], noopFn);
+		(c2 as unknown as NodeImpl).setDeps([a], noopFn);
 		expect(outerSetDepsReentrantError).toMatch(/reentrant dep mutation/);
 	});
 
@@ -966,7 +966,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		// the foot-gun: explicitness doesn't fix semantics if the user
 		// re-passes a fn that's incompatible with the new shape.
 		const cFnOld = (c as unknown as NodeImpl)._fn as NodeFn;
-		(c as unknown as NodeImpl)._removeDep(b, cFnOld);
+		(c as unknown as NodeImpl).removeDep(b, cFnOld);
 
 		// a's DepRecord identity preserved.
 		const afterRecA = (c as unknown as NodeImpl)._deps[0];
@@ -992,7 +992,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		expect(c.cache).toBe(15);
 
 		// Drop b AND swap fn to read only a.
-		(c as unknown as NodeImpl)._removeDep(b, (data, actions, ctx) => {
+		(c as unknown as NodeImpl).removeDep(b, (data, actions, ctx) => {
 			const v = data[0]?.[0] ?? ctx.prevData[0];
 			actions.emit((v as number) * 100);
 		});
@@ -1014,11 +1014,11 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		const lengthBefore = (c as unknown as NodeImpl)._deps.length;
 		const cFnOld = (c as unknown as NodeImpl)._fn as NodeFn;
 		// b is not a dep; remove is no-op for the dep set. fn still required.
-		expect(() => (c as unknown as NodeImpl)._removeDep(b, cFnOld)).not.toThrow();
+		expect(() => (c as unknown as NodeImpl).removeDep(b, cFnOld)).not.toThrow();
 		expect((c as unknown as NodeImpl)._deps.length).toBe(lengthBefore);
 
 		// But fn swap still applies even on absent dep.
-		(c as unknown as NodeImpl)._removeDep(b, (data, actions, ctx) => {
+		(c as unknown as NodeImpl).removeDep(b, (data, actions, ctx) => {
 			const v = data[0]?.[0] ?? ctx.prevData[0];
 			actions.emit((v as number) + 50);
 		});
@@ -1036,7 +1036,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		c.down([[COMPLETE]]);
 		expect(c.status).toBe("completed");
 
-		expect(() => (c as unknown as NodeImpl)._removeDep(a, noopFn)).toThrowError(/terminal state/);
+		expect(() => (c as unknown as NodeImpl).removeDep(a, noopFn)).toThrowError(/terminal state/);
 	});
 
 	it("_removeDep auto-settle: removing the sole DIRTY contributor closes the wave (no DATA → RESOLVED)", () => {
@@ -1061,7 +1061,7 @@ describe("Phase 13.8 — _setDeps integration scenarios", () => {
 		// downstream, don't re-run fn. Cache unchanged because no new
 		// dep value arrived; the wave was a "no-op wave" from c's POV.
 		const cFnPreserve = (c as unknown as NodeImpl)._fn as NodeFn;
-		(c as unknown as NodeImpl)._removeDep(a, cFnPreserve);
+		(c as unknown as NodeImpl).removeDep(a, cFnPreserve);
 
 		expect((c as unknown as NodeImpl)._dirtyDepCount).toBe(0);
 		expect(c.cache).toBe(8); // unchanged — RESOLVED settles without re-firing fn

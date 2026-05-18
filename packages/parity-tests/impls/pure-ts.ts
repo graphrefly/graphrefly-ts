@@ -106,6 +106,47 @@ class LegacyNode<T> implements ImplNode<T> {
 		// presence — true if cache is not undefined/null.
 		return this.inner.cache !== undefined && this.inner.cache !== null;
 	}
+
+	async setDeps(
+		newDeps: ReadonlyArray<ImplNode<unknown>>,
+		fn: (data: ReadonlyArray<ReadonlyArray<unknown>>) => ReadonlyArray<unknown>,
+	): Promise<void> {
+		const innerDeps = newDeps.map((d) => d.inner as legacy.Node);
+		this.inner.setDeps(innerDeps, implFnToNodeFn(fn));
+	}
+
+	async addDep(
+		dep: ImplNode<unknown>,
+		fn: (data: ReadonlyArray<ReadonlyArray<unknown>>) => ReadonlyArray<unknown>,
+	): Promise<number> {
+		return this.inner.addDep(dep.inner as legacy.Node, implFnToNodeFn(fn));
+	}
+
+	async removeDep(
+		dep: ImplNode<unknown>,
+		fn: (data: ReadonlyArray<ReadonlyArray<unknown>>) => ReadonlyArray<unknown>,
+	): Promise<void> {
+		this.inner.removeDep(dep.inner as legacy.Node, implFnToNodeFn(fn));
+	}
+}
+
+/**
+ * Adapt an Impl-shape compute fn (`(data: T[][]) => Vec<emission>`) into
+ * a substrate {@link legacy.NodeFn}. Mirrors the `GraphDerivedFn → NodeFn`
+ * wrap in `graph.ts` (restriction is only on the output side): empty
+ * result → settle as RESOLVED; otherwise emit each value.
+ */
+function implFnToNodeFn(
+	fn: (data: ReadonlyArray<ReadonlyArray<unknown>>) => ReadonlyArray<unknown>,
+): legacy.NodeFn {
+	return (batchData, actions) => {
+		const result = fn(batchData.map((d) => d ?? []));
+		if (result.length === 0) {
+			actions.down([[legacy.RESOLVED]]);
+		} else {
+			for (const v of result) actions.emit(v);
+		}
+	};
 }
 
 let LEGACY_LOCK_COUNTER = 0;

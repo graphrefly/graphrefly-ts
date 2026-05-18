@@ -406,6 +406,39 @@ export interface Node<T = unknown> {
 	subscribe(sink: NodeSink, actor?: Actor): () => void;
 	allowsObserve(actor: Actor): boolean;
 	hasGuard(): boolean;
+	/**
+	 * Atomically replace this node's full upstream dependency set and its
+	 * transform fn (dynamic rewire). Kept deps preserve their per-dep
+	 * runtime state; removed deps' state is discarded; added deps start at
+	 * SENTINEL. Cache, replay buffer, pause locks, and `firstRunPassed`
+	 * are preserved. Idempotent when `newDeps` equals the current set.
+	 *
+	 * The `fn` parameter is **required** even when unchanged — a dep-shape
+	 * change silently misroutes positional `data[i]`/`prevData[i]` reads
+	 * unless the caller re-declares the fn at the call site (pass the
+	 * existing fn ref to keep behavior).
+	 *
+	 * Rejects: self-dependency, cycle introduction, mid-fn mutation,
+	 * terminal `this`, or a non-resubscribable-terminal node in `newDeps`.
+	 * Semantics are TLA+-verified (`wave_protocol_rewire_MC`).
+	 */
+	setDeps(newDeps: readonly Node[], fn: NodeFn, _opts?: Record<string, never>): void;
+	/**
+	 * Append a single dep (post-construction) with full validation,
+	 * replacing the transform fn for the grown shape. Returns the new
+	 * dep's index in the dep set, or the existing index if already
+	 * present. Same rejection rules as {@link setDeps}. The `fn` parameter
+	 * is required (the new shape adds a `data` slot).
+	 */
+	addDep(depNode: Node, fn: NodeFn, _opts?: Record<string, never>): number;
+	/**
+	 * Remove a single dep, replacing the transform fn for the shrunk
+	 * shape. Idempotent — a no-op (fn swap still applies) if `depNode` is
+	 * not a current dep. Removing the last dep yields a degenerate
+	 * no-deps node (cache preserved). Same rejection rules as
+	 * {@link setDeps}; the `fn` parameter is required.
+	 */
+	removeDep(depNode: Node, fn: NodeFn, _opts?: Record<string, never>): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -1661,10 +1694,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * Used by `autoTrackNode` (runtime dep discovery) and `Graph.connect()`
 	 * (post-construction wiring) — both of which need cycle/self-dep/mid-fn
 	 * checks intentionally bypassed (autoTrackNode runs from inside
-	 * `_execFn`, where the public `_addDep` would reject).
+	 * `_execFn`, where the public `addDep` would reject).
 	 *
 	 * **External callers** (Phase 13.8 `Graph._addDep`, harness/AI rewrite
-	 * code) should use {@link _addDep} which layers validation on top of
+	 * code) should use {@link addDep} which layers validation on top of
 	 * this primitive.
 	 *
 	 * **Dedup:** idempotent on duplicate `depNode`.
@@ -1772,10 +1805,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
-	 * @internal **EXPERIMENTAL — Phase 13.8.** Append a dep post-construction
-	 * with full validation guards. Wraps {@link _addDepInternal}.
+	 * Append a dep post-construction with full validation guards. Public
+	 * dynamic-topology primitive (see {@link Node.addDep}); wraps
+	 * {@link _addDepInternal}.
 	 *
-	 * **Rejects** (symmetric with `_setDeps`/`_removeDep`):
+	 * **Rejects** (symmetric with `setDeps`/`removeDep`):
 	 * - Self-dep (`depNode === this`).
 	 * - Cycle introduction (`depNode` already transitively depends on `this`).
 	 * - Mid-fn (`_isExecutingFn === true`).
@@ -1797,25 +1831,25 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * @returns The index of the new dep in `_deps`, or the existing index
 	 *   if the dep was already present.
 	 */
-	_addDep(depNode: Node, fn: NodeFn, _opts?: Record<string, never>): number {
+	addDep(depNode: Node, fn: NodeFn, _opts?: Record<string, never>): number {
 		if (this._status === "completed" || this._status === "errored") {
 			throw new Error(
-				`_addDep: cannot add dep on node "${this.name}" in terminal state "${this._status}"`,
+				`addDep: cannot add dep on node "${this.name}" in terminal state "${this._status}"`,
 			);
 		}
 		if (this._isExecutingFn) {
 			throw new Error(
-				`_addDep: cannot add dep on node "${this.name}" while its fn is executing (mid-fn topology mutation). Use _addDepInternal for autoTrackNode-style discovery from inside fn.`,
+				`addDep: cannot add dep on node "${this.name}" while its fn is executing (mid-fn topology mutation). Use _addDepInternal for autoTrackNode-style discovery from inside fn.`,
 			);
 		}
 		if (this._inDepMutation) {
 			throw new Error(
-				`_addDep: reentrant dep mutation rejected on node "${this.name}". Another _setDeps/_addDep/_removeDep is in flight (likely a synchronous re-entry from a subscribe handshake or topology subscriber).`,
+				`addDep: reentrant dep mutation rejected on node "${this.name}". Another setDeps/addDep/removeDep is in flight (likely a synchronous re-entry from a subscribe handshake or topology subscriber).`,
 			);
 		}
 		if (depNode === (this as unknown as Node)) {
 			throw new Error(
-				`_addDep: self-dependency rejected for node "${this.name}" — passing this node as its own dep is not supported`,
+				`addDep: self-dependency rejected for node "${this.name}" — passing this node as its own dep is not supported`,
 			);
 		}
 		// Cycle reject — DFS through transitive `_deps[*].node` looking for
@@ -1828,7 +1862,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			_reachableUpstream(depNode, this as unknown as Node)
 		) {
 			throw new Error(
-				`_addDep: would create cycle — dep "${(depNode as NodeImpl).name}" already transitively depends on "${this.name}"`,
+				`addDep: would create cycle — dep "${(depNode as NodeImpl).name}" already transitively depends on "${this.name}"`,
 			);
 		}
 		this._inDepMutation = true;
@@ -1840,9 +1874,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
-	 * @internal **EXPERIMENTAL — Phase 13.8.**
+	 * Remove a dep. Public dynamic-topology primitive (see
+	 * {@link Node.removeDep}); symmetric counterpart to `addDep`.
 	 *
-	 * Remove a dep. Symmetric counterpart to `_addDep`. Idempotent — if
+	 * Idempotent — if
 	 * `depNode` is not currently in `_deps`, this is a no-op (still
 	 * applies the fn swap). Removing the last dep is allowed; N becomes
 	 * a degenerate fn-with-no-deps shape (cache preserved per Q7; no
@@ -1867,20 +1902,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * @param fn — transform fn for the post-remove shape; replaces `this._fn`.
 	 * @param _opts — reserved for future expansion.
 	 */
-	_removeDep(depNode: Node, fn: NodeFn, _opts?: Record<string, never>): void {
+	removeDep(depNode: Node, fn: NodeFn, _opts?: Record<string, never>): void {
 		if (this._status === "completed" || this._status === "errored") {
 			throw new Error(
-				`_removeDep: cannot remove dep on node "${this.name}" in terminal state "${this._status}"`,
+				`removeDep: cannot remove dep on node "${this.name}" in terminal state "${this._status}"`,
 			);
 		}
 		if (this._isExecutingFn) {
 			throw new Error(
-				`_removeDep: cannot remove dep on node "${this.name}" while its fn is executing (mid-fn topology mutation)`,
+				`removeDep: cannot remove dep on node "${this.name}" while its fn is executing (mid-fn topology mutation)`,
 			);
 		}
 		if (this._inDepMutation) {
 			throw new Error(
-				`_removeDep: reentrant dep mutation rejected on node "${this.name}". Another _setDeps/_addDep/_removeDep is in flight.`,
+				`removeDep: reentrant dep mutation rejected on node "${this.name}". Another setDeps/addDep/removeDep is in flight.`,
 			);
 		}
 		this._inDepMutation = true;
@@ -1923,11 +1958,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
-	 * @internal **EXPERIMENTAL — Phase 13.8 exploratory impl.**
-	 *
-	 * Replace this node's upstream deps atomically. Used by
-	 * `Graph._rewire(name, newDeps)` to support AI self-pruning of harness
-	 * topology (per `project_rewire_gap` memory).
+	 * Replace this node's upstream deps atomically. Public
+	 * dynamic-topology primitive (see {@link Node.setDeps}); also wrapped
+	 * by `Graph._rewire(name, newDeps)`. Supports AI self-pruning of
+	 * harness topology (per `project_rewire_gap` memory).
 	 *
 	 * **Variant: surgical (kept deps untouched).** A dep that appears in
 	 * BOTH the old and new dep sets is left completely alone — its
@@ -1988,25 +2022,25 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 *   preserve behavior when only the dep set changes.
 	 * @param _opts — reserved for future expansion.
 	 */
-	_setDeps(newDeps: readonly Node[], fn: NodeFn, _opts?: Record<string, never>): void {
+	setDeps(newDeps: readonly Node[], fn: NodeFn, _opts?: Record<string, never>): void {
 		// --- Validation: this-side ---
 		if (this._status === "completed" || this._status === "errored") {
 			throw new Error(
-				`_setDeps: cannot rewire node "${this.name}" in terminal state "${this._status}"`,
+				`setDeps: cannot rewire node "${this.name}" in terminal state "${this._status}"`,
 			);
 		}
 		if (this._isExecutingFn) {
 			throw new Error(
-				`_setDeps: cannot rewire node "${this.name}" while its fn is executing (mid-fn topology mutation)`,
+				`setDeps: cannot rewire node "${this.name}" while its fn is executing (mid-fn topology mutation)`,
 			);
 		}
 		if (this._inDepMutation) {
 			throw new Error(
-				`_setDeps: reentrant dep mutation rejected on node "${this.name}". Another _setDeps/_addDep/_removeDep is in flight (likely a synchronous re-entry from a subscribe handshake or topology subscriber).`,
+				`setDeps: reentrant dep mutation rejected on node "${this.name}". Another setDeps/addDep/removeDep is in flight (likely a synchronous re-entry from a subscribe handshake or topology subscriber).`,
 			);
 		}
 
-		// Dedupe by reference identity (mirrors `_addDep`).
+		// Dedupe by reference identity (mirrors `addDep`).
 		const seen = new Set<Node>();
 		const dedupedNewDeps: Node[] = [];
 		for (const d of newDeps) {
@@ -2016,7 +2050,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		if (seen.has(this as unknown as Node)) {
 			throw new Error(
-				`_setDeps: self-dependency rejected for node "${this.name}" — pass a deps array that does not include this node`,
+				`setDeps: self-dependency rejected for node "${this.name}" — pass a deps array that does not include this node`,
 			);
 		}
 
@@ -2024,7 +2058,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		for (const d of dedupedNewDeps) {
 			if (_reachableUpstream(d, this as unknown as Node)) {
 				throw new Error(
-					`_setDeps: would create cycle — dep "${(d as NodeImpl).name}" already transitively depends on "${this.name}"`,
+					`setDeps: would create cycle — dep "${(d as NodeImpl).name}" already transitively depends on "${this.name}"`,
 				);
 			}
 		}
@@ -2047,7 +2081,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			const impl = d as NodeImpl;
 			if ((impl._status === "completed" || impl._status === "errored") && !impl._resubscribable) {
 				throw new Error(
-					`_setDeps: cannot add non-resubscribable terminal dep "${impl.name}" (status=${impl._status}). The subscribe handshake is silent for terminal non-resubscribable nodes, which would leave the new edge wedged. Either remove the dep from the rewire, mark the dep as resubscribable, or add a fresh node.`,
+					`setDeps: cannot add non-resubscribable terminal dep "${impl.name}" (status=${impl._status}). The subscribe handshake is silent for terminal non-resubscribable nodes, which would leave the new edge wedged. Either remove the dep from the rewire, mark the dep as resubscribable, or add a fresh node.`,
 				);
 			}
 		}

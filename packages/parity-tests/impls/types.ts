@@ -73,6 +73,35 @@ export interface ImplNode<T> {
 	setResubscribable(value: boolean): Promise<void>;
 	hasFiredOnce(): Promise<boolean>;
 
+	/**
+	 * Dynamic rewire — atomically replace this node's full upstream dep
+	 * set and its transform fn. `fn` mirrors the `derived` fn shape
+	 * (`(data: T[][]) => Vec<emission>`) and is **required** even when
+	 * unchanged (a dep-shape change misroutes positional reads otherwise).
+	 * Kept deps preserve per-dep state; removed deps' state is discarded;
+	 * added deps start at SENTINEL. Cache/replay/pause locks preserved.
+	 * Rejects self-dep, cycle, mid-fn, terminal `this`, or a
+	 * non-resubscribable-terminal node in `newDeps`. Substrate primitive
+	 * `Node.setDeps` (TLA+-verified `wave_protocol_rewire_MC`). */
+	setDeps(
+		newDeps: ReadonlyArray<ImplNode<unknown>>,
+		fn: (data: ReadonlyArray<ReadonlyArray<unknown>>) => ReadonlyArray<unknown>,
+	): Promise<void>;
+	/** Append one dep, replacing the fn for the grown shape. Resolves to
+	 * the new dep's index (or the existing index if already present).
+	 * Same rejection rules as {@link setDeps}. */
+	addDep(
+		dep: ImplNode<unknown>,
+		fn: (data: ReadonlyArray<ReadonlyArray<unknown>>) => ReadonlyArray<unknown>,
+	): Promise<number>;
+	/** Remove one dep, replacing the fn for the shrunk shape. Idempotent
+	 * (fn swap still applies if `dep` is absent). Same rejection rules as
+	 * {@link setDeps}. */
+	removeDep(
+		dep: ImplNode<unknown>,
+		fn: (data: ReadonlyArray<ReadonlyArray<unknown>>) => ReadonlyArray<unknown>,
+	): Promise<void>;
+
 	/** The underlying primitive Node (legacy) or NodeId (rust). Used by
 	 * Graph.add and operator factories that consume nodes by reference.
 	 * Tests should treat this as opaque. */

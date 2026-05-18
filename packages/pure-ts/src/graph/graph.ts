@@ -2100,7 +2100,7 @@ export class Graph {
 	 * deps are unsubscribed and only added deps get fresh subscriptions.
 	 * Subscription callbacks bind to DepRecord references (Option C), so
 	 * reorder + interior-remove are allowed without re-subscribing kept
-	 * deps. See `NodeImpl._setDeps` and `docs/research/rewire-design-notes.md`.
+	 * deps. See `NodeImpl.setDeps` and `docs/research/rewire-design-notes.md`.
 	 *
 	 * **Path resolution.** `name` accepts a local name or a `mount::leaf`
 	 * qualified path. Each `newDeps` entry is either a Node instance or a
@@ -2127,7 +2127,7 @@ export class Graph {
 	 * @param fn - Required new transform fn for the rewired node. Pass the
 	 *   existing fn ref to preserve behavior; pass a fresh fn when the dep
 	 *   shape change requires it. The API enforces fn-deps pairing — see
-	 *   `NodeImpl._setDeps` JSDoc for rationale.
+	 *   `NodeImpl.setDeps` JSDoc for rationale.
 	 * @returns Audit record describing the dep set diff.
 	 */
 	_rewire(name: string, newDeps: readonly (Node | string)[], fn: NodeFn): GraphRewireAudit {
@@ -2147,7 +2147,7 @@ export class Graph {
 
 		// Fire substrate primitive — performs validation, surgical diff,
 		// required fn swap.
-		(target as NodeImpl)._setDeps(resolvedDeps, fn);
+		(target as NodeImpl).setDeps(resolvedDeps, fn);
 
 		const labelOf = (n: Node): string => {
 			const local = this._nodeToName.get(n);
@@ -2199,7 +2199,7 @@ export class Graph {
 
 	/**
 	 * @experimental Phase 13.8 — append a dep to a registered node.
-	 * Internal/exploratory API. Wraps `NodeImpl._addDep`.
+	 * Internal/exploratory API. Wraps `NodeImpl.addDep`.
 	 *
 	 * @param name - Local name or qualified path of the node to extend.
 	 * @param dep - Node instance or path string for the dep to append.
@@ -2217,8 +2217,8 @@ export class Graph {
 			);
 		}
 		const resolved = typeof dep === "string" ? this.resolve(dep) : dep;
-		const idx = (target as NodeImpl)._addDep(resolved, fn);
-		// DS-14.5.A Q1 (F1) — `_addDep` mutates `_deps` shape, so the spec
+		const idx = (target as NodeImpl).addDep(resolved, fn);
+		// DS-14.5.A Q1 (F1) — `addDep` mutates `_deps` shape, so the spec
 		// projection is dirty. Bump AFTER the substrate call returns, mirroring
 		// `_rewire`'s placement (the edit has already landed).
 		this._bumpTopologyVersion();
@@ -2227,7 +2227,7 @@ export class Graph {
 
 	/**
 	 * @experimental Phase 13.8 — remove a dep from a registered node.
-	 * Internal/exploratory API. Wraps `NodeImpl._removeDep`.
+	 * Internal/exploratory API. Wraps `NodeImpl.removeDep`.
 	 *
 	 * Idempotent — if `dep` is not currently a dep of `name`, this is a
 	 * no-op for the dep set (the fn swap still applies).
@@ -2245,8 +2245,8 @@ export class Graph {
 			);
 		}
 		const resolved = typeof dep === "string" ? this.resolve(dep) : dep;
-		(target as NodeImpl)._removeDep(resolved, fn);
-		// DS-14.5.A Q1 (F1) — `_removeDep` mutates `_deps` shape (spec
+		(target as NodeImpl).removeDep(resolved, fn);
+		// DS-14.5.A Q1 (F1) — `removeDep` mutates `_deps` shape (spec
 		// projection drift); bump AFTER the substrate call, mirroring `_rewire`.
 		this._bumpTopologyVersion();
 	}

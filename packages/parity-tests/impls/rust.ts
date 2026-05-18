@@ -102,10 +102,15 @@ afterEach(async () => {
 // through to the lazily-(re)created underlying instance so per-test
 // Core isolation works without the harness owning adapter internals.
 //
-// `as Impl` (NOT `as unknown as Impl`) — the shipped surface now
-// provides all 5 N1 members, so this cast structurally enforces their
-// presence (a future N1 regression in the wrapper fails type-check
-// here).
+// Per-test Core isolation requires a `Proxy` over a placeholder target
+// that re-reads the lazily-(re)created instance on every access. A
+// `Proxy(Record<string, unknown>, …)` cannot carry `Impl`'s structural
+// type, so `as unknown as Impl` is mandatory here — this cast does NOT
+// structurally enforce member presence. Rust-arm conformance to the
+// parity contract is enforced upstream by the shipped `@graphrefly/
+// native` wrapper's own typing (`createNativeImpl(): NativeImpl`,
+// structurally the `Impl`) plus the `pure-ts` reference arm; a wrapper
+// regression fails at the wrapper's type boundary, not at this Proxy.
 // ---------------------------------------------------------------------------
 
 function build(): Impl {
