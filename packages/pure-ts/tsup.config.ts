@@ -191,11 +191,16 @@ export default defineConfig({
 
 /**
  * Post-build regression check: browser-safe entry points MUST NOT contain
- * `from "node:..."` imports. Node-only entries are explicitly allow-listed.
+ * `from "node:..."` imports NOR an unsubstituted `GRAPHREFLY_PKG_*`
+ * version-define token (D2 defense-in-depth, 2026-05-17). Node-only
+ * entries are explicitly allow-listed.
  *
- * Any entry point whose dist chunks import a `node:*` builtin but isn't on
- * the allow-list fails the build — this is the guardrail behind the formal
- * browser/node split in the exports map.
+ * Any universal entry whose dist chunks transitively import a `node:*`
+ * builtin OR carry a surviving `GRAPHREFLY_PKG` env token fails the build
+ * — this is the guardrail behind the formal browser/node split in the
+ * exports map and the D4 version-`define` browser-safety claim. (Generic
+ * `process.env.NODE_ENV` / CJS-interop `process` refs are intentionally
+ * NOT flagged — they are bundler-emitted and browser-safe.)
  */
 async function assertBrowserSafeBundles(dir: string): Promise<void> {
 	// Entry points (relative to `dist/`, no ext) that are allowed to transitively
@@ -224,6 +229,24 @@ async function assertBrowserSafeBundles(dir: string): Promise<void> {
 		ext: "js" | "cjs" | "mjs";
 		imports: string[];
 		nodeBuiltins: string[];
+		/**
+		 * D2 defense-in-depth (gate blind-spot follow-up, 2026-05-17): a
+		 * **residual version-define token** in a universal chunk. The D4
+		 * browser-safety claim rests entirely on the shared tsup
+		 * `defineConfig` substituting the `GRAPHREFLY_PKG_VERSION` env token
+		 * to a string literal at build time; an entry built OUTSIDE that
+		 * config would ship the unsubstituted token (a `process` reference
+		 * that breaks browser bundles + a wrong `version` export).
+		 *
+		 * Scoped to the `GRAPHREFLY_PKG_*` token family ON PURPOSE — a
+		 * generic `process.env` match is NOT a browser-safety violation
+		 * (esbuild legitimately emits guarded / DCE-eligible
+		 * `process.env.NODE_ENV` reads + CJS-interop `process` refs in
+		 * every chunk; flagging those is all false-positives). The precise
+		 * invariant D4 protects is "the version define ran", and that is
+		 * exactly what this detects.
+		 */
+		hasResidualVersionToken: boolean;
 	};
 	const files = new Map<string, FileInfo>();
 	await walkBuild(dir, async (abs) => {
@@ -237,7 +260,11 @@ async function assertBrowserSafeBundles(dir: string): Promise<void> {
 		// builtin names — guards against a future regression where
 		// `restoreNodePrefix`'s NODE_BUILTINS list is incomplete.
 		const nodeBuiltins = imports.filter((p) => p.startsWith("node:") || BUILTIN_SET.has(p));
-		files.set(rel, { abs, rel, ext, imports, nodeBuiltins });
+		// `define` substitutes the version token to a string literal at
+		// build time; a surviving `GRAPHREFLY_PKG_*` env reference in dist
+		// means the define did NOT run for this entry (the D4 leak).
+		const hasResidualVersionToken = /process\s*\.\s*env\s*\.\s*GRAPHREFLY_PKG/.test(src);
+		files.set(rel, { abs, rel, ext, imports, nodeBuiltins, hasResidualVersionToken });
 	});
 
 	// Resolve a specifier against the calling file's directory. Keep ESM/CJS
@@ -297,6 +324,14 @@ async function assertBrowserSafeBundles(dir: string): Promise<void> {
 				offenders.push({ entry, chain, builtin: info.nodeBuiltins[0] });
 				break;
 			}
+			if (info.hasResidualVersionToken) {
+				offenders.push({
+					entry,
+					chain,
+					builtin: "unsubstituted GRAPHREFLY_PKG version token (D2 guard)",
+				});
+				break;
+			}
 			for (const spec of info.imports) {
 				const resolved = resolveSpec(rel, info.ext, spec);
 				if (resolved && !visited.has(resolved)) {
@@ -314,9 +349,12 @@ async function assertBrowserSafeBundles(dir: string): Promise<void> {
 			)
 			.join("\n");
 		throw new Error(
-			`Browser-safety regression: universal entries transitively import Node builtins.\n${msg}\n` +
-				"Fix: route the node-only dependency through an `extra/node` or `patterns/<x>/node` subpath, " +
-				"or add the entry to `nodeOnlyEntries` in tsup.config.ts if it is genuinely Node-only.",
+			`Browser-safety regression: universal entries transitively reach a Node-only token.\n${msg}\n` +
+				"Fix (node:* builtin): route the node-only dependency through an `extra/node` or " +
+				"`patterns/<x>/node` subpath, or add the entry to `nodeOnlyEntries` if it is genuinely " +
+				"Node-only.\nFix (D2 version-token guard): the entry shipped an unsubstituted " +
+				"`GRAPHREFLY_PKG_*` token — it was built outside the shared tsup `defineConfig` " +
+				"`define`. Route the entry through that config so the version is inlined.",
 		);
 	}
 }

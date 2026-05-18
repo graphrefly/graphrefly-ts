@@ -67,7 +67,6 @@ import type { GraphPersistSnapshot } from "../../packages/pure-ts/src/graph/grap
 // (core/extra/graph above) still resolves through `packages/pure-ts`.
 import { agentMemory } from "../../src/presets/ai/index.js";
 import { evalVerifier, harnessLoop } from "../../src/presets/harness/index.js";
-import type { LLMAdapter } from "../../src/utils/ai/index.js";
 import {
 	actuatorExecutor,
 	autoSolidify,
@@ -75,9 +74,13 @@ import {
 	evalIntakeBridge,
 	type HarnessExecutor,
 	type HarnessVerifier,
+	type StrategyEntry,
+	type StrategyKey,
+	type StrategySnapshot,
 	type TriagedItem,
 	type VerifyResult,
 } from "../../src/utils/harness/index.js";
+import { type AdHocAdapter, asLLMAdapter } from "../lib/_dogfood-conformance.js";
 import { catalogAwareEvaluator } from "../lib/catalog-aware-evaluator.js";
 import {
 	type CatalogOverlayBundle,
@@ -128,7 +131,7 @@ const treatmentMap = parseTreatmentMap();
 // LLM adapter (real or mock)
 // ---------------------------------------------------------------------------
 
-function createAdapter(config: EvalConfig) {
+function createAdapter(config: EvalConfig): AdHocAdapter {
 	if (dryRun) {
 		return {
 			invoke: (msgs: Array<{ role: string; content: string }>) => {
@@ -194,7 +197,12 @@ function createAdapter(config: EvalConfig) {
 	return {
 		invoke: async (msgs: Array<{ role: string; content: string }>) => {
 			const { createSafeProvider } = await import("../lib/llm-client.js");
-			const provider = createSafeProvider(config);
+			// `createSafeProvider` returns `{ provider, limiter, budget }`.
+			// The prior DOGFOOD cast called `.generate` on the WHOLE wrapper
+			// object (no such method) — runtime-broken in the real-key path.
+			// `.provider` is the fully wrapped (rate-limited + budget-gated)
+			// `LLMProvider`; `.generate(req: LLMRequest)` is its typed method.
+			const { provider: safeProvider } = createSafeProvider(config);
 			const system = msgs
 				.filter((m) => m.role === "system")
 				.map((m) => m.content)
@@ -203,16 +211,7 @@ function createAdapter(config: EvalConfig) {
 				.filter((m) => m.role === "user")
 				.map((m) => m.content)
 				.join("\n");
-			// DOGFOOD: `createSafeProvider`'s shape drifted from this
-			// ad-hoc `.generate({system,user,model})` call; cast to keep
-			// the dogfood adapter compiling. Not exercised in CI (tsx).
-			const resp = await (
-				provider as unknown as {
-					generate(req: { system: string; user: string; model?: string }): Promise<{
-						content: string;
-					}>;
-				}
-			).generate({ system, user, model: config.model });
+			const resp = await safeProvider.generate({ system, user, model: config.model });
 			return { content: resp.content };
 		},
 	};
@@ -448,18 +447,23 @@ async function steerGates(harness: ReturnType<typeof harnessLoop<CatalogPatch>>)
 				case "m": {
 					const rcInput = await rl.question("  Override rootCause (or enter to keep): ");
 					const intInput = await rl.question("  Override intervention (or enter to keep): ");
-					gateCtrl.modify(
-						// DOGFOOD: conditional spreads widen the literal vs the
-						// current `TriagedItem`; cast the merged result. Eval
-						// harness runs via tsx (not CI).
-						(item: TriagedItem) =>
-							({
-								...item,
-								...(rcInput.trim() ? { rootCause: rcInput.trim() } : {}),
-								...(intInput.trim() ? { intervention: intInput.trim() } : {}),
-							}) as TriagedItem,
-						pending.length,
-					);
+					gateCtrl.modify((item: TriagedItem) => {
+						// Typed patch (no `unknown` launder): `{...TriagedItem,
+						// ...Partial<TriagedItem>}` is `TriagedItem`, so a
+						// `TriagedItem` field drift surfaces as a type error.
+						// `rootCause`/`intervention` are closed unions but this
+						// is a deliberate free-text OPERATOR steering override
+						// (the prompt invites any value) — narrow at the human
+						// -input boundary only. `as RootCause`/`as Intervention`
+						// still type-errors if those unions are removed; it does
+						// NOT erase structure the way `as unknown as` did.
+						const patch: Partial<TriagedItem> = {};
+						const rc = rcInput.trim();
+						const int = intInput.trim();
+						if (rc) patch.rootCause = rc as TriagedItem["rootCause"];
+						if (int) patch.intervention = int as TriagedItem["intervention"];
+						return { ...item, ...patch };
+					}, pending.length);
 					console.log(`  → Modified and forwarded ${pending.length} items`);
 					break;
 				}
@@ -517,10 +521,11 @@ async function main() {
 	const actuationStack = actuate ? buildActuationStack() : null;
 
 	const harness = harnessLoop<CatalogPatch>("eval-dogfood", {
-		// DOGFOOD: `createAdapter` returns a pre-`LLMAdapter`-interface
-		// ad-hoc `{ invoke }`; conforming it is a dogfood adapter migration
-		// (unverifiable without the eval harness — not in CI). Cast.
-		adapter: adapter as unknown as LLMAdapter,
+		// `createAdapter` returns a pre-`LLMAdapter` ad-hoc `{ invoke }`;
+		// `asLLMAdapter` is the typed conformance boundary (a real
+		// `LLMAdapter`/`LLMResponse` drift fails `_dogfood-conformance.ts`
+		// under `check-typecheck.ts`, not laundered through `unknown`).
+		adapter: asLLMAdapter(adapter),
 		maxRetries: 1,
 		maxReingestions: 0,
 		executor: actuationStack?.executor,
@@ -725,18 +730,18 @@ async function main() {
 		}
 	}
 
-	// Strategy model
-	// DOGFOOD: the strategy-model read API drifted (`strategy.node` is now
-	// a `(name) => Node` resolver, not a map handle). Degrade safely to an
-	// empty map so the console summary still runs; real reconstruction is
-	// tracked in optimizations.md (eval harness not in CI).
-	type StrategyEntry = { successes: number; attempts: number; successRate: number };
-	const strategyMap =
-		(
-			harness.strategy.node as unknown as {
-				get?(): Map<string, StrategyEntry>;
-			}
-		).get?.() ?? new Map<string, StrategyEntry>();
+	// Strategy model. `harness.strategy` is an `AuditedSuccessTrackerGraph`;
+	// its reactive snapshot is `.entries: Node<StrategySnapshot>` where
+	// `StrategySnapshot = ReadonlyMap<StrategyKey, StrategyEntry>`. The prior
+	// DOGFOOD cast read `.strategy.node.get()` (neither exists) → silently an
+	// empty Map → this summary printed NOTHING even with data. Read the real
+	// snapshot off `.entries.cache`. (`.cache` is an empty `Map` from
+	// construction — `reactiveMap` seeds `initial: backend.toMap()` and
+	// `AuditedSuccessTrackerGraph` keeps it live via `keepalive`; it is
+	// NOT a SENTINEL. The `?? new Map()` is belt-and-suspenders, not a
+	// real undefined-guard.)
+	const strategyMap: StrategySnapshot =
+		harness.strategy.entries.cache ?? new Map<StrategyKey, StrategyEntry>();
 	if (strategyMap.size > 0) {
 		console.log("\nStrategy model (rootCause→intervention effectiveness):");
 		for (const [key, entry] of strategyMap) {

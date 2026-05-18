@@ -563,7 +563,8 @@
 		"eval:matrix": "tsx evals/scripts/run-matrix.ts",
 		"eval:scorecard": "tsx evals/scripts/publish-scorecard.ts",
 		"eval:dev-dx": "vitest run --config evals/vitest.config.ts",
-		"eval:harness": "tsx evals/scripts/run-harness.ts"
+		"eval:harness": "tsx evals/scripts/run-harness.ts",
+		"eval:smoke": "test -f evals/results/l0-conversational-baseline.json || { echo 'eval:smoke: fixture evals/results/l0-conversational-baseline.json is missing — the dogfood wiring smoke would vacuously pass (run-harness exits 0 on empty results). Restore the fixture or repoint eval:smoke.' >&2; exit 1; }; tsx evals/scripts/run-harness.ts --dry-run --file l0-conversational-baseline"
 	},
 	"keywords": [
 		"reactive",

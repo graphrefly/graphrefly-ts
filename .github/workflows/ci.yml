@@ -55,6 +55,15 @@ jobs:
 
       - run: pnpm run build
 
+      # Dogfood wiring smoke (gate blind-spot follow-up, 2026-05-17):
+      # `check-typecheck.ts` is blind on the `_dogfood-conformance.ts`
+      # typed boundary's runtime behavior + the `// DOGFOOD:`-laundered
+      # surfaces. One offline `--dry-run` harness pass over a single
+      # fixture exercises adapter wiring + graph construction + the
+      # strategy-read path the type gate can't reach. No API key.
+      - name: Eval harness dogfood smoke
+        run: pnpm run eval:smoke
+
       - name: Docs + demos build
         run: pnpm run docs:build
         env:

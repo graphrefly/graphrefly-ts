@@ -195,6 +195,16 @@ export interface FactStoreAuditRecord extends BaseAuditRecord {
 	readonly action: "ingest" | "invalidate" | "outcome" | "consolidate" | "decay" | "overflow";
 	readonly id?: FactId;
 	readonly reason?: CascadeReason;
+	/**
+	 * Number of facts whose state actually changed in a batch action
+	 * (post-filter — excludes no-op / non-finite / resurrection-guard
+	 * skips; equals the length of the emitted `decay_processor` value
+	 * array). Populated for `"decay"` (a per-tick batch over many facts
+	 * with no single `id` — the bare `{action,t_ns,seq}` record was opaque
+	 * to audit-log forensics). Absent for single-fact actions (`id`
+	 * carries those).
+	 */
+	readonly count?: number;
 }
 
 export interface ReactiveFactStoreConfig<T> {
@@ -968,7 +978,20 @@ export function reactiveFactStore<T>(
 			name: "consolidated",
 			describeKind: "derived",
 			initial: [] as readonly MemoryFragment<T>[],
-			meta: factMeta("consolidator"),
+			// Inspection completeness (COMPOSITION-GUIDE §24 "make the
+			// invisible edge visible"): `consolidated` write-backs feed the
+			// bounded cascade store (commit → shard emit →
+			// `invalidationDetector`) exactly like `cascadeProcessor`, but
+			// is NOT a cascade-cycle node. `feeds:"cascade"` surfaces it as
+			// a cascade-store mutator in `describe()`/`explain()`;
+			// `drivesRoot:false` — by the consolidator contract successors
+			// are fresh live facts (no `validTo`), so on the contract path
+			// they do not root the cascade. (An out-of-contract `consolidate`
+			// that emits a `validTo`-set fragment WOULD root it via the
+			// detector — the tag reflects the documented contract, not a
+			// structural impossibility. Contrast `decay_processor` below,
+			// whose `drivesRoot:false` IS structurally provable.)
+			meta: factMeta("consolidator", { feeds: "cascade", drivesRoot: false }),
 		},
 	);
 	graph.add(consolidated, { name: "consolidated" });
@@ -1033,6 +1056,7 @@ export function reactiveFactStore<T>(
 						action: "decay",
 						t_ns: wallClockNs(),
 						seq: bumpCursor(seqCursor),
+						count: decayed.length,
 					});
 				}
 				actions.emit(decayed);
@@ -1041,7 +1065,14 @@ export function reactiveFactStore<T>(
 				name: "decay_processor",
 				describeKind: "derived",
 				initial: [] as readonly MemoryFragment<T>[],
-				meta: factMeta("decay"),
+				// Inspection completeness (same convention as `consolidated`
+				// above — kept uniform): `decay_processor` write-backs feed
+				// the cascade store via `replaceFragment` → shard emit →
+				// `invalidationDetector`. `feeds:"cascade"` surfaces it as a
+				// cascade-store mutator; `drivesRoot:false` — decay only
+				// mutates `confidence`, never `validTo`, and the detector
+				// roots on `validTo` only, so it provably cannot root.
+				meta: factMeta("decay", { feeds: "cascade", drivesRoot: false }),
 			},
 		);
 		graph.add(decayProcessor, { name: "decay_processor" });

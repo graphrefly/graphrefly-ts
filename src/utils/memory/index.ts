@@ -1454,3 +1454,13 @@ export {
 // four extension faces. Re-exported here so `utils/memory` stays the single
 // import surface.
 export * from "./recipes/index.js";
+// DS-14.7 follow-up #2 — `simpleFactStore()` 80%-case ergonomic wrapper:
+// one-call `remember`, optional storage, decay-on-by-default.
+export {
+	DEFAULT_DECAY_HALF_LIFE_NS,
+	DEFAULT_DECAY_PERIOD_MS,
+	type RememberOptions,
+	type SimpleFactStoreGraph,
+	type SimpleFactStoreOptions,
+	simpleFactStore,
+} from "./simple-fact-store.js";

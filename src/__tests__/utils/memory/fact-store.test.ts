@@ -20,6 +20,7 @@ import {
 	type ReviewRequest,
 	reactiveFactStore,
 	type ScoringPolicy,
+	simpleFactStore,
 } from "../../../utils/memory/index.js";
 
 // ── Fixture helpers ──────────────────────────────────────────────────────
@@ -84,6 +85,63 @@ describe("utils.memory.reactiveFactStore — topology", () => {
 		for (let i = 0; i < 50; i += 1) ingest.emit(frag(`f${i}`, `v${i}`));
 		const after = Object.keys(mem.describe().nodes).length;
 		expect(after).toBe(before);
+		mem.destroy();
+	});
+});
+
+// ── cascade-feeder inspection completeness (COMPOSITION-GUIDE §24) ────────
+
+describe("utils.memory.reactiveFactStore — cascade-feeder inspection", () => {
+	it("tags `consolidated` + `decay_processor` as cascade-store feeders (feeds:cascade, drivesRoot:false)", () => {
+		const ingest = ingestNode<string>();
+		const consolidateTrigger = node<number>([], { initial: undefined });
+		const decayTrigger = node<number>([], { initial: undefined });
+		const decay = node<DecayPolicy>([], { initial: (c) => c * 0.5 });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			consolidateTrigger,
+			consolidate: () => [],
+			decay,
+			decayTrigger,
+		});
+		// `meta` is projected at detail "standard"/"spec" (default
+		// "minimal" strips it) — the spec projection is what
+		// describe()/explain() causal-chain rendering reads.
+		const nodes = mem.describe({ detail: "standard" }).nodes;
+		// Both cascade-store mutators are now visible AS such — the prior
+		// gap was they wrote into the cascade store like `cascade_processor`
+		// but carried no feeder tag, so describe()/explain() showed an
+		// incomplete picture of "what can mutate the cascade store".
+		for (const name of ["consolidated", "decay_processor"]) {
+			const meta = nodes[name]?.meta as Record<string, unknown> | undefined;
+			expect(meta).toBeDefined();
+			expect(meta?.feeds).toBe("cascade");
+			expect(meta?.drivesRoot).toBe(false);
+		}
+		// Convention stays uniform: domain tag preserved alongside the feeder tag.
+		expect((nodes.consolidated?.meta as Record<string, unknown>).memory_type).toBe("consolidator");
+		expect((nodes.decay_processor?.meta as Record<string, unknown>).memory_type).toBe("decay");
+		mem.destroy();
+	});
+
+	it("decay audit record carries a `count` of affected facts (batch-action forensics)", () => {
+		const ingest = ingestNode<string>();
+		const decayTrigger = node<number>([], { initial: undefined });
+		const decay = node<DecayPolicy>([], { initial: (c) => c * 0.5 });
+		const mem = reactiveFactStore<string>({
+			ingest,
+			extractDependencies: (f) => f.sources,
+			decay,
+			decayTrigger,
+		});
+		mem.events.entries.subscribe(() => undefined);
+		ingest.emit(frag("a", "A", { confidence: 1 }));
+		ingest.emit(frag("b", "B", { confidence: 1 }));
+		decayTrigger.emit(1);
+		const decayRecs = (mem.events.entries.cache ?? []).filter((r) => r.action === "decay");
+		expect(decayRecs.length).toBe(1);
+		expect(decayRecs[0]?.count).toBe(2); // both facts decayed this tick
 		mem.destroy();
 	});
 });
@@ -1154,5 +1212,131 @@ describe("utils.memory.persistentReactiveFactStore", () => {
 		await new Promise((r) => setTimeout(r, 0));
 		await new Promise((r) => setTimeout(r, 0));
 		expect(() => mem2.destroy()).not.toThrow(); // idempotent double-dispose
+	});
+});
+
+// ── simpleFactStore — 80%-case ergonomic wrapper (DS-14.7 follow-up #2) ───
+
+describe("utils.memory.simpleFactStore", () => {
+	async function until(cond: () => boolean, tries = 200): Promise<void> {
+		for (let i = 0; i < tries; i += 1) {
+			if (cond()) return;
+			await new Promise((r) => setTimeout(r, 0));
+		}
+		throw new Error("simpleFactStore: condition timed out");
+	}
+
+	it("remember() normalizes minimal input to a MemoryFragment (auto t_ns/confidence/tags)", () => {
+		const mem = simpleFactStore<string>();
+		const item = mem.itemNode("user:lang");
+		item.subscribe(() => undefined);
+		mem.remember("user:lang", "TypeScript");
+		const f = item.cache as MemoryFragment<string>;
+		expect(f.payload).toBe("TypeScript");
+		expect(f.confidence).toBe(1);
+		expect(f.tags).toEqual([]);
+		expect(f.sources).toEqual([]);
+		expect(typeof f.t_ns).toBe("bigint");
+		expect(f.t_ns).toBeGreaterThan(0n);
+		mem.destroy();
+	});
+
+	it("re-remember()ing an id is MEME L1 direct-replace; opts override defaults", () => {
+		const mem = simpleFactStore<string>();
+		const item = mem.itemNode("loc");
+		item.subscribe(() => undefined);
+		mem.remember("loc", "Beijing", { tags: ["geo"], confidence: 0.8 });
+		expect((item.cache as MemoryFragment<string>).payload).toBe("Beijing");
+		expect((item.cache as MemoryFragment<string>).tags).toEqual(["geo"]);
+		expect((item.cache as MemoryFragment<string>).confidence).toBe(0.8);
+		mem.remember("loc", "Shanghai");
+		expect((item.cache as MemoryFragment<string>).payload).toBe("Shanghai");
+		expect((item.cache as MemoryFragment<string>).confidence).toBe(1); // default restored
+		// BH-1 (/qa): explicit `confidence: 0` must survive — `?? 1` (not
+		// `|| 1`) so a falsy-but-valid 0 is NOT clobbered by the default.
+		mem.remember("loc", "Faded", { confidence: 0 });
+		expect((item.cache as MemoryFragment<string>).confidence).toBe(0);
+		mem.destroy();
+	});
+
+	it("decay is ON by default (decay_exponential driver mounted)", () => {
+		const mem = simpleFactStore<string>();
+		expect(Object.keys(mem.describe().nodes)).toContain("decay_exponential");
+		mem.destroy();
+	});
+
+	it("opts.consolidate wires the consolidator (BH-1 /qa: covers the wired-iff path)", () => {
+		// Without consolidate: `consolidated` has no trigger dep (factory builds
+		// it with `[]` deps when no `consolidateTrigger`).
+		const bare = simpleFactStore<string>();
+		expect(bare.describe().nodes.consolidated?.deps ?? []).toEqual([]);
+		bare.destroy();
+		// With consolidate: `consolidationRem` supplies a `fromTimer`
+		// `consolidateTrigger`, so `consolidated` gains a trigger dep.
+		const mem = simpleFactStore<string>({
+			consolidate: {
+				periodMs: 3_600_000,
+				topK: 5,
+				summarize: (replayed) =>
+					replayed.length > 0 ? [{ ...replayed[0]!, id: "summary", payload: "consolidated" }] : [],
+			},
+		});
+		expect((mem.describe().nodes.consolidated?.deps ?? []).length).toBeGreaterThanOrEqual(1);
+		mem.destroy();
+	});
+
+	it("decay:false disables the forgetting loop (no driver mounted)", () => {
+		const mem = simpleFactStore<string>({ decay: false });
+		expect(Object.keys(mem.describe().nodes)).not.toContain("decay_exponential");
+		mem.destroy();
+	});
+
+	it("extractDependencies defaults to () => [] (flat store, cascade inert)", () => {
+		const mem = simpleFactStore<string>();
+		const dep = mem.itemNode("commute");
+		dep.subscribe(() => undefined);
+		mem.remember("home", "Beijing");
+		mem.remember("commute", "15-min bike", { sources: ["home"] });
+		// Obsolete `home`. With the default no-op extractor, `commute` must NOT
+		// cascade (no dependency edges were extracted).
+		mem.remember("home", "Shanghai", { validTo: BigInt(monotonicNs()) });
+		expect((dep.cache as MemoryFragment<string>).validTo).toBeUndefined();
+		mem.destroy();
+	});
+
+	it("supplying extractDependencies opts into MEME L2 cascade", () => {
+		const mem = simpleFactStore<string>({ extractDependencies: (f) => f.sources });
+		const dep = mem.itemNode("commute");
+		dep.subscribe(() => undefined);
+		mem.remember("home", "Beijing");
+		mem.remember("commute", "15-min bike", { sources: ["home"] });
+		mem.remember("home", "Shanghai", { validTo: BigInt(monotonicNs()) });
+		expect((dep.cache as MemoryFragment<string>).validTo).toBeDefined();
+		mem.destroy();
+	});
+
+	it("storage present → durable path; remember() round-trips through replay", async () => {
+		const backend = memoryBackend();
+		const m1 = simpleFactStore<string>({
+			storage: backend,
+			decay: false,
+		}) as PersistentReactiveFactStoreGraph<string> & {
+			remember: (id: string, p: string) => void;
+		};
+		m1.remember("k", "v1");
+		await until(() => (m1.position.cache as number) === 1);
+		await m1.flush();
+		m1.destroy();
+		const m2 = simpleFactStore<string>({
+			storage: backend,
+			decay: false,
+		}) as PersistentReactiveFactStoreGraph<string> & {
+			itemNode: (id: string) => { cache: unknown; subscribe: (f: () => void) => void };
+		};
+		const item = m2.itemNode("k");
+		item.subscribe(() => undefined);
+		await until(() => (m2.replayedCount.cache as number) === 1);
+		expect((item.cache as MemoryFragment<string>).payload).toBe("v1");
+		m2.destroy();
 	});
 });

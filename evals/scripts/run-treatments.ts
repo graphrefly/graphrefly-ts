@@ -49,7 +49,6 @@ import type { Node } from "../../packages/pure-ts/src/core/node.js";
 // D2 (post-cleave repath): see run-harness.ts. harness utils →
 // src/utils/harness, harness presets → src/presets/harness.
 import { evalVerifier, harnessLoop } from "../../src/presets/harness/index.js";
-import type { LLMAdapter } from "../../src/utils/ai/index.js";
 import {
 	actuatorExecutor,
 	autoSolidify,
@@ -59,6 +58,7 @@ import {
 	type TriagedItem,
 	type VerifyResult,
 } from "../../src/utils/harness/index.js";
+import { type AdHocAdapter, asLLMAdapter } from "../lib/_dogfood-conformance.js";
 import { catalogAwareEvaluator } from "../lib/catalog-aware-evaluator.js";
 import {
 	type CatalogOverlayBundle,
@@ -162,7 +162,7 @@ function buildIntake(n: number): readonly IntakeItem[] {
 // Mock LLM adapter — keyword-routed JSON for triage / execute / verify
 // ---------------------------------------------------------------------------
 
-function mockAdapter() {
+function mockAdapter(): AdHocAdapter {
 	return {
 		invoke: (msgs: Array<{ role: string; content: string }>) => {
 			const text = msgs
@@ -354,10 +354,11 @@ async function runTreatment(
 	const stack = cfg.actuate ? buildActuationStack() : null;
 
 	const harness = harnessLoop<CatalogPatch>(`treatment-${cfg.id}`, {
-		// DOGFOOD: `mockAdapter()` predates the `LLMAdapter` interface
-		// (`provider`/`stream`/`NodeInput<LLMResponse>`); cast. Unverifiable
-		// without the eval harness (not in CI). See optimizations.md.
-		adapter: adapter as unknown as LLMAdapter,
+		// `mockAdapter()` is a pre-`LLMAdapter` ad-hoc `{ invoke }`;
+		// `asLLMAdapter` is the typed conformance boundary (drift in
+		// `LLMAdapter`/`LLMResponse` fails `_dogfood-conformance.ts` under
+		// `check-typecheck.ts` rather than laundering through `unknown`).
+		adapter: asLLMAdapter(adapter),
 		maxRetries: 1,
 		maxReingestions: 0,
 		executor: stack?.executor,

@@ -108,9 +108,11 @@ export function catalogAwareEvaluator<T>(config: CatalogAwareEvaluatorConfig<T>)
 		candidates: Node<readonly T[]>,
 		dataset: Node<readonly DatasetItem[]>,
 	): Node<readonly EvalResult[]> => {
-		// DOGFOOD: this producer returns a cleanup `() => void`; that
-		// shape predates the current `NodeFn` return contract. Cast to the
-		// factory's first-param type. Eval harness runs via tsx (not CI).
+		// Producer-shaped node: subscribes to deps manually, registers
+		// teardown via the named-hook `NodeFnCleanup` (Lock 4.A — the bare
+		// `() => void` cleanup shorthand was removed pre-1.0). `satisfies
+		// NodeFn` is the typed boundary: a `NodeFn`/`NodeFnCleanup` contract
+		// drift fails here under `check-typecheck.ts`, not laundered.
 		return node<readonly EvalResult[]>(
 			((
 				_data: readonly (readonly unknown[] | undefined)[],
@@ -197,10 +199,12 @@ export function catalogAwareEvaluator<T>(config: CatalogAwareEvaluatorConfig<T>)
 					}
 				});
 
-				return () => {
-					tearDown();
+				return {
+					onDeactivation: () => {
+						tearDown();
+					},
 				};
-			}) as unknown as NodeFn,
+			}) satisfies NodeFn,
 			{ describeKind: "producer", name },
 		);
 	};

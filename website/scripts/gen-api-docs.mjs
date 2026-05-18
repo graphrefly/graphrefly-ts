@@ -281,6 +281,7 @@ const REGISTRY = {
 	// DS-14.7 — reactive fact store + persistence + recipe library
 	reactiveFactStore: "src/utils/memory/fact-store.ts",
 	persistentReactiveFactStore: "src/utils/memory/persistent-fact-store.ts",
+	simpleFactStore: "src/utils/memory/simple-fact-store.ts",
 	scoringByOutcome: "src/utils/memory/recipes/scoring-by-outcome.ts",
 	decayExponential: "src/utils/memory/recipes/decay-exponential.ts",
 	consolidationRem: "src/utils/memory/recipes/consolidation-rem.ts",
