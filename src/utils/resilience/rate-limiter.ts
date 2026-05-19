@@ -271,6 +271,41 @@ export type RateLimiterBundle<T> = {
 	rateLimitState: Node<RateLimiterState>;
 };
 
+/** Shared opts validation gate — used by both the static-form and the reactive-swap paths. */
+function validateRateLimiterOpts(o: RateLimiterOptions): void {
+	if (o.maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
+	if (o.windowNs <= 0) throw new RangeError("windowNs must be > 0");
+	if (o.maxBuffer === undefined) {
+		throw new RangeError(
+			"rateLimiter requires explicit maxBuffer (use Infinity to opt in to unbounded)",
+		);
+	}
+	const isUnbounded = o.maxBuffer === Infinity;
+	if (!isUnbounded && (!Number.isInteger(o.maxBuffer) || o.maxBuffer < 1)) {
+		throw new RangeError("maxBuffer must be a positive integer (or Infinity for unbounded)");
+	}
+}
+
+/**
+ * Resolve the construction-time lock value for reactive (Node-form) opts.
+ * Throws (D4) when the opts Node has no cached value — the mode + initial
+ * cap are locked here and the swap handler rejects mode toggles, so a silent
+ * bounded-`maxBuffer:1` default would be an undebuggable footgun.
+ */
+function resolveInitialReactiveOpts(optsNode: Node<RateLimiterOptions>): RateLimiterOptions {
+	const cached = optsNode.cache as RateLimiterOptions | undefined;
+	if (cached === undefined) {
+		throw new RangeError(
+			"rateLimiter: reactive (Node-form) opts must carry a cached value at " +
+				"construction — seed the opts Node with `initial`. Mode (bounded vs " +
+				"unbounded) and the initial cap are LOCKED from `.cache` at construction " +
+				"and the swap handler rejects mode toggles; an un-seeded Node would " +
+				"silently lock bounded `maxBuffer: 1` (D4).",
+		);
+	}
+	return cached;
+}
+
 /**
  * Token-bucket rate limiter: at most `maxEvents` `DATA` values per `windowNs`.
  *
@@ -314,40 +349,6 @@ export type RateLimiterBundle<T> = {
  *
  * @category extra
  */
-function validateRateLimiterOpts(o: RateLimiterOptions): void {
-	if (o.maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
-	if (o.windowNs <= 0) throw new RangeError("windowNs must be > 0");
-	if (o.maxBuffer === undefined) {
-		throw new RangeError(
-			"rateLimiter requires explicit maxBuffer (use Infinity to opt in to unbounded)",
-		);
-	}
-	const isUnbounded = o.maxBuffer === Infinity;
-	if (!isUnbounded && (!Number.isInteger(o.maxBuffer) || o.maxBuffer < 1)) {
-		throw new RangeError("maxBuffer must be a positive integer (or Infinity for unbounded)");
-	}
-}
-
-/**
- * Resolve the construction-time lock value for reactive (Node-form) opts.
- * Throws (D4) when the opts Node has no cached value — the mode + initial
- * cap are locked here and the swap handler rejects mode toggles, so a silent
- * bounded-`maxBuffer:1` default would be an undebuggable footgun.
- */
-function resolveInitialReactiveOpts(optsNode: Node<RateLimiterOptions>): RateLimiterOptions {
-	const cached = optsNode.cache as RateLimiterOptions | undefined;
-	if (cached === undefined) {
-		throw new RangeError(
-			"rateLimiter: reactive (Node-form) opts must carry a cached value at " +
-				"construction — seed the opts Node with `initial`. Mode (bounded vs " +
-				"unbounded) and the initial cap are LOCKED from `.cache` at construction " +
-				"and the swap handler rejects mode toggles; an un-seeded Node would " +
-				"silently lock bounded `maxBuffer: 1` (D4).",
-		);
-	}
-	return cached;
-}
-
 export function rateLimiter<T>(
 	source: Node<T>,
 	opts: NodeOrValue<RateLimiterOptions>,

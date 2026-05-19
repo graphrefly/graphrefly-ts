@@ -47,5 +47,10 @@ droppedCount.subscribe(([m]) => console.log("dropped so far:", m[1]));
 
 ## Behavior Details
 
-- **Terminal:** `COMPLETE` / `ERROR` cancel the refill timer, drop the pending queue,
+- **Reactive opts (Node form) must be seeded.** Mode (bounded vs unbounded)
+and the initial cap are read from `opts.cache` at construction and the swap
+handler rejects mode toggles. An un-seeded opts Node therefore throws at
+construction rather than silently locking bounded `maxBuffer: 1` (D4).
+
+**Terminal:** `COMPLETE` / `ERROR` cancel the refill timer, drop the pending queue,
 reset `droppedCount` to `0`, and propagate.
