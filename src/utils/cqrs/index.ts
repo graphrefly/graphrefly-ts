@@ -677,6 +677,16 @@ export class CqrsGraph<_EM extends CqrsEventMap = Record<string, unknown>> exten
 			// Name collision raced with another constructor — fall back to a
 			// raw, unmounted node so the per-aggregate stream still functions
 			// (just not graph-visible). Mirrors the prior best-effort branch.
+			// F-CATCH D-4: surface-loud — the fallback node silently vanishes
+			// from `graph.describe()`, which contradicts the dynamic-graph
+			// observability guarantee. Warn once so the visibility loss is
+			// diagnosable rather than mysterious.
+			console.warn(
+				`[GraphReFly] cqrs: per-aggregate event node "${mountName}" hit a ` +
+					`name-collision race (event "${type}", aggregate "${aggregateId}") — ` +
+					`falling back to an unmounted node; this aggregate's stream still ` +
+					`works but will NOT appear in graph.describe()/observe().`,
+			);
 			guarded = node<readonly CqrsEvent[]>(
 				[entries],
 				(batchData, actions, ctx) => {

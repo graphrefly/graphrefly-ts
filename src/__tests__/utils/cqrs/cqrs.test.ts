@@ -1,6 +1,6 @@
 import { GuardDenied } from "@graphrefly/pure-ts/core";
 import { memoryAppendLog, mergeReactiveLogs } from "@graphrefly/pure-ts/extra";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { OptimisticConcurrencyError, UndeclaredEmitError } from "../../../utils/_errors/index.js";
 import { type CqrsEvent, CqrsGraph, cqrs } from "../../../utils/cqrs/index.js";
 
@@ -684,6 +684,50 @@ describe("cqrs — roadmap §4.5", () => {
 		expect(app.aggregateVersion("orderPlaced", "b")).toBe(1);
 
 		app.destroy();
+	});
+
+	it("F-CATCH D-4: per-aggregate node name-collision fallback warns and still functions", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", {
+			handler: (p, a) => a.emit("orderPlaced", p),
+			emits: ["orderPlaced"],
+		});
+
+		// Simulate the name-collision race: the de-dup loop resolves a free
+		// mount name, but `derived()` still throws (a concurrent constructor
+		// registered it between the resolveOptional() check and registration).
+		const realDerived = (app as unknown as { derived: (...a: unknown[]) => unknown }).derived.bind(
+			app,
+		);
+		const spy = vi
+			.spyOn(app as unknown as { derived: (...a: unknown[]) => unknown }, "derived")
+			.mockImplementation((...args: unknown[]) => {
+				if (typeof args[0] === "string" && args[0].startsWith("orderPlaced_agg")) {
+					throw new Error("simulated name-collision race");
+				}
+				return realDerived(...args);
+			});
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		try {
+			app.dispatch("place", { id: 1 }, { aggregateId: "agg-1" });
+			// Fallback unmounted node still carries the per-aggregate stream.
+			const aOnly = app.event("orderPlaced", "agg-1").cache as readonly CqrsEvent[];
+			expect(aOnly).toHaveLength(1);
+			expect(aOnly[0]!.aggregateId).toBe("agg-1");
+			// Surface-loud: the silent graph-visibility loss is now diagnosable.
+			expect(
+				warn.mock.calls.some(
+					(c) =>
+						typeof c[0] === "string" &&
+						/name-collision race.*will NOT appear in graph\.describe/s.test(c[0]),
+				),
+			).toBe(true);
+		} finally {
+			warn.mockRestore();
+			spy.mockRestore();
+			app.destroy();
+		}
 	});
 
 	it("mergeReactiveLogs over per-aggregate streams produces a stable fan-in stream", () => {

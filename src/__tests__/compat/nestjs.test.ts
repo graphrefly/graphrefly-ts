@@ -18,6 +18,7 @@ import { Injectable } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
 import { firstValueFrom as rxFirstValueFrom, take, toArray } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GraphReflyEventExplorer } from "../../compat/nestjs/explorer.js";
 import {
 	ACTOR_KEY,
 	COMMAND_HANDLERS,
@@ -631,6 +632,62 @@ describe("nestjs compat — @OnGraphEvent", () => {
 
 		await module.close();
 	});
+
+	// F-CATCH D-1: a decorated host that self-registered in EVENT_HANDLERS (its
+	// per-instance initializer ran in some DI scope) but is NOT resolvable from
+	// the explorer's root injector at wiring time must be surfaced loudly, not
+	// silently skipped. ModuleRef.get can fail two ways depending on the
+	// container — throw (UnknownElementException) or return a nullish value —
+	// and both previously ended in `if (!instance) continue;` with zero signal.
+	for (const variant of [
+		{
+			name: "throws",
+			get: () => {
+				throw new Error("UnknownElementException");
+			},
+		},
+		{ name: "returns null", get: () => null },
+	] as const) {
+		it(`F-CATCH D-1: resolveInstance DI-miss (${variant.name}) warns and skips wiring`, () => {
+			const fired: number[] = [];
+
+			@Injectable()
+			class Host {
+				@OnGraphEvent("counter")
+				onData(value: number) {
+					fired.push(value);
+				}
+			}
+			// Construct once so the standard-decorator addInitializer runs and
+			// registers Host in EVENT_HANDLERS (the registry is instance-keyed).
+			new Host();
+			expect(EVENT_HANDLERS.has(Host)).toBe(true);
+
+			const graph = new Graph("d1-root");
+			graph.add(node<number>(), { name: "counter" });
+			const fakeModuleRef = { get: variant.get } as unknown as ConstructorParameters<
+				typeof GraphReflyEventExplorer
+			>[1];
+			const explorer = new GraphReflyEventExplorer(graph, fakeModuleRef);
+
+			const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+			try {
+				explorer.onModuleInit();
+				graph.set("counter", 7);
+
+				// Handler never wired (DI miss) — but the miss is now diagnosable.
+				expect(fired).toEqual([]);
+				expect(
+					warn.mock.calls.some(
+						(c) => typeof c[0] === "string" && /Host.*not resolvable from DI/.test(c[0]),
+					),
+				).toBe(true);
+			} finally {
+				warn.mockRestore();
+				graph.destroy();
+			}
+		});
+	}
 });
 
 // ---------------------------------------------------------------------------
@@ -852,12 +909,32 @@ describe("nestjs compat — actor bridge", () => {
 		expect(extractor(fakeExecutionContext({ headers: {} }))).toBeUndefined();
 	});
 
-	it("fromHeader: returns undefined for invalid JSON", () => {
-		const extractor = fromHeader();
-		const result = extractor(
-			fakeExecutionContext({ headers: { "x-graphrefly-actor": "not json" } }),
-		);
-		expect(result).toBeUndefined();
+	it("fromHeader: returns undefined for invalid JSON and warns (F-CATCH D-2)", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		try {
+			const extractor = fromHeader();
+			const result = extractor(
+				fakeExecutionContext({ headers: { "x-graphrefly-actor": "not json" } }),
+			);
+			expect(result).toBeUndefined();
+			// Surface-loud: a malformed actor header must be distinguishable
+			// from an absent one, not silently collapsed to DEFAULT_ACTOR.
+			expect(warn).toHaveBeenCalledTimes(1);
+			expect(warn.mock.calls[0]?.[0]).toMatch(/x-graphrefly-actor.*not valid JSON/);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it("fromHeader: a MISSING header does NOT warn (F-CATCH D-2 — only malformed is loud)", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		try {
+			const extractor = fromHeader();
+			expect(extractor(fakeExecutionContext({ headers: {} }))).toBeUndefined();
+			expect(warn).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+		}
 	});
 
 	it("GraphReflyGuard: attaches actor to request", () => {

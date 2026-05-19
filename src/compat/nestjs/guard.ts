@@ -78,6 +78,17 @@ export function fromHeader(headerName = "x-graphrefly-actor"): ActorExtractor {
 		try {
 			return JSON.parse(raw) as Actor;
 		} catch {
+			// F-CATCH D-2: surface-loud. A malformed actor header is otherwise
+			// silently indistinguishable from an absent one — the request runs
+			// as DEFAULT_ACTOR and downstream `policy()` denials read as
+			// "default actor denied" instead of "your actor header was
+			// malformed". Still falls back to DEFAULT_ACTOR (extractor contract
+			// is unchanged: undefined → DEFAULT_ACTOR; this guard is
+			// attribution-only and always allows the request through).
+			console.warn(
+				`[GraphReFly] fromHeader: header "${headerName}" is present but not valid JSON — ` +
+					`ignoring it and falling back to DEFAULT_ACTOR.`,
+			);
 			return undefined;
 		}
 	};

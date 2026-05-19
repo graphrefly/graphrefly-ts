@@ -741,6 +741,9 @@ function safeNode(target: Graph, path: string): Node | undefined {
 	try {
 		return target.node(path);
 	} catch {
+		// F-CATCH deliberate-exception: read-only introspection helper. Paths
+		// come from a describe()-derived walk that can race node removal; a
+		// missing node is a normal condition here, not an error to surface.
 		return undefined;
 	}
 }
@@ -749,6 +752,8 @@ function safeAnnotation(target: Graph, path: string): string | undefined {
 	try {
 		return target.annotation(path);
 	} catch {
+		// F-CATCH deliberate-exception: same rationale as safeNode — a missing
+		// annotation during a best-effort audit walk is expected, not an error.
 		return undefined;
 	}
 }

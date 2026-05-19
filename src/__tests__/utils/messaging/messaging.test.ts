@@ -3,7 +3,7 @@ import { reactiveLog } from "@graphrefly/pure-ts/extra";
 import { describe, expect, it } from "vitest";
 
 import { createAuditLog, mutate } from "../../../base/mutation/index.js";
-import { jobFlow, jobQueue } from "../../../utils/job-queue/index.js";
+import { type JobEvent, jobFlow, jobQueue } from "../../../utils/job-queue/index.js";
 import {
 	CONTEXT_TOPIC,
 	DEFERRED_TOPIC,
@@ -85,6 +85,89 @@ describe("patterns.messaging", () => {
 		expect(claimed[0]?.id).toBe(id);
 		expect(q.nack(id, { requeue: false })).toBe(true);
 		expect(q.claim(1)).toEqual([]);
+	});
+
+	it("F-CATCH D-3: no-requeue nack records the failure cause on the JobEvent", () => {
+		const q = jobQueue<number>("emails");
+		const unsub = q.events.entries.subscribe(() => undefined);
+		const id = q.enqueue(1);
+		q.claim(1);
+		const cause = new Error("handler exploded");
+		expect(q.nack(id, { requeue: false, error: cause })).toBe(true);
+		const events = q.events.entries.cache as readonly JobEvent<number>[];
+		const nackEvt = events.find((e) => e.action === "nack");
+		expect(nackEvt).toBeDefined();
+		expect(nackEvt!.error).toBe(cause);
+		unsub();
+	});
+
+	it("F-CATCH D-3: a requeue nack carries NO error (retry is not a failure)", () => {
+		const q = jobQueue<number>("emails");
+		const unsub = q.events.entries.subscribe(() => undefined);
+		const id = q.enqueue(1);
+		q.claim(1);
+		// An error passed alongside requeue:true must be ignored — a retry is
+		// not a terminal failure, so the nack event stays error-free.
+		q.nack(id, { requeue: true, error: new Error("should be ignored") });
+		const events = q.events.entries.cache as readonly JobEvent<number>[];
+		const nackEvt = events.find((e) => e.action === "nack");
+		expect(nackEvt).toBeDefined();
+		expect("error" in nackEvt!).toBe(false);
+		unsub();
+	});
+
+	it("F-CATCH D-3: jobFlow sync-throw work nack carries the thrown error (:622)", async () => {
+		const flow = jobFlow<number>("flow-throw", {
+			stages: [
+				{
+					name: "a",
+					work: () => {
+						throw new Error("sync-boom");
+					},
+				},
+				"b",
+			],
+		});
+		const stageA = flow.queue("a");
+		const unsub = stageA.events.entries.subscribe(() => undefined);
+		flow.enqueue(1);
+		// Deterministic settle: drain microtask turns (bounded) until the nack
+		// event lands — no wall-clock sleep (the result-Node ERROR path settles
+		// on a microtask via fromAny; the sync-throw path is immediate).
+		let nackEvt: JobEvent<number> | undefined;
+		for (let i = 0; i < 100 && nackEvt === undefined; i += 1) {
+			nackEvt = (stageA.events.entries.cache as readonly JobEvent<number>[]).find(
+				(e) => e.action === "nack",
+			);
+			if (nackEvt === undefined) await Promise.resolve();
+		}
+		expect(nackEvt).toBeDefined();
+		expect(nackEvt!.error).toBeInstanceOf(Error);
+		expect((nackEvt!.error as Error).message).toBe("sync-boom");
+		unsub();
+		flow.destroy();
+	});
+
+	it("F-CATCH D-3: jobFlow result-ERROR nack carries the ERROR payload (:688)", async () => {
+		const cause = new Error("async-boom");
+		const flow = jobFlow<number>("flow-reject", {
+			stages: [{ name: "a", work: () => Promise.reject(cause) }, "b"],
+		});
+		const stageA = flow.queue("a");
+		const unsub = stageA.events.entries.subscribe(() => undefined);
+		flow.enqueue(1);
+		// Deterministic settle (see :622 test) — bounded microtask drain.
+		let nackEvt: JobEvent<number> | undefined;
+		for (let i = 0; i < 100 && nackEvt === undefined; i += 1) {
+			nackEvt = (stageA.events.entries.cache as readonly JobEvent<number>[]).find(
+				(e) => e.action === "nack",
+			);
+			if (nackEvt === undefined) await Promise.resolve();
+		}
+		expect(nackEvt).toBeDefined();
+		expect(nackEvt!.error).toBe(cause);
+		unsub();
+		flow.destroy();
 	});
 
 	it("jobQueue rejects duplicate job ids", () => {

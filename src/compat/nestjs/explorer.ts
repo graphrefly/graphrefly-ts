@@ -45,6 +45,12 @@ let scheduleSeq = 0;
 export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 	private readonly disposers: Array<() => void> = [];
 	private readonly scheduleNodeNames: string[] = [];
+	// F-CATCH D-1 (qa F-b): de-dup the DI-miss warning. `resolveInstance` is
+	// called once per handler-registry that a host appears in (EVENT / CRON /
+	// CQRS / …), so an unresolvable host decorated in multiple families would
+	// otherwise emit one warning per registry for a single root cause. Scoped
+	// per explorer instance (one instance per module via the useFactory).
+	private readonly warnedUnresolved = new Set<DecoratorHostConstructor>();
 
 	constructor(
 		private readonly graph: Graph,
@@ -356,10 +362,31 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private resolveInstance(ctor: DecoratorHostConstructor): object | null {
+		// F-CATCH D-1: surface-loud, mirroring resolveCqrsGraph's diagnostic.
+		// A silent null here makes the caller `if (!instance) continue;` skip
+		// ALL of this class's @OnGraphEvent/@Cron/@CqrsHandler wiring with zero
+		// signal — a typo'd or unregistered provider then looks like the
+		// decorators "just don't fire". Cover BOTH failure shapes: `get` may
+		// throw (UnknownElementException) OR return a nullish value depending
+		// on the DI container, and both end in the same silent skip.
+		let instance: object | null = null;
 		try {
-			return this.moduleRef.get(ctor, { strict: false });
+			instance = this.moduleRef.get(ctor, { strict: false }) ?? null;
 		} catch {
+			instance = null;
+		}
+		if (instance == null) {
+			if (!this.warnedUnresolved.has(ctor)) {
+				this.warnedUnresolved.add(ctor);
+				const name = (ctor as { name?: string }).name ?? String(ctor);
+				console.warn(
+					`[GraphReFly] decorator host "${name}" not resolvable from DI — ` +
+						`is it registered as a provider in the same module as GraphReflyModule? ` +
+						`Its @OnGraphEvent/@Cron/@CqrsHandler handlers will NOT be wired.`,
+				);
+			}
 			return null;
 		}
+		return instance;
 	}
 }

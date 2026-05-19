@@ -71,6 +71,22 @@ export interface JobEvent<T = unknown> extends BaseAuditRecord {
 	readonly id: string;
 	readonly attempts?: number;
 	readonly payload?: T;
+	/**
+	 * The failure cause for a no-requeue `"nack"` (F-CATCH D-3). Present only
+	 * when a job was nack'd-without-requeue because its work threw
+	 * synchronously or its result Node emitted `ERROR`. Without this, a failed
+	 * job is observable as a `"nack"` event but the *reason* it failed is
+	 * unrecoverable from the event stream. Carries the raw thrown value /
+	 * ERROR payload (not normalized) so callers keep full fidelity.
+	 *
+	 * Caveats: a thrown `undefined` (legal but pathological) is not recorded —
+	 * it carries no diagnostic payload and the `"nack"` action itself already
+	 * surfaces the failure. And like {@link JobEvent.payload}, a raw `Error` is
+	 * not JSON-round-trippable, so keyed-storage codecs wired via
+	 * `attachEventStorage` should normalize this field (e.g. capture
+	 * `message`/`stack`) before serializing.
+	 */
+	readonly error?: unknown;
 }
 
 /** Recommended `keyOf` for keyed-storage adapters (Audit 2 #7). */
@@ -105,7 +121,12 @@ export class JobQueueGraph<T> extends Graph {
 		opts: { id?: string; metadata?: Record<string, unknown> },
 	) => string;
 	private readonly _ackImpl: (id: string, job: JobEnvelope<T>) => void;
-	private readonly _nackImpl: (id: string, job: JobEnvelope<T>, requeue: boolean) => void;
+	private readonly _nackImpl: (
+		id: string,
+		job: JobEnvelope<T>,
+		requeue: boolean,
+		error?: unknown,
+	) => void;
 	private readonly _removeByIdImpl: (id: string, job: JobEnvelope<T>) => void;
 
 	constructor(name: string, opts: JobQueueOptions = {}) {
@@ -203,8 +224,8 @@ export class JobQueueGraph<T> extends Graph {
 			},
 		);
 
-		this._nackImpl = mutate<[string, JobEnvelope<T>, boolean], void, JobEvent<T>>(
-			(id, job, requeue): void => {
+		this._nackImpl = mutate<[string, JobEnvelope<T>, boolean, unknown], void, JobEvent<T>>(
+			(id, job, requeue, _error): void => {
 				if (requeue) {
 					this._jobs.set(id, { ...job, state: "queued" });
 					this._pending.append(id);
@@ -217,12 +238,16 @@ export class JobQueueGraph<T> extends Graph {
 				log: this.events,
 				seq: this._seqCursor,
 				freeze: false,
-				onSuccessRecord: ([id, job], _r, { t_ns, seq }) => ({
+				onSuccessRecord: ([id, job, requeue, error], _r, { t_ns, seq }) => ({
 					action: "nack",
 					id,
 					attempts: job.attempts,
 					t_ns,
 					seq: seq ?? 0,
+					// F-CATCH D-3: surface the failure cause on the no-requeue
+					// (terminal-failure) nack only. A requeue nack is a retry,
+					// not a failure, so it carries no error.
+					...(!requeue && error !== undefined ? { error } : {}),
 				}),
 			},
 		);
@@ -303,10 +328,20 @@ export class JobQueueGraph<T> extends Graph {
 		return true;
 	}
 
-	nack(id: string, opts: { requeue?: boolean } = {}): boolean {
+	/**
+	 * Negatively-acknowledge an inflight job.
+	 *
+	 * @param opts.requeue - `true` (default) returns the job to the queue for
+	 *   retry; `false` drops it permanently (terminal failure).
+	 * @param opts.error - Optional failure cause for a `requeue: false` nack.
+	 *   Recorded on the emitted `"nack"` {@link JobEvent} as `error` so the
+	 *   reason a job failed is recoverable from the event stream (F-CATCH
+	 *   D-3). Ignored when `requeue` is `true` (a retry is not a failure).
+	 */
+	nack(id: string, opts: { requeue?: boolean; error?: unknown } = {}): boolean {
 		const job = this._jobs.get(id);
 		if (!job || job.state !== "inflight") return false;
-		this._nackImpl(id, job, opts.requeue ?? true);
+		this._nackImpl(id, job, opts.requeue ?? true, opts.error);
 		return true;
 	}
 
@@ -619,11 +654,13 @@ export class JobFlowGraph<T> extends Graph {
 							let result: NodeInput<T>;
 							try {
 								result = workFn(job, { signal: ac.signal });
-							} catch {
-								// Sync throw → nack no-requeue.
+							} catch (err) {
+								// Sync throw → nack no-requeue. F-CATCH D-3: thread
+								// the thrown value onto the nack event so the
+								// failure is diagnosable, not just observable.
 								inflight.delete(entry);
 								inflightCounter?.emit(inflight.size);
-								current.nack(job.id, { requeue: false });
+								current.nack(job.id, { requeue: false, error: err });
 								processed += 1;
 								continue;
 							}
@@ -685,7 +722,10 @@ export class JobFlowGraph<T> extends Graph {
 									} else if (m[0] === ERROR) {
 										settled = true;
 										cleanupSub();
-										current.nack(job.id, { requeue: false });
+										// F-CATCH D-3: carry the ERROR payload onto
+										// the nack event (symmetric with the sync
+										// -throw path) so failed jobs are diagnosable.
+										current.nack(job.id, { requeue: false, error: m[1] });
 										return;
 									}
 								}
