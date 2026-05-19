@@ -524,35 +524,56 @@ export class AgentLoopGraph extends Graph {
 			{ describeKind: "effect" },
 		);
 
-		// Effect 2b: full-deny recovery. `effResponse` commits `status="acting"`
-		// from the LLM's *pre-intercept* `response.toolCalls`. When an
-		// interceptor denies EVERY call, the post-intercept stream emits
+		// Effect 2b: interceptor-denial recovery. `effResponse` commits
+		// `status="acting"` from the LLM's *pre-intercept* `response.toolCalls`.
+		// When an interceptor denies EVERY call, the post-intercept stream emits
 		// RESOLVED (no DATA) — `toolExecution` no-ops, `effResults` never fires,
 		// and `status` is stranded at "acting" forever (`run()` never resolves;
-		// the original liveness bug). This effect detects the full-deny wave and
-		// drives the loop forward with synthetic denial tool-results so the LLM
-		// can adapt under the policy (user-locked: continue, not terminate).
+		// the original liveness bug). On partial deny, `effResults` advances
+		// status correctly for the allowed subset, but the *denied* subset has
+		// no matching `tool_result` — every assistant `tool_use` block needs
+		// one for the next `adapter.invoke` to see a valid transcript per the
+		// LLM-vendor schemas. This effect handles both: it synthesizes
+		// `"[tool call denied by interceptor]"` `tool_result`s for whichever
+		// calls were dropped (the full set on full deny, the dropped subset on
+		// partial deny) so the LLM can adapt under the policy (user-locked:
+		// continue, not terminate).
 		//
-		// **Why a [raw, gated] diamond with `partial: true` (the `node()`
-		// default) and NO `ctx.prevData` fallback.** `gatedToolCallsNode`
-		// derives from `toolCallsRaw`, so the two deps form a diamond — the fn
-		// recomputes once after both settle (spec §1.4 / §2.7), with
-		// `batchData[0]` = the raw requested calls and `batchData[1]` = the
-		// gate's emission *this wave*. Unlike effResponse/effResults we must
-		// NOT fall back to `ctx.prevData[1]`: the signal IS "the gate delivered
-		// no DATA this wave" (full deny → RESOLVED). A `prevData` fallback would
-		// read a *prior allowed turn*'s calls and mask the deny. This is the
-		// spec-§2.7 raw-operator pattern (handle the SENTINEL/RESOLVED dep
-		// explicitly in the fn body) — it deliberately sidesteps the open
-		// core SENTINEL-dep first-run-gate non-determinism (a `partial:false`
-		// gate on a never-DATA dep), which is a separate core/spec item.
+		// **Why a [raw, gated] diamond with explicit `partial: true` and NO
+		// `ctx.latestData[1]` fallback.** `gatedToolCallsNode` derives from
+		// `toolCallsRaw`, so the two deps form a diamond — the fn recomputes
+		// once after both settle (spec §1.4 / §2.7), with `batchData[0]` = the
+		// raw requested calls and `batchData[1]` = the gate's emission *this
+		// wave*. The core `node()` default is `partial: false` (node.ts
+		// `opts.partial ?? false`); under that default, an R2.7.0 first-run
+		// gate would hold this fn forever once the gate hits a RESOLVED-only
+		// dep (the gate releases only on real DATA per R2.7.0). Explicit
+		// `partial: true` opts into spec R2.7.2 (DS-2.7.A, 2026-05-19): the
+		// gate is OFF and the fn-body is contractually responsible for
+		// guarding SENTINEL slots. We DELIBERATELY do not fall back to
+		// `ctx.latestData[1]` (the public name for `DepRecord.prevData`):
+		// the signal IS "the gate delivered no DATA this wave" (RESOLVED on
+		// the full-deny branch). A fallback would read a *prior allowed
+		// turn*'s calls and mask the deny.
 		//
-		// Only wired when an interceptor is configured (`gatedToolCallsNode !==
-		// toolCallsRaw`): without one there is no deny path, and a
+		// Only wired when an interceptor is configured (`gatedToolCallsNode
+		// !== toolCallsRaw`): without one there is no deny path, and a
 		// `[toolCallsRaw, toolCallsRaw]` duplicate-dep node would be pointless.
-		// Partial deny (some calls allowed) delivers a non-empty DATA batch on
-		// slot 1 and is handled by `effResults` (the documented supported path)
-		// — this effect early-returns on it.
+		//
+		// **Closure-mirror staleness** — the `latestTurn` read below relies on
+		// the same FIFO drain ordering invariant the existing block at lines
+		// ~224–231 documents for `effResults`. `turnNode.emit` lives inside
+		// `effResponse`'s outer batch; `turnSub` drains BEFORE the diamond
+		// settles `effFullDeny`. A future refactor that un-batches that emit
+		// would regress all three effects together — keep the discipline.
+		//
+		// **Belt-and-suspenders maxTurns guard.** On normal flow `effResponse`
+		// already sets `status="done"` when `next >= maxTurns`, so by the time
+		// `toolCallsRaw` would fire (status==="acting" gate) we're past the
+		// cap-reaching turn and `effFullDeny` doesn't run. The
+		// `latestTurn >= maxTurns ? "done" : "thinking"` check below is
+		// defense-in-depth in case a future refactor inverts the ordering
+		// (cheap, no path to a runtime bug).
 		const effFullDeny =
 			gatedToolCallsNode !== toolCallsRaw
 				? node(
@@ -567,13 +588,30 @@ export class AgentLoopGraph extends Graph {
 									: null;
 							// No real request this wave (RESOLVED upstream) — nothing to recover.
 							if (rawCalls == null || rawCalls.length === 0) return;
-							// Gate delivered DATA → allowed / partial deny; effResults owns it.
-							if (gatedBatch != null && gatedBatch.length > 0) return;
-							// Full deny: every requested call was dropped. Advance the loop.
-							const nextStatus: AgentLoopStatus = latestTurn >= maxTurns ? "done" : "thinking";
+							// Gate's emission this wave — null/empty when the interceptor
+							// produced RESOLVED (full deny); non-empty array of the allowed
+							// subset on partial deny / full allow.
+							const gatedCalls =
+								gatedBatch != null && gatedBatch.length > 0
+									? (gatedBatch.at(-1) as readonly ToolCall[])
+									: null;
+							// Denied subset = calls in raw not present in gated (by id).
+							// Full deny → all rawCalls. Partial deny → subtraction.
+							// Full allow → empty array (no recovery needed).
+							const allowedIds = gatedCalls === null ? null : new Set(gatedCalls.map((c) => c.id));
+							const denied =
+								allowedIds === null ? rawCalls : rawCalls.filter((c) => !allowedIds.has(c.id));
+							if (denied.length === 0) return; // full allow — effResults owns it
+							const isFullDeny = gatedCalls === null;
 							batch(() => {
-								statusNode.emit(nextStatus);
-								for (const c of rawCalls)
+								// Full deny → advance status here (effResults never fires).
+								// Partial deny → DON'T touch status; effResults will transition
+								// after the allowed subset's tool-execution completes, so we
+								// only fill in the missing tool_results for the denied subset.
+								if (isFullDeny) {
+									statusNode.emit(latestTurn >= maxTurns ? "done" : "thinking");
+								}
+								for (const c of denied)
 									chat.appendToolResult(c.id, "[tool call denied by interceptor]");
 							});
 						},
@@ -582,15 +620,16 @@ export class AgentLoopGraph extends Graph {
 							describeKind: "effect",
 							meta: aiMeta("agent_full_deny_recovery"),
 							// MUST be explicit: the core `node()` default is
-							// `partial: false` (node.ts `opts.partial ?? false`).
-							// `gatedToolCallsNode` only ever emits RESOLVED on the
-							// full-deny path (never DATA/terminal), so a
-							// `partial:false` first-run gate would hold this fn
-							// FOREVER — the exact open core SENTINEL-dep gate
-							// hazard. `partial:true` is the spec-§2.7 raw-operator
-							// contract: fire on `_dirtyDepCount===0` and handle the
-							// RESOLVED/SENTINEL slot explicitly in the fn body
-							// (done above via the `gatedBatch` length check).
+							// `partial: false` (node.ts `opts.partial ?? false`),
+							// and `gatedToolCallsNode` only ever emits RESOLVED on the
+							// full-deny path (never DATA/terminal). Spec R2.7.0
+							// (DS-2.7.A, 2026-05-19) holds the `partial: false`
+							// first-run gate until every dep has contributed real
+							// DATA, so a `partial: false` effFullDeny would hold the
+							// fn FOREVER. Spec R2.7.2 = `partial: true` disables the
+							// gate; the fn body's `denied`-subtraction guard above
+							// covers the SENTINEL slot per the R2.7.2 author
+							// contract.
 							partial: true,
 						},
 					)

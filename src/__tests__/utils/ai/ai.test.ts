@@ -1390,10 +1390,17 @@ describe("patterns.ai.agentLoop", () => {
 		});
 
 		await loop.run("go");
-		// Tool executor saw only the "allow" call → no throw.
 		const msgs = loop.chat.allMessages();
 		const toolMsgs = msgs.filter((m) => m.role === "tool");
-		expect(toolMsgs).toHaveLength(1);
+		// Post-ND-3 (DS-2.7.A /qa, 2026-05-19): partial deny now also synthesizes
+		// a denial `tool_result` for the dropped subset, so every `tool_use`
+		// in the assistant message has a matching `tool_result` (valid
+		// transcript for the next `adapter.invoke`). Pre-ND-3 the dropped
+		// tool produced no result, leaving an orphan `tool_use` block — a
+		// transcript-validity hazard. Tool executor still saw only "allow"
+		// (no throw), since `effFullDeny` only synthesizes results, it
+		// doesn't invoke handlers.
+		expect(toolMsgs).toHaveLength(2);
 		// Public `toolCalls` surfaces the POST-intercept stream (auditable).
 		expect((loop.toolCalls.cache as readonly ToolCall[]).map((c) => c.name)).toEqual(["allow"]);
 	});
@@ -1471,13 +1478,80 @@ describe("patterns.ai.agentLoop", () => {
 			}),
 		});
 
-		// Resolves (does not hang) and the denial recovery fired at most
-		// `maxTurns` times — proof the maxTurns belt-and-suspenders in the
-		// full-deny effect bounds the recovery loop.
+		// State-machine trace with `maxTurns: 2`:
+		//   Wave A (turn 0→1, !capReached): effResponse sets status="acting";
+		//     toolCallsRaw emits → gated emits RESOLVED → effFullDeny fires →
+		//     1 synthetic tool message + status → "thinking".
+		//   Wave B (turn 1→2, capReached=TRUE): effResponse sets status="done"
+		//     DIRECTLY, never goes through "acting", so toolCallsRaw stays
+		//     RESOLVED → effFullDeny doesn't fire → run resolves.
+		// Net effect: exactly ONE synthetic tool message (Wave A only).
+		// The pre-empting `capReached` in effResponse is what bounds the
+		// loop in normal flow; effFullDeny's own `latestTurn >= maxTurns`
+		// guard is belt-and-suspenders for refactor safety.
 		await loop.run("go");
 		const toolMsgs = loop.chat.allMessages().filter((m) => m.role === "tool");
-		expect(toolMsgs.length).toBeGreaterThan(0);
-		expect(toolMsgs.length).toBeLessThanOrEqual(2);
+		expect(toolMsgs.length).toBe(1);
+		expect(toolMsgs[0]?.content).toBe("[tool call denied by interceptor]");
+	}, 4000);
+
+	it("partial deny synthesizes tool_results for the denied subset (valid transcript for next adapter.invoke)", async () => {
+		// Two tools requested; interceptor allows "ok", denies "forbid".
+		// Without the partial-deny path in effFullDeny, the assistant
+		// message would carry tool_use:forbid with no matching
+		// tool_result — the next LLM call would see an invalid
+		// transcript. With it, the denied subset gets a synthetic
+		// "[tool call denied by interceptor]" result; the allowed
+		// subset's real result flows through effResults normally.
+		const partialResp: LLMResponse = {
+			content: "",
+			toolCalls: [
+				{ id: "tc-ok", name: "ok", arguments: {} },
+				{ id: "tc-no", name: "forbid", arguments: {} },
+			],
+		};
+		const finalResp: LLMResponse = { content: "done", finishReason: "end_turn" };
+		const adapter = mockAdapter([partialResp, finalResp]);
+		const okTool: ToolDefinition = {
+			name: "ok",
+			description: "",
+			parameters: {},
+			handler: () => "ok-result",
+		};
+		const forbidTool: ToolDefinition = {
+			name: "forbid",
+			description: "",
+			parameters: {},
+			handler: () => {
+				throw new Error("should not execute");
+			},
+		};
+		const loop = agentLoop("deny-partial", {
+			adapter,
+			tools: [okTool, forbidTool],
+			interceptToolCalls: toolInterceptor({
+				allow: [
+					node<(c: ToolCall) => boolean>([], {
+						name: "deny-forbid",
+						initial: (c: ToolCall) => c.name !== "forbid",
+					}),
+				],
+			}),
+		});
+
+		const result = await loop.run("go");
+		expect(result.content).toBe("done");
+		const toolMsgs = loop.chat.allMessages().filter((m) => m.role === "tool");
+		expect(toolMsgs.length).toBe(2);
+		// Every tool_use in the assistant message has a matching tool_result.
+		const resultsById = new Map<string, string | undefined>();
+		for (const m of toolMsgs) {
+			// ChatMessage shape for "tool" role carries the id on toolCallId
+			const id = (m as { readonly toolCallId?: string }).toolCallId;
+			if (id) resultsById.set(id, m.content);
+		}
+		expect(resultsById.get("tc-ok")).toBe("ok-result");
+		expect(resultsById.get("tc-no")).toBe("[tool call denied by interceptor]");
 	}, 4000);
 
 	it("QA m8: string tool-result is not double-JSON-stringified", async () => {

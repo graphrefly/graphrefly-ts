@@ -46,6 +46,8 @@ All three ports answered "what is the §2.7 contract" *differently*. That is the
 
 Adopt Rust's lock as canonical for the cross-port spec. Spec §2.7 rewords to match. TS converges (per-op `partial:true` audit + `terminalAsRealInput` opt-in for Reduce-class). PY converges (carved out — Q4).
 
+**Rust framing correction (/qa, 2026-05-19).** Rust is **predicate-conformant**: its gate already excludes RESOLVED (`has_sentinel_deps`) and excludes terminal for non-Reduce-class operators (`fire_operator` first-run gate; D011 / R2.5.3 / R5.4 `partial`-bypass). But Rust's Reduce-class terminal-aware behavior is dispatched by hardcoded `OperatorOp` discriminant (`Reduce`/`Last`/`Valve` in `node.rs:152–158`), NOT by a user-facing `NodeOptions.terminalAsRealInput` flag. Promoting it to a flag is a thin follow-on Rust slice (no semantic change for the existing dispatch — purely surfaces the existing per-op behavior as a public option matching `R2.7.1`). So the honest framing is *predicate pre-conformant + flag-surfacing slice pending* rather than "fully pre-conformant." Tracked on the cross-track-ledger row (§2 DS-2.7.A row).
+
 ### Q2 — `partial:true` rule → **gate is OFF; fn body MUST guard SENTINEL** (user-locked, Recommended)
 
 `partial:true` means "gate truly disabled — your fn body MUST handle `prevData[i] === undefined` for every dep, or the wrong-emission hazard is YOUR bug." Phase 10.5's `withLatestFrom` stays `partial:false` (it correctly wants gate-on); `valve` keeps `partial:true` (it correctly handles SENTINEL); `agentLoop.effFullDeny` (this session) keeps `partial:true` (handles SENTINEL via the `gatedBatch == null` check). COMPOSITION-GUIDE gets a dedicated §X "partial:true SENTINEL-pass-through" rule with the `valve` + `effFullDeny` examples.
@@ -130,7 +132,7 @@ docs/optimizations.md.
 ## Follow-on (NOT this session)
 
 - **TS impl slice (`/dev-dispatch`):** update `packages/pure-ts/src/core/node.ts` gate scan (remove `terminal === undefined` from the sentinel predicate), add `NodeOptions.terminalAsRealInput?: boolean`, audit `reduce`/`scan`/`last` to set the opt-in, add a one-shot grep for any `partial:false` operator that today fires on a COMPLETE-only dep, parity-tests scenario in `packages/parity-tests/scenarios/core/`.
-- **Rust:** pre-conformant; only needs the spec-side parity scenario to assert it (no code change).
+- **Rust:** predicate pre-conformant (no code change needed for `R2.7.0` / `R2.7.2` / `R2.7.3`); a thin follow-on slice surfaces the Reduce-class terminal-aware behavior as a user-facing `NodeOptions.terminalAsRealInput` flag to match `R2.7.1` literally (no semantic change to the existing `OperatorOp` discriminant dispatch). Add the cross-impl parity scenario when TS lands the predicate update.
 - **PY:** `optimizations.md` row tagged `[py-parity-am]` — reconciliation under the rigor-infra umbrella.
 
 ## Cross-refs

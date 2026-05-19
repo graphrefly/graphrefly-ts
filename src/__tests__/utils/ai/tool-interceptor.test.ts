@@ -155,7 +155,7 @@ describe("toolInterceptor (Phase 14.5.2)", () => {
 		stop();
 	});
 
-	it("agentLoop integration: partial deny drops forbidden tool, keeps allowed", async () => {
+	it("agentLoop integration: partial deny keeps allowed, synthesizes denial result for forbidden", async () => {
 		const toolCallResp: LLMResponse = {
 			content: "",
 			toolCalls: [
@@ -193,7 +193,10 @@ describe("toolInterceptor (Phase 14.5.2)", () => {
 		});
 		await loop.run("go");
 		const toolMsgs = loop.chat.allMessages().filter((m) => m.role === "tool");
-		expect(toolMsgs).toHaveLength(1);
+		// Post-ND-3 (DS-2.7.A /qa, 2026-05-19): every `tool_use` in the
+		// assistant message has a matching `tool_result` — allowed's real
+		// handler result + forbidden's synthetic denial.
+		expect(toolMsgs).toHaveLength(2);
 		// Public `toolCalls` surfaces the POST-intercept stream (auditable).
 		expect((loop.toolCalls.cache as readonly ToolCall[]).map((c) => c.name)).toEqual(["allow"]);
 	});
