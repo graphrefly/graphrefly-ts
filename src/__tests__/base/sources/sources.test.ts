@@ -24,6 +24,7 @@ import { fromWebSocket, fromWebSocketReconnect, toWebSocket } from "../../../bas
 import { cached, defer, forEach, replay, share, toArray } from "../../../base/sources/async.js";
 import { fromCron, parseCron } from "../../../base/sources/event/cron.js";
 import { fromEvent, fromRaf } from "../../../base/sources/event/dom.js";
+import { fromPushNotification } from "../../../base/sources/event/push.js";
 import { fromFSWatch } from "../../../base/sources/node/fs-root.js";
 import { fromGitHook } from "../../../base/sources/node/git-hook.js";
 import { awaitSettled, firstValueFrom, firstWhere } from "../../../base/sources/settled.js";
@@ -117,6 +118,139 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 			batches.some((b) => b.some((m) => m[0] === ERROR && (m[1] as Error).message === "raf-abort")),
 		).toBe(true);
 		unsub();
+	});
+
+	/**
+	 * Install a controllable `document` (visibilitychange) + a real
+	 * `requestAnimationFrame`/`cancelAnimationFrame` stub so the
+	 * rAF-vs-setTimeout branch in `fromRaf.scheduleNext` is GENUINELY
+	 * exercised (node's vitest env has neither). `rafCalls` distinguishes
+	 * "ticked via rAF" from "ticked via the setTimeout fallback".
+	 */
+	function installRafDom(initial: "hidden" | "visible") {
+		const prevDoc = (globalThis as { document?: unknown }).document;
+		const prevRaf = (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame;
+		const prevCaf = (globalThis as { cancelAnimationFrame?: unknown }).cancelAnimationFrame;
+		let handler: (() => void) | undefined;
+		const doc = {
+			visibilityState: initial as DocumentVisibilityState,
+			addEventListener: (t: string, h: () => void) => {
+				if (t === "visibilitychange") handler = h;
+			},
+			removeEventListener: (t: string) => {
+				if (t === "visibilitychange") handler = undefined;
+			},
+		};
+		let rafCalls = 0;
+		(globalThis as { document?: unknown }).document = doc;
+		(globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = (
+			cb: (t: number) => void,
+		): number => {
+			rafCalls++;
+			return setTimeout(() => cb(performance.now()), 8) as unknown as number;
+		};
+		(globalThis as { cancelAnimationFrame?: unknown }).cancelAnimationFrame = (id: number) =>
+			clearTimeout(id as unknown as ReturnType<typeof setTimeout>);
+		return {
+			doc,
+			fireVisible: () => {
+				doc.visibilityState = "visible" as DocumentVisibilityState;
+				handler?.();
+			},
+			rafCalls: () => rafCalls,
+			restore: () => {
+				(globalThis as { document?: unknown }).document = prevDoc;
+				(globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = prevRaf;
+				(globalThis as { cancelAnimationFrame?: unknown }).cancelAnimationFrame = prevCaf;
+			},
+		};
+	}
+
+	it("fromRaf({ pauseWhenHidden }) parks while hidden (no rAF, no timer), resumes via rAF on visible", async () => {
+		const env = installRafDom("hidden");
+		try {
+			const n = fromRaf({ pauseWhenHidden: true });
+			const { batches, unsub } = collect(n);
+			await tick(120);
+			// Parked: zero DATA AND zero rAF scheduled while hidden (proves the
+			// early-return — not an accidental no-raf fallback).
+			expect(batches.flat().filter((m) => m[0] === DATA).length).toBe(0);
+			expect(env.rafCalls()).toBe(0);
+			env.fireVisible();
+			await tick(120);
+			// Resumed specifically via the rAF branch (raf && !hidden).
+			expect(batches.flat().filter((m) => m[0] === DATA).length).toBeGreaterThanOrEqual(2);
+			expect(env.rafCalls()).toBeGreaterThan(0);
+			unsub();
+		} finally {
+			env.restore();
+		}
+	});
+
+	it("fromRaf (default) keeps ticking while hidden via setTimeout (NOT rAF), uses rAF when visible", async () => {
+		const env = installRafDom("hidden");
+		try {
+			const n = fromRaf(); // no pauseWhenHidden
+			const { batches, unsub } = collect(n);
+			await tick(120);
+			// Genuinely exercises the `raf && !hidden` gate: hidden ⇒ setTimeout
+			// keep-alive fired (DATA flows) while rAF was NOT used.
+			expect(batches.flat().filter((m) => m[0] === DATA).length).toBeGreaterThanOrEqual(2);
+			expect(env.rafCalls()).toBe(0);
+			env.fireVisible();
+			await tick(120);
+			// Visible ⇒ now routes through rAF.
+			expect(env.rafCalls()).toBeGreaterThan(0);
+			unsub();
+		} finally {
+			env.restore();
+		}
+	});
+
+	it("fromPushNotification emits each delivered payload; teardown unsubscribes", () => {
+		let deliver: ((p: { v: number }) => void) | undefined;
+		let unsubbed = false;
+		const n = fromPushNotification<{ v: number }>((d) => {
+			deliver = d;
+			return () => {
+				unsubbed = true;
+			};
+		});
+		const { batches, unsub } = collect(n);
+		deliver?.({ v: 1 });
+		deliver?.({ v: 2 });
+		const data = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		expect(data).toEqual([{ v: 1 }, { v: 2 }]);
+		expect(unsubbed).toBe(false);
+		unsub();
+		expect(unsubbed).toBe(true);
+		// Post-teardown deliver is a no-op (done guard).
+		deliver?.({ v: 3 });
+		expect(batches.flat().filter((m) => m[0] === DATA).length).toBe(2);
+	});
+
+	it("fromPushNotification tolerates a void-returning register", () => {
+		let deliver: ((p: string) => void) | undefined;
+		const n = fromPushNotification<string>((d) => {
+			deliver = d;
+			// no unsubscribe returned
+		});
+		const { batches, unsub } = collect(n);
+		deliver?.("hello");
+		expect(
+			batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1]),
+		).toEqual(["hello"]);
+		expect(() => unsub()).not.toThrow();
+	});
+
+	it("fromPushNotification rejects a non-function register", () => {
+		expect(() => fromPushNotification(undefined as never)).toThrow(TypeError);
 	});
 
 	it("fromTimer aborts with ERROR", () => {

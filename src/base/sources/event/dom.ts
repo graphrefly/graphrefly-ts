@@ -27,8 +27,27 @@ export type EventTargetLike = {
 	): void;
 };
 
-export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
-	const { signal, ...rest } = opts ?? {};
+/** Options for {@link fromRaf}. */
+export type FromRafOptions = AsyncSourceOpts & {
+	/**
+	 * When `true`, the source **fully parks** while the document is hidden
+	 * (`document.visibilityState === "hidden"`) instead of falling back to a
+	 * `setTimeout(16ms)` keep-alive. It resumes from the next animation frame
+	 * on `visibilitychange` back to visible. Strict battery-correctness for
+	 * mobile/background consumers — a backgrounded recompute/timer loop is a
+	 * footgun for them. Default `false` (legacy: keep ticking via setTimeout).
+	 *
+	 * **No `document` ⇒ never auto-pauses.** React Native / Hermes has no
+	 * `document`, so visibility cannot be observed here; the host must drive
+	 * background pause itself (e.g. an `AppState`-fed source gating the
+	 * downstream, or unsubscribing this node on background). This option only
+	 * affects environments that expose `document.visibilityState`.
+	 */
+	pauseWhenHidden?: boolean;
+};
+
+export function fromRaf(opts?: FromRafOptions): Node<number> {
+	const { signal, pauseWhenHidden = false, ...rest } = opts ?? {};
 	return node<number>((_data, a) => {
 		let done = false;
 		let rafId: number | undefined;
@@ -72,10 +91,16 @@ export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
 		};
 		const scheduleNext = () => {
 			if (done) return;
+			const hidden = doc !== undefined && doc.visibilityState === "hidden";
+			// Strict pause: when hidden and the consumer opted in, schedule
+			// nothing at all (no rAF, no setTimeout keep-alive). The
+			// `visibilitychange` listener re-enters `scheduleNext()` when the
+			// document becomes visible again, resuming from the next frame.
+			if (pauseWhenHidden && hidden) return;
 			// Prefer rAF for display-synced ticks when the tab is visible; when
 			// hidden, rAF is throttled to ~0 by the browser, so fall back to
 			// setTimeout so downstream state continues updating.
-			if (raf && (!doc || doc.visibilityState !== "hidden")) {
+			if (raf && !hidden) {
 				rafId = raf(tick);
 			} else {
 				fallbackTimer = setTimeout(() => tick(performance.now()), 16);
@@ -99,7 +124,7 @@ export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
 		}
 		signal?.addEventListener("abort", onAbort, { once: true });
 		abortListenerAdded = signal !== undefined;
-		if (doc && raf) {
+		if (doc && (raf || pauseWhenHidden)) {
 			doc.addEventListener("visibilitychange", onVisibilityChange);
 			visibilityListenerAdded = true;
 		}

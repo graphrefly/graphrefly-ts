@@ -137,15 +137,38 @@ Use the **[interactive demo](/demos/reactive-layout/)** Blocks and Flow chapters
 
 - **Browser:** `CanvasMeasureAdapter` (uses `OffscreenCanvas` when available).
 - **Terminal / snapshots:** `CliMeasureAdapter` for fixed character width without a DOM.
+- **React Native / Hermes:** `InjectedMeasureAdapter` — wrap a host sync `(text, font) => widthPx` function (see below).
 - **Precomputed / shared cache:** swap adapters without changing consumer code — the demo's **Adapters** chapter runs multiple backends against the same graph shape.
 
 First measurement on a **new font** is slower while the font loads; later calls hit the per-font cache.
+
+### React Native / Hermes
+
+`@graphrefly/graphrefly/utils/reactive-layout` is **Hermes-safe**: its core imports only `@graphrefly/pure-ts/core` + `@graphrefly/pure-ts/graph` — zero `node:*`, and the **only** DOM touchpoint is `CanvasMeasureAdapter`'s `OffscreenCanvas`, reached behind a runtime `typeof OffscreenCanvas === "undefined"` guard (no static import). So the engine loads and runs on Hermes; you just supply a non-DOM measure adapter (the runtime `typeof` bail is what makes that crash-safe).
+
+A scoped browser-safety bundle assertion over the `utils/reactive-layout` entry runs at build time (same bar/precedent as the substrate's `assertBrowserSafeBundles`). It **soundly** fails the build on any transitive `node:*` import, and **heuristically** fails it if a reachable chunk references a DOM global (`document`, `OffscreenCanvas`, …) that is *not* `typeof`-guarded in its file — i.e. it mechanically enforces the `typeof`-guard convention and catches a new unguarded DOM regression. It is **not** a proof of DOM-freedom (a file could `typeof`-guard a global once yet misuse it elsewhere); ultimate Hermes-crash-safety still rests on the runtime guards plus the manual audit, not on this assertion alone.
+
+RN has no DOM/`OffscreenCanvas`. Use `InjectedMeasureAdapter`, the documented RN measure-adapter contract — it wraps any **synchronous** `(text, font) => widthPx`. The substrate ships the generic seam + contract; the concrete native binding stays userland (same split as the userland `bytes`-`StorageBackend` adapter vs. the upstream `bigintJsonCodecFor`).
+
+```ts
+import { Skia } from "@shopify/react-native-skia";
+import { reactiveLayout, InjectedMeasureAdapter } from "@graphrefly/graphrefly/utils/reactive-layout";
+
+const skFont = Skia.Font(typeface, 16); // built once, outside the measure fn
+const layout = reactiveLayout({
+  adapter: new InjectedMeasureAdapter((text) => skFont.measureText(text).width),
+  font: "16px Kalam",
+  maxWidth: screenWidth,
+});
+```
+
+`Skia.Font.measureText` (and RN core text metrics) are synchronous — a perfect fit for the pure-arithmetic layout graph. Pass `{ cache: true }` to memoize by `font + text` for repeated re-layout of stable content.
 
 ### Fidelity and runtime caveats
 
 - **Measurement subset.** CJK (per-grapheme breaking), soft-hyphen, break-word, kinsoku, left-sticky punctuation — yes. Full bidi, keep-all word-break, emoji-width correction, tab stops — **not yet**. If you depend on those, compare with pretext on **[Reactive Layout vs Pretext](/comparisons/pretext/)**.
 
-- **`fromRaf` semantics.** Animation-frame sources tick via `requestAnimationFrame` when the tab is visible and fall back to `setTimeout` when hidden, so downstream layout state keeps updating. If you need strict “pause in background” rAF behavior, wrap or replace at the source.
+- **`fromRaf` semantics.** Animation-frame sources tick via `requestAnimationFrame` when the tab is visible and fall back to `setTimeout` when hidden, so downstream layout state keeps updating. For strict “pause in background” behavior (mobile battery-correctness), pass `fromRaf({ pauseWhenHidden: true })`: it fully parks while `document.visibilityState === "hidden"` (no rAF, no `setTimeout` keep-alive) and resumes from the next frame on `visibilitychange`. With no `document` (React Native / Hermes) there is no visibility signal to observe — the host drives background pause itself (e.g. an `AppState`-fed gate, or unsubscribing the node on background).
 
 ## With the rest of GraphReFly
 

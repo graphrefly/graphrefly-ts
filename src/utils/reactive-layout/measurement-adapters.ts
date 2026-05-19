@@ -36,6 +36,97 @@ export class CliMeasureAdapter implements MeasurementAdapter {
 }
 
 // ---------------------------------------------------------------------------
+// InjectedMeasureAdapter (universal — React Native / Hermes reference adapter)
+// ---------------------------------------------------------------------------
+
+/**
+ * A synchronous text-measurement function.
+ *
+ * `(text, font) => widthPx`. Must be **synchronous** (the layout engine is a
+ * pure-arithmetic reactive graph — no async, no polling per spec §5.8/§5.10)
+ * and **pure** for a given `(text, font)` pair within a layout pass.
+ *
+ * `font` is the same CSS-`font`-shorthand string the rest of Reactive Layout
+ * uses (e.g. `"16px Kalam"`). A host backend that keys on a parsed
+ * size/family instead can ignore parts it does not need.
+ */
+export type MeasureFn = (text: string, font: string) => number;
+
+/**
+ * Backend-agnostic measurement adapter — wraps an injected synchronous
+ * `(text, font) => widthPx` function.
+ *
+ * This is the **React Native / Hermes reference adapter** and the documented
+ * RN measure-adapter contract. RN has no DOM/`OffscreenCanvas`, so
+ * {@link CanvasMeasureAdapter} cannot run there; instead the host supplies a
+ * sync measure function bound to its native text engine and passes it here.
+ * The substrate ships only this generic seam + contract — the concrete
+ * native binding stays userland (same split as the `bytes`-`StorageBackend`
+ * Drizzle/Expo-SQLite adapter vs. the upstream `bigintJsonCodecFor`).
+ *
+ * ### React Native (Skia) reference wiring — userland
+ *
+ * ```ts
+ * import { Skia } from "@shopify/react-native-skia";
+ * import { InjectedMeasureAdapter } from "@graphrefly/graphrefly/utils/reactive-layout";
+ *
+ * // Build the font(s) you lay out with once, outside the measure fn.
+ * const typeface = Skia.Typeface.MakeFreeTypeFaceFromData(kalamTtf);
+ * const skFont = Skia.Font(typeface, 16);
+ *
+ * const adapter = new InjectedMeasureAdapter((text, _font) => {
+ *   // Skia Font.measureText / getGlyphWidths is synchronous — perfect fit.
+ *   return skFont.measureText(text).width;
+ * });
+ * ```
+ *
+ * RN core (no Skia) can instead inject a precomputed per-glyph metric table
+ * lookup, or `@shopify/react-native-skia`'s `Paragraph` builder measured
+ * synchronously. The only contract is **sync + pure**.
+ *
+ * @remarks
+ * - **Hermes-safe:** this adapter has zero `node:*` and zero DOM globals —
+ *   the injected fn is the sole boundary to the host text engine. The
+ *   root-package browser-safety bundle assertion enforces no `node:*` and
+ *   that DOM globals in the `reactive-layout` graph stay `typeof`-guarded
+ *   (the `CanvasMeasureAdapter` convention) — see the `reactive-layout`
+ *   solution doc for the precise guarantee.
+ * - An optional `cache: true` memoizes by the `(font, text)` pair (an internal `\u0000` delimiter, collision-safe). Leave it
+ *   off (default) when the host engine is already fast or when the working
+ *   set is unbounded; turn it on for repeated re-layout of stable content.
+ */
+export class InjectedMeasureAdapter implements MeasurementAdapter {
+	private readonly fn: MeasureFn;
+	private readonly cache: Map<string, number> | null;
+
+	constructor(fn: MeasureFn, opts?: { cache?: boolean }) {
+		if (typeof fn !== "function") {
+			throw new TypeError(
+				"InjectedMeasureAdapter: a synchronous (text, font) => widthPx function is required",
+			);
+		}
+		this.fn = fn;
+		this.cache = opts?.cache ? new Map<string, number>() : null;
+	}
+
+	measureSegment(text: string, font: string): { width: number } {
+		if (this.cache) {
+			const key = `${font}\u0000${text}`;
+			const hit = this.cache.get(key);
+			if (hit !== undefined) return { width: hit };
+			const w = this.fn(text, font);
+			this.cache.set(key, w);
+			return { width: w };
+		}
+		return { width: this.fn(text, font) };
+	}
+
+	clearCache(): void {
+		this.cache?.clear();
+	}
+}
+
+// ---------------------------------------------------------------------------
 // PrecomputedAdapter
 // ---------------------------------------------------------------------------
 

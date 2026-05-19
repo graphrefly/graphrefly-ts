@@ -167,6 +167,8 @@ const REGISTRY = {
 	replay: "src/base/sources/async.ts",
 	share: "src/base/sources/async.ts",
 	fromEvent: "src/base/sources/event/dom.ts",
+	fromRaf: "src/base/sources/event/dom.ts",
+	fromPushNotification: "src/base/sources/event/push.ts",
 	fromWebhook: "src/base/io/webhook.ts",
 	fromAny: "packages/pure-ts/src/extra/sources/async.ts",
 	forEach: "src/base/sources/async.ts",

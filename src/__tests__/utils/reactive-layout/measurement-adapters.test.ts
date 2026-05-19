@@ -6,6 +6,7 @@ import {
 	CanvasMeasureAdapter,
 	type CanvasModule,
 	CliMeasureAdapter,
+	InjectedMeasureAdapter,
 	NodeCanvasMeasureAdapter,
 	PrecomputedAdapter,
 } from "../../../utils/reactive-layout/measurement-adapters.js";
@@ -303,4 +304,100 @@ describe("MeasurementAdapter interface conformance", () => {
 			expect(typeof result.width).toBe("number");
 		});
 	}
+});
+
+// ---------------------------------------------------------------------------
+// InjectedMeasureAdapter (RN/Hermes reference adapter)
+// ---------------------------------------------------------------------------
+
+describe("InjectedMeasureAdapter", () => {
+	it("delegates to the injected sync (text, font) => widthPx fn", () => {
+		const calls: Array<[string, string]> = [];
+		const adapter = new InjectedMeasureAdapter((text, font) => {
+			calls.push([text, font]);
+			return text.length * 7;
+		});
+		expect(adapter.measureSegment("abc", "16px Kalam")).toEqual({ width: 21 });
+		expect(calls).toEqual([["abc", "16px Kalam"]]);
+	});
+
+	it("satisfies the MeasurementAdapter contract", () => {
+		const adapter: MeasurementAdapter = new InjectedMeasureAdapter((t) => t.length);
+		const r = adapter.measureSegment("xy", "mono");
+		expect(typeof r.width).toBe("number");
+	});
+
+	it("caches by font+text when cache:true and clearCache resets it", () => {
+		let n = 0;
+		const adapter = new InjectedMeasureAdapter(
+			(t) => {
+				n++;
+				return t.length;
+			},
+			{ cache: true },
+		);
+		adapter.measureSegment("aa", "f1");
+		adapter.measureSegment("aa", "f1"); // cache hit
+		expect(n).toBe(1);
+		adapter.measureSegment("aa", "f2"); // different font → miss
+		expect(n).toBe(2);
+		adapter.clearCache();
+		adapter.measureSegment("aa", "f1"); // miss after clear
+		expect(n).toBe(3);
+	});
+
+	it("cache key does not collide across (font, text) boundary shifts", () => {
+		// Regression: the cache separator must be collision-safe. A naive
+		// space (or an empty/stripped delimiter) collides `(font,text)`
+		// pairs whose concatenation is equal — e.g. ("a","bc") vs ("ab","c"),
+		// and ("a","b c") vs ("a b","c"). Encode width from BOTH args so a
+		// wrong cache hit returns the wrong width.
+		let calls = 0;
+		const adapter = new InjectedMeasureAdapter(
+			(text, font) => {
+				calls++;
+				return text.length * 1000 + font.length;
+			},
+			{ cache: true },
+		);
+		// measureSegment(text, font)
+		expect(adapter.measureSegment("bc", "a").width).toBe(2001); // 2*1000+1
+		expect(adapter.measureSegment("c", "ab").width).toBe(1002); // 1*1000+2 (NOT 2003)
+		expect(adapter.measureSegment("b c", "a").width).toBe(3001); // 3*1000+1
+		expect(adapter.measureSegment("c", "a b").width).toBe(1003); // 1*1000+3 (NOT 3001)
+		expect(calls).toBe(4); // four distinct keys → four fn calls, no false hit
+		// And a genuine repeat IS a hit (no over-keying).
+		expect(adapter.measureSegment("bc", "a").width).toBe(2001);
+		expect(calls).toBe(4);
+	});
+
+	it("does not cache by default (fn called every time)", () => {
+		let n = 0;
+		const adapter = new InjectedMeasureAdapter(() => {
+			n++;
+			return 1;
+		});
+		adapter.measureSegment("a", "f");
+		adapter.measureSegment("a", "f");
+		expect(n).toBe(2);
+	});
+
+	it("works as a reactiveLayout adapter (RN drop-in seam)", () => {
+		// Stand-in for a host Skia/RN measure fn: width = chars × 9px.
+		// "hello"=45 " "=9 "world"=45 → 99 > 50 ⇒ wraps to 2 lines.
+		const bundle = reactiveLayout({
+			adapter: new InjectedMeasureAdapter((t) => t.length * 9),
+			text: "hello world",
+			maxWidth: 50,
+		});
+		const unsub = bundle.lineBreaks.subscribe(() => {});
+		expect(bundle.lineBreaks.cache).not.toBeNull();
+		expect(bundle.lineBreaks.cache!.lineCount).toBe(2);
+		unsub();
+		bundle.graph.destroy();
+	});
+
+	it("rejects a non-function measure fn", () => {
+		expect(() => new InjectedMeasureAdapter(undefined as never)).toThrow(TypeError);
+	});
 });

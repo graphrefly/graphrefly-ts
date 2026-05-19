@@ -1,5 +1,5 @@
 /**
- * Event sources — cron (presentation) and DOM (browser-only).
+ * Event sources — cron + push (universal) and DOM (browser-only).
  *
  * For the DOM subpath, import from @graphrefly/graphrefly/base/sources/browser.
  * fromTimer is substrate; import from @graphrefly/pure-ts/extra.
@@ -8,4 +8,5 @@
  */
 
 export * from "./cron.js";
+export * from "./push.js";
 // dom.ts is browser-only; exposed via the browser subpath entry
