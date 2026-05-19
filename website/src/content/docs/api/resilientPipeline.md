@@ -38,7 +38,7 @@ function resilientPipeline<T>(
 
 ```ts
 const safeFetch = resilientPipeline(fetchNode, {
-    rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC },
+    rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: 100 },
     breaker: { failureThreshold: 5 },
     retry: { count: 3, backoff: "exponential" },
     timeoutMs: 10_000,
