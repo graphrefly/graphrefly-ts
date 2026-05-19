@@ -152,6 +152,43 @@ describe("guardedExecution — scopedDescribe (mounted property — qa G1A)", ()
 		expect(seen.at(-1)).toEqual(["public"]);
 	});
 
+	it("accepts a `Node<Actor | null>` actor without a cast (F8 type-honesty)", () => {
+		const g = new Graph("g");
+		const onlyAlice = policy((allow) => {
+			allow("observe", { where: (a) => a.id === "alice" });
+		});
+		g.add(node([], { name: "alice-only", guard: onlyAlice, initial: 0 }), { name: "alice-only" });
+		g.add(node([], { name: "public", initial: 1 }), { name: "public" });
+
+		// Explicitly `Node<Actor | null>` — pre-F8 this required an
+		// `as Node<Actor>` cast inside guardedExecution; the widened
+		// `GraphDescribeOptions.actor` now accepts it directly.
+		const actorNode = node<Actor | null>([], { name: "current-actor", initial: null });
+		const guarded = guardedExecution(g, {
+			actor: actorNode,
+			policies: [] as readonly PolicyRuleData[],
+			mode: "audit",
+		});
+
+		const seen: string[][] = [];
+		guarded.scopedDescribe.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) seen.push(Object.keys((m[1] as { nodes: object }).nodes).sort());
+			}
+		});
+
+		// `null` cache → no scoping → full visibility (resolveActorOption
+		// maps null/undefined to undefined).
+		expect(seen.at(-1)).toEqual(["alice-only", "public"]);
+		// A real actor scopes it; `null` again unscopes — round-trips cleanly.
+		actorNode.emit(alice);
+		expect(seen.at(-1)).toEqual(["alice-only", "public"]);
+		actorNode.emit(bob);
+		expect(seen.at(-1)).toEqual(["public"]);
+		actorNode.emit(null);
+		expect(seen.at(-1)).toEqual(["alice-only", "public"]);
+	});
+
 	it("scopedDescribe appears in wrapper.describe() as a mounted node", () => {
 		const g = new Graph("g");
 		g.add(node([], { name: "a", initial: 0 }), { name: "a" });

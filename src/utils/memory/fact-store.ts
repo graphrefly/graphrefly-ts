@@ -349,30 +349,10 @@ export interface ReactiveFactStoreConfig<T> {
 	readonly recordIngest?: boolean;
 }
 
-export interface ReactiveFactStoreGraph<T> extends Graph {
-	// ④ Topic outputs (caller subscribes for custom processing).
-	/** Per-shard `state<FactStore<T>>` nodes (length = shard count). */
-	readonly shards: readonly Node<FactStore<T>>[];
-	/** Unified read view across all shards (derived). */
-	readonly factStore: Node<FactStore<T>>;
-	readonly dependentsIndex: Node<DependentsIndex>;
-	readonly answer: Node<MemoryAnswer<T> | null>;
-	readonly cascade: Node<readonly CascadeEvent[]>;
-	readonly cascadeOverflow: Node<CascadeOverflow | null>;
-	readonly review: Node<ReviewRequest | null>;
-	readonly consolidated: Node<readonly MemoryFragment<T>[]>;
-	readonly events: ReactiveLogBundle<FactStoreAuditRecord>;
-	/**
-	 * Payload-carrying, replayable log of every committed fragment. Present iff
-	 * {@link ReactiveFactStoreConfig.recordIngest} is `true`. Unlike
-	 * {@link ReactiveFactStoreGraph.events} (action-only audit), each entry is
-	 * the full {@link MemoryFragment} — `attachStorage` it for a durable,
-	 * replayable projection source (see `recordIngest` docs for the recipe).
-	 */
-	readonly ingestLog?: ReactiveLogBundle<MemoryFragment<T>>;
-	/** Reactive read: a single fact by id (SENTINEL until the fact exists). */
-	itemNode(id: FactId): Node<MemoryFragment<T> | undefined>;
-}
+// `ReactiveFactStoreGraph<T>` is a `class extends Graph` defined below
+// (alongside the wiring it owns) so `instanceof` narrowing + constructor
+// invariants hold, consistent with the other `extends Graph` subclasses.
+// The thin {@link reactiveFactStore} factory wraps `new`.
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -458,659 +438,693 @@ function lastOf<X>(batch: readonly unknown[] | undefined, prev: unknown): X | un
  *
  * @category memory
  */
-export function reactiveFactStore<T>(
-	config: ReactiveFactStoreConfig<T>,
-): ReactiveFactStoreGraph<T> {
-	const shardCount = Math.max(1, config.shardCount ?? 4);
-	const maxIterations = Math.max(1, config.cascadeMaxIterations ?? 8);
-	const reviewThreshold = config.reviewThreshold ?? 0.3;
-	const shardBy = config.shardBy ?? ((f: MemoryFragment<T>) => fnv1a(String(f.id)) % shardCount);
+export class ReactiveFactStoreGraph<T> extends Graph {
+	// ④ Topic outputs (caller subscribes for custom processing).
+	/** Per-shard `state<FactStore<T>>` nodes (length = shard count). */
+	readonly shards: readonly Node<FactStore<T>>[];
+	/** Unified read view across all shards (derived). */
+	readonly factStore: Node<FactStore<T>>;
+	readonly dependentsIndex: Node<DependentsIndex>;
+	readonly answer: Node<MemoryAnswer<T> | null>;
+	readonly cascade: Node<readonly CascadeEvent[]>;
+	readonly cascadeOverflow: Node<CascadeOverflow | null>;
+	readonly review: Node<ReviewRequest | null>;
+	readonly consolidated: Node<readonly MemoryFragment<T>[]>;
+	readonly events: ReactiveLogBundle<FactStoreAuditRecord>;
+	/**
+	 * Payload-carrying, replayable log of every committed fragment. Present iff
+	 * {@link ReactiveFactStoreConfig.recordIngest} is `true`. Unlike
+	 * {@link ReactiveFactStoreGraph.events} (action-only audit), each entry is
+	 * the full {@link MemoryFragment} — `attachStorage` it for a durable,
+	 * replayable projection source (see `recordIngest` docs for the recipe).
+	 */
+	readonly ingestLog?: ReactiveLogBundle<MemoryFragment<T>>;
 
-	// Cascade recursion depth counter. Reset to 0 on every external ingest
-	// (a fresh root = a fresh cascade budget) and on a true fixpoint (detector
-	// emits `[]`). Bounded by `maxIterations`; overflow stops the recursion.
-	// This counter is a *backstop* for pathological cycles only — primary
-	// termination is the per-root semantic contract below (F1/F5).
-	let cascadeIteration = 0;
+	constructor(config: ReactiveFactStoreConfig<T>) {
+		const shardCount = Math.max(1, config.shardCount ?? 4);
+		const maxIterations = Math.max(1, config.cascadeMaxIterations ?? 8);
+		const reviewThreshold = config.reviewThreshold ?? 0.3;
+		const shardBy = config.shardBy ?? ((f: MemoryFragment<T>) => fnv1a(String(f.id)) % shardCount);
 
-	// F1/F5 — per-root cascade dedupe across waves. A fact only enters the
-	// cascade as a root when it transitions to obsolete (`validTo` set), and
-	// a given obsolete root emits its cascade exactly ONCE across all waves.
-	// `processedRoots` tracks root ids that have already emitted; a root
-	// re-detected in a later wave WITHOUT a new obsolescence transition does
-	// not re-emit. This bounds the loop by the finite set of newly-obsolete
-	// roots per external change, independent of `cascadeIteration` resets
-	// (which an ingest / consolidator wire-back would otherwise defeat).
-	const processedRoots = new Set<FactId>();
+		// Cascade recursion depth counter. Reset to 0 on every external ingest
+		// (a fresh root = a fresh cascade budget) and on a true fixpoint (detector
+		// emits `[]`). Bounded by `maxIterations`; overflow stops the recursion.
+		// This counter is a *backstop* for pathological cycles only — primary
+		// termination is the per-root semantic contract below (F1/F5).
+		let cascadeIteration = 0;
 
-	const graph = new Graph("reactive_fact_store") as ReactiveFactStoreGraph<T>;
+		// F1/F5 — per-root cascade dedupe across waves. A fact only enters the
+		// cascade as a root when it transitions to obsolete (`validTo` set), and
+		// a given obsolete root emits its cascade exactly ONCE across all waves.
+		// `processedRoots` tracks root ids that have already emitted; a root
+		// re-detected in a later wave WITHOUT a new obsolescence transition does
+		// not re-emit. This bounds the loop by the finite set of newly-obsolete
+		// roots per external change, independent of `cascadeIteration` resets
+		// (which an ingest / consolidator wire-back would otherwise defeat).
+		const processedRoots = new Set<FactId>();
 
-	const events = createAuditLog<FactStoreAuditRecord>({
-		name: "events",
-		retainedLimit: 1024,
-		graph,
-	});
-	const seqCursor = registerCursor(graph, "seq", 0);
+		super("reactive_fact_store");
 
-	// Opt-in payload-carrying ingest log (rebuildable-projection source).
-	// Fed from `ingestAudit` (every committed fragment, post-admission).
-	const ingestLog: ReactiveLogBundle<MemoryFragment<T>> | undefined = config.recordIngest
-		? reactiveLog<MemoryFragment<T>>([], { name: "ingest_log" })
-		: undefined;
-	if (ingestLog) graph.addDisposer(() => ingestLog.dispose());
-
-	// ── shards: state<FactStore<T>> ──────────────────────────────────────
-	const emptyStore = (): FactStore<T> => ({ byId: new Map() });
-	const shards: Node<FactStore<T>>[] = [];
-	for (let s = 0; s < shardCount; s += 1) {
-		const shard = node<FactStore<T>>([], {
-			initial: emptyStore(),
-			name: `shard_${s}`,
-			describeKind: "state",
-			meta: factMeta("factstore", { shard: s }),
+		const events = createAuditLog<FactStoreAuditRecord>({
+			name: "events",
+			retainedLimit: 1024,
+			graph: this,
 		});
-		graph.add(shard, { name: `shard_${s}` });
-		graph.addDisposer(keepalive(shard));
-		shards.push(shard);
-	}
+		const seqCursor = registerCursor(this, "seq", 0);
 
-	const shardIndexFor = (f: MemoryFragment<T>): number => {
-		const key = shardBy(f);
-		const n = typeof key === "number" ? key : fnv1a(String(key));
-		const idx = ((n % shardCount) + shardCount) % shardCount;
-		return idx;
-	};
+		// Opt-in payload-carrying ingest log (rebuildable-projection source).
+		// Fed from `ingestAudit` (every committed fragment, post-admission).
+		const ingestLog: ReactiveLogBundle<MemoryFragment<T>> | undefined = config.recordIngest
+			? reactiveLog<MemoryFragment<T>>([], { name: "ingest_log" })
+			: undefined;
+		if (ingestLog) this.addDisposer(() => ingestLog.dispose());
 
-	// Resolve which shard a given id lives in by scanning current snapshots
-	// (cascade write-backs reference ids without re-deriving the fragment).
-	const findShardOf = (id: FactId): number => {
+		// ── shards: state<FactStore<T>> ──────────────────────────────────────
+		const emptyStore = (): FactStore<T> => ({ byId: new Map() });
+		const shards: Node<FactStore<T>>[] = [];
 		for (let s = 0; s < shardCount; s += 1) {
-			const fs = shards[s]!.cache as FactStore<T> | undefined;
-			if (fs?.byId.has(id)) return s;
+			const shard = node<FactStore<T>>([], {
+				initial: emptyStore(),
+				name: `shard_${s}`,
+				describeKind: "state",
+				meta: factMeta("factstore", { shard: s }),
+			});
+			this.add(shard, { name: `shard_${s}` });
+			this.addDisposer(keepalive(shard));
+			shards.push(shard);
 		}
-		return -1;
-	};
 
-	const allFacts = (): Map<FactId, MemoryFragment<T>> => {
-		const out = new Map<FactId, MemoryFragment<T>>();
-		for (const sh of shards) {
-			const fs = sh.cache as FactStore<T> | undefined;
-			if (!fs) continue;
-			for (const [k, v] of fs.byId) out.set(k, v);
-		}
-		return out;
-	};
+		const shardIndexFor = (f: MemoryFragment<T>): number => {
+			const key = shardBy(f);
+			const n = typeof key === "number" ? key : fnv1a(String(key));
+			const idx = ((n % shardCount) + shardCount) % shardCount;
+			return idx;
+		};
 
-	const commitFragment = (f: MemoryFragment<T>): void => {
-		const idx = shardIndexFor(f);
-		const cur = (shards[idx]!.cache as FactStore<T> | undefined) ?? emptyStore();
-		const next = new Map(cur.byId);
-		next.set(f.id, f);
-		shards[idx]!.emit({ byId: next });
-	};
-
-	const replaceFragment = (
-		id: FactId,
-		mut: (prev: MemoryFragment<T>) => MemoryFragment<T>,
-	): boolean => {
-		const idx = findShardOf(id);
-		if (idx < 0) return false;
-		const cur = shards[idx]!.cache as FactStore<T>;
-		const prev = cur.byId.get(id);
-		if (!prev) return false;
-		const next = new Map(cur.byId);
-		next.set(id, mut(prev));
-		shards[idx]!.emit({ byId: next });
-		return true;
-	};
-
-	// ── dependentsIndex: state<DependentsIndex>, unsharded ───────────────
-	const dependentsIndex = node<DependentsIndex>([], {
-		initial: new Map() as DependentsIndex,
-		name: "dependents_index",
-		describeKind: "state",
-		meta: factMeta("factstore", { role: "dependents_index" }),
-	});
-	graph.add(dependentsIndex, { name: "dependents_index" });
-	graph.addDisposer(keepalive(dependentsIndex));
-
-	// Synchronous + atomic with the commit (Q9-open-2): add reverse edges
-	// `source → [..., fact.id]` for every dependency the fragment declares.
-	const indexFragment = (f: MemoryFragment<T>, deps: readonly FactId[]): void => {
-		const cur = dependentsIndex.cache as DependentsIndex;
-		const next = new Map<FactId, FactId[]>();
-		for (const [k, v] of cur) next.set(k, [...v]);
-		for (const src of deps) {
-			const bucket = next.get(src) ?? [];
-			if (!bucket.includes(f.id)) bucket.push(f.id);
-			next.set(src, bucket);
-		}
-		dependentsIndex.emit(next as DependentsIndex);
-	};
-
-	// ── factStore: unified read view (derived union over shards) ─────────
-	const factStore = node<FactStore<T>>(
-		shards,
-		(batchData, actions, ctx) => {
-			void batchData;
-			void ctx;
-			actions.emit({ byId: allFacts() });
-		},
-		{
-			name: "fact_store",
-			describeKind: "derived",
-			initial: emptyStore(),
-			meta: factMeta("factstore", { role: "read_view" }),
-			// F10a: `allFacts()` builds a fresh Map every detector retrigger.
-			// Fragments are immutable (replaced wholesale on mutation), so a
-			// same-size + per-key-identity check is a sound structural equality
-			// that stops `factStore` (and its `review` dependent) from re-firing
-			// every cascade wave when nothing actually changed.
-			equals: (a: FactStore<T>, b: FactStore<T>) => {
-				if (a === b) return true;
-				if (a.byId.size !== b.byId.size) return false;
-				for (const [k, v] of a.byId) {
-					if (b.byId.get(k) !== v) return false;
-				}
-				return true;
-			},
-		},
-	);
-	graph.add(factStore, { name: "fact_store" });
-	graph.addDisposer(keepalive(factStore));
-
-	// ── extractOp: ingest → admission filter → commit + index ────────────
-	const extractOp = node<MemoryFragment<T> | null>(
-		config.admissionFilter ? [config.ingest, config.admissionFilter] : [config.ingest],
-		(batchData, actions, ctx) => {
-			const f = lastOf<MemoryFragment<T>>(batchData[0], ctx.prevData[0]);
-			if (f == null) {
-				actions.emit(null);
-				return;
+		// Resolve which shard a given id lives in by scanning current snapshots
+		// (cascade write-backs reference ids without re-deriving the fragment).
+		const findShardOf = (id: FactId): number => {
+			for (let s = 0; s < shardCount; s += 1) {
+				const fs = shards[s]!.cache as FactStore<T> | undefined;
+				if (fs?.byId.has(id)) return s;
 			}
-			if (config.admissionFilter) {
-				const filter = lastOf<AdmissionFilter<T>>(batchData[1], ctx.prevData[1]);
-				if (filter && !filter(f)) {
-					actions.emit(null);
-					return;
-				}
-			}
-			const deps = config.extractDependencies(f);
-			// External ingest = a fresh cascade root → reset the depth budget.
-			cascadeIteration = 0;
-			// F1/F5: a (re-)ingested id is a fresh fact version. Clear it from
-			// `processedRoots` so a NEW obsolescence transition on this id
-			// (e.g. re-ingest with `validTo` set) re-drives the cascade exactly
-			// once, rather than being permanently suppressed.
-			processedRoots.delete(f.id);
-			// Synchronous + atomic: commit fragment, then index its dep edges.
-			commitFragment(f);
-			indexFragment(f, deps);
-			actions.emit(f);
-		},
-		{
-			name: "extract_op",
-			describeKind: "derived",
-			meta: factMeta("extract"),
-		},
-	);
-	graph.add(extractOp, { name: "extract_op" });
-	graph.addDisposer(keepalive(extractOp));
+			return -1;
+		};
 
-	// ── invalidationDetector: store → cascade messages ───────────────────
-	// F1/F5 per-root semantic contract: a fact drives the cascade as a root
-	// ONLY when it is obsolete (`validTo` set). A low-confidence-but-still-live
-	// fact (no `validTo`) does NOT by itself emit a cascade — it surfaces via
-	// the `review` topic instead, so it cannot perpetually re-emit a cascade
-	// every detector pass. Each obsolete root emits its cascade exactly once
-	// across all waves (`processedRoots` dedupe): a root re-detected in a later
-	// wave without a fresh obsolescence transition is skipped. Termination is
-	// therefore bounded by the finite set of newly-obsolete roots per external
-	// change — robust against `cascadeIteration` resets from ingest /
-	// consolidator wire-back. The empty-array emit is the fixpoint
-	// short-circuit; `cascadeMaxIterations` remains a backstop for pathological
-	// LLM-extracted cycles (A→B→A) only.
-	const invalidationDetector = node<readonly CascadeEvent[]>(
-		[...shards],
-		(batchData, actions, ctx) => {
-			void batchData;
-			void ctx;
-			const facts = allFacts();
-			const index = dependentsIndex.cache as DependentsIndex;
-			const out: CascadeEvent[] = [];
-			const seen = new Set<FactId>();
-			for (const f of facts.values()) {
-				// F1/F5(a): ONLY obsolete facts drive the cascade as roots. A
-				// low-confidence-but-still-live fact is handled by `review`,
-				// never by the cascade loop.
-				const obsolete = f.validTo !== undefined;
-				if (!obsolete) continue;
-				// F1/F5(b): each obsolete root emits its cascade exactly once
-				// across all waves. A root re-detected later (still obsolete,
-				// no fresh transition) is skipped — convergence is independent
-				// of `cascadeIteration` resets.
-				if (processedRoots.has(f.id)) continue;
-				const dependents = index.get(f.id) ?? [];
-				for (const dep of dependents) {
-					// F3: only cascade onto dependents that are still live. A
-					// non-existent fact (phantom edge — `extractDependencies`
-					// named an un-ingested FactId) is NOT a live dependent;
-					// neither is a dependent already carrying `validTo`.
-					const depFact = facts.get(dep);
-					if (!depFact || depFact.validTo !== undefined) continue;
-					const k = `${f.id}->${dep}`;
-					if (seen.has(k)) continue;
-					seen.add(k);
-					out.push({
-						factId: dep,
-						rootFactId: f.id,
-						reason: "obsolete",
-						// `obsolete` guard above guarantees `f.validTo` is set.
-						rootValidTo: f.validTo as bigint,
-						iteration: cascadeIteration + 1,
-						causalReason: `dependentsIndex[${f.id}] → ${dep} (obsolete: validTo set)`,
-					});
-				}
-				// Mark the root processed once considered (whether or not it
-				// had a still-live dependent) — it must not re-drive a later
-				// wave without a fresh obsolescence transition.
-				processedRoots.add(f.id);
+		const allFacts = (): Map<FactId, MemoryFragment<T>> => {
+			const out = new Map<FactId, MemoryFragment<T>>();
+			for (const sh of shards) {
+				const fs = sh.cache as FactStore<T> | undefined;
+				if (!fs) continue;
+				for (const [k, v] of fs.byId) out.set(k, v);
 			}
-			if (out.length === 0) {
-				// True fixpoint — reset the depth counter so the next external
-				// root starts a fresh cascade budget.
-				cascadeIteration = 0;
+			return out;
+		};
+
+		const commitFragment = (f: MemoryFragment<T>): void => {
+			const idx = shardIndexFor(f);
+			const cur = (shards[idx]!.cache as FactStore<T> | undefined) ?? emptyStore();
+			const next = new Map(cur.byId);
+			next.set(f.id, f);
+			shards[idx]!.emit({ byId: next });
+		};
+
+		const replaceFragment = (
+			id: FactId,
+			mut: (prev: MemoryFragment<T>) => MemoryFragment<T>,
+		): boolean => {
+			const idx = findShardOf(id);
+			if (idx < 0) return false;
+			const cur = shards[idx]!.cache as FactStore<T>;
+			const prev = cur.byId.get(id);
+			if (!prev) return false;
+			const next = new Map(cur.byId);
+			next.set(id, mut(prev));
+			shards[idx]!.emit({ byId: next });
+			return true;
+		};
+
+		// ── dependentsIndex: state<DependentsIndex>, unsharded ───────────────
+		const dependentsIndex = node<DependentsIndex>([], {
+			initial: new Map() as DependentsIndex,
+			name: "dependents_index",
+			describeKind: "state",
+			meta: factMeta("factstore", { role: "dependents_index" }),
+		});
+		this.add(dependentsIndex, { name: "dependents_index" });
+		this.addDisposer(keepalive(dependentsIndex));
+
+		// Synchronous + atomic with the commit (Q9-open-2): add reverse edges
+		// `source → [..., fact.id]` for every dependency the fragment declares.
+		const indexFragment = (f: MemoryFragment<T>, deps: readonly FactId[]): void => {
+			const cur = dependentsIndex.cache as DependentsIndex;
+			const next = new Map<FactId, FactId[]>();
+			for (const [k, v] of cur) next.set(k, [...v]);
+			for (const src of deps) {
+				const bucket = next.get(src) ?? [];
+				if (!bucket.includes(f.id)) bucket.push(f.id);
+				next.set(src, bucket);
 			}
-			actions.emit(out);
-		},
-		{
-			name: "invalidation_detector",
-			describeKind: "derived",
-			initial: [] as readonly CascadeEvent[],
-			meta: factMeta("invalidation", { cycle: "cascade" }),
-		},
-	);
-	graph.add(invalidationDetector, { name: "invalidation_detector" });
-	graph.addDisposer(keepalive(invalidationDetector));
+			dependentsIndex.emit(next as DependentsIndex);
+		};
 
-	// ── cascade topic node ───────────────────────────────────────────────
-	const cascade = node<readonly CascadeEvent[]>(
-		[invalidationDetector],
-		(batchData, actions, ctx) => {
-			const evts = lastOf<readonly CascadeEvent[]>(batchData[0], ctx.prevData[0]) ?? [];
-			actions.emit(evts);
-		},
-		{
-			name: "cascade",
-			describeKind: "derived",
-			initial: [] as readonly CascadeEvent[],
-			meta: factMeta("cascade_topic", { cycle: "cascade" }),
-		},
-	);
-	graph.add(cascade, { name: "cascade" });
-	graph.addDisposer(keepalive(cascade));
-
-	// ── cascadeOverflow (per-batch summary, Q9-open-4) ───────────────────
-	const cascadeOverflow = node<CascadeOverflow | null>([], {
-		initial: null,
-		name: "cascade_overflow",
-		describeKind: "state",
-		meta: factMeta("cascade_overflow"),
-	});
-	graph.add(cascadeOverflow, { name: "cascade_overflow" });
-	graph.addDisposer(keepalive(cascadeOverflow));
-
-	// ── cascadeProcessor (SYNCHRONOUS, meta.cycle:"cascade") ─────────────
-	// Per-wave dedupe by target factId, mark each dependent obsolete
-	// (write-back → re-triggers invalidationDetector), bounded by
-	// `cascadeMaxIterations`. NOTE: this is DATA-array dedupe, NOT spec §1.4
-	// INVALIDATE idempotency — termination comes from the detector's
-	// obsolete-only + per-root-once contract plus the empty-array fixpoint
-	// short-circuit, not a spec §1.4 guarantee.
-	const cascadeProcessor = node<readonly CascadeEvent[]>(
-		[cascade],
-		(batchData, actions, ctx) => {
-			const evts = lastOf<readonly CascadeEvent[]>(batchData[0], ctx.prevData[0]) ?? [];
-			if (evts.length === 0) {
-				actions.emit([]);
-				return;
-			}
-			// Dedupe by target factId (diamond-merge at message granularity).
-			const byId = new Map<FactId, CascadeEvent>();
-			for (const e of evts) if (!byId.has(e.factId)) byId.set(e.factId, e);
-
-			cascadeIteration += 1;
-			if (cascadeIteration > maxIterations) {
-				// Cap hit (pathological dependency web / cycle). Emit a
-				// per-batch overflow summary (Q9-open-4) and STOP the recursion
-				// definitively: do NOT write back (no shard mutation → detector
-				// does not re-fire) and settle the cascade topic with `[]` so
-				// the cycle breaks. `cascadeIteration` stays above the cap until
-				// the next external ingest resets it (via extractOp), so a
-				// degenerate cycle cannot immediately re-enter.
-				const sample = [...byId.keys()].slice(0, OVERFLOW_SAMPLE_SIZE);
-				const rootFactId = evts[0]?.rootFactId ?? "";
-				cascadeOverflow.emit({
-					droppedCount: byId.size,
-					sample,
-					rootFactId,
-				});
-				events.append({
-					action: "overflow",
-					reason: "cascade",
-					id: rootFactId,
-					t_ns: wallClockNs(),
-					seq: bumpCursor(seqCursor),
-				});
-				actions.emit([]);
-				return;
-			}
-
-			// Write-back: mark each dependent obsolete iff not already. Each
-			// shard `emit` re-triggers `invalidationDetector` (it deps on
-			// `[...shards]`) — that IS the recursion edge. No separate trigger
-			// node is needed; the detector's "still live" predicate plus the
-			// empty-emit fixpoint reset terminate the cycle.
-			// Deterministic: the dependent inherits the triggering root's own
-			// `validTo` (NOT a fresh `monotonicNs()` read), so replaying the
-			// same ingest stream yields byte-identical `validTo`. Transitive
-			// chains inherit the original root's time.
-			for (const [id, e] of byId) {
-				replaceFragment(id, (prev) =>
-					prev.validTo !== undefined ? prev : { ...prev, validTo: e.rootValidTo },
-				);
-			}
-			actions.emit([...byId.values()]);
-		},
-		{
-			name: "cascade_processor",
-			describeKind: "derived",
-			initial: [] as readonly CascadeEvent[],
-			meta: factMeta("cascade_processor", { cycle: "cascade" }),
-		},
-	);
-	graph.add(cascadeProcessor, { name: "cascade_processor" });
-	graph.addDisposer(keepalive(cascadeProcessor));
-
-	// ── review: low-confidence proactive verification ────────────────────
-	const review = node<ReviewRequest | null>(
-		[factStore],
-		(batchData, actions, ctx) => {
-			const fs = lastOf<FactStore<T>>(batchData[0], ctx.prevData[0]);
-			if (fs == null) {
-				actions.emit(null);
-				return;
-			}
-			for (const f of fs.byId.values()) {
-				if (f.confidence < reviewThreshold && f.validTo === undefined) {
-					actions.emit({
-						factId: f.id,
-						confidence: f.confidence,
-						threshold: reviewThreshold,
-					});
-					return;
-				}
-			}
-			actions.emit(null);
-		},
-		{
-			name: "review",
-			describeKind: "derived",
-			initial: null,
-			meta: factMeta("review"),
-			// F10a: dedupe on the requested factId (null === no request) so a
-			// stable low-confidence fact does not re-emit a review every wave.
-			equals: (a: ReviewRequest | null, b: ReviewRequest | null) =>
-				(a?.factId ?? null) === (b?.factId ?? null),
-		},
-	);
-	graph.add(review, { name: "review" });
-	graph.addDisposer(keepalive(review));
-
-	// ── outcomeProcessor: RL signal → confidence write-back ──────────────
-	if (config.outcome) {
-		const outcomeProcessor = node<OutcomeSignal | null>(
-			config.scoring ? [config.outcome, config.scoring] : [config.outcome],
+		// ── factStore: unified read view (derived union over shards) ─────────
+		const factStore = node<FactStore<T>>(
+			shards,
 			(batchData, actions, ctx) => {
-				const sig = lastOf<OutcomeSignal>(batchData[0], ctx.prevData[0]);
-				if (sig == null) {
-					actions.emit(null);
-					return;
-				}
-				replaceFragment(sig.factId, (prev) => {
-					let nextConf = prev.confidence;
-					if (config.scoring) {
-						const policy = lastOf<ScoringPolicy<T>>(batchData[1], ctx.prevData[1]);
-						if (policy) {
-							nextConf = policy(prev, makeReadHandle(allFacts()));
-						}
-					} else {
-						nextConf = Math.max(0, Math.min(1, prev.confidence + sig.reward));
-					}
-					return { ...prev, confidence: nextConf };
-				});
-				actions.emit(sig);
+				void batchData;
+				void ctx;
+				actions.emit({ byId: allFacts() });
 			},
 			{
-				name: "outcome_processor",
+				name: "fact_store",
 				describeKind: "derived",
-				initial: null,
-				meta: factMeta("outcome"),
+				initial: emptyStore(),
+				meta: factMeta("factstore", { role: "read_view" }),
+				// F10a: `allFacts()` builds a fresh Map every detector retrigger.
+				// Fragments are immutable (replaced wholesale on mutation), so a
+				// same-size + per-key-identity check is a sound structural equality
+				// that stops `factStore` (and its `review` dependent) from re-firing
+				// every cascade wave when nothing actually changed.
+				equals: (a: FactStore<T>, b: FactStore<T>) => {
+					if (a === b) return true;
+					if (a.byId.size !== b.byId.size) return false;
+					for (const [k, v] of a.byId) {
+						if (b.byId.get(k) !== v) return false;
+					}
+					return true;
+				},
 			},
 		);
-		graph.add(outcomeProcessor, { name: "outcome_processor" });
-		graph.addDisposer(keepalive(outcomeProcessor));
-	}
+		this.add(factStore, { name: "fact_store" });
+		this.addDisposer(keepalive(factStore));
 
-	// ── queryOp / answer (structured MemoryQuery, SENTINEL-safe) ─────────
-	// Per COMPOSITION-GUIDE §3/§10: `answer` emits `null` while there has been
-	// no query yet (SENTINEL on the query dep). Downstream consumers use the
-	// `=== null` guard.
-	const answer = node<MemoryAnswer<T> | null>(
-		config.query ? [config.query, factStore] : [factStore],
-		(batchData, actions, ctx) => {
-			if (!config.query) {
-				actions.emit(null);
-				return;
-			}
-			const q = lastOf<MemoryQuery>(batchData[0], ctx.prevData[0]);
-			const fs = lastOf<FactStore<T>>(batchData[1], ctx.prevData[1]);
-			if (q == null) {
-				// No query has been issued yet — null per the SENTINEL guard.
-				actions.emit(null);
-				return;
-			}
-			const store = fs ?? emptyStore();
-			let results = [...store.byId.values()].filter((f) => {
-				if (q.tags && q.tags.length > 0 && !q.tags.some((t) => f.tags.includes(t))) {
-					return false;
+		// ── extractOp: ingest → admission filter → commit + index ────────────
+		const extractOp = node<MemoryFragment<T> | null>(
+			config.admissionFilter ? [config.ingest, config.admissionFilter] : [config.ingest],
+			(batchData, actions, ctx) => {
+				const f = lastOf<MemoryFragment<T>>(batchData[0], ctx.prevData[0]);
+				if (f == null) {
+					actions.emit(null);
+					return;
 				}
-				if (q.minConfidence !== undefined && f.confidence < q.minConfidence) return false;
-				if (!currentlyValid(f, q.asOf)) return false;
-				return true;
-			});
-			results.sort((a, b) => b.confidence - a.confidence || Number(b.t_ns - a.t_ns));
-			if (q.limit !== undefined) results = results.slice(0, Math.max(0, q.limit));
-			actions.emit({ query: q, results });
-		},
-		{
-			name: "answer",
-			describeKind: "derived",
-			initial: null,
-			meta: factMeta("query", { role: "output" }),
-		},
-	);
-	graph.add(answer, { name: "answer" });
-	graph.addDisposer(keepalive(answer));
-
-	// ── consolidator (cron-fed) → consolidated topic → wired back ────────
-	const consolidated = node<readonly MemoryFragment<T>[]>(
-		config.consolidateTrigger ? [config.consolidateTrigger] : [],
-		(batchData, actions, ctx) => {
-			void batchData;
-			void ctx;
-			if (!config.consolidateTrigger || !config.consolidate) {
-				actions.emit([]);
-				return;
-			}
-			const fragments = config.consolidate(makeReadHandle(allFacts()));
-			// Default wire-back into the ingest path (Q9-open-6): the pattern
-			// commits + indexes successor fragments; callers that need to gate
-			// can subscribe to `consolidated` and intercept.
-			for (const f of fragments) {
+				if (config.admissionFilter) {
+					const filter = lastOf<AdmissionFilter<T>>(batchData[1], ctx.prevData[1]);
+					if (filter && !filter(f)) {
+						actions.emit(null);
+						return;
+					}
+				}
 				const deps = config.extractDependencies(f);
-				// F1/F5: wired-back successor is a fresh fact version — same
-				// processedRoots reset as the ingest path so a later obsolescence
-				// of this id can re-cascade exactly once.
+				// External ingest = a fresh cascade root → reset the depth budget.
+				cascadeIteration = 0;
+				// F1/F5: a (re-)ingested id is a fresh fact version. Clear it from
+				// `processedRoots` so a NEW obsolescence transition on this id
+				// (e.g. re-ingest with `validTo` set) re-drives the cascade exactly
+				// once, rather than being permanently suppressed.
 				processedRoots.delete(f.id);
+				// Synchronous + atomic: commit fragment, then index its dep edges.
 				commitFragment(f);
 				indexFragment(f, deps);
-				events.append({
-					action: "consolidate",
-					id: f.id,
-					t_ns: wallClockNs(),
-					seq: bumpCursor(seqCursor),
-				});
-			}
-			actions.emit(fragments);
-		},
-		{
-			name: "consolidated",
-			describeKind: "derived",
-			initial: [] as readonly MemoryFragment<T>[],
-			// Inspection completeness (COMPOSITION-GUIDE §24 "make the
-			// invisible edge visible"): `consolidated` write-backs feed the
-			// bounded cascade store (commit → shard emit →
-			// `invalidationDetector`) exactly like `cascadeProcessor`, but
-			// is NOT a cascade-cycle node. `feeds:"cascade"` surfaces it as
-			// a cascade-store mutator in `describe()`/`explain()`;
-			// `drivesRoot:false` — by the consolidator contract successors
-			// are fresh live facts (no `validTo`), so on the contract path
-			// they do not root the cascade. (An out-of-contract `consolidate`
-			// that emits a `validTo`-set fragment WOULD root it via the
-			// detector — the tag reflects the documented contract, not a
-			// structural impossibility. Contrast `decay_processor` below,
-			// whose `drivesRoot:false` IS structurally provable.)
-			meta: factMeta("consolidator", { feeds: "cascade", drivesRoot: false }),
-		},
-	);
-	graph.add(consolidated, { name: "consolidated" });
-	graph.addDisposer(keepalive(consolidated));
+				actions.emit(f);
+			},
+			{
+				name: "extract_op",
+				describeKind: "derived",
+				meta: factMeta("extract"),
+			},
+		);
+		this.add(extractOp, { name: "extract_op" });
+		this.addDisposer(keepalive(extractOp));
 
-	// ── decayProcessor: trigger tick → apply DecayPolicy → confidence drift ─
-	// Face ② `decay` (DS-14.7 PART 4.1 / §5.8). Deps on the caller's reactive
-	// trigger (+ the policy Node so a policy swap is push-on-update, the
-	// `outcomeProcessor`/`extractOp` ②-face precedent). Reads the store
-	// advisory off `allFacts()` (COMPOSITION-GUIDE-GRAPH §7 — NOT a shards dep,
-	// no within-wave cycle); write-back via `replaceFragment` re-triggers
-	// `invalidationDetector` exactly like `consolidated`/`cascadeProcessor`
-	// (already-bounded recursion edge). Decay only mutates `confidence`, never
-	// `validTo`, so it cannot itself become a cascade root — a confidence drop
-	// below `reviewThreshold` surfaces through `review` instead.
-	if (config.decayTrigger) {
-		const decayProcessor = node<readonly MemoryFragment<T>[]>(
-			config.decay ? [config.decayTrigger, config.decay] : [config.decayTrigger],
+		// ── invalidationDetector: store → cascade messages ───────────────────
+		// F1/F5 per-root semantic contract: a fact drives the cascade as a root
+		// ONLY when it is obsolete (`validTo` set). A low-confidence-but-still-live
+		// fact (no `validTo`) does NOT by itself emit a cascade — it surfaces via
+		// the `review` topic instead, so it cannot perpetually re-emit a cascade
+		// every detector pass. Each obsolete root emits its cascade exactly once
+		// across all waves (`processedRoots` dedupe): a root re-detected in a later
+		// wave without a fresh obsolescence transition is skipped. Termination is
+		// therefore bounded by the finite set of newly-obsolete roots per external
+		// change — robust against `cascadeIteration` resets from ingest /
+		// consolidator wire-back. The empty-array emit is the fixpoint
+		// short-circuit; `cascadeMaxIterations` remains a backstop for pathological
+		// LLM-extracted cycles (A→B→A) only.
+		const invalidationDetector = node<readonly CascadeEvent[]>(
+			[...shards],
 			(batchData, actions, ctx) => {
-				const policy = config.decay
-					? lastOf<DecayPolicy>(batchData[1], ctx.prevData[1])
-					: undefined;
-				// Inert until a policy exists (SENTINEL guard) or if `decay` was
-				// never supplied — `decayTrigger` alone is documented no-op.
-				if (!policy) {
+				void batchData;
+				void ctx;
+				const facts = allFacts();
+				const index = dependentsIndex.cache as DependentsIndex;
+				const out: CascadeEvent[] = [];
+				const seen = new Set<FactId>();
+				for (const f of facts.values()) {
+					// F1/F5(a): ONLY obsolete facts drive the cascade as roots. A
+					// low-confidence-but-still-live fact is handled by `review`,
+					// never by the cascade loop.
+					const obsolete = f.validTo !== undefined;
+					if (!obsolete) continue;
+					// F1/F5(b): each obsolete root emits its cascade exactly once
+					// across all waves. A root re-detected later (still obsolete,
+					// no fresh transition) is skipped — convergence is independent
+					// of `cascadeIteration` resets.
+					if (processedRoots.has(f.id)) continue;
+					const dependents = index.get(f.id) ?? [];
+					for (const dep of dependents) {
+						// F3: only cascade onto dependents that are still live. A
+						// non-existent fact (phantom edge — `extractDependencies`
+						// named an un-ingested FactId) is NOT a live dependent;
+						// neither is a dependent already carrying `validTo`.
+						const depFact = facts.get(dep);
+						if (!depFact || depFact.validTo !== undefined) continue;
+						const k = `${f.id}->${dep}`;
+						if (seen.has(k)) continue;
+						seen.add(k);
+						out.push({
+							factId: dep,
+							rootFactId: f.id,
+							reason: "obsolete",
+							// `obsolete` guard above guarantees `f.validTo` is set.
+							rootValidTo: f.validTo as bigint,
+							iteration: cascadeIteration + 1,
+							causalReason: `dependentsIndex[${f.id}] → ${dep} (obsolete: validTo set)`,
+						});
+					}
+					// Mark the root processed once considered (whether or not it
+					// had a still-live dependent) — it must not re-drive a later
+					// wave without a fresh obsolescence transition.
+					processedRoots.add(f.id);
+				}
+				if (out.length === 0) {
+					// True fixpoint — reset the depth counter so the next external
+					// root starts a fresh cascade budget.
+					cascadeIteration = 0;
+				}
+				actions.emit(out);
+			},
+			{
+				name: "invalidation_detector",
+				describeKind: "derived",
+				initial: [] as readonly CascadeEvent[],
+				meta: factMeta("invalidation", { cycle: "cascade" }),
+			},
+		);
+		this.add(invalidationDetector, { name: "invalidation_detector" });
+		this.addDisposer(keepalive(invalidationDetector));
+
+		// ── cascade topic node ───────────────────────────────────────────────
+		const cascade = node<readonly CascadeEvent[]>(
+			[invalidationDetector],
+			(batchData, actions, ctx) => {
+				const evts = lastOf<readonly CascadeEvent[]>(batchData[0], ctx.prevData[0]) ?? [];
+				actions.emit(evts);
+			},
+			{
+				name: "cascade",
+				describeKind: "derived",
+				initial: [] as readonly CascadeEvent[],
+				meta: factMeta("cascade_topic", { cycle: "cascade" }),
+			},
+		);
+		this.add(cascade, { name: "cascade" });
+		this.addDisposer(keepalive(cascade));
+
+		// ── cascadeOverflow (per-batch summary, Q9-open-4) ───────────────────
+		const cascadeOverflow = node<CascadeOverflow | null>([], {
+			initial: null,
+			name: "cascade_overflow",
+			describeKind: "state",
+			meta: factMeta("cascade_overflow"),
+		});
+		this.add(cascadeOverflow, { name: "cascade_overflow" });
+		this.addDisposer(keepalive(cascadeOverflow));
+
+		// ── cascadeProcessor (SYNCHRONOUS, meta.cycle:"cascade") ─────────────
+		// Per-wave dedupe by target factId, mark each dependent obsolete
+		// (write-back → re-triggers invalidationDetector), bounded by
+		// `cascadeMaxIterations`. NOTE: this is DATA-array dedupe, NOT spec §1.4
+		// INVALIDATE idempotency — termination comes from the detector's
+		// obsolete-only + per-root-once contract plus the empty-array fixpoint
+		// short-circuit, not a spec §1.4 guarantee.
+		const cascadeProcessor = node<readonly CascadeEvent[]>(
+			[cascade],
+			(batchData, actions, ctx) => {
+				const evts = lastOf<readonly CascadeEvent[]>(batchData[0], ctx.prevData[0]) ?? [];
+				if (evts.length === 0) {
 					actions.emit([]);
 					return;
 				}
-				// `ageNs` is a DURATION → monotonic clock (CLAUDE.md "Time utility
-				// rule"); `MemoryFragment.t_ns` is monotonic-stamped (field JSDoc
-				// + fixture). Wall-clock here would mix domains and hand the
-				// policy a ~epoch-sized garbage age. The `decay` audit record
-				// below keeps `wallClockNs()` (wall-clock attribution, like every
-				// other audit append).
-				const now = BigInt(monotonicNs());
-				const changes: { id: FactId; next: number }[] = [];
-				for (const f of allFacts().values()) {
-					if (f.validTo !== undefined) continue; // obsolete — don't drift
-					const ageNs = now - f.t_ns;
-					const raw = policy(f.confidence, ageNs);
-					if (!Number.isFinite(raw)) continue; // policy overflow guard
-					const next = raw < 0 ? 0 : raw > 1 ? 1 : raw;
-					if (next === f.confidence) continue; // no-op → quiescent store
-					changes.push({ id: f.id, next });
-				}
-				const decayed: MemoryFragment<T>[] = [];
-				for (const { id, next } of changes) {
-					// Resurrection guard: re-read the LIVE shard — a fact obsoleted
-					// by an in-flight cascade earlier this same tick must not be
-					// re-confidence'd from the pre-cascade snapshot.
-					const idx = findShardOf(id);
-					const fs = idx < 0 ? undefined : (shards[idx]!.cache as FactStore<T> | undefined);
-					const live = fs?.byId.get(id);
-					if (!live || live.validTo !== undefined) continue;
-					replaceFragment(id, (prev) =>
-						prev.validTo !== undefined ? prev : { ...prev, confidence: next },
-					);
-					decayed.push({ ...live, confidence: next });
-				}
-				if (decayed.length > 0) {
+				// Dedupe by target factId (diamond-merge at message granularity).
+				const byId = new Map<FactId, CascadeEvent>();
+				for (const e of evts) if (!byId.has(e.factId)) byId.set(e.factId, e);
+
+				cascadeIteration += 1;
+				if (cascadeIteration > maxIterations) {
+					// Cap hit (pathological dependency web / cycle). Emit a
+					// per-batch overflow summary (Q9-open-4) and STOP the recursion
+					// definitively: do NOT write back (no shard mutation → detector
+					// does not re-fire) and settle the cascade topic with `[]` so
+					// the cycle breaks. `cascadeIteration` stays above the cap until
+					// the next external ingest resets it (via extractOp), so a
+					// degenerate cycle cannot immediately re-enter.
+					const sample = [...byId.keys()].slice(0, OVERFLOW_SAMPLE_SIZE);
+					const rootFactId = evts[0]?.rootFactId ?? "";
+					cascadeOverflow.emit({
+						droppedCount: byId.size,
+						sample,
+						rootFactId,
+					});
 					events.append({
-						action: "decay",
+						action: "overflow",
+						reason: "cascade",
+						id: rootFactId,
 						t_ns: wallClockNs(),
 						seq: bumpCursor(seqCursor),
-						count: decayed.length,
 					});
+					actions.emit([]);
+					return;
 				}
-				actions.emit(decayed);
+
+				// Write-back: mark each dependent obsolete iff not already. Each
+				// shard `emit` re-triggers `invalidationDetector` (it deps on
+				// `[...shards]`) — that IS the recursion edge. No separate trigger
+				// node is needed; the detector's "still live" predicate plus the
+				// empty-emit fixpoint reset terminate the cycle.
+				// Deterministic: the dependent inherits the triggering root's own
+				// `validTo` (NOT a fresh `monotonicNs()` read), so replaying the
+				// same ingest stream yields byte-identical `validTo`. Transitive
+				// chains inherit the original root's time.
+				for (const [id, e] of byId) {
+					replaceFragment(id, (prev) =>
+						prev.validTo !== undefined ? prev : { ...prev, validTo: e.rootValidTo },
+					);
+				}
+				actions.emit([...byId.values()]);
 			},
 			{
-				name: "decay_processor",
+				name: "cascade_processor",
 				describeKind: "derived",
-				initial: [] as readonly MemoryFragment<T>[],
-				// Inspection completeness (same convention as `consolidated`
-				// above — kept uniform): `decay_processor` write-backs feed
-				// the cascade store via `replaceFragment` → shard emit →
-				// `invalidationDetector`. `feeds:"cascade"` surfaces it as a
-				// cascade-store mutator; `drivesRoot:false` — decay only
-				// mutates `confidence`, never `validTo`, and the detector
-				// roots on `validTo` only, so it provably cannot root.
-				meta: factMeta("decay", { feeds: "cascade", drivesRoot: false }),
+				initial: [] as readonly CascadeEvent[],
+				meta: factMeta("cascade_processor", { cycle: "cascade" }),
 			},
 		);
-		graph.add(decayProcessor, { name: "decay_processor" });
-		graph.addDisposer(keepalive(decayProcessor));
+		this.add(cascadeProcessor, { name: "cascade_processor" });
+		this.addDisposer(keepalive(cascadeProcessor));
+
+		// ── review: low-confidence proactive verification ────────────────────
+		const review = node<ReviewRequest | null>(
+			[factStore],
+			(batchData, actions, ctx) => {
+				const fs = lastOf<FactStore<T>>(batchData[0], ctx.prevData[0]);
+				if (fs == null) {
+					actions.emit(null);
+					return;
+				}
+				for (const f of fs.byId.values()) {
+					if (f.confidence < reviewThreshold && f.validTo === undefined) {
+						actions.emit({
+							factId: f.id,
+							confidence: f.confidence,
+							threshold: reviewThreshold,
+						});
+						return;
+					}
+				}
+				actions.emit(null);
+			},
+			{
+				name: "review",
+				describeKind: "derived",
+				initial: null,
+				meta: factMeta("review"),
+				// F10a: dedupe on the requested factId (null === no request) so a
+				// stable low-confidence fact does not re-emit a review every wave.
+				equals: (a: ReviewRequest | null, b: ReviewRequest | null) =>
+					(a?.factId ?? null) === (b?.factId ?? null),
+			},
+		);
+		this.add(review, { name: "review" });
+		this.addDisposer(keepalive(review));
+
+		// ── outcomeProcessor: RL signal → confidence write-back ──────────────
+		if (config.outcome) {
+			const outcomeProcessor = node<OutcomeSignal | null>(
+				config.scoring ? [config.outcome, config.scoring] : [config.outcome],
+				(batchData, actions, ctx) => {
+					const sig = lastOf<OutcomeSignal>(batchData[0], ctx.prevData[0]);
+					if (sig == null) {
+						actions.emit(null);
+						return;
+					}
+					replaceFragment(sig.factId, (prev) => {
+						let nextConf = prev.confidence;
+						if (config.scoring) {
+							const policy = lastOf<ScoringPolicy<T>>(batchData[1], ctx.prevData[1]);
+							if (policy) {
+								nextConf = policy(prev, makeReadHandle(allFacts()));
+							}
+						} else {
+							nextConf = Math.max(0, Math.min(1, prev.confidence + sig.reward));
+						}
+						return { ...prev, confidence: nextConf };
+					});
+					actions.emit(sig);
+				},
+				{
+					name: "outcome_processor",
+					describeKind: "derived",
+					initial: null,
+					meta: factMeta("outcome"),
+				},
+			);
+			this.add(outcomeProcessor, { name: "outcome_processor" });
+			this.addDisposer(keepalive(outcomeProcessor));
+		}
+
+		// ── queryOp / answer (structured MemoryQuery, SENTINEL-safe) ─────────
+		// Per COMPOSITION-GUIDE §3/§10: `answer` emits `null` while there has been
+		// no query yet (SENTINEL on the query dep). Downstream consumers use the
+		// `=== null` guard.
+		const answer = node<MemoryAnswer<T> | null>(
+			config.query ? [config.query, factStore] : [factStore],
+			(batchData, actions, ctx) => {
+				if (!config.query) {
+					actions.emit(null);
+					return;
+				}
+				const q = lastOf<MemoryQuery>(batchData[0], ctx.prevData[0]);
+				const fs = lastOf<FactStore<T>>(batchData[1], ctx.prevData[1]);
+				if (q == null) {
+					// No query has been issued yet — null per the SENTINEL guard.
+					actions.emit(null);
+					return;
+				}
+				const store = fs ?? emptyStore();
+				let results = [...store.byId.values()].filter((f) => {
+					if (q.tags && q.tags.length > 0 && !q.tags.some((t) => f.tags.includes(t))) {
+						return false;
+					}
+					if (q.minConfidence !== undefined && f.confidence < q.minConfidence) return false;
+					if (!currentlyValid(f, q.asOf)) return false;
+					return true;
+				});
+				results.sort((a, b) => b.confidence - a.confidence || Number(b.t_ns - a.t_ns));
+				if (q.limit !== undefined) results = results.slice(0, Math.max(0, q.limit));
+				actions.emit({ query: q, results });
+			},
+			{
+				name: "answer",
+				describeKind: "derived",
+				initial: null,
+				meta: factMeta("query", { role: "output" }),
+			},
+		);
+		this.add(answer, { name: "answer" });
+		this.addDisposer(keepalive(answer));
+
+		// ── consolidator (cron-fed) → consolidated topic → wired back ────────
+		const consolidated = node<readonly MemoryFragment<T>[]>(
+			config.consolidateTrigger ? [config.consolidateTrigger] : [],
+			(batchData, actions, ctx) => {
+				void batchData;
+				void ctx;
+				if (!config.consolidateTrigger || !config.consolidate) {
+					actions.emit([]);
+					return;
+				}
+				const fragments = config.consolidate(makeReadHandle(allFacts()));
+				// Default wire-back into the ingest path (Q9-open-6): the pattern
+				// commits + indexes successor fragments; callers that need to gate
+				// can subscribe to `consolidated` and intercept.
+				for (const f of fragments) {
+					const deps = config.extractDependencies(f);
+					// F1/F5: wired-back successor is a fresh fact version — same
+					// processedRoots reset as the ingest path so a later obsolescence
+					// of this id can re-cascade exactly once.
+					processedRoots.delete(f.id);
+					commitFragment(f);
+					indexFragment(f, deps);
+					events.append({
+						action: "consolidate",
+						id: f.id,
+						t_ns: wallClockNs(),
+						seq: bumpCursor(seqCursor),
+					});
+				}
+				actions.emit(fragments);
+			},
+			{
+				name: "consolidated",
+				describeKind: "derived",
+				initial: [] as readonly MemoryFragment<T>[],
+				// Inspection completeness (COMPOSITION-GUIDE §24 "make the
+				// invisible edge visible"): `consolidated` write-backs feed the
+				// bounded cascade store (commit → shard emit →
+				// `invalidationDetector`) exactly like `cascadeProcessor`, but
+				// is NOT a cascade-cycle node. `feeds:"cascade"` surfaces it as
+				// a cascade-store mutator in `describe()`/`explain()`;
+				// `drivesRoot:false` — by the consolidator contract successors
+				// are fresh live facts (no `validTo`), so on the contract path
+				// they do not root the cascade. (An out-of-contract `consolidate`
+				// that emits a `validTo`-set fragment WOULD root it via the
+				// detector — the tag reflects the documented contract, not a
+				// structural impossibility. Contrast `decay_processor` below,
+				// whose `drivesRoot:false` IS structurally provable.)
+				meta: factMeta("consolidator", { feeds: "cascade", drivesRoot: false }),
+			},
+		);
+		this.add(consolidated, { name: "consolidated" });
+		this.addDisposer(keepalive(consolidated));
+
+		// ── decayProcessor: trigger tick → apply DecayPolicy → confidence drift ─
+		// Face ② `decay` (DS-14.7 PART 4.1 / §5.8). Deps on the caller's reactive
+		// trigger (+ the policy Node so a policy swap is push-on-update, the
+		// `outcomeProcessor`/`extractOp` ②-face precedent). Reads the store
+		// advisory off `allFacts()` (COMPOSITION-GUIDE-GRAPH §7 — NOT a shards dep,
+		// no within-wave cycle); write-back via `replaceFragment` re-triggers
+		// `invalidationDetector` exactly like `consolidated`/`cascadeProcessor`
+		// (already-bounded recursion edge). Decay only mutates `confidence`, never
+		// `validTo`, so it cannot itself become a cascade root — a confidence drop
+		// below `reviewThreshold` surfaces through `review` instead.
+		if (config.decayTrigger) {
+			const decayProcessor = node<readonly MemoryFragment<T>[]>(
+				config.decay ? [config.decayTrigger, config.decay] : [config.decayTrigger],
+				(batchData, actions, ctx) => {
+					const policy = config.decay
+						? lastOf<DecayPolicy>(batchData[1], ctx.prevData[1])
+						: undefined;
+					// Inert until a policy exists (SENTINEL guard) or if `decay` was
+					// never supplied — `decayTrigger` alone is documented no-op.
+					if (!policy) {
+						actions.emit([]);
+						return;
+					}
+					// `ageNs` is a DURATION → monotonic clock (CLAUDE.md "Time utility
+					// rule"); `MemoryFragment.t_ns` is monotonic-stamped (field JSDoc
+					// + fixture). Wall-clock here would mix domains and hand the
+					// policy a ~epoch-sized garbage age. The `decay` audit record
+					// below keeps `wallClockNs()` (wall-clock attribution, like every
+					// other audit append).
+					const now = BigInt(monotonicNs());
+					const changes: { id: FactId; next: number }[] = [];
+					for (const f of allFacts().values()) {
+						if (f.validTo !== undefined) continue; // obsolete — don't drift
+						const ageNs = now - f.t_ns;
+						const raw = policy(f.confidence, ageNs);
+						if (!Number.isFinite(raw)) continue; // policy overflow guard
+						const next = raw < 0 ? 0 : raw > 1 ? 1 : raw;
+						if (next === f.confidence) continue; // no-op → quiescent store
+						changes.push({ id: f.id, next });
+					}
+					const decayed: MemoryFragment<T>[] = [];
+					for (const { id, next } of changes) {
+						// Resurrection guard: re-read the LIVE shard — a fact obsoleted
+						// by an in-flight cascade earlier this same tick must not be
+						// re-confidence'd from the pre-cascade snapshot.
+						const idx = findShardOf(id);
+						const fs = idx < 0 ? undefined : (shards[idx]!.cache as FactStore<T> | undefined);
+						const live = fs?.byId.get(id);
+						if (!live || live.validTo !== undefined) continue;
+						replaceFragment(id, (prev) =>
+							prev.validTo !== undefined ? prev : { ...prev, confidence: next },
+						);
+						decayed.push({ ...live, confidence: next });
+					}
+					if (decayed.length > 0) {
+						events.append({
+							action: "decay",
+							t_ns: wallClockNs(),
+							seq: bumpCursor(seqCursor),
+							count: decayed.length,
+						});
+					}
+					actions.emit(decayed);
+				},
+				{
+					name: "decay_processor",
+					describeKind: "derived",
+					initial: [] as readonly MemoryFragment<T>[],
+					// Inspection completeness (same convention as `consolidated`
+					// above — kept uniform): `decay_processor` write-backs feed
+					// the cascade store via `replaceFragment` → shard emit →
+					// `invalidationDetector`. `feeds:"cascade"` surfaces it as a
+					// cascade-store mutator; `drivesRoot:false` — decay only
+					// mutates `confidence`, never `validTo`, and the detector
+					// roots on `validTo` only, so it provably cannot root.
+					meta: factMeta("decay", { feeds: "cascade", drivesRoot: false }),
+				},
+			);
+			this.add(decayProcessor, { name: "decay_processor" });
+			this.addDisposer(keepalive(decayProcessor));
+		}
+
+		// ── ingest audit (records every committed fragment) ──────────────────
+		const ingestAudit = node<MemoryFragment<T> | null>(
+			[extractOp],
+			(batchData, actions, ctx) => {
+				const f = lastOf<MemoryFragment<T> | null>(batchData[0], ctx.prevData[0]);
+				if (f != null) {
+					events.append({
+						action: "ingest",
+						id: f.id,
+						t_ns: wallClockNs(),
+						seq: bumpCursor(seqCursor),
+					});
+					// Payload-carrying replay log (opt-in). Append the full
+					// committed fragment so the store is a rebuildable projection.
+					ingestLog?.append(f);
+				}
+				actions.emit(f ?? null);
+			},
+			{
+				name: "_ingest_audit",
+				describeKind: "derived",
+				initial: null,
+				meta: factMeta("audit"),
+			},
+		);
+		this.add(ingestAudit, { name: "_ingest_audit" });
+		this.addDisposer(keepalive(ingestAudit));
+
+		// ── Assemble public surface (readonly fields) ────────────────────────
+		this.shards = shards as readonly Node<FactStore<T>>[];
+		this.factStore = factStore;
+		this.dependentsIndex = dependentsIndex;
+		this.answer = answer;
+		this.cascade = cascade;
+		this.cascadeOverflow = cascadeOverflow;
+		this.review = review;
+		this.consolidated = consolidated;
+		this.events = events;
+		if (ingestLog) this.ingestLog = ingestLog;
 	}
 
-	// ── ingest audit (records every committed fragment) ──────────────────
-	const ingestAudit = node<MemoryFragment<T> | null>(
-		[extractOp],
-		(batchData, actions, ctx) => {
-			const f = lastOf<MemoryFragment<T> | null>(batchData[0], ctx.prevData[0]);
-			if (f != null) {
-				events.append({
-					action: "ingest",
-					id: f.id,
-					t_ns: wallClockNs(),
-					seq: bumpCursor(seqCursor),
-				});
-				// Payload-carrying replay log (opt-in). Append the full
-				// committed fragment so the store is a rebuildable projection.
-				ingestLog?.append(f);
-			}
-			actions.emit(f ?? null);
-		},
-		{
-			name: "_ingest_audit",
-			describeKind: "derived",
-			initial: null,
-			meta: factMeta("audit"),
-		},
-	);
-	graph.add(ingestAudit, { name: "_ingest_audit" });
-	graph.addDisposer(keepalive(ingestAudit));
-
 	// ── itemNode reactive read ───────────────────────────────────────────
-	function itemNode(id: FactId): Node<MemoryFragment<T> | undefined> {
+	/** Reactive read: a single fact by id (SENTINEL until the fact exists). */
+	itemNode(id: FactId): Node<MemoryFragment<T> | undefined> {
 		return node<MemoryFragment<T> | undefined>(
-			[factStore],
+			[this.factStore],
 			(batchData, actions, ctx) => {
 				const fs = lastOf<FactStore<T>>(batchData[0], ctx.prevData[0]);
 				actions.emit(fs?.byId.get(id));
@@ -1122,19 +1136,18 @@ export function reactiveFactStore<T>(
 			},
 		);
 	}
+}
 
-	const out = Object.assign(graph, {
-		shards: shards as readonly Node<FactStore<T>>[],
-		factStore,
-		dependentsIndex,
-		answer,
-		cascade,
-		cascadeOverflow,
-		review,
-		consolidated,
-		events,
-		...(ingestLog ? { ingestLog } : {}),
-		itemNode,
-	}) as ReactiveFactStoreGraph<T>;
-	return out;
+/**
+ * Build a static-topology reactive fact store (DS-14.7 architecture C).
+ *
+ * Thin factory over {@link ReactiveFactStoreGraph} — see that class for the
+ * full topology / locked-decision docs and the `instanceof`-narrowable type.
+ *
+ * @category memory
+ */
+export function reactiveFactStore<T>(
+	config: ReactiveFactStoreConfig<T>,
+): ReactiveFactStoreGraph<T> {
+	return new ReactiveFactStoreGraph<T>(config);
 }

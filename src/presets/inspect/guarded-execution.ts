@@ -326,12 +326,13 @@ export class GuardedExecutionGraph extends Graph {
 		// status transition; lifecycle owned by the wrapper.
 		const scopedHandle = target.describe({
 			reactive: true,
-			// F8 (Tier 5.2): `_actorNode` is `Node<Actor | null>`. The cast is
-			// safe at runtime per the `resolveActorOption` null-tolerance
-			// contract — `null` / `undefined` cache is treated as "no scoping"
-			// (full visibility). See `scopedDescribeNode` for the matching
-			// per-call site and graph.ts § "Cache-undefined semantics".
-			actor: this._actorNode as Node<Actor>,
+			// F8 (resolved 2026-05-18): `GraphDescribeOptions.actor` is now
+			// `Actor | Node<Actor | null>`, so `_actorNode` (a
+			// `Node<Actor | null>`) passes without a cast. A `null`/`undefined`
+			// cache resolves to "no scoping" (full visibility) per
+			// `resolveActorOption`. See graph.ts § "Cache-undefined/null
+			// semantics".
+			actor: this._actorNode,
 			reactiveName: "scopedDescribe",
 		});
 		this.scopedDescribe = scopedHandle.node;
@@ -386,12 +387,12 @@ export class GuardedExecutionGraph extends Graph {
 					: node<Actor>([], { name: "actor_override", initial: actorOverride });
 		const handle = this._target.describe({
 			reactive: true,
-			// `_actorNode` is `Node<Actor | null>`. The `as Node<Actor>` cast is
-			// safe at runtime: `_describeReactive` resolves the actor via
-			// `resolveActorOption`, which treats `null`/`undefined` cache as
-			// "no scoping" (full visibility). Documented in graph.ts §
-			// "Cache-undefined semantics."
-			actor: actorNode as Node<Actor>,
+			// F8 (resolved 2026-05-18): `actor` accepts `Node<Actor | null>`
+			// directly. `actorNode` is `_actorNode` (`Node<Actor | null>`) or
+			// an override (`Node<Actor>`/`Node<Actor | null>`); both assign
+			// without a cast. `_describeReactive` resolves via
+			// `resolveActorOption` (null/undefined cache → no scoping).
+			actor: actorNode,
 			...(opts ?? {}),
 		});
 		// Track on the wrapper as a safety net for callers who forget to

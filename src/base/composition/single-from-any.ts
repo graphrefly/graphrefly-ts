@@ -28,7 +28,7 @@
  */
 
 import type { Node } from "@graphrefly/pure-ts/core";
-import { COMPLETE, ERROR } from "@graphrefly/pure-ts/core";
+import { COMPLETE, ERROR, TEARDOWN } from "@graphrefly/pure-ts/core";
 // Import directly from the source sub-files (rather than the `./sources.js`
 // barrel) so the `single-from-any` module is NOT part of any cycle that runs
 // through `extra/sources/index.ts` — eager re-exports through the barrel were
@@ -140,11 +140,20 @@ export function singleFromAny<K, T>(
 /**
  * Reactive variant: returns a bound callable that hands out `Node<T>` values.
  * All concurrent callers with the same key during an in-flight source share
- * the same Node. When the underlying source **terminally** settles (ERROR
- * or COMPLETE), the Node is removed from the cache so the next call
- * re-invokes `factory`. DATA is NOT terminal — callers subscribing after
- * the first DATA still receive the shared Node (and push-on-subscribe per
- * the spec's cached-DATA contract).
+ * the same Node. The cache entry is evicted (so the next call re-invokes
+ * `factory`) when the underlying source either:
+ *
+ * - **terminally settles** — `ERROR` or `COMPLETE`; or
+ * - **tears down** — `TEARDOWN` (M8 fix). A DATA-only source (e.g. a
+ *   long-lived `state(...)`) never emits `ERROR`/`COMPLETE`, so without
+ *   the TEARDOWN arm a destroyed shared Node — plus this watcher
+ *   subscription — would be pinned in the `inFlight` Map forever. Evicting
+ *   on TEARDOWN bounds the entry's lifetime to the Node's own lifetime.
+ *
+ * DATA is NOT an eviction trigger — callers subscribing after the first
+ * DATA still receive the shared Node (and push-on-subscribe per the spec's
+ * cached-DATA contract). The Node stays shared while alive (the dedup
+ * contract); only its death (terminal or teardown) releases the entry.
  *
  * Use when downstream wants reactive subscription (not a one-shot Promise).
  *
@@ -165,14 +174,24 @@ export function singleNodeFromAny<K, T>(
 		const node = fromAny(factory(key));
 		inFlight.set(k, node);
 
-		// Evict on terminal settle only — ERROR or COMPLETE. DATA is a value
-		// emission, not a lifecycle transition; multi-emitting Nodes should
-		// continue to share across subscribers after the first value.
-		const unsub = node.subscribe((msgs) => {
+		// Evict on Node death — terminal settle (ERROR / COMPLETE) OR
+		// TEARDOWN (M8). DATA is a value emission, not a lifecycle
+		// transition; multi-emitting Nodes continue to share across
+		// subscribers after the first value. The TEARDOWN arm is what
+		// releases DATA-only `state(...)` sources, which never terminate.
+		// `unsub` is hoisted (mirrors `singleFromAny`'s `let tracked!`): the
+		// sink closes over it, and a `fromAny` source that synchronously
+		// replays a cached terminal/TEARDOWN on subscribe would otherwise hit
+		// `unsub` in its TDZ. In that sync-terminal case `unsub` is still
+		// `undefined` when the sink runs — `unsub?.()` no-ops, but the
+		// load-bearing `inFlight.delete(k)` eviction still runs and an
+		// already-terminal node won't re-emit (the dangling sub is inert).
+		let unsub: (() => void) | undefined;
+		unsub = node.subscribe((msgs) => {
 			for (const m of msgs) {
-				if (m[0] === ERROR || m[0] === COMPLETE) {
+				if (m[0] === ERROR || m[0] === COMPLETE || m[0] === TEARDOWN) {
 					if (inFlight.get(k) === node) inFlight.delete(k);
-					unsub();
+					unsub?.();
 					return;
 				}
 			}

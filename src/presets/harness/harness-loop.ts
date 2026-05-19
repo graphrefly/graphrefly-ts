@@ -334,7 +334,18 @@ export class HarnessGraph<A = unknown> extends Graph {
 	 */
 	readonly queueTopics: ReadonlyMap<QueueRoute, TopicGraph<TriagedItem>>;
 
-	/** Strategy model — `auditedSuccessTracker` keyed by `StrategyKey`. */
+	/**
+	 * Strategy model — `auditedSuccessTracker` keyed by `StrategyKey`.
+	 *
+	 * **Ownership (EC10/EC15).** Owned by the harness: it is mounted as a
+	 * child subgraph (`harness.mount("strategy", strategy)`), so its disposal
+	 * cascades from `harness.destroy()` via the mount lifecycle. Do **not**
+	 * call `strategy.destroy()` independently — the harness's `triage-input`
+	 * node and (when `opts.priority` is set) `buildPriorityScores` hold
+	 * cross-graph deps on `strategy.entries`; destroying the strategy out of
+	 * band staleness those nodes while the rest of the loop keeps running.
+	 * Read/subscribe freely; let the harness own the lifecycle.
+	 */
 	readonly strategy: StrategyModelGraph;
 
 	/** Global retry count across all items (circuit breaker). Reactive — subscribable. */

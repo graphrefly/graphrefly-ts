@@ -392,17 +392,21 @@ export type GraphActorOptions = {
 export type GraphDescribeOptions = {
 	/**
 	 * Scope `describe()` to what `actor` is allowed to observe. Accepts a
-	 * static {@link Actor} (resolved at call time) or a `Node<Actor>` — when a
-	 * Node is passed and `reactive: true` is set, the reactive describe handle
-	 * subscribes to the actor node and re-derives whenever the actor changes,
-	 * so harnesses that bind a reactive actor (e.g. per-turn `currentActor`
-	 * state) get a single live describe Node instead of re-calling
-	 * `describe({ actor })` per turn.
+	 * static {@link Actor} (resolved at call time) or a `Node<Actor | null>` —
+	 * when a Node is passed and `reactive: true` is set, the reactive describe
+	 * handle subscribes to the actor node and re-derives whenever the actor
+	 * changes, so harnesses that bind a reactive actor (e.g. per-turn
+	 * `currentActor` state) get a single live describe Node instead of
+	 * re-calling `describe({ actor })` per turn. The `| null` in the Node
+	 * type is first-class: a `null` cache means "no actor configured" → **no
+	 * scoping** (full visibility), the same as `undefined` cache. This lets
+	 * callers bridge through a `Node<Actor | null>` (e.g. `guardedExecution`'s
+	 * `_actorNode`) without an unsound `as Node<Actor>` cast (F8).
 	 *
-	 * **Cache-undefined semantics:** when a `Node<Actor>` is supplied whose
-	 * `cache` is `undefined` (e.g. a `producer` that has not yet emitted),
-	 * describe is treated identically to `actor: undefined` — i.e. **no
-	 * scoping** (full visibility). This matches every other Node-cache read in
+	 * **Cache-undefined/null semantics:** when a `Node<Actor | null>` is
+	 * supplied whose `cache` is `undefined` (e.g. a `producer` that has not
+	 * yet emitted) **or `null`**, describe is treated identically to
+	 * `actor: undefined` — i.e. **no scoping** (full visibility). This matches every other Node-cache read in
 	 * the codebase, but means a not-yet-active actor node degrades to "describe
 	 * everything." Activate the actor node (subscribe + emit, or seed via
 	 * `state(initial)`) before calling `describe` if you rely on guard
@@ -415,7 +419,7 @@ export type GraphDescribeOptions = {
 	 * `actor.cache` value. Subsequent describe outputs reflect that frozen
 	 * cache until `handle.dispose()` runs.
 	 */
-	actor?: Actor | Node<Actor>;
+	actor?: Actor | Node<Actor | null>;
 	/**
 	 * Node filter. Filters operate on whatever fields the chosen `detail` level
 	 * provides. For `metaHas` and `status` filters, use `detail: "standard"` or
@@ -815,25 +819,27 @@ async function drainDisposersAsync(
  * `{ type, id } & Record<string, unknown>` — open shape, so `subscribe` and
  * `cache` alone are not load-bearing).
  */
-function isActorNode(x: Actor | Node<Actor> | undefined): x is Node<Actor> {
+function isActorNode(x: Actor | Node<Actor | null> | undefined): x is Node<Actor | null> {
 	return (
 		x != null &&
 		typeof x === "object" &&
 		"cache" in x &&
-		typeof (x as Node<Actor>).subscribe === "function" &&
-		typeof (x as Node<Actor>).down === "function"
+		typeof (x as Node<Actor | null>).subscribe === "function" &&
+		typeof (x as Node<Actor | null>).down === "function"
 	);
 }
 
 /**
- * Resolve an `actor?: Actor | Node<Actor>` describe option to a plain
+ * Resolve an `actor?: Actor | Node<Actor | null>` describe option to a plain
  * `Actor | undefined`. When a Node is supplied its current `cache` is read;
- * static actors pass through. The `_describeReactive` path subscribes to the
+ * a `null`/`undefined` cache resolves to `undefined` (no scoping — full
+ * visibility), so a `Node<Actor | null>` is sound without a cast (F8).
+ * Static actors pass through. The `_describeReactive` path subscribes to the
  * node separately so describe re-derives on actor change.
  */
-function resolveActorOption(actor: Actor | Node<Actor> | undefined): Actor | undefined {
+function resolveActorOption(actor: Actor | Node<Actor | null> | undefined): Actor | undefined {
 	if (actor == null) return undefined;
-	if (isActorNode(actor)) return actor.cache as Actor | undefined;
+	if (isActorNode(actor)) return (actor.cache as Actor | null | undefined) ?? undefined;
 	return actor;
 }
 

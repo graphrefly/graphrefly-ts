@@ -1,3 +1,4 @@
+import { COMPLETE, node, TEARDOWN } from "@graphrefly/pure-ts/core";
 import { describe, expect, it } from "vitest";
 import { singleFromAny, singleNodeFromAny } from "../../../base/composition/single-from-any.js";
 
@@ -76,5 +77,41 @@ describe("singleNodeFromAny", () => {
 	it("different keys produce different Nodes", () => {
 		const fn = singleNodeFromAny<string, string>(async (k) => k);
 		expect(fn("a")).not.toBe(fn("b"));
+	});
+
+	it("evicts on TEARDOWN so a DATA-only source releases (M8)", () => {
+		let calls = 0;
+		// DATA-only `state(...)` source: emits DATA on subscribe, never
+		// ERROR/COMPLETE. Pre-M8 the cache entry + watcher subscription
+		// outlived the node's teardown forever.
+		const fn = singleNodeFromAny<string, number>((k) => {
+			calls += 1;
+			return node<number>([], { initial: Number(k), name: `state_${k}` });
+		});
+		const n1 = fn("1");
+		expect(calls).toBe(1);
+		// Still alive → shared (no terminal, no teardown yet).
+		expect(fn("1")).toBe(n1);
+		expect(calls).toBe(1);
+		// Tear the shared node down. A DATA-only source never emits
+		// ERROR/COMPLETE, so TEARDOWN is the only release signal.
+		n1.down([[TEARDOWN]]);
+		// Entry evicted → next call re-invokes the factory with a fresh Node.
+		const n2 = fn("1");
+		expect(n2).not.toBe(n1);
+		expect(calls).toBe(2);
+	});
+
+	it("still evicts on terminal COMPLETE (regression guard for M8)", () => {
+		let calls = 0;
+		const fn = singleNodeFromAny<string, number>((k) => {
+			calls += 1;
+			return node<number>([], { initial: Number(k), name: `state_${k}` });
+		});
+		const n1 = fn("7");
+		expect(calls).toBe(1);
+		n1.down([[COMPLETE]]);
+		expect(fn("7")).not.toBe(n1);
+		expect(calls).toBe(2);
 	});
 });

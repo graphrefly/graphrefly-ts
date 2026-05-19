@@ -1436,7 +1436,7 @@ export {
 	type MemoryQuery,
 	type OutcomeSignal,
 	type ReactiveFactStoreConfig,
-	type ReactiveFactStoreGraph,
+	ReactiveFactStoreGraph,
 	type ReviewRequest,
 	reactiveFactStore,
 	type ScoringPolicy,

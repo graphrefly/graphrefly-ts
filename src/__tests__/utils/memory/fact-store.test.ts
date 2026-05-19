@@ -17,6 +17,7 @@ import {
 	type OutcomeSignal,
 	type PersistentReactiveFactStoreGraph,
 	persistentReactiveFactStore,
+	ReactiveFactStoreGraph,
 	type ReviewRequest,
 	reactiveFactStore,
 	type ScoringPolicy,
@@ -76,6 +77,25 @@ describe("utils.memory.reactiveFactStore — topology", () => {
 		expect(edges).toContain("invalidation_detector->cascade");
 		expect(edges).toContain("cascade->cascade_processor");
 		mem.destroy();
+	});
+
+	it("is a `class extends Graph` — instanceof narrows (consistency sweep)", () => {
+		const ingest = ingestNode<string>();
+		const mem = reactiveFactStore<string>({ ingest, extractDependencies: (f) => f.sources });
+		// `reactiveFactStore` migrated from `Object.assign(graph, …)` to a real
+		// `class extends Graph` — `instanceof` now narrows (parity with the
+		// other 47 extends-Graph subclasses + constructor invariants).
+		expect(mem).toBeInstanceOf(ReactiveFactStoreGraph);
+		// Direct construction is equivalent to the factory.
+		const direct = new ReactiveFactStoreGraph<string>({
+			ingest: ingestNode<string>(),
+			extractDependencies: (f) => f.sources,
+		});
+		expect(direct).toBeInstanceOf(ReactiveFactStoreGraph);
+		expect(typeof direct.itemNode).toBe("function");
+		expect(direct.shards.length).toBe(4);
+		mem.destroy();
+		direct.destroy();
 	});
 
 	it("does not grow topology as facts are ingested", () => {
