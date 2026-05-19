@@ -168,8 +168,18 @@ export type ReactiveSinkRetryOptions = {
  * @category extra
  */
 export type ReactiveSinkBackpressureOptions = {
-	/** Hard cap on buffered items; further items trigger `strategy`. Default: `Infinity`. */
-	maxBuffer?: number;
+	/**
+	 * Hard cap on buffered items; further items trigger `strategy`.
+	 *
+	 * **Required when `backpressure` is configured** — fail-loud per D4
+	 * (F-SINK, 2026-05-18 smell sweep), mirroring {@link rateLimiter}'s
+	 * `maxBuffer` contract. Pass a finite positive integer for a bounded
+	 * buffer, or the literal `Infinity` to explicitly opt in to an unbounded
+	 * buffer (silently defaulting to unbounded is the most common backpressure
+	 * mis-configuration). A `backpressure` object omitting `maxBuffer` throws
+	 * `RangeError` at construction.
+	 */
+	maxBuffer: number;
 	/** Policy when the buffer is full. Default: `"drop-oldest"`. */
 	strategy?: "drop-oldest" | "drop-newest" | "error";
 };
@@ -433,7 +443,25 @@ export function reactiveSink<T, Ctx = unknown>(
 	// hand-rolled sinks relied on this ordering.
 	// -------------------------------------------------------------------
 	type BufferEntry = { value: T; payload: unknown };
-	const maxBuf = backpressure?.maxBuffer ?? Number.POSITIVE_INFINITY;
+	// F-SINK (2026-05-18 smell sweep): fail-loud — a configured `backpressure`
+	// MUST seed an explicit `maxBuffer` (use `Infinity` for explicit unbounded).
+	// Silently defaulting to an unbounded buffer is the same footgun class the
+	// `rateLimiter` primitive is fail-loud about (D4).
+	let maxBuf = Number.POSITIVE_INFINITY;
+	if (backpressure) {
+		const mb = backpressure.maxBuffer;
+		if (mb === undefined) {
+			throw new RangeError(
+				"reactiveSink: backpressure requires explicit maxBuffer (use Infinity to opt in to unbounded)",
+			);
+		}
+		if (mb !== Number.POSITIVE_INFINITY && (!Number.isInteger(mb) || mb < 1)) {
+			throw new RangeError(
+				"reactiveSink: backpressure.maxBuffer must be a positive integer (or Infinity for unbounded)",
+			);
+		}
+		maxBuf = mb;
+	}
 	const buffer = new BackpressureBuffer<BufferEntry>(maxBuf);
 	let flushTimer: ReturnType<typeof setTimeout> | undefined;
 	let disposed = false;

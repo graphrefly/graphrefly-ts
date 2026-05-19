@@ -69,7 +69,12 @@ export interface ActorHandle<T> {
 
 export interface ActorPoolOptions<T> {
 	readonly name?: string;
-	/** Max recursion depth; `attachActor` with `depth > depthCap` throws. */
+	/**
+	 * Max recursion depth; `attachActor` with `depth > depthCap` throws.
+	 * Default: `8` (F-ACTOR, 2026-05-18 smell sweep — a finite default bounds
+	 * runaway recursive fan-out; previously silently `Infinity`). Pass an
+	 * explicit `Number.POSITIVE_INFINITY` to opt in to unbounded recursion.
+	 */
 	readonly depthCap?: number;
 	/** Forwarded to the backing context pool. */
 	readonly contextTopic?: string;
@@ -98,7 +103,7 @@ export function actorPool<T = unknown>(
 	const name = opts.name ?? `actorPool-${++_actorPoolSeq}`;
 	const graph = new Graph(name);
 	parent.mount(name, graph);
-	const depthCap = opts.depthCap ?? Number.POSITIVE_INFINITY;
+	const depthCap = opts.depthCap ?? 8;
 	// QA P5: per-pool actor counter (was module-global → test-pollution).
 	let autoActor = 0;
 	// QA P7: track live handles so dispose() can release them all.

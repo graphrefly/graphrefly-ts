@@ -51,6 +51,23 @@ describe("DS-14.6.A U-B — actorPool", () => {
 		pool.dispose();
 	});
 
+	// F-B-class smell sweep (2026-05-18) — F-ACTOR: depthCap defaults to a
+	// finite 8 (was silently Infinity), bounding runaway recursive fan-out.
+	it("F-ACTOR: default depthCap is a finite 8 (depth 9 throws, depth 8 ok)", () => {
+		const g = new Graph("g");
+		const pool = actorPool<string>(g);
+		expect(() => pool.attachActor({ depth: 9, view: mkView() })).toThrow(/depthCap 8/);
+		expect(() => pool.attachActor({ depth: 8, view: mkView() })).not.toThrow();
+		pool.dispose();
+	});
+
+	it("F-ACTOR: explicit Infinity depthCap opts back into unbounded recursion", () => {
+		const g = new Graph("g");
+		const pool = actorPool<string>(g, { depthCap: Number.POSITIVE_INFINITY });
+		expect(() => pool.attachActor({ depth: 10_000, view: mkView() })).not.toThrow();
+		pool.dispose();
+	});
+
 	it("publish writes to the shared pool with an actor tag; context view sees it", () => {
 		const g = new Graph("g");
 		const pool = actorPool<string>(g);

@@ -18,6 +18,11 @@ export type CheckpointToS3Options = {
 	debounceMs?: number;
 	/** Full snapshot compaction interval. Default: `10`. */
 	compactEvery?: number;
+	/**
+	 * Invoked on checkpoint serialize/persist failure. Default: `console.error`
+	 * (F-CKPT, 2026-05-18 smell sweep — a dropped checkpoint write is silent
+	 * data loss; pass an explicit no-op `() => {}` to suppress).
+	 */
 	onError?: (error: unknown) => void;
 };
 
@@ -38,7 +43,13 @@ export function checkpointToS3(
 	bucket: string,
 	opts?: CheckpointToS3Options,
 ): { dispose(): void } {
-	const { prefix = "checkpoints/", debounceMs = 500, compactEvery = 10, onError } = opts ?? {};
+	const {
+		prefix = "checkpoints/",
+		debounceMs = 500,
+		compactEvery = 10,
+		onError = (err: unknown) =>
+			console.error(`checkpointToS3(${bucket}): checkpoint persistence failed`, err),
+	} = opts ?? {};
 	const tier: SnapshotStorageTier<GraphCheckpointRecord> = {
 		name: `s3:${bucket}`,
 		debounceMs,
@@ -50,7 +61,7 @@ export function checkpointToS3(
 			try {
 				body = JSON.stringify(record);
 			} catch (err) {
-				onError?.(err);
+				onError(err);
 				return;
 			}
 			void client
@@ -60,13 +71,13 @@ export function checkpointToS3(
 					Body: body,
 					ContentType: "application/json",
 				})
-				.catch((err) => onError?.(err));
+				.catch((err) => onError(err));
 		},
 		// S3 tier is write-only here — one object per checkpoint timestamp,
 		// no canonical "latest" key for load.
 	};
 	return graph.attachSnapshotStorage([{ snapshot: tier }], {
-		onError: (err: unknown) => onError?.(err),
+		onError: (err: unknown) => onError(err),
 	});
 }
 
@@ -84,6 +95,12 @@ export type CheckpointToRedisOptions = {
 	debounceMs?: number;
 	/** Full snapshot compaction interval. Default: `10`. */
 	compactEvery?: number;
+	/**
+	 * Invoked on checkpoint serialize/persist/load failure. Default:
+	 * `console.error` (F-CKPT, 2026-05-18 smell sweep — a dropped checkpoint
+	 * write or an unparseable stored checkpoint is silent data loss; pass an
+	 * explicit no-op `() => {}` to suppress).
+	 */
 	onError?: (error: unknown) => void;
 };
 
@@ -106,7 +123,8 @@ export function checkpointToRedis(
 		prefix = "graphrefly:checkpoint:",
 		debounceMs = 500,
 		compactEvery = 10,
-		onError,
+		onError = (err: unknown) =>
+			console.error(`checkpointToRedis(${graph.name}): checkpoint persistence failed`, err),
 	} = opts ?? {};
 	const redisKey = `${prefix}${graph.name}`;
 	const tier: SnapshotStorageTier<GraphCheckpointRecord> = {
@@ -118,22 +136,25 @@ export function checkpointToRedis(
 			try {
 				body = JSON.stringify(record);
 			} catch (err) {
-				onError?.(err);
+				onError(err);
 				return;
 			}
-			void client.set(redisKey, body).catch((err) => onError?.(err));
+			void client.set(redisKey, body).catch((err) => onError(err));
 		},
 		async load() {
 			const raw = await client.get(redisKey);
 			if (raw == null) return undefined;
 			try {
 				return JSON.parse(raw) as GraphCheckpointRecord;
-			} catch {
+			} catch (err) {
+				// F-CKPT: an unparseable stored checkpoint is silent data loss
+				// if swallowed — surface it, then fall back to "no checkpoint".
+				onError(err);
 				return undefined;
 			}
 		},
 	};
 	return graph.attachSnapshotStorage([{ snapshot: tier }], {
-		onError: (err: unknown) => onError?.(err),
+		onError: (err: unknown) => onError(err),
 	});
 }

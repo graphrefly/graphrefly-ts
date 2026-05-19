@@ -5,7 +5,7 @@
 import type { Node } from "@graphrefly/pure-ts/core";
 import { COMPLETE, DATA, DIRTY, ERROR, node } from "@graphrefly/pure-ts/core";
 import { fromIter } from "@graphrefly/pure-ts/extra";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	type ClickHouseInsertClientLike,
 	checkpointToRedis,
@@ -534,6 +534,50 @@ describe("checkpointToS3", () => {
 		const params = saved[0] as { Bucket: string; Key: string };
 		expect(params.Bucket).toBe("my-bucket");
 		expect(params.Key).toMatch(/^cp\/test-graph\/checkpoint-/);
+	});
+
+	// F-B-class smell sweep (2026-05-18) — F-CKPT: a dropped checkpoint write
+	// is silent data loss. The default `onError` now surfaces via console.error
+	// (mirrors budgetGate A3) instead of being fully swallowed.
+	it("F-CKPT: default onError surfaces a serialize failure via console.error", () => {
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		type Tier = { save(data: unknown): void | Promise<void> };
+		let capturedTier: Tier | undefined;
+		const mockGraph = {
+			name: "g",
+			attachSnapshotStorage: (pairs: readonly { snapshot: Tier }[]) => {
+				capturedTier = pairs[0]?.snapshot;
+				return { dispose: () => {} };
+			},
+		};
+		checkpointToS3(mockGraph, { putObject: async () => {} }, "b");
+		const circular: Record<string, unknown> = {};
+		circular.self = circular; // JSON.stringify throws
+		capturedTier!.save(circular);
+		expect(errSpy).toHaveBeenCalledWith(
+			expect.stringContaining("checkpointToS3(b): checkpoint persistence failed"),
+			expect.anything(),
+		);
+		errSpy.mockRestore();
+	});
+
+	it("F-CKPT: explicit no-op onError suppresses the default console.error", () => {
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		type Tier = { save(data: unknown): void | Promise<void> };
+		let capturedTier: Tier | undefined;
+		const mockGraph = {
+			name: "g",
+			attachSnapshotStorage: (pairs: readonly { snapshot: Tier }[]) => {
+				capturedTier = pairs[0]?.snapshot;
+				return { dispose: () => {} };
+			},
+		};
+		checkpointToS3(mockGraph, { putObject: async () => {} }, "b", { onError: () => {} });
+		const circular: Record<string, unknown> = {};
+		circular.self = circular;
+		capturedTier!.save(circular);
+		expect(errSpy).not.toHaveBeenCalled();
+		errSpy.mockRestore();
 	});
 });
 

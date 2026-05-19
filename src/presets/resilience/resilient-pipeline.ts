@@ -139,23 +139,17 @@ export interface ResilientPipelineOptions<T> {
 	 * Admission control — at most `maxEvents` `DATA` per `windowNs`. See
 	 * {@link rateLimiter}.
 	 *
-	 * `maxBuffer` is optional **only for the value form** — a plain options
-	 * object defaults `maxBuffer` to `Infinity` (preserving historical
-	 * unbounded behavior); pass an explicit positive integer to opt in to a
-	 * bounded queue.
-	 *
-	 * **Node form must seed `maxBuffer` explicitly.** A `Node<RateLimiterOptions>`
-	 * is forwarded directly to {@link rateLimiter} (to preserve internal state
-	 * across opt swaps — no `?? Infinity` convenience injection), so its
-	 * cached value MUST include `maxBuffer` (a finite positive integer, or the
-	 * literal `Infinity` to opt in to unbounded). An un-seeded opts Node, or a
-	 * seeded value omitting `maxBuffer`, throws `RangeError` at construction
-	 * (D4 fail-loud — the silent bounded/unbounded lock is the most common
-	 * rateLimiter mis-configuration). This is an intentional value-vs-Node
-	 * asymmetry: the Node form is fail-loud, the value form keeps the legacy
-	 * `?? Infinity` default.
+	 * **`maxBuffer` is required in BOTH the value form and the Node form** —
+	 * forwarded directly to {@link rateLimiter}, which is fail-loud (D4): an
+	 * un-seeded opts Node, or a value/cached value omitting `maxBuffer`, throws
+	 * `RangeError` at construction. Pass a finite positive integer for a bounded
+	 * queue, or the literal `Infinity` to explicitly opt in to unbounded (the
+	 * silent bounded/unbounded lock is the most common rateLimiter
+	 * mis-configuration). There is **no value-vs-Node asymmetry and no legacy
+	 * `?? Infinity` convenience injection** — both forms match the primitive's
+	 * fail-loud contract (F-B-root, 2026-05-18 smell sweep).
 	 */
-	rateLimit?: NodeOrValue<Omit<RateLimiterOptions, "maxBuffer"> & { maxBuffer?: number }>;
+	rateLimit?: NodeOrValue<RateLimiterOptions>;
 	/** Cost/constraint gate. See {@link budgetGate}. */
 	budget?: NodeOrValue<ReadonlyArray<BudgetConstraint>>;
 	/** Circuit breaker — fail-fast when the downstream resource is unhealthy. See {@link circuitBreaker}. */
@@ -265,14 +259,14 @@ export class ResilientPipelineGraph<T> extends Graph {
 
 		// 1. Admission control — cheapest to drop / queue before any other work.
 		if (opts.rateLimit != null) {
-			if (isNode<Omit<RateLimiterOptions, "maxBuffer"> & { maxBuffer?: number }>(opts.rateLimit)) {
+			if (isNode<RateLimiterOptions>(opts.rateLimit)) {
 				// DS-13.5.B forwarding: rateLimiter primitive is widened to
 				// accept `NodeOrValue<RateLimiterOptions>` directly. Forward
 				// the Node form to preserve internal state (pending buffer,
 				// dropped counter) across opts swaps. Companion nodes
 				// (droppedCount / rateLimitState) lift onto the pipeline
 				// bundle. The pre-DS-13.5.B switchMap-rebuild path is gone.
-				const bundle = rateLimiter(current, opts.rateLimit as NodeOrValue<RateLimiterOptions>);
+				const bundle = rateLimiter(current, opts.rateLimit);
 				current = bundle.node;
 				droppedCount = bundle.droppedCount;
 				rateLimitState = bundle.rateLimitState;
@@ -280,9 +274,11 @@ export class ResilientPipelineGraph<T> extends Graph {
 				this.add(droppedCount, { name: "droppedCount" });
 				this.add(rateLimitState, { name: "rateLimitState" });
 			} else {
+				// F-B-root (2026-05-18 smell sweep): no `?? Infinity` injection.
+				// `maxBuffer` is required by the type and validated fail-loud by
+				// `rateLimiter` (D4) — `Infinity` is an explicit unbounded opt-in.
 				const rateOpts: RateLimiterOptions = {
 					...opts.rateLimit,
-					maxBuffer: opts.rateLimit.maxBuffer ?? Infinity,
 					meta: domainMeta("resilient", "rate-limit"),
 				};
 				const bundle = rateLimiter(current, rateOpts);
@@ -505,7 +501,7 @@ export class ResilientPipelineGraph<T> extends Graph {
  * @example
  * ```ts
  * const safeFetch = resilientPipeline(fetchNode, {
- *   rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC },
+ *   rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: 100 },
  *   breaker: { failureThreshold: 5 },
  *   retry: { count: 3, backoff: "exponential" },
  *   timeoutMs: 10_000,

@@ -149,13 +149,39 @@ describe("resilientPipeline — layer behavior", () => {
 	it("rateLimit layer: permits through when under limit", () => {
 		const src = node([], { initial: 0 });
 		const pipeline = resilientPipeline(src, {
-			rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC },
+			// F-B-root: value-form maxBuffer is required; Infinity = explicit unbounded.
+			rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: Number.POSITIVE_INFINITY },
 		});
 		const { events, stop } = collect<number>(pipeline.output);
 		src.emit(1);
 		src.emit(2);
 		expect(events).toEqual([0, 1, 2]);
 		stop();
+	});
+
+	// F-B-class smell sweep (2026-05-18) — F-B-root: the value-form rateLimit
+	// no longer silently injects `maxBuffer: Infinity`; both forms are
+	// fail-loud (D4) via the rateLimiter primitive's validation.
+	it("F-B-root: value-form rateLimit omitting maxBuffer throws (no silent ?? Infinity)", () => {
+		const src = node([], { initial: 0 });
+		expect(() =>
+			resilientPipeline(src, {
+				rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC } as never,
+			}),
+		).toThrow(/maxBuffer/);
+	});
+
+	it("F-B-root: value-form rateLimit with explicit maxBuffer: Infinity opts into unbounded", () => {
+		const src = node([], { initial: 0 });
+		expect(() =>
+			resilientPipeline(src, {
+				rateLimit: {
+					maxEvents: 10,
+					windowNs: NS_PER_SEC,
+					maxBuffer: Number.POSITIVE_INFINITY,
+				},
+			}),
+		).not.toThrow();
 	});
 
 	it("fallback layer: replaces terminal ERROR with fallback value", async () => {
@@ -188,7 +214,7 @@ describe("resilientPipeline — layer behavior", () => {
 		const src = node([], { initial: 0 });
 		const maxBudget = node([], { initial: 100 });
 		const opts: ResilientPipelineOptions<number> = {
-			rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC },
+			rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: Number.POSITIVE_INFINITY },
 			budget: [{ node: maxBudget, check: (v) => (v as number) > 0 }],
 			breaker: { failureThreshold: 5 },
 			retry: { count: 2 },

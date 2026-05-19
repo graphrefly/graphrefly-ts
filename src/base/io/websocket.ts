@@ -265,8 +265,14 @@ export function toWebSocket<T>(
 export type FromWebSocketReconnectOptions<T> = ExtraOpts & {
 	/** Optional parser applied to incoming messages. */
 	parse?: (payload: unknown, event: unknown) => T;
-	/** Max reconnect attempts. Default: `Infinity` (implied when `backoff` is set). */
-	maxRetries?: number;
+	/**
+	 * Max reconnect attempts. **Required** — forwarded to {@link retry} as
+	 * `count`, which is fail-loud (D4): `retry({ backoff })` without an explicit
+	 * `count` throws. Pass `Number.POSITIVE_INFINITY` to explicitly opt in to
+	 * unbounded reconnection (F-WS, 2026-05-18 smell sweep — previously the
+	 * `Infinity` default was advertised but already threw at construction).
+	 */
+	maxRetries: number;
 	/** Backoff strategy (ns) or preset name. Default: `"exponential"`. */
 	backoff?: Parameters<typeof retry>[1] extends infer O
 		? O extends { backoff?: infer B }
@@ -301,15 +307,9 @@ export type FromWebSocketReconnectOptions<T> = ExtraOpts & {
  */
 export function fromWebSocketReconnect<T = unknown>(
 	factory: () => WebSocketLike,
-	opts?: FromWebSocketReconnectOptions<T>,
+	opts: FromWebSocketReconnectOptions<T>,
 ): Node<T> {
-	const {
-		parse,
-		maxRetries,
-		backoff = "exponential",
-		closeOnTeardown = true,
-		...rest
-	} = opts ?? {};
+	const { parse, maxRetries, backoff = "exponential", closeOnTeardown = true, ...rest } = opts;
 	return retry<T>(
 		() =>
 			fromWebSocket<T>(factory(), {

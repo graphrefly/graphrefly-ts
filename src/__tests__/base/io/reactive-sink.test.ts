@@ -461,6 +461,38 @@ describe("reactiveSink — validation", () => {
 		const { src } = makeSrc<number>();
 		expect(() => reactiveSink<number>(src, {} as never)).toThrow(/send.*sendBatch/);
 	});
+
+	// F-B-class smell sweep (2026-05-18) — F-SINK: a configured `backpressure`
+	// must seed an explicit `maxBuffer` (fail-loud per D4, mirroring rateLimiter).
+	it("F-SINK: backpressure without maxBuffer throws (fail-loud, no silent unbounded)", () => {
+		const { src } = makeSrc<number>();
+		expect(() =>
+			reactiveSink<number>(src, {
+				backpressure: { strategy: "drop-oldest" } as never,
+				sendBatch: () => {},
+			}),
+		).toThrow(/backpressure requires explicit maxBuffer/);
+	});
+
+	it("F-SINK: backpressure with maxBuffer: Infinity is an explicit unbounded opt-in", () => {
+		const { src } = makeSrc<number>();
+		expect(() =>
+			reactiveSink<number>(src, {
+				backpressure: { maxBuffer: Number.POSITIVE_INFINITY, strategy: "drop-oldest" },
+				sendBatch: () => {},
+			}),
+		).not.toThrow();
+	});
+
+	it("F-SINK: non-integer / <1 maxBuffer throws", () => {
+		const { src } = makeSrc<number>();
+		expect(() =>
+			reactiveSink<number>(src, {
+				backpressure: { maxBuffer: 0, strategy: "drop-oldest" },
+				sendBatch: () => {},
+			}),
+		).toThrow(/positive integer/);
+	});
 });
 
 // ERROR import keeps test compiling without unused-var warning even when the

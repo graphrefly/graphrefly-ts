@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fromMCP } from "../../../base/io/mcp.js";
 import { toSSE } from "../../../base/io/sse.js";
 import { fromWebhook } from "../../../base/io/webhook.js";
-import { fromWebSocket, toWebSocket } from "../../../base/io/websocket.js";
+import { fromWebSocket, fromWebSocketReconnect, toWebSocket } from "../../../base/io/websocket.js";
 // Presentation sources from base/sources
 import { cached, defer, forEach, replay, share, toArray } from "../../../base/sources/async.js";
 import { fromCron, parseCron } from "../../../base/sources/event/cron.js";
@@ -486,6 +486,41 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 			batches.some((b) => b.some((m) => m[0] === DATA && (m[1] as { id: string }).id === "m2")),
 		).toBe(false);
 		unsub();
+	});
+
+	// F-B-class smell sweep (2026-05-18) — F-WS: `maxRetries` is now required.
+	// The underlying `retry()` is fail-loud (D4: backoff without explicit count
+	// throws). Previously `fromWebSocketReconnect(factory)` advertised a silent
+	// `Infinity` default but already threw at construction — the type now makes
+	// the explicit value mandatory and the stale JSDoc is corrected.
+	it("F-WS: fromWebSocketReconnect constructs with explicit maxRetries", () => {
+		class FakeWs {
+			send() {}
+			close() {}
+			addEventListener() {}
+			removeEventListener() {}
+		}
+		expect(() =>
+			fromWebSocketReconnect(() => new FakeWs() as never, { maxRetries: 5 }),
+		).not.toThrow();
+		// Explicit unbounded opt-in is allowed.
+		expect(() =>
+			fromWebSocketReconnect(() => new FakeWs() as never, {
+				maxRetries: Number.POSITIVE_INFINITY,
+			}),
+		).not.toThrow();
+	});
+
+	it("F-WS: omitting maxRetries (JS callers) is fail-loud via retry() D4", () => {
+		class FakeWs {
+			send() {}
+			close() {}
+			addEventListener() {}
+			removeEventListener() {}
+		}
+		// `{}` simulates a JS caller bypassing the now-required type — backoff
+		// defaults to "exponential", so retry() throws on the missing count.
+		expect(() => fromWebSocketReconnect(() => new FakeWs() as never, {} as never)).toThrow(/count/);
 	});
 
 	it("fromWebSocket supports register-style wiring and raw payload fallback", () => {
