@@ -38,7 +38,7 @@ export type PushUnsubscribe = () => void;
  * async, kick it off here and return a function that aborts/detaches it
  * (the async boundary stays in the host, not in the reactive layer).
  */
-export type PushRegister<T> = (deliver: (payload: T) => void) => PushUnsubscribe | void;
+export type PushRegister<T> = (deliver: (payload: T) => void) => PushUnsubscribe | undefined;
 
 /**
  * Wraps a host push transport; each delivered message becomes a `DATA`

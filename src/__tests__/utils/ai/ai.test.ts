@@ -38,6 +38,7 @@ import {
 	type ToolDefinition,
 	ToolRegistryGraph,
 	toolCallExtractor,
+	toolInterceptor,
 	toolRegistry,
 	toolSelector,
 	validateGraphDef,
@@ -1396,6 +1397,88 @@ describe("patterns.ai.agentLoop", () => {
 		// Public `toolCalls` surfaces the POST-intercept stream (auditable).
 		expect((loop.toolCalls.cache as readonly ToolCall[]).map((c) => c.name)).toEqual(["allow"]);
 	});
+
+	it("full-deny via toolInterceptor does not strand the loop — recovers with synthetic denial results", async () => {
+		// Turn 1: LLM requests a tool the interceptor fully denies (RESOLVED,
+		// no DATA). Pre-fix this stranded `status="acting"` forever and
+		// `run()` never resolved. Turn 2: LLM wraps up after seeing the
+		// synthetic "denied" tool-result fed back into the chat.
+		const toolCallResp: LLMResponse = {
+			content: "",
+			toolCalls: [{ id: "tc1", name: "forbid", arguments: {} }],
+		};
+		const finalResp: LLMResponse = { content: "done", finishReason: "end_turn" };
+		const adapter = mockAdapter([toolCallResp, finalResp]);
+		const forbidTool: ToolDefinition = {
+			name: "forbid",
+			description: "",
+			parameters: {},
+			handler: () => {
+				throw new Error("should not execute");
+			},
+		};
+		const loop = agentLoop("deny-agent", {
+			adapter,
+			tools: [forbidTool],
+			// The SHIPPED primitive (emits [[RESOLVED]] on full deny — the
+			// strand trigger), not a hand-rolled `actions.emit([])`.
+			interceptToolCalls: toolInterceptor({
+				allow: [
+					node<(c: ToolCall) => boolean>([], {
+						name: "deny-forbid",
+						initial: (c: ToolCall) => c.name !== "forbid",
+					}),
+				],
+			}),
+		});
+
+		const result = await loop.run("go");
+		// Loop resolved (no strand) and continued to the natural stop.
+		expect(result.content).toBe("done");
+		const toolMsgs = loop.chat.allMessages().filter((m) => m.role === "tool");
+		expect(toolMsgs).toHaveLength(1);
+		expect(toolMsgs[0]?.content).toBe("[tool call denied by interceptor]");
+	}, 4000);
+
+	it("repeated full-deny is bounded by maxTurns (no infinite loop)", async () => {
+		// mockAdapter clamps to the last response, so EVERY turn requests a
+		// denied tool and never naturally stops. The maxTurns cap must
+		// terminate the run rather than spin forever.
+		const denyResp: LLMResponse = {
+			content: "",
+			toolCalls: [{ id: "x", name: "forbid", arguments: {} }],
+		};
+		const adapter = mockAdapter([denyResp]);
+		const forbidTool: ToolDefinition = {
+			name: "forbid",
+			description: "",
+			parameters: {},
+			handler: () => {
+				throw new Error("should not execute");
+			},
+		};
+		const loop = agentLoop("deny-bounded", {
+			adapter,
+			tools: [forbidTool],
+			maxTurns: 2,
+			interceptToolCalls: toolInterceptor({
+				allow: [
+					node<(c: ToolCall) => boolean>([], {
+						name: "deny-forbid",
+						initial: (c: ToolCall) => c.name !== "forbid",
+					}),
+				],
+			}),
+		});
+
+		// Resolves (does not hang) and the denial recovery fired at most
+		// `maxTurns` times — proof the maxTurns belt-and-suspenders in the
+		// full-deny effect bounds the recovery loop.
+		await loop.run("go");
+		const toolMsgs = loop.chat.allMessages().filter((m) => m.role === "tool");
+		expect(toolMsgs.length).toBeGreaterThan(0);
+		expect(toolMsgs.length).toBeLessThanOrEqual(2);
+	}, 4000);
 
 	it("QA m8: string tool-result is not double-JSON-stringified", async () => {
 		const toolCallResp: LLMResponse = {

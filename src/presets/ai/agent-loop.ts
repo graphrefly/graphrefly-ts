@@ -524,6 +524,78 @@ export class AgentLoopGraph extends Graph {
 			{ describeKind: "effect" },
 		);
 
+		// Effect 2b: full-deny recovery. `effResponse` commits `status="acting"`
+		// from the LLM's *pre-intercept* `response.toolCalls`. When an
+		// interceptor denies EVERY call, the post-intercept stream emits
+		// RESOLVED (no DATA) — `toolExecution` no-ops, `effResults` never fires,
+		// and `status` is stranded at "acting" forever (`run()` never resolves;
+		// the original liveness bug). This effect detects the full-deny wave and
+		// drives the loop forward with synthetic denial tool-results so the LLM
+		// can adapt under the policy (user-locked: continue, not terminate).
+		//
+		// **Why a [raw, gated] diamond with `partial: true` (the `node()`
+		// default) and NO `ctx.prevData` fallback.** `gatedToolCallsNode`
+		// derives from `toolCallsRaw`, so the two deps form a diamond — the fn
+		// recomputes once after both settle (spec §1.4 / §2.7), with
+		// `batchData[0]` = the raw requested calls and `batchData[1]` = the
+		// gate's emission *this wave*. Unlike effResponse/effResults we must
+		// NOT fall back to `ctx.prevData[1]`: the signal IS "the gate delivered
+		// no DATA this wave" (full deny → RESOLVED). A `prevData` fallback would
+		// read a *prior allowed turn*'s calls and mask the deny. This is the
+		// spec-§2.7 raw-operator pattern (handle the SENTINEL/RESOLVED dep
+		// explicitly in the fn body) — it deliberately sidesteps the open
+		// core SENTINEL-dep first-run-gate non-determinism (a `partial:false`
+		// gate on a never-DATA dep), which is a separate core/spec item.
+		//
+		// Only wired when an interceptor is configured (`gatedToolCallsNode !==
+		// toolCallsRaw`): without one there is no deny path, and a
+		// `[toolCallsRaw, toolCallsRaw]` duplicate-dep node would be pointless.
+		// Partial deny (some calls allowed) delivers a non-empty DATA batch on
+		// slot 1 and is handled by `effResults` (the documented supported path)
+		// — this effect early-returns on it.
+		const effFullDeny =
+			gatedToolCallsNode !== toolCallsRaw
+				? node(
+						[toolCallsRaw, gatedToolCallsNode],
+						(batchData) => {
+							if (latestAborted) return;
+							const rawBatch = batchData[0];
+							const gatedBatch = batchData[1];
+							const rawCalls =
+								rawBatch != null && rawBatch.length > 0
+									? (rawBatch.at(-1) as readonly ToolCall[])
+									: null;
+							// No real request this wave (RESOLVED upstream) — nothing to recover.
+							if (rawCalls == null || rawCalls.length === 0) return;
+							// Gate delivered DATA → allowed / partial deny; effResults owns it.
+							if (gatedBatch != null && gatedBatch.length > 0) return;
+							// Full deny: every requested call was dropped. Advance the loop.
+							const nextStatus: AgentLoopStatus = latestTurn >= maxTurns ? "done" : "thinking";
+							batch(() => {
+								statusNode.emit(nextStatus);
+								for (const c of rawCalls)
+									chat.appendToolResult(c.id, "[tool call denied by interceptor]");
+							});
+						},
+						{
+							name: "fullDenyRecovery",
+							describeKind: "effect",
+							meta: aiMeta("agent_full_deny_recovery"),
+							// MUST be explicit: the core `node()` default is
+							// `partial: false` (node.ts `opts.partial ?? false`).
+							// `gatedToolCallsNode` only ever emits RESOLVED on the
+							// full-deny path (never DATA/terminal), so a
+							// `partial:false` first-run gate would hold this fn
+							// FOREVER — the exact open core SENTINEL-dep gate
+							// hazard. `partial:true` is the spec-§2.7 raw-operator
+							// contract: fire on `_dirtyDepCount===0` and handle the
+							// RESOLVED/SENTINEL slot explicitly in the fn body
+							// (done above via the `gatedBatch` length check).
+							partial: true,
+						},
+					)
+				: null;
+
 		// Effect 3: external abort → cancel in-flight wire call + terminal status.
 		// Aborting the controller causes the switchMap inner's `fromAny` to
 		// emit ERROR (signal-bound), which tears down the subscription. The
@@ -561,6 +633,7 @@ export class AgentLoopGraph extends Graph {
 		// `toolResults` for the loop to run.
 		const kaResponse = keepalive(effResponse);
 		const kaResults = keepalive(effResults);
+		const kaFullDeny = effFullDeny ? keepalive(effFullDeny) : null;
 		const kaAbort = keepalive(effAbort);
 
 		// terminalResult emits the final `LLMResponse` on each "done"
@@ -656,6 +729,7 @@ export class AgentLoopGraph extends Graph {
 		this.addDisposer(statusSub);
 		this.addDisposer(kaResponse);
 		this.addDisposer(kaResults);
+		if (kaFullDeny) this.addDisposer(kaFullDeny);
 		this.addDisposer(kaAbort);
 		this._disposeRunWiring = (): void => {
 			// addDisposer takes care of teardown; this shim stays for the
