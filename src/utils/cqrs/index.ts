@@ -26,6 +26,8 @@ import {
 	type BaseAuditRecord,
 	createAuditLog,
 	mutate,
+	type ReadonlyAuditLog,
+	readonlyAuditLog,
 	registerCursor,
 	registerCursorMap,
 } from "../../base/mutation/index.js";
@@ -167,16 +169,18 @@ export const sagaInvocationKeyOf = <T>(i: SagaInvocation<T>): string => i.eventT
  * `Node<unknown>` return that side-attached `_saga` via an unsafe cast.
  *
  * `node` is the saga's effect node (subscribe to observe processing
- * activity). `invocations` is the per-event-type audit log; `audit` aliases
- * `invocations` (Audit 2 `.audit` duplication). `cursors` exposes the
- * per-event-type cursor state nodes for monitoring / testing.
+ * activity). `invocations` is the per-event-type audit log; `audit` is a
+ * **read-only view** of `invocations` (Audit 2 `.audit` duplication; M7 —
+ * the alias can no longer silently `append`/`clear` the canonical log).
+ * `cursors` exposes the per-event-type cursor state nodes for monitoring /
+ * testing.
  *
  * @category patterns
  */
 export interface SagaController<T = unknown> {
 	readonly node: Node<unknown>;
 	readonly invocations: ReactiveLogBundle<SagaInvocation<T>>;
-	readonly audit: ReactiveLogBundle<SagaInvocation<T>>;
+	readonly audit: ReadonlyAuditLog<SagaInvocation<T>>;
 	readonly cursors: { readonly [eventName: string]: Node<number> };
 }
 
@@ -418,8 +422,11 @@ export class CqrsGraph<_EM extends CqrsEventMap = Record<string, unknown>> exten
 	private readonly _dispatchSeqCursor: Node<number>;
 	/** Audit log of every command dispatch (Audit 2). */
 	readonly dispatches: ReactiveLogBundle<DispatchRecord>;
-	/** Alias for {@link CqrsGraph.dispatches} (Audit 2 `.audit` duplication). */
-	readonly audit: ReactiveLogBundle<DispatchRecord>;
+	/**
+	 * Read-only view of {@link CqrsGraph.dispatches} (Audit 2 `.audit`
+	 * duplication; M7 — cannot mutate the canonical log via the alias).
+	 */
+	readonly audit: ReadonlyAuditLog<DispatchRecord>;
 	/** Per-aggregate LRU eviction observability; secondary log to `dispatches`. */
 	readonly aggregateEvictions: ReactiveLogBundle<AggregateEvictionRecord>;
 
@@ -434,7 +441,7 @@ export class CqrsGraph<_EM extends CqrsEventMap = Record<string, unknown>> exten
 			retainedLimit: this._retainedLimit,
 			graph: this,
 		});
-		this.audit = this.dispatches;
+		this.audit = readonlyAuditLog(this.dispatches);
 		this.aggregateEvictions = createAuditLog<AggregateEvictionRecord>({
 			name: "aggregateEvictions",
 			retainedLimit: this._retainedLimit,
@@ -1317,7 +1324,7 @@ export class CqrsGraph<_EM extends CqrsEventMap = Record<string, unknown>> exten
 		return {
 			node: sagaNode,
 			invocations,
-			audit: invocations,
+			audit: readonlyAuditLog(invocations),
 			cursors,
 		};
 	}

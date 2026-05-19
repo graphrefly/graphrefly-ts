@@ -283,9 +283,18 @@ export type RateLimiterBundle<T> = {
  * @param opts - Rate + bounded-buffer configuration. `maxBuffer` is required (use `Infinity` to opt in to unbounded).
  * @returns `{ node, droppedCount }` bundle. Subscribe to `node` for the throttled stream and to `droppedCount` for backpressure pressure.
  *
- * @throws {RangeError} when `maxEvents` / `windowNs` is non-positive, when `maxBuffer` is omitted, or when `maxBuffer` is a finite value < 1.
+ * @throws {RangeError} when `maxEvents` / `windowNs` is non-positive, when
+ * `maxBuffer` is omitted, when `maxBuffer` is a finite value < 1, or when
+ * `opts` is a Node (reactive form) with **no cached value at construction**
+ * (D4 — the mode + initial cap are locked from `.cache` at construction;
+ * seed the opts Node with `initial`).
  *
  * @remarks
+ * **Reactive opts (Node form) must be seeded.** Mode (bounded vs unbounded)
+ * and the initial cap are read from `opts.cache` at construction and the swap
+ * handler rejects mode toggles. An un-seeded opts Node therefore throws at
+ * construction rather than silently locking bounded `maxBuffer: 1` (D4).
+ *
  * **Terminal:** `COMPLETE` / `ERROR` cancel the refill timer, drop the pending queue,
  * reset `droppedCount` to `0`, and propagate.
  *
@@ -305,49 +314,72 @@ export type RateLimiterBundle<T> = {
  *
  * @category extra
  */
+function validateRateLimiterOpts(o: RateLimiterOptions): void {
+	if (o.maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
+	if (o.windowNs <= 0) throw new RangeError("windowNs must be > 0");
+	if (o.maxBuffer === undefined) {
+		throw new RangeError(
+			"rateLimiter requires explicit maxBuffer (use Infinity to opt in to unbounded)",
+		);
+	}
+	const isUnbounded = o.maxBuffer === Infinity;
+	if (!isUnbounded && (!Number.isInteger(o.maxBuffer) || o.maxBuffer < 1)) {
+		throw new RangeError("maxBuffer must be a positive integer (or Infinity for unbounded)");
+	}
+}
+
+/**
+ * Resolve the construction-time lock value for reactive (Node-form) opts.
+ * Throws (D4) when the opts Node has no cached value — the mode + initial
+ * cap are locked here and the swap handler rejects mode toggles, so a silent
+ * bounded-`maxBuffer:1` default would be an undebuggable footgun.
+ */
+function resolveInitialReactiveOpts(optsNode: Node<RateLimiterOptions>): RateLimiterOptions {
+	const cached = optsNode.cache as RateLimiterOptions | undefined;
+	if (cached === undefined) {
+		throw new RangeError(
+			"rateLimiter: reactive (Node-form) opts must carry a cached value at " +
+				"construction — seed the opts Node with `initial`. Mode (bounded vs " +
+				"unbounded) and the initial cap are LOCKED from `.cache` at construction " +
+				"and the swap handler rejects mode toggles; an un-seeded Node would " +
+				"silently lock bounded `maxBuffer: 1` (D4).",
+		);
+	}
+	return cached;
+}
+
 export function rateLimiter<T>(
 	source: Node<T>,
 	opts: NodeOrValue<RateLimiterOptions>,
 ): RateLimiterBundle<T> {
-	// Eager validation of static-form opts. Reactive-form opts re-validate
-	// on each emit via `applyOpts` (invalid runtime config keeps the previous
-	// values rather than throwing — the producer body's swap path never
-	// throws into the dataplane).
+	// Mode (bounded vs unbounded) + the initial cap are LOCKED at construction
+	// from the resolved opts (Tier 6.5 3.2.3 swap rule — runtime swaps change
+	// the cap WITHIN the same mode; toggling bounded↔unbounded requires
+	// re-mounting). For reactive (Node-form) opts the lock is read from
+	// `.cache` at construction — so an un-seeded opts Node is a hard error
+	// (D4, relaxed 2026-05-18): silently defaulting to bounded `maxBuffer: 1`
+	// and then no-op-ing every mode-changing emit is the worst kind of
+	// footgun. Fail loud — seed the opts Node with `initial`. The resolved
+	// value is validated by the same gate static-form opts use; reactive
+	// *swaps* still re-validate softly in the producer body (a bad runtime
+	// emit keeps the previous values rather than throwing into the dataplane).
 	const isReactive = isNode(opts);
-	if (!isReactive) {
-		const o = opts as RateLimiterOptions;
-		if (o.maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
-		if (o.windowNs <= 0) throw new RangeError("windowNs must be > 0");
-		if (o.maxBuffer === undefined) {
-			throw new RangeError(
-				"rateLimiter requires explicit maxBuffer (use Infinity to opt in to unbounded)",
-			);
-		}
-		const isUnbounded0 = o.maxBuffer === Infinity;
-		if (!isUnbounded0 && (!Number.isInteger(o.maxBuffer) || o.maxBuffer < 1)) {
-			throw new RangeError("maxBuffer must be a positive integer (or Infinity for unbounded)");
-		}
-	}
-	// Mode (bounded vs unbounded) is locked at construction time per the
-	// Tier 6.5 3.2.3 swap rule — runtime opt swaps change the cap WITHIN
-	// the same mode. Toggling between bounded/unbounded requires re-mounting
-	// the rateLimiter; the queue type is structural, not a tunable. For
-	// reactive opts we read the FIRST value (cached or undefined) to lock
-	// the mode; if the cache is undefined at construction we conservatively
-	// default to bounded with a placeholder cap, and the first emit re-locks.
-	const initialOpts: RateLimiterOptions | undefined = isReactive
-		? ((opts as Node<RateLimiterOptions>).cache as RateLimiterOptions | undefined)
+	const initialOpts: RateLimiterOptions = isReactive
+		? resolveInitialReactiveOpts(opts as Node<RateLimiterOptions>)
 		: (opts as RateLimiterOptions);
-	const initialMaxBuffer = initialOpts?.maxBuffer;
+	validateRateLimiterOpts(initialOpts);
+	const initialMaxBuffer = initialOpts.maxBuffer;
 	const isUnbounded = initialMaxBuffer === Infinity;
 
 	const out = node<T>(
 		(_data, a) => {
-			// Mutable closure-state — replaced on each option swap.
-			let maxEvents = initialOpts?.maxEvents ?? 1;
-			let windowNs = initialOpts?.windowNs ?? NS_PER_SEC;
-			let maxBuffer = initialMaxBuffer ?? 1;
-			let onOverflow: RateLimiterOverflowPolicy = initialOpts?.onOverflow ?? "drop-newest";
+			// Mutable closure-state — replaced on each option swap. `initialOpts`
+			// is fully resolved + validated at construction (D4), so these reads
+			// are unconditional (no `?? placeholder` fallback).
+			let maxEvents = initialOpts.maxEvents;
+			let windowNs = initialOpts.windowNs;
+			let maxBuffer = initialMaxBuffer;
+			let onOverflow: RateLimiterOverflowPolicy = initialOpts.onOverflow ?? "drop-newest";
 			let refillPerSec = (maxEvents * NS_PER_SEC) / windowNs;
 			let tokenTimeNs = NS_PER_SEC / refillPerSec;
 			let bucket = tokenBucket(maxEvents, refillPerSec);

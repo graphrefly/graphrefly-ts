@@ -54,6 +54,8 @@ import {
 	type BaseAuditRecord,
 	createAuditLog,
 	mutate,
+	type ReadonlyAuditLog,
+	readonlyAuditLog,
 	registerCursor,
 } from "../../base/mutation/index.js";
 import type { StatusValue } from "../../base/resilience/status.js";
@@ -290,9 +292,10 @@ export interface ProcessManagerResult<TState> {
 	 */
 	readonly instances: ReactiveLogBundle<ProcessInstance<TState>>;
 	/**
-	 * Alias for {@link instances} (Audit 2 `.audit` duplication convention).
+	 * Read-only view of {@link instances} (Audit 2 `.audit` duplication
+	 * convention; M7 — cannot mutate the canonical log via the alias).
 	 */
-	readonly audit: ReactiveLogBundle<ProcessInstance<TState>>;
+	readonly audit: ReadonlyAuditLog<ProcessInstance<TState>>;
 	/**
 	 * Start a new process instance identified by `correlationId`.
 	 *
@@ -1337,7 +1340,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 
 	return {
 		instances,
-		audit: instances,
+		audit: readonlyAuditLog(instances),
 		restoreState,
 		start,
 		cancel,

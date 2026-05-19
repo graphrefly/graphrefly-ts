@@ -41,8 +41,13 @@ import {
 
 /** Terminal-run snapshot passed to a custom `toOutput` mapper. */
 export interface RefineExecutorResult<T> {
-	/** Best candidate the inner loop converged on. `null` if no candidates were scored. */
-	readonly best: T | null;
+	/**
+	 * Best candidate the inner loop converged on. `undefined` (SENTINEL) if the
+	 * inner loop never produced a best — e.g. it `errored` before any iteration
+	 * settled. (`loop.best` is a SENTINEL `Node<T>` post the 2026-05-18
+	 * anti-pattern sweep — no `null` placeholder.)
+	 */
+	readonly best: T | undefined;
 	/** Aggregate score at termination. `-Infinity` if the batch was empty. */
 	readonly score: number;
 	/** Reason the loop terminated. */
@@ -80,7 +85,7 @@ export interface RefineExecutorConfig<T> {
 function defaultToOutput<T>(result: RefineExecutorResult<T>): ExecuteOutput<T> {
 	const { best, score, status } = result;
 	const scoreStr = Number.isFinite(score) ? score.toFixed(3) : String(score);
-	const artifact = (best ?? undefined) as T | undefined;
+	const artifact: T | undefined = best;
 	if (status === "converged") {
 		return {
 			outcome: "success",
@@ -148,7 +153,7 @@ export function refineExecutor<T>(config: RefineExecutorConfig<T>): HarnessExecu
 					return;
 				}
 				const exec = toOutput({
-					best: data[1] as T | null,
+					best: data[1] as T | undefined,
 					score: data[2] as number,
 					status: s,
 				});

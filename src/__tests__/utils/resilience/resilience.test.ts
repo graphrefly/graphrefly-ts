@@ -1266,6 +1266,29 @@ describe("extra resilience (roadmap §3.1)", () => {
 				/maxBuffer must be a positive integer/,
 			);
 		});
+
+		it("D4 — throws when reactive (Node-form) opts has no cached value at construction", () => {
+			const s = node([], { initial: 0 });
+			const optsNode = node<RateLimiterOptions>([], { name: "rl-opts" }); // un-seeded → SENTINEL
+			expect(() => rateLimiter(s, optsNode)).toThrow(
+				/reactive \(Node-form\) opts must carry a cached value at construction/,
+			);
+		});
+
+		it("D4 — a seeded reactive opts Node constructs fine and validates the seed", () => {
+			const s = node([], { initial: 0 });
+			const good = node<RateLimiterOptions>([], {
+				name: "rl-opts-good",
+				initial: { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 10 },
+			});
+			expect(() => rateLimiter(s, good)).not.toThrow();
+			// The resolved seed runs through the same validation gate as static opts.
+			const bad = node<RateLimiterOptions>([], {
+				name: "rl-opts-bad",
+				initial: { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 1.5 },
+			});
+			expect(() => rateLimiter(s, bad)).toThrow(/maxBuffer must be a positive integer/);
+		});
 	});
 
 	describe("Tier 3.2 droppedCount reactive companion", () => {

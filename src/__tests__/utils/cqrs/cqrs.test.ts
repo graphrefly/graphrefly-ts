@@ -750,6 +750,30 @@ describe("cqrs — roadmap §4.5", () => {
 		app.destroy();
 	});
 
+	it("M7 — saga.audit is a read-only view of invocations (no silent mutation)", () => {
+		const app = cqrs<{ orderPlaced: { id: number } }>("test");
+		app.command("placeOrder", {
+			handler: (p, a) => a.emit("orderPlaced", p),
+			emits: ["orderPlaced"],
+		});
+		const ctrl = app.saga<{ id: number }>("notify", ["orderPlaced"], () => undefined);
+		app.dispatch("placeOrder", { id: 1 });
+
+		// Zero-copy: the audit view shares the canonical log's reactive surface.
+		expect(ctrl.audit.entries).toBe(ctrl.invocations.entries);
+		expect(ctrl.audit.size).toBe(ctrl.invocations.size);
+		expect(ctrl.audit.size).toBe(1);
+		// …but the alias is frozen and exposes no mutators — a consumer cannot
+		// `append`/`clear` `invocations` through `audit` (M7).
+		expect(ctrl.audit).not.toBe(ctrl.invocations);
+		expect("append" in ctrl.audit).toBe(false);
+		expect("clear" in ctrl.audit).toBe(false);
+		expect("attach" in ctrl.audit).toBe(false);
+		expect(Object.isFrozen(ctrl.audit)).toBe(true);
+
+		app.destroy();
+	});
+
 	it("saga errorPolicy='hold' stops cursor at failure; later events are NOT processed until handler stops throwing", () => {
 		const app = cqrs<{ orderPlaced: { id: number } }>("test");
 		app.command("placeOrder", {

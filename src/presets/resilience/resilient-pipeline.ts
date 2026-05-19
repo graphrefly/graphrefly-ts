@@ -139,9 +139,21 @@ export interface ResilientPipelineOptions<T> {
 	 * Admission control — at most `maxEvents` `DATA` per `windowNs`. See
 	 * {@link rateLimiter}.
 	 *
-	 * `maxBuffer` is optional at the pipeline layer (defaults to `Infinity`,
-	 * preserving the historical unbounded behavior). Pass an explicit positive
-	 * integer to opt in to a bounded queue.
+	 * `maxBuffer` is optional **only for the value form** — a plain options
+	 * object defaults `maxBuffer` to `Infinity` (preserving historical
+	 * unbounded behavior); pass an explicit positive integer to opt in to a
+	 * bounded queue.
+	 *
+	 * **Node form must seed `maxBuffer` explicitly.** A `Node<RateLimiterOptions>`
+	 * is forwarded directly to {@link rateLimiter} (to preserve internal state
+	 * across opt swaps — no `?? Infinity` convenience injection), so its
+	 * cached value MUST include `maxBuffer` (a finite positive integer, or the
+	 * literal `Infinity` to opt in to unbounded). An un-seeded opts Node, or a
+	 * seeded value omitting `maxBuffer`, throws `RangeError` at construction
+	 * (D4 fail-loud — the silent bounded/unbounded lock is the most common
+	 * rateLimiter mis-configuration). This is an intentional value-vs-Node
+	 * asymmetry: the Node form is fail-loud, the value form keeps the legacy
+	 * `?? Infinity` default.
 	 */
 	rateLimit?: NodeOrValue<Omit<RateLimiterOptions, "maxBuffer"> & { maxBuffer?: number }>;
 	/** Cost/constraint gate. See {@link budgetGate}. */

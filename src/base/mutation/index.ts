@@ -131,6 +131,52 @@ export function createAuditLog<R extends BaseAuditRecord>(
 	return log;
 }
 
+/**
+ * Read-only projection of a {@link ReactiveLogBundle}. Exposes only the
+ * observation surface (`entries` / `size` / `at` / `withLatest` / `lastValue`
+ * / `view` / `scan` / `mutationLog`) — the mutators (`append` / `appendMany`
+ * / `clear` / `trimHead` / `attach` / `attachStorage`) and the lifecycle
+ * disposers are intentionally absent.
+ */
+export type ReadonlyAuditLog<R> = Pick<
+	ReactiveLogBundle<R>,
+	"entries" | "size" | "at" | "withLatest" | "lastValue" | "view" | "scan" | "mutationLog"
+>;
+
+/**
+ * Wrap an audit log so the `.audit` alias a primitive exposes (the Audit-2
+ * `.audit` duplication convention — `saga.audit` / `cqrs.audit` /
+ * `jobQueue.audit` / `processManager.audit`) is a **stable read-only view**,
+ * not the live mutable bundle. Closes M7: a consumer calling
+ * `someGraph.audit.append(...)` would otherwise silently mutate the owning
+ * primitive's canonical log. The returned object is frozen and shares the
+ * underlying log's nodes (zero copy) — reads are byte-identical to the live
+ * bundle; mutators are simply not present (compile-time) and the object is
+ * frozen (run-time defense for JS callers).
+ *
+ * @category internal
+ */
+export function readonlyAuditLog<R>(log: ReactiveLogBundle<R>): ReadonlyAuditLog<R> {
+	return Object.freeze({
+		get entries() {
+			return log.entries;
+		},
+		get size() {
+			return log.size;
+		},
+		get lastValue() {
+			return log.lastValue;
+		},
+		get mutationLog() {
+			return log.mutationLog;
+		},
+		at: log.at.bind(log),
+		withLatest: log.withLatest.bind(log),
+		view: log.view.bind(log),
+		scan: log.scan.bind(log),
+	}) satisfies ReadonlyAuditLog<R>;
+}
+
 // ── Universal mutation factory (Phase 14 — DS-14 lock Q-O2/Q-O3) ────────
 //
 // Single `mutate(act, opts)` factory. Two frames:

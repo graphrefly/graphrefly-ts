@@ -129,14 +129,22 @@ describe("processManager", () => {
 			app.destroy();
 		});
 
-		it("audit aliases instances", () => {
+		it("audit is a read-only view of instances (M7 — no silent mutation)", () => {
 			const app = cqrs("orders");
 			const pm = processManager(app, "alias-test", {
 				initial: {},
 				watching: [],
 				steps: {},
 			});
-			expect(pm.audit).toBe(pm.instances);
+			// Shares the canonical log's reactive surface (zero-copy)…
+			expect(pm.audit.entries).toBe(pm.instances.entries);
+			expect(pm.audit.size).toBe(pm.instances.size);
+			// …but is NOT the live bundle and exposes no mutators (M7): a
+			// consumer cannot `append`/`clear` `instances` through the alias.
+			expect(pm.audit).not.toBe(pm.instances);
+			expect("append" in pm.audit).toBe(false);
+			expect("clear" in pm.audit).toBe(false);
+			expect(Object.isFrozen(pm.audit)).toBe(true);
 			app.destroy();
 		});
 

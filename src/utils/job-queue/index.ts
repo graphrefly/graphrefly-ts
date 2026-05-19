@@ -34,6 +34,8 @@ import {
 	bumpCursor,
 	createAuditLog,
 	mutate,
+	type ReadonlyAuditLog,
+	readonlyAuditLog,
 	registerCursor,
 } from "../../base/mutation/index.js";
 
@@ -87,8 +89,11 @@ export class JobQueueGraph<T> extends Graph {
 	readonly depth: Node<number>;
 	/** Audit log of every queue mutation (Audit 2). */
 	readonly events: ReactiveLogBundle<JobEvent<T>>;
-	/** Alias for {@link JobQueueGraph.events} — Audit 2 `.audit` duplication. */
-	readonly audit: ReactiveLogBundle<JobEvent<T>>;
+	/**
+	 * Read-only view of {@link JobQueueGraph.events} — Audit 2 `.audit`
+	 * duplication; M7 (cannot mutate the canonical log via the alias).
+	 */
+	readonly audit: ReadonlyAuditLog<JobEvent<T>>;
 
 	// Tier 8 / COMPOSITION-GUIDE §35: mutate wrappers for the four
 	// single-record mutation methods. Assigned in the constructor (NOT via
@@ -134,7 +139,7 @@ export class JobQueueGraph<T> extends Graph {
 			retainedLimit: 1024,
 			graph: this,
 		});
-		this.audit = this.events;
+		this.audit = readonlyAuditLog(this.events);
 		this._seqCursor = registerCursor(this, "seq", 0);
 
 		// `freeze: false` everywhere because the payload may be large and

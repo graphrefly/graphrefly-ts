@@ -2304,6 +2304,38 @@ describe("Graph narrow-waist — graph.batch", () => {
 		expect(dataEvents.length - before).toBe(1);
 		expect(dataEvents.at(-1)).toBe(20);
 	});
+
+	// P11.5-D2: P8 (`graph-derived-multi-emit-array-semantics`) pins the fn
+	// RETURNING a multi-emit array. This pins the complementary RECEIVING
+	// side: when an upstream emits TWO distinct DATA in one batch wave, the
+	// `graph.derived` fn sees the dep slot as the full per-wave batch
+	// `data[0] = [1, 2]` (raw), while `latestVals` collapses it to the last
+	// value `2`. A regression that pre-collapsed the dep slot before the fn
+	// (or dropped the first emit) would change `rawDepSlot` to `[2]`/`2`.
+	it("P11.5-D2 — derived fn RECEIVES upstream multi-emit as the full data[0] batch", () => {
+		const g = new Graph("nw-multiemit-receive");
+		// Raw source (not a state node — distinct values 1≠2 are not
+		// equals-absorbed, so both survive the batch as a multi-message wave).
+		const src = node<number>([], { name: "src" });
+		g.add(src, { name: "src" });
+		let rawDepSlot: unknown;
+		let collapsed: unknown;
+		const out = g.derived<number>("recv", ["src"], (data, ctx) => {
+			rawDepSlot = data[0];
+			[collapsed] = latestVals(data, ctx);
+			return [collapsed as number];
+		});
+		out.subscribe(() => undefined);
+		g.batch(() => {
+			src.emit(1);
+			src.emit(2);
+		});
+		// The fn sees the entire per-wave batch for the dep slot, in order.
+		expect(rawDepSlot).toEqual([1, 2]);
+		// `latestVals` is the documented collapse-to-last helper.
+		expect(collapsed).toBe(2);
+		g.destroy();
+	});
 });
 
 describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => {

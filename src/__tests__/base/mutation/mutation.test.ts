@@ -6,6 +6,8 @@ import {
 	bumpCursor,
 	createAuditLog,
 	mutate,
+	type ReadonlyAuditLog,
+	readonlyAuditLog,
 } from "../../../base/mutation/index.js";
 
 interface TestRecord extends BaseAuditRecord {
@@ -457,5 +459,59 @@ describe("imperative-audit / bumpCursor", () => {
 		} finally {
 			warnSpy.mockRestore();
 		}
+	});
+});
+
+describe("readonlyAuditLog (M7 — shared .audit read-only view)", () => {
+	it("shares the underlying log's reactive surface (zero-copy reads)", () => {
+		const { audit, dispose } = makeAuditLog();
+		const view = readonlyAuditLog(audit);
+		audit.append({ action: "set", key: "k", t_ns: 1n, seq: 0 });
+
+		// Read surface delegates live to the underlying log (same nodes).
+		expect(view.entries).toBe(audit.entries);
+		expect(view.size).toBe(audit.size);
+		expect(view.size).toBe(1);
+		expect(view.at(0)).toEqual(audit.at(0));
+		expect(view.lastValue).toBe(audit.lastValue);
+		expect(view.mutationLog).toBe(audit.mutationLog); // undefined here — preserved
+		dispose();
+	});
+
+	it("is frozen and exposes no mutators (cannot mutate the underlying log via the alias)", () => {
+		const { audit, dispose } = makeAuditLog();
+		const view: ReadonlyAuditLog<TestRecord> = readonlyAuditLog(audit);
+
+		expect(view).not.toBe(audit);
+		expect(Object.isFrozen(view)).toBe(true);
+		for (const mutator of [
+			"append",
+			"appendMany",
+			"clear",
+			"trimHead",
+			"attach",
+			"attachStorage",
+			"dispose",
+			"disposeAllViews",
+		]) {
+			expect(mutator in view).toBe(false);
+		}
+		dispose();
+	});
+
+	it("scan/view/withLatest stay bound to the underlying log", () => {
+		const { audit, dispose } = makeAuditLog();
+		const view = readonlyAuditLog(audit);
+		audit.append({ action: "set", key: "a", t_ns: 1n, seq: 0 });
+		audit.append({ action: "fail", key: "b", t_ns: 2n, seq: 1 });
+
+		// scan's generic survives `.bind` and folds over the live log.
+		const count = view.scan(0, (acc) => acc + 1);
+		const unsub = count.subscribe(() => undefined);
+		expect(count.cache).toBe(2);
+		audit.append({ action: "set", key: "c", t_ns: 3n, seq: 2 });
+		expect(count.cache).toBe(3);
+		unsub();
+		dispose();
 	});
 });

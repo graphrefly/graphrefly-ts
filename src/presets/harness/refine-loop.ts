@@ -286,7 +286,17 @@ export interface RefineLoopOptions extends ConvergenceOptions {
  * / `this._iteration` instead of factory-local closures.
  */
 export class RefineLoopGraph<T> extends Graph {
-	readonly best: Node<T | null>;
+	/**
+	 * Best candidate so far. **SENTINEL until the first iteration settles** —
+	 * `loop.best.cache` is `undefined` (not `null`) before any iteration
+	 * produces a best, and a degenerate empty-candidate iteration leaves the
+	 * prior best in place rather than wiping it. Consumers guard with
+	 * `=== undefined` (spec §3 SENTINEL), not `== null`. (Anti-pattern sweep
+	 * 2026-05-18: dropped the `initial: null` eager-placeholder; `null` is
+	 * reserved for the per-iteration {@link Iteration.best} data field where an
+	 * empty batch is a valid domain value.)
+	 */
+	readonly best: Node<T>;
 	/**
 	 * Best score so far. Pseudo-private (`_score`) to avoid colliding with any
 	 * future `Graph.prototype.score` method (B5d forward-compat hazard
@@ -359,9 +369,14 @@ export class RefineLoopGraph<T> extends Graph {
 		});
 		this.add(strategyNode, { name: "strategy" });
 
-		const lastFeedbackState = createNode<Feedback | null>([], {
+		// SENTINEL until the first iteration mirrors feedback (anti-pattern
+		// sweep 2026-05-18 — dropped the `initial: null` eager-placeholder that
+		// pushed `[null]` to every fresh subscriber). Only ever carries a real
+		// `Feedback` (the decide-effect mirror at the bottom always emits a
+		// concrete `fb`), so SENTINEL-before-first cleanly means "no iteration
+		// has completed yet" rather than a spurious `null` DATA.
+		const lastFeedbackState = createNode<Feedback>([], {
 			name: "lastFeedback",
-			initial: null,
 		});
 		this.add(lastFeedbackState, { name: "lastFeedback" });
 
@@ -384,7 +399,11 @@ export class RefineLoopGraph<T> extends Graph {
 		});
 		this.add(historyState, { name: "history" });
 
-		const bestState = createNode<T | null>([], { name: "best", initial: null });
+		// SENTINEL until the first iteration produces a best (anti-pattern
+		// sweep 2026-05-18). Never carries `null`: the decide-effect skips the
+		// emit when `pickBest` yields no best, so a degenerate empty-candidate
+		// iteration preserves the prior best instead of wiping it to `null`.
+		const bestState = createNode<T>([], { name: "best" });
 		this.add(bestState, { name: "best" });
 
 		const scoreState = createNode<number>([], { name: "score", initial: Number.NEGATIVE_INFINITY });
@@ -415,7 +434,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// during that synchronous drain. Defensive — no current handler reads
 		// `this.<field>`, but keeping construction-order safe avoids future
 		// undefined-field crashes.
-		this.best = bestState as Node<T | null>;
+		this.best = bestState;
 		this._score = scoreState;
 		this.status = statusState;
 		this.history = historyState;
@@ -436,7 +455,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// so the closure mirrors are always current by the time the generate
 		// fn fires for the next iter.
 		let latestStrategy: RefineStrategy<T> = initialStrategy;
-		let latestFeedback: Feedback | null = null;
+		let latestFeedback: Feedback | undefined;
 		let latestPrevCandidates: readonly T[] = [];
 		this.addDisposer(
 			strategyNode.subscribe((msgs) => {
@@ -445,7 +464,7 @@ export class RefineLoopGraph<T> extends Graph {
 		);
 		this.addDisposer(
 			lastFeedbackState.subscribe((msgs) => {
-				for (const m of msgs) if (m[0] === DATA) latestFeedback = m[1] as Feedback | null;
+				for (const m of msgs) if (m[0] === DATA) latestFeedback = m[1] as Feedback;
 			}),
 		);
 		this.addDisposer(
@@ -479,7 +498,7 @@ export class RefineLoopGraph<T> extends Graph {
 			iterationTrigger,
 			(iter) => {
 				const strat = latestStrategy;
-				const isSeed = iter === 0 || latestFeedback == null;
+				const isSeed = iter === 0 || latestFeedback === undefined;
 				return createNode<CandidatesEnvelope<T>>(
 					[],
 					(_data, actions) => {
@@ -1009,7 +1028,12 @@ export class RefineLoopGraph<T> extends Graph {
 				// resume-after-pause gets current feedback; only `iterationTrigger`
 				// is gated on `continue`.
 				batch(() => {
-					bestState.emit(best);
+					// `best` is `T | null` from pickBest — `null` only on an empty
+					// candidate batch (strategies throw on empty, so unreachable in
+					// practice). Skip the emit rather than pushing `null` into the
+					// SENTINEL `Node<T>`: a degenerate iteration preserves the prior
+					// best instead of wiping it. (Anti-pattern sweep 2026-05-18.)
+					if (best !== null) bestState.emit(best);
 					scoreState.emit(fb.score);
 					historyState.emit(nextHistory);
 					budgetState.emit(nextBudget);
