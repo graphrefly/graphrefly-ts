@@ -320,6 +320,46 @@ describe("patterns.ai.toolSelector (D8)", () => {
 		]);
 		unsub();
 	});
+
+	// Pins the documented contract (JSDoc aligned with toolInterceptor 2026-05-18):
+	// a constraint node SEEDED with `initial: null` is pass-through-while-loading
+	// (emitted null = "not-yet-ready, allow"), then enforces once a real predicate
+	// emits. Callers must seed an `initial` — never-emitted SENTINEL gating is
+	// unspecified (open core first-run-gate question); this test only exercises
+	// the seeded, deterministic path the JSDoc now promises.
+	it("seeded initial:null constraint is pass-through, then enforces on emit", () => {
+		const all = node<readonly ToolDefinition[]>([], {
+			name: "all2",
+			initial: [search, write, llm],
+		});
+		// Seeded pass-through-while-loading predicate (the JSDoc example shape).
+		const policy = node<((t: ToolDefinition) => boolean) | null>([], {
+			name: "policy",
+			initial: null,
+		});
+		const sel = toolSelector(all, [policy]);
+		const unsub = sel.subscribe(() => {});
+		// initial: null emitted → pass-through, every tool offered.
+		expect((sel.cache as readonly ToolDefinition[]).map((t) => t.name).sort()).toEqual([
+			"llm",
+			"search",
+			"write",
+		]);
+		// Real predicate emits → constraint now enforced (drops destructive).
+		policy.emit((t: ToolDefinition) => !(t.meta?.destructive === true));
+		expect((sel.cache as readonly ToolDefinition[]).map((t) => t.name).sort()).toEqual([
+			"llm",
+			"search",
+		]);
+		// Back to null → pass-through again ("not-yet-ready, allow", not "deny").
+		policy.emit(null);
+		expect((sel.cache as readonly ToolDefinition[]).map((t) => t.name).sort()).toEqual([
+			"llm",
+			"search",
+			"write",
+		]);
+		unsub();
+	});
 });
 
 // ---------------------------------------------------------------------------

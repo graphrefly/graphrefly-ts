@@ -21,10 +21,21 @@ export interface ToolSelectorOptions {
  * so the LLM sees a reactive menu instead of a frozen config.
  *
  * Each predicate is a `NodeInput<(tool) => boolean>`. A tool is included iff
- * **every** predicate returns `true`. When any predicate value is `null` /
- * `undefined` (e.g. upstream not yet ready) that predicate is treated as a
- * pass-through — the tool isn't excluded on its basis. Predicate updates
- * recompute the selected set.
+ * **every** predicate returns `true`. An *emitted* `null` / `undefined`
+ * predicate DATA value is pass-through — the tool isn't excluded on its
+ * basis ("deny when explicitly `false`, not when not-yet-ready"). **Always
+ * seed each predicate node with an `initial`** (e.g.
+ * `node([], { initial: null })` for pass-through-while-loading, or an
+ * initial predicate fn): a predicate node that has *never* emitted DATA
+ * (pure SENTINEL) has **unspecified** gating — depending on activation
+ * order it may or may not participate in the first-run gate (the open core
+ * SENTINEL-dep first-run-gate question), so a never-seeded predicate must
+ * not be relied on either way. Mirrors `toolInterceptor`'s *seed-an-`initial`*
+ * contract — but NOT its throwing-predicate behaviour: a constraint that
+ * *throws* tears the wave with an ERROR (no fail-closed catch), because
+ * selection is not a security boundary (a loud surface beats a silent
+ * deny here; pair with `toolInterceptor` for enforcement).
+ * Predicate updates recompute the selected set.
  *
  * Pairs with `toolInterceptor` (§D9 / §31): **selection** controls what's
  * offered to the LLM (pre-generation UX); **interception** gates what's
@@ -38,7 +49,7 @@ export interface ToolSelectorOptions {
  *   const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
  *   actions.emit((data[0] as CostMeter).total < BUDGET);
  * }, { describeKind: "derived" });
- * const canDestroy = state(false, { name: "destructive-allowed" });
+ * const canDestroy = node<boolean>([], { name: "destructive-allowed", initial: false });
  * const tools = toolSelector(registry.schemas, [
  *   node([hasBudget], (batchData, actions, ctx) => {
  *     const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);

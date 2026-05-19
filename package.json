@@ -551,6 +551,7 @@
 		"docs:preview": "pnpm --dir website preview",
 		"build": "pnpm --filter @graphrefly/pure-ts build && NODE_OPTIONS=--max-old-space-size=8192 tsup",
 		"build:shim": "NODE_OPTIONS=--max-old-space-size=8192 tsup",
+		"prepare": "node -e \"const fs=require('fs');const distOk=fs.existsSync('dist/index.js')&&fs.existsSync('packages/pure-ts/dist/index.js');const src=fs.existsSync('tsup.config.ts');process.exit(distOk||!src?0:1)\" || pnpm run build",
 		"test": "pnpm --filter @graphrefly/pure-ts test && pnpm test:graphrefly && pnpm --filter @graphrefly/parity-tests test",
 		"test:graphrefly": "vitest run",
 		"test:pure-ts": "pnpm --filter @graphrefly/pure-ts test",

@@ -157,6 +157,7 @@
 	},
 	"scripts": {
 		"build": "tsup",
+		"prepare": "node -e \"const fs=require('fs');process.exit(fs.existsSync('dist/index.js')||!fs.existsSync('tsup.config.ts')?0:1)\" || pnpm run build",
 		"test": "vitest run",
 		"bench": "vitest bench",
 		"bench:baseline": "vitest bench --outputJson ../../benchmarks/vitest-baseline.json",
