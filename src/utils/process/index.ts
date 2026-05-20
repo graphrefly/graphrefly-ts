@@ -1260,7 +1260,17 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 					if (allDone) restoreState.emit("completed");
 				});
 			},
-			{ name: "restoreEffect", describeKind: "effect" },
+			{
+				name: "restoreEffect",
+				describeKind: "effect",
+				// Spec §2.7 R2.7.1 (DS-2.7.A). Empty-tier restore: `flattened`
+				// delivers COMPLETE without any DATA (no keys → inner
+				// `fromIter([])` COMPLETEs immediately). fn MUST fire on that
+				// terminal-only wave to call `restoreState.emit("completed")`
+				// — otherwise the watch valve never opens and dispatched
+				// events never reach `handleStepResult`.
+				terminalAsRealInput: true,
+			},
 		);
 		subgraph.add(restoreEffect, { name: "restoreEffect" });
 		restoreSubscription = restoreEffect.subscribe(() => undefined);

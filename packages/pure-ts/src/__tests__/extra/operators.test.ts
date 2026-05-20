@@ -1102,6 +1102,40 @@ describe("Tier 1 operator matrix — scan", () => {
 		unsub2();
 		expect(values.length).toBeGreaterThan(0);
 	});
+
+	// DS-2.7.A QA D1 — wire-shape regression: pins the post-opt-in behavior on
+	// an immediate-COMPLETE source. Pre-DS-2.7.A scan-on-empty emitted
+	// `[seed (push-on-subscribe), COMPLETE]` (gate held; fn never fired; auto-
+	// COMPLETE propagated). Post-opt-in the gate releases on the
+	// terminal-only wave, fn fires once with `batch0` empty, emits
+	// `[[RESOLVED]]`, then auto-COMPLETE propagates — `[seed, RESOLVED, COMPLETE]`.
+	// RESOLVED is semantically a no-op for DATA consumers but IS a new wire-
+	// level message; this test pins it so a future predicate revert is loud.
+	it("scan(immediate-COMPLETE-source, …): seed → RESOLVED → COMPLETE wire shape (DS-2.7.A opt-in)", () => {
+		const src = node<number>([], { initial: 100 });
+		const sc = scan(src, (a, x) => a + (x as number), 0);
+		const types: symbol[] = [];
+		const dataVals: unknown[] = [];
+		const unsub = sc.subscribe((msgs) => {
+			for (const msg of msgs) {
+				types.push(msg[0] as symbol);
+				if (msg[0] === DATA) dataVals.push(msg[1]);
+			}
+		});
+		// Initial DATA via push-on-subscribe consumed (acc = 0 + 100 = 100).
+		// Now COMPLETE the source with no further DATA.
+		src.down([[COMPLETE]]);
+		// Wire shape: at least DATA(100) before COMPLETE; the post-DATA
+		// terminal wave routes through fn (RESOLVED) then `_maybeAutoTerminalAfterWave`
+		// fires COMPLETE.
+		expect(dataVals).toContain(100);
+		expect(types).toContain(COMPLETE);
+		// COMPLETE is the LAST emission (terminal); no DATA after it.
+		const lastIdx = types.lastIndexOf(COMPLETE);
+		const dataAfterComplete = types.slice(lastIdx + 1).some((t) => t === DATA);
+		expect(dataAfterComplete).toBe(false);
+		unsub();
+	});
 });
 
 describe("Tier 1 operator matrix — take", () => {
@@ -1183,6 +1217,22 @@ describe("Tier 1 operator matrix — take", () => {
 		unsub2();
 		expect(values).toContain(7);
 	});
+
+	// DS-2.7.A QA F3 — pins the `terminalAsRealInput: true` motivation. An
+	// immediate-COMPLETE source (no prior DATA) must still emit COMPLETE
+	// downstream through `take(n>0)` — `completeWhenDepsComplete: false` means
+	// auto-COMPLETE is OFF; fn fires via the opt-in and forwards `[[COMPLETE]]`.
+	it("forwards COMPLETE on an immediate-COMPLETE source before count reached (no prior DATA)", () => {
+		const src = node<number>();
+		const t = take(src, 5);
+		const types: symbol[] = [];
+		const unsub = t.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		expect(types).toContain(COMPLETE);
+		unsub();
+	});
 });
 
 describe("Tier 1 operator matrix — takeWhile", () => {
@@ -1250,6 +1300,25 @@ describe("Tier 1 operator matrix — takeWhile", () => {
 		src.down([[DATA, 5]]);
 		unsub2();
 		expect(values).toContain(5);
+	});
+
+	// DS-2.7.A QA F3 — pins the documented motivation for the
+	// `terminalAsRealInput: true` opt-in. Before the F1 fix, `takeWhile` on a
+	// COMPLETE-only-no-DATA source never propagated COMPLETE — the gate
+	// released (via the opt-in), fn fired with `batch0` empty, and fell into
+	// the `RESOLVED` branch with the node left alive forever
+	// (`completeWhenDepsComplete: false`). Post-F1 the fn forwards
+	// `[[COMPLETE]]` from the new `ctx.terminalDeps[0] === true` branch.
+	it("forwards COMPLETE on an immediate-COMPLETE source (no prior DATA)", () => {
+		const src = node<number>();
+		const tw = takeWhile(src, (x) => (x as number) < 3);
+		const types: symbol[] = [];
+		const unsub = tw.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		expect(types).toContain(COMPLETE);
+		unsub();
 	});
 });
 

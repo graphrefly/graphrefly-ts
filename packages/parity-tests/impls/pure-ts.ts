@@ -1120,10 +1120,16 @@ function buildPureTsStructures(): StructuresImpl {
 				async set(key: K, value: V) {
 					bundle.set(key, value);
 				},
-				get(key: K) {
+				// QA fix 2026-05-20 (graphrefly-rs F3): widened to
+				// `async` to match the rust arm's async Promise-
+				// returning surface. The pure-ts substrate's
+				// `bundle.get`/`bundle.has` are synchronous; the
+				// `async` wrapper just lifts them into the Promise
+				// contract.
+				async get(key: K) {
 					return bundle.get(key);
 				},
-				has(key: K) {
+				async has(key: K) {
 					return bundle.has(key);
 				},
 				async delete(key: K) {

@@ -229,8 +229,18 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
 		},
 		{
 			describeKind: "derived",
-			completeWhenDepsComplete: false,
 			...opts,
+			// Operator-required flags spread AFTER user `opts` so a caller
+			// cannot accidentally override them (QA F2 spread-order fix,
+			// DS-2.7.A `/qa` 2026-05-20 — matches the
+			// `reduce`/`scan`/`take`/`last` substrate pattern). Spec §2.7
+			// R2.7.1 (DS-2.7.A): Reduce-class shape — fn must fire on
+			// upstream COMPLETE to emit the accumulated array (or `[]` for an
+			// empty source) followed by its own `[[COMPLETE]]`. Required
+			// because `completeWhenDepsComplete: false` means auto-COMPLETE
+			// is OFF; without the opt-in `toArray(empty())` never completes.
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
 		} as NodeOptions<T[]>,
 	);
 }

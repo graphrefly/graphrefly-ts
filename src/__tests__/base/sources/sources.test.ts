@@ -407,6 +407,21 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		unsub();
 	});
 
+	// DS-2.7.A QA F3 — pins the `toArray` opt-in motivation. An immediate-
+	// COMPLETE source (no prior DATA) must emit `[]` then COMPLETE downstream
+	// — `completeWhenDepsComplete: false` means auto-COMPLETE is OFF; fn fires
+	// via `terminalAsRealInput: true` and emits the empty buffer + COMPLETE.
+	it("toArray over an immediate-COMPLETE source emits [] then COMPLETE", () => {
+		const src = node<string>();
+		const { batches, unsub } = collect(toArray(src));
+		src.down([[COMPLETE]]);
+		const types = batches.flat().map((m) => m[0]);
+		const data = batches.flat().filter((m) => m[0] === DATA);
+		expect(data[data.length - 1]?.[1]).toEqual([]);
+		expect(types).toContain(COMPLETE);
+		unsub();
+	});
+
 	it("forEach runs side effect and returns unsub", () => {
 		const acc: number[] = [];
 		const src = fromIter([1, 2]);

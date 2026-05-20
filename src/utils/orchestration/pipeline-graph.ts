@@ -376,6 +376,10 @@ export class PipelineGraph extends Graph {
 			{
 				name,
 				describeKind: "derived",
+				// Spec §2.7 R2.7.1 (DS-2.7.A). fn must fire on
+				// upstream-COMPLETE/ERROR-only-without-DATA so the
+				// teardown-decision record + downstream terminal forward run.
+				terminalAsRealInput: true,
 				meta: meta("approval_gate", opts.meta),
 			},
 		);
@@ -634,6 +638,11 @@ export class PipelineGraph extends Graph {
 				completeWhenDepsComplete:
 					opts.completeWhenDepsComplete ?? !(mode === "completed" || mode === "terminal"),
 				errorWhenDepsError: !(mode === "errored" || mode === "terminal"),
+				// Spec §2.7 R2.7.1 (DS-2.7.A). `catch` exists to fire on a
+				// source terminal — its whole job is `recover(cause, …)` on a
+				// terminal-only wave. Without this opt-in the gate holds and
+				// the recover branch never runs.
+				terminalAsRealInput: true,
 				meta: meta("catch", opts.meta),
 			} as NodeOptions<T>,
 		);

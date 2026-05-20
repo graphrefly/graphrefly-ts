@@ -159,6 +159,11 @@ export function scan<T, R>(
 			...operatorOpts(opts),
 			initial: seed,
 			resetOnTeardown: true,
+			// Spec §2.7 R2.7.1 — Reduce-class: fire on upstream-COMPLETE-only
+			// so the auto-COMPLETE wave gets a leading RESOLVED before the
+			// auto-COMPLETE propagates. Without this opt-in, the gate holds
+			// when source COMPLETEs without ever emitting DATA.
+			terminalAsRealInput: true,
 			meta: { ...factoryTag("scan", { initial: seed }), ...(opts?.meta ?? {}) },
 		},
 	);
@@ -229,6 +234,13 @@ export function reduce<T, R>(
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
+			// Spec §2.7 R2.7.1 — Reduce-class. Required because reduce's
+			// `completeWhenDepsComplete: false` means it MUST fire fn on
+			// upstream COMPLETE to emit the accumulated value + own
+			// `[[COMPLETE]]`. Without the opt-in, a source that COMPLETEs
+			// without ever emitting DATA holds the gate and reduce stays
+			// alive forever (no downstream COMPLETE).
+			terminalAsRealInput: true,
 			meta: { ...factoryTag("reduce", { initial: seed }), ...(opts?.meta ?? {}) },
 		},
 	);

@@ -278,28 +278,59 @@ export interface NodeOptions<T = unknown> {
 	 */
 	errorWhenDepsError?: boolean;
 	/**
-	 * First-run gate (§2.7). When `false` (default — matches the universal
-	 * contract "fn does not fire until every declared dep has delivered"), fn
-	 * is held until every declared dep has delivered at least one DATA or
-	 * terminal. Sugar constructors (`derived`, `effect`) inherit the default
-	 * so multi-parent activation produces one combined initial wave
-	 * `[[START], [DIRTY], [DATA, fn(init...)]]` instead of the sequential
-	 * `[[START], [DIRTY], [RESOLVED], [DIRTY], [DATA]]` shape produced by
-	 * per-dep push-on-subscribe firings.
+	 * First-run gate (§2.7 `R2.7.0`/`R2.7.2`). When `false` (default — matches
+	 * the universal contract "fn does not fire until every declared dep has
+	 * delivered at least one real DATA"), fn is held until every declared dep
+	 * has contributed real DATA (`d.dataBatch.length > 0` this wave OR
+	 * `d.prevData !== undefined` from a prior wave). Sugar constructors
+	 * (`derived`, `effect`) inherit the default so multi-parent activation
+	 * produces one combined initial wave `[[START], [DIRTY], [DATA, fn(init...)]]`
+	 * instead of the sequential `[[START], [DIRTY], [RESOLVED], [DIRTY], [DATA]]`
+	 * shape produced by per-dep push-on-subscribe firings.
+	 *
+	 * **Terminal does NOT settle the gate by default** (`R2.7.1`, DS-2.7.A
+	 * cross-port lock 2026-05-19). Reduce-class operators (`reduce`, `scan`,
+	 * `last`, `take`, `takeWhile`) opt in via {@link terminalAsRealInput}.
 	 *
 	 * When `true`, fn fires as soon as `_dirtyDepCount === 0` regardless of
-	 * whether any dep is still sentinel. Operators like `withLatestFrom`,
-	 * `valve`, and worker-bridge aggregators that deliberately fire on
-	 * partial deps pass `partial: true` explicitly. Zero-dep producer-pattern
-	 * factories (`stratify`, `budgetGate`, etc.) are unaffected either way —
-	 * an empty `_deps` array has nothing for the gate to hold on.
+	 * whether any dep is still sentinel (`R2.7.2` — gate is truly OFF). The
+	 * fn body MUST guard every dep slot for SENTINEL
+	 * (`ctx.prevData[i] === undefined`) — failing to do so will read SENTINEL
+	 * as `undefined` pass-through and is the operator author's bug, not a
+	 * gate failure. Operators like `withLatestFrom`, `valve`, worker-bridge
+	 * aggregators, and effects like `agentLoop.effFullDeny` that deliberately
+	 * fire on partial deps pass `partial: true` explicitly.
+	 * {@link terminalAsRealInput} is ignored when `partial: true` (the gate
+	 * is OFF either way).
 	 *
-	 * Gate scope: applies only until fn has fired once (`_hasCalledFnOnce`).
-	 * Subsequent waves, INVALIDATE, and `_addDep` do not re-gate. Terminal
-	 * reset (resubscribable node reconnect) resets `_hasCalledFnOnce` and
-	 * re-arms the gate.
+	 * Zero-dep producer-pattern factories (`stratify`, `budgetGate`, etc.)
+	 * are unaffected either way — an empty `_deps` array has nothing for the
+	 * gate to hold on.
+	 *
+	 * Gate scope (`R2.7.3`): applies only until fn has fired once
+	 * (`_hasCalledFnOnce`). Subsequent waves, INVALIDATE, and `_addDep` do
+	 * not re-gate. Terminal reset (resubscribable node reconnect) resets
+	 * `_hasCalledFnOnce` and re-arms the gate.
 	 */
 	partial?: boolean;
+	/**
+	 * First-run gate opt-in (§2.7 `R2.7.1`, DS-2.7.A cross-port lock
+	 * 2026-05-19). Default `false`. When `true`, a dep terminal
+	 * (COMPLETE / ERROR / TEARDOWN) also settles the gate for that dep —
+	 * `d` is considered settled when `d.dataBatch.length > 0` OR
+	 * `d.prevData !== undefined` OR `d.terminal !== undefined`.
+	 *
+	 * Use for Reduce-class operators that need to fire on
+	 * upstream-COMPLETE-without-DATA to emit a seed/accumulator or to
+	 * forward `[[COMPLETE]]` from inside `fn` (`reduce`, `scan`, `last`,
+	 * `take`, `takeWhile`; `first` / `find` / `elementAt` inherit via
+	 * `take`). Without this opt-in, a source that COMPLETEs without ever
+	 * emitting DATA holds the gate forever — the operator's terminal
+	 * branch never runs and downstream never sees COMPLETE.
+	 *
+	 * Ignored when `partial: true` — the gate is OFF either way.
+	 */
+	terminalAsRealInput?: boolean;
 	/**
 	 * Tier-2 PAUSE/RESUME handling.
 	 * - `true` (default): wave completion suppressed while paused; fn fires
@@ -905,14 +936,25 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _autoError: boolean;
 	readonly _pausable: boolean | "resumeAll";
 	/**
-	 * @internal First-run-gate override. `false` (default) holds fn until every
-	 * dep has delivered DATA or a terminal — spec §2.7 first-run gate. `true`
-	 * disables the gate; fn fires as soon as `_dirtyDepCount === 0`, regardless
-	 * of dep sentinel state. Operators that need partial firing
-	 * (`withLatestFrom`, `valve`, worker-bridge aggregators) pass
-	 * `partial: true` explicitly at construction.
+	 * @internal First-run-gate override (§2.7 `R2.7.2`, DS-2.7.A 2026-05-19).
+	 * `false` (default) holds fn until every dep has delivered real DATA
+	 * (or terminal, when {@link _terminalAsRealInput} is set per `R2.7.1`).
+	 * `true` disables the gate; fn fires as soon as `_dirtyDepCount === 0`,
+	 * regardless of dep sentinel state — the fn body MUST guard every dep
+	 * slot for SENTINEL (`ctx.prevData[i] === undefined`). Operators that
+	 * need partial firing (`withLatestFrom`, `valve`, worker-bridge
+	 * aggregators) pass `partial: true` explicitly at construction.
 	 */
 	readonly _partial: boolean;
+	/**
+	 * @internal Reduce-class first-run-gate opt-in (§2.7 `R2.7.1`,
+	 * DS-2.7.A 2026-05-19). When `true`, a dep's terminal counts as a
+	 * settled state for the gate (in addition to real DATA), so operators
+	 * like `reduce` / `last` / `take` that need to fire on
+	 * upstream-COMPLETE-without-DATA actually run their terminal branch.
+	 * Ignored when {@link _partial} is `true` (gate is OFF either way).
+	 */
+	readonly _terminalAsRealInput: boolean;
 	readonly _guard: NodeGuard | undefined;
 	/**
 	 * @internal Additional guards stacked at runtime via {@link NodeImpl._pushGuard}
@@ -976,13 +1018,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._guard = opts.guard;
 		this._fn = fn;
 		// Spec §2.7 first-run gate. Default `false` = gate ON — matches the
-		// universal "fn does not fire until every declared dep has delivered"
-		// contract. Operators that deliberately fire on partial deps
-		// (`withLatestFrom`, `valve`, worker-bridge aggregators) opt out with
-		// `partial: true`. Zero-dep producer-pattern factories (`stratify`,
-		// `budgetGate`, `distill`, `verifiable`) are unaffected — the gate has
-		// no deps to hold on an empty `_deps` array.
+		// universal "fn does not fire until every declared dep has delivered
+		// real DATA" contract (R2.7.0). Operators that deliberately fire on
+		// partial deps (`withLatestFrom`, `valve`, worker-bridge aggregators)
+		// opt out with `partial: true` (R2.7.2). Zero-dep producer-pattern
+		// factories (`stratify`, `budgetGate`, `distill`, `verifiable`) are
+		// unaffected — the gate has no deps to hold on an empty `_deps` array.
 		this._partial = opts.partial ?? false;
+		// Spec §2.7 R2.7.1 (DS-2.7.A cross-port lock 2026-05-19). Reduce-class
+		// operators (`reduce`/`scan`/`last`/`take`/`takeWhile`) opt terminal
+		// into the gate's settle predicate so they fire on
+		// upstream-COMPLETE-without-DATA to emit a seed/accumulator or forward
+		// COMPLETE. Default `false` = terminal does NOT settle; a source that
+		// only ever terminates without real DATA holds the gate.
+		this._terminalAsRealInput = opts.terminalAsRealInput ?? false;
 
 		// `undefined` is the sentinel ("no cached value") so `initial: undefined`
 		// is treated as absent. `null` is a valid DATA value and sets the cache.
@@ -2619,20 +2668,30 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// settlement for this wave (DATA, RESOLVED, or terminal).
 		if (this._dirtyDepCount > 0) return;
 		// Spec §2.7 first-run gate. Applied only until fn has fired once
-		// (`_hasCalledFnOnce`), so `_addDep` post-activation, subsequent
-		// waves, and INVALIDATE do not re-gate. Terminal reset on a
+		// (`_hasCalledFnOnce`, R2.7.3), so `_addDep` post-activation,
+		// subsequent waves, and INVALIDATE do not re-gate. Terminal reset on a
 		// resubscribable node clears `_hasCalledFnOnce` and re-arms.
 		// Scan is O(N) on declared-dep count, fires at most once per
 		// activation cycle — cheaper than maintaining a dedicated counter
 		// in lockstep across `_depSettledAsData` / `_depSettledAsTerminal`
 		// / `_depInvalidated` / `_addDep` / reset paths. `_maybeAutoTerminalAfterWave`
 		// is still called so ERROR propagates even while fn is gated.
+		//
+		// Settle predicate (R2.7.0 + R2.7.1, DS-2.7.A 2026-05-19):
+		//   hasRealData     = d.dataBatch.length > 0 || d.prevData !== undefined
+		//   settledByTerm   = _terminalAsRealInput && d.terminal !== undefined
+		//   isSentinel      = !hasRealData && !settledByTerm
+		// RESOLVED never settles (a dep that only ever emits RESOLVED holds the
+		// gate forever — equals-substituted into RESOLVED never advances
+		// `prevData`). Terminal settles only when the operator opts in via
+		// `NodeOptions.terminalAsRealInput` (Reduce-class: `reduce`/`scan`/
+		// `last`/`take`/`takeWhile`).
 		if (!this._partial && !this._hasCalledFnOnce) {
 			for (let i = 0; i < this._deps.length; i++) {
 				const d = this._deps[i];
-				const isSentinel =
-					d.dataBatch.length === 0 && d.prevData === undefined && d.terminal === undefined;
-				if (isSentinel) {
+				const hasRealData = d.dataBatch.length > 0 || d.prevData !== undefined;
+				const settledByTerminal = this._terminalAsRealInput && d.terminal !== undefined;
+				if (!hasRealData && !settledByTerminal) {
 					this._maybeAutoTerminalAfterWave();
 					return;
 				}

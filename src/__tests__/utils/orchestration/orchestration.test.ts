@@ -1,4 +1,4 @@
-import { DATA, node, TEARDOWN } from "@graphrefly/pure-ts/core";
+import { COMPLETE, DATA, node, TEARDOWN } from "@graphrefly/pure-ts/core";
 import { delay, valve } from "@graphrefly/pure-ts/extra";
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { describe, expect, it } from "vitest";
@@ -473,5 +473,56 @@ describe("patterns.orchestration", () => {
 		const last = dec[dec.length - 1]!;
 		expect(last.action).toBe("modify");
 		expect(last.errorType).toBeUndefined();
+	});
+
+	// DS-2.7.A QA F3 — pins the approvalGate.output `terminalAsRealInput: true`
+	// opt-in. An immediate-COMPLETE source (no prior DATA) must:
+	//   (a) record a `"teardown"` decision in the audit log
+	//   (b) forward COMPLETE downstream
+	// Without the opt-in the gate held on the terminal-only wave, fn never
+	// fired, and (a) was silently lost.
+	it("gate output records teardown decision and forwards COMPLETE on immediate-COMPLETE source", () => {
+		const g = pipelineGraph("wf");
+		const input = node<number>();
+		g.add(input, { name: "input" });
+		const ctrl = g.approvalGate<number>("gated", "input");
+
+		const types: symbol[] = [];
+		const unsub = ctrl.output.subscribe((msgs) => {
+			for (const m of msgs) types.push(m[0] as symbol);
+		});
+
+		// Immediately COMPLETE the upstream — no DATA was ever queued.
+		input.down([[COMPLETE]]);
+
+		// (a) Audit captures the teardown decision (recorded inside fn).
+		const dec = ctrl.decisions.entries.cache as readonly { action: string }[];
+		expect(dec.map((d) => d.action)).toContain("teardown");
+		// (b) COMPLETE propagates downstream.
+		expect(types).toContain(COMPLETE);
+		unsub();
+	});
+
+	// DS-2.7.A QA F3 — pins the catch `terminalAsRealInput: true` opt-in.
+	// `mode: "completed"` over an immediate-COMPLETE source must call
+	// `recover(cause)` with `cause.kind === "completed"`. Without the opt-in
+	// the gate held on the terminal-only wave and recover never ran.
+	it("catch with mode:'completed' recovers on immediate-COMPLETE source (no prior DATA)", () => {
+		const g = pipelineGraph("wf");
+		const src = node<number>();
+		g.add(src, { name: "src" });
+		const recovered = g.catch<number>(
+			"recovered",
+			src,
+			(cause) => (cause.kind === "completed" ? 777 : -1),
+			{ on: "completed" },
+		);
+		const dataVals: number[] = [];
+		const unsub = recovered.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) dataVals.push(m[1] as number);
+		});
+		src.down([[COMPLETE]]);
+		expect(dataVals).toContain(777);
+		unsub();
 	});
 });

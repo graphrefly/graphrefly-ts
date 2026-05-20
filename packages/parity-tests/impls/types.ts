@@ -441,8 +441,20 @@ export interface ImplReactiveMap<K, V> {
 	readonly node: ImplNode<unknown>;
 	readonly size: number;
 	set(key: K, value: V): Promise<void>;
-	get(key: K): V | undefined;
-	has(key: K): boolean;
+	/**
+	 * **S6 QA 2026-05-20 (graphrefly-rs F3):** widened from `V |
+	 * undefined` to `Promise<V | undefined>`. The Rust substrate's
+	 * `ReactiveMap::get` is NOT read-only when TTL is configured —
+	 * an expired key triggers `prune_expired_inner` +
+	 * `emitter.emit(core, snapshot)`, which fires subscribers.
+	 * Under the napi sync surface this could deadlock libuv on a
+	 * TSFN-active sink (see `cross-track-ledger.md` §1 2026-05-20).
+	 * Promise-returning lets libuv keep pumping during the actor
+	 * round-trip.
+	 */
+	get(key: K): Promise<V | undefined>;
+	/** Same async widening as `get` — see its docs. */
+	has(key: K): Promise<boolean>;
 	delete(key: K): Promise<void>;
 	clear(): Promise<void>;
 }

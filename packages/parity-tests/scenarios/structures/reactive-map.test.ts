@@ -23,11 +23,11 @@ describe.each(impls)("M5 ReactiveMap — CRUD parity — $name", (impl) => {
 		const map = s.reactiveMap<string, number>();
 		await map.set("a", 1);
 		await map.set("b", 2);
-		expect(map.has("a")).toBe(true);
-		expect(map.get("a")).toBe(1);
-		expect(map.get("b")).toBe(2);
-		expect(map.has("c")).toBe(false);
-		expect(map.get("c")).toBeUndefined();
+		expect(await map.has("a")).toBe(true);
+		expect(await map.get("a")).toBe(1);
+		expect(await map.get("b")).toBe(2);
+		expect(await map.has("c")).toBe(false);
+		expect(await map.get("c")).toBeUndefined();
 	});
 
 	test.runIf(hasStructures())("set overwrites existing key", async () => {
@@ -35,7 +35,7 @@ describe.each(impls)("M5 ReactiveMap — CRUD parity — $name", (impl) => {
 		const map = s.reactiveMap<string, number>();
 		await map.set("x", 10);
 		await map.set("x", 20);
-		expect(map.get("x")).toBe(20);
+		expect(await map.get("x")).toBe(20);
 		expect(map.size).toBe(1);
 	});
 
@@ -45,7 +45,7 @@ describe.each(impls)("M5 ReactiveMap — CRUD parity — $name", (impl) => {
 		await map.set("a", 1);
 		await map.set("b", 2);
 		await map.delete("a");
-		expect(map.has("a")).toBe(false);
+		expect(await map.has("a")).toBe(false);
 		expect(map.size).toBe(1);
 	});
 
@@ -74,7 +74,7 @@ describe.each(impls)("M5 ReactiveMap — CRUD parity — $name", (impl) => {
 		await map.set("b", 2);
 		await map.clear();
 		expect(map.size).toBe(0);
-		expect(map.has("a")).toBe(false);
+		expect(await map.has("a")).toBe(false);
 	});
 
 	test.runIf(hasStructures())("set emits snapshot with new entry", async () => {
@@ -105,8 +105,8 @@ describe.each(impls)("M5 ReactiveMap — LRU parity — $name", (impl) => {
 		await map.set("b", 2);
 		await map.set("c", 3); // should evict "a"
 		expect(map.size).toBe(2);
-		expect(map.has("a")).toBe(false);
-		expect(map.has("b")).toBe(true);
-		expect(map.has("c")).toBe(true);
+		expect(await map.has("a")).toBe(false);
+		expect(await map.has("b")).toBe(true);
+		expect(await map.has("c")).toBe(true);
 	});
 });

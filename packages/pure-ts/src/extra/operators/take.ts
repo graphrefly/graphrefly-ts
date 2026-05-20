@@ -63,6 +63,11 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 			{
 				...operatorOpts(opts),
 				completeWhenDepsComplete: false,
+				// Spec §2.7 R2.7.1 — Reduce-class. `take(0)` fires its own
+				// `[[COMPLETE]]` on first activation regardless of upstream
+				// state, so the gate must release even when source is
+				// CONFIGURED via an `empty()`-style COMPLETE-only producer.
+				terminalAsRealInput: true,
 				meta: { ...factoryTag("take", { count }), ...(opts?.meta ?? {}) },
 			},
 		);
@@ -113,6 +118,13 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
+			// Spec §2.7 R2.7.1 — Reduce-class. `take(n>0)` forwards an
+			// upstream-COMPLETE-before-count-reached from inside fn via
+			// `ctx.terminalDeps[0] === true` → `[[COMPLETE]]`. Required so
+			// `take(empty(), n)` actually emits COMPLETE downstream
+			// (without the opt-in, `completeWhenDepsComplete: false` + gate
+			// holding on terminal-only = node stays alive forever).
+			terminalAsRealInput: true,
 			meta: { ...factoryTag("take", { count }), ...(opts?.meta ?? {}) },
 		},
 	);
@@ -214,6 +226,16 @@ export function takeWhile<T>(
 				a.down([[RESOLVED]]);
 				return cleanup;
 			}
+			// Upstream COMPLETE before predicate failed → forward COMPLETE.
+			// Mirrors `take`'s pattern (`take.ts:91`); needed because
+			// `completeWhenDepsComplete: false` disables auto-COMPLETE, so
+			// without an explicit forward `takeWhile(empty(), pred)` would
+			// never terminate downstream. (QA F1, DS-2.7.A `/qa` 2026-05-20.)
+			if (ctx.terminalDeps[0] === true) {
+				ctx.store.done = true;
+				a.down([[COMPLETE]]);
+				return cleanup;
+			}
 			const batch0 = data[0];
 			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
@@ -232,6 +254,14 @@ export function takeWhile<T>(
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
+			// Spec §2.7 R2.7.1 — Reduce-class. `takeWhile` forwards an
+			// upstream-COMPLETE-before-predicate-fail via `ctx.terminalDeps[0]`
+			// → `[[COMPLETE]]` (added in QA F1 alongside this opt-in). Required
+			// so `takeWhile(empty(), pred)` actually propagates COMPLETE
+			// downstream — without both the opt-in AND the terminal branch,
+			// `completeWhenDepsComplete: false` + gate-holding-on-terminal
+			// would leave the node alive forever.
+			terminalAsRealInput: true,
 		},
 	);
 }
@@ -398,6 +428,13 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 		{
 			...operatorOpts(rest),
 			completeWhenDepsComplete: false,
+			// Spec §2.7 R2.7.1 — Reduce-class. `last` must fire fn on
+			// upstream COMPLETE to emit the latest stored value (or
+			// `defaultValue`, if provided) followed by `[[COMPLETE]]`.
+			// Required because `completeWhenDepsComplete: false` means
+			// auto-COMPLETE is OFF — without the opt-in, a never-DATA
+			// source's COMPLETE never propagates downstream.
+			terminalAsRealInput: true,
 		},
 	);
 }
