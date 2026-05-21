@@ -116,8 +116,19 @@ export interface ImplNode<T> {
  * doesn't expose them as public accessors and no scenarios reference
  * them). */
 export interface ImplGraph {
-	tryResolve(path: string): ImplNode<unknown> | undefined;
-	nameOf(node: ImplNode<unknown>): string | undefined;
+	// D267 (cross-track-ledger §1, 2026-05-21): `tryResolve`/`nameOf`/
+	// `edges`/`describe` widened to `T | Promise<T>`. The pure-ts arm
+	// keeps sync semantics unchanged; the rust-via-napi arm returns
+	// sync from a JS-side reverse cache for nodes JS owns (preserves
+	// R3.7.3 sync-observability of names from inside TEARDOWN sinks)
+	// and falls through to a Promise for cross-mount paths or nodes
+	// JS doesn't own. Every parity scenario writes
+	// `await impl.tryResolve(...)` regardless of arm; TS resolves a
+	// non-promise value immediately. Closes the
+	// `Graph::remove`/`destroy` napi TSFN deadlock class (ledger §2
+	// 🟠 row — sink-callback re-entrance into `run_sync` 3-way deadlock).
+	tryResolve(path: string): ImplNode<unknown> | undefined | Promise<ImplNode<unknown> | undefined>;
+	nameOf(node: ImplNode<unknown>): string | undefined | Promise<string | undefined>;
 
 	/** `state(name, initial?)` — register a state node under `name`. */
 	state<T>(name: string, initial?: T): Promise<ImplNode<T>>;
@@ -159,8 +170,9 @@ export interface ImplGraph {
 	 */
 	destroyAsync(): Promise<void>;
 
-	/** Static edges snapshot — `[from_path, to_path][]`. */
-	edges(opts?: { recursive?: boolean }): Array<[string, string]>;
+	/** Static edges snapshot — `[from_path, to_path][]`. D267-widened:
+	 * `T | Promise<T>` (rust arm returns Promise; pure-ts sync). */
+	edges(opts?: { recursive?: boolean }): Array<[string, string]> | Promise<Array<[string, string]>>;
 
 	/**
 	 * Describe snapshot. Static `describe()` returns the current
@@ -171,8 +183,11 @@ export interface ImplGraph {
 	 * `await dispose()` unsubscribes — for the rust impl the unsubscribe
 	 * runs on a tokio blocking thread so `Subscription::Drop`'s mutex
 	 * acquisition can't stall libuv (mirrors `BenchCore::dispose`).
+	 *
+	 * D267: the static `describe()` overload widened to `T | Promise<T>`
+	 * (rust arm returns Promise; pure-ts sync).
 	 */
-	describe(): unknown;
+	describe(): unknown | Promise<unknown>;
 	describe(opts: { reactive: true }): Promise<ReactiveDescribeHandle>;
 
 	/**
@@ -393,7 +408,11 @@ export interface Impl {
 		capacity: number,
 	) => ImplRingBuffer<T>;
 	ResettableTimer: new () => ImplResettableTimer;
-	describeNode(node: ImplNode<unknown>): unknown;
+	// D267-widened: `describeNode` was sync on both arms; the napi
+	// `BenchCore::describe_node` shape is now async to close the
+	// sink-callback deadlock class. Pure-ts arm stays sync — TS
+	// `await` of a non-promise value is identity.
+	describeNode(node: ImplNode<unknown>): unknown | Promise<unknown>;
 	sha256Hex(input: string | Uint8Array): Promise<string>;
 	sourceOpts(opts?: Record<string, unknown>): Record<string, unknown>;
 }
@@ -422,8 +441,15 @@ export interface ImplReactiveLog<T> {
 	): Promise<ImplNode<readonly T[]>>;
 	/** Running aggregate; node emits the current accumulator. */
 	scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc): Promise<ImplNode<TAcc>>;
-	/** Append every upstream DATA value into this log. Returns an unsub. */
-	attach(upstream: ImplNode<T>): Promise<UnsubFn>;
+	/** Append every upstream DATA value into this log. Returns an unsub.
+	 *
+	 * D270 (cross-track-ledger §2, memo:Re P2 parity, 2026-05-21):
+	 * `skipCachedReplay: true` drops the FIRST DATA-bearing batch the
+	 * attach sink receives, gated on `upstream.cache !== undefined`
+	 * (so a cold upstream's first live emit is NOT dropped). Live
+	 * emissions after the first DATA batch still land. The flag has
+	 * no effect when the upstream's cache is sentinel. */
+	attach(upstream: ImplNode<T>, opts?: { skipCachedReplay?: boolean }): Promise<UnsubFn>;
 }
 
 export interface ImplReactiveList<T> {
@@ -518,9 +544,31 @@ export interface ImplKvTier extends ImplBaseTier {
 	list(prefix: string): string[];
 }
 
+/** D269 — opaque cursor for `loadEntriesPaged` pagination. */
+export interface ImplAppendCursor {
+	readonly position: number;
+}
+
+/** D269 — paginated `loadEntries` result. `cursor === undefined` ⇒ no more. */
+export interface ImplAppendLoadResult {
+	entries: unknown[];
+	cursor?: ImplAppendCursor;
+}
+
 export interface ImplAppendLogTier extends ImplBaseTier {
 	appendEntries(entries: unknown[]): void | Promise<void>;
 	loadEntries(keyFilter?: string): Promise<unknown[]>;
+	/** D269 — mode accessor (memo:Re P1 parity). Delta-shipping consumers
+	 * MUST reject `"overwrite"` tiers. */
+	readonly mode?: "append" | "overwrite";
+	/** D269 — windowed cursor pagination (memo:Re loadEntries parity).
+	 * Optional for back-compat; concrete impls SHOULD implement when
+	 * pagination is supported. */
+	loadEntriesPaged?(opts?: {
+		keyFilter?: string;
+		cursor?: ImplAppendCursor;
+		pageSize?: number;
+	}): Promise<ImplAppendLoadResult>;
 }
 
 export interface ImplCheckpointSnapshotTier extends ImplBaseTier {
@@ -550,6 +598,8 @@ export interface TierOpts {
 	name?: string;
 	compactEvery?: number;
 	debounceMs?: number;
+	/** D269 — append-log persistence mode (memo:Re P1 parity). */
+	mode?: "append" | "overwrite";
 }
 
 export interface StorageImpl {

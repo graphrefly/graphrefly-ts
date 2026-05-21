@@ -24,7 +24,7 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		const b = await g.state<number>("b", 2);
 		const c = await g.add("c", await impl.combine([a, b]));
 
-		const edges = g.edges();
+		const edges = await g.edges();
 		const edgeSet = new Set(edges.map((e) => `${e[0]}->${e[1]}`));
 
 		expect(edgeSet.has("a->c")).toBe(true);
@@ -45,7 +45,7 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		const _z = await child.add("z", await impl.combine([y, x]));
 		void _z;
 
-		const edges = g.edges({ recursive: true });
+		const edges = await g.edges({ recursive: true });
 		const edgeSet = new Set(edges.map((e) => `${e[0]}->${e[1]}`));
 
 		// Local edge from root.x reaching into the subgraph's z node — qualified path.
@@ -64,7 +64,7 @@ describe.each(impls)("R3.3.1 edges parity — $name", (impl) => {
 		void _x;
 		void _z;
 
-		const edges = g.edges();
+		const edges = await g.edges();
 		// No edge should reference `sub::*` — edges() is local-only by default.
 		for (const [from, to] of edges) {
 			expect(from.startsWith("sub::")).toBe(false);

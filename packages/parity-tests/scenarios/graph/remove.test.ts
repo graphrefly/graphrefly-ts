@@ -26,7 +26,9 @@ describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
 
 		expect(seen).toContain(impl.TEARDOWN);
 		// Post-remove, the name no longer resolves.
-		expect(g.tryResolve("temp")).toBeUndefined();
+		// D267: `tryResolve` widened to `T | Promise<T>` — `await`
+		// is identity on the pure-ts sync return.
+		expect(await g.tryResolve("temp")).toBeUndefined();
 
 		await unsub();
 		await g.destroy();
@@ -46,7 +48,7 @@ describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
 		await g.remove("child");
 
 		expect(seen).toContain(impl.TEARDOWN);
-		expect(g.tryResolve("child::inner")).toBeUndefined();
+		expect(await g.tryResolve("child::inner")).toBeUndefined();
 
 		await unsub();
 		await g.destroy();
@@ -55,11 +57,18 @@ describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
 	// Slice W (2026-05-13): pure-ts backported to clear namespace AFTER
 	// TEARDOWN cascade, matching Rust port's Slice F /qa P1 and canonical
 	// R3.7.3 ("After cascade, graph internal registries are cleared").
+	//
+	// D267 (2026-05-21): `nameOf` widened to `T | Promise<T>`. The
+	// rust-via-napi arm returns sync via a JS-side reverse cache for
+	// nodes JS owns, preserving sync-observability inside the TEARDOWN
+	// sink cross-arm. The captured `nameDuringTeardown` may be a
+	// string (sync return) or a Promise<string|undefined> (slow path);
+	// `await` it either way.
 	test("namespace remains resolvable from inside the TEARDOWN sink (R3.7.3 ordering)", async () => {
 		const g = new impl.Graph("root");
 		const s = await g.state<number>("ephemeral", 0);
 
-		let nameDuringTeardown: string | undefined;
+		let nameDuringTeardown: string | undefined | Promise<string | undefined>;
 		const unsub = await s.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === impl.TEARDOWN) {
@@ -70,8 +79,8 @@ describe.each(impls)("R3.2.3 remove parity — $name", (impl) => {
 
 		await g.remove("ephemeral");
 
-		expect(nameDuringTeardown).toBe("ephemeral");
-		expect(g.nameOf(s)).toBeUndefined();
+		expect(await nameDuringTeardown).toBe("ephemeral");
+		expect(await g.nameOf(s)).toBeUndefined();
 
 		await unsub();
 		await g.destroy();

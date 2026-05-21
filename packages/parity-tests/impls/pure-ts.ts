@@ -857,10 +857,15 @@ function buildPureTsStorage(): StorageImpl {
 				name: opts?.name,
 				compactEvery: opts?.compactEvery,
 				debounceMs: opts?.debounceMs,
+				mode: opts?.mode, // D269
 			});
 			return {
 				get name() {
 					return tier.name;
+				},
+				// D269 — mode accessor (memo:Re P1 parity).
+				get mode() {
+					return tier.mode;
 				},
 				appendEntries(entries: unknown[]) {
 					tier.appendEntries(entries);
@@ -868,6 +873,20 @@ function buildPureTsStorage(): StorageImpl {
 				async loadEntries(keyFilter?: string): Promise<unknown[]> {
 					const result = await tier.loadEntries?.({ keyFilter });
 					return result ? [...result.entries] : [];
+				},
+				// D269 — windowed pagination (memo:Re loadEntries parity).
+				async loadEntriesPaged(loadOpts) {
+					const result = await tier.loadEntries?.({
+						keyFilter: loadOpts?.keyFilter,
+						cursor: loadOpts?.cursor as any,
+						pageSize: loadOpts?.pageSize,
+					});
+					return {
+						entries: result ? [...result.entries] : [],
+						cursor: result?.cursor
+							? { position: result.cursor.position }
+							: undefined,
+					};
 				},
 				flush() {
 					return tier.flush?.();
@@ -1069,8 +1088,9 @@ function buildPureTsStructures(): StructuresImpl {
 				async scan<TAcc>(initial: TAcc, step: (acc: TAcc, value: T) => TAcc) {
 					return wrap(bundle.scan(initial, step));
 				},
-				async attach(upstream) {
-					const off = bundle.attach(unwrap(upstream));
+				async attach(upstream, opts) {
+					// D270 (memo:Re P2 parity): pass skipCachedReplay through.
+					const off = bundle.attach(unwrap(upstream), opts);
 					return async () => {
 						off();
 					};

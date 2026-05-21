@@ -90,7 +90,7 @@ describe.each(impls)("M4.F Tier 3 — graph storage integration — $name", (imp
 				// actual JS values) through the WAL, so cache round-trips as a
 				// raw handle number rather than `42`. Only pure-ts can assert
 				// exact value equality here.
-				const node = replayer.tryResolve("a");
+				const node = await replayer.tryResolve("a"); // D267 widened
 				expect(node).toBeDefined();
 				if (impl.name === "pure-ts") {
 					expect(node!.cache).toBe(42);
