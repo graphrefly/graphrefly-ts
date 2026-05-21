@@ -81,6 +81,7 @@ These supersede / consolidate the multi-file TS authority for Rust port purposes
 
 - `~/src/graphrefly-ts/docs/implementation-plan-13.6-canonical-spec.md` (deep-read sections relevant to $ARGUMENTS)
 - `~/src/graphrefly-ts/docs/implementation-plan-13.6-flowcharts.md` (find the batch matching the slice)
+- `~/src/graphrefly-ts/docs/cross-track-ledger.md` (every time, no exceptions — **surface any unlanded native-side rows as candidates with `[NEEDS-LOCK]` markers for un-D-numbered items**; this is the auto-intake that prevents ledger rot, e.g. the memo:Re P0/P1/P2 rows from 2026-05-16 that sat ~5 days on the native side before the 2026-05-21 D266 batch caught up)
 - `~/src/graphrefly-rs/docs/migration-status.md` (every time, no exceptions)
 - `~/src/graphrefly-rs/docs/porting-deferred.md` (every time, no exceptions)
 - `~/src/graphrefly-rs/CLAUDE.md` (Rust-specific invariants)

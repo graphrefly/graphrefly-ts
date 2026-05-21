@@ -498,6 +498,23 @@ export class AgentLoopGraph extends Graph {
 					chat.append("assistant", response.content, {
 						toolCalls: response.toolCalls,
 					});
+					// EC-2 (DS-2.7.A /qa carry, resolved 2026-05-21):
+					// cap-reached with pending `tool_use` blocks needs synthetic
+					// `tool_result`s — every `tool_use` requires a paired
+					// `tool_result` per Anthropic/OpenAI tool-use schemas, else
+					// audit/replay consumers replaying `loop.chat.allMessages()`
+					// into a fresh `adapter.invoke` see an invalid transcript.
+					// `effFullDeny` (when wired) CANNOT help here: status flips
+					// to `"done"` in this same batch, so `toolCallsRaw` gates
+					// RESOLVED on the next wave (its `stat === "acting"` guard)
+					// and `effFullDeny`'s diamond never delivers DATA. Mirrors
+					// `effFullDeny`'s `"[tool call denied by interceptor]"`
+					// pattern with a maxTurns-specific reason string.
+					if (capReached && hasToolCalls) {
+						for (const tc of response.toolCalls as readonly ToolCall[]) {
+							chat.appendToolResult(tc.id, "[tool call denied: maxTurns reached]");
+						}
+					}
 				});
 			},
 			{ describeKind: "effect" },

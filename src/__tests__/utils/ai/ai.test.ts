@@ -1219,6 +1219,106 @@ describe("patterns.ai.agentLoop", () => {
 		expect(loop.status.cache).toBe("done");
 	});
 
+	it("EC-2: cap-reached with pending tool_use synthesizes denial tool_results (valid transcript)", async () => {
+		// Pre-fix: when `effResponse` hits the cap-reaching turn it flips
+		// `status="acting"→"done"` in the SAME batch that appends the
+		// assistant message with `toolCalls`. `toolCallsRaw` gates on
+		// `stat === "acting"`, so the next wave emits RESOLVED and
+		// `effFullDeny`'s diamond never delivers DATA. The chat transcript
+		// ends with an assistant `tool_use:*` block lacking matching
+		// `tool_result:*` blocks — an invalid transcript per
+		// Anthropic/OpenAI tool-use schemas (every `tool_use` needs a
+		// `tool_result`). Audit/replay consumers replaying
+		// `loop.chat.allMessages()` into a fresh `adapter.invoke` see the
+		// broken prompt. Post-fix: `effResponse`'s batch also synthesizes
+		// `"[tool call denied: maxTurns reached]"` `tool_result`s for every
+		// pending `tool_use` when `capReached && hasToolCalls`.
+		const resp: LLMResponse = {
+			content: "calling tools at the cap",
+			toolCalls: [
+				{ id: "tc1", name: "noop", arguments: {} },
+				{ id: "tc2", name: "noop", arguments: {} },
+			],
+		};
+		// Wrap mockAdapter with an invocation counter (BH-4 hardening):
+		// the cap-reached path must NOT re-invoke the LLM after Wave 0.
+		const inner = mockAdapter([resp]);
+		let invokeCalls = 0;
+		const adapter: LLMAdapter = {
+			...inner,
+			invoke(messages, opts) {
+				invokeCalls++;
+				return inner.invoke(messages, opts);
+			},
+		};
+		const tool: ToolDefinition = {
+			name: "noop",
+			description: "No-op",
+			parameters: {},
+			handler: () => null,
+		};
+		const loop = agentLoop("test-agent", {
+			adapter,
+			tools: [tool],
+			maxTurns: 1, // first turn IS the cap-reaching turn
+		});
+		await loop.run("kick");
+		expect(loop.status.cache).toBe("done");
+		expect(loop.turn.cache).toBe(1);
+		// Exactly one LLM round-trip — the cap-reached synthesis must not
+		// trigger a re-invoke (locks against a regression where status
+		// stays "acting" or "thinking" and loops back to the adapter).
+		expect(invokeCalls).toBe(1);
+
+		// Transcript: user, assistant (with 2 tool_use), 2 synthetic tool_results.
+		const msgs = loop.chat.allMessages();
+		expect(msgs).toHaveLength(4);
+		expect(msgs[0]?.role).toBe("user");
+		expect(msgs[1]?.role).toBe("assistant");
+		expect(msgs[1]?.toolCalls).toHaveLength(2);
+		// Both synthetic results paired with their tool_use ids, in order.
+		expect(msgs[2]).toMatchObject({
+			role: "tool",
+			toolCallId: "tc1",
+			content: "[tool call denied: maxTurns reached]",
+		});
+		expect(msgs[3]).toMatchObject({
+			role: "tool",
+			toolCallId: "tc2",
+			content: "[tool call denied: maxTurns reached]",
+		});
+	});
+
+	it("EC-2 guard: cap-reached WITHOUT tool_use leaves transcript untouched (no spurious synth)", async () => {
+		// Negative test pinning the `capReached && hasToolCalls` guard
+		// (BH-6 hardening): if the LLM's cap-reaching response carries no
+		// tool calls (plain text completion that happens to land on the
+		// cap), the new EC-2 branch MUST NOT append any synthetic
+		// tool_result. A regression that drops the `hasToolCalls` guard
+		// would emit an empty/garbage tool_result loop or otherwise
+		// pollute the transcript.
+		const resp: LLMResponse = {
+			content: "answer at the cap",
+			finishReason: "end_turn",
+		};
+		const adapter = mockAdapter([resp]);
+		const loop = agentLoop("test-agent", {
+			adapter,
+			maxTurns: 1, // cap reached on the first response
+		});
+		await loop.run("ask");
+		expect(loop.status.cache).toBe("done");
+		expect(loop.turn.cache).toBe(1);
+
+		const msgs = loop.chat.allMessages();
+		// user + assistant only — no synthetic tool_results.
+		expect(msgs).toHaveLength(2);
+		expect(msgs[0]?.role).toBe("user");
+		expect(msgs[1]?.role).toBe("assistant");
+		expect(msgs[1]?.toolCalls).toBeUndefined();
+		expect(msgs.filter((m) => m.role === "tool")).toHaveLength(0);
+	});
+
 	it("respects custom stopWhen", async () => {
 		const resp: LLMResponse = { content: "STOP_HERE" };
 		const adapter = mockAdapter([resp]);
@@ -1481,18 +1581,24 @@ describe("patterns.ai.agentLoop", () => {
 		// State-machine trace with `maxTurns: 2`:
 		//   Wave A (turn 0→1, !capReached): effResponse sets status="acting";
 		//     toolCallsRaw emits → gated emits RESOLVED → effFullDeny fires →
-		//     1 synthetic tool message + status → "thinking".
+		//     1 synthetic "[tool call denied by interceptor]" + status →
+		//     "thinking".
 		//   Wave B (turn 1→2, capReached=TRUE): effResponse sets status="done"
 		//     DIRECTLY, never goes through "acting", so toolCallsRaw stays
-		//     RESOLVED → effFullDeny doesn't fire → run resolves.
-		// Net effect: exactly ONE synthetic tool message (Wave A only).
-		// The pre-empting `capReached` in effResponse is what bounds the
-		// loop in normal flow; effFullDeny's own `latestTurn >= maxTurns`
-		// guard is belt-and-suspenders for refactor safety.
+		//     RESOLVED → effFullDeny doesn't fire. However, the EC-2 fix
+		//     (2026-05-21) makes effResponse synthesize a
+		//     "[tool call denied: maxTurns reached]" tool_result for the
+		//     pending tool_use in the same batch — so Wave B contributes
+		//     1 synthetic tool message of its own. Net: TWO synthetic tool
+		//     messages, one per wave, each with the wave-appropriate reason.
+		// Pre-EC-2 this test asserted `toolMsgs.length === 1` and pinned
+		// the orphan-tool_use bug; the assertion was widened to lock the
+		// post-fix valid-transcript contract.
 		await loop.run("go");
 		const toolMsgs = loop.chat.allMessages().filter((m) => m.role === "tool");
-		expect(toolMsgs.length).toBe(1);
+		expect(toolMsgs.length).toBe(2);
 		expect(toolMsgs[0]?.content).toBe("[tool call denied by interceptor]");
+		expect(toolMsgs[1]?.content).toBe("[tool call denied: maxTurns reached]");
 	}, 4000);
 
 	it("partial deny synthesizes tool_results for the denied subset (valid transcript for next adapter.invoke)", async () => {

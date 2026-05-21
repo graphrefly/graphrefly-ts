@@ -33,14 +33,15 @@ AFTER the handshake's sink callback has fired (per the rust binding's
 `bridge_sync_unit` discipline). So `expect(seen).toContain(initial)`
 works synchronously after the await.
 
-**`@graphrefly/native` build:** wired into the workspace via
-`packages/parity-tests/package.json` as a `link:` dependency to
-`../../../graphrefly-rs/crates/graphrefly-bindings-js`. Run
-`pnpm --filter @graphrefly/native build` (requires `@napi-rs/cli` +
-the local Rust toolchain) before `pnpm test:parity` for the rust arm
-to activate. If the `.node` artifact isn't found, `rustImpl` is `null`
-and the registry filters it out — scenarios run against legacy only,
-no test failures from the missing arm.
+**`@graphrefly/native`:** `packages/parity-tests/package.json` depends on
+the published npm package (`^0.0.2`); CI installs it from the registry
+(optional per-platform `.node` sub-packages). For local bindings work in
+`graphrefly-rs`, override at the workspace root, e.g.
+`pnpm.overrides["@graphrefly/native"] = "link:../../../graphrefly-rs/crates/graphrefly-bindings-js"`,
+then `pnpm --filter @graphrefly/native build` before `pnpm test:parity`.
+If the host `.node` isn't available, `rustImpl` is `null` and the registry
+filters it out — scenarios run against legacy only, no failures from the
+missing arm.
 
 **Skipped scenarios (Phase E carry-forward):** reactive describe /
 observe-all-reactive / `g.derived(name, deps, fn)` with arbitrary JS

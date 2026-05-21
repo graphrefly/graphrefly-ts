@@ -10,7 +10,7 @@
 	},
 	"dependencies": {
 		"@graphrefly/pure-ts": "workspace:*",
-		"@graphrefly/native": "link:../../../graphrefly-rs/crates/graphrefly-bindings-js"
+		"@graphrefly/native": "^0.0.2"
 	},
 	"devDependencies": {
 		"@types/node": "^25.5.0",
