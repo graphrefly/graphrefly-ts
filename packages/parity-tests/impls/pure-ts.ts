@@ -883,9 +883,7 @@ function buildPureTsStorage(): StorageImpl {
 					});
 					return {
 						entries: result ? [...result.entries] : [],
-						cursor: result?.cursor
-							? { position: result.cursor.position }
-							: undefined,
+						cursor: result?.cursor ? { position: result.cursor.position } : undefined,
 					};
 				},
 				flush() {
