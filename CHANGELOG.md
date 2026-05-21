@@ -1,5 +1,15 @@
 # [0.44.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.43.0...v0.44.0) (2026-04-29)
 
+## 0.48.0
+
+### Minor Changes
+
+- [`9b3554b`](https://github.com/graphrefly/graphrefly-ts/commit/9b3554b659ccb5aaf1f45dbd1ed933129d691171) Thanks [@clfhhc](https://github.com/clfhhc)! - fix reactive-layout in RN and clear napi
+
+### Patch Changes
+
+- [`cfb1500`](https://github.com/graphrefly/graphrefly-ts/commit/cfb1500250504391683557a0b75cec381ca8e201) Thanks [@clfhhc](https://github.com/clfhhc)! - clean up
+
 ## 0.47.2
 
 ### Patch Changes
