@@ -18,6 +18,7 @@ import {
 	filter,
 	map,
 	merge,
+	mergeMap,
 	switchMap,
 	throttle,
 	timeout,
@@ -320,6 +321,72 @@ describe("P1: switchMap outer-complete waits for inner", () => {
 	});
 });
 
+// --- P1: empty-outer COMPLETE forwards (R2.7.1 terminalAsRealInput opt-in) ---
+//
+// Regression batch for the "switchMap completes when outer completes with no
+// active inner" parity scenario (higher-order.test.ts:54). DS-2.7.A (landed
+// 2026-05-20) made terminal alone no longer settle the first-run gate by
+// default. The *Map family now opts in via `terminalAsRealInput: true` so an
+// empty source (COMPLETE-before-any-DATA) still forwards COMPLETE downstream.
+// Without the opt-in, fn would never fire and the terminal branch would never
+// execute. All four *Map operators get the same regression shape.
+describe("P1: *Map empty-source COMPLETE forwarding (R2.7.1)", () => {
+	it("switchMap forwards COMPLETE when outer COMPLETEs without DATA", () => {
+		const outer = node<number>([]); // pure SENTINEL — no initial
+		const innerProto = node<number>([]);
+		const out = switchMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[COMPLETE]]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("switchMap forwards ERROR when outer ERRORs without DATA", () => {
+		const outer = node<number>([]);
+		const innerProto = node<number>([]);
+		const out = switchMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[ERROR, new Error("outer-fail")]]);
+		expect(hasMsg(batches, ERROR)).toBe(true);
+		unsub();
+	});
+
+	it("exhaustMap forwards COMPLETE when outer COMPLETEs without DATA", () => {
+		const outer = node<number>([]);
+		const innerProto = node<number>([]);
+		const out = exhaustMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[COMPLETE]]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("concatMap forwards COMPLETE when outer COMPLETEs without DATA", () => {
+		const outer = node<number>([]);
+		const innerProto = node<number>([]);
+		const out = concatMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[COMPLETE]]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("mergeMap forwards COMPLETE when outer COMPLETEs without DATA", () => {
+		const outer = node<number>([]);
+		const innerProto = node<number>([]);
+		const out = mergeMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[COMPLETE]]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
+		unsub();
+	});
+});
+
 describe("P1: concatMap inner error propagation", () => {
 	it("inner error forwards to output", () => {
 		const outer = node([], { initial: 0 });
@@ -342,6 +409,59 @@ describe("P1: exhaustMap inner error propagation", () => {
 
 		inner.down([[ERROR, new Error("inner-err")]]);
 		expect(hasMsg(batches, ERROR)).toBe(true);
+		unsub();
+	});
+});
+
+// R2.7.1 empty-source COMPLETE forwarding for the *Map family.
+// Surfaced 2026-05-20 by `packages/parity-tests/scenarios/operators/higher-order.test.ts`
+// after DS-2.7.A made terminal-only no longer settle the first-run gate by
+// default. switchMap/exhaustMap/concatMap/mergeMap each opt in via
+// `terminalAsRealInput: true` so an outer that COMPLETEs without any prior
+// DATA still propagates COMPLETE downstream (active inner state separately
+// gates the actual emit in each operator's fn body).
+describe("R2.7.1: *Map empty-source COMPLETE forwarding", () => {
+	it("switchMap forwards COMPLETE when outer completes with no DATA emitted", () => {
+		const outer = node<number>([]);
+		const innerProto = node<number>([]);
+		const out = switchMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[COMPLETE]]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("exhaustMap forwards COMPLETE when outer completes with no DATA emitted", () => {
+		const outer = node<number>([]);
+		const innerProto = node<number>([]);
+		const out = exhaustMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[COMPLETE]]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("concatMap forwards COMPLETE when outer completes with no DATA emitted", () => {
+		const outer = node<number>([]);
+		const innerProto = node<number>([]);
+		const out = concatMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[COMPLETE]]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("mergeMap forwards COMPLETE when outer completes with no DATA emitted", () => {
+		const outer = node<number>([]);
+		const innerProto = node<number>([]);
+		const out = mergeMap(outer, () => innerProto);
+		const { batches, unsub } = collect(out);
+
+		outer.down([[COMPLETE]]);
+		expect(hasMsg(batches, COMPLETE)).toBe(true);
 		unsub();
 	});
 });

@@ -222,6 +222,12 @@ export function switchMap<T, R>(
 		{
 			...operatorOpts(nodeOpts),
 			completeWhenDepsComplete: false,
+			// R2.7.1 opt-in: source COMPLETE / ERROR alone must release the
+			// first-run gate so the empty-outer terminal path forwards
+			// `[[COMPLETE]]` / `[[ERROR]]` downstream. Without this an outer
+			// that COMPLETEs without ever emitting DATA holds the gate forever
+			// and downstream never settles.
+			terminalAsRealInput: true,
 			meta: { ...factoryTag("switchMap"), ...(nodeOpts.meta ?? {}) },
 		},
 	);
@@ -295,7 +301,12 @@ export function exhaustMap<T, R>(
 				},
 			};
 		},
-		{ ...operatorOpts(nodeOpts), completeWhenDepsComplete: false },
+		{
+			...operatorOpts(nodeOpts),
+			completeWhenDepsComplete: false,
+			// R2.7.1 — see switchMap above; empty-outer COMPLETE must forward.
+			terminalAsRealInput: true,
+		},
 	);
 }
 
@@ -385,7 +396,13 @@ export function concatMap<T, R>(
 				},
 			};
 		},
-		{ ...operatorOpts(concatNodeOpts), completeWhenDepsComplete: false },
+		{
+			...operatorOpts(concatNodeOpts),
+			completeWhenDepsComplete: false,
+			// R2.7.1 — see switchMap above; empty-outer COMPLETE must forward
+			// (queue is empty, tryPump emits COMPLETE).
+			terminalAsRealInput: true,
+		},
 	);
 }
 
@@ -514,7 +531,13 @@ export function mergeMap<T, R>(
 				},
 			};
 		},
-		{ ...operatorOpts(mergeNodeOpts), completeWhenDepsComplete: false },
+		{
+			...operatorOpts(mergeNodeOpts),
+			completeWhenDepsComplete: false,
+			// R2.7.1 — see switchMap above; empty-outer COMPLETE must forward
+			// (active===0 + buffer empty → tryComplete emits COMPLETE).
+			terminalAsRealInput: true,
+		},
 	);
 }
 
