@@ -13,6 +13,7 @@ import { monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { emitToMeta } from "../../base/meta/emit-to-meta.js";
+import { getDefaultSegmentAdapter } from "./measurement-adapters.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,6 +24,75 @@ export interface MeasurementAdapter {
 	measureSegment(text: string, font: string): { width: number };
 	/** Optional; adapters may omit for read-only / stateless measurement. */
 	clearCache?(): void;
+}
+
+/**
+ * A single segmented piece — the structurally-narrowed common shape across
+ * `Intl.Segmenter`'s `Intl.SegmentData` and host-provided polyfills.
+ *
+ * Drops `input` (redundant — the caller already has the text) and narrows
+ * `isWordLike` to "may be missing" so grapheme-granularity callers ignore it
+ * cleanly.
+ */
+export type SegmentInfo = {
+	/** The segmented substring. */
+	segment: string;
+	/** Code-unit offset of `segment` within the input. */
+	index: number;
+	/** True if the word-granularity segment looks like a word (letters / kana / etc.). Always undefined for grapheme granularity. */
+	isWordLike?: boolean;
+};
+
+/**
+ * Pluggable text-segmentation backend (separate from {@link MeasurementAdapter}
+ * because measurement and segmentation are different host concerns —
+ * Skia/Canvas measure widths, ICU segments graphemes/words).
+ *
+ * **Why this exists (DS-2026-05-20 — `optimizations.md` 🟠 (d)).**
+ * `reactive-layout`'s default backend uses `new Intl.Segmenter(...)` for word /
+ * grapheme iteration. Hermes (iOS 26.5 / RN 0.83) ships **without**
+ * `Intl.Segmenter` — `typeof Intl.Segmenter === "undefined"` — and the
+ * constructor throws `Cannot read property 'prototype' of undefined`. This
+ * interface lets RN/Hermes consumers inject their own segmenter (typically a
+ * polyfill wrapper) so the substrate never touches the missing global.
+ *
+ * **Contract:** sync, pure, idempotent. `segmentWords` must mirror
+ * `Intl.Segmenter(undefined, { granularity: "word" }).segment(text)`'s shape
+ * (an iterable of `{ segment, index, isWordLike }`); `segmentGraphemes`
+ * mirrors `{ granularity: "grapheme" }`. The reference implementation is
+ * {@link IntlSegmentAdapter}.
+ *
+ * **Polyfill recipe (RN/Hermes consumer userland — NOT shipped here per the
+ * `bigintJsonCodecFor` userland-binding precedent):**
+ *
+ * ```ts
+ * // Userland — at app entry, before any reactive-layout import:
+ * import "intl-segmenter-polyfill/dist/polyfill"; // or @formatjs/intl-segmenter
+ * // Then the substrate's default IntlSegmentAdapter works:
+ * import { reactiveLayout } from "@graphrefly/graphrefly/utils/reactive-layout";
+ * ```
+ *
+ * Or, without polyfilling the global (preferred — keeps ICU bytes scoped):
+ *
+ * ```ts
+ * // Userland — wrap any segmenter implementation:
+ * import { createIntlSegmenterPolyfill } from "intl-segmenter-polyfill";
+ * import type { SegmentAdapter, SegmentInfo } from "@graphrefly/graphrefly/utils/reactive-layout";
+ *
+ * const wordSeg = await createIntlSegmenterPolyfill({ granularity: "word" });
+ * const graphemeSeg = await createIntlSegmenterPolyfill({ granularity: "grapheme" });
+ * const segmentAdapter: SegmentAdapter = {
+ *   segmentWords: (text) => wordSeg.segment(text) as Iterable<SegmentInfo>,
+ *   segmentGraphemes: (text) => graphemeSeg.segment(text) as Iterable<SegmentInfo>,
+ * };
+ * reactiveLayout({ adapter, segmentAdapter, ... });
+ * ```
+ */
+export interface SegmentAdapter {
+	/** Word-granularity segmentation — yields `{ segment, index, isWordLike }`. */
+	segmentWords(text: string): Iterable<SegmentInfo>;
+	/** Grapheme-granularity segmentation — yields `{ segment, index }`. `isWordLike` is unused / undefined. */
+	segmentGraphemes(text: string): Iterable<SegmentInfo>;
 }
 
 /** Mutable counters for `analyzeAndMeasure` cache hit ratio (hits / (hits + misses)). */
@@ -93,6 +163,13 @@ export type LayoutNextLineContext = {
 	adapter?: MeasurementAdapter;
 	font?: string;
 	cache?: Map<string, Map<string, number>>;
+	/**
+	 * Optional {@link SegmentAdapter} for grapheme slicing during partial-segment
+	 * line builds. Defaults to {@link IntlSegmentAdapter} (lazy module shared);
+	 * Hermes / RN consumers wire their own to avoid the missing-`Intl.Segmenter`
+	 * runtime throw — see {@link SegmentAdapter} JSDoc.
+	 */
+	segmentAdapter?: SegmentAdapter;
 };
 
 /** Result of the reactive layout graph's describe-accessible state. */
@@ -185,22 +262,24 @@ function normalizeWhitespace(text: string): string {
 }
 
 /**
- * Segment text using Intl.Segmenter (word granularity) and classify break kinds.
- * Returns raw segmentation pieces before merging.
+ * Segment text using the supplied {@link SegmentAdapter} (word granularity)
+ * and classify break kinds. Returns raw segmentation pieces before merging.
  */
-function segmentText(normalized: string): {
+function segmentText(
+	normalized: string,
+	segmentAdapter: SegmentAdapter,
+): {
 	texts: string[];
 	isWordLike: boolean[];
 	kinds: SegmentBreakKind[];
 }[] {
-	const wordSegmenter = new Intl.Segmenter(undefined, { granularity: "word" });
 	const pieces: {
 		texts: string[];
 		isWordLike: boolean[];
 		kinds: SegmentBreakKind[];
 	}[] = [];
 
-	for (const s of wordSegmenter.segment(normalized)) {
+	for (const s of segmentAdapter.segmentWords(normalized)) {
 		const text = s.segment;
 		const isWordLike = s.isWordLike ?? false;
 
@@ -254,14 +333,13 @@ export function analyzeAndMeasure(
 	adapter: MeasurementAdapter,
 	cache: Map<string, Map<string, number>>,
 	stats?: SegmentMeasureStats,
+	segmentAdapter?: SegmentAdapter,
 ): PreparedSegment[] {
 	const normalized = normalizeWhitespace(text);
 	if (normalized.length === 0) return [];
 
-	const pieces = segmentText(normalized);
-	const graphemeSegmenter = new Intl.Segmenter(undefined, {
-		granularity: "grapheme",
-	});
+	const segAdapter = segmentAdapter ?? getDefaultSegmentAdapter();
+	const pieces = segmentText(normalized, segAdapter);
 
 	// Flatten pieces into a single segment list with merging
 	const rawTexts: string[] = [];
@@ -360,7 +438,7 @@ export function analyzeAndMeasure(
 		// CJK text: split into per-grapheme segments for line breaking
 		if (isCJK(t)) {
 			let unitText = "";
-			for (const gs of graphemeSegmenter.segment(t)) {
+			for (const gs of segAdapter.segmentGraphemes(t)) {
 				const grapheme = gs.segment;
 
 				// Kinsoku: line-start-prohibited chars stick to preceding unit
@@ -398,7 +476,7 @@ export function analyzeAndMeasure(
 
 		if (mergedWordLike[i] && t.length > 1) {
 			const gWidths: number[] = [];
-			for (const gs of graphemeSegmenter.segment(t)) {
+			for (const gs of segAdapter.segmentGraphemes(t)) {
 				gWidths.push(measureCached(gs.segment));
 			}
 			if (gWidths.length > 1) {
@@ -432,10 +510,12 @@ export function computeLineBreaks(
 	adapter: MeasurementAdapter,
 	font: string,
 	cache: Map<string, Map<string, number>>,
+	segmentAdapter?: SegmentAdapter,
 ): LineBreaksResult {
 	if (segments.length === 0) {
 		return { lines: [], lineCount: 0 };
 	}
+	const segAdapter = segmentAdapter ?? getDefaultSegmentAdapter();
 
 	const lines: LayoutLine[] = [];
 	let lineW = 0;
@@ -467,10 +547,7 @@ export function computeLineBreaks(
 			if (seg.kind === "soft-hyphen" || seg.kind === "hard-break") continue;
 			if (i === lineStartSeg && lineStartGrapheme > 0 && seg.graphemeWidths) {
 				// Partial segment from grapheme break
-				const graphemeSegmenter = new Intl.Segmenter(undefined, {
-					granularity: "grapheme",
-				});
-				const graphemes = [...graphemeSegmenter.segment(seg.text)].map((g) => g.segment);
+				const graphemes = [...segAdapter.segmentGraphemes(seg.text)].map((g) => g.segment);
 				text += graphemes.slice(lineStartGrapheme).join("");
 			} else {
 				text += seg.text;
@@ -479,10 +556,7 @@ export function computeLineBreaks(
 		// Handle partial end segment
 		if (endGrapheme > 0 && endSeg < segments.length) {
 			const seg = segments[endSeg]!;
-			const graphemeSegmenter = new Intl.Segmenter(undefined, {
-				granularity: "grapheme",
-			});
-			const graphemes = [...graphemeSegmenter.segment(seg.text)].map((g) => g.segment);
+			const graphemes = [...segAdapter.segmentGraphemes(seg.text)].map((g) => g.segment);
 			const startG = lineStartSeg === endSeg ? lineStartGrapheme : 0;
 			text += graphemes.slice(startG, endGrapheme).join("");
 		}
@@ -654,20 +728,14 @@ function canBreakAfter(kind: SegmentBreakKind): boolean {
 	return kind === "space" || kind === "zero-width-break" || kind === "soft-hyphen";
 }
 
-// Module-scoped segmenter — `Intl.Segmenter` construction is non-trivial and
-// its `segment()` method is stateless per-call, so one shared instance is safe
-// and avoids ~N-per-frame allocations when many lines cross segment boundaries.
-let _graphemeSegmenter: Intl.Segmenter | null = null;
-function graphemeSegmenter(): Intl.Segmenter {
-	if (_graphemeSegmenter === null) {
-		_graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-	}
-	return _graphemeSegmenter;
-}
-
-function sliceSegmentText(seg: PreparedSegment, startG: number, endG: number): string {
+function sliceSegmentText(
+	seg: PreparedSegment,
+	startG: number,
+	endG: number,
+	segmentAdapter: SegmentAdapter,
+): string {
 	if (startG === 0 && endG < 0) return seg.text;
-	const graphemes = [...graphemeSegmenter().segment(seg.text)].map((g) => g.segment);
+	const graphemes = [...segmentAdapter.segmentGraphemes(seg.text)].map((g) => g.segment);
 	const stop = endG < 0 ? graphemes.length : endG;
 	return graphemes.slice(startG, stop).join("");
 }
@@ -679,13 +747,14 @@ function buildLineText(
 	endSeg: number,
 	endG: number,
 	appendHyphen: boolean,
+	segmentAdapter: SegmentAdapter,
 ): string {
 	let text = "";
 	for (let i = startSeg; i < endSeg; i++) {
 		const seg = segments[i]!;
 		if (seg.kind === "soft-hyphen" || seg.kind === "hard-break") continue;
 		if (i === startSeg && startG > 0) {
-			text += sliceSegmentText(seg, startG, -1);
+			text += sliceSegmentText(seg, startG, -1, segmentAdapter);
 		} else {
 			text += seg.text;
 		}
@@ -693,7 +762,7 @@ function buildLineText(
 	if (endG > 0 && endSeg < segments.length) {
 		const seg = segments[endSeg]!;
 		const from = startSeg === endSeg ? startG : 0;
-		text += sliceSegmentText(seg, from, endG);
+		text += sliceSegmentText(seg, from, endG, segmentAdapter);
 	}
 	if (appendHyphen) text += "-";
 	return text;
@@ -748,6 +817,7 @@ export function layoutNextLine(
 ): LayoutNextLineResult | null {
 	let i = cursor.segmentIndex;
 	const initialG = cursor.graphemeIndex;
+	const segAdapter = ctx?.segmentAdapter ?? getDefaultSegmentAdapter();
 
 	if (i >= segments.length) return null;
 
@@ -826,7 +896,15 @@ export function layoutNextLine(
 		if (seg.graphemeWidths) {
 			const overflowed = consumeBreakable(startSeg, startG, seg.graphemeWidths);
 			if (overflowed) {
-				const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, false);
+				const text = buildLineText(
+					segments,
+					startSeg,
+					startG,
+					lineEndSeg,
+					lineEndG,
+					false,
+					segAdapter,
+				);
 				return {
 					text,
 					width: lineW,
@@ -860,6 +938,7 @@ export function layoutNextLine(
 					lineEndSeg,
 					lineEndG,
 					endsAtSoftHyphen,
+					segAdapter,
 				);
 				return {
 					text,
@@ -882,7 +961,15 @@ export function layoutNextLine(
 			if (w > slotWidth && seg.graphemeWidths) {
 				const overflowed = consumeBreakable(i, 0, seg.graphemeWidths);
 				if (overflowed) {
-					const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, false);
+					const text = buildLineText(
+						segments,
+						startSeg,
+						startG,
+						lineEndSeg,
+						lineEndG,
+						false,
+						segAdapter,
+					);
 					return {
 						text,
 						width: lineW,
@@ -925,6 +1012,7 @@ export function layoutNextLine(
 					lineEndSeg,
 					lineEndG,
 					endsAtSoftHyphen,
+					segAdapter,
 				);
 				return {
 					text,
@@ -942,6 +1030,7 @@ export function layoutNextLine(
 					pendingBreakSeg,
 					pendingBreakG,
 					pendingBreakSoftHyphen,
+					segAdapter,
 				);
 				return {
 					text,
@@ -952,7 +1041,15 @@ export function layoutNextLine(
 			}
 
 			if (w > slotWidth && seg.graphemeWidths) {
-				const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, false);
+				const text = buildLineText(
+					segments,
+					startSeg,
+					startG,
+					lineEndSeg,
+					lineEndG,
+					false,
+					segAdapter,
+				);
 				return {
 					text,
 					width: lineW,
@@ -961,7 +1058,15 @@ export function layoutNextLine(
 				};
 			}
 
-			const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, false);
+			const text = buildLineText(
+				segments,
+				startSeg,
+				startG,
+				lineEndSeg,
+				lineEndG,
+				false,
+				segAdapter,
+			);
 			return {
 				text,
 				width: lineW,
@@ -982,7 +1087,15 @@ export function layoutNextLine(
 	if (!hasContent) return null;
 
 	const endsAtSoftHyphen = lineEndSeg > 0 && segments[lineEndSeg - 1]?.kind === "soft-hyphen";
-	const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, endsAtSoftHyphen);
+	const text = buildLineText(
+		segments,
+		startSeg,
+		startG,
+		lineEndSeg,
+		lineEndG,
+		endsAtSoftHyphen,
+		segAdapter,
+	);
 	return {
 		text,
 		width: lineW + (endsAtSoftHyphen ? hyphenWidth : 0),
@@ -1042,11 +1155,10 @@ export function computeCharPositions(
 	lineBreaks: LineBreaksResult,
 	segments: PreparedSegment[],
 	lineHeight: number,
+	segmentAdapter?: SegmentAdapter,
 ): CharPosition[] {
 	const positions: CharPosition[] = [];
-	const graphemeSegmenter = new Intl.Segmenter(undefined, {
-		granularity: "grapheme",
-	});
+	const segAdapter = segmentAdapter ?? getDefaultSegmentAdapter();
 
 	for (let lineIdx = 0; lineIdx < lineBreaks.lines.length; lineIdx++) {
 		const line = lineBreaks.lines[lineIdx]!;
@@ -1061,7 +1173,7 @@ export function computeCharPositions(
 				continue;
 			}
 
-			const graphemes = [...graphemeSegmenter.segment(seg.text)].map((g) => g.segment);
+			const graphemes = [...segAdapter.segmentGraphemes(seg.text)].map((g) => g.segment);
 			if (graphemes.length === 0) continue;
 			const startG = si === line.startSegment ? line.startGrapheme : 0;
 
@@ -1096,6 +1208,13 @@ export function computeCharPositions(
 export type ReactiveLayoutOptions = {
 	/** Measurement backend (required). */
 	adapter: MeasurementAdapter;
+	/**
+	 * Segmentation backend (optional). Defaults to a lazy {@link IntlSegmentAdapter}
+	 * (uses platform `Intl.Segmenter`). **Required on Hermes / RN** where
+	 * `Intl.Segmenter` is undefined — wire a polyfilled {@link SegmentAdapter}
+	 * here. See {@link SegmentAdapter} JSDoc for the polyfill recipe.
+	 */
+	segmentAdapter?: SegmentAdapter;
 	/** Graph name (default: "reactive-layout"). */
 	name?: string;
 	/** Initial text. */
@@ -1124,7 +1243,12 @@ export type ReactiveLayoutOptions = {
  * ```
  */
 export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundle {
-	const { adapter, name = "reactive-layout" } = opts;
+	const { adapter, segmentAdapter: segmentAdapterOpt, name = "reactive-layout" } = opts;
+	// Resolve eagerly so a Hermes consumer without an explicit `segmentAdapter`
+	// sees the clear `IntlSegmentAdapter` "supply a SegmentAdapter" error at
+	// factory construction time (not later, on first text wave). When the
+	// caller wires their own, no `Intl.Segmenter` access happens here.
+	const segmentAdapter: SegmentAdapter = segmentAdapterOpt ?? getDefaultSegmentAdapter();
 	const g = new Graph(name);
 
 	// Shared measurement cache: Map<font, Map<segment, width>>
@@ -1175,6 +1299,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				adapter,
 				measureCache,
 				measureStats,
+				segmentAdapter,
 			);
 			const elapsed = monotonicNs() - t0;
 
@@ -1249,6 +1374,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 					adapter,
 					data[2] as string,
 					measureCache,
+					segmentAdapter,
 				),
 			);
 		},
@@ -1302,6 +1428,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 					data[0] as LineBreaksResult,
 					data[1] as PreparedSegment[],
 					data[2] as number,
+					segmentAdapter,
 				),
 			);
 		},

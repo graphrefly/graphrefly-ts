@@ -137,32 +137,55 @@ Use the **[interactive demo](/demos/reactive-layout/)** Blocks and Flow chapters
 
 - **Browser:** `CanvasMeasureAdapter` (uses `OffscreenCanvas` when available).
 - **Terminal / snapshots:** `CliMeasureAdapter` for fixed character width without a DOM.
-- **React Native / Hermes:** `InjectedMeasureAdapter` — wrap a host sync `(text, font) => widthPx` function (see below).
+- **React Native / Hermes:** `InjectedMeasureAdapter` for text measurement + `SegmentAdapter` for text segmentation (Hermes has no `Intl.Segmenter`) — wrap a host sync measure fn and a segmenter polyfill (see below).
 - **Precomputed / shared cache:** swap adapters without changing consumer code — the demo's **Adapters** chapter runs multiple backends against the same graph shape.
 
 First measurement on a **new font** is slower while the font loads; later calls hit the per-font cache.
 
 ### React Native / Hermes
 
-`@graphrefly/graphrefly/utils/reactive-layout` is **Hermes-safe**: its core imports only `@graphrefly/pure-ts/core` + `@graphrefly/pure-ts/graph` — zero `node:*`, and the **only** DOM touchpoint is `CanvasMeasureAdapter`'s `OffscreenCanvas`, reached behind a runtime `typeof OffscreenCanvas === "undefined"` guard (no static import). So the engine loads and runs on Hermes; you just supply a non-DOM measure adapter (the runtime `typeof` bail is what makes that crash-safe).
+`@graphrefly/graphrefly/utils/reactive-layout` is **Hermes-safe at import**: its core imports only `@graphrefly/pure-ts/core` + `@graphrefly/pure-ts/graph` — zero `node:*`, and the only DOM touchpoint is `CanvasMeasureAdapter`'s `OffscreenCanvas`, reached behind a runtime `typeof OffscreenCanvas === "undefined"` guard (no static import). The engine loads on Hermes; **two host-injected adapters** are required to also be Hermes-safe **at runtime**:
 
-A scoped browser-safety bundle assertion over the `utils/reactive-layout` entry runs at build time (same bar/precedent as the substrate's `assertBrowserSafeBundles`). It **soundly** fails the build on any transitive `node:*` import, and **heuristically** fails it if a reachable chunk references a DOM global (`document`, `OffscreenCanvas`, …) that is *not* `typeof`-guarded in its file — i.e. it mechanically enforces the `typeof`-guard convention and catches a new unguarded DOM regression. It is **not** a proof of DOM-freedom (a file could `typeof`-guard a global once yet misuse it elsewhere); ultimate Hermes-crash-safety still rests on the runtime guards plus the manual audit, not on this assertion alone.
+1. **`segmentAdapter`** — text segmentation. The default `IntlSegmentAdapter` wraps platform `Intl.Segmenter`, which Hermes (iOS 26.5 / RN 0.83) does **not** ship. Without an injected `SegmentAdapter`, `reactiveLayout({ ... })` throws a clear `TypeError` at factory construction (the eager fail-fast is better DX than the deep-stack `Cannot read property 'prototype' of undefined` you'd see otherwise).
+2. **`adapter`** (already shipped 2026-05-19) — text measurement. RN has no DOM/`OffscreenCanvas`. Use `InjectedMeasureAdapter` with any sync `(text, font) => widthPx`.
 
-RN has no DOM/`OffscreenCanvas`. Use `InjectedMeasureAdapter`, the documented RN measure-adapter contract — it wraps any **synchronous** `(text, font) => widthPx`. The substrate ships the generic seam + contract; the concrete native binding stays userland (same split as the userland `bytes`-`StorageBackend` adapter vs. the upstream `bigintJsonCodecFor`).
+The build-time bundle assertion (described below) confirms zero `node:*` + zero unguarded DOM globals at *import* surface; runtime `Intl.Segmenter` access is **not** an import-time signal, which is why this RN block now documents the `segmentAdapter` injection explicitly.
+
+A scoped browser-safety bundle assertion over the `utils/reactive-layout` entry runs at build time (same bar/precedent as the substrate's `assertBrowserSafeBundles`). It **soundly** fails the build on any transitive `node:*` import, and **heuristically** fails it if a reachable chunk references a DOM global (`document`, `OffscreenCanvas`, …) that is *not* `typeof`-guarded in its file — i.e. it mechanically enforces the `typeof`-guard convention and catches a new unguarded DOM regression. It is **not** a proof of DOM-freedom (a file could `typeof`-guard a global once yet misuse it elsewhere); ultimate Hermes-crash-safety still rests on the runtime guards plus the manual audit plus the two host-injected adapters above.
+
+The substrate ships the generic seams + contracts (`MeasurementAdapter`, `SegmentAdapter`); the concrete native bindings stay userland (same split as the userland `bytes`-`StorageBackend` adapter vs. the upstream `bigintJsonCodecFor`).
 
 ```ts
 import { Skia } from "@shopify/react-native-skia";
-import { reactiveLayout, InjectedMeasureAdapter } from "@graphrefly/graphrefly/utils/reactive-layout";
+import {
+  reactiveLayout,
+  InjectedMeasureAdapter,
+  type SegmentAdapter,
+  type SegmentInfo,
+} from "@graphrefly/graphrefly/utils/reactive-layout";
+import { createIntlSegmenterPolyfill } from "intl-segmenter-polyfill"; // or @formatjs/intl-segmenter
 
+// 1. Build segmenters from your polyfill of choice (Hermes ships no Intl.Segmenter).
+const wordSeg = await createIntlSegmenterPolyfill({ granularity: "word" });
+const graphemeSeg = await createIntlSegmenterPolyfill({ granularity: "grapheme" });
+const segmentAdapter: SegmentAdapter = {
+  segmentWords: (text) => wordSeg.segment(text) as Iterable<SegmentInfo>,
+  segmentGraphemes: (text) => graphemeSeg.segment(text) as Iterable<SegmentInfo>,
+};
+
+// 2. Build the Skia measure fn (synchronous — perfect fit for the reactive graph).
 const skFont = Skia.Font(typeface, 16); // built once, outside the measure fn
 const layout = reactiveLayout({
   adapter: new InjectedMeasureAdapter((text) => skFont.measureText(text).width),
+  segmentAdapter,
   font: "16px Kalam",
   maxWidth: screenWidth,
 });
 ```
 
-`Skia.Font.measureText` (and RN core text metrics) are synchronous — a perfect fit for the pure-arithmetic layout graph. Pass `{ cache: true }` to memoize by `font + text` for repeated re-layout of stable content.
+Alternative: install a global polyfill at app entry (`import "intl-segmenter-polyfill/dist/polyfill"` before any reactive-layout import); the default `IntlSegmentAdapter` then picks it up automatically. The injected `SegmentAdapter` path is preferred because it keeps the ICU bytes scoped to consumers that need them.
+
+`Skia.Font.measureText` (and RN core text metrics) are synchronous — a perfect fit for the pure-arithmetic layout graph. Pass `{ cache: true }` on `InjectedMeasureAdapter` to memoize widths by `font + text` for repeated re-layout of stable content.
 
 ### Fidelity and runtime caveats
 

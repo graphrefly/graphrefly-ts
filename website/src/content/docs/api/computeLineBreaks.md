@@ -21,6 +21,7 @@ function computeLineBreaks(
 	adapter: MeasurementAdapter,
 	font: string,
 	cache: Map<string, Map<string, number>>,
+	segmentAdapter?: SegmentAdapter,
 ): LineBreaksResult
 ```
 
@@ -33,3 +34,4 @@ function computeLineBreaks(
 | `adapter` | `MeasurementAdapter` |  |
 | `font` | `string` |  |
 | `cache` | `Map&lt;string, Map&lt;string, number&gt;&gt;` |  |
+| `segmentAdapter` | `SegmentAdapter` |  |

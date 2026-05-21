@@ -6,7 +6,97 @@
  */
 
 import { countCells } from "../../base/render/_ascii-width.js";
-import type { MeasurementAdapter } from "./reactive-layout.js";
+import type { MeasurementAdapter, SegmentAdapter, SegmentInfo } from "./reactive-layout.js";
+
+// ---------------------------------------------------------------------------
+// IntlSegmentAdapter (universal default — wraps the platform `Intl.Segmenter`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reference {@link SegmentAdapter} backed by the platform `Intl.Segmenter`
+ * — the substrate's default on engines that ship `Intl.Segmenter` (V8,
+ * SpiderMonkey, JSC, modern Node, browsers).
+ *
+ * **Hermes / RN consumers must not use this** — Hermes ships without
+ * `Intl.Segmenter`, and the constructor below throws a clear `TypeError`
+ * naming the polyfill path (`optimizations.md` 🟠 (d), 2026-05-20). Wire a
+ * custom {@link SegmentAdapter} via `reactiveLayout({ segmentAdapter })`
+ * instead — see the {@link SegmentAdapter} JSDoc for the recipe.
+ *
+ * Per-granularity `Intl.Segmenter` instances are lazy-cached internally
+ * (matches the pre-DS module-scoped lazy that this class replaces — see
+ * the pre-2026-05-20 `_graphemeSegmenter` helper in `reactive-layout.ts`).
+ * Construction is eager (`new IntlSegmentAdapter()` throws on Hermes) so
+ * the failure surfaces at factory boot, not at first text-measure call.
+ *
+ * @remarks
+ * Construction policy is **fail-fast**: an engine without `Intl.Segmenter`
+ * is fundamentally unable to use this adapter, and silently lazy-deferring
+ * the throw would just shift it from `reactiveLayout({})` into the first
+ * `analyzeAndMeasure` invocation deep in a reactive wave (the original
+ * memo:Re Story 3.6 failure shape — non-resubscribable terminal on
+ * `measured-blocks`, cryptic `Cannot read property 'prototype' of
+ * undefined`). Eager throw with the polyfill recipe is the better DX.
+ */
+export class IntlSegmentAdapter implements SegmentAdapter {
+	private wordSeg: Intl.Segmenter | null = null;
+	private graphemeSeg: Intl.Segmenter | null = null;
+
+	constructor() {
+		if (typeof Intl === "undefined" || typeof Intl.Segmenter !== "function") {
+			throw new TypeError(
+				"IntlSegmentAdapter: Intl.Segmenter is not available in this runtime " +
+					"(Hermes / older embedded JS engines). Pass a custom SegmentAdapter via " +
+					"`reactiveLayout({ segmentAdapter })` — see the SegmentAdapter JSDoc for the " +
+					"polyfill recipe (e.g. `intl-segmenter-polyfill` or `@formatjs/intl-segmenter`).",
+			);
+		}
+	}
+
+	segmentWords(text: string): Iterable<SegmentInfo> {
+		if (this.wordSeg === null) {
+			this.wordSeg = new Intl.Segmenter(undefined, { granularity: "word" });
+		}
+		return this.wordSeg.segment(text);
+	}
+
+	segmentGraphemes(text: string): Iterable<SegmentInfo> {
+		if (this.graphemeSeg === null) {
+			this.graphemeSeg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+		}
+		return this.graphemeSeg.segment(text);
+	}
+}
+
+/**
+ * Module-shared lazy default {@link SegmentAdapter}. Constructed at most once,
+ * on first call. Throws via {@link IntlSegmentAdapter}'s constructor if the
+ * runtime lacks `Intl.Segmenter`.
+ *
+ * Used by the substrate's `analyzeAndMeasure` / `computeLineBreaks` /
+ * `computeCharPositions` / `layoutNextLine` helpers when the caller did not
+ * supply an explicit `segmentAdapter`. Public factories
+ * (`reactiveLayout`/`reactiveBlockLayout`/`reactiveFlowLayout`) expose
+ * `segmentAdapter?` in their options — Hermes consumers wire their own and
+ * never reach this default.
+ */
+let _defaultSegmentAdapter: SegmentAdapter | null = null;
+export function getDefaultSegmentAdapter(): SegmentAdapter {
+	if (_defaultSegmentAdapter === null) {
+		_defaultSegmentAdapter = new IntlSegmentAdapter();
+	}
+	return _defaultSegmentAdapter;
+}
+
+/**
+ * Test-only: reset the module-shared default. Use in `afterEach` after stubbing
+ * `Intl.Segmenter` so a subsequent unstubbed test rebuilds a fresh default.
+ *
+ * @internal
+ */
+export function _resetDefaultSegmentAdapterForTests(): void {
+	_defaultSegmentAdapter = null;
+}
 
 // ---------------------------------------------------------------------------
 // CliMeasureAdapter

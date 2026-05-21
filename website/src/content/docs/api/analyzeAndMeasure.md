@@ -15,6 +15,7 @@ function analyzeAndMeasure(
 	adapter: MeasurementAdapter,
 	cache: Map<string, Map<string, number>>,
 	stats?: SegmentMeasureStats,
+	segmentAdapter?: SegmentAdapter,
 ): PreparedSegment[]
 ```
 
@@ -27,3 +28,4 @@ function analyzeAndMeasure(
 | `adapter` | `MeasurementAdapter` |  |
 | `cache` | `Map&lt;string, Map&lt;string, number&gt;&gt;` |  |
 | `stats` | `SegmentMeasureStats` |  |
+| `segmentAdapter` | `SegmentAdapter` |  |

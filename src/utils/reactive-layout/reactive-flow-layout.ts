@@ -32,6 +32,7 @@ import { monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { emitToMeta } from "../../base/meta/emit-to-meta.js";
+import { getDefaultSegmentAdapter } from "./measurement-adapters.js";
 import {
 	analyzeAndMeasure,
 	carveTextLineSlots,
@@ -40,6 +41,7 @@ import {
 	layoutNextLine,
 	type MeasurementAdapter,
 	type PreparedSegment,
+	type SegmentAdapter,
 } from "./reactive-layout.js";
 
 // ---------------------------------------------------------------------------
@@ -159,6 +161,11 @@ export type PositionedLine = {
 /** Options for `reactiveFlowLayout`. */
 export type ReactiveFlowLayoutOptions = {
 	adapter: MeasurementAdapter;
+	/**
+	 * Segmentation backend (optional). Defaults to a lazy {@link IntlSegmentAdapter};
+	 * **must be supplied on Hermes / RN** — see {@link SegmentAdapter}.
+	 */
+	segmentAdapter?: SegmentAdapter;
 	name?: string;
 	text?: string;
 	font?: string;
@@ -219,6 +226,13 @@ export type ComputeFlowLinesOptions = {
 	 * set larger (e.g. `2 * lineHeight`) for looser manuscript settings.
 	 */
 	paragraphSpacing?: number;
+	/**
+	 * Segmentation adapter passed through to internal `layoutNextLine` calls
+	 * (the grapheme-slicing path triggers on partial-segment breaks). Defaults
+	 * to the lazy {@link IntlSegmentAdapter}; **wire a polyfilled
+	 * {@link SegmentAdapter} on Hermes / RN.**
+	 */
+	segmentAdapter?: SegmentAdapter;
 };
 
 /**
@@ -239,6 +253,7 @@ export function computeFlowLines(
 	opts?: ComputeFlowLinesOptions,
 ): FlowLinesResult {
 	const paragraphSpacing = opts?.paragraphSpacing ?? lineHeight;
+	const segmentAdapterCtx = opts?.segmentAdapter;
 	const lines: PositionedLine[] = [];
 	let cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
 	if (segments.length === 0 || columns.count <= 0 || lineHeight <= 0) {
@@ -276,7 +291,12 @@ export function computeFlowLines(
 			for (let si = 0; si < slots.length; si++) {
 				const slot = slots[si]!;
 				const slotW = slot.right - slot.left;
-				const line = layoutNextLine(segments, cursor, slotW);
+				const line = layoutNextLine(
+					segments,
+					cursor,
+					slotW,
+					segmentAdapterCtx ? { segmentAdapter: segmentAdapterCtx } : undefined,
+				);
 				if (line === null) {
 					return { lines, cursor };
 				}
@@ -349,7 +369,14 @@ export function computeFlowLines(
  * ```
  */
 export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlowLayoutBundle {
-	const { adapter, name = "reactive-flow-layout", minSlotWidth = 20 } = opts;
+	const {
+		adapter,
+		segmentAdapter: segmentAdapterOpt,
+		name = "reactive-flow-layout",
+		minSlotWidth = 20,
+	} = opts;
+	// Eager resolve — fail-fast on Hermes-without-explicit-adapter at factory construction.
+	const segmentAdapter: SegmentAdapter = segmentAdapterOpt ?? getDefaultSegmentAdapter();
 	const g = new Graph(name);
 
 	const measureCache = new Map<string, Map<string, number>>();
@@ -384,7 +411,14 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 			const textVal = (b0 != null && b0.length > 0 ? b0.at(-1) : ctx.prevData[0]) as string;
 			const b1 = data[1];
 			const fontVal = (b1 != null && b1.length > 0 ? b1.at(-1) : ctx.prevData[1]) as string;
-			const result = analyzeAndMeasure(textVal, fontVal, adapter, measureCache);
+			const result = analyzeAndMeasure(
+				textVal,
+				fontVal,
+				adapter,
+				measureCache,
+				undefined,
+				segmentAdapter,
+			);
 			actions.emit(result);
 			// Flush on deactivation + INVALIDATE only — preserve cache across
 			// fn re-runs so text/font edits don't wipe per-segment entries that
@@ -417,7 +451,7 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 				data[3] as Obstacle[],
 				data[4] as number,
 				minSlotWidth,
-				{ paragraphSpacing: effectiveSpacing },
+				{ paragraphSpacing: effectiveSpacing, segmentAdapter },
 			);
 			const elapsed = monotonicNs() - t0;
 			// Overflow signal: segments left unlaid-out after the container is

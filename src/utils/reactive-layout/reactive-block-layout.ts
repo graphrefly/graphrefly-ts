@@ -20,6 +20,7 @@ import { monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
 
 import { Graph } from "@graphrefly/pure-ts/graph";
 import { emitToMeta } from "../../base/meta/emit-to-meta.js";
+import { getDefaultSegmentAdapter } from "./measurement-adapters.js";
 import {
 	analyzeAndMeasure,
 	type CharPosition,
@@ -28,6 +29,7 @@ import {
 	type LineBreaksResult,
 	type MeasurementAdapter,
 	type PreparedSegment,
+	type SegmentAdapter,
 } from "./reactive-layout.js";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +50,12 @@ export interface ImageMeasurer {
 export type BlockAdapters = {
 	/** Text measurement adapter (required — delegates to `reactiveLayout` internals). */
 	text: MeasurementAdapter;
+	/**
+	 * Text segmentation adapter (optional). Defaults to a lazy
+	 * {@link IntlSegmentAdapter}; **must be supplied on Hermes / RN** to avoid
+	 * the missing-`Intl.Segmenter` runtime throw — see {@link SegmentAdapter}.
+	 */
+	segment?: SegmentAdapter;
 	/** SVG measurement (optional — required only if SVG blocks are present). */
 	svg?: SvgMeasurer;
 	/** Image measurement (optional — required only if image blocks without explicit dimensions are present). */
@@ -149,9 +157,24 @@ export function measureBlock(
 		case "text": {
 			const font = block.font ?? defaultFont;
 			const lineHeight = block.lineHeight ?? defaultLineHeight;
-			const segments = analyzeAndMeasure(block.text, font, adapters.text, measureCache);
-			const lineBreaks = computeLineBreaks(segments, maxWidth, adapters.text, font, measureCache);
-			const charPositions = computeCharPositions(lineBreaks, segments, lineHeight);
+			const segAdapter = adapters.segment ?? getDefaultSegmentAdapter();
+			const segments = analyzeAndMeasure(
+				block.text,
+				font,
+				adapters.text,
+				measureCache,
+				undefined,
+				segAdapter,
+			);
+			const lineBreaks = computeLineBreaks(
+				segments,
+				maxWidth,
+				adapters.text,
+				font,
+				measureCache,
+				segAdapter,
+			);
+			const charPositions = computeCharPositions(lineBreaks, segments, lineHeight, segAdapter);
 			const height = lineBreaks.lineCount * lineHeight;
 			// Width is the max line width (clamped to maxWidth)
 			let width = 0;

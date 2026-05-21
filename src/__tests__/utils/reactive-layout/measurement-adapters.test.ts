@@ -3,14 +3,21 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+	_resetDefaultSegmentAdapterForTests,
 	CanvasMeasureAdapter,
 	type CanvasModule,
 	CliMeasureAdapter,
+	getDefaultSegmentAdapter,
 	InjectedMeasureAdapter,
+	IntlSegmentAdapter,
 	NodeCanvasMeasureAdapter,
 	PrecomputedAdapter,
 } from "../../../utils/reactive-layout/measurement-adapters.js";
-import type { MeasurementAdapter } from "../../../utils/reactive-layout/reactive-layout.js";
+import type {
+	MeasurementAdapter,
+	SegmentAdapter,
+	SegmentInfo,
+} from "../../../utils/reactive-layout/reactive-layout.js";
 import {
 	analyzeAndMeasure,
 	reactiveLayout,
@@ -399,5 +406,223 @@ describe("InjectedMeasureAdapter", () => {
 
 	it("rejects a non-function measure fn", () => {
 		expect(() => new InjectedMeasureAdapter(undefined as never)).toThrow(TypeError);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// IntlSegmentAdapter (default reference SegmentAdapter)
+//
+// DS-2026-05-20 — `optimizations.md` 🟠 (d). Hermes-runtime-gap follow-up:
+// these tests pin the cross-port contract (delegate to platform
+// `Intl.Segmenter` when present; throw a clear "supply a SegmentAdapter"
+// error when absent — the runtime that bit memo:Re Story 3.6).
+// ---------------------------------------------------------------------------
+
+describe("IntlSegmentAdapter", () => {
+	it("constructs on a runtime with Intl.Segmenter", () => {
+		const a = new IntlSegmentAdapter();
+		expect(a).toBeInstanceOf(IntlSegmentAdapter);
+	});
+
+	it("segmentWords yields { segment, index, isWordLike } matching Intl.Segmenter shape", () => {
+		const a = new IntlSegmentAdapter();
+		const segs = [...a.segmentWords("hello world")];
+		// Expect at least one wordLike + one non-wordLike (space). Be tolerant
+		// of Intl.Segmenter implementation-detail boundaries; structural-only.
+		expect(segs.length).toBeGreaterThan(0);
+		const wordLikes = segs.filter((s) => s.isWordLike === true).map((s) => s.segment);
+		expect(wordLikes).toContain("hello");
+		expect(wordLikes).toContain("world");
+		for (const s of segs) {
+			expect(typeof s.segment).toBe("string");
+			expect(typeof s.index).toBe("number");
+		}
+	});
+
+	it("segmentGraphemes yields { segment, index } per grapheme cluster", () => {
+		const a = new IntlSegmentAdapter();
+		// "a‍‍" is one grapheme; "ab" is two graphemes.
+		const ab = [...a.segmentGraphemes("ab")].map((s) => s.segment);
+		expect(ab).toEqual(["a", "b"]);
+	});
+
+	it("caches per-granularity Intl.Segmenter across calls (allocates once)", () => {
+		const a = new IntlSegmentAdapter();
+		// Spying on the constructor is brittle; instead, exercise both paths
+		// and assert the iterator output stays consistent (same instance
+		// behavior). This is a smoke test, not a perf assertion.
+		const a1 = [...a.segmentGraphemes("xy")].map((s) => s.segment);
+		const a2 = [...a.segmentGraphemes("xy")].map((s) => s.segment);
+		expect(a1).toEqual(a2);
+		const w1 = [...a.segmentWords("a b")].map((s) => s.segment);
+		const w2 = [...a.segmentWords("a b")].map((s) => s.segment);
+		expect(w1).toEqual(w2);
+	});
+
+	// R-RL-Hermes-2026-05-20: the failure shape memo:Re Story 3.6 hit.
+	// Stubbing `Intl.Segmenter` to undefined emulates Hermes / iOS 26.5
+	// (where `Intl.Segmenter typeof === "undefined"`). The pre-DS substrate
+	// would throw `Cannot read property 'prototype' of undefined` deep in
+	// the reactive wave; post-DS, IntlSegmentAdapter throws a clear,
+	// recipe-naming TypeError at construction time.
+	it("throws a clear TypeError when Intl.Segmenter is undefined (Hermes shape)", () => {
+		const orig = (Intl as unknown as { Segmenter: unknown }).Segmenter;
+		try {
+			(Intl as unknown as { Segmenter: unknown }).Segmenter = undefined;
+			expect(() => new IntlSegmentAdapter()).toThrow(TypeError);
+			try {
+				new IntlSegmentAdapter();
+				expect.fail("Expected TypeError");
+			} catch (e) {
+				expect((e as Error).message).toMatch(/Intl\.Segmenter is not available/);
+				expect((e as Error).message).toMatch(/segmentAdapter/);
+				expect((e as Error).message).toMatch(/polyfill/i);
+			}
+		} finally {
+			(Intl as unknown as { Segmenter: unknown }).Segmenter = orig;
+		}
+	});
+
+	it("getDefaultSegmentAdapter returns a lazy, module-shared instance", () => {
+		_resetDefaultSegmentAdapterForTests();
+		const d1 = getDefaultSegmentAdapter();
+		const d2 = getDefaultSegmentAdapter();
+		expect(d1).toBe(d2);
+		expect(d1).toBeInstanceOf(IntlSegmentAdapter);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Host-injected SegmentAdapter — end-to-end (the actual Hermes-shape coverage)
+// ---------------------------------------------------------------------------
+
+describe("Host-injected SegmentAdapter end-to-end", () => {
+	/**
+	 * Build a fake SegmentAdapter that does NOT reference `Intl.Segmenter` —
+	 * this proves the substrate routes through `opts.segmentAdapter` and
+	 * never touches the platform global. On Hermes, a host wires the same
+	 * shape over a polyfill (or RN-native segmenter); here we stub the
+	 * minimum a polyfill would expose: word + grapheme iteration.
+	 */
+	function makeFakeSegmentAdapter(): SegmentAdapter & { sawWord: number; sawGrapheme: number } {
+		let sawWord = 0;
+		let sawGrapheme = 0;
+		const adapter: SegmentAdapter & { sawWord: number; sawGrapheme: number } = {
+			sawWord: 0,
+			sawGrapheme: 0,
+			segmentWords(text: string): Iterable<SegmentInfo> {
+				sawWord += 1;
+				adapter.sawWord = sawWord;
+				// Naive word split on space — sufficient for the smoke-test
+				// shape; production Hermes consumers wrap a proper polyfill.
+				const out: SegmentInfo[] = [];
+				let i = 0;
+				let acc = "";
+				let accStart = 0;
+				for (let k = 0; k < text.length; k++) {
+					const ch = text[k]!;
+					if (ch === " ") {
+						if (acc) {
+							out.push({ segment: acc, index: accStart, isWordLike: true });
+							acc = "";
+						}
+						out.push({ segment: " ", index: k, isWordLike: false });
+						accStart = k + 1;
+					} else {
+						if (acc === "") accStart = k;
+						acc += ch;
+					}
+					i = k;
+				}
+				if (acc) out.push({ segment: acc, index: accStart, isWordLike: true });
+				void i;
+				return out;
+			},
+			segmentGraphemes(text: string): Iterable<SegmentInfo> {
+				sawGrapheme += 1;
+				adapter.sawGrapheme = sawGrapheme;
+				const out: SegmentInfo[] = [];
+				for (let k = 0; k < text.length; k++) {
+					out.push({ segment: text[k]!, index: k });
+				}
+				return out;
+			},
+		};
+		return adapter;
+	}
+
+	it("reactiveLayout({ segmentAdapter }) routes through the injected adapter (no Intl.Segmenter access)", () => {
+		const fake = makeFakeSegmentAdapter();
+		const bundle = reactiveLayout({
+			adapter: new InjectedMeasureAdapter((t) => t.length * 9),
+			segmentAdapter: fake,
+			text: "hello world",
+			font: "16px mono",
+			maxWidth: 200,
+		});
+		const unsub = bundle.segments.subscribe(() => {});
+		// Adapter must have been consulted at least once for word + grapheme.
+		expect(fake.sawWord).toBeGreaterThan(0);
+		expect(bundle.segments.cache).not.toBeNull();
+		expect((bundle.segments.cache as { text: string }[]).length).toBeGreaterThan(0);
+		unsub();
+		bundle.graph.destroy();
+	});
+
+	it("reactiveLayout still works on Hermes-shape runtime when segmentAdapter is supplied (Intl.Segmenter stubbed undefined)", () => {
+		// Reset the module-shared default so this test doesn't pick up a
+		// previously-constructed live IntlSegmentAdapter.
+		_resetDefaultSegmentAdapterForTests();
+		const orig = (Intl as unknown as { Segmenter: unknown }).Segmenter;
+		try {
+			(Intl as unknown as { Segmenter: unknown }).Segmenter = undefined;
+			const fake = makeFakeSegmentAdapter();
+			// Must NOT throw — substrate never reaches `Intl.Segmenter` because
+			// `segmentAdapter` short-circuits `getDefaultSegmentAdapter()`.
+			const bundle = reactiveLayout({
+				adapter: new InjectedMeasureAdapter((t) => t.length * 9),
+				segmentAdapter: fake,
+				text: "hello world",
+				font: "16px mono",
+				maxWidth: 200,
+			});
+			const unsub = bundle.segments.subscribe(() => {});
+			expect(fake.sawWord).toBeGreaterThan(0);
+			expect(bundle.segments.cache).not.toBeNull();
+			unsub();
+			bundle.graph.destroy();
+		} finally {
+			(Intl as unknown as { Segmenter: unknown }).Segmenter = orig;
+			_resetDefaultSegmentAdapterForTests();
+		}
+	});
+
+	it("reactiveLayout({}) without segmentAdapter on Hermes-shape runtime throws the clear-message TypeError at factory construction", () => {
+		_resetDefaultSegmentAdapterForTests();
+		const orig = (Intl as unknown as { Segmenter: unknown }).Segmenter;
+		try {
+			(Intl as unknown as { Segmenter: unknown }).Segmenter = undefined;
+			expect(() =>
+				reactiveLayout({
+					adapter: new InjectedMeasureAdapter((t) => t.length * 9),
+					text: "hello",
+					font: "16px mono",
+					maxWidth: 100,
+				}),
+			).toThrow(/Intl\.Segmenter is not available/);
+		} finally {
+			(Intl as unknown as { Segmenter: unknown }).Segmenter = orig;
+			_resetDefaultSegmentAdapterForTests();
+		}
+	});
+
+	it("analyzeAndMeasure(segmentAdapter) is honored when explicitly passed", () => {
+		const fake = makeFakeSegmentAdapter();
+		const adapter: MeasurementAdapter = {
+			measureSegment: (t) => ({ width: t.length * 9 }),
+		};
+		const segs = analyzeAndMeasure("hello world", "16px mono", adapter, new Map(), undefined, fake);
+		expect(segs.length).toBeGreaterThan(0);
+		expect(fake.sawWord).toBeGreaterThan(0);
 	});
 });

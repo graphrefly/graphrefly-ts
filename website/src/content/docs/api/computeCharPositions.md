@@ -12,6 +12,7 @@ function computeCharPositions(
 	lineBreaks: LineBreaksResult,
 	segments: PreparedSegment[],
 	lineHeight: number,
+	segmentAdapter?: SegmentAdapter,
 ): CharPosition[]
 ```
 
@@ -22,3 +23,4 @@ function computeCharPositions(
 | `lineBreaks` | `LineBreaksResult` |  |
 | `segments` | `PreparedSegment[]` |  |
 | `lineHeight` | `number` |  |
+| `segmentAdapter` | `SegmentAdapter` |  |
