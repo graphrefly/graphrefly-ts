@@ -2019,7 +2019,7 @@ Decisions made during the Rust port, recorded after inline discussion.
 - **/qa patches landed (P1–P6, user-approved batch):** P1 — wrap `fire_deferred` in `catch_unwind` inside D260's loop; release `snapshot_releases` defensively + run `tier3_clear()` + `drain_deferred_producer_ops()` on panic, then `resume_unwind`. P2 — secondary-pass `claim_in_tick` followed by explicit `if !owns { break; }` after the `debug_assert!`, so release builds gracefully exit the loop if the assumption ever silently fails. P3 — tighten D261 regression test `source_sink_fires >= 1` → `== 1` (pin handshake-replay-single-fire invariant). P4 — downgrade D258 binding-friendly framing in S7 LANDED block + porting-deferred entry: the polished panic message reaches Rust's panic hook → stderr, but `core_actor.rs` M1 `catch_unwind` swallows the panic value before it crosses napi → JS users see a sync_channel disconnect, not the message. D258 is a Rust-dev clarity improvement; binding-friendly framing is aspirational pending a panic→JS bridge slice. P5 — polish D260 doc comment to mention same-thread sink case as primary (matching the actual 35-failure bug surface), not just "cross-thread autonomous-timer-task case." P6 — polish D261 inline doc nit ("`BatchGuard` here enters a fresh wave whose `drain_and_flush` applies the queued mailbox ops" → reword: construction doesn't drain, Drop does; add nested-subscribe doc note).
 - **Rejected as false-positive / verified-no-issue:** D258 panic-message-string asserts (grep verified — no tests rely on the string); no new `unsafe` / refcount / lock-discipline issues introduced; gate-math `812 = 810 + 2` verified; D261 ordering vs activation (R1.3.5.a verified non-violated by code-trace); nested-`try_subscribe` via Defer (non-owning `BatchGuard::Drop` is correctly a no-op).
 - **Rationale:** A1.c chosen for simplest-correct-bounded-iteration; A2.alt + A3 chosen jointly because the spec-convergence framing of D260 (Rust *is* canonical; D260 closes the gap to canonical) makes preemptive divergence-recording incoherent — the convergence IS the news. The patches harden the slice against panic-window growth (P1) + release-build silent-corruption (P2) + regression-test loosening (P3); the doc patches (P4 / P5 / P6) align prose with code semantics so future readers don't inherit misleading framing.
-- **Affects:** `~/src/graphrefly-rs/crates/graphrefly-core/src/batch.rs` (D260 loop cap + `fire_deferred` catch_unwind + secondary-pass `!owns` break + doc rewrites); `~/src/graphrefly-rs/crates/graphrefly-core/src/node.rs` (D261 inline doc polish); `~/src/graphrefly-rs/crates/graphrefly-core/tests/d260_d261_wave_end_mailbox_drain.rs` (assertion tightening); `~/src/graphrefly-rs/docs/migration-status.md` S7 LANDED block (D258 framing downgrade + Rust-canonical lock); `~/src/graphrefly-rs/docs/porting-deferred.md` (minimal A2 verification note in new "Behavioral timing observations verified by existing parity scenarios" section); this entry. Canonical: this entry + D260 + D261.
+- **Affects:** `~/src/graphrefly-rs/crates/graphrefly-core/src/batch.rs` (D260 loop cap + `fire_deferred` catch_unwind + secondary-pass `!owns` break + doc rewrites; **+ inline panic-message comment at `batch.rs:3480-3506` reframed per P4** — AMENDED 2026-05-21 to include this site, originally missed in the P4 patch); `~/src/graphrefly-rs/crates/graphrefly-core/src/node.rs` (D261 inline doc polish); `~/src/graphrefly-rs/crates/graphrefly-core/tests/d260_d261_wave_end_mailbox_drain.rs` (assertion tightening); `~/src/graphrefly-rs/docs/migration-status.md` S7 LANDED block (D258 framing downgrade + Rust-canonical lock); `~/src/graphrefly-rs/docs/porting-deferred.md` (minimal A2 verification note in new "Behavioral timing observations verified by existing parity scenarios" section); this entry. Canonical: this entry + D260 + D261.
 
 ### D263 — Next-batch slice scope: A = `setDeps`/`addDep`/`removeDep` trio + B = `terminalAsRealInput` substrate flag
 
@@ -2057,7 +2057,18 @@ Decisions made during the Rust port, recorded after inline discussion.
 - **Rationale:** D226 (one boundary, one slice, one commit) preserved at the commit level; user direction is to land them together without re-approving between stages.
 - **Affects:** `crates/graphrefly-bindings-js/src/graph_bindings.rs` + `wrapper.js` + `wrapper.d.ts` (Stage 1); `crates/graphrefly-storage/src/{tier.rs,memory.rs,redb.rs}` + `crates/graphrefly-structures/src/reactive.rs` (Stages 2–4); `packages/parity-tests/impls/types.ts` + `impls/rust.ts` + new scenarios (`scenarios/graph/`, `scenarios/storage-wal/`, `scenarios/messaging/`).
 
-### D267 — Stage 1 Graph::remove/destroy fix: drop `run_sync` everywhere on bindings + Impl widening to `T | Promise<T>`
+### D267 — Stage 1 Graph::remove/destroy fix: drop `run_sync` on read-path bindings + Impl widening to `T | Promise<T>`
+
+> **AMENDED 2026-05-21 (audit L6-001 scope-amend):** the original entry wording said "drop all sync `run_sync` napi methods on `BenchGraph` (and any other binding); make every Core-touching binding async." The landed scope was narrower and correctly so: **read-path methods drop `run_sync`; factory constructors retain it under a lifecycle-precondition rationale** (no subscribers at construction ⇒ no TSFN-callback re-entry hazard ⇒ no D070/D077 deadlock class). The 4 surviving sites are documented at their construction:
+> - `graph_bindings.rs:117` (`from_core` constructor — "one-shot factory call... blocking is acceptable")
+> - `structures_bindings.rs:200-210` (`BenchReactiveLog::create`)
+> - `structures_bindings.rs:543-545` (`BenchReactiveList::create`)
+> - `structures_bindings.rs:659-661` (`BenchReactiveMap::create`)
+> - `structures_bindings.rs:790-792` (`BenchReactiveIndex::create`)
+>
+> All 5 sites carry inline rustdoc explaining the lifecycle-precondition rationale; the cross-track-ledger row at line 67 records "Constructor `from_core` + structures `create` factories keep `run_sync` (documented safe — no subscribers exist at construction)". A future binding addition that wants a sync constructor MUST re-derive the same "no subscribers at construction" rationale; a future binding addition that adds a sync **read** method on a Core-touching surface MUST go async per the D267 hazard-class fix.
+
+
 
 - **Date:** 2026-05-21 (`/porting-to-rs` Phase-2 HALT)
 - **Context:** The ledger's "matches D070/D077" diagnosis of the §2 deadlock is unverified speculation. After reading the binding code, the most likely shape is **TSFN-sink-callback re-entrance into `run_sync`**: the R3.7.3 ordering test calls `g.nameOf(s)` from inside the TEARDOWN sink. On the rust arm `wrapper.js NativeGraph.nameOf` calls sync `bench.nameOf` → `actor.run_sync` while the actor worker is already blocked in `bridge_sync_unit` waiting for that same sink callback to return — classic 3-way deadlock.
@@ -2116,3 +2127,91 @@ Decisions made during the Rust port, recorded after inline discussion.
   - `porting-deferred.md` — move 3 entries to migration-status closing block.
 - **No `Impl` widening / no parity scenarios authored** (D196-aligned — F18 attach_storage napi stays deferred until a consumer scenario surfaces).
 - **No native publish push** (per D265 hold-local pattern; substrate-only slice with no `Impl` impact, but the established pattern is to gate publishes on user tag pushes).
+
+### D272 — Family-1 sink Arc→Rc + clippy-allow drop + static_assertions lock-in
+
+- **Date:** 2026-05-21 (`/porting-to-rs` 5-stage decision-consistency cleanup batch, stage 1 of 5)
+- **Context:** Post-D248/D252 the substrate is `!Send + !Sync` single-owner Core. The 4 sink type aliases (`Sink` / `TopologySink` / `DescribeSink` / `NamespaceChangeSink`) were deliberately relaxed to `Arc<dyn Fn>` (`+ Send + Sync` dropped) per D248, but the residual `Arc` outer container was itself vestigial — `Rc` matches the single-owner-thread shape exactly. The relaxation made the `Arc` lint-failing surface, masked by 11 file-level + 1 per-fn `#![allow(clippy::arc_with_non_send_sync)]` annotations carried as "deferred per D196" framing. This audit-2026-05-21 L1-class finding renames the deferral class to **decision-consistency restoration** (precedent D253 SchedulingGroupId delete; D254-AUDIT Send-closure variant audit): D196 governs ADDING new substrate surface in anticipation of a consumer; REMOVING vestigial surface made dead by an earlier locked relaxation is the opposite — no new consumer signal required. Diagnostic question: *was this surface made dead by an earlier locked relaxation?* — yes (D248). Captured in user memory `feedback_distinguish_vestigial_vs_speculative.md`.
+- **Options:** A) Drop the `Arc` outer container in favor of `Rc<dyn Fn>` (the architecturally-correct single-owner-thread shape; matches D248 intent exactly). Drop the 12 clippy-allow annotations. Add `static_assertions::assert_not_impl_any!(...: Send, Sync)` immediately below each type alias to lock D248 intent in the type system. B) Keep `Arc<dyn Fn>` with the file-level allows (status quo — deferred indefinitely under the D196-misframed gate).
+- **Decision (user-locked, 2026-05-21):** **A.**
+- **Rationale:** D248 single-owner intent is currently encoded in prose comments + per-file clippy allows; the `static_assertions` add a compiler-enforced lock that fails the build at the alias-definition site if a future PR re-introduces `Send` / `Sync` on the callback. `Arc` outer container over `!Send + !Sync` inner content is a vestigial wrapping with no semantic value — `Rc` is one fewer atomic per clone, and matches the bench-proven single-owner shape (D246/S2c). The renumbering from "D266" (used in command-args + memory drafts) to D272 reflects the locked D266 was the storage-batch staging decision, not this cleanup.
+- **Affects:**
+  - `crates/graphrefly-core/src/node.rs` — `pub type Sink` + `assert_not_impl_any!` lock-in; rustdoc updated.
+  - `crates/graphrefly-core/src/topology.rs` — `pub type TopologySink` + lock-in.
+  - `crates/graphrefly-graph/src/describe.rs` — `pub type DescribeSink` + lock-in; drop file-level `#![allow]`.
+  - `crates/graphrefly-graph/src/graph.rs` — `pub(crate) type NamespaceChangeSink` + lock-in.
+  - `crates/graphrefly-graph/Cargo.toml` — add `static_assertions` workspace dep.
+  - `crates/graphrefly-operators/src/{buffer,control,temporal,ops_impl,stratify,higher_order}.rs` — drop 6 file-level `#![allow]` + convert `Arc::new(move |...)` sink constructors to `Rc::new(...)`; convert operator-internal `Arc<dyn Fn()>` / `Arc<dyn Fn(HandleId)>` callback fields/returns to `Rc<dyn Fn>`.
+  - `crates/graphrefly-graph/src/{describe,observe}.rs` — convert remaining sink-construction sites.
+  - `crates/graphrefly-graph/tests/{mount,gap_fills}.rs` + `crates/graphrefly-core/tests/lock_discipline.rs` (file-level + per-fn) + `crates/graphrefly-operators/tests/common/mod.rs` — drop 4 test-side `#![allow]`s; convert sink construction sites.
+  - `crates/graphrefly-bindings-js/src/core_bindings.rs` — convert `noop_sink` + `build_tsfn_sink` Arc→Rc.
+  - `crates/graphrefly-structures/src/reactive.rs` — convert ~8 sink-construction sites.
+  - `crates/graphrefly-core/{benches,examples}/*.rs` — convert sink-construction sites in dispatcher / floor_compare / group_scaling / profile_*.
+  - All test files across core/graph/operators/structures — convert `Arc::new(move |msgs|...)` sink constructions to `std::rc::Rc::new(...)`.
+  - **D273 follow-on per-line allows** — 5 sites (`control.rs:673` sink_slot + `higher_order.rs:261/555/869` state Mutexes + `operators/tests/common/mod.rs:825` RecorderInner + `lock_discipline.rs:194` TestRuntime) gain a temporary `#[allow(clippy::arc_with_non_send_sync)]` with a `D273 follow-on` comment — the outer `Arc<Mutex<X>>` is genuinely Cat-3 (Family-2) and the workspace-wide sweep deletes them in D273.
+- **Gate:** `mise run gate` GREEN — 832 tests pass, 0 skip, fmt+clippy clean (`-D warnings` enforced). Net change: 47 files, +227 / −266 lines.
+- **No `Impl` widening / no cross-track-ledger row.** Substrate-internal cleanup.
+- **Canonical:** `~/src/graphrefly-rs/docs/decision-audit-2026-05-21.md` L1-001 / L1-002 framing carrier; memory `feedback_distinguish_vestigial_vs_speculative.md`.
+
+### D273 — Family-2 Cat-3 Arc<Mutex<X>> → Rc<RefCell<X>> compiler-driven sweep
+
+- **Date:** 2026-05-21 (`/porting-to-rs` 5-stage decision-consistency cleanup batch, stage 2 of 5)
+- **Context:** D272 dropped the file-level `#![allow(clippy::arc_with_non_send_sync)]` annotations, which surfaced the underlying lint failures on Arc<Mutex<X>> wrappers over `!Send` content (X containing a Sink, or X being a single-owner state aggregate). These were carried as "deferred per D196" framing — same decision-consistency-restoration class as D272 (D248 single-owner relaxation made the Arc wrapping vestigial). Compiler-driven sweep: try `Arc<Mutex<X>>` → `Rc<RefCell<X>>` substitution + `.lock()` → `.borrow_mut()` per receiver; the compiler classifies Category-1/2 (revert: Send+Sync required) vs Category-3 (compiles: vestigial; keep the change). Hours, not days.
+- **Decision (user-locked, 2026-05-21):** Cat-3 substitution applied to operator-internal state in `crates/graphrefly-operators/src/{buffer,control,higher_order,ops_impl,stratify,temporal}.rs`. Cat-1/2 reverted with one-line comments naming Send+Sync source.
+- **Reverts (Cat-1/2 — stays Arc<Mutex>):**
+  - `crates/graphrefly-operators/src/producer.rs` `ProducerStorage` — held inside `Arc<dyn ProducerBinding>` (Send+Sync trait bound).
+  - `crates/graphrefly-operators/src/temporal.rs:~1395` `current_inner` — captured by `em.defer(move |c| ...)` which requires `Send + 'static`.
+  - `crates/graphrefly-operators/tests/common/mod.rs:~825` `RecorderInner` — `Weak<RecorderInner>` upgrade pattern requires Arc; #[allow]-bounded.
+  - `crates/graphrefly-core/tests/lock_discipline.rs:~194` `Arc<TestRuntime>` — test inspects sink-captured handle across closure boundaries; #[allow]-bounded.
+- **Cat-3 conversions:** All sink-callback-internal state in `BufferState`/`BufferCountState`/`WindowState`/`WindowCountState`/`ZipState`/`ConcatState`/`RaceState`/`TakeUntilState`/`SwitchState`/`ExhaustState`/`MergeMapState`/`SampleState`/`OnFirstState`/`ValveState`/`SettleState`/`RepeatState`/`StratifyState` + per-temporal-op storage references in `temporal.rs` (the per-sink `st = state.clone()` Rc captures). Drop unused `parking_lot::Mutex` / `std::sync::Mutex` imports + the 5 D272 follow-on `#[allow]` annotations introduced as stubs.
+- **Rationale:** D248/D272 made the substrate `!Send + !Sync` single-owner. Operator-internal state captured by sinks runs on the owner thread by construction; Arc<Mutex<X>> was carrying both the atomic refcount + the lock-on-uncontended-mutation tax for nothing. `Rc<RefCell<X>>` matches the actor-model shape exactly (one atomic less per clone; one fewer lock cycle per access). The cross-track-ledger consequence is zero — bindings consume the operator factory APIs, not the operator-internal state types.
+- **Method:** Mass `Arc<Mutex<` → `Rc<RefCell<` + `Arc::new(Mutex::new(` → `Rc::new(RefCell::new(` + `.lock()` → `.borrow_mut()` sed; per-receiver revert on Send+Sync compile failure with one-line `// Cat-1/2 (D273): ...` comment naming the source of the bound. Workspace-wide grep showed 160 candidate sites (operator/structures src + tests + benches + bindings); most operator/structures src sites converted clean; bindings/storage/structures-public-types stay Arc<Mutex> as Cat-1/2.
+- **Affects (Cat-3 conversions only):**
+  - `crates/graphrefly-operators/src/buffer.rs` — 4 sites (BufferState/BufferCountState/WindowState/WindowCountState).
+  - `crates/graphrefly-operators/src/control.rs` — 5 sites (OnFirstState + ValveState + SettleState + RepeatState + sink_slot); drop the D272 follow-on `#[allow]`.
+  - `crates/graphrefly-operators/src/higher_order.rs` — 3 sites (SwitchState + ExhaustState + MergeMapState); drop the 3 D272 follow-on `#[allow]`s.
+  - `crates/graphrefly-operators/src/ops_impl.rs` — 4 sites (ZipState + ConcatState + RaceState + TakeUntilState).
+  - `crates/graphrefly-operators/src/stratify.rs` — 1 site (StratifyState).
+  - `crates/graphrefly-operators/src/temporal.rs` — 1 site (SampleState).
+- **Affects (Cat-1/2 reverts with comments):** producer.rs `ProducerStorage` (Send+Sync trait bound source); temporal.rs `current_inner` (em.defer Send+'static bound); operators/tests/common/mod.rs `RecorderInner` (Weak-upgrade pattern); core/tests/lock_discipline.rs `TestRuntime` (test sink closure capture).
+- **Gate:** `mise run gate` GREEN. Net change: 9 files, ~+129/−123 lines.
+- **No `Impl` widening / no cross-track-ledger row.** Substrate-internal cleanup.
+- **Canonical:** Audit `decision-audit-2026-05-21.md` does NOT explicitly enumerate this finding — it surfaced as a D272 cascade. Justification class: decision-consistency restoration (precedent D253 / D254-AUDIT / D272 / `feedback_distinguish_vestigial_vs_speculative`).
+
+### D274 — Vestigial union-find + defer-shim cleanup (CoreFull-scoped)
+
+- **Date:** 2026-05-21 (`/porting-to-rs` 5-stage decision-consistency cleanup batch, stage 3 of 5)
+- **Context:** The D211 "minimal-churn" framing retained 6 vestigial symbols (`PartitionOrderViolation` + the SubscribeError variant + `*_or_defer` family + `DeferredProducerOp` + `push_/drain_deferred_producer_ops`) that have been never-constructed since the §7 group-lock layer was deleted (D246/D248/D253/D255 absorbed the actual machinery; the shim was kept only so downstream code compiled unchanged). Audit L1-002 / L3-001 reframes this as decision-consistency restoration: D196 governs adding new substrate surface; **removing vestigial surface made dead by an earlier locked relaxation is the opposite** — no consumer signal required, just the relaxation itself.
+- **Decision (user-locked, 2026-05-21, Q2-reconciled):** Delete the vestigial union-find + defer-shim surface in a single focused commit. **Scope landed on `CoreFull` trait + `Core` inherent impl + operators producer.rs siblings — `BindingBoundary` UNTOUCHED** (audit L2-009 confirmed BindingBoundary is clean; no `*_or_defer` ever lived there — see Q2 reconciliation in the /porting-to-rs HALT thread).
+- **Deletions:**
+  - **`PartitionOrderViolation` struct** + `SubscribeError::PartitionOrderViolation` variant (node.rs:1065 + 1089).
+  - **`CoreFull::emit_or_defer/complete_or_defer/error_or_defer`** trait methods (node.rs:1948/1950/1952) + the matching `impl CoreFull for Core` bodies (node.rs:2040/2050/2056).
+  - **`Core::emit_or_defer/complete_or_defer/error_or_defer`** inherent methods (node.rs:3916/4076/4125) — folded into `Core::emit/complete/error` (single dispatch path; no defer-then-immediate-execute shim).
+  - **`Core::teardown_or_defer/invalidate_or_defer`** — same vestigial pattern (immediate-run no-op shims around `teardown`/`invalidate`); deleted because they had zero external callers and their `Err` paths were unreachable post-D248/D253/D255.
+  - **`Core::try_emit/try_complete/try_error/try_emit_terminal/try_teardown`** + `BatchGuard::try_run_wave_for`'s Result wrapper + `BatchGuard::try_begin_batch_for` (always-`Ok` shim) — inlined into public `Core::emit/complete/error/teardown/invalidate`; drop `Result<(), PartitionOrderViolation>` everywhere.
+  - **`DeferredProducerOp` enum** + `Core::push_deferred_producer_op` + `Core::drain_deferred_producer_ops` (the empty shim). Delete the 3 `drain_deferred_producer_ops()` call sites in `batch.rs` + `node.rs`.
+  - **`operators/producer.rs` `MailboxEmitter::emit_or_defer/complete_or_defer/error_or_defer`** + `ProducerEmitter::emit_or_defer/complete_or_defer/error_or_defer` — renamed to `emit/complete/error` (the "or_defer" suffix was misleading; these always posted directly to the mailbox).
+  - **All 9 `Err(SubscribeError::PartitionOrderViolation(_))` arms** across operators (3 in `higher_order.rs` + 2 in `producer.rs::subscribe_to`).
+  - **All `*_or_defer` callsites in operators** (`buffer.rs` ~15, `control.rs` ~20, `temporal.rs` ~10, `stratify.rs` ~5, `ops_impl.rs` ~5, `higher_order.rs` ~5, `source.rs` ~5) — rewritten to `core.emit/complete/error` directly.
+- **Inlining details:**
+  - `Core::emit` body: assert handle != NO_HANDLE, lock-and-validate state, terminal-short-circuit, `try_run_wave_for(...)` (now infallible). No Result.
+  - `Core::complete` / `Core::error`: same pattern — assert, lock, `try_emit_terminal` (now infallible).
+  - `Core::teardown`: assert, set up `Rc<RefCell<Vec<NodeId>>>` collection cell (Cat-3 single-owner per D273), `try_run_wave_for(...)`, then walk topology events.
+  - `Core::error` extra: still releases the caller's intern share (Slice A-bigger /qa D fix preserved).
+- **`BindingBoundary` UNTOUCHED.** Confirmed via:
+  - Grep returns zero `*_or_defer` references in `boundary.rs`.
+  - Audit L2-009 explicitly closes BindingBoundary trait surface as **clean** (every BindingBoundary widening D232-D249 has a corresponding cross-track-ledger row).
+  - `*_or_defer` always lived on `CoreFull` (`node.rs:1869` `pub trait CoreFull`), not `BindingBoundary` (`boundary.rs:188`).
+- **Rationale:** D211 was always a temporary framing — explicitly "compile-budget" rather than architectural intent. Post-D246/D248/D253/D255 the machinery the shims protected is gone; the shims themselves remain as pure noise that obstructs reading the dispatch path. Deleting them surfaces the actual control flow (sink fires → `core.emit` → wave). The 9 dead match arms + the panic-on-second-violation paranoia were carrying false signals — readers would think there's still a deferred-retry seam to maintain.
+- **No `Impl` widening / no cross-track-ledger row.** Substrate-internal cleanup. `Core::emit/complete/error/teardown/invalidate` public surfaces preserve their pre-D274 signatures (`pub fn emit(...) -> ()`); only the never-Err `try_X` wrappers and `*_or_defer` shims go away. No napi-side change.
+- **Gate:** `mise run gate` GREEN. Net change: 13 files, +227/-529 lines (~300-line net deletion).
+- **Affects:**
+  - `crates/graphrefly-core/src/node.rs` — main deletions (PartitionOrderViolation struct, SubscribeError variant, CoreFull trait+impl methods, Core inherent methods, try_X helpers, DeferredProducerOp enum, push/drain shims, *_or_defer shims, teardown/invalidate shims). Drop unused `parking_lot::Mutex` import.
+  - `crates/graphrefly-core/src/batch.rs` — `try_run_wave_for` becomes infallible (drop Result wrapper); `try_begin_batch_for` shim deleted; `begin_batch_for` calls `begin_batch_with_guards` directly.
+  - `crates/graphrefly-core/src/lib.rs` — drop `DeferredProducerOp` re-export.
+  - `crates/graphrefly-operators/src/{buffer,control,higher_order,ops_impl,stratify,temporal,source}.rs` — rename `*_or_defer` → `emit/complete/error` callsites; delete `Err(SubscribeError::PartitionOrderViolation)` arms.
+  - `crates/graphrefly-operators/src/producer.rs` — rename `MailboxEmitter`/`ProducerEmitter` `*_or_defer` → `emit/complete/error`; delete the 2 `PartitionOrderViolation` retry arms in `subscribe_to`.
+  - `crates/graphrefly-core/tests/{resubscribable,phase_g_cleanup_node}.rs` — delete `Err(e) =>` catch-all arms (now unreachable with single-variant SubscribeError).
+- **Canonical:** Audit `decision-audit-2026-05-21.md` L1-002 (vestigial union-find) + L3-001 (§7-C deferral framing) + Q2 reconciliation in `/porting-to-rs` HALT thread; memory `feedback_distinguish_vestigial_vs_speculative.md`.
+
+
