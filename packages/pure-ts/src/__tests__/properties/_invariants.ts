@@ -5101,6 +5101,202 @@ const invariant73InvalidateMergeOrderIndependent: Invariant = {
 			},
 		),
 };
+/**
+ * #74 — replay-buffer-bounded (mirrors TLC #20 `ReplayBufferBounded`,
+ * Phase 13.6.B B6 / Lock 6.G, spec §2.5).
+ *
+ * Structural cap: a node constructed with `replayBuffer: N` MUST drop
+ * the oldest entry on overflow. Observed externally via a late subscriber
+ * — the handshake's DATA tail length never exceeds `N` regardless of how
+ * many DATA emissions preceded the subscribe, and the tail values are
+ * the LAST `min(M, N)` emits in emission order (drop-oldest, not
+ * drop-newest; ring contract).
+ *
+ * Property: keep-alive subscribe (so emits actually push into the buffer
+ * — leaf sources are lazy w.r.t. sinks; pattern mirrors
+ * `phase-13-6-b6.test.ts`), drive M emits with unique values, then
+ * late-subscribe. Assert:
+ *   - Late sub's handshake DATA tail length === min(M, N).
+ *   - Tail values equal the last `min(M, N)` emits in emission order.
+ *
+ * Topology: leaf source — the minimum surface to observe the buffer +
+ * the late-subscribe handshake.
+ *
+ * Catches: regressions in `_pushReplayBuffer` cap enforcement
+ * (`packages/pure-ts/src/core/node.ts:3761`) — a refactor that swapped
+ * drop-oldest for drop-newest, or off-by-one'd the
+ * `length > capacity` check, would surface as a mismatch on tail values
+ * or tail length.
+ */
+const invariant74ReplayBufferBounded: Invariant = {
+	name: "replay-buffer-bounded",
+	description:
+		"A node with `replayBuffer: N` enforces drop-oldest ring semantics: any late subscriber sees at most N DATA values in the handshake tail, and they are the last N emits in emission order.",
+	specRef:
+		"wave_protocol.tla #20 ReplayBufferBounded (Phase 13.6.B B6 Lock 6.G; spec §2.5; via packages/pure-ts/src/core/node.ts:_pushReplayBuffer)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 6 }), // capacity N
+			// Unique values so equals-substitution can't silently rewrite a
+			// repeat DATA to RESOLVED (RESOLVED entries are NOT pushed into the
+			// ring per Lock 6.G — node.ts:3764). Without uniqueness a repeat
+			// emit would skip the buffer and skew the cap/order assertions
+			// even though the protocol is intact (mirrors #72's QA-P1 fix).
+			fc.uniqueArray(fc.integer({ min: 1, max: 1000 }), {
+				minLength: 1,
+				maxLength: 12,
+			}),
+			(cap, values) => {
+				const s = node<number>([], { replayBuffer: cap });
+
+				// Keep-alive so emits run through the deliver path that calls
+				// `_pushReplayBuffer`. Raw leaf sources without sinks short-
+				// circuit emit; matches phase-13-6-b6.test.ts pattern.
+				const keepAlive = s.subscribe(() => {});
+
+				for (const v of values) s.emit(v);
+
+				// Late-subscribe — record the full handshake trace (not just
+				// START + DATA). The shape assertion below catches a
+				// regression that injected a spurious RESOLVED/DIRTY/INVALIDATE
+				// into the handshake wave (e.g., a re-enabled cache-push branch
+				// that equals-substituted to RESOLVED, or a phantom DIRTY from
+				// a status-transition refactor). Symmetric with #75 (QA-BH-1).
+				const trace: symbol[] = [];
+				const lateData: number[] = [];
+				const lateUnsub = s.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						trace.push(m[0]);
+						if (m[0] === DATA) lateData.push(m[1] as number);
+					}
+				});
+
+				keepAlive();
+				lateUnsub();
+
+				// Handshake shape: [START, DATA*] — START first, every
+				// subsequent message is DATA (no RESOLVED/DIRTY/INVALIDATE).
+				// A future refactor that re-enabled the cache-push branch
+				// alongside buffer replay would surface as an extra DATA;
+				// a refactor that injected a phantom-status frame would
+				// surface as a non-DATA in the post-START tail.
+				if (trace.length === 0) return false;
+				if (trace[0] !== START) return false;
+				for (let i = 1; i < trace.length; i++) {
+					if (trace[i] !== DATA) return false;
+				}
+
+				// Cap respected: tail never exceeds capacity.
+				const expectedLen = Math.min(values.length, cap);
+				if (lateData.length !== expectedLen) return false;
+
+				// Drop-oldest: tail equals the LAST `expectedLen` emits in
+				// emission order. Drop-newest would put the FIRST values here.
+				const expected = values.slice(values.length - expectedLen);
+				for (let i = 0; i < expectedLen; i++) {
+					if (lateData[i] !== expected[i]) return false;
+				}
+
+				return true;
+			},
+		),
+};
+
+/**
+ * #75 — late-subscriber-receives-replay (mirrors TLC #23
+ * `LateSubscriberReceivesReplay`, Phase 13.6.B B6 / Lock 6.G, spec §2.5).
+ *
+ * Observation contract: when a late subscriber attaches to a node with a
+ * non-empty `replayBuffer`, the handshake delivers the buffered DATA
+ * values as a tail of the subscribe wave — in emission/ring order, after
+ * the `[START]` marker, with NO extra DATA injected by the cache-push
+ * branch (the buffer's last entry IS the cache at quiescence; appending
+ * cache afterward would duplicate it — see `defaultOnSubscribe` Lock 6.G
+ * note at `packages/pure-ts/src/core/node.ts:619-626`).
+ *
+ * Property: drive M emits (M ≤ N so no overflow noise) on a leaf
+ * `node([], { replayBuffer: N })`, then late-subscribe. Assert:
+ *   - First message is `[START]`; every subsequent message in the
+ *     handshake is DATA (no spurious RESOLVED/DIRTY — node is at rest).
+ *   - Handshake DATA count === M (no duplicate from the cache-push branch).
+ *   - Handshake DATA values equal the M emits in emission order.
+ *
+ * Topology: leaf source — the subscribe-side replay path is independent
+ * of any operator structure above. Overflow + cap behavior is covered by
+ * #74; this property focuses on the observation contract.
+ *
+ * Catches: regressions in `defaultOnSubscribe` (`node.ts:639-645`, the
+ * replay-branch body) — re-enabling the cache-push branch alongside
+ * buffer replay would duplicate the most-recent value (M+1 DATAs instead
+ * of M); reordering the buffer iteration would surface as an order
+ * mismatch.
+ */
+const invariant75LateSubscriberReceivesReplay: Invariant = {
+	name: "late-subscriber-receives-replay",
+	description:
+		"A late subscriber on a node with non-empty `replayBuffer` receives every buffered DATA value as a contiguous tail of the handshake, in emission order, with no duplicate from the cache-push branch.",
+	specRef:
+		"wave_protocol.tla #23 LateSubscriberReceivesReplay (Phase 13.6.B B6 Lock 6.G; spec §2.5; via packages/pure-ts/src/core/node.ts:defaultOnSubscribe + _pushReplayBuffer)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 2, max: 8 }), // capacity N
+			fc.uniqueArray(fc.integer({ min: 1, max: 1000 }), {
+				minLength: 1,
+				maxLength: 8,
+			}),
+			(cap, values) => {
+				// Constrain to the no-overflow path so this property focuses
+				// on the observation contract (#23). Overflow + cap are
+				// covered by #74; values.length > cap here would conflate
+				// the two and weaken the failure mode signal. Use `fc.pre`
+				// so fast-check counts/discards instead of silently passing
+				// (QA-BH-2 fix — a generator-bound refactor that inverted
+				// the precondition would otherwise silently make the property
+				// always vacuous; fc.pre fails the run if the discard rate
+				// exceeds the configured cap).
+				fc.pre(values.length <= cap);
+
+				const s = node<number>([], { replayBuffer: cap });
+				const keepAlive = s.subscribe(() => {});
+
+				for (const v of values) s.emit(v);
+
+				const trace: Array<readonly [symbol, unknown?]> = [];
+				const lateUnsub = s.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						trace.push([m[0], m[1]] as const);
+					}
+				});
+
+				keepAlive();
+				lateUnsub();
+
+				// Handshake shape: [START, DATA(v0), DATA(v1), ...].
+				if (trace.length === 0) return false;
+				if (trace[0]![0] !== START) return false;
+
+				// Every post-START entry MUST be DATA — no spurious RESOLVED
+				// or DIRTY in the handshake (node is at rest).
+				for (let i = 1; i < trace.length; i++) {
+					if (trace[i]![0] !== DATA) return false;
+				}
+
+				const dataValues = trace.slice(1).map(([, v]) => v as number);
+
+				// Count: exactly `values.length` DATAs — no duplicate from
+				// the cache-push branch (buffer-authoritative path, Lock 6.G).
+				if (dataValues.length !== values.length) return false;
+
+				// Order: values in emission order.
+				for (let i = 0; i < values.length; i++) {
+					if (dataValues[i] !== values[i]) return false;
+				}
+
+				return true;
+			},
+		),
+};
+
 // ---------------------------------------------------------------------------
 // Dropped TLC mirrors (tracked in docs/optimizations.md "Remaining rigor-infra
 // follow-ons"):
@@ -5109,11 +5305,6 @@ const invariant73InvalidateMergeOrderIndependent: Invariant = {
 //   — TLA+ ghost `pendingExtraDelivery` has no runtime analogue. The runtime's
 //   `_deliverToSinks` iterates sinks synchronously over a single shared
 //   `messages` reference; there is no mid-iteration pending queue to sweep.
-// - TLC #20 `ReplayBufferBounded` / #23 `LateSubscriberReceivesReplay` —
-//   §2.5 `replayBuffer: N` shipped in Phase 13.6.B B6 (Lock 6.G). The
-//   property-test mirrors of these TLC invariants haven't been ported yet;
-//   audit-sweep coverage lives in `phase-13-6-b6.test.ts`. Mirror port
-//   tracked under "Remaining rigor-infra follow-ons" in docs/optimizations.md.
 // - TLC #22 `MetaTeardownObservedPreReset` — §2.3 meta companion TEARDOWN
 //   tier-5 modeling is not in the TS runtime.
 // - TLC #28 `TerminatedImpliesBatchIdle` — TLA+ models `batchActive` as a
@@ -5210,6 +5401,8 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant71ChangesetTopologyLifecycle,
 	invariant72SingleInvalidateSettles,
 	invariant73InvalidateMergeOrderIndependent,
+	invariant74ReplayBufferBounded,
+	invariant75LateSubscriberReceivesReplay,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract
