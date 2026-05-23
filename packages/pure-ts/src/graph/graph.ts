@@ -2350,10 +2350,31 @@ export class Graph {
 	 *
 	 * @param name - Local registration name (must be unique on this graph).
 	 * @param deps - Mix of `::`-qualified path strings (resolved at
-	 *   construction time) and direct `Node` refs (used as-is). Strings
-	 *   resolve once at construction and the resolved refs persist; see
-	 *   `optimizations.md` C4 for the rewire gap on post-construction
-	 *   mount removal.
+	 *   construction time) and direct `Node` refs (used as-is). **String
+	 *   deps freeze at construction**: `derived("d", ["mount::leaf"], …)`
+	 *   captures the live `mount::leaf` Node once and stores the ref. If
+	 *   `mount` is later removed (`graph.remove("mount")`), the captured
+	 *   Node is now an orphan — `describe()` cannot locate it under any
+	 *   path, but it stays activated as long as `d` is subscribed and
+	 *   continues to flow values into `fn`. Symptom: emissions land in a
+	 *   derived whose construction-time path no longer resolves.
+	 *
+	 *   **Workarounds** (pick by need): (a) for short-lived mounts, pass a
+	 *   direct `Node` ref instead of a path string and explicitly drop the
+	 *   subscription before unmounting; (b) for hot-swap topologies, rebuild
+	 *   the derived after `remove`/`add` of the mount, or use
+	 *   {@link Node.setDeps} on the substrate `Node` (pre-1.0; public on
+	 *   `@graphrefly/pure-ts` since 2026-05-18 and on `@graphrefly/native`
+	 *   since 2026-05-20 per D264) to atomically swap the dep slot. (c) For
+	 *   strict invariants, wrap `graph.remove` with a pre-check that no
+	 *   `derived` has the doomed mount in its construction-time deps.
+	 *
+	 *   This freeze is a by-design property of path resolution at
+	 *   construction time; closed as `optimizations.md` C4 on 2026-05-22.
+	 *   A `describe()`-time `orphaned` marker would require a new
+	 *   per-`Node` field to distinguish string-resolved deps from
+	 *   anonymous `Node`-ref deps; tracked as a cross-track-ledger §2
+	 *   follow-on if a consumer surfaces.
 	 * @param fn - Restricted compute — see {@link GraphDerivedFn}.
 	 * @param opts - {@link GraphDerivedOptions}.
 	 * @returns The registered `Node<T>`.

@@ -797,7 +797,7 @@ DONE items from §11.1–§11.10 archived to [archive/roadmap/phase-11-cleanup.j
 - **WAIT:** P11.5-D3 — `verifiable` trigger-before-source-DATA semantic pin. Until consumer hits new behavior.
 - **WAIT:** C1–C2 (graph.batch throw, keepAlive cache) — pre-existing core-batch / RAM-cache semantics; documented.
 - **WAIT:** C3 — cross-graph Node ownership via `Graph.add`. `produce` already partially mitigates; full guard defers until dual-ownership consumer hits.
-- **PARKED:** C4 — path-based `graph.derived` reaches across mounts. Tied to `project_rewire_gap` (G10 parked).
+- ~~**PARKED:** C4 — path-based `graph.derived` reaches across mounts.~~ ✅ **CLOSED-AS-BY-DESIGN 2026-05-22 (Slice B design session)** — archive id `c4-path-based-graph-derived-cross-mount-by-design-resolved-2026-05-22`. JSDoc sharpened on `Graph.derived` ([packages/pure-ts/src/graph/graph.ts:2351-2374](../packages/pure-ts/src/graph/graph.ts:2351)); `describe()`-time `orphaned: true` marker filed as cross-track-ledger §2 follow-on (Impl-coupled).
 - **WAIT:** Structural→reingest topology edge — blocked on reactive bounded counter primitive.
 - **WAIT:** Per-claim eval-verifier subgraph mounting story. Bundles with Phase 15.
 - **WAIT:** EH-19 — `validateNoIslands` reactive companion. Ship when 10k-node continuous-validation consumer surfaces.
