@@ -1065,3 +1065,169 @@ describe("attachSnapshotStorage spec snapshot (DS-14.5.A delta #7, Q8)", () => {
 		expect(result.replayedFrames).toBe(0);
 	});
 });
+
+// ── B4 / D275 — applyWalFrame graph.mount / graph.unmount arms ────────────
+//
+// Mirrors graphrefly-rs D275 (Rust shipped 2026-05-22). Decompose side
+// already emits graph.mount / graph.unmount frames (graph.ts:6654, :6662);
+// pre-B4 the apply side stubbed both out with a `// deferred` comment so
+// snapshot+WAL round-trips silently dropped subgraph topology. These
+// scenarios assert idempotent apply for top-level + nested paths.
+
+describe("applyWalFrame — graph.mount / graph.unmount (B4 / D275)", () => {
+	async function makeMountFrame(
+		path: string,
+		frame_seq: number,
+		frame_t_ns: number,
+	): Promise<WALFrame> {
+		const body: Omit<WALFrame, "checksum"> = {
+			t: "c",
+			lifecycle: "spec",
+			path,
+			change: {
+				structure: "graph.spec",
+				version: 1,
+				t_ns: frame_t_ns,
+				lifecycle: "spec",
+				change: { kind: "graph.mount", path, subgraphId: path },
+			},
+			frame_seq,
+			frame_t_ns,
+			format_version: 1,
+		};
+		return { ...body, checksum: await walFrameChecksum(body) };
+	}
+
+	async function makeUnmountFrame(
+		path: string,
+		frame_seq: number,
+		frame_t_ns: number,
+	): Promise<WALFrame> {
+		const body: Omit<WALFrame, "checksum"> = {
+			t: "c",
+			lifecycle: "spec",
+			path,
+			change: {
+				structure: "graph.spec",
+				version: 1,
+				t_ns: frame_t_ns,
+				lifecycle: "spec",
+				change: { kind: "graph.unmount", path },
+			},
+			frame_seq,
+			frame_t_ns,
+			format_version: 1,
+		};
+		return { ...body, checksum: await walFrameChecksum(body) };
+	}
+
+	it("graph.mount frame creates the missing top-level subgraph", async () => {
+		const replayer = new Graph("g");
+		const frame = await makeMountFrame("child", 1, 100);
+		const result = await replayer.restoreSnapshot({
+			mode: "diff",
+			source: (async function* () {
+				yield frame;
+			})(),
+		});
+		expect(result.replayedFrames).toBe(1);
+		// `tryResolve("child")` returns undefined for a path ending at a
+		// subgraph (resolve throws — tryResolve catches), so use the public
+		// describe contract: subgraphs list must include the mount.
+		const desc = replayer.describe({ detail: "spec" });
+		expect(desc.subgraphs).toContain("child");
+	});
+
+	it("graph.unmount frame removes the subgraph at the path", async () => {
+		const replayer = new Graph("g");
+		replayer.mount("child");
+		expect(replayer.describe({ detail: "spec" }).subgraphs).toContain("child");
+
+		const frame = await makeUnmountFrame("child", 1, 100);
+		const result = await replayer.restoreSnapshot({
+			mode: "diff",
+			source: (async function* () {
+				yield frame;
+			})(),
+		});
+		expect(result.replayedFrames).toBe(1);
+		expect(replayer.describe({ detail: "spec" }).subgraphs).not.toContain("child");
+	});
+
+	it("graph.mount / graph.unmount are idempotent across repeated frames AND re-apply (B4-QA F6)", async () => {
+		const replayer = new Graph("g");
+		// Mount twice, then unmount twice — both pairs must be safe no-ops on
+		// the redundant invocation (mirrors Rust D275 idempotent skip).
+		const m1 = await makeMountFrame("child", 1, 100);
+		const m2 = await makeMountFrame("child", 2, 200);
+		const u1 = await makeUnmountFrame("child", 3, 300);
+		const u2 = await makeUnmountFrame("child", 4, 400);
+		const frames = [m1, m2, u1, u2];
+		const result1 = await replayer.restoreSnapshot({
+			mode: "diff",
+			source: (async function* () {
+				for (const f of frames) yield f;
+			})(),
+		});
+		expect(result1.replayedFrames).toBe(4);
+		expect(result1.skippedFrames).toBe(0);
+		expect(replayer.describe({ detail: "spec" }).subgraphs).not.toContain("child");
+
+		// B4-QA F6 (2026-05-22): re-source the same 4 frames against the now-
+		// converged graph. End-state must still match — that's the actual
+		// idempotency property Rust D275's `child_names()` guard pins (per-
+		// frame inner work is a no-op on the second pass; outer accounting
+		// still consumes them).
+		const result2 = await replayer.restoreSnapshot({
+			mode: "diff",
+			source: (async function* () {
+				for (const f of frames) yield f;
+			})(),
+		});
+		expect(result2.replayedFrames).toBe(4);
+		expect(result2.skippedFrames).toBe(0);
+		expect(replayer.describe({ detail: "spec" }).subgraphs).not.toContain("child");
+	});
+
+	it("graph.mount skips silently when leaf collides with an existing node (B4-QA F1)", async () => {
+		// B4-QA F1 (2026-05-22): a corrupt or compaction-shifted WAL frame
+		// that mounts `path: "n"` where the live graph has a NODE named `n`
+		// (not a mount) used to throw `node with that name exists` and abort
+		// the whole spec phase. Best-effort charter says skip silently — the
+		// node owns the slot and the frame is a mount that can't replace it.
+		const replayer = new Graph("g");
+		replayer.add(node([], { initial: 1, name: "n" }), { name: "n" });
+		const frame = await makeMountFrame("n", 1, 100);
+		const result = await replayer.restoreSnapshot({
+			mode: "diff",
+			source: (async function* () {
+				yield frame;
+			})(),
+		});
+		// Apply consumed the frame (replayedFrames counts at the outer
+		// dispatch level); inner mount was a no-op.
+		expect(result.replayedFrames).toBe(1);
+		// Node still there; no shadow mount created.
+		expect(replayer.tryResolve("n")?.cache).toBe(1);
+		expect(replayer.describe({ detail: "spec" }).subgraphs).not.toContain("n");
+	});
+
+	it("graph.mount auto-creates missing intermediate mounts for a nested path", async () => {
+		const replayer = new Graph("g");
+		// Only the deep path is emitted (out-of-order or compaction artifact)
+		// — apply must walk down and create the missing parent so the leaf
+		// has a home. Mirrors Rust D275's `graph.child_names()` guard with
+		// the per-segment idempotent skip.
+		const frame = await makeMountFrame("outer::inner", 1, 100);
+		const result = await replayer.restoreSnapshot({
+			mode: "diff",
+			source: (async function* () {
+				yield frame;
+			})(),
+		});
+		expect(result.replayedFrames).toBe(1);
+		const desc = replayer.describe({ detail: "spec" });
+		expect(desc.subgraphs).toContain("outer");
+		expect(desc.subgraphs).toContain("outer::inner");
+	});
+});

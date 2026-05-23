@@ -2822,6 +2822,32 @@ export class Graph {
 		}
 	}
 
+	/**
+	 * Predicate counterpart to {@link Graph.tryResolve} for **mounts** (subgraphs).
+	 * Returns `true` iff `name` is a directly-mounted subgraph of this graph
+	 * (NOT a node, NOT a deeply-nested mount). Use when you need to
+	 * distinguish "mount exists" from "node exists" — `tryResolve` returns
+	 * `undefined` for both unknown names and subgraph mounts (per §3.5: a
+	 * path ending at a subgraph is not a node), so it cannot make this
+	 * distinction.
+	 *
+	 * @param name - Local mount name (must not contain `::`).
+	 */
+	hasMount(name: string): boolean {
+		return this._mounts.has(name);
+	}
+
+	/**
+	 * Get a directly-mounted subgraph by local `name`, or `undefined` if no
+	 * such mount exists. Companion to {@link Graph.hasMount}. Does not walk
+	 * nested paths — pass a child-local name only.
+	 *
+	 * @param name - Local mount name (must not contain `::`).
+	 */
+	getMount(name: string): Graph | undefined {
+		return this._mounts.get(name);
+	}
+
 	private _resolveFromSegments(segments: readonly string[]): Node {
 		// Recursive self-name strip: if the first segment equals this graph's
 		// own name AND more segments follow, peel it off. Applied at every
@@ -6702,12 +6728,28 @@ function decomposeDiffToFrames(
 }
 
 /**
+ * Module-local predicate: does `graph` carry a registered local NODE with
+ * `name`? Used by `applyWalFrame`'s `graph.mount` arm to keep the apply
+ * best-effort when a frame would otherwise collide with an existing node
+ * slot (cf. F1 / B4-QA). `Graph._nodes` is `private` so the type cast is
+ * required; access pattern mirrors the existing module-local idiom inside
+ * `Graph.fromSnapshot` (target._nodes / target._mounts walks). Kept narrow
+ * (predicate-only) so the public surface still routes through
+ * {@link Graph.hasMount} / {@link Graph.getMount}.
+ */
+function _hasLocalNode(graph: Graph, name: string): boolean {
+	return (graph as unknown as { _nodes: Map<string, unknown> })._nodes.has(name);
+}
+
+/**
  * Apply a single {@link WALFrame} onto a {@link Graph} (Phase 14.6 —
  * DS-14-storage Q9 replay path). Best-effort within the lifecycle: kinds
- * that need additional context (factories for non-state nodes, subgraph
- * registry for `graph.mount`) are silently skipped — callers that need
- * full-fidelity spec replay should hydrate via {@link Graph.fromSnapshot}
- * + factories before invoking `restoreSnapshot`.
+ * that still need additional context (factories for non-state nodes) are
+ * silently skipped — callers that need full-fidelity spec replay should
+ * hydrate via {@link Graph.fromSnapshot} + factories before invoking
+ * `restoreSnapshot`. `graph.mount` / `graph.unmount` are applied
+ * idempotently against the existing mount tree (B4 / D275, 2026-05-22 —
+ * mirrors graphrefly-rs `apply_wal_frame`).
  *
  * @internal
  */
@@ -6735,7 +6777,50 @@ function applyWalFrame(graph: Graph, frame: WALFrame): void {
 				if (graph.tryResolve(p.nodeId) != null) graph.remove(p.nodeId);
 				return;
 			}
-			// graph.mount, graph.unmount, schema.upgrade — Phase 14.6 deferred
+			case "graph.mount": {
+				// Mirrors Rust D275 (graphrefly-rs `apply_wal_frame` `Lifecycle::Spec`
+				// → `"graph.mount"` arm). Path is the qualified mount path from the
+				// snapshotted graph's root; walk down auto-creating missing
+				// intermediate mounts so out-of-order frames still converge. At
+				// each segment: skip if already mounted (idempotent — Rust's
+				// `child_names()` guard); skip if a NODE already owns the slot
+				// (best-effort — `Graph.mount` would throw on the node collision
+				// and abort the whole spec phase; QA F1 lock 2026-05-22).
+				const p = payload as SpecChangePayload & { kind: "graph.mount" };
+				const segments = p.path.split(PATH_SEP);
+				if (segments.length === 0 || segments.some((s) => s.length === 0)) return;
+				let owner: Graph = graph;
+				for (let i = 0; i < segments.length; i++) {
+					const seg = segments[i] as string;
+					const existing = owner.getMount(seg);
+					if (existing != null) {
+						owner = existing;
+						continue;
+					}
+					if (_hasLocalNode(owner, seg)) return; // QA F1: best-effort skip
+					owner.mount(seg);
+					owner = owner.getMount(seg) as Graph;
+				}
+				return;
+			}
+			case "graph.unmount": {
+				// Mirrors Rust D275 — `Graph.remove(name)` handles unmount for a
+				// subgraph leaf. Idempotent skip if path is absent, intermediate
+				// parent is missing, or the leaf is a node rather than a mount.
+				const p = payload as SpecChangePayload & { kind: "graph.unmount" };
+				const segments = p.path.split(PATH_SEP);
+				if (segments.length === 0 || segments.some((s) => s.length === 0)) return;
+				const leaf = segments.pop() as string;
+				let owner: Graph = graph;
+				for (const seg of segments) {
+					const next = owner.getMount(seg);
+					if (next == null) return; // intermediate parent absent → nothing to unmount
+					owner = next;
+				}
+				if (owner.hasMount(leaf)) owner.remove(leaf);
+				return;
+			}
+			// schema.upgrade — Phase 14.6+ deferred
 			default:
 				return;
 		}
