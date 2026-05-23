@@ -1,5 +1,7 @@
 # Changelog — @graphrefly/pure-ts
 
+## 0.48.1
+
 ## 0.48.0
 
 ### Minor Changes

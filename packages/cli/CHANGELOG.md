@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [[`812ff96`](https://github.com/graphrefly/graphrefly-ts/commit/812ff96091f063557e01ad861baf6a87ad2082a2)]:
+  - @graphrefly/graphrefly@0.48.1
+
 ## 0.0.7
 
 ### Patch Changes

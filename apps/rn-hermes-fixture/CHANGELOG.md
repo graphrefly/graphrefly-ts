@@ -1,5 +1,12 @@
 # @graphrefly/rn-hermes-fixture
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @graphrefly/pure-ts@0.48.1
+
 ## 0.0.5
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # [0.44.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.43.0...v0.44.0) (2026-04-29)
 
+## 0.48.1
+
+### Patch Changes
+
+- [`812ff96`](https://github.com/graphrefly/graphrefly-ts/commit/812ff96091f063557e01ad861baf6a87ad2082a2) Thanks [@clfhhc](https://github.com/clfhhc)! - add useCallback
+
 ## 0.48.0
 
 ### Minor Changes
