@@ -4,6 +4,7 @@
 
 import { DATA, node } from "@graphrefly/pure-ts/core";
 import { act, renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
 import { describe, expect, it } from "vitest";
 import { useStore, useSubscribe, useSubscribeRecord } from "../../compat/react/index.js";
 
@@ -19,6 +20,35 @@ describe("React bindings", () => {
 		});
 
 		expect(result.current).toBe(1);
+	});
+
+	it("useSubscribe is stable under StrictMode (no fresh-closure re-subscribe loop)", () => {
+		// Regression for memo:Re Story 3.6 finding: fresh subscribe/getSnapshot
+		// closures per render caused useSyncExternalStore to re-subscribe each
+		// render, and push-on-subscribe nodes would loop into "Maximum update
+		// depth exceeded". The useCallback([node]) memoization fixes it.
+		const testNode = node({ initial: 42 });
+		let renderCount = 0;
+		const { result } = renderHook(
+			() => {
+				renderCount++;
+				return useSubscribe(testNode);
+			},
+			{ wrapper: StrictMode },
+		);
+
+		expect(result.current).toBe(42);
+		// StrictMode doubles the initial mount renders; bound is generous but
+		// catches any unbounded re-subscribe loop.
+		expect(renderCount).toBeLessThanOrEqual(5);
+
+		const before = renderCount;
+		act(() => {
+			testNode.down([[DATA, 43]]);
+		});
+		expect(result.current).toBe(43);
+		// Exactly one settled update should produce a small bounded delta.
+		expect(renderCount - before).toBeLessThanOrEqual(4);
 	});
 
 	it("useStore provides state and setter", () => {

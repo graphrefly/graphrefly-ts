@@ -3283,6 +3283,27 @@ export class Graph {
 					: [];
 			const { name: _name, ...rest } = raw;
 			const entry: DescribeNodeOutput = { ...rest, deps };
+			// Resolve `meta.attachTarget` Node refs to their qualified path
+			// in the snapshot — same mechanism as `deps` resolves Node refs
+			// via `nodeToPath`. Soft forward edges
+			// (src/base/meta/attach-edge-meta.ts) surface in `explainPath`
+			// so causal chains can walk past imperative subscribe-and-
+			// publish hops (e.g. topicBridge → target.events) that have no
+			// declared dep. Wave propagation is unchanged — soft edges are
+			// an explainability concern only.
+			if (entry.meta != null) {
+				const at = (entry.meta as Record<string, unknown>).attachTarget;
+				if (
+					at != null &&
+					typeof at === "object" &&
+					typeof (at as { subscribe?: unknown }).subscribe === "function" &&
+					"cache" in (at as Record<string, unknown>)
+				) {
+					const targetNode = at as Node;
+					const resolved = nodeToPath.get(targetNode) ?? targetNode.name ?? "";
+					entry.meta = { ...entry.meta, attachTarget: resolved };
+				}
+			}
 			// Attach annotation from `trace(path, annotation)` or from
 			// `graph.add(node, { name: path, annotation })` when one exists. Skipped
 			// for the `"spec"` format (input-schema use case — annotations

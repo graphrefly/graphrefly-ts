@@ -50,6 +50,14 @@ describe.each(impls)("M4.F Tier 3 — graph storage integration — $name", (imp
 				await g.set("a", 10);
 				await tick();
 
+				// Force any debounced WAL/snapshot writes to flush before dispose.
+				// `tick()` (setTimeout(0)) wins the scheduler race against the
+				// debounce timer in isolation, but under contention from prior
+				// suites the debounce timer can still be pending when dispose
+				// runs — dispose then drains zero in-flight writes and the tail
+				// frame is lost. Explicit `flush()` makes the order deterministic.
+				await walTier.flush();
+				await snapTier.flush();
 				await handle.dispose();
 			} finally {
 				await g.destroy();
@@ -74,6 +82,14 @@ describe.each(impls)("M4.F Tier 3 — graph storage integration — $name", (imp
 				await tick();
 				await author.set("a", 42);
 				await tick();
+				// See "attaching storage produces a disposable handle" — flush
+				// debounced writes before dispose so the tail frame (`42`) is
+				// durable under cross-test scheduler contention. Without these
+				// flushes the test goes flaky in pure-ts when run after other
+				// suites: dispose drains in-flight writes but the `set(a,42)`
+				// flush can still be queued in the debounce timer.
+				await walTier.flush();
+				await snapTier.flush();
 				await handle.dispose();
 
 				// Replayer graph — restore from tiers
@@ -114,6 +130,9 @@ describe.each(impls)("M4.F Tier 3 — graph storage integration — $name", (imp
 				await tick();
 				await author.set("a", 1);
 				await tick();
+				// Flush debounced writes before dispose (see prior tests).
+				await walTier.flush();
+				await snapTier.flush();
 				await handle.dispose();
 
 				replayer = new impl.Graph("pg");

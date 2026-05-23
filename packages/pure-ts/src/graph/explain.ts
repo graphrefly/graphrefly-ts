@@ -42,6 +42,15 @@ export interface CausalStep {
 	 * always equals `dep_indices[0]` when set.
 	 */
 	dep_indices?: number[];
+	/**
+	 * `true` when the outgoing edge to the next step is a "soft forward
+	 * edge" declared via `meta.attachTarget` (e.g.
+	 * `topicBridge.attach → targetTopic.events`). Wave propagation flows
+	 * via the imperative attach in the factory body, NOT a declared dep —
+	 * so `dep_index` / `dep_indices` are absent for soft hops. See
+	 * `src/base/meta/attach-edge-meta.ts` for the convention.
+	 */
+	via_attach_edge?: boolean;
 }
 
 /** Outcome of an {@link explainPath} call. */
@@ -119,12 +128,14 @@ export function explainPath(
 		throw new Error(`explainPath: maxDepth must be an integer >= 0`);
 	}
 
+	const softReversePred = buildSoftReversePred(described);
+
 	if (from === to) {
 		// findCycle: search for shortest non-trivial cycle (a path of ≥2 hops
 		// back to `from` through other nodes). Falls back to trivial single
 		// step if no real cycle exists.
 		if (opts.findCycle === true) {
-			const cycle = findShortestCycle(described, from, opts);
+			const cycle = findShortestCycle(described, from, opts, softReversePred);
 			if (cycle != null) return cycle;
 		}
 		const step = buildStep(from, described.nodes[from]!, 0, opts);
@@ -133,7 +144,7 @@ export function explainPath(
 
 	if (maxDepth === 0) return makeFailure(from, to, "no-path");
 
-	const result = bfsShortestPath(described, from, to, maxDepth);
+	const result = bfsShortestPath(described, from, to, maxDepth, softReversePred);
 	if (!result.found) {
 		return makeFailure(from, to, result.truncated ? "max-depth-exceeded" : "no-path");
 	}
@@ -142,7 +153,7 @@ export function explainPath(
 
 // ── BFS helpers ──────────────────────────────────────────────────────────
 
-type StepPlan = { path: string; depIndices?: number[] };
+type StepPlan = { path: string; depIndices?: number[]; viaAttachEdge?: boolean };
 
 interface BfsResult {
 	found: boolean;
@@ -151,18 +162,49 @@ interface BfsResult {
 }
 
 /**
+ * Reverse index for soft forward edges declared via `meta.attachTarget`
+ * (see `src/base/meta/attach-edge-meta.ts`). Keys are target paths; values
+ * are the list of nodes whose `meta.attachTarget` resolved to that target.
+ *
+ * Wave propagation does NOT follow soft edges — they exist purely so
+ * `explainPath` can walk past imperative subscribe-and-publish hops
+ * (e.g. `topicBridge.attach → dst::events`) that have no declared dep.
+ */
+type SoftReversePred = ReadonlyMap<string, readonly string[]>;
+
+function buildSoftReversePred(described: GraphDescribeOutput): SoftReversePred {
+	const map = new Map<string, string[]>();
+	for (const [path, n] of Object.entries(described.nodes)) {
+		const at = n.meta?.attachTarget;
+		if (typeof at !== "string" || at === "") continue;
+		let arr = map.get(at);
+		if (arr == null) {
+			arr = [];
+			map.set(at, arr);
+		}
+		arr.push(path);
+	}
+	return map;
+}
+
+/**
  * Backward BFS from `to` to `from`. Returns the ordered chain `from → … → to`
  * with `depIndices` annotating each non-final step (which slot(s) in the next
  * step's `deps` list connect us — typically a single index, but multi-edges
  * preserve every matching slot).
+ *
+ * Walks both declared `deps` AND soft forward edges (`meta.attachTarget`) —
+ * the latter via {@link buildSoftReversePred}. Soft hops set `viaAttachEdge`
+ * on the outgoing step and leave `depIndices` empty (no dep slot exists).
  */
 function bfsShortestPath(
 	described: GraphDescribeOutput,
 	from: string,
 	to: string,
 	maxDepth: number | undefined,
+	softReversePred: SoftReversePred,
 ): BfsResult {
-	type Pred = { from: string; depIndices: number[] };
+	type Pred = { from: string; depIndices: number[]; viaAttachEdge: boolean };
 	const pred = new Map<string, Pred>();
 	const queue: Array<{ path: string; depth: number }> = [{ path: to, depth: 0 }];
 	const visited = new Set<string>([to]);
@@ -172,9 +214,11 @@ function bfsShortestPath(
 	while (head < queue.length) {
 		const cur = queue[head++]!;
 		if (cur.path === from) break;
+		const softPreds = softReversePred.get(cur.path) ?? [];
 		if (maxDepth != null && cur.depth >= maxDepth) {
 			const node = described.nodes[cur.path];
-			if (node?.deps && node.deps.length > 0) truncated = true;
+			const hasDeps = node?.deps != null && node.deps.length > 0;
+			if (hasDeps || softPreds.length > 0) truncated = true;
 			continue;
 		}
 		const node = described.nodes[cur.path];
@@ -196,8 +240,18 @@ function bfsShortestPath(
 		for (const [dep, indices] of slots) {
 			if (visited.has(dep)) continue;
 			visited.add(dep);
-			pred.set(dep, { from: cur.path, depIndices: indices });
+			pred.set(dep, { from: cur.path, depIndices: indices, viaAttachEdge: false });
 			queue.push({ path: dep, depth: cur.depth + 1 });
+		}
+		// Soft forward edges: nodes whose meta.attachTarget resolved to
+		// `cur.path` are predecessors here. The outgoing edge from each
+		// such soft-pred to `cur.path` is the attach-meta edge — no dep
+		// slot exists, so depIndices stays empty.
+		for (const softPred of softPreds) {
+			if (visited.has(softPred)) continue;
+			visited.add(softPred);
+			pred.set(softPred, { from: cur.path, depIndices: [], viaAttachEdge: true });
+			queue.push({ path: softPred, depth: cur.depth + 1 });
 		}
 	}
 
@@ -211,9 +265,11 @@ function bfsShortestPath(
 	while (cursor !== to) {
 		const p = pred.get(cursor);
 		if (p == null) return { found: false, pathOrder: [], truncated: false };
-		// Attach depIndices to the step we just came from (cursor) — dep_index
-		// names "which slot in the NEXT step's deps am I".
+		// Attach depIndices + viaAttachEdge to the step we just came from
+		// (cursor) — both describe the OUTGOING edge from this step to the
+		// next.
 		pathOrder[pathOrder.length - 1]!.depIndices = p.depIndices;
+		if (p.viaAttachEdge) pathOrder[pathOrder.length - 1]!.viaAttachEdge = true;
 		pathOrder.push({ path: p.from });
 		cursor = p.from;
 	}
@@ -225,11 +281,29 @@ function bfsShortestPath(
  * trivial 0-hop "self-step" case. Returns a {@link CausalChain} success when
  * a cycle of length ≥2 exists, otherwise `null`. Handles direct self-loops
  * (`start ∈ deps(start)`) and multi-hop cycles uniformly.
+ *
+ * **Mixed-edge cycles.** The BFS follows BOTH declared `deps` AND soft
+ * forward edges (`meta.attachTarget`, see
+ * `src/base/meta/attach-edge-meta.ts`). A returned cycle may therefore
+ * include hops that wave propagation cannot traverse — soft edges are an
+ * explainability concern, not a protocol-level dep. Consumers debugging
+ * **wave feedback loops** should check `step.via_attach_edge` on each
+ * returned step and treat any cycle containing a soft hop as
+ * non-wave-traversable (the protocol cannot infinite-loop through it).
+ *
+ * **Seed limitation.** The BFS is seeded from each entry in `start`'s
+ * declared `deps` only. A node with zero declared deps and only soft
+ * outgoing edges (`attachTarget`) cannot start a cycle search here — no
+ * cycle will be found even if one exists through soft hops. Today's only
+ * soft emitter (`topicBridge.attach`) has a declared dep on `output`, so
+ * this is latent; a pure-soft-outgoing factory would need a forward
+ * soft-index alongside the existing reverse one.
  */
 function findShortestCycle(
 	described: GraphDescribeOutput,
 	start: string,
 	opts: ExplainPathOptions,
+	softReversePred: SoftReversePred,
 ): CausalChain | null {
 	const startNode = described.nodes[start];
 	if (startNode == null) return null;
@@ -247,11 +321,14 @@ function findShortestCycle(
 	}
 
 	// Multi-hop cycle: BFS from each direct dep of start back to start.
+	// Soft forward edges participate in cycle detection too — if a node
+	// soft-attaches to `start` AND a declared-dep path returns from that
+	// node to `start`, that's a real (mixed-edge) cycle.
 	let best: BfsResult | null = null;
 	for (let i = 0; i < startDeps.length; i++) {
 		const dep = startDeps[i]!;
 		if (!dep || dep === start) continue;
-		const sub = bfsShortestPath(described, dep, start, opts.maxDepth);
+		const sub = bfsShortestPath(described, dep, start, opts.maxDepth, softReversePred);
 		if (!sub.found) continue;
 		if (best == null || sub.pathOrder.length < best.pathOrder.length) {
 			best = sub;
@@ -280,6 +357,7 @@ function materializeSteps(
 			step.dep_index = entry.depIndices[0]!;
 			if (entry.depIndices.length > 1) step.dep_indices = [...entry.depIndices];
 		}
+		if (entry.viaAttachEdge) step.via_attach_edge = true;
 		return step;
 	});
 }
@@ -354,9 +432,18 @@ function renderChain(
 		}
 	}
 	const lines: string[] = [`Causal path: ${from} → ${to} (${steps.length} step(s))`];
-	for (const step of steps) {
-		const arrow = step.hop === 0 ? "·" : "↓";
-		const head = `  ${arrow} ${step.path} (${step.type}${step.status ? `/${step.status}` : ""})`;
+	for (let i = 0; i < steps.length; i++) {
+		const step = steps[i]!;
+		// Arrow style reflects the INCOMING edge into this step:
+		// - hop 0: `·` (origin marker, no incoming edge)
+		// - prev step's `via_attach_edge`: `↝` (soft forward edge, wave
+		//   propagation does NOT follow this hop — see
+		//   `src/base/meta/attach-edge-meta.ts`)
+		// - else: `↓` (declared dep edge)
+		const prevSoft = i > 0 && steps[i - 1]!.via_attach_edge === true;
+		const arrow = step.hop === 0 ? "·" : prevSoft ? "↝" : "↓";
+		const softSuffix = prevSoft ? " (via attach-edge)" : "";
+		const head = `  ${arrow} ${step.path} (${step.type}${step.status ? `/${step.status}` : ""})${softSuffix}`;
 		lines.push(head);
 		if ("value" in step) {
 			lines.push(`      value: ${formatValue(step.value)}`);

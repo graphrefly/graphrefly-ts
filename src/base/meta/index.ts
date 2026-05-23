@@ -6,5 +6,6 @@
  * @module
  */
 
+export * from "./attach-edge-meta.js";
 export * from "./domain-meta.js";
 export * from "./emit-to-meta.js";

@@ -42,9 +42,10 @@ export {
 	type TopicMessage,
 } from "./message.js";
 
-import { batch, COMPLETE, DATA, type Node, node } from "@graphrefly/pure-ts/core";
+import { batch, COMPLETE, type Node, node } from "@graphrefly/pure-ts/core";
 import { keepalive, type ReactiveLogBundle, reactiveLog } from "@graphrefly/pure-ts/extra";
 import { Graph, type GraphOptions } from "@graphrefly/pure-ts/graph";
+import { attachEdgeMeta } from "../../base/meta/attach-edge-meta.js";
 import { domainMeta } from "../../base/meta/domain-meta.js";
 import { mutate } from "../../base/mutation/index.js";
 
@@ -498,30 +499,35 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 		);
 		this.addDisposer(keepalive(ackPump));
 
-		// Wire output into target topic's log reactively.
-		// _attachArrayToLog subscribes to output and publishes each item to targetTopic.
-		// Teardown: disposer runs before mount teardown.
-		const detach = _attachArrayToLog(this.output, targetTopic);
-		this.addDisposer(detach);
+		// Wire `output` into the target topic's events log via a declared
+		// effect mount. The effect's dep on `output` is the protocol-level
+		// edge; the soft forward edge `attach → targetTopic.events` is
+		// declared in `meta.attachTarget` and surfaces in `Graph.describe()`
+		// + `explainPath()`. Wave propagation does NOT follow the soft edge
+		// — the wave flows because `targetTopic.publish(v)` synchronously
+		// emits into the target's events node (sanctioned imperative escape
+		// per spec §5.9). Equivalent in behavior to the prior `_attachArray
+		// ToLog` helper, but now visible to inspection tooling (mirrors
+		// `ackPump`'s declared-effect shape; Phase 13.K resolution).
+		const attach = this.effect(
+			"attach",
+			["output"],
+			() => {
+				const outBatch = outputRef.cache as readonly TOut[];
+				if (outBatch.length === 0) return;
+				batch(() => {
+					for (const v of outBatch) targetTopic.publish(v);
+				});
+			},
+			{
+				meta: {
+					...messagingMeta("topic_bridge_attach"),
+					...attachEdgeMeta(targetTopic.events),
+				},
+			},
+		);
+		this.addDisposer(keepalive(attach));
 	}
-}
-
-/**
- * Attaches each element of an array-valued Node to a TopicGraph's log.
- * Every DATA emission on `source` appends all items in the array to `targetTopic`.
- * Returns a disposer.
- */
-function _attachArrayToLog<T>(source: Node<readonly T[]>, targetTopic: TopicGraph<T>): () => void {
-	return source.subscribe((msgs) => {
-		for (const m of msgs) {
-			if (m[0] !== DATA) continue;
-			const arr = m[1] as readonly T[];
-			if (arr.length === 0) continue;
-			batch(() => {
-				for (const v of arr) targetTopic.publish(v);
-			});
-		}
-	});
 }
 
 // ── TopicRegistry ─────────────────────────────────────────────────────────

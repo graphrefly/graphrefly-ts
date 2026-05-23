@@ -11,11 +11,14 @@
  *  1. Parent → child: `parent.derived` ← `child::node`. Walks one hop down.
  *  2. Child → parent → child: an explicit shared dep at parent level lets
  *     explain trace from one child through the parent into another child.
- *  3. Through `topicBridge`: source-topic `events` → bridge `output` → ???
- *     — the bridge → target.events edge goes through an imperative
- *     `_attachArrayToLog` subscriber, NOT a declared dep. This case is
- *     KNOWN to fail under the current substrate and motivates a follow-up
- *     gap; the test pins the failure mode so the gap is visible.
+ *  3. Through `topicBridge`: source-topic `events` → bridge `output` →
+ *     `bridge::attach` → target-topic `events`. The bridge → target.events
+ *     edge is a soft forward edge declared via `meta.attachTarget` (see
+ *     `src/base/meta/attach-edge-meta.ts`). Wave propagation flows via
+ *     the imperative `targetTopic.publish(v)` in the attach effect body;
+ *     explain consumes the resolved `meta.attachTarget` reverse-pred
+ *     index to walk past the hop. Phase 13.K resolution dispatch D
+ *     (2026-05-22).
  *
  * Per the locked plan: if any case fails, file the gap before claiming the
  * pitch.
@@ -113,12 +116,17 @@ describe("Phase 13.K — cross-mount explain walks (G6 validation)", () => {
 	});
 
 	// -------------------------------------------------------------------------
-	// Case 3: topicBridge — KNOWN GAP (explain can't walk the bridge → target
-	//   edge because `_attachArrayToLog` is an imperative subscribe, not a
-	//   declared dep). This test pins the failure mode for documentation.
+	// Case 3: topicBridge end-to-end via soft forward edge (Phase 13.K
+	//   resolution, dispatch D). The bridge now declares an `attach` effect
+	//   mount whose `meta.attachTarget` points at `dst::events`; describe
+	//   resolves the Node ref to a path string, and explain consumes the
+	//   resulting reverse-pred index as a "soft forward edge" so the BFS
+	//   walks past the imperative `targetTopic.publish(v)` hop. Wave
+	//   propagation is unchanged — the soft edge is an explainability
+	//   concern only. See `src/base/meta/attach-edge-meta.ts`.
 	// -------------------------------------------------------------------------
 
-	it("[KNOWN GAP] explain does NOT walk topicBridge.output → target.events (imperative attach)", () => {
+	it("explain walks topicBridge.output → bridge.attach → dst.events via soft forward edge", () => {
 		const parent = new Graph("parent");
 		const src = topic<number>("src");
 		const dst = topic<number>("dst");
@@ -127,26 +135,47 @@ describe("Phase 13.K — cross-mount explain walks (G6 validation)", () => {
 		const bridge = topicBridge<number>("bridge", src, dst);
 		parent.mount("bridge", bridge);
 
-		// Forward edges that ARE declared:
-		//   src::events → bridge::subscription::available → bridge::output
-		// is reachable. The bridge → dst::events edge goes through
-		// `_attachArrayToLog` (imperative subscribe at the source node,
-		// runtime publish on the target topic) which is NOT a declared dep.
+		// Declared edges still walk: src::events → bridge::subscription::
+		// available → bridge::output.
 		const insideBridge = parent.describe({
 			explain: { from: "src::events", to: "bridge::output" },
 		});
 		expect(insideBridge.found).toBe(true);
 
-		// The end-to-end walk to the target topic is the gap. We assert the
-		// CURRENT BEHAVIOR (no path found) so the test pins the regression
-		// envelope. When a future iteration adds an `attach`-edge declaration
-		// to the bridge (or describes the imperative attach via a meta
-		// annotation that explain consumes), this assertion will flip and
-		// the test should be updated to assert `found: true`.
+		// End-to-end walk now succeeds: src::events → … → bridge::output →
+		// bridge::attach → dst::events. The bridge::attach → dst::events
+		// hop is a soft forward edge (no declared dep — bridge::attach's
+		// `meta.attachTarget` resolved to "dst::events" at describe time).
 		const endToEnd = parent.describe({
 			explain: { from: "src::events", to: "dst::events" },
 		});
-		expect(endToEnd.found).toBe(false);
+		expect(endToEnd.found).toBe(true);
+		const paths = endToEnd.steps.map((s) => s.path);
+		expect(paths).toContain("bridge::output");
+		expect(paths).toContain("bridge::attach");
+		expect(paths[0]).toBe("src::events");
+		expect(paths[paths.length - 1]).toBe("dst::events");
+
+		// The soft-edge marker lands on `bridge::attach` — that step's
+		// OUTGOING edge to `dst::events` is the attach-meta hop, NOT a
+		// declared dep, so `via_attach_edge: true` AND `dep_index` is
+		// absent.
+		const attachStep = endToEnd.steps.find((s) => s.path === "bridge::attach")!;
+		expect(attachStep).toBeDefined();
+		expect(attachStep.via_attach_edge).toBe(true);
+		expect(attachStep.dep_index).toBeUndefined();
+
+		// Declared-dep hops do NOT get the marker — sanity that we didn't
+		// over-mark every step.
+		const outputStep = endToEnd.steps.find((s) => s.path === "bridge::output")!;
+		expect(outputStep.via_attach_edge).toBeUndefined();
+
+		// Pretty-print renders the soft hop with a distinct arrow + suffix
+		// so `console.log(chain.text)` makes the wave-untraversable hop
+		// visible (not just present in the structured `steps[]`).
+		expect(endToEnd.text).toMatch(/↝ dst::events.*\(via attach-edge\)/);
+		// Declared-dep hops use the standard `↓` arrow and have no suffix.
+		expect(endToEnd.text).toMatch(/↓ bridge::output/);
 	});
 });
 

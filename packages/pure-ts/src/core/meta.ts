@@ -270,6 +270,14 @@ export function describeNode(
 		if (guard != null && rawMeta.access === undefined) {
 			rawMeta.access = accessHintForGuard(guard);
 		}
+		// `meta.attachTarget` (when present, per
+		// `src/base/meta/attach-edge-meta.ts`) carries a live `Node` ref —
+		// resolved to a qualified path string by `Graph.describe()` via
+		// its `nodeToPath` map. Standalone `describeNode` callers get the
+		// raw `Node` ref since there is no graph context here to resolve
+		// against — DO NOT `JSON.stringify` `describeNode` output
+		// directly when `meta.attachTarget` may be set; go through
+		// `Graph.describe()` for the resolved snapshot.
 		if (metaKeys != null && metaKeys.length > 0 && !includeFields!.has("meta")) {
 			const filtered: Record<string, unknown> = {};
 			for (const k of metaKeys) {

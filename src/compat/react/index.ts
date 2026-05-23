@@ -22,8 +22,8 @@ import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
  * @returns `T | undefined` — the current node value, kept in sync via `useSyncExternalStore`.
  */
 export function useSubscribe<T>(node: Node<T>): T | undefined | null {
-	return useSyncExternalStore(
-		(onStoreChange) => {
+	const subscribe = useCallback(
+		(onStoreChange: () => void) => {
 			let disposed = false;
 			const unsub = node.subscribe(() => {
 				if (!disposed) onStoreChange();
@@ -33,9 +33,10 @@ export function useSubscribe<T>(node: Node<T>): T | undefined | null {
 				unsub();
 			};
 		},
-		() => node.cache,
-		() => node.cache, // Server snapshot
+		[node],
 	);
+	const getSnapshot = useCallback(() => node.cache, [node]);
+	return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /**
