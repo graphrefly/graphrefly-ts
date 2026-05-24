@@ -43,7 +43,7 @@
  */
 
 import { afterEach } from "vitest";
-import type { Impl } from "./types.js";
+import type { Impl, ImplGraph } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Shipped native surface load (graceful fallback if not built).
@@ -113,6 +113,81 @@ afterEach(async () => {
 // regression fails at the wrapper's type boundary, not at this Proxy.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ImplGraph-level method-not-yet-on-native traps.
+//
+// Centralized registry so future port-coverage widenings add ONE entry
+// here instead of N scattered Proxy traps (E-iv.4 design-review Phase 2
+// cross-cutting synthesis, 2026-05-23). Mirrors the D282 `batch` trap
+// discipline at `Impl`-level but operates on `ImplGraph` returns.
+//
+// `wrapNativeGraph` Proxy-wraps every `ImplGraph` returned by the
+// rust adapter (`Graph` constructor + `mount()` return) so a call to
+// any method named here surfaces a LOUD error citing the ledger row
+// instead of silently passing through (the underlying `NativeGraph`
+// has no such methods → `undefined` would silently `await` to
+// `undefined`, false-passing a scenario that forgot its runIf gate).
+// ---------------------------------------------------------------------------
+
+const NOT_ON_NATIVE_GRAPH_METHODS: Record<string, string> = {
+	tagFactory: "cross-track-ledger §1 D283 / porting-deferred.md R3.1.2",
+	resourceProfile: "cross-track-ledger §1 D283 / porting-deferred.md R3.6.3",
+};
+
+function wrapNativeGraph(g: ImplGraph): ImplGraph {
+	return new Proxy(g, {
+		get(target, prop, receiver) {
+			const ledgerRef = typeof prop === "string" ? NOT_ON_NATIVE_GRAPH_METHODS[prop] : undefined;
+			if (ledgerRef !== undefined) {
+				return async (..._args: unknown[]): Promise<never> => {
+					throw new Error(
+						`${String(prop)}: not yet exposed on @graphrefly/native (${ledgerRef}; ` +
+							'gate with test.runIf(impl.name === "pure-ts") until the napi binding ships)',
+					);
+				};
+			}
+			const value = Reflect.get(target, prop, receiver);
+			// `mount(name, child?)` returns a child `ImplGraph` — wrap
+			// transitively so a `.tagFactory` on the child also throws.
+			// QA-A5: `.apply(receiver, args)` (not `target`) preserves Proxy
+			// semantics for the rare case where a future ImplGraph method
+			// internally re-routes through `this` — the inner call stays in
+			// the Proxy so the trap registry still fires for the re-entry.
+			// String-match is mount-only today; QA-F3 notes the brittleness
+			// if a future ImplGraph method also returns a child graph.
+			if (prop === "mount" && typeof value === "function") {
+				return async (...args: unknown[]): Promise<ImplGraph> => {
+					const child = await (value as (...a: unknown[]) => Promise<ImplGraph>).apply(
+						receiver,
+						args,
+					);
+					return wrapNativeGraph(child);
+				};
+			}
+			// QA-A5: bind to `receiver` (the Proxy) instead of `target` (the
+			// raw NativeGraph) so methods that internally call other
+			// methods on `this` re-enter the Proxy and route through the
+			// trap registry. With `bind(target)`, such re-entry would
+			// bypass traps — no registry method does this today, but
+			// `bind(receiver)` is the principled Proxy-conformant shape.
+			if (typeof value === "function") {
+				return (value as (...a: unknown[]) => unknown).bind(receiver);
+			}
+			return value;
+		},
+		has(target, prop) {
+			// QA-D1: returns `false` for registry methods to match the D282
+			// top-level Impl `has` trap precedent at `rust.ts:160`. Feature-
+			// detection callers (`"tagFactory" in g`) cleanly see
+			// "not available" rather than being misled into calling the
+			// throwing stub. The `get` trap remains the loud safety net
+			// for callers that do invoke without runIf-gating.
+			if (typeof prop === "string" && prop in NOT_ON_NATIVE_GRAPH_METHODS) return false;
+			return Reflect.has(target, prop);
+		},
+	});
+}
+
 function build(): Impl {
 	// Per-call delegation: every access reads the *current* lazily
 	// (re)created instance so `afterEach`-reset works transparently.
@@ -143,6 +218,38 @@ function build(): Impl {
 				};
 			}
 			const inst = instance() as unknown as Record<string | symbol, unknown>;
+			// E-iv.4 (D283) — wrap the Graph constructor so every
+			// returned ImplGraph routes through `wrapNativeGraph`. Without
+			// this, calling `.tagFactory()` on a NativeGraph instance
+			// resolves to `undefined` (the underlying class has no such
+			// method) and `await undefined` silently passes — false-
+			// passing any scenario that forgets its runIf gate.
+			if (prop === "Graph") {
+				const NativeGraphCtor = inst.Graph as new (name: string) => ImplGraph;
+				/**
+				 * QA-A6 caveat — `instanceof WrappedNativeGraph` is FALSE for
+				 * any value produced by `new WrappedNativeGraph(name)`. The
+				 * constructor-return idiom replaces the instance with the
+				 * Proxy-wrapped underlying `NativeGraph`, so the prototype
+				 * chain is the Proxy's target (NativeGraph), not
+				 * WrappedNativeGraph. No parity scenario uses `instanceof`
+				 * checks; if one ever needs to, dispatch on `impl.name`
+				 * instead.
+				 */
+				return class WrappedNativeGraph {
+					constructor(name: string) {
+						// `new impl.Graph(name)` is the parity-scenario
+						// constructor pattern; we MUST return the Proxy-
+						// wrapped instance so `.tagFactory()` /
+						// `.resourceProfile()` throw loudly instead of
+						// silently resolving to `undefined`. Constructor-
+						// return is the only way to intercept `new` without
+						// rewriting every scenario to a factory call.
+						// biome-ignore lint/correctness/noConstructorReturn: load-bearing Proxy wrap for E-iv.4 (D283) — see comment above
+						return wrapNativeGraph(new NativeGraphCtor(name));
+					}
+				};
+			}
 			const value = inst[prop];
 			if (typeof value === "function") {
 				return (value as (...args: unknown[]) => unknown).bind(inst);

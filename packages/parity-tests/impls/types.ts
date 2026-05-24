@@ -201,6 +201,88 @@ export interface ImplGraph {
 	observe(): Promise<ObserveSubscription>;
 	observe(path: string): Promise<ObserveSubscription>;
 	observe(path: string | undefined, opts: { reactive: true }): Promise<ObserveSubscription>;
+
+	/**
+	 * R3.1.2 (`docs/implementation-plan-13.6-canonical-spec.md:768`) —
+	 * annotate the graph with a factory function name and args used to
+	 * construct it (provenance for `describe({ detail: "spec" })`,
+	 * snapshot replay, debugging). Drops the canonical-spec's `this`-
+	 * chain return for parity-contract conformance — every dispatcher-
+	 * touching method here is `Promise`-returning since D077 (and parity
+	 * scenarios already `await` each call), matching the D282 widening
+	 * shape.
+	 *
+	 * **INVARIANT (DS-14.5.A Q1, pure-ts `graph.ts:1693`):** topology-dirty —
+	 * fires a fresh `describe({ reactive: true })` snapshot on every call.
+	 * **INVARIANT (pure-ts QA F8, `graph.ts:1686-1689`):** a second call
+	 * WITHOUT `factoryArgs` MUST clear stale args (re-assignment to
+	 * `undefined`, not a no-op).
+	 *
+	 * E-iv.4 (D283, cross-track-ledger §1 row): `Impl` widening so the
+	 * `scenarios/graph/tag-factory.test.ts` scenarios can run cross-arm
+	 * once `@graphrefly/native` ships a `tag_factory` napi binding (D004
+	 * deferral lift). Today every scenario in that file is
+	 * `test.runIf(impl.name === "pure-ts")`-gated; the native arm's
+	 * `Graph` Proxy traps `tagFactory` to throw loudly.
+	 */
+	tagFactory(factory: string, factoryArgs?: unknown): Promise<void>;
+
+	/**
+	 * R3.6.3 (`docs/implementation-plan-13.6-canonical-spec.md:984`) —
+	 * snapshot-based runtime profile: per-node stats (subscriberCount,
+	 * depCount, valueSizeBytes), top-N hotspots, orphan detection
+	 * (`idle-derived` / `idle-producer` / `orphan-effect`). Snapshot-only
+	 * — no reactive overload exists in the canonical spec.
+	 *
+	 * **INVARIANT:** non-reactive. Multiple calls don't share state; the
+	 * return is a fresh snapshot.
+	 *
+	 * E-iv.4 (D283, cross-track-ledger §1 row): `Impl` widening so the
+	 * `scenarios/graph/resource-profile.test.ts` scenarios can run cross-
+	 * arm once `@graphrefly/native` ships a `resource_profile` napi
+	 * binding (D004 deferral lift). Today every scenario in that file is
+	 * `test.runIf(impl.name === "pure-ts")`-gated; the native arm's
+	 * `Graph` Proxy traps `resourceProfile` to throw loudly.
+	 */
+	resourceProfile(opts?: { topN?: number }): Promise<ImplGraphProfileResult>;
+}
+
+/**
+ * Per-node profile entry surfaced by {@link ImplGraph.resourceProfile}.
+ * Mirrors `GraphProfileResult.nodes[N]` in
+ * `packages/pure-ts/src/graph/profile.ts`; kept local to this contract so
+ * the parity types don't import from the pure-ts substrate. Structural
+ * compat is enforced by the pure-ts adapter's return-type assignment
+ * (typecheck fails on drift).
+ */
+export interface ImplNodeProfile {
+	path: string;
+	type: string;
+	status: string;
+	valueSizeBytes: number;
+	subscriberCount: number;
+	depCount: number;
+	isOrphanEffect: boolean;
+	orphanKind: "orphan-effect" | "idle-derived" | "idle-producer" | null;
+}
+
+/**
+ * Aggregate profile returned by {@link ImplGraph.resourceProfile}. Mirrors
+ * `GraphProfileResult` in `packages/pure-ts/src/graph/profile.ts`.
+ */
+export interface ImplGraphProfileResult {
+	nodeCount: number;
+	edgeCount: number;
+	subgraphCount: number;
+	nodes: ImplNodeProfile[];
+	totalValueSizeBytes: number;
+	hotspots: {
+		byValueSize: ImplNodeProfile[];
+		bySubscriberCount: ImplNodeProfile[];
+		byDepCount: ImplNodeProfile[];
+	};
+	orphans: ImplNodeProfile[];
+	orphanEffects: ImplNodeProfile[];
 }
 
 /**

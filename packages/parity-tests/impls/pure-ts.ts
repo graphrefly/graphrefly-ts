@@ -15,6 +15,7 @@ import type {
 	ImplAppendLogTier,
 	ImplCheckpointSnapshotTier,
 	ImplGraph,
+	ImplGraphProfileResult,
 	ImplKvTier,
 	ImplMemoryBackend,
 	ImplNode,
@@ -386,6 +387,20 @@ class LegacyGraph implements ImplGraph {
 			},
 		};
 	}
+
+	// E-iv.4 (D283) — async wrappers over the sync legacy methods.
+	// `tagFactory` returns `this` on the pure-ts `Graph` for chaining
+	// inside factory bodies; the parity wrapper drops that return per
+	// the contract widening rationale in `types.ts`. `resourceProfile`
+	// returns the substrate's `GraphProfileResult` directly; structural
+	// compat with `ImplGraphProfileResult` is enforced by typecheck on
+	// the return type — no runtime adaptation.
+	async tagFactory(factory: string, factoryArgs?: unknown): Promise<void> {
+		this.inner.tagFactory(factory, factoryArgs);
+	}
+	async resourceProfile(opts?: { topN?: number }): Promise<ImplGraphProfileResult> {
+		return this.inner.resourceProfile(opts);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -564,6 +579,15 @@ export const pureTsImpl: Impl = {
 					observe(p?: string, o?: unknown): Promise<unknown>;
 				}
 			).observe(path, opts);
+		}
+		// E-iv.4 (D283) — async wrapper over the sync legacy method.
+		// Drops the `this`-chain return per the Impl-contract widening
+		// rationale in `types.ts`.
+		async tagFactory(factory: string, factoryArgs?: unknown): Promise<void> {
+			await this.impl.tagFactory(factory, factoryArgs);
+		}
+		async resourceProfile(opts?: { topN?: number }): Promise<ImplGraphProfileResult> {
+			return this.impl.resourceProfile(opts);
 		}
 	},
 
