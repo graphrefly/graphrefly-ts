@@ -21,7 +21,7 @@ import {
 	_setMaxBatchDrainIterationsGetter,
 	downWithBatch,
 	isExplicitlyBatching,
-	registerBatchFlushHook,
+	registerBatchHook,
 } from "./batch.js";
 import { monotonicNs, wallClockNs } from "./clock.js";
 import type {
@@ -808,6 +808,104 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	_batchPendingMessages: Message[] | null = null;
 
+	// --- D282 R4.3.2 throw-rollback snapshot (locked 2026-05-23; /qa F3 widened) ---
+	/**
+	 * Captured lazily at the TOP of `_emit` on first state-touch inside an
+	 * explicit `batch()` scope. **Capture MUST precede every state-mutating
+	 * sub-path of the emit pipeline** — PAUSE/RESUME lock bookkeeping, meta
+	 * TEARDOWN fan-out, `_updateState`, and `_pushReplayBuffer` all mutate
+	 * fields covered by this snapshot. On outermost-batch THROW the
+	 * substrate's `batch.ts` invokes {@link _rollbackBatchPending} which
+	 * restores these fields and clears `_batchPendingMessages` WITHOUT
+	 * dispatching downstream — converging TS to the Rust substrate's
+	 * pre-existing `discard_wave_cleanup` + `restore_wave_cache_snapshots`
+	 * shape (`graphrefly-rs/crates/graphrefly-core/src/batch.rs:3693`).
+	 *
+	 * **Snapshot scope (D282 user lock — mirror at the invariant level:
+	 * "post-rollback observable state ≡ pre-batch observable state").**
+	 *
+	 * Top-level fields (cache/status/version/wave/replay/log-latch):
+	 * - `cached`/`status`/`versioning` — Rust's `restore_wave_cache_snapshots`
+	 *   equivalent. TS bundles version metadata on the live `_versioning`
+	 *   object (Rust splits via separate handle/version fields), so the
+	 *   restore mutates fields in place (same precedent as Lock 2.C
+	 *   `_prePauseSnapshot` restore).
+	 * - `hasCalledFnOnce` — R2.5.3 / D011 first-run gate flag.
+	 *   Un-reverted = subscriber-detectable behavioral leak via partial-
+	 *   deps gating semantics.
+	 * - `teardownDone` — R2.2.7 / R2.5.3 terminal-lifecycle flag.
+	 *   Un-reverted = structural terminal state post-rollback while emit-
+	 *   side was rolled back (E7-symmetric gap).
+	 * - `waveHasNewData` / `hasNewTerminal` / `waveHasInvalidate` — wave
+	 *   flags normally cleared by `_clearWaveFlags` at end-of-wave; on
+	 *   rollback they'd leak into the next wave's settlement decision.
+	 * - `replayBuffer` — `_pushReplayBuffer` is called at the dispatch
+	 *   point and may evict the oldest entry on overflow. Snapshot stores
+	 *   a **shallow content copy** (`[...buffer]` or `null`); restore
+	 *   replaces the full buffer (`/qa` F5 — pure length-truncation
+	 *   corrupts when an eviction happened during the batch).
+	 * - `equalsErrorLogged` — Lock 2.A once-per-lifetime log latch.
+	 *   Un-reverted = a buggy `equals` that fired only during the rolled-
+	 *   back wave silently suppresses future legitimate error logs.
+	 * - `pendingDeactivateAfterBatch` — `/qa` F4(c) defer-flag. TEARDOWN-
+	 *   inside-batch sets this so the irreversible `_deactivate()` side
+	 *   effect (dep unsubscribe + `onDeactivation` fire) is deferred to
+	 *   `_flushBatchPending` on the success path and cleared on rollback.
+	 *
+	 * Nested `pause` sub-snapshot (only populated when PAUSE/RESUME state
+	 * was touched during the batch; `null` otherwise — `/qa` F3):
+	 * - `locks` — clone of `_pauseLocks` Set (or `null` if buffer was null).
+	 * - `paused` / `pauseStartNs` / `pauseDroppedCount` / `pauseOverflowed` —
+	 *   pause-cycle bookkeeping fields, mutated by PAUSE/RESUME branches.
+	 * - `buffer` — shallow content copy of `_pauseBuffer` (or `null`).
+	 * - `prePauseSnapshot` — the pre-pause Lock 2.C snapshot itself;
+	 *   captured by the PAUSE branch on first-PAUSE-of-cycle. Restored
+	 *   verbatim on D282 rollback to preserve the Lock 2.C semantic.
+	 *
+	 * Capture order matters: snapshot is taken BEFORE the PAUSE/RESUME
+	 * block at line ~3270 (was AFTER in the initial D282 landing — caught
+	 * by /qa F3). `null` outside batch (or after flush/rollback). Cleared
+	 * on both paths (single-use per batch session).
+	 */
+	_preBatchSnapshot: {
+		cached: T | undefined;
+		status: NodeStatus;
+		versioning: { version: number; cid?: string; prev?: string | null } | undefined;
+		hasCalledFnOnce: boolean;
+		teardownDone: boolean;
+		waveHasNewData: boolean;
+		hasNewTerminal: boolean;
+		waveHasInvalidate: boolean;
+		replayBuffer: T[] | null;
+		equalsErrorLogged: boolean;
+		pendingDeactivateAfterBatch: boolean;
+		pause: {
+			locks: Set<unknown> | null;
+			paused: boolean;
+			buffer: Messages[] | null;
+			startNs: number | undefined;
+			droppedCount: number;
+			overflowed: boolean;
+			prePauseSnapshot: NodeImpl<T>["_prePauseSnapshot"];
+		} | null;
+	} | null = null;
+
+	/**
+	 * @internal D282 /qa F4(c) defer-flag. Set by the TEARDOWN branch in
+	 * `_updateState` when `isExplicitlyBatching()` is true; cleared either
+	 * by `_flushBatchPending` (which fires `_deactivate()` on the success
+	 * path) or by `_rollbackBatchPending` (which discards the pending
+	 * deactivation entirely on throw). Outside batch, the TEARDOWN branch
+	 * calls `_deactivate()` synchronously and never sets this flag.
+	 *
+	 * This is the F4 (c) fix surface: terminal-inside-batch's irreversible
+	 * side effect (dep unsubscribe + `onDeactivation` fire) is deferred so
+	 * the rollback path can keep the node alive. Used by the 4 in-tree
+	 * multi-channel-atomic-terminate callers (`external-register.ts` x3 +
+	 * `sqlite.ts` x1) that pre-date D282.
+	 */
+	_pendingDeactivateAfterBatch = false;
+
 	// --- PAUSE/RESUME lock tracking (C0) ---
 	/**
 	 * Set of active pause locks held against this node. Every `[PAUSE, lockId]`
@@ -1585,6 +1683,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._pauseLocks = null;
 		this._pauseBuffer = null;
 		this._prePauseSnapshot = null; // Lock 2.C
+		// D282 /qa F1: clear batch-rollback bookkeeping for the same reason
+		// as in `_deactivate` — a lifecycle reset mid-batch would otherwise
+		// leave a stale `_preBatchSnapshot` pointing at the pre-reset state
+		// of a now-fresh-lifecycle node, partially resurrecting it on outer
+		// throw.
+		this._batchPendingMessages = null;
+		this._preBatchSnapshot = null;
+		this._pendingDeactivateAfterBatch = false;
 		// Lock 6.A: clear pause-cycle bookkeeping so a resubscribable node
 		// coming back from terminal-overflow doesn't carry stale
 		// `_pauseOverflowed = true` (which would swallow the next cycle's
@@ -2368,6 +2474,17 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._pendingWave = false;
 		this._pendingRerun = false;
 		this._rerunDepth = 0;
+		// D282 /qa F1: clear batch-rollback bookkeeping. If `_deactivate`
+		// fires from outside the emit pipeline (last-subscriber-detach at
+		// line ~1540) mid-batch, the stale `_preBatchSnapshot` would
+		// otherwise partially resurrect a deactivated node when the outer
+		// batch throws. Mirrors the `_prePauseSnapshot = null` pattern in
+		// `_resetForFreshLifecycle`. The `_pendingDeactivateAfterBatch`
+		// flag is also cleared since this method IS the deactivation that
+		// the flag would have triggered.
+		this._batchPendingMessages = null;
+		this._preBatchSnapshot = null;
+		this._pendingDeactivateAfterBatch = false;
 		// Lock 6.D (Phase 13.6.B): `ctx.store` is NO LONGER wiped on
 		// deactivation. Preserve-across-deactivation is the new default
 		// (G.20 flip). Operators requiring auto-wipe (`take(n)`, `scan`,
@@ -3104,6 +3221,21 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			}
 		}
 
+		// D282 R4.3.2 throw-rollback snapshot capture (hoisted to TOP of
+		// `_emit` per /qa F3). Captured BEFORE the PAUSE/RESUME lock
+		// bookkeeping, meta TEARDOWN fan-out, `_updateState`, and
+		// `_pushReplayBuffer` — every state-mutating sub-path of the emit
+		// pipeline must be downstream of this capture for the
+		// "post-rollback observable state ≡ pre-batch observable state"
+		// invariant to hold. `isExplicitlyBatching()` excludes drain-time
+		// re-entries (R1.3.6.c). `_preBatchSnapshot === null` makes
+		// capture idempotent per batch session — subsequent emits within
+		// the same outer batch (incl. nested-batch emits at batchDepth>1)
+		// re-use the original pre-batch snapshot.
+		if (isExplicitlyBatching() && this._preBatchSnapshot === null) {
+			this._captureBatchSnapshot();
+		}
+
 		// Terminal filter: after COMPLETE/ERROR (non-resubscribable), only
 		// TEARDOWN / INVALIDATE still propagate so graph teardown and cache-
 		// clear still work.
@@ -3337,6 +3469,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				}
 			}
 		}
+
+		// (D282 snapshot capture moved to TOP of `_emit` per /qa F3 — see
+		// `_captureBatchSnapshot` below.)
 
 		// State update + equals substitution (§3.5.1 invariant). Returns the
 		// possibly-rewritten batch and an optional equals-throw error. When
@@ -3731,7 +3866,23 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					// Meta TEARDOWN fan-out was already performed by `_emit`
 					// before this walk. Deactivate now that meta children
 					// have been notified.
-					this._deactivate(/* skipStatusUpdate */ true);
+					//
+					// /qa F4(c): when inside an explicit `batch()` scope, the
+					// irreversible side effects of `_deactivate()` (dep
+					// unsubscribe + `onDeactivation` fire) MUST be deferred to
+					// `_flushBatchPending` so a batch throw can roll back the
+					// node into a still-live state. The 4 in-tree multi-channel-
+					// atomic-terminate callers (`base/composition/external-
+					// register.ts` x3 + `base/io/sqlite.ts` x1) depend on this
+					// — emitting TEARDOWN inside `batch(fn)` is a supported
+					// pattern. Status mutations (`_status="sentinel"`,
+					// `_teardownDone=true`) stay in `_preBatchSnapshot`'s scope
+					// and roll back via `_rollbackBatchPending`.
+					if (isExplicitlyBatching()) {
+						this._pendingDeactivateAfterBatch = true;
+					} else {
+						this._deactivate(/* skipStatusUpdate */ true);
+					}
 					// TEARDOWN is a hard reset — unconditionally "sentinel",
 					// even if the node was previously completed/errored.
 					this._status = "sentinel";
@@ -3790,9 +3941,15 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	/**
 	 * @internal Dispatch entry point that respects the per-batch emit
 	 * accumulator (Bug 2). Inside an explicit `batch()` scope, append to
-	 * `_batchPendingMessages` and register a flush hook on first append.
-	 * Outside batch — or during a drain (where `flushInProgress` is true
-	 * but `batchDepth` is 0) — dispatch synchronously through `downWithBatch`.
+	 * `_batchPendingMessages`. Outside batch — or during a drain (where
+	 * `flushInProgress` is true but `batchDepth` is 0) — dispatch
+	 * synchronously through `downWithBatch`.
+	 *
+	 * The paired flush/rollback hook + `_preBatchSnapshot` are registered
+	 * in `_emit` directly (before `_updateState`), NOT here — this keeps
+	 * the rollback guarantee even when `_updateState` filters all
+	 * messages out (no `finalMessages` left to accumulate but state has
+	 * still potentially mutated).
 	 *
 	 * Per-emit state updates (`_frameBatch`, `_updateState`) have already
 	 * happened by the time we reach here; only the **downstream delivery**
@@ -3801,10 +3958,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	private _dispatchOrAccumulate(messages: Messages): void {
 		if (isExplicitlyBatching()) {
-			if (this._batchPendingMessages === null) {
-				this._batchPendingMessages = [];
-				registerBatchFlushHook(() => this._flushBatchPending());
-			}
+			if (this._batchPendingMessages === null) this._batchPendingMessages = [];
 			for (const m of messages) this._batchPendingMessages.push(m);
 			return;
 		}
@@ -3812,10 +3966,85 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
+	 * @internal Captures the pre-batch observable state and registers the
+	 * paired flush/rollback hook with `batch.ts`. Called at the TOP of
+	 * `_emit` (after the protocol-`undefined` payload check) on first
+	 * state-touch inside an explicit `batch()` scope. /qa F3 hoisted this
+	 * from its prior position before `_updateState` so PAUSE/RESUME lock
+	 * mutations, meta TEARDOWN fan-out, and `_pushReplayBuffer` are all
+	 * downstream of the snapshot.
+	 *
+	 * Snapshot details — see {@link _preBatchSnapshot} for the field-by-
+	 * field rationale and the user-locked "post-rollback observable state
+	 * ≡ pre-batch observable state" invariant.
+	 */
+	private _captureBatchSnapshot(): void {
+		const v = this._versioning;
+		this._preBatchSnapshot = {
+			cached: this._cached,
+			status: this._status,
+			versioning:
+				v == null
+					? undefined
+					: "cid" in v
+						? { version: v.version, cid: v.cid, prev: v.prev }
+						: { version: v.version },
+			hasCalledFnOnce: this._hasCalledFnOnce,
+			teardownDone: this._teardownDone,
+			waveHasNewData: this._waveHasNewData,
+			hasNewTerminal: this._hasNewTerminal,
+			waveHasInvalidate: this._waveHasInvalidate,
+			// /qa F5: shallow content copy, not length. Buffer at-cap with a
+			// mid-batch eviction would otherwise have its head silently lost.
+			replayBuffer: this._replayBuffer == null ? null : [...this._replayBuffer],
+			// /qa F7: latches once per node lifetime — restoring is the
+			// "once per lifetime" semantic when the latch fired only inside
+			// the rolled-back wave.
+			equalsErrorLogged: this._equalsErrorLogged,
+			// /qa F4(c): defer-flag for TEARDOWN-inside-batch.
+			pendingDeactivateAfterBatch: this._pendingDeactivateAfterBatch,
+			// /qa F3: pause sub-snapshot. `null` when pause state was
+			// untouched at capture; otherwise clone the live state so the
+			// PAUSE/RESUME branch at line ~3270 can mutate without
+			// corrupting the snapshot. Capture-by-value of immutable
+			// scalars; clone Set + array; the `_prePauseSnapshot` object
+			// is captured by reference (it's never mutated after capture
+			// — see Lock 2.C semantics at line ~3186).
+			pause:
+				this._pauseLocks == null &&
+				this._pauseBuffer == null &&
+				!this._paused &&
+				this._pauseStartNs === undefined &&
+				this._pauseDroppedCount === 0 &&
+				!this._pauseOverflowed &&
+				this._prePauseSnapshot == null
+					? null
+					: {
+							locks: this._pauseLocks == null ? null : new Set(this._pauseLocks),
+							paused: this._paused,
+							buffer: this._pauseBuffer == null ? null : [...this._pauseBuffer],
+							startNs: this._pauseStartNs,
+							droppedCount: this._pauseDroppedCount,
+							overflowed: this._pauseOverflowed,
+							prePauseSnapshot: this._prePauseSnapshot,
+						},
+		};
+		registerBatchHook({
+			flush: () => this._flushBatchPending(),
+			rollback: () => this._rollbackBatchPending(),
+		});
+	}
+
+	/**
 	 * @internal Flushes the accumulated batch through `downWithBatch` and
-	 * clears the pending state. Idempotent — safe to call when pending is
-	 * already null or empty (e.g. on a `batch()` throw, where the hook
-	 * fires for cleanup but the drainPhase queues are wiped after).
+	 * clears the pending state + `_preBatchSnapshot` (single-use per
+	 * batch session). Idempotent — safe to call when pending is already
+	 * null or empty.
+	 *
+	 * Also fires any deferred `_deactivate()` (per /qa F4(c)): TEARDOWN
+	 * inside batch defers the irreversible dep-unsubscribe + `onDeactivation`
+	 * side effects to here, so the rollback path can keep the node alive
+	 * if the batch throws.
 	 *
 	 * Critical: the accumulated batch is interleaved per-emit framings like
 	 * `[DIRTY, DATA(1), DIRTY, DATA(2)]` — non-monotone tier order. We must
@@ -3826,11 +4055,122 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	private _flushBatchPending(): void {
 		const pending = this._batchPendingMessages;
-		if (pending === null) return;
+		const deferredDeactivate = this._pendingDeactivateAfterBatch;
 		this._batchPendingMessages = null;
-		if (pending.length === 0) return;
-		const framed = this._frameBatch(pending);
-		downWithBatch(this._deliverToSinks, framed, this._config.tierOf);
+		this._preBatchSnapshot = null;
+		this._pendingDeactivateAfterBatch = false;
+		if (pending !== null && pending.length > 0) {
+			const framed = this._frameBatch(pending);
+			downWithBatch(this._deliverToSinks, framed, this._config.tierOf);
+		}
+		// /qa F4(c): fire the deferred `_deactivate` AFTER dispatch so
+		// subscribers see the TEARDOWN wave before deps are unsubscribed.
+		// `skipStatusUpdate=true` mirrors the original synchronous
+		// in-`_updateState` call at line ~3819 — status was already set
+		// to "sentinel" + `_teardownDone=true` mid-batch.
+		if (deferredDeactivate) {
+			this._deactivate(/* skipStatusUpdate */ true);
+		}
+	}
+
+	/**
+	 * @internal D282 R4.3.2 throw-rollback handler. Restores the node to
+	 * its pre-batch observable state from `_preBatchSnapshot` and clears
+	 * `_batchPendingMessages` WITHOUT dispatching to sinks. Converges to
+	 * the Rust substrate's `discard_wave_cleanup` +
+	 * `restore_wave_cache_snapshots` semantic at
+	 * `graphrefly-rs/crates/graphrefly-core/src/batch.rs:3693`.
+	 *
+	 * `_versioning` restore mutates fields in place on the live object
+	 * (object identity is preserved across the batch window — same
+	 * precedent as Lock 2.C `_prePauseSnapshot` restore). Restoring fields
+	 * onto a fresh object would break consumers that captured the
+	 * `_versioning` reference earlier.
+	 *
+	 * /qa F2: V1 `cid`/`prev` restoration is UNCONDITIONAL when the live
+	 * `_versioning` has the V1 shape — restoring only when the snapshot
+	 * value was defined (pre-/qa) would leak newly-set hashes whose
+	 * pre-batch value was `undefined`.
+	 *
+	 * /qa F5: `_replayBuffer` is restored from the shallow content copy
+	 * (not a length truncation) so a mid-batch eviction at capacity
+	 * doesn't silently lose the pre-batch head.
+	 *
+	 * /qa F3: pause state restoration if `snap.pause != null`. Set is
+	 * re-cloned to break aliasing; buffer is replaced (length-and-content);
+	 * `_prePauseSnapshot` reference restored verbatim (Lock 2.C). When
+	 * `snap.pause === null`, the node was guaranteed pause-untouched at
+	 * capture — clear all pause fields defensively in case a mid-batch
+	 * PAUSE mutated them.
+	 *
+	 * /qa F4(c): clears the pending-`_deactivate` flag so the deferred
+	 * TEARDOWN-side-effect never fires. Deps remain subscribed and
+	 * `onDeactivation` is NOT called.
+	 *
+	 * Idempotent — safe to call when `_preBatchSnapshot === null` (no-op).
+	 */
+	private _rollbackBatchPending(): void {
+		const snap = this._preBatchSnapshot;
+		this._batchPendingMessages = null;
+		this._preBatchSnapshot = null;
+		this._pendingDeactivateAfterBatch = false;
+		if (snap === null) return;
+		this._cached = snap.cached;
+		this._status = snap.status;
+		if (snap.versioning != null && this._versioning != null) {
+			// Mutate in place — preserve object identity (same precedent
+			// as the Lock 2.C pre-pause restore at line ~3186).
+			this._versioning.version = snap.versioning.version;
+			if ("cid" in this._versioning) {
+				// /qa F2: unconditional restore. Versioning level cannot
+				// change mid-batch (object identity + level are stable
+				// across the batch window per Lock 2.C), so if `_versioning`
+				// is V1 now, the snapshot captured V1 fields — `cid` and
+				// `prev` are guaranteed non-undefined. The non-null
+				// assertion encodes that class invariant.
+				this._versioning.cid = snap.versioning.cid as string;
+				this._versioning.prev = snap.versioning.prev as string | null;
+			}
+		}
+		this._hasCalledFnOnce = snap.hasCalledFnOnce;
+		this._teardownDone = snap.teardownDone;
+		this._waveHasNewData = snap.waveHasNewData;
+		this._hasNewTerminal = snap.hasNewTerminal;
+		this._waveHasInvalidate = snap.waveHasInvalidate;
+		// /qa F7: restore the once-per-lifetime equals-error log latch.
+		this._equalsErrorLogged = snap.equalsErrorLogged;
+		// /qa F5: restore buffer contents (not just length). Pre-cap
+		// eviction during the batch would otherwise leave the head lost.
+		if (snap.replayBuffer === null) {
+			this._replayBuffer = null;
+		} else {
+			if (this._replayBuffer === null) {
+				this._replayBuffer = [...snap.replayBuffer];
+			} else {
+				this._replayBuffer.length = 0;
+				this._replayBuffer.push(...snap.replayBuffer);
+			}
+		}
+		// /qa F3: restore pause state.
+		if (snap.pause === null) {
+			// Pre-batch the node was pause-untouched. Defensive clear in
+			// case PAUSE/RESUME branches mutated mid-batch.
+			this._pauseLocks = null;
+			this._paused = false;
+			this._pauseBuffer = null;
+			this._pauseStartNs = undefined;
+			this._pauseDroppedCount = 0;
+			this._pauseOverflowed = false;
+			this._prePauseSnapshot = null;
+		} else {
+			this._pauseLocks = snap.pause.locks === null ? null : new Set(snap.pause.locks);
+			this._paused = snap.pause.paused;
+			this._pauseBuffer = snap.pause.buffer === null ? null : [...snap.pause.buffer];
+			this._pauseStartNs = snap.pause.startNs;
+			this._pauseDroppedCount = snap.pause.droppedCount;
+			this._pauseOverflowed = snap.pause.overflowed;
+			this._prePauseSnapshot = snap.pause.prePauseSnapshot;
+		}
 	}
 }
 

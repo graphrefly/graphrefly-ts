@@ -470,6 +470,15 @@ export const pureTsImpl: Impl = {
 		return wrap(n);
 	},
 
+	// D282 — widened to expose `batch(fn)` so `batch-throw-rollback`
+	// parity scenarios can run cross-arm. Pure-ts wraps the sync
+	// `legacy.batch`; the user `fn` runs synchronously inside the
+	// substrate's batch scope, so a thrown value rejects the Promise
+	// after the substrate's per-node rollback has completed.
+	async batch(fn: () => void): Promise<void> {
+		legacy.batch(fn);
+	},
+
 	Graph: class implements ImplGraph {
 		private readonly impl: LegacyGraph;
 		constructor(name: string) {

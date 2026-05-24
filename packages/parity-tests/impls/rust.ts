@@ -123,6 +123,25 @@ function build(): Impl {
 	return new Proxy(target, {
 		get(_t, prop: string | symbol) {
 			if (prop === "name") return "rust-via-napi";
+			// D282 (cross-track-ledger §1, 2026-05-23): the parity `Impl`
+			// contract was widened with `batch(fn): Promise<void>` so the
+			// TS-arm convergence to Rust's `discard_wave_cleanup` shape can
+			// be asserted cross-arm. The native wrapper does NOT yet
+			// expose a user-level `batch(fn)` napi (Rust substrate uses
+			// implicit `BatchGuard` per-wave; the user `batch(fn)` shape
+			// requires a separate napi binding). Until that ships, every
+			// rollback-asserting scenario in
+			// `scenarios/core/batch-throw-rollback.test.ts` gates with
+			// `test.runIf(impl.name === "pure-ts")`. Throw here so an
+			// accidental cross-arm invocation surfaces loudly instead of
+			// silently passing through to a no-op.
+			if (prop === "batch") {
+				return async (_fn: () => void): Promise<void> => {
+					throw new Error(
+						'batch: not yet exposed on @graphrefly/native (cross-track-ledger §1 D282; gate with `test.runIf(impl.name === "pure-ts")` until the napi binding ships)',
+					);
+				};
+			}
 			const inst = instance() as unknown as Record<string | symbol, unknown>;
 			const value = inst[prop];
 			if (typeof value === "function") {
@@ -131,6 +150,14 @@ function build(): Impl {
 			return value;
 		},
 		has(_t, prop) {
+			// D282 /qa F11: return `false` from `has` for `batch` so
+			// feature-detection callers (`"batch" in impl`) cleanly report
+			// "not available" instead of being misled into calling the
+			// throwing stub. The `get` trap still returns the throwing
+			// async-fn stub above for callers that DO invoke `impl.batch`
+			// directly without runIf-gating — those surface the
+			// "not yet exposed on @graphrefly/native" error loudly.
+			if (prop === "batch") return false;
 			const inst = instance() as unknown as Record<string | symbol, unknown>;
 			return prop in inst;
 		},

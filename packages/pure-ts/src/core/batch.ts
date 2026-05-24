@@ -74,19 +74,35 @@ const drainPhase3: Array<() => void> = [];
 const drainPhase4: Array<() => void> = [];
 
 /**
- * Per-batch flush hooks. Each hook is registered by a node the first time
- * it accumulates an emission inside an explicit `batch()` scope (Bug 2 —
- * per-node emit coalescing). Hooks fire at the head of `drainPending`,
- * before the standard tier-3/4/5 drain queues — they call `downWithBatch`
- * with the node's accumulated multi-message batch, which enqueues the
- * tier-3+ portion into `drainPhase2/3/4` for the standard loop.
+ * Per-batch hook pairs. Each entry is registered by a node the first time
+ * it touches state inside an explicit `batch()` scope. The pair carries
+ * both the success-path `flush` (deliver accumulated messages) and the
+ * throw-path `rollback` (restore pre-batch state, do NOT deliver).
  *
- * On a `batch()` throw, hooks still fire so each node clears its pending
- * state (they're idempotent — the side-effects are wiped because the
- * drainPhase queues that they enqueue into are cleared in the same finally
- * block).
+ * **D282 — R4.3.2 throw rollback (locked 2026-05-23).** On success drain,
+ * `flush` is invoked at the head of `drainPending`, before the standard
+ * tier-3/4/5 drain queues — it calls `downWithBatch` with the node's
+ * accumulated multi-message batch, which enqueues the tier-3+ portion
+ * into `drainPhase2/3/4` for the standard loop. On `batch()` throw,
+ * `rollback` is invoked INSTEAD of `flush` (the pre-D282 implementation
+ * fired `flush` on both paths and relied on a same-finally drainPhase
+ * clear — that was unsound because at the catch-path `batchDepth === 0`
+ * and `flushInProgress === false`, so the flush's `downWithBatch` call
+ * dispatched synchronously, leaking the wave to subscribers; see the
+ * 2026-05-22 Slice A revert + the C1 reopen entry in
+ * `docs/optimizations.md`).
+ *
+ * The paired registry converges TS to the Rust substrate's pre-existing
+ * `discard_wave_cleanup` + `restore_wave_cache_snapshots` semantic at
+ * `graphrefly-rs/crates/graphrefly-core/src/batch.rs:3693`. Subscriber
+ * wire shape on throw is now parity-observable (cross-track-ledger §2
+ * C1 row).
+ *
+ * Inner batches inside `flushInProgress` SKIP rollback per
+ * cross-language decision A4 — the existing `!flushInProgress` gate in
+ * `batch()`'s catch path preserves that.
  */
-const flushHooks: Array<() => void> = [];
+const batchHooks: Array<{ flush: () => void; rollback: () => void }> = [];
 
 /**
  * Returns whether the current call stack is inside a batch scope **or** while
@@ -108,17 +124,62 @@ export function isExplicitlyBatching(): boolean {
 }
 
 /**
- * Register a hook to fire at the head of the next `drainPending`. Used by
- * `NodeImpl._emit` to flush its per-batch accumulator (Bug 2). If called
- * outside an explicit batch the hook fires immediately, since there's no
+ * Register a paired flush/rollback hook for the current batch. Used by
+ * `NodeImpl._emit` on first state-touch inside an explicit `batch()` scope.
+ *
+ * - **Success drain**: `flush` fires at the head of `drainPending` — the
+ *   node delivers its accumulated multi-message batch via `downWithBatch`.
+ * - **Outermost throw (`batchDepth === 0 && !flushInProgress`)**:
+ *   `rollback` fires instead — the node restores cache/status/versioning
+ *   from `_preBatchSnapshot` and clears `_batchPendingMessages` WITHOUT
+ *   dispatching downstream. R4.3.2.
+ * - **Inner throw under `flushInProgress` (A4 carve-out)**: neither
+ *   `flush` nor `rollback` fires at the inner-throw boundary — the inner
+ *   batch's accumulators stay live; the outer drain's continued loop
+ *   will pick up `flush` per the standard success path.
+ *
+ * Called outside any batch context (defensive — shouldn't happen in
+ * practice because `_emit`'s registration is gated on
+ * `isExplicitlyBatching()`), `flush` fires immediately since there's no
  * drain coming.
  */
-export function registerBatchFlushHook(hook: () => void): void {
+export function registerBatchHook(hook: { flush: () => void; rollback: () => void }): void {
 	if (batchDepth > 0) {
-		flushHooks.push(hook);
+		batchHooks.push(hook);
 	} else {
-		hook();
+		hook.flush();
 	}
+}
+
+/**
+ * Legacy single-hook API for **flush-only** coalescers (external
+ * bystanders that aggregate downstream changes — e.g.
+ * `graph.observe({ reactive: true })`'s changeset flusher,
+ * `describe({ reactive: true })`'s recompute trigger, the topology-emit
+ * coalescer). These callers DON'T own per-node pre-batch state, so a
+ * throw-rollback path is a no-op for them.
+ *
+ * Thin shim over {@link registerBatchHook} that pairs the provided
+ * `hook` (used as `flush`) with a no-op `rollback`. Net effect on the
+ * throw path: nothing fires; the external coalescer's accumulated state
+ * stays as-is. Since the coalescer's accumulation is normally driven by
+ * a SINK callback on per-node DATA, and per-node DATA was rolled back
+ * before this hook would fire, the coalescer's per-call accumulator is
+ * typically empty in the rollback scenario anyway — the no-op rollback
+ * is the right semantic (no false flush of an empty changeset).
+ *
+ * @deprecated Use {@link registerBatchHook} for new code so the
+ * rollback hook is explicit. Kept for the in-tree graph-level coalescers
+ * (`graph.ts` changesets / reactive-describe / reactive-observe /
+ * topology-emitter) which are flush-only by design.
+ */
+export function registerBatchFlushHook(hook: () => void): void {
+	registerBatchHook({
+		flush: hook,
+		rollback: () => {
+			/* flush-only coalescer: rollback is a no-op */
+		},
+	});
 }
 
 /**
@@ -129,33 +190,75 @@ export function registerBatchFlushHook(hook: () => void): void {
 export function batch(fn: () => void): void {
 	batchDepth += 1;
 	let threw = false;
+	let userError: unknown;
 	try {
 		fn();
 	} catch (e) {
 		threw = true;
+		userError = e;
 		throw e;
 	} finally {
 		batchDepth -= 1;
 		if (batchDepth === 0) {
 			if (threw) {
 				if (!flushInProgress) {
-					// Fire any per-node flush hooks so nodes clear their
-					// pending state. The downWithBatch calls those hooks
-					// make enqueue into drainPhase queues — those queues
-					// are cleared right after, so the side-effects are
-					// wiped. Net result: clean node state, no delivery.
-					const hooks = flushHooks.splice(0);
+					// D282 R4.3.2: fire the per-node ROLLBACK hooks (NOT
+					// flush). Each rollback restores the node's pre-batch
+					// cache/status/versioning/wave-flags/replayBuffer state
+					// from `_preBatchSnapshot` and clears
+					// `_batchPendingMessages` without dispatching. The
+					// drainPhase queues at this point hold any deferred
+					// closures from re-entrant downWithBatch calls during
+					// `fn`; clear them too (Rust's `discard_wave_cleanup`
+					// drops the analogous `pending_notify`).
+					//
+					// /qa F6: collect rollback errors and aggregate-throw
+					// AFTER the originating user throw re-propagates. A
+					// buggy rollback (e.g. a malformed snapshot triggering
+					// an exception in `_rollbackBatchPending`) MUST surface
+					// — silent best-effort masking was the Slice-A reviewer
+					// finding #5 anti-pattern that recurred here pre-/qa.
+					// Same shape as `drainPending`'s error-collection (line
+					// 264 below).
+					const hooks = batchHooks.splice(0);
+					const rollbackErrors: unknown[] = [];
 					for (const h of hooks) {
 						try {
-							h();
-						} catch {
-							/* best-effort */
+							h.rollback();
+						} catch (e) {
+							rollbackErrors.push(e);
 						}
 					}
 					drainPhase2.length = 0;
 					drainPhase3.length = 0;
 					drainPhase4.length = 0;
+					if (rollbackErrors.length > 0) {
+						// Wrap as a `cause` on the originating user error so
+						// the user-throw remains the primary signal (callers
+						// `expect.rejects.toThrow(/userError/)` still match).
+						// Aggregated rollback errors are inspectable via
+						// `(err as Error).cause` per the D4 wrap pattern.
+						const cause =
+							rollbackErrors.length === 1
+								? rollbackErrors[0]
+								: new AggregateError(rollbackErrors, "batch rollback: multiple hooks threw");
+						if (userError instanceof Error) {
+							(userError as Error & { cause?: unknown }).cause = cause;
+						} else {
+							// Non-Error user throw: log the rollback errors
+							// to surface them (best-effort but loud, not
+							// silent). The user's throw still propagates as
+							// the primary signal.
+							console.error("batch rollback hooks threw during throw path:", cause);
+						}
+					}
 				}
+				// flushInProgress branch (A4 carve-out): inner-batch throw
+				// re-propagates WITHOUT rollback. The inner batch's hook
+				// entries stay in `batchHooks` and will fire `flush` on the
+				// outer drain's next iteration. This is the "commit-on-
+				// outer-success" semantic exercised by Case 11 of the
+				// `scenarios/core/batch-throw-rollback.test.ts` parity suite.
 			} else {
 				drainPending();
 			}
@@ -171,23 +274,25 @@ function drainPending(): void {
 
 	let iterations = 0;
 	try {
-		// Loop while EITHER tier-3+ deferred work OR pending flush hooks exist.
+		// Loop while EITHER tier-3+ deferred work OR pending batch hooks exist.
 		// Hooks can be re-registered mid-drain by reentrant `batch()` calls
-		// inside subscriber callbacks; checking `flushHooks` each iteration
+		// inside subscriber callbacks; checking `batchHooks` each iteration
 		// (not just before the loop) ensures those late hooks fire too.
 		while (
 			drainPhase2.length > 0 ||
 			drainPhase3.length > 0 ||
 			drainPhase4.length > 0 ||
-			(ownsFlush && flushHooks.length > 0)
+			(ownsFlush && batchHooks.length > 0)
 		) {
-			// Fire any pending flush hooks FIRST so their downWithBatch calls
-			// enqueue tier-3+ work into drainPhase before we process it.
-			if (ownsFlush && flushHooks.length > 0) {
-				const hooks = flushHooks.splice(0);
+			// Fire any pending batch hooks' FLUSH side FIRST so their
+			// downWithBatch calls enqueue tier-3+ work into drainPhase
+			// before we process it. (Rollback is only fired on the
+			// throw path in `batch()`'s catch.)
+			if (ownsFlush && batchHooks.length > 0) {
+				const hooks = batchHooks.splice(0);
 				for (const h of hooks) {
 					try {
-						h();
+						h.flush();
 					} catch (e) {
 						errors.push(e);
 					}

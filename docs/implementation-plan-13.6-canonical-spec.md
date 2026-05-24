@@ -1180,7 +1180,7 @@ In practice both irrelevant — TS is single-threaded so sub-microsecond timesta
 
 Drain rule: fire pending flush hooks first, then drain lowest non-empty phase. Re-enqueues during drain bump the loop back to the top.
 
-**R4.3.2 — Throw rollback.** If `fn` throws during the outermost batch frame: per-node flush hooks fire (so nodes clear their pending state), all drainPhase queues are cleared, throw re-propagates. **Inner batches inside flushInProgress skip rollback** (cross-language decision A4).
+**R4.3.2 — Throw rollback.** If `fn` throws during the outermost batch frame: per-node hooks fire (rolling back pending state and reverting pre-batch observable state on throw), all drainPhase queues are cleared, throw re-propagates. **Inner batches inside flushInProgress skip rollback** (cross-language decision A4). **Emitting a `TEARDOWN` message inside `batch(fn)` defers the irreversible deactivation side effects (dep unsubscribe + `onDeactivation` fire) to flush time** so the rollback path can keep the node alive — supports the multi-channel-atomic-terminate pattern. The TS reference impl is D282 (`docs/rust-port-decisions.md`); Rust impl is structurally equivalent via `discard_wave_cleanup` + `restore_wave_cache_snapshots`.
 
 **R4.3.3 — Drain cap.** Drain loop has iteration cap (`MAX_DRAIN_ITERATIONS = 1000` currently; → `cfg.maxBatchDrainIterations` per Implementation Delta #20). On exceed: clear all phases, throw `'batch drain exceeded N iterations — likely a reactive cycle'`.
 

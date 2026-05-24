@@ -299,6 +299,30 @@ export interface Impl {
 		name: string,
 	) => ImplGraph;
 
+	/**
+	 * Run `fn` inside an explicit batch scope (R4.3.1). Nested calls share
+	 * one deferral queue. Throw rollback (R4.3.2): if `fn` throws during the
+	 * outermost batch frame, per-node pending state is cleared without
+	 * dispatching downstream AND per-node cache/status/versioning revert to
+	 * pre-batch values; drainPhase queues are cleared; throw re-propagates.
+	 * Inner batches inside `flushInProgress` skip rollback (cross-language
+	 * decision A4 carve-out).
+	 *
+	 * Resolves after the outer batch drains AND all sinks have fired (on
+	 * the success path); on the throw path, rejects with the user-thrown
+	 * value AFTER the per-node rollback has completed.
+	 *
+	 * D282 (locked 2026-05-23, cross-track-ledger §1 row): widens the parity
+	 * contract so `batch-throw-rollback` parity scenarios can assert TS
+	 * converges to Rust's pre-existing `discard_wave_cleanup` +
+	 * `restore_wave_cache_snapshots` semantic (substrate at
+	 * `graphrefly-rs/crates/graphrefly-core/src/batch.rs:3693`). The native
+	 * arm is `runIf(impl.name === "pure-ts")`-gated per test until a
+	 * `batch_run` napi binding ships on `@graphrefly/native` (today the
+	 * native wrapper throws `"batch: not yet exposed on @graphrefly/native"`).
+	 */
+	batch(fn: () => void): Promise<void>;
+
 	// Transform operators.
 	map<T, U>(src: ImplNode<T>, fn: (x: T) => U): Promise<ImplNode<U>>;
 	filter<T>(src: ImplNode<T>, predicate: (x: T) => boolean): Promise<ImplNode<T>>;
