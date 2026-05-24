@@ -2416,3 +2416,99 @@ Decisions made during the Rust port, recorded after inline discussion.
 - **Deferred carries (not addressed in this slice — logged in `docs/optimizations.md`).** F1 redundant async-layer cosmetic (inline Graph class wraps LegacyGraph wraps sync legacy.tagFactory → 2 microtask hops per call; zero perf impact, parity tests not hot-path) — track for future cleanup pass.
 - **Canonical:** `docs/cross-track-ledger.md` §1 D283 row; `docs/implementation-plan-13.6-canonical-spec.md:768,984` (R3.1.2 + R3.6.3); `~/src/graphrefly-rs/docs/rust-port-decisions.md:32-37` (D004 deferral being partially lifted); `~/src/graphrefly-rs/docs/porting-deferred.md:1676,1678` (the two R-numbers being closed).
 
+### D284 — D283 `Impl` amendment: drop value-size fields (`valueSizeBytes` + `totalValueSizeBytes` + `hotspots.byValueSize`)
+
+- **Date:** 2026-05-24 (`/porting-to-rs` Commit 1 of 4 in the paired D283 native-landing batch). User-locked at the pre-design HALT: *"Option 3 — Omit valueSizeBytes from Impl too. Pre-design caught a pure-ts accident; close it instead of propagating (Option 1 = dishonest cross-arm divergence) or building infrastructure for it (Option 2 = speculative substrate widening, D196 fail). Note as value-#6 (pre-design) win in the amended D283 entry."*
+- **Context.** Pre-design pass before authoring the Rust `Graph::resource_profile` substrate (`/porting-to-rs` Commit 2 = D285) discovered that the D283-locked `ImplNodeProfile` carries `valueSizeBytes: number` and `ImplGraphProfileResult` carries `totalValueSizeBytes: number` + `hotspots.byValueSize: ImplNodeProfile[]`. These fields are **NOT in the canonical R3.6.3 spec** (`docs/implementation-plan-13.6-canonical-spec.md:984` only says *"runtime profile (subscriber counts, fan-in/out, etc.)"*); they are pure-ts-inferred fields shipped by `packages/pure-ts/src/graph/profile.ts`'s `sizeof(impl.cache)` JS heap walk. On the Rust port, cache is a `HandleId` (u64); the user value `T` lives in the binding-side registry and never enters Core — so a true value size requires a per-node `BindingBoundary::value_size_of(handle) -> usize` FFI widening that pure-ts doesn't need.
+- **Three options surfaced:**
+  - **Option 1 — keep value-size on Impl, return 0 across all Rust nodes.** Dishonest cross-arm divergence: pure-ts reports real sizes, native reports 0; consumers reading `byValueSize` get nonsense rankings on native.
+  - **Option 2 — add the `BindingBoundary::value_size_of` FFI widening.** Speculative substrate widening with NO consumer pressure (no parity scenario asserts on `valueSizeBytes`; spec doesn't mandate). D196 fail: "no new substrate surface without consumer pressure."
+  - **Option 3 — amend the Impl to drop the fields.** Pre-1.0 freedom (`feedback_no_backward_compat`) lets us narrow the cross-arm contract to what both arms can honestly satisfy. Pure-ts keeps computing them internally (existing pure-ts callers outside parity-tests depend on the wider shape via `graphProfile()` directly); the parity wrapper strips them at the cross-arm boundary.
+- **Decision: Option 3.** Drop `ImplNodeProfile.valueSizeBytes`, `ImplGraphProfileResult.totalValueSizeBytes`, `ImplGraphProfileResult.hotspots.byValueSize` from `packages/parity-tests/impls/types.ts`. Pure-ts arm: new `projectToImplProfile` helper in `packages/parity-tests/impls/pure-ts.ts` projects the substrate's wider `GraphProfileResult` onto the narrower `ImplGraphProfileResult` (used by both `LegacyGraph` and the inline `Graph` class wrappers).
+- **Why this is "value-#6 pre-design over post-hoc accident propagation".** The D283 Impl-widening dispatch ($n) shipped 2026-05-23 with `valueSizeBytes` because the author mirrored the existing pure-ts `GraphProfileResult` shape. Pre-design before authoring the Rust substrate caught it before it was propagated to a `BindingBoundary` widening or a "return 0" Rust shim. Recorded as the user-feedback pattern: *"pre-design FULL decision-set before slicing; avoid CoreFull-style accretion; audit user-visible semantics at design time not in QA"*.
+- **Affects:**
+  - `packages/parity-tests/impls/types.ts` — `ImplNodeProfile` drops 1 field; `ImplGraphProfileResult` drops 2 fields (1 aggregate + 1 hotspot dimension); both docstrings updated with the rationale.
+  - `packages/parity-tests/impls/pure-ts.ts` — new `projectToImplProfile` helper; both `resourceProfile` adapter sites (`LegacyGraph` line ~398; inline `Graph` line ~586) project through it. New `ImplNodeProfile` import.
+  - `packages/parity-tests/scenarios/graph/resource-profile.test.ts` — already didn't assert on the dropped fields (parity stayed green at 438 / 24 skipped post-D284, same counts as pre-D284).
+  - `docs/cross-track-ledger.md` — §1 D283 row updated with the amendment note (will close in D287).
+  - `docs/rust-port-decisions.md` — this entry (D284 mint).
+- **Gates:** pure-ts unchanged (substrate untouched); parity-tests **438 passed / 24 skipped** (no change in counts); biome + layer-boundary + typecheck clean (804 + 366 + 2).
+- **Canonical:** `docs/cross-track-ledger.md` §1 D283 amendment note; `docs/implementation-plan-13.6-canonical-spec.md:984` (R3.6.3 — *"subscriber counts, fan-in/out, etc."* — no mandate for value-size fields); user memory `feedback_pre_design_full_decision_set.md`.
+
+### D285 — Rust `Graph::tag_factory` + `Graph::resource_profile` substrate (R3.1.2 + R3.6.3)
+
+- **Date:** 2026-05-24 (`/porting-to-rs` Commit 2 of 4 in the paired D283 native-landing batch). User-approved at the pre-design HALT (Q1 = "Yes — proceed with all 6 decisions A-F"). Lifts D004 deferral for R3.1.2 + R3.6.3 (`setVersioning` R3.2.4 stays deferred per Phase 14 op-log counter dependency).
+- **Context.** The D283 Impl widening (`tagFactory` + `resourceProfile` on `ImplGraph`) shipped 2026-05-23 with 8 parity scenarios gated `runIf(impl.name === "pure-ts")` waiting for the paired Rust substrate. graphrefly-ts pre-design surfaced 6 substrate decisions (Section 2 of the HALT report):
+  - **(A) Substrate field shape:** mirror pure-ts's two separate fields (`factory: Option<String>` + `factory_args: Option<serde_json::Value>`) NOT the spec R3.10 informative `_factoryTag` single-field shape. **Reason:** the cross-arm-observable JSON shape pinned by parity tests is what pure-ts emits at `graph.ts:3508-3509`; spec table 3.10 is informative.
+  - **(B) `factory_args` storage type: `serde_json::Value`.** Avoids a `T` field on `GraphInner` (would violate handle-protocol cleaving plane); JSON round-trips through `describe()` byte-for-byte vs pure-ts.
+  - **(C) `GraphDescribeOutput` JSON shape:** `factory: Option<String>` + `factory_args: Option<serde_json::Value>` with `#[serde(default, skip_serializing_if = "Option::is_none", rename = "factoryArgs")]`. Mirrors pure-ts's spread-conditional key-omission semantic pinned by parity test #2 (`"factoryArgs" in desc` assertion).
+  - **(D) No `_topology_version` field in Rust.** Pure-ts bumps `_topologyVersion` for SPEC-PERSISTENCE bookkeeping (DS-14.5.A Q1) but explicitly emits no `TopologyEvent`. Rust's `describe_of` reads `inner.factory` / `inner.factory_args` fresh on every call → subsequent topology events automatically observe the latest tag without any cache-invalidation field.
+  - **(E) `resource_profile` substrate scope: ship the post-D284 narrower shape.** No `value_size_bytes` per node (Rust cache is `HandleId`); no `total_value_size_bytes`; no `hotspots.by_value_size`. See D284 for the amendment rationale.
+  - **(F) `CoreFull::sink_count_of` trait widening.** New `fn sink_count_of(&self, node_id: NodeId) -> usize` on the substrate-internal `CoreFull` trait (D243); NOT on the parity `Impl` contract. One-line addition; blanket impl delegates to inherent `Core::sink_count_of` (lock-state lookup → `r.subscribers.len()`; returns 0 for unknown / torn-down nodes per the existing `*_of` accessors' "unknown ⇒ default" stance). Used by `resource_profile` for per-node `subscriber_count` + `hotspots.by_subscriber_count` ranking + orphan classification.
+- **Implementation: ~600 LOC across 6 files in graphrefly-rs.**
+  - `crates/graphrefly-core/src/node.rs` — `CoreFull::sink_count_of` trait method + blanket impl + inherent `Core::sink_count_of` (~33 LOC).
+  - `crates/graphrefly-graph/src/graph.rs` — `GraphInner.factory` + `GraphInner.factory_args` fields; `Graph::tag_factory(factory, factory_args)` mutator (QA F8 invariant: second call without args clears stale args via re-assignment).
+  - `crates/graphrefly-graph/src/describe.rs` — `GraphDescribeOutput` gains `factory` + `factory_args` fields with `skip_serializing_if = "Option::is_none"` + `rename = "factoryArgs"`; `describe_of` populates from inner state.
+  - `crates/graphrefly-graph/src/mount.rs` — `new_child_inner` initializes the two new fields to `None` (mounted subgraphs start with no factory tag, inherited via `mount_with` if needed — out of scope for this slice).
+  - `crates/graphrefly-graph/src/profile.rs` — NEW file with `Graph::resource_profile(core, opts?) -> GraphProfileResult` + `NodeProfile` + `OrphanKind { OrphanEffect, IdleDerived, IdleProducer }` enum + `Hotspots { by_subscriber_count, by_dep_count }` (no `by_value_size` per D284) + `GraphProfileOptions { top_n }`. Pure read over `&dyn CoreFull` + namespace state; walks `describe_of` for topology, queries `sink_count_of` per local node, computes orphan categorization (state nodes excluded by construction at the `match type_str` arm), sorts hotspots via `sort_by_key(|n| Reverse(key(n)))`; default `top_n = 10` matches pure-ts.
+  - `crates/graphrefly-graph/src/lib.rs` — new module + re-exports (`GraphProfileOptions`, `GraphProfileResult`, `Hotspots`, `NodeProfile`, `OrphanKind`).
+- **Tests: 11 cargo regression tests across 2 new files.**
+  - `crates/graphrefly-graph/tests/tag_factory.rs` (5 tests):
+    1. `tag_factory_surfaces_factory_and_factory_args_at_top_of_describe` — basic tag → describe surface.
+    2. `second_call_without_args_clears_stale_args` — QA F8 invariant.
+    3. `cold_call_without_args_omits_factory_args_key_from_json` — spread-conditional key-omission pin (JSON contains `"factory"` but NOT `"factoryArgs"`).
+    4. `cold_describe_before_any_tag_factory_omits_both_keys` — untouched describe omits both keys.
+    5. `json_uses_camel_case_factory_args_key` — pin camelCase wire shape (`"factoryArgs"`, not `"factory_args"`).
+  - `crates/graphrefly-graph/tests/resource_profile.rs` (6 tests):
+    1. `nodecount_edgecount_subgraphcount_match_topology` — basic topology counts (a + b + sum; 2 edges; 1 mount).
+    2. `per_node_subscriber_count_reflects_active_subscriptions` — baseline 0 → subscribe → +1 → unsubscribe → 0.
+    3. `orphan_detection_categorizes_idle_derived_and_excludes_state` — `OrphanKind::IdleDerived` for derived-no-subscribers; state nodes excluded by construction.
+    4. `hotspots_sorted_descending_and_capped_by_top_n` — top_n=2 cap honored; n0 is #1.
+    5. `default_top_n_is_ten` — `top_n ?? 10` default.
+    6. `d284_amendment_no_value_size_fields_in_serde_output` — regression pin against re-introducing value-size fields.
+- **`Impl` / napi widening:** none in this slice (D286 lands the napi binding; this slice is substrate-only). `CoreFull::sink_count_of` is substrate-internal per D243.
+- **Cross-track-ledger row:** none in §1 (this slice ships substrate that satisfies D283's existing widening obligation — the §1 D283 row updates in D287). §2 not affected.
+- **Gates:** `cargo nextest run --profile ci` **865 / 865 PASS** (was 854 pre-D285; +11 new). `cargo clippy -p graphrefly-core -p graphrefly-graph --all-targets -- -D warnings` clean. `cargo fmt --check` clean. `#![forbid(unsafe_code)]` preserved.
+- **D265 hold-local:** commit lands locally; not pushed (user-gated).
+- **Canonical:** spec `docs/implementation-plan-13.6-canonical-spec.md:768,984`; D004 deferral lift in `~/src/graphrefly-rs/docs/rust-port-decisions.md:32`; `~/src/graphrefly-rs/docs/porting-deferred.md:1676,1678` (now marked RESOLVED).
+
+### D286 — `BenchGraph::tag_factory` + `BenchGraph::resource_profile` napi + wrapper exposure
+
+- **Date:** 2026-05-24 (`/porting-to-rs` Commit 3 of 4 in the paired D283 native-landing batch). Paired napi binding for D285.
+- **Context.** D285 substrate is correct and tested; without napi binding + wrapper exposure, the parity scenarios still can't run cross-arm. This slice ships the FFI surface.
+- **napi binding (`crates/graphrefly-bindings-js/src/graph_bindings.rs`).**
+  - `BenchGraph::tag_factory(factory: String, factory_args_json: Option<String>) -> async fn`. Pre-parses `factory_args_json` on the libuv thread BEFORE the actor hop so serde_json errors surface as napi errors immediately (rather than panicking in the actor closure). `None` ⇒ clears stale args (QA F8 invariant preserved through the binding layer). Routes through `actor.run` (async; D267 deadlock-fix pattern, mirrors `describe_json`).
+  - `BenchGraph::resource_profile(top_n: Option<u32>) -> async fn` returning JSON-serialized `GraphProfileResult`. Mirrors the existing `describe_json` pattern (`actor.run` + `with_extra::<Graph,_>` + serde_json::to_string).
+- **Wrapper (`crates/graphrefly-bindings-js/wrapper.{js,d.ts}`).**
+  - `NativeGraph.tagFactory(factory, factoryArgs?)` — `JSON.stringify`s args at the wrapper boundary (avoids a full JS→Rust value bridge for a metadata-only field). `undefined` ⇒ `null` over the wire → `None` in Rust → clears stale args.
+  - `NativeGraph.resourceProfile(opts?)` — passes `opts.topN` through; `JSON.parse`s the returned JSON.
+  - New TypeScript types `NativeNodeProfile` + `NativeGraphProfileResult` matching the post-D284 narrower `ImplGraphProfileResult` shape exactly.
+- **D286 camelCase wire-shape pin.** `GraphProfileResult` / `NodeProfile` / `Hotspots` in `crates/graphrefly-graph/src/profile.rs` gain `#[serde(rename_all = "camelCase")]`. **Critical:** the parity scenarios assert on camelCase keys (`subscriberCount`, `depCount`, `nodeCount`, `bySubscriberCount`, etc.); snake_case would silently false-pass the Rust cargo tests but break cross-arm parity. New `d286_napi_camel_case_json_keys` cargo regression test pins the positive shape (every camelCase key present) AND the negative shape (no snake_case key leaked). `OrphanKind` stays kebab-case (`"orphan-effect"` / `"idle-derived"` / `"idle-producer"`) matching the Impl type union.
+- **Affects:** `crates/graphrefly-bindings-js/src/graph_bindings.rs` (+ ~70 LOC); `crates/graphrefly-bindings-js/wrapper.js` (+ ~25 LOC); `crates/graphrefly-bindings-js/wrapper.d.ts` (+ ~45 LOC including new types); `crates/graphrefly-bindings-js/index.d.ts` (regenerated by `napi build`); `crates/graphrefly-graph/src/profile.rs` (camelCase rename); `crates/graphrefly-graph/tests/resource_profile.rs` (+ D286 camelCase pin test).
+- **Gates:** `cargo nextest run --profile ci` **866 / 866 PASS** (was 865 post-D285; +1 = D286 camelCase pin). `cargo fmt --check` clean. `cargo check -p graphrefly-bindings-js` clean (54 pre-existing pedantic clippy warnings on bindings-js are informational-only per CI `continue-on-error: true`; unrelated to this slice). `pnpm build` (napi `release` profile): clean. Parity-tests rebuilt: 438 passed / 24 skipped (D283 + D282 runIf gates still in place — they lift in D287).
+- **D265 hold-local:** commit lands locally; not pushed (user-gated).
+- **Canonical:** D285 (substrate). When `@graphrefly/native` republishes (push-gated by user), the parity arm activates with both methods cross-arm.
+
+### D287 — D283 parity lift + cross-track-ledger §1 D283 / §1 D282 amendments
+
+- **Date:** 2026-05-24 (`/porting-to-rs` Commit 4 of 4 in the paired D283 native-landing batch).
+- **Scope (graphrefly-ts).**
+  - **Parity scenario gate lift.** `packages/parity-tests/scenarios/graph/tag-factory.test.ts` — all 4 `runIf(runIfPureTs)` gates dropped; tests now run cross-arm. `packages/parity-tests/scenarios/graph/resource-profile.test.ts` — 3 of 4 `runIf` gates dropped (tests #2/#3/#4 run cross-arm); test #1 (nodeCount/edgeCount/subgraphCount) STAYS pure-ts-only with a `D287 carve-out` comment explaining that `g.derived(name, deps, fn)` arbitrary-fn round-trips differently across arms (pure-ts `legacy.map` registers an intermediate node so two `impl.map` + `g.add` calls produce nodeCount=5; native `withLatestFrom` collapses to a single OperatorOp). Cross-arm parity for `nodeCount` of derived nodes requires a future BenchGraph widening to accept arbitrary-fn `g.derived` — tracked here, not blocking the D283 closure.
+  - **rust.ts registry purge.** `NOT_ON_NATIVE_GRAPH_METHODS` registry in `packages/parity-tests/impls/rust.ts` cleared of `tagFactory` + `resourceProfile` entries; comment kept noting the empty-but-preserved-pattern (E-iv.4 design-review Phase 2 cross-cutting synthesis — registry pattern stays for future port-coverage widenings).
+  - **Cross-track-ledger §1 D283 row updated** to "TS LANDED 2026-05-23 → AMENDED 2026-05-24 (D284) → NATIVE LANDED 2026-05-24 (D285 + D286 + D287)". TS ↔ native aligned; archive on next sweep.
+  - **Cross-track-ledger §1 D282 row updated** to "STRUCTURAL DESIGN PROBLEM SURFACED 2026-05-24 — deferred pending DS-14 or D080". Reframes from "needs napi `batch_run` binding" to honest "the cross-arm `Impl.batch(fn: () => void)` shape is structurally incompatible with the actor model's post-D267 async-everywhere contract for sync fn body that calls sync mutations". Three resolution paths (D282-B scripted batch, D282-C async fn body widening, D282-D sync `BenchBatchContext` napi handle) all require non-trivial design rebases; defer to DS-14 / D080 rather than picking in isolation. Substrate stays conformant (Rust `discard_wave_cleanup` + `restore_wave_cache_snapshots` ship the R4.3.2 semantic).
+  - **D284 + D285 + D286 + D287 minted in `docs/rust-port-decisions.md`** (this batch of 4 entries).
+- **Pre-design HALT trail.** All 3 user-locks captured at the Phase-2 HALT report:
+  - Q1 (batch scope) = **A+B bundled** (D282 + D283 in same batch).
+  - Q2 (D282 path) = **A — Defer** to DS-14/D080 with cross-track-ledger §1 row updated.
+  - Q3 (D283 amendment) = **Option 3 — Omit valueSizeBytes from Impl too.** Pre-design caught a pure-ts accident; close it instead of propagating (Option 1 = dishonest) or building infrastructure for it (Option 2 = speculative D196 fail).
+  - Q-implement = **Yes — proceed with commits 1-4.**
+- **Affects (graphrefly-ts side; this commit).**
+  - `packages/parity-tests/impls/rust.ts` — `NOT_ON_NATIVE_GRAPH_METHODS` registry emptied (comment kept for the future-widening pattern).
+  - `packages/parity-tests/scenarios/graph/tag-factory.test.ts` — 4 runIf gates dropped; header docstring updated to note D287 landing.
+  - `packages/parity-tests/scenarios/graph/resource-profile.test.ts` — 3 of 4 runIf gates dropped (test #1 carve-out preserved); header docstring updated.
+  - `docs/cross-track-ledger.md` — §1 D283 row + §1 D282 row updated.
+  - `docs/rust-port-decisions.md` — D284 + D285 + D286 + D287 entries minted.
+- **Gates:** `pnpm --filter @graphrefly/parity-tests test` — **445 passed / 17 skipped** (was 438 / 24 pre-D287; +7 D283 scenarios lifted, +1 D283 test #1 stays gated, 15 D282 stay gated, 1 prior). `pnpm lint` (biome 804 + layer-boundary 366 + typecheck 2 packages): clean. Native arm successfully runs D283 tests against the locally-rebuilt `@graphrefly/native` `.node` (post-D286).
+- **Canonical:** `docs/cross-track-ledger.md` §1 D282 + §1 D283 rows; this batch's D284/D285/D286/D287 entries; user memory `project_next_porting_batch.md` (to be refreshed in a post-batch memory sweep noting that D283 closed and D282 stays deferred pending DS-14/D080).
+

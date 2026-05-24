@@ -4,11 +4,19 @@
  *
  * E-iv.4 (D283, cross-track-ledger §1 row): parity scenarios authored
  * FIRST per D196 ("parity scenarios are the consumer pressure signal").
- * The native arm's `Graph` Proxy traps `resourceProfile` to throw loudly
- * per `wrapNativeGraph` in `impls/rust.ts`; every test here is
- * `test.runIf(runIfPureTs)`-gated until `@graphrefly/native`
- * ships a `resource_profile` napi binding (lifts D004's R3.6.3 deferral
- * in `graphrefly-rs/docs/porting-deferred.md:1678`).
+ * D287 (2026-05-24): runIf gates DROPPED — the paired D285 substrate +
+ * D286 napi `/porting-to-rs` slice landed `Graph::resource_profile` on
+ * the Rust arm + `BenchGraph::resource_profile` napi + wrapper
+ * exposure, lifting D004's R3.6.3 deferral in `graphrefly-rs/docs/
+ * porting-deferred.md`.
+ *
+ * **D284 amendment scope:** the cross-arm `ImplGraphProfileResult`
+ * shape does NOT include `valueSizeBytes` per node,
+ * `totalValueSizeBytes` aggregate, or `hotspots.byValueSize` — these
+ * were pure-ts-inferred fields the canonical R3.6.3 spec doesn't
+ * mandate; the Impl was narrowed to what both arms can honestly
+ * deliver (the Rust cache is a `HandleId`, so true value size requires
+ * a per-node FFI widening that pre-design closed instead of building).
  *
  * Spec text: `docs/implementation-plan-13.6-canonical-spec.md:984` (R3.6.3 is
  * defined in the post-Phase-13.6.A consolidated canonical-spec document, NOT
@@ -19,8 +27,18 @@ import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("R3.6.3 resourceProfile parity — $name", (impl) => {
-	// E-iv.4 (D283) — match the D282 `batch-throw-rollback.test.ts:55-58` DRY
-	// pattern: factor the gate condition once instead of inlining 4 times.
+	// D287 carve-out: test #1 stays pure-ts-only because its `g.derived(
+	// name, deps, fn)` shape (and equivalent operator chains) round-trips
+	// differently across arms. Pure-ts's `legacy.map` registers an
+	// intermediate node alongside the projected output (so two `impl.map`
+	// + `g.add` calls produce nodeCount=5, not 3); the native arm's
+	// `withLatestFrom` collapses to a single OperatorOp (so it produces 3
+	// but pure-ts produces 4). Cross-arm parity for `nodeCount` requires
+	// either (a) a `g.add`-only no-derived topology test (loses the
+	// `edgeCount` coverage that motivates this test), or (b) a future
+	// BenchGraph widening to accept arbitrary-fn `g.derived(name, deps,
+	// fn)`. Tests #2, #3, #4 already run cross-arm via D287 — they don't
+	// assert on `nodeCount` of derived nodes.
 	const runIfPureTs = impl.name === "pure-ts";
 
 	test.runIf(runIfPureTs)(
@@ -46,80 +64,72 @@ describe.each(impls)("R3.6.3 resourceProfile parity — $name", (impl) => {
 		},
 	);
 
-	test.runIf(runIfPureTs)(
-		"per-node subscriberCount reflects active subscriptions (incl. unsub recovery)",
-		async () => {
-			const g = new impl.Graph("root");
-			const a = await g.state<number>("a", 1);
+	test("per-node subscriberCount reflects active subscriptions (incl. unsub recovery)", async () => {
+		const g = new impl.Graph("root");
+		const a = await g.state<number>("a", 1);
 
-			// Baseline: no external subscribers.
-			let profile = await g.resourceProfile();
-			const aBefore = profile.nodes.find((n) => n.path === "a");
-			expect(aBefore?.subscriberCount).toBe(0);
+		// Baseline: no external subscribers.
+		let profile = await g.resourceProfile();
+		const aBefore = profile.nodes.find((n) => n.path === "a");
+		expect(aBefore?.subscriberCount).toBe(0);
 
-			// Attach one sink → count goes up.
-			const unsub = await a.subscribe(() => {});
-			profile = await g.resourceProfile();
-			const aDuring = profile.nodes.find((n) => n.path === "a");
-			expect(aDuring?.subscriberCount).toBeGreaterThanOrEqual(1);
+		// Attach one sink → count goes up.
+		const unsub = await a.subscribe(() => {});
+		profile = await g.resourceProfile();
+		const aDuring = profile.nodes.find((n) => n.path === "a");
+		expect(aDuring?.subscriberCount).toBeGreaterThanOrEqual(1);
 
-			// Unsubscribe → count recovers.
-			await unsub();
-			profile = await g.resourceProfile();
-			const aAfter = profile.nodes.find((n) => n.path === "a");
-			expect(aAfter?.subscriberCount).toBe(0);
+		// Unsubscribe → count recovers.
+		await unsub();
+		profile = await g.resourceProfile();
+		const aAfter = profile.nodes.find((n) => n.path === "a");
+		expect(aAfter?.subscriberCount).toBe(0);
 
-			await g.destroy();
-		},
-	);
+		await g.destroy();
+	});
 
-	test.runIf(runIfPureTs)(
-		"orphan detection categorizes idle-derived / idle-producer / orphan-effect",
-		async () => {
-			const g = new impl.Graph("root");
-			const a = await g.state<number>("source", 0);
-			// Derived with no external subscribers → idle-derived
-			await g.derived<number>("idle_d", [a], ([batch]) => {
-				const v = (batch[batch.length - 1] as number) ?? 0;
-				return [v + 1];
-			});
-			// Same — derived with no subscribers
-			await g.derived<number>("idle_d2", [a], ([batch]) => {
-				const v = (batch[batch.length - 1] as number) ?? 0;
-				return [v * 2];
-			});
+	test("orphan detection categorizes idle-derived / idle-producer / orphan-effect", async () => {
+		const g = new impl.Graph("root");
+		const a = await g.state<number>("source", 0);
+		// Derived with no external subscribers → idle-derived. D287:
+		// uses `impl.map` instead of `g.derived(name, deps, fn)` so
+		// the native arm runs the test (BenchGraph rejects arbitrary
+		// user fns; built-in operators are wired).
+		const d1 = await impl.map(a, (v: number) => v + 1);
+		await g.add("idle_d", d1);
+		const d2 = await impl.map(a, (v: number) => v * 2);
+		await g.add("idle_d2", d2);
 
-			const profile = await g.resourceProfile();
+		const profile = await g.resourceProfile();
 
-			// Both derived-without-subscribers should appear as orphans
-			// with kind="idle-derived".
-			const orphanPaths = new Set(profile.orphans.map((o) => o.path));
-			expect(orphanPaths.has("idle_d")).toBe(true);
-			expect(orphanPaths.has("idle_d2")).toBe(true);
+		// Both derived-without-subscribers should appear as orphans
+		// with kind="idle-derived".
+		const orphanPaths = new Set(profile.orphans.map((o) => o.path));
+		expect(orphanPaths.has("idle_d")).toBe(true);
+		expect(orphanPaths.has("idle_d2")).toBe(true);
 
-			const idleD = profile.orphans.find((o) => o.path === "idle_d");
-			expect(idleD?.orphanKind).toBe("idle-derived");
-			expect(idleD?.isOrphanEffect).toBe(false); // not an effect — derived
+		const idleD = profile.orphans.find((o) => o.path === "idle_d");
+		expect(idleD?.orphanKind).toBe("idle-derived");
+		expect(idleD?.isOrphanEffect).toBe(false); // not an effect — derived
 
-			// QA-A3: `source` is a STATE node, and `profile.ts:129-138` only
-			// categorizes effect/derived/producer types as orphans by kind
-			// (state is excluded by construction — it has no fn to be idle
-			// about). Additionally, R2.2.6 lazy-activation means the two
-			// idle derived nodes don't actually subscribe to `source` until
-			// an external sink attaches downstream — so source's
-			// subscriberCount is 0, but it's still NOT an orphan because of
-			// the type-based exclusion above. Pin both invariants:
-			expect(orphanPaths.has("source")).toBe(false);
-			const source = profile.nodes.find((n) => n.path === "source");
-			expect(source?.type).toBe("state");
-			expect(source?.subscriberCount).toBe(0); // R2.2.6 lazy activation
-			expect(source?.orphanKind).toBeNull(); // state is never categorized
+		// QA-A3: `source` is a STATE node, and `profile.ts:129-138` only
+		// categorizes effect/derived/producer types as orphans by kind
+		// (state is excluded by construction — it has no fn to be idle
+		// about). Additionally, R2.2.6 lazy-activation means the two
+		// idle derived nodes don't actually subscribe to `source` until
+		// an external sink attaches downstream — so source's
+		// subscriberCount is 0, but it's still NOT an orphan because of
+		// the type-based exclusion above. Pin both invariants:
+		expect(orphanPaths.has("source")).toBe(false);
+		const source = profile.nodes.find((n) => n.path === "source");
+		expect(source?.type).toBe("state");
+		expect(source?.subscriberCount).toBe(0); // R2.2.6 lazy activation
+		expect(source?.orphanKind).toBeNull(); // state is never categorized
 
-			await g.destroy();
-		},
-	);
+		await g.destroy();
+	});
 
-	test.runIf(runIfPureTs)("hotspots sorted descending; capped by topN", async () => {
+	test("hotspots sorted descending; capped by topN", async () => {
 		const g = new impl.Graph("root");
 		// Create 5 state nodes; pile up subscribers on one to make a
 		// clear winner in bySubscriberCount.

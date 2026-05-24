@@ -130,8 +130,11 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 const NOT_ON_NATIVE_GRAPH_METHODS: Record<string, string> = {
-	tagFactory: "cross-track-ledger §1 D283 / porting-deferred.md R3.1.2",
-	resourceProfile: "cross-track-ledger §1 D283 / porting-deferred.md R3.6.3",
+	// D287 (2026-05-24): `tagFactory` + `resourceProfile` LANDED on the
+	// native arm via the paired D285 substrate + D286 napi `/porting-to-rs`
+	// slice. Registry intentionally kept (empty) so future port-coverage
+	// widenings can add one entry here instead of N scattered Proxy traps
+	// (E-iv.4 design-review Phase 2 cross-cutting synthesis).
 };
 
 function wrapNativeGraph(g: ImplGraph): ImplGraph {
