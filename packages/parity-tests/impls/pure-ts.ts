@@ -19,6 +19,7 @@ import type {
 	ImplKvTier,
 	ImplMemoryBackend,
 	ImplNode,
+	ImplNodeProfile,
 	ImplReactiveIndex,
 	ImplReactiveList,
 	ImplReactiveLog,
@@ -391,15 +392,19 @@ class LegacyGraph implements ImplGraph {
 	// E-iv.4 (D283) — async wrappers over the sync legacy methods.
 	// `tagFactory` returns `this` on the pure-ts `Graph` for chaining
 	// inside factory bodies; the parity wrapper drops that return per
-	// the contract widening rationale in `types.ts`. `resourceProfile`
-	// returns the substrate's `GraphProfileResult` directly; structural
-	// compat with `ImplGraphProfileResult` is enforced by typecheck on
-	// the return type — no runtime adaptation.
+	// the contract widening rationale in `types.ts`.
 	async tagFactory(factory: string, factoryArgs?: unknown): Promise<void> {
 		this.inner.tagFactory(factory, factoryArgs);
 	}
+	// D284 amendment (2026-05-24): the substrate's `GraphProfileResult`
+	// carries `valueSizeBytes`/`totalValueSizeBytes`/`hotspots.byValueSize`
+	// fields that the post-amendment `ImplGraphProfileResult` no longer
+	// includes. Pure-ts keeps computing them internally (existing pure-ts
+	// callers depend on the wider shape); the wrapper strips them at the
+	// parity boundary so the cross-arm contract is the narrower shape both
+	// arms can honestly satisfy (see `types.ts` ImplNodeProfile docstring).
 	async resourceProfile(opts?: { topN?: number }): Promise<ImplGraphProfileResult> {
-		return this.inner.resourceProfile(opts);
+		return projectToImplProfile(this.inner.resourceProfile(opts));
 	}
 }
 
@@ -407,6 +412,106 @@ class LegacyGraph implements ImplGraph {
 // Operator wrappers — each takes ImplNode args, calls legacy operator,
 // wraps result in LegacyNode.
 // ---------------------------------------------------------------------------
+
+/**
+ * D284 amendment (2026-05-24): project the substrate's wider
+ * `GraphProfileResult` onto the narrower `ImplGraphProfileResult` by
+ * dropping the value-size fields (`valueSizeBytes` per node,
+ * `totalValueSizeBytes` aggregate, `hotspots.byValueSize`). See
+ * `types.ts` `ImplNodeProfile` docstring for the rationale: native arm
+ * can't honestly compute value size without a per-node FFI widening; the
+ * cross-arm contract honors what both arms can deliver. Pure-ts callers
+ * outside parity-tests still get the wider shape via `graphProfile()`
+ * directly.
+ *
+ * Per-node fields preserved: `path`, `type`, `status`, `subscriberCount`,
+ * `depCount`, `isOrphanEffect`, `orphanKind`. Aggregate fields preserved:
+ * `nodeCount`, `edgeCount`, `subgraphCount`, `nodes`,
+ * `hotspots.bySubscriberCount`, `hotspots.byDepCount`, `orphans`,
+ * `orphanEffects`.
+ */
+function projectToImplProfile(profile: {
+	nodeCount: number;
+	edgeCount: number;
+	subgraphCount: number;
+	nodes: ReadonlyArray<{
+		path: string;
+		type: string;
+		status: string;
+		subscriberCount: number;
+		depCount: number;
+		isOrphanEffect: boolean;
+		orphanKind: "orphan-effect" | "idle-derived" | "idle-producer" | null;
+	}>;
+	hotspots: {
+		bySubscriberCount: ReadonlyArray<{
+			path: string;
+			type: string;
+			status: string;
+			subscriberCount: number;
+			depCount: number;
+			isOrphanEffect: boolean;
+			orphanKind: "orphan-effect" | "idle-derived" | "idle-producer" | null;
+		}>;
+		byDepCount: ReadonlyArray<{
+			path: string;
+			type: string;
+			status: string;
+			subscriberCount: number;
+			depCount: number;
+			isOrphanEffect: boolean;
+			orphanKind: "orphan-effect" | "idle-derived" | "idle-producer" | null;
+		}>;
+	};
+	orphans: ReadonlyArray<{
+		path: string;
+		type: string;
+		status: string;
+		subscriberCount: number;
+		depCount: number;
+		isOrphanEffect: boolean;
+		orphanKind: "orphan-effect" | "idle-derived" | "idle-producer" | null;
+	}>;
+	orphanEffects: ReadonlyArray<{
+		path: string;
+		type: string;
+		status: string;
+		subscriberCount: number;
+		depCount: number;
+		isOrphanEffect: boolean;
+		orphanKind: "orphan-effect" | "idle-derived" | "idle-producer" | null;
+	}>;
+}): ImplGraphProfileResult {
+	const projectNode = (n: {
+		path: string;
+		type: string;
+		status: string;
+		subscriberCount: number;
+		depCount: number;
+		isOrphanEffect: boolean;
+		orphanKind: "orphan-effect" | "idle-derived" | "idle-producer" | null;
+	}): ImplNodeProfile => ({
+		path: n.path,
+		type: n.type,
+		status: n.status,
+		subscriberCount: n.subscriberCount,
+		depCount: n.depCount,
+		isOrphanEffect: n.isOrphanEffect,
+		orphanKind: n.orphanKind,
+	});
+	return {
+		nodeCount: profile.nodeCount,
+		edgeCount: profile.edgeCount,
+		subgraphCount: profile.subgraphCount,
+		nodes: profile.nodes.map(projectNode),
+		hotspots: {
+			bySubscriberCount: profile.hotspots.bySubscriberCount.map(projectNode),
+			byDepCount: profile.hotspots.byDepCount.map(projectNode),
+		},
+		orphans: profile.orphans.map(projectNode),
+		orphanEffects: profile.orphanEffects.map(projectNode),
+	};
+}
 
 function unwrap<T>(n: ImplNode<T>): legacy.Node<T> {
 	return n.inner as legacy.Node<T>;
@@ -587,7 +692,7 @@ export const pureTsImpl: Impl = {
 			await this.impl.tagFactory(factory, factoryArgs);
 		}
 		async resourceProfile(opts?: { topN?: number }): Promise<ImplGraphProfileResult> {
-			return this.impl.resourceProfile(opts);
+			return projectToImplProfile(await this.impl.resourceProfile(opts));
 		}
 	},
 

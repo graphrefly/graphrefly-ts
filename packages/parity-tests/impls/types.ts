@@ -230,9 +230,13 @@ export interface ImplGraph {
 	/**
 	 * R3.6.3 (`docs/implementation-plan-13.6-canonical-spec.md:984`) —
 	 * snapshot-based runtime profile: per-node stats (subscriberCount,
-	 * depCount, valueSizeBytes), top-N hotspots, orphan detection
-	 * (`idle-derived` / `idle-producer` / `orphan-effect`). Snapshot-only
-	 * — no reactive overload exists in the canonical spec.
+	 * depCount), top-N hotspots (by subscriber + dep count), orphan
+	 * detection (`idle-derived` / `idle-producer` / `orphan-effect`).
+	 * Snapshot-only — no reactive overload exists in the canonical spec.
+	 *
+	 * **D284 amendment (2026-05-24):** drops `valueSizeBytes` /
+	 * `totalValueSizeBytes` / `hotspots.byValueSize` from the contract;
+	 * see {@link ImplNodeProfile} docstring for why.
 	 *
 	 * **INVARIANT:** non-reactive. Multiple calls don't share state; the
 	 * return is a fresh snapshot.
@@ -249,17 +253,32 @@ export interface ImplGraph {
 
 /**
  * Per-node profile entry surfaced by {@link ImplGraph.resourceProfile}.
- * Mirrors `GraphProfileResult.nodes[N]` in
- * `packages/pure-ts/src/graph/profile.ts`; kept local to this contract so
- * the parity types don't import from the pure-ts substrate. Structural
- * compat is enforced by the pure-ts adapter's return-type assignment
- * (typecheck fails on drift).
+ *
+ * Mirrors a STRICT SUBSET of `GraphProfileResult.nodes[N]` in
+ * `packages/pure-ts/src/graph/profile.ts`. Kept local to this contract so
+ * the parity types don't import from the pure-ts substrate.
+ *
+ * **D284 amendment (2026-05-24, cross-track-ledger §1 D283 amendment row):**
+ * `valueSizeBytes` is NOT on this interface even though pure-ts's
+ * `NodeProfile.valueSizeBytes` exists. Reason: in pure-ts, value size is a
+ * JS-native heap walk via `sizeof(impl.cache)` over the cached `T`. In the
+ * Rust port, the cache is a `HandleId` (u64); user values `T` live in the
+ * binding-side registry and never enter Core, so a true size requires a
+ * per-node FFI crossing into the binding (a substrate-contract widening
+ * `BindingBoundary::value_size_of(handle) -> usize`). Pre-design caught
+ * this as a pure-ts-inferred field that the canonical spec (R3.6.3,
+ * `docs/implementation-plan-13.6-canonical-spec.md:984`) does NOT mandate;
+ * the spec only requires "runtime profile (subscriber counts, fan-in/out,
+ * etc.)". Per value-#6 (pre-design over post-hoc accident propagation) +
+ * D196 (no speculative substrate widening without consumer pressure), the
+ * Impl drops this field instead of forcing the FFI widening on the native
+ * arm. Pure-ts arm still computes `valueSizeBytes` internally; the parity
+ * wrapper strips it from the returned object (see `pure-ts.ts` ~L398).
  */
 export interface ImplNodeProfile {
 	path: string;
 	type: string;
 	status: string;
-	valueSizeBytes: number;
 	subscriberCount: number;
 	depCount: number;
 	isOrphanEffect: boolean;
@@ -267,17 +286,20 @@ export interface ImplNodeProfile {
 }
 
 /**
- * Aggregate profile returned by {@link ImplGraph.resourceProfile}. Mirrors
- * `GraphProfileResult` in `packages/pure-ts/src/graph/profile.ts`.
+ * Aggregate profile returned by {@link ImplGraph.resourceProfile}.
+ *
+ * **D284 amendment (2026-05-24):** drops `totalValueSizeBytes` +
+ * `hotspots.byValueSize` for the same reason {@link ImplNodeProfile} drops
+ * `valueSizeBytes` — both are computed from `valueSizeBytes` and would be
+ * structurally meaningless (all-zeros) on the native arm without the FFI
+ * widening. See {@link ImplNodeProfile} docstring for the full rationale.
  */
 export interface ImplGraphProfileResult {
 	nodeCount: number;
 	edgeCount: number;
 	subgraphCount: number;
 	nodes: ImplNodeProfile[];
-	totalValueSizeBytes: number;
 	hotspots: {
-		byValueSize: ImplNodeProfile[];
 		bySubscriberCount: ImplNodeProfile[];
 		byDepCount: ImplNodeProfile[];
 	};
