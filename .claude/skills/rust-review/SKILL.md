@@ -233,4 +233,4 @@ The pre-2026-05-09 SKILL wrote a markdown report (`reports-NNN-<slug>.md`) under
 
 The Phase 6.5 directive vocabulary (`::: trace`, `::: finding`, …) used by the legacy report renderer is no longer used. The structured shape lives in JSONL fields directly.
 
-The legacy site at `docs/review/site/` still renders the historical reports for read-only access. Do not extend it; do not edit the reports it serves.
+The legacy site renderer at `docs/review/site/` was **removed 2026-05-24** (moved to `~/src/graphrefly-rs/TRASH/review-site-removed-2026-05-24/`) to eliminate dual-dashboard confusion. The 6 historical reports at `docs/review/reports-*.md` are preserved as flat-file markdown — every `findings.jsonl` row's `source` field still cites them by filename. Read them in any editor; do not edit them; do not resurrect the renderer.
