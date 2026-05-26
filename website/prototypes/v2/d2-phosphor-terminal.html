@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GraphReFly — Phosphor Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #07090B;
+  --bg-elev: #0C1014;
+  --bg-card: #11161B;
+  --line: rgba(166,226,46,0.14);
+  --line-warm: rgba(255,255,255,0.06);
+  --text: #C6D2C0;
+  --text-mute: #6C7A6E;
+  --text-faint: #3F4945;
+  --phos: #A6E22E;
+  --phos-dim: #6A8A1E;
+  --amber: #FFB454;
+  --cyan: #7DD3FC;
+  --magenta: #F472B6;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--mono); font-size: 13px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  cursor: default;
+}
+body::before {
+  /* faint scanline texture */
+  content: ''; position: fixed; inset: 0;
+  background-image: repeating-linear-gradient(0deg, rgba(166,226,46,0.018) 0 1px, transparent 1px 3px);
+  pointer-events: none; z-index: 100;
+}
+a { color: var(--phos); text-decoration: none; }
+a:hover { background: var(--phos); color: var(--bg); }
+
+/* ============ FRAMING CHROME ============ */
+.window-chrome {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 16px;
+  padding: 10px 16px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.dots { display: flex; gap: 7px; }
+.dots span { width: 11px; height: 11px; border-radius: 50%; background: #2a2f36; }
+.dots span:nth-child(1) { background: #ff5f56; }
+.dots span:nth-child(2) { background: #ffbd2e; }
+.dots span:nth-child(3) { background: #27c93f; }
+.addr {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-mute); justify-self: center;
+  border: 1px solid var(--line-warm); border-radius: 3px;
+  padding: 4px 14px;
+  background: var(--bg);
+  letter-spacing: 0.04em;
+}
+.addr .cur { color: var(--phos); }
+.tabs { display: flex; gap: 8px; font-size: 11px; }
+.tabs span { padding: 4px 10px; border: 1px solid var(--line-warm); border-radius: 3px; color: var(--text-mute); }
+.tabs span.on { color: var(--phos); border-color: var(--phos); }
+
+/* ============ HERO ============ */
+.hero {
+  position: relative;
+  padding: 90px 40px 60px;
+  min-height: 100vh;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: start;
+}
+.hero-left { padding-top: 60px; }
+.prompt-line {
+  color: var(--text-mute); margin-bottom: 14px;
+  font-size: 12px;
+}
+.prompt-line .sigil { color: var(--phos); }
+.prompt-line .flag { color: var(--amber); }
+.hero-h1 {
+  font-family: var(--mono);
+  font-weight: 800; font-size: clamp(40px, 6vw, 84px);
+  line-height: 0.96; letter-spacing: -0.04em;
+  margin: 0;
+  color: var(--text);
+}
+.hero-h1 .ph { color: var(--phos); }
+.hero-h1 .dim { color: var(--text-mute); }
+.hero-h1 .caret {
+  display: inline-block; width: 0.5ch; height: 0.95em;
+  background: var(--phos); transform: translateY(0.12em);
+  margin-left: 0.06em;
+  animation: caretBlink 1s steps(2) infinite;
+}
+@keyframes caretBlink { 50% { opacity: 0; } }
+.hero-sub {
+  margin-top: 30px;
+  font-size: 14.5px; max-width: 48ch; line-height: 1.7;
+  color: var(--text);
+}
+.hero-sub b { color: var(--phos); font-weight: 500; }
+.hero-cta {
+  margin-top: 36px;
+  display: flex; gap: 14px; flex-wrap: wrap;
+}
+.btn {
+  display: inline-block; padding: 12px 18px;
+  border: 1px solid var(--phos); color: var(--phos);
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em;
+  background: transparent; cursor: pointer;
+  text-transform: uppercase;
+}
+.btn:hover { background: var(--phos); color: var(--bg); }
+.btn.ghost { border-color: var(--line); color: var(--text-mute); }
+.btn.ghost:hover { background: var(--bg-card); color: var(--text); }
+
+/* hero-right: viewport card containing animation placeholder */
+.viewport {
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(166,226,46,0.06) 0%, transparent 60%),
+    var(--bg-card);
+  padding: 14px;
+  position: relative;
+}
+.viewport::before {
+  content: '$ npx hyperframes preview ./hero --mode ambient'; display: block;
+  font-size: 10.5px; color: var(--text-mute); margin-bottom: 12px;
+  border-bottom: 1px dashed var(--line); padding-bottom: 10px;
+  letter-spacing: 0.04em;
+}
+.stage {
+  width: 100%; aspect-ratio: 16/9;
+  position: relative; overflow: hidden;
+  background:
+    linear-gradient(0deg, rgba(166,226,46,0.04), rgba(166,226,46,0.02)),
+    var(--bg);
+  border: 1px solid var(--line-warm);
+}
+.stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage .node-p { animation: pulse 3.2s ease-in-out infinite; transform-origin: center; }
+.stage .node-d { animation: pulse 3.2s ease-in-out infinite; animation-delay: 1.6s; transform-origin: center; }
+@keyframes pulse { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }
+.stage .data-dot {
+  fill: var(--phos); filter: drop-shadow(0 0 8px var(--phos));
+  animation: tx 3.2s ease-in-out infinite;
+}
+@keyframes tx {
+  0%   { transform: translateX(0); opacity: 0; }
+  15%  { opacity: 1; }
+  50%  { transform: translateX(360px); opacity: 1; }
+  60%  { opacity: 0; }
+  100% { transform: translateX(360px); opacity: 0; }
+}
+.stage .dirty {
+  stroke: var(--amber); stroke-dasharray: 4 3; fill: none;
+  animation: tx 3.2s ease-in-out infinite;
+  animation-delay: -0.4s;
+}
+.stage .lbl-tier {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  fill: var(--text-mute); text-transform: uppercase;
+}
+.viewport-footer {
+  margin-top: 12px;
+  display: flex; justify-content: space-between;
+  font-size: 10.5px; color: var(--text-mute);
+  letter-spacing: 0.06em;
+}
+.viewport-footer .live::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--phos); margin-right: 6px; vertical-align: middle;
+  box-shadow: 0 0 6px var(--phos);
+  animation: caretBlink 2s steps(2) infinite;
+}
+
+/* ============ FACTS STRIP ============ */
+.strip {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--bg-elev);
+}
+.fact {
+  padding: 28px 24px;
+  border-right: 1px solid var(--line);
+}
+.fact:last-child { border-right: none; }
+.fact .k {
+  font-size: 10.5px; color: var(--text-mute);
+  letter-spacing: 0.18em; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.fact .v {
+  font-size: 30px; font-weight: 700; color: var(--phos);
+  letter-spacing: -0.02em;
+}
+.fact .desc {
+  margin-top: 8px; font-size: 11.5px; color: var(--text-mute);
+}
+
+/* ============ TRANSCRIPT ============ */
+.transcript-section {
+  padding: 100px 40px;
+}
+.section-h {
+  font-family: var(--mono); font-size: 11px; color: var(--phos);
+  letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 14px;
+}
+.section-h::before { content: '// '; color: var(--text-faint); }
+.section-title {
+  font-family: var(--mono); font-weight: 800;
+  font-size: clamp(28px, 4vw, 48px); line-height: 1.05;
+  margin: 0 0 48px; letter-spacing: -0.03em;
+  max-width: 28ch;
+}
+.section-title .ph { color: var(--phos); }
+
+.transcript {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  font-size: 13px; line-height: 1.85;
+  display: grid; grid-template-columns: 80px 1fr;
+}
+.transcript .gutter {
+  border-right: 1px solid var(--line-warm);
+  padding: 28px 12px; color: var(--text-faint);
+  font-size: 11px; text-align: right;
+  background: var(--bg-card);
+}
+.transcript .gutter span { display: block; line-height: 1.85; }
+.transcript .body { padding: 28px 28px; overflow-x: auto; }
+.transcript .body .pr { color: var(--phos); }
+.transcript .body .out { color: var(--text); }
+.transcript .body .cm { color: var(--text-mute); font-style: italic; }
+.transcript .body .ky { color: var(--cyan); }
+.transcript .body .st { color: var(--amber); }
+.transcript .body .er { color: var(--magenta); }
+
+/* ============ DICTIONARY ============ */
+.dict {
+  padding: 100px 40px;
+  border-top: 1px solid var(--line);
+}
+.dict-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0; border-top: 1px solid var(--line);
+}
+.entry {
+  padding: 28px 24px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-elev);
+  transition: background 0.18s, color 0.18s;
+  cursor: crosshair;
+}
+.entry:last-child, .entry:nth-child(4n) { border-right: none; }
+.entry:hover { background: var(--phos); color: var(--bg); }
+.entry:hover .pos, .entry:hover .def { color: var(--bg); }
+.entry .word {
+  font-size: 17px; font-weight: 700; letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.entry .word::after { content: ' /'; color: var(--text-faint); font-weight: 400; }
+.entry .word .ipa { color: var(--text-mute); font-weight: 400; font-size: 13px; }
+.entry .pos {
+  font-size: 10.5px; color: var(--text-mute); letter-spacing: 0.14em;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.entry .def {
+  font-size: 12.5px; color: var(--text); line-height: 1.65;
+}
+.entry .def b { color: var(--phos); font-weight: 500; }
+.entry:hover .def b { color: var(--bg); }
+
+/* ============ FOOT ============ */
+footer.foot {
+  padding: 60px 40px 40px;
+  border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--text-mute);
+  display: flex; justify-content: space-between; align-items: baseline;
+  letter-spacing: 0.06em;
+}
+footer.foot .left b { color: var(--phos); }
+
+@media (max-width: 900px) {
+  .hero-grid, .dict-grid, .strip { grid-template-columns: 1fr; }
+  .fact { border-right: none; border-bottom: 1px solid var(--line); }
+  .entry { border-right: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="window-chrome">
+  <div class="dots"><span></span><span></span><span></span></div>
+  <div class="addr"><span class="cur">▌</span> graphrefly.dev — reactive graph protocol</div>
+  <div class="tabs"><span class="on">home</span><span>spec</span><span>docs</span><span>↗</span></div>
+</div>
+
+<!-- ============== HERO ============== -->
+<section class="hero">
+  <div class="hero-grid">
+    <div class="hero-left">
+      <div class="prompt-line">
+        <span class="sigil">$</span> graphrefly <span class="flag">--explain</span> --pretty
+      </div>
+
+      <h1 class="hero-h1">
+        <span class="dim">compose</span><span class="ph">()</span><br />
+        <span class="dim">observe</span><span class="ph">()</span><br />
+        <span class="dim">explain</span><span class="ph">()</span><span class="caret"></span>
+      </h1>
+
+      <p class="hero-sub">
+        A reactive graph protocol where <b>code is the source of truth</b> and the spec is its projection. Compose primitives; the topology emerges. Subscribe to any node; the values flow. Ask <b>why</b>; the causal chain returns.
+      </p>
+
+      <div class="hero-cta">
+        <a href="#" class="btn">npm i @graphrefly/graphrefly</a>
+        <a href="#" class="btn ghost">read the spec →</a>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="viewport">
+        <div class="stage" aria-hidden="true">
+          <svg viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet">
+            <!-- edge -->
+            <line x1="140" y1="180" x2="500" y2="180" stroke="rgba(166,226,46,0.30)" stroke-width="1" />
+            <!-- producer (diamond) -->
+            <g class="node-p" transform="translate(140 180)">
+              <polygon points="0,-34 34,0 0,34 -34,0" fill="rgba(166,226,46,0.16)" stroke="var(--phos)" stroke-width="1.2" />
+              <text x="0" y="6" fill="var(--phos)" font-family="JetBrains Mono" font-size="11" text-anchor="middle">producer</text>
+              <text x="0" y="60" class="lbl-tier" text-anchor="middle">SRC</text>
+            </g>
+            <!-- derived (circle) -->
+            <g class="node-d" transform="translate(500 180)">
+              <circle r="34" fill="rgba(125,211,252,0.12)" stroke="var(--cyan)" stroke-width="1.2" />
+              <text x="0" y="6" fill="var(--cyan)" font-family="JetBrains Mono" font-size="11" text-anchor="middle">derived</text>
+              <text x="0" y="60" class="lbl-tier" text-anchor="middle">FN</text>
+            </g>
+            <!-- dirty pulse -->
+            <circle class="dirty" cx="140" cy="180" r="6" />
+            <!-- data dot -->
+            <circle class="data-dot" cx="140" cy="180" r="5" />
+            <!-- markings -->
+            <text x="320" y="160" class="lbl-tier" text-anchor="middle">DATA  ·  DIRTY</text>
+            <text x="320" y="240" class="lbl-tier" text-anchor="middle">— ambient hero · stage 1 · placeholder —</text>
+          </svg>
+        </div>
+        <div class="viewport-footer">
+          <span class="live">live · 60fps · 1920×1080</span>
+          <span>render → ./hero.mp4</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== FACTS STRIP ============== -->
+<section class="strip">
+  <div class="fact">
+    <div class="k">deps</div>
+    <div class="v">0</div>
+    <div class="desc">zero runtime dependencies in the core substrate</div>
+  </div>
+  <div class="fact">
+    <div class="k">operators</div>
+    <div class="v">70+</div>
+    <div class="desc">transform · combine · buffer · window · retry · break</div>
+  </div>
+  <div class="fact">
+    <div class="k">substrate</div>
+    <div class="v">2×</div>
+    <div class="desc">pure-ts (universal, sync) + native (rust, async)</div>
+  </div>
+  <div class="fact">
+    <div class="k">adapters</div>
+    <div class="v">5</div>
+    <div class="desc">react · vue · svelte · solid · nestjs</div>
+  </div>
+</section>
+
+<!-- ============== TRANSCRIPT ============== -->
+<section class="transcript-section">
+  <div class="section-h">section / 02 / a worked example</div>
+  <h2 class="section-title"><span class="ph">$</span> a graph<br />you can <span class="ph">interrogate</span>.</h2>
+
+  <div class="transcript">
+    <div class="gutter">
+      <span>01</span><span>02</span><span>03</span><span>04</span><span>05</span><span>06</span><span>07</span><span>08</span><span>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span>
+    </div>
+    <div class="body"><span class="cm">// build a reactive graph in code</span>
+<span class="pr">&gt;</span> <span class="ky">const</span> g = <span class="ky">new</span> Graph(<span class="st">"pricing"</span>);
+<span class="pr">&gt;</span> <span class="ky">const</span> price = g.state(<span class="st">"price"</span>, <span class="st">100</span>);
+<span class="pr">&gt;</span> <span class="ky">const</span> tax   = g.derived(<span class="st">"tax"</span>,   [price],      ([p]) =&gt; p * <span class="st">0.1</span>);
+<span class="pr">&gt;</span> <span class="ky">const</span> total = g.derived(<span class="st">"total"</span>, [price, tax], ([p, t]) =&gt; p + t);
+
+<span class="cm">// ask the graph to describe itself</span>
+<span class="pr">&gt;</span> g.describe();
+<span class="out">{ nodes: [price, tax, total], edges: [(price→tax), (price→total), (tax→total)] }</span>
+
+<span class="cm">// ask the graph WHY</span>
+<span class="pr">&gt;</span> g.describe({ explain: { from: <span class="st">"price"</span>, to: <span class="st">"total"</span> } });
+<span class="out">{
+  path: [<span class="st">"price"</span>, <span class="st">"tax"</span>, <span class="st">"total"</span>],
+  branches: [{ via: <span class="st">"tax"</span>, transform: <span class="st">"× 0.1"</span> }, { direct: <span class="ky">true</span> }],
+  result: <span class="st">110</span>
+}</span>
+
+<span class="cm">// — every change has a causal chain. nothing is hidden.</span></div>
+  </div>
+</section>
+
+<!-- ============== DICTIONARY ============== -->
+<section class="dict">
+  <div class="section-h">section / 03 / a small vocabulary</div>
+  <h2 class="section-title">four words<br />you'll <span class="ph">use forever</span>.</h2>
+
+  <div class="dict-grid">
+    <div class="entry">
+      <div class="word">state<span class="ipa"> /steɪt/</span></div>
+      <div class="pos">noun · mutable cell</div>
+      <div class="def">A writable value, no dependencies. The leaf input of the graph. <b>Push</b> a value into it; downstream propagates.</div>
+    </div>
+    <div class="entry">
+      <div class="word">producer<span class="ipa"> /prəˈdjuːsər/</span></div>
+      <div class="pos">noun · push source</div>
+      <div class="def">Wraps a timer, event stream, or async iterator into the graph. Emits values as a <b>reactive source</b>, never polled.</div>
+    </div>
+    <div class="entry">
+      <div class="word">derived<span class="ipa"> /dɪˈraɪvd/</span></div>
+      <div class="pos">verb · pure function of deps</div>
+      <div class="def">Recomputes when its dependencies change. <b>Diamond-safe</b>: fan-out and fan-in produce a single recomputation.</div>
+    </div>
+    <div class="entry">
+      <div class="word">effect<span class="ipa"> /ɪˈfɛkt/</span></div>
+      <div class="pos">noun · side-effect sink</div>
+      <div class="def">Where the graph touches the world. Logs, fetches, DOM writes, file IO — <b>always at the leaf</b>, never in the middle.</div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="left">graphrefly · <b>v0.x</b> · MIT licensed · maintained on github</div>
+  <div class="right"><span class="cur" style="color: var(--phos)">▌</span> end of document</div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GraphReFly — Indigo Cartographer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --ink: #0A0F2C;
+  --ink-elev: #11173A;
+  --ink-deep: #060920;
+  --parchment: #EBE2D0;
+  --parchment-warm: #D9CCAE;
+  --parchment-faint: rgba(235,226,208,0.55);
+  --gilded: #D4A86A;
+  --gilded-deep: #B58944;
+  --carmine: #B83948;
+  --rule: rgba(212,168,106,0.22);
+  --rule-faint: rgba(235,226,208,0.10);
+  --serif: 'Cormorant Garamond', 'Times New Roman', serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--ink); color: var(--parchment);
+  font-family: var(--sans);
+  font-size: 14px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  background:
+    radial-gradient(ellipse 1200px 600px at 70% 10%, rgba(212,168,106,0.06), transparent 60%),
+    radial-gradient(ellipse 900px 600px at 10% 90%, rgba(184,57,72,0.04), transparent 65%),
+    var(--ink);
+}
+a { color: var(--gilded); text-decoration: none; }
+a:hover { color: var(--parchment); }
+
+/* contour decoration overlay */
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none;
+  background-image:
+    repeating-radial-gradient(circle at 80% 20%, rgba(212,168,106,0.025) 0 1px, transparent 1px 90px),
+    repeating-radial-gradient(circle at 18% 78%, rgba(212,168,106,0.018) 0 1px, transparent 1px 120px);
+  z-index: 0;
+}
+
+main { position: relative; z-index: 1; }
+
+/* =============== NAV =============== */
+nav.top {
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 28px 56px;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--sans); font-size: 12px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--parchment-faint);
+}
+nav.top .left { text-align: left; }
+nav.top .right { text-align: right; }
+nav.top .center {
+  font-family: var(--serif); font-style: italic;
+  font-size: 28px; font-weight: 500; letter-spacing: 0.02em;
+  color: var(--parchment); text-transform: none;
+}
+nav.top .center::first-letter { color: var(--gilded); }
+nav.top .right a { margin-left: 28px; color: var(--parchment-faint); }
+nav.top .right a:hover { color: var(--gilded); }
+
+/* =============== HERO =============== */
+.hero {
+  padding: 80px 56px 90px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 60px;
+  position: relative;
+}
+.hero-frame {
+  position: relative;
+  border: 1px solid var(--gilded);
+  background: rgba(6,9,32,0.5);
+  padding: 28px;
+}
+.hero-frame::before, .hero-frame::after {
+  content: ''; position: absolute; width: 18px; height: 18px;
+  border: 1px solid var(--gilded);
+}
+.hero-frame::before { top: -6px; left: -6px; border-right: none; border-bottom: none; }
+.hero-frame::after { bottom: -6px; right: -6px; border-left: none; border-top: none; }
+.hero-inner {
+  display: grid; grid-template-columns: 1.1fr 1fr; gap: 60px;
+  align-items: center;
+}
+.hero-text .eyebrow {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--sans); font-size: 11px; color: var(--gilded);
+  letter-spacing: 0.24em; text-transform: uppercase;
+  margin-bottom: 28px;
+}
+.hero-text .eyebrow::before, .hero-text .eyebrow::after {
+  content: ''; height: 1px; background: var(--gilded); flex: 1; opacity: 0.55;
+}
+.hero-h1 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: clamp(46px, 7vw, 92px); line-height: 0.98;
+  letter-spacing: -0.005em;
+  margin: 0;
+  color: var(--parchment);
+}
+.hero-h1 em {
+  font-style: italic; color: var(--gilded); font-weight: 500;
+}
+.hero-h1 .sm {
+  display: block; font-style: italic; font-size: 0.5em; color: var(--parchment-faint);
+  margin-top: 18px; letter-spacing: 0.02em; font-weight: 400;
+}
+.hero-text .lede {
+  margin-top: 36px; font-family: var(--serif); font-style: italic;
+  font-size: 22px; line-height: 1.5; max-width: 38ch;
+  color: var(--parchment);
+  border-left: 1px solid var(--gilded); padding-left: 22px;
+}
+.hero-text .cta {
+  margin-top: 40px;
+  display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+}
+.cta a {
+  font-family: var(--sans); font-size: 12px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 1px solid var(--gilded); color: var(--gilded);
+  padding: 14px 22px; transition: all 0.2s;
+}
+.cta a:hover { background: var(--gilded); color: var(--ink); }
+.cta a.solid { background: var(--gilded); color: var(--ink); }
+.cta a.solid:hover { background: var(--parchment); border-color: var(--parchment); }
+.cta .ref {
+  font-family: var(--serif); font-style: italic; color: var(--parchment-faint);
+  font-size: 14px;
+}
+
+/* hero animation plate */
+.plate {
+  position: relative;
+  aspect-ratio: 1/1;
+  background:
+    radial-gradient(circle at center, rgba(212,168,106,0.10), transparent 55%),
+    var(--ink-deep);
+  border: 1px solid var(--rule);
+  display: grid; place-items: center;
+}
+.plate::before { /* compass ticks */
+  content: ''; position: absolute; inset: 14px;
+  border: 1px dashed var(--rule);
+  border-radius: 50%;
+}
+.plate::after {
+  content: 'PL. I — ambient hero · stage 1 placeholder';
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  font-family: var(--serif); font-style: italic; font-size: 12px;
+  color: var(--parchment-faint); letter-spacing: 0.06em;
+}
+.plate svg { width: 88%; height: 88%; }
+.plate .compass-l {
+  position: absolute; font-family: var(--serif); font-style: italic; font-size: 14px;
+  color: var(--gilded);
+}
+.plate .compass-l.n { top: 8px; left: 50%; transform: translateX(-50%); }
+.plate .compass-l.s { bottom: 36px; left: 50%; transform: translateX(-50%); }
+.plate .compass-l.e { top: 50%; right: 8px; transform: translateY(-50%); }
+.plate .compass-l.w { top: 50%; left: 12px; transform: translateY(-50%); }
+
+.node-prod { animation: breathe 5s ease-in-out infinite; transform-origin: center; }
+.node-der { animation: breathe 5s ease-in-out infinite; animation-delay: 2.5s; transform-origin: center; }
+@keyframes breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.edge-arc { fill: none; stroke: var(--gilded); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.55; }
+.data-d {
+  fill: var(--gilded); filter: drop-shadow(0 0 8px rgba(212,168,106,0.7));
+  animation: arc 5s ease-in-out infinite;
+}
+@keyframes arc {
+  0%   { opacity: 0; offset-distance: 0%; }
+  10%  { opacity: 1; }
+  50%  { opacity: 1; offset-distance: 100%; }
+  60%  { opacity: 0; }
+  100% { opacity: 0; offset-distance: 100%; }
+}
+
+/* =============== LEGEND =============== */
+.legend {
+  padding: 100px 56px;
+  border-top: 1px solid var(--rule);
+}
+.legend-head {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 60px;
+  margin-bottom: 60px; align-items: end;
+}
+.legend-head h2 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: clamp(36px, 5vw, 64px); line-height: 1.0;
+  margin: 0; letter-spacing: -0.01em;
+}
+.legend-head h2 em { font-style: italic; color: var(--gilded); }
+.legend-head p {
+  font-family: var(--serif); font-style: italic;
+  font-size: 19px; line-height: 1.5; color: var(--parchment-faint);
+  max-width: 42ch; margin: 0;
+}
+.legend-key {
+  border: 1px solid var(--rule);
+  display: grid; grid-template-columns: repeat(5, 1fr);
+}
+.key-cell {
+  padding: 32px 24px;
+  border-right: 1px solid var(--rule);
+  text-align: center;
+  position: relative;
+}
+.key-cell:last-child { border-right: none; }
+.key-symbol {
+  height: 80px; display: grid; place-items: center;
+  margin-bottom: 18px;
+}
+.key-name {
+  font-family: var(--serif); font-style: italic;
+  font-size: 22px; color: var(--parchment); margin-bottom: 6px;
+}
+.key-name::first-letter { color: var(--gilded); }
+.key-desc {
+  font-family: var(--sans); font-size: 11.5px;
+  color: var(--parchment-faint); letter-spacing: 0.02em;
+  line-height: 1.55;
+}
+.key-desc code { color: var(--gilded); font-family: 'DM Sans', monospace; }
+
+/* =============== ATLAS PROPHECY =============== */
+.prophecy {
+  padding: 120px 56px;
+  border-top: 1px solid var(--rule);
+  text-align: center;
+  background:
+    radial-gradient(ellipse at center, rgba(212,168,106,0.05), transparent 65%);
+}
+.prophecy .quote {
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: clamp(28px, 4vw, 52px); line-height: 1.25;
+  max-width: 26ch; margin: 0 auto;
+  color: var(--parchment); letter-spacing: -0.005em;
+}
+.prophecy .quote em {
+  font-style: italic; color: var(--gilded);
+}
+.prophecy .attrib {
+  margin-top: 32px;
+  font-family: var(--sans); font-size: 11px;
+  letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--parchment-faint);
+}
+.prophecy .attrib::before { content: '— '; color: var(--gilded); }
+
+/* =============== FOOTER =============== */
+footer.foot {
+  border-top: 1px solid var(--rule);
+  padding: 60px 56px 36px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  font-family: var(--sans); font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--parchment-faint);
+}
+footer.foot b { color: var(--gilded); font-weight: 500; }
+footer.foot .mid { text-align: center; font-family: var(--serif); font-style: italic; font-size: 14px; }
+
+@media (max-width: 1000px) {
+  .hero-inner, .legend-head { grid-template-columns: 1fr; }
+  .legend-key { grid-template-columns: repeat(2, 1fr); }
+  .key-cell { border-bottom: 1px solid var(--rule); }
+  .key-cell:nth-child(2n) { border-right: none; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<nav class="top">
+  <div class="left">No. 0.x · MIT · est. 2026</div>
+  <div class="center">GraphReFly</div>
+  <div class="right"><a href="#">Spec</a><a href="#">Atlas</a><a href="#">Plate Index</a></div>
+</nav>
+
+<!-- =============== HERO =============== -->
+<section class="hero">
+  <div class="hero-frame">
+    <div class="hero-inner">
+      <div class="hero-text">
+        <div class="eyebrow">Atlas of a Reactive Graph</div>
+        <h1 class="hero-h1">
+          Every decision<br />
+          has a path back to<br />
+          <em>first cause</em>.
+          <span class="sm">— or so the cartographer claims.</span>
+        </h1>
+        <p class="lede">
+          The graph is the map and the territory. Compose primitives in code; the topology projects itself; ask any node why it holds the value it does, and a structured chain of dependencies will tell you.
+        </p>
+        <div class="cta">
+          <a href="#" class="solid">Open the spec →</a>
+          <a href="#">npm install</a>
+          <span class="ref">Plate I, with annotations</span>
+        </div>
+      </div>
+
+      <div class="plate" aria-hidden="true">
+        <span class="compass-l n">N</span>
+        <span class="compass-l e">E</span>
+        <span class="compass-l s">S</span>
+        <span class="compass-l w">W</span>
+        <svg viewBox="-200 -200 400 400">
+          <!-- arc path between nodes -->
+          <path id="arcPath" class="edge-arc" d="M -130 0 Q 0 -110 130 0" />
+          <!-- compass diagonals -->
+          <line x1="-160" y1="-160" x2="160" y2="160" stroke="rgba(212,168,106,0.18)" stroke-width="0.5" stroke-dasharray="2 4" />
+          <line x1="-160" y1="160" x2="160" y2="-160" stroke="rgba(212,168,106,0.18)" stroke-width="0.5" stroke-dasharray="2 4" />
+          <line x1="0" y1="-170" x2="0" y2="170" stroke="rgba(212,168,106,0.25)" stroke-width="0.6" />
+          <line x1="-170" y1="0" x2="170" y2="0" stroke="rgba(212,168,106,0.25)" stroke-width="0.6" />
+          <!-- nodes -->
+          <g class="node-prod" transform="translate(-130 0)">
+            <polygon points="0,-28 28,0 0,28 -28,0" fill="rgba(212,168,106,0.18)" stroke="var(--gilded)" stroke-width="1.4" />
+            <text x="0" y="48" text-anchor="middle" fill="var(--parchment)" font-family="Cormorant Garamond" font-style="italic" font-size="15">producer</text>
+          </g>
+          <g class="node-der" transform="translate(130 0)">
+            <circle r="28" fill="rgba(235,226,208,0.06)" stroke="var(--parchment)" stroke-width="1.2" />
+            <text x="0" y="48" text-anchor="middle" fill="var(--parchment)" font-family="Cormorant Garamond" font-style="italic" font-size="15">derived</text>
+          </g>
+          <!-- data dot riding the arc -->
+          <circle class="data-d" r="5" style="offset-path: path('M -130 0 Q 0 -110 130 0');" />
+          <!-- tier labels -->
+          <text x="0" y="-128" text-anchor="middle" fill="var(--gilded)" font-family="Cormorant Garamond" font-style="italic" font-size="12">DIRTY  ·  DATA</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== LEGEND =============== -->
+<section class="legend">
+  <div class="legend-head">
+    <h2>Plate II.<br />A key to the <em>cartography</em>.</h2>
+    <p>
+      A handful of shapes; a handful of signals. The primitives travel together by convention — every chart in this volume uses the same glyphs.
+    </p>
+  </div>
+
+  <div class="legend-key">
+    <div class="key-cell">
+      <div class="key-symbol">
+        <svg viewBox="-30 -30 60 60" width="56" height="56">
+          <circle r="22" fill="rgba(212,168,106,0.18)" stroke="var(--gilded)" stroke-width="1.4" />
+        </svg>
+      </div>
+      <div class="key-name">State</div>
+      <div class="key-desc">A writable cell. The leaf of the graph. Use <code>g.state()</code>.</div>
+    </div>
+
+    <div class="key-cell">
+      <div class="key-symbol">
+        <svg viewBox="-30 -30 60 60" width="56" height="56">
+          <polygon points="0,-24 24,0 0,24 -24,0" fill="rgba(212,168,106,0.18)" stroke="var(--gilded)" stroke-width="1.4" />
+        </svg>
+      </div>
+      <div class="key-name">Producer</div>
+      <div class="key-desc">A push source. Timers, events, async streams. <code>g.producer()</code>.</div>
+    </div>
+
+    <div class="key-cell">
+      <div class="key-symbol">
+        <svg viewBox="-30 -30 60 60" width="56" height="56">
+          <circle r="22" fill="rgba(235,226,208,0.08)" stroke="var(--parchment)" stroke-width="1.2" />
+          <text y="6" text-anchor="middle" font-family="Cormorant Garamond" font-size="12" font-style="italic" fill="var(--parchment)">fn</text>
+        </svg>
+      </div>
+      <div class="key-name">Derived</div>
+      <div class="key-desc">A pure function of upstream deps. Diamond-safe. <code>g.derived()</code>.</div>
+    </div>
+
+    <div class="key-cell">
+      <div class="key-symbol">
+        <svg viewBox="-30 -30 60 60" width="56" height="56">
+          <rect x="-24" y="-18" width="48" height="36" rx="8" fill="rgba(184,57,72,0.16)" stroke="var(--carmine)" stroke-width="1.4" />
+        </svg>
+      </div>
+      <div class="key-name">Effect</div>
+      <div class="key-desc">A side-effect sink. The graph touching the world. <code>g.effect()</code>.</div>
+    </div>
+
+    <div class="key-cell">
+      <div class="key-symbol">
+        <svg viewBox="-30 -30 60 60" width="56" height="56">
+          <polygon points="-22,-12 22,-12 28,0 22,12 -22,12 -28,0" fill="rgba(235,226,208,0.06)" stroke="var(--parchment-faint)" stroke-width="1.2" />
+        </svg>
+      </div>
+      <div class="key-name">External</div>
+      <div class="key-desc">Human-in-the-loop or out-of-graph input. <code>g.promptNode()</code>.</div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== ATLAS PROPHECY =============== -->
+<section class="prophecy">
+  <p class="quote">
+    "If you can <em>chart</em> the system,<br />
+    you can <em>explain</em> the system.<br />
+    If you can explain it, you can <em>trust</em> it."
+  </p>
+  <div class="attrib">Mandate of the Library, v0.x</div>
+</section>
+
+<footer class="foot">
+  <div>GraphReFly · graphrefly/ts<br /><b>MIT</b> licensed</div>
+  <div class="mid">— finis —</div>
+  <div style="text-align:right;">Drawn by the maintainers,<br />year of our Lord <b>MMXXVI</b></div>
+</footer>
+
+</main>
+</body>
+</html>

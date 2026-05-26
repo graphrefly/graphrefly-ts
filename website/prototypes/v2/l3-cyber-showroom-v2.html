@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GraphReFly — Cyber Showroom v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@400;500;600;700;800;900&family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --ice: #F4F7F9;
+  --ice-warm: #ECEFF2;
+  --paper: #FFFFFF;
+  --navy: #0A1628;
+  --navy-deep: #050E1A;
+  --navy-mid: #1A2940;
+  --ink: #07121E;
+  --ink-mute: #5C6675;
+  --ink-faint: #98A0AC;
+  --rule: rgba(7,18,30,0.10);
+  --rule-deep: rgba(7,18,30,0.22);
+  --lime: #C8FF00;
+  --lime-deep: #9BC400;
+  --magenta: #FF2D75;
+  --red: #FF3B30;
+  --display: 'Big Shoulders Display', system-ui, sans-serif;
+  --sans: 'Sora', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--ice); color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+
+/* ============== NAV ============== */
+nav.top {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 40px;
+  background: rgba(244,247,249,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--rule);
+}
+nav.top .brand {
+  font-family: var(--display); font-weight: 800;
+  font-size: 28px; letter-spacing: -0.03em; line-height: 1;
+  text-transform: uppercase;
+}
+nav.top .brand sup {
+  font-family: var(--mono); font-size: 9px; color: var(--lime-deep);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-left: 4px; vertical-align: 14px;
+}
+nav.top .menu {
+  display: flex; gap: 28px;
+  font-family: var(--sans); font-size: 13.5px;
+  font-weight: 500; color: var(--ink-mute);
+}
+nav.top .menu a:hover { color: var(--ink); }
+nav.top .ctas { display: flex; gap: 12px; align-items: center; }
+nav.top .ghost {
+  font-family: var(--mono); font-size: 11.5px;
+  color: var(--ink-mute);
+  letter-spacing: 0.04em;
+}
+nav.top .pill {
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  background: var(--ink); color: var(--ice);
+  padding: 8px 16px; border-radius: 999px;
+}
+nav.top .pill::after { content: ' →'; }
+
+/* ============== HERO ============== */
+.hero {
+  padding: 80px 40px 0;
+  text-align: center;
+  position: relative;
+}
+.hero .badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--ink-mute);
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  padding: 6px 12px; border-radius: 999px;
+  margin-bottom: 32px;
+}
+.hero .badge .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--lime); box-shadow: 0 0 8px rgba(200,255,0,0.7);
+  animation: dotPulse 2s ease-in-out infinite;
+}
+@keyframes dotPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.hero h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(80px, 13vw, 232px);
+  line-height: 0.86;
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--ink);
+}
+.hero h1 .accent {
+  display: inline-block;
+  background: linear-gradient(180deg, var(--lime) 0%, var(--lime-deep) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero .sub {
+  max-width: 720px; margin: 36px auto 0;
+  font-family: var(--sans);
+  font-size: 19px; line-height: 1.55; font-weight: 400;
+  color: var(--ink-mute);
+}
+.hero .sub b { color: var(--ink); font-weight: 600; }
+
+/* lang switcher inside hero */
+.hero .lang-row {
+  display: inline-flex; gap: 4px; align-items: center;
+  margin-top: 36px;
+  padding: 4px; border: 1px solid var(--rule-deep);
+  border-radius: 999px;
+  background: var(--paper);
+}
+.lang-pill {
+  font-family: var(--sans); font-size: 12px; font-weight: 600;
+  padding: 8px 18px; border-radius: 999px;
+  border: 0; background: transparent;
+  color: var(--ink-mute); cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.18s;
+}
+.lang-pill:hover { color: var(--ink); }
+.lang-pill.active {
+  background: var(--ink); color: var(--ice);
+}
+
+.hero .ctas {
+  margin-top: 22px;
+  display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+}
+.btn-primary {
+  font-family: var(--sans); font-size: 14.5px; font-weight: 600;
+  background: var(--ink); color: var(--ice);
+  padding: 16px 28px; border-radius: 999px;
+  transition: all 0.18s;
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; border: 0;
+}
+.btn-primary:hover { background: var(--navy); transform: translateY(-1px); }
+.btn-secondary {
+  font-family: var(--mono); font-size: 12.5px; font-weight: 500;
+  color: var(--ink); border: 1px solid var(--rule-deep);
+  padding: 16px 22px; border-radius: 999px;
+  background: var(--paper);
+  letter-spacing: 0.02em; cursor: pointer;
+}
+.btn-secondary[data-lang-target="py"] { display: none; }
+.btn-secondary.show { display: inline-flex; align-items: center; }
+.btn-secondary:hover { border-color: var(--ink); }
+.btn-secondary .prompt { color: var(--ink-faint); margin-right: 8px; }
+
+/* ============== SHOWCASE ============== */
+.showcase {
+  margin: 60px auto 0;
+  max-width: 1300px; padding: 0 40px;
+  position: relative;
+}
+.showcase-frame {
+  position: relative;
+  background: var(--navy);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 80px 100px -50px rgba(7,18,30,0.40),
+    0 30px 50px -30px rgba(7,18,30,0.30);
+  aspect-ratio: 16/8;
+}
+.showcase-frame::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 40%, rgba(200,255,0,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 20% 80%, rgba(255,45,117,0.05) 0%, transparent 60%);
+}
+.showcase-stage { width: 100%; height: 100%; position: relative; }
+.showcase-stage svg { width: 100%; height: 100%; }
+.showcase-stage .nP, .showcase-stage .nD {
+  transform-origin: center;
+  animation: showcaseBreathe 5s ease-in-out infinite;
+}
+.showcase-stage .nD { animation-delay: 2.5s; }
+@keyframes showcaseBreathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.showcase-stage .dataDot {
+  fill: var(--lime); filter: drop-shadow(0 0 12px rgba(200,255,0,0.8));
+  animation: showcaseTravel 5s ease-in-out infinite;
+}
+@keyframes showcaseTravel {
+  0%   { transform: translateX(-280px); opacity: 0; }
+  15%  { opacity: 1; }
+  50%  { transform: translateX(280px); opacity: 1; }
+  60%  { opacity: 0; }
+  100% { transform: translateX(280px); opacity: 0; }
+}
+.showcase-stage .dirtyDot {
+  fill: none; stroke: #FBBF24; stroke-width: 1.5; stroke-dasharray: 3 3;
+  animation: showcaseTravel 5s ease-in-out infinite;
+  animation-delay: -0.5s;
+}
+
+.showcase .badges-overlay {
+  position: absolute; top: 24px; left: 24px; right: 24px;
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  z-index: 5; pointer-events: none;
+}
+.showcase .badges-overlay .live::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--lime); margin-right: 6px; vertical-align: middle;
+  box-shadow: 0 0 6px var(--lime);
+}
+.showcase .label-overlay {
+  position: absolute; bottom: 32px; left: 32px;
+  z-index: 5;
+}
+.showcase .label-overlay .lbl-k {
+  font-family: var(--mono); font-size: 10.5px;
+  color: var(--lime); letter-spacing: 0.16em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.showcase .label-overlay .lbl-v {
+  font-family: var(--display); font-weight: 700;
+  font-size: 40px; line-height: 1; color: var(--ice);
+  letter-spacing: -0.03em; text-transform: uppercase;
+}
+.showcase .floating-chips {
+  position: absolute; bottom: 32px; right: 32px;
+  display: flex; gap: 10px;
+  z-index: 5;
+}
+.showcase .chip {
+  font-family: var(--mono); font-size: 11px; color: var(--ice);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 8px 14px; border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+
+/* ============== SECTION CHROME ============== */
+.section {
+  max-width: 1300px;
+  margin: 140px auto 0;
+  padding: 0 40px;
+}
+.section .ey {
+  font-family: var(--mono); font-size: 11.5px;
+  color: var(--lime-deep); letter-spacing: 0.18em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.section .ey::before { content: '— '; }
+.section h2 {
+  font-family: var(--display); font-weight: 800;
+  font-size: clamp(48px, 7vw, 96px); line-height: 0.9;
+  letter-spacing: -0.04em; margin: 0 0 18px;
+  text-transform: uppercase;
+}
+.section h2 .out { -webkit-text-stroke: 2px var(--ink); color: transparent; }
+.section h2 .accent {
+  background: linear-gradient(180deg, var(--lime) 0%, var(--lime-deep) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.section .intro {
+  font-family: var(--sans); font-size: 17px; line-height: 1.6;
+  color: var(--ink-mute); max-width: 60ch;
+  margin: 0 0 56px;
+}
+.section .intro b { color: var(--ink); font-weight: 600; }
+
+/* ============== SPEC SHEET (numbers) ============== */
+.spec-sheet { margin-top: 120px; }
+.spec-sheet h2 { max-width: 14ch; margin-bottom: 64px; }
+.spec-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: var(--rule-deep);
+  border: 1px solid var(--rule-deep);
+  border-radius: 24px; overflow: hidden;
+}
+.spec-cell {
+  background: var(--paper);
+  padding: 36px 28px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  min-height: 240px;
+}
+.spec-cell.hi { background: var(--navy); color: var(--ice); }
+.spec-cell.hi .ttl { color: var(--lime); }
+.spec-cell.hi .descr { color: rgba(244,247,249,0.7); }
+.spec-cell.hi .meta { color: var(--ice-warm); }
+.spec-cell .ttl {
+  font-family: var(--mono); font-size: 11.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 18px;
+}
+.spec-cell .big {
+  font-family: var(--display); font-weight: 800;
+  font-size: 80px; line-height: 0.85;
+  letter-spacing: -0.04em;
+}
+.spec-cell .big .un {
+  font-family: var(--sans); font-size: 18px; font-weight: 400;
+  color: var(--ink-mute); margin-left: 6px; letter-spacing: -0.01em;
+  text-transform: lowercase;
+}
+.spec-cell.hi .big .un { color: var(--ice-warm); }
+.spec-cell .descr {
+  margin-top: 14px;
+  font-family: var(--sans); font-size: 14px;
+  color: var(--ink-mute); line-height: 1.5;
+}
+.spec-cell .meta {
+  margin-top: 18px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink); letter-spacing: 0.02em;
+}
+.spec-cell .meta::before { content: '— '; color: var(--lime-deep); }
+
+/* ============== HEADACHES (Three harness gaps) ============== */
+.headaches { margin-top: 160px; }
+.gap-list { display: flex; flex-direction: column; gap: 20px; }
+.gap-row {
+  display: grid; grid-template-columns: 1fr 0fr;
+  gap: 0; border-radius: 24px; overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  transition: grid-template-columns 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.gap-row.revealed { grid-template-columns: 1fr 1fr; }
+
+.gap-pain {
+  padding: 40px 36px;
+  display: flex; flex-direction: column;
+  gap: 16px; min-width: 0;
+  position: relative; overflow: hidden;
+  transition: background 0.6s, color 0.6s;
+}
+.gap-row.revealed .gap-pain { background: rgba(255,59,48,0.04); }
+.gap-pain .num {
+  font-family: var(--display); font-weight: 800;
+  font-size: 28px; line-height: 1; letter-spacing: -0.04em;
+  color: var(--ink-faint);
+  display: flex; align-items: center; gap: 14px;
+  transition: color 0.6s;
+}
+.gap-row.revealed .gap-pain .num { color: var(--red); }
+.gap-pain .num::after {
+  content: 'PAIN'; font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.18em; color: var(--ink-faint); font-weight: 500;
+  border: 1px solid var(--rule);
+  padding: 4px 10px; border-radius: 999px;
+  transition: color 0.6s, border-color 0.6s;
+}
+.gap-row.revealed .gap-pain .num::after {
+  color: var(--red); border-color: rgba(255,59,48,0.4);
+}
+.gap-pain h3 {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(28px, 3vw, 40px); line-height: 1;
+  letter-spacing: -0.03em; margin: 0;
+  text-transform: uppercase;
+  transition: color 0.6s;
+}
+.gap-row.revealed .gap-pain h3 { color: var(--red); }
+.gap-pain p {
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  color: var(--ink-mute); margin: 0; max-width: 50ch;
+}
+.gap-pain p strong { color: var(--ink); font-weight: 600; }
+.gap-pain .bg-glyph {
+  position: absolute; bottom: -10px; right: -10px;
+  width: 180px; height: 180px; opacity: 0.05;
+  pointer-events: none;
+  transition: opacity 0.6s, transform 0.6s, color 0.6s;
+  transform: rotate(-10deg);
+}
+.gap-row.revealed .gap-pain .bg-glyph {
+  opacity: 0.14; transform: rotate(0); color: var(--red);
+}
+
+.gap-solution {
+  padding: 40px 36px;
+  background: var(--navy);
+  color: var(--ice);
+  display: flex; flex-direction: column;
+  gap: 14px; min-width: 0;
+  position: relative; overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.45s 0.3s;
+}
+.gap-row.revealed .gap-solution { opacity: 1; }
+.gap-solution::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle 400px at 80% 50%, rgba(200,255,0,0.08), transparent 60%);
+}
+.gap-solution > * { position: relative; z-index: 2; }
+.gap-solution .badge {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--lime); align-self: flex-start;
+  padding: 6px 12px; border: 1px solid rgba(200,255,0,0.3);
+  border-radius: 999px; background: rgba(200,255,0,0.06);
+}
+.gap-solution .badge .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--lime); box-shadow: 0 0 6px var(--lime);
+}
+.gap-solution h3 {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(28px, 3vw, 40px); line-height: 1;
+  letter-spacing: -0.03em; margin: 0;
+  text-transform: uppercase;
+  color: var(--ice);
+}
+.gap-solution h3 em {
+  font-style: normal;
+  background: linear-gradient(180deg, var(--lime) 0%, var(--lime-deep) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.gap-solution p {
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  color: rgba(244,247,249,0.78); margin: 0; max-width: 48ch;
+}
+.gap-solution .demo {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 12px; align-self: flex-start;
+  font-family: var(--mono); font-size: 11.5px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink); background: var(--lime);
+  padding: 10px 16px; border-radius: 999px;
+  font-weight: 600;
+  transition: background 0.18s;
+}
+.gap-solution .demo:hover { background: var(--ice); }
+
+/* ============== PYRAMID (Four requirements) ============== */
+.pyramid-section { margin-top: 180px; }
+.pyramid-wrap {
+  display: grid; grid-template-columns: minmax(0, 560px) 1fr;
+  gap: 56px; align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 24px;
+  padding: 56px;
+}
+
+.pyramid {
+  display: flex; flex-direction: column; align-items: stretch; gap: 0;
+  width: 100%; max-width: 480px; margin: 0 auto;
+}
+.pyr-tier {
+  display: grid; gap: 12px;
+  width: 100%;
+  align-items: stretch;
+}
+.pyr-tier.t1 { grid-template-columns: 1fr; max-width: 260px; margin: 0 auto; }
+.pyr-tier.t2 { grid-template-columns: 1fr 1fr; max-width: 380px; margin: 0 auto; }
+.pyr-tier.t3 { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
+.pyr-connector {
+  width: 2px; height: 24px;
+  background: var(--rule-deep); margin: 12px auto;
+  border-radius: 1px;
+}
+.pyr-block {
+  border: 1.5px solid var(--rule-deep);
+  background: var(--paper);
+  border-radius: 18px;
+  padding: 20px 18px;
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+  text-align: center;
+  transition: all 0.22s ease;
+  position: relative;
+}
+.pyr-block:hover {
+  border-color: var(--ink);
+  background: rgba(7,18,30,0.04);
+}
+.pyr-block.active {
+  border-color: var(--lime-deep);
+  background: linear-gradient(180deg, rgba(200,255,0,0.10), rgba(200,255,0,0.04));
+  box-shadow: 0 12px 28px -16px rgba(155,196,0,0.5);
+}
+.pyr-block .pb-title {
+  font-family: var(--display); font-weight: 700;
+  font-size: 16px; line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.pyr-block.active .pb-title { color: var(--ink); }
+.pyr-block .pb-sub {
+  font-family: var(--sans); font-size: 12px;
+  color: var(--ink-mute); line-height: 1.4;
+}
+
+.pyramid-detail {
+  background: var(--navy);
+  color: var(--ice);
+  border-radius: 20px;
+  padding: 40px 36px;
+  min-height: 280px;
+  display: flex; flex-direction: column; gap: 18px;
+  position: relative; overflow: hidden;
+}
+.pyramid-detail::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle 500px at 80% 0%, rgba(200,255,0,0.08), transparent 65%);
+}
+.pyramid-detail > * { position: relative; z-index: 2; }
+.pyramid-detail .pd-label {
+  font-family: var(--mono); font-size: 10.5px;
+  color: var(--lime); letter-spacing: 0.18em; text-transform: uppercase;
+}
+.pyramid-detail .pd-title {
+  font-family: var(--display); font-weight: 800;
+  font-size: clamp(32px, 4vw, 48px); line-height: 0.95;
+  letter-spacing: -0.03em; text-transform: uppercase;
+  color: var(--ice); margin: 0;
+}
+.pyramid-detail .pd-body {
+  font-family: var(--sans); font-size: 15px; line-height: 1.7;
+  color: rgba(244,247,249,0.78); margin: 0;
+}
+.pyramid-detail .pd-body strong { color: var(--lime); font-weight: 600; }
+
+/* ============== SPEC (Five components) ============== */
+.spec-section { margin-top: 180px; }
+.spec-list {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 24px; overflow: hidden;
+}
+.spec-row {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 32px;
+  align-items: center;
+  padding: 28px 36px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+.spec-row:last-child { border-bottom: none; }
+.spec-row:hover { background: rgba(7,18,30,0.025); }
+
+.spec-toggle {
+  display: flex; align-items: center; gap: 14px;
+}
+.spec-toggle .icon {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: grid; place-items: center;
+  font-family: var(--sans); font-weight: 700; font-size: 14px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.spec-row.active .spec-toggle .icon {
+  background: var(--lime); color: var(--ink);
+}
+.spec-row:not(.active) .spec-toggle .icon {
+  background: rgba(255,45,117,0.12); color: var(--magenta);
+}
+.spec-toggle .name {
+  font-family: var(--mono); font-size: 14px; font-weight: 500;
+  transition: color 0.2s;
+}
+.spec-row.active .spec-toggle .name { color: var(--ink); }
+.spec-row:not(.active) .spec-toggle .name { color: var(--ink-faint); text-decoration: line-through; text-decoration-color: rgba(255,45,117,0.4); }
+
+.spec-content { min-width: 0; }
+.spec-content .desc {
+  font-family: var(--sans); font-size: 14.5px; line-height: 1.55;
+  color: var(--ink-mute);
+}
+.spec-content .broken {
+  font-family: var(--sans); font-size: 14.5px; line-height: 1.55;
+  color: var(--magenta);
+  display: none;
+}
+.spec-row:not(.active) .spec-content .desc { display: none; }
+.spec-row:not(.active) .spec-content .broken { display: block; }
+
+.spec-enables { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.spec-tag {
+  font-family: var(--mono); font-size: 10.5px;
+  font-weight: 500; letter-spacing: 0.04em;
+  padding: 5px 11px; border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.spec-row.active .spec-tag {
+  border-color: rgba(155,196,0,0.5);
+  color: var(--lime-deep);
+  background: rgba(200,255,0,0.10);
+}
+.spec-row:not(.active) .spec-tag {
+  border-color: rgba(255,45,117,0.4);
+  color: var(--magenta);
+  background: rgba(255,45,117,0.06);
+}
+
+/* ============== CTA BAND ============== */
+.cta-band {
+  margin: 180px auto 0;
+  max-width: 1300px;
+}
+.cta-inner {
+  background: var(--navy);
+  margin: 0 40px;
+  border-radius: 32px;
+  padding: 72px 60px;
+  position: relative; overflow: hidden;
+}
+.cta-inner::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle 600px at 80% 50%, rgba(200,255,0,0.10), transparent 65%);
+}
+.cta-inner .cta-head {
+  position: relative; z-index: 2;
+  text-align: center; margin-bottom: 48px;
+}
+.cta-inner .cta-ey {
+  font-family: var(--mono); font-size: 11.5px;
+  color: var(--lime); letter-spacing: 0.18em; text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.cta-inner h3 {
+  font-family: var(--display); font-weight: 800;
+  font-size: clamp(48px, 7vw, 96px); line-height: 0.9;
+  letter-spacing: -0.04em; text-transform: uppercase;
+  margin: 0; color: var(--ice);
+}
+.cta-inner h3 em {
+  font-style: normal;
+  background: linear-gradient(180deg, var(--lime) 0%, var(--lime-deep) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.cta-inner .sub {
+  margin: 18px auto 0; max-width: 540px;
+  font-family: var(--sans); font-size: 16px; line-height: 1.6;
+  color: rgba(244,247,249,0.7);
+}
+
+.install-cards {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  max-width: 720px; margin: 0 auto;
+}
+.install-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 18px; padding: 24px;
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: 12px;
+  transition: all 0.2s;
+}
+.install-card:hover {
+  background: var(--lime); border-color: var(--lime);
+}
+.install-card:hover .lang { color: var(--ink); opacity: 0.55; }
+.install-card:hover .cmd { color: var(--ink); }
+.install-card:hover .gh {
+  border-color: var(--ink); color: var(--ink);
+}
+.install-card .lang {
+  font-family: var(--mono); font-size: 10.5px;
+  color: rgba(244,247,249,0.6);
+  letter-spacing: 0.18em; text-transform: uppercase;
+  font-weight: 500;
+}
+.install-card .cmd {
+  font-family: var(--mono); font-size: 16px; font-weight: 500;
+  color: var(--ice); transition: color 0.18s;
+}
+.install-card .cmd .pr { color: rgba(244,247,249,0.45); margin-right: 8px; }
+.install-card:hover .cmd .pr { color: rgba(7,18,30,0.5); }
+.install-card .gh {
+  align-self: flex-start;
+  font-family: var(--mono); font-size: 11px;
+  color: rgba(244,247,249,0.6);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 6px 12px; border-radius: 999px;
+  margin-top: 4px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  transition: all 0.18s;
+}
+
+/* ============== FOOTER ============== */
+footer.foot {
+  margin-top: 120px;
+  padding: 60px 40px 28px;
+  border-top: 1px solid var(--rule);
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 40px;
+  font-family: var(--sans); font-size: 13.5px;
+}
+footer.foot .brand {
+  font-family: var(--display); font-weight: 800;
+  font-size: 36px; letter-spacing: -0.03em;
+  text-transform: uppercase;
+}
+footer.foot .brand small {
+  display: block; font-family: var(--mono); font-size: 10.5px;
+  color: var(--ink-mute); letter-spacing: 0.12em; margin-top: 8px;
+  font-weight: 400; text-transform: uppercase;
+}
+footer.foot .col b {
+  display: block; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--ink); margin-bottom: 14px;
+  font-weight: 600;
+}
+footer.foot .col a {
+  display: block; color: var(--ink-mute); margin-bottom: 8px;
+}
+footer.foot .col a:hover { color: var(--ink); }
+footer.foot .end {
+  grid-column: 1 / -1; margin-top: 36px;
+  border-top: 1px solid var(--rule); padding-top: 18px;
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+
+/* ============== TOAST ============== */
+.toast {
+  position: fixed; bottom: 32px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 12px 22px; background: var(--ink); color: var(--lime);
+  font-family: var(--mono); font-size: 12px;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  font-weight: 500;
+  border-radius: 999px;
+  opacity: 0; transition: all 0.3s ease;
+  z-index: 200; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media (max-width: 1000px) {
+  .spec-grid { grid-template-columns: 1fr 1fr; }
+  .pyramid-wrap { grid-template-columns: 1fr; padding: 32px; }
+  .install-cards { grid-template-columns: 1fr; }
+  .spec-row { grid-template-columns: 1fr; gap: 14px; }
+  .spec-enables { justify-content: flex-start; }
+  footer.foot { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 700px) {
+  .gap-row, .gap-row.revealed { grid-template-columns: 1fr; }
+  .gap-solution { opacity: 1; }
+  .section { padding: 0 24px; margin-top: 100px; }
+  .hero { padding: 56px 24px 0; }
+  .showcase { padding: 0 24px; }
+  .cta-inner { padding: 48px 28px; }
+  .cta-band > .cta-inner { margin: 0 24px; }
+  footer.foot { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="brand">GraphReFly<sup>0.x</sup></div>
+  <div class="menu">
+    <a href="#">Product</a>
+    <a href="#gap-list">Why</a>
+    <a href="#pyramid">Spec</a>
+    <a href="#components">Components</a>
+    <a href="#install">Install</a>
+  </div>
+  <div class="ctas">
+    <span class="ghost">v0.x · MIT</span>
+    <a href="#install" class="pill">Get started</a>
+  </div>
+</nav>
+
+<!-- ============== HERO ============== -->
+<section class="hero">
+  <div class="badge">
+    <span class="dot"></span> Reactive Graph Protocol  ·  Live in your code
+  </div>
+
+  <h1>
+    Reactive,<br />
+    by <span class="accent">protocol.</span>
+  </h1>
+
+  <p class="sub">
+    Describe agent workflows in plain language. Review them visually. Run them persistently. Trace every decision back to its cause. <b>The reactive harness layer between your LLM and production</b> — causally explainable, policy-enforced, zero dependencies.
+  </p>
+
+  <div class="lang-row">
+    <button class="lang-pill active" data-lang="ts">TypeScript</button>
+    <button class="lang-pill" data-lang="py">Python</button>
+  </div>
+
+  <div class="ctas">
+    <a href="#install" class="btn-primary">Get started <span class="arrow">→</span></a>
+    <button class="btn-secondary show" data-lang-target="ts" data-copy="npm i @graphrefly/graphrefly"><span class="prompt">$</span>npm i @graphrefly/graphrefly</button>
+    <button class="btn-secondary" data-lang-target="py" data-copy="pip install graphrefly"><span class="prompt">$</span>pip install graphrefly</button>
+  </div>
+</section>
+
+<!-- ============== SHOWCASE ============== -->
+<section class="showcase">
+  <div class="showcase-frame">
+    <div class="badges-overlay">
+      <span class="live">LIVE  ·  AMBIENT HERO  ·  1920×1080</span>
+      <span>STAGE 1 OF 8  ·  ~42S LOOP</span>
+    </div>
+
+    <div class="showcase-stage" aria-hidden="true">
+      <svg viewBox="-400 -180 800 360" preserveAspectRatio="xMidYMid meet">
+        <line x1="-260" y1="0" x2="260" y2="0" stroke="rgba(244,247,249,0.18)" stroke-width="1.2" />
+        <g class="nP" transform="translate(-260 0)">
+          <polygon points="0,-38 38,0 0,38 -38,0" fill="rgba(16,185,129,0.18)" stroke="#10B981" stroke-width="1.5" />
+          <text x="0" y="62" fill="rgba(244,247,249,0.7)" font-family="JetBrains Mono" font-size="12" text-anchor="middle">producer</text>
+        </g>
+        <g class="nD" transform="translate(260 0)">
+          <circle r="38" fill="rgba(108,99,255,0.18)" stroke="#6C63FF" stroke-width="1.5" />
+          <text x="0" y="62" fill="rgba(244,247,249,0.7)" font-family="JetBrains Mono" font-size="12" text-anchor="middle">derived</text>
+        </g>
+        <circle class="dirtyDot" cx="0" cy="0" r="6" />
+        <circle class="dataDot" cx="0" cy="0" r="6" />
+      </svg>
+    </div>
+
+    <div class="label-overlay">
+      <div class="lbl-k">stage 1 · connection lifecycle</div>
+      <div class="lbl-v">START → DIRTY<br />→ DATA → COMPLETE</div>
+    </div>
+
+    <div class="floating-chips">
+      <span class="chip">graph.describe()</span>
+      <span class="chip">graph.observe()</span>
+      <span class="chip">batch()</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============== SPEC SHEET (numbers) ============== -->
+<section class="section spec-sheet">
+  <div class="ey">Specifications</div>
+  <h2>The <span class="out">numbers</span> behind the protocol.</h2>
+
+  <div class="spec-grid">
+    <div class="spec-cell">
+      <div>
+        <div class="ttl">Runtime deps</div>
+        <div class="big">0</div>
+      </div>
+      <div>
+        <div class="descr">Pure-TS substrate. No transitive surprises in your bundle.</div>
+        <div class="meta">universal · browser + node</div>
+      </div>
+    </div>
+
+    <div class="spec-cell hi">
+      <div>
+        <div class="ttl">Operators</div>
+        <div class="big">70<span class="un">+</span></div>
+      </div>
+      <div>
+        <div class="descr">transform · combine · buffer · window · rate-limit · retry · break</div>
+        <div class="meta">composable, type-safe, tree-shaken</div>
+      </div>
+    </div>
+
+    <div class="spec-cell">
+      <div>
+        <div class="ttl">Substrates</div>
+        <div class="big">2<span class="un">×</span></div>
+      </div>
+      <div>
+        <div class="descr">pure-ts (universal, sync) or native (rust, async via napi-rs).</div>
+        <div class="meta">install-time choice · parity-tested</div>
+      </div>
+    </div>
+
+    <div class="spec-cell">
+      <div>
+        <div class="ttl">Adapters</div>
+        <div class="big">5</div>
+      </div>
+      <div>
+        <div class="descr">React · Vue · Svelte · Solid · NestJS. Pick your framework, the graph stays the same.</div>
+        <div class="meta">drop-in · zero ceremony</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== HEADACHES (Three harness gaps) ============== -->
+<section class="section headaches" id="gap-list">
+  <div class="ey">The Problem</div>
+  <h2>Three <span class="accent">harness</span> gaps.</h2>
+  <p class="intro">Every team building with LLMs hits the same three walls. They are not modeling problems — they are <b>harness layer problems</b>. GraphReFly solves all three in the same protocol.</p>
+
+  <div class="gap-list">
+
+    <!-- GAP 01 -->
+    <div class="gap-row">
+      <div class="gap-pain">
+        <div class="num">01</div>
+        <h3>Context without control.</h3>
+        <p>Agent state is scattered across files, databases, and conversation transcripts. No single system sees it all. <strong>The agent becomes the integration layer — and fails.</strong></p>
+        <svg class="bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg>
+      </div>
+      <div class="gap-solution">
+        <div class="badge"><span class="dot"></span>GraphReFly</div>
+        <h3>Reactive <em>state harness</em>.</h3>
+        <p>A single reactive topology connects every source. State pushes to dependents automatically — no re-reading, no stale snapshots. One graph sees what ten dashboards can't.</p>
+        <a href="#" class="demo">Demo: Email Triage →</a>
+      </div>
+    </div>
+
+    <!-- GAP 02 -->
+    <div class="gap-row">
+      <div class="gap-pain">
+        <div class="num">02</div>
+        <h3>Action without explanation.</h3>
+        <p>Your agent flagged something. Why? You check logs — a wall of text. You check state — a snapshot, not a story. <strong>You can't explain the decision, so you can't trust it.</strong></p>
+        <svg class="bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+      </div>
+      <div class="gap-solution">
+        <div class="badge"><span class="dot"></span>GraphReFly</div>
+        <h3>Causal <em>tracing</em>.</h3>
+        <p>Ask "why was this flagged?" and get a structural causal chain — from source to conclusion. Not a log dump, but traceable causality that persists across sessions.</p>
+        <a href="#" class="demo">Demo: Spending Alerts →</a>
+      </div>
+    </div>
+
+    <!-- GAP 03 -->
+    <div class="gap-row">
+      <div class="gap-pain">
+        <div class="num">03</div>
+        <h3>Composition without guardrails.</h3>
+        <p>LLMs compose agent workflows by writing arbitrary code. Error space is unbounded. One hallucination cascades through the pipeline. <strong>No policy enforcement, no safe rollback.</strong></p>
+        <svg class="bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+      </div>
+      <div class="gap-solution">
+        <div class="badge"><span class="dot"></span>GraphReFly</div>
+        <h3>Declarative <em>GraphSpec</em>.</h3>
+        <p>Describe workflows in a declarative schema — like SQL for data flows. LLMs compose structurally, not imperatively. Policy enforcement, persistent checkpoints, safe rollback built in.</p>
+        <a href="#" class="demo">Demo: Knowledge Graph →</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============== PYRAMID (Four requirements) ============== -->
+<section class="section pyramid-section" id="pyramid">
+  <div class="ey">The Harness</div>
+  <h2>Four <span class="accent">requirements</span>.</h2>
+  <p class="intro">A harness layer between your LLM and production must satisfy all four. <b>Miss one, the whole thing breaks.</b></p>
+
+  <div class="pyramid-wrap">
+    <div class="pyramid">
+      <div class="pyr-tier t1">
+        <div class="pyr-block" data-req="symmetry">
+          <div class="pb-title">Human / LLM Symmetry</div>
+          <div class="pb-sub">Either side composes, reviews, modifies</div>
+        </div>
+      </div>
+      <div class="pyr-connector"></div>
+      <div class="pyr-tier t2">
+        <div class="pyr-block" data-req="audit">
+          <div class="pb-title">Human Audit</div>
+          <div class="pb-sub">Every decision traceable</div>
+        </div>
+        <div class="pyr-block" data-req="creation">
+          <div class="pb-title">LLM-Safe Creation</div>
+          <div class="pb-sub">Constrained error space</div>
+        </div>
+      </div>
+      <div class="pyr-connector"></div>
+      <div class="pyr-tier t3">
+        <div class="pyr-block" data-req="security">
+          <div class="pb-title">Security</div>
+          <div class="pb-sub">Per-node access control. Multi-tenant isolation.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pyramid-detail" id="pyramid-detail">
+      <div class="pd-label">— Click a block to explore</div>
+      <h3 class="pd-title" id="pd-title">The Architecture</h3>
+      <p class="pd-body" id="pd-body">
+        Each requirement builds on the ones below. <strong>Security</strong> is the foundation — without it, nothing is trustworthy. LLM-safe creation and human audit sit in the middle — both require secure infrastructure. At the apex, human/LLM symmetry requires all three: safe creation, auditability, and enforced boundaries.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============== SPEC (Five components) ============== -->
+<section class="section spec-section" id="components">
+  <div class="ey">The Spec</div>
+  <h2>Five <span class="accent">components</span>.</h2>
+  <p class="intro">The irreducible core. Remove any one and at least one requirement fails. <b>Click a component to see what breaks.</b></p>
+
+  <div class="spec-list">
+    <div class="spec-row active" data-component="node">
+      <div class="spec-toggle"><span class="icon">✓</span><span class="name">node</span></div>
+      <div class="spec-content">
+        <div class="desc">Minimal compute unit with declared dependencies.</div>
+        <div class="broken">LLM returns to writing arbitrary code. Error space is unbounded.</div>
+      </div>
+      <div class="spec-enables"><span class="spec-tag">LLM-Safe Creation</span></div>
+    </div>
+
+    <div class="spec-row active" data-component="edge">
+      <div class="spec-toggle"><span class="icon">✓</span><span class="name">edge</span></div>
+      <div class="spec-content">
+        <div class="desc">Dependency as explicit data — the links between nodes.</div>
+        <div class="broken">Dependencies are implicit. Causal chain breaks.</div>
+      </div>
+      <div class="spec-enables"><span class="spec-tag">Human Audit</span></div>
+    </div>
+
+    <div class="spec-row active" data-component="propagation">
+      <div class="spec-toggle"><span class="icon">✓</span><span class="name">propagation</span></div>
+      <div class="spec-content">
+        <div class="desc">Change → downstream notified instantly, no stale state.</div>
+        <div class="broken">Manual update coordination. Back to polling, back to vibe coding.</div>
+      </div>
+      <div class="spec-enables"><span class="spec-tag">LLM-Safe Creation</span><span class="spec-tag">Human Audit</span></div>
+    </div>
+
+    <div class="spec-row active" data-component="describe">
+      <div class="spec-toggle"><span class="icon">✓</span><span class="name">describe()</span></div>
+      <div class="spec-content">
+        <div class="desc">Structure visible, persistable, diffable at any moment.</div>
+        <div class="broken">Structure is invisible. Not persistable, not diffable.</div>
+      </div>
+      <div class="spec-enables"><span class="spec-tag">Human Audit</span><span class="spec-tag">Security</span></div>
+    </div>
+
+    <div class="spec-row active" data-component="graphspec">
+      <div class="spec-toggle"><span class="icon">✓</span><span class="name">GraphSpec</span></div>
+      <div class="spec-content">
+        <div class="desc">Declarative, LLM-readable format for compose / review / modify.</div>
+        <div class="broken">LLM can't structurally operate on the graph.</div>
+      </div>
+      <div class="spec-enables"><span class="spec-tag">Human / LLM Symmetry</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== CTA BAND ============== -->
+<section class="cta-band" id="install">
+  <div class="cta-inner">
+    <div class="cta-head">
+      <div class="cta-ey">— Ship It</div>
+      <h3>It <em>exists</em>.</h3>
+      <p class="sub">One protocol. Two runtimes. TypeScript and Python, same spec, same guarantees. Zero dependencies. Tree-shakeable. One primitive.</p>
+    </div>
+
+    <div class="install-cards">
+      <div class="install-card" data-copy="npm i @graphrefly/graphrefly">
+        <div class="lang">TypeScript</div>
+        <div class="cmd"><span class="pr">$</span>npm i @graphrefly/graphrefly</div>
+        <a href="https://github.com/graphrefly/graphrefly-ts" class="gh" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
+      </div>
+      <div class="install-card" data-copy="pip install graphrefly">
+        <div class="lang">Python</div>
+        <div class="cmd"><span class="pr">$</span>pip install graphrefly</div>
+        <a href="https://github.com/graphrefly/graphrefly-py" class="gh" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="brand">GraphReFly<small>Reactive Graph Protocol · MMXXVI</small></div>
+  <div class="col"><b>Product</b><a href="#">Spec</a><a href="#">API</a><a href="#">Operators</a><a href="#">Adapters</a></div>
+  <div class="col"><b>Examples</b><a href="#">Email triage</a><a href="#">Pricing</a><a href="#">Agent loop</a></div>
+  <div class="col"><b>Resources</b><a href="#">Benchmarks</a><a href="#">Compare</a><a href="#">Roadmap</a></div>
+  <div class="col"><b>Community</b><a href="#">GitHub</a><a href="#">Discord</a><a href="#">Discussions</a></div>
+  <div class="end">
+    <span>© MMXXVI · graphrefly · MIT licensed</span>
+    <span>set in big shoulders + sora</span>
+  </div>
+</footer>
+
+<div class="toast" id="toast">Copied to clipboard</div>
+
+<script>
+/* ═══ LANG SWITCHER ═══ */
+document.querySelectorAll('.lang-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    const lang = pill.dataset.lang;
+    document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    document.querySelectorAll('[data-lang-target]').forEach(el => {
+      el.classList.toggle('show', el.dataset.langTarget === lang);
+    });
+  });
+});
+
+/* ═══ HEADACHE SCROLL REVEAL ═══ */
+function revealVisibleGaps() {
+  document.querySelectorAll('.gap-row').forEach(r => {
+    const rect = r.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) r.classList.add('revealed');
+  });
+}
+const gapObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('revealed'); });
+}, { threshold: [0.05, 0.3], rootMargin: '0px 0px -5% 0px' });
+document.querySelectorAll('.gap-row').forEach(r => gapObserver.observe(r));
+revealVisibleGaps();
+window.addEventListener('resize', revealVisibleGaps);
+
+/* ═══ PYRAMID ═══ */
+const reqData = {
+  creation: {
+    title: 'LLM-Safe Creation',
+    body: 'LLMs compose graphs structurally — like SQL for data flows — not arbitrary code. <strong>Constrained error space</strong> means the graph is correct on first pass, not after three debug cycles. Node-internal functions are simple and testable in isolation; composition bugs are the hard ones, and the graph eliminates them structurally.'
+  },
+  audit: {
+    title: 'Human Audit',
+    body: 'Every node is observable. Every derivation has a causal chain. Ask "why was this flagged?" and get a <strong>structural answer</strong> — not a log dump, not "the model said so." Unlike OpenTelemetry (post-hoc), GraphReFly audit is live: inspect any node at any moment during runtime, not just after the fact.'
+  },
+  security: {
+    title: 'Security',
+    body: 'Per-node access control via Actor/Guard primitives. <strong>Multi-tenant, multi-agent isolation.</strong> Different agents see different subgraphs. The graph enforces boundaries the LLM cannot circumvent — even if the LLM tries to access nodes outside its permitted scope, the topology itself is the firewall.'
+  },
+  symmetry: {
+    title: 'Human / LLM Symmetry',
+    body: 'Either side can compose, review, or modify the graph. LLM composes → human reviews topology. Human composes → LLM audits correctness. LLM A composes → LLM B audits → human approves. <strong>Same structure, same tools, no translation layer.</strong> Reviewing a GraphSpec diff is easier than reviewing a code diff — for both humans and LLMs.'
+  }
+};
+
+document.querySelectorAll('.pyr-block').forEach(block => {
+  block.addEventListener('click', () => {
+    const req = block.dataset.req;
+    const data = reqData[req];
+    if (!data) return;
+    document.querySelectorAll('.pyr-block').forEach(b => b.classList.remove('active'));
+    block.classList.add('active');
+    document.getElementById('pd-title').textContent = data.title;
+    document.getElementById('pd-body').innerHTML = data.body;
+    const label = document.querySelector('.pyramid-detail .pd-label');
+    if (label) label.textContent = '— ' + req.charAt(0).toUpperCase() + req.slice(1);
+  });
+});
+
+/* ═══ SPEC ROW TOGGLE ═══ */
+document.querySelectorAll('.spec-row').forEach(row => {
+  row.addEventListener('click', () => {
+    row.classList.toggle('active');
+    const icon = row.querySelector('.icon');
+    if (icon) icon.textContent = row.classList.contains('active') ? '✓' : '✕';
+  });
+});
+
+/* ═══ CLIPBOARD ═══ */
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const t = document.getElementById('toast');
+    if (t) { t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1600); }
+  });
+}
+document.querySelectorAll('[data-copy]').forEach(el => {
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('a')) return;
+    copyText(el.dataset.copy);
+  });
+});
+</script>
+
+</body>
+</html>

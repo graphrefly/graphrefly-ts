@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GraphReFly Homepage — v2 prototype gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #0E1116;
+  --bg-elev: #161A21;
+  --card: #1B2029;
+  --ink: #ECEFF4;
+  --ink-mute: #8B92A0;
+  --ink-faint: #5A6271;
+  --rule: rgba(236,239,244,0.08);
+  --accent: #C8FF00;
+  --emerald: #10B981;
+  --violet: #6C63FF;
+  --amber: #FBBF24;
+  --magenta: #FF2D75;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--ink); }
+
+header {
+  padding: 56px 48px 28px;
+  border-bottom: 1px solid var(--rule);
+}
+header .crumb {
+  font-size: 11px; color: var(--ink-faint); letter-spacing: 0.16em;
+  text-transform: uppercase; margin-bottom: 18px;
+}
+header .crumb b { color: var(--accent); font-weight: 500; }
+header h1 {
+  font-family: 'Newsreader', serif;
+  font-weight: 400; font-style: italic;
+  font-size: clamp(34px, 5vw, 56px); line-height: 1.05;
+  margin: 0 0 18px; letter-spacing: -0.02em;
+}
+header h1 em { font-style: italic; color: var(--accent); }
+header p {
+  max-width: 64ch; color: var(--ink-mute);
+  font-size: 13.5px; line-height: 1.7; margin: 0;
+}
+header p b { color: var(--ink); font-weight: 500; }
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: 28px;
+  padding: 24px 48px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-elev);
+  font-size: 11.5px; color: var(--ink-mute);
+  letter-spacing: 0.04em;
+}
+.legend div { display: flex; align-items: center; gap: 8px; }
+.legend .sw {
+  width: 12px; height: 12px; border-radius: 3px;
+  display: inline-block;
+}
+
+.grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 0;
+}
+.card {
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 36px 40px 32px;
+  background: var(--bg);
+  transition: background 0.2s;
+  position: relative;
+}
+.card:nth-child(2n) { border-right: none; }
+.card:hover { background: var(--bg-elev); }
+.card .row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.card .id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.18em;
+  color: var(--ink-faint); text-transform: uppercase;
+}
+.card .id b { color: var(--ink-mute); font-weight: 500; }
+.card .mode {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.12em;
+  padding: 3px 9px; border-radius: 3px;
+  text-transform: uppercase; font-weight: 500;
+}
+.card .mode.dark { background: rgba(108,99,255,0.18); color: #BCB6FF; }
+.card .mode.light { background: rgba(200,255,0,0.16); color: var(--accent); }
+.card h2 {
+  font-family: 'Newsreader', serif; font-weight: 400; font-style: italic;
+  font-size: 32px; line-height: 1.05; margin: 4px 0 16px;
+  letter-spacing: -0.015em; color: var(--ink);
+}
+
+.card .preview {
+  display: block;
+  width: 100%; aspect-ratio: 16/9; border-radius: 6px;
+  overflow: hidden; position: relative; margin-bottom: 18px;
+  border: 1px solid var(--rule);
+}
+.card .preview iframe {
+  width: 200%; height: 200%;
+  transform: scale(0.5); transform-origin: 0 0;
+  border: 0;
+  pointer-events: none;
+}
+.card .preview .scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 60%, rgba(14,17,22,0.4) 100%);
+  pointer-events: none;
+}
+
+.card .meta {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px;
+  font-size: 12px;
+  border-top: 1px solid var(--rule);
+  padding-top: 18px; margin-bottom: 18px;
+}
+.card .meta dt {
+  color: var(--ink-faint); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.card .meta dd {
+  margin: 0; color: var(--ink);
+}
+.card .meta dd b { color: var(--accent); font-weight: 500; }
+.card .meta .palette { display: flex; gap: 5px; }
+.card .meta .palette span {
+  width: 16px; height: 16px; border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+.card .voice {
+  font-family: 'Newsreader', serif; font-style: italic;
+  font-size: 15px; line-height: 1.45; color: var(--ink-mute);
+  margin: 0 0 20px;
+  border-left: 2px solid var(--accent); padding-left: 14px;
+}
+.card .voice b { font-style: normal; color: var(--ink); font-weight: 500; }
+
+.card .actions {
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+.card .btn {
+  font-size: 11px; letter-spacing: 0.08em;
+  padding: 9px 14px; border-radius: 3px;
+  text-transform: uppercase; font-weight: 500;
+}
+.card .btn.primary {
+  background: var(--accent); color: #0E1116;
+}
+.card .btn.primary:hover { background: var(--ink); color: #0E1116; }
+.card .btn.ghost {
+  color: var(--ink-mute); border: 1px solid var(--rule);
+}
+.card .btn.ghost:hover { color: var(--ink); border-color: var(--ink-mute); }
+
+footer {
+  padding: 32px 48px;
+  border-top: 1px solid var(--rule);
+  background: var(--bg-elev);
+  font-size: 11.5px; color: var(--ink-faint);
+  display: flex; justify-content: space-between; align-items: baseline;
+  letter-spacing: 0.04em;
+}
+footer b { color: var(--accent); font-weight: 500; }
+
+@media (max-width: 1000px) {
+  .grid { grid-template-columns: 1fr; }
+  .card { border-right: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="crumb"><b>v2</b> · homepage prototype gallery · 2026-05-25</div>
+  <h1>Six <em>directions</em> for the post-flipboard homepage.</h1>
+  <p>
+    Each prototype assumes the future <b>graph-animation <code style="color:var(--accent)">--mode ambient-hero</code></b> render (the 8-stage canonical loop) slots into a hero footprint of its own design. The page-level direction (palette / typography / layout / voice) varies; the hero-animation language stays canonical so the same MP4 + WebM can drop into any pick.
+  </p>
+</header>
+
+<div class="legend">
+  <div><span class="sw" style="background:#6C63FF"></span> dark mode (hero video sits natively)</div>
+  <div><span class="sw" style="background:#C8FF00"></span> light mode (hero contained in a dark panel)</div>
+  <div><span class="sw" style="background:#10B981"></span> emerald = producer (canonical hero color)</div>
+  <div><span class="sw" style="background:#FBBF24"></span> amber = DIRTY (canonical hero color)</div>
+</div>
+
+<div class="grid">
+
+  <!-- ============= D1 ============= -->
+  <div class="card">
+    <div class="row">
+      <div class="id"><b>D1</b> · v2/d1-carbon-notebook.html</div>
+      <div class="mode dark">dark</div>
+    </div>
+    <h2>Carbon Notebook</h2>
+    <div class="preview"><iframe src="d1-carbon-notebook.html" loading="lazy"></iframe><div class="scrim"></div></div>
+    <div class="voice">"<b>Code is the topography. Spec is the map. Agents read both.</b>" — A field-research journal voice. The graph as a thing you study; the page as your notebook.</div>
+    <dl class="meta">
+      <div><dt>Type</dt><dd>Newsreader (italic) + <br />JetBrains Mono</dd></div>
+      <div><dt>Palette</dt><dd class="palette">
+        <span style="background:#0B0E14"></span>
+        <span style="background:#11151C"></span>
+        <span style="background:#F2EEE5"></span>
+        <span style="background:#10B981"></span>
+        <span style="background:#E8B57A"></span>
+      </dd></div>
+      <div><dt>Layout</dt><dd>asymmetric · marginalia · 3-col journal</dd></div>
+      <div><dt>Tone</dt><dd>editorial · research-citation · single emerald accent</dd></div>
+    </dl>
+    <div class="actions">
+      <a href="d1-carbon-notebook.html" target="_blank" class="btn primary">Open full →</a>
+      <a href="d1-carbon-notebook.html" class="btn ghost">In tab</a>
+    </div>
+  </div>
+
+  <!-- ============= D2 ============= -->
+  <div class="card">
+    <div class="row">
+      <div class="id"><b>D2</b> · v2/d2-phosphor-terminal.html</div>
+      <div class="mode dark">dark</div>
+    </div>
+    <h2>Phosphor Terminal</h2>
+    <div class="preview"><iframe src="d2-phosphor-terminal.html" loading="lazy"></iframe><div class="scrim"></div></div>
+    <div class="voice">"<b>compose() observe() explain()</b>" — A refined CLI/terminal aesthetic with the hero living inside a viewport window. Talks like a tool.</div>
+    <dl class="meta">
+      <div><dt>Type</dt><dd>JetBrains Mono (all sizes / weights)</dd></div>
+      <div><dt>Palette</dt><dd class="palette">
+        <span style="background:#07090B"></span>
+        <span style="background:#11161B"></span>
+        <span style="background:#A6E22E"></span>
+        <span style="background:#FFB454"></span>
+        <span style="background:#7DD3FC"></span>
+      </dd></div>
+      <div><dt>Layout</dt><dd>chrome-framed · transcript · dense grid</dd></div>
+      <div><dt>Tone</dt><dd>terminal · phosphor green · monolingual mono</dd></div>
+    </dl>
+    <div class="actions">
+      <a href="d2-phosphor-terminal.html" target="_blank" class="btn primary">Open full →</a>
+      <a href="d2-phosphor-terminal.html" class="btn ghost">In tab</a>
+    </div>
+  </div>
+
+  <!-- ============= D3 ============= -->
+  <div class="card">
+    <div class="row">
+      <div class="id"><b>D3</b> · v2/d3-indigo-cartographer.html</div>
+      <div class="mode dark">dark</div>
+    </div>
+    <h2>Indigo Cartographer</h2>
+    <div class="preview"><iframe src="d3-indigo-cartographer.html" loading="lazy"></iframe><div class="scrim"></div></div>
+    <div class="voice">"<b>Every decision has a path back to first cause.</b>" — Atlas / map / chart-legend aesthetic. The hero is "Plate I"; each section is a folio.</div>
+    <dl class="meta">
+      <div><dt>Type</dt><dd>Cormorant Garamond + DM Sans</dd></div>
+      <div><dt>Palette</dt><dd class="palette">
+        <span style="background:#0A0F2C"></span>
+        <span style="background:#060920"></span>
+        <span style="background:#EBE2D0"></span>
+        <span style="background:#D4A86A"></span>
+        <span style="background:#B83948"></span>
+      </dd></div>
+      <div><dt>Layout</dt><dd>framed plate · compass legend · 5-cell key</dd></div>
+      <div><dt>Tone</dt><dd>scholarly · gilded · atlas voice</dd></div>
+    </dl>
+    <div class="actions">
+      <a href="d3-indigo-cartographer.html" target="_blank" class="btn primary">Open full →</a>
+      <a href="d3-indigo-cartographer.html" class="btn ghost">In tab</a>
+    </div>
+  </div>
+
+  <!-- ============= L1 ============= -->
+  <div class="card">
+    <div class="row">
+      <div class="id"><b>L1</b> · v2/l1-swiss-architect.html</div>
+      <div class="mode light">light</div>
+    </div>
+    <h2>Swiss Architect</h2>
+    <div class="preview"><iframe src="l1-swiss-architect.html" loading="lazy"></iframe><div class="scrim"></div></div>
+    <div class="voice">"<b>One primitive. Every problem.</b>" — Bauhaus / wood-type / 12-col grid. Hero contained in a dark "specimen" panel; numbered tenets; categorical compare table.</div>
+    <dl class="meta">
+      <div><dt>Type</dt><dd>Archivo Black + Archivo + JetBrains Mono</dd></div>
+      <div><dt>Palette</dt><dd class="palette">
+        <span style="background:#F4F1E8"></span>
+        <span style="background:#FBFAF5"></span>
+        <span style="background:#0C0C0C"></span>
+        <span style="background:#E63946"></span>
+        <span style="background:#0F121A"></span>
+      </dd></div>
+      <div><dt>Layout</dt><dd>12-col grid · TOC · hairline rules</dd></div>
+      <div><dt>Tone</dt><dd>uppercase · architectural · signal red</dd></div>
+    </dl>
+    <div class="actions">
+      <a href="l1-swiss-architect.html" target="_blank" class="btn primary">Open full →</a>
+      <a href="l1-swiss-architect.html" class="btn ghost">In tab</a>
+    </div>
+  </div>
+
+  <!-- ============= L2 ============= -->
+  <div class="card">
+    <div class="row">
+      <div class="id"><b>L2</b> · v2/l2-botanical-journal.html</div>
+      <div class="mode light">light</div>
+    </div>
+    <h2>Botanical Journal</h2>
+    <div class="preview"><iframe src="l2-botanical-journal.html" loading="lazy"></iframe><div class="scrim"></div></div>
+    <div class="voice">"<b>The graph grows what the system needs to know.</b>" — Naturalist's manual / herbarium plate. Primitives illustrated as botanical specimens (Reactivus communis, Producens vivax, …).</div>
+    <dl class="meta">
+      <div><dt>Type</dt><dd>Fraunces (variable, soft/wonk) + EB Garamond</dd></div>
+      <div><dt>Palette</dt><dd class="palette">
+        <span style="background:#F8F5EF"></span>
+        <span style="background:#FCFAF4"></span>
+        <span style="background:#5C7F5C"></span>
+        <span style="background:#C8843C"></span>
+        <span style="background:#9B4F3F"></span>
+      </dd></div>
+      <div><dt>Layout</dt><dd>plate-illustrated · pin-mounted specimens · drop-cap journal</dd></div>
+      <div><dt>Tone</dt><dd>organic · scholarly · sage + ochre + terra</dd></div>
+    </dl>
+    <div class="actions">
+      <a href="l2-botanical-journal.html" target="_blank" class="btn primary">Open full →</a>
+      <a href="l2-botanical-journal.html" class="btn ghost">In tab</a>
+    </div>
+  </div>
+
+  <!-- ============= L3 v2 ============= -->
+  <div class="card" style="grid-column: 1 / -1; border-right: none; background: var(--bg-elev); border: 2px solid var(--accent); border-radius: 6px; margin: 0 40px 24px;">
+    <div class="row">
+      <div class="id"><b style="color:var(--accent)">L3 v2 · PICKED</b> · v2/l3-cyber-showroom-v2.html</div>
+      <div class="mode light">light · full homepage</div>
+    </div>
+    <h2 style="color:var(--accent)">Cyber Showroom <em style="font-style:italic; color:var(--ink-mute)">— v2 with all current homepage sections</em></h2>
+    <div class="preview" style="aspect-ratio: 21/9;"><iframe src="l3-cyber-showroom-v2.html" loading="lazy"></iframe><div class="scrim"></div></div>
+    <div class="voice">Cyber-showroom design DNA preserved. <b>"Three things state doesn't solve"</b> triptych replaced with the current homepage's <b>Three harness gaps</b> (scroll-reveal pain ↔ solution), <b>Four requirements pyramid</b> (clickable detail panel), <b>Five components spec</b> (toggleable, shows what breaks), and dual TS/PY install cards in the CTA band.</div>
+    <dl class="meta">
+      <div><dt>Hero</dt><dd>"Reactive, by protocol." + TS/PY lang pill</dd></div>
+      <div><dt>Sections</dt><dd>Hero · Showcase · Numbers · <b>Gaps</b> · <b>Pyramid</b> · <b>Components</b> · CTA</dd></div>
+      <div><dt>Interactive</dt><dd>scroll-reveal · pyramid click · spec toggle · copy</dd></div>
+      <div><dt>Differs from v1</dt><dd>+ 3 new sections · TS/PY parity in install · dual GitHub links</dd></div>
+    </dl>
+    <div class="actions">
+      <a href="l3-cyber-showroom-v2.html" target="_blank" class="btn primary">Open v2 (full) →</a>
+      <a href="l3-cyber-showroom-v2.html" class="btn ghost">In tab</a>
+      <a href="l3-cyber-showroom.html" target="_blank" class="btn ghost">Compare to v1 →</a>
+    </div>
+  </div>
+
+  <!-- ============= L3 v1 (archived) ============= -->
+  <div class="card">
+    <div class="row">
+      <div class="id"><b>L3 v1</b> · v2/l3-cyber-showroom.html</div>
+      <div class="mode light">light · v1</div>
+    </div>
+    <h2>Cyber Showroom <em style="font-style:italic; color:var(--ink-faint); font-size:0.75em">— original</em></h2>
+    <div class="preview"><iframe src="l3-cyber-showroom.html" loading="lazy"></iframe><div class="scrim"></div></div>
+    <div class="voice">"<b>Reactive, by protocol.</b>" — Apple-spec-page meets cyber. Centered huge display, full-bleed dark showcase frame, spec-grid with one inverted cell, lime brand callback.</div>
+    <dl class="meta">
+      <div><dt>Type</dt><dd>Big Shoulders Display + Sora + JetBrains Mono</dd></div>
+      <div><dt>Palette</dt><dd class="palette">
+        <span style="background:#F4F7F9"></span>
+        <span style="background:#FFFFFF"></span>
+        <span style="background:#0A1628"></span>
+        <span style="background:#C8FF00"></span>
+        <span style="background:#FF2D75"></span>
+      </dd></div>
+      <div><dt>Layout</dt><dd>centered display · pill CTA · spec-grid · CTA band</dd></div>
+      <div><dt>Tone</dt><dd>luxury / spec-sheet · electric lime brand-callback</dd></div>
+    </dl>
+    <div class="actions">
+      <a href="l3-cyber-showroom.html" target="_blank" class="btn primary">Open full →</a>
+      <a href="l3-cyber-showroom.html" class="btn ghost">In tab</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>v2 gallery · 6 directions · <b>pick one or several</b> to refine</span>
+  <span>website/prototypes/v2/index.html</span>
+</footer>
+
+</body>
+</html>

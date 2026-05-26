@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GraphReFly — Carbon Notebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,700;1,6..72,400;1,6..72,500;1,6..72,700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #0B0E14;
+  --bg-elev: #11151C;
+  --ink: #F2EEE5;
+  --ink-mute: #8B9099;
+  --ink-faint: #4A5159;
+  --rule: rgba(242,238,229,0.10);
+  --accent: #10B981;
+  --accent-warm: #E8B57A;
+  --serif: 'Newsreader', 'Times New Roman', serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--mono); font-weight: 400; }
+body { font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+.mono { font-family: var(--mono); }
+.serif { font-family: var(--serif); }
+
+/* ------------- NAV ------------- */
+nav.top {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 40px;
+  background: linear-gradient(to bottom, rgba(11,14,20,0.92) 0%, rgba(11,14,20,0) 100%);
+  font-size: 12px; letter-spacing: 0.04em;
+}
+nav.top .logo { font-family: var(--serif); font-style: italic; font-size: 22px; font-weight: 500; }
+nav.top .logo::after { content: '.'; color: var(--accent); }
+nav.top ul { display: flex; gap: 32px; margin: 0; padding: 0; list-style: none; text-transform: uppercase; }
+nav.top ul a:hover { color: var(--accent); }
+
+/* ------------- HERO ------------- */
+.hero {
+  position: relative; min-height: 100vh; overflow: hidden;
+  padding: 120px 40px 60px;
+  display: grid; grid-template-rows: 1fr auto;
+}
+
+.hero-stage {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse at 80% 30%, rgba(16,185,129,0.10) 0%, transparent 55%),
+    radial-gradient(ellipse at 20% 70%, rgba(232,181,122,0.06) 0%, transparent 55%),
+    var(--bg);
+}
+.hero-stage::after { /* film grain */
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.06;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: overlay;
+}
+
+/* hero animation placeholder — Stage 1 of the ambient hero */
+.hero-anim {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -55%);
+  width: 720px; height: 320px;
+  z-index: 1;
+}
+.hero-anim svg { width: 100%; height: 100%; overflow: visible; }
+.node-producer, .node-derived {
+  transform-origin: center;
+  animation: nodeBreathe 6s ease-in-out infinite;
+}
+.node-derived { animation-delay: 3s; }
+@keyframes nodeBreathe {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.edge { stroke: rgba(242,238,229,0.18); stroke-width: 1.5; fill: none; }
+.dot-data {
+  fill: var(--accent);
+  animation: dotTravel 6s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(16,185,129,0.7));
+}
+@keyframes dotTravel {
+  0%   { transform: translateX(-180px); opacity: 0; }
+  10%  { opacity: 1; }
+  45%  { transform: translateX(180px); opacity: 1; }
+  55%  { opacity: 0; }
+  100% { transform: translateX(180px); opacity: 0; }
+}
+.dot-dirty {
+  fill: none; stroke: #FBBF24; stroke-width: 1.5; stroke-dasharray: 3 3;
+  animation: dirtyTravel 6s ease-in-out infinite;
+}
+@keyframes dirtyTravel {
+  0%   { transform: translateX(-180px); opacity: 0; }
+  3%   { opacity: 1; }
+  20%  { transform: translateX(180px); opacity: 1; }
+  28%  { opacity: 0; }
+  100% { transform: translateX(180px); opacity: 0; }
+}
+
+.hero-anim .anno {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--ink-mute);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* hero content */
+.hero-content {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr; align-items: end;
+  gap: 36px;
+}
+.hero-chapter {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.hero-headline {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(48px, 8vw, 112px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  margin: 16px 0 0;
+  max-width: 1100px;
+}
+.hero-headline em {
+  font-style: italic;
+  color: var(--accent);
+  font-weight: 500;
+}
+.hero-meta {
+  display: grid; grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--rule);
+  padding-top: 24px;
+  margin-top: 48px;
+  gap: 60px;
+}
+.hero-meta-block { max-width: 380px; }
+.hero-meta-block .lbl {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--ink-mute);
+  margin-bottom: 10px;
+}
+.hero-meta-block p {
+  font-family: var(--serif);
+  font-size: 17px; line-height: 1.55;
+  color: var(--ink);
+  margin: 0;
+}
+.hero-meta-block .cite {
+  display: block; margin-top: 8px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-mute);
+}
+
+/* ------------- FIELD JOURNAL ------------- */
+.journal {
+  padding: 120px 40px;
+  display: grid;
+  grid-template-columns: 220px 1fr 1fr;
+  gap: 40px;
+  border-top: 1px solid var(--rule);
+}
+.journal-margin {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-mute); letter-spacing: 0.08em;
+  border-top: 1px solid var(--accent);
+  padding-top: 14px;
+  position: sticky; top: 110px; height: fit-content;
+}
+.journal-margin .num {
+  display: block; font-family: var(--serif); font-size: 56px; font-style: italic;
+  color: var(--ink); line-height: 1; margin-bottom: 14px;
+}
+.journal-body h2 {
+  font-family: var(--serif); font-weight: 400; font-style: italic;
+  font-size: 38px; line-height: 1.1;
+  margin: 0 0 32px;
+  letter-spacing: -0.015em;
+}
+.journal-body p {
+  font-family: var(--mono); font-size: 13.5px; line-height: 1.75;
+  color: var(--ink); max-width: 56ch;
+  margin: 0 0 22px;
+}
+.journal-body p .small {
+  display: block; font-size: 11px; color: var(--ink-mute); margin-top: 4px;
+}
+.journal-aside {
+  border-left: 1px solid var(--rule);
+  padding-left: 24px;
+}
+.journal-aside .label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--accent);
+}
+.journal-aside pre {
+  font-family: var(--mono); font-size: 12px; line-height: 1.7;
+  color: var(--ink); background: var(--bg-elev);
+  padding: 18px; margin: 12px 0 24px;
+  border: 1px solid var(--rule); border-radius: 2px;
+  white-space: pre-wrap;
+}
+.journal-aside pre .k { color: var(--accent); }
+.journal-aside pre .s { color: var(--accent-warm); }
+.journal-aside pre .c { color: var(--ink-mute); font-style: italic; }
+
+/* ------------- THREE PROBLEMS ------------- */
+.notes {
+  padding: 100px 40px;
+  border-top: 1px solid var(--rule);
+}
+.notes .eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--accent);
+  margin-bottom: 14px;
+}
+.notes h2 {
+  font-family: var(--serif); font-weight: 400; font-style: italic;
+  font-size: clamp(36px, 5vw, 64px); line-height: 1.05;
+  margin: 0 0 64px; max-width: 22ch; letter-spacing: -0.02em;
+}
+.notes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--rule); }
+.note {
+  padding: 36px 28px;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.note:last-child { border-right: none; }
+.note .head {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-mute);
+  letter-spacing: 0.12em; margin-bottom: 18px;
+}
+.note .head b { color: var(--accent); font-weight: 500; }
+.note h3 {
+  font-family: var(--serif); font-weight: 500; font-size: 24px;
+  margin: 0 0 16px; line-height: 1.2;
+}
+.note p {
+  font-family: var(--mono); font-size: 13px; line-height: 1.7;
+  color: var(--ink-mute); margin: 0;
+}
+
+/* ------------- FOOTER ------------- */
+footer.foot {
+  padding: 80px 40px 40px;
+  border-top: 1px solid var(--rule);
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 40px;
+  font-family: var(--mono); font-size: 12px; color: var(--ink-mute);
+}
+footer.foot .cite-line {
+  font-family: var(--serif); font-style: italic; font-size: 18px;
+  color: var(--ink); max-width: 60ch;
+}
+
+@media (max-width: 900px) {
+  .journal { grid-template-columns: 1fr; }
+  .notes-grid { grid-template-columns: 1fr; }
+  .note { border-right: none; }
+  .hero-meta { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="logo">GraphReFly</div>
+  <ul>
+    <li><a href="#">Spec</a></li>
+    <li><a href="#">Docs</a></li>
+    <li><a href="#">Benchmarks</a></li>
+    <li><a href="#">GitHub →</a></li>
+  </ul>
+</nav>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero">
+  <div class="hero-stage"></div>
+
+  <!-- Placeholder for the eventual ambient-hero video. CSS-animated 2-node stage 1. -->
+  <div class="hero-anim" aria-hidden="true">
+    <svg viewBox="-360 -160 720 320">
+      <!-- Edge -->
+      <line class="edge" x1="-180" y1="0" x2="180" y2="0" />
+      <!-- Producer node (emerald diamond, sugar = producer) -->
+      <g class="node-producer">
+        <polygon points="-180,-32 -148,0 -180,32 -212,0" fill="#10B981" fill-opacity="0.85" stroke="#10B981" stroke-width="1" />
+        <text x="-180" y="58" text-anchor="middle" class="anno">producer</text>
+      </g>
+      <!-- Derived node (violet circle) -->
+      <g class="node-derived">
+        <circle cx="180" cy="0" r="34" fill="#6C63FF" fill-opacity="0.85" />
+        <text x="180" y="58" text-anchor="middle" class="anno">derived</text>
+      </g>
+      <!-- Dirty pulse (yellow dashed) -->
+      <circle class="dot-dirty" cx="0" cy="0" r="6" />
+      <!-- Data dot (green) -->
+      <circle class="dot-data" cx="0" cy="0" r="5" />
+      <!-- Anno -->
+      <text x="0" y="-120" text-anchor="middle" class="anno" style="fill: rgba(242,238,229,0.45)">— ambient hero · stage 1 · placeholder —</text>
+    </svg>
+  </div>
+
+  <div></div>
+
+  <div class="hero-content">
+    <div>
+      <div class="hero-chapter">Chapter 00  ·  Field Notes from a Reactive Graph</div>
+      <h1 class="hero-headline">
+        Code is the topography.<br />
+        Spec is the map.<br />
+        Agents read <em>both</em>.
+      </h1>
+    </div>
+
+    <div class="hero-meta">
+      <div class="hero-meta-block">
+        <div class="lbl">Premise</div>
+        <p>The library projects your code into a structured topology — humans diff it, agents reason over it, both edit the same graph without colliding.</p>
+        <span class="cite">— graphrefly/spec §1.0</span>
+      </div>
+      <div class="hero-meta-block">
+        <div class="lbl">Method</div>
+        <p>One primitive — <span style="color:var(--accent); font-family:var(--mono)">node</span> — composed into <span style="font-family:var(--mono)">state</span>, <span style="font-family:var(--mono)">producer</span>, <span style="font-family:var(--mono)">derived</span>, <span style="font-family:var(--mono)">effect</span>. Every value is reactive; every change has a causal chain.</p>
+        <span class="cite">— graphrefly/spec §2.1</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== JOURNAL ===================== -->
+<section class="journal">
+  <aside class="journal-margin">
+    <span class="num">01</span>
+    On the difference between a state container and a graph.<br /><br />
+    See also: COMPOSITION-GUIDE §4, "lazy activation".
+  </aside>
+
+  <div class="journal-body">
+    <h2>A state container forgets. A reactive graph remembers <em>why</em>.</h2>
+    <p>
+      Most libraries store values and notify subscribers. GraphReFly stores values <b style="color:var(--accent)">together with the dependency edges that produced them</b> — so when a downstream value changes, you can walk the graph backwards and ask: which inputs caused this, and which transforms ran on the way?
+      <span class="small">graph.describe({ explain: { from, to } }) returns a structured causal chain.</span>
+    </p>
+    <p>
+      The graph is the data. Not a representation of the data — the data itself. <b style="color:var(--accent)">describe()</b> is the map; <b style="color:var(--accent)">observe()</b> is the magnifier; the live values flowing through the topology are the territory. Humans and agents read the same structure.
+    </p>
+    <p>
+      This is what the spec calls <em>projection</em>. You do not maintain a separate blueprint document and pray it matches your runtime. The runtime <b style="color:var(--accent)">is</b> the blueprint, projected on demand.
+    </p>
+  </div>
+
+  <aside class="journal-aside">
+    <div class="label">Specimen — minimal graph</div>
+    <pre><span class="c">// counter, with derivation and explanation</span>
+<span class="k">const</span> g = <span class="k">new</span> Graph(<span class="s">"counter"</span>);
+<span class="k">const</span> count   = g.state(<span class="s">"count"</span>, <span class="s">0</span>);
+<span class="k">const</span> doubled = g.derived(
+  <span class="s">"doubled"</span>, [count],
+  ([c]) =&gt; c * <span class="s">2</span>
+);
+
+g.effect([doubled], ([d]) =&gt;
+  console.log(<span class="s">"doubled:"</span>, d)
+);
+
+<span class="c">// → doubled: 0</span>
+count.down([[DATA, <span class="s">3</span>]]);
+<span class="c">// → doubled: 6</span>
+
+<span class="c">// — and the trace —</span>
+g.describe({ explain:
+  { from: <span class="s">"count"</span>, to: <span class="s">"doubled"</span> } });</pre>
+
+    <div class="label">Specimen — explain output</div>
+    <pre>{
+  <span class="s">"path"</span>: [<span class="s">"count"</span>, <span class="s">"doubled"</span>],
+  <span class="s">"trigger"</span>: { tier: <span class="s">"DATA"</span>, value: <span class="s">3</span> },
+  <span class="s">"recomputed"</span>: <span class="s">true</span>,
+  <span class="s">"version"</span>: <span class="s">4</span>
+}</pre>
+  </aside>
+</section>
+
+<!-- ===================== THREE PROBLEMS ===================== -->
+<section class="notes">
+  <div class="eyebrow">Notes from the field</div>
+  <h2>Three problems that <em>state</em> doesn't solve.</h2>
+
+  <div class="notes-grid">
+    <div class="note">
+      <div class="head"><b>i.</b> Black-box agents</div>
+      <h3>Why did the agent decide that?</h3>
+      <p>Most agent frameworks return an answer. GraphReFly returns the answer plus the causal chain that produced it — every dependency, every transform, every guard. Auditable by construction.</p>
+    </div>
+    <div class="note">
+      <div class="head"><b>ii.</b> Spec drift</div>
+      <h3>The blueprint never matches the code.</h3>
+      <p>Hand-maintained YAML specs lag the code that implements them. GraphReFly inverts the relationship: code is the source, spec is the projection. The map is always current.</p>
+    </div>
+    <div class="note">
+      <div class="head"><b>iii.</b> Multi-agent collision</div>
+      <h3>Two agents, one shared topology.</h3>
+      <p>Subgraph ownership through a structural protocol — L0 static, L1 TTL, L2 heartbeat, L3 supervisor. Concurrent edits across worktrees don't corrupt the shared graph.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="cite-line">— "The graph is its own documentation, its own audit log, and its own coordination protocol."</div>
+  <div>v0.x · MIT · graphrefly/ts</div>
+</footer>
+
+</body>
+</html>

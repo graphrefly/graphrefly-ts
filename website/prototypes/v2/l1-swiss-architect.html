@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GraphReFly — Swiss Architect</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@87.5,400;87.5,500;87.5,600;87.5,700;87.5,800;100,400;100,500;100,600;100,700;100,800;100,900&family=Archivo+Black&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bone: #F4F1E8;
+  --bone-warm: #EDE8DA;
+  --paper: #FBFAF5;
+  --ink: #0C0C0C;
+  --ink-mute: #5F5F5F;
+  --ink-faint: #ABABAB;
+  --rule: #1A1A1A;
+  --rule-soft: rgba(12,12,12,0.12);
+  --signal: #E63946;
+  --hero-dark: #0F121A;
+  --sans: 'Archivo', system-ui, sans-serif;
+  --display: 'Archivo Black', 'Archivo', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bone); color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+a { color: inherit; text-decoration: none; }
+
+/* ============ GRID GUIDES (subtle, baked into bg) ============ */
+.grid-bg {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: linear-gradient(to right, rgba(12,12,12,0.04) 1px, transparent 1px);
+  background-size: calc(100% / 12) 100%;
+}
+
+/* ============ NAV ============ */
+nav.top {
+  position: relative; z-index: 10;
+  display: grid; grid-template-columns: repeat(12, 1fr);
+  align-items: center; gap: 24px;
+  padding: 24px 32px;
+  border-bottom: 2px solid var(--rule);
+  background: var(--bone);
+}
+nav.top .brand {
+  grid-column: 1 / span 3;
+  font-family: var(--display);
+  font-size: 22px; letter-spacing: -0.03em; line-height: 1;
+}
+nav.top .brand small {
+  display: block; font-family: var(--mono); font-size: 9.5px;
+  font-weight: 400; color: var(--ink-mute);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-top: 4px;
+}
+nav.top .menu {
+  grid-column: 5 / span 5;
+  display: flex; gap: 32px;
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+nav.top .menu a:hover { color: var(--signal); }
+nav.top .meta {
+  grid-column: 10 / span 3; text-align: right;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-mute);
+  letter-spacing: 0.04em;
+}
+nav.top .meta b { color: var(--ink); font-weight: 500; }
+
+/* ============ HERO ============ */
+.hero {
+  position: relative; z-index: 1;
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px;
+  padding: 64px 32px 80px;
+  border-bottom: 2px solid var(--rule);
+}
+.hero-meta-l {
+  grid-column: 1 / span 3;
+}
+.hero-meta-l .seq {
+  font-family: var(--display); font-size: 88px; line-height: 0.85;
+  margin: 0; letter-spacing: -0.04em;
+}
+.hero-meta-l .seq small {
+  display: block; font-family: var(--mono); font-size: 12px; font-weight: 400;
+  color: var(--ink-mute); letter-spacing: 0.16em;
+  text-transform: uppercase; margin-top: 12px;
+}
+.hero-meta-l .toc {
+  margin-top: 56px;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.85;
+  color: var(--ink-mute);
+}
+.hero-meta-l .toc div { display: flex; justify-content: space-between; border-bottom: 1px dotted var(--rule-soft); padding: 6px 0; }
+.hero-meta-l .toc b { color: var(--ink); font-weight: 500; }
+
+.hero-h {
+  grid-column: 4 / span 9;
+}
+.hero-h h1 {
+  font-family: var(--display);
+  font-size: clamp(80px, 13vw, 220px); line-height: 0.84;
+  letter-spacing: -0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+.hero-h h1 .red { color: var(--signal); }
+.hero-h h1 .out {
+  -webkit-text-stroke: 2px var(--ink);
+  color: transparent;
+}
+
+/* ============ HERO SPECIMEN (animation viewport) ============ */
+.hero-specimen {
+  grid-column: 4 / span 9;
+  margin-top: 48px;
+  display: grid; grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+.specimen-frame {
+  position: relative;
+  background: var(--hero-dark);
+  color: var(--bone);
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid var(--rule);
+}
+.specimen-frame::before {
+  content: 'PLATE 01 — AMBIENT HERO LOOP'; position: absolute; top: 14px; left: 16px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.18em;
+  color: rgba(244,241,232,0.4); z-index: 5;
+}
+.specimen-frame::after {
+  content: '~ 42 SEC · STAGES 1–8 · NO AUDIO'; position: absolute; bottom: 14px; right: 16px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em;
+  color: rgba(244,241,232,0.4);
+}
+.spec-stage {
+  width: 100%; aspect-ratio: 16/9; position: relative;
+  display: grid; place-items: center;
+}
+.spec-stage svg { width: 90%; height: 100%; }
+.spec-stage .n-p { animation: brth 4s ease-in-out infinite; transform-origin: center; }
+.spec-stage .n-d { animation: brth 4s ease-in-out infinite; animation-delay: 2s; transform-origin: center; }
+@keyframes brth { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+.spec-stage .data {
+  fill: #34D399; filter: drop-shadow(0 0 8px rgba(52,211,153,0.7));
+  animation: travelR 4s ease-in-out infinite;
+}
+@keyframes travelR {
+  0%   { transform: translateX(-180px); opacity: 0; }
+  15%  { opacity: 1; }
+  50%  { transform: translateX(180px); opacity: 1; }
+  60%  { opacity: 0; }
+  100% { transform: translateX(180px); opacity: 0; }
+}
+.spec-stage .dirty {
+  fill: none; stroke: #FBBF24; stroke-width: 1.5; stroke-dasharray: 3 3;
+  animation: travelR 4s ease-in-out infinite;
+  animation-delay: -0.4s;
+}
+
+.specimen-caption {
+  padding: 24px;
+  background: var(--paper);
+  border: 2px solid var(--rule);
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.specimen-caption .ttl {
+  font-family: var(--display); font-size: 24px; line-height: 1.05;
+  letter-spacing: -0.02em; text-transform: uppercase;
+  margin: 0 0 12px;
+}
+.specimen-caption .ttl span { color: var(--signal); }
+.specimen-caption p {
+  font-family: var(--mono); font-size: 12px; line-height: 1.7;
+  color: var(--ink); margin: 0;
+}
+.specimen-caption .legend {
+  margin-top: 18px; display: grid; gap: 6px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-mute);
+}
+.specimen-caption .legend div { display: flex; align-items: center; gap: 10px; }
+.specimen-caption .legend i {
+  width: 14px; height: 14px; display: inline-block; flex-shrink: 0;
+}
+.specimen-caption .legend i.p { background: #10B981; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.specimen-caption .legend i.d { background: #6C63FF; border-radius: 50%; }
+.specimen-caption .legend i.s { background: #FBBF24; border-radius: 50%; }
+.specimen-caption .legend i.g { background: #34D399; border-radius: 50%; box-shadow: 0 0 6px #34D399; }
+
+/* ============ MANIFESTO ============ */
+.man {
+  position: relative; z-index: 1;
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px;
+  padding: 80px 32px;
+  border-bottom: 2px solid var(--rule);
+  background: var(--bone);
+}
+.man-h {
+  grid-column: 1 / span 4;
+}
+.man-h .num {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  color: var(--signal); margin-bottom: 18px;
+}
+.man-h h2 {
+  font-family: var(--display); font-size: clamp(40px, 6vw, 88px);
+  line-height: 0.88; letter-spacing: -0.04em; margin: 0;
+  text-transform: uppercase;
+}
+.man-h h2 .out {
+  -webkit-text-stroke: 1.5px var(--ink); color: transparent;
+}
+.man-list {
+  grid-column: 6 / span 7;
+  display: grid; gap: 0;
+  border-top: 2px solid var(--rule);
+}
+.tenet {
+  display: grid; grid-template-columns: 80px 1fr auto;
+  gap: 24px; align-items: start;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.tenet .n {
+  font-family: var(--display); font-size: 40px; line-height: 1;
+  letter-spacing: -0.04em;
+}
+.tenet h3 {
+  font-family: var(--sans); font-weight: 700;
+  font-size: 22px; line-height: 1.2;
+  margin: 0 0 10px; letter-spacing: -0.015em;
+}
+.tenet p {
+  font-family: var(--mono); font-size: 12.5px;
+  color: var(--ink-mute); line-height: 1.7;
+  margin: 0; max-width: 56ch;
+}
+.tenet p code { color: var(--ink); background: var(--bone-warm); padding: 1px 6px; }
+.tenet .tag {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--signal);
+  border: 1px solid var(--signal);
+  padding: 5px 10px; height: fit-content;
+}
+
+/* ============ COMPARE TABLE ============ */
+.cmp {
+  position: relative; z-index: 1;
+  padding: 80px 32px;
+  border-bottom: 2px solid var(--rule);
+}
+.cmp-head {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px;
+  margin-bottom: 40px;
+}
+.cmp-head .l {
+  grid-column: 1 / span 4;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  color: var(--signal); text-transform: uppercase;
+}
+.cmp-head h2 {
+  grid-column: 1 / span 8;
+  font-family: var(--display); font-size: clamp(36px, 5vw, 72px);
+  line-height: 0.92; letter-spacing: -0.04em;
+  margin: 12px 0 0; text-transform: uppercase;
+}
+.cmp-head .ref {
+  grid-column: 9 / span 4;
+  align-self: end;
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-mute);
+  line-height: 1.7;
+}
+.cmp table {
+  width: 100%; border-collapse: collapse;
+  font-family: var(--mono); font-size: 12.5px;
+}
+.cmp th, .cmp td {
+  text-align: left;
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+.cmp th {
+  font-family: var(--sans); font-weight: 700; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--ink); border-bottom: 2px solid var(--rule);
+  padding-bottom: 12px;
+}
+.cmp th.you { color: var(--signal); }
+.cmp tr td:first-child {
+  font-family: var(--sans); font-weight: 500; font-size: 13px;
+  color: var(--ink);
+}
+.cmp tr td.no  { color: var(--ink-faint); }
+.cmp tr td.yes { color: var(--ink); font-weight: 500; }
+.cmp tr td.win {
+  color: var(--signal); font-weight: 700;
+  font-family: var(--sans);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  font-size: 11px;
+}
+
+/* ============ FOOT ============ */
+footer.foot {
+  position: relative; z-index: 1;
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px;
+  padding: 48px 32px 36px;
+  background: var(--ink); color: var(--bone);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+}
+footer.foot .lg {
+  grid-column: 1 / span 3;
+  font-family: var(--display); font-size: 28px;
+  line-height: 1; letter-spacing: -0.03em;
+  color: var(--bone);
+}
+footer.foot .col { grid-column: span 2; }
+footer.foot .col b { display: block; color: var(--bone); margin-bottom: 12px; font-weight: 500; }
+footer.foot .col a { display: block; color: rgba(244,241,232,0.6); margin-bottom: 6px; }
+footer.foot .col a:hover { color: var(--signal); }
+footer.foot .end {
+  grid-column: 1 / span 12; margin-top: 36px;
+  border-top: 1px solid rgba(244,241,232,0.18); padding-top: 18px;
+  display: flex; justify-content: space-between;
+  color: rgba(244,241,232,0.45);
+}
+
+@media (max-width: 900px) {
+  .hero, .man, .cmp-head, .hero-specimen { grid-template-columns: 1fr; }
+  .hero-h, .man-list, .cmp-head h2 { grid-column: 1 / -1; }
+  .tenet { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<nav class="top">
+  <div class="brand">GraphReFly<small>Reactive Graph Protocol · v0.x</small></div>
+  <div class="menu">
+    <a href="#">SPEC</a>
+    <a href="#">DOCS</a>
+    <a href="#">EXAMPLES</a>
+    <a href="#">BENCHMARKS</a>
+    <a href="#">GITHUB</a>
+  </div>
+  <div class="meta">MIT · <b>0 deps</b> · 2026</div>
+</nav>
+
+<!-- ============== HERO ============== -->
+<section class="hero">
+  <div class="hero-meta-l">
+    <div class="seq">01<small>The Library</small></div>
+    <div class="toc">
+      <div><span>01 — Library</span><b>p. 01</b></div>
+      <div><span>02 — Tenets</span><b>p. 02</b></div>
+      <div><span>03 — Compare</span><b>p. 03</b></div>
+      <div><span>04 — Install</span><b>p. 04</b></div>
+    </div>
+  </div>
+
+  <div class="hero-h">
+    <h1>
+      <span class="out">ONE</span><br />
+      <span class="red">PRIMITIVE.</span><br />
+      EVERY<br />
+      <span class="out">PROBLEM.</span>
+    </h1>
+  </div>
+
+  <div class="hero-specimen">
+    <div class="specimen-frame">
+      <div class="spec-stage" aria-hidden="true">
+        <svg viewBox="-260 -120 520 240">
+          <line x1="-160" y1="0" x2="160" y2="0" stroke="rgba(244,241,232,0.22)" stroke-width="1" />
+          <g class="n-p" transform="translate(-160 0)">
+            <polygon points="0,-30 30,0 0,30 -30,0" fill="rgba(16,185,129,0.18)" stroke="#10B981" stroke-width="1.4" />
+            <text x="0" y="56" fill="rgba(244,241,232,0.7)" font-family="JetBrains Mono" font-size="11" text-anchor="middle">producer</text>
+          </g>
+          <g class="n-d" transform="translate(160 0)">
+            <circle r="30" fill="rgba(108,99,255,0.16)" stroke="#6C63FF" stroke-width="1.4" />
+            <text x="0" y="56" fill="rgba(244,241,232,0.7)" font-family="JetBrains Mono" font-size="11" text-anchor="middle">derived</text>
+          </g>
+          <circle class="dirty" cx="0" cy="0" r="6" />
+          <circle class="data" cx="0" cy="0" r="5" />
+        </svg>
+      </div>
+    </div>
+
+    <div class="specimen-caption">
+      <div>
+        <h3 class="ttl">A graph that<br />explains <span>itself</span>.</h3>
+        <p>Compose four primitives — state, producer, derived, effect — and the topology projects automatically. Subscribe to any node; the values flow. Ask <code>why</code>; the causal chain returns.</p>
+      </div>
+      <div class="legend">
+        <div><i class="p"></i> producer</div>
+        <div><i class="d"></i> derived</div>
+        <div><i class="s"></i> DIRTY signal</div>
+        <div><i class="g"></i> DATA signal</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== MANIFESTO ============== -->
+<section class="man">
+  <div class="man-h">
+    <div class="num">02 — TENETS</div>
+    <h2>FOUR <span class="out">LAWS</span> THE GRAPH OBEYS.</h2>
+  </div>
+
+  <div class="man-list">
+    <div class="tenet">
+      <div class="n">01</div>
+      <div>
+        <h3>Code is the source. Spec is the projection.</h3>
+        <p>Factories carry their own description through <code>factoryTag</code>. <code>graph.describe()</code> projects the live topology as a JSON blueprint. The map is never out of date.</p>
+      </div>
+      <div class="tag">PROJECTION</div>
+    </div>
+
+    <div class="tenet">
+      <div class="n">02</div>
+      <div>
+        <h3>Every value has a causal chain.</h3>
+        <p><code>graph.describe({ explain: { from, to } })</code> walks backwards through dependencies and returns a structured chain. Humans read it. Agents parse it. No black boxes.</p>
+      </div>
+      <div class="tag">AUDIT</div>
+    </div>
+
+    <div class="tenet">
+      <div class="n">03</div>
+      <div>
+        <h3>Diamond resolution is the contract.</h3>
+        <p>Fan-out, fan-in, single recomputation. The protocol gates DATA on RESOLVED, so downstream sees one coherent update — not two, not partial. Glitch-free by construction.</p>
+      </div>
+      <div class="tag">CORRECT</div>
+    </div>
+
+    <div class="tenet">
+      <div class="n">04</div>
+      <div>
+        <h3>Subgraphs have owners. Owners have terms.</h3>
+        <p>L0 static, L1 TTL, L2 heartbeat, L3 supervisor. The ownership staircase lets multiple agents edit a shared topology without colliding. <code>validateOwnership</code> enforces it on every PR.</p>
+      </div>
+      <div class="tag">MULTI-AGENT</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== COMPARE ============== -->
+<section class="cmp">
+  <div class="cmp-head">
+    <div class="l">03 — POSITION</div>
+    <h2>WHERE IT SITS<br />ON THE SHELF.</h2>
+    <div class="ref">A categorical comparison, not a benchmark.<br />Numbers live in <b style="color:var(--ink)">/benchmarks</b>.</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Zustand</th>
+        <th>RxJS</th>
+        <th>XState</th>
+        <th>LangGraph</th>
+        <th class="you">GraphReFly</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Simple store API</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="win">yes</td></tr>
+      <tr><td>Streaming operators</td><td class="no">no</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td><td class="win">yes</td></tr>
+      <tr><td>Diamond-safe</td><td class="no">no</td><td class="no">n/a</td><td class="no">n/a</td><td class="no">n/a</td><td class="win">yes</td></tr>
+      <tr><td>Causal explain()</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="win">yes</td></tr>
+      <tr><td>Code → spec projection</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="win">yes</td></tr>
+      <tr><td>Multi-agent on shared graph</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="win">yes</td></tr>
+      <tr><td>Runtime dependencies</td><td class="yes">0</td><td class="yes">0</td><td class="yes">0</td><td class="no">many</td><td class="win">0</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="foot">
+  <div class="lg">GraphReFly<sup style="color:var(--signal); font-size: 14px;">→</sup></div>
+  <div class="col">
+    <b>Library</b>
+    <a href="#">Spec</a><a href="#">API</a><a href="#">Operators</a><a href="#">Adapters</a>
+  </div>
+  <div class="col">
+    <b>Examples</b>
+    <a href="#">Email triage</a><a href="#">Pricing graph</a><a href="#">Agent loop</a>
+  </div>
+  <div class="col">
+    <b>Resources</b>
+    <a href="#">Benchmarks</a><a href="#">Roadmap</a><a href="#">Comparisons</a>
+  </div>
+  <div class="col">
+    <b>Community</b>
+    <a href="#">GitHub</a><a href="#">Discussions</a><a href="#">Discord</a>
+  </div>
+  <div class="end">
+    <span>MMXXVI · GRAPHREFLY · MIT LICENSED</span>
+    <span>SET IN ARCHIVO + JETBRAINS MONO</span>
+  </div>
+</footer>
+
+</body>
+</html>
