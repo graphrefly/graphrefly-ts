@@ -57,7 +57,7 @@ uv run ruff format src/ tests/        # format
 uv run mypy src/                       # type check
 ```
 
-Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv sync` to install dependencies. Distribution name: `graphrefly-py`, import path: `graphrefly`.
+Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv sync` to install dependencies. Distribution name and import path: `graphrefly` (i.e. `pip install graphrefly` — the `graphrefly-py` name refers to the repo, not the published package).
 
 ## Documentation workflow (critical)
 

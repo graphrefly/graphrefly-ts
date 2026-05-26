@@ -107,8 +107,9 @@ const navLinks = [
 		}
 
 		.gr-docs-nav-link {
+			font-family: var(--gr-mono);
 			font-size: var(--sl-text-xs);
-			font-weight: 700;
+			font-weight: 500;
 			letter-spacing: 0.1em;
 			text-decoration: none;
 			color: var(--sl-color-gray-2);
@@ -189,11 +190,14 @@ const navLinks = [
 			flex-direction: column;
 			gap: 1.5rem;
 			padding: 1.5rem;
-			background: rgba(10, 10, 26, 0.97);
+			background: rgba(244, 247, 249, 0.97);
 			backdrop-filter: blur(20px);
 			-webkit-backdrop-filter: blur(20px);
 			overflow-y: auto;
 			-webkit-overflow-scrolling: touch;
+		}
+		:global(:root[data-theme="dark"]) .gr-mobile-drawer {
+			background: rgba(10, 22, 40, 0.97);
 		}
 		.gr-mobile-drawer[aria-hidden="false"] {
 			display: flex;

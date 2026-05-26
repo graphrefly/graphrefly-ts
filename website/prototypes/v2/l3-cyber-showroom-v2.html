@@ -115,6 +115,19 @@ nav.top .pill::after { content: ' →'; }
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+.hero h1 .op {
+  font-weight: 400;
+  color: var(--ink-mute);
+  margin: 0 0.14em;
+}
+.hero h1 .implicit {
+  font-weight: 400;
+  color: var(--ink-mute);
+  font-size: 0.55em;
+  letter-spacing: 0;
+  vertical-align: 0.18em;
+  text-transform: none;
+}
 .hero .sub {
   max-width: 720px; margin: 36px auto 0;
   font-family: var(--sans);
@@ -164,8 +177,8 @@ nav.top .pill::after { content: ' →'; }
   background: var(--paper);
   letter-spacing: 0.02em; cursor: pointer;
 }
-.btn-secondary[data-lang-target="py"] { display: none; }
-.btn-secondary.show { display: inline-flex; align-items: center; }
+.btn-secondary[data-lang-target] { display: none; }
+.btn-secondary[data-lang-target].show { display: inline-flex; align-items: center; }
 .btn-secondary:hover { border-color: var(--ink); }
 .btn-secondary .prompt { color: var(--ink-faint); margin-right: 8px; }
 
@@ -302,11 +315,27 @@ nav.top .pill::after { content: ' →'; }
   padding: 36px 28px;
   display: flex; flex-direction: column; justify-content: space-between;
   min-height: 240px;
+  transition: background 0.25s ease, color 0.25s ease;
+  cursor: default;
 }
-.spec-cell.hi { background: var(--navy); color: var(--ice); }
-.spec-cell.hi .ttl { color: var(--lime); }
-.spec-cell.hi .descr { color: rgba(244,247,249,0.7); }
-.spec-cell.hi .meta { color: var(--ice-warm); }
+.spec-cell:hover { background: var(--navy); color: var(--ice); }
+.spec-cell:hover .ttl { color: var(--lime); }
+.spec-cell:hover .descr { color: rgba(244,247,249,0.7); }
+.spec-cell:hover .meta { color: var(--ice-warm); }
+.spec-cell:hover .big .un { color: var(--ice-warm); }
+.spec-cell .descr code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  color: var(--ink);
+  background: rgba(7,18,30,0.06);
+  padding: 1px 7px;
+  border-radius: 4px;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+.spec-cell:hover .descr code {
+  color: var(--ice);
+  background: rgba(255,255,255,0.12);
+}
 .spec-cell .ttl {
   font-family: var(--mono); font-size: 11.5px;
   letter-spacing: 0.16em; text-transform: uppercase;
@@ -565,7 +594,13 @@ nav.top .pill::after { content: ' →'; }
   transition: background 0.2s;
 }
 .spec-row:last-child { border-bottom: none; }
-.spec-row:hover { background: rgba(7,18,30,0.025); }
+.spec-row:hover { background: var(--navy); }
+.spec-row.active:hover .spec-toggle .name { color: var(--ice); }
+.spec-row:not(.active):hover .spec-toggle .name { color: rgba(244,247,249,0.45); text-decoration-color: rgba(255,45,117,0.55); }
+.spec-row:hover .spec-content .desc { color: rgba(244,247,249,0.75); }
+.spec-row:hover .spec-content .broken { color: var(--magenta); }
+.spec-row.active:hover .spec-tag { border-color: var(--lime); background: rgba(200,255,0,0.18); color: var(--lime); }
+.spec-row:not(.active):hover .spec-tag { border-color: var(--magenta); background: rgba(255,45,117,0.20); color: var(--magenta); }
 
 .spec-toggle {
   display: flex; align-items: center; gap: 14px;
@@ -800,16 +835,15 @@ footer.foot .end {
 <!-- ============== HERO ============== -->
 <section class="hero">
   <div class="badge">
-    <span class="dot"></span> Reactive Graph Protocol  ·  Live in your code
+    <span class="dot"></span> Reactive Graph Protocol  ·  Causal Tracing
   </div>
 
   <h1>
-    Reactive,<br />
-    by <span class="accent">protocol.</span>
+    Graph<span class="op">+</span>Re<span class="implicit">[active]</span><span class="op">=</span><span class="accent">Fly</span>
   </h1>
 
   <p class="sub">
-    Describe agent workflows in plain language. Review them visually. Run them persistently. Trace every decision back to its cause. <b>The reactive harness layer between your LLM and production</b> — causally explainable, policy-enforced, zero dependencies.
+    <b>GraphReFly</b> makes the future of human-AI collaboration real. <b>One reactive graph</b> where humans and AI work as peers — <b>composing, reviewing, and modifying together</b>. Changes <b>propagate</b> automatically; the model reruns only when it must. A thin harness layer lets you turn each black-box step into a verified outcome. Every flow <b>observable</b>, every change <b>auditable</b>. Step by step, <b>probability becomes predictability</b>.
   </p>
 
   <div class="lang-row">
@@ -878,7 +912,18 @@ footer.foot .end {
       </div>
     </div>
 
-    <div class="spec-cell hi">
+    <div class="spec-cell">
+      <div>
+        <div class="ttl">Primitive</div>
+        <div class="big">1</div>
+      </div>
+      <div>
+        <div class="descr"><code>node</code> with 4 sugars: state · producer · derived · effect.</div>
+        <div class="meta">one cell, every workflow</div>
+      </div>
+    </div>
+
+    <div class="spec-cell">
       <div>
         <div class="ttl">Operators</div>
         <div class="big">70<span class="un">+</span></div>
@@ -891,23 +936,12 @@ footer.foot .end {
 
     <div class="spec-cell">
       <div>
-        <div class="ttl">Substrates</div>
-        <div class="big">2<span class="un">×</span></div>
+        <div class="ttl">Connectors</div>
+        <div class="big">40<span class="un">+</span></div>
       </div>
       <div>
-        <div class="descr">pure-ts (universal, sync) or native (rust, async via napi-rs).</div>
-        <div class="meta">install-time choice · parity-tested</div>
-      </div>
-    </div>
-
-    <div class="spec-cell">
-      <div>
-        <div class="ttl">Adapters</div>
-        <div class="big">5</div>
-      </div>
-      <div>
-        <div class="descr">React · Vue · Svelte · Solid · NestJS. Pick your framework, the graph stays the same.</div>
-        <div class="meta">drop-in · zero ceremony</div>
+        <div class="descr">from/to: Kafka · OTel · MCP · HTTP · Postgres · Redis · WebSocket · …</div>
+        <div class="meta">production-grade integrations</div>
       </div>
     </div>
   </div>
@@ -933,7 +967,7 @@ footer.foot .end {
         <div class="badge"><span class="dot"></span>GraphReFly</div>
         <h3>Reactive <em>state harness</em>.</h3>
         <p>A single reactive topology connects every source. State pushes to dependents automatically — no re-reading, no stale snapshots. One graph sees what ten dashboards can't.</p>
-        <a href="#" class="demo">Demo: Email Triage →</a>
+        <a href="#" class="demo">Demo: PagerDuty Triage →</a>
       </div>
     </div>
 
@@ -964,7 +998,7 @@ footer.foot .end {
       <div class="gap-solution">
         <div class="badge"><span class="dot"></span>GraphReFly</div>
         <h3>Declarative <em>GraphSpec</em>.</h3>
-        <p>Describe workflows in a declarative schema — like SQL for data flows. LLMs compose structurally, not imperatively. Policy enforcement, persistent checkpoints, safe rollback built in.</p>
+        <p>Describe workflows in a declarative schema — like SQL for data flows. LLMs compose structurally, not imperatively. Policy enforcement, persistent checkpoints, atomic mutations built in.</p>
         <a href="#" class="demo">Demo: Knowledge Graph →</a>
       </div>
     </div>
@@ -1099,7 +1133,7 @@ footer.foot .end {
   <div class="col"><b>Product</b><a href="#">Spec</a><a href="#">API</a><a href="#">Operators</a><a href="#">Adapters</a></div>
   <div class="col"><b>Examples</b><a href="#">Email triage</a><a href="#">Pricing</a><a href="#">Agent loop</a></div>
   <div class="col"><b>Resources</b><a href="#">Benchmarks</a><a href="#">Compare</a><a href="#">Roadmap</a></div>
-  <div class="col"><b>Community</b><a href="#">GitHub</a><a href="#">Discord</a><a href="#">Discussions</a></div>
+  <div class="col"><b>Community</b><a href="#">GitHub</a><a href="#">Discussions</a></div>
   <div class="end">
     <span>© MMXXVI · graphrefly · MIT licensed</span>
     <span>set in big shoulders + sora</span>

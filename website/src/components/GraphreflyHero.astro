@@ -5,238 +5,332 @@ const base = import.meta.env.BASE_URL;
 <div class="gr-home not-content">
 
 <!-- ═══ HERO ═══ -->
-<section class="gr-hero" id="gr-hero">
-  <h1 class="gr-hero-headline">
-    <span class="gr-stop-word">Stop</span>
-    <span class="gr-flip-line" id="gr-verb-line">
-      <span class="gr-flip-track" id="gr-verb-track"></span>
-    </span>
-    <span class="gr-flip-line" id="gr-noun-line">
-      <span class="gr-flip-track" id="gr-noun-track"></span>
-    </span>
+<section class="gr-hero">
+  <div class="gr-hero-badge">
+    <span class="gr-hero-badge-dot"></span> Reactive Graph Protocol  ·  Causal Tracing
+  </div>
+
+  <h1 class="gr-hero-h1">
+    <span class="gr-hero-word">Graph</span><span class="gr-hero-op">+</span><span class="gr-hero-word">Re<span class="gr-hero-implicit">[active]</span></span><span class="gr-hero-op">=</span><span class="gr-hero-accent">Fly</span>
   </h1>
+
   <p class="gr-hero-sub">
-    Describe agent workflows in plain language. Review them visually. Run them persistently. Trace every decision back to its cause. GraphReFly is the reactive harness layer between your LLM and production — causally explainable, policy-enforced, zero dependencies.
+    <b>GraphReFly</b> makes the future of human-AI collaboration real. <b>One reactive graph</b> where humans and AI work as peers — <b>composing, reviewing, and modifying together</b>. Changes <b>propagate</b> automatically; the model reruns only when it must. A thin harness layer lets you turn each black-box step into a verified outcome. Every flow <b>observable</b>, every change <b>auditable</b>. Step by step, <b>probability becomes predictability</b>.
   </p>
-  <div class="gr-hero-lang-switcher">
-    <button class="gr-lang-pill gr-lang-active" data-lang="ts">TypeScript</button>
-    <button class="gr-lang-pill" data-lang="py">Python</button>
+
+  <div class="gr-lang-row">
+    <button class="gr-lang-pill gr-lang-active" data-gr-lang="ts">TypeScript</button>
+    <button class="gr-lang-pill" data-gr-lang="py">Python</button>
   </div>
-  <div class="gr-hero-install" data-copy="npm i @graphrefly/graphrefly" title="Click to copy" data-lang-target="ts">
-    <span class="gr-prompt">$</span>
-    <span>npm i @graphrefly/graphrefly</span>
-  </div>
-  <div class="gr-hero-install gr-hero-install--hidden" data-copy="pip install graphrefly" title="Click to copy" data-lang-target="py">
-    <span class="gr-prompt">$</span>
-    <span>pip install graphrefly</span>
+
+  <div class="gr-hero-ctas">
+    <a href="#gr-install" class="gr-btn-primary">Get started <span class="gr-arrow">→</span></a>
+    <button class="gr-btn-secondary gr-show" data-gr-lang-target="ts" data-gr-copy="npm i @graphrefly/graphrefly"><span class="gr-prompt">$</span>npm i @graphrefly/graphrefly</button>
+    <button class="gr-btn-secondary" data-gr-lang-target="py" data-gr-copy="pip install graphrefly"><span class="gr-prompt">$</span>pip install graphrefly</button>
   </div>
 </section>
 
-<div class="gr-rule"></div>
-
-<!-- ═══ HEADACHES ═══ -->
-<section class="gr-headaches" id="gr-headaches">
-  <div class="gr-headaches-header">
-    <p class="gr-section-num">The Problem</p>
-    <h2 class="gr-section-headline">Three harness gaps.</h2>
-  </div>
-
-  <div class="gr-headache-rows">
-    <div class="gr-headache-row" data-index="0">
-      <div class="gr-headache-pain">
-        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg>
-        <div class="gr-headache-num">01</div>
-        <h3 class="gr-headache-title">Context Without Control</h3>
-        <p class="gr-headache-desc">Agent state is scattered across files, databases, and conversation transcripts. No single system sees it all. <strong>The agent becomes the integration layer — and fails.</strong></p>
-      </div>
-      <div class="gr-headache-solution">
-        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-        <p class="gr-solution-label">GraphReFly</p>
-        <h3 class="gr-solution-title">Reactive State Harness</h3>
-        <p class="gr-solution-desc">A single reactive topology connects every source. State pushes to dependents automatically — no re-reading, no stale snapshots. One graph sees what ten dashboards can't.</p>
-        <div class="gr-solution-demo">Demo: Email Triage &rarr;</div>
-      </div>
+<!-- ═══ SHOWCASE ═══ -->
+<section class="gr-showcase">
+  <div class="gr-showcase-frame">
+    <div class="gr-showcase-badges">
+      <span class="gr-showcase-live">LIVE  ·  AMBIENT HERO  ·  1920×1080</span>
+      <span>STAGE 1 OF 8  ·  ~42S LOOP</span>
     </div>
 
-    <div class="gr-headache-row" data-index="1">
-      <div class="gr-headache-pain">
-        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
-        <div class="gr-headache-num">02</div>
-        <h3 class="gr-headache-title">Action Without Explanation</h3>
-        <p class="gr-headache-desc">Your agent flagged something. Why? You check logs — a wall of text. You check state — a snapshot, not a story. <strong>You can't explain the decision, so you can't trust it.</strong></p>
-      </div>
-      <div class="gr-headache-solution">
-        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="1"/><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/></svg>
-        <p class="gr-solution-label">GraphReFly</p>
-        <h3 class="gr-solution-title">Causal Tracing</h3>
-        <p class="gr-solution-desc">Ask "why was this flagged?" and get a structural causal chain — from source to conclusion. Not a log dump, but traceable causality that persists across sessions.</p>
-        <a href={`${base}docs/demos/spending-alerts/`} class="gr-solution-demo">Demo: Spending Alerts &rarr;</a>
-      </div>
+    <div class="gr-showcase-stage" aria-hidden="true">
+      <svg viewBox="-400 -180 800 360" preserveAspectRatio="xMidYMid meet">
+        <line x1="-260" y1="0" x2="260" y2="0" stroke="rgba(244,247,249,0.18)" stroke-width="1.2"></line>
+        <g class="gr-showcase-nP" transform="translate(-260 0)">
+          <polygon points="0,-38 38,0 0,38 -38,0" fill="rgba(16,185,129,0.18)" stroke="#10B981" stroke-width="1.5"></polygon>
+          <text x="0" y="62" fill="rgba(244,247,249,0.7)" font-family="JetBrains Mono" font-size="12" text-anchor="middle">producer</text>
+        </g>
+        <g class="gr-showcase-nD" transform="translate(260 0)">
+          <circle r="38" fill="rgba(108,99,255,0.18)" stroke="#6C63FF" stroke-width="1.5"></circle>
+          <text x="0" y="62" fill="rgba(244,247,249,0.7)" font-family="JetBrains Mono" font-size="12" text-anchor="middle">derived</text>
+        </g>
+        <circle class="gr-showcase-dirty" cx="0" cy="0" r="6"></circle>
+        <circle class="gr-showcase-data" cx="0" cy="0" r="6"></circle>
+      </svg>
     </div>
 
-    <div class="gr-headache-row" data-index="2">
-      <div class="gr-headache-pain">
-        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
-        <div class="gr-headache-num">03</div>
-        <h3 class="gr-headache-title">Composition Without Guardrails</h3>
-        <p class="gr-headache-desc">LLMs compose agent workflows by writing arbitrary code. Error space is unbounded. One hallucination cascades through the pipeline. <strong>No policy enforcement, no safe rollback.</strong></p>
-      </div>
-      <div class="gr-headache-solution">
-        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-        <p class="gr-solution-label">GraphReFly</p>
-        <h3 class="gr-solution-title">Declarative GraphSpec</h3>
-        <p class="gr-solution-desc">Describe workflows in a declarative schema — like SQL for data flows. LLMs compose structurally, not imperatively. Policy enforcement, persistent checkpoints, safe rollback built in.</p>
-        <a href={`${base}demos/knowledge-graph/`} class="gr-solution-demo">Demo: Knowledge Graph &rarr;</a>
-      </div>
+    <div class="gr-showcase-label">
+      <div class="gr-showcase-label-k">stage 1 · connection lifecycle</div>
+      <div class="gr-showcase-label-v">START → DIRTY<br />→ DATA → COMPLETE</div>
+    </div>
+
+    <div class="gr-showcase-chips">
+      <span class="gr-showcase-chip">graph.describe()</span>
+      <span class="gr-showcase-chip">graph.observe()</span>
+      <span class="gr-showcase-chip">batch()</span>
     </div>
   </div>
 </section>
 
-<div class="gr-rule"></div>
+<!-- ═══ SPEC SHEET (numbers) ═══ -->
+<section class="gr-section gr-spec-sheet">
+  <div class="gr-ey">Specifications</div>
+  <h2 class="gr-section-h2">The <span class="gr-h-out">numbers</span> behind the protocol.</h2>
 
-<!-- ═══ PYRAMID ═══ -->
-<section class="gr-requirements" id="gr-requirements">
-  <p class="gr-section-num">The Harness</p>
-  <h2 class="gr-section-headline">Four requirements.</h2>
-  <p class="gr-requirements-intro">
-    A harness layer between your LLM and production must satisfy all four. <strong>Miss one, the whole thing breaks.</strong>
-  </p>
+  <div class="gr-spec-grid">
+    <div class="gr-spec-cell">
+      <div>
+        <div class="gr-spec-ttl">Runtime deps</div>
+        <div class="gr-spec-big">0</div>
+      </div>
+      <div>
+        <div class="gr-spec-descr">Pure-TS substrate. No transitive surprises in your bundle.</div>
+        <div class="gr-spec-meta">universal · browser + node</div>
+      </div>
+    </div>
+
+    <div class="gr-spec-cell">
+      <div>
+        <div class="gr-spec-ttl">Primitive</div>
+        <div class="gr-spec-big">1</div>
+      </div>
+      <div>
+        <div class="gr-spec-descr"><code>node</code> with 4 sugars: state · producer · derived · effect.</div>
+        <div class="gr-spec-meta">one cell, every workflow</div>
+      </div>
+    </div>
+
+    <div class="gr-spec-cell">
+      <div>
+        <div class="gr-spec-ttl">Operators</div>
+        <div class="gr-spec-big">70<span class="gr-spec-un">+</span></div>
+      </div>
+      <div>
+        <div class="gr-spec-descr">transform · combine · buffer · window · rate-limit · retry · break</div>
+        <div class="gr-spec-meta">composable, type-safe, tree-shaken</div>
+      </div>
+    </div>
+
+    <div class="gr-spec-cell">
+      <div>
+        <div class="gr-spec-ttl">Connectors</div>
+        <div class="gr-spec-big">40<span class="gr-spec-un">+</span></div>
+      </div>
+      <div>
+        <div class="gr-spec-descr">from/to: Kafka · OTel · MCP · HTTP · Postgres · Redis · WebSocket · …</div>
+        <div class="gr-spec-meta">production-grade integrations</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HEADACHES (Three harness gaps) ═══ -->
+<section class="gr-section gr-headaches" id="gr-gaps">
+  <div class="gr-ey">The Problem</div>
+  <h2 class="gr-section-h2">Three <span class="gr-h-accent">harness</span> gaps.</h2>
+  <p class="gr-intro">Every team building with LLMs hits the same three walls. They are not modeling problems — they are <b>harness layer problems</b>. GraphReFly solves all three in the same protocol.</p>
+
+  <div class="gr-gap-list">
+
+    <div class="gr-gap-row">
+      <div class="gr-gap-pain">
+        <div class="gr-gap-num">01</div>
+        <h3 class="gr-gap-h">Context without control.</h3>
+        <p>Agent state is scattered across files, databases, and conversation transcripts. No single system sees it all. <strong>The agent becomes the integration layer — and fails.</strong></p>
+        <svg class="gr-gap-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg>
+      </div>
+      <div class="gr-gap-solution">
+        <div class="gr-gap-badge"><span class="gr-gap-badge-dot"></span>GraphReFly</div>
+        <h3 class="gr-gap-h">Reactive <em>state harness</em>.</h3>
+        <p>A single reactive topology connects every source. State pushes to dependents automatically — no re-reading, no stale snapshots. One graph sees what ten dashboards can't.</p>
+        <a href={`${base}demos/pagerduty-triage/`} class="gr-gap-demo">Demo: PagerDuty Triage →</a>
+      </div>
+    </div>
+
+    <div class="gr-gap-row">
+      <div class="gr-gap-pain">
+        <div class="gr-gap-num">02</div>
+        <h3 class="gr-gap-h">Action without explanation.</h3>
+        <p>Your agent flagged something. Why? You check logs — a wall of text. You check state — a snapshot, not a story. <strong>You can't explain the decision, so you can't trust it.</strong></p>
+        <svg class="gr-gap-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+      </div>
+      <div class="gr-gap-solution">
+        <div class="gr-gap-badge"><span class="gr-gap-badge-dot"></span>GraphReFly</div>
+        <h3 class="gr-gap-h">Causal <em>tracing</em>.</h3>
+        <p>Ask "why was this flagged?" and get a structural causal chain — from source to conclusion. Not a log dump, but traceable causality that persists across sessions.</p>
+        <a href={`${base}demos/spending-alerts/`} class="gr-gap-demo">Demo: Spending Alerts →</a>
+      </div>
+    </div>
+
+    <div class="gr-gap-row">
+      <div class="gr-gap-pain">
+        <div class="gr-gap-num">03</div>
+        <h3 class="gr-gap-h">Composition without guardrails.</h3>
+        <p>LLMs compose agent workflows by writing arbitrary code. Error space is unbounded. One hallucination cascades through the pipeline. <strong>No policy enforcement, no safe rollback.</strong></p>
+        <svg class="gr-gap-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+      </div>
+      <div class="gr-gap-solution">
+        <div class="gr-gap-badge"><span class="gr-gap-badge-dot"></span>GraphReFly</div>
+        <h3 class="gr-gap-h">Declarative <em>GraphSpec</em>.</h3>
+        <p>Describe workflows in a declarative schema — like SQL for data flows. LLMs compose structurally, not imperatively. Policy enforcement, persistent checkpoints, atomic mutations built in.</p>
+        <a href={`${base}demos/knowledge-graph/`} class="gr-gap-demo">Demo: Knowledge Graph →</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ PYRAMID (Four requirements) ═══ -->
+<section class="gr-section gr-pyramid-section" id="gr-pyramid">
+  <div class="gr-ey">The Harness</div>
+  <h2 class="gr-section-h2">Four <span class="gr-h-accent">requirements</span>.</h2>
+  <p class="gr-intro">A harness layer between your LLM and production must satisfy all four. <b>Miss one, the whole thing breaks.</b></p>
 
   <div class="gr-pyramid-wrap">
     <div class="gr-pyramid">
-      <div class="gr-pyramid-tier">
-        <div class="gr-pyramid-block" data-req="symmetry">
-          <div class="gr-pyramid-block-title">Human / LLM Symmetry</div>
-          <div class="gr-pyramid-block-sub">Either side composes, reviews, modifies</div>
+      <div class="gr-pyr-tier gr-pyr-t1">
+        <div class="gr-pyr-block" data-gr-req="symmetry">
+          <div class="gr-pyr-title">Human / LLM Symmetry</div>
+          <div class="gr-pyr-sub">Either side composes, reviews, modifies</div>
         </div>
       </div>
-      <div class="gr-pyramid-tier"><div class="gr-pyramid-connector"></div></div>
-      <div class="gr-pyramid-tier gr-pyramid-tier--pair">
-        <div class="gr-pyramid-block" data-req="audit">
-          <div class="gr-pyramid-block-title">Human Audit</div>
-          <div class="gr-pyramid-block-sub">Every decision traceable</div>
+      <div class="gr-pyr-connector"></div>
+      <div class="gr-pyr-tier gr-pyr-t2">
+        <div class="gr-pyr-block" data-gr-req="audit">
+          <div class="gr-pyr-title">Human Audit</div>
+          <div class="gr-pyr-sub">Every decision traceable</div>
         </div>
-        <div class="gr-pyramid-block" data-req="creation">
-          <div class="gr-pyramid-block-title">LLM-Safe Creation</div>
-          <div class="gr-pyramid-block-sub">Constrained error space</div>
+        <div class="gr-pyr-block" data-gr-req="creation">
+          <div class="gr-pyr-title">LLM-Safe Creation</div>
+          <div class="gr-pyr-sub">Constrained error space</div>
         </div>
       </div>
-      <div class="gr-pyramid-tier"><div class="gr-pyramid-connector"></div></div>
-      <div class="gr-pyramid-tier">
-        <div class="gr-pyramid-block" data-req="security">
-          <div class="gr-pyramid-block-title">Security</div>
-          <div class="gr-pyramid-block-sub">Per-node access control. Multi-tenant isolation.</div>
+      <div class="gr-pyr-connector"></div>
+      <div class="gr-pyr-tier gr-pyr-t3">
+        <div class="gr-pyr-block" data-gr-req="security">
+          <div class="gr-pyr-title">Security</div>
+          <div class="gr-pyr-sub">Per-node access control. Multi-tenant isolation.</div>
         </div>
       </div>
     </div>
 
     <div class="gr-pyramid-detail" id="gr-pyramid-detail">
-      <div class="gr-pyramid-detail-title" id="gr-detail-title">Click a block to explore</div>
-      <div class="gr-pyramid-detail-body" id="gr-detail-body">
-        Each requirement builds on the ones below. Security is the foundation — without it, nothing is trustworthy. LLM-safe creation and human audit sit in the middle — both require secure infrastructure. At the apex, human/LLM symmetry requires all three: safe creation, auditability, and enforced boundaries.
+      <div class="gr-pd-label">— Click a block to explore</div>
+      <h3 class="gr-pd-title" id="gr-pd-title">The Architecture</h3>
+      <p class="gr-pd-body" id="gr-pd-body">
+        Each requirement builds on the ones below. <strong>Security</strong> is the foundation — without it, nothing is trustworthy. LLM-safe creation and human audit sit in the middle — both require secure infrastructure. At the apex, human/LLM symmetry requires all three: safe creation, auditability, and enforced boundaries.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SPEC (Five components) ═══ -->
+<section class="gr-section gr-comp-section" id="gr-components">
+  <div class="gr-ey">The Spec</div>
+  <h2 class="gr-section-h2">Five <span class="gr-h-accent">components</span>.</h2>
+  <p class="gr-intro">The irreducible core. Remove any one and at least one requirement fails. <b>Click a component to see what breaks.</b></p>
+
+  <div class="gr-comp-list">
+    <div class="gr-comp-row gr-active" data-gr-component="node">
+      <div class="gr-comp-toggle"><span class="gr-comp-icon">✓</span><span class="gr-comp-name">node</span></div>
+      <div class="gr-comp-content">
+        <div class="gr-comp-desc">Minimal compute unit with declared dependencies.</div>
+        <div class="gr-comp-broken">LLM returns to writing arbitrary code. Error space is unbounded.</div>
+      </div>
+      <div class="gr-comp-enables"><span class="gr-comp-tag">LLM-Safe Creation</span></div>
+    </div>
+
+    <div class="gr-comp-row gr-active" data-gr-component="edge">
+      <div class="gr-comp-toggle"><span class="gr-comp-icon">✓</span><span class="gr-comp-name">edge</span></div>
+      <div class="gr-comp-content">
+        <div class="gr-comp-desc">Dependency as explicit data — the links between nodes.</div>
+        <div class="gr-comp-broken">Dependencies are implicit. Causal chain breaks.</div>
+      </div>
+      <div class="gr-comp-enables"><span class="gr-comp-tag">Human Audit</span></div>
+    </div>
+
+    <div class="gr-comp-row gr-active" data-gr-component="propagation">
+      <div class="gr-comp-toggle"><span class="gr-comp-icon">✓</span><span class="gr-comp-name">propagation</span></div>
+      <div class="gr-comp-content">
+        <div class="gr-comp-desc">Change → downstream notified instantly, no stale state.</div>
+        <div class="gr-comp-broken">Manual update coordination. Back to polling, back to vibe coding.</div>
+      </div>
+      <div class="gr-comp-enables"><span class="gr-comp-tag">LLM-Safe Creation</span><span class="gr-comp-tag">Human Audit</span></div>
+    </div>
+
+    <div class="gr-comp-row gr-active" data-gr-component="describe">
+      <div class="gr-comp-toggle"><span class="gr-comp-icon">✓</span><span class="gr-comp-name">describe()</span></div>
+      <div class="gr-comp-content">
+        <div class="gr-comp-desc">Structure visible, persistable, diffable at any moment.</div>
+        <div class="gr-comp-broken">Structure is invisible. Not persistable, not diffable.</div>
+      </div>
+      <div class="gr-comp-enables"><span class="gr-comp-tag">Human Audit</span><span class="gr-comp-tag">Security</span></div>
+    </div>
+
+    <div class="gr-comp-row gr-active" data-gr-component="graphspec">
+      <div class="gr-comp-toggle"><span class="gr-comp-icon">✓</span><span class="gr-comp-name">GraphSpec</span></div>
+      <div class="gr-comp-content">
+        <div class="gr-comp-desc">Declarative, LLM-readable format for compose / review / modify.</div>
+        <div class="gr-comp-broken">LLM can't structurally operate on the graph.</div>
+      </div>
+      <div class="gr-comp-enables"><span class="gr-comp-tag">Human / LLM Symmetry</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CTA BAND ═══ -->
+<section class="gr-cta-band" id="gr-install">
+  <div class="gr-cta-inner">
+    <div class="gr-cta-head">
+      <div class="gr-cta-ey">— Ship It</div>
+      <h3 class="gr-cta-h">It <em>exists</em>.</h3>
+      <p class="gr-cta-sub">One protocol. Two runtimes. TypeScript and Python, same spec, same guarantees. Zero dependencies. Tree-shakeable. One primitive.</p>
+    </div>
+
+    <div class="gr-install-cards">
+      <div class="gr-install-card" data-gr-copy="npm i @graphrefly/graphrefly">
+        <div class="gr-install-lang">TypeScript</div>
+        <div class="gr-install-cmd"><span class="gr-install-pr">$</span>npm i @graphrefly/graphrefly</div>
+        <a href="https://github.com/graphrefly/graphrefly-ts" class="gr-install-gh" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
+      </div>
+      <div class="gr-install-card" data-gr-copy="pip install graphrefly">
+        <div class="gr-install-lang">Python</div>
+        <div class="gr-install-cmd"><span class="gr-install-pr">$</span>pip install graphrefly</div>
+        <a href="https://github.com/graphrefly/graphrefly-py" class="gr-install-gh" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
       </div>
     </div>
   </div>
 </section>
 
-<div class="gr-rule"></div>
-
-<!-- ═══ SPEC ═══ -->
-<section class="gr-core" id="gr-core">
-  <p class="gr-section-num">The Spec</p>
-  <h2 class="gr-section-headline">Five components.</h2>
-  <p class="gr-requirements-intro" style="margin-bottom: 0;">
-    The irreducible core. Remove any one and at least one requirement fails. <strong>Click them to see what breaks.</strong>
-  </p>
-
-  <div class="gr-core-graph">
-    <div class="gr-core-row active" data-component="node">
-      <div class="gr-core-toggle"><span class="gr-core-icon">&check;</span><span class="gr-core-name">node</span></div>
-      <div class="gr-core-main">
-        <div class="gr-core-content">
-          <span class="gr-core-desc">Minimal compute unit with declared dependencies</span>
-          <span class="gr-core-broken">LLM returns to writing arbitrary code. Error space is unbounded.</span>
-        </div>
-        <div class="gr-core-enables"><div class="gr-enables-stack"><span class="gr-enables-tag">LLM-Safe Creation</span></div></div>
-      </div>
-    </div>
-    <div class="gr-core-row active" data-component="edge">
-      <div class="gr-core-toggle"><span class="gr-core-icon">&check;</span><span class="gr-core-name">edge</span></div>
-      <div class="gr-core-main">
-        <div class="gr-core-content">
-          <span class="gr-core-desc">Dependency as explicit data — the links between nodes</span>
-          <span class="gr-core-broken">Dependencies are implicit. Causal chain breaks.</span>
-        </div>
-        <div class="gr-core-enables"><div class="gr-enables-stack"><span class="gr-enables-tag">Human Audit</span></div></div>
-      </div>
-    </div>
-    <div class="gr-core-row active" data-component="propagation">
-      <div class="gr-core-toggle"><span class="gr-core-icon">&check;</span><span class="gr-core-name">propagation</span></div>
-      <div class="gr-core-main">
-        <div class="gr-core-content">
-          <span class="gr-core-desc">Change &rarr; downstream notified instantly, no stale state</span>
-          <span class="gr-core-broken">Manual update coordination. Back to polling, back to vibe coding.</span>
-        </div>
-        <div class="gr-core-enables"><div class="gr-enables-stack"><span class="gr-enables-tag">LLM-Safe Creation</span><span class="gr-enables-tag">Human Audit</span></div></div>
-      </div>
-    </div>
-    <div class="gr-core-row active" data-component="describe">
-      <div class="gr-core-toggle"><span class="gr-core-icon">&check;</span><span class="gr-core-name">describe()</span></div>
-      <div class="gr-core-main">
-        <div class="gr-core-content">
-          <span class="gr-core-desc">Structure visible, persistable, diffable at any moment</span>
-          <span class="gr-core-broken">Structure is invisible. Not persistable, not diffable.</span>
-        </div>
-        <div class="gr-core-enables"><div class="gr-enables-stack"><span class="gr-enables-tag">Human Audit</span><span class="gr-enables-tag">Security</span></div></div>
-      </div>
-    </div>
-    <div class="gr-core-row active" data-component="graphspec">
-      <div class="gr-core-toggle"><span class="gr-core-icon">&check;</span><span class="gr-core-name">GraphSpec</span></div>
-      <div class="gr-core-main">
-        <div class="gr-core-content">
-          <span class="gr-core-desc">Declarative, LLM-readable format for compose / review / modify</span>
-          <span class="gr-core-broken">LLM can't structurally operate on the graph.</span>
-        </div>
-        <div class="gr-core-enables"><div class="gr-enables-stack"><span class="gr-enables-tag">Human / LLM Symmetry</span></div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<div class="gr-rule"></div>
-
-<!-- ═══ CTA ═══ -->
-<section class="gr-cta" id="gr-cta">
-  <p class="gr-section-num">Ship It</p>
-  <h2 class="gr-section-headline">It exists.</h2>
-  <p class="gr-cta-sub">
-    One protocol. Two runtimes. TypeScript and Python, same spec, same guarantees. Zero dependencies. Tree-shakeable. One primitive.
-  </p>
-
-  <div class="gr-cta-actions">
-    <div class="gr-cta-card" data-copy="npm i @graphrefly/graphrefly">
-      <p class="gr-cta-lang">TypeScript</p>
-      <p class="gr-cta-cmd"><span class="gr-prompt">$ </span>npm i @graphrefly/graphrefly</p>
-      <a href="https://github.com/graphrefly/graphrefly-ts" class="gr-cta-gh" target="_blank" rel="noopener noreferrer">View on GitHub &nearr;</a>
-    </div>
-    <div class="gr-cta-card" data-copy="pip install graphrefly">
-      <p class="gr-cta-lang">Python</p>
-      <p class="gr-cta-cmd"><span class="gr-prompt">$ </span>pip install graphrefly</p>
-      <a href="https://github.com/graphrefly/graphrefly-py" class="gr-cta-gh" target="_blank" rel="noopener noreferrer">View on GitHub &nearr;</a>
-    </div>
-  </div>
-</section>
-
-<div class="gr-rule"></div>
-
-<!-- Footer -->
-<footer class="gr-footer">
-  <span class="gr-footer-logo">GraphReFly</span>
-  <div class="gr-footer-links">
-    <a href="https://github.com/graphrefly/graphrefly-ts">GitHub (TS)</a>
-    <a href="https://github.com/graphrefly/graphrefly-py">GitHub (PY)</a>
+<!-- ═══ FOOTER ═══ -->
+<footer class="gr-foot">
+  <div class="gr-foot-brand">GraphReFly<small>Reactive Graph Protocol · Causal Tracing</small></div>
+  <div class="gr-foot-col">
+    <b>Product</b>
     <a href={`${base}spec/`}>Spec</a>
     <a href={`${base}api/node/`}>API</a>
+    <a href={`${base}integrations/`}>Integrations</a>
+    <a href={`${base}solutions/`}>Solutions</a>
+  </div>
+  <div class="gr-foot-col">
+    <b>Examples</b>
+    <a href={`${base}demos/`}>All demos</a>
+    <a href={`${base}demos/pagerduty-triage/`}>PagerDuty Triage</a>
+    <a href={`${base}demos/spending-alerts/`}>Spending Alerts</a>
+    <a href={`${base}demos/knowledge-graph/`}>Knowledge Graph</a>
+  </div>
+  <div class="gr-foot-col">
+    <b>Resources</b>
+    <a href={`${base}benchmark/`}>Benchmarks</a>
+    <a href={`${base}comparisons/zustand/`}>Comparisons</a>
+    <a href={`${base}roadmap/`}>Roadmap</a>
+    <a href={`${base}recipes/from-callbag-recharge/`}>Recipes</a>
+  </div>
+  <div class="gr-foot-col">
+    <b>Community</b>
+    <a href="https://github.com/graphrefly/graphrefly-ts" target="_blank" rel="noopener noreferrer">GitHub (TS)</a>
+    <a href="https://github.com/graphrefly/graphrefly-py" target="_blank" rel="noopener noreferrer">GitHub (PY)</a>
+    <a href="https://github.com/graphrefly/graphrefly-ts/discussions" target="_blank" rel="noopener noreferrer">Discussions</a>
+    <a href={`${base}blog/welcome/`}>Blog</a>
+  </div>
+  <div class="gr-foot-end">
+    <span>© MMXXVI · graphrefly · MIT licensed</span>
+    <span>set in big shoulders + sora</span>
   </div>
 </footer>
 
@@ -245,7 +339,7 @@ const base = import.meta.env.BASE_URL;
 </div>
 
 <style is:global>
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;700;900&family=Syne:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@400;500;600;700;800;900&family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 /* ── Break out of Starlight wrappers ── */
 .sl-markdown-content:has(.gr-home) { max-width: 100% !important; }
@@ -253,788 +347,884 @@ const base = import.meta.env.BASE_URL;
 .content-panel:has(.gr-home) .sl-container { max-width: 100% !important; padding: 0 !important; }
 .content-panel:has(.gr-home) .hero { display: none; }
 .content-panel:has(.gr-home) > .sl-container > .sl-markdown-content { margin-top: 0 !important; }
+.sl-markdown-content:has(.gr-home) > *:first-child { margin-top: 0 !important; }
+main:has(.gr-home) { margin: 0 !important; padding: 0 !important; }
+html:has(.gr-home) { scroll-behavior: smooth; }
 
-/* Root also needs class `not-content` (Starlight): see markdown.css adjacent-sibling margin-top on .sl-markdown-content. */
+/* ── Splash tokens (scoped to .gr-home) ── */
 .gr-home {
-  --gr-black: #0a0a1a;
-  --gr-white: #f0f4ff;
-  --gr-accent: #c8ff00;
-  --gr-red: #ff3b30;
-  --gr-muted: rgba(240,244,255,0.5);
-  --gr-muted-20: rgba(240,244,255,0.2);
-  --gr-muted-10: rgba(240,244,255,0.1);
-  --gr-muted-05: rgba(240,244,255,0.05);
-  color: var(--gr-white);
-  font-family: 'Syne', 'Plus Jakarta Sans', system-ui, sans-serif;
-  max-width: none; width: 100%;
-}
+  --ice: #F4F7F9;
+  --ice-warm: #ECEFF2;
+  --paper: #FFFFFF;
+  --navy: #0A1628;
+  --navy-deep: #050E1A;
+  --navy-mid: #1A2940;
+  --ink: #07121E;
+  --ink-mute: #5C6675;
+  --ink-faint: #98A0AC;
+  --rule: rgba(7,18,30,0.10);
+  --rule-deep: rgba(7,18,30,0.22);
+  --lime: #C8FF00;
+  --lime-deep: #9BC400;
+  --magenta: #FF2D75;
+  --red: #FF3B30;
+  --display: 'Big Shoulders Display', system-ui, sans-serif;
+  --sans: 'Sora', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
 
-.gr-home h1, .gr-home h2, .gr-home h3 {
-  font-family: 'Instrument Sans', sans-serif;
-  font-weight: 900; text-transform: uppercase;
-  letter-spacing: -0.06em; line-height: 0.95;
-  border: none !important; padding-top: 0 !important; margin-top: 0 !important;
+  background: var(--ice);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  max-width: none;
+  width: 100%;
 }
 
 .gr-home a { color: inherit; text-decoration: none; }
-.gr-rule { border-top: 4px solid var(--gr-white); }
+.gr-home * { box-sizing: border-box; }
 
-.gr-section-num {
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--gr-muted); margin-bottom: 1rem;
-}
-.gr-section-headline {
-  font-size: clamp(2rem, 5vw, 4rem); margin-bottom: 0.8rem;
-}
-
-
-/* ═══ HERO ═══ */
+/* ─── HERO ─── */
 .gr-hero {
-  min-height: 100vh;
-  display: flex; flex-direction: column; justify-content: center;
-  padding: calc(var(--sl-nav-height, 4rem) + 2rem) 2rem 4rem;
-  max-width: 1400px; margin: 0 auto;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 80px 40px 0;
+  text-align: center;
+  position: relative;
 }
-
-.gr-hero-headline {
-  margin-bottom: 2rem; line-height: 1; letter-spacing: -0.06em;
+.gr-hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--ink-mute);
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  padding: 6px 12px; border-radius: 999px;
+  margin-bottom: 32px;
 }
-
-.gr-stop-word {
-  display: block;
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900; text-transform: uppercase;
-  color: var(--gr-red);
-  font-size: clamp(3.5rem, 9vw, 9rem);
-  line-height: 1; margin-bottom: 0.15em;
+.gr-hero-badge-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--lime); box-shadow: 0 0 8px rgba(200,255,0,0.7);
+  animation: gr-dotPulse 2s ease-in-out infinite;
 }
+@keyframes gr-dotPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-.gr-flip-line {
-  display: block; position: relative; overflow: hidden;
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  text-transform: uppercase; letter-spacing: -0.06em;
-  font-size: clamp(3rem, 8vw, 8rem); line-height: 1.15;
-  height: calc(clamp(3rem, 8vw, 8rem) * 1.15);
+.gr-hero-h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(48px, 8.5vw, 115px);
+  line-height: 0.86;
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--ink);
+  border: 0 !important;
+  padding: 0 !important;
+  display: flex;
+  justify-content: space-evenly;
+  align-items: baseline;
+  gap: 0.15em;
 }
-
-.gr-flip-track {
-  display: flex; flex-direction: column; will-change: transform;
+.gr-hero-word { display: inline-block; white-space: nowrap; }
+@media (max-width: 700px) {
+  .gr-hero-h1 { white-space: normal; }
 }
-.gr-flip-track.gr-animate { transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
-.gr-flip-track.gr-no-transition { transition: none !important; }
-
-.gr-flip-item {
-  flex-shrink: 0; display: flex; align-items: center;
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  text-transform: uppercase; letter-spacing: -0.06em;
-  font-size: clamp(3rem, 8vw, 8rem); line-height: 1.15;
-  height: calc(clamp(3rem, 8vw, 8rem) * 1.15);
-  white-space: nowrap;
+.gr-hero-accent {
+  display: inline-block;
+  background: linear-gradient(180deg, var(--lime) 0%, var(--lime-deep) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
-
-.gr-verb-word { color: var(--gr-accent); }
-.gr-noun-word { color: var(--gr-white); }
+.gr-hero-op { font-weight: 400; color: var(--ink-mute); }
+.gr-hero-implicit {
+  font-weight: 400; color: var(--ink-mute);
+  font-size: 0.55em; letter-spacing: 0;
+  vertical-align: 0.18em; text-transform: none;
+}
 
 .gr-hero-sub {
-  max-width: 680px; font-size: 1rem; color: var(--gr-muted);
-  margin-bottom: 2rem; line-height: 1.7;
+  max-width: 720px; margin: 36px auto 0;
+  font-family: var(--sans);
+  font-size: 19px; line-height: 1.55; font-weight: 400;
+  color: var(--ink-mute);
 }
+.gr-hero-sub b { color: var(--ink); font-weight: 600; }
 
-.gr-hero-install {
-  display: inline-flex; align-items: center; gap: 0.8rem;
-  padding: 0.7rem 1.2rem; border: 2px solid var(--gr-white);
-  font-family: 'Fira Code', 'SF Mono', monospace; font-size: 0.9rem;
-  cursor: pointer; transition: background 0.15s, color 0.15s;
-}
-.gr-hero-install:hover { background: var(--gr-accent); color: var(--gr-black); border-color: var(--gr-accent); }
-.gr-prompt { color: var(--gr-muted); user-select: none; }
-.gr-hero-install:hover .gr-prompt { color: var(--gr-black); opacity: 0.5; }
-.gr-hero-install--hidden { display: none !important; }
-
-.gr-hero-lang-switcher {
-  display: inline-flex; gap: 0; margin-bottom: 1rem;
-  border: 2px solid var(--gr-muted-20);
+.gr-lang-row {
+  display: inline-flex; gap: 4px; align-items: center;
+  margin-top: 36px;
+  padding: 4px; border: 1px solid var(--rule-deep);
+  border-radius: 999px;
+  background: var(--paper);
 }
 .gr-lang-pill {
-  padding: 0.45rem 1.2rem; border: none; background: transparent;
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--gr-muted); cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  font-family: var(--sans); font-size: 12px; font-weight: 600;
+  padding: 8px 18px; border-radius: 999px;
+  border: 0; background: transparent;
+  color: var(--ink-mute); cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.18s;
 }
-.gr-lang-pill:first-child { border-right: 2px solid var(--gr-muted-20); }
-.gr-lang-pill:hover { color: var(--gr-white); }
-.gr-lang-pill.gr-lang-active {
-  background: var(--gr-accent); color: var(--gr-black);
-}
+.gr-lang-pill:hover { color: var(--ink); }
+.gr-lang-pill.gr-lang-active { background: var(--ink); color: var(--ice); }
 
+.gr-hero-ctas {
+  margin-top: 22px;
+  display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+}
+.gr-home a.gr-btn-primary {
+  font-family: var(--sans); font-size: 14.5px; font-weight: 600;
+  background: var(--ink); color: var(--ice);
+  padding: 16px 28px; border-radius: 999px;
+  transition: all 0.18s;
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; border: 0;
+  text-decoration: none;
+}
+.gr-home a.gr-btn-primary:hover { background: var(--navy); transform: translateY(-1px); }
+.gr-btn-secondary {
+  font-family: var(--mono); font-size: 12.5px; font-weight: 500;
+  color: var(--ink); border: 1px solid var(--rule-deep);
+  padding: 16px 22px; border-radius: 999px;
+  background: var(--paper);
+  letter-spacing: 0.02em; cursor: pointer;
+}
+.gr-btn-secondary[data-gr-lang-target] { display: none; }
+.gr-btn-secondary[data-gr-lang-target].gr-show { display: inline-flex; align-items: center; }
+.gr-btn-secondary:hover { border-color: var(--ink); }
+.gr-btn-secondary .gr-prompt { color: var(--ink-faint); margin-right: 8px; }
 
-/* ═══ HEADACHES ═══ */
-.gr-headaches {
-  max-width: 1400px; margin: 0 auto; padding: 4rem 0;
-  min-height: 100vh; display: flex; flex-direction: column;
-}
-.gr-headaches-header { padding: 0 2rem 2rem; }
-.gr-headache-rows { flex: 1; display: flex; flex-direction: column; }
-
-.gr-headache-row {
-  flex: 1; border-top: 2px solid var(--gr-muted-20);
-  display: grid; grid-template-columns: 1fr 0fr;
-  overflow: hidden;
-  transition: grid-template-columns 0.8s cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.gr-headache-row:last-child { border-bottom: 2px solid var(--gr-muted-20); }
-.gr-headache-row.gr-revealed { grid-template-columns: 1fr 1fr; }
-
-.gr-headache-pain {
-  position: relative; overflow: hidden; z-index: 1;
-  padding: 1.5rem 2rem; display: flex; flex-direction: column;
-  justify-content: flex-start; min-width: 0; transition: background 0.8s;
-}
-.gr-headache-row.gr-revealed .gr-headache-pain { background: rgba(255,59,48,0.03); }
-
-.gr-headache-num {
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  font-size: 1.1rem; color: var(--gr-muted-20);
-  margin-bottom: 0.5rem; letter-spacing: 0.05em; text-transform: uppercase;
-  transition: color 0.8s;
-}
-.gr-headache-row.gr-revealed .gr-headache-num { color: rgba(255,59,48,0.35); }
-
-.gr-headache-title {
-  font-size: clamp(1.2rem, 2.5vw, 1.8rem) !important;
-  letter-spacing: -0.03em !important; margin-bottom: 0.5rem !important; line-height: 1.1 !important;
-  transition: color 0.8s;
-}
-.gr-headache-row.gr-revealed .gr-headache-title { color: var(--gr-red) !important; }
-
-.gr-headache-desc { font-size: 0.9rem; color: var(--gr-muted); line-height: 1.6; max-width: 520px; }
-.gr-headache-desc strong { color: var(--gr-white); }
-
-.gr-headache-solution {
-  position: relative; overflow: hidden; z-index: 1;
-  padding: 1.5rem 2rem; display: flex; flex-direction: column;
-  justify-content: flex-start; background: var(--gr-accent); color: var(--gr-black);
-  min-width: 0; opacity: 0; transition: opacity 0.5s 0.3s;
-}
-.gr-headache-row.gr-revealed .gr-headache-solution { opacity: 1; }
-
-.gr-card-bg-icon {
-  position: absolute;
-  bottom: 5%;
-  right: 5%;
-  width: 140px;
-  height: 140px;
-  opacity: 0.04;
-  pointer-events: none;
-  z-index: -1;
-  transform: rotate(-10deg);
-  transform-origin: center;
-  transition: opacity 0.8s, transform 0.8s, color 0.8s;
-}
-.gr-headache-row.gr-revealed .gr-headache-pain .gr-card-bg-icon {
-  opacity: 0.12;
-  transform: rotate(0deg) scale(1.1);
-  color: var(--gr-red);
-}
-.gr-headache-solution .gr-card-bg-icon {
-  opacity: 0.1;
-  transform: rotate(10deg);
-}
-.gr-headache-row.gr-revealed .gr-headache-solution .gr-card-bg-icon {
-  opacity: 0.15;
-  transform: rotate(0deg) scale(1.1);
-}
-
-.gr-solution-label {
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em;
-  margin-bottom: 0.5rem; opacity: 0.45;
-}
-.gr-solution-title {
-  font-size: clamp(1.2rem, 2.5vw, 1.8rem) !important; color: var(--gr-black) !important;
-  letter-spacing: -0.03em !important; margin-bottom: 0.5rem !important;
-  line-height: 1.1 !important; white-space: nowrap;
-}
-.gr-solution-desc { font-size: 0.9rem; line-height: 1.6; opacity: 0.75; max-width: 460px; }
-
-.gr-solution-demo {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  margin-top: 1rem; padding: 0.4rem 0.9rem;
-  border: 2px solid var(--gr-black);
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
-  cursor: pointer; transition: background 0.15s, color 0.15s; width: fit-content;
-}
-.gr-solution-demo:hover { background: var(--gr-black); color: var(--gr-accent); }
-
-
-/* ═══ PYRAMID ═══ */
-.gr-requirements {
-  padding: 4rem 2rem 3rem; max-width: 1400px; margin: 0 auto;
-  min-height: 100vh; display: flex; flex-direction: column;
-}
-.gr-requirements-intro {
-  max-width: 720px; font-size: 0.95rem; color: var(--gr-muted); line-height: 1.7; margin-bottom: 2rem;
-}
-.gr-requirements-intro strong { color: var(--gr-white); }
-
-.gr-pyramid-wrap {
-  display: flex; gap: 3rem; max-width: 1100px; margin: 2rem auto 0;
-  width: 100%; align-items: center;
-}
-
-.gr-pyramid {
-  display: flex; flex-direction: column; align-items: center; gap: 0;
-  flex-shrink: 0; width: 520px;
-}
-/* Stretch every tier to the pyramid width so centered blocks share one column width. */
-.gr-pyramid-tier {
-  display: flex;
-  justify-content: center;
-  align-items: stretch;
-  width: 100%;
-  align-self: stretch;
-}
-.gr-pyramid-tier--pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
-  justify-items: stretch;
-  width: 100%;
-  max-width: 420px;
-  margin-inline: auto;
-  min-height: 0;
-}
-.gr-pyramid-tier:nth-child(1) { max-width: 280px; margin-inline: auto; }
-.gr-pyramid-tier:nth-child(2) { max-width: 280px; margin-inline: auto; }
-.gr-pyramid-tier:nth-child(4) { max-width: 420px; margin-inline: auto; }
-.gr-pyramid-tier:nth-child(5) { max-width: 520px; margin-inline: auto; }
-
-.gr-pyramid-block {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 2rem 1.5rem;
-  border: 2px solid var(--gr-muted-20);
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.25s ease, background 0.25s ease, color 0.25s ease;
-  background: var(--gr-black);
+/* ─── SHOWCASE ─── */
+.gr-showcase {
+  margin: 60px auto 0;
+  max-width: 1300px; padding: 0 40px;
   position: relative;
-  box-sizing: border-box;
 }
-.gr-pyramid-tier--pair .gr-pyramid-block {
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  align-self: stretch;
-  min-height: 0;
-  padding: 1.5rem 1.25rem;
-  border-color: var(--gr-muted-20);
+.gr-showcase-frame {
+  position: relative;
+  background: var(--navy);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 80px 100px -50px rgba(7,18,30,0.40),
+    0 30px 50px -30px rgba(7,18,30,0.30);
+  aspect-ratio: 16/8;
 }
-/* One visible seam between cells: left block has no right border; right block owns the divider (no overlap). */
-.gr-pyramid-tier--pair .gr-pyramid-block:first-child {
-  border-right: none;
+.gr-showcase-frame::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 40%, rgba(200,255,0,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 20% 80%, rgba(255,45,117,0.05) 0%, transparent 60%);
 }
-.gr-pyramid-tier--pair .gr-pyramid-block:last-child {
-  border-left: 2px solid var(--gr-muted-20);
-  transition: border-left-color 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+.gr-showcase-stage { width: 100%; height: 100%; position: relative; }
+.gr-showcase-stage svg { width: 100%; height: 100%; }
+.gr-showcase-nP, .gr-showcase-nD {
+  transform-origin: center;
+  animation: gr-showcaseBreathe 5s ease-in-out infinite;
 }
-.gr-pyramid-tier--pair .gr-pyramid-block:last-child:hover,
-.gr-pyramid-tier--pair .gr-pyramid-block:last-child.gr-active {
-  border-left-color: var(--gr-accent);
+.gr-showcase-nD { animation-delay: 2.5s; }
+@keyframes gr-showcaseBreathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.gr-showcase-data {
+  fill: var(--lime); filter: drop-shadow(0 0 12px rgba(200,255,0,0.8));
+  animation: gr-showcaseTravel 5s ease-in-out infinite;
 }
-/* Keep middle tier titles on the same baseline when one heading wraps (title line-height 1.3). */
-.gr-pyramid-tier--pair .gr-pyramid-block-title {
-  min-height: 2.6em;
+@keyframes gr-showcaseTravel {
+  0%   { transform: translateX(-280px); opacity: 0; }
+  15%  { opacity: 1; }
+  50%  { transform: translateX(280px); opacity: 1; }
+  60%  { opacity: 0; }
+  100% { transform: translateX(280px); opacity: 0; }
 }
-.gr-pyramid-tier--pair .gr-pyramid-block-sub {
-  flex: 0 0 auto;
-  display: block;
+.gr-showcase-dirty {
+  fill: none; stroke: #FBBF24; stroke-width: 1.5; stroke-dasharray: 3 3;
+  animation: gr-showcaseTravel 5s ease-in-out infinite;
+  animation-delay: -0.5s;
+}
+.gr-showcase-badges {
+  position: absolute; top: 24px; left: 24px; right: 24px;
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  z-index: 5; pointer-events: none;
+}
+.gr-showcase-live::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--lime); margin-right: 6px; vertical-align: middle;
+  box-shadow: 0 0 6px var(--lime);
+}
+.gr-showcase-label {
+  position: absolute; bottom: 32px; left: 32px; z-index: 5;
+}
+.gr-showcase-label-k {
+  font-family: var(--mono); font-size: 10.5px;
+  color: var(--lime); letter-spacing: 0.16em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.gr-showcase-label-v {
+  font-family: var(--display); font-weight: 700;
+  font-size: 40px; line-height: 1; color: var(--ice);
+  letter-spacing: -0.03em; text-transform: uppercase;
+}
+.gr-showcase-chips {
+  position: absolute; bottom: 32px; right: 32px;
+  display: flex; gap: 10px; z-index: 5;
+}
+.gr-showcase-chip {
+  font-family: var(--mono); font-size: 11px; color: var(--ice);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 8px 14px; border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+
+/* ─── SECTION CHROME ─── */
+.gr-section {
+  max-width: 1300px;
+  margin: 140px auto 0;
+  padding: 0 40px;
+}
+.gr-ey {
+  font-family: var(--mono); font-size: 11.5px;
+  color: var(--lime-deep); letter-spacing: 0.18em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.gr-ey::before { content: '— '; }
+.gr-section-h2 {
+  font-family: var(--display); font-weight: 800;
+  font-size: clamp(48px, 7vw, 96px); line-height: 0.9;
+  letter-spacing: -0.04em; margin: 0 0 18px;
+  text-transform: uppercase;
+  color: var(--ink);
+  border: 0 !important;
+  padding: 0 !important;
+}
+.gr-h-out {
+  -webkit-text-stroke: 1.5px var(--ink);
+  color: transparent;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.gr-h-out::selection {
+  background: rgba(51, 144, 255, 0.25);
+  color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
+}
+.gr-h-accent {
+  background: linear-gradient(180deg, var(--lime) 0%, var(--lime-deep) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.gr-intro {
+  font-family: var(--sans); font-size: 17px; line-height: 1.6;
+  color: var(--ink-mute); max-width: 60ch;
+  margin: 0 0 56px;
+}
+.gr-intro b { color: var(--ink); font-weight: 600; }
+
+/* ─── SPEC SHEET ─── */
+.gr-spec-sheet { margin-top: 120px; }
+.gr-spec-sheet .gr-section-h2 { max-width: 14ch; margin-bottom: 64px; }
+.gr-spec-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: var(--rule-deep);
+  border: 1px solid var(--rule-deep);
+  border-radius: 24px; overflow: hidden;
+}
+.gr-spec-cell {
+  background: var(--paper);
+  padding: 36px 28px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  min-height: 240px;
+  transition: background 0.25s ease, color 0.25s ease;
+  cursor: default;
+}
+.gr-spec-cell:hover { background: var(--navy); color: var(--ice); }
+.gr-spec-cell:hover .gr-spec-ttl { color: var(--lime); }
+.gr-spec-cell:hover .gr-spec-descr { color: rgba(244,247,249,0.7); }
+.gr-spec-cell:hover .gr-spec-meta { color: var(--ice-warm); }
+.gr-spec-cell:hover .gr-spec-big .gr-spec-un { color: var(--ice-warm); }
+.gr-spec-cell .gr-spec-descr code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  color: var(--ink);
+  background: rgba(7,18,30,0.06);
+  padding: 1px 7px;
+  border-radius: 4px;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+.gr-spec-cell:hover .gr-spec-descr code {
+  color: var(--ice);
+  background: rgba(255,255,255,0.12);
+}
+.gr-spec-ttl {
+  font-family: var(--mono); font-size: 11.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 18px;
+}
+.gr-spec-big {
+  font-family: var(--display); font-weight: 800;
+  font-size: 80px; line-height: 0.85;
+  letter-spacing: -0.04em;
+}
+.gr-spec-un {
+  font-family: var(--sans); font-size: 18px; font-weight: 400;
+  color: var(--ink-mute); margin-left: 6px; letter-spacing: -0.01em;
+  text-transform: lowercase;
+}
+.gr-spec-descr {
+  margin-top: 14px;
+  font-family: var(--sans); font-size: 14px;
+  color: var(--ink-mute); line-height: 1.5;
+}
+.gr-spec-meta {
+  margin-top: 18px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink); letter-spacing: 0.02em;
+}
+.gr-spec-meta::before { content: '— '; color: var(--lime-deep); }
+
+/* ─── HEADACHES (Three harness gaps) ─── */
+.gr-headaches { margin-top: 160px; }
+.gr-gap-list { display: flex; flex-direction: column; gap: 20px; }
+.gr-gap-row {
+  display: grid; grid-template-columns: 1fr 0fr;
+  gap: 0; border-radius: 24px; overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  transition: grid-template-columns 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.gr-gap-row.gr-revealed { grid-template-columns: 1fr 1fr; }
+
+.gr-gap-pain {
+  padding: 40px 36px;
+  display: flex; flex-direction: column;
+  gap: 16px; min-width: 0;
+  position: relative; overflow: hidden;
+  transition: background 0.6s, color 0.6s;
+}
+.gr-gap-row.gr-revealed .gr-gap-pain { background: rgba(255,59,48,0.04); }
+.gr-gap-num {
+  font-family: var(--display); font-weight: 800;
+  font-size: 28px; line-height: 1; letter-spacing: -0.04em;
+  color: var(--ink-faint);
+  display: flex; align-items: center; gap: 14px;
+  transition: color 0.6s;
+}
+.gr-gap-row.gr-revealed .gr-gap-num { color: var(--red); }
+.gr-gap-num::after {
+  content: 'PAIN'; font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.18em; color: var(--ink-faint); font-weight: 500;
+  border: 1px solid var(--rule);
+  padding: 4px 10px; border-radius: 999px;
+  transition: color 0.6s, border-color 0.6s;
+}
+.gr-gap-row.gr-revealed .gr-gap-num::after {
+  color: var(--red); border-color: rgba(255,59,48,0.4);
+}
+.gr-gap-pain .gr-gap-h {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(28px, 3vw, 40px); line-height: 1;
+  letter-spacing: -0.03em; margin: 0;
+  text-transform: uppercase;
+  transition: color 0.6s;
+  border: 0 !important;
+  padding: 0 !important;
+}
+.gr-gap-row.gr-revealed .gr-gap-pain .gr-gap-h { color: var(--red); }
+.gr-gap-pain p {
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  color: var(--ink-mute); margin: 0; max-width: 50ch;
+}
+.gr-gap-pain p strong { color: var(--ink); font-weight: 600; }
+.gr-gap-glyph {
+  position: absolute; bottom: -10px; right: -10px;
+  width: 180px; height: 180px; opacity: 0.05;
+  pointer-events: none;
+  transition: opacity 0.6s, transform 0.6s, color 0.6s;
+  transform: rotate(-10deg);
+}
+.gr-gap-row.gr-revealed .gr-gap-pain .gr-gap-glyph {
+  opacity: 0.14; transform: rotate(0); color: var(--red);
+}
+
+.gr-gap-solution {
+  padding: 40px 36px;
+  background: var(--navy);
+  color: var(--ice);
+  display: flex; flex-direction: column;
+  gap: 14px; min-width: 0;
+  position: relative; overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.45s 0.3s;
+}
+.gr-gap-row.gr-revealed .gr-gap-solution { opacity: 1; }
+.gr-gap-solution::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle 400px at 80% 50%, rgba(200,255,0,0.08), transparent 60%);
+}
+.gr-gap-solution > * { position: relative; z-index: 2; }
+.gr-gap-badge {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--lime); align-self: flex-start;
+  padding: 6px 12px; border: 1px solid rgba(200,255,0,0.3);
+  border-radius: 999px; background: rgba(200,255,0,0.06);
+}
+.gr-gap-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--lime); box-shadow: 0 0 6px var(--lime);
+}
+.gr-gap-solution .gr-gap-h {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(28px, 3vw, 40px); line-height: 1;
+  letter-spacing: -0.03em; margin: 0;
+  text-transform: uppercase;
+  color: var(--ice);
+  border: 0 !important;
+  padding: 0 !important;
+}
+.gr-gap-solution .gr-gap-h em {
+  font-style: normal;
+  background: linear-gradient(180deg, var(--lime) 0%, var(--lime-deep) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.gr-gap-solution p {
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  color: rgba(244,247,249,0.78); margin: 0; max-width: 48ch;
+}
+.gr-home a.gr-gap-demo {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 12px; align-self: flex-start;
+  font-family: var(--mono); font-size: 11.5px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink); background: var(--lime);
+  padding: 10px 16px; border-radius: 999px;
+  font-weight: 600;
+  transition: background 0.18s;
+  text-decoration: none;
+}
+.gr-home a.gr-gap-demo:hover { background: var(--ice); color: var(--ink); }
+
+/* ─── PYRAMID ─── */
+.gr-pyramid-section { margin-top: 180px; }
+.gr-pyramid-wrap {
+  display: grid; grid-template-columns: minmax(0, 560px) 1fr;
+  gap: 56px; align-items: start;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 24px;
+  padding: 56px;
+}
+.gr-pyramid {
+  display: flex; flex-direction: column; align-items: stretch; gap: 0;
+  width: 100%; max-width: 480px; margin: 0 auto;
+}
+.gr-pyr-tier {
+  display: grid; gap: 12px;
+  width: 100%; align-items: stretch;
+}
+.gr-pyr-t1 { grid-template-columns: 1fr; max-width: 260px; margin: 0 auto; }
+.gr-pyr-t2 { grid-template-columns: 1fr 1fr; max-width: 380px; margin: 0 auto; }
+.gr-pyr-t3 { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
+.gr-pyr-connector {
+  width: 2px; height: 24px;
+  background: var(--rule-deep); margin: 12px auto;
+  border-radius: 1px;
+}
+.gr-pyr-block {
+  border: 1.5px solid var(--rule-deep);
+  background: var(--paper);
+  border-radius: 18px;
+  padding: 20px 18px;
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
   text-align: center;
+  transition: all 0.22s ease;
+  position: relative;
 }
-.gr-pyramid-block:hover {
-  border-color: var(--gr-accent);
-  background: rgba(200, 255, 0, 0.04);
-  z-index: 1;
+.gr-pyr-block:hover {
+  border-color: var(--ink);
+  background: rgba(7,18,30,0.04);
 }
-.gr-pyramid-block.gr-active {
-  border-color: var(--gr-accent);
-  background: rgba(200, 255, 0, 0.1);
-  z-index: 2;
+.gr-pyr-block.gr-active {
+  border-color: var(--lime-deep);
+  background: linear-gradient(180deg, rgba(200,255,0,0.10), rgba(200,255,0,0.04));
+  box-shadow: 0 12px 28px -16px rgba(155,196,0,0.5);
 }
-.gr-pyramid-connector { width: 2px; height: 1.5rem; background: var(--gr-muted-20); margin: 0 auto; }
-
-.gr-pyramid-block-title {
-  font-family: 'Instrument Sans', sans-serif !important; font-weight: 900;
-  font-size: 0.9rem !important; text-transform: uppercase; letter-spacing: 0.02em !important;
-  transition: color 0.25s; line-height: 1.3 !important; margin-bottom: 0.3rem !important;
+.gr-pyr-title {
+  font-family: var(--display); font-weight: 700;
+  font-size: 16px; line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
-.gr-pyramid-block.gr-active .gr-pyramid-block-title { color: var(--gr-accent) !important; }
-
-.gr-pyramid-block-sub { font-size: 0.75rem; color: var(--gr-muted); line-height: 1.4; }
+.gr-pyr-sub {
+  font-family: var(--sans); font-size: 12px;
+  color: var(--ink-mute); line-height: 1.4;
+}
 
 .gr-pyramid-detail {
-  flex: 1; padding: 2rem; border: 2px solid var(--gr-accent);
-  background: rgba(200,255,0,0.03);
-  display: flex; flex-direction: column; justify-content: center; min-height: 200px;
+  background: var(--navy);
+  color: var(--ice);
+  border-radius: 20px;
+  padding: 40px 36px;
+  min-height: 380px;
+  display: flex; flex-direction: column; gap: 18px;
+  position: relative; overflow: hidden;
 }
-.gr-pyramid-detail-title {
-  font-family: 'Instrument Sans', sans-serif !important; font-weight: 900;
-  font-size: 1.2rem !important; text-transform: uppercase; letter-spacing: -0.02em !important;
-  color: var(--gr-accent) !important; margin-bottom: 0.8rem !important;
+.gr-pyramid-detail::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle 500px at 80% 0%, rgba(200,255,0,0.08), transparent 65%);
 }
-.gr-pyramid-detail-body { font-size: 0.95rem; color: var(--gr-muted); line-height: 1.7; }
-.gr-pyramid-detail-body strong { color: var(--gr-white); }
+.gr-pyramid-detail > * { position: relative; z-index: 2; }
+.gr-pd-label {
+  font-family: var(--mono); font-size: 10.5px;
+  color: var(--lime); letter-spacing: 0.18em; text-transform: uppercase;
+}
+.gr-pd-title {
+  font-family: var(--display); font-weight: 800;
+  font-size: clamp(32px, 4vw, 48px); line-height: 0.95;
+  letter-spacing: -0.03em; text-transform: uppercase;
+  color: var(--ice); margin: 0;
+  border: 0 !important;
+  padding: 0 !important;
+}
+.gr-pd-body {
+  font-family: var(--sans); font-size: 15px; line-height: 1.7;
+  color: rgba(244,247,249,0.78); margin: 0;
+}
+.gr-pd-body strong { color: var(--lime); font-weight: 600; }
 
-
-/* ═══ SPEC ═══ */
-.gr-core {
-  padding: 4rem 2rem; max-width: 1400px; margin: 0 auto;
-  min-height: 100vh; display: flex; flex-direction: column;
+/* ─── FIVE COMPONENTS ─── */
+.gr-comp-section { margin-top: 180px; }
+.gr-comp-list {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 24px; overflow: hidden;
 }
-.gr-core-graph {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 1100px;
-  margin: 2rem auto 0;
-  box-sizing: border-box;
-}
-
-.gr-core-row {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
+.gr-comp-row {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 32px;
   align-items: center;
-  gap: 0 1.25rem;
-  padding: 1.15rem 0;
-  border-bottom: 2px solid var(--gr-muted-20);
-  box-sizing: border-box;
+  padding: 28px 36px;
+  border-bottom: 1px solid var(--rule);
   cursor: pointer;
   user-select: none;
-  transition: background 0.2s ease;
+  transition: background 0.2s;
 }
+.gr-comp-row:last-child { border-bottom: none; }
+.gr-comp-row:hover { background: var(--navy); }
+.gr-comp-row.gr-active:hover .gr-comp-name { color: var(--ice); }
+.gr-comp-row:not(.gr-active):hover .gr-comp-name { color: rgba(244,247,249,0.45); text-decoration-color: rgba(255,45,117,0.55); }
+.gr-comp-row:hover .gr-comp-desc { color: rgba(244,247,249,0.75); }
+.gr-comp-row:hover .gr-comp-broken { color: var(--magenta); }
+.gr-comp-row.gr-active:hover .gr-comp-tag { border-color: var(--lime); background: rgba(200,255,0,0.18); color: var(--lime); }
+.gr-comp-row:not(.gr-active):hover .gr-comp-tag { border-color: var(--magenta); background: rgba(255,45,117,0.20); color: var(--magenta); }
 
-.gr-core-row:last-child {
-  border-bottom: none;
-}
-
-.gr-core-row:hover {
-  background: var(--gr-muted-05);
-}
-
-.gr-core-row > * {
-  box-sizing: border-box;
-  border: none;
-}
-
-.gr-core-toggle {
-  flex: 0 0 11.5rem;
-  width: 11.5rem;
-  max-width: 11.5rem;
-  padding: 0;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.gr-core-main {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem 1.5rem;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.gr-core-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 0.8rem;
-  font-size: 1rem;
-  width: 1.2em;
-  text-align: center;
-  transition: color 0.2s;
-}
-.gr-core-row.active .gr-core-icon { color: var(--gr-accent); }
-.gr-core-row:not(.active) .gr-core-icon { color: var(--gr-red); }
-
-.gr-core-name {
-  display: inline-block;
-  vertical-align: middle;
-  font-family: 'Fira Code', 'SF Mono', monospace;
-  font-size: 0.9rem;
-  font-weight: 700;
-  transition: color 0.2s;
-}
-.gr-core-row.active .gr-core-name { color: var(--gr-accent); }
-.gr-core-row:not(.active) .gr-core-name { color: var(--gr-muted-20); }
-
-.gr-core-content {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  text-align: start;
-}
-.gr-core-desc { color: var(--gr-muted); }
-.gr-core-broken { color: var(--gr-red); display: none; }
-.gr-core-row:not(.active) .gr-core-desc { display: none; }
-.gr-core-row:not(.active) .gr-core-broken { display: block; }
-
-.gr-core-enables {
-  flex: 0 0 auto;
-  min-width: 0;
-  padding: 0;
-}
-.gr-enables-stack {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.35rem 0.45rem;
-  box-sizing: border-box;
-}
-.gr-enables-stack .gr-enables-tag {
-  margin: 0;
-  white-space: nowrap;
+.gr-comp-toggle { display: flex; align-items: center; gap: 14px; }
+.gr-comp-icon {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: grid; place-items: center;
+  font-family: var(--sans); font-weight: 700; font-size: 14px;
+  transition: all 0.2s;
   flex-shrink: 0;
 }
-.gr-enables-tag {
-  padding: 0.25rem 0.6rem;
-  font-family: 'Instrument Sans', sans-serif; font-weight: 700;
-  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;
-  border: 1px solid var(--gr-muted-20); color: var(--gr-muted);
-  transition: all 0.3s; white-space: nowrap;
+.gr-comp-row.gr-active .gr-comp-icon { background: var(--lime); color: var(--ink); }
+.gr-comp-row:not(.gr-active) .gr-comp-icon { background: rgba(255,45,117,0.12); color: var(--magenta); }
+.gr-comp-name {
+  font-family: var(--mono); font-size: 14px; font-weight: 500;
+  transition: color 0.2s;
 }
-.gr-core-row.active .gr-enables-tag { border-color: var(--gr-accent); color: var(--gr-accent); background: rgba(200,255,0,0.08); }
-.gr-core-row:not(.active) .gr-enables-tag { border-color: var(--gr-red); color: var(--gr-red); background: rgba(255,59,48,0.06); }
+.gr-comp-row.gr-active .gr-comp-name { color: var(--ink); }
+.gr-comp-row:not(.gr-active) .gr-comp-name { color: var(--ink-faint); text-decoration: line-through; text-decoration-color: rgba(255,45,117,0.4); }
 
+.gr-comp-content { min-width: 0; }
+.gr-comp-desc {
+  font-family: var(--sans); font-size: 14.5px; line-height: 1.55;
+  color: var(--ink-mute);
+}
+.gr-comp-broken {
+  font-family: var(--sans); font-size: 14.5px; line-height: 1.55;
+  color: var(--magenta);
+  display: none;
+}
+.gr-comp-row:not(.gr-active) .gr-comp-desc { display: none; }
+.gr-comp-row:not(.gr-active) .gr-comp-broken { display: block; }
 
-/* ═══ CTA ═══ */
-.gr-cta {
-  padding: 6rem 2rem 3rem;
-  max-width: 1400px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
+.gr-comp-enables { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.gr-comp-tag {
+  font-family: var(--mono); font-size: 10.5px;
+  font-weight: 500; letter-spacing: 0.04em;
+  padding: 5px 11px; border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+  transition: all 0.2s;
 }
-.gr-cta-sub { font-size: 1rem; color: var(--gr-muted); margin-bottom: 3rem; line-height: 1.7; max-width: 520px; }
-.gr-cta-actions {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  max-width: 760px;
-  margin: 0 auto;
-  gap: 0;
-  border: 2px solid var(--gr-white);
-  box-sizing: border-box;
+.gr-comp-row.gr-active .gr-comp-tag {
+  border-color: rgba(155,196,0,0.5);
+  color: var(--lime-deep);
+  background: rgba(200,255,0,0.10);
+}
+.gr-comp-row:not(.gr-active) .gr-comp-tag {
+  border-color: rgba(255,45,117,0.4);
+  color: var(--magenta);
+  background: rgba(255,45,117,0.06);
 }
 
-.gr-cta-card {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 2rem 2.5rem;
-  border: none;
-  border-right: 2px solid var(--gr-white);
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  transition: background 0.2s, color 0.2s;
-  box-sizing: border-box;
-  align-self: stretch;
+/* ─── CTA BAND ─── */
+.gr-cta-band { margin: 180px auto 0; max-width: 1300px; }
+.gr-cta-inner {
+  background: var(--navy);
+  margin: 0 40px;
+  border-radius: 32px;
+  padding: 72px 60px;
+  position: relative; overflow: hidden;
 }
-.gr-cta-card:last-child { border-right: none; }
-.gr-cta-card p { margin: 0; }
-.gr-cta-card:hover {
-  background: var(--gr-accent);
-  color: var(--gr-black);
+.gr-cta-inner::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle 600px at 80% 50%, rgba(200,255,0,0.10), transparent 65%);
 }
-.gr-cta-card:hover .gr-cta-lang { color: var(--gr-black); opacity: 0.5; }
-.gr-cta-card:hover .gr-prompt { color: var(--gr-black); opacity: 0.4; }
-.gr-cta-card:hover .gr-cta-gh { background: var(--gr-black); color: var(--gr-accent); border-color: var(--gr-black); }
+.gr-cta-head {
+  position: relative; z-index: 2;
+  text-align: center; margin-bottom: 48px;
+}
+.gr-cta-ey {
+  font-family: var(--mono); font-size: 11.5px;
+  color: var(--lime); letter-spacing: 0.18em; text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.gr-cta-h {
+  font-family: var(--display); font-weight: 800;
+  font-size: clamp(48px, 7vw, 96px); line-height: 0.9;
+  letter-spacing: -0.04em; text-transform: uppercase;
+  margin: 0; color: var(--ice);
+  border: 0 !important;
+  padding: 0 !important;
+}
+.gr-cta-h em {
+  font-style: normal;
+  background: linear-gradient(180deg, var(--lime) 0%, var(--lime-deep) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.gr-cta-sub {
+  margin: 18px auto 0; max-width: 540px;
+  font-family: var(--sans); font-size: 16px; line-height: 1.6;
+  color: rgba(244,247,249,0.7);
+}
 
-.gr-cta-lang { font-family: 'Instrument Sans', sans-serif; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--gr-muted); }
-.gr-cta-cmd {
-  font-family: 'Fira Code', 'SF Mono', monospace;
-  font-size: 0.85rem;
+.gr-install-cards {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  max-width: 720px; margin: 0 auto;
+}
+.gr-install-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 18px; padding: 24px;
   cursor: pointer;
-  flex: 0 0 auto;
-  min-height: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  display: flex; flex-direction: column; gap: 12px;
+  transition: all 0.2s;
 }
-@media (min-width: 901px) {
-  .gr-cta-cmd {
-    flex: 1 1 auto;
-    white-space: nowrap;
-    overflow-wrap: normal;
-    word-break: normal;
-  }
+.gr-install-card:hover { background: var(--lime); border-color: var(--lime); }
+.gr-install-card:hover .gr-install-lang { color: var(--ink); opacity: 0.55; }
+.gr-install-card:hover .gr-install-cmd { color: var(--ink); }
+.gr-home .gr-install-card:hover a.gr-install-gh { border-color: var(--ink); color: var(--ink); }
+.gr-install-lang {
+  font-family: var(--mono); font-size: 10.5px;
+  color: rgba(244,247,249,0.6);
+  letter-spacing: 0.18em; text-transform: uppercase;
+  font-weight: 500;
+}
+.gr-install-cmd {
+  font-family: var(--mono); font-size: 16px; font-weight: 500;
+  color: var(--ice); transition: color 0.18s;
+}
+.gr-install-pr { color: rgba(244,247,249,0.45); margin-right: 8px; }
+.gr-install-card:hover .gr-install-pr { color: rgba(7,18,30,0.5); }
+.gr-home a.gr-install-gh {
+  align-self: flex-start;
+  font-family: var(--mono); font-size: 11px;
+  color: rgba(244,247,249,0.6);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 6px 12px; border-radius: 999px;
+  margin-top: 4px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  transition: all 0.18s;
+  text-decoration: none;
 }
 
-.gr-cta-gh {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  padding: 0.4rem 0.9rem; border: 2px solid var(--gr-muted-20);
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--gr-muted); transition: all 0.15s; width: fit-content;
-  margin-top: auto;
+/* ─── FOOTER ─── */
+.gr-foot {
+  max-width: 1300px;
+  margin: 120px auto 0;
+  padding: 60px 40px 28px;
+  border-top: 1px solid var(--rule);
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 40px;
+  font-family: var(--sans); font-size: 13.5px;
 }
-.gr-cta-gh:hover { border-color: var(--gr-white); color: var(--gr-white); }
-
-
-/* ═══ FOOTER ═══ */
-.gr-footer {
-  max-width: 1400px; margin: 0 auto; padding: 3rem 2rem;
-  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+.gr-foot-brand {
+  font-family: var(--display); font-weight: 800;
+  font-size: 36px; letter-spacing: -0.03em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
-.gr-footer-logo { font-family: 'Instrument Sans', sans-serif; font-weight: 900; font-size: 1rem; text-transform: uppercase; letter-spacing: -0.04em; }
-.gr-footer-links { display: flex; gap: 2rem; }
-.gr-footer-links a { font-size: 0.85rem; color: var(--gr-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; transition: color 0.15s; }
-.gr-footer-links a:hover { color: var(--gr-white); }
+.gr-foot-brand small {
+  display: block; font-family: var(--mono); font-size: 10.5px;
+  color: var(--ink-mute); letter-spacing: 0.12em; margin-top: 8px;
+  font-weight: 400; text-transform: uppercase;
+}
+.gr-foot-col b {
+  display: block; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--ink); margin-bottom: 14px;
+  font-weight: 600;
+}
+.gr-foot-col a {
+  display: block; color: var(--ink-mute); margin-bottom: 8px;
+  transition: color 0.15s;
+}
+.gr-foot-col a:hover { color: var(--ink); }
+.gr-foot-end {
+  grid-column: 1 / -1; margin-top: 36px;
+  border-top: 1px solid var(--rule); padding-top: 18px;
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
 
-
-/* ═══ TOAST ═══ */
+/* ─── TOAST ─── */
 .gr-toast {
-  position: fixed; bottom: 2rem; left: 50%;
+  position: fixed; bottom: 32px; left: 50%;
   transform: translateX(-50%) translateY(20px);
-  padding: 0.8rem 1.5rem; background: var(--gr-accent); color: var(--gr-black);
-  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
-  font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;
-  opacity: 0; transition: all 0.3s ease; z-index: 200; pointer-events: none;
+  padding: 12px 22px; background: var(--ink); color: var(--lime);
+  font-family: var(--mono); font-size: 12px;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  font-weight: 500;
+  border-radius: 999px;
+  opacity: 0; transition: all 0.3s ease;
+  z-index: 200; pointer-events: none;
 }
 .gr-toast.gr-show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-
-/* ═══ RESPONSIVE ═══ */
+/* ─── RESPONSIVE ─── */
 @media (max-width: 1000px) {
-  .gr-pyramid-wrap { flex-direction: column; align-items: center; }
-  .gr-pyramid { width: 100%; max-width: 480px; }
-  .gr-pyramid-detail { width: 100%; }
+  .gr-spec-grid { grid-template-columns: 1fr 1fr; }
+  .gr-pyramid-wrap { grid-template-columns: 1fr; padding: 32px; }
+  .gr-install-cards { grid-template-columns: 1fr; }
+  .gr-comp-row { grid-template-columns: 1fr; gap: 14px; }
+  .gr-comp-enables { justify-content: flex-start; }
+  .gr-foot { grid-template-columns: 1fr 1fr; }
 }
-
-@media (max-width: 900px) {
-  .gr-headache-row, .gr-headache-row.gr-revealed { grid-template-columns: 1fr !important; }
-  .gr-headache-solution { opacity: 0; max-height: 0; padding: 0 2rem; transition: max-height 0.6s, opacity 0.4s 0.2s, padding 0.6s; }
-  .gr-headache-row.gr-revealed .gr-headache-solution { opacity: 1; max-height: 400px; padding: 1.5rem 2rem; }
-  .gr-core-graph {
-    display: flex;
-    flex-direction: column;
-  }
-  .gr-core-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-    padding: 1.25rem 0;
-    border-bottom: 2px solid var(--gr-muted-20);
-  }
-  .gr-core-row:last-child {
-    border-bottom: none;
-  }
-  .gr-core-toggle {
-    flex: 0 0 auto;
-    width: 100%;
-    max-width: 100%;
-    white-space: normal;
-  }
-  .gr-core-main {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.65rem;
-    width: 100%;
-  }
-  .gr-core-enables {
-    max-width: 100%;
-  }
-  .gr-enables-stack {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-  .gr-enables-stack .gr-enables-tag {
-    white-space: normal;
-  }
-  .gr-cta-actions {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    max-width: min(380px, 100%);
-    border: 2px solid var(--gr-white);
-  }
-  .gr-cta-card {
-    flex: none;
-    width: 100%;
-    min-height: auto;
-    border-right: none;
-    border-bottom: 2px solid var(--gr-white);
-  }
-  .gr-cta-card:last-child { border-bottom: none; }
-}
-
-@media (max-width: 600px) {
-  .gr-hero { padding: calc(var(--sl-nav-height, 4rem) + 1rem) 1.5rem 3rem; }
-  .gr-headaches { padding: 3rem 0; }
-  .gr-headaches-header { padding: 0 1.5rem 2rem; }
-  .gr-headache-pain, .gr-headache-solution { padding: 1.5rem; }
-  .gr-requirements { padding: 3rem 1.5rem 2rem; }
-  .gr-core { padding: 3rem 1.5rem; }
-  .gr-cta { padding: 4rem 1.5rem 2.5rem; }
-  .gr-footer { flex-direction: column; align-items: flex-start; }
+@media (max-width: 700px) {
+  .gr-gap-row, .gr-gap-row.gr-revealed { grid-template-columns: 1fr; }
+  .gr-gap-solution { opacity: 1; }
+  .gr-section { padding: 0 24px; margin-top: 100px; }
+  .gr-hero { padding: 56px 24px 0; }
+  .gr-showcase { padding: 0 24px; }
+  .gr-cta-inner { padding: 48px 28px; margin: 0 24px; }
+  .gr-foot { grid-template-columns: 1fr; padding: 60px 24px 28px; }
 }
 </style>
 
-<script>
-/* ═══ FLIP BOARD ═══ */
-const VERBS = ['debugging','re-reading','second-guessing','babysitting','firefighting','losing trust in','polling'];
-const NOUNS = ['agent state.','stale context.','LLM decisions.','agent workflows.','broken pipelines.','black-box outputs.','frozen snapshots.'];
+<script is:inline>
+(function() {
+  function init() {
+    /* ═══ LANG SWITCHER ═══ */
+    document.querySelectorAll('.gr-lang-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const lang = pill.dataset.grLang;
+        document.querySelectorAll('.gr-lang-pill').forEach(p => p.classList.remove('gr-lang-active'));
+        pill.classList.add('gr-lang-active');
+        document.querySelectorAll('[data-gr-lang-target]').forEach(el => {
+          el.classList.toggle('gr-show', el.dataset.grLangTarget === lang);
+        });
+      });
+    });
 
-function buildFlipTrack(items, cls) {
-  return items.concat([items[0]]).map(t => `<span class="gr-flip-item"><span class="${cls}">${t}</span></span>`).join('');
-}
-
-const vt = document.getElementById('gr-verb-track');
-const nt = document.getElementById('gr-noun-track');
-if (vt && nt) {
-  vt.innerHTML = buildFlipTrack(VERBS, 'gr-verb-word');
-  nt.innerHTML = buildFlipTrack(NOUNS, 'gr-noun-word');
-
-  let vi = 0, ni = 0;
-
-  function flipTo(track, index, total) {
-    const pct = -(index * (100 / (total + 1)));
-    track.classList.remove('gr-no-transition');
-    track.classList.add('gr-animate');
-    track.style.transform = `translateY(${pct}%)`;
-    if (index >= total) {
-      setTimeout(() => {
-        track.classList.remove('gr-animate');
-        track.classList.add('gr-no-transition');
-        track.style.transform = 'translateY(0%)';
-        track.offsetHeight;
-        track.classList.remove('gr-no-transition');
-      }, 450);
+    /* ═══ HEADACHE SCROLL REVEAL ═══ */
+    function revealVisibleGaps() {
+      document.querySelectorAll('.gr-gap-row').forEach(r => {
+        const rect = r.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) r.classList.add('gr-revealed');
+      });
     }
-  }
+    const gapObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('gr-revealed'); });
+    }, { threshold: [0.05, 0.3], rootMargin: '0px 0px -5% 0px' });
+    document.querySelectorAll('.gr-gap-row').forEach(r => gapObserver.observe(r));
+    revealVisibleGaps();
+    window.addEventListener('resize', revealVisibleGaps);
 
-  /* On resize, snap current position without animation */
-  function snapFlipPositions() {
-    [{ track: vt, index: vi, total: VERBS.length },
-     { track: nt, index: ni, total: NOUNS.length }].forEach(({ track, index, total }) => {
-      track.classList.remove('gr-animate');
-      track.classList.add('gr-no-transition');
-      const pct = -(index * (100 / (total + 1)));
-      track.style.transform = `translateY(${pct}%)`;
-      track.offsetHeight;
-      track.classList.remove('gr-no-transition');
+    /* ═══ PYRAMID ═══ */
+    const reqData = {
+      creation: {
+        title: 'LLM-Safe Creation',
+        body: 'LLMs compose graphs structurally — like SQL for data flows — not arbitrary code. <strong>Constrained error space</strong> means the graph is correct on first pass, not after three debug cycles. Node-internal functions are simple and testable in isolation; composition bugs are the hard ones, and the graph eliminates them structurally.'
+      },
+      audit: {
+        title: 'Human Audit',
+        body: 'Every node is observable. Every derivation has a causal chain. Ask "why was this flagged?" and get a <strong>structural answer</strong> — not a log dump, not "the model said so." Unlike OpenTelemetry (post-hoc), GraphReFly audit is live: inspect any node at any moment during runtime, not just after the fact.'
+      },
+      security: {
+        title: 'Security',
+        body: 'Per-node access control via Actor/Guard primitives. <strong>Multi-tenant, multi-agent isolation.</strong> Different agents see different subgraphs. The graph enforces boundaries the LLM cannot circumvent — even if the LLM tries to access nodes outside its permitted scope, the topology itself is the firewall.'
+      },
+      symmetry: {
+        title: 'Human / LLM Symmetry',
+        body: 'Either side can compose, review, or modify the graph. LLM composes → human reviews topology. Human composes → LLM audits correctness. LLM A composes → LLM B audits → human approves. <strong>Same structure, same tools, no translation layer.</strong> Reviewing a GraphSpec diff is easier than reviewing a code diff — for both humans and LLMs.'
+      }
+    };
+
+    document.querySelectorAll('.gr-pyr-block').forEach(block => {
+      block.addEventListener('click', () => {
+        const req = block.dataset.grReq;
+        const data = reqData[req];
+        if (!data) return;
+        document.querySelectorAll('.gr-pyr-block').forEach(b => b.classList.remove('gr-active'));
+        block.classList.add('gr-active');
+        const titleEl = document.getElementById('gr-pd-title');
+        const bodyEl = document.getElementById('gr-pd-body');
+        if (titleEl) titleEl.textContent = data.title;
+        if (bodyEl) bodyEl.innerHTML = data.body;
+        const label = document.querySelector('.gr-pyramid-detail .gr-pd-label');
+        if (label) label.textContent = '— ' + req.charAt(0).toUpperCase() + req.slice(1);
+      });
+    });
+
+    /* ═══ COMPONENT ROW TOGGLE ═══ */
+    document.querySelectorAll('.gr-comp-row').forEach(row => {
+      row.addEventListener('click', () => {
+        row.classList.toggle('gr-active');
+        const icon = row.querySelector('.gr-comp-icon');
+        if (icon) icon.textContent = row.classList.contains('gr-active') ? '✓' : '✕';
+      });
+    });
+
+    /* ═══ CLIPBOARD ═══ */
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const t = document.getElementById('gr-toast');
+        if (t) { t.classList.add('gr-show'); setTimeout(() => t.classList.remove('gr-show'), 1600); }
+      });
+    }
+    document.querySelectorAll('[data-gr-copy]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('a')) return;
+        copyText(el.dataset.grCopy);
+      });
     });
   }
 
-  let resizeRaf;
-  window.addEventListener('resize', () => {
-    if (resizeRaf) cancelAnimationFrame(resizeRaf);
-    resizeRaf = requestAnimationFrame(snapFlipPositions);
-  });
-
-  setInterval(() => { vi++; flipTo(vt, vi, VERBS.length); if (vi >= VERBS.length) vi = 0; }, 2800);
-  setTimeout(() => {
-    setInterval(() => { ni++; flipTo(nt, ni, NOUNS.length); if (ni >= NOUNS.length) ni = 0; }, 1900);
-  }, 800);
-}
-
-
-/* ═══ HEADACHE SCROLL ═══ */
-function revealVisibleHeadaches() {
-  /* Re-query DOM every time — essential after Astro view-transition swaps */
-  document.querySelectorAll('.gr-headache-row').forEach(r => {
-    const rect = r.getBoundingClientRect();
-    const visible = rect.top < window.innerHeight && rect.bottom > 0;
-    if (visible) r.classList.add('gr-revealed');
-  });
-}
-
-function setupHeadacheObserver() {
-  const rows = document.querySelectorAll('.gr-headache-row');
-  const ho = new IntersectionObserver((entries) => {
-    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('gr-revealed'); });
-  }, { threshold: [0.05, 0.3], rootMargin: '0px 0px -5% 0px' });
-  rows.forEach(r => ho.observe(r));
-}
-
-setupHeadacheObserver();
-revealVisibleHeadaches();
-window.addEventListener('resize', revealVisibleHeadaches);
-document.addEventListener('astro:page-load', () => { setupHeadacheObserver(); revealVisibleHeadaches(); });
-document.addEventListener('astro:after-swap', () => { setTimeout(revealVisibleHeadaches, 100); });
-
-
-/* ═══ PYRAMID ═══ */
-const reqData = {
-  creation: { title: 'LLM-Safe Creation', body: 'LLMs compose graphs structurally — like SQL for data flows — not arbitrary code. <strong>Constrained error space means the graph is correct on first pass</strong>, not after three debug cycles. Node-internal functions are simple and testable in isolation; composition bugs are the hard ones, and graph eliminates them structurally.' },
-  audit: { title: 'Human Audit', body: 'Every node is observable. Every derivation has a causal chain. Ask "why was this flagged?" and get a <strong>structural answer — not a log dump, not "the model said so."</strong> Unlike OpenTelemetry (post-hoc), GraphReFly audit is live: inspect any node at any moment during runtime, not just after the fact.' },
-  security: { title: 'Security', body: 'Per-node access control via Actor/Guard primitives. <strong>Multi-tenant, multi-agent isolation.</strong> Different agents see different subgraphs. The graph enforces boundaries the LLM cannot circumvent — even if the LLM tries to access nodes outside its permitted scope, the topology itself is the firewall.' },
-  symmetry: { title: 'Human / LLM Symmetry', body: 'Either side can compose, review, or modify the graph. LLM composes &rarr; human reviews topology. Human composes &rarr; LLM audits correctness. LLM A composes &rarr; LLM B audits &rarr; human approves. <strong>Same structure, same tools, no translation layer.</strong> Reviewing a GraphSpec diff is easier than reviewing a code diff — for both humans and LLMs.' }
-};
-
-document.querySelectorAll('.gr-pyramid-block').forEach(block => {
-  block.addEventListener('click', () => {
-    const req = block.dataset.req;
-    const data = reqData[req];
-    if (!data) return;
-    document.querySelectorAll('.gr-pyramid-block').forEach(b => b.classList.remove('gr-active'));
-    block.classList.add('gr-active');
-    const dt = document.getElementById('gr-detail-title');
-    const db = document.getElementById('gr-detail-body');
-    if (dt) dt.innerHTML = data.title;
-    if (db) db.innerHTML = data.body;
-  });
-});
-
-
-/* ═══ CORE TOGGLES (whole row) ═══ */
-document.querySelectorAll('.gr-core-row').forEach(row => {
-  row.addEventListener('click', () => {
-    row.classList.toggle('active');
-    const icon = row.querySelector('.gr-core-icon');
-    if (icon) icon.innerHTML = row.classList.contains('active') ? '\u2713' : '\u2717';
-  });
-});
-
-
-/* ═══ LANG SWITCHER ═══ */
-document.querySelectorAll('.gr-lang-pill').forEach(pill => {
-  pill.addEventListener('click', () => {
-    const lang = pill.dataset.lang;
-    document.querySelectorAll('.gr-lang-pill').forEach(p => p.classList.remove('gr-lang-active'));
-    pill.classList.add('gr-lang-active');
-    document.querySelectorAll('[data-lang-target]').forEach(el => {
-      el.classList.toggle('gr-hero-install--hidden', el.dataset.langTarget !== lang);
-    });
-  });
-});
-
-
-/* ═══ CLIPBOARD ═══ */
-function grCopy(text) {
-  navigator.clipboard.writeText(text).then(() => {
-    const t = document.getElementById('gr-toast');
-    if (t) { t.classList.add('gr-show'); setTimeout(() => t.classList.remove('gr-show'), 1800); }
-  });
-}
-
-document.querySelectorAll('[data-copy]').forEach(el => {
-  el.addEventListener('click', (e) => {
-    if (e.target.closest('a')) return; // don't intercept link clicks
-    grCopy(el.dataset.copy);
-  });
-});
+  init();
+  document.addEventListener('astro:page-load', init);
+})();
 </script>
