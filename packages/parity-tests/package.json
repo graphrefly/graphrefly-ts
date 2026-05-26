@@ -9,8 +9,8 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
-		"@graphrefly/pure-ts": "workspace:*",
-		"@graphrefly/native": ">=0.0.2"
+		"@graphrefly/native": "^0.0.5",
+		"@graphrefly/pure-ts": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^25.5.0",

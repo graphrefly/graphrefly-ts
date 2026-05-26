@@ -521,8 +521,8 @@ importers:
   packages/parity-tests:
     dependencies:
       '@graphrefly/native':
-        specifier: '>=0.0.2'
-        version: 0.0.2
+        specifier: ^0.0.5
+        version: 0.0.5
       '@graphrefly/pure-ts':
         specifier: workspace:*
         version: link:../pure-ts
@@ -2213,40 +2213,40 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
-  '@graphrefly/native-darwin-arm64@0.0.2':
-    resolution: {integrity: sha512-l+DIBBejEkbDlriY4eX8g3ZsrZ28it7agcWKnG5ZKDmsE0cIRtw5ckwOozE4a0IpLIzwjrtYQsF7seJDvNBviQ==}
+  '@graphrefly/native-darwin-arm64@0.0.5':
+    resolution: {integrity: sha512-bSFy2EgJ4NIErqVla65Ol7D2LKyqAB7RDs04+J+DyxGh5IJYSBZFPnp4OdBjVM6PSVXIPHEMbe8ZY50uk9cmzA==}
     engines: {node: '>=14'}
     cpu: [arm64]
     os: [darwin]
 
-  '@graphrefly/native-linux-arm64-gnu@0.0.2':
-    resolution: {integrity: sha512-mQzJs9CjCSfJbSpEXjPqtAfzYYVkyn+ffCQkw7zyc6UYtfT+Qj1xvV/D/H+oUpZCEPcvQHki97KxRL2kF82ZNw==}
+  '@graphrefly/native-linux-arm64-gnu@0.0.5':
+    resolution: {integrity: sha512-UM6y0xk5dJGS7cFGw8MgHCOqnovNeOYrtplfOSLZytfEve2pvXf9BUzZdGOGeInt+QQhFxYd06SuDM/uG2SdJA==}
     engines: {node: '>=14'}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@graphrefly/native-linux-x64-gnu@0.0.2':
-    resolution: {integrity: sha512-YxBZbc7mnev5/G9uEKexKkCa7tOsG9+Y2NEQn54ShHWSgS1pYPkJZe/T/+H/PyTc5Q+DXAaQvbDQiwXzLn140w==}
+  '@graphrefly/native-linux-x64-gnu@0.0.5':
+    resolution: {integrity: sha512-TNxXZEKf0xgaGg0TJeBGtOQVqnp9clzwIncRdf6G+mqgYrZF/xaJVnAumk3I47iEHlZEa0Ohf+5AAChrmPp/UA==}
     engines: {node: '>=14'}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@graphrefly/native-win32-arm64-msvc@0.0.2':
-    resolution: {integrity: sha512-CkVCp6gQNzBj2ZyrGkM/+0j8m2/4OEzVjZrL1oKil4Bn+iEbY2KTf6UWKcQ+AjaDfEyl2m3EuwthipU4gynPew==}
+  '@graphrefly/native-win32-arm64-msvc@0.0.5':
+    resolution: {integrity: sha512-z10zse0Zuxm4HweQMfY1rQk44IdECEMJbXCcc3wiev/CWE83Tjra9SAnHK5e9AtHsG8F1q6V+Sqo45FcJXNHfg==}
     engines: {node: '>=14'}
     cpu: [arm64]
     os: [win32]
 
-  '@graphrefly/native-win32-x64-msvc@0.0.2':
-    resolution: {integrity: sha512-t2jT9qdJYrjevANUZVTQQQM8cTr+CajE/li7hysygWN57aFlrwApJS///7Cg/nyIiG+nZ3OKr6a69Qaa7ocjDA==}
+  '@graphrefly/native-win32-x64-msvc@0.0.5':
+    resolution: {integrity: sha512-huTdocheZQr0WTS7DyV+soI00QREyaAi2hus7v964Fv2yqfabmTLQshUEwbCtySTWwVHIUAZ89Fu4n4Q0MFNgg==}
     engines: {node: '>=14'}
     cpu: [x64]
     os: [win32]
 
-  '@graphrefly/native@0.0.2':
-    resolution: {integrity: sha512-kmIhfhg4kiC6XSwGKrmE7Tth6Y22yk0BFDLJnCviQU3teRR/QMr1XF99tVVCrbfeTsxKe/+vtljtziR8DqeT2g==}
+  '@graphrefly/native@0.0.5':
+    resolution: {integrity: sha512-4l7NsFWl35hSCeMyEPaXpYNIAr+wX+SIdnlvWfZg07KSYQy+8tT4vq6+yb3KusI6j+ad8BQmpZ2Ez8AfS0bSEA==}
     engines: {node: '>=14'}
 
   '@hono/node-server@1.19.14':
@@ -3397,8 +3397,8 @@ packages:
       ajv:
         optional: true
 
-  ajv@8.18.0:
-    resolution: {integrity: sha512-PlXPeEWMXMZ7sPYOHqmDyCJzcfNrUr3fGNKtezX14ykXOEIvyK81d+qydx89KY5O71FKMPaQ2vBfBFI5NHR63A==}
+  ajv@8.20.0:
+    resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
 
   alien-signals@1.0.13:
     resolution: {integrity: sha512-OGj9yyTnJEttvzhTUWuscOvtqxq5vrhF7vL9oS0xJ2mK0ItPYP1/y+vCFebfxoEyAz0++1AIwJ5CMr+Fk3nDmg==}
@@ -4604,8 +4604,8 @@ packages:
   exponential-backoff@3.1.3:
     resolution: {integrity: sha512-ZgEeZXj30q+I0EN+CbSSpIyPaJ5HVQD18Z1m+u1FXbAeT94mr1zw50q4q6jiiC447Nl/YTcIYSAftiGqetwXCA==}
 
-  express-rate-limit@8.3.2:
-    resolution: {integrity: sha512-77VmFeJkO0/rvimEDuUC5H30oqUC4EyOhyGccfqoLebB0oiEYfM7nwPrsDsBL1gsTpwfzX8SFy2MT3TDyRq+bg==}
+  express-rate-limit@8.5.2:
+    resolution: {integrity: sha512-5Kb34ipNX694DH48vN9irak1Qx30nb0PLYHXfJgw4YEjiC3ZEmZJhwOp+VfiCYwFzvFTdB9QkArYS5kXa2cx2A==}
     engines: {node: '>= 16'}
     peerDependencies:
       express: '>= 4.11'
@@ -4640,8 +4640,8 @@ packages:
   fast-safe-stringify@2.1.1:
     resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==}
 
-  fast-uri@3.1.0:
-    resolution: {integrity: sha512-iPeeDKJSWf4IEOasVVrknXpaBV0IApz/gp7S2bb7Z4Lljbl2MGJRqInZiUrQwV16cpzw/D3S5j5Julj/gT52AA==}
+  fast-uri@3.1.2:
+    resolution: {integrity: sha512-rVjf7ArG3LTk+FS6Yw81V1DLuZl1bRbNrev6Tmd/9RaroeeRRJhAt7jg/6YFxbvAQXUCavSoZhPPj6oOx+5KjQ==}
 
   fast-xml-builder@1.1.4:
     resolution: {integrity: sha512-f2jhpN4Eccy0/Uz9csxh3Nu6q4ErKxf0XIsasomfOihuSUa3/xw6w8dnOtCDgEItQFJG8KyXPzQXzcODDrrbOg==}
@@ -4978,8 +4978,8 @@ packages:
   hermes-parser@0.35.0:
     resolution: {integrity: sha512-9JLjeHxBx8T4CAsydZR49PNZUaix+WpQJwu9p2010lu+7Kwl6D/7wYFFJxoz+aXkaaClp9Zfg6W6/zVlSJORaA==}
 
-  hono@4.12.14:
-    resolution: {integrity: sha512-am5zfg3yu6sqn5yjKBNqhnTX7Cv+m00ox+7jbaKkrLMRJ4rAdldd1xPd/JzbBWspqaQv6RSTrgFN95EsfhC+7w==}
+  hono@4.12.23:
+    resolution: {integrity: sha512-eIaZ9qDgu7XV0pxOCrg7/WhnQ6Ivm22UcxhXx/A3dcbqbbYgBEkc6e/J/s7j2tS96zoB0S9VBdLwQNCWwUo4LA==}
     engines: {node: '>=16.9.0'}
 
   hookable@5.5.3:
@@ -5081,8 +5081,8 @@ packages:
   invariant@2.2.4:
     resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
 
-  ip-address@10.1.0:
-    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
+  ip-address@10.2.0:
+    resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -5304,8 +5304,8 @@ packages:
   jimp-compact@0.16.1:
     resolution: {integrity: sha512-dZ6Ra7u1G8c4Letq/B5EzAxj4tLFHL+cGtdpR+PVm4yzPDj+lCk+AbivWt1eOM+ikzkowtyV7qSqX6qr3t71Ww==}
 
-  jose@6.2.2:
-    resolution: {integrity: sha512-d7kPDd34KO/YnzaDOlikGpOurfF0ByC2sEV4cANCtdqLlTfBlw2p14O/5d/zv40gJPbIQxfES3nSx1/oYNyuZQ==}
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -9570,32 +9570,32 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@graphrefly/native-darwin-arm64@0.0.2':
+  '@graphrefly/native-darwin-arm64@0.0.5':
     optional: true
 
-  '@graphrefly/native-linux-arm64-gnu@0.0.2':
+  '@graphrefly/native-linux-arm64-gnu@0.0.5':
     optional: true
 
-  '@graphrefly/native-linux-x64-gnu@0.0.2':
+  '@graphrefly/native-linux-x64-gnu@0.0.5':
     optional: true
 
-  '@graphrefly/native-win32-arm64-msvc@0.0.2':
+  '@graphrefly/native-win32-arm64-msvc@0.0.5':
     optional: true
 
-  '@graphrefly/native-win32-x64-msvc@0.0.2':
+  '@graphrefly/native-win32-x64-msvc@0.0.5':
     optional: true
 
-  '@graphrefly/native@0.0.2':
+  '@graphrefly/native@0.0.5':
     optionalDependencies:
-      '@graphrefly/native-darwin-arm64': 0.0.2
-      '@graphrefly/native-linux-arm64-gnu': 0.0.2
-      '@graphrefly/native-linux-x64-gnu': 0.0.2
-      '@graphrefly/native-win32-arm64-msvc': 0.0.2
-      '@graphrefly/native-win32-x64-msvc': 0.0.2
+      '@graphrefly/native-darwin-arm64': 0.0.5
+      '@graphrefly/native-linux-arm64-gnu': 0.0.5
+      '@graphrefly/native-linux-x64-gnu': 0.0.5
+      '@graphrefly/native-win32-arm64-msvc': 0.0.5
+      '@graphrefly/native-win32-x64-msvc': 0.0.5
 
-  '@hono/node-server@1.19.14(hono@4.12.14)':
+  '@hono/node-server@1.19.14(hono@4.12.23)':
     dependencies:
-      hono: 4.12.14
+      hono: 4.12.23
     optional: true
 
   '@iconify/types@2.0.0': {}
@@ -9861,18 +9861,18 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.29.0(zod@4.3.6)':
     dependencies:
-      '@hono/node-server': 1.19.14(hono@4.12.14)
-      ajv: 8.18.0
-      ajv-formats: 3.0.1(ajv@8.18.0)
+      '@hono/node-server': 1.19.14(hono@4.12.23)
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
       cors: 2.8.6
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.0.8
       express: 5.2.1
-      express-rate-limit: 8.3.2(express@5.2.1)
-      hono: 4.12.14
-      jose: 6.2.2
+      express-rate-limit: 8.5.2(express@5.2.1)
+      hono: 4.12.23
+      jose: 6.2.3
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
@@ -10851,15 +10851,15 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ajv-formats@3.0.1(ajv@8.18.0):
+  ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:
-      ajv: 8.18.0
+      ajv: 8.20.0
     optional: true
 
-  ajv@8.18.0:
+  ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.0
+      fast-uri: 3.1.2
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
     optional: true
@@ -12339,10 +12339,10 @@ snapshots:
 
   exponential-backoff@3.1.3: {}
 
-  express-rate-limit@8.3.2(express@5.2.1):
+  express-rate-limit@8.5.2(express@5.2.1):
     dependencies:
       express: 5.2.1
-      ip-address: 10.1.0
+      ip-address: 10.2.0
     optional: true
 
   express@5.2.1:
@@ -12408,7 +12408,7 @@ snapshots:
 
   fast-safe-stringify@2.1.1: {}
 
-  fast-uri@3.1.0:
+  fast-uri@3.1.2:
     optional: true
 
   fast-xml-builder@1.1.4:
@@ -12913,7 +12913,7 @@ snapshots:
     dependencies:
       hermes-estree: 0.35.0
 
-  hono@4.12.14:
+  hono@4.12.23:
     optional: true
 
   hookable@5.5.3: {}
@@ -13006,7 +13006,7 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
 
-  ip-address@10.1.0:
+  ip-address@10.2.0:
     optional: true
 
   ipaddr.js@1.9.1: {}
@@ -13241,7 +13241,7 @@ snapshots:
 
   jimp-compact@0.16.1: {}
 
-  jose@6.2.2:
+  jose@6.2.3:
     optional: true
 
   joycon@3.1.1: {}
