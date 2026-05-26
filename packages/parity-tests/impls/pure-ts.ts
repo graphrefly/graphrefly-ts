@@ -919,6 +919,18 @@ export const pureTsImpl: Impl = {
 	sourceOpts(opts?: Record<string, unknown>): Record<string, unknown> {
 		return storage.sourceOpts(opts as any) as Record<string, unknown>;
 	},
+	// D293 (2026-05-25): logical-cleanup no-op on the pure-ts arm —
+	// no actor thread to kill (pure-ts substrate has no equivalent
+	// "process never exits" hazard; the JS-side legacy reactive
+	// engine has no non-daemon thread to join). Symmetric shape with
+	// the native arm's `close()` so cross-arm scenarios can call
+	// `await impl.close()` uniformly.
+	async close(): Promise<void> {
+		// Intentionally a no-op. If pure-ts ever grows a teardown
+		// step (e.g., draining a global timer scheduler, releasing a
+		// shared worker pool), wire it here. Today there's nothing to
+		// drain at impl-level.
+	},
 };
 
 // ---------------------------------------------------------------------------

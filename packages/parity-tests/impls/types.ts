@@ -605,6 +605,26 @@ export interface Impl {
 	describeNode(node: ImplNode<unknown>): unknown | Promise<unknown>;
 	sha256Hex(input: string | Uint8Array): Promise<string>;
 	sourceOpts(opts?: Record<string, unknown>): Record<string, unknown>;
+
+	/**
+	 * **D293 (2026-05-25):** end-of-life surface for the impl. On the
+	 * native arm, shuts down the Rust worker thread + frees the Node
+	 * process to exit naturally (closes the "process never exits" hang
+	 * for test frameworks / CLI scripts / serverless / Lambda
+	 * consumers). On the pure-ts arm, this is a logical-cleanup hook
+	 * (no actor thread to kill — pure-ts has no equivalent hazard).
+	 *
+	 * Idempotent: subsequent calls are best-effort no-ops. After
+	 * `await impl.close()`, post-close method calls on the native arm
+	 * reject with `Error: "... (actor is shut down or shutting down)"`;
+	 * pure-ts arm behavior may differ (no symmetry requirement until a
+	 * cross-arm consumer surfaces it).
+	 *
+	 * Cross-ref: `~/src/graphrefly-rs/crates/graphrefly-bindings-js/
+	 * wrapper.js` `impl.close` + `[Symbol.asyncDispose]` wiring;
+	 * `~/src/graphrefly-ts/docs/rust-port-decisions.md` D293.
+	 */
+	close(): Promise<void>;
 }
 
 // ── Reactive structures sub-interface (M5) ──────────────────────────────
