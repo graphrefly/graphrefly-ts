@@ -521,7 +521,7 @@ importers:
   packages/parity-tests:
     dependencies:
       '@graphrefly/native':
-        specifier: ^0.0.2
+        specifier: '>=0.0.2'
         version: 0.0.2
       '@graphrefly/pure-ts':
         specifier: workspace:*
