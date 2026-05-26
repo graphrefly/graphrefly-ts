@@ -1,5 +1,12 @@
 # @graphrefly-examples/basic-state-and-derived
 
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [[`4230039`](https://github.com/graphrefly/graphrefly-ts/commit/4230039498f97be2d5213d76cb8ce8f72a073b9a)]:
+  - @graphrefly/graphrefly@0.49.0
+
 ## 0.0.7
 
 ### Patch Changes
