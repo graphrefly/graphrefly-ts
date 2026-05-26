@@ -1,5 +1,11 @@
 # [0.44.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.43.0...v0.44.0) (2026-04-29)
 
+## 0.49.0
+
+### Minor Changes
+
+- [`4230039`](https://github.com/graphrefly/graphrefly-ts/commit/4230039498f97be2d5213d76cb8ce8f72a073b9a) Thanks [@clfhhc](https://github.com/clfhhc)! - widen batch bindings
+
 ## 0.48.1
 
 ### Patch Changes

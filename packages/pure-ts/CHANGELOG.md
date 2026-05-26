@@ -1,5 +1,11 @@
 # Changelog — @graphrefly/pure-ts
 
+## 0.49.0
+
+### Minor Changes
+
+- [`4230039`](https://github.com/graphrefly/graphrefly-ts/commit/4230039498f97be2d5213d76cb8ce8f72a073b9a) Thanks [@clfhhc](https://github.com/clfhhc)! - widen batch bindings
+
 ## 0.48.1
 
 ## 0.48.0
