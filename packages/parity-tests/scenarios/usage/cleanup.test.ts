@@ -100,18 +100,20 @@ describe.each(impls)("D293 close() + Symbol.asyncDispose parity — $name", (imp
 		// pure-ts adapter that doesn't yet is acceptable for v0.0.8
 		// (pure-ts has no "process never exits" hazard).
 		if (isNative) {
-			expect(typeof (impl as unknown as { [Symbol.asyncDispose]?: () => Promise<void> })[
-				Symbol.asyncDispose
-			]).toBe("function");
+			expect(
+				typeof (impl as unknown as { [Symbol.asyncDispose]?: () => Promise<void> })[
+					Symbol.asyncDispose
+				],
+			).toBe("function");
 		}
 		// Smoke test the explicit-resource-management invocation shape on
 		// the native arm. We can't use `await using` syntax in the test
 		// file directly (vitest's TS target may not support it); call the
 		// Symbol-keyed method manually to verify it's the same function.
 		if (isNative) {
-			const asyncDispose = (
-				impl as unknown as { [Symbol.asyncDispose]: () => Promise<void> }
-			)[Symbol.asyncDispose];
+			const asyncDispose = (impl as unknown as { [Symbol.asyncDispose]: () => Promise<void> })[
+				Symbol.asyncDispose
+			];
 			await expect(asyncDispose.call(impl)).resolves.toBeUndefined();
 		}
 	});
