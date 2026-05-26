@@ -2592,7 +2592,7 @@ describe("Graph narrow-waist — graph.derived/effect mixed (string | Node) deps
 		// Path-resolved dep — registered on the graph.
 		g.add(node<number>([], { name: "a", initial: 1 }), { name: "a" });
 		// External Node ref — NOT registered on this graph (mirrors the
-		// `reactiveLog().entries` cqrs case at patterns/cqrs/index.ts:584/635
+		// `reactiveLog().entries` cqrs case at src/utils/cqrs/index.ts:584/635
 		// where the entries node is an internal substrate).
 		const external = node<number>([], { name: "external", initial: 10 });
 

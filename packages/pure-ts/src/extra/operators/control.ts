@@ -43,7 +43,7 @@ export type TapObserver<T> = {
  *
  * @example
  * ```ts
- * import { tap, state } from "@graphrefly/graphrefly-ts";
+ * import { tap, state } from "@graphrefly/pure-ts";
  *
  * // Function form (DATA only)
  * tap(state(1), (x) => console.log(x));
@@ -135,7 +135,7 @@ export function tap<T>(
  *
  * @example
  * ```ts
- * import { onFirstData, fromAny } from "@graphrefly/graphrefly-ts";
+ * import { onFirstData, fromAny } from "@graphrefly/pure-ts";
  *
  * const tap = onFirstData(fromAny(adapter.invoke(msgs)), (resp) => recordStats(resp));
  * ```
@@ -186,7 +186,7 @@ export const tapFirst = onFirstData;
  * @returns `Node<T>` - Pass-through with idle watchdog.
  * @example
  * ```ts
- * import { timeout, state } from "@graphrefly/graphrefly-ts";
+ * import { timeout, state } from "@graphrefly/pure-ts";
  *
  * timeout(state(0), 5_000);
  * ```
@@ -253,7 +253,7 @@ export function timeout<T>(
  * @returns `Node<T>` - Forwards each round then completes after the last inner `COMPLETE`.
  * @example
  * ```ts
- * import { repeat, state } from "@graphrefly/graphrefly-ts";
+ * import { repeat, state } from "@graphrefly/pure-ts";
  *
  * repeat(state(1, { resubscribable: true }), 2);
  * ```
@@ -316,7 +316,7 @@ export function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Nod
  * @returns `Node<T>` - Pass-through (identity).
  * @example
  * ```ts
- * import { pausable, state } from "@graphrefly/graphrefly-ts";
+ * import { pausable, state } from "@graphrefly/pure-ts";
  *
  * // No longer needed — default nodes handle PAUSE/RESUME.
  * const s = state(0);
@@ -349,7 +349,7 @@ export function pausable<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
  * @returns `Node<T>` - Recovered stream.
  * @example
  * ```ts
- * import { rescue, state } from "@graphrefly/graphrefly-ts";
+ * import { rescue, state } from "@graphrefly/pure-ts";
  *
  * rescue(state(0), () => 0);
  * ```
@@ -450,7 +450,7 @@ export type ValveOpts = ExtraOpts & {
  *
  * @example
  * ```ts
- * import { valve, state } from "@graphrefly/graphrefly-ts";
+ * import { valve, state } from "@graphrefly/pure-ts";
  *
  * const data = state(1);
  * const open = state(true);
@@ -562,7 +562,7 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ValveOp
  *
  * @example
  * ```ts
- * import { catchError, state } from "@graphrefly/graphrefly-ts";
+ * import { catchError, state } from "@graphrefly/pure-ts";
  *
  * catchError(state(0), () => 0);
  * ```
@@ -648,7 +648,7 @@ export type SettleOpts<T> = ExtraOpts & {
  *
  * @example
  * ```ts
- * import { settle, state } from "@graphrefly/graphrefly-ts";
+ * import { settle, state } from "@graphrefly/pure-ts";
  *
  * const board = state<Update>({ ... });
  * const final = settle(board, { quietWaves: 3, equals: deepEqual });

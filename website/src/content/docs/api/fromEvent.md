@@ -30,7 +30,7 @@ function fromEvent<T = unknown>(
 ## Basic Usage
 
 ```ts
-import { fromEvent } from "@graphrefly/graphrefly-ts";
+import { fromEvent } from "@graphrefly/graphrefly";
 
 fromEvent(document.body, "click");
 ```

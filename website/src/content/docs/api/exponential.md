@@ -24,7 +24,7 @@ function exponential(options?: ExponentialBackoffOptions): BackoffStrategy
 ## Basic Usage
 
 ```ts
-import { exponential, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+import { exponential, retry, NS_PER_SEC } from "@graphrefly/graphrefly";
 
 // 100 ms → 200 ms → 400 ms … capped at 30 s, with full jitter
 const out = retry(source, {

@@ -154,7 +154,7 @@ export class GraphReflyGuardImpl implements CanActivate {
  *
  * @example
  * ```ts
- * import { GraphReflyGuard, fromJwtPayload } from "@graphrefly/graphrefly-ts/compat/nestjs";
+ * import { GraphReflyGuard, fromJwtPayload } from "@graphrefly/graphrefly/compat/nestjs";
  *
  * @UseGuards(GraphReflyGuard())
  * @Controller("graph")

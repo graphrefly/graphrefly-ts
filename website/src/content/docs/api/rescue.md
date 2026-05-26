@@ -30,7 +30,7 @@ function rescue<T>(
 ## Basic Usage
 
 ```ts
-import { rescue, state } from "@graphrefly/graphrefly-ts";
+import { rescue, state } from "@graphrefly/pure-ts";
 
 rescue(state(0), () => 0);
 ```

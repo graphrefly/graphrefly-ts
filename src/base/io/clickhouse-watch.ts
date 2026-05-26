@@ -46,7 +46,7 @@ export type FromClickHouseWatchOptions = AsyncSourceOpts & {
  * @example
  * ```ts
  * import { createClient } from "@clickhouse/client";
- * import { fromClickHouseWatch } from "@graphrefly/graphrefly-ts";
+ * import { fromClickHouseWatch } from "@graphrefly/graphrefly";
  *
  * const client = createClient({ url: "http://localhost:8123" });
  * const rows$ = fromClickHouseWatch(client, "SELECT * FROM errors_mv ORDER BY timestamp DESC LIMIT 100");

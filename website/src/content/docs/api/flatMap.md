@@ -30,7 +30,7 @@ Merged projection; behavior matches `mergeMap`.
 ## Basic Usage
 
 ```ts
-import { flatMap, state } from "@graphrefly/graphrefly-ts";
+import { flatMap, state } from "@graphrefly/pure-ts";
 
 flatMap(state(0), (n) => state(n));
 ```

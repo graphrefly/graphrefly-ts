@@ -86,7 +86,7 @@ export type ExternalRegister<H> = (handlers: H) => (() => void) | undefined;
  *
  * @example
  * ```ts
- * import { externalProducer } from "@graphrefly/graphrefly-ts";
+ * import { externalProducer } from "@graphrefly/graphrefly";
  *
  * const hook$ = externalProducer<Payload>(({ emit, error }) => {
  *   const id = transport.onMessage((raw) => {
@@ -172,7 +172,7 @@ export type ExternalBundleOptions<TChannels extends Record<string, unknown>> = {
  *
  * @example
  * ```ts
- * import { externalBundle } from "@graphrefly/graphrefly-ts";
+ * import { externalBundle } from "@graphrefly/graphrefly";
  *
  * type OTelChannels = { traces: Span; metrics: Metric; logs: LogRec };
  * const otel = externalBundle<OTelChannels>(

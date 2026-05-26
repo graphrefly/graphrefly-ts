@@ -293,7 +293,7 @@ function _runRetryStateMachine<T>(
  * @example
  * ```ts
  * // Source mode — resubscribe the same node:
- * import { ERROR, NS_PER_SEC, producer, retry, constant } from "@graphrefly/graphrefly-ts";
+ * import { ERROR, NS_PER_SEC, producer, retry, constant } from "@graphrefly/graphrefly";
  *
  * const src = producer(
  *   (a) => { a.down([[ERROR, new Error("x")]]); },
@@ -302,7 +302,7 @@ function _runRetryStateMachine<T>(
  * const out = retry(src, { count: 2, backoff: constant(0.25 * NS_PER_SEC) });
  *
  * // Factory mode — fresh node per attempt (e.g. reconnecting WebSocket):
- * import { NS_PER_SEC, exponential, retry, fromWebSocket } from "@graphrefly/graphrefly-ts";
+ * import { NS_PER_SEC, exponential, retry, fromWebSocket } from "@graphrefly/graphrefly";
  *
  * const connected$ = retry(
  *   () => fromWebSocket(new WebSocket("wss://example/stream")),

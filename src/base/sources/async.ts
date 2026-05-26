@@ -75,7 +75,7 @@ import { fromAny } from "@graphrefly/pure-ts/extra";
  *
  * @example
  * ```ts
- * import { defer } from "@graphrefly/graphrefly-ts";
+ * import { defer } from "@graphrefly/graphrefly";
  *
  * // Lazy fetch — runs on the first activation, NOT at factory time.
  * // Each fresh activation cycle (after teardown) re-runs the thunk →
@@ -149,7 +149,7 @@ export function defer<T>(thunk: () => NodeInput<T>, opts?: AsyncSourceOpts): Nod
  *
  * @example
  * ```ts
- * import { forEach, state } from "@graphrefly/graphrefly-ts";
+ * import { forEach, state } from "@graphrefly/graphrefly";
  *
  * const u = forEach(state(1), (v) => console.log(v));
  * u();
@@ -180,7 +180,7 @@ export function forEach<T>(source: Node<T>, fn: (value: T) => void, opts?: Extra
  *
  * @example
  * ```ts
- * import { of, toArray } from "@graphrefly/graphrefly-ts";
+ * import { of, toArray } from "@graphrefly/graphrefly";
  *
  * toArray(of(1, 2, 3));
  * ```
@@ -254,7 +254,7 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
  *
  * @example
  * ```ts
- * import { share, state } from "@graphrefly/graphrefly-ts";
+ * import { share, state } from "@graphrefly/graphrefly";
  *
  * share(state(0));
  * ```
@@ -283,7 +283,7 @@ export function share<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
  *
  * @example
  * ```ts
- * import { replay, state } from "@graphrefly/graphrefly-ts";
+ * import { replay, state } from "@graphrefly/graphrefly";
  *
  * replay(state(0), 3);
  * ```
@@ -317,7 +317,7 @@ export function replay<T>(source: Node<T>, bufferSize: number, opts?: ExtraOpts)
  *
  * @example
  * ```ts
- * import { cached, state } from "@graphrefly/graphrefly-ts";
+ * import { cached, state } from "@graphrefly/graphrefly";
  *
  * cached(state(0));
  * ```
@@ -342,7 +342,7 @@ export function cached<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
  *
  * @example
  * ```ts
- * import { shareReplay, state } from "@graphrefly/graphrefly-ts";
+ * import { shareReplay, state } from "@graphrefly/graphrefly";
  *
  * shareReplay(state(0), 5);
  * ```

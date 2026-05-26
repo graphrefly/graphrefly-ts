@@ -30,7 +30,7 @@ function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): 
 ## Basic Usage
 
 ```ts
-import { sample, state } from "@graphrefly/graphrefly-ts";
+import { sample, state } from "@graphrefly/pure-ts";
 
 sample(state(1), state(0));
 ```

@@ -24,7 +24,7 @@ Configured strategy with default parameters.
 ## Basic Usage
 
 ```ts
-import { resolveBackoffPreset, retry } from "@graphrefly/graphrefly-ts";
+import { resolveBackoffPreset, retry } from "@graphrefly/graphrefly";
 
 const out = retry(source, { count: 3, backoff: resolveBackoffPreset("exponential") });
 // Equivalent to retry(source, { count: 3, backoff: exponential() })

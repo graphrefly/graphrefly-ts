@@ -30,7 +30,7 @@ function find<T>(
 ## Basic Usage
 
 ```ts
-import { find, state } from "@graphrefly/graphrefly-ts";
+import { find, state } from "@graphrefly/pure-ts";
 
 const n = find(state(1), (x) => x > 0);
 ```

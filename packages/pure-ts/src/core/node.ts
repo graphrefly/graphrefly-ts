@@ -2592,7 +2592,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			// self-processing — there's no cached value to clean up and
 			// downstream children were already notified by the first arrival.
 			// Without this guard, an object-form cleanup with an `invalidate`
-			// hook (e.g. `patterns/ai/prompts/frozen-context.ts`) would fire
+			// hook (e.g. `src/utils/ai/prompts/frozen-context.ts`) would fire
 			// twice, and the redundant re-broadcast would cascade through the
 			// subgraph. Matches the TLA+ `CleanupWitnessNotSentinel` invariant's
 			// guard in `DeliverInvalidate`.

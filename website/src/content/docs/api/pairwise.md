@@ -25,7 +25,7 @@ function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T, T]>
 ## Basic Usage
 
 ```ts
-import { pairwise, state } from "@graphrefly/graphrefly-ts";
+import { pairwise, state } from "@graphrefly/pure-ts";
 
 const n = pairwise(state(0));
 ```

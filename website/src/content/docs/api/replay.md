@@ -27,7 +27,7 @@ function replay<T>(source: Node<T>, bufferSize: number, opts?: ExtraOpts): Node<
 ## Basic Usage
 
 ```ts
-import { replay, state } from "@graphrefly/graphrefly-ts";
+import { replay, state } from "@graphrefly/graphrefly";
 
 replay(state(0), 3);
 ```

@@ -2,7 +2,7 @@
  * Reactive layout pattern — standalone subpath export.
  *
  * ```ts
- * import { reactiveLayout, CliMeasureAdapter } from "@graphrefly/graphrefly-ts/reactive-layout";
+ * import { reactiveLayout, CliMeasureAdapter } from "@graphrefly/graphrefly/utils/reactive-layout";
  * ```
  */
 

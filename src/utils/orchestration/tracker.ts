@@ -112,7 +112,7 @@ export interface TrackerOpts {
  *
  * @example
  * ```ts
- * import { messagingHub, tracker } from "@graphrefly/graphrefly-ts";
+ * import { messagingHub, tracker } from "@graphrefly/graphrefly";
  *
  * const hub = messagingHub("hub");
  * const issues = tracker<{ summary: string }>({ hub });

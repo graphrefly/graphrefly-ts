@@ -26,7 +26,7 @@ function audit<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { audit, state } from "@graphrefly/graphrefly-ts";
+import { audit, state } from "@graphrefly/pure-ts";
 
 audit(state(0), 100);
 ```

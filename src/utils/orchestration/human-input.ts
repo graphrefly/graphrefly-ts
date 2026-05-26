@@ -105,7 +105,7 @@ export interface HumanInputOpts {
  *   messagingHub,
  *   PROMPTS_TOPIC,
  *   RESPONSES_TOPIC,
- * } from "@graphrefly/graphrefly-ts";
+ * } from "@graphrefly/graphrefly";
  *
  * const hub = messagingHub("hub");
  * const promptN = state<string>("prompt");

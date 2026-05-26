@@ -19,7 +19,7 @@ import { type ExtraOpts, sourceOpts } from "../_internal.js";
  *
  * @example
  * ```ts
- * import { fromIter } from "@graphrefly/graphrefly-ts";
+ * import { fromIter } from "@graphrefly/pure-ts";
  *
  * fromIter([1, 2, 3]);
  * ```
@@ -54,7 +54,7 @@ export function fromIter<T>(iterable: Iterable<T>, opts?: ExtraOpts): Node<T> {
  *
  * @example
  * ```ts
- * import { of } from "@graphrefly/graphrefly-ts";
+ * import { of } from "@graphrefly/pure-ts";
  *
  * of(1, 2, 3);
  * ```
@@ -73,7 +73,7 @@ export function of<T>(...values: T[]): Node<T> {
  *
  * @example
  * ```ts
- * import { empty } from "@graphrefly/graphrefly-ts";
+ * import { empty } from "@graphrefly/pure-ts";
  *
  * empty();
  * ```
@@ -95,7 +95,7 @@ export function empty<T = never>(opts?: ExtraOpts): Node<T> {
  *
  * @example
  * ```ts
- * import { never } from "@graphrefly/graphrefly-ts";
+ * import { never } from "@graphrefly/pure-ts";
  *
  * never();
  * ```
@@ -115,7 +115,7 @@ export function never<T = never>(opts?: ExtraOpts): Node<T> {
  *
  * @example
  * ```ts
- * import { throwError } from "@graphrefly/graphrefly-ts";
+ * import { throwError } from "@graphrefly/pure-ts";
  *
  * throwError(new Error("fail"));
  * ```

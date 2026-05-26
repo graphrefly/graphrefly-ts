@@ -24,7 +24,7 @@ function empty<T = never>(opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { empty } from "@graphrefly/graphrefly-ts";
+import { empty } from "@graphrefly/pure-ts";
 
 empty();
 ```

@@ -182,7 +182,7 @@ function safeEntries(obj: Record<string, unknown>): Array<[string, unknown]> {
  * Use inside node-producing factories at construction time:
  *
  * ```ts
- * import { factoryTag } from "@graphrefly/graphrefly";
+ * import { factoryTag } from "@graphrefly/pure-ts";
  *
  * export function rateLimiter<T>(source: NodeInput<T>, opts: RateLimiterOptions): Node<T> {
  *   return derived([fromAny(source)], fn, {

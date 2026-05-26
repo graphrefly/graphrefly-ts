@@ -25,7 +25,7 @@ function fromIter<T>(iterable: Iterable<T>, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { fromIter } from "@graphrefly/graphrefly-ts";
+import { fromIter } from "@graphrefly/pure-ts";
 
 fromIter([1, 2, 3]);
 ```

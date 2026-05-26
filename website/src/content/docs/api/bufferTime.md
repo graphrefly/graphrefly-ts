@@ -26,7 +26,7 @@ function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T[]>
 ## Basic Usage
 
 ```ts
-import { bufferTime, state } from "@graphrefly/graphrefly-ts";
+import { bufferTime, state } from "@graphrefly/pure-ts";
 
 bufferTime(state(0), 250);
 ```

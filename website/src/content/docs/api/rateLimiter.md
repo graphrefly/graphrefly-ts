@@ -33,7 +33,7 @@ function rateLimiter<T>(
 ## Basic Usage
 
 ```ts
-import { rateLimiter, state, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+import { rateLimiter, state, NS_PER_SEC } from "@graphrefly/graphrefly";
 
 const src = state(0);
 // Allow at most 5 DATA values per second; queue up to 100 excess items, drop newest beyond.

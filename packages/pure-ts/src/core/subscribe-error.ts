@@ -15,7 +15,7 @@
  *
  * @example
  * ```ts
- * import { TornDownError } from "@graphrefly/graphrefly";
+ * import { TornDownError } from "@graphrefly/pure-ts";
  * try {
  *   const unsub = deadNode.subscribe(sink);
  * } catch (e) {
@@ -86,7 +86,7 @@ export type SubscribeOutcome = { kind: "live"; unsub: () => void } | { kind: "de
  *
  * @example
  * ```ts
- * import { trySubscribeOrDead } from "@graphrefly/graphrefly";
+ * import { trySubscribeOrDead } from "@graphrefly/pure-ts";
  *
  * const outcome = trySubscribeOrDead(source, sink);
  * if (outcome.kind === "dead") {

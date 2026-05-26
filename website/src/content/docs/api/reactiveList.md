@@ -29,7 +29,7 @@ Bundle with `items` (state node), `size` / `at`, `append` / `appendMany` / `inse
 ## Basic Usage
 
 ```ts
-import { reactiveList } from "@graphrefly/graphrefly-ts";
+import { reactiveList } from "@graphrefly/pure-ts";
 
 const list = reactiveList<string>(["a"], { name: "queue" });
 list.append("b");

@@ -30,7 +30,7 @@ function exhaustMap<T, R>(
 ## Basic Usage
 
 ```ts
-import { exhaustMap, state } from "@graphrefly/graphrefly-ts";
+import { exhaustMap, state } from "@graphrefly/pure-ts";
 
 exhaustMap(state(0), () => state(1));
 ```

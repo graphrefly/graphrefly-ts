@@ -30,7 +30,7 @@ function timeout<T>(
 ## Basic Usage
 
 ```ts
-import { timeout, state } from "@graphrefly/graphrefly-ts";
+import { timeout, state } from "@graphrefly/pure-ts";
 
 timeout(state(0), 5_000);
 ```

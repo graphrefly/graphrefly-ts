@@ -33,7 +33,7 @@ A CausalChain — `found:false` with a `reason` when no path exists.
 ## Basic Usage
 
 ```ts
-import { explainPath } from "@graphrefly/graphrefly-ts";
+import { explainPath } from "@graphrefly/pure-ts";
 const chain = explainPath(graph.describe({ detail: "standard" }), "input", "result");
 console.log(chain.text);
 ```

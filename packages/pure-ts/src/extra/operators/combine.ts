@@ -20,7 +20,7 @@ import { type ExtraOpts, gatedOperatorOpts, operatorOpts } from "./_internal.js"
  *
  * @example
  * ```ts
- * import { combine, state } from "@graphrefly/graphrefly-ts";
+ * import { combine, state } from "@graphrefly/pure-ts";
  *
  * const n = combine(state(1), state("a"));
  * ```
@@ -66,7 +66,7 @@ export function combine<const T extends readonly unknown[]>(
  *
  * @example
  * ```ts
- * import { state, withLatestFrom } from "@graphrefly/graphrefly-ts";
+ * import { state, withLatestFrom } from "@graphrefly/pure-ts";
  *
  * const n = withLatestFrom(state(1), state("x"));
  * ```
@@ -170,7 +170,7 @@ export function withLatestFrom<A, B>(
  *
  * @example
  * ```ts
- * import { merge, state } from "@graphrefly/graphrefly-ts";
+ * import { merge, state } from "@graphrefly/pure-ts";
  *
  * const n = merge(state(1), state(2));
  * const tagged = merge(state(1), state(2), { meta: { metric: "events" } });
@@ -284,7 +284,7 @@ export function merge<T>(...args: ReadonlyArray<Node<T> | ExtraOpts | undefined>
  *
  * @example
  * ```ts
- * import { state, zip } from "@graphrefly/graphrefly-ts";
+ * import { state, zip } from "@graphrefly/pure-ts";
  *
  * const n = zip(state(1), state(2));
  * ```
@@ -371,7 +371,7 @@ export function zip<const T extends readonly unknown[]>(
  *
  * @example
  * ```ts
- * import { concat, state } from "@graphrefly/graphrefly-ts";
+ * import { concat, state } from "@graphrefly/pure-ts";
  *
  * const n = concat(state(1), state(2));
  * ```
@@ -466,7 +466,7 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
  *
  * @example
  * ```ts
- * import { race, state } from "@graphrefly/graphrefly-ts";
+ * import { race, state } from "@graphrefly/pure-ts";
  *
  * const n = race(state(1), state(2));
  * ```
@@ -568,7 +568,7 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
  *
  * @example
  * ```ts
- * import { combineLatest, state } from "@graphrefly/graphrefly-ts";
+ * import { combineLatest, state } from "@graphrefly/pure-ts";
  *
  * const n = combineLatest(state(1), state("a"));
  * ```

@@ -30,7 +30,7 @@ function takeUntil<T>(
 ## Basic Usage
 
 ```ts
-import { producer, takeUntil, state } from "@graphrefly/graphrefly-ts";
+import { producer, takeUntil, state } from "@graphrefly/pure-ts";
 
 const src = state(1);
 const stop = producer((_d, a) => a.emit(undefined));

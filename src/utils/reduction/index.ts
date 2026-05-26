@@ -338,4 +338,4 @@ export function scorer(
 
 // `effectivenessTracker` was deleted per Class B audit Alt E (2026-04-30).
 // The shared substrate now lives in `extra/composition/audited-success-tracker.ts`
-// — re-exported via `@graphrefly/graphrefly-ts/extra` for general use.
+// — re-exported via `@graphrefly/graphrefly/extra` for general use.

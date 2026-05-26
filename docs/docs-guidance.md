@@ -181,7 +181,7 @@ Every exported function must have a structured JSDoc block. The generator reads 
 
 - **Description:** One or two sentences. Start with a verb ("Creates", "Transforms").
 - **@param:** Use `@param name - Description.` (the `- ` is stripped by the generator).
-- **@example:** First example has no title (becomes "Basic Usage"). Additional examples have a title. Include `import` from `@graphrefly/graphrefly-ts`.
+- **@example:** First example has no title (becomes "Basic Usage"). Additional examples have a title. Use the correct install package for the symbol's tier: `@graphrefly/pure-ts` (substrate), `@graphrefly/graphrefly` (presentation), or a subpath (`@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/base/sources/browser`, etc.) per the browser/Node/universal split above.
 - **@remarks:** One per bullet. Start with `**Bold keyword:**`.
 - **Overloaded functions:** Put the structured JSDoc above the **implementation** (the declaration with a body).
 

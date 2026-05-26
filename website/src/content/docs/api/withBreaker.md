@@ -28,7 +28,7 @@ Function mapping `Node&lt;T&gt;` to `{ node, breakerState }` companion nodes.
 ## Basic Usage
 
 ```ts
-import { state, withBreaker, circuitBreaker } from "@graphrefly/graphrefly-ts";
+import { state, withBreaker, circuitBreaker } from "@graphrefly/graphrefly";
 
 const b = circuitBreaker({ failureThreshold: 2 });
 const s = state(1);

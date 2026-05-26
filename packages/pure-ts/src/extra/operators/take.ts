@@ -30,7 +30,7 @@ import { filter } from "./transform.js";
  *
  * @example
  * ```ts
- * import { take, state } from "@graphrefly/graphrefly-ts";
+ * import { take, state } from "@graphrefly/pure-ts";
  *
  * const n = take(state(0), 3);
  * ```
@@ -140,7 +140,7 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
  *
  * @example
  * ```ts
- * import { skip, state } from "@graphrefly/graphrefly-ts";
+ * import { skip, state } from "@graphrefly/pure-ts";
  *
  * const n = skip(state(0), 2);
  * ```
@@ -196,7 +196,7 @@ export function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
  *
  * @example
  * ```ts
- * import { takeWhile, state } from "@graphrefly/graphrefly-ts";
+ * import { takeWhile, state } from "@graphrefly/pure-ts";
  *
  * const n = takeWhile(state(1), (x) => x < 10);
  * ```
@@ -276,7 +276,7 @@ export function takeWhile<T>(
  *
  * @example
  * ```ts
- * import { producer, takeUntil, state } from "@graphrefly/graphrefly-ts";
+ * import { producer, takeUntil, state } from "@graphrefly/pure-ts";
  *
  * const src = state(1);
  * const stop = producer((_d, a) => a.emit(undefined));
@@ -357,7 +357,7 @@ export function takeUntil<T>(
  *
  * @example
  * ```ts
- * import { first, state } from "@graphrefly/graphrefly-ts";
+ * import { first, state } from "@graphrefly/pure-ts";
  *
  * const n = first(state(42));
  * ```
@@ -377,7 +377,7 @@ export function first<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
  *
  * @example
  * ```ts
- * import { last, state } from "@graphrefly/graphrefly-ts";
+ * import { last, state } from "@graphrefly/pure-ts";
  *
  * const n = last(state(1), { defaultValue: 0 });
  * ```
@@ -449,7 +449,7 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
  *
  * @example
  * ```ts
- * import { find, state } from "@graphrefly/graphrefly-ts";
+ * import { find, state } from "@graphrefly/pure-ts";
  *
  * const n = find(state(1), (x) => x > 0);
  * ```
@@ -474,7 +474,7 @@ export function find<T>(
  *
  * @example
  * ```ts
- * import { elementAt, state } from "@graphrefly/graphrefly-ts";
+ * import { elementAt, state } from "@graphrefly/pure-ts";
  *
  * const n = elementAt(state(0), 2);
  * ```

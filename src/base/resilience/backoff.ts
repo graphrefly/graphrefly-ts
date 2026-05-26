@@ -46,7 +46,7 @@ function randomBetween(min: number, max: number): number {
  *
  * @example
  * ```ts
- * import { constant, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ * import { constant, retry, NS_PER_SEC } from "@graphrefly/graphrefly";
  *
  * const out = retry(source, { count: 3, backoff: constant(0.25 * NS_PER_SEC) });
  * ```
@@ -67,7 +67,7 @@ export function constant(delayNs: number): BackoffStrategy {
  *
  * @example
  * ```ts
- * import { linear, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ * import { linear, retry, NS_PER_SEC } from "@graphrefly/graphrefly";
  *
  * // Attempt 0 → 1 s, attempt 1 → 2 s, attempt 2 → 3 s …
  * const out = retry(source, { count: 4, backoff: linear(NS_PER_SEC) });
@@ -99,7 +99,7 @@ export type ExponentialBackoffOptions = {
  *
  * @example
  * ```ts
- * import { exponential, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ * import { exponential, retry, NS_PER_SEC } from "@graphrefly/graphrefly";
  *
  * // 100 ms → 200 ms → 400 ms … capped at 30 s, with full jitter
  * const out = retry(source, {
@@ -148,7 +148,7 @@ export function exponential(options?: ExponentialBackoffOptions): BackoffStrateg
  *
  * @example
  * ```ts
- * import { fibonacci, retry, NS_PER_MS } from "@graphrefly/graphrefly-ts";
+ * import { fibonacci, retry, NS_PER_MS } from "@graphrefly/graphrefly";
  *
  * // Delays: 100 ms, 200 ms, 300 ms, 500 ms, 800 ms … (× 100 ms base)
  * const out = retry(source, { count: 5, backoff: fibonacci(100 * NS_PER_MS) });
@@ -190,7 +190,7 @@ export function fibonacci(baseNs = 100 * NS_PER_MS, maxDelayNs = 30 * NS_PER_SEC
  *
  * @example
  * ```ts
- * import { decorrelatedJitter, retry, NS_PER_MS, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ * import { decorrelatedJitter, retry, NS_PER_MS, NS_PER_SEC } from "@graphrefly/graphrefly";
  *
  * const out = retry(source, {
  *   count: 6,
@@ -220,7 +220,7 @@ export function decorrelatedJitter(
  *
  * @example
  * ```ts
- * import { withMaxAttempts, exponential } from "@graphrefly/graphrefly-ts";
+ * import { withMaxAttempts, exponential } from "@graphrefly/graphrefly";
  *
  * const capped = withMaxAttempts(exponential(), 3);
  * capped(3); // null — no more retries beyond attempt 3
@@ -244,7 +244,7 @@ export function withMaxAttempts(strategy: BackoffStrategy, maxAttempts: number):
  *
  * @example
  * ```ts
- * import { resolveBackoffPreset, retry } from "@graphrefly/graphrefly-ts";
+ * import { resolveBackoffPreset, retry } from "@graphrefly/graphrefly";
  *
  * const out = retry(source, { count: 3, backoff: resolveBackoffPreset("exponential") });
  * // Equivalent to retry(source, { count: 3, backoff: exponential() })

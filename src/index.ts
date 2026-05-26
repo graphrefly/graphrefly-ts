@@ -10,21 +10,15 @@
  *
  * Peer dependency: @graphrefly/pure-ts.
  *
- * NOTE (2026-05-15): the install-time `@graphrefly/native` drop-in via
- * `overrides` (Q28 = option (c), D198) is NOT functional today and is
- * design-pending. `@graphrefly/native`'s napi surface is irreducibly
- * async (Core on a tokio blocking pool; sync calls deadlock — D070/D077),
- * while this presentation package consumes pure-ts's SYNC public API
- * (sync `node()/state()/map()`, sync `.cache` at construction, sync
- * `.subscribe/.emit/.down`). A `@graphrefly/pure-ts`→`@graphrefly/native`
- * override would therefore break every substrate call. The only
- * documented coherent path is D080 (async-everywhere public API across
- * all siblings), which is itself deferred to near-1.0 and was never
- * reconciled with the Q28/D198 overrides framing. Until that design
- * session lands, `@graphrefly/pure-ts` is the only working substrate
- * provider; `@graphrefly/native` is a parity-test arm, not a consumable
- * drop-in. See `docs/optimizations.md` "Native substrate contract
- * (D080 ↔ Q28/D198 unreconciled)".
+ * NOTE (D206, 2026-05-15): npm/pnpm `overrides` to swap this peer to
+ * `@graphrefly/native` (Q28/D198 option c) is NOT a working sync
+ * drop-in — native's Core runs on a tokio blocking pool and every
+ * Core-touching call is async (D070/D077), while this package consumes
+ * pure-ts's sync substrate API. Use `@graphrefly/pure-ts` here.
+ * `@graphrefly/native` is for direct async-tolerant consumers and the
+ * parity-tests rust arm (`createNativeImpl()`). Presentation async
+ * rebase (D080) remains deferred. See `docs/rust-port-decisions.md`
+ * D206 and `archive/docs/SESSION-DS-native-substrate-contract.md`.
  *
  * Node-only subpath: @graphrefly/graphrefly/base/sources/node
  * Browser-only subpath: @graphrefly/graphrefly/base/sources/browser

@@ -42,7 +42,7 @@ export type FromStatsDOptions = ExtraOpts & {};
  * @example
  * ```ts
  * import dgram from "node:dgram";
- * import { fromStatsD, parseStatsD } from "@graphrefly/graphrefly-ts";
+ * import { fromStatsD, parseStatsD } from "@graphrefly/graphrefly";
  *
  * const server = dgram.createSocket("udp4");
  * const stats$ = fromStatsD(({ emit, error }) => {

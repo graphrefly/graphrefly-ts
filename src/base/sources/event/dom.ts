@@ -143,7 +143,7 @@ export function fromRaf(opts?: FromRafOptions): Node<number> {
  *
  * @example
  * ```ts
- * import { fromEvent } from "@graphrefly/graphrefly-ts";
+ * import { fromEvent } from "@graphrefly/graphrefly";
  *
  * fromEvent(document.body, "click");
  * ```

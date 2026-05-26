@@ -26,7 +26,7 @@ function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<Node
 ## Basic Usage
 
 ```ts
-import { windowTime, state } from "@graphrefly/graphrefly-ts";
+import { windowTime, state } from "@graphrefly/pure-ts";
 
 windowTime(state(0), 500);
 ```

@@ -35,7 +35,7 @@ export type FromKyselyOptions<T, U = T> = ExtraOpts & {
  * @example
  * ```ts
  * import { Kysely, PostgresDialect } from "kysely";
- * import { fromKysely } from "@graphrefly/graphrefly-ts";
+ * import { fromKysely } from "@graphrefly/graphrefly";
  *
  * const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
  * const rows$ = fromKysely(db.selectFrom("users").selectAll().where("active", "=", true));

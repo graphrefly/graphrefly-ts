@@ -25,7 +25,7 @@ function throwError(err: unknown, opts?: ExtraOpts): Node<never>
 ## Basic Usage
 
 ```ts
-import { throwError } from "@graphrefly/graphrefly-ts";
+import { throwError } from "@graphrefly/pure-ts";
 
 throwError(new Error("fail"));
 ```

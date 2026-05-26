@@ -26,7 +26,7 @@ function combine<const T extends readonly unknown[]>(
 ## Basic Usage
 
 ```ts
-import { combine, state } from "@graphrefly/graphrefly-ts";
+import { combine, state } from "@graphrefly/pure-ts";
 
 const n = combine(state(1), state("a"));
 ```

@@ -38,7 +38,7 @@ function filter<T>(
 ## Basic Usage
 
 ```ts
-import { filter, state } from "@graphrefly/graphrefly-ts";
+import { filter, state } from "@graphrefly/pure-ts";
 
 const n = filter(state(1), (x) => x > 0);
 ```

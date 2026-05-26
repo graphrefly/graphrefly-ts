@@ -70,7 +70,7 @@ export type FromNDJSONOptions = ExtraOpts & {};
  * @example
  * ```ts
  * import { createReadStream } from "node:fs";
- * import { fromNDJSON } from "@graphrefly/graphrefly-ts";
+ * import { fromNDJSON } from "@graphrefly/graphrefly";
  *
  * const logs$ = fromNDJSON(createReadStream("logs.ndjson", "utf-8"));
  * ```

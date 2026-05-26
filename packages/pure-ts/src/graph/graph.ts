@@ -1533,7 +1533,7 @@ function teardownMountedGraph(root: Graph): void {
  *
  * @example
  * ```ts
- * import { Graph, state } from "@graphrefly/graphrefly-ts";
+ * import { Graph, state } from "@graphrefly/pure-ts";
  *
  * const g = new Graph("app");
  * g.add(state(0, { name: "counter" }));
@@ -3070,7 +3070,7 @@ export class Graph {
 	 * For live formatted output, compose with `derived`:
 	 *
 	 * ```ts
-	 * import { derived } from "@graphrefly/graphrefly";
+	 * import { derived } from "@graphrefly/pure-ts";
 	 * import { graphSpecToMermaid } from "@graphrefly/graphrefly/extra/render";
 	 *
 	 * const live = derived(

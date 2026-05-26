@@ -296,7 +296,7 @@ export type FromWebSocketReconnectOptions<T> = ExtraOpts & {
  *
  * @example
  * ```ts
- * import { fromWebSocketReconnect } from "@graphrefly/graphrefly-ts";
+ * import { fromWebSocketReconnect } from "@graphrefly/graphrefly";
  * const ws$ = fromWebSocketReconnect(
  *   () => new WebSocket("wss://example/stream"),
  *   { backoff: "exponential", maxRetries: 10 },

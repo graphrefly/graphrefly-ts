@@ -6,7 +6,8 @@
  *
  * Substrate shared by LLM adapters (`withReplayCache`, `fallbackAdapter`) —
  * the LLM-specific shape (key prefix, `ChatMessage` + `LLMInvokeOptions`
- * context) lives in a thin wrapper inside `patterns/ai/adapters/_internal/`.
+ * context) lives in a thin wrapper inside `@graphrefly/graphrefly` presentation
+ * (`src/utils/ai/adapters/_internal/`).
  * Any consumer that wants "memoize by content hash over a pluggable tier"
  * (tool result caches, embedding caches, deterministic function memoization,
  * fixtures for replay tests) can use this primitive directly.
@@ -135,7 +136,7 @@ export function canonicalJson(value: unknown): string {
  *
  * @example
  * ```ts
- * import { contentAddressedStorage, memoryKv } from "@graphrefly/graphrefly-ts";
+ * import { contentAddressedStorage, memoryKv } from "@graphrefly/pure-ts";
  *
  * const cache = contentAddressedStorage<{ query: string }, { answer: string }>({
  *   storage: memoryKv(),

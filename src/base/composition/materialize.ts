@@ -75,7 +75,7 @@ export type SelectorOpts<TKey> = ExtraOpts & {
  *
  * @example
  * ```ts
- * import { selector, materialize, state } from "@graphrefly/graphrefly-ts";
+ * import { selector, materialize, state } from "@graphrefly/graphrefly";
  *
  * type Request = { kind: "research" | "summarize" | "code"; payload: unknown };
  * const requestNode = state<Request>({ kind: "research", payload: {} });
@@ -233,7 +233,7 @@ export type MaterializeOpts = ExtraOpts & {
  *
  * @example
  * ```ts
- * import { materialize, selector, state, Graph } from "@graphrefly/graphrefly-ts";
+ * import { materialize, selector, state, Graph } from "@graphrefly/graphrefly";
  *
  * const parent = new Graph("parent");
  * const factories = state<ReadonlyMap<string, () => Graph>>(new Map([

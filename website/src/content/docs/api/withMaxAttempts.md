@@ -25,7 +25,7 @@ Wrapped `BackoffStrategy`.
 ## Basic Usage
 
 ```ts
-import { withMaxAttempts, exponential } from "@graphrefly/graphrefly-ts";
+import { withMaxAttempts, exponential } from "@graphrefly/graphrefly";
 
 const capped = withMaxAttempts(exponential(), 3);
 capped(3); // null — no more retries beyond attempt 3

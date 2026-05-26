@@ -84,7 +84,7 @@ export type AgentStatus = "idle" | "running" | "verifying" | "done" | "error";
  * a per-lifetime cost is a downstream `scan` over this.
  *
  * **Helpers.** Use `sumInputTokens(usage)` / `sumOutputTokens(usage)` from
- * `@graphrefly/graphrefly-ts` to flatten to scalars when the caller wants
+ * `@graphrefly/graphrefly` to flatten to scalars when the caller wants
  * a single number.
  */
 export interface CostState {

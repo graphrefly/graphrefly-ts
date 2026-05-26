@@ -30,7 +30,7 @@ function takeWhile<T>(
 ## Basic Usage
 
 ```ts
-import { takeWhile, state } from "@graphrefly/graphrefly-ts";
+import { takeWhile, state } from "@graphrefly/pure-ts";
 
 const n = takeWhile(state(1), (x) => x < 10);
 ```

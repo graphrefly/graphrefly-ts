@@ -26,7 +26,7 @@ function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 ## Basic Usage
 
 ```ts
-import { bufferCount, state } from "@graphrefly/graphrefly-ts";
+import { bufferCount, state } from "@graphrefly/pure-ts";
 
 bufferCount(state(0), 3);
 ```

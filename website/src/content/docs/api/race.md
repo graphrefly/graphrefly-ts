@@ -24,7 +24,7 @@ function race<T>(...sources: readonly Node<T>[]): Node<T>
 ## Basic Usage
 
 ```ts
-import { race, state } from "@graphrefly/graphrefly-ts";
+import { race, state } from "@graphrefly/pure-ts";
 
 const n = race(state(1), state(2));
 ```

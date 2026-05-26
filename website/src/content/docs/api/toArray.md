@@ -25,7 +25,7 @@ function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]>
 ## Basic Usage
 
 ```ts
-import { of, toArray } from "@graphrefly/graphrefly-ts";
+import { of, toArray } from "@graphrefly/graphrefly";
 
 toArray(of(1, 2, 3));
 ```

@@ -35,7 +35,7 @@ function scan<T, R>(
 ## Basic Usage
 
 ```ts
-import { scan, state } from "@graphrefly/graphrefly-ts";
+import { scan, state } from "@graphrefly/pure-ts";
 
 const n = scan(state(1), (a, x) => a + x, 0);
 ```

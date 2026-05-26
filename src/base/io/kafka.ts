@@ -73,7 +73,7 @@ export type FromKafkaOptions = ExtraOpts & {
  * @example
  * ```ts
  * import { Kafka } from "kafkajs";
- * import { fromKafka } from "@graphrefly/graphrefly-ts";
+ * import { fromKafka } from "@graphrefly/graphrefly";
  *
  * const kafka = new Kafka({ brokers: ["localhost:9092"] });
  * const consumer = kafka.consumer({ groupId: "my-group" });

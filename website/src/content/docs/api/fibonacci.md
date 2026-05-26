@@ -25,7 +25,7 @@ function fibonacci(baseNs = 100 * NS_PER_MS, maxDelayNs = 30 * NS_PER_SEC): Back
 ## Basic Usage
 
 ```ts
-import { fibonacci, retry, NS_PER_MS } from "@graphrefly/graphrefly-ts";
+import { fibonacci, retry, NS_PER_MS } from "@graphrefly/graphrefly";
 
 // Delays: 100 ms, 200 ms, 300 ms, 500 ms, 800 ms … (× 100 ms base)
 const out = retry(source, { count: 5, backoff: fibonacci(100 * NS_PER_MS) });

@@ -26,7 +26,7 @@ function debounce<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { debounce, state } from "@graphrefly/graphrefly-ts";
+import { debounce, state } from "@graphrefly/pure-ts";
 
 debounce(state(0), 50);
 ```

@@ -26,7 +26,7 @@ function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { take, state } from "@graphrefly/graphrefly-ts";
+import { take, state } from "@graphrefly/pure-ts";
 
 const n = take(state(0), 3);
 ```

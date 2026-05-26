@@ -26,7 +26,7 @@ function elementAt<T>(source: Node<T>, index: number, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { elementAt, state } from "@graphrefly/graphrefly-ts";
+import { elementAt, state } from "@graphrefly/pure-ts";
 
 const n = elementAt(state(0), 2);
 ```

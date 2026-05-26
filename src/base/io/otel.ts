@@ -78,7 +78,7 @@ export type OTelBundle = {
  * @example
  * ```ts
  * import express from "express";
- * import { fromOTel } from "@graphrefly/graphrefly-ts";
+ * import { fromOTel } from "@graphrefly/graphrefly";
  *
  * const app = express();
  * app.use(express.json());

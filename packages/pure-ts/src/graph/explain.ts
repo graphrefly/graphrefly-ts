@@ -107,7 +107,7 @@ export interface ExplainPathOptions {
  *
  * @example
  * ```ts
- * import { explainPath } from "@graphrefly/graphrefly-ts";
+ * import { explainPath } from "@graphrefly/pure-ts";
  * const chain = explainPath(graph.describe({ detail: "standard" }), "input", "result");
  * console.log(chain.text);
  * ```

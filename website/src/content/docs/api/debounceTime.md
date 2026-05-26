@@ -26,7 +26,7 @@ Debounced node; behavior matches `debounce`.
 ## Basic Usage
 
 ```ts
-import { debounceTime, state } from "@graphrefly/graphrefly-ts";
+import { debounceTime, state } from "@graphrefly/pure-ts";
 
 debounceTime(state(0), 100);
 ```

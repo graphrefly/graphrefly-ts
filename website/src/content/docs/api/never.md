@@ -24,7 +24,7 @@ function never<T = never>(opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { never } from "@graphrefly/graphrefly-ts";
+import { never } from "@graphrefly/pure-ts";
 
 never();
 ```

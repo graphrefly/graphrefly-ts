@@ -26,7 +26,7 @@ function map<T, R>(source: Node<T>, project: (value: T) => R, opts?: ExtraOpts):
 ## Basic Usage
 
 ```ts
-import { map, state } from "@graphrefly/graphrefly-ts";
+import { map, state } from "@graphrefly/pure-ts";
 
 const n = map(state(2), (x) => x * 3);
 ```

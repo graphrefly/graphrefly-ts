@@ -26,7 +26,7 @@ function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): 
 ## Basic Usage
 
 ```ts
-import { buffer, state } from "@graphrefly/graphrefly-ts";
+import { buffer, state } from "@graphrefly/pure-ts";
 
 buffer(state(0), state(0));
 ```

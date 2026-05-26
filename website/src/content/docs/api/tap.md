@@ -33,7 +33,7 @@ function tap<T>(
 ## Basic Usage
 
 ```ts
-import { tap, state } from "@graphrefly/graphrefly-ts";
+import { tap, state } from "@graphrefly/pure-ts";
 
 // Function form (DATA only)
 tap(state(1), (x) => console.log(x));

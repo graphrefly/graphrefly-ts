@@ -1,24 +1,27 @@
-# GraphReFly — TypeScript package (`@graphrefly/graphrefly`)
+# GraphReFly — TypeScript packages (`@graphrefly/graphrefly`, `@graphrefly/pure-ts`, `@graphrefly/native`)
 
 The reactive harness layer for agent workflows. Reactive graph runtime for human + LLM co-operation — causal tracing, persistent checkpoints, policy enforcement, zero dependencies.
 
-Keywords: harness engineering, agent harness, reactive graph, causal trace, explainPath, agent orchestration, LLM co-operation, human-in-the-loop, reactive middleware, universal reduction layer.
+Keywords: harness engineering, agent harness, reactive graph, causal trace, explain, agent orchestration, LLM co-operation, human-in-the-loop, reactive middleware, universal reduction layer.
 
-This file is an AI-oriented index for the TypeScript repo. It intentionally points to generated API docs and source-of-truth docs instead of duplicating a long API list that can drift.
+This file is an AI-oriented index for the TypeScript repos. It intentionally points to generated API docs and source-of-truth docs instead of duplicating a long API list that can drift.
 
 ## Canonical behavior and docs authority
 
 - Behavior spec: `~/src/graphrefly/GRAPHREFLY-SPEC.md`
 - Composition guidance: `~/src/graphrefly/COMPOSITION-GUIDE.md`
 - Docs conventions: `docs/docs-guidance.md`
-- Roadmap/state: `docs/roadmap.md`
+- Active sequencer + decision log: `docs/implementation-plan.md`, `docs/rust-port-decisions.md`
+- Cross-track-ledger (TS ↔ native couplings): `docs/cross-track-ledger.md`
+- Roadmap / vision frame: `docs/roadmap.md`
 - Testing standard: `docs/test-guidance.md`
 
 ## Active strategy docs (read for current direction)
 
-- `archive/docs/SESSION-reactive-collaboration-harness.md` — 7-stage reactive collaboration loop, gate port from callbag-recharge, `promptNode`, `valve` rename, strategy model, `harnessLoop()` factory
-- `archive/docs/SESSION-harness-engineering-strategy.md` — 8-requirement coverage, three-wave announcement plan, eval system design
-- `archive/docs/SESSION-marketing-promotion-strategy.md` — positioning pillars, wave plan, reply-marketing playbooks, competitive intel, prompt optimization algorithms, blog content plan
+- `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md` — spec-as-projection reframe, multi-agent subgraph ownership protocol (L0–L3), catalog reframed as user-host concern. Wave 2 narrative source-of-truth.
+- `archive/docs/SESSION-DS-14-changesets-design.md` — universal `BaseChange<T>` envelope, `mutations` companion bundles, `mutate(act, opts)` factory.
+- `archive/docs/SESSION-reactive-collaboration-harness.md` — 7-stage reactive collaboration loop (INTAKE→TRIAGE→QUEUE→GATE→EXECUTE→VERIFY→REFLECT), `harnessLoop()` factory.
+- `archive/docs/SESSION-marketing-promotion-strategy.md` — positioning pillars, wave plan, reply-marketing playbooks, competitive intel.
 
 ## Primary links
 
@@ -26,57 +29,105 @@ This file is an AI-oriented index for the TypeScript repo. It intentionally poin
 - API reference: https://graphrefly.dev/api/node/
 - Python docs: https://graphrefly.dev/py/api/
 
+## Three-package install-time model (Unit 6 D198, locked 2026-05-14)
+
+Consumers pick a substrate provider at **install time**. Both substrate packages expose the same public API — enforced cross-arm by `packages/parity-tests/`.
+
+| Package | What it is | Build artifact | Role |
+|---|---|---|---|
+| `@graphrefly/graphrefly` | Presentation layer: IO adapters, AI patterns, composition helpers, framework adapters, render helpers. Re-exports the chosen substrate's surface for ergonomic single-import UX. | TS only (browser + Node) | presentation |
+| `@graphrefly/pure-ts` | Pure-TypeScript substrate: `node` primitive, `Graph`, operators, sources, data structures, storage tiers. Default sync substrate; universal browser + Node. | TS only | substrate |
+| `@graphrefly/native` | Rust substrate via napi-rs. Async-only public surface (Node-only). | `.node` binary + TS wrapper | substrate (async) |
+
+`@graphrefly/pure-ts` is the **sole working sync substrate** for `@graphrefly/graphrefly` today (D206). `@graphrefly/native` is a real shipping substrate + parity arm but NOT a sync drop-in via overrides — the async-everywhere presentation rebase (D080) stays deferred until consumer pressure. A future `@graphrefly/wasm` is deferred per D196 until a browser-Rust consumer surfaces.
+
 ## Package entry points
 
-- Root: `@graphrefly/graphrefly`
-- Subpaths: `@graphrefly/graphrefly/core`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/graph`, `@graphrefly/graphrefly/compat/*`
+- Presentation root: `@graphrefly/graphrefly`
+- Substrate roots: `@graphrefly/pure-ts`, `@graphrefly/native`
 
-## Public API by subpath
+### `@graphrefly/graphrefly` subpaths (presentation)
 
-Full export lists live in the generated API pages under `website/src/content/docs/api/`. The descriptions below explain *what lives in each subpath and why*, so an LLM reading this cold can navigate without consuming the drift-prone catalog.
+The presentation package follows a 4-layer model (D200, 2026-05-14): `base/` (domain-agnostic infrastructure) → `utils/` (domain building blocks) → `presets/` (opinionated compositions) → `solutions/` (user-facing products). All re-exported at the root barrel.
 
-### `@graphrefly/graphrefly/core` — `src/core/`
+- `@graphrefly/graphrefly` — root barrel; re-exports substrate (`@graphrefly/pure-ts`) + all four layers + `compat/*`.
+- `@graphrefly/graphrefly/base`, `base/io`, `base/composition`, `base/meta`, `base/mutation`, `base/render`, `base/sources`, `base/sources/event`, `base/sources/node`, `base/sources/browser`, `base/utils`, `base/worker` — base-layer subpaths.
+- `@graphrefly/graphrefly/utils`, `utils/ai`, `utils/ai/node`, `utils/ai/browser`, `utils/cqrs`, `utils/demo-shell`, `utils/domain-templates`, `utils/graphspec`, `utils/harness`, `utils/inspect`, `utils/job-queue`, `utils/memory`, `utils/messaging`, `utils/orchestration`, `utils/process`, `utils/reactive-layout`, `utils/reduction`, `utils/resilience`.
+- `@graphrefly/graphrefly/presets`, `presets/ai`, `presets/harness`, `presets/inspect`, `presets/memory`, `presets/resilience`.
+- `@graphrefly/graphrefly/solutions` — vertical packages (deferred until consumer pressure; barrel present, vertical folders not shipped).
+- `@graphrefly/graphrefly/compat/{react,vue,svelte,solid,nestjs,jotai,zustand,nanostores,signals}` — framework adapters.
+- `@graphrefly/graphrefly/extra/node` + `extra/browser` — runtime-specific re-exports of the substrate's Node-only / browser-only surface.
 
-The minimal reactive substrate. One primitive (`node`) plus sugar constructors (`state`, `derived`, `producer`, `effect`, `pipe`, `dynamicNode`). Protocol internals: message types (`DATA`, `DIRTY`, `RESOLVED`, `COMPLETE`, `ERROR`, `TEARDOWN`, `INVALIDATE`, `PAUSE`, `RESUME`), two-phase batch semantics (`batch`, `isBatching`, `partitionForBatch`, `downWithBatch`), guard/policy (`policy`, `GuardDenied`, `accessHintForGuard`), actor identity (`Actor`), and the central clock (`monotonicNs`, `wallClockNs`). **Anything outside this package must not call `Date.now()` / `performance.now()` directly — use `src/core/clock.ts`.** This is also where spec §5.8–5.12 invariants are enforced.
+### `@graphrefly/pure-ts` subpaths (substrate)
 
-### `@graphrefly/graphrefly/graph` — `src/graph/`
+- `@graphrefly/pure-ts` — universal default (browser + Node safe).
+- `@graphrefly/pure-ts/core` — `node` primitive, `batch`, `Actor`, `policy`, central clock.
+- `@graphrefly/pure-ts/graph` — `Graph` container, `describe`/`observe`/`snapshot`/`mount`.
+- `@graphrefly/pure-ts/extra` — operators, sync sources, data structures, universal storage.
+- `@graphrefly/pure-ts/extra/operators`, `extra/sources`, `extra/storage`, `extra/storage/wal`.
+- `@graphrefly/pure-ts/extra/node`, `extra/storage/node` — Node-only (may import `node:*`).
+- `@graphrefly/pure-ts/extra/browser`, `extra/storage/browser` — browser-only (may use DOM globals).
+- `@graphrefly/pure-ts/testing` — test helpers for parity / regression suites.
 
-The `Graph` container: reactive node registry with `register` / `resolve` / `describe` / `observe` / `trace` / `snapshot` / `diff` / `diagram` / `mount` / `unmount` / `teardown`. Supports scoped describe via ABAC actor/guard. `reachable(graph, startPath)` computes the dependency closure from a node path — the foundation for `explainPath` (causal walkback) and persistence scope.
+## Public API by layer (presentation 4-layer model, D200)
 
-### `@graphrefly/graphrefly/extra` — `src/extra/`
+Full export lists live in the generated API pages under `website/src/content/docs/api/`. The descriptions below explain *what lives in each layer and why* so an LLM reading this cold can navigate without consuming the drift-prone catalog. The CI-enforced layer boundary is in `scripts/check-layer-boundary.ts` (D201).
 
-Everything reactive that isn't the primitive. Organized into loosely grouped source files:
+### Substrate (re-exported from `@graphrefly/pure-ts` at the root barrel)
 
-- **Operators** (`operators.ts`) — 70+ combinators: transform (`map` / `filter` / `scan` / `reduce`), limiting / selection, combination (`combine` / `combineLatest` / `withLatestFrom`), merging (`merge` / `zip` / `concat` / `race`), higher-order (`switchMap` / `exhaustMap` / `concatMap` / `mergeMap` / `flatMap`), timing (`delay` / `debounceTime` / `throttleTime` / `sample` / `audit` / `timeout`), buffering/windowing, error recovery (`rescue` / `catchError`). **Note:** the existing `gate(signal)` operator in this file is a boolean control gate and is being renamed to `valve` per §9.0; the new human-approval `gate` lives under `patterns/orchestration`.
-- **Sources** (`sources.ts`) — `fromTimer` / `fromCron` / `fromPromise` / `fromIter` / `fromAsyncIter` / `fromEvent` / `fromAny` plus `of` / `empty` / `never` / `throwError` / `cached` / `replay` / `share` / `shareReplay` and Promise bridges (`forEach`, `toArray`, `firstValueFrom`). **All async boundaries in the reactive layer must enter through this file** — node fns and operators never touch raw Promises.
-- **Data structures** — `reactiveMap` (`reactive-map.ts`), `reactiveLog` (`reactive-log.ts`), `reactiveIndex` (`reactive-index.ts`), `reactiveList` (`reactive-list.ts`), `pubsub` (`pubsub.ts`). These are the building blocks for distill/memory/topic graphs in `patterns/`.
-- **Resilience** (`resilience.ts` + `backoff.ts`) — `retry`, `circuitBreaker` + `CircuitOpenError`, `tokenBucket`, `tokenTracker`, `rateLimiter`, `withBreaker`, `withStatus`, and backoff strategies (`constant` / `linear` / `exponential` / `fibonacci` / `decorrelatedJitter` / `withMaxAttempts` / `resolveBackoffPreset`). Strategies are pluggable into any retry/breaker.
-- **Cron** (`cron.ts`) — `parseCron` / `matchesCron` for 5-field cron expressions, used by `fromCron`.
-- **Storage** (`storage.ts`) — unified `StorageTier` interface + factory fns (`memoryStorage` / `dictStorage` / `fileStorage` / `sqliteStorage` / `indexedDbStorage`). Consumed by `graph.attachStorage(tiers, opts)` (snapshot cascade, per-tier `debounceMs` / `compactEvery`, gated by `messageTier >= 3`), `Graph.fromStorage(name, tiers)` (fresh boot), and `cascadingCache(tiers)` (keyed lookup cache with auto-promotion). IndexedDB interop sources (`fromIDBRequest` / `fromIDBTransaction`) live alongside.
-- **Composite** (`composite.ts`) — `verifiable(source, opts)` wraps a node with verification tracking; `distill(raw, extract, opts)` compacts raw data into a budget-bounded summary (the reactive memory primitive that `agentMemory` plugs into).
-- **Backpressure** (`backpressure.ts`) — `createWatermarkController(sendUp, opts)` for PAUSE/RESUME watermark flow control.
-- **Observable interop** (`observable.ts`) — `toObservable(node, opts?)` exports to RxJS-compatible `Observable`.
+The minimal reactive substrate. One primitive (`node`) plus a `Graph` container that exposes the **sugar as methods** (`g.state(name, …)`, `g.derived(name, deps, fn)`, `g.effect(deps, fn)`, `g.producer(name, factory)`); freestanding `pipe`, `dynamicNode`, `autoTrackNode` are available for off-`Graph` composition. Protocol internals: message types (`DATA`, `DIRTY`, `RESOLVED`, `COMPLETE`, `ERROR`, `TEARDOWN`, `INVALIDATE`, `PAUSE`, `RESUME`), two-phase batch semantics (`batch`, `isBatching`, `partitionForBatch`), guard/policy (`policy`, `GuardDenied`, `accessHintForGuard`), actor identity (`Actor`), the central clock (`monotonicNs`, `wallClockNs`). **Anything outside the substrate must not call `Date.now()` / `performance.now()` directly — use `core/clock.ts`.** Spec §5.8–5.12 invariants are enforced here.
 
-### `@graphrefly/graphrefly/patterns` — `src/patterns/` (Phase 4+ domain APIs)
+The `Graph` container exposes `describe` / `observe` / `snapshot` / `restoreSnapshot` / `mount` / `attachSnapshotStorage` / `teardown`. Causal walkback is `g.describe({ explain: { from, to } })` (there is no `graph.explain()` method). Diagram rendering is a pure renderer over a describe snapshot: `graphSpecToMermaid(g.describe())`, `graphSpecToPretty`, `graphSpecToD2` — exported from `@graphrefly/graphrefly/base/render`. `reachable(graph, startPath)` computes the dependency closure.
 
-Developer-facing factories that compose primitives into recognizable patterns. **Protocol internals (`DIRTY`, `RESOLVED`, bitmask) never surface here** — sensible defaults, minimal boilerplate, clear errors.
+### `base/` — domain-agnostic infrastructure
 
-- **Orchestration** (`orchestration.ts`) — `pipeline`, `task`, `branch`, the boolean control `gate` *(being renamed to `valve`)*, `approval`, `forEach`, `join`, `loop`, `subPipeline`, `sensor`, `wait`, `onFailure`. The §9.0 port of the callbag-recharge human-approval gate (with `pending` / `count` / `isOpen` reactive nodes and `approve` / `reject` / `modify(fn, n?)` / `open` / `close` methods) also lands here.
-- **Messaging** (`messaging.ts`) — `topic` (TopicGraph), `subscription` (SubscriptionGraph with cursor / `pull` / `ack`), `jobQueue`, `jobFlow`, `topicBridge`, `messagingHub` (lazy Pulsar-inspired topic registry: `topic`/`publish`/`publishMany`/`subscribe`/`removeTopic`/`has`/`size`/`topicNames`, mounts topics as subgraphs with TEARDOWN on removal). These are the primitives the §9.0 harness loop uses for static-topology sinks and cursor-driven readers. **Note:** `src/extra/pubsub` is a lightweight last-value state hub — use `messagingHub` for retained message logs + cursor-based subscriptions.
-- **Memory** (`memory.ts`) — `collection`, `lightCollection`, `vectorIndex`, `knowledgeGraph`, `decay(source, opts)` (OpenViking exponential decay, 7-day default half-life). `decay` is the priority-scoring primitive for the §9.0 QUEUE stage.
-- **AI** (`ai.ts`) — `fromLLM`, `streamingPromptNode`, `streamExtractor`, `chatStream`, `toolRegistry`, `systemPromptBuilder`, `llmExtractor`, `llmConsolidator`, `agentMemory` (default: distill + vectors + KG + tiers), `agentLoop` (ReAct inner loop), `knobsAsTools`, `gaugesAsContext`, `validateGraphDef`. The §9.0 `promptNode` factory (wraps any LLM call in a derived node with retry / cache / structured output) also lives here and is what plugs into `distill` as `extractFn` / `consolidateFn`.
-- **CQRS** (`cqrs.ts`) — `cqrs(name, opts?)` creates a commands / events / projections / sagas Graph.
-- **Reactive layout** (`reactive-layout/`) — `reactiveLayout`, `reactiveBlockLayout`, `analyzeAndMeasure`, `computeLineBreaks`, `computeCharPositions`. DOM-free Knuth-Plass line breaking as a `state → derived` graph (inspired by Cheng Lou's Pretext).
+- `base/io` — fromHttp, fromWebSocket, fromSSE, fromWebhook, fromKafka, fromNats, fromPulsar, fromRabbitMQ, drizzle, prisma, kysely, clickhouse, otel, prometheus, statsd, syslog, csv, ndjson.
+- `base/composition` — verifiable, distill, pubsub, backpressure (`createWatermarkController`), externalProducer, materialize, externalRegister.
+- `base/mutation` — `mutate(act, opts)` factory + lightMutation, auditLog helpers.
+- `base/render` — `graphSpecToMermaid`, `graphSpecToD2`, `graphSpecToPretty`, mermaid URL helpers.
+- `base/sources/event` — fromCron, dom event sources.
+- `base/sources/node` — fromGitHook, fromFSWatch, server-side event sources (Node-only).
+- `base/sources/browser` — DOM-using browser sources.
+- `base/meta` — domainMeta, keepalive helpers.
+- `base/worker` — worker bridge.
 
-### `@graphrefly/graphrefly/compat/*` — `src/compat/`
+### `utils/` — domain building blocks
 
-Framework bindings. Keep them thin — all logic belongs in `core` / `extra` / `patterns`. React (`useNode`), Vue (`useNode` → `Ref`), Svelte (`toStore`), Solid (`useNode` → `Signal`), NestJS (`GraphReflyModule.forRoot()`). Each compat layer lives in its own subpath so unused adapters tree-shake out.
+- `utils/messaging` — `topic`, `subscription` (cursor / `pull` / `ack`), `topicBridge`, `messagingHub` (Pulsar-inspired lazy topic registry).
+- `utils/orchestration` — `pipelineGraph` (with `approvalGate` method — the human-approval gate; this replaced the older `gate(...)` name), `humanInput`, `tracker`, `classify`, `catch`.
+- `utils/memory` — `reactiveFactStore<T>()` (DS-14.7 v1 substrate; cascade + temporal + dependentsIndex), `simpleFactStore` (deferred to v1.1), `persistentFactStore`.
+- `utils/ai` — `chatStream`, `toolRegistry`, `systemPromptBuilder`, `llmExtractor`, `llmConsolidator`, `fromLLM`, `streamingPromptNode`, `streamExtractor`, `knobsAsTools`, `gaugesAsContext`. AI provider adapters under `utils/ai/adapters/` (Anthropic, OpenAI, Google, etc.); Node-only and browser-only variants split via `utils/ai/node` and `utils/ai/browser`.
+- `utils/resilience` — `circuitBreaker`, `withBreaker`, `withStatus`, `rateLimiter`, `withMaxAttempts`, fallback, budgetGate.
+- `utils/cqrs` — `cqrs(name, opts?)` Graph (commands / events / projections / sagas).
+- `utils/harness` — stage type primitives, evalSource, beforeAfterCompare, actuatorExecutor, evalIntakeBridge, HarnessExecutor, HarnessVerifier.
+- `utils/inspect` — `graphLens`, `audit`, `policyGate`, structured introspection.
+- `utils/job-queue` — `jobQueue`, `jobFlow`.
+- `utils/graphspec` — spec compile/decompile + `validateOwnership(spec, prDiff)` (multi-agent claim linter).
+- `utils/reactive-layout` — `reactiveLayout`, `reactiveBlockLayout`, Knuth-Plass-style line breaking as a state→derived graph (Pretext-inspired).
+- `utils/reduction` — universal reduction primitives for massive-info → actionable-items pipelines.
 
-### Design docs that back the above
+### `presets/` — opinionated compositions
+
+- `presets/ai` — `agentLoop` (ReAct inner loop), `agentMemory` (distill + vectors + KG + tiers with OpenViking decay).
+- `presets/harness` — `harnessLoop` (INTAKE → TRIAGE → QUEUE → GATE → EXECUTE → VERIFY → REFLECT), `refineLoop`, `harnessProfile`, `ownershipController` (L0 static / L1 TTL / L2 heartbeat / L3 supervisor staircase).
+- `presets/resilience` — `resilientPipeline` (rateLimiter → breaker → retry → timeout → fallback in the correct order).
+- `presets/inspect` — `guardedExecution` (Actor / Guard ABAC + policy + budgetGate + scoped describe).
+- `presets/memory` — composed memory products on top of `reactiveFactStore`.
+
+### `solutions/` — user-facing products
+
+Barrel re-exports preset combinations. Vertical folders (`solutions/customer-support-bot/`, `solutions/code-review-agent/`, etc.) are deferred until consumer pressure (D202).
+
+### `compat/*` — framework adapters
+
+React (`useNode`), Vue (`useNode → Ref`), Svelte (`toStore`), Solid (`useNode → Signal`), NestJS (`GraphReflyModule.forRoot()`), plus interop shims for Jotai, Zustand, Nanostores, TC39 Signals proposal. Each compat layer lives in its own subpath so unused adapters tree-shake out.
+
+## Design docs that back the above
 
 - Phase 4+ factory authors must read `~/src/graphrefly/COMPOSITION-GUIDE.md` before composing primitives — covers lazy activation, subscription ordering, null guards, feedback cycles, `promptNode` SENTINEL, wiring order.
 - Backlog / anti-patterns / deferred follow-ups: `docs/optimizations.md`.
 - Historical design decisions and parity notes: `archive/optimizations/`.
+- Cross-track coupling between TS and native: `docs/cross-track-ledger.md` (the single place to log `Impl`-widening changes; see also `~/src/graphrefly-rs/docs/migration-status.md`).
 
 ## Generated docs workflow
 
@@ -90,20 +141,21 @@ TypeScript API pages are generated from JSDoc:
   - `pnpm --dir website sync-docs`
   - `pnpm --dir website sync-docs:check`
 
-Do not hand-edit generated API pages.
+Do not hand-edit generated API pages or `website/public/llms.txt` (mirror of root `llms.txt`).
 
 ## Core design invariants
 
 - No polling; propagation is reactive.
 - No imperative triggers outside graph/message flow.
 - No raw async primitives inside reactive layer logic.
-- Use `src/core/clock.ts` and `messageTier` helpers for timing/tier semantics.
+- Use central clock (`monotonicNs` / `wallClockNs`) and `messageTier` helpers for timing/tier semantics.
 - Keep Phase 4+ surfaces developer-oriented (hide protocol internals from primary API docs).
+- Substrate vs presentation classification follows the layering predicate in `~/src/graphrefly-rs/CLAUDE.md` § "Layering predicate — substrate vs presentation".
 
 ## Harness engineering coverage
 
-GraphReFly covers the 8 requirements of a production agent harness — context/state control, execution boundary, control flow, verification, observability, policy/safety, human governance, continuous improvement. Mapping lives in `README.md` and `archive/docs/SESSION-harness-engineering-strategy.md`.
+GraphReFly covers the 8 requirements of a production agent harness — context/state control, execution boundary, control flow, verification, observability, policy/safety, human governance, continuous improvement. Mapping lives in `README.md` and `archive/docs/SESSION-harness-engineering-strategy.md` (with Wave 2 framing reframed by `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md`).
 
 ## Reactive collaboration loop (§9.0)
 
-`harnessLoop()` wires a static topology: INTAKE → TRIAGE → QUEUE → GATE → EXECUTE → VERIFY → REFLECT. Static topology + flowing data (the Kafka insight). Humans steer via `gate.modify((value, index, pending) => T, n?)`. Strategy model (`rootCause × intervention → successRate`) feeds TRIAGE routing. Design source: `archive/docs/SESSION-reactive-collaboration-harness.md`.
+`harnessLoop()` wires a static topology: INTAKE → TRIAGE → QUEUE → GATE → EXECUTE → VERIFY → REFLECT. Static topology + flowing data (the Kafka insight). Humans steer via `approvalGate.modify((value, index, pending) => T, n?)`. Strategy model (`rootCause × intervention → successRate`) feeds TRIAGE routing. Design source: `archive/docs/SESSION-reactive-collaboration-harness.md`.

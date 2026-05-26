@@ -83,7 +83,7 @@ export type FromRabbitMQOptions = ExtraOpts & {
  * @example
  * ```ts
  * import amqplib from "amqplib";
- * import { fromRabbitMQ } from "@graphrefly/graphrefly-ts";
+ * import { fromRabbitMQ } from "@graphrefly/graphrefly";
  *
  * const conn = await amqplib.connect("amqp://localhost");
  * const ch = await conn.createChannel();

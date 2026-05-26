@@ -134,7 +134,7 @@ export interface CircuitBreaker {
  *
  * @example
  * ```ts
- * import { circuitBreaker, exponential, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ * import { circuitBreaker, exponential, NS_PER_SEC } from "@graphrefly/graphrefly";
  *
  * const b = circuitBreaker({
  *   failureThreshold: 3,
@@ -338,7 +338,7 @@ export type WithBreakerBundle<T> = {
  *
  * @example
  * ```ts
- * import { state, withBreaker, circuitBreaker } from "@graphrefly/graphrefly-ts";
+ * import { state, withBreaker, circuitBreaker } from "@graphrefly/graphrefly";
  *
  * const b = circuitBreaker({ failureThreshold: 2 });
  * const s = state(1);

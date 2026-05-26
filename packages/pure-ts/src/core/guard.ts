@@ -24,7 +24,7 @@ export type GuardDeniedDetails = {
  *
  * @example
  * ```ts
- * import { GuardDenied, policy } from "@graphrefly/graphrefly-ts";
+ * import { GuardDenied, policy } from "@graphrefly/pure-ts";
  *
  * const guard = policy((allow) => { allow("observe"); });
  * try {
@@ -252,7 +252,7 @@ const STANDARD_WRITE_TYPES = ["human", "llm", "wallet", "system"] as const;
  *
  * @example
  * ```ts
- * import { policy, accessHintForGuard } from "@graphrefly/graphrefly-ts";
+ * import { policy, accessHintForGuard } from "@graphrefly/pure-ts";
  *
  * const guardBoth = policy((allow) => { allow("write"); });
  * accessHintForGuard(guardBoth); // "both"

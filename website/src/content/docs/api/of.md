@@ -24,7 +24,7 @@ function of<T>(...values: T[]): Node<T>
 ## Basic Usage
 
 ```ts
-import { of } from "@graphrefly/graphrefly-ts";
+import { of } from "@graphrefly/pure-ts";
 
 of(1, 2, 3);
 ```

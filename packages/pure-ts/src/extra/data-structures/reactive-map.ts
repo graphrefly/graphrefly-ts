@@ -517,7 +517,7 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
  *
  * @example
  * ```ts
- * import { reactiveMap } from "@graphrefly/graphrefly-ts";
+ * import { reactiveMap } from "@graphrefly/pure-ts";
  *
  * const m = reactiveMap<string, number>({ name: "cache", maxSize: 100, defaultTtl: 60 });
  * m.set("x", 1);

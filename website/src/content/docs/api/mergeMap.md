@@ -30,7 +30,7 @@ function mergeMap<T, R>(
 ## Basic Usage
 
 ```ts
-import { mergeMap, state } from "@graphrefly/graphrefly-ts";
+import { mergeMap, state } from "@graphrefly/pure-ts";
 
 // Unbounded (default)
 mergeMap(state(0), (n) => state((n as number) + 1));

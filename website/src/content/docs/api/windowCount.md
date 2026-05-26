@@ -26,7 +26,7 @@ function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 ## Basic Usage
 
 ```ts
-import { windowCount, state } from "@graphrefly/graphrefly-ts";
+import { windowCount, state } from "@graphrefly/pure-ts";
 
 windowCount(state(0), 3);
 ```

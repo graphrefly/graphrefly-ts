@@ -26,7 +26,7 @@ Same behavior as `replay`.
 ## Basic Usage
 
 ```ts
-import { shareReplay, state } from "@graphrefly/graphrefly-ts";
+import { shareReplay, state } from "@graphrefly/graphrefly";
 
 shareReplay(state(0), 5);
 ```

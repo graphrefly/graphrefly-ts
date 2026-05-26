@@ -37,7 +37,7 @@ export type FromPrismaOptions<T, U = T> = ExtraOpts & {
  * @example
  * ```ts
  * import { PrismaClient } from "@prisma/client";
- * import { fromPrisma } from "@graphrefly/graphrefly-ts";
+ * import { fromPrisma } from "@graphrefly/graphrefly";
  *
  * const prisma = new PrismaClient();
  * const activeUsers = fromPrisma(prisma.user, {

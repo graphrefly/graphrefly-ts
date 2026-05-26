@@ -26,7 +26,7 @@ function zip<const T extends readonly unknown[]>(
 ## Basic Usage
 
 ```ts
-import { state, zip } from "@graphrefly/graphrefly-ts";
+import { state, zip } from "@graphrefly/pure-ts";
 
 const n = zip(state(1), state(2));
 ```

@@ -35,7 +35,7 @@ function throttle<T>(
 ## Basic Usage
 
 ```ts
-import { throttle, state } from "@graphrefly/graphrefly-ts";
+import { throttle, state } from "@graphrefly/pure-ts";
 
 throttle(state(0), 1_000, { trailing: false });
 ```

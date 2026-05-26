@@ -30,7 +30,7 @@ function withLatestFrom<A, B>(
 ## Basic Usage
 
 ```ts
-import { state, withLatestFrom } from "@graphrefly/graphrefly-ts";
+import { state, withLatestFrom } from "@graphrefly/pure-ts";
 
 const n = withLatestFrom(state(1), state("x"));
 ```

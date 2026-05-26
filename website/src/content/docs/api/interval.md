@@ -25,7 +25,7 @@ function interval(periodMs: number, opts?: ExtraOpts): Node<number>
 ## Basic Usage
 
 ```ts
-import { interval } from "@graphrefly/graphrefly-ts";
+import { interval } from "@graphrefly/pure-ts";
 
 interval(1_000);
 ```

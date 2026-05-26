@@ -36,7 +36,7 @@ export type FromDrizzleOptions<T, U = T> = ExtraOpts & {
  * @example
  * ```ts
  * import { drizzle } from "drizzle-orm/node-postgres";
- * import { fromDrizzle } from "@graphrefly/graphrefly-ts";
+ * import { fromDrizzle } from "@graphrefly/graphrefly";
  *
  * const db = drizzle(pool);
  * const rows$ = fromDrizzle(db.select().from(users).where(eq(users.active, true)));

@@ -30,7 +30,7 @@ function concatMap<T, R>(
 ## Basic Usage
 
 ```ts
-import { concatMap, state } from "@graphrefly/graphrefly-ts";
+import { concatMap, state } from "@graphrefly/pure-ts";
 
 concatMap(state(0), (n) => state((n as number) + 1));
 ```

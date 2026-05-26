@@ -349,7 +349,8 @@ export function computeFlowLines(
  *
  * @example
  * ```ts
- * import { fromRaf, reactiveFlowLayout } from "@graphrefly/graphrefly-ts";
+ * import { reactiveFlowLayout } from "@graphrefly/graphrefly/utils/reactive-layout";
+ * import { fromRaf } from "@graphrefly/graphrefly/base/sources/browser";
  *
  * const flow = reactiveFlowLayout({
  *   adapter: new CanvasMeasureAdapter(),

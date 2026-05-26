@@ -6,9 +6,8 @@
  * - graph/ (Graph container, describe/observe, snapshot)
  * - extra/ (operators, data-structures, storage, stratify, sync sources, fromTimer, keepalive)
  *
- * Presentation APIs (patterns/, compat/, extra/io, extra/render, extra/mutation,
- * extra/resilience, extra/sources/async, extra/sources/settled, etc.) moved to
- * @graphrefly/graphrefly (root src/).
+ * Presentation APIs (base/, utils/, presets/, solutions/, compat/) live in
+ * `@graphrefly/graphrefly` (repo root `src/`).
  */
 /**
  * Package version. Build-time injected from `package.json` via the tsup

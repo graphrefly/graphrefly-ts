@@ -30,7 +30,7 @@ function fromWebhook<T = unknown>(register: WebhookRegister<T>, opts?: ExtraOpts
 
 ```ts
 import express from "express";
-import { fromWebhook } from "@graphrefly/graphrefly-ts";
+import { fromWebhook } from "@graphrefly/graphrefly";
 
 type HookPayload = { event: string; data: unknown };
 const app = express();
@@ -59,7 +59,7 @@ return () => {
 
 ```ts
 import Fastify from "fastify";
-import { fromWebhook } from "@graphrefly/graphrefly-ts";
+import { fromWebhook } from "@graphrefly/graphrefly";
 
 const fastify = Fastify();
 const hook$ = fromWebhook<any>(({ emit, error }) => {

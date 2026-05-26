@@ -47,6 +47,45 @@ export type UnsubFn = () => Promise<void>;
 /** Sink callback. Receives a batch of messages per Core flush. */
 export type SinkFn<T> = (msgs: ReadonlyArray<Message<T>>) => void;
 
+/**
+ * Per-frame batch context surfaced to `Impl.batch`'s `fn` argument
+ * (D288 Q3 lock, 2026-05-24).
+ *
+ * **Lifetime — per-frame, do NOT stash.** Valid only for the synchronous
+ * duration of the `fn` invocation. Capturing `ctx` into a closure that
+ * fires later (`setTimeout`, Promise resolver, microtask) is a user bug:
+ * by the time the stashed closure runs, the actor thread has either
+ * committed or rolled back the batch, the `BatchGuard` is dropped, and
+ * the underlying channel `Sender` has been moved out of the actor
+ * closure. Post-frame `ctx.down(...)` rejects loudly with
+ * `"BatchCtx used after batch frame closed"` on both arms (the native
+ * arm's `BenchBatchContext::Drop` impl has fired; subsequent sync calls
+ * surface as a napi error). Pinned cross-arm by the
+ * `post-frame-ctx-throws` regression scenario.
+ *
+ * **Single-msg shape (Q3a).** `down(node, msg)` takes ONE message tuple
+ * per call (e.g., `ctx.down(src, [impl.DATA, 42])`, NOT
+ * `ctx.down(src, [[impl.DATA, 42]])`). The outer-array shape of the
+ * substrate's `NodeImpl.down(messages: Message[])` is an artifact of the
+ * substrate-call API, not a semantic ask for multi-msg-per-call. If
+ * multi-msg scenarios surface later, add `downMany(node, msgs)` then
+ * (D196 — additive widening on consumer pressure).
+ *
+ * **Surface scope.** `down` only for D288's slice. Other candidates
+ * (`ctx.signal`, `ctx.setDeps`) deferred per D196 until consumer pressure
+ * surfaces in a parity scenario.
+ */
+export interface BatchCtx {
+	/**
+	 * Emit one message tuple on `node` inside the batch frame. The
+	 * outermost-batch wave defers sink fires to commit (R4.3.1); a throw
+	 * during `fn` triggers per-node rollback (R4.3.2) before re-throw.
+	 * Throws `"BatchCtx used after batch frame closed"` if called after
+	 * `fn` returns or throws (per-frame lifetime contract above).
+	 */
+	down<T>(node: ImplNode<T>, msg: Message<T>): void;
+}
+
 /** Per-impl Node wrapper. The legacy impl wraps `legacy.Node`; the rust
  * impl wraps `(BenchCore, NodeId, JSValueRegistry)`. */
 export interface ImplNode<T> {
@@ -416,16 +455,39 @@ export interface Impl {
 	 * the success path); on the throw path, rejects with the user-thrown
 	 * value AFTER the per-node rollback has completed.
 	 *
+	 * **`ctx` argument (D288 Q3 lock, 2026-05-24).** `fn` receives a
+	 * {@link BatchCtx} the test must use to emit messages on nodes inside
+	 * the batch (`ctx.down(node, msg)`). The arg replaces the substrate-
+	 * private reach-through `(node.inner as { down }).down([msg])` the
+	 * 12 D282 scenarios used pre-D288. The `ctx` is **per-frame** — do
+	 * NOT stash it (capture into a closure, Promise resolver, or
+	 * setTimeout). Once `fn` returns or throws, the underlying
+	 * `BenchBatchContext` (rust arm) is committed/rolled-back and the
+	 * channel `Sender` to the parked actor is dropped; subsequent
+	 * `ctx.down(...)` calls throw `"BatchCtx used after batch frame
+	 * closed"` on both arms. Pinned cross-arm by Case 15
+	 * `post-frame-ctx-throws` in `batch-throw-rollback.test.ts`.
+	 *
+	 * **D080 non-precedent (D288 Q4 lock, 2026-05-24).** `Impl.batch` is a
+	 * sync-fn-body primitive by D282 lock. The rust arm's sync-handle
+	 * binding pattern (`BenchCore.openBatch() → BenchBatchContext`, D289)
+	 * is a **binding-layer mechanism**, NOT a precedent for future
+	 * callback-bearing primitives. DS-14 / D080 retain free hand on
+	 * whether `mutate` / `withSnapshot` / op-log-replay take sync or
+	 * async bodies. See `archive/docs/SESSION-DS-D288-native-batch-
+	 * path-D.md` Q4.
+	 *
 	 * D282 (locked 2026-05-23, cross-track-ledger §1 row): widens the parity
 	 * contract so `batch-throw-rollback` parity scenarios can assert TS
 	 * converges to Rust's pre-existing `discard_wave_cleanup` +
 	 * `restore_wave_cache_snapshots` semantic (substrate at
-	 * `graphrefly-rs/crates/graphrefly-core/src/batch.rs:3693`). The native
-	 * arm is `runIf(impl.name === "pure-ts")`-gated per test until a
-	 * `batch_run` napi binding ships on `@graphrefly/native` (today the
-	 * native wrapper throws `"batch: not yet exposed on @graphrefly/native"`).
+	 * `graphrefly-rs/crates/graphrefly-core/src/batch.rs:3693`). D288
+	 * picked Path D (sync `BenchBatchContext` napi handle); D289 shipped
+	 * the native binding; D290 closes the TS `/dev-dispatch` paired slice
+	 * (types widening + pure-ts ctx-wrapper + wrapper.js `impl.batch` +
+	 * scenario rebase).
 	 */
-	batch(fn: () => void): Promise<void>;
+	batch(fn: (ctx: BatchCtx) => void): Promise<void>;
 
 	// Transform operators.
 	map<T, U>(src: ImplNode<T>, fn: (x: T) => U): Promise<ImplNode<U>>;

@@ -25,7 +25,7 @@ function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: T }): N
 ## Basic Usage
 
 ```ts
-import { last, state } from "@graphrefly/graphrefly-ts";
+import { last, state } from "@graphrefly/pure-ts";
 
 const n = last(state(1), { defaultValue: 0 });
 ```

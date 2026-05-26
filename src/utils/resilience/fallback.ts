@@ -51,7 +51,7 @@ export type FallbackInput<T> = T | Node<T> | PromiseLike<T> | AsyncIterable<T>;
  *
  * @example
  * ```ts
- * import { fallback, throwError } from "@graphrefly/graphrefly-ts";
+ * import { fallback, throwError } from "@graphrefly/graphrefly";
  *
  * const safe = fallback(throwError(new Error("boom")), "default");
  * safe.cache; // "default" after subscribe

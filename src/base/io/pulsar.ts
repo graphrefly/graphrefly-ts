@@ -78,7 +78,7 @@ export type FromPulsarOptions = ExtraOpts & {
  * @example
  * ```ts
  * import Pulsar from "pulsar-client";
- * import { fromPulsar } from "@graphrefly/graphrefly-ts";
+ * import { fromPulsar } from "@graphrefly/graphrefly";
  *
  * const client = new Pulsar.Client({ serviceUrl: "pulsar://localhost:6650" });
  * const consumer = await client.subscribe({ topic: "events", subscription: "my-sub" });

@@ -19,7 +19,7 @@ export const DEFAULT_ACTOR: Actor = { type: "system", id: "" };
  *
  * @example
  * ```ts
- * import { normalizeActor } from "@graphrefly/graphrefly-ts";
+ * import { normalizeActor } from "@graphrefly/pure-ts";
  *
  * normalizeActor({ type: "human", id: "u1" });
  * ```

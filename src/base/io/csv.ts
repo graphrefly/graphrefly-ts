@@ -37,7 +37,7 @@ export type FromCSVOptions = ExtraOpts & {
  * @example
  * ```ts
  * import { createReadStream } from "node:fs";
- * import { fromCSV } from "@graphrefly/graphrefly-ts";
+ * import { fromCSV } from "@graphrefly/graphrefly";
  *
  * const csv$ = fromCSV(createReadStream("data.csv", "utf-8"));
  * ```
@@ -135,7 +135,7 @@ export function fromCSV(source: AsyncIterable<string>, opts?: FromCSVOptions): N
  *
  * @example
  * ```ts
- * import { fromHTTPStream, csvRows } from "@graphrefly/graphrefly-ts";
+ * import { fromHTTPStream, csvRows } from "@graphrefly/graphrefly";
  * const bytes$ = fromHTTPStream("https://example.com/data.csv");
  * const text$ = decodeText(bytes$);   // caller-provided byte→string decoder
  * const rows$ = csvRows(text$, { columns: ["name", "age"] });

@@ -25,7 +25,7 @@ function linear(baseNs: number, stepNs?: number): BackoffStrategy
 ## Basic Usage
 
 ```ts
-import { linear, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+import { linear, retry, NS_PER_SEC } from "@graphrefly/graphrefly";
 
 // Attempt 0 → 1 s, attempt 1 → 2 s, attempt 2 → 3 s …
 const out = retry(source, { count: 4, backoff: linear(NS_PER_SEC) });

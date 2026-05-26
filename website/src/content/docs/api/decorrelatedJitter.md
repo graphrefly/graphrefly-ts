@@ -31,7 +31,7 @@ function decorrelatedJitter(
 ## Basic Usage
 
 ```ts
-import { decorrelatedJitter, retry, NS_PER_MS, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+import { decorrelatedJitter, retry, NS_PER_MS, NS_PER_SEC } from "@graphrefly/graphrefly";
 
 const out = retry(source, {
     count: 6,

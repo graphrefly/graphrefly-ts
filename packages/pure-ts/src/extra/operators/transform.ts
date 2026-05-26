@@ -21,7 +21,7 @@ import { type ExtraOpts, operatorOpts } from "./_internal.js";
  *
  * @example
  * ```ts
- * import { map, state } from "@graphrefly/graphrefly-ts";
+ * import { map, state } from "@graphrefly/pure-ts";
  *
  * const n = map(state(2), (x) => x * 3);
  * ```
@@ -66,7 +66,7 @@ export function map<T, R>(source: Node<T>, project: (value: T) => R, opts?: Extr
  *
  * @example
  * ```ts
- * import { filter, state } from "@graphrefly/graphrefly-ts";
+ * import { filter, state } from "@graphrefly/pure-ts";
  *
  * const n = filter(state(1), (x) => x > 0);
  * ```
@@ -116,7 +116,7 @@ export function filter<T>(
  *
  * @example
  * ```ts
- * import { scan, state } from "@graphrefly/graphrefly-ts";
+ * import { scan, state } from "@graphrefly/pure-ts";
  *
  * const n = scan(state(1), (a, x) => a + x, 0);
  * ```
@@ -183,7 +183,7 @@ export function scan<T, R>(
  *
  * @example
  * ```ts
- * import { reduce, state } from "@graphrefly/graphrefly-ts";
+ * import { reduce, state } from "@graphrefly/pure-ts";
  *
  * const n = reduce(state(1), (a, x) => a + x, 0);
  * ```
@@ -256,7 +256,7 @@ export function reduce<T, R>(
  *
  * @example
  * ```ts
- * import { distinctUntilChanged, state } from "@graphrefly/graphrefly-ts";
+ * import { distinctUntilChanged, state } from "@graphrefly/pure-ts";
  *
  * const n = distinctUntilChanged(state(1));
  * ```
@@ -319,7 +319,7 @@ export function distinctUntilChanged<T>(
  *
  * @example
  * ```ts
- * import { pairwise, state } from "@graphrefly/graphrefly-ts";
+ * import { pairwise, state } from "@graphrefly/pure-ts";
  *
  * const n = pairwise(state(0));
  * ```

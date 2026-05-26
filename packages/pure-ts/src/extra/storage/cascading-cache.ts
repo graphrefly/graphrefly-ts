@@ -155,7 +155,7 @@ function fireAndForget(result: void | Promise<void>): void {
  *
  * @example
  * ```ts
- * import { cascadingCache, memoryKv, fileKv } from "@graphrefly/graphrefly-ts";
+ * import { cascadingCache, memoryKv, fileKv } from "@graphrefly/pure-ts";
  *
  * const cache = cascadingCache<User>([memoryKv(), fileKv("../cache")]);
  * const user = cache.load("user:42"); // Node<User | undefined>

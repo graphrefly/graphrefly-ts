@@ -14,7 +14,7 @@ class ResettableTimer
 ## Basic Usage
 
 ```ts
-import { ResettableTimer } from "@graphrefly/graphrefly-ts";
+import { ResettableTimer } from "@graphrefly/pure-ts";
 
 const timer = new ResettableTimer();
 timer.start(1000, () => console.log("fired"));

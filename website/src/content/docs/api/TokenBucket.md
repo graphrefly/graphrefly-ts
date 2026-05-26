@@ -26,7 +26,7 @@ function tokenBucket(
 ## Basic Usage
 
 ```ts
-import { tokenBucket } from "@graphrefly/graphrefly-ts";
+import { tokenBucket } from "@graphrefly/graphrefly";
 
 const bucket = tokenBucket(10, 2); // capacity 10, refill 2 tokens/sec
 bucket.tryConsume(3); // true — 7 tokens remaining

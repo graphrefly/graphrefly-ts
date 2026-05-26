@@ -30,7 +30,7 @@ function distinctUntilChanged<T>(
 ## Basic Usage
 
 ```ts
-import { distinctUntilChanged, state } from "@graphrefly/graphrefly-ts";
+import { distinctUntilChanged, state } from "@graphrefly/pure-ts";
 
 const n = distinctUntilChanged(state(1));
 ```

@@ -28,7 +28,7 @@ type name when only one passes; or a `"+"` joined list otherwise.
 ## Basic Usage
 
 ```ts
-import { policy, accessHintForGuard } from "@graphrefly/graphrefly-ts";
+import { policy, accessHintForGuard } from "@graphrefly/pure-ts";
 
 const guardBoth = policy((allow) => { allow("write"); });
 accessHintForGuard(guardBoth); // "both"

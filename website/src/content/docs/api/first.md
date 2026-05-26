@@ -25,7 +25,7 @@ function first<T>(source: Node<T>, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { first, state } from "@graphrefly/graphrefly-ts";
+import { first, state } from "@graphrefly/pure-ts";
 
 const n = first(state(42));
 ```

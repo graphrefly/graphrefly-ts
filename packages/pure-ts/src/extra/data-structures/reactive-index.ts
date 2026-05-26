@@ -395,7 +395,7 @@ function keepaliveDerived(n: Node<unknown>): () => void {
  *
  * @example
  * ```ts
- * import { reactiveIndex } from "@graphrefly/graphrefly-ts";
+ * import { reactiveIndex } from "@graphrefly/pure-ts";
  *
  * const idx = reactiveIndex<string, string>();
  * idx.upsert("id1", 10, "row-a");

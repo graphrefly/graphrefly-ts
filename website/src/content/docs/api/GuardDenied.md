@@ -17,7 +17,7 @@ class GuardDenied
 ## Basic Usage
 
 ```ts
-import { GuardDenied, policy } from "@graphrefly/graphrefly-ts";
+import { GuardDenied, policy } from "@graphrefly/pure-ts";
 
 const guard = policy((allow) => { allow("observe"); });
 try {

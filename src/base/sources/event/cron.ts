@@ -77,7 +77,7 @@ function parseField(field: string, min: number, max: number): Set<number> {
  *
  * @example
  * ```ts
- * import { parseCron } from "@graphrefly/graphrefly-ts";
+ * import { parseCron } from "@graphrefly/graphrefly";
  *
  * const sched = parseCron("0 9 * * 1-5"); // weekdays at 09:00
  * sched.hours;      // Set { 9 }
@@ -105,7 +105,7 @@ export function parseCron(expr: string): CronSchedule {
  *
  * @example
  * ```ts
- * import { parseCron, matchesCron } from "@graphrefly/graphrefly-ts";
+ * import { parseCron, matchesCron } from "@graphrefly/graphrefly";
  *
  * const sched = parseCron("30 8 * * 1"); // Mondays at 08:30
  * const monday = new Date("2026-03-30T08:30:00"); // a Monday

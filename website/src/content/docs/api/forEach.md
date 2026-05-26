@@ -26,7 +26,7 @@ Unsubscribe function (idempotent).
 ## Basic Usage
 
 ```ts
-import { forEach, state } from "@graphrefly/graphrefly-ts";
+import { forEach, state } from "@graphrefly/graphrefly";
 
 const u = forEach(state(1), (v) => console.log(v));
 u();

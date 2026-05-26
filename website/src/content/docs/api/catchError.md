@@ -30,7 +30,7 @@ Recovered stream; behavior matches `rescue`.
 ## Basic Usage
 
 ```ts
-import { catchError, state } from "@graphrefly/graphrefly-ts";
+import { catchError, state } from "@graphrefly/pure-ts";
 
 catchError(state(0), () => 0);
 ```

@@ -65,7 +65,7 @@ export type FromSqliteOptions<T> = ExtraOpts & {
  * @example
  * ```ts
  * import Database from "better-sqlite3";
- * import { fromSqlite } from "@graphrefly/graphrefly-ts";
+ * import { fromSqlite } from "@graphrefly/graphrefly";
  *
  * const raw = new Database("app.db");
  * const db = { query: (sql, params) => raw.prepare(sql).all(...(params ?? [])) };
@@ -174,7 +174,7 @@ export type ToSqliteOptions<T> = ExtraOpts & {
  * @example
  * ```ts
  * import Database from "better-sqlite3";
- * import { toSqlite, state } from "@graphrefly/graphrefly-ts";
+ * import { toSqlite, state } from "@graphrefly/graphrefly";
  *
  * const raw = new Database("app.db");
  * const db = { query: (sql, params) => (raw.prepare(sql).run(...(params ?? [])), []) };

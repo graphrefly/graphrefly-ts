@@ -25,7 +25,7 @@ function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMapB
 ## Basic Usage
 
 ```ts
-import { reactiveMap } from "@graphrefly/graphrefly-ts";
+import { reactiveMap } from "@graphrefly/pure-ts";
 
 const m = reactiveMap<string, number>({ name: "cache", maxSize: 100, defaultTtl: 60 });
 m.set("x", 1);

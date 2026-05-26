@@ -150,7 +150,7 @@ function forwardInner<R>(
  * @returns `Node<R>` - Emissions from the active inner subscription.
  * @example
  * ```ts
- * import { switchMap, state } from "@graphrefly/graphrefly-ts";
+ * import { switchMap, state } from "@graphrefly/pure-ts";
  *
  * const src = state(0);
  * switchMap(src, (n) => state((n as number) * 2));
@@ -242,7 +242,7 @@ export function switchMap<T, R>(
  * @returns `Node<R>` - Emissions from the active inner while it runs.
  * @example
  * ```ts
- * import { exhaustMap, state } from "@graphrefly/graphrefly-ts";
+ * import { exhaustMap, state } from "@graphrefly/pure-ts";
  *
  * exhaustMap(state(0), () => state(1));
  * ```
@@ -319,7 +319,7 @@ export function exhaustMap<T, R>(
  * @returns `Node<R>` - Sequential concatenation of inner streams.
  * @example
  * ```ts
- * import { concatMap, state } from "@graphrefly/graphrefly-ts";
+ * import { concatMap, state } from "@graphrefly/pure-ts";
  *
  * concatMap(state(0), (n) => state((n as number) + 1));
  * ```
@@ -430,7 +430,7 @@ export type MergeMapOptions = HigherOrderOpts & {
  *
  * @example
  * ```ts
- * import { mergeMap, state } from "@graphrefly/graphrefly-ts";
+ * import { mergeMap, state } from "@graphrefly/pure-ts";
  *
  * // Unbounded (default)
  * mergeMap(state(0), (n) => state((n as number) + 1));
@@ -551,7 +551,7 @@ export function mergeMap<T, R>(
  *
  * @example
  * ```ts
- * import { flatMap, state } from "@graphrefly/graphrefly-ts";
+ * import { flatMap, state } from "@graphrefly/pure-ts";
  *
  * flatMap(state(0), (n) => state(n));
  * ```

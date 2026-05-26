@@ -78,7 +78,7 @@ export type WithStatusBundle<T> = {
  *
  * @example
  * ```ts
- * import { withStatus, state } from "@graphrefly/graphrefly-ts";
+ * import { withStatus, state } from "@graphrefly/graphrefly";
  *
  * const src = state<number>(0);
  * const { node, status, error } = withStatus(src);

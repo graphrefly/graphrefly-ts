@@ -25,7 +25,7 @@ function cached<T>(source: Node<T>, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { cached, state } from "@graphrefly/graphrefly-ts";
+import { cached, state } from "@graphrefly/graphrefly";
 
 cached(state(0));
 ```

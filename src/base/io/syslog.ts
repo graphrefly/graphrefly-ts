@@ -45,7 +45,7 @@ export type FromSyslogOptions = ExtraOpts & {};
  * @example
  * ```ts
  * import dgram from "node:dgram";
- * import { fromSyslog, parseSyslog } from "@graphrefly/graphrefly-ts";
+ * import { fromSyslog, parseSyslog } from "@graphrefly/graphrefly";
  *
  * const server = dgram.createSocket("udp4");
  * const syslog$ = fromSyslog(({ emit, error }) => {

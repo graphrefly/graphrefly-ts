@@ -26,7 +26,7 @@ function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpts): Nod
 ## Basic Usage
 
 ```ts
-import { concat, state } from "@graphrefly/graphrefly-ts";
+import { concat, state } from "@graphrefly/pure-ts";
 
 const n = concat(state(1), state(2));
 ```

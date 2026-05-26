@@ -5,7 +5,7 @@
 // Works with any Node<T>, including companion nodes (node.meta.status).
 //
 // Usage:
-//   import { useStore, useSubscribe } from '@graphrefly/graphrefly-ts/compat/react';
+//   import { useStore, useSubscribe } from '@graphrefly/graphrefly/compat/react';
 //   // Optional peer install (only for this adapter): pnpm add react react-dom
 //   const value = useSubscribe(myNode);          // T | undefined (read-only)
 //   const [count, setCount] = useStore(counter); // [T | undefined, setter]

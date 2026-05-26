@@ -25,7 +25,7 @@ function share<T>(source: Node<T>, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { share, state } from "@graphrefly/graphrefly-ts";
+import { share, state } from "@graphrefly/graphrefly";
 
 share(state(0));
 ```

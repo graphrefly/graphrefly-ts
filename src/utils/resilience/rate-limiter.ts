@@ -83,7 +83,7 @@ export interface TokenBucketOptions {
  *
  * @example
  * ```ts
- * import { tokenBucket } from "@graphrefly/graphrefly-ts";
+ * import { tokenBucket } from "@graphrefly/graphrefly";
  *
  * const bucket = tokenBucket(10, 2); // capacity 10, refill 2 tokens/sec
  * bucket.tryConsume(3); // true — 7 tokens remaining
@@ -335,7 +335,7 @@ function resolveInitialReactiveOpts(optsNode: Node<RateLimiterOptions>): RateLim
  *
  * @example
  * ```ts
- * import { rateLimiter, state, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ * import { rateLimiter, state, NS_PER_SEC } from "@graphrefly/graphrefly";
  *
  * const src = state(0);
  * // Allow at most 5 DATA values per second; queue up to 100 excess items, drop newest beyond.

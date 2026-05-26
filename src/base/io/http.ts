@@ -404,7 +404,7 @@ export type FromHTTPPollOptions = FromHTTPOptions & {
  *
  * @example
  * ```ts
- * import { fromHTTPPoll } from "@graphrefly/graphrefly-ts";
+ * import { fromHTTPPoll } from "@graphrefly/graphrefly";
  * const health$ = fromHTTPPoll<{ ok: boolean }>("https://example.com/health", { intervalMs: 10_000 });
  * ```
  *

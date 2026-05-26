@@ -56,7 +56,7 @@ import { type AgentBundle, AgentGraph, type AgentSpec } from "./agent.js";
  *
  * @example
  * ```ts
- * import { agent, awaitSettled, Graph } from "@graphrefly/graphrefly-ts";
+ * import { agent, awaitSettled, Graph } from "@graphrefly/graphrefly";
  *
  * const parent = new Graph("parent");
  * const a = agent(parent, {

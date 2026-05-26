@@ -26,7 +26,7 @@ function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { delay, state } from "@graphrefly/graphrefly-ts";
+import { delay, state } from "@graphrefly/pure-ts";
 
 delay(state(1), 100);
 ```

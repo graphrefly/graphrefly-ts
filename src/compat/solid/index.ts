@@ -5,7 +5,7 @@
 // Works with any Node<T>, including companion nodes (node.meta.status).
 //
 // Usage:
-//   import { useSubscribe, useStore } from '@graphrefly/graphrefly-ts/compat/solid';
+//   import { useSubscribe, useStore } from '@graphrefly/graphrefly/compat/solid';
 //   // Optional peer install (only for this adapter): pnpm add solid-js
 //   const status = useSubscribe(wsStatusNode);     // Accessor<string | undefined>
 //   const [count, setCount] = useStore(countNode); // [Accessor<number | undefined>, Setter]

@@ -25,7 +25,7 @@ function pausable<T>(source: Node<T>, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { pausable, state } from "@graphrefly/graphrefly-ts";
+import { pausable, state } from "@graphrefly/pure-ts";
 
 // No longer needed — default nodes handle PAUSE/RESUME.
 const s = state(0);

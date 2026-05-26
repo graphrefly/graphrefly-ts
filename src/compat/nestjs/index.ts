@@ -6,7 +6,7 @@
 //
 // Usage:
 //   import { GraphReflyModule, InjectGraph, InjectNode, toObservable }
-//     from '@graphrefly/graphrefly-ts/compat/nestjs';
+//     from '@graphrefly/graphrefly/compat/nestjs';
 // ---------------------------------------------------------------------------
 
 // Decorators

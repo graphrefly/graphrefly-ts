@@ -30,7 +30,7 @@ Throttled node; behavior matches `throttle`.
 ## Basic Usage
 
 ```ts
-import { throttleTime, state } from "@graphrefly/graphrefly-ts";
+import { throttleTime, state } from "@graphrefly/pure-ts";
 
 throttleTime(state(0), 100);
 ```

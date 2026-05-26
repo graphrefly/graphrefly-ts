@@ -30,7 +30,7 @@ function window<T>(
 ## Basic Usage
 
 ```ts
-import { state, window } from "@graphrefly/graphrefly-ts";
+import { state, window } from "@graphrefly/pure-ts";
 
 window(state(0), state(0));
 ```

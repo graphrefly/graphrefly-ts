@@ -29,7 +29,7 @@ import { type ExtraOpts, operatorOpts } from "./_internal.js";
  * @returns `Node<T>` - Same values, shifted in time.
  * @example
  * ```ts
- * import { delay, state } from "@graphrefly/graphrefly-ts";
+ * import { delay, state } from "@graphrefly/pure-ts";
  *
  * delay(state(1), 100);
  * ```
@@ -97,7 +97,7 @@ export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
  * @returns `Node<T>` - Debounced stream.
  * @example
  * ```ts
- * import { debounce, state } from "@graphrefly/graphrefly-ts";
+ * import { debounce, state } from "@graphrefly/pure-ts";
  *
  * debounce(state(0), 50);
  * ```
@@ -180,7 +180,7 @@ export type ThrottleOptions = { leading?: boolean; trailing?: boolean };
  * @returns `Node<T>` - Throttled stream.
  * @example
  * ```ts
- * import { throttle, state } from "@graphrefly/graphrefly-ts";
+ * import { throttle, state } from "@graphrefly/pure-ts";
  *
  * throttle(state(0), 1_000, { trailing: false });
  * ```
@@ -315,7 +315,7 @@ export function throttle<T>(
  * @returns `Node<T>` - Sampled snapshots of `source`.
  * @example
  * ```ts
- * import { sample, state } from "@graphrefly/graphrefly-ts";
+ * import { sample, state } from "@graphrefly/pure-ts";
  *
  * sample(state(1), state(0));
  * ```
@@ -400,7 +400,7 @@ export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
  * @returns `Node<T>` - Trailing-edge sampled stream.
  * @example
  * ```ts
- * import { audit, state } from "@graphrefly/graphrefly-ts";
+ * import { audit, state } from "@graphrefly/pure-ts";
  *
  * audit(state(0), 100);
  * ```
@@ -469,7 +469,7 @@ export function audit<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
  * @returns `Node<number>` - Emits `0`, `1`, `2`, … while subscribed.
  * @example
  * ```ts
- * import { interval } from "@graphrefly/graphrefly-ts";
+ * import { interval } from "@graphrefly/pure-ts";
  *
  * interval(1_000);
  * ```
@@ -506,7 +506,7 @@ export function interval(periodMs: number, opts?: ExtraOpts): Node<number> {
  *
  * @example
  * ```ts
- * import { debounceTime, state } from "@graphrefly/graphrefly-ts";
+ * import { debounceTime, state } from "@graphrefly/pure-ts";
  *
  * debounceTime(state(0), 100);
  * ```
@@ -525,7 +525,7 @@ export const debounceTime = debounce;
  *
  * @example
  * ```ts
- * import { throttleTime, state } from "@graphrefly/graphrefly-ts";
+ * import { throttleTime, state } from "@graphrefly/pure-ts";
  *
  * throttleTime(state(0), 100);
  * ```

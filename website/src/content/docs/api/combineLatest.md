@@ -26,7 +26,7 @@ Combined node; signature matches `combine`.
 ## Basic Usage
 
 ```ts
-import { combineLatest, state } from "@graphrefly/graphrefly-ts";
+import { combineLatest, state } from "@graphrefly/pure-ts";
 
 const n = combineLatest(state(1), state("a"));
 ```

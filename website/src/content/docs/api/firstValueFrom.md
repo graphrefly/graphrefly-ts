@@ -29,7 +29,7 @@ Promise of the first value.
 ## Basic Usage
 
 ```ts
-import { firstValueFrom, of } from "@graphrefly/graphrefly-ts";
+import { firstValueFrom, of } from "@graphrefly/graphrefly";
 
 await firstValueFrom(of(42));
 ```

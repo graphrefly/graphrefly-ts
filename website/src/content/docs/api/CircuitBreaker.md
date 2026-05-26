@@ -25,7 +25,7 @@ reactively (Tier 6.5 3.2.4). |
 ## Basic Usage
 
 ```ts
-import { circuitBreaker, exponential, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+import { circuitBreaker, exponential, NS_PER_SEC } from "@graphrefly/graphrefly";
 
 const b = circuitBreaker({
     failureThreshold: 3,

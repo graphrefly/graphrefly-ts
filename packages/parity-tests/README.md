@@ -2,15 +2,14 @@
 
 Cross-implementation parity test runner for the GraphReFly Rust port.
 
-## Phase 13.9.A interim shape (current)
+## Current shape (2026-05-25)
 
-Parameterized vitest runner via `describe.each(impls)`. The set of impls in
-`impls/registry.ts` widens per Rust-milestone close:
+Parameterized vitest runner via `describe.each(impls)`. `impls/registry.ts` registers **`[pureTsImpl, rustImpl]`** when the host `@graphrefly/native` `.node` is available (local build or npm install); otherwise **`[pureTsImpl]`** only.
 
 | Milestone | Impls registered | Notes |
 |---|---|---|
-| Phase 13.9.A cleave | `[pureTsImpl]` | rust arm deferred until `@graphrefly/native` publishes |
-| **Phase E rustImpl activation (D074, 2026-05-07)** | **`[pureTsImpl, rustImpl]` when `@graphrefly/native` is built locally; otherwise `[pureTsImpl]`** | **All scenario tests are now async-shaped per D077; legacy wraps in `Promise.resolve()`. Rust arm activates after `pnpm --filter @graphrefly/native build` produces the host `.node` artifact.** |
+| Phase 13.9.A cleave | `[pureTsImpl]` | baseline before native publish |
+| **Phase E + native ship (D074/D203, 2026-05-07+)** | **`[pureTsImpl, rustImpl]` when `.node` present** | All scenarios async-shaped per D077; pure-ts wraps sync API in `Promise.resolve()`. Local: `pnpm --filter @graphrefly/native build` or workspace `link:` override to graphrefly-rs bindings. |
 | M2 Slice E close (Graph container) | + Graph constructor, mount/unmount, describe, observe, snapshot scenarios | shim swap-over for Graph topology |
 | M3 Slice C-1 transform (landed 2026-05-06) | + `scenarios/operators/transform.test.ts` (8 scenarios — map/filter/scan/reduce/distinctUntilChanged/pairwise) | substrate landed in `graphrefly-operators`; rust arm activates with napi operator wiring |
 | M3 Slice C-2 combinator (landed 2026-05-06) | + `scenarios/operators/combine.test.ts` (6 scenarios — combine/withLatestFrom/merge) | substrate landed in `graphrefly-operators`; rust arm activates with napi operator wiring |
@@ -34,8 +33,12 @@ AFTER the handshake's sink callback has fired (per the rust binding's
 works synchronously after the await.
 
 **`@graphrefly/native`:** `packages/parity-tests/package.json` depends on
-the published npm package (`^0.0.2`); CI installs it from the registry
-(optional per-platform `.node` sub-packages). For local bindings work in
+the published npm package (`>=0.0.2` — accepts the current npm latest `0.0.3`
+AND the next user-gated republish that will bump the crate source's `0.1.0`
+into npm); CI installs from the registry (optional per-platform `.node`
+sub-packages). The crate source in `graphrefly-rs` is at `0.1.0` per D265
+hold-local; pending edits (D289/D290/D291 bindings) only reach npm on the
+next user-gated tag push that triggers OIDC trusted publishing. For local bindings work in
 `graphrefly-rs`, override at the workspace root, e.g.
 `pnpm.overrides["@graphrefly/native"] = "link:../../../graphrefly-rs/crates/graphrefly-bindings-js"`,
 then `pnpm --filter @graphrefly/native build` before `pnpm test:parity`.
@@ -48,10 +51,9 @@ observe-all-reactive / `g.derived(name, deps, fn)` with arbitrary JS
 fn / cross-Core mount. See `~/src/graphrefly-rs/docs/porting-deferred.md`
 "Phase E rustImpl activation — carry-forward divergences" for details.
 
-Divergences fail loud and gate main-branch merges. The CI parity job
-materializes once the rust arm activates — until then, `pnpm test` from this
-package is equivalent to running the (narrow) parity scenarios against
-pure-ts only.
+Divergences fail loud and gate main-branch merges when CI has the native
+binary for the host triple. Without a `.node`, `rustImpl` is filtered out and
+this package runs pure-ts-only (no false failures).
 
 ## Parity scenarios are the consumer-pressure signal (D196, locked 2026-05-14)
 

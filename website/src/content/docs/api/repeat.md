@@ -26,7 +26,7 @@ function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { repeat, state } from "@graphrefly/graphrefly-ts";
+import { repeat, state } from "@graphrefly/pure-ts";
 
 repeat(state(1, { resubscribable: true }), 2);
 ```

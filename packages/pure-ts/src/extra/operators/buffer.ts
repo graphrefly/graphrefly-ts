@@ -22,7 +22,7 @@ import { type ExtraOpts, operatorOpts } from "./_internal.js";
  * @returns `Node<T[]>` - Emits buffered arrays (may be empty-handled via `RESOLVED` when nothing buffered).
  * @example
  * ```ts
- * import { buffer, state } from "@graphrefly/graphrefly-ts";
+ * import { buffer, state } from "@graphrefly/pure-ts";
  *
  * buffer(state(0), state(0));
  * ```
@@ -105,7 +105,7 @@ export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
  * @returns `Node<T[]>` - Emits fixed-size arrays; remainder flushes on `COMPLETE`.
  * @example
  * ```ts
- * import { bufferCount, state } from "@graphrefly/graphrefly-ts";
+ * import { bufferCount, state } from "@graphrefly/pure-ts";
  *
  * bufferCount(state(0), 3);
  * ```
@@ -164,7 +164,7 @@ export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
  *
  * @example
  * ```ts
- * import { windowCount, state } from "@graphrefly/graphrefly-ts";
+ * import { windowCount, state } from "@graphrefly/pure-ts";
  *
  * windowCount(state(0), 3);
  * ```
@@ -241,7 +241,7 @@ export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
  * @returns `Node<T[]>` - Time-windowed batches.
  * @example
  * ```ts
- * import { bufferTime, state } from "@graphrefly/graphrefly-ts";
+ * import { bufferTime, state } from "@graphrefly/pure-ts";
  *
  * bufferTime(state(0), 250);
  * ```
@@ -317,7 +317,7 @@ export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
  *
  * @example
  * ```ts
- * import { windowTime, state } from "@graphrefly/graphrefly-ts";
+ * import { windowTime, state } from "@graphrefly/pure-ts";
  *
  * windowTime(state(0), 500);
  * ```
@@ -398,7 +398,7 @@ export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
  *
  * @example
  * ```ts
- * import { state, window } from "@graphrefly/graphrefly-ts";
+ * import { state, window } from "@graphrefly/pure-ts";
  *
  * window(state(0), state(0));
  * ```

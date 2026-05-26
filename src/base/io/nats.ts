@@ -59,7 +59,7 @@ export type FromNATSOptions = ExtraOpts & {
  * @example
  * ```ts
  * import { connect } from "nats";
- * import { fromNATS } from "@graphrefly/graphrefly-ts";
+ * import { fromNATS } from "@graphrefly/graphrefly";
  *
  * const nc = await connect({ servers: "localhost:4222" });
  * const events$ = fromNATS(nc, "events.>");

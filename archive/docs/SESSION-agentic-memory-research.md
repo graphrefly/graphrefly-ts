@@ -301,8 +301,211 @@ Reason (segment) → Summarize (compress) → Continue (from summary) → ... (i
 
 ---
 
+## PART 7: FAULTY-MEMORY MITIGATION DESIGN (May 2026)
+
+Source: Zhang, Lin, Wu, Sun, B. Li, D. Li, Peng (UIUC + Tsinghua), **"Useful Memories Become Faulty When Continuously Updated by LLMs"**, [arXiv:2605.12978](https://arxiv.org/abs/2605.12978), May 2026. Project page: [dylanzsz.github.io/faulty-memory](https://dylanzsz.github.io/faulty-memory/). User-driven discussion on 2026-05-24.
+
+### 7.1 What the paper shows
+
+Continuous LLM-driven consolidation **degrades performance** rather than improving it. Headline experimental results:
+
+| Benchmark | Finding |
+|---|---|
+| **ARC-AGI Stream** | GPT-5.4 fails on **54% of problems it had previously solved** once those solved trajectories were streamed through forced consolidation |
+| **ScienceWorld** | Score peaks ~step 20, falls **below the no-memory baseline** by step 100 |
+| **WebShop** | 0.64 → 0.20 (matches no-memory baseline) as memory scales |
+
+The framework exposes three agent actions: **Retain / Delete / Consolidate**. In "Auto" mode (agent chooses), agents default to Retain and rarely Consolidate — and outperform "Force" mode across all benchmarks. Episodic-only is competitive with sophisticated systems (ACE, AWM).
+
+**Three named failure mechanisms:**
+
+1. **Misgrouping** — the consolidator pools episodes that don't share structure, manufacturing composite rules across unrelated problem families.
+2. **Interference** — abstraction strips applicability conditions; an episode-specific lesson becomes a broadly-fired rule.
+3. **Overfit** — when input distribution narrows, abstraction locks onto surface regularities of recent instances and fails on close variants.
+
+**Paper's recommendations:**
+
+- Treat raw episodes as **first-class evidence**, not disposable inputs to a summarizer.
+- **Gate** consolidation explicitly; do not auto-fire after each trajectory.
+- Architecturally separate fast/raw episodic store from slow/selective schema formation.
+- Always run an **episodic-only baseline** when evaluating a memory system.
+
+### 7.2 Contradiction with current GraphReFly defaults
+
+Reading our own active design:
+
+- `agentMemory()` defaults to `consolidateTrigger: fromTimer(opts.consolidateInterval ?? 300_000)` — **auto-consolidate every 5 minutes** (PART 3 §"Default agentMemory() Strategy", line 133 above).
+- REFLECT stage of `harnessLoop()` pipes every episode through `distill()` → `llmConsolidator` and stores the distilled artifact for next session ([SESSION-reactive-collaboration-harness.md](SESSION-reactive-collaboration-harness.md) Stage 7).
+- "Strategy 3: Dynamic Reflection Mechanism" (PART 2 §"Strategy 3") is presented as a recommended built-in.
+- `meta.consolidation_count` tracks *survival* but not *correctness* — a misgrouped rule that survives N consolidations still scores high.
+
+**The library currently ships the exact pattern the paper flags as harmful as the default.** This is not a marketing concern — if GraphReFly users run into the same 100% → 54% collapse, the framework loses credibility regardless of demo polish.
+
+### 7.3 Design synthesis: in-flight per-insight contrast
+
+The naive remediation is "do what the paper says: gate consolidation." That's necessary but not sufficient — it only avoids creating bad insights, doesn't help us detect bad insights that slip through.
+
+GraphReFly's **reactive substrate enables a stronger answer**: because [`reactiveFactStore`](SESSION-DS-14.7-reactive-fact-store.md) already maintains a `dependentsIndex` (the inverted edge from each derived insight back to its source facts), we can run **per-insight continuous validation** by re-deriving the answer from raw facts and comparing against the insight-driven answer. The paper's "episodic-only baseline" becomes a per-insight, in-flight A/B rather than a system-level evaluation gate.
+
+Why this addresses all three named failure modes:
+
+| Failure mode | How per-insight contrast detects it |
+|---|---|
+| Misgrouping | Merged rule answers diverge from per-fact answers on some queries |
+| Interference | Raw facts carry applicability conditions that constrain answers; insight doesn't — divergence appears on edge cases |
+| Overfit | On close variants, insight fails where raw episodes still solve |
+
+### 7.4 How the pieces compose (distill / agentMemory / learned-memory-scoring / reactiveFactStore)
+
+```
+distill()                          ← generic reactive distillation operator
+   │
+   └─ called by agentMemory()      ← AI-memory preset (composes primitives)
+         │
+         ├─ score input            ← learned-memory-scoring: external reactive
+         │  (any source of score)     score signal → influences decay rate
+         │
+         └─ fact subsystem         ← currently knowledgeGraph + collection;
+                                      future: reactiveFactStore (cascade /
+                                      temporal / scale fix)
+```
+
+The Faulty-Memory mitigation does **not** add a new primitive. It composes:
+
+- **reactiveFactStore's existing `dependentsIndex`** → reverse lookup from each insight to its source facts (zero new structure)
+- **A new operator that, every N retrievals of an insight, forks a raw-only path** and emits a contrast score
+- **learned-memory-scoring's reactive `score` input** → contrast score flows in, adjusts decay rate
+
+Everything except the operator already exists in shipped or LOCKED design.
+
+### 7.5 Resolved design questions
+
+The 2026-05-24 discussion resolved four design questions:
+
+**Q1 — When does contrast fire?**
+
+LOCKED: **every-N-retrievals**, user-configured single integer:
+
+- `N=0` — disable contrast; fully trust insights
+- `N=1` — per-retrieval high-fidelity (every use is validated)
+- `N>1` — sample every Nth use of this insight
+
+Cron-based / outcome-triggered rejected:
+
+- Outcome-triggered is unreliable because task-success is a fuzzy continuous quantity (latency degradation, incomplete answers, etc. are not crisp failure signals).
+- Cron requires solving the sampling problem (which historical queries to replay?) and offers no error-budget benefit for an interactive agent workload.
+- every-N collapses sampling: the sample IS the current query. No ring buffer of historical queries needed. Linear cost knob: extra LLM call cost = `1/N`.
+
+**Q2 — How is divergence measured?**
+
+LOCKED: **dual-prompt dry-run**. The "single-event signal" and the "rolling statistics that adjust decay rate" are not two configuration tiers; they are sequential stages of one pipeline:
+
+```
+Each Nth retrieval ─► dual-prompt (insight-only / raw-only)
+                          │
+                          ├─► single contrast event (vector of dimensions)
+                          │
+                          └─► rolling statistics (with noise filtering /
+                               significance test) ─► decay rate adjustment
+```
+
+Cheap "token / semantic alignment of insight against its source facts" rejected as default — it only catches misgrouping, misses interference and overfit.
+
+**Q3 — Who judges which answer is correct?**
+
+LOCKED: **divergence-only by default**. No external truth required. The rubric is reframed so the "correctness" dimension collapses into the "divergence" dimension; other dimensions stay absolute:
+
+| Dimension | Mode under divergence-only | Source |
+|---|---|---|
+| Semantic answer distance | relative (divergence) | embedding distance or cheap LLM judge over the two outputs |
+| Completeness | relative diff | length / sub-question coverage |
+| Confidence calibration | relative diff | model-reported confidence delta |
+| Latency | **absolute** | k-seed median + significance test (filters 200ms-vs-180ms noise) |
+| Token cost (in+out) | **absolute** | direct subtraction |
+| Tool-call count | **absolute** | direct count |
+| "Which answer is correct" | **not answered** | explicitly out of scope under divergence-only |
+
+Composite scoring sketch:
+
+```
+contrast(insight, raw) = {
+  divergence:       semantic_distance(ans_i, ans_r),   // [0, 1]
+  cost_savings:     tokens_r - tokens_i,               // positive = insight cheaper
+  latency_savings:  latency_r - latency_i,             // positive = insight faster
+  confidence_drift: conf_i - conf_r,
+}
+
+decay_rate_adj = w1 * divergence                       // unreliable insight → faster decay
+              - w2 * normalize(cost_savings)           // insight doing real compression → slower decay
+              - w3 * normalize(latency_savings)
+              ...
+```
+
+**Useful semantic side-effect:** When divergence = 0 (insight and raw agree), insight is still *rewarded* by `cost_savings` — "insight is doing its job: same answer, smaller context." When divergence = 1, decay accelerates regardless of which side is "right" — matches the paper's spirit that an unreliable insight should be forgotten, with or without an external truth source.
+
+**Higher-fidelity mode opt-in**: when the user explicitly provides a stronger model as `judge`, the system upgrades to LLM-as-judge with absolute correctness scoring. No silent upgrade.
+
+**Q4 — Cold-start mechanism for new insights?**
+
+LOCKED: **none**. A new insight with no contrast history simply uses the default decay rate from `agentMemory()` until enough contrast samples accumulate to start adjusting via the `score` input. Forcing per-retrieval during a "cold-start window" was rejected because:
+
+- It silently overrides the user's explicit `N` setting (a user who picked N=5 accepted the risk of unmonitored early uses).
+- The natural behavior already covers the case: no contrast data → no `score` adjustment → default decay rate.
+- Zero special-case logic to maintain.
+
+### 7.6 v1 design (LOCKED 2026-05-24)
+
+1. **`agentMemory()` default `consolidateTrigger` changes from `fromTimer` to an explicit reactive gate.** Auto-fire on a timer is removed as a default. Users who want auto-consolidation wire a trigger explicitly. (Direct adoption of the paper's core recommendation.)
+2. **New `contrast` configuration on `agentMemory()`.** Every N retrievals that hit a given insight, walk `reactiveFactStore`'s existing reverse-dependency edges to recover source facts, fork a raw-only path, and produce a contrast event.
+3. **Scoring rubric: divergence (semantic / completeness / confidence) + absolute (cost / latency / tool-call).** Sensible defaults for weights; user-overridable.
+4. **Judge defaults to undefined (divergence-only mode).** User explicitly supplies a stronger model to upgrade to LLM-as-judge.
+5. **Contrast results flow into `learned-memory-scoring`'s reactive `score` input.** Influences decay rate of the validated insight. No new score-injection mechanism.
+6. **No cold-start mechanism.** New insights use `agentMemory()`'s default decay rate until contrast samples accumulate naturally.
+
+API shape:
+
+```ts
+agentMemory({
+  consolidate: { trigger: someReactiveGate },   // #1 — no fromTimer default
+  contrast: {
+    everyN: 5,           // #2 — 0=off, 1=per-retrieval, N>1=sample every Nth
+    rubric: { ... },     // #3 — weights; default reasonable
+    judge: undefined,    // #4 — opt-in stronger model for absolute correctness
+  },
+})
+```
+
+### 7.7 Why this is a GraphReFly differentiator, not just a fix
+
+Other memory systems (Mem0, Letta, Zep, MemGPT) cannot do this cheaply because they **lack a reactive inverted dependency graph between insights and source facts**. They store insights as opaque text blobs, with at best a list of source-doc IDs. To run the same per-insight contrast, they would have to:
+
+- Re-fetch source documents from a vector / graph store on every contrast event
+- Manage the lifecycle of the contrast operation as an external job
+- Reconcile contrast results back into memory scoring through a separate pipeline
+
+GraphReFly's `reactiveFactStore` makes the dependency edge a **structural property of the substrate**, not an application-level concern. The `dependentsIndex` is already there for cascade invalidation (MEME L2/L3 in DS-14.7); reusing it for contrast is zero new infrastructure. The result is that **per-insight in-flight validation is a single configuration knob in our library, but a project-scale effort in others**. This is potentially a Wave 2 narrative differentiator worth foregrounding.
+
+### 7.8 Cost honesty (the marketing reframe)
+
+In this design, **insights do not save disk space** — raw facts must persist for contrast to work. The compression benefit is **smaller context window at inference time and faster reasoning**, not smaller storage footprint. This matches the paper's "raw episodes are first-class evidence" framing and matches the operating point in [DS-14.7](SESSION-DS-14.7-reactive-fact-store.md) §1.3 (agent-personal memory at 10⁴–10⁷ facts, where disk is not the bottleneck and context is). The marginal storage cost of the contrast mechanism itself over `reactiveFactStore` is negligible: the `dependentsIndex` already exists; per-insight score time-series is small; no historical-query ring buffer is needed under the every-N design.
+
+The user-facing claim about insights should be: **"insights make inference cheaper and faster, not your database smaller."** Public-facing copy and Strategy 3 framing in this document (PART 2) need updating accordingly when the v1 design lands.
+
+### 7.9 Implementation status & next steps
+
+- **Status:** DESIGN LOCKED 2026-05-24. Awaiting implementation invocation.
+- **Depends on:** [`reactiveFactStore`](SESSION-DS-14.7-reactive-fact-store.md) — **IMPLEMENTED 2026-05-15** (v1 landed as `reactiveFactStore<T>()` in `src/utils/memory/fact-store.ts`; `dependentsIndex` at `fact-store.ts:447`; 20 tests in `src/__tests__/utils/memory/fact-store.test.ts`). Structural prerequisite is in place — no blocker.
+- **Companion:** [`learned-memory-scoring`](SESSION-learned-memory-scoring.md) reactive `score` input — LOCKED-but-not-implemented; same design wave. This is the one remaining substrate piece to build alongside the contrast implementation.
+- **Documentation follow-ups when implemented:**
+  - Update PART 3 §"Default agentMemory() Strategy" to reflect the new `consolidateTrigger` default and `contrast` block.
+  - Update PART 2 §"Strategy 3: Dynamic Reflection Mechanism" to mark auto-firing as advanced opt-in with failure modes called out.
+  - File a `docs/optimizations.md` entry for "agentMemory() episodic-only / contrast defaults" tied to the Phase 15 eval program (per-insight contrast is the GraphReFly-native form of the paper's episodic-only baseline requirement).
+  - Update Wave 2 launch copy (DS-14.5.A narrative reframe) to include the "per-insight in-flight validation" differentiator from §7.7.
+
+---
+
 ## FILES CHANGED
 
-- This file updated: `archive/docs/SESSION-agentic-memory-research.md` (added Part 6)
+- This file updated: `archive/docs/SESSION-agentic-memory-research.md` (added Part 6, then Part 7)
 
 ---END SESSION---

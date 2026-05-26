@@ -2,10 +2,10 @@
  * Compat layer: compatibility wrappers for other state management libraries (Phase 5.1b).
  *
  * Framework adapters are optional peers. Install only what you use:
- * - `@graphrefly/graphrefly-ts/compat/react` -> `react`, `react-dom`
- * - `@graphrefly/graphrefly-ts/compat/vue` -> `vue`
- * - `@graphrefly/graphrefly-ts/compat/svelte` -> `svelte`
- * - `@graphrefly/graphrefly-ts/compat/solid` -> `solid-js`
+ * - `@graphrefly/graphrefly/compat/react` -> `react`, `react-dom`
+ * - `@graphrefly/graphrefly/compat/vue` -> `vue`
+ * - `@graphrefly/graphrefly/compat/svelte` -> `svelte`
+ * - `@graphrefly/graphrefly/compat/solid` -> `solid-js`
  */
 export * as jotai from "./jotai/index.js";
 export * as nanostores from "./nanostores/index.js";

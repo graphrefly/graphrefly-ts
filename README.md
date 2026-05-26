@@ -2,7 +2,7 @@
 
 **The reactive graph your code, your agents, and your humans share as a blueprint.** Compose in code, review the projected spec, co-edit across agents without colliding, trace every decision.
 
-GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is the source of truth — `factoryTag`-stamped factories project automatically into a `GraphSpec` blueprint that humans and agents read, diff, and review together. Multi-agent worktrees claim subgraph ownership through a structural protocol (TTL → heartbeat → supervisor) so concurrent edits don't corrupt shared topology. Every decision has a causal chain — `graph.explain()` walks back through dependencies and tells you exactly why a value is what it is.
+GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is the source of truth — `factoryTag`-stamped factories project automatically into a `GraphSpec` blueprint that humans and agents read, diff, and review together. Multi-agent worktrees claim subgraph ownership through a structural protocol (TTL → heartbeat → supervisor) so concurrent edits don't corrupt shared topology. Every decision has a causal chain — `graph.describe({ explain: { from, to } })` walks back through dependencies and tells you exactly why a value is what it is.
 
 [![npm](https://img.shields.io/npm/v/@graphrefly/graphrefly?color=blue)](https://www.npmjs.com/package/@graphrefly/graphrefly)
 [![license](https://img.shields.io/github/license/graphrefly/graphrefly-ts)](./LICENSE)
@@ -13,7 +13,9 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is th
 
 | Package | What it is |
 |---|---|
-| [`@graphrefly/graphrefly`](https://www.npmjs.com/package/@graphrefly/graphrefly) | The library — reactive graph primitives, operators, `Graph` container, framework adapters. |
+| [`@graphrefly/graphrefly`](https://www.npmjs.com/package/@graphrefly/graphrefly) | The library — presentation layer (IO, AI patterns, framework adapters) on top of a substrate provider you pick at install time. |
+| [`@graphrefly/pure-ts`](./packages/pure-ts) | Default substrate — pure-TypeScript implementation of `node` / `Graph` / operators / sources / storage. Universal (browser + Node), sync API. |
+| [`@graphrefly/native`](https://www.npmjs.com/package/@graphrefly/native) | Optional substrate — Rust implementation via napi-rs (Node-only, async API). Same `Impl` contract as `@graphrefly/pure-ts`, enforced by `packages/parity-tests/`. |
 | [`@graphrefly/cli`](./packages/cli) | Stateless command-line shell — `describe`, `explain`, `observe`, `reduce`, `snapshot` from your terminal or CI. |
 
 ---
@@ -33,19 +35,20 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is th
 ## Quick start
 
 ```bash
-npm install @graphrefly/graphrefly
+npm install @graphrefly/graphrefly @graphrefly/pure-ts
 ```
 
 ```ts
-import { state, derived, effect } from "@graphrefly/graphrefly";
+import { Graph, DATA } from "@graphrefly/graphrefly";
 
-const count = state(0);
-const doubled = derived([count], ([c]) => c * 2);
+const g = new Graph("counter");
+const count = g.state<number>("count", 0);
+const doubled = g.derived("doubled", [count], ([c]) => c * 2);
 
-effect([doubled], ([d]) => console.log("doubled:", d));
+g.effect([doubled], ([d]) => console.log("doubled:", d));
 // → doubled: 0
 
-count.set(3);
+count.down([[DATA, 3]]);
 // → doubled: 6
 ```
 
@@ -53,7 +56,7 @@ count.set(3);
 
 Code is the source of truth. You compose a reactive graph using primitives (`state`, `derived`, `effect`, `producer`) and factories (`agentLoop`, `harnessLoop`, `agentMemory`, …). `factoryTag`-stamped factories carry self-description into the live graph. `graph.describe({ detail: "spec" })` projects the topology into a JSON `GraphSpec` blueprint — the same shape the original spec was written from, but always in sync with what's actually running. Spec is what your agents read to understand the topology. Code is what they (and you) actually edit.
 
-The graph runs persistently, checkpoints state on `messageTier ≥ 3` and topology on `_topologyVersion` bump, and traces every decision through a causal chain. Ask "why?" at any point — `graph.explain(from, to)` walks backward through dependencies and returns a structured chain that's both human-readable and LLM-parseable.
+The graph runs persistently, checkpoints state on `messageTier ≥ 3` and topology on `_topologyVersion` bump, and traces every decision through a causal chain. Ask "why?" at any point — `graph.describe({ explain: { from, to } })` walks backward through dependencies and returns a structured chain that's both human-readable and LLM-parseable.
 
 ## Substrate coverage
 
@@ -66,7 +69,7 @@ The eight requirements of a production agent system cluster into a handful of co
 | Control flow & resilience | `resilientPipeline()` — `rateLimiter → breaker → retry → timeout → fallback`, correct ordering built in |
 | Execution & policy | `guardedExecution()` — Actor / Guard ABAC + `policy()` + `budgetGate` + scoped describe |
 | Observability & causality | `graphLens()` — reactive topology, health, flow, and `why(node)` causal chains as structured data |
-| Human governance | `gate` — reactive `pending` / `isOpen` with `approve` / `reject` / `modify(fn, n)` |
+| Human governance | `pipelineGraph().approvalGate(...)` and `humanInput(...)` — reactive `pending` / `isOpen` with `approve` / `reject` / `modify(fn, n)` |
 | Verification | Multi-model eval harness with regression gates |
 | Continuous improvement | Strategy model: `rootCause × intervention → successRate` |
 | Multi-agent coordination | `ownershipController()` — L0 static / L1 TTL / L2 heartbeat / L3 supervisor staircase; `Actor / Guard ABAC` enforces claims at write time; `validateOwnership` lints PR diffs |
@@ -91,28 +94,30 @@ The library computes structured facts reactively; LLMs and UIs render them. Natu
 
 ## One primitive
 
-Everything is a `node`. Sugar constructors give you the right shape:
+Everything is a `node`. Register them on a `Graph` for introspection and let its sugar methods give you the right shape:
 
 ```ts
-import { state, derived, producer, effect, pipe } from "@graphrefly/graphrefly";
+import { Graph, DATA, pipe, delay, map } from "@graphrefly/graphrefly";
+
+const g = new Graph("hello");
 
 // Writable state
-const name = state("world");
+const name = g.state<string>("name", "world");
 
 // Computed (re-runs when deps change)
-const greeting = derived([name], ([n]) => `Hello, ${n}!`);
+const greeting = g.derived("greeting", [name], ([n]) => `Hello, ${n}!`);
 
 // Push source (timers, events, async streams)
-const clock = producer((emit) => {
+const clock = g.producer<number>("clock", (emit) => {
   const id = setInterval(() => emit([[DATA, Date.now()]]), 1000);
   return () => clearInterval(id);
 });
 
 // Side effect
-effect([greeting], ([g]) => document.title = g);
+g.effect([greeting], ([s]) => { document.title = s; });
 
-// Operator pipeline
-const delayed = pipe(clock, delay(500), map(([, ts]) => new Date(ts)));
+// Operator pipeline (off-Graph composition)
+const delayed = pipe(clock, delay(500), map((ts) => new Date(ts as number)));
 ```
 
 ## Streaming & operators
@@ -132,19 +137,21 @@ const search = pipe(
 
 ## Graph container
 
-Register nodes in a `Graph` for introspection, snapshot, and persistence:
+`Graph` is the introspection / snapshot / persistence container. Use its sugar methods to register nodes by name:
 
 ```ts
-import { Graph, state, derived } from "@graphrefly/graphrefly";
+import { Graph } from "@graphrefly/graphrefly";
+import { graphSpecToMermaid } from "@graphrefly/graphrefly/base/render";
 
 const g = new Graph("pricing");
-const price = g.register("price", state(100));
-const tax   = g.register("tax", derived([price], ([p]) => p * 0.1));
-const total = g.register("total", derived([price, tax], ([p, t]) => p + t));
+const price = g.state<number>("price", 100);
+const tax   = g.derived("tax",   [price],      ([p]) => p * 0.1);
+const total = g.derived("total", [price, tax], ([p, t]) => p + t);
 
-g.describe();   // → full graph topology as JSON
-g.diagram();    // → Mermaid diagram string
-g.observe((e) => console.log(e));  // → live change stream
+const spec = g.describe();                              // → full graph topology as JSON
+const why  = g.describe({ explain: { from: "price", to: "total" } });
+const mmd  = graphSpecToMermaid(spec);                  // → Mermaid diagram string
+const off  = g.observe((e) => console.log(e));          // → live change stream
 ```
 
 ## AI & orchestration
@@ -195,18 +202,27 @@ import { GraphReflyModule } from "@graphrefly/graphrefly/compat/nestjs";
 
 ## Tree-shaking imports
 
-Prefer subpath imports for minimal bundle:
+The root `@graphrefly/graphrefly` barrel re-exports everything (substrate + 4-layer presentation + compat):
 
 ```ts
-import { node, batch, DATA } from "@graphrefly/graphrefly/core";
-import { map, switchMap } from "@graphrefly/graphrefly/extra";
-import { Graph } from "@graphrefly/graphrefly/graph";
+import { node, Graph, map, switchMap, agentLoop } from "@graphrefly/graphrefly";
 ```
 
-The root entry re-exports everything:
+For minimal bundle, import substrate symbols from `@graphrefly/pure-ts` (universal — browser + Node safe) and presentation symbols from the matching `@graphrefly/graphrefly/<layer>` subpath:
 
 ```ts
-import { node, map, Graph } from "@graphrefly/graphrefly";
+// Substrate (sync, universal)
+import { node, batch, DATA } from "@graphrefly/pure-ts/core";
+import { map, switchMap }     from "@graphrefly/pure-ts/extra/operators";
+import { Graph }              from "@graphrefly/pure-ts/graph";
+
+// Node-only substrate extras (file IO, sqlite, fs watch, …)
+import { fileKv, sqliteKv } from "@graphrefly/pure-ts/extra/storage/node";
+
+// Presentation: pick the right layer (base / utils / presets / solutions / compat)
+import { agentMemory } from "@graphrefly/graphrefly/presets/ai";
+import { graphSpecToMermaid } from "@graphrefly/graphrefly/base/render";
+import { useNode } from "@graphrefly/graphrefly/compat/react";
 ```
 
 ## Resilience & checkpoints
@@ -214,7 +230,8 @@ import { node, map, Graph } from "@graphrefly/graphrefly";
 Built-in retry, circuit breakers, rate limiters, and persistent storage:
 
 ```ts
-import { retry, circuitBreaker, fileStorage, memoryStorage } from "@graphrefly/graphrefly";
+import { retry, circuitBreaker, memoryKv, kvStorage } from "@graphrefly/graphrefly";
+import { fileKv } from "@graphrefly/graphrefly/extra/node";
 
 // Retry with exponential backoff
 const resilient = pipe(source, retry({ strategy: "exponential" }));
@@ -222,32 +239,45 @@ const resilient = pipe(source, retry({ strategy: "exponential" }));
 // Circuit breaker
 const breaker = circuitBreaker({ threshold: 5, resetTimeout: 30_000 });
 
-// Multi-tier storage with auto-restore: hot in-memory + warm on disk.
-graph.attachStorage(
-  [memoryStorage(), fileStorage("./checkpoints")],
+// Multi-tier snapshot storage: hot in-memory + warm on disk.
+graph.attachSnapshotStorage(
+  [kvStorage(memoryKv()), kvStorage(fileKv("./checkpoints"))],
   { autoRestore: true },
 );
 ```
 
 ## Project layout
 
+Substrate vs presentation cleaved 2026-05-15 (Cleave A / D193 + D198 install-time model). The root `src/` is the **presentation** package; the **substrate** lives in `packages/pure-ts/`.
+
 | Path | Contents |
 |------|----------|
-| `src/core/` | Message protocol, `node` primitive, batch, sugar constructors |
-| `src/extra/` | Operators, sources, data structures, resilience, checkpoints |
-| `src/graph/` | `Graph` container, describe/observe, snapshot, persistence |
-| `src/patterns/` | Orchestration, messaging, memory, AI, CQRS, reactive layout |
-| `src/compat/` | Framework adapters (React, Vue, Svelte, Solid, NestJS) |
-| `docs/` | Roadmap, guidance, benchmarks |
+| `packages/pure-ts/src/core/` | Message protocol, `node` primitive, batch, Actor, policy, central clock (substrate) |
+| `packages/pure-ts/src/graph/` | `Graph` container, describe/observe, snapshot, persistence (substrate) |
+| `packages/pure-ts/src/extra/` | Operators, sync sources, data structures, storage tiers (substrate) |
+| `packages/parity-tests/` | Cross-impl parity scenarios — `describe.each([pureTsImpl, rustImpl])` over both substrate peers |
+| `packages/cli/` | `@graphrefly/cli` — stateless command-line shell |
+| `src/base/` | Domain-agnostic infrastructure (IO, composition, mutation, render, worker, sources) |
+| `src/utils/` | Domain building blocks (messaging, orchestration, memory, ai, resilience, cqrs, harness, …) |
+| `src/presets/` | Opinionated compositions (agentLoop, agentMemory, resilientPipeline, harnessLoop, …) |
+| `src/solutions/` | User-facing packaged products |
+| `src/compat/` | Framework adapters (React, Vue, Svelte, Solid, NestJS, Jotai, Zustand, Nanostores, Signals) |
+| `docs/` | Implementation plan, decisions, cross-track ledger, optimizations, benchmarks |
 | `website/` | Astro + Starlight docs site ([graphrefly.dev](https://graphrefly.dev)) |
+
+Layer boundary (`base → utils → presets → solutions → compat`) is CI-enforced via `scripts/check-layer-boundary.ts` (D201). The Rust port lives in `~/src/graphrefly-rs/`; cross-track changes are logged in `docs/cross-track-ledger.md`.
 
 ## Scripts
 
 ```bash
-pnpm test          # vitest run
-pnpm run lint      # biome check
-pnpm run build     # tsup (ESM + CJS + .d.ts)
-pnpm bench         # vitest bench
+pnpm test            # pure-ts tests + parity scenarios
+pnpm test:pure-ts    # just packages/pure-ts (~3000 tests)
+pnpm test:parity     # just packages/parity-tests
+pnpm run lint        # biome check + layer-boundary + tsc --noEmit on parity-tests/evals
+pnpm run lint:fix    # biome --write
+pnpm run build       # pure-ts build → root shim build
+pnpm run build:shim  # only the root shim (assumes pure-ts already built)
+pnpm bench           # pure-ts vitest bench
 ```
 
 ## Acknowledgments

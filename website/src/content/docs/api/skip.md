@@ -26,7 +26,7 @@ function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T>
 ## Basic Usage
 
 ```ts
-import { skip, state } from "@graphrefly/graphrefly-ts";
+import { skip, state } from "@graphrefly/pure-ts";
 
 const n = skip(state(0), 2);
 ```

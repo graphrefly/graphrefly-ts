@@ -49,7 +49,7 @@ export type FromPrometheusOptions = AsyncSourceOpts & {
  *
  * @example
  * ```ts
- * import { fromPrometheus } from "@graphrefly/graphrefly-ts";
+ * import { fromPrometheus } from "@graphrefly/graphrefly";
  *
  * const prom$ = fromPrometheus("http://localhost:9090/metrics", { intervalNs: 30 * NS_PER_SEC });
  * ```

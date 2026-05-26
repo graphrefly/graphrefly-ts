@@ -24,7 +24,7 @@ function constant(delayNs: number): BackoffStrategy
 ## Basic Usage
 
 ```ts
-import { constant, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+import { constant, retry, NS_PER_SEC } from "@graphrefly/graphrefly";
 
 const out = retry(source, { count: 3, backoff: constant(0.25 * NS_PER_SEC) });
 ```

@@ -236,7 +236,7 @@ export class NativeListBackend<T> implements ListBackend<T> {
  *
  * @example
  * ```ts
- * import { reactiveList } from "@graphrefly/graphrefly-ts";
+ * import { reactiveList } from "@graphrefly/pure-ts";
  *
  * const list = reactiveList<string>(["a"], { name: "queue" });
  * list.append("b");

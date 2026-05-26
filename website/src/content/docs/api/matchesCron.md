@@ -25,7 +25,7 @@ function matchesCron(schedule: CronSchedule, date: Date): boolean
 ## Basic Usage
 
 ```ts
-import { parseCron, matchesCron } from "@graphrefly/graphrefly-ts";
+import { parseCron, matchesCron } from "@graphrefly/graphrefly";
 
 const sched = parseCron("30 8 * * 1"); // Mondays at 08:30
 const monday = new Date("2026-03-30T08:30:00"); // a Monday

@@ -11,6 +11,7 @@
 import * as legacy from "@graphrefly/pure-ts";
 import * as storage from "@graphrefly/pure-ts/extra";
 import type {
+	BatchCtx,
 	Impl,
 	ImplAppendLogTier,
 	ImplCheckpointSnapshotTier,
@@ -590,13 +591,43 @@ export const pureTsImpl: Impl = {
 		return wrap(n);
 	},
 
-	// D282 — widened to expose `batch(fn)` so `batch-throw-rollback`
-	// parity scenarios can run cross-arm. Pure-ts wraps the sync
-	// `legacy.batch`; the user `fn` runs synchronously inside the
-	// substrate's batch scope, so a thrown value rejects the Promise
-	// after the substrate's per-node rollback has completed.
-	async batch(fn: () => void): Promise<void> {
-		legacy.batch(fn);
+	// D282 / D288 Q3+Q5 / D290 — `batch(fn: (ctx) => void)` with ctx-injecting
+	// wrapper. Substrate-level `legacy.batch(fn)` is unchanged (Q5 lock:
+	// 3-line parity adapter, NOT a same-arm consumer-visible widening).
+	// The injected `ctx.down(node, msg)` is a thin reach-through to the
+	// substrate `NodeImpl.down([msg])` — single-msg-per-call per Q3a.
+	// `closed` flips on fn return/throw; subsequent ctx.down throws
+	// (per-frame lifetime contract). Pinned by Case 15a/15b cross-arm
+	// regressions.
+	//
+	// **QA F4 (D290): DIRTY/RESOLVED reject for cross-arm symmetry.**
+	// `BenchBatchContext` (D289) intentionally does NOT expose `down_dirty`
+	// / `down_resolved` — they are substrate-internal (DIRTY is queue
+	// plumbing, RESOLVED is what derived fns emit via FnResult). Pure-ts
+	// rejects them here to match native's loud-fail behavior, so the
+	// `ctx.down` cross-arm contract is "user-emittable tiers only"
+	// (DATA / COMPLETE / ERROR / INVALIDATE / TEARDOWN / PAUSE / RESUME).
+	async batch(fn: (ctx: BatchCtx) => void): Promise<void> {
+		let closed = false;
+		const ctx: BatchCtx = {
+			down<T>(node: ImplNode<T>, msg: Message<T>): void {
+				if (closed) throw new Error("BatchCtx used after batch frame closed");
+				const tier = msg[0];
+				if (tier === legacy.DIRTY || tier === legacy.RESOLVED) {
+					throw new Error(
+						`BatchCtx.down: tier ${String(tier)} is substrate-internal; ` +
+							`no public emit path on either arm (pure-ts.ts batch() ctx.down — ` +
+							`matches native's BenchBatchContext.down_* surface per D289).`,
+					);
+				}
+				(node.inner as legacy.Node<T>).down([msg] as legacy.Messages);
+			},
+		};
+		try {
+			legacy.batch(() => fn(ctx));
+		} finally {
+			closed = true;
+		}
 	},
 
 	Graph: class implements ImplGraph {

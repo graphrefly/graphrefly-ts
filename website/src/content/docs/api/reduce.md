@@ -35,7 +35,7 @@ function reduce<T, R>(
 ## Basic Usage
 
 ```ts
-import { reduce, state } from "@graphrefly/graphrefly-ts";
+import { reduce, state } from "@graphrefly/pure-ts";
 
 const n = reduce(state(1), (a, x) => a + x, 0);
 ```

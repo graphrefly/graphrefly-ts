@@ -5,7 +5,7 @@
 // Node<T>, including companion nodes (node.meta.status).
 //
 // Usage:
-//   import { useSubscribe, useStore } from '@graphrefly/graphrefly-ts/compat/svelte';
+//   import { useSubscribe, useStore } from '@graphrefly/graphrefly/compat/svelte';
 //   // Optional peer install (only for this adapter): pnpm add svelte
 //   const status = useSubscribe(wsStatusNode);   // Svelte readable store
 //   const count = useStore(countNode);           // Svelte writable store

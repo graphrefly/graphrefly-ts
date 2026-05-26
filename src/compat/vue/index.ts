@@ -5,7 +5,7 @@
 // Node<T>, including companion nodes (node.meta.status).
 //
 // Usage:
-//   import { useStore, useSubscribe } from '@graphrefly/graphrefly-ts/compat/vue';
+//   import { useStore, useSubscribe } from '@graphrefly/graphrefly/compat/vue';
 //   // Optional peer install (only for this adapter): pnpm add vue
 //   const count = useStore(counterNode);       // Ref<number | undefined> (read + write)
 //   const status = useSubscribe(wsStatusNode); // Readonly<Ref<string | undefined>>

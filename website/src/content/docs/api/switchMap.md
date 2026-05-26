@@ -30,7 +30,7 @@ function switchMap<T, R>(
 ## Basic Usage
 
 ```ts
-import { switchMap, state } from "@graphrefly/graphrefly-ts";
+import { switchMap, state } from "@graphrefly/pure-ts";
 
 const src = state(0);
 switchMap(src, (n) => state((n as number) * 2));

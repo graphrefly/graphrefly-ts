@@ -28,7 +28,7 @@ Parsed CronSchedule with one `Set&lt;number&gt;` per field.
 ## Basic Usage
 
 ```ts
-import { parseCron } from "@graphrefly/graphrefly-ts";
+import { parseCron } from "@graphrefly/graphrefly";
 
 const sched = parseCron("0 9 * * 1-5"); // weekdays at 09:00
 sched.hours;      // Set { 9 }
