@@ -899,34 +899,22 @@ describe.each(impls)("D282 R4.3.2 batch-throw rollback parity — $name", (impl)
 
 	// ── Case 15a — D288 Q3 per-frame lifetime: post-frame (success path) ──
 	//
-	// **Stays `runIf(pure-ts)` post-D291** — D291 fixed the Q2 tripwire
-	// ordering on the COMMIT path (explicit-drop `handle_guard` BEFORE
-	// `guard_holder.take()` in `batch_bindings.rs::BatchOp::Commit`; pinned
-	// by `d291_commit_path_clears_during_batch_handle_before_sinks_fire`),
-	// but cross-arm verification surfaced a SEPARATE structural blocker
-	// the D288 Path D design didn't anticipate: **`BenchBatchContext::commit`
-	// is sync napi → blocks libuv on `rx.recv()` → fire_deferred's
-	// TSFN-backed sinks (from JS `src.subscribe(...)` consumers) can't
-	// fire because libuv is tied up → 3-way deadlock between JS commit
-	// caller, libuv, and the parked actor.**
-	//
-	// Empirical (2026-05-25, D291 verify session): the standalone Case 5
-	// rollback path works cross-arm (`/tmp/d291-verify` script: cache=6
-	// post-rollback, reemittable). Case 15a hangs at `await impl.batch(...)`
-	// on the COMMIT — never returns. Substrate-level cargo test
-	// `commit_fires_pending_notify_exactly_once_per_tier` PASSES because
-	// it uses Rust-side `Rc<dyn Fn>` sinks (no `bridge_sync_unit`); only
-	// real JS consumers (TSFN-backed subscribe) surface the libuv deadlock.
-	//
-	// Lift requires converting `BenchBatchContext::commit` + `rollback`
-	// to **async napi** (same shape as D267's read-method async-conversion
-	// for `BenchGraph` to avoid the analogous TSFN deadlock). That's a
-	// substrate-shape rebase that reopens D288 Path D's "sync handle"
-	// premise — out of scope for this slice; deferred to a follow-on
-	// `/porting-to-rs` slice that re-locks the D288 Q5 commit/rollback
-	// shape under TSFN-sink realism. Tracked in
-	// `graphrefly-rs/docs/porting-deferred.md` § "D291 follow-on".
-	test.runIf(runIfPureTs)("post-frame ctx.down throws (success path)", async () => {
+	// **D292 D.2 (2026-05-25): `runIf(pure-ts)` gate LIFTED.** The
+	// libuv-sync-commit deadlock that blocked cross-arm verification
+	// post-D291 is closed: `BenchBatchContext::commit` + `rollback` are
+	// now async napi via `tokio::task::spawn_blocking(move || rx.recv())`
+	// (R2 refinement: spawn_blocking, NOT actor.run — D255 α-shape
+	// single-worker-per-Core means actor.run would serialize concurrent
+	// reads behind the pending commit). `spawn_blocking` moves the
+	// blocking wait to tokio's blocking pool — libuv stays free during
+	// the actor's sink-fire-via-TSFN drain, so `BatchGuard::Drop`'s
+	// success-path `fire_deferred` can reach TSFN-backed JS sinks
+	// without deadlock. Sink panics during the drain convert to rejected
+	// Promises via the R3 symmetric `catch_unwind` + widened
+	// `BatchOp::Commit`/`Rollback` reply (`SyncSender<Result<(), String>>`).
+	// Cross-arm regression pin: `crates/graphrefly-bindings-js/src/
+	// batch_bindings.rs::tests::d292_async_commit_panic_propagates_as_rejection`.
+	test("post-frame ctx.down throws (success path)", async () => {
 		// Subscribers are load-bearing on the native arm: the JS-side
 		// `cacheValue` mirror is only updated by the subscribe sink's
 		// TSFN callback. Without a subscriber, `src.cache` would read

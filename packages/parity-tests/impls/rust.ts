@@ -29,10 +29,11 @@
  * `createNativeImpl()` builds a fresh BenchCore + JSValueRegistry per
  * call. The parity harness needs a fresh Core per test (vitest isolates
  * across files, not within a file). We lazily (re)create the underlying
- * native impl on first use after each reset and dispose it in
- * `afterEach` (the wrapper exposes an internal `_dispose` hook that
- * runs the prior BenchCore's subscription drop on a tokio blocking
- * thread, mirroring the D080 dispose discipline).
+ * native impl on first use after each reset and close it in
+ * `afterEach` via the public `impl.close()` surface (D293 + D292 F4 —
+ * `_dispose` parity-only alias dropped in D292's paired-batch slice;
+ * `close()` is the sole public end-of-life hook and does the same drain
+ * + actor shutdown the prior `_dispose` did).
  *
  * # Failure mode: native binding not built
  *
@@ -83,14 +84,20 @@ function instance(): NativeImplInstance {
 	return cached;
 }
 
-// Dispose the prior BenchCore between tests. The wrapper's `_dispose`
-// runs the subscription drop on a tokio blocking thread (mirrors the
-// D080 dispose discipline) and swallows shutdown-teardown races.
+// Close the prior BenchCore between tests via the public `close()`
+// surface (D292 F4 — `_dispose` parity-only alias dropped). `close()`
+// drains subs + shuts down the actor worker thread; `.catch(() => {})`
+// preserved here because per-test teardown is best-effort even under
+// D292 D.3 Item 2's "reject on actor errors" — a test-end shutdown race
+// that surfaces as a rejected Promise shouldn't fail the test suite
+// (mirrors the prior `_dispose` swallow semantic at the harness layer
+// only, NOT at the user-facing `impl.close()` surface — the public
+// surface still rejects per D292 D.3 Item 2 / F2).
 afterEach(async () => {
 	if (cached) {
 		const prior = cached;
 		cached = null;
-		await prior._dispose?.().catch(() => {});
+		await prior.close().catch(() => {});
 	}
 });
 

@@ -173,7 +173,16 @@ export interface ImplGraph {
 	state<T>(name: string, initial?: T): Promise<ImplNode<T>>;
 	/** `derived(name, deps, fn)` — fn shape mirrors legacy `Node`'s
 	 * derived-fn: `(data: T[][]) => T[]` returning a Vec of emissions
-	 * for this fire (most fns return a single `[value]`). */
+	 * for this fire (most fns return a single `[value]`).
+	 *
+	 * **Cross-arm parity (post-D292 D.1):** both arms ship this method.
+	 * Pure-ts arm: thin async forward to `legacy.Graph.derived`. Native
+	 * arm: routes through D263's `register_user_derived` TSFN reroute +
+	 * `bench.add` (2 napi crossings; closure-cell eviction auto-wired to
+	 * `graph.remove`/`destroy`). Arbitrary-fn derived nodes on the native
+	 * arm lose `OperatorOp` optimizations (same trade-off `impl.map` takes
+	 * per D263). Lifts the D287 carve-out on `resource-profile.test.ts`
+	 * test #1. */
 	derived<T>(
 		name: string,
 		deps: ReadonlyArray<ImplNode<unknown>>,
@@ -622,7 +631,14 @@ export interface Impl {
 	 *
 	 * Cross-ref: `~/src/graphrefly-rs/crates/graphrefly-bindings-js/
 	 * wrapper.js` `impl.close` + `[Symbol.asyncDispose]` wiring;
-	 * `~/src/graphrefly-ts/docs/rust-port-decisions.md` D293.
+	 * `~/src/graphrefly-ts/docs/rust-port-decisions.md` D293 + D292.
+	 *
+	 * **Note (D292 D.3 Item 4, R4 refinement):** `close()` DRAINS
+	 * in-flight ops (batch commits, async describes, etc.) before
+	 * shutting down. A stuck user closure inside an in-flight op
+	 * → `close()` hangs until the closure returns. Wrap in
+	 * `Promise.race([impl.close(), timeoutMs])` if bounded close
+	 * time matters.
 	 */
 	close(): Promise<void>;
 }

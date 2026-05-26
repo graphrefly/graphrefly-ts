@@ -27,21 +27,14 @@ import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("R3.6.3 resourceProfile parity — $name", (impl) => {
-	// D287 carve-out: test #1 stays pure-ts-only because its `g.derived(
-	// name, deps, fn)` shape (and equivalent operator chains) round-trips
-	// differently across arms. Pure-ts's `legacy.map` registers an
-	// intermediate node alongside the projected output (so two `impl.map`
-	// + `g.add` calls produce nodeCount=5, not 3); the native arm's
-	// `withLatestFrom` collapses to a single OperatorOp (so it produces 3
-	// but pure-ts produces 4). Cross-arm parity for `nodeCount` requires
-	// either (a) a `g.add`-only no-derived topology test (loses the
-	// `edgeCount` coverage that motivates this test), or (b) a future
-	// BenchGraph widening to accept arbitrary-fn `g.derived(name, deps,
-	// fn)`. Tests #2, #3, #4 already run cross-arm via D287 — they don't
-	// assert on `nodeCount` of derived nodes.
-	const runIfPureTs = impl.name === "pure-ts";
-
-	test.runIf(runIfPureTs)(
+	// D292 D.1 (2026-05-25): D287 `runIfPureTs` carve-out LIFTED.
+	// Native `BenchGraph.derived(name, deps, fn)` now accepts arbitrary
+	// JS callbacks via the D263 `register_user_derived` TSFN reroute,
+	// so a `g.derived` over `[a, b]` produces nodeCount=3 cross-arm
+	// (the native withLatestFrom-collapse hazard the original D287
+	// carve-out cited only applied to the operator-chain path, NOT
+	// the direct `g.derived` path D292 D.1 enables).
+	test(
 		"resourceProfile() reports nodeCount + edgeCount + subgraphCount matching topology",
 		async () => {
 			const g = new impl.Graph("root");
