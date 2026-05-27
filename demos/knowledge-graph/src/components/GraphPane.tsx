@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import {
 	initMermaid,
-	mermaid,
 	MERMAID_NODE_STROKE_DEFAULT,
 	MERMAID_NODE_STROKE_MATCH,
+	mermaid,
 	nextMermaidId,
 } from "../lib/mermaid-render";
 import { attachPanZoom } from "../lib/pan-zoom";

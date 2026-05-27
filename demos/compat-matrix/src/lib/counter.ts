@@ -1,10 +1,10 @@
+import { DATA, Graph, type Node } from "@graphrefly/graphrefly";
 import { atom as jotaiAtom } from "@graphrefly/graphrefly/compat/jotai";
 import {
 	atom as nanoAtom,
 	computed as nanoComputed,
 } from "@graphrefly/graphrefly/compat/nanostores";
 import { create as zustandCreate } from "@graphrefly/graphrefly/compat/zustand";
-import { DATA, Graph, type Node } from "@graphrefly/graphrefly";
 import { createLeaderboardLayout } from "./layout-integration";
 
 export const counterGraph = new Graph("compat-matrix");
@@ -22,14 +22,10 @@ function depVals(
 export const rawNode = counterGraph.state("graphrefly/count", 0);
 
 // Derived: doubled — using GraphReFly's native `graph.derived`
-export const rawDoubledNode = counterGraph.derived(
-	"graphrefly/doubled",
-	[rawNode],
-	(data, ctx) => {
-		const [n] = depVals(data, ctx);
-		return [((n as number) ?? 0) * 2];
-	},
-);
+export const rawDoubledNode = counterGraph.derived("graphrefly/doubled", [rawNode], (data, ctx) => {
+	const [n] = depVals(data, ctx);
+	return [((n as number) ?? 0) * 2];
+});
 
 // ── 2. Jotai compat ───────────────────────────────────────
 // Backing node for the jotai atom
@@ -111,10 +107,7 @@ export const totalNode = counterGraph.derived(
 	(data, ctx) => {
 		const [a, b, c, d] = depVals(data, ctx);
 		return [
-			((a as number) || 0) +
-				((b as number) || 0) +
-				((c as number) || 0) +
-				((d as number) || 0),
+			((a as number) || 0) + ((b as number) || 0) + ((c as number) || 0) + ((d as number) || 0),
 		];
 	},
 );

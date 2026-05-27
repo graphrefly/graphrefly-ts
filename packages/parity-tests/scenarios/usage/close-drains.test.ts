@@ -73,9 +73,7 @@ describe.each(impls)("D292 D.3 Item 4 close-drains parity — $name", (impl) => 
 		const _src = await impl.node([], { initial: 1, name: "src" });
 		const winner = await Promise.race([
 			impl.close().then(() => "close" as const),
-			new Promise<"timeout">((resolve) =>
-				setTimeout(() => resolve("timeout"), 5000),
-			),
+			new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 5000)),
 		]);
 		expect(winner).toBe("close");
 	});

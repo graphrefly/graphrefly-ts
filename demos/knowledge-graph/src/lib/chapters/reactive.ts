@@ -20,9 +20,9 @@
 //        ▼
 //   kg/{entities,edges,adjacency}  ← UI subscribes here, never polls.
 
-import { batch, type Node } from "@graphrefly/pure-ts";
 import { type LLMAdapter, promptNode } from "@graphrefly/graphrefly/utils/ai";
 import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
+import { batch, type Node } from "@graphrefly/pure-ts";
 import { buildUserPrompt, EXTRACTION_SYSTEM_PROMPT } from "../extraction-schema.js";
 import { splitContentParagraphs } from "../paragraphs.js";
 import type { Entity, ExtractionResult } from "../types.js";
@@ -95,8 +95,7 @@ export function buildReactiveChapter(
 		"paragraphs",
 		[paperText],
 		(data, ctx) => {
-			const t =
-				data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
+			const t = data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
 			return [splitContentParagraphs((t as string) ?? "")];
 		},
 		{ initial: [] as readonly string[] },
@@ -106,10 +105,8 @@ export function buildReactiveChapter(
 		"current-paragraph",
 		[paragraphs, paragraphIdx],
 		(data, ctx) => {
-			const ps =
-				data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
-			const i =
-				data[1] != null && data[1].length > 0 ? data[1].at(-1) : ctx.prevData[1];
+			const ps = data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
+			const i = data[1] != null && data[1].length > 0 ? data[1].at(-1) : ctx.prevData[1];
 			const list = (ps as readonly string[]) ?? [];
 			const idx = (i as number) ?? 0;
 			return [list[idx] ?? ""];
@@ -129,7 +126,7 @@ export function buildReactiveChapter(
 		},
 	);
 
-	const applyExtraction = kg.effect(
+	kg.effect(
 		"apply-extraction",
 		[extraction],
 		(data) => {

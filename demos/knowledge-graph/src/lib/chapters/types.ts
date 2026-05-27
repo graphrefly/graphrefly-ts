@@ -1,5 +1,5 @@
-import type { Graph } from "@graphrefly/pure-ts";
 import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
+import type { Graph } from "@graphrefly/pure-ts";
 import type { ComponentType } from "react";
 
 export type ChapterUIProps = {

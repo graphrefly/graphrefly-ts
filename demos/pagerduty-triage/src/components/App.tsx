@@ -788,7 +788,6 @@ export default function App() {
 					)}
 				</div>
 
-				{/* biome-ignore lint/a11y/noStaticElementInteractions: drag handle */}
 				<div className="pane-divider" onMouseDown={onMainDividerDown} />
 
 				{/* Side pane: topology (top) + focus pane (bottom) */}
@@ -797,7 +796,6 @@ export default function App() {
 						<h3>Graph topology — describe(graph) → mermaid</h3>
 						<GraphPane text={mermaidText} />
 					</div>
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: drag handle */}
 					<div className="pane-split-divider" onMouseDown={onSplitDividerDown} />
 					<div className="pane-focus">
 						<h3>

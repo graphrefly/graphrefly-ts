@@ -1,8 +1,8 @@
 // Shared helpers for the four chapters. Keeps the per-chapter source compact
 // so the right-side code pane can quote them at full fidelity.
 
-import type { Node } from "@graphrefly/pure-ts";
 import { type KnowledgeGraphGraph, knowledgeGraph } from "@graphrefly/graphrefly/utils/memory";
+import type { Node } from "@graphrefly/pure-ts";
 import type { Entity, Relation } from "../types.js";
 
 export type DemoKG = KnowledgeGraphGraph<Entity, Relation>;

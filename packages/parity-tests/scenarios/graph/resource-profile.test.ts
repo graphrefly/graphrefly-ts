@@ -34,28 +34,25 @@ describe.each(impls)("R3.6.3 resourceProfile parity — $name", (impl) => {
 	// (the native withLatestFrom-collapse hazard the original D287
 	// carve-out cited only applied to the operator-chain path, NOT
 	// the direct `g.derived` path D292 D.1 enables).
-	test(
-		"resourceProfile() reports nodeCount + edgeCount + subgraphCount matching topology",
-		async () => {
-			const g = new impl.Graph("root");
-			const a = await g.state<number>("a", 1);
-			const b = await g.state<number>("b", 2);
-			// One derived node creates two edges (a→sum, b→sum).
-			await g.derived<number>("sum", [a, b], ([aBatch, bBatch]) => {
-				const av = (aBatch[aBatch.length - 1] as number) ?? 0;
-				const bv = (bBatch[bBatch.length - 1] as number) ?? 0;
-				return [av + bv];
-			});
-			await g.mount("child");
+	test("resourceProfile() reports nodeCount + edgeCount + subgraphCount matching topology", async () => {
+		const g = new impl.Graph("root");
+		const a = await g.state<number>("a", 1);
+		const b = await g.state<number>("b", 2);
+		// One derived node creates two edges (a→sum, b→sum).
+		await g.derived<number>("sum", [a, b], ([aBatch, bBatch]) => {
+			const av = (aBatch[aBatch.length - 1] as number) ?? 0;
+			const bv = (bBatch[bBatch.length - 1] as number) ?? 0;
+			return [av + bv];
+		});
+		await g.mount("child");
 
-			const profile = await g.resourceProfile();
-			expect(profile.nodeCount).toBe(3); // a, b, sum
-			expect(profile.edgeCount).toBe(2); // a→sum, b→sum
-			expect(profile.subgraphCount).toBe(1); // one mount
+		const profile = await g.resourceProfile();
+		expect(profile.nodeCount).toBe(3); // a, b, sum
+		expect(profile.edgeCount).toBe(2); // a→sum, b→sum
+		expect(profile.subgraphCount).toBe(1); // one mount
 
-			await g.destroy();
-		},
-	);
+		await g.destroy();
+	});
 
 	test("per-node subscriberCount reflects active subscriptions (incl. unsub recovery)", async () => {
 		const g = new impl.Graph("root");

@@ -28,6 +28,9 @@
 // external. Everything downstream is reactive; every edge in the diagram
 // tells the user WHY a value changed.
 
+import { agentMemory } from "@graphrefly/graphrefly/presets/ai";
+import type { LLMAdapter } from "@graphrefly/graphrefly/utils/ai";
+import { observableAdapter, promptNode } from "@graphrefly/graphrefly/utils/ai";
 import type { Node } from "@graphrefly/pure-ts";
 import {
 	fromTimer,
@@ -39,9 +42,6 @@ import {
 	wallClockNs,
 	withLatestFrom,
 } from "@graphrefly/pure-ts";
-import type { LLMAdapter } from "@graphrefly/graphrefly/utils/ai";
-import { observableAdapter, promptNode } from "@graphrefly/graphrefly/utils/ai";
-import { agentMemory } from "@graphrefly/graphrefly/presets/ai";
 import type { Alert } from "./alerts.js";
 import type {
 	ClassifyResult,
@@ -339,8 +339,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 			"patterns/learned",
 			[memory.compact],
 			(data, ctx) => {
-				const compact =
-					data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
+				const compact = data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
 				if (!compact) return [[]];
 				const entries = compact as readonly { key: string; value: LearnedPattern }[];
 				return [entries.map((e) => e.value)];
@@ -392,8 +391,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 		"routing-action",
 		[classify],
 		(data, ctx) => {
-			const result =
-				data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
+			const result = data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
 			if (!result) return [];
 			const cls = result as ClassifyResult;
 			// Recover the originating alert: alertInput's current cache is the

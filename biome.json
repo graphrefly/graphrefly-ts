@@ -59,7 +59,7 @@
 			}
 		},
 		{
-			"includes": ["demos/compat-matrix/**", "demos/reactive-layout/**"],
+			"includes": ["demos/**"],
 			"linter": {
 				"rules": {
 					"a11y": {

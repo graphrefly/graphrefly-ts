@@ -17,8 +17,8 @@
 //   3. Chrome Nano download progress propagates automatically (every push
 //      from chrome-nano-adapter's `onInfo` callback writes the state node)
 
-import { node, type Node } from "@graphrefly/pure-ts";
 import type { LLMAdapter, LLMResponse } from "@graphrefly/graphrefly/utils/ai";
+import { type Node, node } from "@graphrefly/pure-ts";
 import { chromeNanoAdapter, probeChromeNano } from "./chrome-nano-adapter.js";
 import { mockExtractAdapter } from "./mock-extract-adapter.js";
 import type { AdapterInfo } from "./types.js";

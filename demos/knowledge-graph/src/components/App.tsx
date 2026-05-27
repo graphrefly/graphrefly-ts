@@ -209,7 +209,6 @@ export default function App() {
 				<div className="pane-main" style={{ width: mainWidthPct, maxWidth: mainWidthPct }}>
 					<UI hoverTarget={hoverTarget} onHover={onHover} onSelect={onSelect} />
 				</div>
-				{/** biome-ignore lint/a11y/noStaticElementInteractions: drag-resize handle, mouse-only */}
 				<div
 					className="pane-divider"
 					onMouseDown={onMainDividerDown}
@@ -224,7 +223,6 @@ export default function App() {
 							onHoverNode={onHoverNodeFromGraph}
 						/>
 					</div>
-					{/** biome-ignore lint/a11y/noStaticElementInteractions: drag-resize handle, mouse-only */}
 					<div
 						className="pane-split-divider"
 						onMouseDown={onSplitDividerDown}
@@ -233,10 +231,7 @@ export default function App() {
 					<div className="pane-code">
 						<h3>
 							Source — the code that built this chapter&apos;s graph
-							<span className="layout-meta">
-								{" "}
-								· {resolved.sourceCode.split("\n").length} lines
-							</span>
+							<span className="layout-meta"> · {resolved.sourceCode.split("\n").length} lines</span>
 						</h3>
 						<CodePane source={resolved.sourceCode} highlightLine={highlightLine} />
 					</div>

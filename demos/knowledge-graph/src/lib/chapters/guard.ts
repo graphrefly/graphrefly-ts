@@ -10,8 +10,8 @@
 // Guardrails").
 
 import type { LLMAdapter } from "@graphrefly/graphrefly/utils/ai";
-import { type PolicyGateGraph, policyGate } from "@graphrefly/graphrefly/utils/inspect";
 import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
+import { type PolicyGateGraph, policyGate } from "@graphrefly/graphrefly/utils/inspect";
 import { buildReactiveChapter, type ReactiveChapter } from "./reactive.js";
 
 export const GUARD_SOURCE = `// Same reactive pipeline as chapter 2.
