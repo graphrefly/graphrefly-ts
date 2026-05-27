@@ -29,6 +29,8 @@ import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("D292 D.3 Item 4 close-drains parity — $name", (impl) => {
+	const runIfPureTs = impl.name === "pure-ts";
+
 	// ── Case 1 — close after explicit commit completes cleanly ──────
 	//
 	// The base "happy path": user runs a batch, commits, then closes.
@@ -44,7 +46,13 @@ describe.each(impls)("D292 D.3 Item 4 close-drains parity — $name", (impl) => 
 	// invariant by attaching a subscriber, asserting it receives the
 	// in-batch DATA BEFORE close resolves, and that close itself
 	// resolves cleanly without throw/timeout.
-	test("close after explicit commit drains in-flight reply", async () => {
+	//
+	// **Rust arm (published 0.0.5):** `runIf(pure-ts)` until 0.1.0 — sync
+	// `benchCtx.commit()` + an active subscribe TSFN during commit deadlocks
+	// libuv (batch never resolves). Substrate pin lives in graphrefly-rs
+	// `batch_bindings.rs::d292_close_drains_inflight_batch`; lifts with D292
+	// async commit/close drain on npm.
+	test.runIf(runIfPureTs)("close after explicit commit drains in-flight reply", async () => {
 		const src = await impl.node([], { initial: 0, name: "src" });
 		const received: unknown[] = [];
 		const unsub = await src.subscribe((msgs) => {

@@ -1,3 +1,11 @@
 [tasks.bootstrap]
 description = "Enable Corepack (pnpm from package.json) and install dependencies"
 run = "corepack enable && pnpm install"
+
+# Long test gate — sources graphrefly-rs run-logged.sh (mutex + direct log +
+# <<<RUN-LOGGED:DONE>>> sentinel). Avoids hand-running vitest/cargo in parallel
+# sessions that fight locks or look "hung" in harness-buffered output.
+# See docs/test-guidance.md § "Running long commands reliably".
+[tasks.gate]
+description = "CI-equivalent: pnpm test via run-logged (pure-ts + graphrefly + parity-tests)"
+run = "../graphrefly-rs/scripts/run-logged.sh -l graphrefly-ts-test -t 2400 -- pnpm test"

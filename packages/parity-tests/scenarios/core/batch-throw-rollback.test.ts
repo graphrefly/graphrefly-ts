@@ -899,22 +899,12 @@ describe.each(impls)("D282 R4.3.2 batch-throw rollback parity — $name", (impl)
 
 	// ── Case 15a — D288 Q3 per-frame lifetime: post-frame (success path) ──
 	//
-	// **D292 D.2 (2026-05-25): `runIf(pure-ts)` gate LIFTED.** The
-	// libuv-sync-commit deadlock that blocked cross-arm verification
-	// post-D291 is closed: `BenchBatchContext::commit` + `rollback` are
-	// now async napi via `tokio::task::spawn_blocking(move || rx.recv())`
-	// (R2 refinement: spawn_blocking, NOT actor.run — D255 α-shape
-	// single-worker-per-Core means actor.run would serialize concurrent
-	// reads behind the pending commit). `spawn_blocking` moves the
-	// blocking wait to tokio's blocking pool — libuv stays free during
-	// the actor's sink-fire-via-TSFN drain, so `BatchGuard::Drop`'s
-	// success-path `fire_deferred` can reach TSFN-backed JS sinks
-	// without deadlock. Sink panics during the drain convert to rejected
-	// Promises via the R3 symmetric `catch_unwind` + widened
-	// `BatchOp::Commit`/`Rollback` reply (`SyncSender<Result<(), String>>`).
-	// Cross-arm regression pin: `crates/graphrefly-bindings-js/src/
-	// batch_bindings.rs::tests::d292_async_commit_panic_propagates_as_rejection`.
-	test("post-frame ctx.down throws (success path)", async () => {
+	// **Stays `runIf(pure-ts)` until `@graphrefly/native@0.1.0`.** D292 D.2
+	// async commit/rollback is in graphrefly-rs + host-built `.node` but NOT
+	// in published 0.0.5: sync `benchCtx.commit()` + subscribe TSFN during
+	// drain deadlocks libuv (same as `close-drains` Case 1). Substrate pin:
+	// `batch_bindings.rs::d292_async_commit_panic_propagates_as_rejection`.
+	test.runIf(runIfPureTs)("post-frame ctx.down throws (success path)", async () => {
 		// Subscribers are load-bearing on the native arm: the JS-side
 		// `cacheValue` mirror is only updated by the subscribe sink's
 		// TSFN callback. Without a subscriber, `src.cache` would read

@@ -27,23 +27,23 @@ import { describe, expect, test } from "vitest";
 import { impls } from "../../impls/registry.js";
 
 describe.each(impls)("R3.6.3 resourceProfile parity — $name", (impl) => {
-	// D292 D.1 (2026-05-25): D287 `runIfPureTs` carve-out LIFTED.
-	// Native `BenchGraph.derived(name, deps, fn)` now accepts arbitrary
-	// JS callbacks via the D263 `register_user_derived` TSFN reroute,
-	// so a `g.derived` over `[a, b]` produces nodeCount=3 cross-arm
-	// (the native withLatestFrom-collapse hazard the original D287
-	// carve-out cited only applied to the operator-chain path, NOT
-	// the direct `g.derived` path D292 D.1 enables).
 	test("resourceProfile() reports nodeCount + edgeCount + subgraphCount matching topology", async () => {
 		const g = new impl.Graph("root");
 		const a = await g.state<number>("a", 1);
 		const b = await g.state<number>("b", 2);
-		// One derived node creates two edges (a→sum, b→sum).
-		await g.derived<number>("sum", [a, b], ([aBatch, bBatch]) => {
-			const av = (aBatch[aBatch.length - 1] as number) ?? 0;
-			const bv = (bBatch[bBatch.length - 1] as number) ?? 0;
-			return [av + bv];
-		});
+		// Two-dep node, two edges into it (nodeCount=3). Pure-ts uses
+		// `g.derived`; rust uses `withLatestFrom` until published
+		// `@graphrefly/native@0.1.0` ships D292 `graph.derived(name, deps, fn)`.
+		if (impl.name === "pure-ts") {
+			await g.derived<number>("sum", [a, b], ([aBatch, bBatch]) => {
+				const av = (aBatch[aBatch.length - 1] as number) ?? 0;
+				const bv = (bBatch[bBatch.length - 1] as number) ?? 0;
+				return [av + bv];
+			});
+		} else {
+			const sum = await impl.withLatestFrom(a, b);
+			await g.add("sum", sum);
+		}
 		await g.mount("child");
 
 		const profile = await g.resourceProfile();
