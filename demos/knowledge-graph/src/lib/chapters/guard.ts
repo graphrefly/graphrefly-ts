@@ -1,17 +1,17 @@
-// Chapter 4 — Guard. Same reactive pipeline; wrap the KG in policyEnforcer
+// Chapter 4 — Guard. Same reactive pipeline; wrap the KG in policyGate
 // so an "untrusted-llm" actor is blocked from writing to entities.
 //
 // "Try malicious write" calls `kg.set("entities", value, { actor })` with the
-// untrusted-llm actor. policyEnforcer in `enforce` mode pushes a guard onto
+// untrusted-llm actor. policyGate in `enforce` mode pushes a guard onto
 // the entities node that throws GuardDenied for that actor. The legitimate
 // apply-extraction effect still works because `kg.upsertEntity` calls go
 // through internal writes that aren't tagged with the untrusted actor.
 // This is the closure for homepage pain point 03 ("Composition Without
 // Guardrails").
 
-import type { LLMAdapter } from "@graphrefly/graphrefly/patterns/ai";
-import { type PolicyEnforcerGraph, policyEnforcer } from "@graphrefly/graphrefly/patterns/audit";
-import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { LLMAdapter } from "@graphrefly/graphrefly/utils/ai";
+import { type PolicyGateGraph, policyGate } from "@graphrefly/graphrefly/utils/inspect";
+import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import { buildReactiveChapter, type ReactiveChapter } from "./reactive.js";
 
 export const GUARD_SOURCE = `// Same reactive pipeline as chapter 2.
@@ -19,7 +19,7 @@ const kg = buildReactiveChapter(adapter, paper).kg;
 
 // Wrap the KG in a reactive ABAC enforcer. Mode: "enforce" pushes guards
 // onto target nodes so disallowed writes throw GuardDenied at write time.
-const enforced = policyEnforcer(kg, [
+const enforced = policyGate(kg, [
   { effect: "deny",  action: "write", actorType: "llm", actorId: "untrusted-llm" },
   { effect: "allow", action: "write", actorType: "system" },
 ], { mode: "enforce" });
@@ -42,14 +42,14 @@ enforced.violations.events.subscribe(...);
 
 export type GuardChapter = Omit<ReactiveChapter, "id"> & {
 	id: "guard";
-	enforced: PolicyEnforcerGraph;
+	enforced: PolicyGateGraph;
 	tryMaliciousWrite: () => { ok: boolean; error?: string };
 };
 
 export function buildGuardChapter(adapter: LLMAdapter, initialPaperText: string): GuardChapter {
 	const base = buildReactiveChapter(adapter, initialPaperText);
 
-	const enforced = policyEnforcer(
+	const enforced = policyGate(
 		base.kg,
 		[
 			{ effect: "deny", action: "write", actorType: "llm", actorId: "untrusted-llm" },

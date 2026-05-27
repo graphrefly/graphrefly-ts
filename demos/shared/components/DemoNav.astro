@@ -1,0 +1,28 @@
+---
+export interface DemoNavLink {
+	href: string;
+	label: string;
+	active?: boolean;
+}
+
+interface Props {
+	links: DemoNavLink[];
+	/** Main site home (GraphReFly wordmark target). */
+	brandHref?: string;
+}
+
+const { links, brandHref = "/" } = Astro.props;
+---
+
+<nav class="gr-demo-nav" aria-label="Demo navigation">
+	<a class="gr-demo-brand" href={brandHref}>GraphReFly</a>
+	<div class="gr-demo-nav-links">
+		{
+			links.map((link) => (
+				<a href={link.href} class:list={[{ active: link.active }]} aria-current={link.active ? "page" : undefined}>
+					{link.label}
+				</a>
+			))
+		}
+	</div>
+</nav>

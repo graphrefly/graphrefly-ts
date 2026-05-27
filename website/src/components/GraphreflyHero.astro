@@ -30,39 +30,440 @@ const base = import.meta.env.BASE_URL;
   </div>
 </section>
 
-<!-- ═══ SHOWCASE ═══ -->
+<!-- ═══ SHOWCASE — full 8-stage ambient hero (~48s loop) ═══ -->
 <section class="gr-showcase">
   <div class="gr-showcase-frame">
-    <div class="gr-showcase-badges">
-      <span class="gr-showcase-live">LIVE  ·  AMBIENT HERO  ·  1920×1080</span>
-      <span>STAGE 1 OF 8  ·  ~42S LOOP</span>
+    <span class="gr-showcase-tagline">GRAPHREFLY  ·  REACTIVE GRAPH PROTOCOL  ·  CAUSAL TRACING</span>
+    <div class="gr-scrubber" role="tablist" aria-label="Jump to stage">
+      <button type="button" class="gr-seg gr-seg-1" data-ms="0"     title="Stage 1 · Connection lifecycle" aria-label="Stage 1 — Connection lifecycle">1</button>
+      <button type="button" class="gr-seg gr-seg-2" data-ms="12000" title="Stage 2 · Diamond resolution"   aria-label="Stage 2 — Diamond resolution">2</button>
+      <button type="button" class="gr-seg gr-seg-3" data-ms="17000" title="Stage 3 · Node anatomy"         aria-label="Stage 3 — Node anatomy">3</button>
+      <button type="button" class="gr-seg gr-seg-4" data-ms="22000" title="Stage 4 · Four sugars"          aria-label="Stage 4 — Four sugars">4</button>
+      <button type="button" class="gr-seg gr-seg-5" data-ms="27000" title="Stage 5 · Graph level"          aria-label="Stage 5 — Graph level">5</button>
+      <button type="button" class="gr-seg gr-seg-6" data-ms="35000" title="Stage 6 · Orchestrate"          aria-label="Stage 6 — Orchestrate">6</button>
+      <button type="button" class="gr-seg gr-seg-7" data-ms="41000" title="Stage 7 · Agent loop"           aria-label="Stage 7 — Agent loop">7</button>
     </div>
 
     <div class="gr-showcase-stage" aria-hidden="true">
-      <svg viewBox="-400 -180 800 360" preserveAspectRatio="xMidYMid meet">
-        <line x1="-260" y1="0" x2="260" y2="0" stroke="rgba(244,247,249,0.18)" stroke-width="1.2"></line>
-        <g class="gr-showcase-nP" transform="translate(-260 0)">
-          <polygon points="0,-38 38,0 0,38 -38,0" fill="rgba(16,185,129,0.18)" stroke="#10B981" stroke-width="1.5"></polygon>
-          <text x="0" y="62" fill="rgba(244,247,249,0.7)" font-family="JetBrains Mono" font-size="12" text-anchor="middle">producer</text>
+      <svg viewBox="-400 -180 800 360" preserveAspectRatio="xMidYMid meet" class="gr-stage-svg">
+        <defs>
+          <radialGradient id="gr-lensGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.10)" />
+            <stop offset="70%" stop-color="rgba(255,255,255,0.04)" />
+            <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+          </radialGradient>
+          <!-- Generic arrowhead for directed edges; userSpaceOnUse keeps size independent of stroke-width -->
+          <marker id="gr-arr" viewBox="0 0 8 8" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+            <polygon points="0 0, 8 4, 0 8" fill="rgba(244,247,249,0.62)"></polygon>
+          </marker>
+          <!-- Lime variant for the active Stage 1 edge during DATA flow -->
+          <marker id="gr-arr-lime" viewBox="0 0 8 8" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+            <polygon points="0 0, 8 4, 0 8" fill="rgba(200,255,0,0.85)"></polygon>
+          </marker>
+          <!-- Larger arrowhead for Stage 3 ports — emphasis on the up/down direction labels -->
+          <marker id="gr-arr-port" viewBox="0 0 14 14" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+            <polygon points="0 0, 14 7, 0 14" fill="rgba(244,247,249,0.85)"></polygon>
+          </marker>
+          <!-- DIRTY pattern: yellow dots over translucent base.  Applied via fill="url(#gr-dirty)" on nodes in the DIRTY state. -->
+          <pattern id="gr-dirty" patternUnits="userSpaceOnUse" width="7" height="7">
+            <rect width="7" height="7" fill="rgba(251,191,36,0.10)"></rect>
+            <circle cx="3.5" cy="3.5" r="1.4" fill="rgba(251,191,36,0.85)"></circle>
+          </pattern>
+        </defs>
+        <g class="gr-cam">
+
+          <!-- ═════ STAGE 1 — connection lifecycle (12s, full START→COMPLETE with DIRTY state) ═════ -->
+          <g class="gr-st gr-st-1">
+            <!-- Edge wrapped in opacity-animated group; arrow stays lime, group dims for gray-out -->
+            <g class="gr-s1-edge-grp">
+              <line class="gr-s1-edge" x1="-162" y1="0" x2="156" y2="0" marker-end="url(#gr-arr-lime)"></line>
+            </g>
+
+            <!-- Upstream general node (rounded rect close-up) at 25% width -->
+            <g class="gr-s1-up" transform="translate(-200 0)">
+              <rect class="gr-s1-up-shape" x="-38" y="-22" width="76" height="44" rx="10"></rect>
+              <text class="gr-nl gr-s1-up-label" y="-32">upstream</text>
+            </g>
+
+            <!-- Downstream general node (rounded rect close-up) at 75% width -->
+            <g class="gr-s1-dn" transform="translate(200 0)">
+              <rect class="gr-s1-dn-shape" x="-38" y="-22" width="76" height="44" rx="10"></rect>
+              <text class="gr-nl gr-s1-dn-label" y="-32">downstream</text>
+              <text class="gr-s1-fn" y="5">fn(…)</text>
+            </g>
+
+            <!-- Six labeled messages, each travels left → right along the edge -->
+            <g class="gr-s1-msg gr-s1-msg-start">
+              <text y="-13" class="gr-s1-msg-lbl gr-s1-lbl-start">START</text>
+              <circle cy="0" r="4" class="gr-s1-dot-slate"></circle>
+            </g>
+
+            <g class="gr-s1-msg gr-s1-msg-dirty1">
+              <text y="-16" class="gr-s1-msg-lbl gr-s1-lbl-dirty">DIRTY</text>
+              <line x1="0" y1="-9" x2="0" y2="7" class="gr-s1-flag-pole"></line>
+              <polygon points="0,-9 10,-5 0,-1" class="gr-s1-flag-fabric"></polygon>
+            </g>
+
+            <g class="gr-s1-msg gr-s1-msg-data1">
+              <text y="-15" class="gr-s1-msg-lbl gr-s1-lbl-data">DATA</text>
+              <circle cy="0" r="6" class="gr-s1-dot-data"></circle>
+            </g>
+
+            <g class="gr-s1-msg gr-s1-msg-dirty2">
+              <text y="-16" class="gr-s1-msg-lbl gr-s1-lbl-dirty">DIRTY</text>
+              <line x1="0" y1="-9" x2="0" y2="7" class="gr-s1-flag-pole"></line>
+              <polygon points="0,-9 10,-5 0,-1" class="gr-s1-flag-fabric"></polygon>
+            </g>
+
+            <g class="gr-s1-msg gr-s1-msg-data2">
+              <text y="-15" class="gr-s1-msg-lbl gr-s1-lbl-data">DATA</text>
+              <circle cy="0" r="6" class="gr-s1-dot-data"></circle>
+            </g>
+
+            <g class="gr-s1-msg gr-s1-msg-complete">
+              <text y="-13" class="gr-s1-msg-lbl gr-s1-lbl-complete">COMPLETE</text>
+              <circle cy="0" r="4" class="gr-s1-dot-slate"></circle>
+            </g>
+          </g>
+
+          <!-- ═════ STAGE 2 — diamond with full DIRTY/DATA lifecycle (12–17s, 25–35.42%) ═════ -->
+          <g class="gr-st gr-st-2">
+            <line class="gr-edge gr-s2-edge" x1="0" y1="-120" x2="-158" y2="-14" marker-end="url(#gr-arr)"></line>
+            <line class="gr-edge gr-s2-edge" x1="0" y1="-120" x2="158" y2="-14" marker-end="url(#gr-arr)"></line>
+            <line class="gr-edge gr-s2-edge" x1="-180" y1="0" x2="-25" y2="103" marker-end="url(#gr-arr)"></line>
+            <line class="gr-edge gr-s2-edge" x1="180" y1="0" x2="25" y2="103" marker-end="url(#gr-arr)"></line>
+            <!-- A producer → hexagon -->
+            <g transform="translate(0 -120)">
+              <polygon class="gr-s2-A-shape" points="13,-22 -13,-22 -26,0 -13,22 13,22 26,0"></polygon>
+              <text class="gr-nl" y="-38">A</text>
+            </g>
+            <!-- B / C / D derived → diamonds. B has slow fn, C fast, D joins both. -->
+            <g transform="translate(-180 0)">
+              <polygon class="gr-s2-B-shape" points="0,-26 26,0 0,26 -26,0"></polygon>
+              <text class="gr-nl" y="-38">B · slow fn</text>
+            </g>
+            <g transform="translate(180 0)">
+              <polygon class="gr-s2-C-shape" points="0,-26 26,0 0,26 -26,0"></polygon>
+              <text class="gr-nl" y="-38">C · fast fn</text>
+            </g>
+            <g transform="translate(0 120)">
+              <polygon class="gr-s2-D-shape" points="0,-30 30,0 0,30 -30,0"></polygon>
+              <text class="gr-nl" y="-46">D · joins B + C</text>
+              <text class="gr-s2-fn" y="5">fn(…)</text>
+            </g>
+
+            <!-- DIRTY messages (4) — yellow flag glyph with DIRTY label above -->
+            <g class="gr-s2-msg gr-s2-d-AB">
+              <text y="-15" class="gr-s2-msg-lbl gr-s2-lbl-dirty">DIRTY</text>
+              <line x1="0" y1="-9" x2="0" y2="7" class="gr-s2-flag-pole"></line>
+              <polygon points="0,-9 10,-5 0,-1" class="gr-s2-flag-fabric"></polygon>
+            </g>
+            <g class="gr-s2-msg gr-s2-d-AC">
+              <text y="-15" class="gr-s2-msg-lbl gr-s2-lbl-dirty">DIRTY</text>
+              <line x1="0" y1="-9" x2="0" y2="7" class="gr-s2-flag-pole"></line>
+              <polygon points="0,-9 10,-5 0,-1" class="gr-s2-flag-fabric"></polygon>
+            </g>
+            <g class="gr-s2-msg gr-s2-d-BD">
+              <text y="-15" class="gr-s2-msg-lbl gr-s2-lbl-dirty">DIRTY</text>
+              <line x1="0" y1="-9" x2="0" y2="7" class="gr-s2-flag-pole"></line>
+              <polygon points="0,-9 10,-5 0,-1" class="gr-s2-flag-fabric"></polygon>
+            </g>
+            <g class="gr-s2-msg gr-s2-d-CD">
+              <text y="-15" class="gr-s2-msg-lbl gr-s2-lbl-dirty">DIRTY</text>
+              <line x1="0" y1="-9" x2="0" y2="7" class="gr-s2-flag-pole"></line>
+              <polygon points="0,-9 10,-5 0,-1" class="gr-s2-flag-fabric"></polygon>
+            </g>
+
+            <!-- DATA messages (4) — green dot with DATA label above -->
+            <g class="gr-s2-msg gr-s2-D-AB">
+              <text y="-15" class="gr-s2-msg-lbl gr-s2-lbl-data">DATA</text>
+              <circle cy="0" r="6" class="gr-s2-dot-data"></circle>
+            </g>
+            <g class="gr-s2-msg gr-s2-D-AC">
+              <text y="-15" class="gr-s2-msg-lbl gr-s2-lbl-data">DATA</text>
+              <circle cy="0" r="6" class="gr-s2-dot-data"></circle>
+            </g>
+            <g class="gr-s2-msg gr-s2-D-BD">
+              <text y="-15" class="gr-s2-msg-lbl gr-s2-lbl-data">DATA</text>
+              <circle cy="0" r="6" class="gr-s2-dot-data"></circle>
+            </g>
+            <g class="gr-s2-msg gr-s2-D-CD">
+              <text y="-15" class="gr-s2-msg-lbl gr-s2-lbl-data">DATA</text>
+              <circle cy="0" r="6" class="gr-s2-dot-data"></circle>
+            </g>
+          </g>
+
+          <!-- ═════ STAGE 3 — node anatomy: smaller rect, larger ports for balance ═════ -->
+          <g class="gr-st gr-st-3">
+            <!-- The node itself: smaller rounded rect, zooms in -->
+            <g class="gr-s3-node-wrap">
+              <rect class="gr-s3-node" x="-160" y="-80" width="320" height="160" rx="16"></rect>
+
+              <!-- Concentric rings = fn primitive at the heart (padded so fn(…) text isn't crammed) -->
+              <g class="gr-s3-fn-anatomy">
+                <circle r="60" class="gr-s3-fn-ring gr-s3-fn-ring-3"></circle>
+                <circle r="44" class="gr-s3-fn-ring gr-s3-fn-ring-2"></circle>
+                <circle r="28" class="gr-s3-fn-ring gr-s3-fn-ring-1"></circle>
+                <text y="5" class="gr-s3-fn-center">fn(…)</text>
+              </g>
+
+              <!-- cache (top-center): cylinder icon; inner group shifts so icon+text are visually centered -->
+              <g class="gr-s3-tag gr-s3-tag-cache" transform="translate(0 -56)">
+                <g transform="translate(-18 0)">
+                  <g class="gr-s3-icon">
+                    <ellipse cx="0" cy="-4" rx="6" ry="2.2"></ellipse>
+                    <path d="M -6 -4 L -6 4 Q 0 6.5 6 4 L 6 -4"></path>
+                  </g>
+                  <text x="14" y="4" class="gr-s3-tag-text" text-anchor="start">cache</text>
+                </g>
+              </g>
+
+              <!-- guard (bottom-left): shield icon -->
+              <g class="gr-s3-tag gr-s3-tag-guard" transform="translate(-118 58)">
+                <g class="gr-s3-icon">
+                  <path d="M -7 -6 L 0 -8.5 L 7 -6 Q 7 5 0 8.5 Q -7 5 -7 -6 Z"></path>
+                  <path d="M -3 0 L -1 2 L 4 -3" stroke-linecap="round"></path>
+                </g>
+                <text x="12" y="4" class="gr-s3-tag-text" text-anchor="start">guard</text>
+              </g>
+
+              <!-- version (bottom-right): tag icon -->
+              <g class="gr-s3-tag gr-s3-tag-ver" transform="translate(78 58)">
+                <g class="gr-s3-icon">
+                  <path d="M -10 -5 L 2 -5 L 8 0 L 2 5 L -10 5 Z"></path>
+                  <circle cx="-6" cy="0" r="1.5" class="gr-s3-icon-dot"></circle>
+                </g>
+                <text x="18" y="4" class="gr-s3-tag-text gr-s3-ver-text" text-anchor="start">version 3</text>
+              </g>
+            </g>
+
+            <!-- "↑ UP [deps]" port on the left — linear icon + display word + bracketed annotation -->
+            <g class="gr-s3-port gr-s3-port-up" transform="translate(-260 0)">
+              <g class="gr-s3-port-head" transform="translate(0 -22)">
+                <polyline class="gr-s3-port-icon" points="-44,4 -38,-4 -32,4"></polyline>
+                <text x="-24" y="5" class="gr-s3-port-primary">UP</text>
+                <text x="6" y="4" class="gr-s3-port-secondary">[deps]</text>
+              </g>
+              <line x1="80" y1="0" x2="-12" y2="0" class="gr-s3-port-line" marker-end="url(#gr-arr-port)"></line>
+            </g>
+
+            <!-- "↓ DOWN [subs]" port on the right -->
+            <g class="gr-s3-port gr-s3-port-down" transform="translate(260 0)">
+              <g class="gr-s3-port-head" transform="translate(0 -22)">
+                <polyline class="gr-s3-port-icon" points="-54,-4 -48,4 -42,-4"></polyline>
+                <text x="-34" y="5" class="gr-s3-port-primary">DOWN</text>
+                <text x="12" y="4" class="gr-s3-port-secondary">[subs]</text>
+              </g>
+              <line x1="-80" y1="0" x2="12" y2="0" class="gr-s3-port-line" marker-end="url(#gr-arr-port)"></line>
+            </g>
+          </g>
+
+          <!-- ═════ STAGE 4 — four sugars (Y-shape) ═════ -->
+          <g class="gr-st gr-st-4">
+            <g class="gr-s4-morph">
+              <!-- state → square -->
+              <rect class="gr-s4-m gr-s4-m-state" x="-40" y="-40" width="80" height="80" rx="2"></rect>
+              <!-- producer → hexagon -->
+              <polygon class="gr-s4-m gr-s4-m-producer" points="20,-35 -20,-35 -40,0 -20,35 20,35 40,0"></polygon>
+              <!-- derived → diamond -->
+              <polygon class="gr-s4-m gr-s4-m-derived" points="0,-40 40,0 0,40 -40,0"></polygon>
+              <!-- effect → parallelogram -->
+              <polygon class="gr-s4-m gr-s4-m-effect" points="-22,-24 50,-24 36,24 -36,24"></polygon>
+              <text class="gr-s4-mlabel gr-s4-ml-state" y="6">state</text>
+              <text class="gr-s4-mlabel gr-s4-ml-producer" y="6">producer</text>
+              <text class="gr-s4-mlabel gr-s4-ml-derived" y="6">derived</text>
+              <text class="gr-s4-mlabel gr-s4-ml-effect" y="6">effect</text>
+            </g>
+            <g class="gr-s4-y">
+              <line class="gr-edge gr-s4-eSD" x1="-220" y1="-80" x2="-32" y2="-12" marker-end="url(#gr-arr)"></line>
+              <line class="gr-edge gr-s4-ePD" x1="-220" y1="80" x2="-32" y2="12" marker-end="url(#gr-arr)"></line>
+              <line class="gr-edge gr-s4-eDE" x1="40" y1="0" x2="188" y2="0" marker-end="url(#gr-arr)"></line>
+              <!-- state → square -->
+              <g transform="translate(-220 -80)">
+                <rect class="gr-s4-n-state" x="-22" y="-22" width="44" height="44" rx="2"></rect>
+                <text class="gr-nl" y="-32">state</text>
+              </g>
+              <!-- producer → hexagon -->
+              <g transform="translate(-220 80)">
+                <polygon class="gr-s4-n-producer" points="11,-19 -11,-19 -22,0 -11,19 11,19 22,0"></polygon>
+                <text class="gr-nl" y="-34">producer</text>
+              </g>
+              <!-- derived → diamond -->
+              <g transform="translate(0 0)">
+                <polygon class="gr-s4-n-derived" points="0,-32 32,0 0,32 -32,0"></polygon>
+                <text class="gr-nl" y="-44">derived</text>
+                <text class="gr-s4-y-fn" y="5">fn(…)</text>
+              </g>
+              <!-- effect → parallelogram -->
+              <g transform="translate(220 0)">
+                <polygon class="gr-s4-n-effect" points="-18,-18 38,-18 28,18 -28,18"></polygon>
+                <text class="gr-nl" y="-30">effect</text>
+              </g>
+              <circle class="gr-s4-msg gr-s4-d-SD" r="5"></circle>
+              <circle class="gr-s4-msg gr-s4-d-PD" r="5"></circle>
+              <circle class="gr-s4-msg gr-s4-D-SD" r="6"></circle>
+              <circle class="gr-s4-msg gr-s4-D-PD" r="6"></circle>
+              <circle class="gr-s4-msg gr-s4-D-DE" r="6"></circle>
+            </g>
+          </g>
+
+          <!-- ═════ STAGE 5 — graph level (mesh · blueprint+lens · batch · capsules) ═════ -->
+          <g class="gr-st gr-st-5">
+            <g class="gr-s5-mesh">
+              <line class="gr-edge gr-s5-edge" x1="-280" y1="-110" x2="-130" y2="-60"></line>
+              <line class="gr-edge gr-s5-edge" x1="-280" y1="-110" x2="-200" y2="40"></line>
+              <line class="gr-edge gr-s5-edge" x1="-130" y1="-60" x2="0" y2="-110"></line>
+              <line class="gr-edge gr-s5-edge" x1="-130" y1="-60" x2="-50" y2="60"></line>
+              <line class="gr-edge gr-s5-edge" x1="-200" y1="40" x2="-50" y2="60"></line>
+              <line class="gr-edge gr-s5-edge" x1="-50" y1="60" x2="80" y2="110"></line>
+              <line class="gr-edge gr-s5-edge" x1="0" y1="-110" x2="160" y2="-70"></line>
+              <line class="gr-edge gr-s5-edge" x1="160" y1="-70" x2="280" y2="-10"></line>
+              <line class="gr-edge gr-s5-edge" x1="80" y1="110" x2="240" y2="90"></line>
+              <line class="gr-edge gr-s5-edge" x1="280" y1="-10" x2="240" y2="90"></line>
+              <line class="gr-edge gr-s5-edge" x1="0" y1="-110" x2="80" y2="110"></line>
+              <line class="gr-edge gr-s5-edge" x1="-50" y1="60" x2="160" y2="-70"></line>
+
+              <circle class="gr-s5-n" cx="-280" cy="-110" r="11"></circle>
+              <circle class="gr-s5-n" cx="-130" cy="-60" r="11"></circle>
+              <circle class="gr-s5-n" cx="-200" cy="40" r="11"></circle>
+              <circle class="gr-s5-n" cx="0" cy="-110" r="11"></circle>
+              <circle class="gr-s5-n" cx="-50" cy="60" r="11"></circle>
+              <circle class="gr-s5-n" cx="160" cy="-70" r="11"></circle>
+              <circle class="gr-s5-n" cx="80" cy="110" r="11"></circle>
+              <circle class="gr-s5-n" cx="280" cy="-10" r="11"></circle>
+              <circle class="gr-s5-n" cx="240" cy="90" r="11"></circle>
+            </g>
+
+            <g class="gr-s5-lens">
+              <circle class="gr-s5-lens-glass" r="76" fill="url(#gr-lensGrad)"></circle>
+              <circle class="gr-s5-lens-ring" r="76"></circle>
+              <line class="gr-s5-lens-stem" x1="54" y1="54" x2="80" y2="80"></line>
+            </g>
+
+            <path class="gr-s5-bracket gr-s5-bracket-l" d="M -360 -150 L -390 -150 L -390 150 L -360 150"></path>
+            <path class="gr-s5-bracket gr-s5-bracket-r" d="M 360 -150 L 390 -150 L 390 150 L 360 150"></path>
+
+            <ellipse class="gr-s5-cap gr-s5-cap-a" cx="-150" cy="-30" rx="200" ry="120"></ellipse>
+            <ellipse class="gr-s5-cap gr-s5-cap-b" cx="180" cy="30" rx="180" ry="110"></ellipse>
+
+            <text class="gr-s5-lbl gr-s5-lbl-describe" x="0" y="-138">graph.describe() — the map</text>
+            <text class="gr-s5-lbl gr-s5-lbl-observe" x="0" y="148">graph.observe() — the magnifier</text>
+            <text class="gr-s5-lbl gr-s5-lbl-batch" x="0" y="-138">batch() — defers DATA, not DIRTY</text>
+            <text class="gr-s5-lbl gr-s5-lbl-cap" x="0" y="148">subgraphs · multi-agent ownership</text>
+          </g>
+
+          <!-- ═════ STAGE 6 — orchestrate + messaging ═════ -->
+          <g class="gr-st gr-st-6">
+            <ellipse class="gr-s6-cap gr-s6-cap-l" cx="-220" cy="0" rx="180" ry="80"></ellipse>
+            <!-- Pipeline edges between rounded-rect nodes (rect half-width = 22) -->
+            <line class="gr-edge gr-s6-pipe-edge" x1="-318" y1="0" x2="-282" y2="0" marker-end="url(#gr-arr)"></line>
+            <line class="gr-edge gr-s6-pipe-edge" x1="-238" y1="0" x2="-202" y2="0" marker-end="url(#gr-arr)"></line>
+            <line class="gr-edge gr-s6-pipe-edge" x1="-158" y1="0" x2="-122" y2="0" marker-end="url(#gr-arr)"></line>
+            <!-- Pipeline nodes = general close-up → rounded rects -->
+            <g transform="translate(-340 0)" class="gr-s6-pn gr-s6-p1"><rect x="-22" y="-14" width="44" height="28" rx="6"></rect><text class="gr-nl" y="-26">gate</text></g>
+            <g transform="translate(-260 0)" class="gr-s6-pn gr-s6-p2"><rect x="-22" y="-14" width="44" height="28" rx="6"></rect><text class="gr-nl" y="-26">action</text></g>
+            <g transform="translate(-180 0)" class="gr-s6-pn gr-s6-p3"><rect x="-22" y="-14" width="44" height="28" rx="6"></rect><text class="gr-nl" y="-26">check</text></g>
+            <g transform="translate(-100 0)" class="gr-s6-pn gr-s6-p4"><rect x="-22" y="-14" width="44" height="28" rx="6"></rect><text class="gr-nl" y="-26">action</text></g>
+            <text class="gr-s6-lbl gr-s6-l-pipe" x="-220" y="-92">pipeline</text>
+
+            <g class="gr-s6-hub" transform="translate(60 0)">
+              <rect class="gr-s6-hub-pill" x="-22" y="-130" width="44" height="260" rx="22"></rect>
+              <rect class="gr-s6-tok gr-s6-tok-1" x="-14" y="-115" width="28" height="8" rx="2"></rect>
+              <rect class="gr-s6-tok gr-s6-tok-2" x="-14" y="-95" width="28" height="8" rx="2"></rect>
+              <rect class="gr-s6-tok gr-s6-tok-3" x="-14" y="-75" width="28" height="8" rx="2"></rect>
+              <rect class="gr-s6-tok gr-s6-tok-4" x="-14" y="-55" width="28" height="8" rx="2"></rect>
+              <rect class="gr-s6-tok gr-s6-tok-5" x="-14" y="-35" width="28" height="8" rx="2"></rect>
+              <rect class="gr-s6-tok gr-s6-tok-6" x="-14" y="-15" width="28" height="8" rx="2"></rect>
+              <rect class="gr-s6-tok gr-s6-tok-7" x="-14" y="5" width="28" height="8" rx="2"></rect>
+              <text class="gr-nl" y="-138">hub</text>
+              <text class="gr-s6-cursor gr-s6-cursor-a" x="-32" y="0">▌</text>
+              <text class="gr-s6-cursor gr-s6-cursor-b" x="32" y="0">▌</text>
+            </g>
+
+            <ellipse class="gr-s6-cap gr-s6-cap-r" cx="240" cy="0" rx="120" ry="100"></ellipse>
+            <!-- Consumers = effect → parallelograms -->
+            <g transform="translate(190 -50)"><polygon class="gr-s6-cn" points="-14,-14 30,-14 22,14 -22,14"></polygon></g>
+            <g transform="translate(290 0)"><polygon class="gr-s6-cn" points="-14,-14 30,-14 22,14 -22,14"></polygon></g>
+            <g transform="translate(210 60)"><polygon class="gr-s6-cn" points="-14,-14 30,-14 22,14 -22,14"></polygon></g>
+
+            <text class="gr-s6-lbl gr-s6-l-hub" x="60" y="148">static graph · dynamic data</text>
+          </g>
+
+          <!-- ═════ STAGE 7 — agent loop + memory + ? ═════ -->
+          <g class="gr-st gr-st-7">
+            <g class="gr-s7-loop-wrap" transform="translate(-110 0)">
+              <circle class="gr-s7-loop-ring" r="100"></circle>
+              <!-- 4 clockwise chevrons on the ring (agent → tool → result → judge → agent) -->
+              <g class="gr-s7-chev" transform="translate(70.7 -70.7) rotate(45)"><polygon points="-5,-5 6,0 -5,5"></polygon></g>
+              <g class="gr-s7-chev" transform="translate(70.7 70.7) rotate(135)"><polygon points="-5,-5 6,0 -5,5"></polygon></g>
+              <g class="gr-s7-chev" transform="translate(-70.7 70.7) rotate(225)"><polygon points="-5,-5 6,0 -5,5"></polygon></g>
+              <g class="gr-s7-chev" transform="translate(-70.7 -70.7) rotate(315)"><polygon points="-5,-5 6,0 -5,5"></polygon></g>
+              <!-- Loop nodes = general close-up → rounded rects -->
+              <g transform="translate(0 -100)"><rect class="gr-s7-ln gr-s7-l1" x="-26" y="-16" width="52" height="32" rx="6"></rect><text class="gr-nl" y="-28">agent</text></g>
+              <g transform="translate(100 0)"><rect class="gr-s7-ln gr-s7-l2" x="-26" y="-16" width="52" height="32" rx="6"></rect><text class="gr-nl" y="-28">tool</text></g>
+              <g transform="translate(0 100)"><rect class="gr-s7-ln gr-s7-l3" x="-26" y="-16" width="52" height="32" rx="6"></rect><text class="gr-nl" y="-30">result</text></g>
+              <g transform="translate(-100 0)"><rect class="gr-s7-ln gr-s7-l4" x="-26" y="-16" width="52" height="32" rx="6"></rect><text class="gr-nl" y="-28">judge</text></g>
+              <circle class="gr-s7-loop-dot" r="5"></circle>
+            </g>
+
+            <g class="gr-s7-mem" transform="translate(130 0)">
+              <rect class="gr-s7-mem-frame" x="-32" y="-70" width="64" height="140" rx="8"></rect>
+              <text class="gr-nl" y="-82">memory</text>
+              <rect class="gr-s7-mem-tok gr-s7-mt-1" x="-24" y="56" width="48" height="8" rx="2"></rect>
+              <rect class="gr-s7-mem-tok gr-s7-mt-2" x="-24" y="42" width="48" height="8" rx="2"></rect>
+              <rect class="gr-s7-mem-tok gr-s7-mt-3" x="-24" y="28" width="48" height="8" rx="2"></rect>
+              <rect class="gr-s7-mem-tok gr-s7-mt-4" x="-24" y="14" width="48" height="8" rx="2"></rect>
+              <rect class="gr-s7-mem-tok gr-s7-mt-5" x="-24" y="0" width="48" height="8" rx="2"></rect>
+              <rect class="gr-s7-mem-tok gr-s7-mt-6" x="-24" y="-14" width="48" height="8" rx="2"></rect>
+            </g>
+
+            <line class="gr-s7-q-edge gr-s7-qe-1" x1="150" y1="-50" x2="263" y2="-100"></line>
+            <line class="gr-s7-q-edge gr-s7-qe-2" x1="170" y1="20" x2="303" y2="50"></line>
+            <line class="gr-s7-q-edge gr-s7-qe-3" x1="160" y1="60" x2="223" y2="120"></line>
+
+            <g class="gr-s7-q gr-s7-q1" transform="translate(280 -110)">
+              <polygon points="0,-20 17,-10 17,10 0,20 -17,10 -17,-10"></polygon>
+              <text y="5">?</text>
+            </g>
+            <g class="gr-s7-q gr-s7-q2" transform="translate(320 60)">
+              <polygon points="0,-20 17,-10 17,10 0,20 -17,10 -17,-10"></polygon>
+              <text y="5">?</text>
+            </g>
+            <g class="gr-s7-q gr-s7-q3" transform="translate(240 130)">
+              <polygon points="0,-20 17,-10 17,10 0,20 -17,10 -17,-10"></polygon>
+              <text y="5">?</text>
+            </g>
+          </g>
+
         </g>
-        <g class="gr-showcase-nD" transform="translate(260 0)">
-          <circle r="38" fill="rgba(108,99,255,0.18)" stroke="#6C63FF" stroke-width="1.5"></circle>
-          <text x="0" y="62" fill="rgba(244,247,249,0.7)" font-family="JetBrains Mono" font-size="12" text-anchor="middle">derived</text>
-        </g>
-        <circle class="gr-showcase-dirty" cx="0" cy="0" r="6"></circle>
-        <circle class="gr-showcase-data" cx="0" cy="0" r="6"></circle>
       </svg>
     </div>
 
     <div class="gr-showcase-label">
-      <div class="gr-showcase-label-k">stage 1 · connection lifecycle</div>
-      <div class="gr-showcase-label-v">START → DIRTY<br />→ DATA → COMPLETE</div>
+      <div class="gr-showcase-label-k">
+        <span class="gr-lk gr-lk-1">stage 1 · connection lifecycle</span>
+        <span class="gr-lk gr-lk-2">stage 2 · diamond resolution</span>
+        <span class="gr-lk gr-lk-3">stage 3 · node anatomy</span>
+        <span class="gr-lk gr-lk-4">stage 4 · four sugars</span>
+        <span class="gr-lk gr-lk-5">stage 5 · graph level</span>
+        <span class="gr-lk gr-lk-6">stage 6 · orchestrate · messaging</span>
+        <span class="gr-lk gr-lk-7">stage 7 · agent loop · memory</span>
+      </div>
+      <div class="gr-showcase-label-v">
+        <span class="gr-lv gr-lv-1">START → DIRTY<br />→ DATA → COMPLETE</span>
+        <span class="gr-lv gr-lv-2">DIRTY converges<br />DATA fires once</span>
+        <span class="gr-lv gr-lv-3">cache · version<br />guard · up / down</span>
+        <span class="gr-lv gr-lv-4">state · producer<br />derived · effect</span>
+        <span class="gr-lv gr-lv-5">describe · observe<br />batch · subgraphs</span>
+        <span class="gr-lv gr-lv-6">pipeline + hub<br />static · dynamic</span>
+        <span class="gr-lv gr-lv-7">loop · memory<br />open substrate</span>
+      </div>
     </div>
 
     <div class="gr-showcase-chips">
-      <span class="gr-showcase-chip">graph.describe()</span>
-      <span class="gr-showcase-chip">graph.observe()</span>
-      <span class="gr-showcase-chip">batch()</span>
+      <span class="gr-showcase-chip gr-chip-describe">graph.describe()</span>
+      <span class="gr-showcase-chip gr-chip-observe">graph.observe()</span>
+      <span class="gr-showcase-chip gr-chip-batch">batch()</span>
     </div>
   </div>
 </section>
@@ -449,6 +850,7 @@ html:has(.gr-home) { scroll-behavior: smooth; }
   font-family: var(--sans);
   font-size: 19px; line-height: 1.55; font-weight: 400;
   color: var(--ink-mute);
+  text-align: justify;
 }
 .gr-hero-sub b { color: var(--ink); font-weight: 600; }
 
@@ -520,65 +922,1191 @@ html:has(.gr-home) { scroll-behavior: smooth; }
     radial-gradient(ellipse 40% 30% at 20% 80%, rgba(255,45,117,0.05) 0%, transparent 60%);
 }
 .gr-showcase-stage { width: 100%; height: 100%; position: relative; }
-.gr-showcase-stage svg { width: 100%; height: 100%; }
-.gr-showcase-nP, .gr-showcase-nD {
+.gr-stage-svg { width: 100%; height: 100%; display: block; }
+
+/* ── shared node / edge primitives ── */
+.gr-prod-shape { fill: rgba(16,185,129,0.18); stroke: #10B981; stroke-width: 1.5; }
+.gr-der-shape  { fill: rgba(108,99,255,0.18); stroke: #6C63FF; stroke-width: 1.5; }
+.gr-edge       { stroke: rgba(244,247,249,0.18); stroke-width: 1.2; fill: none; }
+.gr-nl {
+  fill: rgba(244,247,249,0.7);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-anchor: middle;
+  letter-spacing: 0.04em;
+}
+
+/* ── stage container visibility (single 48s master) ── */
+.gr-st { opacity: 0; }
+.gr-st-1 { animation: gr-vis-1 48s infinite linear; }
+.gr-st-2 { animation: gr-vis-2 48s infinite linear; }
+.gr-st-3 { animation: gr-vis-3 48s infinite linear; }
+.gr-st-4 { animation: gr-vis-4 48s infinite linear; }
+.gr-st-5 { animation: gr-vis-5 48s infinite linear; }
+.gr-st-6 { animation: gr-vis-6 48s infinite linear; }
+.gr-st-7 { animation: gr-vis-7 48s infinite linear; }
+/* stage 8 = return to stage 1 (loop seam); stage 1 fades back in at 96-100% */
+@keyframes gr-vis-1 {
+  0%, 24.0% { opacity: 1; }
+  25.0%, 95.5% { opacity: 0; }
+  96.0%, 100% { opacity: 1; }
+}
+@keyframes gr-vis-2 {
+  0%, 24.31% { opacity: 0; }
+  25.62%, 34.38% { opacity: 1; }
+  35.69%, 100% { opacity: 0; }
+}
+@keyframes gr-vis-3 {
+  0%, 34.81% { opacity: 0; }
+  36.12%, 44.88% { opacity: 1; }
+  46.19%, 100% { opacity: 0; }
+}
+@keyframes gr-vis-4 {
+  0%, 45.31% { opacity: 0; }
+  46.62%, 55.38% { opacity: 1; }
+  56.69%, 100% { opacity: 0; }
+}
+@keyframes gr-vis-5 {
+  0%, 55.81% { opacity: 0; }
+  57.12%, 72% { opacity: 1; }
+  73.31%, 100% { opacity: 0; }
+}
+@keyframes gr-vis-6 {
+  0%, 72.44% { opacity: 0; }
+  73.75%, 84.25% { opacity: 1; }
+  85.56%, 100% { opacity: 0; }
+}
+@keyframes gr-vis-7 {
+  0%, 84.69% { opacity: 0; }
+  86%, 94.75% { opacity: 1; }
+  96.06%, 100% { opacity: 0; }
+}
+
+/* ═════════════════════════════════════════════ */
+/*           STAGE 1 — connection lifecycle      */
+/* window: 0–12s (0–25%). beats:                 */
+/*   initial state        0–1.4s   (0–3%)        */
+/*     upstream colored, dn+edge GRAYED          */
+/*   START emit → arrive  1.4–2.9s (3–6%)        */
+/*   un-gray dn + edge    2.9–3.4s (6–7%)        */
+/*   DIRTY1 emit → arrive 3.8–4.6s (8–9.5%)      */
+/*   DATA1  emit → arrive 4.8–5.5s (10–11.5%)    */
+/*   DIRTY2 emit → arrive 6.2–6.7s (13–14%)      */
+/*   DATA2  emit → arrive 7.2–7.9s (15–16.5%)    */
+/*   COMPLETE emit        8.6s     (18%)         */
+/*     upstream grays at this moment             */
+/*   COMPLETE arrives     9.6s     (20%)         */
+/*     downstream + edge gray at this moment     */
+/*   stable gray          10–12s   (21–25%)      */
+/* ═════════════════════════════════════════════ */
+
+/* Upstream node — clean blue → DIRTY (yellow dotted) before each DIRTY emit, back to clean
+   after emitting DATA, gray after COMPLETE; returns to clean at loop seam. */
+.gr-s1-up-shape {
+  fill: rgba(96,165,250,0.22);
+  stroke: #60A5FA;
+  stroke-width: 1.5;
+  animation: gr-s1-up-shape 48s infinite linear;
+}
+@keyframes gr-s1-up-shape {
+  0%, 7.5% { fill: rgba(96,165,250,0.22); stroke: #60A5FA; }       /* clean */
+  7.7%, 9.9% { fill: url(#gr-dirty); stroke: #FBBF24; }              /* DIRTY (before emitting DIRTY1) */
+  10.1%, 12.5% { fill: rgba(96,165,250,0.22); stroke: #60A5FA; }   /* clean after DATA1 emit */
+  12.7%, 14.9% { fill: url(#gr-dirty); stroke: #FBBF24; }            /* DIRTY (before emitting DIRTY2) */
+  15.1%, 17.7% { fill: rgba(96,165,250,0.22); stroke: #60A5FA; }   /* clean after DATA2 emit */
+  19%, 95.5% { fill: rgba(148,163,184,0.08); stroke: rgba(148,163,184,0.32); }
+  96.5%, 100% { fill: rgba(96,165,250,0.22); stroke: #60A5FA; }
+}
+.gr-s1-up-label { animation: gr-s1-up-label 48s infinite linear; }
+@keyframes gr-s1-up-label {
+  0%, 17.5% { fill: rgba(244,247,249,0.7); }
+  19%, 95.5% { fill: rgba(148,163,184,0.4); }
+  96.5%, 100% { fill: rgba(244,247,249,0.7); }
+}
+
+/* Downstream node — gray until START arrives → clean → DIRTY when DIRTY arrives → fn-running (green)
+   when DATA arrives → clean after fn → gray when COMPLETE arrives. */
+.gr-s1-dn-shape {
+  fill: rgba(148,163,184,0.08);
+  stroke: rgba(148,163,184,0.32);
+  stroke-width: 1.5;
+  animation: gr-s1-dn-shape 48s infinite linear;
+}
+@keyframes gr-s1-dn-shape {
+  0%, 6% { fill: rgba(148,163,184,0.08); stroke: rgba(148,163,184,0.32); }    /* gray (not subscribed) */
+  7%, 9.3% { fill: rgba(96,165,250,0.22); stroke: #60A5FA; }                  /* clean (after START) */
+  9.5%, 11.3% { fill: url(#gr-dirty); stroke: #FBBF24; }                       /* DIRTY1 received */
+  11.5%, 12.3% { fill: rgba(52,211,153,0.32); stroke: #34D399; }              /* fn1 running (DATA1 arrived) */
+  12.5%, 13.8% { fill: rgba(96,165,250,0.22); stroke: #60A5FA; }              /* clean after fn1 */
+  14%, 16.3% { fill: url(#gr-dirty); stroke: #FBBF24; }                        /* DIRTY2 received */
+  16.5%, 17.3% { fill: rgba(52,211,153,0.32); stroke: #34D399; }              /* fn2 running */
+  17.5%, 19.8% { fill: rgba(96,165,250,0.22); stroke: #60A5FA; }              /* clean after fn2 */
+  21%, 100% { fill: rgba(148,163,184,0.08); stroke: rgba(148,163,184,0.32); } /* gray (COMPLETE) */
+}
+.gr-s1-dn-label { animation: gr-s1-dn-label 48s infinite linear; }
+@keyframes gr-s1-dn-label {
+  0%, 6% { fill: rgba(148,163,184,0.4); }
+  7%, 20% { fill: rgba(244,247,249,0.7); }
+  21%, 100% { fill: rgba(148,163,184,0.4); }
+}
+
+/* Edge — opacity gated by wrapper group; dim 22% when grayed, full when alive */
+.gr-s1-edge { stroke: rgba(200,255,0,0.42); stroke-width: 1.5; }
+.gr-s1-edge-grp { animation: gr-s1-edge-grp 48s infinite linear; }
+@keyframes gr-s1-edge-grp {
+  0%, 6% { opacity: 0.22; }
+  7%, 20% { opacity: 1; }
+  21%, 100% { opacity: 0.22; }
+}
+
+/* fn(...) flash on each DATA arrival */
+.gr-s1-fn {
+  fill: rgba(200,255,0,0.95);
+  font-family: var(--mono); font-size: 10.5px; text-anchor: middle;
+  opacity: 0;
+  animation: gr-s1-fn 48s infinite linear;
+}
+@keyframes gr-s1-fn {
+  0%, 11.2% { opacity: 0; }
+  11.5%, 12.4% { opacity: 1; }
+  12.7%, 16.4% { opacity: 0; }
+  16.6%, 17.5% { opacity: 1; }
+  17.8%, 100% { opacity: 0; }
+}
+
+/* Message labels above each travelling glyph */
+.gr-s1-msg-lbl {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-anchor: middle;
+  letter-spacing: 0.10em;
+  font-weight: 600;
+}
+.gr-s1-lbl-start, .gr-s1-lbl-complete { fill: #94A3B8; }
+.gr-s1-lbl-dirty { fill: #FBBF24; }
+.gr-s1-lbl-data { fill: #34D399; }
+.gr-s1-dot-slate { fill: #94A3B8; }
+.gr-s1-dot-data { fill: #34D399; filter: drop-shadow(0 0 8px rgba(52,211,153,0.7)); }
+.gr-s1-flag-pole { stroke: #FBBF24; stroke-width: 1.4; stroke-linecap: round; }
+.gr-s1-flag-fabric { fill: #FBBF24; }
+
+/* Message group transforms — each travels from upstream center (-260) to downstream center (260) */
+.gr-s1-msg { opacity: 0; }
+.gr-s1-msg-start    { animation: gr-s1-msg-start    48s infinite linear; }
+.gr-s1-msg-dirty1   { animation: gr-s1-msg-dirty1   48s infinite linear; }
+.gr-s1-msg-data1    { animation: gr-s1-msg-data1    48s infinite linear; }
+.gr-s1-msg-dirty2   { animation: gr-s1-msg-dirty2   48s infinite linear; }
+.gr-s1-msg-data2    { animation: gr-s1-msg-data2    48s infinite linear; }
+.gr-s1-msg-complete { animation: gr-s1-msg-complete 48s infinite linear; }
+
+/* START emit 3% → arrive 6% (1.44s travel) */
+@keyframes gr-s1-msg-start {
+  0%, 2.7% { opacity: 0; transform: translateX(-200px); }
+  3% { opacity: 1; transform: translateX(-200px); }
+  6% { opacity: 1; transform: translateX(200px); }
+  6.3%, 100% { opacity: 0; transform: translateX(200px); }
+}
+/* DIRTY1 emit 8% → arrive 9.5% (0.72s) */
+@keyframes gr-s1-msg-dirty1 {
+  0%, 7.7% { opacity: 0; transform: translateX(-200px); }
+  8% { opacity: 1; transform: translateX(-200px); }
+  9.5% { opacity: 1; transform: translateX(200px); }
+  9.8%, 100% { opacity: 0; transform: translateX(200px); }
+}
+/* DATA1 emit 10% → arrive 11.5% */
+@keyframes gr-s1-msg-data1 {
+  0%, 9.7% { opacity: 0; transform: translateX(-200px); }
+  10% { opacity: 1; transform: translateX(-200px); }
+  11.5% { opacity: 1; transform: translateX(200px); }
+  11.8%, 100% { opacity: 0; transform: translateX(200px); }
+}
+/* DIRTY2 emit 13% → arrive 14% */
+@keyframes gr-s1-msg-dirty2 {
+  0%, 12.7% { opacity: 0; transform: translateX(-200px); }
+  13% { opacity: 1; transform: translateX(-200px); }
+  14% { opacity: 1; transform: translateX(200px); }
+  14.3%, 100% { opacity: 0; transform: translateX(200px); }
+}
+/* DATA2 emit 15% → arrive 16.5% */
+@keyframes gr-s1-msg-data2 {
+  0%, 14.7% { opacity: 0; transform: translateX(-200px); }
+  15% { opacity: 1; transform: translateX(-200px); }
+  16.5% { opacity: 1; transform: translateX(200px); }
+  16.8%, 100% { opacity: 0; transform: translateX(200px); }
+}
+/* COMPLETE emit 18% → arrive 20% (slower, 0.96s travel for emphasis) */
+@keyframes gr-s1-msg-complete {
+  0%, 17.7% { opacity: 0; transform: translateX(-200px); }
+  18% { opacity: 1; transform: translateX(-200px); }
+  20% { opacity: 1; transform: translateX(200px); }
+  20.3%, 100% { opacity: 0; transform: translateX(200px); }
+}
+
+/* ═════════════════════════════════════════════ */
+/*           STAGE 2 — diamond resolution        */
+/* window: 12–17s (25–35.42%). beats:            */
+/*   25.5%  A becomes DIRTY (before emit)        */
+/*   26.0%  A emits DIRTY → B (and → C @ 26.5%)  */
+/*   27.0%  B/C receive DIRTY → become DIRTY     */
+/*   27.5%  B emits DIRTY → D (and C @ 27.7%)    */
+/*   28.0%  D receives DIRTY → becomes DIRTY     */
+/*   28.5%  A emits DATA → B and C in parallel   */
+/*          A clears DIRTY after emitting        */
+/*   29.0%  DATA arrives at B & C → both invoke  */
+/*          C's fn is fast, B's fn is slow       */
+/*   29.7%  C's fn done → C clears → DATA → D    */
+/*   30.5%  C's DATA arrives at D (1/2 inputs)   */
+/*   31.4%  B's fn done → B clears → DATA → D    */
+/*   32.2%  B's DATA arrives at D (2/2 → fn)     */
+/*   33.2%  D's fn done → D clears DIRTY         */
+/* ═════════════════════════════════════════════ */
+
+/* A — producer hexagon */
+.gr-s2-A-shape {
+  fill: rgba(16,185,129,0.18); stroke: #10B981; stroke-width: 1.5;
+  animation: gr-s2-A 48s infinite linear;
+}
+@keyframes gr-s2-A {
+  0%, 25.3% { fill: rgba(16,185,129,0.18); stroke: #10B981; }
+  25.5%, 28.9% { fill: url(#gr-dirty); stroke: #FBBF24; }       /* DIRTY before emit */
+  29.1%, 100% { fill: rgba(16,185,129,0.18); stroke: #10B981; } /* clean after DATA emit */
+}
+
+/* B — derived diamond, slow fn */
+.gr-s2-B-shape {
+  fill: rgba(108,99,255,0.18); stroke: #6C63FF; stroke-width: 1.5;
+  animation: gr-s2-B 48s infinite linear;
+}
+@keyframes gr-s2-B {
+  0%, 26.9% { fill: rgba(108,99,255,0.18); stroke: #6C63FF; }
+  27%, 29.1% { fill: url(#gr-dirty); stroke: #FBBF24; }            /* DIRTY received → forwarded */
+  29.2%, 31.3% { fill: rgba(52,211,153,0.32); stroke: #34D399; }   /* fn running (slow) */
+  31.5%, 100% { fill: rgba(108,99,255,0.18); stroke: #6C63FF; }    /* clean after fn done */
+}
+
+/* C — derived diamond, fast fn */
+.gr-s2-C-shape {
+  fill: rgba(108,99,255,0.18); stroke: #6C63FF; stroke-width: 1.5;
+  animation: gr-s2-C 48s infinite linear;
+}
+@keyframes gr-s2-C {
+  0%, 27.1% { fill: rgba(108,99,255,0.18); stroke: #6C63FF; }
+  27.2%, 29.1% { fill: url(#gr-dirty); stroke: #FBBF24; }
+  29.2%, 29.6% { fill: rgba(52,211,153,0.32); stroke: #34D399; }   /* fast fn */
+  29.8%, 100% { fill: rgba(108,99,255,0.18); stroke: #6C63FF; }
+}
+
+/* D — derived diamond, joins B+C */
+.gr-s2-D-shape {
+  fill: rgba(108,99,255,0.18); stroke: #6C63FF; stroke-width: 1.5;
+  animation: gr-s2-D-shape 48s infinite linear;
+}
+@keyframes gr-s2-D-shape {
+  0%, 27.9% { fill: rgba(108,99,255,0.18); stroke: #6C63FF; }
+  28%, 32.1% { fill: url(#gr-dirty); stroke: #FBBF24; }            /* DIRTY (waiting for both DATAs) */
+  32.3%, 33.1% { fill: rgba(52,211,153,0.32); stroke: #34D399; }   /* fn running */
+  33.3%, 100% { fill: rgba(108,99,255,0.18); stroke: #6C63FF; }    /* clean after fn */
+}
+
+/* D's fn(...) text flash — only when D actually invokes fn */
+.gr-s2-fn {
+  fill: rgba(200,255,0,0.95);
+  font-family: var(--mono); font-size: 10.5px; text-anchor: middle;
+  opacity: 0;
+  animation: gr-s2-fn 48s infinite linear;
+}
+@keyframes gr-s2-fn {
+  0%, 32.2% { opacity: 0; }
+  32.4%, 33.1% { opacity: 1; }
+  33.3%, 100% { opacity: 0; }
+}
+
+/* Stage 2 message visuals — same conventions as Stage 1 */
+.gr-s2-msg-lbl {
+  font-family: var(--mono); font-size: 9.5px; text-anchor: middle;
+  letter-spacing: 0.10em; font-weight: 600;
+}
+.gr-s2-lbl-dirty { fill: #FBBF24; }
+.gr-s2-lbl-data { fill: #34D399; }
+.gr-s2-dot-data { fill: #34D399; filter: drop-shadow(0 0 6px rgba(52,211,153,0.6)); }
+.gr-s2-flag-pole { stroke: #FBBF24; stroke-width: 1.4; stroke-linecap: round; }
+.gr-s2-flag-fabric { fill: #FBBF24; }
+
+/* Message group transforms — each <g> wraps glyph + label */
+.gr-s2-msg { opacity: 0; }
+.gr-s2-d-AB { animation: gr-s2-d-AB 48s infinite linear; }
+.gr-s2-d-AC { animation: gr-s2-d-AC 48s infinite linear; }
+.gr-s2-d-BD { animation: gr-s2-d-BD 48s infinite linear; }
+.gr-s2-d-CD { animation: gr-s2-d-CD 48s infinite linear; }
+.gr-s2-D-AB { animation: gr-s2-D-AB 48s infinite linear; }
+.gr-s2-D-AC { animation: gr-s2-D-AC 48s infinite linear; }
+.gr-s2-D-BD { animation: gr-s2-D-BD 48s infinite linear; }
+.gr-s2-D-CD { animation: gr-s2-D-CD 48s infinite linear; }
+
+/* DIRTY A→B  beat 26-27% */
+@keyframes gr-s2-d-AB {
+  0%, 25.9% { opacity: 0; transform: translate(0px, -120px); }
+  26% { opacity: 1; transform: translate(0px, -120px); }
+  27% { opacity: 1; transform: translate(-180px, 0px); }
+  27.1%, 100% { opacity: 0; transform: translate(-180px, 0px); }
+}
+/* DIRTY A→C  beat 26.5-27.2% (slight stagger after A→B) */
+@keyframes gr-s2-d-AC {
+  0%, 26.4% { opacity: 0; transform: translate(0px, -120px); }
+  26.5% { opacity: 1; transform: translate(0px, -120px); }
+  27.2% { opacity: 1; transform: translate(180px, 0px); }
+  27.3%, 100% { opacity: 0; transform: translate(180px, 0px); }
+}
+/* DIRTY B→D  beat 27.5-28% */
+@keyframes gr-s2-d-BD {
+  0%, 27.4% { opacity: 0; transform: translate(-180px, 0px); }
+  27.5% { opacity: 1; transform: translate(-180px, 0px); }
+  28% { opacity: 1; transform: translate(0px, 120px); }
+  28.1%, 100% { opacity: 0; transform: translate(0px, 120px); }
+}
+/* DIRTY C→D  beat 27.7-28.2% */
+@keyframes gr-s2-d-CD {
+  0%, 27.6% { opacity: 0; transform: translate(180px, 0px); }
+  27.7% { opacity: 1; transform: translate(180px, 0px); }
+  28.2% { opacity: 1; transform: translate(0px, 120px); }
+  28.3%, 100% { opacity: 0; transform: translate(0px, 120px); }
+}
+/* DATA A→B  beat 28.5-29% (parallel with A→C) */
+@keyframes gr-s2-D-AB {
+  0%, 28.4% { opacity: 0; transform: translate(0px, -120px); }
+  28.5% { opacity: 1; transform: translate(0px, -120px); }
+  29% { opacity: 1; transform: translate(-180px, 0px); }
+  29.1%, 100% { opacity: 0; transform: translate(-180px, 0px); }
+}
+/* DATA A→C  beat 28.5-29% (parallel with A→B) */
+@keyframes gr-s2-D-AC {
+  0%, 28.4% { opacity: 0; transform: translate(0px, -120px); }
+  28.5% { opacity: 1; transform: translate(0px, -120px); }
+  29% { opacity: 1; transform: translate(180px, 0px); }
+  29.1%, 100% { opacity: 0; transform: translate(180px, 0px); }
+}
+/* DATA C→D  beat 29.7-30.5% (C's fast fn done first) */
+@keyframes gr-s2-D-CD {
+  0%, 29.6% { opacity: 0; transform: translate(180px, 0px); }
+  29.7% { opacity: 1; transform: translate(180px, 0px); }
+  30.5% { opacity: 1; transform: translate(0px, 120px); }
+  30.6%, 100% { opacity: 0; transform: translate(0px, 120px); }
+}
+/* DATA B→D  beat 31.4-32.2% (B's slow fn done later) */
+@keyframes gr-s2-D-BD {
+  0%, 31.3% { opacity: 0; transform: translate(-180px, 0px); }
+  31.4% { opacity: 1; transform: translate(-180px, 0px); }
+  32.2% { opacity: 1; transform: translate(0px, 120px); }
+  32.3%, 100% { opacity: 0; transform: translate(0px, 120px); }
+}
+
+/* ═════════════════════════════════════════════ */
+/*           STAGE 3 — node anatomy              */
+/* window: 17–22s (35.42–45.83%). beats:         */
+/*   zoom in big rect    35.42–37.88%            */
+/*   up/down ports reveal 38–39%                 */
+/*   cache reveals        39.5–40%               */
+/*   version reveals      40.5–41%               */
+/*   guard reveals        41.5–42%               */
+/*   all settled          42–44.88%              */
+/*   zoom out             44.88–45.83%           */
+/* ═════════════════════════════════════════════ */
+
+/* Big rounded-rect node + everything inside zooms in/out together */
+.gr-s3-node-wrap {
   transform-origin: center;
-  animation: gr-showcaseBreathe 5s ease-in-out infinite;
+  animation: gr-s3-node-zoom 48s infinite linear;
 }
-.gr-showcase-nD { animation-delay: 2.5s; }
-@keyframes gr-showcaseBreathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
-.gr-showcase-data {
-  fill: var(--lime); filter: drop-shadow(0 0 12px rgba(200,255,0,0.8));
-  animation: gr-showcaseTravel 5s ease-in-out infinite;
+@keyframes gr-s3-node-zoom {
+  0%, 34.81% { transform: scale(0.05); opacity: 0; }
+  36.12% { transform: scale(0.6); opacity: 0.6; }
+  37.88% { transform: scale(1); opacity: 1; }
+  44.88% { transform: scale(1); opacity: 1; }
+  45.57%, 100% { transform: scale(0.05); opacity: 0; }
 }
-@keyframes gr-showcaseTravel {
-  0%   { transform: translateX(-280px); opacity: 0; }
-  15%  { opacity: 1; }
-  50%  { transform: translateX(280px); opacity: 1; }
-  60%  { opacity: 0; }
-  100% { transform: translateX(280px); opacity: 0; }
+.gr-s3-node {
+  fill: rgba(96,165,250,0.06);
+  stroke: #60A5FA;
+  stroke-width: 1.6;
 }
-.gr-showcase-dirty {
-  fill: none; stroke: #FBBF24; stroke-width: 1.5; stroke-dasharray: 3 3;
-  animation: gr-showcaseTravel 5s ease-in-out infinite;
-  animation-delay: -0.5s;
+
+/* fn(…) anatomy = nested rings at the heart */
+.gr-s3-fn-ring { fill: none; stroke-width: 1.4; }
+.gr-s3-fn-ring-3 { stroke: rgba(96,165,250,0.30); }
+.gr-s3-fn-ring-2 { stroke: rgba(96,165,250,0.55); }
+.gr-s3-fn-ring-1 { stroke: rgba(96,165,250,0.95); fill: rgba(96,165,250,0.12); }
+.gr-s3-fn-center {
+  fill: var(--ice);
+  font-family: var(--display); font-weight: 700;
+  font-size: 18px; text-anchor: middle;
+  letter-spacing: -0.02em;
 }
-.gr-showcase-badges {
-  position: absolute; top: 24px; left: 24px; right: 24px;
-  display: flex; justify-content: space-between;
-  font-family: var(--mono); font-size: 10.5px;
-  letter-spacing: 0.16em; text-transform: uppercase;
-  color: rgba(255,255,255,0.45);
-  z-index: 5; pointer-events: none;
+
+/* Inner badges (cache / version / guard) — icon + text, no chrome box */
+.gr-s3-tag { opacity: 0; }
+.gr-s3-tag-cache { animation: gr-s3-tag-cache 48s infinite linear; }
+.gr-s3-tag-ver   { animation: gr-s3-tag-ver   48s infinite linear; }
+.gr-s3-tag-guard { animation: gr-s3-tag-guard 48s infinite linear; }
+.gr-s3-tag-text {
+  fill: var(--ice);
+  font-family: var(--mono); font-size: 11.5px;
+  text-anchor: start; letter-spacing: 0.04em;
 }
-.gr-showcase-live::before {
-  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--lime); margin-right: 6px; vertical-align: middle;
-  box-shadow: 0 0 6px var(--lime);
+/* Line-art icons inside each badge */
+.gr-s3-icon {
+  fill: none;
+  stroke: var(--lime);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
+.gr-s3-icon-dot { fill: var(--lime); stroke: none; }
+
+/* Reveal sequence: cache @39.5%, version @40.5%, guard @41.5%; all stay until 44.88% */
+@keyframes gr-s3-tag-cache {
+  0%, 39.3% { opacity: 0; }
+  39.8%, 44.88% { opacity: 1; }
+  45.4%, 100% { opacity: 0; }
+}
+@keyframes gr-s3-tag-ver {
+  0%, 40.3% { opacity: 0; }
+  40.8%, 44.88% { opacity: 1; }
+  45.4%, 100% { opacity: 0; }
+}
+@keyframes gr-s3-tag-guard {
+  0%, 41.3% { opacity: 0; }
+  41.8%, 44.88% { opacity: 1; }
+  45.4%, 100% { opacity: 0; }
+}
+.gr-s3-ver-text { animation: gr-s3-ver-text 48s infinite linear; }
+@keyframes gr-s3-ver-text {
+  0%, 40.85% { fill: var(--ice); }
+  41.0%, 41.4% { fill: var(--lime); }
+  41.8%, 100% { fill: var(--ice); }
+}
+
+/* External "↑ UP [deps]" / "↓ DOWN [subs]" ports outside the node */
+.gr-s3-port { opacity: 0; animation: gr-s3-port 48s infinite linear; }
+.gr-s3-port-line { stroke: rgba(244,247,249,0.85); stroke-width: 2; stroke-linecap: round; }
+.gr-s3-port-icon {
+  fill: none;
+  stroke: var(--lime);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.gr-s3-port-primary {
+  fill: var(--ice);
+  font-family: var(--display); font-weight: 800;
+  font-size: 19px;
+  letter-spacing: 0.04em;
+  text-anchor: start;
+}
+.gr-s3-port-secondary {
+  fill: rgba(244,247,249,0.55);
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.02em;
+  text-anchor: start;
+}
+@keyframes gr-s3-port {
+  0%, 38% { opacity: 0; }
+  38.7%, 44.88% { opacity: 1; }
+  45.4%, 100% { opacity: 0; }
+}
+
+/* ═════════════════════════════════════════════ */
+/*           STAGE 4 — four sugars + Y           */
+/* window: 16–21s (38.10–50.00%). beats:         */
+/*   center morph state→producer→derived→effect  */
+/*     16–18s  (38–43%)                          */
+/*   split → Y-shape draws                       */
+/*     18–19.5s (43–46.5%)                       */
+/*   flow through Y (DIRTY+DATA→derived→effect)  */
+/*     19.5–21s (46.5–50%)                       */
+/* ═════════════════════════════════════════════ */
+.gr-s4-m { transform-origin: center; }
+.gr-s4-m-state    { fill: rgba(20,184,166,0.20); stroke: #14B8A6; stroke-width: 1.5; animation: gr-s4-m-state    48s infinite linear; }
+.gr-s4-m-producer { fill: rgba(16,185,129,0.20); stroke: #10B981; stroke-width: 1.5; animation: gr-s4-m-producer 48s infinite linear; }
+.gr-s4-m-derived  { fill: rgba(108,99,255,0.20); stroke: #6C63FF; stroke-width: 1.5; animation: gr-s4-m-derived  48s infinite linear; }
+.gr-s4-m-effect   { fill: rgba(245,158,11,0.20); stroke: #F59E0B; stroke-width: 1.5; animation: gr-s4-m-effect   48s infinite linear; }
+.gr-s4-mlabel { fill: var(--ice); font-family: var(--mono); font-size: 12px; text-anchor: middle; font-weight: 500; }
+.gr-s4-ml-state    { animation: gr-s4-m-state    48s infinite linear; }
+.gr-s4-ml-producer { animation: gr-s4-m-producer 48s infinite linear; }
+.gr-s4-ml-derived  { animation: gr-s4-m-derived  48s infinite linear; }
+.gr-s4-ml-effect   { animation: gr-s4-m-effect   48s infinite linear; }
+@keyframes gr-s4-m-state {
+  0%, 45.75% { opacity: 0; }
+  46.01%, 47.06% { opacity: 1; }
+  47.32%, 50.12% { opacity: 0; }
+  50.56%, 100% { opacity: 0; }
+}
+@keyframes gr-s4-m-producer {
+  0%, 47.15% { opacity: 0; }
+  47.41%, 48.11% { opacity: 1; }
+  48.38%, 100% { opacity: 0; }
+}
+@keyframes gr-s4-m-derived {
+  0%, 48.2% { opacity: 0; }
+  48.46%, 49.16% { opacity: 1; }
+  49.43%, 100% { opacity: 0; }
+}
+@keyframes gr-s4-m-effect {
+  0%, 49.25% { opacity: 0; }
+  49.51%, 50.12% { opacity: 1; }
+  50.39%, 100% { opacity: 0; }
+}
+
+.gr-s4-y { opacity: 0; animation: gr-s4-y-show 48s infinite linear; }
+@keyframes gr-s4-y-show {
+  0%, 50.12% { opacity: 0; }
+  51%, 55.81% { opacity: 1; }
+  56.25%, 100% { opacity: 0; }
+}
+.gr-s4-n-state    { fill: rgba(20,184,166,0.18); stroke: #14B8A6; stroke-width: 1.5; }
+.gr-s4-n-producer { fill: rgba(16,185,129,0.18); stroke: #10B981; stroke-width: 1.5; }
+.gr-s4-n-derived  { fill: rgba(108,99,255,0.18); stroke: #6C63FF; stroke-width: 1.5; animation: gr-s4-n-derived 48s infinite linear; transform-origin: center; }
+.gr-s4-n-effect   { fill: rgba(245,158,11,0.18); stroke: #F59E0B; stroke-width: 1.5; animation: gr-s4-n-effect 48s infinite linear; transform-origin: center; transform-box: fill-box; }
+@keyframes gr-s4-n-derived {
+  0%, 53.62% { fill: rgba(108,99,255,0.18); }
+  54.06%, 54.76% { fill: rgba(52,211,153,0.32); }
+  55.11%, 100% { fill: rgba(108,99,255,0.18); }
+}
+@keyframes gr-s4-n-effect {
+  0%, 54.94% { fill: rgba(245,158,11,0.18); }
+  55.38%, 55.99% { fill: rgba(245,158,11,0.55); }
+  56.16%, 100% { fill: rgba(245,158,11,0.18); }
+}
+.gr-s4-y-fn {
+  fill: rgba(200,255,0,0.95);
+  font-family: var(--mono); font-size: 10.5px; text-anchor: middle;
+  opacity: 0;
+  animation: gr-s4-y-fn 48s infinite linear;
+}
+@keyframes gr-s4-y-fn {
+  0%, 54.15% { opacity: 0; }
+  54.41%, 54.85% { opacity: 1; }
+  55.11%, 100% { opacity: 0; }
+}
+
+.gr-s4-msg { opacity: 0; }
+.gr-s4-d-SD, .gr-s4-d-PD {
+  fill: none; stroke: #FBBF24; stroke-width: 1.6; stroke-dasharray: 3 2;
+}
+.gr-s4-D-SD, .gr-s4-D-PD, .gr-s4-D-DE {
+  fill: #34D399; filter: drop-shadow(0 0 6px rgba(52,211,153,0.6));
+}
+.gr-s4-d-SD { animation: gr-s4-d-SD 48s infinite linear; }
+.gr-s4-d-PD { animation: gr-s4-d-PD 48s infinite linear; }
+.gr-s4-D-SD { animation: gr-s4-D-SD 48s infinite linear; }
+.gr-s4-D-PD { animation: gr-s4-D-PD 48s infinite linear; }
+.gr-s4-D-DE { animation: gr-s4-D-DE 48s infinite linear; }
+/* DIRTY state→derived 46.5–47.0%, src(-220,-80) dst(-30,0) */
+@keyframes gr-s4-d-SD {
+  0%, 53.1% { opacity: 0; transform: translate(-220px, -80px); }
+  53.27% { opacity: 1; transform: translate(-220px, -80px); }
+  53.58% { opacity: 1; transform: translate(-30px, 0px); }
+  53.71%, 100% { opacity: 0; transform: translate(-30px, 0px); }
+}
+/* DIRTY producer→derived 46.5–47.0%, src(-220,80) dst(-30,0) */
+@keyframes gr-s4-d-PD {
+  0%, 53.1% { opacity: 0; transform: translate(-220px, 80px); }
+  53.27% { opacity: 1; transform: translate(-220px, 80px); }
+  53.58% { opacity: 1; transform: translate(-30px, 0px); }
+  53.71%, 100% { opacity: 0; transform: translate(-30px, 0px); }
+}
+/* DATA state→derived 47.4–47.9% */
+@keyframes gr-s4-D-SD {
+  0%, 53.89% { opacity: 0; transform: translate(-220px, -80px); }
+  54.06% { opacity: 1; transform: translate(-220px, -80px); }
+  54.37% { opacity: 1; transform: translate(-30px, 0px); }
+  54.5%, 100% { opacity: 0; transform: translate(-30px, 0px); }
+}
+/* DATA producer→derived 47.4–47.9% */
+@keyframes gr-s4-D-PD {
+  0%, 53.89% { opacity: 0; transform: translate(-220px, 80px); }
+  54.06% { opacity: 1; transform: translate(-220px, 80px); }
+  54.37% { opacity: 1; transform: translate(-30px, 0px); }
+  54.5%, 100% { opacity: 0; transform: translate(-30px, 0px); }
+}
+/* DATA derived→effect 48.6–49.2%, src(40,0) dst(200,0) */
+@keyframes gr-s4-D-DE {
+  0%, 54.94% { opacity: 0; transform: translate(40px, 0px); }
+  55.11% { opacity: 1; transform: translate(40px, 0px); }
+  55.46% { opacity: 1; transform: translate(200px, 0px); }
+  55.64%, 100% { opacity: 0; transform: translate(200px, 0px); }
+}
+
+/* ═════════════════════════════════════════════ */
+/*           STAGE 5 — graph level               */
+/* window: 21–29s (50.00–69.05%). sub-beats:     */
+/*   5a populate     50.0–53.6%                  */
+/*   5b blueprint+lens 53.6–60.7%                */
+/*   5c batch sweep  60.7–65.5%                  */
+/*   5d capsules     65.5–69.0%                  */
+/* ═════════════════════════════════════════════ */
+.gr-s5-edge { animation: gr-s5-edge 48s infinite linear; }
+@keyframes gr-s5-edge {
+  0%, 56.25% { opacity: 0; }
+  58.44% { opacity: 1; stroke: rgba(244,247,249,0.18); }
+  59.4% { opacity: 0.5; stroke: rgba(244,247,249,0.10); }
+  65.61% { opacity: 1; stroke: rgba(244,247,249,0.18); }
+  66.75%, 68.94% { stroke: rgba(167,139,250,0.55); stroke-width: 1.4; }
+  69.81%, 72% { stroke: rgba(244,247,249,0.18); stroke-width: 1.2; }
+  73.31%, 100% { opacity: 0; }
+}
+/* Stage 5 mesh = general nodes in far-view → blue circles */
+.gr-s5-n {
+  fill: rgba(96,165,250,0.85);
+  stroke: rgba(147,197,253,0.6);
+  stroke-width: 1.2;
+  animation: gr-s5-n 48s infinite linear;
+}
+@keyframes gr-s5-n {
+  0%, 56.25% { opacity: 0; }
+  58.44% { opacity: 1; fill: rgba(96,165,250,0.85); }
+  59.4% { fill: rgba(244,247,249,0.20); }      /* blueprint drain */
+  65.61% { fill: rgba(96,165,250,0.85); }
+  67.19% { fill: rgba(251,191,36,0.85); }       /* DIRTY pulse during batch */
+  68.06% { fill: rgba(167,139,250,0.85); }      /* RESOLVED ripple */
+  69.81% { fill: rgba(96,165,250,0.85); }
+  72.88% { opacity: 1; }
+  73.31%, 100% { opacity: 0; }
+}
+
+.gr-s5-lens {
+  opacity: 0;
+  transform-origin: center;
+  animation: gr-s5-lens 48s infinite linear;
+}
+.gr-s5-lens-ring { fill: none; stroke: rgba(200,255,0,0.85); stroke-width: 1.5; }
+.gr-s5-lens-stem { stroke: rgba(200,255,0,0.85); stroke-width: 1.5; stroke-linecap: round; }
+@keyframes gr-s5-lens {
+  0%, 59.23% { opacity: 0; transform: translate(-220px, -60px); }
+  59.75% { opacity: 1; transform: translate(-160px, -60px); }
+  61.94% { opacity: 1; transform: translate(20px, 30px); }
+  64.12% { opacity: 1; transform: translate(180px, 40px); }
+  65% { opacity: 1; transform: translate(180px, 40px); }
+  65.61%, 100% { opacity: 0; transform: translate(180px, 40px); }
+}
+
+.gr-s5-bracket {
+  fill: none; stroke: rgba(167,139,250,0.9); stroke-width: 1.6; opacity: 0;
+}
+.gr-s5-bracket-l { animation: gr-s5-bracket-l 48s infinite linear; }
+.gr-s5-bracket-r { animation: gr-s5-bracket-r 48s infinite linear; }
+@keyframes gr-s5-bracket-l {
+  0%, 65.61% { opacity: 0; transform: translateX(-40px); }
+  66.31% { opacity: 1; transform: translateX(0px); }
+  68.94% { opacity: 1; transform: translateX(0px); }
+  69.81%, 100% { opacity: 0; transform: translateX(0px); }
+}
+@keyframes gr-s5-bracket-r {
+  0%, 65.61% { opacity: 0; transform: translateX(40px); }
+  66.31% { opacity: 1; transform: translateX(0px); }
+  68.94% { opacity: 1; transform: translateX(0px); }
+  69.81%, 100% { opacity: 0; transform: translateX(0px); }
+}
+
+.gr-s5-cap {
+  fill: none; stroke-width: 1.6; opacity: 0; stroke-dasharray: 5 4;
+}
+.gr-s5-cap-a { stroke: rgba(96,165,250,0.85); animation: gr-s5-cap-a 48s infinite linear; }
+.gr-s5-cap-b { stroke: rgba(255,45,117,0.85); animation: gr-s5-cap-b 48s infinite linear; }
+@keyframes gr-s5-cap-a {
+  0%, 69.81% { opacity: 0; }
+  70.69% { opacity: 0.9; }
+  72.44% { opacity: 0.9; }
+  73.31%, 100% { opacity: 0; }
+}
+@keyframes gr-s5-cap-b {
+  0%, 69.99% { opacity: 0; }
+  70.86% { opacity: 0.9; }
+  72.44% { opacity: 0.9; }
+  73.31%, 100% { opacity: 0; }
+}
+
+.gr-s5-lbl {
+  fill: var(--ice);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-anchor: middle;
+  letter-spacing: 0.08em;
+  opacity: 0;
+}
+.gr-s5-lbl-describe { animation: gr-s5-lbl-describe 48s infinite linear; }
+.gr-s5-lbl-observe  { animation: gr-s5-lbl-observe  48s infinite linear; }
+.gr-s5-lbl-batch    { animation: gr-s5-lbl-batch    48s infinite linear; }
+.gr-s5-lbl-cap      { animation: gr-s5-lbl-cap      48s infinite linear; }
+@keyframes gr-s5-lbl-describe {
+  0%, 59.4% { opacity: 0; }
+  60.19%, 62.38% { opacity: 0.95; }
+  63.25%, 100% { opacity: 0; }
+}
+@keyframes gr-s5-lbl-observe {
+  0%, 62.38% { opacity: 0; }
+  63.07%, 65% { opacity: 0.95; }
+  65.61%, 100% { opacity: 0; }
+}
+@keyframes gr-s5-lbl-batch {
+  0%, 65.61% { opacity: 0; }
+  66.31%, 68.94% { opacity: 0.95; }
+  69.81%, 100% { opacity: 0; }
+}
+@keyframes gr-s5-lbl-cap {
+  0%, 69.81% { opacity: 0; }
+  70.69%, 72.44% { opacity: 0.95; }
+  72.88%, 100% { opacity: 0; }
+}
+
+/* ═════════════════════════════════════════════ */
+/*           STAGE 6 — orchestrate + messaging   */
+/* window: 29–35s (69.05–83.33%). sub-beats:     */
+/*   6a pipeline lights L→R  29–31.5s (69–75%)   */
+/*   6b hub + cursors        31.5–35s (75–83%)   */
+/* ═════════════════════════════════════════════ */
+.gr-s6-pn rect { fill: rgba(96,165,250,0.20); stroke: #60A5FA; stroke-width: 1.5; }
+.gr-s6-p1 rect { animation: gr-s6-p1 48s infinite linear; }
+.gr-s6-p2 rect { animation: gr-s6-p2 48s infinite linear; }
+.gr-s6-p3 rect { animation: gr-s6-p3 48s infinite linear; }
+.gr-s6-p4 rect { animation: gr-s6-p4 48s infinite linear; }
+@keyframes gr-s6-p1 {
+  0%, 73.31% { fill: rgba(96,165,250,0.20); }
+  73.75%, 74.45% { fill: rgba(52,211,153,0.55); }
+  75.15%, 100% { fill: rgba(96,165,250,0.20); }
+}
+@keyframes gr-s6-p2 {
+  0%, 74.45% { fill: rgba(96,165,250,0.20); }
+  74.8%, 75.5% { fill: rgba(52,211,153,0.55); }
+  76.2%, 100% { fill: rgba(96,165,250,0.20); }
+}
+@keyframes gr-s6-p3 {
+  0%, 75.5% { fill: rgba(96,165,250,0.20); }
+  75.85%, 76.55% { fill: rgba(52,211,153,0.55); }
+  77.25%, 100% { fill: rgba(96,165,250,0.20); }
+}
+@keyframes gr-s6-p4 {
+  0%, 76.55% { fill: rgba(96,165,250,0.20); }
+  76.9%, 77.6% { fill: rgba(52,211,153,0.55); }
+  78.12%, 100% { fill: rgba(96,165,250,0.20); }
+}
+.gr-s6-cap { fill: none; stroke-width: 1.5; stroke-dasharray: 5 4; opacity: 0; animation: gr-s6-cap 48s infinite linear; }
+.gr-s6-cap-l { stroke: rgba(96,165,250,0.65); }
+.gr-s6-cap-r { stroke: rgba(255,45,117,0.65); }
+@keyframes gr-s6-cap {
+  0%, 72.88% { opacity: 0; }
+  73.75% { opacity: 0.7; }
+  84.69% { opacity: 0.7; }
+  85.12%, 100% { opacity: 0; }
+}
+
+.gr-s6-lbl {
+  fill: rgba(244,247,249,0.78);
+  font-family: var(--mono); font-size: 11px;
+  text-anchor: middle; letter-spacing: 0.08em;
+  opacity: 0;
+}
+.gr-s6-l-pipe { animation: gr-s6-l-pipe 48s infinite linear; }
+.gr-s6-l-hub  { animation: gr-s6-l-hub  48s infinite linear; }
+@keyframes gr-s6-l-pipe {
+  0%, 73.31% { opacity: 0; }
+  74.19%, 77.69% { opacity: 0.85; }
+  78.56%, 100% { opacity: 0; }
+}
+@keyframes gr-s6-l-hub {
+  0%, 78.56% { opacity: 0; }
+  79.44%, 84.25% { opacity: 0.85; }
+  85.12%, 100% { opacity: 0; }
+}
+
+.gr-s6-hub { opacity: 0; animation: gr-s6-hub 48s infinite linear; }
+@keyframes gr-s6-hub {
+  0%, 77.69% { opacity: 0; }
+  78.56%, 84.69% { opacity: 1; }
+  85.12%, 100% { opacity: 0; }
+}
+.gr-s6-hub-pill { fill: rgba(108,99,255,0.10); stroke: rgba(167,139,250,0.65); stroke-width: 1.4; }
+.gr-s6-tok { fill: rgba(244,247,249,0.55); }
+.gr-s6-tok-1 { animation: gr-s6-tok-1 48s infinite linear; }
+.gr-s6-tok-2 { animation: gr-s6-tok-2 48s infinite linear; }
+.gr-s6-tok-3 { animation: gr-s6-tok-3 48s infinite linear; }
+.gr-s6-tok-4 { animation: gr-s6-tok-4 48s infinite linear; }
+.gr-s6-tok-5 { animation: gr-s6-tok-5 48s infinite linear; }
+.gr-s6-tok-6 { animation: gr-s6-tok-6 48s infinite linear; }
+.gr-s6-tok-7 { animation: gr-s6-tok-7 48s infinite linear; }
+@keyframes gr-s6-tok-1 {
+  0%, 79% { fill: rgba(244,247,249,0.55); }
+  79.35%, 79.61% { fill: rgba(200,255,0,0.95); }
+  79.96%, 100% { fill: rgba(244,247,249,0.25); }
+}
+@keyframes gr-s6-tok-2 {
+  0%, 80.05% { fill: rgba(244,247,249,0.55); }
+  80.4%, 80.66% { fill: rgba(200,255,0,0.95); }
+  81.01%, 100% { fill: rgba(244,247,249,0.25); }
+}
+@keyframes gr-s6-tok-3 {
+  0%, 81.1% { fill: rgba(244,247,249,0.55); }
+  81.45%, 81.71% { fill: rgba(200,255,0,0.95); }
+  82.06%, 100% { fill: rgba(244,247,249,0.25); }
+}
+@keyframes gr-s6-tok-4 {
+  0%, 82.15% { fill: rgba(244,247,249,0.55); }
+  82.5%, 82.76% { fill: rgba(200,255,0,0.95); }
+  83.11%, 100% { fill: rgba(244,247,249,0.25); }
+}
+@keyframes gr-s6-tok-5 {
+  0%, 82.85% { fill: rgba(244,247,249,0.55); }
+  83.2%, 83.46% { fill: rgba(200,255,0,0.95); }
+  83.81%, 100% { fill: rgba(244,247,249,0.25); }
+}
+@keyframes gr-s6-tok-6 {
+  0%, 83.55% { fill: rgba(244,247,249,0.55); }
+  83.9%, 84.16% { fill: rgba(200,255,0,0.95); }
+  84.42%, 100% { fill: rgba(244,247,249,0.25); }
+}
+@keyframes gr-s6-tok-7 {
+  0%, 84.25% { fill: rgba(244,247,249,0.55); }
+  84.51%, 84.77% { fill: rgba(200,255,0,0.95); }
+  84.95%, 100% { fill: rgba(244,247,249,0.55); }
+}
+
+/* cursors advance vertically through the hub */
+.gr-s6-cursor {
+  font-family: var(--mono); font-size: 18px;
+  fill: rgba(200,255,0,0.9);
+  text-anchor: middle;
+  animation: gr-s6-cursor 48s infinite linear;
+  transform-box: fill-box; transform-origin: center;
+}
+.gr-s6-cursor-a { animation-name: gr-s6-cursor-a; }
+.gr-s6-cursor-b { animation-name: gr-s6-cursor-b; fill: rgba(255,45,117,0.9); }
+@keyframes gr-s6-cursor-a {
+  0%, 78.74% { transform: translateY(-110px); }
+  84.69% { transform: translateY(115px); }
+  85.12%, 100% { transform: translateY(115px); }
+}
+@keyframes gr-s6-cursor-b {
+  0%, 78.74% { transform: translateY(-110px); }
+  84.69% { transform: translateY(45px); }
+  85.12%, 100% { transform: translateY(45px); }
+}
+
+.gr-s6-cn { fill: rgba(245,158,11,0.18); stroke: #F59E0B; stroke-width: 1.4; }
+
+/* ═════════════════════════════════════════════ */
+/*           STAGE 7 — agent loop + memory + ?   */
+/* window: 35–40s (83.33–95.24%). sub-beats:     */
+/*   7a agent loop  35–36.8s  (83.3–87.6%)       */
+/*   7b memory     36.8–38.5s (87.6–91.7%)       */
+/*   7c ? nodes    38.5–40s   (91.7–95.2%)       */
+/* ═════════════════════════════════════════════ */
+.gr-s7-loop-ring { fill: none; stroke: rgba(167,139,250,0.35); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.gr-s7-chev polygon { fill: rgba(167,139,250,0.85); }
+/* Agent loop nodes = general close-up → rounded rects, blue */
+.gr-s7-ln { fill: rgba(96,165,250,0.20); stroke: #60A5FA; stroke-width: 1.5; }
+.gr-s7-l1 { animation: gr-s7-l1 48s infinite linear; }
+.gr-s7-l2 { animation: gr-s7-l2 48s infinite linear; }
+.gr-s7-l3 { animation: gr-s7-l3 48s infinite linear; }
+.gr-s7-l4 { animation: gr-s7-l4 48s infinite linear; }
+@keyframes gr-s7-l1 {
+  0%, 85.39% { fill: rgba(96,165,250,0.20); }
+  85.74%, 86.17% { fill: rgba(52,211,153,0.55); }
+  87.23%, 87.75% { fill: rgba(52,211,153,0.55); }
+  88.62%, 100% { fill: rgba(96,165,250,0.20); }
+}
+@keyframes gr-s7-l2 {
+  0%, 86.17% { fill: rgba(96,165,250,0.20); }
+  86.44%, 86.88% { fill: rgba(52,211,153,0.55); }
+  87.75%, 88.19% { fill: rgba(52,211,153,0.55); }
+  88.62%, 100% { fill: rgba(96,165,250,0.20); }
+}
+@keyframes gr-s7-l3 {
+  0%, 86.88% { fill: rgba(96,165,250,0.20); }
+  87.14%, 87.58% { fill: rgba(52,211,153,0.55); }
+  88.19%, 88.62% { fill: rgba(52,211,153,0.55); }
+  88.89%, 100% { fill: rgba(96,165,250,0.20); }
+}
+@keyframes gr-s7-l4 {
+  0%, 87.49% { fill: rgba(96,165,250,0.20); }
+  87.75%, 88.19% { fill: rgba(52,211,153,0.55); }
+  88.62%, 89.15% { fill: rgba(52,211,153,0.55); }
+  89.41%, 100% { fill: rgba(96,165,250,0.20); }
+}
+/* Circulating DATA dot follows the curved ring path via offset-path; two laps clockwise */
+.gr-s7-loop-dot {
+  fill: #34D399;
+  filter: drop-shadow(0 0 6px rgba(52,211,153,0.7));
+  opacity: 0;
+  /* Clockwise circle of radius 100 starting at (0,-100) = agent's center */
+  offset-path: path('M 0 -100 A 100 100 0 0 1 100 0 A 100 100 0 0 1 0 100 A 100 100 0 0 1 -100 0 A 100 100 0 0 1 0 -100');
+  offset-rotate: 0deg;
+  animation: gr-s7-loop-dot 48s infinite linear;
+}
+@keyframes gr-s7-loop-dot {
+  0%, 85.3% { opacity: 0; offset-distance: 0%; }
+  85.65% { opacity: 1; offset-distance: 0%; }
+  /* lap 1: ~3.5s of timeline = ~4% of 48s */
+  89.5% { opacity: 1; offset-distance: 100%; }
+  /* snap reset for lap 2 (0.01% gap = invisible to eye) */
+  89.51% { opacity: 1; offset-distance: 0%; }
+  /* lap 2 */
+  93.5% { opacity: 1; offset-distance: 100%; }
+  93.8%, 100% { opacity: 0; offset-distance: 100%; }
+}
+
+.gr-s7-mem-frame { fill: rgba(96,165,250,0.06); stroke: rgba(96,165,250,0.5); stroke-width: 1.3; }
+.gr-s7-mem-tok { fill: rgba(96,165,250,0.75); }
+.gr-s7-mt-1 { animation: gr-s7-mt-1 48s infinite linear; }
+.gr-s7-mt-2 { animation: gr-s7-mt-2 48s infinite linear; }
+.gr-s7-mt-3 { animation: gr-s7-mt-3 48s infinite linear; }
+.gr-s7-mt-4 { animation: gr-s7-mt-4 48s infinite linear; }
+.gr-s7-mt-5 { animation: gr-s7-mt-5 48s infinite linear; }
+.gr-s7-mt-6 { animation: gr-s7-mt-6 48s infinite linear; }
+@keyframes gr-s7-mt-1 {
+  0%, 89.15% { opacity: 0; transform: translateY(20px); }
+  89.5% { opacity: 1; transform: translateY(0); }
+  92.56%, 100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes gr-s7-mt-2 {
+  0%, 89.85% { opacity: 0; transform: translateY(20px); }
+  90.2% { opacity: 1; transform: translateY(0); }
+  92.56%, 100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes gr-s7-mt-3 {
+  0%, 90.55% { opacity: 0; transform: translateY(20px); }
+  90.9% { opacity: 1; transform: translateY(0); }
+  92.56%, 100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes gr-s7-mt-4 {
+  0%, 91.25% { opacity: 0; transform: translateY(20px); }
+  91.6% { opacity: 1; transform: translateY(0); }
+  92.56%, 100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes gr-s7-mt-5 {
+  0%, 91.95% { opacity: 0; transform: translateY(20px); }
+  92.3% { opacity: 1; transform: translateY(0); }
+  92.56%, 100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes gr-s7-mt-6 {
+  0%, 92.12% { opacity: 0; transform: translateY(20px); }
+  92.48% { opacity: 1; transform: translateY(0); }
+  92.56%, 100% { opacity: 1; transform: translateY(0); }
+}
+
+.gr-s7-q polygon { fill: rgba(100,116,139,0.15); stroke: rgba(148,163,184,0.65); stroke-width: 1.4; }
+.gr-s7-q text { fill: rgba(244,247,249,0.85); font-family: var(--display); font-size: 22px; font-weight: 700; text-anchor: middle; }
+.gr-s7-q { opacity: 0; }
+.gr-s7-q1 { animation: gr-s7-q1 48s infinite linear; }
+.gr-s7-q2 { animation: gr-s7-q2 48s infinite linear; }
+.gr-s7-q3 { animation: gr-s7-q3 48s infinite linear; }
+@keyframes gr-s7-q1 {
+  0%, 92.74% { opacity: 0; }
+  93.17% { opacity: 0.9; }
+  94.23% { opacity: 0.55; }
+  95.27% { opacity: 0.9; }
+  95.62%, 100% { opacity: 0; }
+}
+@keyframes gr-s7-q2 {
+  0%, 93% { opacity: 0; }
+  93.44% { opacity: 0.9; }
+  94.49% { opacity: 0.55; }
+  95.27% { opacity: 0.9; }
+  95.62%, 100% { opacity: 0; }
+}
+@keyframes gr-s7-q3 {
+  0%, 93.26% { opacity: 0; }
+  93.7% { opacity: 0.9; }
+  94.75% { opacity: 0.55; }
+  95.27% { opacity: 0.9; }
+  95.62%, 100% { opacity: 0; }
+}
+.gr-s7-q-edge {
+  stroke: rgba(148,163,184,0.35); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0;
+  animation: gr-s7-q-edge 48s infinite linear;
+}
+@keyframes gr-s7-q-edge {
+  0%, 92.91% { opacity: 0; }
+  93.44%, 95.27% { opacity: 0.55; }
+  95.62%, 100% { opacity: 0; }
+}
+
+/* ─── TAGLINE (top-left) ─── */
+.gr-showcase-tagline {
+  position: absolute; top: 22px; left: 24px; z-index: 5;
+  font-family: var(--mono); font-size: 13.5px; font-weight: 500;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: rgba(255,255,255,0.78);
+  pointer-events: none;
+  display: inline-flex; align-items: center;
+}
+.gr-showcase-tagline::before {
+  content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--lime); margin-right: 10px;
+  box-shadow: 0 0 8px var(--lime);
+  animation: gr-dotPulse 2s ease-in-out infinite;
+}
+
+/* ─── SCRUBBER (top-right) ─── */
+.gr-scrubber {
+  position: absolute; top: 18px; right: 20px; z-index: 6;
+  display: flex; gap: 2px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 4px; border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+.gr-seg {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  width: 24px; height: 24px;
+  border: 0; border-radius: 50%;
+  background: transparent;
+  color: rgba(244,247,249,0.45);
+  cursor: pointer;
+  display: grid; place-items: center;
+  padding: 0; line-height: 1;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.gr-seg:hover {
+  background: rgba(244,247,249,0.10);
+  color: var(--ice);
+}
+.gr-seg:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 1px;
+}
+/* Each segment's background animates the active highlight in lockstep with the 48s timeline. */
+.gr-seg-1 { animation: gr-seg-1 48s infinite linear; }
+.gr-seg-2 { animation: gr-seg-2 48s infinite linear; }
+.gr-seg-3 { animation: gr-seg-3 48s infinite linear; }
+.gr-seg-4 { animation: gr-seg-4 48s infinite linear; }
+.gr-seg-5 { animation: gr-seg-5 48s infinite linear; }
+.gr-seg-6 { animation: gr-seg-6 48s infinite linear; }
+.gr-seg-7 { animation: gr-seg-7 48s infinite linear; }
+@keyframes gr-seg-1 {
+  0%, 24.5% { background: var(--lime); color: var(--ink); }
+  25.5%, 95.5% { background: transparent; color: rgba(244,247,249,0.45); }
+  96.0%, 100% { background: var(--lime); color: var(--ink); }
+}
+@keyframes gr-seg-2 {
+  0%, 24.5% { background: transparent; color: rgba(244,247,249,0.45); }
+  25.5%, 34.92% { background: var(--lime); color: var(--ink); }
+  35.92%, 100% { background: transparent; color: rgba(244,247,249,0.45); }
+}
+@keyframes gr-seg-3 {
+  0%, 35% { background: transparent; color: rgba(244,247,249,0.45); }
+  35.92%, 45.33% { background: var(--lime); color: var(--ink); }
+  46.33%, 100% { background: transparent; color: rgba(244,247,249,0.45); }
+}
+@keyframes gr-seg-4 {
+  0%, 45.5% { background: transparent; color: rgba(244,247,249,0.45); }
+  46.33%, 55.75% { background: var(--lime); color: var(--ink); }
+  56.75%, 100% { background: transparent; color: rgba(244,247,249,0.45); }
+}
+@keyframes gr-seg-5 {
+  0%, 55.5% { background: transparent; color: rgba(244,247,249,0.45); }
+  56.75%, 72.42% { background: var(--lime); color: var(--ink); }
+  73.42%, 100% { background: transparent; color: rgba(244,247,249,0.45); }
+}
+@keyframes gr-seg-6 {
+  0%, 72.5% { background: transparent; color: rgba(244,247,249,0.45); }
+  73.42%, 84.92% { background: var(--lime); color: var(--ink); }
+  85.92%, 100% { background: transparent; color: rgba(244,247,249,0.45); }
+}
+@keyframes gr-seg-7 {
+  0%, 85% { background: transparent; color: rgba(244,247,249,0.45); }
+  85.92%, 95.33% { background: var(--lime); color: var(--ink); }
+  96.33%, 100% { background: transparent; color: rgba(244,247,249,0.45); }
+}
+/* Stage 1 label is visible both at the start (0-24%) AND at the loop seam (96-100%) — the seam IS the return to stage 1's initial state. */
+@keyframes gr-lbl-1 {
+  0%, 24.0% { opacity: 1; }
+  25.0%, 95.0% { opacity: 0; }
+  96.0%, 100% { opacity: 1; }
+}
+
+/* ─── LABEL ─── */
 .gr-showcase-label {
   position: absolute; bottom: 32px; left: 32px; z-index: 5;
+  min-width: 320px;
 }
 .gr-showcase-label-k {
   font-family: var(--mono); font-size: 10.5px;
   color: var(--lime); letter-spacing: 0.16em; text-transform: uppercase;
   margin-bottom: 6px;
+  position: relative; height: 14px;
 }
 .gr-showcase-label-v {
   font-family: var(--display); font-weight: 700;
-  font-size: 40px; line-height: 1; color: var(--ice);
-  letter-spacing: -0.03em; text-transform: uppercase;
+  font-size: 30px; line-height: 1.05; color: var(--ice);
+  letter-spacing: -0.025em; text-transform: uppercase;
+  position: relative; min-height: 64px;
+  max-width: 360px;
 }
+.gr-lk, .gr-lv {
+  position: absolute; top: 0; left: 0; opacity: 0; white-space: nowrap;
+}
+.gr-lk-1, .gr-lv-1 { animation: gr-lbl-1 48s infinite linear; }
+.gr-lk-2, .gr-lv-2 { animation: gr-vis-2 48s infinite linear; }
+.gr-lk-3, .gr-lv-3 { animation: gr-vis-3 48s infinite linear; }
+.gr-lk-4, .gr-lv-4 { animation: gr-vis-4 48s infinite linear; }
+.gr-lk-5, .gr-lv-5 { animation: gr-vis-5 48s infinite linear; }
+.gr-lk-6, .gr-lv-6 { animation: gr-vis-6 48s infinite linear; }
+.gr-lk-7, .gr-lv-7 { animation: gr-vis-7 48s infinite linear; }
+
+/* ─── CHIPS ─── */
 .gr-showcase-chips {
   position: absolute; bottom: 32px; right: 32px;
   display: flex; gap: 10px; z-index: 5;
 }
 .gr-showcase-chip {
-  font-family: var(--mono); font-size: 11px; color: var(--ice);
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.18);
+  font-family: var(--mono); font-size: 11px;
+  background: rgba(200,255,0,0.18);
+  border: 1px solid rgba(200,255,0,0.55);
+  color: var(--lime);
   padding: 8px 14px; border-radius: 999px;
   backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translateY(6px);
+}
+/* Each chip is opacity-hidden by default and only fades in during its sub-beat in Stage 5. */
+.gr-chip-describe { animation: gr-chip-describe 48s infinite linear; }
+.gr-chip-observe  { animation: gr-chip-observe  48s infinite linear; }
+.gr-chip-batch    { animation: gr-chip-batch    48s infinite linear; }
+/* graph.describe() — Stage 5b blueprint moment (~59-63%) */
+@keyframes gr-chip-describe {
+  0%, 59% { opacity: 0; transform: translateY(6px); }
+  60%, 63% { opacity: 1; transform: translateY(0); }
+  64%, 100% { opacity: 0; transform: translateY(6px); }
+}
+/* graph.observe() — Stage 5b magnifier moment (~63-66%) */
+@keyframes gr-chip-observe {
+  0%, 62% { opacity: 0; transform: translateY(6px); }
+  63%, 66% { opacity: 1; transform: translateY(0); }
+  67%, 100% { opacity: 0; transform: translateY(6px); }
+}
+/* batch() — Stage 5c batch sweep (~66-70%) */
+@keyframes gr-chip-batch {
+  0%, 65.5% { opacity: 0; transform: translateY(6px); }
+  66.5%, 70% { opacity: 1; transform: translateY(0); }
+  71%, 100% { opacity: 0; transform: translateY(6px); }
+}
+
+/* Respect reduced motion: freeze the showcase on stage 1 if requested */
+@media (prefers-reduced-motion: reduce) {
+  .gr-st, .gr-sc, .gr-lk, .gr-lv,
+  .gr-s1-msg, .gr-s2-msg, .gr-s4-msg,
+  .gr-s5-lens, .gr-s5-bracket, .gr-s5-cap,
+  .gr-s5-lbl, .gr-s5-n, .gr-s5-edge,
+  .gr-s6-pn circle, .gr-s6-cap, .gr-s6-lbl, .gr-s6-hub, .gr-s6-tok, .gr-s6-cursor,
+  .gr-s7-ln, .gr-s7-loop-dot, .gr-s7-mem-tok, .gr-s7-q, .gr-s7-q-edge,
+  .gr-s1-edge, .gr-s1-derived, .gr-s1-fn,
+  .gr-s2-eAB, .gr-s2-eAC, .gr-s2-eBD, .gr-s2-eCD, .gr-s2-fn,
+  .gr-s2-nB circle, .gr-s2-nC circle, .gr-s2-nD circle,
+  .gr-s3-halo, .gr-s3-outer, .gr-s3-inner, .gr-s3-fn-text, .gr-s3-tag, .gr-s3-ver-text,
+  .gr-s4-m, .gr-s4-mlabel, .gr-s4-y, .gr-s4-n-derived, .gr-s4-n-effect, .gr-s4-y-fn,
+  .gr-chip-describe, .gr-chip-observe, .gr-chip-batch {
+    animation: none !important;
+  }
+  .gr-st-1, .gr-sc-1, .gr-lk-1, .gr-lv-1 { opacity: 1 !important; }
 }
 
 /* ─── SECTION CHROME ─── */
@@ -1138,6 +2666,16 @@ html:has(.gr-home) { scroll-behavior: smooth; }
 <script is:inline>
 (function() {
   function init() {
+    /* ═══ HERO SHOWCASE SCRUBBER ═══ */
+    document.querySelectorAll('.gr-seg').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ms = parseInt(btn.dataset.ms, 10);
+        if (Number.isFinite(ms)) {
+          document.getAnimations().forEach(a => { try { a.currentTime = ms; } catch {} });
+        }
+      });
+    });
+
     /* ═══ LANG SWITCHER ═══ */
     document.querySelectorAll('.gr-lang-pill').forEach(pill => {
       pill.addEventListener('click', () => {

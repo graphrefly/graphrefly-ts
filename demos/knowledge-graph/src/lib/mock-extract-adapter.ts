@@ -7,7 +7,7 @@
 // neighbouring concepts via a guessed relation. Good enough to drive the
 // reactive demo without any model.
 
-import type { ChatMessage, LLMAdapter, LLMResponse } from "@graphrefly/graphrefly/patterns/ai";
+import type { ChatMessage, LLMAdapter, LLMResponse } from "@graphrefly/graphrefly/utils/ai";
 import { ENTITY_KINDS } from "./extraction-schema.js";
 import type { Entity, EntityKind, Relation } from "./types.js";
 

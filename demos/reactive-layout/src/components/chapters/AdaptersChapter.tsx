@@ -33,7 +33,7 @@ function useCanvasRender(
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, maxWidth, h);
 		ctx.font = font;
-		ctx.fillStyle = "#f0f4ff";
+		ctx.fillStyle = "#07121e";
 		ctx.textBaseline = "top";
 		for (let i = 0; i < lineBreaks.lines.length; i++) {
 			ctx.fillText(lineBreaks.lines[i]!.text, 0, i * lineHeight);

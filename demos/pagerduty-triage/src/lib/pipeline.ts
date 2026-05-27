@@ -28,14 +28,20 @@
 // external. Everything downstream is reactive; every edge in the diagram
 // tells the user WHY a value changed.
 
-import type { Node } from "@graphrefly/graphrefly/core";
-import { derived, effect, state, wallClockNs } from "@graphrefly/graphrefly/core";
-import { merge, scan, withLatestFrom } from "@graphrefly/graphrefly/extra/operators";
-import { reactiveLog } from "@graphrefly/graphrefly/extra/reactive";
-import { fromTimer, keepalive } from "@graphrefly/graphrefly/extra/sources";
-import { Graph } from "@graphrefly/graphrefly/graph";
-import type { LLMAdapter } from "@graphrefly/graphrefly/patterns/ai";
-import { agentMemory, observableAdapter, promptNode } from "@graphrefly/graphrefly/patterns/ai";
+import type { Node } from "@graphrefly/pure-ts";
+import {
+	fromTimer,
+	Graph,
+	keepalive,
+	merge,
+	reactiveLog,
+	scan,
+	wallClockNs,
+	withLatestFrom,
+} from "@graphrefly/pure-ts";
+import type { LLMAdapter } from "@graphrefly/graphrefly/utils/ai";
+import { observableAdapter, promptNode } from "@graphrefly/graphrefly/utils/ai";
+import { agentMemory } from "@graphrefly/graphrefly/presets/ai";
 import type { Alert } from "./alerts.js";
 import type {
 	ClassifyResult,
@@ -250,24 +256,14 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 	const { adapter, stats } = observableAdapter(rawAdapter, { name: "llm" });
 
 	// ── Imperative entry points (the only two in the whole pipeline) ─
-	const alertInput = state<Alert | null>(null, { name: "alerts/input" });
-	const userActionInput = state<TriageAction | null>(null, {
-		name: "user-action/input",
-	});
-	graph.add(alertInput, { name: "alerts/input" });
-	graph.add(userActionInput, { name: "user-action/input" });
+	const alertInput = graph.state<Alert | null>("alerts/input", null);
+	const userActionInput = graph.state<TriageAction | null>("user-action/input", null);
 
 	// Per-alert timer fan-in channels. Effects that fire on timer DATA
 	// emit actions here; `merge` below combines them with classify/user
 	// streams into a single action stream.
-	const autoEscalateChan = state<TriageAction | null>(null, {
-		name: "auto-escalate/chan",
-	});
-	const deferExpireChan = state<TriageAction | null>(null, {
-		name: "defer-expire/chan",
-	});
-	graph.add(autoEscalateChan, { name: "auto-escalate/chan" });
-	graph.add(deferExpireChan, { name: "defer-expire/chan" });
+	const autoEscalateChan = graph.state<TriageAction | null>("auto-escalate/chan", null);
+	const deferExpireChan = graph.state<TriageAction | null>("defer-expire/chan", null);
 
 	// ── Decision log (reactive list of user decisions) ──────────
 	// agentMemory consumes the .node view below. Appends happen inside
@@ -339,23 +335,23 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 			cost: (m) => 50 + m.patternKey.length,
 			budget: 4000,
 		});
-		patternsNode = derived<readonly LearnedPattern[]>(
+		patternsNode = graph.derived<readonly LearnedPattern[]>(
+			"patterns/learned",
 			[memory.compact],
-			([compact]) => {
-				if (!compact) return [];
+			(data, ctx) => {
+				const compact =
+					data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
+				if (!compact) return [[]];
 				const entries = compact as readonly { key: string; value: LearnedPattern }[];
-				return entries.map((e) => e.value);
+				return [entries.map((e) => e.value)];
 			},
-			{ name: "patterns/learned" },
+			{ initial: [] as readonly LearnedPattern[] },
 		);
-		graph.add(patternsNode, { name: "patterns/learned" });
 		// Keep patterns live so agentMemory runs even before classify subscribes.
 		memoryKeepalive = keepalive(patternsNode);
 	} else {
 		// Baseline: empty patterns, no learning.
-		const emptyState = state<readonly LearnedPattern[]>([], { name: "patterns/learned" });
-		patternsNode = emptyState;
-		graph.add(emptyState, { name: "patterns/learned" });
+		patternsNode = graph.state<readonly LearnedPattern[]>("patterns/learned", []);
 	}
 
 	// ── Classify (promptNode with withLatestFrom snapshot) ──────
@@ -392,57 +388,65 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 	// dep here would re-fire on pattern updates; `withLatestFrom` above
 	// is the reactive snapshot, this is the application-time peek that
 	// mirrors it for the pattern-match check.
-	const routingAction = derived<TriageAction | null>(
+	const routingAction = graph.derived<TriageAction | null>(
+		"routing-action",
 		[classify],
-		([result]) => {
-			if (!result) return null;
+		(data, ctx) => {
+			const result =
+				data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
+			if (!result) return [];
 			const cls = result as ClassifyResult;
 			// Recover the originating alert: alertInput's current cache is the
 			// last-pushed alert. classify fires synchronously on that input, so
 			// this is always the correct one at decision time.
 			const alert = alertInput.cache as Alert | null;
-			if (!alert || alert.id !== cls.alertId) return null;
+			if (!alert || alert.id !== cls.alertId) return [];
 			if (mode === "graphrefly") {
 				const pats = (patternsNode.cache as readonly LearnedPattern[] | undefined) ?? [];
 				const match = findMatchingPattern(alert, pats);
 				if (match) {
-					return {
-						k: "classify-pattern-match",
-						triaged: {
-							alert,
-							disposition: match.disposition,
-							deferMs: match.deferMs,
-							brief: `Auto: matches pattern "${match.patternKey}"`,
-							confidence: match.confidence,
-							autoClassified: true,
-							reason: "pattern",
-							triagedAt: wallClockMs(),
+					return [
+						{
+							k: "classify-pattern-match",
+							triaged: {
+								alert,
+								disposition: match.disposition,
+								deferMs: match.deferMs,
+								brief: `Auto: matches pattern "${match.patternKey}"`,
+								confidence: match.confidence,
+								autoClassified: true,
+								reason: "pattern",
+								triagedAt: wallClockMs(),
+							},
 						},
-					};
+					];
 				}
 			}
 			if (cls.confidence >= 0.8) {
-				return {
-					k: "classify-high-conf",
-					triaged: {
-						alert,
-						disposition: cls.disposition,
-						brief: cls.brief,
-						confidence: cls.confidence,
-						autoClassified: false,
-						reason: "high-conf",
-						triagedAt: wallClockMs(),
+				return [
+					{
+						k: "classify-high-conf",
+						triaged: {
+							alert,
+							disposition: cls.disposition,
+							brief: cls.brief,
+							confidence: cls.confidence,
+							autoClassified: false,
+							reason: "high-conf",
+							triagedAt: wallClockMs(),
+						},
 					},
-				};
+				];
 			}
-			return {
-				k: "classify-low-conf",
-				entry: { alert, brief: cls.brief, confidence: cls.confidence },
-			};
+			return [
+				{
+					k: "classify-low-conf",
+					entry: { alert, brief: cls.brief, confidence: cls.confidence },
+				},
+			];
 		},
-		{ name: "routing-action" },
+		{ initial: null },
 	);
-	graph.add(routingAction, { name: "routing-action" });
 
 	// ── Merge all action sources ────────────────────────────────
 	const allActions = merge(routingAction, userActionInput, autoEscalateChan, deferExpireChan);
@@ -478,44 +482,46 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 	// maintain; it's a reactive view over adapter stats + the auto-count
 	// (which doubles as "local cache hits" since pattern-match == zero-LLM).
 	// Edges visible: adapter.stats.totalInputTokens → tokens, etc.
-	const tokens = derived<TokenSnapshot>(
+	const tokens = graph.derived<TokenSnapshot>(
+		"tokens",
 		[stats.totalInputTokens, stats.totalOutputTokens, stats.totalCalls, autoCount],
-		([input, output, calls, cacheHits]) => ({
-			inputTokens: (input as number | undefined) ?? 0,
-			outputTokens: (output as number | undefined) ?? 0,
-			cacheReadTokens: 0,
-			localCacheHits: (cacheHits as number | undefined) ?? 0,
-			calls: (calls as number | undefined) ?? 0,
-		}),
-		{ name: "tokens" },
+		(data, ctx) => {
+			const read = (i: number) =>
+				data[i] != null && data[i]!.length > 0 ? data[i]!.at(-1) : ctx.prevData[i];
+			return [
+				{
+					inputTokens: (read(0) as number | undefined) ?? 0,
+					outputTokens: (read(1) as number | undefined) ?? 0,
+					cacheReadTokens: 0,
+					localCacheHits: (read(3) as number | undefined) ?? 0,
+					calls: (read(2) as number | undefined) ?? 0,
+				},
+			];
+		},
 	);
-	graph.add(tokens, { name: "tokens" });
 
 	// ── Effect: log user decisions into decisions/log ───────────
 	// decision-log / agentMemory is the learning loop. Visible in the graph:
 	// all-actions → log-decision-effect → decisions/log → memory → patterns.
-	const logDecisionEffect = effect(
-		[allActions],
-		([a]) => {
-			const action = a as TriageAction | null;
-			if (!action) return;
-			if (action.k === "user-decision") {
-				decisionLog.append({
-					alert: action.entry.alert,
-					disposition: action.triaged.disposition,
-					deferMs: action.triaged.deferMs,
-				});
-			} else if (action.k === "user-retriage-actionable") {
-				decisionLog.append({
-					alert: action.newTriaged.alert,
-					disposition: action.newTriaged.disposition,
-					deferMs: action.newTriaged.deferMs,
-				});
-			}
-		},
-		{ name: "log-decision-effect" },
-	);
-	graph.add(logDecisionEffect, { name: "log-decision-effect" });
+	const logDecisionEffect = graph.effect("log-decision-effect", [allActions], (data) => {
+		const action = (
+			data[0] != null && data[0].length > 0 ? data[0].at(-1) : null
+		) as TriageAction | null;
+		if (!action) return;
+		if (action.k === "user-decision") {
+			decisionLog.append({
+				alert: action.entry.alert,
+				disposition: action.triaged.disposition,
+				deferMs: action.triaged.deferMs,
+			});
+		} else if (action.k === "user-retriage-actionable") {
+			decisionLog.append({
+				alert: action.newTriaged.alert,
+				disposition: action.newTriaged.disposition,
+				deferMs: action.newTriaged.deferMs,
+			});
+		}
+	});
 	const logDecisionKeepalive = keepalive(logDecisionEffect);
 
 	// ── Effect: per-alert timer lifecycle ───────────────────────
@@ -529,32 +535,28 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 	function startAutoEscalateTimer(entry: QueuedAlert): void {
 		const timerSrc = fromTimer(AUTO_ESCALATE_AFTER_MS);
 		graph.add(timerSrc, { name: `escalate-timer/${entry.alert.id}` });
-		const onTick = effect(
-			[timerSrc],
-			([tick]) => {
-				if (tick == null) return; // first-run sentinel
-				queueEscalateDisposers.delete(entry.alert.id);
-				// Re-emit into the auto-escalate channel; scans pick it up like
-				// any other action. If the alert has already been handled, the
-				// queue reducer is a no-op (filter returns same ref).
-				const queueNow = (userQueue.cache as readonly QueuedAlert[] | undefined) ?? [];
-				if (!queueNow.some((q) => q.alert.id === entry.alert.id)) return;
-				autoEscalateChan.emit({
-					k: "auto-escalate",
-					triaged: {
-						alert: entry.alert,
-						disposition: "escalated",
-						brief: `[Auto-escalated after ${Math.round(AUTO_ESCALATE_AFTER_MS / 1000)}s] ${entry.brief}`,
-						confidence: entry.confidence,
-						autoClassified: false,
-						reason: "timeout",
-						triagedAt: wallClockMs(),
-					},
-				});
-			},
-			{ name: `escalate-effect/${entry.alert.id}` },
-		);
-		graph.add(onTick, { name: `escalate-effect/${entry.alert.id}` });
+		const onTick = graph.effect(`escalate-effect/${entry.alert.id}`, [timerSrc], (data) => {
+			const tick = data[0] != null && data[0].length > 0 ? data[0].at(-1) : null;
+			if (tick == null) return; // first-run sentinel
+			queueEscalateDisposers.delete(entry.alert.id);
+			// Re-emit into the auto-escalate channel; scans pick it up like
+			// any other action. If the alert has already been handled, the
+			// queue reducer is a no-op (filter returns same ref).
+			const queueNow = (userQueue.cache as readonly QueuedAlert[] | undefined) ?? [];
+			if (!queueNow.some((q) => q.alert.id === entry.alert.id)) return;
+			autoEscalateChan.emit({
+				k: "auto-escalate",
+				triaged: {
+					alert: entry.alert,
+					disposition: "escalated",
+					brief: `[Auto-escalated after ${Math.round(AUTO_ESCALATE_AFTER_MS / 1000)}s] ${entry.brief}`,
+					confidence: entry.confidence,
+					autoClassified: false,
+					reason: "timeout",
+					triagedAt: wallClockMs(),
+				},
+			});
+		});
 		queueEscalateDisposers.set(entry.alert.id, keepalive(onTick));
 	}
 
@@ -570,56 +572,49 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 		const delayMs = triaged.deferMs ?? 30_000;
 		const timerSrc = fromTimer(delayMs);
 		graph.add(timerSrc, { name: `defer-timer/${triaged.alert.id}` });
-		const onTick = effect(
-			[timerSrc],
-			([tick]) => {
-				if (tick == null) return;
-				deferDisposers.delete(triaged.alert.id);
-				deferExpireChan.emit({
-					k: "defer-expired",
-					alertId: triaged.alert.id,
-					reQueued: {
-						alert: triaged.alert,
-						brief: `[Re-queued] ${triaged.brief}`,
-						confidence: triaged.confidence,
-					},
-				});
-			},
-			{ name: `defer-effect/${triaged.alert.id}` },
-		);
-		graph.add(onTick, { name: `defer-effect/${triaged.alert.id}` });
+		const onTick = graph.effect(`defer-effect/${triaged.alert.id}`, [timerSrc], (data) => {
+			const tick = data[0] != null && data[0].length > 0 ? data[0].at(-1) : null;
+			if (tick == null) return;
+			deferDisposers.delete(triaged.alert.id);
+			deferExpireChan.emit({
+				k: "defer-expired",
+				alertId: triaged.alert.id,
+				reQueued: {
+					alert: triaged.alert,
+					brief: `[Re-queued] ${triaged.brief}`,
+					confidence: triaged.confidence,
+				},
+			});
+		});
 		deferDisposers.set(triaged.alert.id, keepalive(onTick));
 	}
 
-	const timerLifecycle = effect(
-		[allActions],
-		([a]) => {
-			const action = a as TriageAction | null;
-			if (!action) return;
-			switch (action.k) {
-				case "classify-low-conf":
-					startAutoEscalateTimer(action.entry);
-					break;
-				case "user-decision":
-					cancelAutoEscalateTimer(action.entry.alert.id);
-					if (action.triaged.disposition === "deferred") {
-						startDeferTimer(action.triaged);
-					}
-					break;
-				case "user-retriage-actionable":
-					if (action.newTriaged.disposition === "deferred") {
-						startDeferTimer(action.newTriaged);
-					}
-					break;
-				case "defer-expired":
-					// Re-queued alert accrues a fresh auto-escalate.
-					startAutoEscalateTimer(action.reQueued);
-					break;
-			}
-		},
-		{ name: "timer-lifecycle" },
-	);
-	graph.add(timerLifecycle, { name: "timer-lifecycle" });
+	const timerLifecycle = graph.effect("timer-lifecycle", [allActions], (data) => {
+		const action = (
+			data[0] != null && data[0].length > 0 ? data[0].at(-1) : null
+		) as TriageAction | null;
+		if (!action) return;
+		switch (action.k) {
+			case "classify-low-conf":
+				startAutoEscalateTimer(action.entry);
+				break;
+			case "user-decision":
+				cancelAutoEscalateTimer(action.entry.alert.id);
+				if (action.triaged.disposition === "deferred") {
+					startDeferTimer(action.triaged);
+				}
+				break;
+			case "user-retriage-actionable":
+				if (action.newTriaged.disposition === "deferred") {
+					startDeferTimer(action.newTriaged);
+				}
+				break;
+			case "defer-expired":
+				// Re-queued alert accrues a fresh auto-escalate.
+				startAutoEscalateTimer(action.reQueued);
+				break;
+		}
+	});
 	const timerLifecycleKeepalive = keepalive(timerLifecycle);
 
 	// ── Public API (imperative entry points) ────────────────────

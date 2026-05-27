@@ -2,9 +2,9 @@ import type { ReadableAtom, WritableAtom } from "@graphrefly/graphrefly/compat/j
 import type { NanoAtom, NanoComputed } from "@graphrefly/graphrefly/compat/nanostores";
 import { useStore, useSubscribe, useSubscribeRecord } from "@graphrefly/graphrefly/compat/react";
 import type { StoreApi } from "@graphrefly/graphrefly/compat/zustand";
-import type { Node } from "@graphrefly/graphrefly/core";
-import type { DemoShellHandle } from "@graphrefly/graphrefly/patterns/demo-shell";
-import { demoShell } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { Node } from "@graphrefly/graphrefly";
+import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
+import { demoShell } from "@graphrefly/graphrefly/utils/demo-shell";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
 	counterGraph,

@@ -3,8 +3,8 @@
 // Uses dryRunAdapter with a respond function that returns plausible
 // classification results based on keyword matching.
 
-import type { ChatMessage, LLMAdapter } from "@graphrefly/graphrefly/patterns/ai";
-import { dryRunAdapter } from "@graphrefly/graphrefly/patterns/ai";
+import type { ChatMessage, LLMAdapter } from "@graphrefly/graphrefly/utils/ai";
+import { dryRunAdapter } from "@graphrefly/graphrefly/utils/ai";
 
 const SEVERITY_DISPOSITION: Record<string, { disposition: string; confidence: number }> = {
 	critical: { disposition: "actionable", confidence: 0.85 },

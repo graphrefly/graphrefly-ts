@@ -547,7 +547,7 @@
 	},
 	"scripts": {
 		"docs:dev": "pnpm --dir website dev",
-		"docs:build": "pnpm build && pnpm --dir website build && pnpm --dir demos/reactive-layout build && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/",
+		"docs:build": "pnpm build && pnpm --dir website build && pnpm --dir demos/compat-matrix build && pnpm --dir demos/reactive-layout build && pnpm --dir demos/knowledge-graph build && pnpm --dir demos/pagerduty-triage build && mkdir -p website/dist/demos/compat-matrix website/dist/demos/reactive-layout website/dist/demos/knowledge-graph website/dist/demos/pagerduty-triage && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/ && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/ && cp -r demos/knowledge-graph/dist/. website/dist/demos/knowledge-graph/ && cp -r demos/pagerduty-triage/dist/. website/dist/demos/pagerduty-triage/",
 		"docs:preview": "pnpm --dir website preview",
 		"build": "pnpm --filter @graphrefly/pure-ts build && NODE_OPTIONS=--max-old-space-size=8192 tsup",
 		"build:shim": "NODE_OPTIONS=--max-old-space-size=8192 tsup",

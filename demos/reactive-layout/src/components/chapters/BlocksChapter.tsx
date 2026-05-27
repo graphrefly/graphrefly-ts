@@ -1,7 +1,11 @@
-import type { PositionedBlock } from "@graphrefly/graphrefly/utils/reactive-layout";
+import type {
+	ContentBlock,
+	PositionedBlock,
+} from "@graphrefly/graphrefly/utils/reactive-layout";
 import { useState } from "react";
 import { type BlocksChapter, buildBlocksChapter } from "../../lib/chapters/blocks";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types";
+import { LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../../lib/measure-adapter";
 import { useNodeValue } from "../../lib/use-node-value";
 
 let cached: BlocksChapter | null = null;
@@ -10,9 +14,23 @@ export function getBlocksChapter(): BlocksChapter {
 	return cached;
 }
 
+function textStyleForBlock(index: number): { font: string; lineHeight: number } {
+	const chapter = getBlocksChapter();
+	const blocks = chapter.bundle.graph.resolve("blocks").cache as ContentBlock[] | undefined;
+	const src = blocks?.[index];
+	if (src?.type === "text") {
+		return {
+			font: src.font ?? LAYOUT_FONT,
+			lineHeight: src.lineHeight ?? LAYOUT_LINE_HEIGHT,
+		};
+	}
+	return { font: LAYOUT_FONT, lineHeight: LAYOUT_LINE_HEIGHT };
+}
+
 function BlockRender({ block }: { block: PositionedBlock }) {
 	if (block.type === "text") {
 		const lines = block.textLineBreaks?.lines ?? [];
+		const { font, lineHeight } = textStyleForBlock(block.index);
 		return (
 			<div
 				style={{
@@ -21,11 +39,21 @@ function BlockRender({ block }: { block: PositionedBlock }) {
 					top: block.y,
 					width: block.width,
 					height: block.height,
+					font,
+					lineHeight: `${lineHeight}px`,
 				}}
 				className="block block-text"
 			>
 				{lines.map((l, i) => (
-					<div key={`${i}-${l.text}`} className="paragraph-line" style={{ width: `${l.width}px` }}>
+					<div
+						key={`${i}-${l.text}`}
+						className="paragraph-line"
+						style={{
+							width: `${Math.min(l.width, block.width)}px`,
+							height: lineHeight,
+							lineHeight: `${lineHeight}px`,
+						}}
+					>
 						{l.text || "\u00a0"}
 					</div>
 				))}
@@ -56,7 +84,7 @@ function BlockRender({ block }: { block: PositionedBlock }) {
 				top: block.y,
 				width: block.width,
 				height: block.height,
-				background: "linear-gradient(135deg, #4de8c233, #9b59b633)",
+				background: "linear-gradient(135deg, rgba(200, 255, 0, 0.25), rgba(155, 196, 0, 0.15))",
 				border: "1px dashed var(--color-border)",
 				borderRadius: 6,
 			}}

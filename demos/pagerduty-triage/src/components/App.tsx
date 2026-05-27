@@ -1,4 +1,4 @@
-import type { DemoShellHandle } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAdapter, isChromeNanoAvailable } from "../lib/adapter-factory";
 import {

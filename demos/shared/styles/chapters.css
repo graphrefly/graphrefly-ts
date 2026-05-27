@@ -1,0 +1,62 @@
+/* Reactive-layout chapter panes — overflow + grid constraints */
+
+.adapters-chapter,
+.blocks-chapter {
+	min-width: 0;
+}
+
+.adapter-grid {
+	min-width: 0;
+}
+
+.adapter-col {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.adapter-canvas {
+	display: block;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.adapter-cli,
+.adapter-snapshot {
+	max-width: 100%;
+	word-break: break-word;
+	overflow-wrap: anywhere;
+}
+
+.block-frame {
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.block {
+	box-sizing: border-box;
+	max-width: 100%;
+}
+
+.block-text {
+	overflow-x: hidden;
+	overflow-y: visible;
+}
+
+.block-text .paragraph-line {
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.block-svg {
+	overflow: hidden;
+}
+
+.block-svg svg {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+.block-image {
+	overflow: hidden;
+}

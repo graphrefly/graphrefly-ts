@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { SAMPLE_PAPER } from "../../data/sample-paper";
+import { readKGSnapshot } from "../../lib/chapters/_shared";
 import { buildReactiveChapter, type ReactiveChapter } from "../../lib/chapters/reactive";
 import type { ChapterUIProps } from "../../lib/chapters/types";
 import { getSharedAdapter } from "../../lib/shell";
-import type { Entity, Relation } from "../../lib/types";
 import { fetchPaper } from "../../lib/url-fetcher";
 import { useNodeValue } from "../../lib/use-node-value";
 import AdapterBanner from "../AdapterBanner";
 import KGPane from "../KGPane";
 import PaperPane from "../PaperPane";
-
-type Edge = { from: string; to: string; relation: Relation };
 
 let cachedChapter: ReactiveChapter | null = null;
 
@@ -24,20 +22,6 @@ export function getReactiveChapterSync(): ReactiveChapter {
 	if (cachedChapter) return cachedChapter;
 	cachedChapter = buildReactiveChapter(getSharedAdapter().adapter, SAMPLE_PAPER.body);
 	return cachedChapter;
-}
-
-function snapshotKG(c: ReactiveChapter): {
-	entities: ReadonlyArray<Entity>;
-	edges: ReadonlyArray<Edge>;
-} {
-	const ents = c.kg.resolve("entities").cache as ReadonlyMap<string, Entity> | undefined;
-	const eds = c.kg.resolve("edges").cache as
-		| ReadonlyArray<{ from: string; to: string; relation: Relation; weight: number }>
-		| undefined;
-	return {
-		entities: ents ? [...ents.values()] : [],
-		edges: eds ? eds.map((e) => ({ from: e.from, to: e.to, relation: e.relation })) : [],
-	};
 }
 
 export default function ReactiveChapterUI({ hoverTarget, onHover }: ChapterUIProps) {
@@ -57,10 +41,10 @@ export default function ReactiveChapterUI({ hoverTarget, onHover }: ChapterUIPro
 	const paragraphs = useNodeValue(chapter.paragraphs, [] as readonly string[]);
 	const paragraphIdx = useNodeValue(chapter.paragraphIdx, 0);
 
-	const [snap, setSnap] = useState(() => snapshotKG(chapter));
+	const [snap, setSnap] = useState(() => readKGSnapshot(chapter.kg));
 	useEffect(() => {
-		const a = chapter.kg.resolve("entities").subscribe(() => setSnap(snapshotKG(chapter)));
-		const b = chapter.kg.resolve("edges").subscribe(() => setSnap(snapshotKG(chapter)));
+		const a = chapter.kg.resolve("entities").subscribe(() => setSnap(readKGSnapshot(chapter.kg)));
+		const b = chapter.kg.resolve("edges").subscribe(() => setSnap(readKGSnapshot(chapter.kg)));
 		return () => {
 			a();
 			b();

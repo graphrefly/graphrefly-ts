@@ -29,7 +29,7 @@ import {
 	type MeasurementAdapter,
 	type Node,
 	reactiveBlockLayout,
-} from "@graphrefly/graphrefly/patterns/reactive-layout";
+} from "@graphrefly/graphrefly/utils/reactive-layout";
 
 /** Font string shared across shell measurements + per-framework renders. */
 export const LAYOUT_FONT = '13px "Fira Code", ui-monospace, monospace';

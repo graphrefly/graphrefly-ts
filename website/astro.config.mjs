@@ -50,9 +50,15 @@ export default defineConfig({
 				Footer: "./src/components/Footer.astro",
 				MobileMenuFooter: "./src/components/MobileMenuFooter.astro",
 				Sidebar: "./src/components/Sidebar.astro",
+				ThemeSelect: "./src/components/ThemeSelect.astro",
 			},
 			customCss: ["./src/styles/custom.css"],
 			head: [
+				{
+					tag: "script",
+					content:
+						"(function(){try{var k='starlight-theme';if(localStorage.getItem(k)===null){localStorage.setItem(k,'light');document.documentElement.dataset.theme='light'}}catch(e){}})()",
+				},
 				{ tag: "link", attrs: { rel: "preconnect", href: "https://fonts.googleapis.com" } },
 				{
 					tag: "link",

@@ -1,4 +1,4 @@
-import type { DemoShellHandle, HoverTarget } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { DemoShellHandle, HoverTarget } from "@graphrefly/graphrefly/utils/demo-shell";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Chapter, ChapterResolved } from "../lib/chapters/types";
 import { focusChapter, getShell } from "../lib/shell";

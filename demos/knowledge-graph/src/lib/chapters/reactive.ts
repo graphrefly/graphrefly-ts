@@ -20,9 +20,9 @@
 //        ▼
 //   kg/{entities,edges,adjacency}  ← UI subscribes here, never polls.
 
-import { batch, derived, effect, type Node, state } from "@graphrefly/graphrefly/core";
-import { type LLMAdapter, promptNode } from "@graphrefly/graphrefly/patterns/ai";
-import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
+import { batch, type Node } from "@graphrefly/pure-ts";
+import { type LLMAdapter, promptNode } from "@graphrefly/graphrefly/utils/ai";
+import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import { buildUserPrompt, EXTRACTION_SYSTEM_PROMPT } from "../extraction-schema.js";
 import { splitContentParagraphs } from "../paragraphs.js";
 import type { Entity, ExtractionResult } from "../types.js";
@@ -88,22 +88,33 @@ export function buildReactiveChapter(
 ): ReactiveChapter {
 	const kg = makeKG("reactive");
 
-	const paperText = state(initialPaperText, { name: "paper-text" });
-	const paragraphIdx = state(0, { name: "paragraph-idx" });
+	const paperText = kg.state("paper-text", initialPaperText);
+	const paragraphIdx = kg.state("paragraph-idx", 0);
 
-	const paragraphs = derived([paperText], ([t]) => splitContentParagraphs((t as string) ?? ""), {
-		name: "paragraphs",
-		initial: [] as readonly string[],
-	});
+	const paragraphs = kg.derived(
+		"paragraphs",
+		[paperText],
+		(data, ctx) => {
+			const t =
+				data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
+			return [splitContentParagraphs((t as string) ?? "")];
+		},
+		{ initial: [] as readonly string[] },
+	);
 
-	const currentParagraph = derived(
+	const currentParagraph = kg.derived(
+		"current-paragraph",
 		[paragraphs, paragraphIdx],
-		([ps, i]) => {
+		(data, ctx) => {
+			const ps =
+				data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.prevData[0];
+			const i =
+				data[1] != null && data[1].length > 0 ? data[1].at(-1) : ctx.prevData[1];
 			const list = (ps as readonly string[]) ?? [];
 			const idx = (i as number) ?? 0;
-			return list[idx] ?? "";
+			return [list[idx] ?? ""];
 		},
-		{ name: "current-paragraph", initial: "" },
+		{ initial: "" },
 	);
 
 	const extraction = promptNode<ExtractionResult>(
@@ -118,24 +129,15 @@ export function buildReactiveChapter(
 		},
 	);
 
-	const applyExtraction = effect(
-		[extraction],
-		([result]) => {
-			const r = result as ExtractionResult | null;
-			if (!r) return;
-			applyExtractionToKG(kg, r);
-		},
-		{ name: "apply-extraction" },
-	);
+	const applyExtraction = kg.effect("apply-extraction", [extraction], (data) => {
+		const result = data[0] != null && data[0].length > 0 ? data[0].at(-1) : null;
+		const r = result as ExtractionResult | null;
+		if (!r) return;
+		applyExtractionToKG(kg, r);
+	});
 
-	// Mount the upstream pipeline onto the kg Graph so demo-shell's
-	// `graph/mermaid` shows the WHOLE causal chain, not just the KG nodes.
-	kg.add(paperText, { name: "paper-text" });
-	kg.add(paragraphIdx, { name: "paragraph-idx" });
-	kg.add(paragraphs, { name: "paragraphs" });
-	kg.add(currentParagraph, { name: "current-paragraph" });
+	// promptNode returns an unattached node — register it on the chapter graph.
 	kg.add(extraction, { name: "extraction" });
-	kg.add(applyExtraction, { name: "apply-extraction" });
 
 	// Keep the lazy chain warm: subscribe to the terminal effect so each push
 	// from `paper-text` actually walks the topology. The effect's dep on

@@ -10,10 +10,10 @@
 //    This is the answer to "why did this entity end up here?" — homepage
 //    pain point 02.
 
-import type { Node } from "@graphrefly/graphrefly/core";
-import type { CausalChain } from "@graphrefly/graphrefly/graph";
-import type { LLMAdapter } from "@graphrefly/graphrefly/patterns/ai";
-import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { Node } from "@graphrefly/pure-ts";
+import type { CausalChain } from "@graphrefly/pure-ts";
+import type { LLMAdapter } from "@graphrefly/graphrefly/utils/ai";
+import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import { buildReactiveChapter, type ReactiveChapter } from "./reactive.js";
 
 export const INSPECT_SOURCE = `// Same pipeline as chapter 2 — paper → paragraphs → extraction → kg.

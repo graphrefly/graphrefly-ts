@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
-import { initMermaid, mermaid, nextMermaidId } from "../lib/mermaid-render";
+import {
+	initMermaid,
+	mermaid,
+	MERMAID_NODE_STROKE_DEFAULT,
+	MERMAID_NODE_STROKE_MATCH,
+	nextMermaidId,
+} from "../lib/mermaid-render";
 import { attachPanZoom } from "../lib/pan-zoom";
 
 export default function GraphPane({
@@ -93,7 +99,10 @@ export default function GraphPane({
 				hoverId != null && (id === hoverId || id.includes(hoverId) || hoverId.includes(id));
 			const rect = n.querySelector("rect, circle, polygon, path");
 			if (rect) {
-				(rect as SVGElement).setAttribute("stroke", match ? "#4de8c2" : "#1e2444");
+				(rect as SVGElement).setAttribute(
+					"stroke",
+					match ? MERMAID_NODE_STROKE_MATCH : MERMAID_NODE_STROKE_DEFAULT,
+				);
 				(rect as SVGElement).setAttribute("stroke-width", match ? "2.5" : "1");
 			}
 		});

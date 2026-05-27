@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { readKGSnapshot } from "../../lib/chapters/_shared";
 import { buildBaselineChapter } from "../../lib/chapters/baseline";
 import type { ChapterUIProps } from "../../lib/chapters/types";
-import type { Entity, Relation } from "../../lib/types";
 import KGPane from "../KGPane";
 
 let cached: ReturnType<typeof buildBaselineChapter> | null = null;
@@ -10,29 +10,13 @@ export function getBaselineChapter() {
 	return cached;
 }
 
-type Snapshot = {
-	entities: ReadonlyArray<Entity>;
-	edges: ReadonlyArray<{ from: string; to: string; relation: Relation }>;
-};
-
-function snapshot(c: ReturnType<typeof buildBaselineChapter>): Snapshot {
-	const ents = c.kg.resolve("entities").cache as ReadonlyMap<string, Entity> | undefined;
-	const eds = c.kg.resolve("edges").cache as
-		| ReadonlyArray<{ from: string; to: string; relation: Relation; weight: number }>
-		| undefined;
-	return {
-		entities: ents ? [...ents.values()] : [],
-		edges: eds ? eds.map((e) => ({ from: e.from, to: e.to, relation: e.relation })) : [],
-	};
-}
-
 export default function BaselineChapterUI({ hoverTarget, onHover }: ChapterUIProps) {
 	const c = useMemo(() => getBaselineChapter(), []);
-	const [snap, setSnap] = useState<Snapshot>(() => snapshot(c));
+	const [snap, setSnap] = useState(() => readKGSnapshot(c.kg));
 
 	useEffect(() => {
-		const a = c.kg.resolve("entities").subscribe(() => setSnap(snapshot(c)));
-		const b = c.kg.resolve("edges").subscribe(() => setSnap(snapshot(c)));
+		const a = c.kg.resolve("entities").subscribe(() => setSnap(readKGSnapshot(c.kg)));
+		const b = c.kg.resolve("edges").subscribe(() => setSnap(readKGSnapshot(c.kg)));
 		return () => {
 			a();
 			b();

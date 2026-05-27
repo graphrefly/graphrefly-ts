@@ -8,7 +8,7 @@ import type {
 	LLMAdapter,
 	LLMInvokeOptions,
 	LLMResponse,
-} from "@graphrefly/graphrefly/patterns/ai";
+} from "@graphrefly/graphrefly/utils/ai";
 import { EXTRACTION_SCHEMA } from "./extraction-schema.js";
 import type { AdapterInfo } from "./types.js";
 

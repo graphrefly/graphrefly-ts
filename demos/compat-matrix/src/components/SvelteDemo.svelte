@@ -1,8 +1,8 @@
 <script lang="ts">
 import { useStore, useSubscribe, useSubscribeRecord } from "@graphrefly/graphrefly/compat/svelte";
-import type { Node } from "@graphrefly/graphrefly/core";
-import type { DemoShellHandle } from "@graphrefly/graphrefly/patterns/demo-shell";
-import { demoShell } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { Node } from "@graphrefly/graphrefly";
+import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
+import { demoShell } from "@graphrefly/graphrefly/utils/demo-shell";
 import { onMount } from "svelte";
 import { readable, writable } from "svelte/store";
 import {

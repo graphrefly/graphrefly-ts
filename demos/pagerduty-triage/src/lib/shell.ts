@@ -1,9 +1,9 @@
-import type { Graph } from "@graphrefly/graphrefly/graph";
+import type { Graph } from "@graphrefly/pure-ts";
 import {
 	type DemoShellHandle,
 	demoShell,
 	type NodeRegistry,
-} from "@graphrefly/graphrefly/patterns/demo-shell";
+} from "@graphrefly/graphrefly/utils/demo-shell";
 
 const liveRegistry: NodeRegistry = new Map();
 let shell: DemoShellHandle | null = null;

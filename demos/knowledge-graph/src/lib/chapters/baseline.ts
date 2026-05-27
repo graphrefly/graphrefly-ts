@@ -4,7 +4,7 @@
 // up front. Show the imperative API first so users understand the shape, then
 // label it "static — no reactivity here." The next chapter is the contrast.
 
-import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
+import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import { type DemoKG, makeKG } from "./_shared.js";
 
 export const BASELINE_SOURCE = `// 1. Create a knowledgeGraph() — it's a Graph with three named nodes

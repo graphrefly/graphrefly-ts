@@ -1,4 +1,4 @@
-import type { Node } from "@graphrefly/graphrefly/core";
+import type { Node } from "@graphrefly/pure-ts";
 import { useEffect, useState } from "react";
 
 /** Subscribe to a GraphReFly Node and re-render on each DATA emission. */

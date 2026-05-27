@@ -1,8 +1,8 @@
 // Shared helpers for the four chapters. Keeps the per-chapter source compact
 // so the right-side code pane can quote them at full fidelity.
 
-import type { Node } from "@graphrefly/graphrefly/core";
-import { type KnowledgeGraphGraph, knowledgeGraph } from "@graphrefly/graphrefly/patterns/memory";
+import type { Node } from "@graphrefly/pure-ts";
+import { type KnowledgeGraphGraph, knowledgeGraph } from "@graphrefly/graphrefly/utils/memory";
 import type { Entity, Relation } from "../types.js";
 
 export type DemoKG = KnowledgeGraphGraph<Entity, Relation>;
@@ -23,12 +23,15 @@ export function makeKG(name: string): DemoKG {
  */
 export function readKGSnapshot(kg: DemoKG): KGSnapshot {
 	const entities = kg.resolve("entities").cache as ReadonlyMap<string, Entity> | undefined;
-	const edges = kg.resolve("edges").cache as
-		| ReadonlyArray<{ from: string; to: string; relation: Relation; weight: number }>
+	// `edges` is reactiveMap.entries — cache is a Map keyed by edge id, not an array.
+	const edgeMap = kg.resolve("edges").cache as
+		| ReadonlyMap<string, { from: string; to: string; relation: Relation }>
 		| undefined;
 	return {
 		entities: entities ? [...entities.values()] : [],
-		edges: edges ? edges.map((e) => ({ from: e.from, to: e.to, relation: e.relation })) : [],
+		edges: edgeMap
+			? [...edgeMap.values()].map((e) => ({ from: e.from, to: e.to, relation: e.relation }))
+			: [],
 	};
 }
 
@@ -58,12 +61,16 @@ export function snapshotFromNodes(
 	edgesNode: Node<unknown>,
 ): KGSnapshot {
 	const ents = (entitiesNode.cache as ReadonlyMap<string, Entity> | undefined) ?? new Map();
-	const eds =
+	const edgeMap =
 		(edgesNode.cache as
-			| ReadonlyArray<{ from: string; to: string; relation: Relation; weight: number }>
-			| undefined) ?? [];
+			| ReadonlyMap<string, { from: string; to: string; relation: Relation }>
+			| undefined) ?? new Map();
 	return {
 		entities: [...ents.values()],
-		edges: eds.map((e) => ({ from: e.from, to: e.to, relation: e.relation })),
+		edges: [...edgeMap.values()].map((e) => ({
+			from: e.from,
+			to: e.to,
+			relation: e.relation,
+		})),
 	};
 }

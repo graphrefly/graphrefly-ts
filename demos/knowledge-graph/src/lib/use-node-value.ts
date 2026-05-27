@@ -1,4 +1,4 @@
-import type { Node } from "@graphrefly/graphrefly/core";
+import type { Node } from "@graphrefly/pure-ts";
 import { useEffect, useRef, useState } from "react";
 
 /** Subscribe to a GraphReFly node and return its current cache as React state. */

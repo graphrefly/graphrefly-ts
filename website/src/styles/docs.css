@@ -1,0 +1,382 @@
+/* GraphReFly — Starlight doc chrome (spec, API, blog, comparisons, …) */
+
+/* ─── Map Starlight tokens → cyber showroom palette ─── */
+:root,
+:root[data-theme="light"] {
+	color-scheme: light;
+	--sl-color-white: var(--gr-ink);
+	--sl-color-gray-1: var(--gr-ink);
+	--sl-color-gray-2: var(--gr-ink-mute);
+	--sl-color-gray-3: var(--gr-ink-faint);
+	--sl-color-gray-4: var(--gr-rule-deep);
+	--sl-color-gray-5: var(--gr-rule);
+	--sl-color-gray-6: var(--gr-ice-warm);
+	--sl-color-black: var(--gr-ice);
+
+	--sl-color-bg: var(--gr-ice);
+	--sl-color-bg-nav: rgba(244, 247, 249, 0.88);
+	--sl-color-bg-sidebar: var(--gr-paper);
+	--sl-color-bg-inline-code: var(--gr-ice-warm);
+	--sl-color-hairline-light: var(--gr-rule);
+	--sl-color-hairline: var(--gr-rule);
+	--sl-color-hairline-shade: var(--gr-rule);
+
+	--sl-color-accent-low: rgba(200, 255, 0, 0.18);
+	--sl-color-accent: var(--gr-lime-deep);
+	--sl-color-accent-high: var(--gr-ink);
+	--sl-color-text: var(--gr-ink);
+	--sl-color-text-accent: var(--gr-lime-deep);
+	--sl-color-text-invert: var(--gr-ice);
+
+	/* Aside callouts — lime-forward instead of default blue/purple */
+	--sl-color-blue-low: rgba(200, 255, 0, 0.14);
+	--sl-color-blue: var(--gr-lime-deep);
+	--sl-color-blue-high: var(--gr-ink);
+	--sl-color-green-low: rgba(155, 196, 0, 0.14);
+	--sl-color-green: var(--gr-lime-deep);
+	--sl-color-green-high: var(--gr-ink);
+	--sl-color-purple-low: rgba(255, 45, 117, 0.1);
+	--sl-color-purple: var(--gr-magenta);
+	--sl-color-purple-high: var(--gr-ink);
+	--sl-color-orange-low: rgba(240, 200, 106, 0.2);
+	--sl-color-orange: #c48a20;
+	--sl-color-orange-high: var(--gr-ink);
+	--sl-color-red-low: rgba(255, 59, 48, 0.12);
+	--sl-color-red: var(--gr-red);
+	--sl-color-red-high: var(--gr-ink);
+}
+
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--sl-color-white: var(--gr-ice);
+	--sl-color-gray-1: var(--gr-ice);
+	--sl-color-gray-2: rgba(244, 247, 249, 0.72);
+	--sl-color-gray-3: rgba(244, 247, 249, 0.55);
+	--sl-color-gray-4: rgba(244, 247, 249, 0.22);
+	--sl-color-gray-5: rgba(244, 247, 249, 0.1);
+	--sl-color-gray-6: var(--gr-navy-mid);
+	--sl-color-black: var(--gr-navy-deep);
+
+	--sl-color-bg: var(--gr-navy-deep);
+	--sl-color-bg-nav: rgba(10, 22, 40, 0.88);
+	--sl-color-bg-sidebar: var(--gr-navy);
+	--sl-color-bg-inline-code: var(--gr-navy);
+	--sl-color-hairline-light: rgba(244, 247, 249, 0.08);
+	--sl-color-hairline: rgba(244, 247, 249, 0.08);
+	--sl-color-hairline-shade: rgba(244, 247, 249, 0.08);
+
+	--sl-color-accent-low: rgba(200, 255, 0, 0.12);
+	--sl-color-accent: var(--gr-lime);
+	--sl-color-accent-high: var(--gr-ice);
+	--sl-color-text: var(--gr-ice);
+	--sl-color-text-accent: var(--gr-lime);
+	--sl-color-text-invert: var(--gr-ink);
+
+	--sl-color-blue-low: rgba(200, 255, 0, 0.1);
+	--sl-color-blue: var(--gr-lime);
+	--sl-color-blue-high: var(--gr-ice);
+	--sl-color-green-low: rgba(200, 255, 0, 0.1);
+	--sl-color-green: var(--gr-lime);
+	--sl-color-green-high: var(--gr-ice);
+	--sl-color-purple-low: rgba(255, 45, 117, 0.14);
+	--sl-color-purple: var(--gr-magenta);
+	--sl-color-purple-high: var(--gr-ice);
+}
+
+/* ─── Global fonts (Starlight) ─── */
+:root {
+	--sl-font: var(--gr-sans);
+	--sl-font-mono: var(--gr-mono);
+}
+
+/* ─── Site title (brand wordmark) ─── */
+a.site-title {
+	font-family: var(--gr-display);
+	font-weight: 800;
+	font-size: 1.4rem;
+	line-height: 1;
+	letter-spacing: -0.03em;
+	text-transform: uppercase;
+	color: var(--sl-color-text);
+}
+
+a.site-title:hover {
+	color: var(--sl-color-text-accent);
+}
+
+/* ─── Header / nav chrome ─── */
+header.header,
+header.sl-header {
+	backdrop-filter: blur(16px) saturate(1.2);
+	-webkit-backdrop-filter: blur(16px) saturate(1.2);
+	border-bottom: 1px solid var(--sl-color-hairline);
+}
+
+@media (max-width: 50rem) {
+	header.header,
+	header.sl-header {
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		background: var(--sl-color-bg-nav);
+	}
+}
+
+/* ─── Sidebar ─── */
+nav.sidebar .large,
+nav.sidebar summary .large {
+	font-family: var(--gr-mono);
+	font-weight: 500;
+	text-transform: uppercase;
+	font-size: 0.7rem;
+	letter-spacing: 0.16em;
+	color: var(--sl-color-gray-3);
+}
+
+nav.sidebar a[aria-current="page"],
+nav.sidebar a[aria-current="page"]:hover,
+nav.sidebar a[aria-current="page"]:focus {
+	color: var(--gr-ink);
+	background-color: var(--gr-lime);
+}
+
+:root[data-theme="dark"] nav.sidebar a[aria-current="page"],
+:root[data-theme="dark"] nav.sidebar a[aria-current="page"]:hover,
+:root[data-theme="dark"] nav.sidebar a[aria-current="page"]:focus {
+	color: var(--gr-ink);
+	background-color: var(--gr-lime);
+}
+
+nav.sidebar a:hover,
+nav.sidebar a:focus {
+	color: var(--sl-color-text-accent);
+}
+
+/* ─── Right-rail TOC ─── */
+.right-sidebar-panel nav a {
+	font-family: var(--gr-sans);
+	font-size: var(--sl-text-sm);
+}
+
+.right-sidebar-panel nav a[aria-current="true"] {
+	color: var(--gr-ink);
+	background: var(--gr-lime);
+	font-weight: 600;
+	border-radius: 0.25rem;
+}
+
+:root[data-theme="dark"] .right-sidebar-panel nav a[aria-current="true"] {
+	color: var(--gr-ink);
+}
+
+/* ─── Page title (above markdown body) ─── */
+.content-panel > .sl-container > h1:first-child {
+	font-family: var(--gr-display);
+	font-weight: 800;
+	font-size: var(--sl-text-2xl);
+	line-height: 1;
+	letter-spacing: -0.03em;
+	text-transform: uppercase;
+	color: var(--sl-color-gray-3);
+	margin-bottom: 0.25rem;
+}
+
+/* ─── Prose typography ─── */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4,
+.sl-markdown-content h5,
+.sl-markdown-content h6 {
+	font-family: var(--gr-sans);
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+.sl-markdown-content:not(:has(.gr-home)) h1 {
+	color: var(--sl-color-text-accent);
+	font-weight: 700;
+	letter-spacing: -0.03em;
+}
+
+.sl-markdown-content:not(:has(.gr-home)) h2 {
+	border-top: 1px solid var(--sl-color-hairline);
+	padding-top: 1.75rem;
+	margin-top: 2.5rem;
+}
+
+.sl-markdown-content:not(:has(.gr-home)) h3 {
+	color: var(--sl-color-text);
+	font-size: var(--sl-text-xl);
+}
+
+.sl-markdown-content p,
+.sl-markdown-content li {
+	font-family: var(--gr-sans);
+	line-height: 1.75;
+}
+
+.sl-markdown-content:not(:has(.gr-home)) a {
+	color: var(--sl-color-text-accent);
+	text-underline-offset: 3px;
+}
+
+.sl-markdown-content:not(:has(.gr-home)) a:hover {
+	color: var(--sl-color-text);
+}
+
+.sl-markdown-content a.gr-impl-gh-btn--py {
+	color: var(--gr-magenta);
+}
+
+.sl-markdown-content a.gr-impl-gh-btn--py:hover {
+	color: var(--gr-ink);
+}
+
+/* Inline code */
+.sl-markdown-content :not(pre) > code {
+	font-family: var(--gr-mono);
+	background: var(--sl-color-bg-inline-code);
+	border: 1px solid var(--sl-color-hairline);
+	color: var(--sl-color-text-accent);
+	border-radius: 4px;
+	padding: 0.12em 0.4em;
+	font-size: 0.88em;
+}
+
+/* Code blocks */
+.sl-markdown-content pre,
+.expressive-code pre {
+	font-family: var(--gr-mono);
+	border: 1px solid var(--sl-color-hairline);
+	border-radius: 12px;
+	box-shadow: 0 4px 16px rgba(7, 18, 30, 0.04);
+}
+
+:root[data-theme="dark"] .sl-markdown-content pre,
+:root[data-theme="dark"] .expressive-code pre {
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* Tables (spec, API params) */
+.sl-markdown-content table {
+	font-family: var(--gr-sans);
+	font-size: var(--sl-text-sm);
+	border-collapse: collapse;
+	width: 100%;
+	margin: 1.25rem 0;
+}
+
+.sl-markdown-content th {
+	font-family: var(--gr-mono);
+	font-size: 0.72rem;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	text-align: left;
+	padding: 0.65rem 0.85rem;
+	background: var(--gr-ice-warm);
+	border: 1px solid var(--sl-color-hairline);
+	color: var(--sl-color-gray-2);
+}
+
+:root[data-theme="dark"] .sl-markdown-content th {
+	background: var(--gr-navy-mid);
+}
+
+.sl-markdown-content td {
+	padding: 0.6rem 0.85rem;
+	border: 1px solid var(--sl-color-hairline);
+	vertical-align: top;
+}
+
+.sl-markdown-content tr:nth-child(even) td {
+	background: rgba(244, 247, 249, 0.45);
+}
+
+:root[data-theme="dark"] .sl-markdown-content tr:nth-child(even) td {
+	background: rgba(244, 247, 249, 0.03);
+}
+
+/* Blockquotes */
+.sl-markdown-content blockquote {
+	margin: 1.25rem 0;
+	padding: 0.85rem 1.15rem;
+	border-inline-start: 3px solid var(--gr-lime-deep);
+	border-radius: 0 8px 8px 0;
+	background: var(--gr-paper);
+	color: var(--sl-color-gray-2);
+}
+
+:root[data-theme="dark"] .sl-markdown-content blockquote {
+	background: var(--gr-navy);
+}
+
+/* Horizontal rules */
+.sl-markdown-content hr {
+	border: none;
+	border-top: 1px solid var(--sl-color-hairline);
+	margin: 2rem 0;
+}
+
+/* Starlight asides */
+.starlight-aside {
+	border-radius: 8px;
+	font-family: var(--gr-sans);
+}
+
+.starlight-aside__title {
+	font-family: var(--gr-mono);
+	font-size: 0.72rem;
+	font-weight: 500;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+/* Pagination */
+.pagination-links a {
+	font-family: var(--gr-mono);
+	font-size: var(--sl-text-xs);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	border: 1px solid var(--sl-color-hairline);
+	border-radius: 999px;
+	padding: 0.5em 1em;
+	transition:
+		color 0.15s,
+		border-color 0.15s,
+		background 0.15s;
+}
+
+.pagination-links a:hover {
+	color: var(--sl-color-text-accent);
+	border-color: var(--sl-color-text-accent);
+}
+
+/* Blog date badges in sidebar */
+.gr-date-badge {
+	font-size: 0.65rem;
+	font-family: var(--gr-mono);
+	opacity: 0.6;
+	margin-inline-start: auto;
+	padding: 0.1em 0.35em;
+	border: none;
+	background: transparent;
+	color: var(--sl-color-gray-3);
+	flex-shrink: 0;
+}
+
+a:has(> .gr-date-badge) > span:first-child {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+/* Selection */
+::selection {
+	background: rgba(51, 144, 255, 0.25);
+}
+
+:root[data-theme="dark"] ::selection {
+	background: rgba(100, 170, 255, 0.3);
+}

@@ -1,7 +1,7 @@
 // ── Adapter factory ─────────────────────────────────────────────
 // Creates the LLM adapter based on user selection.
 
-import type { ChatMessage, LLMAdapter, LLMResponse } from "@graphrefly/graphrefly/patterns/ai";
+import type { ChatMessage, LLMAdapter, LLMResponse } from "@graphrefly/graphrefly/utils/ai";
 import { createDryRunAdapter } from "./dry-run-fixtures.js";
 import type { AdapterMode } from "./types.js";
 

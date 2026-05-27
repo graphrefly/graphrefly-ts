@@ -4,28 +4,36 @@ import {
 	computed as nanoComputed,
 } from "@graphrefly/graphrefly/compat/nanostores";
 import { create as zustandCreate } from "@graphrefly/graphrefly/compat/zustand";
-import type { Node } from "@graphrefly/graphrefly/core";
-import { DATA, derived, state } from "@graphrefly/graphrefly/core";
-import { Graph } from "@graphrefly/graphrefly/graph";
+import { DATA, Graph, type Node } from "@graphrefly/graphrefly";
 import { createLeaderboardLayout } from "./layout-integration";
 
 export const counterGraph = new Graph("compat-matrix");
 
+/** Scalar dep read for `graph.derived` fns (last DATA per dep, else prev wave). */
+function depVals(
+	data: readonly (readonly unknown[] | undefined)[],
+	ctx: { readonly prevData: readonly unknown[] },
+): readonly unknown[] {
+	return data.map((b, i) => (b != null && b.length > 0 ? b[b.length - 1] : ctx.prevData[i]));
+}
+
 // ── 1. GraphReFly raw ─────────────────────────────────────
 // Direct node access via useStore / useSubscribe
-export const rawNode = state(0, { name: "graphrefly/count" });
-counterGraph.add(rawNode, { name: "graphrefly/count" });
+export const rawNode = counterGraph.state("graphrefly/count", 0);
 
-// Derived: doubled — using GraphReFly's native `derived` primitive
-export const rawDoubledNode = derived([rawNode], ([n]) => ((n as number) ?? 0) * 2, {
-	name: "graphrefly/doubled",
-});
-counterGraph.add(rawDoubledNode, { name: "graphrefly/doubled" });
+// Derived: doubled — using GraphReFly's native `graph.derived`
+export const rawDoubledNode = counterGraph.derived(
+	"graphrefly/doubled",
+	[rawNode],
+	(data, ctx) => {
+		const [n] = depVals(data, ctx);
+		return [((n as number) ?? 0) * 2];
+	},
+);
 
 // ── 2. Jotai compat ───────────────────────────────────────
 // Backing node for the jotai atom
-export const jotaiNode = state(0, { name: "jotai/count" });
-counterGraph.add(jotaiNode, { name: "jotai/count" });
+export const jotaiNode = counterGraph.state("jotai/count", 0);
 
 // Jotai writable derived atom: reads from jotaiNode, writes to jotaiNode.
 // autoTrackNode inside createDerivedAtom uses `a._node` for tracking,
@@ -42,8 +50,7 @@ export const jotaiDoubled = jotaiAtom(
 
 // ── 3. Nanostores compat ──────────────────────────────────
 // Backing node for the nanostores atom
-export const nanoNode = state(0, { name: "nanostores/count" });
-counterGraph.add(nanoNode, { name: "nanostores/count" });
+export const nanoNode = counterGraph.state("nanostores/count", 0);
 
 // Nanostores atom — synced bidirectionally with nanoNode.
 // Re-entrancy guard prevents infinite loop: set → listen → emit → subscribe → set → ...
@@ -78,17 +85,18 @@ export const zustandStore = zustandCreate<ZustandState>((set, get) => ({
 	inc: () => set((s) => ({ ...s, count: s.count + 1 })),
 	dec: () => set((s) => ({ ...s, count: s.count - 1 })),
 }));
-// Add zustand's internal state node to the shared graph for mermaid visualization
-const zustandStateNode = zustandStore.resolve("state") as Node<ZustandState>;
-counterGraph.add(zustandStateNode, { name: "zustand/state" });
-
-// Derived node extracting just the count from zustand state (for useSubscribeRecord)
-export const zustandCountNode = derived(
-	[zustandStateNode],
-	([s]) => (s as ZustandState | null)?.count ?? 0,
-	{ name: "zustand/count" },
-);
-counterGraph.add(zustandCountNode, { name: "zustand/count" });
+// Zustand's backing node lives on Graph "zustand" — cannot mount it on
+// counterGraph (single-owner invariant). Mirror count onto compat-matrix for
+// leaderboard / total / describe, same pattern as nanostores ↔ nanoNode.
+export const zustandCountNode = counterGraph.state("zustand/count", 0);
+let zustandCountSyncing = false;
+zustandStore.subscribe((state) => {
+	if (zustandCountSyncing) return;
+	zustandCountSyncing = true;
+	zustandCountNode.emit(state.count);
+	zustandCountSyncing = false;
+});
+zustandCountNode.emit(zustandStore.getState().count);
 
 // Derived: doubled — zustand has no computed() API, so the idiomatic
 // pattern is a selector `(s) => s.count * 2`. Framework code calls this
@@ -97,19 +105,27 @@ export const zustandDoubledSelector = (s: ZustandState | null): number =>
 	((s?.count ?? 0) as number) * 2;
 
 // ── Total (for useSubscribe demo) ─────────────────────────
-export const totalNode = derived(
+export const totalNode = counterGraph.derived(
+	"total",
 	[rawNode, jotaiNode, nanoNode, zustandCountNode],
-	([a, b, c, d]) =>
-		((a as number) || 0) + ((b as number) || 0) + ((c as number) || 0) + ((d as number) || 0),
-	{ name: "total" },
+	(data, ctx) => {
+		const [a, b, c, d] = depVals(data, ctx);
+		return [
+			((a as number) || 0) +
+				((b as number) || 0) +
+				((c as number) || 0) +
+				((d as number) || 0),
+		];
+	},
 );
-counterGraph.add(totalNode, { name: "total" });
 
 // ── Keys + factory for useSubscribeRecord demo ────────────
-export const keysNode = state(["graphrefly", "jotai", "nanostores", "zustand"] as string[], {
-	name: "counter-keys",
-});
-counterGraph.add(keysNode, { name: "counter-keys" });
+export const keysNode = counterGraph.state("counter-keys", [
+	"graphrefly",
+	"jotai",
+	"nanostores",
+	"zustand",
+]);
 
 export const counterNodeFactory = (key: string): { count: Node<number> } => {
 	const map: Record<string, Node<number>> = {
