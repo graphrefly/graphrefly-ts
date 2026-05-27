@@ -4,7 +4,7 @@
  * `fromRaf`, etc.) without pulling in `node:fs`/`node:path`.
  */
 
-import { existsSync, watch } from "node:fs";
+import { existsSync, statSync, watch } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import {
 	DATA,
@@ -88,18 +88,34 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
 			if (stopped || terminalEmitted || token !== generation) return;
 			a.down(batchMessages);
 		};
+		const onDeactivation = () => {
+			stopped = true;
+			generation += 1;
+			if (timer !== undefined) clearTimeout(timer);
+			timer = undefined;
+			closeWatchers();
+			pending.clear();
+		};
 		try {
 			for (const basePath of list) {
+				const resolved = resolvePath(basePath);
+				// Linux recursive fs.watch may not throw for missing paths (waits instead).
+				try {
+					statSync(resolved);
+				} catch (err) {
+					emitError(err);
+					return { onDeactivation };
+				}
 				const watcher = watch(
-					basePath,
+					resolved,
 					{ recursive },
 					(eventType: "rename" | "change", fileName: string | Buffer | null) => {
 						if (stopped || terminalEmitted) return;
 						if (fileName == null) return;
 						const rel = String(fileName).replaceAll("\\", "/");
-						const abs = resolvePath(basePath, String(fileName));
+						const abs = resolvePath(resolved, String(fileName));
 						const normalized = abs.replaceAll("\\", "/");
-						const root = resolvePath(basePath).replaceAll("\\", "/");
+						const root = resolved.replaceAll("\\", "/");
 						const relForMatch = rel.startsWith("./") ? rel.slice(2) : rel;
 						const included =
 							includePatterns.length === 0 ||
@@ -136,15 +152,6 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
 		} catch (err) {
 			emitError(err);
 		}
-		return {
-			onDeactivation: () => {
-				stopped = true;
-				generation += 1;
-				if (timer !== undefined) clearTimeout(timer);
-				timer = undefined;
-				closeWatchers();
-				pending.clear();
-			},
-		};
+		return { onDeactivation };
 	}, sourceOpts(rest));
 }

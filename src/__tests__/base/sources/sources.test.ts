@@ -549,7 +549,11 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("fromFSWatch surfaces watcher setup failures as ERROR tuples", async () => {
-		const badPath = join(tmpdir(), "graphrefly-fswatch-missing", `${Date.now()}`);
+		// Remove the temp root so neither parent nor leaf exists — Linux
+		// recursive fs.watch may wait instead of throwing ENOENT synchronously.
+		const removedRoot = await mkdtemp(join(tmpdir(), "graphrefly-fswatch-err-"));
+		await rm(removedRoot, { recursive: true, force: true });
+		const badPath = join(removedRoot, "missing-leaf");
 		const node = fromFSWatch(badPath, { debounce: 5 });
 		const { batches, unsub } = collect(node);
 		await tick(50);
