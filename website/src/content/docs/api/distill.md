@@ -29,9 +29,9 @@ function distill<TRaw, TMem>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `NodeInput&lt;TRaw&gt;` |  |
-| `extractFn` | `(
+| <code>source</code> | <code>NodeInput&lt;TRaw&gt;</code> |  |
+| <code>extractFn</code> | <code>(
 		raw: Node&lt;TRaw&gt;,
 		existing: Node&lt;ReadonlyMap&lt;string, TMem&gt;&gt;,
-	) =&gt; NodeInput&lt;Extraction&lt;TMem&gt;&gt;` |  |
-| `opts` | `DistillOptions&lt;TMem&gt;` |  |
+	) =&gt; NodeInput&lt;Extraction&lt;TMem&gt;&gt;</code> |  |
+| <code>opts</code> | <code>DistillOptions&lt;TMem&gt;</code> |  |

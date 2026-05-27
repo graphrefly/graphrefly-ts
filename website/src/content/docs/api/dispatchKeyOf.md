@@ -13,4 +13,4 @@ dispatchKeyOf<T>(r: DispatchRecord<T>): string
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `r` | `DispatchRecord&lt;T&gt;` |  |
+| <code>r</code> | <code>DispatchRecord&lt;T&gt;</code> |  |

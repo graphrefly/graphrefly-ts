@@ -49,10 +49,10 @@ function processManager<TState, EM extends CqrsEventMap = Record<string, unknown
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `cqrsGraph` | `CqrsGraph&lt;EM&gt;` | The CQRS graph whose event streams the manager watches. |
-| `name` | `string` | Stable identifier for this process type; used for the
+| <code>cqrsGraph</code> | <code>CqrsGraph&lt;EM&gt;</code> | The CQRS graph whose event streams the manager watches. |
+| <code>name</code> | <code>string</code> | Stable identifier for this process type; used for the
 synthetic event-type prefix `_process_&lt;name&gt;_*`. Currently emits
 `_process_&lt;name&gt;_started` per `start()`; the prefix is reserved for
 future `_state` / `_timer` channels. |
-| `opts` | `ProcessManagerOpts&lt;TState, EM&gt;` | Configuration: initial state, watched events, steps, retry,
+| <code>opts</code> | <code>ProcessManagerOpts&lt;TState, EM&gt;</code> | Configuration: initial state, watched events, steps, retry,
 compensation, and optional persistence. |

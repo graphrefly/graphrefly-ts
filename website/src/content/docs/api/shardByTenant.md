@@ -20,5 +20,5 @@ function shardByTenant<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `tenantOf` | `(f: MemoryFragment&lt;T&gt;) =&gt; string` |  |
-| `opts` | `ShardByTenantOptions` |  |
+| <code>tenantOf</code> | <code>(f: MemoryFragment&lt;T&gt;) =&gt; string</code> |  |
+| <code>opts</code> | <code>ShardByTenantOptions</code> |  |

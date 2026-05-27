@@ -19,9 +19,9 @@ function takeWhile<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `predicate` | `(value: T) =&gt; boolean` | Continuation test. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>predicate</code> | <code>(value: T) =&gt; boolean</code> | Continuation test. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

@@ -15,7 +15,7 @@ function exponential(options?: ExponentialBackoffOptions): BackoffStrategy
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options` | `ExponentialBackoffOptions` | Base, factor, cap, and jitter mode. |
+| <code>options</code> | <code>ExponentialBackoffOptions</code> | Base, factor, cap, and jitter mode. |
 
 ## Returns
 

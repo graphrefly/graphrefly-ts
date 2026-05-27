@@ -15,9 +15,9 @@ function audit<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `ms` | `number` | Window in milliseconds after each `DATA`. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>ms</code> | <code>number</code> | Window in milliseconds after each `DATA`. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

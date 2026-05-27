@@ -13,4 +13,4 @@ function fromRaf(opts?: FromRafOptions): Node<number>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `FromRafOptions` |  |
+| <code>opts</code> | <code>FromRafOptions</code> |  |

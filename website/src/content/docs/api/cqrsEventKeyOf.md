@@ -15,4 +15,4 @@ cqrsEventKeyOf(e: CqrsEvent): string
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `e` | `CqrsEvent` |  |
+| <code>e</code> | <code>CqrsEvent</code> |  |

@@ -37,6 +37,6 @@ function downWithBatch(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sink` | `(messages: Messages) =&gt; void` |  |
-| `messages` | `Messages` |  |
-| `tierOf` | `(t: symbol) =&gt; number` |  |
+| <code>sink</code> | <code>(messages: Messages) =&gt; void</code> |  |
+| <code>messages</code> | <code>Messages</code> |  |
+| <code>tierOf</code> | <code>(t: symbol) =&gt; number</code> |  |

@@ -16,4 +16,4 @@ function simpleFactStore<T>(opts?: SimpleFactStoreOptions<T>): SimpleFactStoreGr
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `SimpleFactStoreOptions&lt;T&gt;` |  |
+| <code>opts</code> | <code>SimpleFactStoreOptions&lt;T&gt;</code> |  |

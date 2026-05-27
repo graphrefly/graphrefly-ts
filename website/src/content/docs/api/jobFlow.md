@@ -15,5 +15,5 @@ function jobFlow<T>(name: string, opts?: JobFlowOptions<T>): JobFlowGraph<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `opts` | `JobFlowOptions&lt;T&gt;` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>opts</code> | <code>JobFlowOptions&lt;T&gt;</code> |  |

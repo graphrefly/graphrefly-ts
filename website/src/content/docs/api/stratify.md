@@ -26,10 +26,10 @@ function stratify<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` | Graph name. |
-| `source` | `Node&lt;T&gt;` | Input node (registered as `"source"`). |
-| `rules` | `ReadonlyArray&lt;StratifyRule&lt;T&gt;&gt;` | Initial routing rules. |
-| `opts` | `StratifyOptions` | Optional graph/meta options. |
+| <code>name</code> | <code>string</code> | Graph name. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Input node (registered as `"source"`). |
+| <code>rules</code> | <code>ReadonlyArray&lt;StratifyRule&lt;T&gt;&gt;</code> | Initial routing rules. |
+| <code>opts</code> | <code>StratifyOptions</code> | Optional graph/meta options. |
 
 ## Returns
 

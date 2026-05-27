@@ -15,8 +15,8 @@ function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: T }): N
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `options` | `ExtraOpts & { defaultValue?: T }` | Optional NodeOptions and `defaultValue` when empty. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>options</code> | <code>ExtraOpts & { defaultValue?: T }</code> | Optional NodeOptions and `defaultValue` when empty. |
 
 ## Returns
 

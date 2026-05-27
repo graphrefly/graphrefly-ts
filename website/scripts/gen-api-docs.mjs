@@ -652,6 +652,19 @@ function escapeHtml(str) {
 	return str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** Plain table cell — escape HTML and pipe delimiters. */
+function escapeTableText(str) {
+	return escapeHtml(str).replace(/\|/g, "\\|");
+}
+
+/**
+ * Code in a markdown table cell. Use HTML `<code>` (not backticks) so MDX/Starlight
+ * renders generics (`&lt;T&gt;` → `<T>`) and union `|` does not split columns.
+ */
+function formatTableCode(str) {
+	return `<code>${escapeHtml(str)}</code>`;
+}
+
 // ─── Markdown generation ────────────────────────────────────────────────────
 
 function generateMarkdown(name, data) {
@@ -689,8 +702,9 @@ function generateMarkdown(name, data) {
 		lines.push("| Parameter | Type | Description |");
 		lines.push("|-----------|------|-------------|");
 		for (const p of data.params) {
-			const typeStr = `\`${escapeHtml(p.type)}\``;
-			lines.push(`| \`${escapeHtml(p.name)}\` | ${typeStr} | ${escapeHtml(p.description)} |`);
+			lines.push(
+				`| ${formatTableCode(p.name)} | ${formatTableCode(p.type)} | ${escapeTableText(p.description)} |`,
+			);
 		}
 		lines.push("");
 	}
@@ -703,7 +717,7 @@ function generateMarkdown(name, data) {
 		lines.push("|----------|------|---------|-------------|");
 		for (const row of data.optionsRows) {
 			lines.push(
-				`| \`${escapeHtml(row.property)}\` | \`${escapeHtml(row.type)}\` | \`${escapeHtml(row.default)}\` | ${escapeHtml(row.description)} |`,
+				`| ${formatTableCode(row.property)} | ${formatTableCode(row.type)} | ${formatTableCode(row.default)} | ${escapeTableText(row.description)} |`,
 			);
 		}
 		lines.push("");
@@ -723,7 +737,7 @@ function generateMarkdown(name, data) {
 		lines.push("|--------|-----------|-------------|");
 		for (const row of data.returnsTable) {
 			lines.push(
-				`| \`${escapeHtml(row.method)}\` | \`${escapeHtml(row.signature)}\` | ${escapeHtml(row.description)} |`,
+				`| ${formatTableCode(row.method)} | ${formatTableCode(row.signature)} | ${escapeTableText(row.description)} |`,
 			);
 		}
 		lines.push("");

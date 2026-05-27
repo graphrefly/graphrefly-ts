@@ -23,8 +23,8 @@ function snapshotStorage<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `backend` | `StorageBackend` | Bytes-level backend to persist snapshots into. |
-| `opts` | `SnapshotStorageOptions&lt;T&gt;` | Optional name, codec, debounce window, compaction interval, pre-save filter, and key extractor. |
+| <code>backend</code> | <code>StorageBackend</code> | Bytes-level backend to persist snapshots into. |
+| <code>opts</code> | <code>SnapshotStorageOptions&lt;T&gt;</code> | Optional name, codec, debounce window, compaction interval, pre-save filter, and key extractor. |
 
 ## Returns
 

@@ -15,4 +15,4 @@ processStateKeyOf<TState>(s: ProcessStateSnapshot<TState>): string
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `s` | `ProcessStateSnapshot&lt;TState&gt;` |  |
+| <code>s</code> | <code>ProcessStateSnapshot&lt;TState&gt;</code> |  |

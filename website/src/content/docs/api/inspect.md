@@ -17,8 +17,8 @@ function inspect(target: Graph, opts: InspectOptions = {}): InspectGraph
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `Graph` |  |
-| `opts` | `InspectOptions` |  |
+| <code>target</code> | <code>Graph</code> |  |
+| <code>opts</code> | <code>InspectOptions</code> |  |
 
 ## Basic Usage
 

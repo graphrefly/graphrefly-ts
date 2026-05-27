@@ -17,5 +17,5 @@ function retry<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `input` | `Node&lt;T&gt; | (() =&gt; Node&lt;T&gt;)` |  |
-| `opts` | `NodeOrValue&lt;RetryOptions | RetryFactoryOptions&lt;T&gt;&gt;` |  |
+| <code>input</code> | <code>Node&lt;T&gt; | (() =&gt; Node&lt;T&gt;)</code> |  |
+| <code>opts</code> | <code>NodeOrValue&lt;RetryOptions | RetryFactoryOptions&lt;T&gt;&gt;</code> |  |

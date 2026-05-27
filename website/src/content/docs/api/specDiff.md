@@ -18,8 +18,8 @@ function specDiff(specA: GraphSpec, specB: GraphSpec): SpecDiffResult
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `specA` | `GraphSpec` | The "before" spec. |
-| `specB` | `GraphSpec` | The "after" spec. |
+| <code>specA</code> | <code>GraphSpec</code> | The "before" spec. |
+| <code>specB</code> | <code>GraphSpec</code> | The "after" spec. |
 
 ## Returns
 

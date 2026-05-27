@@ -15,7 +15,7 @@ function never<T = never>(opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `ExtraOpts` | Optional producer options. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional producer options. |
 
 ## Returns
 

@@ -15,9 +15,9 @@ function forEach<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts): 
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `fn` | `(value: T) =&gt; void` | Side effect per value. |
-| `opts` | `ExtraOpts` | Effect node options. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>fn</code> | <code>(value: T) =&gt; void</code> | Side effect per value. |
+| <code>opts</code> | <code>ExtraOpts</code> | Effect node options. |
 
 ## Returns
 

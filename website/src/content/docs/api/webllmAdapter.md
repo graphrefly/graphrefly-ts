@@ -13,4 +13,4 @@ function webllmAdapter(opts: WebLLMAdapterOptions): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `WebLLMAdapterOptions` |  |
+| <code>opts</code> | <code>WebLLMAdapterOptions</code> |  |

@@ -15,4 +15,4 @@ processInstanceKeyOf<TState>(i: ProcessInstance<TState>): string
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `i` | `ProcessInstance&lt;TState&gt;` |  |
+| <code>i</code> | <code>ProcessInstance&lt;TState&gt;</code> |  |

@@ -23,9 +23,9 @@ function scorer(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `ReadonlyArray&lt;Node&lt;number&gt;&gt;` | Signal nodes (each emits a numeric score dimension). |
-| `weights` | `ReadonlyArray&lt;Node&lt;number&gt;&gt;` | Reactive weight nodes (one per source). |
-| `opts` | `ScorerOptions` | Optional node/meta options. |
+| <code>sources</code> | <code>ReadonlyArray&lt;Node&lt;number&gt;&gt;</code> | Signal nodes (each emits a numeric score dimension). |
+| <code>weights</code> | <code>ReadonlyArray&lt;Node&lt;number&gt;&gt;</code> | Reactive weight nodes (one per source). |
+| <code>opts</code> | <code>ScorerOptions</code> | Optional node/meta options. |
 
 ## Returns
 

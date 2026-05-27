@@ -15,5 +15,5 @@ function pipelineGraph(name: string, opts?: GraphOptions): PipelineGraph
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `opts` | `GraphOptions` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>opts</code> | <code>GraphOptions</code> |  |

@@ -9,6 +9,7 @@ export default defineConfig({
 	vite: {
 		resolve: {
 			conditions: ["browser"],
+			dedupe: ["@graphrefly/pure-ts"],
 		},
 		build: {
 			rollupOptions: {

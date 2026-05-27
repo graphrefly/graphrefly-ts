@@ -260,7 +260,13 @@ export default function App() {
 						title="Drag to resize"
 					/>
 					<div className="pane-code">
-						<h3>Source — this is the code that built the graph</h3>
+						<h3>
+							Source — this is the code that built the graph
+							<span className="layout-meta">
+								{" "}
+								· {activeChapter.sourceCode.split("\n").length} lines
+							</span>
+						</h3>
 						<CodePane source={activeChapter.sourceCode} highlightLine={highlightLine} />
 					</div>
 				</div>

@@ -27,4 +27,4 @@ function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundle
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `ReactiveLayoutOptions` |  |
+| <code>opts</code> | <code>ReactiveLayoutOptions</code> |  |

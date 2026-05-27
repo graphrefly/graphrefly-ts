@@ -29,9 +29,9 @@ function computeLineBreaks(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `segments` | `PreparedSegment[]` |  |
-| `maxWidth` | `number` |  |
-| `adapter` | `MeasurementAdapter` |  |
-| `font` | `string` |  |
-| `cache` | `Map&lt;string, Map&lt;string, number&gt;&gt;` |  |
-| `segmentAdapter` | `SegmentAdapter` |  |
+| <code>segments</code> | <code>PreparedSegment[]</code> |  |
+| <code>maxWidth</code> | <code>number</code> |  |
+| <code>adapter</code> | <code>MeasurementAdapter</code> |  |
+| <code>font</code> | <code>string</code> |  |
+| <code>cache</code> | <code>Map&lt;string, Map&lt;string, number&gt;&gt;</code> |  |
+| <code>segmentAdapter</code> | <code>SegmentAdapter</code> |  |

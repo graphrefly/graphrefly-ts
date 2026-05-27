@@ -22,8 +22,8 @@ function validateGraphObservability(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `graph` | `Graph` |  |
-| `opts` | `ValidateObservabilityOptions` |  |
+| <code>graph</code> | <code>Graph</code> |  |
+| <code>opts</code> | <code>ValidateObservabilityOptions</code> |  |
 
 ## Basic Usage
 

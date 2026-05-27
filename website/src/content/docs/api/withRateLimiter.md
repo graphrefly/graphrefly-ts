@@ -20,5 +20,5 @@ function withRateLimiter(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `inner` | `LLMAdapter` |  |
-| `opts` | `WithRateLimiterOptions` |  |
+| <code>inner</code> | <code>LLMAdapter</code> |  |
+| <code>opts</code> | <code>WithRateLimiterOptions</code> |  |

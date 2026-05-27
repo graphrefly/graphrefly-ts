@@ -15,5 +15,5 @@ function topic<T>(name: string, opts?: TopicOptions): TopicGraph<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `opts` | `TopicOptions` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>opts</code> | <code>TopicOptions</code> |  |

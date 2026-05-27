@@ -15,9 +15,9 @@ function elementAt<T>(source: Node<T>, index: number, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `index` | `number` | Zero-based emission index. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>index</code> | <code>number</code> | Zero-based emission index. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

@@ -22,8 +22,8 @@ function kvStorage<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `backend` | `StorageBackend` | Bytes-level backend to persist records into. |
-| `opts` | `KvStorageOptions&lt;T&gt;` | Optional name, codec, debounce window, compaction interval, and pre-save filter. |
+| <code>backend</code> | <code>StorageBackend</code> | Bytes-level backend to persist records into. |
+| <code>opts</code> | <code>KvStorageOptions&lt;T&gt;</code> | Optional name, codec, debounce window, compaction interval, and pre-save filter. |
 
 ## Returns
 

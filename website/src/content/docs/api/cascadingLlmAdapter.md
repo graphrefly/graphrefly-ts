@@ -16,5 +16,5 @@ function cascadingLlmAdapter(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `tiers` | `readonly AdapterTier[]` |  |
-| `opts` | `CascadingLlmAdapterOptions` |  |
+| <code>tiers</code> | <code>readonly AdapterTier[]</code> |  |
+| <code>opts</code> | <code>CascadingLlmAdapterOptions</code> |  |

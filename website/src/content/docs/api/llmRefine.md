@@ -20,10 +20,10 @@ async function llmRefine(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `currentSpec` | `GraphSpec` | The current GraphSpec to modify. |
-| `feedback` | `string` | Natural language feedback or changed requirements. |
-| `adapter` | `LLMAdapter` | LLM adapter for the generation call. |
-| `opts` | `LLMRefineOptions` | Model options. |
+| <code>currentSpec</code> | <code>GraphSpec</code> | The current GraphSpec to modify. |
+| <code>feedback</code> | <code>string</code> | Natural language feedback or changed requirements. |
+| <code>adapter</code> | <code>LLMAdapter</code> | LLM adapter for the generation call. |
+| <code>opts</code> | <code>LLMRefineOptions</code> | Model options. |
 
 ## Returns
 

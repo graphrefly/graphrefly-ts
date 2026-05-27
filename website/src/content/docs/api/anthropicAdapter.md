@@ -13,4 +13,4 @@ function anthropicAdapter(opts: AnthropicAdapterOptions = {}): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `AnthropicAdapterOptions` |  |
+| <code>opts</code> | <code>AnthropicAdapterOptions</code> |  |

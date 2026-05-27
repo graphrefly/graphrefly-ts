@@ -18,8 +18,8 @@ function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `spec` | `GraphSpec` | Declarative graph topology. |
-| `opts` | `CompileSpecOptions` | Catalog and compile options. |
+| <code>spec</code> | <code>GraphSpec</code> | Declarative graph topology. |
+| <code>opts</code> | <code>CompileSpecOptions</code> | Catalog and compile options. |
 
 ## Returns
 

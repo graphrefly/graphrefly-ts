@@ -41,9 +41,10 @@
 
 .pane-graph {
 	flex: 0 0 auto;
-	overflow: auto;
-	padding: 1rem;
-	min-height: 60px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 }
 
 .pane-split-divider {
@@ -60,9 +61,10 @@
 
 .pane-code {
 	flex: 1 1 auto;
-	overflow: auto;
-	padding: 1rem;
-	min-height: 60px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 }
 
 .pane-graph h3,
@@ -73,7 +75,20 @@
 	text-transform: uppercase;
 	letter-spacing: 0.16em;
 	color: var(--gr-ink-mute);
-	margin-bottom: 0.75rem;
+	padding: 0.6rem 1rem;
+	margin-bottom: 0;
+	border-bottom: 1px solid var(--gr-border-subtle);
+	flex-shrink: 0;
+}
+
+.pane-code h3 .layout-meta {
+	margin-left: 0.35rem;
+	font-family: var(--font-mono);
+	font-weight: 400;
+	font-size: 0.62rem;
+	letter-spacing: 0;
+	text-transform: none;
+	color: var(--color-text-dim);
 }
 
 .mermaid-pre {
@@ -90,19 +105,17 @@
 }
 
 .mermaid-graph {
-	background: var(--color-surface2);
-	border: 1px solid var(--color-border);
-	border-radius: 12px;
-	padding: 1rem;
-	overflow: auto;
-	min-height: 200px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	flex: 1 1 auto;
+	overflow: hidden;
+	padding: 0.75rem;
+	min-height: 0;
+	border: none;
+	border-radius: 0;
+	background: transparent;
 }
 
 .mermaid-graph svg {
-	max-width: 100%;
+	max-width: none;
 	height: auto;
 }
 
@@ -113,7 +126,9 @@
 	font-size: 0.75rem;
 }
 
-.code-pre {
+.pane-code > .code-pre {
+	flex: 1 1 auto;
+	overflow: auto;
 	font-family: var(--font-mono);
 	font-size: 0.78rem;
 	line-height: 1.7;
@@ -122,6 +137,30 @@
 	border: 1px solid var(--color-border);
 	border-radius: 12px;
 	padding: 1rem;
-	overflow-x: auto;
+	white-space: pre;
+	margin: 0 1rem 1rem;
+}
+
+.code-line {
+	display: flex;
+	gap: 0.75rem;
+	padding: 0 0.25rem;
+}
+
+.code-line.active {
+	background: var(--gr-aqua-glow);
+	border-radius: 3px;
+}
+
+.code-lineno {
+	color: var(--gr-text-muted);
+	width: 2.2em;
+	text-align: right;
+	user-select: none;
+	flex-shrink: 0;
+}
+
+.code-linetext {
+	flex: 1 1 auto;
 	white-space: pre;
 }

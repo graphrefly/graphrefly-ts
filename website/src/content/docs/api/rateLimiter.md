@@ -23,8 +23,8 @@ function rateLimiter<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `opts` | `NodeOrValue&lt;RateLimiterOptions&gt;` | Rate + bounded-buffer configuration. `maxBuffer` is required (use `Infinity` to opt in to unbounded). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>opts</code> | <code>NodeOrValue&lt;RateLimiterOptions&gt;</code> | Rate + bounded-buffer configuration. `maxBuffer` is required (use `Infinity` to opt in to unbounded). |
 
 ## Returns
 

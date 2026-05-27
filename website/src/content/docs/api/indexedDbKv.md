@@ -22,8 +22,8 @@ function indexedDbKv<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `spec` | `IndexedDbBackendSpec` | Database name, object store name, and optional schema version. |
-| `opts` | `Omit&lt;KvStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional kv storage options (name, codec, filter, debounce, compactEvery). |
+| <code>spec</code> | <code>IndexedDbBackendSpec</code> | Database name, object store name, and optional schema version. |
+| <code>opts</code> | <code>Omit&lt;KvStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional kv storage options (name, codec, filter, debounce, compactEvery). |
 
 ## Returns
 

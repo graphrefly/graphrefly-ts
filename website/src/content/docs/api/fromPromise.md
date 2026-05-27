@@ -16,8 +16,8 @@ function fromPromise<T>(p: Promise<T> | PromiseLike<T>, opts?: AsyncSourceOpts):
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `p` | `Promise&lt;T&gt; | PromiseLike&lt;T&gt;` | Promise to await. |
-| `opts` | `AsyncSourceOpts` | Producer options plus optional `signal` for abort → `ERROR`. |
+| <code>p</code> | <code>Promise&lt;T&gt; | PromiseLike&lt;T&gt;</code> | Promise to await. |
+| <code>opts</code> | <code>AsyncSourceOpts</code> | Producer options plus optional `signal` for abort → `ERROR`. |
 
 ## Returns
 

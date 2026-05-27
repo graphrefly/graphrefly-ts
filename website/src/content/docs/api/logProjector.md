@@ -20,9 +20,9 @@ function logProjector<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `source` | `TopicGraph&lt;T&gt; | ReactiveLogBundle&lt;T&gt;` |  |
-| `opts` | `LogProjectorOptions&lt;T&gt;` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>source</code> | <code>TopicGraph&lt;T&gt; | ReactiveLogBundle&lt;T&gt;</code> |  |
+| <code>opts</code> | <code>LogProjectorOptions&lt;T&gt;</code> |  |
 
 ## Basic Usage
 

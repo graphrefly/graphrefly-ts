@@ -22,4 +22,4 @@ function memoryWithVectors<TMem>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `MemoryWithVectorsOptions&lt;TMem&gt;` |  |
+| <code>opts</code> | <code>MemoryWithVectorsOptions&lt;TMem&gt;</code> |  |

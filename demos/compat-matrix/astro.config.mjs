@@ -35,6 +35,7 @@ export default defineConfig({
 	vite: {
 		resolve: {
 			conditions: ["browser"],
+			dedupe: ["@graphrefly/pure-ts"],
 			alias: [{ find: /^svelte$/, replacement: svelteClientEntry }],
 		},
 		build: {

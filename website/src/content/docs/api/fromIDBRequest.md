@@ -15,7 +15,7 @@ function fromIDBRequest<T>(req: IDBRequest<T>): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `req` | `IDBRequest&lt;T&gt;` | Request whose callbacks are converted to protocol messages. |
+| <code>req</code> | <code>IDBRequest&lt;T&gt;</code> | Request whose callbacks are converted to protocol messages. |
 
 ## Returns
 

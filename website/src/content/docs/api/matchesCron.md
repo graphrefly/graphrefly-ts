@@ -15,8 +15,8 @@ function matchesCron(schedule: CronSchedule, date: Date): boolean
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `schedule` | `CronSchedule` | Parsed schedule from parseCron. |
-| `date` | `Date` | Moment to test (local time via `getMinutes`, `getHours`, etc.). |
+| <code>schedule</code> | <code>CronSchedule</code> | Parsed schedule from parseCron. |
+| <code>date</code> | <code>Date</code> | Moment to test (local time via `getMinutes`, `getHours`, etc.). |
 
 ## Returns
 

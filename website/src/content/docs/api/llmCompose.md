@@ -22,9 +22,9 @@ async function llmCompose(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `problem` | `string` | Natural language problem description. |
-| `adapter` | `LLMAdapter` | LLM adapter for the generation call. |
-| `opts` | `LLMComposeOptions` | Model options and catalog description. |
+| <code>problem</code> | <code>string</code> | Natural language problem description. |
+| <code>adapter</code> | <code>LLMAdapter</code> | LLM adapter for the generation call. |
+| <code>opts</code> | <code>LLMComposeOptions</code> | Model options and catalog description. |
 
 ## Returns
 

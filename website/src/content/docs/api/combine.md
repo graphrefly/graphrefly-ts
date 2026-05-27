@@ -17,7 +17,7 @@ function combine<const T extends readonly unknown[]>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `{ [K in keyof T]: Node&lt;T[K]&gt; }` | Nodes to combine (variadic). |
+| <code>sources</code> | <code>{ [K in keyof T]: Node&lt;T[K]&gt; }</code> | Nodes to combine (variadic). |
 
 ## Returns
 

@@ -20,5 +20,5 @@ function scoringByOutcome<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `outcomes` | `Node&lt;OutcomeSignal&gt;` |  |
-| `opts` | `ScoringByOutcomeOptions&lt;T&gt;` |  |
+| <code>outcomes</code> | <code>Node&lt;OutcomeSignal&gt;</code> |  |
+| <code>opts</code> | <code>ScoringByOutcomeOptions&lt;T&gt;</code> |  |

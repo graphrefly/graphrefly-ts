@@ -18,7 +18,7 @@ function circuitBreaker(options?: NodeOrValue<CircuitBreakerOptions>): CircuitBr
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options` | `NodeOrValue&lt;CircuitBreakerOptions&gt;` | Threshold, cooldown, half-open limit, and optional clock
+| <code>options</code> | <code>NodeOrValue&lt;CircuitBreakerOptions&gt;</code> | Threshold, cooldown, half-open limit, and optional clock
 override; OR a `Node&lt;CircuitBreakerOptions&gt;` carrying the same shape
 reactively (Tier 6.5 3.2.4). |
 

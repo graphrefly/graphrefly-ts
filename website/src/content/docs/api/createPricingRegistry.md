@@ -17,4 +17,4 @@ function createPricingRegistry(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `initial` | `ReadonlyArray&lt;readonly [provider: string, model: string, pricing: ModelPricing]&gt;` |  |
+| <code>initial</code> | <code>ReadonlyArray&lt;readonly [provider: string, model: string, pricing: ModelPricing]&gt;</code> |  |

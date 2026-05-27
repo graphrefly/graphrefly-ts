@@ -15,8 +15,8 @@ function graphLens(target: Graph, opts: GraphLensOptions = {}): GraphLensView
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `Graph` | The graph to observe. |
-| `opts` | `GraphLensOptions` |  |
+| <code>target</code> | <code>Graph</code> | The graph to observe. |
+| <code>opts</code> | <code>GraphLensOptions</code> |  |
 
 ## Basic Usage
 

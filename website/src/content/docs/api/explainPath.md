@@ -21,10 +21,10 @@ function explainPath(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `described` | `GraphDescribeOutput` | `graph.describe()` output (any detail level; richer detail → richer steps). |
-| `from` | `string` | Path of the upstream node (the cause). |
-| `to` | `string` | Path of the downstream node (the effect). |
-| `opts` | `ExplainPathOptions` | Optional `maxDepth` and per-path annotation overlays. |
+| <code>described</code> | <code>GraphDescribeOutput</code> | `graph.describe()` output (any detail level; richer detail → richer steps). |
+| <code>from</code> | <code>string</code> | Path of the upstream node (the cause). |
+| <code>to</code> | <code>string</code> | Path of the downstream node (the effect). |
+| <code>opts</code> | <code>ExplainPathOptions</code> | Optional `maxDepth` and per-path annotation overlays. |
 
 ## Returns
 

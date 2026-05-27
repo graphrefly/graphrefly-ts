@@ -20,5 +20,5 @@ function toObservable<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `node` | `Node&lt;T&gt;` |  |
-| `options` | `ToObservableOptions` |  |
+| <code>node</code> | <code>Node&lt;T&gt;</code> |  |
+| <code>options</code> | <code>ToObservableOptions</code> |  |

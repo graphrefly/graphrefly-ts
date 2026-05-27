@@ -15,4 +15,4 @@ function composePricing(...fns: readonly PricingFn[]): PricingFn
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `fns` | `readonly PricingFn[]` |  |
+| <code>fns</code> | <code>readonly PricingFn[]</code> |  |

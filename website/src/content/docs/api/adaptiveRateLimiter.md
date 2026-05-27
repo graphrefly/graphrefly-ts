@@ -18,4 +18,4 @@ function adaptiveRateLimiter(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `AdaptiveRateLimiterOptions` |  |
+| <code>opts</code> | <code>AdaptiveRateLimiterOptions</code> |  |

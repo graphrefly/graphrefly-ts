@@ -29,8 +29,8 @@ function watchTopologyTree(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `graph` | `Graph` | Root graph to watch. |
-| `cb` | `(event: TopologyEvent, emitter: Graph, prefix: string) =&gt; void` | Receives `(event, emitterGraph, prefix)`. |
+| <code>graph</code> | <code>Graph</code> | Root graph to watch. |
+| <code>cb</code> | <code>(event: TopologyEvent, emitter: Graph, prefix: string) =&gt; void</code> | Receives `(event, emitterGraph, prefix)`. |
 
 ## Returns
 

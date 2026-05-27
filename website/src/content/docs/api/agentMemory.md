@@ -25,6 +25,6 @@ function agentMemory<TMem = unknown>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `source` | `NodeInput&lt;unknown&gt;` |  |
-| `opts` | `AgentMemoryOptions&lt;TMem&gt;` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>source</code> | <code>NodeInput&lt;unknown&gt;</code> |  |
+| <code>opts</code> | <code>AgentMemoryOptions&lt;TMem&gt;</code> |  |

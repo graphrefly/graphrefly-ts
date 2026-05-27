@@ -15,4 +15,4 @@ function cloudFirstPreset(opts: CloudFirstPresetOptions): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `CloudFirstPresetOptions` |  |
+| <code>opts</code> | <code>CloudFirstPresetOptions</code> |  |

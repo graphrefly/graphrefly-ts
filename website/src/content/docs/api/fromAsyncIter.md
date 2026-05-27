@@ -16,8 +16,8 @@ function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceOpts): N
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `iterable` | `AsyncIterable&lt;T&gt;` | Async source (`for await` shape). |
-| `opts` | `AsyncSourceOpts` | Producer options plus optional `signal` to abort the pump. |
+| <code>iterable</code> | <code>AsyncIterable&lt;T&gt;</code> | Async source (`for await` shape). |
+| <code>opts</code> | <code>AsyncSourceOpts</code> | Producer options plus optional `signal` to abort the pump. |
 
 ## Returns
 

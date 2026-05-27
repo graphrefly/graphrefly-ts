@@ -16,7 +16,7 @@ function policy(build: (allow: PolicyAllow, deny: PolicyDeny) => void): NodeGuar
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `build` | `(allow: PolicyAllow, deny: PolicyDeny) =&gt; void` | Callback that registers `allow(...)` / `deny(...)` rules in order. |
+| <code>build</code> | <code>(allow: PolicyAllow, deny: PolicyDeny) =&gt; void</code> | Callback that registers `allow(...)` / `deny(...)` rules in order. |
 
 ## Returns
 

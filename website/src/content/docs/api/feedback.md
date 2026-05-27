@@ -27,10 +27,10 @@ function feedback(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `graph` | `Graph` | Existing graph to augment with a feedback cycle. |
-| `condition` | `string` | Path to a node whose DATA triggers feedback. |
-| `reentry` | `string` | Path to a state node that receives the feedback value. |
-| `opts` | `FeedbackOptions` | Iteration bounds and metadata. |
+| <code>graph</code> | <code>Graph</code> | Existing graph to augment with a feedback cycle. |
+| <code>condition</code> | <code>string</code> | Path to a node whose DATA triggers feedback. |
+| <code>reentry</code> | <code>string</code> | Path to a state node that receives the feedback value. |
+| <code>opts</code> | <code>FeedbackOptions</code> | Iteration bounds and metadata. |
 
 ## Returns
 

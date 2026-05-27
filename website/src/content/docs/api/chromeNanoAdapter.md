@@ -13,4 +13,4 @@ function chromeNanoAdapter(opts: ChromeNanoAdapterOptions = {}): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `ChromeNanoAdapterOptions` |  |
+| <code>opts</code> | <code>ChromeNanoAdapterOptions</code> |  |

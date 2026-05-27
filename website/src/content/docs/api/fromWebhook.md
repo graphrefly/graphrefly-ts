@@ -19,8 +19,8 @@ function fromWebhook<T = unknown>(register: WebhookRegister<T>, opts?: ExtraOpts
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `register` | `WebhookRegister&lt;T&gt;` | Registers webhook handlers (`emit`, `error`, `complete`) and optionally returns cleanup. |
-| `opts` | `ExtraOpts` | Optional producer options. |
+| <code>register</code> | <code>WebhookRegister&lt;T&gt;</code> | Registers webhook handlers (`emit`, `error`, `complete`) and optionally returns cleanup. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional producer options. |
 
 ## Returns
 

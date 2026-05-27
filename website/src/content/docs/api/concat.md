@@ -15,9 +15,9 @@ function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpts): Nod
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `firstSrc` | `Node&lt;T&gt;` | First segment. |
-| `secondSrc` | `Node&lt;T&gt;` | Second segment. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>firstSrc</code> | <code>Node&lt;T&gt;</code> | First segment. |
+| <code>secondSrc</code> | <code>Node&lt;T&gt;</code> | Second segment. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

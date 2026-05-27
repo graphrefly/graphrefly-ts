@@ -13,5 +13,5 @@ function withRetry(inner: LLMAdapter, opts: WithRetryOptions = {}): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `inner` | `LLMAdapter` |  |
-| `opts` | `WithRetryOptions` |  |
+| <code>inner</code> | <code>LLMAdapter</code> |  |
+| <code>opts</code> | <code>WithRetryOptions</code> |  |

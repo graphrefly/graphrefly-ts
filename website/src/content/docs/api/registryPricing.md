@@ -17,5 +17,5 @@ function registryPricing(registry: PricingRegistry, defaultCurrency = "USD"): Pr
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `registry` | `PricingRegistry` |  |
-| `defaultCurrency` | `unknown` |  |
+| <code>registry</code> | <code>PricingRegistry</code> |  |
+| <code>defaultCurrency</code> | <code>unknown</code> |  |

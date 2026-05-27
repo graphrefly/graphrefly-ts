@@ -20,7 +20,7 @@ function memoryAppendLog<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `Omit&lt;AppendLogStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional append-log storage options (name, codec, keyOf, debounce, compactEvery). |
+| <code>opts</code> | <code>Omit&lt;AppendLogStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional append-log storage options (name, codec, keyOf, debounce, compactEvery). |
 
 ## Returns
 

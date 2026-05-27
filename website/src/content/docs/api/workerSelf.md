@@ -16,5 +16,5 @@ function workerSelf<TImport extends readonly string[]>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `unknown | WorkerTransport` |  |
-| `opts` | `WorkerSelfOptions&lt;TImport&gt;` |  |
+| <code>target</code> | <code>unknown | WorkerTransport</code> |  |
+| <code>opts</code> | <code>WorkerSelfOptions&lt;TImport&gt;</code> |  |

@@ -19,9 +19,9 @@ function tokenBucket(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `capacity` | `number` | Maximum tokens (must be positive). |
-| `refillPerSecond` | `number` | Tokens added per elapsed second (non-negative; may be fractional). |
-| `opts` | `TokenBucketOptions` | Optional `clock` override for deterministic testing. |
+| <code>capacity</code> | <code>number</code> | Maximum tokens (must be positive). |
+| <code>refillPerSecond</code> | <code>number</code> | Tokens added per elapsed second (non-negative; may be fractional). |
+| <code>opts</code> | <code>TokenBucketOptions</code> | Optional `clock` override for deterministic testing. |
 
 ## Basic Usage
 

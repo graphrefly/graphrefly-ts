@@ -15,8 +15,8 @@ function share<T>(source: Node<T>, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node to share. |
-| `opts` | `ExtraOpts` | Producer options; `initial` seeds from `source.cache` when set by factory. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node to share. |
+| <code>opts</code> | <code>ExtraOpts</code> | Producer options; `initial` seeds from `source.cache` when set by factory. |
 
 ## Returns
 

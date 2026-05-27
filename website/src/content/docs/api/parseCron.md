@@ -19,7 +19,7 @@ function parseCron(expr: string): CronSchedule
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `expr` | `string` | Five-field whitespace-separated cron string (e.g. `"0 9 * * 1-5"`). |
+| <code>expr</code> | <code>string</code> | Five-field whitespace-separated cron string (e.g. `"0 9 * * 1-5"`). |
 
 ## Returns
 

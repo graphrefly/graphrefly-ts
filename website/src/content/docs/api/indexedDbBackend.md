@@ -19,7 +19,7 @@ function indexedDbBackend(spec: IndexedDbBackendSpec): StorageBackend
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `spec` | `IndexedDbBackendSpec` | Database name, object store name, and optional schema version. |
+| <code>spec</code> | <code>IndexedDbBackendSpec</code> | Database name, object store name, and optional schema version. |
 
 ## Returns
 

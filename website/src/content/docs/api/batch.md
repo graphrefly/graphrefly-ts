@@ -17,4 +17,4 @@ function batch(fn: () => void): void
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `fn` | `() =&gt; void` |  |
+| <code>fn</code> | <code>() =&gt; void</code> |  |

@@ -15,8 +15,8 @@ function interval(periodMs: number, opts?: ExtraOpts): Node<number>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `periodMs` | `number` | Time between ticks. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>periodMs</code> | <code>number</code> | Time between ticks. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

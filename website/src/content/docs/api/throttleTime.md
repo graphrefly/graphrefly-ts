@@ -19,9 +19,9 @@ function throttle<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `ms` | `number` | Minimum spacing in milliseconds. |
-| `opts` | `ExtraOpts & ThrottleOptions` | Optional NodeOptions (excluding `describeKind`) plus `leading` / `trailing`. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>ms</code> | <code>number</code> | Minimum spacing in milliseconds. |
+| <code>opts</code> | <code>ExtraOpts & ThrottleOptions</code> | Optional NodeOptions (excluding `describeKind`) plus `leading` / `trailing`. |
 
 ## Returns
 

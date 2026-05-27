@@ -21,8 +21,8 @@ function fileKv<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `dir` | `string` | Directory path where key files are stored. |
-| `opts` | `Omit&lt;KvStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional kv storage options (name, codec, filter, debounce, compactEvery). |
+| <code>dir</code> | <code>string</code> | Directory path where key files are stored. |
+| <code>opts</code> | <code>Omit&lt;KvStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional kv storage options (name, codec, filter, debounce, compactEvery). |
 
 ## Returns
 

@@ -30,4 +30,4 @@ function memoryWithTiers<TRaw, TMem>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `MemoryWithTiersOptions&lt;TRaw, TMem&gt;` |  |
+| <code>opts</code> | <code>MemoryWithTiersOptions&lt;TRaw, TMem&gt;</code> |  |

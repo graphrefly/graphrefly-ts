@@ -24,5 +24,5 @@ function auditTrail(target: Graph, opts: AuditTrailOptions = {}): AuditTrailGrap
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `Graph` |  |
-| `opts` | `AuditTrailOptions` |  |
+| <code>target</code> | <code>Graph</code> |  |
+| <code>opts</code> | <code>AuditTrailOptions</code> |  |

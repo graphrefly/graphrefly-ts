@@ -29,5 +29,5 @@ function observableAdapter(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `inner` | `LLMAdapter` |  |
-| `opts` | `{ logMax?: number; name?: string }` |  |
+| <code>inner</code> | <code>LLMAdapter</code> |  |
+| <code>opts</code> | <code>{ logMax?: number; name?: string }</code> |  |

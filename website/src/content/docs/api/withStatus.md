@@ -18,8 +18,8 @@ function withStatus<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `src` | `Node&lt;T&gt;` | Upstream node to mirror. |
-| `options` | `{ initialStatus?: StatusValue; meta?: Record&lt;string, unknown&gt; }` | `initialStatus` defaults to `"pending"`. |
+| <code>src</code> | <code>Node&lt;T&gt;</code> | Upstream node to mirror. |
+| <code>options</code> | <code>{ initialStatus?: StatusValue; meta?: Record&lt;string, unknown&gt; }</code> | `initialStatus` defaults to `"pending"`. |
 
 ## Returns
 

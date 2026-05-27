@@ -21,6 +21,6 @@ function verifiable<T, TVerify = VerifyValue>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `NodeInput&lt;T&gt;` |  |
-| `verifyFn` | `(value: T) =&gt; NodeInput&lt;TVerify&gt;` |  |
-| `opts` | `VerifiableOptions&lt;TVerify&gt;` |  |
+| <code>source</code> | <code>NodeInput&lt;T&gt;</code> |  |
+| <code>verifyFn</code> | <code>(value: T) =&gt; NodeInput&lt;TVerify&gt;</code> |  |
+| <code>opts</code> | <code>VerifiableOptions&lt;TVerify&gt;</code> |  |

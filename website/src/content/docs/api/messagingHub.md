@@ -16,8 +16,8 @@ function messagingHub(name: string, opts?: MessagingHubOptions): MessagingHubGra
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `opts` | `MessagingHubOptions` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>opts</code> | <code>MessagingHubOptions</code> |  |
 
 ## Basic Usage
 

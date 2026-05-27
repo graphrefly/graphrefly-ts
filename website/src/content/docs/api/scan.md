@@ -23,10 +23,10 @@ function scan<T, R>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `reducer` | `(acc: R, value: T) =&gt; R` | `(acc, value) =&gt; nextAcc`. |
-| `seed` | `R` | Initial accumulator (required). |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>reducer</code> | <code>(acc: R, value: T) =&gt; R</code> | `(acc, value) =&gt; nextAcc`. |
+| <code>seed</code> | <code>R</code> | Initial accumulator (required). |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

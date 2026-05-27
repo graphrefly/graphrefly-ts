@@ -15,7 +15,7 @@ function of<T>(...values: T[]): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `values` | `T[]` | Values to emit. |
+| <code>values</code> | <code>T[]</code> | Values to emit. |
 
 ## Returns
 

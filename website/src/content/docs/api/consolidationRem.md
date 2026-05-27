@@ -16,4 +16,4 @@ function consolidationRem<T>(opts: ConsolidationRemOptions<T>): ConsolidationRem
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `ConsolidationRemOptions&lt;T&gt;` |  |
+| <code>opts</code> | <code>ConsolidationRemOptions&lt;T&gt;</code> |  |

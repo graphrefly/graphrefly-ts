@@ -31,8 +31,8 @@ function resilientPipeline<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node to wrap. |
-| `opts` | `ResilientPipelineOptions&lt;T&gt;` | See ResilientPipelineOptions. All fields optional. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node to wrap. |
+| <code>opts</code> | <code>ResilientPipelineOptions&lt;T&gt;</code> | See ResilientPipelineOptions. All fields optional. |
 
 ## Basic Usage
 

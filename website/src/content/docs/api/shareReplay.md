@@ -15,9 +15,9 @@ function replay<T>(source: Node<T>, bufferSize: number, opts?: ExtraOpts): Node<
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `bufferSize` | `number` | Maximum past values to replay (≥ 1). |
-| `opts` | `ExtraOpts` | Producer options. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>bufferSize</code> | <code>number</code> | Maximum past values to replay (≥ 1). |
+| <code>opts</code> | <code>ExtraOpts</code> | Producer options. |
 
 ## Returns
 

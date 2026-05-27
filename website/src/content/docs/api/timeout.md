@@ -19,9 +19,9 @@ function timeout<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `ms` | `number` | Idle budget in milliseconds. |
-| `opts` | `ExtraOpts & { with?: unknown }` | Optional NodeOptions (excluding `describeKind`) and `with` for a custom error payload. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>ms</code> | <code>number</code> | Idle budget in milliseconds. |
+| <code>opts</code> | <code>ExtraOpts & { with?: unknown }</code> | Optional NodeOptions (excluding `describeKind`) and `with` for a custom error payload. |
 
 ## Returns
 

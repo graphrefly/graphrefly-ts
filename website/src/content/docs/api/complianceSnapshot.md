@@ -27,5 +27,5 @@ function complianceSnapshot(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `Graph` |  |
-| `opts` | `ComplianceSnapshotOptions` |  |
+| <code>target</code> | <code>Graph</code> |  |
+| <code>opts</code> | <code>ComplianceSnapshotOptions</code> |  |

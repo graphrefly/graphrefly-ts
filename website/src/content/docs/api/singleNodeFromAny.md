@@ -35,5 +35,5 @@ function singleNodeFromAny<K, T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `factory` | `(key: K) =&gt; NodeInput&lt;T&gt;` |  |
-| `opts` | `SingleFromAnyOptions&lt;K&gt;` |  |
+| <code>factory</code> | <code>(key: K) =&gt; NodeInput&lt;T&gt;</code> |  |
+| <code>opts</code> | <code>SingleFromAnyOptions&lt;K&gt;</code> |  |

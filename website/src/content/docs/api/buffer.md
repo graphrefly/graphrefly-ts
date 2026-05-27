@@ -15,9 +15,9 @@ function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): 
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `notifier` | `Node&lt;unknown&gt;` | Flush trigger on each settlement. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>notifier</code> | <code>Node&lt;unknown&gt;</code> | Flush trigger on each settlement. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

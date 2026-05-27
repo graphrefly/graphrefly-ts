@@ -15,8 +15,8 @@ function linear(baseNs: number, stepNs?: number): BackoffStrategy
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `baseNs` | `number` | Base delay in nanoseconds (clamped non-negative). |
-| `stepNs` | `number` | Added per retry attempt in nanoseconds (clamped non-negative). |
+| <code>baseNs</code> | <code>number</code> | Base delay in nanoseconds (clamped non-negative). |
+| <code>stepNs</code> | <code>number</code> | Added per retry attempt in nanoseconds (clamped non-negative). |
 
 ## Returns
 

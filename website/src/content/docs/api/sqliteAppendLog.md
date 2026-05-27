@@ -22,8 +22,8 @@ function sqliteAppendLog<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | `string` | Filesystem path to the SQLite database file. |
-| `opts` | `Omit&lt;AppendLogStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional append-log storage options (name, codec, keyOf, debounce, compactEvery). |
+| <code>path</code> | <code>string</code> | Filesystem path to the SQLite database file. |
+| <code>opts</code> | <code>Omit&lt;AppendLogStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional append-log storage options (name, codec, keyOf, debounce, compactEvery). |
 
 ## Returns
 

@@ -20,7 +20,7 @@ function computeCharPositions(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `lineBreaks` | `LineBreaksResult` |  |
-| `segments` | `PreparedSegment[]` |  |
-| `lineHeight` | `number` |  |
-| `segmentAdapter` | `SegmentAdapter` |  |
+| <code>lineBreaks</code> | <code>LineBreaksResult</code> |  |
+| <code>segments</code> | <code>PreparedSegment[]</code> |  |
+| <code>lineHeight</code> | <code>number</code> |  |
+| <code>segmentAdapter</code> | <code>SegmentAdapter</code> |  |

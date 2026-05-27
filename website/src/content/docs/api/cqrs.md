@@ -18,8 +18,8 @@ function cqrs<EM extends CqrsEventMap = Record<string, unknown>>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `opts` | `CqrsOptions` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>opts</code> | <code>CqrsOptions</code> |  |
 
 ## Basic Usage
 

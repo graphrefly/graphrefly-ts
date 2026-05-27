@@ -231,7 +231,13 @@ export default function App() {
 						title="Drag to resize graph / code split"
 					/>
 					<div className="pane-code">
-						<h3>Source — the code that built this chapter's graph</h3>
+						<h3>
+							Source — the code that built this chapter&apos;s graph
+							<span className="layout-meta">
+								{" "}
+								· {resolved.sourceCode.split("\n").length} lines
+							</span>
+						</h3>
 						<CodePane source={resolved.sourceCode} highlightLine={highlightLine} />
 					</div>
 				</div>

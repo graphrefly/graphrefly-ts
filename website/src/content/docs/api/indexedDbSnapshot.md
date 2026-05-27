@@ -22,8 +22,8 @@ function indexedDbSnapshot<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `spec` | `IndexedDbBackendSpec` | Database name, object store name, and optional schema version. |
-| `opts` | `Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
+| <code>spec</code> | <code>IndexedDbBackendSpec</code> | Database name, object store name, and optional schema version. |
+| <code>opts</code> | <code>Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
 
 ## Returns
 

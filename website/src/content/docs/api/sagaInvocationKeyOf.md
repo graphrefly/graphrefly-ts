@@ -13,4 +13,4 @@ sagaInvocationKeyOf<T>(i: SagaInvocation<T>): string
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `i` | `SagaInvocation&lt;T&gt;` |  |
+| <code>i</code> | <code>SagaInvocation&lt;T&gt;</code> |  |

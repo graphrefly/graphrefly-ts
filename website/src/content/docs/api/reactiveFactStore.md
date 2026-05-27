@@ -20,4 +20,4 @@ function reactiveFactStore<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `config` | `ReactiveFactStoreConfig&lt;T&gt;` |  |
+| <code>config</code> | <code>ReactiveFactStoreConfig&lt;T&gt;</code> |  |

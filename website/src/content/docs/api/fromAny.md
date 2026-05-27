@@ -22,5 +22,5 @@ function fromAny<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `input` | `NodeInput&lt;T&gt;` |  |
-| `opts` | `AsyncSourceOpts & { iter?: boolean }` |  |
+| <code>input</code> | <code>NodeInput&lt;T&gt;</code> |  |
+| <code>opts</code> | <code>AsyncSourceOpts & { iter?: boolean }</code> |  |

@@ -13,4 +13,4 @@ function offlinePreset(opts: OfflinePresetOptions): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `OfflinePresetOptions` |  |
+| <code>opts</code> | <code>OfflinePresetOptions</code> |  |

@@ -17,7 +17,7 @@ function accessHintForGuard(guard: NodeGuard): string
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `guard` | `NodeGuard` | Guard function to probe (typically from policy). |
+| <code>guard</code> | <code>NodeGuard</code> | Guard function to probe (typically from policy). |
 
 ## Returns
 

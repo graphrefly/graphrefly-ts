@@ -15,9 +15,9 @@ function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<Node
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `ms` | `number` | Window duration in milliseconds. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>ms</code> | <code>number</code> | Window duration in milliseconds. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

@@ -20,4 +20,4 @@ function memoryRetrieval<TMem>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `MemoryRetrievalOptions&lt;TMem&gt;` |  |
+| <code>opts</code> | <code>MemoryRetrievalOptions&lt;TMem&gt;</code> |  |

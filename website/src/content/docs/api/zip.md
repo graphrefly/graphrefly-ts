@@ -17,7 +17,7 @@ function zip<const T extends readonly unknown[]>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `{ [K in keyof T]: Node&lt;T[K]&gt; }` | Nodes to zip (variadic). |
+| <code>sources</code> | <code>{ [K in keyof T]: Node&lt;T[K]&gt; }</code> | Nodes to zip (variadic). |
 
 ## Returns
 

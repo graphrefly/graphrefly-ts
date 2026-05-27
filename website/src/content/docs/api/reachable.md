@@ -24,7 +24,7 @@ function reachable(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `described` | `GraphDescribeOutput` |  |
-| `from` | `string` |  |
-| `direction` | `ReachableDirection` |  |
-| `options` | `ReachableOptions` |  |
+| <code>described</code> | <code>GraphDescribeOutput</code> |  |
+| <code>from</code> | <code>string</code> |  |
+| <code>direction</code> | <code>ReachableDirection</code> |  |
+| <code>options</code> | <code>ReachableOptions</code> |  |

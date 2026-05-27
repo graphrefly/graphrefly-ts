@@ -20,7 +20,7 @@ function memorySnapshot<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
+| <code>opts</code> | <code>Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
 
 ## Returns
 

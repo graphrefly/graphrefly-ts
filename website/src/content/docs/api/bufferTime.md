@@ -15,9 +15,9 @@ function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T[]>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `ms` | `number` | Flush interval in milliseconds. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>ms</code> | <code>number</code> | Flush interval in milliseconds. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

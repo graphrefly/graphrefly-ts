@@ -19,5 +19,5 @@ function workerBridge<
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `unknown | WorkerTransport` |  |
-| `opts` | `WorkerBridgeOptions&lt;TExpose, TImport&gt;` |  |
+| <code>target</code> | <code>unknown | WorkerTransport</code> |  |
+| <code>opts</code> | <code>WorkerBridgeOptions&lt;TExpose, TImport&gt;</code> |  |

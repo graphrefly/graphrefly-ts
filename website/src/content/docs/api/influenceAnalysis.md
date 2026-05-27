@@ -18,5 +18,5 @@ function influenceAnalysis<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `mem` | `ReactiveFactStoreGraph&lt;T&gt;` |  |
-| `opts` | `InfluenceAnalysisOptions` |  |
+| <code>mem</code> | <code>ReactiveFactStoreGraph&lt;T&gt;</code> |  |
+| <code>opts</code> | <code>InfluenceAnalysisOptions</code> |  |

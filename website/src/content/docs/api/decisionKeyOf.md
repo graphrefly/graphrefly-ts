@@ -15,4 +15,4 @@ decisionKeyOf<T>(d: Decision<T>): string
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `d` | `Decision&lt;T&gt;` |  |
+| <code>d</code> | <code>Decision&lt;T&gt;</code> |  |

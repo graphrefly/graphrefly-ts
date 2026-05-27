@@ -129,21 +129,20 @@ export function buildReactiveChapter(
 		},
 	);
 
-	const applyExtraction = kg.effect("apply-extraction", [extraction], (data) => {
-		const result = data[0] != null && data[0].length > 0 ? data[0].at(-1) : null;
-		const r = result as ExtractionResult | null;
-		if (!r) return;
-		applyExtractionToKG(kg, r);
-	});
+	const applyExtraction = kg.effect(
+		"apply-extraction",
+		[extraction],
+		(data) => {
+			const result = data[0] != null && data[0].length > 0 ? data[0].at(-1) : null;
+			const r = result as ExtractionResult | null;
+			if (!r) return;
+			applyExtractionToKG(kg, r);
+		},
+		{ keepAlive: true },
+	);
 
 	// promptNode returns an unattached node — register it on the chapter graph.
 	kg.add(extraction, { name: "extraction" });
-
-	// Keep the lazy chain warm: subscribe to the terminal effect so each push
-	// from `paper-text` actually walks the topology. The effect's dep on
-	// `extraction` activates `extraction` upstream automatically per
-	// COMPOSITION-GUIDE §1 — no need to subscribe `extraction` separately.
-	void applyExtraction.subscribe(() => undefined);
 
 	const registry: NodeRegistry = new Map([
 		["paper-text", { codeLine: 6, visualSelector: "[data-paper-text]" }],

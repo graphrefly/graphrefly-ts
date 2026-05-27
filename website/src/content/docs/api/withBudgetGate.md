@@ -19,5 +19,5 @@ function withBudgetGate(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `inner` | `LLMAdapter` |  |
-| `opts` | `WithBudgetGateOptions` |  |
+| <code>inner</code> | <code>LLMAdapter</code> |  |
+| <code>opts</code> | <code>WithBudgetGateOptions</code> |  |

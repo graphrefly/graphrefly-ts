@@ -23,8 +23,8 @@ function dictKv<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `storage` | `Record&lt;string, Uint8Array&gt;` | Caller-owned `Record&lt;string, Uint8Array&gt;` to use as the backing store. |
-| `opts` | `Omit&lt;KvStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional kv storage options (name, codec, filter, debounce, compactEvery). |
+| <code>storage</code> | <code>Record&lt;string, Uint8Array&gt;</code> | Caller-owned `Record&lt;string, Uint8Array&gt;` to use as the backing store. |
+| <code>opts</code> | <code>Omit&lt;KvStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional kv storage options (name, codec, filter, debounce, compactEvery). |
 
 ## Returns
 

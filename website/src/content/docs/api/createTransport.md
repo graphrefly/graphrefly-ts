@@ -22,4 +22,4 @@ function createTransport(target: unknown): WorkerTransport
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `unknown` |  |
+| <code>target</code> | <code>unknown</code> |  |

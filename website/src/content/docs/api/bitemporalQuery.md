@@ -21,6 +21,6 @@ function bitemporalQuery<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `mem` | `ReactiveFactStoreGraph&lt;T&gt;` |  |
-| `asOf` | `Node&lt;bigint&gt;` |  |
-| `opts` | `BitemporalQueryOptions` |  |
+| <code>mem</code> | <code>ReactiveFactStoreGraph&lt;T&gt;</code> |  |
+| <code>asOf</code> | <code>Node&lt;bigint&gt;</code> |  |
+| <code>opts</code> | <code>BitemporalQueryOptions</code> |  |

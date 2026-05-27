@@ -18,8 +18,8 @@ function withBreaker<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `breaker` | `CircuitBreaker` | Shared breaker instance (typically one per resource). |
-| `options` | `{ onOpen?: "skip" | "error"; meta?: Record&lt;string, unknown&gt; }` | `onOpen: "skip"` emits `RESOLVED` when open; `"error"` emits CircuitOpenError. |
+| <code>breaker</code> | <code>CircuitBreaker</code> | Shared breaker instance (typically one per resource). |
+| <code>options</code> | <code>{ onOpen?: "skip" | "error"; meta?: Record&lt;string, unknown&gt; }</code> | `onOpen: "skip"` emits `RESOLVED` when open; `"error"` emits CircuitOpenError. |
 
 ## Returns
 

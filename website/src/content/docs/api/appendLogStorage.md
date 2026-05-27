@@ -33,8 +33,8 @@ function appendLogStorage<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `backend` | `StorageBackend` | Bytes-level backend to persist log entries into. |
-| `opts` | `AppendLogStorageOptions&lt;T&gt;` | Optional name, codec, per-entry key extractor, debounce window, and compaction interval. |
+| <code>backend</code> | <code>StorageBackend</code> | Bytes-level backend to persist log entries into. |
+| <code>opts</code> | <code>AppendLogStorageOptions&lt;T&gt;</code> | Optional name, codec, per-entry key extractor, debounce window, and compaction interval. |
 
 ## Returns
 

@@ -15,5 +15,5 @@ function jobQueue<T>(name: string, opts?: JobQueueOptions): JobQueueGraph<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `opts` | `JobQueueOptions` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>opts</code> | <code>JobQueueOptions</code> |  |

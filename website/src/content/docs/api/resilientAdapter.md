@@ -19,8 +19,8 @@ function resilientAdapter(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `inner` | `LLMAdapter` |  |
-| `opts` | `ResilientAdapterOptions` |  |
+| <code>inner</code> | <code>LLMAdapter</code> |  |
+| <code>opts</code> | <code>ResilientAdapterOptions</code> |  |
 
 ## Basic Usage
 

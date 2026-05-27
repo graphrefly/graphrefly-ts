@@ -23,8 +23,8 @@ function dictSnapshot<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `storage` | `Record&lt;string, Uint8Array&gt;` | Caller-owned `Record&lt;string, Uint8Array&gt;` to use as the backing store. |
-| `opts` | `Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
+| <code>storage</code> | <code>Record&lt;string, Uint8Array&gt;</code> | Caller-owned `Record&lt;string, Uint8Array&gt;` to use as the backing store. |
+| <code>opts</code> | <code>Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
 
 ## Returns
 

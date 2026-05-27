@@ -77,23 +77,6 @@
 	background: var(--gr-surface);
 	border-left: 1px solid var(--gr-border-subtle);
 }
-.pane-graph,
-.pane-code {
-	overflow: hidden;
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-}
-.pane-graph h3,
-.pane-code h3 {
-	font-size: 11px;
-	letter-spacing: 0.12em;
-	text-transform: uppercase;
-	color: var(--gr-text-muted);
-	padding: 0.6rem 1rem;
-	border-bottom: 1px solid var(--gr-border-subtle);
-	font-weight: 600;
-}
 .pane-split-divider {
 	flex: 0 0 5px;
 	background: var(--gr-border);
@@ -101,48 +84,6 @@
 }
 .pane-split-divider:hover {
 	background: var(--gr-aqua-dim);
-}
-.mermaid-graph {
-	flex: 1 1 auto;
-	overflow: hidden;
-	padding: 0.75rem;
-	min-height: 0;
-}
-.mermaid-graph svg {
-	max-width: none;
-}
-
-/* ── Code pane ─────────────────────────────────────────────────── */
-.code-pre {
-	flex: 1 1 auto;
-	overflow: auto;
-	padding: 0.6rem 1rem;
-	font-family: var(--font-mono);
-	font-size: 12.5px;
-	line-height: 1.55;
-	color: var(--gr-text);
-	background: var(--gr-surface);
-	white-space: pre;
-}
-.code-line {
-	display: flex;
-	gap: 0.75rem;
-	padding: 0 0.25rem;
-}
-.code-line.active {
-	background: var(--gr-aqua-glow);
-	border-radius: 3px;
-}
-.code-lineno {
-	color: var(--gr-text-muted);
-	width: 2.2em;
-	text-align: right;
-	user-select: none;
-	flex-shrink: 0;
-}
-.code-linetext {
-	flex: 1 1 auto;
-	white-space: pre;
 }
 
 /* ── Inspect strip ─────────────────────────────────────────────── */

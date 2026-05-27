@@ -19,9 +19,9 @@ function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): 
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Node whose latest value is sampled. |
-| `notifier` | `Node&lt;unknown&gt;` | When this node emits `DATA`, a sample is taken. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Node whose latest value is sampled. |
+| <code>notifier</code> | <code>Node&lt;unknown&gt;</code> | When this node emits `DATA`, a sample is taken. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

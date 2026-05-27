@@ -14,5 +14,5 @@ function fromCron(expr: string, opts?: FromCronOptions): Node<number>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `expr` | `string` |  |
-| `opts` | `FromCronOptions` |  |
+| <code>expr</code> | <code>string</code> |  |
+| <code>opts</code> | <code>FromCronOptions</code> |  |

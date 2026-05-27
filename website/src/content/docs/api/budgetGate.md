@@ -105,9 +105,9 @@ function budgetGate<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Input node. |
-| `constraints` | `ReadonlyArray&lt;BudgetConstraint&gt;` | Reactive constraint checks. MUST be non-empty. |
-| `opts` | `BudgetGateOptions` | Optional node options. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Input node. |
+| <code>constraints</code> | <code>ReadonlyArray&lt;BudgetConstraint&gt;</code> | Reactive constraint checks. MUST be non-empty. |
+| <code>opts</code> | <code>BudgetGateOptions</code> | Optional node options. |
 
 ## Returns
 

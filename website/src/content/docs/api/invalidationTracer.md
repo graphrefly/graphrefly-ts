@@ -20,5 +20,5 @@ function invalidationTracer<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `mem` | `ReactiveFactStoreGraph&lt;T&gt;` |  |
-| `opts` | `InvalidationTracerOptions` |  |
+| <code>mem</code> | <code>ReactiveFactStoreGraph&lt;T&gt;</code> |  |
+| <code>opts</code> | <code>InvalidationTracerOptions</code> |  |

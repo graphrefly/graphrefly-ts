@@ -23,9 +23,9 @@ function analyzeAndMeasure(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `text` | `string` |  |
-| `font` | `string` |  |
-| `adapter` | `MeasurementAdapter` |  |
-| `cache` | `Map&lt;string, Map&lt;string, number&gt;&gt;` |  |
-| `stats` | `SegmentMeasureStats` |  |
-| `segmentAdapter` | `SegmentAdapter` |  |
+| <code>text</code> | <code>string</code> |  |
+| <code>font</code> | <code>string</code> |  |
+| <code>adapter</code> | <code>MeasurementAdapter</code> |  |
+| <code>cache</code> | <code>Map&lt;string, Map&lt;string, number&gt;&gt;</code> |  |
+| <code>stats</code> | <code>SegmentMeasureStats</code> |  |
+| <code>segmentAdapter</code> | <code>SegmentAdapter</code> |  |

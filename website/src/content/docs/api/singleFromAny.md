@@ -18,8 +18,8 @@ function singleFromAny<K, T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `factory` | `(key: K) =&gt; NodeInput&lt;T&gt;` | Produces a `NodeInput&lt;T&gt;` for each unique key. |
-| `opts` | `SingleFromAnyOptions&lt;K&gt;` | Optional key-stringification. |
+| <code>factory</code> | <code>(key: K) =&gt; NodeInput&lt;T&gt;</code> | Produces a `NodeInput&lt;T&gt;` for each unique key. |
+| <code>opts</code> | <code>SingleFromAnyOptions&lt;K&gt;</code> | Optional key-stringification. |
 
 ## Returns
 

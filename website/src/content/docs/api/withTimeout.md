@@ -42,8 +42,8 @@ function withTimeout<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `opts` | `Partial&lt;TimeoutOptions&gt; | Node&lt;Partial&lt;TimeoutOptions&gt;&gt;` | `Partial&lt;TimeoutOptions&gt;` (static) or
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>opts</code> | <code>Partial&lt;TimeoutOptions&gt; | Node&lt;Partial&lt;TimeoutOptions&gt;&gt;</code> | `Partial&lt;TimeoutOptions&gt;` (static) or
 `Node&lt;Partial&lt;TimeoutOptions&gt;&gt;` (reactive). |
-| `extraOpts` | `TimeoutExtraOpts` | Forwarded factory metadata (meta field merged
+| <code>extraOpts</code> | <code>TimeoutExtraOpts</code> | Forwarded factory metadata (meta field merged
 onto the result node). |

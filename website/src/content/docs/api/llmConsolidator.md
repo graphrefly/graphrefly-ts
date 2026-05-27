@@ -19,5 +19,5 @@ function llmConsolidator<TMem>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `systemPrompt` | `string` |  |
-| `opts` | `LLMConsolidatorOptions` |  |
+| <code>systemPrompt</code> | <code>string</code> |  |
+| <code>opts</code> | <code>LLMConsolidatorOptions</code> |  |

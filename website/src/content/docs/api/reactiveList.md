@@ -18,8 +18,8 @@ function reactiveList<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `initial` | `readonly T[]` | Optional initial items (copied). |
-| `options` | `ReactiveListOptions&lt;T&gt;` | Optional `name` for `describe()` / debugging, or pluggable `backend`. |
+| <code>initial</code> | <code>readonly T[]</code> | Optional initial items (copied). |
+| <code>options</code> | <code>ReactiveListOptions&lt;T&gt;</code> | Optional `name` for `describe()` / debugging, or pluggable `backend`. |
 
 ## Returns
 

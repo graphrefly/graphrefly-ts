@@ -19,6 +19,6 @@ function subscription<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `topicGraph` | `TopicGraph&lt;T&gt;` |  |
-| `opts` | `SubscriptionOptions` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>topicGraph</code> | <code>TopicGraph&lt;T&gt;</code> |  |
+| <code>opts</code> | <code>SubscriptionOptions</code> |  |

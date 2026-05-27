@@ -15,7 +15,7 @@ function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMapB
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options` | `ReactiveMapOptions&lt;K, V&gt;` | `name`, `maxSize`, `defaultTtl` (seconds), or custom `backend`. |
+| <code>options</code> | <code>ReactiveMapOptions&lt;K, V&gt;</code> | `name`, `maxSize`, `defaultTtl` (seconds), or custom `backend`. |
 
 ## Returns
 

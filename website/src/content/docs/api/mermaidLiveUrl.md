@@ -20,5 +20,5 @@ function mermaidLiveUrl(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `mermaidSrc` | `string` |  |
-| `opts` | `{ theme?: MermaidLiveTheme; autoSync?: boolean }` |  |
+| <code>mermaidSrc</code> | <code>string</code> |  |
+| <code>opts</code> | <code>{ theme?: MermaidLiveTheme; autoSync?: boolean }</code> |  |

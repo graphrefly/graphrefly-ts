@@ -24,10 +24,10 @@ function funnel<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` | Graph name. |
-| `sources` | `ReadonlyArray&lt;Node&lt;T&gt;&gt;` | Input nodes to merge. |
-| `stages` | `ReadonlyArray&lt;FunnelStage&gt;` | Sequential reduction stages. |
-| `opts` | `FunnelOptions` | Optional graph/meta options. |
+| <code>name</code> | <code>string</code> | Graph name. |
+| <code>sources</code> | <code>ReadonlyArray&lt;Node&lt;T&gt;&gt;</code> | Input nodes to merge. |
+| <code>stages</code> | <code>ReadonlyArray&lt;FunnelStage&gt;</code> | Sequential reduction stages. |
+| <code>opts</code> | <code>FunnelOptions</code> | Optional graph/meta options. |
 
 ## Returns
 

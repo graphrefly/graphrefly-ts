@@ -13,4 +13,4 @@ function createAdapter(opts: CreateAdapterOptions): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `CreateAdapterOptions` |  |
+| <code>opts</code> | <code>CreateAdapterOptions</code> |  |

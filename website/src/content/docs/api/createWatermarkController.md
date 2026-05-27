@@ -18,8 +18,8 @@ function createWatermarkController(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sendUp` | `(messages: Messages) =&gt; void` | Callback that delivers messages upstream (typically `handle.up`). |
-| `opts` | `WatermarkOptions` | High/low watermark thresholds (item counts). |
+| <code>sendUp</code> | <code>(messages: Messages) =&gt; void</code> | Callback that delivers messages upstream (typically `handle.up`). |
+| <code>opts</code> | <code>WatermarkOptions</code> | High/low watermark thresholds (item counts). |
 
 ## Returns
 

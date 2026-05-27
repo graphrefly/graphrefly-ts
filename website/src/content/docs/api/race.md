@@ -15,7 +15,7 @@ function race<T>(...sources: readonly Node<T>[]): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `readonly Node&lt;T&gt;[]` | Contestants (variadic; throws at construction when empty; one node is identity). |
+| <code>sources</code> | <code>readonly Node&lt;T&gt;[]</code> | Contestants (variadic; throws at construction when empty; one node is identity). |
 
 ## Returns
 

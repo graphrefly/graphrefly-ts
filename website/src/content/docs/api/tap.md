@@ -22,9 +22,9 @@ function tap<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `fnOrObserver` | `((value: T) =&gt; void) | TapObserver&lt;T&gt;` | Side effect function or observer object. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>fnOrObserver</code> | <code>((value: T) =&gt; void) | TapObserver&lt;T&gt;</code> | Side effect function or observer object. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

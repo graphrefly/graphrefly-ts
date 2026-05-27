@@ -18,4 +18,4 @@ function parseRateLimitFromError(err: unknown): RateLimitSignal | undefined
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `err` | `unknown` |  |
+| <code>err</code> | <code>unknown</code> |  |

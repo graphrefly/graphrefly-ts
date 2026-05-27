@@ -17,4 +17,4 @@ function createCapabilitiesRegistry(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `initial` | `readonly ModelCapabilities[]` |  |
+| <code>initial</code> | <code>readonly ModelCapabilities[]</code> |  |

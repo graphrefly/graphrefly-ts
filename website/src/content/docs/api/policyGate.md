@@ -26,6 +26,6 @@ function policyGate(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `Graph` |  |
-| `policies` | `readonly PolicyRuleData[] | Node&lt;readonly PolicyRuleData[]&gt;` |  |
-| `opts` | `PolicyGateOptions` |  |
+| <code>target</code> | <code>Graph</code> |  |
+| <code>policies</code> | <code>readonly PolicyRuleData[] | Node&lt;readonly PolicyRuleData[]&gt;</code> |  |
+| <code>opts</code> | <code>PolicyGateOptions</code> |  |

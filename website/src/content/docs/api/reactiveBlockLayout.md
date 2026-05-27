@@ -26,4 +26,4 @@ function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveBlockLay
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `ReactiveBlockLayoutOptions` |  |
+| <code>opts</code> | <code>ReactiveBlockLayoutOptions</code> |  |

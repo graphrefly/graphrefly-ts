@@ -42,6 +42,7 @@ const MOCK_FALLBACK_NOTE = (probedNote: string) =>
 
 export function lazyAdapter(): LazyAdapterHandle {
 	let chosen: LLMAdapter | null = null;
+	let mockFallback: LLMAdapter | null = null;
 	const infoNode = node<AdapterInfo>([], {
 		name: "adapter-info",
 		initial: PROBING_INFO,
@@ -52,6 +53,12 @@ export function lazyAdapter(): LazyAdapterHandle {
 		infoNode.emit(next);
 	}
 
+	function mockAdapter(note: string): LLMAdapter {
+		if (!mockFallback) mockFallback = mockExtractAdapter();
+		setInfo({ name: "mock", status: "ready", note });
+		return mockFallback;
+	}
+
 	let pending: Promise<LLMAdapter> | null = null;
 	function choose(): Promise<LLMAdapter> {
 		if (chosen) return Promise.resolve(chosen);
@@ -59,44 +66,69 @@ export function lazyAdapter(): LazyAdapterHandle {
 		pending = (async () => {
 			try {
 				const probed = await probeChromeNano();
-				if (probed.status === "ready" || probed.status === "downloading") {
+				// Only bind Chrome Nano when the model is actually ready. Treating
+				// "downloading" as ready made first extraction block on
+				// LanguageModel.create() — promptNode saw ERROR/null and the KG
+				// stayed empty even after many "Extract next paragraph" clicks.
+				if (probed.status === "ready") {
 					const handle = chromeNanoAdapter({ onInfo: setInfo });
 					chosen = handle.adapter;
 					setInfo(probed);
 				} else {
-					chosen = mockExtractAdapter();
-					setInfo({
-						name: "mock",
-						status: "ready",
-						note: MOCK_FALLBACK_NOTE(probed.note),
-					});
+					chosen = mockAdapter(
+						probed.status === "downloading"
+							? `${MOCK_FALLBACK_NOTE(probed.note)} (mock until Nano is ready — reload after download completes.)`
+							: MOCK_FALLBACK_NOTE(probed.note),
+					);
 				}
 				return chosen;
 			} catch (err) {
-				// On unexpected probe failure, clear `pending` so a retry on the
-				// next invoke can try again rather than caching the rejection.
+				// Probe failure should not brick extraction — fall back to mock.
 				pending = null;
-				setInfo({
-					name: "mock",
-					status: "unavailable",
-					note: `Adapter probe failed: ${err instanceof Error ? err.message : String(err)}`,
-				});
-				throw err;
+				chosen = mockAdapter(
+					`Adapter probe failed — using mock fallback: ${
+						err instanceof Error ? err.message : String(err)
+					}`,
+				);
+				return chosen;
 			}
 		})();
 		return pending;
 	}
 
+	async function invokeWithFallback(
+		messages: Parameters<LLMAdapter["invoke"]>[0],
+		opts: Parameters<LLMAdapter["invoke"]>[1],
+	): Promise<LLMResponse> {
+		try {
+			const a = await choose();
+			const result = a.invoke(messages, opts);
+			if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+				return await (result as PromiseLike<LLMResponse>);
+			}
+			return result as LLMResponse;
+		} catch (err) {
+			// Chrome Nano can probe "ready" then fail on create/prompt — recover
+			// once per page load by switching to the deterministic mock.
+			if (chosen !== mockFallback) {
+				chosen = mockAdapter(
+					`Chrome Nano invoke failed — using mock fallback: ${
+						err instanceof Error ? err.message : String(err)
+					}`,
+				);
+				const retry = chosen.invoke(messages, opts);
+				if (retry && typeof (retry as PromiseLike<unknown>).then === "function") {
+					return await (retry as PromiseLike<LLMResponse>);
+				}
+				return retry as LLMResponse;
+			}
+			throw err;
+		}
+	}
+
 	const adapter: LLMAdapter = {
 		invoke(messages, opts) {
-			return (async () => {
-				const a = await choose();
-				const result = a.invoke(messages, opts);
-				if (result && typeof (result as PromiseLike<unknown>).then === "function") {
-					return await (result as PromiseLike<LLMResponse>);
-				}
-				return result;
-			})() as ReturnType<LLMAdapter["invoke"]>;
+			return invokeWithFallback(messages, opts) as ReturnType<LLMAdapter["invoke"]>;
 		},
 		stream(messages, opts): AsyncIterable<string> {
 			return {

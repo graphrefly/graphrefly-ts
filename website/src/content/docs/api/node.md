@@ -29,6 +29,6 @@ function node<T = unknown>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `depsOrFn` | `readonly Node[] | NodeFn | NodeOptions&lt;T&gt;` |  |
-| `fnOrOpts` | `NodeFn | NodeOptions&lt;T&gt;` |  |
-| `optsArg` | `NodeOptions&lt;T&gt;` |  |
+| <code>depsOrFn</code> | <code>readonly Node[] | NodeFn | NodeOptions&lt;T&gt;</code> |  |
+| <code>fnOrOpts</code> | <code>NodeFn | NodeOptions&lt;T&gt;</code> |  |
+| <code>optsArg</code> | <code>NodeOptions&lt;T&gt;</code> |  |

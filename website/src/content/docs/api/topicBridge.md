@@ -25,7 +25,7 @@ function topicBridge<TIn, TOut = TIn>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `sourceTopic` | `TopicGraph&lt;TIn&gt;` |  |
-| `targetTopic` | `TopicGraph&lt;TOut&gt;` |  |
-| `opts` | `TopicBridgeOptions&lt;TIn, TOut&gt;` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>sourceTopic</code> | <code>TopicGraph&lt;TIn&gt;</code> |  |
+| <code>targetTopic</code> | <code>TopicGraph&lt;TOut&gt;</code> |  |
+| <code>opts</code> | <code>TopicBridgeOptions&lt;TIn, TOut&gt;</code> |  |

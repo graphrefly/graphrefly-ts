@@ -15,9 +15,9 @@ function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `count` | `number` | Number of `DATA` values to drop. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>count</code> | <code>number</code> | Number of `DATA` values to drop. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

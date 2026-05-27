@@ -15,7 +15,7 @@ function constant(delayNs: number): BackoffStrategy
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `delayNs` | `number` | Non-negative delay in nanoseconds; values below zero are clamped to zero. |
+| <code>delayNs</code> | <code>number</code> | Non-negative delay in nanoseconds; values below zero are clamped to zero. |
 
 ## Returns
 

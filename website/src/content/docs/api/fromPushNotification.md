@@ -19,9 +19,9 @@ function fromPushNotification<T = unknown>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `register` | `PushRegister&lt;T&gt;` | Called on activation with a `deliver(payload)` sink;
+| <code>register</code> | <code>PushRegister&lt;T&gt;</code> | Called on activation with a `deliver(payload)` sink;
 returns an optional unsubscribe. |
-| `opts` | `ExtraOpts` | Producer node options (`name`, `meta`, …). |
+| <code>opts</code> | <code>ExtraOpts</code> | Producer node options (`name`, `meta`, …). |
 
 ## Returns
 

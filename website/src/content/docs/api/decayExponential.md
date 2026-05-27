@@ -22,6 +22,6 @@ function decayExponential<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `mem` | `ReactiveFactStoreGraph&lt;T&gt;` |  |
-| `ingest` | `Node&lt;MemoryFragment&lt;T&gt;&gt;` |  |
-| `opts` | `DecayExponentialOptions` |  |
+| <code>mem</code> | <code>ReactiveFactStoreGraph&lt;T&gt;</code> |  |
+| <code>ingest</code> | <code>Node&lt;MemoryFragment&lt;T&gt;&gt;</code> |  |
+| <code>opts</code> | <code>DecayExponentialOptions</code> |  |

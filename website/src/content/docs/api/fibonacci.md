@@ -15,8 +15,8 @@ function fibonacci(baseNs = 100 * NS_PER_MS, maxDelayNs = 30 * NS_PER_SEC): Back
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `baseNs` | `unknown` | Multiplier applied to the Fibonacci unit (default `100ms` in nanoseconds). |
-| `maxDelayNs` | `unknown` | Upper bound in nanoseconds (default `30s`). |
+| <code>baseNs</code> | <code>unknown</code> | Multiplier applied to the Fibonacci unit (default `100ms` in nanoseconds). |
+| <code>maxDelayNs</code> | <code>unknown</code> | Upper bound in nanoseconds (default `30s`). |
 
 ## Returns
 

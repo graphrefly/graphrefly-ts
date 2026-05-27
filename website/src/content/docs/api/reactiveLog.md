@@ -23,8 +23,8 @@ function reactiveLog<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `initial` | `readonly T[]` | Optional initial entries loaded into the log at construction. |
-| `options` | `ReactiveLogOptions&lt;T&gt;` | Optional name, max size (ring buffer), versioning level, guard policy, and custom backend. |
+| <code>initial</code> | <code>readonly T[]</code> | Optional initial entries loaded into the log at construction. |
+| <code>options</code> | <code>ReactiveLogOptions&lt;T&gt;</code> | Optional name, max size (ring buffer), versioning level, guard policy, and custom backend. |
 
 ## Returns
 

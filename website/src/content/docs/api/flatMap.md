@@ -19,9 +19,9 @@ function mergeMap<T, R>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `project` | `(value: T) =&gt; NodeInput&lt;R&gt;` | Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via fromAny. |
-| `opts` | `MergeMapOptions` | Optional options including `concurrent` limit. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>project</code> | <code>(value: T) =&gt; NodeInput&lt;R&gt;</code> | Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via fromAny. |
+| <code>opts</code> | <code>MergeMapOptions</code> | Optional options including `concurrent` limit. |
 
 ## Returns
 

@@ -15,7 +15,7 @@ function dryRunAdapter(opts: DryRunAdapterOptions = {}): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `DryRunAdapterOptions` |  |
+| <code>opts</code> | <code>DryRunAdapterOptions</code> |  |
 
 ## Basic Usage
 

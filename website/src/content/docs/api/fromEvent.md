@@ -19,9 +19,9 @@ function fromEvent<T = unknown>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `EventTargetLike` | Object with `addEventListener` / `removeEventListener`. |
-| `type` | `string` | Event name (e.g. `"click"`). |
-| `opts` | `ExtraOpts & { capture?: boolean; passive?: boolean; once?: boolean }` | Producer options plus listener options (`capture`, `passive`, `once`). |
+| <code>target</code> | <code>EventTargetLike</code> | Object with `addEventListener` / `removeEventListener`. |
+| <code>type</code> | <code>string</code> | Event name (e.g. `"click"`). |
+| <code>opts</code> | <code>ExtraOpts & { capture?: boolean; passive?: boolean; once?: boolean }</code> | Producer options plus listener options (`capture`, `passive`, `once`). |
 
 ## Returns
 

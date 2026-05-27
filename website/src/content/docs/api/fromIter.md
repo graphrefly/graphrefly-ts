@@ -15,8 +15,8 @@ function fromIter<T>(iterable: Iterable<T>, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `iterable` | `Iterable&lt;T&gt;` | Values to emit in order. |
-| `opts` | `ExtraOpts` | Optional producer options. |
+| <code>iterable</code> | <code>Iterable&lt;T&gt;</code> | Values to emit in order. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional producer options. |
 
 ## Returns
 

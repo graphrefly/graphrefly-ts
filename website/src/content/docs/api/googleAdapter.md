@@ -13,4 +13,4 @@ function googleAdapter(opts: GoogleAdapterOptions = {}): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `GoogleAdapterOptions` |  |
+| <code>opts</code> | <code>GoogleAdapterOptions</code> |  |

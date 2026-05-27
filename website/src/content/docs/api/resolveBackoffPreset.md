@@ -15,7 +15,7 @@ function resolveBackoffPreset(name: BackoffPreset): BackoffStrategy
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `BackoffPreset` | One of `constant`, `linear`, `exponential`, `fibonacci`, or `decorrelatedJitter`. |
+| <code>name</code> | <code>BackoffPreset</code> | One of `constant`, `linear`, `exponential`, `fibonacci`, or `decorrelatedJitter`. |
 
 ## Returns
 

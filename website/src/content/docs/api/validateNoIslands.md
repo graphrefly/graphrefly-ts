@@ -15,7 +15,7 @@ function validateNoIslands(graph: Graph): ValidateNoIslandsResult
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `graph` | `Graph` |  |
+| <code>graph</code> | <code>Graph</code> |  |
 
 ## Basic Usage
 

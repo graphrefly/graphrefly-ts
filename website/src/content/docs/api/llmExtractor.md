@@ -26,5 +26,5 @@ function llmExtractor<TRaw, TMem>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `systemPrompt` | `string` |  |
-| `opts` | `LLMExtractorOptions` |  |
+| <code>systemPrompt</code> | <code>string</code> |  |
+| <code>opts</code> | <code>LLMExtractorOptions</code> |  |

@@ -25,6 +25,6 @@ function computePrice(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `usage` | `TokenUsage` |  |
-| `pricing` | `ModelPricing` |  |
-| `opts` | `{ tier?: string; withBreakdown?: boolean }` |  |
+| <code>usage</code> | <code>TokenUsage</code> |  |
+| <code>pricing</code> | <code>ModelPricing</code> |  |
+| <code>opts</code> | <code>{ tier?: string; withBreakdown?: boolean }</code> |  |

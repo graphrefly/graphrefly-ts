@@ -21,8 +21,8 @@ function fileAppendLog<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `dir` | `string` | Directory path where append-log files are stored. |
-| `opts` | `Omit&lt;AppendLogStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional append-log storage options (name, codec, keyOf, debounce, compactEvery). |
+| <code>dir</code> | <code>string</code> | Directory path where append-log files are stored. |
+| <code>opts</code> | <code>Omit&lt;AppendLogStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional append-log storage options (name, codec, keyOf, debounce, compactEvery). |
 
 ## Returns
 

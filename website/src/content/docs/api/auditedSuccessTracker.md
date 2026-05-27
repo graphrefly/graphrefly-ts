@@ -19,7 +19,7 @@ function auditedSuccessTracker<
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `AuditedSuccessTrackerOptions` |  |
+| <code>opts</code> | <code>AuditedSuccessTrackerOptions</code> |  |
 
 ## Basic Usage
 

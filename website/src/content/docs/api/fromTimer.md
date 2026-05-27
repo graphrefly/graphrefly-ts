@@ -15,8 +15,8 @@ function fromTimer(ms: number, opts?: AsyncSourceOpts & { period?: number }): No
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `ms` | `number` | Milliseconds before the first emission. |
-| `opts` | `AsyncSourceOpts & { period?: number }` | Producer options plus optional `period` for repeating ticks and optional `signal` (`AbortSignal`) to cancel with `ERROR`. |
+| <code>ms</code> | <code>number</code> | Milliseconds before the first emission. |
+| <code>opts</code> | <code>AsyncSourceOpts & { period?: number }</code> | Producer options plus optional `period` for repeating ticks and optional `signal` (`AbortSignal`) to cancel with `ERROR`. |
 
 ## Returns
 

@@ -21,8 +21,8 @@ function decorrelatedJitter(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `baseNs` | `unknown` | Floor of the random range (default `100ms` in nanoseconds). |
-| `maxNs` | `unknown` | Ceiling cap (default `30s` in nanoseconds). |
+| <code>baseNs</code> | <code>unknown</code> | Floor of the random range (default `100ms` in nanoseconds). |
+| <code>maxNs</code> | <code>unknown</code> | Ceiling cap (default `30s` in nanoseconds). |
 
 ## Returns
 

@@ -13,5 +13,5 @@ function agentLoop(name: string, opts: AgentLoopOptions): AgentLoopGraph
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `string` |  |
-| `opts` | `AgentLoopOptions` |  |
+| <code>name</code> | <code>string</code> |  |
+| <code>opts</code> | <code>AgentLoopOptions</code> |  |

@@ -16,4 +16,4 @@ function memoryWithKG<TMem>(opts: MemoryWithKGOptions<TMem>): MemoryWithKGGraph<
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `MemoryWithKGOptions&lt;TMem&gt;` |  |
+| <code>opts</code> | <code>MemoryWithKGOptions&lt;TMem&gt;</code> |  |

@@ -20,5 +20,5 @@ function admissionLlmJudge<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `verdicts` | `Node&lt;ReadonlyMap&lt;FactId, boolean&gt;&gt;` |  |
-| `opts` | `AdmissionLlmJudgeOptions` |  |
+| <code>verdicts</code> | <code>Node&lt;ReadonlyMap&lt;FactId, boolean&gt;&gt;</code> |  |
+| <code>opts</code> | <code>AdmissionLlmJudgeOptions</code> |  |

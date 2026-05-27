@@ -15,8 +15,8 @@ function throwError(err: unknown, opts?: ExtraOpts): Node<never>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `err` | `unknown` | Error payload forwarded as `ERROR` data. |
-| `opts` | `ExtraOpts` | Optional producer options. |
+| <code>err</code> | <code>unknown</code> | Error payload forwarded as `ERROR` data. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional producer options. |
 
 ## Returns
 

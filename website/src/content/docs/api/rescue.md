@@ -19,9 +19,9 @@ function rescue<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `recover` | `(err: unknown) =&gt; T` | Maps the error payload to a replacement value; if it throws, `ERROR` is forwarded. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>recover</code> | <code>(err: unknown) =&gt; T</code> | Maps the error payload to a replacement value; if it throws, `ERROR` is forwarded. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

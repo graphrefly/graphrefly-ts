@@ -20,7 +20,7 @@ function persistentReactiveFactStore<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `config` | `PersistentReactiveFactStoreConfig&lt;T&gt;` |  |
+| <code>config</code> | <code>PersistentReactiveFactStoreConfig&lt;T&gt;</code> |  |
 
 ## Basic Usage
 

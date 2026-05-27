@@ -15,7 +15,7 @@ function fromIDBTransaction(tx: IDBTransaction): Node<void>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `tx` | `IDBTransaction` | Transaction to observe. |
+| <code>tx</code> | <code>IDBTransaction</code> | Transaction to observe. |
 
 ## Returns
 

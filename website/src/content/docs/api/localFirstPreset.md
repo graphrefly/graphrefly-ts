@@ -15,4 +15,4 @@ function localFirstPreset(opts: LocalFirstPresetOptions): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `LocalFirstPresetOptions` |  |
+| <code>opts</code> | <code>LocalFirstPresetOptions</code> |  |

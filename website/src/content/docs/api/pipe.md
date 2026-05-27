@@ -15,8 +15,8 @@ function pipe(source: Node, ...ops: PipeOperator[]): Node
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node` |  |
-| `ops` | `PipeOperator[]` |  |
+| <code>source</code> | <code>Node</code> |  |
+| <code>ops</code> | <code>PipeOperator[]</code> |  |
 
 ## Basic Usage
 

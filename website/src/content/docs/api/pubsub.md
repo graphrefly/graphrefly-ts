@@ -15,7 +15,7 @@ function pubsub(options: PubSubHubOptions = {}): PubSubHub
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options` | `PubSubHubOptions` | Optional pluggable `backend` (defaults to `NativePubSubBackend`). |
+| <code>options</code> | <code>PubSubHubOptions</code> | Optional pluggable `backend` (defaults to `NativePubSubBackend`). |
 
 ## Returns
 

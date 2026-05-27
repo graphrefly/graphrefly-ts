@@ -19,7 +19,7 @@ function sqliteBackend(path: string): StorageBackend & { close(): void }
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | `string` | Filesystem path to the SQLite database file (created if absent). |
+| <code>path</code> | <code>string</code> | Filesystem path to the SQLite database file (created if absent). |
 
 ## Returns
 

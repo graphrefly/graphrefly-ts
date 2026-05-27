@@ -22,8 +22,8 @@ function sqliteSnapshot<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | `string` | Filesystem path to the SQLite database file. |
-| `opts` | `Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
+| <code>path</code> | <code>string</code> | Filesystem path to the SQLite database file. |
+| <code>opts</code> | <code>Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
 
 ## Returns
 

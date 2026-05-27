@@ -21,8 +21,8 @@ function fileSnapshot<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `dir` | `string` | Directory path where snapshot files are stored. |
-| `opts` | `Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }` | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
+| <code>dir</code> | <code>string</code> | Directory path where snapshot files are stored. |
+| <code>opts</code> | <code>Omit&lt;SnapshotStorageOptions&lt;T&gt;, "name"&gt; & { name?: string }</code> | Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery). |
 
 ## Returns
 

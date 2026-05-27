@@ -19,9 +19,9 @@ function withLatestFrom<A, B>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `primary` | `Node&lt;A&gt;` | Main stream. |
-| `secondary` | `Node&lt;B&gt;` | Latest value is paired on each primary emission. |
-| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
+| <code>primary</code> | <code>Node&lt;A&gt;</code> | Main stream. |
+| <code>secondary</code> | <code>Node&lt;B&gt;</code> | Latest value is paired on each primary emission. |
+| <code>opts</code> | <code>ExtraOpts</code> | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

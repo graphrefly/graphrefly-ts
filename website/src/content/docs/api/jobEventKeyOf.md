@@ -15,4 +15,4 @@ jobEventKeyOf<T>(e: JobEvent<T>): string
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `e` | `JobEvent&lt;T&gt;` |  |
+| <code>e</code> | <code>JobEvent&lt;T&gt;</code> |  |

@@ -18,7 +18,7 @@ function fileBackend(dir: string): StorageBackend
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `dir` | `string` | Directory path where key files are stored (created on first write). |
+| <code>dir</code> | <code>string</code> | Directory path where key files are stored (created on first write). |
 
 ## Returns
 

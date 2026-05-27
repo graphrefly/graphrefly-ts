@@ -15,8 +15,8 @@ function cached<T>(source: Node<T>, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Upstream node. |
-| `opts` | `ExtraOpts` | Producer options. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Upstream node. |
+| <code>opts</code> | <code>ExtraOpts</code> | Producer options. |
 
 ## Returns
 

@@ -13,5 +13,5 @@ function withDryRun(inner: LLMAdapter, opts: WithDryRunOptions): WithDryRunBundl
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `inner` | `LLMAdapter` |  |
-| `opts` | `WithDryRunOptions` |  |
+| <code>inner</code> | <code>LLMAdapter</code> |  |
+| <code>opts</code> | <code>WithDryRunOptions</code> |  |

@@ -25,4 +25,4 @@ function validateSpec(spec: unknown): GraphSpecValidation
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `spec` | `unknown` |  |
+| <code>spec</code> | <code>unknown</code> |  |

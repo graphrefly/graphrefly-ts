@@ -13,4 +13,4 @@ function openAICompatAdapter(opts: OpenAICompatAdapterOptions = {}): LLMAdapter
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `OpenAICompatAdapterOptions` |  |
+| <code>opts</code> | <code>OpenAICompatAdapterOptions</code> |  |

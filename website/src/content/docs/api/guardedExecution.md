@@ -20,8 +20,8 @@ function guardedExecution(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `target` | `Graph` | The graph to guard. |
-| `opts` | `GuardedExecutionOptions` | See GuardedExecutionOptions. |
+| <code>target</code> | <code>Graph</code> | The graph to guard. |
+| <code>opts</code> | <code>GuardedExecutionOptions</code> | See GuardedExecutionOptions. |
 
 ## Basic Usage
 

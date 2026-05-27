@@ -17,7 +17,7 @@ function reactiveIndex<K, V = unknown>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options` | `ReactiveIndexOptions&lt;K, V&gt;` | Optional `name` for `describe()` / debugging, and optional `backend` (see IndexBackend). |
+| <code>options</code> | <code>ReactiveIndexOptions&lt;K, V&gt;</code> | Optional `name` for `describe()` / debugging, and optional `backend` (see IndexBackend). |
 
 ## Returns
 

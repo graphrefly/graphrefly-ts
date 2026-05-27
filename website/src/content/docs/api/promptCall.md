@@ -29,10 +29,10 @@ function promptCall<TIn, TOut>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `systemPrompt` | `string` | System message sent on every call. |
-| `buildUserContent` | `(input: TIn) =&gt; string` | Per-input user-content builder (must be JSON-stringifiable). |
-| `opts` | `PromptCallOptions` | Adapter + model/temperature/maxTokens + optional name prefix. |
-| `defaultName` | `string` | Path-prefix fallback when `opts.name` is omitted. |
+| <code>systemPrompt</code> | <code>string</code> | System message sent on every call. |
+| <code>buildUserContent</code> | <code>(input: TIn) =&gt; string</code> | Per-input user-content builder (must be JSON-stringifiable). |
+| <code>opts</code> | <code>PromptCallOptions</code> | Adapter + model/temperature/maxTokens + optional name prefix. |
+| <code>defaultName</code> | <code>string</code> | Path-prefix fallback when `opts.name` is omitted. |
 
 ## Returns
 

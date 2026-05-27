@@ -20,7 +20,7 @@ function firstValueFrom<T>(source: Node<T>): Promise<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` | Node to read once. |
+| <code>source</code> | <code>Node&lt;T&gt;</code> | Node to read once. |
 
 ## Returns
 

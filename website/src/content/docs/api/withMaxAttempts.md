@@ -15,8 +15,8 @@ function withMaxAttempts(strategy: BackoffStrategy, maxAttempts: number): Backof
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `strategy` | `BackoffStrategy` | Inner strategy to wrap. |
-| `maxAttempts` | `number` | Maximum number of attempts (inclusive). |
+| <code>strategy</code> | <code>BackoffStrategy</code> | Inner strategy to wrap. |
+| <code>maxAttempts</code> | <code>number</code> | Maximum number of attempts (inclusive). |
 
 ## Returns
 

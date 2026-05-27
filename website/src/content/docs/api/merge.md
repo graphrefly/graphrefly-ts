@@ -14,4 +14,4 @@ function merge<T>(...args: readonly [...Node<T>[], ExtraOpts]): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `args` | `ReadonlyArray&lt;Node&lt;T&gt; | ExtraOpts | undefined&gt;` |  |
+| <code>args</code> | <code>ReadonlyArray&lt;Node&lt;T&gt; | ExtraOpts | undefined&gt;</code> |  |
