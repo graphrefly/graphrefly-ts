@@ -18,6 +18,7 @@ import { Node, type NodeOptions } from "../node/node.js";
 import { messageTier } from "../protocol/messages.js";
 import type { DescribeEdge, DescribeNode, DescribeOpts, DescribeSnapshot } from "./describe.js";
 import type { NodeProfile, ObserveStream, Profile } from "./inspect.js";
+import { initNode, type Operator } from "./operators.js";
 
 /** Map a tuple of Nodes to the tuple of their value types (typed value-level fn args). */
 type DepValues<D extends readonly Node<unknown>[]> = {
@@ -207,131 +208,34 @@ export class Graph {
 		this._mounts.push({ at: opts.at, graph: child });
 	}
 
-	// ── operators (node sugar, D6/L1.5; describe shows the real factory name) ──
-	// Core set per L4-Q7 (main package); time-based + higher-order operators are a
-	// separate subpackage. Each is value-level over the node primitive; the shared _op
-	// wrapper carries the D30 throw→ERROR boundary.
+	// ── operator funnel (D43): instantiate any free-standing Operator (node sugar, D6/L1.5) ──
+	// g.initNode is the single graph-bound entry for the whole operator/source catalog (D40):
+	// it delegates to the FREE initNode (graph/operators.ts — the D30 throw→ERROR boundary +
+	// dispatcher binding live there) and records the operator's REAL factory name in the
+	// inspection index (_add) so describe shows it (D6/R-describe) while the node stays thin
+	// (R-node-thin). Operators are free-standing factory definitions (graph/operators.ts,
+	// graph/sources.ts) usable bare via the free initNode(); this funnel is the inspectable
+	// path. Replaces the per-operator methods.
 
-	private _op<T>(
-		deps: readonly Node<unknown>[],
-		factory: string,
-		body: (ctx: Ctx) => void,
-		opts: SugarOpts<T>,
-	): Node<T> {
-		const ctxFn: NodeFn = (ctx: Ctx) => {
-			try {
-				body(ctx);
-			} catch (e) {
-				ctx.down([["ERROR", e]]);
-			}
-		};
-		const n = new Node<T>([...deps], ctxFn, this._nodeOpts(opts));
-		return this._add(n, factory, deps, opts);
+	/**
+	 * Instantiate an operator (or source) factory as a registered graph node. `deps` are
+	 * type-checked against the operator's input element type; the output type flows from the
+	 * operator. A source is a depless operator — pass `[]`. Caller `opts` (name/meta/behavioral
+	 * overrides) win over the operator's baked-in `opts`.
+	 */
+	initNode<TIn, TOut>(
+		op: Operator<TIn, TOut>,
+		deps: readonly Node<TIn>[],
+		opts: SugarOpts<TOut> = {},
+	): Node<TOut> {
+		// Node<T> is invariant (T appears in equals); widen the typed deps to the erased Node
+		// surface the free initNode / _add accept (same cast the old per-operator methods used).
+		const erased = deps as readonly Node<unknown>[];
+		const n = initNode(op, erased, this._nodeOpts(opts));
+		return this._add(n, op.factory, erased, opts);
 	}
 
-	/** map: emit fn(value). */
-	map<S, T>(src: Node<S>, fn: (v: S) => T, opts: SugarOpts<T> = {}): Node<T> {
-		return this._op<T>(
-			[src as Node<unknown>],
-			"map",
-			(ctx) => {
-				ctx.down([["DATA", fn(ctx.depRecords[0].latest as S)]]);
-			},
-			opts,
-		);
-	}
-
-	/** filter: emit value only when pred(value) (else skip the wave). */
-	filter<S>(src: Node<S>, pred: (v: S) => boolean, opts: SugarOpts<S> = {}): Node<S> {
-		return this._op<S>(
-			[src as Node<unknown>],
-			"filter",
-			(ctx) => {
-				const v = ctx.depRecords[0].latest as S;
-				if (pred(v)) ctx.down([["DATA", v]]);
-			},
-			opts,
-		);
-	}
-
-	/** scan: stateful accumulator over the upstream (acc seeded once, kept in ctx.state). */
-	scan<S, T>(
-		src: Node<S>,
-		reducer: (acc: T, v: S) => T,
-		seed: T,
-		opts: SugarOpts<T> = {},
-	): Node<T> {
-		return this._op<T>(
-			[src as Node<unknown>],
-			"scan",
-			(ctx) => {
-				const acc = ctx.state.get<T>() ?? seed;
-				const next = reducer(acc, ctx.depRecords[0].latest as S);
-				ctx.state.set(next);
-				ctx.down([["DATA", next]]);
-			},
-			opts,
-		);
-	}
-
-	/** take: emit the first n values, then COMPLETE (terminal-is-forever). */
-	take<S>(src: Node<S>, n: number, opts: SugarOpts<S> = {}): Node<S> {
-		return this._op<S>(
-			[src as Node<unknown>],
-			"take",
-			(ctx) => {
-				if (n <= 0) {
-					ctx.down([["COMPLETE"]]);
-					return;
-				}
-				const count = ctx.state.get<number>() ?? 0;
-				if (count >= n) return; // already satisfied
-				const v = ctx.depRecords[0].latest as S;
-				const next = count + 1;
-				ctx.state.set(next);
-				ctx.down(next >= n ? [["DATA", v], ["COMPLETE"]] : [["DATA", v]]);
-			},
-			opts,
-		);
-	}
-
-	/** distinctUntilChanged: emit only when the value differs from the previous emit. */
-	distinctUntilChanged<S>(
-		src: Node<S>,
-		eq: (a: S, b: S) => boolean = Object.is,
-		opts: SugarOpts<S> = {},
-	): Node<S> {
-		return this._op<S>(
-			[src as Node<unknown>],
-			"distinctUntilChanged",
-			(ctx) => {
-				const v = ctx.depRecords[0].latest as S;
-				const prev = ctx.state.get<{ v: S }>();
-				if (prev && eq(prev.v, v)) return;
-				ctx.state.set({ v });
-				ctx.down([["DATA", v]]);
-			},
-			opts,
-		);
-	}
-
-	/** merge: interleave several sources — emit each DATA from whichever dep fired (partial). */
-	merge<T>(srcs: readonly Node<T>[], opts: SugarOpts<T> = {}): Node<T> {
-		return this._op<T>(
-			srcs as readonly Node<unknown>[],
-			"merge",
-			(ctx) => {
-				for (const r of ctx.depRecords) {
-					if (r.batch && r.batch.length > 0) {
-						for (const v of r.batch) ctx.down([["DATA", v]]);
-					}
-				}
-			},
-			{ ...opts, partial: true },
-		);
-	}
-
-	// ── inspection: describe (Slice B); observe/profile land in Slice D ──
+	// ── inspection: describe / observe / profile (D39) ──
 
 	/** Static structure snapshot (R-describe / D39). `_prefix` carries the mount path. */
 	describe(opts: DescribeOpts = {}, _prefix = ""): DescribeSnapshot {
