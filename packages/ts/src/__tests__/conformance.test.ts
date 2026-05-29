@@ -87,8 +87,8 @@ describe("C-3 INVALIDATE × ctx.state × onInvalidate (R-invalidate-idempotent, 
 	});
 });
 
-describe("C-4 mixed sync/async diamond (R-diamond, R-two-phase, R-first-run-gate)", () => {
-	it("joins exactly once after BOTH the sync and async legs settle", () => {
+describe("C-4 mixed sync/async diamond (R-diamond, R-two-phase, R-first-run-gate, R-dirty-before-data)", () => {
+	it("joins exactly once after BOTH legs settle, re-emitting DIRTY before DATA on the next wave", () => {
 		let dRuns = 0;
 		let cctx: Ctx | null = null;
 		const a = node<number>([], null, { initial: 1 });
@@ -109,14 +109,26 @@ describe("C-4 mixed sync/async diamond (R-diamond, R-two-phase, R-first-run-gate
 			]);
 		});
 
-		collect(d);
+		const { msgs } = collect(d);
 		// b settled synchronously (11); the async leg is deferred -> first-run gate holds d
 		expect(dRuns).toBe(0);
 		expect(d.cache).toBeUndefined();
 
-		(cctx as Ctx).down([["DATA", 21]]); // async leg resolves
+		(cctx as Ctx).down([["DATA", 21]]); // async leg resolves -> first join (activation)
 		expect(dRuns).toBe(1); // joined exactly once
 		expect(d.cache).toBe(32); // 11 + 21
+
+		// R-dirty-before-data: a non-activation tier-3 emission is preceded by a synthesized
+		// DIRTY in the same wave (the join fn calls ctx.down([["DATA",...]]) only). Drive a
+		// second settle through both legs so we observe d past its first-run exemption.
+		msgs.length = 0;
+		a.down([["DATA", 2]]); // re-drives b (sync, 12) and c (async, deferred again)
+		expect(dRuns).toBe(1); // still gated on the async leg
+		(cctx as Ctx).down([["DATA", 30]]); // async leg re-resolves
+		expect(dRuns).toBe(2);
+		expect(d.cache).toBe(42); // 12 + 30
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // DIRTY precedes DATA, glitch-free two-phase
+		expect(msgs.at(-1)).toEqual(["DATA", 42]);
 	});
 });
 

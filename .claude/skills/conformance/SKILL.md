@@ -1,7 +1,6 @@
 ---
 name: conformance
 description: "Behavioral conformance check across GraphReFly language runtimes (ts/rust/py) for the clean-slate redesign. Replaces the old structural 'parity' diff. Parity = does each runtime satisfy the wave-protocol behavior (conformance scenarios) + dispatcher contract — NOT 'do the symbol sets match'. Use after implementing/changing substrate behavior in any runtime, or when adding a new protocol rule. Authors/runs language-agnostic scenarios and updates conformance.jsonl runtime status. Triggers: 'conformance', 'cross-lang check', 'does rust match', 'parity', 'run the conformance suite', 'is the substrate behavior consistent'."
-disable-model-invocation: true
 argument-hint: "[rule-id | scenario-id | 'full'] [optional: runtime ts|rust|py]"
 ---
 
