@@ -224,3 +224,51 @@ describe("C-7 upstream control at a depless source (R-up-at-source / D38)", () =
 		expect(msgs).toEqual([]);
 	});
 });
+
+describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
+	it("surgical addDep (push-on-subscribe) → removeDep (drain) → idempotent setDeps; cache preserved", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 100 }); // B carries cached DATA
+		const aOnly = (ctx: Ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const sum = (ctx: Ctx) =>
+			ctx.down([
+				["DATA", (ctx.depRecords[0].latest as number) + (ctx.depRecords[1].latest as number)],
+			]);
+		const d = node<number>([a], aOnly);
+		collect(d);
+		expect(d.cache).toBe(1); // (1) A settled → D ran
+
+		d.addDep(b, sum); // (2) addDep(B): B cached → push-on-subscribe → D recomputes
+		expect(d.cache).toBe(101); // 1 + 100
+
+		b.down([["DATA", 50]]); // (3) B drives D
+		expect(d.cache).toBe(51); // 1 + 50
+
+		d.removeDep(a, aOnly); // (4) removeDep(A) → deps = [B]
+		expect(d.cache).toBe(51); // cache PRESERVED (A was not dirty — no recompute)
+
+		a.down([["DATA", 9]]); // (5) A no longer drives D — its edge is drained
+		expect(d.cache).toBe(51);
+
+		b.down([["DATA", 7]]); // B is dep0 now → drives D
+		expect(d.cache).toBe(7);
+
+		let runs = 0;
+		const f = (ctx: Ctx) => {
+			runs++;
+			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		};
+		d.setDeps([b], f); // (6) setDeps to the current set → idempotent
+		expect(runs).toBe(0); // no spurious recompute
+		expect(d.cache).toBe(7);
+	});
+
+	it("rejects rewire on a terminal node (throw → graph-layer ERROR, D30)", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const id = (ctx: Ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const d = node<number>([a], id, { completeWhenDepsComplete: false });
+		collect(d);
+		d.down([["COMPLETE"]]); // D terminal
+		expect(() => d.setDeps([a], id)).toThrow(/terminal/);
+	});
+});

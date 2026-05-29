@@ -66,8 +66,9 @@ export interface NodeOptions<T = unknown> {
 const defaultEquals = Object.is as (a: unknown, b: unknown) => boolean;
 
 export class Node<T = unknown> {
-	private readonly _deps: Node<unknown>[];
-	private readonly _handle: Handle | null;
+	private _deps: Node<unknown>[];
+	private _handle: Handle | null;
+	private readonly _pool: "sync" | "async";
 	private readonly _dispatcher: Dispatcher;
 	private readonly _equals: (a: T, b: T) => boolean;
 	private readonly _partial: boolean;
@@ -84,6 +85,9 @@ export class Node<T = unknown> {
 	private _subscribers = new Set<Sink>();
 	private _activated = false;
 	private _depUnsubs: Array<() => void> = [];
+	// R-rewire: each dep's subscription reads its index from a mutable box so a surgical
+	// rewire-reorder reroutes in O(1) (no per-message indexOf scan — F-PERF for high fan-in).
+	private _depIdxBoxes: Array<{ v: number }> = [];
 
 	// per-dep wave state
 	private _depBatch: Array<unknown[] | null>;
@@ -100,6 +104,8 @@ export class Node<T = unknown> {
 	private _hasCalledFnOnce = false;
 	private _emittedDirtyThisWave = false;
 	private _insideRunWave = false;
+	/** R-rewire: reentrancy guard for setDeps/addDep/removeDep (one mutation in flight). */
+	private _inDepMutation = false;
 	/** Node's own terminal: undefined = live, true = COMPLETE, else ERROR payload. */
 	private _terminal: true | unknown | undefined = undefined;
 	private _hasTorndown = false;
@@ -142,11 +148,12 @@ export class Node<T = unknown> {
 		this._pausable = opts.pausable ?? true;
 		this._replayN = opts.replayBuffer ?? 0;
 		this._dynamic = opts.dynamic ?? false;
+		this._pool = opts.pool ?? "sync";
 		this.name = opts.name;
 
 		if (handleOrFn === null) this._handle = null;
 		else if (typeof handleOrFn === "function")
-			this._handle = this._dispatcher.register(handleOrFn, opts.pool ?? "sync");
+			this._handle = this._dispatcher.register(handleOrFn, this._pool);
 		else this._handle = handleOrFn;
 
 		const n = deps.length;
@@ -231,25 +238,220 @@ export class Node<T = unknown> {
 		this._up(msgs);
 	}
 
+	// ── rewire (R-rewire / D42): intra-graph runtime topology mutation ──
+
+	/**
+	 * Replace this node's deps atomically (surgical, Option-C). Requires an explicit
+	 * `fn` (SD-1 fn-deps pairing — user fns read depRecords positionally). Kept deps
+	 * keep their subscription + per-dep state; only removed deps unsubscribe and only
+	 * added deps fresh-subscribe (push-on-subscribe for an added cached dep). The
+	 * first-run gate and cache are PRESERVED (R-rewire Q2/Q7). Intra-graph only (D22).
+	 */
+	setDeps(newDeps: Node<unknown>[], fn: NodeFn): void {
+		this._rewire(this._dedupDeps(newDeps), fn);
+	}
+
+	/** Add one dep (special case of setDeps); returns its index. fn required (SD-1). */
+	addDep(depNode: Node<unknown>, fn: NodeFn): number {
+		const next = this._deps.includes(depNode) ? [...this._deps] : [...this._deps, depNode];
+		this._rewire(next, fn);
+		return this._deps.indexOf(depNode);
+	}
+
+	/** Remove one dep (special case of setDeps); idempotent if absent (fn swap still applies). */
+	removeDep(depNode: Node<unknown>, fn: NodeFn): void {
+		this._rewire(
+			this._deps.filter((d) => d !== depNode),
+			fn,
+		);
+	}
+
+	private _dedupDeps(deps: Node<unknown>[]): Node<unknown>[] {
+		const seen = new Set<Node<unknown>>();
+		const out: Node<unknown>[] = [];
+		for (const d of deps)
+			if (!seen.has(d)) {
+				seen.add(d);
+				out.push(d);
+			}
+		return out;
+	}
+
+	/** Is `target` reachable upstream from `from` (following deps)? Cycle-prevention DFS. */
+	private _reachableUpstream(from: Node<unknown>, target: Node<unknown>): boolean {
+		const seen = new Set<Node<unknown>>();
+		const stack: Node<unknown>[] = [from];
+		while (stack.length > 0) {
+			const n = stack.pop();
+			if (n === undefined) continue;
+			if (n === target) return true;
+			if (seen.has(n)) continue;
+			seen.add(n);
+			for (const d of n._deps) stack.push(d);
+		}
+		return false;
+	}
+
+	private _rewire(newDeps: Node<unknown>[], fn: NodeFn): void {
+		// ── rejects (R-rewire / D42) ──
+		if (this._terminal !== undefined)
+			throw new Error(
+				"rewire: node is terminal (completed/errored) — cannot rewire (R-rewire / D42)",
+			);
+		if (this._insideRunWave)
+			throw new Error(
+				"rewire: mid-fn topology mutation — a fn mutating its own deps mid-wave is the feedback cycle (R-rewire / D37)",
+			);
+		if (this._inDepMutation)
+			throw new Error(
+				"rewire: reentrant dep mutation — another setDeps/addDep/removeDep is in flight (R-rewire)",
+			);
+		if (newDeps.includes(this as unknown as Node<unknown>))
+			throw new Error("rewire: self-dependency rejected (R-rewire / D42)");
+		const oldDeps = this._deps;
+		const added = newDeps.filter((d) => !oldDeps.includes(d));
+		for (const d of added) {
+			if (this._reachableUpstream(d, this as unknown as Node<unknown>))
+				throw new Error(
+					"rewire: would create a cycle — dep already transitively depends on this node (R-rewire / D42)",
+				);
+			if (d._terminal !== undefined && !d._resubscribable)
+				throw new Error(
+					"rewire: cannot add a non-resubscribable terminal dep — would wedge (R-rewire / D42)",
+				);
+		}
+
+		this._inDepMutation = true;
+		try {
+			// fn swap (SD-1): re-register against the same pool.
+			this._handle = this._dispatcher.register(fn, this._pool);
+
+			const removed = oldDeps.filter((d) => !newDeps.includes(d));
+			let removedDirtyContributor = false;
+			for (const d of removed) {
+				const oldIdx = oldDeps.indexOf(d);
+				if (this._depDirty[oldIdx]) {
+					removedDirtyContributor = true;
+					this._pending--;
+				}
+				if (this._activated) {
+					const box = this._depIdxBoxes[oldIdx];
+					if (box) box.v = -1; // drain: any stale in-flight callback drops
+					const unsub = this._depUnsubs[oldIdx];
+					if (unsub) unsub(); // stops the removed dep's edge — no further delivery
+				}
+			}
+
+			// Rebuild per-dep parallel arrays in newDeps order; kept deps carry their state
+			// + subscription, added deps start fresh (R-rewire Q1/Q4).
+			const n = newDeps.length;
+			const newBatch: Array<unknown[] | null> = new Array(n).fill(null);
+			const newPrev: unknown[] = new Array(n).fill(SENTINEL);
+			const newHasData: boolean[] = new Array(n).fill(false);
+			const newDirty: boolean[] = new Array(n).fill(false);
+			const newTier: number[] = new Array(n).fill(0);
+			const newTerminal: Array<true | unknown | undefined> = new Array(n).fill(undefined);
+			const newUnsubs: Array<() => void> = new Array(n);
+			const newBoxes: Array<{ v: number }> = new Array(n);
+			for (let j = 0; j < n; j++) {
+				const oldIdx = oldDeps.indexOf(newDeps[j]);
+				if (oldIdx !== -1) {
+					newBatch[j] = this._depBatch[oldIdx];
+					newPrev[j] = this._depPrev[oldIdx];
+					newHasData[j] = this._depHasData[oldIdx];
+					newDirty[j] = this._depDirty[oldIdx];
+					newTier[j] = this._depTier[oldIdx];
+					newTerminal[j] = this._depTerminal[oldIdx];
+					newUnsubs[j] = this._depUnsubs[oldIdx];
+					// carry the kept dep's subscription box and point it at the new index (O(1) reroute)
+					const box = this._depIdxBoxes[oldIdx];
+					if (box) box.v = j;
+					newBoxes[j] = box;
+				}
+			}
+			this._deps = newDeps;
+			this._depBatch = newBatch;
+			this._depPrev = newPrev;
+			this._depHasData = newHasData;
+			this._depDirty = newDirty;
+			this._depTier = newTier;
+			this._depTerminal = newTerminal;
+			this._depUnsubs = newUnsubs;
+			this._depIdxBoxes = newBoxes;
+			// depRecords are wave-scratch (rebuilt in _buildCtx); fresh array + drop the
+			// cached sync ctx whose `depRecords` pointed at the old array.
+			this._depRecords = newDeps.map(() => ({
+				batch: null,
+				prevData: SENTINEL,
+				latest: SENTINEL,
+				tier: 0,
+				terminal: undefined,
+			}));
+			this._syncCtx = null;
+
+			// Subscribe added deps — push-on-subscribe (R-push-subscribe) delivers a cached
+			// dep's DATA here, which drives _maybeRun; a SENTINEL dep delivers START only.
+			if (this._activated) {
+				for (const d of added) this._subscribeDepAt(d);
+			}
+
+			// Q6 auto-settle: removing the sole dirty contributor closes the wave. With deps
+			// remaining, recompute via the normal gate (equals absorbs a no-change recompute →
+			// RESOLVED); with zero deps the node is inert (degenerate fn-no-deps) so just
+			// un-dirty downstream with a RESOLVED. Cache is preserved either way (Q7).
+			if (removedDirtyContributor && this._pending === 0 && this._status === "dirty") {
+				if (newDeps.length > 0) {
+					this._maybeRun();
+				} else {
+					this._status = this._hasData ? "settled" : "sentinel";
+					if (this._emittedDirtyThisWave) {
+						this._emittedDirtyThisWave = false;
+						this._emitToSubs(["RESOLVED"]);
+					}
+				}
+			}
+		} finally {
+			this._inDepMutation = false;
+		}
+	}
+
 	// ── activation / deactivation (lazy; R-rom-ram) ──
 
 	private _activate(): void {
 		this._activated = true;
-		for (let i = 0; i < this._deps.length; i++) {
-			const idx = i;
-			const unsub = this._deps[i].subscribe((msg) => this._receiveFromDep(idx, msg));
-			this._depUnsubs.push(unsub);
-		}
+		this._depUnsubs = new Array(this._deps.length);
+		this._depIdxBoxes = new Array(this._deps.length);
+		for (const dep of this._deps) this._subscribeDepAt(dep);
 		// Depless producer (fn, no deps): run once on activation.
 		if (this._deps.length === 0 && this._handle !== null && !this._hasCalledFnOnce) {
 			this._runWave();
 		}
 	}
 
+	/**
+	 * Subscribe to a dep. The dispatch callback reads the dep's CURRENT index from a
+	 * mutable box (O(1)); a surgical rewire that reorders kept deps just updates the box
+	 * (R-rewire Option-C / D42) — no re-subscribe, no per-message indexOf scan. A removed
+	 * dep's box is set to -1 so any stale in-flight callback drops (drain).
+	 */
+	private _subscribeDepAt(depNode: Node<unknown>): void {
+		const idx0 = this._deps.indexOf(depNode);
+		const box = { v: idx0 };
+		const unsub = depNode.subscribe((msg) => {
+			if (box.v === -1) return; // dep removed — stale callback, drop (drain)
+			this._receiveFromDep(box.v, msg);
+		});
+		if (idx0 !== -1) {
+			this._depUnsubs[idx0] = unsub;
+			this._depIdxBoxes[idx0] = box;
+		}
+	}
+
 	private _deactivate(): void {
 		this._activated = false;
-		for (const u of this._depUnsubs) u();
+		for (const u of this._depUnsubs) if (u) u();
 		this._depUnsubs = [];
+		this._depIdxBoxes = [];
 		for (const fn of this._onDeactivation) fn();
 		this._onDeactivation = [];
 		this._onInvalidate = [];
@@ -761,8 +963,9 @@ export class Node<T = unknown> {
 
 	/** R-terminal: resubscribable reset clears terminal + dep state + re-arms the gate. */
 	private _resetLifecycle(): void {
-		for (const u of this._depUnsubs) u();
+		for (const u of this._depUnsubs) if (u) u();
 		this._depUnsubs = [];
+		this._depIdxBoxes = [];
 		this._activated = false;
 		this._terminal = undefined;
 		this._hasTorndown = false;
