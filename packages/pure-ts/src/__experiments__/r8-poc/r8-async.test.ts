@@ -9,14 +9,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Actions, Ctx, TinyNode } from "./protocol.js";
 import { baselineNode } from "./baseline.js";
-import {
-	dispatcher,
-	r8AsyncNode,
-	r8Node,
-	r8RemoteNode,
-} from "./r8.js";
+import type { Actions, Ctx, TinyNode } from "./protocol.js";
+import { dispatcher, r8AsyncNode, r8Node, r8RemoteNode } from "./r8.js";
 
 const lastOrPrev =
 	(idx: number) =>

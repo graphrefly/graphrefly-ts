@@ -86,10 +86,7 @@ class SimulatedRemotePool {
 	}
 
 	registerRemote<T>(
-		sandboxFn: (
-			batchData: ReadonlyArray<unknown[] | null>,
-			ctx: Ctx,
-		) => T,
+		sandboxFn: (batchData: ReadonlyArray<unknown[] | null>, ctx: Ctx) => T,
 	): number {
 		const id = this.fns.length;
 		const wrapper: AnyFn = (batchData, actions, ctx) => {
@@ -246,10 +243,7 @@ export class R8RemoteNode<T> extends TinyNode<T> {
 
 	constructor(
 		deps: TinyNode<unknown>[],
-		sandboxFn: (
-			batchData: ReadonlyArray<unknown[] | null>,
-			ctx: Ctx,
-		) => T,
+		sandboxFn: (batchData: ReadonlyArray<unknown[] | null>, ctx: Ctx) => T,
 	) {
 		super(deps);
 		const handle = dispatcher.remotePool(0).registerRemote(sandboxFn);
@@ -274,10 +268,7 @@ export class R8RemoteNode<T> extends TinyNode<T> {
 
 export function r8RemoteNode<T>(
 	deps: TinyNode<unknown>[],
-	sandboxFn: (
-		batchData: ReadonlyArray<unknown[] | null>,
-		ctx: Ctx,
-	) => T,
+	sandboxFn: (batchData: ReadonlyArray<unknown[] | null>, ctx: Ctx) => T,
 ): R8RemoteNode<T> {
 	return new R8RemoteNode(deps, sandboxFn);
 }

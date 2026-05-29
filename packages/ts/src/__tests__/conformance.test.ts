@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { node } from "../index.js";
+import { graph, node } from "../index.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
@@ -152,5 +152,63 @@ describe("C-5 PAUSE lockset multi-source (R-pause-lockset, R-pause-modes)", () =
 		n.up([["RESUME", LB]]); // last lock released -> resume, fire once with latest
 		expect(runs).toBe(1);
 		expect(n.cache).toBe(1);
+	});
+});
+
+describe("C-6 synchronous feedback cycle → ERROR (R-reentrancy / D37)", () => {
+	it("rejects a sync feedback cycle as ERROR (no hang, no _pending desync)", () => {
+		// state S → derived D (=n+1) → effect E; E writes back to S, closing S→D→E→S.
+		const g = graph();
+		const s = g.state(0);
+		const d = g.derived([s], (n) => (n as number) + 1);
+		const e = g.effect([d], (n) => {
+			s.set(n as number); // feedback → re-enters the wave
+		});
+		let escaped = false;
+		try {
+			e.subscribe(() => {});
+		} catch {
+			escaped = true; // the substrate throw must NOT escape — the graph layer catches it (D30)
+		}
+		expect(escaped).toBe(false);
+		// R-reentrancy: ERROR lands on a node ON the cycle — the value-level catch nearest the
+		// throw on the unwind (impl-determined, d or e), not necessarily the re-entered node.
+		expect([d.status, e.status]).toContain("errored");
+	});
+});
+
+describe("C-7 upstream control at a depless source (R-up-at-source / D38)", () => {
+	const make = () => {
+		const s = node<number>([], null, { initial: 5 });
+		const d = node<number>([s], (ctx: Ctx) =>
+			ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
+		);
+		const { msgs } = collect(d);
+		msgs.length = 0;
+		return { s, d, msgs };
+	};
+
+	it("INVALIDATE-up is HONORED: source self-invalidates + cascades down", () => {
+		const { s, d, msgs } = make();
+		d.up([["INVALIDATE"]]); // forwards to the depless terminus S → self _invalidate
+		expect(s.cache).toBeUndefined();
+		expect(s.status).toBe("sentinel");
+		expect(types(msgs)).toContain("INVALIDATE");
+		expect(d.cache).toBeUndefined();
+	});
+
+	it("DIRTY-up is DROPPED at the source (untouched, no down-cascade)", () => {
+		const { s, d, msgs } = make();
+		d.up([["DIRTY"]]);
+		expect(s.cache).toBe(5);
+		expect(s.status).toBe("settled");
+		expect(msgs).toEqual([]);
+	});
+
+	it("TEARDOWN-up is DROPPED at the source (not terminated, no down-cascade)", () => {
+		const { s, d, msgs } = make();
+		d.up([["TEARDOWN"]]);
+		expect(s.status).toBe("settled");
+		expect(msgs).toEqual([]);
 	});
 });

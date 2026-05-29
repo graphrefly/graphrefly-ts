@@ -180,6 +180,16 @@ export class Node<T = unknown> {
 		return this._status;
 	}
 
+	/**
+	 * The fn handle (pure data `(poolId, handleId)`, D7) or null for state/passthrough
+	 * nodes. Inspection-only (L1.6 handle is referenceable/inspectable) — lets the graph
+	 * layer key a dispatcher-backed profile recorder WITHOUT putting counters on the node
+	 * (R-node-thin / D39).
+	 */
+	get handle(): Handle | null {
+		return this._handle;
+	}
+
 	/** R-push-subscribe: a new sink receives START, then cached DATA (or DIRTY if dirty). */
 	subscribe(sink: Sink): () => void {
 		// R-terminal: late subscribe to a terminal node either resets (resubscribable)
@@ -427,11 +437,24 @@ export class Node<T = unknown> {
 	}
 
 	private _runWave(): void {
+		// R-reentrancy (D37): a fn that re-drives its own dep mid-wave re-enters here while
+		// _insideRunWave is still set — a synchronous feedback cycle. Reject (throw); the graph
+		// layer catches it and converts to [[ERROR, e]] (D30). The try/finally resets the flag
+		// on every frame as the throw unwinds, leaving the graph clean for the catch. Detection
+		// is node-local and free — it reuses the existing _insideRunWave flag (no new structure,
+		// dispatcher stays a pure funnel).
+		if (this._insideRunWave)
+			throw new Error(
+				"synchronous feedback cycle: node fn re-entered its own wave (R-reentrancy / D37)",
+			);
 		this._hasCalledFnOnce = true;
 		const ctx = this._buildCtx();
 		this._insideRunWave = true;
-		this._dispatcher.invoke(this._handle as Handle, ctx);
-		this._insideRunWave = false;
+		try {
+			this._dispatcher.invoke(this._handle as Handle, ctx);
+		} finally {
+			this._insideRunWave = false;
+		}
 
 		// roll wave-local state forward
 		for (let i = 0; i < this._depBatch.length; i++) this._depBatch[i] = null;
@@ -651,8 +674,18 @@ export class Node<T = unknown> {
 				this._pauseAcquire(m[1]);
 			} else if (m[0] === "RESUME") {
 				this._pauseRelease(m[1]);
+			} else if (this._deps.length === 0) {
+				// R-up-at-source (D38): a depless source is the terminus of upstream control.
+				// INVALIDATE → HONOR the invalidate-request. Routed through _down (NOT a direct
+				// _invalidate call, QA A-2) so the invalidate-request respects batch-defer (D12)
+				// and pause-buffer exactly like a downstream-originated INVALIDATE; _down's
+				// INVALIDATE branch calls _invalidate() (clear cache → SENTINEL, fire onInvalidate,
+				// broadcast downstream). Outside batch/pause it is identical to a direct call.
+				// DIRTY / TEARDOWN → DROP (no coherent terminus action; self-dirty would wedge
+				// downstream awaiting a settle that never comes; source lifecycle is source-owned).
+				if (m[0] === "INVALIDATE") this._down([["INVALIDATE"]]);
 			} else {
-				// DIRTY / INVALIDATE / TEARDOWN forward upstream toward deps (observers react).
+				// dep-bearing intermediate: forward upstream toward deps, no self-action.
 				for (const dep of this._deps) dep.up([m]);
 			}
 		}
