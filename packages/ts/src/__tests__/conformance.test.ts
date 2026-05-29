@@ -272,3 +272,53 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		expect(() => d.setDeps([a], id)).toThrow(/terminal/);
 	});
 });
+
+describe("C-9 pausable:false async source ignores PAUSE (R-pause-modes / R-async-paused / D44)", () => {
+	it("delivers its async production immediately under PAUSE — never buffers (resolves B20)", () => {
+		let cctx: Ctx | null = null;
+		// depless async LEAF source, pausable:false (timer/interval-class).
+		const s = node<number>(
+			[],
+			(ctx: Ctx) => {
+				cctx = ctx;
+			},
+			{ pool: "async", pausable: false },
+		);
+		const { msgs } = collect(s);
+		expect(cctx).not.toBeNull(); // fn ran on activation, no emit yet
+
+		const L = Symbol("pause");
+		s.up([["PAUSE", L]]); // pausable:false ⇒ lockset never consulted
+		msgs.length = 0;
+
+		(cctx as Ctx).down([["DATA", 42]]); // async production WHILE "paused" → delivered immediately
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // NOT buffered (contrast C-2's compute node)
+		expect(msgs.at(-1)).toEqual(["DATA", 42]);
+		expect(s.cache).toBe(42);
+	});
+});
+
+describe("C-10 true-mode async leaf source delivers immediately under PAUSE (R-pause-modes / R-async-paused / D44)", () => {
+	it("a depless async source's own production is not gated in true (default) mode (B20's twin)", () => {
+		let cctx: Ctx | null = null;
+		// depless async LEAF source, pausable:true default (fromPromise/fromAsyncIter-class).
+		const s = node<number>(
+			[],
+			(ctx: Ctx) => {
+				cctx = ctx;
+			},
+			{ pool: "async" },
+		);
+		const { msgs } = collect(s);
+		expect(cctx).not.toBeNull();
+
+		const L = Symbol("pause");
+		s.up([["PAUSE", L]]);
+		msgs.length = 0;
+
+		(cctx as Ctx).down([["DATA", 7]]); // leaf source's OWN production → delivered immediately
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // NOT buffered (a COMPUTE node WOULD buffer — C-2)
+		expect(msgs.at(-1)).toEqual(["DATA", 7]);
+		expect(s.cache).toBe(7);
+	});
+});

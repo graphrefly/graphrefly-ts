@@ -975,10 +975,16 @@ export class Node<T = unknown> {
 
 	/** Should an outgoing settle slice be deferred into the pause buffer? */
 	private _shouldBufferOnPause(): boolean {
+		// D44: pausable mode is the OUTER gate over R-async-paused buffering.
+		// false: ignore PAUSE/RESUME ENTIRELY — never buffer, keep producing (R-pause-modes; resolves B20).
+		if (this._pausable === false) return false;
 		if (!this._isPaused()) return false;
+		// resumeAll: production-gating — buffer the node's own (sync/async) settle slice too.
 		if (this._pausable === "resumeAll") return true;
-		// R-async-paused / DR-3: a late emit (outside runWave) from an async-pool node buffers.
-		if (!this._insideRunWave && this._isAsyncPool()) return true;
+		// true (default): PAUSE gates recomputation/propagation, NOT a leaf source's own production.
+		// An async COMPUTE node's (deps>0) in-flight result buffers (R-async-paused / C-2); a depless
+		// async leaf source's own production delivers immediately (R-pause-modes / C-10).
+		if (!this._insideRunWave && this._isAsyncPool() && this._deps.length > 0) return true;
 		return false;
 	}
 

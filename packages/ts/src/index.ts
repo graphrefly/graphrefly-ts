@@ -32,5 +32,26 @@ export {
 	type SugarOpts,
 } from "./graph/graph.js";
 export type { NodeProfile, ObserveEvent, ObserveStream, Profile } from "./graph/inspect.js";
+export {
+	distinctUntilChanged,
+	filter,
+	initNode,
+	map,
+	merge,
+	type Operator,
+	scan,
+	take,
+} from "./graph/operators.js";
+export {
+	type AsyncSourceOpts,
+	fromAny,
+	fromAsyncIter,
+	fromIter,
+	fromPromise,
+	interval,
+	type NodeInput,
+	of,
+	timer,
+} from "./graph/sources.js";
 export { dynamicNode, Node, type NodeOptions, node, type Status } from "./node/node.js";
 export * from "./protocol/messages.js";
