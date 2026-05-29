@@ -106,6 +106,8 @@ export class Node<T = unknown> {
 	private _insideRunWave = false;
 	/** R-rewire: reentrancy guard for setDeps/addDep/removeDep (one mutation in flight). */
 	private _inDepMutation = false;
+	/** R-rewire: a dep-add push during mutation requests ONE atomic two-phase settle after. */
+	private _rewireRunPending = false;
 	/** Node's own terminal: undefined = live, true = COMPLETE, else ERROR payload. */
 	private _terminal: true | unknown | undefined = undefined;
 	private _hasTorndown = false;
@@ -322,6 +324,8 @@ export class Node<T = unknown> {
 		}
 
 		this._inDepMutation = true;
+		this._rewireRunPending = false;
+		let zeroDepUnDirty = false;
 		try {
 			// fn swap (SD-1): re-register against the same pool.
 			this._handle = this._dispatcher.register(fn, this._pool);
@@ -396,22 +400,26 @@ export class Node<T = unknown> {
 			}
 
 			// Q6 auto-settle: removing the sole dirty contributor closes the wave. With deps
-			// remaining, recompute via the normal gate (equals absorbs a no-change recompute →
-			// RESOLVED); with zero deps the node is inert (degenerate fn-no-deps) so just
-			// un-dirty downstream with a RESOLVED. Cache is preserved either way (Q7).
+			// remaining, request the atomic settle (recompute; equals absorbs a no-change run →
+			// RESOLVED). With zero deps the node is inert (degenerate fn-no-deps) — just un-dirty
+			// downstream. Cache is preserved either way (Q7).
 			if (removedDirtyContributor && this._pending === 0 && this._status === "dirty") {
-				if (newDeps.length > 0) {
-					this._maybeRun();
-				} else {
-					this._status = this._hasData ? "settled" : "sentinel";
-					if (this._emittedDirtyThisWave) {
-						this._emittedDirtyThisWave = false;
-						this._emitToSubs(["RESOLVED"]);
-					}
-				}
+				if (newDeps.length > 0) this._rewireRunPending = true;
+				else zeroDepUnDirty = true;
 			}
 		} finally {
 			this._inDepMutation = false;
+		}
+
+		// Atomic post-mutation settle (outside the reentrancy guard so a fresh wave runs
+		// normally): ONE two-phase DIRTY→DATA recompute if any added dep delivered data or a
+		// sole-dirty dep was removed; else the zero-dep un-dirty via _down (pause/batch-safe).
+		if (this._rewireRunPending) {
+			this._rewireRunPending = false;
+			this._settleRewire();
+		} else if (zeroDepUnDirty) {
+			if (this._emittedDirtyThisWave) this._down([["RESOLVED"]]);
+			else this._status = this._hasData ? "settled" : "sentinel";
 		}
 	}
 
@@ -595,6 +603,14 @@ export class Node<T = unknown> {
 	}
 
 	private _maybeRun(): void {
+		// R-rewire: an added cached dep's push-on-subscribe lands here mid-mutation. Defer
+		// the fn-run to ONE atomic two-phase settle after every added dep is wired, so the
+		// fn never fires on a partially-populated added-dep view (multi-add) — _settleRewire
+		// drains this flag.
+		if (this._inDepMutation) {
+			this._rewireRunPending = true;
+			return;
+		}
 		// R-pause-modes (default): while paused, skip dep-driven fn re-execution and
 		// coalesce — fire once with the latest dep values on final-lock RESUME.
 		if (this._pausable === true && this._isPaused()) {
@@ -602,6 +618,28 @@ export class Node<T = unknown> {
 			return;
 		}
 		this._tryRun();
+	}
+
+	/**
+	 * R-rewire atomic settle (after a rewire that warrants a recompute): emit a proper
+	 * two-phase DIRTY→DATA wave (R-dirty-before-data — a rewire-triggered settle is a wave),
+	 * once, with every added dep already wired. Mirrors _maybeRun/_tryRun's pause + gate +
+	 * pending guards, then injects the phase-1 DIRTY the added dep's [START,DATA] handshake
+	 * did not carry.
+	 */
+	private _settleRewire(): void {
+		if (this._pausable === true && this._isPaused()) {
+			this._pausedDepWaveOccurred = true;
+			return;
+		}
+		if (this._pending > 0) return;
+		if (this._handle === null) {
+			this._passthroughEmit();
+			return;
+		}
+		if (!this._hasCalledFnOnce && !(this._partial || this._allDepsSettled())) return;
+		this._markDirty(); // phase 1 (no-op if already dirty, e.g. removeDep auto-settle)
+		this._runWave(); // phase 2: fn → DATA/RESOLVED
 	}
 
 	private _tryRun(): void {

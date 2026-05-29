@@ -17,6 +17,7 @@ function collect(n: Node) {
 	return { msgs, unsub };
 }
 const num = (ctx: Ctx, i: number): number => ctx.depRecords[i].latest as number;
+const types = (m: Message[]) => m.map((x) => x[0]);
 
 describe("rewire — Q-semantics (R-rewire / D42)", () => {
 	it("addDep wires a cached dep via push-on-subscribe and recomputes", () => {
@@ -188,5 +189,69 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 			ctx.down([["DATA", num(ctx, 0)]]);
 		});
 		expect(() => collect(dh as Node)).toThrow(/mid-fn|feedback/);
+	});
+});
+
+describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-safe)", () => {
+	it("setDeps adding ≥2 cached deps settles ATOMICALLY — fn fires once, never on a partial view (P2)", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 10 });
+		const c = node<number>([], null, { initial: 100 });
+		let runs = 0;
+		const sawPartial: boolean[] = [];
+		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
+		collect(d);
+		runs = 0;
+
+		const sum3 = (ctx: Ctx) => {
+			runs++;
+			// a SENTINEL added dep at invocation = the fn fired on a partial view (the bug)
+			sawPartial.push(
+				ctx.depRecords[1].latest === undefined || ctx.depRecords[2].latest === undefined,
+			);
+			ctx.down([["DATA", num(ctx, 0) + num(ctx, 1) + num(ctx, 2)]]);
+		};
+		d.setDeps([a, b, c], sum3); // add b AND c (both cached) in one rewire
+		expect(runs).toBe(1); // ONE atomic settle, not one fire per added dep
+		expect(sawPartial).toEqual([false]); // never fired with an added dep still SENTINEL
+		expect(d.cache).toBe(111); // 1 + 10 + 100
+	});
+
+	it("a rewire-triggered settle emits DIRTY before DATA downstream (D1 / R-dirty-before-data)", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 100 });
+		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
+		const { msgs } = collect(d);
+		msgs.length = 0; // isolate the rewire wave
+
+		d.addDep(b, (ctx) => ctx.down([["DATA", num(ctx, 0) + num(ctx, 1)]]));
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // two-phase, glitch-free
+		expect(msgs.at(-1)).toEqual(["DATA", 101]);
+	});
+
+	it("removeDep of the sole dirty dep to zero deps un-dirties downstream via RESOLVED (Q6 / P1)", () => {
+		let cctx: Ctx | null = null;
+		const a = node<number>([], null, { initial: 1 });
+		const c = node<number>(
+			[a],
+			(ctx: Ctx) => {
+				cctx = ctx; // async leg: defer the emit
+			},
+			{ pool: "async" },
+		);
+		const d = node<number>([c], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
+		const { msgs } = collect(d);
+		(cctx as Ctx).down([["DATA", 5]]); // c settles once → d caches 5
+		expect(d.cache).toBe(5);
+
+		msgs.length = 0;
+		a.down([["DATA", 2]]); // a→c DIRTY/DATA; c (async) defers → c emits DIRTY to d → d dirty
+		expect(d.status).toBe("dirty");
+		expect(types(msgs)).toContain("DIRTY");
+
+		msgs.length = 0;
+		d.removeDep(c, (ctx) => ctx.down([["DATA", num(ctx, 0)]])); // remove sole dirty dep → zero deps
+		expect(types(msgs)).toEqual(["RESOLVED"]); // un-dirtied downstream (not a stray DATA)
+		expect(d.cache).toBe(5); // cache preserved (Q7), no recompute
 	});
 });

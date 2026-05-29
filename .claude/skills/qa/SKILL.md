@@ -4,19 +4,19 @@ description: "Adversarial code review, apply fixes, final checks (test/lint/buil
 argument-hint: "[--skip-docs] [optional context about what was implemented]"
 ---
 
-You are executing the **qa** workflow for **GraphReFly** (cross-language: TypeScript + Python + Rust port).
+You are executing the **qa** workflow for the **clean-slate GraphReFly** redesign.
 
-Operational docs live in **graphrefly-ts** (this repo). The diff may include changes in `graphrefly-ts`, `graphrefly-py` (`~/src/graphrefly-py`), or **`graphrefly-rs`** (`~/src/graphrefly-rs` — the Rust port).
+This repo is **`@graphrefly/ts`** — the self-contained TypeScript implementation (D32); clean-slate code lives in **`packages/ts/src/`**. Siblings (each self-contained, cross-language = wire bridge, never in-process): `@graphrefly/rust` (`~/src/graphrefly-rs`), `@graphrefly/py` (`~/src/graphrefly-py`). The language-neutral authority (spec / decisions / plan / conformance / formal) lives in **`~/src/graphrefly`** (branch `clean-slate`) as jsonl — when this skill and that repo disagree, that repo wins (CLAUDE.md).
 
-### Repo detection
-
-Inspect the diff to detect which repo(s) are touched. If the diff includes paths under `~/src/graphrefly-rs/` (or the working directory IS `~/src/graphrefly-rs`), this is a **Rust-port QA pass** — see "Rust-port QA additions" callouts inline below for the doc reads, subagent prompt extensions, final-check commands, and Phase 4 doc updates that apply.
+> **Stale-infra guard.** Do NOT reach for the retired port-model surfaces: `packages/pure-ts/**` (frozen read-only reference only, D41), `docs/implementation-plan.md` / `implementation-plan-13.6-*.md` / `optimizations.md` / `roadmap.md` / `test-guidance.md` / `docs-guidance.md`, `GRAPHREFLY-SPEC.md` / `COMPOSITION-GUIDE.md` (migrated to `spec/rules.jsonl` + `guide/guide.jsonl`, B7), the `@graphrefly/graphrefly` shim + its 4-file subpath rule, the `Impl`/facade/actor model, the Rust `migration-status.md` / `porting-deferred.md` / canonical-spec-13.6 registries. The clean-slate authority is the `~/src/graphrefly` jsonl.
 
 Context from user: $ARGUMENTS
 
 ### Flag detection
-
 If `$ARGUMENTS` contains `--skip-docs`, skip Phase 4 (Documentation Updates).
+
+### Repo detection
+Inspect the diff to detect which package(s) are touched: `packages/ts/` (this repo), `~/src/graphrefly-py`, `~/src/graphrefly-rs`. The cross-language contract is **behavioral conformance (D24)**, not symbol parity — review each arm against the SAME `spec/rules.jsonl` + `spec/conformance.jsonl`, per-language idioms aside.
 
 ---
 
@@ -24,181 +24,87 @@ If `$ARGUMENTS` contains `--skip-docs`, skip Phase 4 (Documentation Updates).
 
 ### 1a. Gather the diff
 
-Run `git diff` to get all uncommitted changes. If there are also untracked files relevant to the task, read and include them.
+Run `git diff` for uncommitted changes; if the chat's work was already committed, diff against the chat's baseline commit (`git log --oneline` to find it, then `git diff <base>..HEAD`). Include relevant untracked files (read them). Concentrate the review on the **substantive hand-written code** — formally-verified TLA+ (already TLC-checked), generated artifacts, and jsonl data are lower bug-risk than imperative substrate/graph code.
 
-**Rust-port QA additions** — if the diff is in `~/src/graphrefly-rs/`, ALSO read these as part of the context-load (they are the canonical authority + active deferred-concerns registry for the Rust port; QA must NOT contradict them, and SHOULD update them when the slice closes a deferred item):
-
-- **`docs/implementation-plan-13.6-canonical-spec.md`** (graphrefly-ts) — single-document canonical spec post-Phase 13.6.A. The Rust port's behavior authority. Use rule IDs (`R<x.y.z>`) to cite spec rules in findings.
-- **`docs/implementation-plan-13.6-flowcharts.md`** (graphrefly-ts) — Mermaid diagrams for all internal methods/processes. Cross-reference for call/data-flow shape during edge-case review.
-- **`~/src/graphrefly-rs/docs/migration-status.md`** — milestone tracker. Read to know which slice this QA pass covers, what's claimed-as-landed, and what test counts to verify.
-- **`~/src/graphrefly-rs/docs/porting-deferred.md`** — registry of audit-surfaced concerns deferred to evidence-driven slices. **DO NOT raise findings that match an existing deferred entry** — those are already-acknowledged divergences/limitations. DO raise findings that contradict a deferred entry's stated scope (e.g., a "deferred for now" item that the slice actually starts touching but didn't update).
+Also load the clean-slate context the review must NOT contradict:
+- `~/src/graphrefly/spec/rules.jsonl` — the protocol 宪法 (R-* rules); the behavior authority. Cite R-ids in findings.
+- `~/src/graphrefly/decisions/decisions.jsonl` — the governing D# (or `/decision-guard`); the F-* floor + durable values.
+- `~/src/graphrefly/plan/backlog.jsonl` + `plan/antipatterns.jsonl` — **already-acknowledged deferred concerns (B#) and known anti-patterns. DO NOT raise a finding that matches an existing deferred B# or antipattern** — those are accepted. DO raise a finding that *contradicts* a deferred entry's stated scope.
+- `~/src/graphrefly/spec/conformance.jsonl` — the C-* scenarios the change must keep green (+ their `runtimes` status).
+- `~/src/graphrefly/formal/*.tla` — when the change implements a formally-modeled rule, cross-check the impl against the TLC-verified model.
 
 ### 1b. Launch parallel review subagents
 
-Launch these as parallel Agent calls. Each receives the diff and the context from $ARGUMENTS (what was implemented and why).
+Launch as parallel Agent calls. Each receives the diff + the context from $ARGUMENTS (what was implemented and why). Tell each to do a STATIC review (no servers, no test runs) and return ONLY a findings list.
 
-**Subagent 1: Blind Hunter** — Pure code review, no project context:
-> You are a Blind Hunter code reviewer. Review this diff for: logic errors, off-by-one errors, race conditions, resource leaks, missing error handling, security issues, dead code, unreachable branches. For Python code, also check thread safety (including free-threaded Python without GIL). Output each finding as: **title** | **severity** (critical/major/minor) | **location** (file:line) | **detail**. Be adversarial — assume bugs exist.
+**Subagent 1: Blind Hunter** — pure code review, no project context:
+> You are a Blind Hunter code reviewer. Review this diff for: logic errors, off-by-one, race/re-entrancy hazards, resource leaks (unclosed subscriptions, unbounded registries), stale-closure / index-desync bugs, missing error handling, dead/unreachable code, sparse-array holes, security issues. For Python, also check thread/free-threaded safety. Be adversarial — assume bugs exist; trace the suspicious paths concretely. If a suspicious path is actually correct, say so in one line rather than raising noise. Output each finding as: **title** | **severity** (critical/major/minor) | **location** (file:line) | **detail** (trigger + consequence + suggested fix).
 
-**Subagent 2: Edge Case Hunter** — Has project read access:
-> You are an Edge Case Hunter. Review this diff in the context of **GraphReFly** (`~/src/graphrefly/GRAPHREFLY-SPEC.md`). First, read `archive/optimizations/cross-language-notes.jsonl` and collect all entries with `id` prefix `divergence-` — these are **confirmed intentional cross-language divergences** that must NOT be raised as findings.
+**Subagent 2: Edge Case Hunter** — clean-slate spec-aware:
+> You are an Edge Case Hunter reviewing a change against the GraphReFly clean-slate SPEC. The authority is `~/src/graphrefly` jsonl (branch clean-slate) — NOT any docs/*.md or packages/pure-ts (retired port-model; ignore). Read the relevant `spec/rules.jsonl` R-* rules + `decisions/decisions.jsonl` D# for the area under review, and the matching `spec/conformance.jsonl` C-* + `formal/*.tla` model if the change implements a spec-locked behavior.
 >
-> **Post-Phase-13.9.A repo layout (read once before reviewing TS diffs):** the pure-TS implementation lives at `packages/pure-ts/src/` (NOT `src/`). Root `src/` is the `@graphrefly/graphrefly` shim — every file there is a one-liner `export * from "@graphrefly/pure-ts/<subpath>"`. If a TS diff touches root `src/`, that's almost always a public-API surface widening (a new subpath was added) and the review should verify 4-file consistency: (1) the actual source under `packages/pure-ts/src/<new>/`, (2) `packages/pure-ts/tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` if Node-only), (3) `packages/pure-ts/package.json` `exports`, (4) the matching one-liner shim source at root `src/<new>/` plus its registration in root `tsup.config.ts` `ENTRY_POINTS` and root `package.json` `exports`. If the diff also affects cross-impl behavior, the review should also confirm a corresponding parity scenario landed in `packages/parity-tests/scenarios/<layer>/`.
+> Check protocol/wave invariants against the rules: message tuples `[[Type,Data?]]`, one array = one wave (R-msg-format); DIRTY-before-DATA in the same wave (R-dirty-before-data); two-phase glitch-free diamond, recompute-once (R-two-phase/R-diamond); ctx.up control-tier-only (R-ctx-up); SENTINEL = absence-of-DATA, never-emitted detector `prevData===undefined` (R-sentinel); equals DATA→RESOLVED only on a single-DATA wave (R-equals); first-run gate (R-first-run-gate); INVALIDATE idempotent + lifecycle-continue (R-invalidate-idempotent); terminal-is-forever / resubscribable reset (R-terminal); ROM/RAM cache (R-rom-ram); PAUSE lockset + modes (R-pause-lockset/R-pause-modes); reentrancy reject (R-reentrancy/D37).
 >
-> Then check: unhandled message sequences (DIRTY without follow-up, DATA vs RESOLVED), diamond resolution (recompute once), COMPLETE/ERROR terminal rules, forward-unknown-types, batch semantics (DATA deferred, DIRTY not), reconnect/teardown leaks, meta companion nodes, and graph mount/signal propagation when `Graph` is in scope. Also flag violations of design invariants (spec §5.8–5.12): polling patterns (busy-wait or setInterval/time.sleep loops on node values), imperative triggers bypassing graph topology, bare Promises/queueMicrotask/setTimeout (TS) or asyncio.ensure_future/create_task/threading.Timer (PY) for reactive scheduling, direct Date.now()/performance.now() (TS) or time.time_ns()/time.monotonic_ns() (PY) usage (must use `core/clock.ts` or `core/clock.py` — for TS, that's now `packages/pure-ts/src/core/clock.ts`), hardcoded message type checks instead of messageTier/message_tier utilities, and Phase 4+ APIs that leak protocol internals (DIRTY/RESOLVED/bitmask) into their primary surface. **If the change touches `packages/pure-ts/src/patterns/` or `packages/pure-ts/src/compat/`, verify the implementation against COMPOSITION-GUIDE.md categories (§1 lazy activation, §2 subscription ordering, §3 null guards, §5 wiring order, §7 feedback cycles, §8 SENTINEL gate).** **Browser / Node / Universal tier (TS):** if the change adds or moves code in `packages/pure-ts/src/extra/` or `packages/pure-ts/src/patterns/`, confirm (a) any new `node:*` import or `require("<builtin>")` / `fileStorage` / `sqliteStorage` / `child_process` / filesystem API lives in a `<x>/node` subpath source file, not on a universal path; (b) any new DOM global (`window`, `document`, `indexedDB`, `Worker`, `MessagePort` constructor calls) lives in a `<x>/browser` subpath; (c) new subpaths are registered in both `packages/pure-ts/tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` when node-only) and `packages/pure-ts/package.json` `exports`, AND mirrored in the root shim's `tsup.config.ts` + `package.json` `exports` + a one-liner shim source at root `src/<x>/<sub>.ts`; (d) JSDoc `@example` blocks import from the correct subpath via the public `@graphrefly/graphrefly/...` name (NOT `@graphrefly/pure-ts` directly) — a Node-only adapter must not suggest the universal barrel in its example. The `assertBrowserSafeBundles` guardrail lives in `packages/pure-ts/tsup.config.ts` (NOT in the root shim's tsup, which has no source-level imports to police). See `docs/docs-guidance.md` § "Browser / Node / Universal split" for the convention. **If the diff is in `~/src/graphrefly-rs/` (Rust port):** review against the *single-document canonical spec* at `~/src/graphrefly-ts/docs/implementation-plan-13.6-canonical-spec.md` (NOT the older multi-file TS spec — they diverge per §11 Implementation Deltas). Cross-reference rule IDs (`R<x.y.z>`) in findings. Cross-reference call/data-flow shape via `~/src/graphrefly-ts/docs/implementation-plan-13.6-flowcharts.md`. Read `~/src/graphrefly-rs/docs/porting-deferred.md` and DROP findings that match an already-acknowledged deferred entry (perf-tier §10 simplifications, v1 dispatcher limitations, spec divergences acknowledged in v1, Phase 13.8 carry-forwards). For Rust slices that close milestones in the `packages/parity-tests/README.md` schedule (M1 dispatcher, M2 Slice E Graph, M3 operators, M4 storage, M5 structures), also flag whether `packages/parity-tests/scenarios/<layer>/` was widened with corresponding `describe.each(impls)` scenarios — surface coverage of the new milestone is part of the parity-gate definition. Also flag Rust-specific invariants: `unsafe` usage (forbidden — `#![forbid(unsafe_code)]`); `unwrap()` / `expect()` on user-facing paths (only allowed in tests/build scripts/impossible-by-construction with comment); missing `#[must_use]` on public-fn returns; raw integer types where newtypes (`NodeId(u64)`, `HandleId(u64)`, `FnId(u64)`, `LockId(u64)`) should be used; refcount imbalance via `BindingBoundary::retain_handle` / `release_handle` pairs; lock-discipline asymmetry across the `parking_lot::Mutex<CoreState>` boundary (sink-fire-with-lock-held vs lock-released); `Send + Sync` violations on public types; async runtime introduction in `graphrefly-core` (forbidden — Core stays sync). For each finding: **title** | **trigger_condition** | **potential_consequence** | **location** | **suggested_guard**.
+> Flag floor violations: imperative side-channel triggers (R-no-imperative — emitters/callbacks/timers+set instead of ctx.up/message flow); polling/busy-wait (R-no-polling); bare async in the sync core (R-no-raw-async / F-SYNC-CORE — async only in sources / pool / wire bridge); inline-fn bypassing the dispatcher (R-dispatch-all / F-DISPATCH-ALL); peeking a dep `.cache` to seed compute (R-data-not-peek); hardcoded `type === "DATA"` instead of messageTier (R-tier); protocol internals (DIRTY/RESOLVED/bitmask) leaking into value-level sugar (R-primary-api-clean / DR-1); counters/inspection on the thin node (R-node-thin); a new verb (D4 closed set) or a 10th tier (D9) introduced casually; graph-level shared mutable state accessed implicitly instead of an explicit node+dep (D22/D23); cross-graph in-process coupling instead of a wire bridge (D22/D32).
+>
+> If the change implements a formally-modeled rule, identify any place the impl DIVERGES from the `formal/*.tla` model (cite the invariant). Surface real-but-unmodeled cross-axis interactions (e.g. X×batch, X×pause) and say whether each is a genuine gap or acceptably-deferred. DROP any finding that matches an already-acknowledged `plan/backlog.jsonl` B# or `plan/antipatterns.jsonl` entry. Output each finding as: **title** | **severity** | **location** (file:line or R-id) | **detail** (the rule/D# it relates to + what the impl does + divergence/gap/ok).
+
+Scale the reviewer count to the change: 2 is the default; for a large or high-risk substrate change add a third reviewer on a specific axis (e.g. concurrency/pool, or a perspective-diverse second spec reviewer).
 
 ### 1c. Triage findings
+Classify each: **patch** (fixable, caused by this change — include the fix) · **defer** (pre-existing or out-of-scope — note it) · **reject** (false positive / noise — drop silently). Cross-check every finding against `plan/backlog.jsonl` + `plan/antipatterns.jsonl`; a match to an accepted deferral → **reject** silently.
 
-Classify each finding into:
-- **patch** — fixable code issue. Include the fix recommendation.
-- **defer** — pre-existing issue, not caused by this change.
-- **reject** — false positive or noise. Drop silently.
-
-For each **patch** and **defer** finding, evaluate fix priority (most to least important):
-1. **Spec alignment** — matches `~/src/graphrefly/GRAPHREFLY-SPEC.md` (or `docs/implementation-plan-13.6-canonical-spec.md` for Rust-port diffs — the canonical post-Phase 13.6.A consolidated spec)
-2. **Semantic correctness** — protocol and node contract
-3. **Completeness** — edge cases covered
-4. **Consistency** — patterns elsewhere in graphrefly-ts (or graphrefly-rs for Rust-port diffs)
-5. **Level of effort**
-
-**Optional:** Compare tricky operator behavior with **callbag-recharge** at `~/src/callbag-recharge` for precedent — GraphReFly still wins on spec conflicts.
-
-**Rust-port QA additions** — when triaging findings on `~/src/graphrefly-rs/` diffs:
-- Cross-check every finding against `~/src/graphrefly-rs/docs/porting-deferred.md`. Findings that match an already-acknowledged deferred entry (perf-tier §10, v1 dispatcher limitation, spec divergence acknowledged in v1, Phase 13.8 carry-forward) → **reject** silently.
-- Findings that contradict the canonical spec at `~/src/graphrefly-ts/docs/implementation-plan-13.6-canonical-spec.md` → **patch** (high priority — canonical wins over current TS impl per §11 Implementation Deltas).
-- Findings about TS-vs-Rust behavior gaps → check whether TS is the reference or canonical is. The canonical spec wins; if Rust is closer to canonical than TS, the finding is `reject`.
-- Findings about Rust-specific invariants (`unsafe` usage, refcount imbalance, `Send + Sync`, `unwrap` on user-facing paths) → **patch** (Rust's value over TS / PY is compiler-enforced safety; bypassing forfeits the win).
+Fix priority (most→least): 1) **spec alignment** (`spec/rules.jsonl` / the F-* floor — a rule wins over current impl) · 2) **semantic correctness** (protocol + node contract) · 3) **completeness** (edge cases) · 4) **consistency** (patterns already in `packages/ts/src/`) · 5) **level of effort**. (Frozen `packages/pure-ts/**` + `~/src/callbag-recharge` are read-only precedent only — the clean-slate spec wins on any conflict.)
 
 ### 1d. Present findings (HALT)
+Present ALL patch + defer findings (treat equally). For each: the issue + location, the **recommended fix** (pros/cons), whether it affects architecture, and whether it needs a user decision or can be auto-applied. Group:
+1. **Needs Decision** — architecture-affecting or ambiguous (route per the floor: architectural lock → `/design-review` → D#; wave-protocol behavior change → `/spec-amend`; an open question with no clear answer → `plan/backlog.jsonl` B#).
+2. **Auto-applicable** — clear fixes following existing patterns.
 
-Present ALL patch and defer findings to the user. Treat both equally. For each finding:
-- The issue and its location
-- **Recommended fix** with pros/cons
-- Whether it affects architecture (flag these)
-- Whether it needs user decision or can be auto-applied
-
-Group findings:
-1. **Needs Decision** — architecture-affecting or ambiguous fixes
-2. **Auto-applicable** — clear fixes that follow existing patterns
-
-**Cross-language decision log:** For **Needs Decision** items that are architectural or affect TS/Python parity, add them to **`docs/optimizations.md`** under "Active work items" (this repo is the single source of truth for both TS and PY). When resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log".
-
-**Wait for user decisions on group 1. Group 2 can be applied immediately if user approves the batch.**
+**Wait for user decisions on group 1.** Group 2 may be applied on the user's batch approval. Do NOT silently pick on a needs-decision item (no-autonomous-decisions).
 
 ---
 
 ## Phase 2: Apply Review Fixes
-
-Apply the approved fixes from Phase 1.
+Apply the approved fixes. Cite the governing R-id / D# in any new test expectations.
 
 ---
 
 ## Phase 3: Final Checks
+Run all checks for the affected package(s) and fix failures (do NOT skip/ignore):
 
-Run all checks for the affected repo(s) and fix any failures (do NOT skip or ignore):
+**TypeScript (`@graphrefly/ts`):**
+1. `pnpm --filter @graphrefly/ts test` (vitest) — all pass.
+2. `pnpm run lint` (biome + layer-boundary + typecheck gates); `pnpm run lint:fix` to auto-format.
+3. `pnpm run build` (tsup ESM/CJS/DTS) when public API changed.
 
-**TypeScript (post-Phase-13.9.A cleave):**
-1. `pnpm test` — runs `pnpm --filter @graphrefly/pure-ts test && pnpm --filter @graphrefly/parity-tests test`. All tests must pass. Use `pnpm test:pure-ts` or `pnpm test:parity` to scope; `pnpm --filter @graphrefly/pure-ts test:watch` for watch mode.
-2. `pnpm run lint:fix` — fix lint issues (workspace-wide; biome is shared at root).
-3. `pnpm run build` — runs `pnpm --filter @graphrefly/pure-ts build && tsup` (pure-ts first, then root shim). The pure-ts build's `onSuccess` runs `assertBrowserSafeBundles` (fails the build with a `via X → Y → Z` chain if any universal entry transitively imports `node:*` or a bare Node builtin). The shim's tsup config has no equivalent guardrail (intentional — the shim has no source-level node-or-DOM imports, just `export *` lines). If `assertBrowserSafeBundles` fails, move the offending symbol to a `<x>/node` subpath per `docs/docs-guidance.md` § "Browser / Node / Universal split", don't silence the guardrail. **Adding a new public subpath is a 4-file change post-cleave**: source under `packages/pure-ts/src/<x>/`, pure-ts `tsup.config.ts` `ENTRY_POINTS` + `package.json` `exports`, and matching shim entries (root `tsup.config.ts` `ENTRY_POINTS` + root `package.json` `exports` + a one-liner shim source at root `src/<x>.ts`).
+**Sibling packages (only if touched):** run that package's own test/lint/type gate in its repo (`~/src/graphrefly-py` / `~/src/graphrefly-rs`) following its local conventions. The cross-language contract is behavioral conformance (D24) — a substrate behavior change should drive its `spec/conformance.jsonl` arm green per runtime.
 
-**Python (if PY code was changed):**
-1. `cd ~/src/graphrefly-py && uv run pytest`
-2. `cd ~/src/graphrefly-py && uv run ruff check --fix src/ tests/`
-3. `cd ~/src/graphrefly-py && uv run ruff format src/ tests/`
-4. `cd ~/src/graphrefly-py && uv run mypy src/`
+**jsonl touched (`~/src/graphrefly`):** `node ~/src/graphrefly/dashboard/build.mjs --check` — the consistency gate (non-zero on broken links / orphans).
 
-**Rust (if Rust code was changed in `~/src/graphrefly-rs/`):**
+**TLA+ touched:** re-run the affected model (`cd ~/src/graphrefly/formal && java -cp <tla2tools.jar> tlc2.TLC -config <name>.cfg <name>`); for a new invariant, mutation-verify it is load-bearing (break the guard → confirm it trips) before claiming it.
 
-1. `cd ~/src/graphrefly-rs && mise run gate` — **the sanctioned QA gate.** ONE
-   command runs fmt --check → clippy (default-members) → `cargo nextest run
-   --profile ci` (incl. the `cascade_depth` stack-safety guards) *sequentially*
-   under an atomic mutex with process-group teardown, a direct log, a
-   self-timeout diagnostic, and a GUARANTEED terminal sentinel. Do **NOT**
-   hand-run the 4 cargo commands separately in a QA pass — concurrent/stacked
-   cargo invocations fighting the single target lock is the exact swap-thrash
-   foot-gun this gate exists to prevent (`feedback_no_chained_background_cargo.md`).
-   Use `mise run gate:core` for the fast `-p graphrefly-core`-scoped variant
-   during iteration; the **full `mise run gate` is required before the slice
-   closes**. `GATE_CLIPPY_DENY=1 mise run gate` to treat clippy warnings as
-   errors. (The gate runs `cargo-nextest`, never legacy `cargo test`.)
-2. **Monitor it by the sentinel, never a guessed string.** `mise run gate`
-   emits `<<<RUN-LOGGED:DONE>>> exit=… reason=ok|fail|timeout|signal|crash …`
-   on *every* terminal path (stdout AND the `.gate/*.log`). A Monitor's
-   until-condition MUST grep that token — never harness-buffered tool output,
-   never a non-guaranteed progress line. **Subagent hygiene:** if this QA pass
-   runs in a spawned subagent, run the gate **synchronously** (foreground, wait
-   for the sentinel) or tear down any backgrounded command (kill by process
-   group) **before returning** — a live background process leaks as a stale
-   parent-session "running" entry indistinguishable from a real hang. Full
-   rationale + the "is it hung?" checklist + the disk/`target/`-growth
-   tradeoff: `~/src/graphrefly-ts/docs/test-guidance.md` § "Running long
-   commands reliably / diagnosing a stuck run" (memories
-   `feedback_long_command_observation.md`, `feedback_subagent_bg_hygiene.md`).
-3. **Not covered by the gate — check these manually:**
-   - Loom: `cargo test -p graphrefly-core --features loom-checked` (needs the
-     `--cfg loom` build; nextest can't run it). Run via
-     `mise run run-logged -- cargo test -p graphrefly-core --features loom-checked`.
-   - Verify `#![forbid(unsafe_code)]` is preserved at every crate root.
+**Long / heavy commands** (full test sweeps, Rust gates, TLC): run them so they're observably-finishing, not a false-hang — prefer a run-logged wrapper + monitor a guaranteed DONE sentinel (never a guessed progress string, never `sleep`-poll). If this QA runs in a spawned subagent, run such commands **synchronously** (wait for the sentinel) or tear them down (kill by process group) **before returning** — never leak a live background process as a stale "running" entry. (memories `feedback_long_command_observation`, `feedback_subagent_bg_hygiene`, `feedback_no_chained_background_cargo`.)
 
-When the diff touches binding crates (also via `mise run run-logged -- …` so a
-slow build is observable, not a false-hang):
-- `cd crates/graphrefly-bindings-js && pnpm build` (napi-rs)
-- `cd crates/graphrefly-bindings-py && maturin develop` (pyo3 — only when verifying py bindings, not part of default flow)
-- `cd crates/graphrefly-bindings-wasm && wasm-pack build` (wasm-bindgen)
-
-Do NOT use `cargo build --workspace` / `cargo nextest run --workspace` unless all binding toolchains are installed; the workspace excludes them from default-members for this reason.
-
-If a failure is related to an implementation design question, **HALT** and raise it to the user before fixing.
+If a failure exposes a design question, **HALT** and raise it before fixing.
 
 ---
 
 ## Phase 4: Documentation Updates
 
-**Skip this phase if `--skip-docs` was passed.**
+**Skip if `--skip-docs` was passed.** Update only what behavior/API actually changed; clean-slate docs are jsonl (single source of truth):
 
-**Authoritative checklist:** follow **`docs/docs-guidance.md`** end-to-end (authority order, Tier 0–5, JSDoc tag table, `gen-api-docs.mjs` REGISTRY, `docs:gen` / `docs:gen:check`, `sync-docs`, when to edit which file).
+- **`spec/rules.jsonl`** — only if the protocol itself was intentionally revised → that is a `/spec-amend`, not a casual edit (amend rules + `formal/*.tla` + `spec/conformance.jsonl` together). Flip a conformance-backed rule `draft → active` once its scenario is green on the reference arm + formal lands (cite the precedent).
+- **`decisions/decisions.jsonl`** — a new architectural lock surfaced by QA → `/design-review` → user approval → append a `D#` (update the DS-1 `locks` in `sessions/sessions.jsonl`).
+- **`spec/conformance.jsonl`** — flip `runtimes.<arm>` → `pass` when an arm lands green; add a new C-* scenario for a new behavioral rule; keep `covers` ↔ rule `covers_by` bidirectionally consistent.
+- **`plan/phases.jsonl`** — update the CSP-* phase `status`/`note` the change advances.
+- **`plan/backlog.jsonl`** — add new deferred items (B# + concrete trigger) surfaced by QA.
+- **`plan/antipatterns.jsonl`** — a recurring anti-pattern (+ a `feedback_*` memory if generalizable).
+- **`formal/README.md`** — when a TLA+ module was added/changed (module-map row + a mutation-verified note).
+- **Structured JSDoc** on new exported public symbols (`packages/ts/src/<area>`); cite the governing R-id/D# when the API encodes a spec invariant.
+- **`guide/guide.jsonl`** (G-test / G-composition / G-docs / G-contribute) — if a new test/composition pattern or doc convention was established.
+- **`~/src/graphrefly/CLAUDE.md`** — only if a fundamental workflow/command changed.
 
-Update documentation when behavior or public API changed:
+After any `~/src/graphrefly` jsonl edit, re-run `node ~/src/graphrefly/dashboard/build.mjs --check`.
 
-- **`docs/docs-guidance.md`** — if documentation *conventions* or generator workflow change, update this file so `/qa` and contributors stay aligned
-- **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
-- **`docs/implementation-plan.md`** — **canonical pre-1.0 sequencer.** When a phase / sub-section item lands, mark it ✅ in the matching Phase 11–16 entry (e.g. "11.1 EC2/EC7 — bridge `value == null` → `=== undefined` ✅ landed") and tag with the date. When all items in a sub-section land, mark the sub-section ✅. When a **whole Phase** lands (every sub-section ✅, no in-flight WAIT/POST-1.0 carries that still need this phase's body to be readable), **archive it**: append a JSONL line per sub-section to the matching `archive/roadmap/phase-<n>-*.jsonl` and replace the in-file body with a 2–4-line summary + archive pointer (id, file). Single residual follow-ups move to `optimizations.md` with a back-link. See `docs/docs-guidance.md` § "Roadmap archive — Workflow for `docs/implementation-plan.md`". New deferred items surfaced by /qa go to `optimizations.md` (line-item state) and may also need a sub-bullet in the matching implementation-plan phase if they reshape its scope.
-- **`docs/optimizations.md`** — add **new open decisions** under "Active work items" (line-item state for the new carry; cross-link from the matching implementation-plan.md phase if relevant). **Then actively sweep:** scan for any fully-resolved items (all sub-tasks DONE, no remaining TODOs) and archive them to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log". Remove archived content from `optimizations.md` — it should contain only active/open items, anti-patterns, and deferred follow-ups.
-- **Structured JSDoc** on exported public APIs (Tier 1 — parameters, returns, examples per `docs-guidance`; source of truth for generated API pages). `@example` imports must use the correct subpath for the symbol's tier (universal / `<x>/node` / `<x>/browser`).
-- **New public symbols** — barrel export in the pure-ts package (`packages/pure-ts/src/<area>/index.ts`) + **`website/scripts/gen-api-docs.mjs` REGISTRY** entry, then `pnpm --filter @graphrefly/docs-site docs:gen` (or `docs:gen:check` in CI). If the symbol introduced a new subpath, the post-Phase-13.9.A 4-file rule applies: update `packages/pure-ts/tsup.config.ts` (`ENTRY_POINTS` + `nodeOnlyEntries` when node-only) AND `packages/pure-ts/package.json` `exports`, AND mirror in the root shim's `tsup.config.ts` `ENTRY_POINTS` + root `package.json` `exports`, AND create the matching one-liner shim source at root `src/<x>.ts` (`export * from "@graphrefly/pure-ts/<x>"`).
-- **`docs/test-guidance.md`** — if new test patterns are established
-- **`docs/roadmap.md`** — **vision / wave context only** per 2026-04-30 migration. Do NOT track item-level state here; that lives in `implementation-plan.md`. Only edit the roadmap when the strategic frame shifts (a wave completes, a positioning lock changes). When a wave or Phase 7.x / 8.x section is fully done, archive its body to `archive/roadmap/*.jsonl` and leave a one-line pointer per `docs/docs-guidance.md` § "Roadmap archive — Workflow for `docs/roadmap.md`". Most /qa cycles will not touch roadmap.md at all.
-- **`CLAUDE.md`** — only if fundamental workflow/commands changed
-
-Do **not** hand-edit **`website/src/content/docs/api/*.md`** — regenerate from JSDoc via `docs:gen` per **`docs/docs-guidance.md`**.
-
-### Rust-port QA additions to Phase 4
-
-When the diff is in `~/src/graphrefly-rs/`, also update these (in addition to or instead of the TS-side docs above):
-
-- **`docs/implementation-plan-13.6-canonical-spec.md`** (graphrefly-ts) — only if QA surfaced a canonical-spec ambiguity that needs to be tightened. Rare; this is the post-Phase 13.6.A locked authority. If touched, also coordinate with the spec-amendment workflow per spec §8 semver rules.
-
-- **`docs/implementation-plan-13.6-flowcharts.md`** (graphrefly-ts) — only if a new internal method / process / property was added that the flowcharts should visualize, OR if a 🟥 RED node (current-code-vs-canonical drift) was resolved by the slice (turn it into a non-red node). Add the rule-ID cross-reference for any new flowchart node.
-
-- **`~/src/graphrefly-rs/docs/migration-status.md`** — **always update on Rust-port QA pass.** Reflect:
-  - Test count post-QA (per-file breakdown helps future readers)
-  - Audit fixes that landed (F1, F2, etc. style, mirroring the Slice A+B closing template)
-  - Cross-link new entries in `porting-deferred.md` from the "Carried forward" pointer
-  - If a milestone closes during QA, add the `## M<n> — closed YYYY-MM-DD` section per the established template
-  - clippy / fmt / `#![forbid(unsafe_code)]` status
-
-- **`~/src/graphrefly-rs/docs/porting-deferred.md`** — **always update on Rust-port QA pass.** Reflect:
-  - **NEW deferred concerns** surfaced by QA but NOT fixed in this slice — add to the appropriate section ("Performance — §10 simplifications deferred", "v1 dispatcher limitations", "Spec divergences acknowledged in v1", or "Phase 13.8 carry-forward follow-ups"). Each entry needs **what / why-deferred / source** triple.
-  - **CLOSED concerns** — if QA fixes resolve a previously-deferred entry, move that entry to the "Audit fixes landed in Slice X" section (or the closing section in `migration-status.md`) and remove from the active deferred list.
-  - **Resolved Open Questions** — if a Part-6 SESSION question got resolved during the slice (via design call or impl), update the entry with `~~strikethrough~~` + the resolution note + the date (mirror the Phase 14 header note pattern).
-
-- **TS-side `docs/optimizations.md`** — only if QA surfaced a CROSS-LANGUAGE design question that needs to be tracked alongside TS / PY work. Rust-only deferrals belong in `porting-deferred.md`, not `optimizations.md`.
-
-- **TS-side `docs/implementation-plan.md`** — only if a Phase 13.7 / 13.8 / similar Rust-port-tracking sub-item closes; mark ✅ inline with date. The Rust port does NOT add new Phase 11–16 sub-bullets here; `migration-status.md` is the canonical Rust tracker.
-
-- **Rustdoc on public API surface** — every new `pub fn` / `pub struct` / `pub enum` in `graphrefly-core` (and binding crates) needs a doc comment with at minimum: behavior summary, `# Panics` (if applicable), and a cross-reference to the canonical spec rule (`R<x.y.z>`) when the API encodes a spec invariant. Generated via `cargo doc -p graphrefly-core` (lands later in CI; smoke-check locally).
-
-- **DO NOT update the legacy multi-file TS spec** (`~/src/graphrefly/GRAPHREFLY-SPEC.md` + `COMPOSITION-GUIDE-*.md`) for Rust-port-only findings. The Rust port targets the canonical-spec doc; the multi-file spec is effectively superseded for Rust purposes per the Phase 13.6.A consolidation.
-
-- **`~/src/graphrefly-ts/packages/parity-tests/scenarios/<layer>/`** (TS-side) — when the Rust slice closes (or partially fills) a milestone in the `packages/parity-tests/README.md` schedule (M1 dispatcher, M2 Slice E Graph, M3 operators, M4 storage, M5 structures), QA should verify the slice author added corresponding `describe.each(impls)` scenarios, OR raise it as a missing-coverage finding. The structural parameterization is in place; the `rustImpl` arm currently exports `null` (activates when `@graphrefly/native` publishes), so new scenarios run against `pureTsImpl` only at the moment but provide cross-impl coverage automatically once `rustImpl` flips. Internal-refactor slices (under unchanged public API, e.g., a §10 perf simplification) don't need parity-test additions.
+When done, briefly list files changed + new exports, the fixes applied vs deferred (with B# pointers), and the gate results.
