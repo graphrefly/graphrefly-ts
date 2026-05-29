@@ -630,6 +630,18 @@ importers:
         specifier: ^3.5.31
         version: 3.5.31(typescript@5.9.3)
 
+  packages/ts:
+    devDependencies:
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.5.0)(jsdom@29.0.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
+
   website:
     dependencies:
       '@astrojs/starlight':
