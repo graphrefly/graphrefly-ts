@@ -66,14 +66,47 @@ class LocalAsyncPool implements Pool {
  * First-class dispatcher (D21). Owns pools; graph binds to one (default = process-global,
  * D26 — the only global singleton). Pool trait is pluggable for WorkerPool/RemotePool (D20).
  */
+/** Per-handle profiling counters (D39 / R-profile). Lives on the dispatcher — the invoke
+ * funnel (F-DISPATCH-ALL) — NEVER on the thin node (R-node-thin). */
+export interface HandleStat {
+	invokes: number;
+	totalDurationNs: number;
+	lastDurationNs: number;
+}
+
+const statKey = (h: Handle): string => `${h.poolId}:${h.handleId}`;
+
 export class Dispatcher {
 	private pools: Pool[] = [];
 	readonly syncPoolId: number;
 	readonly asyncPoolId: number;
 
+	// opt-in profile recorder (default OFF → zero overhead, F-PERF).
+	private _recording = false;
+	private _stats = new Map<string, HandleStat>();
+	private _totalInvokes = 0;
+
 	constructor() {
 		this.syncPoolId = this.addPool(new LocalSyncPool());
 		this.asyncPoolId = this.addPool(new LocalAsyncPool());
+	}
+
+	/** Turn the profile recorder on/off (D39). Off = zero overhead on invoke. */
+	setRecording(on: boolean): void {
+		this._recording = on;
+	}
+	/** Reset accumulated profiling counters. */
+	clearStats(): void {
+		this._stats.clear();
+		this._totalInvokes = 0;
+	}
+	/** Read a handle's accumulated counters (undefined if it never ran while recording). */
+	statFor(handle: Handle): HandleStat | undefined {
+		return this._stats.get(statKey(handle));
+	}
+	/** Total fn invocations recorded across the dispatcher. */
+	get totalInvokes(): number {
+		return this._totalInvokes;
 	}
 
 	addPool(pool: Pool): number {
@@ -91,7 +124,27 @@ export class Dispatcher {
 
 	/** Uniform sync-void invoke (R-sync-core / R-dispatch-all). */
 	invoke(handle: Handle, ctx: Ctx): void {
-		this.pools[handle.poolId].invoke(handle.handleId, ctx);
+		if (!this._recording) {
+			this.pools[handle.poolId].invoke(handle.handleId, ctx);
+			return;
+		}
+		this._totalInvokes++;
+		const t0 = performance.now();
+		try {
+			this.pools[handle.poolId].invoke(handle.handleId, ctx);
+		} finally {
+			const dur = (performance.now() - t0) * 1e6; // ms → ns
+			const key = statKey(handle);
+			const s = this._stats.get(key) ?? {
+				invokes: 0,
+				totalDurationNs: 0,
+				lastDurationNs: 0,
+			};
+			s.invokes++;
+			s.lastDurationNs = dur;
+			s.totalDurationNs += dur;
+			this._stats.set(key, s);
+		}
 	}
 
 	poolKind(poolId: number): PoolKind {

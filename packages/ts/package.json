@@ -19,7 +19,10 @@
 			}
 		}
 	},
-	"files": ["dist", "LICENSE"],
+	"files": [
+		"dist",
+		"LICENSE"
+	],
 	"publishConfig": {
 		"access": "public"
 	},
