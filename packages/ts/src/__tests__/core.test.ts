@@ -45,13 +45,13 @@ describe("state node (manual source)", () => {
 	});
 });
 
-describe("equals -> RESOLVED (R-equals)", () => {
-	it("re-emitting the same value yields RESOLVED, not DATA; cache unchanged", () => {
+describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)", () => {
+	it("re-emitting the same value yields DATA, not RESOLVED (no equals-substitution)", () => {
 		const s = node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		s.down([["DATA", 5]]);
-		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]);
+		s.down([["DATA", 5]]); // same value is still a distinct occurrence
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
 		expect(s.cache).toBe(5);
 	});
 
@@ -64,7 +64,7 @@ describe("equals -> RESOLVED (R-equals)", () => {
 		expect(s.cache).toBe(6);
 	});
 
-	it("does NOT substitute on a multi-DATA wave (R-equals exclusivity)", () => {
+	it("a multi-DATA wave passes every occurrence as DATA", () => {
 		const s = node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
@@ -72,7 +72,6 @@ describe("equals -> RESOLVED (R-equals)", () => {
 			["DATA", 5],
 			["DATA", 5],
 		]);
-		// dataCount > 1 => no equals substitution; both pass as DATA.
 		expect(types(msgs)).toEqual(["DIRTY", "DATA", "DATA"]);
 	});
 });

@@ -10,9 +10,11 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { graph, node } from "../index.js";
+import { distinctUntilChanged, filter, fromIter, graph, node, take } from "../index.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
+const data = (msgs: Message[]) =>
+	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((m) => msgs.push(m));
@@ -320,5 +322,210 @@ describe("C-10 true-mode async leaf source delivers immediately under PAUSE (R-p
 		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // NOT buffered (a COMPUTE node WOULD buffer — C-2)
 		expect(msgs.at(-1)).toEqual(["DATA", 7]);
 		expect(s.cache).toBe(7);
+	});
+});
+
+// C-12 (D49 / R-resolved-undirty, supersedes D15/R-equals): every value-occurrence is DATA
+// (no auto-equals-substitution); RESOLVED is the substrate-SYNTHESIZED undirty-only signal;
+// dedup is opt-in at the operator layer. Folds the former _probe.test.ts probes (the
+// fromIter([1,1,1]) / take(3) / state.set-same cases that surfaced D49).
+describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undirty / D49)", () => {
+	it("(a) a repeated value is N distinct DATA occurrences, never collapsed to RESOLVED", () => {
+		const g = graph();
+		const src = g.initNode(fromIter<number>([1, 1, 1]), []);
+		const { msgs } = collect(src);
+		expect(types(msgs)).toEqual(["START", "DATA", "DATA", "DATA", "COMPLETE"]);
+		expect(data(msgs)).toEqual([1, 1, 1]); // not [1] — the pre-D49 equals-absorption bug
+	});
+
+	it("(b) take(3) counts occurrences, not distinct values → [1,1,1]", () => {
+		const g = graph();
+		const src = g.initNode(fromIter<number>([1, 1, 1]), []);
+		const t = g.initNode(take<number>(3), [src]);
+		const { msgs } = collect(t);
+		expect(data(msgs)).toEqual([1, 1, 1]);
+		expect(t.status).toBe("completed");
+	});
+
+	it("(c) filter-reject: the substrate synthesizes one undirty RESOLVED — no DATA, no wedge", () => {
+		const g = graph();
+		const s = g.state(50);
+		const f = g.initNode(
+			filter((n: number) => n >= 100),
+			[s],
+		);
+		const { msgs } = collect(f);
+		// activation: 50 rejected, f never produced — no DIRTY on activation, no synth
+		expect(f.status).toBe("sentinel");
+		expect(f.cache).toBeUndefined();
+		msgs.length = 0;
+
+		s.set(60); // rejected: DIRTY'd but no value → substrate-synthesized undirty RESOLVED
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]); // un-dirtied, no DATA, not wedged
+		expect(f.status).toBe("sentinel"); // never valued
+		msgs.length = 0;
+
+		s.set(150); // accepted → real DATA occurrence
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(f.cache).toBe(150);
+		msgs.length = 0;
+
+		s.set(70); // rejected, but f now carries 150 → undirty RESOLVED, status resolved
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]);
+		expect(f.status).toBe("resolved");
+		expect(f.cache).toBe(150); // cache preserved across the undirty wave
+	});
+
+	it("(c') a downstream recompute un-dirties as DATA (occurrence), never wedges", () => {
+		const g = graph();
+		const s = g.state(100); // accepted by the filter
+		const f = g.initNode(
+			filter((n: number) => n >= 100),
+			[s],
+		);
+		const d = g.derived([f], (v: number) => v * 2);
+		const { msgs } = collect(d);
+		expect(d.cache).toBe(200); // f=100 → d=200
+		msgs.length = 0;
+
+		s.set(50); // rejected by f → f synthesizes RESOLVED → d clears + recomputes f's cached 100
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // d un-dirtied via a (same-value) DATA, no wedge
+		expect(d.cache).toBe(200);
+	});
+
+	it("(d) distinctUntilChanged is the OPT-IN dedup (operator's job, not substrate)", () => {
+		const g = graph();
+		const s = g.state(1);
+		const duc = g.initNode(distinctUntilChanged<number>(), [s]);
+		const { msgs } = collect(duc);
+		s.set(1); // dup → operator returns without emitting → substrate synthesizes RESOLVED
+		s.set(2);
+		s.set(2); // dup → suppressed
+		s.set(3);
+		expect(data(msgs)).toEqual([1, 2, 3]);
+	});
+
+	it("a state node re-set to the same value emits DATA, not RESOLVED (no substrate equals)", () => {
+		const g = graph();
+		const s = g.state(1);
+		const { msgs } = collect(s);
+		msgs.length = 0;
+		s.set(1); // same value
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // occurrence, NOT equals-absorbed
+		expect(s.cache).toBe(1);
+		msgs.length = 0;
+		s.set(2);
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+	});
+
+	it("the tier-3 exclusivity guard stays: a wave cannot mix DATA and RESOLVED", () => {
+		const s = node<number>([], null, { initial: 1 });
+		collect(s);
+		expect(() => s.down([["DATA", 2], ["RESOLVED"]])).toThrow(/tier-3 exclusivity/);
+	});
+});
+
+describe("C-13 INVALIDATE arriving at a paused compute node (R-paused-invalidate / D50)", () => {
+	it("(a) a sole-dep INVALIDATE supersedes the buffered paused dep-wave → no recompute on RESUME", () => {
+		let runs = 0;
+		const d1 = node<number>([], null, { initial: 0 });
+		const n = node<number>([d1], (ctx: Ctx) => {
+			runs++;
+			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 1]]); // non-guarding
+		});
+		const { msgs } = collect(n);
+		expect(n.cache).toBe(1);
+		runs = 0;
+		msgs.length = 0;
+
+		const L = Symbol("p");
+		n.up([["PAUSE", L]]);
+		d1.down([["DATA", 5]]); // buffered while paused (no recompute)
+		expect(runs).toBe(0);
+		d1.down([["INVALIDATE"]]); // supersedes the buffered wave → cancels the paused recompute
+		n.up([["RESUME", L]]); // RESUME must NOT recompute against the SENTINEL dep
+
+		expect(runs).toBe(0); // the superseded paused dep-wave does not recompute (D50)
+		expect(n.cache).toBeUndefined(); // stays SENTINEL (own INVALIDATE) — no garbage recompute
+		expect(msgs.some((m) => m[0] === "DATA")).toBe(false); // no spurious recompute DATA after INVALIDATE
+	});
+
+	it("(b) a DATA after the INVALIDATE re-arms the buffer → RESUME recomputes with the new value", () => {
+		let runs = 0;
+		const d1 = node<number>([], null, { initial: 0 });
+		const n = node<number>([d1], (ctx: Ctx) => {
+			runs++;
+			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 100]]);
+		});
+		collect(n);
+		runs = 0;
+
+		const L = Symbol("p");
+		n.up([["PAUSE", L]]);
+		d1.down([["DATA", 5]]); // buffered
+		d1.down([["INVALIDATE"]]); // supersede v1
+		d1.down([["DATA", 7]]); // re-arm with v2
+		n.up([["RESUME", L]]);
+
+		expect(runs).toBe(1); // recomputes once with the re-armed value
+		expect(n.cache).toBe(107); // 7 + 100 (v2, not the superseded v1)
+	});
+
+	it("(c) a multi-dep INVALIDATE does NOT cancel a surviving dep's buffered update", () => {
+		let runs = 0;
+		const d1 = node<number>([], null, { initial: 0 });
+		const d2 = node<number>([], null, { initial: 0 });
+		const n = node<number>([d1, d2], (ctx: Ctx) => {
+			runs++;
+			const a = (ctx.depRecords[0].latest as number | undefined) ?? 0; // guards D1 SENTINEL
+			const b = ctx.depRecords[1].latest as number;
+			ctx.down([["DATA", a + b]]);
+		});
+		collect(n);
+		runs = 0;
+
+		const L = Symbol("p");
+		n.up([["PAUSE", L]]);
+		d1.down([["DATA", 5]]); // buffered
+		d2.down([["DATA", 9]]); // buffered (the survivor)
+		d1.down([["INVALIDATE"]]); // D1 superseded; D2's buffered wave survives
+		n.up([["RESUME", L]]);
+
+		expect(runs).toBe(1); // still recomputes for the surviving dep (no lost update)
+		expect(n.cache).toBe(9); // D1=SENTINEL→0, D2=9
+	});
+});
+
+describe("C-14 cleanup hooks are per-run (cleared + re-registered each fn run) (R-cleanup-hooks / D28)", () => {
+	it("after K runs, onInvalidate + onDeactivation fire ONCE (the latest run's), not K times", () => {
+		let flush = 0;
+		let cleanup = 0;
+		const s = node<number>([], null, { initial: 0 });
+		const d = node<number>([s], (ctx: Ctx) => {
+			ctx.onInvalidate(() => flush++);
+			ctx.onDeactivation(() => cleanup++);
+			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		});
+		const { unsub } = collect(d); // run 1 (activation, s=0)
+		s.down([["DATA", 1]]); // run 2 — re-registers (prior run's hooks cleared)
+		s.down([["DATA", 2]]); // run 3 — re-registers (D has now run 3×)
+
+		s.down([["INVALIDATE"]]); // fires onInvalidate ONCE (run-3's), not 3× (the accumulation bug)
+		expect(flush).toBe(1);
+
+		unsub(); // D deactivates → fires onDeactivation ONCE (run-3's), not 3×
+		expect(cleanup).toBe(1);
+	});
+
+	it("a single-run node keeps its one registration (no re-run → no clear)", () => {
+		let cleanup = 0;
+		const s = node<number>([], null, { initial: 5 });
+		const d = node<number>([s], (ctx: Ctx) => {
+			ctx.onDeactivation(() => cleanup++);
+			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		});
+		const { unsub } = collect(d); // run 1 only
+		unsub();
+		expect(cleanup).toBe(1);
 	});
 });

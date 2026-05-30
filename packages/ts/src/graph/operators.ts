@@ -47,7 +47,7 @@ export interface Operator<TIn = unknown, TOut = unknown> {
 /**
  * Instantiate an operator as a bare `Node<T>` — NO Graph required (D43 bare-node path).
  * Wraps `op.body` in the D30 value-throw→ERROR boundary; merges `op.opts` with caller `opts`
- * (caller wins, so `partial`/`pool`/`equals`/`dispatcher` overrides take effect). The
+ * (caller wins, so `partial`/`pool`/`dispatcher` overrides take effect). The
  * dispatcher defaults to the process-global (D26) unless `opts.dispatcher` is passed.
  *
  * `g.initNode` is the same call PLUS graph registration; graph inspection

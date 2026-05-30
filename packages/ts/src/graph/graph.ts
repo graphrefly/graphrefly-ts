@@ -173,23 +173,16 @@ export class Graph {
 	): Node<void> {
 		// effect cleanup = deactivation-only (D28 / Flag 3): the LATEST returned cleanup
 		// fires ONCE when the effect deactivates (not between re-runs — onRerun was cut).
-		// State lives in ctx.state (per-node, wiped on fresh-lifecycle) so the deactivation
-		// hook is registered exactly once per activation and re-registers after a re-activation.
-		interface EffectState {
-			registered: boolean;
-			cleanup?: () => void;
-		}
+		// R-cleanup-hooks per-run lifecycle (D28 clarification / C-14): the substrate clears
+		// the hook list before EACH fn run, so the effect re-registers its returned cleanup
+		// every run — only the latest run's registration is live (or none, if the latest run
+		// returned void). No st.registered/ctx.state bookkeeping; re-registering every run is
+		// safe (the per-run clear prevents accumulation).
 		const ctxFn: NodeFn = (ctx: Ctx) => {
 			try {
 				const args = ctx.depRecords.map((r) => r.latest) as DepValues<D>;
 				const cleanup = fn(...args);
-				const st: EffectState = ctx.state.get<EffectState>() ?? { registered: false };
-				st.cleanup = typeof cleanup === "function" ? cleanup : undefined;
-				if (!st.registered) {
-					st.registered = true;
-					ctx.onDeactivation(() => st.cleanup?.());
-				}
-				ctx.state.set(st);
+				if (typeof cleanup === "function") ctx.onDeactivation(cleanup);
 			} catch (e) {
 				ctx.down([["ERROR", e]]);
 			}
@@ -228,8 +221,8 @@ export class Graph {
 		deps: readonly Node<TIn>[],
 		opts: SugarOpts<TOut> = {},
 	): Node<TOut> {
-		// Node<T> is invariant (T appears in equals); widen the typed deps to the erased Node
-		// surface the free initNode / _add accept (same cast the old per-operator methods used).
+		// Node<T> is invariant (T appears in NodeOptions.initial); widen the typed deps to the
+		// erased Node surface the free initNode / _add accept (same cast the old methods used).
 		const erased = deps as readonly Node<unknown>[];
 		const n = initNode(op, erased, this._nodeOpts(opts));
 		return this._add(n, op.factory, erased, opts);

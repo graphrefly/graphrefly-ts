@@ -54,7 +54,9 @@ export interface Ctx {
 	/**
 	 * Read a dep's latest value by index (dynamicNode only, R-dynamic-node / D35).
 	 * Present only on dynamicNode fns; all declared deps still participate in wave
-	 * tracking, but an unread dep's change leaves the output unchanged -> equals absorbs.
+	 * tracking. Under D49/R-resolved-undirty an unread dep's change still fires the fn,
+	 * which re-emits its (unchanged) output as a DATA occurrence — there is NO equals-
+	 * absorption; pair with distinctUntilChanged to suppress unchanged re-emits (opt-in).
 	 */
 	track?(depIndex: number): unknown;
 }

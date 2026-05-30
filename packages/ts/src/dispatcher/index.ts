@@ -28,37 +28,45 @@ export interface Handle {
 export interface Pool {
 	readonly kind: PoolKind;
 	register(fn: NodeFn): number;
+	/** Free a handle's slot so its fn closure is GC'd and the id is reused (B15). */
+	unregister(handleId: number): void;
 	invoke(handleId: number, ctx: Ctx): void;
 }
 
-class LocalSyncPool implements Pool {
-	readonly kind = "sync" as const;
-	private fns: NodeFn[] = [];
-	register(fn: NodeFn): number {
-		const id = this.fns.length;
-		this.fns.push(fn);
-		return id;
-	}
-	invoke(handleId: number, ctx: Ctx): void {
-		this.fns[handleId](ctx);
-	}
-}
-
 /**
- * Structurally identical to LocalSync (R9): the "async" nature lives in the fn body,
- * not the pool's invoke. The label informs ctx lifecycle (per-invocation ctx, L3-Q5)
- * at the node, not a different dispatch path.
+ * Array-indexed fn table with a free-list (B15). `register` reuses a freed slot before
+ * growing the array, so a rewire-heavy graph (fn-swap on every setDeps/addDep/removeDep,
+ * e.g. CSP-2.7 higher-order *Map operators) keeps the table bounded to its peak live size
+ * instead of leaking a slot + closure per swap. `unregister` tombstones the slot (drops the
+ * closure reference for GC) and offers the id for reuse. handleId reuse is safe: the graph is
+ * a single causal domain (D22) and D37 forbids a fn rewiring its own handle mid-run, so a
+ * freed id is never re-registered while an invoke of it is in flight. The hot path stays a
+ * raw array index (F-PERF).
  */
-class LocalAsyncPool implements Pool {
-	readonly kind = "async" as const;
-	private fns: NodeFn[] = [];
+class PoolTable implements Pool {
+	constructor(readonly kind: PoolKind) {}
+	private fns: (NodeFn | undefined)[] = [];
+	private free: number[] = [];
 	register(fn: NodeFn): number {
+		const reused = this.free.pop();
+		if (reused !== undefined) {
+			this.fns[reused] = fn;
+			return reused;
+		}
 		const id = this.fns.length;
 		this.fns.push(fn);
 		return id;
 	}
+	unregister(handleId: number): void {
+		if (this.fns[handleId] === undefined) return; // already free → idempotent
+		this.fns[handleId] = undefined; // drop the closure (GC)
+		this.free.push(handleId); // offer the slot for reuse (bounded growth)
+	}
 	invoke(handleId: number, ctx: Ctx): void {
-		this.fns[handleId](ctx);
+		// A live handle always resolves to a fn; a dead/unregistered id throws (TypeError —
+		// invoking an unregistered handle is a bug, surfaced loudly). Cast keeps the hot path
+		// a raw index with no extra branch (F-PERF).
+		(this.fns[handleId] as NodeFn)(ctx);
 	}
 }
 
@@ -87,8 +95,8 @@ export class Dispatcher {
 	private _totalInvokes = 0;
 
 	constructor() {
-		this.syncPoolId = this.addPool(new LocalSyncPool());
-		this.asyncPoolId = this.addPool(new LocalAsyncPool());
+		this.syncPoolId = this.addPool(new PoolTable("sync"));
+		this.asyncPoolId = this.addPool(new PoolTable("async"));
 	}
 
 	/** Turn the profile recorder on/off (D39). Off = zero overhead on invoke. */
@@ -120,6 +128,22 @@ export class Dispatcher {
 		const poolId = pool === "sync" ? this.syncPoolId : pool === "async" ? this.asyncPoolId : pool;
 		const handleId = this.pools[poolId].register(fn);
 		return { poolId, handleId };
+	}
+
+	/**
+	 * Release a handle (B15): frees the pool slot (closure GC'd, id reusable) and drops any
+	 * accumulated profile stat so a reused id never inherits the previous tenant's counters.
+	 * Called on rewire fn-swap (node._rewire) — the old handle is dropped before the node
+	 * adopts the new one. Idempotent. NOT called on deactivate (a node's handle survives
+	 * activate↔deactivate and is reused on reactivation; only a rewire swaps it).
+	 */
+	unregister(handle: Handle): void {
+		this.pools[handle.poolId].unregister(handle.handleId);
+		// Drop the stat UNCONDITIONALLY (QA F2.1), not only while recording: if recording was
+		// OFF at unregister time the key would linger, and a later register reusing this id (the
+		// free-list) would inherit the prior tenant's counters once recording resumes. delete of
+		// an absent key is a cheap no-op; unregister is off the hot invoke path (F-PERF intact).
+		this._stats.delete(statKey(handle));
 	}
 
 	/** Uniform sync-void invoke (R-sync-core / R-dispatch-all). */
