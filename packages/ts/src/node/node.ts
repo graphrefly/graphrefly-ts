@@ -14,6 +14,7 @@
  */
 
 import { currentBatch, deferToBatch } from "../batch/batch.js";
+import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
 import type { Ctx, CtxState, DepRecord, NodeFn, Sink } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import {
@@ -60,7 +61,21 @@ export interface NodeOptions<T = unknown> {
 	dispatcher?: Dispatcher;
 	/** Optional debug name (graph layer owns real naming/inspection). */
 	name?: string;
+	/**
+	 * Real operator/source factory name for a STANDALONE graph-less node (D43-reserved; D51).
+	 * The graph index (`_entries`) carries the factory for g.*-registered nodes, so this is only
+	 * read for a node NOT in any graph index — a runtime *Map inner (bare `fromAny`/`initNode`
+	 * node) auto-discovered by `describe` (R-describe / R-edges-derived / D51). Off the canonical
+	 * wave path (R-node-thin intact — a pure annotation, never touched by the wave machinery).
+	 */
+	factory?: string;
 }
+
+/** A queued deferred self-rewire op (R-rewire-deferred / D47), drained at the wave boundary. */
+type RewireOp =
+	| { kind: "add"; dep: Node<unknown>; fn: NodeFn }
+	| { kind: "remove"; dep: Node<unknown>; fn: NodeFn }
+	| { kind: "set"; deps: Node<unknown>[]; fn: NodeFn };
 
 export class Node<T = unknown> {
 	private _deps: Node<unknown>[];
@@ -77,6 +92,8 @@ export class Node<T = unknown> {
 	private readonly _replayN: number;
 	private readonly _dynamic: boolean;
 	readonly name?: string;
+	/** R-describe/D51: real factory name for a standalone graph-less node (a runtime *Map inner). */
+	readonly factory?: string;
 
 	private _subscribers = new Set<Sink>();
 	private _activated = false;
@@ -150,6 +167,7 @@ export class Node<T = unknown> {
 		this._dynamic = opts.dynamic ?? false;
 		this._pool = opts.pool ?? "sync";
 		this.name = opts.name;
+		this.factory = opts.factory;
 
 		if (handleOrFn === null) this._handle = null;
 		else if (typeof handleOrFn === "function")
@@ -188,6 +206,16 @@ export class Node<T = unknown> {
 	}
 
 	/**
+	 * The node's CURRENT/LIVE deps (R-describe / R-edges-derived / D51) — readonly view of the
+	 * live `_deps`, which a rewire (C-8 / C-11) mutates. The graph's describe() reads this (NOT a
+	 * construction-time snapshot) so every edge corresponds to a real current subscription (D3).
+	 * Inspection-only, like cache/status; never triggers computation.
+	 */
+	get deps(): readonly Node<unknown>[] {
+		return this._deps;
+	}
+
+	/**
 	 * The fn handle (pure data `(poolId, handleId)`, D7) or null for state/passthrough
 	 * nodes. Inspection-only (L1.6 handle is referenceable/inspectable) — lets the graph
 	 * layer key a dispatcher-backed profile recorder WITHOUT putting counters on the node
@@ -199,43 +227,94 @@ export class Node<T = unknown> {
 
 	/** R-push-subscribe: a new sink receives START, then cached DATA (or DIRTY if dirty). */
 	subscribe(sink: Sink): () => void {
-		// R-terminal: late subscribe to a terminal node either resets (resubscribable)
-		// or is rejected (non-resubscribable, R2.2.7.b).
-		if (this._terminal !== undefined) {
-			if (this._resubscribable) this._resetLifecycle();
-			else
-				throw new Error(
-					"subscribe: node is non-resubscribable and has terminated; the stream is permanently over (R-terminal / R2.2.7.b)",
-				);
+		// Wave-owner boundary (R-rewire-deferred / D47): the activation cascade can run fns that
+		// issue ctx.rewireNext; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
+		// just inc/dec the depth.
+		enterWave();
+		try {
+			// R-terminal: late subscribe to a terminal node either resets (resubscribable)
+			// or is rejected (non-resubscribable, R2.2.7.b).
+			if (this._terminal !== undefined) {
+				if (this._resubscribable) this._resetLifecycle();
+				else
+					throw new Error(
+						"subscribe: node is non-resubscribable and has terminated; the stream is permanently over (R-terminal / R2.2.7.b)",
+					);
+			}
+
+			this._subscribers.add(sink);
+			sink(["START"]);
+			if (this._replayN > 0 && this._replayRing.length > 0) {
+				// R-replay-buffer: late subscriber gets the last N DATA after START.
+				for (const v of this._replayRing) sink(["DATA", v]);
+			} else if (this._hasData) {
+				sink(["DATA", this._cache]);
+			} else if (this._status === "dirty") {
+				sink(["DIRTY"]);
+			}
+
+			if (!this._activated) this._activate();
+
+			return () => {
+				if (!this._subscribers.delete(sink)) return;
+				if (this._subscribers.size === 0) this._deactivate();
+			};
+		} finally {
+			exitWave();
 		}
-
-		this._subscribers.add(sink);
-		sink(["START"]);
-		if (this._replayN > 0 && this._replayRing.length > 0) {
-			// R-replay-buffer: late subscriber gets the last N DATA after START.
-			for (const v of this._replayRing) sink(["DATA", v]);
-		} else if (this._hasData) {
-			sink(["DATA", this._cache]);
-		} else if (this._status === "dirty") {
-			sink(["DIRTY"]);
-		}
-
-		if (!this._activated) this._activate();
-
-		return () => {
-			if (!this._subscribers.delete(sink)) return;
-			if (this._subscribers.size === 0) this._deactivate();
-		};
 	}
 
 	/** External emission toward sinks (state-node push, or async late-emit). One call = one wave. */
 	down(msgs: Wave): void {
-		this._down(msgs);
+		// Wave-owner boundary (D47): a state.set / external push that drives a fn issuing
+		// ctx.rewireNext drains at this outermost exit.
+		enterWave();
+		try {
+			this._down(msgs);
+		} finally {
+			exitWave();
+		}
 	}
 
 	/** Emit upstream toward deps — control tiers only (R-ctx-up). */
 	up(msgs: Wave): void {
-		this._up(msgs);
+		// Wave-owner boundary (D47). Internal dep-forwarding calls dep.up() nest under this.
+		enterWave();
+		try {
+			this._up(msgs);
+		} finally {
+			exitWave();
+		}
+	}
+
+	// ── deferred self-rewire (R-rewire-deferred / D47): ctx.rewireNext drain support ──
+
+	/**
+	 * Enqueue a deferred self-rewire op (issued from this node's fn via `ctx.rewireNext`).
+	 * Applied at the committed wave boundary (boundary.ts drain), never in place — the in-fn
+	 * immediate path (`addDep`/`setDeps`/`removeDep`) still throws mid-run (D37/R-reentrancy).
+	 */
+	private _requestRewireNext(op: RewireOp): void {
+		deferRewire(() => this._applyRewireNext(op));
+	}
+
+	/** Apply one queued self-rewire at the boundary (drain thunk). */
+	private _applyRewireNext(op: RewireOp): void {
+		// Terminal discards the pending queue (R-rewire-deferred): a node that went terminal
+		// during the wave drops its queued self-rewires.
+		if (this._terminal !== undefined) return;
+		try {
+			if (op.kind === "add") this.addDep(op.dep, op.fn);
+			else if (op.kind === "remove") this.removeDep(op.dep, op.fn);
+			else this.setDeps(op.deps, op.fn);
+		} catch (e) {
+			// An invalid deferred op (cycle / self / non-resubscribable terminal dep) surfaces as
+			// an ERROR on this node (D30-consistent) rather than stranding the rest of the drain
+			// queue. Reachable only on misuse — higher-order operator inners are fresh, acyclic
+			// leaf sources. Coerce a SENTINEL reason (a rewire fn that `throw undefined`s) to a real
+			// Error so _down's R-data-payload guard does not itself throw out of the drain.
+			this._down([["ERROR", e === undefined ? new Error("rewireNext op failed") : e]]);
+		}
 	}
 
 	// ── rewire (R-rewire / D42): intra-graph runtime topology mutation ──
@@ -546,20 +625,32 @@ export class Node<T = unknown> {
 
 		if (t === "COMPLETE") {
 			this._depTerminal[idx] = true;
+			// R-terminal-settles-dirty (B35): a terminal RELEASES this dep's outstanding in-wave
+			// DIRTY contribution (the exactly-one-settle invariant) — exactly as DATA/RESOLVED/
+			// INVALIDATE do (a dirty-then-terminal-without-DATA dep would otherwise strand _pending
+			// and wedge the node, the deadlock R-invalidate-idempotent prevents for INVALIDATE).
+			this._releaseDepDirty(idx);
 			if (this._completeWhenDepsComplete && this._allDepsComplete()) {
-				this._down([["COMPLETE"]]);
+				this._down([["COMPLETE"]]); // auto-cascade → node itself terminal (_pending moot)
 			} else if (this._terminalAsRealInput) {
-				this._maybeRun();
+				this._maybeRun(); // rescue/reduce/*Map: the fn reads ctx.depRecords[idx].terminal
+			} else {
+				// absorbed terminal, NOT an input: the dep's signalled change did not materialise
+				// (no DATA) → un-dirty downstream, keep cache (R-resolved-undirty balance).
+				this._settleAfterAbsorbedTerminal();
 			}
 			return;
 		}
 
 		if (t === "ERROR") {
 			this._depTerminal[idx] = msg[1];
+			this._releaseDepDirty(idx); // R-terminal-settles-dirty (B35), as COMPLETE above
 			if (this._errorWhenDepsError) {
-				this._down([["ERROR", msg[1]]]);
+				this._down([["ERROR", msg[1]]]); // auto-cascade → node itself terminal
 			} else if (this._terminalAsRealInput) {
-				this._maybeRun();
+				this._maybeRun(); // rescue/catch: the fn reads the dep's terminal (the error)
+			} else {
+				this._settleAfterAbsorbedTerminal();
 			}
 			return;
 		}
@@ -606,6 +697,51 @@ export class Node<T = unknown> {
 		}
 		// PAUSE / RESUME are not delivered downstream to a dep-subscriber; a node is
 		// paused via its own up() (lockset), not by an upstream dep.
+	}
+
+	/**
+	 * R-terminal-settles-dirty (B35): release a dep's outstanding in-wave DIRTY contribution.
+	 * A settle-class event for that dep (DATA/RESOLVED inline above, INVALIDATE, and now
+	 * COMPLETE/ERROR) clears its dirty flag + decrements _pending. No-op if the dep already
+	 * settled this wave (DATA/RESOLVED ran first) — so the normal DATA-then-COMPLETE flow is
+	 * unaffected. This makes the exactly-one-settle invariant a single, shared step.
+	 */
+	private _releaseDepDirty(idx: number): void {
+		if (this._depDirty[idx]) {
+			this._depDirty[idx] = false;
+			this._pending--;
+		}
+	}
+
+	/**
+	 * R-terminal-settles-dirty (B35): settle a node whose dirtied dep was released by an ABSORBED
+	 * terminal that is NOT a real input (a plain derived/effect — the common default-node case when
+	 * one of several deps completes while others stay live). Runs only when the release drained
+	 * _pending while the node still owes a downstream settle (it broadcast DIRTY this wave):
+	 *   - if some OTHER dep delivered real DATA this wave (a value occurred) → recompute (→ DATA);
+	 *   - else the terminal's signalled change did not materialise (no value) → one undirty RESOLVED
+	 *     (R-resolved-undirty), keeping the cache (a terminal, unlike INVALIDATE, leaves the value).
+	 * A terminalAsRealInput node instead recomputes unconditionally (its fn reads the terminal).
+	 */
+	private _settleAfterAbsorbedTerminal(): void {
+		if (this._pending !== 0 || !this._emittedDirtyThisWave) return;
+		// A real value occurred this wave (some OTHER dep delivered DATA) → recompute. _maybeRun
+		// runs the fn ONLY if it's not gated (first-run gate open, not paused); it may emit DATA, a
+		// fn-synthesized undirty RESOLVED, or nothing (gated / gate still holds).
+		const sawData = this._depBatch.some((b) => b !== null && b.length > 0);
+		if (sawData) this._maybeRun();
+		// If after that the node STILL owes a downstream settle (no DATA occurred, OR the recompute
+		// was gated — e.g. the first-run gate holds because the terminated dep never delivered and
+		// terminalAsRealInput is false), balance the broadcast DIRTY with one undirty RESOLVED
+		// (R-resolved-undirty), keeping the cache (a terminal, unlike INVALIDATE, leaves the value).
+		// Without this fallback a DIRTY-then-terminal-without-DATA dep on a pre-first-run multi-dep
+		// node would strand the DIRTY → downstream wedged (the B35 class, in the gate-holds corner).
+		// Bare emit mirrors the INVALIDATE receive-arm; terminal×pause/batch coalescing = backlog B39.
+		if (this._emittedDirtyThisWave) {
+			this._emittedDirtyThisWave = false;
+			this._status = this._hasData ? "resolved" : "sentinel";
+			this._emitToSubs(["RESOLVED"]);
+		}
 	}
 
 	private _markDirty(): void {
@@ -776,8 +912,25 @@ export class Node<T = unknown> {
 
 	private _makeCtx(depRecords: readonly DepRecord[]): Ctx {
 		const ctx: Ctx = {
-			up: (msgs) => this._up(msgs),
-			down: (msgs) => this._down(msgs),
+			// Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
+			// it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
+			// ctx at depth 0, so this is the boundary that drains any rewireNext it issued.
+			up: (msgs) => {
+				enterWave();
+				try {
+					this._up(msgs);
+				} finally {
+					exitWave();
+				}
+			},
+			down: (msgs) => {
+				enterWave();
+				try {
+					this._down(msgs);
+				} finally {
+					exitWave();
+				}
+			},
 			depRecords,
 			state: this._makeState(),
 			onDeactivation: (fn) => {
@@ -785,6 +938,12 @@ export class Node<T = unknown> {
 			},
 			onInvalidate: (fn) => {
 				this._onInvalidate.push(fn);
+			},
+			// R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
+			rewireNext: {
+				addDep: (dep, fn) => this._requestRewireNext({ kind: "add", dep, fn }),
+				removeDep: (dep, fn) => this._requestRewireNext({ kind: "remove", dep, fn }),
+				setDeps: (deps, fn) => this._requestRewireNext({ kind: "set", deps, fn }),
 			},
 		};
 		if (this._dynamic) {

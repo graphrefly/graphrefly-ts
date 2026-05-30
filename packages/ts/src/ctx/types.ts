@@ -5,6 +5,7 @@
  *   R-fn-contract (D8/D27), R-ctx-state (D23/D29), R-cleanup-hooks (D28), R-ctx-up.
  */
 
+import type { Node } from "../node/node.js";
 import type { Message, Wave } from "../protocol/messages.js";
 
 /** A downstream sink callback (the only way to connect to a node's output). */
@@ -37,6 +38,25 @@ export interface CtxState {
 }
 
 /**
+ * Deferred SELF-rewire (R-rewire-deferred / D47). A node fn may, DURING its run, request a
+ * mutation of its OWN dep set; the request is QUEUED and applied at the committed wave boundary
+ * (after the current wave settles / batch commit / final-lock RESUME) as a fresh wave, reusing
+ * R-rewire surgical/Option-C semantics (D42). This is the ONLY legal self-triggered rewire — an
+ * IMMEDIATE in-fn `node.addDep/removeDep/setDeps` is the D37 mid-fn feedback-cycle ERROR. An
+ * added cached dep pushes `[DIRTY,DATA]` on the boundary wave (R-push-subscribe); a removed dep
+ * is drained and, if it loses its last subscriber, `_deactivate`s + fires `onDeactivation`
+ * (input-side teardown — the basis for higher-order operator cancellation / abortInFlight).
+ */
+export interface RewireNext {
+	/** Defer adding a dep (paired with the re-supplied fn — positional fn-deps lock, SD-1). */
+	addDep(dep: Node<unknown>, fn: NodeFn): void;
+	/** Defer removing a dep (its source is torn down if it loses its last subscriber). */
+	removeDep(dep: Node<unknown>, fn: NodeFn): void;
+	/** Defer replacing the whole dep set (surgical: kept deps untouched, removed drained, added fresh-subscribe). */
+	setDeps(deps: Node<unknown>[], fn: NodeFn): void;
+}
+
+/**
  * The single argument to a node fn: `(ctx) => void` (R-fn-contract / D8). All emission
  * is explicit via `ctx.down`; there is no return-value framing.
  */
@@ -51,6 +71,12 @@ export interface Ctx {
 	onDeactivation(fn: () => void): void;
 	/** Flush on INVALIDATE (R-cleanup-hooks). */
 	onInvalidate(fn: () => void): void;
+	/**
+	 * Deferred SELF-rewire (R-rewire-deferred / D47) — the substrate affordance higher-order
+	 * operators (switchMap/mergeMap/concatMap/exhaustMap/flatMap) use to grow/shrink their own
+	 * inner-source dep set in response to their own data. Always present; see {@link RewireNext}.
+	 */
+	rewireNext: RewireNext;
 	/**
 	 * Read a dep's latest value by index (dynamicNode only, R-dynamic-node / D35).
 	 * Present only on dynamicNode fns; all declared deps still participate in wave

@@ -7,7 +7,7 @@
  */
 
 export { type BatchCtx, batch } from "./batch/batch.js";
-export type { Ctx, CtxState, DepRecord, NodeFn, Sink } from "./ctx/types.js";
+export type { Ctx, CtxState, DepRecord, NodeFn, RewireNext, Sink } from "./ctx/types.js";
 export {
 	Dispatcher,
 	defaultDispatcher,
@@ -31,6 +31,14 @@ export {
 	StateNode,
 	type SugarOpts,
 } from "./graph/graph.js";
+export {
+	concatMap,
+	exhaustMap,
+	flatMap,
+	mergeMap,
+	type Project,
+	switchMap,
+} from "./graph/higher-order.js";
 export type { NodeProfile, ObserveEvent, ObserveStream, Profile } from "./graph/inspect.js";
 export {
 	distinctUntilChanged,
