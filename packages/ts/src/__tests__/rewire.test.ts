@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { type Node, node } from "../index.js";
+import { Dispatcher, type Node, node } from "../index.js";
 
 function collect(n: Node) {
 	const msgs: Message[] = [];
@@ -253,5 +253,30 @@ describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-saf
 		d.removeDep(c, (ctx) => ctx.down([["DATA", num(ctx, 0)]])); // remove sole dirty dep → zero deps
 		expect(types(msgs)).toEqual(["RESOLVED"]); // un-dirtied downstream (not a stray DATA)
 		expect(d.cache).toBe(5); // cache preserved (Q7), no recompute
+	});
+
+	it("B15: a rewire fn-swap frees the old dispatcher handle (registry stays bounded)", () => {
+		// Each setDeps/addDep/removeDep re-registers the fn → a new handle. Before B15 the old
+		// handle leaked (the pool fn-table grew by one per swap), unbounded for a rewire-heavy
+		// graph (CSP-2.7 *Map). Now _rewire unregisters the old handle, so the table is bounded
+		// to peak-live size and freed ids are reused. Observed via a probe registration on a
+		// dedicated dispatcher: after N swaps a fresh register reuses a freed slot (small id),
+		// not ~N (the leak). Mutation-verified: disabling the unregister in _rewire fails this.
+		const disp = new Dispatcher();
+		const a = node<number>([], null, { initial: 1, dispatcher: disp });
+		const id = (ctx: Ctx) => ctx.down([["DATA", num(ctx, 0)]]);
+		const d = node<number>([a], id, { dispatcher: disp });
+		collect(d);
+
+		const N = 50;
+		for (let i = 0; i < N; i++) {
+			// idempotent dep-set, but SD-1 still swaps the fn each call → register + free old.
+			d.setDeps([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
+		}
+		expect(d.cache).toBe(1); // still correct after 50 swaps
+
+		// A fresh registration reuses a freed slot → bounded handleId, NOT ~N (the leak).
+		const probe = disp.register(() => {}, "sync");
+		expect(probe.handleId).toBeLessThanOrEqual(2);
 	});
 });

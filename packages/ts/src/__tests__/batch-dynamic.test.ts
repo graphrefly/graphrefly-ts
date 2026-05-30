@@ -71,8 +71,8 @@ describe("batch (R-batch-coalesce / D12)", () => {
 	});
 });
 
-describe("dynamicNode (R-dynamic-node / D35)", () => {
-	it("reads a selected dep; an unread dep's change is absorbed (no downstream DATA)", () => {
+describe("dynamicNode (R-dynamic-node / D35; D49 — no equals-absorption)", () => {
+	it("reads a selected dep; an unread dep's change re-emits the value as DATA (D49)", () => {
 		const sel = node<"a" | "b">([], null, { initial: "a" });
 		const a = node<number>([], null, { initial: 100 });
 		const b = node<number>([], null, { initial: 200 });
@@ -85,13 +85,15 @@ describe("dynamicNode (R-dynamic-node / D35)", () => {
 		expect(router.cache).toBe(100); // sel="a" -> reads a
 		msgs.length = 0;
 
-		// change the UNREAD dep b -> fn fires, output unchanged (still 100) -> equals absorbs
+		// change the UNREAD dep b -> fn fires, re-emits the (unchanged) value 100. D49 removed
+		// equals-absorption: an occurrence is always DATA, never collapsed to RESOLVED. Pair with
+		// distinctUntilChanged if unread-dep silence is required (dedup is opt-in).
 		b.down([["DATA", 999]]);
 		expect(router.cache).toBe(100);
-		expect(types(msgs)).not.toContain("DATA");
-		expect(types(msgs)).toContain("RESOLVED");
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(msgs).toContainEqual(["DATA", 100]);
 
-		// change the READ dep a -> downstream DATA
+		// change the READ dep a -> recompute with the new value
 		msgs.length = 0;
 		a.down([["DATA", 111]]);
 		expect(router.cache).toBe(111);

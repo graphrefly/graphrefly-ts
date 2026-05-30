@@ -16,7 +16,7 @@ describe("QA fixes", () => {
 		expect(() => s.down([["DATA", undefined as unknown as number]])).toThrow(/non-SENTINEL/);
 	});
 
-	it("EC2: rejects DATA + RESOLVED in one wave (R-equals tier-3 exclusivity)", () => {
+	it("EC2: rejects DATA + RESOLVED in one wave (R-resolved-undirty tier-3 exclusivity)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		collect(s);
 		expect(() => s.down([["DATA", 2], ["RESOLVED"]])).toThrow(/tier-3 exclusivity/);
@@ -59,5 +59,19 @@ describe("QA fixes", () => {
 		s.down([["INVALIDATE"]]);
 		const { msgs } = collect(s); // late subscriber
 		expect(types(msgs)).toEqual(["START"]); // no stale DATA replayed
+	});
+
+	it("WEDGE: a passthrough over a RESOLVED-only dep balances its DIRTY (R-resolved-undirty / D49)", () => {
+		// Regression for the D49-widened wedge: a passthrough wire (deps, no fn) that broadcast
+		// DIRTY then receives an undirty RESOLVED from its dep (no DATA in the batch) must emit a
+		// balancing RESOLVED, not leave a dangling DIRTY. Under D49 a dep emits a bare RESOLVED on
+		// every filter-reject / distinctUntilChanged-dup / no-emit fn, so this fires constantly.
+		const dep = node<number>([], null, { initial: 1 });
+		const pass = node<number>([dep], null); // passthrough wire (_handle === null)
+		const { msgs } = collect(pass);
+		msgs.length = 0;
+		dep.down([["RESOLVED"]]); // dep settles with no value → DIRTY then RESOLVED to the passthrough
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]); // balanced, not a dangling ["DIRTY"]
+		expect(pass.status).not.toBe("dirty"); // un-wedged
 	});
 });

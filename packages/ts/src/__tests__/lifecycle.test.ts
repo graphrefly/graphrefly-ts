@@ -72,6 +72,33 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		expect(s.status).toBe("settled");
 		expect(msgs).toContainEqual(["DATA", 1]);
 	});
+
+	it("B30: terminal-is-forever on SELF-emit — set()/down() after terminal is a no-op", () => {
+		// The upstream path (_receiveFromDep) already drops on terminal; B30 closes the
+		// self-emit gap in _down (a post-terminal state.set / ctx.down must not resurrect),
+		// matching the Rust arm's Core::down blanket guard (R-terminal / D17).
+		const s = node<number>([], null, { initial: 1 });
+		const { msgs } = collect(s);
+		s.down([["COMPLETE"]]);
+		expect(s.status).toBe("completed");
+		msgs.length = 0;
+
+		s.down([["DATA", 42]]); // self-emit in a LATER wave after terminal → no-op
+		expect(msgs).toEqual([]); // nothing emitted
+		expect(s.cache).toBe(1); // cache NOT overwritten by 42
+		expect(s.status).toBe("completed"); // still terminal
+
+		// also a no-op after ERROR (DATA + INVALIDATE both dropped)
+		const e = node<number>([], null, { initial: 7 });
+		const ce = collect(e);
+		e.down([["ERROR", new Error("boom")]]);
+		ce.msgs.length = 0;
+		e.down([["DATA", 99]]);
+		e.down([["INVALIDATE"]]);
+		expect(ce.msgs).toEqual([]); // neither DATA nor INVALIDATE escapes
+		expect(e.cache).toBe(7); // cache preserved (errored node)
+		expect(e.status).toBe("errored");
+	});
 });
 
 describe("INVALIDATE (R-invalidate-idempotent, R-cleanup-hooks)", () => {

@@ -3,13 +3,14 @@
  *
  * Holds a fn handle + deps + the wave state machine; ZERO inspection cruft
  * (naming/find/describe are the graph layer, CSP-2). Canonical authority:
- * ~/src/graphrefly/spec/rules.jsonl (R-node-*, R-two-phase, R-diamond, R-equals,
+ * ~/src/graphrefly/spec/rules.jsonl (R-node-*, R-two-phase, R-diamond, R-resolved-undirty,
  * R-first-run-gate, R-push-subscribe, R-rom-ram, R-fn-contract, R-initial, R-ctx-up).
  *
  * Slice 1 = core wave: state node, compute node, two-phase DIRTY->DATA, diamond
- * pending-counter join, first-run gate, equals->RESOLVED, push-on-subscribe,
- * lazy activation, ROM/RAM. Lifecycle (terminal/INVALIDATE/cleanup), control
- * (PAUSE/async), batch, and dynamicNode land in later slices.
+ * pending-counter join, first-run gate, substrate-synthesized undirty RESOLVED
+ * (R-resolved-undirty / D49 — no equals-substitution; every occurrence is DATA),
+ * push-on-subscribe, lazy activation, ROM/RAM. Lifecycle (terminal/INVALIDATE/cleanup),
+ * control (PAUSE/async), batch, and dynamicNode land in later slices.
  */
 
 import { currentBatch, deferToBatch } from "../batch/batch.js";
@@ -35,8 +36,6 @@ export type Status =
 export interface NodeOptions<T = unknown> {
 	/** Pre-populate cache; source pushes [DATA, initial] on subscribe (R-initial). `null` is valid. */
 	initial?: T | null;
-	/** Custom equality for the DATA->RESOLVED substitution (R-equals). Default Object.is. */
-	equals?: (a: T, b: T) => boolean;
 	/** First-run gate off when true; fn body must guard SENTINEL per dep (R-first-run-gate). */
 	partial?: boolean;
 	/** A dep terminal also settles the first-run gate (Reduce-class, R-first-run-gate). */
@@ -63,14 +62,11 @@ export interface NodeOptions<T = unknown> {
 	name?: string;
 }
 
-const defaultEquals = Object.is as (a: unknown, b: unknown) => boolean;
-
 export class Node<T = unknown> {
 	private _deps: Node<unknown>[];
 	private _handle: Handle | null;
 	private readonly _pool: "sync" | "async";
 	private readonly _dispatcher: Dispatcher;
-	private readonly _equals: (a: T, b: T) => boolean;
 	private readonly _partial: boolean;
 	private readonly _terminalAsRealInput: boolean;
 	private readonly _completeWhenDepsComplete: boolean;
@@ -103,6 +99,9 @@ export class Node<T = unknown> {
 	private _status: Status = "sentinel";
 	private _hasCalledFnOnce = false;
 	private _emittedDirtyThisWave = false;
+	// R-resolved-undirty (D49): set when the fn emits any tier-3+ settle this wave; if it
+	// stays false after a DIRTY'd fn run, the substrate synthesizes one undirty RESOLVED.
+	private _emittedSettleThisWave = false;
 	private _insideRunWave = false;
 	/** R-rewire: reentrancy guard for setDeps/addDep/removeDep (one mutation in flight). */
 	private _inDepMutation = false;
@@ -140,7 +139,6 @@ export class Node<T = unknown> {
 	) {
 		this._deps = deps;
 		this._dispatcher = opts.dispatcher ?? defaultDispatcher;
-		this._equals = (opts.equals ?? defaultEquals) as (a: T, b: T) => boolean;
 		this._partial = opts.partial ?? false;
 		this._terminalAsRealInput = opts.terminalAsRealInput ?? false;
 		this._completeWhenDepsComplete = opts.completeWhenDepsComplete ?? true;
@@ -327,8 +325,14 @@ export class Node<T = unknown> {
 		this._rewireRunPending = false;
 		let zeroDepUnDirty = false;
 		try {
-			// fn swap (SD-1): re-register against the same pool.
+			// fn swap (SD-1): re-register against the same pool, then release the old handle
+			// (B15) so the rewired-away fn closure is GC'd and its dispatcher slot is reused —
+			// a rewire-heavy graph (CSP-2.7 *Map) no longer leaks a handle per swap. Register
+			// first, then unregister the old: this._handle never points at a freed slot, and a
+			// null old handle (a passthrough/state node gaining a fn) has nothing to free.
+			const oldHandle = this._handle;
 			this._handle = this._dispatcher.register(fn, this._pool);
+			if (oldHandle !== null) this._dispatcher.unregister(oldHandle);
 
 			const removed = oldDeps.filter((d) => !newDeps.includes(d));
 			let removedDirtyContributor = false;
@@ -400,9 +404,10 @@ export class Node<T = unknown> {
 			}
 
 			// Q6 auto-settle: removing the sole dirty contributor closes the wave. With deps
-			// remaining, request the atomic settle (recompute; equals absorbs a no-change run →
-			// RESOLVED). With zero deps the node is inert (degenerate fn-no-deps) — just un-dirty
-			// downstream. Cache is preserved either way (Q7).
+			// remaining, request the atomic settle (recompute → DATA for a value; a no-emit fn
+			// gets a substrate-synthesized undirty RESOLVED per R-resolved-undirty/D49 — NOT
+			// equals-absorption, which is gone). With zero deps the node is inert (degenerate
+			// fn-no-deps) — just un-dirty downstream. Cache is preserved either way (Q7).
 			if (removedDirtyContributor && this._pending === 0 && this._status === "dirty") {
 				if (newDeps.length > 0) this._rewireRunPending = true;
 				else zeroDepUnDirty = true;
@@ -514,6 +519,15 @@ export class Node<T = unknown> {
 			if (this._depDirty[idx]) {
 				this._depDirty[idx] = false;
 				this._pending--;
+			}
+			// D50 / R-paused-invalidate: this INVALIDATE SUPERSEDES the dep's buffered
+			// paused dep-wave (_depBatch[idx] just cleared). Re-derive the paused-recompute
+			// flag — if no dep still carries a buffered DATA, CANCEL the paused recompute
+			// (attributed cancellation; the node has settled to SENTINEL via its own
+			// INVALIDATE, so a RESUME must not recompute against a now-SENTINEL dep). A
+			// surviving dep keeps it set; a later DATA re-arms it ([DATA,INVALIDATE,DATA2]).
+			if (this._pausedDepWaveOccurred && this._depBatch.every((b) => b === null)) {
+				this._pausedDepWaveOccurred = false;
 			}
 			const hadData = this._hasData;
 			this._invalidate(); // cascades INVALIDATE iff populated; no-op otherwise
@@ -671,6 +685,14 @@ export class Node<T = unknown> {
 		const b = this._depBatch[0];
 		if (b !== null && b.length > 0) {
 			this._down([["DATA", b[b.length - 1]]]);
+		} else if (this._emittedDirtyThisWave) {
+			// R-resolved-undirty (D49): the dep settled via an undirty RESOLVED (no DATA in the
+			// batch), but this wire already broadcast DIRTY downstream this wave — balance it with
+			// a RESOLVED so downstream un-dirties instead of wedging. Routed through _down (NOT a
+			// bare _emitToSubs) so the balance respects batch-defer (D12) + pause-buffer, matching
+			// the zero-dep un-dirty path. Without this, a passthrough over a filter-reject /
+			// distinctUntilChanged-dup leaves a dangling DIRTY (the wedge D49 made common).
+			this._down([["RESOLVED"]]);
 		}
 		this._depBatch[0] = null;
 		this._emittedDirtyThisWave = false;
@@ -688,12 +710,40 @@ export class Node<T = unknown> {
 				"synchronous feedback cycle: node fn re-entered its own wave (R-reentrancy / D37)",
 			);
 		this._hasCalledFnOnce = true;
+		// R-cleanup-hooks per-run lifecycle (D28 clarification): clear BOTH hook lists
+		// before the fn runs; the fn body re-registers the current run's hooks. Only the
+		// latest run's registrations are live — a re-run supersedes the prior run's hooks,
+		// discarded WITHOUT firing (no fire-on-rerun; onRerun stays cut). Fixes the push-only
+		// accumulation (K stale hooks fired after K runs). C-14.
+		this._onInvalidate = [];
+		this._onDeactivation = [];
 		const ctx = this._buildCtx();
+		const wasDirty = this._emittedDirtyThisWave;
+		this._emittedSettleThisWave = false;
 		this._insideRunWave = true;
 		try {
 			this._dispatcher.invoke(this._handle as Handle, ctx);
 		} finally {
 			this._insideRunWave = false;
+		}
+
+		// R-resolved-undirty (D49): a SYNC fn DIRTY'd in phase 1 that produced NO tier-3 value
+		// this wave (filter-reject / distinctUntilChanged-dup / any no-emit fn) gets a substrate-
+		// SYNTHESIZED undirty RESOLVED to clear the downstream dirty — operator bodies stay
+		// protocol-clean (R-primary-api-clean). Status reflects cache freshness: a carried value
+		// -> resolved, never-valued -> sentinel. EXEMPT: terminal/INVALIDATE waves (they set
+		// _emittedSettleThisWave and balance their own dirty), and ASYNC-pool nodes — an async fn
+		// that returns without emitting has DEFERRED its result (it emits later via the stashed
+		// ctx), NOT rejected; synthesizing here would prematurely settle a still-pending diamond
+		// leg (R-async-paused / C-4). The eventual async ctx.down carries its own DIRTY balance.
+		if (
+			wasDirty &&
+			!this._emittedSettleThisWave &&
+			this._terminal === undefined &&
+			!this._isAsyncPool()
+		) {
+			this._status = this._hasData ? "resolved" : "sentinel";
+			this._emitToSubs(["RESOLVED"]);
 		}
 
 		// roll wave-local state forward
@@ -738,8 +788,9 @@ export class Node<T = unknown> {
 			},
 		};
 		if (this._dynamic) {
-			// R-dynamic-node: read a dep's latest by index. Untracked deps still drive
-			// waves; if the output is unchanged, equals absorbs them (RESOLVED).
+			// R-dynamic-node: read a dep's latest by index. Untracked deps still drive waves and
+			// re-run the fn; under D49 (no equals-substitution) the fn re-emits its current value
+			// as DATA — to suppress redundant downstream propagation, pair with distinctUntilChanged.
 			ctx.track = (i: number) => ctx.depRecords[i]?.latest;
 		}
 		return ctx;
@@ -760,6 +811,19 @@ export class Node<T = unknown> {
 	// ── downstream emission pipeline (the unified waist) ──
 
 	private _down(msgs: Wave): void {
+		// Terminal-is-forever (R-terminal / D17 / B30): once COMPLETE/ERROR has been emitted the
+		// node is final — a self-emit (state.set / ctx.down) in a LATER wave is a no-op, never
+		// resurrecting the cache or re-emitting. The COMPLETE/ERROR arms below also self-guard
+		// against a double terminal, but DATA/RESOLVED/INVALIDATE had no entry guard, so a
+		// post-terminal set() would overwrite cache + emit DATA. The upstream path
+		// (_receiveFromDep) already drops on terminal the same way — including a TEARDOWN that
+		// follows the node's own COMPLETE: whether a terminal intermediate should still relay
+		// TEARDOWN for downstream unwire is an OPEN spec gap on draft R-teardown-complete (a
+		// /spec-amend call, not a guard tweak; today both the TS and Rust arms drop it). This
+		// closes the self-emit gap and matches the Rust arm's Core::down blanket guard. A single
+		// wave that goes terminal mid-loop (e.g. [COMPLETE, TEARDOWN]) is unaffected: _terminal
+		// is still undefined at entry. Resubscribable reset clears _terminal before any re-emit.
+		if (this._terminal !== undefined) return;
 		let sorted: Message[] = [...msgs].sort((a, b) => messageTier(a[0]) - messageTier(b[0]));
 		// R-same-wave-merge: collapse repeated INVALIDATE in one wave (Q9) so the
 		// cleanup hook + downstream broadcast fire at most once.
@@ -814,10 +878,12 @@ export class Node<T = unknown> {
 			if (m[0] === "RESOLVED") hasResolved = true;
 			if (messageTier(m[0]) === 3) hasTier3 = true;
 		}
-		// EC2 / R-equals tier-3 exclusivity: a wave's tier-3 slot is >=1 DATA XOR exactly
-		// 1 RESOLVED — never mixed. Reject the protocol violation fail-fast.
+		// EC2 / R-resolved-undirty tier-3 exclusivity: a wave's tier-3 slot is >=1 DATA
+		// (occurrence) XOR exactly 1 RESOLVED (undirty) — never mixed. Reject fail-fast.
 		if (dataCount >= 1 && hasResolved) {
-			throw new Error("down: a wave cannot mix DATA and RESOLVED (tier-3 exclusivity, R-equals)");
+			throw new Error(
+				"down: a wave cannot mix DATA and RESOLVED (tier-3 exclusivity, R-resolved-undirty)",
+			);
 		}
 
 		// Synthesize a leading DIRTY for an EXTERNAL tier-3 emit (R-dirty-before-data).
@@ -829,6 +895,9 @@ export class Node<T = unknown> {
 		}
 
 		for (const m of sorted) {
+			// R-resolved-undirty (D49): a tier-3+ emit this wave means the fn produced a settle,
+			// so no synthesized undirty RESOLVED is owed (see _runWave).
+			if (messageTier(m[0]) >= 3) this._emittedSettleThisWave = true;
 			if (m[0] === "DIRTY") {
 				if (!this._emittedDirtyThisWave) {
 					this._emittedDirtyThisWave = true;
@@ -843,20 +912,17 @@ export class Node<T = unknown> {
 					throw new Error("down: DATA requires a non-SENTINEL payload (R-data-payload)");
 				}
 				const v = m[1] as T;
-				// R-equals: DATA->RESOLVED substitution ONLY on a single-DATA wave.
-				if (dataCount === 1 && this._hasData && this._equals(this._cache as T, v)) {
-					this._status = "resolved";
-					this._emitToSubs(["RESOLVED"]);
-				} else {
-					this._cache = v;
-					this._hasData = true;
-					this._status = "settled";
-					if (this._replayN > 0) {
-						this._replayRing.push(v);
-						if (this._replayRing.length > this._replayN) this._replayRing.shift();
-					}
-					this._emitToSubs(["DATA", v]);
+				// R-resolved-undirty (D49): every value-occurrence is emitted as DATA — the
+				// substrate never substitutes DATA->RESOLVED on value-equality. Dedup is opt-in
+				// at the operator layer (distinctUntilChanged), never a substrate behavior.
+				this._cache = v;
+				this._hasData = true;
+				this._status = "settled";
+				if (this._replayN > 0) {
+					this._replayRing.push(v);
+					if (this._replayRing.length > this._replayN) this._replayRing.shift();
 				}
+				this._emitToSubs(["DATA", v]);
 				continue;
 			}
 			if (m[0] === "RESOLVED") {
@@ -1073,8 +1139,9 @@ export function node<T = unknown>(
 /**
  * Construct a dynamicNode (R-dynamic-node / D35) — a node variant whose fn reads a
  * subset of a fixed superset of deps per invocation via `ctx.track(i)`. All declared
- * deps participate in wave tracking; an unread dep's change leaves the output unchanged,
- * so equals absorbs it (no downstream propagation). Intra-graph only (D22).
+ * deps participate in wave tracking; an unread dep's change re-runs the fn, which re-emits
+ * its current value as DATA (D49 removed equals-absorption — dedup is opt-in via
+ * distinctUntilChanged). Intra-graph only (D22).
  */
 export function dynamicNode<T = unknown>(
 	deps: Node<unknown>[],
