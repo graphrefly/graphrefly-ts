@@ -13,6 +13,7 @@
  */
 
 import type { Wave } from "../protocol/messages.js";
+import { enterWave, exitWave } from "./boundary.js";
 
 /** A node target the batch can commit/rollback against (structural, avoids an import cycle). */
 export interface BatchTarget {
@@ -61,32 +62,40 @@ function rollback(b: ActiveBatch): void {
 
 /** Run `fn` as a batch (D12). DATA deferred to commit; throw/rollback discards. */
 export function batch<R>(fn: (bctx: BatchCtx) => R): R {
-	if (active !== null) {
-		// Nested batch joins the outer frame (one commit at the outermost exit).
-		const outer = active;
-		return fn({
-			rollback: () => {
-				outer.rolledBack = true;
-			},
-		});
-	}
-	const b: ActiveBatch = { order: [], deferred: new Map(), rolledBack: false };
-	active = b;
-	const bctx: BatchCtx = {
-		rollback: () => {
-			b.rolledBack = true;
-		},
-	};
-	let result: R;
+	// Wave-owner boundary (R-rewire-deferred / D47): bracket the whole batch (fn + commit) so a
+	// ctx.rewireNext issued by a fn that runs during COMMIT drains AFTER the commit, never on the
+	// un-committed view. Inner waves (state.set, commit cascade) nest under this owner.
+	enterWave();
 	try {
-		result = fn(bctx);
-	} catch (e) {
+		if (active !== null) {
+			// Nested batch joins the outer frame (one commit at the outermost exit).
+			const outer = active;
+			return fn({
+				rollback: () => {
+					outer.rolledBack = true;
+				},
+			});
+		}
+		const b: ActiveBatch = { order: [], deferred: new Map(), rolledBack: false };
+		active = b;
+		const bctx: BatchCtx = {
+			rollback: () => {
+				b.rolledBack = true;
+			},
+		};
+		let result: R;
+		try {
+			result = fn(bctx);
+		} catch (e) {
+			active = null;
+			rollback(b);
+			throw e;
+		}
 		active = null;
-		rollback(b);
-		throw e;
+		if (b.rolledBack) rollback(b);
+		else commit(b);
+		return result;
+	} finally {
+		exitWave();
 	}
-	active = null;
-	if (b.rolledBack) rollback(b);
-	else commit(b);
-	return result;
 }

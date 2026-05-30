@@ -9,8 +9,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Ctx, Message } from "../index.js";
-import { distinctUntilChanged, filter, fromIter, graph, node, take } from "../index.js";
+import type { Ctx, Message, NodeFn } from "../index.js";
+import { distinctUntilChanged, filter, fromIter, graph, type Node, node, take } from "../index.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
@@ -325,6 +325,204 @@ describe("C-10 true-mode async leaf source delivers immediately under PAUSE (R-p
 	});
 });
 
+// C-11 (D47 / R-rewire-deferred): a node fn's SELF-triggered dep-set mutation via ctx.rewireNext
+// is deferred to the committed wave boundary (never mutating _deps mid-run, never the D37 in-fn
+// reject), drained as a fresh wave; added cached inners push [DIRTY,DATA] without re-arming the
+// gate; removed inners are drained + _deactivate (onDeactivation = abortInFlight). The substrate
+// prerequisite for the higher-order *Map operators. Distinct from C-8 (external/immediate rewire).
+describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred / D47)", () => {
+	// Inners are leaf sources whose activation + deactivation are observable (cancellation visible).
+	function makeInner(seed?: number) {
+		let ictx: Ctx | null = null;
+		let activated = false;
+		let deactivated = false;
+		const n = node<number>([], (ctx) => {
+			ictx = ctx;
+			activated = true;
+			ctx.onDeactivation(() => {
+				deactivated = true;
+			});
+			if (seed !== undefined) ctx.down([["DATA", seed]]);
+		});
+		return {
+			node: n,
+			emit: (v: number) => (ictx as Ctx).down([["DATA", v]]),
+			complete: () => (ictx as Ctx).down([["COMPLETE"]]),
+			isActivated: () => activated,
+			isDeactivated: () => deactivated,
+		};
+	}
+
+	// A merge-style OP: spawn+add an inner per S DATA, forward inner DATA, remove a completed inner.
+	function mergeOp(s: Node<number>) {
+		const inners: Node<number>[] = [];
+		const opFn: NodeFn = (ctx) => {
+			const removals: Node<number>[] = [];
+			for (let i = 1; i < ctx.depRecords.length; i++) {
+				const b = ctx.depRecords[i].batch;
+				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
+				if (ctx.depRecords[i].terminal === true) removals.push(inners[i - 1]);
+			}
+			const sv = ctx.depRecords[0].batch;
+			if (sv && sv.length > 0) {
+				const inner = makeInner((sv[sv.length - 1] as number) * 10);
+				inners.push(inner.node);
+				ctx.rewireNext.addDep(inner.node, opFn);
+			}
+			for (const r of removals) {
+				inners.splice(inners.indexOf(r), 1);
+				ctx.rewireNext.removeDep(r, opFn);
+			}
+		};
+		return node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+	}
+
+	it("(steps 1-3) addDep deferred to the boundary; added cached inner pushes [DIRTY,DATA], gate not re-armed", () => {
+		const s = node<number>([], null);
+		let opRuns = 0;
+		const inners: Node<number>[] = [];
+		const opFn: NodeFn = (ctx) => {
+			opRuns++;
+			for (let i = 1; i < ctx.depRecords.length; i++) {
+				const b = ctx.depRecords[i].batch;
+				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
+			}
+			const sv = ctx.depRecords[0].batch;
+			if (sv && sv.length > 0) {
+				const inner = makeInner((sv[sv.length - 1] as number) * 10);
+				inners.push(inner.node);
+				// mid-run: _deps is NOT mutated — the inner is not yet wired/activated.
+				expect(inner.isActivated()).toBe(false);
+				ctx.rewireNext.addDep(inner.node, opFn);
+				expect(inner.isActivated()).toBe(false); // still deferred after the request
+			}
+		};
+		const op = node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]); // step 1: request addDep(innerA); step 2: drain wires it; step 3: forward
+		expect(types(msgs)).toContain("DIRTY"); // step 2 boundary wave is two-phase…
+		expect(data(msgs)).toEqual([10]); // …innerA's seed (1*10) forwarded as DATA
+
+		opRuns = 0;
+		s.down([["DATA", 2]]); // gate NOT re-armed: S alone re-drives the fn (and adds innerB)
+		expect(opRuns).toBeGreaterThan(0);
+	});
+
+	it("(step 7) an inner COMPLETE removes it (bounding); OP does not COMPLETE while S is live", () => {
+		const s = node<number>([], null);
+		const op = mergeOp(s);
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 5]]); // add innerA (seed 50 forwarded)
+		expect(data(msgs)).toContain(50);
+		msgs.length = 0;
+
+		s.down([["DATA", 6]]); // add innerB (seed 60 forwarded)
+		expect(data(msgs)).toContain(60);
+
+		// OP stays live: S is still live, completeWhenDepsComplete:false → no terminal cascade.
+		expect(op.status).not.toBe("completed");
+		expect(types(msgs)).not.toContain("COMPLETE");
+	});
+
+	it("(steps 4-6, switch) setDeps tears down the superseded inner's source and forwards only the new one", () => {
+		const s = node<number>([], null);
+		const innerA = makeInner(10);
+		const innerB = makeInner(20);
+		let current: Node<number> | null = null;
+		const opFn: NodeFn = (ctx) => {
+			for (let i = 1; i < ctx.depRecords.length; i++) {
+				const b = ctx.depRecords[i].batch;
+				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
+			}
+			const sv = ctx.depRecords[0].batch;
+			if (sv && sv.length > 0) {
+				current = (sv[sv.length - 1] as number) === 1 ? innerA.node : innerB.node;
+				ctx.rewireNext.setDeps([s, current], opFn);
+			}
+		};
+		const op = node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]); // → innerA live (seed 10 forwarded)
+		expect(data(msgs)).toContain(10);
+		expect(innerA.isActivated()).toBe(true);
+		msgs.length = 0;
+
+		s.down([["DATA", 2]]); // switch → innerB; innerA's SOURCE torn down (not masked)
+		expect(innerB.isActivated()).toBe(true);
+		expect(innerA.isDeactivated()).toBe(true);
+		expect(data(msgs)).toEqual([20]); // ONLY the current inner forwarded
+		msgs.length = 0;
+
+		innerA.emit(999); // the superseded inner is DRAINED — no stale forward survives
+		expect(data(msgs)).toEqual([]);
+	});
+
+	it("(variant) an IMMEDIATE in-fn self-rewire is the D37 feedback cycle → graph-layer ERROR (not rewireNext)", () => {
+		const g = graph();
+		const a = g.state(1);
+		const x = g.state(9);
+		let op: Node<number>;
+		// g.derived carries the D30 value-throw→ERROR boundary; the fn does an IMMEDIATE self-addDep
+		// (NOT ctx.rewireNext) mid-run → the D37 reject throws → graph layer converts it to ERROR.
+		op = g.derived([a], (av) => {
+			op.addDep(x, (c) => c.down([["DATA", c.depRecords[0].latest as number]]));
+			return av as number;
+		});
+		let escaped = false;
+		try {
+			op.subscribe(() => {});
+		} catch {
+			escaped = true; // the substrate throw must be caught by the graph layer (D30), not escape
+		}
+		expect(escaped).toBe(false);
+		expect(op.status).toBe("errored");
+	});
+
+	it("(variant) a terminal OP discards its pending rewireNext queue", () => {
+		const s = node<number>([], null);
+		const inner = makeInner(1);
+		const opFn: NodeFn = (ctx) => {
+			if (ctx.depRecords[0].batch) {
+				ctx.rewireNext.addDep(inner.node, opFn); // queued…
+				ctx.down([["COMPLETE"]]); // …then OP goes terminal THIS wave
+			}
+		};
+		const op = node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		collect(op);
+		s.down([["DATA", 1]]);
+		expect(op.status).toBe("completed");
+		expect(inner.isActivated()).toBe(false); // queued addDep discarded
+	});
+
+	it("(variant) a no-net-change rewireNext is a no-op (no drain loop)", () => {
+		const a = node<number>([], null, { initial: 1 });
+		let runs = 0;
+		const op = node<number>([a], function opFn(ctx) {
+			runs++;
+			if (runs < 5) ctx.rewireNext.setDeps([a], opFn); // identical dep set every run
+			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		});
+		collect(op);
+		expect(runs).toBe(1); // the idempotent setDeps changes nothing → no fresh wave → no loop
+		expect(op.cache).toBe(1);
+	});
+});
+
 // C-12 (D49 / R-resolved-undirty, supersedes D15/R-equals): every value-occurrence is DATA
 // (no auto-equals-substitution); RESOLVED is the substrate-SYNTHESIZED undirty-only signal;
 // dedup is opt-in at the operator layer. Folds the former _probe.test.ts probes (the
@@ -527,5 +725,113 @@ describe("C-14 cleanup hooks are per-run (cleared + re-registered each fn run) (
 		const { unsub } = collect(d); // run 1 only
 		unsub();
 		expect(cleanup).toBe(1);
+	});
+});
+
+// C-15 (R-terminal-settles-dirty / B35): a dep's terminal (COMPLETE/ERROR) releases its
+// outstanding in-wave DIRTY contribution — the exactly-one-settle invariant — exactly as
+// DATA/RESOLVED/INVALIDATE do, so a DIRTY-then-terminal-without-DATA dep never strands the
+// join node's pending and wedges it. The terminal analogue of the INVALIDATE wedge-guard.
+describe("C-15 a dep's terminal releases its in-wave DIRTY contribution (R-terminal-settles-dirty / D-none)", () => {
+	const sum2 = (ctx: Ctx) =>
+		ctx.down([
+			[
+				"DATA",
+				((ctx.depRecords[0].latest as number) ?? 0) + ((ctx.depRecords[1].latest as number) ?? 0),
+			],
+		]);
+
+	it("(a) COMPLETE-mid-dirty: D joins ONCE on the live leg, not wedged", () => {
+		const b = node<number>([], null, { initial: 1 });
+		const c = node<number>([], null, { initial: 10 });
+		const d = node<number>([b, c], sum2, { completeWhenDepsComplete: false });
+		const { msgs } = collect(d);
+		expect(d.cache).toBe(11); // first join (activation): 1 + 10
+		msgs.length = 0;
+
+		b.down([["DIRTY"]]); // B signals a change toward D (phase 1) → D dirty, pending=1
+		expect(d.status).toBe("dirty");
+		c.down([["DATA", 20]]); // C delivers a real value — but D is gated on B's pending
+		expect(d.cache).toBe(11); // not yet (B still dirty)
+		b.down([["COMPLETE"]]); // B COMPLETEs with NO DATA → releases B's dirty → D joins on C
+
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // joined EXACTLY once, glitch-free, no wedge
+		expect(d.cache).toBe(21); // B's last value (1) + C's new value (20)
+		expect(d.status).not.toBe("completed"); // C is still live (completeWhenDepsComplete:false)
+	});
+
+	it("(b) sole-dirty: B's COMPLETE drains pending → D un-dirties via RESOLVED (no fabricated DATA)", () => {
+		const b = node<number>([], null, { initial: 1 });
+		const c = node<number>([], null, { initial: 10 });
+		const d = node<number>([b, c], sum2, { completeWhenDepsComplete: false });
+		const { msgs } = collect(d);
+		expect(d.cache).toBe(11);
+		msgs.length = 0;
+
+		b.down([["DIRTY"]]); // B the SOLE dirty contributor (C unchanged this wave)
+		b.down([["COMPLETE"]]); // COMPLETEs with no value → no occurrence → undirty RESOLVED
+
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]); // un-dirtied, NOT a fabricated DATA
+		expect(d.cache).toBe(11); // cache preserved (a terminal, unlike INVALIDATE, keeps the value)
+		expect(d.status).toBe("resolved"); // undirty-RESOLVED convention (hasData → resolved), not "settled"
+	});
+
+	it("(c) rescue: an absorbed ERROR releases the dirty + the fn reads the terminal, no wedge", () => {
+		const b = node<number>([], null, { initial: 1 });
+		const c = node<number>([], null, { initial: 10 });
+		const rescue = (ctx: Ctx) => {
+			const bt = ctx.depRecords[0].terminal;
+			const bv = bt !== undefined && bt !== true ? 0 : ((ctx.depRecords[0].latest as number) ?? 0);
+			ctx.down([["DATA", bv + ((ctx.depRecords[1].latest as number) ?? 0)]]);
+		};
+		const d = node<number>([b, c], rescue, {
+			errorWhenDepsError: false,
+			terminalAsRealInput: true,
+		});
+		const { msgs } = collect(d);
+		expect(d.cache).toBe(11);
+		msgs.length = 0;
+
+		b.down([["DIRTY"]]); // B dirties D
+		b.down([["ERROR", new Error("boom")]]); // rescued (errorWhenDepsError:false) → fn reads terminal
+
+		expect(d.status).not.toBe("errored"); // NOT propagated — rescued
+		expect(data(msgs)).toEqual([10]); // B rescued to 0 + C(10); released dirty, no stranded pending
+	});
+
+	it("(d) gate-holds: a dirtied dep completing-empty on a PRE-first-run multi-dep node un-dirties, never wedges", () => {
+		// QA gate-holds corner (mutation-verified): node not yet first-run; C dirties then COMPLETEs
+		// with NO value while B has DATA — but the first-run gate STILL holds (C never delivered,
+		// terminalAsRealInput:false). The fn cannot run, yet the broadcast DIRTY must be balanced by
+		// a RESOLVED, else downstream wedges (the B35 class missed by the naive sawData→_maybeRun).
+		let runs = 0;
+		const b = node<number>([], null); // no initial — delivers only when driven
+		const c = node<number>([], null);
+		const d = node<number>(
+			[b, c],
+			(ctx: Ctx) => {
+				runs++;
+				ctx.down([
+					[
+						"DATA",
+						((ctx.depRecords[0].latest as number) ?? 0) +
+							((ctx.depRecords[1].latest as number) ?? 0),
+					],
+				]);
+			},
+			{ completeWhenDepsComplete: false },
+		);
+		const { msgs } = collect(d);
+		expect(runs).toBe(0); // gate holds — neither dep delivered yet
+		msgs.length = 0;
+
+		c.down([["DIRTY"]]); // C signals a change → D dirty, broadcasts DIRTY (pending=1)
+		b.down([["DATA", 5]]); // B delivers a value, but the gate still needs C → D gated
+		expect(runs).toBe(0);
+		c.down([["COMPLETE"]]); // C COMPLETEs with NO value → releases dirty; gate STILL holds
+
+		expect(runs).toBe(0); // fn never ran (C never delivered data, terminalAsRealInput:false)
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]); // un-dirtied downstream, NOT wedged
+		expect(d.cache).toBeUndefined(); // never produced a value
 	});
 });

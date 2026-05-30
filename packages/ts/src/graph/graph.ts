@@ -82,6 +82,11 @@ export class Graph {
 	private readonly _mounts: Array<{ at: string; graph: Graph }> = [];
 	private _seq = 0;
 	private _clock = 0; // graph-local monotonic clock for observe seq (D26)
+	// D51: stable synthetic ids for unregistered live deps (runtime *Map inners) auto-discovered by
+	// describe(). WeakMap-cached so successive describes agree + the inner's id is freed when it is.
+	// A dedicated counter (NOT _seq) so a describe() call never perturbs registered-node id numbering.
+	private _synthSeq = 0;
+	private readonly _synthIds = new WeakMap<Node<unknown>, string>();
 
 	constructor(opts: GraphOptions = {}) {
 		this.name = opts.name;
@@ -230,27 +235,61 @@ export class Graph {
 
 	// ── inspection: describe / observe / profile (D39) ──
 
-	/** Static structure snapshot (R-describe / D39). `_prefix` carries the mount path. */
+	/** Live point-in-time structure snapshot (R-describe / D39 / D51). `_prefix` carries the mount path. */
 	describe(opts: DescribeOpts = {}, _prefix = ""): DescribeSnapshot {
+		// D51: edges derive from each node's CURRENT/LIVE deps (entry.node.deps, NOT the
+		// construction-time entry.deps), so a rewire (C-8 immediate / C-11 *Map deferred) is
+		// reflected and every edge is a real current subscription (D3). A live dep absent from this
+		// graph's index (a runtime *Map inner / bare fromAny node) is AUTO-DISCOVERED one level deep
+		// as a snapshot node with a synthesized stable id (B2; transitive sub-deps = backlog B38).
+		const discovered = new Map<Node<unknown>, string>(); // unregistered live dep → synth local id
 		const localId = (n: Node<unknown>): string => {
 			const e = this._entries.get(n);
-			return e ? `${_prefix}${e.id}` : `${_prefix}?`;
+			if (e) return `${_prefix}${e.id}`;
+			// unregistered: a stable synthetic id, cached so successive describes + both call sites
+			// agree; the `~` prefix can't collide with a registered name or `factory#seq`.
+			let sid = this._synthIds.get(n);
+			if (sid === undefined) {
+				// the `~` prefix avoids the registered `name`/`factory#seq` space; guard the
+				// pathological case of a user node literally named `~factory#n` (bump until free).
+				do {
+					sid = `~${n.factory ?? "?"}#${this._synthSeq++}`;
+				} while (this._byId.has(sid));
+				this._synthIds.set(n, sid);
+			}
+			discovered.set(n, sid);
+			return `${_prefix}${sid}`;
 		};
 		const nodes: DescribeNode[] = [];
 		const edges: DescribeEdge[] = [];
+		// pass 1: registered nodes, reading LIVE deps (localId records any unregistered inner).
 		for (const entry of this._entries.values()) {
 			const id = `${_prefix}${entry.id}`;
+			const liveIds = entry.node.deps.map(localId);
 			const dnode: DescribeNode = {
 				id,
 				factory: entry.factory,
 				status: entry.node.status,
-				deps: entry.deps.map(localId),
+				deps: liveIds,
 			};
 			if (entry.name !== undefined) dnode.name = entry.name;
 			if (entry.node.cache !== undefined) dnode.value = entry.node.cache; // absent = SENTINEL
 			if (entry.meta !== undefined) dnode.meta = entry.meta;
 			nodes.push(dnode);
-			for (const d of entry.deps) edges.push({ from: localId(d), to: id });
+			for (const from of liveIds) edges.push({ from, to: id });
+		}
+		// pass 2: emit the one-level auto-discovered inners as snapshot nodes (D51), shown as LEAVES
+		// (their own possibly-unregistered sub-deps are not traversed → no dangling edges; transitive
+		// = B38). factory from the inner's NodeOptions.factory (D43-reserved) else "?".
+		for (const [inner, sid] of discovered) {
+			const dnode: DescribeNode = {
+				id: `${_prefix}${sid}`,
+				factory: inner.factory ?? "?",
+				status: inner.status,
+				deps: [],
+			};
+			if (inner.cache !== undefined) dnode.value = inner.cache;
+			nodes.push(dnode);
 		}
 		const snap: DescribeSnapshot = { nodes, edges };
 		if (this.name !== undefined) snap.name = this.name;

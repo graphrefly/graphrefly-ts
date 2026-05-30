@@ -66,7 +66,11 @@ export function initNode<TIn, TOut>(
 			ctx.down([["ERROR", e]]); // D30: value-level throw → ERROR
 		}
 	};
-	return new Node<TOut>([...deps], body, { ...op.opts, ...opts });
+	// D43-reserved / D51: stamp the operator's real factory onto the bare node so a runtime *Map
+	// inner (created here via fromAny, NOT registered in any graph) is named in describe's
+	// auto-discovery. A graph-bound g.initNode also records it in `_entries` (entry.factory wins
+	// there); this field is only read for a node absent from the graph index. Caller opts win.
+	return new Node<TOut>([...deps], body, { factory: op.factory, ...op.opts, ...opts });
 }
 
 /** map: emit fn(value). */
