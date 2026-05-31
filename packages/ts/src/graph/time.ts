@@ -19,20 +19,34 @@
  * all inners). throttle/throttleTime have NO trailing value (leading-edge only, RxJS default
  * trailing:false) — an open window inner is dropped when the operator completes.
  *
- * DEFERRED (flagged, NOT in this cut — each needs a mechanism beyond a clean *Map+timer projector):
- *   - audit/auditTime  — trailing edge with a NON-resetting timer that emits the LATEST value seen in
- *                        the window (not switchMap's cancel-restart, not exhaustMap's leading emit).
- *   - timeout          — idle watchdog: ERROR if no DATA within ms; needs a resettable ERROR-timer
- *                        raced against the source.
- *   - bufferTime/windowTime — buffer/window over interval(ms); bufferTime needs the interval wired as
- *                        a self-added notifier dep, windowTime emits nested Node<Node<T>> (see the
- *                        window-family deferral in combinators.ts).
+ * B41 tail (landed 2026-05-31, the two shapes reflect WHEN the clock arms):
+ *   - audit / auditTime — VALUE-TRIGGERED trailing edge: a source value opens a duration window
+ *                        (`audit(durationSelector)` = the general/notifier form, mirroring the *Map
+ *                        `Project` idiom + D46; `auditTime(ms)` = `audit(() => timer(ms))`), emits the
+ *                        window's LATEST value at the window's close. Self-wires the notifier via
+ *                        ctx.rewireNext — a normal `g.initNode(audit(sel), [source])` operator.
+ *   - timeout / bufferTime — SUBSCRIBE-ARMED (RxJS-cold): the clock must run from activation, before
+ *                        any source value, so the timer/interval is a CONSTRUCTION-time dep (a depless
+ *                        source arms lazily on subscribe per node `_activate`). A dep-bearing operator
+ *                        body never runs at activation (only depless nodes do, node.ts), so these ship
+ *                        as graph composition HELPERS `timeout(source, ms)` / `bufferTime(source, ms)`
+ *                        returning a Node — NOT `g.initNode(op, [deps])` operators. timeout resets its
+ *                        idle timer per source value via ctx.rewireNext (ERROR on the gap); bufferTime
+ *                        is buffer-over-interval with terminal cleanup via ctx.rewireNext.
+ *
+ * NOT ported (D58): window/windowCount/windowTime — the Node<Node<T>> higher-order forms are a D45
+ *   describe island; the array forms (buffer/bufferCount/bufferTime) are the graph-first equivalent.
+ *
+ * Inspection caveat (timeout/bufferTime): the helper returns a BARE node (free initNode) self-carrying
+ * its factory for describe auto-discovery (D51), but it is NOT in a graph's _entries — so g.describe()
+ * lists it only when it is a live dep of a registered node (a first-cut limit, like the *Map inners).
  */
 
+import type { Ctx, NodeFn } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { exhaustMap, mergeMap, switchMap } from "./higher-order.js";
 import { filter, initNode, map, merge, type Operator } from "./operators.js";
-import { of, timer } from "./sources.js";
+import { fromAny, interval, type NodeInput, of, timer } from "./sources.js";
 
 /** A bare inner that emits `v` once after `ms`, then COMPLETEs (timer(ms)→map(v); auto-completes). */
 function delayedValue<S>(v: S, ms: number): Node<S> {
@@ -101,4 +115,237 @@ export function throttle<S>(ms: number): Operator<S, S> {
 /** throttleTime: RxJS-named alias of {@link throttle}. */
 export function throttleTime<S>(ms: number): Operator<S, S> {
 	return { ...exhaustMap<S, S>((v) => throttleWindow(v, ms)), factory: "throttleTime" };
+}
+
+// ── B41 tail: value-triggered (audit) + subscribe-armed (timeout/bufferTime) ──
+
+/** Per-node bookkeeping for {@link audit}: the open window's notifier + the latest value seen. */
+interface AuditState<S> {
+	windowOpen: boolean;
+	latest: { v: S } | undefined;
+	notifier: Node<unknown> | null;
+}
+
+/**
+ * audit: VALUE-TRIGGERED trailing throttle. A source value (when no window is open) opens a duration
+ * window via `durationSelector(value)` → a notifier `NodeInput` wired as dep 1 with `ctx.rewireNext`
+ * (D47 — the *Map self-rewire idiom, NOT an internal subscribe, D45); during the window new source
+ * values only UPDATE the tracked latest (no emit); when the notifier fires (its first DATA / COMPLETE)
+ * the window closes and the LATEST value is emitted. This is throttle's trailing-edge twin
+ * (throttle emits the window's FIRST value at the leading edge; audit emits the LAST at the close).
+ *
+ * `durationSelector` is the general/notifier form (mirrors the *Map `Project` idiom + D46); the source
+ * is dep 0, the live notifier (if any) is dep 1. On source COMPLETE the pending latest is FLUSHED then
+ * COMPLETE (RxJS-7 audit flush-on-complete, B44). A source/notifier ERROR is read as a real terminal
+ * input so the live notifier can be removed before ERROR. Self-catching (D30); re-supplies its body on
+ * every rewire.
+ */
+export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operator<S, S> {
+	const body: NodeFn = (ctx: Ctx) => {
+		try {
+			const st: AuditState<S> = ctx.state.get<AuditState<S>>() ?? {
+				windowOpen: false,
+				latest: undefined,
+				notifier: null,
+			};
+			const source = ctx.depRecords[0];
+			const notifier = ctx.depRecords[1]; // the live duration notifier while a window is open
+
+			// every source value updates the window's latest (the value emitted at the window's close).
+			const sb = source.batch as readonly S[] | null;
+			if (sb) for (const v of sb) st.latest = { v };
+
+			// the window closes when its duration notifier fires (DATA or COMPLETE) → emit the latest.
+			const notifierFired =
+				st.windowOpen &&
+				notifier !== undefined &&
+				((notifier.batch != null && notifier.batch.length > 0) || notifier.terminal === true);
+			if (notifierFired) {
+				if (st.latest !== undefined) ctx.down([["DATA", st.latest.v]]);
+				const old = st.notifier;
+				st.windowOpen = false;
+				st.notifier = null;
+				st.latest = undefined;
+				if (old) ctx.rewireNext.removeDep(old, body);
+			}
+
+			// source/notifier ERROR → forward ERROR, but first remove the helper-owned notifier.
+			const sourceError = source.terminal !== undefined && source.terminal !== true;
+			const notifierError =
+				notifier !== undefined && notifier.terminal !== undefined && notifier.terminal !== true;
+			if (sourceError || notifierError) {
+				const err = sourceError ? source.terminal : notifier?.terminal;
+				if (st.notifier) ctx.rewireNext.removeDep(st.notifier, body);
+				ctx.state.set({ windowOpen: false, latest: undefined, notifier: null });
+				ctx.down([["ERROR", err]]);
+				return;
+			}
+
+			// source COMPLETE → flush the pending latest (B44 audit flush-on-complete) then COMPLETE.
+			if (source.terminal === true) {
+				if (st.windowOpen && st.latest !== undefined) ctx.down([["DATA", st.latest.v]]);
+				if (st.notifier) ctx.rewireNext.removeDep(st.notifier, body);
+				ctx.state.set({ windowOpen: false, latest: undefined, notifier: null });
+				ctx.down([["COMPLETE"]]);
+				return;
+			}
+
+			// a fresh source value with no open window → open one (value-triggered, trailing edge).
+			if (!st.windowOpen && sb != null && sb.length > 0 && st.latest !== undefined) {
+				const n = fromAny<unknown>(durationSelector(st.latest.v), { iter: true });
+				st.windowOpen = true;
+				st.notifier = n;
+				ctx.rewireNext.addDep(n, body); // (a same-wave close+reopen issues remove-before-add)
+			}
+
+			ctx.state.set(st);
+		} catch (e) {
+			ctx.down([["ERROR", e]]);
+		}
+	};
+	return {
+		factory: "audit",
+		body,
+		opts: {
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+			terminalAsRealInput: true,
+		},
+	};
+}
+
+/** auditTime: the `ms`-specialization of {@link audit} — the window is a `timer(ms)`. */
+export function auditTime<S>(ms: number): Operator<S, S> {
+	return { ...audit<S>(() => initNode(timer(ms), [])), factory: "auditTime" };
+}
+
+/** Per-node bookkeeping for {@link timeout}: the live idle timer (reset on each source value). */
+interface TimeoutState {
+	timer: Node<unknown> | null;
+}
+
+/**
+ * timeout: idle watchdog — forward every source value, but ERROR if more than `ms` elapses with no
+ * value (RxJS `timeout(ms)`, `first === each === ms`). SUBSCRIBE-ARMED: the first `timer(ms)` is a
+ * CONSTRUCTION-time dep, so it arms when `timeout`'s node is subscribed/activated (a depless source
+ * runs lazily on `_activate`) — i.e. a source that never emits its FIRST value within `ms` still
+ * errors. A dep-bearing operator body never runs at activation (only depless nodes do, node.ts), which
+ * is why this is a HELPER returning a Node, not a `g.initNode(op, [source])` operator.
+ *
+ * Each source value forwards as-is and RESETS the idle timer (removeDep the current `timer(ms)`,
+ * addDep a fresh one — its `onDeactivation` clearTimeout cancels the prior countdown). The timer
+ * firing (its DATA/COMPLETE) is the timeout → `[[ERROR]]`. Source COMPLETE forwards COMPLETE (no
+ * error) and removes the idle timer during the terminal wave (D62 terminal-drains-queued-rewire);
+ * a source ERROR forwards likewise. The idle timer is also torn down when the consumer unsubscribes
+ * (timeout deactivates → dep unsub → timer onDeactivation). Self-catching (D30).
+ */
+export function timeout<S>(source: Node<S>, ms: number): Node<S> {
+	const makeTimer = (): Node<unknown> => initNode(timer(ms), []);
+	const initial = makeTimer();
+	const body: NodeFn = (ctx: Ctx) => {
+		try {
+			const st: TimeoutState = ctx.state.get<TimeoutState>() ?? { timer: initial };
+			const src = ctx.depRecords[0];
+
+			// a source value forwards as-is and resets the idle window.
+			const sb = src.batch as readonly S[] | null;
+			if (sb != null && sb.length > 0) {
+				for (const v of sb) ctx.down([["DATA", v]]);
+				const old = st.timer;
+				const next = makeTimer();
+				st.timer = next;
+				ctx.state.set(st);
+				if (old) ctx.rewireNext.removeDep(old, body); // remove-before-add (alignment)
+				ctx.rewireNext.addDep(next, body);
+				return; // a value-bearing wave is never also a timeout-fire wave
+			}
+
+			// source COMPLETE → forward COMPLETE (no timeout fires).
+			if (src.terminal === true) {
+				if (st.timer) ctx.rewireNext.removeDep(st.timer, body);
+				ctx.down([["COMPLETE"]]);
+				return;
+			}
+			// source ERROR (absorbed via errorWhenDepsError:false) → forward it.
+			if (src.terminal !== undefined) {
+				if (st.timer) ctx.rewireNext.removeDep(st.timer, body);
+				ctx.down([["ERROR", src.terminal]]);
+				return;
+			}
+
+			// otherwise this wave is the idle timer firing → timeout ERROR.
+			const t = ctx.depRecords[1];
+			if (t !== undefined && ((t.batch != null && t.batch.length > 0) || t.terminal === true)) {
+				ctx.down([["ERROR", new Error(`timeout: no value within ${ms}ms`)]]);
+				return;
+			}
+			ctx.state.set(st);
+		} catch (e) {
+			ctx.down([["ERROR", e]]);
+		}
+	};
+	return initNode<S, S>(
+		{
+			factory: "timeout",
+			body,
+			opts: {
+				partial: true,
+				completeWhenDepsComplete: false,
+				errorWhenDepsError: false,
+				terminalAsRealInput: true,
+			},
+		},
+		[source as Node<unknown>, initial],
+	);
+}
+
+/**
+ * bufferTime: buffer source values and flush them as an array every `ms` (RxJS `bufferTime(ms)`).
+ * SUBSCRIBE-ARMED: the `interval(ms)` notifier is a CONSTRUCTION-time dep (arms on subscribe), so an
+ * empty window flushes `[]` even before the first source value — matching the landed {@link buffer}
+ * (which flushes on every notifier signal). On source COMPLETE the remainder flushes then COMPLETE
+ * (B44), and D62 lets the terminal wave still drain `removeDep(interval)` so the helper-owned
+ * interval source deactivates instead of ticking forever.
+ */
+export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
+	const iv: Node<unknown> = initNode(interval(ms), []);
+	const body: NodeFn = (ctx: Ctx) => {
+		const src = ctx.depRecords[0];
+		const tick = ctx.depRecords[1];
+		const buf = ctx.state.get<S[]>() ?? [];
+		if (src.batch) for (const v of src.batch) buf.push(v as S);
+		if (src.terminal === true) {
+			if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
+			ctx.state.set([]);
+			ctx.rewireNext.removeDep(iv, body);
+			ctx.down([["COMPLETE"]]);
+			return;
+		}
+		if (src.terminal !== undefined) {
+			ctx.state.set([]);
+			ctx.rewireNext.removeDep(iv, body);
+			ctx.down([["ERROR", src.terminal]]);
+			return;
+		}
+		if (tick.batch && tick.batch.length > 0) {
+			ctx.down([["DATA", [...buf]]]);
+			ctx.state.set([]);
+			return;
+		}
+		ctx.state.set(buf);
+	};
+	return initNode<unknown, S[]>(
+		{
+			factory: "bufferTime",
+			body,
+			opts: {
+				partial: true,
+				completeWhenDepsComplete: false,
+				errorWhenDepsError: false,
+				terminalAsRealInput: true,
+			},
+		},
+		[source as Node<unknown>, iv],
+	);
 }

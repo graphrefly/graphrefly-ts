@@ -328,9 +328,10 @@ describe("C-10 true-mode async leaf source delivers immediately under PAUSE (R-p
 // C-11 (D47 / R-rewire-deferred): a node fn's SELF-triggered dep-set mutation via ctx.rewireNext
 // is deferred to the committed wave boundary (never mutating _deps mid-run, never the D37 in-fn
 // reject), drained as a fresh wave; added cached inners push [DIRTY,DATA] without re-arming the
-// gate; removed inners are drained + _deactivate (onDeactivation = abortInFlight). The substrate
+// gate; removed inners are drained + _deactivate (onDeactivation = abortInFlight). D62: queued
+// rewireNext still drains if OP goes terminal; terminal seals output, not topology. The substrate
 // prerequisite for the higher-order *Map operators. Distinct from C-8 (external/immediate rewire).
-describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred / D47)", () => {
+describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred / D47/D62)", () => {
 	// Inners are leaf sources whose activation + deactivation are observable (cancellation visible).
 	function makeInner(seed?: number) {
 		let ictx: Ctx | null = null;
@@ -490,7 +491,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		expect(op.status).toBe("errored");
 	});
 
-	it("(variant) a terminal OP discards its pending rewireNext queue", () => {
+	it("(variant) a terminal OP still drains its pending rewireNext queue; terminal seals output", () => {
 		const s = node<number>([], null);
 		const inner = makeInner(1);
 		const opFn: NodeFn = (ctx) => {
@@ -503,10 +504,42 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			completeWhenDepsComplete: false,
 			terminalAsRealInput: true,
 		});
-		collect(op);
+		const { msgs } = collect(op);
 		s.down([["DATA", 1]]);
 		expect(op.status).toBe("completed");
-		expect(inner.isActivated()).toBe(false); // queued addDep discarded
+		expect(inner.isActivated()).toBe(true); // D62: queued addDep drains after terminal
+		expect(op.deps).toContain(inner.node);
+		msgs.length = 0;
+		inner.emit(2);
+		expect(msgs).toEqual([]); // terminal output guard: no post-terminal DATA escapes
+	});
+
+	it("(variant) a terminal OP drains a queued removeDep, releasing helper-owned work", () => {
+		const s = node<number>([], null);
+		const inner = makeInner(1);
+		let added = false;
+		const opFn: NodeFn = (ctx) => {
+			if (!added && ctx.depRecords[0].batch) {
+				added = true;
+				ctx.rewireNext.addDep(inner.node, opFn);
+				return;
+			}
+			if (ctx.depRecords[0].terminal === true) {
+				ctx.rewireNext.removeDep(inner.node, opFn);
+				ctx.down([["COMPLETE"]]);
+			}
+		};
+		const op = node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		collect(op);
+		s.down([["DATA", 1]]);
+		expect(inner.isActivated()).toBe(true);
+		s.down([["COMPLETE"]]);
+		expect(op.status).toBe("completed");
+		expect(op.deps).not.toContain(inner.node);
+		expect(inner.isDeactivated()).toBe(true);
 	});
 
 	it("(variant) a no-net-change rewireNext is a no-op (no drain loop)", () => {

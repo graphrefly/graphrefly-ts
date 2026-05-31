@@ -391,13 +391,22 @@ export class Node<T = unknown> {
 
 	/** Apply one queued self-rewire at the boundary (drain thunk). */
 	private _applyRewireNext(op: RewireOp): void {
-		// Terminal discards the pending queue (R-rewire-deferred): a node that went terminal
-		// during the wave drops its queued self-rewires.
-		if (this._terminal !== undefined) return;
 		try {
-			if (op.kind === "add") this.addDep(op.dep, op.fn);
-			else if (op.kind === "remove") this.removeDep(op.dep, op.fn);
-			else this.setDeps(op.deps, op.fn);
+			// D62 / R-rewire-deferred: terminal seals output but does NOT cancel queued topology.
+			// Public/immediate rewire of a terminal node still rejects; the exception is only for
+			// self-triggered ops already issued before terminal and now draining at the boundary.
+			if (op.kind === "add") {
+				const next = this._deps.includes(op.dep) ? [...this._deps] : [...this._deps, op.dep];
+				this._rewire(next, op.fn, { allowTerminalOwner: true });
+			} else if (op.kind === "remove") {
+				this._rewire(
+					this._deps.filter((d) => d !== op.dep),
+					op.fn,
+					{ allowTerminalOwner: true },
+				);
+			} else {
+				this._rewire(this._dedupDeps(op.deps), op.fn, { allowTerminalOwner: true });
+			}
 		} catch (e) {
 			// An invalid deferred op (cycle / self / non-resubscribable terminal dep) surfaces as
 			// an ERROR on this node (D30-consistent) rather than stranding the rest of the drain
@@ -462,9 +471,13 @@ export class Node<T = unknown> {
 		return false;
 	}
 
-	private _rewire(newDeps: Node<unknown>[], fn: NodeFn): void {
+	private _rewire(
+		newDeps: Node<unknown>[],
+		fn: NodeFn,
+		opts: { allowTerminalOwner?: boolean } = {},
+	): void {
 		// ── rejects (R-rewire / D42) ──
-		if (this._terminal !== undefined)
+		if (this._terminal !== undefined && !opts.allowTerminalOwner)
 			throw new Error(
 				"rewire: node is terminal (completed/errored) — cannot rewire (R-rewire / D42)",
 			);
