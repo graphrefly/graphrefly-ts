@@ -16,6 +16,18 @@ export {
 	type Pool,
 	type PoolKind,
 } from "./dispatcher/index.js";
+export {
+	buffer,
+	bufferCount,
+	combine,
+	combineLatest,
+	concat,
+	race,
+	sample,
+	takeUntil,
+	withLatestFrom,
+	zip,
+} from "./graph/combinators.js";
 export type {
 	DescribeEdge,
 	DescribeNode,
@@ -37,18 +49,37 @@ export {
 	flatMap,
 	mergeMap,
 	type Project,
+	repeat,
 	switchMap,
 } from "./graph/higher-order.js";
 export type { NodeProfile, ObserveEvent, ObserveStream, Profile } from "./graph/inspect.js";
 export {
+	catchError,
 	distinctUntilChanged,
+	elementAt,
 	filter,
+	find,
+	first,
 	initNode,
+	last,
 	map,
 	merge,
 	type Operator,
+	onFirstData,
+	pairwise,
+	reduce,
+	rescue,
+	type SettleOpts,
 	scan,
+	settle,
+	skip,
+	type TapObserver,
 	take,
+	takeWhile,
+	tap,
+	tapFirst,
+	type ValveOpts,
+	valve,
 } from "./graph/operators.js";
 export {
 	type AsyncSourceOpts,
@@ -61,5 +92,12 @@ export {
 	of,
 	timer,
 } from "./graph/sources.js";
+export {
+	debounce,
+	debounceTime,
+	delay,
+	throttle,
+	throttleTime,
+} from "./graph/time.js";
 export { dynamicNode, Node, type NodeOptions, node, type Status } from "./node/node.js";
 export * from "./protocol/messages.js";

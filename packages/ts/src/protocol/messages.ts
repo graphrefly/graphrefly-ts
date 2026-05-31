@@ -63,6 +63,16 @@ export function isDeferredTier(t: MessageType): boolean {
 }
 
 /**
+ * A TERMINAL message = tier 5 (COMPLETE | ERROR), R-tier / D34. Detected via the CENTRAL tier
+ * table, NOT a per-variant `=== "COMPLETE" || === "ERROR"` check — so terminal routing stays
+ * driven by the one const table (feedback_use_tier_for_signal_routing); discriminate COMPLETE vs
+ * ERROR within the tier by the message type only where the handling actually differs.
+ */
+export function isTerminal(t: MessageType): boolean {
+	return TIER[t] === 5;
+}
+
+/**
  * ctx.up carries control tiers only (R-ctx-up / DR-5): DIRTY, PAUSE, RESUME,
  * INVALIDATE, TEARDOWN. DATA/RESOLVED (tier 3) and COMPLETE/ERROR (tier 5) are
  * down-only.

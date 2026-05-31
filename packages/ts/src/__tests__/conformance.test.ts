@@ -835,3 +835,48 @@ describe("C-15 a dep's terminal releases its in-wave DIRTY contribution (R-termi
 		expect(d.cache).toBeUndefined(); // never produced a value
 	});
 });
+
+// C-17 (R-deps-terminal / B42): an ABSORBED error (errorWhenDepsError:false) counts as TERMINAL for
+// the completeWhenDepsComplete auto-COMPLETE cascade — order-independent (whichever terminal lands
+// last fires it). The COMPLETION analogue of C-15's DIRTY-release. NOT hit by the landed catalog
+// (rescue/race/sample use completeWhenDepsComplete:false) — a pure latent-wedge fix.
+describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 / R-deps-terminal)", () => {
+	const fwd: NodeFn = (ctx) => {
+		for (const r of ctx.depRecords) if (r.batch) for (const v of r.batch) ctx.down([["DATA", v]]);
+	};
+
+	it("(a) error-then-complete: C errors (absorbed), then B completes → D auto-COMPLETEs", () => {
+		const g = graph();
+		const b = g.node<number>([], null); // manual source
+		const c = g.node<number>([], null);
+		const d = g.node([b, c], fwd, { errorWhenDepsError: false }); // absorbs C's error, stays live
+		collect(d);
+		c.down([["ERROR", new Error("boom")]]); // absorbed; B still live → not yet all-terminal
+		expect(d.status).not.toBe("completed");
+		expect(d.status).not.toBe("errored"); // errorWhenDepsError:false → no auto-ERROR
+		b.down([["DATA", 1], ["COMPLETE"]]); // B terminal → ALL deps terminal (C errored) → COMPLETE
+		expect(d.status).toBe("completed");
+	});
+
+	it("(b) complete-then-error: B completes, then C errors LAST → D still auto-COMPLETEs (ERROR-arm mirror)", () => {
+		const g = graph();
+		const b = g.node<number>([], null);
+		const c = g.node<number>([], null);
+		const d = g.node([b, c], fwd, { errorWhenDepsError: false });
+		collect(d);
+		b.down([["DATA", 1], ["COMPLETE"]]); // B terminal; C still live → not yet all-terminal
+		expect(d.status).not.toBe("completed");
+		c.down([["ERROR", new Error("boom")]]); // C absorbed-error LANDS LAST → all terminal → COMPLETE
+		expect(d.status).toBe("completed"); // the ERROR-absorbed arm mirrors the COMPLETE arm (B42)
+	});
+
+	it("(c) errorWhenDepsError:true (default) auto-ERRORs on a dep error (absorbed path gated off)", () => {
+		const g = graph();
+		const b = g.node<number>([], null);
+		const c = g.node<number>([], null);
+		const d = g.node([b, c], fwd); // defaults: errorWhenDepsError:true
+		collect(d);
+		c.down([["ERROR", new Error("boom")]]); // auto-cascade → ERROR before any complete-check
+		expect(d.status).toBe("errored");
+	});
+});
