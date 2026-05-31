@@ -4,7 +4,7 @@
  * Focused substrate units for the wave-boundary-deferred dep-set mutation that higher-order
  * operators (switchMap/mergeMap/...) build on: defer-not-immediate, drain at the committed
  * boundary, added cached inner pushes [DIRTY,DATA] with the gate NOT re-armed, removed inner
- * drains + deactivates (onDeactivation = abortInFlight), terminal-discards-queue, no-net-change
+ * drains + deactivates (onDeactivation = abortInFlight), terminal-drains-queue (D62), no-net-change
  * no-op, and the immediate in-fn path still throwing (D37). The exhaustive interleavings are the
  * TLA+ model (~/src/graphrefly/formal/wave_rewire_deferred.tla); the canonical scenario is C-11.
  */
@@ -132,7 +132,7 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 	});
 });
 
-describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47)", () => {
+describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47/D62)", () => {
 	it("setDeps atomically tears down the superseded inner and wires the new one", () => {
 		const innerA = makeInner(10);
 		const innerB = makeInner(20);
@@ -170,7 +170,7 @@ describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47)",
 		expect(data(msgs)).toEqual([]);
 	});
 
-	it("a terminal OP discards its pending rewireNext queue", () => {
+	it("a terminal OP still drains pending rewireNext addDep, but later inner output is sealed", () => {
 		const inner = makeInner(1);
 		const s = node<number>([], null, { initial: 0 });
 		const op: Node<number> = node<number>(
@@ -186,7 +186,38 @@ describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47)",
 		collect(op);
 		s.down([["DATA", 1]]);
 		expect(op.status).toBe("completed");
-		expect(inner.isActivated()).toBe(false); // queued addDep discarded — inner never wired
+		expect(inner.isActivated()).toBe(true); // D62: queued addDep drains after terminal
+		expect(op.deps).toContain(inner.node);
+		inner.emit(2);
+		expect(op.cache).toBeUndefined(); // terminal output guard: no post-terminal DATA escapes
+	});
+
+	it("a terminal OP drains pending removeDep and deactivates the helper dep", () => {
+		const inner = makeInner(1);
+		const s = node<number>([], null);
+		let added = false;
+		const op: Node<number> = node<number>(
+			[s],
+			function opFn(ctx) {
+				if (!added && ctx.depRecords[0].batch) {
+					added = true;
+					ctx.rewireNext.addDep(inner.node, opFn);
+					return;
+				}
+				if (ctx.depRecords[0].terminal === true) {
+					ctx.rewireNext.removeDep(inner.node, opFn);
+					ctx.down([["COMPLETE"]]);
+				}
+			},
+			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
+		);
+		collect(op);
+		s.down([["DATA", 1]]);
+		expect(inner.isActivated()).toBe(true);
+		s.down([["COMPLETE"]]);
+		expect(op.status).toBe("completed");
+		expect(op.deps).not.toContain(inner.node);
+		expect(inner.isDeactivated()).toBe(true);
 	});
 
 	it("a no-net-change rewireNext is a no-op (no recompute, no drain loop)", () => {
