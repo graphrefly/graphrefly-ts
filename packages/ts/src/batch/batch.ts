@@ -13,7 +13,7 @@
  */
 
 import type { Wave } from "../protocol/messages.js";
-import { enterWave, exitWave } from "./boundary.js";
+import { deferRewire, enterWave, exitWave } from "./boundary.js";
 
 /** A node target the batch can commit/rollback against (structural, avoids an import cycle). */
 export interface BatchTarget {
@@ -29,6 +29,7 @@ export interface BatchCtx {
 interface ActiveBatch {
 	order: BatchTarget[];
 	deferred: Map<BatchTarget, Wave>;
+	committed: boolean;
 	rolledBack: boolean;
 }
 
@@ -46,6 +47,19 @@ export function deferToBatch(target: BatchTarget, tier3Wave: Wave): boolean {
 	if (active === null) return false;
 	if (!active.deferred.has(target)) active.order.push(target);
 	active.deferred.set(target, tier3Wave); // last-value coalescing
+	return true;
+}
+
+/**
+ * Defer a topology mutation until after the active batch has committed/rolled back,
+ * but only when this target has an uncommitted settle slice in the current batch.
+ */
+export function deferAfterBatchForTarget(target: BatchTarget, fn: () => void): boolean {
+	if (active === null || !active.deferred.has(target)) return false;
+	const owner = active;
+	deferRewire(() => {
+		if (owner.committed) fn();
+	});
 	return true;
 }
 
@@ -76,7 +90,7 @@ export function batch<R>(fn: (bctx: BatchCtx) => R): R {
 				},
 			});
 		}
-		const b: ActiveBatch = { order: [], deferred: new Map(), rolledBack: false };
+		const b: ActiveBatch = { order: [], deferred: new Map(), committed: false, rolledBack: false };
 		active = b;
 		const bctx: BatchCtx = {
 			rollback: () => {
@@ -93,7 +107,10 @@ export function batch<R>(fn: (bctx: BatchCtx) => R): R {
 		}
 		active = null;
 		if (b.rolledBack) rollback(b);
-		else commit(b);
+		else {
+			commit(b);
+			b.committed = true;
+		}
 		return result;
 	} finally {
 		exitWave();
