@@ -1145,7 +1145,13 @@ export class Node<T = unknown> {
 				const t = messageTier(m[0]);
 				return t === 3 || t === 4;
 			});
-			if (buffered.length > 0) this._pauseBuffer.push(buffered);
+			if (buffered.length > 0) {
+				// B36 / R-resolved-undirty: buffering a settle slice still means this fn wave
+				// produced a settle. Without this, _runWave sees "dirty + no settle" and
+				// synthesizes a RESOLVED that pierces the pause while the DATA waits in the buffer.
+				this._emittedSettleThisWave = true;
+				this._pauseBuffer.push(buffered);
+			}
 			sorted = sorted.filter((m) => {
 				const t = messageTier(m[0]);
 				return t !== 3 && t !== 4;

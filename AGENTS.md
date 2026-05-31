@@ -11,7 +11,7 @@ self-contained package (substrate + sugar + operators), **no cross-language peer
 
 ## Authority — where the truth lives (`~/src/graphrefly`)
 
-Read `~/src/graphrefly/AGENTS.md` first — it is the single-source index for the design.
+Read `~/src/graphrefly/CLAUDE.md` first — it is the single-source index for the design.
 
 | Concern | Source of truth |
 |---|---|
@@ -71,7 +71,7 @@ pnpm bench         # vitest bench (informational, not a CI gate — L5-Q1)
 
 ## Skills (clean-slate)
 
-Project-local skills under `.Codex/skills/`:
+Project-local skills under `.claude/skills/`:
 
 - **decision-guard** — recall locked D#/values/floor before any decision question.
 - **spec-amend** — spec-first protocol amendment (rules + TLA+ + conformance, then code).
