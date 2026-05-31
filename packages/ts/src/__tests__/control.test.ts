@@ -59,6 +59,33 @@ describe("PAUSE/RESUME lockset (R-pause-lockset, R-pause-modes default)", () => 
 		expect(runs).toBe(1); // not gated
 		expect(d.cache).toBe(6);
 	});
+
+	it("resumeAll buffers a compute DATA without synthesizing a mid-pause RESOLVED (B36)", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const d = node<number>(
+			[a],
+			(ctx: Ctx) => {
+				ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 1]]);
+			},
+			{ pausable: "resumeAll" },
+		);
+		const { msgs } = collect(d);
+		expect(d.cache).toBe(2);
+		msgs.length = 0;
+
+		const L = Symbol("L");
+		d.up([["PAUSE", L]]);
+		a.down([["DATA", 10]]);
+
+		expect(d.cache).toBe(2); // DATA is buffered, not applied while paused
+		expect(types(msgs)).toEqual(["DIRTY"]); // no synthetic RESOLVED may pierce the pause
+
+		d.up([["RESUME", L]]);
+		expect(d.cache).toBe(11);
+		// Replaying the buffered DATA emits a fresh DIRTY-before-DATA wave; the important B36
+		// invariant is that no RESOLVED pierced the pause before this replay.
+		expect(types(msgs)).toEqual(["DIRTY", "DIRTY", "DATA"]);
+	});
 });
 
 describe("async pool (R-sync-core async label, R8 late-emit pairing)", () => {
