@@ -61,8 +61,14 @@ export interface RewireNext {
  * is explicit via `ctx.down`; there is no return-value framing.
  */
 export interface Ctx {
-	/** Emit upstream toward deps — control tiers only (R-ctx-up). */
-	up(msgs: Wave): void;
+	/**
+	 * Emit upstream toward deps — control tiers only (R-ctx-up). IMMEDIATE. `towardDep` (a dep index)
+	 * routes the wave up ONE declared edge (R-up-routing directed-up); omitted = broadcast up all deps.
+	 * A pull DEMAND is `up([[RESUME, pullId]])` — but for a SELF-demand (demanding a dep this fn also
+	 * reads) use {@link Ctx.upNext} instead, since an immediate demand whose delivery loops back
+	 * re-enters this fn mid-wave (D37 / R-reentrancy).
+	 */
+	up(msgs: Wave, towardDep?: number): void;
 	/** Emit downstream toward sinks. */
 	down(msgs: Wave): void;
 	depRecords: readonly DepRecord[];
@@ -77,6 +83,16 @@ export interface Ctx {
 	 * inner-source dep set in response to their own data. Always present; see {@link RewireNext}.
 	 */
 	rewireNext: RewireNext;
+	/**
+	 * Deferred up — the boundary-deferred form of {@link Ctx.up} (R-up-routing / R-pull / D59). Routes
+	 * `msgs` up from this node at the COMMITTED wave boundary (broadcast, or up the single `towardDep`
+	 * edge), riding the same R-rewire-deferred (D47) drain as {@link RewireNext}. This is the
+	 * SELF-DEMAND path: a consumer issues `ctx.upNext([[RESUME, pullId]])` to demand a pull dep it
+	 * ALSO reads — the cone-routed RESUME reaches the pullId-holder, whose delivery loops back as a
+	 * FRESH wave (not a mid-fn re-entry → no D37). The consumer accepts one-wave latency (the
+	 * HTTP-request model). No node reference needed: the author writes the pullId verbatim.
+	 */
+	upNext(msgs: Wave, towardDep?: number): void;
 	/**
 	 * Read a dep's latest value by index (dynamicNode only, R-dynamic-node / D35).
 	 * Present only on dynamicNode fns; all declared deps still participate in wave

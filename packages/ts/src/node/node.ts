@@ -20,6 +20,7 @@ import { type Dispatcher, defaultDispatcher, type Handle } from "../dispatcher/i
 import {
 	isTerminal,
 	isUpAllowed,
+	type LockId,
 	type Message,
 	messageTier,
 	SENTINEL,
@@ -34,14 +35,6 @@ export type Status =
 	| "resolved"
 	| "completed"
 	| "errored";
-
-/**
- * SPIKE (design-review protocol-pull / pull:true) — NOT spec'd yet, pending /spec-amend (B).
- * The well-known demand lock a `pull:true` node self-holds (quiet) and that a consumer RESUMEs
- * to pull one delivery. A real impl would use a per-node lock for precise multi-pull routing;
- * the shared symbol is sufficient to verify the wedge-fix premise (single pull node).
- */
-export const PULL_DEMAND: unique symbol = Symbol("PULL_DEMAND");
 
 export interface NodeOptions<T = unknown> {
 	/** Pre-populate cache; source pushes [DATA, initial] on subscribe (R-initial). `null` is valid. */
@@ -61,11 +54,21 @@ export interface NodeOptions<T = unknown> {
 	/** PAUSE/RESUME behavior (R-pause-modes). Default true. */
 	pausable?: boolean | "resumeAll";
 	/**
-	 * SPIKE (protocol-pull): quiet-until-demanded source. Self-holds PULL_DEMAND (quiet): absorbs
-	 * upstream DIRTY WITHOUT relaying it downstream (wedge fix) + no push-on-subscribe; a RESUME of
-	 * PULL_DEMAND fires one delivery (pausable:true → latest; 'resumeAll' → backlog) then re-quiets.
+	 * Pull-mode node (R-pull / D55,D59): a quiet-until-demanded source, identified by this
+	 * author-supplied `pullId` (a unique LockId — a `Symbol` recommended; NOT the node name, NOT a
+	 * bare string which collides with a same-string pause lock). The node self-holds the pullId as
+	 * its demand lock. QUIET by default: it ABSORBS an upstream DIRTY WITHOUT relaying it downstream
+	 * (the wedge fix) and does NOT push-on-subscribe its cached value (START only). A DEMAND = a
+	 * cone-routed `RESUME` of this pullId (R-up-routing — NO new message type): a downstream consumer
+	 * issues `ctx.up([[RESUME, pullId]])` (broadcast up the declared cone) or `ctx.up(msgs, towardDep)`
+	 * (directed) WITHOUT holding this node's reference; the RESUME travels up to the pullId-holder,
+	 * which fires EXACTLY ONE delivery (DIRTY-before-DATA) then RE-QUIETS (1:1). Delivery content =
+	 * the orthogonal `pausable` mode: `true` → coalesced LATEST (one DATA); `'resumeAll'` → buffered
+	 * BACKLOG. `pullId` + `pausable:false` is REJECTED at construction. A SELF-triggered demand (a
+	 * consumer demanding a dep it ALSO reads) must defer via {@link Ctx.upNext} (R-rewire-deferred /
+	 * D37). Author the pullId as a shared module const used at both this node and the demander's fn.
 	 */
-	pull?: boolean;
+	pullId?: LockId;
 	/** Buffer the last N outgoing DATA for late subscribers (R-replay-buffer). */
 	replayBuffer?: number;
 	/** Mark this as a dynamicNode — fn gets ctx.track(i) for read-selection (R-dynamic-node / D35). */
@@ -104,8 +107,30 @@ export class Node<T = unknown> {
 	private readonly _resubscribable: boolean;
 	private readonly _resetOnTeardown: boolean;
 	private readonly _pausable: boolean | "resumeAll";
-	/** SPIKE (protocol-pull / pull:true). */
+	/** R-pull (D55/D59): pull-mode flag (= `opts.pullId !== undefined`). */
 	private readonly _pull: boolean;
+	/**
+	 * R-pull (D55/D59): this pull node's pullId = its demand lock (the author-supplied `opts.pullId`,
+	 * a unique LockId/Symbol, NOT the node name / a bare string — matched by IDENTITY so a cone-routed
+	 * RESUME targets exactly this node, R-up-routing). Undefined for a non-pull node. Quiet ⟺ held.
+	 */
+	private readonly _pullLock: LockId | undefined;
+	/**
+	 * R-pull (D55/D59): a DEMAND arrived but could not fire immediately — the node owes ONE delivery
+	 * and fires it the moment it becomes able (1:1). Set when, at demand time, a dep DIRTY is still in
+	 * flight (_pending>0, pin 5) OR an external PAUSE lock co-holds the node (F4/F5). Drained by
+	 * `_fireOwedDemandIfReady` from the dep-settle arms (DATA/RESOLVED/INVALIDATE/terminal) and from
+	 * `_pauseRelease` (external resume). Boolean (not a counter) → coalesces to one latest delivery.
+	 */
+	private _demandOwed = false;
+	/**
+	 * R-pull (D59, QA): true WHILE a demand is being delivered (`_deliverPullDemand` momentarily
+	 * releases the pullId). Guards `_onDemand`/`_fireOwedDemandIfReady` against a synchronous
+	 * re-entrant demand (a downstream sink RESUMEing back during the delivery's own down-cascade) —
+	 * re-entry is dropped, preserving the exactly-one-delivery (1:1) invariant by CONSTRUCTION rather
+	 * than relying on the buffer-already-drained / _insideRunWave-D37 timing.
+	 */
+	private _inDeliverDemand = false;
 	private readonly _replayN: number;
 	private readonly _dynamic: boolean;
 	readonly name?: string;
@@ -180,7 +205,15 @@ export class Node<T = unknown> {
 		this._resubscribable = opts.resubscribable ?? false;
 		this._resetOnTeardown = opts.resetOnTeardown ?? false;
 		this._pausable = opts.pausable ?? true;
-		this._pull = opts.pull ?? false;
+		// R-pull (D55/D59): pull-mode is keyed by an author-supplied pullId (its demand lock).
+		this._pullLock = opts.pullId;
+		this._pull = opts.pullId !== undefined;
+		// R-pull (D55, pin 3): pull needs RESUME as the demand signal — pausable:false (which
+		// ignores PAUSE/RESUME entirely, R-pause-modes) is a contradiction. Reject at construction.
+		if (this._pull && this._pausable === false)
+			throw new Error(
+				"node: pullId is incompatible with pausable:false — a pull node is demanded via RESUME, which pausable:false ignores (R-pull / R-pause-modes / D55,D59)",
+			);
 		this._replayN = opts.replayBuffer ?? 0;
 		this._dynamic = opts.dynamic ?? false;
 		this._pool = opts.pool ?? "sync";
@@ -214,13 +247,25 @@ export class Node<T = unknown> {
 			this._status = "settled";
 		}
 
-		// SPIKE (protocol-pull): a pull node starts QUIET — self-hold the demand lock.
-		if (this._pull) this._pauseLockset.add(PULL_DEMAND);
+		// R-pull (D55): a pull node starts QUIET — self-hold its pullId (its demand lock).
+		if (this._pull) this._pauseLockset.add(this._pullLock as LockId);
 	}
 
-	/** SPIKE (protocol-pull): true while a pull node is quiet (holds its own demand lock). */
+	/** R-pull (D55): true while a pull node is quiet (holds its own pullId/demand lock). */
 	private _isPullQuiet(): boolean {
-		return this._pull && this._pauseLockset.has(PULL_DEMAND);
+		return this._pull && this._pauseLockset.has(this._pullLock);
+	}
+
+	/**
+	 * R-pull (D55/D59): this pull node's pullId (pure data, like {@link cache}/{@link handle} — never
+	 * triggers computation). A consumer demands one delivery by cone-routing a RESUME of it (no node
+	 * reference): `ctx.up([["RESUME", pullId]])` (immediate; loops back → D37 for a self-read dep) or
+	 * `ctx.upNext([["RESUME", pullId]])` (boundary-deferred self-demand, R-up-routing/R-rewire-deferred).
+	 * Undefined for a non-pull node. The author writes the pullId verbatim, so this getter is mainly
+	 * for inspection/describe; routing matches by the pullId value carried in the RESUME, by identity.
+	 */
+	get pullId(): LockId | undefined {
+		return this._pullLock;
 	}
 
 	get cache(): T | undefined {
@@ -273,12 +318,14 @@ export class Node<T = unknown> {
 			if (this._replayN > 0 && this._replayRing.length > 0) {
 				// R-replay-buffer: late subscriber gets the last N DATA after START.
 				for (const v of this._replayRing) sink(["DATA", v]);
-			} else if (this._hasData && !this._isPullQuiet()) {
-				// SPIKE (protocol-pull): a quiet pull node does NOT push its cached value on
-				// subscribe — it stays silent until demanded (else every new subscriber would
-				// trigger a materialization). START only.
+			} else if (this._hasData && !this._pull) {
+				// R-pull (D55): a pull node NEVER push-on-subscribes its cached value — quiet by
+				// default, it stays silent until demanded (START only). QA-B4: gated on `_pull` (not
+				// the transient quiet-lock _isPullQuiet) so a REACTIVATED pull node — whose lockset is
+				// briefly empty before _activate re-holds the demand lock — still does not leak its
+				// cache (matters for a depless pull state node, whose cache survives _deactivate).
 				sink(["DATA", this._cache]);
-			} else if (this._status === "dirty" && !this._isPullQuiet()) {
+			} else if (this._status === "dirty" && !this._pull) {
 				sink(["DIRTY"]);
 			}
 
@@ -305,12 +352,15 @@ export class Node<T = unknown> {
 		}
 	}
 
-	/** Emit upstream toward deps — control tiers only (R-ctx-up). */
-	up(msgs: Wave): void {
+	/**
+	 * Emit upstream toward deps — control tiers only (R-ctx-up). `towardDep` (a dep index) routes up
+	 * ONE declared edge (R-up-routing directed-up); omitted = broadcast up all deps.
+	 */
+	up(msgs: Wave, towardDep?: number): void {
 		// Wave-owner boundary (D47). Internal dep-forwarding calls dep.up() nest under this.
 		enterWave();
 		try {
-			this._up(msgs);
+			this._up(msgs, towardDep);
 		} finally {
 			exitWave();
 		}
@@ -325,6 +375,18 @@ export class Node<T = unknown> {
 	 */
 	private _requestRewireNext(op: RewireOp): void {
 		deferRewire(() => this._applyRewireNext(op));
+	}
+
+	/**
+	 * Enqueue a deferred up-going control wave (R-up-routing / R-pull / D59): at the committed wave
+	 * boundary, route `msgs` up from THIS node (broadcast, or up the single `towardDep` edge). The
+	 * deferred form of `ctx.up` — the SELF-demand path: a consumer issues `ctx.upNext([[RESUME,
+	 * pullId]])` to demand a dep it ALSO reads; the demand applies at the boundary (not mid-fn), so
+	 * the pull node's delivery loops back as a FRESH wave rather than re-entering the consumer (D37 /
+	 * R-reentrancy). Rides the same R-rewire-deferred (D47) drain as ctx.rewireNext.
+	 */
+	private _requestUpNext(msgs: Wave, towardDep?: number): void {
+		deferRewire(() => this._up(msgs, towardDep));
 	}
 
 	/** Apply one queued self-rewire at the boundary (drain thunk). */
@@ -540,6 +602,10 @@ export class Node<T = unknown> {
 
 	private _activate(): void {
 		this._activated = true;
+		// R-pull (D55): (re)enter QUIET before wiring deps — _deactivate cleared the lockset, so a
+		// reactivation must re-hold the pullId/demand lock; doing it here (pre-subscribe) means each
+		// dep's push-on-subscribe DIRTY/DATA is absorbed quietly (the wedge fix), not relayed downstream.
+		if (this._pull) this._pauseLockset.add(this._pullLock as LockId);
 		this._depUnsubs = new Array(this._deps.length);
 		this._depIdxBoxes = new Array(this._deps.length);
 		for (const dep of this._deps) this._subscribeDepAt(dep);
@@ -589,6 +655,7 @@ export class Node<T = unknown> {
 		this._pauseLockset.clear();
 		this._pauseBuffer = [];
 		this._pausedDepWaveOccurred = false;
+		this._demandOwed = false; // R-pull (D55): drop any deferred demand
 		this._replayRing = []; // BH6: don't replay stale values to a post-reactivation subscriber
 		if (!this._statePersist) this._state = SENTINEL;
 	}
@@ -649,6 +716,7 @@ export class Node<T = unknown> {
 					this._emitToSubs(["RESOLVED"]);
 				}
 			}
+			this._fireOwedDemandIfReady(); // R-pull (D59/B1/F6): an INVALIDATE settle can drain _pending → fire a deferred demand
 			return;
 		}
 
@@ -681,6 +749,7 @@ export class Node<T = unknown> {
 				// not materialise (no DATA) → un-dirty downstream, keep cache (R-resolved-undirty balance).
 				this._settleAfterAbsorbedTerminal();
 			}
+			this._fireOwedDemandIfReady(); // R-pull (D59/B1/F6): a dep terminal can drain _pending → fire a deferred demand (no-op if this node went terminal)
 			return;
 		}
 
@@ -712,6 +781,7 @@ export class Node<T = unknown> {
 				this._pending--;
 			}
 			this._maybeRun();
+			this._fireOwedDemandIfReady(); // R-pull pin 5: settle-ready now → fire a deferred demand
 			return;
 		}
 
@@ -722,6 +792,7 @@ export class Node<T = unknown> {
 				this._pending--;
 			}
 			this._maybeRun();
+			this._fireOwedDemandIfReady(); // R-pull pin 5: settle-ready now → fire a deferred demand
 			return;
 		}
 		// PAUSE / RESUME are not delivered downstream to a dep-subscriber; a node is
@@ -950,10 +1021,10 @@ export class Node<T = unknown> {
 			// Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
 			// it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
 			// ctx at depth 0, so this is the boundary that drains any rewireNext it issued.
-			up: (msgs) => {
+			up: (msgs, towardDep) => {
 				enterWave();
 				try {
-					this._up(msgs);
+					this._up(msgs, towardDep);
 				} finally {
 					exitWave();
 				}
@@ -980,6 +1051,10 @@ export class Node<T = unknown> {
 				removeDep: (dep, fn) => this._requestRewireNext({ kind: "remove", dep, fn }),
 				setDeps: (deps, fn) => this._requestRewireNext({ kind: "set", deps, fn }),
 			},
+			// R-up-routing / R-pull (D59): deferred up — route a control wave (e.g. a RESUME pull
+			// DEMAND) up the declared cone at the committed boundary. The SELF-demand path: an
+			// immediate ctx.up whose delivery loops back re-enters this fn (D37 / R-reentrancy).
+			upNext: (msgs, towardDep) => this._requestUpNext(msgs, towardDep),
 		};
 		if (this._dynamic) {
 			// R-dynamic-node: read a dep's latest by index. Untracked deps still drive waves and
@@ -1161,7 +1236,7 @@ export class Node<T = unknown> {
 		if (!this._insideRunWave) this._emittedDirtyThisWave = false;
 	}
 
-	private _up(msgs: Wave): void {
+	private _up(msgs: Wave, towardDep?: number): void {
 		for (const m of msgs) {
 			if (!isUpAllowed(m[0])) {
 				throw new Error(
@@ -1171,9 +1246,21 @@ export class Node<T = unknown> {
 		}
 		for (const m of msgs) {
 			if (m[0] === "PAUSE") {
+				// PAUSE is NODE-TARGETED (R-up-routing): it ACQUIRES a lock, so there is no
+				// pre-existing holder to route to — a controller targets the node directly.
 				this._pauseAcquire(m[1]);
 			} else if (m[0] === "RESUME") {
-				this._pauseRelease(m[1]);
+				// R-up-routing (D59): RELEASE-IF-HELD-ELSE-FORWARD-UP.
+				if (this._pull && m[1] === this._pullLock) {
+					// a cone-routed RESUME of OUR pullId = a DEMAND (R-pull). Fire (or owe).
+					this._onDemand();
+				} else if (this._pauseLockset.has(m[1])) {
+					// a pause lock held HERE → release LOCALLY (normal pause/resume, R-pause-lockset).
+					this._pauseRelease(m[1]);
+				} else {
+					// not held here → forward UP the declared cone to find the holder.
+					this._forwardUp(m, towardDep);
+				}
 			} else if (this._deps.length === 0) {
 				// R-up-at-source (D38): a depless source is the terminus of upstream control.
 				// INVALIDATE → HONOR the invalidate-request. Routed through _down (NOT a direct
@@ -1185,9 +1272,26 @@ export class Node<T = unknown> {
 				// downstream awaiting a settle that never comes; source lifecycle is source-owned).
 				if (m[0] === "INVALIDATE") this._down([["INVALIDATE"]]);
 			} else {
-				// dep-bearing intermediate: forward upstream toward deps, no self-action.
-				for (const dep of this._deps) dep.up([m]);
+				// dep-bearing intermediate: forward DIRTY/INVALIDATE/TEARDOWN up toward deps.
+				this._forwardUp(m, towardDep);
 			}
+		}
+	}
+
+	/**
+	 * Forward one up-going control message toward deps (R-up-routing): up the single declared edge
+	 * `towardDep` (directed — prunes other branches; only meaningful on the issuer's FIRST hop) or
+	 * broadcast up ALL deps. A depless source has no deps → the message DROPS here (the terminus —
+	 * e.g. a cone-routed RESUME whose pullId no node up this cone holds, R-up-at-source). Recursive
+	 * forwarding via the public `dep.up([m])` carries no `towardDep` → broadcast beyond the first hop.
+	 */
+	private _forwardUp(m: Message, towardDep?: number): void {
+		if (this._deps.length === 0) return; // depless source terminus → drop
+		if (towardDep !== undefined) {
+			const d = this._deps[towardDep];
+			if (d !== undefined) d.up([m]);
+		} else {
+			for (const dep of this._deps) dep.up([m]);
 		}
 	}
 
@@ -1208,6 +1312,11 @@ export class Node<T = unknown> {
 	private _pauseRelease(lockId: unknown): void {
 		if (!this._pauseLockset.has(lockId)) return; // unknown id => no-op
 		this._pauseLockset.delete(lockId);
+		// R-pull (D59 / F4-F5): releasing an EXTERNAL pause lock can unblock a demand owed while the
+		// node was externally paused — fire it if now able, even though the node still self-holds its
+		// pullId (so the lockset is not empty). A pull node's OWN demand never routes here (it goes
+		// through _onDemand); this only sees external pause/resume locks.
+		if (this._pull && this._demandOwed) this._fireOwedDemandIfReady();
 		if (this._pauseLockset.size > 0) return; // another lock still held => stay paused
 		this._onResume();
 	}
@@ -1218,24 +1327,105 @@ export class Node<T = unknown> {
 		if (this._terminal !== undefined) {
 			this._pauseBuffer = [];
 			this._pausedDepWaveOccurred = false;
+			this._demandOwed = false;
 			return;
 		}
-		// Drain buffered settle slices (resumeAll / async-at-paused, R-async-paused).
+		// Non-pull pause/resume (R-pause-modes): drain buffered settle slices (resumeAll /
+		// async-at-paused, R-async-paused), then fire a coalesced dep-wave once (default mode).
+		// A PULL node never reaches here (D59): it always self-holds its pullId, so its lockset never
+		// EMPTIES via _pauseRelease — a pull DEMAND fires through _onDemand, not _onResume.
 		if (this._pauseBuffer.length > 0) {
 			const buf = this._pauseBuffer;
 			this._pauseBuffer = [];
 			for (const wave of buf) this._down(wave);
 		}
-		// Default mode: a dep wave that arrived while paused fires the fn once now.
 		if (this._pausedDepWaveOccurred) {
 			this._pausedDepWaveOccurred = false;
 			this._tryRun();
 		}
-		// SPIKE (protocol-pull): one demand = one delivery — re-quiet after the pulse so the next
-		// upstream change is again absorbed silently (1:1, sub-decision #2). The fire above already
-		// emitted (true → latest via _tryRun; 'resumeAll' → backlog via the buffer drain) while NOT
-		// quiet, so downstream got the delivery; re-acquiring the lock now returns to silence.
-		if (this._pull) this._pauseLockset.add(PULL_DEMAND);
+	}
+
+	/**
+	 * R-pull (D59): can this pull node fire a demand NOW? — not terminal, settle-ready (_pending===0),
+	 * and no OTHER (non-pullId) lock holds it paused. The gate that decides fire-now vs OWE.
+	 */
+	private _canFireDemand(): boolean {
+		if (this._terminal !== undefined || this._pending > 0) return false;
+		const own = this._pauseLockset.has(this._pullLock) ? 1 : 0; // discount our own pullId/quiet lock
+		return this._pauseLockset.size <= own; // no external pause lock co-held
+	}
+
+	/**
+	 * R-pull (D59): deliver ONE demand pulse — release the pullId so the demand wave RELAYS (not
+	 * absorbed), fire it, then RE-QUIET (1:1). The pullId re-add + the re-entrancy flag are in a
+	 * `finally` so a throwing pull fn (graph-less node, no D30 catch) cannot leave the node
+	 * permanently non-quiet (the wedge-fix silently disabled) — QA-found robustness fix.
+	 */
+	private _deliverPullDemand(): void {
+		this._demandOwed = false;
+		this._inDeliverDemand = true;
+		this._pauseLockset.delete(this._pullLock as LockId);
+		try {
+			this._firePullDemand();
+		} finally {
+			this._pauseLockset.add(this._pullLock as LockId); // re-quiet (even on a throwing fn)
+			this._inDeliverDemand = false;
+		}
+	}
+
+	/**
+	 * R-pull (D59): a cone-routed RESUME of THIS node's pullId arrived (R-up-routing) = a DEMAND.
+	 * Fire immediately if able; else OWE it — pin-5 (a dep DIRTY in flight, _pending>0) or F4/F5 (an
+	 * external PAUSE lock co-holds the node) — and fire when the node next becomes able. A demand
+	 * arriving WHILE a delivery is in flight (synchronous re-entry) is DROPPED (1:1, QA guard).
+	 */
+	private _onDemand(): void {
+		if (this._inDeliverDemand) return; // re-entrant demand during an active delivery → drop (1:1)
+		if (this._canFireDemand()) this._deliverPullDemand();
+		else this._demandOwed = true;
+	}
+
+	/**
+	 * R-pull (D55): service ONE demand. Delivery content = the orthogonal pausable mode:
+	 *   - 'resumeAll' → drain the buffered BACKLOG (each `_down` re-synthesizes a leading DIRTY, so
+	 *     the per-entry replay is DIRTY-before-DATA — R-pause-modes per-entry arrival order);
+	 *   - true → deliver the coalesced LATEST as ONE DIRTY-before-DATA wave (pin 2: the quiet absorb
+	 *     suppressed the dep's original DIRTY, so the demand wave restores it before the value).
+	 * Neither branch fires when nothing changed since the last demand → the demand is SILENT.
+	 * Called by `_deliverPullDemand` only when settle-ready; the caller has released the pullId, so
+	 * `_markDirty` relays the leading DIRTY (not absorbed).
+	 */
+	private _firePullDemand(): void {
+		if (this._pauseBuffer.length > 0) {
+			const buf = this._pauseBuffer;
+			this._pauseBuffer = [];
+			for (const wave of buf) this._down(wave);
+		}
+		if (this._pausedDepWaveOccurred) {
+			// QA-B2: only deliver if the fn can actually run this wave (settle-ready + first-run gate
+			// open). A gated run emits no DATA, so emitting the leading DIRTY would STRAND downstream
+			// — the exact wedge this feature exists to prevent (NoWedgeWhileQuiet). When gated, stay
+			// SILENT and KEEP _pausedDepWaveOccurred so a later demand (once every dep has settled)
+			// delivers. Mirrors _settleRewire's pre-_markDirty gate.
+			const gated =
+				this._handle !== null &&
+				!this._hasCalledFnOnce &&
+				!(this._partial || this._allDepsSettled());
+			if (this._pending > 0 || gated) return;
+			this._pausedDepWaveOccurred = false;
+			this._markDirty(); // pin 2: leading DIRTY (lock released → relays)
+			this._tryRun(); // fn → DATA, balancing the DIRTY
+		}
+	}
+
+	/**
+	 * R-pull (D55/D59): fire a demand that was OWED (deferred at demand time) once the node becomes
+	 * able — called from the dep-settle arms (DATA/RESOLVED/INVALIDATE/terminal drain _pending, pin-5
+	 * + B1/F6) and from `_pauseRelease` (an external PAUSE lock releases, F4/F5).
+	 */
+	private _fireOwedDemandIfReady(): void {
+		if (this._inDeliverDemand) return; // don't re-enter during an active delivery (1:1, QA guard)
+		if (this._pull && this._demandOwed && this._canFireDemand()) this._deliverPullDemand();
 	}
 
 	/** Should an outgoing settle slice be deferred into the pause buffer? */
@@ -1288,6 +1478,7 @@ export class Node<T = unknown> {
 		this._pauseLockset.clear();
 		this._pauseBuffer = [];
 		this._pausedDepWaveOccurred = false;
+		this._demandOwed = false; // R-pull (D55): drop any deferred demand
 		this._replayRing = []; // BH6
 		const isCompute = this._handle !== null || this._deps.length > 0;
 		if (isCompute) {

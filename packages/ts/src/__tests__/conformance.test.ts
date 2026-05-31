@@ -836,6 +836,158 @@ describe("C-15 a dep's terminal releases its in-wave DIRTY contribution (R-termi
 	});
 });
 
+// C-16 (R-pull / R-up-routing / D55,D59): a pull-mode node (NodeOptions.pullId:<Symbol>) is QUIET by
+// default — ABSORBS an upstream DIRTY without relaying it (the wedge fix), no push-on-subscribe (START
+// only). A DEMAND = a CONE-ROUTED RESUME of its pullId (R-up-routing release-if-held-else-forward-up;
+// no new message type, no node reference): fires EXACTLY ONE delivery (DIRTY-before-DATA) then re-quiets
+// (1:1); content = pausable mode (true→latest / resumeAll→backlog). A SELF-demand defers via ctx.upNext
+// (R-rewire-deferred); an immediate in-fn demand whose delivery loops back is the D37 feedback cycle.
+// pullId disambiguates siblings; pullId+pausable:false is rejected.
+describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers once then re-quiets (R-pull / R-up-routing / D55,D59)", () => {
+	const PSNAP = Symbol("snapshot"); // the author-supplied pullId, shared between the pull node + the demander
+	// SNAP = a pull node over an accumulator ACC, projecting ACC's latest as the "snapshot".
+	const snapFn = (ctx: Ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+	const fwd: NodeFn = (ctx) => {
+		// a non-pull intermediate: forward any dep DATA downstream (relays a routed demand's delivery).
+		for (const r of ctx.depRecords) if (r.batch) for (const v of r.batch) ctx.down([["DATA", v]]);
+	};
+
+	it("(quiet/absorb + no push-on-subscribe) ACC changes never relay a DIRTY to SNAP's sink", () => {
+		const acc = node<number>([], null, { initial: 0 });
+		const snap = node<number>([acc], snapFn, { pullId: PSNAP }); // pausable defaults true
+		const { msgs } = collect(snap);
+		expect(types(msgs)).toEqual(["START"]); // quiet: cached value NOT pushed on subscribe (START only)
+		expect(snap.pullId).toBe(PSNAP); // the pullId is the author's value (inspection accessor)
+		msgs.length = 0;
+
+		acc.down([["DATA", 1]]); // ACC changes while SNAP is quiet
+		acc.down([["DATA", 2]]);
+		expect(msgs).toEqual([]); // absorbed — no DIRTY, no DATA relayed → a downstream is NEVER wedged
+	});
+
+	it("(demand true) one routed RESUME(pullId) delivers the coalesced LATEST as DIRTY→DATA, re-quiets (1:1)", () => {
+		const acc = node<number>([], null, { initial: 0 });
+		const snap = node<number>([acc], snapFn, { pullId: PSNAP });
+		const { msgs } = collect(snap);
+		msgs.length = 0;
+		acc.down([["DATA", 1]]);
+		acc.down([["DATA", 2]]); // two changes while quiet → coalesced
+
+		snap.up([["RESUME", PSNAP]]); // DEMAND — a RESUME of the pullId (here direct on SNAP)
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // DIRTY-before-DATA on the demand wave
+		expect(data(msgs)).toEqual([2]); // the coalesced LATEST (one DATA), not [1,2]
+		msgs.length = 0;
+
+		snap.up([["RESUME", PSNAP]]); // (silent) second demand, no intervening change
+		expect(msgs).toEqual([]); // delivers NOTHING
+
+		acc.down([["DATA", 3]]); // re-quiet held: a further change is again absorbed silently
+		expect(msgs).toEqual([]);
+	});
+
+	it("(demand resumeAll) one RESUME drains the buffered BACKLOG incl. the activation value", () => {
+		const acc = node<number>([], null, { initial: 0 });
+		const snap = node<number>([acc], snapFn, { pullId: PSNAP, pausable: "resumeAll" });
+		const { msgs } = collect(snap);
+		msgs.length = 0;
+		acc.down([["DATA", 1]]);
+		acc.down([["DATA", 2]]);
+
+		snap.up([["RESUME", PSNAP]]); // DEMAND
+		expect(data(msgs)).toEqual([0, 1, 2]); // activation value 0 + the backlog 1,2 (per-entry replay)
+		expect(types(msgs).filter((t) => t === "DIRTY").length).toBeGreaterThan(0); // DIRTY-before-DATA
+		msgs.length = 0;
+
+		snap.up([["RESUME", PSNAP]]); // no change → silent
+		expect(msgs).toEqual([]);
+	});
+
+	it("(reject) pullId + pausable:false throws at construction", () => {
+		expect(() => node<number>([], null, { pullId: PSNAP, pausable: false })).toThrow(/pull/);
+	});
+
+	it("(routing: no-reference SELF-demand via ctx.upNext applies at the boundary — no D37, end-to-end)", () => {
+		const acc = node<number>([], null, { initial: 0 });
+		const snap = node<number>([acc], snapFn, { pullId: PSNAP });
+		const stream = node<number>([], null); // cheap delta-notification source
+		const received: number[] = [];
+		const cFn: NodeFn = (ctx) => {
+			const snapB = ctx.depRecords[1].batch;
+			if (snapB) for (const v of snapB) received.push(v as number);
+			const streamB = ctx.depRecords[0].batch;
+			// boundary-deferred self-demand: a cone-routed RESUME(pullId), NO snap reference held.
+			if (streamB && streamB.length > 0) ctx.upNext([["RESUME", PSNAP]]);
+		};
+		const c = node<number>([stream, snap], cFn, { partial: true });
+		collect(c); // C is NOT wedged by the quiet snapshot
+		acc.down([["DATA", 7]]); // ACC change — absorbed by quiet SNAP
+		expect(received).toEqual([]); // no snapshot yet
+
+		stream.down([["DATA", 1]]); // a delta → C demands up the cone; the boundary drain delivers it
+		expect(received).toEqual([7]); // got the coalesced latest, no D37, no hang
+	});
+
+	it("(routing: pullId disambiguates siblings) a cone-routed RESUME reaches ONLY the matching holder", () => {
+		// D → G(non-pull, forwards) → { Fsnap(pullId PF), Hsnap(pullId PH) } ; F,H are pull-over-acc.
+		const PF = Symbol("F");
+		const PH = Symbol("H");
+		const accF = node<number>([], null, { initial: 100 });
+		const accH = node<number>([], null, { initial: 200 });
+		const fSnap = node<number>([accF], snapFn, { pullId: PF });
+		const hSnap = node<number>([accH], snapFn, { pullId: PH });
+		const g = node<number>([fSnap, hSnap], fwd, { partial: true }); // intermediate forwards
+		const received: number[] = [];
+		const d = node<number>([g], (ctx) => {
+			const b = ctx.depRecords[0].batch;
+			if (b) for (const v of b) received.push(v as number);
+		});
+		collect(d);
+
+		d.up([["RESUME", PF]]); // demand F up the cone (D→G→{F,H}); only F (holds PF) fires, H forwards+drops
+		expect(received).toEqual([100]); // F's value, NOT H's 200 — disambiguated by pullId identity
+		received.length = 0;
+
+		d.up([["RESUME", PH]]); // now demand H — the sibling
+		expect(received).toEqual([200]); // only H fires
+	});
+
+	it("(routing: towardDep prunes) a directed demand reaches the pull dep but not the other branch", () => {
+		const acc = node<number>([], null, { initial: 5 });
+		const snap = node<number>([acc], snapFn, { pullId: PSNAP });
+		const stream = node<number>([], null);
+		const received: number[] = [];
+		const cFn: NodeFn = (ctx) => {
+			const snapB = ctx.depRecords[1].batch; // snap is dep index 1
+			if (snapB) for (const v of snapB) received.push(v as number);
+		};
+		const c = node<number>([stream, snap], cFn, { partial: true });
+		collect(c);
+
+		// directed toward dep 0 (stream) — routes AWAY from snap → snap never reached → silent
+		c.up([["RESUME", PSNAP]], 0);
+		expect(received).toEqual([]);
+
+		// directed toward dep 1 (snap) — reaches the pull holder → delivers
+		c.up([["RESUME", PSNAP]], 1);
+		expect(received).toEqual([5]);
+	});
+
+	it("(immediate) an in-fn demand whose delivery loops back to the consumer is the D37 feedback cycle", () => {
+		const acc = node<number>([], null, { initial: 0 });
+		const snap = node<number>([acc], snapFn, { pullId: PSNAP });
+		const stream = node<number>([], null);
+		const cFn: NodeFn = (ctx) => {
+			const streamB = ctx.depRecords[0].batch;
+			// IMMEDIATE (non-deferred) demand: SNAP's delivery loops straight back → re-enters C mid-wave.
+			if (streamB && streamB.length > 0) ctx.up([["RESUME", PSNAP]]);
+		};
+		const c = node<number>([stream, snap], cFn, { partial: true });
+		collect(c);
+		acc.down([["DATA", 7]]);
+		expect(() => stream.down([["DATA", 1]])).toThrow(/feedback cycle|reentrancy/i);
+	});
+});
+
 // C-17 (R-deps-terminal / B42): an ABSORBED error (errorWhenDepsError:false) counts as TERMINAL for
 // the completeWhenDepsComplete auto-COMPLETE cascade — order-independent (whichever terminal lands
 // last fires it). The COMPLETION analogue of C-15's DIRTY-release. NOT hit by the landed catalog
