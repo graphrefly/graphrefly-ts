@@ -185,3 +185,82 @@ export function concatMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn,
 export function exhaustMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
 	return mapOperator("exhaustMap", project, "exhaust");
 }
+
+/** Per-node bookkeeping for {@link repeat}: the round index + the current live inner. */
+interface RepeatState {
+	started: boolean;
+	round: number;
+	inner: Node<unknown> | null;
+}
+
+/**
+ * repeat: play a source `count` times in sequence (RxJS `repeat`). A DEPLESS self-driving operator
+ * (Operator<never, S>, instantiate via `g.initNode(repeat(factory, count), [])`) — NOT a dep-operator.
+ *
+ * It takes a `factory: () => NodeInput<S>` (a RECIPE), not a source Node, because clean-slate Nodes
+ * are HOT/shared (multicast + cache): re-subscribing the SAME node replays its cache, it does not
+ * re-RUN the source. RxJS `repeat` re-subscribes the COLD source = a fresh subscription each round;
+ * the clean-slate analogue is a fresh node per round → a factory. (A `repeat(count)`-over-a-Node
+ * shape would need a substrate force-resubscribe affordance — D47's no-net-change-is-a-no-op makes
+ * `removeDep(S)+addDep(S)` on the SAME node cancel out — deferred to that substrate work.)
+ *
+ * Mechanism (reuses the D47 self-rewire substrate, like the *Map family; NOT an internal subscribe,
+ * D45): on activation it mints round 0's inner via `ctx.rewireNext.addDep`; each round's inner DATA
+ * is forwarded; on the inner's COMPLETE (`completeWhenDepsComplete:false + terminalAsRealInput:true`)
+ * it removeDep's the finished inner and, if rounds remain, addDep's a FRESH `factory()` inner (a
+ * distinct node → a real net change, not the no-op same-node case); after the last round it emits
+ * COMPLETE. An inner ERROR auto-forwards (errorWhenDepsError default → repeat errors). The body is
+ * SELF-CATCHING (D30) and re-supplied on every rewire. The factory MUST mint a FRESH node per call
+ * (a factory returning the same Node makes removeDep+addDep a net-zero no-op → repeat wedges).
+ */
+export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<never, S> {
+	if (!Number.isInteger(count) || count < 1) {
+		throw new RangeError(`repeat: count must be a positive integer (got ${count})`);
+	}
+	const body: NodeFn = (ctx: Ctx) => {
+		try {
+			const st = (ctx.state.get<RepeatState>() ?? {
+				started: false,
+				round: 0,
+				inner: null,
+			}) as RepeatState;
+			// 1. forward the current inner's DATA this wave (the inner is the sole dep once wired).
+			for (const r of ctx.depRecords) {
+				if (r.batch && r.batch.length > 0) for (const v of r.batch) ctx.down([["DATA", v]]);
+			}
+			// 2. activation: mint round 0's inner.
+			if (!st.started) {
+				st.started = true;
+				st.round = 0;
+				const inner = fromAny<S>(factory(), { iter: true }) as Node<unknown>;
+				st.inner = inner;
+				ctx.state.set(st);
+				ctx.rewireNext.addDep(inner, body);
+				return;
+			}
+			// 3. inner COMPLETE → next round or terminal COMPLETE.
+			if (st.inner !== null && ctx.depRecords[0]?.terminal === true) {
+				const old = st.inner;
+				ctx.rewireNext.removeDep(old, body); // bound the finished round's inner
+				if (st.round + 1 < count) {
+					st.round += 1;
+					const next = fromAny<S>(factory(), { iter: true }) as Node<unknown>;
+					st.inner = next;
+					ctx.state.set(st);
+					ctx.rewireNext.addDep(next, body);
+				} else {
+					st.inner = null;
+					ctx.state.set(st);
+					ctx.down([["COMPLETE"]]);
+				}
+			}
+		} catch (e) {
+			ctx.down([["ERROR", e]]); // D30 (self-catch survives rewire)
+		}
+	};
+	return {
+		factory: "repeat",
+		body,
+		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
+	};
+}

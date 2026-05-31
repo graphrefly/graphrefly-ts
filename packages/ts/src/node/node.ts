@@ -18,6 +18,7 @@ import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
 import type { Ctx, CtxState, DepRecord, NodeFn, Sink } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import {
+	isTerminal,
 	isUpAllowed,
 	type Message,
 	messageTier,
@@ -33,6 +34,14 @@ export type Status =
 	| "resolved"
 	| "completed"
 	| "errored";
+
+/**
+ * SPIKE (design-review protocol-pull / pull:true) — NOT spec'd yet, pending /spec-amend (B).
+ * The well-known demand lock a `pull:true` node self-holds (quiet) and that a consumer RESUMEs
+ * to pull one delivery. A real impl would use a per-node lock for precise multi-pull routing;
+ * the shared symbol is sufficient to verify the wedge-fix premise (single pull node).
+ */
+export const PULL_DEMAND: unique symbol = Symbol("PULL_DEMAND");
 
 export interface NodeOptions<T = unknown> {
 	/** Pre-populate cache; source pushes [DATA, initial] on subscribe (R-initial). `null` is valid. */
@@ -51,6 +60,12 @@ export interface NodeOptions<T = unknown> {
 	resetOnTeardown?: boolean;
 	/** PAUSE/RESUME behavior (R-pause-modes). Default true. */
 	pausable?: boolean | "resumeAll";
+	/**
+	 * SPIKE (protocol-pull): quiet-until-demanded source. Self-holds PULL_DEMAND (quiet): absorbs
+	 * upstream DIRTY WITHOUT relaying it downstream (wedge fix) + no push-on-subscribe; a RESUME of
+	 * PULL_DEMAND fires one delivery (pausable:true → latest; 'resumeAll' → backlog) then re-quiets.
+	 */
+	pull?: boolean;
 	/** Buffer the last N outgoing DATA for late subscribers (R-replay-buffer). */
 	replayBuffer?: number;
 	/** Mark this as a dynamicNode — fn gets ctx.track(i) for read-selection (R-dynamic-node / D35). */
@@ -89,6 +104,8 @@ export class Node<T = unknown> {
 	private readonly _resubscribable: boolean;
 	private readonly _resetOnTeardown: boolean;
 	private readonly _pausable: boolean | "resumeAll";
+	/** SPIKE (protocol-pull / pull:true). */
+	private readonly _pull: boolean;
 	private readonly _replayN: number;
 	private readonly _dynamic: boolean;
 	readonly name?: string;
@@ -163,6 +180,7 @@ export class Node<T = unknown> {
 		this._resubscribable = opts.resubscribable ?? false;
 		this._resetOnTeardown = opts.resetOnTeardown ?? false;
 		this._pausable = opts.pausable ?? true;
+		this._pull = opts.pull ?? false;
 		this._replayN = opts.replayBuffer ?? 0;
 		this._dynamic = opts.dynamic ?? false;
 		this._pool = opts.pool ?? "sync";
@@ -195,6 +213,14 @@ export class Node<T = unknown> {
 			this._hasData = true;
 			this._status = "settled";
 		}
+
+		// SPIKE (protocol-pull): a pull node starts QUIET — self-hold the demand lock.
+		if (this._pull) this._pauseLockset.add(PULL_DEMAND);
+	}
+
+	/** SPIKE (protocol-pull): true while a pull node is quiet (holds its own demand lock). */
+	private _isPullQuiet(): boolean {
+		return this._pull && this._pauseLockset.has(PULL_DEMAND);
 	}
 
 	get cache(): T | undefined {
@@ -247,9 +273,12 @@ export class Node<T = unknown> {
 			if (this._replayN > 0 && this._replayRing.length > 0) {
 				// R-replay-buffer: late subscriber gets the last N DATA after START.
 				for (const v of this._replayRing) sink(["DATA", v]);
-			} else if (this._hasData) {
+			} else if (this._hasData && !this._isPullQuiet()) {
+				// SPIKE (protocol-pull): a quiet pull node does NOT push its cached value on
+				// subscribe — it stays silent until demanded (else every new subscriber would
+				// trigger a materialization). START only.
 				sink(["DATA", this._cache]);
-			} else if (this._status === "dirty") {
+			} else if (this._status === "dirty" && !this._isPullQuiet()) {
 				sink(["DIRTY"]);
 			}
 
@@ -623,33 +652,33 @@ export class Node<T = unknown> {
 			return;
 		}
 
-		if (t === "COMPLETE") {
-			this._depTerminal[idx] = true;
-			// R-terminal-settles-dirty (B35): a terminal RELEASES this dep's outstanding in-wave
-			// DIRTY contribution (the exactly-one-settle invariant) — exactly as DATA/RESOLVED/
-			// INVALIDATE do (a dirty-then-terminal-without-DATA dep would otherwise strand _pending
-			// and wedge the node, the deadlock R-invalidate-idempotent prevents for INVALIDATE).
+		if (isTerminal(t)) {
+			// Tier 5 (R-tier / D34): COMPLETE | ERROR — ONE branch routed by the CENTRAL tier table,
+			// not a per-variant string check (feedback_use_tier_for_signal_routing). The shared terminal
+			// bookkeeping (record the terminal + release the in-wave DIRTY) runs for ANY tier-5 message;
+			// only the COMPLETE-vs-ERROR cascade differs, so discriminate by the type within the tier.
+			const isError = t === "ERROR";
+			const errPayload = isError ? (msg as readonly ["ERROR", unknown])[1] : undefined;
+			// Record this dep's terminal: the ERROR payload, or `true` for COMPLETE.
+			this._depTerminal[idx] = isError ? errPayload : true;
+			// R-terminal-settles-dirty (B35): a terminal RELEASES this dep's outstanding in-wave DIRTY
+			// contribution (the exactly-one-settle invariant) — exactly as DATA/RESOLVED/INVALIDATE do
+			// (a dirty-then-terminal-without-DATA dep would otherwise strand _pending and wedge the node,
+			// the deadlock R-invalidate-idempotent prevents for INVALIDATE).
 			this._releaseDepDirty(idx);
-			if (this._completeWhenDepsComplete && this._allDepsComplete()) {
-				this._down([["COMPLETE"]]); // auto-cascade → node itself terminal (_pending moot)
+			if (isError && this._errorWhenDepsError) {
+				this._down([["ERROR", errPayload]]); // auto-cascade ERROR → node itself terminal
 			} else if (this._terminalAsRealInput) {
-				this._maybeRun(); // rescue/reduce/*Map: the fn reads ctx.depRecords[idx].terminal
+				this._maybeRun(); // rescue/reduce/catch/*Map: the fn reads ctx.depRecords[idx].terminal
+			} else if (this._completeWhenDepsComplete && this._allDepsTerminal()) {
+				// R-deps-terminal auto-COMPLETE + B42: COMPLETE once ALL deps are TERMINAL (each COMPLETE
+				// or an absorbed ERROR) — so an absorbed-error dep terminating LAST still fires the
+				// cascade. terminalAsRealInput is checked FIRST so a rescue recovers via _maybeRun rather
+				// than being preempted (no operator sets both completeWhenDepsComplete:true + tari:true).
+				this._down([["COMPLETE"]]);
 			} else {
-				// absorbed terminal, NOT an input: the dep's signalled change did not materialise
-				// (no DATA) → un-dirty downstream, keep cache (R-resolved-undirty balance).
-				this._settleAfterAbsorbedTerminal();
-			}
-			return;
-		}
-
-		if (t === "ERROR") {
-			this._depTerminal[idx] = msg[1];
-			this._releaseDepDirty(idx); // R-terminal-settles-dirty (B35), as COMPLETE above
-			if (this._errorWhenDepsError) {
-				this._down([["ERROR", msg[1]]]); // auto-cascade → node itself terminal
-			} else if (this._terminalAsRealInput) {
-				this._maybeRun(); // rescue/catch: the fn reads the dep's terminal (the error)
-			} else {
+				// absorbed terminal, NOT an input + not auto-completing: the dep's signalled change did
+				// not materialise (no DATA) → un-dirty downstream, keep cache (R-resolved-undirty balance).
 				this._settleAfterAbsorbedTerminal();
 			}
 			return;
@@ -746,6 +775,12 @@ export class Node<T = unknown> {
 
 	private _markDirty(): void {
 		this._status = "dirty";
+		// SPIKE (protocol-pull): while quiet, ABSORB the upstream DIRTY — do NOT relay it downstream.
+		// This is the P0b wedge fix: a quiet pull node that relayed DIRTY but withheld the settle
+		// (coalesced by pause) wedged every downstream's two-phase _pending. The downstream learns of
+		// changes via the push STREAM port, not the silent snapshot port; on demand the pull node
+		// emits a fresh wave. Internal dep dirty-accounting (the DIRTY-branch _pending++) is untouched.
+		if (this._isPullQuiet()) return;
 		if (!this._emittedDirtyThisWave) {
 			this._emittedDirtyThisWave = true;
 			this._emitToSubs(["DIRTY"]);
@@ -1196,6 +1231,11 @@ export class Node<T = unknown> {
 			this._pausedDepWaveOccurred = false;
 			this._tryRun();
 		}
+		// SPIKE (protocol-pull): one demand = one delivery — re-quiet after the pulse so the next
+		// upstream change is again absorbed silently (1:1, sub-decision #2). The fire above already
+		// emitted (true → latest via _tryRun; 'resumeAll' → backlog via the buffer drain) while NOT
+		// quiet, so downstream got the delivery; re-acquiring the lock now returns to silence.
+		if (this._pull) this._pauseLockset.add(PULL_DEMAND);
 	}
 
 	/** Should an outgoing settle slice be deferred into the pause buffer? */
@@ -1224,9 +1264,14 @@ export class Node<T = unknown> {
 		this._emitToSubs(["INVALIDATE"]);
 	}
 
-	private _allDepsComplete(): boolean {
+	// B42 (R-deps-terminal): ALL deps TERMINAL = every dep has reached COMPLETE *or* an ABSORBED
+	// ERROR. Block only on a LIVE dep (_depTerminal[i] === undefined); an errored dep (terminal = the
+	// error payload, which R-data-payload guarantees is !== undefined) COUNTS as terminal-done. Was
+	// `tm !== true`, which wedged a node whose errorWhenDepsError:false dep ERRORed (it never
+	// auto-completed even after every other dep completed). Drives the completeWhenDepsComplete cascade.
+	private _allDepsTerminal(): boolean {
 		if (this._deps.length === 0) return false;
-		for (const tm of this._depTerminal) if (tm !== true) return false;
+		for (const tm of this._depTerminal) if (tm === undefined) return false;
 		return true;
 	}
 

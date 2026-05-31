@@ -16,6 +16,7 @@ import {
 	mergeMap,
 	node,
 	of,
+	repeat,
 	switchMap,
 } from "../index.js";
 
@@ -226,6 +227,63 @@ describe("exhaustMap (D47)", () => {
 		expect(c.isActivated()).toBe(true);
 		c.next(30);
 		expect(data(msgs)).toEqual([10, 30]); // the value-2 inner never contributed
+	});
+});
+
+describe("repeat (D47 self-rewire, factory-based — clean-slate complete design)", () => {
+	it("plays a fresh factory()-minted source `count` times in sequence, then COMPLETE", () => {
+		const g = graph();
+		// factory mints a FRESH source each round (clean-slate hot nodes can't be re-run in place);
+		// `() => [1, 2]` → fromAny(iter) → fromIter([1,2]) → emits 1,2,COMPLETE per round.
+		const r = g.initNode(
+			repeat<number>(() => [1, 2], 3),
+			[],
+		);
+		const { msgs } = collect(r);
+		expect(data(msgs)).toEqual([1, 2, 1, 2, 1, 2]);
+		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
+		expect(r.status).toBe("completed");
+	});
+
+	it("count=1 plays the source exactly once", () => {
+		const g = graph();
+		const r = g.initNode(
+			repeat<number>(() => [7], 1),
+			[],
+		);
+		const { msgs } = collect(r);
+		expect(data(msgs)).toEqual([7]);
+		expect(r.status).toBe("completed");
+	});
+
+	it("an inner ERROR aborts repeat (errorWhenDepsError)", () => {
+		const g = graph();
+		// round 1 errors via a throwing projector inner (a derived that throws → D30 ERROR).
+		const r = g.initNode(
+			repeat<number>(() => {
+				const gg = graph();
+				const s = gg.state(0);
+				return gg.derived([s], () => {
+					throw new Error("inner boom");
+				});
+			}, 3),
+			[],
+		);
+		const { msgs } = collect(r);
+		expect(r.status).toBe("errored");
+		expect(msgs.some((m) => m[0] === "ERROR")).toBe(true);
+	});
+
+	it("describe shows repeat's real factory name + its live inner (D6/D51)", () => {
+		const g = graph();
+		g.initNode(
+			repeat<number>(() => [1], 2),
+			[],
+			{ name: "rep" },
+		);
+		const snap = g.describe();
+		const rep = snap.nodes.find((dn) => dn.id === "rep");
+		expect(rep?.factory).toBe("repeat");
 	});
 });
 
