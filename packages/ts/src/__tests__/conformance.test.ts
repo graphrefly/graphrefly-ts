@@ -10,7 +10,16 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, NodeFn } from "../index.js";
-import { distinctUntilChanged, filter, fromIter, graph, type Node, node, take } from "../index.js";
+import {
+	batch,
+	distinctUntilChanged,
+	filter,
+	fromIter,
+	graph,
+	type Node,
+	node,
+	take,
+} from "../index.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
@@ -1063,5 +1072,272 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		collect(d);
 		c.down([["ERROR", new Error("boom")]]); // auto-cascade → ERROR before any complete-check
 		expect(d.status).toBe("errored");
+	});
+});
+
+// C-18 (R-up-routing-diamond / D63): a routed broadcast RESUME over a diamond can reach the same
+// pull holder through multiple upstream paths, but that holder fires at most once for the wave.
+describe("C-18 — routed pull demand over a diamond is holder-idempotent (R-up-routing-diamond / D63)", () => {
+	it("broadcast RESUME over D→G1/G2→SNAP invokes SNAP's demand handler once", () => {
+		const PSNAP = Symbol("snapshot");
+		const acc = node<number>([], null, { initial: 0 });
+		const snap = node<number>(
+			[acc],
+			(ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
+			{ pullId: PSNAP },
+		);
+		let demands = 0;
+		const snapProbe = snap as unknown as {
+			_onDemand: () => void;
+		};
+		const originalOnDemand = snapProbe._onDemand.bind(snap);
+		snapProbe._onDemand = () => {
+			demands++;
+			originalOnDemand();
+		};
+
+		const fwd: NodeFn = (ctx) => {
+			for (const r of ctx.depRecords) if (r.batch) for (const v of r.batch) ctx.down([["DATA", v]]);
+		};
+		const g1 = node<number>([snap], fwd, { partial: true });
+		const g2 = node<number>([snap], fwd, { partial: true });
+		const d = node<number>([g1, g2], fwd, { partial: true });
+		collect(d);
+
+		acc.down([["DATA", 1]]); // quiet SNAP absorbs the change
+		d.up([["RESUME", PSNAP]]); // D broadcasts through both G1 and G2 to the same holder
+
+		expect(demands).toBe(1);
+	});
+});
+
+// C-19 (R-undirty-settle-timing / D64): substrate-synthesized undirty RESOLVED from non-fn settle
+// arms must use the normal down path, so pause resumeAll and batch timing apply.
+describe("C-19 — undirty RESOLVED from non-fn settle arms respects pause and batch (R-undirty-settle-timing / D64)", () => {
+	it("resumeAll buffers a never-valued INVALIDATE un-dirty until RESUME", () => {
+		const b = node<number>([], null, { initial: 1 });
+		const c = node<number>([], null);
+		const d = node<number>(
+			[b, c],
+			(ctx) =>
+				ctx.down([
+					[
+						"DATA",
+						((ctx.depRecords[0].latest as number) ?? 0) +
+							((ctx.depRecords[1].latest as number) ?? 0),
+					],
+				]),
+			{ pausable: "resumeAll" },
+		);
+		const { msgs } = collect(d);
+		msgs.length = 0;
+
+		const L = Symbol("pause");
+		d.up([["PAUSE", L]]);
+		b.down([["DIRTY"]]);
+		b.down([["INVALIDATE"]]);
+		expect(types(msgs)).toEqual(["DIRTY"]);
+
+		d.up([["RESUME", L]]);
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]);
+		expect(d.status).toBe("sentinel");
+	});
+
+	it("batch commit emits the un-dirty only after the batch body closes", () => {
+		const b = node<number>([], null, { initial: 1 });
+		const c = node<number>([], null);
+		const d = node<number>([b, c], (ctx) =>
+			ctx.down([
+				[
+					"DATA",
+					((ctx.depRecords[0].latest as number) ?? 0) + ((ctx.depRecords[1].latest as number) ?? 0),
+				],
+			]),
+		);
+		const { msgs } = collect(d);
+		msgs.length = 0;
+
+		batch(() => {
+			b.down([["DIRTY"]]);
+			b.down([["INVALIDATE"]]);
+			expect(types(msgs)).toEqual(["DIRTY"]);
+		});
+
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]);
+	});
+});
+
+// C-20 (R-teardown-terminal-relay / D65): COMPLETE/ERROR seal value output, but they do not block
+// a later upstream TEARDOWN needed to unwind downstream lifecycle.
+describe("C-20 — TEARDOWN relays through a terminal intermediate (R-teardown-terminal-relay / D65)", () => {
+	it("a completed node relays later upstream TEARDOWN without re-completing", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const mid = node<number>(
+			[s],
+			(ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
+			{ completeWhenDepsComplete: false },
+		);
+		const { msgs } = collect(mid);
+		mid.down([["COMPLETE"]]);
+		msgs.length = 0;
+
+		s.down([["TEARDOWN"]]);
+
+		expect(types(msgs)).toEqual(["TEARDOWN"]);
+	});
+
+	it("a terminal relay forwards repeated upstream TEARDOWNs without re-completing", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const mid = node<number>(
+			[s],
+			(ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
+			{ completeWhenDepsComplete: false },
+		);
+		const { msgs } = collect(mid);
+		mid.down([["COMPLETE"]]);
+		msgs.length = 0;
+
+		s.down([["TEARDOWN"]]);
+		s.down([["TEARDOWN"]]);
+
+		expect(types(msgs)).toEqual(["TEARDOWN", "TEARDOWN"]);
+	});
+});
+
+// C-21 (R-rewire-async-live-edge / D66): async ctx objects are allowed to keep the old depRecords
+// snapshot for reads, but their late up/down emissions target the node's live topology.
+describe("C-21 — late async ctx emission uses live deps after rewire (R-rewire-async-live-edge / D66)", () => {
+	it("a ctx captured before rewire routes ctx.up through the node's current deps", () => {
+		let captured: Ctx | null = null;
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 2 });
+		const d = node<number>(
+			[a],
+			(ctx) => {
+				captured = ctx;
+			},
+			{ pool: "async" },
+		);
+		collect(d);
+
+		d.setDeps([b], () => {});
+		(captured as Ctx).up([["INVALIDATE"]]);
+
+		expect(a.cache).toBe(1);
+		expect(b.cache).toBeUndefined();
+	});
+});
+
+// C-22 (R-rewire-batch-boundary / D67): if a node has an uncommitted batched settle slice, an
+// external rewire request waits until the batch commits, so the old slice is not overwritten.
+describe("C-22 — batch commit precedes rewire requested during the open batch (R-rewire-batch-boundary / D67)", () => {
+	it("commits the old batched DATA before applying the rewire's fresh DATA", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 10 });
+		const fwd: NodeFn = (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const d = node<number>([a], fwd);
+		const { msgs } = collect(d);
+		msgs.length = 0;
+
+		batch(() => {
+			d.down([["DATA", 2]]);
+			d.setDeps([b], fwd);
+			expect(d.deps[0]).toBe(a);
+			expect(data(msgs)).toEqual([]);
+		});
+
+		expect(data(msgs)).toEqual([2, 10]);
+		expect(d.deps[0]).toBe(b);
+		expect(d.cache).toBe(10);
+	});
+
+	it("does not apply a deferred rewire when the batch rolls back", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 10 });
+		const fwd: NodeFn = (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const d = node<number>([a], fwd);
+		const { msgs } = collect(d);
+		msgs.length = 0;
+
+		batch((bctx) => {
+			d.down([["DATA", 2]]);
+			d.setDeps([b], fwd);
+			bctx.rollback();
+		});
+
+		expect(d.deps[0]).toBe(a);
+		expect(data(msgs)).toEqual([]);
+		expect(d.cache).toBe(1);
+	});
+
+	it("applies an accepted rewire after a terminal batch slice while terminal output stays sealed", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 10 });
+		const fwd: NodeFn = (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const d = node<number>([a], fwd, { completeWhenDepsComplete: false });
+		const { msgs } = collect(d);
+		msgs.length = 0;
+
+		batch(() => {
+			d.down([["COMPLETE"]]);
+			d.setDeps([b], fwd);
+			expect(d.deps[0]).toBe(a);
+		});
+
+		expect(d.status).toBe("completed");
+		expect(d.deps[0]).toBe(b);
+		expect(types(msgs)).toEqual(["DIRTY", "COMPLETE"]);
+		msgs.length = 0;
+		b.down([["DATA", 11]]);
+		expect(msgs).toEqual([]);
+	});
+
+	it("returns the future index for an addDep deferred behind a batch commit", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 10 });
+		const sum: NodeFn = (ctx) =>
+			ctx.down([
+				[
+					"DATA",
+					((ctx.depRecords[0].latest as number) ?? 0) +
+						((ctx.depRecords[1]?.latest as number) ?? 0),
+				],
+			]);
+		const d = node<number>([a], (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]));
+		collect(d);
+
+		let idx = -2;
+		batch(() => {
+			d.down([["DATA", 2]]);
+			idx = d.addDep(b, sum);
+			expect(d.deps).toEqual([a]);
+		});
+
+		expect(idx).toBe(1);
+		expect(d.deps).toEqual([a, b]);
+	});
+});
+
+describe("QA — synthesized no-emit RESOLVED uses normal timing", () => {
+	it("buffers a sync fn's synthesized RESOLVED while paused in resumeAll mode", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const f = node<number>(
+			[s],
+			(ctx) => {
+				const value = ctx.depRecords[0].latest as number;
+				if (value >= 10) ctx.down([["DATA", value]]);
+			},
+			{ pausable: "resumeAll" },
+		);
+		const { msgs } = collect(f);
+		msgs.length = 0;
+
+		const L = Symbol("pause");
+		f.up([["PAUSE", L]]);
+		s.down([["DATA", 2]]);
+
+		expect(types(msgs)).toEqual(["DIRTY"]);
+		f.up([["RESUME", L]]);
+		expect(types(msgs)).toEqual(["DIRTY", "DIRTY", "RESOLVED"]);
 	});
 });

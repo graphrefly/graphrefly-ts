@@ -13,7 +13,7 @@
  * control (PAUSE/async), batch, and dynamicNode land in later slices.
  */
 
-import { currentBatch, deferToBatch } from "../batch/batch.js";
+import { currentBatch, deferAfterBatchForTarget, deferToBatch } from "../batch/batch.js";
 import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
 import type { Ctx, CtxState, DepRecord, NodeFn, Sink } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher, type Handle } from "../dispatcher/index.js";
@@ -94,6 +94,11 @@ type RewireOp =
 	| { kind: "add"; dep: Node<unknown>; fn: NodeFn }
 	| { kind: "remove"; dep: Node<unknown>; fn: NodeFn }
 	| { kind: "set"; deps: Node<unknown>[]; fn: NodeFn };
+
+/** Internal routing state for one up-going control wave. */
+type UpRouteState = {
+	demandFired: Map<LockId, Set<Node<unknown>>>;
+};
 
 export class Node<T = unknown> {
 	private _deps: Node<unknown>[];
@@ -433,8 +438,8 @@ export class Node<T = unknown> {
 	/** Add one dep (special case of setDeps); returns its index. fn required (SD-1). */
 	addDep(depNode: Node<unknown>, fn: NodeFn): number {
 		const next = this._deps.includes(depNode) ? [...this._deps] : [...this._deps, depNode];
-		this._rewire(next, fn);
-		return this._deps.indexOf(depNode);
+		const deferred = this._rewire(next, fn);
+		return deferred ? next.indexOf(depNode) : this._deps.indexOf(depNode);
 	}
 
 	/** Remove one dep (special case of setDeps); idempotent if absent (fn swap still applies). */
@@ -475,7 +480,7 @@ export class Node<T = unknown> {
 		newDeps: Node<unknown>[],
 		fn: NodeFn,
 		opts: { allowTerminalOwner?: boolean } = {},
-	): void {
+	): boolean {
 		// ── rejects (R-rewire / D42) ──
 		if (this._terminal !== undefined && !opts.allowTerminalOwner)
 			throw new Error(
@@ -502,6 +507,14 @@ export class Node<T = unknown> {
 				throw new Error(
 					"rewire: cannot add a non-resubscribable terminal dep — would wedge (R-rewire / D42)",
 				);
+		}
+
+		if (
+			deferAfterBatchForTarget(this, () => {
+				this._rewire(newDeps, fn, { ...opts, allowTerminalOwner: true });
+			})
+		) {
+			return true;
 		}
 
 		this._inDepMutation = true;
@@ -609,6 +622,7 @@ export class Node<T = unknown> {
 			if (this._emittedDirtyThisWave) this._down([["RESOLVED"]]);
 			else this._status = this._hasData ? "settled" : "sentinel";
 		}
+		return false;
 	}
 
 	// ── activation / deactivation (lazy; R-rom-ram) ──
@@ -692,8 +706,12 @@ export class Node<T = unknown> {
 	private _receiveFromDep(idx: number, msg: Message): void {
 		const t = msg[0];
 		if (t === "START") return;
-		// Terminal-is-forever: a terminated node ignores further upstream messages.
-		if (this._terminal !== undefined) return;
+		// Terminal-is-forever, except terminal intermediates still relay upstream TEARDOWN
+		// downstream for lifecycle unwire (R-teardown-terminal-relay / D65).
+		if (this._terminal !== undefined) {
+			if (t === "TEARDOWN") this._down([["TEARDOWN"]]);
+			return;
+		}
 
 		if (t === "INVALIDATE") {
 			// The dep's value is gone — drop our view of it (prevData -> SENTINEL so the
@@ -723,11 +741,8 @@ export class Node<T = unknown> {
 			// was never populated, so the cascade is suppressed per the rule), un-dirty
 			// downstream with a RESOLVED once all deps have settled.
 			if (this._pending === 0 && this._emittedDirtyThisWave) {
-				this._emittedDirtyThisWave = false;
-				if (!hadData) {
-					this._status = "sentinel";
-					this._emitToSubs(["RESOLVED"]);
-				}
+				if (!hadData) this._down([["RESOLVED"]]);
+				else this._emittedDirtyThisWave = false;
 			}
 			this._fireOwedDemandIfReady(); // R-pull (D59/B1/F6): an INVALIDATE settle can drain _pending → fire a deferred demand
 			return;
@@ -849,12 +864,7 @@ export class Node<T = unknown> {
 		// (R-resolved-undirty), keeping the cache (a terminal, unlike INVALIDATE, leaves the value).
 		// Without this fallback a DIRTY-then-terminal-without-DATA dep on a pre-first-run multi-dep
 		// node would strand the DIRTY → downstream wedged (the B35 class, in the gate-holds corner).
-		// Bare emit mirrors the INVALIDATE receive-arm; terminal×pause/batch coalescing = backlog B39.
-		if (this._emittedDirtyThisWave) {
-			this._emittedDirtyThisWave = false;
-			this._status = this._hasData ? "resolved" : "sentinel";
-			this._emitToSubs(["RESOLVED"]);
-		}
+		if (this._emittedDirtyThisWave) this._down([["RESOLVED"]]);
 	}
 
 	private _markDirty(): void {
@@ -997,8 +1007,7 @@ export class Node<T = unknown> {
 			this._terminal === undefined &&
 			!this._isAsyncPool()
 		) {
-			this._status = this._hasData ? "resolved" : "sentinel";
-			this._emitToSubs(["RESOLVED"]);
+			this._down([["RESOLVED"]]);
 		}
 
 		// roll wave-local state forward
@@ -1097,15 +1106,21 @@ export class Node<T = unknown> {
 		// node is final — a self-emit (state.set / ctx.down) in a LATER wave is a no-op, never
 		// resurrecting the cache or re-emitting. The COMPLETE/ERROR arms below also self-guard
 		// against a double terminal, but DATA/RESOLVED/INVALIDATE had no entry guard, so a
-		// post-terminal set() would overwrite cache + emit DATA. The upstream path
-		// (_receiveFromDep) already drops on terminal the same way — including a TEARDOWN that
-		// follows the node's own COMPLETE: whether a terminal intermediate should still relay
-		// TEARDOWN for downstream unwire is an OPEN spec gap on draft R-teardown-complete (a
-		// /spec-amend call, not a guard tweak; today both the TS and Rust arms drop it). This
-		// closes the self-emit gap and matches the Rust arm's Core::down blanket guard. A single
-		// wave that goes terminal mid-loop (e.g. [COMPLETE, TEARDOWN]) is unaffected: _terminal
-		// is still undefined at entry. Resubscribable reset clears _terminal before any re-emit.
-		if (this._terminal !== undefined) return;
+		// post-terminal set() would overwrite cache + emit DATA. R-teardown-terminal-relay / D65
+		// carves out the only post-terminal exception: TEARDOWN still relays downstream for unwire
+		// without reopening value output. A single wave that goes terminal mid-loop (e.g.
+		// [COMPLETE, TEARDOWN]) is unaffected: _terminal is still undefined at entry.
+		// Resubscribable reset clears _terminal before any re-emit.
+		if (this._terminal !== undefined) {
+			if (!msgs.some((m) => m[0] === "TEARDOWN")) return;
+			this._hasTorndown = true;
+			if (this._resetOnTeardown) {
+				this._cache = SENTINEL;
+				this._hasData = false;
+			}
+			this._emitToSubs(["TEARDOWN"]);
+			return;
+		}
 		let sorted: Message[] = [...msgs].sort((a, b) => messageTier(a[0]) - messageTier(b[0]));
 		// R-same-wave-merge: collapse repeated INVALIDATE in one wave (Q9) so the
 		// cleanup hook + downstream broadcast fire at most once.
@@ -1214,7 +1229,7 @@ export class Node<T = unknown> {
 				continue;
 			}
 			if (m[0] === "RESOLVED") {
-				this._status = "resolved";
+				this._status = this._hasData ? "resolved" : "sentinel";
 				this._emitToSubs(["RESOLVED"]);
 				continue;
 			}
@@ -1255,7 +1270,8 @@ export class Node<T = unknown> {
 		if (!this._insideRunWave) this._emittedDirtyThisWave = false;
 	}
 
-	private _up(msgs: Wave, towardDep?: number): void {
+	private _up(msgs: Wave, towardDep?: number, route?: UpRouteState): void {
+		const routeState = route ?? { demandFired: new Map() };
 		for (const m of msgs) {
 			if (!isUpAllowed(m[0])) {
 				throw new Error(
@@ -1272,13 +1288,13 @@ export class Node<T = unknown> {
 				// R-up-routing (D59): RELEASE-IF-HELD-ELSE-FORWARD-UP.
 				if (this._pull && m[1] === this._pullLock) {
 					// a cone-routed RESUME of OUR pullId = a DEMAND (R-pull). Fire (or owe).
-					this._onDemand();
+					if (!this._markDemandRouted(m[1], routeState)) this._onDemand();
 				} else if (this._pauseLockset.has(m[1])) {
 					// a pause lock held HERE → release LOCALLY (normal pause/resume, R-pause-lockset).
 					this._pauseRelease(m[1]);
 				} else {
 					// not held here → forward UP the declared cone to find the holder.
-					this._forwardUp(m, towardDep);
+					this._forwardUp(m, towardDep, routeState);
 				}
 			} else if (this._deps.length === 0) {
 				// R-up-at-source (D38): a depless source is the terminus of upstream control.
@@ -1292,9 +1308,20 @@ export class Node<T = unknown> {
 				if (m[0] === "INVALIDATE") this._down([["INVALIDATE"]]);
 			} else {
 				// dep-bearing intermediate: forward DIRTY/INVALIDATE/TEARDOWN up toward deps.
-				this._forwardUp(m, towardDep);
+				this._forwardUp(m, towardDep, routeState);
 			}
 		}
+	}
+
+	private _markDemandRouted(lockId: LockId, route: UpRouteState): boolean {
+		let holders = route.demandFired.get(lockId);
+		if (holders === undefined) {
+			holders = new Set();
+			route.demandFired.set(lockId, holders);
+		}
+		if (holders.has(this as unknown as Node<unknown>)) return true;
+		holders.add(this as unknown as Node<unknown>);
+		return false;
 	}
 
 	/**
@@ -1302,15 +1329,16 @@ export class Node<T = unknown> {
 	 * `towardDep` (directed — prunes other branches; only meaningful on the issuer's FIRST hop) or
 	 * broadcast up ALL deps. A depless source has no deps → the message DROPS here (the terminus —
 	 * e.g. a cone-routed RESUME whose pullId no node up this cone holds, R-up-at-source). Recursive
-	 * forwarding via the public `dep.up([m])` carries no `towardDep` → broadcast beyond the first hop.
+	 * forwarding carries the same per-wave route state and no `towardDep` → broadcast beyond the
+	 * first hop.
 	 */
-	private _forwardUp(m: Message, towardDep?: number): void {
+	private _forwardUp(m: Message, towardDep: number | undefined, route: UpRouteState): void {
 		if (this._deps.length === 0) return; // depless source terminus → drop
 		if (towardDep !== undefined) {
 			const d = this._deps[towardDep];
-			if (d !== undefined) d.up([m]);
+			if (d !== undefined) d._up([m], undefined, route);
 		} else {
-			for (const dep of this._deps) dep.up([m]);
+			for (const dep of this._deps) dep._up([m], undefined, route);
 		}
 	}
 
