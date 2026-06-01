@@ -28,6 +28,16 @@ export {
 	withLatestFrom,
 	zip,
 } from "./graph/combinators.js";
+export {
+	type DescribeChangeset,
+	type DescribeEvent,
+	type Stratified,
+	type StratifyOptions,
+	type StratifyRule,
+	stratify,
+	stratifyBranch,
+	topologyDiff,
+} from "./graph/composition.js";
 export type {
 	IndexChange,
 	ListChange,
@@ -53,6 +63,7 @@ export {
 } from "./graph/data-structures/reactive-log.js";
 export {
 	type ReactiveMap,
+	type ReactiveMapOpt,
 	type ReactiveMapOptions,
 	reactiveMap,
 } from "./graph/data-structures/reactive-map.js";
