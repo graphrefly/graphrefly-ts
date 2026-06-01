@@ -18,12 +18,13 @@ export type ListChange<T> =
 	| { readonly kind: "insert"; readonly index: number; readonly value: T }
 	| { readonly kind: "insertMany"; readonly index: number; readonly values: readonly T[] }
 	| { readonly kind: "pop"; readonly index: number; readonly value: T }
+	| { readonly kind: "trimHead"; readonly n: number }
 	| { readonly kind: "clear"; readonly count: number };
 
 /**
  * Map structure delta events. `delete.reason` distinguishes the four delete sources (D60 #3c):
  * an explicit `.delete`, a TTL `expired` read-prune, an `lru-evict` under `maxSize`, or an
- * `archived` retention sweep (retention deferred — see reactive-map).
+ * `archived` retention sweep.
  */
 export type MapChange<K, V> =
 	| { readonly kind: "set"; readonly key: K; readonly value: V }

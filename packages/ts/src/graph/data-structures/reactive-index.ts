@@ -13,11 +13,26 @@
  */
 
 import type { Ctx } from "../../ctx/types.js";
-import { type Node, node } from "../../node/node.js";
+import { Node, node } from "../../node/node.js";
+import type { Operator } from "../operators.js";
 import type { IndexChange } from "./change.js";
 import { type CollectionCore, type CollectionCoreOptions, collectionCore } from "./core.js";
 
-export interface ReactiveIndexOptions extends CollectionCoreOptions {}
+export type ReactiveIndexOpt<T> = T | Node<T>;
+export type ReactiveIndexCapacityOrder = "secondary" | "primary" | "lru";
+
+export interface ReactiveIndexCapacityPolicy {
+	readonly maxSize: ReactiveIndexOpt<number>;
+	readonly order: ReactiveIndexCapacityOrder;
+}
+
+export interface ReactiveIndexOptions extends CollectionCoreOptions {
+	/**
+	 * D73 explicit capacity policy: no implicit eviction default.
+	 * `order` chooses eviction semantics and `maxSize` may be static or node-valued (D68).
+	 */
+	readonly capacity?: ReactiveIndexCapacityPolicy;
+}
 
 export interface IndexRow<K, V = unknown> {
 	readonly primary: K;
@@ -95,6 +110,11 @@ class IndexBackend<K, V> {
 	private _version = 0;
 	private readonly buf: IndexRow<K, V>[] = [];
 	private readonly byKey = new Map<K, IndexRow<K, V>>();
+	private readonly trackLru: boolean;
+
+	constructor(trackLru: boolean) {
+		this.trackLru = trackLru;
+	}
 
 	get version(): number {
 		return this._version;
@@ -103,10 +123,22 @@ class IndexBackend<K, V> {
 		return this.buf.length;
 	}
 	has(primary: K): boolean {
-		return this.byKey.has(primary);
+		const row = this.byKey.get(primary);
+		if (row === undefined) return false;
+		this.touchLru(row);
+		return true;
 	}
 	get(primary: K): V | undefined {
-		return this.byKey.get(primary)?.value;
+		const row = this.byKey.get(primary);
+		if (row === undefined) return undefined;
+		this.touchLru(row);
+		return row.value;
+	}
+
+	private touchLru(row: IndexRow<K, V>): void {
+		if (!this.trackLru) return;
+		this.byKey.delete(row.primary);
+		this.byKey.set(row.primary, row);
 	}
 
 	private removeRow(row: IndexRow<K, V>): void {
@@ -132,7 +164,10 @@ class IndexBackend<K, V> {
 	upsert(primary: K, secondary: unknown, value: V): boolean {
 		const existing = this.byKey.get(primary);
 		const row: IndexRow<K, V> = { primary, secondary, value };
-		if (existing !== undefined) this.removeRow(existing);
+		if (existing !== undefined) {
+			this.removeRow(existing);
+			this.byKey.delete(primary);
+		}
 		this.buf.splice(bisectLeft(this.buf, row), 0, row);
 		this.byKey.set(primary, row);
 		this._version += 1;
@@ -166,6 +201,49 @@ class IndexBackend<K, V> {
 		return rows.map(([, r]) => r.value);
 	}
 
+	evictOneForCapacity(order: ReactiveIndexCapacityOrder, maxSize?: number): K | undefined {
+		if (maxSize === undefined) return undefined;
+		if (!Number.isInteger(maxSize) || maxSize < 1)
+			throw new RangeError(`reactiveIndex: maxSize must be a positive integer (got ${maxSize})`);
+		const overflow = this.buf.length - maxSize;
+		if (overflow <= 0) return undefined;
+
+		switch (order) {
+			case "secondary": {
+				const row = this.buf[0] as IndexRow<K, V> | undefined;
+				if (row === undefined) return undefined;
+				this.buf.shift();
+				this.byKey.delete(row.primary);
+				this._version += 1;
+				return row.primary;
+			}
+			case "primary": {
+				let victim: K | undefined;
+				for (const key of this.byKey.keys()) {
+					if (victim === undefined || cmpOrd(key, victim) < 0) victim = key;
+				}
+				if (victim === undefined) return undefined;
+				const row = this.byKey.get(victim);
+				if (row !== undefined) this.removeRow(row);
+				this.byKey.delete(victim);
+				this._version += 1;
+				return victim;
+			}
+			case "lru": {
+				const oldest = this.byKey.keys().next().value as K | undefined;
+				if (oldest === undefined) return undefined;
+				const row = this.byKey.get(oldest);
+				if (row !== undefined) this.removeRow(row);
+				this.byKey.delete(oldest);
+				this._version += 1;
+				return oldest;
+			}
+			default: {
+				throw new Error(`reactiveIndex: unknown capacity order '${String(order)}'`);
+			}
+		}
+	}
+
 	snapshot(): readonly IndexRow<K, V>[] {
 		return [...this.buf];
 	}
@@ -183,13 +261,130 @@ class IndexBackend<K, V> {
 export function reactiveIndex<K, V = unknown>(
 	options: ReactiveIndexOptions = {},
 ): ReactiveIndex<K, V> {
-	const backend = new IndexBackend<K, V>();
+	const { capacity, graph, dispatcher, name } = options;
+	const lruEnabled = capacity?.order === "lru";
+	const backend = new IndexBackend<K, V>(lruEnabled);
 	const core: CollectionCore<readonly IndexRow<K, V>[], IndexChange<K, V>> = collectionCore(
 		backend,
 		"reactiveIndex",
 		options,
 	);
 	const binds: Array<() => void> = [];
+	const base = dispatcher ? { dispatcher } : {};
+	const bindDeps = new WeakSet<Node<unknown>>();
+	let bindSeq = 0;
+	let capacityPolicy: Node<number> | undefined;
+	let apply: Node<IndexChange<K, V>> | undefined;
+	let releaseApply = () => {};
+
+	function isNodeOpt<T>(x: ReactiveIndexOpt<T>): x is Node<T> {
+		return x instanceof Node;
+	}
+
+	function validateMaxSize(v: number): number {
+		if (!Number.isFinite(v) || !Number.isInteger(v) || v < 1)
+			throw new RangeError(`reactiveIndex: maxSize must be a positive integer (got ${v})`);
+		return v;
+	}
+
+	function enforceCapacity(): void {
+		if (currentCapacityOrder === undefined) return;
+		for (;;) {
+			const primary = backend.evictOneForCapacity(currentCapacityOrder, currentMaxSize);
+			if (primary === undefined) return;
+			core.emit({ kind: "delete", primary });
+		}
+	}
+
+	const applyBody = (ctx: Ctx): void => {
+		const deps = apply?.deps ?? [];
+		for (let i = 0; i < ctx.depRecords.length; i++) {
+			const dep = deps[i];
+			const record = ctx.depRecords[i];
+			if (dep === capacityPolicy) {
+				const latest = record?.latest;
+				if (latest !== undefined) currentMaxSize = validateMaxSize(latest as number);
+				continue;
+			}
+			if (dep && bindDeps.has(dep)) {
+				for (const r of (record?.batch ?? []) as readonly {
+					primary: K;
+					secondary: unknown;
+					value: V;
+				}[]) {
+					backend.upsert(r.primary, r.secondary, r.value);
+					core.emit({ kind: "upsert", primary: r.primary, secondary: r.secondary, value: r.value });
+					enforceCapacity();
+				}
+			}
+		}
+		enforceCapacity();
+	};
+
+	function ensureApply(): Node<IndexChange<K, V>> {
+		if (apply !== undefined) return apply;
+		const op: Operator<unknown, IndexChange<K, V>> = {
+			factory: "reactiveIndex.capacityPolicy",
+			body: applyBody,
+			opts: { partial: true },
+		};
+		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
+		apply = graph
+			? graph.initNode(op, deps, {
+					name: name ? `${name}.capacityPolicy` : undefined,
+					meta: { kind: "collection_policy_apply", collection: "reactiveIndex" },
+				})
+			: new Node<IndexChange<K, V>>(deps, op.body, {
+					...base,
+					factory: "reactiveIndex.capacityPolicy",
+					partial: true,
+					name: name ? `${name}.capacityPolicy` : undefined,
+				});
+		releaseApply = graph
+			? graph.retain(apply, { reason: "reactiveIndex.capacityPolicy" })
+			: apply.subscribe(() => {});
+		return apply;
+	}
+
+	let currentMaxSize: number | undefined;
+	const currentCapacityOrder: ReactiveIndexCapacityOrder | undefined = capacity?.order;
+	if (capacity !== undefined) {
+		if (
+			currentCapacityOrder !== "secondary" &&
+			currentCapacityOrder !== "primary" &&
+			currentCapacityOrder !== "lru"
+		) {
+			throw new Error("reactiveIndex: capacity.order must be one of secondary|primary|lru (D73)");
+		}
+
+		const maxSize = capacity.maxSize;
+		if (isNodeOpt(maxSize) && graph === undefined) {
+			throw new Error(
+				"reactiveIndex capacity.maxSize Node option requires options.graph so the policy edge is describe-visible (D73)",
+			);
+		}
+
+		capacityPolicy =
+			isNodeOpt(maxSize) || graph === undefined
+				? maxSize
+				: graph.initNode<number, number>(
+						{
+							factory: "reactiveIndex.maxSizePolicy",
+							body: () => {},
+							opts: { initial: validateMaxSize(maxSize) },
+						},
+						[],
+						{
+							name: name ? `${name}.maxSizePolicy` : undefined,
+							meta: { kind: "collection_policy", collection: "reactiveIndex", policy: "maxSize" },
+						},
+					);
+
+		if (!isNodeOpt(maxSize)) currentMaxSize = validateMaxSize(maxSize);
+
+		if (capacityPolicy instanceof Node) ensureApply();
+	}
+
 	// Lazy reactive reverse-lookup port (Z): a delta-driven pushed primary→value map. Created on
 	// first access so an index that never uses it pays nothing (no keepalive — R-rom-ram).
 	let byPrimaryNode: Node<ReadonlyMap<K, V>> | undefined;
@@ -238,12 +433,14 @@ export function reactiveIndex<K, V = unknown>(
 		upsert(primary: K, secondary: unknown, value: V): boolean {
 			const inserted = backend.upsert(primary, secondary, value);
 			core.emit({ kind: "upsert", primary, secondary, value });
+			enforceCapacity();
 			return inserted;
 		},
 		upsertMany(rows: Iterable<{ primary: K; secondary: unknown; value: V }>): void {
 			for (const r of rows) {
 				backend.upsert(r.primary, r.secondary, r.value);
 				core.emit({ kind: "upsert", primary: r.primary, secondary: r.secondary, value: r.value });
+				enforceCapacity();
 			}
 		},
 		delete(primary: K): void {
@@ -260,16 +457,49 @@ export function reactiveIndex<K, V = unknown>(
 		},
 
 		upsertFrom(src: Node<{ primary: K; secondary: unknown; value: V }>): () => void {
-			const dispose = core.bindSource(src, (r) => {
-				backend.upsert(r.primary, r.secondary, r.value);
-				core.emit({ kind: "upsert", primary: r.primary, secondary: r.secondary, value: r.value });
+			if (graph === undefined)
+				throw new Error(
+					"reactiveIndex.upsertFrom requires options.graph so the input fold is describe-visible (D61)",
+				);
+			const op: Operator<
+				{ primary: K; secondary: unknown; value: V },
+				{ primary: K; secondary: unknown; value: V }
+			> = {
+				factory: "reactiveIndex.bindSource",
+				body: (ctx: Ctx) => {
+					try {
+						for (const r of (ctx.depRecords[0]?.batch ?? []) as readonly {
+							primary: K;
+							secondary: unknown;
+							value: V;
+						}[]) {
+							ctx.down([["DATA", r]]);
+						}
+					} catch (e) {
+						ctx.down([["ERROR", e ?? new Error("reactiveIndex.bindSource failed")]]);
+					}
+				},
+			};
+			const folder = graph.initNode(op, [src], {
+				name: name ? `${name}.bind#${bindSeq++}` : undefined,
+				meta: { kind: "collection_bind_source", collection: "reactiveIndex" },
 			});
+			bindDeps.add(folder as Node<unknown>);
+			const applyNode = ensureApply();
+			applyNode.addDep(folder as Node<unknown>, applyBody);
+			let active = true;
+			const dispose = () => {
+				if (!active) return;
+				active = false;
+				applyNode.removeDep(folder as Node<unknown>, applyBody);
+			};
 			binds.push(dispose);
 			return dispose;
 		},
 		dispose(): void {
 			for (const d of binds) d();
 			binds.length = 0;
+			releaseApply();
 		},
 	};
 }

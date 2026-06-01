@@ -15,7 +15,8 @@
  *   - delete-reason enum {expired|lru-evict|archived|explicit} on the delta (D60 #3c).
  *   - LRU `maxSize`: an over-cap `set` evicts the oldest, emitting a `delete{reason:"lru-evict"}`.
  *     A live-key `get`/`has` touches LRU order WITHOUT a version bump (internal, D60 #3d).
- *   - retention (score-archive) is DEFERRED (backlog) — `delete.reason:"archived"` is reserved.
+ *   - retention (score-archive, D72): `retention.maxSize` is a value-or-Node numeric policy and
+ *     the static scorer selects archive victims through the normal `reactiveMap.apply` path.
  *
  * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
  */
@@ -28,6 +29,8 @@ import {
 	lruKeys,
 	PolicyInputs,
 	type PolicyOpt,
+	type ScoredEntry,
+	selectRetentionVictims,
 	trimHeadOverflow,
 } from "../policies/collection.js";
 import { timer } from "../sources.js";
@@ -36,7 +39,19 @@ import type { CollectionCoreOptions } from "./core.js";
 
 export type ReactiveMapOpt<T> = T | Node<T>;
 
-export interface ReactiveMapOptions extends CollectionCoreOptions {
+export interface ReactiveMapRetentionEntry<K, V> {
+	readonly key: K;
+	readonly value: V;
+}
+
+export interface ReactiveMapRetentionPolicy<K, V> {
+	/** Archive capacity. Unlike LRU, zero is allowed and archives every live entry. */
+	readonly maxSize?: ReactiveMapOpt<number>;
+	/** Higher scores are retained; lowest finite scores are archived first. */
+	score(entry: ReactiveMapRetentionEntry<K, V>): number;
+}
+
+export interface ReactiveMapOptions<K = unknown, V = unknown> extends CollectionCoreOptions {
 	/**
 	 * LRU cap as a node-as-opt policy (D68). A static number is a constant policy config; a Node must
 	 * be graph-bound and becomes a declared dep of `reactiveMap.apply`.
@@ -47,6 +62,11 @@ export interface ReactiveMapOptions extends CollectionCoreOptions {
 	 * Lazy expiry only; no active timer in this cut.
 	 */
 	defaultTtl?: ReactiveMapOpt<number>;
+	/**
+	 * Score-based retention/archive policy (D72). The scorer is static local code; only maxSize can be
+	 * a Node-valued policy, keeping graph describe data serializable while apply owns the mutation.
+	 */
+	retention?: ReactiveMapRetentionPolicy<K, V>;
 	/** Injectable monotonic-ish clock for TTL (default `Date.now`). Graph-local clock = follow-up (D26). */
 	now?: () => number;
 }
@@ -174,6 +194,23 @@ class MapBackend<K, V> {
 		return evicted;
 	}
 
+	enforceRetention(policy?: ReactiveMapRetentionPolicy<K, V>): Array<[K, V]> {
+		if (policy === undefined || policy.maxSize === undefined) return [];
+		const scored: ScoredEntry<readonly [K, V]>[] = [];
+		for (const [key, entry] of this.store) {
+			if (!this.isExpired(entry)) {
+				scored.push({
+					entry: [key, entry.value] as const,
+					score: policy.score({ key, value: entry.value }),
+				});
+			}
+		}
+		const archived = selectRetentionVictims(scored, { maxSize: policy.maxSize });
+		for (const [key] of archived) this.store.delete(key);
+		if (archived.length > 0) this._version += 1;
+		return archived.map(([key, value]) => [key, value]);
+	}
+
 	delete(key: K): Lookup<V> {
 		const e = this.store.get(key);
 		if (e === undefined) return { found: false };
@@ -220,8 +257,8 @@ class MapBackend<K, V> {
  * Create a reactive map (D54/D60). DELTA stream of {@link MapChange} + lazy pull SNAPSHOT (a
  * `ReadonlyMap`) + pullId via {@link collectionCore}; this layer adds the typed map surface.
  */
-export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap<K, V> {
-	const { maxSize, defaultTtl, now, name, dispatcher, graph } = options;
+export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMap<K, V> {
+	const { maxSize, defaultTtl, retention, now, name, dispatcher, graph } = options;
 	const backend = new MapBackend<K, V>({ now });
 	const base = dispatcher ? { dispatcher } : {};
 
@@ -241,7 +278,20 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		return v;
 	}
 
-	function constPolicyNode(label: "lruPolicy" | "ttlPolicy", value: number): Node<number> {
+	function validateRetentionMaxSize(v: number): number {
+		if (!Number.isFinite(v) || !Number.isInteger(v) || v < 0)
+			throw new RangeError(
+				`reactiveMap: retention.maxSize must be a non-negative integer (got ${v})`,
+			);
+		return v;
+	}
+
+	if (retention !== undefined && typeof retention.score !== "function")
+		throw new TypeError("reactiveMap: retention.score must be a function");
+
+	type PolicyLabel = "lruPolicy" | "ttlPolicy" | "retentionPolicy";
+
+	function constPolicyNode(label: PolicyLabel, value: number): Node<number> {
 		const op: Operator<never, number> = {
 			factory: `reactiveMap.${label}`,
 			body: () => {},
@@ -262,7 +312,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 	}
 
 	function policyNode(
-		label: "lruPolicy" | "ttlPolicy",
+		label: PolicyLabel,
 		opt: PolicyOpt<number> | undefined,
 		validate: (v: number) => number,
 	): Node<number> | undefined {
@@ -270,7 +320,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		if (isNodeOpt(opt)) {
 			if (graph === undefined)
 				throw new Error(
-					`reactiveMap ${label} Node option requires options.graph so the policy edge is describe-visible (D68)`,
+					`reactiveMap ${label} Node option requires options.graph so the policy edge is describe-visible (${label === "retentionPolicy" ? "D72" : "D68"})`,
 				);
 			return opt;
 		}
@@ -293,9 +343,19 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 			});
 	const lruPolicy = policyNode("lruPolicy", maxSize, validateMaxSize);
 	const ttlPolicy = policyNode("ttlPolicy", defaultTtl, validateTtl);
+	const retentionPolicy = policyNode(
+		"retentionPolicy",
+		retention?.maxSize,
+		validateRetentionMaxSize,
+	);
 
 	let currentMaxSize = isNodeOpt(maxSize) ? undefined : maxSize;
 	let currentDefaultTtl = isNodeOpt(defaultTtl) ? undefined : defaultTtl;
+	let currentRetentionMaxSize = isNodeOpt(retention?.maxSize)
+		? undefined
+		: retention?.maxSize === undefined
+			? undefined
+			: validateRetentionMaxSize(retention.maxSize);
 	const ttlHeap = deadlines<K>();
 	let ttlTimer: Node<unknown> | null = null;
 	let ttlTimerDue: number | undefined;
@@ -306,6 +366,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 	const policyInputs = new PolicyInputs([intent as Node<unknown>]);
 	const lruReader = policyInputs.add(lruPolicy);
 	const ttlReader = policyInputs.add(ttlPolicy);
+	const retentionReader = policyInputs.add(retentionPolicy);
 
 	function emitExpired(ctx: Ctx, entries: Array<[K, V]>): void {
 		for (const [key, previous] of entries)
@@ -315,6 +376,11 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 	function emitLruEvicted(ctx: Ctx, entries: Array<[K, V]>): void {
 		for (const [key, previous] of entries)
 			ctx.down([["DATA", { kind: "delete", key, previous, reason: "lru-evict" }]]);
+	}
+
+	function emitArchived(ctx: Ctx, entries: Array<[K, V]>): void {
+		for (const [key, previous] of entries)
+			ctx.down([["DATA", { kind: "delete", key, previous, reason: "archived" }]]);
 	}
 
 	function nextValidExpiry(): { readonly key: K; readonly expiresAt: number } | undefined {
@@ -356,6 +422,12 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 			if (expiresAt !== undefined) ttlHeap.push({ key: intentValue.key, expiresAt });
 			ctx.down([["DATA", { kind: "set", key: intentValue.key, value: intentValue.value }]]);
 			emitLruEvicted(ctx, backend.enforceLru(currentMaxSize));
+			emitArchived(
+				ctx,
+				backend.enforceRetention(
+					retention ? { maxSize: currentRetentionMaxSize, score: retention.score } : undefined,
+				),
+			);
 			return;
 		}
 		if (intentValue.kind === "delete") {
@@ -386,13 +458,18 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		currentMaxSize = nextMaxSize === undefined ? undefined : validateMaxSize(nextMaxSize);
 		const nextTtl = ttlReader.read(ctx, currentDefaultTtl);
 		currentDefaultTtl = nextTtl === undefined ? undefined : validateTtl(nextTtl);
+		const nextRetentionMaxSize = retentionReader.read(ctx, currentRetentionMaxSize);
+		currentRetentionMaxSize =
+			nextRetentionMaxSize === undefined
+				? undefined
+				: validateRetentionMaxSize(nextRetentionMaxSize);
 
 		for (const item of (ctx.depRecords[0]?.batch ?? []) as readonly MapIntent<K, V>[]) {
 			applyIntent(ctx, item);
 		}
 		const deps = apply.deps;
 		for (let i = 1; i < ctx.depRecords.length; i++) {
-			if (i === lruReader.index || i === ttlReader.index) continue;
+			if (i === lruReader.index || i === ttlReader.index || i === retentionReader.index) continue;
 			const dep = deps[i];
 			const record = ctx.depRecords[i];
 			if (dep && bindDeps.has(dep)) {
@@ -414,6 +491,12 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		}
 		// Lowering a reactive maxSize is itself a policy-driven backend mutation (D68).
 		emitLruEvicted(ctx, backend.enforceLru(currentMaxSize));
+		emitArchived(
+			ctx,
+			backend.enforceRetention(
+				retention ? { maxSize: currentRetentionMaxSize, score: retention.score } : undefined,
+			),
+		);
 		scheduleTtl(ctx, applyBody);
 	};
 
