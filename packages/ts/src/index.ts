@@ -47,11 +47,15 @@ export type {
 export {
 	type IndexRow,
 	type ReactiveIndex,
+	type ReactiveIndexCapacityOrder,
+	type ReactiveIndexCapacityPolicy,
+	type ReactiveIndexOpt,
 	type ReactiveIndexOptions,
 	reactiveIndex,
 } from "./graph/data-structures/reactive-index.js";
 export {
 	type ReactiveList,
+	type ReactiveListOpt,
 	type ReactiveListOptions,
 	reactiveList,
 } from "./graph/data-structures/reactive-list.js";
@@ -65,6 +69,8 @@ export {
 	type ReactiveMap,
 	type ReactiveMapOpt,
 	type ReactiveMapOptions,
+	type ReactiveMapRetentionEntry,
+	type ReactiveMapRetentionPolicy,
 	reactiveMap,
 } from "./graph/data-structures/reactive-map.js";
 export type {

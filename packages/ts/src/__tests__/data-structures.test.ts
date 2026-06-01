@@ -123,6 +123,66 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		expect(() => list.insert(5, 9)).toThrow(RangeError);
 		expect(() => reactiveList<number>().pop()).toThrow(RangeError);
 	});
+
+	it("D72 maxSize head-trims on overflow and emits trimHead deltas", () => {
+		const list = reactiveList<number>([], { maxSize: 2 });
+		const { msgs } = collect(list.delta);
+		list.append(1);
+		list.append(2);
+		list.append(3);
+		expect(data(msgs)).toEqual([
+			{ kind: "append", value: 1 },
+			{ kind: "append", value: 2 },
+			{ kind: "append", value: 3 },
+			{ kind: "trimHead", n: 1 },
+		]);
+		expect(list.toArray()).toEqual([2, 3]);
+	});
+
+	it("D72 Node-valued list maxSize is a declared policy dep and trims on policy change", () => {
+		const g = graph();
+		const max = g.state(3, { name: "max" });
+		const list = reactiveList<number>([], { graph: g, name: "list", maxSize: max });
+		const { msgs } = collect(list.delta);
+		list.appendMany([1, 2, 3]);
+		max.set(1);
+		expect(data(msgs)).toEqual([
+			{ kind: "appendMany", values: [1, 2, 3] },
+			{ kind: "trimHead", n: 2 },
+		]);
+		expect(list.toArray()).toEqual([3]);
+		expect(g.describe().edges).toContainEqual({ from: "max", to: "list.capacityPolicy" });
+		expect(g.describe().nodes.find((n) => n.id === "list.capacityPolicy")?.factory).toBe(
+			"reactiveList.capacityPolicy",
+		);
+	});
+
+	it("D72 Node-valued list maxSize requires graph binding", () => {
+		const g = graph();
+		const max = g.state(1);
+		expect(() => reactiveList<number>([], { maxSize: max })).toThrow(/requires options.graph/);
+	});
+
+	it("D72 Node policy + appendFrom share one graph-visible apply path", () => {
+		const g = graph();
+		const max = g.state(2, { name: "max" });
+		const src = g.state(0, { name: "src" });
+		const list = reactiveList<number>([], { graph: g, name: "list", maxSize: max });
+		const { msgs } = collect(list.delta);
+		list.appendFrom(src);
+		src.set(1);
+		src.set(2);
+		max.set(1);
+		expect(data(msgs)).toEqual([
+			{ kind: "append", value: 0 },
+			{ kind: "append", value: 1 },
+			{ kind: "append", value: 2 },
+			{ kind: "trimHead", n: 1 },
+			{ kind: "trimHead", n: 1 },
+		]);
+		expect(g.describe().edges).toContainEqual({ from: "max", to: "list.capacityPolicy" });
+		expect(g.describe().edges).toContainEqual({ from: "list.bind#0", to: "list.capacityPolicy" });
+	});
 });
 
 describe("D54 Node<T> widening — in-graph producer drives the structure (declared-dep fold)", () => {
@@ -282,6 +342,75 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(() => reactiveMap<string, number>({ defaultTtl: max })).toThrow(
 			/requires options.graph/,
 		);
+	});
+
+	it("D72 retention archives lowest scores with reason:'archived'", () => {
+		const m = reactiveMap<string, number>({
+			retention: { maxSize: 2, score: ({ value }) => value },
+		});
+		const { msgs } = collect(m.delta);
+		m.set("a", 10);
+		m.set("b", 1);
+		m.set("c", 5);
+		expect(data(msgs)).toEqual([
+			{ kind: "set", key: "a", value: 10 },
+			{ kind: "set", key: "b", value: 1 },
+			{ kind: "set", key: "c", value: 5 },
+			{ kind: "delete", key: "b", previous: 1, reason: "archived" },
+		]);
+		expect([...m.toMap()]).toEqual([
+			["a", 10],
+			["c", 5],
+		]);
+	});
+
+	it("D72 static retention maxSize installs a graph-visible policy/apply edge", () => {
+		const g = graph();
+		const m = reactiveMap<string, number>({
+			graph: g,
+			name: "map",
+			retention: { maxSize: 2, score: ({ value }) => value },
+		});
+		m.set("a", 1);
+		const snap = g.describe();
+		expect(snap.nodes.find((n) => n.id === "map.retentionPolicy")?.factory).toBe(
+			"reactiveMap.retentionPolicy",
+		);
+		expect(snap.edges).toContainEqual({ from: "map.retentionPolicy", to: "map.apply" });
+	});
+
+	it("D72 Node-valued retention.maxSize is a declared policy dep and archives on policy change", () => {
+		const g = graph();
+		const keep = g.state(3, { name: "keep" });
+		const m = reactiveMap<string, number>({
+			graph: g,
+			name: "map",
+			retention: { maxSize: keep, score: ({ value }) => value },
+		});
+		const { msgs } = collect(m.delta);
+		m.set("a", 1);
+		m.set("b", 2);
+		m.set("c", 3);
+		keep.set(1);
+		expect(data(msgs)).toEqual([
+			{ kind: "set", key: "a", value: 1 },
+			{ kind: "set", key: "b", value: 2 },
+			{ kind: "set", key: "c", value: 3 },
+			{ kind: "delete", key: "a", previous: 1, reason: "archived" },
+			{ kind: "delete", key: "b", previous: 2, reason: "archived" },
+		]);
+		expect([...m.toMap()]).toEqual([["c", 3]]);
+		expect(g.describe().edges).toContainEqual({ from: "keep", to: "map.apply" });
+	});
+
+	it("D72 Node-valued retention.maxSize requires graph binding", () => {
+		const g = graph();
+		const keep = g.state(1);
+		expect(() =>
+			reactiveMap<string, number>({
+				retention: { maxSize: keep, score: ({ value }) => value },
+			}),
+		).toThrow(/requires options.graph/);
 	});
 
 	it("D68 graph-bound Node policy/input opts reject foreign graph nodes", () => {
@@ -456,6 +585,183 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 			["a", 10],
 			["b", 20],
 		]);
+	});
+
+	it("D73 secondary capacity evicts by (secondary,primary) order (primary tie-break)", () => {
+		const idx = reactiveIndex<string, number>({
+			capacity: { maxSize: 2, order: "secondary" },
+		});
+		const { msgs } = collect(idx.delta);
+		idx.upsert("id2", 5, 2);
+		idx.upsert("id3", 5, 3);
+		idx.upsert("id1", 5, 1); // same secondary: smallest primary ("id1") evicts first
+		expect(data(msgs)).toEqual([
+			{ kind: "upsert", primary: "id2", secondary: 5, value: 2 },
+			{ kind: "upsert", primary: "id3", secondary: 5, value: 3 },
+			{ kind: "upsert", primary: "id1", secondary: 5, value: 1 },
+			{ kind: "delete", primary: "id1" },
+		]);
+		expect(idx.toArray().map((r) => r.primary)).toEqual(["id2", "id3"]);
+	});
+
+	it("D73 primary capacity evicts by primary key order, independent from secondary order", () => {
+		const idx = reactiveIndex<string, number>({
+			capacity: { maxSize: 2, order: "primary" },
+		});
+		const { msgs } = collect(idx.delta);
+		idx.upsert("a", 100, 1);
+		idx.upsert("c", 0, 3);
+		idx.upsert("b", 999, 2); // overflow -> evict smallest primary ("a")
+		expect(data(msgs)).toEqual([
+			{ kind: "upsert", primary: "a", secondary: 100, value: 1 },
+			{ kind: "upsert", primary: "c", secondary: 0, value: 3 },
+			{ kind: "upsert", primary: "b", secondary: 999, value: 2 },
+			{ kind: "delete", primary: "a" },
+		]);
+		expect(idx.toArray().map((r) => r.primary)).toEqual(["c", "b"]); // snapshot order still by secondary
+	});
+
+	it("D73 lru capacity touches on upsert/get/has, but NOT rangeByPrimary", () => {
+		const idx = reactiveIndex<string, number>({
+			capacity: { maxSize: 2, order: "lru" },
+		});
+		const { msgs } = collect(idx.delta);
+		idx.upsert("a", 1, 1);
+		idx.upsert("b", 2, 2);
+		expect(idx.get("a")).toBe(1); // touch a, so b becomes LRU
+		idx.upsert("c", 3, 3); // evict b
+		expect(idx.has("a")).toBe(true); // touch a again, so c becomes LRU
+		expect(idx.rangeByPrimary("a", "z")).toEqual([1, 3]); // must not affect LRU
+		idx.upsert("d", 4, 4); // evict c if rangeByPrimary is non-touching
+		expect(data(msgs)).toEqual([
+			{ kind: "upsert", primary: "a", secondary: 1, value: 1 },
+			{ kind: "upsert", primary: "b", secondary: 2, value: 2 },
+			{ kind: "upsert", primary: "c", secondary: 3, value: 3 },
+			{ kind: "delete", primary: "b" },
+			{ kind: "upsert", primary: "d", secondary: 4, value: 4 },
+			{ kind: "delete", primary: "c" },
+		]);
+		expect(idx.has("b")).toBe(false);
+		expect(idx.has("c")).toBe(false);
+		expect(idx.has("a")).toBe(true);
+		expect(idx.has("d")).toBe(true);
+	});
+
+	it("D73 lru capacity treats an existing-key upsert as a touch", () => {
+		const idx = reactiveIndex<string, number>({
+			capacity: { maxSize: 2, order: "lru" },
+		});
+		const { msgs } = collect(idx.delta);
+		idx.upsert("a", 1, 1);
+		idx.upsert("b", 2, 2);
+		expect(idx.upsert("a", 1, 10)).toBe(false); // update should refresh "a"
+		idx.upsert("c", 3, 3);
+		expect(data(msgs)).toEqual([
+			{ kind: "upsert", primary: "a", secondary: 1, value: 1 },
+			{ kind: "upsert", primary: "b", secondary: 2, value: 2 },
+			{ kind: "upsert", primary: "a", secondary: 1, value: 10 },
+			{ kind: "upsert", primary: "c", secondary: 3, value: 3 },
+			{ kind: "delete", primary: "b" },
+		]);
+		expect(idx.toArray().map((r) => [r.primary, r.value])).toEqual([
+			["a", 10],
+			["c", 3],
+		]);
+	});
+
+	it("D73 Node-valued capacity maxSize is describe-visible and downsizing emits per-row delete", () => {
+		const g = graph();
+		const max = g.state(3, { name: "max" });
+		const idx = reactiveIndex<string, number>({
+			graph: g,
+			name: "idx",
+			capacity: { maxSize: max, order: "primary" },
+		});
+		const { msgs } = collect(idx.delta);
+		idx.upsert("a", 1, 1);
+		idx.upsert("b", 2, 2);
+		idx.upsert("c", 3, 3);
+		max.set(1);
+		expect(data(msgs)).toEqual([
+			{ kind: "upsert", primary: "a", secondary: 1, value: 1 },
+			{ kind: "upsert", primary: "b", secondary: 2, value: 2 },
+			{ kind: "upsert", primary: "c", secondary: 3, value: 3 },
+			{ kind: "delete", primary: "a" },
+			{ kind: "delete", primary: "b" },
+		]);
+		expect(idx.toArray().map((r) => r.primary)).toEqual(["c"]);
+		expect(g.describe().edges).toContainEqual({ from: "max", to: "idx.capacityPolicy" });
+		expect(g.describe().nodes.find((n) => n.id === "idx.capacityPolicy")?.factory).toBe(
+			"reactiveIndex.capacityPolicy",
+		);
+	});
+
+	it("D73 per-row capacity deletes expose intermediate byPrimary states", () => {
+		const g = graph();
+		const max = g.state(3, { name: "max" });
+		const idx = reactiveIndex<string, number>({
+			graph: g,
+			name: "idx",
+			capacity: { maxSize: max, order: "primary" },
+		});
+		const { msgs } = collect(idx.byPrimary);
+		idx.upsert("a", 1, 1);
+		idx.upsert("b", 2, 2);
+		idx.upsert("c", 3, 3);
+		max.set(1);
+		expect(data<ReadonlyMap<string, number>>(msgs).map((m) => [...m.keys()])).toEqual([
+			["a"],
+			["a", "b"],
+			["a", "b", "c"],
+			["b", "c"],
+			["c"],
+		]);
+	});
+
+	it("D73 Node-valued capacity maxSize requires graph binding", () => {
+		const g = graph();
+		const max = g.state(1);
+		expect(() =>
+			reactiveIndex<string, number>({ capacity: { maxSize: max, order: "secondary" } }),
+		).toThrow(/requires options.graph/);
+	});
+
+	it("D73 Node-valued capacity maxSize rejects foreign-graph deps", () => {
+		const g1 = graph();
+		const foreign = g1.state(2, { name: "foreignMax" });
+		const g2 = graph();
+		expect(() =>
+			reactiveIndex<string, number>({
+				graph: g2,
+				name: "idx",
+				capacity: { maxSize: foreign, order: "secondary" },
+			}),
+		).toThrow(/different graph/);
+	});
+
+	it("D73 Node policy + upsertFrom share one graph-visible apply path", () => {
+		const g = graph();
+		const max = g.state(2, { name: "max" });
+		const src = g.state({ primary: "seed", secondary: 0, value: 0 }, { name: "src" });
+		const idx = reactiveIndex<string, number>({
+			graph: g,
+			name: "idx",
+			capacity: { maxSize: max, order: "primary" },
+		});
+		const { msgs } = collect(idx.delta);
+		idx.upsertFrom(src);
+		src.set({ primary: "a", secondary: 1, value: 1 });
+		src.set({ primary: "b", secondary: 2, value: 2 });
+		max.set(1);
+		expect(data(msgs)).toEqual([
+			{ kind: "upsert", primary: "seed", secondary: 0, value: 0 },
+			{ kind: "upsert", primary: "a", secondary: 1, value: 1 },
+			{ kind: "upsert", primary: "b", secondary: 2, value: 2 },
+			{ kind: "delete", primary: "a" },
+			{ kind: "delete", primary: "b" },
+		]);
+		expect(g.describe().edges).toContainEqual({ from: "max", to: "idx.capacityPolicy" });
+		expect(g.describe().edges).toContainEqual({ from: "idx.bind#0", to: "idx.capacityPolicy" });
 	});
 });
 
