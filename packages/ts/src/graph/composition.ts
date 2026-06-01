@@ -174,11 +174,11 @@ function stratifyBranchOperator<T, R>(
 	};
 }
 
-export interface StratifyOptions {
+export interface StratifyOptions<R = unknown> {
 	/** Branch id prefix. Default `branch`, yielding ids like `branch/even`. */
 	prefix?: string;
 	/** Optional graph sugar opts for the rules state node. */
-	rules?: SugarOpts<readonly StratifyRule<unknown>[]>;
+	rules?: SugarOpts<readonly StratifyRule<R>[]>;
 	/** Optional graph sugar opts for each branch node, keyed by rule name. */
 	branches?: Record<string, SugarOpts<unknown>>;
 }
@@ -197,7 +197,7 @@ export function stratify<T, R>(
 	source: Node<T>,
 	rules: readonly StratifyRule<R>[],
 	classifier: (rule: R, value: T) => boolean,
-	opts: StratifyOptions = {},
+	opts: StratifyOptions<R> = {},
 ): Stratified<T, R> {
 	const prefix = opts.prefix ?? "branch";
 	const seen = new Set<string>();

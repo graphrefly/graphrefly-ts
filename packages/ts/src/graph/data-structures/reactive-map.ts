@@ -23,6 +23,13 @@
 import type { Ctx, NodeFn } from "../../ctx/types.js";
 import { Node } from "../../node/node.js";
 import { initNode, type Operator } from "../operators.js";
+import {
+	deadlines,
+	lruKeys,
+	PolicyInputs,
+	type PolicyOpt,
+	trimHeadOverflow,
+} from "../policies/collection.js";
 import { timer } from "../sources.js";
 import type { MapChange } from "./change.js";
 import type { CollectionCoreOptions } from "./core.js";
@@ -92,70 +99,6 @@ type MapIntent<K, V> =
 	| { kind: "pruneExpired" }
 	| { kind: "pruneKey"; key: K };
 
-interface TtlEntry<K> {
-	readonly key: K;
-	readonly expiresAt: number;
-}
-
-class MinHeap<K> {
-	private readonly items: TtlEntry<K>[] = [];
-
-	get size(): number {
-		return this.items.length;
-	}
-
-	push(item: TtlEntry<K>): void {
-		this.items.push(item);
-		this.up(this.items.length - 1);
-	}
-
-	peek(): TtlEntry<K> | undefined {
-		return this.items[0];
-	}
-
-	pop(): TtlEntry<K> | undefined {
-		const top = this.items[0];
-		const last = this.items.pop();
-		if (top !== undefined && last !== undefined && this.items.length > 0) {
-			this.items[0] = last;
-			this.down(0);
-		}
-		return top;
-	}
-
-	private up(i: number): void {
-		while (i > 0) {
-			const p = (i - 1) >> 1;
-			if ((this.items[p] as TtlEntry<K>).expiresAt <= (this.items[i] as TtlEntry<K>).expiresAt)
-				return;
-			[this.items[p], this.items[i]] = [this.items[i] as TtlEntry<K>, this.items[p] as TtlEntry<K>];
-			i = p;
-		}
-	}
-
-	private down(i: number): void {
-		for (;;) {
-			const left = i * 2 + 1;
-			const right = left + 1;
-			let smallest = i;
-			if (left < this.items.length && this.expiresAt(left) < this.expiresAt(smallest))
-				smallest = left;
-			if (right < this.items.length && this.expiresAt(right) < this.expiresAt(smallest))
-				smallest = right;
-			if (smallest === i) return;
-			[this.items[i], this.items[smallest]] = [
-				this.items[smallest] as TtlEntry<K>,
-				this.items[i] as TtlEntry<K>,
-			];
-			i = smallest;
-		}
-	}
-
-	private expiresAt(i: number): number {
-		return (this.items[i] as TtlEntry<K>).expiresAt;
-	}
-}
-
 /** Default `Map`-backed store. TTL/LRU policy lives in graph-visible policy/apply nodes (D68). */
 class MapBackend<K, V> {
 	private _version = 0;
@@ -218,12 +161,11 @@ class MapBackend<K, V> {
 	}
 
 	enforceLru(maxSize?: number): Array<[K, V]> {
-		if (maxSize === undefined) return [];
 		const evicted: Array<[K, V]> = [];
-		while (this.store.size > maxSize) {
-			const first = this.store.keys().next();
-			if (first.done) break;
-			const oldest = first.value as K;
+		for (const oldest of trimHeadOverflow(lruKeys(this.store.keys()).keys(), {
+			maxSize,
+			size: this.store.size,
+		})) {
 			const e = this.store.get(oldest);
 			if (e !== undefined) evicted.push([oldest, e.value]);
 			this.store.delete(oldest);
@@ -283,7 +225,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 	const backend = new MapBackend<K, V>({ now });
 	const base = dispatcher ? { dispatcher } : {};
 
-	function isNodeOpt<T>(x: ReactiveMapOpt<T> | undefined): x is Node<T> {
+	function isNodeOpt<T>(x: PolicyOpt<T> | undefined): x is Node<T> {
 		return x instanceof Node;
 	}
 
@@ -321,7 +263,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 
 	function policyNode(
 		label: "lruPolicy" | "ttlPolicy",
-		opt: ReactiveMapOpt<number> | undefined,
+		opt: PolicyOpt<number> | undefined,
 		validate: (v: number) => number,
 	): Node<number> | undefined {
 		if (opt === undefined) return undefined;
@@ -354,26 +296,16 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 
 	let currentMaxSize = isNodeOpt(maxSize) ? undefined : maxSize;
 	let currentDefaultTtl = isNodeOpt(defaultTtl) ? undefined : defaultTtl;
-	const ttlHeap = new MinHeap<K>();
+	const ttlHeap = deadlines<K>();
 	let ttlTimer: Node<unknown> | null = null;
 	let ttlTimerDue: number | undefined;
 	const bindDeps = new WeakSet<Node<unknown>>();
 	let bindSeq = 0;
 	let apply: Node<MapChange<K, V>>;
 
-	const applyDeps: Node<unknown>[] = [intent as Node<unknown>];
-	const lruIndex = lruPolicy ? applyDeps.push(lruPolicy as Node<unknown>) - 1 : -1;
-	const ttlIndex = ttlPolicy ? applyDeps.push(ttlPolicy as Node<unknown>) - 1 : -1;
-
-	function latestPolicyNumber(
-		ctx: Ctx,
-		index: number,
-		current: number | undefined,
-	): number | undefined {
-		if (index < 0) return current;
-		const latest = ctx.depRecords[index]?.latest;
-		return latest === undefined ? current : (latest as number);
-	}
+	const policyInputs = new PolicyInputs([intent as Node<unknown>]);
+	const lruReader = policyInputs.add(lruPolicy);
+	const ttlReader = policyInputs.add(ttlPolicy);
 
 	function emitExpired(ctx: Ctx, entries: Array<[K, V]>): void {
 		for (const [key, previous] of entries)
@@ -385,7 +317,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 			ctx.down([["DATA", { kind: "delete", key, previous, reason: "lru-evict" }]]);
 	}
 
-	function nextValidExpiry(): TtlEntry<K> | undefined {
+	function nextValidExpiry(): { readonly key: K; readonly expiresAt: number } | undefined {
 		for (;;) {
 			const top = ttlHeap.peek();
 			if (top === undefined) return undefined;
@@ -450,9 +382,9 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 	}
 
 	const applyBody: NodeFn = (ctx: Ctx) => {
-		const nextMaxSize = latestPolicyNumber(ctx, lruIndex, currentMaxSize);
+		const nextMaxSize = lruReader.read(ctx, currentMaxSize);
 		currentMaxSize = nextMaxSize === undefined ? undefined : validateMaxSize(nextMaxSize);
-		const nextTtl = latestPolicyNumber(ctx, ttlIndex, currentDefaultTtl);
+		const nextTtl = ttlReader.read(ctx, currentDefaultTtl);
 		currentDefaultTtl = nextTtl === undefined ? undefined : validateTtl(nextTtl);
 
 		for (const item of (ctx.depRecords[0]?.batch ?? []) as readonly MapIntent<K, V>[]) {
@@ -460,7 +392,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		}
 		const deps = apply.deps;
 		for (let i = 1; i < ctx.depRecords.length; i++) {
-			if (i === lruIndex || i === ttlIndex) continue;
+			if (i === lruReader.index || i === ttlReader.index) continue;
 			const dep = deps[i];
 			const record = ctx.depRecords[i];
 			if (dep && bindDeps.has(dep)) {
@@ -491,11 +423,11 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		opts: { partial: true },
 	};
 	apply = graph
-		? graph.initNode(applyOp, applyDeps as readonly Node<unknown>[], {
+		? graph.initNode(applyOp, policyInputs.deps as readonly Node<unknown>[], {
 				name: name ? `${name}.apply` : undefined,
 				meta: { kind: "collection_policy_apply", collection: "reactiveMap" },
 			})
-		: initNode(applyOp, applyDeps, {
+		: initNode(applyOp, policyInputs.deps, {
 				...base,
 				name: name ? `${name}.apply` : undefined,
 			});

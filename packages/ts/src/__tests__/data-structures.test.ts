@@ -16,6 +16,7 @@ import { reactiveList } from "../graph/data-structures/reactive-list.js";
 import { mergeReactiveLogs, reactiveLog } from "../graph/data-structures/reactive-log.js";
 import { reactiveMap } from "../graph/data-structures/reactive-map.js";
 import { graph } from "../graph/graph.js";
+import { selectRetentionVictims } from "../graph/policies/collection.js";
 import type { Message } from "../index.js";
 import type { Node } from "../node/node.js";
 
@@ -387,6 +388,24 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(g.describe().nodes.find((n) => n.id === "map.bind#0")?.factory).toBe(
 			"reactiveMap.bindSource",
 		);
+	});
+});
+
+describe("internal collection policy helpers (D70)", () => {
+	it("selectRetentionVictims is selection-only and stable by lowest score", () => {
+		const scored = [
+			{ entry: "keep-high", score: 10 },
+			{ entry: "drop-low-a", score: 1 },
+			{ entry: "drop-low-b", score: 1 },
+			{ entry: "keep-mid", score: 5 },
+		];
+		expect(selectRetentionVictims(scored, { maxSize: 2 })).toEqual(["drop-low-a", "drop-low-b"]);
+		expect(scored.map((x) => x.entry)).toEqual([
+			"keep-high",
+			"drop-low-a",
+			"drop-low-b",
+			"keep-mid",
+		]);
 	});
 });
 

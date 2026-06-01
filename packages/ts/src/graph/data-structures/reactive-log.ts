@@ -20,6 +20,7 @@
 
 import type { Ctx } from "../../ctx/types.js";
 import { type Node, node } from "../../node/node.js";
+import { trimHeadOverflow } from "../policies/collection.js";
 import type { LogChange } from "./change.js";
 import { type CollectionCore, type CollectionCoreOptions, collectionCore } from "./core.js";
 
@@ -73,7 +74,7 @@ class LogBackend<T> {
 			throw new RangeError("reactiveLog: maxSize must be >= 1");
 		this.maxSize = maxSize;
 		this.buf = initial ? [...initial] : [];
-		if (maxSize !== undefined && this.buf.length > maxSize) this.buf = this.buf.slice(-maxSize);
+		trimHeadOverflow(this.buf, { maxSize });
 	}
 
 	get version(): number {
@@ -93,15 +94,13 @@ class LogBackend<T> {
 
 	append(value: T): void {
 		this.buf.push(value);
-		if (this.maxSize !== undefined && this.buf.length > this.maxSize) this.buf.shift();
+		trimHeadOverflow(this.buf, { maxSize: this.maxSize });
 		this._version += 1;
 	}
 	appendMany(values: readonly T[]): void {
 		if (values.length === 0) return;
-		for (const v of values) {
-			this.buf.push(v);
-			if (this.maxSize !== undefined && this.buf.length > this.maxSize) this.buf.shift();
-		}
+		for (const v of values) this.buf.push(v);
+		trimHeadOverflow(this.buf, { maxSize: this.maxSize });
 		this._version += 1;
 	}
 	clear(): number {
