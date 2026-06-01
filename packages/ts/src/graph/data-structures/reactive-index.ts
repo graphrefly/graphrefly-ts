@@ -364,10 +364,10 @@ export function reactiveIndex<K, V = unknown>(
 			);
 		}
 
-		capacityPolicy =
-			isNodeOpt(maxSize) || graph === undefined
-				? maxSize
-				: graph.initNode<number, number>(
+		capacityPolicy = isNodeOpt(maxSize)
+			? maxSize
+			: graph
+				? graph.initNode<number, number>(
 						{
 							factory: "reactiveIndex.maxSizePolicy",
 							body: () => {},
@@ -378,7 +378,8 @@ export function reactiveIndex<K, V = unknown>(
 							name: name ? `${name}.maxSizePolicy` : undefined,
 							meta: { kind: "collection_policy", collection: "reactiveIndex", policy: "maxSize" },
 						},
-					);
+					)
+				: undefined;
 
 		if (!isNodeOpt(maxSize)) currentMaxSize = validateMaxSize(maxSize);
 
