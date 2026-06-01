@@ -64,6 +64,21 @@ interface Entry {
 	meta?: Record<string, unknown>;
 }
 
+const nodeOwners = new WeakMap<Node<unknown>, Graph>();
+
+function nodeOwner(n: Node<unknown>): Graph | undefined {
+	return nodeOwners.get(n);
+}
+
+export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: string): void {
+	const existing = nodeOwner(n);
+	if (existing !== undefined && existing !== owner) {
+		throw new Error(
+			`${label} belongs to a different graph; cross-graph deps require a wire bridge`,
+		);
+	}
+}
+
 /**
  * A state node (L4-Q1): a manual source whose `.set(v)` is `node.down([[DATA, v]])` sugar.
  * Extends the substrate Node so it is usable as a dep AND carries the graph-layer `.set`.
@@ -102,6 +117,8 @@ export class Graph {
 		deps: readonly Node<unknown>[],
 		opts: SugarOpts<T>,
 	): Node<T> {
+		assertGraphLocalNode(this, n as Node<unknown>, `graph node '${opts.name ?? factory}'`);
+		for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
 		const id = opts.name ?? `${factory}#${this._seq++}`;
 		this._entries.set(n as Node<unknown>, {
 			node: n as Node<unknown>,
@@ -111,6 +128,7 @@ export class Graph {
 			deps,
 			meta: opts.meta,
 		});
+		nodeOwners.set(n as Node<unknown>, this);
 		this._byId.set(id, n as Node<unknown>);
 		return n;
 	}
@@ -226,11 +244,22 @@ export class Graph {
 		deps: readonly Node<TIn>[],
 		opts: SugarOpts<TOut> = {},
 	): Node<TOut> {
+		for (const dep of deps as readonly Node<unknown>[])
+			assertGraphLocalNode(this, dep, `dep of '${opts.name ?? op.factory}'`);
 		// Node<T> is invariant (T appears in NodeOptions.initial); widen the typed deps to the
 		// erased Node surface the free initNode / _add accept (same cast the old methods used).
 		const erased = deps as readonly Node<unknown>[];
 		const n = initNode(op, erased, this._nodeOpts(opts));
 		return this._add(n, op.factory, erased, opts);
+	}
+
+	/**
+	 * Graph-owned activation root for internal helper nodes. This is the sanctioned keepalive shape:
+	 * a graph, not a helper closure, owns the subscription and returns the release handle.
+	 */
+	retain<T>(node: Node<T>, opts: { reason?: string } = {}): () => void {
+		assertGraphLocalNode(this, node as Node<unknown>, opts.reason ?? "retained node");
+		return node.subscribe(() => {});
 	}
 
 	// ── inspection: describe / observe / profile (D39) ──

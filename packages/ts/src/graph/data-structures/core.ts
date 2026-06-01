@@ -34,6 +34,8 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { Dispatcher } from "../../dispatcher/index.js";
 import { Node } from "../../node/node.js";
+import type { Graph } from "../graph.js";
+import type { Operator } from "../operators.js";
 
 /** The materialized-state contract a structure's backend must satisfy (D60 #1). */
 export interface CollectionBackend<S> {
@@ -48,6 +50,8 @@ export interface CollectionCoreOptions {
 	name?: string;
 	/** Dispatcher for the core's nodes (default = process-global, D26). */
 	dispatcher?: Dispatcher;
+	/** Graph funnel for describe-visible input folds (D61). Required by *From/attach methods. */
+	graph?: Graph;
 }
 
 export interface CollectionCore<S, C> {
@@ -77,8 +81,9 @@ export function collectionCore<S, C>(
 	factory: string,
 	opts: CollectionCoreOptions = {},
 ): CollectionCore<S, C> {
-	const { name, dispatcher } = opts;
+	const { name, dispatcher, graph } = opts;
 	const base: { dispatcher?: Dispatcher } = dispatcher ? { dispatcher } : {};
+	let bindSeq = 0;
 
 	// DELTA backbone: a bare source (D60 #2a / review #2 — node([], null), no `initial`, so a late
 	// subscriber gets no fake "initial change"; state is the snapshot port's job).
@@ -112,13 +117,16 @@ export function collectionCore<S, C>(
 	}
 
 	function bindSource<V>(src: Node<V>, apply: (value: V) => void): () => void {
-		// A declared-dep folder (effect-shaped): reads each src batch value, applies it to the backend
-		// (apply mutates + emits the delta). src → folder is a real edge describe shows (D54 widening,
-		// NOT the D45-banned internal subscribe). Keepalive-activated so it drives the backend even
-		// with no external subscriber (it is an input adapter, not an output).
-		const folder = new Node<void>(
-			[src as Node<unknown>],
-			(ctx: Ctx) => {
+		if (graph === undefined)
+			throw new Error(
+				"collectionCore.bindSource requires options.graph so the input fold is describe-visible (D61)",
+			);
+		// A graph-bound declared-dep folder (effect-shaped): reads each src batch value, applies it
+		// to the backend (apply mutates + emits the delta). src → folder is a real edge describe
+		// shows (D54/D61), not an internal subscribe island.
+		const op: Operator<V, void> = {
+			factory: `${factory}.bindSource`,
+			body: (ctx: Ctx) => {
 				const b = ctx.depRecords[0]?.batch;
 				try {
 					if (b) for (const v of b) apply(v as V);
@@ -126,9 +134,12 @@ export function collectionCore<S, C>(
 					ctx.down([["ERROR", e ?? new Error("collectionCore.bindSource failed")]]);
 				}
 			},
-			{ ...base, factory: `${factory}.bindSource`, name: name ? `${name}.bind` : undefined },
-		);
-		return folder.subscribe(() => {});
+		};
+		const folder = graph.initNode(op, [src], {
+			name: name ? `${name}.bind#${bindSeq++}` : undefined,
+			meta: { kind: "collection_bind_source", collection: factory },
+		});
+		return graph.retain(folder, { reason: `${factory}.bindSource` });
 	}
 
 	return { delta, snapshot, pullId, emit, bindSource };

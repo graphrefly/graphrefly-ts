@@ -10,7 +10,7 @@
  * Authority: ~/src/graphrefly/decisions/decisions.jsonl D54/D60, spec/rules.jsonl R-pull/R-rom-ram.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { reactiveIndex } from "../graph/data-structures/reactive-index.js";
 import { reactiveList } from "../graph/data-structures/reactive-list.js";
 import { mergeReactiveLogs, reactiveLog } from "../graph/data-structures/reactive-log.js";
@@ -128,7 +128,7 @@ describe("D54 Node<T> widening — in-graph producer drives the structure (decla
 	it("appendFrom folds a source's values into the list (no imperative glue)", () => {
 		const g = graph();
 		const src = g.state<number>(0, { name: "src" });
-		const list = reactiveList<number>();
+		const list = reactiveList<number>([], { graph: g, name: "list" });
 		const { msgs } = collect(list.delta);
 		list.appendFrom(src as unknown as Node<number>);
 		src.set(1);
@@ -139,6 +139,10 @@ describe("D54 Node<T> widening — in-graph producer drives the structure (decla
 			{ kind: "append", value: 2 },
 		]);
 		expect(list.toArray()).toEqual([0, 1, 2]);
+		expect(g.describe().edges).toContainEqual({ from: "src", to: "list.bind#0" });
+		expect(g.describe().nodes.find((n) => n.id === "list.bind#0")?.factory).toBe(
+			"reactiveList.bindSource",
+		);
 	});
 });
 
@@ -157,16 +161,45 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect([...m.toMap()]).toEqual([["b", 2]]);
 	});
 
-	it("lazy TTL: expired entries are filtered from the snapshot; a read prunes WITHOUT a delta", () => {
+	it("lazy TTL: a read that materializes expiry emits delete(reason:'expired') (D61)", () => {
 		let t = 1000;
 		const m = reactiveMap<string, number>({ defaultTtl: 100, now: () => t });
 		const { msgs } = collect(m.delta);
 		m.set("x", 1);
 		expect(m.get("x")).toBe(1);
 		t = 1200;
-		expect(m.get("x")).toBeUndefined(); // read prunes (memory) ...
-		expect(data(msgs)).toEqual([{ kind: "set", key: "x", value: 1 }]); // ... but NO delta
+		expect(m.get("x")).toBeUndefined(); // read prunes and emits the normal expired delete delta
+		expect(data(msgs)).toEqual([
+			{ kind: "set", key: "x", value: 1 },
+			{ kind: "delete", key: "x", previous: 1, reason: "expired" },
+		]);
 		expect(m.toMap().size).toBe(0);
+	});
+
+	it("lazy TTL: pruneExpired/toMap emit expired deletes for materialized expiry (D61)", () => {
+		let t = 0;
+		const m = reactiveMap<string, number>({ defaultTtl: 5, now: () => t });
+		const { msgs } = collect(m.delta);
+		m.set("a", 1);
+		m.set("b", 2);
+		t = 10;
+		m.pruneExpired();
+		expect(data(msgs)).toEqual([
+			{ kind: "set", key: "a", value: 1 },
+			{ kind: "set", key: "b", value: 2 },
+			{ kind: "delete", key: "a", previous: 1, reason: "expired" },
+			{ kind: "delete", key: "b", previous: 2, reason: "expired" },
+		]);
+
+		m.set("c", 3);
+		t = 20;
+		expect([...m.toMap()]).toEqual([]);
+		expect(data(msgs).at(-1)).toEqual({
+			kind: "delete",
+			key: "c",
+			previous: 3,
+			reason: "expired",
+		});
 	});
 
 	it("LRU maxSize evicts the oldest with reason:'lru-evict'", () => {
@@ -184,6 +217,105 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect([...m.toMap()].map(([k]) => k)).toEqual(["b", "c"]);
 	});
 
+	it("D68 static TTL/LRU shorthands install graph-visible policy/apply nodes", () => {
+		const g = graph();
+		const m = reactiveMap<string, number>({ graph: g, name: "map", maxSize: 2, defaultTtl: 5 });
+		m.set("a", 1);
+		const snap = g.describe();
+		expect(snap.nodes.find((n) => n.id === "map.apply")?.factory).toBe("reactiveMap.apply");
+		expect(snap.nodes.find((n) => n.id === "map.delta")?.factory).toBe("reactiveMap.delta");
+		expect(snap.nodes.find((n) => n.id === "map.intent")?.factory).toBe("reactiveMap.intent");
+		expect(snap.nodes.find((n) => n.id === "map.lruPolicy")?.factory).toBe("reactiveMap.lruPolicy");
+		expect(snap.nodes.find((n) => n.id === "map.ttlPolicy")?.factory).toBe("reactiveMap.ttlPolicy");
+		expect(snap.edges).toContainEqual({ from: "map.intent", to: "map.apply" });
+		expect(snap.edges).toContainEqual({ from: "map.lruPolicy", to: "map.apply" });
+		expect(snap.edges).toContainEqual({ from: "map.ttlPolicy", to: "map.apply" });
+	});
+
+	it("D68 Node-valued maxSize is a declared policy dep and can evict on policy change", () => {
+		const g = graph();
+		const max = g.state(2, { name: "max" });
+		const m = reactiveMap<string, number>({ graph: g, name: "map", maxSize: max });
+		const { msgs } = collect(m.delta);
+		m.set("a", 1);
+		m.set("b", 2);
+		m.set("c", 3);
+		max.set(1); // lowering the policy is itself a policy-driven backend mutation (D68)
+		expect(data(msgs)).toEqual([
+			{ kind: "set", key: "a", value: 1 },
+			{ kind: "set", key: "b", value: 2 },
+			{ kind: "set", key: "c", value: 3 },
+			{ kind: "delete", key: "a", previous: 1, reason: "lru-evict" },
+			{ kind: "delete", key: "b", previous: 2, reason: "lru-evict" },
+		]);
+		expect([...m.toMap()]).toEqual([["c", 3]]);
+		expect(g.describe().edges).toContainEqual({ from: "max", to: "map.apply" });
+	});
+
+	it("D68 Node-valued defaultTtl is a declared policy dep for subsequent sets", () => {
+		let t = 0;
+		const g = graph();
+		const ttl = g.state(5, { name: "ttl" });
+		const m = reactiveMap<string, number>({
+			graph: g,
+			name: "map",
+			defaultTtl: ttl,
+			now: () => t,
+		});
+		m.set("a", 1);
+		t = 6;
+		expect(m.get("a")).toBeUndefined();
+		ttl.set(20);
+		m.set("b", 2);
+		t = 16;
+		expect(m.get("b")).toBe(2);
+		t = 27;
+		expect(m.get("b")).toBeUndefined();
+		expect(g.describe().edges).toContainEqual({ from: "ttl", to: "map.apply" });
+	});
+
+	it("D68 Node-valued policy opts require graph binding", () => {
+		const g = graph();
+		const max = g.state(1);
+		expect(() => reactiveMap<string, number>({ maxSize: max })).toThrow(/requires options.graph/);
+		expect(() => reactiveMap<string, number>({ defaultTtl: max })).toThrow(
+			/requires options.graph/,
+		);
+	});
+
+	it("D68 graph-bound Node policy/input opts reject foreign graph nodes", () => {
+		const g1 = graph();
+		const g2 = graph();
+		const foreignMax = g1.state(1, { name: "max" });
+		expect(() =>
+			reactiveMap<string, number>({ graph: g2, name: "map", maxSize: foreignMax }),
+		).toThrow(/different graph/);
+
+		const foreignSrc = g1.state<readonly [string, number]>(["x", 1], { name: "src" });
+		const m = reactiveMap<string, number>({ graph: g2, name: "map2" });
+		expect(() => m.setFrom(foreignSrc as Node<readonly [string, number]>)).toThrow(
+			/different graph/,
+		);
+	});
+
+	it("D68 active TTL uses one internal timer path to prune without a read", () => {
+		vi.useFakeTimers();
+		try {
+			const m = reactiveMap<string, number>({ defaultTtl: 10 });
+			const { msgs } = collect(m.delta);
+			m.set("a", 1);
+			vi.advanceTimersByTime(9);
+			expect(data(msgs)).toEqual([{ kind: "set", key: "a", value: 1 }]);
+			vi.advanceTimersByTime(1);
+			expect(data(msgs)).toEqual([
+				{ kind: "set", key: "a", value: 1 },
+				{ kind: "delete", key: "a", previous: 1, reason: "expired" },
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("pull snapshot delivers a ReadonlyMap on demand", () => {
 		const m = reactiveMap<string, number>();
 		const { msgs } = collect(m.snapshot);
@@ -195,6 +327,37 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			["a", 1],
 			["b", 2],
 		]);
+	});
+
+	it("pull snapshot demand prunes expired entries and emits expired deletes through public delta", () => {
+		let t = 0;
+		const m = reactiveMap<string, number>({ defaultTtl: 5, now: () => t });
+		const deltas = collect(m.delta);
+		const snaps = collect(m.snapshot);
+		m.set("live", 1, { ttl: 20 });
+		m.set("old", 2);
+		t = 10;
+		demand(m.snapshot as Node<unknown>, m.pullId);
+		expect([...data<ReadonlyMap<string, number>>(snaps.msgs).at(-1)!]).toEqual([["live", 1]]);
+		expect(data(deltas.msgs).at(-1)).toEqual({
+			kind: "delete",
+			key: "old",
+			previous: 2,
+			reason: "expired",
+		});
+	});
+
+	it("pull snapshot demand with no expired entries does not emit delta DATA", () => {
+		let t = 0;
+		const m = reactiveMap<string, number>({ defaultTtl: 50, now: () => t });
+		const deltas = collect(m.delta);
+		const snaps = collect(m.snapshot);
+		m.set("a", 1);
+		const before = data(deltas.msgs).length;
+		t = 10;
+		demand(m.snapshot as Node<unknown>, m.pullId);
+		expect([...data<ReadonlyMap<string, number>>(snaps.msgs).at(-1)!]).toEqual([["a", 1]]);
+		expect(data(deltas.msgs)).toHaveLength(before);
 	});
 
 	it("undefined is a valid map value: has/delete use presence, not value !== undefined", () => {
@@ -209,6 +372,21 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			{ kind: "set", key: "u", value: undefined },
 			{ kind: "delete", key: "u", previous: undefined, reason: "explicit" },
 		]);
+	});
+
+	it("setFrom routes malformed input errors to the folder ERROR boundary", () => {
+		const g = graph();
+		const src = g.node<readonly [string, number]>([], null, { name: "src" });
+		const m = reactiveMap<string, number>({ graph: g, name: "map" });
+		m.setFrom(src as Node<readonly [string, number]>);
+
+		expect(() => src.down([["DATA", 1 as unknown as readonly [string, number]]])).not.toThrow();
+		expect(m.size).toBe(0);
+		expect(g.describe().edges).toContainEqual({ from: "src", to: "map.bind#0" });
+		expect(g.describe().edges).toContainEqual({ from: "map.bind#0", to: "map.apply" });
+		expect(g.describe().nodes.find((n) => n.id === "map.bind#0")?.factory).toBe(
+			"reactiveMap.bindSource",
+		);
 	});
 });
 
