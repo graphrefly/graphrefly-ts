@@ -67,6 +67,12 @@ pnpm run lint      # biome + layer/typecheck gates
 pnpm run lint:fix  # biome check --write
 pnpm run build     # build the package
 pnpm bench         # vitest bench (informational, not a CI gate — L5-Q1)
+
+# Cross-repo note (when working in ~/src/graphrefly-rs from this thread):
+# Rust toolchain is driven by `mise`; in agent shells, prefer:
+#   mise exec -- cargo <cmd>
+# Fallback if PATH is constrained:
+#   ~/.cargo/bin/cargo <cmd>
 ```
 
 ## Skills (clean-slate)

@@ -669,6 +669,24 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		]);
 	});
 
+	it("D73 static capacity maxSize installs a graph-visible policy/apply edge", () => {
+		const g = graph();
+		const idx = reactiveIndex<string, number>({
+			graph: g,
+			name: "idx",
+			capacity: { maxSize: 2, order: "secondary" },
+		});
+		idx.upsert("a", 1, 1);
+		const snap = g.describe();
+		expect(snap.nodes.find((n) => n.id === "idx.maxSizePolicy")?.factory).toBe(
+			"reactiveIndex.maxSizePolicy",
+		);
+		expect(snap.nodes.find((n) => n.id === "idx.capacityPolicy")?.factory).toBe(
+			"reactiveIndex.capacityPolicy",
+		);
+		expect(snap.edges).toContainEqual({ from: "idx.maxSizePolicy", to: "idx.capacityPolicy" });
+	});
+
 	it("D73 Node-valued capacity maxSize is describe-visible and downsizing emits per-row delete", () => {
 		const g = graph();
 		const max = g.state(3, { name: "max" });
