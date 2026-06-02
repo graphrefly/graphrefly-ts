@@ -17,6 +17,7 @@ import { currentBatch, deferAfterBatchForTarget, deferToBatch } from "../batch/b
 import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
 import {
 	CTX_DEP_CACHE,
+	CTX_NODE_BINDING,
 	type Ctx,
 	type CtxState,
 	type DeliveryMeta,
@@ -1168,6 +1169,10 @@ export class Node<T = unknown> {
 			// immediate ctx.up whose delivery loops back re-enters this fn (D37 / R-reentrancy).
 			upNext: (msgs, towardDep) => this._requestUpNext(msgs, towardDep),
 			[CTX_DEP_CACHE]: { latest: snapshot?.latest ?? this._dep.prev },
+			[CTX_NODE_BINDING]: {
+				dispatcher: this._slot.dispatcher,
+				create: <U>(factory: () => Node<U>) => withNodeCore(this._core, factory),
+			},
 		};
 		if (this._slot.dynamic) {
 			// R-dynamic-node: read a dep's latest by index. Untracked deps still drive waves and

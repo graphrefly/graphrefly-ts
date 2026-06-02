@@ -200,3 +200,7 @@ export {
 } from "./graph/time.js";
 export { dynamicNode, Node, type NodeOptions, node, type Status } from "./node/node.js";
 export * from "./protocol/messages.js";
+export {
+	assertDirtyPrecedesTerminalData,
+	type MessageSequence,
+} from "./testing/index.js";

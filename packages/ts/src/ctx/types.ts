@@ -5,6 +5,7 @@
  *   R-fn-contract (D8/D27), R-ctx-state (D23/D29), R-cleanup-hooks (D28), R-ctx-up.
  */
 
+import type { Dispatcher } from "../dispatcher/index.js";
 import type { Node } from "../node/node.js";
 import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 
@@ -25,6 +26,14 @@ export const CTX_DEP_CACHE: unique symbol = Symbol("graphrefly.ctx.depCache");
 
 export interface CtxDepCache {
 	readonly latest: readonly unknown[];
+}
+
+/** Internal node-construction binding for graph-local helper-created deps. */
+export const CTX_NODE_BINDING: unique symbol = Symbol("graphrefly.ctx.nodeBinding");
+
+export interface CtxNodeBinding {
+	readonly dispatcher: Dispatcher;
+	create<T>(factory: () => Node<T>): Node<T>;
 }
 
 /** Per-dep wave projections: dep -> waves -> values/SENTINEL markers. */
@@ -131,6 +140,7 @@ export interface Ctx {
 	 */
 	track?(depIndex: number): unknown;
 	[CTX_DEP_CACHE]?: CtxDepCache;
+	[CTX_NODE_BINDING]?: CtxNodeBinding;
 }
 
 /** A node fn (R-fn-contract). Registered in a dispatcher pool, indexed by Handle. */

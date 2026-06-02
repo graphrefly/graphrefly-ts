@@ -18,7 +18,7 @@
  * source ERROR auto-forward via the substrate's errorWhenDepsError (default true) → the operator
  * errors (terminal). NOTE: a terminal operator does not tear down its still-subscribed siblings
  * (they are completed or will be GC'd with the operator); explicit source-error→teardown-all and
- * non-default-dispatcher inner binding are first-cut limitations (backlog).
+ * terminal-sibling teardown remains a first-cut limitation (B34c).
  *
  * Alignment: each run issues REMOVES before ADDS so the per-node FIFO drain keeps the operator's
  * tracked inner list aligned with the live dep order across the intermediate boundary waves (a
@@ -26,6 +26,7 @@
  */
 
 import {
+	CTX_NODE_BINDING,
 	type Ctx,
 	depBatch,
 	depCount,
@@ -35,8 +36,8 @@ import {
 } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
-import type { Operator } from "./operators.js";
-import { fromAny, type NodeInput } from "./sources.js";
+import { initNode, type Operator } from "./operators.js";
+import { fromAsyncIter, fromIter, fromPromise, type NodeInput, of } from "./sources.js";
 
 /** Project an outer value to an inner source (a Node, Promise, (a)sync iterable, or scalar). */
 export type Project<TIn, TOut> = (value: TIn) => NodeInput<TOut>;
@@ -48,6 +49,45 @@ interface MapState<TIn> {
 	inners: Node<unknown>[];
 	queue: TIn[]; // concatMap pending values (lazy projection); empty for the other modes
 	sourceDone: boolean;
+}
+
+function fromAnyInCtx<T>(ctx: Ctx, input: NodeInput<T>): Node<unknown> {
+	const binding = ctx[CTX_NODE_BINDING];
+	if (isNode(input)) return input as Node<unknown>;
+
+	const nodeOpts = binding ? { dispatcher: binding.dispatcher } : {};
+	const make = (op: Operator<never, T>) =>
+		(binding
+			? binding.create(() => initNode(op, [], nodeOpts))
+			: initNode(op, [], nodeOpts)) as Node<unknown>;
+
+	if (isThenable(input)) return make(fromPromise(input as PromiseLike<T>));
+	if (input !== null && input !== undefined) {
+		const candidate = input as {
+			[Symbol.asyncIterator]?: unknown;
+			[Symbol.iterator]?: unknown;
+		};
+		if (typeof candidate[Symbol.asyncIterator] === "function") {
+			return make(fromAsyncIter(input as AsyncIterable<T>));
+		}
+		if (typeof candidate[Symbol.iterator] === "function") {
+			return make(fromIter(input as Iterable<T>));
+		}
+	}
+	return make(of(input as T));
+}
+
+function isNode(x: unknown): x is Node {
+	return (
+		x != null &&
+		typeof x === "object" &&
+		"cache" in x &&
+		typeof (x as Node).subscribe === "function"
+	);
+}
+
+function isThenable(x: unknown): x is PromiseLike<unknown> {
+	return x != null && typeof (x as PromiseLike<unknown>).then === "function";
 }
 
 /**
@@ -89,8 +129,7 @@ function mapOperator<TIn, TOut>(
 
 			// 3. project the source's new value(s) per mode.
 			const toAdd: Node<unknown>[] = [];
-			const make = (v: TIn): Node<unknown> =>
-				fromAny<TOut>(project(v), { iter: true }) as Node<unknown>;
+			const make = (v: TIn): Node<unknown> => fromAnyInCtx(ctx, project(v));
 			const sb = depBatch(ctx, 0) as readonly TIn[] | null;
 			if (sb && sb.length > 0) {
 				if (mode === "switch") {
@@ -242,7 +281,7 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 			if (!st.started) {
 				st.started = true;
 				st.round = 0;
-				const inner = fromAny<S>(factory(), { iter: true }) as Node<unknown>;
+				const inner = fromAnyInCtx(ctx, factory());
 				st.inner = inner;
 				ctx.state.set(st);
 				ctx.rewireNext.addDep(inner, body);
@@ -254,7 +293,7 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				ctx.rewireNext.removeDep(old, body); // bound the finished round's inner
 				if (st.round + 1 < count) {
 					st.round += 1;
-					const next = fromAny<S>(factory(), { iter: true }) as Node<unknown>;
+					const next = fromAnyInCtx(ctx, factory());
 					st.inner = next;
 					ctx.state.set(st);
 					ctx.rewireNext.addDep(next, body);

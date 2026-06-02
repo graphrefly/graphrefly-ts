@@ -17,6 +17,96 @@
 				"types": "./dist/index.d.cts",
 				"default": "./dist/index.cjs"
 			}
+		},
+		"./composition": {
+			"import": {
+				"types": "./dist/composition/index.d.ts",
+				"default": "./dist/composition/index.js"
+			},
+			"require": {
+				"types": "./dist/composition/index.d.cts",
+				"default": "./dist/composition/index.cjs"
+			}
+		},
+		"./core": {
+			"import": {
+				"types": "./dist/core/index.d.ts",
+				"default": "./dist/core/index.js"
+			},
+			"require": {
+				"types": "./dist/core/index.d.cts",
+				"default": "./dist/core/index.cjs"
+			}
+		},
+		"./data-structures": {
+			"import": {
+				"types": "./dist/data-structures/index.d.ts",
+				"default": "./dist/data-structures/index.js"
+			},
+			"require": {
+				"types": "./dist/data-structures/index.d.cts",
+				"default": "./dist/data-structures/index.cjs"
+			}
+		},
+		"./graph": {
+			"import": {
+				"types": "./dist/graph/index.d.ts",
+				"default": "./dist/graph/index.js"
+			},
+			"require": {
+				"types": "./dist/graph/index.d.cts",
+				"default": "./dist/graph/index.cjs"
+			}
+		},
+		"./operators": {
+			"import": {
+				"types": "./dist/operators/index.d.ts",
+				"default": "./dist/operators/index.js"
+			},
+			"require": {
+				"types": "./dist/operators/index.d.cts",
+				"default": "./dist/operators/index.cjs"
+			}
+		},
+		"./render": {
+			"import": {
+				"types": "./dist/render/index.d.ts",
+				"default": "./dist/render/index.js"
+			},
+			"require": {
+				"types": "./dist/render/index.d.cts",
+				"default": "./dist/render/index.cjs"
+			}
+		},
+		"./sources": {
+			"import": {
+				"types": "./dist/sources/index.d.ts",
+				"default": "./dist/sources/index.js"
+			},
+			"require": {
+				"types": "./dist/sources/index.d.cts",
+				"default": "./dist/sources/index.cjs"
+			}
+		},
+		"./storage": {
+			"import": {
+				"types": "./dist/storage/index.d.ts",
+				"default": "./dist/storage/index.js"
+			},
+			"require": {
+				"types": "./dist/storage/index.d.cts",
+				"default": "./dist/storage/index.cjs"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./dist/testing/index.d.ts",
+				"default": "./dist/testing/index.js"
+			},
+			"require": {
+				"types": "./dist/testing/index.d.cts",
+				"default": "./dist/testing/index.cjs"
+			}
 		}
 	},
 	"files": [

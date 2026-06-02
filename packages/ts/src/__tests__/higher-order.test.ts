@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import {
 	concatMap,
+	Dispatcher,
 	depLatest,
 	exhaustMap,
 	flatMap,
@@ -29,6 +30,15 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 }
 const data = (m: Message[]) =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as ["DATA", unknown])[1]);
+const coreOf = (n: object) => (n as unknown as Record<string, unknown>)._core;
+
+class CountingDispatcher extends Dispatcher {
+	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {
+		this.registerCount += 1;
+		return super.register(...args);
+	}
+	registerCount = 0;
+}
 
 /** A controllable inner source whose activation + deactivation (cancellation) are observable. */
 function subject() {
@@ -53,6 +63,53 @@ function subject() {
 }
 
 describe("mergeMap (D47 / R-rewire-deferred)", () => {
+	it("binds coerced runtime inners to the owning graph dispatcher/core (B34b / D22)", () => {
+		const dispatcher = new CountingDispatcher();
+		const g = graph({ dispatcher });
+		const s = g.node<number>([], null);
+		const op = g.initNode(
+			mergeMap((v: number) => [v, v + 1]),
+			[s],
+		);
+
+		expect(dispatcher.registerCount).toBe(1); // the mergeMap operator body itself
+		const { msgs } = collect(op);
+		s.down([["DATA", 1]]);
+
+		expect(dispatcher.registerCount).toBeGreaterThan(1); // the fromAny/fromIter inner
+		expect(data(msgs)).toEqual([1, 2]);
+	});
+
+	it("does not let coercion-time user getters consume the graph core binding (B34b)", () => {
+		const dispatcher = new CountingDispatcher();
+		const g = graph({ dispatcher });
+		const s = g.node<number>([], null);
+		let trapNode: object | null = null;
+		const target = {};
+		const thenKey = "th" + "en";
+		Object.defineProperty(target, thenKey, { value: () => undefined });
+		const input = new Proxy(target, {
+			get(target, prop, receiver) {
+				if (prop === thenKey && trapNode === null) trapNode = node<number>([], null);
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as PromiseLike<number>;
+		const op = g.initNode(
+			mergeMap(() => input),
+			[s],
+		);
+
+		collect(op);
+		s.down([["DATA", 1]]);
+		const inner = op.deps[1];
+
+		expect(trapNode).not.toBeNull();
+		expect(coreOf(trapNode as object)).not.toBe(coreOf(op));
+		expect(inner).toBeDefined();
+		expect(coreOf(inner as object)).toBe(coreOf(op));
+		expect(dispatcher.registerCount).toBeGreaterThan(1);
+	});
+
 	it("keeps all inners live and interleaves their emissions; a completed inner is bounded", () => {
 		const a = subject();
 		const b = subject();
