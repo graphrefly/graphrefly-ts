@@ -15,9 +15,18 @@
 
 import { currentBatch, deferAfterBatchForTarget, deferToBatch } from "../batch/batch.js";
 import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
-import type { Ctx, CtxState, DepRecord, NodeFn, Sink } from "../ctx/types.js";
+import {
+	CTX_DEP_CACHE,
+	type Ctx,
+	type CtxState,
+	type DeliveryMeta,
+	type NodeFn,
+	type Sink,
+} from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import {
+	errorPayload,
+	isInvalidErrorPayload,
 	isTerminal,
 	isUpAllowed,
 	type LockId,
@@ -88,6 +97,21 @@ export interface NodeOptions<T = unknown> {
 	 * wave path (R-node-thin intact — a pure annotation, never touched by the wave machinery).
 	 */
 	factory?: string;
+}
+
+function terminalView(t: unknown): unknown {
+	return t === undefined ? false : t;
+}
+
+function validateDownPayloads(msgs: Wave): void {
+	for (const m of msgs) {
+		if (m[0] === "DATA" && m[1] === undefined) {
+			throw new Error("down: DATA requires a non-SENTINEL payload (R-data-payload)");
+		}
+		if (m[0] === "ERROR" && isInvalidErrorPayload(m[1])) {
+			throw new Error("down: ERROR requires a non-SENTINEL, non-boolean payload (R-data-payload)");
+		}
+	}
 }
 
 /** A queued deferred self-rewire op (R-rewire-deferred / D47), drained at the wave boundary. */
@@ -367,7 +391,7 @@ export class Node<T = unknown> {
 			// queue. Reachable only on misuse — higher-order operator inners are fresh, acyclic
 			// leaf sources. Coerce a SENTINEL reason (a rewire fn that `throw undefined`s) to a real
 			// Error so _down's R-data-payload guard does not itself throw out of the drain.
-			this._down([["ERROR", e === undefined ? new Error("rewireNext op failed") : e]]);
+			this._down([["ERROR", errorPayload(e, "rewireNext op failed")]]);
 		}
 	}
 
@@ -375,7 +399,7 @@ export class Node<T = unknown> {
 
 	/**
 	 * Replace this node's deps atomically (surgical, Option-C). Requires an explicit
-	 * `fn` (SD-1 fn-deps pairing — user fns read depRecords positionally). Kept deps
+	 * `fn` (SD-1 fn-deps pairing — user fns read dep input positionally). Kept deps
 	 * keep their subscription + per-dep state; only removed deps unsubscribe and only
 	 * added deps fresh-subscribe (push-on-subscribe for an added cached dep). The
 	 * first-run gate and cache are PRESERVED (R-rewire Q2/Q7). Intra-graph only (D22).
@@ -506,6 +530,7 @@ export class Node<T = unknown> {
 			const newDirty: boolean[] = new Array(n).fill(false);
 			const newTier: number[] = new Array(n).fill(0);
 			const newTerminal: Array<true | unknown | undefined> = new Array(n).fill(undefined);
+			const newTerminalInput: Array<true | unknown | undefined> = new Array(n).fill(undefined);
 			const newUnsubs: Array<() => void> = new Array(n);
 			const newBoxes: Array<{ v: number }> = new Array(n);
 			for (let j = 0; j < n; j++) {
@@ -531,17 +556,11 @@ export class Node<T = unknown> {
 			this._slot.dep.dirty = newDirty;
 			this._slot.dep.tier = newTier;
 			this._slot.dep.terminal = newTerminal;
+			this._slot.dep.terminalInput = newTerminalInput;
 			this._slot.dep.unsubs = newUnsubs;
 			this._slot.dep.idxBoxes = newBoxes;
-			// depRecords are wave-scratch (rebuilt in _buildCtx); fresh array + drop the
-			// cached sync ctx whose `depRecords` pointed at the old array.
-			this._slot.dep.records = newDeps.map(() => ({
-				batch: null,
-				prevData: SENTINEL,
-				latest: SENTINEL,
-				tier: 0,
-				terminal: undefined,
-			}));
+			this._slot.dep.waveData = newDeps.map(() => []);
+			this._slot.dep.waveTokens = new Array(newDeps.length).fill(undefined);
 			this._slot.syncCtx = null;
 
 			// Subscribe added deps — push-on-subscribe (R-push-subscribe) delivers a cached
@@ -610,9 +629,9 @@ export class Node<T = unknown> {
 	private _subscribeDepAt(depNode: Node<unknown>): void {
 		const idx0 = this._slot.deps.indexOf(depNode);
 		const box = { v: idx0 };
-		const unsub = depNode.subscribe((msg) => {
+		const unsub = depNode.subscribe((msg, delivery) => {
 			if (box.v === -1) return; // dep removed — stale callback, drop (drain)
-			this._receiveFromDep(box.v, msg);
+			this._receiveFromDep(box.v, msg, delivery);
 		});
 		if (idx0 !== -1) {
 			this._slot.dep.unsubs[idx0] = unsub;
@@ -650,11 +669,14 @@ export class Node<T = unknown> {
 		const n = this._slot.deps.length;
 		for (let i = 0; i < n; i++) {
 			this._slot.dep.batch[i] = null;
+			this._slot.dep.waveData[i] = [];
+			this._slot.dep.waveTokens[i] = undefined;
 			this._slot.dep.prev[i] = SENTINEL;
 			this._slot.dep.hasData[i] = false;
 			this._slot.dep.dirty[i] = false;
 			this._slot.dep.tier[i] = 0;
 			this._slot.dep.terminal[i] = undefined;
+			this._slot.dep.terminalInput[i] = undefined;
 		}
 		this._slot.wave.pending = 0;
 		this._slot.wave.emittedDirtyThisWave = false;
@@ -662,9 +684,24 @@ export class Node<T = unknown> {
 
 	// ── upstream wave receive (two-phase + diamond) ──
 
-	private _receiveFromDep(idx: number, msg: Message): void {
+	private _recordDepProjection(idx: number, delivery: DeliveryMeta | undefined): unknown[] {
+		const token = delivery?.wave ?? {};
+		if (this._slot.dep.waveTokens[idx] !== token) {
+			this._slot.dep.waveData[idx].push([]);
+			this._slot.dep.waveTokens[idx] = token;
+		}
+		return this._slot.dep.waveData[idx][this._slot.dep.waveData[idx].length - 1];
+	}
+
+	private _depProjectionHasData(idx: number): boolean {
+		const projection = this._slot.dep.waveData[idx][this._slot.dep.waveData[idx].length - 1];
+		return projection?.some((v) => v !== SENTINEL) ?? false;
+	}
+
+	private _receiveFromDep(idx: number, msg: Message, delivery?: DeliveryMeta): void {
 		const t = msg[0];
 		if (t === "START") return;
+		const isLastInDeliveredWave = delivery?.last ?? true;
 		// Terminal-is-forever, except terminal intermediates still relay upstream TEARDOWN
 		// downstream for lifecycle unwire (R-teardown-terminal-relay / D65).
 		if (this._slot.value.terminal !== undefined) {
@@ -673,7 +710,10 @@ export class Node<T = unknown> {
 		}
 
 		if (t === "INVALIDATE") {
-			// The dep's value is gone — drop our view of it (prevData -> SENTINEL so the
+			const projection = this._recordDepProjection(idx, delivery);
+			projection.push(SENTINEL);
+			if (projection.some((v) => v !== SENTINEL) && isLastInDeliveredWave) this._maybeRun();
+			// The dep's value is gone — drop our cached latest view to SENTINEL so the
 			// never-emitted detector reads correctly, C-3) and cascade (idempotent).
 			this._slot.dep.prev[idx] = SENTINEL;
 			this._slot.dep.hasData[idx] = false;
@@ -717,17 +757,23 @@ export class Node<T = unknown> {
 			// only the COMPLETE-vs-ERROR cascade differs, so discriminate by the type within the tier.
 			const isError = t === "ERROR";
 			const errPayload = isError ? (msg as readonly ["ERROR", unknown])[1] : undefined;
-			// Record this dep's terminal: the ERROR payload, or `true` for COMPLETE.
 			this._slot.dep.terminal[idx] = isError ? errPayload : true;
+			this._slot.dep.terminalInput[idx] = isError ? errPayload : true;
 			// R-terminal-settles-dirty (B35): a terminal RELEASES this dep's outstanding in-wave DIRTY
 			// contribution (the exactly-one-settle invariant) — exactly as DATA/RESOLVED/INVALIDATE do
 			// (a dirty-then-terminal-without-DATA dep would otherwise strand _pending and wedge the node,
 			// the deadlock R-invalidate-idempotent prevents for INVALIDATE).
 			this._releaseDepDirty(idx);
+			const ranValueBeforeTerminal = this._depProjectionHasData(idx) && isLastInDeliveredWave;
+			if (ranValueBeforeTerminal) this._maybeRun();
 			if (isError && this._slot.errorWhenDepsError) {
 				this._down([["ERROR", errPayload]]); // auto-cascade ERROR → node itself terminal
 			} else if (this._slot.terminalAsRealInput) {
-				this._maybeRun(); // rescue/reduce/catch/*Map: the fn reads ctx.depRecords[idx].terminal
+				if (ranValueBeforeTerminal) {
+					this._fireOwedDemandIfReady();
+					return;
+				}
+				this._maybeRun(); // rescue/reduce/catch/*Map: the fn reads depTerminal(ctx, idx)
 			} else if (this._slot.completeWhenDepsComplete && this._allDepsTerminal()) {
 				// R-deps-terminal auto-COMPLETE + B42: COMPLETE once ALL deps are TERMINAL (each COMPLETE
 				// or an absorbed ERROR) — so an absorbed-error dep terminating LAST still fires the
@@ -760,6 +806,7 @@ export class Node<T = unknown> {
 
 		if (t === "DATA") {
 			const v = msg[1];
+			this._recordDepProjection(idx, delivery).push(v);
 			const b = this._slot.dep.batch[idx];
 			if (b === null) this._slot.dep.batch[idx] = [v];
 			else b.push(v);
@@ -770,18 +817,19 @@ export class Node<T = unknown> {
 				this._slot.dep.dirty[idx] = false;
 				this._slot.wave.pending--;
 			}
-			this._maybeRun();
+			if (isLastInDeliveredWave) this._maybeRun();
 			this._fireOwedDemandIfReady(); // R-pull pin 5: settle-ready now → fire a deferred demand
 			return;
 		}
 
 		if (t === "RESOLVED") {
+			this._recordDepProjection(idx, delivery);
 			this._slot.dep.tier[idx] = 3;
 			if (this._slot.dep.dirty[idx]) {
 				this._slot.dep.dirty[idx] = false;
 				this._slot.wave.pending--;
 			}
-			this._maybeRun();
+			if (isLastInDeliveredWave) this._maybeRun();
 			this._fireOwedDemandIfReady(); // R-pull pin 5: settle-ready now → fire a deferred demand
 			return;
 		}
@@ -973,36 +1021,39 @@ export class Node<T = unknown> {
 		}
 
 		// roll wave-local state forward
-		for (let i = 0; i < this._slot.dep.batch.length; i++) this._slot.dep.batch[i] = null;
+		for (let i = 0; i < this._slot.dep.batch.length; i++) {
+			this._slot.dep.batch[i] = null;
+			this._slot.dep.waveData[i] = [];
+			this._slot.dep.waveTokens[i] = undefined;
+			this._slot.dep.terminalInput[i] = undefined;
+		}
 		this._slot.wave.emittedDirtyThisWave = false;
 	}
 
 	// ── ctx construction (L3-Q5: sync = node-stable reused ctx; async = per-invocation) ──
 
 	private _buildCtx(): Ctx {
-		for (let i = 0; i < this._slot.deps.length; i++) {
-			const batch = this._slot.dep.batch[i];
-			const prev = this._slot.dep.prev[i];
-			const rec = this._slot.dep.records[i];
-			rec.batch = batch as readonly unknown[] | null;
-			rec.prevData = prev;
-			rec.latest = batch && batch.length > 0 ? batch[batch.length - 1] : prev;
-			rec.tier = this._slot.dep.tier[i];
-			rec.terminal = this._slot.dep.terminal[i];
-		}
-
 		const kind = this._slot.handle
 			? this._slot.dispatcher.poolKind(this._slot.handle.poolId)
 			: "sync";
 		if (kind === "sync") {
-			if (this._slot.syncCtx === null) this._slot.syncCtx = this._makeCtx(this._slot.dep.records);
+			if (this._slot.syncCtx === null) this._slot.syncCtx = this._makeCtx();
+			this._refreshCtx(this._slot.syncCtx);
 			return this._slot.syncCtx;
 		}
-		// async: snapshot depRecords so a deferred late-emit reads this wave's view.
-		return this._makeCtx(this._slot.dep.records.map((r) => ({ ...r })));
+		// async: snapshot dep inputs so a deferred late-emit reads this wave's view.
+		return this._makeCtx({
+			waveData: this._slot.dep.waveData.map((waves) => waves.map((w) => [...w])),
+			terminal: this._slot.dep.terminalInput.map(terminalView),
+			latest: [...this._slot.dep.prev],
+		});
 	}
 
-	private _makeCtx(depRecords: readonly DepRecord[]): Ctx {
+	private _makeCtx(snapshot?: {
+		waveData: unknown[][][];
+		terminal: unknown[];
+		latest: unknown[];
+	}): Ctx {
 		const ctx: Ctx = {
 			// Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
 			// it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
@@ -1023,7 +1074,8 @@ export class Node<T = unknown> {
 					exitWave();
 				}
 			},
-			depRecords,
+			waveData: snapshot?.waveData ?? this._slot.dep.waveData,
+			terminal: snapshot?.terminal ?? this._slot.dep.terminalInput.map(terminalView),
 			state: this._makeState(),
 			onDeactivation: (fn) => {
 				this._slot.hooks.onDeactivation.push(fn);
@@ -1041,14 +1093,21 @@ export class Node<T = unknown> {
 			// DEMAND) up the declared cone at the committed boundary. The SELF-demand path: an
 			// immediate ctx.up whose delivery loops back re-enters this fn (D37 / R-reentrancy).
 			upNext: (msgs, towardDep) => this._requestUpNext(msgs, towardDep),
+			[CTX_DEP_CACHE]: { latest: snapshot?.latest ?? this._slot.dep.prev },
 		};
 		if (this._slot.dynamic) {
 			// R-dynamic-node: read a dep's latest by index. Untracked deps still drive waves and
 			// re-run the fn; under D49 (no equals-substitution) the fn re-emits its current value
 			// as DATA — to suppress redundant downstream propagation, pair with distinctUntilChanged.
-			ctx.track = (i: number) => ctx.depRecords[i]?.latest;
+			ctx.track = (i: number) => ctx[CTX_DEP_CACHE]?.latest[i];
 		}
 		return ctx;
+	}
+
+	private _refreshCtx(ctx: Ctx): void {
+		(ctx as { waveData: unknown[][][] }).waveData = this._slot.dep.waveData;
+		(ctx as { terminal: unknown[] }).terminal = this._slot.dep.terminalInput.map(terminalView);
+		ctx[CTX_DEP_CACHE] = { latest: this._slot.dep.prev };
 	}
 
 	private _makeState(): CtxState {
@@ -1066,6 +1125,8 @@ export class Node<T = unknown> {
 	// ── downstream emission pipeline (the unified waist) ──
 
 	private _down(msgs: Wave): void {
+		validateDownPayloads(msgs);
+		const deliveryWave = {};
 		// Terminal-is-forever (R-terminal / D17 / B30): once COMPLETE/ERROR has been emitted the
 		// node is final — a self-emit (state.set / ctx.down) in a LATER wave is a no-op, never
 		// resurrecting the cache or re-emitting. The COMPLETE/ERROR arms below also self-guard
@@ -1082,7 +1143,7 @@ export class Node<T = unknown> {
 				this._slot.value.cache = SENTINEL;
 				this._slot.value.hasData = false;
 			}
-			this._emitToSubs(["TEARDOWN"]);
+			this._emitToSubs(["TEARDOWN"], { wave: deliveryWave, last: true });
 			return;
 		}
 		let sorted: Message[] = [...msgs].sort((a, b) => messageTier(a[0]) - messageTier(b[0]));
@@ -1114,7 +1175,7 @@ export class Node<T = unknown> {
 				if (!this._slot.wave.emittedDirtyThisWave) {
 					this._slot.wave.emittedDirtyThisWave = true;
 					this._slot.value.status = "dirty";
-					this._emitToSubs(["DIRTY"]);
+					this._emitToSubs(["DIRTY"], { wave: deliveryWave, last: false });
 				}
 				this._slot.wave.batchDirtyOwed = true; // BH1: owe a balancing RESOLVED on rollback
 				deferToBatch(this, tier3);
@@ -1163,10 +1224,12 @@ export class Node<T = unknown> {
 		if (hasTier3 && !this._slot.wave.insideRunWave && !this._slot.wave.emittedDirtyThisWave) {
 			this._slot.wave.emittedDirtyThisWave = true;
 			this._slot.value.status = "dirty";
-			this._emitToSubs(["DIRTY"]);
+			this._emitToSubs(["DIRTY"], { wave: deliveryWave, last: false });
 		}
 
-		for (const m of sorted) {
+		for (let i = 0; i < sorted.length; i++) {
+			const m = sorted[i];
+			const delivery = { wave: deliveryWave, last: i === sorted.length - 1 };
 			// R-resolved-undirty (D49): a tier-3+ emit this wave means the fn produced a settle,
 			// so no synthesized undirty RESOLVED is owed (see _runWave).
 			if (messageTier(m[0]) >= 3) this._slot.wave.emittedSettleThisWave = true;
@@ -1174,15 +1237,11 @@ export class Node<T = unknown> {
 				if (!this._slot.wave.emittedDirtyThisWave) {
 					this._slot.wave.emittedDirtyThisWave = true;
 					this._slot.value.status = "dirty";
-					this._emitToSubs(["DIRTY"]);
+					this._emitToSubs(["DIRTY"], delivery);
 				}
 				continue;
 			}
 			if (m[0] === "DATA") {
-				if (m[1] === undefined) {
-					// EC1 / R-data-payload: bare [DATA] / [DATA, SENTINEL] is rejected.
-					throw new Error("down: DATA requires a non-SENTINEL payload (R-data-payload)");
-				}
 				const v = m[1] as T;
 				// R-resolved-undirty (D49): every value-occurrence is emitted as DATA — the
 				// substrate never substitutes DATA->RESOLVED on value-equality. Dedup is opt-in
@@ -1195,16 +1254,16 @@ export class Node<T = unknown> {
 					if (this._slot.value.replayRing.length > this._slot.replayN)
 						this._slot.value.replayRing.shift();
 				}
-				this._emitToSubs(["DATA", v]);
+				this._emitToSubs(["DATA", v], delivery);
 				continue;
 			}
 			if (m[0] === "RESOLVED") {
 				this._slot.value.status = this._slot.value.hasData ? "resolved" : "sentinel";
-				this._emitToSubs(["RESOLVED"]);
+				this._emitToSubs(["RESOLVED"], delivery);
 				continue;
 			}
 			if (m[0] === "INVALIDATE") {
-				this._invalidate();
+				this._invalidate(delivery);
 				continue;
 			}
 			if (m[0] === "COMPLETE") {
@@ -1212,18 +1271,15 @@ export class Node<T = unknown> {
 				this._slot.value.terminal = true;
 				this._slot.control.pauseBuffer = []; // BH3: terminal discards buffered settle slices
 				this._slot.value.status = "completed";
-				this._emitToSubs(["COMPLETE"]);
+				this._emitToSubs(["COMPLETE"], delivery);
 				continue;
 			}
 			if (m[0] === "ERROR") {
 				if (this._slot.value.terminal !== undefined) continue;
-				if (m[1] === undefined) {
-					throw new Error("down: ERROR requires a non-SENTINEL payload (R-data-payload)");
-				}
 				this._slot.value.terminal = m[1];
 				this._slot.control.pauseBuffer = []; // BH3: terminal discards buffered settle slices
 				this._slot.value.status = "errored";
-				this._emitToSubs(["ERROR", m[1]]);
+				this._emitToSubs(["ERROR", m[1]], delivery);
 				continue;
 			}
 			if (m[0] === "TEARDOWN") {
@@ -1232,7 +1288,7 @@ export class Node<T = unknown> {
 					this._slot.value.cache = SENTINEL;
 					this._slot.value.hasData = false;
 				}
-				this._emitToSubs(["TEARDOWN"]);
+				this._emitToSubs(["TEARDOWN"], delivery);
 			}
 			// PAUSE / RESUME — control slice.
 		}
@@ -1466,19 +1522,20 @@ export class Node<T = unknown> {
 	}
 
 	/** R-invalidate-idempotent: clear cache + flush + cascade; no-op if nothing cached. */
-	private _invalidate(): void {
+	private _invalidate(delivery?: DeliveryMeta): void {
 		if (!this._slot.value.hasData) return; // never-populated or already-reset → no-op
 		this._slot.value.cache = SENTINEL;
 		this._slot.value.hasData = false;
 		this._slot.value.status = "sentinel";
 		this._slot.value.replayRing = []; // BH6: invalidated values are stale — don't replay them
 		for (const fn of this._slot.hooks.onInvalidate) fn();
-		this._emitToSubs(["INVALIDATE"]);
+		this._emitToSubs(["INVALIDATE"], delivery);
 	}
 
 	// B42 (R-deps-terminal): ALL deps TERMINAL = every dep has reached COMPLETE *or* an ABSORBED
 	// ERROR. Block only on a LIVE dep (_depTerminal[i] === undefined); an errored dep (terminal = the
-	// error payload, which R-data-payload guarantees is !== undefined) COUNTS as terminal-done. Was
+	// error payload, which R-data-payload guarantees is !== undefined and non-boolean) COUNTS as
+	// terminal-done. Was
 	// `tm !== true`, which wedged a node whose errorWhenDepsError:false dep ERRORed (it never
 	// auto-completed even after every other dep completed). Drives the completeWhenDepsComplete cascade.
 	private _allDepsTerminal(): boolean {
@@ -1513,10 +1570,10 @@ export class Node<T = unknown> {
 		if (!this._slot.privateState.persist) this._slot.privateState.value = SENTINEL;
 	}
 
-	private _emitToSubs(msg: Message): void {
+	private _emitToSubs(msg: Message, delivery?: DeliveryMeta): void {
 		// Copy guards against subscribe/unsubscribe during iteration.
 		const subs = [...this._slot.subscribers];
-		for (const sink of subs) sink(msg);
+		for (const sink of subs) sink(msg, delivery);
 	}
 
 	/** Batch commit (R-batch-coalesce): deliver the deferred tier-3 wave now. */

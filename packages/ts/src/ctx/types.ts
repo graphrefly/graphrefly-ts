@@ -1,30 +1,52 @@
 /**
- * The fn-invocation context and per-dep record shapes.
+ * The fn-invocation context and per-dep input shapes.
  *
  * Canonical authority: ~/src/graphrefly/spec/rules.jsonl
  *   R-fn-contract (D8/D27), R-ctx-state (D23/D29), R-cleanup-hooks (D28), R-ctx-up.
  */
 
 import type { Node } from "../node/node.js";
-import type { Message, Wave } from "../protocol/messages.js";
+import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 
 /** A downstream sink callback (the only way to connect to a node's output). */
-export type Sink = (msg: Message) => void;
+export type Sink = (msg: Message, delivery?: DeliveryMeta) => void;
+
+/** Internal delivery metadata used to preserve the upstream `ctx.down(msgs)` wave boundary. */
+export interface DeliveryMeta {
+	readonly wave: object;
+	readonly last: boolean;
+}
 
 /**
- * Per-dependency record visible to a node's fn (R-fn-contract). One per declared dep.
+ * Internal current-value reader. It is deliberately a symbol-backed implementation detail:
+ * raw ctx exposes `waveData` + `terminal`; helpers below derive from that plus this dep cache.
  */
-export interface DepRecord<T = unknown> {
-	/** DATA values this dep delivered in the current wave; `null` = dep not involved, `[]` = RESOLVED-only. */
-	batch: readonly T[] | null;
-	/** Last DATA value from any wave (incl prior); SENTINEL (`undefined`) = never emitted DATA. */
-	prevData: T | undefined;
-	/** Convenience: latest DATA = last of `batch` if present, else `prevData`. */
-	latest: T | undefined;
-	/** Tier of this dep's most recent message in the current wave (0 if none). */
-	tier: number;
-	/** Terminal state: `undefined` = live, `true` = COMPLETE, otherwise the ERROR payload. */
-	terminal: true | unknown | undefined;
+export const CTX_DEP_CACHE: unique symbol = Symbol("graphrefly.ctx.depCache");
+
+export interface CtxDepCache {
+	readonly latest: readonly unknown[];
+}
+
+/** Per-dep wave projections: dep -> waves -> values/SENTINEL markers. */
+export type WaveData = readonly (readonly (readonly unknown[])[])[];
+
+/** Terminal metadata parallel to `waveData`: false = none, true = COMPLETE, otherwise ERROR payload. */
+export type TerminalData = readonly unknown[];
+
+export function isTerminalNone(t: unknown): boolean {
+	return t === false || t === undefined;
+}
+
+export function isTerminalComplete(t: unknown): t is true {
+	return t === true;
+}
+
+export function isTerminalError(t: unknown): boolean {
+	return !isTerminalNone(t) && !isTerminalComplete(t);
+}
+
+export function terminalErrorValue(t: unknown): unknown {
+	return isTerminalError(t) ? t : undefined;
 }
 
 /**
@@ -71,7 +93,14 @@ export interface Ctx {
 	up(msgs: Wave, towardDep?: number): void;
 	/** Emit downstream toward sinks. */
 	down(msgs: Wave): void;
-	depRecords: readonly DepRecord[];
+	/**
+	 * The single raw dep-value input surface (R-ctx-wave-data / D77): dep -> upstream waves ->
+	 * per-wave DATA payloads and INVALIDATE/SENTINEL markers. `waveData[i] = []` means dep i
+	 * delivered no wave to this invocation; `waveData[i] = [[]]` means RESOLVED-only.
+	 */
+	waveData: WaveData;
+	/** Terminal metadata for the same invocation; terminal values never enter `waveData`. */
+	terminal: TerminalData;
 	state: CtxState;
 	/** Release external resources on deactivation (R-cleanup-hooks). */
 	onDeactivation(fn: () => void): void;
@@ -101,7 +130,37 @@ export interface Ctx {
 	 * absorption; pair with distinctUntilChanged to suppress unchanged re-emits (opt-in).
 	 */
 	track?(depIndex: number): unknown;
+	[CTX_DEP_CACHE]?: CtxDepCache;
 }
 
 /** A node fn (R-fn-contract). Registered in a dispatcher pool, indexed by Handle. */
 export type NodeFn = (ctx: Ctx) => void;
+
+/** Number of declared dep slots visible in this invocation. */
+export function depCount(ctx: Ctx): number {
+	return ctx.waveData.length;
+}
+
+/** DATA/SENTINEL projection batches delivered by one dep in this invocation. */
+export function depWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown[])[] {
+	return ctx.waveData[depIndex] ?? [];
+}
+
+/** Flattened DATA projection for old event-counting operator bodies; null = no wave. */
+export function depBatch(ctx: Ctx, depIndex: number): readonly unknown[] | null {
+	const waves = depWaves(ctx, depIndex);
+	if (waves.length === 0) return null;
+	const flattened = waves.flat().filter((v) => v !== SENTINEL);
+	return flattened.length === 0 ? [] : flattened;
+}
+
+/** Latest cached DATA for a dep, derived from implementation-owned dep cache. */
+export function depLatest(ctx: Ctx, depIndex: number): unknown {
+	return ctx[CTX_DEP_CACHE]?.latest[depIndex];
+}
+
+/** Terminal metadata for one dep: false = none, true = COMPLETE, otherwise ERROR payload. */
+export function depTerminal(ctx: Ctx, depIndex: number): unknown {
+	const t = ctx.terminal[depIndex];
+	return t === undefined ? false : t;
+}

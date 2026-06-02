@@ -31,9 +31,10 @@
  * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
  */
 
-import type { Ctx } from "../../ctx/types.js";
+import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { Dispatcher } from "../../dispatcher/index.js";
 import { Node } from "../../node/node.js";
+import { errorPayload } from "../../protocol/messages.js";
 import type { Graph } from "../graph.js";
 import type { Operator } from "../operators.js";
 
@@ -127,11 +128,11 @@ export function collectionCore<S, C>(
 		const op: Operator<V, void> = {
 			factory: `${factory}.bindSource`,
 			body: (ctx: Ctx) => {
-				const b = ctx.depRecords[0]?.batch;
+				const b = depBatch(ctx, 0);
 				try {
 					if (b) for (const v of b) apply(v as V);
 				} catch (e) {
-					ctx.down([["ERROR", e ?? new Error("collectionCore.bindSource failed")]]);
+					ctx.down([["ERROR", errorPayload(e, "collectionCore.bindSource failed")]]);
 				}
 			},
 		};

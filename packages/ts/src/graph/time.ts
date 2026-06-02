@@ -42,8 +42,17 @@
  * lists it only when it is a live dep of a registered node (a first-cut limit, like the *Map inners).
  */
 
-import type { Ctx, NodeFn } from "../ctx/types.js";
+import {
+	type Ctx,
+	depBatch,
+	depTerminal,
+	isTerminalComplete,
+	isTerminalError,
+	type NodeFn,
+	terminalErrorValue,
+} from "../ctx/types.js";
 import type { Node } from "../node/node.js";
+import { errorPayload } from "../protocol/messages.js";
 import { exhaustMap, mergeMap, switchMap } from "./higher-order.js";
 import { filter, initNode, map, merge, type Operator } from "./operators.js";
 import { fromAny, interval, type NodeInput, of, timer } from "./sources.js";
@@ -148,18 +157,20 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 				latest: undefined,
 				notifier: null,
 			};
-			const source = ctx.depRecords[0];
-			const notifier = ctx.depRecords[1]; // the live duration notifier while a window is open
+			const sourceBatch = depBatch(ctx, 0);
+			const notifierBatch = depBatch(ctx, 1); // live duration notifier while a window is open
+			const sourceTerminal = depTerminal(ctx, 0);
+			const notifierTerminal = depTerminal(ctx, 1);
 
 			// every source value updates the window's latest (the value emitted at the window's close).
-			const sb = source.batch as readonly S[] | null;
+			const sb = sourceBatch as readonly S[] | null;
 			if (sb) for (const v of sb) st.latest = { v };
 
 			// the window closes when its duration notifier fires (DATA or COMPLETE) → emit the latest.
 			const notifierFired =
 				st.windowOpen &&
-				notifier !== undefined &&
-				((notifier.batch != null && notifier.batch.length > 0) || notifier.terminal === true);
+				((notifierBatch != null && notifierBatch.length > 0) ||
+					isTerminalComplete(notifierTerminal));
 			if (notifierFired) {
 				if (st.latest !== undefined) ctx.down([["DATA", st.latest.v]]);
 				const old = st.notifier;
@@ -170,11 +181,10 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 			}
 
 			// source/notifier ERROR → forward ERROR, but first remove the helper-owned notifier.
-			const sourceError = source.terminal !== undefined && source.terminal !== true;
-			const notifierError =
-				notifier !== undefined && notifier.terminal !== undefined && notifier.terminal !== true;
+			const sourceError = isTerminalError(sourceTerminal);
+			const notifierError = isTerminalError(notifierTerminal);
 			if (sourceError || notifierError) {
-				const err = sourceError ? source.terminal : notifier?.terminal;
+				const err = terminalErrorValue(sourceError ? sourceTerminal : notifierTerminal);
 				if (st.notifier) ctx.rewireNext.removeDep(st.notifier, body);
 				ctx.state.set({ windowOpen: false, latest: undefined, notifier: null });
 				ctx.down([["ERROR", err]]);
@@ -182,7 +192,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 			}
 
 			// source COMPLETE → flush the pending latest (B44 audit flush-on-complete) then COMPLETE.
-			if (source.terminal === true) {
+			if (isTerminalComplete(sourceTerminal)) {
 				if (st.windowOpen && st.latest !== undefined) ctx.down([["DATA", st.latest.v]]);
 				if (st.notifier) ctx.rewireNext.removeDep(st.notifier, body);
 				ctx.state.set({ windowOpen: false, latest: undefined, notifier: null });
@@ -200,7 +210,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 
 			ctx.state.set(st);
 		} catch (e) {
-			ctx.down([["ERROR", e]]);
+			ctx.down([["ERROR", errorPayload(e, "audit threw without a valid error payload")]]);
 		}
 	};
 	return {
@@ -246,10 +256,11 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 	const body: NodeFn = (ctx: Ctx) => {
 		try {
 			const st: TimeoutState = ctx.state.get<TimeoutState>() ?? { timer: initial };
-			const src = ctx.depRecords[0];
+			const srcBatch = depBatch(ctx, 0);
+			const srcTerminal = depTerminal(ctx, 0);
 
 			// a source value forwards as-is and resets the idle window.
-			const sb = src.batch as readonly S[] | null;
+			const sb = srcBatch as readonly S[] | null;
 			if (sb != null && sb.length > 0) {
 				for (const v of sb) ctx.down([["DATA", v]]);
 				const old = st.timer;
@@ -262,27 +273,30 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 			}
 
 			// source COMPLETE → forward COMPLETE (no timeout fires).
-			if (src.terminal === true) {
+			if (isTerminalComplete(srcTerminal)) {
 				if (st.timer) ctx.rewireNext.removeDep(st.timer, body);
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
 			// source ERROR (absorbed via errorWhenDepsError:false) → forward it.
-			if (src.terminal !== undefined) {
+			if (isTerminalError(srcTerminal)) {
 				if (st.timer) ctx.rewireNext.removeDep(st.timer, body);
-				ctx.down([["ERROR", src.terminal]]);
+				ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
 				return;
 			}
 
 			// otherwise this wave is the idle timer firing → timeout ERROR.
-			const t = ctx.depRecords[1];
-			if (t !== undefined && ((t.batch != null && t.batch.length > 0) || t.terminal === true)) {
+			const timerBatch = depBatch(ctx, 1);
+			if (
+				(timerBatch != null && timerBatch.length > 0) ||
+				isTerminalComplete(depTerminal(ctx, 1))
+			) {
 				ctx.down([["ERROR", new Error(`timeout: no value within ${ms}ms`)]]);
 				return;
 			}
 			ctx.state.set(st);
 		} catch (e) {
-			ctx.down([["ERROR", e]]);
+			ctx.down([["ERROR", errorPayload(e, "timeout threw without a valid error payload")]]);
 		}
 	};
 	return initNode<S, S>(
@@ -311,24 +325,25 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 	const iv: Node<unknown> = initNode(interval(ms), []);
 	const body: NodeFn = (ctx: Ctx) => {
-		const src = ctx.depRecords[0];
-		const tick = ctx.depRecords[1];
+		const srcBatch = depBatch(ctx, 0);
+		const tickBatch = depBatch(ctx, 1);
+		const srcTerminal = depTerminal(ctx, 0);
 		const buf = ctx.state.get<S[]>() ?? [];
-		if (src.batch) for (const v of src.batch) buf.push(v as S);
-		if (src.terminal === true) {
+		if (srcBatch) for (const v of srcBatch) buf.push(v as S);
+		if (isTerminalComplete(srcTerminal)) {
 			if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
 			ctx.state.set([]);
 			ctx.rewireNext.removeDep(iv, body);
 			ctx.down([["COMPLETE"]]);
 			return;
 		}
-		if (src.terminal !== undefined) {
+		if (isTerminalError(srcTerminal)) {
 			ctx.state.set([]);
 			ctx.rewireNext.removeDep(iv, body);
-			ctx.down([["ERROR", src.terminal]]);
+			ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
 			return;
 		}
-		if (tick.batch && tick.batch.length > 0) {
+		if (tickBatch && tickBatch.length > 0) {
 			ctx.down([["DATA", [...buf]]]);
 			ctx.state.set([]);
 			return;

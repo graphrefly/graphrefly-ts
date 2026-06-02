@@ -86,18 +86,18 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(n.status).toBe("errored");
 	});
 
-	it("fromPromise rejecting with undefined → clean ERROR, never [[ERROR, undefined]] (R-data-payload)", async () => {
+	it("fromPromise rejecting with undefined/boolean → clean ERROR, never invalid ERROR payload", async () => {
 		const g = graph();
-		// Promise.reject(undefined) would otherwise reach ctx.down([[ERROR, undefined]]) and throw
-		// inside the .then callback (unhandled rejection); the source coerces undefined → Error.
-		const n = g.initNode(fromPromise(Promise.reject(undefined)), []);
-		const msgs: Message[] = [];
-		n.subscribe((x) => msgs.push(x));
-		await flush();
-		const last = msgs[msgs.length - 1];
-		expect(last[0]).toBe("ERROR");
-		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error); // non-SENTINEL payload
-		expect(n.status).toBe("errored");
+		for (const reason of [undefined, false, true]) {
+			const n = g.initNode(fromPromise(Promise.reject(reason)), []);
+			const msgs: Message[] = [];
+			n.subscribe((x) => msgs.push(x));
+			await flush();
+			const last = msgs[msgs.length - 1];
+			expect(last[0]).toBe("ERROR");
+			expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+			expect(n.status).toBe("errored");
+		}
 	});
 
 	it("fromAsyncIter emits each value then COMPLETE", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { node } from "../index.js";
+import { depLatest, node } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -13,7 +13,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	it("auto-COMPLETE when ALL deps complete", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx: Ctx) =>
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 1]]),
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]),
 		);
 		const { msgs } = collect(d);
 		msgs.length = 0;
@@ -26,9 +26,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 2 });
 		const d = node<number>([a, b], (ctx: Ctx) =>
-			ctx.down([
-				["DATA", (ctx.depRecords[0].latest as number) + (ctx.depRecords[1].latest as number)],
-			]),
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]),
 		);
 		const { msgs } = collect(d);
 		msgs.length = 0;
@@ -50,10 +48,12 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		expect(d.status).toBe("errored");
 	});
 
-	it("ERROR with undefined payload is rejected (R-data-payload)", () => {
+	it("ERROR with undefined or boolean payload is rejected (R-data-payload)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		collect(s);
 		expect(() => s.down([["ERROR", undefined]])).toThrow(/non-SENTINEL/);
+		expect(() => s.down([["ERROR", false]])).toThrow(/non-boolean/);
+		expect(() => s.down([["ERROR", true]])).toThrow(/non-boolean/);
 	});
 
 	it("non-resubscribable terminal rejects late subscribe (R2.2.7.b)", () => {
@@ -107,7 +107,7 @@ describe("INVALIDATE (R-invalidate-idempotent, R-cleanup-hooks)", () => {
 		let flushed = 0;
 		const d = node<number>([a], (ctx: Ctx) => {
 			ctx.onInvalidate(() => flushed++);
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) * 2]]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
 		});
 		const { msgs } = collect(d);
 		expect(d.cache).toBe(10);

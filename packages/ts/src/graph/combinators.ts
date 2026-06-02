@@ -7,13 +7,13 @@
  * show). Re-derived here as static-dep nodes with `partial:true` (fire on any dep, R-first-run-gate
  * off) + `ctx.state` (queue / phase / winner) — so every edge is a real subscription `describe`
  * shows truthfully (D3 / R-edges-derived). Multi-source completion / error reads
- * `ctx.depRecords[i].terminal` (R-deps-terminal) via `completeWhenDepsComplete:false +
+ * `depTerminal(ctx, i)` (R-deps-terminal) via `completeWhenDepsComplete:false +
  * terminalAsRealInput:true`.
  *
  * Under D49 (no equals-absorption) `combine` emits a fresh tuple on EVERY contributing wave (no
  * substrate tuple-dedup; the pure-ts `equals` tuple comparator is gone) — pair with
  * `distinctUntilChanged` for opt-in dedup. SENTINEL ("a dep has never delivered DATA") is detected
- * via `rec.latest === undefined` (R-sentinel: `undefined` is the global sentinel, `null` is a valid
+ * via `depLatest(ctx, i) === undefined` (R-sentinel: `undefined` is the global sentinel, `null` is a valid
  * value).
  *
  * NOT re-derived in this cut (flagged): the window family (`window`/`windowCount`/`windowTime`)
@@ -22,13 +22,23 @@
  * how an emitted live sub-stream appears in `describe` (D45/D51). Deferred to a design pass.
  */
 
-import type { Ctx } from "../ctx/types.js";
+import {
+	type Ctx,
+	depBatch,
+	depCount,
+	depLatest,
+	depTerminal,
+	isTerminalComplete,
+	isTerminalError,
+	isTerminalNone,
+	terminalErrorValue,
+} from "../ctx/types.js";
 import type { Operator } from "./operators.js";
 
 /**
  * combine (alias `combineLatest`): emit a tuple of every dep's latest value whenever ANY dep
  * delivers, once ALL deps have delivered at least one value. `partial:true`; the all-delivered gate
- * is `rec.latest !== undefined` per dep. Completes when ALL deps complete (default
+ * is `depLatest(ctx, i) !== undefined` per dep. Completes when ALL deps complete (default
  * completeWhenDepsComplete); any dep ERROR propagates (default errorWhenDepsError). Emits a fresh
  * tuple per wave (D49 — no dedup; compose `distinctUntilChanged` to suppress unchanged tuples).
  */
@@ -37,7 +47,7 @@ export function combine<T extends readonly unknown[]>(): Operator<unknown, T> {
 		factory: "combine",
 		opts: { partial: true },
 		body: (ctx) => {
-			const vals = ctx.depRecords.map((r) => r.latest);
+			const vals = Array.from({ length: depCount(ctx) }, (_, i) => depLatest(ctx, i));
 			if (vals.some((v) => v === undefined)) return; // not all deps delivered → undirty RESOLVED
 			ctx.down([["DATA", vals as unknown as T]]);
 		},
@@ -62,15 +72,13 @@ export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 		factory: "withLatestFrom",
 		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const primary = ctx.depRecords[0];
-			const secondary = ctx.depRecords[1];
-			if (primary.terminal === true) {
+			if (isTerminalComplete(depTerminal(ctx, 0))) {
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			const b0 = primary.batch;
+			const b0 = depBatch(ctx, 0);
 			if (!b0 || b0.length === 0) return; // secondary-only wave → quiet
-			const sec = secondary.latest as B | undefined;
+			const sec = depLatest(ctx, 1) as B | undefined;
 			if (sec === undefined) return; // secondary never delivered → quiet
 			for (const v of b0) ctx.down([["DATA", [v, sec] as readonly [A, B]]]);
 		},
@@ -80,6 +88,7 @@ export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 /** Internal: per-dep FIFO queues for {@link zip}. */
 interface ZipState {
 	queues: unknown[][];
+	terminal: boolean[];
 }
 
 /**
@@ -94,11 +103,15 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 		factory: "zip",
 		opts: { partial: true, completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const n = ctx.depRecords.length;
-			const st = ctx.state.get<ZipState>() ?? { queues: Array.from({ length: n }, () => []) };
+			const n = depCount(ctx);
+			const st = ctx.state.get<ZipState>() ?? {
+				queues: Array.from({ length: n }, () => []),
+				terminal: new Array(n).fill(false),
+			};
 			for (let i = 0; i < n; i++) {
-				const b = ctx.depRecords[i].batch;
+				const b = depBatch(ctx, i);
 				if (b) for (const v of b) st.queues[i].push(v);
+				if (isTerminalComplete(depTerminal(ctx, i))) st.terminal[i] = true;
 			}
 			while (st.queues.every((q) => q.length > 0)) {
 				ctx.down([["DATA", st.queues.map((q) => q.shift()) as unknown as T]]);
@@ -106,7 +119,7 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 			ctx.state.set(st);
 			// A terminal dep whose queue is now drained can never contribute another tuple → COMPLETE.
 			for (let i = 0; i < n; i++) {
-				if (ctx.depRecords[i].terminal === true && st.queues[i].length === 0) {
+				if (st.terminal[i] && st.queues[i].length === 0) {
 					ctx.down([["COMPLETE"]]);
 					return;
 				}
@@ -133,26 +146,28 @@ export function concat<S>(): Operator<S, S> {
 		factory: "concat",
 		opts: { partial: true, completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const first = ctx.depRecords[0];
-			const second = ctx.depRecords[1];
+			const firstBatch = depBatch(ctx, 0);
+			const secondBatch = depBatch(ctx, 1);
+			const firstTerminal = depTerminal(ctx, 0);
+			const secondTerminal = depTerminal(ctx, 1);
 			const st: ConcatState<S> = ctx.state.get<ConcatState<S>>() ?? {
 				phase: 0,
 				pending: [],
 				secondDone: false,
 			};
 			if (st.phase === 0) {
-				if (first.batch) for (const v of first.batch) ctx.down([["DATA", v]]);
-				if (second.batch) for (const v of second.batch) st.pending.push(v as S);
-				if (second.terminal === true) st.secondDone = true;
-				if (first.terminal === true) {
+				if (firstBatch) for (const v of firstBatch) ctx.down([["DATA", v]]);
+				if (secondBatch) for (const v of secondBatch) st.pending.push(v as S);
+				if (isTerminalComplete(secondTerminal)) st.secondDone = true;
+				if (isTerminalComplete(firstTerminal)) {
 					st.phase = 1;
 					for (const v of st.pending) ctx.down([["DATA", v]]);
 					st.pending = [];
 					if (st.secondDone) ctx.down([["COMPLETE"]]);
 				}
 			} else {
-				if (second.batch) for (const v of second.batch) ctx.down([["DATA", v]]);
-				if (second.terminal === true) ctx.down([["COMPLETE"]]);
+				if (secondBatch) for (const v of secondBatch) ctx.down([["DATA", v]]);
+				if (isTerminalComplete(secondTerminal)) ctx.down([["COMPLETE"]]);
 			}
 			ctx.state.set(st);
 		},
@@ -162,6 +177,7 @@ export function concat<S>(): Operator<S, S> {
 /** Internal: which dep won the {@link race} (null until the first DATA). */
 interface RaceState {
 	winner: number | null;
+	terminals: unknown[];
 }
 
 /**
@@ -180,12 +196,19 @@ export function race<S>(): Operator<S, S> {
 			terminalAsRealInput: true,
 		},
 		body: (ctx) => {
-			const n = ctx.depRecords.length;
-			const st: RaceState = ctx.state.get<RaceState>() ?? { winner: null };
+			const n = depCount(ctx);
+			const st: RaceState = ctx.state.get<RaceState>() ?? {
+				winner: null,
+				terminals: new Array(n).fill(false),
+			};
+			for (let i = 0; i < n; i++) {
+				const terminal = depTerminal(ctx, i);
+				if (!isTerminalNone(terminal)) st.terminals[i] = terminal;
+			}
 			if (st.winner === null) {
 				// Find the first dep that delivered DATA this wave → it wins.
 				for (let i = 0; i < n; i++) {
-					const b = ctx.depRecords[i].batch;
+					const b = depBatch(ctx, i);
 					if (b && b.length > 0) {
 						st.winner = i;
 						for (const v of b) ctx.down([["DATA", v]]);
@@ -194,26 +217,24 @@ export function race<S>(): Operator<S, S> {
 				}
 				if (st.winner === null) {
 					// No winner yet — if EVERY dep is terminal (none ever delivered DATA), COMPLETE.
-					// Recompute from the (sticky, terminal-is-forever) flags each wave — NEVER
-					// accumulate a counter, or a dep that terminated in an earlier wave is re-counted
-					// every subsequent wave (premature COMPLETE while a later dep is still live, n>=3).
-					if (ctx.depRecords.every((r) => r.terminal !== undefined)) {
+					if (st.terminals.every((t) => !isTerminalNone(t))) {
 						ctx.state.set(st);
 						ctx.down([["COMPLETE"]]);
 						return;
 					}
 				}
 			} else {
-				const w = ctx.depRecords[st.winner];
-				if (w.batch) for (const v of w.batch) ctx.down([["DATA", v]]);
-				if (w.terminal === true) {
+				const b = depBatch(ctx, st.winner);
+				const terminal = depTerminal(ctx, st.winner);
+				if (b) for (const v of b) ctx.down([["DATA", v]]);
+				if (isTerminalComplete(terminal)) {
 					ctx.state.set(st);
 					ctx.down([["COMPLETE"]]);
 					return;
 				}
-				if (w.terminal !== undefined) {
+				if (isTerminalError(terminal)) {
 					ctx.state.set(st);
-					ctx.down([["ERROR", w.terminal]]);
+					ctx.down([["ERROR", terminalErrorValue(terminal)]]);
 					return;
 				}
 			}
@@ -235,17 +256,17 @@ export function buffer<S>(): Operator<unknown, S[]> {
 		factory: "buffer",
 		opts: { partial: true, completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const source = ctx.depRecords[0];
-			const notifier = ctx.depRecords[1];
+			const sourceBatch = depBatch(ctx, 0);
+			const notifierBatch = depBatch(ctx, 1);
 			const buf = ctx.state.get<S[]>() ?? [];
-			if (source.batch) for (const v of source.batch) buf.push(v as S);
-			if (source.terminal === true) {
+			if (sourceBatch) for (const v of sourceBatch) buf.push(v as S);
+			if (isTerminalComplete(depTerminal(ctx, 0))) {
 				if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
 				ctx.state.set([]);
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			if (notifier.batch && notifier.batch.length > 0) {
+			if (notifierBatch && notifierBatch.length > 0) {
 				ctx.down([["DATA", [...buf]]]); // flush (may be empty) on each notifier signal
 				ctx.state.set([]);
 				return;
@@ -268,15 +289,15 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 		factory: "bufferCount",
 		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const r = ctx.depRecords[0];
+			const b = depBatch(ctx, 0);
 			const buf = ctx.state.get<S[]>() ?? [];
-			if (r.batch) {
-				for (const v of r.batch) {
+			if (b) {
+				for (const v of b) {
 					buf.push(v as S);
 					if (buf.length >= count) ctx.down([["DATA", buf.splice(0, buf.length)]]);
 				}
 			}
-			if (r.terminal === true) {
+			if (isTerminalComplete(depTerminal(ctx, 0))) {
 				if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
 				ctx.state.set([]);
 				ctx.down([["COMPLETE"]]);
@@ -310,32 +331,34 @@ export function sample<S>(): Operator<unknown, S> {
 			terminalAsRealInput: true,
 		},
 		body: (ctx) => {
-			const source = ctx.depRecords[0];
-			const notifier = ctx.depRecords[1];
+			const sourceBatch = depBatch(ctx, 0);
+			const notifierBatch = depBatch(ctx, 1);
+			const sourceTerminal = depTerminal(ctx, 0);
+			const notifierTerminal = depTerminal(ctx, 1);
 			const st: SampleState<S> = ctx.state.get<SampleState<S>>() ?? {
 				last: undefined,
 				sourceDone: false,
 			};
 			// ERROR from either dep → terminate.
-			if (source.terminal !== undefined && source.terminal !== true) {
-				ctx.down([["ERROR", source.terminal]]);
+			if (isTerminalError(sourceTerminal)) {
+				ctx.down([["ERROR", terminalErrorValue(sourceTerminal)]]);
 				return;
 			}
-			if (notifier.terminal !== undefined && notifier.terminal !== true) {
-				ctx.down([["ERROR", notifier.terminal]]);
+			if (isTerminalError(notifierTerminal)) {
+				ctx.down([["ERROR", terminalErrorValue(notifierTerminal)]]);
 				return;
 			}
-			if (source.batch) for (const v of source.batch) st.last = { v: v as S };
-			if (source.terminal === true) {
+			if (sourceBatch) for (const v of sourceBatch) st.last = { v: v as S };
+			if (isTerminalComplete(sourceTerminal)) {
 				st.sourceDone = true;
 				st.last = undefined;
 			}
-			if (notifier.terminal === true) {
+			if (isTerminalComplete(notifierTerminal)) {
 				ctx.state.set(st);
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			if (notifier.batch && notifier.batch.length > 0 && st.last !== undefined && !st.sourceDone) {
+			if (notifierBatch && notifierBatch.length > 0 && st.last !== undefined && !st.sourceDone) {
 				ctx.down([["DATA", st.last.v]]);
 			}
 			ctx.state.set(st);
@@ -354,14 +377,14 @@ export function takeUntil<S>(): Operator<unknown, S> {
 		factory: "takeUntil",
 		opts: { partial: true, completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx: Ctx) => {
-			const source = ctx.depRecords[0];
-			const notifier = ctx.depRecords[1];
-			if (notifier.batch && notifier.batch.length > 0) {
+			const sourceBatch = depBatch(ctx, 0);
+			const notifierBatch = depBatch(ctx, 1);
+			if (notifierBatch && notifierBatch.length > 0) {
 				ctx.down([["COMPLETE"]]); // notifier fired → stop
 				return;
 			}
-			if (source.batch) for (const v of source.batch) ctx.down([["DATA", v]]);
-			if (source.terminal === true) ctx.down([["COMPLETE"]]);
+			if (sourceBatch) for (const v of sourceBatch) ctx.down([["DATA", v]]);
+			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]);
 		},
 	};
 }

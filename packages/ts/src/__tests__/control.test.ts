@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { node } from "../index.js";
+import { depLatest, node } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -15,7 +15,7 @@ describe("PAUSE/RESUME lockset (R-pause-lockset, R-pause-modes default)", () => 
 		let runs = 0;
 		const d = node<number>([a], (ctx: Ctx) => {
 			runs++;
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 1]]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
 		});
 		collect(d);
 		expect(d.cache).toBe(2);
@@ -48,7 +48,7 @@ describe("PAUSE/RESUME lockset (R-pause-lockset, R-pause-modes default)", () => 
 			[a],
 			(ctx: Ctx) => {
 				runs++;
-				ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 1]]);
+				ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
 			},
 			{ pausable: false },
 		);
@@ -65,7 +65,7 @@ describe("PAUSE/RESUME lockset (R-pause-lockset, R-pause-modes default)", () => 
 		const d = node<number>(
 			[a],
 			(ctx: Ctx) => {
-				ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 1]]);
+				ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
 			},
 			{ pausable: "resumeAll" },
 		);
@@ -95,7 +95,7 @@ describe("async pool (R-sync-core async label, R8 late-emit pairing)", () => {
 		const dbl = node<number>(
 			[a],
 			(ctx: Ctx) => {
-				const v = ctx.depRecords[0].latest as number;
+				const v = depLatest(ctx, 0) as number;
 				resolve = () => ctx.down([["DATA", v * 2]]);
 			},
 			{ pool: "async" },
@@ -118,7 +118,7 @@ describe("async-result at a paused node (R-async-paused / C-2)", () => {
 		const an = node<number>(
 			[a],
 			(ctx: Ctx) => {
-				const v = ctx.depRecords[0].latest as number;
+				const v = depLatest(ctx, 0) as number;
 				resolve = () => ctx.down([["DATA", v * 2]]);
 			},
 			{ pool: "async" },

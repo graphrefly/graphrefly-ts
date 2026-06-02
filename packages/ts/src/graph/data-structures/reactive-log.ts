@@ -18,7 +18,7 @@
  * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
  */
 
-import type { Ctx } from "../../ctx/types.js";
+import { type Ctx, depBatch, depCount } from "../../ctx/types.js";
 import { type Node, node } from "../../node/node.js";
 import { trimHeadOverflow } from "../policies/collection.js";
 import type { LogChange } from "./change.js";
@@ -260,8 +260,9 @@ export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogC
 	return node<LogChange<T>>(
 		deps,
 		(ctx: Ctx) => {
-			for (const r of ctx.depRecords) {
-				if (r.batch) for (const c of r.batch) ctx.down([["DATA", c as LogChange<T>]]);
+			for (let i = 0; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b) for (const c of b) ctx.down([["DATA", c as LogChange<T>]]);
 			}
 		},
 		{ factory: "mergeReactiveLogs", partial: true },

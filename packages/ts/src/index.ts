@@ -7,7 +7,26 @@
  */
 
 export { type BatchCtx, batch } from "./batch/batch.js";
-export type { Ctx, CtxState, DepRecord, NodeFn, RewireNext, Sink } from "./ctx/types.js";
+export type {
+	Ctx,
+	CtxState,
+	NodeFn,
+	RewireNext,
+	Sink,
+	TerminalData,
+	WaveData,
+} from "./ctx/types.js";
+export {
+	depBatch,
+	depCount,
+	depLatest,
+	depTerminal,
+	depWaves,
+	isTerminalComplete,
+	isTerminalError,
+	isTerminalNone,
+	terminalErrorValue,
+} from "./ctx/types.js";
 export {
 	Dispatcher,
 	defaultDispatcher,

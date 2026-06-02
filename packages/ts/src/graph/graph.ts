@@ -12,10 +12,10 @@
  */
 
 import { type BatchCtx, batch as batchRun } from "../batch/batch.js";
-import type { Ctx, NodeFn } from "../ctx/types.js";
+import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
 import { Node, type NodeOptions } from "../node/node.js";
-import { messageTier } from "../protocol/messages.js";
+import { errorPayload, messageTier } from "../protocol/messages.js";
 import type { DescribeEdge, DescribeNode, DescribeOpts, DescribeSnapshot } from "./describe.js";
 import type { NodeProfile, ObserveStream, Profile } from "./inspect.js";
 import { initNode, type Operator } from "./operators.js";
@@ -177,11 +177,13 @@ export class Graph {
 	): Node<T> {
 		const ctxFn: NodeFn = (ctx: Ctx) => {
 			try {
-				const args = ctx.depRecords.map((r) => r.latest) as DepValues<D>;
+				const args = Array.from({ length: depCount(ctx) }, (_, i) =>
+					depLatest(ctx, i),
+				) as DepValues<D>;
 				const result = fn(...args);
 				if (result !== undefined) ctx.down([["DATA", result]]);
 			} catch (e) {
-				ctx.down([["ERROR", e]]); // D30: value-level throw → graph-layer ERROR
+				ctx.down([["ERROR", errorPayload(e, "derived threw without a valid error payload")]]); // D30: value-level throw → graph-layer ERROR
 			}
 		};
 		const n = new Node<T>([...deps], ctxFn, this._nodeOpts(opts));
@@ -203,11 +205,13 @@ export class Graph {
 		// safe (the per-run clear prevents accumulation).
 		const ctxFn: NodeFn = (ctx: Ctx) => {
 			try {
-				const args = ctx.depRecords.map((r) => r.latest) as DepValues<D>;
+				const args = Array.from({ length: depCount(ctx) }, (_, i) =>
+					depLatest(ctx, i),
+				) as DepValues<D>;
 				const cleanup = fn(...args);
 				if (typeof cleanup === "function") ctx.onDeactivation(cleanup);
 			} catch (e) {
-				ctx.down([["ERROR", e]]);
+				ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
 			}
 		};
 		const n = new Node<void>([...deps], ctxFn, this._nodeOpts(opts));

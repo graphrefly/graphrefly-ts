@@ -12,8 +12,9 @@
  * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
  */
 
-import type { Ctx } from "../../ctx/types.js";
+import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { Node } from "../../node/node.js";
+import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import { trimHeadOverflow } from "../policies/collection.js";
 import type { ListChange } from "./change.js";
@@ -197,16 +198,15 @@ export function reactiveList<T>(
 
 	const applyBody = (ctx: Ctx): void => {
 		const deps = apply?.deps ?? [];
-		for (let i = 0; i < ctx.depRecords.length; i++) {
+		for (let i = 0; i < depCount(ctx); i++) {
 			const dep = deps[i];
-			const record = ctx.depRecords[i];
 			if (dep === capacityPolicy) {
-				const latest = record?.latest;
+				const latest = depLatest(ctx, i);
 				if (latest !== undefined) currentMaxSize = validateMaxSize(latest as number);
 				continue;
 			}
 			if (dep && bindDeps.has(dep)) {
-				for (const value of (record?.batch ?? []) as readonly T[]) {
+				for (const value of (depBatch(ctx, i) ?? []) as readonly T[]) {
 					backend.append(value);
 					core.emit({ kind: "append", value });
 					enforceCapacity();
@@ -337,11 +337,11 @@ export function reactiveList<T>(
 				factory: "reactiveList.bindSource",
 				body: (ctx: Ctx) => {
 					try {
-						for (const value of (ctx.depRecords[0]?.batch ?? []) as readonly T[]) {
+						for (const value of (depBatch(ctx, 0) ?? []) as readonly T[]) {
 							ctx.down([["DATA", value]]);
 						}
 					} catch (e) {
-						ctx.down([["ERROR", e ?? new Error("reactiveList.bindSource failed")]]);
+						ctx.down([["ERROR", errorPayload(e, "reactiveList.bindSource failed")]]);
 					}
 				},
 			};

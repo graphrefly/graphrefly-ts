@@ -11,7 +11,17 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, NodeFn } from "../index.js";
-import { batch, graph, type Node, node } from "../index.js";
+import {
+	batch,
+	depBatch,
+	depCount,
+	depLatest,
+	depTerminal,
+	graph,
+	isTerminalComplete,
+	type Node,
+	node,
+} from "../index.js";
 
 function collect(n: Node) {
 	const msgs: Message[] = [];
@@ -52,7 +62,7 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 		const op: Node<number> = node<number>(
 			[s],
 			function opFn(ctx) {
-				if (ctx.depRecords[0].batch) {
+				if (depBatch(ctx, 0)) {
 					ctx.rewireNext.addDep(inner.node, opFn);
 					// still inside the fn run: the dep must NOT be wired yet (inner not activated).
 					deferredCorrectly = !inner.isActivated();
@@ -75,11 +85,11 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 			[s],
 			function opFn(ctx) {
 				opRuns++;
-				for (let i = 1; i < ctx.depRecords.length; i++) {
-					const b = ctx.depRecords[i].batch;
+				for (let i = 1; i < depCount(ctx); i++) {
+					const b = depBatch(ctx, i);
 					if (b) for (const v of b) ctx.down([["DATA", v as number]]);
 				}
-				if (ctx.depRecords[0].batch) ctx.rewireNext.addDep(inner.node, opFn);
+				if (depBatch(ctx, 0)) ctx.rewireNext.addDep(inner.node, opFn);
 			},
 			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
 		);
@@ -106,12 +116,12 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 			[s],
 			function opFn(ctx) {
 				const removals: Node<number>[] = [];
-				for (let i = 1; i < ctx.depRecords.length; i++) {
-					const b = ctx.depRecords[i].batch;
+				for (let i = 1; i < depCount(ctx); i++) {
+					const b = depBatch(ctx, i);
 					if (b) for (const v of b) ctx.down([["DATA", v as number]]);
-					if (ctx.depRecords[i].terminal === true) removals.push(inners[i - 1]);
+					if (isTerminalComplete(depTerminal(ctx, i))) removals.push(inners[i - 1]);
 				}
-				if (ctx.depRecords[0].batch) {
+				if (depBatch(ctx, 0)) {
 					inners.push(inner.node);
 					ctx.rewireNext.addDep(inner.node, opFn);
 				}
@@ -141,11 +151,11 @@ describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47/D6
 		const op: Node<number> = node<number>(
 			[s],
 			function opFn(ctx) {
-				for (let i = 1; i < ctx.depRecords.length; i++) {
-					const b = ctx.depRecords[i].batch;
+				for (let i = 1; i < depCount(ctx); i++) {
+					const b = depBatch(ctx, i);
 					if (b) for (const v of b) ctx.down([["DATA", v as number]]);
 				}
-				const sv = ctx.depRecords[0].batch;
+				const sv = depBatch(ctx, 0);
 				if (sv && sv.length > 0) {
 					current = (sv[sv.length - 1] as number) === 1 ? innerA.node : innerB.node;
 					ctx.rewireNext.setDeps([s, current], opFn); // switch: one atomic op
@@ -176,7 +186,7 @@ describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47/D6
 		const op: Node<number> = node<number>(
 			[s],
 			function opFn(ctx) {
-				if (ctx.depRecords[0].batch) {
+				if (depBatch(ctx, 0)) {
 					ctx.rewireNext.addDep(inner.node, opFn); // queued…
 					ctx.down([["COMPLETE"]]); // …then the OP goes terminal THIS wave
 				}
@@ -199,12 +209,12 @@ describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47/D6
 		const op: Node<number> = node<number>(
 			[s],
 			function opFn(ctx) {
-				if (!added && ctx.depRecords[0].batch) {
+				if (!added && depBatch(ctx, 0)) {
 					added = true;
 					ctx.rewireNext.addDep(inner.node, opFn);
 					return;
 				}
-				if (ctx.depRecords[0].terminal === true) {
+				if (isTerminalComplete(depTerminal(ctx, 0))) {
 					ctx.rewireNext.removeDep(inner.node, opFn);
 					ctx.down([["COMPLETE"]]);
 				}
@@ -226,7 +236,7 @@ describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47/D6
 		const op: Node<number> = node<number>([a], function opFn(ctx) {
 			runs++;
 			if (runs < 5) ctx.rewireNext.setDeps([a], opFn); // same dep set every run
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		collect(op);
 		// activation ran once; the idempotent setDeps drains but changes nothing → no fresh
@@ -241,7 +251,7 @@ describe("ctx.rewireNext — switch (setDeps) + terminal + no-net-change (D47/D6
 		const x = node<number>([], null, { initial: 9 });
 		const op: Node<number> = node<number>([a], function opFn(ctx) {
 			op.addDep(x, opFn); // IMMEDIATE self-rewire mid-fn → feedback cycle
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		expect(() => collect(op)).toThrow(/mid-fn|feedback/);
 	});
@@ -259,7 +269,7 @@ describe("ctx.rewireNext — drain robustness (QA: per-thunk isolation)", () => 
 		const opA: Node<number> = node<number>(
 			[sA],
 			function fnA(ctx) {
-				if (ctx.depRecords[0].batch) ctx.rewireNext.addDep(opA, fnA); // self-dep → throws at apply
+				if (depBatch(ctx, 0)) ctx.rewireNext.addDep(opA, fnA); // self-dep → throws at apply
 			},
 			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
 		);
@@ -271,7 +281,7 @@ describe("ctx.rewireNext — drain robustness (QA: per-thunk isolation)", () => 
 		const opB: Node<number> = node<number>(
 			[sB],
 			function fnB(ctx) {
-				if (ctx.depRecords[0].batch) ctx.rewireNext.addDep(innerB.node, fnB);
+				if (depBatch(ctx, 0)) ctx.rewireNext.addDep(innerB.node, fnB);
 			},
 			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
 		);
@@ -296,11 +306,11 @@ describe("ctx.rewireNext — batch boundary (D47 / B24)", () => {
 		const op: Node<number> = g.node(
 			[s],
 			function opFn(ctx: Ctx) {
-				for (let i = 1; i < ctx.depRecords.length; i++) {
-					const b = ctx.depRecords[i].batch;
+				for (let i = 1; i < depCount(ctx); i++) {
+					const b = depBatch(ctx, i);
 					if (b) for (const v of b) ctx.down([["DATA", v as number]]);
 				}
-				if (ctx.depRecords[0].batch) ctx.rewireNext.addDep(inner.node, opFn as NodeFn);
+				if (depBatch(ctx, 0)) ctx.rewireNext.addDep(inner.node, opFn as NodeFn);
 			},
 			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
 		);

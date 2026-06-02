@@ -12,10 +12,18 @@ import { describe, expect, it } from "vitest";
 import type { Ctx, Message, NodeFn } from "../index.js";
 import {
 	batch,
+	depBatch,
+	depCount,
+	depLatest,
+	depTerminal,
 	distinctUntilChanged,
+	dynamicNode,
 	filter,
 	fromIter,
+	fromPromise,
 	graph,
+	isTerminalComplete,
+	isTerminalError,
 	type Node,
 	node,
 	take,
@@ -24,6 +32,7 @@ import {
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
+const flush = () => new Promise((r) => setTimeout(r, 0));
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((m) => msgs.push(m));
@@ -62,7 +71,7 @@ describe("C-2 async-result arriving at paused node (R-async-paused, R-pause-lock
 });
 
 describe("C-3 INVALIDATE × ctx.state × onInvalidate (R-invalidate-idempotent, R-ctx-state)", () => {
-	it("cascades once, fires onInvalidate, preserves ctx.state, resets dep prevData", () => {
+	it("cascades once, fires onInvalidate, preserves ctx.state, resets dep cached latest", () => {
 		const statesAtRun: unknown[] = [];
 		let onInv = 0;
 		const s = node<number>([], null, { initial: 1 });
@@ -72,7 +81,7 @@ describe("C-3 INVALIDATE × ctx.state × onInvalidate (R-invalidate-idempotent, 
 			ctx.onInvalidate(() => {
 				onInv++;
 			});
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) * 2]]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
 		});
 		const { msgs } = collect(d);
 		expect(d.cache).toBe(2);
@@ -104,7 +113,7 @@ describe("C-4 mixed sync/async diamond (R-diamond, R-two-phase, R-first-run-gate
 		let cctx: Ctx | null = null;
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([a], (ctx: Ctx) =>
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 10]]),
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 10]]),
 		); // sync leg
 		const c = node<number>(
 			[a],
@@ -115,9 +124,7 @@ describe("C-4 mixed sync/async diamond (R-diamond, R-two-phase, R-first-run-gate
 		);
 		const d = node<number>([b, c], (ctx: Ctx) => {
 			dRuns++;
-			ctx.down([
-				["DATA", (ctx.depRecords[0].latest as number) + (ctx.depRecords[1].latest as number)],
-			]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
 		});
 
 		const { msgs } = collect(d);
@@ -149,7 +156,7 @@ describe("C-5 PAUSE lockset multi-source (R-pause-lockset, R-pause-modes)", () =
 		const s = node<number>([], null, { initial: 0 });
 		const n = node<number>([s], (ctx: Ctx) => {
 			runs++;
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		collect(n);
 		expect(n.cache).toBe(0);
@@ -203,9 +210,7 @@ describe("C-6 synchronous feedback cycle → ERROR (R-reentrancy / D37)", () => 
 describe("C-7 upstream control at a depless source (R-up-at-source / D38)", () => {
 	const make = () => {
 		const s = node<number>([], null, { initial: 5 });
-		const d = node<number>([s], (ctx: Ctx) =>
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
-		);
+		const d = node<number>([s], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
 		const { msgs } = collect(d);
 		msgs.length = 0;
 		return { s, d, msgs };
@@ -240,11 +245,9 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 	it("surgical addDep (push-on-subscribe) → removeDep (drain) → idempotent setDeps; cache preserved", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 100 }); // B carries cached DATA
-		const aOnly = (ctx: Ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const aOnly = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		const sum = (ctx: Ctx) =>
-			ctx.down([
-				["DATA", (ctx.depRecords[0].latest as number) + (ctx.depRecords[1].latest as number)],
-			]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
 		const d = node<number>([a], aOnly);
 		collect(d);
 		expect(d.cache).toBe(1); // (1) A settled → D ran
@@ -267,7 +270,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		let runs = 0;
 		const f = (ctx: Ctx) => {
 			runs++;
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		};
 		d.setDeps([b], f); // (6) setDeps to the current set → idempotent
 		expect(runs).toBe(0); // no spurious recompute
@@ -276,7 +279,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 
 	it("rejects rewire on a terminal node (throw → graph-layer ERROR, D30)", () => {
 		const a = node<number>([], null, { initial: 1 });
-		const id = (ctx: Ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const id = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		const d = node<number>([a], id, { completeWhenDepsComplete: false });
 		collect(d);
 		d.down([["COMPLETE"]]); // D terminal
@@ -368,12 +371,12 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const inners: Node<number>[] = [];
 		const opFn: NodeFn = (ctx) => {
 			const removals: Node<number>[] = [];
-			for (let i = 1; i < ctx.depRecords.length; i++) {
-				const b = ctx.depRecords[i].batch;
+			for (let i = 1; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
 				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
-				if (ctx.depRecords[i].terminal === true) removals.push(inners[i - 1]);
+				if (isTerminalComplete(depTerminal(ctx, i))) removals.push(inners[i - 1]);
 			}
-			const sv = ctx.depRecords[0].batch;
+			const sv = depBatch(ctx, 0);
 			if (sv && sv.length > 0) {
 				const inner = makeInner((sv[sv.length - 1] as number) * 10);
 				inners.push(inner.node);
@@ -396,11 +399,11 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const inners: Node<number>[] = [];
 		const opFn: NodeFn = (ctx) => {
 			opRuns++;
-			for (let i = 1; i < ctx.depRecords.length; i++) {
-				const b = ctx.depRecords[i].batch;
+			for (let i = 1; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
 				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
 			}
-			const sv = ctx.depRecords[0].batch;
+			const sv = depBatch(ctx, 0);
 			if (sv && sv.length > 0) {
 				const inner = makeInner((sv[sv.length - 1] as number) * 10);
 				inners.push(inner.node);
@@ -448,11 +451,11 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const innerB = makeInner(20);
 		let current: Node<number> | null = null;
 		const opFn: NodeFn = (ctx) => {
-			for (let i = 1; i < ctx.depRecords.length; i++) {
-				const b = ctx.depRecords[i].batch;
+			for (let i = 1; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
 				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
 			}
-			const sv = ctx.depRecords[0].batch;
+			const sv = depBatch(ctx, 0);
 			if (sv && sv.length > 0) {
 				current = (sv[sv.length - 1] as number) === 1 ? innerA.node : innerB.node;
 				ctx.rewireNext.setDeps([s, current], opFn);
@@ -487,7 +490,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		// g.derived carries the D30 value-throw→ERROR boundary; the fn does an IMMEDIATE self-addDep
 		// (NOT ctx.rewireNext) mid-run → the D37 reject throws → graph layer converts it to ERROR.
 		op = g.derived([a], (av) => {
-			op.addDep(x, (c) => c.down([["DATA", c.depRecords[0].latest as number]]));
+			op.addDep(x, (c) => c.down([["DATA", depLatest(c, 0) as number]]));
 			return av as number;
 		});
 		let escaped = false;
@@ -504,7 +507,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const s = node<number>([], null);
 		const inner = makeInner(1);
 		const opFn: NodeFn = (ctx) => {
-			if (ctx.depRecords[0].batch) {
+			if (depBatch(ctx, 0)) {
 				ctx.rewireNext.addDep(inner.node, opFn); // queued…
 				ctx.down([["COMPLETE"]]); // …then OP goes terminal THIS wave
 			}
@@ -528,12 +531,12 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const inner = makeInner(1);
 		let added = false;
 		const opFn: NodeFn = (ctx) => {
-			if (!added && ctx.depRecords[0].batch) {
+			if (!added && depBatch(ctx, 0)) {
 				added = true;
 				ctx.rewireNext.addDep(inner.node, opFn);
 				return;
 			}
-			if (ctx.depRecords[0].terminal === true) {
+			if (isTerminalComplete(depTerminal(ctx, 0))) {
 				ctx.rewireNext.removeDep(inner.node, opFn);
 				ctx.down([["COMPLETE"]]);
 			}
@@ -557,7 +560,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const op = node<number>([a], function opFn(ctx) {
 			runs++;
 			if (runs < 5) ctx.rewireNext.setDeps([a], opFn); // identical dep set every run
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		collect(op);
 		expect(runs).toBe(1); // the idempotent setDeps changes nothing → no fresh wave → no loop
@@ -671,7 +674,7 @@ describe("C-13 INVALIDATE arriving at a paused compute node (R-paused-invalidate
 		const d1 = node<number>([], null, { initial: 0 });
 		const n = node<number>([d1], (ctx: Ctx) => {
 			runs++;
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 1]]); // non-guarding
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]); // non-guarding
 		});
 		const { msgs } = collect(n);
 		expect(n.cache).toBe(1);
@@ -695,7 +698,7 @@ describe("C-13 INVALIDATE arriving at a paused compute node (R-paused-invalidate
 		const d1 = node<number>([], null, { initial: 0 });
 		const n = node<number>([d1], (ctx: Ctx) => {
 			runs++;
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 100]]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 100]]);
 		});
 		collect(n);
 		runs = 0;
@@ -717,8 +720,8 @@ describe("C-13 INVALIDATE arriving at a paused compute node (R-paused-invalidate
 		const d2 = node<number>([], null, { initial: 0 });
 		const n = node<number>([d1, d2], (ctx: Ctx) => {
 			runs++;
-			const a = (ctx.depRecords[0].latest as number | undefined) ?? 0; // guards D1 SENTINEL
-			const b = ctx.depRecords[1].latest as number;
+			const a = (depLatest(ctx, 0) as number | undefined) ?? 0; // guards D1 SENTINEL
+			const b = depLatest(ctx, 1) as number;
 			ctx.down([["DATA", a + b]]);
 		});
 		collect(n);
@@ -744,7 +747,7 @@ describe("C-14 cleanup hooks are per-run (cleared + re-registered each fn run) (
 		const d = node<number>([s], (ctx: Ctx) => {
 			ctx.onInvalidate(() => flush++);
 			ctx.onDeactivation(() => cleanup++);
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		const { unsub } = collect(d); // run 1 (activation, s=0)
 		s.down([["DATA", 1]]); // run 2 — re-registers (prior run's hooks cleared)
@@ -762,7 +765,7 @@ describe("C-14 cleanup hooks are per-run (cleared + re-registered each fn run) (
 		const s = node<number>([], null, { initial: 5 });
 		const d = node<number>([s], (ctx: Ctx) => {
 			ctx.onDeactivation(() => cleanup++);
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		const { unsub } = collect(d); // run 1 only
 		unsub();
@@ -777,10 +780,7 @@ describe("C-14 cleanup hooks are per-run (cleared + re-registered each fn run) (
 describe("C-15 a dep's terminal releases its in-wave DIRTY contribution (R-terminal-settles-dirty / D-none)", () => {
 	const sum2 = (ctx: Ctx) =>
 		ctx.down([
-			[
-				"DATA",
-				((ctx.depRecords[0].latest as number) ?? 0) + ((ctx.depRecords[1].latest as number) ?? 0),
-			],
+			["DATA", ((depLatest(ctx, 0) as number) ?? 0) + ((depLatest(ctx, 1) as number) ?? 0)],
 		]);
 
 	it("(a) COMPLETE-mid-dirty: D joins ONCE on the live leg, not wedged", () => {
@@ -822,9 +822,9 @@ describe("C-15 a dep's terminal releases its in-wave DIRTY contribution (R-termi
 		const b = node<number>([], null, { initial: 1 });
 		const c = node<number>([], null, { initial: 10 });
 		const rescue = (ctx: Ctx) => {
-			const bt = ctx.depRecords[0].terminal;
-			const bv = bt !== undefined && bt !== true ? 0 : ((ctx.depRecords[0].latest as number) ?? 0);
-			ctx.down([["DATA", bv + ((ctx.depRecords[1].latest as number) ?? 0)]]);
+			const bt = depTerminal(ctx, 0);
+			const bv = isTerminalError(bt) ? 0 : ((depLatest(ctx, 0) as number) ?? 0);
+			ctx.down([["DATA", bv + ((depLatest(ctx, 1) as number) ?? 0)]]);
 		};
 		const d = node<number>([b, c], rescue, {
 			errorWhenDepsError: false,
@@ -854,11 +854,7 @@ describe("C-15 a dep's terminal releases its in-wave DIRTY contribution (R-termi
 			(ctx: Ctx) => {
 				runs++;
 				ctx.down([
-					[
-						"DATA",
-						((ctx.depRecords[0].latest as number) ?? 0) +
-							((ctx.depRecords[1].latest as number) ?? 0),
-					],
+					["DATA", ((depLatest(ctx, 0) as number) ?? 0) + ((depLatest(ctx, 1) as number) ?? 0)],
 				]);
 			},
 			{ completeWhenDepsComplete: false },
@@ -888,10 +884,13 @@ describe("C-15 a dep's terminal releases its in-wave DIRTY contribution (R-termi
 describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers once then re-quiets (R-pull / R-up-routing / D55,D59)", () => {
 	const PSNAP = Symbol("snapshot"); // the author-supplied pullId, shared between the pull node + the demander
 	// SNAP = a pull node over an accumulator ACC, projecting ACC's latest as the "snapshot".
-	const snapFn = (ctx: Ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+	const snapFn = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 	const fwd: NodeFn = (ctx) => {
 		// a non-pull intermediate: forward any dep DATA downstream (relays a routed demand's delivery).
-		for (const r of ctx.depRecords) if (r.batch) for (const v of r.batch) ctx.down([["DATA", v]]);
+		for (let i = 0; i < depCount(ctx); i++) {
+			const b = depBatch(ctx, i);
+			if (b) for (const v of b) ctx.down([["DATA", v]]);
+		}
 	};
 
 	it("(quiet/absorb + no push-on-subscribe) ACC changes never relay a DIRTY to SNAP's sink", () => {
@@ -954,9 +953,9 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		const stream = node<number>([], null); // cheap delta-notification source
 		const received: number[] = [];
 		const cFn: NodeFn = (ctx) => {
-			const snapB = ctx.depRecords[1].batch;
+			const snapB = depBatch(ctx, 1);
 			if (snapB) for (const v of snapB) received.push(v as number);
-			const streamB = ctx.depRecords[0].batch;
+			const streamB = depBatch(ctx, 0);
 			// boundary-deferred self-demand: a cone-routed RESUME(pullId), NO snap reference held.
 			if (streamB && streamB.length > 0) ctx.upNext([["RESUME", PSNAP]]);
 		};
@@ -980,7 +979,7 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		const g = node<number>([fSnap, hSnap], fwd, { partial: true }); // intermediate forwards
 		const received: number[] = [];
 		const d = node<number>([g], (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (b) for (const v of b) received.push(v as number);
 		});
 		collect(d);
@@ -999,7 +998,7 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		const stream = node<number>([], null);
 		const received: number[] = [];
 		const cFn: NodeFn = (ctx) => {
-			const snapB = ctx.depRecords[1].batch; // snap is dep index 1
+			const snapB = depBatch(ctx, 1); // snap is dep index 1
 			if (snapB) for (const v of snapB) received.push(v as number);
 		};
 		const c = node<number>([stream, snap], cFn, { partial: true });
@@ -1019,7 +1018,7 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		const snap = node<number>([acc], snapFn, { pullId: PSNAP });
 		const stream = node<number>([], null);
 		const cFn: NodeFn = (ctx) => {
-			const streamB = ctx.depRecords[0].batch;
+			const streamB = depBatch(ctx, 0);
 			// IMMEDIATE (non-deferred) demand: SNAP's delivery loops straight back → re-enters C mid-wave.
 			if (streamB && streamB.length > 0) ctx.up([["RESUME", PSNAP]]);
 		};
@@ -1036,7 +1035,10 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 // (rescue/race/sample use completeWhenDepsComplete:false) — a pure latent-wedge fix.
 describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 / R-deps-terminal)", () => {
 	const fwd: NodeFn = (ctx) => {
-		for (const r of ctx.depRecords) if (r.batch) for (const v of r.batch) ctx.down([["DATA", v]]);
+		for (let i = 0; i < depCount(ctx); i++) {
+			const b = depBatch(ctx, i);
+			if (b) for (const v of b) ctx.down([["DATA", v]]);
+		}
 	};
 
 	it("(a) error-then-complete: C errors (absorbed), then B completes → D auto-COMPLETEs", () => {
@@ -1081,11 +1083,9 @@ describe("C-18 — routed pull demand over a diamond is holder-idempotent (R-up-
 	it("broadcast RESUME over D→G1/G2→SNAP invokes SNAP's demand handler once", () => {
 		const PSNAP = Symbol("snapshot");
 		const acc = node<number>([], null, { initial: 0 });
-		const snap = node<number>(
-			[acc],
-			(ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
-			{ pullId: PSNAP },
-		);
+		const snap = node<number>([acc], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+			pullId: PSNAP,
+		});
 		let demands = 0;
 		const snapProbe = snap as unknown as {
 			_onDemand: () => void;
@@ -1097,7 +1097,10 @@ describe("C-18 — routed pull demand over a diamond is holder-idempotent (R-up-
 		};
 
 		const fwd: NodeFn = (ctx) => {
-			for (const r of ctx.depRecords) if (r.batch) for (const v of r.batch) ctx.down([["DATA", v]]);
+			for (let i = 0; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b) for (const v of b) ctx.down([["DATA", v]]);
+			}
 		};
 		const g1 = node<number>([snap], fwd, { partial: true });
 		const g2 = node<number>([snap], fwd, { partial: true });
@@ -1121,11 +1124,7 @@ describe("C-19 — undirty RESOLVED from non-fn settle arms respects pause and b
 			[b, c],
 			(ctx) =>
 				ctx.down([
-					[
-						"DATA",
-						((ctx.depRecords[0].latest as number) ?? 0) +
-							((ctx.depRecords[1].latest as number) ?? 0),
-					],
+					["DATA", ((depLatest(ctx, 0) as number) ?? 0) + ((depLatest(ctx, 1) as number) ?? 0)],
 				]),
 			{ pausable: "resumeAll" },
 		);
@@ -1148,10 +1147,7 @@ describe("C-19 — undirty RESOLVED from non-fn settle arms respects pause and b
 		const c = node<number>([], null);
 		const d = node<number>([b, c], (ctx) =>
 			ctx.down([
-				[
-					"DATA",
-					((ctx.depRecords[0].latest as number) ?? 0) + ((ctx.depRecords[1].latest as number) ?? 0),
-				],
+				["DATA", ((depLatest(ctx, 0) as number) ?? 0) + ((depLatest(ctx, 1) as number) ?? 0)],
 			]),
 		);
 		const { msgs } = collect(d);
@@ -1172,11 +1168,9 @@ describe("C-19 — undirty RESOLVED from non-fn settle arms respects pause and b
 describe("C-20 — TEARDOWN relays through a terminal intermediate (R-teardown-terminal-relay / D65)", () => {
 	it("a completed node relays later upstream TEARDOWN without re-completing", () => {
 		const s = node<number>([], null, { initial: 1 });
-		const mid = node<number>(
-			[s],
-			(ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
-			{ completeWhenDepsComplete: false },
-		);
+		const mid = node<number>([s], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+			completeWhenDepsComplete: false,
+		});
 		const { msgs } = collect(mid);
 		mid.down([["COMPLETE"]]);
 		msgs.length = 0;
@@ -1188,11 +1182,9 @@ describe("C-20 — TEARDOWN relays through a terminal intermediate (R-teardown-t
 
 	it("a terminal relay forwards repeated upstream TEARDOWNs without re-completing", () => {
 		const s = node<number>([], null, { initial: 1 });
-		const mid = node<number>(
-			[s],
-			(ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
-			{ completeWhenDepsComplete: false },
-		);
+		const mid = node<number>([s], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+			completeWhenDepsComplete: false,
+		});
 		const { msgs } = collect(mid);
 		mid.down([["COMPLETE"]]);
 		msgs.length = 0;
@@ -1204,7 +1196,7 @@ describe("C-20 — TEARDOWN relays through a terminal intermediate (R-teardown-t
 	});
 });
 
-// C-21 (R-rewire-async-live-edge / D66): async ctx objects are allowed to keep the old depRecords
+// C-21 (R-rewire-async-live-edge / D66): async ctx objects are allowed to keep the old dep input
 // snapshot for reads, but their late up/down emissions target the node's live topology.
 describe("C-21 — late async ctx emission uses live deps after rewire (R-rewire-async-live-edge / D66)", () => {
 	it("a ctx captured before rewire routes ctx.up through the node's current deps", () => {
@@ -1234,7 +1226,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 	it("commits the old batched DATA before applying the rewire's fresh DATA", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 10 });
-		const fwd: NodeFn = (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const fwd: NodeFn = (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		const d = node<number>([a], fwd);
 		const { msgs } = collect(d);
 		msgs.length = 0;
@@ -1254,7 +1246,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 	it("does not apply a deferred rewire when the batch rolls back", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 10 });
-		const fwd: NodeFn = (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const fwd: NodeFn = (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		const d = node<number>([a], fwd);
 		const { msgs } = collect(d);
 		msgs.length = 0;
@@ -1273,7 +1265,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 	it("applies an accepted rewire after a terminal batch slice while terminal output stays sealed", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 10 });
-		const fwd: NodeFn = (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+		const fwd: NodeFn = (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		const d = node<number>([a], fwd, { completeWhenDepsComplete: false });
 		const { msgs } = collect(d);
 		msgs.length = 0;
@@ -1297,13 +1289,9 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 		const b = node<number>([], null, { initial: 10 });
 		const sum: NodeFn = (ctx) =>
 			ctx.down([
-				[
-					"DATA",
-					((ctx.depRecords[0].latest as number) ?? 0) +
-						((ctx.depRecords[1]?.latest as number) ?? 0),
-				],
+				["DATA", ((depLatest(ctx, 0) as number) ?? 0) + ((depLatest(ctx, 1) as number) ?? 0)],
 			]);
-		const d = node<number>([a], (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]));
+		const d = node<number>([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
 		collect(d);
 
 		let idx = -2;
@@ -1324,7 +1312,7 @@ describe("QA — synthesized no-emit RESOLVED uses normal timing", () => {
 		const f = node<number>(
 			[s],
 			(ctx) => {
-				const value = ctx.depRecords[0].latest as number;
+				const value = depLatest(ctx, 0) as number;
 				if (value >= 10) ctx.down([["DATA", value]]);
 			},
 			{ pausable: "resumeAll" },
@@ -1339,5 +1327,205 @@ describe("QA — synthesized no-emit RESOLVED uses normal timing", () => {
 		expect(types(msgs)).toEqual(["DIRTY"]);
 		f.up([["RESUME", L]]);
 		expect(types(msgs)).toEqual(["DIRTY", "DIRTY", "RESOLVED"]);
+	});
+});
+
+describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-ctx-wave-data / R-data-payload / D77/D78)", () => {
+	const cloneWaveData = (ctx: Ctx) => ctx.waveData.map((waves) => waves.map((w) => [...w]));
+
+	it("exposes waveData/terminal, not depRecords/latest/prevData aliases", () => {
+		let seen: { waveData: unknown[][][]; terminal: unknown[]; hasDepRecords: boolean } | null =
+			null;
+		const a = node<number>([], null);
+		const n = node<number>(
+			[a],
+			(ctx) => {
+				seen = {
+					waveData: cloneWaveData(ctx),
+					terminal: [...ctx.terminal],
+					hasDepRecords: "depRecords" in ctx,
+				};
+			},
+			{ partial: true },
+		);
+		collect(n);
+
+		a.down([["DATA", 1]]);
+
+		expect(seen).toEqual({
+			waveData: [[[1]]],
+			terminal: [false],
+			hasDepRecords: false,
+		});
+	});
+
+	it("distinguishes no-wave, RESOLVED-only, DATA+INVALIDATE, null, and empty-array payloads", () => {
+		const captures: unknown[][][][] = [];
+		const a = node<unknown>([], null);
+		const b = node<unknown>([], null);
+		const n = node<unknown>(
+			[a, b],
+			(ctx) => {
+				captures.push(cloneWaveData(ctx));
+			},
+			{ partial: true },
+		);
+		collect(n);
+
+		b.down([["DATA", "b"]]);
+		expect(captures.at(-1)).toEqual([[], [["b"]]]);
+
+		a.down([["DIRTY"]]);
+		a.down([["RESOLVED"]]);
+		expect(captures.at(-1)).toEqual([[[]], []]);
+
+		a.down([["DATA", 1], ["DATA", 2], ["INVALIDATE"]]);
+		expect(captures.at(-1)).toEqual([[[1, 2, undefined]], []]);
+
+		a.down([["DATA", null]]);
+		expect(captures.at(-1)).toEqual([[[null]], []]);
+
+		a.down([["DATA", []]]);
+		expect(captures.at(-1)).toEqual([[[[]]], []]);
+	});
+
+	it("keeps COMPLETE/ERROR out of waveData and in ctx.terminal", () => {
+		const terminals: unknown[][] = [];
+		const waves: unknown[][][][] = [];
+		const a = node<number>([], null);
+		const n = node<number>(
+			[a],
+			(ctx) => {
+				waves.push(cloneWaveData(ctx));
+				terminals.push([...ctx.terminal]);
+			},
+			{
+				partial: true,
+				completeWhenDepsComplete: false,
+				errorWhenDepsError: false,
+				terminalAsRealInput: true,
+			},
+		);
+		collect(n);
+
+		a.down([["COMPLETE"]]);
+		expect(waves.at(-1)).toEqual([[]]);
+		expect(terminals.at(-1)).toEqual([true]);
+
+		const e = new Error("boom");
+		const b = node<number>([], null);
+		const m = node<number>(
+			[b],
+			(ctx) => {
+				waves.push(cloneWaveData(ctx));
+				terminals.push([...ctx.terminal]);
+			},
+			{
+				partial: true,
+				completeWhenDepsComplete: false,
+				errorWhenDepsError: false,
+				terminalAsRealInput: true,
+			},
+		);
+		collect(m);
+		b.down([["ERROR", e]]);
+		expect(waves.at(-1)).toEqual([[]]);
+		expect(terminals.at(-1)).toEqual([e]);
+
+		const c = node<number>([], null);
+		const p = node<number>(
+			[c],
+			(ctx) => {
+				waves.push(cloneWaveData(ctx));
+				terminals.push([...ctx.terminal]);
+			},
+			{
+				partial: true,
+				completeWhenDepsComplete: false,
+				errorWhenDepsError: false,
+				terminalAsRealInput: true,
+			},
+		);
+		collect(p);
+		c.down([["ERROR", null]]);
+		expect(waves.at(-1)).toEqual([[]]);
+		expect(terminals.at(-1)).toEqual([null]);
+	});
+
+	it("exposes terminal metadata only for the invocation that observed the terminal", () => {
+		const captures: Array<{ waveData: unknown[][][]; terminal: unknown[] }> = [];
+		const a = node<number>([], null);
+		const b = node<number>([], null);
+		const n = node<number>(
+			[a, b],
+			(ctx) => {
+				captures.push({
+					waveData: cloneWaveData(ctx),
+					terminal: [...ctx.terminal],
+				});
+			},
+			{
+				partial: true,
+				completeWhenDepsComplete: false,
+				terminalAsRealInput: true,
+			},
+		);
+		collect(n);
+
+		a.down([["COMPLETE"]]);
+		expect(captures.at(-1)).toEqual({ waveData: [[], []], terminal: [true, false] });
+
+		b.down([["DATA", 1]]);
+		expect(captures.at(-1)).toEqual({ waveData: [[], [[1]]], terminal: [false, false] });
+	});
+
+	it("rejects boolean ERROR payloads at the protocol boundary and coerces host-source failures", async () => {
+		const s = node<number>([], null);
+		const msgs: Message[] = [];
+		s.subscribe((m) => msgs.push(m));
+		msgs.length = 0;
+		expect(() => s.down([["ERROR", undefined]])).toThrow(/non-SENTINEL/);
+		expect(() => s.down([["ERROR", false]])).toThrow(/non-boolean/);
+		expect(() => s.down([["ERROR", true]])).toThrow(/non-boolean/);
+		expect(() =>
+			s.down([
+				["DATA", 1],
+				["ERROR", false],
+			]),
+		).toThrow(/non-boolean/);
+		expect(msgs).toEqual([]);
+
+		const g = graph();
+		for (const reason of [undefined, false, true]) {
+			const n = g.initNode(fromPromise(Promise.reject(reason)), []);
+			const msgs: Message[] = [];
+			n.subscribe((m) => msgs.push(m));
+			await flush();
+			const last = msgs.at(-1);
+			expect(last?.[0]).toBe("ERROR");
+			expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		}
+	});
+
+	it("lets dynamicNode inspect waveData to stay quiet on an unread-dep-only wave", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null);
+		const captures: unknown[][][][] = [];
+		const d = dynamicNode<number>(
+			[a, b],
+			(ctx) => {
+				captures.push(cloneWaveData(ctx));
+				if (ctx.waveData[1]?.length) return;
+				ctx.down([["DATA", ctx.track?.(0) as number]]);
+			},
+			{ partial: true },
+		);
+		const { msgs } = collect(d);
+		msgs.length = 0;
+
+		b.down([["DATA", 2]]);
+
+		expect(captures.at(-1)).toEqual([[], [[2]]]);
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]);
 	});
 });

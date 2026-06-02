@@ -3,7 +3,7 @@
  *
  * Operators are `node` sugar (D6), NOT verbs (D4) and NEVER in parity (D24). Each is a
  * pure {@link Operator} spec — `{factory, body, opts}` — built on the bare `node` primitive
- * (NOT the `derived` verb): `body` reads `ctx.depRecords` positionally and emits via
+ * (NOT the `derived` verb): `body` reads ctx dep slots positionally and emits via
  * `ctx.down`. Two ways to instantiate:
  *
  *   - {@link initNode}(op, deps, opts?) — bare, no Graph; returns a working `Node<T>`.
@@ -22,19 +22,30 @@
  * dep-type safety is recovered by the typed `g.initNode` overloads.
  */
 
-import type { Ctx, NodeFn } from "../ctx/types.js";
+import {
+	type Ctx,
+	depBatch,
+	depCount,
+	depLatest,
+	depTerminal,
+	isTerminalComplete,
+	isTerminalError,
+	type NodeFn,
+	terminalErrorValue,
+} from "../ctx/types.js";
 import { Node, type NodeOptions } from "../node/node.js";
+import { errorPayload } from "../protocol/messages.js";
 
 /**
  * A free-standing operator definition (D43). `TIn` = the element type each dep delivers
- * (the operator reads `ctx.depRecords[i].latest as TIn`); `TOut` = the emitted value type.
+ * (the operator reads `depLatest(ctx, i) as TIn`); `TOut` = the emitted value type.
  * `__in`/`__out` are phantom-only (never assigned) — they let `g.initNode` infer + check the
  * dep tuple against the operator without an explicit type argument.
  */
 export interface Operator<TIn = unknown, TOut = unknown> {
 	/** Real operator name shown in describe (D6/L1.5) — recorded at `_add` by `g.initNode`. */
 	readonly factory: string;
-	/** The ctx-body: reads `ctx.depRecords` positionally, emits via `ctx.down`. */
+	/** The ctx-body: reads ctx dep slots positionally, emits via `ctx.down`. */
 	readonly body: (ctx: Ctx) => void;
 	/** Behavioral node options the operator needs (e.g. `partial:true` for combine-family). */
 	readonly opts?: Partial<NodeOptions<TOut>>;
@@ -63,7 +74,7 @@ export function initNode<TIn, TOut>(
 		try {
 			op.body(ctx);
 		} catch (e) {
-			ctx.down([["ERROR", e]]); // D30: value-level throw → ERROR
+			ctx.down([["ERROR", errorPayload(e, "operator threw without a valid error payload")]]); // D30: value-level throw → ERROR
 		}
 	};
 	// D43-reserved / D51: stamp the operator's real factory onto the bare node so a runtime *Map
@@ -77,7 +88,7 @@ export function initNode<TIn, TOut>(
 // All read dep 0 positionally + emit via ctx.down. Under D49 every occurrence is DATA (no
 // equals-absorption); a body that returns WITHOUT emitting gets a substrate-synthesized undirty
 // RESOLVED (R-resolved-undirty) — so a "skip this wave" is a bare `return`. Terminal-emitting
-// operators (reduce/last/find/elementAt) read `ctx.depRecords[0].terminal` via the
+// operators (reduce/last/find/elementAt) read `depTerminal(ctx, 0)` via the
 // `completeWhenDepsComplete:false + terminalAsRealInput:true` flags (R-deps-terminal): the fn fires
 // on the source's COMPLETE and emits its final value. NOT 1:1 pure-ts ports — the frozen reference
 // (D41) uses a producer + internal `subscribeOr`, the D45-banned describe island; these are
@@ -88,7 +99,7 @@ export function map<S, T>(fn: (v: S) => T): Operator<S, T> {
 	return {
 		factory: "map",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			for (const v of b) ctx.down([["DATA", fn(v as S)]]);
 		},
@@ -100,7 +111,7 @@ export function filter<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "filter",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			for (const v of b) if (pred(v as S)) ctx.down([["DATA", v]]);
 		},
@@ -112,7 +123,7 @@ export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T
 	return {
 		factory: "scan",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			let acc = ctx.state.get<T>() ?? seed;
 			for (const v of b) {
@@ -133,7 +144,7 @@ export function take<S>(n: number): Operator<S, S> {
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			let count = ctx.state.get<number>() ?? 0;
 			if (count >= n) return; // already satisfied
@@ -152,7 +163,7 @@ export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is)
 	return {
 		factory: "distinctUntilChanged",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			const prev = ctx.state.get<{ v: S }>();
 			let last = prev?.v;
@@ -177,9 +188,10 @@ export function merge<T>(): Operator<T, T> {
 		factory: "merge",
 		opts: { partial: true },
 		body: (ctx) => {
-			for (const r of ctx.depRecords) {
-				if (r.batch && r.batch.length > 0) {
-					for (const v of r.batch) ctx.down([["DATA", v]]);
+			for (let i = 0; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b && b.length > 0) {
+					for (const v of b) ctx.down([["DATA", v]]);
 				}
 			}
 		},
@@ -198,11 +210,11 @@ export function reduce<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S,
 		factory: "reduce",
 		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const r = ctx.depRecords[0];
+			const b = depBatch(ctx, 0);
 			let acc = ctx.state.get<T>() ?? seed;
-			if (r.batch) for (const v of r.batch) acc = reducer(acc, v as S);
+			if (b) for (const v of b) acc = reducer(acc, v as S);
 			ctx.state.set(acc);
-			if (r.terminal === true) ctx.down([["DATA", acc], ["COMPLETE"]]);
+			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["DATA", acc], ["COMPLETE"]]);
 			// else (live DATA wave): no emit → substrate-synthesized undirty RESOLVED (D49).
 		},
 	};
@@ -216,7 +228,7 @@ export function pairwise<S>(): Operator<S, readonly [S, S]> {
 	return {
 		factory: "pairwise",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			const st = ctx.state.get<{ prev: S }>();
 			let prev = st?.prev;
@@ -236,7 +248,7 @@ export function skip<S>(n: number): Operator<S, S> {
 	return {
 		factory: "skip",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			let count = ctx.state.get<number>() ?? 0;
 			for (const v of b) {
@@ -259,7 +271,7 @@ export function takeWhile<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "takeWhile",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			for (const v of b as readonly S[]) {
 				if (pred(v)) ctx.down([["DATA", v]]);
@@ -282,7 +294,7 @@ export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "first",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			for (const v of b as readonly S[]) {
 				if (!pred || pred(v)) {
@@ -307,9 +319,9 @@ export function last<S>(pred?: (v: S) => boolean): Operator<S, S> {
 		factory: "last",
 		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const r = ctx.depRecords[0];
-			if (r.batch) for (const v of r.batch) if (!pred || pred(v as S)) ctx.state.set({ v });
-			if (r.terminal === true) {
+			const b = depBatch(ctx, 0);
+			if (b) for (const v of b) if (!pred || pred(v as S)) ctx.state.set({ v });
+			if (isTerminalComplete(depTerminal(ctx, 0))) {
 				const st = ctx.state.get<{ v: S }>();
 				ctx.down(st ? [["DATA", st.v], ["COMPLETE"]] : [["COMPLETE"]]);
 			}
@@ -327,16 +339,16 @@ export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 		factory: "find",
 		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const r = ctx.depRecords[0];
-			if (r.batch) {
-				for (const v of r.batch) {
+			const b = depBatch(ctx, 0);
+			if (b) {
+				for (const v of b) {
 					if (pred(v as S)) {
 						ctx.down([["DATA", v], ["COMPLETE"]]);
 						return;
 					}
 				}
 			}
-			if (r.terminal === true) ctx.down([["COMPLETE"]]); // not found → bare COMPLETE
+			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]); // not found → bare COMPLETE
 		},
 	};
 }
@@ -351,10 +363,10 @@ export function elementAt<S>(index: number): Operator<S, S> {
 		factory: "elementAt",
 		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const r = ctx.depRecords[0];
+			const b = depBatch(ctx, 0);
 			let count = ctx.state.get<number>() ?? 0;
-			if (r.batch) {
-				for (const v of r.batch) {
+			if (b) {
+				for (const v of b) {
 					if (count === index) {
 						ctx.down([["DATA", v], ["COMPLETE"]]);
 						return;
@@ -363,7 +375,7 @@ export function elementAt<S>(index: number): Operator<S, S> {
 				}
 				ctx.state.set(count);
 			}
-			if (r.terminal === true) ctx.down([["COMPLETE"]]); // index out of range → bare COMPLETE
+			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]); // index out of range → bare COMPLETE
 		},
 	};
 }
@@ -388,7 +400,7 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
 		return {
 			factory: "tap",
 			body: (ctx) => {
-				const b = ctx.depRecords[0].batch;
+				const b = depBatch(ctx, 0);
 				if (b)
 					for (const v of b) {
 						fn(v as S);
@@ -406,19 +418,21 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
 			terminalAsRealInput: true,
 		},
 		body: (ctx) => {
-			const r = ctx.depRecords[0];
-			if (r.terminal === true) {
+			const terminal = depTerminal(ctx, 0);
+			if (isTerminalComplete(terminal)) {
 				obs.complete?.();
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			if (r.terminal !== undefined) {
-				obs.error?.(r.terminal);
-				ctx.down([["ERROR", r.terminal]]);
+			if (isTerminalError(terminal)) {
+				const err = terminalErrorValue(terminal);
+				obs.error?.(err);
+				ctx.down([["ERROR", err]]);
 				return;
 			}
-			if (r.batch)
-				for (const v of r.batch) {
+			const b = depBatch(ctx, 0);
+			if (b)
+				for (const v of b) {
 					obs.data?.(v as S);
 					ctx.down([["DATA", v]]);
 				}
@@ -440,7 +454,7 @@ export function onFirstData<S>(
 	return {
 		factory: "onFirstData",
 		body: (ctx) => {
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			if (!b) return;
 			let fired = ctx.state.get<boolean>() ?? false;
 			for (const v of b) {
@@ -504,7 +518,7 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 			};
 			if (st.done) return;
 			st.waves++;
-			const b = ctx.depRecords[0].batch;
+			const b = depBatch(ctx, 0);
 			let sawChange = false;
 			if (b && b.length > 0) {
 				for (const v of b) {
@@ -534,7 +548,7 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 
 // ── Slice 3 — error-handling control (CSP-2.7, D40) ──
 // rescue/catchError ABSORB the source ERROR (errorWhenDepsError:false) and read the error payload
-// from `ctx.depRecords[0].terminal` (R-deps-terminal). They set completeWhenDepsComplete:false so a
+// from `depTerminal(ctx, 0)` (R-deps-terminal). They set completeWhenDepsComplete:false so a
 // normal source COMPLETE is forwarded explicitly — which ALSO sidesteps B40 (the
 // completeWhenDepsComplete:true × absorbed-errored-dep auto-complete gap): there is no auto-complete
 // to block. valve is a [source, control] gate (state-verb-legitimate control input).
@@ -555,16 +569,17 @@ export function rescue<S>(recover: (err: unknown) => S): Operator<S, S> {
 			terminalAsRealInput: true,
 		},
 		body: (ctx) => {
-			const r = ctx.depRecords[0];
-			if (r.batch) for (const v of r.batch) ctx.down([["DATA", v]]);
-			if (r.terminal === true) {
+			const b = depBatch(ctx, 0);
+			const terminal = depTerminal(ctx, 0);
+			if (b) for (const v of b) ctx.down([["DATA", v]]);
+			if (isTerminalComplete(terminal)) {
 				ctx.down([["COMPLETE"]]);
-			} else if (r.terminal !== undefined) {
+			} else if (isTerminalError(terminal)) {
 				// ERROR payload absorbed → recover.
 				try {
-					ctx.down([["DATA", recover(r.terminal)]]);
+					ctx.down([["DATA", recover(terminalErrorValue(terminal))]]);
 				} catch (e) {
-					ctx.down([["ERROR", e]]);
+					ctx.down([["ERROR", errorPayload(e, "rescue threw without a valid error payload")]]);
 				}
 			}
 		},
@@ -599,9 +614,10 @@ export function valve<S>(opts?: ValveOpts): Operator<S, S> {
 		factory: "valve",
 		opts: { partial: true, completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
-			const src = ctx.depRecords[0];
-			const ctl = ctx.depRecords[1];
-			const controlValue = ctl.latest as boolean | undefined;
+			const srcBatch = depBatch(ctx, 0);
+			const ctlBatch = depBatch(ctx, 1);
+			const srcTerminal = depTerminal(ctx, 0);
+			const controlValue = depLatest(ctx, 1) as boolean | undefined;
 
 			if (abortInFlight != null) {
 				// Fire abort on the truthy→falsy edge only (never on activation / no prior state).
@@ -616,25 +632,25 @@ export function valve<S>(opts?: ValveOpts): Operator<S, S> {
 			}
 
 			// Source terminal forwarding (control terminal is absorbed by completeWhenDepsComplete:false).
-			if (src.terminal === true) {
+			if (isTerminalComplete(srcTerminal)) {
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			if (src.terminal !== undefined) {
-				ctx.down([["ERROR", src.terminal]]);
+			if (isTerminalError(srcTerminal)) {
+				ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
 				return;
 			}
 
 			if (!controlValue) return; // gate closed → quiet (undirty RESOLVED)
 
-			const b = src.batch;
-			if (b && b.length > 0) {
-				for (const v of b) ctx.down([["DATA", v]]);
+			if (srcBatch && srcBatch.length > 0) {
+				for (const v of srcBatch) ctx.down([["DATA", v]]);
 				return;
 			}
 			// Gate just opened this wave (control fired, source didn't): re-emit the last source value.
-			if (ctl.batch && ctl.batch.length > 0 && src.prevData !== undefined) {
-				ctx.down([["DATA", src.prevData as S]]);
+			const srcLatest = depLatest(ctx, 0);
+			if (ctlBatch && ctlBatch.length > 0 && srcLatest !== undefined) {
+				ctx.down([["DATA", srcLatest as S]]);
 			}
 		},
 	};

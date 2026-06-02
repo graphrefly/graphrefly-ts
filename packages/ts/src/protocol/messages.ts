@@ -36,6 +36,16 @@ export type MessageType = Message[0];
  */
 export const SENTINEL = undefined;
 
+/** R-data-payload: ERROR payloads must not collide with terminal metadata shorthand. */
+export function isInvalidErrorPayload(v: unknown): boolean {
+	return v === SENTINEL || typeof v === "boolean";
+}
+
+/** R-data-payload / D78: host-language failures that collide with ctx.terminal shorthand become diagnostics. */
+export function errorPayload(reason: unknown, fallback = "error without a valid payload"): unknown {
+	return isInvalidErrorPayload(reason) ? new Error(fallback) : reason;
+}
+
 /**
  * Tier const table (R-tier / D34). Tiers < 3 dispatch immediately; tiers >= 3 are
  * batch-deferred. This is a compile-time const table (D18), not runtime config.

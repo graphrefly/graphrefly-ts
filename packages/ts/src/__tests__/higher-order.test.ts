@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import {
 	concatMap,
+	depLatest,
 	exhaustMap,
 	flatMap,
 	graph,
@@ -331,7 +332,7 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 	it("auto-discovers an unregistered live dep (a bare initNode source) WITH its factory (D51 B2 / D43)", () => {
 		const g = graph();
 		const inner = initNode(of(42), []); // BARE (free initNode, not g.*) → unregistered, factory "of"
-		const d = g.node([inner], (ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]), {
+		const d = g.node([inner], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
 			name: "d",
 		});
 		collect(d);

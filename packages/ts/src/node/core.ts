@@ -1,4 +1,4 @@
-import type { Ctx, DepRecord, Sink } from "../ctx/types.js";
+import type { Ctx, Sink } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import { type LockId, SENTINEL, type Wave } from "../protocol/messages.js";
 import type { Node, Status } from "./node.js";
@@ -7,14 +7,16 @@ export type NodeId = number & { readonly __nodeId: unique symbol };
 
 export interface DepBookkeeping {
 	batch: Array<unknown[] | null>;
+	waveData: unknown[][][];
+	waveTokens: Array<object | undefined>;
 	prev: unknown[];
 	hasData: boolean[];
 	dirty: boolean[];
 	tier: number[];
 	terminal: Array<true | unknown | undefined>;
+	terminalInput: Array<true | unknown | undefined>;
 	unsubs: Array<() => void>;
 	idxBoxes: Array<{ v: number }>;
-	records: DepRecord[];
 }
 
 export interface ValueState<T> {
@@ -106,19 +108,15 @@ export class NodeCore {
 export function makeDepBookkeeping(depCount: number): DepBookkeeping {
 	return {
 		batch: new Array(depCount).fill(null),
+		waveData: Array.from({ length: depCount }, () => []),
+		waveTokens: new Array(depCount).fill(undefined),
 		prev: new Array(depCount).fill(SENTINEL),
 		hasData: new Array(depCount).fill(false),
 		dirty: new Array(depCount).fill(false),
 		tier: new Array(depCount).fill(0),
 		terminal: new Array(depCount).fill(undefined),
+		terminalInput: new Array(depCount).fill(undefined),
 		unsubs: [],
 		idxBoxes: [],
-		records: Array.from({ length: depCount }, () => ({
-			batch: null,
-			prevData: SENTINEL,
-			latest: SENTINEL,
-			tier: 0,
-			terminal: undefined,
-		})),
 	};
 }

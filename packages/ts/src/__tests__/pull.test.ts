@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { node } from "../index.js";
+import { depLatest, node } from "../index.js";
 
 const types = (m: Message[]) => m.map((x) => x[0]);
 const data = (m: Message[]) =>
@@ -22,7 +22,7 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const unsub = n.subscribe((m) => msgs.push(m));
 	return { msgs, unsub };
 }
-const snapFn = (ctx: Ctx) => ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+const snapFn = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 const PID = Symbol("pullId"); // an author-supplied pullId, shared by the node + the demander
 
 describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () => {
@@ -85,7 +85,7 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 			[acc],
 			(ctx: Ctx) => {
 				if (boom) throw new Error("boom");
-				ctx.down([["DATA", ctx.depRecords[0].latest as number]]);
+				ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 			},
 			{ pullId: PID },
 		);
@@ -118,7 +118,7 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 
 	it("a cone-routed RESUME whose pullId no node holds is a silent no-op (drops at the source terminus)", () => {
 		const src = node<number>([], null, { initial: 1 });
-		const mid = node<number>([src], (ctx: Ctx) => ctx.down([["DATA", ctx.depRecords[0].latest]]));
+		const mid = node<number>([src], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
 		const { msgs } = collect(mid);
 		msgs.length = 0;
 		// demand a pullId NO node up the cone holds → forwards up → drops at the depless source. No throw, no emit.
@@ -131,10 +131,7 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 		const b = node<number>([], null);
 		const sum = (ctx: Ctx) =>
 			ctx.down([
-				[
-					"DATA",
-					((ctx.depRecords[0].latest as number) ?? 0) + ((ctx.depRecords[1].latest as number) ?? 0),
-				],
+				["DATA", ((depLatest(ctx, 0) as number) ?? 0) + ((depLatest(ctx, 1) as number) ?? 0)],
 			]);
 		const snap = node<number>([a, b], sum, { pullId: PID }); // non-partial → gate needs BOTH deps
 		const { msgs } = collect(snap);

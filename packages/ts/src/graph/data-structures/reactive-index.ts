@@ -12,8 +12,9 @@
  * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
  */
 
-import type { Ctx } from "../../ctx/types.js";
+import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { Node, node } from "../../node/node.js";
+import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import type { IndexChange } from "./change.js";
 import { type CollectionCore, type CollectionCoreOptions, collectionCore } from "./core.js";
@@ -298,16 +299,15 @@ export function reactiveIndex<K, V = unknown>(
 
 	const applyBody = (ctx: Ctx): void => {
 		const deps = apply?.deps ?? [];
-		for (let i = 0; i < ctx.depRecords.length; i++) {
+		for (let i = 0; i < depCount(ctx); i++) {
 			const dep = deps[i];
-			const record = ctx.depRecords[i];
 			if (dep === capacityPolicy) {
-				const latest = record?.latest;
+				const latest = depLatest(ctx, i);
 				if (latest !== undefined) currentMaxSize = validateMaxSize(latest as number);
 				continue;
 			}
 			if (dep && bindDeps.has(dep)) {
-				for (const r of (record?.batch ?? []) as readonly {
+				for (const r of (depBatch(ctx, i) ?? []) as readonly {
 					primary: K;
 					secondary: unknown;
 					value: V;
@@ -469,7 +469,7 @@ export function reactiveIndex<K, V = unknown>(
 				factory: "reactiveIndex.bindSource",
 				body: (ctx: Ctx) => {
 					try {
-						for (const r of (ctx.depRecords[0]?.batch ?? []) as readonly {
+						for (const r of (depBatch(ctx, 0) ?? []) as readonly {
 							primary: K;
 							secondary: unknown;
 							value: V;
@@ -477,7 +477,7 @@ export function reactiveIndex<K, V = unknown>(
 							ctx.down([["DATA", r]]);
 						}
 					} catch (e) {
-						ctx.down([["ERROR", e ?? new Error("reactiveIndex.bindSource failed")]]);
+						ctx.down([["ERROR", errorPayload(e, "reactiveIndex.bindSource failed")]]);
 					}
 				},
 			};

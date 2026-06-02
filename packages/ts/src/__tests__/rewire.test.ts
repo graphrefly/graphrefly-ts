@@ -9,14 +9,14 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { Dispatcher, type Node, node } from "../index.js";
+import { Dispatcher, depLatest, type Node, node } from "../index.js";
 
 function collect(n: Node) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((m) => msgs.push(m));
 	return { msgs, unsub };
 }
-const num = (ctx: Ctx, i: number): number => ctx.depRecords[i].latest as number;
+const num = (ctx: Ctx, i: number): number => depLatest(ctx, i) as number;
 const types = (m: Message[]) => m.map((x) => x[0]);
 
 describe("rewire — Q-semantics (R-rewire / D42)", () => {
@@ -45,7 +45,7 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 
 		d.addDep(b, (ctx) => {
 			runs++;
-			const bv = ctx.depRecords[1].latest; // SENTINEL = undefined — fn guards it
+			const bv = depLatest(ctx, 1); // SENTINEL = undefined — fn guards it
 			ctx.down([["DATA", num(ctx, 0) * 10 + (bv === undefined ? 0 : (bv as number))]]);
 		});
 		expect(runs).toBe(0); // a SENTINEL added dep delivers START only — no recompute
@@ -206,9 +206,7 @@ describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-saf
 		const sum3 = (ctx: Ctx) => {
 			runs++;
 			// a SENTINEL added dep at invocation = the fn fired on a partial view (the bug)
-			sawPartial.push(
-				ctx.depRecords[1].latest === undefined || ctx.depRecords[2].latest === undefined,
-			);
+			sawPartial.push(depLatest(ctx, 1) === undefined || depLatest(ctx, 2) === undefined);
 			ctx.down([["DATA", num(ctx, 0) + num(ctx, 1) + num(ctx, 2)]]);
 		};
 		d.setDeps([a, b, c], sum3); // add b AND c (both cached) in one rewire

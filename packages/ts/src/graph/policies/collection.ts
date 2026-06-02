@@ -6,7 +6,7 @@
  * in its apply/mutation path (D60/D61/D68/D69).
  */
 
-import type { Ctx } from "../../ctx/types.js";
+import { type Ctx, depLatest } from "../../ctx/types.js";
 import type { Node } from "../../node/node.js";
 
 export type PolicyOpt<T> = T | Node<T>;
@@ -41,7 +41,7 @@ function policyReader<T>(index: number): PolicyReader<T> {
 	return {
 		index,
 		read(ctx, current) {
-			const latest = ctx.depRecords[index]?.latest;
+			const latest = depLatest(ctx, index);
 			return latest === undefined ? current : (latest as T);
 		},
 	};

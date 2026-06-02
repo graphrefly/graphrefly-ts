@@ -6,7 +6,15 @@
  * `[source, rules]` that `describe()` can show. Dynamic rule add/remove is deferred by D56.
  */
 
-import type { Ctx } from "../ctx/types.js";
+import {
+	type Ctx,
+	depBatch,
+	depLatest,
+	depTerminal,
+	isTerminalComplete,
+	isTerminalError,
+	terminalErrorValue,
+} from "../ctx/types.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import type { DescribeEdge, DescribeNode, DescribeSnapshot } from "./describe.js";
 import type { Graph, StateNode, SugarOpts } from "./graph.js";
@@ -160,15 +168,18 @@ function stratifyBranchOperator<T, R>(
 			terminalAsRealInput: true,
 		},
 		body: (ctx: Ctx) => {
-			const source = ctx.depRecords[0];
-			const rules = ctx.depRecords[1].latest as R | undefined;
-			if (rules !== undefined && source.batch !== null) {
-				for (const value of source.batch as readonly T[]) {
+			const sourceBatch = depBatch(ctx, 0);
+			const sourceTerminal = depTerminal(ctx, 0);
+			const rules = depLatest(ctx, 1) as R | undefined;
+			if (rules !== undefined && sourceBatch !== null) {
+				for (const value of sourceBatch as readonly T[]) {
 					if (classifier(rules, value)) ctx.down([["DATA", value]]);
 				}
 			}
-			if (source.terminal !== undefined) {
-				ctx.down(source.terminal === true ? [["COMPLETE"]] : [["ERROR", source.terminal]]);
+			if (isTerminalComplete(sourceTerminal)) {
+				ctx.down([["COMPLETE"]]);
+			} else if (isTerminalError(sourceTerminal)) {
+				ctx.down([["ERROR", terminalErrorValue(sourceTerminal)]]);
 			}
 		},
 	};

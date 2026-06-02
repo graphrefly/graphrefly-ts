@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { node } from "../index.js";
+import { depLatest, node } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -80,7 +80,7 @@ describe("compute node (derived)", () => {
 	it("computes from a dep and recomputes on change", () => {
 		const count = node<number>([], null, { initial: 2 });
 		const doubled = node<number>([count], (ctx: Ctx) => {
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) * 2]]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
 		});
 		const { msgs } = collect(doubled);
 		expect(doubled.cache).toBe(4);
@@ -99,16 +99,14 @@ describe("diamond (R-diamond, glitch-free join)", () => {
 		let fireCount = 0;
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([a], (ctx: Ctx) =>
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 10]]),
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 10]]),
 		);
 		const c = node<number>([a], (ctx: Ctx) =>
-			ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 20]]),
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 20]]),
 		);
 		const d = node<number>([b, c], (ctx: Ctx) => {
 			fireCount++;
-			ctx.down([
-				["DATA", (ctx.depRecords[0].latest as number) + (ctx.depRecords[1].latest as number)],
-			]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
 		});
 
 		collect(d);
@@ -152,7 +150,7 @@ describe("first-run gate (R-first-run-gate)", () => {
 			(ctx: Ctx) => {
 				fired = true;
 				// fn body guards SENTINEL per dep (R-first-run-gate partial contract)
-				const bv = ctx.depRecords[1].latest;
+				const bv = depLatest(ctx, 1);
 				ctx.down([["DATA", bv === undefined ? -1 : (bv as number)]]);
 			},
 			{ partial: true },

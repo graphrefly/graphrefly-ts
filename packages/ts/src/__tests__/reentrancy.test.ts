@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../index.js";
-import { node } from "../index.js";
+import { depLatest, node } from "../index.js";
 
-const plus1 = (ctx: Ctx) => ctx.down([["DATA", (ctx.depRecords[0].latest as number) + 1]]);
+const plus1 = (ctx: Ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
 
 describe("R-reentrancy (D37) — synchronous feedback cycle is rejected", () => {
 	it("a fn that re-drives its own dep mid-wave throws (cycle detected node-locally)", () => {
@@ -12,7 +12,7 @@ describe("R-reentrancy (D37) — synchronous feedback cycle is rejected", () => 
 		const d = node<number>([s], plus1);
 		const e = node<number>([d], (ctx: Ctx) => {
 			// feedback write back to S (an indirect dep of E) — re-enters the wave.
-			s.down([["DATA", ctx.depRecords[0].latest as number]]);
+			s.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		expect(() => e.subscribe(() => {})).toThrow(/feedback cycle|R-reentrancy/i);
 	});
@@ -20,9 +20,7 @@ describe("R-reentrancy (D37) — synchronous feedback cycle is rejected", () => 
 	it("an acyclic chain does NOT throw (the guard does not false-positive)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const d = node<number>([s], plus1);
-		const e = node<number>([d], (ctx: Ctx) =>
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
-		);
+		const e = node<number>([d], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
 		expect(() => e.subscribe(() => {})).not.toThrow();
 		expect(e.cache).toBe(2);
 	});
@@ -31,7 +29,7 @@ describe("R-reentrancy (D37) — synchronous feedback cycle is rejected", () => 
 		const s = node<number>([], null, { initial: 0 });
 		const d = node<number>([s], plus1);
 		const e = node<number>([d], (ctx: Ctx) => {
-			s.down([["DATA", ctx.depRecords[0].latest as number]]);
+			s.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		expect(() => e.subscribe(() => {})).toThrow();
 		// A fresh, independent chain still computes — no node left with a stuck in-wave flag.

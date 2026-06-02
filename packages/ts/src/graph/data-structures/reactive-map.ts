@@ -21,8 +21,16 @@
  * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
  */
 
-import type { Ctx, NodeFn } from "../../ctx/types.js";
+import {
+	type Ctx,
+	depBatch,
+	depCount,
+	depTerminal,
+	isTerminalComplete,
+	type NodeFn,
+} from "../../ctx/types.js";
 import { Node } from "../../node/node.js";
+import { errorPayload } from "../../protocol/messages.js";
 import { initNode, type Operator } from "../operators.js";
 import {
 	deadlines,
@@ -469,24 +477,22 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 				? undefined
 				: validateRetentionMaxSize(nextRetentionMaxSize);
 
-		for (const item of (ctx.depRecords[0]?.batch ?? []) as readonly MapIntent<K, V>[]) {
+		for (const item of (depBatch(ctx, 0) ?? []) as readonly MapIntent<K, V>[]) {
 			applyIntent(ctx, item);
 		}
 		const deps = apply.deps;
-		for (let i = 1; i < ctx.depRecords.length; i++) {
+		for (let i = 1; i < depCount(ctx); i++) {
 			if (i === lruReader.index || i === ttlReader.index || i === retentionReader.index) continue;
 			const dep = deps[i];
-			const record = ctx.depRecords[i];
 			if (dep && bindDeps.has(dep)) {
-				for (const item of (record?.batch ?? []) as readonly MapIntent<K, V>[]) {
+				for (const item of (depBatch(ctx, i) ?? []) as readonly MapIntent<K, V>[]) {
 					applyIntent(ctx, item);
 				}
 				continue;
 			}
 			if (
 				dep === ttlTimer &&
-				record &&
-				((record.batch?.length ?? 0) > 0 || record.terminal === true)
+				((depBatch(ctx, i)?.length ?? 0) > 0 || isTerminalComplete(depTerminal(ctx, i)))
 			) {
 				if (ttlTimer) ctx.rewireNext.removeDep(ttlTimer, applyBody);
 				ttlTimer = null;
@@ -552,10 +558,10 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	const deltaOp: Operator<unknown, MapChange<K, V>> = {
 		factory: "reactiveMap.delta",
 		body: (ctx: Ctx) => {
-			for (const change of ctx.depRecords[0]?.batch ?? []) {
+			for (const change of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", change as MapChange<K, V>]]);
 			}
-			for (const prep of ctx.depRecords[1]?.batch ?? []) {
+			for (const prep of depBatch(ctx, 1) ?? []) {
 				for (const change of (prep as SnapshotPrep<K, V>).expired) ctx.down([["DATA", change]]);
 			}
 		},
@@ -573,7 +579,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	const snapshotOp: Operator<unknown, ReadonlyMap<K, V>> = {
 		factory: "reactiveMap.snapshot",
 		body: (ctx: Ctx) => {
-			for (const prep of ctx.depRecords[0]?.batch ?? []) {
+			for (const prep of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", (prep as SnapshotPrep<K, V>).snapshot]]);
 			}
 		},
@@ -654,11 +660,11 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 				factory: "reactiveMap.bindSource",
 				body: (ctx: Ctx) => {
 					try {
-						for (const [k, v] of (ctx.depRecords[0]?.batch ?? []) as readonly (readonly [K, V])[]) {
+						for (const [k, v] of (depBatch(ctx, 0) ?? []) as readonly (readonly [K, V])[]) {
 							ctx.down([["DATA", { kind: "set", key: k, value: v }]]);
 						}
 					} catch (e) {
-						ctx.down([["ERROR", e ?? new Error("reactiveMap.bindSource failed")]]);
+						ctx.down([["ERROR", errorPayload(e, "reactiveMap.bindSource failed")]]);
 					}
 				},
 			};

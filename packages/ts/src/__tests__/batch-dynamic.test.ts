@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { batch, dynamicNode, node } from "../index.js";
+import { batch, depLatest, dynamicNode, node } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -16,9 +16,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		const b = node<number>([], null, { initial: 1 });
 		const d = node<number>([a, b], (ctx: Ctx) => {
 			fires++;
-			ctx.down([
-				["DATA", (ctx.depRecords[0].latest as number) + (ctx.depRecords[1].latest as number)],
-			]);
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
 		});
 		collect(d);
 		expect(d.cache).toBe(2);

@@ -25,8 +25,16 @@
  * removed dep is silent — no settle — and applies before any added dep's push-on-subscribe wave).
  */
 
-import type { Ctx, NodeFn } from "../ctx/types.js";
+import {
+	type Ctx,
+	depBatch,
+	depCount,
+	depTerminal,
+	isTerminalComplete,
+	type NodeFn,
+} from "../ctx/types.js";
 import type { Node } from "../node/node.js";
+import { errorPayload } from "../protocol/messages.js";
 import type { Operator } from "./operators.js";
 import { fromAny, type NodeInput } from "./sources.js";
 
@@ -39,6 +47,7 @@ type Mode = "merge" | "switch" | "concat" | "exhaust";
 interface MapState<TIn> {
 	inners: Node<unknown>[];
 	queue: TIn[]; // concatMap pending values (lazy projection); empty for the other modes
+	sourceDone: boolean;
 }
 
 /**
@@ -54,13 +63,18 @@ function mapOperator<TIn, TOut>(
 ): Operator<TIn, TOut> {
 	const body: NodeFn = (ctx: Ctx) => {
 		try {
-			const st = (ctx.state.get<MapState<TIn>>() ?? { inners: [], queue: [] }) as MapState<TIn>;
+			const st = (ctx.state.get<MapState<TIn>>() ?? {
+				inners: [],
+				queue: [],
+				sourceDone: false,
+			}) as MapState<TIn>;
 			let inners = st.inners;
 			const queue = st.queue;
+			if (isTerminalComplete(depTerminal(ctx, 0))) st.sourceDone = true;
 
 			// 1. forward any inner DATA this wave (index-independent — flatten whichever inner fired).
-			for (let i = 1; i < ctx.depRecords.length; i++) {
-				const b = ctx.depRecords[i].batch;
+			for (let i = 1; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
 				if (b && b.length > 0) for (const v of b) ctx.down([["DATA", v]]);
 			}
 
@@ -68,7 +82,7 @@ function mapOperator<TIn, TOut>(
 			const toRemove: Node<unknown>[] = [];
 			const survivors: Node<unknown>[] = [];
 			for (let i = 0; i < inners.length; i++) {
-				if (ctx.depRecords[i + 1]?.terminal === true) toRemove.push(inners[i]);
+				if (isTerminalComplete(depTerminal(ctx, i + 1))) toRemove.push(inners[i]);
 				else survivors.push(inners[i]);
 			}
 			inners = survivors;
@@ -77,7 +91,7 @@ function mapOperator<TIn, TOut>(
 			const toAdd: Node<unknown>[] = [];
 			const make = (v: TIn): Node<unknown> =>
 				fromAny<TOut>(project(v), { iter: true }) as Node<unknown>;
-			const sb = ctx.depRecords[0].batch as readonly TIn[] | null;
+			const sb = depBatch(ctx, 0) as readonly TIn[] | null;
 			if (sb && sb.length > 0) {
 				if (mode === "switch") {
 					// switch to the latest value: cancel every current inner EXCEPT a (re-projected)
@@ -116,7 +130,7 @@ function mapOperator<TIn, TOut>(
 				toAdd.push(inner);
 			}
 
-			ctx.state.set({ inners, queue });
+			ctx.state.set({ inners, queue, sourceDone: st.sourceDone });
 
 			// 4. issue REMOVES before ADDS (alignment): a removed dep is silent + applies before the
 			//    added dep's push-on-subscribe settle wave, so the tracked list stays aligned.
@@ -125,16 +139,11 @@ function mapOperator<TIn, TOut>(
 
 			// 5. completion: the SOURCE is done AND nothing is live or pending → COMPLETE (D47 folding;
 			//    a queued/just-added inner keeps it open). A terminal here discards the deferred queue.
-			if (
-				ctx.depRecords[0].terminal === true &&
-				inners.length === 0 &&
-				toAdd.length === 0 &&
-				queue.length === 0
-			) {
+			if (st.sourceDone && inners.length === 0 && toAdd.length === 0 && queue.length === 0) {
 				ctx.down([["COMPLETE"]]);
 			}
 		} catch (e) {
-			ctx.down([["ERROR", e]]); // D30: a throwing projector → ERROR (self-catch survives rewire)
+			ctx.down([["ERROR", errorPayload(e, "projector threw without a valid error payload")]]); // D30: a throwing projector → ERROR (self-catch survives rewire)
 		}
 	};
 
@@ -225,8 +234,9 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				inner: null,
 			}) as RepeatState;
 			// 1. forward the current inner's DATA this wave (the inner is the sole dep once wired).
-			for (const r of ctx.depRecords) {
-				if (r.batch && r.batch.length > 0) for (const v of r.batch) ctx.down([["DATA", v]]);
+			for (let i = 0; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b && b.length > 0) for (const v of b) ctx.down([["DATA", v]]);
 			}
 			// 2. activation: mint round 0's inner.
 			if (!st.started) {
@@ -239,7 +249,7 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				return;
 			}
 			// 3. inner COMPLETE → next round or terminal COMPLETE.
-			if (st.inner !== null && ctx.depRecords[0]?.terminal === true) {
+			if (st.inner !== null && isTerminalComplete(depTerminal(ctx, 0))) {
 				const old = st.inner;
 				ctx.rewireNext.removeDep(old, body); // bound the finished round's inner
 				if (st.round + 1 < count) {
@@ -255,7 +265,7 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				}
 			}
 		} catch (e) {
-			ctx.down([["ERROR", e]]); // D30 (self-catch survives rewire)
+			ctx.down([["ERROR", errorPayload(e, "repeat threw without a valid error payload")]]); // D30 (self-catch survives rewire)
 		}
 	};
 	return {

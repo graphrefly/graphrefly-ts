@@ -13,6 +13,7 @@ import {
 	last,
 	map,
 	merge,
+	node,
 	onFirstData,
 	pairwise,
 	reduce,
@@ -59,6 +60,23 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		const msgs: Message[] = [];
 		m.subscribe((x) => msgs.push(x));
 		expect(data(msgs)).toEqual([10, 20, 30]);
+	});
+
+	it("map does not treat same-wave INVALIDATE SENTINEL as DATA (D77/R-sentinel)", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const m = initNode(
+			map((n: number) => n * 2),
+			[s],
+		);
+		const msgs: Message[] = [];
+		m.subscribe((x) => msgs.push(x));
+		msgs.length = 0;
+
+		s.down([["DATA", 9], ["INVALIDATE"]]);
+
+		expect(msgs).toEqual([["DIRTY"], ["DATA", 18], ["INVALIDATE"]]);
+		expect(m.cache).toBeUndefined();
+		expect(m.status).toBe("sentinel");
 	});
 
 	it("filter emits only when pred holds", () => {
@@ -232,7 +250,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 
 // CSP-2.7 catalog re-derive (D40): Slice 1 (single-dep transform/take/control) + Slice 3
 // (error-handling). Per-language sugar (D6/D24, never in parity). Terminal-emitting operators read
-// ctx.depRecords[0].terminal (R-deps-terminal). D49: every occurrence is DATA; a no-emit wave →
+// depTerminal(ctx, 0) (R-deps-terminal). D49: every occurrence is DATA; a no-emit wave →
 // substrate-synthesized undirty RESOLVED.
 describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 	it("reduce emits the final accumulator on source COMPLETE", () => {

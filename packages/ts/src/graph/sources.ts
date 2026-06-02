@@ -16,6 +16,7 @@
 
 import type { Ctx } from "../ctx/types.js";
 import type { Node, NodeOptions } from "../node/node.js";
+import { errorPayload } from "../protocol/messages.js";
 import { initNode, type Operator } from "./operators.js";
 
 /**
@@ -56,18 +57,6 @@ function isNode(x: unknown): x is Node {
 
 function isThenable(x: unknown): x is PromiseLike<unknown> {
 	return x != null && typeof (x as PromiseLike<unknown>).then === "function";
-}
-
-/**
- * R-data-payload: an ERROR wave must carry a non-SENTINEL payload. A rejection / abort /
- * `throw` can legitimately be `undefined` (`Promise.reject(undefined)`, a bare
- * `controller.abort()`, `throw undefined`); emitting `[[ERROR, undefined]]` would be rejected
- * by the substrate (node `_down`) — and since the source emits from an async callback OUTSIDE
- * the synchronous D30 boundary, that throw would surface as an unhandled rejection rather than
- * a clean ERROR wave. Coerce `undefined` to a real Error so the source always emits a valid wave.
- */
-function errorPayload(reason: unknown): unknown {
-	return reason === undefined ? new Error("source errored without a reason") : reason;
 }
 
 /** Options shared by the async sources: an optional AbortSignal → ERROR on abort. */

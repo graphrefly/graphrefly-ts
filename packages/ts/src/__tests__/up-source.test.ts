@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { batch, node } from "../index.js";
+import { batch, depLatest, node } from "../index.js";
 
 // depless source S (cached) → derived D (passthrough) → sink. D originates ctx.up([msg]),
 // which forwards upstream to the terminus S (R-up-at-source / D38).
 function setup() {
 	const s = node<number>([], null, { initial: 5 });
-	const d = node<number>([s], (ctx: Ctx) =>
-		ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
-	);
+	const d = node<number>([s], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
 	const seen: Message[] = [];
 	d.subscribe((m) => seen.push(m));
 	return { s, d, seen };
@@ -35,9 +33,7 @@ describe("R-up-at-source (D38) — upstream control at a depless source", () => 
 			});
 			ctx.down([["DATA", 9]]);
 		});
-		const d = node<number>([s], (ctx: Ctx) =>
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
-		);
+		const d = node<number>([s], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
 		d.subscribe(() => {});
 		expect(s.cache).toBe(9);
 		d.up([["INVALIDATE"]]);
@@ -65,9 +61,7 @@ describe("R-up-at-source (D38) — upstream control at a depless source", () => 
 
 	it("INVALIDATE-up defers inside a batch, cascades on commit (A-2: routed via _down)", () => {
 		const s = node<number>([], null, { initial: 5 });
-		const d = node<number>([s], (ctx: Ctx) =>
-			ctx.down([["DATA", ctx.depRecords[0].latest as number]]),
-		);
+		const d = node<number>([s], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
 		d.subscribe(() => {});
 		batch(() => {
 			d.up([["INVALIDATE"]]); // forwarded to depless S → S._down → tier-4 deferred
