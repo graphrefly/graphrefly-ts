@@ -107,15 +107,15 @@ export interface NodeState<T> {
 
 export class NodeCore {
 	private nextId = 0;
-	private readonly slots = new Map<NodeId, NodeSlot<unknown>>();
-	private readonly values = new Map<NodeId, ValueState<unknown>>();
-	private readonly waves = new Map<NodeId, WaveState>();
-	private readonly controls = new Map<NodeId, ControlState>();
-	private readonly lifecycles = new Map<NodeId, LifecycleState>();
-	private readonly depStates = new Map<NodeId, DepBookkeeping>();
-	private readonly privateStates = new Map<NodeId, PrivateState>();
-	private readonly hooks = new Map<NodeId, CleanupHooks>();
-	private readonly syncCtxs = new Map<NodeId, SyncCtxState>();
+	private readonly slots: Array<NodeSlot<unknown> | undefined> = [];
+	private readonly values: Array<ValueState<unknown> | undefined> = [];
+	private readonly waves: Array<WaveState | undefined> = [];
+	private readonly controls: Array<ControlState | undefined> = [];
+	private readonly lifecycles: Array<LifecycleState | undefined> = [];
+	private readonly depStates: Array<DepBookkeeping | undefined> = [];
+	private readonly privateStates: Array<PrivateState | undefined> = [];
+	private readonly hooks: Array<CleanupHooks | undefined> = [];
+	private readonly syncCtxs: Array<SyncCtxState | undefined> = [];
 	private readonly boundary: BoundaryState = { queue: [], head: 0 };
 
 	createSlot<T>(
@@ -124,68 +124,68 @@ export class NodeCore {
 	): { id: NodeId; slot: NodeSlot<T> } {
 		const id = this.nextId++ as NodeId;
 		const full = { ...slot, id };
-		this.slots.set(id, full as NodeSlot<unknown>);
-		this.depStates.set(id, state.dep);
-		this.lifecycles.set(id, state.lifecycle);
-		this.values.set(id, state.value as ValueState<unknown>);
-		this.waves.set(id, state.wave);
-		this.controls.set(id, state.control);
-		this.privateStates.set(id, state.privateState);
-		this.hooks.set(id, state.hooks);
-		this.syncCtxs.set(id, state.syncCtx);
+		this.slots[id] = full as NodeSlot<unknown>;
+		this.depStates[id] = state.dep;
+		this.lifecycles[id] = state.lifecycle;
+		this.values[id] = state.value as ValueState<unknown>;
+		this.waves[id] = state.wave;
+		this.controls[id] = state.control;
+		this.privateStates[id] = state.privateState;
+		this.hooks[id] = state.hooks;
+		this.syncCtxs[id] = state.syncCtx;
 		return { id, slot: full };
 	}
 
 	get<T>(id: NodeId): NodeSlot<T> {
-		const slot = this.slots.get(id);
+		const slot = this.slots[id];
 		if (slot === undefined) throw new Error("NodeCore: unknown node slot");
 		return slot as NodeSlot<T>;
 	}
 
 	getValue<T>(id: NodeId): ValueState<T> {
-		const value = this.values.get(id);
+		const value = this.values[id];
 		if (value === undefined) throw new Error("NodeCore: unknown node value state");
 		return value as ValueState<T>;
 	}
 
 	getWave(id: NodeId): WaveState {
-		const wave = this.waves.get(id);
+		const wave = this.waves[id];
 		if (wave === undefined) throw new Error("NodeCore: unknown node wave state");
 		return wave;
 	}
 
 	getControl(id: NodeId): ControlState {
-		const control = this.controls.get(id);
+		const control = this.controls[id];
 		if (control === undefined) throw new Error("NodeCore: unknown node control state");
 		return control;
 	}
 
 	getLifecycle(id: NodeId): LifecycleState {
-		const lifecycle = this.lifecycles.get(id);
+		const lifecycle = this.lifecycles[id];
 		if (lifecycle === undefined) throw new Error("NodeCore: unknown node lifecycle state");
 		return lifecycle;
 	}
 
 	getDep(id: NodeId): DepBookkeeping {
-		const dep = this.depStates.get(id);
+		const dep = this.depStates[id];
 		if (dep === undefined) throw new Error("NodeCore: unknown node dep state");
 		return dep;
 	}
 
 	getPrivateState(id: NodeId): PrivateState {
-		const state = this.privateStates.get(id);
+		const state = this.privateStates[id];
 		if (state === undefined) throw new Error("NodeCore: unknown node private state");
 		return state;
 	}
 
 	getHooks(id: NodeId): CleanupHooks {
-		const hooks = this.hooks.get(id);
+		const hooks = this.hooks[id];
 		if (hooks === undefined) throw new Error("NodeCore: unknown node cleanup hooks");
 		return hooks;
 	}
 
 	getSyncCtx(id: NodeId): SyncCtxState {
-		const state = this.syncCtxs.get(id);
+		const state = this.syncCtxs[id];
 		if (state === undefined) throw new Error("NodeCore: unknown node ctx state");
 		return state;
 	}

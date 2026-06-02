@@ -174,8 +174,9 @@ describe("ctx.up direction guard (R-ctx-up)", () => {
 
 describe("B49 core-slot migration", () => {
 	const coreOf = (n: object) => (n as unknown as Record<string, unknown>)._core;
+	const occupied = (xs: unknown[]) => xs.filter((x) => x !== undefined).length;
 	const slotCount = (core: unknown) =>
-		((core as Record<string, unknown>).slots as Map<unknown, unknown>).size;
+		occupied((core as Record<string, unknown>).slots as unknown[]);
 	const sideTableCounts = (core: unknown) => {
 		const c = core as Record<string, unknown>;
 		return [
@@ -187,7 +188,7 @@ describe("B49 core-slot migration", () => {
 			"privateStates",
 			"hooks",
 			"syncCtxs",
-		].map((k) => (c[k] as Map<unknown, unknown>).size);
+		].map((k) => occupied(c[k] as unknown[]));
 	};
 	const boundaryTaskCount = (core: unknown) => {
 		const boundary = (core as Record<string, unknown>).boundary as {
@@ -237,6 +238,34 @@ describe("B49 core-slot migration", () => {
 		expect(s.cache).toBe(1);
 		expect(s.status).toBe("settled");
 		expect(s.factory).toBe("probe");
+	});
+
+	it("uses packed NodeId-indexed arrays for B49 side tables", () => {
+		const g = graph();
+		const a = g.state(1);
+		const b = g.derived([a], (v) => v + 1);
+		const core = coreOf(a) as Record<string, unknown>;
+		const idOf = (n: object) => (n as unknown as Record<string, unknown>)._id as number;
+		const slotOf = (n: object) => (n as unknown as Record<string, unknown>)._slot;
+
+		for (const table of [
+			"slots",
+			"depStates",
+			"lifecycles",
+			"values",
+			"waves",
+			"controls",
+			"privateStates",
+			"hooks",
+			"syncCtxs",
+		]) {
+			expect(Array.isArray(core[table]), table).toBe(true);
+			expect((core[table] as unknown[]).length, table).toBe(2);
+		}
+		expect((core.slots as unknown[])[idOf(a)]).toBe(slotOf(a));
+		expect((core.slots as unknown[])[idOf(b)]).toBe(slotOf(b));
+		expect(slotCount(core)).toBe(2);
+		expect(sideTableCounts(core)).toEqual([2, 2, 2, 2, 2, 2, 2, 2]);
 	});
 
 	it("does not add a parallel frontier or adjacency transport over subscriber propagation", () => {
