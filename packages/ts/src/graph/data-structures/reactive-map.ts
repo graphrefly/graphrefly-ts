@@ -51,6 +51,11 @@ export interface ReactiveMapRetentionPolicy<K, V> {
 	score(entry: ReactiveMapRetentionEntry<K, V>): number;
 }
 
+interface ResolvedRetentionPolicy<K, V> {
+	readonly maxSize?: number;
+	score(entry: ReactiveMapRetentionEntry<K, V>): number;
+}
+
 export interface ReactiveMapOptions<K = unknown, V = unknown> extends CollectionCoreOptions {
 	/**
 	 * LRU cap as a node-as-opt policy (D68). A static number is a constant policy config; a Node must
@@ -194,7 +199,7 @@ class MapBackend<K, V> {
 		return evicted;
 	}
 
-	enforceRetention(policy?: ReactiveMapRetentionPolicy<K, V>): Array<[K, V]> {
+	enforceRetention(policy?: ResolvedRetentionPolicy<K, V>): Array<[K, V]> {
 		if (policy === undefined || policy.maxSize === undefined) return [];
 		const scored: ScoredEntry<readonly [K, V]>[] = [];
 		for (const [key, entry] of this.store) {

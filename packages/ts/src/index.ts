@@ -127,6 +127,24 @@ export {
 	valve,
 } from "./graph/operators.js";
 export {
+	type DescribeToAsciiOptions,
+	type DescribeToD2Options,
+	type DescribeToJsonOptions,
+	type DescribeToMermaidOptions,
+	type DescribeToMermaidUrlOptions,
+	type DescribeToPrettyOptions,
+	type DiagramDirection,
+	describeToAscii,
+	describeToD2,
+	describeToJson,
+	describeToMermaid,
+	describeToMermaidUrl,
+	describeToPretty,
+	type MermaidLiveTheme,
+	type MermaidLiveUrlOptions,
+	mermaidLiveUrl,
+} from "./graph/render.js";
+export {
 	type AsyncSourceOpts,
 	fromAny,
 	fromAsyncIter,
