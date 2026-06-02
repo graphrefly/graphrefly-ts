@@ -57,6 +57,15 @@ export interface CleanupHooks {
 	onInvalidate: Array<() => void>;
 }
 
+export interface SyncCtxState {
+	value: Ctx | null;
+}
+
+export interface LifecycleState {
+	subscribers: Set<Sink>;
+	activated: boolean;
+}
+
 export type BoundaryTask = () => void;
 
 export interface BoundaryState {
@@ -64,7 +73,7 @@ export interface BoundaryState {
 	head: number;
 }
 
-export interface NodeSlot<T> {
+export interface NodeSlot<_T> {
 	id: NodeId;
 	deps: Node<unknown>[];
 	handle: Handle | null;
@@ -83,26 +92,47 @@ export interface NodeSlot<T> {
 	dynamic: boolean;
 	name?: string;
 	factory?: string;
-	subscribers: Set<Sink>;
-	activated: boolean;
+}
+
+export interface NodeState<T> {
 	dep: DepBookkeeping;
+	lifecycle: LifecycleState;
 	value: ValueState<T>;
 	wave: WaveState;
 	control: ControlState;
 	privateState: PrivateState;
 	hooks: CleanupHooks;
-	syncCtx: Ctx | null;
+	syncCtx: SyncCtxState;
 }
 
 export class NodeCore {
 	private nextId = 0;
 	private readonly slots = new Map<NodeId, NodeSlot<unknown>>();
+	private readonly values = new Map<NodeId, ValueState<unknown>>();
+	private readonly waves = new Map<NodeId, WaveState>();
+	private readonly controls = new Map<NodeId, ControlState>();
+	private readonly lifecycles = new Map<NodeId, LifecycleState>();
+	private readonly depStates = new Map<NodeId, DepBookkeeping>();
+	private readonly privateStates = new Map<NodeId, PrivateState>();
+	private readonly hooks = new Map<NodeId, CleanupHooks>();
+	private readonly syncCtxs = new Map<NodeId, SyncCtxState>();
 	private readonly boundary: BoundaryState = { queue: [], head: 0 };
 
-	createSlot<T>(slot: Omit<NodeSlot<T>, "id">): { id: NodeId; slot: NodeSlot<T> } {
+	createSlot<T>(
+		slot: Omit<NodeSlot<T>, "id">,
+		state: NodeState<T>,
+	): { id: NodeId; slot: NodeSlot<T> } {
 		const id = this.nextId++ as NodeId;
 		const full = { ...slot, id };
 		this.slots.set(id, full as NodeSlot<unknown>);
+		this.depStates.set(id, state.dep);
+		this.lifecycles.set(id, state.lifecycle);
+		this.values.set(id, state.value as ValueState<unknown>);
+		this.waves.set(id, state.wave);
+		this.controls.set(id, state.control);
+		this.privateStates.set(id, state.privateState);
+		this.hooks.set(id, state.hooks);
+		this.syncCtxs.set(id, state.syncCtx);
 		return { id, slot: full };
 	}
 
@@ -110,6 +140,54 @@ export class NodeCore {
 		const slot = this.slots.get(id);
 		if (slot === undefined) throw new Error("NodeCore: unknown node slot");
 		return slot as NodeSlot<T>;
+	}
+
+	getValue<T>(id: NodeId): ValueState<T> {
+		const value = this.values.get(id);
+		if (value === undefined) throw new Error("NodeCore: unknown node value state");
+		return value as ValueState<T>;
+	}
+
+	getWave(id: NodeId): WaveState {
+		const wave = this.waves.get(id);
+		if (wave === undefined) throw new Error("NodeCore: unknown node wave state");
+		return wave;
+	}
+
+	getControl(id: NodeId): ControlState {
+		const control = this.controls.get(id);
+		if (control === undefined) throw new Error("NodeCore: unknown node control state");
+		return control;
+	}
+
+	getLifecycle(id: NodeId): LifecycleState {
+		const lifecycle = this.lifecycles.get(id);
+		if (lifecycle === undefined) throw new Error("NodeCore: unknown node lifecycle state");
+		return lifecycle;
+	}
+
+	getDep(id: NodeId): DepBookkeeping {
+		const dep = this.depStates.get(id);
+		if (dep === undefined) throw new Error("NodeCore: unknown node dep state");
+		return dep;
+	}
+
+	getPrivateState(id: NodeId): PrivateState {
+		const state = this.privateStates.get(id);
+		if (state === undefined) throw new Error("NodeCore: unknown node private state");
+		return state;
+	}
+
+	getHooks(id: NodeId): CleanupHooks {
+		const hooks = this.hooks.get(id);
+		if (hooks === undefined) throw new Error("NodeCore: unknown node cleanup hooks");
+		return hooks;
+	}
+
+	getSyncCtx(id: NodeId): SyncCtxState {
+		const state = this.syncCtxs.get(id);
+		if (state === undefined) throw new Error("NodeCore: unknown node ctx state");
+		return state;
 	}
 
 	/** @internal B49: graph-local deferred-boundary queue (rewireNext/upNext/batch-after-commit). */

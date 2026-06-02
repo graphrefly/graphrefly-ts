@@ -73,6 +73,21 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		expect(msgs).toContainEqual(["DATA", 1]);
 	});
 
+	it("resubscribable reset detaches terminal-era subscribers (R-terminal fresh lifecycle)", () => {
+		const s = node<number>([], null, { initial: 1, resubscribable: true });
+		const old = collect(s);
+		s.down([["COMPLETE"]]);
+		old.msgs.length = 0;
+
+		const fresh = collect(s); // resets, then attaches this subscriber to the fresh lifecycle
+		fresh.msgs.length = 0;
+		s.down([["DATA", 2]]);
+
+		expect(old.msgs).toEqual([]);
+		expect(types(fresh.msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(fresh.msgs.at(-1)).toEqual(["DATA", 2]);
+	});
+
 	it("B30: terminal-is-forever on SELF-emit — set()/down() after terminal is a no-op", () => {
 		// The upstream path (_receiveFromDep) already drops on terminal; B30 closes the
 		// self-emit gap in _down (a post-terminal state.set / ctx.down must not resurrect),

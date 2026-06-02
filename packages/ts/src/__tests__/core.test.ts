@@ -176,6 +176,19 @@ describe("B49 core-slot migration", () => {
 	const coreOf = (n: object) => (n as unknown as Record<string, unknown>)._core;
 	const slotCount = (core: unknown) =>
 		((core as Record<string, unknown>).slots as Map<unknown, unknown>).size;
+	const sideTableCounts = (core: unknown) => {
+		const c = core as Record<string, unknown>;
+		return [
+			"depStates",
+			"lifecycles",
+			"values",
+			"waves",
+			"controls",
+			"privateStates",
+			"hooks",
+			"syncCtxs",
+		].map((k) => (c[k] as Map<unknown, unknown>).size);
+	};
 	const boundaryTaskCount = (core: unknown) => {
 		const boundary = (core as Record<string, unknown>).boundary as {
 			queue: unknown[];
@@ -191,6 +204,7 @@ describe("B49 core-slot migration", () => {
 		expect(Object.hasOwn(view, "_core")).toBe(true);
 		expect(Object.hasOwn(view, "_id")).toBe(true);
 		expect(Object.hasOwn(view, "_slot")).toBe(true);
+		const slot = view._slot as Record<string, unknown>;
 		for (const oldField of [
 			"_deps",
 			"_depBatch",
@@ -205,6 +219,20 @@ describe("B49 core-slot migration", () => {
 		]) {
 			expect(Object.hasOwn(view, oldField), oldField).toBe(false);
 		}
+		for (const sideTableField of [
+			"value",
+			"wave",
+			"control",
+			"subscribers",
+			"activated",
+			"dep",
+			"privateState",
+			"hooks",
+			"syncCtx",
+		]) {
+			expect(Object.hasOwn(slot, sideTableField), sideTableField).toBe(false);
+		}
+		expect(sideTableCounts(coreOf(s))).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
 
 		expect(s.cache).toBe(1);
 		expect(s.status).toBe("settled");

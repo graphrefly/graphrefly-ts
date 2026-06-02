@@ -104,6 +104,10 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 		opts: { partial: true, completeWhenDepsComplete: false, terminalAsRealInput: true },
 		body: (ctx) => {
 			const n = depCount(ctx);
+			if (n === 0) {
+				ctx.down([["COMPLETE"]]);
+				return;
+			}
 			const st = ctx.state.get<ZipState>() ?? {
 				queues: Array.from({ length: n }, () => []),
 				terminal: new Array(n).fill(false),

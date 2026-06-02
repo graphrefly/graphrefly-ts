@@ -35,7 +35,20 @@ import {
 	SENTINEL,
 	type Wave,
 } from "../protocol/messages.js";
-import { makeDepBookkeeping, NodeCore, type NodeId, type NodeSlot } from "./core.js";
+import {
+	type CleanupHooks,
+	type ControlState,
+	type DepBookkeeping,
+	type LifecycleState,
+	makeDepBookkeeping,
+	NodeCore,
+	type NodeId,
+	type NodeSlot,
+	type PrivateState,
+	type SyncCtxState,
+	type ValueState,
+	type WaveState,
+} from "./core.js";
 
 export type Status =
 	| "sentinel"
@@ -156,6 +169,22 @@ export class Node<T = unknown> {
 	private readonly _core: NodeCore;
 	private readonly _id: NodeId;
 	private readonly _slot: NodeSlot<T>;
+	private readonly _dep: DepBookkeeping;
+	private readonly _value: ValueState<T>;
+	private readonly _wave: WaveState;
+	private readonly _control: ControlState;
+	private readonly _lifecycle: LifecycleState;
+	private readonly _privateState: PrivateState;
+	private readonly _hooks: CleanupHooks;
+	private readonly _syncCtxState: SyncCtxState;
+
+	private get _syncCtx(): Ctx | null {
+		return this._syncCtxState.value;
+	}
+
+	private set _syncCtx(ctx: Ctx | null) {
+		this._syncCtxState.value = ctx;
+	}
 
 	constructor(
 		deps: Node<unknown>[],
@@ -200,56 +229,67 @@ export class Node<T = unknown> {
 		const pauseLockset = new Set<unknown>();
 		if (pull) pauseLockset.add(pullLock as LockId);
 		this._core = core ?? new NodeCore();
-		const created = this._core.createSlot<T>({
-			deps,
-			handle,
-			pool,
-			dispatcher,
-			partial: opts.partial ?? false,
-			terminalAsRealInput: opts.terminalAsRealInput ?? false,
-			completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
-			errorWhenDepsError: opts.errorWhenDepsError ?? true,
-			resubscribable: opts.resubscribable ?? false,
-			resetOnTeardown: opts.resetOnTeardown ?? false,
-			pausable,
-			pull,
-			pullLock,
-			replayN: opts.replayBuffer ?? 0,
-			dynamic: opts.dynamic ?? false,
-			name: opts.name,
-			factory: opts.factory,
-			subscribers: new Set<Sink>(),
-			activated: false,
-			dep,
-			value,
-			wave: {
-				pending: 0,
-				hasCalledFnOnce: false,
-				emittedDirtyThisWave: false,
-				emittedSettleThisWave: false,
-				insideRunWave: false,
-				inDepMutation: false,
-				rewireRunPending: false,
-				batchDirtyOwed: false,
+		const created = this._core.createSlot<T>(
+			{
+				deps,
+				handle,
+				pool,
+				dispatcher,
+				partial: opts.partial ?? false,
+				terminalAsRealInput: opts.terminalAsRealInput ?? false,
+				completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
+				errorWhenDepsError: opts.errorWhenDepsError ?? true,
+				resubscribable: opts.resubscribable ?? false,
+				resetOnTeardown: opts.resetOnTeardown ?? false,
+				pausable,
+				pull,
+				pullLock,
+				replayN: opts.replayBuffer ?? 0,
+				dynamic: opts.dynamic ?? false,
+				name: opts.name,
+				factory: opts.factory,
 			},
-			control: {
-				pauseLockset,
-				pausedDepWaveOccurred: false,
-				pauseBuffer: [],
-				demandOwed: false,
-				inDeliverDemand: false,
+			{
+				dep,
+				lifecycle: { subscribers: new Set<Sink>(), activated: false },
+				value,
+				wave: {
+					pending: 0,
+					hasCalledFnOnce: false,
+					emittedDirtyThisWave: false,
+					emittedSettleThisWave: false,
+					insideRunWave: false,
+					inDepMutation: false,
+					rewireRunPending: false,
+					batchDirtyOwed: false,
+				},
+				control: {
+					pauseLockset,
+					pausedDepWaveOccurred: false,
+					pauseBuffer: [],
+					demandOwed: false,
+					inDeliverDemand: false,
+				},
+				privateState: { value: SENTINEL, persist: false },
+				hooks: { onDeactivation: [], onInvalidate: [] },
+				syncCtx: { value: null },
 			},
-			privateState: { value: SENTINEL, persist: false },
-			hooks: { onDeactivation: [], onInvalidate: [] },
-			syncCtx: null,
-		});
+		);
 		this._id = created.id;
 		this._slot = this._core.get<T>(this._id);
+		this._dep = this._core.getDep(this._id);
+		this._value = this._core.getValue<T>(this._id);
+		this._wave = this._core.getWave(this._id);
+		this._control = this._core.getControl(this._id);
+		this._lifecycle = this._core.getLifecycle(this._id);
+		this._privateState = this._core.getPrivateState(this._id);
+		this._hooks = this._core.getHooks(this._id);
+		this._syncCtxState = this._core.getSyncCtx(this._id);
 	}
 
 	/** R-pull (D55): true while a pull node is quiet (holds its own pullId/demand lock). */
 	private _isPullQuiet(): boolean {
-		return this._slot.pull && this._slot.control.pauseLockset.has(this._slot.pullLock);
+		return this._slot.pull && this._control.pauseLockset.has(this._slot.pullLock);
 	}
 
 	/**
@@ -265,11 +305,11 @@ export class Node<T = unknown> {
 	}
 
 	get cache(): T | undefined {
-		return this._slot.value.cache;
+		return this._value.cache;
 	}
 
 	get status(): Status {
-		return this._slot.value.status;
+		return this._value.status;
 	}
 
 	get name(): string | undefined {
@@ -310,7 +350,7 @@ export class Node<T = unknown> {
 		try {
 			// R-terminal: late subscribe to a terminal node either resets (resubscribable)
 			// or is rejected (non-resubscribable, R2.2.7.b).
-			if (this._slot.value.terminal !== undefined) {
+			if (this._value.terminal !== undefined) {
 				if (this._slot.resubscribable) this._resetLifecycle();
 				else
 					throw new Error(
@@ -318,27 +358,27 @@ export class Node<T = unknown> {
 					);
 			}
 
-			this._slot.subscribers.add(sink);
+			this._lifecycle.subscribers.add(sink);
 			sink(["START"]);
-			if (this._slot.replayN > 0 && this._slot.value.replayRing.length > 0) {
+			if (this._slot.replayN > 0 && this._value.replayRing.length > 0) {
 				// R-replay-buffer: late subscriber gets the last N DATA after START.
-				for (const v of this._slot.value.replayRing) sink(["DATA", v]);
-			} else if (this._slot.value.hasData && !this._slot.pull) {
+				for (const v of this._value.replayRing) sink(["DATA", v]);
+			} else if (this._value.hasData && !this._slot.pull) {
 				// R-pull (D55): a pull node NEVER push-on-subscribes its cached value — quiet by
 				// default, it stays silent until demanded (START only). QA-B4: gated on `_pull` (not
 				// the transient quiet-lock _isPullQuiet) so a REACTIVATED pull node — whose lockset is
 				// briefly empty before _activate re-holds the demand lock — still does not leak its
 				// cache (matters for a depless pull state node, whose cache survives _deactivate).
-				sink(["DATA", this._slot.value.cache]);
-			} else if (this._slot.value.status === "dirty" && !this._slot.pull) {
+				sink(["DATA", this._value.cache]);
+			} else if (this._value.status === "dirty" && !this._slot.pull) {
 				sink(["DIRTY"]);
 			}
 
-			if (!this._slot.activated) this._activate();
+			if (!this._lifecycle.activated) this._activate();
 
 			return () => {
-				if (!this._slot.subscribers.delete(sink)) return;
-				if (this._slot.subscribers.size === 0) this._deactivate();
+				if (!this._lifecycle.subscribers.delete(sink)) return;
+				if (this._lifecycle.subscribers.size === 0) this._deactivate();
 			};
 		} finally {
 			exitWave();
@@ -496,15 +536,15 @@ export class Node<T = unknown> {
 		opts: { allowTerminalOwner?: boolean } = {},
 	): boolean {
 		// ── rejects (R-rewire / D42) ──
-		if (this._slot.value.terminal !== undefined && !opts.allowTerminalOwner)
+		if (this._value.terminal !== undefined && !opts.allowTerminalOwner)
 			throw new Error(
 				"rewire: node is terminal (completed/errored) — cannot rewire (R-rewire / D42)",
 			);
-		if (this._slot.wave.insideRunWave)
+		if (this._wave.insideRunWave)
 			throw new Error(
 				"rewire: mid-fn topology mutation — a fn mutating its own deps mid-wave is the feedback cycle (R-rewire / D37)",
 			);
-		if (this._slot.wave.inDepMutation)
+		if (this._wave.inDepMutation)
 			throw new Error(
 				"rewire: reentrant dep mutation — another setDeps/addDep/removeDep is in flight (R-rewire)",
 			);
@@ -517,7 +557,7 @@ export class Node<T = unknown> {
 				throw new Error(
 					"rewire: would create a cycle — dep already transitively depends on this node (R-rewire / D42)",
 				);
-			if (d._slot.value.terminal !== undefined && !d._slot.resubscribable)
+			if (d._value.terminal !== undefined && !d._slot.resubscribable)
 				throw new Error(
 					"rewire: cannot add a non-resubscribable terminal dep — would wedge (R-rewire / D42)",
 				);
@@ -532,8 +572,8 @@ export class Node<T = unknown> {
 			return true;
 		}
 
-		this._slot.wave.inDepMutation = true;
-		this._slot.wave.rewireRunPending = false;
+		this._wave.inDepMutation = true;
+		this._wave.rewireRunPending = false;
 		let zeroDepUnDirty = false;
 		try {
 			// fn swap (SD-1): re-register against the same pool, then release the old handle
@@ -549,14 +589,14 @@ export class Node<T = unknown> {
 			let removedDirtyContributor = false;
 			for (const d of removed) {
 				const oldIdx = oldDeps.indexOf(d);
-				if (this._slot.dep.dirty[oldIdx]) {
+				if (this._dep.dirty[oldIdx]) {
 					removedDirtyContributor = true;
-					this._slot.wave.pending--;
+					this._wave.pending--;
 				}
-				if (this._slot.activated) {
-					const box = this._slot.dep.idxBoxes[oldIdx];
+				if (this._lifecycle.activated) {
+					const box = this._dep.idxBoxes[oldIdx];
 					if (box) box.v = -1; // drain: any stale in-flight callback drops
-					const unsub = this._slot.dep.unsubs[oldIdx];
+					const unsub = this._dep.unsubs[oldIdx];
 					if (unsub) unsub(); // stops the removed dep's edge — no further delivery
 				}
 			}
@@ -576,36 +616,36 @@ export class Node<T = unknown> {
 			for (let j = 0; j < n; j++) {
 				const oldIdx = oldDeps.indexOf(newDeps[j]);
 				if (oldIdx !== -1) {
-					newBatch[j] = this._slot.dep.batch[oldIdx];
-					newPrev[j] = this._slot.dep.prev[oldIdx];
-					newHasData[j] = this._slot.dep.hasData[oldIdx];
-					newDirty[j] = this._slot.dep.dirty[oldIdx];
-					newTier[j] = this._slot.dep.tier[oldIdx];
-					newTerminal[j] = this._slot.dep.terminal[oldIdx];
-					newUnsubs[j] = this._slot.dep.unsubs[oldIdx];
+					newBatch[j] = this._dep.batch[oldIdx];
+					newPrev[j] = this._dep.prev[oldIdx];
+					newHasData[j] = this._dep.hasData[oldIdx];
+					newDirty[j] = this._dep.dirty[oldIdx];
+					newTier[j] = this._dep.tier[oldIdx];
+					newTerminal[j] = this._dep.terminal[oldIdx];
+					newUnsubs[j] = this._dep.unsubs[oldIdx];
 					// carry the kept dep's subscription box and point it at the new index (O(1) reroute)
-					const box = this._slot.dep.idxBoxes[oldIdx];
+					const box = this._dep.idxBoxes[oldIdx];
 					if (box) box.v = j;
 					newBoxes[j] = box;
 				}
 			}
 			this._slot.deps = newDeps;
-			this._slot.dep.batch = newBatch;
-			this._slot.dep.prev = newPrev;
-			this._slot.dep.hasData = newHasData;
-			this._slot.dep.dirty = newDirty;
-			this._slot.dep.tier = newTier;
-			this._slot.dep.terminal = newTerminal;
-			this._slot.dep.terminalInput = newTerminalInput;
-			this._slot.dep.unsubs = newUnsubs;
-			this._slot.dep.idxBoxes = newBoxes;
-			this._slot.dep.waveData = newDeps.map(() => []);
-			this._slot.dep.waveTokens = new Array(newDeps.length).fill(undefined);
-			this._slot.syncCtx = null;
+			this._dep.batch = newBatch;
+			this._dep.prev = newPrev;
+			this._dep.hasData = newHasData;
+			this._dep.dirty = newDirty;
+			this._dep.tier = newTier;
+			this._dep.terminal = newTerminal;
+			this._dep.terminalInput = newTerminalInput;
+			this._dep.unsubs = newUnsubs;
+			this._dep.idxBoxes = newBoxes;
+			this._dep.waveData = newDeps.map(() => []);
+			this._dep.waveTokens = new Array(newDeps.length).fill(undefined);
+			this._syncCtx = null;
 
 			// Subscribe added deps — push-on-subscribe (R-push-subscribe) delivers a cached
 			// dep's DATA here, which drives _maybeRun; a SENTINEL dep delivers START only.
-			if (this._slot.activated) {
+			if (this._lifecycle.activated) {
 				for (const d of added) this._subscribeDepAt(d);
 			}
 
@@ -614,27 +654,23 @@ export class Node<T = unknown> {
 			// gets a substrate-synthesized undirty RESOLVED per R-resolved-undirty/D49 — NOT
 			// equals-absorption, which is gone). With zero deps the node is inert (degenerate
 			// fn-no-deps) — just un-dirty downstream. Cache is preserved either way (Q7).
-			if (
-				removedDirtyContributor &&
-				this._slot.wave.pending === 0 &&
-				this._slot.value.status === "dirty"
-			) {
-				if (newDeps.length > 0) this._slot.wave.rewireRunPending = true;
+			if (removedDirtyContributor && this._wave.pending === 0 && this._value.status === "dirty") {
+				if (newDeps.length > 0) this._wave.rewireRunPending = true;
 				else zeroDepUnDirty = true;
 			}
 		} finally {
-			this._slot.wave.inDepMutation = false;
+			this._wave.inDepMutation = false;
 		}
 
 		// Atomic post-mutation settle (outside the reentrancy guard so a fresh wave runs
 		// normally): ONE two-phase DIRTY→DATA recompute if any added dep delivered data or a
 		// sole-dirty dep was removed; else the zero-dep un-dirty via _down (pause/batch-safe).
-		if (this._slot.wave.rewireRunPending) {
-			this._slot.wave.rewireRunPending = false;
+		if (this._wave.rewireRunPending) {
+			this._wave.rewireRunPending = false;
 			this._settleRewire();
 		} else if (zeroDepUnDirty) {
-			if (this._slot.wave.emittedDirtyThisWave) this._down([["RESOLVED"]]);
-			else this._slot.value.status = this._slot.value.hasData ? "settled" : "sentinel";
+			if (this._wave.emittedDirtyThisWave) this._down([["RESOLVED"]]);
+			else this._value.status = this._value.hasData ? "settled" : "sentinel";
 		}
 		return false;
 	}
@@ -642,20 +678,16 @@ export class Node<T = unknown> {
 	// ── activation / deactivation (lazy; R-rom-ram) ──
 
 	private _activate(): void {
-		this._slot.activated = true;
+		this._lifecycle.activated = true;
 		// R-pull (D55): (re)enter QUIET before wiring deps — _deactivate cleared the lockset, so a
 		// reactivation must re-hold the pullId/demand lock; doing it here (pre-subscribe) means each
 		// dep's push-on-subscribe DIRTY/DATA is absorbed quietly (the wedge fix), not relayed downstream.
-		if (this._slot.pull) this._slot.control.pauseLockset.add(this._slot.pullLock as LockId);
-		this._slot.dep.unsubs = new Array(this._slot.deps.length);
-		this._slot.dep.idxBoxes = new Array(this._slot.deps.length);
+		if (this._slot.pull) this._control.pauseLockset.add(this._slot.pullLock as LockId);
+		this._dep.unsubs = new Array(this._slot.deps.length);
+		this._dep.idxBoxes = new Array(this._slot.deps.length);
 		for (const dep of this._slot.deps) this._subscribeDepAt(dep);
 		// Depless producer (fn, no deps): run once on activation.
-		if (
-			this._slot.deps.length === 0 &&
-			this._slot.handle !== null &&
-			!this._slot.wave.hasCalledFnOnce
-		) {
+		if (this._slot.deps.length === 0 && this._slot.handle !== null && !this._wave.hasCalledFnOnce) {
 			this._runWave();
 		}
 	}
@@ -674,67 +706,67 @@ export class Node<T = unknown> {
 			this._receiveFromDep(box.v, msg, delivery);
 		});
 		if (idx0 !== -1) {
-			this._slot.dep.unsubs[idx0] = unsub;
-			this._slot.dep.idxBoxes[idx0] = box;
+			this._dep.unsubs[idx0] = unsub;
+			this._dep.idxBoxes[idx0] = box;
 		}
 	}
 
 	private _deactivate(): void {
-		this._slot.activated = false;
-		for (const u of this._slot.dep.unsubs) if (u) u();
-		this._slot.dep.unsubs = [];
-		this._slot.dep.idxBoxes = [];
-		for (const fn of this._slot.hooks.onDeactivation) fn();
-		this._slot.hooks.onDeactivation = [];
-		this._slot.hooks.onInvalidate = [];
+		this._lifecycle.activated = false;
+		for (const u of this._dep.unsubs) if (u) u();
+		this._dep.unsubs = [];
+		this._dep.idxBoxes = [];
+		for (const fn of this._hooks.onDeactivation) fn();
+		this._hooks.onDeactivation = [];
+		this._hooks.onInvalidate = [];
 
 		const isCompute = this._slot.handle !== null || this._slot.deps.length > 0;
 		if (isCompute) {
 			// RAM: compute nodes clear cache; reconnect re-runs fn fresh.
-			this._slot.value.cache = SENTINEL;
-			this._slot.value.hasData = false;
-			this._slot.value.status = "sentinel";
+			this._value.cache = SENTINEL;
+			this._value.hasData = false;
+			this._value.status = "sentinel";
 		}
 		this._resetDepState();
-		this._slot.wave.hasCalledFnOnce = false;
-		this._slot.control.pauseLockset.clear();
-		this._slot.control.pauseBuffer = [];
-		this._slot.control.pausedDepWaveOccurred = false;
-		this._slot.control.demandOwed = false; // R-pull (D55): drop any deferred demand
-		this._slot.value.replayRing = []; // BH6: don't replay stale values to a post-reactivation subscriber
-		if (!this._slot.privateState.persist) this._slot.privateState.value = SENTINEL;
+		this._wave.hasCalledFnOnce = false;
+		this._control.pauseLockset.clear();
+		this._control.pauseBuffer = [];
+		this._control.pausedDepWaveOccurred = false;
+		this._control.demandOwed = false; // R-pull (D55): drop any deferred demand
+		this._value.replayRing = []; // BH6: don't replay stale values to a post-reactivation subscriber
+		if (!this._privateState.persist) this._privateState.value = SENTINEL;
 	}
 
 	private _resetDepState(): void {
 		const n = this._slot.deps.length;
 		for (let i = 0; i < n; i++) {
-			this._slot.dep.batch[i] = null;
-			this._slot.dep.waveData[i] = [];
-			this._slot.dep.waveTokens[i] = undefined;
-			this._slot.dep.prev[i] = SENTINEL;
-			this._slot.dep.hasData[i] = false;
-			this._slot.dep.dirty[i] = false;
-			this._slot.dep.tier[i] = 0;
-			this._slot.dep.terminal[i] = undefined;
-			this._slot.dep.terminalInput[i] = undefined;
+			this._dep.batch[i] = null;
+			this._dep.waveData[i] = [];
+			this._dep.waveTokens[i] = undefined;
+			this._dep.prev[i] = SENTINEL;
+			this._dep.hasData[i] = false;
+			this._dep.dirty[i] = false;
+			this._dep.tier[i] = 0;
+			this._dep.terminal[i] = undefined;
+			this._dep.terminalInput[i] = undefined;
 		}
-		this._slot.wave.pending = 0;
-		this._slot.wave.emittedDirtyThisWave = false;
+		this._wave.pending = 0;
+		this._wave.emittedDirtyThisWave = false;
 	}
 
 	// ── upstream wave receive (two-phase + diamond) ──
 
 	private _recordDepProjection(idx: number, delivery: DeliveryMeta | undefined): unknown[] {
 		const token = delivery?.wave ?? {};
-		if (this._slot.dep.waveTokens[idx] !== token) {
-			this._slot.dep.waveData[idx].push([]);
-			this._slot.dep.waveTokens[idx] = token;
+		if (this._dep.waveTokens[idx] !== token) {
+			this._dep.waveData[idx].push([]);
+			this._dep.waveTokens[idx] = token;
 		}
-		return this._slot.dep.waveData[idx][this._slot.dep.waveData[idx].length - 1];
+		return this._dep.waveData[idx][this._dep.waveData[idx].length - 1];
 	}
 
 	private _depProjectionHasData(idx: number): boolean {
-		const projection = this._slot.dep.waveData[idx][this._slot.dep.waveData[idx].length - 1];
+		const projection = this._dep.waveData[idx][this._dep.waveData[idx].length - 1];
 		return projection?.some((v) => v !== SENTINEL) ?? false;
 	}
 
@@ -744,7 +776,7 @@ export class Node<T = unknown> {
 		const isLastInDeliveredWave = delivery?.last ?? true;
 		// Terminal-is-forever, except terminal intermediates still relay upstream TEARDOWN
 		// downstream for lifecycle unwire (R-teardown-terminal-relay / D65).
-		if (this._slot.value.terminal !== undefined) {
+		if (this._value.terminal !== undefined) {
 			if (t === "TEARDOWN") this._down([["TEARDOWN"]]);
 			return;
 		}
@@ -755,15 +787,15 @@ export class Node<T = unknown> {
 			if (projection.some((v) => v !== SENTINEL) && isLastInDeliveredWave) this._maybeRun();
 			// The dep's value is gone — drop our cached latest view to SENTINEL so the
 			// never-emitted detector reads correctly, C-3) and cascade (idempotent).
-			this._slot.dep.prev[idx] = SENTINEL;
-			this._slot.dep.hasData[idx] = false;
-			this._slot.dep.batch[idx] = null;
+			this._dep.prev[idx] = SENTINEL;
+			this._dep.hasData[idx] = false;
+			this._dep.batch[idx] = null;
 			// EC3: un-wedge the dirty bookkeeping if this dep had gone DIRTY first, so an
 			// INVALIDATE-before-DATA doesn't strand _pending / downstream forever
 			// (R-invalidate-idempotent — exists to prevent the wedged-DIRTY deadlock).
-			if (this._slot.dep.dirty[idx]) {
-				this._slot.dep.dirty[idx] = false;
-				this._slot.wave.pending--;
+			if (this._dep.dirty[idx]) {
+				this._dep.dirty[idx] = false;
+				this._wave.pending--;
 			}
 			// D50 / R-paused-invalidate: this INVALIDATE SUPERSEDES the dep's buffered
 			// paused dep-wave (_depBatch[idx] just cleared). Re-derive the paused-recompute
@@ -771,20 +803,17 @@ export class Node<T = unknown> {
 			// (attributed cancellation; the node has settled to SENTINEL via its own
 			// INVALIDATE, so a RESUME must not recompute against a now-SENTINEL dep). A
 			// surviving dep keeps it set; a later DATA re-arms it ([DATA,INVALIDATE,DATA2]).
-			if (
-				this._slot.control.pausedDepWaveOccurred &&
-				this._slot.dep.batch.every((b) => b === null)
-			) {
-				this._slot.control.pausedDepWaveOccurred = false;
+			if (this._control.pausedDepWaveOccurred && this._dep.batch.every((b) => b === null)) {
+				this._control.pausedDepWaveOccurred = false;
 			}
-			const hadData = this._slot.value.hasData;
+			const hadData = this._value.hasData;
 			this._invalidate(); // cascades INVALIDATE iff populated; no-op otherwise
 			// If we broadcast DIRTY this wave but _invalidate produced no settle (the node
 			// was never populated, so the cascade is suppressed per the rule), un-dirty
 			// downstream with a RESOLVED once all deps have settled.
-			if (this._slot.wave.pending === 0 && this._slot.wave.emittedDirtyThisWave) {
+			if (this._wave.pending === 0 && this._wave.emittedDirtyThisWave) {
 				if (!hadData) this._down([["RESOLVED"]]);
-				else this._slot.wave.emittedDirtyThisWave = false;
+				else this._wave.emittedDirtyThisWave = false;
 			}
 			this._fireOwedDemandIfReady(); // R-pull (D59/B1/F6): an INVALIDATE settle can drain _pending → fire a deferred demand
 			return;
@@ -797,8 +826,8 @@ export class Node<T = unknown> {
 			// only the COMPLETE-vs-ERROR cascade differs, so discriminate by the type within the tier.
 			const isError = t === "ERROR";
 			const errPayload = isError ? (msg as readonly ["ERROR", unknown])[1] : undefined;
-			this._slot.dep.terminal[idx] = isError ? errPayload : true;
-			this._slot.dep.terminalInput[idx] = isError ? errPayload : true;
+			this._dep.terminal[idx] = isError ? errPayload : true;
+			this._dep.terminalInput[idx] = isError ? errPayload : true;
 			// R-terminal-settles-dirty (B35): a terminal RELEASES this dep's outstanding in-wave DIRTY
 			// contribution (the exactly-one-settle invariant) — exactly as DATA/RESOLVED/INVALIDATE do
 			// (a dirty-then-terminal-without-DATA dep would otherwise strand _pending and wedge the node,
@@ -835,10 +864,10 @@ export class Node<T = unknown> {
 		}
 
 		if (t === "DIRTY") {
-			if (!this._slot.dep.dirty[idx]) {
-				this._slot.dep.dirty[idx] = true;
-				this._slot.wave.pending++;
-				this._slot.dep.tier[idx] = 2;
+			if (!this._dep.dirty[idx]) {
+				this._dep.dirty[idx] = true;
+				this._wave.pending++;
+				this._dep.tier[idx] = 2;
 				this._markDirty();
 			}
 			return;
@@ -847,15 +876,15 @@ export class Node<T = unknown> {
 		if (t === "DATA") {
 			const v = msg[1];
 			this._recordDepProjection(idx, delivery).push(v);
-			const b = this._slot.dep.batch[idx];
-			if (b === null) this._slot.dep.batch[idx] = [v];
+			const b = this._dep.batch[idx];
+			if (b === null) this._dep.batch[idx] = [v];
 			else b.push(v);
-			this._slot.dep.prev[idx] = v;
-			this._slot.dep.hasData[idx] = true;
-			this._slot.dep.tier[idx] = 3;
-			if (this._slot.dep.dirty[idx]) {
-				this._slot.dep.dirty[idx] = false;
-				this._slot.wave.pending--;
+			this._dep.prev[idx] = v;
+			this._dep.hasData[idx] = true;
+			this._dep.tier[idx] = 3;
+			if (this._dep.dirty[idx]) {
+				this._dep.dirty[idx] = false;
+				this._wave.pending--;
 			}
 			if (isLastInDeliveredWave) this._maybeRun();
 			this._fireOwedDemandIfReady(); // R-pull pin 5: settle-ready now → fire a deferred demand
@@ -864,10 +893,10 @@ export class Node<T = unknown> {
 
 		if (t === "RESOLVED") {
 			this._recordDepProjection(idx, delivery);
-			this._slot.dep.tier[idx] = 3;
-			if (this._slot.dep.dirty[idx]) {
-				this._slot.dep.dirty[idx] = false;
-				this._slot.wave.pending--;
+			this._dep.tier[idx] = 3;
+			if (this._dep.dirty[idx]) {
+				this._dep.dirty[idx] = false;
+				this._wave.pending--;
 			}
 			if (isLastInDeliveredWave) this._maybeRun();
 			this._fireOwedDemandIfReady(); // R-pull pin 5: settle-ready now → fire a deferred demand
@@ -885,9 +914,9 @@ export class Node<T = unknown> {
 	 * unaffected. This makes the exactly-one-settle invariant a single, shared step.
 	 */
 	private _releaseDepDirty(idx: number): void {
-		if (this._slot.dep.dirty[idx]) {
-			this._slot.dep.dirty[idx] = false;
-			this._slot.wave.pending--;
+		if (this._dep.dirty[idx]) {
+			this._dep.dirty[idx] = false;
+			this._wave.pending--;
 		}
 	}
 
@@ -902,11 +931,11 @@ export class Node<T = unknown> {
 	 * A terminalAsRealInput node instead recomputes unconditionally (its fn reads the terminal).
 	 */
 	private _settleAfterAbsorbedTerminal(): void {
-		if (this._slot.wave.pending !== 0 || !this._slot.wave.emittedDirtyThisWave) return;
+		if (this._wave.pending !== 0 || !this._wave.emittedDirtyThisWave) return;
 		// A real value occurred this wave (some OTHER dep delivered DATA) → recompute. _maybeRun
 		// runs the fn ONLY if it's not gated (first-run gate open, not paused); it may emit DATA, a
 		// fn-synthesized undirty RESOLVED, or nothing (gated / gate still holds).
-		const sawData = this._slot.dep.batch.some((b) => b !== null && b.length > 0);
+		const sawData = this._dep.batch.some((b) => b !== null && b.length > 0);
 		if (sawData) this._maybeRun();
 		// If after that the node STILL owes a downstream settle (no DATA occurred, OR the recompute
 		// was gated — e.g. the first-run gate holds because the terminated dep never delivered and
@@ -914,19 +943,19 @@ export class Node<T = unknown> {
 		// (R-resolved-undirty), keeping the cache (a terminal, unlike INVALIDATE, leaves the value).
 		// Without this fallback a DIRTY-then-terminal-without-DATA dep on a pre-first-run multi-dep
 		// node would strand the DIRTY → downstream wedged (the B35 class, in the gate-holds corner).
-		if (this._slot.wave.emittedDirtyThisWave) this._down([["RESOLVED"]]);
+		if (this._wave.emittedDirtyThisWave) this._down([["RESOLVED"]]);
 	}
 
 	private _markDirty(): void {
-		this._slot.value.status = "dirty";
+		this._value.status = "dirty";
 		// SPIKE (protocol-pull): while quiet, ABSORB the upstream DIRTY — do NOT relay it downstream.
 		// This is the P0b wedge fix: a quiet pull node that relayed DIRTY but withheld the settle
 		// (coalesced by pause) wedged every downstream's two-phase _pending. The downstream learns of
 		// changes via the push STREAM port, not the silent snapshot port; on demand the pull node
 		// emits a fresh wave. Internal dep dirty-accounting (the DIRTY-branch _pending++) is untouched.
 		if (this._isPullQuiet()) return;
-		if (!this._slot.wave.emittedDirtyThisWave) {
-			this._slot.wave.emittedDirtyThisWave = true;
+		if (!this._wave.emittedDirtyThisWave) {
+			this._wave.emittedDirtyThisWave = true;
 			this._emitToSubs(["DIRTY"]);
 		}
 	}
@@ -936,14 +965,14 @@ export class Node<T = unknown> {
 		// the fn-run to ONE atomic two-phase settle after every added dep is wired, so the
 		// fn never fires on a partially-populated added-dep view (multi-add) — _settleRewire
 		// drains this flag.
-		if (this._slot.wave.inDepMutation) {
-			this._slot.wave.rewireRunPending = true;
+		if (this._wave.inDepMutation) {
+			this._wave.rewireRunPending = true;
 			return;
 		}
 		// R-pause-modes (default): while paused, skip dep-driven fn re-execution and
 		// coalesce — fire once with the latest dep values on final-lock RESUME.
 		if (this._slot.pausable === true && this._isPaused()) {
-			this._slot.control.pausedDepWaveOccurred = true;
+			this._control.pausedDepWaveOccurred = true;
 			return;
 		}
 		this._tryRun();
@@ -958,27 +987,27 @@ export class Node<T = unknown> {
 	 */
 	private _settleRewire(): void {
 		if (this._slot.pausable === true && this._isPaused()) {
-			this._slot.control.pausedDepWaveOccurred = true;
+			this._control.pausedDepWaveOccurred = true;
 			return;
 		}
-		if (this._slot.wave.pending > 0) return;
+		if (this._wave.pending > 0) return;
 		if (this._slot.handle === null) {
 			this._passthroughEmit();
 			return;
 		}
-		if (!this._slot.wave.hasCalledFnOnce && !(this._slot.partial || this._allDepsSettled())) return;
+		if (!this._wave.hasCalledFnOnce && !(this._slot.partial || this._allDepsSettled())) return;
 		this._markDirty(); // phase 1 (no-op if already dirty, e.g. removeDep auto-settle)
 		this._runWave(); // phase 2: fn → DATA/RESOLVED
 	}
 
 	private _tryRun(): void {
-		if (this._slot.wave.pending > 0) return;
+		if (this._wave.pending > 0) return;
 		if (this._slot.handle === null) {
 			// Passthrough wire (deps, no fn): forward the latest dep DATA downstream.
 			this._passthroughEmit();
 			return;
 		}
-		if (!this._slot.wave.hasCalledFnOnce) {
+		if (!this._wave.hasCalledFnOnce) {
 			if (this._slot.partial || this._allDepsSettled()) this._runWave();
 			// else: first-run gate holds fn until every dep has settled (R-first-run-gate).
 			return;
@@ -988,8 +1017,8 @@ export class Node<T = unknown> {
 
 	private _allDepsSettled(): boolean {
 		for (let i = 0; i < this._slot.deps.length; i++) {
-			if (this._slot.dep.hasData[i]) continue;
-			if (this._slot.terminalAsRealInput && this._slot.dep.terminal[i] !== undefined) continue;
+			if (this._dep.hasData[i]) continue;
+			if (this._slot.terminalAsRealInput && this._dep.terminal[i] !== undefined) continue;
 			return false;
 		}
 		return true;
@@ -997,10 +1026,10 @@ export class Node<T = unknown> {
 
 	private _passthroughEmit(): void {
 		// Single-dep wire: relay dep 0's latest batch value as DATA.
-		const b = this._slot.dep.batch[0];
+		const b = this._dep.batch[0];
 		if (b !== null && b.length > 0) {
 			this._down([["DATA", b[b.length - 1]]]);
-		} else if (this._slot.wave.emittedDirtyThisWave) {
+		} else if (this._wave.emittedDirtyThisWave) {
 			// R-resolved-undirty (D49): the dep settled via an undirty RESOLVED (no DATA in the
 			// batch), but this wire already broadcast DIRTY downstream this wave — balance it with
 			// a RESOLVED so downstream un-dirties instead of wedging. Routed through _down (NOT a
@@ -1009,8 +1038,8 @@ export class Node<T = unknown> {
 			// distinctUntilChanged-dup leaves a dangling DIRTY (the wedge D49 made common).
 			this._down([["RESOLVED"]]);
 		}
-		this._slot.dep.batch[0] = null;
-		this._slot.wave.emittedDirtyThisWave = false;
+		this._dep.batch[0] = null;
+		this._wave.emittedDirtyThisWave = false;
 	}
 
 	private _runWave(): void {
@@ -1020,26 +1049,26 @@ export class Node<T = unknown> {
 		// on every frame as the throw unwinds, leaving the graph clean for the catch. Detection
 		// is node-local and free — it reuses the existing _insideRunWave flag (no new structure,
 		// dispatcher stays a pure funnel).
-		if (this._slot.wave.insideRunWave)
+		if (this._wave.insideRunWave)
 			throw new Error(
 				"synchronous feedback cycle: node fn re-entered its own wave (R-reentrancy / D37)",
 			);
-		this._slot.wave.hasCalledFnOnce = true;
+		this._wave.hasCalledFnOnce = true;
 		// R-cleanup-hooks per-run lifecycle (D28 clarification): clear BOTH hook lists
 		// before the fn runs; the fn body re-registers the current run's hooks. Only the
 		// latest run's registrations are live — a re-run supersedes the prior run's hooks,
 		// discarded WITHOUT firing (no fire-on-rerun; onRerun stays cut). Fixes the push-only
 		// accumulation (K stale hooks fired after K runs). C-14.
-		this._slot.hooks.onInvalidate = [];
-		this._slot.hooks.onDeactivation = [];
+		this._hooks.onInvalidate = [];
+		this._hooks.onDeactivation = [];
 		const ctx = this._buildCtx();
-		const wasDirty = this._slot.wave.emittedDirtyThisWave;
-		this._slot.wave.emittedSettleThisWave = false;
-		this._slot.wave.insideRunWave = true;
+		const wasDirty = this._wave.emittedDirtyThisWave;
+		this._wave.emittedSettleThisWave = false;
+		this._wave.insideRunWave = true;
 		try {
 			this._slot.dispatcher.invoke(this._slot.handle as Handle, ctx);
 		} finally {
-			this._slot.wave.insideRunWave = false;
+			this._wave.insideRunWave = false;
 		}
 
 		// R-resolved-undirty (D49): a SYNC fn DIRTY'd in phase 1 that produced NO tier-3 value
@@ -1053,21 +1082,21 @@ export class Node<T = unknown> {
 		// leg (R-async-paused / C-4). The eventual async ctx.down carries its own DIRTY balance.
 		if (
 			wasDirty &&
-			!this._slot.wave.emittedSettleThisWave &&
-			this._slot.value.terminal === undefined &&
+			!this._wave.emittedSettleThisWave &&
+			this._value.terminal === undefined &&
 			!this._isAsyncPool()
 		) {
 			this._down([["RESOLVED"]]);
 		}
 
 		// roll wave-local state forward
-		for (let i = 0; i < this._slot.dep.batch.length; i++) {
-			this._slot.dep.batch[i] = null;
-			this._slot.dep.waveData[i] = [];
-			this._slot.dep.waveTokens[i] = undefined;
-			this._slot.dep.terminalInput[i] = undefined;
+		for (let i = 0; i < this._dep.batch.length; i++) {
+			this._dep.batch[i] = null;
+			this._dep.waveData[i] = [];
+			this._dep.waveTokens[i] = undefined;
+			this._dep.terminalInput[i] = undefined;
 		}
-		this._slot.wave.emittedDirtyThisWave = false;
+		this._wave.emittedDirtyThisWave = false;
 	}
 
 	// ── ctx construction (L3-Q5: sync = node-stable reused ctx; async = per-invocation) ──
@@ -1077,15 +1106,15 @@ export class Node<T = unknown> {
 			? this._slot.dispatcher.poolKind(this._slot.handle.poolId)
 			: "sync";
 		if (kind === "sync") {
-			if (this._slot.syncCtx === null) this._slot.syncCtx = this._makeCtx();
-			this._refreshCtx(this._slot.syncCtx);
-			return this._slot.syncCtx;
+			if (this._syncCtx === null) this._syncCtx = this._makeCtx();
+			this._refreshCtx(this._syncCtx);
+			return this._syncCtx;
 		}
 		// async: snapshot dep inputs so a deferred late-emit reads this wave's view.
 		return this._makeCtx({
-			waveData: this._slot.dep.waveData.map((waves) => waves.map((w) => [...w])),
-			terminal: this._slot.dep.terminalInput.map(terminalView),
-			latest: [...this._slot.dep.prev],
+			waveData: this._dep.waveData.map((waves) => waves.map((w) => [...w])),
+			terminal: this._dep.terminalInput.map(terminalView),
+			latest: [...this._dep.prev],
 		});
 	}
 
@@ -1114,14 +1143,14 @@ export class Node<T = unknown> {
 					exitWave();
 				}
 			},
-			waveData: snapshot?.waveData ?? this._slot.dep.waveData,
-			terminal: snapshot?.terminal ?? this._slot.dep.terminalInput.map(terminalView),
+			waveData: snapshot?.waveData ?? this._dep.waveData,
+			terminal: snapshot?.terminal ?? this._dep.terminalInput.map(terminalView),
 			state: this._makeState(),
 			onDeactivation: (fn) => {
-				this._slot.hooks.onDeactivation.push(fn);
+				this._hooks.onDeactivation.push(fn);
 			},
 			onInvalidate: (fn) => {
-				this._slot.hooks.onInvalidate.push(fn);
+				this._hooks.onInvalidate.push(fn);
 			},
 			// R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
 			rewireNext: {
@@ -1133,7 +1162,7 @@ export class Node<T = unknown> {
 			// DEMAND) up the declared cone at the committed boundary. The SELF-demand path: an
 			// immediate ctx.up whose delivery loops back re-enters this fn (D37 / R-reentrancy).
 			upNext: (msgs, towardDep) => this._requestUpNext(msgs, towardDep),
-			[CTX_DEP_CACHE]: { latest: snapshot?.latest ?? this._slot.dep.prev },
+			[CTX_DEP_CACHE]: { latest: snapshot?.latest ?? this._dep.prev },
 		};
 		if (this._slot.dynamic) {
 			// R-dynamic-node: read a dep's latest by index. Untracked deps still drive waves and
@@ -1145,19 +1174,19 @@ export class Node<T = unknown> {
 	}
 
 	private _refreshCtx(ctx: Ctx): void {
-		(ctx as { waveData: unknown[][][] }).waveData = this._slot.dep.waveData;
-		(ctx as { terminal: unknown[] }).terminal = this._slot.dep.terminalInput.map(terminalView);
-		ctx[CTX_DEP_CACHE] = { latest: this._slot.dep.prev };
+		(ctx as { waveData: unknown[][][] }).waveData = this._dep.waveData;
+		(ctx as { terminal: unknown[] }).terminal = this._dep.terminalInput.map(terminalView);
+		ctx[CTX_DEP_CACHE] = { latest: this._dep.prev };
 	}
 
 	private _makeState(): CtxState {
 		return {
-			get: <S>() => this._slot.privateState.value as S | undefined,
+			get: <S>() => this._privateState.value as S | undefined,
 			set: <S>(v: S) => {
-				this._slot.privateState.value = v;
+				this._privateState.value = v;
 			},
 			persist: (on = true) => {
-				this._slot.privateState.persist = on;
+				this._privateState.persist = on;
 			},
 		};
 	}
@@ -1176,12 +1205,12 @@ export class Node<T = unknown> {
 		// without reopening value output. A single wave that goes terminal mid-loop (e.g.
 		// [COMPLETE, TEARDOWN]) is unaffected: _terminal is still undefined at entry.
 		// Resubscribable reset clears _terminal before any re-emit.
-		if (this._slot.value.terminal !== undefined) {
+		if (this._value.terminal !== undefined) {
 			if (!msgs.some((m) => m[0] === "TEARDOWN")) return;
-			this._slot.value.hasTorndown = true;
+			this._value.hasTorndown = true;
 			if (this._slot.resetOnTeardown) {
-				this._slot.value.cache = SENTINEL;
-				this._slot.value.hasData = false;
+				this._value.cache = SENTINEL;
+				this._value.hasData = false;
 			}
 			this._emitToSubs(["TEARDOWN"], { wave: deliveryWave, last: true });
 			return;
@@ -1201,23 +1230,23 @@ export class Node<T = unknown> {
 		if (
 			hasTeardown &&
 			!hasTerminal &&
-			this._slot.value.terminal === undefined &&
-			!this._slot.value.hasTorndown
+			this._value.terminal === undefined &&
+			!this._value.hasTorndown
 		) {
 			sorted = [["COMPLETE"], ...sorted];
 		}
 		// R-batch-coalesce (D12): inside a batch, emit DIRTY immediately but defer the
 		// tier-3 settle slice to commit so a shared downstream recomputes once. Only
 		// external emits defer (fn emits during commit run normally).
-		if (!this._slot.wave.insideRunWave && currentBatch()) {
+		if (!this._wave.insideRunWave && currentBatch()) {
 			const tier3 = sorted.filter((m) => messageTier(m[0]) >= 3);
 			if (tier3.length > 0) {
-				if (!this._slot.wave.emittedDirtyThisWave) {
-					this._slot.wave.emittedDirtyThisWave = true;
-					this._slot.value.status = "dirty";
+				if (!this._wave.emittedDirtyThisWave) {
+					this._wave.emittedDirtyThisWave = true;
+					this._value.status = "dirty";
 					this._emitToSubs(["DIRTY"], { wave: deliveryWave, last: false });
 				}
-				this._slot.wave.batchDirtyOwed = true; // BH1: owe a balancing RESOLVED on rollback
+				this._wave.batchDirtyOwed = true; // BH1: owe a balancing RESOLVED on rollback
 				deferToBatch(this, tier3);
 				return;
 			}
@@ -1234,8 +1263,8 @@ export class Node<T = unknown> {
 				// B36 / R-resolved-undirty: buffering a settle slice still means this fn wave
 				// produced a settle. Without this, _runWave sees "dirty + no settle" and
 				// synthesizes a RESOLVED that pierces the pause while the DATA waits in the buffer.
-				this._slot.wave.emittedSettleThisWave = true;
-				this._slot.control.pauseBuffer.push(buffered);
+				this._wave.emittedSettleThisWave = true;
+				this._control.pauseBuffer.push(buffered);
 			}
 			sorted = sorted.filter((m) => {
 				const t = messageTier(m[0]);
@@ -1261,9 +1290,9 @@ export class Node<T = unknown> {
 
 		// Synthesize a leading DIRTY for an EXTERNAL tier-3 emit (R-dirty-before-data).
 		// Inside runWave the DIRTY was already propagated (or the wave is activation-exempt).
-		if (hasTier3 && !this._slot.wave.insideRunWave && !this._slot.wave.emittedDirtyThisWave) {
-			this._slot.wave.emittedDirtyThisWave = true;
-			this._slot.value.status = "dirty";
+		if (hasTier3 && !this._wave.insideRunWave && !this._wave.emittedDirtyThisWave) {
+			this._wave.emittedDirtyThisWave = true;
+			this._value.status = "dirty";
 			this._emitToSubs(["DIRTY"], { wave: deliveryWave, last: false });
 		}
 
@@ -1272,11 +1301,11 @@ export class Node<T = unknown> {
 			const delivery = { wave: deliveryWave, last: i === sorted.length - 1 };
 			// R-resolved-undirty (D49): a tier-3+ emit this wave means the fn produced a settle,
 			// so no synthesized undirty RESOLVED is owed (see _runWave).
-			if (messageTier(m[0]) >= 3) this._slot.wave.emittedSettleThisWave = true;
+			if (messageTier(m[0]) >= 3) this._wave.emittedSettleThisWave = true;
 			if (m[0] === "DIRTY") {
-				if (!this._slot.wave.emittedDirtyThisWave) {
-					this._slot.wave.emittedDirtyThisWave = true;
-					this._slot.value.status = "dirty";
+				if (!this._wave.emittedDirtyThisWave) {
+					this._wave.emittedDirtyThisWave = true;
+					this._value.status = "dirty";
 					this._emitToSubs(["DIRTY"], delivery);
 				}
 				continue;
@@ -1286,19 +1315,18 @@ export class Node<T = unknown> {
 				// R-resolved-undirty (D49): every value-occurrence is emitted as DATA — the
 				// substrate never substitutes DATA->RESOLVED on value-equality. Dedup is opt-in
 				// at the operator layer (distinctUntilChanged), never a substrate behavior.
-				this._slot.value.cache = v;
-				this._slot.value.hasData = true;
-				this._slot.value.status = "settled";
+				this._value.cache = v;
+				this._value.hasData = true;
+				this._value.status = "settled";
 				if (this._slot.replayN > 0) {
-					this._slot.value.replayRing.push(v);
-					if (this._slot.value.replayRing.length > this._slot.replayN)
-						this._slot.value.replayRing.shift();
+					this._value.replayRing.push(v);
+					if (this._value.replayRing.length > this._slot.replayN) this._value.replayRing.shift();
 				}
 				this._emitToSubs(["DATA", v], delivery);
 				continue;
 			}
 			if (m[0] === "RESOLVED") {
-				this._slot.value.status = this._slot.value.hasData ? "resolved" : "sentinel";
+				this._value.status = this._value.hasData ? "resolved" : "sentinel";
 				this._emitToSubs(["RESOLVED"], delivery);
 				continue;
 			}
@@ -1307,33 +1335,33 @@ export class Node<T = unknown> {
 				continue;
 			}
 			if (m[0] === "COMPLETE") {
-				if (this._slot.value.terminal !== undefined) continue;
-				this._slot.value.terminal = true;
-				this._slot.control.pauseBuffer = []; // BH3: terminal discards buffered settle slices
-				this._slot.value.status = "completed";
+				if (this._value.terminal !== undefined) continue;
+				this._value.terminal = true;
+				this._control.pauseBuffer = []; // BH3: terminal discards buffered settle slices
+				this._value.status = "completed";
 				this._emitToSubs(["COMPLETE"], delivery);
 				continue;
 			}
 			if (m[0] === "ERROR") {
-				if (this._slot.value.terminal !== undefined) continue;
-				this._slot.value.terminal = m[1];
-				this._slot.control.pauseBuffer = []; // BH3: terminal discards buffered settle slices
-				this._slot.value.status = "errored";
+				if (this._value.terminal !== undefined) continue;
+				this._value.terminal = m[1];
+				this._control.pauseBuffer = []; // BH3: terminal discards buffered settle slices
+				this._value.status = "errored";
 				this._emitToSubs(["ERROR", m[1]], delivery);
 				continue;
 			}
 			if (m[0] === "TEARDOWN") {
-				this._slot.value.hasTorndown = true;
+				this._value.hasTorndown = true;
 				if (this._slot.resetOnTeardown) {
-					this._slot.value.cache = SENTINEL;
-					this._slot.value.hasData = false;
+					this._value.cache = SENTINEL;
+					this._value.hasData = false;
 				}
 				this._emitToSubs(["TEARDOWN"], delivery);
 			}
 			// PAUSE / RESUME — control slice.
 		}
 
-		if (!this._slot.wave.insideRunWave) this._slot.wave.emittedDirtyThisWave = false;
+		if (!this._wave.insideRunWave) this._wave.emittedDirtyThisWave = false;
 	}
 
 	private _up(msgs: Wave, towardDep?: number, route?: UpRouteState): void {
@@ -1355,7 +1383,7 @@ export class Node<T = unknown> {
 				if (this._slot.pull && m[1] === this._slot.pullLock) {
 					// a cone-routed RESUME of OUR pullId = a DEMAND (R-pull). Fire (or owe).
 					if (!this._markDemandRouted(m[1], routeState)) this._onDemand();
-				} else if (this._slot.control.pauseLockset.has(m[1])) {
+				} else if (this._control.pauseLockset.has(m[1])) {
 					// a pause lock held HERE → release LOCALLY (normal pause/resume, R-pause-lockset).
 					this._pauseRelease(m[1]);
 				} else {
@@ -1411,7 +1439,7 @@ export class Node<T = unknown> {
 	// ── PAUSE/RESUME lockset (R-pause-lockset) + modes (R-pause-modes) ──
 
 	private _isPaused(): boolean {
-		return this._slot.control.pauseLockset.size > 0;
+		return this._control.pauseLockset.size > 0;
 	}
 
 	private _isAsyncPool(): boolean {
@@ -1422,41 +1450,41 @@ export class Node<T = unknown> {
 	}
 
 	private _pauseAcquire(lockId: unknown): void {
-		this._slot.control.pauseLockset.add(lockId); // Set => same-id repeat PAUSE is idempotent
+		this._control.pauseLockset.add(lockId); // Set => same-id repeat PAUSE is idempotent
 	}
 
 	private _pauseRelease(lockId: unknown): void {
-		if (!this._slot.control.pauseLockset.has(lockId)) return; // unknown id => no-op
-		this._slot.control.pauseLockset.delete(lockId);
+		if (!this._control.pauseLockset.has(lockId)) return; // unknown id => no-op
+		this._control.pauseLockset.delete(lockId);
 		// R-pull (D59 / F4-F5): releasing an EXTERNAL pause lock can unblock a demand owed while the
 		// node was externally paused — fire it if now able, even though the node still self-holds its
 		// pullId (so the lockset is not empty). A pull node's OWN demand never routes here (it goes
 		// through _onDemand); this only sees external pause/resume locks.
-		if (this._slot.pull && this._slot.control.demandOwed) this._fireOwedDemandIfReady();
-		if (this._slot.control.pauseLockset.size > 0) return; // another lock still held => stay paused
+		if (this._slot.pull && this._control.demandOwed) this._fireOwedDemandIfReady();
+		if (this._control.pauseLockset.size > 0) return; // another lock still held => stay paused
 		this._onResume();
 	}
 
 	private _onResume(): void {
 		// BH3: a node that terminated while paused discards its buffer and never
 		// replays/recomputes (terminal-is-forever).
-		if (this._slot.value.terminal !== undefined) {
-			this._slot.control.pauseBuffer = [];
-			this._slot.control.pausedDepWaveOccurred = false;
-			this._slot.control.demandOwed = false;
+		if (this._value.terminal !== undefined) {
+			this._control.pauseBuffer = [];
+			this._control.pausedDepWaveOccurred = false;
+			this._control.demandOwed = false;
 			return;
 		}
 		// Non-pull pause/resume (R-pause-modes): drain buffered settle slices (resumeAll /
 		// async-at-paused, R-async-paused), then fire a coalesced dep-wave once (default mode).
 		// A PULL node never reaches here (D59): it always self-holds its pullId, so its lockset never
 		// EMPTIES via _pauseRelease — a pull DEMAND fires through _onDemand, not _onResume.
-		if (this._slot.control.pauseBuffer.length > 0) {
-			const buf = this._slot.control.pauseBuffer;
-			this._slot.control.pauseBuffer = [];
+		if (this._control.pauseBuffer.length > 0) {
+			const buf = this._control.pauseBuffer;
+			this._control.pauseBuffer = [];
 			for (const wave of buf) this._down(wave);
 		}
-		if (this._slot.control.pausedDepWaveOccurred) {
-			this._slot.control.pausedDepWaveOccurred = false;
+		if (this._control.pausedDepWaveOccurred) {
+			this._control.pausedDepWaveOccurred = false;
 			this._tryRun();
 		}
 	}
@@ -1466,9 +1494,9 @@ export class Node<T = unknown> {
 	 * and no OTHER (non-pullId) lock holds it paused. The gate that decides fire-now vs OWE.
 	 */
 	private _canFireDemand(): boolean {
-		if (this._slot.value.terminal !== undefined || this._slot.wave.pending > 0) return false;
-		const own = this._slot.control.pauseLockset.has(this._slot.pullLock) ? 1 : 0; // discount our own pullId/quiet lock
-		return this._slot.control.pauseLockset.size <= own; // no external pause lock co-held
+		if (this._value.terminal !== undefined || this._wave.pending > 0) return false;
+		const own = this._control.pauseLockset.has(this._slot.pullLock) ? 1 : 0; // discount our own pullId/quiet lock
+		return this._control.pauseLockset.size <= own; // no external pause lock co-held
 	}
 
 	/**
@@ -1478,14 +1506,14 @@ export class Node<T = unknown> {
 	 * permanently non-quiet (the wedge-fix silently disabled) — QA-found robustness fix.
 	 */
 	private _deliverPullDemand(): void {
-		this._slot.control.demandOwed = false;
-		this._slot.control.inDeliverDemand = true;
-		this._slot.control.pauseLockset.delete(this._slot.pullLock as LockId);
+		this._control.demandOwed = false;
+		this._control.inDeliverDemand = true;
+		this._control.pauseLockset.delete(this._slot.pullLock as LockId);
 		try {
 			this._firePullDemand();
 		} finally {
-			this._slot.control.pauseLockset.add(this._slot.pullLock as LockId); // re-quiet (even on a throwing fn)
-			this._slot.control.inDeliverDemand = false;
+			this._control.pauseLockset.add(this._slot.pullLock as LockId); // re-quiet (even on a throwing fn)
+			this._control.inDeliverDemand = false;
 		}
 	}
 
@@ -1496,9 +1524,9 @@ export class Node<T = unknown> {
 	 * arriving WHILE a delivery is in flight (synchronous re-entry) is DROPPED (1:1, QA guard).
 	 */
 	private _onDemand(): void {
-		if (this._slot.control.inDeliverDemand) return; // re-entrant demand during an active delivery → drop (1:1)
+		if (this._control.inDeliverDemand) return; // re-entrant demand during an active delivery → drop (1:1)
 		if (this._canFireDemand()) this._deliverPullDemand();
-		else this._slot.control.demandOwed = true;
+		else this._control.demandOwed = true;
 	}
 
 	/**
@@ -1512,12 +1540,12 @@ export class Node<T = unknown> {
 	 * `_markDirty` relays the leading DIRTY (not absorbed).
 	 */
 	private _firePullDemand(): void {
-		if (this._slot.control.pauseBuffer.length > 0) {
-			const buf = this._slot.control.pauseBuffer;
-			this._slot.control.pauseBuffer = [];
+		if (this._control.pauseBuffer.length > 0) {
+			const buf = this._control.pauseBuffer;
+			this._control.pauseBuffer = [];
 			for (const wave of buf) this._down(wave);
 		}
-		if (this._slot.control.pausedDepWaveOccurred) {
+		if (this._control.pausedDepWaveOccurred) {
 			// QA-B2: only deliver if the fn can actually run this wave (settle-ready + first-run gate
 			// open). A gated run emits no DATA, so emitting the leading DIRTY would STRAND downstream
 			// — the exact wedge this feature exists to prevent (NoWedgeWhileQuiet). When gated, stay
@@ -1525,10 +1553,10 @@ export class Node<T = unknown> {
 			// delivers. Mirrors _settleRewire's pre-_markDirty gate.
 			const gated =
 				this._slot.handle !== null &&
-				!this._slot.wave.hasCalledFnOnce &&
+				!this._wave.hasCalledFnOnce &&
 				!(this._slot.partial || this._allDepsSettled());
-			if (this._slot.wave.pending > 0 || gated) return;
-			this._slot.control.pausedDepWaveOccurred = false;
+			if (this._wave.pending > 0 || gated) return;
+			this._control.pausedDepWaveOccurred = false;
 			this._markDirty(); // pin 2: leading DIRTY (lock released → relays)
 			this._tryRun(); // fn → DATA, balancing the DIRTY
 		}
@@ -1540,8 +1568,8 @@ export class Node<T = unknown> {
 	 * + B1/F6) and from `_pauseRelease` (an external PAUSE lock releases, F4/F5).
 	 */
 	private _fireOwedDemandIfReady(): void {
-		if (this._slot.control.inDeliverDemand) return; // don't re-enter during an active delivery (1:1, QA guard)
-		if (this._slot.pull && this._slot.control.demandOwed && this._canFireDemand())
+		if (this._control.inDeliverDemand) return; // don't re-enter during an active delivery (1:1, QA guard)
+		if (this._slot.pull && this._control.demandOwed && this._canFireDemand())
 			this._deliverPullDemand();
 	}
 
@@ -1556,19 +1584,18 @@ export class Node<T = unknown> {
 		// true (default): PAUSE gates recomputation/propagation, NOT a leaf source's own production.
 		// An async COMPUTE node's (deps>0) in-flight result buffers (R-async-paused / C-2); a depless
 		// async leaf source's own production delivers immediately (R-pause-modes / C-10).
-		if (!this._slot.wave.insideRunWave && this._isAsyncPool() && this._slot.deps.length > 0)
-			return true;
+		if (!this._wave.insideRunWave && this._isAsyncPool() && this._slot.deps.length > 0) return true;
 		return false;
 	}
 
 	/** R-invalidate-idempotent: clear cache + flush + cascade; no-op if nothing cached. */
 	private _invalidate(delivery?: DeliveryMeta): void {
-		if (!this._slot.value.hasData) return; // never-populated or already-reset → no-op
-		this._slot.value.cache = SENTINEL;
-		this._slot.value.hasData = false;
-		this._slot.value.status = "sentinel";
-		this._slot.value.replayRing = []; // BH6: invalidated values are stale — don't replay them
-		for (const fn of this._slot.hooks.onInvalidate) fn();
+		if (!this._value.hasData) return; // never-populated or already-reset → no-op
+		this._value.cache = SENTINEL;
+		this._value.hasData = false;
+		this._value.status = "sentinel";
+		this._value.replayRing = []; // BH6: invalidated values are stale — don't replay them
+		for (const fn of this._hooks.onInvalidate) fn();
 		this._emitToSubs(["INVALIDATE"], delivery);
 	}
 
@@ -1580,45 +1607,46 @@ export class Node<T = unknown> {
 	// auto-completed even after every other dep completed). Drives the completeWhenDepsComplete cascade.
 	private _allDepsTerminal(): boolean {
 		if (this._slot.deps.length === 0) return false;
-		for (const tm of this._slot.dep.terminal) if (tm === undefined) return false;
+		for (const tm of this._dep.terminal) if (tm === undefined) return false;
 		return true;
 	}
 
 	/** R-terminal: resubscribable reset clears terminal + dep state + re-arms the gate. */
 	private _resetLifecycle(): void {
-		for (const u of this._slot.dep.unsubs) if (u) u();
-		this._slot.dep.unsubs = [];
-		this._slot.dep.idxBoxes = [];
-		this._slot.activated = false;
-		this._slot.value.terminal = undefined;
-		this._slot.value.hasTorndown = false;
-		this._slot.wave.hasCalledFnOnce = false;
+		for (const u of this._dep.unsubs) if (u) u();
+		this._dep.unsubs = [];
+		this._dep.idxBoxes = [];
+		this._lifecycle.subscribers.clear();
+		this._lifecycle.activated = false;
+		this._value.terminal = undefined;
+		this._value.hasTorndown = false;
+		this._wave.hasCalledFnOnce = false;
 		this._resetDepState();
-		this._slot.control.pauseLockset.clear();
-		this._slot.control.pauseBuffer = [];
-		this._slot.control.pausedDepWaveOccurred = false;
-		this._slot.control.demandOwed = false; // R-pull (D55): drop any deferred demand
-		this._slot.value.replayRing = []; // BH6
+		this._control.pauseLockset.clear();
+		this._control.pauseBuffer = [];
+		this._control.pausedDepWaveOccurred = false;
+		this._control.demandOwed = false; // R-pull (D55): drop any deferred demand
+		this._value.replayRing = []; // BH6
 		const isCompute = this._slot.handle !== null || this._slot.deps.length > 0;
 		if (isCompute) {
-			this._slot.value.cache = SENTINEL;
-			this._slot.value.hasData = false;
-			this._slot.value.status = "sentinel";
+			this._value.cache = SENTINEL;
+			this._value.hasData = false;
+			this._value.status = "sentinel";
 		} else {
-			this._slot.value.status = this._slot.value.hasData ? "settled" : "sentinel";
+			this._value.status = this._value.hasData ? "settled" : "sentinel";
 		}
-		if (!this._slot.privateState.persist) this._slot.privateState.value = SENTINEL;
+		if (!this._privateState.persist) this._privateState.value = SENTINEL;
 	}
 
 	private _emitToSubs(msg: Message, delivery?: DeliveryMeta): void {
 		// Copy guards against subscribe/unsubscribe during iteration.
-		const subs = [...this._slot.subscribers];
+		const subs = [...this._lifecycle.subscribers];
 		for (const sink of subs) sink(msg, delivery);
 	}
 
 	/** Batch commit (R-batch-coalesce): deliver the deferred tier-3 wave now. */
 	__commitBatchedWave(wave: Wave): void {
-		this._slot.wave.batchDirtyOwed = false; // commit delivers the real settle (BH1)
+		this._wave.batchDirtyOwed = false; // commit delivers the real settle (BH1)
 		this._down(wave); // batch is inactive at commit -> processes normally
 	}
 
@@ -1626,10 +1654,10 @@ export class Node<T = unknown> {
 	__rollbackBatched(): void {
 		// BH1: keyed on _batchDirtyOwed (not _emittedDirtyThisWave, which a fn wave between
 		// defer and rollback would have reset) so the balancing RESOLVED is never skipped.
-		if (this._slot.wave.batchDirtyOwed) {
-			this._slot.wave.batchDirtyOwed = false;
-			this._slot.wave.emittedDirtyThisWave = false;
-			this._slot.value.status = this._slot.value.hasData ? "settled" : "sentinel";
+		if (this._wave.batchDirtyOwed) {
+			this._wave.batchDirtyOwed = false;
+			this._wave.emittedDirtyThisWave = false;
+			this._value.status = this._value.hasData ? "settled" : "sentinel";
 			this._emitToSubs(["RESOLVED"]);
 		}
 	}

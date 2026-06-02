@@ -75,6 +75,16 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		expect(lastType(msgs)).toBe("COMPLETE");
 	});
 
+	it("zip with no deps completes immediately", () => {
+		const g = graph();
+		const z = g.initNode(zip<[]>(), []);
+		const msgs: Message[] = [];
+		z.subscribe((m) => msgs.push(m));
+		expect(data(msgs)).toEqual([]);
+		expect(lastType(msgs)).toBe("COMPLETE");
+		expect(z.status).toBe("completed");
+	});
+
 	it("concat plays all of dep 0 then all of dep 1, then COMPLETE", () => {
 		const g = graph();
 		const a = g.initNode(fromIter([1, 2]), []);

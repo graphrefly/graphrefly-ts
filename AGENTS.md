@@ -36,7 +36,8 @@ Sibling implementations (each self-contained, cross-language = wire bridge, not 
 - **`ctx.up` / `ctx.down(msgs)` (D8):** one `msgs` array = one wave; may mix tiers. `ctx.up` is
   **control-tier only** (DIRTY/PAUSE/RESUME/INVALIDATE/TEARDOWN); DATA/RESOLVED/COMPLETE/ERROR are
   down-only (R-ctx-up). Handle = pure data `(pool_id, handle_id)`, no methods (D7).
-- **9 tiers + PAUSE/RESUME (D9, R-tier):** closed set; adding a tier is a constitutional change.
+- **7-tier const table + 10-message closed set (D9/D34, R-tier/R-msg-closed-set):** adding a tier
+  or message type is a constitutional change.
 - **graph = single-thread causal/concurrency domain (D22):** parallelism via pool callback or
   multi-graph + wire bridge; rewire intra-graph only.
 - **parity = behavioral conformance (D24):** structural `Impl` + cross-track-ledger retired.
