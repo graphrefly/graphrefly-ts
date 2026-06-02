@@ -1,13 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../index.js";
 import {
+	empty,
 	fromAny,
 	fromAsyncIter,
 	fromIter,
 	fromPromise,
+	fromTimer,
 	graph,
 	interval,
+	never,
 	of,
+	throwError,
 	timer,
 } from "../index.js";
 
@@ -32,6 +36,57 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		expect(data(msgs)).toEqual([0]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
 		expect(n.status).toBe("completed");
+	});
+
+	it("fromTimer preserves the frozen source name and supports AbortSignal", () => {
+		const g = graph();
+		const ac = new AbortController();
+		const n = g.initNode(fromTimer(50, { signal: ac.signal }), [], { name: "clock" });
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+		ac.abort(false);
+		vi.advanceTimersByTime(50);
+
+		const byId = Object.fromEntries(g.describe().nodes.map((node) => [node.id, node]));
+		const last = msgs[msgs.length - 1];
+		expect(byId.clock.factory).toBe("fromTimer");
+		expect(last[0]).toBe("ERROR");
+		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		expect(data(msgs)).toEqual([]);
+	});
+
+	it("fromTimer reports an already-aborted signal without scheduling DATA", () => {
+		const g = graph();
+		const ac = new AbortController();
+		ac.abort(false);
+		const n = g.initNode(fromTimer(50, { signal: ac.signal }), []);
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+		vi.advanceTimersByTime(50);
+
+		const last = msgs[msgs.length - 1];
+		expect(last[0]).toBe("ERROR");
+		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		expect(data(msgs)).toEqual([]);
+		expect(n.status).toBe("errored");
+	});
+
+	it("fromTimer periodic mode stops emitting after abort", () => {
+		const g = graph();
+		const ac = new AbortController();
+		const n = g.initNode(fromTimer(50, { period: 100, signal: ac.signal }), []);
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+		vi.advanceTimersByTime(50);
+		vi.advanceTimersByTime(100);
+		ac.abort(true);
+		vi.advanceTimersByTime(500);
+
+		const last = msgs[msgs.length - 1];
+		expect(data(msgs)).toEqual([0, 1]);
+		expect(last[0]).toBe("ERROR");
+		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		expect(n.status).toBe("errored");
 	});
 
 	it("interval emits periodic ticks 0,1,2,…", () => {
@@ -124,6 +179,21 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
 	});
 
+	it("of emits variadic values; of() is terminal-only EMPTY", () => {
+		const g = graph();
+		const many = g.initNode(of(1, 2, 3), []);
+		const manyMsgs: Message[] = [];
+		many.subscribe((x) => manyMsgs.push(x));
+		expect(data(manyMsgs)).toEqual([1, 2, 3]);
+		expect(manyMsgs[manyMsgs.length - 1][0]).toBe("COMPLETE");
+
+		const none = g.initNode(of(), []);
+		const noneMsgs: Message[] = [];
+		none.subscribe((x) => noneMsgs.push(x));
+		expect(data(noneMsgs)).toEqual([]);
+		expect(noneMsgs[noneMsgs.length - 1][0]).toBe("COMPLETE");
+	});
+
 	it("fromIter emits each value then COMPLETE synchronously", () => {
 		const g = graph();
 		const n = g.initNode(fromIter([1, 2, 3]), []);
@@ -132,6 +202,39 @@ describe("promise / iterable / coercion sources (D43)", () => {
 			if (m[0] === "DATA") vals.push(m[1]);
 		});
 		expect(vals).toEqual([1, 2, 3]);
+	});
+
+	it("empty completes without DATA", () => {
+		const g = graph();
+		const n = g.initNode(empty<number>(), []);
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+		expect(data(msgs)).toEqual([]);
+		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
+		expect(n.status).toBe("completed");
+	});
+
+	it("never stays silent after START until deactivation", () => {
+		const g = graph();
+		const n = g.initNode(never<number>(), []);
+		const msgs: Message[] = [];
+		const unsub = n.subscribe((x) => msgs.push(x));
+		expect(msgs).toEqual([["START"]]);
+		expect(n.status).toBe("sentinel");
+		unsub();
+	});
+
+	it("throwError emits a valid ERROR payload on activation", () => {
+		const g = graph();
+		for (const err of [undefined, false, true]) {
+			const n = g.initNode(throwError(err), []);
+			const msgs: Message[] = [];
+			n.subscribe((x) => msgs.push(x));
+			const last = msgs[msgs.length - 1];
+			expect(last[0]).toBe("ERROR");
+			expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+			expect(n.status).toBe("errored");
+		}
 	});
 
 	it("fromAny passes an existing Node through", () => {

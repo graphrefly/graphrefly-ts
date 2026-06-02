@@ -22,6 +22,8 @@ import {
 	type DeliveryMeta,
 	type NodeFn,
 	type Sink,
+	type TerminalData,
+	type WaveData,
 } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import {
@@ -1177,8 +1179,8 @@ export class Node<T = unknown> {
 	}
 
 	private _refreshCtx(ctx: Ctx): void {
-		(ctx as { waveData: unknown[][][] }).waveData = this._dep.waveData;
-		(ctx as { terminal: unknown[] }).terminal = this._dep.terminalInput.map(terminalView);
+		(ctx as { waveData: WaveData }).waveData = this._dep.waveData;
+		(ctx as { terminal: TerminalData }).terminal = this._dep.terminalInput.map(terminalView);
 		ctx[CTX_DEP_CACHE] = { latest: this._dep.prev };
 	}
 

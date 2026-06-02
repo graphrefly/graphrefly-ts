@@ -109,7 +109,7 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 				return;
 			}
 			const st = ctx.state.get<ZipState>() ?? {
-				queues: Array.from({ length: n }, () => []),
+				queues: Array.from({ length: n }, () => [] as unknown[]),
 				terminal: new Array(n).fill(false),
 			};
 			for (let i = 0; i < n; i++) {

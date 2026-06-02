@@ -165,13 +165,18 @@ export {
 } from "./graph/render.js";
 export {
 	type AsyncSourceOpts,
+	empty,
 	fromAny,
 	fromAsyncIter,
 	fromIter,
 	fromPromise,
+	fromTimer,
 	interval,
 	type NodeInput,
+	never,
 	of,
+	type TimerSourceOpts,
+	throwError,
 	timer,
 } from "./graph/sources.js";
 export {

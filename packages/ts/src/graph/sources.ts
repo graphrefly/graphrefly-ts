@@ -59,25 +59,35 @@ function isThenable(x: unknown): x is PromiseLike<unknown> {
 	return x != null && typeof (x as PromiseLike<unknown>).then === "function";
 }
 
-/** Options shared by the async sources: an optional AbortSignal → ERROR on abort. */
+/** Options shared by async/timer sources: an optional AbortSignal → ERROR on abort. */
 export interface AsyncSourceOpts {
 	signal?: AbortSignal;
 }
 
-/**
- * Timer source: one-shot (first tick then COMPLETE) or periodic (`{period}` → 0, 1, 2, …).
- * sync pool + pausable:false (a timer keeps producing through PAUSE, R-pause-modes). Emits the
- * tick counter from 0; deactivation clears the timers.
- */
-export function timer(ms: number, opts?: { period?: number }): Operator<never, number> {
-	const period = opts?.period;
+export interface TimerSourceOpts extends AsyncSourceOpts {
+	period?: number;
+}
+
+function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Operator<never, number> {
+	const { period, signal } = opts ?? {};
 	return source<number>(
-		"timer",
+		factory,
 		(ctx) => {
 			let done = false;
 			let count = 0;
 			let t: ReturnType<typeof setTimeout> | undefined;
 			let iv: ReturnType<typeof setInterval> | undefined;
+			const cleanup = () => {
+				done = true;
+				if (t !== undefined) clearTimeout(t);
+				if (iv !== undefined) clearInterval(iv);
+				signal?.removeEventListener("abort", onAbort);
+			};
+			const onAbort = () => {
+				if (done) return;
+				cleanup();
+				ctx.down([["ERROR", errorPayload(signal?.reason)]]);
+			};
 			const finish = () => {
 				if (done) return;
 				if (period != null) {
@@ -89,18 +99,34 @@ export function timer(ms: number, opts?: { period?: number }): Operator<never, n
 				} else {
 					// One-shot: DATA then COMPLETE in one wave (terminal-is-forever).
 					done = true;
+					signal?.removeEventListener("abort", onAbort);
 					ctx.down([["DATA", count++], ["COMPLETE"]]);
 				}
 			};
+			if (signal?.aborted) {
+				onAbort();
+				return;
+			}
+			signal?.addEventListener("abort", onAbort, { once: true });
 			t = setTimeout(finish, ms);
-			return () => {
-				done = true;
-				if (t !== undefined) clearTimeout(t);
-				if (iv !== undefined) clearInterval(iv);
-			};
+			return cleanup;
 		},
 		{ pool: "sync", pausable: false },
 	);
+}
+
+/**
+ * Timer source: one-shot (first tick then COMPLETE) or periodic (`{period}` → 0, 1, 2, …).
+ * sync pool + pausable:false (a timer keeps producing through PAUSE, R-pause-modes). Emits the
+ * tick counter from 0; deactivation clears the timers.
+ */
+export function timer(ms: number, opts?: TimerSourceOpts): Operator<never, number> {
+	return timerSource("timer", ms, opts);
+}
+
+/** Frozen pure-ts name for {@link timer}; preserves the real factory name in describe(). */
+export function fromTimer(ms: number, opts?: TimerSourceOpts): Operator<never, number> {
+	return timerSource("fromTimer", ms, opts);
 }
 
 /** interval: periodic ticks (0, 1, 2, …), first at `ms`, then every `ms` (RxJS semantics). */
@@ -195,12 +221,15 @@ export function fromAsyncIter<T>(
 	);
 }
 
-/** of: a single synchronous value — DATA then COMPLETE, emitted on activation. */
-export function of<T>(value: T): Operator<never, T> {
+/**
+ * of: synchronous values — each argument as DATA, then COMPLETE. `of()` is the EMPTY source.
+ */
+export function of<T = never>(...values: T[]): Operator<never, T> {
 	return source<T>(
 		"of",
 		(ctx) => {
-			ctx.down([["DATA", value], ["COMPLETE"]]);
+			for (const value of values) ctx.down([["DATA", value]]);
+			ctx.down([["COMPLETE"]]);
 		},
 		{ pool: "sync" },
 	);
@@ -213,6 +242,33 @@ export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
 		(ctx) => {
 			for (const v of iterable) ctx.down([["DATA", v]]);
 			ctx.down([["COMPLETE"]]);
+		},
+		{ pool: "sync" },
+	);
+}
+
+/** EMPTY analogue: complete immediately with no DATA. */
+export function empty<T = never>(): Operator<never, T> {
+	return source<T>(
+		"empty",
+		(ctx) => {
+			ctx.down([["COMPLETE"]]);
+		},
+		{ pool: "sync" },
+	);
+}
+
+/** NEVER analogue: activate and remain silent until deactivation. */
+export function never<T = never>(): Operator<never, T> {
+	return source<T>("never", () => undefined, { pool: "sync" });
+}
+
+/** Error source: terminate with ERROR on activation, coercing invalid host-language payloads. */
+export function throwError(err: unknown): Operator<never, never> {
+	return source<never>(
+		"throwError",
+		(ctx) => {
+			ctx.down([["ERROR", errorPayload(err)]]);
 		},
 		{ pool: "sync" },
 	);
