@@ -88,7 +88,9 @@ export function map<S, T>(fn: (v: S) => T): Operator<S, T> {
 	return {
 		factory: "map",
 		body: (ctx) => {
-			ctx.down([["DATA", fn(ctx.depRecords[0].latest as S)]]);
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
+			for (const v of b) ctx.down([["DATA", fn(v as S)]]);
 		},
 	};
 }
@@ -98,8 +100,9 @@ export function filter<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "filter",
 		body: (ctx) => {
-			const v = ctx.depRecords[0].latest as S;
-			if (pred(v)) ctx.down([["DATA", v]]);
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
+			for (const v of b) if (pred(v as S)) ctx.down([["DATA", v]]);
 		},
 	};
 }
@@ -109,10 +112,14 @@ export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T
 	return {
 		factory: "scan",
 		body: (ctx) => {
-			const acc = ctx.state.get<T>() ?? seed;
-			const next = reducer(acc, ctx.depRecords[0].latest as S);
-			ctx.state.set(next);
-			ctx.down([["DATA", next]]);
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
+			let acc = ctx.state.get<T>() ?? seed;
+			for (const v of b) {
+				acc = reducer(acc, v as S);
+				ctx.down([["DATA", acc]]);
+			}
+			ctx.state.set(acc);
 		},
 	};
 }
@@ -126,12 +133,16 @@ export function take<S>(n: number): Operator<S, S> {
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			const count = ctx.state.get<number>() ?? 0;
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
+			let count = ctx.state.get<number>() ?? 0;
 			if (count >= n) return; // already satisfied
-			const v = ctx.depRecords[0].latest as S;
-			const next = count + 1;
-			ctx.state.set(next);
-			ctx.down(next >= n ? [["DATA", v], ["COMPLETE"]] : [["DATA", v]]);
+			for (const v of b) {
+				if (count >= n) break;
+				count += 1;
+				ctx.down(count >= n ? [["DATA", v], ["COMPLETE"]] : [["DATA", v]]);
+			}
+			ctx.state.set(count);
 		},
 	};
 }
@@ -141,11 +152,18 @@ export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is)
 	return {
 		factory: "distinctUntilChanged",
 		body: (ctx) => {
-			const v = ctx.depRecords[0].latest as S;
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
 			const prev = ctx.state.get<{ v: S }>();
-			if (prev && eq(prev.v, v)) return;
-			ctx.state.set({ v });
-			ctx.down([["DATA", v]]);
+			let last = prev?.v;
+			let hasLast = prev !== undefined;
+			for (const v of b as readonly S[]) {
+				if (hasLast && eq(last as S, v)) continue;
+				last = v;
+				hasLast = true;
+				ctx.down([["DATA", v]]);
+			}
+			if (hasLast) ctx.state.set({ v: last as S });
 		},
 	};
 }
@@ -198,10 +216,17 @@ export function pairwise<S>(): Operator<S, readonly [S, S]> {
 	return {
 		factory: "pairwise",
 		body: (ctx) => {
-			const v = ctx.depRecords[0].latest as S;
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
 			const st = ctx.state.get<{ prev: S }>();
-			if (st) ctx.down([["DATA", [st.prev, v] as const]]);
-			ctx.state.set({ prev: v });
+			let prev = st?.prev;
+			let hasPrev = st !== undefined;
+			for (const v of b as readonly S[]) {
+				if (hasPrev) ctx.down([["DATA", [prev as S, v] as const]]);
+				prev = v;
+				hasPrev = true;
+			}
+			if (hasPrev) ctx.state.set({ prev: prev as S });
 		},
 	};
 }
@@ -211,12 +236,17 @@ export function skip<S>(n: number): Operator<S, S> {
 	return {
 		factory: "skip",
 		body: (ctx) => {
-			const count = ctx.state.get<number>() ?? 0;
-			if (count < n) {
-				ctx.state.set(count + 1);
-				return; // skipped → undirty RESOLVED
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
+			let count = ctx.state.get<number>() ?? 0;
+			for (const v of b) {
+				if (count < n) {
+					count += 1;
+					continue;
+				}
+				ctx.down([["DATA", v]]);
 			}
-			ctx.down([["DATA", ctx.depRecords[0].latest as S]]);
+			ctx.state.set(count);
 		},
 	};
 }
@@ -229,9 +259,15 @@ export function takeWhile<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "takeWhile",
 		body: (ctx) => {
-			const v = ctx.depRecords[0].latest as S;
-			if (pred(v)) ctx.down([["DATA", v]]);
-			else ctx.down([["COMPLETE"]]);
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
+			for (const v of b as readonly S[]) {
+				if (pred(v)) ctx.down([["DATA", v]]);
+				else {
+					ctx.down([["COMPLETE"]]);
+					return;
+				}
+			}
 		},
 	};
 }
@@ -246,9 +282,15 @@ export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "first",
 		body: (ctx) => {
-			const v = ctx.depRecords[0].latest as S;
-			if (!pred || pred(v)) ctx.down([["DATA", v], ["COMPLETE"]]);
-			// else skip → undirty RESOLVED (await the next matching value).
+			const b = ctx.depRecords[0].batch;
+			if (!b) return;
+			for (const v of b as readonly S[]) {
+				if (!pred || pred(v)) {
+					ctx.down([["DATA", v], ["COMPLETE"]]);
+					return;
+				}
+			}
+			// no match in this wave → undirty RESOLVED (await next match)
 		},
 	};
 }

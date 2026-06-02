@@ -269,8 +269,9 @@ export class Graph {
 		// D51: edges derive from each node's CURRENT/LIVE deps (entry.node.deps, NOT the
 		// construction-time entry.deps), so a rewire (C-8 immediate / C-11 *Map deferred) is
 		// reflected and every edge is a real current subscription (D3). A live dep absent from this
-		// graph's index (a runtime *Map inner / bare fromAny node) is AUTO-DISCOVERED one level deep
-		// as a snapshot node with a synthesized stable id (B2; transitive sub-deps = backlog B38).
+		// graph's index (a runtime *Map inner / bare fromAny node) is AUTO-DISCOVERED as a snapshot
+		// node with a synthesized stable id (B2). B38 extends this to transitive live-reachability:
+		// discovered unregistered nodes are recursively expanded through their own live deps.
 		const discovered = new Map<Node<unknown>, string>(); // unregistered live dep → synth local id
 		const localId = (n: Node<unknown>): string => {
 			const e = this._entries.get(n);
@@ -307,18 +308,30 @@ export class Graph {
 			nodes.push(dnode);
 			for (const from of liveIds) edges.push({ from, to: id });
 		}
-		// pass 2: emit the one-level auto-discovered inners as snapshot nodes (D51), shown as LEAVES
-		// (their own possibly-unregistered sub-deps are not traversed → no dangling edges; transitive
-		// = B38). factory from the inner's NodeOptions.factory (D43-reserved) else "?".
-		for (const [inner, sid] of discovered) {
+		// pass 2: recursively emit auto-discovered unregistered nodes (D51+B38). localId() may add
+		// further unregistered deps to `discovered` while this loop runs; a visited set keeps each
+		// discovered node emitted once (stable ids via _synthIds).
+		const visited = new Set<Node<unknown>>();
+		const queue: Node<unknown>[] = [...discovered.keys()];
+		for (let i = 0; i < queue.length; i += 1) {
+			const inner = queue[i];
+			if (visited.has(inner)) continue;
+			visited.add(inner);
+			const sid = discovered.get(inner);
+			if (sid === undefined) continue;
+			const liveIds = inner.deps.map(localId);
+			for (const dep of inner.deps) {
+				if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
+			}
 			const dnode: DescribeNode = {
 				id: `${_prefix}${sid}`,
 				factory: inner.factory ?? "?",
 				status: inner.status,
-				deps: [],
+				deps: liveIds,
 			};
 			if (inner.cache !== undefined) dnode.value = inner.cache;
 			nodes.push(dnode);
+			for (const from of liveIds) edges.push({ from, to: dnode.id });
 		}
 		const snap: DescribeSnapshot = { nodes, edges };
 		if (this.name !== undefined) snap.name = this.name;

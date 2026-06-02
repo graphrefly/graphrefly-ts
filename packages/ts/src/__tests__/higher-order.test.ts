@@ -13,6 +13,7 @@ import {
 	flatMap,
 	graph,
 	initNode,
+	map,
 	mergeMap,
 	node,
 	of,
@@ -322,8 +323,8 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 		const innerEdge = snap.edges.find((e) => e.to === "sw" && e.from !== "src");
 		expect(innerEdge).toBeDefined(); // a live edge inner→sw (truthful, not a dangling "?")
 		const innerNode = snap.nodes.find((dn) => dn.id === innerEdge?.from);
-		expect(innerNode).toBeDefined(); // the inner IS emitted as a node (D51 one-level auto-discovery)
-		expect(innerNode?.deps).toEqual([]); // shown as a leaf (transitive sub-deps = B38)
+		expect(innerNode).toBeDefined(); // the inner IS emitted as a node (D51/B38 auto-discovery)
+		expect(innerNode?.deps).toEqual([]); // subject() has no live deps, so it remains a leaf.
 		expect(snap.nodes.find((dn) => dn.id === "sw")?.deps).toContain("src"); // S still a live dep
 	});
 
@@ -342,5 +343,35 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 		expect(innerNode).toBeDefined(); // emitted as a node, NOT a dangling "?" edge
 		expect(innerNode?.factory).toBe("of"); // named via NodeOptions.factory (D43-reserved, D51)
 		expect(snap.edges).toContainEqual({ from: innerId, to: "d" });
+	});
+
+	it("auto-discovers transitive unregistered live deps (B38)", () => {
+		const g = graph();
+		const s = g.node([], null, { name: "src" });
+		const innerLeaf = subject();
+		const innerParent = initNode(
+			map((n: number) => n + 1),
+			[innerLeaf.node],
+		);
+		const sw = g.initNode(
+			switchMap((_v: number) => innerParent),
+			[s],
+			{ name: "sw" },
+		);
+		collect(sw);
+		s.down([["DATA", 1]]);
+		innerLeaf.next(41);
+		const snap = g.describe();
+		const swNode = snap.nodes.find((n) => n.id === "sw");
+		const parentId = swNode?.deps.find((id) => id !== "src");
+		expect(parentId).toBeDefined();
+		const parentNode = snap.nodes.find((n) => n.id === parentId);
+		expect(parentNode?.factory).toBe("map");
+		expect(parentNode?.deps.length).toBe(1);
+		const leafId = parentNode?.deps[0];
+		expect(leafId).toBeDefined();
+		const leafNode = snap.nodes.find((n) => n.id === leafId);
+		expect(leafNode).toBeDefined();
+		expect(snap.edges).toContainEqual({ from: leafId as string, to: parentId as string });
 	});
 });

@@ -49,6 +49,18 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		expect(data(msgs)).toEqual([2, 6]);
 	});
 
+	it("map consumes every DATA occurrence in one dep-batch (B43 / D49)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2, 3]), []);
+		const m = g.initNode(
+			map((n: number) => n * 10),
+			[src],
+		);
+		const msgs: Message[] = [];
+		m.subscribe((x) => msgs.push(x));
+		expect(data(msgs)).toEqual([10, 20, 30]);
+	});
+
 	it("filter emits only when pred holds", () => {
 		const g = graph();
 		const s = g.state(2);
@@ -62,6 +74,35 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		s.set(4);
 		expect(data(msgs)).toEqual([2, 4]);
 		expect(evens.cache).toBe(4);
+	});
+
+	it("filter consumes every DATA occurrence in one dep-batch (B43 / D49)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2, 3, 4]), []);
+		const evens = g.initNode(
+			filter((n: number) => n % 2 === 0),
+			[src],
+		);
+		const msgs: Message[] = [];
+		evens.subscribe((x) => msgs.push(x));
+		expect(data(msgs)).toEqual([2, 4]);
+	});
+
+	it("downstream map does not re-emit stale DATA on upstream RESOLVED (B43)", () => {
+		const g = graph();
+		const s = g.state(2);
+		const evens = g.initNode(
+			filter((n: number) => n % 2 === 0),
+			[s],
+		);
+		const m = g.initNode(
+			map((n: number) => n * 10),
+			[evens],
+		);
+		const msgs: Message[] = [];
+		m.subscribe((x) => msgs.push(x));
+		s.set(3); // filtered out => evens settles with RESOLVED, no new DATA
+		expect(data(msgs)).toEqual([20]);
 	});
 
 	it("scan accumulates with a seed", () => {
@@ -78,6 +119,18 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		expect(data(msgs)).toEqual([1, 3, 6]);
 	});
 
+	it("scan accumulates every DATA occurrence in one dep-batch (B43 / D49)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2, 3]), []);
+		const sum = g.initNode(
+			scan((acc: number, v: number) => acc + v, 0),
+			[src],
+		);
+		const msgs: Message[] = [];
+		sum.subscribe((x) => msgs.push(x));
+		expect(data(msgs)).toEqual([1, 3, 6]);
+	});
+
 	it("take emits the first n then COMPLETE (terminal-is-forever)", () => {
 		const g = graph();
 		const s = g.state(1);
@@ -91,6 +144,16 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		expect(first2.status).toBe("completed");
 	});
 
+	it("take counts occurrences inside one dep-batch (B43 / D49)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2, 3]), []);
+		const first2 = g.initNode(take<number>(2), [src]);
+		const msgs: Message[] = [];
+		first2.subscribe((m) => msgs.push(m));
+		expect(data(msgs)).toEqual([1, 2]);
+		expect(first2.status).toBe("completed");
+	});
+
 	it("distinctUntilChanged suppresses repeats", () => {
 		const g = graph();
 		const s = g.state(1);
@@ -101,6 +164,15 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		s.set(2);
 		s.set(2); // same → suppressed
 		s.set(3);
+		expect(data(msgs)).toEqual([1, 2, 3]);
+	});
+
+	it("distinctUntilChanged handles repeats within one dep-batch (B43)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 1, 2, 2, 3]), []);
+		const d = g.initNode(distinctUntilChanged<number>(), [src]);
+		const msgs: Message[] = [];
+		d.subscribe((x) => msgs.push(x));
 		expect(data(msgs)).toEqual([1, 2, 3]);
 	});
 
@@ -204,6 +276,19 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		]);
 	});
 
+	it("pairwise emits in-batch consecutive pairs (B43)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2, 3, 4]), []);
+		const p = g.initNode(pairwise<number>(), [src]);
+		const msgs: Message[] = [];
+		p.subscribe((m) => msgs.push(m));
+		expect(data(msgs)).toEqual([
+			[1, 2],
+			[2, 3],
+			[3, 4],
+		]);
+	});
+
 	it("skip drops the first n DATA", () => {
 		const g = graph();
 		const s = g.state(1);
@@ -213,6 +298,15 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		s.set(2); // skipped (count 1)
 		s.set(3); // emitted
 		s.set(4); // emitted
+		expect(data(msgs)).toEqual([3, 4]);
+	});
+
+	it("skip drops occurrences inside one dep-batch (B43)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2, 3, 4]), []);
+		const sk = g.initNode(skip<number>(2), [src]);
+		const msgs: Message[] = [];
+		sk.subscribe((m) => msgs.push(m));
 		expect(data(msgs)).toEqual([3, 4]);
 	});
 
@@ -232,6 +326,19 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		expect(tw.status).toBe("completed");
 	});
 
+	it("takeWhile processes each in-batch occurrence and completes at first failing item (B43)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2, 3, 4]), []);
+		const tw = g.initNode(
+			takeWhile((n: number) => n < 3),
+			[src],
+		);
+		const msgs: Message[] = [];
+		tw.subscribe((m) => msgs.push(m));
+		expect(data(msgs)).toEqual([1, 2]);
+		expect(tw.status).toBe("completed");
+	});
+
 	it("first emits the first matching value then COMPLETE", () => {
 		const g = graph();
 		const s = g.state(1);
@@ -245,6 +352,19 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		s.set(5); // first match
 		s.set(6); // terminated
 		expect(data(msgs)).toEqual([5]);
+		expect(f.status).toBe("completed");
+	});
+
+	it("first picks the earliest matching occurrence in one dep-batch (B43)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2, 3, 4]), []);
+		const f = g.initNode(
+			first((n: number) => n > 1),
+			[src],
+		);
+		const msgs: Message[] = [];
+		f.subscribe((m) => msgs.push(m));
+		expect(data(msgs)).toEqual([2]);
 		expect(f.status).toBe("completed");
 	});
 
