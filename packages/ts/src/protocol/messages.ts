@@ -46,30 +46,49 @@ export function errorPayload(reason: unknown, fallback = "error without a valid 
 	return isInvalidErrorPayload(reason) ? new Error(fallback) : reason;
 }
 
+export const TIER_START = 0;
+export const TIER_CONTROL = 1;
+export const TIER_NOTIFICATION = 2;
+export const TIER_VALUE = 3;
+export const TIER_SETTLE = 4;
+export const TIER_TERMINAL = 5;
+export const TIER_TEARDOWN = 6;
+
 /**
- * Tier const table (R-tier / D34). Tiers < 3 dispatch immediately; tiers >= 3 are
- * batch-deferred. This is a compile-time const table (D18), not runtime config.
+ * Tier const table (R-tier / D34). Tiers below value dispatch immediately; value
+ * and above are batch-deferred. This is a compile-time const table (D18), not runtime config.
  */
 const TIER: Record<MessageType, number> = {
-	START: 0,
-	PAUSE: 1,
-	RESUME: 1,
-	DIRTY: 2,
-	DATA: 3,
-	RESOLVED: 3,
-	INVALIDATE: 4,
-	COMPLETE: 5,
-	ERROR: 5,
-	TEARDOWN: 6,
+	START: TIER_START,
+	PAUSE: TIER_CONTROL,
+	RESUME: TIER_CONTROL,
+	DIRTY: TIER_NOTIFICATION,
+	DATA: TIER_VALUE,
+	RESOLVED: TIER_VALUE,
+	INVALIDATE: TIER_SETTLE,
+	COMPLETE: TIER_TERMINAL,
+	ERROR: TIER_TERMINAL,
+	TEARDOWN: TIER_TEARDOWN,
 };
 
 export function messageTier(t: MessageType): number {
 	return TIER[t];
 }
 
-/** Tier >= 3 messages are deferred inside a batch (DATA/RESOLVED/INVALIDATE/terminal/teardown). */
+/** Value and above are deferred inside a batch (DATA/RESOLVED/INVALIDATE/terminal/teardown). */
 export function isDeferredTier(t: MessageType): boolean {
-	return TIER[t] >= 3;
+	return TIER[t] >= TIER_VALUE;
+}
+
+/** Value-tier messages (DATA/RESOLVED) occupy the tier-3 slot. */
+export function isValueTier(t: MessageType): boolean {
+	return TIER[t] === TIER_VALUE;
+}
+
+/** The pause buffer holds the settle slice only: value-tier DATA/RESOLVED plus INVALIDATE. */
+export function isPauseBufferedTier(t: MessageType): boolean {
+	const tier = TIER[t];
+	return tier === TIER_VALUE || tier === TIER_SETTLE;
 }
 
 /**
@@ -79,7 +98,7 @@ export function isDeferredTier(t: MessageType): boolean {
  * ERROR within the tier by the message type only where the handling actually differs.
  */
 export function isTerminal(t: MessageType): boolean {
-	return TIER[t] === 5;
+	return TIER[t] === TIER_TERMINAL;
 }
 
 /**
@@ -89,5 +108,5 @@ export function isTerminal(t: MessageType): boolean {
  */
 export function isUpAllowed(t: MessageType): boolean {
 	const tier = TIER[t];
-	return tier !== 3 && tier !== 5;
+	return tier !== TIER_VALUE && tier !== TIER_TERMINAL;
 }

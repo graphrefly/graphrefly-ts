@@ -239,6 +239,33 @@ describe("B49 core-slot migration", () => {
 		expect(s.factory).toBe("probe");
 	});
 
+	it("does not add a parallel frontier or adjacency transport over subscriber propagation", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const coreKeys = Reflect.ownKeys(coreOf(s)).map((key) => String(key));
+		const knownCoreFields = new Set([
+			"nextId",
+			"slots",
+			"values",
+			"waves",
+			"controls",
+			"lifecycles",
+			"depStates",
+			"privateStates",
+			"hooks",
+			"syncCtxs",
+			"boundary",
+		]);
+		const forbiddenTransportName = /adjacency|edge|frontier|queue|work/i;
+
+		for (const key of coreKeys) {
+			if (knownCoreFields.has(key)) continue;
+			expect(
+				key,
+				"new core fields must not smuggle B50-B52 adjacency/frontier/work transport",
+			).not.toMatch(forbiddenTransportName);
+		}
+	});
+
 	it("uses one graph-local core for graph-created nodes while standalone nodes stay isolated", () => {
 		const g1 = graph();
 		const a = g1.state(1);

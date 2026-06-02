@@ -560,6 +560,7 @@
 		"test:hermes": "pnpm --filter @graphrefly/pure-ts build && node scripts/hermes-smoke/run.mjs",
 		"bench": "pnpm --filter @graphrefly/pure-ts bench",
 		"bench:baseline": "pnpm --filter @graphrefly/pure-ts bench:baseline",
+		"probe:b49:ts": "tsx packages/ts/src/__bench__/b49-probe.ts",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"release": "pnpm run build && changeset publish",

@@ -26,9 +26,12 @@ import {
 import { type Dispatcher, defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	errorPayload,
+	isDeferredTier,
 	isInvalidErrorPayload,
+	isPauseBufferedTier,
 	isTerminal,
 	isUpAllowed,
+	isValueTier,
 	type LockId,
 	type Message,
 	messageTier,
@@ -1239,15 +1242,15 @@ export class Node<T = unknown> {
 		// tier-3 settle slice to commit so a shared downstream recomputes once. Only
 		// external emits defer (fn emits during commit run normally).
 		if (!this._wave.insideRunWave && currentBatch()) {
-			const tier3 = sorted.filter((m) => messageTier(m[0]) >= 3);
-			if (tier3.length > 0) {
+			const deferred = sorted.filter((m) => isDeferredTier(m[0]));
+			if (deferred.length > 0) {
 				if (!this._wave.emittedDirtyThisWave) {
 					this._wave.emittedDirtyThisWave = true;
 					this._value.status = "dirty";
 					this._emitToSubs(["DIRTY"], { wave: deliveryWave, last: false });
 				}
 				this._wave.batchDirtyOwed = true; // BH1: owe a balancing RESOLVED on rollback
-				deferToBatch(this, tier3);
+				deferToBatch(this, deferred);
 				return;
 			}
 		}
@@ -1255,10 +1258,7 @@ export class Node<T = unknown> {
 		// pause buffer while paused; tier 0-2 (DIRTY/PAUSE/RESUME), tier 5 (terminal),
 		// tier 6 (TEARDOWN) bypass so end-of-stream + control always reach observers.
 		if (this._shouldBufferOnPause()) {
-			const buffered = sorted.filter((m) => {
-				const t = messageTier(m[0]);
-				return t === 3 || t === 4;
-			});
+			const buffered = sorted.filter((m) => isPauseBufferedTier(m[0]));
 			if (buffered.length > 0) {
 				// B36 / R-resolved-undirty: buffering a settle slice still means this fn wave
 				// produced a settle. Without this, _runWave sees "dirty + no settle" and
@@ -1266,10 +1266,7 @@ export class Node<T = unknown> {
 				this._wave.emittedSettleThisWave = true;
 				this._control.pauseBuffer.push(buffered);
 			}
-			sorted = sorted.filter((m) => {
-				const t = messageTier(m[0]);
-				return t !== 3 && t !== 4;
-			});
+			sorted = sorted.filter((m) => !isPauseBufferedTier(m[0]));
 			if (sorted.length === 0) return;
 		}
 		let dataCount = 0;
@@ -1278,7 +1275,7 @@ export class Node<T = unknown> {
 		for (const m of sorted) {
 			if (m[0] === "DATA") dataCount++;
 			if (m[0] === "RESOLVED") hasResolved = true;
-			if (messageTier(m[0]) === 3) hasTier3 = true;
+			if (isValueTier(m[0])) hasTier3 = true;
 		}
 		// EC2 / R-resolved-undirty tier-3 exclusivity: a wave's tier-3 slot is >=1 DATA
 		// (occurrence) XOR exactly 1 RESOLVED (undirty) — never mixed. Reject fail-fast.
@@ -1301,7 +1298,7 @@ export class Node<T = unknown> {
 			const delivery = { wave: deliveryWave, last: i === sorted.length - 1 };
 			// R-resolved-undirty (D49): a tier-3+ emit this wave means the fn produced a settle,
 			// so no synthesized undirty RESOLVED is owed (see _runWave).
-			if (messageTier(m[0]) >= 3) this._wave.emittedSettleThisWave = true;
+			if (isDeferredTier(m[0])) this._wave.emittedSettleThisWave = true;
 			if (m[0] === "DIRTY") {
 				if (!this._wave.emittedDirtyThisWave) {
 					this._wave.emittedDirtyThisWave = true;
