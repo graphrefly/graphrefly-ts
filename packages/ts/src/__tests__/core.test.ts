@@ -173,3 +173,32 @@ describe("ctx.up direction guard (R-ctx-up)", () => {
 		expect(() => d.up([["INVALIDATE"]])).not.toThrow();
 	});
 });
+
+describe("B49 core-slot migration", () => {
+	it("stores wave bookkeeping behind the Node view, without old direct-field shims", () => {
+		const s = node<number>([], null, { initial: 1, factory: "probe" });
+		const view = s as unknown as Record<string, unknown>;
+
+		expect(Object.hasOwn(view, "_core")).toBe(true);
+		expect(Object.hasOwn(view, "_id")).toBe(true);
+		expect(Object.hasOwn(view, "_slot")).toBe(true);
+		for (const oldField of [
+			"_deps",
+			"_depBatch",
+			"_depPrev",
+			"_depDirty",
+			"_pending",
+			"_cache",
+			"_status",
+			"_subscribers",
+			"_pauseLockset",
+			"_depRecords",
+		]) {
+			expect(Object.hasOwn(view, oldField), oldField).toBe(false);
+		}
+
+		expect(s.cache).toBe(1);
+		expect(s.status).toBe("settled");
+		expect(s.factory).toBe("probe");
+	});
+});
