@@ -33,7 +33,8 @@ import {
 	type NodeFn,
 	terminalErrorValue,
 } from "../ctx/types.js";
-import { Node, type NodeOptions } from "../node/node.js";
+import type { NodeCore } from "../node/core.js";
+import { Node, type NodeOptions, withNodeCore } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 
 /**
@@ -69,6 +70,24 @@ export function initNode<TIn, TOut>(
 	op: Operator<TIn, TOut>,
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut> = {},
+): Node<TOut> {
+	return makeInitNode(op, deps, opts);
+}
+
+/** @internal Graph-bound operator instantiation into a graph-local B49 core. */
+export function initNodeWithCore<TIn, TOut>(
+	core: NodeCore,
+	op: Operator<TIn, TOut>,
+	deps: readonly Node<unknown>[],
+	opts: NodeOptions<TOut> = {},
+): Node<TOut> {
+	return withNodeCore(core, () => makeInitNode(op, deps, opts));
+}
+
+function makeInitNode<TIn, TOut>(
+	op: Operator<TIn, TOut>,
+	deps: readonly Node<unknown>[],
+	opts: NodeOptions<TOut>,
 ): Node<TOut> {
 	const body: NodeFn = (ctx) => {
 		try {

@@ -99,6 +99,33 @@ export interface NodeOptions<T = unknown> {
 	factory?: string;
 }
 
+let constructingCore: NodeCore | undefined;
+const ownerTokens = new WeakMap<Node<unknown>, unknown>();
+
+/** @internal Run a Node/StateNode constructor against a graph-local core without widening the public constructor. */
+export function withNodeCore<TNode extends Node<unknown>>(
+	core: NodeCore,
+	create: () => TNode,
+): TNode {
+	const prev = constructingCore;
+	constructingCore = core;
+	try {
+		return create();
+	} finally {
+		constructingCore = prev;
+	}
+}
+
+/** @internal Graph-domain ownership token for D22 intra-graph guards. */
+export function getNodeOwner(n: Node<unknown>): unknown {
+	return ownerTokens.get(n);
+}
+
+/** @internal Assign graph-domain ownership after graph registration. */
+export function setNodeOwner(n: Node<unknown>, owner: unknown): void {
+	ownerTokens.set(n, owner);
+}
+
 function terminalView(t: unknown): unknown {
 	return t === undefined ? false : t;
 }
@@ -135,6 +162,8 @@ export class Node<T = unknown> {
 		handleOrFn: Handle | NodeFn | null,
 		opts: NodeOptions<T> = {},
 	) {
+		const core = constructingCore;
+		constructingCore = undefined;
 		const dispatcher = opts.dispatcher ?? defaultDispatcher;
 		const pool = opts.pool ?? "sync";
 		const pausable = opts.pausable ?? true;
@@ -170,7 +199,7 @@ export class Node<T = unknown> {
 		}
 		const pauseLockset = new Set<unknown>();
 		if (pull) pauseLockset.add(pullLock as LockId);
-		this._core = new NodeCore();
+		this._core = core ?? new NodeCore();
 		const created = this._core.createSlot<T>({
 			deps,
 			handle,
@@ -451,6 +480,16 @@ export class Node<T = unknown> {
 		return false;
 	}
 
+	private _assertRewireDepOwner(dep: Node<unknown>): void {
+		const selfOwner = getNodeOwner(this as unknown as Node<unknown>);
+		const depOwner = getNodeOwner(dep);
+		if (selfOwner !== undefined && depOwner !== undefined && selfOwner !== depOwner) {
+			throw new Error(
+				"rewire: dep belongs to a different graph; cross-graph deps require a wire bridge (D22 / R-graph-domain)",
+			);
+		}
+	}
+
 	private _rewire(
 		newDeps: Node<unknown>[],
 		fn: NodeFn,
@@ -482,6 +521,7 @@ export class Node<T = unknown> {
 				throw new Error(
 					"rewire: cannot add a non-resubscribable terminal dep — would wedge (R-rewire / D42)",
 				);
+			this._assertRewireDepOwner(d);
 		}
 
 		if (

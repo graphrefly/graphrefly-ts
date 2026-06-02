@@ -14,11 +14,12 @@
 import { type BatchCtx, batch as batchRun } from "../batch/batch.js";
 import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
-import { Node, type NodeOptions } from "../node/node.js";
+import { NodeCore } from "../node/core.js";
+import { getNodeOwner, Node, type NodeOptions, setNodeOwner, withNodeCore } from "../node/node.js";
 import { errorPayload, messageTier } from "../protocol/messages.js";
 import type { DescribeEdge, DescribeNode, DescribeOpts, DescribeSnapshot } from "./describe.js";
 import type { NodeProfile, ObserveStream, Profile } from "./inspect.js";
-import { initNode, type Operator } from "./operators.js";
+import { initNodeWithCore, type Operator } from "./operators.js";
 
 /** Map a tuple of Nodes to the tuple of their value types (typed value-level fn args). */
 type DepValues<D extends readonly Node<unknown>[]> = {
@@ -64,10 +65,8 @@ interface Entry {
 	meta?: Record<string, unknown>;
 }
 
-const nodeOwners = new WeakMap<Node<unknown>, Graph>();
-
 function nodeOwner(n: Node<unknown>): Graph | undefined {
-	return nodeOwners.get(n);
+	return getNodeOwner(n) as Graph | undefined;
 }
 
 export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: string): void {
@@ -92,6 +91,7 @@ export class StateNode<T> extends Node<T> {
 export class Graph {
 	readonly name?: string;
 	private readonly _dispatcher: Dispatcher;
+	private readonly _core = new NodeCore();
 	private readonly _entries = new Map<Node<unknown>, Entry>();
 	private readonly _byId = new Map<string, Node<unknown>>();
 	private readonly _mounts: Array<{ at: string; graph: Graph }> = [];
@@ -128,9 +128,13 @@ export class Graph {
 			deps,
 			meta: opts.meta,
 		});
-		nodeOwners.set(n as Node<unknown>, this);
+		setNodeOwner(n as Node<unknown>, this);
 		this._byId.set(id, n as Node<unknown>);
 		return n;
+	}
+
+	private _assertDepsLocal(deps: readonly Node<unknown>[], label: string): void {
+		for (const dep of deps) assertGraphLocalNode(this, dep, label);
 	}
 
 	private _nodeOpts<T>(opts: SugarOpts<T>): NodeOptions<T> {
@@ -152,20 +156,27 @@ export class Graph {
 		fn: NodeFn | null = null,
 		opts: SugarOpts<T> = {},
 	): Node<T> {
-		const n = new Node<T>(deps as Node<unknown>[], fn, this._nodeOpts(opts));
+		this._assertDepsLocal(deps, `dep of '${opts.name ?? "node"}'`);
+		const n = withNodeCore(
+			this._core,
+			() => new Node<T>(deps as Node<unknown>[], fn, this._nodeOpts(opts)),
+		);
 		return this._add(n, "node", deps, opts);
 	}
 
 	/** A manual source with `.set(v)` (L4-Q1). */
 	state<T>(initial: T, opts: SugarOpts<T> = {}): StateNode<T> {
-		const n = new StateNode<T>([], null, { ...this._nodeOpts(opts), initial });
+		const n = withNodeCore(
+			this._core,
+			() => new StateNode<T>([], null, { ...this._nodeOpts(opts), initial }),
+		);
 		this._add(n, "state", [], opts);
 		return n;
 	}
 
 	/** ctx-level depless source; its fn runs on activation (R-rom-ram). */
 	producer<T = unknown>(fn: NodeFn, opts: SugarOpts<T> = {}): Node<T> {
-		const n = new Node<T>([], fn, this._nodeOpts(opts));
+		const n = withNodeCore(this._core, () => new Node<T>([], fn, this._nodeOpts(opts)));
 		return this._add(n, "producer", [], opts);
 	}
 
@@ -175,6 +186,7 @@ export class Graph {
 		fn: DerivedFn<D, T>,
 		opts: SugarOpts<T> = {},
 	): Node<T> {
+		this._assertDepsLocal(deps, `dep of '${opts.name ?? "derived"}'`);
 		const ctxFn: NodeFn = (ctx: Ctx) => {
 			try {
 				const args = Array.from({ length: depCount(ctx) }, (_, i) =>
@@ -186,7 +198,7 @@ export class Graph {
 				ctx.down([["ERROR", errorPayload(e, "derived threw without a valid error payload")]]); // D30: value-level throw → graph-layer ERROR
 			}
 		};
-		const n = new Node<T>([...deps], ctxFn, this._nodeOpts(opts));
+		const n = withNodeCore(this._core, () => new Node<T>([...deps], ctxFn, this._nodeOpts(opts)));
 		return this._add(n, "derived", deps, opts);
 	}
 
@@ -196,6 +208,7 @@ export class Graph {
 		fn: EffectFn<D>,
 		opts: SugarOpts<void> = {},
 	): Node<void> {
+		this._assertDepsLocal(deps, `dep of '${opts.name ?? "effect"}'`);
 		// effect cleanup = deactivation-only (D28 / Flag 3): the LATEST returned cleanup
 		// fires ONCE when the effect deactivates (not between re-runs — onRerun was cut).
 		// R-cleanup-hooks per-run lifecycle (D28 clarification / C-14): the substrate clears
@@ -214,7 +227,10 @@ export class Graph {
 				ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
 			}
 		};
-		const n = new Node<void>([...deps], ctxFn, this._nodeOpts(opts));
+		const n = withNodeCore(
+			this._core,
+			() => new Node<void>([...deps], ctxFn, this._nodeOpts(opts)),
+		);
 		return this._add(n, "effect", deps, opts);
 	}
 
@@ -253,7 +269,7 @@ export class Graph {
 		// Node<T> is invariant (T appears in NodeOptions.initial); widen the typed deps to the
 		// erased Node surface the free initNode / _add accept (same cast the old methods used).
 		const erased = deps as readonly Node<unknown>[];
-		const n = initNode(op, erased, this._nodeOpts(opts));
+		const n = initNodeWithCore(this._core, op, erased, this._nodeOpts(opts));
 		return this._add(n, op.factory, erased, opts);
 	}
 

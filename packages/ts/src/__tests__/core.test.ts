@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { depLatest, node } from "../index.js";
+import { Dispatcher, depLatest, graph, initNode, node } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -173,6 +173,10 @@ describe("ctx.up direction guard (R-ctx-up)", () => {
 });
 
 describe("B49 core-slot migration", () => {
+	const coreOf = (n: object) => (n as unknown as Record<string, unknown>)._core;
+	const slotCount = (core: unknown) =>
+		((core as Record<string, unknown>).slots as Map<unknown, unknown>).size;
+
 	it("stores wave bookkeeping behind the Node view, without old direct-field shims", () => {
 		const s = node<number>([], null, { initial: 1, factory: "probe" });
 		const view = s as unknown as Record<string, unknown>;
@@ -198,5 +202,82 @@ describe("B49 core-slot migration", () => {
 		expect(s.cache).toBe(1);
 		expect(s.status).toBe("settled");
 		expect(s.factory).toBe("probe");
+	});
+
+	it("uses one graph-local core for graph-created nodes while standalone nodes stay isolated", () => {
+		const g1 = graph();
+		const a = g1.state(1);
+		const b = g1.derived([a], (v) => v + 1);
+		const c = g1.initNode(
+			{
+				factory: "probeOp",
+				body: (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]),
+			},
+			[b],
+		);
+
+		const g2 = graph();
+		const otherGraphNode = g2.state(1);
+		const bare = node<number>([], null, { initial: 1 });
+		const bareOp = initNode(
+			{
+				factory: "bareProbe",
+				body: (ctx: Ctx) => ctx.down([["DATA", 1]]),
+			},
+			[],
+		);
+
+		expect(coreOf(a)).toBe(coreOf(b));
+		expect(coreOf(b)).toBe(coreOf(c));
+		expect(coreOf(a)).not.toBe(coreOf(otherGraphNode));
+		expect(coreOf(a)).not.toBe(coreOf(bare));
+		expect(coreOf(a)).not.toBe(coreOf(bareOp));
+
+		const seen: number[] = [];
+		c.subscribe((msg) => {
+			if (msg[0] === "DATA") seen.push(msg[1] as number);
+		});
+		a.set(2);
+		expect(seen.at(-1)).toBe(3);
+	});
+
+	it("does not retain a failed cross-graph graph-node construction in the target core", () => {
+		const g1 = graph();
+		const anchor = g1.state(1);
+		const before = slotCount(coreOf(anchor));
+		const foreign = graph().state(2);
+
+		expect(() => g1.derived([foreign], (v) => v)).toThrow(/different graph/);
+		expect(slotCount(coreOf(anchor))).toBe(before);
+	});
+
+	it("keeps the graph core hook one-shot when dispatcher registration constructs another node", () => {
+		let nested: object | undefined;
+		class NestedDispatcher extends Dispatcher {
+			override register(fn: (ctx: Ctx) => void, pool?: "sync" | "async" | number) {
+				nested ??= node<number>([], null, { initial: 7 });
+				return pool === undefined ? super.register(fn) : super.register(fn, pool);
+			}
+		}
+
+		const g = graph({ dispatcher: new NestedDispatcher() });
+		const src = g.state(1);
+		const d = g.derived([src], (v) => v + 1);
+
+		expect(nested).toBeDefined();
+		expect(coreOf(d)).toBe(coreOf(src));
+		expect(coreOf(nested as object)).not.toBe(coreOf(src));
+	});
+
+	it("rejects public rewire from a graph-owned node to a different graph's node", () => {
+		const g1 = graph();
+		const a = g1.state(1);
+		const d = g1.derived([a], (v) => v + 1);
+		const foreign = graph().state(2);
+
+		expect(() => d.addDep(foreign, (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]))).toThrow(
+			/different graph/,
+		);
+		expect(d.deps).toEqual([a]);
 	});
 });
