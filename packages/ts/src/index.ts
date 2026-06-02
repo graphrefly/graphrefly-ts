@@ -138,6 +138,14 @@ export {
 	timer,
 } from "./graph/sources.js";
 export {
+	type AttachObserveSinkOptions,
+	attachObserveSink,
+	type ObserveSink,
+	type ObserveSinkDone,
+	type ObserveSinkErrorContext,
+	type ObserveSinkHandle,
+} from "./graph/storage.js";
+export {
 	audit,
 	auditTime,
 	bufferTime,
