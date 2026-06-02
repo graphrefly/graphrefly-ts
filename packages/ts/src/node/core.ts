@@ -57,6 +57,13 @@ export interface CleanupHooks {
 	onInvalidate: Array<() => void>;
 }
 
+export type BoundaryTask = () => void;
+
+export interface BoundaryState {
+	queue: BoundaryTask[];
+	head: number;
+}
+
 export interface NodeSlot<T> {
 	id: NodeId;
 	deps: Node<unknown>[];
@@ -90,6 +97,7 @@ export interface NodeSlot<T> {
 export class NodeCore {
 	private nextId = 0;
 	private readonly slots = new Map<NodeId, NodeSlot<unknown>>();
+	private readonly boundary: BoundaryState = { queue: [], head: 0 };
 
 	createSlot<T>(slot: Omit<NodeSlot<T>, "id">): { id: NodeId; slot: NodeSlot<T> } {
 		const id = this.nextId++ as NodeId;
@@ -102,6 +110,31 @@ export class NodeCore {
 		const slot = this.slots.get(id);
 		if (slot === undefined) throw new Error("NodeCore: unknown node slot");
 		return slot as NodeSlot<T>;
+	}
+
+	/** @internal B49: graph-local deferred-boundary queue (rewireNext/upNext/batch-after-commit). */
+	enqueueBoundaryTask(task: BoundaryTask): void {
+		this.boundary.queue.push(task);
+	}
+
+	/** @internal */
+	hasBoundaryTasks(): boolean {
+		return this.boundary.head < this.boundary.queue.length;
+	}
+
+	/** @internal */
+	shiftBoundaryTask(): BoundaryTask | undefined {
+		if (!this.hasBoundaryTasks()) {
+			this.boundary.queue = [];
+			this.boundary.head = 0;
+			return undefined;
+		}
+		const task = this.boundary.queue[this.boundary.head++];
+		if (!this.hasBoundaryTasks()) {
+			this.boundary.queue = [];
+			this.boundary.head = 0;
+		}
+		return task;
 	}
 }
 

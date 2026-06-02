@@ -379,7 +379,7 @@ export class Node<T = unknown> {
 	 * immediate path (`addDep`/`setDeps`/`removeDep`) still throws mid-run (D37/R-reentrancy).
 	 */
 	private _requestRewireNext(op: RewireOp): void {
-		deferRewire(() => this._applyRewireNext(op));
+		deferRewire(this._core, () => this._applyRewireNext(op));
 	}
 
 	/**
@@ -391,7 +391,7 @@ export class Node<T = unknown> {
 	 * R-reentrancy). Rides the same R-rewire-deferred (D47) drain as ctx.rewireNext.
 	 */
 	private _requestUpNext(msgs: Wave, towardDep?: number): void {
-		deferRewire(() => this._up(msgs, towardDep));
+		deferRewire(this._core, () => this._up(msgs, towardDep));
 	}
 
 	/** Apply one queued self-rewire at the boundary (drain thunk). */
@@ -1632,6 +1632,11 @@ export class Node<T = unknown> {
 			this._slot.value.status = this._slot.value.hasData ? "settled" : "sentinel";
 			this._emitToSubs(["RESOLVED"]);
 		}
+	}
+
+	/** B49: enqueue a committed-boundary task on this node's graph-local core. */
+	__deferBoundary(fn: () => void): void {
+		deferRewire(this._core, fn);
 	}
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { Dispatcher, depLatest, graph, initNode, node } from "../index.js";
+import { batch, Dispatcher, depBatch, depLatest, graph, initNode, node } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -176,6 +176,13 @@ describe("B49 core-slot migration", () => {
 	const coreOf = (n: object) => (n as unknown as Record<string, unknown>)._core;
 	const slotCount = (core: unknown) =>
 		((core as Record<string, unknown>).slots as Map<unknown, unknown>).size;
+	const boundaryTaskCount = (core: unknown) => {
+		const boundary = (core as Record<string, unknown>).boundary as {
+			queue: unknown[];
+			head: number;
+		};
+		return boundary.queue.length - boundary.head;
+	};
 
 	it("stores wave bookkeeping behind the Node view, without old direct-field shims", () => {
 		const s = node<number>([], null, { initial: 1, factory: "probe" });
@@ -279,5 +286,67 @@ describe("B49 core-slot migration", () => {
 			/different graph/,
 		);
 		expect(d.deps).toEqual([a]);
+	});
+
+	it("stores deferred-boundary work on the owning core and drains it at the wave boundary", () => {
+		const g = graph();
+		const trigger = g.state(0);
+		const inner = node<number>([], (ctx) => ctx.down([["DATA", 7]]));
+		let queuedInsideRun = -1;
+		const op = g.node<number>(
+			[trigger],
+			function opFn(ctx) {
+				if (depLatest(ctx, 0) === 1) {
+					ctx.rewireNext.addDep(inner, opFn);
+					queuedInsideRun = boundaryTaskCount(coreOf(op));
+				}
+			},
+			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
+		);
+		op.subscribe(() => {});
+		trigger.set(1);
+
+		expect(queuedInsideRun).toBe(1);
+		expect(boundaryTaskCount(coreOf(op))).toBe(0);
+		expect(op.deps).toContain(inner);
+		expect(inner.cache).toBe(7);
+	});
+
+	it("preserves enqueue FIFO when deferred tasks span multiple cores", () => {
+		const order: string[] = [];
+		const sourceA = node<number>([], null);
+		const sourceB = node<number>([], null);
+		const innerA1 = node<number>([], (ctx) => {
+			order.push("A1");
+			ctx.down([["DATA", 1]]);
+		});
+		const innerA2 = node<number>([], (ctx) => {
+			order.push("A2");
+			ctx.down([["DATA", 2]]);
+		});
+		const innerB1 = node<number>([], (ctx) => {
+			order.push("B1");
+			ctx.down([["DATA", 1]]);
+		});
+		const opA = node<number>(
+			[sourceA],
+			function opAFn(ctx) {
+				if (depBatch(ctx, 0)) ctx.rewireNext.addDep(innerA1, opAFn);
+				if (depBatch(ctx, 1)) ctx.rewireNext.addDep(innerA2, opAFn);
+			},
+			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
+		);
+		const opB = node<number>([sourceB], function opBFn(ctx) {
+			if (depBatch(ctx, 0)) ctx.rewireNext.addDep(innerB1, opBFn);
+		});
+		opA.subscribe(() => {});
+		opB.subscribe(() => {});
+
+		batch(() => {
+			sourceA.down([["DATA", 1]]);
+			sourceB.down([["DATA", 1]]);
+		});
+
+		expect(order).toEqual(["A1", "B1", "A2"]);
 	});
 });

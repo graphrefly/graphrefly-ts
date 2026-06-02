@@ -13,12 +13,13 @@
  */
 
 import type { Wave } from "../protocol/messages.js";
-import { deferRewire, enterWave, exitWave } from "./boundary.js";
+import { enterWave, exitWave } from "./boundary.js";
 
 /** A node target the batch can commit/rollback against (structural, avoids an import cycle). */
 export interface BatchTarget {
 	__commitBatchedWave(wave: Wave): void;
 	__rollbackBatched(): void;
+	__deferBoundary(fn: () => void): void;
 }
 
 export interface BatchCtx {
@@ -57,7 +58,7 @@ export function deferToBatch(target: BatchTarget, tier3Wave: Wave): boolean {
 export function deferAfterBatchForTarget(target: BatchTarget, fn: () => void): boolean {
 	if (active === null || !active.deferred.has(target)) return false;
 	const owner = active;
-	deferRewire(() => {
+	target.__deferBoundary(() => {
 		if (owner.committed) fn();
 	});
 	return true;
