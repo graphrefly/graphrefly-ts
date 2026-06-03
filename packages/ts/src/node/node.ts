@@ -118,8 +118,19 @@ export interface NodeOptions<T = unknown> {
 	factory?: string;
 }
 
+export interface NodeCheckpointState {
+	readonly cache: unknown;
+	readonly hasData: boolean;
+	readonly terminal: true | unknown | undefined;
+	readonly activated: boolean;
+	readonly hasCalledFnOnce: boolean;
+	readonly ctxState: { readonly value: unknown; readonly persist: boolean };
+	readonly handle: Handle | null;
+}
+
 let constructingCore: NodeCore | undefined;
 const ownerTokens = new WeakMap<Node<unknown>, unknown>();
+const checkpointReaders = new WeakMap<Node<unknown>, () => NodeCheckpointState>();
 
 /** @internal Run a Node/StateNode constructor against a graph-local core without widening the public constructor. */
 export function withNodeCore<TNode extends Node<unknown>>(
@@ -143,6 +154,13 @@ export function getNodeOwner(n: Node<unknown>): unknown {
 /** @internal Assign graph-domain ownership after graph registration. */
 export function setNodeOwner(n: Node<unknown>, owner: unknown): void {
 	ownerTokens.set(n, owner);
+}
+
+/** @internal Graph checkpoint inspection, kept as a module helper so Node stays method-thin. */
+export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
+	const read = checkpointReaders.get(n);
+	if (read === undefined) throw new Error("checkpoint: unknown node state");
+	return read();
 }
 
 function terminalView(t: unknown): unknown {
@@ -291,6 +309,18 @@ export class Node<T = unknown> {
 		this._privateState = this._core.getPrivateState(this._id);
 		this._hooks = this._core.getHooks(this._id);
 		this._syncCtxState = this._core.getSyncCtx(this._id);
+		checkpointReaders.set(this as Node<unknown>, () => ({
+			cache: this._value.cache,
+			hasData: this._value.hasData,
+			terminal: this._value.terminal,
+			activated: this._lifecycle.activated,
+			hasCalledFnOnce: this._wave.hasCalledFnOnce,
+			ctxState: {
+				value: this._privateState.value,
+				persist: this._privateState.persist,
+			},
+			handle: this._slot.handle,
+		}));
 	}
 
 	/** R-pull (D55): true while a pull node is quiet (holds its own pullId/demand lock). */

@@ -15,8 +15,25 @@ import { type BatchCtx, batch as batchRun } from "../batch/batch.js";
 import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
 import { NodeCore } from "../node/core.js";
-import { getNodeOwner, Node, type NodeOptions, setNodeOwner, withNodeCore } from "../node/node.js";
-import { errorPayload, messageTier } from "../protocol/messages.js";
+import {
+	checkpointStateOfNode,
+	getNodeOwner,
+	Node,
+	type NodeOptions,
+	setNodeOwner,
+	withNodeCore,
+} from "../node/node.js";
+import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
+import {
+	checkpointTerminal,
+	checkpointValue,
+	GRAPH_CHECKPOINT_VERSION,
+	type GraphCheckpoint,
+	type GraphCheckpointFactory,
+	type GraphCheckpointJson,
+	type GraphCheckpointNode,
+	toCheckpointJson,
+} from "./checkpoint.js";
 import type { DescribeEdge, DescribeNode, DescribeOpts, DescribeSnapshot } from "./describe.js";
 import type { NodeProfile, ObserveStream, Profile } from "./inspect.js";
 import { initNodeWithCore, type Operator } from "./operators.js";
@@ -120,6 +137,9 @@ export class Graph {
 		assertGraphLocalNode(this, n as Node<unknown>, `graph node '${opts.name ?? factory}'`);
 		for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
 		const id = opts.name ?? `${factory}#${this._seq++}`;
+		if (this._byId.has(id)) {
+			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
+		}
 		this._entries.set(n as Node<unknown>, {
 			node: n as Node<unknown>,
 			id,
@@ -421,6 +441,141 @@ export class Graph {
 		}
 		return { totalInvokes, nodes };
 	}
+
+	/** Versioned graph lifecycle checkpoint (R-snapshot / D83 / D90). Pure capture, no storage I/O. */
+	checkpoint(): GraphCheckpoint {
+		return this._checkpoint("", new WeakSet());
+	}
+
+	private _checkpoint(_prefix: string, stack: WeakSet<Graph>): GraphCheckpoint {
+		if (stack.has(this)) {
+			throw new Error("checkpoint: cyclic graph mount detected");
+		}
+		stack.add(this);
+		const discovered = new Map<Node<unknown>, string>();
+		const localId = (n: Node<unknown>): string => {
+			const e = this._entries.get(n);
+			if (e) return `${_prefix}${e.id}`;
+			let sid = this._synthIds.get(n);
+			if (sid === undefined) {
+				do {
+					sid = `~${n.factory ?? "?"}#${this._synthSeq++}`;
+				} while (this._byId.has(sid));
+				this._synthIds.set(n, sid);
+			}
+			discovered.set(n, sid);
+			return `${_prefix}${sid}`;
+		};
+		const nodes: GraphCheckpointNode[] = [];
+		const edges: DescribeEdge[] = [];
+		for (const entry of this._entries.values()) {
+			const id = `${_prefix}${entry.id}`;
+			const liveIds = entry.node.deps.map(localId);
+			nodes.push(
+				this._checkpointNode(entry.node, id, {
+					name: entry.name,
+					factory: checkpointFactory(entry.factory, entry.node, false),
+					deps: liveIds,
+					meta: entry.meta,
+				}),
+			);
+			for (const from of liveIds) edges.push({ from, to: id });
+		}
+		const visited = new Set<Node<unknown>>();
+		const queue: Node<unknown>[] = [...discovered.keys()];
+		for (let i = 0; i < queue.length; i += 1) {
+			const inner = queue[i];
+			if (visited.has(inner)) continue;
+			visited.add(inner);
+			const sid = discovered.get(inner);
+			if (sid === undefined) continue;
+			const liveIds = inner.deps.map(localId);
+			for (const dep of inner.deps) {
+				if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
+			}
+			const id = `${_prefix}${sid}`;
+			nodes.push(
+				this._checkpointNode(inner, id, {
+					factory: checkpointFactory(inner.factory ?? "?", inner, true),
+					deps: liveIds,
+				}),
+			);
+			for (const from of liveIds) edges.push({ from, to: id });
+		}
+		const checkpoint: GraphCheckpoint = {
+			version: GRAPH_CHECKPOINT_VERSION,
+			nodes,
+			edges,
+		};
+		if (this.name !== undefined) checkpoint.name = this.name;
+		if (this._mounts.length > 0) {
+			checkpoint.mounts = this._mounts.map((m) => ({
+				at: m.at,
+				checkpoint: m.graph._checkpoint(`${_prefix}${m.at}::`, stack),
+			}));
+		}
+		stack.delete(this);
+		return toCheckpointJson(checkpoint, "checkpoint") as unknown as GraphCheckpoint;
+	}
+
+	private _checkpointNode(
+		node: Node<unknown>,
+		id: string,
+		opts: {
+			name?: string;
+			factory: GraphCheckpointFactory;
+			deps: string[];
+			meta?: Record<string, unknown>;
+		},
+	): GraphCheckpointNode {
+		const state = checkpointStateOfNode(node);
+		const out: GraphCheckpointNode = {
+			id,
+			factory: opts.factory,
+			status: node.status,
+			deps: opts.deps,
+			value: checkpointValue(state.cache, state.hasData, `${id}.value`),
+			terminal: checkpointTerminal(state.terminal, `${id}.terminal`),
+			lifecycle: { activated: state.activated, hasCalledFnOnce: state.hasCalledFnOnce },
+			ctxState: {
+				persist: state.ctxState.persist,
+				value: checkpointValue(
+					state.ctxState.value,
+					state.ctxState.value !== SENTINEL,
+					`${id}.ctxState`,
+				),
+			},
+		};
+		if (opts.name !== undefined) out.name = opts.name;
+		if (opts.meta !== undefined)
+			out.meta = toCheckpointJson(opts.meta, `${id}.meta`) as {
+				[key: string]: GraphCheckpointJson;
+			};
+		return out;
+	}
+}
+
+function checkpointFactory(
+	name: string,
+	node: Node<unknown>,
+	unregistered: boolean,
+): GraphCheckpointFactory {
+	const state = checkpointStateOfNode(node);
+	if (unregistered) {
+		return {
+			kind: "local-only",
+			name,
+			reason: "node is an unregistered live dependency auto-discovered from topology",
+		};
+	}
+	if (state.handle !== null) {
+		return {
+			kind: "local-only",
+			name,
+			reason: "node uses a function body; first-cut checkpoints do not serialize local functions",
+		};
+	}
+	return { kind: "registry-ref", name };
 }
 
 /** Filter a snapshot to the causal chain from→to (forward-reachable(from) ∩ back-reachable(to)). */

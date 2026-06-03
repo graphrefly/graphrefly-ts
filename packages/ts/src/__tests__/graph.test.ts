@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { depLatest } from "../ctx/types.js";
 import type { Message } from "../index.js";
-import { graph } from "../index.js";
+import { GRAPH_CHECKPOINT_VERSION, graph, restoreGraph, strictJsonCodec } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -132,5 +133,141 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 
 		const snap = parent.describe();
 		expect(snap.subgraphs?.[0].nodes.some((n) => n.id === "sub::leaf")).toBe(true);
+	});
+});
+
+describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () => {
+	it("returns a versioned strict-JSON-compatible checkpoint with live topology and mounts", () => {
+		const parent = graph({ name: "parent" });
+		const count = parent.state(0, { name: "count" });
+		const doubled = parent.derived([count], (n) => n * 2, { name: "doubled" });
+		collect(doubled);
+		count.set(5);
+		const child = graph({ name: "child" });
+		child.state(null, { name: "nil" });
+		parent.mount(child, { at: "child" });
+
+		const checkpoint = parent.checkpoint();
+		expect(checkpoint.version).toBe(GRAPH_CHECKPOINT_VERSION);
+		expect(() => strictJsonCodec.encode(checkpoint)).not.toThrow();
+		const byId = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
+		expect(byId.count.factory).toEqual({ kind: "registry-ref", name: "state" });
+		expect(byId.count.value).toEqual({ kind: "DATA", data: 5 });
+		expect(byId.doubled.factory.kind).toBe("local-only");
+		expect(byId.doubled.value).toEqual({ kind: "DATA", data: 10 });
+		expect(byId.doubled.deps).toEqual(["count"]);
+		expect(byId.doubled.lifecycle.hasCalledFnOnce).toBe(true);
+		expect(checkpoint.edges).toContainEqual({ from: "count", to: "doubled" });
+		expect(checkpoint.mounts?.[0].at).toBe("child");
+		expect(checkpoint.mounts?.[0].checkpoint.nodes[0]).toMatchObject({
+			id: "child::nil",
+			value: { kind: "DATA", data: null },
+		});
+	});
+
+	it("captures ran-but-SENTINEL lifecycle state explicitly", () => {
+		const g = graph();
+		const quiet = g.producer(() => {}, { name: "quiet" });
+		collect(quiet);
+
+		const node = g.checkpoint().nodes.find((n) => n.id === "quiet");
+		expect(node?.value).toEqual({ kind: "SENTINEL" });
+		expect(node?.lifecycle).toEqual({ activated: true, hasCalledFnOnce: true });
+	});
+
+	it("uses explicit SENTINEL/DATA discriminants for absence, null, and empty arrays", () => {
+		const g = graph();
+		const src = g.state(0, { name: "src" });
+		g.derived([src], (n) => n, { name: "cold" });
+		g.state(null, { name: "nil" });
+		g.state([], { name: "empty" });
+
+		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
+		expect(byId.cold.value).toEqual({ kind: "SENTINEL" });
+		expect(byId.nil.value).toEqual({ kind: "DATA", data: null });
+		expect(byId.empty.value).toEqual({ kind: "DATA", data: [] });
+	});
+
+	it("captures node-private ctx.state even when the state is non-persist", () => {
+		const g = graph();
+		const src = g.state(1, { name: "src" });
+		const memo = g.node(
+			[src],
+			(ctx) => {
+				ctx.state.set({ latest: depLatest(ctx, 0), runs: 1 });
+				ctx.down([["DATA", "ok"]]);
+			},
+			{ name: "memo" },
+		);
+		collect(memo);
+
+		const node = g.checkpoint().nodes.find((n) => n.id === "memo");
+		expect(node?.ctxState).toEqual({
+			persist: false,
+			value: { kind: "DATA", data: { latest: 1, runs: 1 } },
+		});
+	});
+
+	it("discriminates COMPLETE and ERROR terminal state when represented", () => {
+		const g = graph();
+		const done = g.state(1, { name: "done" });
+		const failed = g.state(2, { name: "failed" });
+		done.down([["COMPLETE"]]);
+		failed.down([["ERROR", "boom"]]);
+
+		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
+		expect(byId.done.terminal).toEqual({ kind: "COMPLETE" });
+		expect(byId.failed.terminal).toEqual({ kind: "ERROR", error: "boom" });
+	});
+
+	it("fails honestly for non-strict-JSON cache, meta, ctx.state, and terminal payloads", () => {
+		const badCache = graph();
+		badCache.state(1n, { name: "big" });
+		expect(() => badCache.checkpoint()).toThrow(/strict JSON compatible/);
+
+		const badMeta = graph();
+		badMeta.state(1, { name: "meta", meta: { f: () => undefined } });
+		expect(() => badMeta.checkpoint()).toThrow(/strict JSON compatible/);
+
+		const badString = graph();
+		badString.state("\ud800", { name: "surrogate" });
+		expect(() => badString.checkpoint()).toThrow(/strict JSON compatible/);
+
+		const badName = graph();
+		badName.state(1, { name: "\ud800" });
+		expect(() => badName.checkpoint()).toThrow(/strict JSON compatible/);
+
+		const badCtxState = graph();
+		const src = badCtxState.state(1, { name: "src" });
+		const memo = badCtxState.node(
+			[src],
+			(ctx) => {
+				ctx.state.set(Symbol("nope"));
+				ctx.down([["DATA", "ok"]]);
+			},
+			{ name: "memo" },
+		);
+		collect(memo);
+		expect(() => badCtxState.checkpoint()).toThrow(/strict JSON compatible/);
+
+		const badTerminal = graph();
+		const failed = badTerminal.state(1, { name: "failed" });
+		failed.down([["ERROR", new Error("not-json")]]);
+		expect(() => badTerminal.checkpoint()).toThrow(/strict JSON compatible/);
+	});
+
+	it("rejects duplicate ids and cyclic mounts instead of producing ambiguous checkpoints", () => {
+		const duplicate = graph();
+		duplicate.state(1, { name: "same" });
+		expect(() => duplicate.state(2, { name: "same" })).toThrow(/duplicate node id/);
+
+		const cyclic = graph();
+		cyclic.mount(cyclic, { at: "self" });
+		expect(() => cyclic.checkpoint()).toThrow(/cyclic graph mount/);
+	});
+
+	it("restoreGraph is exported but fails clearly in the first checkpoint slice", () => {
+		const checkpoint = graph().checkpoint();
+		expect(() => restoreGraph(checkpoint, { registry: {} })).toThrow(/restore is not implemented/);
 	});
 });

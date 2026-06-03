@@ -40,6 +40,7 @@ import {
 	observeEventFrameCodec,
 	requireKvPutIfAbsent,
 	requireStoragePutIfAbsent,
+	restoreGraph,
 	stableJsonString,
 	strictJsonCodec,
 	strictJsonCodecFor,
@@ -1075,7 +1076,7 @@ describe("D82 storage substrate helpers", () => {
 		);
 	});
 
-	it("root and storage exports expose D82 helpers while snapshot/restore names stay absent", () => {
+	it("root and storage exports expose D82 helpers while storage-shaped snapshot/restore names stay absent", () => {
 		for (const exports of [rootExports, storageExports]) {
 			expect(exports.contentAddressedKv).toBe(contentAddressedKv);
 			expect(exports.contentAddressedStorage).toBe(contentAddressedStorage);
@@ -1102,12 +1103,12 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.requireKvPutIfAbsent).toBe(requireKvPutIfAbsent);
 			expect(exports.requireStoragePutIfAbsent).toBe(requireStoragePutIfAbsent);
 			expect("attachSnapshotStorage" in exports).toBe(false);
-			expect("checkpoint" in exports).toBe(false);
-			expect("restoreGraph" in exports).toBe(false);
 			expect("restoreSnapshot" in exports).toBe(false);
 			expect("GraphRestore" in exports).toBe(false);
 		}
-		expect("checkpoint" in graph()).toBe(false);
+		expect(rootExports.restoreGraph).toBe(restoreGraph);
+		expect("restoreGraph" in storageExports).toBe(false);
+		expect(typeof graph().checkpoint).toBe("function");
 		expect("restoreSnapshot" in graph()).toBe(false);
 	});
 });
