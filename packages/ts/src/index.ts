@@ -187,14 +187,6 @@ export {
 	timer,
 } from "./graph/sources.js";
 export {
-	type AttachObserveSinkOptions,
-	attachObserveSink,
-	type ObserveSink,
-	type ObserveSinkDone,
-	type ObserveSinkErrorContext,
-	type ObserveSinkHandle,
-} from "./graph/storage.js";
-export {
 	audit,
 	auditTime,
 	bufferTime,
@@ -207,6 +199,44 @@ export {
 } from "./graph/time.js";
 export { dynamicNode, Node, type NodeOptions, node, type Status } from "./node/node.js";
 export * from "./protocol/messages.js";
+export {
+	APPEND_LOG_SEQ_PAD,
+	type AppendLogEntry,
+	type AppendLogReadOptions,
+	type AppendLogStorageTier,
+	type AttachObserveEventLogOptions,
+	type AttachObserveSinkOptions,
+	appendLogKey,
+	appendLogStorage,
+	attachObserveEventLog,
+	attachObserveSink,
+	type ChangeEnvelope,
+	type ChangeEnvelopeOptions,
+	type ChangeLifecycle,
+	type Codec,
+	dictKv,
+	envelopeChange,
+	jsonCodec,
+	jsonCodecFor,
+	type KvStorageOptions,
+	type KvStorageTier,
+	kvStorage,
+	listByPrefix,
+	type MemoryBackend,
+	memoryAppendLog,
+	memoryBackend,
+	memoryKv,
+	nowNs,
+	type ObserveEventFrame,
+	type ObserveEventLogHandle,
+	type ObserveSink,
+	type ObserveSinkDone,
+	type ObserveSinkErrorContext,
+	type ObserveSinkHandle,
+	observeEventFrame,
+	type StorageBackend,
+	stableJsonString,
+} from "./storage/index.js";
 export {
 	assertDirtyPrecedesTerminalData,
 	type MessageSequence,

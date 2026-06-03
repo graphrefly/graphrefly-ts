@@ -57,6 +57,7 @@ function subject() {
 		next: (v: number) => (ctxRef as Ctx).down([["DATA", v]]),
 		complete: () => (ctxRef as Ctx).down([["COMPLETE"]]),
 		error: (e: unknown) => (ctxRef as Ctx).down([["ERROR", e]]),
+		emit: (msgs: Message[]) => (ctxRef as Ctx).down(msgs),
 		isActivated: () => activated,
 		isDeactivated: () => deactivated,
 	};
@@ -211,6 +212,125 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		s.down([["DATA", 1]]);
 		expect(op.status).toBe("errored");
 	});
+
+	it("source ERROR detaches every live inner before emitting ERROR (D81)", () => {
+		const a = subject();
+		const b = subject();
+		const g = graph();
+		const s = g.node([], null);
+		const op = g.initNode(
+			mergeMap((v: number) => (v === 1 ? a.node : b.node)),
+			[s],
+		);
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]);
+		s.down([["DATA", 2]]);
+		a.next(10);
+		const err = new Error("source boom");
+		s.down([["ERROR", err]]);
+
+		expect(op.status).toBe("errored");
+		expect(msgs.at(-1)).toEqual(["ERROR", err]);
+		expect(a.isDeactivated()).toBe(true);
+		expect(b.isDeactivated()).toBe(true);
+		expect(op.deps).toEqual([s]);
+		expect(a.node.status).not.toBe("completed");
+		expect(a.node.status).not.toBe("errored");
+		expect(b.node.status).not.toBe("completed");
+		expect(b.node.status).not.toBe("errored");
+
+		const afterError = msgs.length;
+		a.next(11);
+		b.next(20);
+		s.down([["DATA", 3]]);
+		expect(msgs).toHaveLength(afterError);
+	});
+
+	it("inner ERROR detaches sibling inners before emitting ERROR (D81)", () => {
+		const a = subject();
+		const b = subject();
+		const g = graph();
+		const s = g.node([], null);
+		const op = g.initNode(
+			mergeMap((v: number) => (v === 1 ? a.node : b.node)),
+			[s],
+		);
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]);
+		s.down([["DATA", 2]]);
+		b.next(20);
+		const err = new Error("inner boom");
+		a.error(err);
+
+		expect(op.status).toBe("errored");
+		expect(msgs.at(-1)).toEqual(["ERROR", err]);
+		expect(a.isDeactivated()).toBe(true);
+		expect(b.isDeactivated()).toBe(true);
+		expect(op.deps).toEqual([s]);
+		expect(b.node.status).not.toBe("completed");
+		expect(b.node.status).not.toBe("errored");
+
+		const afterError = msgs.length;
+		b.next(21);
+		s.down([["DATA", 3]]);
+		expect(msgs).toHaveLength(afterError);
+		expect(msgs.some((m) => m[0] === "COMPLETE")).toBe(false);
+	});
+
+	it("inner DATA in the same wave before ERROR is forwarded before cleanup (D81)", () => {
+		const a = subject();
+		const g = graph();
+		const s = g.node([], null);
+		const op = g.initNode(
+			mergeMap((_v: number) => a.node),
+			[s],
+		);
+		const { msgs } = collect(op);
+		const err = new Error("inner boom");
+
+		s.down([["DATA", 1]]);
+		a.emit([
+			["DATA", 10],
+			["ERROR", err],
+		]);
+
+		expect(data(msgs)).toEqual([10]);
+		expect(msgs.at(-1)).toEqual(["ERROR", err]);
+		expect(a.isDeactivated()).toBe(true);
+		expect(op.deps).toEqual([s]);
+	});
+
+	it("projector ERROR detaches previously-live inners and seals later output (D81)", () => {
+		const a = subject();
+		const g = graph();
+		const s = g.node([], null);
+		const op = g.initNode(
+			mergeMap((v: number) => {
+				if (v === 2) throw new Error("projector boom");
+				return a.node;
+			}),
+			[s],
+		);
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]);
+		a.next(10);
+		s.down([["DATA", 2]]);
+
+		expect(op.status).toBe("errored");
+		expect(msgs.at(-1)?.[0]).toBe("ERROR");
+		expect(a.isDeactivated()).toBe(true);
+		expect(op.deps).toEqual([s]);
+		expect(a.node.status).not.toBe("completed");
+		expect(a.node.status).not.toBe("errored");
+
+		const afterError = msgs.length;
+		a.next(11);
+		s.down([["DATA", 3]]);
+		expect(msgs).toHaveLength(afterError);
+	});
 });
 
 describe("switchMap (D47)", () => {
@@ -261,6 +381,33 @@ describe("concatMap (D47)", () => {
 		expect(b.isActivated()).toBe(true);
 		b.next(20);
 		expect(data(msgs)).toEqual([10, 20]); // order preserved
+	});
+
+	it("source ERROR clears queued values and detaches the active inner (D81)", () => {
+		const a = subject();
+		const b = subject();
+		const g = graph();
+		const s = g.node([], null);
+		const op = g.initNode(
+			concatMap((v: number) => (v === 1 ? a.node : b.node)),
+			[s],
+		);
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]);
+		s.down([["DATA", 2]]); // queued behind a
+		const err = new Error("source boom");
+		s.down([["ERROR", err]]);
+
+		expect(op.status).toBe("errored");
+		expect(msgs.at(-1)).toEqual(["ERROR", err]);
+		expect(a.isDeactivated()).toBe(true);
+		expect(b.isActivated()).toBe(false);
+		expect(op.deps).toEqual([s]);
+
+		a.complete();
+		expect(b.isActivated()).toBe(false);
+		expect(msgs.filter((m) => m[0] === "DATA")).toEqual([]);
 	});
 });
 

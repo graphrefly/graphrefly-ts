@@ -27,7 +27,21 @@ const SRC = join(ROOT, "packages/ts/src");
  * as small as possible — every entry is a hole in the guard. When a real async pool
  * (WorkerPool/RemotePool, D20) lands, add the pool/runner file here.
  */
-const ALLOW = new Set<string>(["packages/ts/src/graph/sources.ts"]);
+const ALLOW_ALL = new Set<string>(["packages/ts/src/graph/sources.ts"]);
+
+/**
+ * Pattern-scoped exceptions. D82 storage binding helpers are adapter-owned async
+ * outside the sync wave core, but only the Promise forms used for adapter I/O
+ * normalization/serialization are allowed here; timers, async/await, for-await, and
+ * unrelated Promise combinators remain banned.
+ */
+const ALLOW_LABELS = new Map<string, ReadonlySet<string>>([
+	[
+		"packages/ts/src/storage/append-log.ts",
+		new Set<string>(["Promise.resolve()", "Promise.all()"]),
+	],
+	["packages/ts/src/storage/kv.ts", new Set<string>(["Promise.resolve()"])],
+]);
 
 /** Risky code patterns, matched AFTER comment-stripping. */
 const PATTERNS: Array<[RegExp, string]> = [
@@ -37,7 +51,9 @@ const PATTERNS: Array<[RegExp, string]> = [
 	[/\bqueueMicrotask\s*\(/, "queueMicrotask("],
 	[/\bprocess\s*\.\s*nextTick\b/, "process.nextTick"],
 	[/\bnew\s+Promise\b/, "new Promise"],
-	[/\bPromise\s*\.\s*(?:resolve|reject|all|race|allSettled|any)\s*\(/, "Promise.<combinator>()"],
+	[/\bPromise\s*\.\s*resolve\s*\(/, "Promise.resolve()"],
+	[/\bPromise\s*\.\s*all\s*\(/, "Promise.all()"],
+	[/\bPromise\s*\.\s*(?:reject|race|allSettled|any)\s*\(/, "Promise.<other>()"],
 	[/\bfor\s+await\b/, "for await"],
 	[/\basync\s+(?:function|\*|\(|[A-Za-z_$])/, "async function/method/arrow"],
 	[/\bawait\s/, "await"],
@@ -97,11 +113,13 @@ try {
 let violations = 0;
 for (const fileAbs of files) {
 	const repoRel = relative(ROOT, fileAbs).split("\\").join("/");
-	if (ALLOW.has(repoRel)) continue;
+	if (ALLOW_ALL.has(repoRel)) continue;
+	const allowedLabels = ALLOW_LABELS.get(repoRel);
 	const lines = stripComments(readFileSync(fileAbs, "utf8")).split("\n");
 	for (let i = 0; i < lines.length; i++) {
 		for (const [re, label] of PATTERNS) {
 			if (re.test(lines[i])) {
+				if (allowedLabels?.has(label)) continue;
 				violations++;
 				console.error(
 					`check-no-raw-async: ${repoRel}:${i + 1} uses raw async \`${label}\` — ` +
@@ -119,5 +137,5 @@ if (violations > 0) {
 }
 console.log(
 	`check-no-raw-async: ${files.length} files checked, no raw async outside the sanctioned boundary ` +
-		`(${ALLOW.size} allowlisted).`,
+		`(${ALLOW_ALL.size} whole-file allowlisted, ${ALLOW_LABELS.size} pattern-scoped).`,
 );

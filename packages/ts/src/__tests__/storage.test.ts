@@ -1,6 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ObserveEvent, ObserveSinkErrorContext } from "../index.js";
-import { attachObserveSink, graph } from "../index.js";
+import type {
+	KvStorageTier,
+	ObserveEvent,
+	ObserveEventFrame,
+	ObserveSinkErrorContext,
+} from "../index.js";
+import {
+	appendLogStorage,
+	attachObserveEventLog,
+	attachObserveSink,
+	graph,
+	kvStorage,
+	listByPrefix,
+	memoryAppendLog,
+	memoryKv,
+	stableJsonString,
+} from "../index.js";
 
 const flushMicrotasks = async (turns = 1) => {
 	for (let i = 0; i < turns; i += 1) await Promise.resolve();
@@ -314,5 +329,175 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 		await awaitDone((done) => handle.dispose(done));
 
 		expect(phases).toEqual(["write", "flush", "rollback", "dispose"]);
+	});
+});
+
+describe("D82 storage substrate helpers", () => {
+	it("stableJsonString sorts object keys deterministically", () => {
+		expect(stableJsonString({ b: 2, a: { d: 4, c: 3 } })).toBe('{"a":{"c":3,"d":4},"b":2}');
+	});
+
+	it("stableJsonString rejects unsupported top-level JSON values", () => {
+		expect(() => stableJsonString(undefined)).toThrow(/not JSON-encodable/);
+		expect(() => stableJsonString(() => undefined)).toThrow(/not JSON-encodable/);
+	});
+
+	it("stableJsonString rejects nested lossy JSON values and non-plain objects", () => {
+		const cyclic: { self?: unknown } = {};
+		cyclic.self = cyclic;
+		expect(() => stableJsonString({ nested: undefined })).toThrow(/not JSON-encodable/);
+		expect(() => stableJsonString({ nested: 1n })).toThrow(/not JSON-encodable/);
+		expect(() => stableJsonString(cyclic)).toThrow(/circular/);
+		expect(() => stableJsonString(new Date(0))).toThrow(/non-plain object/);
+		expect(() => stableJsonString(Number.NaN)).toThrow(/non-finite/);
+	});
+
+	it("memoryKv stores encoded values and lists keys by prefix in order", async () => {
+		const kv = memoryKv<{ value: number }>();
+		await kv.set("items/002", { value: 2 });
+		await kv.set("other/001", { value: 9 });
+		await kv.set("items/001", { value: 1 });
+
+		expect(await kv.get("items/001")).toEqual({ value: 1 });
+		expect(await listByPrefix(kv, "items/")).toEqual(["items/001", "items/002"]);
+	});
+
+	it("kvStorage routes sync backend and codec failures through the returned Promise", async () => {
+		const kv = kvStorage({
+			backend: {
+				get() {
+					throw new Error("get boom");
+				},
+				put() {
+					throw new Error("put boom");
+				},
+				list() {
+					throw new Error("list boom");
+				},
+			},
+		});
+
+		await expect(kv.get("x")).rejects.toThrow("get boom");
+		await expect(kv.set("x", { value: 1 })).rejects.toThrow("put boom");
+		await expect(kv.list()).rejects.toThrow("list boom");
+	});
+
+	it("append logs paginate by cursor and can truncate later entries", async () => {
+		const log = memoryAppendLog<{ value: string }>("changes");
+		await log.append({ value: "a" });
+		await log.append({ value: "b" });
+		await log.append({ value: "c" });
+
+		expect((await log.read({ limit: 2 })).map((entry) => entry.value.value)).toEqual(["a", "b"]);
+		expect((await log.read({ after: 0 })).map((entry) => entry.value.value)).toEqual(["b", "c"]);
+
+		await log.truncateAfter(0);
+		expect((await log.read()).map((entry) => [entry.seq, entry.value.value])).toEqual([[0, "a"]]);
+
+		await log.append({ value: "d" });
+		expect((await log.read()).map((entry) => [entry.seq, entry.value.value])).toEqual([
+			[0, "a"],
+			[1, "d"],
+		]);
+	});
+
+	it("append logs refresh sequence allocation across sequential shared handles", async () => {
+		const kv = memoryKv<{ value: string }>();
+		const a = appendLogStorage({ kv, prefix: "shared" });
+		const b = appendLogStorage({ kv, prefix: "shared" });
+
+		await a.append({ value: "a" });
+		await b.append({ value: "b" });
+
+		expect((await a.read()).map((entry) => [entry.seq, entry.value.value])).toEqual([
+			[0, "a"],
+			[1, "b"],
+		]);
+	});
+
+	it("append logs reject malformed keys under the log prefix", async () => {
+		const kv = memoryKv<{ value: string }>();
+		await kv.set("bad/meta", { value: "oops" });
+		const log = appendLogStorage({ kv, prefix: "bad" });
+
+		await expect(log.append({ value: "a" })).rejects.toThrow(/non-numeric sequence/);
+	});
+
+	it("append logs serialize concurrent appends without reusing a sequence", async () => {
+		const log = memoryAppendLog<{ value: string }>("concurrent");
+
+		await Promise.all([log.append({ value: "a" }), log.append({ value: "b" })]);
+
+		expect((await log.read()).map((entry) => entry.seq)).toEqual([0, 1]);
+		expect(await log.size()).toBe(2);
+	});
+
+	it("append-log reads are serialized before later mutations", async () => {
+		const entries = new Map<string, { value: string }>();
+		let holdNextList = false;
+		let releaseList: (() => void) | null = null;
+		const kv: KvStorageTier<{ value: string }> = {
+			get: (key) => Promise.resolve(entries.get(key)),
+			set: (key, value) => {
+				entries.set(key, value);
+				return Promise.resolve();
+			},
+			delete: (key) => {
+				entries.delete(key);
+				return Promise.resolve();
+			},
+			list: (prefix = "") => {
+				if (!holdNextList) {
+					return Promise.resolve(
+						[...entries.keys()].filter((key) => key.startsWith(prefix)).sort(),
+					);
+				}
+				holdNextList = false;
+				return new Promise<readonly string[]>((resolve) => {
+					releaseList = () =>
+						resolve([...entries.keys()].filter((key) => key.startsWith(prefix)).sort());
+				});
+			},
+		};
+		const log = appendLogStorage({ kv, prefix: "ordered" });
+		await log.append({ value: "a" });
+
+		holdNextList = true;
+		const read = log.read();
+		const append = log.append({ value: "b" });
+		await Promise.resolve();
+		expect(releaseList).not.toBeNull();
+		releaseList?.();
+
+		expect((await read).map((entry) => entry.value.value)).toEqual(["a"]);
+		await append;
+		expect((await log.read()).map((entry) => entry.value.value)).toEqual(["a", "b"]);
+	});
+
+	it("attachObserveEventLog persists observe DATA frames in observe sequence order", async () => {
+		const g = graph();
+		const count = g.state(0, { name: "count" });
+		const log = memoryAppendLog<ObserveEventFrame<number>>("observe");
+
+		const handle = attachObserveEventLog<number>(g, log, {
+			path: "count",
+			map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+		});
+
+		count.set(1);
+		count.set(2);
+		await awaitDone((done) => handle.flush(done));
+
+		const frames = (await log.read()).map((entry) => entry.value);
+		expect(frames.map((frame) => frame.change)).toEqual([0, 1, 2]);
+		expect(frames.map((frame) => frame.path)).toEqual(["count", "count", "count"]);
+		expect(frames.map((frame) => frame.observeSeq)).toEqual(
+			[...frames.map((frame) => frame.observeSeq)].sort((a, b) => a - b),
+		);
+
+		await awaitDone((done) => handle.dispose(done));
+		count.set(3);
+		await awaitDone((done) => handle.flush(done));
+		expect((await log.read()).map((entry) => entry.value.change)).toEqual([0, 1, 2]);
 	});
 });

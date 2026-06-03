@@ -12,13 +12,11 @@
  * output; mergeMap bounds memory). Built on the bare `node` primitive via the {@link Operator}
  * factory shape + the `g.initNode` funnel (D43), so the real factory name shows in describe.
  *
- * Lifecycle folding (D47): completeWhenDepsComplete:false + terminalAsRealInput:true — the
- * operator owns completion (emit COMPLETE only when the SOURCE is done AND no inner is live /
- * pending), and an inner/source terminal settles the gate so the fn observes it. Inner ERROR /
- * source ERROR auto-forward via the substrate's errorWhenDepsError (default true) → the operator
- * errors (terminal). NOTE: a terminal operator does not tear down its still-subscribed siblings
- * (they are completed or will be GC'd with the operator); explicit source-error→teardown-all and
- * terminal-sibling teardown remains a first-cut limitation (B34c).
+ * Lifecycle folding (D47/D81): completeWhenDepsComplete:false + terminalAsRealInput:true +
+ * errorWhenDepsError:false — the operator owns completion (emit COMPLETE only when the SOURCE is
+ * done AND no inner is live / pending), and observes source/inner ERROR so it can remove every live
+ * inner before emitting ERROR. Those removals drain after terminal via D62: terminal seals output,
+ * while helper-owned upstream work still sees removeDep->_deactivate->onDeactivation teardown.
  *
  * Alignment: each run issues REMOVES before ADDS so the per-node FIFO drain keeps the operator's
  * tracked inner list aligned with the live dep order across the intermediate boundary waves (a
@@ -32,7 +30,9 @@ import {
 	depCount,
 	depTerminal,
 	isTerminalComplete,
+	isTerminalError,
 	type NodeFn,
+	terminalErrorValue,
 } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
@@ -49,6 +49,33 @@ interface MapState<TIn> {
 	inners: Node<unknown>[];
 	queue: TIn[]; // concatMap pending values (lazy projection); empty for the other modes
 	sourceDone: boolean;
+}
+
+function uniqueNodes(nodes: readonly Node<unknown>[]): Node<unknown>[] {
+	const seen = new Set<Node<unknown>>();
+	const out: Node<unknown>[] = [];
+	for (const n of nodes) {
+		if (seen.has(n)) continue;
+		seen.add(n);
+		out.push(n);
+	}
+	return out;
+}
+
+function cleanupAllInners<TIn>(ctx: Ctx, st: MapState<TIn>, body: NodeFn): void {
+	for (const inner of uniqueNodes(st.inners)) ctx.rewireNext.removeDep(inner, body);
+	st.inners = [];
+	st.queue.length = 0;
+	st.sourceDone = true;
+	ctx.state.set(st);
+}
+
+function firstErrorTerminal(ctx: Ctx): unknown {
+	for (let i = 0; i < depCount(ctx); i++) {
+		const terminal = depTerminal(ctx, i);
+		if (isTerminalError(terminal)) return terminalErrorValue(terminal);
+	}
+	return undefined;
 }
 
 function fromAnyInCtx<T>(ctx: Ctx, input: NodeInput<T>): Node<unknown> {
@@ -102,21 +129,33 @@ function mapOperator<TIn, TOut>(
 	mode: Mode,
 ): Operator<TIn, TOut> {
 	const body: NodeFn = (ctx: Ctx) => {
+		let st: MapState<TIn> | undefined;
 		try {
-			const st = (ctx.state.get<MapState<TIn>>() ?? {
+			st = (ctx.state.get<MapState<TIn>>() ?? {
 				inners: [],
 				queue: [],
 				sourceDone: false,
 			}) as MapState<TIn>;
 			let inners = st.inners;
 			const queue = st.queue;
-			if (isTerminalComplete(depTerminal(ctx, 0))) st.sourceDone = true;
 
 			// 1. forward any inner DATA this wave (index-independent — flatten whichever inner fired).
 			for (let i = 1; i < depCount(ctx); i++) {
 				const b = depBatch(ctx, i);
 				if (b && b.length > 0) for (const v of b) ctx.down([["DATA", v]]);
 			}
+
+			// D81: source ERROR / inner ERROR are terminal operator edges. Detach live inners first,
+			// then emit ERROR. Same-wave inner DATA that preceded the terminal is forwarded above.
+			// Do not send COMPLETE/ERROR to those inner sources.
+			const terminalError = firstErrorTerminal(ctx);
+			if (terminalError !== undefined) {
+				cleanupAllInners(ctx, st, body);
+				ctx.down([["ERROR", terminalError]]);
+				return;
+			}
+
+			if (isTerminalComplete(depTerminal(ctx, 0))) st.sourceDone = true;
 
 			// 2. drop inners that terminated this/any wave (bounding); `inners` aligns with deps[1..].
 			const toRemove: Node<unknown>[] = [];
@@ -177,20 +216,22 @@ function mapOperator<TIn, TOut>(
 			for (const a of toAdd) ctx.rewireNext.addDep(a, body);
 
 			// 5. completion: the SOURCE is done AND nothing is live or pending → COMPLETE (D47 folding;
-			//    a queued/just-added inner keeps it open). A terminal here discards the deferred queue.
+			//    a queued/just-added inner keeps it open). If terminal output happens in a wave that
+			//    also queued cleanup rewire, D62 still drains that queue after terminal.
 			if (st.sourceDone && inners.length === 0 && toAdd.length === 0 && queue.length === 0) {
 				ctx.down([["COMPLETE"]]);
 			}
 		} catch (e) {
-			ctx.down([["ERROR", errorPayload(e, "projector threw without a valid error payload")]]); // D30: a throwing projector → ERROR (self-catch survives rewire)
+			if (st) cleanupAllInners(ctx, st, body);
+			ctx.down([["ERROR", errorPayload(e, "projector threw without a valid error payload")]]); // D30/D81: a throwing projector → cleanup inners, then ERROR
 		}
 	};
 
 	return {
 		factory,
 		body,
-		// D47 folding: the operator owns completion + observes inner/source terminals.
-		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
+		// D47/D81 folding: the operator owns completion + terminal ERROR cleanup.
+		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true, errorWhenDepsError: false },
 	};
 }
 
@@ -205,8 +246,8 @@ export function switchMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn,
 
 /**
  * mergeMap (a.k.a. flatMap): project each source value to an inner and keep ALL inners live,
- * interleaving their emissions. A completed inner is removed (memory bounding). Inner ERROR
- * forwards (the operator errors); siblings are not explicitly cancelled (first-cut limitation).
+ * interleaving their emissions. A completed inner is removed (memory bounding). On source/inner
+ * ERROR or projector failure, every live inner is removed before the operator emits ERROR (D81).
  */
 export function mergeMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
 	return mapOperator("mergeMap", project, "merge");
