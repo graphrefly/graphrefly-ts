@@ -131,6 +131,9 @@ export {
 export type { NodeProfile, ObserveEvent, ObserveStream, Profile } from "./graph/inspect.js";
 export {
 	catchError,
+	type DefineOpts,
+	type Definition,
+	define,
 	distinctUntilChanged,
 	elementAt,
 	filter,
@@ -143,7 +146,7 @@ export {
 	type Operator,
 	onFirstData,
 	pairwise,
-	type RestorableDefinition,
+	type RestoreRegistryEntry,
 	reduce,
 	rescue,
 	restoreRegistry,
@@ -152,13 +155,10 @@ export {
 	settle,
 	skip,
 	type TapObserver,
-	type TransformDefinition,
-	type TransformOpts,
 	take,
 	takeWhile,
 	tap,
 	tapFirst,
-	transform,
 	type ValveOpts,
 	valve,
 } from "./graph/operators.js";
@@ -189,9 +189,12 @@ export {
 } from "./graph/render.js";
 export {
 	defaultRestoreRegistry,
+	type GraphRestoreDefinition,
 	type GraphRestoreDescriptor,
 	type GraphRestoreDescriptorContext,
+	type GraphRestoreEntry,
 	type GraphRestoreRegistry,
+	mapRestoreDescriptor,
 	type RestoreGraphOptions,
 	restoreGraph,
 	stateRestoreDescriptor,

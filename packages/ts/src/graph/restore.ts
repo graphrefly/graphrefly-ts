@@ -28,8 +28,16 @@ import {
 	restoreStateNodeInGraph,
 	type SugarOpts,
 } from "./graph.js";
-import { operatorNodeFn, take } from "./operators.js";
+import { map, operatorNodeFn, take } from "./operators.js";
 import { timer } from "./sources.js";
+
+export interface GraphRestoreDefinition<S = never, T = unknown> {
+	readonly kind: "definition";
+	readonly ref: string;
+	readonly fn: (v: S) => T;
+}
+
+export type GraphRestoreEntry = GraphRestoreDescriptor | GraphRestoreDefinition;
 
 export interface GraphRestoreDescriptorContext<
 	C extends GraphCheckpointJson | undefined = GraphCheckpointJson | undefined,
@@ -41,6 +49,7 @@ export interface GraphRestoreDescriptorContext<
 	readonly config: C;
 	readonly configVersion?: GraphCheckpointJson;
 	readonly checkpoint: GraphCheckpointNode;
+	resolveDefinition<S = unknown, T = unknown>(ref: string): GraphRestoreDefinition<S, T>;
 	registerState<T = unknown>(opts?: SugarOpts<T>): Node<unknown>;
 	registerNode<T = unknown>(
 		factory: string,
@@ -63,8 +72,8 @@ export interface GraphRestoreDescriptor<
 }
 
 export type GraphRestoreRegistry =
-	| ReadonlyMap<string, GraphRestoreDescriptor>
-	| Readonly<Record<string, GraphRestoreDescriptor>>;
+	| ReadonlyMap<string, GraphRestoreEntry>
+	| Readonly<Record<string, GraphRestoreEntry>>;
 
 export interface RestoreGraphOptions {
 	registry: GraphRestoreRegistry;
@@ -92,6 +101,7 @@ export const stateRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
 
 type TakeConfig = { n: number };
 type TimerConfig = { ms: number };
+type MapConfig = { fn: string };
 
 function objectConfig(
 	config: GraphCheckpointJson | undefined,
@@ -136,6 +146,32 @@ export const takeRestoreDescriptor: GraphRestoreDescriptor<TakeConfig> = {
 	},
 };
 
+export const mapRestoreDescriptor: GraphRestoreDescriptor<MapConfig> = {
+	ref: "map",
+	validateConfig(config, configVersion) {
+		if (configVersion !== undefined) {
+			throw new Error("restoreGraph: built-in map descriptor does not accept configVersion");
+		}
+		const obj = objectConfig(config, "map");
+		if (typeof obj.fn !== "string") {
+			throw new Error("restoreGraph: 'map' config.fn must be a string definition ref");
+		}
+		return { fn: obj.fn };
+	},
+	create(ctx) {
+		if (ctx.deps.length !== 1) {
+			throw new Error(`restoreGraph: map node '${ctx.checkpoint.id}' requires exactly one dep`);
+		}
+		const definition = ctx.resolveDefinition(ctx.config.fn);
+		const op = map(definition);
+		return ctx.registerNode("map", ctx.deps, operatorNodeFn(op), {
+			name: ctx.name,
+			meta: ctx.checkpoint.meta,
+			restore: op.restore,
+		});
+	},
+};
+
 export const timerRestoreDescriptor: GraphRestoreDescriptor<TimerConfig> = {
 	ref: "timer",
 	validateConfig(config, configVersion) {
@@ -160,6 +196,7 @@ export const timerRestoreDescriptor: GraphRestoreDescriptor<TimerConfig> = {
 
 export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreDescriptor>> = {
 	state: stateRestoreDescriptor,
+	map: mapRestoreDescriptor,
 	take: takeRestoreDescriptor,
 	timer: timerRestoreDescriptor,
 };
@@ -188,13 +225,22 @@ type PreparedRuntime = {
 	ctxState: { value: unknown; persist: boolean };
 };
 
-function registryGet(
-	registry: GraphRestoreRegistry,
-	ref: string,
-): GraphRestoreDescriptor | undefined {
+function registryGet(registry: GraphRestoreRegistry, ref: string): GraphRestoreEntry | undefined {
 	return registry instanceof Map
 		? registry.get(ref)
-		: (registry as Readonly<Record<string, GraphRestoreDescriptor>>)[ref];
+		: (registry as Readonly<Record<string, GraphRestoreEntry>>)[ref];
+}
+
+function isRestoreDescriptor(
+	entry: GraphRestoreEntry | undefined,
+): entry is GraphRestoreDescriptor {
+	return entry !== undefined && "create" in entry;
+}
+
+function isRestoreDefinition(
+	entry: GraphRestoreEntry | undefined,
+): entry is GraphRestoreDefinition {
+	return entry !== undefined && "kind" in entry && entry.kind === "definition";
 }
 
 function assertString(value: unknown, label: string): string {
@@ -283,10 +329,11 @@ function validateFactory(
 		);
 	}
 	const ref = assertString(factory.ref, `factory ref for node '${id}'`);
-	const descriptor = registryGet(registry, ref);
-	if (descriptor === undefined) {
+	const entry = registryGet(registry, ref);
+	if (!isRestoreDescriptor(entry)) {
 		throw new Error(`restoreGraph: missing registry descriptor for '${ref}' (node '${id}')`);
 	}
+	const descriptor = entry;
 	if (descriptor.ref !== ref) {
 		throw new Error(
 			`restoreGraph: registry descriptor for '${ref}' reports ref '${descriptor.ref}'`,
@@ -296,6 +343,18 @@ function validateFactory(
 	if (factory.configVersion !== undefined)
 		toCheckpointJson(factory.configVersion, `${id}.factory.configVersion`);
 	return descriptor;
+}
+
+function resolveDefinition<S, T>(
+	registry: GraphRestoreRegistry,
+	ref: string,
+	nodeId: string,
+): GraphRestoreDefinition<S, T> {
+	const entry = registryGet(registry, ref);
+	if (!isRestoreDefinition(entry)) {
+		throw new Error(`restoreGraph: missing function definition for '${ref}' (node '${nodeId}')`);
+	}
+	return entry as GraphRestoreDefinition<S, T>;
 }
 
 function prepareCheckpoint(
@@ -412,6 +471,7 @@ function constructPrepared(
 					? item.checkpoint.factory.configVersion
 					: undefined,
 			checkpoint: item.checkpoint,
+			resolveDefinition: (ref) => resolveDefinition(registry, ref, item.checkpoint.id),
 			registerState: (opts) => restoreStateNodeInGraph(out, item.localId, opts),
 			registerNode: (factory, nodeDeps, fn, opts) =>
 				restoreNodeInGraph(out, item.localId, factory, nodeDeps, fn, opts),

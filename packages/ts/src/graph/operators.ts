@@ -37,7 +37,7 @@ import type { NodeCore } from "../node/core.js";
 import { Node, type NodeOptions, withNodeCore } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
-import type { GraphRestoreDescriptor, GraphRestoreRegistry } from "./restore.js";
+import type { GraphRestoreDefinition, GraphRestoreEntry, GraphRestoreRegistry } from "./restore.js";
 
 /**
  * A free-standing operator definition (D43). `TIn` = the element type each dep delivers
@@ -67,28 +67,16 @@ export interface Operator<TIn = unknown, TOut = unknown> {
 	readonly __out?: TOut;
 }
 
-type MutableRestoreRegistry =
-	| Map<string, GraphRestoreDescriptor>
-	| Record<string, GraphRestoreDescriptor>;
+type MutableRestoreRegistry = Map<string, GraphRestoreEntry> | Record<string, GraphRestoreEntry>;
 
-export interface RestorableDefinition {
+export type RestoreRegistryEntry = GraphRestoreEntry;
+
+export interface Definition<S = unknown, T = unknown> extends GraphRestoreDefinition<S, T> {
 	readonly ref: string;
-	readonly restoreDescriptor: GraphRestoreDescriptor;
-}
-
-export interface TransformDefinition<S = unknown, T = unknown> extends RestorableDefinition {
-	readonly kind: "transform";
 	readonly fn: (v: S) => T;
-	readonly restore: {
-		ref: string;
-		config?: GraphCheckpointJson;
-		configVersion?: GraphCheckpointJson;
-	};
 }
 
-export interface TransformOpts {
-	config?: unknown;
-	configVersion?: unknown;
+export interface DefineOpts {
 	registry?: MutableRestoreRegistry;
 }
 
@@ -99,87 +87,51 @@ function registryHas(registry: MutableRestoreRegistry, ref: string): boolean {
 function registrySet(
 	registry: MutableRestoreRegistry,
 	ref: string,
-	descriptor: GraphRestoreDescriptor,
+	entry: GraphRestoreEntry,
 ): void {
 	if (registryHas(registry, ref)) {
-		throw new Error(`restoreRegistry: duplicate descriptor ref '${ref}'`);
+		throw new Error(`restoreRegistry: duplicate ref '${ref}'`);
 	}
-	if (registry instanceof Map) registry.set(ref, descriptor);
-	else registry[ref] = descriptor;
+	if (registry instanceof Map) registry.set(ref, entry);
+	else registry[ref] = entry;
 }
 
 export function addToRestoreRegistry(
 	registry: MutableRestoreRegistry,
-	definition: RestorableDefinition | GraphRestoreDescriptor,
+	entry: GraphRestoreEntry,
 ): void {
-	const descriptor = "restoreDescriptor" in definition ? definition.restoreDescriptor : definition;
-	registrySet(registry, descriptor.ref, descriptor);
+	registrySet(registry, entry.ref, entry);
 }
 
 export function restoreRegistry(
-	definitions: readonly (RestorableDefinition | GraphRestoreDescriptor)[] = [],
+	entries: readonly GraphRestoreEntry[] = [],
 	base?: GraphRestoreRegistry,
-): Map<string, GraphRestoreDescriptor> {
-	const out = new Map<string, GraphRestoreDescriptor>();
+): Map<string, GraphRestoreEntry> {
+	const out = new Map<string, GraphRestoreEntry>();
 	if (base instanceof Map) {
-		for (const [ref, descriptor] of base) registrySet(out, ref, descriptor);
+		for (const [ref, entry] of base) registrySet(out, ref, entry);
 	} else if (base !== undefined) {
-		for (const [ref, descriptor] of Object.entries(base)) registrySet(out, ref, descriptor);
+		for (const [ref, entry] of Object.entries(base)) registrySet(out, ref, entry);
 	}
-	for (const definition of definitions) addToRestoreRegistry(out, definition);
+	for (const entry of entries) addToRestoreRegistry(out, entry);
 	return out;
 }
 
-function sameJson(a: GraphCheckpointJson | undefined, b: GraphCheckpointJson | undefined): boolean {
-	return JSON.stringify(a) === JSON.stringify(b);
+function isDefinition<S, T>(fn: ((v: S) => T) | Definition<S, T>): fn is Definition<S, T> {
+	return typeof fn === "object" && fn !== null && (fn as Definition<S, T>).kind === "definition";
 }
 
-function isTransformDefinition<S, T>(
-	fn: ((v: S) => T) | TransformDefinition<S, T>,
-): fn is TransformDefinition<S, T> {
-	return (
-		typeof fn === "object" && fn !== null && (fn as TransformDefinition<S, T>).kind === "transform"
-	);
-}
-
-export function transform<S, T>(
+export function define<S, T>(
 	ref: string,
 	fn: (v: S) => T,
-	opts: TransformOpts = {},
-): TransformDefinition<S, T> {
-	const jsonRef = toCheckpointJson(ref, "transform.ref");
-	if (typeof jsonRef !== "string") throw new TypeError("transform: ref must be a string");
-	const restore: TransformDefinition<S, T>["restore"] = { ref: jsonRef };
-	if (opts.config !== undefined) restore.config = toCheckpointJson(opts.config, `${ref}.config`);
-	if (opts.configVersion !== undefined)
-		restore.configVersion = toCheckpointJson(opts.configVersion, `${ref}.configVersion`);
-	const definition: TransformDefinition<S, T> = {
-		kind: "transform",
+	opts: DefineOpts = {},
+): Definition<S, T> {
+	const jsonRef = toCheckpointJson(ref, "define.ref");
+	if (typeof jsonRef !== "string") throw new TypeError("define: ref must be a string");
+	const definition: Definition<S, T> = {
+		kind: "definition",
 		ref: jsonRef,
 		fn,
-		restore,
-		restoreDescriptor: {
-			ref: jsonRef,
-			validateConfig(config, configVersion) {
-				if (!sameJson(config, restore.config)) {
-					throw new Error(`restoreGraph: transform '${jsonRef}' config mismatch`);
-				}
-				if (!sameJson(configVersion, restore.configVersion)) {
-					throw new Error(`restoreGraph: transform '${jsonRef}' configVersion mismatch`);
-				}
-				return config;
-			},
-			create(ctx) {
-				if (ctx.deps.length !== 1) {
-					throw new Error(`restoreGraph: transform '${jsonRef}' requires exactly one dep`);
-				}
-				return ctx.registerNode("map", ctx.deps, operatorNodeFn(map(definition)), {
-					name: ctx.name,
-					meta: ctx.checkpoint.meta,
-					restore,
-				});
-			},
-		},
 	};
 	if (opts.registry !== undefined) addToRestoreRegistry(opts.registry, definition);
 	return definition;
@@ -237,7 +189,7 @@ export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
 	};
 }
 
-// ── Slice 1 — single-dep transform / take / control (CSP-2.7 catalog re-derive, D40) ──
+// ── Slice 1 — single-dep map / take / control (CSP-2.7 catalog re-derive, D40) ──
 // All read dep 0 positionally + emit via ctx.down. Under D49 every occurrence is DATA (no
 // equals-absorption); a body that returns WITHOUT emitting gets a substrate-synthesized undirty
 // RESOLVED (R-resolved-undirty) — so a "skip this wave" is a bare `return`. Terminal-emitting
@@ -247,17 +199,24 @@ export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
 // (D41) uses a producer + internal `subscribeOr`, the D45-banned describe island; these are
 // declared-dep nodes whose single edge `describe` shows truthfully.
 
-/** map: emit fn(value). A named {@link transform} makes the map restorable (D97). */
-export function map<S, T>(fn: ((v: S) => T) | TransformDefinition<S, T>): Operator<S, T> {
-	if (isTransformDefinition(fn)) {
-		return mapFromFunction(fn.fn, fn.restore);
+/** map: emit fn(value). A named {@link define} makes the map restorable via the map descriptor (D101). */
+export function map<S, T>(fn: ((v: S) => T) | Definition<S, T>): Operator<S, T> {
+	if (isDefinition(fn)) {
+		return mapFromFunction(fn.fn, {
+			ref: "map",
+			config: { fn: toCheckpointJson(fn.ref, `map.fn`) },
+		});
 	}
 	return mapFromFunction(fn);
 }
 
 function mapFromFunction<S, T>(
 	fn: (v: S) => T,
-	restore?: TransformDefinition<S, T>["restore"],
+	restore?: {
+		ref: string;
+		config?: GraphCheckpointJson;
+		configVersion?: GraphCheckpointJson;
+	},
 ): Operator<S, T> {
 	return {
 		factory: "map",

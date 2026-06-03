@@ -5,6 +5,7 @@ import type { GraphRestoreDescriptor, Message, RestoreGraphOptions } from "../in
 import {
 	Dispatcher,
 	defaultRestoreRegistry,
+	define,
 	GRAPH_CHECKPOINT_VERSION,
 	graph,
 	map,
@@ -13,7 +14,6 @@ import {
 	strictJsonCodec,
 	take,
 	timer,
-	transform,
 } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
@@ -415,20 +415,21 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		]);
 	});
 
-	it("restores a named transform map using the registry-provided restart closure (D97/D100)", () => {
+	it("restores a named function map using D101 define checkpoints", () => {
 		const original = graph();
 		const src = original.state(1, { name: "src" });
-		const inc = transform<number, number>("inc", (n) => n + 1);
+		const inc = define<number, number>("inc", (n) => n + 1);
 		const mapped = original.initNode(map(inc), [src], { name: "mapped" });
 		collect(mapped);
 
 		const checkpoint = original.checkpoint();
 		expect(checkpoint.nodes.find((n) => n.id === "mapped")?.factory).toEqual({
 			kind: "registry-ref",
-			ref: "inc",
+			ref: "map",
+			config: { fn: "inc" },
 		});
 
-		const reloadedInc = transform<number, number>("inc", (n) => n + 10);
+		const reloadedInc = define<number, number>("inc", (n) => n + 10);
 		const registry = restoreRegistry([reloadedInc], defaultRestoreRegistry);
 		const restored = restoreGraph(checkpoint, { registry });
 		expect(restored.find("mapped")?.cache).toBe(2);
@@ -436,6 +437,36 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		collect(restored.find("mapped") as { subscribe(s: (m: Message) => void): () => void });
 		(restored.find("src") as { set(v: number): void }).set(2);
 		expect(restored.find("mapped")?.cache).toBe(12);
+	});
+
+	it("rejects duplicate definition refs in restore registry (D101)", () => {
+		const first = define<number, number>("same", (n) => n + 1);
+		const duplicate = define<number, number>("same", (n) => n + 2);
+		expect(() => restoreRegistry([first, duplicate], defaultRestoreRegistry)).toThrow(
+			/duplicate ref 'same'/,
+		);
+	});
+
+	it("fails honestly when a restored map config references a missing function definition (D101)", () => {
+		const base = graph();
+		base.state(1, { name: "src" });
+		const checkpoint = base.checkpoint();
+		checkpoint.nodes.push({
+			id: "mapped",
+			name: "mapped",
+			factory: { kind: "registry-ref", ref: "map", config: { fn: "missing.inc" } },
+			status: "sentinel",
+			deps: ["src"],
+			value: { kind: "SENTINEL" },
+			terminal: { kind: "none" },
+			lifecycle: { activated: false, hasCalledFnOnce: false },
+			ctxState: { persist: false, value: { kind: "SENTINEL" } },
+		});
+		checkpoint.edges.push({ from: "src", to: "mapped" });
+
+		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
+			/missing function definition for 'missing\.inc'/,
+		);
 	});
 
 	it("keeps inline closure map local-only while static built-in operators stamp config", () => {
@@ -487,10 +518,47 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		expect(restored.find("limited")?.cache).toBe(1);
 	});
 
+	it("restores built-in take and timer from checkpoint descriptors", () => {
+		const restorable = graph();
+		const src = restorable.state(1, { name: "src" });
+		restorable.initNode(take<number>(1), [src], { name: "limited" });
+		restorable.initNode(timer(7), [], { name: "once" });
+		restorable.initNode(timer(8, {}), [], { name: "onceDefaultOpts" });
+		const checkpoint = restorable.checkpoint();
+
+		expect(checkpoint.nodes.find((n) => n.id === "limited")?.factory).toEqual({
+			kind: "registry-ref",
+			ref: "take",
+			config: { n: 1 },
+		});
+		expect(checkpoint.nodes.find((n) => n.id === "once")?.factory).toEqual({
+			kind: "registry-ref",
+			ref: "timer",
+			config: { ms: 7 },
+		});
+		expect(checkpoint.nodes.find((n) => n.id === "onceDefaultOpts")?.factory).toEqual({
+			kind: "registry-ref",
+			ref: "timer",
+			config: { ms: 8 },
+		});
+
+		const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
+		const restoredLimited = restored.find("limited");
+		const restoredSrc = restored.find("src") as { set(v: number): void };
+		const msgs = collect(restoredLimited as { subscribe(s: (m: Message) => void): () => void });
+		const restoredOnce = restored.find("once");
+
+		expect(msgs.length >= 1).toBe(true);
+		expect(restoredOnce).toBeDefined();
+		expect(restoredLimited?.cache).toBe(1);
+		restoredSrc.set(2);
+		expect(restoredLimited?.cache).toBe(1);
+	});
+
 	it("uses restoreGraph dispatcher option for the fresh restored graph (D100)", () => {
 		const original = graph();
 		const src = original.state(1, { name: "src" });
-		const inc = transform<number, number>("inc.dispatcher", (n) => n + 1);
+		const inc = define<number, number>("inc.dispatcher", (n) => n + 1);
 		collect(original.initNode(map(inc), [src], { name: "mapped" }));
 		const dispatcher = new Dispatcher();
 		dispatcher.setRecording(true);
