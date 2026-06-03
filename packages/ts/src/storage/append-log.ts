@@ -17,6 +17,13 @@ export interface AppendLogReadOptions {
 	limit?: number;
 }
 
+/** One bounded append-log page with the cursor for the next read. */
+export interface AppendLogPage<T> {
+	readonly entries: readonly AppendLogEntry<T>[];
+	readonly nextAfter: number;
+	readonly done: boolean;
+}
+
 /**
  * Append-only tier for durable event/change logs (D82), not graph restore replay.
  *
@@ -83,6 +90,16 @@ function validateReadOptions(opts: AppendLogReadOptions): {
 	return { after, limit };
 }
 
+function validatePageLimit(limit: number): number {
+	if (!Number.isSafeInteger(limit) || limit < 1) {
+		throw new RangeError(`readAppendLogPage: limit must be a positive safe integer, got ${limit}`);
+	}
+	if (limit >= Number.MAX_SAFE_INTEGER) {
+		throw new RangeError("readAppendLogPage: limit must leave room for one lookahead entry");
+	}
+	return limit;
+}
+
 function readAppendLogEntries<T>(
 	kv: KvStorageTier<T>,
 	prefix: string,
@@ -110,6 +127,27 @@ function readAppendLogEntries<T>(
 			for (const entry of entries) if (entry !== undefined) out.push(entry);
 			return out;
 		});
+	});
+}
+
+/** Read one ordered append-log page without assigning replay or restore semantics. */
+export function readAppendLogPage<T>(
+	log: AppendLogStorageTier<T>,
+	opts: AppendLogReadOptions = {},
+): Promise<AppendLogPage<T>> {
+	const after = opts.after ?? -1;
+	if (!Number.isSafeInteger(after) || after < -1) {
+		throw new RangeError(`readAppendLogPage: after must be an integer cursor >= -1, got ${after}`);
+	}
+	const limit = validatePageLimit(opts.limit ?? 100);
+	return log.read({ after, limit: limit + 1 }).then((entries) => {
+		const visible = entries.slice(0, limit);
+		const last = visible[visible.length - 1];
+		return {
+			entries: visible,
+			nextAfter: last?.seq ?? after,
+			done: entries.length <= limit,
+		};
 	});
 }
 

@@ -6,7 +6,8 @@ import {
 	type ObserveSinkErrorContext,
 	type ObserveSinkHandle,
 } from "../graph/storage.js";
-import type { AppendLogStorageTier } from "./append-log.js";
+import type { AppendLogPage, AppendLogReadOptions, AppendLogStorageTier } from "./append-log.js";
+import { readAppendLogPage } from "./append-log.js";
 import { assertChangeEnvelope, type ChangeEnvelope, envelopeChange } from "./change.js";
 import type { Codec } from "./codec.js";
 import { jsonCodecFor } from "./codec.js";
@@ -33,6 +34,9 @@ export interface ObserveEventLogHandle extends ObserveSinkHandle {
 	rollback(done?: ObserveSinkDone): void;
 	dispose(done?: ObserveSinkDone): void;
 }
+
+/** One ordered observe-event log page. It is not graph projection or restore replay. */
+export type ObserveEventLogPage<T = ObserveEvent> = AppendLogPage<ObserveEventFrame<T>>;
 
 /** Create a storage frame from one observe event and mapped payload. */
 export function observeEventFrame<T>(
@@ -106,4 +110,12 @@ export function attachObserveEventLog<T = ObserveEvent>(
 			onError: opts.onError,
 		},
 	);
+}
+
+/** Read one ordered observe-event log page without projecting it into graph state. */
+export function readObserveEventLogPage<T = ObserveEvent>(
+	log: AppendLogStorageTier<ObserveEventFrame<T>>,
+	opts: AppendLogReadOptions = {},
+): Promise<ObserveEventLogPage<T>> {
+	return readAppendLogPage(log, opts);
 }

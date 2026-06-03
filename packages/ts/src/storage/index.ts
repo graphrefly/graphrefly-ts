@@ -9,6 +9,7 @@ export {
 export {
 	APPEND_LOG_SEQ_PAD,
 	type AppendLogEntry,
+	type AppendLogPage,
 	type AppendLogReadOptions,
 	type AppendLogStorageTier,
 	appendLogKey,
@@ -18,6 +19,7 @@ export {
 	memoryAppendLog,
 	memoryMultiWriterAppendLog,
 	multiWriterAppendLogStorage,
+	readAppendLogPage,
 } from "./append-log.js";
 export {
 	hasStoragePutIfAbsent,
@@ -75,8 +77,10 @@ export {
 	attachObserveEventLog,
 	type ObserveEventFrame,
 	type ObserveEventLogHandle,
+	type ObserveEventLogPage,
 	observeEventFrame,
 	observeEventFrameCodec,
+	readObserveEventLogPage,
 } from "./observe-event-log.js";
 export {
 	type ReadThroughErrorContext,
@@ -101,3 +105,19 @@ export {
 	type NonNegativeDecimalIntegerString,
 	nonNegativeDecimalStringToBigInt,
 } from "./scalar.js";
+export {
+	assertWalFrame,
+	verifyWalFrameChecksum,
+	WAL_FORMAT_VERSION,
+	WAL_FRAME_SEQ_PAD,
+	WAL_KEY_SEGMENT,
+	type WalFrame,
+	type WalFrameBody,
+	type WalFrameOptions,
+	type WalFrameTimestampNs,
+	walFrame,
+	walFrameChecksum,
+	walFrameCodec,
+	walFrameKey,
+	walFramePrefix,
+} from "./wal.js";

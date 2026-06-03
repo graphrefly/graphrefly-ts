@@ -58,6 +58,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof storage.attachObserveEventLog).toBe("function");
 		expect(typeof storage.tieredReadThrough).toBe("function");
 		expect(typeof storage.readThroughKv).toBe("function");
+		expect(typeof storage.readAppendLogPage).toBe("function");
+		expect(typeof storage.readObserveEventLogPage).toBe("function");
+		expect(typeof storage.walFrame).toBe("function");
+		expect(typeof storage.walFrameKey).toBe("function");
 		expect(typeof testing.assertDirtyPrecedesTerminalData).toBe("function");
 	});
 

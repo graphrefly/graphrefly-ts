@@ -8,12 +8,14 @@ import type {
 	ObserveEvent,
 	ObserveEventFrame,
 	ObserveSinkErrorContext,
+	WalFrame,
 } from "../index.js";
 import * as rootExports from "../index.js";
 import {
 	appendLogStorage,
 	assertDecimalIntegerString,
 	assertNonNegativeDecimalIntegerString,
+	assertWalFrame,
 	attachObserveEventLog,
 	attachObserveSink,
 	bigIntToDecimalString,
@@ -41,6 +43,8 @@ import {
 	nowNs,
 	observeEventFrame,
 	observeEventFrameCodec,
+	readAppendLogPage,
+	readObserveEventLogPage,
 	readThroughKv,
 	requireKvPutIfAbsent,
 	requireStoragePutIfAbsent,
@@ -49,6 +53,13 @@ import {
 	strictJsonCodec,
 	strictJsonCodecFor,
 	tieredReadThrough,
+	verifyWalFrameChecksum,
+	WAL_FORMAT_VERSION,
+	walFrame,
+	walFrameChecksum,
+	walFrameCodec,
+	walFrameKey,
+	walFramePrefix,
 	webStorageBackend,
 } from "../index.js";
 import * as storageExports from "../storage/index.js";
@@ -1077,6 +1088,121 @@ describe("D82 storage substrate helpers", () => {
 		]);
 	});
 
+	it("readAppendLogPage returns ordered pages with an explicit cursor", async () => {
+		const log = memoryAppendLog<{ value: string }>("page");
+		await log.append({ value: "a" });
+		await log.append({ value: "b" });
+		await log.append({ value: "c" });
+
+		const first = await readAppendLogPage(log, { limit: 2 });
+		expect(first.entries.map((entry) => [entry.seq, entry.value.value])).toEqual([
+			[0, "a"],
+			[1, "b"],
+		]);
+		expect(first.nextAfter).toBe(1);
+		expect(first.done).toBe(false);
+
+		const second = await readAppendLogPage(log, { after: first.nextAfter, limit: 2 });
+		expect(second.entries.map((entry) => [entry.seq, entry.value.value])).toEqual([[2, "c"]]);
+		expect(second.nextAfter).toBe(2);
+		expect(second.done).toBe(true);
+		expect(() => readAppendLogPage(log, { limit: 0 })).toThrow(/positive safe integer/);
+	});
+
+	it("walFrameKey builds padded passive WAL storage keys", () => {
+		const prefix = walFramePrefix("graph/main");
+		expect(prefix).toBe("graph/main/wal");
+		expect(walFramePrefix("")).toBe("wal");
+		expect(walFrameKey(prefix, 7)).toBe("graph/main/wal/00000000000000000007");
+		expect(() => walFrameKey(prefix, -1)).toThrow(/non-negative safe integer/);
+		expect(() => walFrameKey(prefix, 1.5)).toThrow(/non-negative safe integer/);
+	});
+
+	it("walFrame produces stable checksums and detects tampering", async () => {
+		const body = {
+			t: "c",
+			lifecycle: "data",
+			path: "count",
+			change: { op: "set", value: 1 },
+			frame_seq: 2,
+			frame_t_ns: "123",
+			format_version: WAL_FORMAT_VERSION,
+		} as const;
+
+		const checksum = await walFrameChecksum(body);
+		expect(checksum).toMatch(/^[0-9a-f]{64}$/);
+		expect(await walFrameChecksum({ ...body })).toBe(checksum);
+
+		const frame = await walFrame({
+			path: body.path,
+			change: body.change,
+			frame_seq: body.frame_seq,
+			frame_t_ns: body.frame_t_ns,
+		});
+		expect(frame).toMatchObject({
+			t: "c",
+			lifecycle: "data",
+			path: "count",
+			change: { op: "set", value: 1 },
+			frame_seq: 2,
+			frame_t_ns: "123",
+			format_version: WAL_FORMAT_VERSION,
+			checksum: expect.stringMatching(/^[0-9a-f]{64}$/),
+		});
+		expect(await verifyWalFrameChecksum(frame)).toBe(true);
+		expect(await verifyWalFrameChecksum({ ...frame, path: "other" })).toBe(false);
+		expect(Object.keys(frame)).not.toEqual(
+			expect.arrayContaining(["snapshot", "restore", "checkpoint", "factory"]),
+		);
+	});
+
+	it("walFrameCodec validates passive frame shape without restore semantics", async () => {
+		const frame = await walFrame({ path: "node", change: { event: "DATA" }, frame_seq: 0 });
+		const codec = walFrameCodec<{ event: string }>();
+		expect(codec.decode(codec.encode(frame))).toEqual(frame);
+		expect(assertWalFrame(frame)).toEqual(frame);
+		expect(() => assertWalFrame({ ...frame, checksum: "BAD" })).toThrow(/checksum/);
+		expect(() =>
+			codec.decode(
+				new TextEncoder().encode(
+					JSON.stringify({
+						...frame,
+						t: "r",
+					}),
+				),
+			),
+		).toThrow(/t must be c/);
+		expect(() =>
+			codec.decode(
+				new TextEncoder().encode(
+					JSON.stringify({
+						...frame,
+						lifecycle: "restore",
+					}),
+				),
+			),
+		).toThrow(/lifecycle/);
+	});
+
+	it("wal frames store and page as ordinary append-log facts", async () => {
+		const log = memoryAppendLog<WalFrame<{ value: string }>>("wal-store");
+		await log.append(await walFrame({ path: "a", change: { value: "a" }, frame_seq: 0 }));
+		await log.append(await walFrame({ path: "b", change: { value: "b" }, frame_seq: 1 }));
+		await log.append(await walFrame({ path: "c", change: { value: "c" }, frame_seq: 2 }));
+
+		const page = await readAppendLogPage(log, { limit: 2 });
+		expect(
+			page.entries.map((entry) => [entry.seq, entry.value.frame_seq, entry.value.path]),
+		).toEqual([
+			[0, 0, "a"],
+			[1, 1, "b"],
+		]);
+		expect(page.done).toBe(false);
+		expect((await readAppendLogPage(log, { after: page.nextAfter })).entries[0]?.value.path).toBe(
+			"c",
+		);
+	});
+
 	it("append logs refresh sequence allocation across sequential shared handles", async () => {
 		const kv = memoryKv<{ value: string }>();
 		const a = appendLogStorage({ kv, prefix: "shared" });
@@ -1379,6 +1505,21 @@ describe("D82 storage substrate helpers", () => {
 		expect((await log.read()).map((entry) => entry.value.change)).toEqual([0, 1, 2]);
 	});
 
+	it("readObserveEventLogPage returns ordered observe frames without projection", async () => {
+		const log = memoryAppendLog<ObserveEventFrame<number>>("observe-page");
+		await log.append(observeEventFrame({ path: "count", msg: ["DATA", 1], tier: 3, seq: 1 }, 1));
+		await log.append(observeEventFrame({ path: "count", msg: ["DATA", 2], tier: 3, seq: 2 }, 2));
+
+		const page = await readObserveEventLogPage(log, { limit: 1 });
+		expect(page.entries.map((entry) => entry.value.change)).toEqual([1]);
+		expect(page.entries[0]?.value.observeSeq).toBe(1);
+		expect(page.done).toBe(false);
+
+		const rest = await readObserveEventLogPage(log, { after: page.nextAfter, limit: 1 });
+		expect(rest.entries.map((entry) => entry.value.change)).toEqual([2]);
+		expect(rest.done).toBe(true);
+	});
+
 	it("change and observe-event codecs validate D82 storage frames only", () => {
 		const changeCodec = changeEnvelopeCodec<{ op: string }>();
 		const encodedChange = changeCodec.encode({
@@ -1451,12 +1592,22 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.memoryBackend).toBe(memoryBackend);
 			expect(exports.memoryMultiWriterAppendLog).toBe(memoryMultiWriterAppendLog);
 			expect(exports.multiWriterAppendLogStorage).toBe(multiWriterAppendLogStorage);
+			expect(exports.readAppendLogPage).toBe(readAppendLogPage);
+			expect(exports.readObserveEventLogPage).toBe(readObserveEventLogPage);
 			expect(exports.readThroughKv).toBe(readThroughKv);
 			expect(exports.tieredReadThrough).toBe(tieredReadThrough);
 			expect(exports.requireKvPutIfAbsent).toBe(requireKvPutIfAbsent);
 			expect(exports.requireStoragePutIfAbsent).toBe(requireStoragePutIfAbsent);
+			expect(exports.walFrame).toBe(walFrame);
+			expect(exports.walFrameChecksum).toBe(walFrameChecksum);
+			expect(exports.verifyWalFrameChecksum).toBe(verifyWalFrameChecksum);
+			expect(exports.walFrameCodec).toBe(walFrameCodec);
+			expect(exports.walFrameKey).toBe(walFrameKey);
+			expect(exports.walFramePrefix).toBe(walFramePrefix);
+			expect(exports.assertWalFrame).toBe(assertWalFrame);
 			expect("attachSnapshotStorage" in exports).toBe(false);
 			expect("restoreSnapshot" in exports).toBe(false);
+			expect("replayWal" in exports).toBe(false);
 			expect("GraphRestore" in exports).toBe(false);
 		}
 		expect(rootExports.restoreGraph).toBe(restoreGraph);
