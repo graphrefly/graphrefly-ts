@@ -70,7 +70,6 @@ export function stableJsonString(value: unknown): string {
 	return JSON.stringify(sortedJsonValue(value));
 }
 
-/** JSON codec over stable object-key ordering. */
 /** Build a JSON codec using stable object-key ordering. */
 export function jsonCodecFor<T>(): Codec<T> {
 	const encoder = new TextEncoder();
@@ -87,3 +86,231 @@ export function jsonCodecFor<T>(): Codec<T> {
 
 /** Default stable JSON codec for unknown values. */
 export const jsonCodec: Codec<unknown> = jsonCodecFor<unknown>();
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+	if (a.byteLength !== b.byteLength) return false;
+	for (let i = 0; i < a.byteLength; i += 1) {
+		if (a[i] !== b[i]) return false;
+	}
+	return true;
+}
+
+function hasUnpairedSurrogate(value: string): boolean {
+	for (let i = 0; i < value.length; i += 1) {
+		const code = value.charCodeAt(i);
+		if (code >= 0xd800 && code <= 0xdbff) {
+			const next = value.charCodeAt(i + 1);
+			if (next >= 0xdc00 && next <= 0xdfff) {
+				i += 1;
+				continue;
+			}
+			return true;
+		}
+		if (code >= 0xdc00 && code <= 0xdfff) return true;
+	}
+	return false;
+}
+
+function assertNoUnpairedSurrogates(value: unknown, seen = new Set<object>(), path = "$"): void {
+	if (typeof value === "string") {
+		if (hasUnpairedSurrogate(value)) {
+			throw new TypeError(`strictJsonCodec: unpaired surrogate at ${path}`);
+		}
+		return;
+	}
+	if (value === null || typeof value !== "object") return;
+	if (seen.has(value)) return;
+	seen.add(value);
+	try {
+		if (Array.isArray(value)) {
+			for (let i = 0; i < value.length; i += 1) {
+				assertNoUnpairedSurrogates(value[i], seen, `${path}[${i}]`);
+			}
+			return;
+		}
+		for (const key of Object.keys(value as Record<string, unknown>)) {
+			if (hasUnpairedSurrogate(key)) {
+				throw new TypeError(`strictJsonCodec: unpaired surrogate at ${path}.${key}`);
+			}
+			assertNoUnpairedSurrogates((value as Record<string, unknown>)[key], seen, `${path}.${key}`);
+		}
+	} finally {
+		seen.delete(value);
+	}
+}
+
+function assertNoDuplicateJsonObjectKeys(text: string): void {
+	let index = 0;
+
+	function fail(message: string): never {
+		throw new TypeError(`strictJsonCodec: ${message}`);
+	}
+
+	function skipWhitespace(): void {
+		while (/\s/.test(text[index] ?? "")) index += 1;
+	}
+
+	function readJsonString(): string {
+		const start = index;
+		index += 1; // opening quote
+		while (index < text.length) {
+			const ch = text[index];
+			if (ch === '"') {
+				index += 1;
+				try {
+					return JSON.parse(text.slice(start, index)) as string;
+				} catch {
+					fail("malformed JSON string");
+				}
+			}
+			if (ch === "\\") {
+				index += 2;
+				continue;
+			}
+			index += 1;
+		}
+		fail("unterminated JSON string");
+	}
+
+	function consumeLiteral(literal: string): void {
+		if (text.slice(index, index + literal.length) !== literal) {
+			fail(`malformed JSON near byte ${index}`);
+		}
+		index += literal.length;
+	}
+
+	function consumeNumber(): void {
+		const match = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?/.exec(text.slice(index));
+		if (!match) fail(`malformed JSON number near byte ${index}`);
+		index += match[0].length;
+	}
+
+	function parseValue(path: string): void {
+		skipWhitespace();
+		const ch = text[index];
+		if (ch === "{") {
+			parseObject(path);
+			return;
+		}
+		if (ch === "[") {
+			parseArray(path);
+			return;
+		}
+		if (ch === '"') {
+			readJsonString();
+			return;
+		}
+		if (ch === "t") {
+			consumeLiteral("true");
+			return;
+		}
+		if (ch === "f") {
+			consumeLiteral("false");
+			return;
+		}
+		if (ch === "n") {
+			consumeLiteral("null");
+			return;
+		}
+		if (ch === "-" || (ch !== undefined && ch >= "0" && ch <= "9")) {
+			consumeNumber();
+			return;
+		}
+		fail(`malformed JSON near byte ${index}`);
+	}
+
+	function parseObject(path: string): void {
+		const keys = new Set<string>();
+		index += 1; // opening brace
+		skipWhitespace();
+		if (text[index] === "}") {
+			index += 1;
+			return;
+		}
+		while (index < text.length) {
+			skipWhitespace();
+			if (text[index] !== '"') fail(`expected object key near byte ${index}`);
+			const key = readJsonString();
+			if (keys.has(key)) {
+				throw new TypeError(
+					`strictJsonCodec: duplicate object key ${JSON.stringify(key)} at ${path}`,
+				);
+			}
+			keys.add(key);
+			skipWhitespace();
+			if (text[index] !== ":") fail(`expected ':' after object key near byte ${index}`);
+			index += 1;
+			parseValue(`${path}.${key}`);
+			skipWhitespace();
+			if (text[index] === ",") {
+				index += 1;
+				continue;
+			}
+			if (text[index] === "}") {
+				index += 1;
+				return;
+			}
+			fail(`expected ',' or '}' near byte ${index}`);
+		}
+		fail("unterminated JSON object");
+	}
+
+	function parseArray(path: string): void {
+		index += 1; // opening bracket
+		skipWhitespace();
+		if (text[index] === "]") {
+			index += 1;
+			return;
+		}
+		let item = 0;
+		while (index < text.length) {
+			parseValue(`${path}[${item}]`);
+			item += 1;
+			skipWhitespace();
+			if (text[index] === ",") {
+				index += 1;
+				continue;
+			}
+			if (text[index] === "]") {
+				index += 1;
+				return;
+			}
+			fail(`expected ',' or ']' near byte ${index}`);
+		}
+		fail("unterminated JSON array");
+	}
+
+	parseValue("$");
+	skipWhitespace();
+	if (index !== text.length) fail(`trailing JSON token near byte ${index}`);
+}
+
+/**
+ * Build a strict canonical JSON codec (D84 + D87).
+ * The strict surface rejects malformed UTF-8, duplicate object keys, non-canonical bytes,
+ * unpaired surrogates, and values that cannot round-trip through stable JSON.
+ */
+export function strictJsonCodecFor<T>(): Codec<T> {
+	const encoder = new TextEncoder();
+	const decoder = new TextDecoder("utf-8", { fatal: true });
+	return {
+		encode(value: T): Uint8Array {
+			assertNoUnpairedSurrogates(value);
+			return encoder.encode(stableJsonString(value));
+		},
+		decode(bytes: Uint8Array): T {
+			const text = decoder.decode(bytes);
+			assertNoDuplicateJsonObjectKeys(text);
+			const decoded = JSON.parse(text) as unknown;
+			assertNoUnpairedSurrogates(decoded);
+			const canonical = encoder.encode(stableJsonString(decoded));
+			if (!bytesEqual(bytes, canonical)) {
+				throw new TypeError("strictJsonCodec: bytes are not canonical stable JSON");
+			}
+			return decoded as T;
+		},
+	};
+}
+
+/** Default strict canonical JSON codec for unknown values. */
+export const strictJsonCodec: Codec<unknown> = strictJsonCodecFor<unknown>();

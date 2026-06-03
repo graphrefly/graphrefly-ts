@@ -8,20 +8,33 @@ import type {
 import * as rootExports from "../index.js";
 import {
 	appendLogStorage,
+	assertDecimalIntegerString,
+	assertNonNegativeDecimalIntegerString,
 	attachObserveEventLog,
 	attachObserveSink,
+	bigIntToDecimalString,
+	bigIntToNonNegativeDecimalString,
 	ContentAddressedMissError,
 	changeEnvelopeCodec,
 	contentAddressedKv,
 	contentAddressedStorage,
+	decimalStringToBigInt,
+	envelopeChange,
 	graph,
+	isDecimalIntegerString,
+	isNonNegativeDecimalIntegerString,
+	jsonCodecFor,
 	kvStorage,
 	listByPrefix,
 	memoryAppendLog,
 	memoryKv,
+	nonNegativeDecimalStringToBigInt,
+	nowNs,
 	observeEventFrame,
 	observeEventFrameCodec,
 	stableJsonString,
+	strictJsonCodec,
+	strictJsonCodecFor,
 } from "../index.js";
 import * as storageExports from "../storage/index.js";
 
@@ -377,6 +390,132 @@ describe("D82 storage substrate helpers", () => {
 		);
 	});
 
+	it("nowNs returns a D84 decimal timestamp string", () => {
+		const spy = vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_123);
+		try {
+			const timestamp = nowNs();
+			expect(timestamp).toBe("1700000000123000000");
+			expect(BigInt(timestamp)).toBe(1_700_000_000_123_000_000n);
+			expect(timestamp).toMatch(/^(0|[1-9]\d*)$/);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("D88 decimal scalar helpers keep BigInt conversion explicit", () => {
+		expect(bigIntToDecimalString(-12n)).toBe("-12");
+		expect(bigIntToDecimalString(0n)).toBe("0");
+		expect(bigIntToNonNegativeDecimalString(12n)).toBe("12");
+		expect(() => bigIntToNonNegativeDecimalString(-1n)).toThrow(/non-negative/);
+
+		expect(decimalStringToBigInt("-12")).toBe(-12n);
+		expect(decimalStringToBigInt("0")).toBe(0n);
+		expect(nonNegativeDecimalStringToBigInt("12")).toBe(12n);
+		expect(() => nonNegativeDecimalStringToBigInt("-12")).toThrow(/non-negative/);
+		expect(assertDecimalIntegerString("-12")).toBe("-12");
+		expect(assertNonNegativeDecimalIntegerString("12")).toBe("12");
+		expect(() => assertDecimalIntegerString("01")).toThrow(/decimal integer/);
+		expect(() => assertNonNegativeDecimalIntegerString("-12")).toThrow(/non-negative/);
+		expect(isDecimalIntegerString("-12")).toBe(true);
+		expect(isDecimalIntegerString("-0")).toBe(false);
+		expect(isDecimalIntegerString("01")).toBe(false);
+		expect(isNonNegativeDecimalIntegerString("12")).toBe(true);
+		expect(isNonNegativeDecimalIntegerString("-12")).toBe(false);
+	});
+
+	it("envelopeChange defaults t_ns to a D84 string timestamp", () => {
+		const spy = vi.spyOn(Date, "now").mockReturnValue(42);
+		try {
+			const envelope = envelopeChange({ op: "set" }, { structure: "kv-change" });
+			expect(envelope.t_ns).toBe("42000000");
+			expect(typeof envelope.t_ns).toBe("string");
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("envelopeChange rejects caller-supplied non-canonical t_ns", () => {
+		expect(() => envelopeChange({ op: "set" }, { structure: "kv-change", t_ns: "01" })).toThrow(
+			/t_ns/,
+		);
+	});
+
+	it("changeEnvelopeCodec rejects numeric, unsafe, and non-decimal t_ns", () => {
+		const codec = changeEnvelopeCodec<{ op: string }>();
+		const encodeRaw = (t_ns: unknown) =>
+			new TextEncoder().encode(
+				JSON.stringify({
+					lifecycle: "data",
+					structure: "kv-change",
+					version: 1,
+					t_ns,
+					change: { op: "set" },
+				}),
+			);
+
+		for (const bad of [123, Number.MAX_SAFE_INTEGER + 1, "1.5", "1e3", "-1", "", "01"]) {
+			expect(() => codec.decode(encodeRaw(bad))).toThrow(/t_ns/);
+		}
+		expect(codec.decode(encodeRaw("1700000000123000000")).t_ns).toBe("1700000000123000000");
+	});
+
+	it("strictJsonCodec accepts canonical stable JSON bytes", () => {
+		const bytes = strictJsonCodec.encode({ b: 2, a: { d: 4, c: 3 } });
+		expect(new TextDecoder().decode(bytes)).toBe('{"a":{"c":3,"d":4},"b":2}');
+		expect(strictJsonCodec.decode(bytes)).toEqual({ a: { c: 3, d: 4 }, b: 2 });
+		expect(strictJsonCodecFor<{ a: number }>().decode(new TextEncoder().encode('{"a":1}'))).toEqual(
+			{
+				a: 1,
+			},
+		);
+	});
+
+	it("strictJsonCodec rejects non-canonical key order and whitespace bytes", () => {
+		const codec = strictJsonCodecFor<unknown>();
+		const encoder = new TextEncoder();
+
+		expect(() => codec.decode(encoder.encode('{"b":2,"a":1}'))).toThrow(/canonical/);
+		expect(() => codec.decode(encoder.encode('{ "a": 1 }'))).toThrow(/canonical/);
+	});
+
+	it("strictJsonCodec rejects duplicate object keys before JSON.parse last-wins", () => {
+		const encoder = new TextEncoder();
+
+		for (const raw of [
+			'{"a":1,"a":2}',
+			'{"a":1,"\\u0061":2}',
+			'{"a":{"b":1,"b":2}}',
+			'{"a":[{"b":1,"b":2}]}',
+		]) {
+			expect(() => strictJsonCodec.decode(encoder.encode(raw))).toThrow(/duplicate object key/);
+		}
+	});
+
+	it("strictJsonCodec rejects malformed UTF-8", () => {
+		expect(() => strictJsonCodec.decode(new Uint8Array([0xff]))).toThrow();
+	});
+
+	it("strictJsonCodec rejects unpaired surrogate strings and keys", () => {
+		const encoder = new TextEncoder();
+
+		expect(() => strictJsonCodec.encode("\uD800")).toThrow(/unpaired surrogate/);
+		expect(() => strictJsonCodec.encode({ "\uD800": "key" })).toThrow(/unpaired surrogate/);
+		expect(() => strictJsonCodec.decode(encoder.encode('"\\ud800"'))).toThrow(/unpaired surrogate/);
+	});
+
+	it("strictJsonCodec rejects lossy JSON values on encode", () => {
+		expect(() => strictJsonCodec.encode({ nested: undefined })).toThrow(/not JSON-encodable/);
+		expect(() => strictJsonCodec.encode({ nested: 1n })).toThrow(/not JSON-encodable/);
+		expect(() => strictJsonCodec.encode(Number.NaN)).toThrow(/non-finite/);
+	});
+
+	it("jsonCodecFor still decodes ordinary non-canonical JSON permissively", () => {
+		const decoded = jsonCodecFor<{ a: number; b: number }>().decode(
+			new TextEncoder().encode('{ "b": 2, "a": 1 }'),
+		);
+		expect(decoded).toEqual({ a: 1, b: 2 });
+	});
+
 	it("content-addressed KV keys are deterministic across object key order", async () => {
 		const kv = memoryKv<{ result: number }>();
 		const cache = contentAddressedKv({
@@ -649,7 +788,7 @@ describe("D82 storage substrate helpers", () => {
 			lifecycle: "data",
 			structure: "kv-change",
 			version: 1,
-			t_ns: 123,
+			t_ns: "123",
 			seq: 0,
 			change: { op: "set" },
 		});
@@ -661,7 +800,7 @@ describe("D82 storage substrate helpers", () => {
 						lifecycle: "restore",
 						structure: "kv-change",
 						version: 1,
-						t_ns: 123,
+						t_ns: "123",
 						change: {},
 					}),
 				),
@@ -677,11 +816,13 @@ describe("D82 storage substrate helpers", () => {
 		expect(frame).toMatchObject({
 			structure: "observe-event",
 			version: 1,
+			t_ns: expect.any(String),
 			stream: "audit",
 			observeSeq: 7,
 			path: "count",
 			change: { value: 1 },
 		});
+		expect(frame.t_ns).toMatch(/^(0|[1-9]\d*)$/);
 		expect(frameCodec.decode(frameCodec.encode(frame))).toEqual(frame);
 		expect(Object.keys(frame)).not.toEqual(
 			expect.arrayContaining(["snapshot", "restore", "checkpoint", "factory"]),
@@ -694,6 +835,19 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.contentAddressedStorage).toBe(contentAddressedStorage);
 			expect(exports.changeEnvelopeCodec).toBe(changeEnvelopeCodec);
 			expect(exports.observeEventFrameCodec).toBe(observeEventFrameCodec);
+			expect(exports.nowNs).toBe(nowNs);
+			expect(exports.assertDecimalIntegerString).toBe(assertDecimalIntegerString);
+			expect(exports.assertNonNegativeDecimalIntegerString).toBe(
+				assertNonNegativeDecimalIntegerString,
+			);
+			expect(exports.bigIntToDecimalString).toBe(bigIntToDecimalString);
+			expect(exports.bigIntToNonNegativeDecimalString).toBe(bigIntToNonNegativeDecimalString);
+			expect(exports.decimalStringToBigInt).toBe(decimalStringToBigInt);
+			expect(exports.isDecimalIntegerString).toBe(isDecimalIntegerString);
+			expect(exports.isNonNegativeDecimalIntegerString).toBe(isNonNegativeDecimalIntegerString);
+			expect(exports.nonNegativeDecimalStringToBigInt).toBe(nonNegativeDecimalStringToBigInt);
+			expect(exports.strictJsonCodec).toBe(strictJsonCodec);
+			expect(exports.strictJsonCodecFor).toBe(strictJsonCodecFor);
 			expect("attachSnapshotStorage" in exports).toBe(false);
 			expect("restoreSnapshot" in exports).toBe(false);
 			expect("GraphRestore" in exports).toBe(false);

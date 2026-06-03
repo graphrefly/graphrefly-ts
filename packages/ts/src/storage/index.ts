@@ -24,8 +24,16 @@ export {
 	changeEnvelopeCodec,
 	envelopeChange,
 	nowNs,
+	type StorageTimestampNs,
 } from "./change.js";
-export { type Codec, jsonCodec, jsonCodecFor, stableJsonString } from "./codec.js";
+export {
+	type Codec,
+	jsonCodec,
+	jsonCodecFor,
+	stableJsonString,
+	strictJsonCodec,
+	strictJsonCodecFor,
+} from "./codec.js";
 export {
 	type ContentAddressedKv,
 	type ContentAddressedKvOptions,
@@ -53,3 +61,15 @@ export {
 	observeEventFrame,
 	observeEventFrameCodec,
 } from "./observe-event-log.js";
+export {
+	assertDecimalIntegerString,
+	assertNonNegativeDecimalIntegerString,
+	bigIntToDecimalString,
+	bigIntToNonNegativeDecimalString,
+	type DecimalIntegerString,
+	decimalStringToBigInt,
+	isDecimalIntegerString,
+	isNonNegativeDecimalIntegerString,
+	type NonNegativeDecimalIntegerString,
+	nonNegativeDecimalStringToBigInt,
+} from "./scalar.js";

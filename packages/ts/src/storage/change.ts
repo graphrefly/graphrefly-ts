@@ -4,16 +4,24 @@
 
 import type { Codec } from "./codec.js";
 import { jsonCodecFor } from "./codec.js";
+import {
+	assertNonNegativeDecimalIntegerString,
+	bigIntToNonNegativeDecimalString,
+	type NonNegativeDecimalIntegerString,
+} from "./scalar.js";
 
 /** Storage-side lifecycle namespace for change envelopes; presentation framing only. */
 export type ChangeLifecycle = "spec" | "data" | "ownership";
+
+/** D84 cross-runtime wall-clock nanosecond metadata: canonical non-negative decimal string. */
+export type StorageTimestampNs = NonNegativeDecimalIntegerString;
 
 /** Persistence envelope for raw graph/data-structure deltas (D82), not restore semantics. */
 export interface ChangeEnvelope<T = unknown> {
 	readonly lifecycle: ChangeLifecycle;
 	readonly structure: string;
 	readonly version: number | string;
-	readonly t_ns: number;
+	readonly t_ns: StorageTimestampNs;
 	readonly seq?: number;
 	readonly change: T;
 }
@@ -23,18 +31,18 @@ export interface ChangeEnvelopeOptions {
 	lifecycle?: ChangeLifecycle;
 	structure: string;
 	version?: number | string;
-	t_ns?: number;
+	t_ns?: StorageTimestampNs;
 	seq?: number;
 }
 
 /** Wall-clock nanoseconds for storage metadata. */
-export function nowNs(): number {
-	return Date.now() * 1_000_000;
+export function nowNs(): StorageTimestampNs {
+	return bigIntToNonNegativeDecimalString(BigInt(Date.now()) * 1_000_000n);
 }
 
 /** Wrap a raw change payload in a D82 storage envelope. */
 export function envelopeChange<T>(change: T, opts: ChangeEnvelopeOptions): ChangeEnvelope<T> {
-	return {
+	const envelope = {
 		lifecycle: opts.lifecycle ?? "data",
 		structure: opts.structure,
 		version: opts.version ?? 1,
@@ -42,6 +50,7 @@ export function envelopeChange<T>(change: T, opts: ChangeEnvelopeOptions): Chang
 		...(opts.seq === undefined ? {} : { seq: opts.seq }),
 		change,
 	};
+	return assertChangeEnvelope<T>(envelope);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -67,9 +76,7 @@ export function assertChangeEnvelope<T = unknown>(value: unknown): ChangeEnvelop
 	) {
 		throw new TypeError("changeEnvelopeCodec: version must be a finite number or string");
 	}
-	if (typeof value.t_ns !== "number" || !Number.isFinite(value.t_ns)) {
-		throw new TypeError("changeEnvelopeCodec: t_ns must be a finite number");
-	}
+	assertNonNegativeDecimalIntegerString(value.t_ns, "changeEnvelopeCodec: t_ns");
 	if (value.seq !== undefined && (!Number.isSafeInteger(value.seq) || (value.seq as number) < 0)) {
 		throw new TypeError(
 			"changeEnvelopeCodec: seq must be a non-negative safe integer when present",
