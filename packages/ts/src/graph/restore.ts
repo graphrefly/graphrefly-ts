@@ -7,6 +7,7 @@
  * wave participates in this path.
  */
 
+import type { Dispatcher } from "../dispatcher/index.js";
 import type { Node } from "../node/node.js";
 import { restoreStateOfNode, type Status } from "../node/node.js";
 import { SENTINEL } from "../protocol/messages.js";
@@ -27,6 +28,8 @@ import {
 	restoreStateNodeInGraph,
 	type SugarOpts,
 } from "./graph.js";
+import { operatorNodeFn, take } from "./operators.js";
+import { timer } from "./sources.js";
 
 export interface GraphRestoreDescriptorContext<
 	C extends GraphCheckpointJson | undefined = GraphCheckpointJson | undefined,
@@ -65,7 +68,7 @@ export type GraphRestoreRegistry =
 
 export interface RestoreGraphOptions {
 	registry: GraphRestoreRegistry;
-	graph?: Graph;
+	dispatcher?: Dispatcher;
 }
 
 export const stateRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
@@ -87,8 +90,78 @@ export const stateRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
 	},
 };
 
+type TakeConfig = { n: number };
+type TimerConfig = { ms: number };
+
+function objectConfig(
+	config: GraphCheckpointJson | undefined,
+	ref: string,
+): Record<string, GraphCheckpointJson> {
+	if (
+		config === undefined ||
+		config === null ||
+		Array.isArray(config) ||
+		typeof config !== "object"
+	) {
+		throw new Error(`restoreGraph: '${ref}' descriptor requires object config`);
+	}
+	return config as Record<string, GraphCheckpointJson>;
+}
+
+function finiteNumber(value: GraphCheckpointJson | undefined, ref: string, key: string): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		throw new Error(`restoreGraph: '${ref}' config.${key} must be a finite number`);
+	}
+	return value;
+}
+
+export const takeRestoreDescriptor: GraphRestoreDescriptor<TakeConfig> = {
+	ref: "take",
+	validateConfig(config, configVersion) {
+		if (configVersion !== undefined) {
+			throw new Error("restoreGraph: built-in take descriptor does not accept configVersion");
+		}
+		return { n: finiteNumber(objectConfig(config, "take").n, "take", "n") };
+	},
+	create(ctx) {
+		if (ctx.deps.length !== 1) {
+			throw new Error(`restoreGraph: take node '${ctx.checkpoint.id}' requires exactly one dep`);
+		}
+		const op = take(ctx.config.n);
+		return ctx.registerNode("take", ctx.deps, operatorNodeFn(op), {
+			name: ctx.name,
+			meta: ctx.checkpoint.meta,
+			restore: op.restore,
+		});
+	},
+};
+
+export const timerRestoreDescriptor: GraphRestoreDescriptor<TimerConfig> = {
+	ref: "timer",
+	validateConfig(config, configVersion) {
+		if (configVersion !== undefined) {
+			throw new Error("restoreGraph: built-in timer descriptor does not accept configVersion");
+		}
+		return { ms: finiteNumber(objectConfig(config, "timer").ms, "timer", "ms") };
+	},
+	create(ctx) {
+		if (ctx.deps.length !== 0) {
+			throw new Error(`restoreGraph: timer node '${ctx.checkpoint.id}' cannot restore deps`);
+		}
+		const op = timer(ctx.config.ms);
+		return ctx.registerNode("timer", ctx.deps, operatorNodeFn(op), {
+			name: ctx.name,
+			meta: ctx.checkpoint.meta,
+			restore: op.restore,
+			...op.opts,
+		});
+	},
+};
+
 export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreDescriptor>> = {
 	state: stateRestoreDescriptor,
+	take: takeRestoreDescriptor,
+	timer: timerRestoreDescriptor,
 };
 
 type PreparedNode = {
@@ -142,16 +215,6 @@ function assertStatus(value: string, id: string): Status {
 		throw new Error(`restoreGraph: node '${id}' has invalid status '${value}'`);
 	}
 	return value;
-}
-
-function localId(id: string, stripPrefix: string): string {
-	if (stripPrefix !== "") {
-		if (!id.startsWith(stripPrefix)) {
-			throw new Error(`restoreGraph: mounted node id '${id}' is missing prefix '${stripPrefix}'`);
-		}
-		return id.slice(stripPrefix.length);
-	}
-	return id;
 }
 
 function checkpointDataValue(
@@ -238,8 +301,8 @@ function validateFactory(
 function prepareCheckpoint(
 	checkpoint: GraphCheckpoint,
 	registry: GraphRestoreRegistry,
-	stripPrefix = "",
 	path = "checkpoint",
+	mountAt?: string,
 ): PreparedCheckpoint {
 	if (checkpoint.version !== GRAPH_CHECKPOINT_VERSION) {
 		throw new Error(`restoreGraph: unsupported checkpoint version at ${path}`);
@@ -250,7 +313,12 @@ function prepareCheckpoint(
 	for (const node of checkpoint.nodes) {
 		assertString(node.id, `${path}.nodes[].id`);
 		if (nodes.has(node.id)) throw new Error(`restoreGraph: duplicate node id '${node.id}'`);
-		const id = localId(node.id, stripPrefix);
+		if (mountAt !== undefined && node.id.startsWith(`${mountAt}::`)) {
+			throw new Error(
+				`restoreGraph: mounted checkpoint at '${mountAt}' must use child-local node id '${node.id.slice(`${mountAt}::`.length)}', not '${node.id}'`,
+			);
+		}
+		const id = node.id;
 		if (localIds.has(id)) {
 			throw new Error(`restoreGraph: duplicate restored local node id '${id}'`);
 		}
@@ -310,12 +378,7 @@ function prepareCheckpoint(
 		mountPaths.add(at);
 		mounts.push({
 			at,
-			prepared: prepareCheckpoint(
-				mount.checkpoint,
-				registry,
-				`${stripPrefix}${at}::`,
-				`${path}.mounts.${at}`,
-			),
+			prepared: prepareCheckpoint(mount.checkpoint, registry, `${path}.mounts.${at}`, at),
 		});
 	}
 	return { checkpoint, nodes, mounts };
@@ -324,9 +387,9 @@ function prepareCheckpoint(
 function constructPrepared(
 	prepared: PreparedCheckpoint,
 	registry: GraphRestoreRegistry,
-	stripPrefix = "",
+	dispatcher?: Dispatcher,
 ): Graph {
-	const out = graph({ name: prepared.checkpoint.name });
+	const out = graph({ name: prepared.checkpoint.name, dispatcher });
 	const built = new Map<string, Node<unknown>>();
 	const visiting = new Set<string>();
 
@@ -371,7 +434,7 @@ function constructPrepared(
 	for (const id of prepared.nodes.keys()) buildNode(id);
 
 	for (const mount of prepared.mounts) {
-		out.mount(constructPrepared(mount.prepared, registry, `${stripPrefix}${mount.at}::`), {
+		out.mount(constructPrepared(mount.prepared, registry, dispatcher), {
 			at: mount.at,
 		});
 	}
@@ -392,11 +455,20 @@ function constructPrepared(
 }
 
 export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphOptions): Graph {
-	if (options.graph !== undefined) {
-		throw new Error(
-			"restoreGraph: live graph restore is deferred; pass no graph option for fresh restore",
-		);
+	if (options == null || options.registry === undefined) {
+		throw new Error("restoreGraph: registry is required");
+	}
+	if (
+		!(options.registry instanceof Map) &&
+		(typeof options.registry !== "object" || options.registry === null)
+	) {
+		throw new Error("restoreGraph: registry must be a Map or object");
+	}
+	for (const key of Object.keys(options)) {
+		if (key !== "registry" && key !== "dispatcher") {
+			throw new Error(`restoreGraph: unknown option '${key}'`);
+		}
 	}
 	const prepared = prepareCheckpoint(checkpoint, options.registry);
-	return constructPrepared(prepared, options.registry);
+	return constructPrepared(prepared, options.registry, options.dispatcher);
 }

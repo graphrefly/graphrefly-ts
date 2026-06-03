@@ -341,13 +341,15 @@ export class Graph {
 		deps: readonly Node<TIn>[],
 		opts: SugarOpts<TOut> = {},
 	): Node<TOut> {
+		const entryOpts =
+			op.restore !== undefined && !("restore" in opts) ? { ...opts, restore: op.restore } : opts;
 		for (const dep of deps as readonly Node<unknown>[])
-			assertGraphLocalNode(this, dep, `dep of '${opts.name ?? op.factory}'`);
+			assertGraphLocalNode(this, dep, `dep of '${entryOpts.name ?? op.factory}'`);
 		// Node<T> is invariant (T appears in NodeOptions.initial); widen the typed deps to the
 		// erased Node surface the free initNode / _add accept (same cast the old methods used).
 		const erased = deps as readonly Node<unknown>[];
-		const n = initNodeWithCore(this._core, op, erased, this._nodeOpts(opts));
-		return this._add(n, op.factory, erased, opts);
+		const n = initNodeWithCore(this._core, op, erased, this._nodeOpts(entryOpts));
+		return this._add(n, op.factory, erased, entryOpts);
 	}
 
 	/**
@@ -568,7 +570,7 @@ export class Graph {
 		if (this._mounts.length > 0) {
 			checkpoint.mounts = this._mounts.map((m) => ({
 				at: m.at,
-				checkpoint: m.graph._checkpoint(`${_prefix}${m.at}::`, stack),
+				checkpoint: m.graph._checkpoint("", stack),
 			}));
 		}
 		stack.delete(this);

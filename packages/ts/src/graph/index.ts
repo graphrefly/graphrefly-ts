@@ -38,4 +38,6 @@ export {
 	type RestoreGraphOptions,
 	restoreGraph,
 	stateRestoreDescriptor,
+	takeRestoreDescriptor,
+	timerRestoreDescriptor,
 } from "./restore.js";

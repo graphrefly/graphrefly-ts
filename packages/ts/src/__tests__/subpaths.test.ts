@@ -35,6 +35,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof graphLayer.GRAPH_CHECKPOINT_VERSION).toBe("string");
 		expect(typeof graphLayer.restoreGraph).toBe("function");
 		expect(typeof operators.map).toBe("function");
+		expect(typeof operators.transform).toBe("function");
+		expect(typeof operators.restoreRegistry).toBe("function");
 		expect(typeof sources.fromAny).toBe("function");
 		expect(typeof composition.topologyDiff).toBe("function");
 		expect(typeof dataStructures.reactiveMap).toBe("function");

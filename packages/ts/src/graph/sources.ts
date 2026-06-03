@@ -17,6 +17,7 @@
 import type { Ctx } from "../ctx/types.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
+import { toCheckpointJson } from "./checkpoint.js";
 import { initNode, type Operator } from "./operators.js";
 
 /**
@@ -70,7 +71,7 @@ export interface TimerSourceOpts extends AsyncSourceOpts {
 
 function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Operator<never, number> {
 	const { period, signal } = opts ?? {};
-	return source<number>(
+	const op = source<number>(
 		factory,
 		(ctx) => {
 			let done = false;
@@ -113,6 +114,10 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
 		},
 		{ pool: "sync", pausable: false },
 	);
+	if (factory === "timer" && period === undefined && signal === undefined) {
+		return { ...op, restore: { ref: "timer", config: { ms: toCheckpointJson(ms, "timer.ms") } } };
+	}
+	return op;
 }
 
 /**

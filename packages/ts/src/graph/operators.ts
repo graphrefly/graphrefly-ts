@@ -36,6 +36,8 @@ import {
 import type { NodeCore } from "../node/core.js";
 import { Node, type NodeOptions, withNodeCore } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
+import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
+import type { GraphRestoreDescriptor, GraphRestoreRegistry } from "./restore.js";
 
 /**
  * A free-standing operator definition (D43). `TIn` = the element type each dep delivers
@@ -50,10 +52,137 @@ export interface Operator<TIn = unknown, TOut = unknown> {
 	readonly body: (ctx: Ctx) => void;
 	/** Behavioral node options the operator needs (e.g. `partial:true` for combine-family). */
 	readonly opts?: Partial<NodeOptions<TOut>>;
+	/**
+	 * D97/D100 restore metadata derived from a named definition or static built-in config.
+	 * This is semantic metadata only; dispatcher handles stay graph-local runtime state.
+	 */
+	readonly restore?: {
+		ref: string;
+		config?: GraphCheckpointJson;
+		configVersion?: GraphCheckpointJson;
+	};
 	/** @internal phantom — never set; carries the dep element type for `g.initNode` inference. */
 	readonly __in?: TIn;
 	/** @internal phantom — never set; carries the output value type. */
 	readonly __out?: TOut;
+}
+
+type MutableRestoreRegistry =
+	| Map<string, GraphRestoreDescriptor>
+	| Record<string, GraphRestoreDescriptor>;
+
+export interface RestorableDefinition {
+	readonly ref: string;
+	readonly restoreDescriptor: GraphRestoreDescriptor;
+}
+
+export interface TransformDefinition<S = unknown, T = unknown> extends RestorableDefinition {
+	readonly kind: "transform";
+	readonly fn: (v: S) => T;
+	readonly restore: {
+		ref: string;
+		config?: GraphCheckpointJson;
+		configVersion?: GraphCheckpointJson;
+	};
+}
+
+export interface TransformOpts {
+	config?: unknown;
+	configVersion?: unknown;
+	registry?: MutableRestoreRegistry;
+}
+
+function registryHas(registry: MutableRestoreRegistry, ref: string): boolean {
+	return registry instanceof Map ? registry.has(ref) : Object.hasOwn(registry, ref);
+}
+
+function registrySet(
+	registry: MutableRestoreRegistry,
+	ref: string,
+	descriptor: GraphRestoreDescriptor,
+): void {
+	if (registryHas(registry, ref)) {
+		throw new Error(`restoreRegistry: duplicate descriptor ref '${ref}'`);
+	}
+	if (registry instanceof Map) registry.set(ref, descriptor);
+	else registry[ref] = descriptor;
+}
+
+export function addToRestoreRegistry(
+	registry: MutableRestoreRegistry,
+	definition: RestorableDefinition | GraphRestoreDescriptor,
+): void {
+	const descriptor = "restoreDescriptor" in definition ? definition.restoreDescriptor : definition;
+	registrySet(registry, descriptor.ref, descriptor);
+}
+
+export function restoreRegistry(
+	definitions: readonly (RestorableDefinition | GraphRestoreDescriptor)[] = [],
+	base?: GraphRestoreRegistry,
+): Map<string, GraphRestoreDescriptor> {
+	const out = new Map<string, GraphRestoreDescriptor>();
+	if (base instanceof Map) {
+		for (const [ref, descriptor] of base) registrySet(out, ref, descriptor);
+	} else if (base !== undefined) {
+		for (const [ref, descriptor] of Object.entries(base)) registrySet(out, ref, descriptor);
+	}
+	for (const definition of definitions) addToRestoreRegistry(out, definition);
+	return out;
+}
+
+function sameJson(a: GraphCheckpointJson | undefined, b: GraphCheckpointJson | undefined): boolean {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function isTransformDefinition<S, T>(
+	fn: ((v: S) => T) | TransformDefinition<S, T>,
+): fn is TransformDefinition<S, T> {
+	return (
+		typeof fn === "object" && fn !== null && (fn as TransformDefinition<S, T>).kind === "transform"
+	);
+}
+
+export function transform<S, T>(
+	ref: string,
+	fn: (v: S) => T,
+	opts: TransformOpts = {},
+): TransformDefinition<S, T> {
+	const jsonRef = toCheckpointJson(ref, "transform.ref");
+	if (typeof jsonRef !== "string") throw new TypeError("transform: ref must be a string");
+	const restore: TransformDefinition<S, T>["restore"] = { ref: jsonRef };
+	if (opts.config !== undefined) restore.config = toCheckpointJson(opts.config, `${ref}.config`);
+	if (opts.configVersion !== undefined)
+		restore.configVersion = toCheckpointJson(opts.configVersion, `${ref}.configVersion`);
+	const definition: TransformDefinition<S, T> = {
+		kind: "transform",
+		ref: jsonRef,
+		fn,
+		restore,
+		restoreDescriptor: {
+			ref: jsonRef,
+			validateConfig(config, configVersion) {
+				if (!sameJson(config, restore.config)) {
+					throw new Error(`restoreGraph: transform '${jsonRef}' config mismatch`);
+				}
+				if (!sameJson(configVersion, restore.configVersion)) {
+					throw new Error(`restoreGraph: transform '${jsonRef}' configVersion mismatch`);
+				}
+				return config;
+			},
+			create(ctx) {
+				if (ctx.deps.length !== 1) {
+					throw new Error(`restoreGraph: transform '${jsonRef}' requires exactly one dep`);
+				}
+				return ctx.registerNode("map", ctx.deps, operatorNodeFn(map(definition)), {
+					name: ctx.name,
+					meta: ctx.checkpoint.meta,
+					restore,
+				});
+			},
+		},
+	};
+	if (opts.registry !== undefined) addToRestoreRegistry(opts.registry, definition);
+	return definition;
 }
 
 /**
@@ -89,18 +218,23 @@ function makeInitNode<TIn, TOut>(
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut>,
 ): Node<TOut> {
-	const body: NodeFn = (ctx) => {
+	const body = operatorNodeFn(op);
+	// D43-reserved / D51: stamp the operator's real factory onto the bare node so a runtime *Map
+	// inner (created here via fromAny, NOT registered in any graph) is named in describe's
+	// auto-discovery. A graph-bound g.initNode also records it in `_entries` (entry.factory wins
+	// there); this field is only read for a node absent from the graph index. Caller opts win.
+	return new Node<TOut>([...deps], body, { factory: op.factory, ...op.opts, ...opts });
+}
+
+/** @internal Build the dispatcher body for an Operator spec. */
+export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
+	return (ctx) => {
 		try {
 			op.body(ctx);
 		} catch (e) {
 			ctx.down([["ERROR", errorPayload(e, "operator threw without a valid error payload")]]); // D30: value-level throw → ERROR
 		}
 	};
-	// D43-reserved / D51: stamp the operator's real factory onto the bare node so a runtime *Map
-	// inner (created here via fromAny, NOT registered in any graph) is named in describe's
-	// auto-discovery. A graph-bound g.initNode also records it in `_entries` (entry.factory wins
-	// there); this field is only read for a node absent from the graph index. Caller opts win.
-	return new Node<TOut>([...deps], body, { factory: op.factory, ...op.opts, ...opts });
 }
 
 // ── Slice 1 — single-dep transform / take / control (CSP-2.7 catalog re-derive, D40) ──
@@ -113,10 +247,21 @@ function makeInitNode<TIn, TOut>(
 // (D41) uses a producer + internal `subscribeOr`, the D45-banned describe island; these are
 // declared-dep nodes whose single edge `describe` shows truthfully.
 
-/** map: emit fn(value). */
-export function map<S, T>(fn: (v: S) => T): Operator<S, T> {
+/** map: emit fn(value). A named {@link transform} makes the map restorable (D97). */
+export function map<S, T>(fn: ((v: S) => T) | TransformDefinition<S, T>): Operator<S, T> {
+	if (isTransformDefinition(fn)) {
+		return mapFromFunction(fn.fn, fn.restore);
+	}
+	return mapFromFunction(fn);
+}
+
+function mapFromFunction<S, T>(
+	fn: (v: S) => T,
+	restore?: TransformDefinition<S, T>["restore"],
+): Operator<S, T> {
 	return {
 		factory: "map",
+		...(restore ? { restore } : {}),
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			if (!b) return;
@@ -158,6 +303,7 @@ export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T
 export function take<S>(n: number): Operator<S, S> {
 	return {
 		factory: "take",
+		restore: { ref: "take", config: { n: toCheckpointJson(n, "take.n") } },
 		body: (ctx) => {
 			if (n <= 0) {
 				ctx.down([["COMPLETE"]]);
