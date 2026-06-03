@@ -41,12 +41,14 @@ import {
 	nowNs,
 	observeEventFrame,
 	observeEventFrameCodec,
+	readThroughKv,
 	requireKvPutIfAbsent,
 	requireStoragePutIfAbsent,
 	restoreGraph,
 	stableJsonString,
 	strictJsonCodec,
 	strictJsonCodecFor,
+	tieredReadThrough,
 	webStorageBackend,
 } from "../index.js";
 import * as storageExports from "../storage/index.js";
@@ -663,6 +665,258 @@ describe("D82 storage substrate helpers", () => {
 		expect(await listByPrefix(kv, "items/")).toEqual(["items/001", "items/002"]);
 	});
 
+	it("tieredReadThrough checks tiers in order and promotes first tier-1 hit", async () => {
+		const calls: string[] = [];
+		const coldCalls: string[] = [];
+		const warmCalls: string[] = [];
+		const hotTier: KvStorageTier<{ value: number }> = {
+			get: (key) => {
+				calls.push(`hot:${key}`);
+				return Promise.resolve(undefined);
+			},
+			set: (key, value) => {
+				calls.push(`hot:set:${key}:${value.value}`);
+				return Promise.resolve();
+			},
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([]),
+		};
+		const warmTier: KvStorageTier<{ value: number }> = {
+			get: (key) => {
+				warmCalls.push(key);
+				calls.push(`warm:${key}`);
+				return Promise.resolve({ value: 2 });
+			},
+			set: () => {
+				calls.push("warm:set");
+				return Promise.resolve();
+			},
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([]),
+		};
+		const coldTier: KvStorageTier<{ value: number }> = {
+			get: (key) => {
+				coldCalls.push(key);
+				calls.push(`cold:${key}`);
+				return Promise.resolve({ value: 1 });
+			},
+			set: () => Promise.resolve(),
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([]),
+		};
+
+		const result = await tieredReadThrough({
+			key: "k",
+			tiers: [hotTier, warmTier, coldTier],
+			tierNames: ["hot", "warm", "cold"],
+		});
+
+		expect(result.status).toBe("hit");
+		expect(result.value).toEqual({ value: 2 });
+		expect(result.hitTier).toEqual({ index: 1, name: "warm" });
+		expect(result.facts.map((fact) => fact.kind)).toEqual(["miss", "hit"]);
+		expect(result.facts[1]).toMatchObject({ key: "k", tier: { index: 1, name: "warm" } });
+		expect(result.promotions.map((promotion) => promotion.tier.index)).toEqual([0]);
+		expect(result.promotions[0]).toMatchObject({ ok: true, tier: { index: 0, name: "hot" } });
+		expect(warmCalls).toEqual(["k"]);
+		expect(coldCalls).toEqual([]);
+		expect(calls.filter((value) => value.startsWith("cold")).length).toEqual(0);
+		expect(calls.some((value) => value === "hot:set:k:2")).toBe(true);
+	});
+
+	it("tieredReadThrough loads on miss and writes-through to all tiers by default", async () => {
+		const setTargets: string[] = [];
+		const missTier: KvStorageTier<{ value: string }> = {
+			get: (_key) => Promise.resolve(undefined),
+			set: (key, value) => {
+				setTargets.push(`miss:${key}:${value.value}`);
+				return Promise.resolve();
+			},
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([]),
+		};
+		const hitTier: KvStorageTier<{ value: string }> = {
+			get: (_key) => Promise.resolve(undefined),
+			set: (key, value) => {
+				setTargets.push(`hit:${key}:${value.value}`);
+				return Promise.resolve();
+			},
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([]),
+		};
+
+		const result = await readThroughKv({
+			key: "user:1",
+			tiers: [missTier, hitTier],
+			load: () => ({ value: "loaded" }),
+			tierNames: ["miss", "hit"],
+		});
+
+		expect(result.status).toBe("hit");
+		expect(result.value).toEqual({ value: "loaded" });
+		expect(result.hitTier).toEqual({ index: -1, name: "load" });
+		expect(result.facts.map((fact) => fact.kind)).toEqual(["miss", "miss", "hit"]);
+		expect(setTargets).toEqual(["miss:user:1:loaded", "hit:user:1:loaded"]);
+	});
+
+	it("tieredReadThrough returns a miss fact without loader and does not throw", async () => {
+		const result = await tieredReadThrough<{ value: string }>({
+			key: "missing",
+			tiers: [
+				{
+					get: () => Promise.resolve(undefined),
+					set: () => Promise.resolve(),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+				{
+					get: () => Promise.resolve(undefined),
+					set: () => Promise.resolve(),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+			],
+		});
+
+		expect(result.status).toBe("miss");
+		expect(result.value).toBeUndefined();
+		expect(result.facts.map((fact) => fact.kind)).toEqual(["miss", "miss"]);
+		expect(result.facts.every((fact) => fact.tier.index >= 0)).toBe(true);
+	});
+
+	it("tieredReadThrough treats an empty tier list without a loader as a miss", async () => {
+		const result = await tieredReadThrough<{ value: string }>({
+			key: "nowhere",
+			tiers: [],
+		});
+
+		expect(result.status).toBe("miss");
+		expect(result.value).toBeUndefined();
+		expect(result.hitTier).toBeUndefined();
+		expect(result.facts).toEqual([]);
+		expect(result.promotions).toEqual([]);
+	});
+
+	it("tieredReadThrough captures get errors as facts and continues lookup", async () => {
+		const hitTier: KvStorageTier<{ value: number }> = {
+			get: (_key) => Promise.resolve({ value: 7 }),
+			set: () => Promise.resolve(),
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([]),
+		};
+		const errors: string[] = [];
+		const result = await tieredReadThrough({
+			key: "err",
+			tiers: [
+				{
+					get: () => Promise.reject(new Error("read failed")),
+					set: () => Promise.resolve(),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+				hitTier,
+			],
+			onError: (ctx) => {
+				errors.push(String((ctx.error as Error).message ?? ctx.error));
+			},
+		});
+
+		expect(result.status).toBe("hit");
+		expect(result.value).toEqual({ value: 7 });
+		expect(result.facts.map((fact) => fact.kind)).toEqual(["error", "hit"]);
+		expect(errors).toContain("read failed");
+		expect(result.promotions).toEqual([expect.objectContaining({ tier: { index: 0 }, ok: true })]);
+	});
+
+	it("tieredReadThrough reports all-miss-tier errors as error status", async () => {
+		const failures: unknown[] = [];
+		const result = await tieredReadThrough({
+			key: "all-fail",
+			tiers: [
+				{
+					get: () => Promise.reject(new Error("tier0 failed")),
+					set: () => Promise.resolve(),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+				{
+					get: () => Promise.reject(new Error("tier1 failed")),
+					set: () => Promise.resolve(),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+			],
+			onError: (ctx) => {
+				if (ctx.stage === "lookup") failures.push(ctx.error);
+			},
+		});
+
+		expect(result.status).toBe("error");
+		expect(result.facts.map((fact) => fact.kind)).toEqual(["error", "error"]);
+		expect(failures).toHaveLength(2);
+	});
+
+	it("tieredReadThrough reports mixed miss/error no-hit results as error status", async () => {
+		const result = await tieredReadThrough({
+			key: "partial-fail",
+			tiers: [
+				{
+					get: () => Promise.resolve(undefined),
+					set: () => Promise.resolve(),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+				{
+					get: () => Promise.reject(new Error("cold failed")),
+					set: () => Promise.resolve(),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+			],
+		});
+
+		expect(result.status).toBe("error");
+		expect(result.value).toBeUndefined();
+		expect(result.facts.map((fact) => fact.kind)).toEqual(["miss", "error"]);
+	});
+
+	it("tieredReadThrough captures promotion write failures as facts", async () => {
+		const errors: unknown[] = [];
+		const result = await tieredReadThrough({
+			key: "write-fail",
+			tiers: [
+				{
+					get: () => Promise.resolve(undefined),
+					set: () => Promise.reject(new Error("promotion failed")),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+				{
+					get: () => Promise.resolve({ value: 3 }),
+					set: () => Promise.resolve(),
+					delete: () => Promise.resolve(),
+					list: () => Promise.resolve([]),
+				},
+			],
+			promoteTo: [0],
+			tierNames: ["hot", "cold"],
+			onError: (ctx) => {
+				if (ctx.stage === "promotion") {
+					errors.push(ctx.error);
+				}
+			},
+		});
+
+		expect(result.status).toBe("hit");
+		expect(result.value).toEqual({ value: 3 });
+		expect(result.facts.map((fact) => fact.kind)).toEqual(["miss", "hit"]);
+		expect(result.promotions).toEqual([
+			expect.objectContaining({ tier: { index: 0, name: "hot" }, ok: false }),
+		]);
+		expect(String(result.promotions[0]?.error)).toContain("promotion failed");
+		expect(errors).toHaveLength(1);
+	});
+
 	it("memoryBackend putIfAbsent creates once, preserves bytes, and clones", async () => {
 		const backend = memoryBackend();
 		const first = new Uint8Array([1, 2, 3]);
@@ -1197,6 +1451,8 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.memoryBackend).toBe(memoryBackend);
 			expect(exports.memoryMultiWriterAppendLog).toBe(memoryMultiWriterAppendLog);
 			expect(exports.multiWriterAppendLogStorage).toBe(multiWriterAppendLogStorage);
+			expect(exports.readThroughKv).toBe(readThroughKv);
+			expect(exports.tieredReadThrough).toBe(tieredReadThrough);
 			expect(exports.requireKvPutIfAbsent).toBe(requireKvPutIfAbsent);
 			expect(exports.requireStoragePutIfAbsent).toBe(requireStoragePutIfAbsent);
 			expect("attachSnapshotStorage" in exports).toBe(false);

@@ -79,6 +79,17 @@ export {
 	observeEventFrameCodec,
 } from "./observe-event-log.js";
 export {
+	type ReadThroughErrorContext,
+	type ReadThroughLookupFact,
+	type ReadThroughLookupTier,
+	type ReadThroughMissContext,
+	type ReadThroughPromotionFact,
+	readThroughKv,
+	type TieredReadThroughOptions,
+	type TieredReadThroughResult,
+	tieredReadThrough,
+} from "./read-through.js";
+export {
 	assertDecimalIntegerString,
 	assertNonNegativeDecimalIntegerString,
 	bigIntToDecimalString,

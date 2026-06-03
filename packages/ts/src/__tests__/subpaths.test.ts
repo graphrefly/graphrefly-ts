@@ -56,6 +56,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof storage.multiWriterAppendLogStorage).toBe("function");
 		expect(typeof storage.memoryMultiWriterAppendLog).toBe("function");
 		expect(typeof storage.attachObserveEventLog).toBe("function");
+		expect(typeof storage.tieredReadThrough).toBe("function");
+		expect(typeof storage.readThroughKv).toBe("function");
 		expect(typeof testing.assertDirtyPrecedesTerminalData).toBe("function");
 	});
 
