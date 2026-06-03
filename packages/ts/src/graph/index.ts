@@ -3,6 +3,14 @@ export * from "../data-structures/index.js";
 export * from "../render/index.js";
 export * from "../storage/index.js";
 export {
+	type CascadingCacheEvent,
+	type CascadingCachePolicy,
+	type CascadingCacheStatus,
+	type ReactiveCascadingCache,
+	type ReactiveCascadingCacheOptions,
+	reactiveCascadingCache,
+} from "./cascading-cache.js";
+export {
 	GRAPH_CHECKPOINT_VERSION,
 	type GraphCheckpoint,
 	type GraphCheckpointEdge,

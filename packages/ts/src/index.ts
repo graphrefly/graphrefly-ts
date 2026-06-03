@@ -36,6 +36,14 @@ export {
 	type PoolKind,
 } from "./dispatcher/index.js";
 export {
+	type CascadingCacheEvent,
+	type CascadingCachePolicy,
+	type CascadingCacheStatus,
+	type ReactiveCascadingCache,
+	type ReactiveCascadingCacheOptions,
+	reactiveCascadingCache,
+} from "./graph/cascading-cache.js";
+export {
 	GRAPH_CHECKPOINT_VERSION,
 	type GraphCheckpoint,
 	type GraphCheckpointEdge,

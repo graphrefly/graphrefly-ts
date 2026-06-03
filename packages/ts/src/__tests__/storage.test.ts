@@ -63,7 +63,7 @@ import {
 	webStorageBackend,
 } from "../index.js";
 import * as storageExports from "../storage/index.js";
-import { fileBackend } from "../storage/node.js";
+import { fileAppendLog, fileBackend, fileKv, sqliteBackend } from "../storage/node.js";
 
 interface TestStorage {
 	entries: Record<string, string>;
@@ -998,6 +998,34 @@ describe("D82 storage substrate helpers", () => {
 		expect(() => fileBackend(dir, { extension: "/../../x" })).toThrow(/extension/);
 		expect(() => fileBackend(dir, { extension: "..bin" })).toThrow(/extension/);
 		expect(() => fileBackend(dir, { extension: "" })).toThrow(/extension/);
+	});
+
+	it("fileKv and fileAppendLog stay passive typed wrappers over fileBackend", async () => {
+		const dir = makeTempDir();
+		try {
+			const kv = fileKv<{ value: string }>(dir, { namespace: "typed" });
+			await kv.set("a", { value: "one" });
+			expect(await kv.get("a")).toEqual({ value: "one" });
+			expect(await kv.list()).toEqual(["a"]);
+
+			const log = fileAppendLog<{ value: string }>(dir, {
+				namespace: "typed-log",
+				prefix: "events",
+			});
+			await log.append({ value: "first" });
+			await log.append({ value: "second" });
+			expect((await log.read()).map((entry) => [entry.seq, entry.value.value])).toEqual([
+				[0, "first"],
+				[1, "second"],
+			]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("sqliteBackend validates table names before touching optional node:sqlite", () => {
+		expect(() => sqliteBackend(":memory:", { tableName: "bad-name" })).toThrow(/tableName/);
+		expect(() => sqliteBackend(":memory:", { tableName: "1bad" })).toThrow(/tableName/);
 	});
 
 	it("memoryBackend clones Node Buffer inputs instead of storing shared views", async () => {

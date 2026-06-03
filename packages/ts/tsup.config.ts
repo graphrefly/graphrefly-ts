@@ -12,6 +12,7 @@ export default defineConfig({
 		"src/sources/index.ts",
 		"src/storage/index.ts",
 		"src/storage/node.ts",
+		"src/storage/browser.ts",
 		"src/testing/index.ts",
 	],
 	format: ["esm", "cjs"],

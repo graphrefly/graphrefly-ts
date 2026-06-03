@@ -28,6 +28,7 @@ import type {
 import * as operators from "../operators/index.js";
 import * as render from "../render/index.js";
 import * as sources from "../sources/index.js";
+import * as storageBrowser from "../storage/browser.js";
 import * as storage from "../storage/index.js";
 import * as storageNode from "../storage/node.js";
 import * as testing from "../testing/index.js";
@@ -78,6 +79,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("exports storage/node as a package subpath", () => {
 		expect(exportsJson.exports?.["./storage/node"]).toBeDefined();
 		expect(typeof storageNode.fileBackend).toBe("function");
+		expect(typeof storageNode.fileKv).toBe("function");
+		expect(typeof storageNode.fileAppendLog).toBe("function");
+		expect(typeof storageNode.sqliteBackend).toBe("function");
+		expect(typeof storageNode.sqliteKv).toBe("function");
+		expect(typeof storageNode.sqliteAppendLog).toBe("function");
+	});
+
+	it("exports storage/browser as a package subpath", () => {
+		expect(exportsJson.exports?.["./storage/browser"]).toBeDefined();
+		expect(typeof storageBrowser.indexedDbBackend).toBe("function");
+		expect(typeof storageBrowser.indexedDbKv).toBe("function");
 	});
 
 	it("exposes the D80 policy vocabulary from public type barrels", () => {

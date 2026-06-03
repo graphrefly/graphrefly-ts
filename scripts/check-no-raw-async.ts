@@ -43,6 +43,7 @@ const ALLOW_LABELS = new Map<string, ReadonlySet<string>>([
 	["packages/ts/src/storage/content-addressed.ts", new Set<string>(["Promise.resolve()"])],
 	["packages/ts/src/storage/kv.ts", new Set<string>(["Promise.resolve()"])],
 	["packages/ts/src/storage/read-through.ts", new Set<string>(["Promise.resolve()"])],
+	["packages/ts/src/storage/browser.ts", new Set<string>(["new Promise"])],
 ]);
 
 /** Risky code patterns, matched AFTER comment-stripping. */

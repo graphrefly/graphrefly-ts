@@ -108,6 +108,16 @@
 				"default": "./dist/storage/node.cjs"
 			}
 		},
+		"./storage/browser": {
+			"import": {
+				"types": "./dist/storage/browser.d.ts",
+				"default": "./dist/storage/browser.js"
+			},
+			"require": {
+				"types": "./dist/storage/browser.d.cts",
+				"default": "./dist/storage/browser.cjs"
+			}
+		},
 		"./testing": {
 			"import": {
 				"types": "./dist/testing/index.d.ts",

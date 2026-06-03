@@ -219,7 +219,7 @@ function buildPromotionTargets(
 	hitIndex: number,
 	promoteTo?: readonly number[] | false,
 ): number[] {
-	if (promoteTo === false || tierCount <= 1) return [];
+	if (promoteTo === false || tierCount <= 0) return [];
 	const maxPromote = Math.max(0, Math.min(hitIndex, tierCount));
 	if (promoteTo === undefined) {
 		return [...Array(maxPromote).keys()];
