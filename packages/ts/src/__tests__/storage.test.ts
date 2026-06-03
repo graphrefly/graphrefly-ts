@@ -1,4 +1,7 @@
 import { Buffer } from "node:buffer";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type {
 	KvStorageTier,
@@ -44,8 +47,47 @@ import {
 	stableJsonString,
 	strictJsonCodec,
 	strictJsonCodecFor,
+	webStorageBackend,
 } from "../index.js";
 import * as storageExports from "../storage/index.js";
+import { fileBackend } from "../storage/node.js";
+
+interface TestStorage {
+	entries: Record<string, string>;
+	getItem(key: string): string | null;
+	setItem(key: string, value: string): void;
+	removeItem(key: string): void;
+	key(index: number): string | null;
+	length: number;
+}
+
+const createStorage = (): TestStorage => {
+	const entries: Record<string, string> = {};
+	const storage: TestStorage = {
+		get entries() {
+			return entries;
+		},
+		getItem(key) {
+			return entries[key] ?? null;
+		},
+		setItem(key, value) {
+			entries[key] = value;
+		},
+		removeItem(key) {
+			delete entries[key];
+		},
+		key(index) {
+			const keys = Object.keys(entries).sort();
+			return keys[index] ?? null;
+		},
+		get length() {
+			return Object.keys(entries).length;
+		},
+	};
+	return storage;
+};
+
+const makeTempDir = () => mkdtempSync(join(tmpdir(), "graphrefly-ts-storage-"));
 
 const flushMicrotasks = async (turns = 1) => {
 	for (let i = 0; i < turns; i += 1) await Promise.resolve();
@@ -639,6 +681,60 @@ describe("D82 storage substrate helpers", () => {
 		expect([...(await backend.get("k"))!]).toEqual([1, 2, 3]);
 	});
 
+	it("webStorageBackend stores hex bytes deterministically, lists by namespace, and rejects malformed data", () => {
+		const storage = createStorage();
+		const backend = webStorageBackend(storage, { namespace: "web" });
+
+		const raw = new Uint8Array([8, 9, 10]);
+		backend.put("cache/key", raw);
+		raw[0] = 1;
+
+		expect(storage.entries["web\u0000cache/key"]).toBe("08090a");
+		expect([...(backend.get("cache/key") ?? new Uint8Array())]).toEqual([8, 9, 10]);
+		expect(backend.list("cache")).toEqual(["cache/key"]);
+		expect(backend.list("other")).toEqual([]);
+
+		storage.setItem("web\u0000bad", "not-hex");
+		expect(() => backend.get("bad")).toThrow(/malformed stored bytes/);
+	});
+
+	it("fileBackend persists bytes, lists logical keys, and supports putIfAbsent", async () => {
+		const dir = makeTempDir();
+		try {
+			const backend = fileBackend(dir, { namespace: "ns" });
+			await backend.put("", new Uint8Array([0]));
+			await backend.put("a", new Uint8Array([1, 2, 3]));
+			await backend.put("ab", new Uint8Array([9, 8, 7]));
+			expect(await backend.putIfAbsent?.("a", new Uint8Array([4]))).toBe(false);
+			expect(await backend.putIfAbsent?.("c", new Uint8Array([3]))).toBe(true);
+
+			const first = await backend.get("a");
+			const second = await backend.get("ab");
+			expect(first).toEqual(new Uint8Array([1, 2, 3]));
+			expect(second).toEqual(new Uint8Array([9, 8, 7]));
+
+			first![0] = 9;
+			expect(await backend.get("a")).toEqual(new Uint8Array([1, 2, 3]));
+
+			const listAll = await backend.list();
+			expect(listAll).toEqual(["", "a", "ab", "c"]);
+			expect(await backend.list("a")).toEqual(["a", "ab"]);
+
+			await backend.delete("ab");
+			expect(await backend.get("ab")).toBeUndefined();
+			expect(await backend.list()).toEqual(["", "a", "c"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("fileBackend rejects unsafe filename extensions", () => {
+		const dir = join(tmpdir(), "graphrefly-ts-storage-extension-negative");
+		expect(() => fileBackend(dir, { extension: "/../../x" })).toThrow(/extension/);
+		expect(() => fileBackend(dir, { extension: "..bin" })).toThrow(/extension/);
+		expect(() => fileBackend(dir, { extension: "" })).toThrow(/extension/);
+	});
+
 	it("memoryBackend clones Node Buffer inputs instead of storing shared views", async () => {
 		const backend = memoryBackend();
 		const input = Buffer.from([1, 2, 3]);
@@ -1097,6 +1193,7 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.strictJsonCodecFor).toBe(strictJsonCodecFor);
 			expect(exports.hasKvPutIfAbsent).toBe(hasKvPutIfAbsent);
 			expect(exports.hasStoragePutIfAbsent).toBe(hasStoragePutIfAbsent);
+			expect(exports.webStorageBackend).toBe(webStorageBackend);
 			expect(exports.memoryBackend).toBe(memoryBackend);
 			expect(exports.memoryMultiWriterAppendLog).toBe(memoryMultiWriterAppendLog);
 			expect(exports.multiWriterAppendLogStorage).toBe(multiWriterAppendLogStorage);

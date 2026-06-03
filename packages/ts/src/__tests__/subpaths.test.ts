@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import * as composition from "../composition/index.js";
 import * as core from "../core/index.js";
@@ -26,7 +29,13 @@ import * as operators from "../operators/index.js";
 import * as render from "../render/index.js";
 import * as sources from "../sources/index.js";
 import * as storage from "../storage/index.js";
+import * as storageNode from "../storage/node.js";
 import * as testing from "../testing/index.js";
+
+const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
+const exportsJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+	exports?: Record<string, unknown>;
+};
 
 describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("exposes the clean-slate layer surfaces from source barrels", () => {
@@ -58,6 +67,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(storage, "restoreSnapshot")).toBe(false);
 		expect(Object.hasOwn(graphLayer, "attachSnapshotStorage")).toBe(false);
 		expect(Object.hasOwn(graphLayer, "restoreSnapshot")).toBe(false);
+	});
+
+	it("exports storage/node as a package subpath", () => {
+		expect(exportsJson.exports?.["./storage/node"]).toBeDefined();
+		expect(typeof storageNode.fileBackend).toBe("function");
 	});
 
 	it("exposes the D80 policy vocabulary from public type barrels", () => {

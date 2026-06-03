@@ -26,6 +26,9 @@ export {
 	type PutIfAbsentStorageBackend,
 	requireStoragePutIfAbsent,
 	type StorageBackend,
+	type StorageNamespaceOptions,
+	type WebStorageLike,
+	webStorageBackend,
 } from "./backend.js";
 export {
 	assertChangeEnvelope,

@@ -11,6 +11,7 @@ export default defineConfig({
 		"src/render/index.ts",
 		"src/sources/index.ts",
 		"src/storage/index.ts",
+		"src/storage/node.ts",
 		"src/testing/index.ts",
 	],
 	format: ["esm", "cjs"],

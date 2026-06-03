@@ -298,10 +298,13 @@ export {
 	requireKvPutIfAbsent,
 	requireStoragePutIfAbsent,
 	type StorageBackend,
+	type StorageNamespaceOptions,
 	type StorageTimestampNs,
 	stableJsonString,
 	strictJsonCodec,
 	strictJsonCodecFor,
+	type WebStorageLike,
+	webStorageBackend,
 } from "./storage/index.js";
 export {
 	assertDirtyPrecedesTerminalData,

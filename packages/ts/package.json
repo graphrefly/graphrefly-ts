@@ -98,6 +98,16 @@
 				"default": "./dist/storage/index.cjs"
 			}
 		},
+		"./storage/node": {
+			"import": {
+				"types": "./dist/storage/node.d.ts",
+				"default": "./dist/storage/node.js"
+			},
+			"require": {
+				"types": "./dist/storage/node.d.cts",
+				"default": "./dist/storage/node.cjs"
+			}
+		},
 		"./testing": {
 			"import": {
 				"types": "./dist/testing/index.d.ts",
