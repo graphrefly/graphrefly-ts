@@ -172,6 +172,31 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		expect(first2.status).toBe("completed");
 	});
 
+	it("take(0) emits no DATA and completes immediately", () => {
+		const g = graph();
+		const s = g.state(1);
+		const none = g.initNode(take<number>(0), [s]);
+		const msgs: Message[] = [];
+		none.subscribe((m) => msgs.push(m));
+		const terminalMsgs = [...msgs];
+		s.set(2); // ignored after terminal completion
+		expect(data(msgs)).toEqual([]);
+		expect(lastType(msgs)).toBe("COMPLETE");
+		expect(msgs).toEqual(terminalMsgs);
+		expect(none.status).toBe("completed");
+	});
+
+	it("take completes quietly when upstream completes before n", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2]), []);
+		const first5 = g.initNode(take<number>(5), [src]);
+		const msgs: Message[] = [];
+		first5.subscribe((m) => msgs.push(m));
+		expect(data(msgs)).toEqual([1, 2]);
+		expect(lastType(msgs)).toBe("COMPLETE");
+		expect(first5.status).toBe("completed");
+	});
+
 	it("distinctUntilChanged suppresses repeats", () => {
 		const g = graph();
 		const s = g.state(1);
@@ -328,6 +353,17 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		expect(data(msgs)).toEqual([3, 4]);
 	});
 
+	it("skip can swallow the full upstream window without leaking DATA", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 2]), []);
+		const sk = g.initNode(skip<number>(2), [src]);
+		const msgs: Message[] = [];
+		sk.subscribe((m) => msgs.push(m));
+		expect(data(msgs)).toEqual([]);
+		expect(lastType(msgs)).toBe("COMPLETE");
+		expect(sk.status).toBe("completed");
+	});
+
 	it("takeWhile emits while pred holds, then COMPLETE (non-inclusive)", () => {
 		const g = graph();
 		const s = g.state(1);
@@ -397,6 +433,20 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		l.subscribe((m) => msgs.push(m));
 		expect(data(msgs)).toEqual([4]);
 		expect(lastType(msgs)).toBe("COMPLETE");
+	});
+
+	it("last no-match completes without emitting DATA", () => {
+		const g = graph();
+		const src = g.initNode(fromIter([1, 3]), []);
+		const l = g.initNode(
+			last((n: number) => n % 2 === 0),
+			[src],
+		);
+		const msgs: Message[] = [];
+		l.subscribe((m) => msgs.push(m));
+		expect(data(msgs)).toEqual([]);
+		expect(lastType(msgs)).toBe("COMPLETE");
+		expect(l.status).toBe("completed");
 	});
 
 	it("find emits the first matching value then COMPLETE", () => {

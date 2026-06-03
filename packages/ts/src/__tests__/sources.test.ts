@@ -288,6 +288,19 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(data(msgs)).toEqual([9]);
 	});
 
+	it("fromAny lifts an async iterable before treating it as a scalar", async () => {
+		async function* gen() {
+			yield 1;
+			yield 2;
+		}
+		const n = fromAny(gen());
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+		await flush();
+		expect(data(msgs)).toEqual([1, 2]);
+		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
+	});
+
 	it("fromAny expands a sync iterable only with {iter:true}", () => {
 		const expanded = fromAny([1, 2, 3], { iter: true });
 		const vals: unknown[] = [];
@@ -313,6 +326,18 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(data(msgs)).toEqual([null]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
 		expect(n.status).toBe("completed");
+	});
+
+	it("fromAny rejects undefined as DATA because it is the protocol SENTINEL", () => {
+		const n = fromAny(undefined);
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+
+		expect(data(msgs)).toEqual([]);
+		const last = msgs[msgs.length - 1];
+		expect(last[0]).toBe("ERROR");
+		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		expect(n.status).toBe("errored");
 	});
 
 	it("describe shows the source factory name (D6)", () => {

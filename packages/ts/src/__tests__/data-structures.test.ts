@@ -78,6 +78,16 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		]);
 	});
 
+	it("empty list bulk ops are no-op deltas where the array bulk API exists", () => {
+		const list = reactiveList<number>([1]);
+		const { msgs } = collect(list.delta);
+		msgs.length = 0;
+		list.appendMany([]);
+		list.insertMany(1, []);
+		expect(msgs).toEqual([]);
+		expect(list.toArray()).toEqual([1]);
+	});
+
 	it("SNAPSHOT pull node is quiet (START only, no push-on-subscribe), absorbs delta DIRTY", () => {
 		const list = reactiveList<number>([10]);
 		const { msgs } = collect(list.snapshot);
@@ -229,6 +239,66 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			{ kind: "delete", key: "a", previous: 1, reason: "explicit" },
 		]);
 		expect([...m.toMap()]).toEqual([["b", 2]]);
+	});
+
+	it("empty setMany/deleteMany are no-op deltas", () => {
+		const m = reactiveMap<string, number>();
+		const { msgs } = collect(m.delta);
+		msgs.length = 0;
+		m.setMany([]);
+		m.deleteMany([]);
+		expect(msgs).toEqual([]);
+		expect([...m.toMap()]).toEqual([]);
+	});
+
+	it("setMany/deleteMany accept generator inputs and ignore missing deletes", () => {
+		function* entries(): Generator<readonly [string, number]> {
+			yield ["a", 1];
+			yield ["b", 2];
+		}
+		function* keys(): Generator<string> {
+			yield "missing";
+			yield "a";
+			yield "also-missing";
+		}
+
+		const m = reactiveMap<string, number>();
+		const { msgs } = collect(m.delta);
+		m.setMany(entries());
+		m.deleteMany(keys());
+
+		expect(data(msgs)).toEqual([
+			{ kind: "set", key: "a", value: 1 },
+			{ kind: "set", key: "b", value: 2 },
+			{ kind: "delete", key: "a", previous: 1, reason: "explicit" },
+		]);
+		expect([...m.toMap()]).toEqual([["b", 2]]);
+	});
+
+	it("setMany applies per-call TTL to every generated entry", () => {
+		let t = 0;
+		function* entries(): Generator<readonly [string, number]> {
+			yield ["a", 1];
+			yield ["b", 2];
+		}
+
+		const m = reactiveMap<string, number>({ now: () => t });
+		const { msgs } = collect(m.delta);
+		m.setMany(entries(), { ttl: 10 });
+
+		t = 9;
+		expect(m.get("a")).toBe(1);
+		expect(m.get("b")).toBe(2);
+
+		t = 10;
+		expect(m.get("a")).toBeUndefined();
+		expect(m.get("b")).toBeUndefined();
+		expect(data(msgs)).toEqual([
+			{ kind: "set", key: "a", value: 1 },
+			{ kind: "set", key: "b", value: 2 },
+			{ kind: "delete", key: "a", previous: 1, reason: "expired" },
+			{ kind: "delete", key: "b", previous: 2, reason: "expired" },
+		]);
 	});
 
 	it("lazy TTL: a read that materializes expiry emits delete(reason:'expired') (D61)", () => {
@@ -570,6 +640,40 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		idx.upsert("a", 1, 1);
 		idx.upsert("c", 1, 3);
 		expect(idx.rangeByPrimary("a", "c")).toEqual([1, 3]); // a,b in [a,c)
+	});
+
+	it("empty upsertMany/deleteMany are no-op deltas", () => {
+		const idx = reactiveIndex<string, number>();
+		const { msgs } = collect(idx.delta);
+		msgs.length = 0;
+		idx.upsertMany([]);
+		idx.deleteMany([]);
+		expect(msgs).toEqual([]);
+		expect(idx.toArray()).toEqual([]);
+	});
+
+	it("upsertMany/deleteMany accept generator inputs and ignore missing deletes", () => {
+		function* rows(): Generator<{ primary: string; secondary: number; value: number }> {
+			yield { primary: "b", secondary: 2, value: 20 };
+			yield { primary: "a", secondary: 1, value: 10 };
+		}
+		function* primaries(): Generator<string> {
+			yield "missing";
+			yield "b";
+			yield "also-missing";
+		}
+
+		const idx = reactiveIndex<string, number>();
+		const { msgs } = collect(idx.delta);
+		idx.upsertMany(rows());
+		idx.deleteMany(primaries());
+
+		expect(data(msgs)).toEqual([
+			{ kind: "upsert", primary: "b", secondary: 2, value: 20 },
+			{ kind: "upsert", primary: "a", secondary: 1, value: 10 },
+			{ kind: "deleteMany", primaries: ["b"] },
+		]);
+		expect(idx.toArray().map((r) => r.primary)).toEqual(["a"]);
 	});
 
 	it("updating comparator-equal primary objects removes the exact existing row", () => {
@@ -938,6 +1042,15 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		log.appendMany(values);
 		values[0] = 99;
 		expect(data(msgs)).toEqual([{ kind: "appendMany", values: [1, 2] }]);
+	});
+
+	it("empty log appendMany is a no-op delta where the array bulk API exists", () => {
+		const log = reactiveLog<number>([1]);
+		const { msgs } = collect(log.delta);
+		msgs.length = 0;
+		log.appendMany([]);
+		expect(msgs).toEqual([]);
+		expect(log.toArray()).toEqual([1]);
 	});
 
 	it("trimHead removes the oldest n", () => {
