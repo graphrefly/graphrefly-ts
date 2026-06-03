@@ -5,17 +5,25 @@ import type {
 	ObserveEventFrame,
 	ObserveSinkErrorContext,
 } from "../index.js";
+import * as rootExports from "../index.js";
 import {
 	appendLogStorage,
 	attachObserveEventLog,
 	attachObserveSink,
+	ContentAddressedMissError,
+	changeEnvelopeCodec,
+	contentAddressedKv,
+	contentAddressedStorage,
 	graph,
 	kvStorage,
 	listByPrefix,
 	memoryAppendLog,
 	memoryKv,
+	observeEventFrame,
+	observeEventFrameCodec,
 	stableJsonString,
 } from "../index.js";
+import * as storageExports from "../storage/index.js";
 
 const flushMicrotasks = async (turns = 1) => {
 	for (let i = 0; i < turns; i += 1) await Promise.resolve();
@@ -345,11 +353,114 @@ describe("D82 storage substrate helpers", () => {
 	it("stableJsonString rejects nested lossy JSON values and non-plain objects", () => {
 		const cyclic: { self?: unknown } = {};
 		cyclic.self = cyclic;
+		const sparse: unknown[] = [];
+		sparse[1] = "hole";
+		const arrayWithExtra = [1] as Array<unknown> & { extra?: number };
+		arrayWithExtra.extra = 2;
+		const arrayWithSymbol = [1] as Array<unknown> & { [key: symbol]: number };
+		arrayWithSymbol[Symbol("extra")] = 2;
+		const symbolKey = Symbol("secret");
 		expect(() => stableJsonString({ nested: undefined })).toThrow(/not JSON-encodable/);
 		expect(() => stableJsonString({ nested: 1n })).toThrow(/not JSON-encodable/);
 		expect(() => stableJsonString(cyclic)).toThrow(/circular/);
+		expect(() => stableJsonString({ sparse })).toThrow(/sparse array hole/);
+		expect(() => stableJsonString(arrayWithExtra)).toThrow(/non-index array property/);
+		expect(() => stableJsonString(arrayWithSymbol)).toThrow(/symbol-keyed/);
+		expect(() => stableJsonString({ [symbolKey]: 1 })).toThrow(/symbol-keyed/);
 		expect(() => stableJsonString(new Date(0))).toThrow(/non-plain object/);
 		expect(() => stableJsonString(Number.NaN)).toThrow(/non-finite/);
+	});
+
+	it("__proto__ remains ordinary data under stableJsonString", () => {
+		expect(stableJsonString(JSON.parse('{"__proto__":{"x":1},"a":2}'))).toBe(
+			'{"__proto__":{"x":1},"a":2}',
+		);
+	});
+
+	it("content-addressed KV keys are deterministic across object key order", async () => {
+		const kv = memoryKv<{ result: number }>();
+		const cache = contentAddressedKv({
+			kv,
+			keyPrefix: "calc",
+			keyContext: (ctx: { request: unknown }) => ctx.request,
+		});
+
+		const a = await cache.keyFor({ request: { b: 2, a: { d: 4, c: 3 } } });
+		const b = await cache.keyFor({ request: { a: { c: 3, d: 4 }, b: 2 } });
+
+		expect(a).toBe(b);
+		expect(a).toMatch(/^calc:[0-9a-f]{64}$/);
+	});
+
+	it("content-addressed KV honors read, write, read-write, and read-strict modes", async () => {
+		const kv = memoryKv<{ answer: string }>();
+		const ctx = { prompt: "hello", opts: { temp: 0 } };
+
+		const writeOnly = contentAddressedKv({ kv, mode: "write" });
+		await writeOnly.store(ctx, { answer: "hi" });
+		expect(await writeOnly.lookup(ctx)).toBeUndefined();
+
+		const readOnly = contentAddressedKv({ kv, mode: "read" });
+		expect(await readOnly.lookup(ctx)).toEqual({ answer: "hi" });
+		await readOnly.store(ctx, { answer: "ignored" });
+		expect(await readOnly.lookup(ctx)).toEqual({ answer: "hi" });
+
+		const readWrite = contentAddressedStorage({ kv, mode: "read-write" });
+		await readWrite.store({ prompt: "bye" }, { answer: "goodbye" });
+		expect(await readWrite.lookup({ prompt: "bye" })).toEqual({ answer: "goodbye" });
+
+		const strict = contentAddressedKv({ kv, mode: "read-strict" });
+		await expect(strict.lookup({ prompt: "missing" })).rejects.toBeInstanceOf(
+			ContentAddressedMissError,
+		);
+	});
+
+	it("content-addressed forget is a no-op when mode disallows it or delete is missing", async () => {
+		const kv = memoryKv<{ value: number }>();
+		const ctx = { id: 1 };
+		const cyclic: { self?: unknown } = {};
+		cyclic.self = cyclic;
+		const readWrite = contentAddressedKv({ kv });
+		await readWrite.store(ctx, { value: 1 });
+
+		await contentAddressedKv({ kv, mode: "read" }).forget(ctx);
+		expect(await readWrite.lookup(ctx)).toEqual({ value: 1 });
+
+		await contentAddressedKv({ kv, mode: "write" }).forget(ctx);
+		expect(await readWrite.lookup(ctx)).toEqual({ value: 1 });
+
+		await expect(contentAddressedKv({ kv, mode: "write" }).lookup(cyclic)).resolves.toBeUndefined();
+		await expect(
+			contentAddressedKv({ kv, mode: "read" }).store(cyclic, { value: 9 }),
+		).resolves.toBe(undefined);
+		await expect(contentAddressedKv({ kv, mode: "read" }).forget(cyclic)).resolves.toBeUndefined();
+
+		await readWrite.forget(ctx);
+		expect(await readWrite.lookup(ctx)).toBeUndefined();
+
+		const bytes = new Map<string, Uint8Array>();
+		const noDelete = kvStorage<{ value: number }>({
+			backend: {
+				get: (key) => bytes.get(key),
+				put: (key, value) => void bytes.set(key, value),
+			},
+		});
+		const noDeleteCache = contentAddressedKv({ kv: noDelete });
+		await noDeleteCache.store(ctx, { value: 2 });
+		await noDeleteCache.forget(ctx);
+		expect(await noDeleteCache.lookup(ctx)).toEqual({ value: 2 });
+	});
+
+	it("content-addressed key contexts reject lossy and cyclic JSON", async () => {
+		const cache = contentAddressedKv({ kv: memoryKv<unknown>() });
+		const cyclic: { self?: unknown } = {};
+		cyclic.self = cyclic;
+		const sparse: unknown[] = [];
+		sparse[1] = "hole";
+
+		await expect(cache.keyFor({ nested: undefined })).rejects.toThrow(/not JSON-encodable/);
+		await expect(cache.keyFor(cyclic)).rejects.toThrow(/circular/);
+		await expect(cache.keyFor({ sparse })).rejects.toThrow(/sparse array hole/);
 	});
 
 	it("memoryKv stores encoded values and lists keys by prefix in order", async () => {
@@ -421,6 +532,37 @@ describe("D82 storage substrate helpers", () => {
 		const log = appendLogStorage({ kv, prefix: "bad" });
 
 		await expect(log.append({ value: "a" })).rejects.toThrow(/non-numeric sequence/);
+	});
+
+	it("append logs reject unsafe sequence allocation before writing", async () => {
+		const kv = memoryKv<{ value: string }>();
+		await kv.set(`max/${Number.MAX_SAFE_INTEGER}`, { value: "max" });
+		const log = appendLogStorage({ kv, prefix: "max" });
+
+		await expect(log.append({ value: "overflow" })).rejects.toThrow(/safe integer/);
+		expect(await kv.list("max/")).toEqual([`max/${Number.MAX_SAFE_INTEGER}`]);
+	});
+
+	it("append-log reads validate cursors, limits, and listed key presence", async () => {
+		const kv = memoryKv<{ value: string }>();
+		const log = appendLogStorage({ kv, prefix: "opts" });
+		await log.append({ value: "a" });
+
+		await expect(log.read({ after: Number.NaN })).rejects.toThrow(/after/);
+		await expect(log.read({ after: 0.5 })).rejects.toThrow(/after/);
+		await expect(log.read({ limit: -1 })).rejects.toThrow(/limit/);
+		await expect(log.read({ limit: 0.5 })).rejects.toThrow(/limit/);
+		expect(await log.read({ limit: 0 })).toEqual([]);
+
+		const torn: KvStorageTier<{ value: string }> = {
+			get: () => Promise.resolve(undefined),
+			set: () => Promise.resolve(),
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve(["torn/00000000000000000000"]),
+		};
+		await expect(appendLogStorage({ kv: torn, prefix: "torn" }).read()).rejects.toThrow(
+			/listed key is missing/,
+		);
 	});
 
 	it("append logs serialize concurrent appends without reusing a sequence", async () => {
@@ -499,5 +641,63 @@ describe("D82 storage substrate helpers", () => {
 		count.set(3);
 		await awaitDone((done) => handle.flush(done));
 		expect((await log.read()).map((entry) => entry.value.change)).toEqual([0, 1, 2]);
+	});
+
+	it("change and observe-event codecs validate D82 storage frames only", () => {
+		const changeCodec = changeEnvelopeCodec<{ op: string }>();
+		const encodedChange = changeCodec.encode({
+			lifecycle: "data",
+			structure: "kv-change",
+			version: 1,
+			t_ns: 123,
+			seq: 0,
+			change: { op: "set" },
+		});
+		expect(changeCodec.decode(encodedChange).change).toEqual({ op: "set" });
+		expect(() =>
+			changeCodec.decode(
+				new TextEncoder().encode(
+					JSON.stringify({
+						lifecycle: "restore",
+						structure: "kv-change",
+						version: 1,
+						t_ns: 123,
+						change: {},
+					}),
+				),
+			),
+		).toThrow(/lifecycle/);
+
+		const frame = observeEventFrame(
+			{ path: "count", msg: ["DATA", 1], tier: 3, seq: 7 },
+			{ value: 1 },
+			{ stream: "audit" },
+		);
+		const frameCodec = observeEventFrameCodec<{ value: number }>();
+		expect(frame).toMatchObject({
+			structure: "observe-event",
+			version: 1,
+			stream: "audit",
+			observeSeq: 7,
+			path: "count",
+			change: { value: 1 },
+		});
+		expect(frameCodec.decode(frameCodec.encode(frame))).toEqual(frame);
+		expect(Object.keys(frame)).not.toEqual(
+			expect.arrayContaining(["snapshot", "restore", "checkpoint", "factory"]),
+		);
+	});
+
+	it("root and storage exports expose D82 helpers while snapshot/restore names stay absent", () => {
+		for (const exports of [rootExports, storageExports]) {
+			expect(exports.contentAddressedKv).toBe(contentAddressedKv);
+			expect(exports.contentAddressedStorage).toBe(contentAddressedStorage);
+			expect(exports.changeEnvelopeCodec).toBe(changeEnvelopeCodec);
+			expect(exports.observeEventFrameCodec).toBe(observeEventFrameCodec);
+			expect("attachSnapshotStorage" in exports).toBe(false);
+			expect("restoreSnapshot" in exports).toBe(false);
+			expect("GraphRestore" in exports).toBe(false);
+		}
+		expect("restoreSnapshot" in graph()).toBe(false);
 	});
 });

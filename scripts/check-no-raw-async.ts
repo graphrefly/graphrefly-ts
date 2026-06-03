@@ -40,6 +40,7 @@ const ALLOW_LABELS = new Map<string, ReadonlySet<string>>([
 		"packages/ts/src/storage/append-log.ts",
 		new Set<string>(["Promise.resolve()", "Promise.all()"]),
 	],
+	["packages/ts/src/storage/content-addressed.ts", new Set<string>(["Promise.resolve()"])],
 	["packages/ts/src/storage/kv.ts", new Set<string>(["Promise.resolve()"])],
 ]);
 

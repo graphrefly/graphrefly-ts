@@ -32,8 +32,8 @@ export interface AppendLogStorageTier<T = unknown> {
 
 /** Build the deterministic storage key for an append-log sequence number. */
 export function appendLogKey(prefix: string, seq: number): string {
-	if (!Number.isInteger(seq) || seq < 0) {
-		throw new RangeError(`appendLogKey: seq must be a non-negative integer, got ${seq}`);
+	if (!Number.isSafeInteger(seq) || seq < 0) {
+		throw new RangeError(`appendLogKey: seq must be a non-negative safe integer, got ${seq}`);
 	}
 	return `${prefix}/${seq.toString().padStart(APPEND_LOG_SEQ_PAD, "0")}`;
 }
@@ -53,7 +53,31 @@ function seqFromKey(prefix: string, key: string): number {
 }
 
 function nextSeqFromKeys(prefix: string, keys: readonly string[]): number {
-	return keys.length === 0 ? 0 : Math.max(...keys.map((key) => seqFromKey(prefix, key))) + 1;
+	if (keys.length === 0) return 0;
+	const next = Math.max(...keys.map((key) => seqFromKey(prefix, key))) + 1;
+	if (!Number.isSafeInteger(next)) {
+		throw new RangeError(`append log next sequence is outside the safe integer range: ${prefix}`);
+	}
+	return next;
+}
+
+function validateReadOptions(opts: AppendLogReadOptions): {
+	after: number;
+	limit: number;
+} {
+	const after = opts.after ?? -1;
+	const limit = opts.limit ?? Number.POSITIVE_INFINITY;
+	if (!Number.isSafeInteger(after) || after < -1) {
+		throw new RangeError(
+			`appendLogStorage.read: after must be an integer cursor >= -1, got ${after}`,
+		);
+	}
+	if (limit !== Number.POSITIVE_INFINITY && (!Number.isSafeInteger(limit) || limit < 0)) {
+		throw new RangeError(
+			`appendLogStorage.read: limit must be a non-negative safe integer or Infinity, got ${limit}`,
+		);
+	}
+	return { after, limit };
 }
 
 /** Options for a typed append log over a KV tier. */
@@ -97,10 +121,9 @@ export function appendLogStorage<T = unknown>(opts: AppendLogOptions<T>): Append
 			);
 		},
 		read(opts = {}) {
-			const after = opts.after ?? -1;
-			const limit = opts.limit ?? Number.POSITIVE_INFINITY;
-			return enqueue(() =>
-				kv.list(`${prefix}/`).then((listed) => {
+			return enqueue(() => {
+				const { after, limit } = validateReadOptions(opts);
+				return kv.list(`${prefix}/`).then((listed) => {
 					const keys = listed
 						.map((key) => ({ key, seq: seqFromKey(prefix, key) }))
 						.filter(({ seq }) => seq > after)
@@ -109,17 +132,20 @@ export function appendLogStorage<T = unknown>(opts: AppendLogOptions<T>): Append
 					return Promise.all(
 						keys.map(
 							({ key, seq }): Promise<AppendLogEntry<T> | undefined> =>
-								kv
-									.get(key)
-									.then((value) => (value === undefined ? undefined : { key, seq, value })),
+								kv.get(key).then((value) => {
+									if (value === undefined) {
+										throw new Error(`append log listed key is missing: ${key}`);
+									}
+									return { key, seq, value };
+								}),
 						),
 					).then((entries) => {
 						const out: AppendLogEntry<T>[] = [];
 						for (const entry of entries) if (entry !== undefined) out.push(entry);
 						return out;
 					});
-				}),
-			);
+				});
+			});
 		},
 		truncateAfter(seq) {
 			return enqueue(() =>

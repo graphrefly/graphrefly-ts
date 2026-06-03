@@ -2,6 +2,9 @@
  * Storage change envelopes (D82): persistence framing for raw graph/data-structure deltas.
  */
 
+import type { Codec } from "./codec.js";
+import { jsonCodecFor } from "./codec.js";
+
 /** Storage-side lifecycle namespace for change envelopes; presentation framing only. */
 export type ChangeLifecycle = "spec" | "data" | "ownership";
 
@@ -38,5 +41,55 @@ export function envelopeChange<T>(change: T, opts: ChangeEnvelopeOptions): Chang
 		t_ns: opts.t_ns ?? nowNs(),
 		...(opts.seq === undefined ? {} : { seq: opts.seq }),
 		change,
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isLifecycle(value: unknown): value is ChangeLifecycle {
+	return value === "spec" || value === "data" || value === "ownership";
+}
+
+/** Validate a decoded D82 change envelope and return it with typed payload. */
+export function assertChangeEnvelope<T = unknown>(value: unknown): ChangeEnvelope<T> {
+	if (!isRecord(value)) throw new TypeError("changeEnvelopeCodec: frame must be an object");
+	if (!isLifecycle(value.lifecycle)) {
+		throw new TypeError("changeEnvelopeCodec: lifecycle must be spec, data, or ownership");
+	}
+	if (typeof value.structure !== "string" || value.structure.length === 0) {
+		throw new TypeError("changeEnvelopeCodec: structure must be a non-empty string");
+	}
+	if (
+		(typeof value.version !== "number" || !Number.isFinite(value.version)) &&
+		typeof value.version !== "string"
+	) {
+		throw new TypeError("changeEnvelopeCodec: version must be a finite number or string");
+	}
+	if (typeof value.t_ns !== "number" || !Number.isFinite(value.t_ns)) {
+		throw new TypeError("changeEnvelopeCodec: t_ns must be a finite number");
+	}
+	if (value.seq !== undefined && (!Number.isSafeInteger(value.seq) || (value.seq as number) < 0)) {
+		throw new TypeError(
+			"changeEnvelopeCodec: seq must be a non-negative safe integer when present",
+		);
+	}
+	if (!Object.hasOwn(value, "change")) {
+		throw new TypeError("changeEnvelopeCodec: change payload is required");
+	}
+	return value as unknown as ChangeEnvelope<T>;
+}
+
+/** Stable JSON codec for D82 change envelopes, with strict framing checks. */
+export function changeEnvelopeCodec<T = unknown>(): Codec<ChangeEnvelope<T>> {
+	const codec = jsonCodecFor<unknown>();
+	return {
+		encode(value) {
+			return codec.encode(assertChangeEnvelope(value));
+		},
+		decode(bytes) {
+			return assertChangeEnvelope<T>(codec.decode(bytes));
+		},
 	};
 }

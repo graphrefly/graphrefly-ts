@@ -31,9 +31,31 @@ function sortedJsonValue(value: unknown, seen = new Set<object>(), path = "$"): 
 	seen.add(value);
 	try {
 		if (Array.isArray(value)) {
-			return value.map((v, i) => sortedJsonValue(v, seen, `${path}[${i}]`));
+			if (Object.getOwnPropertySymbols(value).length > 0) {
+				throw new TypeError(`stableJsonString: symbol-keyed properties at ${path}`);
+			}
+			for (const key of Object.getOwnPropertyNames(value)) {
+				const isIndex =
+					/^(0|[1-9]\d*)$/.test(key) &&
+					Number.isSafeInteger(Number(key)) &&
+					Number(key) < value.length;
+				if (key !== "length" && !isIndex) {
+					throw new TypeError(`stableJsonString: non-index array property at ${path}.${key}`);
+				}
+			}
+			const out: JsonValue[] = [];
+			for (let i = 0; i < value.length; i += 1) {
+				if (!(i in value)) {
+					throw new TypeError(`stableJsonString: sparse array hole at ${path}[${i}]`);
+				}
+				out.push(sortedJsonValue(value[i], seen, `${path}[${i}]`));
+			}
+			return out;
 		}
-		const out: Record<string, JsonValue> = {};
+		if (Object.getOwnPropertySymbols(value).length > 0) {
+			throw new TypeError(`stableJsonString: symbol-keyed properties at ${path}`);
+		}
+		const out: Record<string, JsonValue> = Object.create(null);
 		for (const key of Object.keys(value as Record<string, unknown>).sort()) {
 			out[key] = sortedJsonValue((value as Record<string, unknown>)[key], seen, `${path}.${key}`);
 		}

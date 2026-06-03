@@ -17,13 +17,25 @@ export {
 } from "./append-log.js";
 export { type MemoryBackend, memoryBackend, type StorageBackend } from "./backend.js";
 export {
+	assertChangeEnvelope,
 	type ChangeEnvelope,
 	type ChangeEnvelopeOptions,
 	type ChangeLifecycle,
+	changeEnvelopeCodec,
 	envelopeChange,
 	nowNs,
 } from "./change.js";
 export { type Codec, jsonCodec, jsonCodecFor, stableJsonString } from "./codec.js";
+export {
+	type ContentAddressedKv,
+	type ContentAddressedKvOptions,
+	ContentAddressedMissError,
+	type ContentAddressedMode,
+	type ContentAddressedStorage,
+	type ContentAddressedStorageOptions,
+	contentAddressedKv,
+	contentAddressedStorage,
+} from "./content-addressed.js";
 export {
 	dictKv,
 	type KvStorageOptions,
@@ -34,8 +46,10 @@ export {
 } from "./kv.js";
 export {
 	type AttachObserveEventLogOptions,
+	assertObserveEventFrame,
 	attachObserveEventLog,
 	type ObserveEventFrame,
 	type ObserveEventLogHandle,
 	observeEventFrame,
+	observeEventFrameCodec,
 } from "./observe-event-log.js";
