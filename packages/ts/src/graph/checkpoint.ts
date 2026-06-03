@@ -5,9 +5,8 @@
  * no observe-log replay, and no restore runtime in this first TS slice.
  */
 
+import { strictJsonCodec } from "../json/codec.js";
 import { SENTINEL } from "../protocol/messages.js";
-import { strictJsonCodec } from "../storage/codec.js";
-import type { Graph } from "./graph.js";
 
 export const GRAPH_CHECKPOINT_VERSION = "graphrefly.ts.checkpoint.v1" as const;
 
@@ -31,7 +30,12 @@ export type GraphCheckpointTerminal =
 	| { kind: "ERROR"; error: GraphCheckpointJson };
 
 export type GraphCheckpointFactory =
-	| { kind: "registry-ref"; name: string }
+	| {
+			kind: "registry-ref";
+			ref: string;
+			config?: GraphCheckpointJson;
+			configVersion?: GraphCheckpointJson;
+	  }
 	| { kind: "local-only"; name: string; reason: string };
 
 export interface GraphCheckpointNode {
@@ -65,11 +69,6 @@ export interface GraphCheckpoint {
 	mounts?: GraphCheckpointMount[];
 }
 
-export interface RestoreGraphOptions {
-	registry: unknown;
-	graph?: Graph;
-}
-
 export function toCheckpointJson(value: unknown, path = "$"): GraphCheckpointJson {
 	try {
 		return strictJsonCodec.decode(strictJsonCodec.encode(value)) as GraphCheckpointJson;
@@ -93,10 +92,4 @@ export function checkpointTerminal(value: unknown, path: string): GraphCheckpoin
 	if (value === undefined) return { kind: "none" };
 	if (value === true) return { kind: "COMPLETE" };
 	return { kind: "ERROR", error: toCheckpointJson(value, path) };
-}
-
-export function restoreGraph(_checkpoint: GraphCheckpoint, _options: RestoreGraphOptions): Graph {
-	throw new Error(
-		"restoreGraph: runtime restore is not implemented in the first TS checkpoint slice (D83/D86/D90)",
-	);
 }

@@ -1,7 +1,14 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { depLatest } from "../ctx/types.js";
-import type { Message } from "../index.js";
-import { GRAPH_CHECKPOINT_VERSION, graph, restoreGraph, strictJsonCodec } from "../index.js";
+import type { GraphRestoreDescriptor, Message } from "../index.js";
+import {
+	defaultRestoreRegistry,
+	GRAPH_CHECKPOINT_VERSION,
+	graph,
+	restoreGraph,
+	strictJsonCodec,
+} from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -151,7 +158,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(checkpoint.version).toBe(GRAPH_CHECKPOINT_VERSION);
 		expect(() => strictJsonCodec.encode(checkpoint)).not.toThrow();
 		const byId = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
-		expect(byId.count.factory).toEqual({ kind: "registry-ref", name: "state" });
+		expect(byId.count.factory).toEqual({ kind: "registry-ref", ref: "state" });
 		expect(byId.count.value).toEqual({ kind: "DATA", data: 5 });
 		expect(byId.doubled.factory.kind).toBe("local-only");
 		expect(byId.doubled.value).toEqual({ kind: "DATA", data: 10 });
@@ -266,8 +273,247 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(() => cyclic.checkpoint()).toThrow(/cyclic graph mount/);
 	});
 
-	it("restoreGraph is exported but fails clearly in the first checkpoint slice", () => {
+	it("keeps graph checkpoint strict JSON validation independent from storage codecs (D96)", () => {
+		const source = readFileSync(new URL("../graph/checkpoint.ts", import.meta.url), "utf8");
+		expect(source).not.toContain("../storage/codec.js");
+	});
+});
+
+describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
+	it("restores named state DATA and pushes it on subscribe after restore", () => {
+		const g = graph({ name: "source" });
+		const count = g.state(0, { name: "count", meta: { role: "counter" } });
+		count.set(7);
+
+		const restored = restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry });
+		const node = restored.find("count");
+		expect(node?.cache).toBe(7);
+		expect(restored.describe().nodes.find((n) => n.id === "count")).toMatchObject({
+			id: "count",
+			name: "count",
+			factory: "state",
+			value: 7,
+			meta: { role: "counter" },
+		});
+
+		const msgs = collect(node as { subscribe(s: (m: Message) => void): () => void });
+		expect(msgs).toEqual([["START"], ["DATA", 7]]);
+	});
+
+	it("preserves SENTINEL absence separately from DATA null and empty array", () => {
 		const checkpoint = graph().checkpoint();
-		expect(() => restoreGraph(checkpoint, { registry: {} })).toThrow(/restore is not implemented/);
+		checkpoint.nodes = [
+			{
+				id: "cold",
+				name: "cold",
+				factory: { kind: "registry-ref", ref: "state" },
+				status: "sentinel",
+				deps: [],
+				value: { kind: "SENTINEL" },
+				terminal: { kind: "none" },
+				lifecycle: { activated: false, hasCalledFnOnce: false },
+				ctxState: { persist: false, value: { kind: "SENTINEL" } },
+			},
+			{
+				id: "nil",
+				name: "nil",
+				factory: { kind: "registry-ref", ref: "state" },
+				status: "settled",
+				deps: [],
+				value: { kind: "DATA", data: null },
+				terminal: { kind: "none" },
+				lifecycle: { activated: false, hasCalledFnOnce: false },
+				ctxState: { persist: false, value: { kind: "SENTINEL" } },
+			},
+			{
+				id: "empty",
+				name: "empty",
+				factory: { kind: "registry-ref", ref: "state" },
+				status: "settled",
+				deps: [],
+				value: { kind: "DATA", data: [] },
+				terminal: { kind: "none" },
+				lifecycle: { activated: false, hasCalledFnOnce: false },
+				ctxState: { persist: false, value: { kind: "SENTINEL" } },
+			},
+		];
+		checkpoint.edges = [];
+
+		const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
+		expect(restored.find("cold")?.cache).toBeUndefined();
+		expect(
+			collect(restored.find("cold") as { subscribe(s: (m: Message) => void): () => void }),
+		).toEqual([["START"]]);
+		expect(restored.find("nil")?.cache).toBeNull();
+		expect(restored.find("empty")?.cache).toEqual([]);
+	});
+
+	it("constructs deps in topological order and restores non-persist ctx.state before the first subscriber", () => {
+		const original = graph();
+		const src = original.state(1, { name: "src" });
+		const memo = original.node(
+			[src],
+			(ctx) => {
+				const previous = (ctx.state.get<{ runs: number }>() ?? { runs: 0 }).runs;
+				const runs = previous + 1;
+				ctx.state.set({ runs });
+				ctx.down([["DATA", { runs }]]);
+			},
+			{
+				name: "memo",
+				restore: { ref: "memo", config: { mode: "runs" }, configVersion: "1" },
+			},
+		);
+		collect(memo);
+		const checkpoint = original.checkpoint();
+		const memoNode = checkpoint.nodes.find((n) => n.id === "memo");
+		expect(memoNode?.factory).toEqual({
+			kind: "registry-ref",
+			ref: "memo",
+			config: { mode: "runs" },
+			configVersion: "1",
+		});
+		checkpoint.nodes.reverse();
+
+		const memoDescriptor: GraphRestoreDescriptor = {
+			ref: "memo",
+			validateConfig(config, configVersion) {
+				expect(config).toEqual({ mode: "runs" });
+				expect(configVersion).toBe("1");
+				return config;
+			},
+			create(ctx) {
+				return ctx.registerNode(
+					"memo",
+					ctx.deps,
+					(runCtx) => {
+						const previous = (runCtx.state.get<{ runs: number }>() ?? { runs: 0 }).runs;
+						const runs = previous + 1;
+						runCtx.state.set({ runs });
+						runCtx.down([["DATA", { runs }]]);
+					},
+					{ name: ctx.name },
+				);
+			},
+		};
+
+		const restored = restoreGraph(checkpoint, {
+			registry: { ...defaultRestoreRegistry, memo: memoDescriptor },
+		});
+		const restoredMemo = restored.find("memo");
+		expect(restoredMemo?.cache).toEqual({ runs: 1 });
+		const msgs = collect(restoredMemo as { subscribe(s: (m: Message) => void): () => void });
+		expect(msgs.filter((m) => m[0] === "DATA").map((m) => m[1])).toEqual([
+			{ runs: 1 },
+			{ runs: 2 },
+		]);
+	});
+
+	it("restores terminal COMPLETE and ERROR state without reopening terminal nodes", () => {
+		const g = graph();
+		const done = g.state(1, { name: "done" });
+		const failed = g.state(2, { name: "failed" });
+		done.down([["COMPLETE"]]);
+		failed.down([["ERROR", "boom"]]);
+
+		const restored = restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry });
+		expect(restored.find("done")?.status).toBe("completed");
+		expect(restored.find("failed")?.status).toBe("errored");
+		expect(() => restored.find("done")?.subscribe(() => {})).toThrow(/non-resubscribable/);
+		expect(() => restored.find("failed")?.subscribe(() => {})).toThrow(/non-resubscribable/);
+	});
+
+	it("restores mounted fresh graphs without double-prefixing child node ids", () => {
+		const parent = graph({ name: "parent" });
+		parent.state(1, { name: "root" });
+		const child = graph({ name: "child" });
+		child.state(2, { name: "leaf" });
+		parent.mount(child, { at: "child" });
+
+		const restored = restoreGraph(parent.checkpoint(), { registry: defaultRestoreRegistry });
+		expect(restored.describe().subgraphs?.[0].nodes.map((n) => n.id)).toEqual(["child::leaf"]);
+		expect(restored.describe().subgraphs?.[0].nodes[0]?.value).toBe(2);
+	});
+
+	it("rejects missing refs, local-only factories, live restore, duplicate ids, missing deps, and edge mismatches", () => {
+		const localOnly = graph();
+		const src = localOnly.state(1, { name: "src" });
+		localOnly.derived([src], (n) => n, { name: "derived" });
+		expect(() =>
+			restoreGraph(localOnly.checkpoint(), { registry: defaultRestoreRegistry }),
+		).toThrow(/local-only/);
+
+		const missingRef = graph();
+		missingRef.state(1, { name: "src" });
+		expect(() => restoreGraph(missingRef.checkpoint(), { registry: {} })).toThrow(
+			/missing registry/,
+		);
+
+		const target = graph();
+		target.state(0, { name: "untouched" });
+		expect(() =>
+			restoreGraph(missingRef.checkpoint(), { registry: defaultRestoreRegistry, graph: target }),
+		).toThrow(/live graph restore is deferred/);
+		expect(target.find("untouched")?.cache).toBe(0);
+
+		const duplicate = missingRef.checkpoint();
+		duplicate.nodes.push({ ...duplicate.nodes[0] });
+		expect(() => restoreGraph(duplicate, { registry: defaultRestoreRegistry })).toThrow(
+			/duplicate node id/,
+		);
+
+		const missingDep = missingRef.checkpoint();
+		missingDep.nodes[0].deps = ["nope"];
+		expect(() => restoreGraph(missingDep, { registry: defaultRestoreRegistry })).toThrow(
+			/missing dep/,
+		);
+
+		const edgeMismatch = missingRef.checkpoint();
+		edgeMismatch.edges = [{ from: "src", to: "src" }];
+		expect(() => restoreGraph(edgeMismatch, { registry: defaultRestoreRegistry })).toThrow(
+			/not present in target deps/,
+		);
+
+		const terminalMismatch = missingRef.checkpoint();
+		terminalMismatch.nodes[0].status = "completed";
+		terminalMismatch.nodes[0].terminal = { kind: "none" };
+		expect(() => restoreGraph(terminalMismatch, { registry: defaultRestoreRegistry })).toThrow(
+			/terminal status requires terminal state/,
+		);
+
+		const badMountPrefix = graph();
+		const child = graph();
+		child.state(1, { name: "leaf" });
+		badMountPrefix.mount(child, { at: "child" });
+		const badMountCheckpoint = badMountPrefix.checkpoint();
+		if (badMountCheckpoint.mounts) badMountCheckpoint.mounts[0].checkpoint.nodes[0].id = "leaf";
+		expect(() => restoreGraph(badMountCheckpoint, { registry: defaultRestoreRegistry })).toThrow(
+			/missing prefix/,
+		);
+	});
+
+	it("rejects descriptor output whose registered deps do not match the checkpoint", () => {
+		const original = graph();
+		const src = original.state(1, { name: "src" });
+		const memo = original.node([src], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]), {
+			name: "memo",
+			restore: { ref: "memo" },
+		});
+		collect(memo);
+
+		const badDescriptor: GraphRestoreDescriptor = {
+			ref: "memo",
+			create(ctx) {
+				return ctx.registerNode("memo", [], (runCtx) => {
+					runCtx.down([["DATA", "bad"]]);
+				});
+			},
+		};
+
+		expect(() =>
+			restoreGraph(original.checkpoint(), {
+				registry: { ...defaultRestoreRegistry, memo: badDescriptor },
+			}),
+		).toThrow(/deps that do not match/);
 	});
 });

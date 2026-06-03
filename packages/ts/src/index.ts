@@ -46,8 +46,6 @@ export {
 	type GraphCheckpointTerminal,
 	type GraphCheckpointValue,
 	type GraphCheckpointVersion,
-	type RestoreGraphOptions,
-	restoreGraph,
 } from "./graph/checkpoint.js";
 export {
 	buffer,
@@ -184,6 +182,15 @@ export {
 	type MermaidLiveUrlOptions,
 	mermaidLiveUrl,
 } from "./graph/render.js";
+export {
+	defaultRestoreRegistry,
+	type GraphRestoreDescriptor,
+	type GraphRestoreDescriptorContext,
+	type GraphRestoreRegistry,
+	type RestoreGraphOptions,
+	restoreGraph,
+	stateRestoreDescriptor,
+} from "./graph/restore.js";
 export {
 	type AsyncSourceOpts,
 	empty,

@@ -58,6 +58,11 @@ export type EffectFn<D extends readonly Node<unknown>[]> = (
 export interface SugarOpts<T = unknown> extends Omit<NodeOptions<T>, "dispatcher"> {
 	name?: string;
 	meta?: Record<string, unknown>;
+	/**
+	 * D95: explicit restorable factory metadata. Static JSON-compatible config may live here;
+	 * reactive options must remain graph deps. Without this, function-backed nodes are local-only.
+	 */
+	restore?: { ref: string; config?: unknown; configVersion?: unknown };
 }
 
 export interface GraphOptions {
@@ -80,7 +85,21 @@ interface Entry {
 	factory: string;
 	deps: readonly Node<unknown>[];
 	meta?: Record<string, unknown>;
+	restore?: { ref: string; config?: unknown; configVersion?: unknown };
 }
+
+interface GraphRestoreRegistrar {
+	stateNode<T>(id: string, opts?: SugarOpts<T>): StateNode<T>;
+	node<T>(
+		id: string,
+		factory: string,
+		deps: readonly Node<unknown>[],
+		fn: NodeFn | null,
+		opts?: SugarOpts<T>,
+	): Node<T>;
+}
+
+const restoreRegistrars = new WeakMap<Graph, GraphRestoreRegistrar>();
 
 function nodeOwner(n: Node<unknown>): Graph | undefined {
 	return getNodeOwner(n) as Graph | undefined;
@@ -124,6 +143,31 @@ export class Graph {
 		this.name = opts.name;
 		this._dispatcher = opts.dispatcher ?? defaultDispatcher;
 		if (opts.profile) this._dispatcher.setRecording(true);
+		restoreRegistrars.set(this, {
+			stateNode: <T = unknown>(id: string, stateOpts: SugarOpts<T> = {}) => {
+				const n = withNodeCore(
+					this._core,
+					() => new StateNode<T>([], null, this._nodeOpts(stateOpts)),
+				);
+				this._addWithId(n, "state", [], stateOpts, id);
+				return n;
+			},
+			node: <T = unknown>(
+				id: string,
+				factory: string,
+				deps: readonly Node<unknown>[],
+				fn: NodeFn | null,
+				nodeOpts: SugarOpts<T> = {},
+			) => {
+				this._assertDepsLocal(deps, `dep of restored '${id}'`);
+				const n = withNodeCore(
+					this._core,
+					() => new Node<T>([...deps], fn, this._nodeOpts(nodeOpts)),
+				);
+				this._addWithId(n, factory, deps, nodeOpts, id);
+				return n;
+			},
+		});
 	}
 
 	// ── registration / inspection index ──
@@ -134,9 +178,19 @@ export class Graph {
 		deps: readonly Node<unknown>[],
 		opts: SugarOpts<T>,
 	): Node<T> {
+		const id = opts.name ?? `${factory}#${this._seq++}`;
+		return this._addWithId(n, factory, deps, opts, id);
+	}
+
+	private _addWithId<T>(
+		n: Node<T>,
+		factory: string,
+		deps: readonly Node<unknown>[],
+		opts: SugarOpts<T>,
+		id: string,
+	): Node<T> {
 		assertGraphLocalNode(this, n as Node<unknown>, `graph node '${opts.name ?? factory}'`);
 		for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
-		const id = opts.name ?? `${factory}#${this._seq++}`;
 		if (this._byId.has(id)) {
 			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
 		}
@@ -147,9 +201,12 @@ export class Graph {
 			factory,
 			deps,
 			meta: opts.meta,
+			restore: opts.restore,
 		});
 		setNodeOwner(n as Node<unknown>, this);
 		this._byId.set(id, n as Node<unknown>);
+		const seqMatch = /#(\d+)$/.exec(id);
+		if (seqMatch) this._seq = Math.max(this._seq, Number(seqMatch[1]) + 1);
 		return n;
 	}
 
@@ -159,7 +216,7 @@ export class Graph {
 
 	private _nodeOpts<T>(opts: SugarOpts<T>): NodeOptions<T> {
 		// strip graph-only fields; inject the bound dispatcher
-		const { name: _n, meta: _m, ...rest } = opts;
+		const { name: _n, meta: _m, restore: _r, ...rest } = opts;
 		return { ...rest, dispatcher: this._dispatcher };
 	}
 
@@ -474,7 +531,7 @@ export class Graph {
 			nodes.push(
 				this._checkpointNode(entry.node, id, {
 					name: entry.name,
-					factory: checkpointFactory(entry.factory, entry.node, false),
+					factory: checkpointFactory(entry.factory, entry.node, false, entry.restore),
 					deps: liveIds,
 					meta: entry.meta,
 				}),
@@ -559,6 +616,7 @@ function checkpointFactory(
 	name: string,
 	node: Node<unknown>,
 	unregistered: boolean,
+	restore?: { ref: string; config?: unknown; configVersion?: unknown },
 ): GraphCheckpointFactory {
 	const state = checkpointStateOfNode(node);
 	if (unregistered) {
@@ -568,6 +626,17 @@ function checkpointFactory(
 			reason: "node is an unregistered live dependency auto-discovered from topology",
 		};
 	}
+	if (restore !== undefined) {
+		const out: GraphCheckpointFactory = {
+			kind: "registry-ref",
+			ref: toCheckpointJson(restore.ref, `${name}.factory.ref`) as string,
+		};
+		if (restore.config !== undefined)
+			out.config = toCheckpointJson(restore.config, `${name}.factory.config`);
+		if (restore.configVersion !== undefined)
+			out.configVersion = toCheckpointJson(restore.configVersion, `${name}.factory.configVersion`);
+		return out;
+	}
 	if (state.handle !== null) {
 		return {
 			kind: "local-only",
@@ -575,7 +644,7 @@ function checkpointFactory(
 			reason: "node uses a function body; first-cut checkpoints do not serialize local functions",
 		};
 	}
-	return { kind: "registry-ref", name };
+	return { kind: "registry-ref", ref: name };
 }
 
 /** Filter a snapshot to the causal chain from→to (forward-reachable(from) ∩ back-reachable(to)). */
@@ -619,4 +688,29 @@ function explainSubset(
 /** Construct a Graph (default global dispatcher; L4-Q4). */
 export function graph(opts: GraphOptions = {}): Graph {
 	return new Graph(opts);
+}
+
+/** @internal D94 descriptor path: register a restored state node without widening Graph. */
+export function restoreStateNodeInGraph<T = unknown>(
+	graph: Graph,
+	id: string,
+	opts: SugarOpts<T> = {},
+): StateNode<T> {
+	const registrar = restoreRegistrars.get(graph);
+	if (registrar === undefined) throw new Error("restoreGraph: unknown graph restore registrar");
+	return registrar.stateNode(id, opts);
+}
+
+/** @internal D94 descriptor path: register a restored ctx-level node without widening Graph. */
+export function restoreNodeInGraph<T = unknown>(
+	graph: Graph,
+	id: string,
+	factory: string,
+	deps: readonly Node<unknown>[],
+	fn: NodeFn | null,
+	opts: SugarOpts<T> = {},
+): Node<T> {
+	const registrar = restoreRegistrars.get(graph);
+	if (registrar === undefined) throw new Error("restoreGraph: unknown graph restore registrar");
+	return registrar.node(id, factory, deps, fn, opts);
 }

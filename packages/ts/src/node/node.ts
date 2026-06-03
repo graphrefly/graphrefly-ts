@@ -128,9 +128,19 @@ export interface NodeCheckpointState {
 	readonly handle: Handle | null;
 }
 
+export interface NodeRestoreState {
+	readonly cache: unknown;
+	readonly hasData: boolean;
+	readonly status: Status;
+	readonly terminal: true | unknown | undefined;
+	readonly hasCalledFnOnce: boolean;
+	readonly ctxState: { readonly value: unknown; readonly persist: boolean };
+}
+
 let constructingCore: NodeCore | undefined;
 const ownerTokens = new WeakMap<Node<unknown>, unknown>();
 const checkpointReaders = new WeakMap<Node<unknown>, () => NodeCheckpointState>();
+const restoreWriters = new WeakMap<Node<unknown>, (state: NodeRestoreState) => void>();
 
 /** @internal Run a Node/StateNode constructor against a graph-local core without widening the public constructor. */
 export function withNodeCore<TNode extends Node<unknown>>(
@@ -161,6 +171,13 @@ export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
 	const read = checkpointReaders.get(n);
 	if (read === undefined) throw new Error("checkpoint: unknown node state");
 	return read();
+}
+
+/** @internal D94 restore commit: install runtime state without a protocol wave or subscription. */
+export function restoreStateOfNode(n: Node<unknown>, state: NodeRestoreState): void {
+	const write = restoreWriters.get(n);
+	if (write === undefined) throw new Error("restoreGraph: unknown node state");
+	write(state);
 }
 
 function terminalView(t: unknown): unknown {
@@ -321,6 +338,37 @@ export class Node<T = unknown> {
 			},
 			handle: this._slot.handle,
 		}));
+		restoreWriters.set(this as Node<unknown>, (state) => {
+			this._value.cache = state.cache as T;
+			this._value.hasData = state.hasData;
+			this._value.status = state.status;
+			this._value.terminal = state.terminal;
+			this._value.hasTorndown = false;
+			this._value.replayRing = [];
+			this._wave.hasCalledFnOnce = state.hasCalledFnOnce;
+			this._wave.emittedDirtyThisWave = false;
+			this._wave.emittedSettleThisWave = false;
+			this._wave.pending = 0;
+			this._wave.insideRunWave = false;
+			this._wave.inDepMutation = false;
+			this._wave.rewireRunPending = false;
+			this._wave.batchDirtyOwed = false;
+			this._control.pauseBuffer = [];
+			this._control.pausedDepWaveOccurred = false;
+			this._control.demandOwed = false;
+			this._control.inDeliverDemand = false;
+			this._control.pauseLockset.clear();
+			if (this._slot.pull) this._control.pauseLockset.add(this._slot.pullLock as LockId);
+			this._privateState.value = state.ctxState.value;
+			this._privateState.persist = state.ctxState.persist;
+			this._syncCtx = null;
+			this._resetDepState();
+			// A fresh restored graph has no subscribers before return. Keep activation closed so the
+			// first real subscriber wires deps normally; D94's preserved lifecycle bit is the first-run
+			// gate (`hasCalledFnOnce`), not a hidden subscription graph.
+			this._lifecycle.activated = false;
+			this._lifecycle.subscribers.clear();
+		});
 	}
 
 	/** R-pull (D55): true while a pull node is quiet (holds its own pullId/demand lock). */

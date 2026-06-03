@@ -13,8 +13,6 @@ export {
 	type GraphCheckpointTerminal,
 	type GraphCheckpointValue,
 	type GraphCheckpointVersion,
-	type RestoreGraphOptions,
-	restoreGraph,
 } from "./checkpoint.js";
 export type {
 	DescribeEdge,
@@ -32,3 +30,12 @@ export {
 	type SugarOpts,
 } from "./graph.js";
 export type { NodeProfile, ObserveEvent, ObserveStream, Profile } from "./inspect.js";
+export {
+	defaultRestoreRegistry,
+	type GraphRestoreDescriptor,
+	type GraphRestoreDescriptorContext,
+	type GraphRestoreRegistry,
+	type RestoreGraphOptions,
+	restoreGraph,
+	stateRestoreDescriptor,
+} from "./restore.js";
