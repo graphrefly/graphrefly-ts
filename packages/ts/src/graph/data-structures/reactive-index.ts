@@ -16,16 +16,15 @@ import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { Node, node } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
+import type { OrderedCapacityPolicy, ReactiveOpt } from "../policies/types.js";
 import type { IndexChange } from "./change.js";
 import { type CollectionCore, type CollectionCoreOptions, collectionCore } from "./core.js";
 
-export type ReactiveIndexOpt<T> = T | Node<T>;
+export type ReactiveIndexOpt<T> = ReactiveOpt<T>;
 export type ReactiveIndexCapacityOrder = "secondary" | "primary" | "lru";
 
-export interface ReactiveIndexCapacityPolicy {
-	readonly maxSize: ReactiveIndexOpt<number>;
-	readonly order: ReactiveIndexCapacityOrder;
-}
+export interface ReactiveIndexCapacityPolicy
+	extends OrderedCapacityPolicy<ReactiveIndexCapacityOrder> {}
 
 export interface ReactiveIndexOptions extends CollectionCoreOptions {
 	/**

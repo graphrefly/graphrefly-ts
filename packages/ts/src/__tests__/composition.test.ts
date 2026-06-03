@@ -99,6 +99,44 @@ describe("stratifyBranch (D56)", () => {
 		expect(branch.deps).toEqual([source, rules]);
 	});
 
+	it("drops source values while rules are still SENTINEL", () => {
+		const g = graph();
+		const source = g.node<number>([], null, { name: "source" });
+		const rules = g.node<{ pass: boolean }>([], null, { name: "rules" });
+		const branch = stratifyBranch(
+			source as Node<number>,
+			rules,
+			(rule: { pass: boolean }, _value: number) => rule.pass,
+		);
+		const { msgs } = collect(branch);
+
+		source.down([
+			["DATA", 1],
+			["DATA", 2],
+		]);
+
+		expect(data(msgs)).toEqual([]);
+	});
+
+	it("absorbs rules COMPLETE and keeps classifying with cached rules", () => {
+		const g = graph();
+		const source = g.node<number>([], null, { name: "source" });
+		const rules = g.state({ mod: 2 }, { name: "rules" });
+		const branch = stratifyBranch(
+			source as Node<number>,
+			rules,
+			(rule: { mod: number }, value: number) => value % rule.mod === 0,
+		);
+		const { msgs } = collect(branch);
+
+		source.down([["DATA", 2]]);
+		rules.down([["COMPLETE"]]);
+		source.down([["DATA", 4]]);
+
+		expect(data(msgs)).toEqual([2, 4]);
+		expect(msgs.some((m) => m[0] === "COMPLETE")).toBe(false);
+	});
+
 	it("forwards same-wave DATA before source terminal", () => {
 		const g = graph();
 		const source = g.node<number>([], null, { name: "source" });
@@ -114,6 +152,53 @@ describe("stratifyBranch (D56)", () => {
 
 		expect(data(msgs)).toEqual([7]);
 		expect(msgs.at(-1)?.[0]).toBe("COMPLETE");
+	});
+
+	it("forwards source ERROR while ignoring rules terminal state", () => {
+		const g = graph();
+		const source = g.node<number>([], null, { name: "source" });
+		const rules = g.state({ pass: true }, { name: "rules" });
+		const branch = stratifyBranch(
+			source as Node<number>,
+			rules,
+			(rule: { pass: boolean }, _value: number) => rule.pass,
+		);
+		const { msgs } = collect(branch);
+
+		rules.down([["COMPLETE"]]);
+		source.down([["ERROR", "boom"]]);
+
+		expect(msgs.at(-1)).toEqual(["ERROR", "boom"]);
+	});
+
+	it("keeps multiple branches over one source independent", () => {
+		const g = graph();
+		const source = g.node<number>([], null, { name: "source" });
+		const rules = g.state({ mod: 3 }, { name: "rules" });
+		const zeros = stratifyBranch(
+			source as Node<number>,
+			rules,
+			(rule: { mod: number }, value: number) => value % rule.mod === 0,
+		);
+		const ones = stratifyBranch(
+			source as Node<number>,
+			rules,
+			(rule: { mod: number }, value: number) => value % rule.mod === 1,
+		);
+		const twos = stratifyBranch(
+			source as Node<number>,
+			rules,
+			(rule: { mod: number }, value: number) => value % rule.mod === 2,
+		);
+		const z = collect(zeros);
+		const o = collect(ones);
+		const t = collect(twos);
+
+		for (const n of [0, 1, 2, 3, 4, 5, 6, 7, 8]) source.down([["DATA", n]]);
+
+		expect(data(z.msgs)).toEqual([0, 3, 6]);
+		expect(data(o.msgs)).toEqual([1, 4, 7]);
+		expect(data(t.msgs)).toEqual([2, 5, 8]);
 	});
 });
 

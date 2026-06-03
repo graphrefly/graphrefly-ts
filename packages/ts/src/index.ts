@@ -145,6 +145,13 @@ export {
 	type ValveOpts,
 	valve,
 } from "./graph/operators.js";
+export type {
+	CapacityPolicy,
+	OrderedCapacityPolicy,
+	ReactiveOpt,
+	RetentionPolicy,
+	ViewCachePolicy,
+} from "./graph/policies/types.js";
 export {
 	type DescribeToAsciiOptions,
 	type DescribeToD2Options,

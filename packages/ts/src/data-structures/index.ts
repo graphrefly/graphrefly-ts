@@ -33,3 +33,10 @@ export {
 	type ReactiveMapRetentionPolicy,
 	reactiveMap,
 } from "../graph/data-structures/reactive-map.js";
+export type {
+	CapacityPolicy,
+	OrderedCapacityPolicy,
+	ReactiveOpt,
+	RetentionPolicy,
+	ViewCachePolicy,
+} from "../graph/policies/types.js";

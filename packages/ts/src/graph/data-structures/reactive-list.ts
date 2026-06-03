@@ -17,10 +17,11 @@ import { Node } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import { trimHeadOverflow } from "../policies/collection.js";
+import type { ReactiveOpt } from "../policies/types.js";
 import type { ListChange } from "./change.js";
 import { type CollectionCore, type CollectionCoreOptions, collectionCore } from "./core.js";
 
-export type ReactiveListOpt<T> = T | Node<T>;
+export type ReactiveListOpt<T> = ReactiveOpt<T>;
 
 export interface ReactiveListOptions extends CollectionCoreOptions {
 	/**

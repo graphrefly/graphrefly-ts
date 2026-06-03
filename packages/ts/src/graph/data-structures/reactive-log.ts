@@ -4,7 +4,7 @@
  * Shape = the shared {@link collectionCore} two ports over an array (or ring-buffer if `maxSize`)
  * BACKEND (D60). Specializations (D60 #5 / review #5):
  *   - SNAPSHOT (the full `readonly T[]`) is the lazy pull port like the others, BUT the log's main
- *     consumption is INCREMENTAL: `view(tail/slice)` and `scan` re-derive on the DELTA backbone
+ *     consumption is INCREMENTAL: `tail()` / `slice()` / `scan()` re-derive on the DELTA backbone
  *     (dep=[delta]), folding each appended value as it arrives — NOT re-scanning a pushed full array.
  *   - `append(undefined)` throws: `undefined` is the substrate SENTINEL (R-data-payload / R-sentinel),
  *     not a valid value.
@@ -31,7 +31,7 @@ export interface ReactiveLogOptions extends CollectionCoreOptions {
 
 export interface ReactiveLog<T> {
 	readonly delta: Node<LogChange<T>>;
-	/** SNAPSHOT pull node: demand → full `readonly T[]` (lazy O(n)). For incremental use {@link view}/{@link scan}. */
+	/** SNAPSHOT pull node: demand → full `readonly T[]` (lazy O(n)). For incremental use {@link tail}, {@link slice}, or {@link scan}. */
 	readonly snapshot: Node<readonly T[]>;
 	readonly pullId: symbol;
 	/** Entry count (O(1)). Sync non-reactive read. */
@@ -49,9 +49,16 @@ export interface ReactiveLog<T> {
 	trimHead(n: number): void;
 	/**
 	 * Incremental tail view: a derived node emitting the last `n` entries, recomputed on each delta
-	 * (dep=[delta], D60 #5a). Memoized per `n`. Subscribe to keep it live.
+	 * (dep=[delta], D60 #5a). Memoized per `n` until {@link dispose}; use stable ranges for
+	 * long-lived logs. Subscribe to keep it live.
 	 */
 	tail(n: number): Node<readonly T[]>;
+	/**
+	 * Incremental positional view: a derived node emitting `toArray().slice(start, stop)`,
+	 * recomputed on each delta (dep=[delta], D60 #5a). Memoized per `[start, stop]` until
+	 * {@link dispose}; use stable ranges for long-lived logs.
+	 */
+	slice(start: number, stop?: number): Node<readonly T[]>;
 	/**
 	 * Incremental running aggregate over appended values (dep=[delta], D60 #5a). O(1) per append —
 	 * folds only the new values each delta; resets on `clear`/`trimHead` (a non-append delta) via a
@@ -138,6 +145,7 @@ export function reactiveLog<T>(
 	options: ReactiveLogOptions = {},
 ): ReactiveLog<T> {
 	const { maxSize, ...coreOpts } = options;
+	const base = coreOpts.dispatcher ? { dispatcher: coreOpts.dispatcher } : {};
 	const backend = new LogBackend<T>(initial, maxSize);
 	const core: CollectionCore<readonly T[], LogChange<T>> = collectionCore(
 		backend,
@@ -146,6 +154,7 @@ export function reactiveLog<T>(
 	);
 	const binds: Array<() => void> = [];
 	const tailMemo = new Map<number, Node<readonly T[]>>();
+	const sliceMemo = new Map<string, Node<readonly T[]>>();
 
 	return {
 		delta: core.delta,
@@ -197,10 +206,33 @@ export function reactiveLog<T>(
 					const all = backend.snapshot();
 					ctx.down([["DATA", n === 0 ? [] : all.slice(Math.max(0, all.length - n))]]);
 				},
-				{ factory: "reactiveLog.tail", partial: true },
+				{ ...base, factory: "reactiveLog.tail", partial: true },
 			);
 			tailMemo.set(n, tnode);
 			return tnode;
+		},
+
+		slice(start: number, stop?: number): Node<readonly T[]> {
+			if (!Number.isInteger(start) || start < 0) {
+				throw new RangeError(`slice: start must be a non-negative integer (got ${start})`);
+			}
+			if (stop !== undefined && (!Number.isInteger(stop) || stop < 0)) {
+				throw new RangeError(`slice: stop must be a non-negative integer (got ${stop})`);
+			}
+			const key = `${start}:${stop ?? ""}`;
+			const hit = sliceMemo.get(key);
+			if (hit !== undefined) return hit;
+			// Incremental on the DELTA backbone (D60 #5a): each delta re-reads this log's own
+			// backend slice. The backend is the single materialized state (D60), not a dep cache.
+			const snode = node<readonly T[]>(
+				[core.delta as Node<unknown>],
+				(ctx: Ctx) => {
+					ctx.down([["DATA", backend.snapshot().slice(start, stop)]]);
+				},
+				{ ...base, factory: "reactiveLog.slice", partial: true },
+			);
+			sliceMemo.set(key, snode);
+			return snode;
 		},
 
 		scan<A>(initial: A, step: (acc: A, value: T) => A): Node<A> {
@@ -227,7 +259,7 @@ export function reactiveLog<T>(
 					ctx.state.set(st);
 					ctx.down([["DATA", st.acc]]);
 				},
-				{ factory: "reactiveLog.scan", partial: true },
+				{ ...base, factory: "reactiveLog.scan", partial: true },
 			);
 		},
 
@@ -244,6 +276,7 @@ export function reactiveLog<T>(
 			for (const d of binds) d();
 			binds.length = 0;
 			tailMemo.clear();
+			sliceMemo.clear();
 		},
 	};
 }

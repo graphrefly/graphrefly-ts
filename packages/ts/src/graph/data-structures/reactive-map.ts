@@ -41,18 +41,20 @@ import {
 	selectRetentionVictims,
 	trimHeadOverflow,
 } from "../policies/collection.js";
+import type { ReactiveOpt, RetentionPolicy } from "../policies/types.js";
 import { timer } from "../sources.js";
 import type { MapChange } from "./change.js";
 import type { CollectionCoreOptions } from "./core.js";
 
-export type ReactiveMapOpt<T> = T | Node<T>;
+export type ReactiveMapOpt<T> = ReactiveOpt<T>;
 
 export interface ReactiveMapRetentionEntry<K, V> {
 	readonly key: K;
 	readonly value: V;
 }
 
-export interface ReactiveMapRetentionPolicy<K, V> {
+export interface ReactiveMapRetentionPolicy<K, V>
+	extends RetentionPolicy<ReactiveMapRetentionEntry<K, V>> {
 	/** Archive capacity. Unlike LRU, zero is allowed and archives every live entry. */
 	readonly maxSize?: ReactiveMapOpt<number>;
 	/** Higher scores are retained; lowest finite scores are archived first. */

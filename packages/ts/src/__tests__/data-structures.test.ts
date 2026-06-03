@@ -11,13 +11,14 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { combine } from "../graph/combinators.js";
 import { reactiveIndex } from "../graph/data-structures/reactive-index.js";
 import { reactiveList } from "../graph/data-structures/reactive-list.js";
 import { mergeReactiveLogs, reactiveLog } from "../graph/data-structures/reactive-log.js";
 import { reactiveMap } from "../graph/data-structures/reactive-map.js";
 import { graph } from "../graph/graph.js";
 import { selectRetentionVictims } from "../graph/policies/collection.js";
-import type { Message } from "../index.js";
+import { Dispatcher, type Message } from "../index.js";
 import type { Node } from "../node/node.js";
 
 const types = (m: Message[]) => m.map((x) => x[0]);
@@ -28,6 +29,14 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((m) => msgs.push(m));
 	return { msgs, unsub };
+}
+
+class CountingDispatcher extends Dispatcher {
+	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {
+		this.registerCount += 1;
+		return super.register(...args);
+	}
+	registerCount = 0;
 }
 
 /** Demand the snapshot directly (the substrate cone-routed RESUME of its pullId, R-pull/D59). */
@@ -800,6 +809,89 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		log.append(2);
 		log.append(3);
 		expect(data(msgs).at(-1)).toEqual([2, 3]);
+	});
+
+	it("slice(start, stop?) is an incremental positional view on the delta backbone", () => {
+		const log = reactiveLog<number>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+		const window = log.slice(2, 5);
+		const toEnd = log.slice(7);
+		const { msgs: windowMsgs } = collect(window);
+		const { msgs: toEndMsgs } = collect(toEnd);
+
+		expect(data(windowMsgs)).toEqual([]);
+		expect(data(toEndMsgs)).toEqual([]);
+
+		log.append(10);
+		expect(data(windowMsgs).at(-1)).toEqual([2, 3, 4]);
+		expect(data(toEndMsgs).at(-1)).toEqual([7, 8, 9, 10]);
+	});
+
+	it("slice(start, stop) is memoized by range and validates non-negative integer bounds", () => {
+		const log = reactiveLog<number>();
+		const a = log.slice(1, 3);
+		const b = log.slice(1, 3);
+		const c = log.slice(1);
+		expect(a).toBe(b);
+		expect(a).not.toBe(c);
+		expect(() => log.slice(-1, 3)).toThrow(RangeError);
+		expect(() => log.slice(0, -1)).toThrow(RangeError);
+		expect(() => log.slice(1.5, 3)).toThrow(RangeError);
+	});
+
+	it("slice(start, stop) remains positional after trimHead shifts the backend", () => {
+		const log = reactiveLog<number>([10, 20, 30, 40, 50, 60, 70, 80]);
+		const window = log.slice(2, 5);
+		const { msgs } = collect(window);
+		expect(data(msgs)).toEqual([]);
+
+		log.trimHead(3);
+
+		expect(data(msgs).at(-1)).toEqual([60, 70, 80]);
+	});
+
+	it("tail and slice do not replay stale construction snapshots when subscribed cold", () => {
+		const log = reactiveLog<number>([1, 2, 3]);
+		const tail = log.tail(2);
+		const slice = log.slice(1);
+
+		log.append(4);
+
+		const { msgs: tailMsgs } = collect(tail);
+		const { msgs: sliceMsgs } = collect(slice);
+
+		expect(data(tailMsgs)).toEqual([[3, 4]]);
+		expect(data(sliceMsgs)).toEqual([[2, 3, 4]]);
+	});
+
+	it("tail and slice views settle consistently from the same delta diamond", () => {
+		const g = graph();
+		const log = reactiveLog<number>();
+		const tail = log.tail(2);
+		const slice = log.slice(0, 3);
+		const joined = g.initNode(combine<readonly [readonly number[], readonly number[]]>(), [
+			tail,
+			slice,
+		]);
+		const { msgs } = collect(joined);
+
+		log.appendMany([10, 20, 30, 40, 50]);
+
+		expect(data(msgs).at(-1)).toEqual([
+			[40, 50],
+			[10, 20, 30],
+		]);
+	});
+
+	it("tail/slice/scan helpers bind to the collection dispatcher (D80 vocabulary only; runtime stays structure-owned)", () => {
+		const dispatcher = new CountingDispatcher();
+		const log = reactiveLog<number>([], { dispatcher });
+		expect(dispatcher.registerCount).toBe(1); // collectionCore snapshot pull node
+
+		log.tail(2);
+		log.slice(1, 3);
+		log.scan(0, (acc, value) => acc + value);
+
+		expect(dispatcher.registerCount).toBe(4);
 	});
 
 	it("scan folds incrementally; resets on clear", () => {
