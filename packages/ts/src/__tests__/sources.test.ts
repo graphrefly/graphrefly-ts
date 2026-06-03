@@ -170,6 +170,25 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
 	});
 
+	it("fromAsyncIter reports async iterator failure as ERROR after prior DATA", async () => {
+		async function* throwingGen() {
+			yield 1;
+			throw new Error("async iter boom");
+		}
+		const g = graph();
+		const n = g.initNode(fromAsyncIter(throwingGen()), []);
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+		await flush();
+
+		expect(data(msgs)).toEqual([1]);
+		const last = msgs[msgs.length - 1];
+		expect(last[0]).toBe("ERROR");
+		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		expect((last as ["ERROR", Error])[1].message).toBe("async iter boom");
+		expect(n.status).toBe("errored");
+	});
+
 	it("of emits a single value then COMPLETE synchronously", () => {
 		const g = graph();
 		const n = g.initNode(of(42), []);
@@ -202,6 +221,24 @@ describe("promise / iterable / coercion sources (D43)", () => {
 			if (m[0] === "DATA") vals.push(m[1]);
 		});
 		expect(vals).toEqual([1, 2, 3]);
+	});
+
+	it("fromIter reports a throwing iterator as ERROR after prior DATA", () => {
+		function* throwingIter() {
+			yield 1;
+			throw new Error("iter boom");
+		}
+		const g = graph();
+		const n = g.initNode(fromIter(throwingIter()), []);
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+
+		expect(data(msgs)).toEqual([1]);
+		const last = msgs[msgs.length - 1];
+		expect(last[0]).toBe("ERROR");
+		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		expect((last as ["ERROR", Error])[1].message).toBe("iter boom");
+		expect(n.status).toBe("errored");
 	});
 
 	it("empty completes without DATA", () => {
@@ -266,6 +303,16 @@ describe("promise / iterable / coercion sources (D43)", () => {
 			if (m[0] === "DATA") got.push(m[1]);
 		});
 		expect(got).toEqual([[1, 2, 3]]);
+	});
+
+	it("fromAny treats null as a valid scalar DATA value (R-data-payload)", () => {
+		const n = fromAny(null);
+		const msgs: Message[] = [];
+		n.subscribe((x) => msgs.push(x));
+
+		expect(data(msgs)).toEqual([null]);
+		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
+		expect(n.status).toBe("completed");
 	});
 
 	it("describe shows the source factory name (D6)", () => {
