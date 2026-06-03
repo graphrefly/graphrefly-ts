@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { describe, expect, it, vi } from "vitest";
 import type {
 	KvStorageTier,
@@ -21,17 +22,24 @@ import {
 	decimalStringToBigInt,
 	envelopeChange,
 	graph,
+	hasKvPutIfAbsent,
+	hasStoragePutIfAbsent,
 	isDecimalIntegerString,
 	isNonNegativeDecimalIntegerString,
 	jsonCodecFor,
 	kvStorage,
 	listByPrefix,
 	memoryAppendLog,
+	memoryBackend,
 	memoryKv,
+	memoryMultiWriterAppendLog,
+	multiWriterAppendLogStorage,
 	nonNegativeDecimalStringToBigInt,
 	nowNs,
 	observeEventFrame,
 	observeEventFrameCodec,
+	requireKvPutIfAbsent,
+	requireStoragePutIfAbsent,
 	stableJsonString,
 	strictJsonCodec,
 	strictJsonCodecFor,
@@ -612,6 +620,60 @@ describe("D82 storage substrate helpers", () => {
 		expect(await listByPrefix(kv, "items/")).toEqual(["items/001", "items/002"]);
 	});
 
+	it("memoryBackend putIfAbsent creates once, preserves bytes, and clones", async () => {
+		const backend = memoryBackend();
+		const first = new Uint8Array([1, 2, 3]);
+		const second = new Uint8Array([9, 9, 9]);
+
+		expect(hasStoragePutIfAbsent(backend)).toBe(true);
+		expect(requireStoragePutIfAbsent(backend)).toBe(backend);
+		expect(await backend.putIfAbsent("k", first)).toBe(true);
+		first[0] = 7;
+
+		expect(await backend.putIfAbsent("k", second)).toBe(false);
+		second[1] = 8;
+		const stored = await backend.get("k");
+		expect([...stored!]).toEqual([1, 2, 3]);
+		stored![0] = 6;
+		expect([...(await backend.get("k"))!]).toEqual([1, 2, 3]);
+	});
+
+	it("memoryBackend clones Node Buffer inputs instead of storing shared views", async () => {
+		const backend = memoryBackend();
+		const input = Buffer.from([1, 2, 3]);
+
+		expect(await backend.putIfAbsent("buf", input)).toBe(true);
+		input[0] = 9;
+		const stored = await backend.get("buf");
+		expect([...stored!]).toEqual([1, 2, 3]);
+
+		stored![1] = 8;
+		expect([...(await backend.get("buf"))!]).toEqual([1, 2, 3]);
+	});
+
+	it("typed KV putIfAbsent respects codecs and preserves existing values", async () => {
+		const backend = memoryBackend();
+		const encoder = new TextEncoder();
+		const decoder = new TextDecoder();
+		const encode = vi.fn((value: { value: number }) => encoder.encode(`v:${value.value}`));
+		const kv = kvStorage({
+			backend,
+			codec: {
+				encode,
+				decode: (bytes) => ({ value: Number(decoder.decode(bytes).slice(2)) }),
+			},
+		});
+
+		expect(hasKvPutIfAbsent(kv)).toBe(true);
+		expect(requireKvPutIfAbsent(kv)).toBe(kv);
+		await expect(kv.putIfAbsent!("item", { value: 1 })).resolves.toBe(true);
+		await expect(kv.putIfAbsent!("item", { value: 2 })).resolves.toBe(false);
+
+		expect(encode.mock.calls.map(([value]) => value.value)).toEqual([1, 2]);
+		expect(await kv.get("item")).toEqual({ value: 1 });
+		expect(decoder.decode(await backend.get("item"))).toBe("v:1");
+	});
+
 	it("kvStorage routes sync backend and codec failures through the returned Promise", async () => {
 		const kv = kvStorage({
 			backend: {
@@ -630,6 +692,19 @@ describe("D82 storage substrate helpers", () => {
 		await expect(kv.get("x")).rejects.toThrow("get boom");
 		await expect(kv.set("x", { value: 1 })).rejects.toThrow("put boom");
 		await expect(kv.list()).rejects.toThrow("list boom");
+	});
+
+	it("kvStorage omits putIfAbsent when the byte backend lacks the capability", () => {
+		const kv = kvStorage({
+			backend: {
+				get: () => undefined,
+				put: () => undefined,
+				list: () => [],
+			},
+		});
+
+		expect(hasKvPutIfAbsent(kv)).toBe(false);
+		expect(() => requireKvPutIfAbsent(kv)).toThrow(/does not support putIfAbsent/);
 	});
 
 	it("append logs paginate by cursor and can truncate later entries", async () => {
@@ -663,6 +738,47 @@ describe("D82 storage substrate helpers", () => {
 			[0, "a"],
 			[1, "b"],
 		]);
+	});
+
+	it("plain append logs remain single-writer and can collide under competing handles", async () => {
+		const entries = new Map<string, { value: string }>();
+		const heldLists: Array<() => void> = [];
+		let heldListCount = 2;
+		const listKeys = (prefix = "") =>
+			[...entries.keys()].filter((key) => key.startsWith(prefix)).sort();
+		const kv: KvStorageTier<{ value: string }> = {
+			get: (key) => Promise.resolve(entries.get(key)),
+			set: (key, value) => {
+				entries.set(key, value);
+				return Promise.resolve();
+			},
+			delete: (key) => {
+				entries.delete(key);
+				return Promise.resolve();
+			},
+			list: (prefix = "") => {
+				if (heldListCount > 0) {
+					heldListCount -= 1;
+					return new Promise<readonly string[]>((resolve) => {
+						heldLists.push(() => resolve(listKeys(prefix)));
+					});
+				}
+				return Promise.resolve(listKeys(prefix));
+			},
+		};
+		const a = appendLogStorage({ kv, prefix: "race" });
+		const b = appendLogStorage({ kv, prefix: "race" });
+
+		const appendA = a.append({ value: "a" });
+		const appendB = b.append({ value: "b" });
+		await Promise.resolve();
+		expect(heldLists).toHaveLength(2);
+		for (const release of heldLists) release();
+
+		const written = await Promise.all([appendA, appendB]);
+		expect(written.map((entry) => entry.seq)).toEqual([0, 0]);
+		expect((await a.read()).map((entry) => entry.seq)).toEqual([0]);
+		expect(await a.size()).toBe(1);
 	});
 
 	it("append logs reject malformed keys under the log prefix", async () => {
@@ -711,6 +827,136 @@ describe("D82 storage substrate helpers", () => {
 
 		expect((await log.read()).map((entry) => entry.seq)).toEqual([0, 1]);
 		expect(await log.size()).toBe(2);
+	});
+
+	it("multi-writer append logs reject KV tiers without putIfAbsent clearly", () => {
+		const kv: KvStorageTier<{ value: string }> = {
+			get: () => Promise.resolve(undefined),
+			set: () => Promise.resolve(),
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([]),
+		};
+
+		expect(() => multiWriterAppendLogStorage({ kv, prefix: "unsupported" })).toThrow(/putIfAbsent/);
+	});
+
+	it("multi-writer append logs reject kvStorage backed by plain byte KV", () => {
+		const kv = kvStorage<{ value: string }>({
+			backend: {
+				get: () => undefined,
+				put: () => undefined,
+				list: () => [],
+			},
+		});
+
+		expect(() => multiWriterAppendLogStorage({ kv, prefix: "plain-byte" })).toThrow(/putIfAbsent/);
+	});
+
+	it("multi-writer append logs retry conditional creates into unique ordered sequence keys", async () => {
+		const entries = new Map<string, { value: string }>();
+		const heldLists: Array<() => void> = [];
+		let heldListCount = 2;
+		const listKeys = (prefix = "") =>
+			[...entries.keys()].filter((key) => key.startsWith(prefix)).sort();
+		const kv: KvStorageTier<{ value: string }> = {
+			get: (key) => Promise.resolve(entries.get(key)),
+			set: (key, value) => {
+				entries.set(key, value);
+				return Promise.resolve();
+			},
+			putIfAbsent: (key, value) => {
+				if (entries.has(key)) return Promise.resolve(false);
+				entries.set(key, value);
+				return Promise.resolve(true);
+			},
+			delete: (key) => {
+				entries.delete(key);
+				return Promise.resolve();
+			},
+			list: (prefix = "") => {
+				if (heldListCount > 0) {
+					heldListCount -= 1;
+					return new Promise<readonly string[]>((resolve) => {
+						heldLists.push(() => resolve(listKeys(prefix)));
+					});
+				}
+				return Promise.resolve(listKeys(prefix));
+			},
+		};
+		const a = multiWriterAppendLogStorage({ kv, prefix: "mw" });
+		const b = multiWriterAppendLogStorage({ kv, prefix: "mw" });
+
+		const appendA = a.append({ value: "a" });
+		const appendB = b.append({ value: "b" });
+		await Promise.resolve();
+		expect(heldLists).toHaveLength(2);
+		for (const release of heldLists) release();
+
+		const written = await Promise.all([appendA, appendB]);
+		expect(written.map((entry) => entry.seq).sort((x, y) => x - y)).toEqual([0, 1]);
+		expect([...entries.keys()]).toEqual(["mw/00000000000000000000", "mw/00000000000000000001"]);
+		expect((await a.read()).map((entry) => [entry.seq, entry.value.value])).toEqual([
+			[0, "a"],
+			[1, "b"],
+		]);
+	});
+
+	it("multi-writer append logs refresh the listed tail after a retry window", async () => {
+		const entries = new Map<string, { value: string }>([
+			["refresh/00000000000000000000", { value: "existing-0" }],
+			["refresh/00000000000000000001", { value: "existing-1" }],
+		]);
+		let staleList = true;
+		const kv: KvStorageTier<{ value: string }> = {
+			get: (key) => Promise.resolve(entries.get(key)),
+			set: (key, value) => {
+				entries.set(key, value);
+				return Promise.resolve();
+			},
+			putIfAbsent: (key, value) => {
+				if (entries.has(key)) return Promise.resolve(false);
+				entries.set(key, value);
+				return Promise.resolve(true);
+			},
+			delete: (key) => {
+				entries.delete(key);
+				return Promise.resolve();
+			},
+			list: (prefix = "") => {
+				if (staleList) {
+					staleList = false;
+					return Promise.resolve([]);
+				}
+				return Promise.resolve([...entries.keys()].filter((key) => key.startsWith(prefix)).sort());
+			},
+		};
+		const log = multiWriterAppendLogStorage({ kv, prefix: "refresh", maxAttempts: 2 });
+
+		await expect(log.append({ value: "new" })).resolves.toMatchObject({
+			key: "refresh/00000000000000000002",
+			seq: 2,
+		});
+		expect((await log.read()).map((entry) => [entry.seq, entry.value.value])).toEqual([
+			[0, "existing-0"],
+			[1, "existing-1"],
+			[2, "new"],
+		]);
+	});
+
+	it("multi-writer append logs reject truncate without a stronger compaction capability", async () => {
+		const log = memoryMultiWriterAppendLog<{ value: string }>("mw-truncate");
+		await log.append({ value: "a" });
+
+		await expect(log.truncateAfter(0)).rejects.toThrow(/unsupported/);
+		expect((await log.read()).map((entry) => entry.value.value)).toEqual(["a"]);
+	});
+
+	it("memoryMultiWriterAppendLog uses putIfAbsent-backed allocation", async () => {
+		const log = memoryMultiWriterAppendLog<{ value: string }>("memory-mw");
+
+		await Promise.all([log.append({ value: "a" }), log.append({ value: "b" })]);
+
+		expect((await log.read()).map((entry) => entry.seq)).toEqual([0, 1]);
 	});
 
 	it("append-log reads are serialized before later mutations", async () => {
@@ -848,10 +1094,20 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.nonNegativeDecimalStringToBigInt).toBe(nonNegativeDecimalStringToBigInt);
 			expect(exports.strictJsonCodec).toBe(strictJsonCodec);
 			expect(exports.strictJsonCodecFor).toBe(strictJsonCodecFor);
+			expect(exports.hasKvPutIfAbsent).toBe(hasKvPutIfAbsent);
+			expect(exports.hasStoragePutIfAbsent).toBe(hasStoragePutIfAbsent);
+			expect(exports.memoryBackend).toBe(memoryBackend);
+			expect(exports.memoryMultiWriterAppendLog).toBe(memoryMultiWriterAppendLog);
+			expect(exports.multiWriterAppendLogStorage).toBe(multiWriterAppendLogStorage);
+			expect(exports.requireKvPutIfAbsent).toBe(requireKvPutIfAbsent);
+			expect(exports.requireStoragePutIfAbsent).toBe(requireStoragePutIfAbsent);
 			expect("attachSnapshotStorage" in exports).toBe(false);
+			expect("checkpoint" in exports).toBe(false);
+			expect("restoreGraph" in exports).toBe(false);
 			expect("restoreSnapshot" in exports).toBe(false);
 			expect("GraphRestore" in exports).toBe(false);
 		}
+		expect("checkpoint" in graph()).toBe(false);
 		expect("restoreSnapshot" in graph()).toBe(false);
 	});
 });

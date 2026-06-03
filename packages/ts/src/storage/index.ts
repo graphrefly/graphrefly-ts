@@ -13,9 +13,20 @@ export {
 	type AppendLogStorageTier,
 	appendLogKey,
 	appendLogStorage,
+	type MultiWriterAppendLogOptions,
+	type MultiWriterAppendLogStorageTier,
 	memoryAppendLog,
+	memoryMultiWriterAppendLog,
+	multiWriterAppendLogStorage,
 } from "./append-log.js";
-export { type MemoryBackend, memoryBackend, type StorageBackend } from "./backend.js";
+export {
+	hasStoragePutIfAbsent,
+	type MemoryBackend,
+	memoryBackend,
+	type PutIfAbsentStorageBackend,
+	requireStoragePutIfAbsent,
+	type StorageBackend,
+} from "./backend.js";
 export {
 	assertChangeEnvelope,
 	type ChangeEnvelope,
@@ -46,11 +57,14 @@ export {
 } from "./content-addressed.js";
 export {
 	dictKv,
+	hasKvPutIfAbsent,
 	type KvStorageOptions,
 	type KvStorageTier,
 	kvStorage,
 	listByPrefix,
 	memoryKv,
+	type PutIfAbsentKvStorageTier,
+	requireKvPutIfAbsent,
 } from "./kv.js";
 export {
 	type AttachObserveEventLogOptions,

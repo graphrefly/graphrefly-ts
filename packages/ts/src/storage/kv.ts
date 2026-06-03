@@ -1,5 +1,4 @@
-import type { StorageBackend } from "./backend.js";
-import { memoryBackend } from "./backend.js";
+import { hasStoragePutIfAbsent, memoryBackend, type StorageBackend } from "./backend.js";
 import type { Codec } from "./codec.js";
 import { jsonCodecFor } from "./codec.js";
 
@@ -7,8 +6,30 @@ import { jsonCodecFor } from "./codec.js";
 export interface KvStorageTier<T = unknown> {
 	get(key: string): Promise<T | undefined>;
 	set(key: string, value: T): Promise<void>;
+	putIfAbsent?(key: string, value: T): Promise<boolean>;
 	delete(key: string): Promise<void>;
 	list(prefix?: string): Promise<readonly string[]>;
+}
+
+/** Typed D85 conditional-create capability over a KV tier. */
+export interface PutIfAbsentKvStorageTier<T = unknown> extends KvStorageTier<T> {
+	putIfAbsent(key: string, value: T): Promise<boolean>;
+}
+
+/** Runtime guard for typed KV tiers that expose D85 conditional create. */
+export function hasKvPutIfAbsent<T>(tier: KvStorageTier<T>): tier is PutIfAbsentKvStorageTier<T> {
+	return typeof tier.putIfAbsent === "function";
+}
+
+/** Require D85 conditional-create support and produce a clear adapter error when absent. */
+export function requireKvPutIfAbsent<T>(
+	tier: KvStorageTier<T>,
+	label = "kvStorage",
+): PutIfAbsentKvStorageTier<T> {
+	if (!hasKvPutIfAbsent(tier)) {
+		throw new Error(`${label}: KV tier does not support putIfAbsent`);
+	}
+	return tier;
 }
 
 /** Options for wrapping a byte backend as a typed KV tier. */
@@ -25,7 +46,7 @@ function defer<T>(fn: () => T | PromiseLike<T>): Promise<T> {
 export function kvStorage<T = unknown>(opts: KvStorageOptions<T>): KvStorageTier<T> {
 	const codec = opts.codec ?? jsonCodecFor<T>();
 	const { backend } = opts;
-	return {
+	const tier: KvStorageTier<T> = {
 		get(key) {
 			return defer(() => backend.get(key)).then((bytes) =>
 				bytes === undefined ? undefined : codec.decode(bytes),
@@ -42,6 +63,14 @@ export function kvStorage<T = unknown>(opts: KvStorageOptions<T>): KvStorageTier
 				if (!backend.list) throw new Error("kvStorage.list: backend does not support listing");
 				return backend.list(prefix);
 			}).then((keys) => [...keys].sort());
+		},
+	};
+	if (!hasStoragePutIfAbsent(backend)) return tier;
+	const capableBackend = backend;
+	return {
+		...tier,
+		putIfAbsent(key, value) {
+			return defer(() => capableBackend.putIfAbsent(key, codec.encode(value)));
 		},
 	};
 }
