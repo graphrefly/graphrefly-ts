@@ -68,7 +68,7 @@ import {
 	webStorageBackend,
 } from "../index.js";
 import * as storageExports from "../storage/index.js";
-import { fileAppendLog, fileBackend, fileKv, sqliteBackend } from "../storage/node.js";
+import { fileAppendLog, fileBackend, fileKv, sqliteBackend, sqliteKv } from "../storage/node.js";
 
 interface TestStorage {
 	entries: Record<string, string>;
@@ -987,6 +987,61 @@ describe("D82 storage substrate helpers", () => {
 		expect(await hot.get("k")).toBe(1);
 	});
 
+	it("tieredReadThrough does not bypass a versioned target when generation lookup failed", async () => {
+		const calls: string[] = [];
+		const errors: string[] = [];
+		const hotTier: KvStorageTier<number> = {
+			get: () => {
+				calls.push("get");
+				return Promise.resolve(undefined);
+			},
+			set: () => {
+				calls.push("set");
+				throw new Error("plain set must not run");
+			},
+			getVersioned: () => {
+				calls.push("getVersioned");
+				throw new Error("versioned read failed");
+			},
+			setIfMatch: () => {
+				calls.push("setIfMatch");
+				return Promise.resolve(true);
+			},
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([]),
+		};
+		const cold = memoryKv<number>();
+		await cold.set("k", 9);
+
+		const result = await tieredReadThrough({
+			key: "k",
+			tiers: [hotTier, cold],
+			promoteTo: [0],
+			onError: (ctx) => {
+				errors.push(`${ctx.stage}:${String((ctx.error as Error).message ?? ctx.error)}`);
+			},
+		});
+
+		expect(result.status).toBe("hit");
+		expect(result.value).toBe(9);
+		expect(result.facts.map((fact) => [fact.kind, fact.tier.index])).toEqual([
+			["error", 0],
+			["hit", 1],
+		]);
+		expect(result.promotions).toEqual([
+			expect.objectContaining({
+				tier: { index: 0 },
+				ok: false,
+			}),
+		]);
+		expect(String(result.promotions[0]?.error)).toContain("not observed with a generation");
+		expect(calls).toEqual(["getVersioned"]);
+		expect(errors).toEqual([
+			"lookup:versioned read failed",
+			"promotion:tieredReadThrough: versioned promotion target was not observed with a generation",
+		]);
+	});
+
 	it("memoryBackend putIfAbsent creates once, preserves bytes, and clones", async () => {
 		const backend = memoryBackend();
 		const first = new Uint8Array([1, 2, 3]);
@@ -1121,6 +1176,99 @@ describe("D82 storage substrate helpers", () => {
 	it("sqliteBackend validates table names before touching optional node:sqlite", () => {
 		expect(() => sqliteBackend(":memory:", { tableName: "bad-name" })).toThrow(/tableName/);
 		expect(() => sqliteBackend(":memory:", { tableName: "1bad" })).toThrow(/tableName/);
+	});
+
+	it("sqliteBackend exposes D108 versioned get/set-if-match when node:sqlite is available", async () => {
+		let backend: ReturnType<typeof sqliteBackend>;
+		try {
+			backend = sqliteBackend(":memory:", { namespace: "d108" });
+		} catch (error) {
+			expect(String((error as Error).message)).toContain("node:sqlite is not available");
+			return;
+		}
+		try {
+			const versioned = requireStorageVersioned(backend, "sqliteBackend");
+			expect(hasStorageVersioned(backend)).toBe(true);
+
+			const absent = await versioned.getVersioned("k");
+			expect(absent.kind).toBe("miss");
+			expect(await versioned.setIfMatch("k", new Uint8Array([1]), absent.generation)).toBe(true);
+			expect(await versioned.setIfMatch("k", new Uint8Array([2]), absent.generation)).toBe(false);
+			expect(await versioned.setIfMatch("other", new Uint8Array([9]), absent.generation)).toBe(
+				false,
+			);
+			expect(await backend.get("k")).toEqual(new Uint8Array([1]));
+
+			const otherBackend = sqliteBackend(":memory:", { namespace: "d108" });
+			try {
+				const otherVersioned = requireStorageVersioned(otherBackend, "sqliteBackend.other");
+				expect(await otherVersioned.setIfMatch("k", new Uint8Array([8]), absent.generation)).toBe(
+					false,
+				);
+				expect(await otherBackend.get("k")).toBeUndefined();
+			} finally {
+				otherBackend.close();
+			}
+
+			const present = await versioned.getVersioned("k");
+			expect(present.kind).toBe("hit");
+			if (present.kind === "hit") {
+				present.value[0] = 7;
+			}
+			expect(await backend.get("k")).toEqual(new Uint8Array([1]));
+			await backend.put("unrelated", new Uint8Array([9]));
+			expect(await versioned.setIfMatch("k", new Uint8Array([2]), present.generation)).toBe(true);
+			expect(await backend.get("k")).toEqual(new Uint8Array([2]));
+
+			await backend.put("k", new Uint8Array([3]));
+			expect(await versioned.setIfMatch("k", new Uint8Array([4]), present.generation)).toBe(false);
+
+			const missBeforeCycle = await versioned.getVersioned("cycle");
+			await backend.put("cycle", new Uint8Array([5]));
+			await backend.delete("cycle");
+			expect(
+				await versioned.setIfMatch("cycle", new Uint8Array([6]), missBeforeCycle.generation),
+			).toBe(false);
+
+			const fresh = await versioned.getVersioned("k");
+			expect(await versioned.setIfMatch("k", new Uint8Array([4]), fresh.generation)).toBe(true);
+			expect(await backend.get("k")).toEqual(new Uint8Array([4]));
+		} finally {
+			backend.close();
+		}
+	});
+
+	it("sqliteKv lifts D108 versioned support through the typed KV wrapper", async () => {
+		let kv: ReturnType<typeof sqliteKv<{ value: number }>>;
+		try {
+			kv = sqliteKv<{ value: number }>(":memory:", { namespace: "typed-d108" });
+		} catch (error) {
+			expect(String((error as Error).message)).toContain("node:sqlite is not available");
+			return;
+		}
+		try {
+			const versioned = requireKvVersioned(kv, "sqliteKv");
+			expect(hasKvVersioned(kv)).toBe(true);
+
+			const absent = await versioned.getVersioned("item");
+			expect(absent.kind).toBe("miss");
+			await expect(versioned.setIfMatch("item", { value: 1 }, absent.generation)).resolves.toBe(
+				true,
+			);
+			await expect(versioned.setIfMatch("item", { value: 2 }, absent.generation)).resolves.toBe(
+				false,
+			);
+			expect(await kv.get("item")).toEqual({ value: 1 });
+
+			const present = await versioned.getVersioned("item");
+			await kv.set("item", { value: 3 });
+			await expect(versioned.setIfMatch("item", { value: 4 }, present.generation)).resolves.toBe(
+				false,
+			);
+			expect(await kv.get("item")).toEqual({ value: 3 });
+		} finally {
+			kv.close();
+		}
 	});
 
 	it("memoryBackend clones Node Buffer inputs instead of storing shared views", async () => {

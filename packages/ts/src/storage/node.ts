@@ -18,7 +18,7 @@ import {
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
 import { type AppendLogStorageTier, appendLogStorage } from "./append-log.js";
-import type { StorageBackend, StorageNamespaceOptions } from "./backend.js";
+import type { StorageBackend, StorageGeneration, StorageNamespaceOptions } from "./backend.js";
 import type { Codec } from "./codec.js";
 import { type KvStorageTier, kvStorage } from "./kv.js";
 
@@ -71,9 +71,19 @@ interface SqliteStatement {
 
 const FILE_STEM_PREFIX = "k-";
 const NAMESPACE_SEPARATOR = "\u0000";
+const SQLITE_GENERATION = Symbol("graphrefly.sqliteBackend.generation");
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const require = createRequire("/graphrefly-storage-node.js");
+
+interface SqliteGeneration {
+	readonly [SQLITE_GENERATION]: readonly [
+		storageId: object,
+		key: string,
+		rowGeneration: number | null,
+		epoch: number,
+	];
+}
 
 function isErrno(error: unknown, code: string): boolean {
 	return (
@@ -139,6 +149,52 @@ function validateSqliteTableName(tableName: string): string {
 		throw new TypeError("sqliteBackend: tableName must be a simple SQLite identifier");
 	}
 	return tableName;
+}
+
+function sqliteGeneration(
+	storageId: object,
+	key: string,
+	rowGeneration: number | null,
+	epoch: number,
+): SqliteGeneration {
+	return Object.freeze({
+		[SQLITE_GENERATION]: Object.freeze([storageId, key, rowGeneration, epoch] as const),
+	});
+}
+
+function readSqliteGeneration(
+	generation: StorageGeneration,
+):
+	| readonly [storageId: object, key: string, rowGeneration: number | null, epoch: number]
+	| undefined {
+	if (typeof generation !== "object" || generation === null) return undefined;
+	const maybe = generation as Partial<SqliteGeneration>;
+	const token = maybe[SQLITE_GENERATION];
+	if (
+		Array.isArray(token) &&
+		token.length === 4 &&
+		typeof token[0] === "object" &&
+		token[0] !== null &&
+		typeof token[1] === "string" &&
+		(token[2] === null || typeof token[2] === "number") &&
+		typeof token[3] === "number"
+	) {
+		return token as readonly [object, string, number | null, number];
+	}
+	return undefined;
+}
+
+function sqliteChanges(result: unknown): number {
+	return typeof result === "object" &&
+		result !== null &&
+		"changes" in result &&
+		typeof (result as { changes?: unknown }).changes === "number"
+		? (result as { changes: number }).changes
+		: 0;
+}
+
+function sqliteBytes(value: Uint8Array | ArrayBuffer): Uint8Array {
+	return Uint8Array.from(value instanceof Uint8Array ? value : new Uint8Array(value));
 }
 
 function loadSqliteDatabaseSync(): SqliteDatabaseConstructor {
@@ -281,38 +337,139 @@ export function sqliteBackend(
 	opts: SqliteBackendOptions = {},
 ): ClosableStorageBackend {
 	const table = validateSqliteTableName(opts.tableName ?? "graphrefly_storage");
+	const metaTable = validateSqliteTableName(`${table}_meta`);
 	const DatabaseSync = loadSqliteDatabaseSync();
 	const namespace = opts.namespace ?? "";
 	const namespacePrefix = namespace.length > 0 ? `${namespace}${NAMESPACE_SEPARATOR}` : "";
 	const storageKey = (key: string) => `${namespacePrefix}${key}`;
+	const storageId = Object.freeze({});
 	const logicalKey = (key: string): string | undefined => {
 		if (!key.startsWith(namespacePrefix)) return undefined;
 		return key.slice(namespacePrefix.length);
 	};
 	const db = new DatabaseSync(path);
-	db.exec(`CREATE TABLE IF NOT EXISTS ${table} (k TEXT PRIMARY KEY, v BLOB NOT NULL)`);
+	db.exec(
+		`CREATE TABLE IF NOT EXISTS ${table} (k TEXT PRIMARY KEY, v BLOB NOT NULL, g INTEGER NOT NULL DEFAULT 0)`,
+	);
+	const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name?: string }>;
+	if (!columns.some((column) => column.name === "g")) {
+		db.exec(`ALTER TABLE ${table} ADD COLUMN g INTEGER NOT NULL DEFAULT 0`);
+	}
+	db.exec(`CREATE TABLE IF NOT EXISTS ${metaTable} (k TEXT PRIMARY KEY, v INTEGER NOT NULL)`);
+	db.exec(`
+		CREATE TRIGGER IF NOT EXISTS ${table}_generation_insert
+		AFTER INSERT ON ${table}
+		BEGIN
+			INSERT INTO ${metaTable} (k, v) VALUES (NEW.k, 1)
+			ON CONFLICT(k) DO UPDATE SET v = ${metaTable}.v + 1;
+		END
+	`);
+	db.exec(`
+		CREATE TRIGGER IF NOT EXISTS ${table}_generation_update
+		AFTER UPDATE ON ${table}
+		BEGIN
+			INSERT INTO ${metaTable} (k, v) VALUES (NEW.k, 1)
+			ON CONFLICT(k) DO UPDATE SET v = ${metaTable}.v + 1;
+		END
+	`);
+	db.exec(`
+		CREATE TRIGGER IF NOT EXISTS ${table}_generation_delete
+		AFTER DELETE ON ${table}
+		BEGIN
+			INSERT INTO ${metaTable} (k, v) VALUES (OLD.k, 1)
+			ON CONFLICT(k) DO UPDATE SET v = ${metaTable}.v + 1;
+		END
+	`);
+
+	const keyEpoch = (key: string): number => {
+		const row = db.prepare(`SELECT v FROM ${metaTable} WHERE k = ?`).get(key) as
+			| { v?: number }
+			| undefined;
+		const value = row?.v ?? 0;
+		if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+			throw new Error("sqliteBackend: per-key generation epoch is corrupt");
+		}
+		return value;
+	};
+	const readRow = (
+		key: string,
+	):
+		| {
+				readonly value: Uint8Array;
+				readonly generation: number;
+		  }
+		| undefined => {
+		const row = db.prepare(`SELECT v, g FROM ${table} WHERE k = ?`).get(storageKey(key)) as
+			| { v?: Uint8Array | ArrayBuffer; g?: number }
+			| undefined;
+		if (row?.v === undefined) return undefined;
+		const generation = row.g;
+		if (typeof generation !== "number" || !Number.isSafeInteger(generation) || generation < 0) {
+			throw new Error("sqliteBackend: row generation is corrupt");
+		}
+		return { value: sqliteBytes(row.v), generation };
+	};
 
 	return {
 		name: `sqlite:${path}/${table}`,
 		get(key) {
-			const row = db.prepare(`SELECT v FROM ${table} WHERE k = ?`).get(storageKey(key)) as
-				| { v?: Uint8Array | ArrayBuffer }
-				| undefined;
-			const value = row?.v;
-			if (value === undefined) return undefined;
-			return value instanceof Uint8Array ? value : new Uint8Array(value);
+			return readRow(key)?.value;
 		},
 		put(key, value) {
-			db.prepare(`INSERT OR REPLACE INTO ${table} (k, v) VALUES (?, ?)`).run(
-				storageKey(key),
-				value,
-			);
+			db.prepare(
+				`INSERT INTO ${table} (k, v, g) VALUES (?, ?, 0) ON CONFLICT(k) DO UPDATE SET v = excluded.v, g = ${table}.g + 1`,
+			).run(storageKey(key), value);
 		},
 		putIfAbsent(key, value) {
 			const result = db
-				.prepare(`INSERT OR IGNORE INTO ${table} (k, v) VALUES (?, ?)`)
+				.prepare(`INSERT OR IGNORE INTO ${table} (k, v, g) VALUES (?, ?, 0)`)
 				.run(storageKey(key), value) as { changes?: number };
-			return result.changes === 1;
+			return sqliteChanges(result) === 1;
+		},
+		getVersioned(key) {
+			const row = readRow(key);
+			if (row === undefined) {
+				return {
+					kind: "miss",
+					generation: sqliteGeneration(storageId, storageKey(key), null, keyEpoch(storageKey(key))),
+				};
+			}
+			return {
+				kind: "hit",
+				value: row.value,
+				generation: sqliteGeneration(
+					storageId,
+					storageKey(key),
+					row.generation,
+					keyEpoch(storageKey(key)),
+				),
+			};
+		},
+		setIfMatch(key, value, generation) {
+			const observed = readSqliteGeneration(generation);
+			if (observed === undefined || observed[0] !== storageId || observed[1] !== storageKey(key)) {
+				return false;
+			}
+			if (observed[2] === null) {
+				return (
+					sqliteChanges(
+						db
+							.prepare(
+								`INSERT INTO ${table} (k, v, g) SELECT ?, ?, 0 WHERE COALESCE((SELECT v FROM ${metaTable} WHERE k = ?), 0) = ? AND NOT EXISTS (SELECT 1 FROM ${table} WHERE k = ?)`,
+							)
+							.run(storageKey(key), value, storageKey(key), observed[3], storageKey(key)),
+					) === 1
+				);
+			}
+			return (
+				sqliteChanges(
+					db
+						.prepare(
+							`UPDATE ${table} SET v = ?, g = g + 1 WHERE k = ? AND g = ? AND COALESCE((SELECT v FROM ${metaTable} WHERE k = ?), 0) = ?`,
+						)
+						.run(value, storageKey(key), observed[2], storageKey(key), observed[3]),
+				) === 1
+			);
 		},
 		delete(key) {
 			db.prepare(`DELETE FROM ${table} WHERE k = ?`).run(storageKey(key));

@@ -187,10 +187,15 @@ export function tieredReadThrough<T>(
 		const info = { index, name: tierNames[index] };
 		const tier = tiers[index]!;
 		const generation = generationForTier(lookupFacts, index);
-		const write =
-			hasKvVersioned(tier) && generation !== undefined
-				? defer(() => tier.setIfMatch(key, value as T, generation))
-				: defer(() => tier.set(key, value as T)).then(() => true);
+		const write = hasKvVersioned(tier)
+			? generation === undefined
+				? defer<boolean>(() => {
+						throw new Error(
+							"tieredReadThrough: versioned promotion target was not observed with a generation",
+						);
+					})
+				: defer(() => tier.setIfMatch(key, value as T, generation))
+			: defer(() => tier.set(key, value as T)).then(() => true);
 		return write
 			.then((ok) => {
 				promotions.push({ tier: info, ok });
