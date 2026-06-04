@@ -23,22 +23,49 @@ export interface NamedIndexedDbBackend extends StorageBackend {
 
 type IndexedDbError = DOMException | Error;
 
+const KEY_SEPARATOR = "\u0000";
+
 function isConstraintError(error: unknown): error is DOMException {
 	return error instanceof DOMException && error.name === "ConstraintError";
 }
 
+function validateKey(key: string): string {
+	if (typeof key !== "string") {
+		throw new TypeError("indexedDbBackend: key must be a string");
+	}
+	if (key.includes(KEY_SEPARATOR)) {
+		throw new TypeError("indexedDbBackend: key must not contain U+0000");
+	}
+	return key;
+}
+
+function validateListPrefix(prefix: string): string {
+	if (typeof prefix !== "string") {
+		throw new TypeError("indexedDbBackend: list prefix must be a string");
+	}
+	if (prefix.includes(KEY_SEPARATOR)) {
+		throw new TypeError("indexedDbBackend: list prefix must not contain U+0000");
+	}
+	return prefix;
+}
+
 function decodeStoredBytes(raw: unknown): Uint8Array | undefined {
 	if (raw === undefined || raw === null) return undefined;
-	if (raw instanceof Uint8Array) return raw;
-	if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
-	return undefined;
+	if (raw instanceof Uint8Array) return Uint8Array.from(raw);
+	if (raw instanceof ArrayBuffer) return new Uint8Array(raw.slice(0));
+	throw new TypeError("indexedDbBackend: malformed stored bytes");
 }
 
 function normalizeKeys(prefix: string, raw: unknown[]): string[] {
 	const out: string[] = [];
 	for (const key of raw) {
-		const normalized = typeof key === "string" ? key : String(key);
-		if (normalized.startsWith(prefix)) out.push(normalized);
+		if (typeof key !== "string") {
+			throw new TypeError("indexedDbBackend: stored key must be a string");
+		}
+		if (key.includes(KEY_SEPARATOR)) {
+			throw new TypeError("indexedDbBackend: malformed stored key");
+		}
+		if (key.startsWith(prefix)) out.push(key);
 	}
 	out.sort();
 	return out;
@@ -115,6 +142,7 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 	return {
 		name: `idb:${spec.dbName}/${spec.storeName}`,
 		get(key) {
+			validateKey(key);
 			return db().then(
 				(database) =>
 					new Promise<Uint8Array | undefined>((resolve, reject) => {
@@ -122,7 +150,13 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 							const tx = database.transaction(spec.storeName, "readonly");
 							const store = tx.objectStore(spec.storeName);
 							const req = store.get(key);
-							req.onsuccess = () => resolve(decodeStoredBytes(req.result));
+							req.onsuccess = () => {
+								try {
+									resolve(decodeStoredBytes(req.result));
+								} catch (error) {
+									reject(error as IndexedDbError);
+								}
+							};
 							req.onerror = () => reject(req.error ?? new Error("indexedDbBackend: read failed"));
 							tx.onabort = () =>
 								reject(tx.error ?? new Error("indexedDbBackend: read transaction aborted"));
@@ -136,6 +170,7 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 			);
 		},
 		put(key, value) {
+			validateKey(key);
 			return db().then(
 				(database) =>
 					new Promise<void>((resolve, reject) => {
@@ -156,6 +191,7 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 			);
 		},
 		putIfAbsent(key, value) {
+			validateKey(key);
 			return db().then(
 				(database) =>
 					new Promise<boolean>((resolve, reject) => {
@@ -232,6 +268,7 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 			);
 		},
 		delete(key) {
+			validateKey(key);
 			return db().then(
 				(database) =>
 					new Promise<void>((resolve, reject) => {
@@ -252,6 +289,7 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 			);
 		},
 		list(prefix = "") {
+			const validatedPrefix = validateListPrefix(prefix);
 			return db().then(
 				(database) =>
 					new Promise<readonly string[]>((resolve, reject) => {
@@ -259,7 +297,13 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 							const tx = database.transaction(spec.storeName, "readonly");
 							const store = tx.objectStore(spec.storeName);
 							const req = store.getAllKeys();
-							req.onsuccess = () => resolve(normalizeKeys(prefix, req.result));
+							req.onsuccess = () => {
+								try {
+									resolve(normalizeKeys(validatedPrefix, req.result));
+								} catch (error) {
+									reject(error as IndexedDbError);
+								}
+							};
 							req.onerror = () => reject(req.error ?? new Error("indexedDbBackend: list failed"));
 							tx.onabort = () =>
 								reject(tx.error ?? new Error("indexedDbBackend: list transaction aborted"));

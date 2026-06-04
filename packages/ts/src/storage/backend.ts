@@ -32,6 +32,36 @@ function decodeHexToBytes(raw: string): Uint8Array {
 	return out;
 }
 
+function validateLogicalKey(label: string, key: string): string {
+	if (typeof key !== "string") {
+		throw new TypeError(`${label}: key must be a string`);
+	}
+	if (key.includes(NAMESPACE_SEPARATOR)) {
+		throw new TypeError(`${label}: key must not contain U+0000`);
+	}
+	return key;
+}
+
+function validateListPrefix(label: string, prefix: string): string {
+	if (typeof prefix !== "string") {
+		throw new TypeError(`${label}: list prefix must be a string`);
+	}
+	if (prefix.includes(NAMESPACE_SEPARATOR)) {
+		throw new TypeError(`${label}: list prefix must not contain U+0000`);
+	}
+	return prefix;
+}
+
+function validateNamespace(label: string, namespace: string): string {
+	if (typeof namespace !== "string") {
+		throw new TypeError(`${label}: namespace must be a string`);
+	}
+	if (namespace.includes(NAMESPACE_SEPARATOR)) {
+		throw new TypeError(`${label}: namespace must not contain U+0000`);
+	}
+	return namespace;
+}
+
 /** Passive byte-addressed backend used by D82 storage binding tiers. */
 export interface StorageBackend {
 	get(key: string): undefined | Uint8Array | PromiseLike<undefined | Uint8Array>;
@@ -135,7 +165,7 @@ function toStorageKey(namespace: string, key: string): string {
 	return `${encodeNamespacePrefix(namespace)}${key}`;
 }
 
-function enumerateStorageKeys(storage: WebStorageLike): readonly string[] {
+function enumerateStorageKeys(storage: WebStorageLike): readonly unknown[] {
 	if (storage.keys) return [...storage.keys()];
 	if (typeof storage.key === "function" && typeof storage.length === "number") {
 		const keys: string[] = [];
@@ -149,13 +179,20 @@ function enumerateStorageKeys(storage: WebStorageLike): readonly string[] {
 	return Object.keys(fallback).filter((key) => typeof fallback[key] === "string");
 }
 
-function decodeStorageListKey(namespace: string, rawKey: string): string | undefined {
+function decodeStorageListKey(namespace: string, rawKey: unknown): string | undefined {
+	if (typeof rawKey !== "string") {
+		throw new TypeError("webStorageBackend: stored key must be a string");
+	}
 	const prefix = encodeNamespacePrefix(namespace);
 	if (!rawKey.startsWith(prefix)) return undefined;
-	return rawKey.slice(prefix.length);
+	const logical = rawKey.slice(prefix.length);
+	if (logical.includes(NAMESPACE_SEPARATOR)) {
+		throw new TypeError("webStorageBackend: malformed stored key");
+	}
+	return logical;
 }
 
-function listByPrefix(namespace: string, prefix: string, raw: readonly string[]): string[] {
+function listByPrefix(namespace: string, prefix: string, raw: readonly unknown[]): string[] {
 	const out: string[] = [];
 	for (const key of raw) {
 		const logical = decodeStorageListKey(namespace, key);
@@ -172,21 +209,31 @@ export function webStorageBackend(
 	storage: WebStorageLike,
 	opts: StorageNamespaceOptions = {},
 ): StorageBackend {
-	const namespace = opts.namespace ?? "";
+	const namespace =
+		opts.namespace === undefined ? "" : validateNamespace("webStorageBackend", opts.namespace);
 	return {
 		get(key) {
-			const raw = storage.getItem(toStorageKey(namespace, key));
+			const raw = storage.getItem(
+				toStorageKey(namespace, validateLogicalKey("webStorageBackend", key)),
+			);
 			if (raw === null || raw === undefined) return undefined;
 			return decodeHexToBytes(raw);
 		},
 		put(key, value) {
-			storage.setItem(toStorageKey(namespace, key), encodeBytesToHex(cloneBytes(value)));
+			storage.setItem(
+				toStorageKey(namespace, validateLogicalKey("webStorageBackend", key)),
+				encodeBytesToHex(cloneBytes(value)),
+			);
 		},
 		delete(key) {
-			storage.removeItem(toStorageKey(namespace, key));
+			storage.removeItem(toStorageKey(namespace, validateLogicalKey("webStorageBackend", key)));
 		},
 		list(prefix = "") {
-			return listByPrefix(namespace, prefix, enumerateStorageKeys(storage));
+			return listByPrefix(
+				namespace,
+				validateListPrefix("webStorageBackend", prefix),
+				enumerateStorageKeys(storage),
+			);
 		},
 	};
 }
@@ -232,7 +279,9 @@ export function memoryBackend(
 	const entries = new Map<string, Uint8Array>();
 	const versions = new Map<string, number>();
 	let epoch = 0;
-	for (const [key, value] of initial) entries.set(key, cloneBytes(value));
+	for (const [key, value] of initial) {
+		entries.set(validateLogicalKey("memoryBackend", key), cloneBytes(value));
+	}
 	const versionOf = (key: string): number => versions.get(key) ?? 0;
 	const bump = (key: string): void => {
 		versions.set(key, versionOf(key) + 1);
@@ -240,26 +289,30 @@ export function memoryBackend(
 	return {
 		entries,
 		get(key) {
-			const value = entries.get(key);
+			const value = entries.get(validateLogicalKey("memoryBackend", key));
 			return value === undefined ? undefined : cloneBytes(value);
 		},
 		put(key, value) {
+			validateLogicalKey("memoryBackend", key);
 			entries.set(key, cloneBytes(value));
 			bump(key);
 		},
 		putIfAbsent(key, value) {
+			validateLogicalKey("memoryBackend", key);
 			if (entries.has(key)) return false;
 			entries.set(key, cloneBytes(value));
 			bump(key);
 			return true;
 		},
 		getVersioned(key) {
+			validateLogicalKey("memoryBackend", key);
 			const value = entries.get(key);
 			const generation = memoryGeneration(epoch, key, versionOf(key));
 			if (value === undefined) return { kind: "miss", generation };
 			return { kind: "hit", value: cloneBytes(value), generation };
 		},
 		setIfMatch(key, value, generation) {
+			validateLogicalKey("memoryBackend", key);
 			const observed = readMemoryGeneration(generation);
 			if (
 				observed === undefined ||
@@ -274,10 +327,12 @@ export function memoryBackend(
 			return true;
 		},
 		delete(key) {
+			validateLogicalKey("memoryBackend", key);
 			if (entries.delete(key)) bump(key);
 		},
 		list(prefix = "") {
-			return [...entries.keys()].filter((key) => key.startsWith(prefix)).sort();
+			const validatedPrefix = validateListPrefix("memoryBackend", prefix);
+			return [...entries.keys()].filter((key) => key.startsWith(validatedPrefix)).sort();
 		},
 		clear() {
 			entries.clear();

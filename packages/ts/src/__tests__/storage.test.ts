@@ -1110,6 +1110,24 @@ describe("D82 storage substrate helpers", () => {
 		);
 	});
 
+	it("webStorageBackend rejects ambiguous namespace separators and non-string runtime keys", () => {
+		const storage = createStorage();
+
+		expect(() => webStorageBackend(storage, { namespace: "ns\u0000bad" })).toThrow(/namespace/);
+		expect(() => webStorageBackend(storage, { namespace: null as unknown as string })).toThrow(
+			/namespace/,
+		);
+
+		const backend = webStorageBackend(storage, { namespace: "ns" });
+		expect(() => backend.put("bad\u0000key", new Uint8Array([1]))).toThrow(/U\+0000/);
+		expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
+		expect(() => backend.list("bad\u0000prefix")).toThrow(/U\+0000/);
+		expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
+
+		storage.setItem("ns\u0000bad\u0000key", "01");
+		expect(() => backend.list()).toThrow(/malformed stored key/);
+	});
+
 	it("fileBackend persists bytes, lists logical keys, and supports putIfAbsent", async () => {
 		const dir = makeTempDir();
 		try {
@@ -1139,6 +1157,22 @@ describe("D82 storage substrate helpers", () => {
 			expect(() => requireStorageVersioned(backend, "fileBackend")).toThrow(
 				/fileBackend: backend does not support versioned/,
 			);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("fileBackend rejects ambiguous namespace separators and non-string runtime keys", async () => {
+		const dir = makeTempDir();
+		try {
+			expect(() => fileBackend(dir, { namespace: "ns\u0000bad" })).toThrow(/namespace/);
+			expect(() => fileBackend(dir, { namespace: null as unknown as string })).toThrow(/namespace/);
+
+			const backend = fileBackend(dir, { namespace: "ns" });
+			expect(() => backend.put("bad\u0000key", new Uint8Array([1]))).toThrow(/U\+0000/);
+			expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
+			expect(() => backend.list("bad\u0000prefix")).toThrow(/U\+0000/);
+			expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -1177,6 +1211,12 @@ describe("D82 storage substrate helpers", () => {
 	it("sqliteBackend validates table names before touching optional node:sqlite", () => {
 		expect(() => sqliteBackend(":memory:", { tableName: "bad-name" })).toThrow(/tableName/);
 		expect(() => sqliteBackend(":memory:", { tableName: "1bad" })).toThrow(/tableName/);
+		expect(() => sqliteBackend(":memory:", { namespace: "bad\u0000namespace" })).toThrow(
+			/namespace/,
+		);
+		expect(() => sqliteBackend(":memory:", { namespace: null as unknown as string })).toThrow(
+			/namespace/,
+		);
 	});
 
 	it("sqliteBackend exposes D108 versioned get/set-if-match when node:sqlite is available", async () => {
@@ -1190,6 +1230,13 @@ describe("D82 storage substrate helpers", () => {
 		try {
 			const versioned = requireStorageVersioned(backend, "sqliteBackend");
 			expect(hasStorageVersioned(backend)).toBe(true);
+			expect(() => backend.put("bad\u0000key", new Uint8Array([1]))).toThrow(/U\+0000/);
+			expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
+			expect(() => backend.list("bad\u0000prefix")).toThrow(/U\+0000/);
+			expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
+			expect(() =>
+				versioned.setIfMatch("bad\u0000key", new Uint8Array([1]), Object.freeze({})),
+			).toThrow(/U\+0000/);
 
 			const absent = await versioned.getVersioned("k");
 			expect(absent.kind).toBe("miss");

@@ -144,6 +144,36 @@ function validateExtension(extension: string): string {
 	return extension;
 }
 
+function validateNamespace(label: string, namespace: string): string {
+	if (typeof namespace !== "string") {
+		throw new TypeError(`${label}: namespace must be a string`);
+	}
+	if (namespace.includes(NAMESPACE_SEPARATOR)) {
+		throw new TypeError(`${label}: namespace must not contain U+0000`);
+	}
+	return namespace;
+}
+
+function validateLogicalKey(label: string, key: string): string {
+	if (typeof key !== "string") {
+		throw new TypeError(`${label}: key must be a string`);
+	}
+	if (key.includes(NAMESPACE_SEPARATOR)) {
+		throw new TypeError(`${label}: key must not contain U+0000`);
+	}
+	return key;
+}
+
+function validateListPrefix(label: string, prefix: string): string {
+	if (typeof prefix !== "string") {
+		throw new TypeError(`${label}: list prefix must be a string`);
+	}
+	if (prefix.includes(NAMESPACE_SEPARATOR)) {
+		throw new TypeError(`${label}: list prefix must not contain U+0000`);
+	}
+	return prefix;
+}
+
 function validateSqliteTableName(tableName: string): string {
 	if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(tableName)) {
 		throw new TypeError("sqliteBackend: tableName must be a simple SQLite identifier");
@@ -214,9 +244,10 @@ function loadSqliteDatabaseSync(): SqliteDatabaseConstructor {
 /** Node filesystem byte backend with atomic replace writes and D85 conditional create. */
 export function fileBackend(dir: string, opts: FileBackendOptions = {}): StorageBackend {
 	const extension = validateExtension(opts.extension ?? ".bin");
-	const namespace = opts.namespace ?? "";
+	const namespace =
+		opts.namespace === undefined ? "" : validateNamespace("fileBackend", opts.namespace);
 	const namespacePrefix = namespace.length > 0 ? `${namespace}${NAMESPACE_SEPARATOR}` : "";
-	const storageKey = (key: string) => `${namespacePrefix}${key}`;
+	const storageKey = (key: string) => `${namespacePrefix}${validateLogicalKey("fileBackend", key)}`;
 	const pathFor = (key: string) =>
 		join(dir, `${FILE_STEM_PREFIX}${keyToStem(storageKey(key))}${extension}`);
 	const keyFromFilename = (filename: string): string | null => {
@@ -225,7 +256,11 @@ export function fileBackend(dir: string, opts: FileBackendOptions = {}): Storage
 		if (!stem.startsWith(FILE_STEM_PREFIX)) return null;
 		const key = stemToKey(stem.slice(FILE_STEM_PREFIX.length));
 		if (key === null || !key.startsWith(namespacePrefix)) return null;
-		return key.slice(namespacePrefix.length);
+		const logical = key.slice(namespacePrefix.length);
+		if (logical.includes(NAMESPACE_SEPARATOR)) {
+			throw new TypeError("fileBackend: malformed stored key");
+		}
+		return logical;
 	};
 
 	return {
@@ -285,6 +320,7 @@ export function fileBackend(dir: string, opts: FileBackendOptions = {}): Storage
 			}
 		},
 		list(prefix = "") {
+			const validatedPrefix = validateListPrefix("fileBackend", prefix);
 			let entries: string[];
 			try {
 				entries = readdirSync(dir);
@@ -296,7 +332,7 @@ export function fileBackend(dir: string, opts: FileBackendOptions = {}): Storage
 			for (const entry of entries) {
 				if (entry.startsWith(".")) continue;
 				const key = keyFromFilename(entry);
-				if (key?.startsWith(prefix)) keys.push(key);
+				if (key?.startsWith(validatedPrefix)) keys.push(key);
 			}
 			return keys.sort();
 		},
@@ -338,14 +374,23 @@ export function sqliteBackend(
 ): ClosableStorageBackend {
 	const table = validateSqliteTableName(opts.tableName ?? "graphrefly_storage");
 	const metaTable = validateSqliteTableName(`${table}_meta`);
+	const namespace =
+		opts.namespace === undefined ? "" : validateNamespace("sqliteBackend", opts.namespace);
 	const DatabaseSync = loadSqliteDatabaseSync();
-	const namespace = opts.namespace ?? "";
 	const namespacePrefix = namespace.length > 0 ? `${namespace}${NAMESPACE_SEPARATOR}` : "";
-	const storageKey = (key: string) => `${namespacePrefix}${key}`;
+	const storageKey = (key: string) =>
+		`${namespacePrefix}${validateLogicalKey("sqliteBackend", key)}`;
 	const storageId = Object.freeze({});
 	const logicalKey = (key: string): string | undefined => {
+		if (typeof key !== "string") {
+			throw new TypeError("sqliteBackend: stored key is corrupt");
+		}
 		if (!key.startsWith(namespacePrefix)) return undefined;
-		return key.slice(namespacePrefix.length);
+		const logical = key.slice(namespacePrefix.length);
+		if (logical.includes(NAMESPACE_SEPARATOR)) {
+			throw new TypeError("sqliteBackend: malformed stored key");
+		}
+		return logical;
 	};
 	const db = new DatabaseSync(path);
 	db.exec(
@@ -446,8 +491,9 @@ export function sqliteBackend(
 			};
 		},
 		setIfMatch(key, value, generation) {
+			const keyForStorage = storageKey(key);
 			const observed = readSqliteGeneration(generation);
-			if (observed === undefined || observed[0] !== storageId || observed[1] !== storageKey(key)) {
+			if (observed === undefined || observed[0] !== storageId || observed[1] !== keyForStorage) {
 				return false;
 			}
 			if (observed[2] === null) {
@@ -457,7 +503,7 @@ export function sqliteBackend(
 							.prepare(
 								`INSERT INTO ${table} (k, v, g) SELECT ?, ?, 0 WHERE COALESCE((SELECT v FROM ${metaTable} WHERE k = ?), 0) = ? AND NOT EXISTS (SELECT 1 FROM ${table} WHERE k = ?)`,
 							)
-							.run(storageKey(key), value, storageKey(key), observed[3], storageKey(key)),
+							.run(keyForStorage, value, keyForStorage, observed[3], keyForStorage),
 					) === 1
 				);
 			}
@@ -467,7 +513,7 @@ export function sqliteBackend(
 						.prepare(
 							`UPDATE ${table} SET v = ?, g = g + 1 WHERE k = ? AND g = ? AND COALESCE((SELECT v FROM ${metaTable} WHERE k = ?), 0) = ?`,
 						)
-						.run(value, storageKey(key), observed[2], storageKey(key), observed[3]),
+						.run(value, keyForStorage, observed[2], keyForStorage, observed[3]),
 				) === 1
 			);
 		},
@@ -475,11 +521,12 @@ export function sqliteBackend(
 			db.prepare(`DELETE FROM ${table} WHERE k = ?`).run(storageKey(key));
 		},
 		list(prefix = "") {
+			const validatedPrefix = validateListPrefix("sqliteBackend", prefix);
 			const rows = db.prepare(`SELECT k FROM ${table} ORDER BY k`).all() as { k: string }[];
 			const out: string[] = [];
 			for (const row of rows) {
 				const key = logicalKey(row.k);
-				if (key?.startsWith(prefix)) out.push(key);
+				if (key?.startsWith(validatedPrefix)) out.push(key);
 			}
 			return out.sort();
 		},
