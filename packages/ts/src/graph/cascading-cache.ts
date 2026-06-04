@@ -77,6 +77,13 @@ export interface ReactiveCascadingCacheOptions<K extends string, V> {
 	readonly tiers: readonly KvStorageTier<V>[];
 	readonly load?: (key: K) => Promise<V | undefined> | V | undefined;
 	readonly tierNames?: readonly string[];
+	/**
+	 * Storage promotion is explicit for the graph-layer factory. `requestSeq` guards visible graph
+	 * value/status updates; without a generation/CAS storage contract, passive tier writes are
+	 * best-effort and cannot be made stale-proof once an async `set` has started.
+	 *
+	 * @default false
+	 */
 	readonly promoteTo?: readonly number[] | false;
 	readonly name?: string;
 	readonly meta?: Record<string, unknown>;
@@ -104,8 +111,11 @@ interface SeqState {
  *
  * Passive tiers stay in `tieredReadThrough`; this factory wraps lookup work at an async pool
  * boundary and exposes every request, invalidation, lookup, promotion, fill, status, and value
- * change through declared graph nodes. `requestSeq` is the stale-fill guard: older async fills may
- * still be observable as events, but downstream value/status nodes ignore them.
+ * change through declared graph nodes. `requestSeq` is the stale-fill guard for visible graph
+ * nodes: older async fills may still be observable as events, but downstream value/status nodes
+ * ignore them. Storage promotion defaults to `false` here because passive tier writes have no
+ * generation/CAS contract; callers may opt in with `promoteTo` when best-effort promotion is
+ * acceptable.
  */
 export function reactiveCascadingCache<K extends string, V>(
 	opts: ReactiveCascadingCacheOptions<K, V>,
@@ -166,7 +176,7 @@ export function reactiveCascadingCache<K extends string, V>(
 						tiers,
 						tierNames,
 						load,
-						promoteTo: currentPolicy?.promoteTo ?? promoteTo,
+						promoteTo: currentPolicy?.promoteTo ?? promoteTo ?? false,
 					});
 				}
 			}
@@ -179,7 +189,7 @@ export function reactiveCascadingCache<K extends string, V>(
 						tiers,
 						tierNames,
 						load,
-						promoteTo: currentPolicy?.promoteTo ?? promoteTo,
+						promoteTo: currentPolicy?.promoteTo ?? promoteTo ?? false,
 					});
 				}
 			}
@@ -193,7 +203,7 @@ export function reactiveCascadingCache<K extends string, V>(
 						tiers,
 						tierNames,
 						load,
-						promoteTo: currentPolicy?.promoteTo ?? promoteTo,
+						promoteTo: currentPolicy?.promoteTo ?? promoteTo ?? false,
 					});
 				}
 			}

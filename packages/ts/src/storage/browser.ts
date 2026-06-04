@@ -49,13 +49,14 @@ function normalizeKeys(prefix: string, raw: unknown[]): string[] {
 	return out;
 }
 
-function openDb(spec: IndexedDbBackendSpec, version = spec.version ?? 1): Promise<IDBDatabase> {
+function openDb(spec: IndexedDbBackendSpec, version = spec.version): Promise<IDBDatabase> {
 	return new Promise<IDBDatabase>((resolve, reject) => {
 		if (typeof indexedDB === "undefined") {
 			reject(new TypeError("indexedDbBackend: indexedDB is not available in this environment"));
 			return;
 		}
-		const req = indexedDB.open(spec.dbName, version);
+		const req =
+			version === undefined ? indexedDB.open(spec.dbName) : indexedDB.open(spec.dbName, version);
 		req.onupgradeneeded = () => {
 			const db = req.result;
 			if (!db.objectStoreNames.contains(spec.storeName)) {

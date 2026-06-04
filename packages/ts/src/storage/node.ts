@@ -143,7 +143,11 @@ function validateSqliteTableName(tableName: string): string {
 
 function loadSqliteDatabaseSync(): SqliteDatabaseConstructor {
 	try {
-		return (require("node:sqlite") as { DatabaseSync: SqliteDatabaseConstructor }).DatabaseSync;
+		const DatabaseSync = (require("node:sqlite") as { DatabaseSync?: unknown }).DatabaseSync;
+		if (typeof DatabaseSync !== "function") {
+			throw new TypeError("DatabaseSync export is missing");
+		}
+		return DatabaseSync as SqliteDatabaseConstructor;
 	} catch (error) {
 		throw new Error("sqliteBackend: node:sqlite is not available in this Node runtime", {
 			cause: error,

@@ -48,7 +48,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		);
 	});
 
-	it("looks through tiers, promotes hits, and publishes status/events/value", async () => {
+	it("looks through tiers without storage promotion by default", async () => {
 		const g = graph();
 		const request = g.node<string>([], null, { name: "request" });
 		const hot = memoryKv<number>();
@@ -70,13 +70,39 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 
 		expect(values).toEqual([42]);
 		expect(cache.value.cache).toBe(42);
-		expect(await hot.get("k")).toBe(42);
+		expect(await hot.get("k")).toBeUndefined();
 		expect(statuses.at(-1)).toEqual({
 			kind: "hit",
 			key: "k",
 			requestSeq: 1,
 			tier: { index: 1, name: "cold" },
 		});
+		expect(events.map((event) => event.kind)).toEqual(["request", "lookup", "lookup", "fill"]);
+	});
+
+	it("promotes hits only when storage promotion is explicitly enabled", async () => {
+		const g = graph();
+		const request = g.node<string>([], null);
+		const hot = memoryKv<number>();
+		const cold = memoryKv<number>();
+		await cold.set("k", 42);
+		const cache = reactiveCascadingCache({
+			graph: g,
+			request,
+			tiers: [hot, cold],
+			tierNames: ["hot", "cold"],
+			promoteTo: [0],
+			name: "cache",
+		});
+		dataOf(cache.status);
+		dataOf(cache.value);
+		const events = dataOf(cache.events);
+
+		request.down([["DATA", "k"]]);
+		await flush();
+
+		expect(cache.value.cache).toBe(42);
+		expect(await hot.get("k")).toBe(42);
 		expect(events.map((event) => event.kind)).toEqual([
 			"request",
 			"lookup",
@@ -105,7 +131,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		await flush();
 
 		expect(values).toEqual([9]);
-		expect(await hot.get("remote")).toBe(9);
+		expect(await hot.get("remote")).toBeUndefined();
 		expect(statuses.at(-1)).toEqual({
 			kind: "hit",
 			key: "remote",
@@ -145,7 +171,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		await flush();
 		expect(values).toEqual([2]);
 		expect(cache.value.cache).toBe(2);
-		expect(await hot.get("fast")).toBe(2);
+		expect(await hot.get("fast")).toBeUndefined();
 		expect(await hot.get("slow")).toBeUndefined();
 		expect(
 			events.filter((event) => event.kind === "fill").map((event) => event.requestSeq),
