@@ -23,12 +23,11 @@
  * token per queued task so mixed-core legal batches keep their enqueue order. Each queued mutation
  * runs as a fresh wave whose own `ctx.rewireNext` calls re-enqueue and drain in the same loop.
  *
- * Scope: the drain fires at the EndRun boundary the formal `wave_rewire_deferred.tla` models.
- * The batch/pause drain-timing nuance (drain strictly after commit / final-lock RESUME, and not
- * on a paused view) rides on the boundary being established by `batch()` + the public entries;
- * the finer cross-axis (rewireNext issued inside an open batch / under a held pause lock) is
- * backlog B24 — not modeled here. Zero behavior change when no `ctx.rewireNext` is ever called:
- * the drain is one empty-queue check per outermost wave (F-PERF).
+ * C-25 / D110: queued boundary work is tagged with the batch frame that caused it (when any)
+ * plus an owner-readiness predicate. The drain applies only committed, unpaused tasks; rollback
+ * drops the batch's tasks, and paused owners re-schedule their core on final RESUME.
+ * Zero behavior change when no `ctx.rewireNext`/`ctx.upNext` is ever called: the drain is one
+ * empty-queue check per outermost wave (F-PERF).
  */
 
 import type { NodeCore } from "../node/core.js";
@@ -48,13 +47,39 @@ export function exitWave(): void {
 	if (depth === 0 && pendingHead < pendingCores.length) drain();
 }
 
+export interface DeferredBoundaryOptions {
+	readonly batchToken?: object;
+	readonly isReady?: () => boolean;
+}
+
 /**
  * Queue a deferred self-rewire application, drained at the committed boundary
  * (R-rewire-deferred). The thunk applies one queued mutation to its owning node.
  */
-export function deferRewire(core: NodeCore, apply: () => void): void {
-	core.enqueueBoundaryTask(apply);
+export function deferRewire(
+	core: NodeCore,
+	apply: () => void,
+	options: DeferredBoundaryOptions = {},
+): void {
+	core.enqueueBoundaryTask({ apply, batchToken: options.batchToken, isReady: options.isReady });
 	pendingCores.push(core);
+}
+
+/** Re-schedule an existing core queue, used when a final RESUME opens a paused boundary gate. */
+export function scheduleBoundaryDrain(core: NodeCore): void {
+	for (let i = 0; i < core.boundaryTaskCount(); i++) pendingCores.push(core);
+	if (depth === 0 && pendingHead < pendingCores.length) drain();
+}
+
+/** D110: an uncommitted batch cannot leak queued boundary effects. */
+export function dropBoundaryTasksForBatch(batchToken: object): void {
+	const seen = new Set<NodeCore>();
+	for (let i = pendingHead; i < pendingCores.length; i++) {
+		const core = pendingCores[i] as NodeCore;
+		if (seen.has(core)) continue;
+		seen.add(core);
+		core.dropBoundaryTasksForBatch(batchToken);
+	}
 }
 
 function drain(): void {
@@ -73,11 +98,22 @@ function drain(): void {
 	let escaped: { e: unknown } | null = null;
 	while (pendingHead < pendingCores.length) {
 		const core = pendingCores[pendingHead++] as NodeCore;
-		const apply = core.shiftBoundaryTask();
-		if (apply === undefined) continue;
+		const task = core.shiftBoundaryTask();
+		if (task === undefined) continue;
+		if (task.batchToken !== undefined) {
+			// A stale token means the batch never reached the committed boundary (D110). Rollback
+			// normally removes these before drain; this guard covers commit failures before the
+			// batch frame marks itself committed.
+			const committed = (task.batchToken as { committed?: boolean }).committed === true;
+			if (!committed) continue;
+		}
+		if (task.isReady !== undefined && !task.isReady()) {
+			core.unshiftBoundaryTask(task);
+			continue;
+		}
 		depth++;
 		try {
-			apply();
+			task.apply();
 		} catch (e) {
 			if (escaped === null) escaped = { e };
 		} finally {

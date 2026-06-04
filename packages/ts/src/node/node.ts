@@ -13,8 +13,13 @@
  * control (PAUSE/async), batch, and dynamicNode land in later slices.
  */
 
-import { currentBatch, deferAfterBatchForTarget, deferToBatch } from "../batch/batch.js";
-import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
+import {
+	currentBatch,
+	currentBoundaryBatchToken,
+	deferAfterBatchForTarget,
+	deferToBatch,
+} from "../batch/batch.js";
+import { deferRewire, enterWave, exitWave, scheduleBoundaryDrain } from "../batch/boundary.js";
 import {
 	CTX_DEP_CACHE,
 	CTX_NODE_BINDING,
@@ -563,7 +568,10 @@ export class Node<T = unknown> {
 	 * immediate path (`addDep`/`setDeps`/`removeDep`) still throws mid-run (D37/R-reentrancy).
 	 */
 	private _requestRewireNext(op: RewireOp): void {
-		deferRewire(this._core, () => this._applyRewireNext(op));
+		deferRewire(this._core, () => this._applyRewireNext(op), {
+			batchToken: currentBoundaryBatchToken(),
+			isReady: () => !this._hasBoundaryPauseLock(),
+		});
 	}
 
 	/**
@@ -575,7 +583,10 @@ export class Node<T = unknown> {
 	 * R-reentrancy). Rides the same R-rewire-deferred (D47) drain as ctx.rewireNext.
 	 */
 	private _requestUpNext(msgs: Wave, towardDep?: number): void {
-		deferRewire(this._core, () => this._up(msgs, towardDep));
+		deferRewire(this._core, () => this._up(msgs, towardDep), {
+			batchToken: currentBoundaryBatchToken(),
+			isReady: () => !this._hasBoundaryPauseLock(),
+		});
 	}
 
 	/** Apply one queued self-rewire at the boundary (drain thunk). */
@@ -1585,6 +1596,13 @@ export class Node<T = unknown> {
 		return this._control.pauseLockset.size > 0;
 	}
 
+	private _hasBoundaryPauseLock(): boolean {
+		if (this._slot.pausable === false) return false;
+		let locks = this._control.pauseLockset.size;
+		if (this._slot.pull && this._control.pauseLockset.has(this._slot.pullLock)) locks--;
+		return locks > 0;
+	}
+
 	private _isAsyncPool(): boolean {
 		return (
 			this._slot.handle !== null &&
@@ -1604,7 +1622,9 @@ export class Node<T = unknown> {
 		// pullId (so the lockset is not empty). A pull node's OWN demand never routes here (it goes
 		// through _onDemand); this only sees external pause/resume locks.
 		if (this._slot.pull && this._control.demandOwed) this._fireOwedDemandIfReady();
-		if (this._control.pauseLockset.size > 0) return; // another lock still held => stay paused
+		if (this._hasBoundaryPauseLock()) return; // another external lock still held => stay paused
+		scheduleBoundaryDrain(this._core);
+		if (this._control.pauseLockset.size > 0) return; // pull's own quiet lock remains held
 		this._onResume();
 	}
 
@@ -1806,8 +1826,11 @@ export class Node<T = unknown> {
 	}
 
 	/** B49: enqueue a committed-boundary task on this node's graph-local core. */
-	__deferBoundary(fn: () => void): void {
-		deferRewire(this._core, fn);
+	__deferBoundary(fn: () => void, batchToken?: object): void {
+		deferRewire(this._core, fn, {
+			batchToken,
+			isReady: () => !this._hasBoundaryPauseLock(),
+		});
 	}
 }
 

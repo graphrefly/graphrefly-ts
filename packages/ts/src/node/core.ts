@@ -72,7 +72,11 @@ export interface LifecycleState {
 	activated: boolean;
 }
 
-export type BoundaryTask = () => void;
+export interface BoundaryTask {
+	apply: () => void;
+	batchToken?: object;
+	isReady?: () => boolean;
+}
 
 export interface BoundaryState {
 	queue: BoundaryTask[];
@@ -216,6 +220,11 @@ export class NodeCore {
 	}
 
 	/** @internal */
+	boundaryTaskCount(): number {
+		return this.boundary.queue.length - this.boundary.head;
+	}
+
+	/** @internal */
 	shiftBoundaryTask(): BoundaryTask | undefined {
 		if (!this.hasBoundaryTasks()) {
 			this.boundary.queue = [];
@@ -228,6 +237,22 @@ export class NodeCore {
 			this.boundary.head = 0;
 		}
 		return task;
+	}
+
+	/** @internal Put a not-yet-ready task back at this core's FIFO head. */
+	unshiftBoundaryTask(task: BoundaryTask): void {
+		const remaining = this.boundary.queue.slice(this.boundary.head);
+		this.boundary.queue = [task, ...remaining];
+		this.boundary.head = 0;
+	}
+
+	/** @internal D110: discard all pending tasks caused by an uncommitted batch. */
+	dropBoundaryTasksForBatch(batchToken: object): void {
+		const remaining = this.boundary.queue
+			.slice(this.boundary.head)
+			.filter((task) => task.batchToken !== batchToken);
+		this.boundary.queue = remaining;
+		this.boundary.head = 0;
 	}
 }
 

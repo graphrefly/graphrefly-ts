@@ -1306,6 +1306,233 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 	});
 });
 
+// C-25 (R-rewire-deferred-committed-boundary / D110): ctx.rewireNext/ctx.upNext tasks apply only
+// after the owner reaches a committed, unpaused boundary view. Rollback drops the tasks caused by
+// that batch; it does not let addDep/removeDep/setDeps/upNext leak a hidden committed effect.
+describe("C-25 — deferred self-boundary tasks require committed + unpaused boundary", () => {
+	function makeHelper(seed: number) {
+		let hctx: Ctx | null = null;
+		let activated = false;
+		let deactivated = false;
+		const n = node<number>([], (ctx) => {
+			hctx = ctx;
+			activated = true;
+			ctx.onDeactivation(() => {
+				deactivated = true;
+			});
+			ctx.down([["DATA", seed]]);
+		});
+		return {
+			node: n,
+			emit: (v: number) => (hctx as Ctx).down([["DATA", v]]),
+			isActivated: () => activated,
+			isDeactivated: () => deactivated,
+		};
+	}
+
+	it("batch commit settles the old shape before draining a queued addDep", () => {
+		const s = node<number>([], null);
+		const helper = makeHelper(42);
+		const opFn: NodeFn = (ctx) => {
+			const h = depBatch(ctx, 1);
+			if (h) for (const v of h) ctx.down([["DATA", `helper:${v}`]]);
+			const sv = depBatch(ctx, 0);
+			if (sv && sv.length > 0) {
+				ctx.rewireNext.addDep(helper.node, opFn);
+				ctx.down([["DATA", `source:${sv.at(-1)}`]]);
+				expect(helper.isActivated()).toBe(false);
+			}
+		};
+		const op = node<string>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		const { msgs } = collect(op);
+		msgs.length = 0;
+
+		batch(() => {
+			s.down([["DATA", 1]]);
+			expect(op.deps).toEqual([s]);
+			expect(helper.isActivated()).toBe(false);
+			expect(data(msgs)).toEqual([]);
+		});
+
+		expect(op.deps).toEqual([s, helper.node]);
+		expect(helper.isActivated()).toBe(true);
+		expect(data(msgs)).toEqual(["source:1", "helper:42"]);
+	});
+
+	it("rollback drops a queued addDep: helper cache does not activate and deps stay old-shape", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const helper = makeHelper(10);
+		const opFn: NodeFn = (ctx) => {
+			if (depBatch(ctx, 0)) ctx.rewireNext.addDep(helper.node, opFn);
+		};
+		const op = node<number>([s], opFn, { completeWhenDepsComplete: false });
+
+		batch((bctx) => {
+			collect(op); // activation inside the open batch queues the task under that batch
+			expect(op.deps).toEqual([s]);
+			expect(helper.isActivated()).toBe(false);
+			bctx.rollback();
+		});
+
+		expect(op.deps).toEqual([s]);
+		expect(helper.isActivated()).toBe(false);
+	});
+
+	it("rollback drops a queued removeDep cleanup: helper stays subscribed and live", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const helper = makeHelper(20);
+		const opFn: NodeFn = (ctx) => {
+			if (depBatch(ctx, 0)) ctx.rewireNext.removeDep(helper.node, opFn);
+			const h = depBatch(ctx, 1);
+			if (h) for (const v of h) ctx.down([["DATA", v as number]]);
+		};
+		const op = node<number>([s, helper.node], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		let msgs: Message[] = [];
+
+		batch((bctx) => {
+			msgs = collect(op).msgs; // activation queues removeDep under the open batch
+			expect(helper.isActivated()).toBe(true);
+			bctx.rollback();
+		});
+
+		expect(op.deps).toEqual([s, helper.node]);
+		expect(helper.isDeactivated()).toBe(false);
+		msgs.length = 0;
+		helper.emit(21);
+		expect(data(msgs)).toEqual([21]);
+	});
+
+	it("rollback drops a queued setDeps: replacement helper never activates", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const oldHelper = makeHelper(30);
+		const newHelper = makeHelper(31);
+		const opFn: NodeFn = (ctx) => {
+			if (depBatch(ctx, 0)) ctx.rewireNext.setDeps([s, newHelper.node], opFn);
+			const h = depBatch(ctx, 1);
+			if (h) for (const v of h) ctx.down([["DATA", v as number]]);
+		};
+		const op = node<number>([s, oldHelper.node], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+
+		batch((bctx) => {
+			collect(op); // activation queues setDeps under the open batch
+			expect(oldHelper.isActivated()).toBe(true);
+			bctx.rollback();
+		});
+
+		expect(op.deps).toEqual([s, oldHelper.node]);
+		expect(oldHelper.isDeactivated()).toBe(false);
+		expect(newHelper.isActivated()).toBe(false);
+	});
+
+	it("rollback drops ctx.upNext self-demand: no pull delivery routes after the batch", () => {
+		const pullId = Symbol("c25-pull");
+		const acc = node<number>([], null, { initial: 7 });
+		const snap = node<number>([acc], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+			pullId,
+		});
+		const stream = node<number>([], null, { initial: 1 });
+		const received: number[] = [];
+		const consumer = node<number>(
+			[stream, snap],
+			(ctx) => {
+				const snapB = depBatch(ctx, 1);
+				if (snapB) for (const v of snapB) received.push(v as number);
+				if (depBatch(ctx, 0)) ctx.upNext([["RESUME", pullId]]);
+			},
+			{ partial: true },
+		);
+
+		batch((bctx) => {
+			collect(consumer);
+			bctx.rollback();
+		});
+
+		expect(received).toEqual([]);
+	});
+
+	it("a paused owner holds queued addDep until the final RESUME", () => {
+		const s = node<number>([], null);
+		const helper = makeHelper(50);
+		const l1 = Symbol("pause-1");
+		const l2 = Symbol("pause-2");
+		const opFn: NodeFn = (ctx) => {
+			if (depBatch(ctx, 0)) {
+				ctx.rewireNext.addDep(helper.node, opFn);
+				ctx.down([["DATA", 1]]);
+			}
+		};
+		const op = node<number>([s], opFn, { completeWhenDepsComplete: false });
+		op.subscribe((m) => {
+			if (m[0] === "DATA") {
+				op.up([
+					["PAUSE", l1],
+					["PAUSE", l2],
+				]);
+			}
+		});
+
+		s.down([["DATA", 1]]);
+		expect(helper.isActivated()).toBe(false);
+		op.up([["RESUME", l1]]);
+		expect(helper.isActivated()).toBe(false);
+		op.up([["RESUME", l2]]);
+		expect(helper.isActivated()).toBe(true);
+	});
+
+	it("combined batch+pause: commit before resume does not drain until resume", () => {
+		const s = node<number>([], null);
+		const helper = makeHelper(60);
+		const lock = Symbol("pause");
+		const opFn: NodeFn = (ctx) => {
+			if (depBatch(ctx, 0)) {
+				ctx.rewireNext.addDep(helper.node, opFn);
+				ctx.down([["DATA", 1]]);
+			}
+		};
+		const op = node<number>([s], opFn, { completeWhenDepsComplete: false });
+		op.subscribe((m) => {
+			if (m[0] === "DATA") op.up([["PAUSE", lock]]);
+		});
+
+		batch(() => s.down([["DATA", 1]]));
+		expect(helper.isActivated()).toBe(false);
+		op.up([["RESUME", lock]]);
+		expect(helper.isActivated()).toBe(true);
+	});
+
+	it("combined batch+pause: resume before commit still waits for batch commit", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const helper = makeHelper(70);
+		const lock = Symbol("pause");
+		const opFn: NodeFn = (ctx) => {
+			if (depBatch(ctx, 0)) {
+				ctx.rewireNext.addDep(helper.node, opFn);
+				ctx.down([["DATA", 1]]);
+			}
+		};
+		const op = node<number>([s], opFn, { completeWhenDepsComplete: false });
+		op.subscribe((m) => {
+			if (m[0] === "DATA") op.up([["PAUSE", lock]]);
+		});
+
+		batch(() => {
+			expect(helper.isActivated()).toBe(false);
+			op.up([["RESUME", lock]]);
+			expect(helper.isActivated()).toBe(false);
+		});
+		expect(helper.isActivated()).toBe(true);
+	});
+});
+
 describe("QA — synthesized no-emit RESOLVED uses normal timing", () => {
 	it("buffers a sync fn's synthesized RESOLVED while paused in resumeAll mode", () => {
 		const s = node<number>([], null, { initial: 1 });

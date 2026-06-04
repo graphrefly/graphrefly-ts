@@ -13,13 +13,13 @@
  */
 
 import type { Wave } from "../protocol/messages.js";
-import { enterWave, exitWave } from "./boundary.js";
+import { dropBoundaryTasksForBatch, enterWave, exitWave } from "./boundary.js";
 
 /** A node target the batch can commit/rollback against (structural, avoids an import cycle). */
 export interface BatchTarget {
 	__commitBatchedWave(wave: Wave): void;
 	__rollbackBatched(): void;
-	__deferBoundary(fn: () => void): void;
+	__deferBoundary(fn: () => void, batchToken?: object): void;
 }
 
 export interface BatchCtx {
@@ -35,9 +35,14 @@ interface ActiveBatch {
 }
 
 let active: ActiveBatch | null = null;
+let boundaryOwner: ActiveBatch | null = null;
 
 export function currentBatch(): boolean {
 	return active !== null;
+}
+
+export function currentBoundaryBatchToken(): object | undefined {
+	return active ?? boundaryOwner ?? undefined;
 }
 
 /**
@@ -60,18 +65,29 @@ export function deferAfterBatchForTarget(target: BatchTarget, fn: () => void): b
 	const owner = active;
 	target.__deferBoundary(() => {
 		if (owner.committed) fn();
-	});
+	}, owner);
 	return true;
 }
 
 function commit(b: ActiveBatch): void {
-	for (const target of b.order) {
-		const wave = b.deferred.get(target);
-		if (wave) target.__commitBatchedWave(wave);
+	const prev = boundaryOwner;
+	boundaryOwner = b;
+	try {
+		for (const target of b.order) {
+			const wave = b.deferred.get(target);
+			if (wave) target.__commitBatchedWave(wave);
+		}
+		b.committed = true;
+	} catch (e) {
+		dropBoundaryTasksForBatch(b);
+		throw e;
+	} finally {
+		boundaryOwner = prev;
 	}
 }
 
 function rollback(b: ActiveBatch): void {
+	dropBoundaryTasksForBatch(b);
 	for (const target of b.order) target.__rollbackBatched();
 }
 
@@ -110,7 +126,6 @@ export function batch<R>(fn: (bctx: BatchCtx) => R): R {
 		if (b.rolledBack) rollback(b);
 		else {
 			commit(b);
-			b.committed = true;
 		}
 		return result;
 	} finally {
