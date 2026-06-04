@@ -23,6 +23,7 @@ import {
 	setNodeOwner,
 	withNodeCore,
 } from "../node/node.js";
+import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
 import {
 	checkpointTerminal,
@@ -69,6 +70,8 @@ export interface GraphOptions {
 	name?: string;
 	/** Bind to a dispatcher (default = process-global, D26). */
 	dispatcher?: Dispatcher;
+	/** D109 default node runtime versioning policy for graph-owned nodes. Default is nodev0. */
+	versioning?: NodeVersioningPolicy;
 	/**
 	 * Turn on the dispatcher profile recorder (D39 / F-PERF default off). NOTE: this
 	 * switches recording on for the WHOLE bound dispatcher (the default is process-global,
@@ -127,6 +130,7 @@ export class StateNode<T> extends Node<T> {
 export class Graph {
 	readonly name?: string;
 	private readonly _dispatcher: Dispatcher;
+	private readonly _versioning: NodeVersioningPolicy | undefined;
 	private readonly _core = new NodeCore();
 	private readonly _entries = new Map<Node<unknown>, Entry>();
 	private readonly _byId = new Map<string, Node<unknown>>();
@@ -142,6 +146,7 @@ export class Graph {
 	constructor(opts: GraphOptions = {}) {
 		this.name = opts.name;
 		this._dispatcher = opts.dispatcher ?? defaultDispatcher;
+		this._versioning = opts.versioning;
 		if (opts.profile) this._dispatcher.setRecording(true);
 		restoreRegistrars.set(this, {
 			stateNode: <T = unknown>(id: string, stateOpts: SugarOpts<T> = {}) => {
@@ -217,7 +222,11 @@ export class Graph {
 	private _nodeOpts<T>(opts: SugarOpts<T>): NodeOptions<T> {
 		// strip graph-only fields; inject the bound dispatcher
 		const { name: _n, meta: _m, restore: _r, ...rest } = opts;
-		return { ...rest, dispatcher: this._dispatcher };
+		return {
+			...rest,
+			versioning: rest.versioning ?? this._versioning,
+			dispatcher: this._dispatcher,
+		};
 	}
 
 	/** Look up a registered node by its id. */
@@ -403,6 +412,7 @@ export class Graph {
 			};
 			if (entry.name !== undefined) dnode.name = entry.name;
 			if (entry.node.cache !== undefined) dnode.value = entry.node.cache; // absent = SENTINEL
+			if (entry.node.version !== undefined) dnode.version = entry.node.version;
 			if (entry.meta !== undefined) dnode.meta = entry.meta;
 			nodes.push(dnode);
 			for (const from of liveIds) edges.push({ from, to: id });
@@ -429,6 +439,7 @@ export class Graph {
 				deps: liveIds,
 			};
 			if (inner.cache !== undefined) dnode.value = inner.cache;
+			if (inner.version !== undefined) dnode.version = inner.version;
 			nodes.push(dnode);
 			for (const from of liveIds) edges.push({ from, to: dnode.id });
 		}
@@ -606,6 +617,7 @@ export class Graph {
 			},
 		};
 		if (opts.name !== undefined) out.name = opts.name;
+		if (state.version !== undefined) out.version = state.version;
 		if (opts.meta !== undefined)
 			out.meta = toCheckpointJson(opts.meta, `${id}.meta`) as {
 				[key: string]: GraphCheckpointJson;

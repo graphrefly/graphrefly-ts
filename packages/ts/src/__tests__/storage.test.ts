@@ -28,7 +28,9 @@ import {
 	envelopeChange,
 	graph,
 	hasKvPutIfAbsent,
+	hasKvVersioned,
 	hasStoragePutIfAbsent,
+	hasStorageVersioned,
 	isDecimalIntegerString,
 	isNonNegativeDecimalIntegerString,
 	jsonCodecFor,
@@ -47,7 +49,9 @@ import {
 	readObserveEventLogPage,
 	readThroughKv,
 	requireKvPutIfAbsent,
+	requireKvVersioned,
 	requireStoragePutIfAbsent,
+	requireStorageVersioned,
 	restoreGraph,
 	stableJsonString,
 	strictJsonCodec,
@@ -928,6 +932,37 @@ describe("D82 storage substrate helpers", () => {
 		expect(errors).toHaveLength(1);
 	});
 
+	it("tieredReadThrough uses D108 setIfMatch for stale-proof promotion when available", async () => {
+		const hot = memoryKv<number>();
+		const hotVersioned = requireKvVersioned(hot);
+		const hotTier: KvStorageTier<number> = {
+			...hot,
+			async getVersioned(key) {
+				const observed = await hotVersioned.getVersioned(key);
+				await hot.set(key, 1);
+				return observed;
+			},
+			setIfMatch: hotVersioned.setIfMatch.bind(hotVersioned),
+		};
+		const cold = memoryKv<number>();
+		await cold.set("k", 7);
+
+		const result = await tieredReadThrough({
+			key: "k",
+			tiers: [hotTier, cold],
+			promoteTo: [0],
+		});
+
+		expect(result.status).toBe("hit");
+		expect(result.value).toBe(7);
+		expect(result.facts.map((fact) => [fact.kind, fact.tier.index])).toEqual([
+			["miss", 0],
+			["hit", 1],
+		]);
+		expect(result.promotions).toEqual([{ tier: { index: 0 }, ok: false }]);
+		expect(await hot.get("k")).toBe(1);
+	});
+
 	it("memoryBackend putIfAbsent creates once, preserves bytes, and clones", async () => {
 		const backend = memoryBackend();
 		const first = new Uint8Array([1, 2, 3]);
@@ -946,6 +981,34 @@ describe("D82 storage substrate helpers", () => {
 		expect([...(await backend.get("k"))!]).toEqual([1, 2, 3]);
 	});
 
+	it("memoryBackend supports D108 versioned present and absent observations", async () => {
+		const backend = requireStorageVersioned(memoryBackend());
+
+		expect(hasStorageVersioned(backend)).toBe(true);
+		const absent = await backend.getVersioned("k");
+		expect(absent.kind).toBe("miss");
+		expect(await backend.setIfMatch("k", new Uint8Array([1]), absent.generation)).toBe(true);
+		expect(await backend.setIfMatch("k", new Uint8Array([2]), absent.generation)).toBe(false);
+		expect(await backend.setIfMatch("other", new Uint8Array([9]), absent.generation)).toBe(false);
+		expect(await backend.get("k")).toEqual(new Uint8Array([1]));
+
+		const present = await backend.getVersioned("k");
+		expect(present.kind).toBe("hit");
+		if (present.kind === "hit") {
+			present.value[0] = 9;
+		}
+		expect(await backend.get("k")).toEqual(new Uint8Array([1]));
+
+		await backend.put("k", new Uint8Array([3]));
+		expect(await backend.setIfMatch("k", new Uint8Array([4]), present.generation)).toBe(false);
+		const fresh = await backend.getVersioned("k");
+		expect(await backend.setIfMatch("k", new Uint8Array([4]), fresh.generation)).toBe(true);
+		expect(await backend.get("k")).toEqual(new Uint8Array([4]));
+
+		backend.clear();
+		expect(await backend.setIfMatch("k", new Uint8Array([5]), fresh.generation)).toBe(false);
+	});
+
 	it("webStorageBackend stores hex bytes deterministically, lists by namespace, and rejects malformed data", () => {
 		const storage = createStorage();
 		const backend = webStorageBackend(storage, { namespace: "web" });
@@ -961,6 +1024,10 @@ describe("D82 storage substrate helpers", () => {
 
 		storage.setItem("web\u0000bad", "not-hex");
 		expect(() => backend.get("bad")).toThrow(/malformed stored bytes/);
+		expect(hasStorageVersioned(backend)).toBe(false);
+		expect(() => requireStorageVersioned(backend, "webStorageBackend")).toThrow(
+			/webStorageBackend: backend does not support versioned/,
+		);
 	});
 
 	it("fileBackend persists bytes, lists logical keys, and supports putIfAbsent", async () => {
@@ -988,6 +1055,10 @@ describe("D82 storage substrate helpers", () => {
 			await backend.delete("ab");
 			expect(await backend.get("ab")).toBeUndefined();
 			expect(await backend.list()).toEqual(["", "a", "c"]);
+			expect(hasStorageVersioned(backend)).toBe(false);
+			expect(() => requireStorageVersioned(backend, "fileBackend")).toThrow(
+				/fileBackend: backend does not support versioned/,
+			);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -1064,6 +1135,28 @@ describe("D82 storage substrate helpers", () => {
 		expect(decoder.decode(await backend.get("item"))).toBe("v:1");
 	});
 
+	it("typed KV exposes D108 versioned capability only when the backend supports it", async () => {
+		const kv = memoryKv<{ value: number }>();
+		const versioned = requireKvVersioned(kv);
+
+		expect(hasKvVersioned(kv)).toBe(true);
+		const absent = await versioned.getVersioned("item");
+		expect(absent.kind).toBe("miss");
+		await expect(versioned.setIfMatch("item", { value: 1 }, absent.generation)).resolves.toBe(true);
+		await expect(versioned.setIfMatch("item", { value: 2 }, absent.generation)).resolves.toBe(
+			false,
+		);
+		expect(await kv.get("item")).toEqual({ value: 1 });
+
+		const present = await versioned.getVersioned("item");
+		expect(present).toMatchObject({ kind: "hit", value: { value: 1 } });
+		await kv.set("item", { value: 3 });
+		await expect(versioned.setIfMatch("item", { value: 4 }, present.generation)).resolves.toBe(
+			false,
+		);
+		expect(await kv.get("item")).toEqual({ value: 3 });
+	});
+
 	it("kvStorage routes sync backend and codec failures through the returned Promise", async () => {
 		const kv = kvStorage({
 			backend: {
@@ -1094,7 +1187,9 @@ describe("D82 storage substrate helpers", () => {
 		});
 
 		expect(hasKvPutIfAbsent(kv)).toBe(false);
+		expect(hasKvVersioned(kv)).toBe(false);
 		expect(() => requireKvPutIfAbsent(kv)).toThrow(/does not support putIfAbsent/);
+		expect(() => requireKvVersioned(kv)).toThrow(/does not support versioned/);
 	});
 
 	it("append logs paginate by cursor and can truncate later entries", async () => {
@@ -1616,6 +1711,8 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.strictJsonCodecFor).toBe(strictJsonCodecFor);
 			expect(exports.hasKvPutIfAbsent).toBe(hasKvPutIfAbsent);
 			expect(exports.hasStoragePutIfAbsent).toBe(hasStoragePutIfAbsent);
+			expect(exports.hasKvVersioned).toBe(hasKvVersioned);
+			expect(exports.hasStorageVersioned).toBe(hasStorageVersioned);
 			expect(exports.webStorageBackend).toBe(webStorageBackend);
 			expect(exports.memoryBackend).toBe(memoryBackend);
 			expect(exports.memoryMultiWriterAppendLog).toBe(memoryMultiWriterAppendLog);
@@ -1626,6 +1723,8 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.tieredReadThrough).toBe(tieredReadThrough);
 			expect(exports.requireKvPutIfAbsent).toBe(requireKvPutIfAbsent);
 			expect(exports.requireStoragePutIfAbsent).toBe(requireStoragePutIfAbsent);
+			expect(exports.requireKvVersioned).toBe(requireKvVersioned);
+			expect(exports.requireStorageVersioned).toBe(requireStorageVersioned);
 			expect(exports.walFrame).toBe(walFrame);
 			expect(exports.walFrameChecksum).toBe(walFrameChecksum);
 			expect(exports.verifyWalFrameChecksum).toBe(verifyWalFrameChecksum);

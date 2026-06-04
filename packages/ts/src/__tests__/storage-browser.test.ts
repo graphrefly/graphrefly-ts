@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as storageBrowser from "../storage/browser.js";
+import { hasStorageVersioned, requireStorageVersioned } from "../storage/index.js";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -47,6 +48,15 @@ describe("storage/browser (D103/D106)", () => {
 
 		const backend = storageBrowser.indexedDbBackend({ dbName, storeName });
 		expect(backend.name).toBe(`idb:${dbName}/${storeName}`);
+	});
+
+	it("does not claim D108 versioned support without IndexedDB generation metadata", () => {
+		const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
+
+		expect(hasStorageVersioned(backend)).toBe(false);
+		expect(() => requireStorageVersioned(backend, "indexedDbBackend")).toThrow(
+			/indexedDbBackend: backend does not support versioned get\/set-if-match/,
+		);
 	});
 
 	it("rejects with a clear error when indexedDB is unavailable", async () => {

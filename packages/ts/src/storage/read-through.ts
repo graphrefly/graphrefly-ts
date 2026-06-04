@@ -1,4 +1,4 @@
-import type { KvStorageTier } from "./kv.js";
+import { hasKvVersioned, type KvGeneration, type KvStorageTier } from "./kv.js";
 
 /** Result tier for read-through output facts. */
 export interface ReadThroughLookupTier {
@@ -17,6 +17,7 @@ export interface ReadThroughLookupFact<T> {
 	readonly key: string;
 	readonly tier: ReadThroughLookupTier;
 	readonly value?: T;
+	readonly generation?: KvGeneration;
 	readonly error?: unknown;
 }
 
@@ -134,14 +135,22 @@ export function tieredReadThrough<T>(
 		if (hitTier !== undefined || index >= tiers.length) return defer(() => undefined);
 		const tier = tiers[index]!;
 		const info = lookupTier(index);
-		return defer(() => tier.get(key))
-			.then((found) => {
+		const read = hasKvVersioned(tier)
+			? defer(() => tier.getVersioned(key)).then((result) => {
+					if (result.kind === "miss") {
+						return { found: undefined, generation: result.generation } as const;
+					}
+					return { found: result.value, generation: result.generation } as const;
+				})
+			: defer(() => tier.get(key)).then((found) => ({ found, generation: undefined }) as const);
+		return read
+			.then(({ found, generation }) => {
 				if (found === undefined) {
-					addFact({ kind: "miss", key, tier: info });
+					addFact({ kind: "miss", key, tier: info, generation });
 					safeOnMiss(info);
 					return lookupNext(index + 1);
 				}
-				addFact({ kind: "hit", key, tier: info, value: found });
+				addFact({ kind: "hit", key, tier: info, value: found, generation });
 				hitTier = info;
 				value = found;
 			})
@@ -176,9 +185,15 @@ export function tieredReadThrough<T>(
 		if (offset >= targets.length || value === undefined) return defer(() => undefined);
 		const index = targets[offset]!;
 		const info = { index, name: tierNames[index] };
-		return defer(() => tiers[index]!.set(key, value as T))
-			.then(() => {
-				promotions.push({ tier: info, ok: true });
+		const tier = tiers[index]!;
+		const generation = generationForTier(lookupFacts, index);
+		const write =
+			hasKvVersioned(tier) && generation !== undefined
+				? defer(() => tier.setIfMatch(key, value as T, generation))
+				: defer(() => tier.set(key, value as T)).then(() => true);
+		return write
+			.then((ok) => {
+				promotions.push({ tier: info, ok });
 			})
 			.catch((error) => {
 				promotions.push({ tier: info, ok: false, error });
@@ -212,6 +227,13 @@ export function tieredReadThrough<T>(
 	};
 
 	return lookupNext(0).then(runLoader).then(promote).then(result);
+}
+
+function generationForTier<T>(
+	facts: readonly ReadThroughLookupFact<T>[],
+	index: number,
+): KvGeneration | undefined {
+	return facts.find((fact) => fact.tier.index === index)?.generation;
 }
 
 function buildPromotionTargets(

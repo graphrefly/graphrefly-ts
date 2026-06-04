@@ -587,6 +587,54 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		expect(() => restored.find("failed")?.subscribe(() => {})).toThrow(/non-resubscribable/);
 	});
 
+	it("checkpoints and restores D109 node runtime versions", () => {
+		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const g = graph({ versioning: { level: 1, hash } });
+		const src = g.state(1, { name: "src" });
+		const v0 = g.state(1, { name: "v0", versioning: 0 });
+		const disabled = g.state(1, { name: "disabled", versioning: false });
+		src.set(2);
+		v0.set(2);
+		expect(disabled.version).toBeUndefined();
+
+		const checkpoint = g.checkpoint();
+		expect(checkpoint.nodes.find((n) => n.id === "src")?.version).toEqual({
+			level: 1,
+			counter: 1,
+			cid: "h:2",
+			prev: "h:1",
+		});
+		expect(checkpoint.nodes.find((n) => n.id === "v0")?.version).toEqual({
+			level: 0,
+			counter: 1,
+		});
+		expect(checkpoint.nodes.find((n) => n.id === "disabled")?.version).toBeUndefined();
+
+		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
+			/matching node versioning policy/,
+		);
+		const restored = restoreGraph(checkpoint, {
+			registry: defaultRestoreRegistry,
+			versioning: { level: 1, hash },
+		});
+		expect(restored.find("src")?.version).toEqual({
+			level: 1,
+			counter: 1,
+			cid: "h:2",
+			prev: "h:1",
+		});
+		expect(restored.find("v0")?.version).toEqual({ level: 0, counter: 1 });
+		expect(restored.find("disabled")?.version).toBeUndefined();
+
+		(restored.find("src") as { set(v: number): void }).set(3);
+		expect(restored.find("src")?.version).toEqual({
+			level: 1,
+			counter: 2,
+			cid: "h:3",
+			prev: "h:2",
+		});
+	});
+
 	it("restores mounted fresh graphs from child-local checkpoints without double-prefixing", () => {
 		const parent = graph({ name: "parent" });
 		parent.state(1, { name: "root" });

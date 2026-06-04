@@ -1,8 +1,9 @@
 import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
-import type { KvStorageTier } from "../storage/kv.js";
+import { hasKvVersioned, type KvGeneration, type KvStorageTier } from "../storage/kv.js";
 import {
+	type ReadThroughLookupFact,
 	type ReadThroughLookupTier,
 	type TieredReadThroughResult,
 	tieredReadThrough,
@@ -392,9 +393,15 @@ function promoteFresh<K, V>(
 	const index = targets[offset] as number;
 	const tier = { index, name: opts.tierNames?.[index] };
 	try {
-		opts.tiers[index]!.set(opts.key as string, result.value as V).then(
-			() => {
-				promotions.push({ tier, ok: true });
+		const target = opts.tiers[index]!;
+		const generation = generationForTier(result.facts, index);
+		const write =
+			hasKvVersioned(target) && generation !== undefined
+				? target.setIfMatch(opts.key as string, result.value as V, generation)
+				: target.set(opts.key as string, result.value as V).then(() => true);
+		write.then(
+			(ok) => {
+				promotions.push({ tier, ok });
 				promoteFresh(ctx, st, requestSeq, opts, promotions, offset + 1);
 			},
 			(error) => {
@@ -406,6 +413,13 @@ function promoteFresh<K, V>(
 		promotions.push({ tier, ok: false, error });
 		promoteFresh(ctx, st, requestSeq, opts, promotions, offset + 1);
 	}
+}
+
+function generationForTier<V>(
+	facts: readonly ReadThroughLookupFact<V>[],
+	index: number,
+): KvGeneration | undefined {
+	return facts.find((fact) => fact.tier.index === index)?.generation;
 }
 
 function isLiveRequest<K>(st: DriverState<K>, requestSeq: number): boolean {
@@ -482,17 +496,19 @@ function eventsFromResult<K, V>(
 		]);
 		if (!promotion.ok) {
 			firstError ??= promotion.error;
-			out.push([
-				"DATA",
-				{
-					kind: "error",
-					key,
-					requestSeq,
-					stage: "promotion",
-					tier: promotion.tier,
-					error: promotion.error,
-				},
-			]);
+			if (promotion.error !== undefined) {
+				out.push([
+					"DATA",
+					{
+						kind: "error",
+						key,
+						requestSeq,
+						stage: "promotion",
+						tier: promotion.tier,
+						error: promotion.error,
+					},
+				]);
+			}
 		}
 	}
 	out.push([

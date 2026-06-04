@@ -10,6 +10,11 @@
 import type { Dispatcher } from "../dispatcher/index.js";
 import type { Node } from "../node/node.js";
 import { restoreStateOfNode, type Status } from "../node/node.js";
+import {
+	type NodeVersioningPolicy,
+	type NodeVersionJson,
+	validateNodeVersionJson,
+} from "../node/versioning.js";
 import { SENTINEL } from "../protocol/messages.js";
 import {
 	GRAPH_CHECKPOINT_VERSION,
@@ -78,6 +83,7 @@ export type GraphRestoreRegistry =
 export interface RestoreGraphOptions {
 	registry: GraphRestoreRegistry;
 	dispatcher?: Dispatcher;
+	versioning?: NodeVersioningPolicy;
 }
 
 export const stateRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
@@ -223,6 +229,7 @@ type PreparedRuntime = {
 	terminal: true | unknown | undefined;
 	hasCalledFnOnce: boolean;
 	ctxState: { value: unknown; persist: boolean };
+	version: NodeVersionJson | false;
 };
 
 function registryGet(registry: GraphRestoreRegistry, ref: string): GraphRestoreEntry | undefined {
@@ -308,6 +315,10 @@ function prepareRuntime(node: GraphCheckpointNode): PreparedRuntime {
 		throw new Error(`restoreGraph: node '${node.id}' ctxState.persist must be boolean`);
 	}
 	const ctxState = checkpointDataValue(node.ctxState.value, `${node.id}.ctxState`);
+	const version =
+		node.version === undefined
+			? false
+			: validateNodeVersionJson(node.version, `${node.id}.version`);
 	return {
 		cache: value.cache,
 		hasData: value.hasData,
@@ -315,6 +326,7 @@ function prepareRuntime(node: GraphCheckpointNode): PreparedRuntime {
 		terminal,
 		hasCalledFnOnce: node.lifecycle.hasCalledFnOnce,
 		ctxState: { value: ctxState.cache, persist: node.ctxState.persist },
+		version,
 	};
 }
 
@@ -447,8 +459,9 @@ function constructPrepared(
 	prepared: PreparedCheckpoint,
 	registry: GraphRestoreRegistry,
 	dispatcher?: Dispatcher,
+	versioning?: NodeVersioningPolicy,
 ): Graph {
-	const out = graph({ name: prepared.checkpoint.name, dispatcher });
+	const out = graph({ name: prepared.checkpoint.name, dispatcher, versioning });
 	const built = new Map<string, Node<unknown>>();
 	const visiting = new Set<string>();
 
@@ -494,7 +507,7 @@ function constructPrepared(
 	for (const id of prepared.nodes.keys()) buildNode(id);
 
 	for (const mount of prepared.mounts) {
-		out.mount(constructPrepared(mount.prepared, registry, dispatcher), {
+		out.mount(constructPrepared(mount.prepared, registry, dispatcher, versioning), {
 			at: mount.at,
 		});
 	}
@@ -508,6 +521,7 @@ function constructPrepared(
 			terminal: runtime.terminal,
 			hasCalledFnOnce: runtime.hasCalledFnOnce,
 			ctxState: runtime.ctxState,
+			version: runtime.version,
 		});
 	}
 
@@ -525,10 +539,10 @@ export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphO
 		throw new Error("restoreGraph: registry must be a Map or object");
 	}
 	for (const key of Object.keys(options)) {
-		if (key !== "registry" && key !== "dispatcher") {
+		if (key !== "registry" && key !== "dispatcher" && key !== "versioning") {
 			throw new Error(`restoreGraph: unknown option '${key}'`);
 		}
 	}
 	const prepared = prepareCheckpoint(checkpoint, options.registry);
-	return constructPrepared(prepared, options.registry, options.dispatcher);
+	return constructPrepared(prepared, options.registry, options.dispatcher, options.versioning);
 }

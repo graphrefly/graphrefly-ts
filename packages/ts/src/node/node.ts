@@ -53,8 +53,17 @@ import {
 	type PrivateState,
 	type SyncCtxState,
 	type ValueState,
+	type VersionState,
 	type WaveState,
 } from "./core.js";
+import {
+	advanceNodeVersion,
+	cloneNodeVersion,
+	createNodeVersion,
+	type NodeVersion,
+	type NodeVersioningPolicy,
+	resolveNodeVersioningPolicy,
+} from "./versioning.js";
 
 export type Status =
 	| "sentinel"
@@ -100,6 +109,11 @@ export interface NodeOptions<T = unknown> {
 	pullId?: LockId;
 	/** Buffer the last N outgoing DATA for late subscribers (R-replay-buffer). */
 	replayBuffer?: number;
+	/**
+	 * D109 node runtime versioning policy. Default is nodev0 (`{level:0,counter}`); `false`
+	 * disables runtime version metadata for this node.
+	 */
+	versioning?: NodeVersioningPolicy;
 	/** Mark this as a dynamicNode — fn gets ctx.track(i) for read-selection (R-dynamic-node / D35). */
 	dynamic?: boolean;
 	/** Dispatch pool for the fn (R-sync-core). Default sync. */
@@ -125,6 +139,7 @@ export interface NodeCheckpointState {
 	readonly activated: boolean;
 	readonly hasCalledFnOnce: boolean;
 	readonly ctxState: { readonly value: unknown; readonly persist: boolean };
+	readonly version: NodeVersion | undefined;
 	readonly handle: Handle | null;
 }
 
@@ -135,6 +150,7 @@ export interface NodeRestoreState {
 	readonly terminal: true | unknown | undefined;
 	readonly hasCalledFnOnce: boolean;
 	readonly ctxState: { readonly value: unknown; readonly persist: boolean };
+	readonly version: NodeVersion | false;
 }
 
 let constructingCore: NodeCore | undefined;
@@ -218,6 +234,7 @@ export class Node<T = unknown> {
 	private readonly _privateState: PrivateState;
 	private readonly _hooks: CleanupHooks;
 	private readonly _syncCtxState: SyncCtxState;
+	private readonly _version: VersionState;
 
 	private get _syncCtx(): Ctx | null {
 		return this._syncCtxState.value;
@@ -254,6 +271,7 @@ export class Node<T = unknown> {
 
 		const n = deps.length;
 		const dep = makeDepBookkeeping(n);
+		const versioning = resolveNodeVersioningPolicy(opts.versioning);
 		const value = {
 			cache: SENTINEL as T | undefined,
 			hasData: false,
@@ -314,6 +332,13 @@ export class Node<T = unknown> {
 				privateState: { value: SENTINEL, persist: false },
 				hooks: { onDeactivation: [], onInvalidate: [] },
 				syncCtx: { value: null },
+				version: {
+					policy: versioning,
+					value: createNodeVersion(
+						versioning,
+						opts.initial !== undefined ? opts.initial : undefined,
+					),
+				},
 			},
 		);
 		this._id = created.id;
@@ -326,6 +351,7 @@ export class Node<T = unknown> {
 		this._privateState = this._core.getPrivateState(this._id);
 		this._hooks = this._core.getHooks(this._id);
 		this._syncCtxState = this._core.getSyncCtx(this._id);
+		this._version = this._core.getVersion(this._id);
 		checkpointReaders.set(this as Node<unknown>, () => ({
 			cache: this._value.cache,
 			hasData: this._value.hasData,
@@ -336,6 +362,7 @@ export class Node<T = unknown> {
 				value: this._privateState.value,
 				persist: this._privateState.persist,
 			},
+			version: cloneNodeVersion(this._version.value),
 			handle: this._slot.handle,
 		}));
 		restoreWriters.set(this as Node<unknown>, (state) => {
@@ -361,6 +388,20 @@ export class Node<T = unknown> {
 			if (this._slot.pull) this._control.pauseLockset.add(this._slot.pullLock as LockId);
 			this._privateState.value = state.ctxState.value;
 			this._privateState.persist = state.ctxState.persist;
+			if (state.version === false) {
+				this._version.policy = { enabled: false };
+				this._version.value = undefined;
+			} else if (state.version.level === 0) {
+				this._version.policy = { enabled: true, level: 0 };
+				this._version.value = cloneNodeVersion(state.version);
+			} else {
+				if (!this._version.policy.enabled || this._version.policy.level !== 1) {
+					throw new Error(
+						`restoreGraph: checkpoint node version level ${state.version.level} requires matching node versioning policy`,
+					);
+				}
+				this._version.value = cloneNodeVersion(state.version);
+			}
 			this._syncCtx = null;
 			this._resetDepState();
 			// A fresh restored graph has no subscribers before return. Keep activation closed so the
@@ -394,6 +435,10 @@ export class Node<T = unknown> {
 
 	get status(): Status {
 		return this._value.status;
+	}
+
+	get version(): NodeVersion | undefined {
+		return cloneNodeVersion(this._version.value);
 	}
 
 	get name(): string | undefined {
@@ -1400,6 +1445,7 @@ export class Node<T = unknown> {
 				this._value.cache = v;
 				this._value.hasData = true;
 				this._value.status = "settled";
+				this._version.value = advanceNodeVersion(this._version.value, this._version.policy, v);
 				if (this._slot.replayN > 0) {
 					this._value.replayRing.push(v);
 					if (this._value.replayRing.length > this._slot.replayN) this._value.replayRing.shift();

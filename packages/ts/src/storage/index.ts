@@ -23,12 +23,17 @@ export {
 } from "./append-log.js";
 export {
 	hasStoragePutIfAbsent,
+	hasStorageVersioned,
 	type MemoryBackend,
 	memoryBackend,
 	type PutIfAbsentStorageBackend,
 	requireStoragePutIfAbsent,
+	requireStorageVersioned,
 	type StorageBackend,
+	type StorageGeneration,
 	type StorageNamespaceOptions,
+	type StorageVersionedRead,
+	type VersionedStorageBackend,
 	type WebStorageLike,
 	webStorageBackend,
 } from "./backend.js";
@@ -63,13 +68,18 @@ export {
 export {
 	dictKv,
 	hasKvPutIfAbsent,
+	hasKvVersioned,
+	type KvGeneration,
 	type KvStorageOptions,
 	type KvStorageTier,
+	type KvVersionedRead,
 	kvStorage,
 	listByPrefix,
 	memoryKv,
 	type PutIfAbsentKvStorageTier,
 	requireKvPutIfAbsent,
+	requireKvVersioned,
+	type VersionedKvStorageTier,
 } from "./kv.js";
 export {
 	type AttachObserveEventLogOptions,

@@ -37,6 +37,12 @@ export interface StorageBackend {
 	get(key: string): undefined | Uint8Array | PromiseLike<undefined | Uint8Array>;
 	put(key: string, value: Uint8Array): void | PromiseLike<void>;
 	putIfAbsent?(key: string, value: Uint8Array): boolean | PromiseLike<boolean>;
+	getVersioned?(key: string): StorageVersionedRead | PromiseLike<StorageVersionedRead>;
+	setIfMatch?(
+		key: string,
+		value: Uint8Array,
+		generation: StorageGeneration,
+	): boolean | PromiseLike<boolean>;
 	delete?(key: string): void | PromiseLike<void>;
 	list?(prefix?: string): readonly string[] | PromiseLike<readonly string[]>;
 }
@@ -44,6 +50,31 @@ export interface StorageBackend {
 /** Passive D85 conditional-create capability for multi-writer storage helpers. */
 export interface PutIfAbsentStorageBackend extends StorageBackend {
 	putIfAbsent(key: string, value: Uint8Array): boolean | PromiseLike<boolean>;
+}
+
+/** Opaque D108 per-key generation token for passive storage versioned reads. */
+export type StorageGeneration = unknown;
+
+/** D108 versioned byte read result with explicit present/absent observations. */
+export type StorageVersionedRead =
+	| {
+			readonly kind: "hit";
+			readonly value: Uint8Array;
+			readonly generation: StorageGeneration;
+	  }
+	| {
+			readonly kind: "miss";
+			readonly generation: StorageGeneration;
+	  };
+
+/** Passive D108 versioned read + generation-conditional set capability. */
+export interface VersionedStorageBackend extends StorageBackend {
+	getVersioned(key: string): StorageVersionedRead | PromiseLike<StorageVersionedRead>;
+	setIfMatch(
+		key: string,
+		value: Uint8Array,
+		generation: StorageGeneration,
+	): boolean | PromiseLike<boolean>;
 }
 
 /** Runtime guard for D85 conditional-create capable byte backends. */
@@ -60,6 +91,22 @@ export function requireStoragePutIfAbsent(
 ): PutIfAbsentStorageBackend {
 	if (!hasStoragePutIfAbsent(backend)) {
 		throw new Error(`${label}: backend does not support putIfAbsent`);
+	}
+	return backend;
+}
+
+/** Runtime guard for D108 versioned byte backends. */
+export function hasStorageVersioned(backend: StorageBackend): backend is VersionedStorageBackend {
+	return typeof backend.getVersioned === "function" && typeof backend.setIfMatch === "function";
+}
+
+/** Require D108 versioned support and produce a clear adapter error when absent. */
+export function requireStorageVersioned(
+	backend: StorageBackend,
+	label = "storage backend",
+): VersionedStorageBackend {
+	if (!hasStorageVersioned(backend)) {
+		throw new Error(`${label}: backend does not support versioned get/set-if-match`);
 	}
 	return backend;
 }
@@ -150,12 +197,46 @@ export interface MemoryBackend extends StorageBackend {
 	clear(): void;
 }
 
+const MEMORY_GENERATION = Symbol("graphrefly.memoryBackend.generation");
+
+interface MemoryGeneration {
+	readonly [MEMORY_GENERATION]: readonly [epoch: number, key: string, version: number];
+}
+
+function memoryGeneration(epoch: number, key: string, version: number): MemoryGeneration {
+	return Object.freeze({ [MEMORY_GENERATION]: Object.freeze([epoch, key, version] as const) });
+}
+
+function readMemoryGeneration(
+	generation: StorageGeneration,
+): readonly [epoch: number, key: string, version: number] | undefined {
+	if (typeof generation !== "object" || generation === null) return undefined;
+	const maybe = generation as Partial<MemoryGeneration>;
+	const token = maybe[MEMORY_GENERATION];
+	if (
+		Array.isArray(token) &&
+		token.length === 3 &&
+		typeof token[0] === "number" &&
+		typeof token[1] === "string" &&
+		typeof token[2] === "number"
+	) {
+		return token as readonly [number, string, number];
+	}
+	return undefined;
+}
+
 /** Create a byte-cloning in-memory backend. */
 export function memoryBackend(
 	initial: Iterable<readonly [string, Uint8Array]> = [],
 ): MemoryBackend {
 	const entries = new Map<string, Uint8Array>();
+	const versions = new Map<string, number>();
+	let epoch = 0;
 	for (const [key, value] of initial) entries.set(key, cloneBytes(value));
+	const versionOf = (key: string): number => versions.get(key) ?? 0;
+	const bump = (key: string): void => {
+		versions.set(key, versionOf(key) + 1);
+	};
 	return {
 		entries,
 		get(key) {
@@ -164,20 +245,44 @@ export function memoryBackend(
 		},
 		put(key, value) {
 			entries.set(key, cloneBytes(value));
+			bump(key);
 		},
 		putIfAbsent(key, value) {
 			if (entries.has(key)) return false;
 			entries.set(key, cloneBytes(value));
+			bump(key);
+			return true;
+		},
+		getVersioned(key) {
+			const value = entries.get(key);
+			const generation = memoryGeneration(epoch, key, versionOf(key));
+			if (value === undefined) return { kind: "miss", generation };
+			return { kind: "hit", value: cloneBytes(value), generation };
+		},
+		setIfMatch(key, value, generation) {
+			const observed = readMemoryGeneration(generation);
+			if (
+				observed === undefined ||
+				observed[0] !== epoch ||
+				observed[1] !== key ||
+				observed[2] !== versionOf(key)
+			) {
+				return false;
+			}
+			entries.set(key, cloneBytes(value));
+			bump(key);
 			return true;
 		},
 		delete(key) {
-			entries.delete(key);
+			if (entries.delete(key)) bump(key);
 		},
 		list(prefix = "") {
 			return [...entries.keys()].filter((key) => key.startsWith(prefix)).sort();
 		},
 		clear() {
 			entries.clear();
+			versions.clear();
+			epoch += 1;
 		},
 	};
 }

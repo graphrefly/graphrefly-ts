@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { batch, Dispatcher, depBatch, depLatest, graph, initNode, node } from "../index.js";
+import {
+	batch,
+	Dispatcher,
+	defaultNodeVersionHash,
+	depBatch,
+	depLatest,
+	graph,
+	initNode,
+	node,
+} from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -188,6 +197,7 @@ describe("B49 core-slot migration", () => {
 			"privateStates",
 			"hooks",
 			"syncCtxs",
+			"versionStates",
 		].map((k) => occupied(c[k] as unknown[]));
 	};
 	const boundaryTaskCount = (core: unknown) => {
@@ -230,10 +240,11 @@ describe("B49 core-slot migration", () => {
 			"privateState",
 			"hooks",
 			"syncCtx",
+			"version",
 		]) {
 			expect(Object.hasOwn(slot, sideTableField), sideTableField).toBe(false);
 		}
-		expect(sideTableCounts(coreOf(s))).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+		expect(sideTableCounts(coreOf(s))).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1]);
 
 		expect(s.cache).toBe(1);
 		expect(s.status).toBe("settled");
@@ -258,6 +269,7 @@ describe("B49 core-slot migration", () => {
 			"privateStates",
 			"hooks",
 			"syncCtxs",
+			"versionStates",
 		]) {
 			expect(Array.isArray(core[table]), table).toBe(true);
 			expect((core[table] as unknown[]).length, table).toBe(2);
@@ -265,7 +277,7 @@ describe("B49 core-slot migration", () => {
 		expect((core.slots as unknown[])[idOf(a)]).toBe(slotOf(a));
 		expect((core.slots as unknown[])[idOf(b)]).toBe(slotOf(b));
 		expect(slotCount(core)).toBe(2);
-		expect(sideTableCounts(core)).toEqual([2, 2, 2, 2, 2, 2, 2, 2]);
+		expect(sideTableCounts(core)).toEqual([2, 2, 2, 2, 2, 2, 2, 2, 2]);
 	});
 
 	it("does not add a parallel frontier or adjacency transport over subscriber propagation", () => {
@@ -282,6 +294,7 @@ describe("B49 core-slot migration", () => {
 			"privateStates",
 			"hooks",
 			"syncCtxs",
+			"versionStates",
 			"boundary",
 		]);
 		const forbiddenTransportName = /adjacency|edge|frontier|queue|work/i;
@@ -432,5 +445,83 @@ describe("B49 core-slot migration", () => {
 		});
 
 		expect(order).toEqual(["A1", "B1", "A2"]);
+	});
+});
+
+describe("D109 node runtime versioning", () => {
+	it("defaults free-standing nodes to nodev0 and advances only on DATA", () => {
+		const s = node<number>([], null, { initial: 1 });
+		expect(s.version).toEqual({ level: 0, counter: 0 });
+
+		s.down([["RESOLVED"]]);
+		expect(s.version).toEqual({ level: 0, counter: 0 });
+
+		s.down([["DATA", 2]]);
+		expect(s.version).toEqual({ level: 0, counter: 1 });
+
+		s.down([
+			["DATA", 3],
+			["DATA", 4],
+		]);
+		expect(s.version).toEqual({ level: 0, counter: 3 });
+
+		s.down([["INVALIDATE"]]);
+		expect(s.version).toEqual({ level: 0, counter: 3 });
+	});
+
+	it("supports graph default V1, per-node overrides, and versioning:false absence", () => {
+		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const g = graph({ versioning: { level: 1, hash } });
+		const inherited = g.state({ n: 1 }, { name: "inherited" });
+		const overridden = g.state(1, { name: "overridden", versioning: 0 });
+		const disabled = g.state(1, { name: "disabled", versioning: false });
+
+		expect(inherited.version).toEqual({
+			level: 1,
+			counter: 0,
+			cid: 'h:{"n":1}',
+			prev: null,
+		});
+		inherited.set({ n: 2 });
+		expect(inherited.version).toEqual({
+			level: 1,
+			counter: 1,
+			cid: 'h:{"n":2}',
+			prev: 'h:{"n":1}',
+		});
+		expect(overridden.version).toEqual({ level: 0, counter: 0 });
+		expect(disabled.version).toBeUndefined();
+
+		const byId = Object.fromEntries(g.describe().nodes.map((n) => [n.id, n]));
+		expect(byId.inherited?.version).toEqual(inherited.version);
+		expect(byId.overridden?.version).toEqual({ level: 0, counter: 0 });
+		expect(byId.disabled?.version).toBeUndefined();
+	});
+
+	it("keeps returned version objects immutable snapshots", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const v = s.version as { counter: number };
+		expect(Object.isFrozen(v)).toBe(true);
+		expect(() => {
+			v.counter = 99;
+		}).toThrow();
+		expect(s.version).toEqual({ level: 0, counter: 0 });
+	});
+
+	it("uses the default V1 hash over stable JSON-compatible data", () => {
+		const s = node<{ b: number; a: number }>([], null, {
+			initial: { b: 2, a: 1 },
+			versioning: 1,
+		});
+		expect(s.version).toEqual({
+			level: 1,
+			counter: 0,
+			cid: defaultNodeVersionHash({ a: 1, b: 2 }),
+			prev: null,
+		});
+	});
+
+	it("fails honestly for unapproved V2/V3 levels", () => {
+		expect(() => node([], null, { versioning: { level: 2 } as unknown as 1 })).toThrow(/V2\/V3/);
 	});
 });

@@ -7,6 +7,7 @@
  */
 
 import type { Status } from "../node/node.js";
+import type { NodeVersion } from "../node/versioning.js";
 
 export interface DescribeNode {
 	/** Stable mount-aware `::` path (auto-numbered when unnamed). Edge key. */
@@ -19,6 +20,8 @@ export interface DescribeNode {
 	status: Status;
 	/** Cache snapshot at call time; field ABSENT = SENTINEL / never-emitted. */
 	value?: unknown;
+	/** D109 node runtime version metadata; absent when versioning:false. */
+	version?: NodeVersion;
 	/** Dep ids (R-edges-derived: edges are a pure fn of deps). */
 	deps: string[];
 	/** Static annotations attached via g.* opts (R-meta-presentation). */

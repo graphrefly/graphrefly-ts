@@ -2,6 +2,7 @@ import type { Ctx, Sink } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import { type LockId, SENTINEL, type Wave } from "../protocol/messages.js";
 import type { Node, Status } from "./node.js";
+import type { NodeVersion, ResolvedNodeVersioningPolicy } from "./versioning.js";
 
 export type NodeId = number & { readonly __nodeId: unique symbol };
 
@@ -26,6 +27,11 @@ export interface ValueState<T> {
 	terminal: true | unknown | undefined;
 	hasTorndown: boolean;
 	replayRing: T[];
+}
+
+export interface VersionState {
+	policy: ResolvedNodeVersioningPolicy;
+	value: NodeVersion | undefined;
 }
 
 export interface WaveState {
@@ -98,6 +104,7 @@ export interface NodeState<T> {
 	dep: DepBookkeeping;
 	lifecycle: LifecycleState;
 	value: ValueState<T>;
+	version: VersionState;
 	wave: WaveState;
 	control: ControlState;
 	privateState: PrivateState;
@@ -116,6 +123,7 @@ export class NodeCore {
 	private readonly privateStates: Array<PrivateState | undefined> = [];
 	private readonly hooks: Array<CleanupHooks | undefined> = [];
 	private readonly syncCtxs: Array<SyncCtxState | undefined> = [];
+	private readonly versionStates: Array<VersionState | undefined> = [];
 	private readonly boundary: BoundaryState = { queue: [], head: 0 };
 
 	createSlot<T>(
@@ -133,6 +141,7 @@ export class NodeCore {
 		this.privateStates[id] = state.privateState;
 		this.hooks[id] = state.hooks;
 		this.syncCtxs[id] = state.syncCtx;
+		this.versionStates[id] = state.version;
 		return { id, slot: full };
 	}
 
@@ -187,6 +196,12 @@ export class NodeCore {
 	getSyncCtx(id: NodeId): SyncCtxState {
 		const state = this.syncCtxs[id];
 		if (state === undefined) throw new Error("NodeCore: unknown node ctx state");
+		return state;
+	}
+
+	getVersion(id: NodeId): VersionState {
+		const state = this.versionStates[id];
+		if (state === undefined) throw new Error("NodeCore: unknown node version state");
 		return state;
 	}
 

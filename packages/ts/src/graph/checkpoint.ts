@@ -6,6 +6,7 @@
  */
 
 import { strictJsonCodec } from "../json/codec.js";
+import type { NodeVersionJson } from "../node/versioning.js";
 import { SENTINEL } from "../protocol/messages.js";
 
 export const GRAPH_CHECKPOINT_VERSION = "graphrefly.ts.checkpoint.v1" as const;
@@ -45,6 +46,7 @@ export interface GraphCheckpointNode {
 	status: string;
 	deps: string[];
 	value: GraphCheckpointValue;
+	version?: NodeVersionJson;
 	terminal: GraphCheckpointTerminal;
 	lifecycle: { activated: boolean; hasCalledFnOnce: boolean };
 	ctxState: { persist: boolean; value: GraphCheckpointValue };

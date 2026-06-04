@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { graph, memoryKv, reactiveCascadingCache } from "../index.js";
+import {
+	graph,
+	type KvStorageTier,
+	memoryKv,
+	reactiveCascadingCache,
+	requireKvVersioned,
+} from "../index.js";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -110,6 +116,52 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 			"promotion",
 			"fill",
 		]);
+	});
+
+	it("uses D108 versioned promotion to avoid overwriting newer tier values", async () => {
+		const g = graph();
+		const request = g.node<string>([], null);
+		const hot = memoryKv<number>();
+		const hotVersioned = requireKvVersioned(hot);
+		const hotTier: KvStorageTier<number> = {
+			...hot,
+			async getVersioned(key) {
+				const observed = await hotVersioned.getVersioned(key);
+				await hot.set(key, 1);
+				return observed;
+			},
+			setIfMatch: hotVersioned.setIfMatch.bind(hotVersioned),
+		};
+		const cold = memoryKv<number>();
+		await cold.set("k", 7);
+		const cache = reactiveCascadingCache({
+			graph: g,
+			request,
+			tiers: [hotTier, cold],
+			promoteTo: [0],
+			name: "cache",
+		});
+		dataOf(cache.status);
+		dataOf(cache.value);
+		const events = dataOf(cache.events);
+
+		request.down([["DATA", "k"]]);
+		await flush();
+
+		expect(cache.value.cache).toBe(7);
+		expect(await hot.get("k")).toBe(1);
+		expect(events.map((event) => event.kind)).toEqual([
+			"request",
+			"lookup",
+			"lookup",
+			"promotion",
+			"fill",
+		]);
+		expect(events.find((event) => event.kind === "promotion")).toMatchObject({
+			kind: "promotion",
+			ok: false,
+			tier: { index: 0 },
+		});
 	});
 
 	it("uses loader fills after tier misses", async () => {

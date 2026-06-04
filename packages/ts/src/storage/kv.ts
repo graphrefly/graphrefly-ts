@@ -1,4 +1,10 @@
-import { hasStoragePutIfAbsent, memoryBackend, type StorageBackend } from "./backend.js";
+import {
+	hasStoragePutIfAbsent,
+	hasStorageVersioned,
+	memoryBackend,
+	type StorageBackend,
+	type StorageGeneration,
+} from "./backend.js";
 import type { Codec } from "./codec.js";
 import { jsonCodecFor } from "./codec.js";
 
@@ -7,6 +13,8 @@ export interface KvStorageTier<T = unknown> {
 	get(key: string): Promise<T | undefined>;
 	set(key: string, value: T): Promise<void>;
 	putIfAbsent?(key: string, value: T): Promise<boolean>;
+	getVersioned?(key: string): Promise<KvVersionedRead<T>>;
+	setIfMatch?(key: string, value: T, generation: StorageGeneration): Promise<boolean>;
 	delete(key: string): Promise<void>;
 	list(prefix?: string): Promise<readonly string[]>;
 }
@@ -14,6 +22,27 @@ export interface KvStorageTier<T = unknown> {
 /** Typed D85 conditional-create capability over a KV tier. */
 export interface PutIfAbsentKvStorageTier<T = unknown> extends KvStorageTier<T> {
 	putIfAbsent(key: string, value: T): Promise<boolean>;
+}
+
+/** Opaque D108 per-key generation token for typed KV versioned reads. */
+export type KvGeneration = StorageGeneration;
+
+/** D108 versioned typed read result with explicit present/absent observations. */
+export type KvVersionedRead<T> =
+	| {
+			readonly kind: "hit";
+			readonly value: T;
+			readonly generation: KvGeneration;
+	  }
+	| {
+			readonly kind: "miss";
+			readonly generation: KvGeneration;
+	  };
+
+/** Typed D108 versioned read + generation-conditional set capability over a KV tier. */
+export interface VersionedKvStorageTier<T = unknown> extends KvStorageTier<T> {
+	getVersioned(key: string): Promise<KvVersionedRead<T>>;
+	setIfMatch(key: string, value: T, generation: KvGeneration): Promise<boolean>;
 }
 
 /** Runtime guard for typed KV tiers that expose D85 conditional create. */
@@ -28,6 +57,22 @@ export function requireKvPutIfAbsent<T>(
 ): PutIfAbsentKvStorageTier<T> {
 	if (!hasKvPutIfAbsent(tier)) {
 		throw new Error(`${label}: KV tier does not support putIfAbsent`);
+	}
+	return tier;
+}
+
+/** Runtime guard for typed KV tiers that expose D108 versioned read/set-if-match. */
+export function hasKvVersioned<T>(tier: KvStorageTier<T>): tier is VersionedKvStorageTier<T> {
+	return typeof tier.getVersioned === "function" && typeof tier.setIfMatch === "function";
+}
+
+/** Require D108 versioned KV support and produce a clear adapter error when absent. */
+export function requireKvVersioned<T>(
+	tier: KvStorageTier<T>,
+	label = "kvStorage",
+): VersionedKvStorageTier<T> {
+	if (!hasKvVersioned(tier)) {
+		throw new Error(`${label}: KV tier does not support versioned get/set-if-match`);
 	}
 	return tier;
 }
@@ -65,14 +110,34 @@ export function kvStorage<T = unknown>(opts: KvStorageOptions<T>): KvStorageTier
 			}).then((keys) => [...keys].sort());
 		},
 	};
-	if (!hasStoragePutIfAbsent(backend)) return tier;
-	const capableBackend = backend;
-	return {
-		...tier,
-		putIfAbsent(key, value) {
-			return defer(() => capableBackend.putIfAbsent(key, codec.encode(value)));
-		},
-	};
+	let out = tier;
+	if (hasStoragePutIfAbsent(backend)) {
+		out = {
+			...out,
+			putIfAbsent(key, value) {
+				return defer(() => backend.putIfAbsent(key, codec.encode(value)));
+			},
+		};
+	}
+	if (hasStorageVersioned(backend)) {
+		out = {
+			...out,
+			getVersioned(key) {
+				return defer(() => backend.getVersioned(key)).then((result) => {
+					if (result.kind === "miss") return { kind: "miss", generation: result.generation };
+					return {
+						kind: "hit",
+						value: codec.decode(result.value),
+						generation: result.generation,
+					};
+				});
+			},
+			setIfMatch(key, value, generation) {
+				return defer(() => backend.setIfMatch(key, codec.encode(value), generation));
+			},
+		};
+	}
+	return out;
 }
 
 /** Create an in-memory typed KV tier. */
