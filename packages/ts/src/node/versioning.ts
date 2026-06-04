@@ -2,7 +2,13 @@ import { strictJsonCodec } from "../json/codec.js";
 
 export type NodeVersioningLevel = 0 | 1;
 
-export type NodeVersionHashFn = (value: unknown) => string;
+/**
+ * D112 V1 node-version hash callback.
+ *
+ * The callback receives strict canonical JSON UTF-8 DATA bytes, not the raw host value.
+ * Runtime V1 versioning encodes DATA with `strictJsonCodec.encode(value)` before calling hash.
+ */
+export type NodeVersionHashFn = (bytes: Uint8Array) => string;
 
 export type NodeVersioningPolicy =
 	| false
@@ -37,38 +43,53 @@ export type NodeVersionJson = NodeVersion;
 const ABSENT_V1_SEED = Object.freeze({
 	"@graphrefly/node-version": "v1-absent",
 });
-const JSON_DECODER = new TextDecoder();
 
-function strictCanonicalJsonString(value: unknown): string {
-	return JSON_DECODER.decode(strictJsonCodec.encode(value));
+function strictCanonicalJsonBytes(value: unknown): Uint8Array {
+	return strictJsonCodec.encode(value);
 }
 
-function fnv1a64(input: string): string {
+function fnv1a64(input: Uint8Array): string {
 	let hash = 0xcbf29ce484222325n;
 	const prime = 0x100000001b3n;
-	for (let i = 0; i < input.length; i += 1) {
-		hash ^= BigInt(input.charCodeAt(i));
+	for (const byte of input) {
+		hash ^= BigInt(byte);
 		hash = BigInt.asUintN(64, hash * prime);
 	}
 	return hash.toString(16).padStart(16, "0");
 }
 
-export function defaultNodeVersionHash(value: unknown): string {
-	return hashStrictCanonicalJsonString(strictCanonicalJsonString(value));
-}
-
-function hashStrictCanonicalJsonString(canonical: string): string {
-	return `fnv1a64:${fnv1a64(canonical)}`;
+/**
+ * Default synchronous D112 V1 node-version hash over strict canonical JSON UTF-8 bytes.
+ *
+ * When hashing a host value directly, encode first:
+ * `defaultNodeVersionHash(strictJsonCodec.encode(value))`.
+ */
+export function defaultNodeVersionHash(bytes: Uint8Array): string {
+	return `fnv1a64:${fnv1a64(bytes)}`;
 }
 
 function computeV1Cid(
 	policy: Extract<ResolvedNodeVersioningPolicy, { enabled: true; level: 1 }>,
 	value: unknown,
 ): string {
-	const canonical = strictCanonicalJsonString(value);
-	return policy.hash === defaultNodeVersionHash
-		? hashStrictCanonicalJsonString(canonical)
-		: policy.hash(value);
+	return policy.hash(strictCanonicalJsonBytes(value));
+}
+
+export function assertNodeVersionDataCompatible(
+	policy: ResolvedNodeVersioningPolicy,
+	value: unknown,
+): void {
+	if (!policy.enabled || policy.level === 0) return;
+	strictCanonicalJsonBytes(value);
+}
+
+export function snapshotNodeVersionData(
+	policy: ResolvedNodeVersioningPolicy,
+	value: unknown,
+): unknown {
+	if (!policy.enabled || policy.level === 0) return value;
+	const bytes = strictCanonicalJsonBytes(value);
+	return strictJsonCodec.decode(bytes);
 }
 
 export function resolveNodeVersioningPolicy(
@@ -135,7 +156,7 @@ export function restoredV1Cid(
 	hasData: boolean,
 	cache: unknown,
 ): string {
-	return policy.hash(hasData ? cache : ABSENT_V1_SEED);
+	return computeV1Cid(policy, hasData ? cache : ABSENT_V1_SEED);
 }
 
 export function validateNodeVersionJson(value: unknown, path: string): NodeVersionJson {

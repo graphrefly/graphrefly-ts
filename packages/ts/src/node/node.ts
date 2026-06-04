@@ -63,12 +63,14 @@ import {
 } from "./core.js";
 import {
 	advanceNodeVersion,
+	assertNodeVersionDataCompatible,
 	cloneNodeVersion,
 	createNodeVersion,
 	type NodeVersion,
 	type NodeVersioningPolicy,
 	resolveNodeVersioningPolicy,
 	restoredV1Cid,
+	snapshotNodeVersionData,
 } from "./versioning.js";
 
 export type Status =
@@ -1355,6 +1357,18 @@ export class Node<T = unknown> {
 	private _down(msgs: Wave): void {
 		validateDownPayloads(msgs);
 		const deliveryWave = {};
+		const assertVersionDataCompatible = (wave: readonly Message[]) => {
+			for (const m of wave) {
+				if (m[0] === "DATA") assertNodeVersionDataCompatible(this._version.policy, m[1]);
+			}
+		};
+		const snapshotVersionData = (wave: readonly Message[]): Message[] =>
+			wave.map((m) =>
+				m[0] === "DATA"
+					? (["DATA", snapshotNodeVersionData(this._version.policy, m[1])] as Message)
+					: m,
+			);
+		assertVersionDataCompatible(msgs);
 		// Terminal-is-forever (R-terminal / D17 / B30): once COMPLETE/ERROR has been emitted the
 		// node is final — a self-emit (state.set / ctx.down) in a LATER wave is a no-op, never
 		// resurrecting the cache or re-emitting. The COMPLETE/ERROR arms below also self-guard
@@ -1398,7 +1412,7 @@ export class Node<T = unknown> {
 		// tier-3 settle slice to commit so a shared downstream recomputes once. Only
 		// external emits defer (fn emits during commit run normally).
 		if (!this._wave.insideRunWave && currentBatch()) {
-			const deferred = sorted.filter((m) => isDeferredTier(m[0]));
+			const deferred = snapshotVersionData(sorted.filter((m) => isDeferredTier(m[0])));
 			if (deferred.length > 0) {
 				if (!this._wave.emittedDirtyThisWave) {
 					this._wave.emittedDirtyThisWave = true;
@@ -1414,7 +1428,7 @@ export class Node<T = unknown> {
 		// pause buffer while paused; tier 0-2 (DIRTY/PAUSE/RESUME), tier 5 (terminal),
 		// tier 6 (TEARDOWN) bypass so end-of-stream + control always reach observers.
 		if (this._shouldBufferOnPause()) {
-			const buffered = sorted.filter((m) => isPauseBufferedTier(m[0]));
+			const buffered = snapshotVersionData(sorted.filter((m) => isPauseBufferedTier(m[0])));
 			if (buffered.length > 0) {
 				// B36 / R-resolved-undirty: buffering a settle slice still means this fn wave
 				// produced a settle. Without this, _runWave sees "dirty + no settle" and

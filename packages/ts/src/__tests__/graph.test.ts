@@ -22,6 +22,9 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	return msgs;
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
+const TEST_JSON_DECODER = new TextDecoder();
+const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);
+const testHash = (bytes: Uint8Array) => `h:${decodeTestJsonBytes(bytes)}`;
 
 describe("Graph — 8-verb sugar (CSP-2)", () => {
 	it("state + derived: value-level fn computes from dep values (D27)", () => {
@@ -588,7 +591,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 	});
 
 	it("checkpoints and restores D109 node runtime versions", () => {
-		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const hash = testHash;
 		const g = graph({ versioning: { level: 1, hash } });
 		const src = g.state(1, { name: "src" });
 		const v0 = g.state(1, { name: "v0", versioning: 0 });
@@ -652,7 +655,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 	});
 
 	it("fails honestly when V1 restore uses the wrong hash lane (D109)", () => {
-		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const hash = testHash;
 		const g = graph({ versioning: { level: 1, hash } });
 		g.state({ n: 1 }, { name: "src" });
 		const checkpoint = g.checkpoint();
@@ -660,13 +663,13 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		expect(() =>
 			restoreGraph(checkpoint, {
 				registry: defaultRestoreRegistry,
-				versioning: { level: 1, hash: (value) => `other:${JSON.stringify(value)}` },
+				versioning: { level: 1, hash: (bytes) => `other:${decodeTestJsonBytes(bytes)}` },
 			}),
 		).toThrow(/hash policy/);
 	});
 
 	it("distinguishes V1 checkpoint absence from DATA null during restore (D109 / R-restore)", () => {
-		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const hash = testHash;
 		const absentGraph = graph({ versioning: { level: 1, hash } });
 		absentGraph.node([], () => {}, { name: "cold" });
 		const absentCheckpoint = absentGraph.checkpoint();
@@ -698,7 +701,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 	});
 
 	it("rejects absent post-DATA V1 checkpoints because the hash lane is unverifiable (D109)", () => {
-		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const hash = testHash;
 		const g = graph({ versioning: { level: 1, hash } });
 		const src = g.state(1, { name: "src" });
 		src.set(2);
@@ -722,7 +725,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 	});
 
 	it("rejects impossible V1 counter/prev checkpoint metadata (D109)", () => {
-		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const hash = testHash;
 		const g = graph({ versioning: { level: 1, hash } });
 		g.state(1, { name: "src" });
 		const checkpoint = g.checkpoint();

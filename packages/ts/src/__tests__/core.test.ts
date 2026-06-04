@@ -9,6 +9,7 @@ import {
 	graph,
 	initNode,
 	node,
+	strictJsonCodec,
 } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
@@ -18,6 +19,9 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 }
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
+const TEST_JSON_DECODER = new TextDecoder();
+const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);
+const testHash = (bytes: Uint8Array) => `h:${decodeTestJsonBytes(bytes)}`;
 
 describe("state node (manual source)", () => {
 	it("push-on-subscribe delivers START then cached DATA (R-push-subscribe, R-initial)", () => {
@@ -477,7 +481,7 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("supports graph default V1, per-node overrides, and versioning:false absence", () => {
-		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const hash = testHash;
 		const g = graph({ versioning: { level: 1, hash } });
 		const inherited = g.state({ n: 1 }, { name: "inherited" });
 		const overridden = g.state(1, { name: "overridden", versioning: 0 });
@@ -523,28 +527,80 @@ describe("D109 node runtime versioning", () => {
 		expect(s.version).toEqual({
 			level: 1,
 			counter: 0,
-			cid: defaultNodeVersionHash({ a: 1, b: 2 }),
+			cid: defaultNodeVersionHash(strictJsonCodec.encode({ a: 1, b: 2 })),
 			prev: null,
+		});
+	});
+
+	it("passes strict canonical JSON UTF-8 bytes to custom V1 hash callbacks (D112)", () => {
+		const calls: Uint8Array[] = [];
+		const hash = (bytes: Uint8Array) => {
+			expect(bytes).toBeInstanceOf(Uint8Array);
+			calls.push(Uint8Array.from(bytes));
+			return `bytes:${decodeTestJsonBytes(bytes)}`;
+		};
+		const s = node<Record<string, number>>([], null, {
+			initial: { b: 2, a: 1 },
+			versioning: { level: 1, hash },
+		});
+
+		expect(calls.map(decodeTestJsonBytes)).toEqual(['{"a":1,"b":2}']);
+		expect(s.version).toEqual({
+			level: 1,
+			counter: 0,
+			cid: 'bytes:{"a":1,"b":2}',
+			prev: null,
+		});
+	});
+
+	it("uses equivalent canonical bytes for V1 payloads with different key insertion order (D112)", () => {
+		const calls: string[] = [];
+		const hash = (bytes: Uint8Array) => {
+			const canonical = decodeTestJsonBytes(bytes);
+			calls.push(canonical);
+			return `h:${canonical}`;
+		};
+		const s = node<Record<string, number>>([], null, {
+			initial: JSON.parse('{"b":2,"a":1}') as Record<string, number>,
+			versioning: { level: 1, hash },
+		});
+		const initialCid = s.version?.level === 1 ? s.version.cid : undefined;
+
+		s.down([["DATA", JSON.parse('{"a":1,"b":2}') as Record<string, number>]]);
+
+		expect(calls).toEqual(['{"a":1,"b":2}', '{"a":1,"b":2}']);
+		expect(s.version).toEqual({
+			level: 1,
+			counter: 1,
+			cid: initialCid,
+			prev: initialCid,
 		});
 	});
 
 	it("V1 rejects non-strict-JSON DATA before mutating cache or version", () => {
 		const s = node<number | bigint>([], null, { initial: 1, versioning: 1 });
+		const downstream = node<number | bigint>([s], (ctx) => {
+			ctx.down([["DATA", depLatest(ctx, 0)]]);
+		});
 		const { msgs } = collect(s);
+		const downstreamMsgs = collect(downstream).msgs;
 		msgs.length = 0;
+		downstreamMsgs.length = 0;
 		const before = s.version;
 		expect(() => s.down([["DATA", 2n]])).toThrow(/not JSON-encodable/);
 		expect(s.version).toEqual(before);
 		expect(s.cache).toBe(1);
 		expect(s.status).toBe("settled");
 		expect(msgs).toEqual([]);
+		expect(downstreamMsgs).toEqual([]);
 
 		s.down([["DATA", 2]]);
 		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(downstreamMsgs)).toEqual(["DIRTY", "DATA"]);
 		expect(s.version).toMatchObject({ level: 1, counter: 1 });
 		expect(s.cache).toBe(2);
 
-		const customHash = (value: unknown) => `custom:${String(value)}`;
+		const customHash = (bytes: Uint8Array) => `custom:${decodeTestJsonBytes(bytes)}`;
 		const custom = node<unknown>([], null, {
 			initial: 1,
 			versioning: { level: 1, hash: customHash },
@@ -553,6 +609,96 @@ describe("D109 node runtime versioning", () => {
 		expect(() => custom.down([["DATA", new Date(0)]])).toThrow(/non-plain object/);
 		expect(custom.version).toEqual(customBefore);
 		expect(custom.cache).toBe(1);
+
+		const terminal = node<unknown>([], null, { initial: 1, versioning: 1 });
+		terminal.down([["COMPLETE"]]);
+		const terminalBefore = terminal.version;
+		expect(() => terminal.down([["DATA", 2n]])).toThrow(/not JSON-encodable/);
+		expect(terminal.version).toEqual(terminalBefore);
+		expect(terminal.cache).toBe(1);
+		expect(terminal.status).toBe("completed");
+	});
+
+	it("V1 rejects deferred batch/pause DATA before DIRTY, buffering, cache, or version changes", () => {
+		const batched = node<unknown>([], null, { initial: 1, versioning: 1 });
+		const batchedMsgs = collect(batched).msgs;
+		batchedMsgs.length = 0;
+		const batchedBefore = batched.version;
+
+		expect(() => batch(() => batched.down([["DATA", 2n]]))).toThrow(/not JSON-encodable/);
+		expect(batchedMsgs).toEqual([]);
+		expect(batched.version).toEqual(batchedBefore);
+		expect(batched.cache).toBe(1);
+		expect(batched.status).toBe("settled");
+
+		const batchedSnapshot = node<Record<string, unknown>>([], null, {
+			initial: { a: 0 },
+			versioning: { level: 1, hash: testHash },
+		});
+		const batchedSnapshotMsgs = collect(batchedSnapshot).msgs;
+		batchedSnapshotMsgs.length = 0;
+		const batchedPayload: Record<string, unknown> = { a: 1 };
+		batch(() => {
+			batchedSnapshot.down([["DATA", batchedPayload]]);
+			batchedPayload.a = 2;
+			batchedPayload.bad = 2n;
+		});
+		expect(types(batchedSnapshotMsgs)).toEqual(["DIRTY", "DATA"]);
+		expect(batchedSnapshotMsgs[1]).toEqual(["DATA", { a: 1 }]);
+		expect(batchedSnapshot.cache).toEqual({ a: 1 });
+		expect(batchedSnapshot.version).toMatchObject({
+			level: 1,
+			counter: 1,
+			cid: 'h:{"a":1}',
+		});
+
+		const paused = node<Record<string, unknown>>([], null, {
+			initial: { a: 0 },
+			versioning: { level: 1, hash: testHash },
+			pausable: "resumeAll",
+		});
+		const pausedMsgs = collect(paused).msgs;
+		pausedMsgs.length = 0;
+		const pausedBefore = paused.version;
+		const lock = Symbol("lock");
+		paused.up([["PAUSE", lock]]);
+		pausedMsgs.length = 0;
+
+		expect(() => paused.down([["DATA", new Date(0)]])).toThrow(/non-plain object/);
+		expect(pausedMsgs).toEqual([]);
+		expect(paused.version).toEqual(pausedBefore);
+		expect(paused.cache).toEqual({ a: 0 });
+		expect(paused.status).toBe("settled");
+
+		const pausedPayload: Record<string, unknown> = { a: 1 };
+		paused.down([["DATA", pausedPayload]]);
+		expect(pausedMsgs).toEqual([]);
+		pausedPayload.a = 2;
+		pausedPayload.bad = 2n;
+		expect(paused.cache).toEqual({ a: 0 });
+		paused.up([["RESUME", lock]]);
+		expect(types(pausedMsgs)).toEqual(["DIRTY", "DATA"]);
+		expect(paused.version).toMatchObject({ level: 1, counter: 1 });
+		expect(paused.cache).toEqual({ a: 1 });
+		expect(pausedMsgs[1]).toEqual(["DATA", { a: 1 }]);
+	});
+
+	it("does not apply the D112 strict JSON preflight to V0 or versioning:false", () => {
+		const v0 = node<unknown>([], null, { initial: 1, versioning: 0 });
+		const v0Msgs = collect(v0).msgs;
+		v0Msgs.length = 0;
+		v0.down([["DATA", 2n]]);
+		expect(v0.version).toEqual({ level: 0, counter: 1 });
+		expect(v0.cache).toBe(2n);
+		expect(types(v0Msgs)).toEqual(["DIRTY", "DATA"]);
+
+		const disabled = node<unknown>([], null, { initial: 1, versioning: false });
+		const disabledMsgs = collect(disabled).msgs;
+		disabledMsgs.length = 0;
+		disabled.down([["DATA", new Date(0)]]);
+		expect(disabled.version).toBeUndefined();
+		expect(disabled.cache).toEqual(new Date(0));
+		expect(types(disabledMsgs)).toEqual(["DIRTY", "DATA"]);
 	});
 
 	it("V1 rejects non-strict-JSON initial values at construction", () => {
