@@ -467,6 +467,13 @@ describe("D109 node runtime versioning", () => {
 
 		s.down([["INVALIDATE"]]);
 		expect(s.version).toEqual({ level: 0, counter: 3 });
+
+		s.down([["COMPLETE"]]);
+		expect(s.version).toEqual({ level: 0, counter: 3 });
+
+		const errored = node<number>([], null, { initial: 1 });
+		errored.down([["ERROR", "boom"]]);
+		expect(errored.version).toEqual({ level: 0, counter: 0 });
 	});
 
 	it("supports graph default V1, per-node overrides, and versioning:false absence", () => {

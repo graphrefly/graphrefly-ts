@@ -633,6 +633,22 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 			cid: "h:3",
 			prev: "h:2",
 		});
+		(restored.find("v0") as { set(v: number): void }).set(3);
+		expect(restored.find("v0")?.version).toEqual({ level: 0, counter: 2 });
+		(restored.find("disabled") as { set(v: number): void }).set(3);
+		expect(restored.find("disabled")?.version).toBeUndefined();
+	});
+
+	it("restores V0 checkpoints without requiring a V1 hash lane (D109)", () => {
+		const g = graph();
+		const src = g.state(1, { name: "src" });
+		src.set(2);
+
+		const restored = restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry });
+		expect(restored.find("src")?.version).toEqual({ level: 0, counter: 1 });
+
+		(restored.find("src") as { set(v: number): void }).set(3);
+		expect(restored.find("src")?.version).toEqual({ level: 0, counter: 2 });
 	});
 
 	it("fails honestly when V1 restore uses the wrong hash lane (D109)", () => {
@@ -728,6 +744,14 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 				versioning: { level: 1, hash },
 			}),
 		).toThrow(/prev must be a string/);
+
+		src.version = { level: 2, counter: 0 } as unknown as typeof src.version;
+		expect(() =>
+			restoreGraph(checkpoint, {
+				registry: defaultRestoreRegistry,
+				versioning: { level: 1, hash },
+			}),
+		).toThrow(/level must be 0 or 1/);
 	});
 
 	it("restores mounted fresh graphs from child-local checkpoints without double-prefixing", () => {
