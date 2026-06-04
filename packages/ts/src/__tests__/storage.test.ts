@@ -12,6 +12,7 @@ import type {
 } from "../index.js";
 import * as rootExports from "../index.js";
 import {
+	appendLogKey,
 	appendLogStorage,
 	assertDecimalIntegerString,
 	assertNonNegativeDecimalIntegerString,
@@ -1401,7 +1402,51 @@ describe("D82 storage substrate helpers", () => {
 		expect(second.entries.map((entry) => [entry.seq, entry.value.value])).toEqual([[2, "c"]]);
 		expect(second.nextAfter).toBe(2);
 		expect(second.done).toBe(true);
+		expect(await readAppendLogPage(log, { after: second.nextAfter, limit: 2 })).toEqual({
+			entries: [],
+			nextAfter: 2,
+			done: true,
+		});
+		expect(await readAppendLogPage(log, { after: 100, limit: 2 })).toEqual({
+			entries: [],
+			nextAfter: 100,
+			done: true,
+		});
 		expect(() => readAppendLogPage(log, { limit: 0 })).toThrow(/positive safe integer/);
+	});
+
+	it("readAppendLogPage sorts unordered backend listings by sequence", async () => {
+		const entries = new Map<string, { value: string }>([
+			["unordered/10", { value: "c" }],
+			["unordered/0", { value: "a" }],
+			["unordered/2", { value: "b" }],
+		]);
+		const kv: KvStorageTier<{ value: string }> = {
+			get: (key) => Promise.resolve(entries.get(key)),
+			set: (key, value) => {
+				entries.set(key, value);
+				return Promise.resolve();
+			},
+			delete: (key) => {
+				entries.delete(key);
+				return Promise.resolve();
+			},
+			list: (prefix = "") =>
+				Promise.resolve([...entries.keys()].filter((key) => key.startsWith(prefix))),
+		};
+		const log = appendLogStorage({ kv, prefix: "unordered" });
+
+		const first = await readAppendLogPage(log, { limit: 2 });
+		expect(first.entries.map((entry) => [entry.seq, entry.value.value])).toEqual([
+			[0, "a"],
+			[2, "b"],
+		]);
+		expect(first.nextAfter).toBe(2);
+		expect(first.done).toBe(false);
+
+		const second = await readAppendLogPage(log, { after: first.nextAfter, limit: 2 });
+		expect(second.entries.map((entry) => [entry.seq, entry.value.value])).toEqual([[10, "c"]]);
+		expect(second.done).toBe(true);
 	});
 
 	it("walFrameKey builds padded passive WAL storage keys", () => {
@@ -1590,6 +1635,47 @@ describe("D82 storage substrate helpers", () => {
 		await expect(appendLogStorage({ kv: torn, prefix: "torn" }).read()).rejects.toThrow(
 			/listed key is missing/,
 		);
+	});
+
+	it("readAppendLogPage propagates malformed sequence keys and missing listed values", async () => {
+		const malformed = memoryKv<{ value: string }>();
+		await malformed.set(appendLogKey("strict-page", 0), { value: "a" });
+		await malformed.set("strict-page/not-a-sequence", { value: "bad" });
+		const malformedLog = appendLogStorage({ kv: malformed, prefix: "strict-page" });
+
+		await expect(readAppendLogPage(malformedLog)).rejects.toThrow(/non-numeric sequence/);
+
+		const torn: KvStorageTier<{ value: string }> = {
+			get: (key) =>
+				Promise.resolve(key === appendLogKey("strict-torn", 0) ? { value: "a" } : undefined),
+			set: () => Promise.resolve(),
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([appendLogKey("strict-torn", 0), appendLogKey("strict-torn", 1)]),
+		};
+		const tornLog = appendLogStorage({ kv: torn, prefix: "strict-torn" });
+
+		await expect(readAppendLogPage(tornLog)).rejects.toThrow(/listed key is missing/);
+	});
+
+	it("readAppendLogPage continues deterministically across gaps after deletion between pages", async () => {
+		const kv = memoryKv<{ value: string }>();
+		const log = appendLogStorage({ kv, prefix: "gapped" });
+		await log.append({ value: "a" });
+		await log.append({ value: "b" });
+		await log.append({ value: "c" });
+		await log.append({ value: "d" });
+
+		const first = await readAppendLogPage(log, { limit: 1 });
+		expect(first.entries.map((entry) => [entry.seq, entry.value.value])).toEqual([[0, "a"]]);
+
+		await kv.delete(appendLogKey("gapped", 1));
+		const second = await readAppendLogPage(log, { after: first.nextAfter, limit: 2 });
+		expect(second.entries.map((entry) => [entry.seq, entry.value.value])).toEqual([
+			[2, "c"],
+			[3, "d"],
+		]);
+		expect(second.nextAfter).toBe(3);
+		expect(second.done).toBe(true);
 	});
 
 	it("append logs serialize concurrent appends without reusing a sequence", async () => {
@@ -1813,6 +1899,67 @@ describe("D82 storage substrate helpers", () => {
 		const rest = await readObserveEventLogPage(log, { after: page.nextAfter, limit: 1 });
 		expect(rest.entries.map((entry) => entry.value.change)).toEqual([2]);
 		expect(rest.done).toBe(true);
+	});
+
+	it("readObserveEventLogPage orders by append sequence, not graph projection semantics", async () => {
+		const entries = new Map<string, ObserveEventFrame<number>>([
+			[
+				"observe-unordered/10",
+				observeEventFrame({ path: "count", msg: ["DATA", 3], tier: 3, seq: 7 }, 3),
+			],
+			[
+				"observe-unordered/0",
+				observeEventFrame({ path: "count", msg: ["DATA", 1], tier: 3, seq: 10 }, 1),
+			],
+			[
+				"observe-unordered/2",
+				observeEventFrame({ path: "count", msg: ["DATA", 2], tier: 3, seq: 5 }, 2),
+			],
+		]);
+		const kv: KvStorageTier<ObserveEventFrame<number>> = {
+			get: (key) => Promise.resolve(entries.get(key)),
+			set: (key, value) => {
+				entries.set(key, value);
+				return Promise.resolve();
+			},
+			delete: (key) => {
+				entries.delete(key);
+				return Promise.resolve();
+			},
+			list: (prefix = "") =>
+				Promise.resolve([...entries.keys()].filter((key) => key.startsWith(prefix))),
+		};
+		const log = appendLogStorage({ kv, prefix: "observe-unordered" });
+
+		const page = await readObserveEventLogPage(log, { limit: 3 });
+		expect(page.entries.map((entry) => [entry.seq, entry.value.change])).toEqual([
+			[0, 1],
+			[2, 2],
+			[10, 3],
+		]);
+		expect(page.entries.map((entry) => entry.value.observeSeq)).toEqual([10, 5, 7]);
+		expect(page.done).toBe(true);
+	});
+
+	it("readObserveEventLogPage propagates append-log iteration failures", async () => {
+		const torn: KvStorageTier<ObserveEventFrame<number>> = {
+			get: () => Promise.resolve(undefined),
+			set: () => Promise.resolve(),
+			delete: () => Promise.resolve(),
+			list: () => Promise.resolve([appendLogKey("observe-torn", 0)]),
+		};
+		const tornLog = appendLogStorage({ kv: torn, prefix: "observe-torn" });
+
+		await expect(readObserveEventLogPage(tornLog)).rejects.toThrow(/listed key is missing/);
+
+		const malformed = memoryKv<ObserveEventFrame<number>>();
+		await malformed.set(
+			"observe-bad/not-a-sequence",
+			observeEventFrame({ path: "count", msg: ["DATA", 1], tier: 3, seq: 1 }, 1),
+		);
+		const malformedLog = appendLogStorage({ kv: malformed, prefix: "observe-bad" });
+
+		await expect(readObserveEventLogPage(malformedLog)).rejects.toThrow(/non-numeric sequence/);
 	});
 
 	it("change and observe-event codecs validate D82 storage frames only", () => {
