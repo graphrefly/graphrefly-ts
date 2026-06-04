@@ -1440,6 +1440,16 @@ export class Node<T = unknown> {
 				"down: a wave cannot mix DATA and RESOLVED (tier-3 exclusivity, R-resolved-undirty)",
 			);
 		}
+		const plannedVersions: Array<NodeVersion | undefined> = new Array(sorted.length);
+		if (dataCount > 0) {
+			let plannedVersion = this._version.value;
+			for (let i = 0; i < sorted.length; i++) {
+				const m = sorted[i];
+				if (m[0] !== "DATA") continue;
+				plannedVersion = advanceNodeVersion(plannedVersion, this._version.policy, m[1]);
+				plannedVersions[i] = plannedVersion;
+			}
+		}
 
 		// Synthesize a leading DIRTY for an EXTERNAL tier-3 emit (R-dirty-before-data).
 		// Inside runWave the DIRTY was already propagated (or the wave is activation-exempt).
@@ -1471,7 +1481,7 @@ export class Node<T = unknown> {
 				this._value.cache = v;
 				this._value.hasData = true;
 				this._value.status = "settled";
-				this._version.value = advanceNodeVersion(this._version.value, this._version.policy, v);
+				this._version.value = plannedVersions[i];
 				if (this._slot.replayN > 0) {
 					this._value.replayRing.push(v);
 					if (this._value.replayRing.length > this._slot.replayN) this._value.replayRing.shift();

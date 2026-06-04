@@ -1,4 +1,4 @@
-import { stableJsonString } from "../json/codec.js";
+import { strictJsonCodec } from "../json/codec.js";
 
 export type NodeVersioningLevel = 0 | 1;
 
@@ -37,6 +37,11 @@ export type NodeVersionJson = NodeVersion;
 const ABSENT_V1_SEED = Object.freeze({
 	"@graphrefly/node-version": "v1-absent",
 });
+const JSON_DECODER = new TextDecoder();
+
+function strictCanonicalJsonString(value: unknown): string {
+	return JSON_DECODER.decode(strictJsonCodec.encode(value));
+}
 
 function fnv1a64(input: string): string {
 	let hash = 0xcbf29ce484222325n;
@@ -49,7 +54,21 @@ function fnv1a64(input: string): string {
 }
 
 export function defaultNodeVersionHash(value: unknown): string {
-	return `fnv1a64:${fnv1a64(stableJsonString(value))}`;
+	return hashStrictCanonicalJsonString(strictCanonicalJsonString(value));
+}
+
+function hashStrictCanonicalJsonString(canonical: string): string {
+	return `fnv1a64:${fnv1a64(canonical)}`;
+}
+
+function computeV1Cid(
+	policy: Extract<ResolvedNodeVersioningPolicy, { enabled: true; level: 1 }>,
+	value: unknown,
+): string {
+	const canonical = strictCanonicalJsonString(value);
+	return policy.hash === defaultNodeVersionHash
+		? hashStrictCanonicalJsonString(canonical)
+		: policy.hash(value);
 }
 
 export function resolveNodeVersioningPolicy(
@@ -76,7 +95,7 @@ export function createNodeVersion(
 	return Object.freeze({
 		level: 1,
 		counter: 0,
-		cid: policy.hash(initialValue),
+		cid: computeV1Cid(policy, initialValue),
 		prev: null,
 	});
 }
@@ -95,7 +114,7 @@ export function advanceNodeVersion(
 	return Object.freeze({
 		level: 1,
 		counter: current.counter + 1,
-		cid: policy.hash(value),
+		cid: computeV1Cid(policy, value),
 		prev: previous,
 	});
 }

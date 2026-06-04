@@ -549,6 +549,8 @@
 		"docs:dev": "pnpm --dir website dev",
 		"docs:build": "pnpm build && pnpm --dir website build && pnpm --dir demos/compat-matrix build && pnpm --dir demos/reactive-layout build && pnpm --dir demos/knowledge-graph build && pnpm --dir demos/pagerduty-triage build && mkdir -p website/dist/demos/compat-matrix website/dist/demos/reactive-layout website/dist/demos/knowledge-graph website/dist/demos/pagerduty-triage && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/ && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/ && cp -r demos/knowledge-graph/dist/. website/dist/demos/knowledge-graph/ && cp -r demos/pagerduty-triage/dist/. website/dist/demos/pagerduty-triage/",
 		"docs:preview": "pnpm --dir website preview",
+		"dashboard": "node ../graphrefly/dashboard/build.mjs",
+		"dashboard:check": "node ../graphrefly/dashboard/build.mjs --check",
 		"build": "pnpm --filter @graphrefly/pure-ts build && NODE_OPTIONS=--max-old-space-size=8192 tsup",
 		"build:shim": "NODE_OPTIONS=--max-old-space-size=8192 tsup",
 		"prepare": "node -e \"const fs=require('fs');const distOk=fs.existsSync('dist/index.js')&&fs.existsSync('packages/pure-ts/dist/index.js');const src=fs.existsSync('tsup.config.ts');process.exit(distOk||!src?0:1)\" || pnpm run build",

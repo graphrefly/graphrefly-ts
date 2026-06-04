@@ -528,7 +528,44 @@ describe("D109 node runtime versioning", () => {
 		});
 	});
 
+	it("V1 rejects non-strict-JSON DATA before mutating cache or version", () => {
+		const s = node<number | bigint>([], null, { initial: 1, versioning: 1 });
+		const { msgs } = collect(s);
+		msgs.length = 0;
+		const before = s.version;
+		expect(() => s.down([["DATA", 2n]])).toThrow(/not JSON-encodable/);
+		expect(s.version).toEqual(before);
+		expect(s.cache).toBe(1);
+		expect(s.status).toBe("settled");
+		expect(msgs).toEqual([]);
+
+		s.down([["DATA", 2]]);
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(s.version).toMatchObject({ level: 1, counter: 1 });
+		expect(s.cache).toBe(2);
+
+		const customHash = (value: unknown) => `custom:${String(value)}`;
+		const custom = node<unknown>([], null, {
+			initial: 1,
+			versioning: { level: 1, hash: customHash },
+		});
+		const customBefore = custom.version;
+		expect(() => custom.down([["DATA", new Date(0)]])).toThrow(/non-plain object/);
+		expect(custom.version).toEqual(customBefore);
+		expect(custom.cache).toBe(1);
+	});
+
+	it("V1 rejects non-strict-JSON initial values at construction", () => {
+		expect(() => node<unknown>([], null, { initial: 2n, versioning: 1 })).toThrow(
+			/not JSON-encodable/,
+		);
+		const g = graph({ versioning: 1 });
+		expect(() => g.state(new Date(0), { name: "bad-date" })).toThrow(/non-plain object/);
+	});
+
 	it("fails honestly for unapproved V2/V3 levels", () => {
 		expect(() => node([], null, { versioning: { level: 2 } as unknown as 1 })).toThrow(/V2\/V3/);
+		const g = graph({ versioning: { level: 3 } as unknown as 1 });
+		expect(() => g.state(1)).toThrow(/V2\/V3/);
 	});
 });
