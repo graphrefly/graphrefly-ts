@@ -24,12 +24,7 @@ export interface NamedIndexedDbBackend extends StorageBackend {
 type IndexedDbError = DOMException | Error;
 
 function isConstraintError(error: unknown): error is DOMException {
-	return (
-		error instanceof DOMException &&
-		(error.name === "ConstraintError" ||
-			error.name === "DataError" ||
-			error.name === "QuotaExceededError")
-	);
+	return error instanceof DOMException && error.name === "ConstraintError";
 }
 
 function decodeStoredBytes(raw: unknown): Uint8Array | undefined {
@@ -63,6 +58,10 @@ function openDb(spec: IndexedDbBackendSpec, version = spec.version): Promise<IDB
 				db.createObjectStore(spec.storeName);
 			}
 		};
+		req.onblocked = () =>
+			reject(
+				new Error("indexedDbBackend: open blocked; close existing database connections and retry"),
+			);
 		req.onsuccess = () => resolve(req.result);
 		req.onerror = () => reject(req.error ?? new TypeError("indexedDbBackend: open failed"));
 	});
@@ -106,10 +105,11 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 	const db = (): Promise<IDBDatabase> => {
 		if (dbCache !== undefined) return dbCache;
 		const attempt = openDbWithStore(spec);
-		dbCache = attempt.catch((error) => {
-			if (dbCache === attempt) dbCache = undefined;
+		const cached = attempt.catch((error) => {
+			if (dbCache === cached) dbCache = undefined;
 			throw error;
 		});
+		dbCache = cached;
 		return dbCache;
 	};
 	return {
@@ -159,50 +159,74 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 			return db().then(
 				(database) =>
 					new Promise<boolean>((resolve, reject) => {
+						let requestOk = false;
+						let requestConflict = false;
+						let requestError: unknown;
 						let settled = false;
+						const settle = (fn: () => void): void => {
+							if (settled) return;
+							settled = true;
+							fn();
+						};
 						try {
 							const tx = database.transaction(spec.storeName, "readwrite");
 							const store = tx.objectStore(spec.storeName);
 							const req = store.add(value, key);
 							req.onsuccess = () => {
-								if (settled) return;
-								settled = true;
-								resolve(true);
+								requestOk = true;
 							};
-							req.onerror = () => {
-								if (settled) return;
-								settled = true;
+							req.onerror = (event) => {
 								const error = req.error;
 								if (isConstraintError(error)) {
-									resolve(false);
+									requestConflict = true;
+									event.preventDefault();
 									return;
 								}
-								reject(error ?? new Error("indexedDbBackend: write-if-absent failed"));
+								requestError = error ?? new Error("indexedDbBackend: write-if-absent failed");
 							};
+							tx.oncomplete = () =>
+								settle(() => {
+									if (requestConflict) {
+										resolve(false);
+									} else if (requestOk) {
+										resolve(true);
+									} else {
+										reject(
+											requestError ??
+												new Error("indexedDbBackend: write-if-absent did not complete"),
+										);
+									}
+								});
 							tx.onabort = () => {
-								if (settled) return;
-								settled = true;
 								const error = tx.error;
 								if (isConstraintError(error)) {
-									resolve(false);
+									settle(() => resolve(false));
 									return;
 								}
-								reject(
-									tx.error ?? new Error("indexedDbBackend: write-if-absent transaction aborted"),
+								settle(() =>
+									reject(
+										requestError ??
+											tx.error ??
+											new Error("indexedDbBackend: write-if-absent transaction aborted"),
+									),
 								);
 							};
 							tx.onerror = () => {
-								if (settled) return;
-								settled = true;
 								const error = tx.error;
 								if (isConstraintError(error)) {
-									resolve(false);
+									settle(() => resolve(false));
 									return;
 								}
-								reject(error ?? new Error("indexedDbBackend: write-if-absent transaction failed"));
+								settle(() =>
+									reject(
+										requestError ??
+											error ??
+											new Error("indexedDbBackend: write-if-absent transaction failed"),
+									),
+								);
 							};
 						} catch (error) {
-							reject(error as IndexedDbError);
+							settle(() => reject(error as IndexedDbError));
 						}
 					}),
 			);
