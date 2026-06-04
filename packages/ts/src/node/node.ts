@@ -63,6 +63,7 @@ import {
 	type NodeVersion,
 	type NodeVersioningPolicy,
 	resolveNodeVersioningPolicy,
+	restoredV1Cid,
 } from "./versioning.js";
 
 export type Status =
@@ -398,6 +399,20 @@ export class Node<T = unknown> {
 				if (!this._version.policy.enabled || this._version.policy.level !== 1) {
 					throw new Error(
 						`restoreGraph: checkpoint node version level ${state.version.level} requires matching node versioning policy`,
+					);
+				}
+				// D109: V1 restore must match the selected hash lane. After DATA then
+				// INVALIDATE/resetOnTeardown, cache is absent while cid remains the last DATA cid;
+				// without the DATA value, restore cannot verify the lane, so fail honestly.
+				if (!state.hasData && state.version.counter > 0) {
+					throw new Error(
+						"restoreGraph: checkpoint node version cid cannot be verified without current DATA under V1 versioning (D109)",
+					);
+				}
+				const expectedCid = restoredV1Cid(this._version.policy, state.hasData, state.cache);
+				if (expectedCid !== state.version.cid) {
+					throw new Error(
+						"restoreGraph: checkpoint node version cid does not match the selected node versioning hash policy (D109)",
 					);
 				}
 				this._version.value = cloneNodeVersion(state.version);

@@ -34,7 +34,9 @@ export type NodeVersion = NodeVersionV0 | NodeVersionV1;
 
 export type NodeVersionJson = NodeVersion;
 
-const DEFAULT_V1_SEED = null;
+const ABSENT_V1_SEED = Object.freeze({
+	"@graphrefly/node-version": "v1-absent",
+});
 
 function fnv1a64(input: string): string {
 	let hash = 0xcbf29ce484222325n;
@@ -67,7 +69,7 @@ export function resolveNodeVersioningPolicy(
 
 export function createNodeVersion(
 	policy: ResolvedNodeVersioningPolicy,
-	initialValue: unknown = DEFAULT_V1_SEED,
+	initialValue: unknown = ABSENT_V1_SEED,
 ): NodeVersion | undefined {
 	if (!policy.enabled) return undefined;
 	if (policy.level === 0) return Object.freeze({ level: 0, counter: 0 });
@@ -109,6 +111,14 @@ export function cloneNodeVersion(version: NodeVersion | undefined): NodeVersion 
 	});
 }
 
+export function restoredV1Cid(
+	policy: Extract<ResolvedNodeVersioningPolicy, { enabled: true; level: 1 }>,
+	hasData: boolean,
+	cache: unknown,
+): string {
+	return policy.hash(hasData ? cache : ABSENT_V1_SEED);
+}
+
 export function validateNodeVersionJson(value: unknown, path: string): NodeVersionJson {
 	if (typeof value !== "object" || value === null) {
 		throw new Error(`restoreGraph: ${path} must be an object`);
@@ -129,6 +139,12 @@ export function validateNodeVersionJson(value: unknown, path: string): NodeVersi
 		}
 		if (record.prev !== null && typeof record.prev !== "string") {
 			throw new Error(`restoreGraph: ${path}.prev must be a string or null`);
+		}
+		if ((record.counter as number) === 0 && record.prev !== null) {
+			throw new Error(`restoreGraph: ${path}.prev must be null when counter is 0`);
+		}
+		if ((record.counter as number) > 0 && typeof record.prev !== "string") {
+			throw new Error(`restoreGraph: ${path}.prev must be a string when counter is > 0`);
 		}
 		return Object.freeze({
 			level: 1,

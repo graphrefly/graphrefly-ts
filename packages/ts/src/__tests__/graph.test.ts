@@ -635,6 +635,101 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		});
 	});
 
+	it("fails honestly when V1 restore uses the wrong hash lane (D109)", () => {
+		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const g = graph({ versioning: { level: 1, hash } });
+		g.state({ n: 1 }, { name: "src" });
+		const checkpoint = g.checkpoint();
+
+		expect(() =>
+			restoreGraph(checkpoint, {
+				registry: defaultRestoreRegistry,
+				versioning: { level: 1, hash: (value) => `other:${JSON.stringify(value)}` },
+			}),
+		).toThrow(/hash policy/);
+	});
+
+	it("distinguishes V1 checkpoint absence from DATA null during restore (D109 / R-restore)", () => {
+		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const absentGraph = graph({ versioning: { level: 1, hash } });
+		absentGraph.node([], () => {}, { name: "cold" });
+		const absentCheckpoint = absentGraph.checkpoint();
+		const cold = absentCheckpoint.nodes.find((n) => n.id === "cold");
+		if (cold === undefined) throw new Error("missing test node");
+		cold.factory = { kind: "registry-ref", ref: "state" };
+		cold.value = { kind: "DATA", data: null };
+
+		expect(() =>
+			restoreGraph(absentCheckpoint, {
+				registry: defaultRestoreRegistry,
+				versioning: { level: 1, hash },
+			}),
+		).toThrow(/hash policy/);
+
+		const nullGraph = graph({ versioning: { level: 1, hash } });
+		nullGraph.state(null, { name: "nil" });
+		const nullCheckpoint = nullGraph.checkpoint();
+		const nil = nullCheckpoint.nodes.find((n) => n.id === "nil");
+		if (nil === undefined) throw new Error("missing test node");
+		nil.value = { kind: "SENTINEL" };
+
+		expect(() =>
+			restoreGraph(nullCheckpoint, {
+				registry: defaultRestoreRegistry,
+				versioning: { level: 1, hash },
+			}),
+		).toThrow(/hash policy/);
+	});
+
+	it("rejects absent post-DATA V1 checkpoints because the hash lane is unverifiable (D109)", () => {
+		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const g = graph({ versioning: { level: 1, hash } });
+		const src = g.state(1, { name: "src" });
+		src.set(2);
+		src.down([["INVALIDATE"]]);
+		const checkpoint = g.checkpoint();
+		const srcCheckpoint = checkpoint.nodes.find((n) => n.id === "src");
+		expect(srcCheckpoint?.value).toEqual({ kind: "SENTINEL" });
+		expect(srcCheckpoint?.version).toEqual({
+			level: 1,
+			counter: 1,
+			cid: "h:2",
+			prev: "h:1",
+		});
+
+		expect(() =>
+			restoreGraph(checkpoint, {
+				registry: defaultRestoreRegistry,
+				versioning: { level: 1, hash },
+			}),
+		).toThrow(/cannot be verified/);
+	});
+
+	it("rejects impossible V1 counter/prev checkpoint metadata (D109)", () => {
+		const hash = (value: unknown) => `h:${JSON.stringify(value)}`;
+		const g = graph({ versioning: { level: 1, hash } });
+		g.state(1, { name: "src" });
+		const checkpoint = g.checkpoint();
+		const src = checkpoint.nodes.find((n) => n.id === "src");
+		if (src === undefined) throw new Error("missing test node");
+
+		src.version = { level: 1, counter: 0, cid: "h:1", prev: "h:0" };
+		expect(() =>
+			restoreGraph(checkpoint, {
+				registry: defaultRestoreRegistry,
+				versioning: { level: 1, hash },
+			}),
+		).toThrow(/prev must be null/);
+
+		src.version = { level: 1, counter: 1, cid: "h:1", prev: null };
+		expect(() =>
+			restoreGraph(checkpoint, {
+				registry: defaultRestoreRegistry,
+				versioning: { level: 1, hash },
+			}),
+		).toThrow(/prev must be a string/);
+	});
+
 	it("restores mounted fresh graphs from child-local checkpoints without double-prefixing", () => {
 		const parent = graph({ name: "parent" });
 		parent.state(1, { name: "root" });
