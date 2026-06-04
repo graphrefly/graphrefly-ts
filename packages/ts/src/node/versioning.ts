@@ -1,4 +1,4 @@
-import { strictJsonCodec } from "../json/codec.js";
+import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
 
 export type NodeVersioningLevel = 0 | 1;
 
@@ -6,7 +6,7 @@ export type NodeVersioningLevel = 0 | 1;
  * D112 V1 node-version hash callback.
  *
  * The callback receives strict canonical JSON UTF-8 DATA bytes, not the raw host value.
- * Runtime V1 versioning encodes DATA with `strictJsonCodec.encode(value)` before calling hash.
+ * Runtime V1 versioning encodes DATA with `strictCanonicalJsonBytes(value)` before calling hash.
  */
 export type NodeVersionHashFn = (bytes: Uint8Array) => string;
 
@@ -44,10 +44,6 @@ const ABSENT_V1_SEED = Object.freeze({
 	"@graphrefly/node-version": "v1-absent",
 });
 
-function strictCanonicalJsonBytes(value: unknown): Uint8Array {
-	return strictJsonCodec.encode(value);
-}
-
 function fnv1a64(input: Uint8Array): string {
 	let hash = 0xcbf29ce484222325n;
 	const prime = 0x100000001b3n;
@@ -62,7 +58,7 @@ function fnv1a64(input: Uint8Array): string {
  * Default synchronous D112 V1 node-version hash over strict canonical JSON UTF-8 bytes.
  *
  * When hashing a host value directly, encode first:
- * `defaultNodeVersionHash(strictJsonCodec.encode(value))`.
+ * `defaultNodeVersionHash(strictCanonicalJsonBytes(value))`.
  */
 export function defaultNodeVersionHash(bytes: Uint8Array): string {
 	return `fnv1a64:${fnv1a64(bytes)}`;

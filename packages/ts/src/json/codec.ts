@@ -317,3 +317,8 @@ export function strictJsonCodecFor<T>(): Codec<T> {
 
 /** Default strict canonical JSON codec for unknown values. */
 export const strictJsonCodec: Codec<unknown> = strictJsonCodecFor<unknown>();
+
+/** D113 neutral helper for strict canonical JSON UTF-8 bytes. */
+export function strictCanonicalJsonBytes(value: unknown): Uint8Array {
+	return strictJsonCodec.encode(value);
+}

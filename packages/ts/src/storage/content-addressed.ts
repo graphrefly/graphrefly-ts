@@ -1,4 +1,4 @@
-import { stableJsonString } from "./codec.js";
+import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { KvStorageTier } from "./kv.js";
 
 /** Content-addressed KV access mode for D82 passive storage helpers. */
@@ -49,9 +49,10 @@ function bytesToHex(bytes: Uint8Array): string {
 	return out;
 }
 
-function sha256Hex(data: string): Promise<string> {
+function sha256Hex(data: Uint8Array): Promise<string> {
+	const digestInput = Uint8Array.from(data);
 	return globalThis.crypto.subtle
-		.digest(SHA_256, new TextEncoder().encode(data))
+		.digest(SHA_256, digestInput)
 		.then((buf) => bytesToHex(new Uint8Array(buf)));
 }
 
@@ -67,8 +68,8 @@ export function contentAddressedKv<Ctx, V>(
 	const contextForKey = keyContext ?? ((ctx: Ctx) => ctx as unknown);
 
 	function keyFor(ctx: Ctx): Promise<string> {
-		return defer(() => stableJsonString(contextForKey(ctx))).then((stable) =>
-			sha256Hex(stable).then((hex) => (keyPrefix ? `${keyPrefix}:${hex}` : hex)),
+		return defer(() => strictCanonicalJsonBytes(contextForKey(ctx))).then((bytes) =>
+			sha256Hex(bytes).then((hex) => (keyPrefix ? `${keyPrefix}:${hex}` : hex)),
 		);
 	}
 

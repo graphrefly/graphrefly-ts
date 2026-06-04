@@ -9,6 +9,7 @@ import {
 	graph,
 	initNode,
 	node,
+	strictCanonicalJsonBytes,
 	strictJsonCodec,
 } from "../index.js";
 
@@ -527,9 +528,12 @@ describe("D109 node runtime versioning", () => {
 		expect(s.version).toEqual({
 			level: 1,
 			counter: 0,
-			cid: defaultNodeVersionHash(strictJsonCodec.encode({ a: 1, b: 2 })),
+			cid: defaultNodeVersionHash(strictCanonicalJsonBytes({ a: 1, b: 2 })),
 			prev: null,
 		});
+		expect(defaultNodeVersionHash(strictCanonicalJsonBytes({ b: 2, a: 1 }))).toBe(
+			defaultNodeVersionHash(strictJsonCodec.encode({ a: 1, b: 2 })),
+		);
 	});
 
 	it("passes strict canonical JSON UTF-8 bytes to custom V1 hash callbacks (D112)", () => {

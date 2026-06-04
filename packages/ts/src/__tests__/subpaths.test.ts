@@ -72,8 +72,14 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(operators, "windowTime")).toBe(false);
 		expect(Object.hasOwn(storage, "attachSnapshotStorage")).toBe(false);
 		expect(Object.hasOwn(storage, "restoreSnapshot")).toBe(false);
+		expect(Object.hasOwn(storage, "strictCanonicalJsonBytes")).toBe(false);
+		expect(Object.hasOwn(storage, "assertNodeVersionDataCompatible")).toBe(false);
+		expect(Object.hasOwn(storage, "snapshotNodeVersionData")).toBe(false);
 		expect(Object.hasOwn(graphLayer, "attachSnapshotStorage")).toBe(false);
 		expect(Object.hasOwn(graphLayer, "restoreSnapshot")).toBe(false);
+		expect(Object.hasOwn(core, "strictCanonicalJsonBytes")).toBe(false);
+		expect(Object.hasOwn(core, "assertNodeVersionDataCompatible")).toBe(false);
+		expect(Object.hasOwn(core, "snapshotNodeVersionData")).toBe(false);
 	});
 
 	it("exports storage/node as a package subpath", () => {

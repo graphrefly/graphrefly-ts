@@ -54,6 +54,7 @@ import {
 	requireStorageVersioned,
 	restoreGraph,
 	stableJsonString,
+	strictCanonicalJsonBytes,
 	strictJsonCodec,
 	strictJsonCodecFor,
 	tieredReadThrough,
@@ -114,6 +115,12 @@ const awaitDone = (run: (done: () => void) => void) =>
 	new Promise<void>((resolve) => {
 		run(resolve);
 	});
+
+const bytesToHex = (bytes: Uint8Array) =>
+	[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+
+const sha256Hex = async (bytes: Uint8Array) =>
+	bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes)));
 
 describe("attachObserveSink — observe-driven storage binding (D57/D74)", () => {
 	it("writes filtered observe events in graph order", () => {
@@ -538,6 +545,19 @@ describe("D82 storage substrate helpers", () => {
 		);
 	});
 
+	it("strictCanonicalJsonBytes is the D113 neutral strict JSON byte helper", () => {
+		const value = { b: 2, a: { d: 4, c: 3 } };
+		const bytes = strictCanonicalJsonBytes(value);
+
+		expect(bytes).toEqual(strictJsonCodec.encode(value));
+		expect(new TextDecoder().decode(bytes)).toBe('{"a":{"c":3,"d":4},"b":2}');
+		expect(strictCanonicalJsonBytes({ a: 1, b: 2 })).toEqual(
+			strictCanonicalJsonBytes(JSON.parse('{"b":2,"a":1}')),
+		);
+		expect(() => strictCanonicalJsonBytes({ nested: undefined })).toThrow(/not JSON-encodable/);
+		expect(() => strictCanonicalJsonBytes("\uD800")).toThrow(/unpaired surrogate/);
+	});
+
 	it("strictJsonCodec rejects non-canonical key order and whitespace bytes", () => {
 		const codec = strictJsonCodecFor<unknown>();
 		const encoder = new TextEncoder();
@@ -597,6 +617,9 @@ describe("D82 storage substrate helpers", () => {
 
 		expect(a).toBe(b);
 		expect(a).toMatch(/^calc:[0-9a-f]{64}$/);
+		expect(a).toBe(
+			`calc:${await sha256Hex(strictCanonicalJsonBytes({ a: { c: 3, d: 4 }, b: 2 }))}`,
+		);
 	});
 
 	it("content-addressed KV honors read, write, read-write, and read-strict modes", async () => {
@@ -668,6 +691,7 @@ describe("D82 storage substrate helpers", () => {
 		await expect(cache.keyFor({ nested: undefined })).rejects.toThrow(/not JSON-encodable/);
 		await expect(cache.keyFor(cyclic)).rejects.toThrow(/circular/);
 		await expect(cache.keyFor({ sparse })).rejects.toThrow(/sparse array hole/);
+		await expect(cache.keyFor("\uD800")).rejects.toThrow(/unpaired surrogate/);
 	});
 
 	it("memoryKv stores encoded values and lists keys by prefix in order", async () => {
@@ -1709,6 +1733,11 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.nonNegativeDecimalStringToBigInt).toBe(nonNegativeDecimalStringToBigInt);
 			expect(exports.strictJsonCodec).toBe(strictJsonCodec);
 			expect(exports.strictJsonCodecFor).toBe(strictJsonCodecFor);
+			if (exports === rootExports) {
+				expect(Reflect.get(exports, "strictCanonicalJsonBytes")).toBe(strictCanonicalJsonBytes);
+			} else {
+				expect("strictCanonicalJsonBytes" in exports).toBe(false);
+			}
 			expect(exports.hasKvPutIfAbsent).toBe(hasKvPutIfAbsent);
 			expect(exports.hasStoragePutIfAbsent).toBe(hasStoragePutIfAbsent);
 			expect(exports.hasKvVersioned).toBe(hasKvVersioned);
@@ -1736,6 +1765,8 @@ describe("D82 storage substrate helpers", () => {
 			expect("restoreSnapshot" in exports).toBe(false);
 			expect("replayWal" in exports).toBe(false);
 			expect("GraphRestore" in exports).toBe(false);
+			expect("assertNodeVersionDataCompatible" in exports).toBe(false);
+			expect("snapshotNodeVersionData" in exports).toBe(false);
 		}
 		expect(rootExports.restoreGraph).toBe(restoreGraph);
 		expect("restoreGraph" in storageExports).toBe(false);

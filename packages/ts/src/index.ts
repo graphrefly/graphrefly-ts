@@ -236,6 +236,7 @@ export {
 	throttleTime,
 	timeout,
 } from "./graph/time.js";
+export { strictCanonicalJsonBytes } from "./json/codec.js";
 export { dynamicNode, Node, type NodeOptions, node, type Status } from "./node/node.js";
 export {
 	defaultNodeVersionHash,
