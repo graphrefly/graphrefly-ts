@@ -39,18 +39,50 @@ const exportsJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
 };
 
 describe("package subpath barrels (D40/D41 intent parity)", () => {
+	it("publishes only the intended package subpaths", () => {
+		expect(Object.keys(exportsJson.exports ?? {}).sort()).toEqual([
+			".",
+			"./composition",
+			"./core",
+			"./data-structures",
+			"./graph",
+			"./operators",
+			"./render",
+			"./sources",
+			"./storage",
+			"./storage/browser",
+			"./storage/node",
+			"./testing",
+		]);
+		expect(exportsJson.exports?.["./graph/render"]).toBeUndefined();
+		expect(exportsJson.exports?.["./graph/sources"]).toBeUndefined();
+		expect(exportsJson.exports?.["./graph/operators"]).toBeUndefined();
+		expect(exportsJson.exports?.["./storage/wal"]).toBeUndefined();
+	});
+
 	it("exposes the clean-slate layer surfaces from source barrels", () => {
 		expect(typeof core.node).toBe("function");
 		expect(typeof graphLayer.Graph).toBe("function");
 		expect(typeof graphLayer.GRAPH_CHECKPOINT_VERSION).toBe("string");
 		expect(typeof graphLayer.restoreGraph).toBe("function");
 		expect(typeof operators.map).toBe("function");
+		expect(typeof operators.switchMap).toBe("function");
+		expect(typeof operators.repeat).toBe("function");
+		expect(typeof operators.audit).toBe("function");
+		expect(typeof operators.auditTime).toBe("function");
+		expect(typeof operators.bufferTime).toBe("function");
+		expect(typeof operators.timeout).toBe("function");
 		expect(typeof operators.define).toBe("function");
 		expect(typeof operators.restoreRegistry).toBe("function");
 		expect(typeof sources.fromAny).toBe("function");
+		expect(typeof sources.timer).toBe("function");
+		expect(typeof sources.fromTimer).toBe("function");
+		expect(typeof sources.of).toBe("function");
+		expect(typeof sources.throwError).toBe("function");
 		expect(typeof composition.topologyDiff).toBe("function");
 		expect(typeof dataStructures.reactiveMap).toBe("function");
 		expect(typeof render.describeToJson).toBe("function");
+		expect(typeof render.describeToMermaidUrl).toBe("function");
 		expect(typeof storage.attachObserveSink).toBe("function");
 		expect(typeof storage.memoryKv).toBe("function");
 		expect(typeof storage.memoryAppendLog).toBe("function");
@@ -101,6 +133,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(exportsJson.exports?.["./storage/browser"]).toBeDefined();
 		expect(typeof storageBrowser.indexedDbBackend).toBe("function");
 		expect(typeof storageBrowser.indexedDbKv).toBe("function");
+		expect(typeof storageBrowser.indexedDbAppendLog).toBe("function");
+		expect(Object.hasOwn(storageBrowser, "attachSnapshotStorage")).toBe(false);
+		expect(Object.hasOwn(storageBrowser, "restoreSnapshot")).toBe(false);
+		expect(Object.hasOwn(storageBrowser, "restoreFromStorage")).toBe(false);
+		expect(Object.hasOwn(storageBrowser, "hydrateGraph")).toBe(false);
+		expect(Object.hasOwn(storageBrowser, "replayWal")).toBe(false);
 	});
 
 	it("exposes the D80 policy vocabulary from public type barrels", () => {

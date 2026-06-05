@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly/ts",
 	"version": "0.0.0",
-	"description": "GraphReFly clean-slate TypeScript substrate — node / dispatcher / pool / wave protocol.",
+	"description": "GraphReFly clean-slate TypeScript package — substrate, graph, operators, sources, storage, render, and testing.",
 	"type": "module",
 	"sideEffects": false,
 	"main": "dist/index.cjs",
