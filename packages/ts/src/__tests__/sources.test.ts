@@ -38,6 +38,21 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		expect(n.status).toBe("completed");
 	});
 
+	it("timer one-shot is canceled by deactivation before its first tick", () => {
+		const g = graph();
+		const n = g.initNode(timer(50), []);
+		const msgs: Message[] = [];
+		const unsub = n.subscribe((x) => msgs.push(x));
+		expect(vi.getTimerCount()).toBe(1);
+
+		unsub();
+		expect(vi.getTimerCount()).toBe(0);
+		vi.advanceTimersByTime(50);
+
+		expect(data(msgs)).toEqual([]);
+		expect(msgs).toEqual([["START"]]);
+	});
+
 	it("fromTimer preserves the frozen source name and supports AbortSignal", () => {
 		const g = graph();
 		const ac = new AbortController();
@@ -103,6 +118,13 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		unsub(); // deactivate → onDeactivation clears the interval (no leak)
 	});
 
+	it("interval preserves its real source factory name in describe (D6)", () => {
+		const g = graph();
+		g.initNode(interval(100), [], { name: "ticks" });
+		const byId = Object.fromEntries(g.describe().nodes.map((node) => [node.id, node]));
+		expect(byId.ticks.factory).toBe("interval");
+	});
+
 	it("deactivation stops the source — no emit after unsubscribe (cleanup contract)", () => {
 		const g = graph();
 		const n = g.initNode(interval(100), []);
@@ -126,6 +148,24 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		await flush();
 		expect(data(msgs)).toEqual([7]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
+	});
+
+	it("fromPromise unsubscribe suppresses late DATA + COMPLETE", async () => {
+		const g = graph();
+		let resolve!: (value: number) => void;
+		const p = new Promise<number>((r) => {
+			resolve = r;
+		});
+		const n = g.initNode(fromPromise(p), []);
+		const msgs: Message[] = [];
+		const unsub = n.subscribe((x) => msgs.push(x));
+
+		unsub();
+		resolve(7);
+		await flush();
+
+		expect(msgs).toEqual([["START"]]);
+		expect(data(msgs)).toEqual([]);
 	});
 
 	it("fromPromise rejects to ERROR", async () => {

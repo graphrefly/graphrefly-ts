@@ -357,6 +357,28 @@ describe("switchMap (D47)", () => {
 		b.next(20);
 		expect(data(msgs)).toEqual([10, 20]);
 	});
+
+	it("re-projecting the same live inner does not cancel or duplicate it", () => {
+		const inner = subject();
+		const g = graph();
+		const s = g.node([], null);
+		const op = g.initNode(
+			switchMap((_v: number) => inner.node),
+			[s],
+		);
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]);
+		expect(inner.isActivated()).toBe(true);
+		expect(op.deps).toEqual([s, inner.node]);
+
+		s.down([["DATA", 2]]);
+		expect(inner.isDeactivated()).toBe(false);
+		expect(op.deps).toEqual([s, inner.node]);
+
+		inner.next(10);
+		expect(data(msgs)).toEqual([10]);
+	});
 });
 
 describe("concatMap (D47)", () => {
@@ -478,6 +500,21 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 		const { msgs } = collect(r);
 		expect(r.status).toBe("errored");
 		expect(msgs.some((m) => m[0] === "ERROR")).toBe(true);
+	});
+
+	it("a throwing repeat factory is caught and emitted as ERROR", () => {
+		const g = graph();
+		const boom = new Error("repeat factory boom");
+		const r = g.initNode(
+			repeat<number>(() => {
+				throw boom;
+			}, 2),
+			[],
+		);
+
+		const { msgs } = collect(r);
+		expect(msgs.at(-1)).toEqual(["ERROR", boom]);
+		expect(r.status).toBe("errored");
 	});
 
 	it("describe shows repeat's real factory name + its live inner (D6/D51)", () => {

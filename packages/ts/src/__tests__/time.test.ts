@@ -6,8 +6,10 @@ import {
 	debounce,
 	debounceTime,
 	delay,
+	describeToAscii,
 	graph,
 	type Message,
+	map,
 	throttle,
 	throttleTime,
 	timeout,
@@ -253,5 +255,29 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		expect(timeout<number>(s, 100).factory).toBe("timeout");
 		expect(bufferTime<number>(s, 100).factory).toBe("bufferTime");
+	});
+
+	it("timeout exposes its live helper timer through describe/render, then removes it on terminal cleanup", () => {
+		const g = graph({ name: "time" });
+		const s = g.node<number>([], null, { name: "src" });
+		const t = timeout<number>(s, 100);
+		const watch = g.initNode(
+			map((v: number) => v),
+			[t],
+			{ name: "watch" },
+		);
+		const msgs: Message[] = [];
+
+		watch.subscribe((m) => msgs.push(m));
+		const armed = g.describe();
+		expect(armed.nodes.some((node) => node.factory === "timeout")).toBe(true);
+		expect(armed.nodes.some((node) => node.factory === "timer")).toBe(true);
+		expect(describeToAscii(armed)).toContain("timer");
+
+		s.down([["COMPLETE"]]); // terminal-drain releases timeout's helper-owned timer.
+		const completed = g.describe();
+		expect(types(msgs)).toContain("COMPLETE");
+		expect(completed.nodes.some((node) => node.factory === "timeout")).toBe(true);
+		expect(completed.nodes.some((node) => node.factory === "timer")).toBe(false);
 	});
 });

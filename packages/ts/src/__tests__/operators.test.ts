@@ -24,6 +24,7 @@ import {
 	take,
 	takeWhile,
 	tap,
+	tapFirst,
 	valve,
 } from "../index.js";
 
@@ -48,6 +49,24 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		s.set(3);
 		expect(m.cache).toBe(6);
 		expect(data(msgs)).toEqual([2, 6]);
+	});
+
+	it("a tap callback throw becomes operator ERROR instead of escaping (D30)", () => {
+		const g = graph();
+		const s = g.state(1);
+		const boom = new Error("tap boom");
+		const t = g.initNode(
+			tap<number>(() => {
+				throw boom;
+			}),
+			[s],
+		);
+		const msgs: Message[] = [];
+		t.subscribe((m) => msgs.push(m));
+
+		expect(data(msgs)).toEqual([]);
+		expect(msgs.at(-1)).toEqual(["ERROR", boom]);
+		expect(t.status).toBe("errored");
 	});
 
 	it("map consumes every DATA occurrence in one dep-batch (B43 / D49)", () => {
@@ -589,6 +608,10 @@ describe("Slice 3 — error-handling control (CSP-2.7)", () => {
 
 	it("catchError is the rescue alias", () => {
 		expect(catchError).toBe(rescue);
+	});
+
+	it("tapFirst is the onFirstData alias", () => {
+		expect(tapFirst).toBe(onFirstData);
 	});
 
 	it("valve gates DATA on a boolean control, re-emits on gate open", () => {

@@ -136,7 +136,7 @@ export function fromTimer(ms: number, opts?: TimerSourceOpts): Operator<never, n
 
 /** interval: periodic ticks (0, 1, 2, …), first at `ms`, then every `ms` (RxJS semantics). */
 export function interval(ms: number): Operator<never, number> {
-	return timer(ms, { period: ms });
+	return timerSource("interval", ms, { period: ms });
 }
 
 /**
