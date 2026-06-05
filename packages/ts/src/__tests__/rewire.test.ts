@@ -1,5 +1,5 @@
 /**
- * Intra-graph runtime rewire — setDeps/addDep/removeDep (R-rewire / D42 / CSP-2.5).
+ * Intra-graph runtime rewire — replaceDeps/subscribeDep/unsubscribeDep (R-rewire / D42 / CSP-2.5).
  *
  * Focused substrate unit tests: each Q-semantic (push-on-subscribe, gate-preserve,
  * cache-preserve, drain, reorder, idempotent, zero-deps) + each reject (self / cycle /
@@ -20,18 +20,18 @@ const num = (ctx: Ctx, i: number): number => depLatest(ctx, i) as number;
 const types = (m: Message[]) => m.map((x) => x[0]);
 
 describe("rewire — Q-semantics (R-rewire / D42)", () => {
-	it("addDep wires a cached dep via push-on-subscribe and recomputes", () => {
+	it("subscribeDep wires a cached dep via push-on-subscribe and recomputes", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 100 });
 		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
 		collect(d);
 		expect(d.cache).toBe(1);
 
-		d.addDep(b, (ctx) => ctx.down([["DATA", num(ctx, 0) + num(ctx, 1)]]));
+		d.subscribeDep(b, (ctx) => ctx.down([["DATA", num(ctx, 0) + num(ctx, 1)]]));
 		expect(d.cache).toBe(101); // 1 + 100 — b's cached DATA pushed on subscribe (R-push-subscribe)
 	});
 
-	it("addDep of a never-emitted (SENTINEL) dep does not re-arm the first-run gate (Q2)", () => {
+	it("subscribeDep of a never-emitted (SENTINEL) dep does not re-arm the first-run gate (Q2)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null); // no initial → SENTINEL, never emits
 		let runs = 0;
@@ -43,7 +43,7 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 		expect(d.cache).toBe(10);
 		runs = 0;
 
-		d.addDep(b, (ctx) => {
+		d.subscribeDep(b, (ctx) => {
 			runs++;
 			const bv = depLatest(ctx, 1); // SENTINEL = undefined — fn guards it
 			ctx.down([["DATA", num(ctx, 0) * 10 + (bv === undefined ? 0 : (bv as number))]]);
@@ -55,7 +55,7 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 		expect(d.cache).toBe(20); // 2*10 + 0 (b still SENTINEL)
 	});
 
-	it("removeDep drains the removed dep + preserves cache (Q3/Q7)", () => {
+	it("unsubscribeDep drains the removed dep + preserves cache (Q3/Q7)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 2 });
 		const sumAB = (ctx: Ctx) => ctx.down([["DATA", num(ctx, 0) + num(ctx, 1)]]);
@@ -64,8 +64,8 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 		collect(d);
 		expect(d.cache).toBe(3);
 
-		d.removeDep(b, aOnly);
-		expect(d.cache).toBe(3); // cache preserved — removeDep of a non-dirty dep does not recompute
+		d.unsubscribeDep(b, aOnly);
+		expect(d.cache).toBe(3); // cache preserved — unsubscribeDep of a non-dirty dep does not recompute
 
 		b.down([["DATA", 99]]); // removed dep must NOT drive d (drained)
 		expect(d.cache).toBe(3);
@@ -74,7 +74,7 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 		expect(d.cache).toBe(5);
 	});
 
-	it("removeDep to zero deps → inert fn-no-deps, cache preserved (D42 SD-3)", () => {
+	it("unsubscribeDep to zero deps → inert fn-no-deps, cache preserved (D42 SD-3)", () => {
 		const a = node<number>([], null, { initial: 7 });
 		let runs = 0;
 		const d = node<number>([a], (ctx) => {
@@ -85,7 +85,7 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 		expect(d.cache).toBe(7);
 		runs = 0;
 
-		d.removeDep(a, (ctx) => {
+		d.unsubscribeDep(a, (ctx) => {
 			runs++;
 			ctx.down([["DATA", -1]]);
 		});
@@ -97,7 +97,7 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 		expect(runs).toBe(0);
 	});
 
-	it("setDeps reorders kept deps without losing their state (Option-C, DepRecord-ref dispatch)", () => {
+	it("replaceDeps reorders kept deps without losing their state (Option-C, DepRecord-ref dispatch)", () => {
 		const a = node<number>([], null, { initial: 10 });
 		const b = node<number>([], null, { initial: 20 });
 		const f = (ctx: Ctx) => ctx.down([["DATA", num(ctx, 0) * 100 + num(ctx, 1)]]);
@@ -105,12 +105,12 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 		collect(d);
 		expect(d.cache).toBe(1020); // dep0=a=10, dep1=b=20 → 1020
 
-		d.setDeps([b, a], f); // reorder; kept-dep state (a=10, b=20) preserved
+		d.replaceDeps([b, a], f); // reorder; kept-dep state (a=10, b=20) preserved
 		a.down([["DATA", 11]]); // a is now dep1; reroutes correctly
 		expect(d.cache).toBe(2011); // dep0=b=20, dep1=a=11 → 20*100+11
 	});
 
-	it("setDeps to the current dep set is idempotent — no spurious recompute", () => {
+	it("replaceDeps to the current dep set is idempotent — no spurious recompute", () => {
 		const a = node<number>([], null, { initial: 1 });
 		let runs = 0;
 		const f = (ctx: Ctx) => {
@@ -122,19 +122,19 @@ describe("rewire — Q-semantics (R-rewire / D42)", () => {
 		expect(d.cache).toBe(1);
 		runs = 0;
 
-		d.setDeps([a], f);
+		d.replaceDeps([a], f);
 		expect(runs).toBe(0);
 		expect(d.cache).toBe(1);
 	});
 
-	it("addDep returns the new dep index", () => {
+	it("subscribeDep returns the new dep index", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 2 });
 		const f = (ctx: Ctx) => ctx.down([["DATA", num(ctx, 0)]]);
 		const d = node<number>([a], f);
 		collect(d);
-		expect(d.addDep(b, f)).toBe(1);
-		expect(d.addDep(b, f)).toBe(1); // already present → still index 1 (fn swap only)
+		expect(d.subscribeDep(b, f)).toBe(1);
+		expect(d.subscribeDep(b, f)).toBe(1); // already present → still index 1 (fn swap only)
 	});
 });
 
@@ -143,7 +143,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
 		collect(d);
-		expect(() => d.setDeps([d as Node<unknown>], (ctx) => ctx.down([["DATA", 0]]))).toThrow(
+		expect(() => d.replaceDeps([d as Node<unknown>], (ctx) => ctx.down([["DATA", 0]]))).toThrow(
 			/self-dependency/,
 		);
 	});
@@ -154,7 +154,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 		const e = node<number>([d], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
 		collect(e); // e depends on d (→ a)
 		// adding e as a dep of d would close d→e→d
-		expect(() => d.addDep(e, (ctx) => ctx.down([["DATA", num(ctx, 0)]]))).toThrow(/cycle/);
+		expect(() => d.subscribeDep(e, (ctx) => ctx.down([["DATA", num(ctx, 0)]]))).toThrow(/cycle/);
 	});
 
 	it("rejects rewire on a terminal node", () => {
@@ -164,7 +164,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 		});
 		collect(d);
 		d.down([["COMPLETE"]]); // d terminal
-		expect(() => d.setDeps([a], (ctx) => ctx.down([["DATA", 0]]))).toThrow(/terminal/);
+		expect(() => d.replaceDeps([a], (ctx) => ctx.down([["DATA", 0]]))).toThrow(/terminal/);
 	});
 
 	it("rejects adding a non-resubscribable terminal dep", () => {
@@ -175,7 +175,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
 		collect(d);
-		expect(() => d.addDep(term, (ctx) => ctx.down([["DATA", num(ctx, 0)]]))).toThrow(
+		expect(() => d.subscribeDep(term, (ctx) => ctx.down([["DATA", num(ctx, 0)]]))).toThrow(
 			/terminal dep/,
 		);
 	});
@@ -185,7 +185,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 		const x = node<number>([], null, { initial: 9 });
 		let dh: Node<number> | undefined;
 		dh = node<number>([a], (ctx) => {
-			dh?.addDep(x, (c) => c.down([["DATA", num(c, 0)]]));
+			dh?.subscribeDep(x, (c) => c.down([["DATA", num(c, 0)]]));
 			ctx.down([["DATA", num(ctx, 0)]]);
 		});
 		expect(() => collect(dh as Node)).toThrow(/mid-fn|feedback/);
@@ -193,7 +193,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 });
 
 describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-safe)", () => {
-	it("setDeps adding ≥2 cached deps settles ATOMICALLY — fn fires once, never on a partial view (P2)", () => {
+	it("replaceDeps adding ≥2 cached deps settles ATOMICALLY — fn fires once, never on a partial view (P2)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 10 });
 		const c = node<number>([], null, { initial: 100 });
@@ -209,7 +209,7 @@ describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-saf
 			sawPartial.push(depLatest(ctx, 1) === undefined || depLatest(ctx, 2) === undefined);
 			ctx.down([["DATA", num(ctx, 0) + num(ctx, 1) + num(ctx, 2)]]);
 		};
-		d.setDeps([a, b, c], sum3); // add b AND c (both cached) in one rewire
+		d.replaceDeps([a, b, c], sum3); // add b AND c (both cached) in one rewire
 		expect(runs).toBe(1); // ONE atomic settle, not one fire per added dep
 		expect(sawPartial).toEqual([false]); // never fired with an added dep still SENTINEL
 		expect(d.cache).toBe(111); // 1 + 10 + 100
@@ -222,12 +222,12 @@ describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-saf
 		const { msgs } = collect(d);
 		msgs.length = 0; // isolate the rewire wave
 
-		d.addDep(b, (ctx) => ctx.down([["DATA", num(ctx, 0) + num(ctx, 1)]]));
+		d.subscribeDep(b, (ctx) => ctx.down([["DATA", num(ctx, 0) + num(ctx, 1)]]));
 		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // two-phase, glitch-free
 		expect(msgs.at(-1)).toEqual(["DATA", 101]);
 	});
 
-	it("removeDep of the sole dirty dep to zero deps un-dirties downstream via RESOLVED (Q6 / P1)", () => {
+	it("unsubscribeDep of the sole dirty dep to zero deps un-dirties downstream via RESOLVED (Q6 / P1)", () => {
 		let cctx: Ctx | null = null;
 		const a = node<number>([], null, { initial: 1 });
 		const c = node<number>(
@@ -248,13 +248,13 @@ describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-saf
 		expect(types(msgs)).toContain("DIRTY");
 
 		msgs.length = 0;
-		d.removeDep(c, (ctx) => ctx.down([["DATA", num(ctx, 0)]])); // remove sole dirty dep → zero deps
+		d.unsubscribeDep(c, (ctx) => ctx.down([["DATA", num(ctx, 0)]])); // remove sole dirty dep → zero deps
 		expect(types(msgs)).toEqual(["RESOLVED"]); // un-dirtied downstream (not a stray DATA)
 		expect(d.cache).toBe(5); // cache preserved (Q7), no recompute
 	});
 
 	it("B15: a rewire fn-swap frees the old dispatcher handle (registry stays bounded)", () => {
-		// Each setDeps/addDep/removeDep re-registers the fn → a new handle. Before B15 the old
+		// Each replaceDeps/subscribeDep/unsubscribeDep re-registers the fn → a new handle. Before B15 the old
 		// handle leaked (the pool fn-table grew by one per swap), unbounded for a rewire-heavy
 		// graph (CSP-2.7 *Map). Now _rewire unregisters the old handle, so the table is bounded
 		// to peak-live size and freed ids are reused. Observed via a probe registration on a
@@ -269,7 +269,7 @@ describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-saf
 		const N = 50;
 		for (let i = 0; i < N; i++) {
 			// idempotent dep-set, but SD-1 still swaps the fn each call → register + free old.
-			d.setDeps([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
+			d.replaceDeps([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
 		}
 		expect(d.cache).toBe(1); // still correct after 50 swaps
 

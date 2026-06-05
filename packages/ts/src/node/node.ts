@@ -567,7 +567,7 @@ export class Node<T = unknown> {
 	/**
 	 * Enqueue a deferred self-rewire op (issued from this node's fn via `ctx.rewireNext`).
 	 * Applied at the committed wave boundary (boundary.ts drain), never in place — the in-fn
-	 * immediate path (`addDep`/`setDeps`/`removeDep`) still throws mid-run (D37/R-reentrancy).
+	 * immediate path (`subscribeDep`/`replaceDeps`/`unsubscribeDep`) still throws mid-run (D37/R-reentrancy).
 	 */
 	private _requestRewireNext(op: RewireOp): void {
 		deferRewire(this._core, () => this._applyRewireNext(op), {
@@ -630,12 +630,12 @@ export class Node<T = unknown> {
 	 * added deps fresh-subscribe (push-on-subscribe for an added cached dep). The
 	 * first-run gate and cache are PRESERVED (R-rewire Q2/Q7). Intra-graph only (D22).
 	 */
-	setDeps(newDeps: Node<unknown>[], fn: NodeFn): void {
+	replaceDeps(newDeps: Node<unknown>[], fn: NodeFn): void {
 		this._rewire(this._dedupDeps(newDeps), fn);
 	}
 
-	/** Add one dep (special case of setDeps); returns its index. fn required (SD-1). */
-	addDep(depNode: Node<unknown>, fn: NodeFn): number {
+	/** Subscribe to one dep (special case of replaceDeps); returns its index. fn required (SD-1). */
+	subscribeDep(depNode: Node<unknown>, fn: NodeFn): number {
 		const next = this._slot.deps.includes(depNode)
 			? [...this._slot.deps]
 			: [...this._slot.deps, depNode];
@@ -643,8 +643,8 @@ export class Node<T = unknown> {
 		return deferred ? next.indexOf(depNode) : this._slot.deps.indexOf(depNode);
 	}
 
-	/** Remove one dep (special case of setDeps); idempotent if absent (fn swap still applies). */
-	removeDep(depNode: Node<unknown>, fn: NodeFn): void {
+	/** Unsubscribe from one dep (special case of replaceDeps); idempotent if absent (fn swap still applies). */
+	unsubscribeDep(depNode: Node<unknown>, fn: NodeFn): void {
 		this._rewire(
 			this._slot.deps.filter((d) => d !== depNode),
 			fn,
@@ -703,7 +703,7 @@ export class Node<T = unknown> {
 			);
 		if (this._wave.inDepMutation)
 			throw new Error(
-				"rewire: reentrant dep mutation — another setDeps/addDep/removeDep is in flight (R-rewire)",
+				"rewire: reentrant dep mutation — another replaceDeps/subscribeDep/unsubscribeDep is in flight (R-rewire)",
 			);
 		if (newDeps.includes(this as unknown as Node<unknown>))
 			throw new Error("rewire: self-dependency rejected (R-rewire / D42)");
@@ -1153,7 +1153,7 @@ export class Node<T = unknown> {
 			return;
 		}
 		if (!this._wave.hasCalledFnOnce && !(this._slot.partial || this._allDepsSettled())) return;
-		this._markDirty(); // phase 1 (no-op if already dirty, e.g. removeDep auto-settle)
+		this._markDirty(); // phase 1 (no-op if already dirty, e.g. unsubscribeDep auto-settle)
 		this._runWave(); // phase 2: fn → DATA/RESOLVED
 	}
 
@@ -1311,9 +1311,9 @@ export class Node<T = unknown> {
 			},
 			// R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
 			rewireNext: {
-				addDep: (dep, fn) => this._requestRewireNext({ kind: "add", dep, fn }),
-				removeDep: (dep, fn) => this._requestRewireNext({ kind: "remove", dep, fn }),
-				setDeps: (deps, fn) => this._requestRewireNext({ kind: "set", deps, fn }),
+				subscribeDep: (dep, fn) => this._requestRewireNext({ kind: "add", dep, fn }),
+				unsubscribeDep: (dep, fn) => this._requestRewireNext({ kind: "remove", dep, fn }),
+				replaceDeps: (deps, fn) => this._requestRewireNext({ kind: "set", deps, fn }),
 			},
 			// R-up-routing / R-pull (D59): deferred up — route a control wave (e.g. a RESUME pull
 			// DEMAND) up the declared cone at the committed boundary. The SELF-demand path: an

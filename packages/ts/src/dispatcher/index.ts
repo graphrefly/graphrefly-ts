@@ -35,7 +35,7 @@ export interface Pool {
 
 /**
  * Array-indexed fn table with a free-list (B15). `register` reuses a freed slot before
- * growing the array, so a rewire-heavy graph (fn-swap on every setDeps/addDep/removeDep,
+ * growing the array, so a rewire-heavy graph (fn-swap on every replaceDeps/subscribeDep/unsubscribeDep,
  * e.g. CSP-2.7 higher-order *Map operators) keeps the table bounded to its peak live size
  * instead of leaking a slot + closure per swap. `unregister` tombstones the slot (drops the
  * closure reference for GC) and offers the id for reuse. handleId reuse is safe: the graph is

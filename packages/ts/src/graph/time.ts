@@ -2,7 +2,7 @@
  * Wall-clock time operators (CSP-2.7 / D52 / B23). Authored as COMPOSITIONS over the already-active
  * higher-order *Map machinery (D47) + the `timer` source — NO raw `setTimeout` in any operator body
  * (R-no-raw-async / check-no-raw-async; `setTimeout` stays confined to `sources.ts`'s `timer`). The
- * timer source's `onDeactivation` clearTimeout IS the reset/cancel: switchMap's removeDep on a new
+ * timer source's `onDeactivation` clearTimeout IS the reset/cancel: switchMap's unsubscribeDep on a new
  * source value tears the in-flight timer down (the declarative equivalent of the frozen reference's
  * imperative clearTimeout-then-setTimeout). Per-language (D6/D24), never in parity.
  *
@@ -13,7 +13,7 @@
  *
  * Behavior on source COMPLETE (per-operator, NOT a uniform DROP): debounce/debounceTime EMIT their
  * pending trailing value — switchMap does not cancel the in-flight inner on source COMPLETE (only a
- * superseding source value cancels it via removeDep→onDeactivation→clearTimeout), so the timer still
+ * superseding source value cancels it via unsubscribeDep→onDeactivation→clearTimeout), so the timer still
  * fires at `ms`, emits the debounced value, and only THEN does the operator COMPLETE (RxJS
  * debounceTime parity). delay emits every still-pending delayed value then COMPLETEs (mergeMap keeps
  * all inners). throttle/throttleTime have NO trailing value (leading-edge only, RxJS default
@@ -177,7 +177,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 				st.windowOpen = false;
 				st.notifier = null;
 				st.latest = undefined;
-				if (old) ctx.rewireNext.removeDep(old, body);
+				if (old) ctx.rewireNext.unsubscribeDep(old, body);
 			}
 
 			// source/notifier ERROR → forward ERROR, but first remove the helper-owned notifier.
@@ -185,7 +185,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 			const notifierError = isTerminalError(notifierTerminal);
 			if (sourceError || notifierError) {
 				const err = terminalErrorValue(sourceError ? sourceTerminal : notifierTerminal);
-				if (st.notifier) ctx.rewireNext.removeDep(st.notifier, body);
+				if (st.notifier) ctx.rewireNext.unsubscribeDep(st.notifier, body);
 				ctx.state.set({ windowOpen: false, latest: undefined, notifier: null });
 				ctx.down([["ERROR", err]]);
 				return;
@@ -194,7 +194,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 			// source COMPLETE → flush the pending latest (B44 audit flush-on-complete) then COMPLETE.
 			if (isTerminalComplete(sourceTerminal)) {
 				if (st.windowOpen && st.latest !== undefined) ctx.down([["DATA", st.latest.v]]);
-				if (st.notifier) ctx.rewireNext.removeDep(st.notifier, body);
+				if (st.notifier) ctx.rewireNext.unsubscribeDep(st.notifier, body);
 				ctx.state.set({ windowOpen: false, latest: undefined, notifier: null });
 				ctx.down([["COMPLETE"]]);
 				return;
@@ -205,7 +205,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 				const n = fromAny<unknown>(durationSelector(st.latest.v), { iter: true });
 				st.windowOpen = true;
 				st.notifier = n;
-				ctx.rewireNext.addDep(n, body); // (a same-wave close+reopen issues remove-before-add)
+				ctx.rewireNext.subscribeDep(n, body); // (a same-wave close+reopen issues remove-before-add)
 			}
 
 			ctx.state.set(st);
@@ -243,8 +243,8 @@ interface TimeoutState {
  * errors. A dep-bearing operator body never runs at activation (only depless nodes do, node.ts), which
  * is why this is a HELPER returning a Node, not a `g.initNode(op, [source])` operator.
  *
- * Each source value forwards as-is and RESETS the idle timer (removeDep the current `timer(ms)`,
- * addDep a fresh one — its `onDeactivation` clearTimeout cancels the prior countdown). The timer
+ * Each source value forwards as-is and RESETS the idle timer (unsubscribeDep the current `timer(ms)`,
+ * subscribeDep a fresh one — its `onDeactivation` clearTimeout cancels the prior countdown). The timer
  * firing (its DATA/COMPLETE) is the timeout → `[[ERROR]]`. Source COMPLETE forwards COMPLETE (no
  * error) and removes the idle timer during the terminal wave (D62 terminal-drains-queued-rewire);
  * a source ERROR forwards likewise. The idle timer is also torn down when the consumer unsubscribes
@@ -267,20 +267,20 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 				const next = makeTimer();
 				st.timer = next;
 				ctx.state.set(st);
-				if (old) ctx.rewireNext.removeDep(old, body); // remove-before-add (alignment)
-				ctx.rewireNext.addDep(next, body);
+				if (old) ctx.rewireNext.unsubscribeDep(old, body); // remove-before-add (alignment)
+				ctx.rewireNext.subscribeDep(next, body);
 				return; // a value-bearing wave is never also a timeout-fire wave
 			}
 
 			// source COMPLETE → forward COMPLETE (no timeout fires).
 			if (isTerminalComplete(srcTerminal)) {
-				if (st.timer) ctx.rewireNext.removeDep(st.timer, body);
+				if (st.timer) ctx.rewireNext.unsubscribeDep(st.timer, body);
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
 			// source ERROR (absorbed via errorWhenDepsError:false) → forward it.
 			if (isTerminalError(srcTerminal)) {
-				if (st.timer) ctx.rewireNext.removeDep(st.timer, body);
+				if (st.timer) ctx.rewireNext.unsubscribeDep(st.timer, body);
 				ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
 				return;
 			}
@@ -319,7 +319,7 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
  * SUBSCRIBE-ARMED: the `interval(ms)` notifier is a CONSTRUCTION-time dep (arms on subscribe), so an
  * empty window flushes `[]` even before the first source value — matching the landed {@link buffer}
  * (which flushes on every notifier signal). On source COMPLETE the remainder flushes then COMPLETE
- * (B44), and D62 lets the terminal wave still drain `removeDep(interval)` so the helper-owned
+ * (B44), and D62 lets the terminal wave still drain `unsubscribeDep(interval)` so the helper-owned
  * interval source deactivates instead of ticking forever.
  */
 export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
@@ -333,13 +333,13 @@ export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 		if (isTerminalComplete(srcTerminal)) {
 			if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
 			ctx.state.set([]);
-			ctx.rewireNext.removeDep(iv, body);
+			ctx.rewireNext.unsubscribeDep(iv, body);
 			ctx.down([["COMPLETE"]]);
 			return;
 		}
 		if (isTerminalError(srcTerminal)) {
 			ctx.state.set([]);
-			ctx.rewireNext.removeDep(iv, body);
+			ctx.rewireNext.unsubscribeDep(iv, body);
 			ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
 			return;
 		}

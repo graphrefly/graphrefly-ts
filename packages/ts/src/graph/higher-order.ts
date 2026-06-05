@@ -7,7 +7,7 @@
  * (`ctx.rewireNext`, D47) — NOT an internal subscribe (D45 bans that; it would create a describe
  * island). Growing/shrinking the dep set is deferred to the committed wave boundary, so a fn
  * never mutates its own topology mid-run (that is the D37 feedback-cycle ERROR). An inner that
- * COMPLETEs is `removeDep`'d → its source `_deactivate`s + fires `onDeactivation`: that is the
+ * COMPLETEs is `unsubscribeDep`'d → its source `_deactivate`s + fires `onDeactivation`: that is the
  * cancellation / abortInFlight basis (switchMap drops the superseded inner's WORK, not just its
  * output; mergeMap bounds memory). Built on the bare `node` primitive via the {@link Operator}
  * factory shape + the `g.initNode` funnel (D43), so the real factory name shows in describe.
@@ -16,7 +16,7 @@
  * errorWhenDepsError:false — the operator owns completion (emit COMPLETE only when the SOURCE is
  * done AND no inner is live / pending), and observes source/inner ERROR so it can remove every live
  * inner before emitting ERROR. Those removals drain after terminal via D62: terminal seals output,
- * while helper-owned upstream work still sees removeDep->_deactivate->onDeactivation teardown.
+ * while helper-owned upstream work still sees unsubscribeDep->_deactivate->onDeactivation teardown.
  *
  * Alignment: each run issues REMOVES before ADDS so the per-node FIFO drain keeps the operator's
  * tracked inner list aligned with the live dep order across the intermediate boundary waves (a
@@ -63,7 +63,7 @@ function uniqueNodes(nodes: readonly Node<unknown>[]): Node<unknown>[] {
 }
 
 function cleanupAllInners<TIn>(ctx: Ctx, st: MapState<TIn>, body: NodeFn): void {
-	for (const inner of uniqueNodes(st.inners)) ctx.rewireNext.removeDep(inner, body);
+	for (const inner of uniqueNodes(st.inners)) ctx.rewireNext.unsubscribeDep(inner, body);
 	st.inners = [];
 	st.queue.length = 0;
 	st.sourceDone = true;
@@ -182,7 +182,7 @@ function mapOperator<TIn, TOut>(
 				} else if (mode === "merge") {
 					for (const v of sb) {
 						const inner = make(v);
-						// a projector returning an ALREADY-LIVE Node is already merged: addDep is
+						// a projector returning an ALREADY-LIVE Node is already merged: subscribeDep is
 						// set-idempotent, so double-tracking it in `inners` would desync the
 						// inners[i] <-> deps[i+1] map permanently. Skip the duplicate.
 						if (inners.includes(inner)) continue;
@@ -212,8 +212,8 @@ function mapOperator<TIn, TOut>(
 
 			// 4. issue REMOVES before ADDS (alignment): a removed dep is silent + applies before the
 			//    added dep's push-on-subscribe settle wave, so the tracked list stays aligned.
-			for (const r of toRemove) ctx.rewireNext.removeDep(r, body);
-			for (const a of toAdd) ctx.rewireNext.addDep(a, body);
+			for (const r of toRemove) ctx.rewireNext.unsubscribeDep(r, body);
+			for (const a of toAdd) ctx.rewireNext.subscribeDep(a, body);
 
 			// 5. completion: the SOURCE is done AND nothing is live or pending → COMPLETE (D47 folding;
 			//    a queued/just-added inner keeps it open). If terminal output happens in a wave that
@@ -290,17 +290,18 @@ interface RepeatState {
  * are HOT/shared (multicast + cache): re-subscribing the SAME node replays its cache, it does not
  * re-RUN the source. RxJS `repeat` re-subscribes the COLD source = a fresh subscription each round;
  * the clean-slate analogue is a fresh node per round → a factory. (A `repeat(count)`-over-a-Node
- * shape would need a substrate force-resubscribe affordance — D47's no-net-change-is-a-no-op makes
- * `removeDep(S)+addDep(S)` on the SAME node cancel out — deferred to that substrate work.)
+ * shape remains deferred: D47's no-net-change-is-a-no-op makes
+ * `unsubscribeDep(S)+subscribeDep(S)` on the SAME boundary cancel out. D115 keeps the model to
+ * ordinary unsubscribe plus a later subscribe, so same-node repeat needs a separate future design.)
  *
  * Mechanism (reuses the D47 self-rewire substrate, like the *Map family; NOT an internal subscribe,
- * D45): on activation it mints round 0's inner via `ctx.rewireNext.addDep`; each round's inner DATA
+ * D45): on activation it mints round 0's inner via `ctx.rewireNext.subscribeDep`; each round's inner DATA
  * is forwarded; on the inner's COMPLETE (`completeWhenDepsComplete:false + terminalAsRealInput:true`)
- * it removeDep's the finished inner and, if rounds remain, addDep's a FRESH `factory()` inner (a
+ * it unsubscribeDep's the finished inner and, if rounds remain, subscribeDep's a FRESH `factory()` inner (a
  * distinct node → a real net change, not the no-op same-node case); after the last round it emits
  * COMPLETE. An inner ERROR auto-forwards (errorWhenDepsError default → repeat errors). The body is
  * SELF-CATCHING (D30) and re-supplied on every rewire. The factory MUST mint a FRESH node per call
- * (a factory returning the same Node makes removeDep+addDep a net-zero no-op → repeat wedges).
+ * (a factory returning the same Node makes unsubscribeDep+subscribeDep a net-zero no-op → repeat wedges).
  */
 export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<never, S> {
 	if (!Number.isInteger(count) || count < 1) {
@@ -325,19 +326,19 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				const inner = fromAnyInCtx(ctx, factory());
 				st.inner = inner;
 				ctx.state.set(st);
-				ctx.rewireNext.addDep(inner, body);
+				ctx.rewireNext.subscribeDep(inner, body);
 				return;
 			}
 			// 3. inner COMPLETE → next round or terminal COMPLETE.
 			if (st.inner !== null && isTerminalComplete(depTerminal(ctx, 0))) {
 				const old = st.inner;
-				ctx.rewireNext.removeDep(old, body); // bound the finished round's inner
+				ctx.rewireNext.unsubscribeDep(old, body); // bound the finished round's inner
 				if (st.round + 1 < count) {
 					st.round += 1;
 					const next = fromAnyInCtx(ctx, factory());
 					st.inner = next;
 					ctx.state.set(st);
-					ctx.rewireNext.addDep(next, body);
+					ctx.rewireNext.subscribeDep(next, body);
 				} else {
 					st.inner = null;
 					ctx.state.set(st);

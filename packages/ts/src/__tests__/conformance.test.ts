@@ -242,7 +242,7 @@ describe("C-7 upstream control at a depless source (R-up-at-source / D38)", () =
 });
 
 describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
-	it("surgical addDep (push-on-subscribe) → removeDep (drain) → idempotent setDeps; cache preserved", () => {
+	it("surgical subscribeDep (push-on-subscribe) → unsubscribeDep (drain) → idempotent replaceDeps; cache preserved", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 100 }); // B carries cached DATA
 		const aOnly = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
@@ -252,13 +252,13 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		collect(d);
 		expect(d.cache).toBe(1); // (1) A settled → D ran
 
-		d.addDep(b, sum); // (2) addDep(B): B cached → push-on-subscribe → D recomputes
+		d.subscribeDep(b, sum); // (2) subscribeDep(B): B cached → push-on-subscribe → D recomputes
 		expect(d.cache).toBe(101); // 1 + 100
 
 		b.down([["DATA", 50]]); // (3) B drives D
 		expect(d.cache).toBe(51); // 1 + 50
 
-		d.removeDep(a, aOnly); // (4) removeDep(A) → deps = [B]
+		d.unsubscribeDep(a, aOnly); // (4) unsubscribeDep(A) → deps = [B]
 		expect(d.cache).toBe(51); // cache PRESERVED (A was not dirty — no recompute)
 
 		a.down([["DATA", 9]]); // (5) A no longer drives D — its edge is drained
@@ -272,7 +272,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 			runs++;
 			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		};
-		d.setDeps([b], f); // (6) setDeps to the current set → idempotent
+		d.replaceDeps([b], f); // (6) replaceDeps to the current set → idempotent
 		expect(runs).toBe(0); // no spurious recompute
 		expect(d.cache).toBe(7);
 	});
@@ -283,7 +283,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		const d = node<number>([a], id, { completeWhenDepsComplete: false });
 		collect(d);
 		d.down([["COMPLETE"]]); // D terminal
-		expect(() => d.setDeps([a], id)).toThrow(/terminal/);
+		expect(() => d.replaceDeps([a], id)).toThrow(/terminal/);
 	});
 });
 
@@ -380,11 +380,11 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			if (sv && sv.length > 0) {
 				const inner = makeInner((sv[sv.length - 1] as number) * 10);
 				inners.push(inner.node);
-				ctx.rewireNext.addDep(inner.node, opFn);
+				ctx.rewireNext.subscribeDep(inner.node, opFn);
 			}
 			for (const r of removals) {
 				inners.splice(inners.indexOf(r), 1);
-				ctx.rewireNext.removeDep(r, opFn);
+				ctx.rewireNext.unsubscribeDep(r, opFn);
 			}
 		};
 		return node<number>([s], opFn, {
@@ -393,7 +393,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		});
 	}
 
-	it("(steps 1-3) addDep deferred to the boundary; added cached inner pushes [DIRTY,DATA], gate not re-armed", () => {
+	it("(steps 1-3) subscribeDep deferred to the boundary; added cached inner pushes [DIRTY,DATA], gate not re-armed", () => {
 		const s = node<number>([], null);
 		let opRuns = 0;
 		const inners: Node<number>[] = [];
@@ -409,7 +409,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 				inners.push(inner.node);
 				// mid-run: _deps is NOT mutated — the inner is not yet wired/activated.
 				expect(inner.isActivated()).toBe(false);
-				ctx.rewireNext.addDep(inner.node, opFn);
+				ctx.rewireNext.subscribeDep(inner.node, opFn);
 				expect(inner.isActivated()).toBe(false); // still deferred after the request
 			}
 		};
@@ -419,7 +419,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		});
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]); // step 1: request addDep(innerA); step 2: drain wires it; step 3: forward
+		s.down([["DATA", 1]]); // step 1: request subscribeDep(innerA); step 2: drain wires it; step 3: forward
 		expect(types(msgs)).toContain("DIRTY"); // step 2 boundary wave is two-phase…
 		expect(data(msgs)).toEqual([10]); // …innerA's seed (1*10) forwarded as DATA
 
@@ -445,7 +445,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		expect(types(msgs)).not.toContain("COMPLETE");
 	});
 
-	it("(steps 4-6, switch) setDeps tears down the superseded inner's source and forwards only the new one", () => {
+	it("(steps 4-6, switch) replaceDeps tears down the superseded inner's source and forwards only the new one", () => {
 		const s = node<number>([], null);
 		const innerA = makeInner(10);
 		const innerB = makeInner(20);
@@ -458,7 +458,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			const sv = depBatch(ctx, 0);
 			if (sv && sv.length > 0) {
 				current = (sv[sv.length - 1] as number) === 1 ? innerA.node : innerB.node;
-				ctx.rewireNext.setDeps([s, current], opFn);
+				ctx.rewireNext.replaceDeps([s, current], opFn);
 			}
 		};
 		const op = node<number>([s], opFn, {
@@ -487,10 +487,10 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const a = g.state(1);
 		const x = g.state(9);
 		let op: Node<number>;
-		// g.derived carries the D30 value-throw→ERROR boundary; the fn does an IMMEDIATE self-addDep
+		// g.derived carries the D30 value-throw→ERROR boundary; the fn does an IMMEDIATE self-subscribeDep
 		// (NOT ctx.rewireNext) mid-run → the D37 reject throws → graph layer converts it to ERROR.
 		op = g.derived([a], (av) => {
-			op.addDep(x, (c) => c.down([["DATA", depLatest(c, 0) as number]]));
+			op.subscribeDep(x, (c) => c.down([["DATA", depLatest(c, 0) as number]]));
 			return av as number;
 		});
 		let escaped = false;
@@ -508,7 +508,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const inner = makeInner(1);
 		const opFn: NodeFn = (ctx) => {
 			if (depBatch(ctx, 0)) {
-				ctx.rewireNext.addDep(inner.node, opFn); // queued…
+				ctx.rewireNext.subscribeDep(inner.node, opFn); // queued…
 				ctx.down([["COMPLETE"]]); // …then OP goes terminal THIS wave
 			}
 		};
@@ -519,25 +519,25 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const { msgs } = collect(op);
 		s.down([["DATA", 1]]);
 		expect(op.status).toBe("completed");
-		expect(inner.isActivated()).toBe(true); // D62: queued addDep drains after terminal
+		expect(inner.isActivated()).toBe(true); // D62: queued subscribeDep drains after terminal
 		expect(op.deps).toContain(inner.node);
 		msgs.length = 0;
 		inner.emit(2);
 		expect(msgs).toEqual([]); // terminal output guard: no post-terminal DATA escapes
 	});
 
-	it("(variant) a terminal OP drains a queued removeDep, releasing helper-owned work", () => {
+	it("(variant) a terminal OP drains a queued unsubscribeDep, releasing helper-owned work", () => {
 		const s = node<number>([], null);
 		const inner = makeInner(1);
 		let added = false;
 		const opFn: NodeFn = (ctx) => {
 			if (!added && depBatch(ctx, 0)) {
 				added = true;
-				ctx.rewireNext.addDep(inner.node, opFn);
+				ctx.rewireNext.subscribeDep(inner.node, opFn);
 				return;
 			}
 			if (isTerminalComplete(depTerminal(ctx, 0))) {
-				ctx.rewireNext.removeDep(inner.node, opFn);
+				ctx.rewireNext.unsubscribeDep(inner.node, opFn);
 				ctx.down([["COMPLETE"]]);
 			}
 		};
@@ -559,11 +559,11 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		let runs = 0;
 		const op = node<number>([a], function opFn(ctx) {
 			runs++;
-			if (runs < 5) ctx.rewireNext.setDeps([a], opFn); // identical dep set every run
+			if (runs < 5) ctx.rewireNext.replaceDeps([a], opFn); // identical dep set every run
 			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		collect(op);
-		expect(runs).toBe(1); // the idempotent setDeps changes nothing → no fresh wave → no loop
+		expect(runs).toBe(1); // the idempotent replaceDeps changes nothing → no fresh wave → no loop
 		expect(op.cache).toBe(1);
 	});
 });
@@ -1212,7 +1212,7 @@ describe("C-21 — late async ctx emission uses live deps after rewire (R-rewire
 		);
 		collect(d);
 
-		d.setDeps([b], () => {});
+		d.replaceDeps([b], () => {});
 		(captured as Ctx).up([["INVALIDATE"]]);
 
 		expect(a.cache).toBe(1);
@@ -1233,7 +1233,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 
 		batch(() => {
 			d.down([["DATA", 2]]);
-			d.setDeps([b], fwd);
+			d.replaceDeps([b], fwd);
 			expect(d.deps[0]).toBe(a);
 			expect(data(msgs)).toEqual([]);
 		});
@@ -1253,7 +1253,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 
 		batch((bctx) => {
 			d.down([["DATA", 2]]);
-			d.setDeps([b], fwd);
+			d.replaceDeps([b], fwd);
 			bctx.rollback();
 		});
 
@@ -1272,7 +1272,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 
 		batch(() => {
 			d.down([["COMPLETE"]]);
-			d.setDeps([b], fwd);
+			d.replaceDeps([b], fwd);
 			expect(d.deps[0]).toBe(a);
 		});
 
@@ -1284,7 +1284,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 		expect(msgs).toEqual([]);
 	});
 
-	it("returns the future index for an addDep deferred behind a batch commit", () => {
+	it("returns the future index for an subscribeDep deferred behind a batch commit", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 10 });
 		const sum: NodeFn = (ctx) =>
@@ -1297,7 +1297,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 		let idx = -2;
 		batch(() => {
 			d.down([["DATA", 2]]);
-			idx = d.addDep(b, sum);
+			idx = d.subscribeDep(b, sum);
 			expect(d.deps).toEqual([a]);
 		});
 
@@ -1308,7 +1308,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 
 // C-25 (R-rewire-deferred-committed-boundary / D110): ctx.rewireNext/ctx.upNext tasks apply only
 // after the owner reaches a committed, unpaused boundary view. Rollback drops the tasks caused by
-// that batch; it does not let addDep/removeDep/setDeps/upNext leak a hidden committed effect.
+// that batch; it does not let subscribeDep/unsubscribeDep/replaceDeps/upNext leak a hidden committed effect.
 describe("C-25 — deferred self-boundary tasks require committed + unpaused boundary", () => {
 	function makeHelper(seed: number) {
 		let hctx: Ctx | null = null;
@@ -1330,7 +1330,7 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		};
 	}
 
-	it("batch commit settles the old shape before draining a queued addDep", () => {
+	it("batch commit settles the old shape before draining a queued subscribeDep", () => {
 		const s = node<number>([], null);
 		const helper = makeHelper(42);
 		const opFn: NodeFn = (ctx) => {
@@ -1338,7 +1338,7 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 			if (h) for (const v of h) ctx.down([["DATA", `helper:${v}`]]);
 			const sv = depBatch(ctx, 0);
 			if (sv && sv.length > 0) {
-				ctx.rewireNext.addDep(helper.node, opFn);
+				ctx.rewireNext.subscribeDep(helper.node, opFn);
 				ctx.down([["DATA", `source:${sv.at(-1)}`]]);
 				expect(helper.isActivated()).toBe(false);
 			}
@@ -1362,11 +1362,11 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		expect(data(msgs)).toEqual(["source:1", "helper:42"]);
 	});
 
-	it("rollback drops a queued addDep: helper cache does not activate and deps stay old-shape", () => {
+	it("rollback drops a queued subscribeDep: helper cache does not activate and deps stay old-shape", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const helper = makeHelper(10);
 		const opFn: NodeFn = (ctx) => {
-			if (depBatch(ctx, 0)) ctx.rewireNext.addDep(helper.node, opFn);
+			if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(helper.node, opFn);
 		};
 		const op = node<number>([s], opFn, { completeWhenDepsComplete: false });
 
@@ -1381,11 +1381,11 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		expect(helper.isActivated()).toBe(false);
 	});
 
-	it("rollback drops a queued removeDep cleanup: helper stays subscribed and live", () => {
+	it("rollback drops a queued unsubscribeDep cleanup: helper stays subscribed and live", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const helper = makeHelper(20);
 		const opFn: NodeFn = (ctx) => {
-			if (depBatch(ctx, 0)) ctx.rewireNext.removeDep(helper.node, opFn);
+			if (depBatch(ctx, 0)) ctx.rewireNext.unsubscribeDep(helper.node, opFn);
 			const h = depBatch(ctx, 1);
 			if (h) for (const v of h) ctx.down([["DATA", v as number]]);
 		};
@@ -1396,7 +1396,7 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		let msgs: Message[] = [];
 
 		batch((bctx) => {
-			msgs = collect(op).msgs; // activation queues removeDep under the open batch
+			msgs = collect(op).msgs; // activation queues unsubscribeDep under the open batch
 			expect(helper.isActivated()).toBe(true);
 			bctx.rollback();
 		});
@@ -1408,12 +1408,12 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		expect(data(msgs)).toEqual([21]);
 	});
 
-	it("rollback drops a queued setDeps: replacement helper never activates", () => {
+	it("rollback drops a queued replaceDeps: replacement helper never activates", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const oldHelper = makeHelper(30);
 		const newHelper = makeHelper(31);
 		const opFn: NodeFn = (ctx) => {
-			if (depBatch(ctx, 0)) ctx.rewireNext.setDeps([s, newHelper.node], opFn);
+			if (depBatch(ctx, 0)) ctx.rewireNext.replaceDeps([s, newHelper.node], opFn);
 			const h = depBatch(ctx, 1);
 			if (h) for (const v of h) ctx.down([["DATA", v as number]]);
 		};
@@ -1423,7 +1423,7 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		});
 
 		batch((bctx) => {
-			collect(op); // activation queues setDeps under the open batch
+			collect(op); // activation queues replaceDeps under the open batch
 			expect(oldHelper.isActivated()).toBe(true);
 			bctx.rollback();
 		});
@@ -1459,14 +1459,14 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		expect(received).toEqual([]);
 	});
 
-	it("a paused owner holds queued addDep until the final RESUME", () => {
+	it("a paused owner holds queued subscribeDep until the final RESUME", () => {
 		const s = node<number>([], null);
 		const helper = makeHelper(50);
 		const l1 = Symbol("pause-1");
 		const l2 = Symbol("pause-2");
 		const opFn: NodeFn = (ctx) => {
 			if (depBatch(ctx, 0)) {
-				ctx.rewireNext.addDep(helper.node, opFn);
+				ctx.rewireNext.subscribeDep(helper.node, opFn);
 				ctx.down([["DATA", 1]]);
 			}
 		};
@@ -1494,7 +1494,7 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		const lock = Symbol("pause");
 		const opFn: NodeFn = (ctx) => {
 			if (depBatch(ctx, 0)) {
-				ctx.rewireNext.addDep(helper.node, opFn);
+				ctx.rewireNext.subscribeDep(helper.node, opFn);
 				ctx.down([["DATA", 1]]);
 			}
 		};
@@ -1515,7 +1515,7 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 		const lock = Symbol("pause");
 		const opFn: NodeFn = (ctx) => {
 			if (depBatch(ctx, 0)) {
-				ctx.rewireNext.addDep(helper.node, opFn);
+				ctx.rewireNext.subscribeDep(helper.node, opFn);
 				ctx.down([["DATA", 1]]);
 			}
 		};

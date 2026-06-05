@@ -132,7 +132,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		a.next(11);
 		expect(data(msgs)).toEqual([10, 20, 11]); // interleaved (concurrent inners)
 
-		a.complete(); // inner a done → removeDep → deactivated (bounding); b unaffected
+		a.complete(); // inner a done → unsubscribeDep → deactivated (bounding); b unaffected
 		expect(a.isDeactivated()).toBe(true);
 		expect(b.isDeactivated()).toBe(false);
 
@@ -141,7 +141,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("a projector returning an ALREADY-LIVE inner is merged once (no inners↔deps desync)", () => {
-		// QA fix (mutation-verified): addDep is set-idempotent, so a duplicate-projected Node must
+		// QA fix (mutation-verified): subscribeDep is set-idempotent, so a duplicate-projected Node must
 		// not be double-tracked in `inners` — otherwise the inners[i]↔deps[i+1] map skews by one and
 		// a LATER inner COMPLETE removes the WRONG (already-gone) inner, leaking the real one. The
 		// leak only surfaces on a subsequent removal, so we drive X (twice → dup), then a distinct Y,

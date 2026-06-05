@@ -486,12 +486,12 @@ export function reactiveIndex<K, V = unknown>(
 			});
 			bindDeps.add(folder as Node<unknown>);
 			const applyNode = ensureApply();
-			applyNode.addDep(folder as Node<unknown>, applyBody);
+			applyNode.subscribeDep(folder as Node<unknown>, applyBody);
 			let active = true;
 			const dispose = () => {
 				if (!active) return;
 				active = false;
-				applyNode.removeDep(folder as Node<unknown>, applyBody);
+				applyNode.unsubscribeDep(folder as Node<unknown>, applyBody);
 			};
 			binds.push(dispose);
 			return dispose;

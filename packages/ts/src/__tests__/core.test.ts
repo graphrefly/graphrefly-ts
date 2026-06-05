@@ -384,9 +384,9 @@ describe("B49 core-slot migration", () => {
 		const d = g1.derived([a], (v) => v + 1);
 		const foreign = graph().state(2);
 
-		expect(() => d.addDep(foreign, (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]))).toThrow(
-			/different graph/,
-		);
+		expect(() =>
+			d.subscribeDep(foreign, (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]])),
+		).toThrow(/different graph/);
 		expect(d.deps).toEqual([a]);
 	});
 
@@ -399,7 +399,7 @@ describe("B49 core-slot migration", () => {
 			[trigger],
 			function opFn(ctx) {
 				if (depLatest(ctx, 0) === 1) {
-					ctx.rewireNext.addDep(inner, opFn);
+					ctx.rewireNext.subscribeDep(inner, opFn);
 					queuedInsideRun = boundaryTaskCount(coreOf(op));
 				}
 			},
@@ -433,13 +433,13 @@ describe("B49 core-slot migration", () => {
 		const opA = node<number>(
 			[sourceA],
 			function opAFn(ctx) {
-				if (depBatch(ctx, 0)) ctx.rewireNext.addDep(innerA1, opAFn);
-				if (depBatch(ctx, 1)) ctx.rewireNext.addDep(innerA2, opAFn);
+				if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerA1, opAFn);
+				if (depBatch(ctx, 1)) ctx.rewireNext.subscribeDep(innerA2, opAFn);
 			},
 			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
 		);
 		const opB = node<number>([sourceB], function opBFn(ctx) {
-			if (depBatch(ctx, 0)) ctx.rewireNext.addDep(innerB1, opBFn);
+			if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerB1, opBFn);
 		});
 		opA.subscribe(() => {});
 		opB.subscribe(() => {});

@@ -73,18 +73,18 @@ export interface CtxState {
  * mutation of its OWN dep set; the request is QUEUED and applied at the committed wave boundary
  * (after the current wave settles / batch commit / final-lock RESUME) as a fresh wave, reusing
  * R-rewire surgical/Option-C semantics (D42). This is the ONLY legal self-triggered rewire — an
- * IMMEDIATE in-fn `node.addDep/removeDep/setDeps` is the D37 mid-fn feedback-cycle ERROR. An
+ * IMMEDIATE in-fn `node.subscribeDep/unsubscribeDep/replaceDeps` is the D37 mid-fn feedback-cycle ERROR. An
  * added cached dep pushes `[DIRTY,DATA]` on the boundary wave (R-push-subscribe); a removed dep
  * is drained and, if it loses its last subscriber, `_deactivate`s + fires `onDeactivation`
  * (input-side teardown — the basis for higher-order operator cancellation / abortInFlight).
  */
 export interface RewireNext {
-	/** Defer adding a dep (paired with the re-supplied fn — positional fn-deps lock, SD-1). */
-	addDep(dep: Node<unknown>, fn: NodeFn): void;
-	/** Defer removing a dep (its source is torn down if it loses its last subscriber). */
-	removeDep(dep: Node<unknown>, fn: NodeFn): void;
+	/** Defer subscribing to a dep (paired with the re-supplied fn — positional fn-deps lock, SD-1). */
+	subscribeDep(dep: Node<unknown>, fn: NodeFn): void;
+	/** Defer unsubscribing from a dep (its source is torn down if it loses its last subscriber). */
+	unsubscribeDep(dep: Node<unknown>, fn: NodeFn): void;
 	/** Defer replacing the whole dep set (surgical: kept deps untouched, removed drained, added fresh-subscribe). */
-	setDeps(deps: Node<unknown>[], fn: NodeFn): void;
+	replaceDeps(deps: Node<unknown>[], fn: NodeFn): void;
 }
 
 /**

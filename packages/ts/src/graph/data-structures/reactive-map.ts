@@ -411,7 +411,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		for (;;) {
 			const next = nextValidExpiry();
 			if (next === undefined) {
-				if (ttlTimer) ctx.rewireNext.removeDep(ttlTimer, body);
+				if (ttlTimer) ctx.rewireNext.unsubscribeDep(ttlTimer, body);
 				ttlTimer = null;
 				ttlTimerDue = undefined;
 				return;
@@ -421,10 +421,10 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 				continue;
 			}
 			if (ttlTimerDue === next.expiresAt) return;
-			if (ttlTimer) ctx.rewireNext.removeDep(ttlTimer, body);
+			if (ttlTimer) ctx.rewireNext.unsubscribeDep(ttlTimer, body);
 			ttlTimerDue = next.expiresAt;
 			ttlTimer = initNode(timer(Math.max(0, next.expiresAt - backend.nowMs())), [], base);
-			ctx.rewireNext.addDep(ttlTimer, body);
+			ctx.rewireNext.subscribeDep(ttlTimer, body);
 			return;
 		}
 	}
@@ -496,7 +496,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 				dep === ttlTimer &&
 				((depBatch(ctx, i)?.length ?? 0) > 0 || isTerminalComplete(depTerminal(ctx, i)))
 			) {
-				if (ttlTimer) ctx.rewireNext.removeDep(ttlTimer, applyBody);
+				if (ttlTimer) ctx.rewireNext.unsubscribeDep(ttlTimer, applyBody);
 				ttlTimer = null;
 				ttlTimerDue = undefined;
 				emitExpired(ctx, backend.pruneExpired());
@@ -675,12 +675,12 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 				meta: { kind: "collection_bind_source", collection: "reactiveMap" },
 			});
 			bindDeps.add(folder as Node<unknown>);
-			apply.addDep(folder as Node<unknown>, applyBody);
+			apply.subscribeDep(folder as Node<unknown>, applyBody);
 			let active = true;
 			const dispose = () => {
 				if (!active) return;
 				active = false;
-				apply.removeDep(folder as Node<unknown>, applyBody);
+				apply.unsubscribeDep(folder as Node<unknown>, applyBody);
 			};
 			binds.push(dispose);
 			return dispose;
