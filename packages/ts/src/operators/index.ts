@@ -14,6 +14,7 @@ export {
 	concatMap,
 	exhaustMap,
 	flatMap,
+	type MergeMapOptions,
 	mergeMap,
 	type Project,
 	repeat,

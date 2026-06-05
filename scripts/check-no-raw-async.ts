@@ -2,7 +2,7 @@
  * R-no-raw-async enforcement for the clean-slate @graphrefly/ts package (B21 / D43).
  *
  * Raw async primitives must live ONLY at the sanctioned async boundary: sources
- * (`graph/sources.ts`) and the pool/runner layer (R-no-raw-async / F-SYNC-CORE —
+ * (`graph/sources.ts`, node-only source barrels) and the pool/runner layer (R-no-raw-async / F-SYNC-CORE —
  * "async boundaries live only in sources and the pool/runner layer"). The sync wave
  * core and the rest of the graph layer must stay sync. This catches a raw
  * `setTimeout`/`Promise`/`for await`/`async` leaking outside that boundary.
@@ -27,7 +27,10 @@ const SRC = join(ROOT, "packages/ts/src");
  * as small as possible — every entry is a hole in the guard. When a real async pool
  * (WorkerPool/RemotePool, D20) lands, add the pool/runner file here.
  */
-const ALLOW_ALL = new Set<string>(["packages/ts/src/graph/sources.ts"]);
+const ALLOW_ALL = new Set<string>([
+	"packages/ts/src/graph/sources.ts",
+	"packages/ts/src/sources/node.ts",
+]);
 
 /**
  * Pattern-scoped exceptions. D82 storage binding helpers are adapter-owned async

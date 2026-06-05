@@ -1,5 +1,5 @@
 /**
- * Graph checkpoint public data shape (D83/D86/D90).
+ * Graph checkpoint public data shape (D83/D86/D90/D116).
  *
  * Checkpoint is a graph lifecycle snapshot: strict-JSON-compatible data, no storage I/O,
  * no observe-log replay, and no restore runtime in this first TS slice.
@@ -9,7 +9,7 @@ import { strictJsonCodec } from "../json/codec.js";
 import type { NodeVersionJson } from "../node/versioning.js";
 import { SENTINEL } from "../protocol/messages.js";
 
-export const GRAPH_CHECKPOINT_VERSION = "graphrefly.ts.checkpoint.v1" as const;
+export const GRAPH_CHECKPOINT_VERSION = "graphrefly.checkpoint.v1" as const;
 
 export type GraphCheckpointVersion = typeof GRAPH_CHECKPOINT_VERSION;
 

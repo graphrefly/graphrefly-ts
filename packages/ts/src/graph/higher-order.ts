@@ -44,10 +44,19 @@ export type Project<TIn, TOut> = (value: TIn) => NodeInput<TOut>;
 
 type Mode = "merge" | "switch" | "concat" | "exhaust";
 
-/** Per-node bookkeeping (ctx.state): the live inner deps (aligned with deps[1..]) + concat queue. */
+/** Options for {@link mergeMap}. */
+export interface MergeMapOptions {
+	/**
+	 * Maximum number of live inner deps at once. `undefined`/`Infinity` keeps the default
+	 * unbounded mergeMap behavior; finite values queue outer values until an inner COMPLETEs.
+	 */
+	readonly concurrent?: number;
+}
+
+/** Per-node bookkeeping (ctx.state): the live inner deps (aligned with deps[1..]) + pending queue. */
 interface MapState<TIn> {
 	inners: Node<unknown>[];
-	queue: TIn[]; // concatMap pending values (lazy projection); empty for the other modes
+	queue: TIn[]; // concatMap / bounded mergeMap pending values (lazy projection)
 	sourceDone: boolean;
 }
 
@@ -117,6 +126,16 @@ function isThenable(x: unknown): x is PromiseLike<unknown> {
 	return x != null && typeof (x as PromiseLike<unknown>).then === "function";
 }
 
+function normalizeConcurrent(factory: string, concurrent: number | undefined): number {
+	if (concurrent === undefined || concurrent === Number.POSITIVE_INFINITY) {
+		return Number.POSITIVE_INFINITY;
+	}
+	if (!Number.isInteger(concurrent) || concurrent < 1) {
+		throw new RangeError(`${factory}: concurrent must be a positive integer or Infinity`);
+	}
+	return concurrent;
+}
+
 /**
  * The shared higher-order machinery. The operator depends on the source S at index 0; inner
  * sources occupy indices 1.. (added/removed at runtime via ctx.rewireNext). The body is
@@ -127,7 +146,9 @@ function mapOperator<TIn, TOut>(
 	factory: string,
 	project: Project<TIn, TOut>,
 	mode: Mode,
+	opts: { concurrent?: number } = {},
 ): Operator<TIn, TOut> {
+	const maxConcurrent = normalizeConcurrent(factory, opts.concurrent);
 	const body: NodeFn = (ctx: Ctx) => {
 		let st: MapState<TIn> | undefined;
 		try {
@@ -169,6 +190,30 @@ function mapOperator<TIn, TOut>(
 			// 3. project the source's new value(s) per mode.
 			const toAdd: Node<unknown>[] = [];
 			const make = (v: TIn): Node<unknown> => fromAnyInCtx(ctx, project(v));
+			const isRemovedThisWave = (inner: Node<unknown>): boolean => toRemove.includes(inner);
+			const canTrackInner = (inner: Node<unknown>): boolean =>
+				!inners.includes(inner) && !isRemovedThisWave(inner);
+			const enqueueMerge = (v: TIn) => {
+				if (maxConcurrent === Number.POSITIVE_INFINITY && queue.length === 0) {
+					const inner = make(v);
+					// a projector returning an ALREADY-LIVE Node is already merged: subscribeDep is
+					// set-idempotent, so double-tracking it in `inners` would desync the
+					// inners[i] <-> deps[i+1] map permanently. Skip the duplicate.
+					if (!canTrackInner(inner)) return;
+					inners.push(inner);
+					toAdd.push(inner);
+					return;
+				}
+				queue.push(v);
+			};
+			const drainMergeQueue = () => {
+				while (queue.length > 0 && inners.length < maxConcurrent) {
+					const inner = make(queue.shift() as TIn);
+					if (!canTrackInner(inner)) continue;
+					inners.push(inner);
+					toAdd.push(inner);
+				}
+			};
 			const sb = depBatch(ctx, 0) as readonly TIn[] | null;
 			if (sb && sb.length > 0) {
 				if (mode === "switch") {
@@ -177,17 +222,15 @@ function mapOperator<TIn, TOut>(
 					// would needlessly tear down + re-subscribe it. Superseded sources torn down.
 					const inner = make(sb[sb.length - 1]);
 					for (const live of inners) if (live !== inner) toRemove.push(live);
-					if (!inners.includes(inner)) toAdd.push(inner);
-					inners = [inner];
+					if (isRemovedThisWave(inner)) {
+						inners = [];
+					} else {
+						if (!inners.includes(inner)) toAdd.push(inner);
+						inners = [inner];
+					}
 				} else if (mode === "merge") {
 					for (const v of sb) {
-						const inner = make(v);
-						// a projector returning an ALREADY-LIVE Node is already merged: subscribeDep is
-						// set-idempotent, so double-tracking it in `inners` would desync the
-						// inners[i] <-> deps[i+1] map permanently. Skip the duplicate.
-						if (inners.includes(inner)) continue;
-						inners.push(inner);
-						toAdd.push(inner);
+						enqueueMerge(v);
 					}
 				} else if (mode === "concat") {
 					for (const v of sb) queue.push(v); // lazy: project on activation
@@ -195,17 +238,24 @@ function mapOperator<TIn, TOut>(
 					// exhaust: ignore the source while an inner is active.
 					if (inners.length === 0) {
 						const inner = make(sb[0]);
-						inners.push(inner);
-						toAdd.push(inner);
+						if (canTrackInner(inner)) {
+							inners.push(inner);
+							toAdd.push(inner);
+						}
 					}
 				}
 			}
 
+			// 3a. bounded mergeMap: drain queued outer values as inner COMPLETEs free slots.
+			if (mode === "merge" && queue.length > 0) drainMergeQueue();
+
 			// 3b. concat: activate the queue head when the single slot is free.
 			if (mode === "concat" && inners.length === 0 && toAdd.length === 0 && queue.length > 0) {
 				const inner = make(queue.shift() as TIn);
-				inners.push(inner);
-				toAdd.push(inner);
+				if (canTrackInner(inner)) {
+					inners.push(inner);
+					toAdd.push(inner);
+				}
 			}
 
 			ctx.state.set({ inners, queue, sourceDone: st.sourceDone });
@@ -249,13 +299,19 @@ export function switchMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn,
  * interleaving their emissions. A completed inner is removed (memory bounding). On source/inner
  * ERROR or projector failure, every live inner is removed before the operator emits ERROR (D81).
  */
-export function mergeMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
-	return mapOperator("mergeMap", project, "merge");
+export function mergeMap<TIn, TOut>(
+	project: Project<TIn, TOut>,
+	opts: MergeMapOptions = {},
+): Operator<TIn, TOut> {
+	return mapOperator("mergeMap", project, "merge", opts);
 }
 
 /** flatMap: alias of {@link mergeMap} (RxJS naming parity). */
-export function flatMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
-	return mapOperator("flatMap", project, "merge");
+export function flatMap<TIn, TOut>(
+	project: Project<TIn, TOut>,
+	opts: MergeMapOptions = {},
+): Operator<TIn, TOut> {
+	return mapOperator("flatMap", project, "merge", opts);
 }
 
 /**

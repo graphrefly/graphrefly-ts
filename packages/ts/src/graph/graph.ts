@@ -599,6 +599,7 @@ export class Graph {
 		},
 	): GraphCheckpointNode {
 		const state = checkpointStateOfNode(node);
+		assertCheckpointQuiescentStatus(node.status, id, "checkpoint");
 		const out: GraphCheckpointNode = {
 			id,
 			factory: opts.factory,
@@ -623,6 +624,14 @@ export class Graph {
 				[key: string]: GraphCheckpointJson;
 			};
 		return out;
+	}
+}
+
+function assertCheckpointQuiescentStatus(status: string, id: string, op: string): void {
+	if (status === "pending" || status === "dirty") {
+		throw new Error(
+			`${op}: node '${id}' has non-quiescent status '${status}' that cannot be checkpoint-restored yet`,
+		);
 	}
 }
 

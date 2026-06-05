@@ -267,6 +267,11 @@ function assertStatus(value: string, id: string): Status {
 	) {
 		throw new Error(`restoreGraph: node '${id}' has invalid status '${value}'`);
 	}
+	if (value === "pending" || value === "dirty") {
+		throw new Error(
+			`restoreGraph: node '${id}' has non-quiescent status '${value}' that cannot be checkpoint-restored yet`,
+		);
+	}
 	return value;
 }
 
@@ -418,7 +423,13 @@ function prepareCheckpoint(
 			}
 		}
 	}
+	const edgeKeys = new Set<string>();
 	for (const edge of checkpoint.edges) {
+		const edgeKey = `${edge.from}\u0000${edge.to}`;
+		if (edgeKeys.has(edgeKey)) {
+			throw new Error(`restoreGraph: duplicate edge '${edge.from}' -> '${edge.to}'`);
+		}
+		edgeKeys.add(edgeKey);
 		if (!nodes.has(edge.from) || !nodes.has(edge.to)) {
 			throw new Error(
 				`restoreGraph: edge '${edge.from}' -> '${edge.to}' references a missing node`,
@@ -431,7 +442,6 @@ function prepareCheckpoint(
 			);
 		}
 	}
-	const edgeKeys = new Set(checkpoint.edges.map((edge) => `${edge.from}\u0000${edge.to}`));
 	for (const prepared of nodes.values()) {
 		for (const dep of prepared.deps) {
 			if (!edgeKeys.has(`${dep}\u0000${prepared.checkpoint.id}`)) {
@@ -445,6 +455,7 @@ function prepareCheckpoint(
 	const mounts: PreparedCheckpoint["mounts"] = [];
 	for (const mount of checkpoint.mounts ?? []) {
 		const at = assertString(mount.at, `${path}.mounts[].at`);
+		if (at.length === 0) throw new Error("restoreGraph: mount path must not be empty");
 		if (mountPaths.has(at)) throw new Error(`restoreGraph: duplicate mount path '${at}'`);
 		mountPaths.add(at);
 		mounts.push({

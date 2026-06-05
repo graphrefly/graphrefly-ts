@@ -282,6 +282,14 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(() => cyclic.checkpoint()).toThrow(/cyclic graph mount/);
 	});
 
+	it("rejects non-quiescent checkpoint statuses that cannot be restored yet", () => {
+		const g = graph();
+		const source = g.state(1, { name: "source" });
+		source.down([["DIRTY"]]);
+
+		expect(() => g.checkpoint()).toThrow(/non-quiescent status 'dirty'/);
+	});
+
 	it("keeps graph checkpoint strict JSON validation independent from storage codecs (D96)", () => {
 		const source = readFileSync(new URL("../graph/checkpoint.ts", import.meta.url), "utf8");
 		expect(source).not.toContain("../storage/codec.js");
@@ -819,6 +827,21 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 			/not present in target deps/,
 		);
 
+		const duplicateEdgeGraph = graph();
+		const duplicateEdgeSource = duplicateEdgeGraph.state(1, { name: "src" });
+		duplicateEdgeGraph.initNode(take<number>(1), [duplicateEdgeSource], { name: "limited" });
+		const duplicateEdge = duplicateEdgeGraph.checkpoint();
+		duplicateEdge.edges.push({ ...duplicateEdge.edges[0] });
+		expect(() => restoreGraph(duplicateEdge, { registry: defaultRestoreRegistry })).toThrow(
+			/duplicate edge/,
+		);
+
+		const nonQuiescent = missingRef.checkpoint();
+		nonQuiescent.nodes[0].status = "pending";
+		expect(() => restoreGraph(nonQuiescent, { registry: defaultRestoreRegistry })).toThrow(
+			/non-quiescent status 'pending'/,
+		);
+
 		const terminalMismatch = missingRef.checkpoint();
 		terminalMismatch.nodes[0].status = "completed";
 		terminalMismatch.nodes[0].terminal = { kind: "none" };
@@ -835,6 +858,12 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 			badMountCheckpoint.mounts[0].checkpoint.nodes[0].id = "child::leaf";
 		expect(() => restoreGraph(badMountCheckpoint, { registry: defaultRestoreRegistry })).toThrow(
 			/child-local node id/,
+		);
+
+		const emptyMountPath = badMountPrefix.checkpoint();
+		if (emptyMountPath.mounts) emptyMountPath.mounts[0].at = "";
+		expect(() => restoreGraph(emptyMountPath, { registry: defaultRestoreRegistry })).toThrow(
+			/mount path must not be empty/,
 		);
 	});
 

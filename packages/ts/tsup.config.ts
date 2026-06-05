@@ -10,6 +10,7 @@ export default defineConfig({
 		"src/operators/index.ts",
 		"src/render/index.ts",
 		"src/sources/index.ts",
+		"src/sources/node.ts",
 		"src/storage/index.ts",
 		"src/storage/node.ts",
 		"src/storage/browser.ts",

@@ -140,6 +140,68 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		expect(data(msgs)).toEqual([10, 20, 11, 21]);
 	});
 
+	it("limits mergeMap concurrency by queueing outer values until an inner completes", () => {
+		const inners: ReturnType<typeof subject>[] = [];
+		const g = graph();
+		const s = g.node([], null);
+		const op = g.initNode(
+			mergeMap(
+				(_v: number) => {
+					const inner = subject();
+					inners.push(inner);
+					return inner.node;
+				},
+				{ concurrent: 2 },
+			),
+			[s],
+		);
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1], ["DATA", 2], ["DATA", 3], ["COMPLETE"]]);
+		expect(inners).toHaveLength(2);
+		expect(inners[0].isActivated()).toBe(true);
+		expect(inners[1].isActivated()).toBe(true);
+		inners[0].next(10);
+		inners[1].next(20);
+		expect(data(msgs)).toEqual([10, 20]);
+		expect(op.status).not.toBe("completed");
+
+		inners[0].complete();
+		expect(inners).toHaveLength(3);
+		expect(inners[2].isActivated()).toBe(true);
+		inners[2].next(30);
+		expect(data(msgs)).toEqual([10, 20, 30]);
+		expect(op.status).not.toBe("completed");
+
+		inners[1].complete();
+		inners[2].complete();
+		expect(op.status).toBe("completed");
+	});
+
+	it("rejects non-positive mergeMap concurrency", () => {
+		expect(() => mergeMap((v: number) => v, { concurrent: 0 })).toThrow(RangeError);
+		expect(() => mergeMap((v: number) => v, { concurrent: 1.5 })).toThrow(RangeError);
+	});
+
+	it("does not re-add a just-completed inner while draining bounded mergeMap queue", () => {
+		const inner = subject();
+		const g = graph();
+		const s = g.node([], null);
+		const op = g.initNode(
+			mergeMap(() => inner.node, { concurrent: 1 }),
+			[s],
+		);
+		collect(op);
+
+		s.down([["DATA", 1], ["DATA", 2], ["COMPLETE"]]);
+		expect(inner.isActivated()).toBe(true);
+		expect(op.status).not.toBe("completed");
+
+		inner.complete();
+		expect(inner.isDeactivated()).toBe(true);
+		expect(op.status).toBe("completed");
+	});
+
 	it("a projector returning an ALREADY-LIVE inner is merged once (no inners↔deps desync)", () => {
 		// QA fix (mutation-verified): subscribeDep is set-idempotent, so a duplicate-projected Node must
 		// not be double-tracked in `inners` — otherwise the inners[i]↔deps[i+1] map skews by one and

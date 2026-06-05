@@ -28,6 +28,7 @@ import type {
 import * as operators from "../operators/index.js";
 import * as render from "../render/index.js";
 import * as sources from "../sources/index.js";
+import * as sourcesNode from "../sources/node.js";
 import * as storageBrowser from "../storage/browser.js";
 import * as storage from "../storage/index.js";
 import * as storageNode from "../storage/node.js";
@@ -49,6 +50,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./operators",
 			"./render",
 			"./sources",
+			"./sources/node",
 			"./storage",
 			"./storage/browser",
 			"./storage/node",
@@ -82,6 +84,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof sources.fromTimer).toBe("function");
 		expect(typeof sources.of).toBe("function");
 		expect(typeof sources.throwError).toBe("function");
+		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
 		expect(typeof composition.topologyDiff).toBe("function");
 		expect(typeof dataStructures.reactiveMap).toBe("function");
 		expect(typeof render.describeToJson).toBe("function");
@@ -99,6 +102,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof storage.walFrame).toBe("function");
 		expect(typeof storage.walFrameKey).toBe("function");
 		expect(typeof testing.assertDirtyPrecedesTerminalData).toBe("function");
+	});
+
+	it("exports node-only sources as a package subpath without polluting universal sources", () => {
+		expect(exportsJson.exports?.["./sources/node"]).toBeDefined();
+		expect(typeof sourcesNode.fromFSWatch).toBe("function");
+		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
 	});
 
 	it("does not resurrect retired window/storage surfaces through the subpaths", () => {
@@ -164,6 +173,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<DataStructuresViewCachePolicy>().toEqualTypeOf<ViewCachePolicy>();
 		expectTypeOf<GraphCheckpoint>()
 			.toHaveProperty("version")
-			.toEqualTypeOf<"graphrefly.ts.checkpoint.v1">();
+			.toEqualTypeOf<"graphrefly.checkpoint.v1">();
 	});
 });
