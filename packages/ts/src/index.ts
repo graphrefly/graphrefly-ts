@@ -119,6 +119,20 @@ export type {
 	DescribeSnapshot,
 } from "./graph/describe.js";
 export {
+	type CausalChain,
+	type CausalStep,
+	type ExplainPathOptions,
+	type ExplainPathReason,
+	explainPath,
+	type IslandReport,
+	type ReachableDirection,
+	type ReachableOptions,
+	type ReachableResult,
+	reachable,
+	type ValidateNoIslandsResult,
+	validateNoIslands,
+} from "./graph/diagnostics.js";
+export {
 	type DerivedFn,
 	type EffectFn,
 	Graph,
