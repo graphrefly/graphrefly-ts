@@ -56,10 +56,6 @@ function sha256Hex(data: Uint8Array): Promise<string> {
 		.then((buf) => bytesToHex(new Uint8Array(buf)));
 }
 
-function defer<T>(fn: () => T): Promise<T> {
-	return Promise.resolve().then(fn);
-}
-
 /** Build a content-addressed helper over a D82 KV tier. */
 export function contentAddressedKv<Ctx, V>(
 	opts: ContentAddressedKvOptions<Ctx, V>,
@@ -68,9 +64,17 @@ export function contentAddressedKv<Ctx, V>(
 	const contextForKey = keyContext ?? ((ctx: Ctx) => ctx as unknown);
 
 	function keyFor(ctx: Ctx): Promise<string> {
-		return defer(() => strictCanonicalJsonBytes(contextForKey(ctx))).then((bytes) =>
-			sha256Hex(bytes).then((hex) => (keyPrefix ? `${keyPrefix}:${hex}` : hex)),
-		);
+		let bytes: Uint8Array;
+		try {
+			bytes = strictCanonicalJsonBytes(contextForKey(ctx));
+		} catch (err) {
+			return Promise.resolve().then(() => {
+				throw err;
+			});
+		}
+		return Promise.resolve()
+			.then(() => sha256Hex(bytes))
+			.then((hex) => (keyPrefix ? `${keyPrefix}:${hex}` : hex));
 	}
 
 	return {

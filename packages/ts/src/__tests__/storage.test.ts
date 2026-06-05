@@ -623,6 +623,22 @@ describe("D82 storage substrate helpers", () => {
 		);
 	});
 
+	it("content-addressed KV snapshots canonical key bytes before async hashing", async () => {
+		const cache = contentAddressedKv<{ request: { value: number } }, { result: number }>({
+			kv: memoryKv(),
+			keyPrefix: "calc",
+			keyContext: (ctx) => ctx.request,
+		});
+		const ctx = { request: { value: 1 } };
+
+		const key = cache.keyFor(ctx);
+		ctx.request.value = 2;
+
+		await expect(key).resolves.toBe(
+			`calc:${await sha256Hex(strictCanonicalJsonBytes({ value: 1 }))}`,
+		);
+	});
+
 	it("content-addressed KV honors read, write, read-write, and read-strict modes", async () => {
 		const kv = memoryKv<{ answer: string }>();
 		const ctx = { prompt: "hello", opts: { temp: 0 } };
@@ -644,6 +660,58 @@ describe("D82 storage substrate helpers", () => {
 		await expect(strict.lookup({ prompt: "missing" })).rejects.toBeInstanceOf(
 			ContentAddressedMissError,
 		);
+	});
+
+	it("content-addressed KV reports strict miss details and rejects bad key contexts honestly", async () => {
+		const kv = memoryKv<unknown>();
+		const strict = contentAddressedKv({ kv, mode: "read-strict" });
+		const ctx = { prompt: "missing" };
+		const expectedKey = await strict.keyFor(ctx);
+
+		await expect(strict.lookup(ctx)).rejects.toMatchObject({
+			name: "ContentAddressedMissError",
+			key: expectedKey,
+			context: ctx,
+		});
+
+		const bad = contentAddressedKv<{ value: unknown }, unknown>({
+			kv,
+			keyContext: (value) => value,
+		});
+		const badCtx = { value: 1n };
+		await expect(bad.keyFor(badCtx)).rejects.toThrow(/not JSON-encodable/);
+		await expect(bad.lookup(badCtx)).rejects.toThrow(/not JSON-encodable/);
+		await expect(bad.store(badCtx, { ok: true })).rejects.toThrow(/not JSON-encodable/);
+		await expect(bad.forget(badCtx)).rejects.toThrow(/not JSON-encodable/);
+	});
+
+	it("content-addressed disallowed modes do not touch KV or validate skipped contexts", async () => {
+		const calls: string[] = [];
+		const kv: KvStorageTier<unknown> = {
+			get: (key) => {
+				calls.push(`get:${key}`);
+				return Promise.resolve(undefined);
+			},
+			set: (key) => {
+				calls.push(`set:${key}`);
+				return Promise.resolve();
+			},
+			delete: (key) => {
+				calls.push(`delete:${key}`);
+				return Promise.resolve();
+			},
+			list: () => Promise.resolve([]),
+		};
+		const cyclic: { self?: unknown } = {};
+		cyclic.self = cyclic;
+
+		await expect(contentAddressedKv({ kv, mode: "write" }).lookup(cyclic)).resolves.toBeUndefined();
+		await expect(
+			contentAddressedKv({ kv, mode: "read" }).store(cyclic, { value: 1 }),
+		).resolves.toBe(undefined);
+		await expect(contentAddressedKv({ kv, mode: "read" }).forget(cyclic)).resolves.toBeUndefined();
+		await expect(contentAddressedKv({ kv, mode: "write" }).forget(cyclic)).resolves.toBeUndefined();
+		expect(calls).toEqual([]);
 	});
 
 	it("content-addressed forget is a no-op when mode disallows it or delete is missing", async () => {
@@ -1519,6 +1587,12 @@ describe("D82 storage substrate helpers", () => {
 		const checksum = await walFrameChecksum(body);
 		expect(checksum).toMatch(/^[0-9a-f]{64}$/);
 		expect(await walFrameChecksum({ ...body })).toBe(checksum);
+		expect(
+			await walFrameChecksum({
+				...body,
+				change: JSON.parse('{"value":1,"op":"set"}') as { op: string; value: number },
+			}),
+		).toBe(checksum);
 
 		const frame = await walFrame({
 			path: body.path,
@@ -1551,24 +1625,71 @@ describe("D82 storage substrate helpers", () => {
 		expect(() => assertWalFrame({ ...frame, checksum: "BAD" })).toThrow(/checksum/);
 		expect(() =>
 			codec.decode(
-				new TextEncoder().encode(
-					JSON.stringify({
-						...frame,
-						t: "r",
-					}),
-				),
+				strictJsonCodec.encode({
+					...frame,
+					t: "r",
+				}),
 			),
 		).toThrow(/t must be c/);
 		expect(() =>
 			codec.decode(
-				new TextEncoder().encode(
-					JSON.stringify({
-						...frame,
-						lifecycle: "restore",
-					}),
-				),
+				strictJsonCodec.encode({
+					...frame,
+					lifecycle: "restore",
+				}),
 			),
 		).toThrow(/lifecycle/);
+	});
+
+	it("walFrameCodec rejects malformed strict JSON bytes before shape validation", async () => {
+		const frame = await walFrame({ path: "node", change: { event: "DATA" }, frame_seq: 0 });
+		const codec = walFrameCodec<{ event: string }>();
+		const encoder = new TextEncoder();
+
+		expect(() => codec.decode(encoder.encode('{"checksum":"bad","checksum":"also-bad"}'))).toThrow(
+			/duplicate object key/,
+		);
+		expect(() =>
+			codec.decode(encoder.encode(`{"path":"node","checksum":"${frame.checksum}"}`)),
+		).toThrow(/canonical/);
+		expect(() => codec.decode(encoder.encode('"\\ud800"'))).toThrow(/unpaired surrogate/);
+	});
+
+	it("wal frame shape checks reject malformed passive frames", async () => {
+		const frame = await walFrame({ path: "node", change: { event: "DATA" }, frame_seq: 0 });
+		const { change: _change, checksum: _checksum, ...missingChange } = frame;
+
+		expect(() => assertWalFrame(missingChange)).toThrow(/change payload/);
+		expect(() => assertWalFrame({ ...frame, restore: true })).toThrow(/unknown field restore/);
+		expect(() => assertWalFrame({ ...frame, checkpoint: { nodes: [] } })).toThrow(
+			/unknown field checkpoint/,
+		);
+		expect(() => assertWalFrame({ ...frame, path: "" })).toThrow(/path/);
+		expect(() => assertWalFrame({ ...frame, lifecycle: "restore" })).toThrow(/lifecycle/);
+		expect(() => assertWalFrame({ ...frame, frame_seq: -1 })).toThrow(/frame_seq/);
+		expect(() => assertWalFrame({ ...frame, frame_t_ns: "01" })).toThrow(/frame_t_ns/);
+		expect(() => assertWalFrame({ ...frame, format_version: WAL_FORMAT_VERSION + 1 })).toThrow(
+			/format_version/,
+		);
+		expect(() => assertWalFrame({ ...frame, checksum: "BAD" })).toThrow(/checksum/);
+		await expect(walFrameChecksum({ ...frame, change: "\uD800" })).rejects.toThrow(
+			/unknown field checksum/,
+		);
+		await expect(walFrameChecksum({ ...missingChange, change: "\uD800" })).rejects.toThrow(
+			/unpaired surrogate/,
+		);
+	});
+
+	it("walFrameCodec rejects restore-shaped extra fields instead of stripping them", async () => {
+		const frame = await walFrame({ path: "node", change: { event: "DATA" }, frame_seq: 0 });
+		const codec = walFrameCodec<{ event: string }>();
+
+		expect(() => codec.decode(strictJsonCodec.encode({ ...frame, restore: true }))).toThrow(
+			/unknown field restore/,
+		);
+		await expect(verifyWalFrameChecksum({ ...frame, checkpoint: { nodes: [] } })).rejects.toThrow(
+			/unknown field checkpoint/,
+		);
 	});
 
 	it("wal frames store and page as ordinary append-log facts", async () => {
