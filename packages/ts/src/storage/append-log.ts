@@ -55,6 +55,9 @@ function seqFromKey(prefix: string, key: string): number {
 	if (!/^\d+$/.test(raw)) {
 		throw new Error(`append log key has a non-numeric sequence: ${key}`);
 	}
+	if (raw.length !== APPEND_LOG_SEQ_PAD) {
+		throw new Error(`append log key sequence must be ${APPEND_LOG_SEQ_PAD} padded digits: ${key}`);
+	}
 	const seq = Number(raw);
 	if (!Number.isSafeInteger(seq)) {
 		throw new Error(`append log key sequence is outside the safe integer range: ${key}`);
@@ -69,6 +72,11 @@ function nextSeqFromKeys(prefix: string, keys: readonly string[]): number {
 		throw new RangeError(`append log next sequence is outside the safe integer range: ${prefix}`);
 	}
 	return next;
+}
+
+function sizeFromKeys(prefix: string, keys: readonly string[]): number {
+	for (const key of keys) seqFromKey(prefix, key);
+	return keys.length;
 }
 
 function validateReadOptions(opts: AppendLogReadOptions): {
@@ -135,18 +143,15 @@ export function readAppendLogPage<T>(
 	log: AppendLogStorageTier<T>,
 	opts: AppendLogReadOptions = {},
 ): Promise<AppendLogPage<T>> {
-	const after = opts.after ?? -1;
-	if (!Number.isSafeInteger(after) || after < -1) {
-		throw new RangeError(`readAppendLogPage: after must be an integer cursor >= -1, got ${after}`);
-	}
-	const limit = validatePageLimit(opts.limit ?? 100);
-	return log.read({ after, limit: limit + 1 }).then((entries) => {
-		const visible = entries.slice(0, limit);
+	const { after, limit } = validateReadOptions({ after: opts.after, limit: opts.limit ?? 100 });
+	const pageLimit = validatePageLimit(limit);
+	return log.read({ after, limit: pageLimit + 1 }).then((entries) => {
+		const visible = entries.slice(0, pageLimit);
 		const last = visible[visible.length - 1];
 		return {
 			entries: visible,
 			nextAfter: last?.seq ?? after,
-			done: entries.length <= limit,
+			done: entries.length <= pageLimit,
 		};
 	});
 }
@@ -218,7 +223,7 @@ export function appendLogStorage<T = unknown>(opts: AppendLogOptions<T>): Append
 			return enqueue(() => deleteAppendLogEntriesAfter(kv, prefix, seq));
 		},
 		size() {
-			return enqueue(() => kv.list(`${prefix}/`).then((keys) => keys.length));
+			return enqueue(() => kv.list(`${prefix}/`).then((keys) => sizeFromKeys(prefix, keys)));
 		},
 	};
 }
@@ -303,7 +308,7 @@ export function multiWriterAppendLogStorage<T = unknown>(
 			});
 		},
 		size() {
-			return enqueue(() => kv.list(`${prefix}/`).then((keys) => keys.length));
+			return enqueue(() => kv.list(`${prefix}/`).then((keys) => sizeFromKeys(prefix, keys)));
 		},
 	};
 }

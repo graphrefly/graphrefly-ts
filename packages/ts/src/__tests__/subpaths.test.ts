@@ -90,6 +90,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof storageNode.sqliteBackend).toBe("function");
 		expect(typeof storageNode.sqliteKv).toBe("function");
 		expect(typeof storageNode.sqliteAppendLog).toBe("function");
+		expect(Object.hasOwn(storageNode, "attachSnapshotStorage")).toBe(false);
+		expect(Object.hasOwn(storageNode, "restoreSnapshot")).toBe(false);
+		expect(Object.hasOwn(storageNode, "restoreFromStorage")).toBe(false);
+		expect(Object.hasOwn(storageNode, "hydrateGraph")).toBe(false);
+		expect(Object.hasOwn(storageNode, "replayWal")).toBe(false);
 	});
 
 	it("exports storage/browser as a package subpath", () => {

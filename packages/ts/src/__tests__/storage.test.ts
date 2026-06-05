@@ -519,15 +519,13 @@ describe("D82 storage substrate helpers", () => {
 	it("changeEnvelopeCodec rejects numeric, unsafe, and non-decimal t_ns", () => {
 		const codec = changeEnvelopeCodec<{ op: string }>();
 		const encodeRaw = (t_ns: unknown) =>
-			new TextEncoder().encode(
-				JSON.stringify({
-					lifecycle: "data",
-					structure: "kv-change",
-					version: 1,
-					t_ns,
-					change: { op: "set" },
-				}),
-			);
+			strictJsonCodec.encode({
+				lifecycle: "data",
+				structure: "kv-change",
+				version: 1,
+				t_ns,
+				change: { op: "set" },
+			});
 
 		for (const bad of [123, Number.MAX_SAFE_INTEGER + 1, "1.5", "1e3", "-1", "", "01"]) {
 			expect(() => codec.decode(encodeRaw(bad))).toThrow(/t_ns/);
@@ -1532,9 +1530,9 @@ describe("D82 storage substrate helpers", () => {
 
 	it("readAppendLogPage sorts unordered backend listings by sequence", async () => {
 		const entries = new Map<string, { value: string }>([
-			["unordered/10", { value: "c" }],
-			["unordered/0", { value: "a" }],
-			["unordered/2", { value: "b" }],
+			[appendLogKey("unordered", 10), { value: "c" }],
+			[appendLogKey("unordered", 0), { value: "a" }],
+			[appendLogKey("unordered", 2), { value: "b" }],
 		]);
 		const kv: KvStorageTier<{ value: string }> = {
 			get: (key) => Promise.resolve(entries.get(key)),
@@ -1772,15 +1770,24 @@ describe("D82 storage substrate helpers", () => {
 		const log = appendLogStorage({ kv, prefix: "bad" });
 
 		await expect(log.append({ value: "a" })).rejects.toThrow(/non-numeric sequence/);
+
+		const unpadded = memoryKv<{ value: string }>();
+		await unpadded.set("bad-pad/1", { value: "oops" });
+		await expect(appendLogStorage({ kv: unpadded, prefix: "bad-pad" }).read()).rejects.toThrow(
+			/padded digits/,
+		);
+		await expect(appendLogStorage({ kv: unpadded, prefix: "bad-pad" }).size()).rejects.toThrow(
+			/padded digits/,
+		);
 	});
 
 	it("append logs reject unsafe sequence allocation before writing", async () => {
 		const kv = memoryKv<{ value: string }>();
-		await kv.set(`max/${Number.MAX_SAFE_INTEGER}`, { value: "max" });
+		await kv.set(appendLogKey("max", Number.MAX_SAFE_INTEGER), { value: "max" });
 		const log = appendLogStorage({ kv, prefix: "max" });
 
 		await expect(log.append({ value: "overflow" })).rejects.toThrow(/safe integer/);
-		expect(await kv.list("max/")).toEqual([`max/${Number.MAX_SAFE_INTEGER}`]);
+		expect(await kv.list("max/")).toEqual([appendLogKey("max", Number.MAX_SAFE_INTEGER)]);
 	});
 
 	it("append-log reads validate cursors, limits, and listed key presence", async () => {
@@ -1985,6 +1992,14 @@ describe("D82 storage substrate helpers", () => {
 		expect((await log.read()).map((entry) => entry.seq)).toEqual([0, 1]);
 	});
 
+	it("multi-writer append-log size rejects malformed listed sequence keys", async () => {
+		const kv = memoryKv<{ value: string }>();
+		await kv.set("mw-bad/1", { value: "oops" });
+		const log = multiWriterAppendLogStorage({ kv: requireKvPutIfAbsent(kv), prefix: "mw-bad" });
+
+		await expect(log.size()).rejects.toThrow(/padded digits/);
+	});
+
 	it("append-log reads are serialized before later mutations", async () => {
 		const entries = new Map<string, { value: string }>();
 		let holdNextList = false;
@@ -2072,15 +2087,15 @@ describe("D82 storage substrate helpers", () => {
 	it("readObserveEventLogPage orders by append sequence, not graph projection semantics", async () => {
 		const entries = new Map<string, ObserveEventFrame<number>>([
 			[
-				"observe-unordered/10",
+				appendLogKey("observe-unordered", 10),
 				observeEventFrame({ path: "count", msg: ["DATA", 3], tier: 3, seq: 7 }, 3),
 			],
 			[
-				"observe-unordered/0",
+				appendLogKey("observe-unordered", 0),
 				observeEventFrame({ path: "count", msg: ["DATA", 1], tier: 3, seq: 10 }, 1),
 			],
 			[
-				"observe-unordered/2",
+				appendLogKey("observe-unordered", 2),
 				observeEventFrame({ path: "count", msg: ["DATA", 2], tier: 3, seq: 5 }, 2),
 			],
 		]);
@@ -2143,17 +2158,25 @@ describe("D82 storage substrate helpers", () => {
 		expect(changeCodec.decode(encodedChange).change).toEqual({ op: "set" });
 		expect(() =>
 			changeCodec.decode(
-				new TextEncoder().encode(
-					JSON.stringify({
-						lifecycle: "restore",
-						structure: "kv-change",
-						version: 1,
-						t_ns: "123",
-						change: {},
-					}),
-				),
+				strictJsonCodec.encode({
+					lifecycle: "restore",
+					structure: "kv-change",
+					version: 1,
+					t_ns: "123",
+					change: {},
+				}),
 			),
 		).toThrow(/lifecycle/);
+		expect(() =>
+			changeCodec.decode(new TextEncoder().encode('{"change":{},"change":{"op":"set"}}')),
+		).toThrow(/duplicate object key/);
+		expect(() =>
+			changeCodec.decode(
+				new TextEncoder().encode(
+					'{"lifecycle":"data","structure":"kv-change","version":1,"t_ns":"123","change":{}}',
+				),
+			),
+		).toThrow(/canonical/);
 
 		const frame = observeEventFrame(
 			{ path: "count", msg: ["DATA", 1], tier: 3, seq: 7 },
@@ -2172,6 +2195,16 @@ describe("D82 storage substrate helpers", () => {
 		});
 		expect(frame.t_ns).toMatch(/^(0|[1-9]\d*)$/);
 		expect(frameCodec.decode(frameCodec.encode(frame))).toEqual(frame);
+		expect(() =>
+			frameCodec.decode(new TextEncoder().encode('{"change":{},"change":{"value":1}}')),
+		).toThrow(/duplicate object key/);
+		expect(() =>
+			frameCodec.decode(
+				new TextEncoder().encode(
+					'{"lifecycle":"data","structure":"observe-event","version":1,"t_ns":"123","change":{},"observeSeq":1,"path":"count"}',
+				),
+			),
+		).toThrow(/canonical/);
 		expect(Object.keys(frame)).not.toEqual(
 			expect.arrayContaining(["snapshot", "restore", "checkpoint", "factory"]),
 		);

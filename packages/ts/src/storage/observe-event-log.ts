@@ -10,7 +10,7 @@ import type { AppendLogPage, AppendLogReadOptions, AppendLogStorageTier } from "
 import { readAppendLogPage } from "./append-log.js";
 import { assertChangeEnvelope, type ChangeEnvelope, envelopeChange } from "./change.js";
 import type { Codec } from "./codec.js";
-import { jsonCodecFor } from "./codec.js";
+import { strictJsonCodecFor } from "./codec.js";
 
 /** Storage frame for one Graph.observe() event, preserving graph observe sequence. */
 export interface ObserveEventFrame<T = ObserveEvent> extends ChangeEnvelope<T> {
@@ -79,7 +79,7 @@ export function assertObserveEventFrame<T = ObserveEvent>(value: unknown): Obser
 
 /** Stable JSON codec for D82 observe-event frames, not restore records. */
 export function observeEventFrameCodec<T = ObserveEvent>(): Codec<ObserveEventFrame<T>> {
-	const codec = jsonCodecFor<unknown>();
+	const codec = strictJsonCodecFor<unknown>();
 	return {
 		encode(value) {
 			return codec.encode(assertObserveEventFrame(value));

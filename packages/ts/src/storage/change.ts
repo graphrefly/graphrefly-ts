@@ -3,7 +3,7 @@
  */
 
 import type { Codec } from "./codec.js";
-import { jsonCodecFor } from "./codec.js";
+import { strictJsonCodecFor } from "./codec.js";
 import {
 	assertNonNegativeDecimalIntegerString,
 	bigIntToNonNegativeDecimalString,
@@ -90,7 +90,7 @@ export function assertChangeEnvelope<T = unknown>(value: unknown): ChangeEnvelop
 
 /** Stable JSON codec for D82 change envelopes, with strict framing checks. */
 export function changeEnvelopeCodec<T = unknown>(): Codec<ChangeEnvelope<T>> {
-	const codec = jsonCodecFor<unknown>();
+	const codec = strictJsonCodecFor<unknown>();
 	return {
 		encode(value) {
 			return codec.encode(assertChangeEnvelope(value));
