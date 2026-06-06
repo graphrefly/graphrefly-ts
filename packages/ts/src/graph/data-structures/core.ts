@@ -37,6 +37,7 @@ import { Node, releaseRuntimeOfNode } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { type Graph, releaseGraphNodes } from "../graph.js";
 import type { Operator } from "../operators.js";
+import type { ViewCachePolicy } from "../policies/types.js";
 
 /** The materialized-state contract a structure's backend must satisfy (D60 #1). */
 export interface CollectionBackend<S> {
@@ -91,6 +92,64 @@ interface LightReactiveViewOptions<S> extends CollectionCoreOptions {
 	readonly factory: string;
 	readonly materializeSnapshot: () => S;
 	readonly onDispose?: () => void;
+}
+
+function validateViewCacheMaxEntries(policy: ViewCachePolicy | undefined): number | undefined {
+	const maxEntries = policy?.maxEntries;
+	if (maxEntries === undefined) return undefined;
+	if (!Number.isInteger(maxEntries) || maxEntries < 0) {
+		throw new RangeError(`viewCache.maxEntries must be a non-negative integer (got ${maxEntries})`);
+	}
+	return maxEntries;
+}
+
+/**
+ * Internal D80 memo manager for derived views. Eviction drops only the structure's memo lookup;
+ * returned ReactiveView handles remain live until explicitly disposed or their parent releases all
+ * live views.
+ */
+export class ViewMemoCache<K, V extends { dispose(): void }> {
+	private readonly maxEntries: number | undefined;
+	private readonly equals: (a: K, b: K) => boolean;
+	private readonly memo: Array<{ key: K; value: V }> = [];
+	private readonly live = new Set<V>();
+
+	constructor(policy: ViewCachePolicy | undefined, equals: (a: K, b: K) => boolean = Object.is) {
+		this.maxEntries = validateViewCacheMaxEntries(policy);
+		this.equals = equals;
+	}
+
+	get(key: K): V | undefined {
+		const index = this.memo.findIndex((entry) => this.equals(entry.key, key));
+		if (index < 0) return undefined;
+		const [entry] = this.memo.splice(index, 1);
+		if (entry === undefined) return undefined;
+		this.memo.push(entry);
+		return entry.value;
+	}
+
+	set(key: K, value: V): void {
+		this.deleteValue(value);
+		this.live.add(value);
+		if (this.maxEntries === 0) return;
+		this.memo.push({ key, value });
+		while (this.maxEntries !== undefined && this.memo.length > this.maxEntries) {
+			this.memo.shift();
+		}
+	}
+
+	deleteValue(value: V): void {
+		for (let i = this.memo.length - 1; i >= 0; i -= 1) {
+			if (this.memo[i]?.value === value) this.memo.splice(i, 1);
+		}
+		this.live.delete(value);
+	}
+
+	disposeAll(): void {
+		for (const view of [...this.live]) view.dispose();
+		this.memo.length = 0;
+		this.live.clear();
+	}
 }
 
 /**

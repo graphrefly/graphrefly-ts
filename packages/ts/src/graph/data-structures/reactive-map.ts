@@ -41,10 +41,15 @@ import {
 	selectRetentionVictims,
 	trimHeadOverflow,
 } from "../policies/collection.js";
-import type { ReactiveOpt, RetentionPolicy } from "../policies/types.js";
+import type { ReactiveOpt, RetentionPolicy, ViewCachePolicy } from "../policies/types.js";
 import { timer } from "../sources.js";
 import type { MapChange } from "./change.js";
-import { type CollectionCoreOptions, lightReactiveView, type ReactiveView } from "./core.js";
+import {
+	type CollectionCoreOptions,
+	lightReactiveView,
+	type ReactiveView,
+	ViewMemoCache,
+} from "./core.js";
 
 export type ReactiveMapOpt<T> = ReactiveOpt<T>;
 
@@ -82,6 +87,8 @@ export interface ReactiveMapOptions<K = unknown, V = unknown> extends Collection
 	 * a Node-valued policy, keeping graph describe data serializable while apply owns the mutation.
 	 */
 	retention?: ReactiveMapRetentionPolicy<K, V>;
+	/** Static D80 memo policy for D121 light views. Eviction does not dispose returned views. */
+	viewCache?: ViewCachePolicy;
 	/** Injectable monotonic-ish clock for TTL (default `Date.now`). Graph-local clock = follow-up (D26). */
 	now?: () => number;
 }
@@ -280,7 +287,7 @@ class MapBackend<K, V> {
  * `ReadonlyMap`) + pullId via {@link collectionCore}; this layer adds the typed map surface.
  */
 export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMap<K, V> {
-	const { maxSize, defaultTtl, retention, now, name, dispatcher, graph } = options;
+	const { maxSize, defaultTtl, retention, viewCache, now, name, dispatcher, graph } = options;
 	const backend = new MapBackend<K, V>({ now });
 	const base = dispatcher ? { dispatcher } : {};
 
@@ -384,10 +391,10 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	const bindDeps = new WeakSet<Node<unknown>>();
 	let bindSeq = 0;
 	let apply: Node<MapChange<K, V>>;
-	const selectMemo = new Map<
+	const selectMemo = new ViewMemoCache<
 		(value: V, key: K) => boolean,
 		ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>
-	>();
+	>(viewCache);
 	let selectSeq = 0;
 
 	const policyInputs = new PolicyInputs([intent as Node<unknown>]);
@@ -638,7 +645,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		if (typeof predicate !== "function")
 			throw new TypeError("reactiveMap.select: predicate must be a function");
 		const cached = selectMemo.get(predicate);
-		if (cached) return cached;
+		if (cached !== undefined) return cached;
 		let view: ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>;
 		view = lightReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>(delta as Node<unknown>, {
 			dispatcher,
@@ -647,7 +654,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			name: name ? `${name}.select#${selectSeq++}` : undefined,
 			materializeSnapshot: () => selectedSnapshot(predicate),
 			onDispose: () => {
-				if (selectMemo.get(predicate) === view) selectMemo.delete(predicate);
+				selectMemo.deleteValue(view);
 			},
 		});
 		selectMemo.set(predicate, view);
@@ -729,8 +736,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			return dispose;
 		},
 		dispose(): void {
-			for (const view of selectMemo.values()) view.dispose();
-			selectMemo.clear();
+			selectMemo.disposeAll();
 			for (const d of binds) d();
 			binds.length = 0;
 			releaseApply();

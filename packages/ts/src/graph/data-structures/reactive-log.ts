@@ -21,6 +21,7 @@
 import { type Ctx, depBatch, depCount } from "../../ctx/types.js";
 import { type Node, node } from "../../node/node.js";
 import { trimHeadOverflow } from "../policies/collection.js";
+import type { ViewCachePolicy } from "../policies/types.js";
 import type { LogChange } from "./change.js";
 import {
 	type CollectionCore,
@@ -28,11 +29,14 @@ import {
 	collectionCore,
 	lightReactiveView,
 	type ReactiveView,
+	ViewMemoCache,
 } from "./core.js";
 
 export interface ReactiveLogOptions extends CollectionCoreOptions {
 	/** Ring-buffer cap: appends past `maxSize` evict the oldest (head-trim, append-only-safe). */
 	maxSize?: number;
+	/** Static D80 memo policy for D121 light views. Eviction does not dispose returned views. */
+	viewCache?: ViewCachePolicy;
 }
 
 export interface ReactiveLog<T> {
@@ -155,7 +159,7 @@ export function reactiveLog<T>(
 	initial?: readonly T[],
 	options: ReactiveLogOptions = {},
 ): ReactiveLog<T> {
-	const { maxSize, ...coreOpts } = options;
+	const { maxSize, viewCache, ...coreOpts } = options;
 	const base = coreOpts.dispatcher ? { dispatcher: coreOpts.dispatcher } : {};
 	const backend = new LogBackend<T>(initial, maxSize);
 	const core: CollectionCore<readonly T[], LogChange<T>> = collectionCore(
@@ -166,7 +170,7 @@ export function reactiveLog<T>(
 	const binds: Array<() => void> = [];
 	const tailMemo = new Map<number, Node<readonly T[]>>();
 	const sliceMemo = new Map<string, Node<readonly T[]>>();
-	const pageMemo = new Map<string, ReactiveView<LogChange<T>, readonly T[]>>();
+	const pageMemo = new ViewMemoCache<string, ReactiveView<LogChange<T>, readonly T[]>>(viewCache);
 	let pageSeq = 0;
 
 	return {
@@ -266,7 +270,7 @@ export function reactiveLog<T>(
 				name: coreOpts.name ? `${coreOpts.name}.page#${pageSeq++}` : undefined,
 				materializeSnapshot: materialize,
 				onDispose: () => {
-					if (pageMemo.get(key) === view) pageMemo.delete(key);
+					pageMemo.deleteValue(view);
 				},
 			});
 			pageMemo.set(key, view);
@@ -315,8 +319,7 @@ export function reactiveLog<T>(
 			binds.length = 0;
 			tailMemo.clear();
 			sliceMemo.clear();
-			for (const view of pageMemo.values()) view.dispose();
-			pageMemo.clear();
+			pageMemo.disposeAll();
 		},
 	};
 }

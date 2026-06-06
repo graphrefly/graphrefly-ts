@@ -16,7 +16,7 @@ import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { Node, node } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
-import type { OrderedCapacityPolicy, ReactiveOpt } from "../policies/types.js";
+import type { OrderedCapacityPolicy, ReactiveOpt, ViewCachePolicy } from "../policies/types.js";
 import type { IndexChange } from "./change.js";
 import {
 	type CollectionCore,
@@ -24,6 +24,7 @@ import {
 	collectionCore,
 	lightReactiveView,
 	type ReactiveView,
+	ViewMemoCache,
 } from "./core.js";
 
 export type ReactiveIndexOpt<T> = ReactiveOpt<T>;
@@ -38,6 +39,8 @@ export interface ReactiveIndexOptions extends CollectionCoreOptions {
 	 * `order` chooses eviction semantics and `maxSize` may be static or node-valued (D68).
 	 */
 	readonly capacity?: ReactiveIndexCapacityPolicy;
+	/** Static D80 memo policy for D121 light views. Eviction does not dispose returned views. */
+	readonly viewCache?: ViewCachePolicy;
 }
 
 export interface IndexRow<K, V = unknown> {
@@ -283,11 +286,12 @@ export function reactiveIndex<K, V = unknown>(
 	const binds: Array<() => void> = [];
 	const base = dispatcher ? { dispatcher } : {};
 	const bindDeps = new WeakSet<Node<unknown>>();
-	const rangeMemo: Array<{
-		start: K;
-		end: K;
-		view: ReactiveView<IndexChange<K, V>, readonly V[]>;
-	}> = [];
+	const rangeMemo = new ViewMemoCache<
+		readonly [K, K],
+		ReactiveView<IndexChange<K, V>, readonly V[]>
+	>(options.viewCache, ([aStart, aEnd], [bStart, bEnd]) => {
+		return cmpOrd(aStart, bStart) === 0 && cmpOrd(aEnd, bEnd) === 0;
+	});
 	let bindSeq = 0;
 	let rangeSeq = 0;
 	let capacityPolicy: Node<number> | undefined;
@@ -421,10 +425,9 @@ export function reactiveIndex<K, V = unknown>(
 	}
 
 	function getRange(start: K, end: K): ReactiveView<IndexChange<K, V>, readonly V[]> {
-		const hit = rangeMemo.find(
-			(entry) => cmpOrd(entry.start, start) === 0 && cmpOrd(entry.end, end) === 0,
-		);
-		if (hit !== undefined) return hit.view;
+		const key = [start, end] as const;
+		const hit = rangeMemo.get(key);
+		if (hit !== undefined) return hit;
 		const materialize = (): readonly V[] => backend.rangeByPrimary(start, end);
 		let view: ReactiveView<IndexChange<K, V>, readonly V[]>;
 		view = lightReactiveView<IndexChange<K, V>, readonly V[]>(core.delta as Node<unknown>, {
@@ -433,11 +436,10 @@ export function reactiveIndex<K, V = unknown>(
 			name: name ? `${name}.range#${rangeSeq++}` : undefined,
 			materializeSnapshot: materialize,
 			onDispose: () => {
-				const index = rangeMemo.findIndex((entry) => entry.view === view);
-				if (index >= 0) rangeMemo.splice(index, 1);
+				rangeMemo.deleteValue(view);
 			},
 		});
-		rangeMemo.push({ start, end, view });
+		rangeMemo.set(key, view);
 		return view;
 	}
 
@@ -541,8 +543,7 @@ export function reactiveIndex<K, V = unknown>(
 			for (const d of binds) d();
 			binds.length = 0;
 			releaseApply();
-			for (const entry of [...rangeMemo]) entry.view.dispose();
-			rangeMemo.length = 0;
+			rangeMemo.disposeAll();
 		},
 	};
 }

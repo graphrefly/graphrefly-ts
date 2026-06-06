@@ -18,8 +18,11 @@ import type {
 	ReactiveIndexCapacityOrder,
 	ReactiveIndexCapacityPolicy,
 	ReactiveIndexOpt,
+	ReactiveIndexOptions,
 	ReactiveListOpt,
+	ReactiveLogOptions,
 	ReactiveMapOpt,
+	ReactiveMapOptions,
 	ReactiveMapRetentionEntry,
 	ReactiveMapRetentionPolicy,
 	ReactiveOpt,
@@ -177,6 +180,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<ViewCachePolicy>()
 			.toHaveProperty("maxEntries")
 			.toEqualTypeOf<number | undefined>();
+		expectTypeOf<ReactiveLogOptions>()
+			.toHaveProperty("viewCache")
+			.toEqualTypeOf<ViewCachePolicy | undefined>();
+		expectTypeOf<ReactiveMapOptions<string, number>>()
+			.toHaveProperty("viewCache")
+			.toEqualTypeOf<ViewCachePolicy | undefined>();
+		expectTypeOf<ReactiveIndexOptions>()
+			.toHaveProperty("viewCache")
+			.toEqualTypeOf<ViewCachePolicy | undefined>();
 		expectTypeOf<DataStructuresReactiveOpt<string>>().toEqualTypeOf<ReactiveOpt<string>>();
 		expectTypeOf<DataStructuresReactiveView<string, string>>().toEqualTypeOf<
 			ReactiveView<string, string>

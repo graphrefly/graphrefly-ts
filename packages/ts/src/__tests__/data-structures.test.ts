@@ -640,6 +640,36 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(after.nodes.map((n) => n.id)).not.toContain("map.select#0.snapshot");
 	});
 
+	it("select viewCache evicts only memo refs, not live D121 view nodes", () => {
+		const g = graph();
+		const m = reactiveMap<string, number>({ graph: g, name: "map", viewCache: { maxEntries: 1 } });
+		const gt0 = (value: number) => value > 0;
+		const gt1 = (value: number) => value > 1;
+
+		const first = m.select(gt0);
+		const second = m.select(gt1);
+
+		expect(m.select(gt1)).toBe(second);
+		expect(m.select(gt0)).not.toBe(first);
+		expect(g.find("map.select#0.delta")).toBe(first.delta);
+		expect(g.find("map.select#1.delta")).toBe(second.delta);
+		first.dispose();
+		expect(g.find("map.select#0.delta")).toBeUndefined();
+		m.dispose();
+		expect(
+			g
+				.describe()
+				.nodes.map((n) => n.id)
+				.filter((id) => id.includes(".select#")),
+		).toEqual([]);
+	});
+
+	it("rejects invalid select viewCache policies", () => {
+		expect(() => reactiveMap<string, number>({ viewCache: { maxEntries: -1 } })).toThrow(
+			/viewCache\.maxEntries/,
+		);
+	});
+
 	it("undefined is a valid map value: has/delete use presence, not value !== undefined", () => {
 		const m = reactiveMap<string, number | undefined>();
 		const { msgs } = collect(m.delta);
@@ -761,6 +791,32 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		expect(after.edges).not.toContainEqual({ from: "idx.delta", to: "idx.range#0.delta" });
 		expect(after.nodes.map((n) => n.id)).not.toContain("idx.range#0.delta");
 		expect(after.nodes.map((n) => n.id)).not.toContain("idx.range#0.snapshot");
+	});
+
+	it("range viewCache evicts only memo refs, not live D121 view nodes", () => {
+		const g = graph();
+		const idx = reactiveIndex<string, number>({
+			graph: g,
+			name: "idx",
+			viewCache: { maxEntries: 1 },
+		});
+
+		const first = idx.range("a", "c");
+		const second = idx.range("c", "z");
+
+		expect(idx.range("c", "z")).toBe(second);
+		expect(idx.range("a", "c")).not.toBe(first);
+		expect(g.find("idx.range#0.delta")).toBe(first.delta);
+		expect(g.find("idx.range#1.delta")).toBe(second.delta);
+		first.dispose();
+		expect(g.find("idx.range#0.delta")).toBeUndefined();
+		idx.dispose();
+		expect(
+			g
+				.describe()
+				.nodes.map((n) => n.id)
+				.filter((id) => id.includes(".range#")),
+		).toEqual([]);
 	});
 
 	it("empty upsertMany/deleteMany are no-op deltas", () => {
@@ -1096,6 +1152,32 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		expect(g.checkpoint().nodes.map((n) => n.id)).not.toContain("log.page#0.delta");
 		expect(() => g.node([], null, { name: "log.page#0.delta" })).toThrow(/duplicate node id/);
 		expect(() => page.delta.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
+	});
+
+	it("page viewCache evicts only memo refs, not live D121 view nodes", () => {
+		const g = graph();
+		const log = reactiveLog<number>([0, 1, 2, 3], {
+			graph: g,
+			name: "log",
+			viewCache: { maxEntries: 1 },
+		});
+
+		const first = log.page(0, 1);
+		const second = log.page(1, 1);
+
+		expect(log.page(1, 1)).toBe(second);
+		expect(log.page(0, 1)).not.toBe(first);
+		expect(g.find("log.page#0.delta")).toBe(first.delta);
+		expect(g.find("log.page#1.delta")).toBe(second.delta);
+		first.dispose();
+		expect(g.find("log.page#0.delta")).toBeUndefined();
+		log.dispose();
+		expect(
+			g
+				.describe()
+				.nodes.map((n) => n.id)
+				.filter((id) => id.includes(".page#")),
+		).toEqual([]);
 	});
 
 	it("graph-bound view dispose rejects registered downstream deps outside the release group", () => {
