@@ -70,6 +70,8 @@ export {
 export {
 	type DescribeChangeset,
 	type DescribeEvent,
+	type PipeOperator,
+	pipe,
 	type Stratified,
 	type StratifyOptions,
 	type StratifyRule,
@@ -103,6 +105,7 @@ export {
 	type ReactiveLog,
 	type ReactiveLogOptions,
 	reactiveLog,
+	scanLog,
 } from "./graph/data-structures/reactive-log.js";
 export {
 	type ReactiveMap,

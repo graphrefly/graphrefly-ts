@@ -20,6 +20,9 @@ import type { DescribeEdge, DescribeNode, DescribeSnapshot } from "./describe.js
 import type { Graph, StateNode, SugarOpts } from "./graph.js";
 import { initNode, type Operator } from "./operators.js";
 
+/** One unary operator step accepted by {@link pipe}. */
+export type PipeOperator<TIn, TOut> = Operator<TIn, TOut>;
+
 export type DescribeEvent =
 	| { readonly type: "node-added"; readonly id: string; readonly node: DescribeNode }
 	| { readonly type: "node-removed"; readonly id: string }
@@ -136,6 +139,70 @@ export function topologyDiff(prev: DescribeSnapshot, next: DescribeSnapshot): De
 		events.push({ type: "subgraph-unmounted", path });
 
 	return { events };
+}
+
+/**
+ * Compose unary operator factories into a graph-registered chain.
+ *
+ * Each step is instantiated through `g.initNode`, so `describe()` still shows the real
+ * per-operator factory names and declared edges (D6/D39/D45). This is graph-layer sugar, not a
+ * new verb or protocol primitive.
+ */
+export function pipe<S>(g: Graph, source: Node<S>): Node<S>;
+export function pipe<S, A>(g: Graph, source: Node<S>, op1: PipeOperator<S, A>): Node<A>;
+export function pipe<S, A, B>(
+	g: Graph,
+	source: Node<S>,
+	op1: PipeOperator<S, A>,
+	op2: PipeOperator<A, B>,
+): Node<B>;
+export function pipe<S, A, B, C>(
+	g: Graph,
+	source: Node<S>,
+	op1: PipeOperator<S, A>,
+	op2: PipeOperator<A, B>,
+	op3: PipeOperator<B, C>,
+): Node<C>;
+export function pipe<S, A, B, C, D>(
+	g: Graph,
+	source: Node<S>,
+	op1: PipeOperator<S, A>,
+	op2: PipeOperator<A, B>,
+	op3: PipeOperator<B, C>,
+	op4: PipeOperator<C, D>,
+): Node<D>;
+export function pipe<S, A, B, C, D, E>(
+	g: Graph,
+	source: Node<S>,
+	op1: PipeOperator<S, A>,
+	op2: PipeOperator<A, B>,
+	op3: PipeOperator<B, C>,
+	op4: PipeOperator<C, D>,
+	op5: PipeOperator<D, E>,
+): Node<E>;
+export function pipe<S, A, B, C, D, E, F>(
+	g: Graph,
+	source: Node<S>,
+	op1: PipeOperator<S, A>,
+	op2: PipeOperator<A, B>,
+	op3: PipeOperator<B, C>,
+	op4: PipeOperator<C, D>,
+	op5: PipeOperator<D, E>,
+	op6: PipeOperator<E, F>,
+): Node<F>;
+export function pipe<S>(
+	g: Graph,
+	source: Node<S>,
+	...ops: readonly PipeOperator<unknown, unknown>[]
+): Node<unknown>;
+export function pipe(
+	g: Graph,
+	source: Node<unknown>,
+	...ops: readonly PipeOperator<unknown, unknown>[]
+): Node<unknown> {
+	let current = source;
+	for (const op of ops) current = g.initNode(op, [current]);
+	return current;
 }
 
 export interface StratifyRule<R> {

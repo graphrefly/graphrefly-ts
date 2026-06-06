@@ -301,3 +301,15 @@ export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogC
 		{ factory: "mergeReactiveLogs", partial: true },
 	);
 }
+
+/**
+ * Standalone incremental scan over a reactive log. Equivalent to `log.scan(initial, step)`;
+ * provided for pipe-builder and helper-composition call sites.
+ */
+export function scanLog<T, A>(
+	log: ReactiveLog<T>,
+	initial: A,
+	step: (acc: A, value: T) => A,
+): Node<A> {
+	return log.scan(initial, step);
+}

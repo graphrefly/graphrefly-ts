@@ -14,7 +14,7 @@ import { describe, expect, it, vi } from "vitest";
 import { combine } from "../graph/combinators.js";
 import { reactiveIndex } from "../graph/data-structures/reactive-index.js";
 import { reactiveList } from "../graph/data-structures/reactive-list.js";
-import { mergeReactiveLogs, reactiveLog } from "../graph/data-structures/reactive-log.js";
+import { mergeReactiveLogs, reactiveLog, scanLog } from "../graph/data-structures/reactive-log.js";
 import { reactiveMap } from "../graph/data-structures/reactive-map.js";
 import { graph } from "../graph/graph.js";
 import { selectRetentionVictims } from "../graph/policies/collection.js";
@@ -1008,6 +1008,18 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		expect(data(msgs).at(-1)).toBe(6);
 		log.clear();
 		expect(data(msgs).at(-1)).toBe(0);
+	});
+
+	it("scanLog is the standalone composition helper for log.scan", () => {
+		const log = reactiveLog<number>();
+		const product = scanLog(log, 1, (acc, v) => acc * v);
+		const { msgs } = collect(product);
+
+		log.appendMany([2, 3, 4]);
+		log.clear();
+
+		expect(data(msgs)).toEqual([24, 1]);
+		expect((product as Node<unknown> & { factory?: string }).factory).toBe("reactiveLog.scan");
 	});
 
 	it("scan refolds when maxSize overwrites the head without increasing length", () => {

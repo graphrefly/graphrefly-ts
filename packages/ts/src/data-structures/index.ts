@@ -24,6 +24,7 @@ export {
 	type ReactiveLog,
 	type ReactiveLogOptions,
 	reactiveLog,
+	scanLog,
 } from "../graph/data-structures/reactive-log.js";
 export {
 	type ReactiveMap,

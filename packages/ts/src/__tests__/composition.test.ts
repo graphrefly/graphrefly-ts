@@ -7,7 +7,16 @@
 
 import { describe, expect, it } from "vitest";
 import type { Message, Node } from "../index.js";
-import { type DescribeSnapshot, graph, stratify, stratifyBranch, topologyDiff } from "../index.js";
+import {
+	type DescribeSnapshot,
+	filter,
+	graph,
+	map,
+	pipe,
+	stratify,
+	stratifyBranch,
+	topologyDiff,
+} from "../index.js";
 
 const data = <T>(msgs: Message[]): T[] =>
 	msgs.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
@@ -75,6 +84,61 @@ describe("topologyDiff (D56)", () => {
 			type: "subgraph-mounted",
 			path: "parent::child",
 		});
+	});
+});
+
+describe("pipe (operator composition helper)", () => {
+	it("registers each operator through the graph init funnel with real factory names", () => {
+		const g = graph();
+		const source = g.state(1, { name: "source" });
+		const out = pipe(
+			g,
+			source,
+			map((n: number) => n + 1),
+			filter((n: number) => n % 2 === 0),
+			map((n: number) => `v${n}`),
+		);
+		const { msgs } = collect(out);
+
+		source.set(2);
+		source.set(3);
+
+		expect(data(msgs)).toEqual(["v2", "v4"]);
+		const snap = g.describe();
+		expect(snap.nodes.map((n) => [n.id, n.factory])).toContainEqual(["map#0", "map"]);
+		expect(snap.nodes.map((n) => [n.id, n.factory])).toContainEqual(["filter#1", "filter"]);
+		expect(snap.nodes.map((n) => [n.id, n.factory])).toContainEqual(["map#2", "map"]);
+		expect(snap.edges).toContainEqual({ from: "source", to: "map#0" });
+		expect(snap.edges).toContainEqual({ from: "map#0", to: "filter#1" });
+		expect(snap.edges).toContainEqual({ from: "filter#1", to: "map#2" });
+	});
+
+	it("with zero operators returns the original source node", () => {
+		const g = graph();
+		const source = g.state(1, { name: "source" });
+		expect(pipe(g, source)).toBe(source);
+	});
+
+	it("keeps a typed fallback for chains longer than the precise overload set", () => {
+		const g = graph();
+		const source = g.state(0, { name: "source" });
+		const out = pipe(
+			g,
+			source,
+			map((n: number) => n + 1),
+			map((n: number) => n + 1),
+			map((n: number) => n + 1),
+			map((n: number) => n + 1),
+			map((n: number) => n + 1),
+			map((n: number) => n + 1),
+			map((n: number) => n + 1),
+		);
+		const { msgs } = collect(out);
+
+		source.set(1);
+
+		expect(data(msgs)).toEqual([7, 8]);
+		expect(g.describe().nodes.filter((n) => n.factory === "map")).toHaveLength(7);
 	});
 });
 
