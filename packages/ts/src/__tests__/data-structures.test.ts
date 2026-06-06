@@ -569,6 +569,77 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(data(deltas.msgs)).toHaveLength(before);
 	});
 
+	it("select(predicate) is a D121 light view with forwarded delta + pulled snapshot", () => {
+		const m = reactiveMap<string, number>();
+		const isEven = (value: number) => value % 2 === 0;
+		const view = m.select(isEven);
+		const deltaMsgs = collect(view.delta);
+		const snapshotMsgs = collect(view.snapshot);
+
+		m.set("a", 1);
+		m.set("b", 2);
+		m.set("c", 4);
+
+		expect(data(deltaMsgs.msgs).at(-1)).toEqual({ kind: "set", key: "c", value: 4 });
+		demand(view.snapshot as Node<unknown>, view.pullId);
+		expect([...data<ReadonlyMap<string, number>>(snapshotMsgs.msgs).at(-1)!]).toEqual([
+			["b", 2],
+			["c", 4],
+		]);
+		expect(m.select(isEven)).toBe(view);
+		expect(() => m.select(null as never)).toThrow(TypeError);
+		view.dispose();
+		expect(m.select(isEven)).not.toBe(view);
+		expect(() => view.delta.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
+		expect(() => demand(view.snapshot as Node<unknown>, view.pullId)).toThrow(
+			/released from its graph lifecycle/,
+		);
+	});
+
+	it("select snapshot predicate failures surface as ERROR waves", () => {
+		const m = reactiveMap<string, number>();
+		m.set("a", 1);
+		const view = m.select(() => {
+			throw new Error("select boom");
+		});
+		const snapshotMsgs = collect(view.snapshot);
+
+		demand(view.snapshot as Node<unknown>, view.pullId);
+
+		const errors = snapshotMsgs.msgs.filter((msg) => msg[0] === "ERROR");
+		expect(errors).toHaveLength(1);
+		expect((errors[0]?.[1] as Error).message).toBe("select boom");
+		expect(data(snapshotMsgs.msgs)).toEqual([]);
+	});
+
+	it("select light views register through the graph funnel when options.graph is present", () => {
+		const g = graph();
+		const m = reactiveMap<string, number>({ graph: g, name: "map" });
+		const view = m.select((value) => value > 1);
+
+		const snap = g.describe();
+		expect(snap.nodes.find((n) => n.id === "map.delta")?.factory).toBe("reactiveMap.delta");
+		expect(snap.nodes.find((n) => n.id === "map.select#0.delta")?.factory).toBe(
+			"reactiveMap.select.delta",
+		);
+		expect(snap.nodes.find((n) => n.id === "map.select#0.snapshot")?.factory).toBe(
+			"reactiveMap.select.snapshot",
+		);
+		expect(snap.edges).toContainEqual({ from: "map.delta", to: "map.select#0.delta" });
+		expect(snap.edges).toContainEqual({
+			from: "map.select#0.delta",
+			to: "map.select#0.snapshot",
+		});
+		view.dispose();
+		const after = g.describe();
+		expect(after.edges).not.toContainEqual({
+			from: "map.delta",
+			to: "map.select#0.delta",
+		});
+		expect(after.nodes.map((n) => n.id)).not.toContain("map.select#0.delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("map.select#0.snapshot");
+	});
+
 	it("undefined is a valid map value: has/delete use presence, not value !== undefined", () => {
 		const m = reactiveMap<string, number | undefined>();
 		const { msgs } = collect(m.delta);
@@ -640,6 +711,56 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		idx.upsert("a", 1, 1);
 		idx.upsert("c", 1, 3);
 		expect(idx.rangeByPrimary("a", "c")).toEqual([1, 3]); // a,b in [a,c)
+	});
+
+	it("range(start,end) is a D121 light view with forwarded delta + pulled snapshot", () => {
+		const idx = reactiveIndex<string, number>();
+		const view = idx.range("a", "c");
+		const { msgs: deltaMsgs } = collect(view.delta);
+		const { msgs: snapshotMsgs } = collect(view.snapshot);
+
+		idx.upsert("b", 1, 2);
+		idx.upsert("d", 1, 4);
+		idx.upsert("a", 1, 1);
+
+		expect(data(deltaMsgs).at(-1)).toEqual({
+			kind: "upsert",
+			primary: "a",
+			secondary: 1,
+			value: 1,
+		});
+		demand(view.snapshot as Node<unknown>, view.pullId);
+		expect(data(snapshotMsgs).at(-1)).toEqual([1, 2]);
+		expect(idx.range("a", "c")).toBe(view);
+		const numeric = reactiveIndex<number, number>();
+		expect(numeric.range(0, 1)).toBe(numeric.range(-0, 1));
+		view.dispose();
+		expect(idx.range("a", "c")).not.toBe(view);
+	});
+
+	it("range light views register through the graph funnel when options.graph is present", () => {
+		const g = graph();
+		const idx = reactiveIndex<string, number>({ graph: g, name: "idx" });
+		idx.range("a", "z");
+
+		const snap = g.describe();
+		expect(snap.nodes.find((n) => n.id === "idx.delta")?.factory).toBe("reactiveIndex.delta");
+		expect(snap.nodes.find((n) => n.id === "idx.range#0.delta")?.factory).toBe(
+			"reactiveIndex.range.delta",
+		);
+		expect(snap.nodes.find((n) => n.id === "idx.range#0.snapshot")?.factory).toBe(
+			"reactiveIndex.range.snapshot",
+		);
+		expect(snap.edges).toContainEqual({ from: "idx.delta", to: "idx.range#0.delta" });
+		expect(snap.edges).toContainEqual({
+			from: "idx.range#0.delta",
+			to: "idx.range#0.snapshot",
+		});
+		idx.range("a", "z").dispose();
+		const after = g.describe();
+		expect(after.edges).not.toContainEqual({ from: "idx.delta", to: "idx.range#0.delta" });
+		expect(after.nodes.map((n) => n.id)).not.toContain("idx.range#0.delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("idx.range#0.snapshot");
 	});
 
 	it("empty upsertMany/deleteMany are no-op deltas", () => {
@@ -928,6 +1049,72 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		log.append(10);
 		expect(data(windowMsgs).at(-1)).toEqual([2, 3, 4]);
 		expect(data(toEndMsgs).at(-1)).toEqual([7, 8, 9, 10]);
+	});
+
+	it("page(offset,limit) is a D121 light view with forwarded delta + pulled snapshot", () => {
+		const log = reactiveLog<number>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+		const page = log.page(2, 3);
+		const { msgs: deltaMsgs } = collect(page.delta);
+		const { msgs: snapshotMsgs } = collect(page.snapshot);
+
+		log.append(10);
+
+		expect(data(deltaMsgs).at(-1)).toEqual({ kind: "append", value: 10 });
+		demand(page.snapshot as Node<unknown>, page.pullId);
+		expect(data(snapshotMsgs).at(-1)).toEqual([2, 3, 4]);
+		expect(log.page(2, 3)).toBe(page);
+		page.dispose();
+		expect(log.page(2, 3)).not.toBe(page);
+		expect(() => log.page(-1, 3)).toThrow(RangeError);
+		expect(() => log.page(0, -1)).toThrow(RangeError);
+	});
+
+	it("page light views register through the graph funnel when options.graph is present", () => {
+		const g = graph();
+		const log = reactiveLog<number>([], { graph: g, name: "log" });
+		const page = log.page(0, 2);
+
+		const snap = g.describe();
+		expect(snap.nodes.find((n) => n.id === "log.delta")?.factory).toBe("reactiveLog.delta");
+		expect(snap.nodes.find((n) => n.id === "log.page#0.delta")?.factory).toBe(
+			"reactiveLog.page.delta",
+		);
+		expect(snap.nodes.find((n) => n.id === "log.page#0.snapshot")?.factory).toBe(
+			"reactiveLog.page.snapshot",
+		);
+		expect(snap.edges).toContainEqual({ from: "log.delta", to: "log.page#0.delta" });
+		expect(snap.edges).toContainEqual({
+			from: "log.page#0.delta",
+			to: "log.page#0.snapshot",
+		});
+		page.dispose();
+		const after = g.describe();
+		expect(after.edges).not.toContainEqual({ from: "log.delta", to: "log.page#0.delta" });
+		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.snapshot");
+		expect(g.find("log.page#0.delta")).toBeUndefined();
+		expect(g.checkpoint().nodes.map((n) => n.id)).not.toContain("log.page#0.delta");
+		expect(() => g.node([], null, { name: "log.page#0.delta" })).toThrow(/duplicate node id/);
+		expect(() => page.delta.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
+	});
+
+	it("graph-bound view dispose rejects registered downstream deps outside the release group", () => {
+		const g = graph();
+		const log = reactiveLog<number>([], { graph: g, name: "log" });
+		const page = log.page(0, 2);
+		const downstream = g.node([page.snapshot as Node<unknown>], null, { name: "consumer" });
+
+		expect(() => page.dispose()).toThrow(/consumer.*still depends.*log\.page#0\.snapshot/);
+		expect(g.describe().nodes.map((n) => n.id)).toContain("log.page#0.snapshot");
+
+		downstream.replaceDeps([], () => {});
+		page.dispose();
+		const after = g.describe();
+		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.snapshot");
+		expect(after.nodes.map((n) => n.id).some((id) => id.startsWith("~reactiveLog.page"))).toBe(
+			false,
+		);
 	});
 
 	it("slice(start, stop) is memoized by range and validates non-negative integer bounds", () => {

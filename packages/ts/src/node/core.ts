@@ -209,6 +209,20 @@ export class NodeCore {
 		return state;
 	}
 
+	/** @internal D122: release graph-owned ephemeral node runtime state from core retention. */
+	releaseSlot(id: NodeId): void {
+		this.slots[id] = undefined;
+		this.depStates[id] = undefined;
+		this.lifecycles[id] = undefined;
+		this.values[id] = undefined;
+		this.waves[id] = undefined;
+		this.controls[id] = undefined;
+		this.privateStates[id] = undefined;
+		this.hooks[id] = undefined;
+		this.syncCtxs[id] = undefined;
+		this.versionStates[id] = undefined;
+	}
+
 	/** @internal B49: graph-local deferred-boundary queue (rewireNext/upNext/batch-after-commit). */
 	enqueueBoundaryTask(task: BoundaryTask): void {
 		this.boundary.queue.push(task);

@@ -18,8 +18,10 @@ import { NodeCore } from "../node/core.js";
 import {
 	checkpointStateOfNode,
 	getNodeOwner,
+	isNodeRuntimeReleased,
 	Node,
 	type NodeOptions,
+	releaseRuntimeOfNode,
 	setNodeOwner,
 	withNodeCore,
 } from "../node/node.js";
@@ -104,11 +106,20 @@ interface GraphRestoreRegistrar {
 
 const restoreRegistrars = new WeakMap<Graph, GraphRestoreRegistrar>();
 
+interface GraphLifecycleRegistrar {
+	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
+}
+
+const lifecycleRegistrars = new WeakMap<Graph, GraphLifecycleRegistrar>();
+
 function nodeOwner(n: Node<unknown>): Graph | undefined {
 	return getNodeOwner(n) as Graph | undefined;
 }
 
 export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: string): void {
+	if (isNodeRuntimeReleased(n)) {
+		throw new Error(`${label} has been released from its graph lifecycle (D122)`);
+	}
 	const existing = nodeOwner(n);
 	if (existing !== undefined && existing !== owner) {
 		throw new Error(
@@ -134,6 +145,7 @@ export class Graph {
 	private readonly _core = new NodeCore();
 	private readonly _entries = new Map<Node<unknown>, Entry>();
 	private readonly _byId = new Map<string, Node<unknown>>();
+	private readonly _retiredIds = new Set<string>();
 	private readonly _mounts: Array<{ at: string; graph: Graph }> = [];
 	private _seq = 0;
 	private _clock = 0; // graph-local monotonic clock for observe seq (D26)
@@ -173,6 +185,9 @@ export class Graph {
 				return n;
 			},
 		});
+		lifecycleRegistrars.set(this, {
+			releaseNodes: (nodes, releaseOpts) => this._releaseNodes(nodes, releaseOpts),
+		});
 	}
 
 	// ── registration / inspection index ──
@@ -196,7 +211,7 @@ export class Graph {
 	): Node<T> {
 		assertGraphLocalNode(this, n as Node<unknown>, `graph node '${opts.name ?? factory}'`);
 		for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
-		if (this._byId.has(id)) {
+		if (this._byId.has(id) || this._retiredIds.has(id)) {
 			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
 		}
 		this._entries.set(n as Node<unknown>, {
@@ -234,6 +249,36 @@ export class Graph {
 		return this._byId.get(id);
 	}
 
+	private _releaseNodes(nodes: readonly Node<unknown>[], _opts: { reason?: string } = {}): void {
+		const seen = new Set<Node<unknown>>();
+		const entries: Array<{ node: Node<unknown>; entry: Entry }> = [];
+		for (const node of nodes) {
+			if (seen.has(node)) continue;
+			seen.add(node);
+			const entry = this._entries.get(node);
+			if (entry === undefined) continue;
+			entries.push({ node, entry });
+		}
+		const releaseSet = new Set(entries.map(({ node }) => node));
+		const releaseIds = new Map(entries.map(({ node, entry }) => [node, entry.id] as const));
+		for (const entry of this._entries.values()) {
+			if (releaseSet.has(entry.node)) continue;
+			for (const dep of entry.node.deps) {
+				if (!releaseSet.has(dep)) continue;
+				const depId = releaseIds.get(dep) ?? dep.name ?? dep.factory ?? "released node";
+				throw new Error(
+					`graph: cannot release node group; '${entry.id}' still depends on '${depId}' (D122)`,
+				);
+			}
+		}
+		for (const { node, entry } of entries) {
+			this._entries.delete(node);
+			this._byId.delete(entry.id);
+			this._retiredIds.add(entry.id);
+		}
+		for (const { node } of entries) releaseRuntimeOfNode(node);
+	}
+
 	// ── 8 verbs (core: node/state/batch + sugar: producer/derived/effect/mount) ──
 
 	/** ctx-level power surface: a raw `(ctx)=>void` fn (or a passthrough/state when null). */
@@ -247,7 +292,7 @@ export class Graph {
 			this._core,
 			() => new Node<T>(deps as Node<unknown>[], fn, this._nodeOpts(opts)),
 		);
-		return this._add(n, "node", deps, opts);
+		return this._add(n, opts.factory ?? "node", deps, opts);
 	}
 
 	/** A manual source with `.set(v)` (L4-Q1). */
@@ -711,6 +756,17 @@ function explainSubset(
 /** Construct a Graph (default global dispatcher; L4-Q4). */
 export function graph(opts: GraphOptions = {}): Graph {
 	return new Graph(opts);
+}
+
+/** @internal D122 graph-owned ephemeral node-group release. */
+export function releaseGraphNodes(
+	graph: Graph,
+	nodes: readonly Node<unknown>[],
+	opts: { reason?: string } = {},
+): void {
+	const registrar = lifecycleRegistrars.get(graph);
+	if (registrar === undefined) throw new Error("graph: unknown lifecycle registrar");
+	registrar.releaseNodes(nodes, opts);
 }
 
 /** @internal D94 descriptor path: register a restored state node without widening Graph. */

@@ -33,9 +33,9 @@
 
 import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { Dispatcher } from "../../dispatcher/index.js";
-import { Node } from "../../node/node.js";
+import { Node, releaseRuntimeOfNode } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
-import type { Graph } from "../graph.js";
+import { type Graph, releaseGraphNodes } from "../graph.js";
 import type { Operator } from "../operators.js";
 
 /** The materialized-state contract a structure's backend must satisfy (D60 #1). */
@@ -73,6 +73,103 @@ export interface CollectionCore<S, C> {
 }
 
 /**
+ * Public D121 collection-view surface. A view is a derived surface: `delta` is the pushed update
+ * port, `snapshot` is a lazy pull node, and neither port is writable authority.
+ */
+export interface ReactiveView<C, S> {
+	/** Derived DELTA/update stream for the view. For light views this is recomputed from the parent backend. */
+	readonly delta: Node<C>;
+	/** Derived SNAPSHOT pull node: demand via `pullId` to materialize the current view. */
+	readonly snapshot: Node<S>;
+	/** The snapshot node's pullId (R-pull/D59), minted per view instance. */
+	readonly pullId: symbol;
+	/** Release memoized/light-view resources owned by the parent collection. */
+	dispose(): void;
+}
+
+interface LightReactiveViewOptions<S> extends CollectionCoreOptions {
+	readonly factory: string;
+	readonly materializeSnapshot: () => S;
+	readonly onDispose?: () => void;
+}
+
+/**
+ * Build a D121 first-cut light view. The view declares `parent.delta -> view.delta ->
+ * view.snapshot`; the pushed `delta` forwards parent delta events as the view's arm/update stream,
+ * while `snapshot` reads the parent collection backend through the supplied materializer on demand.
+ * No writable state/cache is exposed (D120).
+ */
+export function lightReactiveView<C, S>(
+	parentDelta: Node<unknown>,
+	opts: LightReactiveViewOptions<S>,
+): ReactiveView<C, S> {
+	const { dispatcher, factory, graph, materializeSnapshot, name, onDispose } = opts;
+	const base = dispatcher ? { dispatcher } : {};
+	const deltaBody = (ctx: Ctx): void => {
+		for (const change of (depBatch(ctx, 0) ?? []) as readonly C[]) {
+			ctx.down([["DATA", change]]);
+		}
+	};
+	const delta = graph
+		? graph.node<C>([parentDelta], deltaBody, {
+				factory: `${factory}.delta`,
+				name: name ? `${name}.delta` : undefined,
+				meta: { kind: "collection_view_delta", factory },
+				partial: true,
+			})
+		: new Node<C>([parentDelta], deltaBody, {
+				...base,
+				factory: `${factory}.delta`,
+				name: name ? `${name}.delta` : undefined,
+				partial: true,
+			});
+
+	const pullId = Symbol(name ? `${name}.snapshot` : `${factory}.snapshot`);
+	const snapshotBody = (ctx: Ctx): void => {
+		try {
+			ctx.down([["DATA", materializeSnapshot()]]);
+		} catch (e) {
+			ctx.down([["ERROR", errorPayload(e, `${factory}.snapshot materializer failed`)]]);
+		}
+	};
+	const snapshot = graph
+		? graph.node<S>([delta as Node<unknown>], snapshotBody, {
+				factory: `${factory}.snapshot`,
+				name: name ? `${name}.snapshot` : undefined,
+				meta: { kind: "collection_view_snapshot", factory },
+				partial: true,
+				pullId,
+			})
+		: new Node<S>([delta as Node<unknown>], snapshotBody, {
+				...base,
+				factory: `${factory}.snapshot`,
+				name: name ? `${name}.snapshot` : undefined,
+				partial: true,
+				pullId,
+			});
+
+	let disposed = false;
+	return {
+		delta,
+		snapshot,
+		pullId,
+		dispose(): void {
+			if (disposed) return;
+			if (graph) {
+				releaseGraphNodes(graph, [delta as Node<unknown>, snapshot as Node<unknown>], {
+					reason: factory,
+				});
+			} else {
+				releaseRuntimeOfNode(delta as Node<unknown>);
+				releaseRuntimeOfNode(snapshot as Node<unknown>);
+			}
+			disposed = true;
+			onDispose?.();
+		},
+	};
+}
+
+/**
  * Build the shared core for a reactive structure (D60). `factory` names the nodes for describe
  * (D6/D51 auto-discovery). The structure passes its `backend` (any {@link CollectionBackend}) and
  * layers a typed method surface on top.
@@ -88,11 +185,17 @@ export function collectionCore<S, C>(
 
 	// DELTA backbone: a bare source (D60 #2a / review #2 — node([], null), no `initial`, so a late
 	// subscriber gets no fake "initial change"; state is the snapshot port's job).
-	const delta = new Node<C>([], null, {
-		...base,
-		factory: `${factory}.delta`,
-		name: name ? `${name}.delta` : undefined,
-	});
+	const delta = graph
+		? graph.node<C>([], null, {
+				factory: `${factory}.delta`,
+				name: name ? `${name}.delta` : undefined,
+				meta: { kind: "collection_delta", collection: factory },
+			})
+		: new Node<C>([], null, {
+				...base,
+				factory: `${factory}.delta`,
+				name: name ? `${name}.delta` : undefined,
+			});
 
 	// SNAPSHOT pull node: dep=[delta] (the backbone arms it via quiet-absorb so coalesce is free,
 	// D60). The fn IGNORES the delta value — it reads `backend.snapshot()` on demand (D60 #3). The
@@ -103,13 +206,21 @@ export function collectionCore<S, C>(
 	const snapFn = (ctx: Ctx): void => {
 		ctx.down([["DATA", backend.snapshot()]]);
 	};
-	const snapshot = new Node<S>([delta as Node<unknown>], snapFn, {
-		...base,
-		pullId,
-		partial: true,
-		factory: `${factory}.snapshot`,
-		name: name ? `${name}.snapshot` : undefined,
-	});
+	const snapshot = graph
+		? graph.node<S>([delta as Node<unknown>], snapFn, {
+				pullId,
+				partial: true,
+				factory: `${factory}.snapshot`,
+				name: name ? `${name}.snapshot` : undefined,
+				meta: { kind: "collection_snapshot", collection: factory },
+			})
+		: new Node<S>([delta as Node<unknown>], snapFn, {
+				...base,
+				pullId,
+				partial: true,
+				factory: `${factory}.snapshot`,
+				name: name ? `${name}.snapshot` : undefined,
+			});
 
 	function emit(change: C): void {
 		// External tier-3 emit → the substrate synthesizes the leading DIRTY (R-dirty-before-data),

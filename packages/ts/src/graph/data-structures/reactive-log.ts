@@ -22,7 +22,13 @@ import { type Ctx, depBatch, depCount } from "../../ctx/types.js";
 import { type Node, node } from "../../node/node.js";
 import { trimHeadOverflow } from "../policies/collection.js";
 import type { LogChange } from "./change.js";
-import { type CollectionCore, type CollectionCoreOptions, collectionCore } from "./core.js";
+import {
+	type CollectionCore,
+	type CollectionCoreOptions,
+	collectionCore,
+	lightReactiveView,
+	type ReactiveView,
+} from "./core.js";
 
 export interface ReactiveLogOptions extends CollectionCoreOptions {
 	/** Ring-buffer cap: appends past `maxSize` evict the oldest (head-trim, append-only-safe). */
@@ -59,6 +65,11 @@ export interface ReactiveLog<T> {
 	 * {@link dispose}; use stable ranges for long-lived logs.
 	 */
 	slice(start: number, stop?: number): Node<readonly T[]>;
+	/**
+	 * D121 light page view: `delta` forwards parent log mutations, and `snapshot` is a pull node
+	 * that materializes the current page on demand.
+	 */
+	page(offset: number, limit: number): ReactiveView<LogChange<T>, readonly T[]>;
 	/**
 	 * Incremental running aggregate over appended values (dep=[delta], D60 #5a). O(1) per append —
 	 * folds only the new values each delta; resets on `clear`/`trimHead` (a non-append delta) via a
@@ -155,6 +166,8 @@ export function reactiveLog<T>(
 	const binds: Array<() => void> = [];
 	const tailMemo = new Map<number, Node<readonly T[]>>();
 	const sliceMemo = new Map<string, Node<readonly T[]>>();
+	const pageMemo = new Map<string, ReactiveView<LogChange<T>, readonly T[]>>();
+	let pageSeq = 0;
 
 	return {
 		delta: core.delta,
@@ -235,6 +248,31 @@ export function reactiveLog<T>(
 			return snode;
 		},
 
+		page(offset: number, limit: number): ReactiveView<LogChange<T>, readonly T[]> {
+			if (!Number.isInteger(offset) || offset < 0) {
+				throw new RangeError(`page: offset must be a non-negative integer (got ${offset})`);
+			}
+			if (!Number.isInteger(limit) || limit < 0) {
+				throw new RangeError(`page: limit must be a non-negative integer (got ${limit})`);
+			}
+			const key = `${offset}:${limit}`;
+			const hit = pageMemo.get(key);
+			if (hit !== undefined) return hit;
+			const materialize = (): readonly T[] => backend.snapshot().slice(offset, offset + limit);
+			let view: ReactiveView<LogChange<T>, readonly T[]>;
+			view = lightReactiveView<LogChange<T>, readonly T[]>(core.delta as Node<unknown>, {
+				...coreOpts,
+				factory: "reactiveLog.page",
+				name: coreOpts.name ? `${coreOpts.name}.page#${pageSeq++}` : undefined,
+				materializeSnapshot: materialize,
+				onDispose: () => {
+					if (pageMemo.get(key) === view) pageMemo.delete(key);
+				},
+			});
+			pageMemo.set(key, view);
+			return view;
+		},
+
 		scan<A>(initial: A, step: (acc: A, value: T) => A): Node<A> {
 			// Incremental fold on the delta backbone: keep the accumulator + processed-count in
 			// ctx.state; fold only the new tail each append; full re-fold on a shrink (clear/trimHead).
@@ -277,6 +315,8 @@ export function reactiveLog<T>(
 			binds.length = 0;
 			tailMemo.clear();
 			sliceMemo.clear();
+			for (const view of pageMemo.values()) view.dispose();
+			pageMemo.clear();
 		},
 	};
 }

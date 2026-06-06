@@ -85,6 +85,7 @@ export type {
 	LogChange,
 	MapChange,
 } from "./graph/data-structures/change.js";
+export type { ReactiveView } from "./graph/data-structures/core.js";
 export {
 	type IndexRow,
 	type ReactiveIndex,

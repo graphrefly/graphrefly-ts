@@ -18,7 +18,13 @@ import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import type { OrderedCapacityPolicy, ReactiveOpt } from "../policies/types.js";
 import type { IndexChange } from "./change.js";
-import { type CollectionCore, type CollectionCoreOptions, collectionCore } from "./core.js";
+import {
+	type CollectionCore,
+	type CollectionCoreOptions,
+	collectionCore,
+	lightReactiveView,
+	type ReactiveView,
+} from "./core.js";
 
 export type ReactiveIndexOpt<T> = ReactiveOpt<T>;
 export type ReactiveIndexCapacityOrder = "secondary" | "primary" | "lru";
@@ -53,6 +59,11 @@ export interface ReactiveIndex<K, V = unknown> {
 	get(primary: K): V | undefined;
 	/** Values whose primary sorts within `[start, end)`, ascending primary order. Sync read (Z). */
 	rangeByPrimary(start: K, end: K): V[];
+	/**
+	 * D121 light range view over the primary axis. `delta` forwards parent index mutations, and
+	 * `snapshot` is a pull node that materializes the current range on demand.
+	 */
+	range(start: K, end: K): ReactiveView<IndexChange<K, V>, readonly V[]>;
 	/** Ordered rows (fresh copy). Sync non-reactive read (cold-start peek). */
 	toArray(): readonly IndexRow<K, V>[];
 	/** Primary→value map (fresh copy). Sync non-reactive read. */
@@ -272,7 +283,13 @@ export function reactiveIndex<K, V = unknown>(
 	const binds: Array<() => void> = [];
 	const base = dispatcher ? { dispatcher } : {};
 	const bindDeps = new WeakSet<Node<unknown>>();
+	const rangeMemo: Array<{
+		start: K;
+		end: K;
+		view: ReactiveView<IndexChange<K, V>, readonly V[]>;
+	}> = [];
 	let bindSeq = 0;
+	let rangeSeq = 0;
 	let capacityPolicy: Node<number> | undefined;
 	let apply: Node<IndexChange<K, V>> | undefined;
 	let releaseApply = () => {};
@@ -403,6 +420,27 @@ export function reactiveIndex<K, V = unknown>(
 		return byPrimaryNode;
 	}
 
+	function getRange(start: K, end: K): ReactiveView<IndexChange<K, V>, readonly V[]> {
+		const hit = rangeMemo.find(
+			(entry) => cmpOrd(entry.start, start) === 0 && cmpOrd(entry.end, end) === 0,
+		);
+		if (hit !== undefined) return hit.view;
+		const materialize = (): readonly V[] => backend.rangeByPrimary(start, end);
+		let view: ReactiveView<IndexChange<K, V>, readonly V[]>;
+		view = lightReactiveView<IndexChange<K, V>, readonly V[]>(core.delta as Node<unknown>, {
+			...options,
+			factory: "reactiveIndex.range",
+			name: name ? `${name}.range#${rangeSeq++}` : undefined,
+			materializeSnapshot: materialize,
+			onDispose: () => {
+				const index = rangeMemo.findIndex((entry) => entry.view === view);
+				if (index >= 0) rangeMemo.splice(index, 1);
+			},
+		});
+		rangeMemo.push({ start, end, view });
+		return view;
+	}
+
 	return {
 		delta: core.delta,
 		snapshot: core.snapshot,
@@ -419,6 +457,9 @@ export function reactiveIndex<K, V = unknown>(
 		},
 		rangeByPrimary(start: K, end: K): V[] {
 			return backend.rangeByPrimary(start, end);
+		},
+		range(start: K, end: K): ReactiveView<IndexChange<K, V>, readonly V[]> {
+			return getRange(start, end);
 		},
 		toArray(): readonly IndexRow<K, V>[] {
 			return backend.snapshot();
@@ -500,6 +541,8 @@ export function reactiveIndex<K, V = unknown>(
 			for (const d of binds) d();
 			binds.length = 0;
 			releaseApply();
+			for (const entry of [...rangeMemo]) entry.view.dispose();
+			rangeMemo.length = 0;
 		},
 	};
 }

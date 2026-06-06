@@ -165,6 +165,8 @@ let constructingCore: NodeCore | undefined;
 const ownerTokens = new WeakMap<Node<unknown>, unknown>();
 const checkpointReaders = new WeakMap<Node<unknown>, () => NodeCheckpointState>();
 const restoreWriters = new WeakMap<Node<unknown>, (state: NodeRestoreState) => void>();
+const runtimeReleasers = new WeakMap<Node<unknown>, () => void>();
+const releasedNodes = new WeakSet<Node<unknown>>();
 
 /** @internal Run a Node/StateNode constructor against a graph-local core without widening the public constructor. */
 export function withNodeCore<TNode extends Node<unknown>>(
@@ -202,6 +204,16 @@ export function restoreStateOfNode(n: Node<unknown>, state: NodeRestoreState): v
 	const write = restoreWriters.get(n);
 	if (write === undefined) throw new Error("restoreGraph: unknown node state");
 	write(state);
+}
+
+/** @internal D122 graph-owned ephemeral lifecycle release. */
+export function releaseRuntimeOfNode(n: Node<unknown>): void {
+	runtimeReleasers.get(n)?.();
+}
+
+/** @internal D122 guard for graph-owned ephemeral lifecycle release. */
+export function isNodeRuntimeReleased(n: Node<unknown>): boolean {
+	return releasedNodes.has(n);
 }
 
 function terminalView(t: unknown): unknown {
@@ -244,6 +256,7 @@ export class Node<T = unknown> {
 	private readonly _syncCtxState: SyncCtxState;
 	private readonly _version: VersionState;
 	private _restoredActivationPending = false;
+	private _released = false;
 
 	private get _syncCtx(): Ctx | null {
 		return this._syncCtxState.value;
@@ -375,6 +388,7 @@ export class Node<T = unknown> {
 			handle: this._slot.handle,
 		}));
 		restoreWriters.set(this as Node<unknown>, (state) => {
+			this._assertNotReleased("restoreGraph");
 			this._value.cache = state.cache as T;
 			this._value.hasData = state.hasData;
 			this._value.status = state.status;
@@ -434,6 +448,7 @@ export class Node<T = unknown> {
 			this._lifecycle.subscribers.clear();
 			this._restoredActivationPending = true;
 		});
+		runtimeReleasers.set(this as Node<unknown>, () => this._releaseRuntime());
 	}
 
 	/** R-pull (D55): true while a pull node is quiet (holds its own pullId/demand lock). */
@@ -496,6 +511,7 @@ export class Node<T = unknown> {
 
 	/** R-push-subscribe: a new sink receives START, then cached DATA (or DIRTY if dirty). */
 	subscribe(sink: Sink): () => void {
+		this._assertNotReleased("subscribe");
 		// Wave-owner boundary (R-rewire-deferred / D47): the activation cascade can run fns that
 		// issue ctx.rewireNext; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
 		// just inc/dec the depth.
@@ -542,6 +558,7 @@ export class Node<T = unknown> {
 
 	/** External emission toward sinks (state-node push, or async late-emit). One call = one wave. */
 	down(msgs: Wave): void {
+		this._assertNotReleased("down");
 		// Wave-owner boundary (D47): a state.set / external push that drives a fn issuing
 		// ctx.rewireNext drains at this outermost exit.
 		enterWave();
@@ -557,6 +574,7 @@ export class Node<T = unknown> {
 	 * ONE declared edge (R-up-routing directed-up); omitted = broadcast up all deps.
 	 */
 	up(msgs: Wave, towardDep?: number): void {
+		this._assertNotReleased("up");
 		// Wave-owner boundary (D47). Internal dep-forwarding calls dep.up() nest under this.
 		enterWave();
 		try {
@@ -589,14 +607,21 @@ export class Node<T = unknown> {
 	 * R-reentrancy). Rides the same R-rewire-deferred (D47) drain as ctx.rewireNext.
 	 */
 	private _requestUpNext(msgs: Wave, towardDep?: number): void {
-		deferRewire(this._core, () => this._up(msgs, towardDep), {
-			batchToken: currentBoundaryBatchToken(),
-			isReady: () => !this._hasBoundaryPauseLock(),
-		});
+		deferRewire(
+			this._core,
+			() => {
+				if (!this._released) this._up(msgs, towardDep);
+			},
+			{
+				batchToken: currentBoundaryBatchToken(),
+				isReady: () => !this._hasBoundaryPauseLock(),
+			},
+		);
 	}
 
 	/** Apply one queued self-rewire at the boundary (drain thunk). */
 	private _applyRewireNext(op: RewireOp): void {
+		if (this._released) return;
 		try {
 			// D62 / R-rewire-deferred: terminal seals output but does NOT cancel queued topology.
 			// Public/immediate rewire of a terminal node still rejects; the exception is only for
@@ -635,11 +660,13 @@ export class Node<T = unknown> {
 	 * first-run gate and cache are PRESERVED (R-rewire Q2/Q7). Intra-graph only (D22).
 	 */
 	replaceDeps(newDeps: Node<unknown>[], fn: NodeFn): void {
+		this._assertNotReleased("replaceDeps");
 		this._rewire(this._dedupDeps(newDeps), fn);
 	}
 
 	/** Subscribe to one dep (special case of replaceDeps); returns its index. fn required (SD-1). */
 	subscribeDep(depNode: Node<unknown>, fn: NodeFn): number {
+		this._assertNotReleased("subscribeDep");
 		const next = this._slot.deps.includes(depNode)
 			? [...this._slot.deps]
 			: [...this._slot.deps, depNode];
@@ -649,6 +676,7 @@ export class Node<T = unknown> {
 
 	/** Unsubscribe from one dep (special case of replaceDeps); idempotent if absent (fn swap still applies). */
 	unsubscribeDep(depNode: Node<unknown>, fn: NodeFn): void {
+		this._assertNotReleased("unsubscribeDep");
 		this._rewire(
 			this._slot.deps.filter((d) => d !== depNode),
 			fn,
@@ -928,6 +956,56 @@ export class Node<T = unknown> {
 		if (!this._privateState.persist) this._privateState.value = SENTINEL;
 	}
 
+	private _assertNotReleased(op: string): void {
+		if (this._released)
+			throw new Error(`${op}: node has been released from its graph lifecycle (D122)`);
+	}
+
+	private _releaseRuntime(): void {
+		if (this._released) return;
+		this._released = true;
+		releasedNodes.add(this as Node<unknown>);
+		if (this._lifecycle.activated) this._deactivate();
+		for (const u of this._dep.unsubs) if (u) u();
+		this._dep.unsubs = [];
+		this._dep.idxBoxes = [];
+		this._lifecycle.subscribers.clear();
+		if (this._slot.handle !== null) {
+			this._slot.dispatcher.unregister(this._slot.handle);
+			this._slot.handle = null;
+		}
+		this._slot.deps = [];
+		this._dep.batch = [];
+		this._dep.waveData = [];
+		this._dep.waveTokens = [];
+		this._dep.prev = [];
+		this._dep.hasData = [];
+		this._dep.dirty = [];
+		this._dep.tier = [];
+		this._dep.terminal = [];
+		this._dep.terminalInput = [];
+		this._value.cache = SENTINEL;
+		this._value.hasData = false;
+		this._value.status = "sentinel";
+		this._value.terminal = undefined;
+		this._value.replayRing = [];
+		this._privateState.value = SENTINEL;
+		this._privateState.persist = false;
+		this._syncCtx = null;
+		this._resetDepState();
+		this._hooks.onDeactivation = [];
+		this._hooks.onInvalidate = [];
+		this._control.pauseLockset.clear();
+		this._control.pauseBuffer = [];
+		this._control.pausedDepWaveOccurred = false;
+		this._control.demandOwed = false;
+		this._restoredActivationPending = false;
+		checkpointReaders.delete(this as Node<unknown>);
+		restoreWriters.delete(this as Node<unknown>);
+		runtimeReleasers.delete(this as Node<unknown>);
+		this._core.releaseSlot(this._id);
+	}
+
 	private _resetDepState(): void {
 		const n = this._slot.deps.length;
 		for (let i = 0; i < n; i++) {
@@ -962,6 +1040,7 @@ export class Node<T = unknown> {
 	}
 
 	private _receiveFromDep(idx: number, msg: Message, delivery?: DeliveryMeta): void {
+		if (this._released) return;
 		const t = msg[0];
 		if (t === "START") return;
 		const isLastInDeliveredWave = delivery?.last ?? true;
@@ -1319,6 +1398,7 @@ export class Node<T = unknown> {
 			// it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
 			// ctx at depth 0, so this is the boundary that drains any rewireNext it issued.
 			up: (msgs, towardDep) => {
+				if (this._released) return;
 				enterWave();
 				try {
 					this._up(msgs, towardDep);
@@ -1327,6 +1407,7 @@ export class Node<T = unknown> {
 				}
 			},
 			down: (msgs) => {
+				if (this._released) return;
 				enterWave();
 				try {
 					this._down(msgs);
@@ -1338,9 +1419,11 @@ export class Node<T = unknown> {
 			terminal: snapshot?.terminal ?? this._dep.terminalInput.map(terminalView),
 			state: this._makeState(),
 			onDeactivation: (fn) => {
+				if (this._released) return;
 				this._hooks.onDeactivation.push(fn);
 			},
 			onInvalidate: (fn) => {
+				if (this._released) return;
 				this._hooks.onInvalidate.push(fn);
 			},
 			// R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
@@ -1389,6 +1472,7 @@ export class Node<T = unknown> {
 	// ── downstream emission pipeline (the unified waist) ──
 
 	private _down(msgs: Wave): void {
+		if (this._released) return;
 		validateDownPayloads(msgs);
 		const deliveryWave = {};
 		const assertVersionDataCompatible = (wave: readonly Message[]) => {
@@ -1577,6 +1661,7 @@ export class Node<T = unknown> {
 	}
 
 	private _up(msgs: Wave, towardDep?: number, route?: UpRouteState): void {
+		if (this._released) return;
 		const routeState = route ?? { demandFired: new Map() };
 		for (const m of msgs) {
 			if (!isUpAllowed(m[0])) {
@@ -1860,6 +1945,7 @@ export class Node<T = unknown> {
 	}
 
 	private _emitToSubs(msg: Message, delivery?: DeliveryMeta): void {
+		if (this._released) return;
 		// Copy guards against subscribe/unsubscribe during iteration.
 		const subs = [...this._lifecycle.subscribers];
 		for (const sink of subs) sink(msg, delivery);

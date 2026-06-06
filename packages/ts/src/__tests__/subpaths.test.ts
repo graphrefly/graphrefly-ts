@@ -6,6 +6,7 @@ import * as composition from "../composition/index.js";
 import * as core from "../core/index.js";
 import type {
 	ReactiveOpt as DataStructuresReactiveOpt,
+	ReactiveView as DataStructuresReactiveView,
 	ViewCachePolicy as DataStructuresViewCachePolicy,
 } from "../data-structures/index.js";
 import * as dataStructures from "../data-structures/index.js";
@@ -22,6 +23,7 @@ import type {
 	ReactiveMapRetentionEntry,
 	ReactiveMapRetentionPolicy,
 	ReactiveOpt,
+	ReactiveView,
 	RetentionPolicy,
 	ViewCachePolicy,
 } from "../index.js";
@@ -176,6 +178,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			.toHaveProperty("maxEntries")
 			.toEqualTypeOf<number | undefined>();
 		expectTypeOf<DataStructuresReactiveOpt<string>>().toEqualTypeOf<ReactiveOpt<string>>();
+		expectTypeOf<DataStructuresReactiveView<string, string>>().toEqualTypeOf<
+			ReactiveView<string, string>
+		>();
 		expectTypeOf<DataStructuresViewCachePolicy>().toEqualTypeOf<ViewCachePolicy>();
 		expectTypeOf<GraphCheckpoint>()
 			.toHaveProperty("version")

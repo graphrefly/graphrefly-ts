@@ -44,7 +44,7 @@ import {
 import type { ReactiveOpt, RetentionPolicy } from "../policies/types.js";
 import { timer } from "../sources.js";
 import type { MapChange } from "./change.js";
-import type { CollectionCoreOptions } from "./core.js";
+import { type CollectionCoreOptions, lightReactiveView, type ReactiveView } from "./core.js";
 
 export type ReactiveMapOpt<T> = ReactiveOpt<T>;
 
@@ -98,6 +98,13 @@ export interface ReactiveMap<K, V> {
 	has(key: K): boolean;
 	/** Current live (non-expired) entries (fresh copy). Sync non-reactive read (cold-start peek). */
 	toMap(): ReadonlyMap<K, V>;
+	/**
+	 * D121 light selected-map view. `delta` forwards parent map mutations, and `snapshot` is a pull
+	 * node that materializes the currently matching live entries on demand.
+	 */
+	select(
+		predicate: (value: V, key: K) => boolean,
+	): ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>;
 	set(key: K, value: V, opts?: { ttl?: number }): void;
 	/** Bulk set; one delta event per entry, one snapshot-arm. No-op if empty. */
 	setMany(entries: Iterable<readonly [K, V]>, opts?: { ttl?: number }): void;
@@ -377,6 +384,11 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	const bindDeps = new WeakSet<Node<unknown>>();
 	let bindSeq = 0;
 	let apply: Node<MapChange<K, V>>;
+	const selectMemo = new Map<
+		(value: V, key: K) => boolean,
+		ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>
+	>();
+	let selectSeq = 0;
 
 	const policyInputs = new PolicyInputs([intent as Node<unknown>]);
 	const lruReader = policyInputs.add(lruPolicy);
@@ -612,6 +624,36 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		return r;
 	}
 
+	function selectedSnapshot(predicate: (value: V, key: K) => boolean): ReadonlyMap<K, V> {
+		const out = new Map<K, V>();
+		for (const [key, value] of backend.snapshot()) {
+			if (predicate(value, key)) out.set(key, value);
+		}
+		return out;
+	}
+
+	function select(
+		predicate: (value: V, key: K) => boolean,
+	): ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>> {
+		if (typeof predicate !== "function")
+			throw new TypeError("reactiveMap.select: predicate must be a function");
+		const cached = selectMemo.get(predicate);
+		if (cached) return cached;
+		let view: ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>;
+		view = lightReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>(delta as Node<unknown>, {
+			dispatcher,
+			graph,
+			factory: "reactiveMap.select",
+			name: name ? `${name}.select#${selectSeq++}` : undefined,
+			materializeSnapshot: () => selectedSnapshot(predicate),
+			onDispose: () => {
+				if (selectMemo.get(predicate) === view) selectMemo.delete(predicate);
+			},
+		});
+		selectMemo.set(predicate, view);
+		return view;
+	}
+
 	return {
 		delta,
 		snapshot,
@@ -631,6 +673,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			intent.down([["DATA", { kind: "pruneExpired" }]]);
 			return backend.snapshot();
 		},
+		select,
 
 		set(key: K, value: V, opts?: { ttl?: number }): void {
 			doSet(key, value, opts?.ttl);
@@ -686,6 +729,8 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			return dispose;
 		},
 		dispose(): void {
+			for (const view of selectMemo.values()) view.dispose();
+			selectMemo.clear();
 			for (const d of binds) d();
 			binds.length = 0;
 			releaseApply();

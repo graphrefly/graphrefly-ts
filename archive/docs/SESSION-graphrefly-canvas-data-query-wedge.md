@@ -336,6 +336,127 @@ This discussion connects these prior archived themes:
 - **GraphReFly Canvas / Workbench product thread:** data query becomes the first professional wedge
   for the UI + topology + code workbench, rather than a separate product identity.
 
+## FOLLOW-UP: WORKSPACE GRAPH, WORK GRAPH, AND REACTIVE ISSUE TRACKER
+
+Recorded 2026-06-06 from follow-up discussion. This is still product/solution-layer framing, not a
+substrate decision.
+
+The clearer product split is:
+
+```text
+WorkspaceGraph
+  -> reactive issue tracker / work orchestration control plane
+
+WorkGraph
+  -> one code + canvas unit
+  -> one GraphReFly graph / concurrency domain / edit domain
+
+Canvas projection
+  -> widgets bound to selected WorkGraph boundary nodes
+
+Topology overlay
+  -> inspectable GraphReFly blueprint over the code/canvas unit
+```
+
+The reactive issue tracker is not a Jira integration. It is the outer WorkspaceGraph that replaces
+Jira/Linear-style status cards with live, verifiable work assertions. It manages requests, priority,
+ownership, approvals, verification summaries, reopen/regression, artifact references, and memory.
+
+Each individual `code + canvas` unit is a WorkGraph. A WorkGraph owns the concrete analysis or tool
+flow: for data work, nodes such as metric/source resolution, query execution, result profiling,
+freshness checks, baseline comparison, explanation assembly, and widget-bound outputs.
+
+### Control-plane recommendation
+
+The WorkspaceGraph should be a fixed product skeleton with extension slots, not a fully free-form
+canvas like WorkGraph, and not one giant graph that mounts all WorkGraphs for execution.
+
+Recommended shape:
+
+```text
+WorkspaceGraph
+  issues
+  workGraphRegistry
+  messagingHub
+  scheduler/router
+  ownership/leases
+  verificationIndex
+  artifactIndex
+  memory/factStore
+  views/queues/board
+```
+
+Power users customize extension slots:
+
+- issue/request types (`adHocDataQuery`, `experimentAnalysis`, `incidentInvestigation`)
+- WorkGraph templates per issue type
+- verifier packs (freshness, row-count drift, schema drift, metric reconciliation, business rules)
+- priority/routing policy nodes
+- widget packs and client-facing canvas layouts
+- artifact promotion targets
+
+This keeps the WorkspaceGraph reliable as a product control plane while letting WorkGraphs remain
+domain-specific and user-extensible.
+
+### Do not collapse all WorkGraphs into one execution graph
+
+WorkGraphs may appear nested in the UI and may be referenced by WorkspaceGraph data, but they should
+remain separate execution/edit domains. The WorkspaceGraph stores `WorkGraphRef` records and talks to
+WorkGraphs through messaging hub / wire-boundary commands and events:
+
+```text
+WorkspaceGraph -> WorkGraph
+  createFromTemplate
+  proposePatch
+  runVerification
+  requestArtifact
+  pause / resume / cancel
+  requestHumanInput
+
+WorkGraph -> WorkspaceGraph
+  planProposed
+  topologyChangedSummary
+  needsInput
+  verificationPassed
+  verificationFailed
+  artifactReady
+  blocked
+```
+
+Reasoning:
+
+- A graph is the single-thread concurrency/edit domain. If every WorkGraph is mounted into one large
+  graph, the product loses natural parallelism and forces one agent/LLM/human ownership boundary over
+  the whole workspace.
+- Separate WorkGraphs let one agent modify one graph at a time while other WorkGraphs continue to
+  verify or run independently.
+- The WorkspaceGraph can still compute global views (board, priority, owner load, blocked issues,
+  verification health) from summaries and events without owning every inner topology.
+- Cross-graph causal influence is still visible as delayed consistency through declared command/event
+  boundaries, rather than hidden imperative calls.
+
+Product shorthand:
+
+> WorkspaceGraph is the control plane. WorkGraph is the execution plane. Canvas is the projection
+> plane.
+
+For data-agent requests, the flow becomes:
+
+```text
+request filed in WorkspaceGraph
+  -> issue/request node created
+  -> WorkGraph template selected or forked
+  -> WorkGraph runs analysis and verification nodes
+  -> Canvas widgets present data views for power users / clients
+  -> verification summary flows back to WorkspaceGraph
+  -> issue verifies, reopens, or asks for human input
+  -> successful graph/artifacts can be promoted into reusable templates or examples
+```
+
+The data analytic views are Canvas widgets, not core substrate. The product can provide a demo widget
+pack for common views (table, chart, metric card, validation panel, narrative answer card), while
+power users build client-specific widget packs and layouts over the same node-binding contract.
+
 ## OPEN QUESTIONS
 
 1. **Vertical packaging:** should the first concrete deliverable be a `solutions/data-query` starter
