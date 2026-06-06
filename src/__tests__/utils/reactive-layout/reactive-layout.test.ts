@@ -5,7 +5,6 @@
  * so tests are environment-independent (no Canvas/DOM).
  */
 
-import { INVALIDATE } from "@graphrefly/pure-ts/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	analyzeAndMeasure,
@@ -17,6 +16,12 @@ import {
 	reactiveLayout,
 	type SegmentMeasureStats,
 } from "../../../utils/reactive-layout/reactive-layout.js";
+
+function describedNode(layout: ReturnType<typeof reactiveLayout>, id: string) {
+	const found = layout.graph.describe().nodes.find((n) => n.id === id);
+	expect(found).toBeDefined();
+	return found!;
+}
 
 // ---------------------------------------------------------------------------
 // Mock adapter: 8px per character (deterministic, no Canvas)
@@ -348,7 +353,7 @@ describe("reactiveLayout", () => {
 	let layout: ReturnType<typeof reactiveLayout>;
 
 	afterEach(() => {
-		layout?.graph.destroy();
+		layout = undefined as unknown as ReturnType<typeof reactiveLayout>;
 	});
 
 	it("creates a graph with all expected nodes", () => {
@@ -358,14 +363,15 @@ describe("reactiveLayout", () => {
 			maxWidth: 200,
 		});
 		const desc = layout.graph.describe();
-		expect(desc.nodes).toHaveProperty("text");
-		expect(desc.nodes).toHaveProperty("font");
-		expect(desc.nodes).toHaveProperty("line-height");
-		expect(desc.nodes).toHaveProperty("max-width");
-		expect(desc.nodes).toHaveProperty("segments");
-		expect(desc.nodes).toHaveProperty("line-breaks");
-		expect(desc.nodes).toHaveProperty("height");
-		expect(desc.nodes).toHaveProperty("char-positions");
+		const ids = desc.nodes.map((n) => n.id);
+		expect(ids).toContain("text");
+		expect(ids).toContain("font");
+		expect(ids).toContain("line-height");
+		expect(ids).toContain("max-width");
+		expect(ids).toContain("segments");
+		expect(ids).toContain("line-breaks");
+		expect(ids).toContain("height");
+		expect(ids).toContain("char-positions");
 	});
 
 	it("computes correct height for single-line text", () => {
@@ -424,9 +430,9 @@ describe("reactiveLayout", () => {
 			text: "hi",
 			maxWidth: -50,
 		});
-		expect(layout.graph.node("max-width").cache).toBe(0);
+		expect(layout.graph.find("max-width")?.cache).toBe(0);
 		layout.setMaxWidth(-20);
-		expect(layout.graph.node("max-width").cache).toBe(0);
+		expect(layout.graph.find("max-width")?.cache).toBe(0);
 	});
 
 	it("segments node has meta for observability", () => {
@@ -435,16 +441,14 @@ describe("reactiveLayout", () => {
 			text: "hello world",
 			maxWidth: 200,
 		});
-		const desc = layout.graph.describe({ detail: "standard" });
-		const segDesc = desc.nodes.segments;
-		expect(segDesc).toBeDefined();
-		expect(segDesc!.meta).toBeDefined();
-		expect(segDesc!.meta).toHaveProperty("cache-hit-rate");
-		expect(segDesc!.meta).toHaveProperty("segment-count");
-		expect(segDesc!.meta).toHaveProperty("layout-time-ns");
+		const segDesc = describedNode(layout, "segments");
+		expect(segDesc.meta).toBeDefined();
+		expect(segDesc.meta).toHaveProperty("cache-hit-rate");
+		expect(segDesc.meta).toHaveProperty("segment-count");
+		expect(segDesc.meta).toHaveProperty("layout-time-ns");
 	});
 
-	it("RESOLVED optimization: unchanged text/font skips re-measure", () => {
+	it("unchanged text/font preserves value shape under clean-slate DATA occurrence semantics", () => {
 		layout = reactiveLayout({
 			adapter: mockAdapter(),
 			text: "hello",
@@ -455,7 +459,8 @@ describe("reactiveLayout", () => {
 
 		const unsub = layout.segments.subscribe(() => {});
 		const segs1 = layout.segments.cache;
-		// Set same text — should trigger RESOLVED (no change)
+		// Clean-slate does not use substrate equals substitution (R-resolved-undirty);
+		// the recomputed value remains shape-equal.
 		layout.setText("hello");
 		const segs2 = layout.segments.cache;
 		expect(segs1).toEqual(segs2);
@@ -496,7 +501,7 @@ describe("reactiveLayout", () => {
 		unsub();
 	});
 
-	it("INVALIDATE clears measurement cache (height changes after cache flush)", async () => {
+	it("node-level INVALIDATE clears measurement cache (height changes after cache flush)", () => {
 		let multiplier = 1;
 		let clearCalls = 0;
 
@@ -521,17 +526,8 @@ describe("reactiveLayout", () => {
 		expect(layout.height.cache).toBe(20);
 
 		multiplier = 2;
-		layout.graph.signal([[INVALIDATE]]);
-		// INVALIDATE clears cached state of *all* nodes in the graph, including
-		// source nodes like `line-height` — restore them so recomputation yields
-		// deterministic, non-NaN values.
+		layout.segments.down([["INVALIDATE"]]);
 		layout.setText("hello world");
-		layout.setFont("16px mono");
-		layout.setLineHeight(20);
-		layout.setMaxWidth(90);
-
-		// Give derived nodes a chance to settle after the INVALIDATE + DATA write.
-		await Promise.resolve();
 
 		expect(layout.height.cache).toBe(40);
 		expect(clearCalls).toBeGreaterThanOrEqual(1);
@@ -563,9 +559,9 @@ describe("reactiveLayout", () => {
 			text: "test",
 			maxWidth: 200,
 		});
-		const snapshot = layout.graph.snapshot();
-		expect(snapshot).toBeDefined();
-		expect(snapshot.name).toBe("reactive-layout");
+		const checkpoint = layout.graph.checkpoint();
+		expect(checkpoint).toBeDefined();
+		expect(checkpoint.name).toBe("reactive-layout");
 	});
 
 	it("graph is describable with edges", () => {
@@ -578,30 +574,18 @@ describe("reactiveLayout", () => {
 		expect(desc.edges.length).toBeGreaterThan(0);
 	});
 
-	it("meta companion DATA runs after segments DATA (batch-deferred ordering)", () => {
+	it("updates describe metadata without legacy live meta companion nodes", () => {
 		layout = reactiveLayout({
 			adapter: mockAdapter(),
 			text: "a",
 			maxWidth: 200,
 		});
-		const order: string[] = [];
-		const u1 = layout.segments.subscribe(() => {
-			order.push("segments");
-		});
-		const u2 = layout.segments.meta?.["cache-hit-rate"]?.subscribe(() => {
-			order.push("meta");
-		});
-		const start = order.length;
+		const u1 = layout.segments.subscribe(() => {});
 		layout.setText("b");
-		// Meta is delivered via batch deferral (downWithBatch) — runs
-		// synchronously during the batch drain, after segments settles.
-		// All events should be delivered by the time setText returns.
-		const events = order.slice(start);
-		// Meta is delivered synchronously (no microtask needed).
-		// Verify meta appears somewhere in the synchronous delivery.
-		expect(events).toContain("segments");
-		expect(events).toContain("meta");
+		const segDesc = describedNode(layout, "segments");
+		expect(segDesc.meta?.["segment-count"]).toBe(layout.segments.cache.length);
+		expect(typeof segDesc.meta?.["cache-hit-rate"]).toBe("number");
+		expect(layout.segments).not.toHaveProperty("meta");
 		u1();
-		u2?.();
 	});
 });

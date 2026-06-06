@@ -9,10 +9,7 @@
  * - `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` — convenience factory
  * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
-import { monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
-
-import { Graph } from "@graphrefly/pure-ts/graph";
-import { emitToMeta } from "../../base/meta/emit-to-meta.js";
+import { depLatest, Graph, type Node } from "@graphrefly/ts";
 import { getDefaultSegmentAdapter } from "./measurement-adapters.js";
 
 // ---------------------------------------------------------------------------
@@ -192,6 +189,14 @@ export type ReactiveLayoutBundle = {
 	/** Per-character positions node. */
 	charPositions: Node<CharPosition[]>;
 };
+
+function monotonicNs(): number {
+	const perf = globalThis.performance;
+	if (perf !== undefined && typeof perf.now === "function") {
+		return Math.trunc(perf.now() * 1_000_000);
+	}
+	return Date.now() * 1_000_000;
+}
 
 // ---------------------------------------------------------------------------
 // Text analysis (ported from Pretext analysis.ts — core subset)
@@ -1249,53 +1254,39 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	// factory construction time (not later, on first text wave). When the
 	// caller wires their own, no `Intl.Segmenter` access happens here.
 	const segmentAdapter: SegmentAdapter = segmentAdapterOpt ?? getDefaultSegmentAdapter();
-	const g = new Graph(name);
+	const g = new Graph({ name });
 
 	// Shared measurement cache: Map<font, Map<segment, width>>
 	const measureCache = new Map<string, Map<string, number>>();
 
 	// --- State nodes ---
-	const textNode = node<string>([], { name: "text", initial: opts.text ?? "" });
-	const fontNode = node<string>([], {
+	const textNode = g.state<string>(opts.text ?? "", { name: "text" });
+	const fontNode = g.state<string>(opts.font ?? "16px sans-serif", {
 		name: "font",
-		initial: opts.font ?? "16px sans-serif",
 	});
-	const lineHeightNode = node<number>([], {
+	const lineHeightNode = g.state<number>(opts.lineHeight ?? 20, {
 		name: "line-height",
-		initial: opts.lineHeight ?? 20,
 	});
-	const maxWidthNode = node<number>([], {
+	const maxWidthNode = g.state<number>(Math.max(0, opts.maxWidth ?? 800), {
 		name: "max-width",
-		initial: Math.max(0, opts.maxWidth ?? 800),
 	});
 
-	// --- Derived: segments (text + font → PreparedSegment[]) ---
-	function graphemeWidthsEqual(a: number[] | null, b: number[] | null): boolean {
-		if (a === null || b === null) return a === b;
-		if (a.length !== b.length) return false;
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]!) return false;
-		}
-		return true;
-	}
+	const segmentsMeta = {
+		"cache-hit-rate": 0,
+		"segment-count": 0,
+		"layout-time-ns": 0,
+	};
 
-	// Raw `node(...)` instead of `derived(...)` so the fn can return a
-	// cleanup function. Core fires function-form cleanup on INVALIDATE (see
-	// `node.ts:_updateState` INVALIDATE branch), which replaces the old v4
-	// per-node `onMessage` hook that watched for INVALIDATE/TEARDOWN to flush
-	// measurement caches.
-	const segmentsNode: Node<PreparedSegment[]> = node<PreparedSegment[]>(
+	const segmentsNode: Node<PreparedSegment[]> = g.node<PreparedSegment[]>(
 		[textNode, fontNode],
-		(data, actions, ctx) => {
-			const b0 = data[0];
-			const textVal = (b0 != null && b0.length > 0 ? b0.at(-1) : ctx.prevData[0]) as string;
-			const b1 = data[1];
-			const fontVal = (b1 != null && b1.length > 0 ? b1.at(-1) : ctx.prevData[1]) as string;
+		(ctx) => {
+			const textVal = depLatest(ctx, 0) as string;
+			const fontVal = depLatest(ctx, 1) as string;
 			const t0 = monotonicNs();
 			const measureStats: SegmentMeasureStats = { hits: 0, misses: 0 };
 			const result = analyzeAndMeasure(
-				textVal as string,
-				fontVal as string,
+				textVal,
+				fontVal,
 				adapter,
 				measureCache,
 				measureStats,
@@ -1306,167 +1297,89 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 			const lookups = measureStats.hits + measureStats.misses;
 			const hitRate = lookups === 0 ? 1 : measureStats.hits / lookups;
 
-			// After parent `segments` emits, deliver metrics via phase-3 deferral
-			// so observers see the parent value first.
-			// Forwards via `emitToMeta` (see `patterns/_internal.ts`).
-			const meta = segmentsNode.meta;
-			if (meta) {
-				emitToMeta(meta["cache-hit-rate"], hitRate);
-				emitToMeta(meta["segment-count"], result.length);
-				emitToMeta(meta["layout-time-ns"], elapsed);
-			}
+			segmentsMeta["cache-hit-rate"] = hitRate;
+			segmentsMeta["segment-count"] = result.length;
+			segmentsMeta["layout-time-ns"] = elapsed;
 
-			actions.emit(result);
+			ctx.down([["DATA", result]]);
 
-			// Object-form cleanup: fires on deactivation AND on INVALIDATE, but
-			// NOT before re-runs. Re-runs that edit text / font retain the
-			// measurement cache — the per-segment entries still valid for the
-			// new text overlap the previous set and are reused. Before-run
-			// flushing (previous behaviour) wiped 100-segment caches on a
-			// one-character edit; this shape keeps cache hit-rate proportional
-			// to content overlap rather than invalidation frequency.
 			const flush = (): void => {
 				measureCache.clear();
 				adapter.clearCache?.();
 			};
-			return { onDeactivation: flush, onInvalidate: flush };
+			ctx.onDeactivation(flush);
+			ctx.onInvalidate(flush);
 		},
 		{
 			name: "segments",
-			describeKind: "derived",
-			meta: {
-				"cache-hit-rate": 0,
-				"segment-count": 0,
-				"layout-time-ns": 0,
-			},
-			equals: (a, b) => {
-				const sa = a as PreparedSegment[] | null;
-				const sb = b as PreparedSegment[] | null;
-				if (sa == null || sb == null) return sa === sb;
-				if (sa.length !== sb.length) return false;
-				for (let i = 0; i < sa.length; i++) {
-					const pa = sa[i]!;
-					const pb = sb[i]!;
-					if (
-						pa.text !== pb.text ||
-						pa.width !== pb.width ||
-						pa.kind !== pb.kind ||
-						!graphemeWidthsEqual(pa.graphemeWidths ?? null, pb.graphemeWidths ?? null)
-					)
-						return false;
-				}
-				return true;
-			},
+			meta: segmentsMeta,
 		},
 	);
 
 	// --- Derived: line-breaks (segments + max-width + font → LineBreaksResult) ---
-	const lineBreaksNode = node<LineBreaksResult>(
+	const lineBreaksNode = g.node<LineBreaksResult>(
 		[segmentsNode, maxWidthNode, fontNode],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit(
+		(ctx) => {
+			ctx.down([
+				[
+					"DATA",
 				computeLineBreaks(
-					data[0] as PreparedSegment[],
-					data[1] as number,
+						depLatest(ctx, 0) as PreparedSegment[],
+						depLatest(ctx, 1) as number,
 					adapter,
-					data[2] as string,
+						depLatest(ctx, 2) as string,
 					measureCache,
 					segmentAdapter,
 				),
-			);
+				],
+			]);
 		},
 		{
 			name: "line-breaks",
-			describeKind: "derived",
-			equals: (a, b) => {
-				const la = a as LineBreaksResult | null;
-				const lb = b as LineBreaksResult | null;
-				if (la == null || lb == null) return la === lb;
-				if (la.lineCount !== lb.lineCount) return false;
-				for (let i = 0; i < la.lines.length; i++) {
-					const lineA = la.lines[i]!;
-					const lineB = lb.lines[i]!;
-					if (
-						lineA.text !== lineB.text ||
-						lineA.width !== lineB.width ||
-						lineA.startSegment !== lineB.startSegment ||
-						lineA.startGrapheme !== lineB.startGrapheme ||
-						lineA.endSegment !== lineB.endSegment ||
-						lineA.endGrapheme !== lineB.endGrapheme
-					)
-						return false;
-				}
-				return true;
-			},
 		},
 	);
 
 	// --- Derived: height ---
-	const heightNode = node<number>(
+	const heightNode = g.node<number>(
 		[lineBreaksNode, lineHeightNode],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit((data[0] as LineBreaksResult).lineCount * (data[1] as number));
+		(ctx) => {
+			ctx.down([
+				[
+					"DATA",
+					(depLatest(ctx, 0) as LineBreaksResult).lineCount * (depLatest(ctx, 1) as number),
+				],
+			]);
 		},
-		{ describeKind: "derived", name: "height" },
+		{ name: "height" },
 	);
 
 	// --- Derived: char-positions ---
-	const charPositionsNode = node<CharPosition[]>(
+	const charPositionsNode = g.node<CharPosition[]>(
 		[lineBreaksNode, segmentsNode, lineHeightNode],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit(
-				computeCharPositions(
-					data[0] as LineBreaksResult,
-					data[1] as PreparedSegment[],
-					data[2] as number,
-					segmentAdapter,
-				),
-			);
+		(ctx) => {
+			ctx.down([
+				[
+					"DATA",
+					computeCharPositions(
+						depLatest(ctx, 0) as LineBreaksResult,
+						depLatest(ctx, 1) as PreparedSegment[],
+						depLatest(ctx, 2) as number,
+						segmentAdapter,
+					),
+				],
+			]);
 		},
 		{
 			name: "char-positions",
-			describeKind: "derived",
-			equals: (a, b) => {
-				const ca = a as CharPosition[] | null;
-				const cb = b as CharPosition[] | null;
-				if (ca == null || cb == null) return ca === cb;
-				if (ca.length !== cb.length) return false;
-				for (let i = 0; i < ca.length; i++) {
-					if (ca[i]!.x !== cb[i]!.x || ca[i]!.y !== cb[i]!.y || ca[i]!.width !== cb[i]!.width)
-						return false;
-				}
-				return true;
-			},
 		},
 	);
 
-	// --- Register in graph ---
-	g.add(textNode, { name: "text" });
-	g.add(fontNode, { name: "font" });
-	g.add(lineHeightNode, { name: "line-height" });
-	g.add(maxWidthNode, { name: "max-width" });
-	g.add(segmentsNode, { name: "segments" });
-	g.add(lineBreaksNode, { name: "line-breaks" });
-	g.add(heightNode, { name: "height" });
-	g.add(charPositionsNode, { name: "char-positions" });
-
-	// --- Edges (for describe() visibility) ---
-
 	return {
 		graph: g,
-		setText: (text: string) => g.set("text", text),
-		setFont: (font: string) => g.set("font", font),
-		setLineHeight: (lh: number) => g.set("line-height", lh),
-		setMaxWidth: (mw: number) => g.set("max-width", Math.max(0, mw)),
+		setText: (text: string) => textNode.set(text),
+		setFont: (font: string) => fontNode.set(font),
+		setLineHeight: (lh: number) => lineHeightNode.set(lh),
+		setMaxWidth: (mw: number) => maxWidthNode.set(Math.max(0, mw)),
 		segments: segmentsNode,
 		lineBreaks: lineBreaksNode,
 		height: heightNode,

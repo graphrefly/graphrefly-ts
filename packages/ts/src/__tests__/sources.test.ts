@@ -452,6 +452,19 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(callsAfter).toBe(2);
 	});
 
+	it("singleFromAny dedupes same-key synchronous reentrancy", async () => {
+		let calls = 0;
+		let fn!: (key: string) => Promise<string>;
+		fn = singleFromAny<string, string>((key) => {
+			calls += 1;
+			if (calls === 1) void fn(key);
+			return `${key}:outer`;
+		});
+
+		await expect(fn("x")).resolves.toBe("x:outer");
+		expect(calls).toBe(1);
+	});
+
 	it("singleFromAny uses identity keys by default and keyOf for structural dedupe", async () => {
 		let identityCalls = 0;
 		const identity = singleFromAny<{ id: number }, string>((key) => {
@@ -496,6 +509,20 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		await expect(first("a")).resolves.toBe(1);
 	});
 
+	it("singleFromAny rejects undefined successes from async and iterable inputs", async () => {
+		const promiseValue = singleFromAny<string, undefined>(() => Promise.resolve(undefined));
+		await expect(promiseValue("promise")).rejects.toThrow(/SENTINEL/);
+
+		async function* asyncValues() {
+			yield undefined;
+		}
+		const asyncValue = singleFromAny<string, undefined>(() => asyncValues());
+		await expect(asyncValue("async")).rejects.toThrow(/SENTINEL/);
+
+		const iterValue = singleFromAny<string, undefined>(() => [undefined], { iter: true });
+		await expect(iterValue("iter")).rejects.toThrow(/SENTINEL/);
+	});
+
 	it("singleFromAny closes async iterables after the first value", async () => {
 		let closed = false;
 		async function* gen() {
@@ -510,6 +537,34 @@ describe("promise / iterable / coercion sources (D43)", () => {
 
 		await expect(fn("iter")).resolves.toBe(1);
 		expect(closed).toBe(true);
+	});
+
+	it("singleFromAny keeps the first iterable value when close fails after reading it", async () => {
+		const iterable = {
+			[Symbol.iterator](): Iterator<number> {
+				return {
+					next: () => ({ value: 1, done: false }),
+					return: () => {
+						throw new Error("close failed");
+					},
+				};
+			},
+		};
+		const syncValue = singleFromAny<string, number>(() => iterable, { iter: true });
+		await expect(syncValue("sync")).resolves.toBe(1);
+
+		const asyncIterable = {
+			[Symbol.asyncIterator](): AsyncIterator<number> {
+				return {
+					next: async () => ({ value: 2, done: false }),
+					return: async () => {
+						throw new Error("close failed");
+					},
+				};
+			},
+		};
+		const asyncValue = singleFromAny<string, number>(() => asyncIterable);
+		await expect(asyncValue("async")).resolves.toBe(2);
 	});
 });
 

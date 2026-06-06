@@ -11,6 +11,9 @@ importers:
       '@graphrefly/pure-ts':
         specifier: workspace:>=0.45.0
         version: link:packages/pure-ts
+      '@graphrefly/ts':
+        specifier: workspace:*
+        version: link:packages/ts
     devDependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.82.0

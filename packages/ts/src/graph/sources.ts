@@ -469,37 +469,54 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 	});
 }
 
+function singleFromAnyValue<T>(value: T): T {
+	if (value === undefined) {
+		throw new TypeError("singleFromAny: undefined is the substrate SENTINEL");
+	}
+	return value;
+}
+
 async function firstFromAsyncIterable<T>(input: AsyncIterable<T>): Promise<T> {
 	const iter = input[Symbol.asyncIterator]();
-	try {
-		const { value, done } = await iter.next();
-		if (done) throw new Error("singleFromAny: factory returned empty async iterable");
-		return value as T;
-	} finally {
+	const { value, done } = await iter.next();
+	if (done) {
 		await iter.return?.();
+		throw new Error("singleFromAny: factory returned empty async iterable");
 	}
+	try {
+		await iter.return?.();
+	} catch {
+		// The first value is the bridge result; close failures after that are cleanup-only.
+	}
+	return value as T;
 }
 
 function firstFromIterable<T>(input: Iterable<T>): Promise<T> {
 	const iter = input[Symbol.iterator]();
-	try {
-		const { value, done } = iter.next();
-		if (done) return Promise.reject(new Error("singleFromAny: factory returned empty iterable"));
-		return Promise.resolve(value as T);
-	} finally {
+	const { value, done } = iter.next();
+	if (done) {
 		iter.return?.();
+		return Promise.reject(new Error("singleFromAny: factory returned empty iterable"));
 	}
+	try {
+		iter.return?.();
+	} catch {
+		// The first value is the bridge result; close failures after that are cleanup-only.
+	}
+	return Promise.resolve(value as T);
 }
 
 function nodeInputToPromise<T>(input: NodeInput<T>, opts: { iter?: boolean }): Promise<T> {
-	if (isThenable(input)) return Promise.resolve(input as PromiseLike<T>);
-	if (isNode(input)) return firstValueFrom(input as Node<T>);
-	if (isAsyncIterable<T>(input)) return firstFromAsyncIterable(input);
-	if (opts.iter === true && isIterable<T>(input)) return firstFromIterable(input);
+	if (isThenable(input)) return Promise.resolve(input as PromiseLike<T>).then(singleFromAnyValue);
+	if (isNode(input)) return firstValueFrom(input as Node<T>).then(singleFromAnyValue);
+	if (isAsyncIterable<T>(input)) return firstFromAsyncIterable(input).then(singleFromAnyValue);
+	if (opts.iter === true && isIterable<T>(input)) {
+		return firstFromIterable(input).then(singleFromAnyValue);
+	}
 	if (input === undefined) {
 		return Promise.reject(new TypeError("singleFromAny: undefined is the substrate SENTINEL"));
 	}
-	return Promise.resolve(input as T);
+	return Promise.resolve(singleFromAnyValue(input as T));
 }
 
 /**
@@ -519,18 +536,17 @@ export function singleFromAny<K, T>(
 		const existing = inFlight.get(dedupeKey);
 		if (existing) return existing;
 
-		let rawPromise: Promise<T>;
-		try {
-			rawPromise = nodeInputToPromise(factory(key), opts);
-		} catch (e) {
-			rawPromise = Promise.reject(e);
-		}
-
+		let resolvePending!: (value: T) => void;
+		let rejectPending!: (reason: unknown) => void;
 		let tracked!: Promise<T>;
 		const cleanup = (): void => {
 			if (inFlight.get(dedupeKey) === tracked) inFlight.delete(dedupeKey);
 		};
-		tracked = rawPromise.then(
+		const pending = new Promise<T>((resolve, reject) => {
+			resolvePending = resolve;
+			rejectPending = reject;
+		});
+		tracked = pending.then(
 			(value) => {
 				cleanup();
 				return value;
@@ -541,6 +557,11 @@ export function singleFromAny<K, T>(
 			},
 		);
 		inFlight.set(dedupeKey, tracked);
+		try {
+			nodeInputToPromise(factory(key), opts).then(resolvePending, rejectPending);
+		} catch (e) {
+			rejectPending(e);
+		}
 		return tracked;
 	};
 }

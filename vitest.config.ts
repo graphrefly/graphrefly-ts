@@ -15,6 +15,14 @@ export default defineConfig({
 				find: "@graphrefly/pure-ts",
 				replacement: path.resolve(__dirname, "packages/pure-ts/src/index.ts"),
 			},
+			{
+				find: /^@graphrefly\/ts\/(.+)$/,
+				replacement: path.resolve(__dirname, "packages/ts/src/$1"),
+			},
+			{
+				find: "@graphrefly/ts",
+				replacement: path.resolve(__dirname, "packages/ts/src/index.ts"),
+			},
 		],
 	},
 	test: {

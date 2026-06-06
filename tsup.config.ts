@@ -96,6 +96,7 @@ export default defineConfig({
 	target: "es2022",
 	external: [
 		"@graphrefly/pure-ts",
+		"@graphrefly/ts",
 		"@graphrefly/native",
 		"@nestjs/common",
 		"@nestjs/core",
