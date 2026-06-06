@@ -21,17 +21,14 @@
  * ├── derived("segments")          — text + font → PreparedSegment[]  (from reactiveLayout)
  * ├── derived("flow-lines")        — segments + container + columns + obstacles + line-height
  * │                                  → PositionedLine[]
- * └── meta: { line-count, layout-time-ns, overflow-segments }
  * ```
  *
  * Obstacle positions change every frame; `flow-lines` re-runs per change, but
  * `segments` stays cached (text hasn't changed). Callers drive obstacles via a
  * reactive source like `fromRaf()` piped into a state node.
  */
-import { monotonicNs, type Node, node } from "@graphrefly/pure-ts/core";
+import { depLatest, Graph, type Node } from "@graphrefly/ts";
 
-import { Graph } from "@graphrefly/pure-ts/graph";
-import { emitToMeta } from "../../base/meta/emit-to-meta.js";
 import { getDefaultSegmentAdapter } from "./measurement-adapters.js";
 import {
 	analyzeAndMeasure,
@@ -378,40 +375,45 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 	} = opts;
 	// Eager resolve — fail-fast on Hermes-without-explicit-adapter at factory construction.
 	const segmentAdapter: SegmentAdapter = segmentAdapterOpt ?? getDefaultSegmentAdapter();
-	const g = new Graph(name);
+	const g = new Graph({ name });
 
 	const measureCache = new Map<string, Map<string, number>>();
 
-	const textNode = node<string>([], { name: "text", initial: opts.text ?? "" });
-	const fontNode = node<string>([], { name: "font", initial: opts.font ?? "16px sans-serif" });
-	const lineHeightNode = node<number>([], { name: "line-height", initial: opts.lineHeight ?? 20 });
-	const containerNode = node<FlowContainer>([], {
-		name: "container",
-		initial: opts.container ?? { width: 800, height: 600, paddingX: 0, paddingY: 0 },
-	});
-	const columnsNode = node<FlowColumns>([], {
+	const textNode = g.state<string>(opts.text ?? "", { name: "text" });
+	const fontNode = g.state<string>(opts.font ?? "16px sans-serif", { name: "font" });
+	const lineHeightNode = g.state<number>(opts.lineHeight ?? 20, { name: "line-height" });
+	const containerNode = g.state<FlowContainer>(
+		opts.container ?? { width: 800, height: 600, paddingX: 0, paddingY: 0 },
+		{
+			name: "container",
+		},
+	);
+	const columnsNode = g.state<FlowColumns>(opts.columns ?? { count: 1, gap: 0 }, {
 		name: "columns",
-		initial: opts.columns ?? { count: 1, gap: 0 },
 	});
-	const obstaclesNode = node<Obstacle[]>([], { name: "obstacles", initial: opts.obstacles ?? [] });
+	const obstaclesNode = g.state<Obstacle[]>(opts.obstacles ?? [], { name: "obstacles" });
 	// `paragraphSpacing` is reactive with a "track lineHeight" default. The
 	// state node holds `number | null` — when `null`, `flow-lines` substitutes
 	// the CURRENT `lineHeight` value, so the default stays truly reactive
 	// as lineHeight updates. A caller who wants a fixed independent gap sets
 	// an explicit number via the constructor or `setParagraphSpacing`; passing
 	// `null` back restores the track-lineHeight behavior.
-	const paragraphSpacingNode = node<number | null>([], {
+	const paragraphSpacingNode = g.state<number | null>(opts.paragraphSpacing ?? null, {
 		name: "paragraph-spacing",
-		initial: opts.paragraphSpacing ?? null,
 	});
 
-	const segmentsNode: Node<PreparedSegment[]> = node<PreparedSegment[]>(
+	const segmentsNode: Node<PreparedSegment[]> = g.node<PreparedSegment[]>(
 		[textNode, fontNode],
-		(data, actions, ctx) => {
-			const b0 = data[0];
-			const textVal = (b0 != null && b0.length > 0 ? b0.at(-1) : ctx.prevData[0]) as string;
-			const b1 = data[1];
-			const fontVal = (b1 != null && b1.length > 0 ? b1.at(-1) : ctx.prevData[1]) as string;
+		(ctx) => {
+			const flush = (): void => {
+				measureCache.clear();
+				adapter.clearCache?.();
+			};
+			ctx.onDeactivation(flush);
+			ctx.onInvalidate(flush);
+
+			const textVal = depLatest(ctx, 0) as string;
+			const fontVal = depLatest(ctx, 1) as string;
 			const result = analyzeAndMeasure(
 				textVal,
 				fontVal,
@@ -420,104 +422,45 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 				undefined,
 				segmentAdapter,
 			);
-			actions.emit(result);
-			// Flush on deactivation + INVALIDATE only — preserve cache across
-			// fn re-runs so text/font edits don't wipe per-segment entries that
-			// still match the new text.
-			const flush = (): void => {
-				measureCache.clear();
-				adapter.clearCache?.();
-			};
-			return { onDeactivation: flush, onInvalidate: flush };
+			ctx.down([["DATA", result]]);
 		},
-		{ name: "segments", describeKind: "derived" },
+		{ name: "segments" },
 	);
 
-	const flowLinesNode = node<PositionedLine[]>(
+	const flowLinesNode = g.node<PositionedLine[]>(
 		[segmentsNode, containerNode, columnsNode, obstaclesNode, lineHeightNode, paragraphSpacingNode],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			const segments = data[0] as PreparedSegment[];
-			const t0 = monotonicNs();
+		(ctx) => {
+			const segments = depLatest(ctx, 0) as PreparedSegment[];
 			// `ps === null` → track current lineHeight. Any explicit number
 			// (0, 60, …) overrides; passing `null` via `setParagraphSpacing`
 			// restores tracking.
-			const effectiveSpacing = (data[5] as number | null) ?? (data[4] as number);
-			const { lines: result, cursor } = computeFlowLines(
+			const lineHeight = depLatest(ctx, 4) as number;
+			const effectiveSpacing = (depLatest(ctx, 5) as number | null) ?? lineHeight;
+			const { lines: result } = computeFlowLines(
 				segments,
-				data[1] as FlowContainer,
-				data[2] as FlowColumns,
-				data[3] as Obstacle[],
-				data[4] as number,
+				depLatest(ctx, 1) as FlowContainer,
+				depLatest(ctx, 2) as FlowColumns,
+				depLatest(ctx, 3) as Obstacle[],
+				lineHeight,
 				minSlotWidth,
 				{ paragraphSpacing: effectiveSpacing, segmentAdapter },
 			);
-			const elapsed = monotonicNs() - t0;
-			// Overflow signal: segments left unlaid-out after the container is
-			// exhausted. `0` means all text fit; `N > 0` means the container
-			// occluded/overflowed N segments — consumers can surface a "…more"
-			// indicator, grow the container, or discard obstacles.
-			const overflow = Math.max(0, segments.length - cursor.segmentIndex);
-			const meta = flowLinesNode.meta;
-			if (meta) {
-				emitToMeta(meta["line-count"], result.length);
-				emitToMeta(meta["layout-time-ns"], elapsed);
-				emitToMeta(meta["overflow-segments"], overflow);
-			}
-			actions.emit(result);
+			ctx.down([["DATA", result]]);
 		},
 		{
-			describeKind: "derived",
 			name: "flow-lines",
-			meta: {
-				"line-count": 0,
-				"layout-time-ns": 0,
-				"overflow-segments": 0,
-			},
-			equals: (a, b) => {
-				const la = a as PositionedLine[];
-				const lb = b as PositionedLine[];
-				if (la.length !== lb.length) return false;
-				for (let i = 0; i < la.length; i++) {
-					const pa = la[i]!;
-					const pb = lb[i]!;
-					if (
-						pa.x !== pb.x ||
-						pa.y !== pb.y ||
-						pa.width !== pb.width ||
-						pa.slotWidth !== pb.slotWidth ||
-						pa.text !== pb.text ||
-						pa.columnIndex !== pb.columnIndex ||
-						pa.flushToRight !== pb.flushToRight
-					)
-						return false;
-				}
-				return true;
-			},
 		},
 	);
 
-	g.add(textNode, { name: "text" });
-	g.add(fontNode, { name: "font" });
-	g.add(lineHeightNode, { name: "line-height" });
-	g.add(containerNode, { name: "container" });
-	g.add(columnsNode, { name: "columns" });
-	g.add(obstaclesNode, { name: "obstacles" });
-	g.add(paragraphSpacingNode, { name: "paragraph-spacing" });
-	g.add(segmentsNode, { name: "segments" });
-	g.add(flowLinesNode, { name: "flow-lines" });
-
 	return {
 		graph: g,
-		setText: (t: string) => g.set("text", t),
-		setFont: (f: string) => g.set("font", f),
-		setLineHeight: (lh: number) => g.set("line-height", lh),
-		setContainer: (c: FlowContainer) => g.set("container", c),
-		setColumns: (c: FlowColumns) => g.set("columns", c),
-		setObstacles: (o: Obstacle[]) => g.set("obstacles", o),
-		setParagraphSpacing: (ps: number | null) => g.set("paragraph-spacing", ps),
+		setText: (t: string) => textNode.set(t),
+		setFont: (f: string) => fontNode.set(f),
+		setLineHeight: (lh: number) => lineHeightNode.set(lh),
+		setContainer: (c: FlowContainer) => containerNode.set(c),
+		setColumns: (c: FlowColumns) => columnsNode.set(c),
+		setObstacles: (o: Obstacle[]) => obstaclesNode.set(o),
+		setParagraphSpacing: (ps: number | null) => paragraphSpacingNode.set(ps),
 		segments: segmentsNode,
 		flowLines: flowLinesNode,
 	};

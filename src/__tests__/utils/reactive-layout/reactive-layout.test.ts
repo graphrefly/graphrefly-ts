@@ -435,17 +435,16 @@ describe("reactiveLayout", () => {
 		expect(layout.graph.find("max-width")?.cache).toBe(0);
 	});
 
-	it("segments node has meta for observability", () => {
+	it("segments node is describe-visible without legacy live metric metadata", () => {
 		layout = reactiveLayout({
 			adapter: mockAdapter(),
 			text: "hello world",
 			maxWidth: 200,
 		});
 		const segDesc = describedNode(layout, "segments");
-		expect(segDesc.meta).toBeDefined();
-		expect(segDesc.meta).toHaveProperty("cache-hit-rate");
-		expect(segDesc.meta).toHaveProperty("segment-count");
-		expect(segDesc.meta).toHaveProperty("layout-time-ns");
+		expect(segDesc.factory).toBe("node");
+		expect(segDesc.deps).toEqual(["text", "font"]);
+		expect(segDesc.meta).toBeUndefined();
 	});
 
 	it("unchanged text/font preserves value shape under clean-slate DATA occurrence semantics", () => {
@@ -574,7 +573,7 @@ describe("reactiveLayout", () => {
 		expect(desc.edges.length).toBeGreaterThan(0);
 	});
 
-	it("updates describe metadata without legacy live meta companion nodes", () => {
+	it("does not expose legacy live meta companion nodes", () => {
 		layout = reactiveLayout({
 			adapter: mockAdapter(),
 			text: "a",
@@ -583,8 +582,7 @@ describe("reactiveLayout", () => {
 		const u1 = layout.segments.subscribe(() => {});
 		layout.setText("b");
 		const segDesc = describedNode(layout, "segments");
-		expect(segDesc.meta?.["segment-count"]).toBe(layout.segments.cache.length);
-		expect(typeof segDesc.meta?.["cache-hit-rate"]).toBe("number");
+		expect(segDesc.meta).toBeUndefined();
 		expect(layout.segments).not.toHaveProperty("meta");
 		u1();
 	});

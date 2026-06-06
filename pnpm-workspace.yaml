@@ -16,3 +16,8 @@ packages:
   - examples/nestjs/*
   - apps/*
   - packages/*
+allowBuilds:
+  '@nestjs/core': true
+  esbuild: true
+  protobufjs: true
+  sharp: true

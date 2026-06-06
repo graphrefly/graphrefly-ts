@@ -65,7 +65,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("exposes the clean-slate layer surfaces from source barrels", () => {
 		expect(typeof core.node).toBe("function");
 		expect(typeof graphLayer.Graph).toBe("function");
+		expect(typeof graphLayer.coalesceObserve).toBe("function");
 		expect(typeof graphLayer.explainPath).toBe("function");
+		expect(typeof graphLayer.filterObserve).toBe("function");
 		expect(typeof graphLayer.GRAPH_CHECKPOINT_VERSION).toBe("string");
 		expect(typeof graphLayer.reachable).toBe("function");
 		expect(typeof graphLayer.restoreGraph).toBe("function");

@@ -51,7 +51,16 @@ export {
 	StateNode,
 	type SugarOpts,
 } from "./graph.js";
-export type { NodeProfile, ObserveEvent, ObserveStream, Profile } from "./inspect.js";
+export {
+	coalesceObserve,
+	filterObserve,
+	type NodeProfile,
+	type ObserveEvent,
+	type ObserveEventEquals,
+	type ObservePredicate,
+	type ObserveStream,
+	type Profile,
+} from "./inspect.js";
 export {
 	defaultRestoreRegistry,
 	type GraphRestoreDescriptor,

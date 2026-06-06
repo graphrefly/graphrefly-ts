@@ -154,7 +154,16 @@ export {
 	repeat,
 	switchMap,
 } from "./graph/higher-order.js";
-export type { NodeProfile, ObserveEvent, ObserveStream, Profile } from "./graph/inspect.js";
+export {
+	coalesceObserve,
+	filterObserve,
+	type NodeProfile,
+	type ObserveEvent,
+	type ObserveEventEquals,
+	type ObservePredicate,
+	type ObserveStream,
+	type Profile,
+} from "./graph/inspect.js";
 export {
 	catchError,
 	type DefineOpts,

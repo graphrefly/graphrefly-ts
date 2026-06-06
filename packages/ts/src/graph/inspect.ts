@@ -26,6 +26,68 @@ export interface ObserveStream {
 	subscribe(sink: (e: ObserveEvent) => void): () => void;
 }
 
+/** Predicate used by filterObserve(). */
+export type ObservePredicate = (event: ObserveEvent) => boolean;
+
+/** Equality used by coalesceObserve() for adjacent observe-event suppression. */
+export type ObserveEventEquals = (prev: ObserveEvent, next: ObserveEvent) => boolean;
+
+/**
+ * Filter a read-only observe egress stream without turning it into a graph node.
+ *
+ * The source stream owns ordering and lifecycle; this helper only decides whether to forward each
+ * ObserveEvent and returns the source unsubscribe unchanged.
+ */
+export function filterObserve(stream: ObserveStream, predicate: ObservePredicate): ObserveStream {
+	return {
+		subscribe(sink) {
+			return stream.subscribe((event) => {
+				if (predicate(event)) {
+					sink(event);
+				}
+			});
+		},
+	};
+}
+
+function sameObserveEvent(prev: ObserveEvent, next: ObserveEvent): boolean {
+	return (
+		prev.path === next.path &&
+		prev.tier === next.tier &&
+		prev.msg[0] === next.msg[0] &&
+		Object.is(messagePayload(prev.msg), messagePayload(next.msg))
+	);
+}
+
+function messagePayload(msg: Message): unknown {
+	return msg.length > 1 ? msg[1] : undefined;
+}
+
+/**
+ * Suppress adjacent duplicate ObserveEvents while preserving the source stream order.
+ *
+ * This is egress-side coalescing only: it does not batch, delay, reorder, alter seq values, or add
+ * topology to describe(). Pass a custom equality when the caller wants a narrower or wider
+ * definition of "duplicate".
+ */
+export function coalesceObserve(
+	stream: ObserveStream,
+	equals: ObserveEventEquals = sameObserveEvent,
+): ObserveStream {
+	return {
+		subscribe(sink) {
+			let previous: ObserveEvent | undefined;
+			return stream.subscribe((event) => {
+				if (previous && equals(previous, event)) {
+					return;
+				}
+				previous = event;
+				sink(event);
+			});
+		},
+	};
+}
+
 /** Per-node profile counters (D39). invokes/duration are dispatcher-backed (R-profile). */
 export interface NodeProfile {
 	invokes: number;

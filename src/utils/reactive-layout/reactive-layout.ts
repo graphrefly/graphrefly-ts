@@ -190,14 +190,6 @@ export type ReactiveLayoutBundle = {
 	charPositions: Node<CharPosition[]>;
 };
 
-function monotonicNs(): number {
-	const perf = globalThis.performance;
-	if (perf !== undefined && typeof perf.now === "function") {
-		return Math.trunc(perf.now() * 1_000_000);
-	}
-	return Date.now() * 1_000_000;
-}
-
 // ---------------------------------------------------------------------------
 // Text analysis (ported from Pretext analysis.ts — core subset)
 // ---------------------------------------------------------------------------
@@ -1271,48 +1263,30 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		name: "max-width",
 	});
 
-	const segmentsMeta = {
-		"cache-hit-rate": 0,
-		"segment-count": 0,
-		"layout-time-ns": 0,
-	};
-
 	const segmentsNode: Node<PreparedSegment[]> = g.node<PreparedSegment[]>(
 		[textNode, fontNode],
 		(ctx) => {
-			const textVal = depLatest(ctx, 0) as string;
-			const fontVal = depLatest(ctx, 1) as string;
-			const t0 = monotonicNs();
-			const measureStats: SegmentMeasureStats = { hits: 0, misses: 0 };
-			const result = analyzeAndMeasure(
-				textVal,
-				fontVal,
-				adapter,
-				measureCache,
-				measureStats,
-				segmentAdapter,
-			);
-			const elapsed = monotonicNs() - t0;
-
-			const lookups = measureStats.hits + measureStats.misses;
-			const hitRate = lookups === 0 ? 1 : measureStats.hits / lookups;
-
-			segmentsMeta["cache-hit-rate"] = hitRate;
-			segmentsMeta["segment-count"] = result.length;
-			segmentsMeta["layout-time-ns"] = elapsed;
-
-			ctx.down([["DATA", result]]);
-
 			const flush = (): void => {
 				measureCache.clear();
 				adapter.clearCache?.();
 			};
 			ctx.onDeactivation(flush);
 			ctx.onInvalidate(flush);
+
+			const textVal = depLatest(ctx, 0) as string;
+			const fontVal = depLatest(ctx, 1) as string;
+			const result = analyzeAndMeasure(
+				textVal,
+				fontVal,
+				adapter,
+				measureCache,
+				undefined,
+				segmentAdapter,
+			);
+			ctx.down([["DATA", result]]);
 		},
 		{
 			name: "segments",
-			meta: segmentsMeta,
 		},
 	);
 
@@ -1323,14 +1297,14 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 			ctx.down([
 				[
 					"DATA",
-				computeLineBreaks(
+					computeLineBreaks(
 						depLatest(ctx, 0) as PreparedSegment[],
 						depLatest(ctx, 1) as number,
-					adapter,
+						adapter,
 						depLatest(ctx, 2) as string,
-					measureCache,
-					segmentAdapter,
-				),
+						measureCache,
+						segmentAdapter,
+					),
 				],
 			]);
 		},
@@ -1344,10 +1318,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		[lineBreaksNode, lineHeightNode],
 		(ctx) => {
 			ctx.down([
-				[
-					"DATA",
-					(depLatest(ctx, 0) as LineBreaksResult).lineCount * (depLatest(ctx, 1) as number),
-				],
+				["DATA", (depLatest(ctx, 0) as LineBreaksResult).lineCount * (depLatest(ctx, 1) as number)],
 			]);
 		},
 		{ name: "height" },

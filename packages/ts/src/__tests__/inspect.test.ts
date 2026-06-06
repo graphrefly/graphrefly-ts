@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ObserveEvent } from "../index.js";
-import { Dispatcher, graph } from "../index.js";
+import type { ObserveEvent, ObserveStream } from "../index.js";
+import { coalesceObserve, Dispatcher, filterObserve, graph } from "../index.js";
 
 describe("observe — read-only enveloped egress (R-observe / D39)", () => {
 	it("streams ObserveEvents with path/msg/tier/seq; cached node pushes on subscribe", () => {
@@ -41,6 +41,75 @@ describe("observe — read-only enveloped egress (R-observe / D39)", () => {
 				.nodes.map((n) => n.id)
 				.sort(),
 		).toEqual(["a", "b"]);
+	});
+});
+
+describe("observe helpers — read-only egress sugar (R-observe / D39)", () => {
+	function observeFrom(events: readonly ObserveEvent[], onUnsubscribe?: () => void): ObserveStream {
+		return {
+			subscribe(sink) {
+				for (const event of events) {
+					sink(event);
+				}
+				return () => onUnsubscribe?.();
+			},
+		};
+	}
+
+	it("filterObserve forwards matching events and preserves source unsubscribe", () => {
+		const events: ObserveEvent[] = [
+			{ path: "a", msg: ["DIRTY"], tier: 2, seq: 1 },
+			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 2 },
+			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 3 },
+			{ path: "a", msg: ["DATA", 3], tier: 3, seq: 4 },
+		];
+		let unsubscribes = 0;
+		const seen: ObserveEvent[] = [];
+
+		const stop = filterObserve(
+			observeFrom(events, () => {
+				unsubscribes += 1;
+			}),
+			(event) => event.path === "a" && event.msg[0] === "DATA",
+		).subscribe((event) => seen.push(event));
+
+		expect(seen.map((event) => event.seq)).toEqual([2, 4]);
+		stop();
+		expect(unsubscribes).toBe(1);
+	});
+
+	it("coalesceObserve suppresses adjacent duplicates without reordering retained seq values", () => {
+		const events: ObserveEvent[] = [
+			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 1 },
+			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 2 },
+			{ path: "a", msg: ["DATA", 2], tier: 3, seq: 3 },
+			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 4 },
+			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 5 },
+			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 6 },
+			{ path: "a", msg: ["DIRTY"], tier: 2, seq: 7 },
+			{ path: "a", msg: ["DIRTY"], tier: 2, seq: 8 },
+		];
+		const seen: ObserveEvent[] = [];
+
+		coalesceObserve(observeFrom(events)).subscribe((event) => seen.push(event));
+
+		expect(seen.map((event) => event.seq)).toEqual([1, 3, 4, 6, 7]);
+		expect(seen.map((event) => event.msg[0])).toEqual(["DATA", "DATA", "DATA", "DATA", "DIRTY"]);
+	});
+
+	it("coalesceObserve accepts a caller-owned equality for narrower egress coalescing", () => {
+		const events: ObserveEvent[] = [
+			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 1 },
+			{ path: "a", msg: ["DATA", 2], tier: 3, seq: 2 },
+			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 3 },
+		];
+		const seen: ObserveEvent[] = [];
+
+		coalesceObserve(observeFrom(events), (prev, next) => prev.path === next.path).subscribe(
+			(event) => seen.push(event),
+		);
+
+		expect(seen.map((event) => event.seq)).toEqual([1, 3]);
 	});
 });
 

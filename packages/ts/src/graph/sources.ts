@@ -59,7 +59,8 @@ function source<T>(
 				deactivated = true;
 				if (typeof cleanup === "function") cleanup();
 			});
-			cleanup = setup(ctx);
+			const maybeCleanup = setup(ctx);
+			cleanup = typeof maybeCleanup === "function" ? maybeCleanup : undefined;
 			if (deactivated && typeof cleanup === "function") cleanup();
 		},
 	};

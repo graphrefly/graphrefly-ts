@@ -95,7 +95,6 @@ describe("CliMeasureAdapter", () => {
 		expect(lb).not.toBeNull();
 		expect(lb!.lineCount).toBe(2);
 		unsub();
-		bundle.graph.destroy();
 	});
 });
 
@@ -401,7 +400,6 @@ describe("InjectedMeasureAdapter", () => {
 		expect(bundle.lineBreaks.cache).not.toBeNull();
 		expect(bundle.lineBreaks.cache!.lineCount).toBe(2);
 		unsub();
-		bundle.graph.destroy();
 	});
 
 	it("rejects a non-function measure fn", () => {
@@ -566,7 +564,6 @@ describe("Host-injected SegmentAdapter end-to-end", () => {
 		expect(bundle.segments.cache).not.toBeNull();
 		expect((bundle.segments.cache as { text: string }[]).length).toBeGreaterThan(0);
 		unsub();
-		bundle.graph.destroy();
 	});
 
 	it("reactiveLayout still works on Hermes-shape runtime when segmentAdapter is supplied (Intl.Segmenter stubbed undefined)", () => {
@@ -590,7 +587,6 @@ describe("Host-injected SegmentAdapter end-to-end", () => {
 			expect(fake.sawWord).toBeGreaterThan(0);
 			expect(bundle.segments.cache).not.toBeNull();
 			unsub();
-			bundle.graph.destroy();
 		} finally {
 			(Intl as unknown as { Segmenter: unknown }).Segmenter = orig;
 			_resetDefaultSegmentAdapterForTests();
