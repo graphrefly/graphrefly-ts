@@ -2,15 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../index.js";
 import {
 	empty,
+	firstValueFrom,
 	fromAny,
 	fromAsyncIter,
+	fromEvent,
 	fromIter,
 	fromPromise,
+	fromPushNotification,
 	fromTimer,
 	graph,
 	interval,
 	never,
 	of,
+	singleFromAny,
 	throwError,
 	timer,
 } from "../index.js";
@@ -19,6 +23,27 @@ const data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
+
+class FakeEventTarget {
+	readonly calls: Array<readonly ["add" | "remove", string, unknown]> = [];
+	private readonly listeners = new Map<string, Set<(event: unknown) => void>>();
+
+	addEventListener(type: string, listener: (event: unknown) => void, options?: unknown): void {
+		this.calls.push(["add", type, options]);
+		const listeners = this.listeners.get(type) ?? new Set<(event: unknown) => void>();
+		listeners.add(listener);
+		this.listeners.set(type, listeners);
+	}
+
+	removeEventListener(type: string, listener: (event: unknown) => void, options?: unknown): void {
+		this.calls.push(["remove", type, options]);
+		this.listeners.get(type)?.delete(listener);
+	}
+
+	emit(type: string, event: unknown): void {
+		for (const listener of this.listeners.get(type) ?? []) listener(event);
+	}
+}
 
 // D43/D40: async sources are binding-layer producer sugar — depless Operator specs run once on
 // activation, schedule their work, and emit later via the captured ctx.down (R-no-raw-async:
@@ -386,5 +411,163 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const snap = g.describe();
 		const byId = Object.fromEntries(snap.nodes.map((n) => [n.id, n]));
 		expect(byId.clock.factory).toBe("timer");
+	});
+
+	it("firstValueFrom resolves first DATA and unsubscribes safely from sync push", async () => {
+		const g = graph();
+		const n = g.state(42);
+
+		await expect(firstValueFrom(n)).resolves.toBe(42);
+	});
+
+	it("firstValueFrom rejects on ERROR or COMPLETE before DATA", async () => {
+		await expect(firstValueFrom(fromAny(undefined))).rejects.toThrow(/SENTINEL|valid value/);
+		await expect(firstValueFrom(fromAny([], { iter: true }))).rejects.toThrow(/without DATA/);
+	});
+
+	it("singleFromAny dedupes concurrent calls and clears the entry after settle", async () => {
+		let calls = 0;
+		let resolve!: (value: string) => void;
+		const fn = singleFromAny<string, string>((key) => {
+			calls += 1;
+			return new Promise<string>((r) => {
+				resolve = r;
+			}).then((value) => `${key}:${value}`);
+		});
+
+		const a = fn("x");
+		const b = fn("x");
+		expect(calls).toBe(1);
+
+		resolve("ok");
+		await expect(Promise.all([a, b])).resolves.toEqual(["x:ok", "x:ok"]);
+
+		let callsAfter = 0;
+		const sync = singleFromAny<string, number>((key) => {
+			callsAfter += 1;
+			return Number(key);
+		});
+		await sync("2");
+		await sync("2");
+		expect(callsAfter).toBe(2);
+	});
+
+	it("singleFromAny uses identity keys by default and keyOf for structural dedupe", async () => {
+		let identityCalls = 0;
+		const identity = singleFromAny<{ id: number }, string>((key) => {
+			identityCalls += 1;
+			return `id:${key.id}`;
+		});
+		const shared = { id: 1 };
+		await Promise.all([identity(shared), identity(shared)]);
+		await Promise.all([identity({ id: 1 }), identity({ id: 1 })]);
+		expect(identityCalls).toBe(3);
+
+		let structuralCalls = 0;
+		const structural = singleFromAny<{ id: number }, string>(
+			(key) => {
+				structuralCalls += 1;
+				return `id:${key.id}`;
+			},
+			{ keyOf: (key) => key.id },
+		);
+		await Promise.all([structural({ id: 1 }), structural({ id: 1 })]);
+		expect(structuralCalls).toBe(1);
+	});
+
+	it("singleFromAny bridges Nodes, errors, and empty sources through firstValueFrom", async () => {
+		const g = graph();
+		const state = g.state(5);
+		const errorNode = g.initNode(throwError(new Error("boom")), []);
+		const emptyNode = g.initNode(empty<number>(), []);
+
+		await expect(singleFromAny<string, number>(() => state)("node")).resolves.toBe(5);
+		await expect(singleFromAny<string, number>(() => errorNode)("err")).rejects.toThrow("boom");
+		await expect(singleFromAny<string, number>(() => emptyNode)("empty")).rejects.toThrow(
+			/without DATA/,
+		);
+	});
+
+	it("singleFromAny treats sync iterables as scalar by default and first-value streams with iter:true", async () => {
+		const scalar = singleFromAny<string, number[]>(() => [1, 2, 3]);
+		await expect(scalar("a")).resolves.toEqual([1, 2, 3]);
+
+		const first = singleFromAny<string, number>(() => [1, 2, 3], { iter: true });
+		await expect(first("a")).resolves.toBe(1);
+	});
+
+	it("singleFromAny closes async iterables after the first value", async () => {
+		let closed = false;
+		async function* gen() {
+			try {
+				yield 1;
+				yield 2;
+			} finally {
+				closed = true;
+			}
+		}
+		const fn = singleFromAny<string, number>(() => gen());
+
+		await expect(fn("iter")).resolves.toBe(1);
+		expect(closed).toBe(true);
+	});
+});
+
+describe("external callback sources (D43)", () => {
+	it("fromEvent turns listener callbacks into DATA and removes the listener on deactivation", () => {
+		const target = new FakeEventTarget();
+		const opts = { capture: true, passive: true };
+		const g = graph();
+		const n = g.initNode(fromEvent<{ x: number }>(target, "message", opts), [], {
+			name: "events",
+		});
+		const msgs: Message[] = [];
+		const unsubscribe = n.subscribe((x) => msgs.push(x));
+
+		target.emit("message", { x: 1 });
+		target.emit("other", { x: 2 });
+		unsubscribe();
+		target.emit("message", { x: 3 });
+
+		expect(data(msgs)).toEqual([{ x: 1 }]);
+		expect(target.calls).toEqual([
+			["add", "message", opts],
+			["remove", "message", opts],
+		]);
+		expect(g.describe().nodes.find((node) => node.id === "events")?.factory).toBe("fromEvent");
+	});
+
+	it("fromPushNotification delivers host pushes and calls the returned unsubscribe", () => {
+		let deliver!: (payload: string) => void;
+		let unsubscribed = false;
+		const g = graph();
+		const n = g.initNode(
+			fromPushNotification<string>((next) => {
+				deliver = next;
+				return () => {
+					unsubscribed = true;
+				};
+			}),
+			[],
+			{ name: "pushes" },
+		);
+		const msgs: Message[] = [];
+		const unsubscribe = n.subscribe((x) => msgs.push(x));
+
+		deliver("a");
+		unsubscribe();
+		deliver("b");
+
+		expect(data(msgs)).toEqual(["a"]);
+		expect(unsubscribed).toBe(true);
+		expect(g.describe().nodes.find((node) => node.id === "pushes")?.factory).toBe(
+			"fromPushNotification",
+		);
+	});
+
+	it("fromEvent and fromPushNotification validate their host boundary inputs", () => {
+		expect(() => fromEvent({} as never, "message")).toThrow(TypeError);
+		expect(() => fromEvent(new FakeEventTarget(), "")).toThrow(TypeError);
+		expect(() => fromPushNotification(0 as never)).toThrow(TypeError);
 	});
 });

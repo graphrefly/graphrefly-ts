@@ -26,6 +26,18 @@ import { initNode, type Operator } from "./operators.js";
  */
 export type NodeInput<T> = Node<T> | PromiseLike<T> | AsyncIterable<T> | Iterable<T> | T;
 
+/** Host-boundary options for {@link singleFromAny}. */
+export interface SingleFromAnyOptions<K> {
+	/**
+	 * Map a caller key to the in-flight dedupe key. Defaults to key identity; object keys dedupe only
+	 * when the same object reference is reused. Return a stable string/canonical value for structural
+	 * object-key dedupe.
+	 */
+	keyOf?: (key: K) => unknown;
+	/** Treat a sync iterable result as a stream and take its first item. Defaults to scalar value. */
+	iter?: boolean;
+}
+
 /**
  * Internal: build a depless source spec. `setup` runs once on activation; its returned fn (if
  * any) is registered as the deactivation cleanup (clear timers / abort). `setup` schedules the
@@ -41,8 +53,14 @@ function source<T>(
 		factory,
 		opts,
 		body: (ctx) => {
-			const cleanup = setup(ctx);
-			if (typeof cleanup === "function") ctx.onDeactivation(cleanup);
+			let cleanup: undefined | (() => void);
+			let deactivated = false;
+			ctx.onDeactivation(() => {
+				deactivated = true;
+				if (typeof cleanup === "function") cleanup();
+			});
+			cleanup = setup(ctx);
+			if (deactivated && typeof cleanup === "function") cleanup();
 		},
 	};
 }
@@ -60,6 +78,22 @@ function isThenable(x: unknown): x is PromiseLike<unknown> {
 	return x != null && typeof (x as PromiseLike<unknown>).then === "function";
 }
 
+function isAsyncIterable<T>(x: unknown): x is AsyncIterable<T> {
+	return (
+		x !== null &&
+		x !== undefined &&
+		typeof (x as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === "function"
+	);
+}
+
+function isIterable<T>(x: unknown): x is Iterable<T> {
+	return (
+		x !== null &&
+		x !== undefined &&
+		typeof (x as { [Symbol.iterator]?: unknown })[Symbol.iterator] === "function"
+	);
+}
+
 /** Options shared by async/timer sources: an optional AbortSignal → ERROR on abort. */
 export interface AsyncSourceOpts {
 	signal?: AbortSignal;
@@ -68,6 +102,32 @@ export interface AsyncSourceOpts {
 export interface TimerSourceOpts extends AsyncSourceOpts {
 	period?: number;
 }
+
+/** DOM/EventEmitter-style target accepted by {@link fromEvent}. */
+export interface EventTargetLike {
+	addEventListener(
+		type: string,
+		listener: (event: unknown) => void,
+		options?: EventListenerOptionsLike,
+	): void;
+	removeEventListener(
+		type: string,
+		listener: (event: unknown) => void,
+		options?: EventListenerOptionsLike,
+	): void;
+}
+
+export interface EventListenerOptionsLike {
+	capture?: boolean;
+	passive?: boolean;
+	once?: boolean;
+}
+
+export type FromEventOptions = EventListenerOptionsLike;
+
+/** Host push registration callback accepted by {@link fromPushNotification}. */
+export type PushUnsubscribe = () => void;
+export type PushRegister<T> = (deliver: (payload: T) => void) => PushUnsubscribe | undefined;
 
 function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Operator<never, number> {
 	const { period, signal } = opts ?? {};
@@ -280,6 +340,66 @@ export function throwError(err: unknown): Operator<never, never> {
 }
 
 /**
+ * Wrap a DOM-style event target. Each event becomes DATA; deactivation removes the listener.
+ * External callbacks are source boundaries (D43), so no polling or operator-level async leaks in.
+ */
+export function fromEvent<T = unknown>(
+	target: EventTargetLike,
+	type: string,
+	opts: FromEventOptions = {},
+): Operator<never, T> {
+	if (target == null || typeof target.addEventListener !== "function") {
+		throw new TypeError("fromEvent: target must implement addEventListener");
+	}
+	if (typeof target.removeEventListener !== "function") {
+		throw new TypeError("fromEvent: target must implement removeEventListener");
+	}
+	if (typeof type !== "string" || type.length === 0) {
+		throw new TypeError("fromEvent: event type must be a non-empty string");
+	}
+	return source<T>(
+		"fromEvent",
+		(ctx) => {
+			let done = false;
+			const handler = (event: unknown) => {
+				if (!done) ctx.down([["DATA", event as T]]);
+			};
+			target.addEventListener(type, handler, opts);
+			return () => {
+				done = true;
+				target.removeEventListener(type, handler, opts);
+			};
+		},
+		{ pool: "sync" },
+	);
+}
+
+/**
+ * Wrap a host push transport. The host owns network/native setup; this factory owns reactive
+ * delivery and teardown only, preserving async-at-source-boundary discipline.
+ */
+export function fromPushNotification<T = unknown>(register: PushRegister<T>): Operator<never, T> {
+	if (typeof register !== "function") {
+		throw new TypeError("fromPushNotification: register must be a function");
+	}
+	return source<T>(
+		"fromPushNotification",
+		(ctx) => {
+			let done = false;
+			const deliver = (payload: T) => {
+				if (!done) ctx.down([["DATA", payload]]);
+			};
+			const unsubscribe = register(deliver);
+			return () => {
+				done = true;
+				if (typeof unsubscribe === "function") unsubscribe();
+			};
+		},
+		{ pool: "sync" },
+	);
+}
+
+/**
  * Coerce a {@link NodeInput}`<T>` to a `Node<T>` (D43 — coercion prerequisite for the CSP-2.7
  * higher-order operators). An existing Node passes through; a thenable → {@link fromPromise};
  * an async iterable → {@link fromAsyncIter}; with `{iter:true}` a sync iterable →
@@ -308,4 +428,119 @@ export function fromAny<T>(
 		}
 	}
 	return initNode(of(input as T), [], nodeOpts);
+}
+
+/**
+ * Resolve the first DATA from a Node as a Promise. This is a host-boundary escape hatch, not a
+ * graph operator; do not call it from reactive node bodies. ERROR rejects, and COMPLETE before DATA
+ * rejects because no value exists.
+ */
+export function firstValueFrom<T>(source: Node<T>): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		let settled = false;
+		let shouldUnsub = false;
+		let unsub: (() => void) | undefined;
+		const finish = (f: () => void): void => {
+			if (settled) return;
+			settled = true;
+			f();
+			if (unsub) {
+				unsub();
+				unsub = undefined;
+			} else {
+				shouldUnsub = true;
+			}
+		};
+		unsub = source.subscribe((msg) => {
+			if (msg[0] === "DATA") {
+				finish(() => resolve(msg[1] as T));
+			} else if (msg[0] === "ERROR") {
+				finish(() => reject(msg[1]));
+			} else if (msg[0] === "COMPLETE") {
+				finish(() => reject(new Error("firstValueFrom: completed without DATA")));
+			} else if (msg[0] === "TEARDOWN") {
+				finish(() => reject(new Error("firstValueFrom: torn down without DATA")));
+			}
+		});
+		if (shouldUnsub) {
+			unsub?.();
+			unsub = undefined;
+		}
+	});
+}
+
+async function firstFromAsyncIterable<T>(input: AsyncIterable<T>): Promise<T> {
+	const iter = input[Symbol.asyncIterator]();
+	try {
+		const { value, done } = await iter.next();
+		if (done) throw new Error("singleFromAny: factory returned empty async iterable");
+		return value as T;
+	} finally {
+		await iter.return?.();
+	}
+}
+
+function firstFromIterable<T>(input: Iterable<T>): Promise<T> {
+	const iter = input[Symbol.iterator]();
+	try {
+		const { value, done } = iter.next();
+		if (done) return Promise.reject(new Error("singleFromAny: factory returned empty iterable"));
+		return Promise.resolve(value as T);
+	} finally {
+		iter.return?.();
+	}
+}
+
+function nodeInputToPromise<T>(input: NodeInput<T>, opts: { iter?: boolean }): Promise<T> {
+	if (isThenable(input)) return Promise.resolve(input as PromiseLike<T>);
+	if (isNode(input)) return firstValueFrom(input as Node<T>);
+	if (isAsyncIterable<T>(input)) return firstFromAsyncIterable(input);
+	if (opts.iter === true && isIterable<T>(input)) return firstFromIterable(input);
+	if (input === undefined) {
+		return Promise.reject(new TypeError("singleFromAny: undefined is the substrate SENTINEL"));
+	}
+	return Promise.resolve(input as T);
+}
+
+/**
+ * Keyed singleflight over {@link NodeInput}. Concurrent calls with the same key share one Promise;
+ * once that input resolves/rejects, the in-flight entry is cleared and a later call re-runs the
+ * factory. Host-boundary helper only; it does not create graph topology.
+ */
+export function singleFromAny<K, T>(
+	factory: (key: K) => NodeInput<T>,
+	opts: SingleFromAnyOptions<K> = {},
+): (key: K) => Promise<T> {
+	const keyOf = opts.keyOf ?? ((key: K): unknown => key);
+	const inFlight = new Map<unknown, Promise<T>>();
+
+	return (key: K): Promise<T> => {
+		const dedupeKey = keyOf(key);
+		const existing = inFlight.get(dedupeKey);
+		if (existing) return existing;
+
+		let rawPromise: Promise<T>;
+		try {
+			rawPromise = nodeInputToPromise(factory(key), opts);
+		} catch (e) {
+			rawPromise = Promise.reject(e);
+		}
+
+		let tracked!: Promise<T>;
+		const cleanup = (): void => {
+			if (inFlight.get(dedupeKey) === tracked) inFlight.delete(dedupeKey);
+		};
+		tracked = rawPromise.then(
+			(value) => {
+				cleanup();
+				return value;
+			},
+			(error) => {
+				cleanup();
+				throw error;
+			},
+		);
+		inFlight.set(dedupeKey, tracked);
+		return tracked;
+	};
 }

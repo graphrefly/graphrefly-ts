@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { depLatest } from "../ctx/types.js";
-import type { GraphRestoreDescriptor, Message, RestoreGraphOptions } from "../index.js";
+import type { Ctx, GraphRestoreDescriptor, Message, RestoreGraphOptions } from "../index.js";
 import {
 	Dispatcher,
 	defaultRestoreRegistry,
@@ -420,10 +420,10 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		const restoredMemo = restored.find("memo");
 		expect(restoredMemo?.cache).toEqual({ runs: 1 });
 		const msgs = collect(restoredMemo as { subscribe(s: (m: Message) => void): () => void });
-		expect(msgs.filter((m) => m[0] === "DATA").map((m) => m[1])).toEqual([
-			{ runs: 1 },
-			{ runs: 2 },
-		]);
+		expect(msgs.filter((m) => m[0] === "DATA").map((m) => m[1])).toEqual([{ runs: 1 }]);
+		expect(restoredMemo?.cache).toEqual({ runs: 1 });
+		(restored.find("src") as { set(v: number): void }).set(2);
+		expect(restoredMemo?.cache).toEqual({ runs: 2 });
 	});
 
 	it("restores a named function map using D101 define checkpoints", () => {
@@ -448,6 +448,162 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		collect(restored.find("mapped") as { subscribe(s: (m: Message) => void): () => void });
 		(restored.find("src") as { set(v: number): void }).set(2);
 		expect(restored.find("mapped")?.cache).toBe(12);
+	});
+
+	it("seeds a restored terminal dep without reopening or throwing from that dep", () => {
+		const original = graph();
+		const src = original.state(1, { name: "src" });
+		const memo = original.node([src], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+			name: "memo",
+			restore: { ref: "memo" },
+			completeWhenDepsComplete: false,
+		});
+		collect(memo);
+		src.down([["COMPLETE"]]);
+		expect(memo.cache).toBe(1);
+
+		const memoDescriptor: GraphRestoreDescriptor = {
+			ref: "memo",
+			create(ctx) {
+				return ctx.registerNode(
+					"memo",
+					ctx.deps,
+					(runCtx) => runCtx.down([["DATA", depLatest(runCtx, 0) as number]]),
+					{
+						name: ctx.name,
+						completeWhenDepsComplete: false,
+					},
+				);
+			},
+		};
+
+		const restored = restoreGraph(original.checkpoint(), {
+			registry: { ...defaultRestoreRegistry, memo: memoDescriptor },
+		});
+		const msgs = collect(
+			restored.find("memo") as { subscribe(s: (m: Message) => void): () => void },
+		);
+
+		expect(types(msgs)).toEqual(["START", "DATA"]);
+		expect(restored.find("memo")?.cache).toBe(1);
+	});
+
+	it("does not seed restored pull dep cache as if it crossed the edge", () => {
+		const pullId = Symbol("restore-pull");
+		const original = graph();
+		original.state(5, { name: "pull", pullId, restore: { ref: "pullState" } });
+		original.node([], null, { name: "trigger", restore: { ref: "cold" } });
+		original.node(
+			[original.find("pull") as never, original.find("trigger") as never],
+			(ctx) => {
+				ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
+			},
+			{ name: "joined", restore: { ref: "join" } },
+		);
+
+		const pullDescriptor: GraphRestoreDescriptor = {
+			ref: "pullState",
+			create(ctx) {
+				return ctx.registerState({ name: ctx.name, pullId });
+			},
+		};
+		const coldDescriptor: GraphRestoreDescriptor = {
+			ref: "cold",
+			create(ctx) {
+				return ctx.registerNode("cold", [], null, { name: ctx.name });
+			},
+		};
+		const joinDescriptor: GraphRestoreDescriptor = {
+			ref: "join",
+			create(ctx) {
+				return ctx.registerNode("join", ctx.deps, (runCtx) => {
+					runCtx.down([
+						["DATA", (depLatest(runCtx, 0) as number) + (depLatest(runCtx, 1) as number)],
+					]);
+				});
+			},
+		};
+
+		const restored = restoreGraph(original.checkpoint(), {
+			registry: {
+				...defaultRestoreRegistry,
+				pullState: pullDescriptor,
+				cold: coldDescriptor,
+				join: joinDescriptor,
+			},
+		});
+		const joined = restored.find("joined");
+		const msgs = collect(joined as { subscribe(s: (m: Message) => void): () => void });
+		expect(types(msgs)).toEqual(["START"]);
+
+		(restored.find("trigger") as { down(msgs: Message[]): void }).down([["DATA", 7]]);
+		expect(joined?.cache).toBeUndefined();
+	});
+
+	it("lets a restored SENTINEL dep's first activation emit a real post-commit wave", () => {
+		const original = graph();
+		original.node([], (ctx) => ctx.down([["DATA", 1]]), {
+			name: "src",
+			restore: { ref: "coldSource" },
+		});
+		original.node(
+			[original.find("src") as never],
+			(ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]),
+			{ name: "mapped", restore: { ref: "mapped" } },
+		);
+
+		const coldSource: GraphRestoreDescriptor = {
+			ref: "coldSource",
+			create(ctx) {
+				return ctx.registerNode("coldSource", [], (runCtx) => runCtx.down([["DATA", 1]]), {
+					name: ctx.name,
+				});
+			},
+		};
+		const mappedDescriptor: GraphRestoreDescriptor = {
+			ref: "mapped",
+			create(ctx) {
+				return ctx.registerNode("mapped", ctx.deps, (runCtx) => {
+					runCtx.down([["DATA", (depLatest(runCtx, 0) as number) + 1]]);
+				});
+			},
+		};
+
+		const restored = restoreGraph(original.checkpoint(), {
+			registry: { ...defaultRestoreRegistry, coldSource, mapped: mappedDescriptor },
+		});
+		const msgs = collect(
+			restored.find("mapped") as { subscribe(s: (m: Message) => void): () => void },
+		);
+
+		expect(types(msgs)).toEqual(["START", "DATA"]);
+		expect(restored.find("mapped")?.cache).toBe(2);
+	});
+
+	it("treats deps added by post-restore pre-activation rewire as fresh deps", () => {
+		const original = graph();
+		const src = original.state(1, { name: "src" });
+		const inc = define<number, number>("restore-rewire.inc", (n) => n + 1);
+		const mapped = original.initNode(map(inc), [src], { name: "mapped" });
+		collect(mapped);
+		expect(mapped.cache).toBe(2);
+
+		const restored = restoreGraph(original.checkpoint(), {
+			registry: restoreRegistry([inc], defaultRestoreRegistry),
+		});
+		const src2 = restored.state(10, { name: "src2" });
+		const restoredMapped = restored.find("mapped") as {
+			replaceDeps(deps: unknown[], fn: (ctx: Ctx) => void): void;
+			subscribe(s: (m: Message) => void): () => void;
+		};
+		restoredMapped.replaceDeps([src2], (ctx) => {
+			ctx.down([["DATA", 11]]);
+		});
+		const msgs = collect(restoredMapped);
+
+		expect(types(msgs)).toEqual(["START", "DATA", "DATA"]);
+		expect(msgs.filter((m) => m[0] === "DATA").map((m) => m[1])).toEqual([2, 11]);
+		expect(restored.find("mapped")?.cache).toBe(11);
 	});
 
 	it("rejects duplicate definition refs in restore registry (D101)", () => {
@@ -532,7 +688,8 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 	it("restores built-in take and timer from checkpoint descriptors", () => {
 		const restorable = graph();
 		const src = restorable.state(1, { name: "src" });
-		restorable.initNode(take<number>(1), [src], { name: "limited" });
+		const limited = restorable.initNode(take<number>(2), [src], { name: "limited" });
+		collect(limited);
 		restorable.initNode(timer(7), [], { name: "once" });
 		restorable.initNode(timer(8, {}), [], { name: "onceDefaultOpts" });
 		const checkpoint = restorable.checkpoint();
@@ -540,7 +697,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		expect(checkpoint.nodes.find((n) => n.id === "limited")?.factory).toEqual({
 			kind: "registry-ref",
 			ref: "take",
-			config: { n: 1 },
+			config: { n: 2 },
 		});
 		expect(checkpoint.nodes.find((n) => n.id === "once")?.factory).toEqual({
 			kind: "registry-ref",
@@ -563,7 +720,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		expect(restoredOnce).toBeDefined();
 		expect(restoredLimited?.cache).toBe(1);
 		restoredSrc.set(2);
-		expect(restoredLimited?.cache).toBe(1);
+		expect(restoredLimited?.cache).toBe(2);
 	});
 
 	it("uses restoreGraph dispatcher option for the fresh restored graph (D100)", () => {

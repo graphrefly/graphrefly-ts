@@ -12,6 +12,8 @@ import { describe, expect, it } from "vitest";
 import type { Ctx, Message, NodeFn } from "../index.js";
 import {
 	batch,
+	defaultRestoreRegistry,
+	define,
 	depBatch,
 	depCount,
 	depLatest,
@@ -24,8 +26,11 @@ import {
 	graph,
 	isTerminalComplete,
 	isTerminalError,
+	map,
 	type Node,
 	node,
+	restoreGraph,
+	restoreRegistry,
 	take,
 } from "../index.js";
 
@@ -1303,6 +1308,53 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 
 		expect(idx).toBe(1);
 		expect(d.deps).toEqual([a, b]);
+	});
+});
+
+// C-24 (R-snapshot/R-restore, D83/D117): restore is state-preserving. A restored dep-bearing
+// node's first post-restore activation wires deps, but the restored deps' push-on-subscribe DATA
+// is only bookkeeping seed data; it must not recompute over or clear the restored cache.
+describe("C-24 snapshot restore preserves graph state and rejects local-only factories (R-restore / D117)", () => {
+	it("late subscriber observes restored derived cache; dep activation does not recompute", () => {
+		const original = graph();
+		const src = original.state(1, { name: "src" });
+		const inc = define<number, number>("c24.inc", (n) => n + 1);
+		const mapped = original.initNode(map(inc), [src], { name: "mapped" });
+		collect(mapped);
+		expect(mapped.cache).toBe(2);
+
+		const reloadedInc = define<number, number>("c24.inc", (n) => n + 100);
+		const restored = restoreGraph(original.checkpoint(), {
+			registry: restoreRegistry([reloadedInc], defaultRestoreRegistry),
+		});
+		const restoredMapped = restored.find("mapped") as Node<number>;
+		const restoredSrc = restored.find("src") as { set(v: number): void };
+		const { msgs } = collect(restoredMapped);
+
+		expect(types(msgs)).toEqual(["START", "DATA"]);
+		expect(data(msgs)).toEqual([2]);
+		expect(restoredMapped.cache).toBe(2);
+		expect(restored.describe().edges).toContainEqual({ from: "src", to: "mapped" });
+
+		msgs.length = 0;
+		restoredSrc.set(2);
+		expect(data(msgs)).toEqual([102]);
+		expect(restoredMapped.cache).toBe(102);
+	});
+
+	it("fails honestly for local-only and missing registry factories", () => {
+		const localOnly = graph();
+		const src = localOnly.state(1, { name: "src" });
+		localOnly.derived([src], (n) => n, { name: "derived" });
+		expect(() =>
+			restoreGraph(localOnly.checkpoint(), { registry: defaultRestoreRegistry }),
+		).toThrow(/local-only/);
+
+		const missing = graph();
+		missing.state(1, { name: "src" });
+		expect(() => restoreGraph(missing.checkpoint(), { registry: {} })).toThrow(
+			/missing registry descriptor/,
+		);
 	});
 });
 

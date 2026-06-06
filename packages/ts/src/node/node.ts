@@ -243,6 +243,7 @@ export class Node<T = unknown> {
 	private readonly _hooks: CleanupHooks;
 	private readonly _syncCtxState: SyncCtxState;
 	private readonly _version: VersionState;
+	private _restoredActivationPending = false;
 
 	private get _syncCtx(): Ctx | null {
 		return this._syncCtxState.value;
@@ -431,6 +432,7 @@ export class Node<T = unknown> {
 			// gate (`hasCalledFnOnce`), not a hidden subscription graph.
 			this._lifecycle.activated = false;
 			this._lifecycle.subscribers.clear();
+			this._restoredActivationPending = true;
 		});
 	}
 
@@ -502,8 +504,10 @@ export class Node<T = unknown> {
 			// R-terminal: late subscribe to a terminal node either resets (resubscribable)
 			// or is rejected (non-resubscribable, R2.2.7.b).
 			if (this._value.terminal !== undefined) {
-				if (this._slot.resubscribable) this._resetLifecycle();
-				else
+				if (this._slot.resubscribable) {
+					this._restoredActivationPending = false;
+					this._resetLifecycle();
+				} else
 					throw new Error(
 						"subscribe: node is non-resubscribable and has terminated; the stream is permanently over (R-terminal / R2.2.7.b)",
 					);
@@ -728,6 +732,7 @@ export class Node<T = unknown> {
 		) {
 			return true;
 		}
+		if (!this._lifecycle.activated) this._restoredActivationPending = false;
 
 		this._wave.inDepMutation = true;
 		this._wave.rewireRunPending = false;
@@ -836,13 +841,16 @@ export class Node<T = unknown> {
 
 	private _activate(): void {
 		this._lifecycle.activated = true;
+		const seedRestoredDeps = this._restoredActivationPending;
+		this._restoredActivationPending = false;
 		// R-pull (D55): (re)enter QUIET before wiring deps — _deactivate cleared the lockset, so a
 		// reactivation must re-hold the pullId/demand lock; doing it here (pre-subscribe) means each
 		// dep's push-on-subscribe DIRTY/DATA is absorbed quietly (the wedge fix), not relayed downstream.
 		if (this._slot.pull) this._control.pauseLockset.add(this._slot.pullLock as LockId);
 		this._dep.unsubs = new Array(this._slot.deps.length);
 		this._dep.idxBoxes = new Array(this._slot.deps.length);
-		for (const dep of this._slot.deps) this._subscribeDepAt(dep);
+		for (const dep of this._slot.deps)
+			this._subscribeDepAt(dep, { seedRestored: seedRestoredDeps });
 		// Depless producer (fn, no deps): run once on activation.
 		if (this._slot.deps.length === 0 && this._slot.handle !== null && !this._wave.hasCalledFnOnce) {
 			this._runWave();
@@ -855,17 +863,43 @@ export class Node<T = unknown> {
 	 * (R-rewire Option-C / D42) — no re-subscribe, no per-message indexOf scan. A removed
 	 * dep's box is set to -1 so any stale in-flight callback drops (drain).
 	 */
-	private _subscribeDepAt(depNode: Node<unknown>): void {
+	private _subscribeDepAt(depNode: Node<unknown>, opts: { seedRestored?: boolean } = {}): void {
 		const idx0 = this._slot.deps.indexOf(depNode);
 		const box = { v: idx0 };
+		let ignoreInitialPush = opts.seedRestored === true;
+		if (ignoreInitialPush && idx0 !== -1) {
+			this._seedRestoredDepAt(idx0, depNode);
+			if (depNode._value.terminal !== undefined && !depNode._slot.resubscribable) {
+				this._dep.unsubs[idx0] = () => {};
+				this._dep.idxBoxes[idx0] = box;
+				return;
+			}
+		}
 		const unsub = depNode.subscribe((msg, delivery) => {
+			if (ignoreInitialPush && delivery === undefined) return;
+			if (ignoreInitialPush) ignoreInitialPush = false;
 			if (box.v === -1) return; // dep removed — stale callback, drop (drain)
 			this._receiveFromDep(box.v, msg, delivery);
 		});
+		if (ignoreInitialPush && idx0 !== -1 && box.v !== -1) this._seedRestoredDepAt(idx0, depNode);
+		ignoreInitialPush = false;
 		if (idx0 !== -1) {
 			this._dep.unsubs[idx0] = unsub;
 			this._dep.idxBoxes[idx0] = box;
 		}
+	}
+
+	private _seedRestoredDepAt(idx: number, depNode: Node<unknown>): void {
+		const seedData = depNode._value.hasData && !depNode._slot.pull;
+		this._dep.batch[idx] = null;
+		this._dep.waveData[idx] = [];
+		this._dep.waveTokens[idx] = undefined;
+		this._dep.prev[idx] = seedData ? depNode._value.cache : SENTINEL;
+		this._dep.hasData[idx] = seedData;
+		this._dep.dirty[idx] = false;
+		this._dep.tier[idx] = seedData ? 3 : 0;
+		this._dep.terminal[idx] = depNode._value.terminal;
+		this._dep.terminalInput[idx] = undefined;
 	}
 
 	private _deactivate(): void {

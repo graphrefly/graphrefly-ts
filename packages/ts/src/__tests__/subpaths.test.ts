@@ -80,6 +80,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof operators.define).toBe("function");
 		expect(typeof operators.restoreRegistry).toBe("function");
 		expect(typeof sources.fromAny).toBe("function");
+		expect(typeof sources.fromEvent).toBe("function");
+		expect(typeof sources.fromPushNotification).toBe("function");
+		expect(typeof sources.firstValueFrom).toBe("function");
+		expect(typeof sources.singleFromAny).toBe("function");
 		expect(typeof sources.timer).toBe("function");
 		expect(typeof sources.fromTimer).toBe("function");
 		expect(typeof sources.of).toBe("function");
