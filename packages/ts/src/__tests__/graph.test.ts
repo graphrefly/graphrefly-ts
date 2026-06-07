@@ -807,6 +807,24 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		expect(restored.find("disabled")?.version).toBeUndefined();
 	});
 
+	it("rejects non-portable V1 DATA before hash, cache, or version mutation (D88/D112)", () => {
+		const calls: string[] = [];
+		const hash = (bytes: Uint8Array) => {
+			const text = decodeTestJsonBytes(bytes);
+			calls.push(text);
+			return `h:${text}`;
+		};
+		const g = graph({ versioning: { level: 1, hash } });
+		const src = g.state(1, { name: "src" });
+		const before = src.version;
+
+		expect(calls).toEqual(["1"]);
+		expect(() => src.set(Number.MAX_SAFE_INTEGER + 1)).toThrow(/safe range/);
+		expect(src.cache).toBe(1);
+		expect(src.version).toEqual(before);
+		expect(calls).toEqual(["1"]);
+	});
+
 	it("restores V0 checkpoints without requiring a V1 hash lane (D109)", () => {
 		const g = graph();
 		const src = g.state(1, { name: "src" });

@@ -123,7 +123,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof dataStructures.reactiveMap).toBe("function");
 		expect(typeof render.describeToJson).toBe("function");
 		expect(typeof render.describeToMermaidUrl).toBe("function");
-		expect(Object.keys(adapters)).toEqual([]);
+		expect(typeof adapters.getGraphToken).toBe("function");
+		expect(typeof adapters.jotaiAtom).toBe("function");
+		expect(typeof adapters.nanoAtom).toBe("function");
+		expect(typeof adapters.recordReadableStore).toBe("function");
+		expect(typeof adapters.signalFromNode).toBe("function");
+		expect(typeof adapters.externalStore).toBe("function");
+		expect(typeof adapters.readableStore).toBe("function");
+		expect(typeof adapters.subscribeNodeValues).toBe("function");
+		expect(typeof adapters.writableStore).toBe("function");
+		expect(typeof adapters.zustandStore).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof storage.memoryKv).toBe("function");

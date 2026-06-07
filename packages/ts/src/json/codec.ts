@@ -14,13 +14,39 @@ export interface Codec<T> {
 type JsonScalar = null | boolean | number | string;
 type JsonValue = JsonScalar | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
-function sortedJsonValue(value: unknown, seen = new Set<object>(), path = "$"): JsonValue {
+const JS_MIN_NORMAL_NUMBER = 2 ** -1022;
+
+function assertStableJsonNumber(value: number, path: string): void {
+	if (!Number.isFinite(value)) {
+		throw new TypeError(`stableJsonString: non-finite number at ${path}`);
+	}
+}
+
+function assertStrictJsonNumber(value: number, path: string): void {
+	assertStableJsonNumber(value, path);
+	if (Object.is(value, -0)) {
+		throw new TypeError(`stableJsonString: non-canonical number at ${path}`);
+	}
+	const abs = Math.abs(value);
+	if (abs > 0 && abs < JS_MIN_NORMAL_NUMBER) {
+		throw new TypeError(`stableJsonString: subnormal number at ${path}`);
+	}
+	if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+		throw new TypeError(`stableJsonString: integer outside safe range at ${path}`);
+	}
+}
+
+function sortedJsonValue(
+	value: unknown,
+	seen = new Set<object>(),
+	path = "$",
+	strictNumbers = false,
+): JsonValue {
 	if (value === null) return null;
 	if (typeof value === "string" || typeof value === "boolean") return value;
 	if (typeof value === "number") {
-		if (!Number.isFinite(value)) {
-			throw new TypeError(`stableJsonString: non-finite number at ${path}`);
-		}
+		if (strictNumbers) assertStrictJsonNumber(value, path);
+		else assertStableJsonNumber(value, path);
 		return value;
 	}
 	if (typeof value !== "object") {
@@ -51,7 +77,7 @@ function sortedJsonValue(value: unknown, seen = new Set<object>(), path = "$"): 
 				if (!(i in value)) {
 					throw new TypeError(`stableJsonString: sparse array hole at ${path}[${i}]`);
 				}
-				out.push(sortedJsonValue(value[i], seen, `${path}[${i}]`));
+				out.push(sortedJsonValue(value[i], seen, `${path}[${i}]`, strictNumbers));
 			}
 			return out;
 		}
@@ -60,7 +86,12 @@ function sortedJsonValue(value: unknown, seen = new Set<object>(), path = "$"): 
 		}
 		const out: Record<string, JsonValue> = Object.create(null);
 		for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-			out[key] = sortedJsonValue((value as Record<string, unknown>)[key], seen, `${path}.${key}`);
+			out[key] = sortedJsonValue(
+				(value as Record<string, unknown>)[key],
+				seen,
+				`${path}.${key}`,
+				strictNumbers,
+			);
 		}
 		return out;
 	} finally {
@@ -71,6 +102,10 @@ function sortedJsonValue(value: unknown, seen = new Set<object>(), path = "$"): 
 /** Stable JSON string: object keys sort by code-unit order for deterministic storage/checkpoint bytes. */
 export function stableJsonString(value: unknown): string {
 	return JSON.stringify(sortedJsonValue(value));
+}
+
+function strictStableJsonString(value: unknown): string {
+	return JSON.stringify(sortedJsonValue(value, new Set<object>(), "$", true));
 }
 
 /** Build a JSON codec using stable object-key ordering. */
@@ -299,14 +334,14 @@ export function strictJsonCodecFor<T>(): Codec<T> {
 	return {
 		encode(value: T): Uint8Array {
 			assertNoUnpairedSurrogates(value);
-			return encoder.encode(stableJsonString(value));
+			return encoder.encode(strictStableJsonString(value));
 		},
 		decode(bytes: Uint8Array): T {
 			const text = decoder.decode(bytes);
 			assertNoDuplicateJsonObjectKeys(text);
 			const decoded = JSON.parse(text) as unknown;
 			assertNoUnpairedSurrogates(decoded);
-			const canonical = encoder.encode(stableJsonString(decoded));
+			const canonical = encoder.encode(strictStableJsonString(decoded));
 			if (!bytesEqual(bytes, canonical)) {
 				throw new TypeError("strictJsonCodec: bytes are not canonical stable JSON");
 			}

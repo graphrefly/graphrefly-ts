@@ -542,6 +542,22 @@ describe("D82 storage substrate helpers", () => {
 		);
 	});
 
+	it("strictJsonCodec rejects non-portable JSON number values (D88/D112)", () => {
+		const encoder = new TextEncoder();
+		for (const bad of [-0, Number.MAX_SAFE_INTEGER + 1, Number.MIN_VALUE]) {
+			expect(() => stableJsonString(bad)).not.toThrow();
+			expect(() => jsonCodecFor<unknown>().encode(bad)).not.toThrow();
+			expect(() => strictJsonCodec.encode(bad)).toThrow(/non-canonical|safe range|subnormal/);
+			expect(() => strictCanonicalJsonBytes(bad)).toThrow(/non-canonical|safe range|subnormal/);
+		}
+		expect(() => strictJsonCodec.decode(encoder.encode("-0"))).toThrow(/canonical/);
+		expect(() => strictJsonCodec.decode(encoder.encode("9007199254740992"))).toThrow(/safe range/);
+		expect(() => strictJsonCodec.decode(encoder.encode("5e-324"))).toThrow(/subnormal/);
+		expect(strictJsonCodec.decode(encoder.encode("9007199254740991"))).toBe(
+			Number.MAX_SAFE_INTEGER,
+		);
+	});
+
 	it("strictCanonicalJsonBytes is the D113 neutral strict JSON byte helper", () => {
 		const value = { b: 2, a: { d: 4, c: 3 } };
 		const bytes = strictCanonicalJsonBytes(value);
