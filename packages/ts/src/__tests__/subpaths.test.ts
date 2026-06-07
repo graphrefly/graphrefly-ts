@@ -107,9 +107,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof operators.define).toBe("function");
 		expect(typeof operators.restoreRegistry).toBe("function");
 		expect(typeof sources.fromAny).toBe("function");
+		expect(typeof sources.fromCron).toBe("function");
 		expect(typeof sources.fromEvent).toBe("function");
 		expect(typeof sources.fromPushNotification).toBe("function");
 		expect(typeof sources.firstValueFrom).toBe("function");
+		expect(typeof sources.matchesCron).toBe("function");
+		expect(typeof sources.parseCron).toBe("function");
 		expect(typeof sources.singleFromAny).toBe("function");
 		expect(typeof sources.timer).toBe("function");
 		expect(typeof sources.fromTimer).toBe("function");
@@ -146,14 +149,25 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("exports node-only sources as a package subpath without polluting universal sources", () => {
 		expect(exportsJson.exports?.["./sources/node"]).toBeDefined();
 		expect(typeof sourcesNode.fromFSWatch).toBe("function");
+		expect(typeof sourcesNode.fromGitHook).toBe("function");
+		expect(typeof sourcesNode.fromSpawn).toBe("function");
+		expect(typeof sourcesNode.runProcess).toBe("function");
 		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
+		expect(Object.hasOwn(sources, "fromGitHook")).toBe(false);
+		expect(Object.hasOwn(sources, "fromSpawn")).toBe(false);
+		expect(Object.hasOwn(sources, "runProcess")).toBe(false);
 	});
 
 	it("exports browser-safe sources as a package subpath without node-only adapters", () => {
 		expect(exportsJson.exports?.["./sources/browser"]).toBeDefined();
 		expect(typeof sourcesBrowser.fromAny).toBe("function");
 		expect(typeof sourcesBrowser.fromEvent).toBe("function");
+		expect(typeof sourcesBrowser.fromIDBRequest).toBe("function");
+		expect(typeof sourcesBrowser.fromIDBTransaction).toBe("function");
 		expect(Object.hasOwn(sourcesBrowser, "fromFSWatch")).toBe(false);
+		expect(Object.hasOwn(sourcesBrowser, "fromGitHook")).toBe(false);
+		expect(Object.hasOwn(sourcesBrowser, "fromSpawn")).toBe(false);
+		expect(Object.hasOwn(sourcesBrowser, "runProcess")).toBe(false);
 	});
 
 	it("does not resurrect retired window/storage surfaces through the subpaths", () => {

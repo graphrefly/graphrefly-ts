@@ -104,6 +104,26 @@ export interface TimerSourceOpts extends AsyncSourceOpts {
 	period?: number;
 }
 
+/** Options for {@link fromCron}. */
+export interface FromCronOptions extends AsyncSourceOpts {
+	/** Cron matcher polling interval in milliseconds. Default: 60_000. */
+	tickMs?: number;
+	/**
+	 * Emitted value shape. `timestamp_ns` is a decimal string so it cannot lose precision as a
+	 * JavaScript number; use `timestamp_ms` when numeric millisecond precision is enough.
+	 */
+	output?: "date" | "timestamp_ms" | "timestamp_ns";
+}
+
+/** Minimal five-field cron schedule: minute hour day-of-month month day-of-week. */
+export interface CronSchedule {
+	readonly minutes: ReadonlySet<number>;
+	readonly hours: ReadonlySet<number>;
+	readonly daysOfMonth: ReadonlySet<number>;
+	readonly months: ReadonlySet<number>;
+	readonly daysOfWeek: ReadonlySet<number>;
+}
+
 /** DOM/EventEmitter-style target accepted by {@link fromEvent}. */
 export interface EventTargetLike {
 	addEventListener(
@@ -129,6 +149,157 @@ export type FromEventOptions = EventListenerOptionsLike;
 /** Host push registration callback accepted by {@link fromPushNotification}. */
 export type PushUnsubscribe = () => void;
 export type PushRegister<T> = (deliver: (payload: T) => void) => PushUnsubscribe | undefined;
+
+function parseCronField(field: string, min: number, max: number): Set<number> {
+	if (field.length === 0) throw new Error("Invalid cron field: empty");
+	const out = new Set<number>();
+	for (const part of field.split(",")) {
+		if (part.length === 0) throw new Error(`Invalid cron field: ${field}`);
+		const stepParts = part.split("/");
+		if (stepParts.length > 2) throw new Error(`Invalid cron step: ${part}`);
+		const [range, stepText] = stepParts;
+		if (range == null || range.length === 0) throw new Error(`Invalid cron field: ${field}`);
+		if (stepText === "") throw new Error(`Invalid cron step: ${part}`);
+		const step = stepText == null ? 1 : parseCronInt(stepText, `Invalid cron step: ${part}`);
+		if (step < 1) throw new Error(`Invalid cron step: ${part}`);
+
+		let start: number;
+		let end: number;
+		if (range === "*") {
+			start = min;
+			end = max;
+		} else if (range.includes("-")) {
+			const [a, b, extra] = range.split("-");
+			if (extra !== undefined || a === "" || b === "")
+				throw new Error(`Invalid cron field: ${field}`);
+			start = parseCronInt(a, `Invalid cron field: ${field}`);
+			end = parseCronInt(b, `Invalid cron field: ${field}`);
+		} else {
+			start = parseCronInt(range, `Invalid cron field: ${field}`);
+			end = start;
+		}
+
+		if (!Number.isInteger(start) || !Number.isInteger(end)) {
+			throw new Error(`Invalid cron field: ${field}`);
+		}
+		if (start < min || end > max) {
+			throw new RangeError(`Cron field out of range: ${field} (${min}-${max})`);
+		}
+		if (start > end) throw new Error(`Invalid cron range: ${start}-${end} in ${field}`);
+		for (let i = start; i <= end; i += step) out.add(i);
+	}
+	return out;
+}
+
+function parseCronInt(text: string, message: string): number {
+	if (!/^\d+$/.test(text)) throw new Error(message);
+	const value = Number.parseInt(text, 10);
+	if (!Number.isSafeInteger(value)) throw new Error(message);
+	return value;
+}
+
+/** Parse a standard five-field cron expression. */
+export function parseCron(expr: string): CronSchedule {
+	const parts = expr.trim().split(/\s+/);
+	if (parts.length !== 5 || parts.some((part) => part.length === 0)) {
+		throw new Error(`Invalid cron: expected 5 fields, got ${parts.length}`);
+	}
+	return {
+		minutes: parseCronField(parts[0], 0, 59),
+		hours: parseCronField(parts[1], 0, 23),
+		daysOfMonth: parseCronField(parts[2], 1, 31),
+		months: parseCronField(parts[3], 1, 12),
+		daysOfWeek: parseCronField(parts[4], 0, 6),
+	};
+}
+
+/** Test whether a local Date matches a parsed cron schedule. */
+export function matchesCron(schedule: CronSchedule, date: Date): boolean {
+	return (
+		schedule.minutes.has(date.getMinutes()) &&
+		schedule.hours.has(date.getHours()) &&
+		schedule.daysOfMonth.has(date.getDate()) &&
+		schedule.months.has(date.getMonth() + 1) &&
+		schedule.daysOfWeek.has(date.getDay())
+	);
+}
+
+function cronMinuteKey(date: Date): string {
+	return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}-${date.getHours()}-${date.getMinutes()}`;
+}
+
+function dateToTimestampNs(date: Date): string {
+	return (BigInt(date.getTime()) * 1_000_000n).toString();
+}
+
+export function fromCron(
+	expr: string,
+	opts: FromCronOptions & { output: "date" },
+): Operator<never, Date>;
+export function fromCron(
+	expr: string,
+	opts: FromCronOptions & { output: "timestamp_ms" },
+): Operator<never, number>;
+export function fromCron(
+	expr: string,
+	opts?: FromCronOptions & { output?: "timestamp_ns" },
+): Operator<never, string>;
+export function fromCron(
+	expr: string,
+	opts?: FromCronOptions,
+): Operator<never, Date | number | string>;
+export function fromCron(
+	expr: string,
+	opts: FromCronOptions = {},
+): Operator<never, Date | number | string> {
+	const schedule = parseCron(expr);
+	const { tickMs = 60_000, output = "timestamp_ns", signal } = opts;
+	if (!Number.isFinite(tickMs) || tickMs <= 0) {
+		throw new RangeError("fromCron: tickMs must be a positive finite number");
+	}
+	return source<Date | number | string>(
+		"fromCron",
+		(ctx) => {
+			let done = false;
+			let lastFiredKey: string | undefined;
+			let intervalId: ReturnType<typeof setInterval> | undefined;
+			const cleanup = () => {
+				done = true;
+				if (intervalId !== undefined) clearInterval(intervalId);
+				intervalId = undefined;
+				signal?.removeEventListener("abort", onAbort);
+			};
+			const onAbort = () => {
+				if (done) return;
+				cleanup();
+				ctx.down([["ERROR", errorPayload(signal?.reason)]]);
+			};
+			const emitNow = (now: Date) => {
+				if (output === "date") ctx.down([["DATA", now]]);
+				else if (output === "timestamp_ms") ctx.down([["DATA", now.getTime()]]);
+				else ctx.down([["DATA", dateToTimestampNs(now)]]);
+			};
+			const check = () => {
+				if (done) return;
+				const now = new Date();
+				const key = cronMinuteKey(now);
+				if (key !== lastFiredKey && matchesCron(schedule, now)) {
+					lastFiredKey = key;
+					emitNow(now);
+				}
+			};
+			if (signal?.aborted) {
+				onAbort();
+				return cleanup;
+			}
+			signal?.addEventListener("abort", onAbort, { once: true });
+			check();
+			intervalId = setInterval(check, tickMs);
+			return cleanup;
+		},
+		{ pool: "sync", pausable: false },
+	);
+}
 
 function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Operator<never, number> {
 	const { period, signal } = opts ?? {};

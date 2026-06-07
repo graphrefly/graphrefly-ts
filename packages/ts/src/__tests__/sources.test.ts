@@ -1,10 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { Message } from "../index.js";
 import {
 	empty,
+	type FromCronOptions,
 	firstValueFrom,
 	fromAny,
 	fromAsyncIter,
+	fromCron,
 	fromEvent,
 	fromIter,
 	fromPromise,
@@ -12,8 +14,11 @@ import {
 	fromTimer,
 	graph,
 	interval,
+	matchesCron,
 	never,
+	type Operator,
 	of,
+	parseCron,
 	singleFromAny,
 	throwError,
 	timer,
@@ -161,6 +166,68 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		unsub(); // deactivate → ctx.onDeactivation clears the interval (D28)
 		vi.advanceTimersByTime(500); // no live timer → no further ticks
 		expect(vals).toEqual([0]); // nothing emitted after deactivation
+	});
+});
+
+describe("cron sources (B60 source-boundary re-derive)", () => {
+	beforeEach(() => vi.useFakeTimers());
+	afterEach(() => vi.useRealTimers());
+
+	it("parseCron supports lists, ranges, and steps", () => {
+		const schedule = parseCron("0,30 9-17/2 * 1-3 1-5");
+
+		expect([...schedule.minutes]).toEqual([0, 30]);
+		expect([...schedule.hours]).toEqual([9, 11, 13, 15, 17]);
+		expect([...schedule.months]).toEqual([1, 2, 3]);
+		expect([...schedule.daysOfWeek]).toEqual([1, 2, 3, 4, 5]);
+		expect(() => parseCron("60 * * * *")).toThrow(RangeError);
+		expect(() => parseCron("* * * *")).toThrow(/expected 5 fields/);
+		expect(() => parseCron("*/5foo * * * *")).toThrow(/Invalid cron step/);
+		expect(() => parseCron("1/2/3 * * * *")).toThrow(/Invalid cron step/);
+		expect(() => parseCron("8-12bar * * * *")).toThrow(/Invalid cron field/);
+	});
+
+	it("matchesCron checks the local five-field schedule", () => {
+		const schedule = parseCron("30 8 * * 1");
+		expect(matchesCron(schedule, new Date(2026, 2, 30, 8, 30))).toBe(true);
+		expect(matchesCron(schedule, new Date(2026, 2, 30, 8, 31))).toBe(false);
+	});
+
+	it("fromCron emits at most once per matching minute and tears down its interval", () => {
+		const now = new Date(2026, 2, 30, 8, 30, 0);
+		vi.setSystemTime(now);
+		const g = graph();
+		const n = g.initNode(fromCron("30 8 * * 1", { tickMs: 1000 }), [], { name: "cron" });
+		const msgs: Message[] = [];
+		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+
+		const expected = (BigInt(now.getTime()) * 1_000_000n).toString();
+		expect(data(msgs)).toEqual([expected]);
+		vi.advanceTimersByTime(30_000);
+		expect(data(msgs)).toEqual([expected]);
+		expect(vi.getTimerCount()).toBe(1);
+		unsubscribe();
+		expect(vi.getTimerCount()).toBe(0);
+		expect(g.describe().nodes.find((node) => node.id === "cron")?.factory).toBe("fromCron");
+	});
+
+	it("fromCron can emit Date values", () => {
+		vi.setSystemTime(new Date(2026, 2, 30, 8, 30, 0));
+		const g = graph();
+		const n = g.initNode(fromCron("30 8 * * 1", { tickMs: 1000, output: "date" }), []);
+		const msgs: Message[] = [];
+		n.subscribe((msg) => msgs.push(msg));
+
+		expect(data(msgs)[0]).toBeInstanceOf(Date);
+	});
+
+	it("fromCron accepts the exported FromCronOptions type", () => {
+		const opts: FromCronOptions =
+			Math.random() > 2 ? { output: "date" } : { output: "timestamp_ns" };
+
+		expectTypeOf(fromCron("* * * * *", opts)).toEqualTypeOf<
+			Operator<never, Date | number | string>
+		>();
 	});
 });
 
