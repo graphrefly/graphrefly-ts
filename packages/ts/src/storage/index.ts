@@ -1,12 +1,4 @@
 export {
-	type AttachObserveSinkOptions,
-	attachObserveSink,
-	type ObserveSink,
-	type ObserveSinkDone,
-	type ObserveSinkErrorContext,
-	type ObserveSinkHandle,
-} from "../graph/storage.js";
-export {
 	APPEND_LOG_SEQ_PAD,
 	type AppendLogEntry,
 	type AppendLogPage,
@@ -82,11 +74,8 @@ export {
 	type VersionedKvStorageTier,
 } from "./kv.js";
 export {
-	type AttachObserveEventLogOptions,
 	assertObserveEventFrame,
-	attachObserveEventLog,
 	type ObserveEventFrame,
-	type ObserveEventLogHandle,
 	type ObserveEventLogPage,
 	observeEventFrame,
 	observeEventFrameCodec,

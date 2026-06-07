@@ -1,46 +1,28 @@
-import type { Graph } from "../graph/graph.js";
-import type { ObserveEvent } from "../graph/inspect.js";
-import {
-	attachObserveSink,
-	type ObserveSinkDone,
-	type ObserveSinkErrorContext,
-	type ObserveSinkHandle,
-} from "../graph/storage.js";
 import type { AppendLogPage, AppendLogReadOptions, AppendLogStorageTier } from "./append-log.js";
 import { readAppendLogPage } from "./append-log.js";
 import { assertChangeEnvelope, type ChangeEnvelope, envelopeChange } from "./change.js";
 import type { Codec } from "./codec.js";
 import { strictJsonCodecFor } from "./codec.js";
 
+export interface ObserveEventLike {
+	readonly seq: number;
+	readonly path: string;
+}
+
 /** Storage frame for one Graph.observe() event, preserving graph observe sequence. */
-export interface ObserveEventFrame<T = ObserveEvent> extends ChangeEnvelope<T> {
+export interface ObserveEventFrame<T = unknown> extends ChangeEnvelope<T> {
 	readonly structure: "observe-event";
 	readonly observeSeq: number;
 	readonly path: string;
 	readonly stream?: string;
 }
 
-/** Options for persisting observe events into an append log. */
-export interface AttachObserveEventLogOptions<T = ObserveEvent> {
-	path?: string;
-	stream?: string;
-	map?: (event: ObserveEvent) => T | undefined;
-	onError?: (error: unknown, ctx: ObserveSinkErrorContext<ObserveEventFrame<T>>) => void;
-}
-
-/** Done-callback lifecycle handle for an attached observe-event log. */
-export interface ObserveEventLogHandle extends ObserveSinkHandle {
-	flush(done?: ObserveSinkDone): void;
-	rollback(done?: ObserveSinkDone): void;
-	dispose(done?: ObserveSinkDone): void;
-}
-
 /** One ordered observe-event log page. It is not graph projection or restore replay. */
-export type ObserveEventLogPage<T = ObserveEvent> = AppendLogPage<ObserveEventFrame<T>>;
+export type ObserveEventLogPage<T = unknown> = AppendLogPage<ObserveEventFrame<T>>;
 
 /** Create a storage frame from one observe event and mapped payload. */
 export function observeEventFrame<T>(
-	event: ObserveEvent,
+	event: ObserveEventLike,
 	value: T,
 	opts: { stream?: string } = {},
 ): ObserveEventFrame<T> {
@@ -59,7 +41,7 @@ export function observeEventFrame<T>(
 }
 
 /** Validate a decoded D82 observe-event storage frame. */
-export function assertObserveEventFrame<T = ObserveEvent>(value: unknown): ObserveEventFrame<T> {
+export function assertObserveEventFrame<T = unknown>(value: unknown): ObserveEventFrame<T> {
 	const frame = assertChangeEnvelope<T>(value);
 	const record = frame as unknown as Record<string, unknown>;
 	if (frame.structure !== "observe-event") {
@@ -78,7 +60,7 @@ export function assertObserveEventFrame<T = ObserveEvent>(value: unknown): Obser
 }
 
 /** Stable JSON codec for D82 observe-event frames, not restore records. */
-export function observeEventFrameCodec<T = ObserveEvent>(): Codec<ObserveEventFrame<T>> {
+export function observeEventFrameCodec<T = unknown>(): Codec<ObserveEventFrame<T>> {
 	const codec = strictJsonCodecFor<unknown>();
 	return {
 		encode(value) {
@@ -91,29 +73,9 @@ export function observeEventFrameCodec<T = ObserveEvent>(): Codec<ObserveEventFr
 }
 
 /**
- * Persist Graph.observe() events to an append log. This is a D82 binding-layer sink, not restore.
+ * Read one ordered observe-event log page without projecting it into graph state.
  */
-export function attachObserveEventLog<T = ObserveEvent>(
-	graph: Graph,
-	log: AppendLogStorageTier<ObserveEventFrame<T>>,
-	opts: AttachObserveEventLogOptions<T> = {},
-): ObserveEventLogHandle {
-	return attachObserveSink<ObserveEventFrame<T>>(
-		graph,
-		{ write: (frame) => log.append(frame).then(() => undefined) },
-		{
-			path: opts.path,
-			map: (event) => {
-				const value = opts.map ? opts.map(event) : (event as unknown as T);
-				return value === undefined ? undefined : observeEventFrame(event, value, opts);
-			},
-			onError: opts.onError,
-		},
-	);
-}
-
-/** Read one ordered observe-event log page without projecting it into graph state. */
-export function readObserveEventLogPage<T = ObserveEvent>(
+export function readObserveEventLogPage<T = unknown>(
 	log: AppendLogStorageTier<ObserveEventFrame<T>>,
 	opts: AppendLogReadOptions = {},
 ): Promise<ObserveEventLogPage<T>> {

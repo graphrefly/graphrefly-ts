@@ -3,13 +3,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type {
-	KvStorageTier,
-	ObserveEvent,
-	ObserveEventFrame,
-	ObserveSinkErrorContext,
-	WalFrame,
-} from "../index.js";
+import * as observeStorageExports from "../adapters/observe-storage.js";
+import {
+	attachObserveEventLog,
+	attachObserveSink,
+	type ObserveSinkErrorContext,
+} from "../adapters/observe-storage.js";
+import type { KvStorageTier, ObserveEvent, ObserveEventFrame, WalFrame } from "../index.js";
 import * as rootExports from "../index.js";
 import {
 	appendLogKey,
@@ -17,8 +17,6 @@ import {
 	assertDecimalIntegerString,
 	assertNonNegativeDecimalIntegerString,
 	assertWalFrame,
-	attachObserveEventLog,
-	attachObserveSink,
 	bigIntToDecimalString,
 	bigIntToNonNegativeDecimalString,
 	ContentAddressedMissError,
@@ -2266,6 +2264,12 @@ describe("D82 storage substrate helpers", () => {
 		}
 		expect(rootExports.restoreGraph).toBe(restoreGraph);
 		expect("restoreGraph" in storageExports).toBe(false);
+		expect("attachObserveSink" in rootExports).toBe(false);
+		expect("attachObserveEventLog" in rootExports).toBe(false);
+		expect(observeStorageExports.attachObserveSink).toBe(attachObserveSink);
+		expect(observeStorageExports.attachObserveEventLog).toBe(attachObserveEventLog);
+		expect("attachObserveSink" in storageExports).toBe(false);
+		expect("attachObserveEventLog" in storageExports).toBe(false);
 		expect(typeof graph().checkpoint).toBe("function");
 		expect("restoreSnapshot" in graph()).toBe(false);
 	});

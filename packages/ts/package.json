@@ -18,6 +18,26 @@
 				"default": "./dist/index.cjs"
 			}
 		},
+		"./adapters": {
+			"import": {
+				"types": "./dist/adapters/index.d.ts",
+				"default": "./dist/adapters/index.js"
+			},
+			"require": {
+				"types": "./dist/adapters/index.d.cts",
+				"default": "./dist/adapters/index.cjs"
+			}
+		},
+		"./adapters/observe-storage": {
+			"import": {
+				"types": "./dist/adapters/observe-storage.d.ts",
+				"default": "./dist/adapters/observe-storage.js"
+			},
+			"require": {
+				"types": "./dist/adapters/observe-storage.d.cts",
+				"default": "./dist/adapters/observe-storage.cjs"
+			}
+		},
 		"./composition": {
 			"import": {
 				"types": "./dist/composition/index.d.ts",
@@ -26,6 +46,16 @@
 			"require": {
 				"types": "./dist/composition/index.d.cts",
 				"default": "./dist/composition/index.cjs"
+			}
+		},
+		"./cqrs": {
+			"import": {
+				"types": "./dist/cqrs/index.d.ts",
+				"default": "./dist/cqrs/index.js"
+			},
+			"require": {
+				"types": "./dist/cqrs/index.d.cts",
+				"default": "./dist/cqrs/index.cjs"
 			}
 		},
 		"./core": {
@@ -58,6 +88,16 @@
 				"default": "./dist/graph/index.cjs"
 			}
 		},
+		"./messaging": {
+			"import": {
+				"types": "./dist/messaging/index.d.ts",
+				"default": "./dist/messaging/index.js"
+			},
+			"require": {
+				"types": "./dist/messaging/index.d.cts",
+				"default": "./dist/messaging/index.cjs"
+			}
+		},
 		"./operators": {
 			"import": {
 				"types": "./dist/operators/index.d.ts",
@@ -66,6 +106,26 @@
 			"require": {
 				"types": "./dist/operators/index.d.cts",
 				"default": "./dist/operators/index.cjs"
+			}
+		},
+		"./orchestration": {
+			"import": {
+				"types": "./dist/orchestration/index.d.ts",
+				"default": "./dist/orchestration/index.js"
+			},
+			"require": {
+				"types": "./dist/orchestration/index.d.cts",
+				"default": "./dist/orchestration/index.cjs"
+			}
+		},
+		"./patterns": {
+			"import": {
+				"types": "./dist/patterns/index.d.ts",
+				"default": "./dist/patterns/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/index.d.cts",
+				"default": "./dist/patterns/index.cjs"
 			}
 		},
 		"./render": {
@@ -86,6 +146,26 @@
 			"require": {
 				"types": "./dist/sources/index.d.cts",
 				"default": "./dist/sources/index.cjs"
+			}
+		},
+		"./sources/browser": {
+			"browser": {
+				"import": {
+					"types": "./dist/sources/browser.d.ts",
+					"default": "./dist/sources/browser.js"
+				},
+				"require": {
+					"types": "./dist/sources/browser.d.cts",
+					"default": "./dist/sources/browser.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/sources/browser.d.ts",
+				"default": "./dist/sources/browser.js"
+			},
+			"require": {
+				"types": "./dist/sources/browser.d.cts",
+				"default": "./dist/sources/browser.cjs"
 			}
 		},
 		"./sources/node": {
@@ -126,6 +206,16 @@
 			"require": {
 				"types": "./dist/storage/browser.d.cts",
 				"default": "./dist/storage/browser.cjs"
+			}
+		},
+		"./solutions": {
+			"import": {
+				"types": "./dist/solutions/index.d.ts",
+				"default": "./dist/solutions/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/index.d.cts",
+				"default": "./dist/solutions/index.cjs"
 			}
 		},
 		"./testing": {

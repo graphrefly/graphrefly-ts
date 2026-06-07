@@ -2,8 +2,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
+import * as adapters from "../adapters/index.js";
+import * as observeStorage from "../adapters/observe-storage.js";
 import * as composition from "../composition/index.js";
 import * as core from "../core/index.js";
+import * as cqrs from "../cqrs/index.js";
 import type {
 	ReactiveOpt as DataStructuresReactiveOpt,
 	ReactiveView as DataStructuresReactiveView,
@@ -30,8 +33,13 @@ import type {
 	RetentionPolicy,
 	ViewCachePolicy,
 } from "../index.js";
+import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
+import * as orchestration from "../orchestration/index.js";
+import * as patterns from "../patterns/index.js";
 import * as render from "../render/index.js";
+import * as solutions from "../solutions/index.js";
+import * as sourcesBrowser from "../sources/browser.js";
 import * as sources from "../sources/index.js";
 import * as sourcesNode from "../sources/node.js";
 import * as storageBrowser from "../storage/browser.js";
@@ -48,19 +56,31 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("publishes only the intended package subpaths", () => {
 		expect(Object.keys(exportsJson.exports ?? {}).sort()).toEqual([
 			".",
+			"./adapters",
+			"./adapters/observe-storage",
 			"./composition",
 			"./core",
+			"./cqrs",
 			"./data-structures",
 			"./graph",
+			"./messaging",
 			"./operators",
+			"./orchestration",
+			"./patterns",
 			"./render",
+			"./solutions",
 			"./sources",
+			"./sources/browser",
 			"./sources/node",
 			"./storage",
 			"./storage/browser",
 			"./storage/node",
 			"./testing",
 		]);
+		expect(exportsJson.exports?.["./base"]).toBeUndefined();
+		expect(exportsJson.exports?.["./compat"]).toBeUndefined();
+		expect(exportsJson.exports?.["./presets"]).toBeUndefined();
+		expect(exportsJson.exports?.["./utils"]).toBeUndefined();
 		expect(exportsJson.exports?.["./graph/render"]).toBeUndefined();
 		expect(exportsJson.exports?.["./graph/sources"]).toBeUndefined();
 		expect(exportsJson.exports?.["./graph/operators"]).toBeUndefined();
@@ -100,12 +120,13 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof dataStructures.reactiveMap).toBe("function");
 		expect(typeof render.describeToJson).toBe("function");
 		expect(typeof render.describeToMermaidUrl).toBe("function");
-		expect(typeof storage.attachObserveSink).toBe("function");
+		expect(Object.keys(adapters)).toEqual([]);
+		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
+		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof storage.memoryKv).toBe("function");
 		expect(typeof storage.memoryAppendLog).toBe("function");
 		expect(typeof storage.multiWriterAppendLogStorage).toBe("function");
 		expect(typeof storage.memoryMultiWriterAppendLog).toBe("function");
-		expect(typeof storage.attachObserveEventLog).toBe("function");
 		expect(typeof storage.tieredReadThrough).toBe("function");
 		expect(typeof storage.readThroughKv).toBe("function");
 		expect(typeof storage.readAppendLogPage).toBe("function");
@@ -113,12 +134,26 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof storage.walFrame).toBe("function");
 		expect(typeof storage.walFrameKey).toBe("function");
 		expect(typeof testing.assertDirtyPrecedesTerminalData).toBe("function");
+		expect(Object.hasOwn(storage, "attachObserveSink")).toBe(false);
+		expect(Object.hasOwn(storage, "attachObserveEventLog")).toBe(false);
+		expect(Object.keys(cqrs)).toEqual([]);
+		expect(Object.keys(messaging)).toEqual([]);
+		expect(Object.keys(orchestration)).toEqual([]);
+		expect(Object.keys(patterns)).toEqual([]);
+		expect(Object.keys(solutions)).toEqual([]);
 	});
 
 	it("exports node-only sources as a package subpath without polluting universal sources", () => {
 		expect(exportsJson.exports?.["./sources/node"]).toBeDefined();
 		expect(typeof sourcesNode.fromFSWatch).toBe("function");
 		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
+	});
+
+	it("exports browser-safe sources as a package subpath without node-only adapters", () => {
+		expect(exportsJson.exports?.["./sources/browser"]).toBeDefined();
+		expect(typeof sourcesBrowser.fromAny).toBe("function");
+		expect(typeof sourcesBrowser.fromEvent).toBe("function");
+		expect(Object.hasOwn(sourcesBrowser, "fromFSWatch")).toBe(false);
 	});
 
 	it("does not resurrect retired window/storage surfaces through the subpaths", () => {

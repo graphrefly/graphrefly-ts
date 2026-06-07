@@ -1,7 +1,6 @@
 export * from "../composition/index.js";
 export * from "../data-structures/index.js";
 export * from "../render/index.js";
-export * from "../storage/index.js";
 export {
 	type CascadingCacheEvent,
 	type CascadingCachePolicy,

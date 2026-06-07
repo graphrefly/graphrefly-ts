@@ -1,14 +1,20 @@
 /**
- * Observe-sink storage attachment (D57/D74).
+ * Graph-bound observe storage adapters.
  *
- * Storage is a graph-layer binding helper over `Graph.observe()` read-only egress: it never adds a
- * graph node, never mutates topology, and keeps adapter-owned durability work outside the sync core.
+ * Passive storage lives under ../storage. This subpath owns bridges that need
+ * Graph.observe() and therefore sit above both graph and passive storage (D125).
  */
 
-import type { Graph } from "./graph.js";
-import type { ObserveEvent } from "./inspect.js";
+import type { Graph } from "../graph/graph.js";
+import type { ObserveEvent } from "../graph/inspect.js";
+import type { AppendLogStorageTier } from "../storage/append-log.js";
+import {
+	type ObserveEventFrame,
+	type ObserveEventLogPage,
+	observeEventFrame,
+} from "../storage/observe-event-log.js";
 
-/** Adapter-owned sink for observed graph events (D57/D74). */
+/** Adapter-owned sink for observed graph events (D57/D74/D125). */
 export interface ObserveSink<T = ObserveEvent> {
 	/** Persist or forward one mapped observe event. Thenables are serialized in observe order. */
 	write(event: T): void | PromiseLike<void>;
@@ -30,7 +36,7 @@ export interface ObserveSinkErrorContext<T = ObserveEvent> {
 /** Queue-drain completion callback for observe-sink control calls (D75). */
 export type ObserveSinkDone = () => void;
 
-/** Options for attaching a sink to the read-only observe egress (D74). */
+/** Options for attaching a sink to the read-only observe egress (D74/D125). */
 export interface AttachObserveSinkOptions<T = ObserveEvent> {
 	/** Optional exact-id or subtree path filter; forwarded to `graph.observe(path?)`. */
 	path?: string;
@@ -53,8 +59,25 @@ type QueueItem<T> =
 	| { kind: "rollback"; done?: ObserveSinkDone }
 	| { kind: "dispose" };
 
+/** Options for persisting Graph.observe() events into an append log. */
+export interface AttachObserveEventLogOptions<T = ObserveEvent> {
+	path?: string;
+	stream?: string;
+	map?: (event: ObserveEvent) => T | undefined;
+	onError?: (error: unknown, ctx: ObserveSinkErrorContext<ObserveEventFrame<T>>) => void;
+}
+
+/** Done-callback lifecycle handle for an attached observe-event log. */
+export interface ObserveEventLogHandle extends ObserveSinkHandle {
+	flush(done?: ObserveSinkDone): void;
+	rollback(done?: ObserveSinkDone): void;
+	dispose(done?: ObserveSinkDone): void;
+}
+
+export type { ObserveEventFrame, ObserveEventLogPage };
+
 /**
- * Attach adapter-owned storage to `Graph.observe()` read-only egress (D57/D74). Writes are
+ * Attach adapter-owned storage to `Graph.observe()` read-only egress (D57/D74/D125). Writes are
  * serialized in observe order; lifecycle barriers drain the queue without mutating graph topology.
  */
 export function attachObserveSink<T = ObserveEvent>(
@@ -208,4 +231,27 @@ export function attachObserveSink<T = ObserveEvent>(
 			drain();
 		},
 	};
+}
+
+/**
+ * Persist Graph.observe() events to an append log. This is a graph-bound
+ * adapter over passive storage frames, not graph restore or projection.
+ */
+export function attachObserveEventLog<T = ObserveEvent>(
+	graph: Graph,
+	log: AppendLogStorageTier<ObserveEventFrame<T>>,
+	opts: AttachObserveEventLogOptions<T> = {},
+): ObserveEventLogHandle {
+	return attachObserveSink<ObserveEventFrame<T>>(
+		graph,
+		{ write: (frame) => log.append(frame).then(() => undefined) },
+		{
+			path: opts.path,
+			map: (event) => {
+				const value = opts.map ? opts.map(event) : (event as unknown as T);
+				return value === undefined ? undefined : observeEventFrame(event, value, opts);
+			},
+			onError: opts.onError,
+		},
+	);
 }
