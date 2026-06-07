@@ -135,6 +135,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.zustandStore).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
+		expect(typeof patterns.observeTrace).toBe("function");
+		expect(typeof patterns.profileSummary).toBe("function");
 		expect(typeof storage.memoryKv).toBe("function");
 		expect(typeof storage.memoryAppendLog).toBe("function");
 		expect(typeof storage.multiWriterAppendLogStorage).toBe("function");
@@ -151,7 +153,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.keys(cqrs)).toEqual([]);
 		expect(Object.keys(messaging)).toEqual([]);
 		expect(Object.keys(orchestration)).toEqual([]);
-		expect(Object.keys(patterns)).toEqual([]);
+		expect(Object.hasOwn(patterns, "guardedExecution")).toBe(false);
+		expect(Object.hasOwn(patterns, "inspect")).toBe(false);
+		expect(Object.hasOwn(patterns, "resilientPipeline")).toBe(false);
 		expect(Object.keys(solutions)).toEqual([]);
 	});
 

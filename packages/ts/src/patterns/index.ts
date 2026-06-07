@@ -5,4 +5,13 @@
  * and has been re-derived onto clean-slate APIs.
  */
 
-export {};
+export {
+	type ObserveTraceDetail,
+	type ObserveTraceEvent,
+	type ObserveTraceHandle,
+	type ObserveTraceOptions,
+	observeTrace,
+	type ProfileSummary,
+	type ProfileSummaryNode,
+	profileSummary,
+} from "./inspection.js";
