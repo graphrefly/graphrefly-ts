@@ -18,6 +18,23 @@ import type { Ctx } from "../ctx/types.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import { toCheckpointJson } from "./checkpoint.js";
+import type {
+	DriverCancel,
+	DriverResult,
+	HttpRequest,
+	HttpResponse,
+	ProcessCommand,
+	ProcessResult,
+	SseDriverEvent,
+	SseEvent,
+	SseRequest,
+	WebhookDriverEvent,
+	WebhookEvent,
+	WebhookRegistration,
+	WebSocketDriverEvent,
+	WebSocketEvent,
+	WebSocketRequest,
+} from "./environment.js";
 import { initNode, type Operator } from "./operators.js";
 
 /**
@@ -64,6 +81,120 @@ function source<T>(
 			if (deactivated && typeof cleanup === "function") cleanup();
 		},
 	};
+}
+
+function assertNonEmptyString(value: string, label: string): void {
+	if (typeof value !== "string" || value.length === 0) {
+		throw new TypeError(`${label} must be a non-empty string`);
+	}
+}
+
+function cleanupDriverWork(
+	active: { value: boolean },
+	cancelSlot: { value: DriverCancel | undefined },
+): void {
+	active.value = false;
+	const cancel = cancelSlot.value;
+	cancelSlot.value = undefined;
+	if (cancel !== undefined) runDriverCancel(cancel);
+}
+
+function installDriverCancel(
+	active: { value: boolean },
+	cancelSlot: { value: DriverCancel | undefined },
+	cancel: DriverCancel,
+): void {
+	if (active.value) cancelSlot.value = cancel;
+	else runDriverCancel(cancel);
+}
+
+function runDriverCancel(cancel: DriverCancel): void {
+	try {
+		cancel();
+	} catch {
+		// Driver cleanup is best-effort: it must not suppress graph-visible terminal delivery.
+	}
+}
+
+function driverOneShotSource<T>(
+	factory: string,
+	missing: string,
+	start: (ctx: Ctx, callback: (result: DriverResult<T>) => void) => DriverCancel | undefined,
+): Operator<never, T> {
+	return source<T>(
+		factory,
+		(ctx) => {
+			const active = { value: true };
+			const cancelSlot: { value: DriverCancel | undefined } = { value: undefined };
+			const callback = (result: DriverResult<T>) => {
+				if (!active.value) return;
+				cleanupDriverWork(active, cancelSlot);
+				if (result.ok) ctx.down([["DATA", result.value], ["COMPLETE"]]);
+				else ctx.down([["ERROR", errorPayload(result.error)]]);
+			};
+			let cancel: DriverCancel | undefined;
+			try {
+				cancel = start(ctx, callback);
+			} catch (e) {
+				active.value = false;
+				ctx.down([["ERROR", errorPayload(e)]]);
+				return;
+			}
+			if (cancel === undefined) {
+				active.value = false;
+				ctx.down([["ERROR", missing]]);
+				return;
+			}
+			installDriverCancel(active, cancelSlot, cancel);
+			return () => cleanupDriverWork(active, cancelSlot);
+		},
+		{ pool: "async", pausable: false },
+	);
+}
+
+function driverStreamSource<T, E extends { readonly kind: string }>(
+	factory: string,
+	missing: string,
+	start: (ctx: Ctx, callback: (event: E) => void) => DriverCancel | undefined,
+	dataOf: (event: E) => T | undefined,
+	errorOf: (event: E) => unknown,
+): Operator<never, T> {
+	return source<T>(
+		factory,
+		(ctx) => {
+			const active = { value: true };
+			const cancelSlot: { value: DriverCancel | undefined } = { value: undefined };
+			const callback = (event: E) => {
+				if (!active.value) return;
+				if (event.kind === "event") {
+					const value = dataOf(event);
+					if (value !== undefined) ctx.down([["DATA", value]]);
+				} else if (event.kind === "error") {
+					cleanupDriverWork(active, cancelSlot);
+					ctx.down([["ERROR", errorPayload(errorOf(event))]]);
+				} else if (event.kind === "complete") {
+					cleanupDriverWork(active, cancelSlot);
+					ctx.down([["COMPLETE"]]);
+				}
+			};
+			let cancel: DriverCancel | undefined;
+			try {
+				cancel = start(ctx, callback);
+			} catch (e) {
+				active.value = false;
+				ctx.down([["ERROR", errorPayload(e)]]);
+				return;
+			}
+			if (cancel === undefined) {
+				active.value = false;
+				ctx.down([["ERROR", missing]]);
+				return;
+			}
+			installDriverCancel(active, cancelSlot, cancel);
+			return () => cleanupDriverWork(active, cancelSlot);
+		},
+		{ pool: "async", pausable: false },
+	);
 }
 
 function isNode(x: unknown): x is Node {
@@ -298,6 +429,96 @@ export function fromCron(
 			return cleanup;
 		},
 		{ pool: "sync", pausable: false },
+	);
+}
+
+export function runProcess(
+	program: string,
+	args: readonly string[] = [],
+): Operator<never, ProcessResult> {
+	return runProcessWithOptions({ program, args });
+}
+
+export function fromProcess(
+	program: string,
+	args: readonly string[] = [],
+): Operator<never, ProcessResult> {
+	return processSource("fromProcess", { program, args });
+}
+
+export function runProcessWithOptions(command: ProcessCommand): Operator<never, ProcessResult> {
+	return processSource("runProcess", command);
+}
+
+function processSource(factory: string, command: ProcessCommand): Operator<never, ProcessResult> {
+	assertNonEmptyString(command.program, `${factory}: program`);
+	return driverOneShotSource<ProcessResult>(
+		factory,
+		`${factory}: missing process driver`,
+		(ctx, callback) => ctx.environment().processDriver()?.run(command, callback),
+	);
+}
+
+export function fromHttp(url: string): Operator<never, HttpResponse> {
+	return fromHttpWithOptions({ method: "GET", url });
+}
+
+export function fromHttpWithOptions(request: HttpRequest): Operator<never, HttpResponse> {
+	assertNonEmptyString(request.url, "fromHttp: url");
+	assertNonEmptyString(request.method, "fromHttp: method");
+	return driverOneShotSource<HttpResponse>(
+		"fromHttp",
+		"fromHttp: missing http driver",
+		(ctx, callback) => ctx.environment().httpDriver()?.request(request, callback),
+	);
+}
+
+export function fromSSE(url: string): Operator<never, SseEvent> {
+	return fromSSEWithOptions({ url });
+}
+
+export function fromSSEWithOptions(request: SseRequest): Operator<never, SseEvent> {
+	assertNonEmptyString(request.url, "fromSSE: url");
+	return driverStreamSource<SseEvent, SseDriverEvent>(
+		"fromSSE",
+		"fromSSE: missing sse driver",
+		(ctx, callback) => ctx.environment().sseDriver()?.connect(request, callback),
+		(event) => (event.kind === "event" ? event.event : undefined),
+		(event) => (event.kind === "error" ? event.error : undefined),
+	);
+}
+
+export function fromWebSocket(url: string): Operator<never, WebSocketEvent> {
+	return fromWebSocketWithOptions({ url });
+}
+
+export function fromWebSocketWithOptions(
+	request: WebSocketRequest,
+): Operator<never, WebSocketEvent> {
+	assertNonEmptyString(request.url, "fromWebSocket: url");
+	return driverStreamSource<WebSocketEvent, WebSocketDriverEvent>(
+		"fromWebSocket",
+		"fromWebSocket: missing websocket driver",
+		(ctx, callback) => ctx.environment().webSocketDriver()?.connect(request, callback),
+		(event) => (event.kind === "event" ? event.event : undefined),
+		(event) => (event.kind === "error" ? event.error : undefined),
+	);
+}
+
+export function fromWebhook(id: string): Operator<never, WebhookEvent> {
+	return fromWebhookWithOptions({ id });
+}
+
+export function fromWebhookWithOptions(
+	registration: WebhookRegistration,
+): Operator<never, WebhookEvent> {
+	assertNonEmptyString(registration.id, "fromWebhook: id");
+	return driverStreamSource<WebhookEvent, WebhookDriverEvent>(
+		"fromWebhook",
+		"fromWebhook: missing webhook driver",
+		(ctx, callback) => ctx.environment().webhookDriver()?.register(registration, callback),
+		(event) => (event.kind === "event" ? event.event : undefined),
+		(event) => (event.kind === "error" ? event.error : undefined),
 	);
 }
 

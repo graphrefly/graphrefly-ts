@@ -32,6 +32,7 @@ import {
 	type WaveData,
 } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher, type Handle } from "../dispatcher/index.js";
+import { EnvironmentDrivers } from "../graph/environment.js";
 import {
 	errorPayload,
 	isDeferredTier,
@@ -162,6 +163,7 @@ export interface NodeRestoreState {
 }
 
 let constructingCore: NodeCore | undefined;
+let constructingEnvironment: EnvironmentDrivers | undefined;
 const ownerTokens = new WeakMap<Node<unknown>, unknown>();
 const checkpointReaders = new WeakMap<Node<unknown>, () => NodeCheckpointState>();
 const restoreWriters = new WeakMap<Node<unknown>, (state: NodeRestoreState) => void>();
@@ -179,6 +181,20 @@ export function withNodeCore<TNode extends Node<unknown>>(
 		return create();
 	} finally {
 		constructingCore = prev;
+	}
+}
+
+/** @internal Run a Node/StateNode constructor with graph-owned environment drivers (D130/D131). */
+export function withEnvironmentDrivers<TNode extends Node<unknown>>(
+	environment: EnvironmentDrivers,
+	create: () => TNode,
+): TNode {
+	const prev = constructingEnvironment;
+	constructingEnvironment = environment;
+	try {
+		return create();
+	} finally {
+		constructingEnvironment = prev;
 	}
 }
 
@@ -274,6 +290,8 @@ export class Node<T = unknown> {
 		const core = constructingCore;
 		constructingCore = undefined;
 		const dispatcher = opts.dispatcher ?? defaultDispatcher;
+		const environment = constructingEnvironment ?? EnvironmentDrivers.empty();
+		constructingEnvironment = undefined;
 		const pool = opts.pool ?? "sync";
 		const pausable = opts.pausable ?? true;
 		const pullLock = opts.pullId;
@@ -316,6 +334,7 @@ export class Node<T = unknown> {
 				handle,
 				pool,
 				dispatcher,
+				environment,
 				partial: opts.partial ?? false,
 				terminalAsRealInput: opts.terminalAsRealInput ?? false,
 				completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
@@ -1426,6 +1445,7 @@ export class Node<T = unknown> {
 				if (this._released) return;
 				this._hooks.onInvalidate.push(fn);
 			},
+			environment: () => this._slot.environment,
 			// R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
 			rewireNext: {
 				subscribeDep: (dep, fn) => this._requestRewireNext({ kind: "add", dep, fn }),
@@ -1439,7 +1459,8 @@ export class Node<T = unknown> {
 			[CTX_DEP_CACHE]: { latest: snapshot?.latest ?? this._dep.prev },
 			[CTX_NODE_BINDING]: {
 				dispatcher: this._slot.dispatcher,
-				create: <U>(factory: () => Node<U>) => withNodeCore(this._core, factory),
+				create: <U>(factory: () => Node<U>) =>
+					withEnvironmentDrivers(this._slot.environment, () => withNodeCore(this._core, factory)),
 			},
 		};
 		if (this._slot.dynamic) {

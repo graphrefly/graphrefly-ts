@@ -6,6 +6,7 @@
  */
 
 import type { Dispatcher } from "../dispatcher/index.js";
+import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { Node } from "../node/node.js";
 import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 
@@ -115,6 +116,8 @@ export interface Ctx {
 	onDeactivation(fn: () => void): void;
 	/** Flush on INVALIDATE (R-cleanup-hooks). */
 	onInvalidate(fn: () => void): void;
+	/** Graph-owned environment drivers for source/adapter boundaries (D130/D131). */
+	environment(): EnvironmentDrivers;
 	/**
 	 * Deferred SELF-rewire (R-rewire-deferred / D47) — the substrate affordance higher-order
 	 * operators (switchMap/mergeMap/concatMap/exhaustMap/flatMap) use to grow/shrink their own

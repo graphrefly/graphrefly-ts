@@ -517,10 +517,79 @@ artifact output policy
 human approval gates
 ```
 
-Next research task: survey sandbox/runner options for this capability boundary. Candidate areas:
-browser sandboxes (OPFS, Web Workers, WASM, DuckDB-WASM, Pyodide), local runners/daemons, remote
-execution sandboxes, container/microVM isolation, Tauri/Electron shells, and permissioned command
-brokers.
+### Follow-up: sandbox and runner choice
+
+Recorded 2026-06-07 from follow-up discussion. This is still product/solution-layer direction, not
+a substrate, protocol, package API, or D-numbered architectural lock.
+
+The sandbox choice splits into UI rendering trust and execution trust. GraphReFly Canvas itself, plus
+trusted built-in widget packs such as table, chart, metric card, validation panel, input form, and
+narrative answer card, should render directly in the host web app. A sandboxed iframe is only the
+default for untrusted executable UI: AI-generated widgets, pasted custom components, and marketplace
+widgets. The binding contract should be iframe-compatible from the start:
+
+```text
+node data -> component props
+component events -> validated boundary/input node
+```
+
+Generated or pasted widgets can start in iframe preview/runtime, then optionally be promoted to
+project-trusted code after user/team review. Promotion means they can join the normal host bundle or
+trusted component pack. The product should not make "100 widgets = 100 iframes" the normal case;
+most high-frequency widgets should be trusted built-ins, and untrusted widgets may be virtualized,
+grouped by package/trust policy, or rendered as snapshots when off-screen.
+
+Runner sandbox is separate from UI sandbox. The browser must not execute arbitrary local code or
+shell commands. Real verification work should run through typed commands sent to a local or remote
+runner:
+
+```text
+runVerification(issueId, workGraphId)
+runTests(repoPath, scope)
+runDbt(modelSelector)
+runSql(warehouseProfile, queryPlan)
+produceArtifact(canvasWidgetId)
+```
+
+The web product should not require a local app before first use. The entry path is progressive:
+
+```text
+Web-only Canvas
+  demo data / sample WorkGraphs / Canvas / topology lens / built-in widgets
+
+Cloud demo runner
+  controlled templates and demo datasets, no arbitrary customer code or secrets
+
+Local runner
+  optional power-user capability for local repo, dbt, tests, files, and private credentials
+
+Managed secure runner
+  later paid/team infrastructure with login, RBAC, secrets, audit, and stronger isolation
+```
+
+For a local runner, the desired ergonomics are: web app remains the main product, a local CLI or
+daemon is connected only when a task needs local capabilities, the user authorizes one workspace or
+repo allowlist, and every risky action is shown as a typed approval rather than a raw shell string.
+Artifacts, logs, test results, dbt outputs, screenshots, and query evidence return into WorkGraph
+evidence nodes instead of living only in a terminal.
+
+For remote execution, the recommended first serious self-hosted isolation direction is OCI/Docker
+API plus gVisor/runsc or Kubernetes RuntimeClass with gVisor. This keeps image/tool compatibility
+for Python, Node, dbt, git, and CI-like tasks while adding a stronger syscall boundary than default
+runc. Kata Containers and Firecracker/microVMs remain enterprise/multi-tenant isolation upgrades,
+not MVP blockers. E2B, Daytona, Sandbox0, nsjail, bubblewrap, and Wasmtime/WASI are relevant
+evaluation targets:
+
+- E2B / Daytona / Sandbox0: AI-agent sandbox platforms worth prototyping or adapting.
+- gVisor/runsc: default remote-runner v1 candidate.
+- Kata Containers / Firecracker: stronger isolation tier for hosted multi-tenant execution.
+- nsjail / bubblewrap: lightweight local or single-machine process sandbox candidates.
+- Wasmtime/WASI: good for small capability-style plugins or pure compute, not full repo/dbt runs.
+
+Product conclusion: do not make strong login, Kubernetes, or gVisor a prerequisite for GraphReFly
+Canvas v0. Build the web Canvas and demo/cloud-safe flows first, add optional local runner for
+private local work, and defer hosted secure runner infrastructure until the product proves that
+users want managed execution.
 
 ## OPEN QUESTIONS
 
@@ -534,8 +603,9 @@ brokers.
    notebook, a dashboard/report, or just a saved reusable graph?
 5. **Canvas form:** is this wedge better as a standalone web PWA, an internal demo host, or an
    embeddable component that later powers several vertical packs?
-6. **Sandbox/runner boundary:** what sandbox stack should back local and remote code execution for
-   WorkGraph verification without letting the web UI execute arbitrary local code?
+6. **Sandbox/runner boundary:** resolved direction in the follow-up above; concrete provider choice
+   remains implementation-time evaluation, but the product boundary is web-first plus optional
+   local/remote typed-command runners.
 
 ## STATUS
 

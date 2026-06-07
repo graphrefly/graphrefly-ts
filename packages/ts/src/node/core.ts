@@ -1,5 +1,6 @@
 import type { Ctx, Sink } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
+import type { EnvironmentDrivers } from "../graph/environment.js";
 import { type LockId, SENTINEL, type Wave } from "../protocol/messages.js";
 import type { Node, Status } from "./node.js";
 import type { NodeVersion, ResolvedNodeVersioningPolicy } from "./versioning.js";
@@ -89,6 +90,7 @@ export interface NodeSlot<_T> {
 	handle: Handle | null;
 	pool: "sync" | "async";
 	dispatcher: Dispatcher;
+	environment: EnvironmentDrivers;
 	partial: boolean;
 	terminalAsRealInput: boolean;
 	completeWhenDepsComplete: boolean;

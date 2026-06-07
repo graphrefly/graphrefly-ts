@@ -23,6 +23,7 @@ import {
 	type NodeOptions,
 	releaseRuntimeOfNode,
 	setNodeOwner,
+	withEnvironmentDrivers,
 	withNodeCore,
 } from "../node/node.js";
 import type { NodeVersioningPolicy } from "../node/versioning.js";
@@ -38,6 +39,7 @@ import {
 	toCheckpointJson,
 } from "./checkpoint.js";
 import type { DescribeEdge, DescribeNode, DescribeOpts, DescribeSnapshot } from "./describe.js";
+import { EnvironmentDrivers } from "./environment.js";
 import type { NodeProfile, ObserveStream, Profile } from "./inspect.js";
 import { initNodeWithCore, type Operator } from "./operators.js";
 
@@ -57,7 +59,7 @@ export type EffectFn<D extends readonly Node<unknown>[]> = (
 	// biome-ignore lint/suspicious/noConfusingVoidType: effect returns void OR a cleanup fn — the void arm keeps `(v) => { sideEffect(v) }` ergonomic (React EffectCallback idiom); dropping it would force an explicit `return undefined`.
 ) => void | (() => void);
 
-/** Sugar options — node options minus dispatcher (graph owns it) plus naming/meta. */
+/** Sugar options — node options minus graph-owned dispatcher plus naming/meta. */
 export interface SugarOpts<T = unknown> extends Omit<NodeOptions<T>, "dispatcher"> {
 	name?: string;
 	meta?: Record<string, unknown>;
@@ -74,6 +76,8 @@ export interface GraphOptions {
 	dispatcher?: Dispatcher;
 	/** D109 default node runtime versioning policy for graph-owned nodes. Default is nodev0. */
 	versioning?: NodeVersioningPolicy;
+	/** Graph-owned environment drivers for source/adapter boundaries (D130/D131). */
+	environment?: EnvironmentDrivers;
 	/**
 	 * Turn on the dispatcher profile recorder (D39 / F-PERF default off). NOTE: this
 	 * switches recording on for the WHOLE bound dispatcher (the default is process-global,
@@ -142,6 +146,7 @@ export class Graph {
 	readonly name?: string;
 	private readonly _dispatcher: Dispatcher;
 	private readonly _versioning: NodeVersioningPolicy | undefined;
+	private readonly _environment: EnvironmentDrivers;
 	private readonly _core = new NodeCore();
 	private readonly _entries = new Map<Node<unknown>, Entry>();
 	private readonly _byId = new Map<string, Node<unknown>>();
@@ -159,13 +164,11 @@ export class Graph {
 		this.name = opts.name;
 		this._dispatcher = opts.dispatcher ?? defaultDispatcher;
 		this._versioning = opts.versioning;
+		this._environment = opts.environment ?? EnvironmentDrivers.empty();
 		if (opts.profile) this._dispatcher.setRecording(true);
 		restoreRegistrars.set(this, {
 			stateNode: <T = unknown>(id: string, stateOpts: SugarOpts<T> = {}) => {
-				const n = withNodeCore(
-					this._core,
-					() => new StateNode<T>([], null, this._nodeOpts(stateOpts)),
-				);
+				const n = this._construct(() => new StateNode<T>([], null, this._nodeOpts(stateOpts)));
 				this._addWithId(n, "state", [], stateOpts, id);
 				return n;
 			},
@@ -177,10 +180,7 @@ export class Graph {
 				nodeOpts: SugarOpts<T> = {},
 			) => {
 				this._assertDepsLocal(deps, `dep of restored '${id}'`);
-				const n = withNodeCore(
-					this._core,
-					() => new Node<T>([...deps], fn, this._nodeOpts(nodeOpts)),
-				);
+				const n = this._construct(() => new Node<T>([...deps], fn, this._nodeOpts(nodeOpts)));
 				this._addWithId(n, factory, deps, nodeOpts, id);
 				return n;
 			},
@@ -244,6 +244,10 @@ export class Graph {
 		};
 	}
 
+	private _construct<TNode extends Node<unknown>>(create: () => TNode): TNode {
+		return withEnvironmentDrivers(this._environment, () => withNodeCore(this._core, create));
+	}
+
 	/** Look up a registered node by its id. */
 	find(id: string): Node<unknown> | undefined {
 		return this._byId.get(id);
@@ -288,17 +292,13 @@ export class Graph {
 		opts: SugarOpts<T> = {},
 	): Node<T> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "node"}'`);
-		const n = withNodeCore(
-			this._core,
-			() => new Node<T>(deps as Node<unknown>[], fn, this._nodeOpts(opts)),
-		);
+		const n = this._construct(() => new Node<T>(deps as Node<unknown>[], fn, this._nodeOpts(opts)));
 		return this._add(n, opts.factory ?? "node", deps, opts);
 	}
 
 	/** A manual source with `.set(v)` (L4-Q1). */
 	state<T>(initial: T, opts: SugarOpts<T> = {}): StateNode<T> {
-		const n = withNodeCore(
-			this._core,
+		const n = this._construct(
 			() => new StateNode<T>([], null, { ...this._nodeOpts(opts), initial }),
 		);
 		this._add(n, "state", [], opts);
@@ -307,7 +307,7 @@ export class Graph {
 
 	/** ctx-level depless source; its fn runs on activation (R-rom-ram). */
 	producer<T = unknown>(fn: NodeFn, opts: SugarOpts<T> = {}): Node<T> {
-		const n = withNodeCore(this._core, () => new Node<T>([], fn, this._nodeOpts(opts)));
+		const n = this._construct(() => new Node<T>([], fn, this._nodeOpts(opts)));
 		return this._add(n, "producer", [], opts);
 	}
 
@@ -329,7 +329,7 @@ export class Graph {
 				ctx.down([["ERROR", errorPayload(e, "derived threw without a valid error payload")]]); // D30: value-level throw → graph-layer ERROR
 			}
 		};
-		const n = withNodeCore(this._core, () => new Node<T>([...deps], ctxFn, this._nodeOpts(opts)));
+		const n = this._construct(() => new Node<T>([...deps], ctxFn, this._nodeOpts(opts)));
 		return this._add(n, "derived", deps, opts);
 	}
 
@@ -358,10 +358,7 @@ export class Graph {
 				ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
 			}
 		};
-		const n = withNodeCore(
-			this._core,
-			() => new Node<void>([...deps], ctxFn, this._nodeOpts(opts)),
-		);
+		const n = this._construct(() => new Node<void>([...deps], ctxFn, this._nodeOpts(opts)));
 		return this._add(n, "effect", deps, opts);
 	}
 
@@ -402,7 +399,9 @@ export class Graph {
 		// Node<T> is invariant (T appears in NodeOptions.initial); widen the typed deps to the
 		// erased Node surface the free initNode / _add accept (same cast the old methods used).
 		const erased = deps as readonly Node<unknown>[];
-		const n = initNodeWithCore(this._core, op, erased, this._nodeOpts(entryOpts));
+		const n = withEnvironmentDrivers(this._environment, () =>
+			initNodeWithCore(this._core, op, erased, this._nodeOpts(entryOpts)),
+		);
 		return this._add(n, op.factory, erased, entryOpts);
 	}
 
