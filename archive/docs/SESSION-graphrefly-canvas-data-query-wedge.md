@@ -457,6 +457,71 @@ The data analytic views are Canvas widgets, not core substrate. The product can 
 pack for common views (table, chart, metric card, validation panel, narrative answer card), while
 power users build client-specific widget packs and layouts over the same node-binding contract.
 
+### Web-first shell, runner-backed execution
+
+Follow-up product direction: prefer web app first, with desktop/local execution treated as a power-user
+capability layer rather than the primary product surface.
+
+Reasoning:
+
+- The WorkspaceGraph, reactive issue tracker, Canvas, approvals, review, sharing, and client-facing
+  artifacts are naturally web-first.
+- The browser should not directly execute arbitrary local code. It can host the UI, Canvas widgets,
+  demo data, OPFS/local-first storage, JS/WASM execution, and lightweight data views.
+- Code verification, repo access, shell commands, dbt, warehouse credentials, and long-running tasks
+  should run through explicit local or remote runners.
+- Desktop/Tauri can later wrap the same web shell and local runner, but the durable design decision
+  should be the capability boundary, not the packaging format.
+
+Suggested execution channels:
+
+```text
+Browser sandbox
+  Canvas widgets
+  demo datasets
+  DuckDB-WASM / Pyodide / JS WorkGraphs
+  local-first drafts and artifacts
+
+Local runner
+  local repo access
+  git / shell / pnpm test / dbt run / dbt test
+  private credentials
+  power-user WorkGraph verification
+
+Remote runner
+  team/VPC execution
+  shared warehouse access
+  scheduled verification
+  long-running data jobs
+```
+
+The web app should send typed commands to runners rather than arbitrary shell strings. Example command
+surface:
+
+```text
+runVerification(issueId, workGraphId)
+runTests(repoPath, scope)
+runDbt(modelSelector)
+runSql(warehouseProfile, queryPlan)
+produceArtifact(canvasWidgetId)
+```
+
+The runner owns the capability policy:
+
+```text
+filesystem allowlist
+command allowlist
+warehouse profile allowlist
+runtime / memory limits
+artifact output policy
+human approval gates
+```
+
+Next research task: survey sandbox/runner options for this capability boundary. Candidate areas:
+browser sandboxes (OPFS, Web Workers, WASM, DuckDB-WASM, Pyodide), local runners/daemons, remote
+execution sandboxes, container/microVM isolation, Tauri/Electron shells, and permissioned command
+brokers.
+
 ## OPEN QUESTIONS
 
 1. **Vertical packaging:** should the first concrete deliverable be a `solutions/data-query` starter
@@ -469,6 +534,8 @@ power users build client-specific widget packs and layouts over the same node-bi
    notebook, a dashboard/report, or just a saved reusable graph?
 5. **Canvas form:** is this wedge better as a standalone web PWA, an internal demo host, or an
    embeddable component that later powers several vertical packs?
+6. **Sandbox/runner boundary:** what sandbox stack should back local and remote code execution for
+   WorkGraph verification without letting the web UI execute arbitrary local code?
 
 ## STATUS
 

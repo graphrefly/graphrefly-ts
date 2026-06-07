@@ -1,28 +1,17 @@
 /**
- * @graphrefly/graphrefly — presentation layer for the GraphReFly reactive graph protocol.
+ * @graphrefly/graphrefly — legacy presentation layer for the GraphReFly reactive graph protocol.
  *
- * This package composes:
- * 1. Substrate re-export from @graphrefly/pure-ts (ergonomic single-import: node,
- *    state, graph, derived, effect, produce, batch, operators, data-structures,
- *    storage, stratify, fromTimer, fromPromise, fromAsyncIter, fromAny, etc.)
- * 2. Presentation layers (base → utils → presets → solutions) — patterns, IO
- *    adapters, composition helpers, mutation wrappers, render, compat adapters.
+ * Migration note (clean-slate D32/D40/D41): the current TypeScript implementation is
+ * `@graphrefly/ts`. This root package still re-exports the frozen `@graphrefly/pure-ts`
+ * reference because many presentation modules in `src/base`, `src/utils`, `src/presets`,
+ * `src/solutions`, and `src/compat` still depend on old GraphSpec / Actor / factoryTag /
+ * attachSnapshotStorage-era shapes. Keep those bindings explicit until each surface is
+ * rebased onto `@graphrefly/ts`; do not add new substrate work here or in `pure-ts`.
  *
- * Peer dependency: @graphrefly/pure-ts.
- *
- * NOTE (D206, 2026-05-15): npm/pnpm `overrides` to swap this peer to
- * `@graphrefly/native` (Q28/D198 option c) is NOT a working sync
- * drop-in — native's Core runs on a tokio blocking pool and every
- * Core-touching call is async (D070/D077), while this package consumes
- * pure-ts's sync substrate API. Use `@graphrefly/pure-ts` here.
- * `@graphrefly/native` is for direct async-tolerant consumers and the
- * parity-tests rust arm (`createNativeImpl()`). Presentation async
- * rebase (D080) remains deferred. See `docs/rust-port-decisions.md`
- * D206 and `archive/docs/SESSION-DS-native-substrate-contract.md`.
- *
- * Node-only subpath: @graphrefly/graphrefly/base/sources/node
- * Browser-only subpath: @graphrefly/graphrefly/base/sources/browser
- * Compat per-framework: @graphrefly/graphrefly/compat/<framework>
+ * Clean-slate entrypoint: @graphrefly/ts
+ * Legacy node-only subpath: @graphrefly/graphrefly/base/sources/node
+ * Legacy browser-only subpath: @graphrefly/graphrefly/base/sources/browser
+ * Legacy compat per-framework: @graphrefly/graphrefly/compat/<framework>
  *
  * @module
  */

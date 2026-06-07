@@ -277,9 +277,9 @@ importers:
 
   examples/basic/state-and-derived:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
     devDependencies:
       tsx:
         specifier: ^4.21.0

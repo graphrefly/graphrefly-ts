@@ -1,7 +1,7 @@
 # basic / state-and-derived
 
-The simplest possible GraphReFly example: a source `state()` node feeding a
-`derived()` node, observed through `subscribe()`.
+The simplest possible clean-slate GraphReFly TS example: a graph-owned
+`state()` node feeding a `derived()` node, observed through `subscribe()`.
 
 ## Run
 
@@ -12,12 +12,12 @@ pnpm start
 
 ## Use as a starter
 
-Inside this monorepo the example links `@graphrefly/graphrefly` via
+Inside this monorepo the example links `@graphrefly/ts` via
 `workspace:*`. To copy this folder into your own project, replace
 `workspace:*` with a published version:
 
 ```json
 "dependencies": {
-  "@graphrefly/graphrefly": "^0.24.0"
+  "@graphrefly/ts": "^0.0.0"
 }
 ```
