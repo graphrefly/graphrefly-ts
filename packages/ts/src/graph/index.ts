@@ -72,6 +72,7 @@ export {
 	type WebSocketRequest,
 	type WebSocketSend,
 	type WebSocketSendResult,
+	type WebSocketSessionHandle,
 } from "./environment.js";
 export {
 	type DerivedFn,

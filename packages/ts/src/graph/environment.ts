@@ -74,6 +74,16 @@ export interface WebSocketSendResult {
 	readonly sent: true;
 }
 
+/** Live WebSocket session handle for D133 SessionBundle adapters. */
+export interface WebSocketSessionHandle {
+	send(
+		message: WebSocketSend,
+		callback: (result: DriverResult<WebSocketSendResult>) => void,
+	): DriverCancel;
+	close(code?: number, reason?: string): void;
+	cancel(): void;
+}
+
 export type WebSocketDriverEvent =
 	| { readonly kind: "event"; readonly event: WebSocketEvent }
 	| { readonly kind: "error"; readonly error: unknown }
@@ -124,6 +134,11 @@ export interface LocalWebSocketDriver {
 		message: WebSocketSend,
 		callback: (result: DriverResult<WebSocketSendResult>) => void,
 	): DriverCancel;
+	/** Open a live bidirectional session; unlike send(), outbound messages use this same connection. */
+	connectSession?(
+		request: WebSocketRequest,
+		callback: (event: WebSocketDriverEvent) => void,
+	): WebSocketSessionHandle;
 }
 
 export interface LocalWebhookDriver {
@@ -324,6 +339,63 @@ export function domWebSocketDriver(
 				socket.removeEventListener("open", onOpen);
 				socket.removeEventListener("error", onError);
 				socket.close();
+			};
+		},
+		connectSession(request, callback) {
+			const socket = new WebSocketCtor(request.url);
+			let active = true;
+			const onOpen = () => callback({ kind: "event", event: { kind: "open" } });
+			const onMessage = (event: unknown) => {
+				const data = (event as { data?: unknown }).data;
+				if (typeof data === "string") callback({ kind: "event", event: { kind: "text", data } });
+				else if (data instanceof Uint8Array) {
+					callback({ kind: "event", event: { kind: "binary", data } });
+				} else {
+					callback({ kind: "event", event: { kind: "text", data: String(data ?? "") } });
+				}
+			};
+			const onError = (event: unknown) => callback({ kind: "error", error: event });
+			const onClose = (event: unknown) => {
+				const close = event as { code?: number; reason?: string };
+				callback({
+					kind: "event",
+					event: { kind: "close", code: close.code, reason: close.reason },
+				});
+				callback({ kind: "complete" });
+			};
+			const removeListeners = () => {
+				socket.removeEventListener("open", onOpen);
+				socket.removeEventListener("message", onMessage);
+				socket.removeEventListener("error", onError);
+				socket.removeEventListener("close", onClose);
+			};
+			socket.addEventListener("open", onOpen);
+			socket.addEventListener("message", onMessage);
+			socket.addEventListener("error", onError);
+			socket.addEventListener("close", onClose);
+			return {
+				send(message, sendCallback) {
+					let canceled = false;
+					try {
+						socket.send(message.data);
+						if (!canceled) sendCallback({ ok: true, value: { sent: true } });
+					} catch (error) {
+						if (!canceled) sendCallback({ ok: false, error });
+					}
+					return () => {
+						canceled = true;
+					};
+				},
+				close(code, reason) {
+					if (!active) return;
+					socket.close(code, reason);
+				},
+				cancel() {
+					if (!active) return;
+					active = false;
+					removeListeners();
+					socket.close();
+				},
 			};
 		},
 	};

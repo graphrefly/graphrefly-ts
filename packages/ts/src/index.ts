@@ -167,6 +167,7 @@ export {
 	type WebSocketRequest,
 	type WebSocketSend,
 	type WebSocketSendResult,
+	type WebSocketSessionHandle,
 } from "./graph/environment.js";
 export {
 	type DerivedFn,

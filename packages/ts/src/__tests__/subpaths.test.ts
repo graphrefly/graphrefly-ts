@@ -136,6 +136,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.toHttp).toBe("function");
 		expect(typeof adapters.toProcess).toBe("function");
 		expect(typeof adapters.toWebSocket).toBe("function");
+		expect(typeof adapters.webSocketSession).toBe("function");
 		expect(typeof adapters.writableStore).toBe("function");
 		expect(typeof adapters.zustandStore).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
