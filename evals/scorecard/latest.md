@@ -1,6 +1,6 @@
 # GraphReFly Eval Scorecard
 
-Generated: 2026-06-01T11:24:32.030Z
+Generated: 2026-06-08T10:29:26.696Z
 
 ## Harness Metrics
 
