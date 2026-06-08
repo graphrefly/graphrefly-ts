@@ -7,6 +7,12 @@ import { execFileSync, type SpawnOptions, spawn } from "node:child_process";
 import { type Dirent, existsSync, type FSWatcher, readdirSync, statSync, watch } from "node:fs";
 import { dirname, join, relative, resolve as resolvePath } from "node:path";
 import type { Ctx } from "../ctx/types.js";
+import type {
+	DriverResult,
+	ProcessResult as EnvironmentProcessResult,
+	LocalProcessDriver,
+	ProcessCommand,
+} from "../graph/environment.js";
 import type { Operator } from "../graph/operators.js";
 import { errorPayload } from "../protocol/messages.js";
 
@@ -47,6 +53,21 @@ export interface FromSpawnOptions {
 	readonly stdio?: "pipe" | readonly ("pipe" | "ignore" | "inherit")[];
 	/** Milliseconds after teardown SIGTERM before sending SIGKILL. Default: 1000. */
 	readonly killGraceMs?: number;
+}
+
+/**
+ * Node-only process driver options for D130/D131 EnvironmentDrivers.
+ *
+ * These knobs configure host child-process behavior at the driver boundary only; they do not
+ * change graph wave, tier, or message semantics.
+ */
+export interface NodeProcessDriverOptions {
+	/** Milliseconds after cancellation SIGTERM before sending SIGKILL. Default: 1000. */
+	readonly killGraceMs?: number;
+	/** Maximum captured stdout + stderr bytes before terminating with ERROR. Default: 16 MiB. */
+	readonly maxBufferBytes?: number;
+	/** Optional shell mode passed to Node's child_process.spawn. Default: false. */
+	readonly shell?: boolean | string;
 }
 
 export interface ProcessResult {
@@ -435,6 +456,29 @@ export function fromSpawn(
 	});
 }
 
+/**
+ * Node.js process EnvironmentDriver for D130/D131 adapters.
+ *
+ * Import this from `@graphrefly/ts/sources/node` and install it with
+ * `EnvironmentDrivers.empty().withProcess(nodeProcessDriver())`. The child process is an
+ * adapter-boundary side effect; graph nodes only observe ordinary ProcessResult DATA or ERROR.
+ */
+export function nodeProcessDriver(opts: NodeProcessDriverOptions = {}): LocalProcessDriver {
+	const killGraceMs = opts.killGraceMs ?? 1000;
+	const maxBufferBytes = opts.maxBufferBytes ?? 16 * 1024 * 1024;
+	validateNonNegativeFinite("nodeProcessDriver: killGraceMs", killGraceMs);
+	validateNonNegativeFinite("nodeProcessDriver: maxBufferBytes", maxBufferBytes);
+	return {
+		run(command, callback) {
+			return runNodeProcessCommand(command, callback, {
+				killGraceMs,
+				maxBufferBytes,
+				shell: opts.shell,
+			});
+		},
+	};
+}
+
 export function runProcess(
 	cmd: string,
 	args: readonly string[] = [],
@@ -528,6 +572,139 @@ export function runProcess(
 		});
 		return stop;
 	});
+}
+
+function runNodeProcessCommand(
+	command: ProcessCommand,
+	callback: (result: DriverResult<EnvironmentProcessResult>) => void,
+	opts: {
+		readonly killGraceMs: number;
+		readonly maxBufferBytes: number;
+		readonly shell?: boolean | string;
+	},
+): () => void {
+	if (typeof command.program !== "string" || command.program.length === 0) {
+		callback({
+			ok: false,
+			error: new TypeError("nodeProcessDriver: program must be a non-empty string"),
+		});
+		return () => undefined;
+	}
+	let alive = true;
+	let terminal = false;
+	const stdoutChunks: Buffer[] = [];
+	const stderrChunks: Buffer[] = [];
+	let bufferedBytes = 0;
+	let exitInfo: { code: number | null; signal: string | null } | undefined;
+	let child: ReturnType<typeof spawn>;
+	let killTimer: ReturnType<typeof setTimeout> | undefined;
+	const clearKillTimer = () => {
+		if (killTimer !== undefined) clearTimeout(killTimer);
+		killTimer = undefined;
+	};
+	const stop = () => {
+		if (!alive) return;
+		alive = false;
+		child?.stdout?.removeAllListeners("data");
+		child?.stderr?.removeAllListeners("data");
+		if (!terminal) {
+			try {
+				child?.kill("SIGTERM");
+			} catch {
+				// Process may already have exited.
+			}
+			killTimer = setTimeout(() => {
+				if (!terminal) {
+					try {
+						child?.kill("SIGKILL");
+					} catch {
+						// Process may already have exited.
+					}
+				}
+			}, opts.killGraceMs);
+			killTimer.unref?.();
+		}
+	};
+	try {
+		child = spawn(command.program, [...command.args], {
+			cwd: command.cwd,
+			env: command.env === undefined ? undefined : Object.fromEntries(command.env),
+			shell: opts.shell,
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+	} catch (err) {
+		terminal = true;
+		callback({ ok: false, error: err });
+		return () => undefined;
+	}
+	const fail = (error: unknown) => {
+		clearKillTimer();
+		if (!alive || terminal) return;
+		terminal = true;
+		alive = false;
+		child.stdout?.removeAllListeners("data");
+		child.stderr?.removeAllListeners("data");
+		try {
+			child.kill("SIGTERM");
+		} catch {
+			// Process may already have exited.
+		}
+		killTimer = setTimeout(() => {
+			try {
+				child.kill("SIGKILL");
+			} catch {
+				// Process may already have exited.
+			}
+		}, opts.killGraceMs);
+		killTimer.unref?.();
+		callback({ ok: false, error });
+	};
+	const pushOutput = (chunks: Buffer[], chunk: Buffer) => {
+		if (!alive) return;
+		bufferedBytes += chunk.byteLength;
+		if (bufferedBytes > opts.maxBufferBytes) {
+			fail(
+				new RangeError(
+					`nodeProcessDriver: stdout/stderr exceeded maxBufferBytes (${opts.maxBufferBytes})`,
+				),
+			);
+			return;
+		}
+		chunks.push(chunk);
+	};
+	child.stdout?.on("data", (chunk: Buffer) => {
+		pushOutput(stdoutChunks, chunk);
+	});
+	child.stderr?.on("data", (chunk: Buffer) => {
+		pushOutput(stderrChunks, chunk);
+	});
+	child.on("error", (err) => {
+		clearKillTimer();
+		if (!alive || terminal) return;
+		terminal = true;
+		alive = false;
+		callback({ ok: false, error: err });
+	});
+	child.on("exit", (code, signal) => {
+		exitInfo = { code, signal };
+	});
+	child.on("close", () => {
+		clearKillTimer();
+		if (!alive || terminal) return;
+		terminal = true;
+		alive = false;
+		const info = exitInfo ?? { code: null, signal: null };
+		callback({
+			ok: true,
+			value: {
+				stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+				stderr: Buffer.concat(stderrChunks).toString("utf8"),
+				exitCode: info.code,
+				signal: info.signal,
+			},
+		});
+	});
+	return stop;
 }
 
 interface GitPollResult {

@@ -175,10 +175,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof sourcesNode.fromFSWatch).toBe("function");
 		expect(typeof sourcesNode.fromGitHook).toBe("function");
 		expect(typeof sourcesNode.fromSpawn).toBe("function");
+		expect(typeof sourcesNode.nodeProcessDriver).toBe("function");
 		expect(typeof sourcesNode.runProcess).toBe("function");
 		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
 		expect(Object.hasOwn(sources, "fromGitHook")).toBe(false);
 		expect(Object.hasOwn(sources, "fromSpawn")).toBe(false);
+		expect(Object.hasOwn(sources, "nodeProcessDriver")).toBe(false);
 		expect(Object.hasOwn(sources, "runProcess")).toBe(false);
 	});
 
@@ -191,6 +193,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(sourcesBrowser, "fromFSWatch")).toBe(false);
 		expect(Object.hasOwn(sourcesBrowser, "fromGitHook")).toBe(false);
 		expect(Object.hasOwn(sourcesBrowser, "fromSpawn")).toBe(false);
+		expect(Object.hasOwn(sourcesBrowser, "nodeProcessDriver")).toBe(false);
 		expect(Object.hasOwn(sourcesBrowser, "runProcess")).toBe(false);
 	});
 
