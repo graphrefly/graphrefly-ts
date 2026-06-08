@@ -12,7 +12,7 @@ describe("wire bridge envelopes (D134)", () => {
 				type: "data",
 				seq: 7,
 				cursor: 3,
-				payload: { ok: true },
+				payload: { kind: "data", value: { ok: true } },
 				attempt: 2,
 				maxAttempts: 4,
 				requestId: "req-1",
@@ -20,7 +20,7 @@ describe("wire bridge envelopes (D134)", () => {
 		).toEqual({
 			sessionId: "session-a",
 			type: "data",
-			payload: { ok: true },
+			payload: { kind: "data", value: { ok: true } },
 			metadata: {
 				seq: 7,
 				cursor: 3,
@@ -35,9 +35,31 @@ describe("wire bridge envelopes (D134)", () => {
 		expect(() => wireBridgeEnvelope({ sessionId: "session-a", type: "data", seq: 0 })).toThrow(
 			/seq/,
 		);
+		expect(() => wireBridgeEnvelope({ sessionId: "session-a", type: "data", seq: 1 })).toThrow(
+			/data envelope requires data payload/,
+		);
+		expect(() =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "error",
+				seq: 1,
+				payload: { kind: "data", value: "wrong" },
+			}),
+		).toThrow(/error envelope requires error payload/);
+		expect(() =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "error",
+				seq: 1,
+				payload: { kind: "error" } as never,
+			}),
+		).toThrow(/error envelope requires error payload/);
 		expect(() =>
 			wireBridgeEnvelope({ sessionId: "session-a", type: "ack", seq: 1, ackForSeq: 0 }),
 		).toThrow(/ackForSeq/);
+		expect(() => wireBridgeEnvelope({ sessionId: "session-a", type: "ack", seq: 1 })).toThrow(
+			/requires ackForSeq/,
+		);
 		expect(() =>
 			wireBridgeEnvelope({ sessionId: "session-a", type: "unknown" as never, seq: 1 }),
 		).toThrow(/type/);
@@ -84,7 +106,7 @@ describe("wire bridge envelopes (D134)", () => {
 			{
 				sessionId: "session-a",
 				type: "data",
-				payload: { task: "compile" },
+				payload: { kind: "data", value: { task: "compile" } },
 				metadata: {
 					seq: 1,
 					cursor: 0,
@@ -219,7 +241,7 @@ describe("wire bridge envelopes (D134)", () => {
 					{
 						sessionId: "session-a",
 						type: "data",
-						payload: "payload",
+						payload: { kind: "data", value: "payload" },
 						metadata: {
 							seq: 1,
 							cursor: 0,
@@ -237,7 +259,7 @@ describe("wire bridge envelopes (D134)", () => {
 					{
 						sessionId: "session-a",
 						type: "data",
-						payload: "payload",
+						payload: { kind: "data", value: "payload" },
 						metadata: {
 							seq: 1,
 							cursor: 0,
@@ -374,7 +396,7 @@ describe("wire bridge envelopes (D134)", () => {
 					sessionId: "session-b",
 					type: "data",
 					seq: 1,
-					payload: "wrong-session",
+					payload: { kind: "data", value: "wrong-session" },
 				}),
 			],
 		]);
@@ -385,7 +407,7 @@ describe("wire bridge envelopes (D134)", () => {
 					sessionId: "session-a",
 					type: "data",
 					seq: 1,
-					payload: "right-session",
+					payload: { kind: "data", value: "right-session" },
 				}),
 			],
 		]);
@@ -425,7 +447,7 @@ describe("wire bridge envelopes (D134)", () => {
 				{
 					sessionId: "session-a",
 					type: "data",
-					payload: "bad",
+					payload: { kind: "data", value: "bad" },
 					metadata: {
 						seq: Number.NaN,
 						cursor: 0,
@@ -443,7 +465,7 @@ describe("wire bridge envelopes (D134)", () => {
 					sessionId: "session-a",
 					type: "data",
 					seq: 1,
-					payload: "good",
+					payload: { kind: "data", value: "good" },
 				}),
 			],
 		]);
@@ -471,7 +493,7 @@ describe("wire bridge envelopes (D134)", () => {
 					sessionId: "session-a",
 					type: "data",
 					seq: 1,
-					payload: "still-live",
+					payload: { kind: "data", value: "still-live" },
 				}),
 			],
 		]);
@@ -502,7 +524,7 @@ describe("wire bridge envelopes (D134)", () => {
 					sessionId: "session-a",
 					type: "error",
 					seq: 2,
-					payload: "remote failed",
+					payload: { kind: "error", error: "remote failed" },
 				}),
 			],
 		]);
@@ -513,7 +535,7 @@ describe("wire bridge envelopes (D134)", () => {
 					sessionId: "session-a",
 					type: "error",
 					seq: 1,
-					payload: "remote failed",
+					payload: { kind: "error", error: "remote failed" },
 				}),
 			],
 		]);
@@ -596,7 +618,7 @@ describe("wire bridge envelopes (D134)", () => {
 					type: "data",
 					seq: 1,
 					cursor: 3,
-					payload: "one",
+					payload: { kind: "data", value: "one" },
 				}),
 			],
 		]);
@@ -608,7 +630,7 @@ describe("wire bridge envelopes (D134)", () => {
 					type: "data",
 					seq: 2,
 					cursor: 2,
-					payload: "two",
+					payload: { kind: "data", value: "two" },
 				}),
 			],
 		]);
@@ -632,7 +654,7 @@ describe("wire bridge envelopes (D134)", () => {
 					sessionId: "session-a",
 					type: "error",
 					seq: 1,
-					payload: "remote failed",
+					payload: { kind: "error", error: "remote failed" },
 				}),
 			],
 		]);
@@ -666,12 +688,37 @@ describe("wire bridge envelopes (D134)", () => {
 
 		bridge.command.down([["DATA", { kind: "wat" } as never]]);
 		bridge.command.down([["DATA", { kind: "ack", seq: 0 } as never]]);
+		bridge.command.down([["DATA", { kind: "send", payload: "ok", idempotencyKey: "" } as never]]);
+		bridge.send("after-invalid");
 
 		expect(errors).toContainEqual(["DATA", "wireBridge: command kind is not recognized"]);
 		expect(errors).toContainEqual([
 			"DATA",
 			"wireBridge: ack command seq must be a positive integer",
 		]);
-		expect(outbound.filter((msg) => msg[0] === "DATA")).toEqual([]);
+		expect(errors).toContainEqual([
+			"DATA",
+			"wireBridgeEnvelope: idempotencyKey must be a non-empty string",
+		]);
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toEqual([
+			[
+				"DATA",
+				{
+					sessionId: "session-a",
+					type: "data",
+					payload: { kind: "data", value: "after-invalid" },
+					metadata: {
+						seq: 1,
+						cursor: 0,
+						idempotencyKey: "session-a:1",
+						attempt: 1,
+						maxAttempts: 1,
+						timestampMs: expect.any(Number),
+						ackForSeq: undefined,
+						requestId: undefined,
+					},
+				},
+			],
+		]);
 	});
 });

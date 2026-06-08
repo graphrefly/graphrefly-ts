@@ -37,18 +37,24 @@ export interface WireBridgeMetadata {
 	readonly requestId?: string;
 }
 
-export interface WireBridgeEnvelope<TPayload = unknown> {
+export type WireBridgePayload<TData = unknown> =
+	| { readonly kind: "data"; readonly value: TData }
+	| { readonly kind: "error"; readonly error: unknown }
+	| { readonly kind: "status"; readonly status: unknown }
+	| { readonly kind: "close"; readonly reason?: unknown };
+
+export interface WireBridgeEnvelope<TData = unknown> {
 	readonly sessionId: string;
 	readonly type: WireBridgeEnvelopeType;
-	readonly payload?: TPayload;
+	readonly payload?: WireBridgePayload<TData>;
 	readonly metadata: WireBridgeMetadata;
 }
 
-export type WireBridgeCommand<TPayload = unknown> =
+export type WireBridgeCommand<TData = unknown> =
 	| { readonly kind: "start"; readonly idempotencyKey?: string; readonly requestId?: string }
 	| {
 			readonly kind: "send";
-			readonly payload: TPayload;
+			readonly payload: TData;
 			readonly idempotencyKey?: string;
 			readonly requestId?: string;
 	  }
@@ -168,19 +174,19 @@ export interface WireBridgeBundle<TOutbound = unknown, TInbound = unknown> {
 	close(reason?: unknown, opts?: { idempotencyKey?: string }): void;
 }
 
-interface PendingEnvelope<TPayload> {
-	envelope: WireBridgeEnvelope<TPayload>;
+interface PendingEnvelope<TData> {
+	envelope: WireBridgeEnvelope<TData>;
 	timer?: ReturnType<typeof setTimeout>;
 }
 
-interface BridgeState<TPayload> {
+interface BridgeState<TData> {
 	active: boolean;
 	cleanupInstalled: boolean;
 	nextSeq: number;
 	cursor: number;
 	remoteCursor: number;
 	terminalReported: boolean;
-	pending: Map<number, PendingEnvelope<TPayload>>;
+	pending: Map<number, PendingEnvelope<TData>>;
 }
 
 interface WireBridgeInvalidIngress {
@@ -206,19 +212,19 @@ export function wireBridgeIdempotencyKey(sessionId: string, seq: number): string
 }
 
 /** Create a D134 wire bridge envelope with ordered metadata. */
-export function wireBridgeEnvelope<TPayload = unknown>(input: {
+export function wireBridgeEnvelope<TData = unknown>(input: {
 	readonly sessionId: string;
 	readonly type: WireBridgeEnvelopeType;
 	readonly seq: number;
 	readonly cursor?: number;
-	readonly payload?: TPayload;
+	readonly payload?: WireBridgePayload<TData>;
 	readonly idempotencyKey?: string;
 	readonly attempt?: number;
 	readonly maxAttempts?: number;
 	readonly timestampMs?: number;
 	readonly ackForSeq?: number;
 	readonly requestId?: string;
-}): WireBridgeEnvelope<TPayload> {
+}): WireBridgeEnvelope<TData> {
 	if (typeof input.sessionId !== "string" || input.sessionId.length === 0) {
 		throw new RangeError("wireBridgeEnvelope: sessionId must be a non-empty string");
 	}
@@ -243,8 +249,15 @@ export function wireBridgeEnvelope<TPayload = unknown>(input: {
 	if (input.ackForSeq !== undefined && !isSafePositiveInteger(input.ackForSeq)) {
 		throw new RangeError("wireBridgeEnvelope: ackForSeq must be a positive integer");
 	}
+	if ((input.type === "ack" || input.type === "nack") && input.ackForSeq === undefined) {
+		throw new RangeError(`wireBridgeEnvelope: ${input.type} envelope requires ackForSeq`);
+	}
 	if (input.idempotencyKey !== undefined && input.idempotencyKey.length === 0) {
 		throw new RangeError("wireBridgeEnvelope: idempotencyKey must be a non-empty string");
+	}
+	const payloadError = validatePayloadForType(input.type, input.payload, "wireBridgeEnvelope");
+	if (payloadError !== undefined) {
+		throw new RangeError(payloadError);
 	}
 	return {
 		sessionId: input.sessionId,
@@ -369,8 +382,9 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 
 			const emitOutbound = (
 				type: WireBridgeEnvelopeType,
-				payload: TOutbound | unknown,
+				payload: WireBridgePayload<TOutbound> | undefined,
 				commandOpts: { idempotencyKey?: string; requestId?: string; ackForSeq?: number } = {},
+				beforeEmit?: () => void,
 			) => {
 				if (!isSafePositiveInteger(state.nextSeq)) {
 					ctx.down([
@@ -384,20 +398,36 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 					]);
 					return;
 				}
-				const seq = state.nextSeq++;
-				const envelope = wireBridgeEnvelope<TOutbound>({
-					sessionId: opts.sessionId,
-					type,
-					seq,
-					cursor: state.cursor,
-					payload: payload as TOutbound,
-					idempotencyKey: commandOpts.idempotencyKey,
-					attempt: 1,
-					maxAttempts: policy.maxAttempts,
-					timestampMs: now(),
-					ackForSeq: commandOpts.ackForSeq,
-					requestId: commandOpts.requestId,
-				});
+				const seq = state.nextSeq;
+				let envelope: WireBridgeEnvelope<TOutbound>;
+				try {
+					envelope = wireBridgeEnvelope<TOutbound>({
+						sessionId: opts.sessionId,
+						type,
+						seq,
+						cursor: state.cursor,
+						payload,
+						idempotencyKey: commandOpts.idempotencyKey,
+						attempt: 1,
+						maxAttempts: policy.maxAttempts,
+						timestampMs: now(),
+						ackForSeq: commandOpts.ackForSeq,
+						requestId: commandOpts.requestId,
+					});
+				} catch (error) {
+					ctx.down([
+						[
+							"DATA",
+							{
+								kind: "invalid",
+								error: error instanceof Error ? error.message : String(error),
+							},
+						],
+					]);
+					return;
+				}
+				state.nextSeq++;
+				beforeEmit?.();
 				ctx.down([["DATA", { kind: "outbound", envelope }]]);
 				if (shouldTrackAck(type)) armAckTimeout(ctx, state, envelope, opts, policy, now);
 			};
@@ -428,7 +458,7 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 						emitOutbound("start", undefined, commandValue);
 						break;
 					case "send":
-						emitOutbound("data", commandValue.payload, commandValue);
+						emitOutbound("data", { kind: "data", value: commandValue.payload }, commandValue);
 						break;
 					case "ack":
 						emitOutbound("ack", undefined, {
@@ -438,18 +468,28 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 						});
 						break;
 					case "nack":
-						emitOutbound("nack", errorPayload(commandValue.error), {
-							idempotencyKey: commandValue.idempotencyKey,
-							requestId: commandValue.requestId,
-							ackForSeq: commandValue.seq,
-						});
+						emitOutbound(
+							"nack",
+							{ kind: "error", error: errorPayload(commandValue.error) },
+							{
+								idempotencyKey: commandValue.idempotencyKey,
+								requestId: commandValue.requestId,
+								ackForSeq: commandValue.seq,
+							},
+						);
 						break;
 					case "close":
-						for (const pending of state.pending.values()) {
-							if (pending.timer !== undefined) clearTimeout(pending.timer);
-						}
-						state.pending.clear();
-						emitOutbound("close", commandValue.reason, commandValue);
+						emitOutbound(
+							"close",
+							{ kind: "close", reason: commandValue.reason },
+							commandValue,
+							() => {
+								for (const pending of state.pending.values()) {
+									if (pending.timer !== undefined) clearTimeout(pending.timer);
+								}
+								state.pending.clear();
+							},
+						);
 						break;
 				}
 			}
@@ -670,7 +710,7 @@ function processInbound<TOutbound, TInbound>(
 					seq: envelope.metadata.ackForSeq,
 					envelope,
 					outbound: pending.envelope,
-					error: errorPayload(envelope.payload),
+					error: bridgePayloadError(envelope.payload, "remote nack"),
 				} satisfies WireBridgeEvent<TOutbound, TInbound>,
 			],
 		]);
@@ -722,6 +762,12 @@ function validateInboundEnvelope(envelope: unknown): string | undefined {
 	if ((candidate.type === "ack" || candidate.type === "nack") && metadata.ackForSeq === undefined) {
 		return `wireBridge: inbound ${candidate.type} envelope requires ackForSeq`;
 	}
+	const payloadError = validatePayloadForType(
+		candidate.type as WireBridgeEnvelopeType,
+		candidate.payload,
+		"wireBridge: inbound envelope",
+	);
+	if (payloadError !== undefined) return payloadError;
 	return undefined;
 }
 
@@ -926,7 +972,7 @@ function projectErrors<TOutbound, TInbound>(
 						],
 					]);
 				} else if (event.kind === "inbound" && event.envelope.type === "error") {
-					ctx.down([["DATA", errorPayload(event.envelope.payload)]]);
+					ctx.down([["DATA", bridgePayloadError(event.envelope.payload, "remote error envelope")]]);
 				} else if (event.kind === "session-mismatch") {
 					ctx.down([
 						[
@@ -1060,4 +1106,48 @@ function isSafePositiveInteger(value: unknown): value is number {
 
 function isSafeNonNegativeInteger(value: unknown): value is number {
 	return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function validatePayloadForType(
+	type: WireBridgeEnvelopeType,
+	payload: unknown,
+	prefix: string,
+): string | undefined {
+	const kind =
+		typeof payload === "object" && payload !== null
+			? (payload as { readonly kind?: unknown }).kind
+			: undefined;
+	switch (type) {
+		case "data":
+			return kind === "data" && (payload as { readonly value?: unknown }).value !== undefined
+				? undefined
+				: `${prefix}: data envelope requires data payload`;
+		case "nack":
+		case "error":
+			return kind === "error" && (payload as { readonly error?: unknown }).error !== undefined
+				? undefined
+				: `${prefix}: ${type} envelope requires error payload`;
+		case "status":
+			return kind === "status" && (payload as { readonly status?: unknown }).status !== undefined
+				? undefined
+				: `${prefix}: status envelope requires status payload`;
+		case "close":
+			return kind === "close" ? undefined : `${prefix}: close envelope requires close payload`;
+		case "start":
+		case "ack":
+			return payload === undefined
+				? undefined
+				: `${prefix}: ${type} envelope must not carry a payload`;
+	}
+}
+
+function bridgePayloadError(payload: unknown, fallback: unknown): unknown {
+	if (
+		typeof payload === "object" &&
+		payload !== null &&
+		(payload as { readonly kind?: unknown }).kind === "error"
+	) {
+		return (payload as { readonly error?: unknown }).error;
+	}
+	return fallback;
 }

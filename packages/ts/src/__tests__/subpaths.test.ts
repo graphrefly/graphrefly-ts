@@ -163,6 +163,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof messaging.messageBus).toBe("function");
 		expect(typeof messaging.fromTopic).toBe("function");
 		expect(typeof messaging.toTopic).toBe("function");
+		expect(typeof messaging.dynamicHub).toBe("function");
+		expect(typeof messaging.fromHubTopic).toBe("function");
+		expect(typeof messaging.toHubTopic).toBe("function");
 		expect(typeof orchestration.retryPolicy).toBe("function");
 		expect(typeof orchestration.retryStatusBundle).toBe("function");
 		expect(typeof orchestration.breakerBundle).toBe("function");
