@@ -91,7 +91,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof core.node).toBe("function");
 		expect(typeof graphLayer.Graph).toBe("function");
 		expect(typeof graphLayer.coalesceObserve).toBe("function");
+		expect(typeof graphLayer.domWebSocketDriver).toBe("function");
 		expect(typeof graphLayer.explainPath).toBe("function");
+		expect(typeof graphLayer.fetchHttpDriver).toBe("function");
 		expect(typeof graphLayer.filterObserve).toBe("function");
 		expect(typeof graphLayer.GRAPH_CHECKPOINT_VERSION).toBe("string");
 		expect(typeof graphLayer.reachable).toBe("function");
@@ -131,6 +133,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.externalStore).toBe("function");
 		expect(typeof adapters.readableStore).toBe("function");
 		expect(typeof adapters.subscribeNodeValues).toBe("function");
+		expect(typeof adapters.toHttp).toBe("function");
+		expect(typeof adapters.toProcess).toBe("function");
+		expect(typeof adapters.toWebSocket).toBe("function");
 		expect(typeof adapters.writableStore).toBe("function");
 		expect(typeof adapters.zustandStore).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
@@ -151,8 +156,14 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(storage, "attachObserveSink")).toBe(false);
 		expect(Object.hasOwn(storage, "attachObserveEventLog")).toBe(false);
 		expect(Object.keys(cqrs)).toEqual([]);
-		expect(Object.keys(messaging)).toEqual([]);
-		expect(Object.keys(orchestration)).toEqual([]);
+		expect(typeof messaging.messageBus).toBe("function");
+		expect(typeof messaging.fromTopic).toBe("function");
+		expect(typeof messaging.toTopic).toBe("function");
+		expect(typeof orchestration.retryPolicy).toBe("function");
+		expect(typeof orchestration.retryStatusBundle).toBe("function");
+		expect(typeof orchestration.breakerBundle).toBe("function");
+		expect(typeof orchestration.rateLimitBundle).toBe("function");
+		expect(typeof orchestration.timeoutBundle).toBe("function");
 		expect(Object.hasOwn(patterns, "guardedExecution")).toBe(false);
 		expect(Object.hasOwn(patterns, "inspect")).toBe(false);
 		expect(Object.hasOwn(patterns, "resilientPipeline")).toBe(false);

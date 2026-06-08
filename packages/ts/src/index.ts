@@ -139,8 +139,12 @@ export {
 export {
 	type DriverCancel,
 	type DriverResult,
+	domWebSocketDriver,
 	EnvironmentDrivers,
 	type EnvironmentDriversInit,
+	type FetchLike,
+	type FetchResponseLike,
+	fetchHttpDriver,
 	type HttpRequest,
 	type HttpResponse,
 	type LocalHttpDriver,
@@ -156,9 +160,13 @@ export {
 	type WebhookDriverEvent,
 	type WebhookEvent,
 	type WebhookRegistration,
+	type WebSocketConstructorLike,
 	type WebSocketDriverEvent,
 	type WebSocketEvent,
+	type WebSocketLike,
 	type WebSocketRequest,
+	type WebSocketSend,
+	type WebSocketSendResult,
 } from "./graph/environment.js";
 export {
 	type DerivedFn,
@@ -247,6 +255,17 @@ export {
 	type MermaidLiveUrlOptions,
 	mermaidLiveUrl,
 } from "./graph/render.js";
+export {
+	type BackoffPolicy,
+	backoffDelayMs,
+	nextRetryDelayMs,
+	noBackoff,
+	type RetryPolicy,
+	type RetryState,
+	type RetryStatus,
+	retryPolicy,
+	shouldRetry,
+} from "./graph/resilience.js";
 export {
 	defaultRestoreRegistry,
 	type GraphRestoreDefinition,

@@ -1,0 +1,101 @@
+/**
+ * Passive resilience policy helpers for graph-visible adapters (D130/D132).
+ *
+ * These helpers never schedule work and never own graph state. Drivers/adapters
+ * consume them, while graph-visible bundles expose attempts/status/errors.
+ */
+
+export type BackoffPolicy =
+	| { readonly kind: "none" }
+	| { readonly kind: "constant"; readonly delayMs: number }
+	| {
+			readonly kind: "linear";
+			readonly initialMs: number;
+			readonly stepMs: number;
+			readonly maxMs?: number;
+	  }
+	| {
+			readonly kind: "exponential";
+			readonly initialMs: number;
+			readonly factor: number;
+			readonly maxMs?: number;
+	  }
+	| { readonly kind: "fibonacci"; readonly unitMs: number; readonly maxMs?: number };
+
+export interface RetryPolicy {
+	/** Total attempts including the first try. */
+	readonly maxAttempts: number;
+	readonly backoff: BackoffPolicy;
+}
+
+export type RetryState = "idle" | "running" | "waiting" | "succeeded" | "failed" | "exhausted";
+
+export interface RetryStatus {
+	readonly attempt: number;
+	readonly maxAttempts: number;
+	readonly delayMs?: number;
+	readonly state: RetryState;
+}
+
+export const noBackoff: BackoffPolicy = Object.freeze({ kind: "none" });
+
+export function retryPolicy(maxAttempts = 1, backoff: BackoffPolicy = noBackoff): RetryPolicy {
+	if (!Number.isInteger(maxAttempts) || maxAttempts <= 0) {
+		throw new RangeError("retryPolicy: maxAttempts must be a positive integer");
+	}
+	return Object.freeze({ maxAttempts, backoff });
+}
+
+export function shouldRetry(policy: RetryPolicy, failedAttempt: number): boolean {
+	return failedAttempt < policy.maxAttempts;
+}
+
+export function nextRetryDelayMs(policy: RetryPolicy, nextAttempt: number): number | undefined {
+	if (!Number.isInteger(nextAttempt) || nextAttempt <= 0 || nextAttempt > policy.maxAttempts) {
+		return undefined;
+	}
+	return backoffDelayMs(policy.backoff, nextAttempt);
+}
+
+export function backoffDelayMs(policy: BackoffPolicy, attempt: number): number {
+	const safeAttempt = Math.max(1, Math.trunc(attempt));
+	switch (policy.kind) {
+		case "none":
+			return 0;
+		case "constant":
+			return nonNegative(policy.delayMs);
+		case "linear":
+			return cap(
+				nonNegative(policy.initialMs) + nonNegative(policy.stepMs) * (safeAttempt - 1),
+				policy.maxMs,
+			);
+		case "exponential": {
+			const factor = Math.max(1, Math.trunc(policy.factor));
+			return cap(nonNegative(policy.initialMs) * factor ** (safeAttempt - 1), policy.maxMs);
+		}
+		case "fibonacci":
+			return cap(nonNegative(policy.unitMs) * fibonacci(safeAttempt), policy.maxMs);
+	}
+}
+
+function cap(value: number, max: number | undefined): number {
+	if (max === undefined) return value;
+	return Math.min(value, nonNegative(max));
+}
+
+function nonNegative(value: number): number {
+	if (!Number.isFinite(value)) return 0;
+	return Math.max(0, value);
+}
+
+function fibonacci(n: number): number {
+	if (n <= 1) return 1;
+	let prev = 1;
+	let curr = 1;
+	for (let i = 2; i <= n; i += 1) {
+		const next = prev + curr;
+		prev = curr;
+		curr = next;
+	}
+	return curr;
+}

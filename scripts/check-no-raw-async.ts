@@ -1,10 +1,9 @@
 /**
  * R-no-raw-async enforcement for the clean-slate @graphrefly/ts package (B21 / D43).
  *
- * Raw async primitives must live ONLY at the sanctioned async boundary: sources
- * (`graph/sources.ts`, node-only source barrels) and the pool/runner layer (R-no-raw-async / F-SYNC-CORE —
- * "async boundaries live only in sources and the pool/runner layer"). The sync wave
- * core and the rest of the graph layer must stay sync. This catches a raw
+ * Raw async primitives must live ONLY at the sanctioned async boundary: sources,
+ * environment drivers/adapters, and the pool/runner layer (R-no-raw-async /
+ * F-SYNC-CORE). The sync wave core and the rest of the graph layer must stay sync. This catches a raw
  * `setTimeout`/`Promise`/`for await`/`async` leaking outside that boundary.
  *
  * Biome's GritQL can't express this (same reason `check-layer-boundary.ts` is a
@@ -23,11 +22,13 @@ const ROOT = resolve(import.meta.dirname, "..");
 const SRC = join(ROOT, "packages/ts/src");
 
 /**
- * Files where raw async IS the sanctioned boundary (R-no-raw-async). Keep this set
+ * Files where raw async IS the sanctioned boundary (R-no-raw-async / D130). Keep this set
  * as small as possible — every entry is a hole in the guard. When a real async pool
  * (WorkerPool/RemotePool, D20) lands, add the pool/runner file here.
  */
 const ALLOW_ALL = new Set<string>([
+	"packages/ts/src/adapters/environment.ts",
+	"packages/ts/src/graph/environment.ts",
 	"packages/ts/src/graph/sources.ts",
 	"packages/ts/src/sources/node.ts",
 ]);
