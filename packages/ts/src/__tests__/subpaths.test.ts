@@ -159,7 +159,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof testing.assertDirtyPrecedesTerminalData).toBe("function");
 		expect(Object.hasOwn(storage, "attachObserveSink")).toBe(false);
 		expect(Object.hasOwn(storage, "attachObserveEventLog")).toBe(false);
-		expect(Object.keys(cqrs)).toEqual([]);
+		expect(typeof cqrs.cqrs).toBe("function");
+		expect(typeof cqrs.cqrsCommandHandler).toBe("function");
+		expect(typeof cqrs.cqrsProjection).toBe("function");
 		expect(typeof messaging.messageBus).toBe("function");
 		expect(typeof messaging.fromTopic).toBe("function");
 		expect(typeof messaging.toTopic).toBe("function");
