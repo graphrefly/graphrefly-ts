@@ -591,12 +591,105 @@ Canvas v0. Build the web Canvas and demo/cloud-safe flows first, add optional lo
 private local work, and defer hosted secure runner infrastructure until the product proves that
 users want managed execution.
 
+## FOLLOW-UP: DATA-QUERY FIRST CUT AND ANALYSIS CHAIN
+
+Recorded 2026-06-08 from follow-up discussion. This narrows the first product proof, but remains
+solution-layer direction only. It is not a protocol change, D-numbered decision, package API lock, or
+implementation approval.
+
+The first concrete deliverable should be `solutions/data-query`, not a full Canvas product and not an
+external semantic-layer runtime. The first proof should use local DuckDB/CSV so the team can validate
+the analysis experience, topology shape, and evidence artifact without waiting on enterprise
+connectors, warehouse auth, or semantic-runtime integration.
+
+The semantic-layer principle is:
+
+> **Wrap, do not own.**
+
+GraphReFly should not rebuild dbt Semantic Layer, Cube, Snowflake semantic views, Wren MDL, BigQuery
+semantic tooling, or future warehouse-native metric engines. The data-query solution owns the
+inspectable analysis topology, evidence ledger, verification chain, and promotion path. It consumes
+semantic context through adapter-shaped nodes:
+
+```text
+localSemanticContext / duckdbCsvContext        (first proof)
+dbtSemanticContext / cubeSemanticContext       (later wrappers)
+snowflakeSemanticContext / bigQueryContext     (later wrappers)
+```
+
+The term **analysis chain** means a graph-shaped evidence trail from a business question to a
+trusted answer:
+
+```text
+question
+  -> clarifyIntent
+  -> resolveMetric / resolveEntity / resolveGrain
+  -> selectSource
+  -> buildQueryPlan
+  -> generateSql
+  -> runDuckDB
+  -> profileResult
+  -> validateChecks
+  -> explainAnswer
+  -> assembleReport
+  -> approveOrRevise
+  -> saveAnalysisGraph
+```
+
+It is called a chain for product language, but it should be implemented and presented as a graph
+spine with sidecar evidence:
+
+```text
+semantic context -> resolveMetric
+schema catalog   -> selectSource / buildQueryPlan
+sample rows      -> profileResult
+business notes   -> validateChecks / explainAnswer
+
+runDuckDB
+  -> sql text
+  -> result table
+  -> execution trace
+  -> source files used
+
+validateChecks
+  -> freshness
+  -> row-count drift
+  -> schema drift
+  -> metric reconciliation
+  -> business-rule assertions
+```
+
+The first example should be an `AnalysisGraph`. This is an example / solution bundle name, not a new
+core graph type or verb. Its purpose is to make "every data answer comes with a graph" concrete:
+
+```text
+AnalysisGraph
+  question
+  semanticContext
+  queryPlan
+  sql
+  result
+  profile
+  checks
+  evidence
+  answer
+  report
+```
+
+Each output should have visible provenance. `answer` says the conclusion; `evidence` says why the
+answer is believable; `checks` say what could be wrong; `sql` says what ran; `profile` says whether
+the result data looks sane; `semanticContext` says which business definitions were used. The first
+local proof can be small: a CSV fixture set, a tiny semantic-context object, one generated SQL query,
+one result table, one validation panel, and one answer card. The differentiator is that opening the
+topology lets the user walk backward from the answer to the metric definition, SQL, source files,
+row profile, and verification checks.
+
 ## OPEN QUESTIONS
 
-1. **Vertical packaging:** should the first concrete deliverable be a `solutions/data-query` starter
-   kit, an external GraphReFly Canvas app, or an embeddable canvas package with a data-query pack?
-2. **Integration order:** dbt Semantic Layer first, Cube first, Snowflake/BigQuery first, or local
-   DuckDB/CSV first for demo speed?
+1. **Vertical packaging:** resolved direction for the first proof = `solutions/data-query` starter
+   kit. Canvas remains the mother product direction, but not the first concrete deliverable.
+2. **Integration order:** resolved direction for the first proof = local DuckDB/CSV. dbt/Cube/
+   Snowflake/BigQuery are later wrappers under the "wrap, do not own" semantic-layer principle.
 3. **Verification baseline:** what minimum verification set makes the demo feel differentiated:
    freshness, row-count drift, schema drift, metric reconciliation, sample trace, or all of them?
 4. **Promotion target:** should "promote to ETL" first export a dbt model, a scheduled graph, a

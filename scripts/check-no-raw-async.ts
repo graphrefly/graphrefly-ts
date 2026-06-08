@@ -27,6 +27,7 @@ const SRC = join(ROOT, "packages/ts/src");
  * (WorkerPool/RemotePool, D20) lands, add the pool/runner file here.
  */
 const ALLOW_ALL = new Set<string>([
+	"packages/ts/src/adapters/bridge.ts",
 	"packages/ts/src/adapters/environment.ts",
 	"packages/ts/src/graph/environment.ts",
 	"packages/ts/src/graph/sources.ts",

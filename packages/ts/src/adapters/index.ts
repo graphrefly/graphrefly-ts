@@ -5,6 +5,7 @@
  * `@graphrefly/ts/adapters/observe-storage`.
  */
 
+export * from "./bridge.js";
 export * from "./environment.js";
 export * from "./nestjs.js";
 export * from "./store.js";
