@@ -23,6 +23,7 @@ import {
 	type NodeOptions,
 	releaseRuntimeOfNode,
 	setNodeOwner,
+	setNodeTopologyDepsChangedObserver,
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "../node/node.js";
@@ -40,7 +41,13 @@ import {
 } from "./checkpoint.js";
 import type { DescribeEdge, DescribeNode, DescribeOpts, DescribeSnapshot } from "./describe.js";
 import { EnvironmentDrivers } from "./environment.js";
-import type { NodeProfile, ObserveStream, Profile } from "./inspect.js";
+import type {
+	NodeProfile,
+	ObserveStream,
+	Profile,
+	TopologyEvent,
+	TopologyStream,
+} from "./inspect.js";
 import { initNodeWithCore, type Operator } from "./operators.js";
 
 /** Map a tuple of Nodes to the tuple of their value types (typed value-level fn args). */
@@ -95,6 +102,11 @@ interface Entry {
 	deps: readonly Node<unknown>[];
 	meta?: Record<string, unknown>;
 	restore?: { ref: string; config?: unknown; configVersion?: unknown };
+}
+
+interface TopologyObserver {
+	path?: string;
+	sink(event: TopologyEvent): void;
 }
 
 interface GraphRestoreRegistrar {
@@ -154,6 +166,10 @@ export class Graph {
 	private readonly _mounts: Array<{ at: string; graph: Graph }> = [];
 	private _seq = 0;
 	private _clock = 0; // graph-local monotonic clock for observe seq (D26)
+	private _topologyObserverSeq = 0;
+	private readonly _topologyObservers = new Map<number, TopologyObserver>();
+	private _topologyDelivering = false;
+	private readonly _topologyQueue: TopologyEvent[] = [];
 	// D51: stable synthetic ids for unregistered live deps (runtime *Map inners) auto-discovered by
 	// describe(). WeakMap-cached so successive describes agree + the inner's id is freed when it is.
 	// A dedicated counter (NOT _seq) so a describe() call never perturbs registered-node id numbering.
@@ -225,8 +241,12 @@ export class Graph {
 		});
 		setNodeOwner(n as Node<unknown>, this);
 		this._byId.set(id, n as Node<unknown>);
+		setNodeTopologyDepsChangedObserver(n as Node<unknown>, (_node, prevDeps, nextDeps) => {
+			this._emitTopologyDepsChanged(n as Node<unknown>, prevDeps, nextDeps);
+		});
 		const seqMatch = /#(\d+)$/.exec(id);
 		if (seqMatch) this._seq = Math.max(this._seq, Number(seqMatch[1]) + 1);
+		this._emitTopologyNodeRegistered(n as Node<unknown>);
 		return n;
 	}
 
@@ -532,6 +552,97 @@ export class Graph {
 	}
 
 	/**
+	 * D145 observeTopology(path?) = read-only graph lifecycle egress over the existing
+	 * graph registry. It is not a graph node, does not subscribe to nodes, and emits no DATA.
+	 */
+	observeTopology(path?: string): TopologyStream {
+		return {
+			subscribe: (sink) => {
+				const id = this._topologyObserverSeq++;
+				this._topologyObservers.set(id, { path, sink });
+				return () => {
+					this._topologyObservers.delete(id);
+				};
+			},
+		};
+	}
+
+	private _idForTopologyNode(n: Node<unknown>): string {
+		const e = this._entries.get(n);
+		if (e) return e.id;
+		let sid = this._synthIds.get(n);
+		if (sid === undefined) {
+			do {
+				sid = `~${n.factory ?? "?"}#${this._synthSeq++}`;
+			} while (this._byId.has(sid));
+			this._synthIds.set(n, sid);
+		}
+		return sid;
+	}
+
+	private _topologyDeps(deps: readonly Node<unknown>[]): string[] {
+		return deps.map((dep) => this._idForTopologyNode(dep));
+	}
+
+	private _emitTopologyNodeRegistered(node: Node<unknown>): void {
+		if (this._topologyObservers.size === 0) return;
+		const entry = this._entries.get(node);
+		if (entry === undefined) return;
+		this._emitTopologyEvent({
+			kind: "node-registered",
+			path: entry.id,
+			factory: entry.factory,
+			deps: this._topologyDeps(node.deps),
+			seq: this._clock++,
+		});
+	}
+
+	private _emitTopologyDepsChanged(
+		node: Node<unknown>,
+		prevDeps: readonly Node<unknown>[],
+		nextDeps: readonly Node<unknown>[],
+	): void {
+		if (this._topologyObservers.size === 0) return;
+		const entry = this._entries.get(node);
+		if (entry === undefined) return;
+		this._emitTopologyEvent({
+			kind: "deps-changed",
+			path: entry.id,
+			prevDeps: this._topologyDeps(prevDeps),
+			deps: this._topologyDeps(nextDeps),
+			seq: this._clock++,
+		});
+	}
+
+	private _emitTopologyEvent(event: TopologyEvent): void {
+		if (this._topologyDelivering) {
+			this._topologyQueue.push(event);
+			return;
+		}
+		this._topologyDelivering = true;
+		try {
+			let current: TopologyEvent | undefined = event;
+			while (current !== undefined) {
+				const observers = [...this._topologyObservers.entries()];
+				for (const [id, observer] of observers) {
+					if (this._topologyObservers.get(id) !== observer) continue;
+					if (observer.path !== undefined && !topologyPathMatches(current.path, observer.path))
+						continue;
+					try {
+						observer.sink(cloneTopologyEvent(current));
+					} catch {
+						// D145 egress is read-only inspection; observer failure must not veto a
+						// graph registry/rewire mutation that already committed.
+					}
+				}
+				current = this._topologyQueue.shift();
+			}
+		} finally {
+			this._topologyDelivering = false;
+		}
+	}
+
+	/**
 	 * profile() = accumulated-counter snapshot (R-profile / D39). invokes + duration are
 	 * dispatcher-backed (the invoke funnel, F-DISPATCH-ALL) — counters never live on the
 	 * thin node (R-node-thin). Requires `graph({ profile: true })` (opt-in, F-PERF).
@@ -677,6 +788,23 @@ function assertCheckpointQuiescentStatus(status: string, id: string, op: string)
 			`${op}: node '${id}' has non-quiescent status '${status}' that cannot be checkpoint-restored yet`,
 		);
 	}
+}
+
+function topologyPathMatches(eventPath: string, path: string): boolean {
+	return eventPath === path || eventPath.startsWith(`${path}::`);
+}
+
+function cloneTopologyEvent(event: TopologyEvent): TopologyEvent {
+	const deps = Object.freeze([...event.deps]);
+	const prevDeps = event.prevDeps === undefined ? undefined : Object.freeze([...event.prevDeps]);
+	return Object.freeze({
+		kind: event.kind,
+		path: event.path,
+		deps,
+		...(prevDeps !== undefined ? { prevDeps } : {}),
+		...(event.factory !== undefined ? { factory: event.factory } : {}),
+		seq: event.seq,
+	});
 }
 
 function checkpointFactory(

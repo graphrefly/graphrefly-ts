@@ -26,6 +26,28 @@ export interface ObserveStream {
 	subscribe(sink: (e: ObserveEvent) => void): () => void;
 }
 
+export type TopologyEventKind = "node-registered" | "deps-changed";
+
+export interface TopologyEvent {
+	/** D145 graph inspection/lifecycle event kind. Not a protocol message. */
+	readonly kind: TopologyEventKind;
+	/** Mount-aware `::` path of the affected registered node. */
+	readonly path: string;
+	/** Current dep ids after the event, matching describe().nodes[].deps. */
+	readonly deps: readonly string[];
+	/** Previous dep ids for deps-changed events. */
+	readonly prevDeps?: readonly string[];
+	/** Factory name for node-registered events. */
+	readonly factory?: string;
+	/** Graph-local monotonic sequence shared with observe() ordering. */
+	readonly seq: number;
+}
+
+/** A read-only topology egress stream. It does not activate nodes or emit DATA. */
+export interface TopologyStream {
+	subscribe(sink: (e: TopologyEvent) => void): () => void;
+}
+
 /** Predicate used by filterObserve(). */
 export type ObservePredicate = (event: ObserveEvent) => boolean;
 

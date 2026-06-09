@@ -27,12 +27,16 @@ export type WireBridgeEnvelopeType =
 	| "close";
 
 export interface WireBridgeMetadata {
+	/** Monotonic envelope sequence within the bridge session. */
 	readonly seq: number;
+	/** Monotonic accepted inbound cursor observed by the sending side. */
 	readonly cursor: number;
+	/** D151: correlation/idempotency metadata, not an authoritative duplicate lookup key. */
 	readonly idempotencyKey: string;
 	readonly attempt: number;
 	readonly maxAttempts: number;
 	readonly timestampMs?: number;
+	/** D151 ack/nack correlation target; receipt duplicate recognition still uses seq/cursor. */
 	readonly ackForSeq?: number;
 	readonly requestId?: string;
 }
@@ -60,13 +64,13 @@ export type WireBridgeCommand<TData = unknown> =
 	  }
 	| {
 			readonly kind: "ack";
-			readonly seq: number;
+			readonly ackForSeq: number;
 			readonly idempotencyKey?: string;
 			readonly requestId?: string;
 	  }
 	| {
 			readonly kind: "nack";
-			readonly seq: number;
+			readonly ackForSeq: number;
 			readonly error: unknown;
 			readonly idempotencyKey?: string;
 			readonly requestId?: string;
@@ -84,13 +88,13 @@ export type WireBridgeEvent<TOutbound = unknown, TInbound = unknown> =
 	  }
 	| {
 			readonly kind: "ack";
-			readonly seq: number;
+			readonly ackForSeq: number;
 			readonly envelope: WireBridgeEnvelope<TInbound>;
 			readonly outbound: WireBridgeEnvelope<TOutbound>;
 	  }
 	| {
 			readonly kind: "nack";
-			readonly seq: number;
+			readonly ackForSeq: number;
 			readonly envelope: WireBridgeEnvelope<TInbound>;
 			readonly outbound: WireBridgeEnvelope<TOutbound>;
 			readonly error: unknown;
@@ -113,16 +117,16 @@ export type WireBridgeEvent<TOutbound = unknown, TInbound = unknown> =
 	| { readonly kind: "duplicate"; readonly seq: number; readonly cursor: number }
 	| { readonly kind: "out-of-order"; readonly seq: number; readonly expected: number }
 	| { readonly kind: "session-mismatch"; readonly expected: string; readonly actual: string }
-	| { readonly kind: "late-receipt"; readonly receipt: "ack" | "nack"; readonly seq: number }
+	| { readonly kind: "late-receipt"; readonly receipt: "ack" | "nack"; readonly ackForSeq: number }
 	| { readonly kind: "invalid"; readonly error: string };
 
 export interface WireBridgeAck {
-	readonly seq: number;
+	readonly ackForSeq: number;
 	readonly envelope: WireBridgeEnvelope;
 }
 
 export interface WireBridgeNack {
-	readonly seq: number;
+	readonly ackForSeq: number;
 	readonly envelope: WireBridgeEnvelope;
 	readonly error: unknown;
 }
@@ -169,8 +173,12 @@ export interface WireBridgeBundle<TOutbound = unknown, TInbound = unknown> {
 	readonly attempts: Node<WireBridgeAttempt>;
 	start(): void;
 	send(payload: TOutbound, opts?: { idempotencyKey?: string; requestId?: string }): void;
-	ack(seq: number, opts?: { idempotencyKey?: string; requestId?: string }): void;
-	nack(seq: number, error: unknown, opts?: { idempotencyKey?: string; requestId?: string }): void;
+	ack(ackForSeq: number, opts?: { idempotencyKey?: string; requestId?: string }): void;
+	nack(
+		ackForSeq: number,
+		error: unknown,
+		opts?: { idempotencyKey?: string; requestId?: string },
+	): void;
 	close(reason?: unknown, opts?: { idempotencyKey?: string }): void;
 }
 
@@ -334,25 +342,25 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 					},
 				],
 			]),
-		ack: (seq, ackOpts) =>
+		ack: (ackForSeq, ackOpts) =>
 			command.down([
 				[
 					"DATA",
 					{
 						kind: "ack",
-						seq,
+						ackForSeq,
 						idempotencyKey: ackOpts?.idempotencyKey,
 						requestId: ackOpts?.requestId,
 					},
 				],
 			]),
-		nack: (seq, error, nackOpts) =>
+		nack: (ackForSeq, error, nackOpts) =>
 			command.down([
 				[
 					"DATA",
 					{
 						kind: "nack",
-						seq,
+						ackForSeq,
 						error,
 						idempotencyKey: nackOpts?.idempotencyKey,
 						requestId: nackOpts?.requestId,
@@ -464,7 +472,7 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 						emitOutbound("ack", undefined, {
 							idempotencyKey: commandValue.idempotencyKey,
 							requestId: commandValue.requestId,
-							ackForSeq: commandValue.seq,
+							ackForSeq: commandValue.ackForSeq,
 						});
 						break;
 					case "nack":
@@ -474,7 +482,7 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 							{
 								idempotencyKey: commandValue.idempotencyKey,
 								requestId: commandValue.requestId,
-								ackForSeq: commandValue.seq,
+								ackForSeq: commandValue.ackForSeq,
 							},
 						);
 						break;
@@ -675,7 +683,7 @@ function processInbound<TOutbound, TInbound>(
 		const pending = state.pending.get(envelope.metadata.ackForSeq);
 		if (pending === undefined) {
 			ctx.down([
-				["DATA", { kind: "late-receipt", receipt: "ack", seq: envelope.metadata.ackForSeq }],
+				["DATA", { kind: "late-receipt", receipt: "ack", ackForSeq: envelope.metadata.ackForSeq }],
 			]);
 			return;
 		}
@@ -686,7 +694,7 @@ function processInbound<TOutbound, TInbound>(
 				"DATA",
 				{
 					kind: "ack",
-					seq: envelope.metadata.ackForSeq,
+					ackForSeq: envelope.metadata.ackForSeq,
 					envelope,
 					outbound: pending.envelope,
 				} satisfies WireBridgeEvent<TOutbound, TInbound>,
@@ -696,7 +704,7 @@ function processInbound<TOutbound, TInbound>(
 		const pending = state.pending.get(envelope.metadata.ackForSeq);
 		if (pending === undefined) {
 			ctx.down([
-				["DATA", { kind: "late-receipt", receipt: "nack", seq: envelope.metadata.ackForSeq }],
+				["DATA", { kind: "late-receipt", receipt: "nack", ackForSeq: envelope.metadata.ackForSeq }],
 			]);
 			return;
 		}
@@ -707,7 +715,7 @@ function processInbound<TOutbound, TInbound>(
 				"DATA",
 				{
 					kind: "nack",
-					seq: envelope.metadata.ackForSeq,
+					ackForSeq: envelope.metadata.ackForSeq,
 					envelope,
 					outbound: pending.envelope,
 					error: bridgePayloadError(envelope.payload, "remote nack"),
@@ -787,9 +795,9 @@ function validateCommand(value: unknown): string | undefined {
 	}
 	if (
 		(kind === "ack" || kind === "nack") &&
-		!isSafePositiveInteger((value as { readonly seq?: unknown }).seq)
+		!isSafePositiveInteger((value as { readonly ackForSeq?: unknown }).ackForSeq)
 	) {
-		return `wireBridge: ${kind} command seq must be a positive integer`;
+		return `wireBridge: ${kind} command ackForSeq must be a positive integer`;
 	}
 	return undefined;
 }
@@ -822,7 +830,7 @@ function projectAcks<TOutbound, TInbound>(
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "ack") {
-					ctx.down([["DATA", { seq: event.seq, envelope: event.envelope }]]);
+					ctx.down([["DATA", { ackForSeq: event.ackForSeq, envelope: event.envelope }]]);
 				}
 			}
 		},
@@ -841,7 +849,9 @@ function projectNacks<TOutbound, TInbound>(
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "nack") {
-					ctx.down([["DATA", { seq: event.seq, envelope: event.envelope, error: event.error }]]);
+					ctx.down([
+						["DATA", { ackForSeq: event.ackForSeq, envelope: event.envelope, error: event.error }],
+					]);
 				}
 			}
 		},
@@ -900,7 +910,7 @@ function projectStatus<TOutbound, TInbound>(
 						state: event.outbound.type === "close" ? "closed" : "open",
 						pending: Math.max(0, next.pending - 1),
 						acked: next.acked + 1,
-						lastSeq: event.seq,
+						lastSeq: event.envelope.metadata.seq,
 					};
 				} else if (event.kind === "nack") {
 					next = {
@@ -909,7 +919,7 @@ function projectStatus<TOutbound, TInbound>(
 						pending: Math.max(0, next.pending - 1),
 						nacked: next.nacked + 1,
 						errors: next.errors + 1,
-						lastSeq: event.seq,
+						lastSeq: event.envelope.metadata.seq,
 					};
 				} else if (event.kind === "retry") {
 					next = {
@@ -982,7 +992,10 @@ function projectErrors<TOutbound, TInbound>(
 					]);
 				} else if (event.kind === "late-receipt") {
 					ctx.down([
-						["DATA", `${name}: late ${event.receipt} for unknown or completed seq ${event.seq}`],
+						[
+							"DATA",
+							`${name}: late ${event.receipt} for unknown or completed ackForSeq ${event.ackForSeq}`,
+						],
 					]);
 				} else if (event.kind === "invalid") {
 					ctx.down([["DATA", event.error]]);

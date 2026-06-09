@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { depLatest } from "../ctx/types.js";
-import type { Ctx, GraphRestoreDescriptor, Message, RestoreGraphOptions } from "../index.js";
+import type {
+	Ctx,
+	GraphRestoreDescriptor,
+	Message,
+	RestoreGraphOptions,
+	TopologyEvent,
+} from "../index.js";
 import {
 	Dispatcher,
 	defaultRestoreRegistry,
@@ -149,6 +155,137 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 
 		const snap = parent.describe();
 		expect(snap.subgraphs?.[0].nodes.some((n) => n.id === "sub::leaf")).toBe(true);
+	});
+});
+
+describe("Graph.observeTopology — read-only topology egress (D145)", () => {
+	it("emits node-registered events from the existing graph registry", () => {
+		const g = graph();
+		const events: TopologyEvent[] = [];
+		const unsub = g.observeTopology().subscribe((event) => events.push(event));
+
+		const source = g.state(1, { name: "source" });
+		g.derived([source], (n) => n + 1, { name: "derived" });
+
+		unsub();
+		expect(events).toEqual([
+			{ kind: "node-registered", path: "source", deps: [], factory: "state", seq: 0 },
+			{
+				kind: "node-registered",
+				path: "derived",
+				deps: ["source"],
+				factory: "derived",
+				seq: 1,
+			},
+		]);
+	});
+
+	it("emits deps-changed events that match describe-visible live edges", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const b = g.state(2, { name: "b" });
+		const d = g.node([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]), { name: "d" });
+		const events: TopologyEvent[] = [];
+		const unsub = g.observeTopology("d").subscribe((event) => events.push(event));
+
+		d.replaceDeps([b], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+
+		unsub();
+		expect(events).toEqual([
+			{ kind: "deps-changed", path: "d", prevDeps: ["a"], deps: ["b"], seq: 0 },
+		]);
+		const snap = g.describe();
+		expect(snap.nodes.find((node) => node.id === "d")?.deps).toEqual(["b"]);
+		expect(snap.edges).toContainEqual({ from: "b", to: "d" });
+		expect(snap.edges).not.toContainEqual({ from: "a", to: "d" });
+	});
+
+	it("does not activate nodes or publish protocol DATA through topology observation", () => {
+		const g = graph();
+		let runs = 0;
+		const cold = g.producer(
+			(ctx) => {
+				runs += 1;
+				ctx.down([["DATA", "ran"]]);
+			},
+			{ name: "cold" },
+		);
+		const topologyEvents: string[] = [];
+		const protocolEvents: string[] = [];
+		const topologyUnsub = g.observeTopology().subscribe((event) => topologyEvents.push(event.kind));
+
+		topologyUnsub();
+		expect(runs).toBe(0);
+		expect(cold.cache).toBeUndefined();
+		expect(topologyEvents).toEqual([]);
+
+		const observeUnsub = g.observe("cold").subscribe((event) => protocolEvents.push(event.msg[0]));
+		observeUnsub();
+		expect(runs).toBe(1);
+		expect(protocolEvents).toContain("DATA");
+		expect(topologyEvents).toEqual([]);
+	});
+
+	it("stops producing topology events after unsubscribe", () => {
+		const g = graph();
+		const events: string[] = [];
+		const unsub = g.observeTopology().subscribe((event) => events.push(event.path));
+		unsub();
+
+		g.state(1, { name: "later" });
+
+		expect(events).toEqual([]);
+	});
+
+	it("delivers nested topology events FIFO and isolates observer failures", () => {
+		const g = graph();
+		const first: string[] = [];
+		const second: string[] = [];
+		const late: string[] = [];
+		let added = false;
+		g.observeTopology().subscribe((event) => {
+			first.push(`${event.path}:${event.seq}`);
+			try {
+				(event as { path: string }).path = "mutated";
+			} catch {
+				// Event snapshots are immutable read-only egress.
+			}
+			try {
+				(event.deps as unknown as string[]).push("mutated");
+			} catch {
+				// Event snapshots are immutable read-only egress.
+			}
+			if (!added) {
+				added = true;
+				g.observeTopology().subscribe((lateEvent) =>
+					late.push(`${lateEvent.path}:${lateEvent.seq}`),
+				);
+				g.state(2, { name: "nested" });
+			}
+		});
+		g.observeTopology().subscribe((event) => {
+			second.push(`${event.path}:${event.seq}`);
+			throw new Error("observer failure must not veto topology mutation");
+		});
+
+		expect(() => g.state(1, { name: "root" })).not.toThrow();
+		expect(g.find("root")).toBeDefined();
+		expect(g.find("nested")).toBeDefined();
+		expect(first).toEqual(["root:0", "nested:1"]);
+		expect(second).toEqual(["root:0", "nested:1"]);
+		expect(late).toEqual(["nested:1"]);
+	});
+
+	it("does not call a topology observer unsubscribed earlier in the same delivery", () => {
+		const g = graph();
+		const second: string[] = [];
+		let unsubscribeSecond = () => {};
+		g.observeTopology().subscribe(() => unsubscribeSecond());
+		unsubscribeSecond = g.observeTopology().subscribe((event) => second.push(event.path));
+
+		g.state(1, { name: "root" });
+
+		expect(second).toEqual([]);
 	});
 });
 

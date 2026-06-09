@@ -162,9 +162,16 @@ export interface NodeRestoreState {
 	readonly version: NodeVersion | false;
 }
 
+type TopologyDepsChangedObserver = (
+	node: Node<unknown>,
+	prevDeps: readonly Node<unknown>[],
+	deps: readonly Node<unknown>[],
+) => void;
+
 let constructingCore: NodeCore | undefined;
 let constructingEnvironment: EnvironmentDrivers | undefined;
 const ownerTokens = new WeakMap<Node<unknown>, unknown>();
+const topologyDepsChangedObservers = new WeakMap<Node<unknown>, TopologyDepsChangedObserver>();
 const checkpointReaders = new WeakMap<Node<unknown>, () => NodeCheckpointState>();
 const restoreWriters = new WeakMap<Node<unknown>, (state: NodeRestoreState) => void>();
 const runtimeReleasers = new WeakMap<Node<unknown>, () => void>();
@@ -206,6 +213,22 @@ export function getNodeOwner(n: Node<unknown>): unknown {
 /** @internal Assign graph-domain ownership after graph registration. */
 export function setNodeOwner(n: Node<unknown>, owner: unknown): void {
 	ownerTokens.set(n, owner);
+}
+
+/** @internal Graph-layer D145 topology egress hook. */
+export function setNodeTopologyDepsChangedObserver(
+	n: Node<unknown>,
+	observer: TopologyDepsChangedObserver,
+): void {
+	topologyDepsChangedObservers.set(n, observer);
+}
+
+function notifyTopologyDepsChanged(
+	node: Node<unknown>,
+	prevDeps: readonly Node<unknown>[],
+	deps: readonly Node<unknown>[],
+): void {
+	topologyDepsChangedObservers.get(node)?.(node, prevDeps, deps);
 }
 
 /** @internal Graph checkpoint inspection, kept as a module helper so Node stays method-thin. */
@@ -857,6 +880,7 @@ export class Node<T = unknown> {
 			if (this._lifecycle.activated) {
 				for (const d of added) this._subscribeDepAt(d);
 			}
+			notifyTopologyDepsChanged(this as unknown as Node<unknown>, oldDeps, newDeps);
 
 			// Q6 auto-settle: removing the sole dirty contributor closes the wave. With deps
 			// remaining, request the atomic settle (recompute → DATA for a value; a no-emit fn

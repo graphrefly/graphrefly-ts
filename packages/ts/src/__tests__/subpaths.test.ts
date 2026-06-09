@@ -140,6 +140,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.wireBridge).toBe("function");
 		expect(typeof adapters.wireBridgeEnvelope).toBe("function");
 		expect(typeof adapters.wireBridgeIdempotencyKey).toBe("function");
+		expect(Object.hasOwn(adapters, "dedupeReducer")).toBe(false);
 		expect(typeof adapters.writableStore).toBe("function");
 		expect(typeof adapters.zustandStore).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
@@ -162,6 +163,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof cqrs.cqrs).toBe("function");
 		expect(typeof cqrs.cqrsCommandHandler).toBe("function");
 		expect(typeof cqrs.cqrsProjection).toBe("function");
+		expect(Object.hasOwn(cqrs, "dedupeReducer")).toBe(false);
 		expect(typeof messaging.messageBus).toBe("function");
 		expect(typeof messaging.fromTopic).toBe("function");
 		expect(typeof messaging.toTopic).toBe("function");

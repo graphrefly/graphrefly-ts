@@ -269,6 +269,44 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		]);
 	});
 
+	it("keeps default CQRS dedupe as unbounded id membership, not a shared engine (D151)", () => {
+		const g = graph();
+		const app = cqrs(g, {
+			name: "orders",
+			events: ["OrderPlaced"],
+			handlers: [
+				cqrsCommandHandler("PlaceOrder", (command) => [
+					{
+						id: (command.payload as { eventId: string }).eventId,
+						type: "OrderPlaced",
+						payload: command.payload,
+					},
+				]),
+			],
+		});
+		const events: unknown[] = [];
+		const errors: unknown[] = [];
+		const cursor: unknown[] = [];
+		app.events.subscribe((msg) => events.push(msg));
+		app.errors.subscribe((msg) => errors.push(msg));
+		app.cursor.subscribe((msg) => cursor.push(msg));
+
+		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: { eventId: "event-1" } });
+		app.dispatch({ id: "cmd-2", type: "PlaceOrder", payload: { eventId: "event-2" } });
+		app.dispatch({ id: "cmd-3", type: "PlaceOrder", payload: { eventId: "event-3" } });
+		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: { eventId: "event-4" } });
+
+		expect(events.filter((msg) => (msg as unknown[])[0] === "DATA")).toHaveLength(3);
+		expect(errors.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ code: "duplicate-command", commandId: "cmd-1" }),
+		]);
+		expect(cursor.at(-1)).toEqual([
+			"DATA",
+			{ eventSeq: 3, commandCount: 4, errorCount: 1, auditSeq: 4 },
+		]);
+	});
+
 	it("does not partially commit events when command validation fails", () => {
 		const g = graph();
 		const app = cqrs(g, {

@@ -137,6 +137,12 @@ export interface CqrsOptions<TCommand = unknown, TEvent = unknown> {
 	readonly dedupe?: CqrsDedupePolicy;
 }
 
+/**
+ * D151 membership-based duplicate-recognition window for CQRS ids.
+ *
+ * This is passive CQRS vocabulary, not a shared idempotency reducer engine:
+ * commands and events each own their own id membership window.
+ */
 export type CqrsDedupeWindow = "unbounded" | { readonly maxEntries: number };
 
 export interface CqrsDedupePolicy {

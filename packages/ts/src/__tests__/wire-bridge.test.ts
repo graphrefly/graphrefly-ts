@@ -122,7 +122,7 @@ describe("wire bridge envelopes (D134)", () => {
 		expect(acks).toContainEqual([
 			"DATA",
 			{
-				seq: 1,
+				ackForSeq: 1,
 				envelope: wireBridgeEnvelope({
 					sessionId: "session-a",
 					type: "ack",
@@ -184,10 +184,16 @@ describe("wire bridge envelopes (D134)", () => {
 		expect(commands).toEqual([
 			["DATA", { kind: "start" }],
 			["DATA", { kind: "send", payload: "hello", idempotencyKey: "custom", requestId: "req-1" }],
-			["DATA", { kind: "ack", seq: 3, idempotencyKey: undefined, requestId: undefined }],
+			["DATA", { kind: "ack", ackForSeq: 3, idempotencyKey: undefined, requestId: undefined }],
 			[
 				"DATA",
-				{ kind: "nack", seq: 4, error: "bad", idempotencyKey: undefined, requestId: undefined },
+				{
+					kind: "nack",
+					ackForSeq: 4,
+					error: "bad",
+					idempotencyKey: undefined,
+					requestId: undefined,
+				},
 			],
 			["DATA", { kind: "close", reason: "done", idempotencyKey: undefined }],
 		]);
@@ -305,7 +311,10 @@ describe("wire bridge envelopes (D134)", () => {
 					}),
 				],
 			]);
-			expect(errors).toContainEqual(["DATA", "bridge: late ack for unknown or completed seq 1"]);
+			expect(errors).toContainEqual([
+				"DATA",
+				"bridge: late ack for unknown or completed ackForSeq 1",
+			]);
 			expect(status.at(-1)).toEqual([
 				"DATA",
 				{
@@ -374,7 +383,7 @@ describe("wire bridge envelopes (D134)", () => {
 				acked: 1,
 				nacked: 0,
 				errors: 0,
-				lastSeq: 2,
+				lastSeq: 1,
 			},
 		]);
 	});
@@ -602,6 +611,87 @@ describe("wire bridge envelopes (D134)", () => {
 		expect(cursor).toContainEqual(["DATA", 1]);
 	});
 
+	it("treats idempotencyKey as metadata and correlates receipts by ackForSeq (D151)", () => {
+		const g = graph();
+		const bridge = wireBridge<string, string>(g, { name: "bridge", sessionId: "session-a" });
+		const events: unknown[] = [];
+		const acks: unknown[] = [];
+		const cursor: unknown[] = [];
+		const status: unknown[] = [];
+		bridge.events.subscribe((msg) => events.push(msg));
+		bridge.acks.subscribe((msg) => acks.push(msg));
+		bridge.cursor.subscribe((msg) => cursor.push(msg));
+		bridge.status.subscribe((msg) => status.push(msg));
+
+		bridge.send("first", { idempotencyKey: "same-key" });
+		bridge.send("second", { idempotencyKey: "same-key" });
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq: 1,
+					payload: { kind: "data", value: "remote-one" },
+					idempotencyKey: "same-key",
+				}),
+			],
+		]);
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq: 2,
+					payload: { kind: "data", value: "remote-two" },
+					idempotencyKey: "same-key",
+				}),
+			],
+		]);
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "ack",
+					seq: 3,
+					ackForSeq: 2,
+					idempotencyKey: "different-correlation-key",
+				}),
+			],
+		]);
+
+		expect(
+			events.filter(
+				(msg) =>
+					(msg as unknown[])[0] === "DATA" &&
+					((msg as unknown[])[1] as { kind?: string }).kind === "duplicate",
+			),
+		).toEqual([]);
+		expect(cursor.filter((msg) => (msg as unknown[])[0] === "DATA")).toEqual([
+			["DATA", 1],
+			["DATA", 2],
+			["DATA", 3],
+		]);
+		expect(acks.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({
+				ackForSeq: 2,
+				envelope: expect.objectContaining({
+					metadata: expect.objectContaining({
+						ackForSeq: 2,
+						idempotencyKey: "different-correlation-key",
+					}),
+				}),
+			}),
+		]);
+		expect(status.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ pending: 1, acked: 1, cursor: 3, lastSeq: 3 }),
+		]);
+	});
+
 	it("rejects inbound cursor regression before accepting the envelope", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
@@ -687,14 +777,14 @@ describe("wire bridge envelopes (D134)", () => {
 		bridge.errors.subscribe((msg) => errors.push(msg));
 
 		bridge.command.down([["DATA", { kind: "wat" } as never]]);
-		bridge.command.down([["DATA", { kind: "ack", seq: 0 } as never]]);
+		bridge.command.down([["DATA", { kind: "ack", ackForSeq: 0 } as never]]);
 		bridge.command.down([["DATA", { kind: "send", payload: "ok", idempotencyKey: "" } as never]]);
 		bridge.send("after-invalid");
 
 		expect(errors).toContainEqual(["DATA", "wireBridge: command kind is not recognized"]);
 		expect(errors).toContainEqual([
 			"DATA",
-			"wireBridge: ack command seq must be a positive integer",
+			"wireBridge: ack command ackForSeq must be a positive integer",
 		]);
 		expect(errors).toContainEqual([
 			"DATA",

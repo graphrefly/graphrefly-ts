@@ -92,6 +92,9 @@ export {
 	type ObservePredicate,
 	type ObserveStream,
 	type Profile,
+	type TopologyEvent,
+	type TopologyEventKind,
+	type TopologyStream,
 } from "./inspect.js";
 export {
 	type BackoffPolicy,
