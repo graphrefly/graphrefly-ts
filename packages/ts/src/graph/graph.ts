@@ -112,6 +112,12 @@ interface TopologyObserver {
 	sink(event: TopologyEvent): void;
 }
 
+interface MountedGraph {
+	at: string;
+	graph: Graph;
+	topologyUnsub?: () => void;
+}
+
 interface GraphRestoreRegistrar {
 	stateNode<T>(id: string, opts?: SugarOpts<T>): StateNode<T>;
 	node<T>(
@@ -299,7 +305,7 @@ export class Graph {
 	private readonly _entries = new Map<Node<unknown>, Entry>();
 	private readonly _byId = new Map<string, Node<unknown>>();
 	private readonly _retiredIds = new Set<string>();
-	private readonly _mounts: Array<{ at: string; graph: Graph }> = [];
+	private readonly _mounts: MountedGraph[] = [];
 	private _seq = 0;
 	private _clock = 0; // graph-local monotonic clock for observe seq (D26)
 	private _topologyObserverSeq = 0;
@@ -572,7 +578,10 @@ export class Graph {
 
 	/** Embed a child graph addressable under `at` (R-mount; mount has no deps). */
 	mount(child: Graph, opts: { at: string }): void {
-		this._mounts.push({ at: opts.at, graph: child });
+		const mount = { at: opts.at, graph: child };
+		this._mounts.push(mount);
+		if (this._topologyObservers.size > 0) this._ensureMountedTopologyForwarders();
+		this._emitTopologyMountChanged(opts.at);
 	}
 
 	// ── operator funnel (D43): instantiate any free-standing Operator (node sugar, D6/L1.5) ──
@@ -751,8 +760,10 @@ export class Graph {
 			subscribe: (sink) => {
 				const id = this._topologyObserverSeq++;
 				this._topologyObservers.set(id, { path, sink });
+				this._ensureMountedTopologyForwarders();
 				return () => {
 					this._topologyObservers.delete(id);
+					if (this._topologyObservers.size === 0) this._releaseMountedTopologyForwarders();
 				};
 			},
 		};
@@ -816,6 +827,49 @@ export class Graph {
 			path: event.path,
 			factory: event.factory,
 			deps: [...event.deps],
+			seq: this._clock++,
+		});
+	}
+
+	private _emitTopologyMountChanged(path: string): void {
+		if (this._topologyObservers.size === 0) return;
+		this._emitTopologyEvent({
+			kind: "mount-changed",
+			path,
+			factory: "mount",
+			deps: [],
+			seq: this._clock++,
+		});
+	}
+
+	private _ensureMountedTopologyForwarders(): void {
+		if (this._topologyObservers.size === 0) return;
+		for (const mount of this._mounts) {
+			if (mount.topologyUnsub !== undefined) continue;
+			const mountPath = mount.at;
+			mount.topologyUnsub = mount.graph.observeTopology().subscribe((event) => {
+				this._emitMountedTopologyEvent(mountPath, event);
+			});
+		}
+	}
+
+	private _releaseMountedTopologyForwarders(): void {
+		for (const mount of this._mounts) {
+			mount.topologyUnsub?.();
+			mount.topologyUnsub = undefined;
+		}
+	}
+
+	private _emitMountedTopologyEvent(mountPath: string, event: TopologyEvent): void {
+		if (this._topologyObservers.size === 0) return;
+		this._emitTopologyEvent({
+			kind: event.kind,
+			path: prefixTopologyPath(mountPath, event.path),
+			deps: event.deps.map((dep) => prefixTopologyPath(mountPath, dep)),
+			...(event.prevDeps !== undefined
+				? { prevDeps: event.prevDeps.map((dep) => prefixTopologyPath(mountPath, dep)) }
+				: {}),
+			...(event.factory !== undefined ? { factory: event.factory } : {}),
 			seq: this._clock++,
 		});
 	}
@@ -998,6 +1052,10 @@ function assertCheckpointQuiescentStatus(status: string, id: string, op: string)
 
 function topologyPathMatches(eventPath: string, path: string): boolean {
 	return eventPath === path || eventPath.startsWith(`${path}::`);
+}
+
+function prefixTopologyPath(prefix: string, path: string): string {
+	return `${prefix}::${path}`;
 }
 
 function cloneTopologyEvent(event: TopologyEvent): TopologyEvent {

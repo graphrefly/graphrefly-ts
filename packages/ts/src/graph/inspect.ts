@@ -26,7 +26,11 @@ export interface ObserveStream {
 	subscribe(sink: (e: ObserveEvent) => void): () => void;
 }
 
-export type TopologyEventKind = "node-registered" | "deps-changed" | "node-released";
+export type TopologyEventKind =
+	| "node-registered"
+	| "deps-changed"
+	| "node-released"
+	| "mount-changed";
 
 export interface TopologyEvent {
 	/** D145 graph inspection/lifecycle event kind. Not a protocol message. */

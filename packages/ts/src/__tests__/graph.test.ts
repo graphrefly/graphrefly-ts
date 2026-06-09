@@ -202,6 +202,74 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(snap.edges).not.toContainEqual({ from: "a", to: "d" });
 	});
 
+	it("emits mount-changed events from the parent graph without creating protocol data", () => {
+		const parent = graph();
+		const child = graph();
+		const events: TopologyEvent[] = [];
+		const unsub = parent.observeTopology("sub").subscribe((event) => events.push(event));
+
+		parent.mount(child, { at: "sub" });
+
+		unsub();
+		expect(events).toEqual([
+			{ kind: "mount-changed", path: "sub", deps: [], factory: "mount", seq: 0 },
+		]);
+		expect(parent.describe().subgraphs?.[0].name).toBeUndefined();
+		expect(parent.describe().subgraphs?.[0].nodes).toEqual([]);
+	});
+
+	it("forwards mounted child topology events through mount-aware parent paths", () => {
+		const parent = graph();
+		const child = graph();
+		parent.mount(child, { at: "sub" });
+		const events: TopologyEvent[] = [];
+		const unsub = parent.observeTopology("sub").subscribe((event) => events.push(event));
+
+		const a = child.state(1, { name: "a" });
+		const b = child.state(2, { name: "b" });
+		const d = child.node([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]), {
+			name: "d",
+		});
+		d.replaceDeps([b], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+
+		unsub();
+		expect(events).toEqual([
+			{ kind: "node-registered", path: "sub::a", deps: [], factory: "state", seq: 0 },
+			{ kind: "node-registered", path: "sub::b", deps: [], factory: "state", seq: 1 },
+			{
+				kind: "node-registered",
+				path: "sub::d",
+				deps: ["sub::a"],
+				factory: "node",
+				seq: 2,
+			},
+			{
+				kind: "deps-changed",
+				path: "sub::d",
+				prevDeps: ["sub::a"],
+				deps: ["sub::b"],
+				seq: 3,
+			},
+		]);
+		const snap = parent.describe();
+		expect(snap.subgraphs?.[0].nodes.find((node) => node.id === "sub::d")?.deps).toEqual([
+			"sub::b",
+		]);
+	});
+
+	it("stops forwarding mounted child topology events after parent unsubscribe", () => {
+		const parent = graph();
+		const child = graph();
+		parent.mount(child, { at: "sub" });
+		const events: TopologyEvent[] = [];
+		const unsub = parent.observeTopology().subscribe((event) => events.push(event));
+		unsub();
+
+		child.state(1, { name: "leaf" });
+
+		expect(events).toEqual([]);
+	});
+
 	it("does not activate nodes or publish protocol DATA through topology observation", () => {
 		const g = graph();
 		let runs = 0;

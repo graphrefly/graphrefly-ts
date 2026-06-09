@@ -177,6 +177,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.retryPolicy).toBe("function");
 		expect(typeof orchestration.retryStatusBundle).toBe("function");
 		expect(typeof orchestration.breakerBundle).toBe("function");
+		expect(typeof orchestration.processBundle).toBe("function");
 		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
 		expect(Object.hasOwn(patterns, "guardedExecution")).toBe(false);
