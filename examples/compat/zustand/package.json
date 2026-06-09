@@ -8,7 +8,7 @@
 		"start": "tsx index.ts"
 	},
 	"dependencies": {
-		"@graphrefly/graphrefly": "workspace:*"
+		"@graphrefly/ts": "workspace:*"
 	},
 	"devDependencies": {
 		"tsx": "^4.21.0",

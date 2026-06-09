@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/vue";
+import { useStore, useSubscribe } from "./hooks";
 import { count, doubled } from "./store";
 
-// `useStore` returns a writable Ref — v-model and direct assignment both work.
+// Example-local hook glue over @graphrefly/ts/adapters/subscribeNodeValues.
 const value = useStore(count);
-// `useSubscribe` returns a read-only Ref for any node.
 const dbl = useSubscribe(doubled);
 </script>
 

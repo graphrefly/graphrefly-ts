@@ -2,12 +2,13 @@
 
 Minimal Vue 3 + GraphReFly counter.
 
-- `useStore(node)` → writable `Ref<T>` — ideal for `v-model` or direct
+- `useStore(node)` -> writable `Ref<T>` — ideal for `v-model` or direct
   assignment.
-- `useSubscribe(node)` → read-only `Ref<T>` — works for any node (here: a
+- `useSubscribe(node)` -> read-only `Ref<T>` — works for any node (here: a
   derived).
 
-Subscriptions are tied to the Vue effect scope and clean up automatically on
+The hooks are example-local glue over `@graphrefly/ts/adapters`
+`subscribeNodeValues`; subscriptions clean up automatically on
 `onScopeDispose`.
 
 ## Run

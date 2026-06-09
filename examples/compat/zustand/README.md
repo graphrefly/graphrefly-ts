@@ -1,8 +1,8 @@
 # compat / zustand
 
-Zustand-compatible `create(initializer)` store API. The returned object is
-both a Zustand `StoreApi` and a GraphReFly `Graph` — you can introspect
-and snapshot it.
+Zustand-compatible `StoreApi` over a caller-owned GraphReFly state node.
+This example consumes `@graphrefly/ts` plus `@graphrefly/ts/adapters`;
+the old `compat/zustand` package surface is not recreated.
 
 ## Run
 

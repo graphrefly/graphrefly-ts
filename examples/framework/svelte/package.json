@@ -10,7 +10,7 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"@graphrefly/graphrefly": "workspace:*",
+		"@graphrefly/ts": "workspace:*",
 		"svelte": "^5.0.0"
 	},
 	"devDependencies": {

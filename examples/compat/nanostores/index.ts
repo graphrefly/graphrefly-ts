@@ -1,32 +1,35 @@
 /**
- * Nanostores-compatible atom + computed API over GraphReFly nodes.
+ * Nanostores-style atom facade over caller-owned GraphReFly nodes.
  *
- * - `subscribe(cb)` fires immediately with the current value (matches
- *   GraphReFly's push-on-subscribe — spec §2.2).
- * - `listen(cb)` fires only on subsequent changes.
- * - `atom._node` / `computed._node` are native GraphReFly nodes, safe to
- *   compose with `derived()` or register into a `Graph`.
+ * The computed examples are ordinary `g.derived(...)` nodes wrapped with
+ * `nanoAtom`, keeping GraphReFly topology explicit and inspectable.
  */
-import { atom, computed } from "@graphrefly/graphrefly/compat/nanostores";
+import { graph } from "@graphrefly/ts";
+import { nanoAtom } from "@graphrefly/ts/adapters";
 
-const count = atom(0);
+const g = graph({ name: "nanostores-example" });
+const countNode = g.state(0, { name: "count" });
+const count = nanoAtom(countNode, { immediate: false });
 
-// Computed — nanostores' equivalent of `derived`.
-const doubled = computed(count, (n) => n * 2);
+const doubledNode = g.derived([countNode], (n) => n * 2, { name: "doubled" });
+const doubled = nanoAtom(doubledNode, { immediate: false });
 
-// Multi-dep computed.
-const offset = atom(100);
-const labelled = computed([count, offset], (n, o) => `count+offset = ${n + o}`);
+const offsetNode = g.state(100, { name: "offset" });
+const offset = nanoAtom(offsetNode, { immediate: false });
+const labelledNode = g.derived([countNode, offsetNode], (n, o) => `count+offset = ${n + o}`, {
+	name: "labelled",
+});
+const labelled = nanoAtom(labelledNode, { immediate: false });
 
 // `subscribe` — fires immediately with the cached value, then on every change.
 const unsubDoubled = doubled.subscribe((v) => console.log("doubled:", v));
-// → doubled: 0
+// -> doubled: 0
 
 // `listen` — changes only, no initial call.
 const unsubLabel = labelled.listen((s) => console.log("labelled:", s));
 
-count.set(1); // doubled: 2
-count.set(5); // doubled: 10 · labelled: count+offset = 105
+count.set(1); // doubled: 2 / labelled: count+offset = 101
+count.set(5); // doubled: 10 / labelled: count+offset = 105
 offset.set(200); // labelled: count+offset = 205
 
 unsubDoubled();

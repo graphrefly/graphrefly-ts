@@ -4,9 +4,9 @@ Runnable, self-contained examples that show how to compose GraphReFly in
 different environments. Each example lives in its own package so you can
 `cd` into one, `pnpm install`, and run it without touching the others.
 
-Every example references `@graphrefly/graphrefly` via `workspace:*` — this
-resolves locally inside the monorepo. **To copy any example out as a
-starter for your own project, replace `workspace:*` with a published
+Migrated examples reference `@graphrefly/ts` via `workspace:*` so they
+exercise the clean-slate package surface directly. **To copy any example out
+as a starter for your own project, replace `workspace:*` with a published
 version** (see `examples/basic/state-and-derived/README.md`).
 
 ## Layout
@@ -16,9 +16,9 @@ examples/
 ├── basic/
 │   └── state-and-derived/       state() + derived() + subscribe(), run via tsx
 ├── compat/
-│   ├── jotai/                   atom(...) API over GraphReFly nodes
-│   ├── nanostores/              atom + computed API
-│   └── zustand/                 create(initializer) API
+│   ├── jotai/                   jotaiAtom(...) facade over GraphReFly nodes
+│   ├── nanostores/              nanoAtom(...) facade over GraphReFly nodes
+│   └── zustand/                 zustandStore(...) API over GraphReFly nodes
 ├── framework/
 │   ├── react/                   Vite + React 19, useStore / useSubscribe
 │   ├── vue/                     Vite + Vue 3, useStore / useSubscribe

@@ -290,9 +290,9 @@ importers:
 
   examples/compat/jotai:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
     devDependencies:
       tsx:
         specifier: ^4.21.0
@@ -303,9 +303,9 @@ importers:
 
   examples/compat/nanostores:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
     devDependencies:
       tsx:
         specifier: ^4.21.0
@@ -316,9 +316,9 @@ importers:
 
   examples/compat/zustand:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
     devDependencies:
       tsx:
         specifier: ^4.21.0
@@ -329,9 +329,9 @@ importers:
 
   examples/framework/react:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
       react:
         specifier: ^19.0.0
         version: 19.2.4
@@ -357,9 +357,9 @@ importers:
 
   examples/framework/solid:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
       solid-js:
         specifier: ^1.9.0
         version: 1.9.12
@@ -376,9 +376,9 @@ importers:
 
   examples/framework/svelte:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
       svelte:
         specifier: ^5.0.0
         version: 5.55.1
@@ -395,9 +395,9 @@ importers:
 
   examples/framework/vue:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
       vue:
         specifier: ^3.5.0
         version: 3.5.31(typescript@5.9.3)

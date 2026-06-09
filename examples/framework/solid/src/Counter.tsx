@@ -1,9 +1,9 @@
-import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/solid";
 import type { Component } from "solid-js";
+import { useStore, useSubscribe } from "./hooks";
 import { count, doubled } from "./store";
 
 export const Counter: Component = () => {
-	// `useStore` returns `[Accessor, setter]` — call the accessor to read.
+	// Example-local hook glue over @graphrefly/ts/adapters/subscribeNodeValues.
 	const [value, setValue] = useStore(count);
 	const dbl = useSubscribe(doubled);
 	return (
