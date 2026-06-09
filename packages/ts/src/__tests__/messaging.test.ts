@@ -1,13 +1,59 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import {
+	CONTEXT_TOPIC,
+	DEFERRED_TOPIC,
 	dynamicHub,
 	fromHubTopic,
 	fromTopic,
+	INJECTIONS_TOPIC,
+	type JsonSchema,
 	messageBus,
+	PROMPTS_TOPIC,
+	RESPONSES_TOPIC,
+	SPAWNS_TOPIC,
+	STANDARD_TOPICS,
+	type StandardTopic,
+	TODOS_TOPIC,
+	type TopicMessage,
 	toHubTopic,
 	toTopic,
 } from "../messaging/index.js";
+
+describe("messaging passive vocabulary (D125/D132)", () => {
+	it("exports standard topic constants and a passive topic message envelope", () => {
+		expect(STANDARD_TOPICS).toEqual([
+			PROMPTS_TOPIC,
+			RESPONSES_TOPIC,
+			INJECTIONS_TOPIC,
+			DEFERRED_TOPIC,
+			SPAWNS_TOPIC,
+			CONTEXT_TOPIC,
+			TODOS_TOPIC,
+		]);
+		expect(Object.isFrozen(STANDARD_TOPICS)).toBe(true);
+		expectTypeOf<StandardTopic>().toEqualTypeOf<
+			"prompts" | "responses" | "injections" | "deferred" | "spawns" | "context" | "todos"
+		>();
+		expectTypeOf<TopicMessage<{ prompt: string }>["schema"]>().toEqualTypeOf<
+			JsonSchema | undefined
+		>();
+		const topic: StandardTopic = PROMPTS_TOPIC;
+		const message: TopicMessage<{ prompt: string }> = {
+			id: "msg-1",
+			correlationId: "thread-1",
+			schema: {
+				type: "object",
+				required: ["prompt"],
+				properties: { prompt: { type: "string" } },
+			},
+			payload: { prompt: "summarize" },
+		};
+
+		expect(topic).toBe("prompts");
+		expect(message.payload.prompt).toBe("summarize");
+	});
+});
 
 describe("message bus application infrastructure (D132)", () => {
 	it("uses finite declared topics with sentinel-before-publish topic nodes", () => {

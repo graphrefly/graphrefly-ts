@@ -17,6 +17,66 @@ export interface MessageEnvelope<T = unknown> {
 	readonly timestampMs: number;
 }
 
+/**
+ * Minimal JSON Schema vocabulary for cross-graph/topic payload descriptions.
+ *
+ * D125/D132 keep this as passive messaging vocabulary: GraphReFly does not ship
+ * a validator here and does not make schemas protocol messages.
+ */
+export interface JsonSchema {
+	readonly type?:
+		| "string"
+		| "number"
+		| "integer"
+		| "boolean"
+		| "object"
+		| "array"
+		| "null"
+		| readonly ("string" | "number" | "integer" | "boolean" | "object" | "array" | "null")[];
+	readonly properties?: Readonly<Record<string, JsonSchema>>;
+	readonly required?: readonly string[];
+	readonly additionalProperties?: boolean | JsonSchema;
+	readonly items?: JsonSchema | readonly JsonSchema[];
+	readonly enum?: readonly unknown[];
+	readonly const?: unknown;
+	readonly $ref?: string;
+	readonly definitions?: Readonly<Record<string, JsonSchema>>;
+	readonly description?: string;
+	readonly title?: string;
+}
+
+/**
+ * Recommended passive envelope for payloads that cross topic, agent, or graph
+ * boundaries. It is an application fact shape, not a required protocol type.
+ */
+export interface TopicMessage<T = unknown> {
+	readonly id: string;
+	readonly schema?: JsonSchema;
+	readonly expiresAt?: string;
+	readonly correlationId?: string;
+	readonly payload: T;
+}
+
+export const PROMPTS_TOPIC = "prompts";
+export const RESPONSES_TOPIC = "responses";
+export const INJECTIONS_TOPIC = "injections";
+export const DEFERRED_TOPIC = "deferred";
+export const SPAWNS_TOPIC = "spawns";
+export const CONTEXT_TOPIC = "context";
+export const TODOS_TOPIC = "todos";
+
+export const STANDARD_TOPICS = Object.freeze([
+	PROMPTS_TOPIC,
+	RESPONSES_TOPIC,
+	INJECTIONS_TOPIC,
+	DEFERRED_TOPIC,
+	SPAWNS_TOPIC,
+	CONTEXT_TOPIC,
+	TODOS_TOPIC,
+] as const);
+
+export type StandardTopic = (typeof STANDARD_TOPICS)[number];
+
 export interface MessageBusEvent<T = unknown> {
 	readonly kind: "publish" | "complete" | "error";
 	readonly topic: string;
