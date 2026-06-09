@@ -177,6 +177,9 @@ export {
 	graph,
 	StateNode,
 	type SugarOpts,
+	type TopologyGroup,
+	type TopologyGroupOptions,
+	type TopologyGroupReleaseOptions,
 } from "./graph/graph.js";
 export {
 	concatMap,

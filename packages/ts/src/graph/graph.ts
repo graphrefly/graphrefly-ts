@@ -18,12 +18,15 @@ import { NodeCore } from "../node/core.js";
 import {
 	checkpointStateOfNode,
 	getNodeOwner,
+	isNodeActiveForRelease,
+	isNodeRuntimeQuiescentForRelease,
 	isNodeRuntimeReleased,
 	Node,
 	type NodeOptions,
 	releaseRuntimeOfNode,
 	setNodeOwner,
 	setNodeTopologyDepsChangedObserver,
+	subscriberCountOfNode,
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "../node/node.js";
@@ -123,6 +126,7 @@ interface GraphRestoreRegistrar {
 const restoreRegistrars = new WeakMap<Graph, GraphRestoreRegistrar>();
 
 interface GraphLifecycleRegistrar {
+	assertRegisteredNode(node: Node<unknown>, label: string): void;
 	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
 }
 
@@ -151,6 +155,138 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
 export class StateNode<T> extends Node<T> {
 	set(v: T): void {
 		this.down([["DATA", v]]);
+	}
+}
+
+export interface TopologyGroupOptions {
+	/** Optional inspection/release reason label for this graph-owned topology group. */
+	name?: string;
+}
+
+export interface TopologyGroupReleaseOptions {
+	/** Optional diagnostic reason. No protocol/control messages are synthesized. */
+	reason?: string;
+}
+
+/**
+ * Graph-owned D152 release group: a label over ordinary graph-registered nodes.
+ * The graph registry remains the source of truth; helper-local membership is only
+ * a memo for atomic quiescent release.
+ */
+export interface TopologyGroup {
+	readonly name?: string;
+	readonly released: boolean;
+	add<T extends Node<unknown>>(node: T): T;
+	node<T = unknown>(
+		deps?: readonly Node<unknown>[],
+		fn?: NodeFn | null,
+		opts?: SugarOpts<T>,
+	): Node<T>;
+	state<T>(initial: T, opts?: SugarOpts<T>): StateNode<T>;
+	producer<T = unknown>(fn: NodeFn, opts?: SugarOpts<T>): Node<T>;
+	derived<const D extends readonly Node<unknown>[], T>(
+		deps: D,
+		fn: DerivedFn<D, T>,
+		opts?: SugarOpts<T>,
+	): Node<T>;
+	effect<const D extends readonly Node<unknown>[]>(
+		deps: D,
+		fn: EffectFn<D>,
+		opts?: SugarOpts<void>,
+	): Node<void>;
+	initNode<TIn, TOut>(
+		op: Operator<TIn, TOut>,
+		deps: readonly Node<TIn>[],
+		opts?: SugarOpts<TOut>,
+	): Node<TOut>;
+	release(opts?: TopologyGroupReleaseOptions): void;
+}
+
+class GraphTopologyGroup implements TopologyGroup {
+	readonly name?: string;
+	private readonly _graph: Graph;
+	private readonly _members: Node<unknown>[] = [];
+	private _released = false;
+
+	constructor(graph: Graph, opts: TopologyGroupOptions = {}) {
+		this._graph = graph;
+		this.name = opts.name;
+	}
+
+	get released(): boolean {
+		return this._released;
+	}
+
+	add<T extends Node<unknown>>(node: T): T {
+		this._assertLive();
+		const lifecycle = lifecycleRegistrars.get(this._graph);
+		if (lifecycle === undefined) throw new Error("topologyGroup: graph lifecycle unavailable");
+		lifecycle.assertRegisteredNode(node, `topology group '${this.name ?? "group"}' member`);
+		if (!this._members.includes(node)) this._members.push(node);
+		return node;
+	}
+
+	node<T = unknown>(
+		deps: readonly Node<unknown>[] = [],
+		fn: NodeFn | null = null,
+		opts: SugarOpts<T> = {},
+	): Node<T> {
+		this._assertLive();
+		return this.add(this._graph.node(deps, fn, opts));
+	}
+
+	state<T>(initial: T, opts: SugarOpts<T> = {}): StateNode<T> {
+		this._assertLive();
+		return this.add(this._graph.state(initial, opts));
+	}
+
+	producer<T = unknown>(fn: NodeFn, opts: SugarOpts<T> = {}): Node<T> {
+		this._assertLive();
+		return this.add(this._graph.producer(fn, opts));
+	}
+
+	derived<const D extends readonly Node<unknown>[], T>(
+		deps: D,
+		fn: DerivedFn<D, T>,
+		opts: SugarOpts<T> = {},
+	): Node<T> {
+		this._assertLive();
+		return this.add(this._graph.derived(deps, fn, opts));
+	}
+
+	effect<const D extends readonly Node<unknown>[]>(
+		deps: D,
+		fn: EffectFn<D>,
+		opts: SugarOpts<void> = {},
+	): Node<void> {
+		this._assertLive();
+		return this.add(this._graph.effect(deps, fn, opts));
+	}
+
+	initNode<TIn, TOut>(
+		op: Operator<TIn, TOut>,
+		deps: readonly Node<TIn>[],
+		opts: SugarOpts<TOut> = {},
+	): Node<TOut> {
+		this._assertLive();
+		return this.add(this._graph.initNode(op, deps, opts));
+	}
+
+	release(opts: TopologyGroupReleaseOptions = {}): void {
+		if (this._released) return;
+		const lifecycle = lifecycleRegistrars.get(this._graph);
+		if (lifecycle === undefined) throw new Error("topologyGroup: graph lifecycle unavailable");
+		lifecycle.releaseNodes([...this._members], {
+			reason: opts.reason ?? this.name,
+		});
+		this._members.length = 0;
+		this._released = true;
+	}
+
+	private _assertLive(): void {
+		if (this._released) {
+			throw new Error(`topology group '${this.name ?? "group"}' has been released (D152)`);
+		}
 	}
 }
 
@@ -202,6 +338,7 @@ export class Graph {
 			},
 		});
 		lifecycleRegistrars.set(this, {
+			assertRegisteredNode: (node, label) => this._assertRegisteredNode(node, label),
 			releaseNodes: (nodes, releaseOpts) => this._releaseNodes(nodes, releaseOpts),
 		});
 	}
@@ -227,8 +364,11 @@ export class Graph {
 	): Node<T> {
 		assertGraphLocalNode(this, n as Node<unknown>, `graph node '${opts.name ?? factory}'`);
 		for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
-		if (this._byId.has(id) || this._retiredIds.has(id)) {
+		if (this._byId.has(id)) {
 			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
+		}
+		if (this._retiredIds.has(id)) {
+			throw new Error(`graph: node id '${id}' was released and cannot be reused (D152/D153)`);
 		}
 		this._entries.set(n as Node<unknown>, {
 			node: n as Node<unknown>,
@@ -252,6 +392,13 @@ export class Graph {
 
 	private _assertDepsLocal(deps: readonly Node<unknown>[], label: string): void {
 		for (const dep of deps) assertGraphLocalNode(this, dep, label);
+	}
+
+	private _assertRegisteredNode(node: Node<unknown>, label: string): void {
+		assertGraphLocalNode(this, node, label);
+		if (!this._entries.has(node)) {
+			throw new Error(`${label} is not a registered graph node (D152)`);
+		}
 	}
 
 	private _nodeOpts<T>(opts: SugarOpts<T>): NodeOptions<T> {
@@ -296,11 +443,47 @@ export class Graph {
 			}
 		}
 		for (const { node, entry } of entries) {
+			if (!isNodeRuntimeQuiescentForRelease(node)) {
+				throw new Error(
+					`graph: cannot release node group; '${entry.id}' is not runtime-quiescent (D124)`,
+				);
+			}
+			let internalSubscribers = 0;
+			for (const { node: dependent } of entries) {
+				if (dependent === node || !isNodeActiveForRelease(dependent)) continue;
+				for (const dep of dependent.deps) {
+					if (dep === node) internalSubscribers += 1;
+				}
+			}
+			if (subscriberCountOfNode(node) > internalSubscribers) {
+				throw new Error(
+					`graph: cannot release node group; '${entry.id}' still has live subscribers (D124)`,
+				);
+			}
+		}
+		const releasedEvents =
+			this._topologyObservers.size === 0
+				? []
+				: entries.map(({ node, entry }) => ({
+						path: entry.id,
+						factory: entry.factory,
+						deps: this._topologyDeps(node.deps),
+					}));
+		for (const { node, entry } of entries) {
 			this._entries.delete(node);
 			this._byId.delete(entry.id);
 			this._retiredIds.add(entry.id);
 		}
-		for (const { node } of entries) releaseRuntimeOfNode(node);
+		let releaseError: unknown;
+		for (const { node } of entries) {
+			try {
+				releaseRuntimeOfNode(node);
+			} catch (error) {
+				if (releaseError === undefined) releaseError = error;
+			}
+		}
+		for (const event of releasedEvents) this._emitTopologyNodeReleased(event);
+		if (releaseError !== undefined) throw releaseError;
 	}
 
 	// ── 8 verbs (core: node/state/batch + sugar: producer/derived/effect/mount) ──
@@ -432,6 +615,14 @@ export class Graph {
 	retain<T>(node: Node<T>, opts: { reason?: string } = {}): () => void {
 		assertGraphLocalNode(this, node as Node<unknown>, opts.reason ?? "retained node");
 		return node.subscribe(() => {});
+	}
+
+	/**
+	 * D152 graph-owned topology/release group. Members are ordinary registered graph nodes;
+	 * release is quiescent-only and removes ids atomically without synthesizing protocol messages.
+	 */
+	topologyGroup(opts: TopologyGroupOptions = {}): TopologyGroup {
+		return new GraphTopologyGroup(this, opts);
 	}
 
 	// ── inspection: describe / observe / profile (D39) ──
@@ -610,6 +801,21 @@ export class Graph {
 			path: entry.id,
 			prevDeps: this._topologyDeps(prevDeps),
 			deps: this._topologyDeps(nextDeps),
+			seq: this._clock++,
+		});
+	}
+
+	private _emitTopologyNodeReleased(event: {
+		path: string;
+		factory: string;
+		deps: readonly string[];
+	}): void {
+		if (this._topologyObservers.size === 0) return;
+		this._emitTopologyEvent({
+			kind: "node-released",
+			path: event.path,
+			factory: event.factory,
+			deps: [...event.deps],
 			seq: this._clock++,
 		});
 	}

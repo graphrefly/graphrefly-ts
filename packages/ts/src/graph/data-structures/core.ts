@@ -35,7 +35,7 @@ import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { Dispatcher } from "../../dispatcher/index.js";
 import { Node, releaseRuntimeOfNode } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
-import { type Graph, releaseGraphNodes } from "../graph.js";
+import type { Graph } from "../graph.js";
 import type { Operator } from "../operators.js";
 import type { ViewCachePolicy } from "../policies/types.js";
 
@@ -164,13 +164,14 @@ export function lightReactiveView<C, S>(
 ): ReactiveView<C, S> {
 	const { dispatcher, factory, graph, materializeSnapshot, name, onDispose } = opts;
 	const base = dispatcher ? { dispatcher } : {};
+	const group = graph?.topologyGroup({ name: name ?? factory });
 	const deltaBody = (ctx: Ctx): void => {
 		for (const change of (depBatch(ctx, 0) ?? []) as readonly C[]) {
 			ctx.down([["DATA", change]]);
 		}
 	};
-	const delta = graph
-		? graph.node<C>([parentDelta], deltaBody, {
+	const delta = group
+		? group.node<C>([parentDelta], deltaBody, {
 				factory: `${factory}.delta`,
 				name: name ? `${name}.delta` : undefined,
 				meta: { kind: "collection_view_delta", factory },
@@ -191,8 +192,8 @@ export function lightReactiveView<C, S>(
 			ctx.down([["ERROR", errorPayload(e, `${factory}.snapshot materializer failed`)]]);
 		}
 	};
-	const snapshot = graph
-		? graph.node<S>([delta as Node<unknown>], snapshotBody, {
+	const snapshot = group
+		? group.node<S>([delta as Node<unknown>], snapshotBody, {
 				factory: `${factory}.snapshot`,
 				name: name ? `${name}.snapshot` : undefined,
 				meta: { kind: "collection_view_snapshot", factory },
@@ -214,10 +215,8 @@ export function lightReactiveView<C, S>(
 		pullId,
 		dispose(): void {
 			if (disposed) return;
-			if (graph) {
-				releaseGraphNodes(graph, [delta as Node<unknown>, snapshot as Node<unknown>], {
-					reason: factory,
-				});
+			if (group) {
+				group.release({ reason: factory });
 			} else {
 				releaseRuntimeOfNode(delta as Node<unknown>);
 				releaseRuntimeOfNode(snapshot as Node<unknown>);

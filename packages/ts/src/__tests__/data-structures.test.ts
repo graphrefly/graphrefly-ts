@@ -1150,7 +1150,9 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.snapshot");
 		expect(g.find("log.page#0.delta")).toBeUndefined();
 		expect(g.checkpoint().nodes.map((n) => n.id)).not.toContain("log.page#0.delta");
-		expect(() => g.node([], null, { name: "log.page#0.delta" })).toThrow(/duplicate node id/);
+		expect(() => g.node([], null, { name: "log.page#0.delta" })).toThrow(
+			/released and cannot be reused/,
+		);
 		expect(() => page.delta.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
 	});
 

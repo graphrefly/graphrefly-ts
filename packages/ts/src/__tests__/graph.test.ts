@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { depLatest } from "../ctx/types.js";
+import { releaseGraphNodes } from "../graph/graph.js";
 import type {
 	Ctx,
 	GraphRestoreDescriptor,
@@ -15,6 +16,7 @@ import {
 	GRAPH_CHECKPOINT_VERSION,
 	graph,
 	map,
+	Node,
 	restoreGraph,
 	restoreRegistry,
 	strictJsonCodec,
@@ -286,6 +288,206 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		g.state(1, { name: "root" });
 
 		expect(second).toEqual([]);
+	});
+
+	it("emits node-released only after quiescent atomic graph release commits", () => {
+		const g = graph();
+		const source = g.state(1, { name: "source" });
+		const group = g.topologyGroup({ name: "view" });
+		const derived = group.derived([source], (n) => n + 1, { name: "derived" });
+		const events: TopologyEvent[] = [];
+		const unsub = g.observeTopology("derived").subscribe((event) => events.push(event));
+
+		group.release();
+
+		unsub();
+		expect(events).toEqual([
+			{
+				kind: "node-released",
+				path: "derived",
+				deps: ["source"],
+				factory: "derived",
+				seq: 0,
+			},
+		]);
+		expect(g.find("derived")).toBeUndefined();
+		expect(g.describe().nodes.map((node) => node.id)).not.toContain("derived");
+		expect(g.checkpoint().nodes.map((node) => node.id)).not.toContain("derived");
+		expect(() => derived.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
+	});
+
+	it("does not emit node-released or hide topology when release is not quiescent", () => {
+		const g = graph();
+		const source = g.state(1, { name: "source" });
+		const group = g.topologyGroup({ name: "view" });
+		const derived = group.derived([source], (n) => n + 1, { name: "derived" });
+		g.derived([derived], (n) => n + 1, { name: "consumer" });
+		const events: TopologyEvent[] = [];
+		const unsub = g.observeTopology().subscribe((event) => events.push(event));
+
+		expect(() => group.release()).toThrow(/consumer.*still depends.*derived/);
+
+		unsub();
+		expect(events).toEqual([]);
+		expect(g.find("derived")).toBe(derived);
+		expect(g.describe().nodes.map((node) => node.id)).toContain("derived");
+		expect(g.checkpoint().nodes.map((node) => node.id)).toContain("derived");
+	});
+
+	it("emits node-released for committed releases even when cleanup later throws", () => {
+		const g = graph();
+		const panic = g.state(1, { name: "panic" });
+		const later = g.state(2, { name: "later" });
+		const panicInternals = panic as unknown as {
+			_lifecycle: { activated: boolean };
+			_hooks: { onDeactivation: Array<() => void> };
+		};
+		const laterInternals = later as unknown as {
+			_lifecycle: { activated: boolean };
+			_hooks: { onDeactivation: Array<() => void> };
+		};
+		let laterCleanupRan = false;
+		panicInternals._lifecycle.activated = true;
+		panicInternals._hooks.onDeactivation.push(() => {
+			throw new Error("cleanup boom");
+		});
+		laterInternals._lifecycle.activated = true;
+		laterInternals._hooks.onDeactivation.push(() => {
+			laterCleanupRan = true;
+		});
+		const events: TopologyEvent[] = [];
+		const unsub = g.observeTopology().subscribe((event) => events.push(event));
+
+		expect(() => releaseGraphNodes(g, [panic, later])).toThrow(/cleanup boom/);
+
+		unsub();
+		expect(events.map((event) => event.kind)).toEqual(["node-released", "node-released"]);
+		expect(events.map((event) => event.path)).toEqual(["panic", "later"]);
+		expect(events.map((event) => event.factory)).toEqual(["state", "state"]);
+		expect(events.map((event) => event.deps)).toEqual([[], []]);
+		expect(events.map((event) => event.seq)).toEqual([0, 1]);
+		expect(laterCleanupRan).toBe(true);
+		expect(g.find("panic")).toBeUndefined();
+		expect(g.find("later")).toBeUndefined();
+		expect(g.describe().nodes.map((node) => node.id)).not.toContain("panic");
+		expect(g.describe().nodes.map((node) => node.id)).not.toContain("later");
+		expect(() => panic.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
+	});
+
+	it("rejects release while a node's own status is dirty", () => {
+		const g = graph();
+		const group = g.topologyGroup({ name: "view" });
+		const dirty = group.node([], null, { name: "dirty" });
+		const events: TopologyEvent[] = [];
+		const unsub = g.observeTopology().subscribe((event) => events.push(event));
+
+		dirty.down([["DIRTY"]]);
+
+		expect(dirty.status).toBe("dirty");
+		expect(() => group.release()).toThrow(/not runtime-quiescent/);
+		unsub();
+		expect(events).toEqual([]);
+		expect(g.find("dirty")).toBe(dirty);
+		expect(g.describe().nodes.map((node) => node.id)).toContain("dirty");
+	});
+});
+
+describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D153)", () => {
+	it("creates registered child nodes and releases them atomically from inspection surfaces", () => {
+		const g = graph({ dispatcher: new Dispatcher(), profile: true });
+		const source = g.state(1, { name: "source" });
+		const events: TopologyEvent[] = [];
+		const unsub = g.observeTopology().subscribe((event) => events.push(event));
+		const group = g.topologyGroup({ name: "view" });
+
+		const delta = group.derived([source], (n) => n + 1, { name: "view.delta" });
+		const snapshot = group.derived([delta], (n) => n * 2, { name: "view.snapshot" });
+
+		expect(g.find("view.delta")).toBe(delta);
+		expect(g.find("view.snapshot")).toBe(snapshot);
+		expect(g.describe().nodes.map((node) => node.id)).toEqual(
+			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
+		);
+		expect(Object.keys(g.profile().nodes)).toEqual(
+			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
+		);
+		expect(g.checkpoint().nodes.map((node) => node.id)).toEqual(
+			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
+		);
+
+		group.release();
+		group.release();
+		unsub();
+
+		expect(group.released).toBe(true);
+		expect(events).toEqual([
+			{
+				kind: "node-registered",
+				path: "view.delta",
+				deps: ["source"],
+				factory: "derived",
+				seq: 0,
+			},
+			{
+				kind: "node-registered",
+				path: "view.snapshot",
+				deps: ["view.delta"],
+				factory: "derived",
+				seq: 1,
+			},
+			{
+				kind: "node-released",
+				path: "view.delta",
+				deps: ["source"],
+				factory: "derived",
+				seq: 2,
+			},
+			{
+				kind: "node-released",
+				path: "view.snapshot",
+				deps: ["view.delta"],
+				factory: "derived",
+				seq: 3,
+			},
+		]);
+		expect(g.find("view.delta")).toBeUndefined();
+		expect(g.find("view.snapshot")).toBeUndefined();
+		expect(g.describe().nodes.map((node) => node.id)).not.toContain("view.delta");
+		expect(Object.keys(g.profile().nodes)).not.toContain("view.delta");
+		expect(g.checkpoint().nodes.map((node) => node.id)).not.toContain("view.delta");
+		expect(() => g.state(0, { name: "view.delta" })).toThrow(/released/);
+		expect(() => group.node([], null, { name: "late" })).toThrow(/released/);
+		expect(g.find("late")).toBeUndefined();
+	});
+
+	it("add only accepts ordinary graph-registered nodes from the owning graph", () => {
+		const g = graph();
+		const group = g.topologyGroup({ name: "view" });
+		const registered = g.state(1, { name: "registered" });
+		expect(group.add(registered)).toBe(registered);
+		expect(group.add(registered)).toBe(registered);
+
+		const other = graph().state(1, { name: "other" });
+		expect(() => group.add(other)).toThrow(/different graph/);
+
+		const bare = new Node([], null);
+		expect(() => group.add(bare)).toThrow(/not a registered graph node/);
+	});
+
+	it("rejects release while an external live subscriber points into the group and can retry", () => {
+		const g = graph();
+		const group = g.topologyGroup({ name: "view" });
+		const child = group.state(1, { name: "view.child" });
+		const unsub = child.subscribe(() => {});
+
+		expect(() => group.release()).toThrow(/live subscribers/);
+		expect(group.released).toBe(false);
+		expect(g.find("view.child")).toBe(child);
+
+		unsub();
+		group.release();
+		expect(group.released).toBe(true);
+		expect(g.find("view.child")).toBeUndefined();
 	});
 });
 

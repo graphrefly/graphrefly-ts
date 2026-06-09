@@ -175,6 +175,9 @@ const topologyDepsChangedObservers = new WeakMap<Node<unknown>, TopologyDepsChan
 const checkpointReaders = new WeakMap<Node<unknown>, () => NodeCheckpointState>();
 const restoreWriters = new WeakMap<Node<unknown>, (state: NodeRestoreState) => void>();
 const runtimeReleasers = new WeakMap<Node<unknown>, () => void>();
+const runtimeQuiescenceReaders = new WeakMap<Node<unknown>, () => boolean>();
+const subscriberCountReaders = new WeakMap<Node<unknown>, () => number>();
+const activationReaders = new WeakMap<Node<unknown>, () => boolean>();
 const releasedNodes = new WeakSet<Node<unknown>>();
 
 /** @internal Run a Node/StateNode constructor against a graph-local core without widening the public constructor. */
@@ -248,6 +251,21 @@ export function restoreStateOfNode(n: Node<unknown>, state: NodeRestoreState): v
 /** @internal D122 graph-owned ephemeral lifecycle release. */
 export function releaseRuntimeOfNode(n: Node<unknown>): void {
 	runtimeReleasers.get(n)?.();
+}
+
+/** @internal D124 guard for graph-owned ephemeral lifecycle release. */
+export function isNodeRuntimeQuiescentForRelease(n: Node<unknown>): boolean {
+	return runtimeQuiescenceReaders.get(n)?.() ?? false;
+}
+
+/** @internal D124 graph-owned release subscriber accounting. */
+export function subscriberCountOfNode(n: Node<unknown>): number {
+	return subscriberCountReaders.get(n)?.() ?? 0;
+}
+
+/** @internal D124 graph-owned release internal-subscriber accounting. */
+export function isNodeActiveForRelease(n: Node<unknown>): boolean {
+	return activationReaders.get(n)?.() ?? false;
 }
 
 /** @internal D122 guard for graph-owned ephemeral lifecycle release. */
@@ -491,6 +509,9 @@ export class Node<T = unknown> {
 			this._restoredActivationPending = true;
 		});
 		runtimeReleasers.set(this as Node<unknown>, () => this._releaseRuntime());
+		runtimeQuiescenceReaders.set(this as Node<unknown>, () => this._isRuntimeQuiescentForRelease());
+		subscriberCountReaders.set(this as Node<unknown>, () => this._subscriberCount());
+		activationReaders.set(this as Node<unknown>, () => this._lifecycle.activated);
 	}
 
 	/** R-pull (D55): true while a pull node is quiet (holds its own pullId/demand lock). */
@@ -1004,12 +1025,58 @@ export class Node<T = unknown> {
 			throw new Error(`${op}: node has been released from its graph lifecycle (D122)`);
 	}
 
+	private _subscriberCount(): number {
+		return this._lifecycle.subscribers.size;
+	}
+
+	private _isRuntimeQuiescentForRelease(): boolean {
+		const allowedPullQuietLock =
+			this._slot.pull &&
+			this._control.pauseLockset.size === 1 &&
+			this._control.pauseLockset.has(this._slot.pullLock);
+		return (
+			!this._released &&
+			this._value.status !== "dirty" &&
+			this._value.status !== "pending" &&
+			this._wave.pending === 0 &&
+			!this._wave.insideRunWave &&
+			!this._wave.inDepMutation &&
+			!this._wave.rewireRunPending &&
+			!this._wave.batchDirtyOwed &&
+			this._dep.dirty.every((dirty) => !dirty) &&
+			this._control.pauseBuffer.length === 0 &&
+			!this._control.pausedDepWaveOccurred &&
+			!this._control.demandOwed &&
+			!this._control.inDeliverDemand &&
+			(this._control.pauseLockset.size === 0 || allowedPullQuietLock)
+		);
+	}
+
 	private _releaseRuntime(): void {
 		if (this._released) return;
 		this._released = true;
 		releasedNodes.add(this as Node<unknown>);
-		if (this._lifecycle.activated) this._deactivate();
-		for (const u of this._dep.unsubs) if (u) u();
+		let releaseError: unknown;
+		const recordReleaseError = (error: unknown): void => {
+			if (releaseError === undefined) releaseError = error;
+		};
+		this._lifecycle.activated = false;
+		for (const u of this._dep.unsubs) {
+			try {
+				u();
+			} catch (error) {
+				recordReleaseError(error);
+				// D124 release is graph-owned and atomic; user cleanup must not split commit.
+			}
+		}
+		for (const fn of this._hooks.onDeactivation) {
+			try {
+				fn();
+			} catch (error) {
+				recordReleaseError(error);
+				// D124 release cleans runtime without synthesizing protocol ERROR/COMPLETE.
+			}
+		}
 		this._dep.unsubs = [];
 		this._dep.idxBoxes = [];
 		this._lifecycle.subscribers.clear();
@@ -1046,7 +1113,13 @@ export class Node<T = unknown> {
 		checkpointReaders.delete(this as Node<unknown>);
 		restoreWriters.delete(this as Node<unknown>);
 		runtimeReleasers.delete(this as Node<unknown>);
+		runtimeQuiescenceReaders.delete(this as Node<unknown>);
+		subscriberCountReaders.delete(this as Node<unknown>);
+		activationReaders.delete(this as Node<unknown>);
+		ownerTokens.delete(this as Node<unknown>);
+		topologyDepsChangedObservers.delete(this as Node<unknown>);
 		this._core.releaseSlot(this._id);
+		if (releaseError !== undefined) throw releaseError;
 	}
 
 	private _resetDepState(): void {

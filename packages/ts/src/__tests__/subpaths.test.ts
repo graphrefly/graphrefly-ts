@@ -31,6 +31,9 @@ import type {
 	ReactiveOpt,
 	ReactiveView,
 	RetentionPolicy,
+	TopologyGroup,
+	TopologyGroupOptions,
+	TopologyGroupReleaseOptions,
 	ViewCachePolicy,
 } from "../index.js";
 import * as messaging from "../messaging/index.js";
@@ -90,6 +93,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("exposes the clean-slate layer surfaces from source barrels", () => {
 		expect(typeof core.node).toBe("function");
 		expect(typeof graphLayer.Graph).toBe("function");
+		expect(typeof graphLayer.graph).toBe("function");
 		expect(typeof graphLayer.coalesceObserve).toBe("function");
 		expect(typeof graphLayer.domWebSocketDriver).toBe("function");
 		expect(typeof graphLayer.explainPath).toBe("function");
@@ -281,6 +285,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			ReactiveView<string, string>
 		>();
 		expectTypeOf<DataStructuresViewCachePolicy>().toEqualTypeOf<ViewCachePolicy>();
+		expectTypeOf<TopologyGroup>().toMatchTypeOf<{
+			readonly released: boolean;
+			release(opts?: TopologyGroupReleaseOptions): void;
+		}>();
+		expectTypeOf<TopologyGroupOptions>().toEqualTypeOf<{ name?: string }>();
 		expectTypeOf<GraphCheckpoint>()
 			.toHaveProperty("version")
 			.toEqualTypeOf<"graphrefly.checkpoint.v1">();

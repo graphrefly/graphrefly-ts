@@ -82,6 +82,9 @@ export {
 	graph,
 	StateNode,
 	type SugarOpts,
+	type TopologyGroup,
+	type TopologyGroupOptions,
+	type TopologyGroupReleaseOptions,
 } from "./graph.js";
 export {
 	coalesceObserve,

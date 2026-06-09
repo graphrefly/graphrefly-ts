@@ -26,7 +26,7 @@ export interface ObserveStream {
 	subscribe(sink: (e: ObserveEvent) => void): () => void;
 }
 
-export type TopologyEventKind = "node-registered" | "deps-changed";
+export type TopologyEventKind = "node-registered" | "deps-changed" | "node-released";
 
 export interface TopologyEvent {
 	/** D145 graph inspection/lifecycle event kind. Not a protocol message. */
@@ -37,7 +37,7 @@ export interface TopologyEvent {
 	readonly deps: readonly string[];
 	/** Previous dep ids for deps-changed events. */
 	readonly prevDeps?: readonly string[];
-	/** Factory name for node-registered events. */
+	/** Factory name for node-registered and node-released events. */
 	readonly factory?: string;
 	/** Graph-local monotonic sequence shared with observe() ordering. */
 	readonly seq: number;
