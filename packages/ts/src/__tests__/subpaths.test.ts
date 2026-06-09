@@ -154,6 +154,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof patterns.observeTrace).toBe("function");
 		expect(typeof patterns.profileSummary).toBe("function");
+		expect(typeof patterns.cosineSimilarity).toBe("function");
+		expect(typeof patterns.admissionScored).toBe("function");
+		expect(typeof patterns.admissionFilter3D).toBe("function");
+		expect(typeof patterns.shardByTenant).toBe("function");
+		expect(typeof patterns.validateMemoryFragment).toBe("function");
+		expect(typeof patterns.filterMemoryFragments).toBe("function");
 		expect(typeof storage.memoryKv).toBe("function");
 		expect(typeof storage.memoryAppendLog).toBe("function");
 		expect(typeof storage.multiWriterAppendLogStorage).toBe("function");
