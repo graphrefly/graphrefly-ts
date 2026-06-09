@@ -3,7 +3,10 @@ import { graph } from "../graph/graph.js";
 import {
 	backoffDelayMs,
 	breakerBundle,
+	type ProcessEffectCommandPayload,
+	type ProcessEffectOutcome,
 	processBundle,
+	processEffectRunner,
 	rateLimitBundle,
 	retryPolicy,
 	retryStatusBundle,
@@ -170,6 +173,61 @@ describe("ProcessBundle — graph-visible facts-plus-reducer orchestration (D136
 			auditSeq: 1,
 		});
 		expect(process.errors.cache).toBeUndefined();
+	});
+
+	it("keeps process.cursor as the final command-attempt high-water, not a read offset", () => {
+		const g = graph();
+		const process = processBundle<
+			{ ok: boolean },
+			{ count: number },
+			{ ok: boolean },
+			{ task: string }
+		>(g, {
+			name: "process",
+			initialState: { count: 0 },
+			reduce(command, state) {
+				if (!command.payload.ok) throw new Error("nope");
+				return {
+					state: { count: state.count + 1 },
+					events: [{ type: "accepted", payload: { ok: true } }],
+					effects: [{ type: "notify", payload: { task: command.id } }],
+				};
+			},
+		});
+
+		process.dispatch({ id: "cmd-1", type: "run", payload: { ok: true } });
+		expect(process.events.cache?.cursor).toBe(1);
+		expect(process.effectRequests.cache?.cursor).toBe(1);
+		expect(process.status.cache?.cursor).toEqual({
+			eventSeq: 1,
+			effectSeq: 1,
+			commandCount: 1,
+			errorCount: 0,
+			auditSeq: 0,
+		});
+		expect(process.cursor.cache).toEqual({
+			eventSeq: 1,
+			effectSeq: 1,
+			commandCount: 1,
+			errorCount: 0,
+			auditSeq: 1,
+		});
+
+		process.dispatch({ id: "cmd-2", type: "run", payload: { ok: false } });
+		expect(process.errors.cache?.cursor).toEqual({
+			eventSeq: 1,
+			effectSeq: 1,
+			commandCount: 2,
+			errorCount: 1,
+			auditSeq: 1,
+		});
+		expect(process.cursor.cache).toEqual({
+			eventSeq: 1,
+			effectSeq: 1,
+			commandCount: 2,
+			errorCount: 1,
+			auditSeq: 2,
+		});
 	});
 
 	it("keeps the ProcessBundle topology describe-visible with declared graph deps", () => {
@@ -392,5 +450,144 @@ describe("ProcessBundle — graph-visible facts-plus-reducer orchestration (D136
 		unsub();
 		process.release();
 		expect(g.find("process/state")).toBeUndefined();
+	});
+});
+
+describe("ProcessBundle effect runner — visible outcome-command adapter (D156)", () => {
+	it("projects effect outcomes into visible ProcessCommand facts over declared graph deps", () => {
+		type CommandPayload = { orderId: string } | ProcessEffectCommandPayload<{ delivered: boolean }>;
+		const g = graph();
+		const process = processBundle<
+			CommandPayload,
+			{ notified: boolean },
+			{ kind: string },
+			{ url: string }
+		>(g, {
+			name: "order",
+			initialState: { notified: false },
+			reduce(command, state) {
+				if (command.type === "start") {
+					return {
+						state,
+						effects: [
+							{
+								type: "notify",
+								payload: { url: `/orders/${(command.payload as { orderId: string }).orderId}` },
+								processId: command.processId,
+								correlationId: command.correlationId,
+							},
+						],
+					};
+				}
+				if (command.type === "effect.result") {
+					return {
+						state: {
+							notified: (
+								command.payload as ProcessEffectCommandPayload<{ delivered: boolean }> & {
+									kind: "result";
+								}
+							).value.delivered,
+						},
+						events: [{ type: "notified", payload: { kind: "effect-result" } }],
+					};
+				}
+				return { state };
+			},
+		});
+		const outcomes = g.node<ProcessEffectOutcome<{ delivered: boolean }>>([], null, {
+			name: "notify/outcomeFacts",
+			factory: "testEffectOutcomes",
+		});
+		const runner = processEffectRunner(g, process, { name: "notify", outcomes: [outcomes] });
+
+		process.dispatch({
+			id: "cmd-1",
+			type: "start",
+			payload: { orderId: "o-1" },
+			processId: "p-1",
+			correlationId: "corr-1",
+		});
+		expect(runner.requests.cache).toMatchObject({
+			id: "cmd-1:effect:1",
+			type: "notify",
+			processId: "p-1",
+			correlationId: "corr-1",
+		});
+		outcomes.down([
+			[
+				"DATA",
+				{
+					kind: "result",
+					effectId: "cmd-1:effect:1",
+					effectType: "notify",
+					value: { delivered: true },
+					processId: "p-1",
+					correlationId: "corr-1",
+				},
+			],
+		]);
+
+		expect(runner.commands.cache).toEqual({
+			id: "cmd-1:effect:1:effect.result",
+			type: "effect.result",
+			payload: {
+				kind: "result",
+				effectId: "cmd-1:effect:1",
+				effectType: "notify",
+				value: { delivered: true },
+				processId: "p-1",
+				correlationId: "corr-1",
+				causationId: undefined,
+				metadata: undefined,
+			},
+			processId: "p-1",
+			correlationId: "corr-1",
+			causationId: undefined,
+			metadata: undefined,
+		});
+		expect(process.state.cache).toEqual({ notified: true });
+		const snap = g.describe();
+		expect(snap.edges).toContainEqual({ from: "order/effectRequests", to: "notify/requests" });
+		expect(snap.edges).toContainEqual({ from: "notify/outcomeFacts", to: "notify/runtime" });
+		expect(snap.edges).toContainEqual({ from: "notify/commands", to: "order/command" });
+	});
+
+	it("retries release without losing the process.command edge when the runner is not quiescent", () => {
+		type CommandPayload = { run: boolean } | ProcessEffectCommandPayload<string>;
+		const g = graph();
+		const process = processBundle<CommandPayload, { done: number }, never, { task: string }>(g, {
+			name: "process",
+			initialState: { done: 0 },
+			reduce(command, state) {
+				if (command.type === "run") {
+					return { state, effects: [{ type: "work", payload: { task: "one" } }] };
+				}
+				if (command.type === "effect.result") return { state: { done: state.done + 1 } };
+				return { state };
+			},
+		});
+		const outcomes = g.node<ProcessEffectOutcome<string>>([], null, { name: "work/outcomeFacts" });
+		const runner = processEffectRunner(g, process, { name: "work", outcomes: [outcomes] });
+		const unsub = runner.status.subscribe(() => {});
+
+		expect(() => runner.release()).toThrow(/live subscribers/);
+		outcomes.down([
+			[
+				"DATA",
+				{
+					kind: "result",
+					effectId: "effect-1",
+					effectType: "work",
+					value: "ok",
+				},
+			],
+		]);
+		expect(process.state.cache).toEqual({ done: 1 });
+
+		unsub();
+		runner.release();
+		runner.release();
+		expect(g.find("work/commands")).toBeUndefined();
+		expect(g.describe().edges).not.toContainEqual({ from: "work/commands", to: "process/command" });
 	});
 });

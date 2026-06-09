@@ -121,3 +121,12 @@ export {
 	takeRestoreDescriptor,
 	timerRestoreDescriptor,
 } from "./restore.js";
+export {
+	type WorkerDerivedBackend,
+	type WorkerDerivedCancel,
+	type WorkerDerivedJob,
+	type WorkerDerivedOptions,
+	type WorkerDerivedSettle,
+	type WorkerDerivedSettlement,
+	workerDerived,
+} from "./worker.js";

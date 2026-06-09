@@ -141,6 +141,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.toProcess).toBe("function");
 		expect(typeof adapters.toWebSocket).toBe("function");
 		expect(typeof adapters.webSocketSession).toBe("function");
+		expect(typeof adapters.remoteCall).toBe("function");
+		expect(typeof adapters.remoteResponder).toBe("function");
+		expect(typeof adapters.remoteResponderHandler).toBe("function");
 		expect(typeof adapters.wireBridge).toBe("function");
 		expect(typeof adapters.wireBridgeEnvelope).toBe("function");
 		expect(typeof adapters.wireBridgeIdempotencyKey).toBe("function");
@@ -178,8 +181,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.retryStatusBundle).toBe("function");
 		expect(typeof orchestration.breakerBundle).toBe("function");
 		expect(typeof orchestration.processBundle).toBe("function");
+		expect(typeof orchestration.processEffectRunner).toBe("function");
 		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
+		expect(typeof graphLayer.workerDerived).toBe("function");
 		expect(Object.hasOwn(patterns, "guardedExecution")).toBe(false);
 		expect(Object.hasOwn(patterns, "inspect")).toBe(false);
 		expect(Object.hasOwn(patterns, "resilientPipeline")).toBe(false);

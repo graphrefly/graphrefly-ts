@@ -340,6 +340,15 @@ export {
 	throttleTime,
 	timeout,
 } from "./graph/time.js";
+export {
+	type WorkerDerivedBackend,
+	type WorkerDerivedCancel,
+	type WorkerDerivedJob,
+	type WorkerDerivedOptions,
+	type WorkerDerivedSettle,
+	type WorkerDerivedSettlement,
+	workerDerived,
+} from "./graph/worker.js";
 export { strictCanonicalJsonBytes } from "./json/codec.js";
 export { dynamicNode, Node, type NodeOptions, node, type Status } from "./node/node.js";
 export {

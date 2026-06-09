@@ -5,7 +5,7 @@
  * onto clean-slate graph surfaces.
  */
 
-import { depBatch } from "../ctx/types.js";
+import { depBatch, type NodeFn } from "../ctx/types.js";
 import type { Graph, TopologyGroup } from "../graph/graph.js";
 import {
 	type BackoffPolicy,
@@ -161,6 +161,46 @@ export interface ProcessEffectRequest<T = unknown> {
 	readonly metadata?: Record<string, unknown>;
 }
 
+export type ProcessEffectCommandType =
+	| "effect.result"
+	| "effect.failure"
+	| "effect.cancel"
+	| "effect.timeout";
+
+interface ProcessEffectOutcomeBase {
+	readonly effectId: string;
+	readonly effectType: string;
+	readonly processId?: string;
+	readonly correlationId?: string;
+	readonly causationId?: string;
+	readonly commandId?: string;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export type ProcessEffectOutcome<TResult = unknown> =
+	| (ProcessEffectOutcomeBase & { readonly kind: "result"; readonly value: TResult })
+	| (ProcessEffectOutcomeBase & { readonly kind: "failure"; readonly error: unknown })
+	| (ProcessEffectOutcomeBase & { readonly kind: "cancel"; readonly reason?: string })
+	| (ProcessEffectOutcomeBase & { readonly kind: "timeout"; readonly error: unknown });
+
+export type ProcessEffectCommandPayload<TResult = unknown> =
+	| (Omit<ProcessEffectOutcomeBase, "commandId"> & {
+			readonly kind: "result";
+			readonly value: TResult;
+	  })
+	| (Omit<ProcessEffectOutcomeBase, "commandId"> & {
+			readonly kind: "failure";
+			readonly error: unknown;
+	  })
+	| (Omit<ProcessEffectOutcomeBase, "commandId"> & {
+			readonly kind: "cancel";
+			readonly reason?: string;
+	  })
+	| (Omit<ProcessEffectOutcomeBase, "commandId"> & {
+			readonly kind: "timeout";
+			readonly error: unknown;
+	  });
+
 export type ProcessErrorCode =
 	| "malformed-command"
 	| "reducer-threw"
@@ -188,6 +228,25 @@ export interface ProcessStatus {
 	readonly effectCount: number;
 	readonly errorCode?: ProcessErrorCode;
 	readonly cursor: ProcessCursor;
+}
+
+export interface ProcessEffectRunnerStatus {
+	readonly state: "requested" | "commanded" | "rejected";
+	readonly effectId?: string;
+	readonly effectType?: string;
+	readonly commandId?: string;
+	readonly commandType?: ProcessEffectCommandType;
+	readonly requested: number;
+	readonly commanded: number;
+	readonly rejected: number;
+}
+
+export interface ProcessEffectRunnerError {
+	readonly code: "malformed-outcome";
+	readonly message: string;
+	readonly outcome?: unknown;
+	readonly effectId?: string;
+	readonly effectType?: string;
 }
 
 /** Ordered audit fact for one attempted command reduction. */
@@ -223,6 +282,14 @@ type ProcessRuntimeFact<TState = unknown, TEvent = unknown, TEffect = unknown> =
 	| { readonly kind: "error"; readonly error: ProcessError }
 	| { readonly kind: "audit"; readonly audit: ProcessAuditRecord }
 	| { readonly kind: "cursor"; readonly cursor: ProcessCursor };
+
+type ProcessEffectRunnerFact<TResult = unknown> =
+	| { readonly kind: "outcome"; readonly outcome: ProcessEffectOutcome<TResult> }
+	| {
+			readonly kind: "command";
+			readonly command: ProcessCommand<ProcessEffectCommandPayload<TResult>>;
+	  }
+	| { readonly kind: "error"; readonly error: ProcessEffectRunnerError };
 
 /** Reducer result: next process state plus optional event/effect-request drafts. */
 export interface ProcessReduction<TState = unknown, TEvent = unknown, TEffect = unknown> {
@@ -271,6 +338,29 @@ export interface ProcessBundle<
 	/** Release only graph-owned retain roots; process facts/topology/cache/state remain ordinary graph data. */
 	release(): void;
 }
+
+export interface ProcessEffectRunnerOptions<TResult = unknown> {
+	readonly name?: string;
+	readonly outcomes: readonly Node<ProcessEffectOutcome<TResult>>[];
+}
+
+export interface ProcessEffectRunnerBundle<TEffect = unknown, TResult = unknown> {
+	readonly requests: Node<ProcessEffectRequest<TEffect>>;
+	readonly outcomes: Node<ProcessEffectOutcome<TResult>>;
+	readonly commands: Node<ProcessCommand<ProcessEffectCommandPayload<TResult>>>;
+	readonly status: Node<ProcessEffectRunnerStatus>;
+	readonly errors: Node<ProcessEffectRunnerError>;
+	release(): void;
+}
+
+interface AttachedProcessCommandSources<TCommand> {
+	sources: Node<ProcessCommand<TCommand>>[];
+}
+
+const processCommandSources = new WeakMap<
+	ProcessBundle<unknown, unknown, unknown, unknown>,
+	AttachedProcessCommandSources<unknown>
+>();
 
 export function retryStatusBundle(
 	graph: Graph,
@@ -630,7 +720,7 @@ export function processBundle<
 	];
 	let releaseRetains = retainProcessNodes();
 	let released = false;
-	return {
+	const bundle: ProcessBundle<TCommand, TState, TEvent, TEffect> = {
 		command,
 		events,
 		state,
@@ -651,8 +741,211 @@ export function processBundle<
 			try {
 				topology.release({ reason: `${name}.process.release` });
 				released = true;
+				processCommandSources.delete(
+					bundle as unknown as ProcessBundle<unknown, unknown, unknown, unknown>,
+				);
 			} catch (error) {
 				releaseRetains = retainProcessNodes();
+				throw error;
+			}
+		},
+	};
+	processCommandSources.set(
+		bundle as unknown as ProcessBundle<unknown, unknown, unknown, unknown>,
+		{ sources: [] },
+	);
+	return bundle;
+}
+
+/**
+ * Build a D156 graph-visible effect runner adapter over a ProcessBundle.
+ *
+ * The runner consumes visible effect-request and outcome facts, then publishes
+ * ordinary ProcessCommand DATA facts back through process.command via a declared
+ * graph edge. Async handlers, timers, and process state ownership stay outside
+ * this helper.
+ */
+export function processEffectRunner<TEffect = unknown, TResult = unknown>(
+	graph: Graph,
+	process: ProcessBundle<unknown, unknown, unknown, TEffect>,
+	opts: ProcessEffectRunnerOptions<TResult>,
+): ProcessEffectRunnerBundle<TEffect, TResult> {
+	if (opts.outcomes.length === 0) {
+		throw new RangeError("processEffectRunner: outcomes must contain at least one node");
+	}
+	const name = opts.name ?? "processEffectRunner";
+	const topology = graph.topologyGroup({ name: `${name}.effectRunner` });
+	const requests = topology.node<ProcessEffectRequest<TEffect>>(
+		[process.effectRequests],
+		(ctx) => {
+			for (const request of depBatch(ctx, 0) ?? []) {
+				ctx.down([["DATA", request as ProcessEffectRequest<TEffect>]]);
+			}
+		},
+		{
+			name: `${name}/requests`,
+			factory: "processEffectRunnerRequests",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const runtime = topology.node<ProcessEffectRunnerFact<TResult>>(
+		[...opts.outcomes],
+		(ctx) => {
+			for (let i = 0; i < opts.outcomes.length; i += 1) {
+				for (const raw of depBatch(ctx, i) ?? []) {
+					const parsed = parseProcessEffectOutcome<TResult>(raw);
+					if (typeof parsed === "string") {
+						const error = {
+							code: "malformed-outcome",
+							message: parsed,
+							outcome: raw,
+						} satisfies ProcessEffectRunnerError;
+						ctx.down([["DATA", { kind: "error", error }]]);
+						continue;
+					}
+					const outcome = parsed as ProcessEffectOutcome<TResult>;
+					const command = processEffectOutcomeCommand(outcome);
+					ctx.down([["DATA", { kind: "outcome", outcome }]]);
+					ctx.down([["DATA", { kind: "command", command }]]);
+				}
+			}
+		},
+		{
+			name: `${name}/runtime`,
+			factory: "processEffectRunner",
+			meta: { process: "effect-runner", d: "D156" },
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const outcomes = processEffectRunnerProjection<ProcessEffectOutcome<TResult>, TResult>(
+		topology,
+		runtime,
+		`${name}/outcomes`,
+		"processEffectRunnerOutcomes",
+		(fact) => (fact.kind === "outcome" ? fact.outcome : undefined),
+	);
+	const commands = processEffectRunnerProjection<
+		ProcessCommand<ProcessEffectCommandPayload<TResult>>,
+		TResult
+	>(topology, runtime, `${name}/commands`, "processEffectRunnerCommands", (fact) =>
+		fact.kind === "command" ? fact.command : undefined,
+	);
+	const errors = processEffectRunnerProjection<ProcessEffectRunnerError, TResult>(
+		topology,
+		runtime,
+		`${name}/errors`,
+		"processEffectRunnerErrors",
+		(fact) => (fact.kind === "error" ? fact.error : undefined),
+	);
+	const status = topology.node<ProcessEffectRunnerStatus>(
+		[requests, runtime],
+		(ctx) => {
+			let state =
+				ctx.state.get<ProcessEffectRunnerState>() ??
+				({ requested: 0, commanded: 0, rejected: 0 } satisfies ProcessEffectRunnerState);
+			for (const request of depBatch(ctx, 0) ?? []) {
+				state = { ...state, requested: state.requested + 1 };
+				const typedRequest = request as ProcessEffectRequest<TEffect>;
+				ctx.down([
+					[
+						"DATA",
+						{
+							state: "requested",
+							effectId: typedRequest.id,
+							effectType: typedRequest.type,
+							requested: state.requested,
+							commanded: state.commanded,
+							rejected: state.rejected,
+						} satisfies ProcessEffectRunnerStatus,
+					],
+				]);
+			}
+			for (const fact of depBatch(ctx, 1) ?? []) {
+				const typedFact = fact as ProcessEffectRunnerFact<TResult>;
+				if (typedFact.kind === "command") {
+					state = { ...state, commanded: state.commanded + 1 };
+					ctx.down([
+						[
+							"DATA",
+							{
+								state: "commanded",
+								effectId: typedFact.command.payload.effectId,
+								effectType: typedFact.command.payload.effectType,
+								commandId: typedFact.command.id,
+								commandType: typedFact.command.type as ProcessEffectCommandType,
+								requested: state.requested,
+								commanded: state.commanded,
+								rejected: state.rejected,
+							} satisfies ProcessEffectRunnerStatus,
+						],
+					]);
+				}
+				if (typedFact.kind === "error") {
+					state = { ...state, rejected: state.rejected + 1 };
+					ctx.down([
+						[
+							"DATA",
+							{
+								state: "rejected",
+								effectId: typedFact.error.effectId,
+								effectType: typedFact.error.effectType,
+								requested: state.requested,
+								commanded: state.commanded,
+								rejected: state.rejected,
+							} satisfies ProcessEffectRunnerStatus,
+						],
+					]);
+				}
+			}
+			ctx.state.set(state);
+		},
+		{
+			name: `${name}/status`,
+			factory: "processEffectRunnerStatus",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const retainRunnerNodes = () => [
+		graph.retain(requests, { reason: `${name}.effectRunner.requests` }),
+		graph.retain(outcomes, { reason: `${name}.effectRunner.outcomes` }),
+		graph.retain(commands, { reason: `${name}.effectRunner.commands` }),
+		graph.retain(status, { reason: `${name}.effectRunner.status` }),
+		graph.retain(errors, { reason: `${name}.effectRunner.errors` }),
+	];
+	let releaseRetains = retainRunnerNodes();
+	try {
+		attachProcessCommandSource(process, commands);
+	} catch (error) {
+		for (const releaseRetain of releaseRetains) releaseRetain();
+		releaseRetains = [];
+		topology.release({ reason: `${name}.effectRunner.failedAttach` });
+		throw error;
+	}
+	let released = false;
+	return {
+		requests,
+		outcomes,
+		commands,
+		status,
+		errors,
+		release() {
+			if (released) return;
+			const activeRetains = releaseRetains;
+			releaseRetains = [];
+			for (const releaseRetain of activeRetains) releaseRetain();
+			detachProcessCommandSource(process, commands);
+			try {
+				topology.release({ reason: `${name}.effectRunner.release` });
+				released = true;
+			} catch (error) {
+				attachProcessCommandSource(process, commands);
+				releaseRetains = retainRunnerNodes();
 				throw error;
 			}
 		},
@@ -661,6 +954,12 @@ export function processBundle<
 
 export function constantBackoff(delayMs: number): BackoffPolicy {
 	return { kind: "constant", delayMs };
+}
+
+interface ProcessEffectRunnerState {
+	requested: number;
+	commanded: number;
+	rejected: number;
 }
 
 interface ProcessRuntimeState<TState> {
@@ -672,6 +971,189 @@ interface ProcessRuntimeState<TState> {
 	seenEventIds: string[];
 	seenEffectIds: string[];
 	state: TState;
+}
+
+function processEffectRunnerProjection<T, TResult>(
+	topology: TopologyGroup,
+	runtime: Node<ProcessEffectRunnerFact<TResult>>,
+	name: string,
+	factory: string,
+	pick: (fact: ProcessEffectRunnerFact<TResult>) => T | undefined,
+): Node<T> {
+	return topology.node<T>(
+		[runtime],
+		(ctx) => {
+			for (const fact of depBatch(ctx, 0) ?? []) {
+				const value = pick(fact as ProcessEffectRunnerFact<TResult>);
+				if (value !== undefined) ctx.down([["DATA", value]]);
+			}
+		},
+		{
+			name,
+			factory,
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+}
+
+function parseProcessEffectOutcome<TResult>(raw: unknown): ProcessEffectOutcome<TResult> | string {
+	if (!isObjectRecord(raw)) return "processEffectRunner: outcome must be an object";
+	if (typeof raw.kind !== "string") {
+		return "processEffectRunner: outcome kind must be a string";
+	}
+	if (
+		raw.kind !== "result" &&
+		raw.kind !== "failure" &&
+		raw.kind !== "cancel" &&
+		raw.kind !== "timeout"
+	) {
+		return "processEffectRunner: outcome kind must be result, failure, cancel, or timeout";
+	}
+	if (typeof raw.effectId !== "string" || raw.effectId.length === 0) {
+		return "processEffectRunner: outcome effectId must be a non-empty string";
+	}
+	if (typeof raw.effectType !== "string" || raw.effectType.length === 0) {
+		return "processEffectRunner: outcome effectType must be a non-empty string";
+	}
+	if ("commandId" in raw && raw.commandId !== undefined) {
+		if (typeof raw.commandId !== "string" || raw.commandId.length === 0) {
+			return "processEffectRunner: outcome commandId must be a non-empty string";
+		}
+	}
+	for (const key of ["processId", "correlationId", "causationId"] as const) {
+		if (key in raw && raw[key] !== undefined && typeof raw[key] !== "string") {
+			return `processEffectRunner: outcome ${key} must be a string`;
+		}
+	}
+	if ("metadata" in raw && raw.metadata !== undefined && !isObjectRecord(raw.metadata)) {
+		return "processEffectRunner: outcome metadata must be a plain object";
+	}
+	if (raw.kind === "result" && !("value" in raw)) {
+		return "processEffectRunner: result outcome must carry value";
+	}
+	if ((raw.kind === "failure" || raw.kind === "timeout") && !("error" in raw)) {
+		return `processEffectRunner: ${raw.kind} outcome must carry error`;
+	}
+	if (
+		raw.kind === "cancel" &&
+		"reason" in raw &&
+		raw.reason !== undefined &&
+		typeof raw.reason !== "string"
+	) {
+		return "processEffectRunner: cancel outcome reason must be a string";
+	}
+	return raw as unknown as ProcessEffectOutcome<TResult>;
+}
+
+function processEffectOutcomeCommand<TResult>(
+	outcome: ProcessEffectOutcome<TResult>,
+): ProcessCommand<ProcessEffectCommandPayload<TResult>> {
+	const commandType = processEffectCommandType(outcome.kind);
+	return {
+		id: outcome.commandId ?? `${outcome.effectId}:${commandType}`,
+		type: commandType,
+		payload: processEffectCommandPayload(outcome),
+		processId: outcome.processId,
+		correlationId: outcome.correlationId,
+		causationId: outcome.causationId,
+		metadata: outcome.metadata,
+	};
+}
+
+function processEffectCommandType(kind: ProcessEffectOutcome["kind"]): ProcessEffectCommandType {
+	switch (kind) {
+		case "result":
+			return "effect.result";
+		case "failure":
+			return "effect.failure";
+		case "cancel":
+			return "effect.cancel";
+		case "timeout":
+			return "effect.timeout";
+	}
+}
+
+function processEffectCommandPayload<TResult>(
+	outcome: ProcessEffectOutcome<TResult>,
+): ProcessEffectCommandPayload<TResult> {
+	const base = {
+		effectId: outcome.effectId,
+		effectType: outcome.effectType,
+		processId: outcome.processId,
+		correlationId: outcome.correlationId,
+		causationId: outcome.causationId,
+		metadata: outcome.metadata,
+	};
+	switch (outcome.kind) {
+		case "result":
+			return { ...base, kind: "result", value: outcome.value };
+		case "failure":
+			return { ...base, kind: "failure", error: outcome.error };
+		case "cancel":
+			return { ...base, kind: "cancel", reason: outcome.reason };
+		case "timeout":
+			return { ...base, kind: "timeout", error: outcome.error };
+	}
+}
+
+function attachProcessCommandSource(
+	process: ProcessBundle<unknown, unknown, unknown, unknown>,
+	source: Node<ProcessCommand<unknown>>,
+): void {
+	const attached = processCommandSources.get(process);
+	if (attached === undefined) {
+		throw new Error("processEffectRunner: process command source registry missing");
+	}
+	const sources = attached.sources as Node<ProcessCommand<unknown>>[];
+	const previousSources = [...sources];
+	if (!sources.includes(source)) sources.push(source);
+	try {
+		process.command.replaceDeps([...sources], processCommandSourceFn(sources.length));
+	} catch (error) {
+		sources.splice(0, sources.length, ...previousSources);
+		process.command.replaceDeps(
+			[...previousSources],
+			processCommandSourceFn(previousSources.length),
+		);
+		throw error;
+	}
+}
+
+function detachProcessCommandSource(
+	process: ProcessBundle<unknown, unknown, unknown, unknown>,
+	source: Node<ProcessCommand<unknown>>,
+): void {
+	const attached = processCommandSources.get(process);
+	if (attached === undefined) {
+		throw new Error("processEffectRunner: process command source registry missing");
+	}
+	const sources = attached.sources as Node<ProcessCommand<unknown>>[];
+	if (!sources.includes(source)) return;
+	const previousSources = [...sources];
+	const nextSources = sources.filter((candidate) => candidate !== source);
+	sources.splice(0, sources.length, ...nextSources);
+	try {
+		process.command.replaceDeps([...nextSources], processCommandSourceFn(nextSources.length));
+	} catch (error) {
+		sources.splice(0, sources.length, ...previousSources);
+		process.command.replaceDeps(
+			[...previousSources],
+			processCommandSourceFn(previousSources.length),
+		);
+		throw error;
+	}
+}
+
+function processCommandSourceFn(sourceCount: number) {
+	return (ctx: Parameters<NodeFn>[0]) => {
+		for (let i = 0; i < sourceCount; i += 1) {
+			for (const command of depBatch(ctx, i) ?? []) {
+				ctx.down([["DATA", command as ProcessCommand<unknown>]]);
+			}
+		}
+	};
 }
 
 function processRuntimeDraft<TState>(
