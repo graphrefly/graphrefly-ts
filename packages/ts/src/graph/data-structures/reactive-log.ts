@@ -20,6 +20,7 @@
 
 import { type Ctx, depBatch, depCount } from "../../ctx/types.js";
 import { type Node, node } from "../../node/node.js";
+import type { GraphCheckpointJson } from "../checkpoint.js";
 import { trimHeadOverflow } from "../policies/collection.js";
 import type { ViewCachePolicy } from "../policies/types.js";
 import type { LogChange } from "./change.js";
@@ -162,10 +163,24 @@ export function reactiveLog<T>(
 	const { maxSize, viewCache, ...coreOpts } = options;
 	const base = coreOpts.dispatcher ? { dispatcher: coreOpts.dispatcher } : {};
 	const backend = new LogBackend<T>(initial, maxSize);
+	const restoreConfig =
+		coreOpts.graph !== undefined && coreOpts.name !== undefined
+			? ({
+					...(maxSize !== undefined ? { maxSize } : {}),
+				} as GraphCheckpointJson)
+			: undefined;
 	const core: CollectionCore<readonly T[], LogChange<T>> = collectionCore(
 		backend,
 		"reactiveLog",
 		coreOpts,
+		restoreConfig !== undefined
+			? {
+					deltaRef: "reactiveLog.delta",
+					snapshotRef: "reactiveLog.snapshot",
+					config: restoreConfig,
+					backendState: () => backend.snapshot(),
+				}
+			: undefined,
 	);
 	const binds: Array<() => void> = [];
 	const tailMemo = new Map<number, Node<readonly T[]>>();

@@ -35,6 +35,7 @@ import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { Dispatcher } from "../../dispatcher/index.js";
 import { Node, releaseRuntimeOfNode } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
+import { type GraphCheckpointJson, registerBackendStateContributor } from "../checkpoint.js";
 import type { Graph } from "../graph.js";
 import type { Operator } from "../operators.js";
 import type { ViewCachePolicy } from "../policies/types.js";
@@ -92,6 +93,13 @@ interface LightReactiveViewOptions<S> extends CollectionCoreOptions {
 	readonly factory: string;
 	readonly materializeSnapshot: () => S;
 	readonly onDispose?: () => void;
+}
+
+interface CollectionRestoreSpec {
+	readonly deltaRef: string;
+	readonly snapshotRef: string;
+	readonly config?: GraphCheckpointJson;
+	readonly backendState: () => unknown;
 }
 
 function validateViewCacheMaxEntries(policy: ViewCachePolicy | undefined): number | undefined {
@@ -236,6 +244,7 @@ export function collectionCore<S, C>(
 	backend: CollectionBackend<S>,
 	factory: string,
 	opts: CollectionCoreOptions = {},
+	restore?: CollectionRestoreSpec,
 ): CollectionCore<S, C> {
 	const { name, dispatcher, graph } = opts;
 	const base: { dispatcher?: Dispatcher } = dispatcher ? { dispatcher } : {};
@@ -248,6 +257,7 @@ export function collectionCore<S, C>(
 				factory: `${factory}.delta`,
 				name: name ? `${name}.delta` : undefined,
 				meta: { kind: "collection_delta", collection: factory },
+				...(restore ? { restore: { ref: restore.deltaRef, config: restore.config } } : {}),
 			})
 		: new Node<C>([], null, {
 				...base,
@@ -271,6 +281,7 @@ export function collectionCore<S, C>(
 				factory: `${factory}.snapshot`,
 				name: name ? `${name}.snapshot` : undefined,
 				meta: { kind: "collection_snapshot", collection: factory },
+				...(restore ? { restore: { ref: restore.snapshotRef, config: restore.config } } : {}),
 			})
 		: new Node<S>([delta as Node<unknown>], snapFn, {
 				...base,
@@ -279,6 +290,10 @@ export function collectionCore<S, C>(
 				factory: `${factory}.snapshot`,
 				name: name ? `${name}.snapshot` : undefined,
 			});
+
+	if (restore !== undefined) {
+		registerBackendStateContributor(delta as Node<unknown>, restore.backendState);
+	}
 
 	function emit(change: C): void {
 		// External tier-3 emit → the substrate synthesizes the leading DIRTY (R-dirty-before-data),

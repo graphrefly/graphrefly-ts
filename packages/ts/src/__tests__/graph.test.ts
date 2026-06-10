@@ -17,6 +17,10 @@ import {
 	graph,
 	map,
 	Node,
+	reactiveIndex,
+	reactiveList,
+	reactiveLog,
+	reactiveMap,
 	restoreGraph,
 	restoreRegistry,
 	strictJsonCodec,
@@ -700,6 +704,79 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 	it("keeps graph checkpoint strict JSON validation independent from storage codecs (D96)", () => {
 		const source = readFileSync(new URL("../graph/checkpoint.ts", import.meta.url), "utf8");
 		expect(source).not.toContain("../storage/codec.js");
+	});
+
+	it("captures D160 collection backendState without mirroring it into ctx.state", () => {
+		const g = graph();
+		const list = reactiveList<number>([1], { graph: g, name: "list" });
+		list.append(2);
+		const index = reactiveIndex<string, number>({ graph: g, name: "idx" });
+		index.upsert("b", 2, 20);
+		index.upsert("a", 1, 10);
+		const log = reactiveLog<string>(["a"], { graph: g, name: "log", maxSize: 3 });
+		log.append("b");
+
+		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
+		expect(byId["list.delta"].factory).toEqual({
+			kind: "registry-ref",
+			ref: "reactiveList.delta",
+		});
+		expect(byId["list.delta"].backendState).toEqual([1, 2]);
+		expect(byId["list.delta"].ctxState.value).toEqual({ kind: "SENTINEL" });
+		expect(byId["list.snapshot"].factory).toEqual({
+			kind: "registry-ref",
+			ref: "reactiveList.snapshot",
+		});
+		expect(byId["list.snapshot"].backendState).toBeUndefined();
+
+		expect(byId["idx.delta"].backendState).toEqual([
+			{ primary: "a", secondary: 1, value: 10 },
+			{ primary: "b", secondary: 2, value: 20 },
+		]);
+		expect(byId["log.delta"].factory).toEqual({
+			kind: "registry-ref",
+			ref: "reactiveLog.delta",
+			config: { maxSize: 3 },
+		});
+		expect(byId["log.delta"].backendState).toEqual(["a", "b"]);
+	});
+
+	it("fails honestly when a collection backendState is not strict JSON", () => {
+		const g = graph();
+		reactiveList([1n], { graph: g, name: "big" });
+
+		expect(() => g.checkpoint()).toThrow(/big\.delta\.backendState.*strict JSON compatible/);
+	});
+
+	it("fails honestly when a reactiveIndex primary key cannot restore through D160", () => {
+		const g = graph();
+		const index = reactiveIndex<{ id: string }, number>({ graph: g, name: "idx" });
+		index.upsert({ id: "a" }, 1, 10);
+
+		expect(() => g.checkpoint()).toThrow(/backendState\[0\]\.primary.*JSON primitive/);
+	});
+
+	it("marks deferred collection policy variants local-only instead of advertising restore", () => {
+		const g = graph();
+		reactiveList<number>([], { graph: g, name: "capped", maxSize: 2 });
+		reactiveIndex<string, number>({
+			graph: g,
+			name: "limited",
+			capacity: { order: "primary", maxSize: 2 },
+		});
+
+		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
+		expect(byId["capped.delta"].factory).toMatchObject({
+			kind: "local-only",
+			reason: expect.stringMatching(/no backend checkpoint restore metadata/),
+		});
+		expect(byId["limited.delta"].factory).toMatchObject({
+			kind: "local-only",
+			reason: expect.stringMatching(/no backend checkpoint restore metadata/),
+		});
+		expect(() => restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry })).toThrow(
+			/local-only/,
+		);
 	});
 });
 
@@ -1472,5 +1549,82 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 				registry: { ...defaultRestoreRegistry, memo: badDescriptor },
 			}),
 		).toThrow(/deps that do not match/);
+	});
+
+	it("restores D160 collection backendState while preserving checkpointed runtime", () => {
+		const original = graph();
+		const list = reactiveList<number>([1], { graph: original, name: "list" });
+		list.append(2);
+		const index = reactiveIndex<string, number>({ graph: original, name: "idx" });
+		index.upsert("a", 1, 10);
+		const log = reactiveLog<string>(["a"], { graph: original, name: "log" });
+		log.append("b");
+
+		const checkpoint = original.checkpoint();
+		const originalById = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
+
+		const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
+		const byId = Object.fromEntries(restored.checkpoint().nodes.map((n) => [n.id, n]));
+
+		expect(byId["list.delta"].backendState).toEqual([1, 2]);
+		expect(byId["list.delta"].value).toEqual(originalById["list.delta"].value);
+		expect(byId["list.delta"].version).toEqual(originalById["list.delta"].version);
+		expect(byId["list.snapshot"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["idx.delta"].backendState).toEqual([{ primary: "a", secondary: 1, value: 10 }]);
+		expect(byId["idx.snapshot"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["log.delta"].backendState).toEqual(["a", "b"]);
+		expect(byId["log.snapshot"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["list.delta"].ctxState.value).toEqual({ kind: "SENTINEL" });
+		expect(types(collect(restored.find("list.delta") as Node<unknown>))).toEqual(["START", "DATA"]);
+	});
+
+	it("rejects D160 collection snapshot cache that conflicts with backendState", () => {
+		const original = graph();
+		const list = reactiveList<number>([1], { graph: original, name: "list" });
+		list.append(2);
+		const checkpoint = original.checkpoint();
+		const listSnapshot = checkpoint.nodes.find((n) => n.id === "list.snapshot");
+		if (!listSnapshot) throw new Error("missing list snapshot");
+		listSnapshot.value = { kind: "DATA", data: ["not-authority"] };
+
+		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
+			/cache conflicts with 'list\.delta\.backendState'/,
+		);
+	});
+
+	it("rejects malformed D160 collection backendState instead of normalizing it", () => {
+		const original = graph();
+		const index = reactiveIndex<string, number>({ graph: original, name: "idx" });
+		index.upsert("a", 1, 10);
+		reactiveLog<string>(["a", "b"], { graph: original, name: "log", maxSize: 2 });
+		const checkpoint = original.checkpoint();
+		const idxDelta = checkpoint.nodes.find((n) => n.id === "idx.delta");
+		const logDelta = checkpoint.nodes.find((n) => n.id === "log.delta");
+		if (!idxDelta || !logDelta) throw new Error("missing collection nodes");
+
+		idxDelta.backendState = [
+			{ primary: "a", secondary: 1, value: 10 },
+			{ primary: "a", secondary: 2, value: 20 },
+		];
+		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
+			/duplicates an earlier index row/,
+		);
+
+		idxDelta.backendState = [{ primary: "a", secondary: 1, value: 10 }];
+		logDelta.backendState = ["a", "b", "c"];
+		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
+			/backendState exceeds config\.maxSize/,
+		);
+	});
+
+	it("defers reactiveMap backend restore instead of using an incomplete snapshot seed", () => {
+		const g = graph();
+		reactiveMap<string, number>({ graph: g, name: "map" });
+		const checkpoint = g.checkpoint();
+
+		expect(checkpoint.nodes.find((n) => n.id === "map.delta")?.backendState).toBeUndefined();
+		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
+			/local-only|missing registry/,
+		);
 	});
 });

@@ -6,6 +6,7 @@
  */
 
 import { strictJsonCodec } from "../json/codec.js";
+import type { Node } from "../node/node.js";
 import type { NodeVersionJson } from "../node/versioning.js";
 import { SENTINEL } from "../protocol/messages.js";
 
@@ -46,6 +47,7 @@ export interface GraphCheckpointNode {
 	status: string;
 	deps: string[];
 	value: GraphCheckpointValue;
+	backendState?: GraphCheckpointJson;
 	version?: NodeVersionJson;
 	terminal: GraphCheckpointTerminal;
 	lifecycle: { activated: boolean; hasCalledFnOnce: boolean };
@@ -94,4 +96,26 @@ export function checkpointTerminal(value: unknown, path: string): GraphCheckpoin
 	if (value === undefined) return { kind: "none" };
 	if (value === true) return { kind: "COMPLETE" };
 	return { kind: "ERROR", error: toCheckpointJson(value, path) };
+}
+
+type BackendStateContributor = () => unknown;
+
+const backendStateContributors = new WeakMap<Node<unknown>, BackendStateContributor>();
+
+/** @internal D160: collection-owned backend checkpoint contributor for graph checkpoint. */
+export function registerBackendStateContributor(
+	node: Node<unknown>,
+	contributor: BackendStateContributor,
+): void {
+	backendStateContributors.set(node, contributor);
+}
+
+/** @internal D160: capture a node's collection backend state when it has a contributor. */
+export function checkpointBackendStateOfNode(
+	node: Node<unknown>,
+	path: string,
+): GraphCheckpointJson | undefined {
+	const contributor = backendStateContributors.get(node);
+	if (contributor === undefined) return undefined;
+	return toCheckpointJson(contributor(), path);
 }

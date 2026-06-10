@@ -6,11 +6,6 @@
  */
 
 export {
-	type ObserveTraceDetail,
-	type ObserveTraceEvent,
-	type ObserveTraceHandle,
-	type ObserveTraceOptions,
-	observeTrace,
 	type ProfileSummary,
 	type ProfileSummaryNode,
 	profileSummary,

@@ -126,8 +126,12 @@ class IndexBackend<K, V> {
 	private readonly byKey = new Map<K, IndexRow<K, V>>();
 	private readonly trackLru: boolean;
 
-	constructor(trackLru: boolean) {
+	constructor(trackLru: boolean, initialRows: readonly IndexRow<K, V>[] = []) {
 		this.trackLru = trackLru;
+		for (const row of initialRows) {
+			this.upsert(row.primary, row.secondary, row.value);
+		}
+		this._version = 0;
 	}
 
 	get version(): number {
@@ -268,6 +272,23 @@ class IndexBackend<K, V> {
 	}
 }
 
+function assertCheckpointableIndexRows(rows: readonly IndexRow<unknown, unknown>[]): void {
+	for (const [i, row] of rows.entries()) {
+		const primary = row.primary;
+		if (
+			primary === null ||
+			typeof primary === "string" ||
+			typeof primary === "number" ||
+			typeof primary === "boolean"
+		) {
+			continue;
+		}
+		throw new TypeError(
+			`reactiveIndex checkpoint backendState[${i}].primary must be a JSON primitive primary key for D160 restore`,
+		);
+	}
+}
+
 /**
  * Create a reactive dual-key index (D54/D60). DELTA + lazy pull SNAPSHOT + pullId via
  * {@link collectionCore}; this layer adds the sorted backend + Z reverse-lookup surface.
@@ -275,13 +296,39 @@ class IndexBackend<K, V> {
 export function reactiveIndex<K, V = unknown>(
 	options: ReactiveIndexOptions = {},
 ): ReactiveIndex<K, V> {
+	return createReactiveIndex(options);
+}
+
+/** @internal D160 restore path: seed the backend without replaying public deltas. */
+export function restoreReactiveIndexFromBackendState<K, V = unknown>(
+	initialRows: readonly IndexRow<K, V>[],
+	options: ReactiveIndexOptions = {},
+): ReactiveIndex<K, V> {
+	return createReactiveIndex(options, initialRows);
+}
+
+function createReactiveIndex<K, V = unknown>(
+	options: ReactiveIndexOptions = {},
+	initialRows: readonly IndexRow<K, V>[] = [],
+): ReactiveIndex<K, V> {
 	const { capacity, graph, dispatcher, name } = options;
 	const lruEnabled = capacity?.order === "lru";
-	const backend = new IndexBackend<K, V>(lruEnabled);
+	const backend = new IndexBackend<K, V>(lruEnabled, initialRows);
 	const core: CollectionCore<readonly IndexRow<K, V>[], IndexChange<K, V>> = collectionCore(
 		backend,
 		"reactiveIndex",
 		options,
+		graph !== undefined && name !== undefined && capacity === undefined
+			? {
+					deltaRef: "reactiveIndex.delta",
+					snapshotRef: "reactiveIndex.snapshot",
+					backendState: () => {
+						const rows = backend.snapshot();
+						assertCheckpointableIndexRows(rows);
+						return rows;
+					},
+				}
+			: undefined,
 	);
 	const binds: Array<() => void> = [];
 	const base = dispatcher ? { dispatcher } : {};

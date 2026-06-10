@@ -33,6 +33,7 @@ import {
 import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
 import {
+	checkpointBackendStateOfNode,
 	checkpointTerminal,
 	checkpointValue,
 	GRAPH_CHECKPOINT_VERSION,
@@ -959,7 +960,7 @@ export class Graph {
 			nodes.push(
 				this._checkpointNode(entry.node, id, {
 					name: entry.name,
-					factory: checkpointFactory(entry.factory, entry.node, false, entry.restore),
+					factory: checkpointFactory(entry.factory, entry.node, false, entry.restore, entry.meta),
 					deps: liveIds,
 					meta: entry.meta,
 				}),
@@ -1033,6 +1034,8 @@ export class Graph {
 			},
 		};
 		if (opts.name !== undefined) out.name = opts.name;
+		const backendState = checkpointBackendStateOfNode(node, `${id}.backendState`);
+		if (backendState !== undefined) out.backendState = backendState;
 		if (state.version !== undefined) out.version = state.version;
 		if (opts.meta !== undefined)
 			out.meta = toCheckpointJson(opts.meta, `${id}.meta`) as {
@@ -1076,6 +1079,7 @@ function checkpointFactory(
 	node: Node<unknown>,
 	unregistered: boolean,
 	restore?: { ref: string; config?: unknown; configVersion?: unknown },
+	meta?: Record<string, unknown>,
 ): GraphCheckpointFactory {
 	const state = checkpointStateOfNode(node);
 	if (unregistered) {
@@ -1083,6 +1087,17 @@ function checkpointFactory(
 			kind: "local-only",
 			name,
 			reason: "node is an unregistered live dependency auto-discovered from topology",
+		};
+	}
+	if (
+		restore === undefined &&
+		typeof meta?.kind === "string" &&
+		meta.kind.startsWith("collection_")
+	) {
+		return {
+			kind: "local-only",
+			name,
+			reason: "collection helper node has no backend checkpoint restore metadata",
 		};
 	}
 	if (restore !== undefined) {

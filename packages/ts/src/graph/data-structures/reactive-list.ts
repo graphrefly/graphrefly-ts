@@ -176,10 +176,18 @@ export function reactiveList<T>(
 		initial,
 		initialMaxSize === undefined ? undefined : validateMaxSize(initialMaxSize),
 	);
+	const restorable = graph !== undefined && options.name !== undefined && maxSize === undefined;
 	const core: CollectionCore<readonly T[], ListChange<T>> = collectionCore(
 		backend,
 		"reactiveList",
 		options,
+		restorable
+			? {
+					deltaRef: "reactiveList.delta",
+					snapshotRef: "reactiveList.snapshot",
+					backendState: () => backend.snapshot(),
+				}
+			: undefined,
 	);
 	const binds: Array<() => void> = [];
 	const bindDeps = new WeakSet<Node<unknown>>();
