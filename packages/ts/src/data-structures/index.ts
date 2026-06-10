@@ -42,3 +42,9 @@ export type {
 	RetentionPolicy,
 	ViewCachePolicy,
 } from "../graph/policies/types.js";
+export {
+	restoreReactiveIndex,
+	restoreReactiveList,
+	restoreReactiveLog,
+	restoreReactiveMap,
+} from "./persistence.js";

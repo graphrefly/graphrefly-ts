@@ -33,6 +33,9 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	n.subscribe((m) => msgs.push(m));
 	return msgs;
 }
+function demand(snapshot: Node<unknown>, pullId: symbol): void {
+	snapshot.up([["RESUME", pullId]]);
+}
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const TEST_JSON_DECODER = new TextDecoder();
 const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);
@@ -739,6 +742,26 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 			config: { maxSize: 3 },
 		});
 		expect(byId["log.delta"].backendState).toEqual(["a", "b"]);
+	});
+
+	it("treats D160 collection snapshot caches as non-authoritative checkpoint state", () => {
+		const g = graph();
+		const list = reactiveList<number>([1], { graph: g, name: "list" });
+		const mapCollection = reactiveMap<string, number>({ graph: g, name: "map" });
+		mapCollection.set("k", 42);
+		collect(list.snapshot);
+		collect(mapCollection.snapshot);
+		demand(list.snapshot as Node<unknown>, list.pullId);
+		demand(mapCollection.snapshot as Node<unknown>, mapCollection.pullId);
+
+		const checkpoint = g.checkpoint();
+		expect(() => strictJsonCodec.encode(checkpoint)).not.toThrow();
+		const byId = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
+		expect(byId["list.delta"].backendState).toEqual([1]);
+		expect(byId["list.snapshot"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["map.intent"].backendState).toEqual([["k", 42]]);
+		expect(byId["map.snapshotPrep"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["map.snapshot"].value).toEqual({ kind: "SENTINEL" });
 	});
 
 	it("fails honestly when a collection backendState is not strict JSON", () => {
@@ -1559,26 +1582,33 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		index.upsert("a", 1, 10);
 		const log = reactiveLog<string>(["a"], { graph: original, name: "log" });
 		log.append("b");
+		const mapCollection = reactiveMap<string, number>({ graph: original, name: "map" });
+		mapCollection.set("k", 42);
 
 		const checkpoint = original.checkpoint();
-		const originalById = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
 
 		const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
 		const byId = Object.fromEntries(restored.checkpoint().nodes.map((n) => [n.id, n]));
 
 		expect(byId["list.delta"].backendState).toEqual([1, 2]);
-		expect(byId["list.delta"].value).toEqual(originalById["list.delta"].value);
-		expect(byId["list.delta"].version).toEqual(originalById["list.delta"].version);
+		expect(byId["list.delta"].value).toEqual({ kind: "SENTINEL" });
 		expect(byId["list.snapshot"].value).toEqual({ kind: "SENTINEL" });
 		expect(byId["idx.delta"].backendState).toEqual([{ primary: "a", secondary: 1, value: 10 }]);
+		expect(byId["idx.delta"].value).toEqual({ kind: "SENTINEL" });
 		expect(byId["idx.snapshot"].value).toEqual({ kind: "SENTINEL" });
 		expect(byId["log.delta"].backendState).toEqual(["a", "b"]);
+		expect(byId["log.delta"].value).toEqual({ kind: "SENTINEL" });
 		expect(byId["log.snapshot"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["map.intent"].backendState).toEqual([["k", 42]]);
+		expect(byId["map.intent"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["map.delta"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["map.delta"].deps).toEqual(["map.apply", "map.snapshotPrep"]);
+		expect(byId["map.snapshot"].deps).toEqual(["map.snapshotPrep"]);
 		expect(byId["list.delta"].ctxState.value).toEqual({ kind: "SENTINEL" });
-		expect(types(collect(restored.find("list.delta") as Node<unknown>))).toEqual(["START", "DATA"]);
+		expect(types(collect(restored.find("list.delta") as Node<unknown>))).toEqual(["START"]);
 	});
 
-	it("rejects D160 collection snapshot cache that conflicts with backendState", () => {
+	it("ignores D160 collection snapshot cache when backendState is authoritative", () => {
 		const original = graph();
 		const list = reactiveList<number>([1], { graph: original, name: "list" });
 		list.append(2);
@@ -1587,9 +1617,10 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		if (!listSnapshot) throw new Error("missing list snapshot");
 		listSnapshot.value = { kind: "DATA", data: ["not-authority"] };
 
-		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
-			/cache conflicts with 'list\.delta\.backendState'/,
-		);
+		const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
+		const byId = Object.fromEntries(restored.checkpoint().nodes.map((n) => [n.id, n]));
+		expect(byId["list.delta"].backendState).toEqual([1, 2]);
+		expect(byId["list.snapshot"].value).toEqual({ kind: "SENTINEL" });
 	});
 
 	it("rejects malformed D160 collection backendState instead of normalizing it", () => {
@@ -1617,14 +1648,41 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		);
 	});
 
-	it("defers reactiveMap backend restore instead of using an incomplete snapshot seed", () => {
+	it("rejects malformed D160 reactiveMap backendState instead of normalizing it", () => {
 		const g = graph();
 		reactiveMap<string, number>({ graph: g, name: "map" });
 		const checkpoint = g.checkpoint();
+		const mapIntent = checkpoint.nodes.find((n) => n.id === "map.intent");
+		if (!mapIntent) throw new Error("missing map intent");
 
-		expect(checkpoint.nodes.find((n) => n.id === "map.delta")?.backendState).toBeUndefined();
+		mapIntent.backendState = [["a", 1, "extra"]];
 		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
-			/local-only|missing registry/,
+			/must be a \[key, value\] map entry/,
 		);
+
+		mapIntent.backendState = [
+			["a", 1],
+			["a", 2],
+		];
+		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
+			/duplicates an earlier map key/,
+		);
+	});
+
+	it("fails honestly when D160 reactiveMap checkpoint would lose per-entry TTL", () => {
+		const g = graph();
+		const mapCollection = reactiveMap<string, number>({ graph: g, name: "map" });
+		mapCollection.set("ttl", 1, { ttl: 1000 });
+
+		expect(() => g.checkpoint()).toThrow(/cannot preserve per-entry TTL/);
+	});
+
+	it("fails honestly when D160 reactiveMap checkpoint has duplicate strict-JSON keys", () => {
+		const g = graph();
+		const mapCollection = reactiveMap<{ id: number }, string>({ graph: g, name: "map" });
+		mapCollection.set({ id: 1 }, "first");
+		mapCollection.set({ id: 1 }, "second");
+
+		expect(() => g.checkpoint()).toThrow(/duplicate strict-JSON keys/);
 	});
 });

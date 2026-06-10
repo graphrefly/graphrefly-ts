@@ -32,6 +32,10 @@ import { restoreReactiveIndexFromBackendState } from "./data-structures/reactive
 import { type ReactiveList, reactiveList } from "./data-structures/reactive-list.js";
 import { type ReactiveLog, reactiveLog } from "./data-structures/reactive-log.js";
 import {
+	type ReactiveMap,
+	restoreReactiveMapFromBackendState,
+} from "./data-structures/reactive-map.js";
+import {
 	type Graph,
 	graph,
 	restoreNodeInGraph,
@@ -209,7 +213,8 @@ export const timerRestoreDescriptor: GraphRestoreDescriptor<TimerConfig> = {
 type RestoredCollection =
 	| { kind: "reactiveList"; collection: ReactiveList<unknown> }
 	| { kind: "reactiveIndex"; collection: ReactiveIndex<unknown, unknown> }
-	| { kind: "reactiveLog"; collection: ReactiveLog<unknown> };
+	| { kind: "reactiveLog"; collection: ReactiveLog<unknown> }
+	| { kind: "reactiveMap"; collection: ReactiveMap<unknown, unknown> };
 
 const restoredCollections = new WeakMap<Graph, Map<string, RestoredCollection>>();
 
@@ -226,7 +231,11 @@ function clearRestoredCollectionMap(graph: Graph): void {
 	restoredCollections.delete(graph);
 }
 
-function collectionBaseId(id: string, suffix: ".delta" | ".snapshot", ref: string): string {
+function collectionBaseId(
+	id: string,
+	suffix: ".intent" | ".apply" | ".snapshotPrep" | ".delta" | ".snapshot",
+	ref: string,
+): string {
 	if (!id.endsWith(suffix)) {
 		throw new Error(`restoreGraph: '${ref}' node '${id}' must end with '${suffix}'`);
 	}
@@ -257,16 +266,6 @@ function backendArray(
 		throw new Error(`restoreGraph: '${ref}' node '${checkpoint.id}' requires array backendState`);
 	}
 	return state;
-}
-
-function checkpointJsonEquals(a: unknown, b: unknown): boolean {
-	const aBytes = strictCanonicalJsonBytes(a);
-	const bBytes = strictCanonicalJsonBytes(b);
-	if (aBytes.byteLength !== bBytes.byteLength) return false;
-	for (let i = 0; i < aBytes.byteLength; i += 1) {
-		if (aBytes[i] !== bBytes[i]) return false;
-	}
-	return true;
 }
 
 function primitiveJsonKey(
@@ -318,6 +317,32 @@ function indexRows(
 	return rows;
 }
 
+function stableJsonKey(value: GraphCheckpointJson): string {
+	return Array.from(strictCanonicalJsonBytes(value)).join(",");
+}
+
+function mapEntries(
+	checkpoint: GraphCheckpointNode,
+	ref: string,
+): readonly (readonly [unknown, unknown])[] {
+	const entries: Array<readonly [unknown, unknown]> = [];
+	const seen = new Set<string>();
+	for (const [i, entry] of backendArray(checkpoint, ref).entries()) {
+		const path = `${checkpoint.id}.backendState[${i}]`;
+		if (!Array.isArray(entry) || entry.length !== 2) {
+			throw new Error(`restoreGraph: ${path} must be a [key, value] map entry`);
+		}
+		const key = entry[0] as GraphCheckpointJson;
+		const stableKey = stableJsonKey(key);
+		if (seen.has(stableKey)) {
+			throw new Error(`restoreGraph: ${path}[0] duplicates an earlier map key`);
+		}
+		seen.add(stableKey);
+		entries.push([key, entry[1]] as const);
+	}
+	return entries;
+}
+
 function restoredList(ctx: GraphRestoreDescriptorContext, ref: string): ReactiveList<unknown> {
 	const base = collectionBaseId(ctx.id, ".delta", ref);
 	if (ctx.deps.length !== 0) {
@@ -364,6 +389,41 @@ function restoredLog(
 	});
 	restoredCollectionMap(ctx.graph).set(base, { kind: "reactiveLog", collection });
 	return collection;
+}
+
+function restoredMapNode(ctx: GraphRestoreDescriptorContext, ref: string): Node<unknown> {
+	const base = collectionBaseId(ctx.id, ".intent", ref);
+	if (ctx.deps.length !== 0) {
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
+	}
+	const entries = mapEntries(ctx.checkpoint, ref);
+	const collection = restoreReactiveMapFromBackendState(entries, {
+		graph: ctx.graph,
+		name: base,
+	});
+	restoredCollectionMap(ctx.graph).set(base, { kind: "reactiveMap", collection });
+	const node = ctx.graph.find(ctx.id);
+	if (node === undefined) {
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' was not restored`);
+	}
+	return node;
+}
+
+function existingMapNode(
+	ctx: GraphRestoreDescriptorContext,
+	ref: string,
+	suffix: ".apply" | ".snapshotPrep" | ".delta" | ".snapshot",
+): Node<unknown> {
+	const base = collectionBaseId(ctx.id, suffix, ref);
+	const item = restoredCollectionMap(ctx.graph).get(base);
+	if (item === undefined || item.kind !== "reactiveMap") {
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}.intent'`);
+	}
+	const node = ctx.graph.find(ctx.id);
+	if (node === undefined) {
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' was not restored`);
+	}
+	return node;
 }
 
 function existingCollection(
@@ -463,6 +523,56 @@ export const reactiveLogSnapshotRestoreDescriptor: GraphRestoreDescriptor<LogCon
 	},
 };
 
+export const reactiveMapIntentRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+	ref: "reactiveMap.intent",
+	validateConfig(config, configVersion) {
+		return noCollectionConfig(config, configVersion, "reactiveMap.intent");
+	},
+	create(ctx) {
+		return restoredMapNode(ctx, "reactiveMap.intent");
+	},
+};
+
+export const reactiveMapApplyRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+	ref: "reactiveMap.apply",
+	validateConfig(config, configVersion) {
+		return noCollectionConfig(config, configVersion, "reactiveMap.apply");
+	},
+	create(ctx) {
+		return existingMapNode(ctx, "reactiveMap.apply", ".apply");
+	},
+};
+
+export const reactiveMapSnapshotPrepRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+	ref: "reactiveMap.snapshotPrep",
+	validateConfig(config, configVersion) {
+		return noCollectionConfig(config, configVersion, "reactiveMap.snapshotPrep");
+	},
+	create(ctx) {
+		return existingMapNode(ctx, "reactiveMap.snapshotPrep", ".snapshotPrep");
+	},
+};
+
+export const reactiveMapDeltaRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+	ref: "reactiveMap.delta",
+	validateConfig(config, configVersion) {
+		return noCollectionConfig(config, configVersion, "reactiveMap.delta");
+	},
+	create(ctx) {
+		return existingMapNode(ctx, "reactiveMap.delta", ".delta");
+	},
+};
+
+export const reactiveMapSnapshotRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+	ref: "reactiveMap.snapshot",
+	validateConfig(config, configVersion) {
+		return noCollectionConfig(config, configVersion, "reactiveMap.snapshot");
+	},
+	create(ctx) {
+		return existingMapNode(ctx, "reactiveMap.snapshot", ".snapshot");
+	},
+};
+
 export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreDescriptor>> = {
 	state: stateRestoreDescriptor,
 	map: mapRestoreDescriptor,
@@ -474,6 +584,11 @@ export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreDescrip
 	"reactiveIndex.snapshot": reactiveIndexSnapshotRestoreDescriptor,
 	"reactiveLog.delta": reactiveLogDeltaRestoreDescriptor,
 	"reactiveLog.snapshot": reactiveLogSnapshotRestoreDescriptor,
+	"reactiveMap.intent": reactiveMapIntentRestoreDescriptor,
+	"reactiveMap.apply": reactiveMapApplyRestoreDescriptor,
+	"reactiveMap.snapshotPrep": reactiveMapSnapshotPrepRestoreDescriptor,
+	"reactiveMap.delta": reactiveMapDeltaRestoreDescriptor,
+	"reactiveMap.snapshot": reactiveMapSnapshotRestoreDescriptor,
 };
 
 type PreparedNode = {
@@ -567,7 +682,10 @@ function checkpointTerminal(
 }
 
 function prepareRuntime(node: GraphCheckpointNode): PreparedRuntime {
-	const value = checkpointDataValue(node.value, node.id);
+	const nonAuthoritativeCollectionHelper = isCollectionHelperNonAuthoritative(node);
+	const value = nonAuthoritativeCollectionHelper
+		? { cache: SENTINEL, hasData: false }
+		: checkpointDataValue(node.value, node.id);
 	const terminal = checkpointTerminal(node.terminal, node.id);
 	const status = assertStatus(node.status, node.id);
 	if (terminal === true && status !== "completed") {
@@ -588,7 +706,9 @@ function prepareRuntime(node: GraphCheckpointNode): PreparedRuntime {
 	if (typeof node.ctxState.persist !== "boolean") {
 		throw new Error(`restoreGraph: node '${node.id}' ctxState.persist must be boolean`);
 	}
-	const ctxState = checkpointDataValue(node.ctxState.value, `${node.id}.ctxState`);
+	const ctxState = nonAuthoritativeCollectionHelper
+		? { cache: SENTINEL, hasData: false }
+		: checkpointDataValue(node.ctxState.value, `${node.id}.ctxState`);
 	const version =
 		node.version === undefined
 			? false
@@ -604,41 +724,21 @@ function prepareRuntime(node: GraphCheckpointNode): PreparedRuntime {
 	};
 }
 
-function collectionDeltaRefForSnapshotRef(ref: string): string | undefined {
-	if (ref === "reactiveList.snapshot") return "reactiveList.delta";
-	if (ref === "reactiveIndex.snapshot") return "reactiveIndex.delta";
-	if (ref === "reactiveLog.snapshot") return "reactiveLog.delta";
-	return undefined;
-}
-
-function isCollectionSnapshotPort(node: GraphCheckpointNode): string | undefined {
-	if (node.factory.kind !== "registry-ref") return undefined;
-	return collectionDeltaRefForSnapshotRef(node.factory.ref);
-}
-
-function validateCollectionSnapshotCaches(nodes: ReadonlyMap<string, PreparedNode>): void {
-	for (const item of nodes.values()) {
-		const deltaRef = isCollectionSnapshotPort(item.checkpoint);
-		if (deltaRef === undefined || item.checkpoint.value.kind !== "DATA") continue;
-		if (item.deps.length !== 1) {
-			throw new Error(
-				`restoreGraph: '${item.descriptor.ref}' node '${item.checkpoint.id}' requires exactly one dep`,
-			);
-		}
-		const delta = nodes.get(item.deps[0]);
-		if (delta === undefined || delta.checkpoint.factory.kind !== "registry-ref") continue;
-		if (delta.checkpoint.factory.ref !== deltaRef) {
-			throw new Error(
-				`restoreGraph: '${item.descriptor.ref}' node '${item.checkpoint.id}' dep must be '${deltaRef}'`,
-			);
-		}
-		const backendState = backendArray(delta.checkpoint, deltaRef);
-		if (!checkpointJsonEquals(item.checkpoint.value.data, backendState)) {
-			throw new Error(
-				`restoreGraph: collection snapshot '${item.checkpoint.id}' cache conflicts with '${delta.checkpoint.id}.backendState' (D160)`,
-			);
-		}
-	}
+function isCollectionHelperNonAuthoritative(node: GraphCheckpointNode): boolean {
+	if (node.factory.kind !== "registry-ref") return false;
+	return (
+		node.factory.ref === "reactiveList.delta" ||
+		node.factory.ref === "reactiveList.snapshot" ||
+		node.factory.ref === "reactiveIndex.delta" ||
+		node.factory.ref === "reactiveIndex.snapshot" ||
+		node.factory.ref === "reactiveLog.delta" ||
+		node.factory.ref === "reactiveLog.snapshot" ||
+		node.factory.ref === "reactiveMap.intent" ||
+		node.factory.ref === "reactiveMap.apply" ||
+		node.factory.ref === "reactiveMap.delta" ||
+		node.factory.ref === "reactiveMap.snapshotPrep" ||
+		node.factory.ref === "reactiveMap.snapshot"
+	);
 }
 
 function validateFactory(
@@ -757,7 +857,6 @@ function prepareCheckpoint(
 			}
 		}
 	}
-	validateCollectionSnapshotCaches(nodes);
 	const mountPaths = new Set<string>();
 	const mounts: PreparedCheckpoint["mounts"] = [];
 	for (const mount of checkpoint.mounts ?? []) {

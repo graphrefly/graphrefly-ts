@@ -29,8 +29,10 @@ import {
 	isTerminalComplete,
 	type NodeFn,
 } from "../../ctx/types.js";
+import { strictCanonicalJsonBytes } from "../../json/codec.js";
 import { Node } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
+import { registerBackendStateContributor } from "../checkpoint.js";
 import { initNode, type Operator } from "../operators.js";
 import {
 	deadlines,
@@ -129,6 +131,10 @@ export interface ReactiveMap<K, V> {
 interface Entry<V> {
 	value: V;
 	expiresAt?: number;
+}
+
+function strictJsonIdentity(value: unknown): string {
+	return Array.from(strictCanonicalJsonBytes(value)).join(",");
 }
 
 type Lookup<V> =
@@ -280,6 +286,28 @@ class MapBackend<K, V> {
 		for (const [k, e] of this.store) if (!this.isExpired(e)) out.set(k, e.value);
 		return out;
 	}
+
+	/** D160 checkpoint payload: exact restorable map entries, excluding TTL-bearing state. */
+	checkpointEntries(): readonly (readonly [K, V])[] {
+		const out: Array<readonly [K, V]> = [];
+		const seen = new Set<string>();
+		for (const [key, entry] of this.store) {
+			if (entry.expiresAt !== undefined) {
+				throw new TypeError(
+					"reactiveMap checkpoint backendState cannot preserve per-entry TTL; persist the map externally or clear TTL state before graph checkpoint (D160)",
+				);
+			}
+			const stableKey = strictJsonIdentity(key);
+			if (seen.has(stableKey)) {
+				throw new TypeError(
+					"reactiveMap checkpoint backendState contains duplicate strict-JSON keys (D160)",
+				);
+			}
+			seen.add(stableKey);
+			out.push([key, entry.value] as const);
+		}
+		return out;
+	}
 }
 
 /**
@@ -287,9 +315,31 @@ class MapBackend<K, V> {
  * `ReadonlyMap`) + pullId via {@link collectionCore}; this layer adds the typed map surface.
  */
 export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMap<K, V> {
+	return createReactiveMap(options);
+}
+
+/** @internal D161 restore path: seed the backend without replaying public deltas. */
+export function restoreReactiveMapFromBackendState<K, V>(
+	initialEntries: readonly (readonly [K, V])[],
+	options: ReactiveMapOptions<K, V> = {},
+): ReactiveMap<K, V> {
+	return createReactiveMap(options, initialEntries);
+}
+
+function createReactiveMap<K, V>(
+	options: ReactiveMapOptions<K, V> = {},
+	initialEntries: readonly (readonly [K, V])[] = [],
+): ReactiveMap<K, V> {
 	const { maxSize, defaultTtl, retention, viewCache, now, name, dispatcher, graph } = options;
 	const backend = new MapBackend<K, V>({ now });
+	for (const [key, value] of initialEntries) backend.set(key, value);
 	const base = dispatcher ? { dispatcher } : {};
+	const restorable =
+		graph !== undefined &&
+		name !== undefined &&
+		maxSize === undefined &&
+		defaultTtl === undefined &&
+		retention === undefined;
 
 	function isNodeOpt<T>(x: PolicyOpt<T> | undefined): x is Node<T> {
 		return x instanceof Node;
@@ -364,6 +414,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		? graph.initNode(intentOp, [], {
 				name: name ? `${name}.intent` : undefined,
 				meta: { kind: "collection_intent", collection: "reactiveMap" },
+				...(restorable ? { restore: { ref: "reactiveMap.intent" } } : {}),
 			})
 		: new Node<MapIntent<K, V>>([], null, {
 				...base,
@@ -541,6 +592,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		? graph.initNode(applyOp, policyInputs.deps as readonly Node<unknown>[], {
 				name: name ? `${name}.apply` : undefined,
 				meta: { kind: "collection_policy_apply", collection: "reactiveMap" },
+				...(restorable ? { restore: { ref: "reactiveMap.apply" } } : {}),
 			})
 		: initNode(applyOp, policyInputs.deps, {
 				...base,
@@ -571,6 +623,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		? graph.initNode(snapshotPrepOp, [apply as Node<unknown>], {
 				name: name ? `${name}.snapshotPrep` : undefined,
 				meta: { kind: "collection_snapshot_prep", collection: "reactiveMap" },
+				...(restorable ? { restore: { ref: "reactiveMap.snapshotPrep" } } : {}),
 			})
 		: initNode(snapshotPrepOp, [apply as Node<unknown>], {
 				...base,
@@ -592,6 +645,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		? graph.initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
 				name: name ? `${name}.delta` : undefined,
 				meta: { kind: "collection_delta", collection: "reactiveMap" },
+				...(restorable ? { restore: { ref: "reactiveMap.delta" } } : {}),
 			})
 		: initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
 				...base,
@@ -610,11 +664,15 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		? graph.initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
 				name: name ? `${name}.snapshot` : undefined,
 				meta: { kind: "collection_snapshot", collection: "reactiveMap" },
+				...(restorable ? { restore: { ref: "reactiveMap.snapshot" } } : {}),
 			})
 		: initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
 				...base,
 				name: name ? `${name}.snapshot` : undefined,
 			});
+	if (restorable) {
+		registerBackendStateContributor(intent as Node<unknown>, () => backend.checkpointEntries());
+	}
 	const releaseApply = graph
 		? graph.retain(apply, { reason: "reactiveMap.apply" })
 		: apply.subscribe(() => {});
@@ -622,7 +680,9 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 
 	function doSet(key: K, value: V, ttl?: number): void {
 		if (ttl !== undefined) validateTtl(ttl);
-		intent.down([["DATA", { kind: "set", key, value, ttl }]]);
+		intent.down([
+			["DATA", ttl === undefined ? { kind: "set", key, value } : { kind: "set", key, value, ttl }],
+		]);
 	}
 
 	function read(key: K): Lookup<V> {

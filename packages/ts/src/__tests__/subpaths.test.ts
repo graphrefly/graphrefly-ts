@@ -159,6 +159,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof patterns.shardByTenant).toBe("function");
 		expect(typeof patterns.validateMemoryFragment).toBe("function");
 		expect(typeof patterns.filterMemoryFragments).toBe("function");
+		expect(typeof patterns.memoryRetrievalBundle).toBe("function");
 		expect(typeof storage.memoryKv).toBe("function");
 		expect(typeof storage.memoryAppendLog).toBe("function");
 		expect(typeof storage.multiWriterAppendLogStorage).toBe("function");
@@ -203,6 +204,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(patterns, "guardedExecution")).toBe(false);
 		expect(Object.hasOwn(patterns, "inspect")).toBe(false);
 		expect(Object.hasOwn(patterns, "resilientPipeline")).toBe(false);
+		expect(Object.hasOwn(patterns, "openPersistentReactiveMap")).toBe(false);
+		expect(Object.hasOwn(patterns, "persistReactiveCollection")).toBe(false);
 		expect(Object.keys(solutions)).toEqual([]);
 	});
 
@@ -262,6 +265,26 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(storageNode, "restoreFromStorage")).toBe(false);
 		expect(Object.hasOwn(storageNode, "hydrateGraph")).toBe(false);
 		expect(Object.hasOwn(storageNode, "replayWal")).toBe(false);
+	});
+
+	it("exports D161 reactive collection persistence from the right layers", () => {
+		expect(typeof storage.loadReactiveListState).toBe("function");
+		expect(typeof storage.loadReactiveLogState).toBe("function");
+		expect(typeof storage.loadReactiveMapState).toBe("function");
+		expect(typeof storage.loadReactiveIndexState).toBe("function");
+		expect(typeof storage.reactiveCollectionSnapshotFrame).toBe("function");
+		expect(typeof dataStructures.restoreReactiveList).toBe("function");
+		expect(typeof dataStructures.restoreReactiveLog).toBe("function");
+		expect(typeof dataStructures.restoreReactiveMap).toBe("function");
+		expect(typeof dataStructures.restoreReactiveIndex).toBe("function");
+		expect(typeof adapters.persistReactiveCollection).toBe("function");
+		expect(typeof adapters.openPersistentReactiveList).toBe("function");
+		expect(typeof adapters.openPersistentReactiveLog).toBe("function");
+		expect(typeof adapters.openPersistentReactiveMap).toBe("function");
+		expect(typeof adapters.openPersistentReactiveIndex).toBe("function");
+		expect(Object.hasOwn(storage, "persistReactiveCollection")).toBe(false);
+		expect(Object.hasOwn(storage, "openPersistentReactiveList")).toBe(false);
+		expect(Object.hasOwn(storage, "restoreGraph")).toBe(false);
 	});
 
 	it("exports storage/browser as a package subpath", () => {

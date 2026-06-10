@@ -46,3 +46,17 @@ export {
 	type VectorSearchResult,
 	validateMemoryFragment,
 } from "./semantic-memory.js";
+export {
+	type MemoryRetrievalBundle,
+	type MemoryRetrievalBundleOptions,
+	type MemoryRetrievalCursor,
+	type MemoryRetrievalError,
+	type MemoryRetrievalErrorCode,
+	type MemoryRetrievalFact,
+	type MemoryRetrievalIndex,
+	type MemoryRetrievalQuery,
+	type MemoryRetrievalSnapshot,
+	type MemoryRetrievalStatus,
+	type MemoryRetrievalStatusState,
+	memoryRetrievalBundle,
+} from "./semantic-memory-graph.js";

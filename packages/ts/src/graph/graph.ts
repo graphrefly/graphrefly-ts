@@ -1016,21 +1016,26 @@ export class Graph {
 	): GraphCheckpointNode {
 		const state = checkpointStateOfNode(node);
 		assertCheckpointQuiescentStatus(node.status, id, "checkpoint");
+		const nonAuthoritativeCollectionHelper = isNonAuthoritativeCollectionHelperMeta(opts.meta);
 		const out: GraphCheckpointNode = {
 			id,
 			factory: opts.factory,
 			status: node.status,
 			deps: opts.deps,
-			value: checkpointValue(state.cache, state.hasData, `${id}.value`),
+			value: nonAuthoritativeCollectionHelper
+				? { kind: "SENTINEL" }
+				: checkpointValue(state.cache, state.hasData, `${id}.value`),
 			terminal: checkpointTerminal(state.terminal, `${id}.terminal`),
 			lifecycle: { activated: state.activated, hasCalledFnOnce: state.hasCalledFnOnce },
 			ctxState: {
 				persist: state.ctxState.persist,
-				value: checkpointValue(
-					state.ctxState.value,
-					state.ctxState.value !== SENTINEL,
-					`${id}.ctxState`,
-				),
+				value: nonAuthoritativeCollectionHelper
+					? { kind: "SENTINEL" }
+					: checkpointValue(
+							state.ctxState.value,
+							state.ctxState.value !== SENTINEL,
+							`${id}.ctxState`,
+						),
 			},
 		};
 		if (opts.name !== undefined) out.name = opts.name;
@@ -1043,6 +1048,18 @@ export class Graph {
 			};
 		return out;
 	}
+}
+
+function isNonAuthoritativeCollectionHelperMeta(
+	meta: Record<string, unknown> | undefined,
+): boolean {
+	return (
+		meta?.kind === "collection_delta" ||
+		meta?.kind === "collection_intent" ||
+		meta?.kind === "collection_policy_apply" ||
+		meta?.kind === "collection_snapshot" ||
+		meta?.kind === "collection_snapshot_prep"
+	);
 }
 
 function assertCheckpointQuiescentStatus(status: string, id: string, op: string): void {
