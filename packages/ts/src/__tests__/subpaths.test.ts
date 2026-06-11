@@ -16,8 +16,12 @@ import * as dataStructures from "../data-structures/index.js";
 import * as graphLayer from "../graph/index.js";
 import type {
 	AgenticMemoryBundleOptions,
+	AgenticMemoryRecord,
+	AgenticMemoryScope,
+	AgenticMemoryStatus,
 	CapacityPolicy,
 	GraphCheckpoint,
+	MemoryFragment,
 	OrderedCapacityPolicy,
 	ReactiveIndexCapacityOrder,
 	ReactiveIndexCapacityPolicy,
@@ -344,5 +348,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticMemoryBundleOptions>()
 			.toHaveProperty("name")
 			.toEqualTypeOf<string | undefined>();
+		expectTypeOf<AgenticMemoryBundleOptions<string>>()
+			.toHaveProperty("records")
+			.toMatchTypeOf<unknown>();
+		expectTypeOf<AgenticMemoryRecord<string>>()
+			.toHaveProperty("fragment")
+			.toMatchTypeOf<MemoryFragment<string>>();
+		expectTypeOf<AgenticMemoryScope>()
+			.toHaveProperty("tenantId")
+			.toEqualTypeOf<string | undefined>();
+		expectTypeOf<AgenticMemoryStatus>()
+			.toHaveProperty("state")
+			.toEqualTypeOf<"ready" | "empty" | "partial" | "error">();
 	});
 });
