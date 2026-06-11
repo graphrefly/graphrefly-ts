@@ -80,7 +80,7 @@ Roughly **15 lines** subscribe to `lineBreaks` and drive inputs on `reactiveLayo
 ## See Also
 
 - **[Reactive Layout solution guide](/solutions/reactive-layout/)** — quick start, advanced notes, composition recipes, demo links
-- **[Live demo →](/demos/reactive-layout/)** — playground, adapters, blocks, flow, batching
+- **[Reactive layout solution →](/solutions/reactive-layout/)** — playground, adapters, blocks, flow, batching
 - **[API: `reactiveLayout()`](/api/reactivelayout)** · **[API: `reactiveBlockLayout()`](/api/reactiveblocklayout)** · **[API: `analyzeAndMeasure()`](/api/analyzeandmeasure)** · **[API: `computeLineBreaks()`](/api/computelinebreaks)**
 
 ---

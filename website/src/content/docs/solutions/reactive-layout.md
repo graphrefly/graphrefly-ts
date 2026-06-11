@@ -82,7 +82,7 @@ const initial = layout.lineBreaks.cache as LineBreaksResult | undefined;
 if (initial) paint(el, initial);
 ```
 
-You can also subscribe with `layout.lineBreaks.subscribe(() => { paint(el, layout.lineBreaks.cache as LineBreaksResult); })` and read **`node.cache`** after each push — the **[reactive-layout demo](/demos/reactive-layout/)** does this from React via a tiny `useNodeValue` helper.
+You can also subscribe with `layout.lineBreaks.subscribe(() => { paint(el, layout.lineBreaks.cache as LineBreaksResult); })` and read **`node.cache`** after each push — the old reactive-layout demo did this from React via a tiny `useNodeValue` helper.
 
 ### React: `useSubscribe` on output nodes
 
@@ -131,7 +131,7 @@ Create the bundle **once** per logical paragraph (`useMemo`, module scope, or co
 - **`reactiveBlockLayout`** — vertically stack heterogeneous blocks (text, SVG, image) with per-block measurement adapters and a shared `maxWidth` / `gap`.
 - **`reactiveFlowLayout`** — flow body text across columns with **circle / rectangle obstacles** (editorial-style wraps, pull quotes, images). Uses the same measurement pipeline with slot carving helpers.
 
-Use the **[interactive demo](/demos/reactive-layout/)** Blocks and Flow chapters to see topology and parameters in motion.
+Use the archived demo source's Blocks and Flow chapters to see topology and parameters in motion.
 
 ### Adapters and headless measurement
 
@@ -228,7 +228,7 @@ Multiple layout bundles can **share warm adapter caches** (for example two flow 
 
 ## Live demo
 
-**[Reactive layout demo →](/demos/reactive-layout/)** — six chapters: **Playground**, **Recomputes**, **Batch**, **Adapters**, **Blocks**, **Flow**.
+The archived reactive-layout demo source contains six chapters: **Playground**, **Recomputes**, **Batch**, **Adapters**, **Blocks**, **Flow**.
 
 ## Where next
 

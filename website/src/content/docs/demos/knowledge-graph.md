@@ -7,7 +7,7 @@ The knowledge-graph demo extracts entities and relations from a long paper one p
 
 [Run the knowledge-graph demo →](/demos/knowledge-graph/)
 
-The page uses the same three-pane `demoShell` as [reactive layout](/demos/reactive-layout/): main pane (paper text + force-directed KG), side-top (`describe(graph)` mermaid topology), side-bottom (the chapter's source code with cross-highlighting).
+The page used the same three-pane `demoShell` pattern as the [reactive layout solution](/solutions/reactive-layout/): main pane (paper text + force-directed KG), side-top (`describe(graph)` mermaid topology), side-bottom (the chapter's source code with cross-highlighting).
 
 ## What the four chapters teach
 

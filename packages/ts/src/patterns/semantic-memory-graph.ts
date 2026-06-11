@@ -758,20 +758,20 @@ function validateKnowledgeAssertion(
 	if (errors.length > 0) {
 		return invalidKnowledgeAssertion(index, value, errors, raw.id);
 	}
-		return {
-			assertion: Object.freeze({
-				id: raw.id as FactId,
-				...(raw.recordId === undefined ? {} : { recordId: raw.recordId }),
-				...(raw.fragmentId === undefined ? {} : { fragmentId: raw.fragmentId }),
-				subject: snapshotSubject(raw.subject as KnowledgeAssertionSubject),
-				predicate: raw.predicate as string,
-				object: snapshotObject(raw.object as KnowledgeAssertionObject),
-				...(raw.confidence === undefined ? {} : { confidence: raw.confidence }),
-				sources: Object.freeze([...(raw.sources ?? [])]),
-				...(raw.provenance === undefined ? {} : { provenance: raw.provenance }),
-			}),
-		};
-	}
+	return {
+		assertion: Object.freeze({
+			id: raw.id as FactId,
+			...(raw.recordId === undefined ? {} : { recordId: raw.recordId }),
+			...(raw.fragmentId === undefined ? {} : { fragmentId: raw.fragmentId }),
+			subject: snapshotSubject(raw.subject as KnowledgeAssertionSubject),
+			predicate: raw.predicate as string,
+			object: snapshotObject(raw.object as KnowledgeAssertionObject),
+			...(raw.confidence === undefined ? {} : { confidence: raw.confidence }),
+			sources: Object.freeze([...(raw.sources ?? [])]),
+			...(raw.provenance === undefined ? {} : { provenance: raw.provenance }),
+		}),
+	};
+}
 
 function invalidKnowledgeAssertion(
 	index: number,

@@ -346,6 +346,41 @@ describe("D172 agentic memory record persistence sidecar", () => {
 		expect(loaded.changes).toEqual({ applied: 1, cursor: 0 });
 	});
 
+	it("reads agentic record changes after the snapshot cursor and rejects sparse frames", async () => {
+		const snapshot = agenticMemoryRecordSnapshotFrame([memoryRecord("base", "base")], {
+			changeCursor: 0,
+		});
+		const next = agenticMemoryRecordChangeFrame([memoryRecord("next", "next")]);
+		const loaded = await loadAgenticMemoryRecordsState<{ readonly text: string }>({
+			snapshotStore: {
+				get: () => Promise.resolve(snapshot),
+			} as never,
+			changeLog: {
+				read: (opts = {}) => {
+					expect(opts).toEqual({ after: 0 });
+					return Promise.resolve([{ key: "changes/1", seq: 1, value: next }]);
+				},
+			} as never,
+		});
+
+		expect(loaded.records.map((record) => record.id)).toEqual(["record-next"]);
+		const sparseRecords = [] as unknown[];
+		sparseRecords.length = 1;
+		await expect(
+			loadAgenticMemoryRecordsState({
+				snapshotStore: {
+					get: () =>
+						Promise.resolve({
+							format: "graphrefly.agenticMemory.records.snapshot",
+							version: 1,
+							changeCursor: -1,
+							records: sparseRecords,
+						}),
+				} as never,
+			}),
+		).rejects.toThrow(/sparse array hole/);
+	});
+
 	it("persists records as passive frames and exposes persistence.cursor facts", async () => {
 		const g = graph();
 		const snapshots = memoryKv<unknown>();
@@ -362,7 +397,9 @@ describe("D172 agentic memory record persistence sidecar", () => {
 			snapshotEveryChanges: 2,
 		});
 		await waitControl((done) => persistence.flush(done));
-		records.set([memoryRecord("b", "b")]);
+		const nextRecords = [memoryRecord("b", "b")];
+		records.set(nextRecords);
+		nextRecords[0] = memoryRecord("mutated", "mutated");
 		await waitControl((done) => persistence.flush(done));
 
 		expect(persistence.ready.cache).toBe(true);
@@ -386,6 +423,10 @@ describe("D172 agentic memory record persistence sidecar", () => {
 			changeLog: changes,
 		});
 		expect(loaded.records.map((record) => record.id)).toEqual(["record-b"]);
+		const writtenChange = (await changes.read()).at(0)?.value as
+			| ReturnType<typeof agenticMemoryRecordChangeFrame>
+			| undefined;
+		expect(writtenChange?.change.records[0]?.record.id).toBe("record-b");
 		await waitControl((done) => persistence.dispose(done));
 	});
 

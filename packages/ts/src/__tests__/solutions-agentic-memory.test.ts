@@ -497,13 +497,6 @@ describe("agentic memory KG projection (D165)", () => {
 				confidence: 0.9,
 				sources: ["fragment-kg", "note-1"],
 				provenance: "fixture",
-				record: {
-					recordId: "record-kg",
-					kind: "semantic",
-					persistenceLevel: "longTerm",
-					artifactKind: "insight",
-					scope: { sessionId: "session-1", projectId: "project-1" },
-				},
 			},
 		]);
 	});
@@ -934,6 +927,64 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		expect(data<AgenticMemoryConsolidationStatus>(status.messages).at(-1)).toMatchObject({
 			state: "error",
 			cursor: { validOutcomes: 0, invalidOutcomes: 2 },
+		});
+		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("rejects duplicate proposed record ids and hostile outcome arrays as DATA errors", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
+			[record({ id: "record-a", fragment: fragment({ id: "a" }) })],
+			{ name: "records" },
+		);
+		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
+			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }],
+			{ name: "requests" },
+		);
+		const outcomes = [
+			{
+				id: "dupe-records",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				records: [
+					record({ id: "record-merged", fragment: fragment({ id: "merged-a" }) }),
+					record({ id: "record-merged", fragment: fragment({ id: "merged-b" }) }),
+				],
+			},
+			{
+				id: "unreadable",
+				requestId: "request-1",
+				kind: "failed",
+				message: "unreachable",
+			},
+		] as unknown[];
+		Object.defineProperty(outcomes, "1", {
+			get() {
+				throw new Error("outcome getter exploded");
+			},
+		});
+		const outcomeNode = g.state(outcomes as never, { name: "outcomes" });
+		const bundle = agenticMemoryConsolidationBundle(g, {
+			name: "consolidation",
+			records,
+			requests,
+			outcomes: outcomeNode,
+		});
+		const errors = collect(bundle.errors);
+		const status = collect(bundle.status);
+
+		expect(
+			data<readonly AgenticMemoryConsolidationError[]>(errors.messages)
+				.at(-1)
+				?.map((error) => error.code),
+		).toEqual(["invalid-proposed-record", "invalid-outcome"]);
+		expect(
+			data<readonly AgenticMemoryConsolidationError[]>(errors.messages).at(-1)?.[0]
+				?.validationErrors,
+		).toEqual(["records[1]: duplicate proposed record id 'record-merged'"]);
+		expect(data<AgenticMemoryConsolidationStatus>(status.messages).at(-1)).toMatchObject({
+			state: "error",
+			cursor: { validOutcomes: 0, invalidOutcomes: 2, proposedRecordDrafts: 0 },
 		});
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});

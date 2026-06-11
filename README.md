@@ -4,7 +4,7 @@
 
 GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is the source of truth: build a graph, inspect its live topology with `describe()`, observe value flow with `observe()`, and persist or restore explicit checkpoint data when you need lifecycle durability. Multi-agent and presentation-layer surfaces are being migrated onto the clean-slate TypeScript package; the protocol authority lives in `~/src/graphrefly`.
 
-[![npm](https://img.shields.io/npm/v/@graphrefly/graphrefly?color=blue)](https://www.npmjs.com/package/@graphrefly/graphrefly)
+[![npm](https://img.shields.io/npm/v/@graphrefly/ts?color=blue)](https://www.npmjs.com/package/@graphrefly/ts)
 [![license](https://img.shields.io/github/license/graphrefly/graphrefly-ts)](./LICENSE)
 
 [Docs](https://graphrefly.dev) | [Spec](https://graphrefly.dev/spec/) | [Python API](https://graphrefly.dev/py/api/) | [TS API Reference](https://graphrefly.dev/api/node/)
@@ -14,8 +14,8 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is th
 | Package | What it is |
 |---|---|
 | [`@graphrefly/ts`](./packages/ts) | Clean-slate TypeScript implementation: substrate, graph, operators, sources, storage, render, testing, and data structures in one self-contained package. This is the current TS target. |
-| [`@graphrefly/graphrefly`](./src) | Legacy presentation package. It still contains IO, AI patterns, framework adapters, and examples that are being migrated to `@graphrefly/ts`. |
-| [`@graphrefly/pure-ts`](./packages/pure-ts) | Frozen read-only reference for old operator/storage/presentation behavior during re-derivation. Do not add new development here. |
+| `@graphrefly/graphrefly` | Retired root package name. CSP-9/B65 removed active root implementation ownership; use `@graphrefly/ts` and its D125 subpaths. |
+| [`@graphrefly/pure-ts`](./packages/pure-ts) | Frozen read-only reference for old behavior and edge cases. It remains only because B66 still has live legacy consumers. Do not add new development here. |
 | [`@graphrefly/cli`](./packages/cli) | Stateless command-line shell. Its old GraphSpec-oriented surface remains part of the migration queue. |
 
 ---
@@ -69,7 +69,7 @@ The graph core is synchronous. Async work lives at source, pool, storage, or wir
 | Data structures | Present: `reactiveMap`, `reactiveList`, `reactiveIndex`, `reactiveLog`, `ReactiveView`, and `reactiveCascadingCache`. |
 | Storage | Present as passive helpers: KV, append log, versioned KV, read-through, content-addressed storage, observe-event logs, WAL frame codecs, browser/node backends. Old graph-owned `attachSnapshotStorage` / `restoreSnapshot` convenience APIs are retired; graph restore is `restoreGraph(checkpoint, { registry })`. |
 | Render/inspection | Present: describe renderers, diagnostics, observe filters, profile. Old fake live-topology streams are not restored; D118 keeps `describe()` as a snapshot until real topology-event egress exists. |
-| Presentation | Still migrating: `src/base`, `src/utils`, `src/presets`, `src/solutions`, `src/compat`, CLI, examples, and docs still contain old `@graphrefly/pure-ts` / GraphSpec-era assumptions. |
+| Presentation | The old root `src/` implementation is retired. Remaining legacy consumers are tracked through B64/B66: CLI, examples, demos, parity-tests, RN/Hermes fixture, and docs. |
 
 So the old `pure-ts` reference is still useful for edge cases and product memory, but the remaining work is no longer "copy the extras layer." It is mainly entrypoint cleanup, presentation rebasing, and explicit decisions for old shapes that conflict with the clean-slate floor.
 
@@ -150,52 +150,6 @@ const mmd = describeToMermaid(snapshot);
 const off = g.observe().subscribe((event) => console.log(event));
 ```
 
-## AI & orchestration
-
-First-class patterns for LLM streaming, agent loops, and human-in-the-loop workflows:
-
-```ts
-import { chatStream, agentLoop, toolRegistry } from "@graphrefly/graphrefly";
-
-// Streaming chat with tool use
-const chat = chatStream("assistant", {
-  model: "claude-sonnet-4-20250514",
-  tools: toolRegistry("tools", { search, calculate }),
-});
-
-// Full agent loop: observe → think → act → memory
-const agent = agentLoop("researcher", {
-  llm: chat,
-  memory: agentMemory({ decay: "openviking" }),
-});
-```
-
-## Framework adapters
-
-Drop-in bindings — your framework, your way:
-
-```tsx
-// React
-import { useNode } from "@graphrefly/graphrefly/compat/react";
-const [value, setValue] = useNode(count);
-
-// Vue
-import { useNode } from "@graphrefly/graphrefly/compat/vue";
-const value = useNode(count);  // → Ref<number>
-
-// Svelte
-import { toStore } from "@graphrefly/graphrefly/compat/svelte";
-const value = toStore(count);  // → Svelte store
-
-// Solid
-import { useNode } from "@graphrefly/graphrefly/compat/solid";
-const value = useNode(count);  // → Signal<number>
-
-// NestJS
-import { GraphReflyModule } from "@graphrefly/graphrefly/compat/nestjs";
-@Module({ imports: [GraphReflyModule.forRoot()] })
-```
-
 ## Tree-shaking imports
 
 Use `@graphrefly/ts` subpaths for clean-slate bundles:
@@ -231,15 +185,14 @@ const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
 
 ## Project layout
 
-Clean-slate TS lives in `packages/ts`. The old root presentation package and `packages/pure-ts` are migration/reference surfaces.
+Clean-slate TS lives in `packages/ts`. The old root presentation implementation has been removed from active ownership; `packages/pure-ts` remains frozen until B66 can delete it.
 
 | Path | Contents |
 |------|----------|
 | `packages/ts/src/` | Clean-slate TS package: substrate, graph, operators, sources, storage, render, data structures, testing |
-| `packages/pure-ts/` | Frozen read-only reference for old behavior and edge cases |
+| `packages/pure-ts/` | Frozen read-only reference and temporary legacy-consumer dependency |
 | `packages/parity-tests/` | Retired old parity-test package; clean-slate parity is behavioral conformance in `~/src/graphrefly/spec/conformance.jsonl` |
 | `packages/cli/` | CLI migration surface |
-| `src/base/`, `src/utils/`, `src/presets/`, `src/solutions/`, `src/compat/` | Legacy presentation surfaces still being rebased onto `@graphrefly/ts` |
 | `~/src/graphrefly` | Language-neutral authority: decisions, rules, conformance, formal model, sequencer |
 | `website/` | Astro + Starlight docs site ([graphrefly.dev](https://graphrefly.dev)) |
 
@@ -248,15 +201,13 @@ The Rust and Python sibling implementations are self-contained packages in `~/sr
 ## Scripts
 
 ```bash
-pnpm test            # @graphrefly/ts + frozen pure-ts + legacy root tests
+pnpm test            # clean-slate TS test suite
 pnpm test:ts         # clean-slate TS test suite
-pnpm test:pure-ts    # frozen reference suite
-pnpm test:parity     # retired old parity package
-pnpm run lint        # biome check + layer-boundary + tsc --noEmit on parity-tests/evals
+pnpm test:parity     # retired old parity package, kept only while B66 is blocked
+pnpm run lint        # biome check + clean-slate no-raw-async + tsc --noEmit on parity-tests/evals
 pnpm run lint:fix    # biome --write
-pnpm run build       # @graphrefly/ts + pure-ts reference + root presentation build
-pnpm run build:shim  # only the root shim (assumes pure-ts already built)
-pnpm bench           # frozen pure-ts bench
+pnpm run build       # @graphrefly/ts build
+pnpm bench           # clean-slate TS B49 probe
 pnpm probe:b49:ts    # clean-slate TS perf probe
 ```
 

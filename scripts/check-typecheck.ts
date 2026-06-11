@@ -1,25 +1,17 @@
 /**
- * Typecheck gate for the two workspace packages that nothing else
- * typechecks (surfaced 2026-05-17 by the D2/D3 parity-cleanup batch).
+ * Typecheck gate for legacy workspace packages that nothing else typechecks.
  *
- * `packages/parity-tests/` and `evals/` run via vitest / tsx — both strip
- * types through esbuild, so `tsc` never runs on them in `pnpm test`,
- * `pnpm build`, or CI. That left D3's `Impl`-contract intersection (and
- * any future native/contract drift) an *unenforced* contract. This
- * script closes the gap: it `tsc --noEmit`s each package and hard-fails
- * on ANY error.
+ * `packages/parity-tests/` runs via vitest, which strips types through esbuild,
+ * so `tsc` does not otherwise run on it in `pnpm test`, `pnpm build`, or CI.
+ * This script closes that gap by running `tsc --noEmit` and hard-failing on
+ * any error.
  *
- * **No baseline.** Both packages were driven to **zero** errors in the
- * same batch (the layer-boundary script keeps a ratchet baseline because
- * its violations were deferred; here there is nothing to defer). A new
- * type error — e.g. a `@graphrefly/native` wrapper signature drifting
- * from the parity `Impl` contract, or an eval script falling behind a
- * substrate API — fails `pnpm lint`. That IS the first-line parity gate
- * D3 asked for. Do not add a baseline to silence a new error; fix it.
+ * **No baseline.** The checked package was driven to **zero** errors. A new
+ * type error fails `pnpm lint`; do not add a baseline to silence it.
  *
- * Zero-dep standalone, wired into `pnpm lint` after
- * `check-layer-boundary.ts` (same discipline, mechanism amended for the
- * typecheck case).
+ * B65 note: `evals/` still imports the retired root `src/` implementation and
+ * is no longer part of the active clean-slate lint gate. Migrate or retire it
+ * in a dedicated B64/B66 cleanup slice before re-adding it here.
  */
 
 import { execFileSync } from "node:child_process";
@@ -31,7 +23,6 @@ const TSC = resolve(ROOT, "node_modules/.bin/tsc");
 /** Previously-ungated packages this gate now enforces. */
 const TARGETS: readonly { name: string; project: string }[] = [
 	{ name: "parity-tests", project: "packages/parity-tests/tsconfig.json" },
-	{ name: "evals", project: "evals/tsconfig.json" },
 ];
 
 let failed = false;

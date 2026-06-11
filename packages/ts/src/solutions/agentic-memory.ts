@@ -730,7 +730,6 @@ export function agenticMemoryKgProjectionBundle(
 			const draftProjection = validateAndProjectKgDrafts(
 				depLatest(ctx, 1),
 				recordProjection.records,
-				recordProjection.metadataByFragmentId,
 			);
 			const cursor: AgenticMemoryKgProjectionCursor = Object.freeze({
 				evaluation: state.evaluation,
@@ -1363,7 +1362,6 @@ function agenticMemoryRecordProjection<T>(
 function validateAndProjectKgDrafts(
 	value: unknown,
 	records: readonly AgenticMemoryRecord[],
-	metadataByFragmentId: Readonly<Record<FactId, AgenticMemoryRecordMetadata>>,
 ): {
 	readonly assertions: KnowledgeAssertion[];
 	readonly errors: Omit<AgenticMemoryKgProjectionError, "cursor">[];
@@ -1474,19 +1472,19 @@ function validateAndProjectKgDrafts(
 				continue;
 			}
 			seenAssertions.add(draft.id);
-				assertions.push(
-					Object.freeze({
-						id: draft.id,
-						recordId: draft.recordId,
+			assertions.push(
+				Object.freeze({
+					id: draft.id,
+					recordId: draft.recordId,
 					fragmentId: draft.fragmentId,
 					subject: draft.subject,
 					predicate: draft.predicate,
-						object: draft.object,
-						...(draft.confidence === undefined ? {} : { confidence: draft.confidence }),
-						sources: Object.freeze(draft.sources ?? [draft.fragmentId]),
-						...(draft.provenance === undefined ? {} : { provenance: draft.provenance }),
-					}),
-				);
+					object: draft.object,
+					...(draft.confidence === undefined ? {} : { confidence: draft.confidence }),
+					sources: Object.freeze(draft.sources ?? [draft.fragmentId]),
+					...(draft.provenance === undefined ? {} : { provenance: draft.provenance }),
+				}),
+			);
 		} catch (error) {
 			invalidDrafts += 1;
 			errors.push({
@@ -2073,9 +2071,36 @@ function validateConsolidationRequests<T>(
 			],
 		};
 	}
+	const length = safeArrayLength(value);
+	if (length === undefined) {
+		return {
+			requests,
+			errors: [
+				{
+					code: "invalid-commands-input",
+					message: "agenticMemoryConsolidationBundle: requests input length could not be read",
+					command: value,
+				},
+			],
+		};
+	}
 	const seen = new Set<FactId>();
-	for (let i = 0; i < value.length; i += 1) {
-		const raw = value[i];
+	for (let i = 0; i < length; i += 1) {
+		let raw: unknown;
+		try {
+			if (!Object.hasOwn(value, i)) {
+				throw new TypeError("request array must be dense");
+			}
+			raw = value[i];
+		} catch (error) {
+			errors.push({
+				code: "invalid-command",
+				message: `agenticMemoryConsolidationBundle: request access failed: ${errorMessage(error)}`,
+				index: i,
+				validationErrors: Object.freeze(["request access failed"]),
+			});
+			continue;
+		}
 		if (!isPlainRecord(raw)) {
 			errors.push({
 				code: "invalid-command",
@@ -2184,10 +2209,47 @@ function projectConsolidationOutcomes<T>(
 			],
 		};
 	}
+	const length = safeArrayLength(value);
+	if (length === undefined) {
+		return {
+			results,
+			proposedRecordDrafts,
+			commands,
+			validOutcomes,
+			invalidOutcomes: 1,
+			errors: [
+				{
+					code: "invalid-outcomes-input",
+					message: "agenticMemoryConsolidationBundle: outcomes input length could not be read",
+					outcome: value,
+				},
+			],
+		};
+	}
 	const seenOutcomes = new Set<FactId>();
-	for (let i = 0; i < value.length; i += 1) {
-		const raw = value[i];
-		const outcome = validateConsolidationOutcome<T>(raw, i);
+	for (let i = 0; i < length; i += 1) {
+		let raw: unknown;
+		let outcome: {
+			readonly outcome?: AgenticMemoryConsolidationOutcome<T>;
+			readonly error?: Omit<AgenticMemoryConsolidationError, "cursor">;
+		};
+		try {
+			if (!Object.hasOwn(value, i)) {
+				throw new TypeError("outcome array must be dense");
+			}
+			raw = value[i];
+			outcome = validateConsolidationOutcome<T>(raw, i);
+		} catch (error) {
+			invalidOutcomes += 1;
+			errors.push({
+				code: "invalid-outcome",
+				message: `agenticMemoryConsolidationBundle: outcome access failed: ${errorMessage(error)}`,
+				index: i,
+				outcome: raw,
+				validationErrors: Object.freeze(["outcome access failed"]),
+			});
+			continue;
+		}
 		if (outcome.error !== undefined || outcome.outcome === undefined) {
 			invalidOutcomes += 1;
 			if (outcome.error !== undefined) errors.push(outcome.error);
@@ -2327,18 +2389,38 @@ function validateConsolidationOutcome<T>(
 	}
 	const records: AgenticMemoryRecord<T>[] = [];
 	if (value.kind === "proposedRecords") {
-		if (!Array.isArray(value.records) || value.records.length === 0) {
+		if (!Array.isArray(value.records)) {
 			errors.push("proposedRecords.records must be a non-empty array");
 		} else {
-			for (let i = 0; i < value.records.length; i += 1) {
-				const result = validateAndSnapshotRecord<T>(value.records[i], i);
+			const recordsLength = safeArrayLength(value.records);
+			const seenRecordIds = new Set<FactId>();
+			if (recordsLength === undefined || recordsLength === 0) {
+				errors.push("proposedRecords.records must be a non-empty array");
+			}
+			for (let i = 0; i < (recordsLength ?? 0); i += 1) {
+				let result: {
+					readonly record?: AgenticMemoryRecord<T>;
+					readonly errors: Omit<AgenticMemoryError, "cursor">[];
+				};
+				try {
+					if (!Object.hasOwn(value.records, i)) {
+						throw new TypeError("proposedRecords.records must be dense");
+					}
+					result = validateAndSnapshotRecord<T>(value.records[i], i);
+				} catch (error) {
+					errors.push(`records[${i}]: record access failed: ${errorMessage(error)}`);
+					continue;
+				}
 				if (result.record === undefined || result.errors.length > 0) {
 					errors.push(
 						...result.errors
 							.flatMap((error) => error.validationErrors ?? [error.message])
 							.map((error) => `records[${i}]: ${error}`),
 					);
+				} else if (seenRecordIds.has(result.record.id)) {
+					errors.push(`records[${i}]: duplicate proposed record id '${result.record.id}'`);
 				} else {
+					seenRecordIds.add(result.record.id);
 					records.push(result.record);
 				}
 			}

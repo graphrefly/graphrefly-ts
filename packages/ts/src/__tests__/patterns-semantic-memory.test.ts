@@ -544,6 +544,11 @@ describe("knowledgeGraphReducerBundle graph pattern (D170)", () => {
 					object: { kind: "value", value: 1n } as never,
 				}),
 				assertion({ id: "blocked", predicate: "secret" }),
+				assertion({
+					id: "bad-type",
+					subject: { id: "person:ada", type: "" },
+					object: { kind: "entity", id: "project:graphrefly", type: 7 } as never,
+				}),
 			],
 			{ name: "assertions" },
 		);
@@ -556,10 +561,15 @@ describe("knowledgeGraphReducerBundle graph pattern (D170)", () => {
 			data<readonly KnowledgeGraphError[]>(errors.messages)
 				.at(-1)
 				?.map((error) => error.code),
-		).toEqual(["duplicate-assertion-id", "invalid-assertion", "invalid-assertion"]);
+		).toEqual([
+			"duplicate-assertion-id",
+			"invalid-assertion",
+			"invalid-assertion",
+			"invalid-assertion",
+		]);
 		expect(data<KnowledgeGraphStatus>(status.messages).at(-1)).toMatchObject({
 			state: "partial",
-			cursor: { validAssertions: 1, invalidAssertions: 3 },
+			cursor: { validAssertions: 1, invalidAssertions: 4 },
 		});
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});

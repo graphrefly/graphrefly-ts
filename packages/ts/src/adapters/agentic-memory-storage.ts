@@ -173,7 +173,10 @@ export function assertAgenticMemoryRecordSnapshotFrame<
 	if (!Array.isArray(value.records)) {
 		throw new TypeError("agentic memory snapshot frame: records must be an array");
 	}
-	const records = value.records.map((record) => assertAgenticMemoryRecordFrame<TJson>(record));
+	const records = assertDenseRecordFrames<TJson>(
+		value.records,
+		"agentic memory snapshot frame records",
+	);
 	return Object.freeze({
 		format: AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT,
 		version: AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION,
@@ -203,8 +206,9 @@ export function assertAgenticMemoryRecordChangeFrame<
 	if (!Array.isArray(value.change.records)) {
 		throw new TypeError("agentic memory change frame: change.records must be an array");
 	}
-	const records = value.change.records.map((record) =>
-		assertAgenticMemoryRecordFrame<TJson>(record),
+	const records = assertDenseRecordFrames<TJson>(
+		value.change.records,
+		"agentic memory change frame records",
 	);
 	return Object.freeze({
 		format: AGENTIC_MEMORY_RECORD_CHANGE_FORMAT,
@@ -239,11 +243,10 @@ export function loadAgenticMemoryRecordsState<
 				changes: { applied: 0, cursor: changeCursor },
 			};
 		}
-		return opts.changeLog.read().then((entries) => {
+		return opts.changeLog.read({ after: changeCursor }).then((entries) => {
 			let applied = 0;
 			let cursor = changeCursor;
 			for (const entry of entries) {
-				if (entry.seq <= changeCursor) continue;
 				if (entry.seq !== cursor + 1) {
 					throw new Error("agentic memory records change log is non-contiguous");
 				}
@@ -418,8 +421,14 @@ export function persistAgenticMemoryRecords<
 			phase: "snapshot",
 			done,
 			run() {
-				const frame = agenticMemoryRecordSnapshotFrame(snapshotRecords, {
+				const records = Object.freeze(
+					snapshotRecords.map((record) => agenticMemoryRecordFrame(record)),
+				);
+				const frame = assertAgenticMemoryRecordSnapshotFrame<TJson>({
+					format: AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT,
+					version: AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION,
 					changeCursor: cursorValue.changeSeq,
+					records,
 				});
 				return opts.snapshotStore.set(snapshotKey, frame).then(() => {
 					cursorValue = { ...cursorValue, snapshotWrites: cursorValue.snapshotWrites + 1 };
@@ -584,6 +593,20 @@ function assertKeys(
 	if (actual.length !== want.length || actual.some((key, i) => key !== want[i])) {
 		throw new TypeError(`${label}: unexpected frame fields ${actual.join(",")}`);
 	}
+}
+
+function assertDenseRecordFrames<TJson extends AgenticMemoryStrictJsonValue>(
+	value: readonly unknown[],
+	label: string,
+): readonly AgenticMemoryRecordFrame<TJson>[] {
+	const records: AgenticMemoryRecordFrame<TJson>[] = [];
+	for (let i = 0; i < value.length; i += 1) {
+		if (!Object.hasOwn(value, i)) {
+			throw new TypeError(`${label}: sparse array hole at ${i}`);
+		}
+		records.push(assertAgenticMemoryRecordFrame<TJson>(value[i]));
+	}
+	return Object.freeze(records);
 }
 
 function errorMessage(error: unknown): string {

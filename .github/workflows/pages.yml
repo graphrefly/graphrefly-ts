@@ -44,8 +44,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # docs:build = website + demos/{compat-matrix,reactive-layout,knowledge-graph,pagerduty-triage}, copied into website/dist/demos/
-      - name: Build docs and demos
+      # B65 keeps docs buildable while old root-dependent demos move through
+      # B64/B66 cleanup.
+      - name: Build docs
         run: pnpm run docs:build
         env:
           ASTRO_SITE_URL: https://graphrefly.dev
