@@ -11,6 +11,10 @@ import {
 	type FactId,
 	filterMemoryFragments,
 	isMemoryFragment,
+	type KnowledgeAssertion,
+	type KnowledgeGraphError,
+	type KnowledgeGraphStatus,
+	knowledgeGraphReducerBundle,
 	type MemoryFragment,
 	type MemoryQuery,
 	memoryFragmentMatchesQuery,
@@ -456,5 +460,107 @@ describe("memoryRetrievalBundle graph pattern (D158)", () => {
 		expect(Object.hasOwn(bundle, "flush")).toBe(false);
 		expect(Object.hasOwn(bundle, "dispose")).toBe(false);
 		expect(Object.hasOwn(bundle, "restore")).toBe(false);
+	});
+});
+
+describe("knowledgeGraphReducerBundle graph pattern (D170)", () => {
+	const assertion = (patch: Partial<KnowledgeAssertion> = {}): KnowledgeAssertion => ({
+		id: "a1",
+		subject: { id: "person:ada", type: "person" },
+		predicate: "works_on",
+		object: { kind: "entity", id: "project:graphrefly", type: "project" },
+		confidence: 0.9,
+		sources: ["f1"],
+		...patch,
+	});
+
+	it("materializes assertions into deterministic entity/relation/topic facts with visible topology", () => {
+		const g = graph();
+		const assertions = g.state<readonly unknown[]>(
+			[
+				assertion(),
+				assertion({
+					id: "a2",
+					subject: { id: "person:ada", type: "person" },
+					predicate: "prefers",
+					object: { kind: "value", value: "quiet tools" },
+				}),
+			],
+			{ name: "assertions" },
+		);
+		const policy = g.state({ allowedPredicates: ["prefers", "works_on"] }, { name: "policy" });
+		const bundle = knowledgeGraphReducerBundle(g, { name: "kg", assertions, policy });
+		const entities = collect(bundle.entities);
+		const relations = collect(bundle.relations);
+		const topics = collect(bundle.topics);
+		const status = collect(bundle.status);
+
+		expect(g.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "assertions", to: "kg/snapshot" },
+				{ from: "policy", to: "kg/snapshot" },
+				{ from: "kg/snapshot", to: "kg/entities" },
+				{ from: "kg/snapshot", to: "kg/relations" },
+				{ from: "kg/snapshot", to: "kg/topics" },
+				{ from: "kg/snapshot", to: "kg/index" },
+				{ from: "kg/snapshot", to: "kg/status" },
+				{ from: "kg/snapshot", to: "kg/errors" },
+				{ from: "kg/snapshot", to: "kg/cursor" },
+			]),
+		);
+		expect(g.describe().nodes.find((node) => node.id === "kg/snapshot")?.factory).toBe(
+			"knowledgeGraphReducerSnapshot",
+		);
+		expect(
+			data(entities.messages)
+				.at(-1)
+				?.map((entity) => entity.id),
+		).toEqual(["person:ada", "project:graphrefly"]);
+		expect(
+			data(relations.messages)
+				.at(-1)
+				?.map((relation) => relation.assertionId),
+		).toEqual(["a1", "a2"]);
+		expect(
+			data(topics.messages)
+				.at(-1)
+				?.map((topic) => topic.predicate),
+		).toEqual(["prefers", "works_on"]);
+		expect(data<KnowledgeGraphStatus>(status.messages).at(-1)).toMatchObject({
+			state: "ready",
+			cursor: { validAssertions: 2, entityCount: 2, relationCount: 2, predicateCount: 2 },
+		});
+	});
+
+	it("emits duplicate, malformed, and policy conflicts as DATA errors", () => {
+		const g = graph();
+		const assertions = g.state<readonly unknown[]>(
+			[
+				assertion(),
+				assertion({ id: "a1", predicate: "works_on" }),
+				assertion({
+					id: "bad",
+					subject: { id: "" },
+					object: { kind: "value", value: 1n } as never,
+				}),
+				assertion({ id: "blocked", predicate: "secret" }),
+			],
+			{ name: "assertions" },
+		);
+		const policy = g.state({ allowedPredicates: ["works_on"] }, { name: "policy" });
+		const bundle = knowledgeGraphReducerBundle(g, { name: "kg", assertions, policy });
+		const errors = collect(bundle.errors);
+		const status = collect(bundle.status);
+
+		expect(
+			data<readonly KnowledgeGraphError[]>(errors.messages)
+				.at(-1)
+				?.map((error) => error.code),
+		).toEqual(["duplicate-assertion-id", "invalid-assertion", "invalid-assertion"]);
+		expect(data<KnowledgeGraphStatus>(status.messages).at(-1)).toMatchObject({
+			state: "partial",
+			cursor: { validAssertions: 1, invalidAssertions: 3 },
+		});
+		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});
 });

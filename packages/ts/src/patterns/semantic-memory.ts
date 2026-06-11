@@ -74,6 +74,44 @@ export interface MemoryAnswer<T = unknown> {
 	readonly results: readonly MemoryFragment<T>[];
 }
 
+type StrictJsonScalar = null | boolean | number | string;
+export type KnowledgeAssertionStrictJsonValue =
+	| StrictJsonScalar
+	| readonly KnowledgeAssertionStrictJsonValue[]
+	| { readonly [key: string]: KnowledgeAssertionStrictJsonValue };
+
+/** Passive KG endpoint vocabulary. Entity ids are DATA keys, not graph node ids. */
+export interface KnowledgeAssertionSubject {
+	readonly id: FactId;
+	readonly type?: string;
+}
+
+/** Passive KG object/value vocabulary. */
+export type KnowledgeAssertionObject =
+	| {
+			readonly kind: "entity";
+			readonly id: FactId;
+			readonly type?: string;
+	  }
+	| {
+			readonly kind: "value";
+			readonly value: KnowledgeAssertionStrictJsonValue;
+			readonly valueType?: string;
+	  };
+
+/** Passive KG assertion fact consumed by lower semantic-memory graph patterns. */
+export interface KnowledgeAssertion {
+	readonly id: FactId;
+	readonly recordId?: FactId;
+	readonly fragmentId?: FactId;
+	readonly subject: KnowledgeAssertionSubject;
+	readonly predicate: string;
+	readonly object: KnowledgeAssertionObject;
+	readonly confidence?: number;
+	readonly sources?: readonly FactId[];
+	readonly provenance?: string;
+}
+
 /** Entry vocabulary for ranked collection-like memory views. */
 export interface CollectionEntry<T = unknown> {
 	readonly id: string;

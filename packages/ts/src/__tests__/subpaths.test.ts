@@ -16,11 +16,19 @@ import * as dataStructures from "../data-structures/index.js";
 import * as graphLayer from "../graph/index.js";
 import type {
 	AgenticMemoryBundleOptions,
+	AgenticMemoryConsolidationBundleOptions,
+	AgenticMemoryContextPackingBundleOptions,
+	AgenticMemoryKgProjectionBundleOptions,
 	AgenticMemoryRecord,
+	AgenticMemoryRecordFrame,
+	AgenticMemoryRecordsPersistenceHandle,
+	AgenticMemoryRetentionBundleOptions,
 	AgenticMemoryScope,
 	AgenticMemoryStatus,
 	CapacityPolicy,
 	GraphCheckpoint,
+	KnowledgeAssertion,
+	KnowledgeGraphReducerBundleOptions,
 	MemoryFragment,
 	OrderedCapacityPolicy,
 	ReactiveIndexCapacityOrder,
@@ -165,6 +173,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof patterns.validateMemoryFragment).toBe("function");
 		expect(typeof patterns.filterMemoryFragments).toBe("function");
 		expect(typeof patterns.memoryRetrievalBundle).toBe("function");
+		expect(typeof patterns.knowledgeGraphReducerBundle).toBe("function");
+		expect(typeof adapters.persistAgenticMemoryRecords).toBe("function");
+		expect(typeof adapters.openPersistentAgenticMemoryRecords).toBe("function");
+		expect(typeof adapters.loadAgenticMemoryRecordsState).toBe("function");
 		expect(typeof storage.memoryKv).toBe("function");
 		expect(typeof storage.memoryAppendLog).toBe("function");
 		expect(typeof storage.multiWriterAppendLogStorage).toBe("function");
@@ -206,13 +218,22 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryKgProjectionBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordFrame).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordFrameCodec).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordCodec).toBe("function");
+		expect(typeof solutions.agenticMemoryRetentionBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryConsolidationBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryContextPackingBundle).toBe("function");
 		expect(typeof graphLayer.workerDerived).toBe("function");
 		expect(Object.hasOwn(patterns, "guardedExecution")).toBe(false);
 		expect(Object.hasOwn(patterns, "inspect")).toBe(false);
 		expect(Object.hasOwn(patterns, "resilientPipeline")).toBe(false);
 		expect(Object.hasOwn(patterns, "openPersistentReactiveMap")).toBe(false);
 		expect(Object.hasOwn(patterns, "persistReactiveCollection")).toBe(false);
+		expect(Object.hasOwn(patterns, "persistAgenticMemoryRecords")).toBe(false);
 		expect(Object.hasOwn(solutions, "persistReactiveCollection")).toBe(false);
+		expect(Object.hasOwn(solutions, "persistAgenticMemoryRecords")).toBe(false);
 		expect(Object.hasOwn(solutions, "openPersistentReactiveMap")).toBe(false);
 		expect(Object.hasOwn(solutions, "Graph")).toBe(false);
 	});
@@ -354,6 +375,26 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticMemoryRecord<string>>()
 			.toHaveProperty("fragment")
 			.toMatchTypeOf<MemoryFragment<string>>();
+		expectTypeOf<KnowledgeAssertion>().toHaveProperty("predicate").toEqualTypeOf<string>();
+		expectTypeOf<KnowledgeGraphReducerBundleOptions>()
+			.toHaveProperty("assertions")
+			.toMatchTypeOf<unknown>();
+		expectTypeOf<AgenticMemoryKgProjectionBundleOptions>()
+			.toHaveProperty("drafts")
+			.toMatchTypeOf<unknown>();
+		expectTypeOf<AgenticMemoryRecordFrame>().toHaveProperty("version").toEqualTypeOf<1>();
+		expectTypeOf<AgenticMemoryRetentionBundleOptions>()
+			.toHaveProperty("commands")
+			.toMatchTypeOf<unknown>();
+		expectTypeOf<AgenticMemoryConsolidationBundleOptions>()
+			.toHaveProperty("outcomes")
+			.toMatchTypeOf<unknown>();
+		expectTypeOf<AgenticMemoryRecordsPersistenceHandle>()
+			.toHaveProperty("cursor")
+			.toMatchTypeOf<unknown>();
+		expectTypeOf<AgenticMemoryContextPackingBundleOptions>()
+			.toHaveProperty("policy")
+			.toMatchTypeOf<unknown>();
 		expectTypeOf<AgenticMemoryScope>()
 			.toHaveProperty("tenantId")
 			.toEqualTypeOf<string | undefined>();

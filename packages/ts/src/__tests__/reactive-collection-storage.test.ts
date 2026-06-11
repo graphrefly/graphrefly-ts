@@ -7,17 +7,24 @@ import type {
 } from "../graph/data-structures/change.js";
 import type { IndexRow } from "../graph/data-structures/reactive-index.js";
 import {
+	type AgenticMemoryRecord,
+	agenticMemoryRecordChangeFrame,
+	agenticMemoryRecordSnapshotFrame,
+	agenticMemoryRecordsSnapshotKey,
 	graph,
+	loadAgenticMemoryRecordsState,
 	loadReactiveIndexState,
 	loadReactiveListState,
 	loadReactiveLogState,
 	loadReactiveMapState,
 	memoryAppendLog,
 	memoryKv,
+	openPersistentAgenticMemoryRecords,
 	openPersistentReactiveIndex,
 	openPersistentReactiveList,
 	openPersistentReactiveLog,
 	openPersistentReactiveMap,
+	persistAgenticMemoryRecords,
 	persistReactiveCollection,
 	type ReactiveCollectionChangeFrame,
 	type ReactiveCollectionSnapshotFrame,
@@ -46,6 +53,24 @@ const waitControl = (run: (done: () => void) => void): Promise<void> =>
 	new Promise<void>((resolve) => {
 		run(resolve);
 	});
+
+const memoryRecord = (
+	id: string,
+	payload: string,
+): AgenticMemoryRecord<{ readonly text: string }> => ({
+	id: `record-${id}`,
+	kind: "semantic",
+	persistenceLevel: "project",
+	artifactKind: "insight",
+	fragment: {
+		id,
+		payload: { text: payload },
+		tNs: 10n,
+		confidence: 0.8,
+		tags: ["agentic"],
+		sources: [],
+	},
+});
 
 describe("D161 reactive collection storage frames and passive load/fold", () => {
 	it("folds a reactiveList snapshot plus changes after the snapshot cursor", async () => {
@@ -296,6 +321,96 @@ describe("D161 reactive collection storage frames and passive load/fold", () => 
 				snapshotKey: "index/snapshot",
 			}),
 		).rejects.toThrow(/duplicates an earlier primary/);
+	});
+});
+
+describe("D172 agentic memory record persistence sidecar", () => {
+	it("loads snapshot plus replaceAll change frames without mutating a graph", async () => {
+		const snapshots = memoryKv<unknown>();
+		const changes = memoryAppendLog<unknown>("agentic-records");
+		await snapshots.set(
+			agenticMemoryRecordsSnapshotKey("agentic"),
+			agenticMemoryRecordSnapshotFrame([memoryRecord("base", "base")], { changeCursor: -1 }),
+		);
+		await changes.append(agenticMemoryRecordChangeFrame([memoryRecord("next", "next")]));
+
+		const loaded = await loadAgenticMemoryRecordsState<{ readonly text: string }>({
+			snapshotStore: snapshots,
+			storagePrefix: "agentic",
+			changeLog: changes,
+		});
+
+		expect(loaded.source).toBe("snapshot+changes");
+		expect(loaded.records.map((record) => record.id)).toEqual(["record-next"]);
+		expect(loaded.records[0]?.fragment.tNs).toBe(10n);
+		expect(loaded.changes).toEqual({ applied: 1, cursor: 0 });
+	});
+
+	it("persists records as passive frames and exposes persistence.cursor facts", async () => {
+		const g = graph();
+		const snapshots = memoryKv<unknown>();
+		const changes = memoryAppendLog<unknown>("agentic-sidecar");
+		const records = g.state<readonly AgenticMemoryRecord<{ readonly text: string }>[]>(
+			[memoryRecord("a", "a")],
+			{ name: "records" },
+		);
+		const persistence = persistAgenticMemoryRecords(g, records, {
+			name: "agentic/persistence",
+			snapshotStore: snapshots,
+			storagePrefix: "agentic-sidecar",
+			changeLog: changes,
+			snapshotEveryChanges: 2,
+		});
+		await waitControl((done) => persistence.flush(done));
+		records.set([memoryRecord("b", "b")]);
+		await waitControl((done) => persistence.flush(done));
+
+		expect(persistence.ready.cache).toBe(true);
+		expect(persistence.cursor.cache).toMatchObject({
+			kind: "persistence.cursor",
+			changeSeq: 0,
+			snapshotWrites: 1,
+			changeWrites: 1,
+		});
+		expect(g.describe().nodes).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "agentic/persistence/ready" }),
+				expect.objectContaining({ id: "agentic/persistence/status" }),
+				expect.objectContaining({ id: "agentic/persistence/error" }),
+				expect.objectContaining({ id: "agentic/persistence/cursor" }),
+			]),
+		);
+		const loaded = await loadAgenticMemoryRecordsState<{ readonly text: string }>({
+			snapshotStore: snapshots,
+			storagePrefix: "agentic-sidecar",
+			changeLog: changes,
+		});
+		expect(loaded.records.map((record) => record.id)).toEqual(["record-b"]);
+		await waitControl((done) => persistence.dispose(done));
+	});
+
+	it("opens persistent records with initial values and fails corrupt frames honestly", async () => {
+		const snapshots = memoryKv<unknown>();
+		const changes = memoryAppendLog<unknown>("agentic-open");
+		const g = graph();
+		const opened = await openPersistentAgenticMemoryRecords({
+			graph: g,
+			name: "agenticRecords",
+			snapshotStore: snapshots,
+			changeLog: changes,
+			initial: [memoryRecord("initial", "initial")],
+		});
+		expect(opened.records.cache?.map((record) => record.id)).toEqual(["record-initial"]);
+		await waitControl((done) => opened.persistence.flush(done));
+		await waitControl((done) => opened.persistence.dispose(done));
+
+		await snapshots.set(agenticMemoryRecordsSnapshotKey("bad"), {
+			...agenticMemoryRecordSnapshotFrame([memoryRecord("ok", "ok")]),
+			storageTier: "cold",
+		});
+		await expect(
+			loadAgenticMemoryRecordsState({ snapshotStore: snapshots, storagePrefix: "bad" }),
+		).rejects.toThrow(/unexpected frame fields/);
 	});
 });
 

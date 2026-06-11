@@ -1,0 +1,591 @@
+import type { DeliveryMeta } from "../ctx/types.js";
+import { assertGraphLocalNode, type Graph, type StateNode } from "../graph/graph.js";
+import type { Node } from "../node/node.js";
+import type { Message } from "../protocol/messages.js";
+import {
+	type AgenticMemoryRecord,
+	type AgenticMemoryRecordFrame,
+	type AgenticMemoryStrictJsonValue,
+	agenticMemoryRecordCodec,
+	agenticMemoryRecordFrame,
+	agenticMemoryRecordFrameCodec,
+	assertAgenticMemoryRecordFrame,
+} from "../solutions/index.js";
+import type { AppendLogEntry, AppendLogStorageTier, KvStorageTier } from "../storage/index.js";
+
+export const AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT =
+	"graphrefly.agenticMemory.records.snapshot" as const;
+export const AGENTIC_MEMORY_RECORD_CHANGE_FORMAT =
+	"graphrefly.agenticMemory.records.change" as const;
+export const AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION = 1 as const;
+
+export interface AgenticMemoryRecordSnapshotFrame<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+> {
+	readonly format: typeof AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT;
+	readonly version: typeof AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION;
+	readonly changeCursor: number;
+	readonly records: readonly AgenticMemoryRecordFrame<TJson>[];
+}
+
+export interface AgenticMemoryRecordChangeFrame<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+> {
+	readonly format: typeof AGENTIC_MEMORY_RECORD_CHANGE_FORMAT;
+	readonly version: typeof AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION;
+	readonly change: {
+		readonly kind: "replaceAll";
+		readonly records: readonly AgenticMemoryRecordFrame<TJson>[];
+	};
+}
+
+export interface AgenticMemoryRecordsRestoreState<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+> {
+	readonly records: readonly AgenticMemoryRecord<TJson>[];
+	readonly source: "empty" | "changes" | "snapshot" | "snapshot+changes";
+	readonly snapshot: { readonly found: boolean; readonly changeCursor: number };
+	readonly changes: { readonly applied: number; readonly cursor: number };
+}
+
+export interface LoadAgenticMemoryRecordsStateOptions {
+	readonly snapshotStore: KvStorageTier<unknown>;
+	readonly snapshotKey?: string;
+	readonly storagePrefix?: string;
+	readonly changeLog?: AppendLogStorageTier<unknown>;
+}
+
+export interface AgenticMemoryRecordsPersistenceCursor {
+	readonly kind: "persistence.cursor";
+	readonly changeSeq: number;
+	readonly snapshotWrites: number;
+	readonly changeWrites: number;
+}
+
+export interface AgenticMemoryRecordsPersistenceStatus {
+	readonly state: "starting" | "ready" | "flushing" | "errored" | "disposed";
+	readonly pending: number;
+	readonly writes: number;
+	readonly errors: number;
+	readonly cursor: AgenticMemoryRecordsPersistenceCursor;
+}
+
+export interface AgenticMemoryRecordsPersistenceError {
+	readonly phase: "snapshot" | "change";
+	readonly message: string;
+	readonly cursor: AgenticMemoryRecordsPersistenceCursor;
+}
+
+export interface PersistAgenticMemoryRecordsOptions {
+	readonly name?: string;
+	readonly snapshotStore: KvStorageTier<unknown>;
+	readonly snapshotKey?: string;
+	readonly storagePrefix?: string;
+	readonly changeLog?: AppendLogStorageTier<unknown>;
+	readonly initialChangeCursor?: number;
+	readonly snapshotOnAttach?: boolean;
+	readonly snapshotEveryChanges?: number;
+}
+
+export interface AgenticMemoryRecordsPersistenceHandle {
+	readonly ready: StateNode<boolean>;
+	readonly status: StateNode<AgenticMemoryRecordsPersistenceStatus>;
+	readonly error: StateNode<AgenticMemoryRecordsPersistenceError | null>;
+	readonly cursor: StateNode<AgenticMemoryRecordsPersistenceCursor>;
+	flush(done?: (status: AgenticMemoryRecordsPersistenceStatus) => void): void;
+	snapshot(done?: (status: AgenticMemoryRecordsPersistenceStatus) => void): void;
+	dispose(done?: (status: AgenticMemoryRecordsPersistenceStatus) => void): void;
+}
+
+export interface OpenPersistentAgenticMemoryRecordsOptions<
+	TJson extends AgenticMemoryStrictJsonValue,
+> extends LoadAgenticMemoryRecordsStateOptions,
+		Omit<
+			PersistAgenticMemoryRecordsOptions,
+			"snapshotStore" | "changeLog" | "initialChangeCursor"
+		> {
+	readonly graph: Graph;
+	readonly name?: string;
+	readonly initial?: readonly AgenticMemoryRecord<TJson>[];
+}
+
+export interface PersistentAgenticMemoryRecords<TJson extends AgenticMemoryStrictJsonValue> {
+	readonly records: StateNode<readonly AgenticMemoryRecord<TJson>[]>;
+	readonly persistence: AgenticMemoryRecordsPersistenceHandle;
+	readonly loaded: AgenticMemoryRecordsRestoreState<TJson>;
+}
+
+interface QueueItem {
+	readonly phase: "snapshot" | "change" | "flush" | "dispose";
+	readonly done?: (status: AgenticMemoryRecordsPersistenceStatus) => void;
+	run(): void | PromiseLike<void>;
+}
+
+export function agenticMemoryRecordsSnapshotKey(storagePrefix = "agentic-memory"): string {
+	if (storagePrefix.length === 0) throw new TypeError("storagePrefix must be non-empty");
+	return `${storagePrefix}/records.snapshot`;
+}
+
+export function agenticMemoryRecordSnapshotFrame<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+>(
+	records: readonly AgenticMemoryRecord<TJson>[],
+	opts: { readonly changeCursor?: number } = {},
+): AgenticMemoryRecordSnapshotFrame<TJson> {
+	const changeCursor = validateChangeCursor(opts.changeCursor ?? -1);
+	return assertAgenticMemoryRecordSnapshotFrame({
+		format: AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT,
+		version: AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION,
+		changeCursor,
+		records: records.map((record) => agenticMemoryRecordFrame(record)),
+	});
+}
+
+export function agenticMemoryRecordChangeFrame<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+>(records: readonly AgenticMemoryRecord<TJson>[]): AgenticMemoryRecordChangeFrame<TJson> {
+	return assertAgenticMemoryRecordChangeFrame({
+		format: AGENTIC_MEMORY_RECORD_CHANGE_FORMAT,
+		version: AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION,
+		change: {
+			kind: "replaceAll",
+			records: records.map((record) => agenticMemoryRecordFrame(record)),
+		},
+	});
+}
+
+export function assertAgenticMemoryRecordSnapshotFrame<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+>(value: unknown): AgenticMemoryRecordSnapshotFrame<TJson> {
+	if (!isPlainRecord(value)) throw new TypeError("agentic memory snapshot frame must be an object");
+	assertKeys(
+		value,
+		["changeCursor", "format", "records", "version"],
+		"agentic memory snapshot frame",
+	);
+	if (value.format !== AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT) {
+		throw new TypeError("agentic memory snapshot frame: invalid format");
+	}
+	if (value.version !== AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION) {
+		throw new TypeError("agentic memory snapshot frame: invalid version");
+	}
+	const changeCursor = validateChangeCursor(value.changeCursor);
+	if (!Array.isArray(value.records)) {
+		throw new TypeError("agentic memory snapshot frame: records must be an array");
+	}
+	const records = value.records.map((record) => assertAgenticMemoryRecordFrame<TJson>(record));
+	return Object.freeze({
+		format: AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT,
+		version: AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION,
+		changeCursor,
+		records: Object.freeze(records),
+	});
+}
+
+export function assertAgenticMemoryRecordChangeFrame<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+>(value: unknown): AgenticMemoryRecordChangeFrame<TJson> {
+	if (!isPlainRecord(value)) throw new TypeError("agentic memory change frame must be an object");
+	assertKeys(value, ["change", "format", "version"], "agentic memory change frame");
+	if (value.format !== AGENTIC_MEMORY_RECORD_CHANGE_FORMAT) {
+		throw new TypeError("agentic memory change frame: invalid format");
+	}
+	if (value.version !== AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION) {
+		throw new TypeError("agentic memory change frame: invalid version");
+	}
+	if (!isPlainRecord(value.change)) {
+		throw new TypeError("agentic memory change frame: change must be an object");
+	}
+	assertKeys(value.change, ["kind", "records"], "agentic memory change frame change");
+	if (value.change.kind !== "replaceAll") {
+		throw new TypeError("agentic memory change frame: change.kind must be replaceAll");
+	}
+	if (!Array.isArray(value.change.records)) {
+		throw new TypeError("agentic memory change frame: change.records must be an array");
+	}
+	const records = value.change.records.map((record) =>
+		assertAgenticMemoryRecordFrame<TJson>(record),
+	);
+	return Object.freeze({
+		format: AGENTIC_MEMORY_RECORD_CHANGE_FORMAT,
+		version: AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION,
+		change: Object.freeze({
+			kind: "replaceAll",
+			records: Object.freeze(records),
+		}),
+	});
+}
+
+export function loadAgenticMemoryRecordsState<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+>(opts: LoadAgenticMemoryRecordsStateOptions): Promise<AgenticMemoryRecordsRestoreState<TJson>> {
+	const storagePrefix = opts.storagePrefix ?? "agentic-memory";
+	const snapshotKey = opts.snapshotKey ?? agenticMemoryRecordsSnapshotKey(storagePrefix);
+	return opts.snapshotStore.get(snapshotKey).then((rawSnapshot) => {
+		let records: readonly AgenticMemoryRecord<TJson>[] = [];
+		let source: AgenticMemoryRecordsRestoreState<TJson>["source"] = "empty";
+		let changeCursor = -1;
+		if (rawSnapshot !== undefined) {
+			const snapshot = assertAgenticMemoryRecordSnapshotFrame<TJson>(rawSnapshot);
+			records = snapshot.records.map(recordFromFrame);
+			changeCursor = snapshot.changeCursor;
+			source = "snapshot";
+		}
+		if (opts.changeLog === undefined) {
+			return {
+				records,
+				source,
+				snapshot: { found: rawSnapshot !== undefined, changeCursor },
+				changes: { applied: 0, cursor: changeCursor },
+			};
+		}
+		return opts.changeLog.read().then((entries) => {
+			let applied = 0;
+			let cursor = changeCursor;
+			for (const entry of entries) {
+				if (entry.seq <= changeCursor) continue;
+				if (entry.seq !== cursor + 1) {
+					throw new Error("agentic memory records change log is non-contiguous");
+				}
+				const change = assertAgenticMemoryRecordChangeFrame<TJson>(entry.value);
+				records = change.change.records.map(recordFromFrame);
+				cursor = entry.seq;
+				applied += 1;
+			}
+			return {
+				records,
+				source:
+					rawSnapshot !== undefined && applied > 0
+						? "snapshot+changes"
+						: rawSnapshot !== undefined
+							? "snapshot"
+							: applied > 0
+								? "changes"
+								: "empty",
+				snapshot: { found: rawSnapshot !== undefined, changeCursor },
+				changes: { applied, cursor },
+			};
+		});
+	});
+}
+
+export function persistAgenticMemoryRecords<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+>(
+	graph: Graph,
+	records: Node<readonly AgenticMemoryRecord<TJson>[]>,
+	opts: PersistAgenticMemoryRecordsOptions,
+): AgenticMemoryRecordsPersistenceHandle {
+	const name = opts.name ?? "agenticMemoryRecords.persistence";
+	const snapshotKey =
+		opts.snapshotKey ?? agenticMemoryRecordsSnapshotKey(opts.storagePrefix ?? name);
+	const snapshotEveryChanges = validateSnapshotEveryChanges(opts.snapshotEveryChanges);
+	assertGraphLocalNode(graph, records as Node<unknown>, `${name}.records`);
+	let cursorValue: AgenticMemoryRecordsPersistenceCursor = {
+		kind: "persistence.cursor",
+		changeSeq: validateChangeCursor(opts.initialChangeCursor ?? -1),
+		snapshotWrites: 0,
+		changeWrites: 0,
+	};
+	let statusValue = statusOf("starting", 0, 0, 0, cursorValue);
+	let errorCount = 0;
+	let writes = 0;
+	let running = false;
+	let disposed = false;
+	let disposeRequested = false;
+	let subscribing = true;
+	let observedChangesSinceSnapshot = 0;
+	let latestRecords: readonly AgenticMemoryRecord<TJson>[] = records.cache ?? [];
+	let stop: (() => void) | undefined;
+	const queue: QueueItem[] = [];
+	const ready = graph.state(false, { name: `${name}/ready` });
+	const status = graph.state<AgenticMemoryRecordsPersistenceStatus>(statusValue, {
+		name: `${name}/status`,
+	});
+	const error = graph.state<AgenticMemoryRecordsPersistenceError | null>(null, {
+		name: `${name}/error`,
+	});
+	const cursor = graph.state<AgenticMemoryRecordsPersistenceCursor>(cursorValue, {
+		name: `${name}/cursor`,
+	});
+
+	function publish(state: AgenticMemoryRecordsPersistenceStatus["state"]): void {
+		const nextState = statusValue.state === "errored" && state !== "disposed" ? "errored" : state;
+		statusValue = statusOf(
+			nextState,
+			queue.length + (running ? 1 : 0),
+			writes,
+			errorCount,
+			cursorValue,
+		);
+		cursor.set(cursorValue);
+		status.set(statusValue);
+		if (nextState === "ready") ready.set(true);
+		if (nextState === "errored" || nextState === "disposed") ready.set(false);
+	}
+
+	function report(phase: "snapshot" | "change", caught: unknown): void {
+		errorCount += 1;
+		error.set({ phase, message: errorMessage(caught), cursor: cursorValue });
+	}
+
+	function callDone(done: QueueItem["done"]): void {
+		try {
+			done?.(statusValue);
+		} catch {
+			// Done callbacks are advisory controls and must not wedge the adapter queue.
+		}
+	}
+
+	function finish(item: QueueItem): void {
+		if (item.phase === "dispose") {
+			disposed = true;
+			running = false;
+			publish("disposed");
+		} else if (statusValue.state !== "errored") {
+			running = false;
+			publish("ready");
+		} else {
+			running = false;
+			publish("errored");
+		}
+		callDone(item.done);
+		drain();
+	}
+
+	function fail(item: QueueItem, caught: unknown): void {
+		if (item.phase === "snapshot" || item.phase === "change") report(item.phase, caught);
+		running = false;
+		if (item.phase === "snapshot" || item.phase === "change") publish("errored");
+		callDone(item.done);
+		drain();
+	}
+
+	function chainThenable(item: QueueItem, value: unknown): boolean {
+		if ((typeof value !== "object" && typeof value !== "function") || value === null) return false;
+		const then = (value as { then?: unknown }).then;
+		if (typeof then !== "function") return false;
+		let settled = false;
+		const settle = (next: () => void) => {
+			if (settled) return;
+			settled = true;
+			next();
+		};
+		try {
+			(then as (onFulfilled: () => void, onRejected: (error: unknown) => void) => unknown).call(
+				value,
+				() => settle(() => finish(item)),
+				(caught) => settle(() => fail(item, caught)),
+			);
+		} catch (caught) {
+			settle(() => fail(item, caught));
+		}
+		return true;
+	}
+
+	function enqueue(item: QueueItem): void {
+		if (disposed || (disposeRequested && item.phase !== "dispose" && item.phase !== "flush")) {
+			callDone(item.done);
+			return;
+		}
+		queue.push(item);
+		drain();
+	}
+
+	function drain(): void {
+		if (running) return;
+		const item = queue.shift();
+		if (item === undefined) return;
+		running = true;
+		publish(
+			item.phase === "flush" ? "flushing" : statusValue.state === "starting" ? "starting" : "ready",
+		);
+		let result: void | PromiseLike<void>;
+		try {
+			result = item.run();
+		} catch (caught) {
+			fail(item, caught);
+			return;
+		}
+		if (chainThenable(item, result)) return;
+		finish(item);
+	}
+
+	function enqueueSnapshot(done?: (status: AgenticMemoryRecordsPersistenceStatus) => void): void {
+		const snapshotRecords = latestRecords;
+		observedChangesSinceSnapshot = 0;
+		enqueue({
+			phase: "snapshot",
+			done,
+			run() {
+				const frame = agenticMemoryRecordSnapshotFrame(snapshotRecords, {
+					changeCursor: cursorValue.changeSeq,
+				});
+				return opts.snapshotStore.set(snapshotKey, frame).then(() => {
+					cursorValue = { ...cursorValue, snapshotWrites: cursorValue.snapshotWrites + 1 };
+					writes += 1;
+					publish("ready");
+				});
+			},
+		});
+	}
+
+	function enqueueChange(nextRecords: readonly AgenticMemoryRecord<TJson>[]): void {
+		const changeLog = opts.changeLog;
+		if (changeLog === undefined) return;
+		enqueue({
+			phase: "change",
+			run() {
+				const frame = agenticMemoryRecordChangeFrame(nextRecords);
+				return changeLog.append(frame).then((written) => {
+					const entry = written as AppendLogEntry<AgenticMemoryRecordChangeFrame<TJson>>;
+					cursorValue = {
+						...cursorValue,
+						changeSeq: entry.seq,
+						changeWrites: cursorValue.changeWrites + 1,
+					};
+					writes += 1;
+					publish("ready");
+				});
+			},
+		});
+	}
+
+	function cancelQueuedForDispose(): void {
+		const pending = queue.splice(0);
+		for (const item of pending) callDone(item.done);
+	}
+
+	stop = records.subscribe((msg: Message, delivery?: DeliveryMeta) => {
+		if (disposeRequested) return;
+		const nextRecords = dataOf<readonly AgenticMemoryRecord<TJson>[]>(msg);
+		if (nextRecords === undefined) return;
+		latestRecords = nextRecords;
+		if (subscribing && delivery === undefined) return;
+		observedChangesSinceSnapshot += 1;
+		enqueueChange(nextRecords);
+		if (
+			snapshotEveryChanges !== undefined &&
+			observedChangesSinceSnapshot >= snapshotEveryChanges
+		) {
+			enqueueSnapshot();
+		}
+	});
+	subscribing = false;
+	if (opts.snapshotOnAttach !== false) enqueueSnapshot();
+	else publish("ready");
+
+	return {
+		ready,
+		status,
+		error,
+		cursor,
+		flush(done?: (status: AgenticMemoryRecordsPersistenceStatus) => void): void {
+			if (disposed) {
+				callDone(done);
+				return;
+			}
+			enqueue({ phase: "flush", done, run: () => undefined });
+		},
+		snapshot(done?: (status: AgenticMemoryRecordsPersistenceStatus) => void): void {
+			if (disposed || disposeRequested) {
+				callDone(done);
+				return;
+			}
+			enqueueSnapshot(done);
+		},
+		dispose(done?: (status: AgenticMemoryRecordsPersistenceStatus) => void): void {
+			if (disposed) {
+				callDone(done);
+				return;
+			}
+			disposeRequested = true;
+			stop?.();
+			cancelQueuedForDispose();
+			enqueue({ phase: "dispose", done, run: () => undefined });
+		},
+	};
+}
+
+export function openPersistentAgenticMemoryRecords<
+	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
+>(
+	opts: OpenPersistentAgenticMemoryRecordsOptions<TJson>,
+): Promise<PersistentAgenticMemoryRecords<TJson>> {
+	const storagePrefix = opts.storagePrefix ?? opts.name ?? "agentic-memory";
+	const snapshotKey = opts.snapshotKey ?? agenticMemoryRecordsSnapshotKey(storagePrefix);
+	return loadAgenticMemoryRecordsState<TJson>({ ...opts, snapshotKey, storagePrefix }).then(
+		(loaded) => {
+			const records =
+				loaded.source === "empty" && opts.initial !== undefined ? opts.initial : loaded.records;
+			const node = opts.graph.state<readonly AgenticMemoryRecord<TJson>[]>(records, {
+				name: opts.name,
+			});
+			const persistence = persistAgenticMemoryRecords(opts.graph, node, {
+				...opts,
+				name: opts.name ? `${opts.name}/persistence` : undefined,
+				snapshotKey,
+				storagePrefix,
+				initialChangeCursor: loaded.changes.cursor,
+			});
+			return { records: node, persistence, loaded };
+		},
+	);
+}
+
+function recordFromFrame<TJson extends AgenticMemoryStrictJsonValue>(
+	frame: AgenticMemoryRecordFrame<TJson>,
+): AgenticMemoryRecord<TJson> {
+	return agenticMemoryRecordCodec<TJson>().decode(
+		agenticMemoryRecordFrameCodec<TJson>().encode(frame),
+	);
+}
+
+function statusOf(
+	state: AgenticMemoryRecordsPersistenceStatus["state"],
+	pending: number,
+	writes: number,
+	errors: number,
+	cursor: AgenticMemoryRecordsPersistenceCursor,
+): AgenticMemoryRecordsPersistenceStatus {
+	return { state, pending, writes, errors, cursor };
+}
+
+function dataOf<C>(msg: Message): C | undefined {
+	return msg[0] === "DATA" ? (msg[1] as C) : undefined;
+}
+
+function validateChangeCursor(value: unknown): number {
+	if (typeof value !== "number" || !Number.isSafeInteger(value) || value < -1) {
+		throw new RangeError("changeCursor must be a safe integer >= -1");
+	}
+	return value;
+}
+
+function validateSnapshotEveryChanges(value: number | undefined): number | undefined {
+	if (value === undefined) return undefined;
+	if (!Number.isSafeInteger(value) || value < 1) {
+		throw new RangeError("snapshotEveryChanges must be a positive safe integer");
+	}
+	return value;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function assertKeys(
+	value: Record<string, unknown>,
+	expected: readonly string[],
+	label: string,
+): void {
+	const actual = Object.keys(value).sort();
+	const want = [...expected].sort();
+	if (actual.length !== want.length || actual.some((key, i) => key !== want[i])) {
+		throw new TypeError(`${label}: unexpected frame fields ${actual.join(",")}`);
+	}
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
