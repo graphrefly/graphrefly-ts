@@ -26,7 +26,6 @@
 # Ignored:
 #   - @graphrefly/graphrefly (retired root package, B65)
 #   - @graphrefly/pure-ts (frozen reference / legacy-consumer blocker, B66)
-#   - @graphrefly/cli (private legacy root consumer)
 #   - @graphrefly/parity-tests (private)
 
 name: Release

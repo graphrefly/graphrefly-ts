@@ -14,7 +14,7 @@ GraphReFly is the successor to callbag-recharge. The core reactive model (two-ph
 npm uninstall @callbag-recharge/callbag-recharge
 
 # Install GraphReFly
-npm install @graphrefly/graphrefly
+npm install @graphrefly/ts
 ```
 
 ## Import changes

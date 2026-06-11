@@ -507,19 +507,6 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
-  packages/cli:
-    dependencies:
-      '@graphrefly/graphrefly':
-        specifier: workspace:*
-        version: link:../..
-    devDependencies:
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.5.0)(jsdom@29.0.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
-
   packages/parity-tests:
     dependencies:
       '@graphrefly/native':

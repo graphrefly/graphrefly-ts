@@ -94,14 +94,10 @@ console.log(chain.text);
 
 That's the full teaching. No special "explainability mode", no after-the-fact log mining — the instrumentation is _that_ there is a graph.
 
-## Try it from your terminal — or your agent
+## Try it from your agent
 
-Zero-install via the CLI (ships in [@graphrefly/cli](https://github.com/graphrefly/graphrefly-ts/tree/main/packages/cli)):
-
-```bash
-npx @graphrefly/cli explain spending-alerts.json \
-  --from txFeed --to alertMessage
-```
+The old zero-install `@graphrefly/cli` GraphSpec shell was retired during CSP-9/B66 cleanup.
+Use the `@graphrefly/ts` graph APIs directly while the clean-slate package surface settles.
 
 ## Extending to an agent (and why it still works)
 

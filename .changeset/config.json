@@ -12,12 +12,7 @@
 	"access": "public",
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
-	"ignore": [
-		"@graphrefly/graphrefly",
-		"@graphrefly/pure-ts",
-		"@graphrefly/parity-tests",
-		"@graphrefly/cli"
-	],
+	"ignore": ["@graphrefly/graphrefly", "@graphrefly/pure-ts", "@graphrefly/parity-tests"],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true
 	}

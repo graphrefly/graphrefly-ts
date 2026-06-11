@@ -5,8 +5,7 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			// Resolve pure-ts to source so parity tests don't require a
-			// pre-build. Mirrors the alias pattern in
-			// packages/cli/vitest.config.ts.
+			// pre-build.
 			//
 			// The subpath regex MUST precede the bare alias and is required:
 			// without it, `@graphrefly/pure-ts/extra` falls through to the

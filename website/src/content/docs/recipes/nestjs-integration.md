@@ -12,7 +12,7 @@ This recipe walks through a complete order-flow backend. The full runnable examp
 ## Install
 
 ```bash frame="none"
-npm install @graphrefly/graphrefly @nestjs/common @nestjs/core @nestjs/platform-express reflect-metadata
+npm install @graphrefly/ts @nestjs/common @nestjs/core @nestjs/platform-express reflect-metadata
 # For WebSocket support:
 npm install @nestjs/platform-ws @nestjs/websockets
 ```

@@ -16,7 +16,6 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is th
 | [`@graphrefly/ts`](./packages/ts) | Clean-slate TypeScript implementation: substrate, graph, operators, sources, storage, render, testing, and data structures in one self-contained package. This is the current TS target. |
 | `@graphrefly/graphrefly` | Retired root package name. CSP-9/B65 removed active root implementation ownership; use `@graphrefly/ts` and its D125 subpaths. |
 | [`@graphrefly/pure-ts`](./packages/pure-ts) | Frozen read-only reference for old behavior and edge cases. It remains only because B66 still has live legacy consumers. Do not add new development here. |
-| [`@graphrefly/cli`](./packages/cli) | Stateless command-line shell. Its old GraphSpec-oriented surface remains part of the migration queue. |
 
 ---
 
@@ -192,7 +191,6 @@ Clean-slate TS lives in `packages/ts`. The old root presentation implementation 
 | `packages/ts/src/` | Clean-slate TS package: substrate, graph, operators, sources, storage, render, data structures, testing |
 | `packages/pure-ts/` | Frozen read-only reference and temporary legacy-consumer dependency |
 | `packages/parity-tests/` | Retired old parity-test package; clean-slate parity is behavioral conformance in `~/src/graphrefly/spec/conformance.jsonl` |
-| `packages/cli/` | CLI migration surface |
 | `~/src/graphrefly` | Language-neutral authority: decisions, rules, conformance, formal model, sequencer |
 | `website/` | Astro + Starlight docs site ([graphrefly.dev](https://graphrefly.dev)) |
 

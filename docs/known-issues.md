@@ -12,7 +12,6 @@
 - `examples/basic/state-and-derived/index.ts`
 - `examples/framework/{react,solid,svelte,vue}/src/store.ts`
 - `examples/{harness-refine-hello, inbox-reducer, knowledge-graph, reactive-layout, spending-alerts}/*.ts`
-- `packages/cli/tests/dispatch.test.ts` (not in `pnpm test` path; not blocking)
 - 100+ generated `website/src/content/docs/api/*.md` (auto-regenerated; will heal once symbols are re-added or REGISTRY is migrated)
 - `website/scripts/gen-api-docs.mjs` REGISTRY (218 entries point at the missing symbols)
 
@@ -30,21 +29,15 @@ Path A is the cheaper restore. Punt the decision until after the Rust port settl
 2. Edit root `package.json` `docs:build` script to restore the remaining demos (`knowledge-graph`, `pagerduty-triage`) alongside the already-shipped `compat-matrix` + `reactive-layout`.
 3. Delete this section from `known-issues.md`.
 
-## `@graphrefly/cli` marked private
+## RESOLVED — `@graphrefly/cli` retired during CSP-9/B66
 
-**Symptom:** changesets `pnpm release` fails with TypeScript build errors when trying to publish this package — `Property 'explain' does not exist on type 'Graph'`, `Module '"@graphrefly/graphrefly"' has no exported member 'memoryStorage'`, etc.
+**Symptom:** the CLI package depended on the retired root `@graphrefly/graphrefly` facade and old GraphSpec-oriented APIs.
 
-**Cause:** Same root cause as the demos above — the package references removed/renamed APIs (`Graph.explain`, `memoryStorage`, `StorageTier`, `fileStorage`) that drifted during Phase 4+ refactors.
+**Cause:** after B65, there is no active root implementation for the CLI to consume. Migrating the old CLI would require reviving or redesigning `GraphSpec`, `createGraph`, `runReduction`, `SurfaceError`, `Graph.fromSnapshot`, and `Graph.diff` semantics instead of using existing `@graphrefly/ts` public surfaces.
 
-**Workaround in place:** Package marked `"private": true` in its `package.json`. Changesets respects the flag and skips publishing it. It still builds via `pnpm build` for local dev (no publish guard there), but `prepublishOnly` is gated behind the privacy flag.
+**Resolution:** CSP-9/B66 removed `packages/cli` from active workspace, lockfile, release, README, and site docs ownership. A future CLI would be a new clean-slate product over existing `@graphrefly/ts` surfaces, not restoration of the old GraphSpec shell.
 
-**Decision deferred to:** same window as the demo migration (post-Rust-port). Restoration:
-1. Migrate `cli/src/dispatch.ts` to current API (Graph methods, current storage symbols).
-2. Remove `"private": true` from `package.json`.
-3. Restore the `NOT YET PUBLISHED — see docs/known-issues.md` text in `description` to the original.
-4. Set up npm trusted-publisher config at `https://www.npmjs.com/package/@graphrefly/cli/access`.
-5. Push a changeset that bumps → next release publishes.
-6. Delete this section from `known-issues.md`.
+Retained as a tombstone only; remove this section when known-issues archival cleanup happens.
 
 ## ✅ RESOLVED — First-consumer P0s (memo:Re Story 6.4) — fixed in `0.47.0`
 

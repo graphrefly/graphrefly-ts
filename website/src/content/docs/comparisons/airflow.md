@@ -24,7 +24,7 @@ Both orchestrate data pipelines with DAG semantics. GraphReFly is lightweight, r
 
 ## The Key Difference
 
-Airflow is a platform — you deploy it, manage it, and build on it. GraphReFly is a library — `npm i @graphrefly/graphrefly` and compose pipelines in your existing TypeScript codebase.
+Airflow is a platform — you deploy it, manage it, and build on it. GraphReFly is a library — `npm i @graphrefly/ts` and compose pipelines in your existing TypeScript codebase.
 
 ```python
 # Airflow (Python)
