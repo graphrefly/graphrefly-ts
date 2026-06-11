@@ -16,6 +16,8 @@ export default defineConfig({
 		"src/patterns/index.ts",
 		"src/render/index.ts",
 		"src/solutions/index.ts",
+		"src/solutions/reactive-layout/index.ts",
+		"src/solutions/reactive-layout/browser/index.ts",
 		"src/sources/browser.ts",
 		"src/sources/index.ts",
 		"src/sources/node.ts",

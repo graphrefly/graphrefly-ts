@@ -55,6 +55,8 @@ import * as orchestration from "../orchestration/index.js";
 import * as patterns from "../patterns/index.js";
 import * as render from "../render/index.js";
 import * as solutions from "../solutions/index.js";
+import * as reactiveLayoutBrowser from "../solutions/reactive-layout/browser/index.js";
+import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
 import * as sourcesBrowser from "../sources/browser.js";
 import * as sources from "../sources/index.js";
 import * as sourcesNode from "../sources/node.js";
@@ -85,6 +87,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./patterns",
 			"./render",
 			"./solutions",
+			"./solutions/reactive-layout",
+			"./solutions/reactive-layout/browser",
 			"./sources",
 			"./sources/browser",
 			"./sources/node",
@@ -218,6 +222,33 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
+		expect(typeof solutions.reactiveLayout).toBe("function");
+		expect(typeof solutions.reactiveBlockLayout).toBe("function");
+		expect(typeof solutions.reactiveFlowLayout).toBe("function");
+		expect(typeof solutions.analyzeAndMeasure).toBe("function");
+		expect(typeof solutions.computeLineBreaks).toBe("function");
+		expect(typeof solutions.layoutNextLine).toBe("function");
+		expect(typeof solutions.carveTextLineSlots).toBe("function");
+		expect(typeof solutions.computeCharPositions).toBe("function");
+		expect(typeof solutions.measureBlock).toBe("function");
+		expect(typeof solutions.measureBlocks).toBe("function");
+		expect(typeof solutions.computeBlockFlow).toBe("function");
+		expect(typeof solutions.computeTotalHeight).toBe("function");
+		expect(typeof solutions.computeFlowLines).toBe("function");
+		expect(typeof solutions.circleIntervalForBand).toBe("function");
+		expect(typeof solutions.rectIntervalForBand).toBe("function");
+		expect(typeof solutions.InjectedMeasureAdapter).toBe("function");
+		expect(typeof solutions.PrecomputedMeasureAdapter).toBe("function");
+		expect(typeof solutions.CellMeasureAdapter).toBe("function");
+		expect(typeof solutions.SvgBoundsAdapter).toBe("function");
+		expect(typeof solutions.ImageSizeAdapter).toBe("function");
+		expect(Object.hasOwn(solutions, "CanvasMeasureAdapter")).toBe(false);
+		expect(typeof reactiveLayoutCore.reactiveLayout).toBe("function");
+		expect(typeof reactiveLayoutCore.reactiveBlockLayout).toBe("function");
+		expect(typeof reactiveLayoutCore.reactiveFlowLayout).toBe("function");
+		expect(typeof reactiveLayoutCore.CellMeasureAdapter).toBe("function");
+		expect(Object.hasOwn(reactiveLayoutCore, "CanvasMeasureAdapter")).toBe(false);
+		expect(typeof reactiveLayoutBrowser.CanvasMeasureAdapter).toBe("function");
 		expect(typeof solutions.agenticMemoryKgProjectionBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordFrame).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordFrameCodec).toBe("function");

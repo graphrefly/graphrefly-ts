@@ -218,6 +218,36 @@
 				"default": "./dist/solutions/index.cjs"
 			}
 		},
+		"./solutions/reactive-layout": {
+			"import": {
+				"types": "./dist/solutions/reactive-layout/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/index.cjs"
+			}
+		},
+		"./solutions/reactive-layout/browser": {
+			"browser": {
+				"import": {
+					"types": "./dist/solutions/reactive-layout/browser/index.d.ts",
+					"default": "./dist/solutions/reactive-layout/browser/index.js"
+				},
+				"require": {
+					"types": "./dist/solutions/reactive-layout/browser/index.d.cts",
+					"default": "./dist/solutions/reactive-layout/browser/index.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/solutions/reactive-layout/browser/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/browser/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/browser/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/browser/index.cjs"
+			}
+		},
 		"./testing": {
 			"import": {
 				"types": "./dist/testing/index.d.ts",
