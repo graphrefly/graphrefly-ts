@@ -2,7 +2,7 @@
 
 **The reactive graph your code, your agents, and your humans share as a blueprint.** Compose in code, review the projected spec, co-edit across agents without colliding, trace every decision.
 
-GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is the source of truth: build a graph, inspect its live topology with `describe()`, observe value flow with `observe()`, and persist or restore explicit checkpoint data when you need lifecycle durability. Multi-agent and presentation-layer surfaces are being migrated onto the clean-slate TypeScript package; the protocol authority lives in `~/src/graphrefly`.
+GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is the source of truth: build a graph, inspect its live structure with `topology()`, inspect runtime detail with `describe()`, observe message flow with `observe()`, and persist or restore explicit checkpoint data when you need lifecycle durability. Multi-agent and presentation-layer surfaces are being migrated onto the clean-slate TypeScript package; the protocol authority lives in `~/src/graphrefly`.
 
 [![npm](https://img.shields.io/npm/v/@graphrefly/ts?color=blue)](https://www.npmjs.com/package/@graphrefly/ts)
 [![license](https://img.shields.io/github/license/graphrefly/graphrefly-ts)](./LICENSE)
@@ -53,7 +53,7 @@ count.set(3);
 
 ## How it works
 
-Code is the source of truth. In `@graphrefly/ts`, you compose a graph using the eight clean-slate verbs (`node`, `graph`, `batch`, `state`, `producer`, `derived`, `effect`, `mount`) plus operator factories. `graph.describe()` returns a live, JSON-serializable topology snapshot; `graph.observe()` is read-only message egress; `graph.profile()` is opt-in and dispatcher-backed.
+Code is the source of truth. In `@graphrefly/ts`, you compose a graph using the eight clean-slate verbs (`node`, `graph`, `batch`, `state`, `producer`, `derived`, `effect`, `mount`) plus operator factories. `graph.topology()` returns a live, JSON-serializable pure-structure snapshot; `graph.describe()` returns the richer developer inspection snapshot; `graph.observe()` is read-only message egress; `graph.profile()` is opt-in and dispatcher-backed.
 
 The graph core is synchronous. Async work lives at source, pool, storage, or wire-bridge boundaries; user functions route through the dispatcher; DATA moves through messages, not hidden cache peeks.
 
@@ -145,6 +145,7 @@ const tax = g.derived([price], (p) => p * 0.1, { name: "tax" });
 g.derived([price, tax], (p, t) => p + t, { name: "total" });
 
 const snapshot = g.describe();
+const topology = g.topology();
 const mmd = describeToMermaid(snapshot);
 const off = g.observe().subscribe((event) => console.log(event));
 ```

@@ -43,7 +43,14 @@ import {
 	type GraphCheckpointNode,
 	toCheckpointJson,
 } from "./checkpoint.js";
-import type { DescribeEdge, DescribeNode, DescribeOpts, DescribeSnapshot } from "./describe.js";
+import {
+	type DescribeEdge,
+	type DescribeNode,
+	type DescribeOpts,
+	type DescribeSnapshot,
+	type GraphTopologySnapshot,
+	topologyFromDescribe,
+} from "./describe.js";
 import { EnvironmentDrivers } from "./environment.js";
 import type {
 	NodeProfile,
@@ -714,6 +721,14 @@ export class Graph {
 			snap.subgraphs = this._mounts.map((m) => m.graph.describe({}, `${_prefix}${m.at}::`));
 		}
 		return opts.explain ? explainSubset(snap, opts.explain) : snap;
+	}
+
+	/**
+	 * D173 pure-structure topology snapshot over the same live truth source as describe().
+	 * Runtime status/value/version remain on describe(); blueprint metadata is a later envelope.
+	 */
+	topology(): GraphTopologySnapshot {
+		return topologyFromDescribe(this.describe());
 	}
 
 	private _observeTargets(path?: string): Array<[string, Node<unknown>]> {

@@ -5,6 +5,7 @@ import { releaseGraphNodes } from "../graph/graph.js";
 import type {
 	Ctx,
 	GraphRestoreDescriptor,
+	GraphTopologySnapshot,
 	Message,
 	RestoreGraphOptions,
 	TopologyEvent,
@@ -164,6 +165,88 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 
 		const snap = parent.describe();
 		expect(snap.subgraphs?.[0].nodes.some((n) => n.id === "sub::leaf")).toBe(true);
+	});
+});
+
+describe("Graph.topology — pure structure snapshot (D173)", () => {
+	it("projects describe's live truth source without runtime status/value/version", () => {
+		const g = graph({ name: "demo" });
+		const count = g.state(0, { name: "count", meta: { role: { kind: "input" } } });
+		const doubled = g.derived([count], (n) => n * 2, { name: "doubled" });
+		collect(doubled);
+		count.set(5);
+
+		const topology: GraphTopologySnapshot = g.topology();
+		expect(topology.name).toBe("demo");
+		const byId = Object.fromEntries(topology.nodes.map((n) => [n.id, n]));
+		expect(byId.count).toEqual({
+			id: "count",
+			name: "count",
+			factory: "state",
+			deps: [],
+			meta: { role: { kind: "input" } },
+		});
+		((byId.count.meta as Record<string, unknown>).role as { kind: string }).kind = "changed";
+		expect(g.topology().nodes.find((node) => node.id === "count")?.meta).toEqual({
+			role: { kind: "input" },
+		});
+		expect(byId.doubled).toEqual({
+			id: "doubled",
+			name: "doubled",
+			factory: "derived",
+			deps: ["count"],
+		});
+		expect("status" in byId.count).toBe(false);
+		expect("value" in byId.count).toBe(false);
+		expect("version" in byId.count).toBe(false);
+		expect(topology.edges).toContainEqual({ from: "count", to: "doubled" });
+	});
+
+	it("reflects current live deps after rewire, matching D51 describe truthfulness", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const b = g.state(2, { name: "b" });
+		const d = g.node([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]), { name: "d" });
+
+		d.replaceDeps([b], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+
+		const topology = g.topology();
+		expect(topology.nodes.find((node) => node.id === "d")?.deps).toEqual(["b"]);
+		expect(topology.edges).toContainEqual({ from: "b", to: "d" });
+		expect(topology.edges).not.toContainEqual({ from: "a", to: "d" });
+	});
+
+	it("recursively projects mounted subgraphs without describe-only runtime fields", () => {
+		const parent = graph({ name: "parent" });
+		const child = graph({ name: "child" });
+		child.state(1, { name: "leaf" });
+		parent.mount(child, { at: "sub" });
+
+		const topology = parent.topology();
+		const leaf = topology.subgraphs?.[0]?.nodes.find((node) => node.id === "sub::leaf");
+		expect(leaf).toEqual({
+			id: "sub::leaf",
+			name: "leaf",
+			factory: "state",
+			deps: [],
+		});
+		expect(leaf && "status" in leaf).toBe(false);
+	});
+
+	it("rejects non-JSON-compatible metadata instead of aliasing host objects", () => {
+		const g = graph();
+		g.state(0, { name: "bad", meta: { tags: new Set(["a"]) } });
+
+		expect(() => g.topology()).toThrow(/meta must be plain JSON-compatible data/);
+	});
+
+	it("rejects sparse metadata arrays instead of normalizing holes", () => {
+		const g = graph();
+		const xs = new Array<string>(2);
+		xs[1] = "x";
+		g.state(0, { name: "bad", meta: { xs } });
+
+		expect(() => g.topology()).toThrow(/meta arrays must be dense JSON-compatible data/);
 	});
 });
 

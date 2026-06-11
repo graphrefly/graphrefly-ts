@@ -171,6 +171,9 @@ export type {
 	DescribeNode,
 	DescribeOpts,
 	DescribeSnapshot,
+	GraphTopologyEdge,
+	GraphTopologyNode,
+	GraphTopologySnapshot,
 } from "./graph/describe.js";
 export {
 	type CausalChain,
