@@ -5,4 +5,12 @@
  * classify and re-derive them onto lower D125 layers.
  */
 
-export {};
+export {
+	type AgenticMemoryBundle,
+	type AgenticMemoryBundleOptions,
+	type AgenticMemoryContext,
+	type AgenticMemoryContextEntry,
+	type AgenticMemoryContextState,
+	type AgenticMemorySourceProjection,
+	agenticMemoryBundle,
+} from "./agentic-memory.js";

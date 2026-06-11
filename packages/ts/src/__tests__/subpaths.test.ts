@@ -15,6 +15,7 @@ import type {
 import * as dataStructures from "../data-structures/index.js";
 import * as graphLayer from "../graph/index.js";
 import type {
+	AgenticMemoryBundleOptions,
 	CapacityPolicy,
 	GraphCheckpoint,
 	OrderedCapacityPolicy,
@@ -200,13 +201,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.processEffectRunner).toBe("function");
 		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryBundle).toBe("function");
 		expect(typeof graphLayer.workerDerived).toBe("function");
 		expect(Object.hasOwn(patterns, "guardedExecution")).toBe(false);
 		expect(Object.hasOwn(patterns, "inspect")).toBe(false);
 		expect(Object.hasOwn(patterns, "resilientPipeline")).toBe(false);
 		expect(Object.hasOwn(patterns, "openPersistentReactiveMap")).toBe(false);
 		expect(Object.hasOwn(patterns, "persistReactiveCollection")).toBe(false);
-		expect(Object.keys(solutions)).toEqual([]);
+		expect(Object.hasOwn(solutions, "persistReactiveCollection")).toBe(false);
+		expect(Object.hasOwn(solutions, "openPersistentReactiveMap")).toBe(false);
+		expect(Object.hasOwn(solutions, "Graph")).toBe(false);
 	});
 
 	it("exports node-only sources as a package subpath without polluting universal sources", () => {
@@ -337,5 +341,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<GraphCheckpoint>()
 			.toHaveProperty("version")
 			.toEqualTypeOf<"graphrefly.checkpoint.v1">();
+		expectTypeOf<AgenticMemoryBundleOptions>()
+			.toHaveProperty("name")
+			.toEqualTypeOf<string | undefined>();
 	});
 });

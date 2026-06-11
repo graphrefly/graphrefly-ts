@@ -389,6 +389,15 @@ export {
 } from "./node/versioning.js";
 export * from "./protocol/messages.js";
 export {
+	type AgenticMemoryBundle,
+	type AgenticMemoryBundleOptions,
+	type AgenticMemoryContext,
+	type AgenticMemoryContextEntry,
+	type AgenticMemoryContextState,
+	type AgenticMemorySourceProjection,
+	agenticMemoryBundle,
+} from "./solutions/index.js";
+export {
 	APPEND_LOG_SEQ_PAD,
 	type AppendLogEntry,
 	type AppendLogPage,
