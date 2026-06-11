@@ -9,7 +9,11 @@
 
 import { depBatch, depLatest } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
-import { type Codec, strictJsonCodec } from "../json/codec.js";
+import {
+	type Codec,
+	type StrictJsonValue as SharedStrictJsonValue,
+	strictJsonCodec,
+} from "../json/codec.js";
 import type { Node } from "../node/node.js";
 import {
 	type FactId,
@@ -31,13 +35,9 @@ import {
 	memoryRetrievalBundle,
 } from "../patterns/semantic-memory-graph.js";
 
-type StrictJsonScalar = null | boolean | number | string;
-export type AgenticMemoryStrictJsonValue =
-	| StrictJsonScalar
-	| readonly AgenticMemoryStrictJsonValue[]
-	| { readonly [key: string]: AgenticMemoryStrictJsonValue };
+export type AgenticMemoryStrictJsonValue = SharedStrictJsonValue;
 
-type StrictJsonValue = AgenticMemoryStrictJsonValue;
+type StrictJsonValue = SharedStrictJsonValue;
 
 export type {
 	KnowledgeAssertion,

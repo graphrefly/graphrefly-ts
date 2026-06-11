@@ -16,6 +16,8 @@ import {
 	appendLogStorage,
 	assertDecimalIntegerString,
 	assertNonNegativeDecimalIntegerString,
+	assertStrictJsonObject,
+	assertStrictJsonValue,
 	assertWalFrame,
 	bigIntToDecimalString,
 	bigIntToNonNegativeDecimalString,
@@ -52,6 +54,8 @@ import {
 	requireStoragePutIfAbsent,
 	requireStorageVersioned,
 	restoreGraph,
+	type StrictJsonObject,
+	type StrictJsonValue,
 	stableJsonString,
 	strictCanonicalJsonBytes,
 	strictJsonCodec,
@@ -569,6 +573,16 @@ describe("D82 storage substrate helpers", () => {
 		);
 		expect(() => strictCanonicalJsonBytes({ nested: undefined })).toThrow(/not JSON-encodable/);
 		expect(() => strictCanonicalJsonBytes("\uD800")).toThrow(/unpaired surrogate/);
+	});
+
+	it("strict JSON assert helpers share the public JSON vocabulary", () => {
+		const value: StrictJsonValue = assertStrictJsonValue({ b: 2, a: [true, null] });
+		const object: StrictJsonObject = assertStrictJsonObject({ b: 2, a: 1 });
+
+		expect(value).toEqual({ a: [true, null], b: 2 });
+		expect(object).toEqual({ a: 1, b: 2 });
+		expect(() => assertStrictJsonValue({ nested: undefined })).toThrow(/strict JSON compatible/);
+		expect(() => assertStrictJsonObject(["not", "object"])).toThrow(/strict JSON object/);
 	});
 
 	it("strictJsonCodec rejects non-canonical key order and whitespace bytes", () => {
@@ -2243,6 +2257,8 @@ describe("D82 storage substrate helpers", () => {
 			expect(exports.nonNegativeDecimalStringToBigInt).toBe(nonNegativeDecimalStringToBigInt);
 			expect(exports.strictJsonCodec).toBe(strictJsonCodec);
 			expect(exports.strictJsonCodecFor).toBe(strictJsonCodecFor);
+			expect(exports.assertStrictJsonValue).toBe(assertStrictJsonValue);
+			expect(exports.assertStrictJsonObject).toBe(assertStrictJsonObject);
 			if (exports === rootExports) {
 				expect(Reflect.get(exports, "strictCanonicalJsonBytes")).toBe(strictCanonicalJsonBytes);
 			} else {

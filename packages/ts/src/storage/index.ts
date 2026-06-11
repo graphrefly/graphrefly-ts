@@ -40,9 +40,14 @@ export {
 	type StorageTimestampNs,
 } from "./change.js";
 export {
+	assertStrictJsonObject,
+	assertStrictJsonValue,
 	type Codec,
 	jsonCodec,
 	jsonCodecFor,
+	type StrictJsonObject,
+	type StrictJsonScalar,
+	type StrictJsonValue,
 	stableJsonString,
 	strictJsonCodec,
 	strictJsonCodecFor,

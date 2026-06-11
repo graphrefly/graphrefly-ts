@@ -4,29 +4,40 @@ import { depLatest } from "../ctx/types.js";
 import { releaseGraphNodes } from "../graph/graph.js";
 import type {
 	Ctx,
+	GraphBlueprintJson,
+	GraphCheckpointJson,
 	GraphRestoreDescriptor,
 	GraphTopologySnapshot,
 	Message,
 	RestoreGraphOptions,
+	StrictJsonValue,
 	TopologyEvent,
 } from "../index.js";
 import {
+	canonicalTopologyBytes,
+	canonicalTopologyJson,
 	Dispatcher,
 	defaultRestoreRegistry,
 	define,
+	GRAPH_BLUEPRINT_VERSION,
 	GRAPH_CHECKPOINT_VERSION,
 	graph,
+	graphBlueprintDiagnostics,
 	map,
 	Node,
+	normalizeTopology,
 	reactiveIndex,
 	reactiveList,
 	reactiveLog,
 	reactiveMap,
 	restoreGraph,
 	restoreRegistry,
+	strictCanonicalJsonBytes,
 	strictJsonCodec,
 	take,
 	timer,
+	withBlueprintHash,
+	withBlueprintProvenance,
 } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
@@ -235,18 +246,234 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 
 	it("rejects non-JSON-compatible metadata instead of aliasing host objects", () => {
 		const g = graph();
-		g.state(0, { name: "bad", meta: { tags: new Set(["a"]) } });
 
-		expect(() => g.topology()).toThrow(/meta must be plain JSON-compatible data/);
+		expect(() => g.state(0, { name: "bad", meta: { tags: new Set(["a"]) } })).toThrow(
+			/graph node 'bad' meta: graph meta must be strict JSON-compatible data/,
+		);
 	});
 
 	it("rejects sparse metadata arrays instead of normalizing holes", () => {
 		const g = graph();
 		const xs = new Array<string>(2);
 		xs[1] = "x";
-		g.state(0, { name: "bad", meta: { xs } });
 
-		expect(() => g.topology()).toThrow(/meta arrays must be dense JSON-compatible data/);
+		expect(() => g.state(0, { name: "bad", meta: { xs } })).toThrow(/sparse array hole/);
+		expect(() =>
+			g.node([], () => undefined, { name: "badFn", meta: { f: () => undefined } }),
+		).toThrow(/graph node 'badFn' meta: graph meta must be strict JSON-compatible data/);
+	});
+});
+
+describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
+	it("returns a versioned normalized topology envelope without describe runtime fields", () => {
+		const parent = graph({ name: "parent" });
+		const count = parent.state(0, { name: "count", meta: { role: "input" } });
+		const doubled = parent.derived([count], (n) => n * 2, { name: "doubled" });
+		const child = graph({ name: "child" });
+		child.state(1, { name: "leaf" });
+		parent.mount(child, { at: "sub" });
+		collect(doubled);
+		count.set(5);
+
+		const blueprint = parent.blueprint();
+		expect(blueprint.version).toBe(GRAPH_BLUEPRINT_VERSION);
+		expect(blueprint.diagnostics).toBeUndefined();
+		expect(blueprint.topology.nodes.map((node) => node.id)).toEqual(["count", "doubled"]);
+		const countNode = blueprint.topology.nodes.find((node) => node.id === "count");
+		expect(countNode).toEqual({
+			id: "count",
+			name: "count",
+			factory: "state",
+			deps: [],
+			meta: { role: "input" },
+		});
+		expect(countNode && "status" in countNode).toBe(false);
+		expect(countNode && "value" in countNode).toBe(false);
+		expect(countNode && "version" in countNode).toBe(false);
+		const leaf = blueprint.topology.subgraphs?.[0]?.nodes.find((node) => node.id === "sub::leaf");
+		expect(leaf).toEqual({
+			id: "sub::leaf",
+			name: "leaf",
+			factory: "state",
+			deps: [],
+		});
+		expect(leaf && "status" in leaf).toBe(false);
+		expect(leaf && "value" in leaf).toBe(false);
+	});
+
+	it("canonicalizes topology ordering independently of registration order", () => {
+		const left = graph();
+		const leftB = left.state(2, { name: "b" });
+		const leftA = left.state(1, { name: "a" });
+		left.derived([leftB, leftA], (b, a) => a + b, { name: "sum" });
+
+		const right = graph();
+		const rightA = right.state(1, { name: "a" });
+		const rightB = right.state(2, { name: "b" });
+		right.derived([rightB, rightA], (b, a) => a + b, { name: "sum" });
+
+		expect(left.blueprint().topology.nodes.map((node) => node.id)).toEqual(["a", "b", "sum"]);
+		expect(left.blueprint().topology.edges).toEqual([
+			{ from: "a", to: "sum" },
+			{ from: "b", to: "sum" },
+		]);
+		expect(canonicalTopologyJson(left.topology())).toBe(canonicalTopologyJson(right.topology()));
+		expect(canonicalTopologyJson(left.blueprint().topology)).toBe(
+			canonicalTopologyJson(right.blueprint().topology),
+		);
+	});
+
+	it("exposes canonical topology bytes for cross-language hash input", () => {
+		const g = graph();
+		const b = g.state(2, { name: "b" });
+		const a = g.state(1, { name: "a" });
+		g.derived([b, a], (right, left) => left + right, { name: "sum" });
+
+		const bytes = canonicalTopologyBytes(g.topology());
+
+		expect(bytes).toEqual(strictCanonicalJsonBytes(g.blueprint().topology));
+		expect(decodeTestJsonBytes(bytes)).toBe(canonicalTopologyJson(g.topology()));
+	});
+
+	it("adds helper-only topology hash metadata without hashing provenance", async () => {
+		const g = graph();
+		const count = g.state(1, { name: "count" });
+		g.derived([count], (n) => n + 1, { name: "next" });
+
+		const base = g.blueprint();
+		const withFirstProvenance = withBlueprintProvenance(base, {
+			source: "unit-test",
+			env: { b: 2, a: 1 },
+		});
+		const withSecondProvenance = withBlueprintProvenance(base, { source: "other" });
+		const first = await withBlueprintHash(withFirstProvenance, {
+			algorithm: "test-hash",
+			hash: testHash,
+		});
+		const second = await withBlueprintHash(withSecondProvenance, {
+			algorithm: "test-hash",
+			hash: testHash,
+		});
+
+		expect(withFirstProvenance.provenance).toEqual({
+			env: { a: 1, b: 2 },
+			source: "unit-test",
+		});
+		expect(first.hash).toEqual({
+			kind: "topology",
+			algorithm: "test-hash",
+			input: "strictCanonicalTopologyBytes",
+			value: `h:${canonicalTopologyJson(base.topology)}`,
+		});
+		expect(second.hash?.value).toBe(first.hash?.value);
+		expect(Reflect.get(base, "hash")).toBeUndefined();
+	});
+
+	it("rejects malformed helper hash metadata", () => {
+		const g = graph();
+		g.state(1, { name: "count" });
+		const base = g.blueprint();
+
+		expect(() => withBlueprintHash(base, { algorithm: "", hash: testHash })).toThrow(
+			/algorithm must be a non-empty string/,
+		);
+		expect(() =>
+			withBlueprintHash(base, {
+				algorithm: "bad",
+				hash: () => null as unknown as string,
+			}),
+		).toThrow(/hash value must be a non-empty string/);
+		expect(() =>
+			withBlueprintHash(base, {
+				algorithm: "bad",
+				hash: () => "",
+			}),
+		).toThrow(/hash value must be a non-empty string/);
+	});
+
+	it("keeps graph blueprint JSON aliases on the shared strict JSON vocabulary", () => {
+		expectTypeOf<GraphBlueprintJson>().toEqualTypeOf<StrictJsonValue>();
+		expectTypeOf<GraphCheckpointJson>().toEqualTypeOf<StrictJsonValue>();
+	});
+
+	it("adds only caller-supplied provenance and optional graph-local diagnostics", () => {
+		const g = graph();
+		g.state(0, { name: "island" });
+
+		const blueprint = g.blueprint({
+			diagnostics: true,
+			provenance: { source: "unit-test", nested: { b: 2, a: 1 } },
+		});
+
+		expect(blueprint.provenance).toEqual({ nested: { a: 1, b: 2 }, source: "unit-test" });
+		expect(blueprint.diagnostics).toEqual({
+			ok: true,
+			issues: [
+				{
+					severity: "warning",
+					code: "island-node",
+					nodeId: "island",
+					message: "node 'island' has no deps and no dependents",
+				},
+			],
+		});
+		expect(Reflect.get(blueprint, "hash")).toBeUndefined();
+	});
+
+	it("reports dangling deps and duplicate ids for topology helper callers", () => {
+		const diagnostics = graphBlueprintDiagnostics(
+			normalizeTopology({
+				nodes: [
+					{ id: "a", factory: "state", deps: [] },
+					{ id: "a", factory: "state", deps: [] },
+					{ id: "b", factory: "derived", deps: ["missing"] },
+				],
+				edges: [],
+			}),
+		);
+
+		expect(diagnostics.ok).toBe(false);
+		expect(diagnostics.issues.map((issue) => issue.code)).toEqual([
+			"dangling-dep",
+			"duplicate-node-id",
+			"island-node",
+			"island-node",
+		]);
+	});
+
+	it("rejects malformed topology helper input before canonicalization", () => {
+		const sparseNodes = new Array<{ id: string; factory: string; deps: string[] }>(1);
+		expect(() => normalizeTopology({ nodes: sparseNodes, edges: [] })).toThrow(/sparse array hole/);
+
+		const sparseDeps = new Array<string>(1);
+		expect(() =>
+			normalizeTopology({ nodes: [{ id: "bad", factory: "node", deps: sparseDeps }], edges: [] }),
+		).toThrow(/sparse array hole/);
+		expect(() =>
+			normalizeTopology({
+				nodes: [
+					{ id: 1, factory: "node", deps: [] } as unknown as GraphTopologySnapshot["nodes"][0],
+				],
+				edges: [],
+			}),
+		).toThrow(/nodes\[0\]\.id must be a string/);
+		expect(() =>
+			normalizeTopology({
+				nodes: [{ id: "bad", factory: "node", deps: [1] as unknown as string[] }],
+				edges: [],
+			}),
+		).toThrow(/deps\[0\] must be a string/);
+		expect(() =>
+			normalizeTopology({
+				name: 1 as unknown as string,
+				nodes: [],
+				edges: [],
+			}),
+		).toThrow(/name must be a string/);
+
+		const cyclic: GraphTopologySnapshot = { nodes: [], edges: [] };
+		cyclic.subgraphs = [cyclic];
+		expect(() => normalizeTopology(cyclic)).toThrow(/circular subgraph reference/);
 	});
 });
 
@@ -733,14 +960,10 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(byId.failed.terminal).toEqual({ kind: "ERROR", error: "boom" });
 	});
 
-	it("fails honestly for non-strict-JSON cache, meta, ctx.state, and terminal payloads", () => {
+	it("fails honestly for non-strict-JSON cache, ctx.state, and terminal payloads", () => {
 		const badCache = graph();
 		badCache.state(1n, { name: "big" });
 		expect(() => badCache.checkpoint()).toThrow(/strict JSON compatible/);
-
-		const badMeta = graph();
-		badMeta.state(1, { name: "meta", meta: { f: () => undefined } });
-		expect(() => badMeta.checkpoint()).toThrow(/strict JSON compatible/);
 
 		const badString = graph();
 		badString.state("\ud800", { name: "surrogate" });

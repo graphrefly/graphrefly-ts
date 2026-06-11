@@ -2,6 +2,27 @@ export * from "../composition/index.js";
 export * from "../data-structures/index.js";
 export * from "../render/index.js";
 export {
+	canonicalTopologyBytes,
+	canonicalTopologyJson,
+	GRAPH_BLUEPRINT_VERSION,
+	type GraphBlueprint,
+	type GraphBlueprintDiagnosticCode,
+	type GraphBlueprintDiagnosticIssue,
+	type GraphBlueprintDiagnostics,
+	type GraphBlueprintHash,
+	type GraphBlueprintHashInput,
+	type GraphBlueprintHashOptions,
+	type GraphBlueprintJson,
+	type GraphBlueprintOptions,
+	type GraphBlueprintProvenance,
+	graphBlueprintDiagnostics,
+	type NormalizedGraphTopologyNode,
+	type NormalizedGraphTopologySnapshot,
+	normalizeTopology,
+	withBlueprintHash,
+	withBlueprintProvenance,
+} from "./blueprint.js";
+export {
 	type CascadingCacheEvent,
 	type CascadingCachePolicy,
 	type CascadingCacheStatus,

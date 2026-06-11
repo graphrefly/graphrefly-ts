@@ -117,6 +117,24 @@ export type WebSocketSessionLifecycle =
 	  }
 	| { readonly kind: "exhausted"; readonly attempt: number; readonly error: unknown };
 
+/** D175 graph-visible outbound disposition for a WebSocket SessionBundle send. */
+export type WebSocketSessionOutbound =
+	| { readonly kind: "queued"; readonly seq: number; readonly message: WebSocketSend }
+	| { readonly kind: "sending"; readonly seq: number; readonly message: WebSocketSend }
+	| { readonly kind: "sent"; readonly seq: number; readonly message: WebSocketSend }
+	| {
+			readonly kind: "rejected";
+			readonly seq: number;
+			readonly message: WebSocketSend;
+			readonly error: unknown;
+	  }
+	| {
+			readonly kind: "canceled";
+			readonly seq: number;
+			readonly message: WebSocketSend;
+			readonly reason: unknown;
+	  };
+
 /** Current graph-visible WebSocket session status projection. */
 export interface WebSocketSessionStatus {
 	readonly state:
@@ -141,6 +159,7 @@ export interface WebSocketSessionBundle {
 	readonly command: Node<WebSocketSessionCommand>;
 	readonly inbound: Node<WebSocketSessionInbound>;
 	readonly lifecycle: Node<WebSocketSessionLifecycle>;
+	readonly outbound: Node<WebSocketSessionOutbound>;
 	readonly status: Node<WebSocketSessionStatus>;
 	readonly errors: Node<unknown>;
 	readonly attempts: Node<number>;
@@ -149,10 +168,15 @@ export interface WebSocketSessionBundle {
 	close(code?: number, reason?: string): void;
 }
 
+export type WebSocketSessionSendPolicy =
+	| { readonly kind?: "reject" }
+	| { readonly kind: "buffer"; readonly maxPending: number };
+
 /** Options for the D133 WebSocket SessionBundle; retry is bounded unless configured otherwise. */
 export interface WebSocketSessionOptions {
 	readonly name?: string;
 	readonly retry?: RetryPolicy;
+	readonly sendPolicy?: WebSocketSessionSendPolicy;
 }
 
 type WebSocketSessionEvent =
@@ -169,6 +193,7 @@ type WebSocketSessionEvent =
 			readonly delayMs: number;
 			readonly error: unknown;
 	  }
+	| { readonly kind: "outbound"; readonly fact: WebSocketSessionOutbound }
 	| { readonly kind: "error"; readonly error: unknown; readonly attempt?: number }
 	| { readonly kind: "exhausted"; readonly attempt: number; readonly error: unknown };
 
@@ -321,9 +346,16 @@ interface WebSocketSessionState {
 	currentAttempt: number;
 	currentSession: WebSocketSessionHandle | undefined;
 	sendCancels: Map<number, DriverCancel>;
-	liveSends: Set<number>;
+	liveSends: Map<number, PendingWebSocketOutbound>;
+	pendingOutbound: PendingWebSocketOutbound[];
 	timers: Map<number, ReturnType<typeof setTimeout>>;
 	seq: number;
+	outboundSeq: number;
+}
+
+interface PendingWebSocketOutbound {
+	readonly seq: number;
+	readonly message: WebSocketSend;
 }
 
 function initWebSocketSessionState(ctx: Ctx): WebSocketSessionState {
@@ -336,9 +368,11 @@ function initWebSocketSessionState(ctx: Ctx): WebSocketSessionState {
 			currentAttempt: 0,
 			currentSession: undefined,
 			sendCancels: new Map(),
-			liveSends: new Set(),
+			liveSends: new Map(),
+			pendingOutbound: [],
 			timers: new Map(),
 			seq: 0,
+			outboundSeq: 0,
 		};
 		ctx.state.set(state);
 	}
@@ -346,32 +380,48 @@ function initWebSocketSessionState(ctx: Ctx): WebSocketSessionState {
 	if (!state.cleanupInstalled) {
 		state.cleanupInstalled = true;
 		ctx.onDeactivation(() => {
+			const sendCancels = [...state.sendCancels.values()];
+			const timers = [...state.timers.values()];
+			const session = state.currentSession;
 			state.active = false;
 			state.cleanupInstalled = false;
 			state.connected = false;
 			state.currentAttempt = 0;
-			state.currentSession?.cancel();
 			state.currentSession = undefined;
-			for (const cancel of state.sendCancels.values()) runCancel(cancel);
-			for (const timer of state.timers.values()) clearTimeout(timer);
 			state.sendCancels.clear();
 			state.liveSends.clear();
+			state.pendingOutbound = [];
 			state.timers.clear();
+			for (const cancel of sendCancels) runCancel(cancel);
+			for (const timer of timers) clearTimeout(timer);
+			session?.cancel();
 		});
 	}
 	return state;
 }
 
-function closeWebSocketSessionState(state: WebSocketSessionState): void {
+function closeWebSocketSessionState(
+	state: WebSocketSessionState,
+	driverAction: "cancel" | "none" = "cancel",
+): {
+	readonly canceled: PendingWebSocketOutbound[];
+	readonly session: WebSocketSessionHandle | undefined;
+} {
+	const session = state.currentSession;
+	const timers = [...state.timers.values()];
+	const sendCancels = [...state.sendCancels.values()];
+	const canceled = [...state.pendingOutbound, ...state.liveSends.values()];
 	state.connected = false;
 	state.currentAttempt = 0;
-	state.currentSession?.cancel();
 	state.currentSession = undefined;
-	for (const timer of state.timers.values()) clearTimeout(timer);
 	state.timers.clear();
-	for (const cancelSend of state.sendCancels.values()) runCancel(cancelSend);
 	state.sendCancels.clear();
+	state.pendingOutbound = [];
 	state.liveSends.clear();
+	for (const timer of timers) clearTimeout(timer);
+	for (const cancelSend of sendCancels) runCancel(cancelSend);
+	if (driverAction === "cancel") session?.cancel();
+	return { canceled, session };
 }
 
 function cancelRetryTimers(state: WebSocketSessionState): void {
@@ -379,11 +429,31 @@ function cancelRetryTimers(state: WebSocketSessionState): void {
 	state.timers.clear();
 }
 
-function cleanupWebSocketConnection(state: WebSocketSessionState): void {
+function cleanupWebSocketConnection(
+	state: WebSocketSessionState,
+	driverAction: "cancel" | "none" = "cancel",
+): PendingWebSocketOutbound[] {
+	const session = state.currentSession;
+	const sendCancels = [...state.sendCancels.values()];
+	const canceled = [...state.liveSends.values()];
 	state.connected = false;
 	state.currentAttempt = 0;
-	state.currentSession?.cancel();
 	state.currentSession = undefined;
+	state.sendCancels.clear();
+	state.liveSends.clear();
+	for (const cancelSend of sendCancels) runCancel(cancelSend);
+	if (driverAction === "cancel") session?.cancel();
+	return canceled;
+}
+
+function normalizeWebSocketSessionSendPolicy(
+	policy: WebSocketSessionSendPolicy | undefined,
+): { readonly kind: "reject" } | { readonly kind: "buffer"; readonly maxPending: number } {
+	if (policy?.kind !== "buffer") return { kind: "reject" };
+	if (!Number.isFinite(policy.maxPending) || policy.maxPending < 1) {
+		throw new Error("webSocketSession: buffer sendPolicy requires finite maxPending >= 1");
+	}
+	return { kind: "buffer", maxPending: Math.floor(policy.maxPending) };
 }
 
 function webSocketSessionEventNode(
@@ -392,15 +462,47 @@ function webSocketSessionEventNode(
 	request: WebSocketRequest,
 	name: string,
 	policy: RetryPolicy,
+	sendPolicy: ReturnType<typeof normalizeWebSocketSessionSendPolicy>,
 ): Node<WebSocketSessionEvent> {
 	return graph.node<WebSocketSessionEvent>(
 		[command],
 		(ctx) => {
 			const state = initWebSocketSessionState(ctx);
 
+			const emitOutbound = (fact: WebSocketSessionOutbound) => {
+				ctx.down([["DATA", { kind: "outbound", fact } satisfies WebSocketSessionEvent]]);
+			};
+
+			const emitOutboundCanceled = (
+				items: readonly PendingWebSocketOutbound[],
+				reason: unknown,
+			) => {
+				for (const item of items) {
+					emitOutbound({
+						kind: "canceled",
+						seq: item.seq,
+						message: item.message,
+						reason,
+					});
+				}
+			};
+
+			const emitOutboundRejected = (items: readonly PendingWebSocketOutbound[], error: unknown) => {
+				const payload = errorPayload(error);
+				for (const item of items) {
+					emitOutbound({
+						kind: "rejected",
+						seq: item.seq,
+						message: item.message,
+						error: payload,
+					});
+				}
+			};
+
 			const retryOrExhaust = (attempt: number, error: unknown) => {
 				const payload = errorPayload(error);
-				cleanupWebSocketConnection(state);
+				const canceled = cleanupWebSocketConnection(state);
+				emitOutboundCanceled(canceled, `${name}: connection cleanup`);
 				if (shouldRetry(policy, attempt)) {
 					const nextAttempt = attempt + 1;
 					const delayMs = nextRetryDelayMs(policy, nextAttempt) ?? 0;
@@ -424,6 +526,8 @@ function webSocketSessionEventNode(
 					}, delayMs);
 					state.timers.set(timerId, timer);
 				} else {
+					emitOutboundRejected(state.pendingOutbound, payload);
+					state.pendingOutbound = [];
 					ctx.down([
 						[
 							"DATA",
@@ -468,6 +572,7 @@ function webSocketSessionEventNode(
 							if (ws.kind === "open") {
 								state.connected = true;
 								ctx.down([["DATA", { kind: "open", attempt } satisfies WebSocketSessionEvent]]);
+								flushPending();
 							} else if (ws.kind === "text" || ws.kind === "binary") {
 								ctx.down([
 									[
@@ -480,7 +585,8 @@ function webSocketSessionEventNode(
 								]);
 							} else if (ws.kind === "close") {
 								const normalClose = ws.code === 1000;
-								cleanupWebSocketConnection(state);
+								const canceled = cleanupWebSocketConnection(state);
+								emitOutboundCanceled(canceled, `${name}: session closed`);
 								ctx.down([
 									[
 										"DATA",
@@ -520,8 +626,14 @@ function webSocketSessionEventNode(
 				}
 			};
 
-			const send = (message: WebSocketSend) => {
+			function sendNow(item: PendingWebSocketOutbound): void {
 				if (!state.connected) {
+					emitOutbound({
+						kind: "rejected",
+						seq: item.seq,
+						message: item.message,
+						error: `${name}: session is not open`,
+					});
 					ctx.down([
 						[
 							"DATA",
@@ -535,6 +647,12 @@ function webSocketSessionEventNode(
 				}
 				const session = state.currentSession;
 				if (session === undefined) {
+					emitOutbound({
+						kind: "rejected",
+						seq: item.seq,
+						message: item.message,
+						error: `${name}: missing WebSocket session capability`,
+					});
 					ctx.down([
 						[
 							"DATA",
@@ -547,24 +665,35 @@ function webSocketSessionEventNode(
 					return;
 				}
 				const sendId = state.seq++;
-				state.liveSends.add(sendId);
+				state.liveSends.set(sendId, item);
+				emitOutbound({ kind: "sending", seq: item.seq, message: item.message });
 				let done = false;
 				let cancel: DriverCancel | undefined;
 				try {
-					cancel = session.send(message, (result) => {
+					cancel = session.send(item.message, (result) => {
 						if (done || !state.active || !state.liveSends.has(sendId)) return;
 						done = true;
 						state.liveSends.delete(sendId);
 						state.sendCancels.delete(sendId);
 						if (result.ok) {
-							ctx.down([["DATA", { kind: "sent", message } satisfies WebSocketSessionEvent]]);
+							emitOutbound({ kind: "sent", seq: item.seq, message: item.message });
+							ctx.down([
+								["DATA", { kind: "sent", message: item.message } satisfies WebSocketSessionEvent],
+							]);
 						} else {
+							const payload = errorPayload(result.error);
+							emitOutbound({
+								kind: "rejected",
+								seq: item.seq,
+								message: item.message,
+								error: payload,
+							});
 							ctx.down([
 								[
 									"DATA",
 									{
 										kind: "error",
-										error: errorPayload(result.error),
+										error: payload,
 									} satisfies WebSocketSessionEvent,
 								],
 							]);
@@ -572,14 +701,78 @@ function webSocketSessionEventNode(
 					});
 				} catch (error) {
 					state.liveSends.delete(sendId);
-					ctx.down([
-						["DATA", { kind: "error", error: errorPayload(error) } satisfies WebSocketSessionEvent],
-					]);
+					const payload = errorPayload(error);
+					emitOutbound({
+						kind: "rejected",
+						seq: item.seq,
+						message: item.message,
+						error: payload,
+					});
+					ctx.down([["DATA", { kind: "error", error: payload } satisfies WebSocketSessionEvent]]);
 					return;
 				}
 				if (cancel !== undefined && !done && state.active && state.liveSends.has(sendId)) {
 					state.sendCancels.set(sendId, cancel);
 				} else if (cancel !== undefined && !state.active) runCancel(cancel);
+			}
+
+			function flushPending(): void {
+				const pending = state.pendingOutbound;
+				state.pendingOutbound = [];
+				for (let index = 0; index < pending.length; index++) {
+					const item = pending[index];
+					if (!state.connected || state.currentSession === undefined) {
+						emitOutboundCanceled(pending.slice(index), `${name}: session closed`);
+						return;
+					}
+					sendNow(item);
+				}
+			}
+
+			const send = (message: WebSocketSend) => {
+				const item = { seq: state.outboundSeq++, message } satisfies PendingWebSocketOutbound;
+				if (state.connected) {
+					sendNow(item);
+					return;
+				}
+				if (sendPolicy.kind === "buffer") {
+					if (state.pendingOutbound.length >= sendPolicy.maxPending) {
+						emitOutbound({
+							kind: "rejected",
+							seq: item.seq,
+							message,
+							error: `${name}: outbound buffer full`,
+						});
+						ctx.down([
+							[
+								"DATA",
+								{
+									kind: "error",
+									error: `${name}: outbound buffer full`,
+								} satisfies WebSocketSessionEvent,
+							],
+						]);
+						return;
+					}
+					state.pendingOutbound.push(item);
+					emitOutbound({ kind: "queued", seq: item.seq, message });
+					return;
+				}
+				emitOutbound({
+					kind: "rejected",
+					seq: item.seq,
+					message,
+					error: `${name}: session is not open`,
+				});
+				ctx.down([
+					[
+						"DATA",
+						{
+							kind: "error",
+							error: `${name}: session is not open`,
+						} satisfies WebSocketSessionEvent,
+					],
+				]);
 			};
 
 			for (const raw of depBatch(ctx, 0) ?? []) {
@@ -598,8 +791,9 @@ function webSocketSessionEventNode(
 							} satisfies WebSocketSessionEvent,
 						],
 					]);
-					state.currentSession?.close(commandValue.code, commandValue.reason);
-					closeWebSocketSessionState(state);
+					const { canceled, session } = closeWebSocketSessionState(state, "none");
+					emitOutboundCanceled(canceled, `${name}: session closed`);
+					session?.close(commandValue.code, commandValue.reason);
 					ctx.down([
 						[
 							"DATA",
@@ -675,6 +869,16 @@ function webSocketSessionNodes(
 			}
 		},
 		{ name: `${name}/lifecycle`, factory: "webSocketSessionLifecycle" },
+	);
+	const outbound = graph.node<WebSocketSessionOutbound>(
+		[events],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as WebSocketSessionEvent;
+				if (event.kind === "outbound") ctx.down([["DATA", event.fact]]);
+			}
+		},
+		{ name: `${name}/outbound`, factory: "webSocketSessionOutbound" },
 	);
 	const status = graph.node<WebSocketSessionStatus>(
 		[events],
@@ -762,6 +966,7 @@ function webSocketSessionNodes(
 		command,
 		inbound,
 		lifecycle,
+		outbound,
 		status,
 		errors,
 		attempts,
@@ -796,11 +1001,12 @@ export function webSocketSession(
 ): WebSocketSessionBundle {
 	const name = opts.name ?? "webSocketSession";
 	const policy = opts.retry ?? retryPolicy();
+	const sendPolicy = normalizeWebSocketSessionSendPolicy(opts.sendPolicy);
 	const command = graph.node<WebSocketSessionCommand>([], null, {
 		name: `${name}/command`,
 		factory: "webSocketSessionCommand",
 	});
-	const events = webSocketSessionEventNode(graph, command, request, name, policy);
+	const events = webSocketSessionEventNode(graph, command, request, name, policy, sendPolicy);
 	return webSocketSessionNodes(graph, command, events, name, policy);
 }
 

@@ -33,6 +33,14 @@ import {
 import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
 import {
+	GRAPH_BLUEPRINT_VERSION,
+	type GraphBlueprint,
+	type GraphBlueprintOptions,
+	graphBlueprintDiagnostics,
+	normalizeTopology,
+	normalizeTopologyMeta,
+} from "./blueprint.js";
+import {
 	checkpointBackendStateOfNode,
 	checkpointTerminal,
 	checkpointValue,
@@ -384,13 +392,17 @@ export class Graph {
 		if (this._retiredIds.has(id)) {
 			throw new Error(`graph: node id '${id}' was released and cannot be reused (D152/D153)`);
 		}
+		const meta =
+			opts.meta === undefined
+				? undefined
+				: (normalizeTopologyMeta(opts.meta, `graph node '${id}' meta`) as Record<string, unknown>);
 		this._entries.set(n as Node<unknown>, {
 			node: n as Node<unknown>,
 			id,
 			name: opts.name,
 			factory,
 			deps,
-			meta: opts.meta,
+			meta,
 			restore: opts.restore,
 		});
 		setNodeOwner(n as Node<unknown>, this);
@@ -416,6 +428,9 @@ export class Graph {
 	}
 
 	private _nodeOpts<T>(opts: SugarOpts<T>): NodeOptions<T> {
+		if (opts.meta !== undefined) {
+			normalizeTopologyMeta(opts.meta, `graph node '${opts.name ?? opts.factory ?? "node"}' meta`);
+		}
 		// strip graph-only fields; inject the bound dispatcher
 		const { name: _n, meta: _m, restore: _r, ...rest } = opts;
 		return {
@@ -729,6 +744,30 @@ export class Graph {
 	 */
 	topology(): GraphTopologySnapshot {
 		return topologyFromDescribe(this.describe());
+	}
+
+	/**
+	 * D177 synchronous audit/collaboration envelope over the pure topology snapshot.
+	 * Hashing and environment provenance enrichment stay in pure helpers outside Graph core.
+	 */
+	blueprint(opts: GraphBlueprintOptions = {}): GraphBlueprint {
+		const topology = normalizeTopology(this.topology());
+		const out: GraphBlueprint = {
+			version: GRAPH_BLUEPRINT_VERSION,
+			topology,
+		};
+		if (opts.diagnostics) {
+			(out as { diagnostics?: ReturnType<typeof graphBlueprintDiagnostics> }).diagnostics =
+				graphBlueprintDiagnostics(topology);
+		}
+		if (opts.provenance !== undefined) {
+			(out as { provenance?: GraphBlueprint["provenance"] }).provenance = normalizeTopologyMeta(
+				opts.provenance,
+				"graph blueprint provenance",
+				"provenance",
+			);
+		}
+		return out;
 	}
 
 	private _observeTargets(path?: string): Array<[string, Node<unknown>]> {

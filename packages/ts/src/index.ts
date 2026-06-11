@@ -86,6 +86,27 @@ export {
 	type PoolKind,
 } from "./dispatcher/index.js";
 export {
+	canonicalTopologyBytes,
+	canonicalTopologyJson,
+	GRAPH_BLUEPRINT_VERSION,
+	type GraphBlueprint,
+	type GraphBlueprintDiagnosticCode,
+	type GraphBlueprintDiagnosticIssue,
+	type GraphBlueprintDiagnostics,
+	type GraphBlueprintHash,
+	type GraphBlueprintHashInput,
+	type GraphBlueprintHashOptions,
+	type GraphBlueprintJson,
+	type GraphBlueprintOptions,
+	type GraphBlueprintProvenance,
+	graphBlueprintDiagnostics,
+	type NormalizedGraphTopologyNode,
+	type NormalizedGraphTopologySnapshot,
+	normalizeTopology,
+	withBlueprintHash,
+	withBlueprintProvenance,
+} from "./graph/blueprint.js";
+export {
 	type CascadingCacheEvent,
 	type CascadingCachePolicy,
 	type CascadingCacheStatus,
@@ -402,7 +423,14 @@ export {
 	type WorkerDerivedSettlement,
 	workerDerived,
 } from "./graph/worker.js";
-export { strictCanonicalJsonBytes } from "./json/codec.js";
+export {
+	assertStrictJsonObject,
+	assertStrictJsonValue,
+	type StrictJsonObject,
+	type StrictJsonScalar,
+	type StrictJsonValue,
+	strictCanonicalJsonBytes,
+} from "./json/codec.js";
 export { dynamicNode, Node, type NodeOptions, node, type Status } from "./node/node.js";
 export {
 	defaultNodeVersionHash,

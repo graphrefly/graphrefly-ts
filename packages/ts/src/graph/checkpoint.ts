@@ -5,7 +5,7 @@
  * no observe-log replay, and no restore runtime in this first TS slice.
  */
 
-import { strictJsonCodec } from "../json/codec.js";
+import { type StrictJsonValue, strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
 import type { NodeVersionJson } from "../node/versioning.js";
 import { SENTINEL } from "../protocol/messages.js";
@@ -14,13 +14,7 @@ export const GRAPH_CHECKPOINT_VERSION = "graphrefly.checkpoint.v1" as const;
 
 export type GraphCheckpointVersion = typeof GRAPH_CHECKPOINT_VERSION;
 
-export type GraphCheckpointJson =
-	| null
-	| boolean
-	| number
-	| string
-	| GraphCheckpointJson[]
-	| { [key: string]: GraphCheckpointJson };
+export type GraphCheckpointJson = StrictJsonValue;
 
 export type GraphCheckpointValue =
 	| { kind: "SENTINEL" }

@@ -6,6 +6,8 @@
  * subscriptions, vector indexes, knowledge graphs, or agentic runtime.
  */
 
+import type { StrictJsonValue } from "../json/codec.js";
+
 /** Stable identity for a semantic-memory fact. */
 export type FactId = string;
 
@@ -74,11 +76,7 @@ export interface MemoryAnswer<T = unknown> {
 	readonly results: readonly MemoryFragment<T>[];
 }
 
-type StrictJsonScalar = null | boolean | number | string;
-export type KnowledgeAssertionStrictJsonValue =
-	| StrictJsonScalar
-	| readonly KnowledgeAssertionStrictJsonValue[]
-	| { readonly [key: string]: KnowledgeAssertionStrictJsonValue };
+export type KnowledgeAssertionStrictJsonValue = StrictJsonValue;
 
 /** Passive KG endpoint vocabulary. Entity ids are DATA keys, not graph node ids. */
 export interface KnowledgeAssertionSubject {

@@ -11,8 +11,14 @@ export interface Codec<T> {
 	decode(bytes: Uint8Array): T;
 }
 
-type JsonScalar = null | boolean | number | string;
-type JsonValue = JsonScalar | readonly JsonValue[] | { readonly [key: string]: JsonValue };
+export type StrictJsonScalar = null | boolean | number | string;
+export type StrictJsonValue =
+	| StrictJsonScalar
+	| readonly StrictJsonValue[]
+	| { readonly [key: string]: StrictJsonValue };
+export type StrictJsonObject = Readonly<Record<string, StrictJsonValue>>;
+
+type JsonValue = StrictJsonValue;
 
 const JS_MIN_NORMAL_NUMBER = 2 ** -1022;
 
@@ -356,4 +362,26 @@ export const strictJsonCodec: Codec<unknown> = strictJsonCodecFor<unknown>();
 /** D113 neutral helper for strict canonical JSON UTF-8 bytes. */
 export function strictCanonicalJsonBytes(value: unknown): Uint8Array {
 	return strictJsonCodec.encode(value);
+}
+
+/** Validate and normalize a host value into strict canonical JSON data. */
+export function assertStrictJsonValue(value: unknown, label = "strictJsonValue"): StrictJsonValue {
+	try {
+		return strictJsonCodec.decode(strictJsonCodec.encode(value)) as StrictJsonValue;
+	} catch (cause) {
+		const message = cause instanceof Error ? cause.message : String(cause);
+		throw new TypeError(`${label}: value is not strict JSON compatible: ${message}`, { cause });
+	}
+}
+
+/** Validate and normalize a host value into a strict canonical JSON object. */
+export function assertStrictJsonObject(
+	value: unknown,
+	label = "strictJsonObject",
+): StrictJsonObject {
+	const normalized = assertStrictJsonValue(value, label);
+	if (normalized === null || typeof normalized !== "object" || Array.isArray(normalized)) {
+		throw new TypeError(`${label}: value must be a strict JSON object`);
+	}
+	return normalized as StrictJsonObject;
 }
