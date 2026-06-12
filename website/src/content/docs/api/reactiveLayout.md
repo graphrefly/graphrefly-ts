@@ -1,25 +1,27 @@
 ---
 title: "reactiveLayout()"
-description: "Create a reactive text layout graph.\n\n```\nGraph(\"reactive-layout\")\n├── node([], { initial: \"text\" })\n├── node([], { initial: \"font\" })\n├── node([], { initial: \""
+description: "Create a DOM-free, graph-visible text layout bundle."
 ---
 
-Create a reactive text layout graph.
+Create a DOM-free, graph-visible text layout bundle.
 
 ```
 Graph("reactive-layout")
-├── node([], { initial: "text" })
-├── node([], { initial: "font" })
-├── node([], { initial: "line-height" })
-├── node([], { initial: "max-width" })
-├── derived("segments")      — text + font → PreparedSegment[]
-├── derived("line-breaks")   — segments + max-width → LineBreaksResult
-├── derived("height")        — line-breaks → number
-└── derived("char-positions") — line-breaks + segments → CharPosition[]
+├── state("text")
+├── state("font")
+├── state("line-height")
+├── state("max-width")
+├── node("segments")       — text + font -> PreparedSegment[]
+├── node("line-breaks")    — segments + max-width + font -> LineBreaksResult
+├── node("height")         — line-breaks + line-height -> number
+└── node("char-positions") — line-breaks + segments + line-height -> CharPosition[]
 ```
 
 ## Signature
 
 ```ts
+import { reactiveLayout } from "@graphrefly/ts/solutions/reactive-layout";
+
 function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundle
 ```
 
@@ -27,4 +29,12 @@ function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundle
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| <code>opts</code> | <code>ReactiveLayoutOptions</code> |  |
+| <code>opts</code> | <code>ReactiveLayoutOptions</code> | Requires a synchronous `MeasurementAdapter`; optional initial `text`, `font`, `lineHeight`, `maxWidth`, `segmentAdapter`, and graph `name`. |
+
+`CanvasMeasureAdapter` is browser-only:
+
+```ts
+import { CanvasMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout/browser";
+```
+
+The core subpath does not import DOM globals, storage, GraphSpec, or hydration APIs.

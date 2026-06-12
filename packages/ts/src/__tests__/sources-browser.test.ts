@@ -2,16 +2,103 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "../index.js";
 import { graph } from "../index.js";
 import {
+	type AnimationFrameHandle,
+	type AnimationFrameScheduler,
 	fromIDBRequest,
 	fromIDBTransaction,
+	fromRaf,
 	type IDBRequestLike,
 	type IDBTransactionLike,
+	type VisibilityDocumentLike,
 } from "../sources/browser.js";
 
 const data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
 
 describe("browser source adapters", () => {
+	it("fromRaf emits frame timestamps and cancels the pending host frame on unsubscribe", () => {
+		let nextHandle = 0;
+		const callbacks = new Map<AnimationFrameHandle, (time: number) => void>();
+		const canceled: AnimationFrameHandle[] = [];
+		const scheduler: AnimationFrameScheduler = {
+			requestAnimationFrame(callback) {
+				const handle = ++nextHandle;
+				callbacks.set(handle, callback);
+				return handle;
+			},
+			cancelAnimationFrame(handle) {
+				canceled.push(handle);
+				callbacks.delete(handle);
+			},
+		};
+		const n = graph().initNode(fromRaf({ scheduler }), [], { name: "frames" });
+		const msgs: Message[] = [];
+		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+
+		const first = callbacks.get(1);
+		callbacks.delete(1);
+		first?.(12.5);
+		const second = callbacks.get(2);
+		callbacks.delete(2);
+		second?.(24);
+		unsubscribe();
+		callbacks.get(3)?.(48);
+
+		expect(data(msgs)).toEqual([12.5, 24]);
+		expect(canceled).toEqual([3]);
+	});
+
+	it("fromRaf can park while the visibility document is hidden", () => {
+		let nextHandle = 0;
+		const callbacks = new Map<AnimationFrameHandle, (time: number) => void>();
+		let visibilityListener: (() => void) | undefined;
+		let visibilityState = "hidden";
+		const scheduler: AnimationFrameScheduler = {
+			requestAnimationFrame(callback) {
+				const handle = ++nextHandle;
+				callbacks.set(handle, callback);
+				return handle;
+			},
+			cancelAnimationFrame(handle) {
+				callbacks.delete(handle);
+			},
+		};
+		const visibilityDocument: VisibilityDocumentLike = {
+			get visibilityState() {
+				return visibilityState;
+			},
+			addEventListener(type, listener) {
+				if (type === "visibilitychange") visibilityListener = listener;
+			},
+			removeEventListener(type, listener) {
+				if (type === "visibilitychange" && visibilityListener === listener) {
+					visibilityListener = undefined;
+				}
+			},
+		};
+		const n = graph().initNode(
+			fromRaf({ scheduler, pauseWhenHidden: true, document: visibilityDocument }),
+			[],
+		);
+		const msgs: Message[] = [];
+		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+
+		expect(callbacks.size).toBe(0);
+		visibilityState = "visible";
+		visibilityListener?.();
+		const first = callbacks.get(1);
+		callbacks.delete(1);
+		first?.(10);
+		visibilityState = "hidden";
+		visibilityListener?.();
+		callbacks.get(2)?.(20);
+		unsubscribe();
+
+		expect(data(msgs)).toEqual([10]);
+		expect(callbacks.size).toBe(0);
+		expect(visibilityListener).toBeUndefined();
+	});
+
 	it("fromIDBRequest emits request result then COMPLETE", () => {
 		const request: IDBRequestLike<number> = {
 			result: 42,

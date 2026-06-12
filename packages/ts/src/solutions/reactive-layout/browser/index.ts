@@ -13,7 +13,9 @@ interface OffscreenCanvasConstructor {
 	new (width: number, height: number): OffscreenCanvasLike;
 }
 
-interface CanvasMeasureAdapterOptions {
+/** Browser-only Canvas text measurement options. */
+export interface CanvasMeasureAdapterOptions {
+	/** Multiplier applied only to emoji-presentation segments. Default: 1. */
 	readonly emojiCorrection?: number;
 }
 

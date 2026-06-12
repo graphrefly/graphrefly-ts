@@ -27,6 +27,30 @@ export interface IDBTransactionLike {
 	onabort: null | IDBEventHandler<IDBTransactionLike>;
 }
 
+export type AnimationFrameHandle = number | ReturnType<typeof setTimeout>;
+
+export interface AnimationFrameScheduler {
+	requestAnimationFrame(callback: (time: number) => void): AnimationFrameHandle;
+	cancelAnimationFrame(handle: AnimationFrameHandle): void;
+}
+
+export interface VisibilityDocumentLike {
+	readonly visibilityState?: "hidden" | "visible" | "prerender" | string;
+	addEventListener?(type: "visibilitychange", listener: () => void): void;
+	removeEventListener?(type: "visibilitychange", listener: () => void): void;
+}
+
+export interface FromRafOptions {
+	/** Custom scheduler for tests or host wrappers. Defaults to browser rAF, then a timer fallback. */
+	readonly scheduler?: AnimationFrameScheduler;
+	/** Timer fallback cadence when requestAnimationFrame is unavailable. Default: 16ms. */
+	readonly fallbackMs?: number;
+	/** Fully park while the provided/browser document is hidden. Default: false. */
+	readonly pauseWhenHidden?: boolean;
+	/** Document-like visibility source for tests or embedded browser hosts. */
+	readonly document?: VisibilityDocumentLike;
+}
+
 function source<T>(
 	factory: string,
 	setup: (ctx: Ctx) => undefined | (() => void),
@@ -36,6 +60,94 @@ function source<T>(
 		body: (ctx) => {
 			const cleanup = setup(ctx);
 			if (typeof cleanup === "function") ctx.onDeactivation(cleanup);
+		},
+	};
+}
+
+function defaultAnimationFrameScheduler(fallbackMs: number): AnimationFrameScheduler {
+	const host = globalThis as {
+		requestAnimationFrame?: (callback: (time: number) => void) => number;
+		cancelAnimationFrame?: (handle: number) => void;
+	};
+	if (
+		typeof host.requestAnimationFrame === "function" &&
+		typeof host.cancelAnimationFrame === "function"
+	) {
+		return {
+			requestAnimationFrame: (callback) => host.requestAnimationFrame?.(callback) ?? 0,
+			cancelAnimationFrame: (handle) => {
+				if (typeof handle === "number") host.cancelAnimationFrame?.(handle);
+			},
+		};
+	}
+	return {
+		requestAnimationFrame(callback) {
+			return setTimeout(() => callback(Date.now()), fallbackMs);
+		},
+		cancelAnimationFrame(handle) {
+			clearTimeout(handle);
+		},
+	};
+}
+
+function defaultVisibilityDocument(): VisibilityDocumentLike | undefined {
+	return (globalThis as { document?: VisibilityDocumentLike }).document;
+}
+
+/**
+ * Browser animation-frame source.
+ *
+ * This is a browser/source boundary, not reactive-layout ownership (D181): every frame timestamp
+ * enters the graph as DATA through `ctx.down`, and teardown cancels the pending host callback.
+ */
+export function fromRaf(opts: FromRafOptions = {}): Operator<never, number> {
+	const fallbackMsOpt = opts.fallbackMs;
+	const fallbackMs =
+		Number.isFinite(fallbackMsOpt) && fallbackMsOpt !== undefined && fallbackMsOpt > 0
+			? fallbackMsOpt
+			: 16;
+	const scheduler = opts.scheduler ?? defaultAnimationFrameScheduler(fallbackMs);
+	const visibilityDocument = opts.document ?? defaultVisibilityDocument();
+	return {
+		factory: "fromRaf",
+		opts: { pool: "sync", pausable: false },
+		body: (ctx) => {
+			let active = true;
+			let frame: AnimationFrameHandle | undefined;
+			const cancelPending = () => {
+				if (frame === undefined) return;
+				scheduler.cancelAnimationFrame(frame);
+				frame = undefined;
+			};
+			const isHidden = () =>
+				opts.pauseWhenHidden === true && visibilityDocument?.visibilityState === "hidden";
+			const schedule = () => {
+				if (!active || frame !== undefined || isHidden()) return;
+				frame = scheduler.requestAnimationFrame((time) => {
+					frame = undefined;
+					if (!active || isHidden()) return;
+					ctx.down([["DATA", Number.isFinite(time) ? time : Date.now()]]);
+					schedule();
+				});
+			};
+			const onVisibilityChange = () => {
+				if (!active) return;
+				if (isHidden()) cancelPending();
+				else schedule();
+			};
+			if (
+				opts.pauseWhenHidden === true &&
+				visibilityDocument?.addEventListener &&
+				visibilityDocument.removeEventListener
+			) {
+				visibilityDocument.addEventListener("visibilitychange", onVisibilityChange);
+			}
+			ctx.onDeactivation(() => {
+				active = false;
+				cancelPending();
+				visibilityDocument?.removeEventListener?.("visibilitychange", onVisibilityChange);
+			});
+			schedule();
 		},
 	};
 }

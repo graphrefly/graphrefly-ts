@@ -12,7 +12,8 @@ What's wired:
 - Two **`effect`** nodes render the current `obstacles` and `flowLines`
   into DOM.
 - **`fromRaf()`** is the reactive clock; each frame tick drives
-  `bundle.setObstacles(...)` which writes through the graph.
+  `bundle.setObstacles(...)` which writes through the graph. It imports from
+  `@graphrefly/ts/sources/browser`; reactive-layout does not own animation sources.
 
 This mirrors the `flow` chapter in `demos/reactive-layout` but strips all
 the demo-shell / mermaid / code-pane scaffolding — it's the minimum needed

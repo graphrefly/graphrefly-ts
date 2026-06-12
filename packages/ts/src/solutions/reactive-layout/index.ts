@@ -3,24 +3,34 @@ import { type Graph, graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
 
+/**
+ * Synchronous text measurement contract for the D181 reactive-layout solution core.
+ *
+ * Implementations are injected by the caller; the universal subpath never imports DOM,
+ * Canvas, React Native, storage, GraphSpec, or async image loading.
+ */
 export interface MeasurementAdapter {
 	measureSegment(text: string, font: string): { readonly width: number };
 	clearCache?(): void;
 }
 
+/** One text segment returned by a caller-provided segmenter. */
 export interface SegmentInfo {
 	readonly segment: string;
 	readonly index: number;
 	readonly isWordLike?: boolean;
 }
 
+/** Synchronous word/grapheme segmentation contract for hosts without Intl.Segmenter. */
 export interface SegmentAdapter {
 	segmentWords(text: string): Iterable<SegmentInfo>;
 	segmentGraphemes(text: string): Iterable<SegmentInfo>;
 }
 
+/** Layout segment class used by the line breaker. */
 export type SegmentBreakKind = "text" | "space" | "zero-width-break" | "soft-hyphen" | "hard-break";
 
+/** Measured text run consumed by pure line/block/flow helpers. */
 export interface PreparedSegment {
 	readonly text: string;
 	readonly width: number;
@@ -28,6 +38,7 @@ export interface PreparedSegment {
 	readonly graphemeWidths: readonly number[] | null;
 }
 
+/** One laid-out line with segment/grapheme cursor bounds. */
 export interface LayoutLine {
 	readonly text: string;
 	readonly width: number;
@@ -37,6 +48,7 @@ export interface LayoutLine {
 	readonly endGrapheme: number;
 }
 
+/** Positioned grapheme box for hit testing or custom renderers. */
 export interface CharPosition {
 	readonly x: number;
 	readonly y: number;
@@ -45,16 +57,19 @@ export interface CharPosition {
 	readonly line: number;
 }
 
+/** Result emitted by `reactiveLayout().lineBreaks`. */
 export interface LineBreaksResult {
 	readonly lines: readonly LayoutLine[];
 	readonly lineCount: number;
 }
 
+/** Cursor into a prepared segment array. */
 export interface LayoutCursor {
 	readonly segmentIndex: number;
 	readonly graphemeIndex: number;
 }
 
+/** Pure helper result for one `layoutNextLine` step. */
 export interface LayoutNextLineResult {
 	readonly text: string;
 	readonly width: number;
@@ -62,11 +77,18 @@ export interface LayoutNextLineResult {
 	readonly end: LayoutCursor;
 }
 
+/** Horizontal interval used by obstacle carving. */
 export interface Interval {
 	readonly left: number;
 	readonly right: number;
 }
 
+/**
+ * Graph-visible bundle returned by `reactiveLayout`.
+ *
+ * The setters are state-node sugar over real graph inputs; the output nodes are ordinary
+ * inspectable nodes visible through `graph.describe()`.
+ */
 export interface ReactiveLayoutBundle {
 	readonly graph: Graph;
 	readonly input: {
@@ -85,6 +107,7 @@ export interface ReactiveLayoutBundle {
 	readonly charPositions: Node<readonly CharPosition[]>;
 }
 
+/** Optional context shared by pure line-breaking helpers. */
 export interface LayoutNextLineContext {
 	readonly adapter?: MeasurementAdapter;
 	readonly font?: string;
@@ -92,11 +115,13 @@ export interface LayoutNextLineContext {
 	readonly segmentAdapter?: SegmentAdapter;
 }
 
+/** Cache accounting object callers can pass into `analyzeAndMeasure`. */
 export interface SegmentMeasureStats {
 	hits: number;
 	misses: number;
 }
 
+/** Options for the single-column reactive text layout bundle. */
 export interface ReactiveLayoutOptions {
 	readonly adapter: MeasurementAdapter;
 	readonly segmentAdapter?: SegmentAdapter;
@@ -107,49 +132,59 @@ export interface ReactiveLayoutOptions {
 	readonly maxWidth?: number;
 }
 
+/** Host text measurement function accepted by `InjectedMeasureAdapter`. */
 export type MeasureFn = (text: string, font: string) => number | { readonly width: number };
 
+/** Options for caller-injected synchronous measurement. */
 export interface InjectedMeasureAdapterOptions {
 	readonly cache?: boolean;
 }
 
+/** Options for deterministic precomputed text metrics. */
 export interface PrecomputedMeasureAdapterOptions {
 	readonly metrics: ReadonlyMap<string, number> | Record<string, number>;
 	readonly fallback?: "per-char" | "error";
 	readonly cellWidth?: number;
 }
 
+/** Fixed-cell measurement options for terminal/snapshot rendering. */
 export interface CellMeasureAdapterOptions {
 	readonly cellWidth?: number;
 	readonly wideCellWidth?: number;
 	readonly tabCells?: number;
 }
 
+/** Width/height pair in CSS-like pixels. */
 export interface Size {
 	readonly width: number;
 	readonly height: number;
 }
 
+/** Synchronous SVG measurement seam; no DOM parser is provided by the core. */
 export interface SvgMeasurer {
 	measureSvg(svg: string): Size;
 }
 
+/** Synchronous image measurement seam; no loading/fetching is provided by the core. */
 export interface ImageMeasurer {
 	measureImage(src: string): Size;
 }
 
+/** Optional per-kind block measurement adapters. */
 export interface BlockAdapters {
 	readonly text?: MeasurementAdapter;
 	readonly svg?: SvgMeasurer;
 	readonly image?: ImageMeasurer;
 }
 
+/** Shared spacing/id fields for block layout inputs. */
 export interface BaseContentBlock {
 	readonly id?: string;
 	readonly marginTop?: number;
 	readonly marginBottom?: number;
 }
 
+/** Text block input for `measureBlock` and `reactiveBlockLayout`. */
 export interface TextContentBlock extends BaseContentBlock {
 	readonly kind: "text";
 	readonly text: string;
@@ -158,6 +193,7 @@ export interface TextContentBlock extends BaseContentBlock {
 	readonly maxWidth?: number;
 }
 
+/** Image block input with explicit dimensions or an injected `ImageMeasurer`. */
 export interface ImageContentBlock extends BaseContentBlock {
 	readonly kind: "image";
 	readonly src: string;
@@ -166,6 +202,7 @@ export interface ImageContentBlock extends BaseContentBlock {
 	readonly maxWidth?: number;
 }
 
+/** SVG block input with explicit dimensions or an injected `SvgMeasurer`. */
 export interface SvgContentBlock extends BaseContentBlock {
 	readonly kind: "svg";
 	readonly svg: string;
@@ -174,8 +211,10 @@ export interface SvgContentBlock extends BaseContentBlock {
 	readonly maxWidth?: number;
 }
 
+/** Heterogeneous block-layout input. */
 export type ContentBlock = TextContentBlock | ImageContentBlock | SvgContentBlock;
 
+/** Measured block produced by `measureBlock` or `measureBlocks`. */
 export interface MeasuredBlock {
 	readonly block: ContentBlock;
 	readonly kind: ContentBlock["kind"];
@@ -189,11 +228,13 @@ export interface MeasuredBlock {
 	readonly charPositions?: readonly CharPosition[];
 }
 
+/** Block with vertical-flow coordinates. */
 export interface PositionedBlock extends MeasuredBlock {
 	readonly x: number;
 	readonly y: number;
 }
 
+/** Options for pure block measurement helpers. */
 export interface MeasureBlockOptions {
 	readonly adapter?: MeasurementAdapter;
 	readonly adapters?: BlockAdapters;
@@ -204,6 +245,7 @@ export interface MeasureBlockOptions {
 	readonly segmentAdapter?: SegmentAdapter;
 }
 
+/** Options for the graph-visible block layout bundle. */
 export interface ReactiveBlockLayoutOptions {
 	readonly adapter?: MeasurementAdapter;
 	readonly adapters?: BlockAdapters;
@@ -216,6 +258,7 @@ export interface ReactiveBlockLayoutOptions {
 	readonly gap?: number;
 }
 
+/** Graph-visible vertical block layout bundle. */
 export interface ReactiveBlockLayoutBundle {
 	readonly graph: Graph;
 	readonly input: {
@@ -231,6 +274,7 @@ export interface ReactiveBlockLayoutBundle {
 	readonly totalHeight: Node<number>;
 }
 
+/** Circular obstacle for flow layout slot carving. */
 export interface CircleObstacle {
 	readonly kind: "circle";
 	readonly cx: number;
@@ -238,6 +282,7 @@ export interface CircleObstacle {
 	readonly r: number;
 }
 
+/** Rectangular obstacle for flow layout slot carving. */
 export interface RectObstacle {
 	readonly kind: "rect";
 	readonly x: number;
@@ -246,8 +291,10 @@ export interface RectObstacle {
 	readonly height: number;
 }
 
+/** Obstacle shape accepted by flow layout. */
 export type Obstacle = CircleObstacle | RectObstacle;
 
+/** Flow container geometry. */
 export interface FlowContainer {
 	readonly width: number;
 	readonly height: number;
@@ -255,11 +302,13 @@ export interface FlowContainer {
 	readonly paddingY?: number;
 }
 
+/** Optional column geometry for flow layout. */
 export interface FlowColumns {
 	readonly count?: number;
 	readonly gap?: number;
 }
 
+/** Positioned line emitted by `computeFlowLines` / `reactiveFlowLayout`. */
 export interface PositionedLine extends LayoutLine {
 	readonly x: number;
 	readonly y: number;
@@ -267,12 +316,14 @@ export interface PositionedLine extends LayoutLine {
 	readonly columnIndex: number;
 }
 
+/** Flow layout result plus the continuation cursor. */
 export interface FlowLinesResult {
 	readonly lines: readonly PositionedLine[];
 	readonly cursor: LayoutCursor;
 	readonly done: boolean;
 }
 
+/** Options for pure flow layout computation. */
 export interface ComputeFlowLinesOptions {
 	readonly container: FlowContainer;
 	readonly columns?: FlowColumns;
@@ -285,6 +336,7 @@ export interface ComputeFlowLinesOptions {
 	readonly segmentAdapter?: SegmentAdapter;
 }
 
+/** Options for the graph-visible flow layout bundle. */
 export interface ReactiveFlowLayoutOptions {
 	readonly adapter: MeasurementAdapter;
 	readonly segmentAdapter?: SegmentAdapter;
@@ -298,6 +350,7 @@ export interface ReactiveFlowLayoutOptions {
 	readonly minSlotWidth?: number;
 }
 
+/** Graph-visible multi-column flow layout bundle. */
 export interface ReactiveFlowLayoutBundle {
 	readonly graph: Graph;
 	readonly input: {
@@ -493,6 +546,7 @@ function metricKey(text: string, font: string): string {
 	return `${font}\0${text}`;
 }
 
+/** Adapter that wraps a caller-owned synchronous measurement function. */
 export class InjectedMeasureAdapter implements MeasurementAdapter {
 	private readonly measure: MeasureFn;
 	private readonly shouldCache: boolean;
@@ -519,6 +573,7 @@ export class InjectedMeasureAdapter implements MeasurementAdapter {
 	}
 }
 
+/** Deterministic adapter backed by caller-supplied width metrics. */
 export class PrecomputedMeasureAdapter implements MeasurementAdapter {
 	private readonly metrics: ReadonlyMap<string, number>;
 	private readonly fallback: "per-char" | "error";
@@ -543,6 +598,7 @@ export class PrecomputedMeasureAdapter implements MeasurementAdapter {
 	}
 }
 
+/** Fixed-cell adapter for CLI, snapshots, and tests. */
 export class CellMeasureAdapter implements MeasurementAdapter {
 	private readonly cellWidth: number;
 	private readonly wideCellWidth: number;
@@ -597,6 +653,11 @@ function readViewBox(tag: string): Size | null {
 	return { width, height };
 }
 
+/**
+ * Minimal string-based SVG bounds reader for explicit width/height or viewBox.
+ *
+ * This is not a DOM SVG parser and does not resolve external resources.
+ */
 export class SvgBoundsAdapter implements SvgMeasurer {
 	measureSvg(svg: string): Size {
 		const cleaned = stripSvgIgnoredContent(svg);
@@ -611,6 +672,7 @@ export class SvgBoundsAdapter implements SvgMeasurer {
 	}
 }
 
+/** Image measurer backed by explicit caller-provided dimensions; it never loads images. */
 export class ImageSizeAdapter implements ImageMeasurer {
 	private readonly sizes: ReadonlyMap<string, Size>;
 
@@ -628,6 +690,7 @@ export class ImageSizeAdapter implements ImageMeasurer {
 	}
 }
 
+/** Segment text and measure every resulting segment with a caller-owned synchronous adapter. */
 export function analyzeAndMeasure(
 	text: string,
 	font: string,
@@ -758,6 +821,7 @@ export function analyzeAndMeasure(
 	return out;
 }
 
+/** Greedy single-column line breaking over prepared segments. */
 export function computeLineBreaks(
 	segments: readonly PreparedSegment[],
 	maxWidth: number,
@@ -860,6 +924,7 @@ function resolveHyphenWidth(ctx: LayoutNextLineContext | undefined): number {
 	return ctx.adapter.measureSegment("-", ctx.font).width;
 }
 
+/** Lay out one line from a cursor, returning the next cursor for continuation. */
 export function layoutNextLine(
 	segments: readonly PreparedSegment[],
 	cursor: LayoutCursor,
@@ -1119,6 +1184,7 @@ export function layoutNextLine(
 	};
 }
 
+/** Subtract obstacle intervals from a horizontal text band. */
 export function carveTextLineSlots(
 	base: Interval,
 	blocked: readonly Interval[],
@@ -1141,6 +1207,7 @@ export function carveTextLineSlots(
 	return slots;
 }
 
+/** Compute per-grapheme boxes for already-broken lines. */
 export function computeCharPositions(
 	lineBreaks: LineBreaksResult,
 	segments: readonly PreparedSegment[],
@@ -1217,6 +1284,7 @@ function resolveTextAdapter(opts: MeasureBlockOptions): MeasurementAdapter {
 	return adapter;
 }
 
+/** Measure one text/image/SVG block using only explicit or injected synchronous adapters. */
 export function measureBlock(block: ContentBlock, opts: MeasureBlockOptions): MeasuredBlock {
 	const maxWidth = nonNegativeFinite(opts.maxWidth ?? 800, 800);
 	const marginTop = nonNegativeFinite(block.marginTop ?? 0, 0);
@@ -1296,6 +1364,7 @@ export function measureBlock(block: ContentBlock, opts: MeasureBlockOptions): Me
 	};
 }
 
+/** Measure a block list while sharing a measurement cache across text blocks. */
 export function measureBlocks(
 	blocks: readonly ContentBlock[],
 	opts: MeasureBlockOptions,
@@ -1304,6 +1373,7 @@ export function measureBlocks(
 	return blocks.map((block) => measureBlock(block, { ...opts, cache }));
 }
 
+/** Stack measured blocks vertically with margins and a fixed gap. */
 export function computeBlockFlow(
 	blocks: readonly MeasuredBlock[],
 	gap = 0,
@@ -1318,6 +1388,7 @@ export function computeBlockFlow(
 	});
 }
 
+/** Compute the bottom edge of a positioned block flow. */
 export function computeTotalHeight(blocks: readonly PositionedBlock[]): number {
 	if (blocks.length === 0) return 0;
 	let bottom = 0;
@@ -1350,6 +1421,7 @@ function columnGeometry(
 	return { paddingX, paddingY, count, gap, width, height, columnWidth };
 }
 
+/** Intersect a circle obstacle with a horizontal line band. */
 export function circleIntervalForBand(
 	obstacle: CircleObstacle,
 	bandTop: number,
@@ -1364,6 +1436,7 @@ export function circleIntervalForBand(
 	return { left: obstacle.cx - dx, right: obstacle.cx + dx };
 }
 
+/** Intersect a rectangle obstacle with a horizontal line band. */
 export function rectIntervalForBand(
 	obstacle: RectObstacle,
 	bandTop: number,
@@ -1393,6 +1466,7 @@ function blockedIntervalsForBand(
 	return intervals.sort((a, b) => a.left - b.left);
 }
 
+/** Flow prepared text through columns and carved obstacle slots. */
 export function computeFlowLines(
 	segments: readonly PreparedSegment[],
 	opts: ComputeFlowLinesOptions,
@@ -1462,6 +1536,12 @@ export function computeFlowLines(
 	};
 }
 
+/**
+ * Create a graph-visible single-column text layout bundle.
+ *
+ * D181: this adds ordinary state/output nodes only; it does not add protocol behavior,
+ * hidden subscriptions, GraphSpec ownership, storage, or platform globals.
+ */
 export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundle {
 	const { adapter, segmentAdapter: segmentAdapterOpt, name = "reactive-layout" } = opts;
 	const segAdapter = segmentAdapterOpt ?? getDefaultSegmentAdapter();
@@ -1578,6 +1658,11 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	};
 }
 
+/**
+ * Create a graph-visible vertical block layout bundle over the same DOM-free core.
+ *
+ * Image/SVG sizing is explicit or injected; no async image loading or DOM SVG parsing occurs.
+ */
 export function reactiveBlockLayout(
 	opts: ReactiveBlockLayoutOptions = {},
 ): ReactiveBlockLayoutBundle {
@@ -1667,6 +1752,7 @@ export function reactiveBlockLayout(
 	};
 }
 
+/** Create a graph-visible multi-column flow layout bundle with rectangle/circle obstacles. */
 export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlowLayoutBundle {
 	const { adapter, segmentAdapter: segmentAdapterOpt, name = "reactive-flow-layout" } = opts;
 	const segAdapter = segmentAdapterOpt ?? getDefaultSegmentAdapter();

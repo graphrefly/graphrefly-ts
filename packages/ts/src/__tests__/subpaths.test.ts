@@ -142,6 +142,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof sources.of).toBe("function");
 		expect(typeof sources.throwError).toBe("function");
 		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
+		expect(Object.hasOwn(sources, "fromRaf")).toBe(false);
 		expect(typeof composition.topologyDiff).toBe("function");
 		expect(typeof dataStructures.reactiveMap).toBe("function");
 		expect(typeof render.describeToJson).toBe("function");
@@ -287,6 +288,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(exportsJson.exports?.["./sources/browser"]).toBeDefined();
 		expect(typeof sourcesBrowser.fromAny).toBe("function");
 		expect(typeof sourcesBrowser.fromEvent).toBe("function");
+		expect(typeof sourcesBrowser.fromRaf).toBe("function");
 		expect(typeof sourcesBrowser.fromIDBRequest).toBe("function");
 		expect(typeof sourcesBrowser.fromIDBTransaction).toBe("function");
 		expect(Object.hasOwn(sourcesBrowser, "fromFSWatch")).toBe(false);

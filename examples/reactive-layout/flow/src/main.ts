@@ -1,11 +1,11 @@
-import { DATA, ERROR, effect } from "@graphrefly/graphrefly/core";
-import { fromRaf } from "@graphrefly/graphrefly/extra/sources";
+import type { Message } from "@graphrefly/ts";
 import {
-	CanvasMeasureAdapter,
+	type FlowLinesResult,
 	type Obstacle,
-	type PositionedLine,
 	reactiveFlowLayout,
-} from "@graphrefly/graphrefly/patterns/reactive-layout";
+} from "@graphrefly/ts/solutions/reactive-layout";
+import { CanvasMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout/browser";
+import { fromRaf } from "@graphrefly/ts/sources/browser";
 
 // ---------------------------------------------------------------------------
 // Stage setup — a simple HTML <main> with a fixed-size stage. The layout
@@ -98,8 +98,6 @@ function driftAt(t: number): Obstacle[] {
 		cx: o.baseX + o.ampX * Math.sin(t * o.speedX),
 		cy: o.baseY + o.ampY * Math.sin(t * o.speedY),
 		r: o.r,
-		hPad: 8,
-		vPad: 4,
 	}));
 }
 
@@ -135,45 +133,49 @@ const linesLayer = document.createElement("div");
 linesLayer.dataset.flow = "lines";
 stage.appendChild(linesLayer);
 
-const obstaclesNode = bundle.graph.node("obstacles");
+const obstaclesNode = bundle.input.obstacles;
 
-effect([obstaclesNode], ([obstacles]) => {
-	const arr = (obstacles as Obstacle[]) ?? [];
-	obstacleLayer.innerHTML = "";
-	for (const o of arr) {
-		if (o.kind !== "circle") continue;
-		const el = document.createElement("div");
-		el.style.position = "absolute";
-		el.style.left = `${o.cx - o.r}px`;
-		el.style.top = `${o.cy - o.r}px`;
-		el.style.width = `${o.r * 2}px`;
-		el.style.height = `${o.r * 2}px`;
-		el.style.borderRadius = "50%";
-		el.style.background = "rgba(120, 170, 255, 0.15)";
-		el.style.border = "1px solid rgba(120, 170, 255, 0.45)";
-		el.style.pointerEvents = "none";
-		obstacleLayer.appendChild(el);
-	}
-}).subscribe(() => {});
+bundle.graph
+	.effect([obstaclesNode], (obstacles) => {
+		const arr = (obstacles as Obstacle[]) ?? [];
+		obstacleLayer.innerHTML = "";
+		for (const o of arr) {
+			if (o.kind !== "circle") continue;
+			const el = document.createElement("div");
+			el.style.position = "absolute";
+			el.style.left = `${o.cx - o.r}px`;
+			el.style.top = `${o.cy - o.r}px`;
+			el.style.width = `${o.r * 2}px`;
+			el.style.height = `${o.r * 2}px`;
+			el.style.borderRadius = "50%";
+			el.style.background = "rgba(120, 170, 255, 0.15)";
+			el.style.border = "1px solid rgba(120, 170, 255, 0.45)";
+			el.style.pointerEvents = "none";
+			obstacleLayer.appendChild(el);
+		}
+	})
+	.subscribe(() => {});
 
-effect([bundle.flowLines], ([lines]) => {
-	const arr = (lines as PositionedLine[]) ?? [];
-	linesLayer.innerHTML = "";
-	for (const line of arr) {
-		const el = document.createElement("div");
-		el.textContent = line.text;
-		el.style.position = "absolute";
-		el.style.left = `${line.x}px`;
-		el.style.top = `${line.y}px`;
-		el.style.width = `${line.slotWidth}px`;
-		el.style.height = `${LINE_HEIGHT}px`;
-		el.style.lineHeight = `${LINE_HEIGHT}px`;
-		el.style.textAlign = line.flushToRight ? "right" : "justify";
-		el.style.whiteSpace = "pre";
-		el.style.overflow = "hidden";
-		linesLayer.appendChild(el);
-	}
-}).subscribe(() => {});
+bundle.graph
+	.effect([bundle.flowLines], (lines) => {
+		const arr = (lines as FlowLinesResult | null)?.lines ?? [];
+		linesLayer.innerHTML = "";
+		for (const line of arr) {
+			const el = document.createElement("div");
+			el.textContent = line.text;
+			el.style.position = "absolute";
+			el.style.left = `${line.x}px`;
+			el.style.top = `${line.y}px`;
+			el.style.width = `${line.slotWidth}px`;
+			el.style.height = `${LINE_HEIGHT}px`;
+			el.style.lineHeight = `${LINE_HEIGHT}px`;
+			el.style.textAlign = "left";
+			el.style.whiteSpace = "pre";
+			el.style.overflow = "hidden";
+			linesLayer.appendChild(el);
+		}
+	})
+	.subscribe(() => {});
 
 // ---------------------------------------------------------------------------
 // Reactive clock — `fromRaf()` is a GraphReFly source node emitting frame
@@ -187,10 +189,9 @@ effect([bundle.flowLines], ([lines]) => {
 // callback outside the graph.
 // ---------------------------------------------------------------------------
 
-const frame = fromRaf();
-frame.subscribe((msgs) => {
-	for (const [type, value] of msgs) {
-		if (type === DATA) bundle.setObstacles(driftAt(value as number));
-		else if (type === ERROR) console.error("fromRaf error:", value);
-	}
+const frame = bundle.graph.initNode(fromRaf(), [], { name: "frame" });
+frame.subscribe((msg: Message) => {
+	const [type, value] = msg;
+	if (type === "DATA") bundle.setObstacles(driftAt(value as number));
+	else if (type === "ERROR") console.error("fromRaf error:", value);
 });

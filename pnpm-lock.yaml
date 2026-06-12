@@ -483,9 +483,9 @@ importers:
 
   examples/reactive-layout/flow:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../../..
+        version: link:../../../packages/ts
     devDependencies:
       typescript:
         specifier: ^5.7.0
