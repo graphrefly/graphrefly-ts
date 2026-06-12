@@ -11,8 +11,9 @@ Graph("reactive-layout")
 ├── state("font")
 ├── state("line-height")
 ├── state("max-width")
-├── node("segments")       — text + font -> PreparedSegment[]
-├── node("line-breaks")    — segments + max-width + font -> LineBreaksResult
+├── node("text-measurements") — text + font -> Measurements
+├── node("segments")       — measurements -> PreparedSegment[]
+├── node("line-breaks")    — segments + max-width + measurements -> LineBreaksResult
 ├── node("height")         — line-breaks + line-height -> number
 └── node("char-positions") — line-breaks + segments + line-height -> CharPosition[]
 ```
@@ -29,12 +30,21 @@ function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundle
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| <code>opts</code> | <code>ReactiveLayoutOptions</code> | Requires a synchronous `MeasurementAdapter`; optional initial `text`, `font`, `lineHeight`, `maxWidth`, `segmentAdapter`, and graph `name`. |
+| <code>opts</code> | <code>ReactiveLayoutOptions</code> | Requires `graph` and a graph-visible `measurements` node; optional `lineHeight`, `maxWidth`, `segmentAdapter`, `targetId`, and bundle `name`. |
 
-`CanvasMeasureAdapter` is browser-only:
+Measurement providers are upstream graph nodes. Browser Canvas measurement is browser-only:
 
 ```ts
-import { CanvasMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout/browser";
+import { graph } from "@graphrefly/ts";
+import { reactiveLayout, cellTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+
+const g = graph({ name: "article" });
+const text = g.state("Hello", { name: "text" });
+const font = g.state("16px system-ui", { name: "font" });
+const measurements = cellTextMeasurements({ graph: g, text, font });
+
+const layout = reactiveLayout({ graph: g, measurements });
 ```
 
-The core subpath does not import DOM globals, storage, GraphSpec, or hydration APIs.
+Missing or failed measurements are `DataIssue` facts inside ordinary `DATA`; the default layout
+consumer ignores them for measurement purposes and does not emit protocol `ERROR`.

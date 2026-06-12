@@ -8,6 +8,7 @@ export default defineConfig({
 		"src/composition/index.ts",
 		"src/cqrs/index.ts",
 		"src/core/index.ts",
+		"src/data/index.ts",
 		"src/data-structures/index.ts",
 		"src/graph/index.ts",
 		"src/messaging/index.ts",

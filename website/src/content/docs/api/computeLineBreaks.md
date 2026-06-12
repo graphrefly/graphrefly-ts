@@ -18,10 +18,7 @@ overflow maxWidth. Supports:
 function computeLineBreaks(
 	segments: PreparedSegment[],
 	maxWidth: number,
-	adapter: MeasurementAdapter,
-	font: string,
-	cache: Map<string, Map<string, number>>,
-	segmentAdapter?: SegmentAdapter,
+	opts?: { hyphenWidth?: number; segmentAdapter?: SegmentAdapter },
 ): LineBreaksResult
 ```
 
@@ -29,9 +26,6 @@ function computeLineBreaks(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| <code>segments</code> | <code>PreparedSegment[]</code> |  |
-| <code>maxWidth</code> | <code>number</code> |  |
-| <code>adapter</code> | <code>MeasurementAdapter</code> |  |
-| <code>font</code> | <code>string</code> |  |
-| <code>cache</code> | <code>Map&lt;string, Map&lt;string, number&gt;&gt;</code> |  |
-| <code>segmentAdapter</code> | <code>SegmentAdapter</code> |  |
+| <code>segments</code> | <code>PreparedSegment[]</code> | Already measured text segments. |
+| <code>maxWidth</code> | <code>number</code> | Line width constraint. |
+| <code>opts</code> | <code>{ hyphenWidth?: number; segmentAdapter?: SegmentAdapter }</code> | Optional premeasured hyphen width and segmentation helper. |

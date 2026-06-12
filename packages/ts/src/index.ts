@@ -71,6 +71,7 @@ export {
 	isTerminalNone,
 	terminalErrorValue,
 } from "./ctx/types.js";
+export type { DataError, DataIssue, DataOk, DataResult } from "./data/index.js";
 export {
 	restoreReactiveIndex,
 	restoreReactiveList,

@@ -2,11 +2,16 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { graph } from "../graph/graph.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	analyzeAndMeasure,
+	type BlockAdapters,
+	blockMeasurementProvider,
 	CellMeasureAdapter,
+	type ContentBlock,
 	carveTextLineSlots,
+	cellTextMeasurements,
 	circleIntervalForBand,
 	computeBlockFlow,
 	computeCharPositions,
@@ -18,15 +23,18 @@ import {
 	type LineBreaksResult,
 	layoutNextLine,
 	type MeasurementAdapter,
+	type Measurements,
 	measureBlock,
 	measureBlocks,
 	PrecomputedMeasureAdapter,
 	type PreparedSegment,
+	precomputedTextMeasurements,
 	reactiveBlockLayout,
 	reactiveFlowLayout,
 	reactiveLayout,
 	rectIntervalForBand,
 	SvgBoundsAdapter,
+	textMeasurementProvider,
 } from "../solutions/index.js";
 import * as reactiveLayoutBrowser from "../solutions/reactive-layout/browser/index.js";
 import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
@@ -37,6 +45,8 @@ const fixedAdapter: MeasurementAdapter = {
 	},
 };
 
+const fixedAdapters: BlockAdapters = { text: fixedAdapter };
+
 const data = <T>(messages: readonly Message[]): T[] =>
 	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);
 
@@ -44,6 +54,14 @@ function collect(node: { subscribe(sink: (messages: Message) => void): () => voi
 	const messages: Message[] = [];
 	const unsubscribe = node.subscribe((message) => messages.push(message));
 	return { messages, unsubscribe };
+}
+
+function adapterNode(g: ReturnType<typeof graph>, name = "measure-capability") {
+	return g.state<MeasurementAdapter>(fixedAdapter, { name });
+}
+
+function blockAdaptersNode(g: ReturnType<typeof graph>, name = "block-adapters") {
+	return g.state<BlockAdapters>(fixedAdapters, { name });
 }
 
 describe("reactive-layout solution (D181)", () => {
@@ -58,7 +76,7 @@ describe("reactive-layout solution (D181)", () => {
 			["world", "text", 50],
 		]);
 
-		const breaks = computeLineBreaks(segments, 60, fixedAdapter, "test", cache);
+		const breaks = computeLineBreaks(segments, 60);
 
 		expectTypeOf(breaks).toMatchTypeOf<LineBreaksResult>();
 		expect(breaks).toEqual({
@@ -87,7 +105,7 @@ describe("reactive-layout solution (D181)", () => {
 	it("preserves every grapheme when a single segment spans multiple lines", () => {
 		const cache = new Map<string, Map<string, number>>();
 		const segments = analyzeAndMeasure("abcdef", "test", fixedAdapter, cache);
-		const breaks = computeLineBreaks(segments, 20, fixedAdapter, "test", cache);
+		const breaks = computeLineBreaks(segments, 20);
 
 		expect(breaks.lines.map((line) => line.text)).toEqual(["ab", "cd", "ef"]);
 		expect(breaks.lines.map((line) => line.width)).toEqual([20, 20, 20]);
@@ -96,13 +114,9 @@ describe("reactive-layout solution (D181)", () => {
 	it("consumes hard breaks and continues after whole-word grapheme fallback", () => {
 		const hardBreakCache = new Map<string, Map<string, number>>();
 		const hardBreakSegments = analyzeAndMeasure("a\nb", "test", fixedAdapter, hardBreakCache);
-		const hardBreaks = computeLineBreaks(
-			hardBreakSegments,
-			20,
-			fixedAdapter,
-			"test",
-			hardBreakCache,
-		);
+		const hardBreaks = computeLineBreaks(hardBreakSegments, 20, {
+			hyphenWidth: fixedAdapter.measureSegment("-", "test").width,
+		});
 
 		expect(hardBreaks.lines.map((line) => line.text)).toEqual(["a", "b"]);
 
@@ -113,7 +127,9 @@ describe("reactive-layout solution (D181)", () => {
 		};
 		const kernedCache = new Map<string, Map<string, number>>();
 		const kernedSegments = analyzeAndMeasure("abcde f", "test", kernedAdapter, kernedCache);
-		const kernedBreaks = computeLineBreaks(kernedSegments, 50, kernedAdapter, "test", kernedCache);
+		const kernedBreaks = computeLineBreaks(kernedSegments, 50, {
+			hyphenWidth: kernedAdapter.measureSegment("-", "test").width,
+		});
 
 		expect(kernedBreaks.lines.map((line) => line.text)).toEqual(["abcde ", "f"]);
 	});
@@ -137,7 +153,7 @@ describe("reactive-layout solution (D181)", () => {
 	it("computes per-grapheme positions from line breaks", () => {
 		const cache = new Map<string, Map<string, number>>();
 		const segments = analyzeAndMeasure("ab cd", "test", fixedAdapter, cache);
-		const breaks = computeLineBreaks(segments, 30, fixedAdapter, "test", cache);
+		const breaks = computeLineBreaks(segments, 30);
 
 		expect(computeCharPositions(breaks, segments, 12)).toEqual([
 			{ x: 0, y: 0, width: 10, height: 12, line: 0 },
@@ -149,10 +165,18 @@ describe("reactive-layout solution (D181)", () => {
 	});
 
 	it("builds a graph-visible reactiveLayout bundle without hidden subscribe islands", () => {
+		const g = graph({ name: "reactive-layout" });
+		const text = g.state("one two", { name: "text" });
+		const font = g.state("test", { name: "font" });
+		const measurements = textMeasurementProvider({
+			graph: g,
+			text,
+			font,
+			adapter: adapterNode(g),
+		});
 		const bundle = reactiveLayout({
-			adapter: fixedAdapter,
-			text: "one two",
-			font: "test",
+			graph: g,
+			measurements,
 			lineHeight: 12,
 			maxWidth: 40,
 		});
@@ -162,16 +186,18 @@ describe("reactive-layout solution (D181)", () => {
 
 		expect(bundle.graph.describe().edges).toEqual(
 			expect.arrayContaining([
-				{ from: "text", to: "segments" },
-				{ from: "font", to: "segments" },
-				{ from: "segments", to: "line-breaks" },
-				{ from: "max-width", to: "line-breaks" },
-				{ from: "font", to: "line-breaks" },
-				{ from: "line-breaks", to: "height" },
-				{ from: "line-height", to: "height" },
-				{ from: "line-breaks", to: "char-positions" },
-				{ from: "segments", to: "char-positions" },
-				{ from: "line-height", to: "char-positions" },
+				{ from: "text", to: "text-measurements" },
+				{ from: "font", to: "text-measurements" },
+				{ from: "measure-capability", to: "text-measurements" },
+				{ from: "text-measurements", to: "reactive-layout:segments" },
+				{ from: "reactive-layout:segments", to: "reactive-layout:line-breaks" },
+				{ from: "reactive-layout:max-width", to: "reactive-layout:line-breaks" },
+				{ from: "text-measurements", to: "reactive-layout:line-breaks" },
+				{ from: "reactive-layout:line-breaks", to: "reactive-layout:height" },
+				{ from: "reactive-layout:line-height", to: "reactive-layout:height" },
+				{ from: "reactive-layout:line-breaks", to: "reactive-layout:char-positions" },
+				{ from: "reactive-layout:segments", to: "reactive-layout:char-positions" },
+				{ from: "reactive-layout:line-height", to: "reactive-layout:char-positions" },
 			]),
 		);
 
@@ -191,10 +217,18 @@ describe("reactive-layout solution (D181)", () => {
 	});
 
 	it("clamps non-finite and negative numeric controls", () => {
+		const g = graph({ name: "reactive-layout" });
+		const text = g.state("one", { name: "text" });
+		const font = g.state("test", { name: "font" });
+		const measurements = textMeasurementProvider({
+			graph: g,
+			text,
+			font,
+			adapter: adapterNode(g),
+		});
 		const bundle = reactiveLayout({
-			adapter: fixedAdapter,
-			text: "one",
-			font: "test",
+			graph: g,
+			measurements,
 			lineHeight: -1,
 			maxWidth: Number.NaN,
 		});
@@ -208,7 +242,7 @@ describe("reactive-layout solution (D181)", () => {
 		height.unsubscribe();
 	});
 
-	it("provides universal sync measurement adapters", () => {
+	it("provides universal sync measurement providers", () => {
 		let calls = 0;
 		const injected = new InjectedMeasureAdapter(
 			(text) => {
@@ -243,6 +277,43 @@ describe("reactive-layout solution (D181)", () => {
 		expect(new CellMeasureAdapter({ cellWidth: 4, tabCells: 3 }).measureSegment("\t")).toEqual({
 			width: 12,
 		});
+
+		const g = graph({ name: "measurement-providers" });
+		const text = g.state("aa", { name: "text" });
+		const font = g.state("font", { name: "font" });
+		const cellFacts = collect(cellTextMeasurements({ graph: g, text, font, cellWidth: 4 }));
+		expect(data<Measurements>(cellFacts.messages).at(-1)).toEqual([
+			{
+				kind: "ok",
+				targetId: "text",
+				measurementKind: "text-segments",
+				source: "cellTextMeasurements",
+				value: {
+					segments: [{ text: "aa", width: 8, kind: "text", graphemeWidths: [4, 4] }],
+					hyphenWidth: 4,
+				},
+				metadata: undefined,
+			},
+		]);
+		cellFacts.unsubscribe();
+
+		const missing = collect(
+			precomputedTextMeasurements({
+				graph: g,
+				text,
+				font,
+				metrics: {},
+				name: "precomputed-measurements",
+			}),
+		);
+		expect(data<Measurements>(missing.messages).at(-1)?.[0]).toMatchObject({
+			kind: "issue",
+			code: "measurement.failed",
+			subjectId: "text",
+			measurementKind: "text-segments",
+		});
+		expect(missing.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		missing.unsubscribe();
 	});
 
 	it("measures SVG and image blocks without DOM or implicit loading", () => {
@@ -301,25 +372,45 @@ describe("reactive-layout solution (D181)", () => {
 	});
 
 	it("builds a graph-visible reactiveBlockLayout bundle", () => {
-		const bundle = reactiveBlockLayout({
-			adapter: fixedAdapter,
-			blocks: [
+		const g = graph({ name: "reactive-block-layout" });
+		const blocks = g.state<readonly ContentBlock[]>(
+			[
 				{ kind: "text", id: "one", text: "a", lineHeight: 10 },
 				{ kind: "text", id: "two", text: "b", lineHeight: 10 },
 			],
-			font: "test",
-			maxWidth: 100,
+			{ name: "blocks" },
+		);
+		const maxWidth = g.state(100, { name: "max-width" });
+		const measurements = blockMeasurementProvider({
+			graph: g,
+			blocks,
+			maxWidth,
+			adapters: blockAdaptersNode(g),
+			font: g.state("test", { name: "font" }),
+		});
+		const bundle = reactiveBlockLayout({
+			graph: g,
+			measurements,
 			gap: 5,
 		});
 		const totalHeight = collect(bundle.totalHeight);
 
 		expect(bundle.graph.describe().edges).toEqual(
 			expect.arrayContaining([
-				{ from: "blocks", to: "measured-blocks" },
-				{ from: "max-width", to: "measured-blocks" },
-				{ from: "measured-blocks", to: "block-flow" },
-				{ from: "gap", to: "block-flow" },
-				{ from: "block-flow", to: "total-height" },
+				{ from: "blocks", to: "blocks-measurements" },
+				{ from: "max-width", to: "blocks-measurements" },
+				{ from: "block-adapters", to: "blocks-measurements" },
+				{ from: "font", to: "blocks-measurements" },
+				{ from: "blocks-measurements", to: "reactive-block-layout:measured-blocks" },
+				{
+					from: "reactive-block-layout:measured-blocks",
+					to: "reactive-block-layout:block-flow",
+				},
+				{ from: "reactive-block-layout:gap", to: "reactive-block-layout:block-flow" },
+				{
+					from: "reactive-block-layout:block-flow",
+					to: "reactive-block-layout:total-height",
+				},
 			]),
 		);
 		expect(data<number>(totalHeight.messages).at(-1)).toBe(25);
@@ -330,38 +421,92 @@ describe("reactive-layout solution (D181)", () => {
 		totalHeight.unsubscribe();
 	});
 
-	it("converts adapter failures in graph-visible bundles to ERROR messages", () => {
+	it("keeps missing measurement as DATA issues and layout no-ops by default", () => {
 		const throwingAdapter: MeasurementAdapter = {
 			measureSegment() {
 				throw new Error("measure exploded");
 			},
 		};
-		const layout = reactiveLayout({
-			adapter: throwingAdapter,
-			text: "boom",
-			font: "test",
+		const g = graph({ name: "measurement-issues" });
+		const text = g.state("boom", { name: "text" });
+		const font = g.state("test", { name: "font" });
+		const measurements = textMeasurementProvider({
+			graph: g,
+			text,
+			font,
+			adapter: g.state<MeasurementAdapter>(throwingAdapter, { name: "measure-capability" }),
 		});
+		const layout = reactiveLayout({
+			graph: g,
+			measurements,
+		});
+		const measurementFacts = collect(measurements);
 		const segments = collect(layout.segments);
 
-		expect(segments.messages.some((message) => message[0] === "ERROR")).toBe(true);
+		expect(data<Measurements>(measurementFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "issue",
+			code: "measurement.failed",
+			subjectId: "text",
+			measurementKind: "text-segments",
+		});
+		expect(data<readonly PreparedSegment[]>(segments.messages).at(-1)).toEqual([]);
+		expect(measurementFacts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		expect(segments.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		measurementFacts.unsubscribe();
 		segments.unsubscribe();
 
-		const block = reactiveBlockLayout({
-			blocks: [{ kind: "text", text: "boom" }],
-			adapter: throwingAdapter,
+		const blockGraph = graph({ name: "block-measurement-issues" });
+		const blocks = blockGraph.state<readonly ContentBlock[]>([{ kind: "text", text: "boom" }], {
+			name: "blocks",
 		});
+		const maxWidth = blockGraph.state(100, { name: "max-width" });
+		const blockMeasurements = blockMeasurementProvider({
+			graph: blockGraph,
+			blocks,
+			maxWidth,
+			adapters: blockGraph.state<BlockAdapters>(
+				{ text: throwingAdapter },
+				{ name: "block-adapters" },
+			),
+		});
+		const block = reactiveBlockLayout({
+			graph: blockGraph,
+			measurements: blockMeasurements,
+		});
+		const blockFacts = collect(blockMeasurements);
 		const measuredBlocks = collect(block.measuredBlocks);
 
-		expect(measuredBlocks.messages.some((message) => message[0] === "ERROR")).toBe(true);
+		expect(data<Measurements>(blockFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "issue",
+			code: "measurement.failed",
+			subjectId: "blocks",
+			measurementKind: "blocks",
+		});
+		expect(data<readonly unknown[]>(measuredBlocks.messages).at(-1)).toEqual([]);
+		expect(blockFacts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		expect(measuredBlocks.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		blockFacts.unsubscribe();
 		measuredBlocks.unsubscribe();
 
+		const flowGraph = graph({ name: "flow-measurement-issues" });
+		const flowText = flowGraph.state("boom", { name: "text" });
+		const flowFont = flowGraph.state("test", { name: "font" });
+		const flowMeasurements = textMeasurementProvider({
+			graph: flowGraph,
+			text: flowText,
+			font: flowFont,
+			adapter: flowGraph.state<MeasurementAdapter>(throwingAdapter, {
+				name: "measure-capability",
+			}),
+		});
 		const flow = reactiveFlowLayout({
-			adapter: throwingAdapter,
-			text: "boom",
+			graph: flowGraph,
+			measurements: flowMeasurements,
 		});
 		const flowSegments = collect(flow.segments);
 
-		expect(flowSegments.messages.some((message) => message[0] === "ERROR")).toBe(true);
+		expect(data<readonly PreparedSegment[]>(flowSegments.messages).at(-1)).toEqual([]);
+		expect(flowSegments.messages.some((message) => message[0] === "ERROR")).toBe(false);
 		flowSegments.unsubscribe();
 	});
 
@@ -384,9 +529,7 @@ describe("reactive-layout solution (D181)", () => {
 			container: { width: 80, height: 30 },
 			lineHeight: 10,
 			obstacles: [{ kind: "rect", x: 20, y: 0, width: 20, height: 10 }],
-			adapter: fixedAdapter,
-			font: "test",
-			cache,
+			hyphenWidth: fixedAdapter.measureSegment("-", "test").width,
 		});
 
 		expect(flow.lines.slice(0, 2).map((line) => [line.text, line.x, line.slotWidth])).toEqual([
@@ -397,10 +540,18 @@ describe("reactive-layout solution (D181)", () => {
 	});
 
 	it("builds a graph-visible reactiveFlowLayout bundle", () => {
+		const g = graph({ name: "reactive-flow-layout" });
+		const text = g.state("abcd ef", { name: "text" });
+		const font = g.state("test", { name: "font" });
+		const measurements = textMeasurementProvider({
+			graph: g,
+			text,
+			font,
+			adapter: adapterNode(g),
+		});
 		const bundle = reactiveFlowLayout({
-			adapter: fixedAdapter,
-			text: "abcd ef",
-			font: "test",
+			graph: g,
+			measurements,
 			lineHeight: 10,
 			container: { width: 40, height: 40 },
 		});
@@ -408,14 +559,19 @@ describe("reactive-layout solution (D181)", () => {
 
 		expect(bundle.graph.describe().edges).toEqual(
 			expect.arrayContaining([
-				{ from: "text", to: "segments" },
-				{ from: "font", to: "segments" },
-				{ from: "segments", to: "flow-lines" },
-				{ from: "line-height", to: "flow-lines" },
-				{ from: "container", to: "flow-lines" },
-				{ from: "columns", to: "flow-lines" },
-				{ from: "obstacles", to: "flow-lines" },
-				{ from: "font", to: "flow-lines" },
+				{ from: "text", to: "text-measurements" },
+				{ from: "font", to: "text-measurements" },
+				{ from: "measure-capability", to: "text-measurements" },
+				{ from: "text-measurements", to: "reactive-flow-layout:segments" },
+				{ from: "reactive-flow-layout:segments", to: "reactive-flow-layout:flow-lines" },
+				{
+					from: "reactive-flow-layout:line-height",
+					to: "reactive-flow-layout:flow-lines",
+				},
+				{ from: "reactive-flow-layout:container", to: "reactive-flow-layout:flow-lines" },
+				{ from: "reactive-flow-layout:columns", to: "reactive-flow-layout:flow-lines" },
+				{ from: "reactive-flow-layout:obstacles", to: "reactive-flow-layout:flow-lines" },
+				{ from: "text-measurements", to: "reactive-flow-layout:flow-lines" },
 			]),
 		);
 		expect(data<{ readonly lines: readonly unknown[] }>(flow.messages).at(-1)?.lines.length).toBe(

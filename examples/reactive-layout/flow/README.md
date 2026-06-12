@@ -5,10 +5,11 @@ through a reactive graph.
 
 What's wired:
 
-- **`reactiveFlowLayout({...})`** builds a graph with state nodes for
-  `text / font / line-height / container / columns / obstacles` and two
-  derived nodes — `segments` (recomputes only when text/font change) and
-  `flowLines` (recomputes whenever any dep changes).
+- **`canvasTextMeasurements({...})`** measures `text / font` upstream as
+  graph-visible facts.
+- **`reactiveFlowLayout({...})`** consumes that `measurements` node plus
+  state nodes for `line-height / container / columns / obstacles` and exposes
+  `segments` and `flowLines`.
 - Two **`effect`** nodes render the current `obstacles` and `flowLines`
   into DOM.
 - **`fromRaf()`** is the reactive clock; each frame tick drives

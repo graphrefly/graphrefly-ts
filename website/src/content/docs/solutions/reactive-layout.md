@@ -1,6 +1,6 @@
 ---
 title: Reactive Layout
-description: "D181 reactive-layout solution: DOM-free layout core, graph-visible bundles, and browser-only Canvas measurement."
+description: "D201 reactive-layout solution: DOM-free layout core, graph-visible measurement facts, and browser-only Canvas providers."
 ---
 
 ## What it is
@@ -19,19 +19,27 @@ The bundles return ordinary graph nodes such as `segments`, `lineBreaks`, `heigh
 `charPositions`, `measuredBlocks`, and `flowLines`. React, Canvas, DOM, CLI, or native renderers
 consume those nodes through their own binding layer; layout itself does not draw.
 
+Measurement is explicit graph input. Providers emit ordered `MeasurementResult` / `DataIssue` facts
+into a user-composed `measurements` node. Layout consumes the latest DATA from that node; users own
+merge, ordering, fallback, and dedupe policy.
+
 ## Imports
 
 ```ts
 import {
+  cellTextMeasurements,
   reactiveLayout,
   type LineBreaksResult,
 } from "@graphrefly/ts/solutions/reactive-layout";
-import { CanvasMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout/browser";
+import { graph } from "@graphrefly/ts";
 
+const g = graph({ name: "article" });
+const text = g.state("GraphReFly text layout as a reactive graph.", { name: "text" });
+const font = g.state("14px Fira Code", { name: "font" });
+const measurements = cellTextMeasurements({ graph: g, text, font });
 const layout = reactiveLayout({
-  adapter: new CanvasMeasureAdapter(),
-  text: "GraphReFly text layout as a reactive graph.",
-  font: "14px Fira Code",
+  graph: g,
+  measurements,
   lineHeight: 22,
   maxWidth: 480,
 });
@@ -42,17 +50,18 @@ layout.lineBreaks.subscribe((msg) => {
 });
 
 layout.setMaxWidth(320);
-layout.setText("Try typing here.");
+text.set("Try typing here.");
 ```
 
 ## Core Subpath
 
 `@graphrefly/ts/solutions/reactive-layout` is DOM-free. It exports the layout types, pure helpers,
-and sync injected adapters:
+and sync provider helpers:
 
-- `InjectedMeasureAdapter`
-- `PrecomputedMeasureAdapter`
-- `CellMeasureAdapter`
+- `injectedTextMeasurements`
+- `precomputedTextMeasurements`
+- `cellTextMeasurements`
+- `blockMeasurementProvider`
 - `ImageSizeAdapter`
 - `SvgBoundsAdapter`
 
@@ -61,8 +70,8 @@ and sync injected adapters:
 
 ## Browser Subpath
 
-`@graphrefly/ts/solutions/reactive-layout/browser` exports `CanvasMeasureAdapter`, which lazily uses
-`OffscreenCanvas`. This is the only shipped platform adapter for D181.
+`@graphrefly/ts/solutions/reactive-layout/browser` exports `canvasTextMeasurements`, which lazily
+uses `OffscreenCanvas` behind the browser subpath.
 
 Animation-frame sources are separate browser sources:
 

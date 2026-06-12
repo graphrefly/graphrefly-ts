@@ -7,6 +7,8 @@ import * as observeStorage from "../adapters/observe-storage.js";
 import * as composition from "../composition/index.js";
 import * as core from "../core/index.js";
 import * as cqrs from "../cqrs/index.js";
+import type { DataIssue, DataResult } from "../data/index.js";
+import * as data from "../data/index.js";
 import type {
 	ReactiveOpt as DataStructuresReactiveOpt,
 	ReactiveView as DataStructuresReactiveView,
@@ -79,6 +81,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./composition",
 			"./core",
 			"./cqrs",
+			"./data",
 			"./data-structures",
 			"./graph",
 			"./messaging",
@@ -195,6 +198,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof testing.assertDirtyPrecedesTerminalData).toBe("function");
 		expect(Object.hasOwn(storage, "attachObserveSink")).toBe(false);
 		expect(Object.hasOwn(storage, "attachObserveEventLog")).toBe(false);
+		expectTypeOf<DataIssue>().toMatchTypeOf<{
+			readonly kind: "issue";
+			readonly code: string;
+			readonly message: string;
+		}>();
+		expectTypeOf<DataResult<number>>().toMatchTypeOf<
+			| { readonly kind: "ok"; readonly value: number }
+			| { readonly kind: "error"; readonly error: DataIssue }
+		>();
+		expect(Object.keys(data)).toEqual([]);
 		expect(typeof cqrs.cqrs).toBe("function");
 		expect(typeof cqrs.cqrsCommandHandler).toBe("function");
 		expect(typeof cqrs.cqrsProjection).toBe("function");
@@ -238,6 +251,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.computeFlowLines).toBe("function");
 		expect(typeof solutions.circleIntervalForBand).toBe("function");
 		expect(typeof solutions.rectIntervalForBand).toBe("function");
+		expect(typeof solutions.textMeasurementProvider).toBe("function");
+		expect(typeof solutions.injectedTextMeasurements).toBe("function");
+		expect(typeof solutions.precomputedTextMeasurements).toBe("function");
+		expect(typeof solutions.cellTextMeasurements).toBe("function");
+		expect(typeof solutions.blockMeasurementProvider).toBe("function");
 		expect(typeof solutions.InjectedMeasureAdapter).toBe("function");
 		expect(typeof solutions.PrecomputedMeasureAdapter).toBe("function");
 		expect(typeof solutions.CellMeasureAdapter).toBe("function");
@@ -247,9 +265,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof reactiveLayoutCore.reactiveLayout).toBe("function");
 		expect(typeof reactiveLayoutCore.reactiveBlockLayout).toBe("function");
 		expect(typeof reactiveLayoutCore.reactiveFlowLayout).toBe("function");
+		expect(typeof reactiveLayoutCore.textMeasurementProvider).toBe("function");
+		expect(typeof reactiveLayoutCore.blockMeasurementProvider).toBe("function");
 		expect(typeof reactiveLayoutCore.CellMeasureAdapter).toBe("function");
 		expect(Object.hasOwn(reactiveLayoutCore, "CanvasMeasureAdapter")).toBe(false);
 		expect(typeof reactiveLayoutBrowser.CanvasMeasureAdapter).toBe("function");
+		expect(typeof reactiveLayoutBrowser.canvasTextMeasurements).toBe("function");
 		expect(typeof solutions.agenticMemoryKgProjectionBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordFrame).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordFrameCodec).toBe("function");

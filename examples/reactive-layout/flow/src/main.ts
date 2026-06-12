@@ -1,10 +1,10 @@
-import type { Message } from "@graphrefly/ts";
+import { graph, type Message } from "@graphrefly/ts";
 import {
 	type FlowLinesResult,
 	type Obstacle,
 	reactiveFlowLayout,
 } from "@graphrefly/ts/solutions/reactive-layout";
-import { CanvasMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout/browser";
+import { canvasTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/browser";
 import { fromRaf } from "@graphrefly/ts/sources/browser";
 
 // ---------------------------------------------------------------------------
@@ -102,16 +102,21 @@ function driftAt(t: number): Obstacle[] {
 }
 
 // ---------------------------------------------------------------------------
-// Reactive graph — `reactiveFlowLayout` returns a bundle with state nodes
-// (text / font / container / columns / obstacles) and two derived nodes
-// (`segments`, `flowLines`). We only reach in to update `obstacles`; the
-// rest of the graph propagates automatically.
+// Reactive graph — Canvas measurement is an upstream provider node. The layout
+// bundle consumes the latest graph-visible measurements DATA and owns no adapter.
 // ---------------------------------------------------------------------------
 
+const layoutGraph = graph({ name: "reactive-flow-layout" });
+const textNode = layoutGraph.state(ESSAY, { name: "text" });
+const fontNode = layoutGraph.state(FONT, { name: "font" });
+const measurements = canvasTextMeasurements({
+	graph: layoutGraph,
+	text: textNode,
+	font: fontNode,
+});
 const bundle = reactiveFlowLayout({
-	adapter: new CanvasMeasureAdapter(),
-	text: ESSAY,
-	font: FONT,
+	graph: layoutGraph,
+	measurements,
 	lineHeight: LINE_HEIGHT,
 	container: CONTAINER,
 	columns: { count: 2, gap: 28 },

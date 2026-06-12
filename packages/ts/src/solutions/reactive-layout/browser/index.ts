@@ -1,4 +1,11 @@
-import type { MeasurementAdapter } from "../index.js";
+import type { Graph } from "../../../graph/graph.js";
+import type { Node } from "../../../node/node.js";
+import {
+	type MeasurementAdapter,
+	type Measurements,
+	type SegmentAdapter,
+	textMeasurementProvider,
+} from "../index.js";
 
 interface CanvasTextContextLike {
 	readonly measureText: (text: string) => { readonly width: number };
@@ -17,6 +24,17 @@ interface OffscreenCanvasConstructor {
 export interface CanvasMeasureAdapterOptions {
 	/** Multiplier applied only to emoji-presentation segments. Default: 1. */
 	readonly emojiCorrection?: number;
+}
+
+/** Browser Canvas text measurement provider options. */
+export interface CanvasTextMeasurementsOptions extends CanvasMeasureAdapterOptions {
+	readonly graph: Graph;
+	readonly text: Node<string>;
+	readonly font: Node<string>;
+	readonly segmentAdapter?: Node<SegmentAdapter>;
+	readonly targetId?: string;
+	readonly source?: string;
+	readonly name?: string;
 }
 
 /**
@@ -64,4 +82,25 @@ export class CanvasMeasureAdapter implements MeasurementAdapter {
 	clearCache(): void {
 		this.currentFont = "";
 	}
+}
+
+/** Browser provider helper that emits graph-visible Canvas text measurement facts. */
+export function canvasTextMeasurements(opts: CanvasTextMeasurementsOptions): Node<Measurements> {
+	const targetId = opts.targetId ?? "text";
+	const adapter = opts.graph.state<MeasurementAdapter>(
+		new CanvasMeasureAdapter({ emojiCorrection: opts.emojiCorrection }),
+		{
+			name: opts.name ? `${opts.name}:measure-capability` : `${targetId}-canvas-measure-capability`,
+		},
+	);
+	return textMeasurementProvider({
+		graph: opts.graph,
+		text: opts.text,
+		font: opts.font,
+		adapter,
+		segmentAdapter: opts.segmentAdapter,
+		targetId: opts.targetId,
+		source: opts.source ?? "canvasTextMeasurements",
+		name: opts.name,
+	});
 }

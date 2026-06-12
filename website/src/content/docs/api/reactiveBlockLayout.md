@@ -10,7 +10,8 @@ Graph("reactive-block-layout")
 ├── state("blocks")       — ContentBlock[] input
 ├── state("max-width")    — container constraint
 ├── state("gap")          — vertical gap
-├── node("measured-blocks") — blocks + max-width -> MeasuredBlock[]
+├── node("blocks-measurements") — blocks + max-width -> Measurements
+├── node("measured-blocks") — measurements -> MeasuredBlock[]
 ├── node("block-flow")      — measured-blocks + gap -> PositionedBlock[]
 └── node("total-height")    — block-flow -> number
 ```
@@ -27,8 +28,8 @@ function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveBlockLay
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| <code>opts</code> | <code>ReactiveBlockLayoutOptions</code> | Optional initial blocks, max width, gap, text adapter, block adapters, font, line height, segment adapter, and graph name. |
+| <code>opts</code> | <code>ReactiveBlockLayoutOptions</code> | Requires `graph` and a graph-visible `measurements` node; optional gap, target id, and bundle name. Blocks and max width belong to the upstream provider composition. |
 
-Images must provide explicit dimensions or an injected `ImageMeasurer`. SVG blocks must provide
-explicit dimensions or an injected `SvgMeasurer`. The shipped core does not load images or parse SVG
-with the DOM.
+Use `blockMeasurementProvider` upstream when you want GraphReFly to build the block measurement
+facts from sync text/image/SVG capabilities. Missing image/SVG/text measurement is emitted by the
+provider as DATA-level `DataIssue`; layout defaults to no-op for issue-only facts.
