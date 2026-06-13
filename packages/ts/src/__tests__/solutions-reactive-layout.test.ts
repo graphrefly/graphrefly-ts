@@ -23,8 +23,12 @@ import {
 	computeTotalHeight,
 	type FlowColumns,
 	type FlowContainer,
+	IMAGE_SIZE_MEASUREMENT_KIND,
 	ImageSizeAdapter,
+	type ImageSizeLookup,
+	type ImageSizeMeasurementTarget,
 	InjectedMeasureAdapter,
+	imageSizeMeasurements,
 	type LineBreaksResult,
 	layoutNextLine,
 	type MeasurementAdapter,
@@ -37,12 +41,17 @@ import {
 	PrecomputedMeasureAdapter,
 	type PreparedSegment,
 	precomputedTextMeasurements,
+	READINESS_MEASUREMENT_KIND,
 	reactiveBlockLayout,
 	reactiveFlowLayout,
 	reactiveLayout,
+	readinessMeasurements,
 	readinessTextMeasurements,
 	rectIntervalForBand,
+	SVG_BOUNDS_MEASUREMENT_KIND,
 	SvgBoundsAdapter,
+	type SvgBoundsMeasurementTarget,
+	svgBoundsMeasurements,
 	type TextMeasureCapability,
 	type TextSegmentsMeasurement,
 	textMeasurementProvider,
@@ -539,6 +548,142 @@ describe("reactive-layout solution (D181)", () => {
 		cachedFacts.unsubscribe();
 	});
 
+	it("emits standalone readiness, image, and SVG measurement facts as DATA", () => {
+		const readinessGraph = graph({ name: "standalone-readiness-provider" });
+		const readiness = readinessGraph.state<MeasurementReadiness>(
+			{ ready: false, code: "font.loading", metadata: { family: "Inter" } },
+			{ name: "font-ready" },
+		);
+		const readinessFacts = collect(
+			readinessMeasurements({
+				graph: readinessGraph,
+				readiness,
+				targetId: "font:Inter",
+				source: "font-loader",
+			}),
+		);
+
+		expect(data<Measurements>(readinessFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "issue",
+			code: "font.loading",
+			subjectId: "font:Inter",
+			measurementKind: READINESS_MEASUREMENT_KIND,
+			source: "font-loader",
+			metadata: { family: "Inter" },
+		});
+
+		readiness.set({ ready: true, source: "font-face-set", metadata: { family: "Inter" } });
+
+		expect(data<Measurements>(readinessFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "ok",
+			targetId: "font:Inter",
+			measurementKind: READINESS_MEASUREMENT_KIND,
+			source: "font-face-set",
+			value: { ready: true, source: "font-face-set", metadata: { family: "Inter" } },
+		});
+		expect(readinessFacts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		readinessFacts.unsubscribe();
+
+		const imageGraph = graph({ name: "image-size-provider" });
+		const imageTargets = [
+			{ id: "hero", src: "hero", metadata: { role: "cover" } },
+			{ src: "inline" },
+			{ id: "bad-size", src: "bad-size" },
+		] as Array<ImageSizeMeasurementTarget | undefined>;
+		imageTargets.length = 4;
+		const imageMeasurer = {
+			measureImage(src: string) {
+				if (src === "hero") return { width: 300, height: 150 };
+				if (src === "inline") return { width: 120, height: 80 };
+				if (src === "bad-size") return { width: Number.NaN, height: -5 };
+				throw new Error(`missing image ${src}`);
+			},
+		};
+		const imageFacts = collect(
+			imageSizeMeasurements({
+				graph: imageGraph,
+				images: imageGraph.state(imageTargets as readonly ImageSizeMeasurementTarget[], {
+					name: "images",
+				}),
+				measurer: imageGraph.state(imageMeasurer, { name: "image-size-capability" }),
+			}),
+		);
+		const latestImages = data<Measurements>(imageFacts.messages).at(-1);
+
+		expect(latestImages?.[0]).toMatchObject({
+			kind: "ok",
+			targetId: "hero",
+			measurementKind: IMAGE_SIZE_MEASUREMENT_KIND,
+			value: { width: 300, height: 150 },
+			metadata: { role: "cover" },
+		});
+		expect(latestImages?.[1]).toMatchObject({
+			kind: "ok",
+			targetId: "inline",
+			measurementKind: IMAGE_SIZE_MEASUREMENT_KIND,
+			value: { width: 120, height: 80 },
+		});
+		expect(latestImages?.[2]).toMatchObject({
+			kind: "issue",
+			code: "measurement.image-size.failed",
+			subjectId: "bad-size",
+			measurementKind: IMAGE_SIZE_MEASUREMENT_KIND,
+		});
+		expect(latestImages?.[3]).toMatchObject({
+			kind: "issue",
+			code: "measurement.image-size.failed",
+			subjectId: "image:3",
+			measurementKind: IMAGE_SIZE_MEASUREMENT_KIND,
+		});
+		expect(imageFacts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		imageFacts.unsubscribe();
+
+		const svgGraph = graph({ name: "svg-bounds-provider" });
+		const svgTargets = [
+			{ id: "mark", svg: '<svg viewBox="0 0 40 20"></svg>' },
+			{ id: "bad-size", svg: "<svg data-bad-size></svg>" },
+			{ id: "broken", svg: "<g></g>" },
+		] satisfies SvgBoundsMeasurementTarget[];
+		const svgAdapter = new SvgBoundsAdapter();
+		const svgMeasurer = {
+			measureSvg(svgText: string) {
+				if (svgText.includes("data-bad-size")) {
+					return { width: Number.POSITIVE_INFINITY, height: 10 };
+				}
+				return svgAdapter.measureSvg(svgText);
+			},
+		};
+		const svgFacts = collect(
+			svgBoundsMeasurements({
+				graph: svgGraph,
+				svgs: svgGraph.state(svgTargets, { name: "svgs" }),
+				measurer: svgGraph.state(svgMeasurer, { name: "svg-bounds-capability" }),
+			}),
+		);
+		const latestSvgs = data<Measurements>(svgFacts.messages).at(-1);
+
+		expect(latestSvgs?.[0]).toMatchObject({
+			kind: "ok",
+			targetId: "mark",
+			measurementKind: SVG_BOUNDS_MEASUREMENT_KIND,
+			value: { width: 40, height: 20 },
+		});
+		expect(latestSvgs?.[1]).toMatchObject({
+			kind: "issue",
+			code: "measurement.svg-bounds.failed",
+			subjectId: "bad-size",
+			measurementKind: SVG_BOUNDS_MEASUREMENT_KIND,
+		});
+		expect(latestSvgs?.[2]).toMatchObject({
+			kind: "issue",
+			code: "measurement.svg-bounds.failed",
+			subjectId: "broken",
+			measurementKind: SVG_BOUNDS_MEASUREMENT_KIND,
+		});
+		expect(svgFacts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		svgFacts.unsubscribe();
+	});
+
 	it("provides focused platform subpath text measurement helpers without native imports", () => {
 		const nodeCanvasGraph = graph({ name: "node-canvas-provider" });
 		const text = nodeCanvasGraph.state("abcd", { name: "text" });
@@ -610,7 +755,12 @@ describe("reactive-layout solution (D181)", () => {
 
 	it("measures SVG and image blocks without DOM or implicit loading", () => {
 		const svg = new SvgBoundsAdapter();
-		const images = new ImageSizeAdapter({ hero: { width: 300, height: 150 } });
+		const readonlySizes: ImageSizeLookup = {
+			get(key: string) {
+				return key === "hero" ? { width: 300, height: 150 } : undefined;
+			},
+		};
+		const images = new ImageSizeAdapter(readonlySizes);
 
 		expect(svg.measureSvg('<svg viewBox="0 0 40 20"></svg>')).toEqual({ width: 40, height: 20 });
 		expect(svg.measureSvg('<svg stroke-width="2" width="100" height="50"></svg>')).toEqual({

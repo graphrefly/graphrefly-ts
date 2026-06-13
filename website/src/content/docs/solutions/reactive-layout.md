@@ -1,6 +1,6 @@
 ---
 title: Reactive Layout
-description: "D201 reactive-layout solution: DOM-free layout core, graph-visible measurement facts, and browser-only Canvas providers."
+description: "D203 reactive-layout solution: DOM-free layout core, graph-visible measurement facts, and focused provider helpers."
 ---
 
 ## What it is
@@ -63,6 +63,9 @@ and sync provider helpers:
 - `cellTextMeasurements`
 - `capabilityTextMeasurements`
 - `readinessTextMeasurements`
+- `readinessMeasurements`
+- `imageSizeMeasurements`
+- `svgBoundsMeasurements`
 - `blockAdaptersProvider`
 - `blockMeasurementProvider`
 - `ImageSizeAdapter`
@@ -83,6 +86,13 @@ capabilities such as NodeCanvas, Skia, or React Native measurement functions. Th
 explicit graph dependency; the universal core still imports no native package or platform global.
 `readinessTextMeasurements` makes font or resource readiness an explicit graph fact: not-ready emits
 a `DataIssue`, ready delegates to the normal text measurement path.
+
+`readinessMeasurements`, `imageSizeMeasurements`, and `svgBoundsMeasurements` are lightweight fact
+providers. They emit ordinary `MeasurementResult` / `DataIssue` facts for readiness, caller-registered
+image sizes, and caller-injected SVG bounds readers. They do not load fonts or images, parse DOM SVG,
+merge provider outputs, or make layout consume image/SVG facts directly.
+Target ids are measurement fact keys; duplicate ids and cross-provider precedence are caller-owned
+composition policy.
 
 ## Browser Subpath
 
@@ -115,7 +125,7 @@ native layout readiness should still be modeled with explicit readiness or measu
 
 ## Deferred
 
-These are intentionally not implemented by D181:
+These are intentionally not implemented by D203:
 
 - Required NodeCanvas, React Native, Skia, or other native measurement dependencies.
 - Async image loading.

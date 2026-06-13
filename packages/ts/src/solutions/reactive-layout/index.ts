@@ -92,6 +92,12 @@ export interface Interval {
 
 export const TEXT_SEGMENTS_MEASUREMENT_KIND = "text-segments";
 export const BLOCKS_MEASUREMENT_KIND = "blocks";
+/** Measurement kind for standalone readiness facts. */
+export const READINESS_MEASUREMENT_KIND = "readiness";
+/** Measurement kind for standalone image-size facts. */
+export const IMAGE_SIZE_MEASUREMENT_KIND = "image-size";
+/** Measurement kind for standalone SVG-bounds facts. */
+export const SVG_BOUNDS_MEASUREMENT_KIND = "svg-bounds";
 
 export interface TextSegmentsMeasurement {
 	readonly segments: readonly PreparedSegment[];
@@ -159,8 +165,57 @@ export interface MeasurementReadiness {
 	readonly metadata?: Record<string, unknown>;
 }
 
+/** Options for projecting readiness into graph-visible measurement facts. */
+export interface ReadinessMeasurementsOptions {
+	readonly graph: Graph;
+	readonly readiness: Node<MeasurementReadiness>;
+	readonly targetId?: string;
+	readonly measurementKind?: string;
+	readonly source?: string;
+	readonly name?: string;
+}
+
 export interface ReadinessTextMeasurementsOptions extends TextMeasurementProviderOptions {
 	readonly readiness: Node<MeasurementReadiness>;
+}
+
+/** Minimal caller-owned lookup for explicit image sizes. */
+export interface ImageSizeLookup {
+	get(src: string): Size | undefined;
+}
+
+/** One image-size fact target for `imageSizeMeasurements`. */
+export interface ImageSizeMeasurementTarget {
+	readonly id?: string;
+	readonly src: string;
+	readonly metadata?: Record<string, unknown>;
+}
+
+/** Options for projecting image-size facts from a caller-owned synchronous measurer. */
+export interface ImageSizeMeasurementsOptions {
+	readonly graph: Graph;
+	readonly images: Node<readonly ImageSizeMeasurementTarget[]>;
+	readonly measurer: Node<ImageMeasurer>;
+	readonly measurementKind?: string;
+	readonly source?: string;
+	readonly name?: string;
+}
+
+/** One SVG-bounds fact target for `svgBoundsMeasurements`. */
+export interface SvgBoundsMeasurementTarget {
+	readonly id?: string;
+	readonly svg: string;
+	readonly metadata?: Record<string, unknown>;
+}
+
+/** Options for projecting SVG bounds from a caller-owned synchronous measurer. */
+export interface SvgBoundsMeasurementsOptions {
+	readonly graph: Graph;
+	readonly svgs: Node<readonly SvgBoundsMeasurementTarget[]>;
+	readonly measurer: Node<SvgMeasurer>;
+	readonly measurementKind?: string;
+	readonly source?: string;
+	readonly name?: string;
 }
 
 export interface BlockMeasurementProviderOptions {
@@ -779,20 +834,24 @@ export class SvgBoundsAdapter implements SvgMeasurer {
 
 /** Image measurer backed by explicit caller-provided dimensions; it never loads images. */
 export class ImageSizeAdapter implements ImageMeasurer {
-	private readonly sizes: ReadonlyMap<string, Size>;
+	private readonly sizes: ImageSizeLookup;
 
-	constructor(sizes: ReadonlyMap<string, Size> | Record<string, Size>) {
-		this.sizes = sizes instanceof Map ? sizes : new Map(Object.entries(sizes));
+	constructor(sizes: ImageSizeLookup | Record<string, Size>) {
+		this.sizes = isImageSizeLookup(sizes) ? sizes : new Map(Object.entries(sizes));
 	}
 
 	measureImage(src: string): Size {
 		const size = this.sizes.get(src);
 		if (!size) throw new Error(`No image size registered for ${JSON.stringify(src)}`);
-		return {
-			width: nonNegativeFinite(size.width, 0),
-			height: nonNegativeFinite(size.height, 0),
-		};
+		return size;
 	}
+}
+
+function isImageSizeLookup(value: unknown): value is ImageSizeLookup {
+	if (value === null) return false;
+	const valueType = typeof value;
+	if (valueType !== "object" && valueType !== "function") return false;
+	return typeof (value as { readonly get?: unknown }).get === "function";
 }
 
 function measurementIssue(
@@ -860,6 +919,18 @@ function tryMeasureHyphenWidth(adapter: MeasurementAdapter, font: string): numbe
 	} catch {
 		return undefined;
 	}
+}
+
+function validMeasurementSize(size: Size, label: string): Size {
+	if (
+		!Number.isFinite(size.width) ||
+		!Number.isFinite(size.height) ||
+		size.width < 0 ||
+		size.height < 0
+	) {
+		throw new Error(`Invalid ${label} measurement size`);
+	}
+	return size;
 }
 
 function textMeasurementFacts(
@@ -1116,6 +1187,154 @@ export function readinessTextMeasurements(
 					textMeasurementFacts(text, font, adapter, cache, segmentAdapter, targetId, source),
 				],
 			]);
+		},
+		{ name },
+	);
+}
+
+/** Provider helper that emits graph-visible readiness facts without measuring layout. */
+export function readinessMeasurements(opts: ReadinessMeasurementsOptions): Node<Measurements> {
+	const targetId = opts.targetId ?? "measurement-readiness";
+	const measurementKind = opts.measurementKind ?? READINESS_MEASUREMENT_KIND;
+	const name = opts.name ?? `${targetId}-measurements`;
+	const source = opts.source ?? name;
+	return opts.graph.node<Measurements>(
+		[opts.readiness],
+		(ctx: Ctx) => {
+			const readiness = depLatest(ctx, 0) as MeasurementReadiness;
+			if (!readiness.ready) {
+				ctx.down([
+					[
+						"DATA",
+						[
+							measurementIssue(
+								readiness.code ?? "measurement.not-ready",
+								readiness.message ?? `Measurement readiness blocked '${targetId}'`,
+								targetId,
+								measurementKind,
+								{
+									source: readiness.source ?? source,
+									details: readiness.details,
+									metadata: readiness.metadata,
+									severity: "warning",
+								},
+							),
+						],
+					],
+				]);
+				return;
+			}
+			ctx.down([
+				[
+					"DATA",
+					[
+						measurementOk<MeasurementReadiness>(targetId, measurementKind, readiness, {
+							source: readiness.source ?? source,
+							metadata: readiness.metadata,
+						}),
+					],
+				],
+			]);
+		},
+		{ name },
+	);
+}
+
+/** Provider helper for image-size facts from caller-owned synchronous image measurers. */
+export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<Measurements> {
+	const measurementKind = opts.measurementKind ?? IMAGE_SIZE_MEASUREMENT_KIND;
+	const name = opts.name ?? "image-size-measurements";
+	const source = opts.source ?? name;
+	return opts.graph.node<Measurements>(
+		[opts.images, opts.measurer],
+		(ctx: Ctx) => {
+			const images = depLatest(ctx, 0) as readonly ImageSizeMeasurementTarget[];
+			const measurer = depLatest(ctx, 1) as ImageMeasurer;
+			const facts: MeasurementFact<Size>[] = [];
+			for (let i = 0; i < images.length; i += 1) {
+				const image = (images as readonly (ImageSizeMeasurementTarget | undefined)[])[i];
+				const subjectId = image?.id ?? image?.src ?? `image:${i}`;
+				try {
+					if (image === undefined) throw new Error(`Missing image target at index ${i}`);
+					facts.push(
+						measurementOk<Size>(
+							subjectId,
+							measurementKind,
+							validMeasurementSize(measurer.measureImage(image.src), "image"),
+							{
+								source,
+								metadata: image.metadata,
+							},
+						),
+					);
+				} catch (error) {
+					facts.push(
+						measurementIssue(
+							"measurement.image-size.failed",
+							`Image size measurement failed for '${subjectId}'`,
+							subjectId,
+							measurementKind,
+							{
+								source,
+								details: { error, index: i, src: image?.src },
+								metadata: image?.metadata,
+								severity: "error",
+							},
+						),
+					);
+				}
+			}
+			ctx.down([["DATA", facts]]);
+		},
+		{ name },
+	);
+}
+
+/** Provider helper for SVG bounds facts from caller-owned synchronous SVG measurers. */
+export function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<Measurements> {
+	const measurementKind = opts.measurementKind ?? SVG_BOUNDS_MEASUREMENT_KIND;
+	const name = opts.name ?? "svg-bounds-measurements";
+	const source = opts.source ?? name;
+	return opts.graph.node<Measurements>(
+		[opts.svgs, opts.measurer],
+		(ctx: Ctx) => {
+			const svgs = depLatest(ctx, 0) as readonly SvgBoundsMeasurementTarget[];
+			const measurer = depLatest(ctx, 1) as SvgMeasurer;
+			const facts: MeasurementFact<Size>[] = [];
+			for (let i = 0; i < svgs.length; i += 1) {
+				const svg = (svgs as readonly (SvgBoundsMeasurementTarget | undefined)[])[i];
+				const subjectId = svg?.id ?? `svg:${i}`;
+				try {
+					if (svg === undefined) throw new Error(`Missing SVG target at index ${i}`);
+					facts.push(
+						measurementOk<Size>(
+							subjectId,
+							measurementKind,
+							validMeasurementSize(measurer.measureSvg(svg.svg), "SVG"),
+							{
+								source,
+								metadata: svg.metadata,
+							},
+						),
+					);
+				} catch (error) {
+					facts.push(
+						measurementIssue(
+							"measurement.svg-bounds.failed",
+							`SVG bounds measurement failed for '${subjectId}'`,
+							subjectId,
+							measurementKind,
+							{
+								source,
+								details: { error, index: i },
+								metadata: svg?.metadata,
+								severity: "error",
+							},
+						),
+					);
+				}
+			}
+			ctx.down([["DATA", facts]]);
 		},
 		{ name },
 	);

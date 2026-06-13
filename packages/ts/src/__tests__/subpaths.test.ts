@@ -56,6 +56,7 @@ import * as operators from "../operators/index.js";
 import * as orchestration from "../orchestration/index.js";
 import * as patterns from "../patterns/index.js";
 import * as render from "../render/index.js";
+import type { ImageSizeLookup } from "../solutions/index.js";
 import * as solutions from "../solutions/index.js";
 import * as reactiveLayoutBrowser from "../solutions/reactive-layout/browser/index.js";
 import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
@@ -263,6 +264,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.cellTextMeasurements).toBe("function");
 		expect(typeof solutions.capabilityTextMeasurements).toBe("function");
 		expect(typeof solutions.readinessTextMeasurements).toBe("function");
+		expect(typeof solutions.readinessMeasurements).toBe("function");
+		expect(typeof solutions.imageSizeMeasurements).toBe("function");
+		expect(typeof solutions.svgBoundsMeasurements).toBe("function");
 		expect(typeof solutions.blockAdaptersProvider).toBe("function");
 		expect(typeof solutions.blockMeasurementProvider).toBe("function");
 		expect(typeof solutions.InjectedMeasureAdapter).toBe("function");
@@ -278,10 +282,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof reactiveLayoutCore.textMeasurementProvider).toBe("function");
 		expect(typeof reactiveLayoutCore.capabilityTextMeasurements).toBe("function");
 		expect(typeof reactiveLayoutCore.readinessTextMeasurements).toBe("function");
+		expect(typeof reactiveLayoutCore.readinessMeasurements).toBe("function");
+		expect(typeof reactiveLayoutCore.imageSizeMeasurements).toBe("function");
+		expect(typeof reactiveLayoutCore.svgBoundsMeasurements).toBe("function");
 		expect(typeof reactiveLayoutCore.blockAdaptersProvider).toBe("function");
 		expect(typeof reactiveLayoutCore.blockMeasurementProvider).toBe("function");
 		expect(typeof reactiveLayoutCore.CellMeasureAdapter).toBe("function");
 		expect(typeof reactiveLayoutCore.CapabilityMeasureAdapter).toBe("function");
+		expect(reactiveLayoutCore.READINESS_MEASUREMENT_KIND).toBe("readiness");
+		expect(reactiveLayoutCore.IMAGE_SIZE_MEASUREMENT_KIND).toBe("image-size");
+		expect(reactiveLayoutCore.SVG_BOUNDS_MEASUREMENT_KIND).toBe("svg-bounds");
 		expect(Object.hasOwn(reactiveLayoutCore, "CanvasMeasureAdapter")).toBe(false);
 		expect(typeof reactiveLayoutBrowser.CanvasMeasureAdapter).toBe("function");
 		expect(typeof reactiveLayoutBrowser.canvasTextMeasurements).toBe("function");
@@ -440,6 +450,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<GraphCheckpoint>()
 			.toHaveProperty("version")
 			.toEqualTypeOf<"graphrefly.checkpoint.v1">();
+		expectTypeOf<ImageSizeLookup>().toMatchTypeOf<{
+			get(src: string): unknown;
+		}>();
 		expectTypeOf<AgenticMemoryBundleOptions>()
 			.toHaveProperty("name")
 			.toEqualTypeOf<string | undefined>();
