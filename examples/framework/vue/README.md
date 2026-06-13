@@ -6,7 +6,7 @@ Minimal Vue 3 + GraphReFly counter.
 - `useNodeValue(node)` -> read-only `Ref<T>` — works for any node (here: a
   derived).
 
-The helpers come from the focused `@graphrefly/ts/adapters/vue` subpath; subscriptions
+The helpers come from the D238-focused `@graphrefly/ts/adapters/vue` subpath; subscriptions
 clean up automatically on `onScopeDispose`.
 
 ## Run

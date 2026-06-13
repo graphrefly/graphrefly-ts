@@ -20,10 +20,10 @@ examples/
 │   ├── nanostores/              nanoAtom(...) facade over GraphReFly nodes
 │   └── zustand/                 zustandStore(...) API over GraphReFly nodes
 ├── framework/
-│   ├── react/                   Vite + React 19, useStore / useSubscribe
-│   ├── vue/                     Vite + Vue 3, useStore / useSubscribe
-│   ├── solid/                   Vite + SolidJS, useStore / useSubscribe
-│   └── svelte/                  Vite + Svelte 5 (runes), useStore / useSubscribe
+│   ├── react/                   Vite + React 19, useNodeInput/useNodeValue via `@graphrefly/ts/adapters/react` (D238)
+│   ├── vue/                     Vite + Vue 3, useNodeInput/useNodeValue via `@graphrefly/ts/adapters/vue` (D238)
+│   ├── solid/                   Vite + SolidJS, createNodeInput/createNodeValue via `@graphrefly/ts/adapters/solid` (D238)
+│   └── svelte/                  Vite + Svelte 5 (runes), nodeWritable/nodeReadable via `@graphrefly/ts/adapters/svelte` (D238)
 ├── reactive-layout/
 │   └── flow/                    Multi-column text wrapping drifting obstacles
 └── nestjs/

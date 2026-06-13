@@ -377,7 +377,7 @@
 		"access": "public"
 	},
 	"scripts": {
-		"build": "tsup",
+		"build": "tsup && node ../../scripts/check-ts-package-exports.mjs",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},

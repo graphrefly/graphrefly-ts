@@ -5,7 +5,7 @@ Minimal SolidJS + GraphReFly counter.
 - `createNodeInput(node)` -> `[Accessor<T>, setter]`.
 - `createNodeValue(node)` -> `Accessor<T>` — works for any node (here: a derived).
 
-The helpers come from the focused `@graphrefly/ts/adapters/solid` subpath; cleanup is
+The helpers come from the D238-focused `@graphrefly/ts/adapters/solid` subpath; cleanup is
 tied to the Solid reactive owner via `onCleanup`.
 
 ## Run

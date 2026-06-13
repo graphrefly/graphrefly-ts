@@ -1,0 +1,369 @@
+import { execFileSync } from "node:child_process";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const PKG = join(ROOT, "packages", "ts");
+const TSC = join(ROOT, "node_modules", ".bin", "tsc");
+const packageJson = JSON.parse(readFileSync(join(PKG, "package.json"), "utf8"));
+const optionalPeers = ["canvas", "react", "solid-js", "svelte", "vue"];
+
+const expectedSubpaths = {
+	"./adapters": {
+		present: [
+			"subscribeNodeValues",
+			"readableStore",
+			"writableStore",
+			"externalStore",
+			"recordReadableStore",
+		],
+		absent: [
+			"useNodeValue",
+			"useNodeInput",
+			"useNodeRecord",
+			"createNodeValue",
+			"createNodeInput",
+			"createNodeRecord",
+			"nodeReadable",
+			"nodeWritable",
+			"nodeRecord",
+		],
+	},
+	"./adapters/react": { present: ["useNodeValue", "useNodeInput", "useNodeRecord"], absent: [] },
+	"./adapters/vue": { present: ["useNodeValue", "useNodeInput", "useNodeRecord"], absent: [] },
+	"./adapters/solid": {
+		present: ["createNodeValue", "createNodeInput", "createNodeRecord"],
+		absent: [],
+	},
+	"./adapters/svelte": { present: ["nodeReadable", "nodeWritable", "nodeRecord"], absent: [] },
+	"./inspection/boundary": { present: ["boundaryManifest"], absent: [] },
+};
+
+const forbiddenFrameworkSpecifiers = [
+	'from "react"',
+	"from 'react'",
+	'require("react")',
+	"require('react')",
+	'from "vue"',
+	"from 'vue'",
+	'require("vue")',
+	"require('vue')",
+	'from "solid-js"',
+	"from 'solid-js'",
+	'require("solid-js")',
+	"require('solid-js')",
+	'from "svelte/store"',
+	"from 'svelte/store'",
+	'require("svelte/store")',
+	"require('svelte/store')",
+];
+
+const rootAbsentExports = [
+	"useNodeValue",
+	"useNodeInput",
+	"useNodeRecord",
+	"createNodeValue",
+	"createNodeInput",
+	"createNodeRecord",
+	"nodeReadable",
+	"nodeWritable",
+	"nodeRecord",
+	"boundaryManifest",
+];
+
+const rootAbsentTypeExports = [
+	"BoundaryManifest",
+	"BoundaryNode",
+	"BoundaryRole",
+	"InputBoundaryNode",
+	"OutputBoundaryNode",
+];
+
+function fail(message) {
+	console.error(`check-ts-package-exports: ${message}`);
+	process.exit(1);
+}
+
+function assert(condition, message) {
+	if (!condition) fail(message);
+}
+
+function exportTarget(subpath, condition, key) {
+	const entry = packageJson.exports?.[subpath]?.[condition]?.[key];
+	assert(typeof entry === "string", `${subpath} missing exports.${condition}.${key}`);
+	return join(PKG, entry);
+}
+
+function errorOutput(err) {
+	const stdout =
+		typeof err.stdout === "string"
+			? err.stdout
+			: Buffer.isBuffer(err.stdout)
+				? err.stdout.toString("utf8")
+				: "";
+	const stderr =
+		typeof err.stderr === "string"
+			? err.stderr
+			: Buffer.isBuffer(err.stderr)
+				? err.stderr.toString("utf8")
+				: "";
+	return `${stdout}${stderr}`;
+}
+
+function validateExportTree(value, path) {
+	if (typeof value === "string") {
+		assert(value.startsWith("./"), `${path} must be a package-relative target`);
+		assert(existsSync(join(PKG, value)), `${path} target missing: ${value}`);
+		return;
+	}
+	assert(
+		value !== null && typeof value === "object",
+		`${path} must be a string or condition object`,
+	);
+	for (const [key, child] of Object.entries(value)) {
+		validateExportTree(child, `${path}.${key}`);
+	}
+}
+
+function expectTscFailure(tmp, file, expectedNames) {
+	const config = `tsconfig.${file}.json`;
+	writeFileSync(
+		join(tmp, config),
+		JSON.stringify(
+			{
+				compilerOptions: {
+					target: "ES2022",
+					module: "NodeNext",
+					moduleResolution: "NodeNext",
+					strict: true,
+					noEmit: true,
+					skipLibCheck: true,
+				},
+				include: [file],
+			},
+			null,
+			"\t",
+		),
+	);
+	try {
+		execFileSync(TSC, ["-p", config], { cwd: tmp, stdio: "pipe" });
+		fail(`${file} unexpectedly typechecked; forbidden type-only exports leaked`);
+	} catch (e) {
+		const out = errorOutput(e);
+		for (const name of expectedNames) {
+			assert(
+				out.includes(name),
+				`${file} failed for an unexpected reason; missing diagnostic for ${name}`,
+			);
+		}
+	}
+}
+
+validateExportTree(packageJson.exports, "exports");
+
+for (const subpath of Object.keys(expectedSubpaths)) {
+	assert(packageJson.exports?.[subpath] !== undefined, `${subpath} missing from package exports`);
+	for (const [condition, extension] of [
+		["import", ".js"],
+		["require", ".cjs"],
+	]) {
+		const runtimeTarget = exportTarget(subpath, condition, "default");
+		assert(
+			existsSync(runtimeTarget),
+			`${subpath} ${condition} runtime target missing: ${runtimeTarget}`,
+		);
+		assert(
+			runtimeTarget.endsWith(extension),
+			`${subpath} ${condition} runtime target should end with ${extension}`,
+		);
+		const typeTarget = exportTarget(subpath, condition, "types");
+		assert(existsSync(typeTarget), `${subpath} ${condition} type target missing: ${typeTarget}`);
+	}
+}
+
+for (const peer of optionalPeers) {
+	assert(
+		packageJson.peerDependencies?.[peer] !== undefined,
+		`optional peer ${peer} missing from peerDependencies`,
+	);
+	assert(
+		packageJson.peerDependenciesMeta?.[peer]?.optional === true,
+		`optional peer ${peer} missing peerDependenciesMeta optional:true`,
+	);
+}
+
+for (const rel of [
+	"dist/index.js",
+	"dist/index.cjs",
+	"dist/adapters/index.js",
+	"dist/adapters/index.cjs",
+]) {
+	const file = join(PKG, rel);
+	assert(existsSync(file), `${rel} missing; run pnpm --filter @graphrefly/ts build`);
+	const text = readFileSync(file, "utf8");
+	for (const specifier of forbiddenFrameworkSpecifiers) {
+		assert(
+			!text.includes(specifier),
+			`${rel} imports framework peer through the universal/adapters build: ${specifier}`,
+		);
+	}
+}
+
+const tmp = mkdtempSync(join(tmpdir(), "graphrefly-ts-export-smoke-"));
+
+try {
+	mkdirSync(join(tmp, "node_modules", "@graphrefly"), { recursive: true });
+	const tmpPkg = join(tmp, "node_modules", "@graphrefly", "ts");
+	mkdirSync(tmpPkg, { recursive: true });
+	cpSync(join(PKG, "package.json"), join(tmpPkg, "package.json"));
+	cpSync(join(PKG, "dist"), join(tmpPkg, "dist"), { recursive: true });
+	for (const peer of optionalPeers) {
+		const realPeer = join(ROOT, "node_modules", peer);
+		if (existsSync(realPeer)) {
+			symlinkSync(realPeer, join(tmp, "node_modules", peer), "dir");
+		}
+	}
+	writeFileSync(
+		join(tmp, "package.json"),
+		JSON.stringify({ type: "module", private: true }, null, "\t"),
+	);
+
+	const rootAbsentChecks = rootAbsentExports
+		.map(
+			(name) =>
+				`assert(!Object.hasOwn(root, ${JSON.stringify(name)}), ${JSON.stringify(`@graphrefly/ts must not export ${name}`)});`,
+		)
+		.join("\n");
+
+	const runtimeAssertions = `{
+	const root = await load("@graphrefly/ts");
+	${rootAbsentChecks}
+}
+${Object.entries(expectedSubpaths)
+	.map(([subpath, { present, absent }]) => {
+		const specifier = `@graphrefly/ts${subpath.slice(1)}`;
+		const presentChecks = present
+			.map(
+				(name) =>
+					`assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
+			)
+			.join("\n");
+		const absentChecks = absent
+			.map(
+				(name) =>
+					`assert(!Object.hasOwn(mod, ${JSON.stringify(name)}), ${JSON.stringify(`${specifier} must not export ${name}`)});`,
+			)
+			.join("\n");
+		return `{
+	const mod = await load(${JSON.stringify(specifier)});
+	${presentChecks}
+	${absentChecks}
+}`;
+	})
+	.join("\n")}`;
+
+	writeFileSync(
+		join(tmp, "esm-smoke.mjs"),
+		`import assert from "node:assert/strict";
+const load = (specifier) => import(specifier);
+${runtimeAssertions}
+`,
+	);
+
+	writeFileSync(
+		join(tmp, "cjs-smoke.cjs"),
+		`const assert = require("node:assert/strict");
+const load = (specifier) => require(specifier);
+${runtimeAssertions.replaceAll("await load", "load")}
+`,
+	);
+
+	writeFileSync(
+		join(tmp, "types-smoke.mts"),
+		`import { externalStore, readableStore, recordReadableStore, subscribeNodeValues, writableStore } from "@graphrefly/ts/adapters";
+import { useNodeInput, useNodeRecord, useNodeValue } from "@graphrefly/ts/adapters/react";
+import { createNodeInput, createNodeRecord, createNodeValue } from "@graphrefly/ts/adapters/solid";
+import { nodeReadable, nodeRecord, nodeWritable } from "@graphrefly/ts/adapters/svelte";
+import { useNodeInput as useVueNodeInput, useNodeRecord as useVueNodeRecord, useNodeValue as useVueNodeValue } from "@graphrefly/ts/adapters/vue";
+import { boundaryManifest, type BoundaryManifest, type BoundaryNode, type BoundaryRole } from "@graphrefly/ts/inspection/boundary";
+
+void externalStore;
+void readableStore;
+void recordReadableStore;
+void subscribeNodeValues;
+void writableStore;
+void useNodeInput;
+void useNodeRecord;
+void useNodeValue;
+void createNodeInput;
+void createNodeRecord;
+void createNodeValue;
+void nodeReadable;
+void nodeRecord;
+void nodeWritable;
+void useVueNodeInput;
+void useVueNodeRecord;
+void useVueNodeValue;
+void boundaryManifest;
+
+declare const manifest: BoundaryManifest;
+const role: BoundaryRole = "input";
+const node: BoundaryNode | undefined = manifest.inputs[0] ?? manifest.outputs[0];
+void role;
+void node;
+`,
+	);
+	const rootForbiddenNames = [...rootAbsentExports, ...rootAbsentTypeExports].join(", ");
+	writeFileSync(
+		join(tmp, "root-negative.mts"),
+		`import type { ${rootForbiddenNames} } from "@graphrefly/ts";
+`,
+	);
+	writeFileSync(
+		join(tmp, "adapters-negative.mts"),
+		`import type { useNodeValue, useNodeInput, useNodeRecord, createNodeValue, createNodeInput, createNodeRecord, nodeReadable, nodeWritable, nodeRecord } from "@graphrefly/ts/adapters";
+`,
+	);
+
+	writeFileSync(
+		join(tmp, "tsconfig.json"),
+		JSON.stringify(
+			{
+				compilerOptions: {
+					target: "ES2022",
+					module: "NodeNext",
+					moduleResolution: "NodeNext",
+					strict: true,
+					noEmit: true,
+					skipLibCheck: true,
+				},
+				include: ["types-smoke.mts"],
+			},
+			null,
+			"\t",
+		),
+	);
+
+	execFileSync(process.execPath, ["esm-smoke.mjs"], { cwd: tmp, stdio: "pipe" });
+	execFileSync(process.execPath, ["cjs-smoke.cjs"], { cwd: tmp, stdio: "pipe" });
+	execFileSync(TSC, ["-p", "tsconfig.json"], { cwd: tmp, stdio: "pipe" });
+	expectTscFailure(tmp, "root-negative.mts", [...rootAbsentExports, ...rootAbsentTypeExports]);
+	expectTscFailure(tmp, "adapters-negative.mts", expectedSubpaths["./adapters"].absent);
+} catch (e) {
+	fail(`${e.message ?? e}\n${errorOutput(e)}`.trim());
+} finally {
+	rmSync(tmp, { recursive: true, force: true });
+}
+
+console.log("check-ts-package-exports: package ESM/CJS/DTS subpath smoke passed");
