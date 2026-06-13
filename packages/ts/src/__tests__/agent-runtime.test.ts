@@ -23,9 +23,213 @@ import {
 	type PromptBundle,
 	requestSatisfactionProjector,
 	structuredAgentDecisionInterpreter,
+	type WorkItemEffectRequested,
+	type WorkItemEvidenceRecorded,
+	type WorkItemSeed,
+	workItemEffectResultMapper,
+	workItemEffectRunProjector,
 } from "../orchestration/agent-runtime.js";
 
 describe("CSP-8 experimental agent runtime kernel (D236)", () => {
+	it("maps WorkItemEffectRequested through EffectRun completion into WorkItemEvidenceRecorded", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRequests = g.node<WorkItemEffectRequested>([], null, {
+			name: "workItemEffectRequests",
+		});
+		const requestFacts = g.node<AgentRequestFact>([], null, { name: "requestFacts" });
+		const profiles = g.node<ExecutorProfile>([], null, { name: "profiles" });
+		const routes = g.node<ExecutorRoute>([], null, { name: "routes" });
+		const outcomes = g.node<ExecutorOutcome>([], null, { name: "outcomes" });
+		const workItemRuns = workItemEffectRunProjector(g, { workItems, effectRequests });
+		const satisfaction = requestSatisfactionProjector(g, {
+			requestFacts,
+			executorProfiles: [profiles],
+			executorRoutes: [routes],
+			executorOutcomes: [outcomes],
+		});
+		const interpreter = structuredAgentDecisionInterpreter(g, outcomes, {
+			requestFacts: [requestFacts],
+		});
+		const completion = effectRunCompletionProjector(g, {
+			effectRuns: workItemRuns.effectRuns,
+			decisions: [interpreter.decisions],
+			requestStatuses: [satisfaction.status],
+			requestFacts: [requestFacts],
+			now: () => 700,
+		});
+		const mapper = workItemEffectResultMapper(g, {
+			workItems,
+			effectRuns: workItemRuns.effectRuns,
+			effectRunResults: completion.results,
+			effectRequests,
+			now: () => 800,
+		});
+		const seededRuns: EffectRun[] = [];
+		const evidence: WorkItemEvidenceRecorded[] = [];
+		const views: unknown[] = [];
+		workItemRuns.effectRuns.subscribe(
+			(msg) => msg[0] === "DATA" && seededRuns.push(msg[1] as EffectRun),
+		);
+		interpreter.decisions.subscribe(() => {});
+		completion.results.subscribe(() => {});
+		mapper.evidence.subscribe(
+			(msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded),
+		);
+		mapper.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+
+		workItems.down([
+			[
+				"DATA",
+				{
+					kind: "work-item",
+					workItemId: "wi-1",
+					sourceRefs: [{ kind: "work-item", id: "wi-1" }],
+					workItemKind: "issue",
+					lifecycleStatus: "open",
+				},
+			],
+		]);
+		effectRequests.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-requested",
+					requestId: "wi-effect-1",
+					workItemId: "wi-1",
+					effectRunId: "run-1",
+					effectKind: "verification",
+					goal: { kind: "verify", summary: "check acceptance" },
+					sourceRefs: [{ kind: "acceptance-criteria", id: "ac-1" }],
+				},
+			],
+		]);
+		expect(seededRuns.at(-1)).toMatchObject({
+			effectRunId: "run-1",
+			subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+			sourceRefs: [
+				{ kind: "work-item", id: "wi-1" },
+				{ kind: "work-item-effect-request", id: "wi-effect-1" },
+				{ kind: "acceptance-criteria", id: "ac-1" },
+			],
+		});
+
+		const continueDecision: AgentDecisionContinue = {
+			kind: "continue",
+			decisionId: "decision-continue",
+			effectRunId: "run-1",
+			agentRunId: "agent-1",
+			source: { requestId: "seed", operationId: "seed-op", outcomeId: "seed-outcome" },
+			next: [],
+		};
+		const proposal = agentRequestProposalFromDecision(continueDecision, {
+			proposalId: "proposal-1",
+			requestKind: "executor",
+			required: true,
+			input: { inputId: "input-1", inputKind: "llm-call", dataMode: "ref", ref: "prompt:p-1" },
+		});
+		const admitted = admitAgentRequestProposal(proposal, {
+			requestId: "request-1",
+			operationId: "op-1",
+			sourceRefs: [{ kind: "agent-decision", id: "decision-continue" }],
+		});
+		const issued = issueAgentRequest(proposal, admitted);
+		requestFacts.down([
+			["DATA", proposal],
+			["DATA", admitted],
+			["DATA", issued],
+		]);
+		profiles.down([
+			[
+				"DATA",
+				{
+					profileId: "profile-1",
+					executorId: "exec-1",
+					kind: "llm",
+					acceptedInputKinds: ["llm-call"],
+				},
+			],
+		]);
+		routes.down([
+			[
+				"DATA",
+				{
+					kind: "executor-route",
+					routeId: "route-1",
+					requestId: "request-1",
+					operationId: "op-1",
+					inputId: "input-1",
+					inputKind: "llm-call",
+					executorId: "exec-1",
+					profileId: "profile-1",
+				},
+			],
+		]);
+		outcomes.down([
+			[
+				"DATA",
+				fakeExecutorResult({
+					outcomeId: "outcome-1",
+					requestId: "request-1",
+					operationId: "op-1",
+					routeId: "route-1",
+					executorId: "exec-1",
+					profileId: "profile-1",
+					attempt: 1,
+					inputId: "input-1",
+					inputKind: "llm-call",
+					result: {
+						kind: "agent-decision",
+						value: {
+							kind: "agent-decision",
+							schemaRef: "graphrefly.agent-decision.v0",
+							decision: {
+								kind: "final",
+								decisionId: "decision-final",
+								effectRunId: "run-1",
+								agentRunId: "agent-1",
+								source: {
+									requestId: "request-1",
+									operationId: "op-1",
+									outcomeId: "outcome-1",
+								},
+								output: { kind: "verified", value: { ok: true } },
+							},
+						},
+					},
+				}),
+			],
+		]);
+
+		expect(evidence.at(-1)).toMatchObject({
+			kind: "work-item-evidence-recorded",
+			workItemId: "wi-1",
+			effectRunId: "run-1",
+			status: "completed",
+			output: { kind: "verified", value: { ok: true } },
+			recordedAtMs: 800,
+		});
+		expect(evidence.at(-1)?.sourceRefs).toEqual(
+			expect.arrayContaining([
+				{ kind: "work-item", id: "wi-1" },
+				{ kind: "work-item-effect-request", id: "wi-effect-1" },
+				{ kind: "acceptance-criteria", id: "ac-1" },
+				{ kind: "effect-run", id: "run-1" },
+				{ kind: "effect-run-result", id: "run-1:result" },
+				{ kind: "agent-decision", id: "decision-final" },
+				{ kind: "executor-outcome", id: "outcome-1" },
+			]),
+		);
+		const latestView = views.at(-1) as {
+			evidenceByWorkItem: Map<string, readonly WorkItemEvidenceRecorded[]>;
+			latestEvidenceByEffectRun: Map<string, WorkItemEvidenceRecorded>;
+			pendingEffectRequests: readonly WorkItemEffectRequested[];
+		};
+		expect(latestView.evidenceByWorkItem.get("wi-1")).toHaveLength(1);
+		expect(latestView.latestEvidenceByEffectRun.get("run-1")?.status).toBe("completed");
+		expect(latestView.pendingEffectRequests).toEqual([]);
+	});
+
 	it("runs the deterministic EffectRun -> request -> fake outcome -> final result path", () => {
 		const g = graph();
 		const effectRuns = g.node<EffectRun>([], null, { name: "effectRuns" });
@@ -1106,6 +1310,383 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			error: { kind: "issue", code: "adapter-failure" },
 		});
 	});
+
+	it("maps every terminal EffectRunResult status to WorkItem evidence, status, issues, and audit", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRuns = g.node<EffectRun>([], null, { name: "effectRuns" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const mapper = workItemEffectResultMapper(g, {
+			workItems,
+			effectRuns,
+			effectRunResults: results,
+			now: () => 900,
+		});
+		const evidence: WorkItemEvidenceRecorded[] = [];
+		const statuses: unknown[] = [];
+		const issues: unknown[] = [];
+		const audit: unknown[] = [];
+		mapper.evidence.subscribe(
+			(msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded),
+		);
+		mapper.status.subscribe((msg) => msg[0] === "DATA" && statuses.push(msg[1]));
+		mapper.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		mapper.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+
+		const terminalResults: EffectRunResult[] = [
+			{
+				kind: "effect-run-result",
+				resultId: "run-completed:result",
+				status: "completed",
+				effectRunId: "run-completed",
+				output: { kind: "ok", value: true },
+			},
+			{
+				kind: "effect-run-result",
+				resultId: "run-failed:result",
+				status: "failed",
+				effectRunId: "run-failed",
+				error: { kind: "issue", code: "failed", message: "failed" },
+				issues: [{ kind: "issue", code: "detail", message: "detail" }],
+			},
+			{
+				kind: "effect-run-result",
+				resultId: "run-blocked:result",
+				status: "blocked",
+				effectRunId: "run-blocked",
+				needs: [{ kind: "human-review", message: "needs review" }],
+			},
+			{
+				kind: "effect-run-result",
+				resultId: "run-timeout:result",
+				status: "timeout",
+				effectRunId: "run-timeout",
+				timeoutMs: 1000,
+			},
+			{
+				kind: "effect-run-result",
+				resultId: "run-canceled:result",
+				status: "canceled",
+				effectRunId: "run-canceled",
+				reason: "user canceled",
+			},
+			{
+				kind: "effect-run-result",
+				resultId: "run-waived:result",
+				status: "waived",
+				effectRunId: "run-waived",
+				reason: "not needed",
+			},
+		];
+		for (const result of terminalResults) {
+			effectRuns.down([
+				[
+					"DATA",
+					effectRun({
+						effectRunId: result.effectRunId,
+						subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+						goal: { kind: "verify" },
+					}),
+				],
+			]);
+			results.down([["DATA", result]]);
+		}
+
+		expect(evidence.map((fact) => fact.status)).toEqual([
+			"completed",
+			"failed",
+			"blocked",
+			"timeout",
+			"canceled",
+			"waived",
+		]);
+		expect(evidence.find((fact) => fact.status === "failed")?.error).toMatchObject({
+			code: "failed",
+		});
+		expect(evidence.find((fact) => fact.status === "blocked")?.needs).toEqual([
+			{ kind: "human-review", message: "needs review" },
+		]);
+		expect(evidence.find((fact) => fact.status === "timeout")?.timeoutMs).toBe(1000);
+		expect(evidence.find((fact) => fact.status === "waived")?.reason).toBe("not needed");
+		expect(statuses).toHaveLength(6);
+		expect(issues).toEqual([]);
+		expect(audit).toHaveLength(6);
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "closed" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "resolved" }));
+	});
+
+	it("emits DataIssue instead of evidence for stale or unknown WorkItem/effectRun refs", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRuns = g.node<EffectRun>([], null, { name: "effectRuns" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const mapper = workItemEffectResultMapper(g, {
+			workItems,
+			effectRuns,
+			effectRunResults: results,
+		});
+		const evidence: unknown[] = [];
+		const issues: unknown[] = [];
+		mapper.evidence.subscribe((msg) => msg[0] === "DATA" && evidence.push(msg[1]));
+		mapper.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		effectRuns.down([
+			[
+				"DATA",
+				effectRun({
+					effectRunId: "run-1",
+					subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+					goal: { kind: "verify" },
+				}),
+			],
+		]);
+
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "wrong-work-item",
+					status: "completed",
+					effectRunId: "run-1",
+					subjectRefs: [{ kind: "work-item", id: "wi-2" }],
+					output: { kind: "ok" },
+				},
+			],
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "wrong-effect-run-ref",
+					status: "completed",
+					effectRunId: "run-1",
+					sourceRefs: [{ kind: "effect-run", id: "other-run" }],
+					output: { kind: "ok" },
+				},
+			],
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "unknown-run",
+					status: "completed",
+					effectRunId: "missing-run",
+					output: { kind: "ok" },
+				},
+			],
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "wrong-work-item-source-ref",
+					status: "completed",
+					effectRunId: "run-1",
+					sourceRefs: [{ kind: "work-item", id: "wi-2" }],
+					output: { kind: "ok" },
+				},
+			],
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "ambiguous-work-item-subjects",
+					status: "completed",
+					effectRunId: "run-1",
+					subjectRefs: [
+						{ kind: "work-item", id: "wi-1" },
+						{ kind: "work-item", id: "wi-2" },
+					],
+					output: { kind: "ok" },
+				},
+			],
+		]);
+
+		expect(evidence).toEqual([]);
+		expect(issues.map((issue) => (issue as { code: string }).code)).toEqual([
+			"stale-work-item-source-ref",
+			"stale-effect-run-source-ref",
+			"unknown-effect-run-result",
+			"stale-work-item-source-ref",
+			"stale-work-item-source-ref",
+		]);
+	});
+
+	it("requires explicit WorkItem seed facts before recording evidence", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRuns = g.node<EffectRun>([], null, { name: "effectRuns" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const mapper = workItemEffectResultMapper(g, {
+			workItems,
+			effectRuns,
+			effectRunResults: results,
+		});
+		const evidence: unknown[] = [];
+		const issues: unknown[] = [];
+		mapper.evidence.subscribe((msg) => msg[0] === "DATA" && evidence.push(msg[1]));
+		mapper.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-other")]]);
+		effectRuns.down([
+			[
+				"DATA",
+				effectRun({
+					effectRunId: "run-1",
+					subjectRefs: [{ kind: "work-item", id: "wi-missing" }],
+					goal: { kind: "verify" },
+				}),
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-1:result",
+					status: "completed",
+					effectRunId: "run-1",
+					output: { kind: "ok" },
+				},
+			],
+		]);
+
+		expect(evidence).toEqual([]);
+		expect(issues.at(-1)).toMatchObject({ code: "unknown-work-item-evidence-target" });
+	});
+
+	it("emits DataIssue and audit for duplicate WorkItem evidence mapping", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRuns = g.node<EffectRun>([], null, { name: "effectRuns" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const mapper = workItemEffectResultMapper(g, {
+			workItems,
+			effectRuns,
+			effectRunResults: results,
+		});
+		const evidence: unknown[] = [];
+		const issues: unknown[] = [];
+		const audit: unknown[] = [];
+		mapper.evidence.subscribe((msg) => msg[0] === "DATA" && evidence.push(msg[1]));
+		mapper.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		mapper.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		effectRuns.down([
+			[
+				"DATA",
+				effectRun({
+					effectRunId: "run-1",
+					subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+					goal: { kind: "verify" },
+				}),
+			],
+		]);
+		const result: EffectRunResult = {
+			kind: "effect-run-result",
+			resultId: "run-1:result",
+			status: "completed",
+			effectRunId: "run-1",
+			output: { kind: "ok" },
+		};
+		results.down([["DATA", result]]);
+		results.down([["DATA", result]]);
+
+		expect(evidence).toHaveLength(1);
+		expect(issues.at(-1)).toMatchObject({ code: "duplicate-work-item-evidence" });
+		expect(audit.at(-1)).toMatchObject({ kind: "work-item-evidence-mapping-issue" });
+	});
+
+	it("does not seed EffectRun for WorkItemEffectRequested targeting unknown WorkItem", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRequests = g.node<WorkItemEffectRequested>([], null, {
+			name: "workItemEffectRequests",
+		});
+		const workItemRuns = workItemEffectRunProjector(g, { workItems, effectRequests });
+		const seededRuns: unknown[] = [];
+		const issues: unknown[] = [];
+		const views: unknown[] = [];
+		workItemRuns.effectRuns.subscribe((msg) => msg[0] === "DATA" && seededRuns.push(msg[1]));
+		workItemRuns.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		workItemRuns.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-other")]]);
+
+		effectRequests.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-requested",
+					requestId: "wi-effect-1",
+					workItemId: "wi-missing",
+					effectRunId: "run-1",
+					effectKind: "verification",
+					goal: { kind: "verify" },
+				},
+			],
+		]);
+
+		expect(seededRuns).toEqual([]);
+		expect(issues.at(-1)).toMatchObject({ code: "unknown-work-item-effect-request" });
+		expect(
+			(views.at(-1) as { pendingEffectRequests: readonly WorkItemEffectRequested[] })
+				.pendingEffectRequests,
+		).toEqual([]);
+
+		workItems.down([["DATA", workItemSeed("wi-missing")]]);
+		expect(seededRuns).toEqual([]);
+		expect(
+			(views.at(-1) as { pendingEffectRequests: readonly WorkItemEffectRequested[] })
+				.pendingEffectRequests,
+		).toEqual([]);
+	});
+
+	it("rejects duplicate WorkItemEffectRequested facts that reuse an EffectRun id", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRequests = g.node<WorkItemEffectRequested>([], null, {
+			name: "workItemEffectRequests",
+		});
+		const workItemRuns = workItemEffectRunProjector(g, { workItems, effectRequests });
+		const seededRuns: unknown[] = [];
+		const issues: unknown[] = [];
+		const views: unknown[] = [];
+		workItemRuns.effectRuns.subscribe((msg) => msg[0] === "DATA" && seededRuns.push(msg[1]));
+		workItemRuns.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		workItemRuns.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+
+		effectRequests.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-requested",
+					requestId: "wi-effect-1",
+					workItemId: "wi-1",
+					effectRunId: "run-1",
+					effectKind: "verification",
+					goal: { kind: "verify" },
+				},
+			],
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-requested",
+					requestId: "wi-effect-2",
+					workItemId: "wi-1",
+					effectRunId: "run-1",
+					effectKind: "verification",
+					goal: { kind: "verify-again" },
+				},
+			],
+		]);
+
+		expect(seededRuns).toHaveLength(1);
+		expect(issues.at(-1)).toMatchObject({ code: "duplicate-work-item-effect-run" });
+		expect(
+			(views.at(-1) as { pendingEffectRequests: readonly WorkItemEffectRequested[] })
+				.pendingEffectRequests,
+		).toEqual([]);
+	});
 });
 
 function issued(
@@ -1125,5 +1706,15 @@ function issued(
 			inputKind === undefined
 				? undefined
 				: { inputId: `${requestId}:input`, inputKind, dataMode: "summary", summary: inputKind },
+	};
+}
+
+function workItemSeed(workItemId: string): WorkItemSeed {
+	return {
+		kind: "work-item",
+		workItemId,
+		sourceRefs: [{ kind: "work-item", id: workItemId }],
+		workItemKind: "issue",
+		lifecycleStatus: "open",
 	};
 }
