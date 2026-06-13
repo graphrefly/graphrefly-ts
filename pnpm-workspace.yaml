@@ -18,6 +18,7 @@ packages:
   - packages/*
 allowBuilds:
   '@nestjs/core': true
+  canvas: false
   esbuild: true
   protobufjs: true
   sharp: true

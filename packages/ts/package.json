@@ -332,6 +332,14 @@
 		"test:watch": "vitest"
 	},
 	"license": "MIT",
+	"peerDependencies": {
+		"canvas": "^3.2.3"
+	},
+	"peerDependenciesMeta": {
+		"canvas": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
 		"tsup": "^8.5.1",
 		"typescript": "^5.7.0",

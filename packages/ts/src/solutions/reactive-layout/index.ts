@@ -126,6 +126,12 @@ export type MeasurementFact<T = unknown> = MeasurementResult<T> | MeasurementIss
 
 export type Measurements = readonly MeasurementFact[];
 
+export interface MergeMeasurementsOptions {
+	readonly graph: Graph;
+	readonly sources: readonly Node<Measurements>[];
+	readonly name?: string;
+}
+
 export interface TextMeasurementProviderOptions {
 	readonly graph: Graph;
 	readonly text: Node<string>;
@@ -1337,6 +1343,22 @@ export function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<
 			ctx.down([["DATA", facts]]);
 		},
 		{ name },
+	);
+}
+
+/** Merge provider fact nodes into the single measurements node consumed by layout bundles. */
+export function mergeMeasurements(opts: MergeMeasurementsOptions): Node<Measurements> {
+	const sources = [...opts.sources];
+	return opts.graph.node<Measurements>(
+		sources as readonly Node<unknown>[],
+		(ctx: Ctx) => {
+			const facts: MeasurementFact[] = [];
+			for (let i = 0; i < sources.length; i += 1) {
+				facts.push(...(depLatest(ctx, i) as Measurements));
+			}
+			ctx.down([["DATA", facts]]);
+		},
+		{ name: opts.name ?? "measurements" },
 	);
 }
 

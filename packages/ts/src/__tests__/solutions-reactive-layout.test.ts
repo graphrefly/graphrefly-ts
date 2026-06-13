@@ -37,6 +37,7 @@ import {
 	type Measurements,
 	measureBlock,
 	measureBlocks,
+	mergeMeasurements,
 	type Obstacle,
 	PrecomputedMeasureAdapter,
 	type PreparedSegment,
@@ -717,6 +718,69 @@ describe("reactive-layout solution (D181)", () => {
 		expect(contextValue.font).toBe("previous font");
 		nodeCanvasFacts.unsubscribe();
 
+		const concreteGraph = graph({ name: "node-canvas-package-provider" });
+		const concreteText = concreteGraph.state("abc", { name: "text" });
+		const concreteFont = concreteGraph.state("10px package", { name: "font" });
+		let createdCanvas: readonly [number, number] | null = null;
+		const concreteFacts = collect(
+			reactiveLayoutNodeCanvas.nodeCanvasPackageTextMeasurements({
+				graph: concreteGraph,
+				text: concreteText,
+				font: concreteFont,
+				width: 2,
+				height: 3,
+				canvas: {
+					createCanvas(width, height) {
+						createdCanvas = [width, height];
+						return {
+							getContext(type) {
+								expect(type).toBe("2d");
+								return {
+									font: "old",
+									measureText(segment: string) {
+										return {
+											width: segment.length * (this.font.includes("package") ? 5 : 1),
+										};
+									},
+								};
+							},
+						};
+					},
+				},
+			}),
+		);
+		expect(createdCanvas).toEqual([2, 3]);
+		expect(
+			(
+				data<Measurements>(concreteFacts.messages).at(
+					-1,
+				)?.[0] as MeasurementResult<TextSegmentsMeasurement>
+			).value.segments[0]?.width,
+		).toBe(15);
+		concreteFacts.unsubscribe();
+
+		const failingGraph = graph({ name: "node-canvas-package-failure" });
+		const failingFacts = collect(
+			reactiveLayoutNodeCanvas.nodeCanvasPackageTextMeasurements({
+				graph: failingGraph,
+				text: failingGraph.state("abc", { name: "text" }),
+				font: failingGraph.state("10px package", { name: "font" }),
+				canvas: {
+					createCanvas() {
+						throw new Error("canvas unavailable");
+					},
+				},
+			}),
+		);
+		expect(data<Measurements>(failingFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "issue",
+			code: "measurement.failed",
+			subjectId: "text",
+			measurementKind: "text-segments",
+		});
+		expect(failingFacts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		failingFacts.unsubscribe();
+
 		const capabilityGraph = graph({ name: "focused-platform-provider" });
 		const platformText = capabilityGraph.state("xy", { name: "text" });
 		const platformFont = capabilityGraph.state("font", { name: "font" });
@@ -751,6 +815,190 @@ describe("reactive-layout solution (D181)", () => {
 			).toBe(16);
 			facts.unsubscribe();
 		}
+
+		const skiaGraph = graph({ name: "skia-ready-provider" });
+		const skiaText = skiaGraph.state("ready", { name: "text" });
+		const skiaFont = skiaGraph.state("Inter", { name: "font" });
+		const readiness = skiaGraph.state<MeasurementReadiness>(
+			{ ready: false, code: "font.loading" },
+			{ name: "skia-font-ready" },
+		);
+		const paragraphCapability = reactiveLayoutSkia.skiaParagraphTextMeasureCapability({
+			Skia: {
+				ParagraphBuilder: {
+					Make() {
+						let textValue = "";
+						return {
+							pushStyle() {
+								return this;
+							},
+							addText(next: string) {
+								textValue += next;
+								return this;
+							},
+							pop() {
+								return this;
+							},
+							build() {
+								return {
+									layout(width: number) {
+										expect(width).toBe(Number.MAX_SAFE_INTEGER);
+									},
+									getLongestLine() {
+										return textValue.length * 6;
+									},
+								};
+							},
+						};
+					},
+				},
+			},
+			textStyleForFont(fontValue) {
+				return { fontFamilies: [fontValue], fontSize: 12 };
+			},
+		});
+		const skiaFacts = collect(
+			reactiveLayoutSkia.skiaReadyTextMeasurements({
+				graph: skiaGraph,
+				text: skiaText,
+				font: skiaFont,
+				capability: skiaGraph.state(paragraphCapability, { name: "skia-capability" }),
+				readiness,
+			}),
+		);
+		expect(data<Measurements>(skiaFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "issue",
+			code: "font.loading",
+			subjectId: "text",
+		});
+		readiness.set({ ready: true, source: "useFonts" });
+		expect(
+			(
+				data<Measurements>(skiaFacts.messages).at(
+					-1,
+				)?.[0] as MeasurementResult<TextSegmentsMeasurement>
+			).value.segments[0]?.width,
+		).toBe(30);
+		skiaFacts.unsubscribe();
+	});
+
+	it("projects React Native async layout probes as measurement facts", () => {
+		const g = graph({ name: "react-native-layout-probes" });
+		const probes = g.state<readonly reactiveLayoutReactNative.ReactNativeLayoutProbe[]>(
+			[
+				{ id: "card", width: 120, height: 40, source: "onLayout" },
+				{ id: "title", ready: false, code: "layout.pending" },
+				{ id: "bad", width: Number.NaN, height: 20 },
+			],
+			{ name: "layout-probes" },
+		);
+		const facts = collect(
+			reactiveLayoutReactNative.reactNativeLayoutMeasurements({ graph: g, probes }),
+		);
+
+		const latest = data<Measurements>(facts.messages).at(-1);
+		expect(latest?.[0]).toMatchObject({
+			kind: "ok",
+			targetId: "card",
+			measurementKind: reactiveLayoutReactNative.REACT_NATIVE_LAYOUT_MEASUREMENT_KIND,
+			value: { width: 120, height: 40 },
+			source: "onLayout",
+		});
+		expect(latest?.[1]).toMatchObject({
+			kind: "issue",
+			code: "layout.pending",
+			subjectId: "title",
+		});
+		expect(latest?.[2]).toMatchObject({
+			kind: "issue",
+			code: "measurement.react-native-layout.pending",
+			subjectId: "bad",
+		});
+		probes.set([{ id: "title", width: 80, height: 18 }]);
+		expect(data<Measurements>(facts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "ok",
+			targetId: "title",
+			value: { width: 80, height: 18 },
+		});
+		facts.unsubscribe();
+	});
+
+	it("merges text, readiness, image, and SVG provider facts into one measurements node", () => {
+		const g = graph({ name: "merged-measurement-providers" });
+		const text = g.state("hello", { name: "text" });
+		const font = g.state("font", { name: "font" });
+		const readiness = g.state<MeasurementReadiness>(
+			{ ready: true, source: "font-face-set", metadata: { family: "Inter" } },
+			{ name: "font-ready" },
+		);
+		const textFacts = cellTextMeasurements({
+			graph: g,
+			text,
+			font,
+			cellWidth: 4,
+			targetId: "copy",
+			name: "copy-text",
+		});
+		const readinessFacts = readinessMeasurements({
+			graph: g,
+			readiness,
+			targetId: "font:Inter",
+			name: "font-readiness",
+		});
+		const imageFacts = imageSizeMeasurements({
+			graph: g,
+			images: g.state([{ id: "hero", src: "hero" }], { name: "images" }),
+			measurer: g.state(new ImageSizeAdapter({ hero: { width: 300, height: 150 } }), {
+				name: "image-capability",
+			}),
+		});
+		const svgFacts = svgBoundsMeasurements({
+			graph: g,
+			svgs: g.state([{ id: "mark", svg: '<svg width="80" height="20"></svg>' }], {
+				name: "svgs",
+			}),
+			measurer: g.state(new SvgBoundsAdapter(), { name: "svg-capability" }),
+		});
+		const sources = [readinessFacts, textFacts, imageFacts, svgFacts];
+		const measurements = mergeMeasurements({
+			graph: g,
+			sources,
+			name: "measurements",
+		});
+		sources.length = 0;
+		const layout = reactiveLayout({
+			graph: g,
+			measurements,
+			targetId: "copy",
+			maxWidth: 100,
+			lineHeight: 10,
+		});
+		const mergedFacts = collect(measurements);
+		const height = collect(layout.height);
+
+		expect(
+			data<Measurements>(mergedFacts.messages)
+				.at(-1)
+				?.map((fact) => [
+					fact.kind,
+					"targetId" in fact ? fact.targetId : fact.subjectId,
+					fact.measurementKind,
+				]),
+		).toEqual([
+			["ok", "font:Inter", READINESS_MEASUREMENT_KIND],
+			["ok", "copy", "text-segments"],
+			["ok", "hero", IMAGE_SIZE_MEASUREMENT_KIND],
+			["ok", "mark", SVG_BOUNDS_MEASUREMENT_KIND],
+		]);
+		expect(data<number>(height.messages).at(-1)).toBe(10);
+		readiness.set({ ready: false, code: "font.reloading" });
+		expect(data<Measurements>(mergedFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "issue",
+			code: "font.reloading",
+			subjectId: "font:Inter",
+		});
+		mergedFacts.unsubscribe();
+		height.unsubscribe();
 	});
 
 	it("measures SVG and image blocks without DOM or implicit loading", () => {
