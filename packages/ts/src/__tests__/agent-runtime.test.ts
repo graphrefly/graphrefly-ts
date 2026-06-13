@@ -25,11 +25,15 @@ import {
 	structuredAgentDecisionInterpreter,
 } from "../orchestration/agent-runtime.js";
 import {
+	type WorkItemDomainActionAdmission,
+	type WorkItemDomainActionAdmissionDecision,
+	type WorkItemDomainActionAdmissionPolicy,
 	type WorkItemDomainActionProposal,
 	type WorkItemEffectMappingPolicy,
 	type WorkItemEffectRequested,
 	type WorkItemEvidenceRecorded,
 	type WorkItemSeed,
+	workItemDomainActionAdmissionProjector,
 	workItemDomainActionProposalProjector,
 	workItemEffectResultMapper,
 	workItemEffectRunProjector,
@@ -2630,6 +2634,416 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				.pendingEffectRequests,
 		).toEqual([]);
 	});
+
+	it("admits WorkItem domain action proposals as a no-op visible ledger", () => {
+		const g = graph();
+		const proposals = g.node<WorkItemDomainActionProposal>([], null, { name: "proposals" });
+		const decisions = g.node<WorkItemDomainActionAdmissionDecision>([], null, {
+			name: "decisions",
+		});
+		const policies = g.node<WorkItemDomainActionAdmissionPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionAdmissionProjector(g, {
+			proposals,
+			decisions,
+			admissionPolicies: [policies],
+			now: () => 1200,
+		});
+		const admissions: WorkItemDomainActionAdmission[] = [];
+		const statuses: unknown[] = [];
+		const issues: unknown[] = [];
+		const audit: unknown[] = [];
+		const views: unknown[] = [];
+		projector.admissions.subscribe(
+			(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+		);
+		projector.status.subscribe((msg) => msg[0] === "DATA" && statuses.push(msg[1]));
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		projector.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		projector.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+
+		policies.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-domain-action-admission-policy",
+					policyId: "admit-ready",
+					actionKinds: ["mark-ready"],
+					allowedOutcomes: ["admit"],
+				},
+			],
+		]);
+		proposals.down([["DATA", workItemActionProposal("proposal-1", "mark-ready")]]);
+		decisions.down([
+			[
+				"DATA",
+				workItemAdmissionDecision("decision-1", "admission-1", "proposal-1", "admit", {
+					policyId: "admit-ready",
+					decidedAtMs: 1199,
+					sourceRefs: [
+						{ kind: "work-item-domain-action-proposal", id: "proposal-1" },
+						{ kind: "work-item-domain-action-admission-policy", id: "admit-ready" },
+					],
+				}),
+			],
+		]);
+
+		expect(issues).toEqual([]);
+		expect(admissions).toEqual([
+			expect.objectContaining({
+				kind: "work-item-domain-action-admission",
+				admissionId: "admission-1",
+				proposalId: "proposal-1",
+				workItemId: "wi-1",
+				actionKind: "mark-ready",
+				state: "admitted",
+				decisionId: "decision-1",
+				policyId: "admit-ready",
+				admittedAtMs: 1199,
+			}),
+		]);
+		expect(admissions.at(-1)?.sourceRefs).toEqual(
+			expect.arrayContaining([
+				{ kind: "work-item-domain-action-proposal", id: "proposal-1" },
+				{ kind: "work-item-domain-action-admission-policy", id: "admit-ready" },
+				{ kind: "work-item-domain-action-admission-decision", id: "decision-1" },
+			]),
+		);
+		expect(statuses.at(-1)).toMatchObject({
+			state: "domain-action-admitted",
+			proposalId: "proposal-1",
+		});
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "closed" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "resolved" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "approved" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "verified" }));
+		expect(Object.keys(projector)).toEqual(["admissions", "status", "issues", "audit", "views"]);
+		expect(audit.at(-1)).toMatchObject({ kind: "work-item-domain-action-admitted" });
+		const latestView = views.at(-1) as {
+			admissionsByProposal: Map<string, WorkItemDomainActionAdmission>;
+			admissionsByWorkItem: Map<string, readonly WorkItemDomainActionAdmission[]>;
+		};
+		expect(latestView.admissionsByProposal.get("proposal-1")?.state).toBe("admitted");
+		expect(latestView.admissionsByWorkItem.get("wi-1")?.[0].admissionId).toBe("admission-1");
+	});
+
+	it("records rejected, deferred, and merged WorkItem domain action admissions without applying them", () => {
+		const g = graph();
+		const proposals = g.node<WorkItemDomainActionProposal>([], null, { name: "proposals" });
+		const decisions = g.node<WorkItemDomainActionAdmissionDecision>([], null, {
+			name: "decisions",
+		});
+		const projector = workItemDomainActionAdmissionProjector(g, { proposals, decisions });
+		const admissions: WorkItemDomainActionAdmission[] = [];
+		const statuses: unknown[] = [];
+		projector.admissions.subscribe(
+			(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+		);
+		projector.status.subscribe((msg) => msg[0] === "DATA" && statuses.push(msg[1]));
+
+		proposals.down([
+			["DATA", workItemActionProposal("proposal-reject", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-defer", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-merge-target", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-merge", "mark-ready")],
+		]);
+		decisions.down([
+			[
+				"DATA",
+				workItemAdmissionDecision(
+					"decision-reject",
+					"admission-reject",
+					"proposal-reject",
+					"reject",
+				),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision("decision-defer", "admission-defer", "proposal-defer", "defer"),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision(
+					"decision-merge-target",
+					"admission-merge-target",
+					"proposal-merge-target",
+					"admit",
+				),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision("decision-merge", "admission-merge", "proposal-merge", "merge", {
+					targetProposalId: "proposal-merge-target",
+					sourceRefs: [
+						{ kind: "work-item-domain-action-proposal", id: "proposal-merge" },
+						{ kind: "work-item-domain-action-proposal", id: "proposal-merge-target" },
+					],
+				}),
+			],
+		]);
+
+		expect(admissions.map((admission) => admission.state)).toEqual([
+			"rejected",
+			"deferred",
+			"admitted",
+			"merged",
+		]);
+		expect(admissions.at(-1)).toMatchObject({
+			state: "merged",
+			targetProposalId: "proposal-merge-target",
+		});
+		expect(statuses.map((status) => (status as { state: string }).state)).toEqual([
+			"domain-action-rejected",
+			"domain-action-deferred",
+			"domain-action-admitted",
+			"domain-action-merged",
+		]);
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "closed" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "resolved" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "approved" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "verified" }));
+	});
+
+	it("emits DataIssue for duplicate and stale WorkItem admission inputs while preserving first facts", () => {
+		const g = graph();
+		const proposals = g.node<WorkItemDomainActionProposal>([], null, { name: "proposals" });
+		const decisions = g.node<WorkItemDomainActionAdmissionDecision>([], null, {
+			name: "decisions",
+		});
+		const policies = g.node<WorkItemDomainActionAdmissionPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionAdmissionProjector(g, {
+			proposals,
+			decisions,
+			admissionPolicies: [policies],
+		});
+		const admissions: WorkItemDomainActionAdmission[] = [];
+		const issues: unknown[] = [];
+		projector.admissions.subscribe(
+			(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+		);
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		policies.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-domain-action-admission-policy",
+					policyId: "admit-ready",
+					actionKinds: ["mark-ready"],
+					allowedOutcomes: ["admit"],
+				},
+			],
+		]);
+
+		proposals.down([
+			["DATA", workItemActionProposal("proposal-1", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-1", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-2", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-3", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-4", "other-action")],
+			["DATA", workItemActionProposal("proposal-5", "mark-ready")],
+		]);
+		decisions.down([
+			[
+				"DATA",
+				workItemAdmissionDecision("decision-ok", "admission-1", "proposal-1", "admit", {
+					policyId: "admit-ready",
+				}),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision(
+					"decision-duplicate-admission",
+					"admission-1",
+					"proposal-2",
+					"admit",
+				),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision("decision-stale", "admission-stale", "proposal-3", "admit", {
+					sourceRefs: [{ kind: "work-item-domain-action-proposal", id: "proposal-other" }],
+				}),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision(
+					"decision-missing",
+					"admission-missing",
+					"proposal-missing",
+					"admit",
+				),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision(
+					"decision-policy-mismatch",
+					"admission-mismatch",
+					"proposal-4",
+					"admit",
+					{
+						policyId: "admit-ready",
+					},
+				),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision("decision-ok", "admission-5", "proposal-5", "admit", {
+					policyId: "admit-ready",
+				}),
+			],
+		]);
+
+		expect(admissions).toHaveLength(1);
+		expect(admissions.at(-1)).toMatchObject({
+			admissionId: "admission-1",
+			proposalId: "proposal-1",
+		});
+		expect(issues.map((issue) => (issue as { code: string }).code)).toEqual(
+			expect.arrayContaining([
+				"duplicate-work-item-domain-action-proposal",
+				"duplicate-work-item-domain-action-admission",
+				"duplicate-work-item-domain-action-admission-decision",
+				"stale-work-item-domain-action-admission-proposal-ref",
+				"missing-work-item-domain-action-admission-proposal",
+				"work-item-domain-action-admission-policy-mismatch",
+			]),
+		);
+	});
+
+	it("rejects ambiguous WorkItem admission merge targets and unknown policy refs", () => {
+		const g = graph();
+		const proposals = g.node<WorkItemDomainActionProposal>([], null, { name: "proposals" });
+		const decisions = g.node<WorkItemDomainActionAdmissionDecision>([], null, {
+			name: "decisions",
+		});
+		const policies = g.node<WorkItemDomainActionAdmissionPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionAdmissionProjector(g, {
+			proposals,
+			decisions,
+			admissionPolicies: [policies],
+		});
+		const admissions: WorkItemDomainActionAdmission[] = [];
+		const issues: unknown[] = [];
+		projector.admissions.subscribe(
+			(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+		);
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		proposals.down([
+			["DATA", workItemActionProposal("proposal-1", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-2", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-3", "mark-ready")],
+		]);
+		decisions.down([
+			[
+				"DATA",
+				workItemAdmissionDecision(
+					"decision-missing-policy",
+					"admission-missing-policy",
+					"proposal-1",
+					"admit",
+					{
+						policyId: "missing-policy",
+					},
+				),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision(
+					"decision-stale-policy",
+					"admission-stale-policy",
+					"proposal-2",
+					"admit",
+					{
+						policyId: "missing-policy",
+						sourceRefs: [{ kind: "work-item-domain-action-admission-policy", id: "other-policy" }],
+					},
+				),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision(
+					"decision-ambiguous-merge",
+					"admission-ambiguous-merge",
+					"proposal-3",
+					"merge",
+					{
+						targetProposalId: "proposal-1",
+						targetAdmissionId: "admission-1",
+					},
+				),
+			],
+		]);
+
+		expect(admissions).toEqual([]);
+		expect(issues.map((issue) => (issue as { code: string }).code)).toEqual([
+			"missing-work-item-domain-action-admission-policy",
+			"stale-work-item-domain-action-admission-policy-ref",
+			"ambiguous-work-item-domain-action-admission-merge-target",
+		]);
+	});
+
+	it("replays pending WorkItem admission decisions when proposal, policy, or target admission facts arrive later", () => {
+		const g = graph();
+		const proposals = g.node<WorkItemDomainActionProposal>([], null, { name: "proposals" });
+		const decisions = g.node<WorkItemDomainActionAdmissionDecision>([], null, {
+			name: "decisions",
+		});
+		const policies = g.node<WorkItemDomainActionAdmissionPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionAdmissionProjector(g, {
+			proposals,
+			decisions,
+			admissionPolicies: [policies],
+		});
+		const admissions: WorkItemDomainActionAdmission[] = [];
+		const issues: unknown[] = [];
+		projector.admissions.subscribe(
+			(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+		);
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+
+		decisions.down([
+			[
+				"DATA",
+				workItemAdmissionDecision("decision-admit", "admission-admit", "proposal-admit", "admit", {
+					policyId: "late-policy",
+				}),
+			],
+			[
+				"DATA",
+				workItemAdmissionDecision("decision-merge", "admission-merge", "proposal-merge", "merge", {
+					targetAdmissionId: "admission-admit",
+				}),
+			],
+		]);
+		expect(admissions).toEqual([]);
+		expect(issues.map((issue) => (issue as { code: string }).code)).toEqual(
+			expect.arrayContaining(["missing-work-item-domain-action-admission-proposal"]),
+		);
+
+		policies.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-domain-action-admission-policy",
+					policyId: "late-policy",
+					actionKinds: ["mark-ready"],
+					allowedOutcomes: ["admit"],
+				},
+			],
+		]);
+		proposals.down([
+			["DATA", workItemActionProposal("proposal-merge", "mark-ready")],
+			["DATA", workItemActionProposal("proposal-admit", "mark-ready")],
+		]);
+
+		expect(admissions.map((admission) => admission.admissionId)).toEqual([
+			"admission-admit",
+			"admission-merge",
+		]);
+		expect(admissions.at(-1)).toMatchObject({
+			state: "merged",
+			targetAdmissionId: "admission-admit",
+		});
+	});
 });
 
 function issued(
@@ -2659,5 +3073,47 @@ function workItemSeed(workItemId: string): WorkItemSeed {
 		sourceRefs: [{ kind: "work-item", id: workItemId }],
 		workItemKind: "issue",
 		lifecycleStatus: "open",
+	};
+}
+
+function workItemActionProposal(
+	proposalId: string,
+	actionKind: string,
+	opts: Partial<WorkItemDomainActionProposal> = {},
+): WorkItemDomainActionProposal {
+	return {
+		kind: "work-item-domain-action-proposal",
+		proposalId,
+		workItemId: opts.workItemId ?? "wi-1",
+		actionKind,
+		effectRunId: opts.effectRunId ?? "run-1",
+		effectRunResultId: opts.effectRunResultId ?? "run-1:result",
+		evidenceId: opts.evidenceId ?? "wi-1:run-1:run-1:result",
+		policyId: opts.policyId ?? "policy-propose",
+		sourceRefs: opts.sourceRefs,
+		metadata: opts.metadata,
+	};
+}
+
+function workItemAdmissionDecision(
+	decisionId: string,
+	admissionId: string,
+	proposalId: string,
+	outcome: WorkItemDomainActionAdmissionDecision["outcome"],
+	opts: Partial<WorkItemDomainActionAdmissionDecision> = {},
+): WorkItemDomainActionAdmissionDecision {
+	return {
+		kind: "work-item-domain-action-admission-decision",
+		decisionId,
+		admissionId,
+		proposalId,
+		outcome,
+		policyId: opts.policyId,
+		reason: opts.reason,
+		targetProposalId: opts.targetProposalId,
+		targetAdmissionId: opts.targetAdmissionId,
+		sourceRefs: opts.sourceRefs,
+		decidedAtMs: opts.decidedAtMs,
+		metadata: opts.metadata,
 	};
 }

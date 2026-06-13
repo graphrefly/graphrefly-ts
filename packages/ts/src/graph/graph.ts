@@ -446,7 +446,13 @@ export class Graph {
 
 	/** Look up a registered node by its id. */
 	find(id: string): Node<unknown> | undefined {
-		return this._byId.get(id);
+		const local = this._byId.get(id);
+		if (local !== undefined) return local;
+		const separator = id.indexOf("::");
+		if (separator < 0) return undefined;
+		const mountPath = id.slice(0, separator);
+		const childPath = id.slice(separator + 2);
+		return this._mounts.find((mount) => mount.at === mountPath)?.graph.find(childPath);
 	}
 
 	private _releaseNodes(nodes: readonly Node<unknown>[], _opts: { reason?: string } = {}): void {

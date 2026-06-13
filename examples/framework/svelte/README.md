@@ -2,12 +2,12 @@
 
 Minimal Svelte 5 (runes mode) + GraphReFly counter.
 
-- `svelteWritableStore(node)` -> a Svelte writable store. `$value` reads it; assigning to
+- `nodeWritable(node)` -> a Svelte writable store. `$value` reads it; assigning to
   `$value` writes back to the node.
-- `svelteReadableStore(node)` -> a Svelte readable store for any node (here: a
+- `nodeReadable(node)` -> a Svelte readable store for any node (here: a
   derived). Read as `$dbl`.
 
-Both helpers come from `@graphrefly/ts/adapters`. The `$`-prefix
+Both helpers come from the focused `@graphrefly/ts/adapters/svelte` subpath. The `$`-prefix
 auto-subscription is the idiomatic Svelte path and stays clean in runes mode.
 
 ## Run

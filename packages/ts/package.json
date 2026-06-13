@@ -38,6 +38,46 @@
 				"default": "./dist/adapters/observe-storage.cjs"
 			}
 		},
+		"./adapters/react": {
+			"import": {
+				"types": "./dist/adapters/react.d.ts",
+				"default": "./dist/adapters/react.js"
+			},
+			"require": {
+				"types": "./dist/adapters/react.d.cts",
+				"default": "./dist/adapters/react.cjs"
+			}
+		},
+		"./adapters/solid": {
+			"import": {
+				"types": "./dist/adapters/solid.d.ts",
+				"default": "./dist/adapters/solid.js"
+			},
+			"require": {
+				"types": "./dist/adapters/solid.d.cts",
+				"default": "./dist/adapters/solid.cjs"
+			}
+		},
+		"./adapters/svelte": {
+			"import": {
+				"types": "./dist/adapters/svelte.d.ts",
+				"default": "./dist/adapters/svelte.js"
+			},
+			"require": {
+				"types": "./dist/adapters/svelte.d.cts",
+				"default": "./dist/adapters/svelte.cjs"
+			}
+		},
+		"./adapters/vue": {
+			"import": {
+				"types": "./dist/adapters/vue.d.ts",
+				"default": "./dist/adapters/vue.js"
+			},
+			"require": {
+				"types": "./dist/adapters/vue.d.cts",
+				"default": "./dist/adapters/vue.cjs"
+			}
+		},
 		"./composition": {
 			"import": {
 				"types": "./dist/composition/index.d.ts",
@@ -96,6 +136,16 @@
 			"require": {
 				"types": "./dist/graph/index.d.cts",
 				"default": "./dist/graph/index.cjs"
+			}
+		},
+		"./inspection/boundary": {
+			"import": {
+				"types": "./dist/inspection/boundary.d.ts",
+				"default": "./dist/inspection/boundary.js"
+			},
+			"require": {
+				"types": "./dist/inspection/boundary.d.cts",
+				"default": "./dist/inspection/boundary.cjs"
 			}
 		},
 		"./messaging": {
@@ -333,10 +383,26 @@
 	},
 	"license": "MIT",
 	"peerDependencies": {
-		"canvas": "^3.2.3"
+		"canvas": "^3.2.3",
+		"react": "^18.0.0 || ^19.0.0",
+		"solid-js": "^1.9.0",
+		"svelte": "^5.0.0",
+		"vue": "^3.5.0"
 	},
 	"peerDependenciesMeta": {
 		"canvas": {
+			"optional": true
+		},
+		"react": {
+			"optional": true
+		},
+		"solid-js": {
+			"optional": true
+		},
+		"svelte": {
+			"optional": true
+		},
+		"vue": {
 			"optional": true
 		}
 	},

@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.0.8",
 	"type": "module",
-	"description": "React binding for GraphReFly — useStore / useSubscribe.",
+	"description": "React binding for GraphReFly — useNodeInput / useNodeValue.",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",

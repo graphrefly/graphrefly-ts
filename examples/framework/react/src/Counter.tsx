@@ -1,10 +1,9 @@
-import { useStore, useSubscribe } from "./hooks";
+import { useNodeInput, useNodeValue } from "@graphrefly/ts/adapters/react";
 import { count, doubled } from "./store";
 
 export function Counter() {
-	// Example-local hook glue over @graphrefly/ts/adapters/reactExternalStore.
-	const [value, setValue] = useStore(count);
-	const dbl = useSubscribe(doubled);
+	const [value, setValue] = useNodeInput(count);
+	const dbl = useNodeValue(doubled);
 	const n = value ?? 0;
 	return (
 		<section>

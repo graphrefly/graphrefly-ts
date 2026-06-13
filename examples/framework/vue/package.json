@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.0.8",
 	"type": "module",
-	"description": "Vue 3 binding for GraphReFly — useStore / useSubscribe.",
+	"description": "Vue 3 binding for GraphReFly — useNodeInput / useNodeValue.",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",

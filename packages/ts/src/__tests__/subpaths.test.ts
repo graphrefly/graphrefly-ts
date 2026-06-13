@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import * as adapters from "../adapters/index.js";
 import * as observeStorage from "../adapters/observe-storage.js";
+import * as reactAdapters from "../adapters/react.js";
+import * as solidAdapters from "../adapters/solid.js";
+import * as svelteAdapters from "../adapters/svelte.js";
+import * as vueAdapters from "../adapters/vue.js";
 import * as composition from "../composition/index.js";
 import * as core from "../core/index.js";
 import * as cqrs from "../cqrs/index.js";
@@ -51,6 +55,7 @@ import type {
 	TopologyGroupReleaseOptions,
 	ViewCachePolicy,
 } from "../index.js";
+import * as boundaryInspection from "../inspection/boundary.js";
 import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
 import * as orchestration from "../orchestration/index.js";
@@ -82,12 +87,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			".",
 			"./adapters",
 			"./adapters/observe-storage",
+			"./adapters/react",
+			"./adapters/solid",
+			"./adapters/svelte",
+			"./adapters/vue",
 			"./composition",
 			"./core",
 			"./cqrs",
 			"./data",
 			"./data-structures",
 			"./graph",
+			"./inspection/boundary",
 			"./messaging",
 			"./operators",
 			"./orchestration",
@@ -165,6 +175,22 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.externalStore).toBe("function");
 		expect(typeof adapters.readableStore).toBe("function");
 		expect(typeof adapters.subscribeNodeValues).toBe("function");
+		expect(Object.hasOwn(adapters, "reactExternalStore")).toBe(false);
+		expect(Object.hasOwn(adapters, "svelteReadableStore")).toBe(false);
+		expect(Object.hasOwn(adapters, "svelteWritableStore")).toBe(false);
+		expect(typeof reactAdapters.useNodeValue).toBe("function");
+		expect(typeof reactAdapters.useNodeInput).toBe("function");
+		expect(typeof reactAdapters.useNodeRecord).toBe("function");
+		expect(typeof vueAdapters.useNodeValue).toBe("function");
+		expect(typeof vueAdapters.useNodeInput).toBe("function");
+		expect(typeof vueAdapters.useNodeRecord).toBe("function");
+		expect(typeof solidAdapters.createNodeValue).toBe("function");
+		expect(typeof solidAdapters.createNodeInput).toBe("function");
+		expect(typeof solidAdapters.createNodeRecord).toBe("function");
+		expect(typeof svelteAdapters.nodeReadable).toBe("function");
+		expect(typeof svelteAdapters.nodeWritable).toBe("function");
+		expect(typeof svelteAdapters.nodeRecord).toBe("function");
+		expect(typeof boundaryInspection.boundaryManifest).toBe("function");
 		expect(typeof adapters.toHttp).toBe("function");
 		expect(typeof adapters.toProcess).toBe("function");
 		expect(typeof adapters.toWebSocket).toBe("function");

@@ -1,9 +1,9 @@
 <script lang="ts">
-import { svelteReadableStore, svelteWritableStore } from "@graphrefly/ts/adapters";
+import { nodeReadable, nodeWritable } from "@graphrefly/ts/adapters/svelte";
 import { count, doubled } from "./store";
 
-const value = svelteWritableStore(count);
-const dbl = svelteReadableStore(doubled);
+const value = nodeWritable(count);
+const dbl = nodeReadable(doubled);
 </script>
 
 <section>

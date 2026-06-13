@@ -1,9 +1,9 @@
 /**
  * Framework-neutral store adapters.
  *
- * React/Vue/Solid/Svelte/Zustand/Jotai/Nanostores bindings can build on this
- * tiny Node-facing layer without importing framework packages or reviving the
- * old `compat` namespace (D125/B61).
+ * Focused framework bindings build on this tiny Node-facing layer without
+ * importing framework packages into the dependency-free adapters barrel
+ * (D125/D238).
  */
 
 import type { DeliveryMeta, Sink } from "../ctx/types.js";
@@ -206,16 +206,7 @@ export function externalStore<T>(
 	};
 }
 
-/** Alias for React-facing bindings; dependency-free so React stays a peer of user code. */
-export const reactExternalStore = externalStore;
-
-/** Alias for Svelte-style readable stores. */
-export const svelteReadableStore = readableStore;
-
-/** Alias for Svelte-style writable stores. */
-export const svelteWritableStore = writableStore;
-
-/** Build a framework-neutral keyed record store (the core of old useSubscribeRecord helpers). */
+/** Build a framework-neutral keyed record store for focused framework record bindings. */
 export function recordReadableStore<K extends string, R extends Record<string, unknown>>(
 	keysNode: Node<readonly K[]>,
 	factory: NodeRecordFactory<K, R>,

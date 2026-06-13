@@ -1,11 +1,10 @@
+import { createNodeInput, createNodeValue } from "@graphrefly/ts/adapters/solid";
 import type { Component } from "solid-js";
-import { useStore, useSubscribe } from "./hooks";
 import { count, doubled } from "./store";
 
 export const Counter: Component = () => {
-	// Example-local hook glue over @graphrefly/ts/adapters/subscribeNodeValues.
-	const [value, setValue] = useStore(count);
-	const dbl = useSubscribe(doubled);
+	const [value, setValue] = createNodeInput(count);
+	const dbl = createNodeValue(doubled);
 	return (
 		<section>
 			<h1>GraphReFly · Solid</h1>

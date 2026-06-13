@@ -2,11 +2,10 @@
 
 Minimal React + GraphReFly counter.
 
-- `useStore(node)` -> `[value, setValue]` — tied to a state node.
-- `useSubscribe(node)` -> `value` — works for any node (here: a derived).
+- `useNodeInput(node)` -> `[value, setValue]` — tied to a state node.
+- `useNodeValue(node)` -> `value` — works for any node (here: a derived).
 
-Both hooks are example-local glue over `@graphrefly/ts/adapters`
-`reactExternalStore`, so no framework-specific public subpath is required.
+Both hooks come from the focused `@graphrefly/ts/adapters/react` subpath.
 
 ## Run
 

@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.0.8",
 	"type": "module",
-	"description": "Svelte 5 binding for GraphReFly — useStore / useSubscribe.",
+	"description": "Svelte 5 binding for GraphReFly — nodeWritable / nodeReadable.",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",

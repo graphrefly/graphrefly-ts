@@ -92,6 +92,49 @@ export interface WorkItemDomainActionProposal<TPayload = unknown> {
 	readonly metadata?: Record<string, unknown>;
 }
 
+export type WorkItemDomainActionAdmissionOutcome = "admit" | "reject" | "defer" | "merge";
+export type WorkItemDomainActionAdmissionState = "admitted" | "rejected" | "deferred" | "merged";
+
+export interface WorkItemDomainActionAdmissionPolicy {
+	readonly kind: "work-item-domain-action-admission-policy";
+	readonly policyId: string;
+	readonly actionKinds?: readonly string[];
+	readonly allowedOutcomes?: readonly WorkItemDomainActionAdmissionOutcome[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkItemDomainActionAdmissionDecision {
+	readonly kind: "work-item-domain-action-admission-decision";
+	readonly decisionId: string;
+	readonly admissionId: string;
+	readonly proposalId: string;
+	readonly outcome: WorkItemDomainActionAdmissionOutcome;
+	readonly policyId?: string;
+	readonly reason?: string;
+	readonly targetProposalId?: string;
+	readonly targetAdmissionId?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly decidedAtMs?: number;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkItemDomainActionAdmission {
+	readonly kind: "work-item-domain-action-admission";
+	readonly admissionId: string;
+	readonly proposalId: string;
+	readonly workItemId: string;
+	readonly actionKind: string;
+	readonly state: WorkItemDomainActionAdmissionState;
+	readonly decisionId: string;
+	readonly policyId?: string;
+	readonly reason?: string;
+	readonly targetProposalId?: string;
+	readonly targetAdmissionId?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly admittedAtMs?: number;
+	readonly metadata?: Record<string, unknown>;
+}
+
 export interface WorkItemEffectMappingPolicy {
 	readonly kind: "work-item-effect-mapping-policy";
 	readonly policyId: string;
@@ -112,6 +155,10 @@ export interface WorkItemStatusRecord {
 		| "effect-run-seeded"
 		| "evidence-recorded"
 		| "domain-action-proposed"
+		| "domain-action-admitted"
+		| "domain-action-rejected"
+		| "domain-action-deferred"
+		| "domain-action-merged"
 		| "mapping-issue";
 	readonly sourceRefs?: readonly SourceRef[];
 	readonly effectRunId?: string;
@@ -143,6 +190,13 @@ export interface WorkItemDomainActionProposalViews {
 	readonly audit: readonly AgentRuntimeAuditRecord[];
 }
 
+export interface WorkItemDomainActionAdmissionViews {
+	readonly admissionsByProposal: ReadonlyMap<string, WorkItemDomainActionAdmission>;
+	readonly admissionsByWorkItem: ReadonlyMap<string, readonly WorkItemDomainActionAdmission[]>;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgentRuntimeAuditRecord[];
+}
+
 export interface WorkItemEffectRunBundle {
 	readonly effectRuns: Node<EffectRun>;
 	readonly status: Node<WorkItemStatusRecord>;
@@ -165,6 +219,14 @@ export interface WorkItemDomainActionProposalBundle {
 	readonly issues: Node<DataIssue>;
 	readonly audit: Node<AgentRuntimeAuditRecord>;
 	readonly views: Node<WorkItemDomainActionProposalViews>;
+}
+
+export interface WorkItemDomainActionAdmissionBundle {
+	readonly admissions: Node<WorkItemDomainActionAdmission>;
+	readonly status: Node<WorkItemStatusRecord>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+	readonly views: Node<WorkItemDomainActionAdmissionViews>;
 }
 
 export function workItemEffectRunProjector(
@@ -661,6 +723,124 @@ export function workItemDomainActionProposalProjector(
 	};
 }
 
+export function workItemDomainActionAdmissionProjector(
+	graph: Graph,
+	opts: {
+		readonly name?: string;
+		readonly proposals: Node<WorkItemDomainActionProposal>;
+		readonly decisions: Node<WorkItemDomainActionAdmissionDecision>;
+		readonly admissionPolicies?: readonly Node<WorkItemDomainActionAdmissionPolicy>[];
+		readonly now?: () => number;
+	},
+): WorkItemDomainActionAdmissionBundle {
+	const name = opts.name ?? "workItemDomainActionAdmissions";
+	const policyDeps = opts.admissionPolicies ?? [];
+	const policyStart = 2;
+	const now = opts.now ?? Date.now;
+	const runtime = graph.node<WorkItemDomainActionAdmissionFact>(
+		[opts.proposals, opts.decisions, ...policyDeps],
+		(ctx) => {
+			const state =
+				ctx.state.get<WorkItemDomainActionAdmissionStateInternal>() ??
+				emptyWorkItemDomainActionAdmissionState();
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const proposal = raw as WorkItemDomainActionProposal;
+				if (state.proposals.has(proposal.proposalId)) {
+					emitWorkItemAdmissionIssue(
+						ctx,
+						state,
+						`duplicate-admission-proposal:${proposal.proposalId}`,
+						"duplicate-work-item-domain-action-proposal",
+						`WorkItemDomainActionProposal '${proposal.proposalId}' was already seen by the admission projector`,
+						proposal.workItemId,
+						workItemAdmissionProposalRefs(proposal),
+					);
+					continue;
+				}
+				state.proposals.set(proposal.proposalId, proposal);
+			}
+			forEachPolicyDepBatch(ctx, policyStart, policyDeps.length, (raw) => {
+				const policy = raw as WorkItemDomainActionAdmissionPolicy;
+				state.policies.set(policy.policyId, policy);
+			});
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const decision = raw as WorkItemDomainActionAdmissionDecision;
+				if (state.decisions.has(decision.decisionId)) {
+					emitWorkItemAdmissionIssue(
+						ctx,
+						state,
+						`duplicate-admission-decision:${decision.decisionId}`,
+						"duplicate-work-item-domain-action-admission-decision",
+						`WorkItemDomainActionAdmissionDecision '${decision.decisionId}' was already seen by the admission projector`,
+						decision.proposalId,
+						workItemAdmissionDecisionRefs(decision),
+					);
+					continue;
+				}
+				state.decisions.set(decision.decisionId, decision);
+			}
+			evaluateWorkItemDomainActionAdmissions(ctx, state, now());
+			ctx.state.set(state);
+		},
+		{ name: `${name}/runtime`, factory: "workItemDomainActionAdmissionProjector", partial: true },
+	);
+	return {
+		admissions: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/admissions`,
+			"workItemDomainActionAdmissions",
+			(fact) => (fact.kind === "admission" ? fact.admission : undefined),
+		),
+		status: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/status`,
+			"workItemDomainActionAdmissionStatus",
+			(fact) => (fact.kind === "status" ? fact.status : undefined),
+		),
+		issues: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/issues`,
+			"workItemDomainActionAdmissionIssues",
+			(fact) => (fact.kind === "issue" ? fact.issue : undefined),
+		),
+		audit: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/audit`,
+			"workItemDomainActionAdmissionAudit",
+			(fact) => (fact.kind === "audit" ? fact.audit : undefined),
+		),
+		views: graph.node<WorkItemDomainActionAdmissionViews>(
+			[runtime],
+			(ctx) => {
+				const state = ctx.state.get<WorkItemDomainActionAdmissionViewsState>() ?? {
+					admissionsByProposal: new Map<string, WorkItemDomainActionAdmission>(),
+					admissionsByWorkItem: new Map<string, WorkItemDomainActionAdmission[]>(),
+					issues: [],
+					audit: [],
+				};
+				for (const raw of depBatch(ctx, 0) ?? []) {
+					const fact = raw as WorkItemDomainActionAdmissionFact;
+					if (fact.kind === "admission") {
+						const admission = fact.admission;
+						state.admissionsByProposal.set(admission.proposalId, admission);
+						const byWorkItem = state.admissionsByWorkItem.get(admission.workItemId) ?? [];
+						byWorkItem.push(admission);
+						state.admissionsByWorkItem.set(admission.workItemId, byWorkItem);
+					} else if (fact.kind === "issue") state.issues.push(fact.issue);
+					else if (fact.kind === "audit") state.audit.push(fact.audit);
+				}
+				ctx.state.set(state);
+				ctx.down([["DATA", freezeWorkItemDomainActionAdmissionViews(state)]]);
+			},
+			{ name: `${name}/views`, factory: "workItemDomainActionAdmissionViews" },
+		),
+	};
+}
+
 type WorkItemEffectRunFact =
 	| { readonly kind: "effect-run"; readonly effectRun: EffectRun }
 	| { readonly kind: "status"; readonly status: WorkItemStatusRecord }
@@ -675,6 +855,12 @@ type WorkItemEvidenceMapperFact =
 
 type WorkItemDomainActionProposalFact =
 	| { readonly kind: "proposal"; readonly proposal: WorkItemDomainActionProposal }
+	| { readonly kind: "status"; readonly status: WorkItemStatusRecord }
+	| { readonly kind: "issue"; readonly issue: DataIssue }
+	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
+
+type WorkItemDomainActionAdmissionFact =
+	| { readonly kind: "admission"; readonly admission: WorkItemDomainActionAdmission }
 	| { readonly kind: "status"; readonly status: WorkItemStatusRecord }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
@@ -722,6 +908,19 @@ interface WorkItemDomainActionProposalState {
 	auditSeq: number;
 }
 
+interface WorkItemDomainActionAdmissionStateInternal {
+	proposals: Map<string, WorkItemDomainActionProposal>;
+	policies: Map<string, WorkItemDomainActionAdmissionPolicy>;
+	decisions: Map<string, WorkItemDomainActionAdmissionDecision>;
+	admissionsById: Map<string, WorkItemDomainActionAdmission>;
+	admissionsByProposal: Map<string, WorkItemDomainActionAdmission>;
+	terminalDecisionIds: Set<string>;
+	issueKeys: Set<string>;
+	statusSeq: number;
+	issueSeq: number;
+	auditSeq: number;
+}
+
 interface WorkItemEffectRunViewsState {
 	pendingEffectRequests: Map<string, WorkItemEffectRequested>;
 	settledRequestIds: Set<string>;
@@ -742,6 +941,13 @@ interface WorkItemEvidenceViewsState {
 interface WorkItemDomainActionProposalViewsState {
 	proposalsByWorkItem: Map<string, WorkItemDomainActionProposal[]>;
 	proposalsByEvidence: Map<string, WorkItemDomainActionProposal[]>;
+	issues: DataIssue[];
+	audit: AgentRuntimeAuditRecord[];
+}
+
+interface WorkItemDomainActionAdmissionViewsState {
+	admissionsByProposal: Map<string, WorkItemDomainActionAdmission>;
+	admissionsByWorkItem: Map<string, WorkItemDomainActionAdmission[]>;
 	issues: DataIssue[];
 	audit: AgentRuntimeAuditRecord[];
 }
@@ -1114,6 +1320,212 @@ function emitWorkItemDomainActionProposal(
 	]);
 }
 
+function evaluateWorkItemDomainActionAdmissions(
+	ctx: Ctx,
+	state: WorkItemDomainActionAdmissionStateInternal,
+	admittedAtMs: number,
+): void {
+	let emitted = true;
+	let passes = 0;
+	while (emitted && passes <= state.decisions.size) {
+		emitted = false;
+		passes += 1;
+		for (const decision of state.decisions.values()) {
+			if (state.terminalDecisionIds.has(decision.decisionId)) continue;
+			emitted =
+				evaluateWorkItemDomainActionAdmission(ctx, state, decision, admittedAtMs) || emitted;
+		}
+	}
+}
+
+function evaluateWorkItemDomainActionAdmission(
+	ctx: Ctx,
+	state: WorkItemDomainActionAdmissionStateInternal,
+	decision: WorkItemDomainActionAdmissionDecision,
+	admittedAtMs: number,
+): boolean {
+	const proposal = state.proposals.get(decision.proposalId);
+	const proposalRefs = workItemAdmissionDecisionRefs(decision, proposal);
+	const subjectId = proposal?.workItemId ?? decision.proposalId;
+	if (proposal === undefined) {
+		emitWorkItemAdmissionIssue(
+			ctx,
+			state,
+			`missing-admission-proposal:${decision.decisionId}:${decision.proposalId}`,
+			"missing-work-item-domain-action-admission-proposal",
+			`WorkItemDomainActionAdmissionDecision '${decision.decisionId}' references missing proposal '${decision.proposalId}'`,
+			subjectId,
+			proposalRefs,
+		);
+		return false;
+	}
+	const staleProposalRef = (decision.sourceRefs ?? []).find(
+		(sourceRef) =>
+			sourceRef.kind === "work-item-domain-action-proposal" &&
+			sourceRef.id !== decision.proposalId &&
+			sourceRef.id !== decision.targetProposalId,
+	);
+	if (staleProposalRef !== undefined) {
+		emitWorkItemAdmissionIssue(
+			ctx,
+			state,
+			`stale-admission-proposal-ref:${decision.decisionId}:${staleProposalRef.id}`,
+			"stale-work-item-domain-action-admission-proposal-ref",
+			`WorkItemDomainActionAdmissionDecision '${decision.decisionId}' carries stale proposal ref '${staleProposalRef.id}'`,
+			proposal.workItemId,
+			proposalRefs,
+		);
+		state.terminalDecisionIds.add(decision.decisionId);
+		return false;
+	}
+	const policy = admissionPolicyForDecision(state, decision);
+	if (typeof policy === "string") {
+		emitWorkItemAdmissionIssue(
+			ctx,
+			state,
+			`${policy}:${decision.decisionId}:${decision.policyId ?? "missing"}`,
+			policy,
+			admissionPolicyIssueMessage(policy, decision),
+			proposal.workItemId,
+			proposalRefs,
+		);
+		if (policy === "stale-work-item-domain-action-admission-policy-ref")
+			state.terminalDecisionIds.add(decision.decisionId);
+		return false;
+	}
+	if (policy !== undefined) {
+		const policyIssue = validateWorkItemAdmissionPolicy(policy, decision, proposal);
+		if (policyIssue !== undefined) {
+			emitWorkItemAdmissionIssue(
+				ctx,
+				state,
+				`${policyIssue.code}:${decision.decisionId}:${policy.policyId}`,
+				policyIssue.code,
+				policyIssue.message,
+				proposal.workItemId,
+				workItemAdmissionDecisionRefs(decision, proposal, policy),
+			);
+			return false;
+		}
+	}
+	const mergeIssue = validateWorkItemAdmissionMergeTarget(state, decision);
+	if (mergeIssue !== undefined) {
+		emitWorkItemAdmissionIssue(
+			ctx,
+			state,
+			`${mergeIssue.code}:${decision.decisionId}:${decision.targetProposalId ?? ""}:${decision.targetAdmissionId ?? ""}`,
+			mergeIssue.code,
+			mergeIssue.message,
+			proposal.workItemId,
+			proposalRefs,
+		);
+		if (mergeIssue.code !== "unknown-work-item-domain-action-admission-merge-target")
+			state.terminalDecisionIds.add(decision.decisionId);
+		return false;
+	}
+	if (state.admissionsById.has(decision.admissionId)) {
+		emitWorkItemAdmissionIssue(
+			ctx,
+			state,
+			`duplicate-admission-id:${decision.admissionId}`,
+			"duplicate-work-item-domain-action-admission",
+			`WorkItemDomainActionAdmission '${decision.admissionId}' was already emitted`,
+			proposal.workItemId,
+			proposalRefs,
+		);
+		state.terminalDecisionIds.add(decision.decisionId);
+		return false;
+	}
+	if (state.admissionsByProposal.has(decision.proposalId)) {
+		emitWorkItemAdmissionIssue(
+			ctx,
+			state,
+			`duplicate-admission-proposal-decision:${decision.proposalId}:${decision.decisionId}`,
+			"duplicate-work-item-domain-action-admission-proposal",
+			`WorkItemDomainActionProposal '${decision.proposalId}' already has an admission decision`,
+			proposal.workItemId,
+			proposalRefs,
+		);
+		state.terminalDecisionIds.add(decision.decisionId);
+		return false;
+	}
+	const admissionState = admissionStateForOutcome(decision.outcome);
+	if (admissionState === undefined) {
+		emitWorkItemAdmissionIssue(
+			ctx,
+			state,
+			`unsupported-admission-outcome:${decision.decisionId}:${String(decision.outcome)}`,
+			"unsupported-work-item-domain-action-admission-outcome",
+			`WorkItemDomainActionAdmissionDecision '${decision.decisionId}' uses unsupported outcome '${String(decision.outcome)}'`,
+			proposal.workItemId,
+			proposalRefs,
+		);
+		state.terminalDecisionIds.add(decision.decisionId);
+		return false;
+	}
+	const admission: WorkItemDomainActionAdmission = {
+		kind: "work-item-domain-action-admission",
+		admissionId: decision.admissionId,
+		proposalId: proposal.proposalId,
+		workItemId: proposal.workItemId,
+		actionKind: proposal.actionKind,
+		state: admissionState,
+		decisionId: decision.decisionId,
+		policyId: decision.policyId,
+		reason: decision.reason,
+		targetProposalId: decision.targetProposalId,
+		targetAdmissionId: decision.targetAdmissionId,
+		sourceRefs: workItemAdmissionDecisionRefs(decision, proposal, policy),
+		admittedAtMs: decision.decidedAtMs ?? admittedAtMs,
+		metadata: {
+			...(proposal.metadata ?? {}),
+			...(policy?.metadata ?? {}),
+			...(decision.metadata ?? {}),
+		},
+	};
+	state.admissionsById.set(admission.admissionId, admission);
+	state.admissionsByProposal.set(admission.proposalId, admission);
+	state.terminalDecisionIds.add(decision.decisionId);
+	state.statusSeq += 1;
+	state.auditSeq += 1;
+	const statusState = workItemAdmissionStatusState(admission.state);
+	const status: WorkItemStatusRecord = {
+		kind: "work-item-status",
+		statusId: `${proposal.workItemId}:${statusState}:${state.statusSeq}`,
+		workItemId: proposal.workItemId,
+		state: statusState,
+		sourceRefs: admission.sourceRefs,
+		effectRunId: proposal.effectRunId,
+		evidenceId: proposal.evidenceId,
+		proposalId: proposal.proposalId,
+		metadata: {
+			actionKind: proposal.actionKind,
+			admissionId: admission.admissionId,
+			decisionId: decision.decisionId,
+			policyId: decision.policyId,
+		},
+	};
+	const audit: AgentRuntimeAuditRecord = {
+		id: `${proposal.workItemId}:${statusState}:${state.auditSeq}`,
+		kind: `work-item-domain-action-${admission.state}`,
+		subjectId: proposal.workItemId,
+		sourceRefs: admission.sourceRefs,
+		metadata: {
+			actionKind: proposal.actionKind,
+			admissionId: admission.admissionId,
+			decisionId: decision.decisionId,
+			policyId: decision.policyId,
+			proposalId: proposal.proposalId,
+		},
+	};
+	ctx.down([
+		["DATA", { kind: "admission", admission } satisfies WorkItemDomainActionAdmissionFact],
+		["DATA", { kind: "status", status } satisfies WorkItemDomainActionAdmissionFact],
+		["DATA", { kind: "audit", audit } satisfies WorkItemDomainActionAdmissionFact],
+	]);
+	return true;
+}
+
 function workItemEvidenceFromResult(
 	result: EffectRunResult,
 	run: EffectRun,
@@ -1192,6 +1604,122 @@ function validateWorkItemMappingPolicy(
 		};
 	}
 	return undefined;
+}
+
+function admissionPolicyForDecision(
+	state: WorkItemDomainActionAdmissionStateInternal,
+	decision: WorkItemDomainActionAdmissionDecision,
+):
+	| WorkItemDomainActionAdmissionPolicy
+	| "missing-work-item-domain-action-admission-policy"
+	| "stale-work-item-domain-action-admission-policy-ref"
+	| undefined {
+	if (decision.policyId === undefined) return undefined;
+	const stalePolicyRef = (decision.sourceRefs ?? []).find(
+		(sourceRef) =>
+			sourceRef.kind === "work-item-domain-action-admission-policy" &&
+			sourceRef.id !== decision.policyId,
+	);
+	if (stalePolicyRef !== undefined) return "stale-work-item-domain-action-admission-policy-ref";
+	return (
+		state.policies.get(decision.policyId) ?? "missing-work-item-domain-action-admission-policy"
+	);
+}
+
+function admissionPolicyIssueMessage(
+	code:
+		| "missing-work-item-domain-action-admission-policy"
+		| "stale-work-item-domain-action-admission-policy-ref",
+	decision: WorkItemDomainActionAdmissionDecision,
+): string {
+	if (code === "missing-work-item-domain-action-admission-policy") {
+		return `WorkItemDomainActionAdmissionPolicy '${decision.policyId}' was referenced for WorkItem action admission but not present`;
+	}
+	return `WorkItemDomainActionAdmissionDecision '${decision.decisionId}' carries a stale admission policy source ref`;
+}
+
+function validateWorkItemAdmissionPolicy(
+	policy: WorkItemDomainActionAdmissionPolicy,
+	decision: WorkItemDomainActionAdmissionDecision,
+	proposal: WorkItemDomainActionProposal,
+): { readonly code: string; readonly message: string } | undefined {
+	if (policy.actionKinds !== undefined && !policy.actionKinds.includes(proposal.actionKind)) {
+		return {
+			code: "work-item-domain-action-admission-policy-mismatch",
+			message: `WorkItemDomainActionAdmissionPolicy '${policy.policyId}' does not apply to actionKind '${proposal.actionKind}'`,
+		};
+	}
+	if (policy.allowedOutcomes !== undefined && !policy.allowedOutcomes.includes(decision.outcome)) {
+		return {
+			code: "unsupported-work-item-domain-action-admission-outcome",
+			message: `WorkItemDomainActionAdmissionPolicy '${policy.policyId}' does not allow outcome '${decision.outcome}'`,
+		};
+	}
+	return undefined;
+}
+
+function validateWorkItemAdmissionMergeTarget(
+	state: WorkItemDomainActionAdmissionStateInternal,
+	decision: WorkItemDomainActionAdmissionDecision,
+): { readonly code: string; readonly message: string } | undefined {
+	const hasTargetProposal = decision.targetProposalId !== undefined;
+	const hasTargetAdmission = decision.targetAdmissionId !== undefined;
+	if (decision.outcome !== "merge") {
+		if (hasTargetProposal || hasTargetAdmission) {
+			return {
+				code: "ambiguous-work-item-domain-action-admission-merge-target",
+				message: `WorkItemDomainActionAdmissionDecision '${decision.decisionId}' carries a merge target for non-merge outcome '${decision.outcome}'`,
+			};
+		}
+		return undefined;
+	}
+	if (hasTargetProposal === hasTargetAdmission) {
+		return {
+			code: "ambiguous-work-item-domain-action-admission-merge-target",
+			message: `WorkItemDomainActionAdmissionDecision '${decision.decisionId}' must reference exactly one merge target`,
+		};
+	}
+	if (decision.targetProposalId === decision.proposalId) {
+		return {
+			code: "ambiguous-work-item-domain-action-admission-merge-target",
+			message: `WorkItemDomainActionAdmissionDecision '${decision.decisionId}' cannot merge a proposal into itself`,
+		};
+	}
+	if (decision.targetProposalId !== undefined && !state.proposals.has(decision.targetProposalId)) {
+		return {
+			code: "unknown-work-item-domain-action-admission-merge-target",
+			message: `WorkItemDomainActionAdmissionDecision '${decision.decisionId}' references unknown target proposal '${decision.targetProposalId}'`,
+		};
+	}
+	if (
+		decision.targetAdmissionId !== undefined &&
+		!state.admissionsById.has(decision.targetAdmissionId)
+	) {
+		return {
+			code: "unknown-work-item-domain-action-admission-merge-target",
+			message: `WorkItemDomainActionAdmissionDecision '${decision.decisionId}' references unknown target admission '${decision.targetAdmissionId}'`,
+		};
+	}
+	return undefined;
+}
+
+function admissionStateForOutcome(
+	outcome: WorkItemDomainActionAdmissionOutcome,
+): WorkItemDomainActionAdmissionState | undefined {
+	if (outcome === "admit") return "admitted";
+	if (outcome === "reject") return "rejected";
+	if (outcome === "defer") return "deferred";
+	if (outcome === "merge") return "merged";
+	return undefined;
+}
+
+function workItemAdmissionStatusState(
+	state: WorkItemDomainActionAdmissionState,
+): WorkItemStatusRecord["state"] {
+	if (state === "admitted") return "domain-action-admitted";
+	if (state === "rejected") return "domain-action-rejected";
+	if (state === "deferred") return "domain-action-deferred";
+	return "domain-action-merged";
 }
 
 function policyAppliesToRequest(
@@ -1360,6 +1888,44 @@ function emitWorkItemActionProposalIssue(
 	]);
 }
 
+function emitWorkItemAdmissionIssue(
+	ctx: Ctx,
+	state: WorkItemDomainActionAdmissionStateInternal,
+	key: string,
+	code: string,
+	message: string,
+	subjectId?: string,
+	sourceRefs?: readonly SourceRef[],
+): void {
+	if (state.issueKeys.has(key)) return;
+	state.issueKeys.add(key);
+	state.issueSeq += 1;
+	state.statusSeq += 1;
+	state.auditSeq += 1;
+	const issue = dataIssue(code, message, { subjectId, refs: sourceRefs });
+	const status: WorkItemStatusRecord = {
+		kind: "work-item-status",
+		statusId: `${subjectId ?? "work-item"}:mapping-issue:${state.statusSeq}`,
+		workItemId: subjectId ?? "unknown",
+		state: "mapping-issue",
+		sourceRefs,
+		issues: [issue],
+	};
+	const audit: AgentRuntimeAuditRecord = {
+		id: `${subjectId ?? "work-item"}:${code}:${state.auditSeq}`,
+		kind: "work-item-domain-action-admission-issue",
+		subjectId,
+		issueCode: code,
+		message,
+		sourceRefs,
+	};
+	ctx.down([
+		["DATA", { kind: "issue", issue } satisfies WorkItemDomainActionAdmissionFact],
+		["DATA", { kind: "status", status } satisfies WorkItemDomainActionAdmissionFact],
+		["DATA", { kind: "audit", audit } satisfies WorkItemDomainActionAdmissionFact],
+	]);
+}
+
 function emptyWorkItemEffectRunState(): WorkItemEffectRunState {
 	return {
 		workItems: new Map<string, WorkItemSeed>(),
@@ -1409,6 +1975,21 @@ function emptyWorkItemDomainActionProposalState(): WorkItemDomainActionProposalS
 	};
 }
 
+function emptyWorkItemDomainActionAdmissionState(): WorkItemDomainActionAdmissionStateInternal {
+	return {
+		proposals: new Map<string, WorkItemDomainActionProposal>(),
+		policies: new Map<string, WorkItemDomainActionAdmissionPolicy>(),
+		decisions: new Map<string, WorkItemDomainActionAdmissionDecision>(),
+		admissionsById: new Map<string, WorkItemDomainActionAdmission>(),
+		admissionsByProposal: new Map<string, WorkItemDomainActionAdmission>(),
+		terminalDecisionIds: new Set<string>(),
+		issueKeys: new Set<string>(),
+		statusSeq: 0,
+		issueSeq: 0,
+		auditSeq: 0,
+	};
+}
+
 function freezeWorkItemEffectRequestViews(
 	state: WorkItemEffectRunViewsState,
 ): WorkItemEffectRequestViews {
@@ -1440,6 +2021,19 @@ function freezeWorkItemDomainActionProposalViews(
 		),
 		proposalsByEvidence: new Map(
 			Array.from(state.proposalsByEvidence, ([key, value]) => [key, Object.freeze([...value])]),
+		),
+		issues: Object.freeze([...state.issues]),
+		audit: Object.freeze([...state.audit]),
+	};
+}
+
+function freezeWorkItemDomainActionAdmissionViews(
+	state: WorkItemDomainActionAdmissionViewsState,
+): WorkItemDomainActionAdmissionViews {
+	return {
+		admissionsByProposal: new Map(state.admissionsByProposal),
+		admissionsByWorkItem: new Map(
+			Array.from(state.admissionsByWorkItem, ([key, value]) => [key, Object.freeze([...value])]),
 		),
 		issues: Object.freeze([...state.issues]),
 		audit: Object.freeze([...state.audit]),
@@ -1492,6 +2086,46 @@ function workItemActionProposalRefs(
 		...(evidence.sourceRefs ?? []),
 		...(result.sourceRefs ?? []),
 		...(result.subjectRefs ?? []),
+	]);
+}
+
+function workItemAdmissionProposalRefs(
+	proposal: WorkItemDomainActionProposal,
+): readonly SourceRef[] {
+	return uniqueSourceRefs([
+		ref("work-item", proposal.workItemId),
+		ref("work-item-domain-action-proposal", proposal.proposalId),
+		ref("effect-run", proposal.effectRunId),
+		ref("effect-run-result", proposal.effectRunResultId),
+		ref("work-item-evidence", proposal.evidenceId),
+		ref("work-item-effect-mapping-policy", proposal.policyId),
+		...(proposal.sourceRefs ?? []),
+	]);
+}
+
+function workItemAdmissionDecisionRefs(
+	decision: WorkItemDomainActionAdmissionDecision,
+	proposal?: WorkItemDomainActionProposal,
+	policy?: WorkItemDomainActionAdmissionPolicy,
+): readonly SourceRef[] {
+	return uniqueSourceRefs([
+		...(proposal === undefined ? [] : workItemAdmissionProposalRefs(proposal)),
+		ref("work-item-domain-action-admission-decision", decision.decisionId),
+		ref("work-item-domain-action-admission", decision.admissionId),
+		ref("work-item-domain-action-proposal", decision.proposalId),
+		...(decision.policyId === undefined
+			? []
+			: [ref("work-item-domain-action-admission-policy", decision.policyId)]),
+		...(policy === undefined
+			? []
+			: [ref("work-item-domain-action-admission-policy", policy.policyId)]),
+		...(decision.targetProposalId === undefined
+			? []
+			: [ref("work-item-domain-action-proposal", decision.targetProposalId)]),
+		...(decision.targetAdmissionId === undefined
+			? []
+			: [ref("work-item-domain-action-admission", decision.targetAdmissionId)]),
+		...(decision.sourceRefs ?? []),
 	]);
 }
 
