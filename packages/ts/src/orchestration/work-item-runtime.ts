@@ -63,6 +63,35 @@ export interface WorkItemEvidenceRecorded {
 	readonly metadata?: Record<string, unknown>;
 }
 
+export type WorkItemDomainActionProposalPayloadFrom = "evidence" | "effect-run-result" | "output";
+
+export interface WorkItemDomainActionProposalSpec<TPayload = unknown> {
+	readonly actionKind: string;
+	readonly behavior?: "propose";
+	readonly statuses?: readonly EffectRunResultStatus[];
+	readonly outputKinds?: readonly string[];
+	readonly payloadFrom?: WorkItemDomainActionProposalPayloadFrom;
+	readonly payload?: TPayload;
+	readonly reason?: string;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkItemDomainActionProposal<TPayload = unknown> {
+	readonly kind: "work-item-domain-action-proposal";
+	readonly proposalId: string;
+	readonly workItemId: string;
+	readonly actionKind: string;
+	readonly effectRunId: string;
+	readonly effectRunResultId: string;
+	readonly evidenceId: string;
+	readonly policyId: string;
+	readonly payload?: TPayload;
+	readonly reason?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly proposedAtMs?: number;
+	readonly metadata?: Record<string, unknown>;
+}
+
 export interface WorkItemEffectMappingPolicy {
 	readonly kind: "work-item-effect-mapping-policy";
 	readonly policyId: string;
@@ -70,6 +99,7 @@ export interface WorkItemEffectMappingPolicy {
 	readonly evidence?: {
 		readonly behavior?: "record";
 	};
+	readonly actionProposals?: readonly WorkItemDomainActionProposalSpec[];
 	readonly metadata?: Record<string, unknown>;
 }
 
@@ -81,11 +111,13 @@ export interface WorkItemStatusRecord {
 		| "effect-request-pending"
 		| "effect-run-seeded"
 		| "evidence-recorded"
+		| "domain-action-proposed"
 		| "mapping-issue";
 	readonly sourceRefs?: readonly SourceRef[];
 	readonly effectRunId?: string;
 	readonly requestId?: string;
 	readonly evidenceId?: string;
+	readonly proposalId?: string;
 	readonly issues?: readonly DataIssue[];
 	readonly metadata?: Record<string, unknown>;
 }
@@ -104,6 +136,13 @@ export interface WorkItemEvidenceViews {
 	readonly pendingEffectRequests: readonly WorkItemEffectRequested[];
 }
 
+export interface WorkItemDomainActionProposalViews {
+	readonly proposalsByWorkItem: ReadonlyMap<string, readonly WorkItemDomainActionProposal[]>;
+	readonly proposalsByEvidence: ReadonlyMap<string, readonly WorkItemDomainActionProposal[]>;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgentRuntimeAuditRecord[];
+}
+
 export interface WorkItemEffectRunBundle {
 	readonly effectRuns: Node<EffectRun>;
 	readonly status: Node<WorkItemStatusRecord>;
@@ -118,6 +157,14 @@ export interface WorkItemEvidenceMapperBundle {
 	readonly issues: Node<DataIssue>;
 	readonly audit: Node<AgentRuntimeAuditRecord>;
 	readonly views: Node<WorkItemEvidenceViews>;
+}
+
+export interface WorkItemDomainActionProposalBundle {
+	readonly proposals: Node<WorkItemDomainActionProposal>;
+	readonly status: Node<WorkItemStatusRecord>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+	readonly views: Node<WorkItemDomainActionProposalViews>;
 }
 
 export function workItemEffectRunProjector(
@@ -490,6 +537,130 @@ export function workItemEffectResultMapper(
 	};
 }
 
+export function workItemDomainActionProposalProjector(
+	graph: Graph,
+	opts: {
+		readonly name?: string;
+		readonly workItems: Node<WorkItemSeed>;
+		readonly evidence: Node<WorkItemEvidenceRecorded>;
+		readonly effectRunResults: Node<EffectRunResult>;
+		readonly mappingPolicies: readonly Node<WorkItemEffectMappingPolicy>[];
+		readonly now?: () => number;
+	},
+): WorkItemDomainActionProposalBundle {
+	const name = opts.name ?? "workItemDomainActionProposals";
+	const now = opts.now ?? Date.now;
+	const policyStart = 3;
+	const runtime = graph.node<WorkItemDomainActionProposalFact>(
+		[opts.workItems, opts.evidence, opts.effectRunResults, ...opts.mappingPolicies],
+		(ctx) => {
+			const state =
+				ctx.state.get<WorkItemDomainActionProposalState>() ??
+				emptyWorkItemDomainActionProposalState();
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const workItem = raw as WorkItemSeed;
+				state.workItems.set(workItem.workItemId, workItem);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const evidence = raw as WorkItemEvidenceRecorded;
+				if (state.evidence.has(evidence.evidenceId)) {
+					emitWorkItemActionProposalIssue(
+						ctx,
+						state,
+						`duplicate-action-proposal-evidence:${evidence.evidenceId}`,
+						"duplicate-work-item-action-proposal-evidence",
+						`WorkItemEvidenceRecorded '${evidence.evidenceId}' was already seen by the action proposal projector`,
+						evidence.workItemId,
+						workItemEvidenceOnlyRefs(evidence),
+					);
+					continue;
+				}
+				state.evidence.set(evidence.evidenceId, evidence);
+			}
+			for (const raw of depBatch(ctx, 2) ?? []) {
+				const result = raw as EffectRunResult;
+				if (state.results.has(result.resultId)) {
+					emitWorkItemActionProposalIssue(
+						ctx,
+						state,
+						`duplicate-action-proposal-result:${result.resultId}`,
+						"duplicate-work-item-action-proposal-result",
+						`EffectRunResult '${result.resultId}' was already seen by the action proposal projector`,
+						workItemIdForEffectRunResult(state, result),
+						workItemResultRefs(result),
+					);
+					continue;
+				}
+				state.results.set(result.resultId, result);
+			}
+			forEachPolicyDepBatch(ctx, policyStart, opts.mappingPolicies.length, (raw) => {
+				const policy = raw as WorkItemEffectMappingPolicy;
+				state.policies.set(policy.policyId, policy);
+			});
+			evaluateWorkItemDomainActionProposals(ctx, state, now());
+			ctx.state.set(state);
+		},
+		{ name: `${name}/runtime`, factory: "workItemDomainActionProposalProjector", partial: true },
+	);
+	return {
+		proposals: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/proposals`,
+			"workItemDomainActionProposals",
+			(fact) => (fact.kind === "proposal" ? fact.proposal : undefined),
+		),
+		status: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/status`,
+			"workItemDomainActionProposalStatus",
+			(fact) => (fact.kind === "status" ? fact.status : undefined),
+		),
+		issues: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/issues`,
+			"workItemDomainActionProposalIssues",
+			(fact) => (fact.kind === "issue" ? fact.issue : undefined),
+		),
+		audit: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/audit`,
+			"workItemDomainActionProposalAudit",
+			(fact) => (fact.kind === "audit" ? fact.audit : undefined),
+		),
+		views: graph.node<WorkItemDomainActionProposalViews>(
+			[runtime],
+			(ctx) => {
+				const state = ctx.state.get<WorkItemDomainActionProposalViewsState>() ?? {
+					proposalsByWorkItem: new Map<string, WorkItemDomainActionProposal[]>(),
+					proposalsByEvidence: new Map<string, WorkItemDomainActionProposal[]>(),
+					issues: [],
+					audit: [],
+				};
+				for (const raw of depBatch(ctx, 0) ?? []) {
+					const fact = raw as WorkItemDomainActionProposalFact;
+					if (fact.kind === "proposal") {
+						const proposal = fact.proposal;
+						const byWorkItem = state.proposalsByWorkItem.get(proposal.workItemId) ?? [];
+						byWorkItem.push(proposal);
+						state.proposalsByWorkItem.set(proposal.workItemId, byWorkItem);
+						const byEvidence = state.proposalsByEvidence.get(proposal.evidenceId) ?? [];
+						byEvidence.push(proposal);
+						state.proposalsByEvidence.set(proposal.evidenceId, byEvidence);
+					} else if (fact.kind === "issue") state.issues.push(fact.issue);
+					else if (fact.kind === "audit") state.audit.push(fact.audit);
+				}
+				ctx.state.set(state);
+				ctx.down([["DATA", freezeWorkItemDomainActionProposalViews(state)]]);
+			},
+			{ name: `${name}/views`, factory: "workItemDomainActionProposalViews" },
+		),
+	};
+}
+
 type WorkItemEffectRunFact =
 	| { readonly kind: "effect-run"; readonly effectRun: EffectRun }
 	| { readonly kind: "status"; readonly status: WorkItemStatusRecord }
@@ -498,6 +669,12 @@ type WorkItemEffectRunFact =
 
 type WorkItemEvidenceMapperFact =
 	| { readonly kind: "evidence"; readonly evidence: WorkItemEvidenceRecorded }
+	| { readonly kind: "status"; readonly status: WorkItemStatusRecord }
+	| { readonly kind: "issue"; readonly issue: DataIssue }
+	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
+
+type WorkItemDomainActionProposalFact =
+	| { readonly kind: "proposal"; readonly proposal: WorkItemDomainActionProposal }
 	| { readonly kind: "status"; readonly status: WorkItemStatusRecord }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
@@ -533,6 +710,18 @@ interface WorkItemEvidenceState {
 	auditSeq: number;
 }
 
+interface WorkItemDomainActionProposalState {
+	workItems: Map<string, WorkItemSeed>;
+	evidence: Map<string, WorkItemEvidenceRecorded>;
+	results: Map<string, EffectRunResult>;
+	policies: Map<string, WorkItemEffectMappingPolicy>;
+	proposedKeys: Set<string>;
+	issueKeys: Set<string>;
+	statusSeq: number;
+	issueSeq: number;
+	auditSeq: number;
+}
+
 interface WorkItemEffectRunViewsState {
 	pendingEffectRequests: Map<string, WorkItemEffectRequested>;
 	settledRequestIds: Set<string>;
@@ -546,6 +735,13 @@ interface WorkItemEvidenceViewsState {
 	pendingEffectRequests: Map<string, WorkItemEffectRequested>;
 	settledEffectRunIds: Set<string>;
 	settledRequestIds: Set<string>;
+	issues: DataIssue[];
+	audit: AgentRuntimeAuditRecord[];
+}
+
+interface WorkItemDomainActionProposalViewsState {
+	proposalsByWorkItem: Map<string, WorkItemDomainActionProposal[]>;
+	proposalsByEvidence: Map<string, WorkItemDomainActionProposal[]>;
 	issues: DataIssue[];
 	audit: AgentRuntimeAuditRecord[];
 }
@@ -733,6 +929,191 @@ function mapEffectRunResultToWorkItemEvidence(
 	]);
 }
 
+function evaluateWorkItemDomainActionProposals(
+	ctx: Ctx,
+	state: WorkItemDomainActionProposalState,
+	proposedAtMs: number,
+): void {
+	for (const evidence of state.evidence.values()) {
+		const result = state.results.get(evidence.effectRunResultId);
+		if (result === undefined) {
+			emitWorkItemActionProposalIssue(
+				ctx,
+				state,
+				`missing-action-proposal-result:${evidence.evidenceId}:${evidence.effectRunResultId}`,
+				"missing-work-item-action-proposal-result",
+				`WorkItemEvidenceRecorded '${evidence.evidenceId}' references missing EffectRunResult '${evidence.effectRunResultId}'`,
+				evidence.workItemId,
+				workItemEvidenceOnlyRefs(evidence),
+			);
+			continue;
+		}
+		if (result.effectRunId !== evidence.effectRunId || result.status !== evidence.status) {
+			emitWorkItemActionProposalIssue(
+				ctx,
+				state,
+				`stale-action-proposal-result:${evidence.evidenceId}:${result.resultId}`,
+				"stale-work-item-action-proposal-result",
+				`WorkItemEvidenceRecorded '${evidence.evidenceId}' does not match EffectRunResult '${result.resultId}'`,
+				evidence.workItemId,
+				workItemActionProposalRefs(evidence, result),
+			);
+			continue;
+		}
+		if (!state.workItems.has(evidence.workItemId)) {
+			emitWorkItemActionProposalIssue(
+				ctx,
+				state,
+				`unknown-action-proposal-work-item:${evidence.evidenceId}`,
+				"unknown-work-item-action-proposal-target",
+				`WorkItemEvidenceRecorded '${evidence.evidenceId}' references unseeded WorkItem '${evidence.workItemId}'`,
+				evidence.workItemId,
+				workItemActionProposalRefs(evidence, result),
+			);
+			continue;
+		}
+		const policyIds = referencedWorkItemMappingPolicyIds(evidence);
+		for (const policyId of policyIds) {
+			const policy = state.policies.get(policyId);
+			if (policy === undefined) {
+				emitWorkItemActionProposalIssue(
+					ctx,
+					state,
+					`missing-action-proposal-policy:${evidence.evidenceId}:${policyId}`,
+					"missing-work-item-action-proposal-policy",
+					`WorkItemEffectMappingPolicy '${policyId}' was referenced for WorkItem action proposals but not present`,
+					evidence.workItemId,
+					workItemActionProposalRefs(evidence, result),
+				);
+				continue;
+			}
+			const effectKind =
+				effectKindFromMetadata(evidence.metadata) ?? effectKindFromMetadata(result.metadata);
+			if (!policyAppliesToRequest(policy, effectKind)) {
+				emitWorkItemActionProposalIssue(
+					ctx,
+					state,
+					`action-proposal-policy-mismatch:${evidence.evidenceId}:${policy.policyId}`,
+					"work-item-action-proposal-policy-mismatch",
+					`WorkItemEffectMappingPolicy '${policy.policyId}' does not apply to effectKind '${effectKind ?? "unknown"}'`,
+					evidence.workItemId,
+					workItemActionProposalRefs(evidence, result, policy),
+				);
+				continue;
+			}
+			for (const [index, spec] of (policy.actionProposals ?? []).entries()) {
+				emitWorkItemDomainActionProposal(
+					ctx,
+					state,
+					evidence,
+					result,
+					policy,
+					spec,
+					index,
+					proposedAtMs,
+				);
+			}
+		}
+	}
+}
+
+function emitWorkItemDomainActionProposal(
+	ctx: Ctx,
+	state: WorkItemDomainActionProposalState,
+	evidence: WorkItemEvidenceRecorded,
+	result: EffectRunResult,
+	policy: WorkItemEffectMappingPolicy,
+	spec: WorkItemDomainActionProposalSpec,
+	index: number,
+	proposedAtMs: number,
+): void {
+	const key = `${evidence.evidenceId}:${policy.policyId}:${index}:${spec.actionKind}`;
+	if (state.proposedKeys.has(key)) return;
+	if (spec.behavior !== undefined && spec.behavior !== "propose") {
+		emitWorkItemActionProposalIssue(
+			ctx,
+			state,
+			`unsupported-action-proposal-behavior:${key}`,
+			"unsupported-work-item-action-proposal-behavior",
+			`WorkItemEffectMappingPolicy '${policy.policyId}' uses unsupported action proposal behavior '${spec.behavior}'`,
+			evidence.workItemId,
+			workItemActionProposalRefs(evidence, result, policy),
+		);
+		return;
+	}
+	if (spec.actionKind.length === 0) {
+		emitWorkItemActionProposalIssue(
+			ctx,
+			state,
+			`malformed-action-proposal:${key}`,
+			"malformed-work-item-action-proposal",
+			`WorkItemEffectMappingPolicy '${policy.policyId}' has an empty actionKind`,
+			evidence.workItemId,
+			workItemActionProposalRefs(evidence, result, policy),
+		);
+		return;
+	}
+	if (spec.statuses !== undefined && !spec.statuses.includes(evidence.status)) return;
+	const outputKind = evidence.output?.kind;
+	if (
+		spec.outputKinds !== undefined &&
+		(outputKind === undefined || !spec.outputKinds.includes(outputKind))
+	)
+		return;
+	state.proposedKeys.add(key);
+	state.statusSeq += 1;
+	state.auditSeq += 1;
+	const proposal: WorkItemDomainActionProposal = {
+		kind: "work-item-domain-action-proposal",
+		proposalId: `${evidence.workItemId}:${evidence.effectRunId}:${evidence.effectRunResultId}:${policy.policyId}:${index}:${spec.actionKind}`,
+		workItemId: evidence.workItemId,
+		actionKind: spec.actionKind,
+		effectRunId: evidence.effectRunId,
+		effectRunResultId: evidence.effectRunResultId,
+		evidenceId: evidence.evidenceId,
+		policyId: policy.policyId,
+		payload: workItemActionProposalPayload(spec, evidence, result),
+		reason: spec.reason ?? evidence.reason ?? resultReason(result),
+		sourceRefs: workItemActionProposalRefs(evidence, result, policy),
+		proposedAtMs,
+		metadata: {
+			...(policy.metadata ?? {}),
+			...(spec.metadata ?? {}),
+			resultStatus: evidence.status,
+		},
+	};
+	const status: WorkItemStatusRecord = {
+		kind: "work-item-status",
+		statusId: `${evidence.workItemId}:domain-action-proposed:${state.statusSeq}`,
+		workItemId: evidence.workItemId,
+		state: "domain-action-proposed",
+		sourceRefs: proposal.sourceRefs,
+		effectRunId: evidence.effectRunId,
+		evidenceId: evidence.evidenceId,
+		proposalId: proposal.proposalId,
+		metadata: { actionKind: spec.actionKind, policyId: policy.policyId },
+	};
+	const audit: AgentRuntimeAuditRecord = {
+		id: `${evidence.workItemId}:domain-action-proposed:${state.auditSeq}`,
+		kind: "work-item-domain-action-proposed",
+		subjectId: evidence.workItemId,
+		sourceRefs: proposal.sourceRefs,
+		metadata: {
+			actionKind: spec.actionKind,
+			effectRunId: evidence.effectRunId,
+			effectRunResultId: evidence.effectRunResultId,
+			evidenceId: evidence.evidenceId,
+			policyId: policy.policyId,
+			proposalId: proposal.proposalId,
+		},
+	};
+	ctx.down([
+		["DATA", { kind: "proposal", proposal } satisfies WorkItemDomainActionProposalFact],
+		["DATA", { kind: "status", status } satisfies WorkItemDomainActionProposalFact],
+		["DATA", { kind: "audit", audit } satisfies WorkItemDomainActionProposalFact],
+	]);
+}
+
 function workItemEvidenceFromResult(
 	result: EffectRunResult,
 	run: EffectRun,
@@ -752,6 +1133,7 @@ function workItemEvidenceFromResult(
 			ref("effect-run-result", result.resultId),
 			...(run.sourceRefs ?? []),
 			...(run.subjectRefs ?? []),
+			...(run.policyRefs ?? []),
 			...(result.sourceRefs ?? []),
 			...(result.subjectRefs ?? []),
 		]),
@@ -940,6 +1322,44 @@ function emitWorkItemEvidenceIssue(
 	]);
 }
 
+function emitWorkItemActionProposalIssue(
+	ctx: Ctx,
+	state: WorkItemDomainActionProposalState,
+	key: string,
+	code: string,
+	message: string,
+	subjectId?: string,
+	sourceRefs?: readonly SourceRef[],
+): void {
+	if (state.issueKeys.has(key)) return;
+	state.issueKeys.add(key);
+	state.issueSeq += 1;
+	state.statusSeq += 1;
+	state.auditSeq += 1;
+	const issue = dataIssue(code, message, { subjectId, refs: sourceRefs });
+	const status: WorkItemStatusRecord = {
+		kind: "work-item-status",
+		statusId: `${subjectId ?? "work-item"}:mapping-issue:${state.statusSeq}`,
+		workItemId: subjectId ?? "unknown",
+		state: "mapping-issue",
+		sourceRefs,
+		issues: [issue],
+	};
+	const audit: AgentRuntimeAuditRecord = {
+		id: `${subjectId ?? "work-item"}:${code}:${state.auditSeq}`,
+		kind: "work-item-action-proposal-issue",
+		subjectId,
+		issueCode: code,
+		message,
+		sourceRefs,
+	};
+	ctx.down([
+		["DATA", { kind: "issue", issue } satisfies WorkItemDomainActionProposalFact],
+		["DATA", { kind: "status", status } satisfies WorkItemDomainActionProposalFact],
+		["DATA", { kind: "audit", audit } satisfies WorkItemDomainActionProposalFact],
+	]);
+}
+
 function emptyWorkItemEffectRunState(): WorkItemEffectRunState {
 	return {
 		workItems: new Map<string, WorkItemSeed>(),
@@ -975,6 +1395,20 @@ function emptyWorkItemEvidenceState(): WorkItemEvidenceState {
 	};
 }
 
+function emptyWorkItemDomainActionProposalState(): WorkItemDomainActionProposalState {
+	return {
+		workItems: new Map<string, WorkItemSeed>(),
+		evidence: new Map<string, WorkItemEvidenceRecorded>(),
+		results: new Map<string, EffectRunResult>(),
+		policies: new Map<string, WorkItemEffectMappingPolicy>(),
+		proposedKeys: new Set<string>(),
+		issueKeys: new Set<string>(),
+		statusSeq: 0,
+		issueSeq: 0,
+		auditSeq: 0,
+	};
+}
+
 function freezeWorkItemEffectRequestViews(
 	state: WorkItemEffectRunViewsState,
 ): WorkItemEffectRequestViews {
@@ -994,6 +1428,21 @@ function freezeWorkItemEvidenceViews(state: WorkItemEvidenceViewsState): WorkIte
 		issues: Object.freeze([...state.issues]),
 		audit: Object.freeze([...state.audit]),
 		pendingEffectRequests: Object.freeze(Array.from(state.pendingEffectRequests.values())),
+	};
+}
+
+function freezeWorkItemDomainActionProposalViews(
+	state: WorkItemDomainActionProposalViewsState,
+): WorkItemDomainActionProposalViews {
+	return {
+		proposalsByWorkItem: new Map(
+			Array.from(state.proposalsByWorkItem, ([key, value]) => [key, Object.freeze([...value])]),
+		),
+		proposalsByEvidence: new Map(
+			Array.from(state.proposalsByEvidence, ([key, value]) => [key, Object.freeze([...value])]),
+		),
+		issues: Object.freeze([...state.issues]),
+		audit: Object.freeze([...state.audit]),
 	};
 }
 
@@ -1027,6 +1476,78 @@ function workItemResultRefs(result: EffectRunResult): readonly SourceRef[] {
 		...(result.sourceRefs ?? []),
 		...(result.subjectRefs ?? []),
 	];
+}
+
+function workItemActionProposalRefs(
+	evidence: WorkItemEvidenceRecorded,
+	result: EffectRunResult,
+	policy?: WorkItemEffectMappingPolicy,
+): readonly SourceRef[] {
+	return uniqueSourceRefs([
+		ref("work-item", evidence.workItemId),
+		ref("effect-run", evidence.effectRunId),
+		ref("effect-run-result", evidence.effectRunResultId),
+		ref("work-item-evidence", evidence.evidenceId),
+		...(policy === undefined ? [] : [ref("work-item-effect-mapping-policy", policy.policyId)]),
+		...(evidence.sourceRefs ?? []),
+		...(result.sourceRefs ?? []),
+		...(result.subjectRefs ?? []),
+	]);
+}
+
+function workItemEvidenceOnlyRefs(evidence: WorkItemEvidenceRecorded): readonly SourceRef[] {
+	return uniqueSourceRefs([
+		ref("work-item", evidence.workItemId),
+		ref("effect-run", evidence.effectRunId),
+		ref("effect-run-result", evidence.effectRunResultId),
+		ref("work-item-evidence", evidence.evidenceId),
+		...(evidence.sourceRefs ?? []),
+	]);
+}
+
+function referencedWorkItemMappingPolicyIds(evidence: WorkItemEvidenceRecorded): readonly string[] {
+	const refs = uniqueSourceRefs([...(evidence.sourceRefs ?? [])]);
+	return refs
+		.filter((sourceRef) => sourceRef.kind === "work-item-effect-mapping-policy")
+		.map((sourceRef) => sourceRef.id);
+}
+
+function effectKindFromMetadata(metadata: Record<string, unknown> | undefined): string | undefined {
+	const effectKind = metadata?.effectKind;
+	return typeof effectKind === "string" ? effectKind : undefined;
+}
+
+function workItemActionProposalPayload(
+	spec: WorkItemDomainActionProposalSpec,
+	evidence: WorkItemEvidenceRecorded,
+	result: EffectRunResult,
+): unknown {
+	if (spec.payload !== undefined) return spec.payload;
+	const payloadFrom = spec.payloadFrom;
+	if (payloadFrom === undefined) return undefined;
+	if (payloadFrom === "effect-run-result")
+		return { kind: "effect-run-result-ref", resultId: result.resultId };
+	if (payloadFrom === "output") return evidence.output;
+	return { kind: "work-item-evidence-ref", evidenceId: evidence.evidenceId };
+}
+
+function resultReason(result: EffectRunResult): string | undefined {
+	if (result.status === "canceled" || result.status === "waived") return result.reason;
+	return undefined;
+}
+
+function workItemIdForEffectRunResult(
+	state: Pick<WorkItemDomainActionProposalState, "evidence">,
+	result: EffectRunResult,
+): string | undefined {
+	for (const evidence of state.evidence.values()) {
+		if (
+			evidence.effectRunResultId === result.resultId &&
+			evidence.effectRunId === result.effectRunId
+		)
+			return evidence.workItemId;
+	}
+	return undefined;
 }
 
 function uniqueSourceRefs(sourceRefs: readonly SourceRef[]): readonly SourceRef[] {

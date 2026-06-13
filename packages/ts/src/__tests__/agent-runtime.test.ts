@@ -25,10 +25,12 @@ import {
 	structuredAgentDecisionInterpreter,
 } from "../orchestration/agent-runtime.js";
 import {
+	type WorkItemDomainActionProposal,
 	type WorkItemEffectMappingPolicy,
 	type WorkItemEffectRequested,
 	type WorkItemEvidenceRecorded,
 	type WorkItemSeed,
+	workItemDomainActionProposalProjector,
 	workItemEffectResultMapper,
 	workItemEffectRunProjector,
 } from "../orchestration/work-item-runtime.js";
@@ -2045,6 +2047,496 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 
 		expect(issues).toEqual([]);
 		expect(evidence).toHaveLength(1);
+	});
+
+	it("proposes WorkItem domain actions only from explicit mapping-policy evidence", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRuns = g.node<EffectRun>([], null, { name: "effectRuns" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const policies = g.node<WorkItemEffectMappingPolicy>([], null, { name: "policies" });
+		const mapper = workItemEffectResultMapper(g, {
+			workItems,
+			effectRuns,
+			effectRunResults: results,
+			mappingPolicies: [policies],
+			now: () => 1000,
+		});
+		const proposals = workItemDomainActionProposalProjector(g, {
+			workItems,
+			evidence: mapper.evidence,
+			effectRunResults: results,
+			mappingPolicies: [policies],
+			now: () => 1100,
+		});
+		const emitted: WorkItemDomainActionProposal[] = [];
+		const statuses: unknown[] = [];
+		const issues: unknown[] = [];
+		const views: unknown[] = [];
+		mapper.evidence.subscribe(() => {});
+		proposals.proposals.subscribe(
+			(msg) => msg[0] === "DATA" && emitted.push(msg[1] as WorkItemDomainActionProposal),
+		);
+		proposals.status.subscribe((msg) => msg[0] === "DATA" && statuses.push(msg[1]));
+		proposals.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		proposals.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		policies.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-mapping-policy",
+					policyId: "policy-propose-verification",
+					effectKinds: ["verification"],
+					evidence: { behavior: "record" },
+					actionProposals: [
+						{
+							actionKind: "mark-verification-ready",
+							statuses: ["completed"],
+							outputKinds: ["verified"],
+							payloadFrom: "output",
+							reason: "verified output may justify an explicit domain action",
+						},
+					],
+				},
+			],
+		]);
+		effectRuns.down([
+			[
+				"DATA",
+				effectRun({
+					effectRunId: "run-1",
+					subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+					goal: { kind: "verify" },
+					policyRefs: [
+						{ kind: "work-item-effect-mapping-policy", id: "policy-propose-verification" },
+					],
+					metadata: { effectKind: "verification" },
+				}),
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-1:result",
+					status: "completed",
+					effectRunId: "run-1",
+					output: { kind: "verified", value: { ok: true } },
+					metadata: { effectKind: "verification" },
+				},
+			],
+		]);
+
+		expect(issues).toEqual([]);
+		expect(emitted.at(-1)).toMatchObject({
+			kind: "work-item-domain-action-proposal",
+			workItemId: "wi-1",
+			actionKind: "mark-verification-ready",
+			effectRunId: "run-1",
+			effectRunResultId: "run-1:result",
+			policyId: "policy-propose-verification",
+			payload: { kind: "verified", value: { ok: true } },
+			proposedAtMs: 1100,
+		});
+		expect(emitted.at(-1)?.proposalId).toBe(
+			"wi-1:run-1:run-1:result:policy-propose-verification:0:mark-verification-ready",
+		);
+		expect(emitted.at(-1)?.sourceRefs).toEqual(
+			expect.arrayContaining([
+				{ kind: "work-item", id: "wi-1" },
+				{ kind: "effect-run", id: "run-1" },
+				{ kind: "effect-run-result", id: "run-1:result" },
+				{ kind: "work-item-effect-mapping-policy", id: "policy-propose-verification" },
+			]),
+		);
+		expect(statuses.at(-1)).toMatchObject({
+			state: "domain-action-proposed",
+			proposalId: emitted.at(-1)?.proposalId,
+		});
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "closed" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "resolved" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "approved" }));
+		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "verified" }));
+		const latestView = views.at(-1) as {
+			proposalsByWorkItem: Map<string, readonly WorkItemDomainActionProposal[]>;
+			proposalsByEvidence: Map<string, readonly WorkItemDomainActionProposal[]>;
+		};
+		expect(latestView.proposalsByWorkItem.get("wi-1")).toHaveLength(1);
+		expect(latestView.proposalsByEvidence.get("wi-1:run-1:run-1:result")?.[0].actionKind).toBe(
+			"mark-verification-ready",
+		);
+	});
+
+	it("keeps WorkItem domain action proposals disabled without a referenced policy", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const evidence = g.node<WorkItemEvidenceRecorded>([], null, { name: "evidence" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const policies = g.node<WorkItemEffectMappingPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionProposalProjector(g, {
+			workItems,
+			evidence,
+			effectRunResults: results,
+			mappingPolicies: [policies],
+		});
+		const proposals: unknown[] = [];
+		const issues: unknown[] = [];
+		projector.proposals.subscribe((msg) => msg[0] === "DATA" && proposals.push(msg[1]));
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		policies.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-mapping-policy",
+					policyId: "unreferenced-action-policy",
+					actionProposals: [{ actionKind: "close-work-item", statuses: ["completed"] }],
+				},
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-1:result",
+					status: "completed",
+					effectRunId: "run-1",
+					sourceRefs: [
+						{ kind: "work-item-effect-mapping-policy", id: "unreferenced-action-policy" },
+					],
+					output: { kind: "verified" },
+				},
+			],
+		]);
+		evidence.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-evidence-recorded",
+					evidenceId: "evidence-1",
+					workItemId: "wi-1",
+					effectRunId: "run-1",
+					effectRunResultId: "run-1:result",
+					status: "completed",
+					output: { kind: "verified" },
+				},
+			],
+		]);
+
+		expect(proposals).toEqual([]);
+		expect(issues).toEqual([]);
+	});
+
+	it("emits DataIssue for stale or missing WorkItem action proposal policy inputs", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const evidence = g.node<WorkItemEvidenceRecorded>([], null, { name: "evidence" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const policies = g.node<WorkItemEffectMappingPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionProposalProjector(g, {
+			workItems,
+			evidence,
+			effectRunResults: results,
+			mappingPolicies: [policies],
+		});
+		const proposals: unknown[] = [];
+		const issues: unknown[] = [];
+		projector.proposals.subscribe((msg) => msg[0] === "DATA" && proposals.push(msg[1]));
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		evidence.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-evidence-recorded",
+					evidenceId: "missing-result-evidence",
+					workItemId: "wi-1",
+					effectRunId: "missing-run",
+					effectRunResultId: "missing-run:result",
+					status: "completed",
+					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
+					output: { kind: "verified" },
+				},
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-1:result",
+					status: "failed",
+					effectRunId: "run-1",
+					error: { kind: "issue", code: "failed", message: "failed" },
+				},
+			],
+		]);
+		evidence.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-evidence-recorded",
+					evidenceId: "stale-evidence",
+					workItemId: "wi-1",
+					effectRunId: "run-1",
+					effectRunResultId: "run-1:result",
+					status: "completed",
+					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
+					output: { kind: "verified" },
+				},
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-2:result",
+					status: "completed",
+					effectRunId: "run-2",
+					output: { kind: "verified" },
+				},
+			],
+		]);
+		evidence.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-evidence-recorded",
+					evidenceId: "missing-policy-evidence",
+					workItemId: "wi-1",
+					effectRunId: "run-2",
+					effectRunResultId: "run-2:result",
+					status: "completed",
+					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
+					output: { kind: "verified" },
+				},
+			],
+		]);
+
+		expect(proposals).toEqual([]);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "missing-work-item-action-proposal-result" }),
+				expect.objectContaining({ code: "stale-work-item-action-proposal-result" }),
+				expect.objectContaining({ code: "missing-work-item-action-proposal-policy" }),
+			]),
+		);
+	});
+
+	it("emits DataIssue for duplicate WorkItem action proposal evidence ids", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const evidence = g.node<WorkItemEvidenceRecorded>([], null, { name: "evidence" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const policies = g.node<WorkItemEffectMappingPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionProposalProjector(g, {
+			workItems,
+			evidence,
+			effectRunResults: results,
+			mappingPolicies: [policies],
+		});
+		const proposals: unknown[] = [];
+		const issues: unknown[] = [];
+		projector.proposals.subscribe((msg) => msg[0] === "DATA" && proposals.push(msg[1]));
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		policies.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-mapping-policy",
+					policyId: "policy-propose",
+					actionProposals: [{ actionKind: "mark-ready", statuses: ["completed"] }],
+				},
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-1:result",
+					status: "completed",
+					effectRunId: "run-1",
+					output: { kind: "verified" },
+				},
+			],
+		]);
+		const firstEvidence: WorkItemEvidenceRecorded = {
+			kind: "work-item-evidence-recorded",
+			evidenceId: "evidence-1",
+			workItemId: "wi-1",
+			effectRunId: "run-1",
+			effectRunResultId: "run-1:result",
+			status: "completed",
+			sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose" }],
+			output: { kind: "verified" },
+		};
+		evidence.down([["DATA", firstEvidence]]);
+		evidence.down([
+			[
+				"DATA",
+				{
+					...firstEvidence,
+					output: { kind: "verified", value: { replacement: true } },
+				},
+			],
+		]);
+
+		expect(proposals).toHaveLength(1);
+		expect(issues.at(-1)).toMatchObject({
+			code: "duplicate-work-item-action-proposal-evidence",
+		});
+	});
+
+	it("emits DataIssue for duplicate WorkItem action proposal result ids", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const evidence = g.node<WorkItemEvidenceRecorded>([], null, { name: "evidence" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const policies = g.node<WorkItemEffectMappingPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionProposalProjector(g, {
+			workItems,
+			evidence,
+			effectRunResults: results,
+			mappingPolicies: [policies],
+		});
+		const proposals: unknown[] = [];
+		const issues: unknown[] = [];
+		projector.proposals.subscribe((msg) => msg[0] === "DATA" && proposals.push(msg[1]));
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		policies.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-mapping-policy",
+					policyId: "policy-propose",
+					actionProposals: [{ actionKind: "mark-ready", statuses: ["completed"] }],
+				},
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-1:result",
+					status: "completed",
+					effectRunId: "run-1",
+					output: { kind: "verified" },
+				},
+			],
+		]);
+		evidence.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-evidence-recorded",
+					evidenceId: "evidence-1",
+					workItemId: "wi-1",
+					effectRunId: "run-1",
+					effectRunResultId: "run-1:result",
+					status: "completed",
+					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose" }],
+					output: { kind: "verified" },
+				},
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-1:result",
+					status: "failed",
+					effectRunId: "run-1",
+					error: { kind: "issue", code: "failed", message: "replacement" },
+				},
+			],
+		]);
+
+		expect(proposals).toHaveLength(1);
+		expect(issues.at(-1)).toMatchObject({
+			code: "duplicate-work-item-action-proposal-result",
+		});
+	});
+
+	it("keeps WorkItem action proposal payloads compact and explicit", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const evidence = g.node<WorkItemEvidenceRecorded>([], null, { name: "evidence" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const policies = g.node<WorkItemEffectMappingPolicy>([], null, { name: "policies" });
+		const projector = workItemDomainActionProposalProjector(g, {
+			workItems,
+			evidence,
+			effectRunResults: results,
+			mappingPolicies: [policies],
+		});
+		const proposals: WorkItemDomainActionProposal[] = [];
+		projector.proposals.subscribe(
+			(msg) => msg[0] === "DATA" && proposals.push(msg[1] as WorkItemDomainActionProposal),
+		);
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		policies.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-mapping-policy",
+					policyId: "policy-propose",
+					actionProposals: [
+						{ actionKind: "default-payload" },
+						{ actionKind: "result-ref", payloadFrom: "effect-run-result" },
+						{ actionKind: "static-payload", payload: { approvedByPolicy: true } },
+					],
+				},
+			],
+		]);
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-1:result",
+					status: "completed",
+					effectRunId: "run-1",
+					output: { kind: "verified", value: { ok: true } },
+				},
+			],
+		]);
+		evidence.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-evidence-recorded",
+					evidenceId: "evidence-1",
+					workItemId: "wi-1",
+					effectRunId: "run-1",
+					effectRunResultId: "run-1:result",
+					status: "completed",
+					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose" }],
+					output: { kind: "verified", value: { ok: true } },
+				},
+			],
+		]);
+
+		expect(proposals.find((proposal) => proposal.actionKind === "default-payload")?.payload).toBe(
+			undefined,
+		);
+		expect(proposals.find((proposal) => proposal.actionKind === "result-ref")?.payload).toEqual({
+			kind: "effect-run-result-ref",
+			resultId: "run-1:result",
+		});
+		expect(proposals.find((proposal) => proposal.actionKind === "static-payload")?.payload).toEqual(
+			{
+				approvedByPolicy: true,
+			},
+		);
 	});
 
 	it("does not seed EffectRun for WorkItemEffectRequested targeting unknown WorkItem", () => {
