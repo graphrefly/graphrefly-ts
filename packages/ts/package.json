@@ -258,6 +258,56 @@
 				"default": "./dist/solutions/reactive-layout/browser/index.cjs"
 			}
 		},
+		"./solutions/reactive-layout/node-canvas": {
+			"node": {
+				"import": {
+					"types": "./dist/solutions/reactive-layout/node-canvas/index.d.ts",
+					"default": "./dist/solutions/reactive-layout/node-canvas/index.js"
+				},
+				"require": {
+					"types": "./dist/solutions/reactive-layout/node-canvas/index.d.cts",
+					"default": "./dist/solutions/reactive-layout/node-canvas/index.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/solutions/reactive-layout/node-canvas/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/node-canvas/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/node-canvas/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/node-canvas/index.cjs"
+			}
+		},
+		"./solutions/reactive-layout/react-native": {
+			"react-native": {
+				"import": {
+					"types": "./dist/solutions/reactive-layout/react-native/index.d.ts",
+					"default": "./dist/solutions/reactive-layout/react-native/index.js"
+				},
+				"require": {
+					"types": "./dist/solutions/reactive-layout/react-native/index.d.cts",
+					"default": "./dist/solutions/reactive-layout/react-native/index.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/solutions/reactive-layout/react-native/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/react-native/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/react-native/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/react-native/index.cjs"
+			}
+		},
+		"./solutions/reactive-layout/skia": {
+			"import": {
+				"types": "./dist/solutions/reactive-layout/skia/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/skia/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/skia/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/skia/index.cjs"
+			}
+		},
 		"./testing": {
 			"import": {
 				"types": "./dist/testing/index.d.ts",

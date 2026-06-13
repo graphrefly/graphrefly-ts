@@ -61,12 +61,28 @@ and sync provider helpers:
 - `injectedTextMeasurements`
 - `precomputedTextMeasurements`
 - `cellTextMeasurements`
+- `capabilityTextMeasurements`
+- `readinessTextMeasurements`
+- `blockAdaptersProvider`
 - `blockMeasurementProvider`
 - `ImageSizeAdapter`
 - `SvgBoundsAdapter`
 
 `SvgBoundsAdapter` is only a minimal width/height or `viewBox` reader. It is not a DOM SVG parser.
 `ImageSizeAdapter` uses caller-provided sizes. It does not load images.
+
+Provider helpers are cache-safe across capability identity changes. If a text adapter changes,
+provider-local segment caches are cleared before the next measurement. If hyphen-width measurement
+fails after segments were measured, the provider still emits the OK segment measurement and adds a
+DATA-level issue; layout can continue with `hyphenWidth` omitted. Numeric graph inputs such as
+widths, line heights, gaps, columns, and obstacle dimensions are clamped when layout consumes them,
+including when callers provide writable `Node<number>` inputs directly.
+
+`capabilityTextMeasurements` is the lightweight D203 shape for caller-injected platform text
+capabilities such as NodeCanvas, Skia, or React Native measurement functions. The capability is an
+explicit graph dependency; the universal core still imports no native package or platform global.
+`readinessTextMeasurements` makes font or resource readiness an explicit graph fact: not-ready emits
+a `DataIssue`, ready delegates to the normal text measurement path.
 
 ## Browser Subpath
 
@@ -81,16 +97,33 @@ import { fromRaf } from "@graphrefly/ts/sources/browser";
 
 `fromRaf` is not exported from reactive-layout.
 
+## Focused Platform Subpaths
+
+Focused platform subpaths expose dependency-free API shapes for native text measurement:
+
+- `@graphrefly/ts/solutions/reactive-layout/node-canvas`
+  exports `nodeCanvasTextMeasurements` for caller-owned NodeCanvas-style 2D contexts.
+- `@graphrefly/ts/solutions/reactive-layout/skia`
+  exports `skiaTextMeasurements` for caller-owned synchronous Skia measurement capabilities.
+- `@graphrefly/ts/solutions/reactive-layout/react-native`
+  exports `reactNativeTextMeasurements` for caller-owned synchronous React Native measurement
+  capabilities.
+
+These subpaths do not import `canvas`, Skia, or React Native packages. They keep platform packages
+caller-owned while making the measurement capability a graph-visible dependency. Async font or
+native layout readiness should still be modeled with explicit readiness or measurement facts.
+
 ## Deferred
 
 These are intentionally not implemented by D181:
 
-- NodeCanvas, React Native, Skia, or other native measurement adapters.
+- Required NodeCanvas, React Native, Skia, or other native measurement dependencies.
 - Async image loading.
 - DOM SVG parsing.
 - GraphSpec ownership, storage restore, hydration, or adapter serialization.
 
-Those need a future design-review/backlog item before they become public API.
+Concrete package-bound adapters and async loaders remain caller-owned or future optional-peer
+focused subpaths.
 
 ## API
 

@@ -7,9 +7,12 @@ import type { Message } from "../protocol/messages.js";
 import {
 	analyzeAndMeasure,
 	type BlockAdapters,
+	type BlocksMeasurement,
+	blockAdaptersProvider,
 	blockMeasurementProvider,
 	CellMeasureAdapter,
 	type ContentBlock,
+	capabilityTextMeasurements,
 	carveTextLineSlots,
 	cellTextMeasurements,
 	circleIntervalForBand,
@@ -18,26 +21,37 @@ import {
 	computeFlowLines,
 	computeLineBreaks,
 	computeTotalHeight,
+	type FlowColumns,
+	type FlowContainer,
 	ImageSizeAdapter,
 	InjectedMeasureAdapter,
 	type LineBreaksResult,
 	layoutNextLine,
 	type MeasurementAdapter,
+	type MeasurementReadiness,
+	type MeasurementResult,
 	type Measurements,
 	measureBlock,
 	measureBlocks,
+	type Obstacle,
 	PrecomputedMeasureAdapter,
 	type PreparedSegment,
 	precomputedTextMeasurements,
 	reactiveBlockLayout,
 	reactiveFlowLayout,
 	reactiveLayout,
+	readinessTextMeasurements,
 	rectIntervalForBand,
 	SvgBoundsAdapter,
+	type TextMeasureCapability,
+	type TextSegmentsMeasurement,
 	textMeasurementProvider,
 } from "../solutions/index.js";
 import * as reactiveLayoutBrowser from "../solutions/reactive-layout/browser/index.js";
 import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
+import * as reactiveLayoutNodeCanvas from "../solutions/reactive-layout/node-canvas/index.js";
+import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-native/index.js";
+import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
 
 const fixedAdapter: MeasurementAdapter = {
 	measureSegment(text) {
@@ -242,6 +256,116 @@ describe("reactive-layout solution (D181)", () => {
 		height.unsubscribe();
 	});
 
+	it("sanitizes external numeric Node inputs at layout consumption", () => {
+		const g = graph({ name: "reactive-layout-node-controls" });
+		const text = g.state("one", { name: "text" });
+		const font = g.state("test", { name: "font" });
+		const lineHeight = g.state(Number.NaN, { name: "line-height" });
+		const maxWidth = g.state(-10, { name: "max-width" });
+		const measurements = textMeasurementProvider({
+			graph: g,
+			text,
+			font,
+			adapter: adapterNode(g),
+		});
+		const bundle = reactiveLayout({
+			graph: g,
+			measurements,
+			lineHeight,
+			maxWidth,
+		});
+		const height = collect(bundle.height);
+		const positions = collect(bundle.charPositions);
+
+		const latestHeight = data<number>(height.messages).at(-1);
+		expect(Number.isFinite(latestHeight)).toBe(true);
+		expect(latestHeight).toBeGreaterThanOrEqual(0);
+		expect(data<readonly { readonly height: number }[]>(positions.messages).at(-1)).toEqual(
+			expect.arrayContaining([]),
+		);
+
+		lineHeight.set(-5);
+		maxWidth.set(Number.NaN);
+
+		const nextHeight = data<number>(height.messages).at(-1);
+		expect(Number.isFinite(nextHeight)).toBe(true);
+		expect(nextHeight).toBeGreaterThanOrEqual(0);
+
+		height.unsubscribe();
+		positions.unsubscribe();
+	});
+
+	it("clears text measurement cache when the adapter identity changes", () => {
+		const g = graph({ name: "text-adapter-swap" });
+		const text = g.state("aa", { name: "text" });
+		const font = g.state("font", { name: "font" });
+		const adapterA: MeasurementAdapter = {
+			measureSegment(segment) {
+				return { width: segment === "-" ? 1 : segment.length * 5 };
+			},
+		};
+		const adapterB: MeasurementAdapter = {
+			measureSegment(segment) {
+				return { width: segment === "-" ? 2 : segment.length * 9 };
+			},
+		};
+		const adapter = g.state<MeasurementAdapter>(adapterA, { name: "measure-capability" });
+		const measurements = textMeasurementProvider({ graph: g, text, font, adapter });
+		const facts = collect(measurements);
+
+		expect(
+			(data<Measurements>(facts.messages).at(-1)?.[0] as MeasurementResult<TextSegmentsMeasurement>)
+				.value.segments[0]?.width,
+		).toBe(10);
+
+		adapter.set(adapterB);
+
+		expect(
+			(data<Measurements>(facts.messages).at(-1)?.[0] as MeasurementResult<TextSegmentsMeasurement>)
+				.value.segments[0]?.width,
+		).toBe(18);
+		facts.unsubscribe();
+	});
+
+	it("keeps segment facts when only hyphen measurement fails", () => {
+		const g = graph({ name: "hyphen-fallback" });
+		const text = g.state("word", { name: "text" });
+		const font = g.state("font", { name: "font" });
+		const adapter: MeasurementAdapter = {
+			measureSegment(segment) {
+				if (segment === "-") throw new Error("hyphen unavailable");
+				return { width: segment.length * 10 };
+			},
+		};
+		const measurements = textMeasurementProvider({
+			graph: g,
+			text,
+			font,
+			adapter: g.state(adapter, { name: "measure-capability" }),
+		});
+		const facts = collect(measurements);
+		const latest = data<Measurements>(facts.messages).at(-1);
+
+		expect(latest?.[0]).toMatchObject({
+			kind: "ok",
+			targetId: "text",
+			measurementKind: "text-segments",
+		});
+		expect((latest?.[0] as MeasurementResult<TextSegmentsMeasurement>).value).not.toHaveProperty(
+			"hyphenWidth",
+		);
+		expect((latest?.[0] as MeasurementResult<TextSegmentsMeasurement>).value.segments).toEqual([
+			{ text: "word", width: 40, kind: "text", graphemeWidths: [10, 10, 10, 10] },
+		]);
+		expect(latest?.[1]).toMatchObject({
+			kind: "issue",
+			code: "measurement.hyphen.failed",
+			subjectId: "text",
+		});
+		expect(facts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		facts.unsubscribe();
+	});
+
 	it("provides universal sync measurement providers", () => {
 		let calls = 0;
 		const injected = new InjectedMeasureAdapter(
@@ -314,6 +438,174 @@ describe("reactive-layout solution (D181)", () => {
 		});
 		expect(missing.messages.some((message) => message[0] === "ERROR")).toBe(false);
 		missing.unsubscribe();
+	});
+
+	it("provides caller-injected capability and readiness-gated text measurement helpers", () => {
+		const g = graph({ name: "d203-provider-helpers" });
+		const text = g.state("aa", { name: "text" });
+		const font = g.state("font", { name: "font" });
+		const capability = g.state<TextMeasureCapability>(
+			{
+				measureText(segment: string) {
+					return { width: segment === "-" ? 1 : segment.length * 6 };
+				},
+			},
+			{ name: "native-text-capability" },
+		);
+		const capabilityFacts = collect(
+			capabilityTextMeasurements({ graph: g, text, font, capability }),
+		);
+
+		expect(
+			(
+				data<Measurements>(capabilityFacts.messages).at(
+					-1,
+				)?.[0] as MeasurementResult<TextSegmentsMeasurement>
+			).value.segments[0]?.width,
+		).toBe(12);
+		capabilityFacts.unsubscribe();
+
+		const readiness = g.state<MeasurementReadiness>(
+			{ ready: false, code: "font.loading", metadata: { fontFace: "test" } },
+			{ name: "font-ready" },
+		);
+		const readyFacts = collect(
+			readinessTextMeasurements({
+				graph: g,
+				text,
+				font,
+				adapter: adapterNode(g, "ready-measure-capability"),
+				readiness,
+				name: "ready-text-measurements",
+			}),
+		);
+
+		expect(data<Measurements>(readyFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "issue",
+			code: "font.loading",
+			measurementKind: "text-segments",
+			metadata: { fontFace: "test" },
+		});
+
+		readiness.set({ ready: true });
+
+		expect(data<Measurements>(readyFacts.messages).at(-1)?.[0]).toMatchObject({
+			kind: "ok",
+			targetId: "text",
+			measurementKind: "text-segments",
+		});
+		readyFacts.unsubscribe();
+
+		let width = 6;
+		const cachedAdapter: MeasurementAdapter = {
+			measureSegment(segment) {
+				return { width: segment === "-" ? 1 : segment.length * width };
+			},
+		};
+		const readinessCache = g.state<MeasurementReadiness>(
+			{ ready: true },
+			{ name: "cache-font-ready" },
+		);
+		const cachedFacts = collect(
+			readinessTextMeasurements({
+				graph: g,
+				text,
+				font,
+				adapter: g.state(cachedAdapter, { name: "cached-ready-measure-capability" }),
+				readiness: readinessCache,
+				name: "cached-ready-text-measurements",
+			}),
+		);
+
+		expect(
+			(
+				data<Measurements>(cachedFacts.messages).at(
+					-1,
+				)?.[0] as MeasurementResult<TextSegmentsMeasurement>
+			).value.segments[0]?.width,
+		).toBe(12);
+
+		width = 9;
+		readinessCache.set({ ready: false, code: "font.reloading" });
+		readinessCache.set({ ready: true });
+
+		expect(
+			(
+				data<Measurements>(cachedFacts.messages).at(
+					-1,
+				)?.[0] as MeasurementResult<TextSegmentsMeasurement>
+			).value.segments[0]?.width,
+		).toBe(18);
+		cachedFacts.unsubscribe();
+	});
+
+	it("provides focused platform subpath text measurement helpers without native imports", () => {
+		const nodeCanvasGraph = graph({ name: "node-canvas-provider" });
+		const text = nodeCanvasGraph.state("abcd", { name: "text" });
+		const font = nodeCanvasGraph.state("12px test", { name: "font" });
+		const contextValue: reactiveLayoutNodeCanvas.NodeCanvasTextContextLike = {
+			font: "previous font",
+			measureText(segment: string) {
+				return { width: segment.length * (this.font.includes("12px") ? 4 : 7) };
+			},
+		};
+		const context = nodeCanvasGraph.state<reactiveLayoutNodeCanvas.NodeCanvasTextContextLike>(
+			contextValue,
+			{ name: "node-canvas-context" },
+		);
+		const nodeCanvasFacts = collect(
+			reactiveLayoutNodeCanvas.nodeCanvasTextMeasurements({
+				graph: nodeCanvasGraph,
+				text,
+				font,
+				context,
+			}),
+		);
+
+		expect(
+			(
+				data<Measurements>(nodeCanvasFacts.messages).at(
+					-1,
+				)?.[0] as MeasurementResult<TextSegmentsMeasurement>
+			).value.segments[0]?.width,
+		).toBe(16);
+		expect(contextValue.font).toBe("previous font");
+		nodeCanvasFacts.unsubscribe();
+
+		const capabilityGraph = graph({ name: "focused-platform-provider" });
+		const platformText = capabilityGraph.state("xy", { name: "text" });
+		const platformFont = capabilityGraph.state("font", { name: "font" });
+		const capability = capabilityGraph.state<TextMeasureCapability>(
+			{
+				measureText(segment: string) {
+					return { width: segment.length * 8 };
+				},
+			},
+			{ name: "platform-capability" },
+		);
+
+		for (const [name, helper] of [
+			["skia", reactiveLayoutSkia.skiaTextMeasurements],
+			["react-native", reactiveLayoutReactNative.reactNativeTextMeasurements],
+		] as const) {
+			const facts = collect(
+				helper({
+					graph: capabilityGraph,
+					text: platformText,
+					font: platformFont,
+					capability,
+					name,
+				}),
+			);
+			expect(
+				(
+					data<Measurements>(facts.messages).at(
+						-1,
+					)?.[0] as MeasurementResult<TextSegmentsMeasurement>
+				).value.segments[0]?.width,
+			).toBe(16);
+			facts.unsubscribe();
+		}
 	});
 
 	it("measures SVG and image blocks without DOM or implicit loading", () => {
@@ -421,6 +713,214 @@ describe("reactive-layout solution (D181)", () => {
 		totalHeight.unsubscribe();
 	});
 
+	it("clears block measurement cache when the text adapter identity changes", () => {
+		const g = graph({ name: "block-adapter-swap" });
+		const blocks = g.state<readonly ContentBlock[]>(
+			[{ kind: "text", id: "copy", text: "aa", lineHeight: 10 }],
+			{ name: "blocks" },
+		);
+		const maxWidth = g.state(100, { name: "max-width" });
+		const adapterA: MeasurementAdapter = {
+			measureSegment(segment) {
+				return { width: segment === "-" ? 1 : segment.length * 5 };
+			},
+		};
+		const adapterB: MeasurementAdapter = {
+			measureSegment(segment) {
+				return { width: segment === "-" ? 2 : segment.length * 9 };
+			},
+		};
+		const textAdapter = g.state<MeasurementAdapter>(adapterA, { name: "text-adapter" });
+		const measurements = blockMeasurementProvider({
+			graph: g,
+			blocks,
+			maxWidth,
+			adapters: blockAdaptersProvider({ graph: g, text: textAdapter }),
+			font: g.state("font", { name: "font" }),
+		});
+		const facts = collect(measurements);
+
+		expect(
+			(data<Measurements>(facts.messages).at(-1)?.[0] as MeasurementResult<BlocksMeasurement>).value
+				.blocks[0]?.width,
+		).toBe(10);
+
+		textAdapter.set(adapterB);
+
+		expect(
+			(data<Measurements>(facts.messages).at(-1)?.[0] as MeasurementResult<BlocksMeasurement>).value
+				.blocks[0]?.width,
+		).toBe(18);
+		facts.unsubscribe();
+	});
+
+	it("keeps successfully measured blocks when one block fails", () => {
+		const g = graph({ name: "partial-block-measurements" });
+		const blocks = g.state<readonly ContentBlock[]>(
+			[
+				{ kind: "text", id: "ok", text: "aa", lineHeight: 10 },
+				{ kind: "image", id: "missing", src: "missing" },
+			],
+			{ name: "blocks" },
+		);
+		const measurements = blockMeasurementProvider({
+			graph: g,
+			blocks,
+			maxWidth: g.state(100, { name: "max-width" }),
+			adapters: blockAdaptersNode(g),
+			font: g.state("font", { name: "font" }),
+		});
+		const facts = collect(measurements);
+		const latest = data<Measurements>(facts.messages).at(-1);
+
+		expect((latest?.[0] as MeasurementResult<BlocksMeasurement>).value.blocks).toHaveLength(1);
+		expect((latest?.[0] as MeasurementResult<BlocksMeasurement>).value.blocks[0]?.id).toBe("ok");
+		expect(latest?.[1]).toMatchObject({
+			kind: "issue",
+			code: "measurement.block.failed",
+			subjectId: "missing",
+		});
+		expect(facts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		facts.unsubscribe();
+	});
+
+	it("keeps block facts visible for hyphen and sparse-block issues", () => {
+		const hyphenGraph = graph({ name: "block-hyphen-issue" });
+		const hyphenBlocks = hyphenGraph.state<readonly ContentBlock[]>(
+			[{ kind: "text", id: "copy", text: "a\u00ADb", lineHeight: 10 }],
+			{ name: "blocks" },
+		);
+		let hyphenMeasurements = 0;
+		const hyphenAdapter: MeasurementAdapter = {
+			measureSegment(segment) {
+				if (segment === "-") {
+					hyphenMeasurements += 1;
+					throw new Error("hyphen unavailable");
+				}
+				return { width: segment.length * 10 };
+			},
+		};
+		const hyphenFacts = collect(
+			blockMeasurementProvider({
+				graph: hyphenGraph,
+				blocks: hyphenBlocks,
+				maxWidth: hyphenGraph.state(100, { name: "max-width" }),
+				adapters: hyphenGraph.state<BlockAdapters>(
+					{ text: hyphenAdapter },
+					{ name: "block-adapters" },
+				),
+				font: hyphenGraph.state("font", { name: "font" }),
+			}),
+		);
+		const latestHyphen = data<Measurements>(hyphenFacts.messages).at(-1);
+
+		expect((latestHyphen?.[0] as MeasurementResult<BlocksMeasurement>).value.blocks).toHaveLength(
+			1,
+		);
+		expect(latestHyphen?.[1]).toMatchObject({
+			kind: "issue",
+			code: "measurement.hyphen.failed",
+			subjectId: "copy",
+			measurementKind: "blocks",
+		});
+		expect(hyphenMeasurements).toBe(1);
+		hyphenFacts.unsubscribe();
+
+		const sparseGraph = graph({ name: "sparse-block-measurements" });
+		const sparseBlocks = [{ kind: "text", id: "ok", text: "aa", lineHeight: 10 }] as Array<
+			ContentBlock | undefined
+		>;
+		sparseBlocks.length = 2;
+		const sparseFacts = collect(
+			blockMeasurementProvider({
+				graph: sparseGraph,
+				blocks: sparseGraph.state<readonly ContentBlock[]>(
+					sparseBlocks as readonly ContentBlock[],
+					{ name: "blocks" },
+				),
+				maxWidth: sparseGraph.state(100, { name: "max-width" }),
+				adapters: blockAdaptersNode(sparseGraph),
+				font: sparseGraph.state("font", { name: "font" }),
+			}),
+		);
+		const latestSparse = data<Measurements>(sparseFacts.messages).at(-1);
+
+		expect((latestSparse?.[0] as MeasurementResult<BlocksMeasurement>).value.blocks).toHaveLength(
+			1,
+		);
+		expect(latestSparse?.[1]).toMatchObject({
+			kind: "issue",
+			code: "measurement.block.failed",
+			subjectId: "blocks:1",
+		});
+		expect(sparseFacts.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		sparseFacts.unsubscribe();
+	});
+
+	it("sanitizes block and flow numeric Node inputs at consumption", () => {
+		const blockGraph = graph({ name: "block-node-controls" });
+		const blockMeasurements = blockGraph.state<Measurements>(
+			[
+				{
+					kind: "ok",
+					targetId: "blocks",
+					measurementKind: "blocks",
+					value: {
+						blocks: [
+							{
+								block: { kind: "text", id: "copy", text: "aa" },
+								kind: "text",
+								id: "copy",
+								width: 10,
+								height: 10,
+								marginTop: 0,
+								marginBottom: 0,
+							},
+						],
+					},
+				},
+			],
+			{ name: "block-measurements" },
+		);
+		const gap = blockGraph.state(Number.NaN, { name: "gap" });
+		const block = reactiveBlockLayout({ graph: blockGraph, measurements: blockMeasurements, gap });
+		const totalHeight = collect(block.totalHeight);
+
+		expect(data<number>(totalHeight.messages).at(-1)).toBe(10);
+
+		const flowGraph = graph({ name: "flow-node-controls" });
+		const text = flowGraph.state("aa", { name: "text" });
+		const font = flowGraph.state("font", { name: "font" });
+		const flowMeasurements = textMeasurementProvider({
+			graph: flowGraph,
+			text,
+			font,
+			adapter: adapterNode(flowGraph),
+		});
+		const flow = reactiveFlowLayout({
+			graph: flowGraph,
+			measurements: flowMeasurements,
+			lineHeight: flowGraph.state(Number.NaN, { name: "line-height" }),
+			container: flowGraph.state<FlowContainer>(
+				{ width: Number.NaN, height: -1 },
+				{ name: "container" },
+			),
+			columns: flowGraph.state<FlowColumns>({ count: -3, gap: Number.NaN }, { name: "columns" }),
+			obstacles: flowGraph.state<readonly Obstacle[]>(
+				[{ kind: "rect", x: -5, y: Number.NaN, width: -10, height: -2 }],
+				{ name: "obstacles" },
+			),
+		});
+		const flowLines = collect(flow.flowLines);
+		const latestFlow = data<{ readonly lines: readonly unknown[] }>(flowLines.messages).at(-1);
+
+		expect(latestFlow?.lines).toEqual([]);
+		expect(flowLines.messages.some((message) => message[0] === "ERROR")).toBe(false);
+
+		totalHeight.unsubscribe();
+		flowLines.unsubscribe();
+	});
+
 	it("keeps missing measurement as DATA issues and layout no-ops by default", () => {
 		const throwingAdapter: MeasurementAdapter = {
 			measureSegment() {
@@ -476,10 +976,17 @@ describe("reactive-layout solution (D181)", () => {
 		const blockFacts = collect(blockMeasurements);
 		const measuredBlocks = collect(block.measuredBlocks);
 
-		expect(data<Measurements>(blockFacts.messages).at(-1)?.[0]).toMatchObject({
+		const latestBlockFacts = data<Measurements>(blockFacts.messages).at(-1);
+		expect(latestBlockFacts?.[0]).toMatchObject({
+			kind: "ok",
+			targetId: "blocks",
+			measurementKind: "blocks",
+			value: { blocks: [] },
+		});
+		expect(latestBlockFacts?.[1]).toMatchObject({
 			kind: "issue",
-			code: "measurement.failed",
-			subjectId: "blocks",
+			code: "measurement.block.failed",
+			subjectId: "blocks:0",
 			measurementKind: "blocks",
 		});
 		expect(data<readonly unknown[]>(measuredBlocks.messages).at(-1)).toEqual([]);
@@ -583,6 +1090,12 @@ describe("reactive-layout solution (D181)", () => {
 			data<{ readonly lines: readonly { readonly x: number }[] }>(flow.messages).at(-1)?.lines[0]
 				?.x,
 		).toBe(20);
+
+		bundle.setObstacles([{ kind: "rect", x: -10, y: 0, width: 20, height: 10 }]);
+		expect(
+			data<{ readonly lines: readonly { readonly x: number }[] }>(flow.messages).at(-1)?.lines[0]
+				?.x,
+		).toBe(10);
 
 		flow.unsubscribe();
 	});

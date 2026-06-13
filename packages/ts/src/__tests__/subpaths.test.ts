@@ -59,6 +59,9 @@ import * as render from "../render/index.js";
 import * as solutions from "../solutions/index.js";
 import * as reactiveLayoutBrowser from "../solutions/reactive-layout/browser/index.js";
 import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
+import * as reactiveLayoutNodeCanvas from "../solutions/reactive-layout/node-canvas/index.js";
+import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-native/index.js";
+import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
 import * as sourcesBrowser from "../sources/browser.js";
 import * as sources from "../sources/index.js";
 import * as sourcesNode from "../sources/node.js";
@@ -92,6 +95,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./solutions",
 			"./solutions/reactive-layout",
 			"./solutions/reactive-layout/browser",
+			"./solutions/reactive-layout/node-canvas",
+			"./solutions/reactive-layout/react-native",
+			"./solutions/reactive-layout/skia",
 			"./sources",
 			"./sources/browser",
 			"./sources/node",
@@ -255,10 +261,14 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.injectedTextMeasurements).toBe("function");
 		expect(typeof solutions.precomputedTextMeasurements).toBe("function");
 		expect(typeof solutions.cellTextMeasurements).toBe("function");
+		expect(typeof solutions.capabilityTextMeasurements).toBe("function");
+		expect(typeof solutions.readinessTextMeasurements).toBe("function");
+		expect(typeof solutions.blockAdaptersProvider).toBe("function");
 		expect(typeof solutions.blockMeasurementProvider).toBe("function");
 		expect(typeof solutions.InjectedMeasureAdapter).toBe("function");
 		expect(typeof solutions.PrecomputedMeasureAdapter).toBe("function");
 		expect(typeof solutions.CellMeasureAdapter).toBe("function");
+		expect(typeof solutions.CapabilityMeasureAdapter).toBe("function");
 		expect(typeof solutions.SvgBoundsAdapter).toBe("function");
 		expect(typeof solutions.ImageSizeAdapter).toBe("function");
 		expect(Object.hasOwn(solutions, "CanvasMeasureAdapter")).toBe(false);
@@ -266,11 +276,21 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof reactiveLayoutCore.reactiveBlockLayout).toBe("function");
 		expect(typeof reactiveLayoutCore.reactiveFlowLayout).toBe("function");
 		expect(typeof reactiveLayoutCore.textMeasurementProvider).toBe("function");
+		expect(typeof reactiveLayoutCore.capabilityTextMeasurements).toBe("function");
+		expect(typeof reactiveLayoutCore.readinessTextMeasurements).toBe("function");
+		expect(typeof reactiveLayoutCore.blockAdaptersProvider).toBe("function");
 		expect(typeof reactiveLayoutCore.blockMeasurementProvider).toBe("function");
 		expect(typeof reactiveLayoutCore.CellMeasureAdapter).toBe("function");
+		expect(typeof reactiveLayoutCore.CapabilityMeasureAdapter).toBe("function");
 		expect(Object.hasOwn(reactiveLayoutCore, "CanvasMeasureAdapter")).toBe(false);
 		expect(typeof reactiveLayoutBrowser.CanvasMeasureAdapter).toBe("function");
 		expect(typeof reactiveLayoutBrowser.canvasTextMeasurements).toBe("function");
+		expect(typeof reactiveLayoutNodeCanvas.nodeCanvasTextMeasurements).toBe("function");
+		expect(typeof reactiveLayoutSkia.skiaTextMeasurements).toBe("function");
+		expect(typeof reactiveLayoutReactNative.reactNativeTextMeasurements).toBe("function");
+		expect(Object.hasOwn(reactiveLayoutCore, "nodeCanvasTextMeasurements")).toBe(false);
+		expect(Object.hasOwn(reactiveLayoutCore, "skiaTextMeasurements")).toBe(false);
+		expect(Object.hasOwn(reactiveLayoutCore, "reactNativeTextMeasurements")).toBe(false);
 		expect(typeof solutions.agenticMemoryKgProjectionBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordFrame).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordFrameCodec).toBe("function");

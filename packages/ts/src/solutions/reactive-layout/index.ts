@@ -15,6 +15,12 @@ export interface MeasurementAdapter {
 	clearCache?(): void;
 }
 
+/** Caller-owned platform text capability, for NodeCanvas/Skia/RN-style wrappers. */
+export interface TextMeasureCapability {
+	measureText(text: string, font: string): number | { readonly width: number };
+	clearCache?(): void;
+}
+
 /** One text segment returned by a caller-provided segmenter. */
 export interface SegmentInfo {
 	readonly segment: string;
@@ -139,6 +145,24 @@ export interface CellTextMeasurementsOptions
 	extends Omit<TextMeasurementProviderOptions, "adapter">,
 		CellMeasureAdapterOptions {}
 
+export interface CapabilityTextMeasurementsOptions
+	extends Omit<TextMeasurementProviderOptions, "adapter"> {
+	readonly capability: Node<TextMeasureCapability>;
+}
+
+export interface MeasurementReadiness {
+	readonly ready: boolean;
+	readonly code?: string;
+	readonly message?: string;
+	readonly source?: string;
+	readonly details?: unknown;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ReadinessTextMeasurementsOptions extends TextMeasurementProviderOptions {
+	readonly readiness: Node<MeasurementReadiness>;
+}
+
 export interface BlockMeasurementProviderOptions {
 	readonly graph: Graph;
 	readonly blocks: Node<readonly ContentBlock[]>;
@@ -149,6 +173,14 @@ export interface BlockMeasurementProviderOptions {
 	readonly lineHeight?: Node<number>;
 	readonly targetId?: string;
 	readonly source?: string;
+	readonly name?: string;
+}
+
+export interface BlockAdaptersProviderOptions {
+	readonly graph: Graph;
+	readonly text?: Node<MeasurementAdapter>;
+	readonly svg?: Node<SvgMeasurer>;
+	readonly image?: Node<ImageMeasurer>;
 	readonly name?: string;
 }
 
@@ -309,6 +341,7 @@ export interface MeasureBlockOptions {
 	readonly lineHeight?: number;
 	readonly maxWidth?: number;
 	readonly cache?: Map<string, Map<string, number>>;
+	readonly hyphenWidth?: number;
 	readonly segmentAdapter?: SegmentAdapter;
 }
 
@@ -678,6 +711,23 @@ export class CellMeasureAdapter implements MeasurementAdapter {
 	}
 }
 
+/** Adapter over a caller-owned platform capability such as NodeCanvas, Skia, or RN text APIs. */
+export class CapabilityMeasureAdapter implements MeasurementAdapter {
+	private readonly capability: TextMeasureCapability;
+
+	constructor(capability: TextMeasureCapability) {
+		this.capability = capability;
+	}
+
+	measureSegment(text: string, font: string): { readonly width: number } {
+		return { width: measuredWidth(this.capability.measureText(text, font)) };
+	}
+
+	clearCache(): void {
+		this.capability.clearCache?.();
+	}
+}
+
 function stripSvgIgnoredContent(svg: string): string {
 	return svg.replace(/<!--[\s\S]*?-->/g, "").replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "");
 }
@@ -753,6 +803,7 @@ function measurementIssue(
 	opts: {
 		readonly source?: string;
 		readonly details?: unknown;
+		readonly metadata?: Record<string, unknown>;
 		readonly severity?: DataIssue["severity"];
 	} = {},
 ): MeasurementIssue {
@@ -765,6 +816,7 @@ function measurementIssue(
 		subjectId: targetId,
 		measurementKind,
 		details: opts.details,
+		metadata: opts.metadata,
 	};
 }
 
@@ -802,6 +854,59 @@ function latestMeasurementValue<T>(
 	return value;
 }
 
+function tryMeasureHyphenWidth(adapter: MeasurementAdapter, font: string): number | undefined {
+	try {
+		return nonNegativeFinite(adapter.measureSegment("-", font).width, 0);
+	} catch {
+		return undefined;
+	}
+}
+
+function textMeasurementFacts(
+	text: string,
+	font: string,
+	adapter: MeasurementAdapter,
+	cache: Map<string, Map<string, number>>,
+	segmentAdapter: SegmentAdapter,
+	targetId: string,
+	source: string,
+): Measurements {
+	try {
+		const segments = analyzeAndMeasure(text, font, adapter, cache, undefined, segmentAdapter);
+		const hyphenWidth = tryMeasureHyphenWidth(adapter, font);
+		const facts: MeasurementFact<TextSegmentsMeasurement>[] = [
+			measurementOk<TextSegmentsMeasurement>(
+				targetId,
+				TEXT_SEGMENTS_MEASUREMENT_KIND,
+				hyphenWidth === undefined ? { segments } : { segments, hyphenWidth },
+				{ source },
+			),
+		];
+		if (hyphenWidth === undefined) {
+			facts.push(
+				measurementIssue(
+					"measurement.hyphen.failed",
+					`Hyphen measurement failed for '${targetId}'`,
+					targetId,
+					TEXT_SEGMENTS_MEASUREMENT_KIND,
+					{ source, severity: "warning" },
+				),
+			);
+		}
+		return facts;
+	} catch (error) {
+		return [
+			measurementIssue(
+				"measurement.failed",
+				`Text measurement failed for '${targetId}'`,
+				targetId,
+				TEXT_SEGMENTS_MEASUREMENT_KIND,
+				{ source, details: error, severity: "error" },
+			),
+		];
+	}
+}
+
 function inputNode<T>(
 	g: Graph,
 	input: T | Node<T> | undefined,
@@ -834,6 +939,7 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 	const name = opts.name ?? `${targetId}-measurements`;
 	const source = opts.source ?? name;
 	const cache = new Map<string, Map<string, number>>();
+	let activeAdapter: MeasurementAdapter | null = null;
 	return opts.graph.node<Measurements>(
 		opts.segmentAdapter
 			? [opts.text, opts.font, opts.adapter, opts.segmentAdapter]
@@ -848,42 +954,20 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 			const text = depLatest(ctx, 0) as string;
 			const font = depLatest(ctx, 1) as string;
 			const adapter = depLatest(ctx, 2) as MeasurementAdapter;
+			if (adapter !== activeAdapter) {
+				cache.clear();
+				activeAdapter = adapter;
+			}
 			const segmentAdapter =
 				opts.segmentAdapter === undefined
 					? getDefaultSegmentAdapter()
 					: (depLatest(ctx, 3) as SegmentAdapter);
-			try {
-				const segments = analyzeAndMeasure(text, font, adapter, cache, undefined, segmentAdapter);
-				const hyphenWidth = adapter.measureSegment("-", font).width;
-				ctx.down([
-					[
-						"DATA",
-						[
-							measurementOk<TextSegmentsMeasurement>(
-								targetId,
-								TEXT_SEGMENTS_MEASUREMENT_KIND,
-								{ segments, hyphenWidth },
-								{ source },
-							),
-						],
-					],
-				]);
-			} catch (error) {
-				ctx.down([
-					[
-						"DATA",
-						[
-							measurementIssue(
-								"measurement.failed",
-								`Text measurement failed for '${targetId}'`,
-								targetId,
-								TEXT_SEGMENTS_MEASUREMENT_KIND,
-								{ source, details: error, severity: "error" },
-							),
-						],
-					],
-				]);
-			}
+			ctx.down([
+				[
+					"DATA",
+					textMeasurementFacts(text, font, adapter, cache, segmentAdapter, targetId, source),
+				],
+			]);
 		},
 		{ name },
 	);
@@ -941,6 +1025,139 @@ export function cellTextMeasurements(opts: CellTextMeasurementsOptions): Node<Me
 	});
 }
 
+/** Provider helper for caller-injected platform text capability nodes. */
+export function capabilityTextMeasurements(
+	opts: CapabilityTextMeasurementsOptions,
+): Node<Measurements> {
+	const targetId = opts.targetId ?? "text";
+	const adapter = opts.graph.node<MeasurementAdapter>(
+		[opts.capability],
+		(ctx: Ctx) => {
+			ctx.down([
+				["DATA", new CapabilityMeasureAdapter(depLatest(ctx, 0) as TextMeasureCapability)],
+			]);
+		},
+		{
+			name: opts.name
+				? scopedName(opts.name, "measure-capability")
+				: `${targetId}-measure-capability`,
+		},
+	);
+	return textMeasurementProvider({
+		...opts,
+		adapter,
+		source: opts.source ?? "capabilityTextMeasurements",
+	});
+}
+
+/** Provider helper that makes readiness facts an explicit measurement dependency. */
+export function readinessTextMeasurements(
+	opts: ReadinessTextMeasurementsOptions,
+): Node<Measurements> {
+	const targetId = opts.targetId ?? "text";
+	const name = opts.name ?? `${targetId}-measurements`;
+	const source = opts.source ?? name;
+	const cache = new Map<string, Map<string, number>>();
+	let activeAdapter: MeasurementAdapter | null = null;
+	let activeReadiness: MeasurementReadiness | null = null;
+	const deps = opts.segmentAdapter
+		? [opts.text, opts.font, opts.adapter, opts.readiness, opts.segmentAdapter]
+		: [opts.text, opts.font, opts.adapter, opts.readiness];
+	return opts.graph.node<Measurements>(
+		deps,
+		(ctx: Ctx) => {
+			const flush = () => {
+				cache.clear();
+				(depLatest(ctx, 2) as MeasurementAdapter).clearCache?.();
+			};
+			ctx.onDeactivation(flush);
+			ctx.onInvalidate(flush);
+			const text = depLatest(ctx, 0) as string;
+			const font = depLatest(ctx, 1) as string;
+			const adapter = depLatest(ctx, 2) as MeasurementAdapter;
+			if (adapter !== activeAdapter) {
+				cache.clear();
+				activeAdapter = adapter;
+			}
+			const readiness = depLatest(ctx, 3) as MeasurementReadiness;
+			if (readiness !== activeReadiness) {
+				cache.clear();
+				activeReadiness = readiness;
+			}
+			if (!readiness.ready) {
+				ctx.down([
+					[
+						"DATA",
+						[
+							measurementIssue(
+								readiness.code ?? "measurement.not-ready",
+								readiness.message ?? `Measurement readiness blocked '${targetId}'`,
+								targetId,
+								TEXT_SEGMENTS_MEASUREMENT_KIND,
+								{
+									source: readiness.source ?? source,
+									details: readiness.details,
+									metadata: readiness.metadata,
+									severity: "warning",
+								},
+							),
+						],
+					],
+				]);
+				return;
+			}
+			const segmentAdapter =
+				opts.segmentAdapter === undefined
+					? getDefaultSegmentAdapter()
+					: (depLatest(ctx, 4) as SegmentAdapter);
+			ctx.down([
+				[
+					"DATA",
+					textMeasurementFacts(text, font, adapter, cache, segmentAdapter, targetId, source),
+				],
+			]);
+		},
+		{ name },
+	);
+}
+
+/** Compose optional block measurement capability nodes into one graph-visible adapter node. */
+export function blockAdaptersProvider(opts: BlockAdaptersProviderOptions): Node<BlockAdapters> {
+	const deps: Node<unknown>[] = [];
+	const positions: { text?: number; svg?: number; image?: number } = {};
+	if (opts.text) {
+		positions.text = deps.length;
+		deps.push(opts.text);
+	}
+	if (opts.svg) {
+		positions.svg = deps.length;
+		deps.push(opts.svg);
+	}
+	if (opts.image) {
+		positions.image = deps.length;
+		deps.push(opts.image);
+	}
+	return opts.graph.node<BlockAdapters>(
+		deps,
+		(ctx: Ctx) => {
+			const adapters: BlockAdapters = {
+				text:
+					positions.text === undefined
+						? undefined
+						: (depLatest(ctx, positions.text) as MeasurementAdapter),
+				svg:
+					positions.svg === undefined ? undefined : (depLatest(ctx, positions.svg) as SvgMeasurer),
+				image:
+					positions.image === undefined
+						? undefined
+						: (depLatest(ctx, positions.image) as ImageMeasurer),
+			};
+			ctx.down([["DATA", adapters]]);
+		},
+		{ name: opts.name ?? "block-adapters" },
+	);
+}
+
 /** Provider helper for block measurement facts over declared block/max-width deps. */
 export function blockMeasurementProvider(
 	opts: BlockMeasurementProviderOptions,
@@ -949,6 +1166,7 @@ export function blockMeasurementProvider(
 	const name = opts.name ?? `${targetId}-measurements`;
 	const source = opts.source ?? name;
 	const cache = new Map<string, Map<string, number>>();
+	let activeTextAdapter: MeasurementAdapter | undefined;
 	const deps = [opts.blocks, opts.maxWidth, opts.adapters] as Node<unknown>[];
 	if (opts.font) deps.push(opts.font);
 	if (opts.lineHeight) deps.push(opts.lineHeight);
@@ -965,22 +1183,79 @@ export function blockMeasurementProvider(
 			ctx.onInvalidate(flush);
 			try {
 				const blocks = depLatest(ctx, 0) as readonly ContentBlock[];
-				const maxWidth = depLatest(ctx, 1) as number;
+				const maxWidth = nonNegativeFinite(depLatest(ctx, 1) as number, 0);
 				const adapters = depLatest(ctx, 2) as BlockAdapters;
+				if (adapters.text !== activeTextAdapter) {
+					cache.clear();
+					activeTextAdapter = adapters.text;
+				}
 				let depIndex = 3;
 				const font = opts.font ? (depLatest(ctx, depIndex++) as string) : undefined;
-				const lineHeight = opts.lineHeight ? (depLatest(ctx, depIndex++) as number) : undefined;
+				const lineHeight = opts.lineHeight
+					? nonNegativeFinite(depLatest(ctx, depIndex++) as number, 0)
+					: undefined;
 				const segmentAdapter = opts.segmentAdapter
 					? (depLatest(ctx, depIndex) as SegmentAdapter)
 					: getDefaultSegmentAdapter();
-				const measured = measureBlocks(blocks, {
-					adapters,
-					font,
-					lineHeight,
-					maxWidth,
-					cache,
-					segmentAdapter,
-				});
+				const measured: MeasuredBlock[] = [];
+				const issues: MeasurementIssue[] = [];
+				for (let i = 0; i < blocks.length; i += 1) {
+					const block = (blocks as readonly (ContentBlock | undefined)[])[i];
+					const subjectId = block?.id ?? `${targetId}:${i}`;
+					try {
+						if (block === undefined) {
+							throw new Error(`Missing content block at index ${i}`);
+						}
+						const blockFont =
+							block.kind === "text" ? (block.font ?? font ?? "16px sans-serif") : undefined;
+						const hyphenWidth =
+							block.kind === "text" && adapters.text
+								? tryMeasureHyphenWidth(adapters.text, blockFont ?? "16px sans-serif")
+								: undefined;
+						measured.push(
+							measureBlock(block, {
+								adapters,
+								font,
+								hyphenWidth,
+								lineHeight,
+								maxWidth,
+								cache,
+								segmentAdapter,
+							}),
+						);
+						if (block.kind === "text" && adapters.text) {
+							if (hyphenWidth === undefined) {
+								issues.push(
+									measurementIssue(
+										"measurement.hyphen.failed",
+										`Hyphen measurement failed for '${subjectId}'`,
+										subjectId,
+										BLOCKS_MEASUREMENT_KIND,
+										{
+											source,
+											details: { targetId, index: i },
+											severity: "warning",
+										},
+									),
+								);
+							}
+						}
+					} catch (error) {
+						issues.push(
+							measurementIssue(
+								"measurement.block.failed",
+								`Block measurement failed for '${subjectId}'`,
+								subjectId,
+								BLOCKS_MEASUREMENT_KIND,
+								{
+									source,
+									details: { error, targetId, index: i, blockKind: block?.kind },
+									severity: "error",
+								},
+							),
+						);
+					}
+				}
 				ctx.down([
 					[
 						"DATA",
@@ -991,6 +1266,7 @@ export function blockMeasurementProvider(
 								{ blocks: measured },
 								{ source },
 							),
+							...issues,
 						],
 					],
 				]);
@@ -1572,6 +1848,10 @@ function nonNegativeFinite(value: number, fallback: number): number {
 	return Number.isFinite(value) ? Math.max(0, value) : fallback;
 }
 
+function finiteNumber(value: number, fallback: number): number {
+	return Number.isFinite(value) ? value : fallback;
+}
+
 function emitLayoutError(ctx: Ctx, error: unknown, fallback: string): void {
 	ctx.down([["ERROR", errorPayload(error, fallback)]]);
 }
@@ -1624,8 +1904,11 @@ export function measureBlock(block: ContentBlock, opts: MeasureBlockOptions): Me
 			undefined,
 			opts.segmentAdapter,
 		);
+		const hyphenWidth = Object.hasOwn(opts, "hyphenWidth")
+			? opts.hyphenWidth
+			: tryMeasureHyphenWidth(adapter, font);
 		const lineBreaks = computeLineBreaks(segments, width, {
-			hyphenWidth: adapter.measureSegment("-", font).width,
+			hyphenWidth,
 			segmentAdapter: opts.segmentAdapter,
 		});
 		const charPositions = computeCharPositions(
@@ -1736,6 +2019,47 @@ function columnGeometry(
 	const innerWidth = Math.max(0, width - paddingX * 2 - gap * (count - 1));
 	const columnWidth = count > 0 ? innerWidth / count : 0;
 	return { paddingX, paddingY, count, gap, width, height, columnWidth };
+}
+
+function sanitizeFlowContainer(container: FlowContainer): FlowContainer {
+	return {
+		width: nonNegativeFinite(container.width, 0),
+		height: nonNegativeFinite(container.height, 0),
+		paddingX:
+			container.paddingX === undefined ? undefined : nonNegativeFinite(container.paddingX, 0),
+		paddingY:
+			container.paddingY === undefined ? undefined : nonNegativeFinite(container.paddingY, 0),
+	};
+}
+
+function sanitizeFlowColumns(columns: FlowColumns): FlowColumns {
+	return {
+		count:
+			columns.count === undefined
+				? undefined
+				: Math.max(1, Math.floor(nonNegativeFinite(columns.count, 1))),
+		gap: columns.gap === undefined ? undefined : nonNegativeFinite(columns.gap, 0),
+	};
+}
+
+function sanitizeObstacles(obstacles: readonly Obstacle[]): readonly Obstacle[] {
+	return obstacles.map((obstacle) => {
+		if (obstacle.kind === "circle") {
+			return {
+				kind: obstacle.kind,
+				cx: finiteNumber(obstacle.cx, 0),
+				cy: finiteNumber(obstacle.cy, 0),
+				r: nonNegativeFinite(obstacle.r, 0),
+			};
+		}
+		return {
+			kind: obstacle.kind,
+			x: finiteNumber(obstacle.x, 0),
+			y: finiteNumber(obstacle.y, 0),
+			width: nonNegativeFinite(obstacle.width, 0),
+			height: nonNegativeFinite(obstacle.height, 0),
+		};
+	});
 }
 
 /** Intersect a circle obstacle with a horizontal line band. */
@@ -1903,7 +2227,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				);
 				const computed = computeLineBreaks(
 					depLatest(ctx, 0) as readonly PreparedSegment[],
-					depLatest(ctx, 1) as number,
+					nonNegativeFinite(depLatest(ctx, 1) as number, 0),
 					{ hyphenWidth: measured?.hyphenWidth, segmentAdapter: segAdapter },
 				);
 				ctx.down([["DATA", computed]]);
@@ -1918,7 +2242,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		(ctx: Ctx) => {
 			try {
 				const lines = depLatest(ctx, 0) as LineBreaksResult;
-				const lineHeight = depLatest(ctx, 1) as number;
+				const lineHeight = nonNegativeFinite(depLatest(ctx, 1) as number, 0);
 				ctx.down([["DATA", lines.lineCount * lineHeight]]);
 			} catch (error) {
 				emitLayoutError(ctx, error, "reactiveLayout height failed");
@@ -1933,7 +2257,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				const positions = computeCharPositions(
 					depLatest(ctx, 0) as LineBreaksResult,
 					depLatest(ctx, 1) as readonly PreparedSegment[],
-					depLatest(ctx, 2) as number,
+					nonNegativeFinite(depLatest(ctx, 2) as number, 0),
 					segAdapter,
 				);
 				ctx.down([["DATA", positions]]);
@@ -2000,7 +2324,7 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 			try {
 				const positioned = computeBlockFlow(
 					depLatest(ctx, 0) as readonly MeasuredBlock[],
-					depLatest(ctx, 1) as number,
+					nonNegativeFinite(depLatest(ctx, 1) as number, 0),
 				);
 				ctx.down([["DATA", positioned]]);
 			} catch (error) {
@@ -2095,11 +2419,11 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 					TEXT_SEGMENTS_MEASUREMENT_KIND,
 				);
 				const computed = computeFlowLines(depLatest(ctx, 0) as readonly PreparedSegment[], {
-					lineHeight: depLatest(ctx, 1) as number,
-					container: depLatest(ctx, 2) as FlowContainer,
-					columns: depLatest(ctx, 3) as FlowColumns,
-					obstacles: depLatest(ctx, 4) as readonly Obstacle[],
-					minSlotWidth: opts.minSlotWidth,
+					lineHeight: nonNegativeFinite(depLatest(ctx, 1) as number, 0),
+					container: sanitizeFlowContainer(depLatest(ctx, 2) as FlowContainer),
+					columns: sanitizeFlowColumns(depLatest(ctx, 3) as FlowColumns),
+					obstacles: sanitizeObstacles(depLatest(ctx, 4) as readonly Obstacle[]),
+					minSlotWidth: nonNegativeFinite(opts.minSlotWidth ?? 0, 0),
 					hyphenWidth: measured?.hyphenWidth,
 					segmentAdapter: segAdapter,
 				});
