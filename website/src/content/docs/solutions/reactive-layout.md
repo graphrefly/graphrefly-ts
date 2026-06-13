@@ -123,6 +123,22 @@ These subpaths do not import `canvas`, Skia, or React Native packages. They keep
 caller-owned while making the measurement capability a graph-visible dependency. Async font or
 native layout readiness should still be modeled with explicit readiness or measurement facts.
 
+## Recipes
+
+The example recipes under `examples/reactive-layout/recipes/` show the user-land glue boundaries:
+
+- React Native `onLayout` or native probe callbacks update a graph `state` node, then
+  `reactNativeLayoutMeasurements` projects those async host results into measurement facts.
+- React Native Skia `useFonts` readiness stays explicit: callers write readiness facts and a ready
+  Paragraph capability, then compose `skiaParagraphTextMeasureCapability` with
+  `skiaReadyTextMeasurements`.
+- Text, readiness, image, and SVG providers are merged upstream with `mergeMeasurements` into the
+  single measurements node consumed by layout. `mergeMeasurements` preserves source order; it is not
+  a generic priority, fallback, dedupe, or stale-policy API.
+
+These recipes intentionally do not introduce public RN hooks/components, hidden font loading,
+optional native dependencies in the universal core, or layout-owned provider policy.
+
 ## Deferred
 
 These are intentionally not implemented by D203:
