@@ -19,6 +19,7 @@ export default defineConfig({
 		"src/messaging/index.ts",
 		"src/operators/index.ts",
 		"src/orchestration/index.ts",
+		"src/patterns/event-flow.ts",
 		"src/patterns/index.ts",
 		"src/render/index.ts",
 		"src/solutions/index.ts",

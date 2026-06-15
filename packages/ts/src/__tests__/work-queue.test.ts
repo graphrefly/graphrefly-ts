@@ -78,6 +78,31 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		]);
 	});
 
+	it("preserves non-object submit payloads while keeping helper metadata separate", () => {
+		const g = graph();
+		const bus = messageBus(g, { topics: ["work"], name: "bus", now: () => 1 });
+		const queue = workQueue<string>(g, {
+			queueId: "q",
+			bus,
+			topic: "work",
+			subscriptionId: "q-admit",
+			now: () => 1,
+		});
+		const records: unknown[] = [];
+		queue.records.subscribe((msg) => records.push(msg));
+
+		queue.submit("payload", { workId: "custom-work" });
+
+		expect(records).toContainEqual([
+			"DATA",
+			expect.objectContaining({
+				kind: "work-admitted",
+				workId: "custom-work",
+				payload: "payload",
+			}),
+		]);
+	});
+
 	it("claim races resolve by record order and stale claims emit issues", () => {
 		const g = graph();
 		const bus = messageBus(g, { topics: ["work"], name: "bus", now: () => 1 });
@@ -103,7 +128,39 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		]);
 		expect(issues.at(-1)).toEqual([
 			"DATA",
-			expect.objectContaining({ code: "not-ready", source: "workQueue" }),
+			expect.objectContaining({ code: "already-leased", source: "workQueue" }),
+		]);
+	});
+
+	it("reports requested claim misses even when a batch partially succeeds", () => {
+		const g = graph();
+		const bus = messageBus(g, { topics: ["work"], name: "bus", now: () => 1 });
+		const queue = workQueue<{ id: string }>(g, {
+			queueId: "q",
+			bus,
+			topic: "work",
+			subscriptionId: "q-admit",
+			now: () => 1,
+		});
+		const records: unknown[] = [];
+		const issues: unknown[] = [];
+		queue.records.subscribe((msg) => records.push(msg));
+		queue.issues.subscribe((msg) => issues.push(msg));
+
+		queue.submit({ id: "a" });
+		queue.claim({
+			workerId: "w1",
+			requestedWorkIds: ["q:work:1", "missing"],
+			commandId: "claim-partial",
+		});
+
+		expect(records).toContainEqual([
+			"DATA",
+			expect.objectContaining({ kind: "work-claimed", workId: "q:work:1" }),
+		]);
+		expect(issues).toContainEqual([
+			"DATA",
+			expect.objectContaining({ code: "unknown-work", source: "workQueue" }),
 		]);
 	});
 
@@ -171,6 +228,36 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			expect.objectContaining({ kind: "work-completed", result: { ok: true } }),
 		]);
 		expect(issues.at(-1)).toEqual(["DATA", expect.objectContaining({ code: "terminal-work" })]);
+	});
+
+	it("dedupes lifecycle commands by idempotencyKey", () => {
+		const g = graph();
+		const bus = messageBus(g, { topics: ["work"], name: "bus", now: () => 0 });
+		const queue = workQueue<{ id: string }>(g, {
+			queueId: "q",
+			bus,
+			topic: "work",
+			subscriptionId: "q-admit",
+			now: () => 0,
+		});
+		const records: unknown[] = [];
+		const issues: unknown[] = [];
+		queue.records.subscribe((msg) => records.push(msg));
+		queue.issues.subscribe((msg) => issues.push(msg));
+
+		queue.submit({ id: "a" });
+		queue.claim({ workerId: "w1", commandId: "claim-1", idempotencyKey: "idem-claim" });
+		queue.claim({ workerId: "w2", commandId: "claim-2", idempotencyKey: "idem-claim" });
+
+		expect(
+			records.filter(
+				(msg) => msg[0] === "DATA" && (msg[1] as { kind?: string }).kind === "work-claimed",
+			),
+		).toHaveLength(1);
+		expect(issues).toContainEqual([
+			"DATA",
+			expect.objectContaining({ code: "duplicate-command", source: "workQueue" }),
+		]);
 	});
 
 	it("expires leases through explicit maintenance, then makes work claimable again", () => {
@@ -352,6 +439,40 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		expect(work.snapshot.cache?.state).toBe("scheduled");
 		work.snapshot.up([["PULL", { pullId: work.snapshotPullId }]]);
 		expect(work.snapshot.cache?.state).toBe("canceled");
+	});
+
+	it("uses explicit command/projection time for delayed eligibility", () => {
+		const g = graph();
+		const bus = messageBus(g, { topics: ["work"], name: "bus", now: () => 0 });
+		const queue = workQueue<{ id: string }>(g, {
+			queueId: "q",
+			bus,
+			topic: "work",
+			subscriptionId: "q-admit",
+			now: () => 0,
+		});
+		const records: unknown[] = [];
+		const issues: unknown[] = [];
+		queue.records.subscribe((msg) => records.push(msg));
+		queue.issues.subscribe((msg) => issues.push(msg));
+
+		queue.submit({ id: "later" }, { notBeforeMs: 10 });
+		queue.claim({ workerId: "early", commandId: "claim-early" });
+		const available = queue.available();
+		available.available.up([["PULL", { pullId: available.availablePullId }]]);
+		expect(issues).toContainEqual(["DATA", expect.objectContaining({ code: "not-ready" })]);
+		expect(available.available.cache?.items).toEqual([]);
+
+		available.available.up([
+			["PULL", { pullId: available.availablePullId, params: { nowMs: 10 } }],
+		]);
+		expect(available.available.cache?.items.map((item) => item.workId)).toEqual(["q:work:1"]);
+		queue.claim({ workerId: "on-time", commandId: "claim-on-time", nowMs: 10 });
+
+		expect(records).toContainEqual([
+			"DATA",
+			expect.objectContaining({ kind: "work-claimed", workerId: "on-time" }),
+		]);
 	});
 
 	it("rejects malformed and wrong-queue command facts without mutating lifecycle state", () => {

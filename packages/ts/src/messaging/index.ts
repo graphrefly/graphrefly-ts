@@ -21,6 +21,7 @@ export interface MessageEnvelope<T = unknown> {
 	readonly seq: number;
 	readonly payload: T;
 	readonly key?: string;
+	readonly idempotencyKey?: string;
 	readonly timestampMs: number;
 	readonly commandId?: string;
 }
@@ -55,6 +56,88 @@ export interface TopicMessage<T = unknown> {
 	readonly expiresAt?: string;
 	readonly correlationId?: string;
 	readonly payload: T;
+}
+
+/** Passive domain event vocabulary for messageBus/eventFlow composition (D329). */
+export interface EventMessage<T = unknown> {
+	readonly id: string;
+	readonly type: string;
+	readonly payload: T;
+	readonly key?: string;
+	readonly subjectId?: string;
+	readonly correlationId?: string;
+	readonly causationId?: string;
+	readonly occurredAtMs?: number;
+	readonly actor?: string;
+	readonly evidenceRefs?: readonly string[];
+	readonly schema?: JsonSchema;
+	readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface EventMessageOptions {
+	readonly id: string;
+	readonly key?: string;
+	readonly subjectId?: string;
+	readonly correlationId?: string;
+	readonly causationId?: string;
+	readonly occurredAtMs?: number;
+	readonly actor?: string;
+	readonly evidenceRefs?: readonly string[];
+	readonly schema?: JsonSchema;
+	readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export function eventMessage<T>(
+	type: string,
+	payload: T,
+	opts: EventMessageOptions,
+): EventMessage<T> {
+	assertNonEmpty(type, "eventMessage.type");
+	assertNonEmpty(opts.id, "eventMessage.id");
+	return {
+		id: opts.id,
+		type,
+		payload,
+		...(opts.key === undefined ? {} : { key: opts.key }),
+		...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
+		...(opts.correlationId === undefined ? {} : { correlationId: opts.correlationId }),
+		...(opts.causationId === undefined ? {} : { causationId: opts.causationId }),
+		...(opts.occurredAtMs === undefined ? {} : { occurredAtMs: opts.occurredAtMs }),
+		...(opts.actor === undefined ? {} : { actor: opts.actor }),
+		...(opts.evidenceRefs === undefined ? {} : { evidenceRefs: opts.evidenceRefs }),
+		...(opts.schema === undefined ? {} : { schema: opts.schema }),
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
+	};
+}
+
+export function isEventMessage(value: unknown): value is EventMessage {
+	return eventMessageIssue(value) === undefined;
+}
+
+export function eventMessageIssue(value: unknown): DataIssue | undefined {
+	if (!isObjectRecord(value)) {
+		return eventIssue("event message must be an object");
+	}
+	if (typeof value.id !== "string" || value.id.length === 0) {
+		return eventIssue("event message id must be a non-empty string");
+	}
+	if (typeof value.type !== "string" || value.type.length === 0) {
+		return eventIssue("event message type must be a non-empty string");
+	}
+	if (!("payload" in value)) {
+		return eventIssue("event message payload field is required");
+	}
+	return undefined;
+}
+
+function eventIssue(message: string): DataIssue {
+	return {
+		kind: "issue",
+		code: "malformed-event-message",
+		message,
+		severity: "error",
+		source: "messageBus.eventMessage",
+	};
 }
 
 export const PROMPTS_TOPIC = "prompts";
@@ -297,7 +380,6 @@ export interface MessageBus<TTopic extends string = string> {
 		from?: "earliest" | "latest" | number;
 		name?: string;
 	}): MessageBusSubscription<T>;
-	has(topic: string): boolean;
 }
 
 export interface ToTopicOptions {
@@ -342,6 +424,7 @@ interface MessageBusState {
 	readonly topics: Map<string, TopicState>;
 	readonly subscriptions: Map<string, SubscriptionState>;
 	readonly seenCommandIds: Set<string>;
+	readonly seenIdempotencyKeys: Set<string>;
 	readonly deadLetters: MessageBusDeadLetterEntry[];
 	deadLetterSeq: number;
 	readonly commandSources: Node<MessageBusCommand>[];
@@ -376,6 +459,7 @@ export function messageBus<TTopic extends string>(
 		topics: new Map(initialTopics.map((topic) => [topic, makeTopicState()])),
 		subscriptions: new Map(),
 		seenCommandIds: new Set(),
+		seenIdempotencyKeys: new Set(),
 		deadLetters: [],
 		deadLetterSeq: 0,
 		commandSources,
@@ -631,9 +715,6 @@ export function messageBus<TTopic extends string>(
 				},
 			};
 		},
-		has(topic: string) {
-			return state.topics.has(topic);
-		},
 	};
 	registerMessageBusState(bus, state);
 	return bus;
@@ -709,19 +790,16 @@ function reduceMessageBusCommand(
 	if (malformed !== undefined) return rejectCommand(state, command, malformed);
 	if (command.commandId !== undefined) {
 		if (state.seenCommandIds.has(command.commandId)) {
-			const status = statusFact(state, "duplicate-command", {
-				topic: "topic" in command ? command.topic : undefined,
-				commandId: command.commandId,
-			});
-			if (state.dedupe.commandId === "issue") {
-				return [
-					{ kind: "status", status },
-					...issueEvents(state, command, "duplicate-command", "duplicate commandId"),
-				];
-			}
-			return [{ kind: "status", status }];
+			return duplicateCommandEvents(state, command, "duplicate commandId");
 		}
 		state.seenCommandIds.add(command.commandId);
+	}
+	if (
+		command.kind === "publish" &&
+		command.idempotencyKey !== undefined &&
+		state.seenIdempotencyKeys.has(idempotencyKey(command.topic, command.idempotencyKey))
+	) {
+		return duplicateCommandEvents(state, command, "duplicate idempotencyKey");
 	}
 	switch (command.kind) {
 		case "ensure-topic":
@@ -787,8 +865,12 @@ function publishMessage(
 		payload: command.payload,
 		timestampMs: state.now(),
 		...(command.key === undefined ? {} : { key: command.key }),
+		...(command.idempotencyKey === undefined ? {} : { idempotencyKey: command.idempotencyKey }),
 		...(command.commandId === undefined ? {} : { commandId: command.commandId }),
 	};
+	if (command.idempotencyKey !== undefined) {
+		state.seenIdempotencyKeys.add(idempotencyKey(command.topic, command.idempotencyKey));
+	}
 	topic.messages.push(message);
 	events.push({ kind: "message", message });
 	events.push({
@@ -843,7 +925,7 @@ function trimRetention(
 		},
 	];
 	for (const sub of state.subscriptions.values()) {
-		if (sub.topic !== topicName || sub.nextSeq >= topic.headSeq) continue;
+		if (sub.closed || sub.topic !== topicName || sub.nextSeq >= topic.headSeq) continue;
 		sub.retentionGap = true;
 		events.push(
 			...issueEvents(
@@ -866,13 +948,25 @@ function ackSubscription(
 	state: MessageBusState,
 	command: Extract<MessageBusCommand, { kind: "ack" }>,
 ): RuntimeEvent[] {
-	const sub = ensureSubscription(state, {
-		topic: command.topic,
-		subscriptionId: command.subscriptionId,
-		from: "earliest",
-	});
+	const topic = state.topics.get(command.topic);
+	if (topic === undefined)
+		return issueEvents(state, command, "unknown-topic", `unknown topic '${command.topic}'`);
+	const sub = getSubscription(state, command.topic, command.subscriptionId);
+	if (sub === undefined)
+		return issueEvents(
+			state,
+			command,
+			"unknown-subscription",
+			`unknown subscription '${command.subscriptionId}'`,
+		);
 	if (sub.closed)
 		return issueEvents(state, command, "subscription-closed", "subscription is closed");
+	if (sub.retentionGap)
+		return issueEvents(state, command, "retention-gap", "subscription must seek before ack");
+	if (command.seq < sub.nextSeq)
+		return issueEvents(state, command, "source-cursor-stale", "ack is behind subscription cursor");
+	if (command.seq >= topic.nextSeq)
+		return issueEvents(state, command, "cursor-out-of-range", "ack is beyond topic tail");
 	sub.nextSeq = Math.max(sub.nextSeq, command.seq + 1);
 	return [
 		{
@@ -891,16 +985,25 @@ function seekSubscription(
 	state: MessageBusState,
 	command: Extract<MessageBusCommand, { kind: "seek" }>,
 ): RuntimeEvent[] {
-	const sub = ensureSubscription(state, {
-		topic: command.topic,
-		subscriptionId: command.subscriptionId,
-		from: command.nextSeq,
-	});
+	const topic = state.topics.get(command.topic);
+	if (topic === undefined)
+		return issueEvents(state, command, "unknown-topic", `unknown topic '${command.topic}'`);
+	const sub = getSubscription(state, command.topic, command.subscriptionId);
+	if (sub === undefined)
+		return issueEvents(
+			state,
+			command,
+			"unknown-subscription",
+			`unknown subscription '${command.subscriptionId}'`,
+		);
 	if (sub.closed)
 		return issueEvents(state, command, "subscription-closed", "subscription is closed");
+	if (command.nextSeq < topic.headSeq)
+		return issueEvents(state, command, "retention-gap", "seek is before retained headSeq");
+	if (command.nextSeq > topic.nextSeq)
+		return issueEvents(state, command, "cursor-out-of-range", "seek is beyond topic tail");
 	sub.nextSeq = command.nextSeq;
-	const topic = state.topics.get(command.topic);
-	sub.retentionGap = topic !== undefined && sub.nextSeq < topic.headSeq;
+	sub.retentionGap = false;
 	return [
 		{
 			kind: "status",
@@ -918,11 +1021,16 @@ function closeSubscription(
 	state: MessageBusState,
 	command: Extract<MessageBusCommand, { kind: "close-subscription" }>,
 ): RuntimeEvent[] {
-	const sub = ensureSubscription(state, {
-		topic: command.topic,
-		subscriptionId: command.subscriptionId,
-		from: "earliest",
-	});
+	if (!state.topics.has(command.topic))
+		return issueEvents(state, command, "unknown-topic", `unknown topic '${command.topic}'`);
+	const sub = getSubscription(state, command.topic, command.subscriptionId);
+	if (sub === undefined)
+		return issueEvents(
+			state,
+			command,
+			"unknown-subscription",
+			`unknown subscription '${command.subscriptionId}'`,
+		);
 	sub.closed = true;
 	return [
 		{
@@ -939,10 +1047,12 @@ function closeSubscription(
 
 function issueEvents(
 	state: MessageBusState,
-	command: MessageBusCommand,
+	command: unknown,
 	code: string,
 	message: string,
 ): RuntimeEvent[] {
+	const topic = commandTopic(command);
+	const commandId = commandIdOf(command);
 	const issue: DataIssue = {
 		kind: "issue",
 		code,
@@ -950,12 +1060,12 @@ function issueEvents(
 		severity: "error",
 		source: "messageBus",
 		details: command,
-		metadata: "topic" in command ? { topic: command.topic } : undefined,
+		metadata: topic === undefined ? undefined : { topic },
 	};
 	const entry: MessageBusDeadLetterEntry = {
 		entrySeq: ++state.deadLetterSeq,
-		...("topic" in command ? { topic: command.topic } : {}),
-		command,
+		...(topic === undefined ? {} : { topic }),
+		...(isObjectRecord(command) ? { command: command as MessageBusCommand } : {}),
 		issue,
 		timestampMs: state.now(),
 	};
@@ -966,20 +1076,34 @@ function issueEvents(
 		{
 			kind: "status",
 			status: statusFact(state, "command-rejected", {
-				topic: "topic" in command ? command.topic : undefined,
-				commandId: command.commandId,
+				topic,
+				commandId,
 				issueCode: code,
 			}),
 		},
 	];
 }
 
-function rejectCommand(
+function rejectCommand(state: MessageBusState, command: unknown, reason: string): RuntimeEvent[] {
+	return issueEvents(state, command, "malformed-command", reason);
+}
+
+function duplicateCommandEvents(
 	state: MessageBusState,
 	command: MessageBusCommand,
-	reason: string,
+	message: string,
 ): RuntimeEvent[] {
-	return issueEvents(state, command, "malformed-command", reason);
+	const status = statusFact(state, "duplicate-command", {
+		topic: "topic" in command ? command.topic : undefined,
+		commandId: command.commandId,
+	});
+	if (state.dedupe.commandId === "issue") {
+		return [
+			{ kind: "status", status },
+			...issueEvents(state, command, "duplicate-command", message),
+		];
+	}
+	return [{ kind: "status", status }];
 }
 
 function statusFact(
@@ -1001,12 +1125,14 @@ function statusFact(
 	};
 }
 
-function validateCommand(command: MessageBusCommand): string | undefined {
+function validateCommand(command: unknown): string | undefined {
 	if (!isObjectRecord(command)) return "command must be an object";
 	if (typeof command.kind !== "string") return "command kind is required";
 	if (!isMessageBusCommandKind(command.kind)) return `unknown command kind '${command.kind}'`;
-	if ("topic" in command && validateTopicKey(command.topic, "messageBus") !== undefined) {
-		return validateTopicKey(command.topic, "messageBus");
+	if ("topic" in command) {
+		if (typeof command.topic !== "string") return "messageBus: topic must be a non-empty string";
+		const topicError = validateTopicKey(command.topic, "messageBus");
+		if (topicError !== undefined) return topicError;
 	}
 	if ("subscriptionId" in command && typeof command.subscriptionId !== "string") {
 		return "subscriptionId must be a string";
@@ -1096,7 +1222,9 @@ function availablePage<T>(
 	const cursor = cursorSnapshot(state, sub);
 	const start = params.afterSeq === undefined ? sub.nextSeq : params.afterSeq + 1;
 	const topic = state.topics.get(sub.topic);
-	const all = (topic?.messages ?? []).filter((message) => message.seq >= start);
+	const all = sub.retentionGap
+		? []
+		: (topic?.messages ?? []).filter((message) => message.seq >= start);
 	const limit = positiveLimit(params.limit);
 	const messages = all.slice(0, limit) as MessageBusMessage<T>[];
 	const hasMore = all.length > limit;
@@ -1169,6 +1297,14 @@ function ensureSubscription(
 	return sub;
 }
 
+function getSubscription(
+	state: MessageBusState,
+	topic: string,
+	subscriptionId: string,
+): SubscriptionState | undefined {
+	return state.subscriptions.get(`${topic}\u0000${subscriptionId}`);
+}
+
 function pullParams<T>(pull: PullDemand | undefined): T {
 	return (isObjectRecord(pull?.params) ? pull.params : {}) as T;
 }
@@ -1221,4 +1357,18 @@ function isPositiveSeq(value: unknown): value is number {
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function commandTopic(command: unknown): string | undefined {
+	return isObjectRecord(command) && typeof command.topic === "string" ? command.topic : undefined;
+}
+
+function commandIdOf(command: unknown): string | undefined {
+	return isObjectRecord(command) && typeof command.commandId === "string"
+		? command.commandId
+		: undefined;
+}
+
+function idempotencyKey(topic: string, key: string): string {
+	return `${topic}\u0000${key}`;
 }

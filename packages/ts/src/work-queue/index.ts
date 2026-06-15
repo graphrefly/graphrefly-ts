@@ -457,6 +457,7 @@ interface RuntimeState<T> {
 	works: Map<string, WorkState<T>>;
 	sourceSeqs: Set<string>;
 	commandIds: Set<string>;
+	idempotencyKeys: Set<string>;
 	records: WorkQueueRecord<T>[];
 	deadLetters: WorkQueueRecord<T>[];
 }
@@ -493,6 +494,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		works: new Map(),
 		sourceSeqs: new Set(),
 		commandIds: new Set(),
+		idempotencyKeys: new Set(),
 		records: [],
 		deadLetters: [],
 	};
@@ -539,11 +541,12 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				}
 			}
 			for (const command of depBatch(ctx, 0) ?? []) {
+				const commandTime = commandNowMs(command as WorkQueueCommand<T>, now());
 				for (const event of reduceQueueCommand(
 					opts,
 					state,
 					command as WorkQueueCommand<T>,
-					now(),
+					commandTime,
 					leaseDurationMs,
 					retry,
 				)) {
@@ -629,8 +632,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		submit(payload, submitOpts = {}) {
 			const command = opts.bus.publish(
 				opts.topic,
-				{
-					...payloadAsRecord(payload),
+				submitPayload(payload, {
 					...(submitOpts.workId === undefined ? {} : { workId: submitOpts.workId }),
 					...(submitOpts.priority === undefined ? {} : { priority: submitOpts.priority }),
 					...(submitOpts.tags === undefined ? {} : { tags: submitOpts.tags }),
@@ -639,7 +641,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 						: { requirements: submitOpts.requirements }),
 					...(submitOpts.notBeforeMs === undefined ? {} : { notBeforeMs: submitOpts.notBeforeMs }),
 					...(submitOpts.deadlineMs === undefined ? {} : { deadlineMs: submitOpts.deadlineMs }),
-				},
+				}),
 				{
 					commandId: submitOpts.commandId ?? nextCommandId(opts.queueId, "submit"),
 					idempotencyKey: submitOpts.idempotencyKey,
@@ -709,7 +711,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				[records],
 				(ctx) => {
 					const params = pullParams<WorkQueueAvailableParams>(ctx.pull);
-					ctx.down([["DATA", availablePage(state, params, now())]]);
+					ctx.down([["DATA", availablePage(state, params)]]);
 				},
 				{
 					name: projectionOpts.name ?? `${name}/available`,
@@ -803,7 +805,9 @@ function admitMessage<T>(
 	const source = `${message.topic}:${message.seq}`;
 	if (state.sourceSeqs.has(source)) return [];
 	state.sourceSeqs.add(source);
-	const payloadRecord = payloadAsRecord(message.payload);
+	const submitted = decodeSubmittedPayload(message.payload);
+	const payload = submitted.payload as T;
+	const payloadRecord = payloadAsRecord(submitted.meta);
 	const workId =
 		typeof payloadRecord.workId === "string"
 			? payloadRecord.workId
@@ -828,7 +832,7 @@ function admitMessage<T>(
 	}
 	const work: WorkState<T> = {
 		workId,
-		payload: message.payload,
+		payload,
 		state:
 			typeof payloadRecord.notBeforeMs === "number" && payloadRecord.notBeforeMs > nowMs
 				? "scheduled"
@@ -845,7 +849,7 @@ function admitMessage<T>(
 	const record = appendRecord<T>(state, opts.queueId, {
 		kind: "work-admitted",
 		workId,
-		payload: message.payload,
+		payload,
 		messageBus: { topic: message.topic, seq: message.seq, subscriptionId: opts.subscriptionId },
 		priority: work.priority,
 		tags: work.tags,
@@ -880,7 +884,17 @@ function reduceQueueCommand<T>(
 			nowMs,
 		);
 	}
+	if (command.idempotencyKey !== undefined && state.idempotencyKeys.has(command.idempotencyKey)) {
+		return rejectQueueCommand<T>(
+			opts.queueId,
+			command,
+			"duplicate-command",
+			"duplicate idempotencyKey",
+			nowMs,
+		);
+	}
 	state.commandIds.add(command.commandId);
+	if (command.idempotencyKey !== undefined) state.idempotencyKeys.add(command.idempotencyKey);
 	switch (command.kind) {
 		case "claim":
 			return claimWork(opts.queueId, state, command, nowMs, leaseDurationMs);
@@ -931,9 +945,13 @@ function claimWork<T>(
 	if (candidates.length === 0)
 		return [
 			...events,
-			...rejectQueueCommand<T>(queueId, command, "not-ready", "no ready work", nowMs),
+			...(requested.size === 0
+				? rejectQueueCommand<T>(queueId, command, "not-ready", "no ready work", nowMs)
+				: claimMissEvents(queueId, state, command, requested, new Set(), nowMs)),
 		];
+	const claimed = new Set<string>();
 	for (const work of candidates) {
+		claimed.add(work.workId);
 		work.state = "leased";
 		work.attempt += 1;
 		work.leaseId = `${work.workId}:lease:${++state.leaseSeq}`;
@@ -957,6 +975,52 @@ function claimWork<T>(
 				commandId: command.commandId,
 				recordSeq: record.recordSeq,
 			}),
+		);
+	}
+	if (requested.size > 0) {
+		events.push(...claimMissEvents(queueId, state, command, requested, claimed, nowMs));
+	}
+	return events;
+}
+
+function claimMissEvents<T>(
+	queueId: string,
+	state: RuntimeState<T>,
+	command: Extract<WorkQueueCommand<T>, { kind: "claim" }>,
+	requested: ReadonlySet<string>,
+	claimed: ReadonlySet<string>,
+	nowMs: number,
+): QueueEvent<T>[] {
+	const events: QueueEvent<T>[] = [];
+	for (const workId of requested) {
+		if (claimed.has(workId)) continue;
+		const work = state.works.get(workId);
+		if (work === undefined) {
+			events.push(
+				...rejectQueueCommand<T>(
+					queueId,
+					command,
+					"unknown-work",
+					`unknown work '${workId}'`,
+					nowMs,
+				),
+			);
+			continue;
+		}
+		if (isReady(work, nowMs)) continue;
+		const code = isTerminal(work.state)
+			? "terminal-work"
+			: work.state === "leased"
+				? "already-leased"
+				: "not-ready";
+		events.push(
+			...rejectQueueCommand<T>(
+				queueId,
+				command,
+				code,
+				`requested work '${workId}' is not claimable`,
+				nowMs,
+			),
 		);
 	}
 	return events;
@@ -1291,12 +1355,11 @@ function currentLease<T>(
 function availablePage<T>(
 	state: RuntimeState<T>,
 	params: WorkQueueAvailableParams,
-	nowMs: number,
 ): WorkQueueAvailablePage<T> {
 	const limit = positiveLimit(params.limit ?? 100);
 	const orderByWorkId = params.afterWorkId !== undefined && params.afterAdmissionSeq === undefined;
 	const all = [...state.works.values()]
-		.filter((work) => isReady(work, params.nowMs ?? nowMs))
+		.filter((work) => isReadyForProjection(work, params.nowMs))
 		.filter((work) => params.afterWorkId === undefined || work.workId > params.afterWorkId)
 		.filter(
 			(work) =>
@@ -1652,6 +1715,13 @@ function isReady<T>(work: WorkState<T>, nowMs: number): boolean {
 	return work.state === "ready";
 }
 
+function isReadyForProjection<T>(work: WorkState<T>, nowMs: number | undefined): boolean {
+	if (work.state === "scheduled" || work.state === "retry-wait") {
+		return nowMs === undefined ? false : isReady(work, nowMs);
+	}
+	return isReady(work, 0);
+}
+
 function isTerminal(state: WorkQueueDerivedState): boolean {
 	return state === "completed" || state === "canceled" || state === "dead-lettered";
 }
@@ -1678,6 +1748,34 @@ function pullParams<T>(pull: PullDemand | undefined): T {
 			? pull.params
 			: {}
 	) as T;
+}
+
+const SUBMIT_ENVELOPE = "__graphreflyWorkQueueSubmit";
+
+function submitPayload<T>(
+	payload: T,
+	meta: Record<string, unknown>,
+): T | (Record<string, unknown> & { readonly [SUBMIT_ENVELOPE]: true; readonly payload: T }) {
+	if (Object.keys(meta).length === 0) return payload;
+	return { [SUBMIT_ENVELOPE]: true, payload, ...meta };
+}
+
+function decodeSubmittedPayload<T>(payload: T): { payload: T; meta: Record<string, unknown> } {
+	if (
+		isObjectRecord(payload) &&
+		payload[SUBMIT_ENVELOPE] === true &&
+		Object.hasOwn(payload, "payload")
+	) {
+		const { payload: inner, [SUBMIT_ENVELOPE]: _tag, ...meta } = payload as Record<string, unknown>;
+		return { payload: inner as T, meta };
+	}
+	return { payload, meta: payloadAsRecord(payload) };
+}
+
+function commandNowMs<T>(command: WorkQueueCommand<T>, fallback: number): number {
+	return typeof command.nowMs === "number" && Number.isFinite(command.nowMs)
+		? command.nowMs
+		: fallback;
 }
 
 function positiveLimit(limit: number): number {

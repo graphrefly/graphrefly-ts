@@ -198,6 +198,16 @@
 				"default": "./dist/patterns/index.cjs"
 			}
 		},
+		"./patterns/event-flow": {
+			"import": {
+				"types": "./dist/patterns/event-flow.d.ts",
+				"default": "./dist/patterns/event-flow.js"
+			},
+			"require": {
+				"types": "./dist/patterns/event-flow.d.cts",
+				"default": "./dist/patterns/event-flow.cjs"
+			}
+		},
 		"./render": {
 			"import": {
 				"types": "./dist/render/index.d.ts",

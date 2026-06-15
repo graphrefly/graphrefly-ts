@@ -59,6 +59,7 @@ import * as boundaryInspection from "../inspection/boundary.js";
 import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
 import * as orchestration from "../orchestration/index.js";
+import * as eventFlowPatterns from "../patterns/event-flow.js";
 import * as patterns from "../patterns/index.js";
 import * as render from "../render/index.js";
 import type { ImageSizeLookup } from "../solutions/index.js";
@@ -103,6 +104,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./operators",
 			"./orchestration",
 			"./patterns",
+			"./patterns/event-flow",
 			"./render",
 			"./solutions",
 			"./solutions/reactive-layout",
@@ -209,6 +211,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof patterns.profileSummary).toBe("function");
+		expect(typeof patterns.eventFlow).toBe("function");
+		expect(typeof patterns.eventFlowProjection).toBe("function");
+		expect(typeof eventFlowPatterns.eventFlow).toBe("function");
+		expect(typeof eventFlowPatterns.eventFlowProjection).toBe("function");
 		expect(typeof patterns.cosineSimilarity).toBe("function");
 		expect(typeof patterns.admissionScored).toBe("function");
 		expect(typeof patterns.admissionFilter3D).toBe("function");
@@ -248,6 +254,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof cqrs.cqrsProjection).toBe("function");
 		expect(Object.hasOwn(cqrs, "dedupeReducer")).toBe(false);
 		expect(typeof messaging.messageBus).toBe("function");
+		expect(typeof messaging.eventMessage).toBe("function");
+		expect(typeof messaging.isEventMessage).toBe("function");
 		expect(typeof messaging.fromTopic).toBe("function");
 		expect(typeof messaging.toTopic).toBe("function");
 		expect(Object.hasOwn(messaging, "dynamicHub")).toBe(false);

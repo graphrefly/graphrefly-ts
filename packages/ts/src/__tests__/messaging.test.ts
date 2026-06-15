@@ -71,7 +71,9 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 				source: "messageBus",
 			}),
 		]);
-		expect(bus.has("missing")).toBe(false);
+		const catalog = bus.catalog();
+		catalog.snapshot.up([["PULL", { pullId: catalog.snapshotPullId }]]);
+		expect(catalog.snapshot.cache?.topics.map((topic) => topic.topic)).not.toContain("missing");
 	});
 
 	it("rejects unknown command kinds as DataIssue facts instead of throwing", () => {
@@ -89,6 +91,38 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		expect(issues.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({ code: "malformed-command", source: "messageBus" }),
+		]);
+
+		expect(() => bus.commands.down([["DATA", null as never]])).not.toThrow();
+		expect(issues.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ code: "malformed-command", source: "messageBus" }),
+		]);
+	});
+
+	it("dedupes publish commands by idempotencyKey", () => {
+		const g = graph();
+		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 27 });
+		const messages: unknown[] = [];
+		const status: unknown[] = [];
+		bus.messages.subscribe((msg) => messages.push(msg));
+		bus.status.subscribe((msg) => status.push(msg));
+
+		bus.publish("orders", { id: "o1" }, { commandId: "cmd-1", idempotencyKey: "idem-1" });
+		bus.publish("orders", { id: "o2" }, { commandId: "cmd-2", idempotencyKey: "idem-1" });
+
+		expect(messages.filter((msg) => msg[0] === "DATA")).toEqual([
+			[
+				"DATA",
+				expect.objectContaining({
+					payload: { id: "o1" },
+					idempotencyKey: "idem-1",
+				}),
+			],
+		]);
+		expect(status).toContainEqual([
+			"DATA",
+			expect.objectContaining({ kind: "duplicate-command", commandId: "cmd-2" }),
 		]);
 	});
 
@@ -254,20 +288,70 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		expect(sub.available.cache?.cursor).toEqual(
 			expect.objectContaining({ headSeq: 2, retentionGap: true }),
 		);
+		expect(sub.available.cache?.messages).toEqual([]);
 		expect(cursor.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({ headSeq: 2, retentionGap: true }),
 		]);
+		const cursorDataBeforeAck = cursor.filter((msg) => Array.isArray(msg) && msg[0] === "DATA");
 		sub.ack(2);
-		expect(cursor.at(-1)).toEqual([
+		expect(cursor.filter((msg) => Array.isArray(msg) && msg[0] === "DATA")).toEqual(
+			cursorDataBeforeAck,
+		);
+		expect(cursorDataBeforeAck.at(-1)).toEqual([
 			"DATA",
-			expect.objectContaining({ nextSeq: 3, retentionGap: true }),
+			expect.objectContaining({ headSeq: 2, retentionGap: true }),
 		]);
 		sub.seek(2);
 		expect(cursor.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({ nextSeq: 2, retentionGap: false }),
 		]);
+	});
+
+	it("rejects invalid cursor commands without creating subscriptions or skipping messages", () => {
+		const g = graph();
+		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 65 });
+		const issues: unknown[] = [];
+		bus.issues.subscribe((msg) => issues.push(msg));
+		bus.publish("orders", "a");
+
+		bus.commands.down([
+			["DATA", { kind: "ack", topic: "orders", subscriptionId: "missing", seq: 1 }],
+		]);
+		expect(issues.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ code: "unknown-subscription" }),
+		]);
+
+		const sub = bus.subscription({ topic: "orders", subscriptionId: "s1" });
+		sub.ack(2);
+		expect(issues.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ code: "cursor-out-of-range" }),
+		]);
+		sub.available.up([["PULL", { pullId: sub.availablePullId }]]);
+		expect(sub.available.cache?.cursor.nextSeq).toBe(1);
+		expect(sub.available.cache?.messages.map((msg) => msg.seq)).toEqual([1]);
+	});
+
+	it("closed subscriptions do not receive later retention-gap updates", () => {
+		const g = graph();
+		const bus = messageBus(g, {
+			topics: ["orders"],
+			name: "bus",
+			now: () => 66,
+			retention: { maxMessages: 1 },
+		});
+		const sub = bus.subscription({ topic: "orders", subscriptionId: "s1" });
+		const issues: unknown[] = [];
+		bus.issues.subscribe((msg) => issues.push(msg));
+
+		sub.close();
+		bus.publish("orders", "a");
+		bus.publish("orders", "b");
+
+		expect(issues).not.toContainEqual(["DATA", expect.objectContaining({ code: "retention-gap" })]);
 	});
 });
 

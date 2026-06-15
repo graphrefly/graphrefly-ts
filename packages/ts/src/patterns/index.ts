@@ -6,6 +6,24 @@
  */
 
 export {
+	type EventFlowAuditRecord,
+	type EventFlowBundle,
+	type EventFlowHighWater,
+	type EventFlowOptions,
+	type EventFlowProjectionBundle,
+	type EventFlowProjectionFrame,
+	type EventFlowProjectionOptions,
+	type EventFlowProjectionStatus,
+	type EventFlowRecord,
+	type EventFlowSource,
+	type EventFlowSourceHighWater,
+	type EventFlowSourceInput,
+	type EventFlowSourceRef,
+	type EventFlowStatus,
+	eventFlow,
+	eventFlowProjection,
+} from "./event-flow.js";
+export {
 	type ProfileSummary,
 	type ProfileSummaryNode,
 	profileSummary,
