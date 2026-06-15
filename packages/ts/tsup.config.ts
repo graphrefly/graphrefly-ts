@@ -34,6 +34,7 @@ export default defineConfig({
 		"src/storage/node.ts",
 		"src/storage/browser.ts",
 		"src/testing/index.ts",
+		"src/work-queue/index.ts",
 	],
 	format: ["esm", "cjs"],
 	dts: true,

@@ -14,17 +14,17 @@
  *     pushes ONE change payload (O(1)/mutation). Downstream watches events anytime. It is the
  *     structure's BACKBONE: the snapshot node declares it as its dep (D60 reactiveList topology).
  *
- *   - SNAPSHOT port (D60 #2b) — a pull-mode node ({@link CollectionCore.snapshot}, R-pull/D59) that
- *     is QUIET by default and, on a cone-routed RESUME demand, LAZILY reads `backend.snapshot()`
+ *   - SNAPSHOT port (D60 #2b) — a pull-mode node ({@link CollectionCore.snapshot}, R-pull/D269) that
+ *     is QUIET by default and, on a cone-routed PULL demand, LAZILY reads `backend.snapshot()`
  *     (one O(n) materialization) and pushes it once, then re-quiets. The O(n) build happens ONLY on
  *     demand — never eagerly per mutation (D60 #2b: lazy is P·O(n), not M·O(n)). It has NO value of
  *     its own — its fn reads the backend on demand, so the backend stays the single source of truth
  *     (D60 #3). Coalesce-on-no-change is free: the delta-dep's DIRTY/DATA arms the pull node via
- *     R-pull's quiet-absorb accounting; a demand with no intervening delta is silent (C-16).
+ *     R-pull's quiet-absorb accounting; a demand with no intervening delta emits no duplicate DATA.
  *
- * Demand path: a downstream consumer issues `ctx.upNext([[RESUME, core.pullId]])` (boundary-deferred
- * self-demand, R-up-routing/D59) — it needs the snapshot node upstream in its declared cone, NOT its
- * reference. Cold-start (a demand before any mutation) is silent by substrate coalesce (C-16); for an
+ * Demand path: a downstream consumer issues `ctx.upNext([["PULL", { pullId: core.pullId }]])`
+ * (boundary-deferred self-demand, R-up-routing/D269) — it needs the snapshot node upstream in its
+ * declared cone, NOT its reference. Cold-start (a demand before any mutation) emits no DATA; for an
  * initial/imperative read use the structure's synchronous quick-read (the deliberately-non-reactive
  * peek, D60) — the reactive pull serves the watch-delta-then-demand pattern.
  *
@@ -60,9 +60,9 @@ export interface CollectionCoreOptions {
 export interface CollectionCore<S, C> {
 	/** DELTA backbone (D60 #2a): a bare source; every {@link CollectionCore.emit} pushes one change. */
 	readonly delta: Node<C>;
-	/** SNAPSHOT pull node (D60 #2b): demand via `ctx.upNext([[RESUME, pullId]])`; lazy O(n) on demand. */
+	/** SNAPSHOT pull node (D60 #2b): demand via `ctx.upNext([["PULL", { pullId }]])`; lazy O(n) on demand. */
 	readonly snapshot: Node<S>;
-	/** The snapshot node's pullId — the author writes it verbatim into the demander's fn (D59). */
+	/** The snapshot node's pullId — the author writes it verbatim into the demander's fn (D269). */
 	readonly pullId: symbol;
 	/** Push one delta event (the imperative path: a method mutates the backend, then calls this). */
 	emit(change: C): void;
@@ -83,7 +83,7 @@ export interface ReactiveView<C, S> {
 	readonly delta: Node<C>;
 	/** Derived SNAPSHOT pull node: demand via `pullId` to materialize the current view. */
 	readonly snapshot: Node<S>;
-	/** The snapshot node's pullId (R-pull/D59), minted per view instance. */
+	/** The snapshot node's pullId (R-pull/D269), minted per view instance. */
 	readonly pullId: symbol;
 	/** Release memoized/light-view resources owned by the parent collection. */
 	dispose(): void;
@@ -267,11 +267,14 @@ export function collectionCore<S, C>(
 
 	// SNAPSHOT pull node: dep=[delta] (the backbone arms it via quiet-absorb so coalesce is free,
 	// D60). The fn IGNORES the delta value — it reads `backend.snapshot()` on demand (D60 #3). The
-	// pullId is a unique Symbol (R-pull/D59: matched by identity, zero collision with pause locks).
+	// pullId is a unique Symbol (R-pull/D269: matched by identity, zero collision with pause locks).
 	// `partial:true`: the fn does not need the delta's value, so it must not gate on "all deps
 	// settled" — it fires whenever armed (a mutation since the last delivery).
 	const pullId = Symbol(name ? `${name}.snapshot` : `${factory}.snapshot`);
+	let deliveredVersion = backend.version;
 	const snapFn = (ctx: Ctx): void => {
+		if (ctx.pull !== undefined && backend.version === deliveredVersion) return;
+		deliveredVersion = backend.version;
 		ctx.down([["DATA", backend.snapshot()]]);
 	};
 	const snapshot = graph

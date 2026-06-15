@@ -879,14 +879,14 @@ describe("C-15 a dep's terminal releases its in-wave DIRTY contribution (R-termi
 	});
 });
 
-// C-16 (R-pull / R-up-routing / D55,D59): a pull-mode node (NodeOptions.pullId:<Symbol>) is QUIET by
+// C-16 (R-pull / R-up-routing / D269): a pull-mode node (NodeOptions.pullId:<Symbol>) is QUIET by
 // default — ABSORBS an upstream DIRTY without relaying it (the wedge fix), no push-on-subscribe (START
-// only). A DEMAND = a CONE-ROUTED RESUME of its pullId (R-up-routing release-if-held-else-forward-up;
-// no new message type, no node reference): fires EXACTLY ONE delivery (DIRTY-before-DATA) then re-quiets
-// (1:1); content = pausable mode (true→latest / resumeAll→backlog). A SELF-demand defers via ctx.upNext
+// only). A DEMAND = a cone-routed PULL({pullId, params?}) (demand-if-holder-else-forward-up;
+// no node reference): fires EXACTLY ONE delivery (DIRTY-before-DATA) then re-quiets (1:1);
+// content = pausable mode (true→latest / resumeAll→backlog). A SELF-demand defers via ctx.upNext
 // (R-rewire-deferred); an immediate in-fn demand whose delivery loops back is the D37 feedback cycle.
 // pullId disambiguates siblings; pullId+pausable:false is rejected.
-describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers once then re-quiets (R-pull / R-up-routing / D55,D59)", () => {
+describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers once then re-quiets (R-pull / R-up-routing / D269)", () => {
 	const PSNAP = Symbol("snapshot"); // the author-supplied pullId, shared between the pull node + the demander
 	// SNAP = a pull node over an accumulator ACC, projecting ACC's latest as the "snapshot".
 	const snapFn = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
@@ -911,7 +911,7 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		expect(msgs).toEqual([]); // absorbed — no DIRTY, no DATA relayed → a downstream is NEVER wedged
 	});
 
-	it("(demand true) one routed RESUME(pullId) delivers the coalesced LATEST as DIRTY→DATA, re-quiets (1:1)", () => {
+	it("(demand true) one routed PULL({pullId}) delivers the coalesced LATEST as DIRTY→DATA, re-quiets (1:1)", () => {
 		const acc = node<number>([], null, { initial: 0 });
 		const snap = node<number>([acc], snapFn, { pullId: PSNAP });
 		const { msgs } = collect(snap);
@@ -919,19 +919,21 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		acc.down([["DATA", 1]]);
 		acc.down([["DATA", 2]]); // two changes while quiet → coalesced
 
-		snap.up([["RESUME", PSNAP]]); // DEMAND — a RESUME of the pullId (here direct on SNAP)
+		snap.up([["PULL", { pullId: PSNAP }]]); // DEMAND — direct on SNAP for this unit edge
 		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // DIRTY-before-DATA on the demand wave
 		expect(data(msgs)).toEqual([2]); // the coalesced LATEST (one DATA), not [1,2]
 		msgs.length = 0;
 
-		snap.up([["RESUME", PSNAP]]); // (silent) second demand, no intervening change
-		expect(msgs).toEqual([]); // delivers NOTHING
+		snap.up([["PULL", { pullId: PSNAP }]]); // D278: raw holder invokes even with no intervening change
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(data(msgs)).toEqual([2]);
+		msgs.length = 0;
 
 		acc.down([["DATA", 3]]); // re-quiet held: a further change is again absorbed silently
 		expect(msgs).toEqual([]);
 	});
 
-	it("(demand resumeAll) one RESUME drains the buffered BACKLOG incl. the activation value", () => {
+	it("(demand resumeAll) one PULL drains the buffered BACKLOG incl. the activation value", () => {
 		const acc = node<number>([], null, { initial: 0 });
 		const snap = node<number>([acc], snapFn, { pullId: PSNAP, pausable: "resumeAll" });
 		const { msgs } = collect(snap);
@@ -939,13 +941,14 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		acc.down([["DATA", 1]]);
 		acc.down([["DATA", 2]]);
 
-		snap.up([["RESUME", PSNAP]]); // DEMAND
+		snap.up([["PULL", { pullId: PSNAP }]]); // DEMAND
 		expect(data(msgs)).toEqual([0, 1, 2]); // activation value 0 + the backlog 1,2 (per-entry replay)
 		expect(types(msgs).filter((t) => t === "DIRTY").length).toBeGreaterThan(0); // DIRTY-before-DATA
 		msgs.length = 0;
 
-		snap.up([["RESUME", PSNAP]]); // no change → silent
-		expect(msgs).toEqual([]);
+		snap.up([["PULL", { pullId: PSNAP }]]); // D278: raw holder invokes even with no intervening change
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(data(msgs)).toEqual([2]);
 	});
 
 	it("(reject) pullId + pausable:false throws at construction", () => {
@@ -961,8 +964,8 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 			const snapB = depBatch(ctx, 1);
 			if (snapB) for (const v of snapB) received.push(v as number);
 			const streamB = depBatch(ctx, 0);
-			// boundary-deferred self-demand: a cone-routed RESUME(pullId), NO snap reference held.
-			if (streamB && streamB.length > 0) ctx.upNext([["RESUME", PSNAP]]);
+			// boundary-deferred self-demand: a cone-routed PULL({pullId}), NO snap reference held.
+			if (streamB && streamB.length > 0) ctx.upNext([["PULL", { pullId: PSNAP }]]);
 		};
 		const c = node<number>([stream, snap], cFn, { partial: true });
 		collect(c); // C is NOT wedged by the quiet snapshot
@@ -973,7 +976,7 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		expect(received).toEqual([7]); // got the coalesced latest, no D37, no hang
 	});
 
-	it("(routing: pullId disambiguates siblings) a cone-routed RESUME reaches ONLY the matching holder", () => {
+	it("(routing: pullId disambiguates siblings) a cone-routed PULL reaches ONLY the matching holder", () => {
 		// D → G(non-pull, forwards) → { Fsnap(pullId PF), Hsnap(pullId PH) } ; F,H are pull-over-acc.
 		const PF = Symbol("F");
 		const PH = Symbol("H");
@@ -989,11 +992,11 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		});
 		collect(d);
 
-		d.up([["RESUME", PF]]); // demand F up the cone (D→G→{F,H}); only F (holds PF) fires, H forwards+drops
+		d.up([["PULL", { pullId: PF }]]); // demand F up the cone (D→G→{F,H}); only F (holds PF) fires, H forwards+drops
 		expect(received).toEqual([100]); // F's value, NOT H's 200 — disambiguated by pullId identity
 		received.length = 0;
 
-		d.up([["RESUME", PH]]); // now demand H — the sibling
+		d.up([["PULL", { pullId: PH }]]); // now demand H — the sibling
 		expect(received).toEqual([200]); // only H fires
 	});
 
@@ -1010,11 +1013,11 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		collect(c);
 
 		// directed toward dep 0 (stream) — routes AWAY from snap → snap never reached → silent
-		c.up([["RESUME", PSNAP]], 0);
+		c.up([["PULL", { pullId: PSNAP }]], 0);
 		expect(received).toEqual([]);
 
 		// directed toward dep 1 (snap) — reaches the pull holder → delivers
-		c.up([["RESUME", PSNAP]], 1);
+		c.up([["PULL", { pullId: PSNAP }]], 1);
 		expect(received).toEqual([5]);
 	});
 
@@ -1025,7 +1028,7 @@ describe("C-16 pull-mode node: quiet absorbs DIRTY + cone-routed demand delivers
 		const cFn: NodeFn = (ctx) => {
 			const streamB = depBatch(ctx, 0);
 			// IMMEDIATE (non-deferred) demand: SNAP's delivery loops straight back → re-enters C mid-wave.
-			if (streamB && streamB.length > 0) ctx.up([["RESUME", PSNAP]]);
+			if (streamB && streamB.length > 0) ctx.up([["PULL", { pullId: PSNAP }]]);
 		};
 		const c = node<number>([stream, snap], cFn, { partial: true });
 		collect(c);
@@ -1082,10 +1085,10 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 	});
 });
 
-// C-18 (R-up-routing-diamond / D63): a routed broadcast RESUME over a diamond can reach the same
+// C-18 (R-up-routing-diamond / D63): a routed broadcast PULL over a diamond can reach the same
 // pull holder through multiple upstream paths, but that holder fires at most once for the wave.
 describe("C-18 — routed pull demand over a diamond is holder-idempotent (R-up-routing-diamond / D63)", () => {
-	it("broadcast RESUME over D→G1/G2→SNAP invokes SNAP's demand handler once", () => {
+	it("broadcast PULL over D→G1/G2→SNAP invokes SNAP's demand handler once", () => {
 		const PSNAP = Symbol("snapshot");
 		const acc = node<number>([], null, { initial: 0 });
 		const snap = node<number>([acc], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
@@ -1113,7 +1116,7 @@ describe("C-18 — routed pull demand over a diamond is holder-idempotent (R-up-
 		collect(d);
 
 		acc.down([["DATA", 1]]); // quiet SNAP absorbs the change
-		d.up([["RESUME", PSNAP]]); // D broadcasts through both G1 and G2 to the same holder
+		d.up([["PULL", { pullId: PSNAP }]]); // D broadcasts through both G1 and G2 to the same holder
 
 		expect(demands).toBe(1);
 	});
@@ -1498,7 +1501,7 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 			(ctx) => {
 				const snapB = depBatch(ctx, 1);
 				if (snapB) for (const v of snapB) received.push(v as number);
-				if (depBatch(ctx, 0)) ctx.upNext([["RESUME", pullId]]);
+				if (depBatch(ctx, 0)) ctx.upNext([["PULL", { pullId }]]);
 			},
 			{ partial: true },
 		);

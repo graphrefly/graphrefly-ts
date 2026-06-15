@@ -1,5 +1,5 @@
 /**
- * R-pull (D55) + R-up-routing (D59) — pull-mode node (NodeOptions.pullId:<Symbol>) unit edges beyond
+ * R-pull (D269) + R-up-routing — pull-mode node (NodeOptions.pullId:<Symbol>) unit edges beyond
  * the C-16 conformance scenario: the owed-demand machinery (a demand that can't fire immediately is
  * deferred and fired when able) across its three triggers — pin-5 (a dep DIRTY in flight), F4/F5 (an
  * external PAUSE lock co-holds the node), B1/F6 (an in-flight dep settles via INVALIDATE/terminal) —
@@ -7,7 +7,7 @@
  * first-run-gate guard (QA-B2), and a pull node never push-on-subscribes (QA-B4).
  *
  * Authority: ~/src/graphrefly/spec/rules.jsonl R-pull / R-up-routing / R-pause-modes / R-rewire-deferred
- * (D55, D59). The end-to-end quiet/absorb + cone-routing + reject/defer/immediate matrix is C-16.
+ * (D269/D272). The end-to-end quiet/absorb + cone-routing + reject/defer/immediate matrix is C-16.
  */
 
 import { describe, expect, it } from "vitest";
@@ -25,7 +25,7 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 const snapFn = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 const PID = Symbol("pullId"); // an author-supplied pullId, shared by the node + the demander
 
-describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () => {
+describe("R-pull / R-up-routing (D269/D272) — pull-mode node finer edges", () => {
 	it("pin 5: a demand arriving while a dep DIRTY is in flight is OWED, fires once settle-ready (1:1)", () => {
 		const acc = node<number>([], null, { initial: 0 });
 		const snap = node<number>([acc], snapFn, { pullId: PID });
@@ -34,7 +34,7 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 
 		acc.down([["DIRTY"]]); // phase 1 only — an ACC change in flight, no settle yet (pending>0)
 		expect(msgs).toEqual([]); // absorbed while quiet
-		snap.up([["RESUME", PID]]); // DEMAND while NOT settle-ready → OWED
+		snap.up([["PULL", { pullId: PID }]]); // DEMAND while NOT settle-ready → OWED
 		expect(msgs).toEqual([]); // deferred — nothing delivered yet
 
 		acc.down([["DATA", 5]]); // ACC settles → settle-ready → the owed demand fires
@@ -42,8 +42,9 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 		expect(data(msgs)).toEqual([5]);
 		msgs.length = 0;
 
-		snap.up([["RESUME", PID]]); // re-quieted: a no-change demand is silent
-		expect(msgs).toEqual([]);
+		snap.up([["PULL", { pullId: PID }]]); // D278: raw holder still invokes on no-change
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(data(msgs)).toEqual([5]);
 	});
 
 	it("F4/F5: a demand arriving while the node is EXTERNALLY paused is OWED, fires on external resume", () => {
@@ -55,12 +56,28 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 		acc.down([["DATA", 9]]); // a change coalesced while quiet
 
 		snap.up([["PAUSE", ext]]); // an EXTERNAL party also pauses SNAP (lockset = {pullId, ext})
-		snap.up([["RESUME", PID]]); // DEMAND while externally paused → cannot fire now → OWED
+		snap.up([["PULL", { pullId: PID }]]); // DEMAND while externally paused → cannot fire now → OWED
 		expect(msgs).toEqual([]); // not lost, not fired yet
 
 		snap.up([["RESUME", ext]]); // external resume → the owed demand fires (pull/pause orthogonal)
 		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
 		expect(data(msgs)).toEqual([9]);
+	});
+
+	it("D272: an external PAUSE may use the pullId token without colliding with pull quiet", () => {
+		const acc = node<number>([], null, { initial: 0 });
+		const snap = node<number>([acc], snapFn, { pullId: PID });
+		const { msgs } = collect(snap);
+		msgs.length = 0;
+		acc.down([["DATA", 11]]);
+
+		snap.up([["PAUSE", PID]]);
+		snap.up([["PULL", { pullId: PID }]]);
+		expect(msgs).toEqual([]);
+
+		snap.up([["RESUME", PID]]);
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(data(msgs)).toEqual([11]);
 	});
 
 	it("B1/F6: an owed demand is serviced (not stranded) when the in-flight dep settles via INVALIDATE", () => {
@@ -70,11 +87,11 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 		msgs.length = 0;
 
 		acc.down([["DIRTY"]]); // ACC change in flight (pending>0)
-		snap.up([["RESUME", PID]]); // DEMAND → OWED
+		snap.up([["PULL", { pullId: PID }]]); // DEMAND → OWED
 		acc.down([["INVALIDATE"]]); // ACC's value is GONE — settles pending with NO new value
 		// the owed demand is serviced (silent — no coalesced value) and CLEARED, not stranded:
 		acc.down([["DATA", 8]]); // a fresh ACC value coalesces
-		snap.up([["RESUME", PID]]); // a fresh demand → delivers the new value (node not stuck)
+		snap.up([["PULL", { pullId: PID }]]); // a fresh demand → delivers the new value (node not stuck)
 		expect(data(msgs)).toEqual([8]); // exactly one delivery for the fresh demand (owed one didn't double-fire)
 	});
 
@@ -92,7 +109,7 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 		collect(snap);
 		acc.down([["DATA", 1]]); // coalesced while quiet
 		boom = true;
-		expect(() => snap.up([["RESUME", PID]])).toThrow(/boom/); // demand fires the fn → throws
+		expect(() => snap.up([["PULL", { pullId: PID }]])).toThrow(/boom/); // demand fires the fn → throws
 
 		// the finally re-held the pullId → the node is STILL quiet: a further ACC change is ABSORBED
 		// (the fn does NOT run, so no re-throw). With the bug (pullId left deleted) the node would be
@@ -112,18 +129,51 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 
 		acc.down([["DATA", 9]]); // absorbed (quiet again, the wedge fix survives reactivation)
 		expect(msgs).toEqual([]);
-		snap.up([["RESUME", PID]]); // demand still works after reactivation
+		snap.up([["PULL", { pullId: PID }]]); // demand still works after reactivation
 		expect(data(msgs)).toEqual([9]);
 	});
 
-	it("a cone-routed RESUME whose pullId no node holds is a silent no-op (drops at the source terminus)", () => {
+	it("a cone-routed PULL whose pullId no node holds is a silent no-op (drops at the source terminus)", () => {
 		const src = node<number>([], null, { initial: 1 });
 		const mid = node<number>([src], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
 		const { msgs } = collect(mid);
 		msgs.length = 0;
 		// demand a pullId NO node up the cone holds → forwards up → drops at the depless source. No throw, no emit.
-		expect(() => mid.up([["RESUME", Symbol("nobody")]])).not.toThrow();
+		expect(() => mid.up([["PULL", { pullId: Symbol("nobody") }]])).not.toThrow();
 		expect(msgs).toEqual([]);
+	});
+
+	it("RESUME(pullId) releases only pause locks and does not demand pull delivery", () => {
+		const acc = node<number>([], null, { initial: 0 });
+		const snap = node<number>([acc], snapFn, { pullId: PID });
+		const { msgs } = collect(snap);
+		msgs.length = 0;
+		acc.down([["DATA", 3]]);
+
+		snap.up([["RESUME", PID]]);
+		expect(msgs).toEqual([]);
+
+		snap.up([["PULL", { pullId: PID }]]);
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(data(msgs)).toEqual([3]);
+	});
+
+	it("ctx.pull carries the latest PULL params to the holder", () => {
+		const acc = node<number>([], null, { initial: 0 });
+		const seen: unknown[] = [];
+		const snap = node<number>(
+			[acc],
+			(ctx: Ctx) => {
+				seen.push(ctx.pull?.params);
+				ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+			},
+			{ pullId: PID },
+		);
+		collect(snap);
+		acc.down([["DATA", 4]]);
+
+		snap.up([["PULL", { pullId: PID, params: { limit: 1 } }]]);
+		expect(seen).toEqual([{ limit: 1 }]);
 	});
 
 	it("QA-B2: a demand before a MULTI-dep pull node's first-run gate opens stays SILENT (no dangling DIRTY)", () => {
@@ -138,11 +188,11 @@ describe("R-pull / R-up-routing (D55, D59) — pull-mode node finer edges", () =
 		msgs.length = 0;
 
 		a.down([["DATA", 10]]); // only A delivers while quiet → coalesced, but the gate still needs B
-		snap.up([["RESUME", PID]]); // DEMAND before the gate opens
+		snap.up([["PULL", { pullId: PID }]]); // DEMAND before the gate opens
 		expect(msgs).toEqual([]); // SILENT — no value to deliver, and crucially NO dangling DIRTY (no wedge)
 
 		b.down([["DATA", 5]]); // B delivers → the gate is now open (snap still quiet, coalesces)
-		snap.up([["RESUME", PID]]); // DEMAND now deliverable
+		snap.up([["PULL", { pullId: PID }]]); // DEMAND now deliverable
 		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
 		expect(data(msgs)).toEqual([15]);
 	});

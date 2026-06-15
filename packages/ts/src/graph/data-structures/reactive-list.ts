@@ -4,7 +4,7 @@
  * Shape (D60 + review #2): a mutable array BACKEND (the single materialized state) + the shared
  * {@link collectionCore} two ports — a DELTA stream ({@link ReactiveList.delta}, one event per
  * mutation, O(1)) and a lazy pull SNAPSHOT ({@link ReactiveList.snapshot}, materialized only on a
- * cone-routed RESUME demand). Mutation input is D54 A3 hybrid: ergonomic imperative methods (the
+ * cone-routed PULL demand). Mutation input is D54 A3 hybrid: ergonomic imperative methods (the
  * external boundary, state-verb-legitimate, D4) + `appendFrom(src)` widening (an in-graph producer
  * drives the list with zero imperative glue). Synchronous quick-reads (`at`/`size`/`toArray`) are
  * the deliberately-non-reactive peek for cold/imperative reads (D60).
@@ -34,9 +34,9 @@ export interface ReactiveListOptions extends CollectionCoreOptions {
 export interface ReactiveList<T> {
 	/** DELTA stream: one {@link ListChange} per mutation (O(1)). Subscribe to observe events. */
 	readonly delta: Node<ListChange<T>>;
-	/** SNAPSHOT pull node: demand via `ctx.upNext([[RESUME, pullId]])` → one `readonly T[]` (lazy O(n)). */
+	/** SNAPSHOT pull node: demand via `ctx.upNext([["PULL", { pullId }]])` → one `readonly T[]` (lazy O(n)). */
 	readonly snapshot: Node<readonly T[]>;
-	/** The snapshot node's pullId — write it verbatim into the demander's fn (D59). */
+	/** The snapshot node's pullId — write it verbatim into the demander's fn (D269). */
 	readonly pullId: symbol;
 	/** Current entry count (O(1), synchronous non-reactive read). */
 	readonly size: number;
@@ -150,7 +150,7 @@ class ListBackend<T> {
  * list.delta.subscribe((m) => { if (m[0] === "DATA") console.log("Δ", m[1]); });
  * list.append(2);                 // delta: {kind:"append", value:2}
  * // demand the snapshot (a downstream consumer, holding `list.snapshot` upstream, runs):
- * //   ctx.upNext([["RESUME", list.pullId]]);  → SNAPSHOT delivers [1, 2]
+ * //   ctx.upNext([["PULL", { pullId: list.pullId }]]);  → SNAPSHOT delivers [1, 2]
  * list.toArray();                 // [1, 2]   (synchronous non-reactive read)
  * ```
  */

@@ -1,7 +1,7 @@
 import type { Ctx, Sink } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
-import { type LockId, SENTINEL, type Wave } from "../protocol/messages.js";
+import { type LockId, type PullDemand, SENTINEL, type Wave } from "../protocol/messages.js";
 import type { Node, Status } from "./node.js";
 import type { NodeVersion, ResolvedNodeVersioningPolicy } from "./versioning.js";
 
@@ -50,7 +50,9 @@ export interface ControlState {
 	pauseLockset: Set<unknown>;
 	pausedDepWaveOccurred: boolean;
 	pauseBuffer: Wave[];
-	demandOwed: boolean;
+	demandOwed: PullDemand | undefined;
+	activePull: PullDemand | undefined;
+	pullDirtyOwed: boolean;
 	inDeliverDemand: boolean;
 }
 

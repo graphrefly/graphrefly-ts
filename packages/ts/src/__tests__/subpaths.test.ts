@@ -75,6 +75,7 @@ import * as storageBrowser from "../storage/browser.js";
 import * as storage from "../storage/index.js";
 import * as storageNode from "../storage/node.js";
 import * as testing from "../testing/index.js";
+import * as workQueueModule from "../work-queue/index.js";
 
 const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
 const exportsJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
@@ -116,6 +117,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./storage/browser",
 			"./storage/node",
 			"./testing",
+			"./work-queue",
 		]);
 		expect(exportsJson.exports?.["./base"]).toBeUndefined();
 		expect(exportsJson.exports?.["./compat"]).toBeUndefined();
@@ -248,9 +250,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof messaging.messageBus).toBe("function");
 		expect(typeof messaging.fromTopic).toBe("function");
 		expect(typeof messaging.toTopic).toBe("function");
-		expect(typeof messaging.dynamicHub).toBe("function");
-		expect(typeof messaging.fromHubTopic).toBe("function");
-		expect(typeof messaging.toHubTopic).toBe("function");
+		expect(Object.hasOwn(messaging, "dynamicHub")).toBe(false);
+		expect(Object.hasOwn(messaging, "fromHubTopic")).toBe(false);
+		expect(Object.hasOwn(messaging, "toHubTopic")).toBe(false);
 		expect(messaging.PROMPTS_TOPIC).toBe("prompts");
 		expect(messaging.STANDARD_TOPICS).toEqual([
 			"prompts",
@@ -261,6 +263,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"context",
 			"todos",
 		]);
+		expect(typeof workQueueModule.workQueue).toBe("function");
 		expect(typeof orchestration.retryPolicy).toBe("function");
 		expect(typeof orchestration.retryStatusBundle).toBe("function");
 		expect(typeof orchestration.breakerBundle).toBe("function");

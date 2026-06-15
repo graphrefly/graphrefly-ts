@@ -2,7 +2,7 @@
  * CSP-2.8 reactive data structures (D54/D60) — reactiveList/Map/Index/Log + the shared core.
  *
  * Covers the two-port shape (D60): the always-on DELTA stream (O(1)/mutation) + the lazy pull
- * SNAPSHOT node (materialized only on a cone-routed RESUME demand, R-pull/D59/C-16), the D54
+ * SNAPSHOT node (materialized only on a cone-routed PULL demand, R-pull/D269/C-16), the D54
  * `Node<T>` widening (declared-dep input fold), each structure's specialization (Map lazy-TTL +
  * LRU + delete-reason; Index Z reverse-lookup; Log incremental view/scan + SENTINEL reject +
  * declared-dep merge), and real factory names (D6).
@@ -39,9 +39,9 @@ class CountingDispatcher extends Dispatcher {
 	registerCount = 0;
 }
 
-/** Demand the snapshot directly (the substrate cone-routed RESUME of its pullId, R-pull/D59). */
+/** Demand the snapshot directly (the substrate cone-routed PULL of its pullId, R-pull/D269). */
 function demand(snapshot: Node<unknown>, pullId: symbol): void {
-	snapshot.up([["RESUME", pullId]]);
+	snapshot.up([["PULL", { pullId }]]);
 }
 
 describe("collectionCore two-port shape (D60) via reactiveList", () => {
@@ -106,14 +106,14 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		expect(data(msgs)).toEqual([[1, 2]]);
 	});
 
-	it("demand-on-no-change is SILENT (coalesce, C-16)", () => {
+	it("demand-on-no-change emits no duplicate DATA (collection coalesce)", () => {
 		const list = reactiveList<number>();
 		const { msgs } = collect(list.snapshot);
 		list.append(1);
 		demand(list.snapshot as Node<unknown>, list.pullId);
 		const afterFirst = msgs.length;
 		demand(list.snapshot as Node<unknown>, list.pullId);
-		expect(msgs.length).toBe(afterFirst);
+		expect(types(msgs).slice(afterFirst)).toEqual([]);
 		expect(data(msgs)).toEqual([[1]]);
 	});
 

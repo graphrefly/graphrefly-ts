@@ -158,6 +158,16 @@
 				"default": "./dist/messaging/index.cjs"
 			}
 		},
+		"./work-queue": {
+			"import": {
+				"types": "./dist/work-queue/index.d.ts",
+				"default": "./dist/work-queue/index.js"
+			},
+			"require": {
+				"types": "./dist/work-queue/index.d.cts",
+				"default": "./dist/work-queue/index.cjs"
+			}
+		},
 		"./operators": {
 			"import": {
 				"types": "./dist/operators/index.d.ts",

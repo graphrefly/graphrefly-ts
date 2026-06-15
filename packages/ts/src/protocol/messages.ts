@@ -5,11 +5,17 @@
  *   R-msg-format, R-msg-closed-set, R-tier (D34), R-data-payload, R-sentinel.
  */
 
-/** Opaque pause-lock identifier (R-pause-lockset). */
+/** Opaque pause-lock / pull identifier (R-pause-lockset, R-pull). */
 export type LockId = string | symbol;
 
+/** Explicit pull demand payload (D269/D272). Params are holder-visible context, never DATA-up. */
+export interface PullDemand {
+	readonly pullId: LockId;
+	readonly params?: unknown;
+}
+
 /**
- * The CLOSED set of 10 message types (R-msg-closed-set / D9 + START handshake).
+ * The CLOSED set of 11 message types (R-msg-closed-set / D9 + D269 + START handshake).
  * No open set, no user-defined custom types. Adding a type is a spec change.
  */
 export type Message =
@@ -22,7 +28,8 @@ export type Message =
 	| readonly ["ERROR", unknown]
 	| readonly ["TEARDOWN"]
 	| readonly ["PAUSE", LockId]
-	| readonly ["RESUME", LockId];
+	| readonly ["RESUME", LockId]
+	| readonly ["PULL", PullDemand];
 
 /** One array of messages delivered in one call = one Wave (R-wave-boundary). */
 export type Wave = readonly Message[];
@@ -62,6 +69,7 @@ const TIER: Record<MessageType, number> = {
 	START: TIER_START,
 	PAUSE: TIER_CONTROL,
 	RESUME: TIER_CONTROL,
+	PULL: TIER_CONTROL,
 	DIRTY: TIER_NOTIFICATION,
 	DATA: TIER_VALUE,
 	RESOLVED: TIER_VALUE,
@@ -102,7 +110,7 @@ export function isTerminal(t: MessageType): boolean {
 }
 
 /**
- * ctx.up carries control tiers only (R-ctx-up / DR-5): DIRTY, PAUSE, RESUME,
+ * ctx.up carries control/demand tiers only (R-ctx-up / D269): DIRTY, PAUSE, RESUME, PULL,
  * INVALIDATE, TEARDOWN. DATA/RESOLVED (tier 3) and COMPLETE/ERROR (tier 5) are
  * down-only.
  */
