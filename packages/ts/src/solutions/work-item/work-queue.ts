@@ -212,7 +212,7 @@ function evidenceFromRecord(
 		status,
 		sourceRefs: [...(payload.sourceRefs ?? []), ref("work-queue-record", String(record.recordSeq))],
 		recordedAtMs: record.recordedAtMs,
-		metadata: { queueRecordKind: record.kind, workId: record.workId },
+		metadata: { ...(payload.metadata ?? {}), queueRecordKind: record.kind, workId: record.workId },
 	};
 	if (record.kind === "work-completed" || record.kind === "attempt-completed") {
 		return {

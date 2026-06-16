@@ -24,6 +24,7 @@ export default defineConfig({
 		"src/patterns/index.ts",
 		"src/render/index.ts",
 		"src/solutions/index.ts",
+		"src/solutions/work-item/scheduling.ts",
 		"src/solutions/work-item/work-queue.ts",
 		"src/solutions/reactive-layout/index.ts",
 		"src/solutions/reactive-layout/browser/index.ts",

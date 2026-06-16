@@ -132,6 +132,12 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 				effectRunId: "run-1",
 				status: "completed",
 				output: expect.objectContaining({ kind: "work-queue-completion" }),
+				metadata: expect.objectContaining({
+					executionInputRevision: 3,
+					verificationStepIds: ["step-1"],
+					acceptanceCriterionIds: ["ac-1"],
+					queueRecordKind: "work-completed",
+				}),
 			}),
 			expect.objectContaining({
 				kind: "work-item-evidence-recorded",
@@ -506,6 +512,11 @@ function workItemPayload(): WorkItemQueuedWorkPayload {
 		requestId: "req-1",
 		effectKind: "verify",
 		sourceRefs: [{ kind: "work-item", id: "wi-1" }],
+		metadata: {
+			executionInputRevision: 3,
+			verificationStepIds: ["step-1"],
+			acceptanceCriterionIds: ["ac-1"],
+		},
 	};
 }
 

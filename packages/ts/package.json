@@ -318,6 +318,16 @@
 				"default": "./dist/solutions/work-item/work-queue.cjs"
 			}
 		},
+		"./solutions/work-item/scheduling": {
+			"import": {
+				"types": "./dist/solutions/work-item/scheduling.d.ts",
+				"default": "./dist/solutions/work-item/scheduling.js"
+			},
+			"require": {
+				"types": "./dist/solutions/work-item/scheduling.d.cts",
+				"default": "./dist/solutions/work-item/scheduling.cjs"
+			}
+		},
 		"./solutions/reactive-layout": {
 			"import": {
 				"types": "./dist/solutions/reactive-layout/index.d.ts",
