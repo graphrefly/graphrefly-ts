@@ -1588,6 +1588,120 @@ describe("C-25 — deferred self-boundary tasks require committed + unpaused bou
 	});
 });
 
+// C-26 (R-msg-closed-set / R-tier / R-ctx-up / R-pull / R-up-routing): D269 makes PULL the
+// explicit demand message with holder-visible params; RESUME remains pause-lock release only.
+describe("C-26 — PULL is explicit demand with params; RESUME remains pause-only", () => {
+	it("routes PULL params, drops unknown PULL, rejects DATA-up, and keeps latest owed params", () => {
+		const pullId = Symbol("c26-pull");
+		const acc = node<number>([], null, { initial: 0 });
+		const seen: unknown[] = [];
+		const snap = node<number>(
+			[acc],
+			(ctx) => {
+				seen.push(ctx.pull?.params);
+				ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+			},
+			{ pullId },
+		);
+		const { msgs } = collect(snap);
+		msgs.length = 0;
+
+		acc.down([["DATA", 1]]);
+		snap.up([["PULL", { pullId, params: { cursor: 7, limit: 2 } }]]);
+		expect(seen).toEqual([{ cursor: 7, limit: 2 }]);
+		expect(data(msgs)).toEqual([1]);
+
+		msgs.length = 0;
+		acc.down([["DATA", 2]]);
+		snap.up([["RESUME", pullId]]);
+		expect(msgs).toEqual([]);
+		expect(seen).toHaveLength(1);
+
+		expect(() =>
+			snap.up([["PULL", { pullId: Symbol("missing"), params: { cursor: 9 } }]]),
+		).not.toThrow();
+		expect(msgs).toEqual([]);
+		expect(() => snap.up([["DATA", 3] as Message])).toThrow(/ctx\.up|control|demand|DATA/i);
+
+		acc.down([["DIRTY"]]);
+		snap.up([["PULL", { pullId, params: { cursor: 1 } }]]);
+		snap.up([["PULL", { pullId, params: { cursor: 2 } }]]);
+		acc.down([["DATA", 5]]);
+		expect(seen.at(-1)).toEqual({ cursor: 2 });
+		expect(data(msgs)).toEqual([5]);
+	});
+
+	it("ordinary pause locks still release through RESUME without acting as pull demand", () => {
+		const s = node<number>([], null, { initial: 1 });
+		const n = node<number>([s], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
+		const { msgs } = collect(n);
+		msgs.length = 0;
+		const lock = Symbol("pause");
+
+		n.up([["PAUSE", lock]]);
+		s.down([["DATA", 2]]);
+		expect(msgs).toEqual([["DIRTY"]]);
+		n.up([["RESUME", lock]]);
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(data(msgs)).toEqual([2]);
+	});
+});
+
+// C-27 (R-pull / R-fn-contract / R-ctx-up): no-change PULL reaches the holder; downstream DATA is
+// the helper's ordinary output decision, so params may drive retained output while plain helpers may stay silent.
+describe("C-27 — PULL invokes holder without dep change and params may drive retained output", () => {
+	it("invokes a retained-view holder twice over stable state and lets params change the emitted page", () => {
+		const pullId = Symbol("c27-page");
+		const source = node<readonly number[]>([], null, { initial: [1, 2, 3] });
+		const seen: unknown[] = [];
+		const page = node<readonly number[]>(
+			[source],
+			(ctx) => {
+				seen.push(ctx.pull?.params);
+				const limit = ((ctx.pull?.params as { limit?: number } | undefined)?.limit ?? 3) as number;
+				ctx.down([["DATA", (depLatest(ctx, 0) as readonly number[]).slice(0, limit)]]);
+			},
+			{ pullId },
+		);
+		const { msgs } = collect(page);
+		msgs.length = 0;
+
+		page.up([["PULL", { pullId, params: { limit: 1 } }]]);
+		page.up([["PULL", { pullId, params: { limit: 2 } }]]);
+
+		expect(seen).toEqual([{ limit: 1 }, { limit: 2 }]);
+		expect(data(msgs)).toEqual([[1], [1, 2]]);
+	});
+
+	it("allows a plain helper to invoke on no-change PULL yet emit nothing, and RESUME is negative control", () => {
+		const pullId = Symbol("c27-plain");
+		const source = node<number>([], null, { initial: 10 });
+		const seen: unknown[] = [];
+		const plain = node<number>(
+			[source],
+			(ctx) => {
+				seen.push(ctx.pull?.params);
+				if (ctx.state.get() === "served") return;
+				ctx.state.set("served");
+				ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+			},
+			{ pullId },
+		);
+		const { msgs } = collect(plain);
+		msgs.length = 0;
+
+		plain.up([["PULL", { pullId, params: { limit: 1 } }]]);
+		expect(data(msgs)).toEqual([10]);
+		msgs.length = 0;
+		plain.up([["PULL", { pullId, params: { limit: 2 } }]]);
+		expect(msgs).toEqual([]);
+		plain.up([["RESUME", pullId]]);
+
+		expect(seen).toEqual([{ limit: 1 }, { limit: 2 }]);
+		expect(msgs).toEqual([]);
+	});
+});
+
 describe("QA — synthesized no-emit RESOLVED uses normal timing", () => {
 	it("buffers a sync fn's synthesized RESOLVED while paused in resumeAll mode", () => {
 		const s = node<number>([], null, { initial: 1 });
