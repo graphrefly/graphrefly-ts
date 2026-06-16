@@ -12,6 +12,14 @@ import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 
 export type BoundaryRole = "input" | "output";
+export type BoundaryCapabilityKind = "auth" | "permission" | "config" | "resource";
+
+export interface BoundaryCapabilityRef {
+	id: string;
+	kind: BoundaryCapabilityKind;
+	required: boolean;
+	sourceRefs?: readonly string[];
+}
 
 export interface BaseBoundaryNode {
 	/** Registered graph node id/path. */
@@ -22,6 +30,11 @@ export interface BaseBoundaryNode {
 	type: string;
 	/** Live handle for framework adapters such as useNodeInput/useNodeValue. */
 	node: Node<unknown>;
+	/**
+	 * D348 generic capability refs only. Product/OAuth/config-form semantics stay in trusted
+	 * React/Canvas/product registries and do not affect structural boundary role inference.
+	 */
+	capabilities?: readonly BoundaryCapabilityRef[];
 }
 
 export interface InputBoundaryNode extends BaseBoundaryNode {
@@ -60,11 +73,16 @@ export function boundaryManifest(graph: Graph): BoundaryManifest {
 		for (const entry of snapshot.nodes ?? []) {
 			const node = graph.find(entry.id);
 			if (node === undefined) continue;
+			const capabilities = boundaryCapabilities(entry.meta);
 			const isSource = (entry.deps?.length ?? 0) === 0;
+			const base =
+				capabilities === undefined
+					? { name: entry.id, type: entry.factory, node }
+					: { name: entry.id, type: entry.factory, node, capabilities };
 			if (isSource && isWritableNode(node)) {
-				inputs.push({ name: entry.id, role: "input", type: entry.factory, node });
+				inputs.push({ ...base, role: "input", node });
 			} else if (!consumed.has(entry.id)) {
-				outputs.push({ name: entry.id, role: "output", type: entry.factory, node });
+				outputs.push({ ...base, role: "output" });
 			}
 		}
 	}
@@ -79,4 +97,48 @@ function* walkSnapshots(snapshot: DescribeSnapshot): Generator<DescribeSnapshot>
 
 function isWritableNode(node: Node<unknown>): node is WritableNode<unknown> {
 	return typeof (node as { set?: unknown }).set === "function";
+}
+
+function boundaryCapabilities(
+	meta: Record<string, unknown> | undefined,
+): BoundaryCapabilityRef[] | undefined {
+	const raw = meta?.boundaryCapabilities;
+	if (raw === undefined) return undefined;
+	if (!Array.isArray(raw)) return undefined;
+	const refs: BoundaryCapabilityRef[] = [];
+	for (const item of raw) {
+		const ref = boundaryCapabilityRef(item);
+		if (ref !== undefined) refs.push(ref);
+	}
+	return refs.length === 0 ? undefined : refs;
+}
+
+function boundaryCapabilityRef(value: unknown): BoundaryCapabilityRef | undefined {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+	const record = value as Record<string, unknown>;
+	if (!Object.keys(record).every(isBoundaryCapabilityRefKey)) return undefined;
+	if (typeof record.id !== "string" || !isBoundaryCapabilityKind(record.kind)) return undefined;
+	if (typeof record.required !== "boolean") return undefined;
+	const sourceRefs = stringArray(record.sourceRefs);
+	if (record.sourceRefs !== undefined && sourceRefs === undefined) return undefined;
+	return {
+		id: record.id,
+		kind: record.kind,
+		required: record.required,
+		...(sourceRefs === undefined ? {} : { sourceRefs }),
+	};
+}
+
+function isBoundaryCapabilityKind(value: unknown): value is BoundaryCapabilityKind {
+	return value === "auth" || value === "permission" || value === "config" || value === "resource";
+}
+
+function isBoundaryCapabilityRefKey(value: string): value is keyof BoundaryCapabilityRef {
+	return value === "id" || value === "kind" || value === "required" || value === "sourceRefs";
+}
+
+function stringArray(value: unknown): readonly string[] | undefined {
+	if (value === undefined) return undefined;
+	if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) return undefined;
+	return value;
 }

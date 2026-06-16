@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { nodeWritable } from "../adapters/svelte.js";
 import { graph } from "../graph/index.js";
-import { boundaryManifest } from "../inspection/boundary.js";
+import { type BoundaryCapabilityRef, boundaryManifest } from "../inspection/boundary.js";
 
 describe("D238 framework adapter subpaths", () => {
 	it("derives a framework-neutral boundary manifest from describe topology", () => {
@@ -33,6 +33,72 @@ describe("D238 framework adapter subpaths", () => {
 		expect(manifest.inputs.map((node) => node.name)).toEqual(["child::amount"]);
 		expect(manifest.outputs.map((node) => node.name)).toEqual(["child::total"]);
 		expect(manifest.inputs[0].node).toBe(amount);
+	});
+
+	it("exposes only D348 generic capability refs without changing boundary roles", () => {
+		const g = graph({ name: "capabilities" });
+		const token = g.state("", {
+			name: "token",
+			meta: {
+				boundaryCapabilities: [
+					{ id: "github-oauth", kind: "auth", required: true, sourceRefs: ["github"] },
+					{ id: "repo-scope", kind: "permission", required: false },
+				],
+			},
+		});
+		const total = g.derived([token], (value) => value.length, {
+			name: "total",
+			meta: {
+				boundaryCapabilities: [
+					{ id: "repo-config", kind: "config", required: true },
+					{ id: "bad-widget", kind: "widget", required: true },
+					{ id: "bad-source-refs", kind: "resource", required: true, sourceRefs: [1] },
+				],
+			},
+		});
+
+		const manifest = boundaryManifest(g);
+
+		expect(manifest.inputs.map((node) => node.name)).toEqual(["token"]);
+		expect(manifest.outputs.map((node) => node.name)).toEqual(["total"]);
+		expect(manifest.inputs[0].node).toBe(token);
+		expect(manifest.outputs[0].node).toBe(total);
+		expect(manifest.inputs[0].capabilities).toEqual([
+			{ id: "github-oauth", kind: "auth", required: true, sourceRefs: ["github"] },
+			{ id: "repo-scope", kind: "permission", required: false },
+		]);
+		expect(manifest.outputs[0].capabilities).toEqual([
+			{ id: "repo-config", kind: "config", required: true },
+		]);
+		expectTypeOf(manifest.inputs[0].capabilities).toEqualTypeOf<
+			readonly BoundaryCapabilityRef[] | undefined
+		>();
+	});
+
+	it("does not surface product capability objects as boundary refs", () => {
+		const g = graph({ name: "product-capability" });
+		g.state(0, {
+			name: "amount",
+			meta: {
+				boundaryCapabilities: [
+					{ id: "ok", kind: "resource", required: true },
+					{ id: "oauth-flow", kind: "auth", required: true, provider: "github" },
+					{ id: "config-form", kind: "config", required: true, formSchema: { title: "Repo" } },
+				],
+			},
+		});
+
+		const manifest = boundaryManifest(g);
+
+		expect(manifest.inputs[0].capabilities).toEqual([
+			{ id: "ok", kind: "resource", required: true },
+		]);
+		expect(manifest.inputs[0].capabilities).not.toContainEqual(
+			expect.objectContaining({ id: "oauth-flow" }),
+		);
+		expect(manifest.inputs[0].capabilities).not.toContainEqual(
+			expect.objectContaining({ id: "config-form" }),
+		);
 	});
 
 	it("does not write undefined as ordinary DATA through writable helpers", () => {

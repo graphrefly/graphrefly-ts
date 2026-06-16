@@ -70,6 +70,7 @@ import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
 import * as reactiveLayoutNodeCanvas from "../solutions/reactive-layout/node-canvas/index.js";
 import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-native/index.js";
 import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
+import * as workItemActions from "../solutions/work-item/actions.js";
 import * as workItemScheduling from "../solutions/work-item/scheduling.js";
 import * as workItemWorkQueueRecipe from "../solutions/work-item/work-queue.js";
 import * as sourcesBrowser from "../sources/browser.js";
@@ -116,6 +117,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./solutions/reactive-layout/node-canvas",
 			"./solutions/reactive-layout/react-native",
 			"./solutions/reactive-layout/skia",
+			"./solutions/work-item/actions",
 			"./solutions/work-item/scheduling",
 			"./solutions/work-item/work-queue",
 			"./sources",
@@ -278,11 +280,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"todos",
 		]);
 		expect(typeof workQueueModule.workQueue).toBe("function");
+		expect(typeof workItemActions.workItemDomainActionProposalIntakeProjector).toBe("function");
+		expect(typeof workItemActions.workItemDomainActionAdmissionProjector).toBe("function");
+		expect(typeof workItemActions.workItemDomainActionApplicationProjector).toBe("function");
 		expect(typeof workItemScheduling.workItemAuthoringProjector).toBe("function");
 		expect(typeof workItemScheduling.workItemVerificationRequestLowerer).toBe("function");
 		expect(typeof workItemScheduling.workItemVerificationResultMapper).toBe("function");
 		expect(typeof workItemScheduling.workItemCreatedFromDraft).toBe("function");
 		expect(Object.hasOwn(solutions, "workItemAuthoringProjector")).toBe(false);
+		expect(Object.hasOwn(solutions, "workItemDomainActionApplicationProjector")).toBe(false);
 		expect(typeof workItemWorkQueueRecipe.workItemWorkQueueRecipe).toBe("function");
 		expect(typeof workItemWorkQueueRecipe.workItemSubmitCommand).toBe("function");
 		expect(typeof executorWorkQueueRecipe.executorWorkQueueRecipe).toBe("function");
