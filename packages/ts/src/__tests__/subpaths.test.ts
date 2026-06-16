@@ -296,6 +296,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof workItemActions.workItemDomainActionAdmissionProjector).toBe("function");
 		expect(typeof workItemActions.workItemDomainActionApplicationProjector).toBe("function");
 		expect(typeof workItemScheduling.workItemAuthoringProjector).toBe("function");
+		expect(typeof workItemScheduling.workItemEffectPlanProjector).toBe("function");
 		expect(typeof workItemScheduling.workItemVerificationRequestLowerer).toBe("function");
 		expect(typeof workItemScheduling.workItemVerificationResultMapper).toBe("function");
 		expect(typeof workItemScheduling.workItemCreatedFromDraft).toBe("function");
@@ -317,6 +318,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(orchestration, "orchestrationMessagingRecipe")).toBe(false);
 		expect(Object.hasOwn(orchestration, "orchestrationWorkQueueRecipe")).toBe(false);
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
+		expect(typeof solutions.capabilityAdmissionProjector).toBe("function");
+		expect(typeof solutions.capabilityAdmissionProposal).toBe("function");
 		expect(Object.hasOwn(solutions, "workItemWorkQueueRecipe")).toBe(false);
 		expect(typeof solutions.reactiveLayout).toBe("function");
 		expect(typeof solutions.reactiveBlockLayout).toBe("function");

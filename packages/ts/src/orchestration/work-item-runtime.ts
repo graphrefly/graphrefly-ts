@@ -33,6 +33,9 @@ export interface WorkItemEffectRequested<TInput = unknown> {
 	readonly workItemId: string;
 	readonly effectRunId: string;
 	readonly effectKind: string;
+	readonly executionInputRevision?: number;
+	readonly planId?: string;
+	readonly planMemberId?: string;
 	readonly sourceRefs?: readonly SourceRef[];
 	readonly goal: EffectRunGoal<TInput>;
 	readonly agentRunId?: string;

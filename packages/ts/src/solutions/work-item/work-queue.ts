@@ -29,6 +29,9 @@ export interface WorkItemQueuedWorkPayload {
 	readonly effectRunId: string;
 	readonly requestId: string;
 	readonly effectKind: string;
+	readonly executionInputRevision?: number;
+	readonly planId?: string;
+	readonly planMemberId?: string;
 	readonly requestedActionKind?: string;
 	readonly sourceEventId?: string;
 	readonly sourceDecisionId?: string;
@@ -177,6 +180,9 @@ export function workItemSubmitCommand(
 		effectRunId: request.effectRunId,
 		requestId: request.requestId,
 		effectKind: request.effectKind,
+		executionInputRevision: request.executionInputRevision,
+		planId: request.planId,
+		planMemberId: request.planMemberId,
 		policyRefs: request.policyRefs,
 		sourceRefs: request.sourceRefs,
 		idempotencyKey: request.idempotencyKey,
@@ -212,7 +218,16 @@ function evidenceFromRecord(
 		status,
 		sourceRefs: [...(payload.sourceRefs ?? []), ref("work-queue-record", String(record.recordSeq))],
 		recordedAtMs: record.recordedAtMs,
-		metadata: { ...(payload.metadata ?? {}), queueRecordKind: record.kind, workId: record.workId },
+		metadata: {
+			...(payload.metadata ?? {}),
+			...(payload.executionInputRevision === undefined
+				? {}
+				: { executionInputRevision: payload.executionInputRevision }),
+			...(payload.planId === undefined ? {} : { planId: payload.planId }),
+			...(payload.planMemberId === undefined ? {} : { planMemberId: payload.planMemberId }),
+			queueRecordKind: record.kind,
+			workId: record.workId,
+		},
 	};
 	if (record.kind === "work-completed" || record.kind === "attempt-completed") {
 		return {

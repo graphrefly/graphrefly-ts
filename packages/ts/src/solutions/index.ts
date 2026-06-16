@@ -84,6 +84,20 @@ export {
 } from "./agentic-memory.js";
 
 export {
+	type CapabilityAdmission,
+	type CapabilityAdmissionBundle,
+	type CapabilityAdmissionDecision,
+	type CapabilityAdmissionOutcome,
+	type CapabilityAdmissionPolicy,
+	type CapabilityAdmissionProposal,
+	type CapabilityAdmissionState,
+	type CapabilityAdmissionStatus,
+	type CapabilityAdmissionViews,
+	capabilityAdmissionProjector,
+	capabilityAdmissionProposal,
+} from "./capability-admission.js";
+
+export {
 	analyzeAndMeasure,
 	type BaseContentBlock,
 	BLOCKS_MEASUREMENT_KIND,
