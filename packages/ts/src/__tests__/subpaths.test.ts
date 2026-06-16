@@ -11,6 +11,8 @@ import * as vueAdapters from "../adapters/vue.js";
 import * as composition from "../composition/index.js";
 import * as core from "../core/index.js";
 import * as cqrs from "../cqrs/index.js";
+import * as cqrsMessagingRecipe from "../cqrs/messaging.js";
+import * as cqrsWorkQueueRecipe from "../cqrs/work-queue.js";
 import type { DataIssue, DataResult } from "../data/index.js";
 import * as data from "../data/index.js";
 import type {
@@ -60,6 +62,8 @@ import * as boundaryInspection from "../inspection/boundary.js";
 import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
 import * as orchestration from "../orchestration/index.js";
+import * as orchestrationMessagingRecipe from "../orchestration/messaging.js";
+import * as orchestrationWorkQueueRecipe from "../orchestration/work-queue.js";
 import * as eventFlowPatterns from "../patterns/event-flow.js";
 import * as patterns from "../patterns/index.js";
 import * as render from "../render/index.js";
@@ -100,6 +104,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./composition",
 			"./core",
 			"./cqrs",
+			"./cqrs/messaging",
+			"./cqrs/work-queue",
 			"./data",
 			"./data-structures",
 			"./executors/work-queue",
@@ -108,6 +114,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./messaging",
 			"./operators",
 			"./orchestration",
+			"./orchestration/messaging",
+			"./orchestration/work-queue",
 			"./patterns",
 			"./patterns/event-flow",
 			"./render",
@@ -261,6 +269,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof cqrs.cqrsCommandHandler).toBe("function");
 		expect(typeof cqrs.cqrsProjection).toBe("function");
 		expect(Object.hasOwn(cqrs, "dedupeReducer")).toBe(false);
+		expect(typeof cqrsMessagingRecipe.cqrsMessagingRecipe).toBe("function");
+		expect(typeof cqrsWorkQueueRecipe.cqrsWorkQueueRecipe).toBe("function");
+		expect(Object.hasOwn(cqrs, "cqrsMessagingRecipe")).toBe(false);
+		expect(Object.hasOwn(cqrs, "cqrsWorkQueueRecipe")).toBe(false);
 		expect(typeof messaging.messageBus).toBe("function");
 		expect(typeof messaging.eventMessage).toBe("function");
 		expect(typeof messaging.isEventMessage).toBe("function");
@@ -300,6 +312,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.processEffectRunner).toBe("function");
 		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
+		expect(typeof orchestrationMessagingRecipe.orchestrationMessagingRecipe).toBe("function");
+		expect(typeof orchestrationWorkQueueRecipe.orchestrationWorkQueueRecipe).toBe("function");
+		expect(Object.hasOwn(orchestration, "orchestrationMessagingRecipe")).toBe(false);
+		expect(Object.hasOwn(orchestration, "orchestrationWorkQueueRecipe")).toBe(false);
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
 		expect(Object.hasOwn(solutions, "workItemWorkQueueRecipe")).toBe(false);
 		expect(typeof solutions.reactiveLayout).toBe("function");

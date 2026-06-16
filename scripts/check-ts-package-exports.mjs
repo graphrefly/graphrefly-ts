@@ -47,7 +47,11 @@ const expectedSubpaths = {
 		absent: [],
 	},
 	"./adapters/svelte": { present: ["nodeReadable", "nodeWritable", "nodeRecord"], absent: [] },
+	"./cqrs/messaging": { present: ["cqrsMessagingRecipe"], absent: [] },
+	"./cqrs/work-queue": { present: ["cqrsWorkQueueRecipe"], absent: [] },
 	"./inspection/boundary": { present: ["boundaryManifest"], absent: [] },
+	"./orchestration/messaging": { present: ["orchestrationMessagingRecipe"], absent: [] },
+	"./orchestration/work-queue": { present: ["orchestrationWorkQueueRecipe"], absent: [] },
 };
 
 const forbiddenFrameworkSpecifiers = [

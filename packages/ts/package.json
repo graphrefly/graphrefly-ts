@@ -98,6 +98,26 @@
 				"default": "./dist/cqrs/index.cjs"
 			}
 		},
+		"./cqrs/messaging": {
+			"import": {
+				"types": "./dist/cqrs/messaging.d.ts",
+				"default": "./dist/cqrs/messaging.js"
+			},
+			"require": {
+				"types": "./dist/cqrs/messaging.d.cts",
+				"default": "./dist/cqrs/messaging.cjs"
+			}
+		},
+		"./cqrs/work-queue": {
+			"import": {
+				"types": "./dist/cqrs/work-queue.d.ts",
+				"default": "./dist/cqrs/work-queue.js"
+			},
+			"require": {
+				"types": "./dist/cqrs/work-queue.d.cts",
+				"default": "./dist/cqrs/work-queue.cjs"
+			}
+		},
 		"./data": {
 			"import": {
 				"types": "./dist/data/index.d.ts",
@@ -196,6 +216,26 @@
 			"require": {
 				"types": "./dist/orchestration/index.d.cts",
 				"default": "./dist/orchestration/index.cjs"
+			}
+		},
+		"./orchestration/messaging": {
+			"import": {
+				"types": "./dist/orchestration/messaging.d.ts",
+				"default": "./dist/orchestration/messaging.js"
+			},
+			"require": {
+				"types": "./dist/orchestration/messaging.d.cts",
+				"default": "./dist/orchestration/messaging.cjs"
+			}
+		},
+		"./orchestration/work-queue": {
+			"import": {
+				"types": "./dist/orchestration/work-queue.d.ts",
+				"default": "./dist/orchestration/work-queue.js"
+			},
+			"require": {
+				"types": "./dist/orchestration/work-queue.d.cts",
+				"default": "./dist/orchestration/work-queue.cjs"
 			}
 		},
 		"./patterns": {
