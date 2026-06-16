@@ -19,6 +19,7 @@ import type {
 	ViewCachePolicy as DataStructuresViewCachePolicy,
 } from "../data-structures/index.js";
 import * as dataStructures from "../data-structures/index.js";
+import * as executorWorkQueueRecipe from "../executors/work-queue.js";
 import * as graphLayer from "../graph/index.js";
 import type {
 	AgenticMemoryBundleOptions,
@@ -69,6 +70,7 @@ import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
 import * as reactiveLayoutNodeCanvas from "../solutions/reactive-layout/node-canvas/index.js";
 import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-native/index.js";
 import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
+import * as workItemWorkQueueRecipe from "../solutions/work-item/work-queue.js";
 import * as sourcesBrowser from "../sources/browser.js";
 import * as sources from "../sources/index.js";
 import * as sourcesNode from "../sources/node.js";
@@ -98,6 +100,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./cqrs",
 			"./data",
 			"./data-structures",
+			"./executors/work-queue",
 			"./graph",
 			"./inspection/boundary",
 			"./messaging",
@@ -112,6 +115,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./solutions/reactive-layout/node-canvas",
 			"./solutions/reactive-layout/react-native",
 			"./solutions/reactive-layout/skia",
+			"./solutions/work-item/work-queue",
 			"./sources",
 			"./sources/browser",
 			"./sources/node",
@@ -272,6 +276,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"todos",
 		]);
 		expect(typeof workQueueModule.workQueue).toBe("function");
+		expect(typeof workItemWorkQueueRecipe.workItemWorkQueueRecipe).toBe("function");
+		expect(typeof workItemWorkQueueRecipe.workItemSubmitCommand).toBe("function");
+		expect(typeof executorWorkQueueRecipe.executorWorkQueueRecipe).toBe("function");
+		expect(typeof executorWorkQueueRecipe.executorSubmitCommand).toBe("function");
 		expect(typeof orchestration.retryPolicy).toBe("function");
 		expect(typeof orchestration.retryStatusBundle).toBe("function");
 		expect(typeof orchestration.breakerBundle).toBe("function");
@@ -280,6 +288,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
+		expect(Object.hasOwn(solutions, "workItemWorkQueueRecipe")).toBe(false);
 		expect(typeof solutions.reactiveLayout).toBe("function");
 		expect(typeof solutions.reactiveBlockLayout).toBe("function");
 		expect(typeof solutions.reactiveFlowLayout).toBe("function");

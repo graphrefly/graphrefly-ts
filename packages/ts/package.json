@@ -138,6 +138,16 @@
 				"default": "./dist/graph/index.cjs"
 			}
 		},
+		"./executors/work-queue": {
+			"import": {
+				"types": "./dist/executors/work-queue.d.ts",
+				"default": "./dist/executors/work-queue.js"
+			},
+			"require": {
+				"types": "./dist/executors/work-queue.d.cts",
+				"default": "./dist/executors/work-queue.cjs"
+			}
+		},
 		"./inspection/boundary": {
 			"import": {
 				"types": "./dist/inspection/boundary.d.ts",
@@ -296,6 +306,16 @@
 			"require": {
 				"types": "./dist/solutions/index.d.cts",
 				"default": "./dist/solutions/index.cjs"
+			}
+		},
+		"./solutions/work-item/work-queue": {
+			"import": {
+				"types": "./dist/solutions/work-item/work-queue.d.ts",
+				"default": "./dist/solutions/work-item/work-queue.js"
+			},
+			"require": {
+				"types": "./dist/solutions/work-item/work-queue.d.cts",
+				"default": "./dist/solutions/work-item/work-queue.cjs"
 			}
 		},
 		"./solutions/reactive-layout": {
