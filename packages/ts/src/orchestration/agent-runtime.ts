@@ -1,7 +1,14 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
+import {
+	PolicyInputs,
+	type PolicyReader,
+	selectRetentionVictims,
+	trimHeadOverflow,
+} from "../graph/policies/collection.js";
+import type { CapacityPolicy, ReactiveOpt, RetentionPolicy } from "../graph/policies/types.js";
+import { Node } from "../node/node.js";
 
 export interface SourceRef {
 	readonly kind: string;
@@ -681,6 +688,7 @@ export interface ToolProviderAdapterRunStatus {
 		| "missing-input"
 		| "stale-request"
 		| "mismatched-request"
+		| "retention-gap"
 		| "started"
 		| ExecutorOutcomeStatus;
 	readonly attempt?: number;
@@ -702,6 +710,134 @@ export interface ToolProviderPublicTextPolicy {
 	readonly maxSummaryChars?: number;
 	readonly maxReasonChars?: number;
 	readonly maxMetadataStringChars?: number;
+}
+
+export type ToolProviderAdapterRuntimeRetentionIndex =
+	| "adapterInputs"
+	| "runRequests"
+	| "executions"
+	| "runStatuses"
+	| "runIssues"
+	| "retentionEvidence";
+
+export type ToolProviderAdapterRuntimeRetentionOrder = "fifo";
+
+export interface ToolProviderAdapterInputRetentionEntry {
+	readonly key: string;
+	readonly sequence: number;
+	readonly insertedAtMs?: number;
+	readonly adapterInputId: string;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId?: string;
+	readonly providerId?: string;
+	readonly executorId?: string;
+	readonly profileId?: string;
+	readonly status?: ToolProviderAdapterInputStatus;
+}
+
+export interface ToolProviderAdapterRunRequestRetentionEntry {
+	readonly key: string;
+	readonly sequence: number;
+	readonly requestedAtMs?: number;
+	readonly adapterInputId: string;
+	readonly runId: string;
+	readonly attempt: number;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId?: string;
+	readonly providerId?: string;
+	readonly executorId?: string;
+	readonly profileId?: string;
+	readonly reason?: ToolProviderAdapterRunReason;
+}
+
+export interface ToolProviderAdapterExecutionRetentionEntry {
+	readonly key: string;
+	readonly sequence: number;
+	readonly occurredAtMs?: number;
+	readonly adapterInputId: string;
+	readonly runId: string;
+	readonly attempt: number;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId?: string;
+	readonly providerId?: string;
+	readonly executorId?: string;
+	readonly profileId?: string;
+	readonly outcomeId?: string;
+	readonly status?: ExecutorOutcomeStatus | "started";
+	readonly reason?: ToolProviderAdapterRunReason;
+}
+
+export interface ToolProviderAdapterRunStatusRetentionEntry {
+	readonly key: string;
+	readonly sequence: number;
+	readonly occurredAtMs?: number;
+	readonly adapterInputId: string;
+	readonly runId: string;
+	readonly attempt?: number;
+	readonly requestId?: string;
+	readonly operationId?: string;
+	readonly status: ToolProviderAdapterRunStatus["status"];
+	readonly outcomeId?: string;
+	readonly issueCode?: string;
+}
+
+export interface ToolProviderAdapterRunIssueRetentionEntry {
+	readonly key: string;
+	readonly sequence: number;
+	readonly occurredAtMs?: number;
+	readonly adapterInputId?: string;
+	readonly runId?: string;
+	readonly attempt?: number;
+	readonly requestId?: string;
+	readonly operationId?: string;
+	readonly issueCode: string;
+	readonly severity?: DataIssue["severity"];
+	readonly subjectId?: string;
+}
+
+export interface ToolProviderAdapterRuntimeRetentionEvidenceEntry {
+	readonly key: string;
+	readonly sequence: number;
+	readonly occurredAtMs?: number;
+	readonly adapterInputId: string;
+	readonly evidenceKind: "adapter-input-trimmed" | "execution-high-water";
+	readonly attemptHighWater?: number;
+	readonly reason: "adapter-input-retention" | "execution-proof-retention";
+}
+
+export type ToolProviderAdapterRuntimeIndexRetentionPolicy<Entry> =
+	| CapacityPolicy<ToolProviderAdapterRuntimeRetentionOrder>
+	| (RetentionPolicy<Entry> & { readonly maxSize: ReactiveOpt<number> });
+
+export interface ToolProviderAdapterRuntimeRetentionPolicy {
+	readonly adapterInputs?: ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterInputRetentionEntry>;
+	readonly runRequests?: ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterRunRequestRetentionEntry>;
+	readonly executions?: ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterExecutionRetentionEntry>;
+	readonly runStatuses?: ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterRunStatusRetentionEntry>;
+	readonly runIssues?: ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterRunIssueRetentionEntry>;
+	readonly retentionEvidence?: ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterRuntimeRetentionEvidenceEntry>;
+}
+
+export type ToolProviderAdapterRuntimeStatusKind =
+	| "retention-trimmed"
+	| "retention-gap"
+	| "invalid-retention-policy";
+
+export interface ToolProviderAdapterRuntimeStatus {
+	readonly kind: "tool-provider-adapter-runtime-status";
+	readonly status: ToolProviderAdapterRuntimeStatusKind;
+	readonly index?: ToolProviderAdapterRuntimeRetentionIndex;
+	readonly key?: string;
+	readonly adapterInputId?: string;
+	readonly runId?: string;
+	readonly attempt?: number;
+	readonly issueCode?: string;
+	readonly occurredAtMs?: number;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
 }
 
 /**
@@ -726,7 +862,7 @@ export interface ToolProviderAdapterRuntimeOptions<TArguments = unknown, TResult
 		| readonly ToolProviderAdapterBinding<TArguments, TResult>[]
 		| ReadonlyMap<string, ToolProviderAdapterBinding<TArguments, TResult>>;
 	readonly autoRunReadyInputs?: boolean;
-	readonly dedupeKey?: (input: ToolProviderAdapterInput<TArguments>) => string;
+	readonly retention?: ToolProviderAdapterRuntimeRetentionPolicy;
 	readonly now?: () => number;
 	readonly publicText?: ToolProviderPublicTextPolicy;
 }
@@ -734,6 +870,7 @@ export interface ToolProviderAdapterRuntimeOptions<TArguments = unknown, TResult
 export interface ToolProviderAdapterRuntimeHandle {
 	readonly runRequests: Node<ToolProviderAdapterRunRequested>;
 	readonly runStatus: Node<ToolProviderAdapterRunStatus>;
+	readonly runtimeStatus: Node<ToolProviderAdapterRuntimeStatus>;
 	readonly outcomes: Node<ExecutorOutcome>;
 	readonly status: Node<AgentRequestStatusChanged>;
 	readonly issues: Node<DataIssue>;
@@ -1844,6 +1981,20 @@ export function toolProviderAdapterRunProjector(
 		readonly now?: () => number;
 	},
 ): ToolProviderAdapterRunBundle {
+	return toolProviderAdapterRunProjectorInternal(graph, opts);
+}
+
+function toolProviderAdapterRunProjectorInternal(
+	graph: Graph,
+	opts: {
+		readonly name?: string;
+		readonly inputs: Node<ToolProviderAdapterInput>;
+		readonly runRequests?: readonly Node<ToolProviderAdapterRunRequested>[];
+		readonly autoRunReadyInputs?: boolean;
+		readonly now?: () => number;
+		readonly privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks;
+	},
+): ToolProviderAdapterRunBundle {
 	const name = opts.name ?? "toolProviderAdapterRun";
 	const explicitRunDeps = opts.runRequests ?? [];
 	const autoRunReadyInputs = opts.autoRunReadyInputs ?? true;
@@ -1860,6 +2011,12 @@ export function toolProviderAdapterRunProjector(
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const input = raw as ToolProviderAdapterInput;
 				state.inputs.set(input.adapterInputId, input);
+				opts.privateRetentionHooks?.onAdapterInputKey?.({
+					adapterInputId: input.adapterInputId,
+					dropInput: () => {
+						state.inputs.delete(input.adapterInputId);
+					},
+				});
 				if (input.status !== "ready") continue;
 				if (autoRunReadyInputs) {
 					emitRunRequested(
@@ -1868,6 +2025,7 @@ export function toolProviderAdapterRunProjector(
 						requestToolProviderAdapterRun(input, {
 							requestedAtMs: opts.now?.(),
 						}),
+						opts.privateRetentionHooks,
 					);
 				} else if (explicitRunDeps.length === 0) {
 					emitRunIssue(
@@ -1877,17 +2035,23 @@ export function toolProviderAdapterRunProjector(
 						"Ready tool provider adapter input has no visible run request.",
 						input.adapterInputId,
 						[ref("tool-provider-adapter-input", input.adapterInputId)],
+						opts.privateRetentionHooks,
 					);
-					emitRunStatus(ctx, state, {
-						kind: "tool-provider-adapter-run-status",
-						runId: defaultToolProviderAdapterRunId(input.adapterInputId, 1, input),
-						adapterInputId: input.adapterInputId,
-						requestId: input.requestId,
-						operationId: input.operationId,
-						status: "missing-request",
-						attempt: 1,
-						sourceRefs: [ref("tool-provider-adapter-input", input.adapterInputId)],
-					});
+					emitRunStatus(
+						ctx,
+						state,
+						{
+							kind: "tool-provider-adapter-run-status",
+							runId: defaultToolProviderAdapterRunId(input.adapterInputId, 1, input),
+							adapterInputId: input.adapterInputId,
+							requestId: input.requestId,
+							operationId: input.operationId,
+							status: "missing-request",
+							attempt: 1,
+							sourceRefs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+						},
+						opts.privateRetentionHooks,
+					);
 				}
 			}
 			forEachDepBatch(ctx, 1, explicitRunDeps.length, (raw) => {
@@ -1901,23 +2065,32 @@ export function toolProviderAdapterRunProjector(
 							refs: [ref("tool-provider-adapter-run", request.runId)],
 						},
 					);
-					emitRunIssueFact(ctx, state, issue);
-					emitRunStatus(ctx, state, {
-						kind: "tool-provider-adapter-run-status",
-						runId: request.runId,
-						adapterInputId: request.adapterInputId,
-						requestId: request.requestId,
-						operationId: request.operationId,
-						status: "mismatched-request",
-						attempt: request.attempt,
-						issues: [issue],
-						sourceRefs: request.sourceRefs,
-					});
+					emitRunIssueFact(ctx, state, issue, opts.privateRetentionHooks);
+					emitRunStatus(
+						ctx,
+						state,
+						{
+							kind: "tool-provider-adapter-run-status",
+							runId: request.runId,
+							adapterInputId: request.adapterInputId,
+							requestId: request.requestId,
+							operationId: request.operationId,
+							status: "mismatched-request",
+							attempt: request.attempt,
+							issues: [issue],
+							sourceRefs: request.sourceRefs,
+						},
+						opts.privateRetentionHooks,
+					);
 					return;
 				}
 				const request = raw;
 				const input = state.inputs.get(request.adapterInputId);
 				if (input === undefined) {
+					if (opts.privateRetentionHooks?.shouldForwardRetainedRunRequest?.(request) === true) {
+						emitRunRequested(ctx, state, request, opts.privateRetentionHooks);
+						return;
+					}
 					const issue = dataIssue(
 						"tool-provider-adapter-run-request-missing-input",
 						"Tool provider adapter run request references an unknown adapter input.",
@@ -1929,18 +2102,23 @@ export function toolProviderAdapterRunProjector(
 							]),
 						},
 					);
-					emitRunIssueFact(ctx, state, issue);
-					emitRunStatus(ctx, state, {
-						kind: "tool-provider-adapter-run-status",
-						runId: request.runId,
-						adapterInputId: request.adapterInputId,
-						requestId: request.requestId,
-						operationId: request.operationId,
-						status: "missing-input",
-						attempt: request.attempt,
-						issues: [issue],
-						sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
-					});
+					emitRunIssueFact(ctx, state, issue, opts.privateRetentionHooks);
+					emitRunStatus(
+						ctx,
+						state,
+						{
+							kind: "tool-provider-adapter-run-status",
+							runId: request.runId,
+							adapterInputId: request.adapterInputId,
+							requestId: request.requestId,
+							operationId: request.operationId,
+							status: "missing-input",
+							attempt: request.attempt,
+							issues: [issue],
+							sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
+						},
+						opts.privateRetentionHooks,
+					);
 					return;
 				}
 				const issues = runRequestIdentityIssues(request, input);
@@ -1958,24 +2136,35 @@ export function toolProviderAdapterRunProjector(
 					);
 				}
 				if (issues.length > 0) {
-					for (const issue of issues) emitRunIssueFact(ctx, state, issue);
-					emitRunStatus(ctx, state, {
-						kind: "tool-provider-adapter-run-status",
-						runId: request.runId,
-						adapterInputId: request.adapterInputId,
-						requestId: request.requestId,
-						operationId: request.operationId,
-						status: "mismatched-request",
-						attempt: request.attempt,
-						issues: Object.freeze(issues),
-						sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
-					});
+					for (const issue of issues)
+						emitRunIssueFact(ctx, state, issue, opts.privateRetentionHooks);
+					emitRunStatus(
+						ctx,
+						state,
+						{
+							kind: "tool-provider-adapter-run-status",
+							runId: request.runId,
+							adapterInputId: request.adapterInputId,
+							requestId: request.requestId,
+							operationId: request.operationId,
+							status: "mismatched-request",
+							attempt: request.attempt,
+							issues: Object.freeze(issues),
+							sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
+						},
+						opts.privateRetentionHooks,
+					);
 					emitRunAudit(ctx, state, "tool-provider-adapter-run-request-rejected", request, {
 						issueCodes: issues.map((issue) => issue.code),
 					});
 					return;
 				}
-				emitRunRequested(ctx, state, sanitizeToolProviderAdapterRunRequest(request, input));
+				emitRunRequested(
+					ctx,
+					state,
+					sanitizeToolProviderAdapterRunRequest(request, input),
+					opts.privateRetentionHooks,
+				);
 			});
 			ctx.state.set(state);
 		},
@@ -2081,8 +2270,406 @@ function defaultToolProviderAdapterEvidenceRefs(
 	]);
 }
 
-function defaultToolProviderAdapterRuntimeDedupeKey(input: ToolProviderAdapterInput): string {
-	return `${input.adapterInputId}:${stableJsonStringify(input)}`;
+type RuntimeRetentionMode = "fifo" | "score";
+
+interface RuntimeRetentionIndexConfig {
+	readonly maxSize?: number;
+	readonly mode: RuntimeRetentionMode;
+}
+
+interface RuntimeRetentionPolicyFact {
+	readonly kind: "tool-provider-adapter-runtime-retention-policy";
+	readonly policies: ReadonlyMap<
+		ToolProviderAdapterRuntimeRetentionIndex,
+		RuntimeRetentionIndexConfig
+	>;
+	readonly issues?: readonly DataIssue[];
+}
+
+interface RuntimeRetentionPolicyReaders {
+	readonly inputs: PolicyInputs;
+	readonly readers: ReadonlyMap<ToolProviderAdapterRuntimeRetentionIndex, PolicyReader<number>>;
+	readonly statics: ReadonlyMap<ToolProviderAdapterRuntimeRetentionIndex, number | undefined>;
+}
+
+type EffectiveRuntimeRetentionPolicy = Partial<{
+	readonly adapterInputs: RuntimeRetentionIndexConfig;
+	readonly runRequests: RuntimeRetentionIndexConfig;
+	readonly executions: RuntimeRetentionIndexConfig;
+	readonly runStatuses: RuntimeRetentionIndexConfig;
+	readonly runIssues: RuntimeRetentionIndexConfig;
+	readonly retentionEvidence: RuntimeRetentionIndexConfig;
+}>;
+
+interface RuntimeIndexItem<Entry, Value> {
+	readonly key: string;
+	readonly entry: Entry;
+	readonly value: Value;
+}
+
+interface RuntimeRetentionTrackedValue<Value> {
+	readonly fact: Value;
+	readonly dropKey?: () => void;
+}
+
+interface ToolProviderAdapterRunProjectorPrivateRetentionHooks {
+	readonly onAdapterInputKey?: (entry: {
+		readonly adapterInputId: string;
+		readonly dropInput: () => void;
+	}) => void;
+	readonly shouldForwardRetainedRunRequest?: (request: ToolProviderAdapterRunRequested) => boolean;
+	readonly onRunRequestKey?: (entry: {
+		readonly key: string;
+		readonly request: ToolProviderAdapterRunRequested;
+		readonly dropKey: () => void;
+	}) => void;
+	readonly onRunStatusKey?: (entry: {
+		readonly key: string;
+		readonly status: ToolProviderAdapterRunStatus;
+		readonly dropKey: () => void;
+	}) => void;
+	readonly onRunIssueKey?: (entry: {
+		readonly key: string;
+		readonly issue: DataIssue;
+		readonly dropKey: () => void;
+	}) => void;
+}
+
+class RuntimeRetentionIndex<Entry extends { readonly sequence: number }, Value> {
+	private readonly items = new Map<string, RuntimeIndexItem<Entry, Value>>();
+
+	get size(): number {
+		return this.items.size;
+	}
+
+	get(key: string): RuntimeIndexItem<Entry, Value> | undefined {
+		return this.items.get(key);
+	}
+
+	has(key: string): boolean {
+		return this.items.has(key);
+	}
+
+	set(key: string, entry: Entry, value: Value): RuntimeIndexItem<Entry, Value> {
+		const item = { key, entry, value };
+		this.items.set(key, item);
+		return item;
+	}
+
+	delete(key: string): RuntimeIndexItem<Entry, Value> | undefined {
+		const item = this.items.get(key);
+		if (item !== undefined) this.items.delete(key);
+		return item;
+	}
+
+	trimFifo(maxSize: number): RuntimeIndexItem<Entry, Value>[] {
+		const items = Array.from(this.items.values()).sort(
+			(a, b) => a.entry.sequence - b.entry.sequence,
+		);
+		return trimHeadOverflow(items, { maxSize })
+			.map((item) => this.delete(item.key))
+			.filter((item): item is RuntimeIndexItem<Entry, Value> => item !== undefined);
+	}
+
+	trimScored(
+		maxSize: number,
+		score: (entry: Entry) => number,
+	): {
+		readonly victims?: RuntimeIndexItem<Entry, Value>[];
+		readonly invalid?: "threw" | "non-finite";
+	} {
+		const scored: { readonly entry: RuntimeIndexItem<Entry, Value>; readonly score: number }[] = [];
+		for (const item of this.items.values()) {
+			let value: number;
+			try {
+				value = score(item.entry);
+			} catch {
+				return { invalid: "threw" };
+			}
+			if (!Number.isFinite(value)) return { invalid: "non-finite" };
+			scored.push({ entry: item, score: value });
+		}
+		const victims = selectRetentionVictims(scored, { maxSize }).map((item) =>
+			this.delete(item.key),
+		);
+		return {
+			victims: victims.filter((item): item is RuntimeIndexItem<Entry, Value> => item !== undefined),
+		};
+	}
+}
+
+const toolProviderAdapterRuntimeRetentionIndexes = Object.freeze([
+	"adapterInputs",
+	"runRequests",
+	"executions",
+	"runStatuses",
+	"runIssues",
+	"retentionEvidence",
+] as const satisfies readonly ToolProviderAdapterRuntimeRetentionIndex[]);
+
+function toolProviderAdapterRuntimeRetentionIndex(
+	value: string | undefined,
+): ToolProviderAdapterRuntimeRetentionIndex | undefined {
+	return toolProviderAdapterRuntimeRetentionIndexes.find((index) => index === value);
+}
+
+function isNodeOpt<T>(value: ReactiveOpt<T> | undefined): value is Node<T> {
+	return value instanceof Node;
+}
+
+function retentionIndexSourceRef(index: ToolProviderAdapterRuntimeRetentionIndex): SourceRef {
+	return { kind: "tool-provider-adapter-runtime-retention-index", id: index };
+}
+
+function retentionPolicyMaxSize(
+	policy: ToolProviderAdapterRuntimeIndexRetentionPolicy<unknown> | undefined,
+): ReactiveOpt<number> | undefined {
+	return policy?.maxSize;
+}
+
+function retentionPolicyMode(
+	policy: ToolProviderAdapterRuntimeIndexRetentionPolicy<unknown> | undefined,
+): RuntimeRetentionMode | undefined {
+	if (policy === undefined) return undefined;
+	return "score" in policy && policy.score !== undefined ? "score" : "fifo";
+}
+
+function buildRetentionPolicyReaders(
+	graph: Graph,
+	name: string,
+	retention: ToolProviderAdapterRuntimeRetentionPolicy | undefined,
+): RuntimeRetentionPolicyReaders {
+	const inputs = new PolicyInputs();
+	const readers = new Map<ToolProviderAdapterRuntimeRetentionIndex, PolicyReader<number>>();
+	const statics = new Map<ToolProviderAdapterRuntimeRetentionIndex, number | undefined>();
+	for (const index of toolProviderAdapterRuntimeRetentionIndexes) {
+		const policy = retention?.[index] as
+			| ToolProviderAdapterRuntimeIndexRetentionPolicy<unknown>
+			| undefined;
+		const maxSize = retentionPolicyMaxSize(policy);
+		if (maxSize === undefined) {
+			statics.set(index, undefined);
+			readers.set(index, inputs.add(undefined));
+			continue;
+		}
+		const node = isNodeOpt(maxSize)
+			? maxSize
+			: graph.node<number>([], null, {
+					name: `${name}/retentionPolicy/${index}/maxSize`,
+					factory: "toolProviderAdapterRuntimeRetentionPolicy.maxSize",
+					initial: maxSize,
+				});
+		if (!isNodeOpt(maxSize)) statics.set(index, maxSize);
+		readers.set(index, inputs.add(node));
+	}
+	return { inputs, readers, statics };
+}
+
+function readRetentionPolicyFact(
+	ctx: Ctx,
+	retention: ToolProviderAdapterRuntimeRetentionPolicy | undefined,
+	readers: RuntimeRetentionPolicyReaders,
+	current: RuntimeRetentionPolicyFact | undefined,
+): RuntimeRetentionPolicyFact {
+	const policies = new Map<ToolProviderAdapterRuntimeRetentionIndex, RuntimeRetentionIndexConfig>();
+	const issues: DataIssue[] = [];
+	for (const index of toolProviderAdapterRuntimeRetentionIndexes) {
+		const raw = retention?.[index] as
+			| ToolProviderAdapterRuntimeIndexRetentionPolicy<unknown>
+			| undefined;
+		if (raw === undefined) continue;
+		const reader = readers.readers.get(index);
+		const previous = current?.policies.get(index)?.maxSize ?? readers.statics.get(index);
+		const maxSize = reader?.read(ctx, previous);
+		const issue = validateRuntimeRetentionPolicy(index, raw, maxSize);
+		if (issue !== undefined) {
+			issues.push(issue);
+			continue;
+		}
+		policies.set(index, {
+			maxSize,
+			mode: retentionPolicyMode(raw) ?? "fifo",
+		});
+	}
+	return {
+		kind: "tool-provider-adapter-runtime-retention-policy",
+		policies,
+		...(issues.length === 0 ? {} : { issues: Object.freeze(issues) }),
+	};
+}
+
+function validateRuntimeRetentionPolicy(
+	index: ToolProviderAdapterRuntimeRetentionIndex,
+	policy: ToolProviderAdapterRuntimeIndexRetentionPolicy<unknown>,
+	maxSize: number | undefined,
+): DataIssue | undefined {
+	if ("score" in policy && policy.score !== undefined && typeof policy.score !== "function")
+		return invalidRetentionPolicyIssue(index, "score must be a function");
+	if (!("score" in policy) || policy.score === undefined) {
+		const order = (policy as CapacityPolicy<string>).order ?? "fifo";
+		if (order !== "fifo") return invalidRetentionPolicyIssue(index, "order must be fifo");
+	}
+	if (maxSize === undefined || !Number.isSafeInteger(maxSize) || maxSize < 1)
+		return invalidRetentionPolicyIssue(index, "maxSize must be a safe integer >= 1");
+	return undefined;
+}
+
+function invalidRetentionPolicyIssue(
+	index: ToolProviderAdapterRuntimeRetentionIndex,
+	reason: string,
+): DataIssue {
+	return dataIssue(
+		"tool-provider-adapter-runtime-invalid-retention-policy",
+		"Tool provider adapter runtime retention policy is invalid; last-known-good policy remains active.",
+		{
+			subjectId: index,
+			refs: [retentionIndexSourceRef(index)],
+			details: { index, reason },
+			severity: "warning",
+		},
+	);
+}
+
+function adapterInputRetentionEntry(
+	key: string,
+	sequence: number,
+	input: ToolProviderAdapterInput,
+	insertedAtMs: number | undefined,
+): ToolProviderAdapterInputRetentionEntry {
+	return Object.freeze({
+		key,
+		sequence,
+		...(insertedAtMs === undefined ? {} : { insertedAtMs }),
+		adapterInputId: input.adapterInputId,
+		requestId: input.requestId,
+		operationId: input.operationId,
+		...(input.routeId === undefined ? {} : { routeId: input.routeId }),
+		...(input.providerId === undefined ? {} : { providerId: input.providerId }),
+		...(input.executorId === undefined ? {} : { executorId: input.executorId }),
+		...(input.profileId === undefined ? {} : { profileId: input.profileId }),
+		status: input.status,
+	});
+}
+
+function runRequestRetentionEntry(
+	key: string,
+	sequence: number,
+	request: ToolProviderAdapterRunRequested,
+): ToolProviderAdapterRunRequestRetentionEntry {
+	return Object.freeze({
+		key,
+		sequence,
+		...(request.requestedAtMs === undefined ? {} : { requestedAtMs: request.requestedAtMs }),
+		adapterInputId: request.adapterInputId,
+		runId: request.runId,
+		attempt: request.attempt,
+		requestId: request.requestId,
+		operationId: request.operationId,
+		...(request.routeId === undefined ? {} : { routeId: request.routeId }),
+		...(request.providerId === undefined ? {} : { providerId: request.providerId }),
+		...(request.executorId === undefined ? {} : { executorId: request.executorId }),
+		...(request.profileId === undefined ? {} : { profileId: request.profileId }),
+		reason: request.reason,
+	});
+}
+
+function executionRetentionEntry(
+	key: string,
+	sequence: number,
+	request: ToolProviderAdapterRunRequested,
+	status: ToolProviderAdapterExecutionRetentionEntry["status"],
+	occurredAtMs: number | undefined,
+	outcomeId?: string,
+): ToolProviderAdapterExecutionRetentionEntry {
+	return Object.freeze({
+		key,
+		sequence,
+		...(occurredAtMs === undefined ? {} : { occurredAtMs }),
+		adapterInputId: request.adapterInputId,
+		runId: request.runId,
+		attempt: request.attempt,
+		requestId: request.requestId,
+		operationId: request.operationId,
+		...(request.routeId === undefined ? {} : { routeId: request.routeId }),
+		...(request.providerId === undefined ? {} : { providerId: request.providerId }),
+		...(request.executorId === undefined ? {} : { executorId: request.executorId }),
+		...(request.profileId === undefined ? {} : { profileId: request.profileId }),
+		...(outcomeId === undefined ? {} : { outcomeId }),
+		status,
+		reason: request.reason,
+	});
+}
+
+function runStatusRetentionEntry(
+	key: string,
+	sequence: number,
+	status: ToolProviderAdapterRunStatus,
+	occurredAtMs: number | undefined,
+): ToolProviderAdapterRunStatusRetentionEntry {
+	const issueCode = status.issues?.[0]?.code;
+	return Object.freeze({
+		key,
+		sequence,
+		...(occurredAtMs === undefined ? {} : { occurredAtMs }),
+		adapterInputId: status.adapterInputId,
+		runId: status.runId,
+		...(status.attempt === undefined ? {} : { attempt: status.attempt }),
+		...(status.requestId === undefined ? {} : { requestId: status.requestId }),
+		...(status.operationId === undefined ? {} : { operationId: status.operationId }),
+		status: status.status,
+		...(status.outcomeId === undefined ? {} : { outcomeId: status.outcomeId }),
+		...(issueCode === undefined ? {} : { issueCode }),
+	});
+}
+
+function runIssueRetentionEntry(
+	key: string,
+	sequence: number,
+	issue: DataIssue,
+	occurredAtMs: number | undefined,
+	context: {
+		readonly adapterInputId?: string;
+		readonly runId?: string;
+		readonly attempt?: number;
+		readonly requestId?: string;
+		readonly operationId?: string;
+	} = {},
+): ToolProviderAdapterRunIssueRetentionEntry {
+	return Object.freeze({
+		key,
+		sequence,
+		...(occurredAtMs === undefined ? {} : { occurredAtMs }),
+		...(context.adapterInputId === undefined ? {} : { adapterInputId: context.adapterInputId }),
+		...(context.runId === undefined ? {} : { runId: context.runId }),
+		...(context.attempt === undefined ? {} : { attempt: context.attempt }),
+		...(context.requestId === undefined ? {} : { requestId: context.requestId }),
+		...(context.operationId === undefined ? {} : { operationId: context.operationId }),
+		issueCode: issue.code,
+		...(issue.severity === undefined ? {} : { severity: issue.severity }),
+		...(issue.subjectId === undefined ? {} : { subjectId: issue.subjectId }),
+	});
+}
+
+function retentionEvidenceEntry(
+	key: string,
+	sequence: number,
+	opts: {
+		readonly adapterInputId: string;
+		readonly evidenceKind: ToolProviderAdapterRuntimeRetentionEvidenceEntry["evidenceKind"];
+		readonly occurredAtMs?: number;
+		readonly attemptHighWater?: number;
+		readonly reason: ToolProviderAdapterRuntimeRetentionEvidenceEntry["reason"];
+	},
+): ToolProviderAdapterRuntimeRetentionEvidenceEntry {
+	return Object.freeze({
+		key,
+		sequence,
+		...(opts.occurredAtMs === undefined ? {} : { occurredAtMs: opts.occurredAtMs }),
+		adapterInputId: opts.adapterInputId,
+		evidenceKind: opts.evidenceKind,
+		...(opts.attemptHighWater === undefined ? {} : { attemptHighWater: opts.attemptHighWater }),
+		reason: opts.reason,
+	});
 }
 
 export function buildToolProviderExecutorOutcome<T = unknown>(
@@ -2259,7 +2846,53 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 ): ToolProviderAdapterRuntimeHandle {
 	const name = opts.name ?? "toolProviderAdapterRuntime";
 	const bindings = normalizeToolProviderAdapterBindings(opts.bindings);
-	const inputsById = new Map<string, ToolProviderAdapterInput<TArguments>>();
+	const retentionReaders = buildRetentionPolicyReaders(graph, name, opts.retention);
+	const retentionPolicy = graph.node<RuntimeRetentionPolicyFact>(
+		retentionReaders.inputs.deps,
+		(ctx) => {
+			const current = ctx.state.get<RuntimeRetentionPolicyFact>();
+			const fact = readRetentionPolicyFact(ctx, opts.retention, retentionReaders, current);
+			ctx.state.set(fact);
+			ctx.down([["DATA", fact]]);
+		},
+		{
+			name: `${name}/retentionPolicy`,
+			factory: "toolProviderAdapterRuntimeRetentionPolicy",
+			partial: true,
+		},
+	);
+	const adapterInputs = new RuntimeRetentionIndex<
+		ToolProviderAdapterInputRetentionEntry,
+		ToolProviderAdapterInput<TArguments>
+	>();
+	const runRequests = new RuntimeRetentionIndex<
+		ToolProviderAdapterRunRequestRetentionEntry,
+		RuntimeRetentionTrackedValue<ToolProviderAdapterRunRequested>
+	>();
+	const executions = new RuntimeRetentionIndex<
+		ToolProviderAdapterExecutionRetentionEntry,
+		ToolProviderAdapterRunRequested
+	>();
+	const runStatuses = new RuntimeRetentionIndex<
+		ToolProviderAdapterRunStatusRetentionEntry,
+		RuntimeRetentionTrackedValue<ToolProviderAdapterRunStatus>
+	>();
+	const runIssues = new RuntimeRetentionIndex<
+		ToolProviderAdapterRunIssueRetentionEntry,
+		RuntimeRetentionTrackedValue<DataIssue>
+	>();
+	const retentionEvidence = new RuntimeRetentionIndex<
+		ToolProviderAdapterRuntimeRetentionEvidenceEntry,
+		ToolProviderAdapterRuntimeRetentionEvidenceEntry
+	>();
+	const closedRetentionEvidence = new RuntimeRetentionIndex<
+		ToolProviderAdapterRuntimeRetentionEvidenceEntry,
+		ToolProviderAdapterRuntimeRetentionEvidenceEntry
+	>();
+	const executionHighWaterByInput = new Map<string, number>();
+	const trimmedAdapterInputIds = new Set<string>();
+	const projectorInputDropById = new Map<string, () => void>();
+	let retentionEvidenceHorizonExceeded = false;
 	const outcomes = graph.node<ExecutorOutcome>([], null, {
 		name: `${name}/outcomes`,
 		factory: "toolProviderAdapterRuntimeOutcomes",
@@ -2272,6 +2905,10 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		name: `${name}/status`,
 		factory: "toolProviderAdapterRuntimeStatus",
 	});
+	const runtimeStatus = graph.node<ToolProviderAdapterRuntimeStatus>([], null, {
+		name: `${name}/runtimeStatus`,
+		factory: "toolProviderAdapterRuntimeStatus",
+	});
 	const issues = graph.node<DataIssue>([], null, {
 		name: `${name}/issues`,
 		factory: "toolProviderAdapterRuntimeIssues",
@@ -2280,12 +2917,76 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		name: `${name}/audit`,
 		factory: "toolProviderAdapterRuntimeAudit",
 	});
-	const seen = new Set<string>();
 	let disposed = false;
 	let auditSeq = 0;
+	let retentionSeq = 0;
+	let effectiveRetention: EffectiveRuntimeRetentionPolicy = {};
 
-	function publishIssue(issue: DataIssue): void {
+	function nowMs(): number | undefined {
+		return opts.now?.();
+	}
+
+	function nextRetentionSequence(): number {
+		retentionSeq += 1;
+		return retentionSeq;
+	}
+
+	function publishRuntimeStatus(fact: Omit<ToolProviderAdapterRuntimeStatus, "kind">): void {
+		const occurredAtMs = nowMs();
+		runtimeStatus.down([
+			[
+				"DATA",
+				{
+					kind: "tool-provider-adapter-runtime-status",
+					...(occurredAtMs === undefined ? {} : { occurredAtMs }),
+					...fact,
+				} satisfies ToolProviderAdapterRuntimeStatus,
+			],
+		]);
+	}
+
+	function publishRuntimeAudit(
+		kind: string,
+		opts: {
+			readonly subjectId?: string;
+			readonly sourceRefs?: readonly SourceRef[];
+			readonly issueCode?: string;
+			readonly metadata?: Record<string, unknown>;
+		} = {},
+	): void {
+		auditSeq += 1;
+		audit.down([
+			[
+				"DATA",
+				{
+					id: `${name}:audit:${auditSeq}`,
+					kind,
+					...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
+					...(opts.sourceRefs === undefined
+						? {}
+						: { sourceRefs: sanitizeAdapterInputSourceRefs(opts.sourceRefs) }),
+					...(opts.issueCode === undefined ? {} : { issueCode: opts.issueCode }),
+					...(opts.metadata === undefined
+						? {}
+						: { metadata: sanitizeGraphVisibleRecord(opts.metadata) }),
+				} satisfies AgentRuntimeAuditRecord,
+			],
+		]);
+	}
+
+	function trackRunIssue(issue: DataIssue, emittedKey?: string, dropKey?: () => void): void {
+		const sequence = nextRetentionSequence();
+		const key = emittedKey ?? `${sequence}:${issue.code}:${issue.subjectId ?? ""}`;
+		runIssues.set(key, runIssueRetentionEntry(key, sequence, issue, nowMs()), {
+			fact: issue,
+			dropKey,
+		});
+		trimRunIssues();
+	}
+
+	function publishIssue(issue: DataIssue, track = true): void {
 		issues.down([["DATA", sanitizeAdapterInputIssue(issue)]]);
+		if (track) trackRunIssue(issue);
 	}
 
 	function publishRunStatus(
@@ -2294,31 +2995,373 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		statusIssues?: readonly DataIssue[],
 		outcomeId?: string,
 	): void {
-		runStatus.down([
-			[
-				"DATA",
+		const statusFact = {
+			kind: "tool-provider-adapter-run-status",
+			runId: request.runId,
+			adapterInputId: request.adapterInputId,
+			requestId: request.requestId,
+			operationId: request.operationId,
+			status: nextStatus,
+			attempt: request.attempt,
+			outcomeId,
+			issues: statusIssues,
+			sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
+			metadata: sanitizeGraphVisibleRecord(
 				{
-					kind: "tool-provider-adapter-run-status",
-					runId: request.runId,
-					adapterInputId: request.adapterInputId,
-					requestId: request.requestId,
-					operationId: request.operationId,
-					status: nextStatus,
-					attempt: request.attempt,
-					outcomeId,
-					issues: statusIssues,
-					sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
-					metadata: sanitizeGraphVisibleRecord(
-						{
-							providerId: request.providerId,
-							routeId: request.routeId,
-							reason: request.reason,
-						},
-						opts.publicText,
-					),
-				} satisfies ToolProviderAdapterRunStatus,
-			],
-		]);
+					providerId: request.providerId,
+					routeId: request.routeId,
+					reason: request.reason,
+				},
+				opts.publicText,
+			),
+		} satisfies ToolProviderAdapterRunStatus;
+		runStatus.down([["DATA", statusFact]]);
+		trackRunStatus(statusFact);
+	}
+
+	function trackRunStatus(
+		statusFact: ToolProviderAdapterRunStatus,
+		emittedKey?: string,
+		dropKey?: () => void,
+	): void {
+		const sequence = nextRetentionSequence();
+		const key = emittedKey ?? `${sequence}:${statusFact.runId}:${statusFact.status}`;
+		runStatuses.set(key, runStatusRetentionEntry(key, sequence, statusFact, nowMs()), {
+			fact: statusFact,
+			dropKey,
+		});
+		trimRunStatuses();
+	}
+
+	function retentionScore<Entry>(
+		index: ToolProviderAdapterRuntimeRetentionIndex,
+	): ((entry: Entry) => number) | undefined {
+		const policy = opts.retention?.[index] as RetentionPolicy<Entry> | undefined;
+		return typeof policy?.score === "function" ? policy.score : undefined;
+	}
+
+	function trimRuntimeIndex<Entry extends { readonly sequence: number }, Value>(
+		indexName: ToolProviderAdapterRuntimeRetentionIndex,
+		store: RuntimeRetentionIndex<Entry, Value>,
+		config: RuntimeRetentionIndexConfig | undefined,
+		onVictim?: (victim: RuntimeIndexItem<Entry, Value>) => void,
+	): void {
+		if (config?.maxSize === undefined) return;
+		let victims: RuntimeIndexItem<Entry, Value>[];
+		if (config.mode === "score") {
+			const score = retentionScore<Entry>(indexName);
+			if (score === undefined) return;
+			const selected = store.trimScored(config.maxSize, score);
+			if (selected.invalid !== undefined) {
+				publishRetentionScoreInvalid(indexName, selected.invalid);
+				return;
+			}
+			victims = selected.victims ?? [];
+		} else {
+			victims = store.trimFifo(config.maxSize);
+		}
+		for (const victim of victims) {
+			onVictim?.(victim);
+			publishRetentionTrimmed(indexName, victim.key, victim.entry);
+		}
+	}
+
+	function trackAdapterInputTrimmedEvidence(adapterInputId: string): void {
+		trimmedAdapterInputIds.add(adapterInputId);
+		const sequence = nextRetentionSequence();
+		const key = `adapter-input-trimmed:${adapterInputId}`;
+		const entry = retentionEvidenceEntry(key, sequence, {
+			adapterInputId,
+			evidenceKind: "adapter-input-trimmed",
+			occurredAtMs: nowMs(),
+			reason: "adapter-input-retention",
+		});
+		retentionEvidence.set(key, entry, entry);
+		trimRetentionEvidence();
+	}
+
+	function trackExecutionHighWaterEvidence(adapterInputId: string, attempt: number): void {
+		const previous = executionHighWaterByInput.get(adapterInputId) ?? 0;
+		const attemptHighWater = Math.max(previous, attempt);
+		executionHighWaterByInput.set(adapterInputId, attemptHighWater);
+		const sequence = nextRetentionSequence();
+		const key = `execution-high-water:${adapterInputId}`;
+		const entry = retentionEvidenceEntry(key, sequence, {
+			adapterInputId,
+			evidenceKind: "execution-high-water",
+			occurredAtMs: nowMs(),
+			attemptHighWater,
+			reason: "execution-proof-retention",
+		});
+		retentionEvidence.set(key, entry, entry);
+		trimRetentionEvidence();
+	}
+
+	function retentionEvidenceClosedKey(adapterInputId: string): string {
+		return `closed:${adapterInputId}`;
+	}
+
+	function isRetentionEvidenceClosed(adapterInputId: string): boolean {
+		return (
+			retentionEvidenceHorizonExceeded ||
+			closedRetentionEvidence.has(retentionEvidenceClosedKey(adapterInputId))
+		);
+	}
+
+	function shouldForwardRetainedRunRequest(request: ToolProviderAdapterRunRequested): boolean {
+		const highWater = executionHighWaterByInput.get(request.adapterInputId) ?? 0;
+		return (
+			trimmedAdapterInputIds.has(request.adapterInputId) ||
+			highWater >= request.attempt ||
+			isRetentionEvidenceClosed(request.adapterInputId)
+		);
+	}
+
+	function dropProjectorInput(adapterInputId: string): void {
+		projectorInputDropById.get(adapterInputId)?.();
+		projectorInputDropById.delete(adapterInputId);
+	}
+
+	function closeRetentionEvidenceHorizon(
+		victim: RuntimeIndexItem<
+			ToolProviderAdapterRuntimeRetentionEvidenceEntry,
+			ToolProviderAdapterRuntimeRetentionEvidenceEntry
+		>,
+	): void {
+		const key = retentionEvidenceClosedKey(victim.value.adapterInputId);
+		const sequence = nextRetentionSequence();
+		const entry = retentionEvidenceEntry(key, sequence, {
+			adapterInputId: victim.value.adapterInputId,
+			evidenceKind: victim.value.evidenceKind,
+			occurredAtMs: nowMs(),
+			...(victim.value.attemptHighWater === undefined
+				? {}
+				: { attemptHighWater: victim.value.attemptHighWater }),
+			reason: victim.value.reason,
+		});
+		closedRetentionEvidence.set(key, entry, entry);
+		trimClosedRetentionEvidence();
+	}
+
+	function trimClosedRetentionEvidence(): void {
+		const maxSize = effectiveRetention.retentionEvidence?.maxSize;
+		if (maxSize === undefined) return;
+		const victims = closedRetentionEvidence.trimFifo(maxSize);
+		for (const victim of victims) {
+			retentionEvidenceHorizonExceeded = true;
+			publishRetentionTrimmed("retentionEvidence", victim.key, victim.entry);
+		}
+	}
+
+	function trimAdapterInputs(): void {
+		trimRuntimeIndex("adapterInputs", adapterInputs, effectiveRetention.adapterInputs, (victim) => {
+			dropProjectorInput(victim.value.adapterInputId);
+			trackAdapterInputTrimmedEvidence(victim.value.adapterInputId);
+		});
+	}
+
+	function trimRunRequests(): void {
+		trimRuntimeIndex("runRequests", runRequests, effectiveRetention.runRequests, (victim) => {
+			victim.value.dropKey?.();
+		});
+	}
+
+	function trimExecutions(): void {
+		trimRuntimeIndex("executions", executions, effectiveRetention.executions, (victim) => {
+			trackExecutionHighWaterEvidence(victim.value.adapterInputId, victim.value.attempt);
+		});
+	}
+
+	function trimRunStatuses(): void {
+		trimRuntimeIndex("runStatuses", runStatuses, effectiveRetention.runStatuses, (victim) => {
+			victim.value.dropKey?.();
+		});
+	}
+
+	function trimRunIssues(): void {
+		trimRuntimeIndex("runIssues", runIssues, effectiveRetention.runIssues, (victim) => {
+			victim.value.dropKey?.();
+		});
+	}
+
+	function trimRetentionEvidence(): void {
+		trimRuntimeIndex(
+			"retentionEvidence",
+			retentionEvidence,
+			effectiveRetention.retentionEvidence,
+			(victim) => {
+				closeRetentionEvidenceHorizon(victim);
+				if (victim.value.evidenceKind === "adapter-input-trimmed") {
+					trimmedAdapterInputIds.delete(victim.value.adapterInputId);
+				} else {
+					executionHighWaterByInput.delete(victim.value.adapterInputId);
+				}
+				adapterInputs.delete(victim.value.adapterInputId);
+				dropProjectorInput(victim.value.adapterInputId);
+			},
+		);
+	}
+
+	function trimAllRetentionIndexes(): void {
+		trimAdapterInputs();
+		trimRunRequests();
+		trimExecutions();
+		trimRunStatuses();
+		trimRunIssues();
+		trimRetentionEvidence();
+	}
+
+	function publishRetentionTrimmed(
+		index: ToolProviderAdapterRuntimeRetentionIndex,
+		key: string,
+		entry: unknown,
+	): void {
+		const record = isRecord(entry) ? entry : {};
+		const evidenceKind = typeof record.evidenceKind === "string" ? record.evidenceKind : undefined;
+		const code =
+			index === "retentionEvidence"
+				? "tool-provider-adapter-runtime-retention-evidence-trimmed"
+				: "tool-provider-adapter-runtime-retention-trimmed";
+		const issue = dataIssue(
+			code,
+			index === "retentionEvidence"
+				? "Tool provider adapter runtime retention trimmed replay proof evidence and closed the affected horizon."
+				: "Tool provider adapter runtime retention trimmed a runtime-private index entry.",
+			{
+				subjectId:
+					typeof record.adapterInputId === "string"
+						? record.adapterInputId
+						: typeof record.key === "string"
+							? record.key
+							: index,
+				refs: [retentionIndexSourceRef(index)],
+				details: { index, key },
+				severity: "info",
+			},
+		);
+		publishIssue(issue, false);
+		publishRuntimeStatus({
+			status: "retention-trimmed",
+			index,
+			key,
+			...(typeof record.adapterInputId === "string"
+				? { adapterInputId: record.adapterInputId }
+				: {}),
+			...(typeof record.runId === "string" ? { runId: record.runId } : {}),
+			...(typeof record.attempt === "number" ? { attempt: record.attempt } : {}),
+			issueCode: issue.code,
+			sourceRefs: [retentionIndexSourceRef(index)],
+			metadata: { index, key, ...(evidenceKind === undefined ? {} : { evidenceKind }) },
+		});
+		publishRuntimeAudit("tool-provider-adapter-runtime-retention-trimmed", {
+			subjectId: issue.subjectId,
+			sourceRefs: [retentionIndexSourceRef(index)],
+			issueCode: issue.code,
+			metadata: { index, key, ...(evidenceKind === undefined ? {} : { evidenceKind }) },
+		});
+	}
+
+	function publishRetentionScoreInvalid(
+		index: ToolProviderAdapterRuntimeRetentionIndex,
+		reason: "threw" | "non-finite",
+	): void {
+		const issue = dataIssue(
+			"tool-provider-adapter-retention-score-invalid",
+			"Tool provider adapter runtime retention scorer returned invalid material; last-known-good policy remains active.",
+			{
+				subjectId: index,
+				refs: [retentionIndexSourceRef(index)],
+				details: { index, reason },
+				severity: "warning",
+			},
+		);
+		publishIssue(issue, index !== "runIssues");
+		publishRuntimeStatus({
+			status: "invalid-retention-policy",
+			index,
+			issueCode: issue.code,
+			sourceRefs: [retentionIndexSourceRef(index)],
+			metadata: { index, reason },
+		});
+		publishRuntimeAudit("tool-provider-adapter-runtime-invalid-retention-policy", {
+			subjectId: index,
+			sourceRefs: [retentionIndexSourceRef(index)],
+			issueCode: issue.code,
+			metadata: { index, reason },
+		});
+	}
+
+	function applyRetentionPolicyFact(fact: RuntimeRetentionPolicyFact): void {
+		const invalidIndexes = new Set<ToolProviderAdapterRuntimeRetentionIndex>();
+		if (fact.issues !== undefined && fact.issues.length > 0) {
+			for (const issue of fact.issues) {
+				publishIssue(issue);
+				const index = toolProviderAdapterRuntimeRetentionIndex(issue.subjectId);
+				if (index !== undefined) invalidIndexes.add(index);
+				publishRuntimeStatus({
+					status: "invalid-retention-policy",
+					...(index === undefined ? {} : { index }),
+					issueCode: issue.code,
+					...(index === undefined ? {} : { sourceRefs: [retentionIndexSourceRef(index)] }),
+				});
+				publishRuntimeAudit("tool-provider-adapter-runtime-invalid-retention-policy", {
+					...(issue.subjectId === undefined ? {} : { subjectId: issue.subjectId }),
+					...(index === undefined ? {} : { sourceRefs: [retentionIndexSourceRef(index)] }),
+					issueCode: issue.code,
+				});
+			}
+		}
+		const adapterInputsPolicy = fact.policies.get("adapterInputs");
+		const runRequestsPolicy = fact.policies.get("runRequests");
+		const executionsPolicy = fact.policies.get("executions");
+		const runStatusesPolicy = fact.policies.get("runStatuses");
+		const runIssuesPolicy = fact.policies.get("runIssues");
+		const retentionEvidencePolicy = fact.policies.get("retentionEvidence");
+		effectiveRetention = {
+			...(invalidIndexes.has("adapterInputs")
+				? effectiveRetention.adapterInputs === undefined
+					? {}
+					: { adapterInputs: effectiveRetention.adapterInputs }
+				: adapterInputsPolicy === undefined
+					? {}
+					: { adapterInputs: adapterInputsPolicy }),
+			...(invalidIndexes.has("runRequests")
+				? effectiveRetention.runRequests === undefined
+					? {}
+					: { runRequests: effectiveRetention.runRequests }
+				: runRequestsPolicy === undefined
+					? {}
+					: { runRequests: runRequestsPolicy }),
+			...(invalidIndexes.has("executions")
+				? effectiveRetention.executions === undefined
+					? {}
+					: { executions: effectiveRetention.executions }
+				: executionsPolicy === undefined
+					? {}
+					: { executions: executionsPolicy }),
+			...(invalidIndexes.has("runStatuses")
+				? effectiveRetention.runStatuses === undefined
+					? {}
+					: { runStatuses: effectiveRetention.runStatuses }
+				: runStatusesPolicy === undefined
+					? {}
+					: { runStatuses: runStatusesPolicy }),
+			...(invalidIndexes.has("runIssues")
+				? effectiveRetention.runIssues === undefined
+					? {}
+					: { runIssues: effectiveRetention.runIssues }
+				: runIssuesPolicy === undefined
+					? {}
+					: { runIssues: runIssuesPolicy }),
+			...(invalidIndexes.has("retentionEvidence")
+				? effectiveRetention.retentionEvidence === undefined
+					? {}
+					: { retentionEvidence: effectiveRetention.retentionEvidence }
+				: retentionEvidencePolicy === undefined
+					? {}
+					: { retentionEvidence: retentionEvidencePolicy }),
+		};
+		trimAllRetentionIndexes();
 	}
 
 	function publishStatus(
@@ -2404,6 +3447,21 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			return;
 		}
 		outcomes.down([["DATA", outcome]]);
+		const execution = executions.get(executionCoordinate(request));
+		if (execution !== undefined) {
+			executions.set(
+				execution.key,
+				executionRetentionEntry(
+					execution.key,
+					execution.entry.sequence,
+					request,
+					outcome.kind,
+					outcome.occurredAtMs,
+					outcome.outcomeId,
+				),
+				request,
+			);
+		}
 		const publishedIssueKeys = new Set<string>();
 		for (const issue of outcome.issues ?? []) {
 			publishedIssueKeys.add(`${issue.code}:${issue.message}`);
@@ -2454,10 +3512,124 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		);
 	}
 
+	function executionCoordinate(request: ToolProviderAdapterRunRequested): string {
+		return `${request.adapterInputId}:${request.attempt}`;
+	}
+
+	function trackRunRequest(
+		request: ToolProviderAdapterRunRequested,
+		emittedKey: string,
+		dropKey: () => void,
+	): void {
+		const sequence = nextRetentionSequence();
+		runRequests.set(emittedKey, runRequestRetentionEntry(emittedKey, sequence, request), {
+			fact: request,
+			dropKey,
+		});
+		trimRunRequests();
+	}
+
+	function startExecutionProof(request: ToolProviderAdapterRunRequested): boolean {
+		const coordinate = executionCoordinate(request);
+		const existing = executions.get(coordinate);
+		if (existing !== undefined) {
+			if (existing.value.runId !== request.runId) {
+				const issue = dataIssue(
+					"tool-provider-adapter-runtime-duplicate-execution-coordinate",
+					"Tool provider adapter runtime requires one visible runId per adapterInputId and attempt.",
+					{
+						subjectId: request.adapterInputId,
+						refs: [ref("tool-provider-adapter-run", request.runId)],
+						details: {
+							adapterInputId: request.adapterInputId,
+							attempt: request.attempt,
+						},
+					},
+				);
+				publishIssue(issue);
+				publishRunStatus(request, "mismatched-request", [issue]);
+				publishRuntimeAudit("tool-provider-adapter-runtime-duplicate-execution-coordinate", {
+					subjectId: request.adapterInputId,
+					sourceRefs: [ref("tool-provider-adapter-run", request.runId)],
+					issueCode: issue.code,
+					metadata: { coordinate },
+				});
+			}
+			return false;
+		}
+		const highWater = executionHighWaterByInput.get(request.adapterInputId) ?? 0;
+		if (highWater >= request.attempt) {
+			publishRetentionGap(request, "executions", coordinate);
+			return false;
+		}
+		const sequence = nextRetentionSequence();
+		executions.set(
+			coordinate,
+			executionRetentionEntry(coordinate, sequence, request, "started", nowMs()),
+			request,
+		);
+		trimExecutions();
+		return true;
+	}
+
+	function publishRetentionGap(
+		request: ToolProviderAdapterRunRequested,
+		index: ToolProviderAdapterRuntimeRetentionIndex,
+		key: string,
+	): void {
+		const evidenceGap = index === "retentionEvidence";
+		const issue = dataIssue(
+			evidenceGap
+				? "tool-provider-adapter-runtime-retention-evidence-gap"
+				: "tool-provider-adapter-runtime-retention-gap",
+			evidenceGap
+				? "Tool provider adapter runtime retention evidence horizon no longer proves this request is fresh."
+				: "Tool provider adapter runtime retention removed the proof needed to safely replay this request.",
+			{
+				subjectId: request.adapterInputId,
+				refs: [ref("tool-provider-adapter-run", request.runId), retentionIndexSourceRef(index)],
+				details: {
+					index,
+					adapterInputId: request.adapterInputId,
+					attempt: request.attempt,
+					...(evidenceGap ? { gapKind: "evidence-horizon" } : {}),
+				},
+			},
+		);
+		publishIssue(issue);
+		publishRunStatus(request, "retention-gap", [issue]);
+		publishRuntimeStatus({
+			status: "retention-gap",
+			index,
+			key,
+			adapterInputId: request.adapterInputId,
+			runId: request.runId,
+			attempt: request.attempt,
+			issueCode: issue.code,
+			sourceRefs: [ref("tool-provider-adapter-run", request.runId), retentionIndexSourceRef(index)],
+			metadata: { index, key, ...(evidenceGap ? { gapKind: "evidence-horizon" } : {}) },
+		});
+		publishRuntimeAudit("tool-provider-adapter-runtime-retention-gap", {
+			subjectId: request.adapterInputId,
+			sourceRefs: [ref("tool-provider-adapter-run", request.runId), retentionIndexSourceRef(index)],
+			issueCode: issue.code,
+			metadata: { index, key, ...(evidenceGap ? { gapKind: "evidence-horizon" } : {}) },
+		});
+	}
+
 	function runRequest(request: ToolProviderAdapterRunRequested): void {
 		if (disposed) return;
-		const input = inputsById.get(request.adapterInputId);
+		if (isRetentionEvidenceClosed(request.adapterInputId)) {
+			publishRetentionGap(request, "retentionEvidence", request.adapterInputId);
+			return;
+		}
+		const input = adapterInputs.get(request.adapterInputId)?.value;
 		if (input === undefined) {
+			const highWater = executionHighWaterByInput.get(request.adapterInputId) ?? 0;
+			if (trimmedAdapterInputIds.has(request.adapterInputId) || highWater >= request.attempt) {
+				publishRetentionGap(request, "adapterInputs", request.adapterInputId);
+				return;
+			}
 			const issue = dataIssue(
 				"tool-provider-adapter-runtime-missing-input",
 				"Tool provider adapter runtime requires the requested adapter input.",
@@ -2497,22 +3669,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			});
 			return;
 		}
-		let key: string;
-		try {
-			key = `${request.runId}:${request.attempt}:${
-				opts.dedupeKey?.(input) ?? defaultToolProviderAdapterRuntimeDedupeKey(input)
-			}`;
-		} catch (error) {
-			publishRuntimeFailure(
-				input,
-				request,
-				"tool-provider-adapter-runtime-dedupe-key-threw",
-				error,
-			);
-			return;
-		}
-		if (seen.has(key)) return;
-		seen.add(key);
+		if (!startExecutionProof(request)) return;
 		const binding = input.providerId === undefined ? undefined : bindings.get(input.providerId);
 		if (binding === undefined) {
 			const issue = dataIssue(
@@ -2566,10 +3723,20 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			publishRuntimeFailure(input, request, "tool-provider-adapter-runtime-threw", error);
 			return;
 		}
-		if (isThenable(result)) {
+		const thenable = readThenable(result);
+		if (thenable.error !== undefined) {
+			publishRuntimeFailure(
+				input,
+				request,
+				"tool-provider-adapter-runtime-rejected",
+				thenable.error,
+			);
+			return;
+		}
+		if (thenable.subscribe !== undefined) {
 			let settled = false;
 			try {
-				result.then(
+				thenable.subscribe(
 					(value) => {
 						if (settled) return;
 						settled = true;
@@ -2587,26 +3754,69 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			}
 			return;
 		}
-		publishOutcome(input, result, request);
+		publishOutcome(input, result as ToolProviderAdapterRunResult<TResult>, request);
 	}
 
+	const unsubscribeRetentionPolicy = retentionPolicy.subscribe((msg) => {
+		if (msg[0] === "DATA") applyRetentionPolicyFact(msg[1] as RuntimeRetentionPolicyFact);
+	});
 	const unsubscribeInputs = opts.inputs.subscribe((msg) => {
 		if (msg[0] !== "DATA") return;
 		const input = msg[1] as ToolProviderAdapterInput<TArguments>;
-		inputsById.set(input.adapterInputId, input);
+		if (isRetentionEvidenceClosed(input.adapterInputId)) {
+			adapterInputs.delete(input.adapterInputId);
+			dropProjectorInput(input.adapterInputId);
+			return;
+		}
+		if (trimmedAdapterInputIds.delete(input.adapterInputId)) {
+			retentionEvidence.delete(`adapter-input-trimmed:${input.adapterInputId}`);
+		}
+		const sequence = nextRetentionSequence();
+		adapterInputs.set(
+			input.adapterInputId,
+			adapterInputRetentionEntry(input.adapterInputId, sequence, input, nowMs()),
+			input,
+		);
+		trimAdapterInputs();
 	});
-	const runProjector = toolProviderAdapterRunProjector(graph, {
+	const runProjector = toolProviderAdapterRunProjectorInternal(graph, {
 		name: `${name}/runs`,
 		inputs: opts.inputs,
 		runRequests: opts.runRequests,
 		autoRunReadyInputs: opts.autoRunReadyInputs,
 		now: opts.now,
+		privateRetentionHooks: {
+			onRunRequestKey(entry) {
+				trackRunRequest(entry.request, entry.key, entry.dropKey);
+			},
+			onRunStatusKey(entry) {
+				trackRunStatus(entry.status, entry.key, entry.dropKey);
+			},
+			onRunIssueKey(entry) {
+				trackRunIssue(entry.issue, entry.key, entry.dropKey);
+			},
+			onAdapterInputKey(entry) {
+				if (
+					isRetentionEvidenceClosed(entry.adapterInputId) ||
+					!adapterInputs.has(entry.adapterInputId)
+				) {
+					entry.dropInput();
+					projectorInputDropById.delete(entry.adapterInputId);
+					return;
+				}
+				projectorInputDropById.set(entry.adapterInputId, entry.dropInput);
+			},
+			shouldForwardRetainedRunRequest,
+		},
 	});
 	const unsubscribeRunProjectorStatus = runProjector.status.subscribe((msg) => {
-		if (msg[0] === "DATA") runStatus.down([["DATA", msg[1] as ToolProviderAdapterRunStatus]]);
+		if (msg[0] === "DATA") {
+			const statusFact = msg[1] as ToolProviderAdapterRunStatus;
+			runStatus.down([["DATA", statusFact]]);
+		}
 	});
 	const unsubscribeRunProjectorIssues = runProjector.issues.subscribe((msg) => {
-		if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue);
+		if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue, false);
 	});
 	const unsubscribeRunProjectorAudit = runProjector.audit.subscribe((msg) => {
 		if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
@@ -2620,6 +3830,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 	return {
 		runRequests: runProjector.requests,
 		runStatus,
+		runtimeStatus,
 		outcomes,
 		status,
 		issues,
@@ -2627,6 +3838,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		dispose() {
 			if (disposed) return;
 			disposed = true;
+			unsubscribeRetentionPolicy();
 			unsubscribeInputs();
 			unsubscribeRunProjectorStatus();
 			unsubscribeRunProjectorIssues();
@@ -2877,21 +4089,32 @@ function emitRunRequested(
 	ctx: Ctx,
 	state: ToolProviderAdapterRunProjectorState,
 	request: ToolProviderAdapterRunRequested,
+	privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks,
 ): void {
 	const key = `${request.runId}:${request.adapterInputId}:${request.attempt}`;
 	if (state.emittedKeys.has(key)) return;
 	state.emittedKeys.add(key);
 	ctx.down([["DATA", { kind: "request", request } satisfies ToolProviderAdapterRunFact]]);
-	emitRunStatus(ctx, state, {
-		kind: "tool-provider-adapter-run-status",
-		runId: request.runId,
-		adapterInputId: request.adapterInputId,
-		requestId: request.requestId,
-		operationId: request.operationId,
-		status: "requested",
-		attempt: request.attempt,
-		sourceRefs: request.sourceRefs,
+	privateRetentionHooks?.onRunRequestKey?.({
+		key,
+		request,
+		dropKey: () => state.emittedKeys.delete(key),
 	});
+	emitRunStatus(
+		ctx,
+		state,
+		{
+			kind: "tool-provider-adapter-run-status",
+			runId: request.runId,
+			adapterInputId: request.adapterInputId,
+			requestId: request.requestId,
+			operationId: request.operationId,
+			status: "requested",
+			attempt: request.attempt,
+			sourceRefs: request.sourceRefs,
+		},
+		privateRetentionHooks,
+	);
 	emitRunAudit(ctx, state, "tool-provider-adapter-run-requested", request, {
 		reason: request.reason,
 		attempt: request.attempt,
@@ -2902,6 +4125,7 @@ function emitRunStatus(
 	ctx: Ctx,
 	state: ToolProviderAdapterRunProjectorState,
 	status: ToolProviderAdapterRunStatus,
+	privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks,
 ): void {
 	const key = stableJsonStringify({
 		runId: status.runId,
@@ -2914,6 +4138,11 @@ function emitRunStatus(
 	if (state.statusKeys.has(key)) return;
 	state.statusKeys.add(key);
 	ctx.down([["DATA", { kind: "status", status } satisfies ToolProviderAdapterRunFact]]);
+	privateRetentionHooks?.onRunStatusKey?.({
+		key,
+		status,
+		dropKey: () => state.statusKeys.delete(key),
+	});
 }
 
 function emitRunIssue(
@@ -2923,14 +4152,21 @@ function emitRunIssue(
 	message: string,
 	subjectId: string,
 	refs?: readonly SourceRef[],
+	privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks,
 ): void {
-	emitRunIssueFact(ctx, state, dataIssue(code, message, { subjectId, refs }));
+	emitRunIssueFact(
+		ctx,
+		state,
+		dataIssue(code, message, { subjectId, refs }),
+		privateRetentionHooks,
+	);
 }
 
 function emitRunIssueFact(
 	ctx: Ctx,
 	state: ToolProviderAdapterRunProjectorState,
 	issue: DataIssue,
+	privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks,
 ): void {
 	const key = stableJsonStringify({
 		code: issue.code,
@@ -2941,6 +4177,11 @@ function emitRunIssueFact(
 	if (state.issueKeys.has(key)) return;
 	state.issueKeys.add(key);
 	ctx.down([["DATA", { kind: "issue", issue } satisfies ToolProviderAdapterRunFact]]);
+	privateRetentionHooks?.onRunIssueKey?.({
+		key,
+		issue,
+		dropKey: () => state.issueKeys.delete(key),
+	});
 }
 
 function emitRunAudit(
@@ -2972,9 +4213,18 @@ function emitRunAudit(
 	]);
 }
 
-function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
-	if ((typeof value !== "object" && typeof value !== "function") || value === null) return false;
-	return typeof (value as { then?: unknown }).then === "function";
+function readThenable<T>(value: T | PromiseLike<T>): {
+	readonly subscribe?: PromiseLike<T>["then"];
+	readonly error?: unknown;
+} {
+	if ((typeof value !== "object" && typeof value !== "function") || value === null) return {};
+	try {
+		const then = (value as { then?: unknown }).then;
+		if (typeof then !== "function") return {};
+		return { subscribe: then.bind(value) as PromiseLike<T>["then"] };
+	} catch (error) {
+		return { error };
+	}
 }
 
 function isPublishableToolProviderExecutionPolicy(

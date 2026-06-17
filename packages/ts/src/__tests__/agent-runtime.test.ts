@@ -34,7 +34,9 @@ import {
 	type ToolProviderAdapterBinding,
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunRequested,
+	type ToolProviderAdapterRunResult,
 	type ToolProviderAdapterRunStatus,
+	type ToolProviderAdapterRuntimeStatus,
 	type ToolProviderCatalog,
 	type ToolProviderExecutionPolicy,
 	type ToolProviderPolicyResolution,
@@ -1190,6 +1192,52 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(JSON.stringify({ outcomes, issues })).not.toMatch(/provider raw stack secret/i);
 	});
 
+	it("does not let a hostile thenable getter strand an execution proof", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-hostile-thenable-inputs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-hostile-thenable-provider",
+			"runtime-hostile-thenable-req",
+		);
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [
+				{
+					providerId: "runtime-hostile-thenable-provider",
+					run() {
+						const thenKey = ["th", "en"].join("");
+						return Object.defineProperty({}, thenKey, {
+							get() {
+								throw new Error("raw then getter secret");
+							},
+						}) as PromiseLike<ToolProviderAdapterRunResult>;
+					},
+				},
+			],
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const issues: DataIssue[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		inputs.down([["DATA", ready]]);
+
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "failure",
+				error: expect.objectContaining({ code: "tool-provider-adapter-runtime-rejected" }),
+			}),
+		]);
+		expect(issues).toEqual([
+			expect.objectContaining({ code: "tool-provider-adapter-runtime-rejected" }),
+		]);
+		expect(JSON.stringify({ outcomes, issues })).not.toContain("raw then getter secret");
+	});
+
 	it("bounds provider-returned public text on runtime outcomes", () => {
 		const g = graph();
 		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-text-inputs" });
@@ -1460,51 +1508,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect((outcome.metadata as { note: string }).note.length).toBeLessThanOrEqual(256);
 	});
 
-	it("turns dedupe key failures into visible adapter runtime failures", () => {
-		const g = graph();
-		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-dedupe-inputs" });
-		const ready = readyToolProviderAdapterInput("runtime-dedupe-provider", "runtime-dedupe-req");
-		const runtime = attachToolProviderAdapterRuntime(g, {
-			inputs,
-			bindings: [
-				{
-					providerId: "runtime-dedupe-provider",
-					run() {
-						return {
-							kind: "result",
-							result: { kind: "tool-output", value: { ok: true } },
-						};
-					},
-				},
-			],
-			dedupeKey() {
-				throw new Error("runtime-private key failure");
-			},
-		});
-		const outcomes: ExecutorOutcome[] = [];
-		const issues: DataIssue[] = [];
-		runtime.outcomes.subscribe(
-			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
-		);
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
-
-		expect(() => inputs.down([["DATA", ready]])).not.toThrow();
-
-		expect(outcomes).toEqual([
-			expect.objectContaining({
-				kind: "failure",
-				error: expect.objectContaining({
-					code: "tool-provider-adapter-runtime-dedupe-key-threw",
-				}),
-			}),
-		]);
-		expect(issues).toEqual([
-			expect.objectContaining({ code: "tool-provider-adapter-runtime-dedupe-key-threw" }),
-		]);
-		expect(JSON.stringify({ outcomes, issues })).not.toContain("runtime-private key failure");
-	});
-
-	it("runs updated adapter input content once even when adapterInputId is unchanged", () => {
+	it("does not hide a repeated auto-run attempt when adapterInputId is unchanged", () => {
 		const g = graph();
 		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-update-inputs" });
 		const ready = readyToolProviderAdapterInput("runtime-update-provider", "runtime-update-req");
@@ -1531,7 +1535,9 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				},
 			],
 		});
+		const issues: DataIssue[] = [];
 		runtime.outcomes.subscribe(() => undefined);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
 
 		inputs.down([["DATA", ready]]);
 		inputs.down([["DATA", ready]]);
@@ -1539,8 +1545,14 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 
 		expect(calls.map((input) => input.sourceRefs?.at(-1)?.id)).toEqual([
 			ready.sourceRefs?.at(-1)?.id,
-			"runtime-update-policy-v2",
 		]);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-duplicate-execution-coordinate",
+				}),
+			]),
+		);
 	});
 
 	it("executes explicit visible run requests as distinct attempts for unchanged adapter input", () => {
@@ -1616,6 +1628,827 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(
 			runStatus.filter((status) => status.status === "result").map((status) => status.attempt),
 		).toEqual([1, 2]);
+	});
+
+	it("bounds execution proofs, gaps trimmed replay, and still allows explicit attempt 2", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-execution-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-execution-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-execution-provider",
+			"runtime-retention-execution-req",
+		);
+		const attempts: number[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			name: "runtimeRetentionExecution",
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: { executions: { maxSize: 1 } },
+			bindings: [
+				{
+					providerId: "runtime-retention-execution-provider",
+					run(_input, ctx) {
+						attempts.push(ctx.attempt);
+						return { kind: "result", result: { kind: "tool-output", summary: "ok" } };
+					},
+				},
+			],
+		});
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const issues: DataIssue[] = [];
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "run-a", attempt: 1 })],
+			[
+				"DATA",
+				requestToolProviderAdapterRun(ready, { runId: "run-a", attempt: 2, reason: "retry" }),
+			],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "run-replay", attempt: 1 })],
+		]);
+
+		expect(attempts).toEqual([1, 2]);
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "retention-trimmed", index: "executions" }),
+				expect.objectContaining({ status: "retention-gap", index: "executions" }),
+			]),
+		);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ runId: "run-replay", status: "retention-gap", attempt: 1 }),
+			]),
+		);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-adapter-runtime-retention-gap" }),
+			]),
+		);
+	});
+
+	it("rejects same adapterInputId and attempt under a different runId without executing twice", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-coordinate-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-coordinate-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-coordinate-provider",
+			"runtime-retention-coordinate-req",
+		);
+		const calls: string[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: { executions: { maxSize: 2 } },
+			bindings: [
+				{
+					providerId: "runtime-retention-coordinate-provider",
+					run(_input, ctx) {
+						calls.push(ctx.runId ?? "");
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const issues: DataIssue[] = [];
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "run-once", attempt: 1 })],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "run-twice", attempt: 1 })],
+		]);
+
+		expect(calls).toEqual(["run-once"]);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-duplicate-execution-coordinate",
+				}),
+			]),
+		);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ runId: "run-twice", status: "mismatched-request" }),
+			]),
+		);
+		expect(runtimeStatus).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "retention-gap",
+					issueCode: "tool-provider-adapter-runtime-duplicate-execution-coordinate",
+				}),
+			]),
+		);
+	});
+
+	it("bounds retention evidence horizon and fails closed after high-water proof is evicted", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-evidence-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-evidence-runs",
+		});
+		const first = readyToolProviderAdapterInput(
+			"runtime-retention-evidence-provider",
+			"runtime-retention-evidence-req-a",
+		);
+		const second = readyToolProviderAdapterInput(
+			"runtime-retention-evidence-provider",
+			"runtime-retention-evidence-req-b",
+		);
+		const calls: string[] = [];
+		const evidenceScorerEntries: unknown[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: {
+				executions: { maxSize: 1 },
+				retentionEvidence: {
+					maxSize: 1,
+					score(entry) {
+						evidenceScorerEntries.push(entry);
+						return entry.adapterInputId === second.adapterInputId ? 10 : 0;
+					},
+				},
+			},
+			bindings: [
+				{
+					providerId: "runtime-retention-evidence-provider",
+					run(input, ctx) {
+						calls.push(`${input.adapterInputId}:${ctx.attempt}`);
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const issues: DataIssue[] = [];
+		const audit: unknown[] = [];
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		inputs.down([
+			["DATA", first],
+			["DATA", second],
+		]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(first, { runId: "evidence-first", attempt: 1 })],
+			["DATA", requestToolProviderAdapterRun(first, { runId: "evidence-first", attempt: 2 })],
+			["DATA", requestToolProviderAdapterRun(second, { runId: "evidence-second", attempt: 1 })],
+			["DATA", requestToolProviderAdapterRun(second, { runId: "evidence-second", attempt: 2 })],
+			["DATA", requestToolProviderAdapterRun(first, { runId: "evidence-replay", attempt: 1 })],
+		]);
+		inputs.down([["DATA", first]]);
+		runRequests.down([
+			[
+				"DATA",
+				requestToolProviderAdapterRun(first, {
+					runId: "evidence-replay-after-input-reemit",
+					attempt: 1,
+				}),
+			],
+		]);
+
+		expect(calls).toEqual([
+			`${first.adapterInputId}:1`,
+			`${first.adapterInputId}:2`,
+			`${second.adapterInputId}:1`,
+			`${second.adapterInputId}:2`,
+		]);
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "retention-trimmed",
+					index: "retentionEvidence",
+					adapterInputId: first.adapterInputId,
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-trimmed",
+					metadata: expect.objectContaining({ evidenceKind: "execution-high-water" }),
+				}),
+				expect.objectContaining({
+					status: "retention-gap",
+					index: "retentionEvidence",
+					adapterInputId: first.adapterInputId,
+					runId: "evidence-replay",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+				}),
+				expect.objectContaining({
+					status: "retention-gap",
+					index: "retentionEvidence",
+					adapterInputId: first.adapterInputId,
+					runId: "evidence-replay-after-input-reemit",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+				}),
+			]),
+		);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ runId: "evidence-replay", status: "retention-gap" }),
+				expect.objectContaining({
+					runId: "evidence-replay-after-input-reemit",
+					status: "retention-gap",
+				}),
+			]),
+		);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-retention-evidence-gap",
+					subjectId: first.adapterInputId,
+				}),
+			]),
+		);
+		expect(audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+				}),
+			]),
+		);
+		expect(JSON.stringify(evidenceScorerEntries)).not.toMatch(/tool-output|arguments|raw/i);
+		expect(evidenceScorerEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					key: expect.any(String),
+					sequence: expect.any(Number),
+					adapterInputId: first.adapterInputId,
+					evidenceKind: "execution-high-water",
+					attemptHighWater: expect.any(Number),
+					reason: "execution-proof-retention",
+				}),
+			]),
+		);
+	});
+
+	it("uses score-based retention over bounded public run request entries", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-score-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-score-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-score-provider",
+			"runtime-retention-score-req",
+		);
+		const scorerEntries: unknown[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: {
+				runRequests: {
+					maxSize: 1,
+					score(entry) {
+						scorerEntries.push(entry);
+						return entry.runId === "keep-run" ? 10 : 0;
+					},
+				},
+			},
+			bindings: [
+				{
+					providerId: "runtime-retention-score-provider",
+					run() {
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			[
+				"DATA",
+				requestToolProviderAdapterRun(ready, {
+					runId: "drop-run",
+					attempt: 1,
+					metadata: { rawResponse: "RAW_SHOULD_NOT_REACH_SCORER" },
+				}),
+			],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "keep-run", attempt: 2 })],
+		]);
+
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "retention-trimmed", index: "runRequests" }),
+			]),
+		);
+		expect(JSON.stringify(scorerEntries)).not.toMatch(/rawResponse|RAW_SHOULD_NOT_REACH_SCORER/);
+		expect(scorerEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					key: expect.any(String),
+					sequence: expect.any(Number),
+					runId: "drop-run",
+					adapterInputId: ready.adapterInputId,
+					attempt: 1,
+					requestId: ready.requestId,
+					operationId: ready.operationId,
+				}),
+			]),
+		);
+	});
+
+	it("makes Node-valued retention maxSize describe-visible and downsizing trims", () => {
+		const g = graph();
+		const maxSize = g.state(2, { name: "retentionMax" });
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-node-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-node-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-node-provider",
+			"runtime-retention-node-req",
+		);
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			name: "runtimeRetentionNode",
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: { executions: { maxSize } },
+			bindings: [
+				{
+					providerId: "runtime-retention-node-provider",
+					run() {
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		const described = g.describe();
+		expect(
+			described.nodes.find((node) => node.id === "runtimeRetentionNode/retentionPolicy")?.factory,
+		).toBe("toolProviderAdapterRuntimeRetentionPolicy");
+		expect(described.edges).toContainEqual({
+			from: "retentionMax",
+			to: "runtimeRetentionNode/retentionPolicy",
+		});
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "node-run", attempt: 1 })],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "node-run", attempt: 2 })],
+		]);
+		maxSize.set(1);
+
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "retention-trimmed", index: "executions" }),
+			]),
+		);
+	});
+
+	it("keeps last-known-good retention policy for invalid maxSize/order/scorer without leaking throws", () => {
+		const g = graph();
+		const maxSize = g.state(2, { name: "invalidRetentionMax" });
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-invalid-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-invalid-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-invalid-provider",
+			"runtime-retention-invalid-req",
+		);
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: {
+				executions: { maxSize },
+				runStatuses: { maxSize: 1 },
+				runRequests: {
+					maxSize: 1,
+					score() {
+						throw new Error("secret-score-throw");
+					},
+				},
+			},
+			bindings: [
+				{
+					providerId: "runtime-retention-invalid-provider",
+					run() {
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const issues: DataIssue[] = [];
+		const audit: unknown[] = [];
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 1 })],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 2 })],
+		]);
+		maxSize.set(0);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 3 })],
+		]);
+
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "invalid-retention-policy" }),
+				expect.objectContaining({ status: "retention-trimmed", index: "runStatuses" }),
+			]),
+		);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-invalid-retention-policy",
+				}),
+				expect.objectContaining({
+					code: "tool-provider-adapter-retention-score-invalid",
+				}),
+			]),
+		);
+		expect(JSON.stringify({ runtimeStatus, issues, audit })).not.toContain("secret-score-throw");
+
+		const orderGraph = graph();
+		const orderInputs = orderGraph.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-order-inputs",
+		});
+		const orderRuntime = attachToolProviderAdapterRuntime(orderGraph, {
+			inputs: orderInputs,
+			autoRunReadyInputs: false,
+			retention: { runStatuses: { maxSize: 1, order: "lifo" as "fifo" } },
+			bindings: [],
+		});
+		const orderIssues: DataIssue[] = [];
+		orderRuntime.issues.subscribe(
+			(msg) => msg[0] === "DATA" && orderIssues.push(msg[1] as DataIssue),
+		);
+		expect(orderIssues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-invalid-retention-policy",
+				}),
+			]),
+		);
+	});
+
+	it("does not recursively feed runIssues when its retention scorer is invalid", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-run-issues-score-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-run-issues-score-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-run-issues-score-provider",
+			"runtime-retention-run-issues-score-req",
+		);
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: {
+				runIssues: {
+					maxSize: 1,
+					score() {
+						throw new Error("recursive-score-secret");
+					},
+				},
+			},
+			bindings: [],
+		});
+		const issues: DataIssue[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+
+		inputs.down([["DATA", ready]]);
+		expect(() =>
+			runRequests.down([
+				[
+					"DATA",
+					{
+						...requestToolProviderAdapterRun(ready, { runId: "run-issues-score-invalid" }),
+						requestId: "stale-request",
+					},
+				],
+			]),
+		).not.toThrow();
+
+		expect(
+			issues.filter((issue) => issue.code === "tool-provider-adapter-retention-score-invalid"),
+		).toHaveLength(1);
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "invalid-retention-policy",
+					index: "runIssues",
+					issueCode: "tool-provider-adapter-retention-score-invalid",
+				}),
+			]),
+		);
+		expect(JSON.stringify({ issues, runtimeStatus })).not.toContain("recursive-score-secret");
+	});
+
+	it("gaps explicit run requests after adapterInputs retention trims the input cache", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-input-cache-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-input-cache-runs",
+		});
+		const first = readyToolProviderAdapterInput(
+			"runtime-retention-input-cache-provider",
+			"runtime-retention-input-cache-req-a",
+		);
+		const second = readyToolProviderAdapterInput(
+			"runtime-retention-input-cache-provider",
+			"runtime-retention-input-cache-req-b",
+		);
+		const calls: string[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: { adapterInputs: { maxSize: 1 } },
+			bindings: [
+				{
+					providerId: "runtime-retention-input-cache-provider",
+					run(input) {
+						calls.push(input.adapterInputId);
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+
+		inputs.down([
+			["DATA", first],
+			["DATA", second],
+		]);
+		runRequests.down([["DATA", requestToolProviderAdapterRun(first, { runId: "trimmed-input" })]]);
+
+		expect(calls).toEqual([]);
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "retention-trimmed", index: "adapterInputs" }),
+				expect.objectContaining({ status: "retention-gap", index: "adapterInputs" }),
+			]),
+		);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
+		);
+	});
+
+	it("refreshes FIFO retention order when an adapter input is re-emitted", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-refresh-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-refresh-runs",
+		});
+		const first = readyToolProviderAdapterInput(
+			"runtime-retention-refresh-provider",
+			"runtime-retention-refresh-req-a",
+		);
+		const second = readyToolProviderAdapterInput(
+			"runtime-retention-refresh-provider",
+			"runtime-retention-refresh-req-b",
+		);
+		const calls: string[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: { adapterInputs: { maxSize: 1 } },
+			bindings: [
+				{
+					providerId: "runtime-retention-refresh-provider",
+					run(input) {
+						calls.push(input.adapterInputId);
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+
+		inputs.down([
+			["DATA", first],
+			["DATA", second],
+			["DATA", first],
+		]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(first, { runId: "refreshed-first" })],
+			["DATA", requestToolProviderAdapterRun(second, { runId: "trimmed-second" })],
+		]);
+
+		expect(calls).toEqual([first.adapterInputId]);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ runId: "refreshed-first", status: "started" }),
+				expect.objectContaining({ runId: "trimmed-second", status: "retention-gap" }),
+			]),
+		);
+	});
+
+	it("caps runRequests emission keys without deleting already emitted request facts", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-run-request-key-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-run-request-key-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-run-request-key-provider",
+			"runtime-retention-run-request-key-req",
+		);
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: { runRequests: { maxSize: 1 } },
+			bindings: [
+				{
+					providerId: "runtime-retention-run-request-key-provider",
+					run() {
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const emittedRequests: ToolProviderAdapterRunRequested[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		runtime.runRequests.subscribe(
+			(msg) => msg[0] === "DATA" && emittedRequests.push(msg[1] as ToolProviderAdapterRunRequested),
+		);
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "request-key-a", attempt: 1 })],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "request-key-b", attempt: 2 })],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "request-key-a", attempt: 1 })],
+		]);
+
+		expect(emittedRequests.filter((request) => request.runId === "request-key-a")).toHaveLength(2);
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "retention-trimmed", index: "runRequests" }),
+			]),
+		);
+	});
+
+	it("caps runStatuses and runIssues indexes without deleting already emitted facts", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-emission-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-emission-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-emission-provider",
+			"runtime-retention-emission-req",
+		);
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: {
+				runStatuses: { maxSize: 1 },
+				runIssues: { maxSize: 1 },
+			},
+			bindings: [],
+		});
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const issues: DataIssue[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			[
+				"DATA",
+				{
+					...requestToolProviderAdapterRun(ready, { runId: "bad-run-a", attempt: 1 }),
+					requestId: "stale-a",
+				},
+			],
+			[
+				"DATA",
+				{
+					...requestToolProviderAdapterRun(ready, { runId: "bad-run-b", attempt: 2 }),
+					requestId: "stale-b",
+				},
+			],
+		]);
+		runRequests.down([
+			[
+				"DATA",
+				{
+					...requestToolProviderAdapterRun(ready, { runId: "bad-run-a", attempt: 1 }),
+					requestId: "stale-a",
+				},
+			],
+		]);
+
+		expect(runStatus.length).toBeGreaterThan(1);
+		expect(issues.length).toBeGreaterThan(1);
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "retention-trimmed", index: "runStatuses" }),
+				expect.objectContaining({ status: "retention-trimmed", index: "runIssues" }),
+			]),
+		);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([expect.objectContaining({ runId: "bad-run-a" })]),
+		);
+		expect(runStatus.filter((status) => status.runId === "bad-run-a")).toHaveLength(2);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-adapter-run-request-stale-request" }),
+			]),
+		);
+		expect(
+			issues.filter(
+				(issue) =>
+					issue.code === "tool-provider-adapter-run-request-stale-request" &&
+					issue.subjectId === ready.requestId,
+			),
+		).toHaveLength(3);
 	});
 
 	it("emits DataIssue and run status for missing or stale run requests without protocol ERROR", () => {

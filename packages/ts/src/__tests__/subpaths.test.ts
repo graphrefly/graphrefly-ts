@@ -39,6 +39,7 @@ import type {
 	KnowledgeAssertion,
 	KnowledgeGraphReducerBundleOptions,
 	MemoryFragment,
+	Node,
 	OrderedCapacityPolicy,
 	ReactiveIndexCapacityOrder,
 	ReactiveIndexCapacityPolicy,
@@ -63,15 +64,27 @@ import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
 import type {
 	ToolProviderAdapterBinding,
+	ToolProviderAdapterExecutionRetentionEntry,
 	ToolProviderAdapterInput,
 	ToolProviderAdapterInputBundle,
+	ToolProviderAdapterInputRetentionEntry,
 	ToolProviderAdapterInputStatus,
 	ToolProviderAdapterRunBundle,
+	ToolProviderAdapterRunIssueRetentionEntry,
 	ToolProviderAdapterRunRequested,
+	ToolProviderAdapterRunRequestRetentionEntry,
 	ToolProviderAdapterRunResult,
 	ToolProviderAdapterRunStatus,
+	ToolProviderAdapterRunStatusRetentionEntry,
 	ToolProviderAdapterRuntimeHandle,
+	ToolProviderAdapterRuntimeIndexRetentionPolicy,
 	ToolProviderAdapterRuntimeOptions,
+	ToolProviderAdapterRuntimeRetentionEvidenceEntry,
+	ToolProviderAdapterRuntimeRetentionIndex,
+	ToolProviderAdapterRuntimeRetentionOrder,
+	ToolProviderAdapterRuntimeRetentionPolicy,
+	ToolProviderAdapterRuntimeStatus,
+	ToolProviderAdapterRuntimeStatusKind,
 	ToolProviderExecutionPolicy,
 	ToolProviderPublicTextPolicy,
 } from "../orchestration/index.js";
@@ -378,8 +391,70 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		}>();
 		expectTypeOf<ToolProviderAdapterRuntimeOptions>().toHaveProperty("inputs");
 		expectTypeOf<ToolProviderAdapterRuntimeOptions>().toHaveProperty("runRequests");
+		expectTypeOf<ToolProviderAdapterRuntimeOptions>()
+			.toHaveProperty("retention")
+			.toEqualTypeOf<ToolProviderAdapterRuntimeRetentionPolicy | undefined>();
 		expectTypeOf<ToolProviderAdapterRuntimeHandle>().toHaveProperty("outcomes");
 		expectTypeOf<ToolProviderAdapterRuntimeHandle>().toHaveProperty("runRequests");
+		expectTypeOf<ToolProviderAdapterRuntimeHandle>()
+			.toHaveProperty("runtimeStatus")
+			.toEqualTypeOf<Node<ToolProviderAdapterRuntimeStatus>>();
+		expectTypeOf<ToolProviderAdapterRuntimeStatusKind>().toEqualTypeOf<
+			"retention-trimmed" | "retention-gap" | "invalid-retention-policy"
+		>();
+		expectTypeOf<ToolProviderAdapterRuntimeRetentionIndex>().toEqualTypeOf<
+			| "adapterInputs"
+			| "runRequests"
+			| "executions"
+			| "runStatuses"
+			| "runIssues"
+			| "retentionEvidence"
+		>();
+		expectTypeOf<ToolProviderAdapterRuntimeRetentionOrder>().toEqualTypeOf<"fifo">();
+		expectTypeOf<
+			ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterExecutionRetentionEntry>
+		>().toMatchTypeOf<
+			| CapacityPolicy<ToolProviderAdapterRuntimeRetentionOrder>
+			| RetentionPolicy<ToolProviderAdapterExecutionRetentionEntry>
+		>();
+		expectTypeOf<
+			ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterInputRetentionEntry>
+		>()
+			.toHaveProperty("maxSize")
+			.toEqualTypeOf<ReactiveOpt<number>>();
+		expectTypeOf<ToolProviderAdapterRuntimeRetentionPolicy>()
+			.toHaveProperty("adapterInputs")
+			.toEqualTypeOf<
+				| ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterInputRetentionEntry>
+				| undefined
+			>();
+		expectTypeOf<ToolProviderAdapterRuntimeRetentionPolicy>()
+			.toHaveProperty("runRequests")
+			.toEqualTypeOf<
+				| ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterRunRequestRetentionEntry>
+				| undefined
+			>();
+		expectTypeOf<ToolProviderAdapterRuntimeRetentionPolicy>()
+			.toHaveProperty("runStatuses")
+			.toEqualTypeOf<
+				| ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterRunStatusRetentionEntry>
+				| undefined
+			>();
+		expectTypeOf<ToolProviderAdapterRuntimeRetentionPolicy>()
+			.toHaveProperty("runIssues")
+			.toEqualTypeOf<
+				| ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterRunIssueRetentionEntry>
+				| undefined
+			>();
+		expectTypeOf<ToolProviderAdapterRuntimeRetentionPolicy>()
+			.toHaveProperty("retentionEvidence")
+			.toEqualTypeOf<
+				| ToolProviderAdapterRuntimeIndexRetentionPolicy<ToolProviderAdapterRuntimeRetentionEvidenceEntry>
+				| undefined
+			>();
+		expectTypeOf<ToolProviderAdapterRuntimeRetentionEvidenceEntry>()
+			.toHaveProperty("evidenceKind")
+			.toEqualTypeOf<"adapter-input-trimmed" | "execution-high-water">();
 		expect(typeof orchestration.workItemEffectRunProjector).toBe("function");
 		expect(typeof orchestrationMessagingRecipe.orchestrationMessagingRecipe).toBe("function");
 		expect(typeof orchestrationWorkQueueRecipe.orchestrationWorkQueueRecipe).toBe("function");
