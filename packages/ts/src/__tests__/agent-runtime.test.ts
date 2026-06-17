@@ -17,9 +17,11 @@ import {
 	type ExecutorRoute,
 	effectRun,
 	effectRunCompletionProjector,
+	executorOutcomeViewProjector,
 	fakeExecutorFailure,
 	fakeExecutorResult,
 	issueAgentRequest,
+	localBuiltinToolProviderCatalog,
 	type PromptBundle,
 	requestSatisfactionProjector,
 	structuredAgentDecisionInterpreter,
@@ -40,6 +42,71 @@ import {
 } from "../orchestration/work-item-runtime.js";
 
 describe("CSP-8 experimental agent runtime kernel (D236)", () => {
+	it("projects ExecutorOutcome views with bounded agent-observation material", () => {
+		const g = graph();
+		const outcomes = g.node<ExecutorOutcome>([], null, { name: "outcomes" });
+		const views = executorOutcomeViewProjector(g, {
+			outcomes,
+			policy: { maxSummaryChars: 20, includeIssues: true, includeUsage: true },
+		});
+		const projected: unknown[] = [];
+		const issues: unknown[] = [];
+		const audit: unknown[] = [];
+		views.views.subscribe((msg) => msg[0] === "DATA" && projected.push(msg[1]));
+		views.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		views.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		outcomes.down([
+			[
+				"DATA",
+				fakeExecutorFailure({
+					outcomeId: "outcome-1",
+					requestId: "request-1",
+					operationId: "op-1",
+					routeId: "route-1",
+					executorId: "exec-1",
+					profileId: "profile-1",
+					attempt: 1,
+					retryable: true,
+					error: {
+						kind: "issue",
+						code: "provider-failed",
+						message: "Provider returned a long failure message for compact projection",
+					},
+					usage: { inputTokens: 10, outputTokens: 2 },
+					evidenceRefs: [{ kind: "executor-outcome", id: "outcome-1" }],
+				}),
+			],
+		]);
+
+		expect(projected.at(-1)).toMatchObject({
+			kind: "executor-outcome-view",
+			audience: "agent-observation",
+			status: "failure",
+			errorKind: "provider-failed",
+			retryable: true,
+			nextActions: ["retry-or-route"],
+			summaryTruncated: true,
+			summaryLimitChars: 20,
+			usage: { inputTokens: 10, outputTokens: 2 },
+		});
+		expect((projected.at(-1) as { summary: string }).summary.length).toBeLessThanOrEqual(20);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "provider-failed" }),
+				expect.objectContaining({
+					code: "executor-outcome-view-summary-truncated",
+					severity: "warning",
+					subjectId: "request-1",
+				}),
+			]),
+		);
+		expect(audit.at(-1)).toMatchObject({
+			kind: "executor-outcome-view-projected",
+			subjectId: "request-1",
+		});
+	});
+
 	it("maps WorkItemEffectRequested through EffectRun completion into WorkItemEvidenceRecorded", () => {
 		const g = graph();
 		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
@@ -480,6 +547,136 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				.map((s) => s.requestId)
 				.sort(),
 		).toEqual(["context-1", "exec-1", "prompt-1"]);
+	});
+
+	it("uses local builtin tool catalog facts without adding provider handles to WorkItem core", () => {
+		const g = graph();
+		const requestFacts = g.node<AgentRequestFact>([], null, { name: "requestFacts" });
+		const profiles = g.node<ExecutorProfile>([], null, { name: "profiles" });
+		const routes = g.node<ExecutorRoute>([], null, { name: "routes" });
+		const outcomes = g.node<ExecutorOutcome>([], null, { name: "outcomes" });
+		const satisfaction = requestSatisfactionProjector(g, {
+			requestFacts,
+			executorProfiles: [profiles],
+			executorRoutes: [routes],
+			executorOutcomes: [outcomes],
+		});
+		const statuses: AgentRequestStatusChanged[] = [];
+		satisfaction.status.subscribe(
+			(msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged),
+		);
+		const catalog = localBuiltinToolProviderCatalog({
+			providerId: "local",
+			limits: { timeoutMs: 1000 },
+		});
+		const profile = catalog.profiles[0];
+		if (profile === undefined) throw new Error("expected local builtin tool profile");
+		expect(catalog.tools.map((tool) => tool.toolName)).toEqual(
+			expect.arrayContaining(["file.read", "bash.run", "url.fetch"]),
+		);
+		expect(profile).toMatchObject({
+			kind: "tool",
+			acceptedInputKinds: ["tool-call"],
+			limits: { timeoutMs: 1000 },
+		});
+		expect(JSON.stringify(catalog)).not.toMatch(/apiKey|secret|client|transport|subprocess/);
+
+		requestFacts.down([["DATA", issued("tool-req", "tool-op", "executor", "tool-call")]]);
+		profiles.down([["DATA", profile]]);
+		routes.down([
+			[
+				"DATA",
+				{
+					kind: "executor-route",
+					routeId: "tool-route",
+					requestId: "tool-req",
+					operationId: "tool-op",
+					inputKind: "tool-call",
+					executorId: profile.executorId,
+					profileId: profile.profileId,
+				},
+			],
+		]);
+		outcomes.down([
+			[
+				"DATA",
+				fakeExecutorResult({
+					outcomeId: "tool-outcome",
+					requestId: "tool-req",
+					operationId: "tool-op",
+					routeId: "tool-route",
+					executorId: profile.executorId,
+					profileId: profile.profileId,
+					attempt: 1,
+					inputKind: "tool-call",
+					result: {
+						kind: "tool-result",
+						summary: "read complete",
+						refs: [{ kind: "artifact", id: "artifact:file-read:1" }],
+					},
+				}),
+			],
+		]);
+
+		expect(statuses.at(-1)).toMatchObject({ requestId: "tool-req", status: "completed" });
+	});
+
+	it("projects compact ExecutorOutcome views without inlining raw result payloads", () => {
+		const g = graph();
+		const outcomes = g.node<ExecutorOutcome>([], null, { name: "outcomes" });
+		const projector = executorOutcomeViewProjector(g, {
+			outcomes,
+			policy: { maxSummaryChars: 18 },
+		});
+		const views: unknown[] = [];
+		const audit: unknown[] = [];
+		projector.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+		projector.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		outcomes.down([
+			[
+				"DATA",
+				fakeExecutorResult({
+					outcomeId: "outcome-large",
+					requestId: "request-large",
+					operationId: "op-large",
+					routeId: "route-large",
+					executorId: "exec-tool",
+					profileId: "profile-tool",
+					attempt: 1,
+					inputKind: "tool-call",
+					result: {
+						kind: "tool-result",
+						summary: "stdout contained a very long failure explanation",
+						value: { stdout: "RAW_STDOUT_SHOULD_NOT_APPEAR".repeat(20) },
+						refs: [{ kind: "artifact", id: "stdout-summary-ref" }],
+					},
+					evidenceRefs: [{ kind: "executor-route", id: "route-large" }],
+					metadata: { providerRawId: "raw-123" },
+				}),
+			],
+		]);
+
+		expect(views).toHaveLength(1);
+		expect(views.at(-1)).toMatchObject({
+			kind: "executor-outcome-view",
+			audience: "agent-observation",
+			outcomeId: "outcome-large",
+			status: "result",
+			materialRefs: [{ kind: "artifact", id: "stdout-summary-ref" }],
+			sourceRefs: [
+				{ kind: "executor-outcome", id: "outcome-large" },
+				{ kind: "executor-route", id: "route-large" },
+			],
+		});
+		expect((views.at(-1) as { summary: string }).summary).toMatch(/^stdout/);
+		expect((views.at(-1) as { summary: string }).summary.length).toBeLessThanOrEqual(18);
+		expect(JSON.stringify(views.at(-1))).not.toContain("RAW_STDOUT_SHOULD_NOT_APPEAR");
+		expect(JSON.stringify(views.at(-1))).not.toContain("raw-123");
+		expect(audit.at(-1)).toMatchObject({
+			kind: "executor-outcome-view-projected",
+			subjectId: "request-large",
+		});
 	});
 
 	it("emits DataIssue for stale operationId and does not satisfy the request", () => {

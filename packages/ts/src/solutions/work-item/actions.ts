@@ -11,6 +11,7 @@
 import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import type { BoundaryCapabilityKind, BoundaryCapabilityRef } from "../../inspection/boundary.js";
 import type { Node } from "../../node/node.js";
 import type { AgentRuntimeAuditRecord, SourceRef } from "../../orchestration/agent-runtime.js";
 import type {
@@ -179,14 +180,15 @@ export interface WorkItemDomainActionApplicationBundle<TInput = unknown> {
 
 /**
  * Product-owned command capability policy (D357): maps WorkItem domain action
- * proposals to opaque capability ids without defining provider/security registry
- * semantics or protocol status vocabulary.
+ * proposals to explicit boundary capability refs and admission subjects without
+ * defining provider/security registry semantics or protocol status vocabulary.
  */
 export interface WorkItemDomainActionCapabilityGuardPolicy {
 	readonly kind: "work-item-domain-action-capability-guard-policy";
 	readonly policyId: string;
 	readonly actionKinds?: readonly WorkItemDomainActionKind[];
-	readonly capabilityIds: readonly string[];
+	readonly capabilityRefs: readonly BoundaryCapabilityRef[];
+	readonly admissionSubjectIds: readonly string[];
 	readonly metadata?: Record<string, unknown>;
 }
 
@@ -202,7 +204,8 @@ export interface WorkItemDomainActionCapabilityGuardStatus {
 	readonly proposalId?: string;
 	readonly actionKind?: string;
 	readonly policyId?: string;
-	readonly capabilityIds?: readonly string[];
+	readonly capabilityRefs?: readonly BoundaryCapabilityRef[];
+	readonly admissionSubjectIds?: readonly string[];
 	readonly admissionIds?: readonly string[];
 	readonly issues?: readonly DataIssue[];
 	readonly message?: string;
@@ -577,10 +580,11 @@ export function workItemDomainActionCapabilityGuardProjector(
 					continue;
 				}
 				const admission = raw as CapabilityAdmission;
+				const capabilityKey = capabilityBoundaryRefId(admission.capability);
 				const byCapability: CapabilityAdmission[] =
-					state.admissionsByCapability.get(admission.capability.id) ?? [];
+					state.admissionsByCapability.get(capabilityKey) ?? [];
 				if (!byCapability.some((item) => item.admissionId === admission.admissionId)) {
-					state.admissionsByCapability.set(admission.capability.id, [...byCapability, admission]);
+					state.admissionsByCapability.set(capabilityKey, [...byCapability, admission]);
 				}
 			}
 			if (statusIndex >= 0) {
@@ -597,11 +601,17 @@ export function workItemDomainActionCapabilityGuardProjector(
 					}
 					const status = raw as CapabilityAdmissionStatus;
 					if (status.state !== "capability-admission-issue") continue;
-					if (status.capabilityId !== undefined) {
+					const capabilityId = status.capabilityId;
+					const capabilityKind = status.capabilityKind;
+					if (capabilityId !== undefined && capabilityKind !== undefined) {
+						const capabilityKey = capabilityBoundaryRefId({
+							id: capabilityId,
+							kind: capabilityKind,
+						});
 						const statuses: CapabilityAdmissionStatus[] =
-							state.issueStatusesByCapability.get(status.capabilityId) ?? [];
+							state.issueStatusesByCapability.get(capabilityKey) ?? [];
 						if (!statuses.some((item) => item.statusId === status.statusId)) {
-							state.issueStatusesByCapability.set(status.capabilityId, [...statuses, status]);
+							state.issueStatusesByCapability.set(capabilityKey, [...statuses, status]);
 						}
 					} else if (
 						!state.issueStatusesWithoutCapability.some((item) => item.statusId === status.statusId)
@@ -692,35 +702,41 @@ function evaluateCapabilityGuardProposal(
 	}
 	for (const status of state.issueStatusesWithoutCapability)
 		emitCapabilityStatusIssueForProposal(ctx, state, proposal, status);
-	for (const capabilityId of policy.capabilityIds) {
-		for (const status of state.issueStatusesByCapability.get(capabilityId) ?? [])
+	for (const capabilityRef of policy.capabilityRefs) {
+		for (const status of state.issueStatusesByCapability.get(
+			capabilityBoundaryRefId(capabilityRef),
+		) ?? [])
 			emitCapabilityStatusIssueForProposal(ctx, state, proposal, status);
 	}
-	const admissions = policy.capabilityIds.map((capabilityId) =>
-		latestCapabilityAdmission(state, capabilityId),
+	const admissions = policy.capabilityRefs.map((capabilityRef) =>
+		latestCapabilityAdmission(state, policy, capabilityRef),
 	);
-	const missingCapabilityIds = policy.capabilityIds.filter(
+	const missingCapabilityRefs = policy.capabilityRefs.filter(
 		(_, index) => admissions[index] === undefined,
 	);
-	const deferredCapabilityIds = admissions
+	const deferredCapabilityRefs = admissions
 		.filter((admission): admission is CapabilityAdmission => admission !== undefined)
 		.filter((admission) => admission.state === "deferred")
-		.map((admission) => admission.capability.id);
-	if (missingCapabilityIds.length > 0 || deferredCapabilityIds.length > 0) {
+		.map((admission) => capabilityBoundaryRefId(admission.capability));
+	if (missingCapabilityRefs.length > 0 || deferredCapabilityRefs.length > 0) {
 		emitCapabilityGuardStatusOnce(
 			ctx,
 			state,
-			`deferred:${proposal.proposalId}:${policy.policyId}:missing=${missingCapabilityIds.join(",")}:deferred=${deferredCapabilityIds.join(",")}`,
+			`deferred:${proposal.proposalId}:${policy.policyId}:missing=${missingCapabilityRefs.map(capabilityBoundaryRefId).join(",")}:deferred=${deferredCapabilityRefs.join(",")}`,
 			{
 				state: "deferred",
 				workItemId: proposal.workItemId,
 				proposalId: proposal.proposalId,
 				actionKind: proposal.actionKind,
 				policyId: policy.policyId,
-				capabilityIds: policy.capabilityIds,
+				capabilityRefs: policy.capabilityRefs,
+				admissionSubjectIds: policy.admissionSubjectIds,
 				message: "WorkItem domain action is waiting for capability admission",
 				sourceRefs: capabilityGuardRefs(proposal, policy, admissions),
-				metadata: { missingCapabilityIds, deferredCapabilityIds },
+				metadata: {
+					missingCapabilityRefs: missingCapabilityRefs.map(capabilityBoundaryRefId),
+					deferredCapabilityRefs,
+				},
 			},
 		);
 		return;
@@ -745,8 +761,11 @@ function evaluateCapabilityGuardProposal(
 		sourceRefs: capabilityGuardRefs(proposal, policy, presentAdmissions),
 		metadata: {
 			capabilityGuardPolicyId: policy.policyId,
-			capabilityIds: policy.capabilityIds,
-			blockedCapabilityIds: blocked.map((admission) => admission.capability.id),
+			capabilityRefs: policy.capabilityRefs.map(capabilityBoundaryRefId),
+			admissionSubjectIds: policy.admissionSubjectIds,
+			blockedCapabilityRefs: blocked.map((admission) =>
+				capabilityBoundaryRefId(admission.capability),
+			),
 		},
 	};
 	state.emittedProposalDecisions.add(proposal.proposalId);
@@ -757,7 +776,8 @@ function evaluateCapabilityGuardProposal(
 		proposalId: proposal.proposalId,
 		actionKind: proposal.actionKind,
 		policyId: policy.policyId,
-		capabilityIds: policy.capabilityIds,
+		capabilityRefs: policy.capabilityRefs,
+		admissionSubjectIds: policy.admissionSubjectIds,
 		admissionIds: presentAdmissions.map((admission) => admission.admissionId),
 		sourceRefs: decision.sourceRefs,
 		metadata: { decisionId: decision.decisionId, admissionId: decision.admissionId },
@@ -773,7 +793,8 @@ function capabilityGuardProposalIssue(proposal: unknown): DataIssue | undefined 
 		typeof proposal.workItemId !== "string" ||
 		proposal.workItemId.length === 0 ||
 		typeof proposal.actionKind !== "string" ||
-		proposal.actionKind.length === 0
+		proposal.actionKind.length === 0 ||
+		(proposal.sourceRefs !== undefined && !isSourceRefArray(proposal.sourceRefs))
 	) {
 		return dataIssue(
 			"malformed-work-item-domain-action-capability-guard-proposal",
@@ -790,16 +811,19 @@ function capabilityGuardPolicyIssue(policy: unknown): DataIssue | undefined {
 		policy.kind !== "work-item-domain-action-capability-guard-policy" ||
 		typeof policy.policyId !== "string" ||
 		policy.policyId.length === 0 ||
-		!Array.isArray(policy.capabilityIds) ||
-		policy.capabilityIds.length === 0 ||
-		!policy.capabilityIds.every((id) => typeof id === "string" && id.length > 0) ||
+		!Array.isArray(policy.capabilityRefs) ||
+		policy.capabilityRefs.length === 0 ||
+		!policy.capabilityRefs.every(isBoundaryCapabilityRef) ||
+		!Array.isArray(policy.admissionSubjectIds) ||
+		policy.admissionSubjectIds.length === 0 ||
+		!policy.admissionSubjectIds.every((id) => typeof id === "string" && id.length > 0) ||
 		(policy.actionKinds !== undefined &&
 			(!Array.isArray(policy.actionKinds) ||
 				!policy.actionKinds.every((kind) => typeof kind === "string" && kind.length > 0)))
 	) {
 		return dataIssue(
 			"malformed-work-item-domain-action-capability-guard-policy",
-			"WorkItem domain action capability guard policy requires policyId and opaque capabilityIds",
+			"WorkItem domain action capability guard policy requires policyId, capabilityRefs, and admissionSubjectIds",
 			{
 				subjectId: recordString(policy, "policyId"),
 			},
@@ -818,14 +842,11 @@ function capabilityAdmissionIssue(admission: unknown): DataIssue | undefined {
 		admission.proposalId.length === 0 ||
 		typeof admission.subjectId !== "string" ||
 		admission.subjectId.length === 0 ||
-		!isRecord(admission.capability) ||
-		typeof admission.capability.id !== "string" ||
-		admission.capability.id.length === 0 ||
-		typeof admission.capability.kind !== "string" ||
-		admission.capability.kind.length === 0 ||
+		!isBoundaryCapabilityRef(admission.capability) ||
 		!isCapabilityAdmissionState(admission.state) ||
 		typeof admission.decisionId !== "string" ||
-		admission.decisionId.length === 0
+		admission.decisionId.length === 0 ||
+		(admission.sourceRefs !== undefined && !isSourceRefArray(admission.sourceRefs))
 	) {
 		return dataIssue(
 			"malformed-capability-admission",
@@ -842,8 +863,24 @@ function capabilityAdmissionStatusIssue(status: unknown): DataIssue | undefined 
 		status.kind !== "capability-admission-status" ||
 		typeof status.statusId !== "string" ||
 		status.statusId.length === 0 ||
-		!isCapabilityAdmissionStatusState(status.state) ||
-		(status.capabilityId !== undefined && typeof status.capabilityId !== "string")
+		!isCapabilityAdmissionStatusState(status.state)
+	) {
+		return dataIssue(
+			"malformed-capability-admission-status",
+			"WorkItem domain action capability guard requires valid CapabilityAdmissionStatus DATA facts",
+			{ subjectId: recordString(status, "subjectId") },
+		);
+	}
+	const hasCapabilityId = status.capabilityId !== undefined;
+	const hasCapabilityKind = status.capabilityKind !== undefined;
+	if (
+		hasCapabilityId !== hasCapabilityKind ||
+		(hasCapabilityId &&
+			(typeof status.capabilityId !== "string" ||
+				status.capabilityId.length === 0 ||
+				!isBoundaryCapabilityKind(status.capabilityKind))) ||
+		(status.sourceRefs !== undefined && !isSourceRefArray(status.sourceRefs)) ||
+		(status.issues !== undefined && !isDataIssueArray(status.issues))
 	) {
 		return dataIssue(
 			"malformed-capability-admission-status",
@@ -867,6 +904,47 @@ function isCapabilityAdmissionStatusState(
 		value === "capability-admission-deferred" ||
 		value === "capability-admission-issue"
 	);
+}
+
+function isSourceRefArray(value: unknown): value is readonly SourceRef[] {
+	return (
+		Array.isArray(value) &&
+		value.every(
+			(item) => isRecord(item) && typeof item.kind === "string" && typeof item.id === "string",
+		)
+	);
+}
+
+function isDataIssueArray(value: unknown): value is readonly DataIssue[] {
+	return Array.isArray(value) && value.every(isDataIssue);
+}
+
+function isDataIssue(value: unknown): value is DataIssue {
+	return (
+		isRecord(value) &&
+		value.kind === "issue" &&
+		typeof value.code === "string" &&
+		value.code.length > 0 &&
+		typeof value.message === "string" &&
+		value.message.length > 0
+	);
+}
+
+function isBoundaryCapabilityRef(value: unknown): value is BoundaryCapabilityRef {
+	return (
+		isRecord(value) &&
+		typeof value.id === "string" &&
+		value.id.length > 0 &&
+		isBoundaryCapabilityKind(value.kind) &&
+		typeof value.required === "boolean" &&
+		(value.sourceRefs === undefined ||
+			(Array.isArray(value.sourceRefs) &&
+				value.sourceRefs.every((sourceRef) => typeof sourceRef === "string")))
+	);
+}
+
+function isBoundaryCapabilityKind(value: unknown): value is BoundaryCapabilityKind {
+	return value === "auth" || value === "permission" || value === "config" || value === "resource";
 }
 
 function selectCapabilityGuardPolicy(
@@ -897,9 +975,16 @@ function selectCapabilityGuardPolicy(
 
 function latestCapabilityAdmission(
 	state: CapabilityGuardState,
-	capabilityId: string,
+	policy: WorkItemDomainActionCapabilityGuardPolicy,
+	capabilityRef: BoundaryCapabilityRef,
 ): CapabilityAdmission | undefined {
-	return state.admissionsByCapability.get(capabilityId)?.at(-1);
+	const admissions = state.admissionsByCapability.get(capabilityBoundaryRefId(capabilityRef)) ?? [];
+	for (let index = admissions.length - 1; index >= 0; index -= 1) {
+		const admission = admissions[index];
+		if (admission !== undefined && policy.admissionSubjectIds.includes(admission.subjectId))
+			return admission;
+	}
+	return undefined;
 }
 
 function emitCapabilityStatusIssueForProposal(
@@ -910,7 +995,20 @@ function emitCapabilityStatusIssueForProposal(
 ): void {
 	const policy = selectCapabilityGuardPolicy(state, proposal);
 	if (typeof policy === "string") return;
-	if (status.capabilityId !== undefined && !policy.capabilityIds.includes(status.capabilityId))
+	if (status.subjectId !== undefined && !policy.admissionSubjectIds.includes(status.subjectId))
+		return;
+	const capabilityId = status.capabilityId;
+	const capabilityKind = status.capabilityKind;
+	const statusCapabilityKey =
+		capabilityId === undefined || capabilityKind === undefined
+			? undefined
+			: capabilityBoundaryRefId({ id: capabilityId, kind: capabilityKind });
+	if (
+		statusCapabilityKey !== undefined &&
+		!policy.capabilityRefs.some(
+			(capabilityRef) => capabilityBoundaryRefId(capabilityRef) === statusCapabilityKey,
+		)
+	)
 		return;
 	const issue =
 		status.issues?.[0] ??
@@ -930,7 +1028,7 @@ function emitCapabilityStatusIssueForProposal(
 				...(status.sourceRefs ?? []),
 			]),
 			metadata: {
-				...(status.capabilityId === undefined ? {} : { capabilityId: status.capabilityId }),
+				...(statusCapabilityKey === undefined ? {} : { capabilityRef: statusCapabilityKey }),
 				capabilityAdmissionStatusId: status.statusId,
 			},
 		}),
@@ -972,7 +1070,7 @@ function capabilityGuardRefs(
 	]);
 }
 
-function capabilityBoundaryRefId(capability: CapabilityAdmission["capability"]): string {
+function capabilityBoundaryRefId(capability: Pick<BoundaryCapabilityRef, "id" | "kind">): string {
 	return `${capability.kind}:${capability.id}`;
 }
 

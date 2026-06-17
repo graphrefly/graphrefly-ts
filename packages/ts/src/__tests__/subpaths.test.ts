@@ -313,6 +313,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.processEffectRunner).toBe("function");
 		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
+		expect(typeof orchestration.requestSatisfactionProjector).toBe("function");
+		expect(typeof orchestration.effectRunCompletionProjector).toBe("function");
+		expect(typeof orchestration.localBuiltinToolProviderCatalog).toBe("function");
+		expect(typeof orchestration.executorOutcomeViewProjector).toBe("function");
+		expect(typeof orchestration.workItemEffectRunProjector).toBe("function");
 		expect(typeof orchestrationMessagingRecipe.orchestrationMessagingRecipe).toBe("function");
 		expect(typeof orchestrationWorkQueueRecipe.orchestrationWorkQueueRecipe).toBe("function");
 		expect(Object.hasOwn(orchestration, "orchestrationMessagingRecipe")).toBe(false);

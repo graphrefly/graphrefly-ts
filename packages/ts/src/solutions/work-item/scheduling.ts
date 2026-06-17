@@ -1463,11 +1463,12 @@ function drainPlanWork<T>(ctx: Ctx, state: PlanState<T>, policy?: WorkItemEffect
 		state.emittedMemberKeys.size +
 		1;
 	for (let pass = 0; pass < maxPasses; pass += 1) {
-		let changed = replayPendingPlanFacts(ctx, state);
+		let changed = false;
 		for (const admitted of state.admitted.values()) {
 			changed = lowerEligiblePlanMembers(ctx, state, admitted, policy) || changed;
 			derivePlanResult(ctx, state, admitted);
 		}
+		changed = replayPendingPlanFacts(ctx, state) || changed;
 		if (!changed) break;
 	}
 	for (const admitted of state.admitted.values()) derivePlanResult(ctx, state, admitted);
@@ -1606,14 +1607,39 @@ function emitConflictingPlanEvidenceCoordinate<T>(
 	evidence: WorkItemEvidenceRecorded,
 	coordinate: PlanCoordinate<T>,
 ): boolean {
+	const expectedRequest = planRequestForCoordinate(state, coordinate);
+	const expectedRequestIdMismatch =
+		expectedRequest !== undefined &&
+		evidence.requestId !== undefined &&
+		evidence.requestId !== expectedRequest.requestId;
+	if (
+		expectedRequest !== undefined &&
+		(expectedRequestIdMismatch || evidence.effectRunId !== expectedRequest.effectRunId)
+	) {
+		emitPlanEvidenceCoordinateMismatch(ctx, state, evidence, coordinate, expectedRequest);
+		return true;
+	}
 	const requestRefs = [
 		evidence.requestId === undefined ? undefined : state.requestByRequestId.get(evidence.requestId),
 		state.requestByEffectRun.get(evidence.effectRunId),
 	].filter((request): request is WorkItemEffectRequested<T> => request !== undefined);
 	const conflicting = requestRefs.find(
-		(request) => !requestMatchesPlanCoordinate(request, coordinate),
+		(request) =>
+			!requestMatchesPlanCoordinate(request, coordinate) ||
+			!requestMatchesEvidenceIdentity(request, evidence),
 	);
 	if (conflicting === undefined) return false;
+	emitPlanEvidenceCoordinateMismatch(ctx, state, evidence, coordinate, conflicting);
+	return true;
+}
+
+function emitPlanEvidenceCoordinateMismatch<T>(
+	ctx: Ctx,
+	state: PlanState<T>,
+	evidence: WorkItemEvidenceRecorded,
+	coordinate: PlanCoordinate<T>,
+	conflicting: WorkItemEffectRequested<T>,
+): void {
 	const item = issue(
 		"dangling-ref",
 		"WorkItemEffectPlan evidence request/effectRun coordinates do not match its plan member coordinates",
@@ -1644,7 +1670,6 @@ function emitConflictingPlanEvidenceCoordinate<T>(
 		sourceRefs: evidence.sourceRefs,
 		metadata: item.metadata,
 	});
-	return true;
 }
 
 function requestMatchesPlanCoordinate<T>(
@@ -1657,6 +1682,26 @@ function requestMatchesPlanCoordinate<T>(
 		request.planMemberId === coordinate.planMemberId &&
 		request.executionInputRevision === coordinate.executionInputRevision
 	);
+}
+
+function requestMatchesEvidenceIdentity<T>(
+	request: WorkItemEffectRequested<T>,
+	evidence: WorkItemEvidenceRecorded,
+): boolean {
+	return (
+		(evidence.requestId === undefined || evidence.requestId === request.requestId) &&
+		evidence.effectRunId === request.effectRunId
+	);
+}
+
+function planRequestForCoordinate<T>(
+	state: PlanState<T>,
+	coordinate: PlanCoordinate<T>,
+): WorkItemEffectRequested<T> | undefined {
+	for (const request of state.requestByRequestId.values()) {
+		if (requestMatchesPlanCoordinate(request, coordinate)) return request;
+	}
+	return undefined;
 }
 
 function recordPlanResult<T>(ctx: Ctx, state: PlanState<T>, result: EffectRunResult): boolean {
@@ -1752,6 +1797,7 @@ function planCoordinateFromEvidence<T>(
 ): PlanCoordinate<T> | undefined {
 	const topLevelRequest =
 		evidence.requestId === undefined ? undefined : state.requestByRequestId.get(evidence.requestId);
+	const effectRunRequest = state.requestByEffectRun.get(evidence.effectRunId);
 	if (
 		evidence.planId !== undefined &&
 		evidence.planMemberId !== undefined &&
@@ -1762,11 +1808,11 @@ function planCoordinateFromEvidence<T>(
 			planId: evidence.planId,
 			executionInputRevision: evidence.executionInputRevision,
 			planMemberId: evidence.planMemberId,
-			requestId: evidence.requestId ?? topLevelRequest?.requestId,
-			request: topLevelRequest ?? state.requestByEffectRun.get(evidence.effectRunId),
+			requestId: topLevelRequest?.requestId ?? effectRunRequest?.requestId ?? evidence.requestId,
+			request: topLevelRequest ?? effectRunRequest,
 		};
 	}
-	const request = state.requestByEffectRun.get(evidence.effectRunId);
+	const request = effectRunRequest;
 	if (
 		request?.planId !== undefined &&
 		request.planMemberId !== undefined &&

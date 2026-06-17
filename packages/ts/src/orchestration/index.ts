@@ -20,6 +20,9 @@ import {
 import { timeout as timeoutOperator } from "../graph/time.js";
 import type { Node } from "../node/node.js";
 
+export * from "./agent-runtime.js";
+export * from "./work-item-runtime.js";
+
 export {
 	type BackoffPolicy,
 	backoffDelayMs,

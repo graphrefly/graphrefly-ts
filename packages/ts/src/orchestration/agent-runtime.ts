@@ -299,6 +299,144 @@ export type ExecutorOutcome<T = unknown> =
 			readonly needs: readonly AgentNeed[];
 	  });
 
+/**
+ * Provider-neutral tool-call request input (D359). Concrete clients, secrets,
+ * transports, and SDK handles stay in executor adapter bindings, not this fact.
+ */
+export interface ToolCallInput<TArguments = unknown> {
+	readonly kind: "tool-call";
+	readonly toolName: string;
+	readonly operation?: string;
+	readonly arguments?: TArguments;
+	readonly argumentsRef?: string;
+	readonly expectedOutput?: {
+		readonly resultKind?: string;
+		readonly schemaRef?: string;
+	};
+	readonly idempotency?: {
+		readonly key?: string;
+		readonly safeToRetry?: boolean;
+	};
+	readonly timeoutMs?: number;
+	readonly subjectRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Tool provider family label for optional Layer C adapters (D359). Builtin,
+ * MCP, CLI, and Composio providers stay executor/tool recipes, not WorkItem
+ * core or protocol semantics.
+ */
+export type ToolProviderKind = "local-builtin" | "mcp" | "cli" | "composio" | (string & {});
+
+/**
+ * Graph-visible catalog entry for a tool exposed by an executor provider
+ * (D359). Runtime clients and credentials remain private adapter state.
+ */
+export interface ToolProviderCatalogEntry {
+	readonly kind: "tool-catalog-entry";
+	readonly providerId: string;
+	readonly toolName: string;
+	readonly operation?: string;
+	readonly inputKind: "tool-call";
+	readonly profileId: string;
+	readonly executorId: string;
+	readonly resultKinds?: readonly string[];
+	readonly schemaRefs?: readonly string[];
+	readonly capabilities?: Record<string, unknown>;
+	readonly limits?: Record<string, number>;
+	readonly policyRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Graph-visible tool provider catalog/status surface (D359). This is passive
+ * DATA for routing/profile selection and UI inspection, not a provider runtime.
+ */
+export interface ToolProviderCatalog {
+	readonly kind: "tool-provider-catalog";
+	readonly providerId: string;
+	readonly providerKind: ToolProviderKind;
+	readonly profiles: readonly ExecutorProfile[];
+	readonly tools: readonly ToolProviderCatalogEntry[];
+	readonly status?: "ready" | "unavailable" | "misconfigured";
+	readonly issues?: readonly DataIssue[];
+	readonly audit?: readonly AgentRuntimeAuditRecord[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Options for producing a local builtin tool-provider catalog (D359). Limits and
+ * capabilities are declarative policy hints; execution remains adapter-owned.
+ */
+export interface LocalBuiltinToolProviderCatalogOptions {
+	readonly providerId?: string;
+	readonly executorId?: string;
+	readonly profileId?: string;
+	readonly tools?: readonly Omit<
+		ToolProviderCatalogEntry,
+		"kind" | "providerId" | "inputKind" | "profileId" | "executorId"
+	>[];
+	readonly limits?: Record<string, number>;
+	readonly capabilities?: Record<string, unknown>;
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Audience selector for bounded ExecutorOutcome projections (D359).
+ */
+export type ExecutorOutcomeViewAudience = "agent-observation" | "ui" | "diagnostic" | "audit";
+
+/**
+ * View policy for deriving bounded, audience-specific ExecutorOutcome summaries
+ * (D359/D270/D293) without inlining large/raw provider material.
+ */
+export interface ExecutorOutcomeViewPolicy {
+	readonly audience?: ExecutorOutcomeViewAudience;
+	readonly maxSummaryChars?: number;
+	readonly includeIssues?: boolean;
+	readonly includeUsage?: boolean;
+	readonly includeMetadata?: boolean;
+}
+
+/**
+ * Bounded projection of ExecutorOutcome for agent, UI, diagnostic, or audit
+ * consumers (D359). Large/raw material stays behind refs.
+ */
+export interface ExecutorOutcomeView {
+	readonly kind: "executor-outcome-view";
+	readonly viewId: string;
+	readonly audience: ExecutorOutcomeViewAudience;
+	readonly outcomeId: string;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId: string;
+	readonly executorId: string;
+	readonly profileId: string;
+	readonly status: ExecutorOutcomeStatus;
+	readonly summary: string;
+	readonly summaryTruncated?: boolean;
+	readonly summaryChars?: number;
+	readonly summaryLimitChars?: number;
+	readonly errorKind?: string;
+	readonly retryable?: boolean;
+	readonly nextActions?: readonly string[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly materialRefs?: readonly SourceRef[];
+	readonly issues?: readonly DataIssue[];
+	readonly usage?: ExecutorUsage;
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Output bundle for ExecutorOutcome view projectors (D359).
+ */
+export interface ExecutorOutcomeViewBundle {
+	readonly views: Node<ExecutorOutcomeView>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+}
+
 export interface ContextContribution {
 	readonly kind: "context-contribution";
 	readonly contributionId: string;
@@ -699,6 +837,130 @@ export function requestSatisfactionProjector(
 	return { status, issues, audit };
 }
 
+export function localBuiltinToolProviderCatalog(
+	opts: LocalBuiltinToolProviderCatalogOptions = {},
+): ToolProviderCatalog {
+	const providerId = opts.providerId ?? "local-builtin";
+	const executorId = opts.executorId ?? `${providerId}:tool-executor`;
+	const profileId = opts.profileId ?? `${providerId}:tool-profile`;
+	const tools =
+		opts.tools ??
+		([
+			{ toolName: "document/read-doc", operation: "read" },
+			{ toolName: "file.read", operation: "read" },
+			{ toolName: "file.edit/apply-patch", operation: "edit" },
+			{ toolName: "bash.run", operation: "run" },
+			{ toolName: "url.fetch", operation: "fetch" },
+			{ toolName: "date.now", operation: "read" },
+			{ toolName: "weather.fetch", operation: "fetch" },
+			{ toolName: "calculator/eval", operation: "eval" },
+		] satisfies readonly Omit<
+			ToolProviderCatalogEntry,
+			"kind" | "providerId" | "inputKind" | "profileId" | "executorId"
+		>[]);
+	const toolEntries = tools.map((tool) =>
+		Object.freeze({
+			kind: "tool-catalog-entry",
+			providerId,
+			inputKind: "tool-call",
+			profileId,
+			executorId,
+			...tool,
+		} satisfies ToolProviderCatalogEntry),
+	);
+	return Object.freeze({
+		kind: "tool-provider-catalog",
+		providerId,
+		providerKind: "local-builtin",
+		status: "ready",
+		profiles: Object.freeze([
+			Object.freeze({
+				profileId,
+				executorId,
+				kind: "tool",
+				acceptedInputKinds: Object.freeze(["tool-call"]),
+				acceptedResultKinds: Object.freeze(
+					Array.from(new Set(toolEntries.flatMap((tool) => tool.resultKinds ?? []))),
+				),
+				capabilities: Object.freeze({
+					toolNames: Object.freeze(toolEntries.map((tool) => tool.toolName)),
+					...(opts.capabilities ?? {}),
+				}),
+				limits: opts.limits,
+				metadata: opts.metadata,
+			} satisfies ExecutorProfile),
+		]),
+		tools: Object.freeze(toolEntries),
+		metadata: opts.metadata,
+	});
+}
+
+export function executorOutcomeViewProjector(
+	graph: Graph,
+	opts: {
+		readonly name?: string;
+		readonly outcomes: Node<ExecutorOutcome>;
+		readonly policy?: ExecutorOutcomeViewPolicy;
+	},
+): ExecutorOutcomeViewBundle {
+	const name = opts.name ?? "executorOutcomeViews";
+	const policy = {
+		audience: opts.policy?.audience ?? "agent-observation",
+		maxSummaryChars: opts.policy?.maxSummaryChars ?? 512,
+		includeIssues: opts.policy?.includeIssues ?? true,
+		includeUsage: opts.policy?.includeUsage ?? false,
+		includeMetadata: opts.policy?.includeMetadata ?? false,
+	} satisfies Required<ExecutorOutcomeViewPolicy>;
+	const runtime = graph.node<ExecutorOutcomeViewFact>(
+		[opts.outcomes],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const outcome = raw as ExecutorOutcome;
+				const projection = executorOutcomeViewProjectionFromOutcome(outcome, policy);
+				ctx.down([
+					["DATA", { kind: "view", view: projection.view } satisfies ExecutorOutcomeViewFact],
+					[
+						"DATA",
+						{
+							kind: "audit",
+							audit: {
+								id: `${outcome.outcomeId}:outcome-view:${policy.audience}`,
+								kind: "executor-outcome-view-projected",
+								subjectId: outcome.requestId,
+								sourceRefs: [ref("executor-outcome", outcome.outcomeId)],
+								metadata: { audience: policy.audience, status: outcome.kind },
+							},
+						} satisfies ExecutorOutcomeViewFact,
+					],
+				]);
+				for (const issue of projection.issues) {
+					ctx.down([["DATA", { kind: "issue", issue } satisfies ExecutorOutcomeViewFact]]);
+				}
+			}
+		},
+		{ name: `${name}/runtime`, factory: "executorOutcomeViewProjector" },
+	);
+	return {
+		views: projectRuntimeFact(graph, runtime, `${name}/views`, "executorOutcomeViews", (fact) =>
+			fact.kind === "view" ? fact.view : undefined,
+		),
+		issues: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/issues`,
+			"executorOutcomeViewIssues",
+			(fact) => (fact.kind === "issue" ? fact.issue : undefined),
+		),
+		audit: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/audit`,
+			"executorOutcomeViewAudit",
+			(fact) => (fact.kind === "audit" ? fact.audit : undefined),
+		),
+	};
+}
+
 export function structuredAgentDecisionInterpreter(
 	graph: Graph,
 	outcomes: Node<ExecutorOutcome>,
@@ -1057,6 +1319,23 @@ type AgentRequestSatisfactionFact =
 	| { readonly kind: "status"; readonly status: AgentRequestStatusChanged }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
+
+type ExecutorOutcomeViewFact =
+	| { readonly kind: "view"; readonly view: ExecutorOutcomeView }
+	| { readonly kind: "issue"; readonly issue: DataIssue }
+	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
+
+interface ExecutorOutcomeViewProjection {
+	readonly view: ExecutorOutcomeView;
+	readonly issues: readonly DataIssue[];
+}
+
+interface ExecutorOutcomeSummaryProjection {
+	readonly summary: string;
+	readonly truncated: boolean;
+	readonly originalChars: number;
+	readonly limitChars: number;
+}
 
 type StructuredAgentDecisionInterpreterFact =
 	| { readonly kind: "decision"; readonly decision: AgentDecision }
@@ -1485,6 +1764,163 @@ function outcomeStatus(outcome: ExecutorOutcome): AgentRequestStatus {
 	if (outcome.kind === "timeout") return "timeout";
 	if (outcome.kind === "canceled") return "canceled";
 	return "blocked";
+}
+
+function executorOutcomeViewProjectionFromOutcome(
+	outcome: ExecutorOutcome,
+	policy: Required<ExecutorOutcomeViewPolicy>,
+): ExecutorOutcomeViewProjection {
+	const sourceRefs = uniqueSourceRefs([
+		ref("executor-outcome", outcome.outcomeId),
+		...(outcome.evidenceRefs ?? []),
+	]);
+	const summary = projectOutcomeSummary(outcome, policy.maxSummaryChars);
+	const issues = Object.freeze([
+		...outcomeIssues(outcome),
+		...(summary.truncated ? [outcomeSummaryTruncationIssue(outcome, summary, policy)] : []),
+	]);
+	const view = Object.freeze({
+		kind: "executor-outcome-view",
+		viewId: `${outcome.outcomeId}:${policy.audience}`,
+		audience: policy.audience,
+		outcomeId: outcome.outcomeId,
+		requestId: outcome.requestId,
+		operationId: outcome.operationId,
+		routeId: outcome.routeId,
+		executorId: outcome.executorId,
+		profileId: outcome.profileId,
+		status: outcome.kind,
+		summary: summary.summary,
+		summaryTruncated: summary.truncated,
+		summaryChars: summary.originalChars,
+		summaryLimitChars: summary.limitChars,
+		errorKind: outcomeErrorKind(outcome),
+		retryable: outcomeRetryable(outcome),
+		nextActions: outcomeNextActions(outcome),
+		sourceRefs,
+		materialRefs: outcomeMaterialRefs(outcome),
+		issues: policy.includeIssues && issues.length > 0 ? issues : undefined,
+		usage: policy.includeUsage ? outcome.usage : undefined,
+		metadata: policy.includeMetadata ? outcome.metadata : undefined,
+	} satisfies ExecutorOutcomeView);
+	return Object.freeze({ view, issues });
+}
+
+function projectOutcomeSummary(
+	outcome: ExecutorOutcome,
+	maxChars: number,
+): ExecutorOutcomeSummaryProjection {
+	const summary = outcomeSummary(outcome);
+	const limitChars = Math.max(0, maxChars);
+	if (summary.length <= limitChars) {
+		return Object.freeze({
+			summary,
+			truncated: false,
+			originalChars: summary.length,
+			limitChars,
+		});
+	}
+	const bounded =
+		limitChars <= 1
+			? summary.slice(0, limitChars)
+			: limitChars <= 3
+				? summary.slice(0, limitChars)
+				: `${summary.slice(0, limitChars - 3)}...`;
+	return Object.freeze({
+		summary: bounded,
+		truncated: true,
+		originalChars: summary.length,
+		limitChars,
+	});
+}
+
+function outcomeSummaryTruncationIssue(
+	outcome: ExecutorOutcome,
+	summary: ExecutorOutcomeSummaryProjection,
+	policy: Required<ExecutorOutcomeViewPolicy>,
+): DataIssue {
+	return dataIssue(
+		"executor-outcome-view-summary-truncated",
+		"ExecutorOutcome view summary was truncated; inspect material refs or the source outcome for full detail",
+		{
+			subjectId: outcome.requestId,
+			refs: [ref("executor-outcome", outcome.outcomeId)],
+			severity: "warning",
+			details: {
+				audience: policy.audience,
+				outcomeId: outcome.outcomeId,
+				originalChars: summary.originalChars,
+				limitChars: summary.limitChars,
+			},
+		},
+	);
+}
+
+function outcomeSummary(outcome: ExecutorOutcome): string {
+	if (outcome.kind === "result") {
+		if (outcome.result.summary !== undefined && outcome.result.summary.length > 0)
+			return outcome.result.summary;
+		return `Executor result '${outcome.result.kind}' is available via source refs`;
+	}
+	if (outcome.kind === "failure") return outcome.error.message;
+	if (outcome.kind === "blocked") {
+		const needKinds = outcome.needs.map((need) => need.kind).join(", ");
+		return needKinds.length > 0 ? `Executor blocked: ${needKinds}` : "Executor blocked";
+	}
+	if (outcome.kind === "timeout") {
+		return outcome.timeoutMs === undefined
+			? "Executor timed out"
+			: `Executor timed out after ${outcome.timeoutMs}ms`;
+	}
+	return outcome.reason ?? "Executor canceled";
+}
+
+function outcomeErrorKind(outcome: ExecutorOutcome): string | undefined {
+	if (outcome.kind === "failure") return outcome.error.code;
+	if (outcome.kind === "timeout") return "timeout";
+	if (outcome.kind === "blocked") return outcome.needs[0]?.kind ?? "blocked";
+	if (outcome.kind === "canceled") return "canceled";
+	return undefined;
+}
+
+function outcomeRetryable(outcome: ExecutorOutcome): boolean | undefined {
+	if (outcome.kind === "failure" || outcome.kind === "timeout") return outcome.retryable;
+	return undefined;
+}
+
+function outcomeIssues(outcome: ExecutorOutcome): readonly DataIssue[] {
+	if (outcome.kind === "failure") return Object.freeze([outcome.error, ...(outcome.issues ?? [])]);
+	return outcome.issues ?? [];
+}
+
+function outcomeNextActions(outcome: ExecutorOutcome): readonly string[] | undefined {
+	if (outcome.kind === "blocked") return Object.freeze(outcome.needs.map((need) => need.kind));
+	if ((outcome.kind === "failure" || outcome.kind === "timeout") && outcome.retryable === true) {
+		return Object.freeze(["retry-or-route"]);
+	}
+	return undefined;
+}
+
+function outcomeMaterialRefs(outcome: ExecutorOutcome): readonly SourceRef[] | undefined {
+	const refs =
+		outcome.kind === "result"
+			? [...(outcome.result.refs ?? [])]
+			: outcome.kind === "blocked"
+				? outcome.needs.flatMap((need) => [...(need.refs ?? [])])
+				: [];
+	return refs.length === 0 ? undefined : uniqueSourceRefs(refs);
+}
+
+function uniqueSourceRefs(sourceRefs: readonly SourceRef[]): readonly SourceRef[] {
+	const seen = new Set<string>();
+	const unique: SourceRef[] = [];
+	for (const sourceRef of sourceRefs) {
+		const key = `${sourceRef.kind}:${sourceRef.id}:${JSON.stringify(sourceRef.metadata ?? {})}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		unique.push(sourceRef);
+	}
+	return Object.freeze(unique);
 }
 
 function emitStatus(
