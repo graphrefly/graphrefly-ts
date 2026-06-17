@@ -3148,8 +3148,12 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		if (maxSize === undefined) return;
 		const victims = closedRetentionEvidence.trimFifo(maxSize);
 		for (const victim of victims) {
-			retentionEvidenceHorizonExceeded = true;
+			const firstGlobalClosure = !retentionEvidenceHorizonExceeded;
+			if (firstGlobalClosure) retentionEvidenceHorizonExceeded = true;
 			publishRetentionTrimmed("retentionEvidence", victim.key, victim.entry);
+			if (firstGlobalClosure) {
+				publishRetentionEvidenceGlobalFailClosed(victim);
+			}
 		}
 	}
 
@@ -3569,6 +3573,11 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			request,
 		);
 		trimExecutions();
+		if (isRetentionEvidenceClosed(request.adapterInputId)) {
+			executions.delete(coordinate);
+			publishRetentionGap(request, "retentionEvidence", request.adapterInputId);
+			return false;
+		}
 		return true;
 	}
 
@@ -3614,6 +3623,56 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			sourceRefs: [ref("tool-provider-adapter-run", request.runId), retentionIndexSourceRef(index)],
 			issueCode: issue.code,
 			metadata: { index, key, ...(evidenceGap ? { gapKind: "evidence-horizon" } : {}) },
+		});
+	}
+
+	function publishRetentionEvidenceGlobalFailClosed(
+		victim: RuntimeIndexItem<
+			ToolProviderAdapterRuntimeRetentionEvidenceEntry,
+			ToolProviderAdapterRuntimeRetentionEvidenceEntry
+		>,
+	): void {
+		const issue = dataIssue(
+			"tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+			"Tool provider adapter runtime retention evidence closed-marker horizon overflowed; future requests fail closed until runtime reset.",
+			{
+				subjectId: victim.value.adapterInputId,
+				refs: [retentionIndexSourceRef("retentionEvidence")],
+				details: {
+					index: "retentionEvidence",
+					key: victim.key,
+					gapKind: "evidence-horizon-closed",
+				},
+			},
+		);
+		publishIssue(issue, false);
+		publishRuntimeStatus({
+			status: "retention-gap",
+			index: "retentionEvidence",
+			key: victim.key,
+			adapterInputId: victim.value.adapterInputId,
+			...(victim.value.attemptHighWater === undefined
+				? {}
+				: { attempt: victim.value.attemptHighWater }),
+			issueCode: issue.code,
+			sourceRefs: [retentionIndexSourceRef("retentionEvidence")],
+			metadata: {
+				index: "retentionEvidence",
+				key: victim.key,
+				evidenceKind: victim.value.evidenceKind,
+				gapKind: "evidence-horizon-closed",
+			},
+		});
+		publishRuntimeAudit("tool-provider-adapter-runtime-retention-evidence-horizon-closed", {
+			subjectId: victim.value.adapterInputId,
+			sourceRefs: [retentionIndexSourceRef("retentionEvidence")],
+			issueCode: issue.code,
+			metadata: {
+				index: "retentionEvidence",
+				key: victim.key,
+				evidenceKind: victim.value.evidenceKind,
+				gapKind: "evidence-horizon-closed",
+			},
 		});
 	}
 

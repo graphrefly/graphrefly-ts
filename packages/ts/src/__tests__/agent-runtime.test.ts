@@ -1914,6 +1914,156 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 	});
 
+	it("emits visible global fail-closed diagnostics after closed retentionEvidence marker overflow", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-evidence-global-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-evidence-global-runs",
+		});
+		const first = readyToolProviderAdapterInput(
+			"runtime-retention-evidence-global-provider",
+			"runtime-retention-evidence-global-req-a",
+		);
+		const second = readyToolProviderAdapterInput(
+			"runtime-retention-evidence-global-provider",
+			"runtime-retention-evidence-global-req-b",
+		);
+		const third = readyToolProviderAdapterInput(
+			"runtime-retention-evidence-global-provider",
+			"runtime-retention-evidence-global-req-c",
+		);
+		const freshAfterGlobal = readyToolProviderAdapterInput(
+			"runtime-retention-evidence-global-provider",
+			"runtime-retention-evidence-global-req-d",
+		);
+		const calls: string[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: true,
+			retention: {
+				executions: { maxSize: 1 },
+				retentionEvidence: { maxSize: 1 },
+			},
+			bindings: [
+				{
+					providerId: "runtime-retention-evidence-global-provider",
+					run(input, ctx) {
+						calls.push(`${input.adapterInputId}:${ctx.attempt}`);
+						return { kind: "result", result: { kind: "tool-output", value: "hidden-result" } };
+					},
+				},
+			],
+		});
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const issues: DataIssue[] = [];
+		const audit: unknown[] = [];
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		inputs.down([["DATA", first]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(first, { runId: "global-a-2", attempt: 2 })],
+		]);
+		inputs.down([["DATA", second]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(second, { runId: "global-b-2", attempt: 2 })],
+		]);
+		inputs.down([["DATA", third]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(third, { runId: "global-c-2", attempt: 2 })],
+		]);
+
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "retention-gap",
+					index: "retentionEvidence",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+					metadata: expect.objectContaining({
+						gapKind: "evidence-horizon-closed",
+					}),
+				}),
+			]),
+		);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+				}),
+			]),
+		);
+		expect(audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+				}),
+			]),
+		);
+
+		inputs.down([["DATA", freshAfterGlobal]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(first, { runId: "global-a-3", attempt: 3 })],
+		]);
+
+		expect(calls).toEqual([
+			`${first.adapterInputId}:1`,
+			`${first.adapterInputId}:2`,
+			`${second.adapterInputId}:1`,
+			`${second.adapterInputId}:2`,
+			`${third.adapterInputId}:1`,
+		]);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					runId: "global-c-2",
+					status: "retention-gap",
+					attempt: 2,
+				}),
+				expect.objectContaining({
+					adapterInputId: freshAfterGlobal.adapterInputId,
+					status: "retention-gap",
+				}),
+				expect.objectContaining({
+					runId: "global-a-3",
+					status: "retention-gap",
+					attempt: 3,
+				}),
+			]),
+		);
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "retention-gap",
+					index: "retentionEvidence",
+					adapterInputId: freshAfterGlobal.adapterInputId,
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+				}),
+				expect.objectContaining({
+					status: "retention-gap",
+					index: "retentionEvidence",
+					adapterInputId: first.adapterInputId,
+					runId: "global-a-3",
+					attempt: 3,
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+				}),
+			]),
+		);
+		expect(JSON.stringify({ runtimeStatus, issues, audit })).not.toMatch(
+			/hidden-result|arguments|rawResponse|stdout|stderr|stack/i,
+		);
+	});
+
 	it("uses score-based retention over bounded public run request entries", () => {
 		const g = graph();
 		const inputs = g.node<ToolProviderAdapterInput>([], null, {
