@@ -1687,10 +1687,21 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				expect.objectContaining({ status: "retention-gap", index: "executions" }),
 			]),
 		);
+		expect(runtimeStatus.map((status) => status.status)).toEqual(
+			expect.arrayContaining(["retention-trimmed", "retention-gap"]),
+		);
+		expect(
+			runtimeStatus.every((status) =>
+				["retention-trimmed", "retention-gap", "invalid-retention-policy"].includes(status.status),
+			),
+		).toBe(true);
 		expect(runStatus).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ runId: "run-replay", status: "retention-gap", attempt: 1 }),
 			]),
+		);
+		expect(runStatus).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "retention-trimmed" })]),
 		);
 		expect(issues).toEqual(
 			expect.arrayContaining([
@@ -2138,6 +2149,164 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 	});
 
+	it("keeps retention scorer entries bounded and payload-free across every runtime index", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-all-score-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-all-score-runs",
+		});
+		const first = readyToolProviderAdapterInput(
+			"runtime-retention-all-score-provider",
+			"runtime-retention-all-score-req-a",
+		);
+		const second = readyToolProviderAdapterInput(
+			"runtime-retention-all-score-provider",
+			"runtime-retention-all-score-req-b",
+		);
+		const oversizedRunId = `all-score-oversized-${"x".repeat(500)}`;
+		const firstWithPayload = {
+			...first,
+			toolCall: {
+				...first.toolCall,
+				arguments: {
+					path: "README.md",
+					password: "SCORER_SECRET_ARGUMENT",
+					rawResponse: "SCORER_RAW_ARGUMENT",
+				},
+			},
+			metadata: { apiKey: "SCORER_SECRET_INPUT_METADATA" },
+			sourceRefs: [
+				...(first.sourceRefs ?? []),
+				{
+					kind: "provider-raw",
+					id: "raw-input-ref",
+					metadata: { stdout: "SCORER_RAW_SOURCE_REF" },
+				},
+			],
+		} satisfies ToolProviderAdapterInput;
+		const entries = {
+			adapterInputs: [] as unknown[],
+			runRequests: [] as unknown[],
+			executions: [] as unknown[],
+			runStatuses: [] as unknown[],
+			runIssues: [] as unknown[],
+			retentionEvidence: [] as unknown[],
+		};
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: {
+				adapterInputs: {
+					maxSize: 1,
+					score(entry) {
+						entries.adapterInputs.push(entry);
+						return entry.adapterInputId === second.adapterInputId ? 10 : 0;
+					},
+				},
+				runRequests: {
+					maxSize: 1,
+					score(entry) {
+						entries.runRequests.push(entry);
+						return entry.runId.startsWith("all-score-b") ? 10 : 0;
+					},
+				},
+				executions: {
+					maxSize: 1,
+					score(entry) {
+						entries.executions.push(entry);
+						return entry.adapterInputId === second.adapterInputId ? 10 : 0;
+					},
+				},
+				runStatuses: {
+					maxSize: 1,
+					score(entry) {
+						entries.runStatuses.push(entry);
+						return entry.runId === undefined || entry.runId.startsWith("all-score-b") ? 10 : 0;
+					},
+				},
+				runIssues: {
+					maxSize: 1,
+					score(entry) {
+						entries.runIssues.push(entry);
+						return entry.subjectId === second.requestId ? 10 : 0;
+					},
+				},
+				retentionEvidence: {
+					maxSize: 1,
+					score(entry) {
+						entries.retentionEvidence.push(entry);
+						return entry.adapterInputId === second.adapterInputId ? 10 : 0;
+					},
+				},
+			},
+			bindings: [
+				{
+					providerId: "runtime-retention-all-score-provider",
+					run() {
+						return {
+							kind: "result",
+							result: {
+								kind: "tool-output",
+								value: { stdout: "SCORER_RAW_STDOUT_VALUE" },
+							},
+							metadata: { rawResponse: "SCORER_RAW_PROVIDER_RESPONSE" },
+						};
+					},
+				},
+			],
+		});
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const issues: DataIssue[] = [];
+		const audit: unknown[] = [];
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		inputs.down([["DATA", firstWithPayload]]);
+		runRequests.down([
+			[
+				"DATA",
+				requestToolProviderAdapterRun(firstWithPayload, {
+					runId: oversizedRunId,
+					attempt: 1,
+				}),
+			],
+		]);
+		inputs.down([["DATA", second]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(second, { runId: "all-score-b", attempt: 1 })],
+		]);
+
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "retention-trimmed", index: "adapterInputs" }),
+				expect.objectContaining({ status: "retention-trimmed", index: "runRequests" }),
+				expect.objectContaining({ status: "retention-trimmed", index: "executions" }),
+				expect.objectContaining({ status: "retention-trimmed", index: "runStatuses" }),
+				expect.objectContaining({ status: "retention-trimmed", index: "runIssues" }),
+				expect.objectContaining({ status: "retention-trimmed", index: "retentionEvidence" }),
+			]),
+		);
+		for (const [index, captured] of Object.entries(entries)) {
+			expect(captured.length, `${index} scorer should run`).toBeGreaterThan(0);
+			for (const entry of captured) expectRetentionScorerEntryPayloadSafe(index, entry);
+		}
+		expect(
+			(entries.runRequests as { readonly runId?: string }[]).some(
+				(entry) =>
+					typeof entry.runId === "string" &&
+					entry.runId.startsWith("bounded:") &&
+					entry.runId.endsWith(`:${oversizedRunId.length}`),
+			),
+		).toBe(true);
+		expectNoForbiddenRetentionPayload({ entries, runtimeStatus, issues, audit });
+	});
+
 	it("makes Node-valued retention maxSize describe-visible and downsizing trims", () => {
 		const g = graph();
 		const maxSize = g.state(2, { name: "retentionMax" });
@@ -2384,20 +2553,51 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		});
 		const runStatus: ToolProviderAdapterRunStatus[] = [];
 		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const emittedRequests: ToolProviderAdapterRunRequested[] = [];
+		const audit: unknown[] = [];
+		runtime.runRequests.subscribe(
+			(msg) => msg[0] === "DATA" && emittedRequests.push(msg[1] as ToolProviderAdapterRunRequested),
+		);
 		runtime.runStatus.subscribe(
 			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
 		);
 		runtime.runtimeStatus.subscribe(
 			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
 		);
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
 
 		inputs.down([
 			["DATA", first],
 			["DATA", second],
 		]);
-		runRequests.down([["DATA", requestToolProviderAdapterRun(first, { runId: "trimmed-input" })]]);
+		runRequests.down([
+			[
+				"DATA",
+				{
+					...requestToolProviderAdapterRun(first, { runId: "trimmed-input" }),
+					metadata: { rawResponse: "RAW_RETAINED_REQUEST_METADATA" },
+					sourceRefs: [
+						{
+							kind: "provider-raw",
+							id: "raw-retained-request",
+							metadata: { stdout: "RAW_RETAINED_REQUEST_SOURCE_REF" },
+						},
+					],
+					rawResponse: "RAW_RETAINED_REQUEST_TOP_LEVEL",
+				} as unknown as ToolProviderAdapterRunRequested,
+			],
+		]);
 
 		expect(calls).toEqual([]);
+		expect(emittedRequests).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					runId: "trimmed-input",
+					adapterInputId: first.adapterInputId,
+					requestId: first.requestId,
+				}),
+			]),
+		);
 		expect(runtimeStatus).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ status: "retention-trimmed", index: "adapterInputs" }),
@@ -2406,6 +2606,9 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 		expect(runStatus).toEqual(
 			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
+		);
+		expect(JSON.stringify({ emittedRequests, audit, runStatus, runtimeStatus })).not.toMatch(
+			/RAW_RETAINED_REQUEST|rawResponse|stdout/,
 		);
 	});
 
@@ -2659,6 +2862,13 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 					requestId: ready.requestId,
 				} as unknown as ToolProviderAdapterRunRequested,
 			],
+			[
+				"DATA",
+				{
+					...requestToolProviderAdapterRun(ready, { runId: "raw-request", attempt: 3 }),
+					metadata: { rawResponse: "RAW_RUN_REQUEST_SHOULD_NOT_PROJECT" },
+				},
+			],
 		]);
 
 		expect(calls).toEqual([]);
@@ -2667,6 +2877,9 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				expect.objectContaining({ code: "tool-provider-adapter-run-request-stale-request" }),
 				expect.objectContaining({ code: "tool-provider-adapter-run-request-missing-input" }),
 				expect.objectContaining({ code: "tool-provider-adapter-run-request-invalid-shape" }),
+				expect.objectContaining({
+					code: "tool-provider-adapter-run-request-forbidden-runtime-material",
+				}),
 			]),
 		);
 		expect(runStatus).toEqual(
@@ -2676,6 +2889,9 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			]),
 		);
 		expect(protocolErrors).toEqual([]);
+		expect(JSON.stringify({ issues, runStatus })).not.toContain(
+			"RAW_RUN_REQUEST_SHOULD_NOT_PROJECT",
+		);
 	});
 
 	it("emits DataIssue when ready inputs have no visible run request source", () => {
@@ -6157,6 +6373,111 @@ function toolRequest(
 			},
 		},
 	};
+}
+
+const forbiddenRetentionPayloadPattern =
+	/SCORER_SECRET|SCORER_RAW|rawResponse|stdout|stderr|stack|apiKey|password|arguments|providerClient|oauthState|subprocessHandle|transport|sdkObject/i;
+
+const retentionScorerEntryKeys: Record<string, readonly string[]> = {
+	adapterInputs: [
+		"adapterInputId",
+		"executorId",
+		"insertedAtMs",
+		"key",
+		"operationId",
+		"profileId",
+		"providerId",
+		"requestId",
+		"routeId",
+		"sequence",
+		"status",
+	],
+	runRequests: [
+		"adapterInputId",
+		"attempt",
+		"executorId",
+		"key",
+		"operationId",
+		"profileId",
+		"providerId",
+		"reason",
+		"requestId",
+		"requestedAtMs",
+		"routeId",
+		"runId",
+		"sequence",
+	],
+	executions: [
+		"adapterInputId",
+		"attempt",
+		"executorId",
+		"key",
+		"occurredAtMs",
+		"operationId",
+		"outcomeId",
+		"profileId",
+		"providerId",
+		"reason",
+		"requestId",
+		"routeId",
+		"runId",
+		"sequence",
+		"status",
+	],
+	runStatuses: [
+		"adapterInputId",
+		"attempt",
+		"issueCode",
+		"key",
+		"occurredAtMs",
+		"operationId",
+		"outcomeId",
+		"requestId",
+		"runId",
+		"sequence",
+		"status",
+	],
+	runIssues: [
+		"adapterInputId",
+		"attempt",
+		"issueCode",
+		"key",
+		"occurredAtMs",
+		"operationId",
+		"requestId",
+		"runId",
+		"sequence",
+		"severity",
+		"subjectId",
+	],
+	retentionEvidence: [
+		"adapterInputId",
+		"attemptHighWater",
+		"evidenceKind",
+		"key",
+		"occurredAtMs",
+		"reason",
+		"sequence",
+	],
+};
+
+function expectRetentionScorerEntryPayloadSafe(index: string, entry: unknown): void {
+	expect(entry).toBeTypeOf("object");
+	expect(Array.isArray(entry)).toBe(false);
+	const record = entry as Record<string, unknown>;
+	const allowed = retentionScorerEntryKeys[index];
+	expect(allowed, `unknown retention scorer index ${index}`).toBeDefined();
+	for (const [key, value] of Object.entries(record)) {
+		expect(allowed).toContain(key);
+		expect(value === undefined || typeof value === "string" || typeof value === "number").toBe(
+			true,
+		);
+	}
+	expectNoForbiddenRetentionPayload(record);
+}
+
+function expectNoForbiddenRetentionPayload(value: unknown): void {
+	expect(JSON.stringify(value)).not.toMatch(forbiddenRetentionPayloadPattern);
 }
 
 function readyToolProviderAdapterInput(

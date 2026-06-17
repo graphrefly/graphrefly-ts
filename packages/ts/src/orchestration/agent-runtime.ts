@@ -2088,7 +2088,12 @@ function toolProviderAdapterRunProjectorInternal(
 				const input = state.inputs.get(request.adapterInputId);
 				if (input === undefined) {
 					if (opts.privateRetentionHooks?.shouldForwardRetainedRunRequest?.(request) === true) {
-						emitRunRequested(ctx, state, request, opts.privateRetentionHooks);
+						emitRunRequested(
+							ctx,
+							state,
+							sanitizeRetainedToolProviderAdapterRunRequest(request),
+							opts.privateRetentionHooks,
+						);
 						return;
 					}
 					const issue = dataIssue(
@@ -2419,6 +2424,34 @@ function isNodeOpt<T>(value: ReactiveOpt<T> | undefined): value is Node<T> {
 
 function retentionIndexSourceRef(index: ToolProviderAdapterRuntimeRetentionIndex): SourceRef {
 	return { kind: "tool-provider-adapter-runtime-retention-index", id: index };
+}
+
+const maxRuntimeRetentionScorerStringChars = 256;
+
+function runtimeRetentionScorerEntry<Entry>(
+	index: ToolProviderAdapterRuntimeRetentionIndex,
+	entry: Entry,
+): Entry {
+	if (
+		!isPlainRecord(entry) ||
+		forbiddenDataKeys(entry).length > 0 ||
+		forbiddenProviderRawMaterialKeys(entry).length > 0
+	) {
+		throw new TypeError(`unsafe ${index} retention scorer entry`);
+	}
+	const bounded: Record<string, unknown> = {};
+	for (const value of Object.values(entry)) {
+		if (value !== undefined && typeof value !== "string" && typeof value !== "number") {
+			throw new TypeError(`unsafe ${index} retention scorer entry`);
+		}
+	}
+	for (const [key, value] of Object.entries(entry)) {
+		bounded[key] =
+			typeof value === "string" && value.length > maxRuntimeRetentionScorerStringChars
+				? `bounded:${stableStringHash(value)}:${value.length}`
+				: value;
+	}
+	return Object.freeze(bounded) as Entry;
 }
 
 function retentionPolicyMaxSize(
@@ -3051,7 +3084,9 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		if (config.mode === "score") {
 			const score = retentionScore<Entry>(indexName);
 			if (score === undefined) return;
-			const selected = store.trimScored(config.maxSize, score);
+			const selected = store.trimScored(config.maxSize, (entry) => {
+				return score(runtimeRetentionScorerEntry(indexName, entry));
+			});
 			if (selected.invalid !== undefined) {
 				publishRetentionScoreInvalid(indexName, selected.invalid);
 				return;
@@ -3982,6 +4017,34 @@ function sanitizeToolProviderAdapterRunRequest(
 	} satisfies ToolProviderAdapterRunRequested);
 }
 
+function sanitizeRetainedToolProviderAdapterRunRequest(
+	request: ToolProviderAdapterRunRequested,
+): ToolProviderAdapterRunRequested {
+	const policyRefs = sanitizeAdapterInputSourceRefs(request.policyRefs ?? []);
+	const sourceRefs = sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []);
+	const metadata = sanitizeProviderGraphVisibleRecord(request.metadata);
+	return Object.freeze({
+		kind: "tool-provider-adapter-run-requested",
+		runId: request.runId,
+		adapterInputId: request.adapterInputId,
+		requestId: request.requestId,
+		operationId: request.operationId,
+		...(request.routeId === undefined ? {} : { routeId: request.routeId }),
+		...(request.providerId === undefined ? {} : { providerId: request.providerId }),
+		...(request.executorId === undefined ? {} : { executorId: request.executorId }),
+		...(request.profileId === undefined ? {} : { profileId: request.profileId }),
+		attempt: request.attempt,
+		reason: request.reason,
+		...(request.retryOfOutcomeId === undefined
+			? {}
+			: { retryOfOutcomeId: request.retryOfOutcomeId }),
+		...(policyRefs.length === 0 ? {} : { policyRefs }),
+		...(sourceRefs.length === 0 ? {} : { sourceRefs }),
+		...(metadata === undefined ? {} : { metadata }),
+		...(request.requestedAtMs === undefined ? {} : { requestedAtMs: request.requestedAtMs }),
+	} satisfies ToolProviderAdapterRunRequested);
+}
+
 function isToolProviderAdapterRunRequestedLike(
 	value: unknown,
 ): value is ToolProviderAdapterRunRequested {
@@ -4132,7 +4195,10 @@ function runRequestIdentityIssues(
 			),
 		);
 	}
-	for (const forbidden of forbiddenDataKeys(request)) {
+	for (const forbidden of [
+		...forbiddenDataKeys(request),
+		...forbiddenProviderRawMaterialKeys(request),
+	]) {
 		issues.push(
 			dataIssue(
 				"tool-provider-adapter-run-request-forbidden-runtime-material",
@@ -6901,7 +6967,7 @@ function sanitizeAdapterInputSourceRefs(sourceRefs: readonly SourceRef[]): reado
 	return uniqueSourceRefs(
 		sourceRefs.map((sourceRef) => {
 			if (sourceRef.metadata === undefined) return sourceRef;
-			const metadata = sanitizeGraphVisibleRecord(sourceRef.metadata);
+			const metadata = sanitizeProviderGraphVisibleRecord(sourceRef.metadata);
 			return metadata === undefined
 				? { kind: sourceRef.kind, id: sourceRef.id }
 				: { kind: sourceRef.kind, id: sourceRef.id, metadata };
