@@ -1546,6 +1546,7 @@ function recordPlanEvidence<T>(
 		});
 		return false;
 	}
+	if (emitConflictingPlanEvidenceCoordinate(ctx, state, evidence, coordinate)) return true;
 	const key = requiredPlanKey(
 		coordinate.workItemId,
 		coordinate.planId,
@@ -1576,7 +1577,7 @@ function recordPlanEvidence<T>(
 	}
 	const recorded = recordMemberEvidence(ctx, state, admitted, coordinate.planMemberId, {
 		status: evidence.status,
-		requestId: coordinate.request?.requestId,
+		requestId: coordinate.requestId ?? coordinate.request?.requestId,
 		effectRunId: evidence.effectRunId,
 		evidenceId: evidence.evidenceId,
 		effectRunResultId: evidence.effectRunResultId,
@@ -1589,7 +1590,7 @@ function recordPlanEvidence<T>(
 		executionInputRevision: coordinate.executionInputRevision,
 		state: evidence.status === "completed" ? "completed" : "failed",
 		planMemberId: coordinate.planMemberId,
-		requestId: coordinate.request?.requestId,
+		requestId: coordinate.requestId ?? coordinate.request?.requestId,
 		effectRunId: evidence.effectRunId,
 		evidenceId: evidence.evidenceId,
 		effectRunResultId: evidence.effectRunResultId,
@@ -1597,6 +1598,65 @@ function recordPlanEvidence<T>(
 		metadata: { evidenceStatus: evidence.status },
 	});
 	return true;
+}
+
+function emitConflictingPlanEvidenceCoordinate<T>(
+	ctx: Ctx,
+	state: PlanState<T>,
+	evidence: WorkItemEvidenceRecorded,
+	coordinate: PlanCoordinate<T>,
+): boolean {
+	const requestRefs = [
+		evidence.requestId === undefined ? undefined : state.requestByRequestId.get(evidence.requestId),
+		state.requestByEffectRun.get(evidence.effectRunId),
+	].filter((request): request is WorkItemEffectRequested<T> => request !== undefined);
+	const conflicting = requestRefs.find(
+		(request) => !requestMatchesPlanCoordinate(request, coordinate),
+	);
+	if (conflicting === undefined) return false;
+	const item = issue(
+		"dangling-ref",
+		"WorkItemEffectPlan evidence request/effectRun coordinates do not match its plan member coordinates",
+		evidence.workItemId,
+		{
+			evidenceId: evidence.evidenceId,
+			requestId: evidence.requestId,
+			effectRunId: evidence.effectRunId,
+			planId: coordinate.planId,
+			planMemberId: coordinate.planMemberId,
+			executionInputRevision: coordinate.executionInputRevision,
+			requestPlanId: conflicting.planId,
+			requestPlanMemberId: conflicting.planMemberId,
+			requestExecutionInputRevision: conflicting.executionInputRevision,
+		},
+	);
+	emitPlan(ctx, "issue", item);
+	emitPlanStatus(ctx, state, {
+		workItemId: coordinate.workItemId,
+		planId: coordinate.planId,
+		executionInputRevision: coordinate.executionInputRevision,
+		state: "rejected",
+		planMemberId: coordinate.planMemberId,
+		requestId: evidence.requestId,
+		effectRunId: evidence.effectRunId,
+		evidenceId: evidence.evidenceId,
+		issues: [item],
+		sourceRefs: evidence.sourceRefs,
+		metadata: item.metadata,
+	});
+	return true;
+}
+
+function requestMatchesPlanCoordinate<T>(
+	request: WorkItemEffectRequested<T>,
+	coordinate: PlanCoordinate<T>,
+): boolean {
+	return (
+		request.workItemId === coordinate.workItemId &&
+		request.planId === coordinate.planId &&
+		request.planMemberId === coordinate.planMemberId &&
+		request.executionInputRevision === coordinate.executionInputRevision
+	);
 }
 
 function recordPlanResult<T>(ctx: Ctx, state: PlanState<T>, result: EffectRunResult): boolean {
@@ -1682,6 +1742,7 @@ interface PlanCoordinate<T> {
 	readonly planId: string;
 	readonly executionInputRevision: number;
 	readonly planMemberId: string;
+	readonly requestId?: string;
 	readonly request?: WorkItemEffectRequested<T>;
 }
 
@@ -1689,6 +1750,22 @@ function planCoordinateFromEvidence<T>(
 	state: PlanState<T>,
 	evidence: WorkItemEvidenceRecorded,
 ): PlanCoordinate<T> | undefined {
+	const topLevelRequest =
+		evidence.requestId === undefined ? undefined : state.requestByRequestId.get(evidence.requestId);
+	if (
+		evidence.planId !== undefined &&
+		evidence.planMemberId !== undefined &&
+		evidence.executionInputRevision !== undefined
+	) {
+		return {
+			workItemId: evidence.workItemId,
+			planId: evidence.planId,
+			executionInputRevision: evidence.executionInputRevision,
+			planMemberId: evidence.planMemberId,
+			requestId: evidence.requestId ?? topLevelRequest?.requestId,
+			request: topLevelRequest ?? state.requestByEffectRun.get(evidence.effectRunId),
+		};
+	}
 	const request = state.requestByEffectRun.get(evidence.effectRunId);
 	if (
 		request?.planId !== undefined &&
@@ -1700,12 +1777,14 @@ function planCoordinateFromEvidence<T>(
 			planId: request.planId,
 			executionInputRevision: request.executionInputRevision,
 			planMemberId: request.planMemberId,
+			requestId: request.requestId,
 			request,
 		};
 	}
 	const planId = stringMetadata(evidence.metadata, "planId");
 	const planMemberId = stringMetadata(evidence.metadata, "planMemberId");
 	const executionInputRevision = numberMetadata(evidence.metadata, "executionInputRevision");
+	const requestId = stringMetadata(evidence.metadata, "requestId");
 	if (planId === undefined || planMemberId === undefined || executionInputRevision === undefined)
 		return undefined;
 	return {
@@ -1713,6 +1792,7 @@ function planCoordinateFromEvidence<T>(
 		planId,
 		executionInputRevision,
 		planMemberId,
+		requestId,
 	};
 }
 
@@ -1731,6 +1811,7 @@ function planCoordinateFromResult<T>(
 			planId: request.planId,
 			executionInputRevision: request.executionInputRevision,
 			planMemberId: request.planMemberId,
+			requestId: request.requestId,
 			request,
 		};
 	}
@@ -1908,7 +1989,10 @@ function derivePlanResult<T>(
 			effectRunResultId: evidence.effectRunResultId,
 		});
 	}
-	const hasFailed = memberResults.some((item) => item.status !== "completed");
+	const hasRequiredFailed = requiredMembers.some((member) => {
+		const evidence = state.memberEvidence.get(memberCoord(admitted, member.memberId));
+		return evidence !== undefined && evidence.status !== "completed";
+	});
 	const settledRequiredCount = requiredMembers.filter((member) =>
 		state.memberEvidence.has(memberCoord(admitted, member.memberId)),
 	).length;
@@ -1916,14 +2000,14 @@ function derivePlanResult<T>(
 	const requiredBlockedByFailure = requiredMembers.some((member) =>
 		memberBlockedByFailure(state, admitted, member.memberId, new Set()),
 	);
-	if (!hasFailed && !allRequiredSettled && !requiredBlockedByFailure) return;
+	if (!hasRequiredFailed && !allRequiredSettled && !requiredBlockedByFailure) return;
 	const status: WorkItemEffectPlanResultStatus =
 		admitted.plan.joinPolicy === "evidence-only"
 			? "evidence-only"
-			: hasFailed || requiredBlockedByFailure
+			: hasRequiredFailed || requiredBlockedByFailure
 				? "failed"
 				: "succeeded";
-	const key = `${memberCoord(admitted, "result")}:${status}`;
+	const key = memberCoord(admitted, "result");
 	if (state.resultKeys.has(key)) return;
 	state.resultKeys.add(key);
 	const result: WorkItemEffectPlanResult = {

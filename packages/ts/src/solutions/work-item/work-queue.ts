@@ -213,13 +213,18 @@ function evidenceFromRecord(
 		kind: "work-item-evidence-recorded" as const,
 		evidenceId: `work-queue:${record.recordSeq}`,
 		workItemId: payload.workItemId,
+		requestId: payload.requestId,
 		effectRunId: payload.effectRunId,
 		effectRunResultId: `work-queue:${record.workId ?? payload.effectRunId}:${record.recordSeq}`,
+		executionInputRevision: payload.executionInputRevision,
+		planId: payload.planId,
+		planMemberId: payload.planMemberId,
 		status,
 		sourceRefs: [...(payload.sourceRefs ?? []), ref("work-queue-record", String(record.recordSeq))],
 		recordedAtMs: record.recordedAtMs,
 		metadata: {
 			...(payload.metadata ?? {}),
+			requestId: payload.requestId,
 			...(payload.executionInputRevision === undefined
 				? {}
 				: { executionInputRevision: payload.executionInputRevision }),

@@ -5,7 +5,18 @@ import {
 } from "../executors/work-queue.js";
 import { graph } from "../graph/graph.js";
 import type { AgentRequestIssued, ExecutorOutcome } from "../orchestration/agent-runtime.js";
-import type { WorkItemEffectRequested } from "../orchestration/work-item-runtime.js";
+import type {
+	WorkItemEffectRequested,
+	WorkItemEvidenceRecorded,
+} from "../orchestration/work-item-runtime.js";
+import {
+	type WorkItemAuthoringInput,
+	type WorkItemEffectPlanProposed,
+	type WorkItemEffectPlanResult,
+	workItemAuthoringProjector,
+	workItemCreatedFromDraft,
+	workItemEffectPlanProjector,
+} from "../solutions/work-item/scheduling.js";
 import {
 	type WorkItemQueuedWorkPayload,
 	workItemWorkQueueRecipe,
@@ -148,6 +159,124 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 			}),
 		]);
 		expect(issues).toEqual([]);
+	});
+
+	it("roundtrips WorkItemEffectPlan coordinates through the WorkItem workQueue recipe", () => {
+		const g = graph();
+		const facts = g.node<WorkItemAuthoringInput>([], null, { name: "workItemFacts" });
+		const proposals = g.node<WorkItemEffectPlanProposed>([], null, { name: "effectPlans" });
+		const queueEvidence = g.node<WorkItemEvidenceRecorded>([], null, { name: "queueEvidence" });
+		const records = g.node<WorkQueueRecord<WorkItemQueuedWorkPayload>>([], null, {
+			name: "queueRecords",
+		});
+		const authoring = workItemAuthoringProjector(g, { facts });
+		const plan = workItemEffectPlanProjector(g, {
+			workItems: authoring.workItems,
+			proposals,
+			evidence: queueEvidence,
+			policy: { allowedEffectKinds: ["verification"] },
+		});
+		const recipe = workItemWorkQueueRecipe(g, {
+			effectRequests: plan.effectRequests,
+			records,
+		});
+		const submits = collectData<WorkQueueCommand<WorkItemQueuedWorkPayload>>(recipe.submitCommands);
+		const evidence = collectData<WorkItemEvidenceRecorded>(recipe.evidence);
+		const results = collectData<WorkItemEffectPlanResult>(plan.results);
+		recipe.evidence.subscribe((msg) => {
+			if (msg[0] === "DATA")
+				queueEvidence.down([msg as readonly ["DATA", WorkItemEvidenceRecorded]]);
+		});
+
+		facts.down([
+			[
+				"DATA",
+				workItemCreatedFromDraft("wi-1", {
+					summary: "Queue a plan member",
+					detail: "Exercise the WorkItem three-layer roundtrip.",
+				}),
+			],
+		]);
+		proposals.down([
+			[
+				"DATA",
+				{
+					kind: "work-item-effect-plan-proposed",
+					planId: "effect-plan-queue",
+					workItemId: "wi-1",
+					executionInputRevision: 1,
+					members: [
+						{
+							memberId: "A",
+							effectKind: "verification",
+							goal: { kind: "verification", summary: "Run queued verification" },
+						},
+					],
+				} satisfies WorkItemEffectPlanProposed,
+			],
+		]);
+		const submit = submits.at(-1);
+		if (submit === undefined) throw new Error("expected submit command");
+
+		expect(submit.payload).toMatchObject({
+			workItemId: "wi-1",
+			requestId: "work-item:wi-1:effect-plan:1:effect-plan-queue:A",
+			effectRunId: "effect-run:work-item:wi-1:effect-plan:1:effect-plan-queue:A",
+			executionInputRevision: 1,
+			planId: "effect-plan-queue",
+			planMemberId: "A",
+		});
+
+		records.down([
+			[
+				"DATA",
+				{
+					kind: "work-admitted",
+					recordSeq: 1,
+					queueId: "q",
+					workId: submit.workId ?? "queued-plan-member",
+					commandId: submit.commandId,
+					recordedAtMs: 100,
+					payload: submit.payload,
+					messageBus: { topic: "work", seq: 1, subscriptionId: "sub" },
+				} satisfies WorkQueueRecord<WorkItemQueuedWorkPayload>,
+			],
+			[
+				"DATA",
+				{
+					kind: "work-completed",
+					recordSeq: 2,
+					queueId: "q",
+					workId: submit.workId ?? "queued-plan-member",
+					leaseId: "lease-1",
+					attempt: 1,
+					workerId: "worker-1",
+					result: { ok: true },
+					recordedAtMs: 120,
+				} satisfies WorkQueueRecord<WorkItemQueuedWorkPayload>,
+			],
+		]);
+
+		expect(evidence.at(-1)).toMatchObject({
+			workItemId: "wi-1",
+			requestId: submit.payload.requestId,
+			effectRunId: submit.payload.effectRunId,
+			executionInputRevision: 1,
+			planId: "effect-plan-queue",
+			planMemberId: "A",
+			status: "completed",
+		});
+		expect(results.at(-1)).toMatchObject({
+			status: "succeeded",
+			memberResults: [
+				expect.objectContaining({
+					planMemberId: "A",
+					requestId: submit.payload.requestId,
+					effectRunId: submit.payload.effectRunId,
+					evidenceId: "work-queue:2",
+				}),
+			],
+		});
 	});
 
 	it("maps executor queue claims to dispatch-attempt facts and outcomes to queue commands", () => {

@@ -51,8 +51,12 @@ export interface WorkItemEvidenceRecorded {
 	readonly kind: "work-item-evidence-recorded";
 	readonly evidenceId: string;
 	readonly workItemId: string;
+	readonly requestId?: string;
 	readonly effectRunId: string;
 	readonly effectRunResultId: string;
+	readonly executionInputRevision?: number;
+	readonly planId?: string;
+	readonly planMemberId?: string;
 	readonly status: EffectRunResultStatus;
 	readonly sourceRefs?: readonly SourceRef[];
 	readonly output?: AgentOutputEnvelope;
@@ -1099,7 +1103,7 @@ function mapEffectRunResultToWorkItemEvidence(
 		);
 		return;
 	}
-	const evidence = workItemEvidenceFromResult(result, run, workItemId, recordedAtMs);
+	const evidence = workItemEvidenceFromResult(result, run, workItemId, request, recordedAtMs);
 	const byWorkItem = state.evidenceByWorkItem.get(workItemId) ?? [];
 	byWorkItem.push(evidence);
 	state.evidenceByWorkItem.set(workItemId, byWorkItem);
@@ -1533,14 +1537,19 @@ function workItemEvidenceFromResult(
 	result: EffectRunResult,
 	run: EffectRun,
 	workItemId: string,
+	request: WorkItemEffectRequested | undefined,
 	recordedAtMs: number,
 ): WorkItemEvidenceRecorded {
 	const base = {
 		kind: "work-item-evidence-recorded",
 		evidenceId: `${workItemId}:${result.effectRunId}:${result.resultId}`,
 		workItemId,
+		requestId: request?.requestId,
 		effectRunId: result.effectRunId,
 		effectRunResultId: result.resultId,
+		executionInputRevision: request?.executionInputRevision,
+		planId: request?.planId,
+		planMemberId: request?.planMemberId,
 		status: result.status,
 		sourceRefs: uniqueSourceRefs([
 			ref("work-item", workItemId),
@@ -1555,7 +1564,15 @@ function workItemEvidenceFromResult(
 		issues: result.issues,
 		auditRefs: result.auditRefs,
 		recordedAtMs,
-		metadata: result.metadata,
+		metadata: {
+			...(result.metadata ?? {}),
+			...(request?.requestId === undefined ? {} : { requestId: request.requestId }),
+			...(request?.executionInputRevision === undefined
+				? {}
+				: { executionInputRevision: request.executionInputRevision }),
+			...(request?.planId === undefined ? {} : { planId: request.planId }),
+			...(request?.planMemberId === undefined ? {} : { planMemberId: request.planMemberId }),
+		},
 	} satisfies Omit<WorkItemEvidenceRecorded, "output" | "error" | "needs" | "reason" | "timeoutMs">;
 	if (result.status === "completed") return { ...base, output: result.output };
 	if (result.status === "failed") return { ...base, error: result.error };

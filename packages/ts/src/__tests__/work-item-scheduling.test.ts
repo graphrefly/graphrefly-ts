@@ -1023,6 +1023,33 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343)",
 		expect(setup.issues.at(-1)).toMatchObject({ code: "duplicate-suppressed" });
 	});
 
+	it("keeps optional independent failure from failing all-required WorkItemEffectPlan results", () => {
+		const setup = planSetup();
+
+		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
+		setup.proposals.down([
+			["DATA", planProposal([planMember("required"), planMember("optional", { required: false })])],
+		]);
+
+		const requiredRequest = setup.requests.find((request) => request.planMemberId === "required")!;
+		const optionalRequest = setup.requests.find((request) => request.planMemberId === "optional")!;
+		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-required", requiredRequest)]]);
+		expect(setup.results).toEqual([expect.objectContaining({ status: "succeeded" })]);
+
+		setup.evidence.down([
+			[
+				"DATA",
+				evidenceForPlanRequest("ev-optional-failed", optionalRequest, {
+					status: "failed",
+					error: { kind: "issue", code: "optional-failed", message: "optional failed" },
+				}),
+			],
+		]);
+
+		expect(setup.results).toHaveLength(1);
+		expect(setup.results.at(-1)).toMatchObject({ status: "succeeded" });
+	});
+
 	it("uses top-level plan coordinates rather than metadata as WorkItemEffectPlan join keys", () => {
 		const setup = planSetup();
 
@@ -1054,6 +1081,35 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343)",
 		]);
 	});
 
+	it("rejects WorkItemEffectPlan evidence whose request/effectRun conflicts with plan coordinates", () => {
+		const setup = planSetup();
+
+		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
+		setup.proposals.down([
+			["DATA", planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })])],
+		]);
+
+		const requestA = setup.requests.find((request) => request.planMemberId === "A")!;
+		setup.evidence.down([
+			[
+				"DATA",
+				evidenceForPlanRequest("ev-conflict", requestA, {
+					planMemberId: "B",
+					metadata: { planMemberId: "B" },
+				}),
+			],
+		]);
+
+		expect(setup.issues.at(-1)).toMatchObject({ code: "dangling-ref" });
+		expect(setup.status.at(-1)).toMatchObject({
+			state: "rejected",
+			planMemberId: "B",
+			requestId: requestA.requestId,
+		});
+		expect(setup.results).toEqual([]);
+		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A"]);
+	});
+
 	it("replays early WorkItemEffectPlan evidence once the admitted plan is visible", () => {
 		const setup = planSetup();
 
@@ -1062,10 +1118,12 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343)",
 				"DATA",
 				evidenceFact("ev-a-early", {
 					effectRunId: "effect-run:early",
+					requestId: "request:early:A",
+					executionInputRevision: 1,
+					planId: "effect-plan-1",
+					planMemberId: "A",
 					metadata: {
-						executionInputRevision: 1,
-						planId: "effect-plan-1",
-						planMemberId: "A",
+						requestId: "metadata-request-should-not-be-needed",
 					},
 				}),
 			],
@@ -1079,6 +1137,9 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343)",
 
 		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-b", setup.requests.at(-1)!)]]);
 		expect(setup.results.at(-1)).toMatchObject({ status: "succeeded" });
+		expect(setup.results.at(-1)?.memberResults).toContainEqual(
+			expect.objectContaining({ planMemberId: "A", requestId: "request:early:A" }),
+		);
 	});
 
 	it("rejects WorkItemEffectPlan evidence for unknown plan members", () => {
@@ -1299,8 +1360,12 @@ function evidenceForPlanRequest(
 		kind: "work-item-evidence-recorded",
 		evidenceId,
 		workItemId: request.workItemId,
+		requestId: request.requestId,
 		effectRunId: request.effectRunId,
 		effectRunResultId: `result:${evidenceId}`,
+		executionInputRevision: request.executionInputRevision,
+		planId: request.planId,
+		planMemberId: request.planMemberId,
 		status: "completed",
 		sourceRefs: request.sourceRefs,
 		output: { kind: "verification-output", value: { ok: true } },

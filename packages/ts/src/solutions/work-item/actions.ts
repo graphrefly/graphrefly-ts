@@ -15,8 +15,10 @@ import type { Node } from "../../node/node.js";
 import type { AgentRuntimeAuditRecord, SourceRef } from "../../orchestration/agent-runtime.js";
 import type {
 	WorkItemDomainActionAdmission,
+	WorkItemDomainActionAdmissionDecision,
 	WorkItemDomainActionProposal,
 } from "../../orchestration/work-item-runtime.js";
+import type { CapabilityAdmission, CapabilityAdmissionStatus } from "../capability-admission.js";
 import {
 	type AcceptanceCriterion,
 	type VerificationPlan,
@@ -175,6 +177,65 @@ export interface WorkItemDomainActionApplicationBundle<TInput = unknown> {
 	readonly audit: Node<AgentRuntimeAuditRecord>;
 }
 
+/**
+ * Product-owned command capability policy (D357): maps WorkItem domain action
+ * proposals to opaque capability ids without defining provider/security registry
+ * semantics or protocol status vocabulary.
+ */
+export interface WorkItemDomainActionCapabilityGuardPolicy {
+	readonly kind: "work-item-domain-action-capability-guard-policy";
+	readonly policyId: string;
+	readonly actionKinds?: readonly WorkItemDomainActionKind[];
+	readonly capabilityIds: readonly string[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Visible DATA status for the capability guard (D357). Missing or mismatched
+ * capability facts remain product issues/status, not protocol ERROR messages.
+ */
+export interface WorkItemDomainActionCapabilityGuardStatus {
+	readonly kind: "work-item-domain-action-capability-guard-status";
+	readonly statusId: string;
+	readonly state: "admitted" | "rejected" | "deferred" | "issue";
+	readonly workItemId?: string;
+	readonly proposalId?: string;
+	readonly actionKind?: string;
+	readonly policyId?: string;
+	readonly capabilityIds?: readonly string[];
+	readonly admissionIds?: readonly string[];
+	readonly issues?: readonly DataIssue[];
+	readonly message?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Inputs for the WorkItem domain-action capability guard. All dependencies are
+ * ordinary solution/product DATA facts; the guard does not mutate WorkItems or
+ * claim dispatch queues.
+ */
+export interface WorkItemDomainActionCapabilityGuardOptions {
+	readonly name?: string;
+	readonly proposals: Node<WorkItemDomainActionProposal>;
+	readonly capabilityAdmissions: Node<CapabilityAdmission>;
+	readonly guardPolicies: Node<WorkItemDomainActionCapabilityGuardPolicy>;
+	readonly capabilityAdmissionStatus?: Node<CapabilityAdmissionStatus>;
+	readonly now?: () => number;
+}
+
+/**
+ * Output facts for product admission consumption. Decisions feed the existing
+ * WorkItem domain-action admission path; status/issues/audit remain inspectable
+ * product DATA.
+ */
+export interface WorkItemDomainActionCapabilityGuardBundle {
+	readonly decisions: Node<WorkItemDomainActionAdmissionDecision>;
+	readonly status: Node<WorkItemDomainActionCapabilityGuardStatus>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+}
+
 type IntakeFact =
 	| { readonly kind: "proposal"; readonly value: WorkItemDomainActionProposal }
 	| { readonly kind: "status"; readonly value: WorkItemDomainActionStatus }
@@ -185,6 +246,12 @@ type ApplicationFact<T> =
 	| { readonly kind: "authoring-fact"; readonly value: WorkItemAuthoringFact<T> }
 	| { readonly kind: "application"; readonly value: WorkItemDomainActionApplication }
 	| { readonly kind: "status"; readonly value: WorkItemDomainActionStatus }
+	| { readonly kind: "issue"; readonly value: DataIssue }
+	| { readonly kind: "audit"; readonly value: AgentRuntimeAuditRecord };
+
+type CapabilityGuardFact =
+	| { readonly kind: "decision"; readonly value: WorkItemDomainActionAdmissionDecision }
+	| { readonly kind: "status"; readonly value: WorkItemDomainActionCapabilityGuardStatus }
 	| { readonly kind: "issue"; readonly value: DataIssue }
 	| { readonly kind: "audit"; readonly value: AgentRuntimeAuditRecord };
 
@@ -201,6 +268,19 @@ interface ApplicationState<T> {
 	readonly policies: Map<string, WorkItemDomainActionApplyPolicy>;
 	readonly appliedAdmissions: Set<string>;
 	readonly emittedFactIds: Set<string>;
+	readonly issueKeys: Set<string>;
+	statusSeq: number;
+	auditSeq: number;
+}
+
+interface CapabilityGuardState {
+	readonly proposals: Map<string, WorkItemDomainActionProposal>;
+	readonly admissionsByCapability: Map<string, CapabilityAdmission[]>;
+	readonly issueStatusesByCapability: Map<string, CapabilityAdmissionStatus[]>;
+	readonly issueStatusesWithoutCapability: CapabilityAdmissionStatus[];
+	readonly policies: Map<string, WorkItemDomainActionCapabilityGuardPolicy>;
+	readonly emittedProposalDecisions: Set<string>;
+	readonly emittedStatusKeys: Set<string>;
 	readonly issueKeys: Set<string>;
 	statusSeq: number;
 	auditSeq: number;
@@ -433,6 +513,533 @@ export function workItemDomainActionApplicationProjector<TInput = unknown>(
 			fact.kind === "audit" ? fact.value : undefined,
 		),
 	};
+}
+
+/**
+ * Connects CapabilityAdmission facts to WorkItem domain-action admission as a
+ * product-owned guard (D357), without adding protocol/boundary vocabulary or
+ * treating AutoPanel display affordances as hard security enforcement.
+ */
+export function workItemDomainActionCapabilityGuardProjector(
+	graph: Graph,
+	opts: WorkItemDomainActionCapabilityGuardOptions,
+): WorkItemDomainActionCapabilityGuardBundle {
+	const name = opts.name ?? "workItemDomainActionCapabilityGuard";
+	const deps =
+		opts.capabilityAdmissionStatus === undefined
+			? [opts.proposals, opts.capabilityAdmissions, opts.guardPolicies]
+			: [
+					opts.proposals,
+					opts.capabilityAdmissions,
+					opts.guardPolicies,
+					opts.capabilityAdmissionStatus,
+				];
+	const statusIndex = opts.capabilityAdmissionStatus === undefined ? -1 : 3;
+	const now = opts.now ?? Date.now;
+	const runtime = graph.node<CapabilityGuardFact>(
+		deps,
+		(ctx) => {
+			const state: CapabilityGuardState = ctx.state.get<CapabilityGuardState>() ?? {
+				proposals: new Map(),
+				admissionsByCapability: new Map(),
+				issueStatusesByCapability: new Map(),
+				issueStatusesWithoutCapability: [],
+				policies: new Map(),
+				emittedProposalDecisions: new Set(),
+				emittedStatusKeys: new Set(),
+				issueKeys: new Set(),
+				statusSeq: 0,
+				auditSeq: 0,
+			};
+			for (const raw of depBatch(ctx, 2) ?? []) {
+				const policyIssue = capabilityGuardPolicyIssue(raw);
+				if (policyIssue !== undefined) {
+					emitCapabilityGuardIssue(
+						ctx,
+						state,
+						`malformed-policy:${recordString(raw, "policyId") ?? "unknown"}`,
+						policyIssue,
+					);
+					continue;
+				}
+				const policy = raw as WorkItemDomainActionCapabilityGuardPolicy;
+				state.policies.set(policy.policyId, policy);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const admissionIssue = capabilityAdmissionIssue(raw);
+				if (admissionIssue !== undefined) {
+					emitCapabilityGuardIssue(
+						ctx,
+						state,
+						`malformed-admission:${recordString(raw, "admissionId") ?? "unknown"}`,
+						admissionIssue,
+					);
+					continue;
+				}
+				const admission = raw as CapabilityAdmission;
+				const byCapability: CapabilityAdmission[] =
+					state.admissionsByCapability.get(admission.capability.id) ?? [];
+				if (!byCapability.some((item) => item.admissionId === admission.admissionId)) {
+					state.admissionsByCapability.set(admission.capability.id, [...byCapability, admission]);
+				}
+			}
+			if (statusIndex >= 0) {
+				for (const raw of depBatch(ctx, statusIndex) ?? []) {
+					const statusIssue = capabilityAdmissionStatusIssue(raw);
+					if (statusIssue !== undefined) {
+						emitCapabilityGuardIssue(
+							ctx,
+							state,
+							`malformed-capability-status:${recordString(raw, "statusId") ?? "unknown"}`,
+							statusIssue,
+						);
+						continue;
+					}
+					const status = raw as CapabilityAdmissionStatus;
+					if (status.state !== "capability-admission-issue") continue;
+					if (status.capabilityId !== undefined) {
+						const statuses: CapabilityAdmissionStatus[] =
+							state.issueStatusesByCapability.get(status.capabilityId) ?? [];
+						if (!statuses.some((item) => item.statusId === status.statusId)) {
+							state.issueStatusesByCapability.set(status.capabilityId, [...statuses, status]);
+						}
+					} else if (
+						!state.issueStatusesWithoutCapability.some((item) => item.statusId === status.statusId)
+					) {
+						state.issueStatusesWithoutCapability.push(status);
+					}
+					for (const proposal of state.proposals.values())
+						emitCapabilityStatusIssueForProposal(ctx, state, proposal, status);
+				}
+			}
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const proposalIssue = capabilityGuardProposalIssue(raw);
+				if (proposalIssue !== undefined) {
+					emitCapabilityGuardIssue(
+						ctx,
+						state,
+						`malformed-proposal:${recordString(raw, "proposalId") ?? "unknown"}`,
+						proposalIssue,
+					);
+					continue;
+				}
+				const proposal = raw as WorkItemDomainActionProposal;
+				state.proposals.set(proposal.proposalId, proposal);
+			}
+			for (const proposal of state.proposals.values())
+				evaluateCapabilityGuardProposal(ctx, state, proposal, now());
+			ctx.state.set(state);
+		},
+		{
+			name: `${name}/runtime`,
+			factory: "workItemDomainActionCapabilityGuardProjector",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	return {
+		decisions: project(
+			graph,
+			runtime,
+			`${name}/decisions`,
+			"workItemDomainActionCapabilityGuardDecisions",
+			(fact) => (fact.kind === "decision" ? fact.value : undefined),
+		),
+		status: project(
+			graph,
+			runtime,
+			`${name}/status`,
+			"workItemDomainActionCapabilityGuardStatus",
+			(fact) => (fact.kind === "status" ? fact.value : undefined),
+		),
+		issues: project(
+			graph,
+			runtime,
+			`${name}/issues`,
+			"workItemDomainActionCapabilityGuardIssues",
+			(fact) => (fact.kind === "issue" ? fact.value : undefined),
+		),
+		audit: project(
+			graph,
+			runtime,
+			`${name}/audit`,
+			"workItemDomainActionCapabilityGuardAudit",
+			(fact) => (fact.kind === "audit" ? fact.value : undefined),
+		),
+	};
+}
+
+function evaluateCapabilityGuardProposal(
+	ctx: Ctx,
+	state: CapabilityGuardState,
+	proposal: WorkItemDomainActionProposal,
+	decidedAtMs: number,
+): void {
+	if (state.emittedProposalDecisions.has(proposal.proposalId)) return;
+	const policy = selectCapabilityGuardPolicy(state, proposal);
+	if (typeof policy === "string") {
+		emitCapabilityGuardIssue(
+			ctx,
+			state,
+			`policy:${proposal.proposalId}:${policy}`,
+			dataIssue(policy, capabilityGuardPolicyMessage(policy, proposal), {
+				subjectId: proposal.workItemId,
+				refs: [ref("work-item-domain-action-proposal", proposal.proposalId)],
+			}),
+		);
+		return;
+	}
+	for (const status of state.issueStatusesWithoutCapability)
+		emitCapabilityStatusIssueForProposal(ctx, state, proposal, status);
+	for (const capabilityId of policy.capabilityIds) {
+		for (const status of state.issueStatusesByCapability.get(capabilityId) ?? [])
+			emitCapabilityStatusIssueForProposal(ctx, state, proposal, status);
+	}
+	const admissions = policy.capabilityIds.map((capabilityId) =>
+		latestCapabilityAdmission(state, capabilityId),
+	);
+	const missingCapabilityIds = policy.capabilityIds.filter(
+		(_, index) => admissions[index] === undefined,
+	);
+	const deferredCapabilityIds = admissions
+		.filter((admission): admission is CapabilityAdmission => admission !== undefined)
+		.filter((admission) => admission.state === "deferred")
+		.map((admission) => admission.capability.id);
+	if (missingCapabilityIds.length > 0 || deferredCapabilityIds.length > 0) {
+		emitCapabilityGuardStatusOnce(
+			ctx,
+			state,
+			`deferred:${proposal.proposalId}:${policy.policyId}:missing=${missingCapabilityIds.join(",")}:deferred=${deferredCapabilityIds.join(",")}`,
+			{
+				state: "deferred",
+				workItemId: proposal.workItemId,
+				proposalId: proposal.proposalId,
+				actionKind: proposal.actionKind,
+				policyId: policy.policyId,
+				capabilityIds: policy.capabilityIds,
+				message: "WorkItem domain action is waiting for capability admission",
+				sourceRefs: capabilityGuardRefs(proposal, policy, admissions),
+				metadata: { missingCapabilityIds, deferredCapabilityIds },
+			},
+		);
+		return;
+	}
+	const presentAdmissions = admissions.filter(
+		(admission): admission is CapabilityAdmission => admission !== undefined,
+	);
+	const blocked = presentAdmissions.filter((admission) => admission.state === "blocked");
+	const outcome: WorkItemDomainActionAdmissionDecision["outcome"] =
+		blocked.length === 0 ? "admit" : "reject";
+	const decision: WorkItemDomainActionAdmissionDecision = {
+		kind: "work-item-domain-action-admission-decision",
+		decisionId: `capability-guard:${proposal.proposalId}:decision`,
+		admissionId: `capability-guard:${proposal.proposalId}:admission`,
+		proposalId: proposal.proposalId,
+		outcome,
+		reason:
+			blocked.length === 0
+				? "Capability guard admitted required capabilities"
+				: "Capability guard rejected blocked capabilities",
+		decidedAtMs,
+		sourceRefs: capabilityGuardRefs(proposal, policy, presentAdmissions),
+		metadata: {
+			capabilityGuardPolicyId: policy.policyId,
+			capabilityIds: policy.capabilityIds,
+			blockedCapabilityIds: blocked.map((admission) => admission.capability.id),
+		},
+	};
+	state.emittedProposalDecisions.add(proposal.proposalId);
+	emitCapabilityGuard(ctx, "decision", decision);
+	emitCapabilityGuardStatus(ctx, state, {
+		state: outcome === "admit" ? "admitted" : "rejected",
+		workItemId: proposal.workItemId,
+		proposalId: proposal.proposalId,
+		actionKind: proposal.actionKind,
+		policyId: policy.policyId,
+		capabilityIds: policy.capabilityIds,
+		admissionIds: presentAdmissions.map((admission) => admission.admissionId),
+		sourceRefs: decision.sourceRefs,
+		metadata: { decisionId: decision.decisionId, admissionId: decision.admissionId },
+	});
+}
+
+function capabilityGuardProposalIssue(proposal: unknown): DataIssue | undefined {
+	if (
+		!isRecord(proposal) ||
+		proposal.kind !== "work-item-domain-action-proposal" ||
+		typeof proposal.proposalId !== "string" ||
+		proposal.proposalId.length === 0 ||
+		typeof proposal.workItemId !== "string" ||
+		proposal.workItemId.length === 0 ||
+		typeof proposal.actionKind !== "string" ||
+		proposal.actionKind.length === 0
+	) {
+		return dataIssue(
+			"malformed-work-item-domain-action-capability-guard-proposal",
+			"WorkItem domain action capability guard requires valid proposal DATA facts",
+			{ subjectId: recordString(proposal, "workItemId") },
+		);
+	}
+	return undefined;
+}
+
+function capabilityGuardPolicyIssue(policy: unknown): DataIssue | undefined {
+	if (
+		!isRecord(policy) ||
+		policy.kind !== "work-item-domain-action-capability-guard-policy" ||
+		typeof policy.policyId !== "string" ||
+		policy.policyId.length === 0 ||
+		!Array.isArray(policy.capabilityIds) ||
+		policy.capabilityIds.length === 0 ||
+		!policy.capabilityIds.every((id) => typeof id === "string" && id.length > 0) ||
+		(policy.actionKinds !== undefined &&
+			(!Array.isArray(policy.actionKinds) ||
+				!policy.actionKinds.every((kind) => typeof kind === "string" && kind.length > 0)))
+	) {
+		return dataIssue(
+			"malformed-work-item-domain-action-capability-guard-policy",
+			"WorkItem domain action capability guard policy requires policyId and opaque capabilityIds",
+			{
+				subjectId: recordString(policy, "policyId"),
+			},
+		);
+	}
+	return undefined;
+}
+
+function capabilityAdmissionIssue(admission: unknown): DataIssue | undefined {
+	if (
+		!isRecord(admission) ||
+		admission.kind !== "capability-admission" ||
+		typeof admission.admissionId !== "string" ||
+		admission.admissionId.length === 0 ||
+		typeof admission.proposalId !== "string" ||
+		admission.proposalId.length === 0 ||
+		typeof admission.subjectId !== "string" ||
+		admission.subjectId.length === 0 ||
+		!isRecord(admission.capability) ||
+		typeof admission.capability.id !== "string" ||
+		admission.capability.id.length === 0 ||
+		typeof admission.capability.kind !== "string" ||
+		admission.capability.kind.length === 0 ||
+		!isCapabilityAdmissionState(admission.state) ||
+		typeof admission.decisionId !== "string" ||
+		admission.decisionId.length === 0
+	) {
+		return dataIssue(
+			"malformed-capability-admission",
+			"WorkItem domain action capability guard requires valid CapabilityAdmission DATA facts",
+			{ subjectId: recordString(admission, "subjectId") },
+		);
+	}
+	return undefined;
+}
+
+function capabilityAdmissionStatusIssue(status: unknown): DataIssue | undefined {
+	if (
+		!isRecord(status) ||
+		status.kind !== "capability-admission-status" ||
+		typeof status.statusId !== "string" ||
+		status.statusId.length === 0 ||
+		!isCapabilityAdmissionStatusState(status.state) ||
+		(status.capabilityId !== undefined && typeof status.capabilityId !== "string")
+	) {
+		return dataIssue(
+			"malformed-capability-admission-status",
+			"WorkItem domain action capability guard requires valid CapabilityAdmissionStatus DATA facts",
+			{ subjectId: recordString(status, "subjectId") },
+		);
+	}
+	return undefined;
+}
+
+function isCapabilityAdmissionState(value: unknown): value is CapabilityAdmission["state"] {
+	return value === "allowed" || value === "blocked" || value === "deferred";
+}
+
+function isCapabilityAdmissionStatusState(
+	value: unknown,
+): value is CapabilityAdmissionStatus["state"] {
+	return (
+		value === "capability-admission-allowed" ||
+		value === "capability-admission-blocked" ||
+		value === "capability-admission-deferred" ||
+		value === "capability-admission-issue"
+	);
+}
+
+function selectCapabilityGuardPolicy(
+	state: CapabilityGuardState,
+	proposal: WorkItemDomainActionProposal,
+):
+	| WorkItemDomainActionCapabilityGuardPolicy
+	| "missing-policy"
+	| "unknown-work-item-domain-action-capability-guard-policy"
+	| "policy-mismatch" {
+	const explicitId =
+		stringMetadata(proposal.metadata, "capabilityGuardPolicyId") ??
+		proposal.sourceRefs?.find(
+			(sourceRef) => sourceRef.kind === "work-item-domain-action-capability-guard-policy",
+		)?.id;
+	if (explicitId !== undefined)
+		return (
+			state.policies.get(explicitId) ?? "unknown-work-item-domain-action-capability-guard-policy"
+		);
+	const matching = [...state.policies.values()].filter(
+		(policy) =>
+			policy.actionKinds === undefined || policy.actionKinds.includes(proposal.actionKind),
+	);
+	if (matching.length === 0) return "missing-policy";
+	if (matching.length > 1) return "policy-mismatch";
+	return matching[0];
+}
+
+function latestCapabilityAdmission(
+	state: CapabilityGuardState,
+	capabilityId: string,
+): CapabilityAdmission | undefined {
+	return state.admissionsByCapability.get(capabilityId)?.at(-1);
+}
+
+function emitCapabilityStatusIssueForProposal(
+	ctx: Ctx,
+	state: CapabilityGuardState,
+	proposal: WorkItemDomainActionProposal,
+	status: CapabilityAdmissionStatus,
+): void {
+	const policy = selectCapabilityGuardPolicy(state, proposal);
+	if (typeof policy === "string") return;
+	if (status.capabilityId !== undefined && !policy.capabilityIds.includes(status.capabilityId))
+		return;
+	const issue =
+		status.issues?.[0] ??
+		dataIssue(
+			"capability-admission-status-issue",
+			"Capability admission status reported an issue",
+			{ subjectId: proposal.workItemId },
+		);
+	emitCapabilityGuardIssue(
+		ctx,
+		state,
+		`capability-status:${proposal.proposalId}:${status.statusId}`,
+		dataIssue(issue.code, issue.message, {
+			subjectId: proposal.workItemId,
+			refs: uniqueSourceRefs([
+				...capabilityGuardRefs(proposal, policy),
+				...(status.sourceRefs ?? []),
+			]),
+			metadata: {
+				...(status.capabilityId === undefined ? {} : { capabilityId: status.capabilityId }),
+				capabilityAdmissionStatusId: status.statusId,
+			},
+		}),
+	);
+}
+
+function capabilityGuardPolicyMessage(
+	code:
+		| "missing-policy"
+		| "unknown-work-item-domain-action-capability-guard-policy"
+		| "policy-mismatch",
+	proposal: WorkItemDomainActionProposal,
+): string {
+	if (code === "missing-policy")
+		return `WorkItem domain action '${proposal.proposalId}' has no capability guard policy`;
+	if (code === "unknown-work-item-domain-action-capability-guard-policy")
+		return `WorkItem domain action '${proposal.proposalId}' references a missing capability guard policy`;
+	return `WorkItem domain action '${proposal.proposalId}' matches multiple capability guard policies`;
+}
+
+function capabilityGuardRefs(
+	proposal: WorkItemDomainActionProposal,
+	policy: WorkItemDomainActionCapabilityGuardPolicy,
+	admissions: readonly (CapabilityAdmission | undefined)[] = [],
+): readonly SourceRef[] {
+	return uniqueSourceRefs([
+		ref("work-item", proposal.workItemId),
+		ref("work-item-domain-action-proposal", proposal.proposalId),
+		ref("work-item-domain-action-capability-guard-policy", policy.policyId),
+		...admissions
+			.filter((admission): admission is CapabilityAdmission => admission !== undefined)
+			.flatMap((admission) => [
+				ref("capability-admission", admission.admissionId),
+				ref("capability-admission-proposal", admission.proposalId),
+				ref("boundary-capability", capabilityBoundaryRefId(admission.capability)),
+				...(admission.sourceRefs ?? []),
+			]),
+		...(proposal.sourceRefs ?? []),
+	]);
+}
+
+function capabilityBoundaryRefId(capability: CapabilityAdmission["capability"]): string {
+	return `${capability.kind}:${capability.id}`;
+}
+
+function emitCapabilityGuardStatus(
+	ctx: Ctx,
+	state: CapabilityGuardState,
+	status: Omit<WorkItemDomainActionCapabilityGuardStatus, "kind" | "statusId">,
+): void {
+	state.statusSeq += 1;
+	const statusFact: WorkItemDomainActionCapabilityGuardStatus = {
+		kind: "work-item-domain-action-capability-guard-status",
+		statusId: `work-item-domain-action-capability-guard-status:${state.statusSeq}`,
+		...status,
+	};
+	emitCapabilityGuard(ctx, "status", statusFact);
+	state.auditSeq += 1;
+	emitCapabilityGuard(ctx, "audit", {
+		id: `work-item-domain-action-capability-guard-status:${state.auditSeq}`,
+		kind: "work-item-domain-action-capability-guard-status",
+		subjectId: status.workItemId,
+		message: status.message,
+		sourceRefs: status.sourceRefs,
+		metadata: {
+			statusId: statusFact.statusId,
+			state: status.state,
+			proposalId: status.proposalId,
+			policyId: status.policyId,
+			...(status.metadata ?? {}),
+		},
+	});
+}
+
+function emitCapabilityGuardStatusOnce(
+	ctx: Ctx,
+	state: CapabilityGuardState,
+	key: string,
+	status: Omit<WorkItemDomainActionCapabilityGuardStatus, "kind" | "statusId">,
+): void {
+	if (state.emittedStatusKeys.has(key)) return;
+	state.emittedStatusKeys.add(key);
+	emitCapabilityGuardStatus(ctx, state, status);
+}
+
+function emitCapabilityGuardIssue(
+	ctx: Ctx,
+	state: CapabilityGuardState,
+	key: string,
+	issue: DataIssue,
+): void {
+	if (state.issueKeys.has(key)) return;
+	state.issueKeys.add(key);
+	emitCapabilityGuard(ctx, "issue", issue);
+	emitCapabilityGuardStatus(ctx, state, {
+		state: "issue",
+		workItemId: issue.subjectId,
+		issues: [issue],
+		message: issue.message,
+		metadata: { issueCode: issue.code },
+	});
+}
+
+function emitCapabilityGuard<K extends CapabilityGuardFact["kind"]>(
+	ctx: Ctx,
+	kind: K,
+	value: Extract<CapabilityGuardFact, { readonly kind: K }>["value"],
+): void {
+	ctx.down([["DATA", { kind, value } as unknown as CapabilityGuardFact]]);
 }
 
 function reduceProposalIntake(
@@ -1484,6 +2091,10 @@ function stringMetadata(
 
 function ref(kind: string, id: string): SourceRef {
 	return { kind, id };
+}
+
+function recordString(value: unknown, key: string): string | undefined {
+	return isRecord(value) && typeof value[key] === "string" ? value[key] : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
