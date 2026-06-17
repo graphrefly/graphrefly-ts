@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentDecision,
@@ -9,6 +10,9 @@ import {
 	admitAgentRequestProposal,
 	agentRequestLedgerViews,
 	agentRequestProposalFromDecision,
+	attachToolProviderAdapterRuntime,
+	buildToolProviderAdapterInputs,
+	buildToolProviderExecutorOutcome,
 	type ContextContribution,
 	type EffectRun,
 	type EffectRunResult,
@@ -26,9 +30,12 @@ import {
 	requestSatisfactionProjector,
 	resolveToolProviderExecutionPolicies,
 	structuredAgentDecisionInterpreter,
+	type ToolProviderAdapterBinding,
+	type ToolProviderAdapterInput,
 	type ToolProviderCatalog,
 	type ToolProviderExecutionPolicy,
 	type ToolProviderPolicyResolution,
+	toolProviderAdapterInputProjector,
 	toolProviderPolicyResolutionProjector,
 	validateToolProviderExecutionPolicy,
 } from "../orchestration/agent-runtime.js";
@@ -862,6 +869,449 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		]);
 	});
 
+	it("builds ready D360 adapter inputs from routed tool-call policy resolutions", () => {
+		const catalog = localBuiltinToolProviderCatalog({ providerId: "adapter" });
+		const profile = catalog.profiles[0];
+		if (profile === undefined) throw new Error("expected profile");
+		const request = toolRequest("adapter-req", "adapter-op", "file.read", "read");
+		const route: ExecutorRoute = {
+			kind: "executor-route",
+			routeId: "adapter-route",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			inputKind: "tool-call",
+			allowedParams: { cwd: ".", timeoutMs: 1000 },
+		};
+		const resolutions = resolveToolProviderExecutionPolicies({
+			request,
+			routes: [route],
+			catalogs: [catalog],
+		});
+
+		const inputs = buildToolProviderAdapterInputs({
+			requests: [request],
+			routes: [route],
+			catalogs: [catalog],
+			resolutions,
+		});
+
+		expect(inputs).toEqual([
+			expect.objectContaining({
+				kind: "tool-provider-adapter-input",
+				status: "ready",
+				requestId: "adapter-req",
+				operationId: "adapter-op",
+				routeId: "adapter-route",
+				providerId: "adapter",
+				executorId: profile.executorId,
+				profileId: profile.profileId,
+				toolName: "file.read",
+				operation: "read",
+				toolCall: expect.objectContaining({ kind: "tool-call", toolName: "file.read" }),
+				policies: catalog.policies,
+				policyRefs: catalog.tools.find((tool) => tool.toolName === "file.read")?.policyRefs,
+			}),
+		]);
+		expect(inputs[0]?.input).toBe(request.input);
+		expect(inputs[0]?.route).toBe(route);
+		expect(inputs[0]?.policies?.[0]).toBe(catalog.policies?.[0]);
+		expect(JSON.stringify(inputs)).not.toMatch(
+			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential/i,
+		);
+	});
+
+	it("attaches runtime-private tool provider bindings and publishes neutral outcomes", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-provider", "runtime-req");
+		const calls: ToolProviderAdapterInput[] = [];
+		const binding: ToolProviderAdapterBinding = {
+			providerId: "runtime-provider",
+			run(input) {
+				calls.push(input);
+				return {
+					kind: "result",
+					result: {
+						kind: "tool-output",
+						value: { ok: true },
+						summary: "fake adapter result",
+					},
+					usage: { latencyMs: 7 },
+				};
+			},
+		};
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [binding],
+			now: () => 123,
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const status: AgentRequestStatusChanged[] = [];
+		const issues: unknown[] = [];
+		const audit: unknown[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.status.subscribe(
+			(msg) => msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		inputs.down([["DATA", { ...ready, status: "missing-policy" }]]);
+		inputs.down([["DATA", ready]]);
+
+		expect(calls).toEqual([ready]);
+		expect(status.map((fact) => fact.status)).toEqual(["in-flight", "completed"]);
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "result",
+				requestId: "runtime-req",
+				operationId: "runtime-req-op",
+				routeId: "runtime-req-route",
+				executorId: ready.executorId,
+				profileId: ready.profileId,
+				attempt: 1,
+				occurredAtMs: 123,
+				usage: { latencyMs: 7 },
+				result: expect.objectContaining({ summary: "fake adapter result" }),
+			}),
+		]);
+		expect(issues).toEqual([]);
+		expect(audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ kind: "tool-provider-adapter-runtime-started" }),
+				expect.objectContaining({ kind: "tool-provider-adapter-runtime-finished" }),
+			]),
+		);
+		runtime.dispose();
+	});
+
+	it("reports missing tool provider runtime bindings as blocked outcomes", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-missing-inputs" });
+		const runtime = attachToolProviderAdapterRuntime(g, { inputs, bindings: [] });
+		const ready = readyToolProviderAdapterInput("missing-runtime-provider", "missing-runtime-req");
+		const outcomes: ExecutorOutcome[] = [];
+		const status: AgentRequestStatusChanged[] = [];
+		const issues: unknown[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.status.subscribe(
+			(msg) => msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+
+		inputs.down([["DATA", ready]]);
+
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "blocked",
+				requestId: "missing-runtime-req",
+				needs: [expect.objectContaining({ kind: "tool-provider-binding" })],
+			}),
+		]);
+		expect(status.at(-1)).toMatchObject({ status: "blocked" });
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-adapter-runtime-missing-binding" }),
+			]),
+		);
+	});
+
+	it("blocks runtime-private material returned by tool provider bindings", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-leak-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-leak-provider", "runtime-leak-req");
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [
+				{
+					providerId: "runtime-leak-provider",
+					run() {
+						return {
+							kind: "result",
+							result: {
+								kind: "tool-output",
+								value: { accessToken: "secret-token" },
+							},
+						};
+					},
+				},
+			],
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const issues: unknown[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+
+		inputs.down([["DATA", ready]]);
+
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "failure",
+				error: expect.objectContaining({
+					code: "tool-provider-adapter-runtime-forbidden-runtime-material",
+				}),
+			}),
+		]);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-forbidden-runtime-material",
+				}),
+			]),
+		);
+		expect(JSON.stringify({ outcomes, issues })).not.toMatch(/accessToken|secret-token/i);
+	});
+
+	it("blocks non-plain runtime objects returned by tool provider bindings", () => {
+		class RuntimeClient {}
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-object-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-object-provider", "runtime-object-req");
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [
+				{
+					providerId: "runtime-object-provider",
+					run() {
+						return {
+							kind: "result",
+							result: {
+								kind: "tool-output",
+								value: new RuntimeClient(),
+							},
+						};
+					},
+				},
+			],
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const issues: DataIssue[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		inputs.down([["DATA", ready]]);
+
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "failure",
+				error: expect.objectContaining({
+					code: "tool-provider-adapter-runtime-forbidden-runtime-material",
+				}),
+			}),
+		]);
+		expect(issues.at(-1)).toMatchObject({
+			code: "tool-provider-adapter-runtime-forbidden-runtime-material",
+		});
+	});
+
+	it("does not expose thrown adapter error messages as graph material", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-throw-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-throw-provider", "runtime-throw-req");
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [
+				{
+					providerId: "runtime-throw-provider",
+					run() {
+						throw new Error("secret-token should stay runtime-private");
+					},
+				},
+			],
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const issues: unknown[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+
+		inputs.down([["DATA", ready]]);
+
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "failure",
+				error: expect.objectContaining({ code: "tool-provider-adapter-runtime-threw" }),
+			}),
+		]);
+		expect(issues).toEqual([
+			expect.objectContaining({ code: "tool-provider-adapter-runtime-threw" }),
+		]);
+		expect(JSON.stringify({ outcomes, issues })).not.toContain("secret-token");
+	});
+
+	it("turns dedupe key failures into visible adapter runtime failures", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-dedupe-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-dedupe-provider", "runtime-dedupe-req");
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [
+				{
+					providerId: "runtime-dedupe-provider",
+					run() {
+						return {
+							kind: "result",
+							result: { kind: "tool-output", value: { ok: true } },
+						};
+					},
+				},
+			],
+			dedupeKey() {
+				throw new Error("runtime-private key failure");
+			},
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const issues: DataIssue[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		expect(() => inputs.down([["DATA", ready]])).not.toThrow();
+
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "failure",
+				error: expect.objectContaining({
+					code: "tool-provider-adapter-runtime-dedupe-key-threw",
+				}),
+			}),
+		]);
+		expect(issues).toEqual([
+			expect.objectContaining({ code: "tool-provider-adapter-runtime-dedupe-key-threw" }),
+		]);
+		expect(JSON.stringify({ outcomes, issues })).not.toContain("runtime-private key failure");
+	});
+
+	it("runs updated adapter input content once even when adapterInputId is unchanged", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-update-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-update-provider", "runtime-update-req");
+		const updated = {
+			...ready,
+			sourceRefs: [
+				...(ready.sourceRefs ?? []),
+				{ kind: "tool-provider-policy", id: "runtime-update-policy-v2" },
+			],
+		} satisfies ToolProviderAdapterInput;
+		const calls: ToolProviderAdapterInput[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [
+				{
+					providerId: "runtime-update-provider",
+					run(input) {
+						calls.push(input);
+						return {
+							kind: "result",
+							result: { kind: "tool-output", value: { ok: true } },
+						};
+					},
+				},
+			],
+		});
+		runtime.outcomes.subscribe(() => undefined);
+
+		inputs.down([["DATA", ready]]);
+		inputs.down([["DATA", ready]]);
+		inputs.down([["DATA", updated]]);
+
+		expect(calls.map((input) => input.sourceRefs?.at(-1)?.id)).toEqual([
+			ready.sourceRefs?.at(-1)?.id,
+			"runtime-update-policy-v2",
+		]);
+	});
+
+	it("copies adapter failure errors into status issues for auditability", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-failure-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-failure-provider", "runtime-failure-req");
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [
+				{
+					providerId: "runtime-failure-provider",
+					run() {
+						return {
+							kind: "failure",
+							error: {
+								kind: "issue",
+								code: "tool-provider-adapter-runtime-failed",
+								message: "Adapter failed.",
+								subjectId: "runtime-failure-req",
+							},
+							retryable: false,
+						};
+					},
+				},
+			],
+		});
+		const status: AgentRequestStatusChanged[] = [];
+		const issues: DataIssue[] = [];
+		runtime.status.subscribe(
+			(msg) => msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		inputs.down([["DATA", ready]]);
+
+		expect(status.at(-1)).toMatchObject({
+			status: "failed",
+			issues: [expect.objectContaining({ code: "tool-provider-adapter-runtime-failed" })],
+		});
+		expect(issues).toEqual([
+			expect.objectContaining({ code: "tool-provider-adapter-runtime-failed" }),
+		]);
+	});
+
+	it("builds provider-neutral ExecutorOutcome facts from adapter run results", () => {
+		const ready = readyToolProviderAdapterInput("build-runtime-provider", "build-runtime-req");
+		const outcome = buildToolProviderExecutorOutcome(
+			ready,
+			{
+				kind: "timeout",
+				timeoutMs: 10,
+				retryable: true,
+				usage: { latencyMs: 10 },
+			},
+			{ attempt: 2, occurredAtMs: 456 },
+		);
+
+		expect(outcome).toMatchObject({
+			kind: "timeout",
+			requestId: "build-runtime-req",
+			operationId: "build-runtime-req-op",
+			routeId: "build-runtime-req-route",
+			executorId: ready.executorId,
+			profileId: ready.profileId,
+			attempt: 2,
+			timeoutMs: 10,
+			retryable: true,
+			usage: { latencyMs: 10 },
+			occurredAtMs: 456,
+		});
+		expect(outcome.evidenceRefs).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "tool-provider-adapter-input",
+					id: ready.adapterInputId,
+				}),
+				expect.objectContaining({ kind: "tool-provider-policy-resolution" }),
+			]),
+		);
+	});
+
 	it("projects D360 policy resolution issues as DATA facts", () => {
 		const g = graph();
 		const requestFacts = g.node<AgentRequestFact>([], null, { name: "requests" });
@@ -948,6 +1398,526 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			kind: "tool-provider-policy-resolution",
 			subjectId: "policy-req",
 		});
+	});
+
+	it("projects adapter inputs, issues, and audit without executing real tool providers", () => {
+		const g = graph();
+		const requestFacts = g.node<AgentRequestFact>([], null, { name: "requests" });
+		const routes = g.node<ExecutorRoute>([], null, { name: "routes" });
+		const catalogs = g.node<ToolProviderCatalog>([], null, { name: "catalogs" });
+		const resolutions = toolProviderPolicyResolutionProjector(g, {
+			requestFacts,
+			executorRoutes: [routes],
+			toolProviderCatalogs: [catalogs],
+		});
+		const adapterInputs = toolProviderAdapterInputProjector(g, {
+			requestFacts,
+			executorRoutes: [routes],
+			toolProviderCatalogs: [catalogs],
+			policyResolutions: [resolutions.resolutions],
+		});
+		const inputs: ToolProviderAdapterInput[] = [];
+		const issues: unknown[] = [];
+		const audit: unknown[] = [];
+		const protocolErrors: unknown[] = [];
+		adapterInputs.inputs.subscribe((msg) => {
+			if (msg[0] === "DATA") inputs.push(msg[1] as ToolProviderAdapterInput);
+			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+		});
+		adapterInputs.issues.subscribe((msg) => {
+			if (msg[0] === "DATA") issues.push(msg[1]);
+			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+		});
+		adapterInputs.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		const catalog = localBuiltinToolProviderCatalog({ providerId: "adapter-projector" });
+		const profile = catalog.profiles[0];
+		if (profile === undefined) throw new Error("expected profile");
+		const request = toolRequest("adapter-proj-req", "adapter-proj-op", "file.read", "read");
+
+		requestFacts.down([["DATA", request]]);
+		catalogs.down([["DATA", catalog]]);
+		routes.down([
+			[
+				"DATA",
+				{
+					kind: "executor-route",
+					routeId: "adapter-proj-route",
+					requestId: "adapter-proj-req",
+					operationId: "adapter-proj-op",
+					executorId: profile.executorId,
+					profileId: profile.profileId,
+					inputKind: "tool-call",
+				},
+			],
+		]);
+
+		expect(inputs).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "ready",
+					requestId: "adapter-proj-req",
+					routeId: "adapter-proj-route",
+					providerId: "adapter-projector",
+					toolName: "file.read",
+					policies: catalog.policies,
+				}),
+			]),
+		);
+		expect(audit.at(-1)).toMatchObject({
+			kind: "tool-provider-adapter-input",
+			subjectId: "adapter-proj-req",
+		});
+		expect(protocolErrors).toEqual([]);
+		expect(JSON.stringify({ inputs, issues, audit })).not.toMatch(
+			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential/i,
+		);
+
+		const bareCatalog: ToolProviderCatalog = {
+			kind: "tool-provider-catalog",
+			providerId: "adapter-bare",
+			providerKind: "local-builtin",
+			status: "ready",
+			profiles: [
+				{
+					profileId: "adapter-bare-profile",
+					executorId: "adapter-bare-exec",
+					kind: "tool",
+					acceptedInputKinds: ["tool-call"],
+				},
+			],
+			tools: [
+				{
+					kind: "tool-catalog-entry",
+					providerId: "adapter-bare",
+					toolName: "file.read",
+					operation: "read",
+					inputKind: "tool-call",
+					profileId: "adapter-bare-profile",
+					executorId: "adapter-bare-exec",
+				},
+			],
+			policies: [],
+			policyRefs: [],
+		};
+		const missingPolicyRequest = toolRequest(
+			"adapter-issue-req",
+			"adapter-issue-op",
+			"file.read",
+			"read",
+		);
+		requestFacts.down([["DATA", missingPolicyRequest]]);
+		catalogs.down([["DATA", bareCatalog]]);
+		routes.down([
+			[
+				"DATA",
+				{
+					kind: "executor-route",
+					routeId: "adapter-issue-route",
+					requestId: "adapter-issue-req",
+					operationId: "adapter-issue-op",
+					executorId: "adapter-bare-exec",
+					profileId: "adapter-bare-profile",
+					inputKind: "tool-call",
+				},
+			],
+		]);
+
+		expect(inputs).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "missing-policy",
+					requestId: "adapter-issue-req",
+					routeId: "adapter-issue-route",
+					input: undefined,
+					toolCall: undefined,
+					policies: undefined,
+				}),
+			]),
+		);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-policy-missing-policy-ref" }),
+			]),
+		);
+		expect(protocolErrors).toEqual([]);
+	});
+
+	it("blocks runtime-private keys from adapter inputs as DataIssue material", () => {
+		const catalog = localBuiltinToolProviderCatalog({ providerId: "adapter-scan" });
+		const profile = catalog.profiles[0];
+		if (profile === undefined) throw new Error("expected profile");
+		const request: AgentRequestIssued = {
+			...toolRequest("adapter-scan-req", "adapter-scan-op", "file.read", "read"),
+			input: {
+				inputId: "adapter-scan-input",
+				inputKind: "tool-call",
+				dataMode: "inline",
+				value: {
+					kind: "tool-call",
+					toolName: "file.read",
+					operation: "read",
+					arguments: { path: "README.md", accessToken: "do-not-project" },
+				},
+			},
+		};
+		const route: ExecutorRoute = {
+			kind: "executor-route",
+			routeId: "adapter-scan-route",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			inputKind: "tool-call",
+		};
+		const resolutions = resolveToolProviderExecutionPolicies({
+			request,
+			routes: [route],
+			catalogs: [catalog],
+		});
+		const inputs = buildToolProviderAdapterInputs({
+			requests: [request],
+			routes: [route],
+			catalogs: [catalog],
+			resolutions,
+		});
+
+		expect(inputs[0]).toMatchObject({
+			status: "invalid-policy",
+			input: undefined,
+			toolCall: undefined,
+			route: undefined,
+			tool: undefined,
+			policies: undefined,
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-input-forbidden-runtime-material",
+				}),
+			]),
+		});
+		expect(JSON.stringify(inputs)).not.toMatch(/do-not-project/);
+	});
+
+	it("rejects stale adapter-input route identities and unavailable catalogs", () => {
+		const readyCatalog = localBuiltinToolProviderCatalog({ providerId: "adapter-stale" });
+		const profile = readyCatalog.profiles[0];
+		if (profile === undefined) throw new Error("expected profile");
+		const request = toolRequest("adapter-stale-req", "adapter-stale-op", "file.read", "read");
+		const staleRoute: ExecutorRoute = {
+			kind: "executor-route",
+			routeId: "adapter-stale-route",
+			requestId: request.requestId,
+			operationId: "other-op",
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			inputKind: "tool-call",
+		};
+		const forgedResolution: ToolProviderPolicyResolution = {
+			kind: "tool-provider-policy-resolution",
+			resolutionId: "adapter-stale-resolution",
+			status: "resolved",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			routeId: staleRoute.routeId,
+			providerId: readyCatalog.providerId,
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			toolName: "file.read",
+			operation: "read",
+			policyRefs: readyCatalog.tools.find((tool) => tool.toolName === "file.read")?.policyRefs,
+		};
+		const staleInputs = buildToolProviderAdapterInputs({
+			requests: [request],
+			routes: [staleRoute],
+			catalogs: [readyCatalog],
+			resolutions: [forgedResolution],
+		});
+
+		expect(staleInputs[0]).toMatchObject({
+			status: "invalid-policy",
+			input: undefined,
+			route: undefined,
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-input-stale-route-operation",
+				}),
+			]),
+		});
+
+		const unavailableCatalog: ToolProviderCatalog = {
+			...readyCatalog,
+			status: "unavailable",
+			issues: [
+				{
+					kind: "issue",
+					code: "provider-down",
+					message: "Provider is unavailable",
+					severity: "error",
+					details: { password: "do-not-project" },
+				},
+			],
+		};
+		const route: ExecutorRoute = {
+			...staleRoute,
+			operationId: request.operationId,
+		};
+		const unavailableInputs = buildToolProviderAdapterInputs({
+			requests: [request],
+			routes: [route],
+			catalogs: [unavailableCatalog],
+			resolutions: [{ ...forgedResolution, resolutionId: "adapter-unavailable-resolution" }],
+		});
+
+		expect(unavailableInputs[0]).toMatchObject({
+			status: "invalid-policy",
+			input: undefined,
+			policies: undefined,
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-input-catalog-unavailable",
+				}),
+				expect.objectContaining({
+					code: "provider-down",
+					details: { redacted: true, reason: "forbidden-runtime-material" },
+				}),
+			]),
+		});
+		expect(JSON.stringify(unavailableInputs)).not.toMatch(/do-not-project/);
+	});
+
+	it("does not trust resolved adapter-input resolutions without D360 policy material", () => {
+		const request = toolRequest("adapter-forged-req", "adapter-forged-op", "file.read", "read");
+		const route: ExecutorRoute = {
+			kind: "executor-route",
+			routeId: "adapter-forged-route",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			executorId: "adapter-forged-exec",
+			profileId: "adapter-forged-profile",
+			inputKind: "tool-call",
+		};
+		const catalog: ToolProviderCatalog = {
+			kind: "tool-provider-catalog",
+			providerId: "adapter-forged",
+			providerKind: "local-builtin",
+			status: "ready",
+			profiles: [
+				{
+					profileId: "adapter-forged-profile",
+					executorId: "adapter-forged-exec",
+					kind: "tool",
+					acceptedInputKinds: ["tool-call"],
+				},
+			],
+			tools: [
+				{
+					kind: "tool-catalog-entry",
+					providerId: "adapter-forged",
+					toolName: "file.read",
+					operation: "read",
+					inputKind: "tool-call",
+					profileId: "adapter-forged-profile",
+					executorId: "adapter-forged-exec",
+				},
+			],
+			policies: [],
+		};
+		const forgedResolved: ToolProviderPolicyResolution = {
+			kind: "tool-provider-policy-resolution",
+			resolutionId: "adapter-forged-resolution",
+			status: "resolved",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			routeId: route.routeId,
+			providerId: catalog.providerId,
+			executorId: route.executorId,
+			profileId: route.profileId,
+			toolName: "file.read",
+			operation: "read",
+			policyRefs: [],
+		};
+		const missingMaterial: ToolProviderPolicyResolution = {
+			...forgedResolved,
+			resolutionId: "adapter-forged-missing-material",
+			policyRefs: [{ kind: "tool-provider-execution-policy", id: "missing" }],
+		};
+
+		const inputs = buildToolProviderAdapterInputs({
+			requests: [request],
+			routes: [route],
+			catalogs: [catalog],
+			resolutions: [forgedResolved, missingMaterial],
+		});
+
+		expect(inputs[0]).toMatchObject({
+			status: "missing-policy",
+			input: undefined,
+			policies: undefined,
+			issues: expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-adapter-input-missing-policy-ref" }),
+			]),
+		});
+		expect(inputs[1]).toMatchObject({
+			status: "invalid-policy",
+			input: undefined,
+			policies: undefined,
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-input-policy-ref-missing-material",
+				}),
+			]),
+		});
+	});
+
+	it("sanitizes incoming resolution issues before adapter-input projection", () => {
+		const request = toolRequest(
+			"adapter-issue-sanitize-req",
+			"adapter-issue-sanitize-op",
+			"file.read",
+			"read",
+		);
+		const resolution: ToolProviderPolicyResolution = {
+			kind: "tool-provider-policy-resolution",
+			resolutionId: "adapter-issue-sanitize-resolution",
+			status: "invalid-policy",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			issues: [
+				{
+					kind: "issue",
+					code: "raw-provider-issue",
+					message: "Provider issue",
+					severity: "error",
+					details: { authorization: "do-not-project" },
+				},
+			],
+		};
+
+		const inputs = buildToolProviderAdapterInputs({
+			requests: [request],
+			resolutions: [resolution],
+		});
+
+		expect(inputs[0]?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "raw-provider-issue",
+					details: { redacted: true, reason: "forbidden-runtime-material" },
+				}),
+			]),
+		);
+		expect(JSON.stringify(inputs)).not.toMatch(/do-not-project/);
+	});
+
+	it("emits updated adapter input material when same policy refs change", () => {
+		const g = graph();
+		const requestFacts = g.node<AgentRequestFact>([], null, { name: "requests" });
+		const routes = g.node<ExecutorRoute>([], null, { name: "routes" });
+		const catalogs = g.node<ToolProviderCatalog>([], null, { name: "catalogs" });
+		const resolutions = toolProviderPolicyResolutionProjector(g, {
+			requestFacts,
+			executorRoutes: [routes],
+			toolProviderCatalogs: [catalogs],
+		});
+		const adapterInputs = toolProviderAdapterInputProjector(g, {
+			requestFacts,
+			executorRoutes: [routes],
+			toolProviderCatalogs: [catalogs],
+			policyResolutions: [resolutions.resolutions],
+		});
+		const inputs: ToolProviderAdapterInput[] = [];
+		adapterInputs.inputs.subscribe(
+			(msg) => msg[0] === "DATA" && inputs.push(msg[1] as ToolProviderAdapterInput),
+		);
+		const catalogV1 = localBuiltinToolProviderCatalog({
+			providerId: "adapter-revision",
+			policyOverrides: { timeout: { timeoutMs: 1000 } },
+		});
+		const profile = catalogV1.profiles[0];
+		if (profile === undefined) throw new Error("expected profile");
+		const request = toolRequest("adapter-revision-req", "adapter-revision-op", "file.read", "read");
+
+		requestFacts.down([["DATA", request]]);
+		catalogs.down([["DATA", catalogV1]]);
+		routes.down([
+			[
+				"DATA",
+				{
+					kind: "executor-route",
+					routeId: "adapter-revision-route",
+					requestId: request.requestId,
+					operationId: request.operationId,
+					executorId: profile.executorId,
+					profileId: profile.profileId,
+					inputKind: "tool-call",
+				},
+			],
+		]);
+		const catalogV2 = localBuiltinToolProviderCatalog({
+			providerId: "adapter-revision",
+			policyOverrides: { timeout: { timeoutMs: 2000 } },
+		});
+		catalogs.down([["DATA", catalogV2]]);
+
+		expect(
+			inputs
+				.filter((input) => input.status === "ready" && input.requestId === "adapter-revision-req")
+				.map((input) => input.policies?.[0]?.timeout?.timeoutMs),
+		).toEqual([1000, 2000]);
+	});
+
+	it("scrubs returned refs before marking adapter input ready", () => {
+		const catalog = localBuiltinToolProviderCatalog({ providerId: "adapter-route-scan" });
+		const profile = catalog.profiles[0];
+		if (profile === undefined) throw new Error("expected profile");
+		const request = toolRequest(
+			"adapter-route-scan-req",
+			"adapter-route-scan-op",
+			"file.read",
+			"read",
+		);
+		const route: ExecutorRoute = {
+			kind: "executor-route",
+			routeId: "adapter-route-scan-route",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			inputKind: "tool-call",
+			evidenceRefs: [{ kind: "runtime", id: "route", metadata: { client: "do-not-project" } }],
+		};
+		const resolutions = resolveToolProviderExecutionPolicies({
+			request,
+			routes: [route],
+			catalogs: [catalog],
+		}).map((resolution) => ({
+			...resolution,
+			sourceRefs: [
+				...(resolution.sourceRefs ?? []),
+				{ kind: "runtime", id: "resolution", metadata: { oauth: "do-not-project" } },
+			],
+			policyRefs: (resolution.policyRefs ?? []).map((policyRef) => ({
+				...policyRef,
+				metadata: { secret: "do-not-project" },
+			})),
+		}));
+		const inputs = buildToolProviderAdapterInputs({
+			requests: [request],
+			routes: [route],
+			catalogs: [catalog],
+			resolutions,
+		});
+
+		expect(inputs[0]).toMatchObject({
+			status: "invalid-policy",
+			route: undefined,
+			input: undefined,
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-input-forbidden-runtime-material",
+				}),
+			]),
+		});
+		expect(JSON.stringify(inputs)).not.toMatch(/do-not-project/);
 	});
 
 	it("validates malformed D360 tool provider policies as DataIssue facts", () => {
@@ -3696,6 +4666,38 @@ function toolRequest(
 			},
 		},
 	};
+}
+
+function readyToolProviderAdapterInput(
+	providerId: string,
+	requestId: string,
+): ToolProviderAdapterInput {
+	const catalog = localBuiltinToolProviderCatalog({ providerId });
+	const profile = catalog.profiles[0];
+	if (profile === undefined) throw new Error("expected profile");
+	const request = toolRequest(requestId, `${requestId}-op`, "file.read", "read");
+	const route: ExecutorRoute = {
+		kind: "executor-route",
+		routeId: `${requestId}-route`,
+		requestId: request.requestId,
+		operationId: request.operationId,
+		executorId: profile.executorId,
+		profileId: profile.profileId,
+		inputKind: "tool-call",
+	};
+	const resolutions = resolveToolProviderExecutionPolicies({
+		request,
+		routes: [route],
+		catalogs: [catalog],
+	});
+	const input = buildToolProviderAdapterInputs({
+		requests: [request],
+		routes: [route],
+		catalogs: [catalog],
+		resolutions,
+	})[0];
+	if (input === undefined || input.status !== "ready") throw new Error("expected ready input");
+	return input;
 }
 
 function workItemSeed(workItemId: string): WorkItemSeed {

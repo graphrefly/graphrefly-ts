@@ -545,6 +545,136 @@ export interface ToolProviderPolicyResolutionBundle {
 	readonly audit: Node<AgentRuntimeAuditRecord>;
 }
 
+export type ToolProviderAdapterInputStatus =
+	| "ready"
+	| Exclude<ToolProviderPolicyResolutionStatus, "resolved">;
+
+/**
+ * Data-only adapter input projection for optional Layer C tool providers
+ * (D359/D360). It packages already-routed AgentRequest/tool-call material plus
+ * selected D360 policy facts for an adapter boundary, but it never executes a
+ * tool and never carries clients, transports, credentials, subprocesses, SDK
+ * handles, or OAuth state.
+ */
+export interface ToolProviderAdapterInput<TArguments = unknown> {
+	readonly kind: "tool-provider-adapter-input";
+	readonly adapterInputId: string;
+	readonly status: ToolProviderAdapterInputStatus;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly effectRunId?: string;
+	readonly agentRunId?: string;
+	readonly routeId?: string;
+	readonly providerId?: string;
+	readonly executorId?: string;
+	readonly profileId?: string;
+	readonly toolName?: string;
+	readonly operation?: string;
+	readonly input?: AgentRequestInput<ToolCallInput<TArguments>>;
+	readonly toolCall?: ToolCallInput<TArguments>;
+	readonly route?: ExecutorRoute;
+	readonly tool?: ToolProviderCatalogEntry;
+	readonly policies?: readonly ToolProviderExecutionPolicy[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly issues?: readonly DataIssue[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderAdapterInputBundle {
+	readonly inputs: Node<ToolProviderAdapterInput>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+}
+
+export type ToolProviderAdapterRunResult<T = unknown> =
+	| {
+			readonly kind: "result";
+			readonly result: AgentOutputEnvelope<T>;
+			readonly evidenceRefs?: readonly SourceRef[];
+			readonly issues?: readonly DataIssue[];
+			readonly usage?: ExecutorUsage;
+			readonly occurredAtMs?: number;
+			readonly metadata?: Record<string, unknown>;
+	  }
+	| {
+			readonly kind: "failure";
+			readonly error: DataIssue;
+			readonly retryable?: boolean;
+			readonly evidenceRefs?: readonly SourceRef[];
+			readonly issues?: readonly DataIssue[];
+			readonly usage?: ExecutorUsage;
+			readonly occurredAtMs?: number;
+			readonly metadata?: Record<string, unknown>;
+	  }
+	| {
+			readonly kind: "canceled";
+			readonly reason?: string;
+			readonly evidenceRefs?: readonly SourceRef[];
+			readonly issues?: readonly DataIssue[];
+			readonly usage?: ExecutorUsage;
+			readonly occurredAtMs?: number;
+			readonly metadata?: Record<string, unknown>;
+	  }
+	| {
+			readonly kind: "timeout";
+			readonly timeoutMs?: number;
+			readonly retryable?: boolean;
+			readonly evidenceRefs?: readonly SourceRef[];
+			readonly issues?: readonly DataIssue[];
+			readonly usage?: ExecutorUsage;
+			readonly occurredAtMs?: number;
+			readonly metadata?: Record<string, unknown>;
+	  }
+	| {
+			readonly kind: "blocked";
+			readonly needs: readonly AgentNeed[];
+			readonly evidenceRefs?: readonly SourceRef[];
+			readonly issues?: readonly DataIssue[];
+			readonly usage?: ExecutorUsage;
+			readonly occurredAtMs?: number;
+			readonly metadata?: Record<string, unknown>;
+	  };
+
+export interface ToolProviderAdapterRunContext {
+	readonly attempt: number;
+	readonly sourceRefs: readonly SourceRef[];
+	readonly now?: () => number;
+}
+
+/**
+ * Runtime-private adapter binding for D361. Bindings may close over clients,
+ * credentials, subprocess access, transports, SDK objects, or environment
+ * handles, but the binding itself must never be graph DATA or WorkItem core
+ * material.
+ */
+export interface ToolProviderAdapterBinding<TArguments = unknown, TResult = unknown> {
+	readonly providerId: string;
+	run(
+		input: ToolProviderAdapterInput<TArguments>,
+		ctx: ToolProviderAdapterRunContext,
+	): ToolProviderAdapterRunResult<TResult> | PromiseLike<ToolProviderAdapterRunResult<TResult>>;
+}
+
+export interface ToolProviderAdapterRuntimeOptions<TArguments = unknown, TResult = unknown> {
+	readonly name?: string;
+	readonly inputs: Node<ToolProviderAdapterInput<TArguments>>;
+	readonly bindings:
+		| readonly ToolProviderAdapterBinding<TArguments, TResult>[]
+		| ReadonlyMap<string, ToolProviderAdapterBinding<TArguments, TResult>>;
+	readonly attempt?: number;
+	readonly dedupeKey?: (input: ToolProviderAdapterInput<TArguments>) => string;
+	readonly now?: () => number;
+}
+
+export interface ToolProviderAdapterRuntimeHandle {
+	readonly outcomes: Node<ExecutorOutcome>;
+	readonly status: Node<AgentRequestStatusChanged>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+	dispose(): void;
+}
+
 /**
  * Audience selector for bounded ExecutorOutcome projections (D359).
  */
@@ -1466,6 +1596,602 @@ export function toolProviderPolicyResolutionProjector(
 	return { resolutions, issues, audit };
 }
 
+export function buildToolProviderAdapterInputs(opts: {
+	readonly requests: readonly AgentRequestIssued[];
+	readonly routes?: readonly ExecutorRoute[];
+	readonly catalogs?: readonly ToolProviderCatalog[];
+	readonly resolutions: readonly ToolProviderPolicyResolution[];
+}): readonly ToolProviderAdapterInput[] {
+	const requestsById = new Map(opts.requests.map((request) => [request.requestId, request]));
+	const routesById = new Map((opts.routes ?? []).map((route) => [route.routeId, route]));
+	const catalogsById = new Map(
+		(opts.catalogs ?? []).map((catalog) => [catalog.providerId, catalog]),
+	);
+	return Object.freeze(
+		opts.resolutions.map((resolution) =>
+			buildToolProviderAdapterInput({
+				resolution,
+				request: requestsById.get(resolution.requestId),
+				route: resolution.routeId === undefined ? undefined : routesById.get(resolution.routeId),
+				catalog:
+					resolution.providerId === undefined ? undefined : catalogsById.get(resolution.providerId),
+			}),
+		),
+	);
+}
+
+export function toolProviderAdapterInputProjector(
+	graph: Graph,
+	opts: {
+		readonly name?: string;
+		readonly requestFacts: Node<AgentRequestFact>;
+		readonly executorRoutes?: readonly Node<ExecutorRoute>[];
+		readonly toolProviderCatalogs?: readonly Node<ToolProviderCatalog>[];
+		readonly policyResolutions: readonly Node<ToolProviderPolicyResolution>[];
+	},
+): ToolProviderAdapterInputBundle {
+	const name = opts.name ?? "toolProviderAdapterInput";
+	const routeDeps = opts.executorRoutes ?? [];
+	const catalogDeps = opts.toolProviderCatalogs ?? [];
+	const routeStart = 1;
+	const catalogStart = routeStart + routeDeps.length;
+	const resolutionStart = catalogStart + catalogDeps.length;
+	const runtime = graph.node<ToolProviderAdapterInputFact>(
+		[opts.requestFacts, ...routeDeps, ...catalogDeps, ...opts.policyResolutions],
+		(ctx) => {
+			const state = ctx.state.get<ToolProviderAdapterInputState>() ?? {
+				requests: new Map<string, AgentRequestIssued>(),
+				routes: new Map<string, ExecutorRoute>(),
+				catalogs: new Map<string, ToolProviderCatalog>(),
+				resolutions: new Map<string, ToolProviderPolicyResolution>(),
+				emittedKeys: new Set<string>(),
+				auditSeq: 0,
+			};
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const fact = raw as AgentRequestFact;
+				if (fact.kind === "issued" && fact.input?.inputKind === "tool-call") {
+					state.requests.set(fact.requestId, fact);
+				}
+			}
+			forEachDepBatch(ctx, routeStart, routeDeps.length, (raw) => {
+				const route = raw as ExecutorRoute;
+				state.routes.set(route.routeId, route);
+			});
+			forEachDepBatch(ctx, catalogStart, catalogDeps.length, (raw) => {
+				const catalog = raw as ToolProviderCatalog;
+				state.catalogs.set(catalog.providerId, catalog);
+			});
+			forEachDepBatch(ctx, resolutionStart, opts.policyResolutions.length, (raw) => {
+				const resolution = raw as ToolProviderPolicyResolution;
+				state.resolutions.set(resolution.resolutionId, resolution);
+			});
+			const inputs = buildToolProviderAdapterInputs({
+				requests: Array.from(state.requests.values()),
+				routes: Array.from(state.routes.values()),
+				catalogs: Array.from(state.catalogs.values()),
+				resolutions: Array.from(state.resolutions.values()),
+			});
+			for (const input of inputs) {
+				const key = stableToolProviderAdapterInputKey(input);
+				if (state.emittedKeys.has(key)) continue;
+				state.emittedKeys.add(key);
+				ctx.down([["DATA", { kind: "input", input } satisfies ToolProviderAdapterInputFact]]);
+				for (const issue of input.issues ?? []) {
+					ctx.down([["DATA", { kind: "issue", issue } satisfies ToolProviderAdapterInputFact]]);
+				}
+				state.auditSeq += 1;
+				ctx.down([
+					[
+						"DATA",
+						{
+							kind: "audit",
+							audit: {
+								id: `${name}:audit:${state.auditSeq}`,
+								kind: "tool-provider-adapter-input",
+								subjectId: input.requestId,
+								sourceRefs: input.sourceRefs,
+								metadata: {
+									status: input.status,
+									routeId: input.routeId,
+									providerId: input.providerId,
+									profileId: input.profileId,
+									toolName: input.toolName,
+								},
+							},
+						} satisfies ToolProviderAdapterInputFact,
+					],
+				]);
+			}
+			ctx.state.set(state);
+		},
+		{ name: `${name}/runtime`, factory: "toolProviderAdapterInputProjector", partial: true },
+	);
+	const inputs = projectRuntimeFact(
+		graph,
+		runtime,
+		`${name}/inputs`,
+		"toolProviderAdapterInputs",
+		(fact) => (fact.kind === "input" ? fact.input : undefined),
+	);
+	const issues = projectRuntimeFact(
+		graph,
+		runtime,
+		`${name}/issues`,
+		"toolProviderAdapterInputIssues",
+		(fact) => (fact.kind === "issue" ? fact.issue : undefined),
+	);
+	const audit = projectRuntimeFact(
+		graph,
+		runtime,
+		`${name}/audit`,
+		"toolProviderAdapterInputAudit",
+		(fact) => (fact.kind === "audit" ? fact.audit : undefined),
+	);
+	return { inputs, issues, audit };
+}
+
+function normalizeToolProviderAdapterBindings<TArguments, TResult>(
+	bindings:
+		| readonly ToolProviderAdapterBinding<TArguments, TResult>[]
+		| ReadonlyMap<string, ToolProviderAdapterBinding<TArguments, TResult>>,
+): ReadonlyMap<string, ToolProviderAdapterBinding<TArguments, TResult>> {
+	const result = new Map<string, ToolProviderAdapterBinding<TArguments, TResult>>();
+	const bindingList = Array.isArray(bindings)
+		? (bindings as readonly ToolProviderAdapterBinding<TArguments, TResult>[])
+		: undefined;
+	if (bindingList === undefined) {
+		const bindingMap = bindings as ReadonlyMap<
+			string,
+			ToolProviderAdapterBinding<TArguments, TResult>
+		>;
+		for (const [providerId, binding] of bindingMap.entries()) {
+			if (providerId !== binding.providerId) {
+				throw new RangeError(
+					`attachToolProviderAdapterRuntime: binding key '${providerId}' must match provider '${binding.providerId}'`,
+				);
+			}
+			result.set(providerId, binding);
+		}
+		return result;
+	}
+	for (const binding of bindingList) {
+		if (result.has(binding.providerId)) {
+			throw new RangeError(
+				`attachToolProviderAdapterRuntime: duplicate binding for provider '${binding.providerId}'`,
+			);
+		}
+		result.set(binding.providerId, binding);
+	}
+	return result;
+}
+
+function adapterRuntimeIdentity(input: ToolProviderAdapterInput): {
+	readonly routeId: string;
+	readonly executorId: string;
+	readonly profileId: string;
+} {
+	if (input.status !== "ready") {
+		throw new RangeError("buildToolProviderExecutorOutcome: adapter input must be ready");
+	}
+	if (
+		input.routeId === undefined ||
+		input.executorId === undefined ||
+		input.profileId === undefined
+	) {
+		throw new RangeError(
+			"buildToolProviderExecutorOutcome: ready adapter input is missing route/executor/profile identity",
+		);
+	}
+	return {
+		routeId: input.routeId,
+		executorId: input.executorId,
+		profileId: input.profileId,
+	};
+}
+
+function defaultToolProviderAdapterEvidenceRefs(
+	input: ToolProviderAdapterInput,
+): readonly SourceRef[] {
+	return sanitizeAdapterInputSourceRefs([
+		ref("tool-provider-adapter-input", input.adapterInputId),
+		...(input.sourceRefs ?? []),
+	]);
+}
+
+function defaultToolProviderAdapterRuntimeDedupeKey(input: ToolProviderAdapterInput): string {
+	return `${input.adapterInputId}:${stableJsonStringify(input)}`;
+}
+
+export function buildToolProviderExecutorOutcome<T = unknown>(
+	input: ToolProviderAdapterInput,
+	result: ToolProviderAdapterRunResult<T>,
+	opts: {
+		readonly attempt?: number;
+		readonly outcomeId?: string;
+		readonly occurredAtMs?: number;
+	} = {},
+): ExecutorOutcome<T> {
+	const ids = adapterRuntimeIdentity(input);
+	const attempt = opts.attempt ?? 1;
+	const occurredAtMs = result.occurredAtMs ?? opts.occurredAtMs;
+	const evidenceRefs =
+		result.evidenceRefs === undefined
+			? defaultToolProviderAdapterEvidenceRefs(input)
+			: sanitizeAdapterInputSourceRefs(result.evidenceRefs);
+	const issues =
+		result.issues === undefined
+			? undefined
+			: Object.freeze(result.issues.map(sanitizeAdapterInputIssue));
+	const metadata = sanitizeGraphVisibleRecord({
+		...(result.metadata ?? {}),
+		adapterInputId: input.adapterInputId,
+		providerId: input.providerId,
+		toolName: input.toolName,
+		operation: input.operation,
+	});
+	const base = {
+		outcomeId: opts.outcomeId ?? `${input.adapterInputId}:attempt-${attempt}:${result.kind}`,
+		requestId: input.requestId,
+		operationId: input.operationId,
+		routeId: ids.routeId,
+		executorId: ids.executorId,
+		profileId: ids.profileId,
+		attempt,
+		evidenceRefs,
+		...(input.input?.inputId === undefined ? {} : { inputId: input.input.inputId }),
+		...(input.input?.inputKind === undefined ? {} : { inputKind: input.input.inputKind }),
+		...(occurredAtMs === undefined ? {} : { occurredAtMs }),
+		...(issues === undefined ? {} : { issues }),
+		...(result.usage === undefined ? {} : { usage: result.usage }),
+		...(metadata === undefined ? {} : { metadata }),
+	};
+	const candidate = (() => {
+		switch (result.kind) {
+			case "result":
+				return {
+					...base,
+					kind: "result",
+					result: result.result,
+				} satisfies ExecutorOutcome<T>;
+			case "failure":
+				return {
+					...base,
+					kind: "failure",
+					error: sanitizeAdapterInputIssue(result.error),
+					...(result.retryable === undefined ? {} : { retryable: result.retryable }),
+				} satisfies ExecutorOutcome<T>;
+			case "canceled":
+				return {
+					...base,
+					kind: "canceled",
+					...(result.reason === undefined ? {} : { reason: result.reason }),
+				} satisfies ExecutorOutcome<T>;
+			case "timeout":
+				return {
+					...base,
+					kind: "timeout",
+					...(result.timeoutMs === undefined ? {} : { timeoutMs: result.timeoutMs }),
+					...(result.retryable === undefined ? {} : { retryable: result.retryable }),
+				} satisfies ExecutorOutcome<T>;
+			case "blocked":
+				return {
+					...base,
+					kind: "blocked",
+					needs: result.needs,
+				} satisfies ExecutorOutcome<T>;
+		}
+	})();
+	const leakIssues = forbiddenAdapterRuntimeMaterialIssues(
+		candidate,
+		ref("executor-outcome", candidate.outcomeId),
+		"executor-outcome",
+	);
+	if (leakIssues.length === 0) return Object.freeze(candidate);
+	const issue = leakIssues[0] ?? dataIssue("tool-provider-adapter-runtime-invalid", "invalid");
+	return Object.freeze({
+		...base,
+		kind: "failure",
+		outcomeId: `${input.adapterInputId}:attempt-${attempt}:failure`,
+		error: issue,
+		retryable: false,
+		issues: Object.freeze(leakIssues),
+	} as ExecutorOutcome<T>);
+}
+
+export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult = unknown>(
+	graph: Graph,
+	opts: ToolProviderAdapterRuntimeOptions<TArguments, TResult>,
+): ToolProviderAdapterRuntimeHandle {
+	const name = opts.name ?? "toolProviderAdapterRuntime";
+	const bindings = normalizeToolProviderAdapterBindings(opts.bindings);
+	const outcomes = graph.node<ExecutorOutcome>([], null, {
+		name: `${name}/outcomes`,
+		factory: "toolProviderAdapterRuntimeOutcomes",
+	});
+	const status = graph.node<AgentRequestStatusChanged>([], null, {
+		name: `${name}/status`,
+		factory: "toolProviderAdapterRuntimeStatus",
+	});
+	const issues = graph.node<DataIssue>([], null, {
+		name: `${name}/issues`,
+		factory: "toolProviderAdapterRuntimeIssues",
+	});
+	const audit = graph.node<AgentRuntimeAuditRecord>([], null, {
+		name: `${name}/audit`,
+		factory: "toolProviderAdapterRuntimeAudit",
+	});
+	const seen = new Set<string>();
+	let disposed = false;
+	let auditSeq = 0;
+	const attempt = opts.attempt ?? 1;
+
+	function publishIssue(issue: DataIssue): void {
+		issues.down([["DATA", sanitizeAdapterInputIssue(issue)]]);
+	}
+
+	function publishStatus(
+		input: ToolProviderAdapterInput<TArguments>,
+		nextStatus: AgentRequestStatus,
+		statusIssues?: readonly DataIssue[],
+	): void {
+		if (input.effectRunId === undefined) return;
+		const metadata = sanitizeGraphVisibleRecord({
+			adapterInputId: input.adapterInputId,
+			providerId: input.providerId,
+			toolName: input.toolName,
+		});
+		status.down([
+			[
+				"DATA",
+				{
+					kind: "status",
+					requestId: input.requestId,
+					operationId: input.operationId,
+					effectRunId: input.effectRunId,
+					status: nextStatus,
+					sourceRefs: defaultToolProviderAdapterEvidenceRefs(input),
+					...(statusIssues === undefined ? {} : { issues: statusIssues }),
+					...(metadata === undefined ? {} : { metadata }),
+				} satisfies AgentRequestStatusChanged,
+			],
+		]);
+	}
+
+	function publishAudit(
+		input: ToolProviderAdapterInput<TArguments>,
+		kind: string,
+		metadata?: Record<string, unknown>,
+		issueCode?: string,
+	): void {
+		auditSeq += 1;
+		const cleanMetadata = sanitizeGraphVisibleRecord({
+			adapterInputId: input.adapterInputId,
+			providerId: input.providerId,
+			toolName: input.toolName,
+			...metadata,
+		});
+		audit.down([
+			[
+				"DATA",
+				{
+					id: `${name}:audit:${auditSeq}`,
+					kind,
+					subjectId: input.requestId,
+					sourceRefs: defaultToolProviderAdapterEvidenceRefs(input),
+					...(issueCode === undefined ? {} : { issueCode }),
+					...(cleanMetadata === undefined ? {} : { metadata: cleanMetadata }),
+				} satisfies AgentRuntimeAuditRecord,
+			],
+		]);
+	}
+
+	function publishOutcome(
+		input: ToolProviderAdapterInput<TArguments>,
+		result: ToolProviderAdapterRunResult<TResult>,
+	): void {
+		if (disposed) return;
+		let outcome: ExecutorOutcome<TResult>;
+		try {
+			outcome = buildToolProviderExecutorOutcome(input, result, {
+				attempt,
+				occurredAtMs: opts.now?.(),
+			});
+		} catch (error) {
+			const issue = adapterRuntimeIssue(
+				input,
+				"tool-provider-adapter-runtime-invalid-input",
+				error,
+			);
+			publishIssue(issue);
+			publishStatus(input, "failed", [issue]);
+			publishAudit(input, "tool-provider-adapter-runtime-invalid-input", undefined, issue.code);
+			return;
+		}
+		outcomes.down([["DATA", outcome]]);
+		const publishedIssueKeys = new Set<string>();
+		for (const issue of outcome.issues ?? []) {
+			publishedIssueKeys.add(`${issue.code}:${issue.message}`);
+			publishIssue(issue);
+		}
+		if (
+			outcome.kind === "failure" &&
+			!publishedIssueKeys.has(`${outcome.error.code}:${outcome.error.message}`)
+		) {
+			publishIssue(outcome.error);
+		}
+		const statusIssues = outcomeIssues(outcome);
+		publishStatus(
+			input,
+			agentRequestStatusForExecutorOutcome(outcome),
+			statusIssues.length === 0 ? undefined : statusIssues,
+		);
+		publishAudit(input, "tool-provider-adapter-runtime-finished", {
+			status: outcome.kind,
+			outcomeId: outcome.outcomeId,
+		});
+	}
+
+	function publishRuntimeFailure(
+		input: ToolProviderAdapterInput<TArguments>,
+		code: string,
+		error: unknown,
+	): void {
+		const issue = adapterRuntimeIssue(input, code, error);
+		publishOutcome(input, {
+			kind: "failure",
+			error: issue,
+			retryable: false,
+			issues: [issue],
+		});
+	}
+
+	function runInput(input: ToolProviderAdapterInput<TArguments>): void {
+		if (disposed || input.status !== "ready") return;
+		let key: string;
+		try {
+			key = opts.dedupeKey?.(input) ?? defaultToolProviderAdapterRuntimeDedupeKey(input);
+		} catch (error) {
+			publishRuntimeFailure(input, "tool-provider-adapter-runtime-dedupe-key-threw", error);
+			return;
+		}
+		if (seen.has(key)) return;
+		seen.add(key);
+		const binding = input.providerId === undefined ? undefined : bindings.get(input.providerId);
+		if (binding === undefined) {
+			const issue = dataIssue(
+				"tool-provider-adapter-runtime-missing-binding",
+				"Tool provider adapter runtime requires a matching runtime-private binding.",
+				{
+					subjectId: input.requestId,
+					refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+					details: { providerId: input.providerId },
+				},
+			);
+			publishOutcome(input, {
+				kind: "blocked",
+				needs: [
+					{
+						kind: "tool-provider-binding",
+						message: "Matching runtime-private tool provider binding is unavailable.",
+						...(input.providerId === undefined
+							? {}
+							: { refs: [ref("tool-provider", input.providerId)] }),
+					},
+				],
+				issues: [issue],
+			});
+			return;
+		}
+		publishStatus(input, "in-flight");
+		publishAudit(input, "tool-provider-adapter-runtime-started", {
+			providerId: binding.providerId,
+			attempt,
+		});
+		let result:
+			| ToolProviderAdapterRunResult<TResult>
+			| PromiseLike<ToolProviderAdapterRunResult<TResult>>;
+		try {
+			result = binding.run(input, {
+				attempt,
+				sourceRefs: input.sourceRefs ?? [],
+				now: opts.now,
+			});
+		} catch (error) {
+			publishRuntimeFailure(input, "tool-provider-adapter-runtime-threw", error);
+			return;
+		}
+		if (isThenable(result)) {
+			let settled = false;
+			try {
+				result.then(
+					(value) => {
+						if (settled) return;
+						settled = true;
+						publishOutcome(input, value);
+					},
+					(error) => {
+						if (settled) return;
+						settled = true;
+						publishRuntimeFailure(input, "tool-provider-adapter-runtime-rejected", error);
+					},
+				);
+			} catch (error) {
+				if (!settled) publishRuntimeFailure(input, "tool-provider-adapter-runtime-rejected", error);
+			}
+			return;
+		}
+		publishOutcome(input, result);
+	}
+
+	const unsubscribe = opts.inputs.subscribe((msg) => {
+		if (msg[0] !== "DATA") return;
+		runInput(msg[1] as ToolProviderAdapterInput<TArguments>);
+	});
+
+	return {
+		outcomes,
+		status,
+		issues,
+		audit,
+		dispose() {
+			if (disposed) return;
+			disposed = true;
+			unsubscribe();
+		},
+	};
+}
+
+function agentRequestStatusForExecutorOutcome(outcome: ExecutorOutcome): AgentRequestStatus {
+	switch (outcome.kind) {
+		case "result":
+			return "completed";
+		case "failure":
+			return "failed";
+		case "canceled":
+			return "canceled";
+		case "timeout":
+			return "timeout";
+		case "blocked":
+			return "blocked";
+	}
+}
+
+function adapterRuntimeIssue(
+	input: ToolProviderAdapterInput,
+	code: string,
+	error: unknown,
+): DataIssue {
+	return dataIssue(code, "Tool provider adapter runtime failed.", {
+		subjectId: input.requestId,
+		refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+		details: { errorType: error instanceof Error ? error.name : typeof error },
+	});
+}
+
+function forbiddenAdapterRuntimeMaterialIssues(
+	value: unknown,
+	subjectRef: SourceRef,
+	area: string,
+): readonly DataIssue[] {
+	if (value === undefined) return [];
+	const forbidden = forbiddenDataKeys(value);
+	if (forbidden.length === 0) return [];
+	return Object.freeze(
+		forbidden.map((entry) =>
+			dataIssue(
+				"tool-provider-adapter-runtime-forbidden-runtime-material",
+				"Tool provider adapter runtime output must not contain runtime-private adapter material.",
+				{ subjectId: subjectRef.id, refs: [subjectRef], details: { area, reason: entry.reason } },
+			),
+		),
+	);
+}
+
+function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
+	if ((typeof value !== "object" && typeof value !== "function") || value === null) return false;
+	return typeof (value as { then?: unknown }).then === "function";
+}
+
 function isPublishableToolProviderExecutionPolicy(
 	policy: unknown,
 	providerId?: string,
@@ -1768,6 +2494,409 @@ function stableToolProviderPolicyResolutionKey(resolution: ToolProviderPolicyRes
 		policyRefs:
 			resolution.policyRefs?.map((policyRef) => `${policyRef.kind}:${policyRef.id}`) ?? [],
 		issues: resolution.issues?.map((issue) => issue.code) ?? [],
+	});
+}
+
+function buildToolProviderAdapterInput(opts: {
+	readonly resolution: ToolProviderPolicyResolution;
+	readonly request?: AgentRequestIssued;
+	readonly route?: ExecutorRoute;
+	readonly catalog?: ToolProviderCatalog;
+}): ToolProviderAdapterInput {
+	const { resolution, request, route, catalog } = opts;
+	const sourceRefs = sanitizeAdapterInputSourceRefs([
+		ref("tool-provider-policy-resolution", resolution.resolutionId),
+		...(resolution.sourceRefs ?? []),
+		...(resolution.routeId === undefined ? [] : [ref("executor-route", resolution.routeId)]),
+		...(resolution.providerId === undefined
+			? []
+			: [ref("tool-provider-catalog", resolution.providerId)]),
+		...(resolution.policyRefs ?? []),
+	]);
+	const issues: DataIssue[] = (resolution.issues ?? []).map(sanitizeAdapterInputIssue);
+	let statusOverride: Exclude<ToolProviderAdapterInputStatus, "ready"> | undefined;
+	if (request === undefined) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-missing-request",
+				"Tool provider adapter input requires the issued AgentRequest fact.",
+				{ subjectId: resolution.requestId, refs: sourceRefs },
+			),
+		);
+	}
+	if (request !== undefined && request.requestId !== resolution.requestId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-request",
+				"Tool provider adapter input request identity does not match its policy resolution.",
+				{ subjectId: resolution.requestId, refs: sourceRefs },
+			),
+		);
+	}
+	if (request !== undefined && request.operationId !== resolution.operationId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-request-operation",
+				"Tool provider adapter input request operationId does not match its policy resolution.",
+				{ subjectId: resolution.requestId, refs: sourceRefs },
+			),
+		);
+	}
+	if (resolution.routeId !== undefined && route === undefined) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-missing-route",
+				"Tool provider adapter input requires the selected ExecutorRoute fact.",
+				{ subjectId: resolution.requestId, refs: sourceRefs },
+			),
+		);
+	}
+	if (route !== undefined) {
+		issues.push(...routeIdentityIssuesForAdapterInput(route, resolution, request, sourceRefs));
+	}
+	if (resolution.providerId !== undefined && catalog === undefined) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-missing-catalog",
+				"Tool provider adapter input requires the selected ToolProviderCatalog fact.",
+				{ subjectId: resolution.requestId, refs: sourceRefs },
+			),
+		);
+	}
+	if (catalog !== undefined && catalog.status !== undefined && catalog.status !== "ready") {
+		statusOverride = "invalid-policy";
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-catalog-unavailable",
+				"Tool provider adapter input requires a ready ToolProviderCatalog.",
+				{
+					subjectId: resolution.requestId,
+					refs: [...sourceRefs, ref("tool-provider-catalog", catalog.providerId)],
+					details: { status: catalog.status },
+				},
+			),
+		);
+		issues.push(...(catalog.issues ?? []).map(sanitizeAdapterInputIssue));
+	}
+	const toolCall = request === undefined ? undefined : toolCallFromRequest(request);
+	if (request !== undefined && toolCall === undefined) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-missing-tool-call",
+				"Tool provider adapter input requires AgentRequest input.value to be a ToolCallInput.",
+				{ subjectId: resolution.requestId, refs: sourceRefs },
+			),
+		);
+	}
+	const tool =
+		catalog === undefined || route === undefined || toolCall === undefined
+			? undefined
+			: selectedToolForAdapterInput(catalog, route, toolCall);
+	if (resolution.status === "resolved" && tool === undefined) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-missing-tool",
+				"Tool provider adapter input requires the selected catalog tool entry.",
+				{ subjectId: resolution.requestId, refs: sourceRefs },
+			),
+		);
+	}
+	const policies =
+		catalog === undefined
+			? []
+			: selectedPoliciesForAdapterInput(catalog, resolution.policyRefs ?? []);
+	if (resolution.status === "resolved" && (resolution.policyRefs?.length ?? 0) === 0) {
+		statusOverride = "missing-policy";
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-missing-policy-ref",
+				"Ready tool provider adapter input requires at least one D360 policy ref.",
+				{ subjectId: resolution.requestId, refs: sourceRefs },
+			),
+		);
+	}
+	if (catalog !== undefined) {
+		for (const issue of policyMaterialIssuesForAdapterInput(catalog, resolution, sourceRefs)) {
+			statusOverride ??= "invalid-policy";
+			issues.push(issue);
+		}
+	}
+	for (const policy of policies) {
+		issues.push(...validateToolProviderExecutionPolicy(policy));
+		if (catalog !== undefined)
+			issues.push(...validateToolProviderPolicyProviderScope(policy, catalog.providerId));
+	}
+	if (request?.input !== undefined) {
+		issues.push(
+			...forbiddenAdapterInputMaterialIssues(
+				request.input,
+				ref("agent-request", request.requestId),
+				"request-input",
+			),
+		);
+	}
+	if (route !== undefined) {
+		issues.push(
+			...forbiddenAdapterInputMaterialIssues(
+				route.allowedParams,
+				ref("executor-route", route.routeId),
+				"route-allowed-params",
+			),
+			...forbiddenAdapterInputMaterialIssues(
+				route.metadata,
+				ref("executor-route", route.routeId),
+				"route-metadata",
+			),
+		);
+	}
+	if (tool !== undefined) {
+		const toolRef = ref("tool", tool.toolName);
+		issues.push(
+			...forbiddenAdapterInputMaterialIssues(tool.capabilities, toolRef, "tool-capabilities"),
+			...forbiddenAdapterInputMaterialIssues(tool.limits, toolRef, "tool-limits"),
+			...forbiddenAdapterInputMaterialIssues(tool.metadata, toolRef, "tool-metadata"),
+		);
+	}
+	for (const policy of policies) {
+		issues.push(
+			...forbiddenAdapterInputMaterialIssues(
+				policy,
+				ref("tool-provider-execution-policy", policy.policyId),
+				"policy-material",
+			),
+		);
+	}
+	const status =
+		resolution.status === "resolved"
+			? issues.length === 0
+				? "ready"
+				: (statusOverride ?? "invalid-policy")
+			: resolution.status;
+	const ready = status === "ready";
+	const candidate = {
+		kind: "tool-provider-adapter-input",
+		adapterInputId: `${resolution.requestId}:${resolution.operationId}:${resolution.routeId ?? resolution.resolutionId}:adapter-input`,
+		status,
+		requestId: resolution.requestId,
+		operationId: resolution.operationId,
+		effectRunId: request?.effectRunId,
+		agentRunId: request?.agentRunId,
+		routeId: resolution.routeId,
+		providerId: resolution.providerId,
+		executorId: resolution.executorId,
+		profileId: resolution.profileId,
+		toolName: resolution.toolName,
+		operation: resolution.operation,
+		input: ready ? (request?.input as AgentRequestInput<ToolCallInput> | undefined) : undefined,
+		toolCall: ready ? toolCall : undefined,
+		route: ready ? route : undefined,
+		tool: ready ? tool : undefined,
+		policies: ready ? Object.freeze(policies) : undefined,
+		policyRefs: sanitizeAdapterInputSourceRefs(resolution.policyRefs ?? []),
+		sourceRefs,
+		issues: issues.length === 0 ? undefined : Object.freeze(issues),
+		metadata: { resolutionId: resolution.resolutionId },
+	} satisfies ToolProviderAdapterInput;
+	if (ready) {
+		const candidateIssues = forbiddenAdapterInputMaterialIssues(
+			candidate,
+			ref("tool-provider-adapter-input", candidate.adapterInputId),
+			"adapter-input",
+		);
+		if (candidateIssues.length > 0) {
+			const blockedIssues = Object.freeze([...issues, ...candidateIssues]);
+			return Object.freeze({
+				...candidate,
+				status: "invalid-policy",
+				input: undefined,
+				toolCall: undefined,
+				route: undefined,
+				tool: undefined,
+				policies: undefined,
+				issues: blockedIssues,
+			} satisfies ToolProviderAdapterInput);
+		}
+	}
+	return Object.freeze(candidate);
+}
+
+function selectedToolForAdapterInput(
+	catalog: ToolProviderCatalog,
+	route: ExecutorRoute,
+	toolCall: ToolCallInput,
+): ToolProviderCatalogEntry | undefined {
+	return catalog.tools.find(
+		(entry) =>
+			entry.profileId === route.profileId &&
+			entry.executorId === route.executorId &&
+			entry.toolName === toolCall.toolName &&
+			(entry.operation === undefined ||
+				toolCall.operation === undefined ||
+				entry.operation === toolCall.operation),
+	);
+}
+
+function selectedPoliciesForAdapterInput(
+	catalog: ToolProviderCatalog,
+	policyRefs: readonly SourceRef[],
+): ToolProviderExecutionPolicy[] {
+	const policiesById = new Map((catalog.policies ?? []).map((policy) => [policy.policyId, policy]));
+	const policies: ToolProviderExecutionPolicy[] = [];
+	for (const policyRef of policyRefs) {
+		if (policyRef.kind !== "tool-provider-execution-policy") continue;
+		const policy = policiesById.get(policyRef.id);
+		if (policy !== undefined) policies.push(policy);
+	}
+	return policies;
+}
+
+function routeIdentityIssuesForAdapterInput(
+	route: ExecutorRoute,
+	resolution: ToolProviderPolicyResolution,
+	request: AgentRequestIssued | undefined,
+	sourceRefs: readonly SourceRef[],
+): readonly DataIssue[] {
+	const issues: DataIssue[] = [];
+	const refs = [...sourceRefs, ref("executor-route", route.routeId)];
+	if (route.requestId !== resolution.requestId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-route-request",
+				"ExecutorRoute requestId does not match the tool provider policy resolution.",
+				{ subjectId: resolution.requestId, refs },
+			),
+		);
+	}
+	if (route.operationId !== resolution.operationId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-route-operation",
+				"ExecutorRoute operationId does not match the tool provider policy resolution.",
+				{ subjectId: resolution.requestId, refs },
+			),
+		);
+	}
+	if (resolution.routeId !== undefined && route.routeId !== resolution.routeId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-route-id",
+				"ExecutorRoute routeId does not match the tool provider policy resolution.",
+				{ subjectId: resolution.requestId, refs },
+			),
+		);
+	}
+	if (resolution.executorId !== undefined && route.executorId !== resolution.executorId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-route-executor",
+				"ExecutorRoute executorId does not match the tool provider policy resolution.",
+				{ subjectId: resolution.requestId, refs },
+			),
+		);
+	}
+	if (resolution.profileId !== undefined && route.profileId !== resolution.profileId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-route-profile",
+				"ExecutorRoute profileId does not match the tool provider policy resolution.",
+				{ subjectId: resolution.requestId, refs },
+			),
+		);
+	}
+	if (
+		request !== undefined &&
+		route.inputId !== undefined &&
+		route.inputId !== request.input?.inputId
+	) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-route-input",
+				"ExecutorRoute inputId does not match the issued AgentRequest input.",
+				{ subjectId: resolution.requestId, refs },
+			),
+		);
+	}
+	if (route.inputKind !== undefined && route.inputKind !== "tool-call") {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-invalid-route-input-kind",
+				"Tool provider adapter input requires ExecutorRoute.inputKind to be tool-call when present.",
+				{ subjectId: resolution.requestId, refs },
+			),
+		);
+	}
+	if (
+		request !== undefined &&
+		route.inputKind !== undefined &&
+		request.input?.inputKind !== undefined &&
+		route.inputKind !== request.input.inputKind
+	) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-input-stale-route-input-kind",
+				"ExecutorRoute inputKind does not match the issued AgentRequest input.",
+				{ subjectId: resolution.requestId, refs },
+			),
+		);
+	}
+	return Object.freeze(issues);
+}
+
+function policyMaterialIssuesForAdapterInput(
+	catalog: ToolProviderCatalog,
+	resolution: ToolProviderPolicyResolution,
+	sourceRefs: readonly SourceRef[],
+): readonly DataIssue[] {
+	const policiesById = new Map((catalog.policies ?? []).map((policy) => [policy.policyId, policy]));
+	const issues: DataIssue[] = [];
+	for (const policyRef of resolution.policyRefs ?? []) {
+		if (policyRef.kind !== "tool-provider-execution-policy") {
+			issues.push(
+				dataIssue(
+					"tool-provider-adapter-input-invalid-policy-ref-kind",
+					"Tool provider adapter input policy refs must point at ToolProviderExecutionPolicy facts.",
+					{ subjectId: resolution.requestId, refs: [...sourceRefs, policyRef] },
+				),
+			);
+			continue;
+		}
+		if (!policiesById.has(policyRef.id)) {
+			issues.push(
+				dataIssue(
+					"tool-provider-adapter-input-policy-ref-missing-material",
+					"Tool provider adapter input policy ref has no selected policy material.",
+					{ subjectId: resolution.requestId, refs: [...sourceRefs, policyRef] },
+				),
+			);
+		}
+	}
+	return Object.freeze(issues);
+}
+
+function sanitizeAdapterInputIssue(issue: DataIssue): DataIssue {
+	if (forbiddenDataKeys(issue).length === 0) return issue;
+	const details =
+		issue.details === undefined || forbiddenDataKeys(issue.details).length > 0
+			? { redacted: true, reason: "forbidden-runtime-material" }
+			: issue.details;
+	return Object.freeze({
+		kind: issue.kind,
+		code: issue.code,
+		message: issue.message,
+		severity: issue.severity,
+		subjectId: issue.subjectId,
+		refs: issue.refs,
+		details,
+	} satisfies DataIssue);
+}
+
+function stableToolProviderAdapterInputKey(input: ToolProviderAdapterInput): string {
+	return stableJsonStringify({
+		id: input.adapterInputId,
+		status: input.status,
+		policyRefs: input.policyRefs?.map((policyRef) => `${policyRef.kind}:${policyRef.id}`) ?? [],
+		issues: input.issues?.map((issue) => issue.code) ?? [],
+		input,
 	});
 }
 
@@ -2341,6 +3470,11 @@ type ToolProviderPolicyResolutionFact =
 	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
 
+type ToolProviderAdapterInputFact =
+	| { readonly kind: "input"; readonly input: ToolProviderAdapterInput }
+	| { readonly kind: "issue"; readonly issue: DataIssue }
+	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
+
 type ExecutorOutcomeViewFact =
 	| { readonly kind: "view"; readonly view: ExecutorOutcomeView }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
@@ -2396,6 +3530,15 @@ interface ToolProviderPolicyResolutionState {
 	requests: Map<string, AgentRequestIssued>;
 	routes: Map<string, ExecutorRoute>;
 	catalogs: Map<string, ToolProviderCatalog>;
+	emittedKeys: Set<string>;
+	auditSeq: number;
+}
+
+interface ToolProviderAdapterInputState {
+	requests: Map<string, AgentRequestIssued>;
+	routes: Map<string, ExecutorRoute>;
+	catalogs: Map<string, ToolProviderCatalog>;
+	resolutions: Map<string, ToolProviderPolicyResolution>;
 	emittedKeys: Set<string>;
 	auditSeq: number;
 }
@@ -2950,6 +4093,24 @@ function uniqueSourceRefs(sourceRefs: readonly SourceRef[]): readonly SourceRef[
 		unique.push(sourceRef);
 	}
 	return Object.freeze(unique);
+}
+
+function stableJsonStringify(value: unknown): string {
+	const seen = new WeakSet<object>();
+	return JSON.stringify(value, (_key, child) => {
+		if (typeof child === "bigint") return child.toString();
+		if (typeof child === "function") return "[Function]";
+		if (!isRecord(child) && !Array.isArray(child)) return child;
+		if (seen.has(child)) return "[Circular]";
+		seen.add(child);
+		if (Array.isArray(child)) return child;
+		return Object.keys(child)
+			.sort()
+			.reduce<Record<string, unknown>>((out, key) => {
+				out[key] = child[key];
+				return out;
+			}, {});
+	});
 }
 
 function emitStatus(
@@ -3532,6 +4693,9 @@ function forbiddenDataKeys(
 	seen: WeakSet<object> = new WeakSet(),
 ): readonly { readonly path: readonly (string | number)[]; readonly reason: string }[] {
 	if (typeof value === "function") return [{ path, reason: "function-value" }];
+	if (typeof value === "symbol" || typeof value === "bigint") {
+		return [{ path, reason: "non-graph-visible-primitive" }];
+	}
 	if (!isRecord(value) && !Array.isArray(value)) return [];
 	if (typeof value === "object" && value !== null) {
 		if (seen.has(value)) return [];
@@ -3544,10 +4708,17 @@ function forbiddenDataKeys(
 		});
 		return issues;
 	}
+	if (!isPlainRecord(value)) return [{ path, reason: "non-plain-runtime-object" }];
+	const symbolKeys = Object.getOwnPropertySymbols(value);
+	if (symbolKeys.length > 0) {
+		issues.push({ path, reason: "symbol-key" });
+	}
 	for (const [key, child] of Object.entries(value)) {
 		const nextPath = [...path, key];
 		if (
-			/^(apiKey|secret|client|transport|subprocess|sdk|oauth|credential|credentials)$/i.test(key)
+			/^(apiKey|api_key|secret|client|transport|subprocess|sdk|oauth|credential|credentials|accessToken|access_token|refreshToken|refresh_token|idToken|id_token|token|password|passphrase|authorization|authHeader|auth_header|bearer|privateKey|private_key|sessionCookie|session_cookie|cookie)$/i.test(
+				key,
+			)
 		) {
 			issues.push({ path: nextPath, reason: "forbidden-runtime-key" });
 		}
@@ -3572,6 +4743,37 @@ function forbiddenGraphVisibleMaterialIssues(
 				{ subjectId: subjectRef.id, refs: [subjectRef], details: { area, reason: entry.reason } },
 			),
 		),
+	);
+}
+
+function forbiddenAdapterInputMaterialIssues(
+	value: unknown,
+	subjectRef: SourceRef,
+	area: string,
+): readonly DataIssue[] {
+	if (value === undefined) return [];
+	const forbidden = forbiddenDataKeys(value);
+	if (forbidden.length === 0) return [];
+	return Object.freeze(
+		forbidden.map((entry) =>
+			dataIssue(
+				"tool-provider-adapter-input-forbidden-runtime-material",
+				"Tool provider adapter input material must not contain runtime-private adapter material.",
+				{ subjectId: subjectRef.id, refs: [subjectRef], details: { area, reason: entry.reason } },
+			),
+		),
+	);
+}
+
+function sanitizeAdapterInputSourceRefs(sourceRefs: readonly SourceRef[]): readonly SourceRef[] {
+	return uniqueSourceRefs(
+		sourceRefs.map((sourceRef) => {
+			if (sourceRef.metadata === undefined) return sourceRef;
+			const metadata = sanitizeGraphVisibleRecord(sourceRef.metadata);
+			return metadata === undefined
+				? { kind: sourceRef.kind, id: sourceRef.id }
+				: { kind: sourceRef.kind, id: sourceRef.id, metadata };
+		}),
 	);
 }
 
@@ -3622,4 +4824,10 @@ function ref(kind: string, id: string): SourceRef {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+	if (!isRecord(value)) return false;
+	const proto = Object.getPrototypeOf(value);
+	return proto === Object.prototype || proto === null;
 }

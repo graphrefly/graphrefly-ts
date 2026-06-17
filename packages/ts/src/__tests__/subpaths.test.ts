@@ -61,7 +61,16 @@ import type {
 import * as boundaryInspection from "../inspection/boundary.js";
 import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
-import type { ToolProviderExecutionPolicy } from "../orchestration/index.js";
+import type {
+	ToolProviderAdapterBinding,
+	ToolProviderAdapterInput,
+	ToolProviderAdapterInputBundle,
+	ToolProviderAdapterInputStatus,
+	ToolProviderAdapterRunResult,
+	ToolProviderAdapterRuntimeHandle,
+	ToolProviderAdapterRuntimeOptions,
+	ToolProviderExecutionPolicy,
+} from "../orchestration/index.js";
 import * as orchestration from "../orchestration/index.js";
 import * as orchestrationMessagingRecipe from "../orchestration/messaging.js";
 import * as orchestrationWorkQueueRecipe from "../orchestration/work-queue.js";
@@ -321,11 +330,39 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.validateToolProviderExecutionPolicy).toBe("function");
 		expect(typeof orchestration.resolveToolProviderExecutionPolicies).toBe("function");
 		expect(typeof orchestration.toolProviderPolicyResolutionProjector).toBe("function");
+		expect(typeof orchestration.buildToolProviderAdapterInputs).toBe("function");
+		expect(typeof orchestration.toolProviderAdapterInputProjector).toBe("function");
+		expect(typeof orchestration.buildToolProviderExecutorOutcome).toBe("function");
+		expect(typeof orchestration.attachToolProviderAdapterRuntime).toBe("function");
 		expectTypeOf<ToolProviderExecutionPolicy>().toMatchTypeOf<{
 			readonly kind: "tool-provider-execution-policy";
 			readonly policyId: string;
 			readonly providerId: string;
 		}>();
+		expectTypeOf<ToolProviderAdapterInputStatus>().toEqualTypeOf<
+			| "ready"
+			| "pending-route"
+			| "missing-tool-call"
+			| "missing-catalog"
+			| "ambiguous-catalog"
+			| "missing-tool"
+			| "missing-policy"
+			| "invalid-policy"
+		>();
+		expectTypeOf<ToolProviderAdapterInput>().toMatchTypeOf<{
+			readonly kind: "tool-provider-adapter-input";
+			readonly adapterInputId: string;
+			readonly status: ToolProviderAdapterInputStatus;
+			readonly requestId: string;
+			readonly operationId: string;
+		}>();
+		expectTypeOf<ToolProviderAdapterInputBundle>().toHaveProperty("inputs");
+		expectTypeOf<ToolProviderAdapterRunResult>().toMatchTypeOf<{ readonly kind: string }>();
+		expectTypeOf<ToolProviderAdapterBinding>().toMatchTypeOf<{
+			readonly providerId: string;
+		}>();
+		expectTypeOf<ToolProviderAdapterRuntimeOptions>().toHaveProperty("inputs");
+		expectTypeOf<ToolProviderAdapterRuntimeHandle>().toHaveProperty("outcomes");
 		expect(typeof orchestration.workItemEffectRunProjector).toBe("function");
 		expect(typeof orchestrationMessagingRecipe.orchestrationMessagingRecipe).toBe("function");
 		expect(typeof orchestrationWorkQueueRecipe.orchestrationWorkQueueRecipe).toBe("function");
