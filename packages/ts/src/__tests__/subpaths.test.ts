@@ -61,6 +61,7 @@ import type {
 import * as boundaryInspection from "../inspection/boundary.js";
 import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
+import type { ToolProviderExecutionPolicy } from "../orchestration/index.js";
 import * as orchestration from "../orchestration/index.js";
 import * as orchestrationMessagingRecipe from "../orchestration/messaging.js";
 import * as orchestrationWorkQueueRecipe from "../orchestration/work-queue.js";
@@ -317,6 +318,14 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.effectRunCompletionProjector).toBe("function");
 		expect(typeof orchestration.localBuiltinToolProviderCatalog).toBe("function");
 		expect(typeof orchestration.executorOutcomeViewProjector).toBe("function");
+		expect(typeof orchestration.validateToolProviderExecutionPolicy).toBe("function");
+		expect(typeof orchestration.resolveToolProviderExecutionPolicies).toBe("function");
+		expect(typeof orchestration.toolProviderPolicyResolutionProjector).toBe("function");
+		expectTypeOf<ToolProviderExecutionPolicy>().toMatchTypeOf<{
+			readonly kind: "tool-provider-execution-policy";
+			readonly policyId: string;
+			readonly providerId: string;
+		}>();
 		expect(typeof orchestration.workItemEffectRunProjector).toBe("function");
 		expect(typeof orchestrationMessagingRecipe.orchestrationMessagingRecipe).toBe("function");
 		expect(typeof orchestrationWorkQueueRecipe.orchestrationWorkQueueRecipe).toBe("function");

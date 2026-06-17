@@ -224,6 +224,7 @@ export interface ExecutorProfile {
 	readonly acceptedResultKinds?: readonly string[];
 	readonly capabilities?: Record<string, unknown>;
 	readonly limits?: Record<string, number>;
+	readonly policyRefs?: readonly SourceRef[];
 	readonly metadata?: Record<string, unknown>;
 }
 
@@ -329,6 +330,128 @@ export interface ToolCallInput<TArguments = unknown> {
  */
 export type ToolProviderKind = "local-builtin" | "mcp" | "cli" | "composio" | (string & {});
 
+export type ToolProviderSizeUnit =
+	| "bytes"
+	| "chars"
+	| "tokens"
+	| "items"
+	| "events"
+	| "lines"
+	| (string & {});
+
+/**
+ * D293-style size-capacity limit material for Layer C tool providers (D360).
+ * This is policy/evidence vocabulary only; enforcement remains adapter-owned.
+ */
+export interface ToolProviderSizeLimit {
+	readonly unit: ToolProviderSizeUnit;
+	readonly softLimit?: number;
+	readonly hardLimit?: number;
+	readonly window?: string;
+	readonly perItem?: boolean;
+	readonly perBatch?: boolean;
+	readonly perArtifact?: boolean;
+	readonly perStream?: boolean;
+	readonly perRequest?: boolean;
+	readonly perTool?: boolean;
+	readonly policyScopeRefs?: readonly SourceRef[];
+	readonly measurementSource?: string;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderSizeCapacityPolicy {
+	readonly limits: readonly ToolProviderSizeLimit[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderTimeoutPolicy {
+	readonly timeoutMs?: number;
+	readonly connectTimeoutMs?: number;
+	readonly idleTimeoutMs?: number;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderRedactionPolicy {
+	readonly mode?: "none" | "summary" | "redact" | "ref-only" | (string & {});
+	readonly sensitivity?: readonly string[];
+	readonly redactKinds?: readonly string[];
+	readonly summaryMaxChars?: number;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderPathRule {
+	readonly effect: "allow" | "deny" | "summary" | "ref-only" | (string & {});
+	readonly path?: string;
+	readonly glob?: string;
+	readonly operation?: string;
+	readonly reason?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderFilesystemPolicy {
+	readonly cwd?: string;
+	readonly pathRules?: readonly ToolProviderPathRule[];
+	readonly allowRead?: boolean;
+	readonly allowWrite?: boolean;
+	readonly followSymlinks?: boolean;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderNetworkPolicy {
+	readonly mode?: "disabled" | "allowlist" | "denylist" | "custom" | (string & {});
+	readonly protocols?: readonly string[];
+	readonly allowedHosts?: readonly string[];
+	readonly deniedHosts?: readonly string[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderApprovalPolicy {
+	readonly mode?: "auto" | "require" | "never" | "custom" | (string & {});
+	readonly requiredForToolNames?: readonly string[];
+	readonly requiredForOperations?: readonly string[];
+	readonly approverRefs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderArtifactPolicy {
+	readonly defaultDataMode?: "inline" | "summary" | "ref" | (string & {});
+	readonly inlineLimits?: readonly ToolProviderSizeLimit[];
+	readonly artifactKinds?: readonly string[];
+	readonly requireDigest?: boolean;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Data-only execution policy fact for optional Layer C tool providers (D360).
+ * It is admission/routing/audit/adapter-input material, not an enforcement
+ * runtime, security boundary, provider SDK, client handle, or secret container.
+ */
+export interface ToolProviderExecutionPolicy {
+	readonly kind: "tool-provider-execution-policy";
+	readonly policyId: string;
+	readonly providerId: string;
+	readonly profileIds?: readonly string[];
+	readonly toolNames?: readonly string[];
+	readonly operations?: readonly string[];
+	readonly sizeCapacity?: ToolProviderSizeCapacityPolicy;
+	readonly timeout?: ToolProviderTimeoutPolicy;
+	readonly redaction?: ToolProviderRedactionPolicy;
+	readonly filesystem?: ToolProviderFilesystemPolicy;
+	readonly network?: ToolProviderNetworkPolicy;
+	readonly approval?: ToolProviderApprovalPolicy;
+	readonly artifacts?: ToolProviderArtifactPolicy;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
 /**
  * Graph-visible catalog entry for a tool exposed by an executor provider
  * (D359). Runtime clients and credentials remain private adapter state.
@@ -359,6 +482,8 @@ export interface ToolProviderCatalog {
 	readonly providerKind: ToolProviderKind;
 	readonly profiles: readonly ExecutorProfile[];
 	readonly tools: readonly ToolProviderCatalogEntry[];
+	readonly policies?: readonly ToolProviderExecutionPolicy[];
+	readonly policyRefs?: readonly SourceRef[];
 	readonly status?: "ready" | "unavailable" | "misconfigured";
 	readonly issues?: readonly DataIssue[];
 	readonly audit?: readonly AgentRuntimeAuditRecord[];
@@ -379,7 +504,45 @@ export interface LocalBuiltinToolProviderCatalogOptions {
 	>[];
 	readonly limits?: Record<string, number>;
 	readonly capabilities?: Record<string, unknown>;
+	readonly policies?: readonly ToolProviderExecutionPolicy[];
+	readonly policyOverrides?: Partial<
+		Omit<ToolProviderExecutionPolicy, "kind" | "policyId" | "providerId">
+	>;
 	readonly metadata?: Record<string, unknown>;
+}
+
+export type ToolProviderPolicyResolutionStatus =
+	| "pending-route"
+	| "resolved"
+	| "missing-tool-call"
+	| "missing-catalog"
+	| "ambiguous-catalog"
+	| "missing-tool"
+	| "missing-policy"
+	| "invalid-policy";
+
+export interface ToolProviderPolicyResolution {
+	readonly kind: "tool-provider-policy-resolution";
+	readonly resolutionId: string;
+	readonly status: ToolProviderPolicyResolutionStatus;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId?: string;
+	readonly providerId?: string;
+	readonly executorId?: string;
+	readonly profileId?: string;
+	readonly toolName?: string;
+	readonly operation?: string;
+	readonly policyRefs?: readonly SourceRef[];
+	readonly issues?: readonly DataIssue[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderPolicyResolutionBundle {
+	readonly resolutions: Node<ToolProviderPolicyResolution>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
 }
 
 /**
@@ -858,21 +1021,86 @@ export function localBuiltinToolProviderCatalog(
 			ToolProviderCatalogEntry,
 			"kind" | "providerId" | "inputKind" | "profileId" | "executorId"
 		>[]);
-	const toolEntries = tools.map((tool) =>
-		Object.freeze({
+	const candidatePolicies: readonly unknown[] = opts.policies?.map((policy) =>
+		Object.freeze(policy),
+	) ?? [
+		defaultLocalBuiltinToolProviderExecutionPolicy({
+			providerId,
+			profileId,
+			tools,
+			overrides: opts.policyOverrides,
+		}),
+	];
+	const policyIssues = Object.freeze(
+		candidatePolicies.flatMap((policy) => [
+			...validateToolProviderExecutionPolicy(policy),
+			...validateToolProviderPolicyProviderScope(policy, providerId),
+		]),
+	);
+	const policies = Object.freeze(
+		candidatePolicies
+			.filter((policy) => isPublishableToolProviderExecutionPolicy(policy, providerId))
+			.map((policy) => Object.freeze(policy)),
+	);
+	const policyRefs = Object.freeze(
+		policies.map((policy) => ref("tool-provider-execution-policy", policy.policyId)),
+	);
+	const catalogInputIssues = Object.freeze([
+		...forbiddenGraphVisibleMaterialIssues(
+			opts.metadata,
+			ref("tool-provider-catalog", providerId),
+			"catalog-metadata",
+		),
+		...forbiddenGraphVisibleMaterialIssues(
+			opts.capabilities,
+			ref("executor-profile", profileId),
+			"profile-capabilities",
+		),
+		...forbiddenGraphVisibleMaterialIssues(
+			opts.limits,
+			ref("executor-profile", profileId),
+			"profile-limits",
+		),
+		...tools.flatMap((tool) => [
+			...forbiddenGraphVisibleMaterialIssues(
+				tool.metadata,
+				ref("tool", tool.toolName),
+				"tool-metadata",
+			),
+			...forbiddenGraphVisibleMaterialIssues(
+				tool.capabilities,
+				ref("tool", tool.toolName),
+				"tool-capabilities",
+			),
+			...forbiddenGraphVisibleMaterialIssues(
+				tool.limits,
+				ref("tool", tool.toolName),
+				"tool-limits",
+			),
+		]),
+	]);
+	const toolEntries = tools.map((tool) => {
+		const toolPolicyRefs = policyRefsForTool(policies, profileId, tool);
+		return Object.freeze({
+			...tool,
 			kind: "tool-catalog-entry",
 			providerId,
 			inputKind: "tool-call",
 			profileId,
 			executorId,
-			...tool,
-		} satisfies ToolProviderCatalogEntry),
-	);
+			capabilities: sanitizeGraphVisibleRecord(tool.capabilities),
+			limits: sanitizeGraphVisibleRecord(tool.limits),
+			policyRefs: toolPolicyRefs,
+			metadata: sanitizeGraphVisibleRecord(tool.metadata),
+		} satisfies ToolProviderCatalogEntry);
+	});
+	const profilePolicyRefs = policyRefsForProfile(policies, profileId);
+	const issues = Object.freeze([...policyIssues, ...catalogInputIssues]);
 	return Object.freeze({
 		kind: "tool-provider-catalog",
 		providerId,
 		providerKind: "local-builtin",
-		status: "ready",
+		status: issues.length === 0 ? "ready" : "misconfigured",
 		profiles: Object.freeze([
 			Object.freeze({
 				profileId,
@@ -884,15 +1112,803 @@ export function localBuiltinToolProviderCatalog(
 				),
 				capabilities: Object.freeze({
 					toolNames: Object.freeze(toolEntries.map((tool) => tool.toolName)),
-					...(opts.capabilities ?? {}),
+					...(sanitizeGraphVisibleRecord(opts.capabilities) ?? {}),
 				}),
-				limits: opts.limits,
-				metadata: opts.metadata,
+				limits: sanitizeGraphVisibleRecord(opts.limits),
+				policyRefs: profilePolicyRefs,
+				metadata: sanitizeGraphVisibleRecord(opts.metadata),
 			} satisfies ExecutorProfile),
 		]),
 		tools: Object.freeze(toolEntries),
-		metadata: opts.metadata,
+		policies,
+		policyRefs,
+		issues: issues.length === 0 ? undefined : issues,
+		metadata: sanitizeGraphVisibleRecord(opts.metadata),
 	});
+}
+
+export function validateToolProviderExecutionPolicy(policy: unknown): readonly DataIssue[] {
+	const issues: DataIssue[] = [];
+	if (!isRecord(policy)) {
+		return Object.freeze([
+			dataIssue(
+				"tool-provider-policy-invalid-shape",
+				"Tool provider policy must be a data object.",
+				{ refs: [ref("tool-provider-execution-policy", "<invalid>")] },
+			),
+		]);
+	}
+	const policyId = typeof policy.policyId === "string" ? policy.policyId : "";
+	const providerId = typeof policy.providerId === "string" ? policy.providerId : "";
+	const policyRef = ref("tool-provider-execution-policy", policyId || "<missing>");
+	if (policy.kind !== "tool-provider-execution-policy") {
+		issues.push(
+			dataIssue(
+				"tool-provider-policy-invalid-kind",
+				"ToolProviderExecutionPolicy.kind must be tool-provider-execution-policy.",
+				{ subjectId: policyId, refs: [policyRef] },
+			),
+		);
+	}
+	if (!policyId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-policy-missing-policy-id",
+				"Tool provider policy is missing policyId.",
+				{
+					refs: [policyRef],
+				},
+			),
+		);
+	}
+	if (!providerId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-policy-missing-provider-id",
+				"Tool provider policy is missing providerId.",
+				{ subjectId: policyId, refs: [policyRef] },
+			),
+		);
+	}
+	if (
+		policy.sizeCapacity === undefined &&
+		policy.timeout === undefined &&
+		policy.redaction === undefined &&
+		policy.filesystem === undefined &&
+		policy.approval === undefined &&
+		policy.artifacts === undefined &&
+		policy.network === undefined
+	) {
+		issues.push(
+			dataIssue(
+				"tool-provider-policy-missing-material",
+				"Tool provider policy has no D360 policy material sections.",
+				{ subjectId: policyId, refs: [policyRef] },
+			),
+		);
+	}
+	if (policy.sizeCapacity !== undefined && !isRecord(policy.sizeCapacity)) {
+		issues.push(
+			dataIssue(
+				"tool-provider-policy-invalid-size-capacity",
+				"Tool provider size-capacity policy must be a data object.",
+				{ subjectId: policyId, refs: [policyRef] },
+			),
+		);
+	}
+	const limits = isRecord(policy.sizeCapacity) ? policy.sizeCapacity.limits : undefined;
+	if (isRecord(policy.sizeCapacity) && !Array.isArray(limits)) {
+		issues.push(
+			dataIssue(
+				"tool-provider-policy-invalid-size-capacity",
+				"Tool provider size-capacity limits must be an array.",
+				{ subjectId: policyId, refs: [policyRef] },
+			),
+		);
+	}
+	for (const [index, rawLimit] of (Array.isArray(limits) ? limits : []).entries()) {
+		if (!isRecord(rawLimit)) {
+			issues.push(
+				dataIssue(
+					"tool-provider-policy-invalid-size-limit",
+					"Tool provider size-capacity limit must be a data object.",
+					{ subjectId: policyId, refs: [policyRef], details: { index } },
+				),
+			);
+			continue;
+		}
+		const limit = rawLimit as Partial<ToolProviderSizeLimit>;
+		if (typeof limit.unit !== "string" || limit.unit.length === 0) {
+			issues.push(
+				dataIssue(
+					"tool-provider-policy-invalid-size-limit",
+					"Tool provider size-capacity limit unit must be a non-empty string.",
+					{ subjectId: policyId, refs: [policyRef], details: { index } },
+				),
+			);
+		}
+		if (
+			limit.softLimit !== undefined &&
+			(typeof limit.softLimit !== "number" ||
+				!Number.isFinite(limit.softLimit) ||
+				limit.softLimit < 0)
+		) {
+			issues.push(
+				dataIssue(
+					"tool-provider-policy-invalid-size-limit",
+					"Tool provider size-capacity softLimit must be a finite non-negative number.",
+					{ subjectId: policyId, refs: [policyRef], details: { index, unit: limit.unit } },
+				),
+			);
+		}
+		if (
+			limit.hardLimit !== undefined &&
+			(typeof limit.hardLimit !== "number" ||
+				!Number.isFinite(limit.hardLimit) ||
+				limit.hardLimit < 0)
+		) {
+			issues.push(
+				dataIssue(
+					"tool-provider-policy-invalid-size-limit",
+					"Tool provider size-capacity hardLimit must be a finite non-negative number.",
+					{ subjectId: policyId, refs: [policyRef], details: { index, unit: limit.unit } },
+				),
+			);
+		}
+		if (
+			typeof limit.softLimit === "number" &&
+			Number.isFinite(limit.softLimit) &&
+			typeof limit.hardLimit === "number" &&
+			Number.isFinite(limit.hardLimit) &&
+			limit.softLimit > limit.hardLimit
+		) {
+			issues.push(
+				dataIssue(
+					"tool-provider-policy-invalid-size-limit",
+					"Tool provider size-capacity softLimit must not exceed hardLimit.",
+					{ subjectId: policyId, refs: [policyRef], details: { index, unit: limit.unit } },
+				),
+			);
+		}
+	}
+	if (policy.timeout !== undefined && !isRecord(policy.timeout)) {
+		issues.push(
+			dataIssue(
+				"tool-provider-policy-invalid-timeout",
+				"Tool provider timeout policy must be a data object.",
+				{ subjectId: policyId, refs: [policyRef] },
+			),
+		);
+	}
+	for (const [field, value] of Object.entries(isRecord(policy.timeout) ? policy.timeout : {})) {
+		if (field.endsWith("TimeoutMs") || field === "timeoutMs") {
+			if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+				issues.push(
+					dataIssue(
+						"tool-provider-policy-invalid-timeout",
+						"Tool provider timeout values must be finite non-negative numbers.",
+						{ subjectId: policyId, refs: [policyRef], details: { field } },
+					),
+				);
+			}
+		}
+	}
+	for (const forbidden of forbiddenDataKeys(policy)) {
+		issues.push(
+			dataIssue(
+				"tool-provider-policy-forbidden-runtime-material",
+				"Tool provider policy must not contain runtime-private adapter material.",
+				{ subjectId: policyId, refs: [policyRef], details: { reason: forbidden.reason } },
+			),
+		);
+	}
+	return Object.freeze(issues);
+}
+
+export function resolveToolProviderExecutionPolicies(opts: {
+	readonly request: AgentRequestIssued;
+	readonly routes?: readonly ExecutorRoute[];
+	readonly catalogs?: readonly ToolProviderCatalog[];
+}): readonly ToolProviderPolicyResolution[] {
+	const request = opts.request;
+	const toolCall = toolCallFromRequest(request);
+	const baseSourceRefs = Object.freeze([ref("agent-request", request.requestId)]);
+	if (toolCall === undefined) {
+		return Object.freeze([
+			Object.freeze({
+				kind: "tool-provider-policy-resolution",
+				resolutionId: `${request.requestId}:${request.operationId}:tool-policy:missing-tool-call`,
+				status: "missing-tool-call",
+				requestId: request.requestId,
+				operationId: request.operationId,
+				issues: Object.freeze([
+					dataIssue(
+						"tool-provider-policy-missing-tool-call",
+						"Tool provider policy resolution requires AgentRequest input.value to be a ToolCallInput.",
+						{ subjectId: request.requestId, refs: baseSourceRefs },
+					),
+				]),
+				sourceRefs: baseSourceRefs,
+			} satisfies ToolProviderPolicyResolution),
+		]);
+	}
+	const routes = (opts.routes ?? []).filter(
+		(route) => route.requestId === request.requestId && route.operationId === request.operationId,
+	);
+	if (routes.length === 0) {
+		return Object.freeze([
+			Object.freeze({
+				kind: "tool-provider-policy-resolution",
+				resolutionId: `${request.requestId}:${request.operationId}:tool-policy:pending-route`,
+				status: "pending-route",
+				requestId: request.requestId,
+				operationId: request.operationId,
+				toolName: toolCall.toolName,
+				operation: toolCall.operation,
+				sourceRefs: baseSourceRefs,
+			} satisfies ToolProviderPolicyResolution),
+		]);
+	}
+	return Object.freeze(
+		routes.map((route) =>
+			Object.freeze(
+				resolveToolProviderPolicyForRoute(request, route, toolCall, opts.catalogs ?? []),
+			),
+		),
+	);
+}
+
+export function toolProviderPolicyResolutionProjector(
+	graph: Graph,
+	opts: {
+		readonly name?: string;
+		readonly requestFacts: Node<AgentRequestFact>;
+		readonly executorRoutes?: readonly Node<ExecutorRoute>[];
+		readonly toolProviderCatalogs?: readonly Node<ToolProviderCatalog>[];
+	},
+): ToolProviderPolicyResolutionBundle {
+	const name = opts.name ?? "toolProviderPolicyResolution";
+	const routeDeps = opts.executorRoutes ?? [];
+	const catalogDeps = opts.toolProviderCatalogs ?? [];
+	const routeStart = 1;
+	const catalogStart = routeStart + routeDeps.length;
+	const runtime = graph.node<ToolProviderPolicyResolutionFact>(
+		[opts.requestFacts, ...routeDeps, ...catalogDeps],
+		(ctx) => {
+			const state = ctx.state.get<ToolProviderPolicyResolutionState>() ?? {
+				requests: new Map<string, AgentRequestIssued>(),
+				routes: new Map<string, ExecutorRoute>(),
+				catalogs: new Map<string, ToolProviderCatalog>(),
+				emittedKeys: new Set<string>(),
+				auditSeq: 0,
+			};
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const fact = raw as AgentRequestFact;
+				if (fact.kind === "issued" && fact.input?.inputKind === "tool-call") {
+					state.requests.set(fact.requestId, fact);
+				}
+			}
+			forEachDepBatch(ctx, routeStart, routeDeps.length, (raw) => {
+				const route = raw as ExecutorRoute;
+				state.routes.set(route.routeId, route);
+			});
+			forEachDepBatch(ctx, catalogStart, catalogDeps.length, (raw) => {
+				const catalog = raw as ToolProviderCatalog;
+				state.catalogs.set(catalog.providerId, catalog);
+			});
+			for (const request of state.requests.values()) {
+				const resolutions = resolveToolProviderExecutionPolicies({
+					request,
+					routes: Array.from(state.routes.values()),
+					catalogs: Array.from(state.catalogs.values()),
+				});
+				for (const resolution of resolutions) {
+					const key = stableToolProviderPolicyResolutionKey(resolution);
+					if (state.emittedKeys.has(key)) continue;
+					state.emittedKeys.add(key);
+					ctx.down([
+						["DATA", { kind: "resolution", resolution } satisfies ToolProviderPolicyResolutionFact],
+					]);
+					for (const issue of resolution.issues ?? []) {
+						ctx.down([
+							["DATA", { kind: "issue", issue } satisfies ToolProviderPolicyResolutionFact],
+						]);
+					}
+					state.auditSeq += 1;
+					ctx.down([
+						[
+							"DATA",
+							{
+								kind: "audit",
+								audit: {
+									id: `${name}:audit:${state.auditSeq}`,
+									kind: "tool-provider-policy-resolution",
+									subjectId: request.requestId,
+									sourceRefs: resolution.sourceRefs,
+									metadata: {
+										status: resolution.status,
+										routeId: resolution.routeId,
+										providerId: resolution.providerId,
+										profileId: resolution.profileId,
+										toolName: resolution.toolName,
+									},
+								},
+							} satisfies ToolProviderPolicyResolutionFact,
+						],
+					]);
+				}
+			}
+			ctx.state.set(state);
+		},
+		{ name: `${name}/runtime`, factory: "toolProviderPolicyResolutionProjector", partial: true },
+	);
+	const resolutions = projectRuntimeFact(
+		graph,
+		runtime,
+		`${name}/resolutions`,
+		"toolProviderPolicyResolutions",
+		(fact) => (fact.kind === "resolution" ? fact.resolution : undefined),
+	);
+	const issues = projectRuntimeFact(
+		graph,
+		runtime,
+		`${name}/issues`,
+		"toolProviderPolicyResolutionIssues",
+		(fact) => (fact.kind === "issue" ? fact.issue : undefined),
+	);
+	const audit = projectRuntimeFact(
+		graph,
+		runtime,
+		`${name}/audit`,
+		"toolProviderPolicyResolutionAudit",
+		(fact) => (fact.kind === "audit" ? fact.audit : undefined),
+	);
+	return { resolutions, issues, audit };
+}
+
+function isPublishableToolProviderExecutionPolicy(
+	policy: unknown,
+	providerId?: string,
+): policy is ToolProviderExecutionPolicy {
+	return (
+		isRecord(policy) &&
+		policy.kind === "tool-provider-execution-policy" &&
+		typeof policy.policyId === "string" &&
+		policy.policyId.length > 0 &&
+		typeof policy.providerId === "string" &&
+		policy.providerId.length > 0 &&
+		(providerId === undefined || policy.providerId === providerId) &&
+		validateToolProviderExecutionPolicy(policy).length === 0
+	);
+}
+
+function validateToolProviderPolicyProviderScope(
+	policy: unknown,
+	providerId: string,
+): readonly DataIssue[] {
+	if (!isRecord(policy)) return [];
+	if (policy.providerId === undefined || policy.providerId === providerId) return [];
+	return Object.freeze([
+		dataIssue(
+			"tool-provider-policy-provider-mismatch",
+			"Tool provider policy providerId must match the catalog providerId.",
+			{
+				subjectId: typeof policy.policyId === "string" ? policy.policyId : undefined,
+				refs: [
+					ref(
+						"tool-provider-execution-policy",
+						typeof policy.policyId === "string" && policy.policyId.length > 0
+							? policy.policyId
+							: "<missing>",
+					),
+					ref("tool-provider-catalog", providerId),
+				],
+			},
+		),
+	]);
+}
+
+function policyRefsForProfile(
+	policies: readonly ToolProviderExecutionPolicy[],
+	profileId: string,
+): readonly SourceRef[] {
+	return Object.freeze(
+		policies
+			.filter((policy) => policyAppliesToProfile(policy, profileId))
+			.map((policy) => ref("tool-provider-execution-policy", policy.policyId)),
+	);
+}
+
+function policyRefsForTool(
+	policies: readonly ToolProviderExecutionPolicy[],
+	profileId: string,
+	tool: Omit<
+		ToolProviderCatalogEntry,
+		"kind" | "providerId" | "inputKind" | "profileId" | "executorId"
+	>,
+): readonly SourceRef[] {
+	return Object.freeze(
+		policies
+			.filter((policy) => policyAppliesToProfile(policy, profileId))
+			.filter((policy) => policyAppliesToOptionalScope(policy.toolNames, tool.toolName))
+			.filter((policy) => policyAppliesToOptionalScope(policy.operations, tool.operation))
+			.map((policy) => ref("tool-provider-execution-policy", policy.policyId)),
+	);
+}
+
+function policyAppliesToProfile(policy: ToolProviderExecutionPolicy, profileId: string): boolean {
+	return policyAppliesToOptionalScope(policy.profileIds, profileId);
+}
+
+function policyAppliesToOptionalScope(
+	scope: readonly string[] | undefined,
+	value: string | undefined,
+): boolean {
+	return (
+		scope === undefined || scope.length === 0 || (value !== undefined && scope.includes(value))
+	);
+}
+
+function toolCallFromRequest(request: AgentRequestIssued): ToolCallInput | undefined {
+	const value = request.input?.value;
+	if (request.input?.inputKind !== "tool-call" || !isRecord(value)) return undefined;
+	if (
+		value.kind !== "tool-call" ||
+		typeof value.toolName !== "string" ||
+		value.toolName.length === 0
+	) {
+		return undefined;
+	}
+	return value as unknown as ToolCallInput;
+}
+
+function resolveToolProviderPolicyForRoute(
+	request: AgentRequestIssued,
+	route: ExecutorRoute,
+	toolCall: ToolCallInput,
+	catalogs: readonly ToolProviderCatalog[],
+): ToolProviderPolicyResolution {
+	const sourceRefs = Object.freeze([
+		ref("agent-request", request.requestId),
+		ref("executor-route", route.routeId),
+	]);
+	const matchingCatalogs = catalogs.filter((catalog) => catalogHasRouteProfile(catalog, route));
+	if (matchingCatalogs.length === 0) {
+		return policyResolutionWithIssue({
+			request,
+			route,
+			toolCall,
+			status: "missing-catalog",
+			sourceRefs,
+			issue: dataIssue(
+				"tool-provider-policy-missing-catalog",
+				`No tool provider catalog exposes route profile '${route.profileId}'.`,
+				{ subjectId: request.requestId, refs: sourceRefs },
+			),
+		});
+	}
+	if (matchingCatalogs.length > 1) {
+		return policyResolutionWithIssue({
+			request,
+			route,
+			toolCall,
+			status: "ambiguous-catalog",
+			sourceRefs,
+			issue: dataIssue(
+				"tool-provider-policy-ambiguous-catalog",
+				`Multiple tool provider catalogs expose route profile '${route.profileId}'.`,
+				{
+					subjectId: request.requestId,
+					refs: [
+						...sourceRefs,
+						...matchingCatalogs.map((catalog) => ref("tool-provider-catalog", catalog.providerId)),
+					],
+				},
+			),
+		});
+	}
+	const catalog = matchingCatalogs[0];
+	if (catalog === undefined) throw new Error("unreachable catalog match");
+	const tool = catalog.tools.find(
+		(entry) =>
+			entry.profileId === route.profileId &&
+			entry.executorId === route.executorId &&
+			entry.toolName === toolCall.toolName &&
+			(entry.operation === undefined ||
+				toolCall.operation === undefined ||
+				entry.operation === toolCall.operation),
+	);
+	if (tool === undefined) {
+		return policyResolutionWithIssue({
+			request,
+			route,
+			toolCall,
+			status: "missing-tool",
+			sourceRefs,
+			providerId: catalog.providerId,
+			issue: dataIssue(
+				"tool-provider-policy-missing-tool",
+				`Tool provider catalog '${catalog.providerId}' does not expose requested tool '${toolCall.toolName}'.`,
+				{
+					subjectId: request.requestId,
+					refs: [...sourceRefs, ref("tool-provider-catalog", catalog.providerId)],
+				},
+			),
+		});
+	}
+	const policyRefs = policyRefsForResolution(catalog, route, tool);
+	if (policyRefs.length === 0) {
+		return policyResolutionWithIssue({
+			request,
+			route,
+			toolCall,
+			status: "missing-policy",
+			sourceRefs,
+			providerId: catalog.providerId,
+			issue: dataIssue(
+				"tool-provider-policy-missing-policy-ref",
+				`Tool '${tool.toolName}' has no D360 policy refs on its entry, profile, or catalog.`,
+				{
+					subjectId: request.requestId,
+					refs: [...sourceRefs, ref("tool-provider-catalog", catalog.providerId)],
+				},
+			),
+		});
+	}
+	const issues = policyIssuesForRefs(catalog, policyRefs, request, sourceRefs);
+	const status = issues.length === 0 ? "resolved" : "invalid-policy";
+	return Object.freeze({
+		kind: "tool-provider-policy-resolution",
+		resolutionId: `${request.requestId}:${request.operationId}:${route.routeId}:tool-policy`,
+		status,
+		requestId: request.requestId,
+		operationId: request.operationId,
+		routeId: route.routeId,
+		providerId: catalog.providerId,
+		executorId: route.executorId,
+		profileId: route.profileId,
+		toolName: toolCall.toolName,
+		operation: toolCall.operation,
+		policyRefs,
+		issues: issues.length === 0 ? undefined : Object.freeze(issues),
+		sourceRefs: Object.freeze([...sourceRefs, ref("tool-provider-catalog", catalog.providerId)]),
+	} satisfies ToolProviderPolicyResolution);
+}
+
+function catalogHasRouteProfile(catalog: ToolProviderCatalog, route: ExecutorRoute): boolean {
+	return catalog.profiles.some(
+		(profile) => profile.profileId === route.profileId && profile.executorId === route.executorId,
+	);
+}
+
+function policyRefsForResolution(
+	catalog: ToolProviderCatalog,
+	route: ExecutorRoute,
+	tool: ToolProviderCatalogEntry,
+): readonly SourceRef[] {
+	const profile = catalog.profiles.find(
+		(candidate) =>
+			candidate.profileId === route.profileId && candidate.executorId === route.executorId,
+	);
+	return Object.freeze([
+		...(tool.policyRefs ?? []),
+		...((tool.policyRefs?.length ?? 0) === 0 ? (profile?.policyRefs ?? []) : []),
+		...((tool.policyRefs?.length ?? 0) === 0 && (profile?.policyRefs?.length ?? 0) === 0
+			? (catalog.policyRefs ?? [])
+			: []),
+	]);
+}
+
+function policyIssuesForRefs(
+	catalog: ToolProviderCatalog,
+	policyRefs: readonly SourceRef[],
+	request: AgentRequestIssued,
+	sourceRefs: readonly SourceRef[],
+): readonly DataIssue[] {
+	const policiesById = new Map((catalog.policies ?? []).map((policy) => [policy.policyId, policy]));
+	const issues: DataIssue[] = [];
+	for (const policyRef of policyRefs) {
+		if (policyRef.kind !== "tool-provider-execution-policy") {
+			issues.push(
+				dataIssue(
+					"tool-provider-policy-invalid-ref-kind",
+					"Tool provider policy refs must point at ToolProviderExecutionPolicy facts.",
+					{ subjectId: request.requestId, refs: [...sourceRefs, policyRef] },
+				),
+			);
+			continue;
+		}
+		const policy = policiesById.get(policyRef.id);
+		if (policy === undefined) {
+			issues.push(
+				dataIssue(
+					"tool-provider-policy-ref-missing-material",
+					`Tool provider policy ref '${policyRef.id}' has no policy material in catalog '${catalog.providerId}'.`,
+					{ subjectId: request.requestId, refs: [...sourceRefs, policyRef] },
+				),
+			);
+			continue;
+		}
+		issues.push(...validateToolProviderExecutionPolicy(policy));
+		issues.push(...validateToolProviderPolicyProviderScope(policy, catalog.providerId));
+	}
+	return Object.freeze(issues);
+}
+
+function policyResolutionWithIssue(opts: {
+	readonly request: AgentRequestIssued;
+	readonly route: ExecutorRoute;
+	readonly toolCall: ToolCallInput;
+	readonly status: ToolProviderPolicyResolutionStatus;
+	readonly sourceRefs: readonly SourceRef[];
+	readonly issue: DataIssue;
+	readonly providerId?: string;
+}): ToolProviderPolicyResolution {
+	return Object.freeze({
+		kind: "tool-provider-policy-resolution",
+		resolutionId: `${opts.request.requestId}:${opts.request.operationId}:${opts.route.routeId}:tool-policy:${opts.status}`,
+		status: opts.status,
+		requestId: opts.request.requestId,
+		operationId: opts.request.operationId,
+		routeId: opts.route.routeId,
+		providerId: opts.providerId,
+		executorId: opts.route.executorId,
+		profileId: opts.route.profileId,
+		toolName: opts.toolCall.toolName,
+		operation: opts.toolCall.operation,
+		issues: Object.freeze([opts.issue]),
+		sourceRefs: opts.sourceRefs,
+	} satisfies ToolProviderPolicyResolution);
+}
+
+function stableToolProviderPolicyResolutionKey(resolution: ToolProviderPolicyResolution): string {
+	return JSON.stringify({
+		id: resolution.resolutionId,
+		status: resolution.status,
+		policyRefs:
+			resolution.policyRefs?.map((policyRef) => `${policyRef.kind}:${policyRef.id}`) ?? [],
+		issues: resolution.issues?.map((issue) => issue.code) ?? [],
+	});
+}
+
+function defaultLocalBuiltinToolProviderExecutionPolicy(opts: {
+	readonly providerId: string;
+	readonly profileId: string;
+	readonly tools: readonly Omit<
+		ToolProviderCatalogEntry,
+		"kind" | "providerId" | "inputKind" | "profileId" | "executorId"
+	>[];
+	readonly overrides?: Partial<
+		Omit<ToolProviderExecutionPolicy, "kind" | "policyId" | "providerId">
+	>;
+}): ToolProviderExecutionPolicy {
+	const toolNames = Object.freeze(Array.from(new Set(opts.tools.map((tool) => tool.toolName))));
+	const operations = Object.freeze(
+		Array.from(new Set(opts.tools.map((tool) => tool.operation).filter((op) => op !== undefined))),
+	);
+	const hasUrlFetch = toolNames.includes("url.fetch");
+	const filesystemToolNames = toolNames.filter(
+		(toolName) =>
+			toolName.startsWith("file.") || toolName.startsWith("document/") || toolName === "bash.run",
+	);
+	const approvalToolNames = toolNames.filter(
+		(toolName) => toolName === "file.edit/apply-patch" || toolName === "bash.run",
+	);
+	const approvalOperations = operations.filter(
+		(operation) => operation === "edit" || operation === "run",
+	);
+	const policy = {
+		kind: "tool-provider-execution-policy",
+		policyId: `${opts.providerId}:policy:default`,
+		providerId: opts.providerId,
+		profileIds: Object.freeze([opts.profileId]),
+		toolNames,
+		operations,
+		sizeCapacity: Object.freeze({
+			limits: Object.freeze([
+				Object.freeze({
+					unit: "chars",
+					softLimit: 16_384,
+					hardLimit: 65_536,
+					perRequest: true,
+					measurementSource: "adapter-estimated",
+				} satisfies ToolProviderSizeLimit),
+				Object.freeze({
+					unit: "bytes",
+					softLimit: 1_048_576,
+					hardLimit: 8_388_608,
+					perArtifact: true,
+					measurementSource: "adapter-measured",
+				} satisfies ToolProviderSizeLimit),
+				Object.freeze({
+					unit: "lines",
+					softLimit: 2_000,
+					hardLimit: 10_000,
+					perStream: true,
+					measurementSource: "adapter-measured",
+				} satisfies ToolProviderSizeLimit),
+			]),
+		} satisfies ToolProviderSizeCapacityPolicy),
+		timeout: Object.freeze({
+			timeoutMs: 30_000,
+			idleTimeoutMs: 5_000,
+		} satisfies ToolProviderTimeoutPolicy),
+		redaction: Object.freeze({
+			mode: "summary",
+			sensitivity: Object.freeze(["private-material", "auth-material", "personal-data"]),
+			summaryMaxChars: 512,
+		} satisfies ToolProviderRedactionPolicy),
+		...(filesystemToolNames.length > 0
+			? {
+					filesystem: Object.freeze({
+						cwd: ".",
+						allowRead: true,
+						allowWrite: false,
+						followSymlinks: false,
+						sourceRefs: Object.freeze(filesystemToolNames.map((toolName) => ref("tool", toolName))),
+						pathRules: Object.freeze([
+							Object.freeze({
+								effect: "allow",
+								path: ".",
+								operation: "read",
+								reason: "Default local builtin catalog is workspace-relative data material.",
+							} satisfies ToolProviderPathRule),
+							Object.freeze({
+								effect: "deny",
+								glob: "**/.env*",
+								reason: "D360 policies keep private material outside catalog DATA.",
+							} satisfies ToolProviderPathRule),
+						]),
+					} satisfies ToolProviderFilesystemPolicy),
+				}
+			: {}),
+		...(hasUrlFetch
+			? {
+					network: Object.freeze({
+						mode: "custom",
+						protocols: Object.freeze(["https:"]),
+						allowedHosts: Object.freeze(["*"]),
+						sourceRefs: Object.freeze([ref("tool", "url.fetch")]),
+					} satisfies ToolProviderNetworkPolicy),
+				}
+			: {}),
+		approval: Object.freeze({
+			mode: approvalToolNames.length > 0 ? "require" : "auto",
+			...(approvalToolNames.length > 0
+				? { requiredForToolNames: Object.freeze(approvalToolNames) }
+				: {}),
+			...(approvalOperations.length > 0
+				? { requiredForOperations: Object.freeze(approvalOperations) }
+				: {}),
+		} satisfies ToolProviderApprovalPolicy),
+		artifacts: Object.freeze({
+			defaultDataMode: "summary",
+			artifactKinds: Object.freeze([
+				"text",
+				"markdown",
+				"file",
+				"stdout",
+				"stderr",
+				"tool-output",
+				"provider-raw",
+			]),
+			inlineLimits: Object.freeze([
+				Object.freeze({
+					unit: "chars",
+					hardLimit: 4_096,
+					perArtifact: true,
+					measurementSource: "adapter-estimated",
+				} satisfies ToolProviderSizeLimit),
+			]),
+			requireDigest: false,
+		} satisfies ToolProviderArtifactPolicy),
+		sourceRefs: Object.freeze([ref("decision", "D360"), ref("tool-provider", opts.providerId)]),
+		metadata: Object.freeze({
+			description: "Default data-only policy material for local builtin tools.",
+		}),
+		...unlockedToolProviderPolicyOverrides(opts.overrides),
+	} satisfies ToolProviderExecutionPolicy;
+	return Object.freeze(policy);
 }
 
 export function executorOutcomeViewProjector(
@@ -1320,6 +2336,11 @@ type AgentRequestSatisfactionFact =
 	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
 
+type ToolProviderPolicyResolutionFact =
+	| { readonly kind: "resolution"; readonly resolution: ToolProviderPolicyResolution }
+	| { readonly kind: "issue"; readonly issue: DataIssue }
+	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
+
 type ExecutorOutcomeViewFact =
 	| { readonly kind: "view"; readonly view: ExecutorOutcomeView }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
@@ -1369,6 +2390,14 @@ interface EffectRunCompletionState {
 interface StructuredInterpreterState {
 	requests: Map<string, AgentRequestIssued>;
 	issueSeq: number;
+}
+
+interface ToolProviderPolicyResolutionState {
+	requests: Map<string, AgentRequestIssued>;
+	routes: Map<string, ExecutorRoute>;
+	catalogs: Map<string, ToolProviderCatalog>;
+	emittedKeys: Set<string>;
+	auditSeq: number;
 }
 
 function initialRequestStatus(request: AgentRequestIssued): AgentRequestStatus {
@@ -2495,6 +3524,75 @@ function forEachDepBatch(
 	for (let i = 0; i < count; i += 1) {
 		for (const value of depBatch(ctx, start + i) ?? []) fn(value);
 	}
+}
+
+function forbiddenDataKeys(
+	value: unknown,
+	path: readonly (string | number)[] = [],
+	seen: WeakSet<object> = new WeakSet(),
+): readonly { readonly path: readonly (string | number)[]; readonly reason: string }[] {
+	if (typeof value === "function") return [{ path, reason: "function-value" }];
+	if (!isRecord(value) && !Array.isArray(value)) return [];
+	if (typeof value === "object" && value !== null) {
+		if (seen.has(value)) return [];
+		seen.add(value);
+	}
+	const issues: { readonly path: readonly (string | number)[]; readonly reason: string }[] = [];
+	if (Array.isArray(value)) {
+		value.forEach((item, index) => {
+			issues.push(...forbiddenDataKeys(item, [...path, index], seen));
+		});
+		return issues;
+	}
+	for (const [key, child] of Object.entries(value)) {
+		const nextPath = [...path, key];
+		if (
+			/^(apiKey|secret|client|transport|subprocess|sdk|oauth|credential|credentials)$/i.test(key)
+		) {
+			issues.push({ path: nextPath, reason: "forbidden-runtime-key" });
+		}
+		issues.push(...forbiddenDataKeys(child, nextPath, seen));
+	}
+	return issues;
+}
+
+function forbiddenGraphVisibleMaterialIssues(
+	value: unknown,
+	subjectRef: SourceRef,
+	area: string,
+): readonly DataIssue[] {
+	if (value === undefined) return [];
+	const forbidden = forbiddenDataKeys(value);
+	if (forbidden.length === 0) return [];
+	return Object.freeze(
+		forbidden.map((entry) =>
+			dataIssue(
+				"tool-provider-catalog-forbidden-runtime-material",
+				"Tool provider catalog material must not contain runtime-private adapter material.",
+				{ subjectId: subjectRef.id, refs: [subjectRef], details: { area, reason: entry.reason } },
+			),
+		),
+	);
+}
+
+function sanitizeGraphVisibleRecord<T extends Record<string, unknown> | undefined>(
+	value: T,
+): T | undefined {
+	if (value === undefined || forbiddenDataKeys(value).length > 0) return undefined;
+	return Object.freeze({ ...value }) as T;
+}
+
+function unlockedToolProviderPolicyOverrides(
+	overrides:
+		| Partial<Omit<ToolProviderExecutionPolicy, "kind" | "policyId" | "providerId">>
+		| undefined,
+): Partial<Omit<ToolProviderExecutionPolicy, "kind" | "policyId" | "providerId">> | undefined {
+	if (overrides === undefined) return undefined;
+	const rest = { ...(overrides as Record<string, unknown>) };
+	delete rest.kind;
+	delete rest.policyId;
+	delete rest.providerId;
+	return rest as Partial<Omit<ToolProviderExecutionPolicy, "kind" | "policyId" | "providerId">>;
 }
 
 function dataIssue(

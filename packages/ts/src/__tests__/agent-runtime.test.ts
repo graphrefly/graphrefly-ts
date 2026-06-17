@@ -24,7 +24,13 @@ import {
 	localBuiltinToolProviderCatalog,
 	type PromptBundle,
 	requestSatisfactionProjector,
+	resolveToolProviderExecutionPolicies,
 	structuredAgentDecisionInterpreter,
+	type ToolProviderCatalog,
+	type ToolProviderExecutionPolicy,
+	type ToolProviderPolicyResolution,
+	toolProviderPolicyResolutionProjector,
+	validateToolProviderExecutionPolicy,
 } from "../orchestration/agent-runtime.js";
 import {
 	type WorkItemDomainActionAdmission,
@@ -571,15 +577,48 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		});
 		const profile = catalog.profiles[0];
 		if (profile === undefined) throw new Error("expected local builtin tool profile");
+		const policy = catalog.policies?.[0];
+		if (policy === undefined) throw new Error("expected default tool provider policy");
 		expect(catalog.tools.map((tool) => tool.toolName)).toEqual(
 			expect.arrayContaining(["file.read", "bash.run", "url.fetch"]),
 		);
+		expect(policy).toMatchObject({
+			kind: "tool-provider-execution-policy",
+			providerId: "local",
+			profileIds: [profile.profileId],
+			toolNames: expect.arrayContaining(["file.read", "bash.run", "url.fetch"]),
+			operations: expect.arrayContaining(["read", "run", "fetch"]),
+			timeout: { timeoutMs: 30_000 },
+			redaction: { mode: "summary" },
+			filesystem: { cwd: ".", allowRead: true, allowWrite: false },
+			approval: {
+				mode: "require",
+				requiredForToolNames: expect.arrayContaining(["file.edit/apply-patch", "bash.run"]),
+			},
+			artifacts: { defaultDataMode: "summary" },
+			network: { mode: "custom", protocols: ["https:"] },
+		} satisfies Partial<ToolProviderExecutionPolicy>);
+		expect(policy.sizeCapacity?.limits).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ unit: "chars", perRequest: true }),
+				expect.objectContaining({ unit: "bytes", perArtifact: true }),
+				expect.objectContaining({ unit: "lines", perStream: true }),
+			]),
+		);
+		expect(validateToolProviderExecutionPolicy(policy)).toEqual([]);
+		expect(catalog.policyRefs).toEqual([
+			{ kind: "tool-provider-execution-policy", id: policy.policyId },
+		]);
+		expect(profile.policyRefs).toEqual(catalog.policyRefs);
+		for (const tool of catalog.tools) expect(tool.policyRefs).toEqual(catalog.policyRefs);
 		expect(profile).toMatchObject({
 			kind: "tool",
 			acceptedInputKinds: ["tool-call"],
 			limits: { timeoutMs: 1000 },
 		});
-		expect(JSON.stringify(catalog)).not.toMatch(/apiKey|secret|client|transport|subprocess/);
+		expect(JSON.stringify(catalog)).not.toMatch(
+			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential/i,
+		);
 
 		requestFacts.down([["DATA", issued("tool-req", "tool-op", "executor", "tool-call")]]);
 		profiles.down([["DATA", profile]]);
@@ -619,6 +658,375 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		]);
 
 		expect(statuses.at(-1)).toMatchObject({ requestId: "tool-req", status: "completed" });
+	});
+
+	it("scopes D360 tool policy refs and omits stale default policy sections", () => {
+		const scopedCatalog = localBuiltinToolProviderCatalog({
+			providerId: "scoped",
+			tools: [
+				{ toolName: "file.read", operation: "read" },
+				{ toolName: "bash.run", operation: "run" },
+			],
+			policies: [
+				{
+					kind: "tool-provider-execution-policy",
+					policyId: "scoped:policy:file-read",
+					providerId: "scoped",
+					toolNames: ["file.read"],
+					operations: ["read"],
+					sizeCapacity: { limits: [{ unit: "chars", hardLimit: 100 }] },
+				},
+				{
+					kind: "tool-provider-execution-policy",
+					policyId: "scoped:policy:bash",
+					providerId: "scoped",
+					toolNames: ["bash.run"],
+					operations: ["run"],
+					timeout: { timeoutMs: 1000 },
+				},
+			],
+		});
+		expect(scopedCatalog.profiles[0]?.policyRefs).toEqual([
+			{ kind: "tool-provider-execution-policy", id: "scoped:policy:file-read" },
+			{ kind: "tool-provider-execution-policy", id: "scoped:policy:bash" },
+		]);
+		expect(scopedCatalog.tools.find((tool) => tool.toolName === "file.read")?.policyRefs).toEqual([
+			{ kind: "tool-provider-execution-policy", id: "scoped:policy:file-read" },
+		]);
+		expect(scopedCatalog.tools.find((tool) => tool.toolName === "bash.run")?.policyRefs).toEqual([
+			{ kind: "tool-provider-execution-policy", id: "scoped:policy:bash" },
+		]);
+
+		const dateOnlyCatalog = localBuiltinToolProviderCatalog({
+			providerId: "date-only",
+			tools: [{ toolName: "date.now", operation: "read" }],
+		});
+		expect(dateOnlyCatalog.policies?.[0]?.toolNames).toEqual(["date.now"]);
+		expect(dateOnlyCatalog.policies?.[0]?.network).toBeUndefined();
+		expect(dateOnlyCatalog.policies?.[0]?.filesystem).toBeUndefined();
+		expect(dateOnlyCatalog.policies?.[0]?.approval).toMatchObject({ mode: "auto" });
+
+		const invalidCatalog = localBuiltinToolProviderCatalog({
+			providerId: "invalid",
+			policyOverrides: { metadata: { apiKey: "do-not-publish" } },
+		});
+		expect(invalidCatalog.status).toBe("misconfigured");
+		expect(invalidCatalog.policies).toEqual([]);
+		expect(invalidCatalog.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-policy-forbidden-runtime-material" }),
+			]),
+		);
+		expect(JSON.stringify(invalidCatalog)).not.toMatch(
+			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential/i,
+		);
+		const malformedCatalog = localBuiltinToolProviderCatalog({
+			providerId: "malformed",
+			policies: [
+				{
+					kind: "tool-provider-execution-policy",
+					policyId: "malformed:policy",
+					providerId: "malformed",
+					sizeCapacity: { limits: [{ unit: "bytes", softLimit: 2, hardLimit: 1 }] },
+				},
+			],
+		});
+		expect(malformedCatalog.status).toBe("misconfigured");
+		expect(malformedCatalog.policies).toEqual([]);
+		expect(malformedCatalog.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-policy-invalid-size-limit" }),
+			]),
+		);
+	});
+
+	it("keeps local builtin catalog caller material data-only and provider-scoped", () => {
+		const leakyCatalog = localBuiltinToolProviderCatalog({
+			providerId: "leaky",
+			metadata: { apiKey: "do-not-publish" },
+			capabilities: { client: "do-not-publish" },
+			tools: [
+				{
+					toolName: "file.read",
+					operation: "read",
+					metadata: { secret: "do-not-publish" },
+					capabilities: { transport: "do-not-publish" },
+					policyRefs: [{ kind: "foreign-policy", id: "stale" }],
+				},
+			],
+			policyOverrides: {
+				providerId: "foreign",
+				policyId: "secret-policy-id",
+			} as Partial<Omit<ToolProviderExecutionPolicy, "kind" | "policyId" | "providerId">>,
+		});
+		expect(leakyCatalog.status).toBe("misconfigured");
+		expect(leakyCatalog.policies?.[0]).toMatchObject({
+			policyId: "leaky:policy:default",
+			providerId: "leaky",
+		});
+		expect(leakyCatalog.tools[0]?.policyRefs).toEqual(leakyCatalog.policyRefs);
+		expect(leakyCatalog.metadata).toBeUndefined();
+		expect(leakyCatalog.profiles[0]?.capabilities).toEqual({ toolNames: ["file.read"] });
+		expect(leakyCatalog.tools[0]?.metadata).toBeUndefined();
+		expect(leakyCatalog.tools[0]?.capabilities).toBeUndefined();
+		expect(leakyCatalog.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-catalog-forbidden-runtime-material",
+				}),
+			]),
+		);
+		expect(JSON.stringify(leakyCatalog)).not.toMatch(
+			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential/i,
+		);
+
+		const foreignPolicyCatalog = localBuiltinToolProviderCatalog({
+			providerId: "provider-a",
+			policies: [
+				{
+					kind: "tool-provider-execution-policy",
+					policyId: "foreign-policy",
+					providerId: "provider-b",
+					timeout: { timeoutMs: 1000 },
+				},
+			],
+		});
+		expect(foreignPolicyCatalog.status).toBe("misconfigured");
+		expect(foreignPolicyCatalog.policies).toEqual([]);
+		expect(foreignPolicyCatalog.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-policy-provider-mismatch" }),
+			]),
+		);
+	});
+
+	it("resolves D360 policy material for routed tool-call requests without executing tools", () => {
+		const catalog = localBuiltinToolProviderCatalog({ providerId: "resolver" });
+		const profile = catalog.profiles[0];
+		if (profile === undefined) throw new Error("expected profile");
+		const request = toolRequest("tool-req", "tool-op", "file.read", "read");
+		const route: ExecutorRoute = {
+			kind: "executor-route",
+			routeId: "tool-route",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			inputKind: "tool-call",
+		};
+
+		expect(resolveToolProviderExecutionPolicies({ request, catalogs: [catalog] })).toEqual([
+			expect.objectContaining({
+				kind: "tool-provider-policy-resolution",
+				status: "pending-route",
+				requestId: "tool-req",
+				toolName: "file.read",
+			}),
+		]);
+		expect(
+			resolveToolProviderExecutionPolicies({ request, routes: [route], catalogs: [catalog] }),
+		).toEqual([
+			expect.objectContaining({
+				kind: "tool-provider-policy-resolution",
+				status: "resolved",
+				routeId: "tool-route",
+				providerId: "resolver",
+				policyRefs: catalog.tools.find((tool) => tool.toolName === "file.read")?.policyRefs,
+			}),
+		]);
+
+		const wrongKindCatalog: ToolProviderCatalog = {
+			...catalog,
+			tools: catalog.tools.map((tool) =>
+				tool.toolName === "file.read"
+					? {
+							...tool,
+							policyRefs: [{ kind: "other-policy", id: catalog.policies?.[0]?.policyId ?? "" }],
+						}
+					: tool,
+			),
+		};
+		expect(
+			resolveToolProviderExecutionPolicies({
+				request,
+				routes: [route],
+				catalogs: [wrongKindCatalog],
+			}),
+		).toEqual([
+			expect.objectContaining({
+				status: "invalid-policy",
+				issues: expect.arrayContaining([
+					expect.objectContaining({ code: "tool-provider-policy-invalid-ref-kind" }),
+				]),
+			}),
+		]);
+	});
+
+	it("projects D360 policy resolution issues as DATA facts", () => {
+		const g = graph();
+		const requestFacts = g.node<AgentRequestFact>([], null, { name: "requests" });
+		const routes = g.node<ExecutorRoute>([], null, { name: "routes" });
+		const catalogs = g.node<ToolProviderCatalog>([], null, { name: "catalogs" });
+		const projector = toolProviderPolicyResolutionProjector(g, {
+			requestFacts,
+			executorRoutes: [routes],
+			toolProviderCatalogs: [catalogs],
+		});
+		const resolutions: ToolProviderPolicyResolution[] = [];
+		const issues: unknown[] = [];
+		const audit: unknown[] = [];
+		projector.resolutions.subscribe(
+			(msg) => msg[0] === "DATA" && resolutions.push(msg[1] as ToolProviderPolicyResolution),
+		);
+		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		projector.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		const request = toolRequest("policy-req", "policy-op", "file.read", "read");
+		const catalog: ToolProviderCatalog = {
+			kind: "tool-provider-catalog",
+			providerId: "bare",
+			providerKind: "local-builtin",
+			status: "ready",
+			profiles: [
+				{
+					profileId: "bare-profile",
+					executorId: "bare-exec",
+					kind: "tool",
+					acceptedInputKinds: ["tool-call"],
+				},
+			],
+			tools: [
+				{
+					kind: "tool-catalog-entry",
+					providerId: "bare",
+					toolName: "file.read",
+					operation: "read",
+					inputKind: "tool-call",
+					profileId: "bare-profile",
+					executorId: "bare-exec",
+				},
+			],
+			policies: [],
+			policyRefs: [],
+		};
+		requestFacts.down([["DATA", request]]);
+		catalogs.down([["DATA", catalog]]);
+		expect(resolutions.at(-1)).toMatchObject({
+			status: "pending-route",
+			requestId: "policy-req",
+		});
+		routes.down([
+			[
+				"DATA",
+				{
+					kind: "executor-route",
+					routeId: "policy-route",
+					requestId: "policy-req",
+					operationId: "policy-op",
+					executorId: "bare-exec",
+					profileId: "bare-profile",
+					inputKind: "tool-call",
+				},
+			],
+		]);
+
+		expect(resolutions.at(-1)).toMatchObject({
+			status: "missing-policy",
+			requestId: "policy-req",
+			routeId: "policy-route",
+			providerId: "bare",
+		});
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "issue",
+					code: "tool-provider-policy-missing-policy-ref",
+				}),
+			]),
+		);
+		expect(audit.at(-1)).toMatchObject({
+			kind: "tool-provider-policy-resolution",
+			subjectId: "policy-req",
+		});
+	});
+
+	it("validates malformed D360 tool provider policies as DataIssue facts", () => {
+		const issues = validateToolProviderExecutionPolicy({
+			kind: "tool-provider-execution-policy",
+			policyId: "",
+			providerId: "",
+			sizeCapacity: {
+				limits: [{ unit: "bytes", softLimit: 20, hardLimit: 10 }, { softLimit: Number.NaN }],
+			},
+			timeout: { timeoutMs: -1, idleTimeoutMs: Number.POSITIVE_INFINITY },
+			metadata: { apiKey: "do-not-store" },
+		});
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "issue",
+					code: "tool-provider-policy-missing-policy-id",
+				}),
+				expect.objectContaining({
+					kind: "issue",
+					code: "tool-provider-policy-missing-provider-id",
+				}),
+				expect.objectContaining({
+					kind: "issue",
+					code: "tool-provider-policy-invalid-size-limit",
+				}),
+				expect.objectContaining({
+					kind: "issue",
+					code: "tool-provider-policy-invalid-timeout",
+				}),
+				expect.objectContaining({
+					kind: "issue",
+					code: "tool-provider-policy-forbidden-runtime-material",
+				}),
+			]),
+		);
+		expect(issues.every((issue) => issue.kind === "issue")).toBe(true);
+
+		expect(
+			validateToolProviderExecutionPolicy({
+				kind: "tool-provider-execution-policy",
+				policyId: "policy-empty",
+				providerId: "local",
+			}),
+		).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "issue",
+					code: "tool-provider-policy-missing-material",
+				}),
+			]),
+		);
+		expect(validateToolProviderExecutionPolicy({ sizeCapacity: {} })).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-policy-invalid-kind" }),
+				expect.objectContaining({ code: "tool-provider-policy-missing-policy-id" }),
+				expect.objectContaining({ code: "tool-provider-policy-missing-provider-id" }),
+				expect.objectContaining({ code: "tool-provider-policy-invalid-size-capacity" }),
+			]),
+		);
+		expect(
+			validateToolProviderExecutionPolicy({
+				kind: "tool-provider-execution-policy",
+				policyId: "bad-timeout",
+				providerId: "local",
+				timeout: { timeoutMs: "fast" },
+			}),
+		).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-policy-invalid-timeout" }),
+			]),
+		);
+		expect(validateToolProviderExecutionPolicy(null)).toEqual([
+			expect.objectContaining({
+				kind: "issue",
+				code: "tool-provider-policy-invalid-shape",
+			}),
+		]);
 	});
 
 	it("projects compact ExecutorOutcome views without inlining raw result payloads", () => {
@@ -3260,6 +3668,33 @@ function issued(
 			inputKind === undefined
 				? undefined
 				: { inputId: `${requestId}:input`, inputKind, dataMode: "summary", summary: inputKind },
+	};
+}
+
+function toolRequest(
+	requestId: string,
+	operationId: string,
+	toolName: string,
+	operation?: string,
+): AgentRequestIssued {
+	return {
+		kind: "issued",
+		requestId,
+		operationId,
+		effectRunId: "run-1",
+		requestKind: "executor",
+		required: true,
+		input: {
+			inputId: `${requestId}:input`,
+			inputKind: "tool-call",
+			dataMode: "inline",
+			value: {
+				kind: "tool-call",
+				toolName,
+				operation,
+				arguments: { path: "README.md" },
+			},
+		},
 	};
 }
 
