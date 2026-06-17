@@ -66,10 +66,14 @@ import type {
 	ToolProviderAdapterInput,
 	ToolProviderAdapterInputBundle,
 	ToolProviderAdapterInputStatus,
+	ToolProviderAdapterRunBundle,
+	ToolProviderAdapterRunRequested,
 	ToolProviderAdapterRunResult,
+	ToolProviderAdapterRunStatus,
 	ToolProviderAdapterRuntimeHandle,
 	ToolProviderAdapterRuntimeOptions,
 	ToolProviderExecutionPolicy,
+	ToolProviderPublicTextPolicy,
 } from "../orchestration/index.js";
 import * as orchestration from "../orchestration/index.js";
 import * as orchestrationMessagingRecipe from "../orchestration/messaging.js";
@@ -332,6 +336,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.toolProviderPolicyResolutionProjector).toBe("function");
 		expect(typeof orchestration.buildToolProviderAdapterInputs).toBe("function");
 		expect(typeof orchestration.toolProviderAdapterInputProjector).toBe("function");
+		expect(typeof orchestration.requestToolProviderAdapterRun).toBe("function");
+		expect(typeof orchestration.toolProviderAdapterRunProjector).toBe("function");
 		expect(typeof orchestration.buildToolProviderExecutorOutcome).toBe("function");
 		expect(typeof orchestration.attachToolProviderAdapterRuntime).toBe("function");
 		expectTypeOf<ToolProviderExecutionPolicy>().toMatchTypeOf<{
@@ -357,12 +363,23 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			readonly operationId: string;
 		}>();
 		expectTypeOf<ToolProviderAdapterInputBundle>().toHaveProperty("inputs");
+		expectTypeOf<ToolProviderAdapterRunRequested>().toMatchTypeOf<{
+			readonly kind: "tool-provider-adapter-run-requested";
+			readonly runId: string;
+			readonly adapterInputId: string;
+			readonly attempt: number;
+		}>();
+		expectTypeOf<ToolProviderAdapterRunStatus>().toHaveProperty("status");
+		expectTypeOf<ToolProviderAdapterRunBundle>().toHaveProperty("requests");
+		expectTypeOf<ToolProviderPublicTextPolicy>().toHaveProperty("maxSummaryChars");
 		expectTypeOf<ToolProviderAdapterRunResult>().toMatchTypeOf<{ readonly kind: string }>();
 		expectTypeOf<ToolProviderAdapterBinding>().toMatchTypeOf<{
 			readonly providerId: string;
 		}>();
 		expectTypeOf<ToolProviderAdapterRuntimeOptions>().toHaveProperty("inputs");
+		expectTypeOf<ToolProviderAdapterRuntimeOptions>().toHaveProperty("runRequests");
 		expectTypeOf<ToolProviderAdapterRuntimeHandle>().toHaveProperty("outcomes");
+		expectTypeOf<ToolProviderAdapterRuntimeHandle>().toHaveProperty("runRequests");
 		expect(typeof orchestration.workItemEffectRunProjector).toBe("function");
 		expect(typeof orchestrationMessagingRecipe.orchestrationMessagingRecipe).toBe("function");
 		expect(typeof orchestrationWorkQueueRecipe.orchestrationWorkQueueRecipe).toBe("function");

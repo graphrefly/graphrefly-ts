@@ -637,9 +637,71 @@ export type ToolProviderAdapterRunResult<T = unknown> =
 	  };
 
 export interface ToolProviderAdapterRunContext {
+	readonly runId?: string;
 	readonly attempt: number;
+	readonly reason?: ToolProviderAdapterRunReason;
 	readonly sourceRefs: readonly SourceRef[];
 	readonly now?: () => number;
+}
+
+export type ToolProviderAdapterRunReason = "initial" | "retry" | "manual" | (string & {});
+
+/**
+ * Graph-visible D362 execution lifecycle request. Attempts stay out of
+ * ToolProviderAdapterInput identity; this fact is the visible run coordinate.
+ */
+export interface ToolProviderAdapterRunRequested {
+	readonly kind: "tool-provider-adapter-run-requested";
+	readonly runId: string;
+	readonly adapterInputId: string;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId?: string;
+	readonly providerId?: string;
+	readonly executorId?: string;
+	readonly profileId?: string;
+	readonly attempt: number;
+	readonly reason: ToolProviderAdapterRunReason;
+	readonly retryOfOutcomeId?: string;
+	readonly policyRefs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+	readonly requestedAtMs?: number;
+}
+
+export interface ToolProviderAdapterRunStatus {
+	readonly kind: "tool-provider-adapter-run-status";
+	readonly runId: string;
+	readonly adapterInputId: string;
+	readonly requestId?: string;
+	readonly operationId?: string;
+	readonly status:
+		| "requested"
+		| "missing-request"
+		| "missing-input"
+		| "stale-request"
+		| "mismatched-request"
+		| "started"
+		| ExecutorOutcomeStatus;
+	readonly attempt?: number;
+	readonly outcomeId?: string;
+	readonly issues?: readonly DataIssue[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderAdapterRunBundle {
+	readonly requests: Node<ToolProviderAdapterRunRequested>;
+	readonly status: Node<ToolProviderAdapterRunStatus>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+}
+
+export interface ToolProviderPublicTextPolicy {
+	readonly maxMessageChars?: number;
+	readonly maxSummaryChars?: number;
+	readonly maxReasonChars?: number;
+	readonly maxMetadataStringChars?: number;
 }
 
 /**
@@ -659,15 +721,19 @@ export interface ToolProviderAdapterBinding<TArguments = unknown, TResult = unkn
 export interface ToolProviderAdapterRuntimeOptions<TArguments = unknown, TResult = unknown> {
 	readonly name?: string;
 	readonly inputs: Node<ToolProviderAdapterInput<TArguments>>;
+	readonly runRequests?: readonly Node<ToolProviderAdapterRunRequested>[];
 	readonly bindings:
 		| readonly ToolProviderAdapterBinding<TArguments, TResult>[]
 		| ReadonlyMap<string, ToolProviderAdapterBinding<TArguments, TResult>>;
-	readonly attempt?: number;
+	readonly autoRunReadyInputs?: boolean;
 	readonly dedupeKey?: (input: ToolProviderAdapterInput<TArguments>) => string;
 	readonly now?: () => number;
+	readonly publicText?: ToolProviderPublicTextPolicy;
 }
 
 export interface ToolProviderAdapterRuntimeHandle {
+	readonly runRequests: Node<ToolProviderAdapterRunRequested>;
+	readonly runStatus: Node<ToolProviderAdapterRunStatus>;
 	readonly outcomes: Node<ExecutorOutcome>;
 	readonly status: Node<AgentRequestStatusChanged>;
 	readonly issues: Node<DataIssue>;
@@ -1730,6 +1796,223 @@ export function toolProviderAdapterInputProjector(
 	return { inputs, issues, audit };
 }
 
+export function requestToolProviderAdapterRun(
+	input: ToolProviderAdapterInput,
+	opts: {
+		readonly runId?: string;
+		readonly attempt?: number;
+		readonly reason?: ToolProviderAdapterRunReason;
+		readonly retryOfOutcomeId?: string;
+		readonly policyRefs?: readonly SourceRef[];
+		readonly sourceRefs?: readonly SourceRef[];
+		readonly metadata?: Record<string, unknown>;
+		readonly requestedAtMs?: number;
+	} = {},
+): ToolProviderAdapterRunRequested {
+	const attempt = opts.attempt ?? 1;
+	return Object.freeze({
+		kind: "tool-provider-adapter-run-requested",
+		runId: opts.runId ?? defaultToolProviderAdapterRunId(input.adapterInputId, attempt, input),
+		adapterInputId: input.adapterInputId,
+		requestId: input.requestId,
+		operationId: input.operationId,
+		routeId: input.routeId,
+		providerId: input.providerId,
+		executorId: input.executorId,
+		profileId: input.profileId,
+		attempt,
+		reason: opts.reason ?? (attempt === 1 ? "initial" : "retry"),
+		retryOfOutcomeId: opts.retryOfOutcomeId,
+		policyRefs: sanitizeAdapterInputSourceRefs(opts.policyRefs ?? input.policyRefs ?? []),
+		sourceRefs: sanitizeAdapterInputSourceRefs([
+			ref("tool-provider-adapter-input", input.adapterInputId),
+			...(input.sourceRefs ?? []),
+			...(opts.sourceRefs ?? []),
+		]),
+		metadata: sanitizeProviderGraphVisibleRecord(opts.metadata),
+		requestedAtMs: opts.requestedAtMs,
+	} satisfies ToolProviderAdapterRunRequested);
+}
+
+export function toolProviderAdapterRunProjector(
+	graph: Graph,
+	opts: {
+		readonly name?: string;
+		readonly inputs: Node<ToolProviderAdapterInput>;
+		readonly runRequests?: readonly Node<ToolProviderAdapterRunRequested>[];
+		readonly autoRunReadyInputs?: boolean;
+		readonly now?: () => number;
+	},
+): ToolProviderAdapterRunBundle {
+	const name = opts.name ?? "toolProviderAdapterRun";
+	const explicitRunDeps = opts.runRequests ?? [];
+	const autoRunReadyInputs = opts.autoRunReadyInputs ?? true;
+	const runtime = graph.node<ToolProviderAdapterRunFact>(
+		[opts.inputs, ...explicitRunDeps],
+		(ctx) => {
+			const state = ctx.state.get<ToolProviderAdapterRunProjectorState>() ?? {
+				inputs: new Map<string, ToolProviderAdapterInput>(),
+				emittedKeys: new Set<string>(),
+				statusKeys: new Set<string>(),
+				issueKeys: new Set<string>(),
+				auditSeq: 0,
+			};
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const input = raw as ToolProviderAdapterInput;
+				state.inputs.set(input.adapterInputId, input);
+				if (input.status !== "ready") continue;
+				if (autoRunReadyInputs) {
+					emitRunRequested(
+						ctx,
+						state,
+						requestToolProviderAdapterRun(input, {
+							requestedAtMs: opts.now?.(),
+						}),
+					);
+				} else if (explicitRunDeps.length === 0) {
+					emitRunIssue(
+						ctx,
+						state,
+						"tool-provider-adapter-run-request-missing",
+						"Ready tool provider adapter input has no visible run request.",
+						input.adapterInputId,
+						[ref("tool-provider-adapter-input", input.adapterInputId)],
+					);
+					emitRunStatus(ctx, state, {
+						kind: "tool-provider-adapter-run-status",
+						runId: defaultToolProviderAdapterRunId(input.adapterInputId, 1, input),
+						adapterInputId: input.adapterInputId,
+						requestId: input.requestId,
+						operationId: input.operationId,
+						status: "missing-request",
+						attempt: 1,
+						sourceRefs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+					});
+				}
+			}
+			forEachDepBatch(ctx, 1, explicitRunDeps.length, (raw) => {
+				if (!isToolProviderAdapterRunRequestedLike(raw)) {
+					const request = fallbackToolProviderAdapterRunRequest(raw);
+					const issue = dataIssue(
+						"tool-provider-adapter-run-request-invalid-shape",
+						"Tool provider adapter run request must be a data object with runId, adapterInputId, requestId, operationId, and attempt.",
+						{
+							subjectId: request.adapterInputId,
+							refs: [ref("tool-provider-adapter-run", request.runId)],
+						},
+					);
+					emitRunIssueFact(ctx, state, issue);
+					emitRunStatus(ctx, state, {
+						kind: "tool-provider-adapter-run-status",
+						runId: request.runId,
+						adapterInputId: request.adapterInputId,
+						requestId: request.requestId,
+						operationId: request.operationId,
+						status: "mismatched-request",
+						attempt: request.attempt,
+						issues: [issue],
+						sourceRefs: request.sourceRefs,
+					});
+					return;
+				}
+				const request = raw;
+				const input = state.inputs.get(request.adapterInputId);
+				if (input === undefined) {
+					const issue = dataIssue(
+						"tool-provider-adapter-run-request-missing-input",
+						"Tool provider adapter run request references an unknown adapter input.",
+						{
+							subjectId: request.adapterInputId,
+							refs: sanitizeAdapterInputSourceRefs([
+								ref("tool-provider-adapter-run", request.runId),
+								...(request.sourceRefs ?? []),
+							]),
+						},
+					);
+					emitRunIssueFact(ctx, state, issue);
+					emitRunStatus(ctx, state, {
+						kind: "tool-provider-adapter-run-status",
+						runId: request.runId,
+						adapterInputId: request.adapterInputId,
+						requestId: request.requestId,
+						operationId: request.operationId,
+						status: "missing-input",
+						attempt: request.attempt,
+						issues: [issue],
+						sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
+					});
+					return;
+				}
+				const issues = runRequestIdentityIssues(request, input);
+				if (input.status !== "ready") {
+					issues.push(
+						dataIssue(
+							"tool-provider-adapter-run-request-input-not-ready",
+							"Tool provider adapter run request requires a ready adapter input.",
+							{
+								subjectId: input.requestId,
+								refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+								details: { status: input.status },
+							},
+						),
+					);
+				}
+				if (issues.length > 0) {
+					for (const issue of issues) emitRunIssueFact(ctx, state, issue);
+					emitRunStatus(ctx, state, {
+						kind: "tool-provider-adapter-run-status",
+						runId: request.runId,
+						adapterInputId: request.adapterInputId,
+						requestId: request.requestId,
+						operationId: request.operationId,
+						status: "mismatched-request",
+						attempt: request.attempt,
+						issues: Object.freeze(issues),
+						sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
+					});
+					emitRunAudit(ctx, state, "tool-provider-adapter-run-request-rejected", request, {
+						issueCodes: issues.map((issue) => issue.code),
+					});
+					return;
+				}
+				emitRunRequested(ctx, state, sanitizeToolProviderAdapterRunRequest(request, input));
+			});
+			ctx.state.set(state);
+		},
+		{ name: `${name}/runtime`, factory: "toolProviderAdapterRunProjector", partial: true },
+	);
+	return {
+		requests: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/requests`,
+			"toolProviderAdapterRunRequests",
+			(fact) => (fact.kind === "request" ? fact.request : undefined),
+		),
+		status: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/status`,
+			"toolProviderAdapterRunStatus",
+			(fact) => (fact.kind === "status" ? fact.status : undefined),
+		),
+		issues: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/issues`,
+			"toolProviderAdapterRunIssues",
+			(fact) => (fact.kind === "issue" ? fact.issue : undefined),
+		),
+		audit: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/audit`,
+			"toolProviderAdapterRunAudit",
+			(fact) => (fact.kind === "audit" ? fact.audit : undefined),
+		),
+	};
+}
+
 function normalizeToolProviderAdapterBindings<TArguments, TResult>(
 	bindings:
 		| readonly ToolProviderAdapterBinding<TArguments, TResult>[]
@@ -1809,6 +2092,8 @@ export function buildToolProviderExecutorOutcome<T = unknown>(
 		readonly attempt?: number;
 		readonly outcomeId?: string;
 		readonly occurredAtMs?: number;
+		readonly runId?: string;
+		readonly publicText?: ToolProviderPublicTextPolicy;
 	} = {},
 ): ExecutorOutcome<T> {
 	const ids = adapterRuntimeIdentity(input);
@@ -1821,16 +2106,42 @@ export function buildToolProviderExecutorOutcome<T = unknown>(
 	const issues =
 		result.issues === undefined
 			? undefined
-			: Object.freeze(result.issues.map(sanitizeAdapterInputIssue));
-	const metadata = sanitizeGraphVisibleRecord({
-		...(result.metadata ?? {}),
-		adapterInputId: input.adapterInputId,
-		providerId: input.providerId,
-		toolName: input.toolName,
-		operation: input.operation,
-	});
+			: Object.freeze(
+					result.issues.map((issue) => sanitizeAdapterInputIssue(issue, opts.publicText)),
+				);
+	const textIssues: DataIssue[] = [];
+	const metadata = sanitizeRuntimeMetadata(
+		{
+			...(result.metadata ?? {}),
+			adapterInputId: input.adapterInputId,
+			...(opts.runId === undefined ? {} : { runId: opts.runId }),
+			providerId: input.providerId,
+			toolName: input.toolName,
+			operation: input.operation,
+		},
+		input,
+		opts.publicText,
+		textIssues,
+	);
+	if (metadata === undefined && result.metadata !== undefined) {
+		textIssues.push(
+			dataIssue(
+				"tool-provider-adapter-runtime-metadata-redacted",
+				"Tool provider adapter runtime metadata was omitted because it contained runtime-private material.",
+				{
+					subjectId: input.requestId,
+					refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+					severity: "warning",
+				},
+			),
+		);
+	}
 	const base = {
-		outcomeId: opts.outcomeId ?? `${input.adapterInputId}:attempt-${attempt}:${result.kind}`,
+		outcomeId:
+			opts.outcomeId ??
+			`${input.adapterInputId}:${toolProviderOutcomeRunSegment(opts.runId, attempt)}:${
+				result.kind
+			}`,
 		requestId: input.requestId,
 		operationId: input.operationId,
 		routeId: ids.routeId,
@@ -1851,20 +2162,30 @@ export function buildToolProviderExecutorOutcome<T = unknown>(
 				return {
 					...base,
 					kind: "result",
-					result: result.result,
+					result: sanitizeAgentOutputEnvelope(result.result, input, opts.publicText, textIssues),
 				} satisfies ExecutorOutcome<T>;
 			case "failure":
 				return {
 					...base,
 					kind: "failure",
-					error: sanitizeAdapterInputIssue(result.error),
+					error: sanitizeAdapterInputIssue(result.error, opts.publicText),
 					...(result.retryable === undefined ? {} : { retryable: result.retryable }),
 				} satisfies ExecutorOutcome<T>;
 			case "canceled":
 				return {
 					...base,
 					kind: "canceled",
-					...(result.reason === undefined ? {} : { reason: result.reason }),
+					...(result.reason === undefined
+						? {}
+						: {
+								reason: boundedPublicText(
+									result.reason,
+									"reason",
+									input,
+									opts.publicText,
+									textIssues,
+								),
+							}),
 				} satisfies ExecutorOutcome<T>;
 			case "timeout":
 				return {
@@ -1877,24 +2198,58 @@ export function buildToolProviderExecutorOutcome<T = unknown>(
 				return {
 					...base,
 					kind: "blocked",
-					needs: result.needs,
+					needs: Object.freeze(
+						result.needs.map((need) => sanitizeAgentNeed(need, input, opts.publicText, textIssues)),
+					),
 				} satisfies ExecutorOutcome<T>;
 		}
 	})();
+	const boundedCandidate =
+		textIssues.length === 0
+			? candidate
+			: ({
+					...candidate,
+					issues: Object.freeze([...(candidate.issues ?? []), ...textIssues]),
+				} satisfies ExecutorOutcome<T>);
+	const materialIssues = (boundedCandidate.issues ?? []).filter(
+		(issue) => issue.code === "tool-provider-adapter-runtime-forbidden-runtime-material",
+	);
 	const leakIssues = forbiddenAdapterRuntimeMaterialIssues(
-		candidate,
-		ref("executor-outcome", candidate.outcomeId),
+		boundedCandidate,
+		ref("executor-outcome", boundedCandidate.outcomeId),
 		"executor-outcome",
 	);
-	if (leakIssues.length === 0) return Object.freeze(candidate);
-	const issue = leakIssues[0] ?? dataIssue("tool-provider-adapter-runtime-invalid", "invalid");
+	if (leakIssues.length === 0 && materialIssues.length === 0)
+		return Object.freeze(boundedCandidate);
+	const allLeakIssues = Object.freeze([...materialIssues, ...leakIssues]);
+	const issue = allLeakIssues[0] ?? dataIssue("tool-provider-adapter-runtime-invalid", "invalid");
+	const failureMetadata = sanitizeGraphVisibleRecord({
+		adapterInputId: input.adapterInputId,
+		...(opts.runId === undefined ? {} : { runId: opts.runId }),
+		providerId: input.providerId,
+		toolName: input.toolName,
+		operation: input.operation,
+	});
 	return Object.freeze({
-		...base,
 		kind: "failure",
-		outcomeId: `${input.adapterInputId}:attempt-${attempt}:failure`,
+		outcomeId: `${input.adapterInputId}:${toolProviderOutcomeRunSegment(
+			opts.runId,
+			attempt,
+		)}:failure`,
+		requestId: input.requestId,
+		operationId: input.operationId,
+		routeId: ids.routeId,
+		executorId: ids.executorId,
+		profileId: ids.profileId,
+		attempt,
+		evidenceRefs,
+		...(input.input?.inputId === undefined ? {} : { inputId: input.input.inputId }),
+		...(input.input?.inputKind === undefined ? {} : { inputKind: input.input.inputKind }),
+		...(occurredAtMs === undefined ? {} : { occurredAtMs }),
+		...(failureMetadata === undefined ? {} : { metadata: failureMetadata }),
 		error: issue,
 		retryable: false,
-		issues: Object.freeze(leakIssues),
+		issues: allLeakIssues,
 	} as ExecutorOutcome<T>);
 }
 
@@ -1904,9 +2259,14 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 ): ToolProviderAdapterRuntimeHandle {
 	const name = opts.name ?? "toolProviderAdapterRuntime";
 	const bindings = normalizeToolProviderAdapterBindings(opts.bindings);
+	const inputsById = new Map<string, ToolProviderAdapterInput<TArguments>>();
 	const outcomes = graph.node<ExecutorOutcome>([], null, {
 		name: `${name}/outcomes`,
 		factory: "toolProviderAdapterRuntimeOutcomes",
+	});
+	const runStatus = graph.node<ToolProviderAdapterRunStatus>([], null, {
+		name: `${name}/runStatus`,
+		factory: "toolProviderAdapterRuntimeRunStatus",
 	});
 	const status = graph.node<AgentRequestStatusChanged>([], null, {
 		name: `${name}/status`,
@@ -1923,10 +2283,42 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 	const seen = new Set<string>();
 	let disposed = false;
 	let auditSeq = 0;
-	const attempt = opts.attempt ?? 1;
 
 	function publishIssue(issue: DataIssue): void {
 		issues.down([["DATA", sanitizeAdapterInputIssue(issue)]]);
+	}
+
+	function publishRunStatus(
+		request: ToolProviderAdapterRunRequested,
+		nextStatus: ToolProviderAdapterRunStatus["status"],
+		statusIssues?: readonly DataIssue[],
+		outcomeId?: string,
+	): void {
+		runStatus.down([
+			[
+				"DATA",
+				{
+					kind: "tool-provider-adapter-run-status",
+					runId: request.runId,
+					adapterInputId: request.adapterInputId,
+					requestId: request.requestId,
+					operationId: request.operationId,
+					status: nextStatus,
+					attempt: request.attempt,
+					outcomeId,
+					issues: statusIssues,
+					sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
+					metadata: sanitizeGraphVisibleRecord(
+						{
+							providerId: request.providerId,
+							routeId: request.routeId,
+							reason: request.reason,
+						},
+						opts.publicText,
+					),
+				} satisfies ToolProviderAdapterRunStatus,
+			],
+		]);
 	}
 
 	function publishStatus(
@@ -1988,13 +2380,16 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 	function publishOutcome(
 		input: ToolProviderAdapterInput<TArguments>,
 		result: ToolProviderAdapterRunResult<TResult>,
+		request: ToolProviderAdapterRunRequested,
 	): void {
 		if (disposed) return;
 		let outcome: ExecutorOutcome<TResult>;
 		try {
 			outcome = buildToolProviderExecutorOutcome(input, result, {
-				attempt,
+				attempt: request.attempt,
+				runId: request.runId,
 				occurredAtMs: opts.now?.(),
+				publicText: opts.publicText,
 			});
 		} catch (error) {
 			const issue = adapterRuntimeIssue(
@@ -2003,6 +2398,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 				error,
 			);
 			publishIssue(issue);
+			publishRunStatus(request, "failure", [issue]);
 			publishStatus(input, "failed", [issue]);
 			publishAudit(input, "tool-provider-adapter-runtime-invalid-input", undefined, issue.code);
 			return;
@@ -2025,33 +2421,94 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			agentRequestStatusForExecutorOutcome(outcome),
 			statusIssues.length === 0 ? undefined : statusIssues,
 		);
+		publishRunStatus(
+			request,
+			outcome.kind,
+			statusIssues.length === 0 ? undefined : statusIssues,
+			outcome.outcomeId,
+		);
 		publishAudit(input, "tool-provider-adapter-runtime-finished", {
 			status: outcome.kind,
 			outcomeId: outcome.outcomeId,
+			runId: request.runId,
+			attempt: request.attempt,
 		});
 	}
 
 	function publishRuntimeFailure(
 		input: ToolProviderAdapterInput<TArguments>,
+		request: ToolProviderAdapterRunRequested,
 		code: string,
 		error: unknown,
 	): void {
 		const issue = adapterRuntimeIssue(input, code, error);
-		publishOutcome(input, {
-			kind: "failure",
-			error: issue,
-			retryable: false,
-			issues: [issue],
-		});
+		publishOutcome(
+			input,
+			{
+				kind: "failure",
+				error: issue,
+				retryable: false,
+				issues: [issue],
+			},
+			request,
+		);
 	}
 
-	function runInput(input: ToolProviderAdapterInput<TArguments>): void {
-		if (disposed || input.status !== "ready") return;
+	function runRequest(request: ToolProviderAdapterRunRequested): void {
+		if (disposed) return;
+		const input = inputsById.get(request.adapterInputId);
+		if (input === undefined) {
+			const issue = dataIssue(
+				"tool-provider-adapter-runtime-missing-input",
+				"Tool provider adapter runtime requires the requested adapter input.",
+				{
+					subjectId: request.adapterInputId,
+					refs: [ref("tool-provider-adapter-run", request.runId)],
+				},
+			);
+			publishIssue(issue);
+			publishRunStatus(request, "missing-input", [issue]);
+			return;
+		}
+		if (input.status !== "ready") {
+			const issue = dataIssue(
+				"tool-provider-adapter-runtime-input-not-ready",
+				"Tool provider adapter runtime requires a ready adapter input.",
+				{
+					subjectId: input.requestId,
+					refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+					details: { status: input.status },
+				},
+			);
+			publishIssue(issue);
+			publishRunStatus(request, "stale-request", [issue]);
+			publishStatus(input, "blocked", [issue]);
+			return;
+		}
+		const requestIssues = runRequestIdentityIssues(request, input);
+		if (requestIssues.length > 0) {
+			for (const issue of requestIssues) publishIssue(issue);
+			publishRunStatus(request, "mismatched-request", requestIssues);
+			publishStatus(input, "blocked", requestIssues);
+			publishAudit(input, "tool-provider-adapter-runtime-run-request-rejected", {
+				runId: request.runId,
+				attempt: request.attempt,
+				issueCodes: requestIssues.map((issue) => issue.code),
+			});
+			return;
+		}
 		let key: string;
 		try {
-			key = opts.dedupeKey?.(input) ?? defaultToolProviderAdapterRuntimeDedupeKey(input);
+			key = `${request.runId}:${request.attempt}:${
+				opts.dedupeKey?.(input) ?? defaultToolProviderAdapterRuntimeDedupeKey(input)
+			}`;
 		} catch (error) {
-			publishRuntimeFailure(input, "tool-provider-adapter-runtime-dedupe-key-threw", error);
+			publishRuntimeFailure(
+				input,
+				request,
+				"tool-provider-adapter-runtime-dedupe-key-threw",
+				error,
+			);
 			return;
 		}
 		if (seen.has(key)) return;
@@ -2067,37 +2524,46 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 					details: { providerId: input.providerId },
 				},
 			);
-			publishOutcome(input, {
-				kind: "blocked",
-				needs: [
-					{
-						kind: "tool-provider-binding",
-						message: "Matching runtime-private tool provider binding is unavailable.",
-						...(input.providerId === undefined
-							? {}
-							: { refs: [ref("tool-provider", input.providerId)] }),
-					},
-				],
-				issues: [issue],
-			});
+			publishOutcome(
+				input,
+				{
+					kind: "blocked",
+					needs: [
+						{
+							kind: "tool-provider-binding",
+							message: "Matching runtime-private tool provider binding is unavailable.",
+							...(input.providerId === undefined
+								? {}
+								: { refs: [ref("tool-provider", input.providerId)] }),
+						},
+					],
+					issues: [issue],
+				},
+				request,
+			);
 			return;
 		}
+		publishRunStatus(request, "started");
 		publishStatus(input, "in-flight");
 		publishAudit(input, "tool-provider-adapter-runtime-started", {
 			providerId: binding.providerId,
-			attempt,
+			runId: request.runId,
+			attempt: request.attempt,
+			reason: request.reason,
 		});
 		let result:
 			| ToolProviderAdapterRunResult<TResult>
 			| PromiseLike<ToolProviderAdapterRunResult<TResult>>;
 		try {
 			result = binding.run(input, {
-				attempt,
-				sourceRefs: input.sourceRefs ?? [],
+				runId: request.runId,
+				attempt: request.attempt,
+				reason: request.reason,
+				sourceRefs: request.sourceRefs ?? input.sourceRefs ?? [],
 				now: opts.now,
 			});
 		} catch (error) {
-			publishRuntimeFailure(input, "tool-provider-adapter-runtime-threw", error);
+			publishRuntimeFailure(input, request, "tool-provider-adapter-runtime-threw", error);
 			return;
 		}
 		if (isThenable(result)) {
@@ -2107,28 +2573,53 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 					(value) => {
 						if (settled) return;
 						settled = true;
-						publishOutcome(input, value);
+						publishOutcome(input, value, request);
 					},
 					(error) => {
 						if (settled) return;
 						settled = true;
-						publishRuntimeFailure(input, "tool-provider-adapter-runtime-rejected", error);
+						publishRuntimeFailure(input, request, "tool-provider-adapter-runtime-rejected", error);
 					},
 				);
 			} catch (error) {
-				if (!settled) publishRuntimeFailure(input, "tool-provider-adapter-runtime-rejected", error);
+				if (!settled)
+					publishRuntimeFailure(input, request, "tool-provider-adapter-runtime-rejected", error);
 			}
 			return;
 		}
-		publishOutcome(input, result);
+		publishOutcome(input, result, request);
 	}
 
-	const unsubscribe = opts.inputs.subscribe((msg) => {
+	const unsubscribeInputs = opts.inputs.subscribe((msg) => {
 		if (msg[0] !== "DATA") return;
-		runInput(msg[1] as ToolProviderAdapterInput<TArguments>);
+		const input = msg[1] as ToolProviderAdapterInput<TArguments>;
+		inputsById.set(input.adapterInputId, input);
+	});
+	const runProjector = toolProviderAdapterRunProjector(graph, {
+		name: `${name}/runs`,
+		inputs: opts.inputs,
+		runRequests: opts.runRequests,
+		autoRunReadyInputs: opts.autoRunReadyInputs,
+		now: opts.now,
+	});
+	const unsubscribeRunProjectorStatus = runProjector.status.subscribe((msg) => {
+		if (msg[0] === "DATA") runStatus.down([["DATA", msg[1] as ToolProviderAdapterRunStatus]]);
+	});
+	const unsubscribeRunProjectorIssues = runProjector.issues.subscribe((msg) => {
+		if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue);
+	});
+	const unsubscribeRunProjectorAudit = runProjector.audit.subscribe((msg) => {
+		if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
+	});
+	const unsubscribeRunRequests = runProjector.requests.subscribe((msg) => {
+		if (msg[0] !== "DATA") return;
+		const request = msg[1] as ToolProviderAdapterRunRequested;
+		runRequest(request);
 	});
 
 	return {
+		runRequests: runProjector.requests,
+		runStatus,
 		outcomes,
 		status,
 		issues,
@@ -2136,7 +2627,11 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		dispose() {
 			if (disposed) return;
 			disposed = true;
-			unsubscribe();
+			unsubscribeInputs();
+			unsubscribeRunProjectorStatus();
+			unsubscribeRunProjectorIssues();
+			unsubscribeRunProjectorAudit();
+			unsubscribeRunRequests();
 		},
 	};
 }
@@ -2154,6 +2649,10 @@ function agentRequestStatusForExecutorOutcome(outcome: ExecutorOutcome): AgentRe
 		case "blocked":
 			return "blocked";
 	}
+}
+
+function toolProviderOutcomeRunSegment(runId: string | undefined, attempt: number): string {
+	return runId === undefined ? `attempt-${attempt}` : `${runId}:attempt-${attempt}`;
 }
 
 function adapterRuntimeIssue(
@@ -2174,7 +2673,7 @@ function forbiddenAdapterRuntimeMaterialIssues(
 	area: string,
 ): readonly DataIssue[] {
 	if (value === undefined) return [];
-	const forbidden = forbiddenDataKeys(value);
+	const forbidden = [...forbiddenDataKeys(value), ...forbiddenProviderRawMaterialKeys(value)];
 	if (forbidden.length === 0) return [];
 	return Object.freeze(
 		forbidden.map((entry) =>
@@ -2185,6 +2684,292 @@ function forbiddenAdapterRuntimeMaterialIssues(
 			),
 		),
 	);
+}
+
+function defaultToolProviderAdapterRunId(
+	adapterInputId: string,
+	attempt: number,
+	input?: ToolProviderAdapterInput,
+): string {
+	const suffix = input === undefined ? "" : `:${stableStringHash(stableJsonStringify(input))}`;
+	return `${adapterInputId}:run-${attempt}${suffix}`;
+}
+
+function sanitizeToolProviderAdapterRunRequest(
+	request: ToolProviderAdapterRunRequested,
+	input: ToolProviderAdapterInput,
+): ToolProviderAdapterRunRequested {
+	return Object.freeze({
+		...request,
+		policyRefs: sanitizeAdapterInputSourceRefs(request.policyRefs ?? input.policyRefs ?? []),
+		sourceRefs: sanitizeAdapterInputSourceRefs([
+			ref("tool-provider-adapter-input", input.adapterInputId),
+			...(input.sourceRefs ?? []),
+			...(request.sourceRefs ?? []),
+		]),
+		metadata: sanitizeProviderGraphVisibleRecord(request.metadata),
+	} satisfies ToolProviderAdapterRunRequested);
+}
+
+function isToolProviderAdapterRunRequestedLike(
+	value: unknown,
+): value is ToolProviderAdapterRunRequested {
+	const attempt = isRecord(value) ? value.attempt : undefined;
+	return (
+		isRecord(value) &&
+		value.kind === "tool-provider-adapter-run-requested" &&
+		typeof value.runId === "string" &&
+		value.runId.length > 0 &&
+		typeof value.adapterInputId === "string" &&
+		value.adapterInputId.length > 0 &&
+		typeof value.requestId === "string" &&
+		value.requestId.length > 0 &&
+		typeof value.operationId === "string" &&
+		value.operationId.length > 0 &&
+		typeof attempt === "number" &&
+		Number.isInteger(attempt) &&
+		attempt > 0 &&
+		typeof value.reason === "string" &&
+		value.reason.length > 0
+	);
+}
+
+function fallbackToolProviderAdapterRunRequest(raw: unknown): ToolProviderAdapterRunRequested {
+	const record = isRecord(raw) ? raw : {};
+	const adapterInputId =
+		typeof record.adapterInputId === "string" && record.adapterInputId.length > 0
+			? record.adapterInputId
+			: "<invalid-adapter-input>";
+	const runId =
+		typeof record.runId === "string" && record.runId.length > 0
+			? record.runId
+			: `${adapterInputId}:invalid-run`;
+	const attempt =
+		typeof record.attempt === "number" && Number.isInteger(record.attempt) && record.attempt > 0
+			? record.attempt
+			: 1;
+	return Object.freeze({
+		kind: "tool-provider-adapter-run-requested",
+		runId,
+		adapterInputId,
+		requestId:
+			typeof record.requestId === "string" && record.requestId.length > 0
+				? record.requestId
+				: "<invalid-request>",
+		operationId:
+			typeof record.operationId === "string" && record.operationId.length > 0
+				? record.operationId
+				: "<invalid-operation>",
+		attempt,
+		reason:
+			typeof record.reason === "string" && record.reason.length > 0 ? record.reason : "manual",
+		sourceRefs: [ref("tool-provider-adapter-run", runId)],
+	} satisfies ToolProviderAdapterRunRequested);
+}
+
+function runRequestIdentityIssues(
+	request: ToolProviderAdapterRunRequested,
+	input: ToolProviderAdapterInput,
+): DataIssue[] {
+	const refs = sanitizeAdapterInputSourceRefs([
+		ref("tool-provider-adapter-run", request.runId),
+		ref("tool-provider-adapter-input", input.adapterInputId),
+		...(request.sourceRefs ?? []),
+	]);
+	const issues: DataIssue[] = [];
+	if (request.kind !== "tool-provider-adapter-run-requested") {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-invalid-kind",
+				"Tool provider adapter run request kind must be tool-provider-adapter-run-requested.",
+				{ subjectId: request.adapterInputId, refs },
+			),
+		);
+	}
+	if (request.runId.length === 0) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-missing-run-id",
+				"Tool provider adapter run request requires runId.",
+				{
+					subjectId: request.adapterInputId,
+					refs,
+				},
+			),
+		);
+	}
+	if (!Number.isInteger(request.attempt) || request.attempt < 1) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-invalid-attempt",
+				"Tool provider adapter run request attempt must be a positive integer.",
+				{ subjectId: request.adapterInputId, refs },
+			),
+		);
+	}
+	if (request.requestId !== input.requestId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-stale-request",
+				"Tool provider adapter run request requestId does not match the adapter input.",
+				{ subjectId: input.requestId, refs },
+			),
+		);
+	}
+	if (request.operationId !== input.operationId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-stale-operation",
+				"Tool provider adapter run request operationId does not match the adapter input.",
+				{ subjectId: input.requestId, refs },
+			),
+		);
+	}
+	if (request.routeId !== undefined && request.routeId !== input.routeId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-stale-route",
+				"Tool provider adapter run request routeId does not match the adapter input.",
+				{ subjectId: input.requestId, refs },
+			),
+		);
+	}
+	if (request.providerId !== undefined && request.providerId !== input.providerId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-stale-provider",
+				"Tool provider adapter run request providerId does not match the adapter input.",
+				{ subjectId: input.requestId, refs },
+			),
+		);
+	}
+	if (request.executorId !== undefined && request.executorId !== input.executorId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-stale-executor",
+				"Tool provider adapter run request executorId does not match the adapter input.",
+				{ subjectId: input.requestId, refs },
+			),
+		);
+	}
+	if (request.profileId !== undefined && request.profileId !== input.profileId) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-stale-profile",
+				"Tool provider adapter run request profileId does not match the adapter input.",
+				{ subjectId: input.requestId, refs },
+			),
+		);
+	}
+	for (const forbidden of forbiddenDataKeys(request)) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-run-request-forbidden-runtime-material",
+				"Tool provider adapter run request must not contain runtime-private adapter material.",
+				{ subjectId: input.requestId, refs, details: { reason: forbidden.reason } },
+			),
+		);
+	}
+	return issues;
+}
+
+function emitRunRequested(
+	ctx: Ctx,
+	state: ToolProviderAdapterRunProjectorState,
+	request: ToolProviderAdapterRunRequested,
+): void {
+	const key = `${request.runId}:${request.adapterInputId}:${request.attempt}`;
+	if (state.emittedKeys.has(key)) return;
+	state.emittedKeys.add(key);
+	ctx.down([["DATA", { kind: "request", request } satisfies ToolProviderAdapterRunFact]]);
+	emitRunStatus(ctx, state, {
+		kind: "tool-provider-adapter-run-status",
+		runId: request.runId,
+		adapterInputId: request.adapterInputId,
+		requestId: request.requestId,
+		operationId: request.operationId,
+		status: "requested",
+		attempt: request.attempt,
+		sourceRefs: request.sourceRefs,
+	});
+	emitRunAudit(ctx, state, "tool-provider-adapter-run-requested", request, {
+		reason: request.reason,
+		attempt: request.attempt,
+	});
+}
+
+function emitRunStatus(
+	ctx: Ctx,
+	state: ToolProviderAdapterRunProjectorState,
+	status: ToolProviderAdapterRunStatus,
+): void {
+	const key = stableJsonStringify({
+		runId: status.runId,
+		adapterInputId: status.adapterInputId,
+		requestId: status.requestId,
+		attempt: status.attempt,
+		status: status.status,
+		outcomeId: status.outcomeId,
+	});
+	if (state.statusKeys.has(key)) return;
+	state.statusKeys.add(key);
+	ctx.down([["DATA", { kind: "status", status } satisfies ToolProviderAdapterRunFact]]);
+}
+
+function emitRunIssue(
+	ctx: Ctx,
+	state: ToolProviderAdapterRunProjectorState,
+	code: string,
+	message: string,
+	subjectId: string,
+	refs?: readonly SourceRef[],
+): void {
+	emitRunIssueFact(ctx, state, dataIssue(code, message, { subjectId, refs }));
+}
+
+function emitRunIssueFact(
+	ctx: Ctx,
+	state: ToolProviderAdapterRunProjectorState,
+	issue: DataIssue,
+): void {
+	const key = stableJsonStringify({
+		code: issue.code,
+		subjectId: issue.subjectId,
+		refs: issue.refs ?? [],
+		details: issue.details,
+	});
+	if (state.issueKeys.has(key)) return;
+	state.issueKeys.add(key);
+	ctx.down([["DATA", { kind: "issue", issue } satisfies ToolProviderAdapterRunFact]]);
+}
+
+function emitRunAudit(
+	ctx: Ctx,
+	state: ToolProviderAdapterRunProjectorState,
+	kind: string,
+	request: ToolProviderAdapterRunRequested,
+	metadata?: Record<string, unknown>,
+): void {
+	state.auditSeq += 1;
+	ctx.down([
+		[
+			"DATA",
+			{
+				kind: "audit",
+				audit: {
+					id: `${request.runId}:audit:${state.auditSeq}`,
+					kind,
+					subjectId: request.requestId,
+					sourceRefs: request.sourceRefs,
+					metadata: sanitizeGraphVisibleRecord({
+						runId: request.runId,
+						adapterInputId: request.adapterInputId,
+						...metadata,
+					}),
+				},
+			} satisfies ToolProviderAdapterRunFact,
+		],
+	]);
 }
 
 function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
@@ -2513,7 +3298,9 @@ function buildToolProviderAdapterInput(opts: {
 			: [ref("tool-provider-catalog", resolution.providerId)]),
 		...(resolution.policyRefs ?? []),
 	]);
-	const issues: DataIssue[] = (resolution.issues ?? []).map(sanitizeAdapterInputIssue);
+	const issues: DataIssue[] = (resolution.issues ?? []).map((issue) =>
+		sanitizeAdapterInputIssue(issue),
+	);
 	let statusOverride: Exclude<ToolProviderAdapterInputStatus, "ready"> | undefined;
 	if (request === undefined) {
 		issues.push(
@@ -2576,7 +3363,7 @@ function buildToolProviderAdapterInput(opts: {
 				},
 			),
 		);
-		issues.push(...(catalog.issues ?? []).map(sanitizeAdapterInputIssue));
+		issues.push(...(catalog.issues ?? []).map((issue) => sanitizeAdapterInputIssue(issue)));
 	}
 	const toolCall = request === undefined ? undefined : toolCallFromRequest(request);
 	if (request !== undefined && toolCall === undefined) {
@@ -2873,20 +3660,33 @@ function policyMaterialIssuesForAdapterInput(
 	return Object.freeze(issues);
 }
 
-function sanitizeAdapterInputIssue(issue: DataIssue): DataIssue {
-	if (forbiddenDataKeys(issue).length === 0) return issue;
-	const details =
-		issue.details === undefined || forbiddenDataKeys(issue.details).length > 0
-			? { redacted: true, reason: "forbidden-runtime-material" }
-			: issue.details;
+function sanitizeAdapterInputIssue(
+	issue: DataIssue,
+	policy?: ToolProviderPublicTextPolicy,
+): DataIssue {
+	const boundedMessage = boundPublicText(issue.message, maxPublicMessageChars(policy));
+	const details = sanitizeIssueDetails(issue.details, policy);
 	return Object.freeze({
 		kind: issue.kind,
 		code: issue.code,
-		message: issue.message,
+		message: boundedMessage.text,
 		severity: issue.severity,
 		subjectId: issue.subjectId,
 		refs: issue.refs,
-		details,
+		details:
+			boundedMessage.truncated || details !== issue.details
+				? {
+						...(isRecord(details) ? details : {}),
+						...(boundedMessage.truncated
+							? {
+									truncated: true,
+									originalChars: boundedMessage.originalChars,
+									limitChars: boundedMessage.limitChars,
+									measurementSource: "js-string-length",
+								}
+							: {}),
+					}
+				: details,
 	} satisfies DataIssue);
 }
 
@@ -3475,6 +4275,12 @@ type ToolProviderAdapterInputFact =
 	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
 
+type ToolProviderAdapterRunFact =
+	| { readonly kind: "request"; readonly request: ToolProviderAdapterRunRequested }
+	| { readonly kind: "status"; readonly status: ToolProviderAdapterRunStatus }
+	| { readonly kind: "issue"; readonly issue: DataIssue }
+	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord };
+
 type ExecutorOutcomeViewFact =
 	| { readonly kind: "view"; readonly view: ExecutorOutcomeView }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
@@ -3540,6 +4346,14 @@ interface ToolProviderAdapterInputState {
 	catalogs: Map<string, ToolProviderCatalog>;
 	resolutions: Map<string, ToolProviderPolicyResolution>;
 	emittedKeys: Set<string>;
+	auditSeq: number;
+}
+
+interface ToolProviderAdapterRunProjectorState {
+	inputs: Map<string, ToolProviderAdapterInput>;
+	emittedKeys: Set<string>;
+	statusKeys: Set<string>;
+	issueKeys: Set<string>;
 	auditSeq: number;
 }
 
@@ -4111,6 +4925,15 @@ function stableJsonStringify(value: unknown): string {
 				return out;
 			}, {});
 	});
+}
+
+function stableStringHash(value: string): string {
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < value.length; i += 1) {
+		hash ^= value.charCodeAt(i);
+		hash = Math.imul(hash, 0x01000193);
+	}
+	return (hash >>> 0).toString(36);
 }
 
 function emitStatus(
@@ -4779,9 +5602,24 @@ function sanitizeAdapterInputSourceRefs(sourceRefs: readonly SourceRef[]): reado
 
 function sanitizeGraphVisibleRecord<T extends Record<string, unknown> | undefined>(
 	value: T,
+	policy?: ToolProviderPublicTextPolicy,
 ): T | undefined {
 	if (value === undefined || forbiddenDataKeys(value).length > 0) return undefined;
-	return Object.freeze({ ...value }) as T;
+	return Object.freeze(boundRecordStrings(value, maxPublicMetadataStringChars(policy))) as T;
+}
+
+function sanitizeProviderGraphVisibleRecord<T extends Record<string, unknown> | undefined>(
+	value: T,
+	policy?: ToolProviderPublicTextPolicy,
+): T | undefined {
+	if (
+		value === undefined ||
+		forbiddenDataKeys(value).length > 0 ||
+		forbiddenProviderRawMaterialKeys(value).length > 0
+	) {
+		return undefined;
+	}
+	return Object.freeze(boundRecordStrings(value, maxPublicMetadataStringChars(policy))) as T;
 }
 
 function unlockedToolProviderPolicyOverrides(
@@ -4795,6 +5633,436 @@ function unlockedToolProviderPolicyOverrides(
 	delete rest.policyId;
 	delete rest.providerId;
 	return rest as Partial<Omit<ToolProviderExecutionPolicy, "kind" | "policyId" | "providerId">>;
+}
+
+function sanitizeAgentOutputEnvelope<T>(
+	envelope: AgentOutputEnvelope<T>,
+	input: ToolProviderAdapterInput,
+	policy: ToolProviderPublicTextPolicy | undefined,
+	issues: DataIssue[],
+): AgentOutputEnvelope<T> {
+	const summary =
+		envelope.summary === undefined
+			? undefined
+			: boundedPublicText(envelope.summary, "summary", input, policy, issues);
+	const metadata = sanitizeRuntimeMetadata(envelope.metadata, input, policy, issues);
+	if (metadata === undefined && envelope.metadata !== undefined) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-runtime-metadata-redacted",
+				"Tool provider adapter runtime metadata was omitted because it contained runtime-private material.",
+				{
+					subjectId: input.requestId,
+					refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+					severity: "warning",
+				},
+			),
+		);
+	}
+	const value = sanitizeInlineOutputValue(envelope.value, input, policy, issues);
+	return Object.freeze({
+		kind: envelope.kind,
+		value: value as T | undefined,
+		refs: envelope.refs === undefined ? undefined : sanitizeAdapterInputSourceRefs(envelope.refs),
+		summary,
+		metadata,
+	} satisfies AgentOutputEnvelope<T>);
+}
+
+function sanitizeAgentNeed(
+	need: AgentNeed,
+	input: ToolProviderAdapterInput,
+	policy: ToolProviderPublicTextPolicy | undefined,
+	issues: DataIssue[],
+): AgentNeed {
+	const metadata = sanitizeRuntimeMetadata(need.metadata, input, policy, issues);
+	if (metadata === undefined && need.metadata !== undefined) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-runtime-metadata-redacted",
+				"Tool provider adapter runtime metadata was omitted because it contained runtime-private material.",
+				{
+					subjectId: input.requestId,
+					refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+					severity: "warning",
+				},
+			),
+		);
+	}
+	return Object.freeze({
+		kind: need.kind,
+		message:
+			need.message === undefined
+				? undefined
+				: boundedPublicText(need.message, "message", input, policy, issues),
+		refs: need.refs === undefined ? undefined : sanitizeAdapterInputSourceRefs(need.refs),
+		metadata,
+	} satisfies AgentNeed);
+}
+
+function sanitizeRuntimeMetadata<T extends Record<string, unknown> | undefined>(
+	value: T,
+	input: ToolProviderAdapterInput,
+	policy: ToolProviderPublicTextPolicy | undefined,
+	issues: DataIssue[],
+): T | undefined {
+	if (value === undefined) return undefined;
+	if (forbiddenDataKeys(value).length > 0 || forbiddenProviderRawMaterialKeys(value).length > 0) {
+		return undefined;
+	}
+	const bounded = boundRecordStringsWithEvidence(value, maxPublicMetadataStringChars(policy));
+	for (const entry of bounded.truncated) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-runtime-public-text-truncated",
+				"Tool provider adapter runtime public text was truncated; large/raw material must use artifact summary/ref envelopes.",
+				{
+					subjectId: input.requestId,
+					refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+					severity: "warning",
+					details: {
+						field: "metadata",
+						path: entry.path.join("."),
+						originalChars: entry.originalChars,
+						limitChars: entry.limitChars,
+						unit: "chars",
+						measurementSource: "js-string-length",
+					},
+				},
+			),
+		);
+	}
+	return Object.freeze(bounded.value) as T;
+}
+
+function sanitizeInlineOutputValue(
+	value: unknown,
+	input: ToolProviderAdapterInput,
+	policy: ToolProviderPublicTextPolicy | undefined,
+	issues: DataIssue[],
+): unknown {
+	if (value === undefined) return undefined;
+	const forbidden = [
+		...forbiddenDataKeys(value),
+		...forbiddenProviderRawMaterialKeys(value),
+		...oversizedInlineTextKeys(value, maxPublicSummaryChars(policy)),
+	];
+	if (forbidden.length === 0) return value;
+	for (const entry of forbidden) {
+		issues.push(
+			dataIssue(
+				"tool-provider-adapter-runtime-forbidden-runtime-material",
+				"Tool provider adapter runtime output value must not inline runtime-private, raw, or oversized provider material.",
+				{
+					subjectId: input.requestId,
+					refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+					details: { reason: entry.reason },
+				},
+			),
+		);
+	}
+	return undefined;
+}
+
+function boundedPublicText(
+	text: string,
+	field: "message" | "reason" | "summary",
+	input: ToolProviderAdapterInput,
+	policy: ToolProviderPublicTextPolicy | undefined,
+	issues: DataIssue[],
+): string {
+	const limit =
+		field === "summary"
+			? maxPublicSummaryChars(policy)
+			: field === "reason"
+				? maxPublicReasonChars(policy)
+				: maxPublicMessageChars(policy);
+	const bounded = boundPublicText(text, limit);
+	if (!bounded.truncated) return bounded.text;
+	issues.push(
+		dataIssue(
+			"tool-provider-adapter-runtime-public-text-truncated",
+			"Tool provider adapter runtime public text was truncated; large/raw material must use artifact summary/ref envelopes.",
+			{
+				subjectId: input.requestId,
+				refs: [ref("tool-provider-adapter-input", input.adapterInputId)],
+				severity: "warning",
+				details: {
+					field,
+					originalChars: bounded.originalChars,
+					limitChars: bounded.limitChars,
+					unit: "chars",
+					measurementSource: "js-string-length",
+				},
+			},
+		),
+	);
+	return bounded.text;
+}
+
+function boundPublicText(
+	text: string,
+	limitChars: number,
+): {
+	readonly text: string;
+	readonly truncated: boolean;
+	readonly originalChars: number;
+	readonly limitChars: number;
+} {
+	const limit = Math.max(0, limitChars);
+	if (text.length <= limit) {
+		return { text, truncated: false, originalChars: text.length, limitChars: limit };
+	}
+	const bounded =
+		limit <= 1
+			? text.slice(0, limit)
+			: limit <= 3
+				? text.slice(0, limit)
+				: `${text.slice(0, limit - 3)}...`;
+	return { text: bounded, truncated: true, originalChars: text.length, limitChars: limit };
+}
+
+function boundRecordStrings(
+	value: Record<string, unknown>,
+	limitChars: number,
+	seen: WeakSet<object> = new WeakSet(),
+): Record<string, unknown> {
+	if (seen.has(value)) return {};
+	seen.add(value);
+	return Object.entries(value).reduce<Record<string, unknown>>((out, [key, child]) => {
+		if (typeof child === "string") {
+			out[key] = boundPublicText(child, limitChars).text;
+		} else if (Array.isArray(child)) {
+			out[key] = child.map((item) =>
+				typeof item === "string"
+					? boundPublicText(item, limitChars).text
+					: isPlainRecord(item)
+						? boundRecordStrings(item, limitChars, seen)
+						: item,
+			);
+		} else if (isPlainRecord(child)) {
+			out[key] = boundRecordStrings(child, limitChars, seen);
+		} else {
+			out[key] = child;
+		}
+		return out;
+	}, {});
+}
+
+function boundRecordStringsWithEvidence(
+	value: Record<string, unknown>,
+	limitChars: number,
+	path: readonly (string | number)[] = [],
+	seen: WeakSet<object> = new WeakSet(),
+): {
+	readonly value: Record<string, unknown>;
+	readonly truncated: readonly {
+		readonly path: readonly (string | number)[];
+		readonly originalChars: number;
+		readonly limitChars: number;
+	}[];
+} {
+	if (seen.has(value)) return { value: {}, truncated: [] };
+	seen.add(value);
+	const truncated: {
+		readonly path: readonly (string | number)[];
+		readonly originalChars: number;
+		readonly limitChars: number;
+	}[] = [];
+	const out = Object.entries(value).reduce<Record<string, unknown>>((record, [key, child]) => {
+		const childPath = [...path, key];
+		if (typeof child === "string") {
+			const bounded = boundPublicText(child, limitChars);
+			record[key] = bounded.text;
+			if (bounded.truncated) {
+				truncated.push({
+					path: childPath,
+					originalChars: bounded.originalChars,
+					limitChars: bounded.limitChars,
+				});
+			}
+		} else if (Array.isArray(child)) {
+			record[key] = child.map((item, index) => {
+				const itemPath = [...childPath, index];
+				if (typeof item === "string") {
+					const bounded = boundPublicText(item, limitChars);
+					if (bounded.truncated) {
+						truncated.push({
+							path: itemPath,
+							originalChars: bounded.originalChars,
+							limitChars: bounded.limitChars,
+						});
+					}
+					return bounded.text;
+				}
+				if (isPlainRecord(item)) {
+					const nested = boundRecordStringsWithEvidence(item, limitChars, itemPath, seen);
+					truncated.push(...nested.truncated);
+					return nested.value;
+				}
+				return item;
+			});
+		} else if (isPlainRecord(child)) {
+			const nested = boundRecordStringsWithEvidence(child, limitChars, childPath, seen);
+			record[key] = nested.value;
+			truncated.push(...nested.truncated);
+		} else {
+			record[key] = child;
+		}
+		return record;
+	}, {});
+	return { value: out, truncated };
+}
+
+function sanitizeIssueDetails(details: unknown, policy?: ToolProviderPublicTextPolicy): unknown {
+	if (details === undefined) return undefined;
+	if (
+		forbiddenDataKeys(details).length > 0 ||
+		forbiddenProviderRawMaterialKeys(details).length > 0
+	) {
+		return { redacted: true, reason: "forbidden-runtime-material" };
+	}
+	const bounded = boundUnknownStringsWithEvidence(details, maxPublicMetadataStringChars(policy));
+	if (bounded.truncated.length === 0) return bounded.value;
+	const detailsTruncated = {
+		detailsTruncated: true,
+		detailsTruncatedPaths: bounded.truncated.map((entry) => entry.path.join(".")),
+		measurementSource: "js-string-length",
+	};
+	if (isPlainRecord(bounded.value)) {
+		return Object.freeze({ ...bounded.value, ...detailsTruncated });
+	}
+	return Object.freeze({ value: bounded.value, ...detailsTruncated });
+}
+
+function boundUnknownStringsWithEvidence(
+	value: unknown,
+	limitChars: number,
+	path: readonly (string | number)[] = [],
+	seen: WeakSet<object> = new WeakSet(),
+): {
+	readonly value: unknown;
+	readonly truncated: readonly {
+		readonly path: readonly (string | number)[];
+		readonly originalChars: number;
+		readonly limitChars: number;
+	}[];
+} {
+	if (typeof value === "string") {
+		const bounded = boundPublicText(value, limitChars);
+		return {
+			value: bounded.text,
+			truncated: bounded.truncated
+				? [{ path, originalChars: bounded.originalChars, limitChars: bounded.limitChars }]
+				: [],
+		};
+	}
+	if (!isRecord(value) && !Array.isArray(value)) return { value, truncated: [] };
+	if (typeof value === "object" && value !== null) {
+		if (seen.has(value)) return { value: Array.isArray(value) ? [] : {}, truncated: [] };
+		seen.add(value);
+	}
+	const truncated: {
+		readonly path: readonly (string | number)[];
+		readonly originalChars: number;
+		readonly limitChars: number;
+	}[] = [];
+	if (Array.isArray(value)) {
+		const out = value.map((item, index) => {
+			const bounded = boundUnknownStringsWithEvidence(item, limitChars, [...path, index], seen);
+			truncated.push(...bounded.truncated);
+			return bounded.value;
+		});
+		return { value: out, truncated };
+	}
+	const out = Object.entries(value).reduce<Record<string, unknown>>((record, [key, child]) => {
+		const bounded = boundUnknownStringsWithEvidence(child, limitChars, [...path, key], seen);
+		record[key] = bounded.value;
+		truncated.push(...bounded.truncated);
+		return record;
+	}, {});
+	return { value: out, truncated };
+}
+
+function oversizedInlineTextKeys(
+	value: unknown,
+	limitChars: number,
+	path: readonly (string | number)[] = [],
+	seen: WeakSet<object> = new WeakSet(),
+): readonly { readonly path: readonly (string | number)[]; readonly reason: string }[] {
+	if (typeof value === "string") {
+		return value.length > Math.max(0, limitChars)
+			? [{ path, reason: "oversized-inline-text" }]
+			: [];
+	}
+	if (!isRecord(value) && !Array.isArray(value)) return [];
+	if (typeof value === "object" && value !== null) {
+		if (seen.has(value)) return [];
+		seen.add(value);
+	}
+	const issues: { readonly path: readonly (string | number)[]; readonly reason: string }[] = [];
+	if (Array.isArray(value)) {
+		value.forEach((item, index) => {
+			issues.push(...oversizedInlineTextKeys(item, limitChars, [...path, index], seen));
+		});
+		return issues;
+	}
+	for (const [key, child] of Object.entries(value)) {
+		issues.push(...oversizedInlineTextKeys(child, limitChars, [...path, key], seen));
+	}
+	return issues;
+}
+
+function maxPublicMessageChars(policy?: ToolProviderPublicTextPolicy): number {
+	return normalizedPublicTextLimit(policy?.maxMessageChars, 512);
+}
+
+function maxPublicSummaryChars(policy?: ToolProviderPublicTextPolicy): number {
+	return normalizedPublicTextLimit(policy?.maxSummaryChars, 512);
+}
+
+function maxPublicReasonChars(policy?: ToolProviderPublicTextPolicy): number {
+	return normalizedPublicTextLimit(policy?.maxReasonChars, 512);
+}
+
+function maxPublicMetadataStringChars(policy?: ToolProviderPublicTextPolicy): number {
+	return normalizedPublicTextLimit(policy?.maxMetadataStringChars, 256);
+}
+
+function normalizedPublicTextLimit(value: number | undefined, fallback: number): number {
+	if (value === undefined || !Number.isFinite(value)) return fallback;
+	return Math.max(0, Math.floor(value));
+}
+
+function forbiddenProviderRawMaterialKeys(
+	value: unknown,
+	path: readonly (string | number)[] = [],
+	seen: WeakSet<object> = new WeakSet(),
+): readonly { readonly path: readonly (string | number)[]; readonly reason: string }[] {
+	if (!isRecord(value) && !Array.isArray(value)) return [];
+	if (typeof value === "object" && value !== null) {
+		if (seen.has(value)) return [];
+		seen.add(value);
+	}
+	const issues: { readonly path: readonly (string | number)[]; readonly reason: string }[] = [];
+	if (Array.isArray(value)) {
+		value.forEach((item, index) => {
+			issues.push(...forbiddenProviderRawMaterialKeys(item, [...path, index], seen));
+		});
+		return issues;
+	}
+	for (const [key, child] of Object.entries(value)) {
+		const nextPath = [...path, key];
+		if (
+			/^(stdout|stderr|stack|stackTrace|stack_trace|providerRaw|provider_raw|rawResponse|raw_response|diff|patch|fileContents|file_contents|binary|media)$/i.test(
+				key,
+			)
+		) {
+			issues.push({ path: nextPath, reason: "raw-provider-material" });
+		}
+		issues.push(...forbiddenProviderRawMaterialKeys(child, nextPath, seen));
+	}
+	return issues;
 }
 
 function dataIssue(

@@ -28,10 +28,13 @@ import {
 	localBuiltinToolProviderCatalog,
 	type PromptBundle,
 	requestSatisfactionProjector,
+	requestToolProviderAdapterRun,
 	resolveToolProviderExecutionPolicies,
 	structuredAgentDecisionInterpreter,
 	type ToolProviderAdapterBinding,
 	type ToolProviderAdapterInput,
+	type ToolProviderAdapterRunRequested,
+	type ToolProviderAdapterRunStatus,
 	type ToolProviderCatalog,
 	type ToolProviderExecutionPolicy,
 	type ToolProviderPolicyResolution,
@@ -1150,6 +1153,313 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(JSON.stringify({ outcomes, issues })).not.toContain("secret-token");
 	});
 
+	it("does not expose rejected adapter error messages as graph material", async () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-reject-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-reject-provider", "runtime-reject-req");
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			bindings: [
+				{
+					providerId: "runtime-reject-provider",
+					run() {
+						return Promise.reject(new Error("provider raw stack secret should not project"));
+					},
+				},
+			],
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const issues: unknown[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+
+		inputs.down([["DATA", ready]]);
+		await Promise.resolve();
+
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "failure",
+				error: expect.objectContaining({ code: "tool-provider-adapter-runtime-rejected" }),
+			}),
+		]);
+		expect(issues).toEqual([
+			expect.objectContaining({ code: "tool-provider-adapter-runtime-rejected" }),
+		]);
+		expect(JSON.stringify({ outcomes, issues })).not.toMatch(/provider raw stack secret/i);
+	});
+
+	it("bounds provider-returned public text on runtime outcomes", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-text-inputs" });
+		const ready = readyToolProviderAdapterInput("runtime-text-provider", "runtime-text-req");
+		const longSummary = "summary-".repeat(20);
+		const longMetadata = "metadata-".repeat(20);
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			publicText: {
+				maxSummaryChars: 16,
+				maxMessageChars: 18,
+				maxReasonChars: 14,
+				maxMetadataStringChars: 12,
+			},
+			bindings: [
+				{
+					providerId: "runtime-text-provider",
+					run() {
+						return {
+							kind: "result",
+							result: {
+								kind: "tool-output",
+								summary: longSummary,
+								metadata: { note: longMetadata },
+							},
+							metadata: { small: longMetadata },
+						};
+					},
+				},
+			],
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const issues: DataIssue[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		inputs.down([["DATA", ready]]);
+
+		const outcome = outcomes.at(-1);
+		expect(outcome).toMatchObject({
+			kind: "result",
+			result: { summary: expect.any(String), metadata: { note: expect.any(String) } },
+			metadata: { small: expect.any(String) },
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-public-text-truncated",
+				}),
+			]),
+		});
+		if (outcome?.kind !== "result") throw new Error("expected result outcome");
+		expect(outcome.result.summary?.length).toBeLessThanOrEqual(16);
+		expect((outcome.result.metadata as { note: string }).note.length).toBeLessThanOrEqual(12);
+		expect((outcome.metadata as { small: string }).small.length).toBeLessThanOrEqual(12);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-public-text-truncated",
+				}),
+			]),
+		);
+	});
+
+	it("emits truncation evidence when only metadata strings are bounded", () => {
+		const ready = readyToolProviderAdapterInput(
+			"runtime-metadata-text-provider",
+			"runtime-metadata-text-req",
+		);
+		const outcome = buildToolProviderExecutorOutcome(
+			ready,
+			{
+				kind: "result",
+				result: { kind: "tool-output" },
+				metadata: { note: "metadata-only-".repeat(20) },
+			},
+			{ publicText: { maxMetadataStringChars: 15 } },
+		);
+
+		expect(outcome).toMatchObject({
+			kind: "result",
+			metadata: { note: expect.any(String) },
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-public-text-truncated",
+					details: expect.objectContaining({ field: "metadata" }),
+				}),
+			]),
+		});
+		expect(((outcome.metadata as { note: string })?.note ?? "").length).toBeLessThanOrEqual(15);
+	});
+
+	it("bounds failure messages and canceled reasons from provider-returned public text", () => {
+		const ready = readyToolProviderAdapterInput(
+			"runtime-build-text-provider",
+			"runtime-build-text-req",
+		);
+		const failure = buildToolProviderExecutorOutcome(
+			ready,
+			{
+				kind: "failure",
+				error: {
+					kind: "issue",
+					code: "provider-failed",
+					message: "failure-message-".repeat(20),
+					details: { response: "failure-detail-".repeat(20) },
+				},
+				retryable: false,
+			},
+			{ publicText: { maxMessageChars: 20, maxMetadataStringChars: 18 } },
+		);
+		const canceled = buildToolProviderExecutorOutcome(
+			ready,
+			{ kind: "canceled", reason: "cancel-reason-".repeat(20) },
+			{ publicText: { maxReasonChars: 18 } },
+		);
+
+		expect(failure).toMatchObject({
+			kind: "failure",
+			error: {
+				code: "provider-failed",
+				details: expect.objectContaining({
+					truncated: true,
+					measurementSource: "js-string-length",
+				}),
+			},
+		});
+		if (failure.kind !== "failure") throw new Error("expected failure outcome");
+		expect(failure.error.message.length).toBeLessThanOrEqual(20);
+		expect((failure.error.details as { response: string }).response.length).toBeLessThanOrEqual(18);
+		expect(failure.error.details).toMatchObject({
+			detailsTruncated: true,
+			measurementSource: "js-string-length",
+		});
+		expect(canceled).toMatchObject({
+			kind: "canceled",
+			issues: expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-adapter-runtime-public-text-truncated" }),
+			]),
+		});
+		if (canceled.kind !== "canceled") throw new Error("expected canceled outcome");
+		expect(canceled.reason?.length).toBeLessThanOrEqual(18);
+	});
+
+	it("rejects raw metadata and oversized inline result values without leaking them", () => {
+		const ready = readyToolProviderAdapterInput("runtime-raw-provider", "runtime-raw-req");
+		const rawRunRequest = requestToolProviderAdapterRun(ready, {
+			runId: "raw-run-request",
+			metadata: { rawResponse: "RAW_RUN_REQUEST_SHOULD_NOT_PROJECT" },
+		});
+		const rawMetadataOutcome = buildToolProviderExecutorOutcome(
+			ready,
+			{
+				kind: "result",
+				result: { kind: "tool-output", summary: "small summary" },
+				metadata: { rawResponse: "RAW_PROVIDER_RESPONSE_SHOULD_NOT_PROJECT" },
+			},
+			{ runId: "raw-run" },
+		);
+		const rawFailureDetailsOutcome = buildToolProviderExecutorOutcome(
+			ready,
+			{
+				kind: "failure",
+				error: {
+					kind: "issue",
+					code: "provider-raw-failure",
+					message: "provider failed",
+					details: { rawResponse: "RAW_FAILURE_DETAIL_SHOULD_NOT_PROJECT" },
+				},
+			},
+			{ runId: "raw-failure-run" },
+		);
+		const blockedNeedMetadataOutcome = buildToolProviderExecutorOutcome(
+			ready,
+			{
+				kind: "blocked",
+				needs: [
+					{
+						kind: "permission",
+						message: "needs permission",
+						metadata: { rawResponse: "RAW_NEED_METADATA_SHOULD_NOT_PROJECT" },
+					},
+				],
+			},
+			{ runId: "raw-need-run" },
+		);
+		const oversizedValueOutcome = buildToolProviderExecutorOutcome(
+			ready,
+			{
+				kind: "result",
+				result: { kind: "tool-output", value: { content: "large-content-".repeat(60) } },
+			},
+			{ runId: "value-run", publicText: { maxSummaryChars: 20 } },
+		);
+
+		expect(rawRunRequest.metadata).toBeUndefined();
+		expect(rawMetadataOutcome).toMatchObject({
+			kind: "result",
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-metadata-redacted",
+				}),
+			]),
+		});
+		expect(rawMetadataOutcome.metadata).not.toMatchObject({ rawResponse: expect.anything() });
+		expect(rawFailureDetailsOutcome).toMatchObject({
+			kind: "failure",
+			error: {
+				details: { redacted: true, reason: "forbidden-runtime-material" },
+			},
+		});
+		expect(blockedNeedMetadataOutcome).toMatchObject({
+			kind: "blocked",
+			needs: [expect.not.objectContaining({ metadata: expect.anything() })],
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-metadata-redacted",
+				}),
+			]),
+		});
+		expect(oversizedValueOutcome).toMatchObject({
+			kind: "failure",
+			outcomeId: expect.stringContaining("value-run"),
+			error: expect.objectContaining({
+				code: "tool-provider-adapter-runtime-forbidden-runtime-material",
+			}),
+		});
+		expect(
+			JSON.stringify({
+				rawRunRequest,
+				rawMetadataOutcome,
+				rawFailureDetailsOutcome,
+				blockedNeedMetadataOutcome,
+				oversizedValueOutcome,
+			}),
+		).not.toMatch(
+			/RAW_RUN_REQUEST_SHOULD_NOT_PROJECT|RAW_PROVIDER_RESPONSE_SHOULD_NOT_PROJECT|RAW_FAILURE_DETAIL_SHOULD_NOT_PROJECT|RAW_NEED_METADATA_SHOULD_NOT_PROJECT|large-content-/,
+		);
+	});
+
+	it("falls back to finite public text bounds for invalid policy limits", () => {
+		const ready = readyToolProviderAdapterInput("runtime-limit-provider", "runtime-limit-req");
+		const outcome = buildToolProviderExecutorOutcome(
+			ready,
+			{
+				kind: "result",
+				result: { kind: "tool-output", summary: "summary-".repeat(100) },
+				metadata: { note: "metadata-".repeat(100) },
+			},
+			{
+				publicText: {
+					maxSummaryChars: Number.POSITIVE_INFINITY,
+					maxMetadataStringChars: Number.NaN,
+				},
+			},
+		);
+
+		expect(outcome).toMatchObject({
+			kind: "result",
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-public-text-truncated",
+				}),
+			]),
+		});
+		if (outcome.kind !== "result") throw new Error("expected result outcome");
+		expect(outcome.result.summary?.length).toBeLessThanOrEqual(512);
+		expect((outcome.metadata as { note: string }).note.length).toBeLessThanOrEqual(256);
+	});
+
 	it("turns dedupe key failures into visible adapter runtime failures", () => {
 		const g = graph();
 		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-dedupe-inputs" });
@@ -1231,6 +1541,204 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			ready.sourceRefs?.at(-1)?.id,
 			"runtime-update-policy-v2",
 		]);
+	});
+
+	it("executes explicit visible run requests as distinct attempts for unchanged adapter input", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-run-request-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-run-requests",
+		});
+		const ready = readyToolProviderAdapterInput("runtime-run-provider", "runtime-run-req");
+		const attempts: number[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			bindings: [
+				{
+					providerId: "runtime-run-provider",
+					run(_input, ctx) {
+						attempts.push(ctx.attempt);
+						return {
+							kind: "result",
+							result: { kind: "tool-output", summary: `attempt ${ctx.attempt}` },
+						};
+					},
+				},
+			],
+		});
+		const outcomes: ExecutorOutcome[] = [];
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		runtime.outcomes.subscribe(
+			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			[
+				"DATA",
+				requestToolProviderAdapterRun(ready, {
+					runId: "run-shared",
+					attempt: 1,
+					reason: "initial",
+				}),
+			],
+			[
+				"DATA",
+				requestToolProviderAdapterRun(ready, {
+					runId: "run-shared",
+					attempt: 2,
+					reason: "retry",
+					retryOfOutcomeId: "run-1:outcome",
+				}),
+			],
+		]);
+
+		expect(attempts).toEqual([1, 2]);
+		expect(outcomes.map((outcome) => outcome.attempt)).toEqual([1, 2]);
+		expect(outcomes.map((outcome) => outcome.outcomeId)).toEqual([
+			expect.stringContaining("run-shared:attempt-1"),
+			expect.stringContaining("run-shared:attempt-2"),
+		]);
+		expect(outcomes.map((outcome) => outcome.metadata)).toEqual([
+			expect.objectContaining({ runId: "run-shared" }),
+			expect.objectContaining({ runId: "run-shared" }),
+		]);
+		expect(
+			runStatus.filter((status) => status.status === "requested").map((status) => status.attempt),
+		).toEqual([1, 2]);
+		expect(
+			runStatus.filter((status) => status.status === "result").map((status) => status.attempt),
+		).toEqual([1, 2]);
+	});
+
+	it("emits DataIssue and run status for missing or stale run requests without protocol ERROR", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-stale-inputs" });
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-stale-requests",
+		});
+		const ready = readyToolProviderAdapterInput("runtime-stale-provider", "runtime-stale-req");
+		const calls: ToolProviderAdapterInput[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			bindings: [
+				{
+					providerId: "runtime-stale-provider",
+					run(input) {
+						calls.push(input);
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const issues: DataIssue[] = [];
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const protocolErrors: unknown[] = [];
+		runtime.issues.subscribe((msg) => {
+			if (msg[0] === "DATA") issues.push(msg[1] as DataIssue);
+			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+		});
+		runtime.runStatus.subscribe((msg) => {
+			if (msg[0] === "DATA") runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
+			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+		});
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			[
+				"DATA",
+				{
+					...requestToolProviderAdapterRun(ready, { runId: "stale-run", attempt: 2 }),
+					requestId: "other-request",
+				},
+			],
+			[
+				"DATA",
+				{
+					...requestToolProviderAdapterRun(ready, { runId: "missing-run", attempt: 1 }),
+					adapterInputId: "missing-adapter-input",
+				},
+			],
+			[
+				"DATA",
+				{
+					kind: "tool-provider-adapter-run-requested",
+					adapterInputId: ready.adapterInputId,
+					requestId: ready.requestId,
+				} as unknown as ToolProviderAdapterRunRequested,
+			],
+		]);
+
+		expect(calls).toEqual([]);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-adapter-run-request-stale-request" }),
+				expect.objectContaining({ code: "tool-provider-adapter-run-request-missing-input" }),
+				expect.objectContaining({ code: "tool-provider-adapter-run-request-invalid-shape" }),
+			]),
+		);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "mismatched-request" }),
+				expect.objectContaining({ status: "missing-input" }),
+			]),
+		);
+		expect(protocolErrors).toEqual([]);
+	});
+
+	it("emits DataIssue when ready inputs have no visible run request source", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-missing-run-request-inputs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-missing-run-provider",
+			"runtime-missing-run-req",
+		);
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			autoRunReadyInputs: false,
+			bindings: [
+				{
+					providerId: "runtime-missing-run-provider",
+					run() {
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const issues: DataIssue[] = [];
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const protocolErrors: unknown[] = [];
+		runtime.issues.subscribe((msg) => {
+			if (msg[0] === "DATA") issues.push(msg[1] as DataIssue);
+			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+		});
+		runtime.runStatus.subscribe((msg) => {
+			if (msg[0] === "DATA") runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
+			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+		});
+
+		inputs.down([["DATA", ready]]);
+
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-adapter-run-request-missing" }),
+			]),
+		);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "missing-request" })]),
+		);
+		expect(protocolErrors).toEqual([]);
 	});
 
 	it("copies adapter failure errors into status issues for auditability", () => {
