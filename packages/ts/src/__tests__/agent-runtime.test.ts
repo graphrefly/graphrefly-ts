@@ -7,6 +7,7 @@ import {
 	type AgentRequestFact,
 	type AgentRequestIssued,
 	type AgentRequestStatusChanged,
+	type AgentRequestViews,
 	admitAgentRequestProposal,
 	agentRequestLedgerViews,
 	agentRequestProposalFromDecision,
@@ -30,6 +31,7 @@ import {
 	requestSatisfactionProjector,
 	requestToolProviderAdapterRun,
 	resolveToolProviderExecutionPolicies,
+	type SourceRef,
 	structuredAgentDecisionInterpreter,
 	type ToolProviderAdapterBinding,
 	type ToolProviderAdapterInput,
@@ -755,6 +757,85 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				expect.objectContaining({ code: "tool-provider-policy-invalid-size-limit" }),
 			]),
 		);
+	});
+
+	it("sanitizes issued request material before it reaches graph-visible ledgers", () => {
+		const decision: AgentDecisionContinue = {
+			kind: "continue",
+			decisionId: "decision-issue-sanitize",
+			effectRunId: "run-issue-sanitize",
+			agentRunId: "agent-issue-sanitize",
+			source: { requestId: "seed", operationId: "seed-op", outcomeId: "seed-outcome" },
+			next: [],
+		};
+		const proposal = agentRequestProposalFromDecision(decision, {
+			proposalId: "proposal-issue-sanitize",
+			requestKind: "executor",
+			input: {
+				inputId: "input-issue-sanitize",
+				inputKind: "tool-call",
+				dataMode: "inline",
+				value: { rawResponse: "RAW_REQUEST_INPUT_SHOULD_NOT_PROJECT" },
+				subjectRefs: [
+					{
+						kind: "provider-raw",
+						id: "input-ref",
+						metadata: { stdout: "RAW_REQUEST_INPUT_REF_SHOULD_NOT_PROJECT" },
+						client: "RAW_REQUEST_INPUT_REF_EXTRA_SHOULD_NOT_PROJECT",
+					} as unknown as SourceRef,
+				],
+				metadata: { apiKey: "REQUEST_INPUT_SECRET" },
+			},
+			payload: { providerRaw: "RAW_REQUEST_PAYLOAD_SHOULD_NOT_PROJECT" },
+			metadata: { rawResponse: "RAW_REQUEST_METADATA_SHOULD_NOT_PROJECT" },
+		});
+		const admitted = admitAgentRequestProposal(proposal, {
+			requestId: "request-issue-sanitize",
+			operationId: "op-issue-sanitize",
+			sourceRefs: [
+				{
+					kind: "provider-raw",
+					id: "admission-ref",
+					metadata: { stderr: "RAW_REQUEST_SOURCE_REF_SHOULD_NOT_PROJECT" },
+					rawResponse: "RAW_REQUEST_SOURCE_REF_EXTRA_SHOULD_NOT_PROJECT",
+				} as unknown as SourceRef,
+			],
+		});
+
+		const issuedRequest = issueAgentRequest(proposal, admitted);
+
+		expect(issuedRequest.input).toMatchObject({
+			inputId: "input-issue-sanitize",
+			inputKind: "tool-call",
+			dataMode: "inline",
+		});
+		expect(issuedRequest.input).not.toHaveProperty("value");
+		expect(issuedRequest.input).not.toHaveProperty("metadata");
+		expect(issuedRequest.input?.subjectRefs).toEqual([{ kind: "provider-raw", id: "input-ref" }]);
+		expect(issuedRequest).not.toHaveProperty("payload");
+		expect(issuedRequest).not.toHaveProperty("metadata");
+		expect(issuedRequest.sourceRefs).toEqual([{ kind: "provider-raw", id: "admission-ref" }]);
+		expect(JSON.stringify(issuedRequest)).not.toMatch(
+			/RAW_REQUEST_|rawResponse|providerRaw|stdout|stderr|client|apiKey|REQUEST_INPUT_SECRET/,
+		);
+
+		const mutablePayload = { nested: { public: "ok" } };
+		const safeProposal = agentRequestProposalFromDecision(decision, {
+			proposalId: "proposal-mutable-issue-sanitize",
+			requestKind: "executor",
+			payload: mutablePayload,
+		});
+		const mutableIssued = issueAgentRequest(safeProposal, {
+			...admitted,
+			proposalId: safeProposal.proposalId,
+			requestId: "request-mutable-issue-sanitize",
+		});
+		mutablePayload.nested = {
+			public: "ok",
+			rawResponse: "RAW_MUTATED_REQUEST_PAYLOAD_SHOULD_NOT_PROJECT",
+		} as typeof mutablePayload.nested;
+		expect(JSON.stringify(mutableIssued)).not.toMatch(/RAW_MUTATED_REQUEST_PAYLOAD|rawResponse/);
+		expect(mutableIssued.payload).toEqual({ nested: { public: "ok" } });
 	});
 
 	it("keeps local builtin catalog caller material data-only and provider-scoped", () => {
@@ -2086,6 +2167,12 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				}),
 			]),
 		);
+		expect(
+			runStatus.filter((status) => status.adapterInputId === freshAfterGlobal.adapterInputId),
+		).not.toEqual(expect.arrayContaining([expect.objectContaining({ status: "missing-input" })]));
+		expect(runStatus.filter((status) => status.runId === "global-a-3")).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "missing-input" })]),
+		);
 		expect(runtimeStatus).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
@@ -2827,11 +2914,14 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			"runtime-retention-run-request-key-provider",
 			"runtime-retention-run-request-key-req",
 		);
+		const longRunA = `request-key-a-${"x".repeat(40)}-runtime-status-key-tail`;
+		const longRunB = `request-key-b-${"y".repeat(40)}-runtime-status-key-tail`;
 		const runtime = attachToolProviderAdapterRuntime(g, {
 			inputs,
 			runRequests: [runRequests],
 			autoRunReadyInputs: false,
 			retention: { runRequests: { maxSize: 1 } },
+			publicText: { maxMetadataStringChars: 24 },
 			bindings: [
 				{
 					providerId: "runtime-retention-run-request-key-provider",
@@ -2843,25 +2933,103 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		});
 		const emittedRequests: ToolProviderAdapterRunRequested[] = [];
 		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const issues: DataIssue[] = [];
+		const audit: Record<string, unknown>[] = [];
 		runtime.runRequests.subscribe(
 			(msg) => msg[0] === "DATA" && emittedRequests.push(msg[1] as ToolProviderAdapterRunRequested),
 		);
 		runtime.runtimeStatus.subscribe(
 			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
 		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.audit.subscribe(
+			(msg) => msg[0] === "DATA" && audit.push(msg[1] as Record<string, unknown>),
+		);
 
 		inputs.down([["DATA", ready]]);
 		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "request-key-a", attempt: 1 })],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "request-key-b", attempt: 2 })],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "request-key-a", attempt: 1 })],
+			[
+				"DATA",
+				requestToolProviderAdapterRun(ready, {
+					runId: longRunA,
+					attempt: 1,
+					sourceRefs: [
+						{
+							kind: "provider-raw",
+							id: "raw-run-request-ref",
+							metadata: { stdout: "RAW_RUN_REQUEST_REPLAY_REF_SHOULD_NOT_PROJECT" },
+						},
+					],
+					metadata: { rawResponse: "RAW_RUN_REQUEST_REPLAY_METADATA_SHOULD_NOT_PROJECT" },
+				}),
+			],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: longRunB, attempt: 2 })],
+			[
+				"DATA",
+				requestToolProviderAdapterRun(ready, {
+					runId: longRunA,
+					attempt: 1,
+					sourceRefs: [
+						{
+							kind: "provider-raw",
+							id: "raw-run-request-ref",
+							metadata: { stdout: "RAW_RUN_REQUEST_REPLAY_REF_SHOULD_NOT_PROJECT" },
+						},
+					],
+					metadata: { rawResponse: "RAW_RUN_REQUEST_REPLAY_METADATA_SHOULD_NOT_PROJECT" },
+				}),
+			],
 		]);
 
-		expect(emittedRequests.filter((request) => request.runId === "request-key-a")).toHaveLength(2);
-		expect(runtimeStatus).toEqual(
+		const replayed = emittedRequests.filter((request) => request.runId === longRunA);
+		expect(replayed).toHaveLength(2);
+		expect(replayed).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ status: "retention-trimmed", index: "runRequests" }),
+				expect.objectContaining({
+					sourceRefs: expect.arrayContaining([{ kind: "provider-raw", id: "raw-run-request-ref" }]),
+				}),
 			]),
+		);
+		expect(replayed.every((request) => request.metadata === undefined)).toBe(true);
+		const trimmedStatus = runtimeStatus.find(
+			(status) => status.status === "retention-trimmed" && status.index === "runRequests",
+		);
+		expect(trimmedStatus).toMatchObject({
+			status: "retention-trimmed",
+			index: "runRequests",
+			sourceRefs: [{ kind: "tool-provider-adapter-runtime-retention-index", id: "runRequests" }],
+			metadata: expect.objectContaining({ index: "runRequests", key: expect.any(String) }),
+		});
+		expect((trimmedStatus?.key ?? "").length).toBeLessThanOrEqual(24);
+		expect(
+			((trimmedStatus?.metadata as { key?: string } | undefined)?.key ?? "").length,
+		).toBeLessThanOrEqual(24);
+		expect(trimmedStatus?.key).toMatch(/^key:[a-z0-9]+:\d+$/);
+		expect((trimmedStatus?.metadata as { key?: string } | undefined)?.key).toMatch(
+			/^key:[a-z0-9]+:\d+$/,
+		);
+		const trimmedIssue = issues.find(
+			(issue) => issue.code === "tool-provider-adapter-runtime-retention-trimmed",
+		);
+		expect((trimmedIssue?.details as { key?: string } | undefined)?.key).toMatch(
+			/^key:[a-z0-9]+:\d+$/,
+		);
+		const trimmedAudit = audit.find(
+			(record) => record.kind === "tool-provider-adapter-runtime-retention-trimmed",
+		);
+		expect((trimmedAudit?.metadata as { key?: string } | undefined)?.key).toMatch(
+			/^key:[a-z0-9]+:\d+$/,
+		);
+		expect(
+			JSON.stringify({
+				statusKey: trimmedStatus?.key,
+				statusMetadata: trimmedStatus?.metadata,
+				issueDetails: trimmedIssue?.details,
+				auditMetadata: trimmedAudit?.metadata,
+			}),
+		).not.toContain("runtime-status-key-tail");
+		expect(JSON.stringify({ emittedRequests, runtimeStatus })).not.toMatch(
+			/RAW_RUN_REQUEST_REPLAY|rawResponse|stdout/,
 		);
 	});
 
@@ -2933,6 +3101,15 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				expect.objectContaining({ status: "retention-trimmed", index: "runIssues" }),
 			]),
 		);
+		for (const index of ["runStatuses", "runIssues"] as const) {
+			const trimmedStatus = runtimeStatus.find(
+				(status) => status.status === "retention-trimmed" && status.index === index,
+			);
+			expect(trimmedStatus).toMatchObject({
+				sourceRefs: [{ kind: "tool-provider-adapter-runtime-retention-index", id: index }],
+				metadata: expect.objectContaining({ index, key: expect.any(String) }),
+			});
+		}
 		expect(runStatus).toEqual(
 			expect.arrayContaining([expect.objectContaining({ runId: "bad-run-a" })]),
 		);
@@ -2975,6 +3152,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		});
 		const issues: DataIssue[] = [];
 		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
 		const audit: unknown[] = [];
 		const protocolErrors: unknown[] = [];
 		runtime.issues.subscribe((msg) => {
@@ -2985,6 +3163,9 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			if (msg[0] === "DATA") runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
 			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
 		});
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
 		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
 
 		inputs.down([["DATA", ready]]);
@@ -3049,6 +3230,14 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 		expect(runStatus.filter((status) => status.runId === "missing-run")).not.toEqual(
 			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
+		);
+		expect(runtimeStatus).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "retention-gap",
+					adapterInputId: "missing-adapter-input",
+				}),
+			]),
 		);
 		expect(protocolErrors).toEqual([]);
 		expect(JSON.stringify({ audit, issues, runStatus })).not.toMatch(
@@ -4791,6 +4980,98 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(latest.statusByRequest.get("request-1")?.status).toBe("awaiting-provider");
 		expect(latest.pending).toHaveLength(1);
 		expect(latest.awaitingProvider).toHaveLength(1);
+	});
+
+	it("sanitizes rejected and status issues before storing AgentRequest ledger views", () => {
+		const g = graph();
+		const requestFacts = g.node<AgentRequestFact>([], null, { name: "requestFacts" });
+		const ledger = agentRequestLedgerViews(g, requestFacts);
+		const views: AgentRequestViews[] = [];
+		const issues: DataIssue[] = [];
+		ledger.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1] as AgentRequestViews));
+		ledger.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		requestFacts.down([
+			["DATA", issued("request-raw-issue", "op-raw-issue", "executor", "tool-call")],
+			[
+				"DATA",
+				{
+					kind: "status",
+					requestId: "request-raw-issue",
+					operationId: "op-raw-issue",
+					effectRunId: "run-1",
+					status: "failed",
+					sourceRefs: [
+						{
+							kind: "provider-raw",
+							id: "status-ref",
+							metadata: { stdout: "RAW_LEDGER_STATUS_REF_SHOULD_NOT_PROJECT" },
+						},
+					],
+					issues: [
+						{
+							kind: "issue",
+							code: "raw-status-issue",
+							source: "runtime-status",
+							message: "raw status issue",
+							correlationId: "corr-status-issue",
+							path: ["status", 0],
+							retryable: true,
+							details: { rawResponse: "RAW_LEDGER_STATUS_ISSUE_SHOULD_NOT_PROJECT" },
+							metadata: { summary: "safe status issue metadata" },
+						},
+					],
+					metadata: { apiKey: "RAW_LEDGER_STATUS_METADATA_SHOULD_NOT_PROJECT" },
+				} satisfies AgentRequestStatusChanged,
+			],
+			[
+				"DATA",
+				{
+					kind: "rejected",
+					proposalId: "proposal-raw-issue",
+					effectRunId: "run-1",
+					issue: {
+						kind: "issue",
+						code: "raw-rejected-issue",
+						message: "raw rejected issue",
+						details: { stderr: "RAW_LEDGER_REJECTED_ISSUE_SHOULD_NOT_PROJECT" },
+					},
+				},
+			],
+		]);
+
+		const latest = views.at(-1);
+		expect(latest?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "raw-status-issue",
+					source: "runtime-status",
+					correlationId: "corr-status-issue",
+					path: ["status", 0],
+					retryable: true,
+					details: expect.objectContaining({
+						redacted: true,
+						reason: "forbidden-runtime-material",
+					}),
+					metadata: { summary: "safe status issue metadata" },
+				}),
+				expect.objectContaining({
+					code: "raw-rejected-issue",
+					details: expect.objectContaining({
+						redacted: true,
+						reason: "forbidden-runtime-material",
+					}),
+				}),
+			]),
+		);
+		expect(latest?.statusByRequest.get("request-raw-issue")?.sourceRefs).toEqual([
+			{ kind: "provider-raw", id: "status-ref" },
+		]);
+		expect(latest?.statusByRequest.get("request-raw-issue")).not.toHaveProperty("metadata");
+		expect(issues).toEqual(latest?.issues);
+		expect(JSON.stringify({ views, issues })).not.toMatch(
+			/RAW_LEDGER_|rawResponse|stdout|stderr|apiKey/,
+		);
 	});
 
 	it("keeps fake ExecutorOutcome fixtures provider-neutral", () => {

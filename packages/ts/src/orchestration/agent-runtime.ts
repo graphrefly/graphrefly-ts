@@ -1141,6 +1141,10 @@ export function issueAgentRequest(
 	admission: AgentRequestAdmitted,
 	opts: { readonly issuedAtMs?: number; readonly sourceRefs?: readonly SourceRef[] } = {},
 ): AgentRequestIssued {
+	const input = sanitizeAgentRequestInput(proposal.input);
+	const payload = sanitizeAgentRequestMaterial(proposal.payload);
+	const sourceRefs = sanitizeAdapterInputSourceRefs(opts.sourceRefs ?? admission.sourceRefs ?? []);
+	const metadata = sanitizeProviderGraphVisibleRecord(proposal.metadata);
 	return {
 		kind: "issued",
 		requestId: admission.requestId,
@@ -1151,12 +1155,66 @@ export function issueAgentRequest(
 		parentRequestId: proposal.parentRequestId,
 		requestKind: proposal.requestKind,
 		required: proposal.required ?? true,
-		input: proposal.input,
-		payload: proposal.payload,
+		...(input === undefined ? {} : { input }),
+		...(payload === undefined ? {} : { payload }),
 		issuedAtMs: opts.issuedAtMs,
-		sourceRefs: opts.sourceRefs ?? admission.sourceRefs,
-		metadata: proposal.metadata,
+		...(sourceRefs.length === 0 ? {} : { sourceRefs }),
+		...(metadata === undefined ? {} : { metadata }),
 	};
+}
+
+function sanitizeAgentRequestInput<T>(
+	input: AgentRequestInput<T> | undefined,
+): AgentRequestInput<T> | undefined {
+	if (input === undefined) return undefined;
+	const {
+		value: rawValue,
+		subjectRefs: rawSubjectRefs,
+		metadata: rawMetadata,
+		...inputFields
+	} = input;
+	const value = sanitizeAgentRequestMaterial(rawValue);
+	const subjectRefs =
+		rawSubjectRefs === undefined ? undefined : sanitizeAdapterInputSourceRefs(rawSubjectRefs);
+	const metadata = sanitizeProviderGraphVisibleRecord(rawMetadata);
+	return Object.freeze({
+		...inputFields,
+		...(value === undefined ? {} : { value }),
+		...(subjectRefs === undefined || subjectRefs.length === 0 ? {} : { subjectRefs }),
+		...(metadata === undefined ? {} : { metadata }),
+	} satisfies AgentRequestInput<T>) as AgentRequestInput<T>;
+}
+
+function sanitizeAgentRequestMaterial<T>(value: T | undefined): T | undefined {
+	if (value === undefined) return undefined;
+	if (publicMaterialForbiddenKeys(value, "provider").length > 0) return undefined;
+	return cloneGraphVisibleMaterial(value) as T;
+}
+
+function sanitizeAgentRequestIssued(request: AgentRequestIssued): AgentRequestIssued {
+	const input = sanitizeAgentRequestInput(request.input);
+	const payload = sanitizeAgentRequestMaterial(request.payload);
+	const sourceRefs =
+		request.sourceRefs === undefined
+			? undefined
+			: sanitizeAdapterInputSourceRefs(request.sourceRefs);
+	const metadata = sanitizeProviderGraphVisibleRecord(request.metadata);
+	return Object.freeze({
+		kind: "issued",
+		requestId: request.requestId,
+		operationId: request.operationId,
+		effectRunId: request.effectRunId,
+		...(request.agentRunId === undefined ? {} : { agentRunId: request.agentRunId }),
+		...(request.proposalId === undefined ? {} : { proposalId: request.proposalId }),
+		...(request.parentRequestId === undefined ? {} : { parentRequestId: request.parentRequestId }),
+		requestKind: request.requestKind,
+		required: request.required,
+		...(input === undefined ? {} : { input }),
+		...(payload === undefined ? {} : { payload }),
+		...(request.issuedAtMs === undefined ? {} : { issuedAtMs: request.issuedAtMs }),
+		...(sourceRefs === undefined || sourceRefs.length === 0 ? {} : { sourceRefs }),
+		...(metadata === undefined ? {} : { metadata }),
+	} satisfies AgentRequestIssued);
 }
 
 export function agentRequestLedgerViews(
@@ -1184,9 +1242,11 @@ export function agentRequestLedgerViews(
 		(ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const fact = raw as AgentRequestFact;
-				if (fact.kind === "rejected") ctx.down([["DATA", fact.issue]]);
+				if (fact.kind === "rejected") ctx.down([["DATA", sanitizeAdapterInputIssue(fact.issue)]]);
 				if (fact.kind === "status") {
-					for (const issue of fact.issues ?? []) ctx.down([["DATA", issue]]);
+					for (const issue of fact.issues ?? []) {
+						ctx.down([["DATA", sanitizeAdapterInputIssue(issue)]]);
+					}
 				}
 			}
 		},
@@ -2430,17 +2490,38 @@ function retentionIndexSourceRef(index: ToolProviderAdapterRuntimeRetentionIndex
 	return { kind: "tool-provider-adapter-runtime-retention-index", id: index };
 }
 
+function runtimeEvidenceSourceRefs(
+	index: ToolProviderAdapterRuntimeRetentionIndex,
+	refs: readonly SourceRef[] = [],
+): readonly SourceRef[] {
+	return canonicalPublicSourceRefs([...refs, retentionIndexSourceRef(index)]);
+}
+
+function runtimeEvidenceMetadata(
+	index: ToolProviderAdapterRuntimeRetentionIndex,
+	opts: {
+		readonly key?: string;
+		readonly extra?: Record<string, unknown>;
+	} = {},
+): Record<string, unknown> {
+	return {
+		index,
+		...(opts.key === undefined ? {} : { key: runtimeDiagnosticKey(opts.key) }),
+		...(opts.extra ?? {}),
+	};
+}
+
+function runtimeDiagnosticKey(key: string): string {
+	return `key:${stableStringHash(key)}:${key.length}`;
+}
+
 const maxRuntimeRetentionScorerStringChars = 256;
 
 function runtimeRetentionScorerEntry<Entry>(
 	index: ToolProviderAdapterRuntimeRetentionIndex,
 	entry: Entry,
 ): Entry {
-	if (
-		!isPlainRecord(entry) ||
-		forbiddenDataKeys(entry).length > 0 ||
-		forbiddenProviderRawMaterialKeys(entry).length > 0
-	) {
+	if (!isPlainRecord(entry) || publicMaterialForbiddenKeys(entry, "provider").length > 0) {
 		throw new TypeError(`unsafe ${index} retention scorer entry`);
 	}
 	const bounded: Record<string, unknown> = {};
@@ -2970,13 +3051,27 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 
 	function publishRuntimeStatus(fact: Omit<ToolProviderAdapterRuntimeStatus, "kind">): void {
 		const occurredAtMs = nowMs();
+		const { sourceRefs: rawSourceRefs, metadata: rawMetadata, key: rawKey, ...statusFields } = fact;
+		const sourceRefs =
+			rawSourceRefs === undefined ? undefined : sanitizeAdapterInputSourceRefs(rawSourceRefs);
+		const metadata = sanitizeProviderGraphVisibleRecord(rawMetadata, opts.publicText);
+		const key =
+			rawKey === undefined
+				? undefined
+				: boundPublicText(
+						runtimeDiagnosticKey(rawKey),
+						maxPublicMetadataStringChars(opts.publicText),
+					).text;
 		runtimeStatus.down([
 			[
 				"DATA",
 				{
 					kind: "tool-provider-adapter-runtime-status",
 					...(occurredAtMs === undefined ? {} : { occurredAtMs }),
-					...fact,
+					...statusFields,
+					...(key === undefined ? {} : { key }),
+					...(sourceRefs === undefined ? {} : { sourceRefs }),
+					...(metadata === undefined ? {} : { metadata }),
 				} satisfies ToolProviderAdapterRuntimeStatus,
 			],
 		]);
@@ -2984,7 +3079,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 
 	function publishRuntimeAudit(
 		kind: string,
-		opts: {
+		auditOpts: {
 			readonly subjectId?: string;
 			readonly sourceRefs?: readonly SourceRef[];
 			readonly issueCode?: string;
@@ -2992,20 +3087,19 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		} = {},
 	): void {
 		auditSeq += 1;
+		const metadata = sanitizeProviderGraphVisibleRecord(auditOpts.metadata, opts.publicText);
 		audit.down([
 			[
 				"DATA",
 				{
 					id: `${name}:audit:${auditSeq}`,
 					kind,
-					...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
-					...(opts.sourceRefs === undefined
+					...(auditOpts.subjectId === undefined ? {} : { subjectId: auditOpts.subjectId }),
+					...(auditOpts.sourceRefs === undefined
 						? {}
-						: { sourceRefs: sanitizeAdapterInputSourceRefs(opts.sourceRefs) }),
-					...(opts.issueCode === undefined ? {} : { issueCode: opts.issueCode }),
-					...(opts.metadata === undefined
-						? {}
-						: { metadata: sanitizeGraphVisibleRecord(opts.metadata) }),
+						: { sourceRefs: sanitizeAdapterInputSourceRefs(auditOpts.sourceRefs) }),
+					...(auditOpts.issueCode === undefined ? {} : { issueCode: auditOpts.issueCode }),
+					...(metadata === undefined ? {} : { metadata }),
 				} satisfies AgentRuntimeAuditRecord,
 			],
 		]);
@@ -3147,13 +3241,36 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		);
 	}
 
-	function shouldForwardRetainedRunRequest(request: ToolProviderAdapterRunRequested): boolean {
+	function classifyRunRequestAbsence(request: ToolProviderAdapterRunRequested):
+		| { readonly status: "missing-input" }
+		| {
+				readonly status: "retention-gap";
+				readonly index: Extract<
+					ToolProviderAdapterRuntimeRetentionIndex,
+					"adapterInputs" | "retentionEvidence"
+				>;
+				readonly key: string;
+		  } {
+		if (isRetentionEvidenceClosed(request.adapterInputId)) {
+			return {
+				status: "retention-gap",
+				index: "retentionEvidence",
+				key: request.adapterInputId,
+			};
+		}
 		const highWater = executionHighWaterByInput.get(request.adapterInputId) ?? 0;
-		return (
-			trimmedAdapterInputIds.has(request.adapterInputId) ||
-			highWater >= request.attempt ||
-			isRetentionEvidenceClosed(request.adapterInputId)
-		);
+		if (trimmedAdapterInputIds.has(request.adapterInputId) || highWater >= request.attempt) {
+			return {
+				status: "retention-gap",
+				index: "adapterInputs",
+				key: request.adapterInputId,
+			};
+		}
+		return { status: "missing-input" };
+	}
+
+	function shouldForwardRetainedRunRequest(request: ToolProviderAdapterRunRequested): boolean {
+		return classifyRunRequestAbsence(request).status === "retention-gap";
 	}
 
 	function dropProjectorInput(adapterInputId: string): void {
@@ -3277,12 +3394,17 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 						: typeof record.key === "string"
 							? record.key
 							: index,
-				refs: [retentionIndexSourceRef(index)],
-				details: { index, key },
+				refs: runtimeEvidenceSourceRefs(index),
+				details: runtimeEvidenceMetadata(index, { key }),
 				severity: "info",
 			},
 		);
 		publishIssue(issue, false);
+		const sourceRefs = runtimeEvidenceSourceRefs(index);
+		const metadata = runtimeEvidenceMetadata(index, {
+			key,
+			extra: evidenceKind === undefined ? {} : { evidenceKind },
+		});
 		publishRuntimeStatus({
 			status: "retention-trimmed",
 			index,
@@ -3293,14 +3415,14 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			...(typeof record.runId === "string" ? { runId: record.runId } : {}),
 			...(typeof record.attempt === "number" ? { attempt: record.attempt } : {}),
 			issueCode: issue.code,
-			sourceRefs: [retentionIndexSourceRef(index)],
-			metadata: { index, key, ...(evidenceKind === undefined ? {} : { evidenceKind }) },
+			sourceRefs,
+			metadata,
 		});
 		publishRuntimeAudit("tool-provider-adapter-runtime-retention-trimmed", {
 			subjectId: issue.subjectId,
-			sourceRefs: [retentionIndexSourceRef(index)],
+			sourceRefs,
 			issueCode: issue.code,
-			metadata: { index, key, ...(evidenceKind === undefined ? {} : { evidenceKind }) },
+			metadata,
 		});
 	}
 
@@ -3313,24 +3435,26 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			"Tool provider adapter runtime retention scorer returned invalid material; last-known-good policy remains active.",
 			{
 				subjectId: index,
-				refs: [retentionIndexSourceRef(index)],
-				details: { index, reason },
+				refs: runtimeEvidenceSourceRefs(index),
+				details: runtimeEvidenceMetadata(index, { extra: { reason } }),
 				severity: "warning",
 			},
 		);
 		publishIssue(issue, index !== "runIssues");
+		const sourceRefs = runtimeEvidenceSourceRefs(index);
+		const metadata = runtimeEvidenceMetadata(index, { extra: { reason } });
 		publishRuntimeStatus({
 			status: "invalid-retention-policy",
 			index,
 			issueCode: issue.code,
-			sourceRefs: [retentionIndexSourceRef(index)],
-			metadata: { index, reason },
+			sourceRefs,
+			metadata,
 		});
 		publishRuntimeAudit("tool-provider-adapter-runtime-invalid-retention-policy", {
 			subjectId: index,
-			sourceRefs: [retentionIndexSourceRef(index)],
+			sourceRefs,
 			issueCode: issue.code,
-			metadata: { index, reason },
+			metadata,
 		});
 	}
 
@@ -3345,11 +3469,11 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 					status: "invalid-retention-policy",
 					...(index === undefined ? {} : { index }),
 					issueCode: issue.code,
-					...(index === undefined ? {} : { sourceRefs: [retentionIndexSourceRef(index)] }),
+					...(index === undefined ? {} : { sourceRefs: runtimeEvidenceSourceRefs(index) }),
 				});
 				publishRuntimeAudit("tool-provider-adapter-runtime-invalid-retention-policy", {
 					...(issue.subjectId === undefined ? {} : { subjectId: issue.subjectId }),
-					...(index === undefined ? {} : { sourceRefs: [retentionIndexSourceRef(index)] }),
+					...(index === undefined ? {} : { sourceRefs: runtimeEvidenceSourceRefs(index) }),
 					issueCode: issue.code,
 				});
 			}
@@ -3626,6 +3750,13 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		key: string,
 	): void {
 		const evidenceGap = index === "retentionEvidence";
+		const sourceRefs = runtimeEvidenceSourceRefs(index, [
+			ref("tool-provider-adapter-run", request.runId),
+		]);
+		const metadata = runtimeEvidenceMetadata(index, {
+			key,
+			extra: evidenceGap ? { gapKind: "evidence-horizon" } : {},
+		});
 		const issue = dataIssue(
 			evidenceGap
 				? "tool-provider-adapter-runtime-retention-evidence-gap"
@@ -3635,7 +3766,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 				: "Tool provider adapter runtime retention removed the proof needed to safely replay this request.",
 			{
 				subjectId: request.adapterInputId,
-				refs: [ref("tool-provider-adapter-run", request.runId), retentionIndexSourceRef(index)],
+				refs: sourceRefs,
 				details: {
 					index,
 					adapterInputId: request.adapterInputId,
@@ -3654,14 +3785,14 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			runId: request.runId,
 			attempt: request.attempt,
 			issueCode: issue.code,
-			sourceRefs: [ref("tool-provider-adapter-run", request.runId), retentionIndexSourceRef(index)],
-			metadata: { index, key, ...(evidenceGap ? { gapKind: "evidence-horizon" } : {}) },
+			sourceRefs,
+			metadata,
 		});
 		publishRuntimeAudit("tool-provider-adapter-runtime-retention-gap", {
 			subjectId: request.adapterInputId,
-			sourceRefs: [ref("tool-provider-adapter-run", request.runId), retentionIndexSourceRef(index)],
+			sourceRefs,
 			issueCode: issue.code,
-			metadata: { index, key, ...(evidenceGap ? { gapKind: "evidence-horizon" } : {}) },
+			metadata,
 		});
 	}
 
@@ -3671,12 +3802,20 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			ToolProviderAdapterRuntimeRetentionEvidenceEntry
 		>,
 	): void {
+		const sourceRefs = runtimeEvidenceSourceRefs("retentionEvidence");
+		const metadata = runtimeEvidenceMetadata("retentionEvidence", {
+			key: victim.key,
+			extra: {
+				evidenceKind: victim.value.evidenceKind,
+				gapKind: "evidence-horizon-closed",
+			},
+		});
 		const issue = dataIssue(
 			"tool-provider-adapter-runtime-retention-evidence-horizon-closed",
 			"Tool provider adapter runtime retention evidence closed-marker horizon overflowed; future requests fail closed until runtime reset.",
 			{
 				subjectId: victim.value.adapterInputId,
-				refs: [retentionIndexSourceRef("retentionEvidence")],
+				refs: sourceRefs,
 				details: {
 					index: "retentionEvidence",
 					key: victim.key,
@@ -3694,38 +3833,28 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 				? {}
 				: { attempt: victim.value.attemptHighWater }),
 			issueCode: issue.code,
-			sourceRefs: [retentionIndexSourceRef("retentionEvidence")],
-			metadata: {
-				index: "retentionEvidence",
-				key: victim.key,
-				evidenceKind: victim.value.evidenceKind,
-				gapKind: "evidence-horizon-closed",
-			},
+			sourceRefs,
+			metadata,
 		});
 		publishRuntimeAudit("tool-provider-adapter-runtime-retention-evidence-horizon-closed", {
 			subjectId: victim.value.adapterInputId,
-			sourceRefs: [retentionIndexSourceRef("retentionEvidence")],
+			sourceRefs,
 			issueCode: issue.code,
-			metadata: {
-				index: "retentionEvidence",
-				key: victim.key,
-				evidenceKind: victim.value.evidenceKind,
-				gapKind: "evidence-horizon-closed",
-			},
+			metadata,
 		});
 	}
 
 	function runRequest(request: ToolProviderAdapterRunRequested): void {
 		if (disposed) return;
-		if (isRetentionEvidenceClosed(request.adapterInputId)) {
-			publishRetentionGap(request, "retentionEvidence", request.adapterInputId);
+		const absence = classifyRunRequestAbsence(request);
+		if (absence.status === "retention-gap" && absence.index === "retentionEvidence") {
+			publishRetentionGap(request, absence.index, absence.key);
 			return;
 		}
 		const input = adapterInputs.get(request.adapterInputId)?.value;
 		if (input === undefined) {
-			const highWater = executionHighWaterByInput.get(request.adapterInputId) ?? 0;
-			if (trimmedAdapterInputIds.has(request.adapterInputId) || highWater >= request.attempt) {
-				publishRetentionGap(request, "adapterInputs", request.adapterInputId);
+			if (absence.status === "retention-gap") {
+				publishRetentionGap(request, absence.index, absence.key);
 				return;
 			}
 			const issue = dataIssue(
@@ -3984,7 +4113,7 @@ function forbiddenAdapterRuntimeMaterialIssues(
 	area: string,
 ): readonly DataIssue[] {
 	if (value === undefined) return [];
-	const forbidden = [...forbiddenDataKeys(value), ...forbiddenProviderRawMaterialKeys(value)];
+	const forbidden = publicMaterialForbiddenKeys(value, "provider");
 	if (forbidden.length === 0) return [];
 	return Object.freeze(
 		forbidden.map((entry) =>
@@ -5064,13 +5193,23 @@ function sanitizeAdapterInputIssue(
 ): DataIssue {
 	const boundedMessage = boundPublicText(issue.message, maxPublicMessageChars(policy));
 	const details = sanitizeIssueDetails(issue.details, policy);
+	const metadata = sanitizeProviderGraphVisibleRecord(issue.metadata, policy);
+	const refs =
+		issue.refs === undefined
+			? undefined
+			: Object.freeze(issue.refs.filter((entry): entry is string => typeof entry === "string"));
 	return Object.freeze({
 		kind: issue.kind,
 		code: issue.code,
+		...(issue.source === undefined ? {} : { source: issue.source }),
 		message: boundedMessage.text,
 		severity: issue.severity,
 		subjectId: issue.subjectId,
-		refs: issue.refs,
+		...(issue.correlationId === undefined ? {} : { correlationId: issue.correlationId }),
+		...(issue.causationId === undefined ? {} : { causationId: issue.causationId }),
+		...(issue.path === undefined ? {} : { path: Object.freeze([...issue.path]) }),
+		...(refs === undefined || refs.length === 0 ? {} : { refs }),
+		...(issue.retryable === undefined ? {} : { retryable: issue.retryable }),
 		details:
 			boundedMessage.truncated || details !== issue.details
 				? {
@@ -5085,6 +5224,7 @@ function sanitizeAdapterInputIssue(
 							: {}),
 					}
 				: details,
+		...(metadata === undefined ? {} : { metadata }),
 	} satisfies DataIssue);
 }
 
@@ -6334,6 +6474,18 @@ function stableStringHash(value: string): string {
 	return (hash >>> 0).toString(36);
 }
 
+function cloneGraphVisibleMaterial(value: unknown): unknown {
+	if (!isRecord(value) && !Array.isArray(value)) return value;
+	if (Array.isArray(value))
+		return Object.freeze(value.map((item) => cloneGraphVisibleMaterial(item)));
+	return Object.freeze(
+		Object.entries(value).reduce<Record<string, unknown>>((record, [key, child]) => {
+			record[key] = cloneGraphVisibleMaterial(child);
+			return record;
+		}, {}),
+	);
+}
+
 function emitStatus(
 	ctx: Ctx,
 	state: RequestSatisfactionState,
@@ -6342,14 +6494,20 @@ function emitStatus(
 	sourceRefs?: readonly SourceRef[],
 	issues?: readonly DataIssue[],
 ): void {
+	const cleanSourceRefs =
+		sourceRefs === undefined ? undefined : sanitizeAdapterInputSourceRefs(sourceRefs);
+	const cleanIssues =
+		issues === undefined
+			? undefined
+			: Object.freeze(issues.map((issue) => sanitizeAdapterInputIssue(issue)));
 	const fact: AgentRequestStatusChanged = {
 		kind: "status",
 		requestId: request.requestId,
 		operationId: request.operationId,
 		effectRunId: request.effectRunId,
 		status,
-		sourceRefs,
-		issues,
+		sourceRefs: cleanSourceRefs,
+		issues: cleanIssues,
 	};
 	state.auditSeq += 1;
 	ctx.down([
@@ -6362,7 +6520,7 @@ function emitStatus(
 					id: `${request.requestId}:status:${state.auditSeq}`,
 					kind: "agent-request-status",
 					subjectId: request.requestId,
-					sourceRefs,
+					sourceRefs: cleanSourceRefs,
 					metadata: { status },
 				},
 			} satisfies AgentRequestSatisfactionFact,
@@ -6831,29 +6989,53 @@ function cloneAgentRequestViewsState(state: AgentRequestViewsState): AgentReques
 function reduceAgentRequestViews(state: AgentRequestViewsState, fact: AgentRequestFact): void {
 	state.auditSeq += 1;
 	if (fact.kind === "issued") {
-		state.requestsById.set(fact.requestId, fact);
-		const requestIds = state.requestsByEffectRun.get(fact.effectRunId) ?? [];
-		if (!requestIds.includes(fact.requestId)) requestIds.push(fact.requestId);
-		state.requestsByEffectRun.set(fact.effectRunId, requestIds);
-		state.statusByRequest.set(fact.requestId, {
+		const request = sanitizeAgentRequestIssued(fact);
+		state.requestsById.set(request.requestId, request);
+		const requestIds = state.requestsByEffectRun.get(request.effectRunId) ?? [];
+		if (!requestIds.includes(request.requestId)) requestIds.push(request.requestId);
+		state.requestsByEffectRun.set(request.effectRunId, requestIds);
+		state.statusByRequest.set(request.requestId, {
 			kind: "status",
-			requestId: fact.requestId,
-			operationId: fact.operationId,
-			effectRunId: fact.effectRunId,
+			requestId: request.requestId,
+			operationId: request.operationId,
+			effectRunId: request.effectRunId,
 			status: "issued",
-			sourceRefs: [ref("agent-request", fact.requestId)],
+			sourceRefs: [ref("agent-request", request.requestId)],
 		});
 	} else if (fact.kind === "status") {
-		state.statusByRequest.set(fact.requestId, fact);
-		if (fact.issues !== undefined) state.issues.push(...fact.issues);
+		const status = sanitizeAgentRequestStatusChanged(fact);
+		state.statusByRequest.set(status.requestId, status);
+		if (status.issues !== undefined) state.issues.push(...status.issues);
 	} else if (fact.kind === "rejected") {
-		state.issues.push(fact.issue);
+		state.issues.push(sanitizeAdapterInputIssue(fact.issue));
 	}
 	state.audit.push({
 		id: `agent-request-ledger:${state.auditSeq}`,
 		kind: `agent-request-${fact.kind}`,
 		subjectId: "requestId" in fact ? fact.requestId : fact.proposalId,
 	});
+}
+
+function sanitizeAgentRequestStatusChanged(
+	status: AgentRequestStatusChanged,
+): AgentRequestStatusChanged {
+	const sourceRefs =
+		status.sourceRefs === undefined ? undefined : sanitizeAdapterInputSourceRefs(status.sourceRefs);
+	const issues =
+		status.issues === undefined
+			? undefined
+			: Object.freeze(status.issues.map((issue) => sanitizeAdapterInputIssue(issue)));
+	const metadata = sanitizeProviderGraphVisibleRecord(status.metadata);
+	return Object.freeze({
+		kind: "status",
+		requestId: status.requestId,
+		...(status.operationId === undefined ? {} : { operationId: status.operationId }),
+		effectRunId: status.effectRunId,
+		status: status.status,
+		...(sourceRefs === undefined || sourceRefs.length === 0 ? {} : { sourceRefs }),
+		...(issues === undefined || issues.length === 0 ? {} : { issues }),
+		...(metadata === undefined ? {} : { metadata }),
+	} satisfies AgentRequestStatusChanged);
 }
 
 function freezeAgentRequestViews(state: AgentRequestViewsState): AgentRequestViews {
@@ -6954,7 +7136,7 @@ function forbiddenGraphVisibleMaterialIssues(
 	area: string,
 ): readonly DataIssue[] {
 	if (value === undefined) return [];
-	const forbidden = [...forbiddenDataKeys(value), ...forbiddenProviderRawMaterialKeys(value)];
+	const forbidden = publicMaterialForbiddenKeys(value, "provider");
 	if (forbidden.length === 0) return [];
 	return Object.freeze(
 		forbidden.map((entry) =>
@@ -6973,7 +7155,7 @@ function forbiddenAdapterInputMaterialIssues(
 	area: string,
 ): readonly DataIssue[] {
 	if (value === undefined) return [];
-	const forbidden = [...forbiddenDataKeys(value), ...forbiddenProviderRawMaterialKeys(value)];
+	const forbidden = publicMaterialForbiddenKeys(value, "provider");
 	if (forbidden.length === 0) return [];
 	return Object.freeze(
 		forbidden.map((entry) =>
@@ -6986,11 +7168,30 @@ function forbiddenAdapterInputMaterialIssues(
 	);
 }
 
+type PublicMaterialMode = "graph" | "provider";
+
 function sanitizeAdapterInputSourceRefs(sourceRefs: readonly SourceRef[]): readonly SourceRef[] {
+	return canonicalPublicSourceRefs(sourceRefs);
+}
+
+function sanitizeGraphVisibleRecord<T extends Record<string, unknown> | undefined>(
+	value: T,
+	policy?: ToolProviderPublicTextPolicy,
+): T | undefined {
+	return sanitizePublicRecord(value, { mode: "graph", policy });
+}
+
+function sanitizeProviderGraphVisibleRecord<T extends Record<string, unknown> | undefined>(
+	value: T,
+	policy?: ToolProviderPublicTextPolicy,
+): T | undefined {
+	return sanitizePublicRecord(value, { mode: "provider", policy });
+}
+
+function canonicalPublicSourceRefs(sourceRefs: readonly SourceRef[]): readonly SourceRef[] {
 	return uniqueSourceRefs(
 		sourceRefs.map((sourceRef) => {
-			if (sourceRef.metadata === undefined) return sourceRef;
-			const metadata = sanitizeProviderGraphVisibleRecord(sourceRef.metadata);
+			const metadata = sanitizePublicRecord(sourceRef.metadata, { mode: "provider" });
 			return metadata === undefined
 				? { kind: sourceRef.kind, id: sourceRef.id }
 				: { kind: sourceRef.kind, id: sourceRef.id, metadata };
@@ -6998,26 +7199,26 @@ function sanitizeAdapterInputSourceRefs(sourceRefs: readonly SourceRef[]): reado
 	);
 }
 
-function sanitizeGraphVisibleRecord<T extends Record<string, unknown> | undefined>(
+function sanitizePublicRecord<T extends Record<string, unknown> | undefined>(
 	value: T,
-	policy?: ToolProviderPublicTextPolicy,
+	opts: {
+		readonly mode: PublicMaterialMode;
+		readonly policy?: ToolProviderPublicTextPolicy;
+	},
 ): T | undefined {
-	if (value === undefined || forbiddenDataKeys(value).length > 0) return undefined;
-	return Object.freeze(boundRecordStrings(value, maxPublicMetadataStringChars(policy))) as T;
-}
-
-function sanitizeProviderGraphVisibleRecord<T extends Record<string, unknown> | undefined>(
-	value: T,
-	policy?: ToolProviderPublicTextPolicy,
-): T | undefined {
-	if (
-		value === undefined ||
-		forbiddenDataKeys(value).length > 0 ||
-		forbiddenProviderRawMaterialKeys(value).length > 0
-	) {
+	if (value === undefined || publicMaterialForbiddenKeys(value, opts.mode).length > 0) {
 		return undefined;
 	}
-	return Object.freeze(boundRecordStrings(value, maxPublicMetadataStringChars(policy))) as T;
+	return Object.freeze(boundRecordStrings(value, maxPublicMetadataStringChars(opts.policy))) as T;
+}
+
+function publicMaterialForbiddenKeys(
+	value: unknown,
+	mode: PublicMaterialMode,
+): readonly { readonly path: readonly (string | number)[]; readonly reason: string }[] {
+	const forbidden = [...forbiddenDataKeys(value)];
+	if (mode === "provider") forbidden.push(...forbiddenProviderRawMaterialKeys(value));
+	return forbidden;
 }
 
 function unlockedToolProviderPolicyOverrides(
@@ -7105,10 +7306,8 @@ function sanitizeRuntimeMetadata<T extends Record<string, unknown> | undefined>(
 	issues: DataIssue[],
 ): T | undefined {
 	if (value === undefined) return undefined;
-	if (forbiddenDataKeys(value).length > 0 || forbiddenProviderRawMaterialKeys(value).length > 0) {
-		return undefined;
-	}
-	const bounded = boundRecordStringsWithEvidence(value, maxPublicMetadataStringChars(policy));
+	const bounded = sanitizePublicRecordWithEvidence(value, { mode: "provider", policy });
+	if (bounded === undefined) return undefined;
 	for (const entry of bounded.truncated) {
 		issues.push(
 			dataIssue(
@@ -7133,6 +7332,26 @@ function sanitizeRuntimeMetadata<T extends Record<string, unknown> | undefined>(
 	return Object.freeze(bounded.value) as T;
 }
 
+function sanitizePublicRecordWithEvidence(
+	value: Record<string, unknown>,
+	opts: {
+		readonly mode: PublicMaterialMode;
+		readonly policy?: ToolProviderPublicTextPolicy;
+	},
+):
+	| {
+			readonly value: Record<string, unknown>;
+			readonly truncated: readonly {
+				readonly path: readonly (string | number)[];
+				readonly originalChars: number;
+				readonly limitChars: number;
+			}[];
+	  }
+	| undefined {
+	if (publicMaterialForbiddenKeys(value, opts.mode).length > 0) return undefined;
+	return boundRecordStringsWithEvidence(value, maxPublicMetadataStringChars(opts.policy));
+}
+
 function sanitizeInlineOutputValue(
 	value: unknown,
 	input: ToolProviderAdapterInput,
@@ -7141,8 +7360,7 @@ function sanitizeInlineOutputValue(
 ): unknown {
 	if (value === undefined) return undefined;
 	const forbidden = [
-		...forbiddenDataKeys(value),
-		...forbiddenProviderRawMaterialKeys(value),
+		...publicMaterialForbiddenKeys(value, "provider"),
 		...oversizedInlineTextKeys(value, maxPublicSummaryChars(policy)),
 	];
 	if (forbidden.length === 0) return value;
@@ -7314,10 +7532,7 @@ function boundRecordStringsWithEvidence(
 
 function sanitizeIssueDetails(details: unknown, policy?: ToolProviderPublicTextPolicy): unknown {
 	if (details === undefined) return undefined;
-	if (
-		forbiddenDataKeys(details).length > 0 ||
-		forbiddenProviderRawMaterialKeys(details).length > 0
-	) {
+	if (publicMaterialForbiddenKeys(details, "provider").length > 0) {
 		return { redacted: true, reason: "forbidden-runtime-material" };
 	}
 	const bounded = boundUnknownStringsWithEvidence(details, maxPublicMetadataStringChars(policy));
