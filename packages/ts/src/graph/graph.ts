@@ -60,6 +60,22 @@ import {
 	topologyFromDescribe,
 } from "./describe.js";
 import { EnvironmentDrivers } from "./environment.js";
+import { lifecycleRegistrars, restoreRegistrars } from "./graph-lifecycle.js";
+import {
+	assertCheckpointQuiescentStatus,
+	checkpointFactory,
+	cloneTopologyEvent,
+	explainSubset,
+	isNonAuthoritativeCollectionHelperMeta,
+	prefixTopologyPath,
+	topologyPathMatches,
+} from "./graph-support.js";
+import {
+	GraphTopologyGroup,
+	type TopologyGroup,
+	type TopologyGroupOptions,
+} from "./graph-topology-group.js";
+import type { DepValues, DerivedFn, EffectFn, GraphOptions, SugarOpts } from "./graph-types.js";
 import type {
 	NodeProfile,
 	ObserveStream,
@@ -69,49 +85,12 @@ import type {
 } from "./inspect.js";
 import { initNodeWithCore, type Operator } from "./operators.js";
 
-/** Map a tuple of Nodes to the tuple of their value types (typed value-level fn args). */
-type DepValues<D extends readonly Node<unknown>[]> = {
-	[K in keyof D]: D[K] extends Node<infer V> ? V : never;
-};
-
-/** Value-level derived fn: receives dep values, returns the next value (undefined = no emit). */
-export type DerivedFn<D extends readonly Node<unknown>[], T> = (
-	...values: DepValues<D>
-) => T | undefined;
-
-/** Value-level effect fn: receives dep values, optionally returns a deactivation cleanup. */
-export type EffectFn<D extends readonly Node<unknown>[]> = (
-	...values: DepValues<D>
-	// biome-ignore lint/suspicious/noConfusingVoidType: effect returns void OR a cleanup fn — the void arm keeps `(v) => { sideEffect(v) }` ergonomic (React EffectCallback idiom); dropping it would force an explicit `return undefined`.
-) => void | (() => void);
-
-/** Sugar options — node options minus graph-owned dispatcher plus naming/meta. */
-export interface SugarOpts<T = unknown> extends Omit<NodeOptions<T>, "dispatcher"> {
-	name?: string;
-	meta?: Record<string, unknown>;
-	/**
-	 * D95: explicit restorable factory metadata. Static JSON-compatible config may live here;
-	 * reactive options must remain graph deps. Without this, function-backed nodes are local-only.
-	 */
-	restore?: { ref: string; config?: unknown; configVersion?: unknown };
-}
-
-export interface GraphOptions {
-	name?: string;
-	/** Bind to a dispatcher (default = process-global, D26). */
-	dispatcher?: Dispatcher;
-	/** D109 default node runtime versioning policy for graph-owned nodes. Default is nodev0. */
-	versioning?: NodeVersioningPolicy;
-	/** Graph-owned environment drivers for source/adapter boundaries (D130/D131). */
-	environment?: EnvironmentDrivers;
-	/**
-	 * Turn on the dispatcher profile recorder (D39 / F-PERF default off). NOTE: this
-	 * switches recording on for the WHOLE bound dispatcher (the default is process-global,
-	 * D26) — every graph sharing it then pays the recorder cost. For isolated profiling
-	 * use a dedicated dispatcher: `graph({ dispatcher: new Dispatcher(), profile: true })`.
-	 */
-	profile?: boolean;
-}
+export type {
+	TopologyGroup,
+	TopologyGroupOptions,
+	TopologyGroupReleaseOptions,
+} from "./graph-topology-group.js";
+export type { DerivedFn, EffectFn, GraphOptions, SugarOpts } from "./graph-types.js";
 
 interface Entry {
 	node: Node<unknown>;
@@ -133,26 +112,6 @@ interface MountedGraph {
 	graph: Graph;
 	topologyUnsub?: () => void;
 }
-
-interface GraphRestoreRegistrar {
-	stateNode<T>(id: string, opts?: SugarOpts<T>): StateNode<T>;
-	node<T>(
-		id: string,
-		factory: string,
-		deps: readonly Node<unknown>[],
-		fn: NodeFn | null,
-		opts?: SugarOpts<T>,
-	): Node<T>;
-}
-
-const restoreRegistrars = new WeakMap<Graph, GraphRestoreRegistrar>();
-
-interface GraphLifecycleRegistrar {
-	assertRegisteredNode(node: Node<unknown>, label: string): void;
-	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
-}
-
-const lifecycleRegistrars = new WeakMap<Graph, GraphLifecycleRegistrar>();
 
 function nodeOwner(n: Node<unknown>): Graph | undefined {
 	return getNodeOwner(n) as Graph | undefined;
@@ -177,138 +136,6 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
 export class StateNode<T> extends Node<T> {
 	set(v: T): void {
 		this.down([["DATA", v]]);
-	}
-}
-
-export interface TopologyGroupOptions {
-	/** Optional inspection/release reason label for this graph-owned topology group. */
-	name?: string;
-}
-
-export interface TopologyGroupReleaseOptions {
-	/** Optional diagnostic reason. No protocol/control messages are synthesized. */
-	reason?: string;
-}
-
-/**
- * Graph-owned D152 release group: a label over ordinary graph-registered nodes.
- * The graph registry remains the source of truth; helper-local membership is only
- * a memo for atomic quiescent release.
- */
-export interface TopologyGroup {
-	readonly name?: string;
-	readonly released: boolean;
-	add<T extends Node<unknown>>(node: T): T;
-	node<T = unknown>(
-		deps?: readonly Node<unknown>[],
-		fn?: NodeFn | null,
-		opts?: SugarOpts<T>,
-	): Node<T>;
-	state<T>(initial: T, opts?: SugarOpts<T>): StateNode<T>;
-	producer<T = unknown>(fn: NodeFn, opts?: SugarOpts<T>): Node<T>;
-	derived<const D extends readonly Node<unknown>[], T>(
-		deps: D,
-		fn: DerivedFn<D, T>,
-		opts?: SugarOpts<T>,
-	): Node<T>;
-	effect<const D extends readonly Node<unknown>[]>(
-		deps: D,
-		fn: EffectFn<D>,
-		opts?: SugarOpts<void>,
-	): Node<void>;
-	initNode<TIn, TOut>(
-		op: Operator<TIn, TOut>,
-		deps: readonly Node<TIn>[],
-		opts?: SugarOpts<TOut>,
-	): Node<TOut>;
-	release(opts?: TopologyGroupReleaseOptions): void;
-}
-
-class GraphTopologyGroup implements TopologyGroup {
-	readonly name?: string;
-	private readonly _graph: Graph;
-	private readonly _members: Node<unknown>[] = [];
-	private _released = false;
-
-	constructor(graph: Graph, opts: TopologyGroupOptions = {}) {
-		this._graph = graph;
-		this.name = opts.name;
-	}
-
-	get released(): boolean {
-		return this._released;
-	}
-
-	add<T extends Node<unknown>>(node: T): T {
-		this._assertLive();
-		const lifecycle = lifecycleRegistrars.get(this._graph);
-		if (lifecycle === undefined) throw new Error("topologyGroup: graph lifecycle unavailable");
-		lifecycle.assertRegisteredNode(node, `topology group '${this.name ?? "group"}' member`);
-		if (!this._members.includes(node)) this._members.push(node);
-		return node;
-	}
-
-	node<T = unknown>(
-		deps: readonly Node<unknown>[] = [],
-		fn: NodeFn | null = null,
-		opts: SugarOpts<T> = {},
-	): Node<T> {
-		this._assertLive();
-		return this.add(this._graph.node(deps, fn, opts));
-	}
-
-	state<T>(initial: T, opts: SugarOpts<T> = {}): StateNode<T> {
-		this._assertLive();
-		return this.add(this._graph.state(initial, opts));
-	}
-
-	producer<T = unknown>(fn: NodeFn, opts: SugarOpts<T> = {}): Node<T> {
-		this._assertLive();
-		return this.add(this._graph.producer(fn, opts));
-	}
-
-	derived<const D extends readonly Node<unknown>[], T>(
-		deps: D,
-		fn: DerivedFn<D, T>,
-		opts: SugarOpts<T> = {},
-	): Node<T> {
-		this._assertLive();
-		return this.add(this._graph.derived(deps, fn, opts));
-	}
-
-	effect<const D extends readonly Node<unknown>[]>(
-		deps: D,
-		fn: EffectFn<D>,
-		opts: SugarOpts<void> = {},
-	): Node<void> {
-		this._assertLive();
-		return this.add(this._graph.effect(deps, fn, opts));
-	}
-
-	initNode<TIn, TOut>(
-		op: Operator<TIn, TOut>,
-		deps: readonly Node<TIn>[],
-		opts: SugarOpts<TOut> = {},
-	): Node<TOut> {
-		this._assertLive();
-		return this.add(this._graph.initNode(op, deps, opts));
-	}
-
-	release(opts: TopologyGroupReleaseOptions = {}): void {
-		if (this._released) return;
-		const lifecycle = lifecycleRegistrars.get(this._graph);
-		if (lifecycle === undefined) throw new Error("topologyGroup: graph lifecycle unavailable");
-		lifecycle.releaseNodes([...this._members], {
-			reason: opts.reason ?? this.name,
-		});
-		this._members.length = 0;
-		this._released = true;
-	}
-
-	private _assertLive(): void {
-		if (this._released) {
-			throw new Error(`topology group '${this.name ?? "group"}' has been released (D152)`);
-		}
 	}
 }
 
@@ -1108,132 +935,6 @@ export class Graph {
 			};
 		return out;
 	}
-}
-
-function isNonAuthoritativeCollectionHelperMeta(
-	meta: Record<string, unknown> | undefined,
-): boolean {
-	return (
-		meta?.kind === "collection_delta" ||
-		meta?.kind === "collection_intent" ||
-		meta?.kind === "collection_policy_apply" ||
-		meta?.kind === "collection_snapshot" ||
-		meta?.kind === "collection_snapshot_prep"
-	);
-}
-
-function assertCheckpointQuiescentStatus(status: string, id: string, op: string): void {
-	if (status === "pending" || status === "dirty") {
-		throw new Error(
-			`${op}: node '${id}' has non-quiescent status '${status}' that cannot be checkpoint-restored yet`,
-		);
-	}
-}
-
-function topologyPathMatches(eventPath: string, path: string): boolean {
-	return eventPath === path || eventPath.startsWith(`${path}::`);
-}
-
-function prefixTopologyPath(prefix: string, path: string): string {
-	return `${prefix}::${path}`;
-}
-
-function cloneTopologyEvent(event: TopologyEvent): TopologyEvent {
-	const deps = Object.freeze([...event.deps]);
-	const prevDeps = event.prevDeps === undefined ? undefined : Object.freeze([...event.prevDeps]);
-	return Object.freeze({
-		kind: event.kind,
-		path: event.path,
-		deps,
-		...(prevDeps !== undefined ? { prevDeps } : {}),
-		...(event.factory !== undefined ? { factory: event.factory } : {}),
-		seq: event.seq,
-	});
-}
-
-function checkpointFactory(
-	name: string,
-	node: Node<unknown>,
-	unregistered: boolean,
-	restore?: { ref: string; config?: unknown; configVersion?: unknown },
-	meta?: Record<string, unknown>,
-): GraphCheckpointFactory {
-	const state = checkpointStateOfNode(node);
-	if (unregistered) {
-		return {
-			kind: "local-only",
-			name,
-			reason: "node is an unregistered live dependency auto-discovered from topology",
-		};
-	}
-	if (
-		restore === undefined &&
-		typeof meta?.kind === "string" &&
-		meta.kind.startsWith("collection_")
-	) {
-		return {
-			kind: "local-only",
-			name,
-			reason: "collection helper node has no backend checkpoint restore metadata",
-		};
-	}
-	if (restore !== undefined) {
-		const out: GraphCheckpointFactory = {
-			kind: "registry-ref",
-			ref: toCheckpointJson(restore.ref, `${name}.factory.ref`) as string,
-		};
-		if (restore.config !== undefined)
-			out.config = toCheckpointJson(restore.config, `${name}.factory.config`);
-		if (restore.configVersion !== undefined)
-			out.configVersion = toCheckpointJson(restore.configVersion, `${name}.factory.configVersion`);
-		return out;
-	}
-	if (state.handle !== null) {
-		return {
-			kind: "local-only",
-			name,
-			reason: "node uses a function body; first-cut checkpoints do not serialize local functions",
-		};
-	}
-	return { kind: "registry-ref", ref: name };
-}
-
-/** Filter a snapshot to the causal chain from→to (forward-reachable(from) ∩ back-reachable(to)). */
-function explainSubset(
-	snap: DescribeSnapshot,
-	chain: { from: string; to: string },
-): DescribeSnapshot {
-	const fwd = new Map<string, string[]>();
-	const rev = new Map<string, string[]>();
-	const push = (map: Map<string, string[]>, k: string, v: string): void => {
-		const a = map.get(k);
-		if (a) a.push(v);
-		else map.set(k, [v]);
-	};
-	for (const e of snap.edges) {
-		push(fwd, e.from, e.to);
-		push(rev, e.to, e.from);
-	}
-	const reach = (start: string, adj: Map<string, string[]>): Set<string> => {
-		const seen = new Set<string>([start]);
-		const stack = [start];
-		while (stack.length > 0) {
-			const cur = stack.pop() as string;
-			for (const nxt of adj.get(cur) ?? []) {
-				if (!seen.has(nxt)) {
-					seen.add(nxt);
-					stack.push(nxt);
-				}
-			}
-		}
-		return seen;
-	};
-	const onPath = new Set([...reach(chain.from, fwd)].filter((id) => reach(chain.to, rev).has(id)));
-	return {
-		...(snap.name !== undefined ? { name: snap.name } : {}),
-		nodes: snap.nodes.filter((n) => onPath.has(n.id)),
-		edges: snap.edges.filter((e) => onPath.has(e.from) && onPath.has(e.to)),
-	};
 }
 
 /** Construct a Graph (default global dispatcher; L4-Q4). */

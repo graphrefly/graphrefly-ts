@@ -1,0 +1,736 @@
+/**
+ * Behavioral conformance — TS arm of ~/src/graphrefly/spec/conformance.jsonl (D24).
+ *
+ * Each test is the TS adapter for a language-agnostic scenario: it builds the scenario's
+ * topology, drives its input wave sequence, and asserts the expected OBSERVABLE wave output.
+ *
+ * C-1 (cross-graph diamond) is NOT here — it requires the wire bridge (backlog B2). The
+ * in-process diamond core it leans on is green in core.test.ts (R-diamond/R-two-phase).
+ */
+
+import { describe, expect, it } from "vitest";
+import type { Ctx, Message, NodeFn } from "../index.js";
+import {
+	depBatch,
+	depCount,
+	depLatest,
+	depTerminal,
+	distinctUntilChanged,
+	filter,
+	fromIter,
+	graph,
+	isTerminalComplete,
+	type Node,
+	node,
+	take,
+} from "../index.js";
+
+const types = (msgs: Message[]) => msgs.map((m) => m[0]);
+const data = (msgs: Message[]) =>
+	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
+const _flush = () => new Promise((r) => setTimeout(r, 0));
+function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+	const msgs: Message[] = [];
+	const unsub = n.subscribe((m) => msgs.push(m));
+	return { msgs, unsub };
+}
+
+describe("C-2 async-result arriving at paused node (R-async-paused, R-pause-lockset)", () => {
+	it("buffers the async result while paused, replays it on final-lock RESUME", () => {
+		let cctx: Ctx | null = null;
+		const trigger = node<number>([], null, { initial: 0 });
+		// async-pool node: the fn stashes its ctx and resolves later (simulated async).
+		const n = node<number>(
+			[trigger],
+			(ctx: Ctx) => {
+				cctx = ctx;
+			},
+			{ pool: "async" },
+		);
+		const { msgs } = collect(n);
+		expect(cctx).not.toBeNull(); // fn ran on activation, no emit yet
+
+		const L = Symbol("pause");
+		n.up([["PAUSE", L]]);
+
+		msgs.length = 0;
+		// async result resolves WHILE paused -> buffered, not delivered (DR-3).
+		(cctx as Ctx).down([["DATA", 42]]);
+		expect(msgs).toEqual([]);
+		expect(n.cache).toBeUndefined();
+
+		n.up([["RESUME", L]]); // final-lock RESUME -> replay the buffered settle slice
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(msgs.at(-1)).toEqual(["DATA", 42]);
+		expect(n.cache).toBe(42);
+	});
+});
+
+describe("C-3 INVALIDATE × ctx.state × onInvalidate (R-invalidate-idempotent, R-ctx-state)", () => {
+	it("cascades once, fires onInvalidate, preserves ctx.state, resets dep cached latest", () => {
+		const statesAtRun: unknown[] = [];
+		let onInv = 0;
+		const s = node<number>([], null, { initial: 1 });
+		const d = node<number>([s], (ctx: Ctx) => {
+			statesAtRun.push(ctx.state.get()); // prior state visible at run time
+			ctx.state.set("kept");
+			ctx.onInvalidate(() => {
+				onInv++;
+			});
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
+		});
+		const { msgs } = collect(d);
+		expect(d.cache).toBe(2);
+		expect(statesAtRun).toEqual([undefined]); // first run: fresh state
+
+		msgs.length = 0;
+		s.down([["INVALIDATE"]]);
+		expect(types(msgs)).toEqual(["INVALIDATE"]); // cascaded downstream exactly once
+		expect(onInv).toBe(1);
+		expect(d.cache).toBeUndefined();
+		expect(d.status).toBe("sentinel");
+
+		// idempotent: a second INVALIDATE on an already-reset upstream is a no-op
+		msgs.length = 0;
+		s.down([["INVALIDATE"]]);
+		expect(msgs).toEqual([]);
+		expect(onInv).toBe(1);
+
+		// ctx.state preserved across INVALIDATE (lifecycle-continue, NOT fresh-lifecycle)
+		s.down([["DATA", 5]]);
+		expect(statesAtRun).toEqual([undefined, "kept"]);
+		expect(d.cache).toBe(10);
+	});
+});
+
+describe("C-4 mixed sync/async diamond (R-diamond, R-two-phase, R-first-run-gate, R-dirty-before-data)", () => {
+	it("joins exactly once after BOTH legs settle, re-emitting DIRTY before DATA on the next wave", () => {
+		let dRuns = 0;
+		let cctx: Ctx | null = null;
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([a], (ctx: Ctx) =>
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 10]]),
+		); // sync leg
+		const c = node<number>(
+			[a],
+			(ctx: Ctx) => {
+				cctx = ctx; // async leg: defer the emit
+			},
+			{ pool: "async" },
+		);
+		const d = node<number>([b, c], (ctx: Ctx) => {
+			dRuns++;
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
+		});
+
+		const { msgs } = collect(d);
+		// b settled synchronously (11); the async leg is deferred -> first-run gate holds d
+		expect(dRuns).toBe(0);
+		expect(d.cache).toBeUndefined();
+
+		(cctx as Ctx).down([["DATA", 21]]); // async leg resolves -> first join (activation)
+		expect(dRuns).toBe(1); // joined exactly once
+		expect(d.cache).toBe(32); // 11 + 21
+
+		// R-dirty-before-data: a non-activation tier-3 emission is preceded by a synthesized
+		// DIRTY in the same wave (the join fn calls ctx.down([["DATA",...]]) only). Drive a
+		// second settle through both legs so we observe d past its first-run exemption.
+		msgs.length = 0;
+		a.down([["DATA", 2]]); // re-drives b (sync, 12) and c (async, deferred again)
+		expect(dRuns).toBe(1); // still gated on the async leg
+		(cctx as Ctx).down([["DATA", 30]]); // async leg re-resolves
+		expect(dRuns).toBe(2);
+		expect(d.cache).toBe(42); // 12 + 30
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // DIRTY precedes DATA, glitch-free two-phase
+		expect(msgs.at(-1)).toEqual(["DATA", 42]);
+	});
+});
+
+describe("C-5 PAUSE lockset multi-source (R-pause-lockset, R-pause-modes)", () => {
+	it("stays paused until every lock RESUMEs; dup PAUSE + unknown RESUME are no-ops", () => {
+		let runs = 0;
+		const s = node<number>([], null, { initial: 0 });
+		const n = node<number>([s], (ctx: Ctx) => {
+			runs++;
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+		});
+		collect(n);
+		expect(n.cache).toBe(0);
+		runs = 0;
+
+		const LA = Symbol("A");
+		const LB = Symbol("B");
+		n.up([["PAUSE", LA]]);
+		n.up([["PAUSE", LB]]);
+		n.up([["PAUSE", LA]]); // duplicate -> idempotent (lockset)
+
+		s.down([["DATA", 1]]); // dep changes while paused
+		expect(runs).toBe(0); // fn held
+		expect(n.cache).toBe(0);
+
+		n.up([["RESUME", LA]]); // release A — LB still held
+		expect(runs).toBe(0); // STILL paused
+		expect(n.cache).toBe(0);
+
+		n.up([["RESUME", Symbol("unknown")]]); // unknown id -> no-op
+		expect(runs).toBe(0);
+
+		n.up([["RESUME", LB]]); // last lock released -> resume, fire once with latest
+		expect(runs).toBe(1);
+		expect(n.cache).toBe(1);
+	});
+});
+
+describe("C-6 synchronous feedback cycle → ERROR (R-reentrancy / D37)", () => {
+	it("rejects a sync feedback cycle as ERROR (no hang, no _pending desync)", () => {
+		// state S → derived D (=n+1) → effect E; E writes back to S, closing S→D→E→S.
+		const g = graph();
+		const s = g.state(0);
+		const d = g.derived([s], (n) => (n as number) + 1);
+		const e = g.effect([d], (n) => {
+			s.set(n as number); // feedback → re-enters the wave
+		});
+		let escaped = false;
+		try {
+			e.subscribe(() => {});
+		} catch {
+			escaped = true; // the substrate throw must NOT escape — the graph layer catches it (D30)
+		}
+		expect(escaped).toBe(false);
+		// R-reentrancy: ERROR lands on a node ON the cycle — the value-level catch nearest the
+		// throw on the unwind (impl-determined, d or e), not necessarily the re-entered node.
+		expect([d.status, e.status]).toContain("errored");
+	});
+});
+
+describe("C-7 upstream control at a depless source (R-up-at-source / D38)", () => {
+	const make = () => {
+		const s = node<number>([], null, { initial: 5 });
+		const d = node<number>([s], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
+		const { msgs } = collect(d);
+		msgs.length = 0;
+		return { s, d, msgs };
+	};
+
+	it("INVALIDATE-up is HONORED: source self-invalidates + cascades down", () => {
+		const { s, d, msgs } = make();
+		d.up([["INVALIDATE"]]); // forwards to the depless terminus S → self _invalidate
+		expect(s.cache).toBeUndefined();
+		expect(s.status).toBe("sentinel");
+		expect(types(msgs)).toContain("INVALIDATE");
+		expect(d.cache).toBeUndefined();
+	});
+
+	it("DIRTY-up is DROPPED at the source (untouched, no down-cascade)", () => {
+		const { s, d, msgs } = make();
+		d.up([["DIRTY"]]);
+		expect(s.cache).toBe(5);
+		expect(s.status).toBe("settled");
+		expect(msgs).toEqual([]);
+	});
+
+	it("TEARDOWN-up is DROPPED at the source (not terminated, no down-cascade)", () => {
+		const { s, d, msgs } = make();
+		d.up([["TEARDOWN"]]);
+		expect(s.status).toBe("settled");
+		expect(msgs).toEqual([]);
+	});
+});
+
+describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
+	it("surgical subscribeDep (push-on-subscribe) → unsubscribeDep (drain) → idempotent replaceDeps; cache preserved", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const b = node<number>([], null, { initial: 100 }); // B carries cached DATA
+		const aOnly = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+		const sum = (ctx: Ctx) =>
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
+		const d = node<number>([a], aOnly);
+		collect(d);
+		expect(d.cache).toBe(1); // (1) A settled → D ran
+
+		d.subscribeDep(b, sum); // (2) subscribeDep(B): B cached → push-on-subscribe → D recomputes
+		expect(d.cache).toBe(101); // 1 + 100
+
+		b.down([["DATA", 50]]); // (3) B drives D
+		expect(d.cache).toBe(51); // 1 + 50
+
+		d.unsubscribeDep(a, aOnly); // (4) unsubscribeDep(A) → deps = [B]
+		expect(d.cache).toBe(51); // cache PRESERVED (A was not dirty — no recompute)
+
+		a.down([["DATA", 9]]); // (5) A no longer drives D — its edge is drained
+		expect(d.cache).toBe(51);
+
+		b.down([["DATA", 7]]); // B is dep0 now → drives D
+		expect(d.cache).toBe(7);
+
+		let runs = 0;
+		const f = (ctx: Ctx) => {
+			runs++;
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+		};
+		d.replaceDeps([b], f); // (6) replaceDeps to the current set → idempotent
+		expect(runs).toBe(0); // no spurious recompute
+		expect(d.cache).toBe(7);
+	});
+
+	it("rejects rewire on a terminal node (throw → graph-layer ERROR, D30)", () => {
+		const a = node<number>([], null, { initial: 1 });
+		const id = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+		const d = node<number>([a], id, { completeWhenDepsComplete: false });
+		collect(d);
+		d.down([["COMPLETE"]]); // D terminal
+		expect(() => d.replaceDeps([a], id)).toThrow(/terminal/);
+	});
+});
+
+describe("C-9 pausable:false async source ignores PAUSE (R-pause-modes / R-async-paused / D44)", () => {
+	it("delivers its async production immediately under PAUSE — never buffers (resolves B20)", () => {
+		let cctx: Ctx | null = null;
+		// depless async LEAF source, pausable:false (timer/interval-class).
+		const s = node<number>(
+			[],
+			(ctx: Ctx) => {
+				cctx = ctx;
+			},
+			{ pool: "async", pausable: false },
+		);
+		const { msgs } = collect(s);
+		expect(cctx).not.toBeNull(); // fn ran on activation, no emit yet
+
+		const L = Symbol("pause");
+		s.up([["PAUSE", L]]); // pausable:false ⇒ lockset never consulted
+		msgs.length = 0;
+
+		(cctx as Ctx).down([["DATA", 42]]); // async production WHILE "paused" → delivered immediately
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // NOT buffered (contrast C-2's compute node)
+		expect(msgs.at(-1)).toEqual(["DATA", 42]);
+		expect(s.cache).toBe(42);
+	});
+});
+
+describe("C-10 true-mode async leaf source delivers immediately under PAUSE (R-pause-modes / R-async-paused / D44)", () => {
+	it("a depless async source's own production is not gated in true (default) mode (B20's twin)", () => {
+		let cctx: Ctx | null = null;
+		// depless async LEAF source, pausable:true default (fromPromise/fromAsyncIter-class).
+		const s = node<number>(
+			[],
+			(ctx: Ctx) => {
+				cctx = ctx;
+			},
+			{ pool: "async" },
+		);
+		const { msgs } = collect(s);
+		expect(cctx).not.toBeNull();
+
+		const L = Symbol("pause");
+		s.up([["PAUSE", L]]);
+		msgs.length = 0;
+
+		(cctx as Ctx).down([["DATA", 7]]); // leaf source's OWN production → delivered immediately
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // NOT buffered (a COMPUTE node WOULD buffer — C-2)
+		expect(msgs.at(-1)).toEqual(["DATA", 7]);
+		expect(s.cache).toBe(7);
+	});
+});
+
+// C-11 (D47 / R-rewire-deferred): a node fn's SELF-triggered dep-set mutation via ctx.rewireNext
+// is deferred to the committed wave boundary (never mutating _deps mid-run, never the D37 in-fn
+// reject), drained as a fresh wave; added cached inners push [DIRTY,DATA] without re-arming the
+// gate; removed inners are drained + _deactivate (onDeactivation = abortInFlight). D62: queued
+// rewireNext still drains if OP goes terminal; terminal seals output, not topology. The substrate
+// prerequisite for the higher-order *Map operators. Distinct from C-8 (external/immediate rewire).
+describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred / D47/D62)", () => {
+	// Inners are leaf sources whose activation + deactivation are observable (cancellation visible).
+	function makeInner(seed?: number) {
+		let ictx: Ctx | null = null;
+		let activated = false;
+		let deactivated = false;
+		const n = node<number>([], (ctx) => {
+			ictx = ctx;
+			activated = true;
+			ctx.onDeactivation(() => {
+				deactivated = true;
+			});
+			if (seed !== undefined) ctx.down([["DATA", seed]]);
+		});
+		return {
+			node: n,
+			emit: (v: number) => (ictx as Ctx).down([["DATA", v]]),
+			complete: () => (ictx as Ctx).down([["COMPLETE"]]),
+			isActivated: () => activated,
+			isDeactivated: () => deactivated,
+		};
+	}
+
+	// A merge-style OP: spawn+add an inner per S DATA, forward inner DATA, remove a completed inner.
+	function mergeOp(s: Node<number>) {
+		const inners: Node<number>[] = [];
+		const opFn: NodeFn = (ctx) => {
+			const removals: Node<number>[] = [];
+			for (let i = 1; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
+				if (isTerminalComplete(depTerminal(ctx, i))) removals.push(inners[i - 1]);
+			}
+			const sv = depBatch(ctx, 0);
+			if (sv && sv.length > 0) {
+				const inner = makeInner((sv[sv.length - 1] as number) * 10);
+				inners.push(inner.node);
+				ctx.rewireNext.subscribeDep(inner.node, opFn);
+			}
+			for (const r of removals) {
+				inners.splice(inners.indexOf(r), 1);
+				ctx.rewireNext.unsubscribeDep(r, opFn);
+			}
+		};
+		return node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+	}
+
+	it("(steps 1-3) subscribeDep deferred to the boundary; added cached inner pushes [DIRTY,DATA], gate not re-armed", () => {
+		const s = node<number>([], null);
+		let opRuns = 0;
+		const inners: Node<number>[] = [];
+		const opFn: NodeFn = (ctx) => {
+			opRuns++;
+			for (let i = 1; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
+			}
+			const sv = depBatch(ctx, 0);
+			if (sv && sv.length > 0) {
+				const inner = makeInner((sv[sv.length - 1] as number) * 10);
+				inners.push(inner.node);
+				// mid-run: _deps is NOT mutated — the inner is not yet wired/activated.
+				expect(inner.isActivated()).toBe(false);
+				ctx.rewireNext.subscribeDep(inner.node, opFn);
+				expect(inner.isActivated()).toBe(false); // still deferred after the request
+			}
+		};
+		const op = node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]); // step 1: request subscribeDep(innerA); step 2: drain wires it; step 3: forward
+		expect(types(msgs)).toContain("DIRTY"); // step 2 boundary wave is two-phase…
+		expect(data(msgs)).toEqual([10]); // …innerA's seed (1*10) forwarded as DATA
+
+		opRuns = 0;
+		s.down([["DATA", 2]]); // gate NOT re-armed: S alone re-drives the fn (and adds innerB)
+		expect(opRuns).toBeGreaterThan(0);
+	});
+
+	it("(step 7) an inner COMPLETE removes it (bounding); OP does not COMPLETE while S is live", () => {
+		const s = node<number>([], null);
+		const op = mergeOp(s);
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 5]]); // add innerA (seed 50 forwarded)
+		expect(data(msgs)).toContain(50);
+		msgs.length = 0;
+
+		s.down([["DATA", 6]]); // add innerB (seed 60 forwarded)
+		expect(data(msgs)).toContain(60);
+
+		// OP stays live: S is still live, completeWhenDepsComplete:false → no terminal cascade.
+		expect(op.status).not.toBe("completed");
+		expect(types(msgs)).not.toContain("COMPLETE");
+	});
+
+	it("(steps 4-6, switch) replaceDeps tears down the superseded inner's source and forwards only the new one", () => {
+		const s = node<number>([], null);
+		const innerA = makeInner(10);
+		const innerB = makeInner(20);
+		let current: Node<number> | null = null;
+		const opFn: NodeFn = (ctx) => {
+			for (let i = 1; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
+			}
+			const sv = depBatch(ctx, 0);
+			if (sv && sv.length > 0) {
+				current = (sv[sv.length - 1] as number) === 1 ? innerA.node : innerB.node;
+				ctx.rewireNext.replaceDeps([s, current], opFn);
+			}
+		};
+		const op = node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		const { msgs } = collect(op);
+
+		s.down([["DATA", 1]]); // → innerA live (seed 10 forwarded)
+		expect(data(msgs)).toContain(10);
+		expect(innerA.isActivated()).toBe(true);
+		msgs.length = 0;
+
+		s.down([["DATA", 2]]); // switch → innerB; innerA's SOURCE torn down (not masked)
+		expect(innerB.isActivated()).toBe(true);
+		expect(innerA.isDeactivated()).toBe(true);
+		expect(data(msgs)).toEqual([20]); // ONLY the current inner forwarded
+		msgs.length = 0;
+
+		innerA.emit(999); // the superseded inner is DRAINED — no stale forward survives
+		expect(data(msgs)).toEqual([]);
+	});
+
+	it("(variant) an IMMEDIATE in-fn self-rewire is the D37 feedback cycle → graph-layer ERROR (not rewireNext)", () => {
+		const g = graph();
+		const a = g.state(1);
+		const x = g.state(9);
+		let op: Node<number>;
+		// g.derived carries the D30 value-throw→ERROR boundary; the fn does an IMMEDIATE self-subscribeDep
+		// (NOT ctx.rewireNext) mid-run → the D37 reject throws → graph layer converts it to ERROR.
+		op = g.derived([a], (av) => {
+			op.subscribeDep(x, (c) => c.down([["DATA", depLatest(c, 0) as number]]));
+			return av as number;
+		});
+		let escaped = false;
+		try {
+			op.subscribe(() => {});
+		} catch {
+			escaped = true; // the substrate throw must be caught by the graph layer (D30), not escape
+		}
+		expect(escaped).toBe(false);
+		expect(op.status).toBe("errored");
+	});
+
+	it("(variant) a terminal OP still drains its pending rewireNext queue; terminal seals output", () => {
+		const s = node<number>([], null);
+		const inner = makeInner(1);
+		const opFn: NodeFn = (ctx) => {
+			if (depBatch(ctx, 0)) {
+				ctx.rewireNext.subscribeDep(inner.node, opFn); // queued…
+				ctx.down([["COMPLETE"]]); // …then OP goes terminal THIS wave
+			}
+		};
+		const op = node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		const { msgs } = collect(op);
+		s.down([["DATA", 1]]);
+		expect(op.status).toBe("completed");
+		expect(inner.isActivated()).toBe(true); // D62: queued subscribeDep drains after terminal
+		expect(op.deps).toContain(inner.node);
+		msgs.length = 0;
+		inner.emit(2);
+		expect(msgs).toEqual([]); // terminal output guard: no post-terminal DATA escapes
+	});
+
+	it("(variant) a terminal OP drains a queued unsubscribeDep, releasing helper-owned work", () => {
+		const s = node<number>([], null);
+		const inner = makeInner(1);
+		let added = false;
+		const opFn: NodeFn = (ctx) => {
+			if (!added && depBatch(ctx, 0)) {
+				added = true;
+				ctx.rewireNext.subscribeDep(inner.node, opFn);
+				return;
+			}
+			if (isTerminalComplete(depTerminal(ctx, 0))) {
+				ctx.rewireNext.unsubscribeDep(inner.node, opFn);
+				ctx.down([["COMPLETE"]]);
+			}
+		};
+		const op = node<number>([s], opFn, {
+			completeWhenDepsComplete: false,
+			terminalAsRealInput: true,
+		});
+		collect(op);
+		s.down([["DATA", 1]]);
+		expect(inner.isActivated()).toBe(true);
+		s.down([["COMPLETE"]]);
+		expect(op.status).toBe("completed");
+		expect(op.deps).not.toContain(inner.node);
+		expect(inner.isDeactivated()).toBe(true);
+	});
+
+	it("(variant) a no-net-change rewireNext is a no-op (no drain loop)", () => {
+		const a = node<number>([], null, { initial: 1 });
+		let runs = 0;
+		const op = node<number>([a], function opFn(ctx) {
+			runs++;
+			if (runs < 5) ctx.rewireNext.replaceDeps([a], opFn); // identical dep set every run
+			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+		});
+		collect(op);
+		expect(runs).toBe(1); // the idempotent replaceDeps changes nothing → no fresh wave → no loop
+		expect(op.cache).toBe(1);
+	});
+});
+
+// C-12 (D49 / R-resolved-undirty, supersedes D15/R-equals): every value-occurrence is DATA
+// (no auto-equals-substitution); RESOLVED is the substrate-SYNTHESIZED undirty-only signal;
+// dedup is opt-in at the operator layer. Folds the former _probe.test.ts probes (the
+// fromIter([1,1,1]) / take(3) / state.set-same cases that surfaced D49).
+describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undirty / D49)", () => {
+	it("(a) a repeated value is N distinct DATA occurrences, never collapsed to RESOLVED", () => {
+		const g = graph();
+		const src = g.initNode(fromIter<number>([1, 1, 1]), []);
+		const { msgs } = collect(src);
+		expect(types(msgs)).toEqual(["START", "DATA", "DATA", "DATA", "COMPLETE"]);
+		expect(data(msgs)).toEqual([1, 1, 1]); // not [1] — the pre-D49 equals-absorption bug
+	});
+
+	it("(b) take(3) counts occurrences, not distinct values → [1,1,1]", () => {
+		const g = graph();
+		const src = g.initNode(fromIter<number>([1, 1, 1]), []);
+		const t = g.initNode(take<number>(3), [src]);
+		const { msgs } = collect(t);
+		expect(data(msgs)).toEqual([1, 1, 1]);
+		expect(t.status).toBe("completed");
+	});
+
+	it("(c) filter-reject: the substrate synthesizes one undirty RESOLVED — no DATA, no wedge", () => {
+		const g = graph();
+		const s = g.state(50);
+		const f = g.initNode(
+			filter((n: number) => n >= 100),
+			[s],
+		);
+		const { msgs } = collect(f);
+		// activation: 50 rejected, f never produced — no DIRTY on activation, no synth
+		expect(f.status).toBe("sentinel");
+		expect(f.cache).toBeUndefined();
+		msgs.length = 0;
+
+		s.set(60); // rejected: DIRTY'd but no value → substrate-synthesized undirty RESOLVED
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]); // un-dirtied, no DATA, not wedged
+		expect(f.status).toBe("sentinel"); // never valued
+		msgs.length = 0;
+
+		s.set(150); // accepted → real DATA occurrence
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(f.cache).toBe(150);
+		msgs.length = 0;
+
+		s.set(70); // rejected, but f now carries 150 → undirty RESOLVED, status resolved
+		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]);
+		expect(f.status).toBe("resolved");
+		expect(f.cache).toBe(150); // cache preserved across the undirty wave
+	});
+
+	it("(c') a downstream recompute un-dirties as DATA (occurrence), never wedges", () => {
+		const g = graph();
+		const s = g.state(100); // accepted by the filter
+		const f = g.initNode(
+			filter((n: number) => n >= 100),
+			[s],
+		);
+		const d = g.derived([f], (v: number) => v * 2);
+		const { msgs } = collect(d);
+		expect(d.cache).toBe(200); // f=100 → d=200
+		msgs.length = 0;
+
+		s.set(50); // rejected by f → f synthesizes RESOLVED → d clears + recomputes f's cached 100
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // d un-dirtied via a (same-value) DATA, no wedge
+		expect(d.cache).toBe(200);
+	});
+
+	it("(d) distinctUntilChanged is the OPT-IN dedup (operator's job, not substrate)", () => {
+		const g = graph();
+		const s = g.state(1);
+		const duc = g.initNode(distinctUntilChanged<number>(), [s]);
+		const { msgs } = collect(duc);
+		s.set(1); // dup → operator returns without emitting → substrate synthesizes RESOLVED
+		s.set(2);
+		s.set(2); // dup → suppressed
+		s.set(3);
+		expect(data(msgs)).toEqual([1, 2, 3]);
+	});
+
+	it("a state node re-set to the same value emits DATA, not RESOLVED (no substrate equals)", () => {
+		const g = graph();
+		const s = g.state(1);
+		const { msgs } = collect(s);
+		msgs.length = 0;
+		s.set(1); // same value
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // occurrence, NOT equals-absorbed
+		expect(s.cache).toBe(1);
+		msgs.length = 0;
+		s.set(2);
+		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+	});
+
+	it("the tier-3 exclusivity guard stays: a wave cannot mix DATA and RESOLVED", () => {
+		const s = node<number>([], null, { initial: 1 });
+		collect(s);
+		expect(() => s.down([["DATA", 2], ["RESOLVED"]])).toThrow(/tier-3 exclusivity/);
+	});
+});
+
+describe("C-13 INVALIDATE arriving at a paused compute node (R-paused-invalidate / D50)", () => {
+	it("(a) a sole-dep INVALIDATE supersedes the buffered paused dep-wave → no recompute on RESUME", () => {
+		let runs = 0;
+		const d1 = node<number>([], null, { initial: 0 });
+		const n = node<number>([d1], (ctx: Ctx) => {
+			runs++;
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]); // non-guarding
+		});
+		const { msgs } = collect(n);
+		expect(n.cache).toBe(1);
+		runs = 0;
+		msgs.length = 0;
+
+		const L = Symbol("p");
+		n.up([["PAUSE", L]]);
+		d1.down([["DATA", 5]]); // buffered while paused (no recompute)
+		expect(runs).toBe(0);
+		d1.down([["INVALIDATE"]]); // supersedes the buffered wave → cancels the paused recompute
+		n.up([["RESUME", L]]); // RESUME must NOT recompute against the SENTINEL dep
+
+		expect(runs).toBe(0); // the superseded paused dep-wave does not recompute (D50)
+		expect(n.cache).toBeUndefined(); // stays SENTINEL (own INVALIDATE) — no garbage recompute
+		expect(msgs.some((m) => m[0] === "DATA")).toBe(false); // no spurious recompute DATA after INVALIDATE
+	});
+
+	it("(b) a DATA after the INVALIDATE re-arms the buffer → RESUME recomputes with the new value", () => {
+		let runs = 0;
+		const d1 = node<number>([], null, { initial: 0 });
+		const n = node<number>([d1], (ctx: Ctx) => {
+			runs++;
+			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 100]]);
+		});
+		collect(n);
+		runs = 0;
+
+		const L = Symbol("p");
+		n.up([["PAUSE", L]]);
+		d1.down([["DATA", 5]]); // buffered
+		d1.down([["INVALIDATE"]]); // supersede v1
+		d1.down([["DATA", 7]]); // re-arm with v2
+		n.up([["RESUME", L]]);
+
+		expect(runs).toBe(1); // recomputes once with the re-armed value
+		expect(n.cache).toBe(107); // 7 + 100 (v2, not the superseded v1)
+	});
+
+	it("(c) a multi-dep INVALIDATE does NOT cancel a surviving dep's buffered update", () => {
+		let runs = 0;
+		const d1 = node<number>([], null, { initial: 0 });
+		const d2 = node<number>([], null, { initial: 0 });
+		const n = node<number>([d1, d2], (ctx: Ctx) => {
+			runs++;
+			const a = (depLatest(ctx, 0) as number | undefined) ?? 0; // guards D1 SENTINEL
+			const b = depLatest(ctx, 1) as number;
+			ctx.down([["DATA", a + b]]);
+		});
+		collect(n);
+		runs = 0;
+
+		const L = Symbol("p");
+		n.up([["PAUSE", L]]);
+		d1.down([["DATA", 5]]); // buffered
+		d2.down([["DATA", 9]]); // buffered (the survivor)
+		d1.down([["INVALIDATE"]]); // D1 superseded; D2's buffered wave survives
+		n.up([["RESUME", L]]);
+
+		expect(runs).toBe(1); // still recomputes for the surviving dep (no lost update)
+		expect(n.cache).toBe(9); // D1=SENTINEL→0, D2=9
+	});
+});

@@ -28,7 +28,10 @@ const SRC = join(ROOT, "packages/ts/src");
  */
 const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/adapters/bridge.ts",
+	"packages/ts/src/adapters/bridge-remote-responder.ts",
 	"packages/ts/src/adapters/environment.ts",
+	"packages/ts/src/adapters/environment-outbound.ts",
+	"packages/ts/src/adapters/environment-websocket-session.ts",
 	"packages/ts/src/graph/environment.ts",
 	"packages/ts/src/graph/sources.ts",
 	"packages/ts/src/graph/worker.ts",
