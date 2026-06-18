@@ -1890,7 +1890,15 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(runtimeStatus).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ status: "retention-trimmed", index: "executions" }),
-				expect.objectContaining({ status: "retention-gap", index: "executions" }),
+				expect.objectContaining({
+					status: "retention-gap",
+					index: "executions",
+					issueCode: "tool-provider-adapter-runtime-retention-gap",
+					metadata: expect.objectContaining({
+						gapKind: "execution-proof-trimmed",
+						evidenceKind: "execution-high-water",
+					}),
+				}),
 			]),
 		);
 		expect(runtimeStatus.map((status) => status.status)).toEqual(
@@ -2001,6 +2009,83 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 	});
 
+	it("keeps retained duplicate coordinates ahead of execution high-water gaps", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-coordinate-high-water-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-coordinate-high-water-runs",
+		});
+		const ready = readyToolProviderAdapterInput(
+			"runtime-retention-coordinate-high-water-provider",
+			"runtime-retention-coordinate-high-water-req",
+		);
+		const calls: string[] = [];
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			retention: {
+				executions: {
+					maxSize: 2,
+					score(entry) {
+						return entry.attempt === 1 || entry.attempt === 3 ? 10 : 0;
+					},
+				},
+			},
+			bindings: [
+				{
+					providerId: "runtime-retention-coordinate-high-water-provider",
+					run(_input, ctx) {
+						calls.push(`${ctx.runId}:${ctx.attempt}`);
+						return { kind: "result", result: { kind: "tool-output" } };
+					},
+				},
+			],
+		});
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const issues: DataIssue[] = [];
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+		runtime.runtimeStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+
+		inputs.down([["DATA", ready]]);
+		runRequests.down([
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "coord-keep-1", attempt: 1 })],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "coord-trim-2", attempt: 2 })],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "coord-keep-3", attempt: 3 })],
+			["DATA", requestToolProviderAdapterRun(ready, { runId: "coord-duplicate-1", attempt: 1 })],
+		]);
+
+		expect(calls).toEqual(["coord-keep-1:1", "coord-trim-2:2", "coord-keep-3:3"]);
+		expect(runtimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ status: "retention-trimmed", index: "executions" }),
+			]),
+		);
+		expect(runStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ runId: "coord-duplicate-1", status: "mismatched-request" }),
+			]),
+		);
+		expect(runStatus.filter((status) => status.runId === "coord-duplicate-1")).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
+		);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-runtime-duplicate-execution-coordinate",
+				}),
+			]),
+		);
+	});
+
 	it("bounds retention evidence horizon and fails closed after high-water proof is evicted", () => {
 		const g = graph();
 		const inputs = g.node<ToolProviderAdapterInput>([], null, {
@@ -2098,14 +2183,16 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 					index: "retentionEvidence",
 					adapterInputId: first.adapterInputId,
 					runId: "evidence-replay",
-					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+					metadata: expect.objectContaining({ gapKind: "evidence-horizon-closed" }),
 				}),
 				expect.objectContaining({
 					status: "retention-gap",
 					index: "retentionEvidence",
 					adapterInputId: first.adapterInputId,
 					runId: "evidence-replay-after-input-reemit",
-					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+					metadata: expect.objectContaining({ gapKind: "evidence-horizon-closed" }),
 				}),
 			]),
 		);
@@ -2121,15 +2208,16 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(issues).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					code: "tool-provider-adapter-runtime-retention-evidence-gap",
+					code: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
 					subjectId: first.adapterInputId,
+					details: expect.objectContaining({ gapKind: "evidence-horizon-closed" }),
 				}),
 			]),
 		);
 		expect(audit).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
 				}),
 			]),
 		);
@@ -2297,7 +2385,8 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 					status: "retention-gap",
 					index: "retentionEvidence",
 					adapterInputId: freshAfterGlobal.adapterInputId,
-					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+					metadata: expect.objectContaining({ gapKind: "evidence-horizon-closed" }),
 				}),
 				expect.objectContaining({
 					status: "retention-gap",
@@ -2305,7 +2394,8 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 					adapterInputId: first.adapterInputId,
 					runId: "global-a-3",
 					attempt: 3,
-					issueCode: "tool-provider-adapter-runtime-retention-evidence-gap",
+					issueCode: "tool-provider-adapter-runtime-retention-evidence-horizon-closed",
+					metadata: expect.objectContaining({ gapKind: "evidence-horizon-closed" }),
 				}),
 			]),
 		);
@@ -2947,7 +3037,15 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(runtimeStatus).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ status: "retention-trimmed", index: "adapterInputs" }),
-				expect.objectContaining({ status: "retention-gap", index: "adapterInputs" }),
+				expect.objectContaining({
+					status: "retention-gap",
+					index: "adapterInputs",
+					issueCode: "tool-provider-adapter-runtime-retention-gap",
+					metadata: expect.objectContaining({
+						gapKind: "adapter-input-trimmed",
+						evidenceKind: "adapter-input-trimmed",
+					}),
+				}),
 			]),
 		);
 		expect(runStatus).toEqual(
@@ -3348,6 +3446,14 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 		expect(runStatus.filter((status) => status.runId === "missing-run")).not.toEqual(
 			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
+		);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-run-request-missing-input",
+					subjectId: "missing-adapter-input",
+				}),
+			]),
 		);
 		expect(runtimeStatus).not.toEqual(
 			expect.arrayContaining([

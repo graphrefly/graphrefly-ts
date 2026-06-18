@@ -2159,7 +2159,9 @@ function toolProviderAdapterRunProjectorInternal(
 				const request = raw;
 				const input = state.inputs.get(request.adapterInputId);
 				if (input === undefined) {
-					if (opts.privateRetentionHooks?.shouldForwardRetainedRunRequest?.(request) === true) {
+					const replayClassification =
+						opts.privateRetentionHooks?.classifyRetainedRunRequestReplayEvidence?.(request);
+					if (replayClassification?.kind === "retention-gap") {
 						emitRunRequested(
 							ctx,
 							state,
@@ -2378,6 +2380,22 @@ type EffectiveRuntimeRetentionPolicy = Partial<{
 	readonly retentionEvidence: RuntimeRetentionIndexConfig;
 }>;
 
+type ReplayEvidenceGapKind =
+	| "adapter-input-trimmed"
+	| "execution-proof-trimmed"
+	| "evidence-horizon"
+	| "evidence-horizon-closed";
+
+type ReplayEvidenceClassification =
+	| { readonly kind: "fresh" }
+	| { readonly kind: "missing-input" }
+	| {
+			readonly kind: "retention-gap";
+			readonly index: ToolProviderAdapterRuntimeRetentionIndex;
+			readonly gapKind: ReplayEvidenceGapKind;
+			readonly key?: string;
+	  };
+
 interface RuntimeIndexItem<Entry, Value> {
 	readonly key: string;
 	readonly entry: Entry;
@@ -2394,7 +2412,9 @@ interface ToolProviderAdapterRunProjectorPrivateRetentionHooks {
 		readonly adapterInputId: string;
 		readonly dropInput: () => void;
 	}) => void;
-	readonly shouldForwardRetainedRunRequest?: (request: ToolProviderAdapterRunRequested) => boolean;
+	readonly classifyRetainedRunRequestReplayEvidence?: (
+		request: ToolProviderAdapterRunRequested,
+	) => ReplayEvidenceClassification;
 	readonly onRunRequestKey?: (entry: {
 		readonly key: string;
 		readonly request: ToolProviderAdapterRunRequested;
@@ -3251,36 +3271,43 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		);
 	}
 
-	function classifyRunRequestAbsence(request: ToolProviderAdapterRunRequested):
-		| { readonly status: "missing-input" }
-		| {
-				readonly status: "retention-gap";
-				readonly index: Extract<
-					ToolProviderAdapterRuntimeRetentionIndex,
-					"adapterInputs" | "retentionEvidence"
-				>;
-				readonly key: string;
-		  } {
+	function classifyRunRequestReplayEvidence(
+		request: ToolProviderAdapterRunRequested,
+		input?: ToolProviderAdapterInput<TArguments>,
+	): ReplayEvidenceClassification {
 		if (isRetentionEvidenceClosed(request.adapterInputId)) {
 			return {
-				status: "retention-gap",
+				kind: "retention-gap",
 				index: "retentionEvidence",
-				key: request.adapterInputId,
+				gapKind: "evidence-horizon-closed",
+				key: retentionEvidenceClosedKey(request.adapterInputId),
+			};
+		}
+		if (input === undefined && trimmedAdapterInputIds.has(request.adapterInputId)) {
+			return {
+				kind: "retention-gap",
+				index: "adapterInputs",
+				gapKind: "adapter-input-trimmed",
+				key: `adapter-input-trimmed:${request.adapterInputId}`,
 			};
 		}
 		const highWater = executionHighWaterByInput.get(request.adapterInputId) ?? 0;
-		if (trimmedAdapterInputIds.has(request.adapterInputId) || highWater >= request.attempt) {
+		if (highWater >= request.attempt) {
 			return {
-				status: "retention-gap",
-				index: "adapterInputs",
-				key: request.adapterInputId,
+				kind: "retention-gap",
+				index: "executions",
+				gapKind: "execution-proof-trimmed",
+				key: `execution-high-water:${request.adapterInputId}`,
 			};
 		}
-		return { status: "missing-input" };
+		if (input === undefined) return { kind: "missing-input" };
+		return { kind: "fresh" };
 	}
 
-	function shouldForwardRetainedRunRequest(request: ToolProviderAdapterRunRequested): boolean {
-		return classifyRunRequestAbsence(request).status === "retention-gap";
+	function classifyRetainedRunRequestReplayEvidence(
+		request: ToolProviderAdapterRunRequested,
+	): ReplayEvidenceClassification {
+		return classifyRunRequestReplayEvidence(request);
 	}
 
 	function dropProjectorInput(adapterInputId: string): void {
@@ -3738,11 +3765,6 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			}
 			return false;
 		}
-		const highWater = executionHighWaterByInput.get(request.adapterInputId) ?? 0;
-		if (highWater >= request.attempt) {
-			publishRetentionGap(request, "executions", coordinate);
-			return false;
-		}
 		const sequence = nextRetentionSequence();
 		executions.set(
 			coordinate,
@@ -3750,45 +3772,119 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			request,
 		);
 		trimExecutions();
-		if (isRetentionEvidenceClosed(request.adapterInputId)) {
+		const classification = classifyRunRequestReplayEvidence(
+			request,
+			adapterInputs.get(request.adapterInputId)?.value,
+		);
+		if (classification.kind !== "fresh") {
 			executions.delete(coordinate);
-			publishRetentionGap(request, "retentionEvidence", request.adapterInputId);
+			publishReplayClassification(request, classification);
 			return false;
 		}
 		return true;
 	}
 
+	function publishReplayClassification(
+		request: ToolProviderAdapterRunRequested,
+		classification: ReplayEvidenceClassification,
+	): boolean {
+		if (classification.kind === "fresh") return false;
+		if (classification.kind === "missing-input") {
+			const issueCode = "tool-provider-adapter-runtime-missing-input";
+			const issue = dataIssue(
+				issueCode,
+				"Tool provider adapter runtime requires the requested adapter input.",
+				{
+					subjectId: request.adapterInputId,
+					refs: [ref("tool-provider-adapter-run", request.runId)],
+					details: {
+						adapterInputId: request.adapterInputId,
+						runId: request.runId,
+						attempt: request.attempt,
+						issueCode,
+					},
+				},
+			);
+			publishIssue(issue);
+			publishRunStatus(request, "missing-input", [issue]);
+			return true;
+		}
+		publishRetentionGap(request, classification);
+		return true;
+	}
+
+	function retentionGapIssueCode(gapKind: ReplayEvidenceGapKind): string {
+		switch (gapKind) {
+			case "evidence-horizon":
+				return "tool-provider-adapter-runtime-retention-evidence-gap";
+			case "evidence-horizon-closed":
+				return "tool-provider-adapter-runtime-retention-evidence-horizon-closed";
+			case "adapter-input-trimmed":
+			case "execution-proof-trimmed":
+				return "tool-provider-adapter-runtime-retention-gap";
+		}
+	}
+
+	function retentionGapMessage(gapKind: ReplayEvidenceGapKind): string {
+		switch (gapKind) {
+			case "evidence-horizon":
+				return "Tool provider adapter runtime retention evidence horizon no longer proves this request is fresh.";
+			case "evidence-horizon-closed":
+				return "Tool provider adapter runtime retention evidence horizon is closed; this request must fail closed.";
+			case "adapter-input-trimmed":
+				return "Tool provider adapter runtime retention removed the requested adapter input proof.";
+			case "execution-proof-trimmed":
+				return "Tool provider adapter runtime retention removed execution proof needed to safely replay this request.";
+		}
+	}
+
+	function retentionGapEvidenceKind(
+		gapKind: ReplayEvidenceGapKind,
+	): ToolProviderAdapterRuntimeRetentionEvidenceEntry["evidenceKind"] | undefined {
+		switch (gapKind) {
+			case "adapter-input-trimmed":
+				return "adapter-input-trimmed";
+			case "execution-proof-trimmed":
+				return "execution-high-water";
+			case "evidence-horizon":
+			case "evidence-horizon-closed":
+				return undefined;
+		}
+	}
+
 	function publishRetentionGap(
 		request: ToolProviderAdapterRunRequested,
-		index: ToolProviderAdapterRuntimeRetentionIndex,
-		key: string,
+		classification: Extract<ReplayEvidenceClassification, { readonly kind: "retention-gap" }>,
 	): void {
-		const evidenceGap = index === "retentionEvidence";
+		const { index, gapKind } = classification;
+		const key = classification.key ?? request.adapterInputId;
+		const issueCode = retentionGapIssueCode(gapKind);
+		const evidenceKind = retentionGapEvidenceKind(gapKind);
 		const sourceRefs = runtimeEvidenceSourceRefs(index, [
 			ref("tool-provider-adapter-run", request.runId),
+			ref("tool-provider-adapter-input", request.adapterInputId),
 		]);
 		const metadata = runtimeEvidenceMetadata(index, {
 			key,
-			extra: evidenceGap ? { gapKind: "evidence-horizon" } : {},
-		});
-		const issue = dataIssue(
-			evidenceGap
-				? "tool-provider-adapter-runtime-retention-evidence-gap"
-				: "tool-provider-adapter-runtime-retention-gap",
-			evidenceGap
-				? "Tool provider adapter runtime retention evidence horizon no longer proves this request is fresh."
-				: "Tool provider adapter runtime retention removed the proof needed to safely replay this request.",
-			{
-				subjectId: request.adapterInputId,
-				refs: sourceRefs,
-				details: {
-					index,
-					adapterInputId: request.adapterInputId,
-					attempt: request.attempt,
-					...(evidenceGap ? { gapKind: "evidence-horizon" } : {}),
-				},
+			extra: {
+				gapKind,
+				...(evidenceKind === undefined ? {} : { evidenceKind }),
 			},
-		);
+		});
+		const issue = dataIssue(issueCode, retentionGapMessage(gapKind), {
+			subjectId: request.adapterInputId,
+			refs: sourceRefs,
+			details: {
+				index,
+				adapterInputId: request.adapterInputId,
+				runId: request.runId,
+				attempt: request.attempt,
+				issueCode,
+				gapKind,
+				key: runtimeDiagnosticKey(key),
+				...(evidenceKind === undefined ? {} : { evidenceKind }),
+			},
+		});
 		publishIssue(issue);
 		publishRunStatus(request, "retention-gap", [issue]);
 		publishRuntimeStatus({
@@ -3860,27 +3956,10 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 
 	function runRequest(request: ToolProviderAdapterRunRequested): void {
 		if (disposed) return;
-		const absence = classifyRunRequestAbsence(request);
-		if (absence.status === "retention-gap" && absence.index === "retentionEvidence") {
-			publishRetentionGap(request, absence.index, absence.key);
-			return;
-		}
 		const input = adapterInputs.get(request.adapterInputId)?.value;
 		if (input === undefined) {
-			if (absence.status === "retention-gap") {
-				publishRetentionGap(request, absence.index, absence.key);
-				return;
-			}
-			const issue = dataIssue(
-				"tool-provider-adapter-runtime-missing-input",
-				"Tool provider adapter runtime requires the requested adapter input.",
-				{
-					subjectId: request.adapterInputId,
-					refs: [ref("tool-provider-adapter-run", request.runId)],
-				},
-			);
-			publishIssue(issue);
-			publishRunStatus(request, "missing-input", [issue]);
+			const missingInputClassification = classifyRunRequestReplayEvidence(request);
+			publishReplayClassification(request, missingInputClassification);
 			return;
 		}
 		if (input.status !== "ready") {
@@ -3910,6 +3989,12 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			});
 			return;
 		}
+		if (executions.has(executionCoordinate(request))) {
+			startExecutionProof(request);
+			return;
+		}
+		const classification = classifyRunRequestReplayEvidence(request, input);
+		if (publishReplayClassification(request, classification)) return;
 		if (!startExecutionProof(request)) return;
 		const binding = input.providerId === undefined ? undefined : bindings.get(input.providerId);
 		if (binding === undefined) {
@@ -4048,7 +4133,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 				}
 				projectorInputDropById.set(entry.adapterInputId, entry.dropInput);
 			},
-			shouldForwardRetainedRunRequest,
+			classifyRetainedRunRequestReplayEvidence,
 		},
 	});
 	const unsubscribeRunProjectorStatus = runProjector.status.subscribe((msg) => {
