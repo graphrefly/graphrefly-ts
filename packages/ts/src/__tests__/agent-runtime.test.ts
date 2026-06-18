@@ -720,7 +720,12 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 
 		const invalidCatalog = localBuiltinToolProviderCatalog({
 			providerId: "invalid",
-			policyOverrides: { metadata: { apiKey: "do-not-publish" } },
+			policyOverrides: {
+				metadata: {
+					apiKey: "do-not-publish",
+					rawResponse: "RAW_POLICY_SHOULD_NOT_PROJECT",
+				},
+			},
 		});
 		expect(invalidCatalog.status).toBe("misconfigured");
 		expect(invalidCatalog.policies).toEqual([]);
@@ -730,7 +735,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			]),
 		);
 		expect(JSON.stringify(invalidCatalog)).not.toMatch(
-			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential/i,
+			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential|rawResponse|RAW_POLICY_SHOULD_NOT_PROJECT/i,
 		);
 		const malformedCatalog = localBuiltinToolProviderCatalog({
 			providerId: "malformed",
@@ -755,14 +760,14 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 	it("keeps local builtin catalog caller material data-only and provider-scoped", () => {
 		const leakyCatalog = localBuiltinToolProviderCatalog({
 			providerId: "leaky",
-			metadata: { apiKey: "do-not-publish" },
-			capabilities: { client: "do-not-publish" },
+			metadata: { apiKey: "do-not-publish", rawResponse: "RAW_CATALOG_METADATA" },
+			capabilities: { client: "do-not-publish", stdout: "RAW_CATALOG_CAPABILITY" },
 			tools: [
 				{
 					toolName: "file.read",
 					operation: "read",
-					metadata: { secret: "do-not-publish" },
-					capabilities: { transport: "do-not-publish" },
+					metadata: { secret: "do-not-publish", stderr: "RAW_TOOL_METADATA" },
+					capabilities: { transport: "do-not-publish", rawResponse: "RAW_TOOL_CAPABILITY" },
 					policyRefs: [{ kind: "foreign-policy", id: "stale" }],
 				},
 			],
@@ -789,7 +794,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			]),
 		);
 		expect(JSON.stringify(leakyCatalog)).not.toMatch(
-			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential/i,
+			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential|rawResponse|RAW_/i,
 		);
 
 		const foreignPolicyCatalog = localBuiltinToolProviderCatalog({
@@ -1564,16 +1569,20 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			name: "runtime-run-requests",
 		});
 		const ready = readyToolProviderAdapterInput("runtime-run-provider", "runtime-run-req");
+		const longReason = `${"provider-reason-".repeat(60)}RAW_REASON_TAIL_SHOULD_NOT_PROJECT`;
 		const attempts: number[] = [];
+		const reasons: (string | undefined)[] = [];
 		const runtime = attachToolProviderAdapterRuntime(g, {
 			inputs,
 			runRequests: [runRequests],
 			autoRunReadyInputs: false,
+			publicText: { maxReasonChars: 32 },
 			bindings: [
 				{
 					providerId: "runtime-run-provider",
 					run(_input, ctx) {
 						attempts.push(ctx.attempt);
+						reasons.push(ctx.reason);
 						return {
 							kind: "result",
 							result: { kind: "tool-output", summary: `attempt ${ctx.attempt}` },
@@ -1583,24 +1592,31 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			],
 		});
 		const outcomes: ExecutorOutcome[] = [];
+		const emittedRequests: ToolProviderAdapterRunRequested[] = [];
 		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const audit: unknown[] = [];
 		runtime.outcomes.subscribe(
 			(msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome),
+		);
+		runtime.runRequests.subscribe(
+			(msg) => msg[0] === "DATA" && emittedRequests.push(msg[1] as ToolProviderAdapterRunRequested),
 		);
 		runtime.runStatus.subscribe(
 			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
 		);
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		const firstRunRequest = {
+			...requestToolProviderAdapterRun(ready, {
+				runId: "run-shared",
+				attempt: 1,
+				reason: "manual",
+			}),
+			reason: longReason,
+		} satisfies ToolProviderAdapterRunRequested;
 
 		inputs.down([["DATA", ready]]);
 		runRequests.down([
-			[
-				"DATA",
-				requestToolProviderAdapterRun(ready, {
-					runId: "run-shared",
-					attempt: 1,
-					reason: "initial",
-				}),
-			],
+			["DATA", firstRunRequest],
 			[
 				"DATA",
 				requestToolProviderAdapterRun(ready, {
@@ -1611,8 +1627,12 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				}),
 			],
 		]);
+		const rawFirstRequest = emittedRequests[0];
+		expect(rawFirstRequest).toBeDefined();
 
 		expect(attempts).toEqual([1, 2]);
+		expect(reasons[0]?.length).toBeLessThanOrEqual(32);
+		expect(reasons[1]).toBe("retry");
 		expect(outcomes.map((outcome) => outcome.attempt)).toEqual([1, 2]);
 		expect(outcomes.map((outcome) => outcome.outcomeId)).toEqual([
 			expect.stringContaining("run-shared:attempt-1"),
@@ -1628,6 +1648,10 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(
 			runStatus.filter((status) => status.status === "result").map((status) => status.attempt),
 		).toEqual([1, 2]);
+		expect(rawFirstRequest?.reason.length).toBeLessThanOrEqual(32);
+		expect(JSON.stringify({ audit, emittedRequests, reasons })).not.toContain(
+			"RAW_REASON_TAIL_SHOULD_NOT_PROJECT",
+		);
 	});
 
 	it("bounds execution proofs, gaps trimmed replay, and still allows explicit attempt 2", () => {
@@ -2036,6 +2060,16 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		]);
 		expect(runStatus).toEqual(
 			expect.arrayContaining([
+				expect.objectContaining({
+					adapterInputId: first.adapterInputId,
+					status: "result",
+					attempt: 1,
+				}),
+				expect.objectContaining({
+					adapterInputId: second.adapterInputId,
+					status: "result",
+					attempt: 1,
+				}),
 				expect.objectContaining({
 					runId: "global-c-2",
 					status: "retention-gap",
@@ -2456,6 +2490,113 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				}),
 			]),
 		);
+
+		const evidenceGraph = graph();
+		const evidenceInputs = evidenceGraph.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-retention-evidence-score-inputs",
+		});
+		const evidenceRunRequests = evidenceGraph.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-retention-evidence-score-runs",
+		});
+		const evidenceFirst = readyToolProviderAdapterInput(
+			"runtime-retention-evidence-score-provider",
+			"runtime-retention-evidence-score-req-a",
+		);
+		const evidenceSecond = readyToolProviderAdapterInput(
+			"runtime-retention-evidence-score-provider",
+			"runtime-retention-evidence-score-req-b",
+		);
+		const evidenceScorerEntries: unknown[] = [];
+		const evidenceRuntime = attachToolProviderAdapterRuntime(evidenceGraph, {
+			inputs: evidenceInputs,
+			runRequests: [evidenceRunRequests],
+			autoRunReadyInputs: false,
+			retention: {
+				executions: { maxSize: 1 },
+				retentionEvidence: {
+					maxSize: 1,
+					score(entry) {
+						evidenceScorerEntries.push(entry);
+						throw new Error("secret-evidence-score-throw");
+					},
+				},
+			},
+			bindings: [
+				{
+					providerId: "runtime-retention-evidence-score-provider",
+					run() {
+						return { kind: "result", result: { kind: "tool-output", value: "hidden" } };
+					},
+				},
+			],
+		});
+		const evidenceRuntimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
+		const evidenceIssues: DataIssue[] = [];
+		const evidenceAudit: unknown[] = [];
+		evidenceRuntime.runtimeStatus.subscribe(
+			(msg) =>
+				msg[0] === "DATA" && evidenceRuntimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		);
+		evidenceRuntime.issues.subscribe(
+			(msg) => msg[0] === "DATA" && evidenceIssues.push(msg[1] as DataIssue),
+		);
+		evidenceRuntime.audit.subscribe((msg) => msg[0] === "DATA" && evidenceAudit.push(msg[1]));
+
+		evidenceInputs.down([
+			["DATA", evidenceFirst],
+			["DATA", evidenceSecond],
+		]);
+		evidenceRunRequests.down([
+			[
+				"DATA",
+				requestToolProviderAdapterRun(evidenceFirst, {
+					runId: "evidence-score-a-1",
+					attempt: 1,
+				}),
+			],
+			[
+				"DATA",
+				requestToolProviderAdapterRun(evidenceFirst, {
+					runId: "evidence-score-a-2",
+					attempt: 2,
+				}),
+			],
+			[
+				"DATA",
+				requestToolProviderAdapterRun(evidenceSecond, {
+					runId: "evidence-score-b-1",
+					attempt: 1,
+				}),
+			],
+			[
+				"DATA",
+				requestToolProviderAdapterRun(evidenceSecond, {
+					runId: "evidence-score-b-2",
+					attempt: 2,
+				}),
+			],
+		]);
+
+		expect(evidenceRuntimeStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					status: "invalid-retention-policy",
+					index: "retentionEvidence",
+					issueCode: "tool-provider-adapter-retention-score-invalid",
+				}),
+			]),
+		);
+		expect(evidenceIssues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-retention-score-invalid",
+				}),
+			]),
+		);
+		expect(JSON.stringify({ evidenceRuntimeStatus, evidenceIssues, evidenceAudit })).not.toContain(
+			"secret-evidence-score-throw",
+		);
+		expect(JSON.stringify(evidenceScorerEntries)).not.toMatch(/tool-output|arguments|raw/i);
 	});
 
 	it("does not recursively feed runIssues when its retention scorer is invalid", () => {
@@ -2606,6 +2747,12 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 		expect(runStatus).toEqual(
 			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
+		);
+		expect(runStatus.filter((status) => status.runId === "trimmed-input")).toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
+		);
+		expect(runStatus.filter((status) => status.runId === "trimmed-input")).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "missing-input" })]),
 		);
 		expect(JSON.stringify({ emittedRequests, audit, runStatus, runtimeStatus })).not.toMatch(
 			/RAW_RETAINED_REQUEST|rawResponse|stdout/,
@@ -2828,6 +2975,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		});
 		const issues: DataIssue[] = [];
 		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const audit: unknown[] = [];
 		const protocolErrors: unknown[] = [];
 		runtime.issues.subscribe((msg) => {
 			if (msg[0] === "DATA") issues.push(msg[1] as DataIssue);
@@ -2837,6 +2985,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			if (msg[0] === "DATA") runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
 			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
 		});
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
 
 		inputs.down([["DATA", ready]]);
 		runRequests.down([
@@ -2867,6 +3016,13 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				{
 					...requestToolProviderAdapterRun(ready, { runId: "raw-request", attempt: 3 }),
 					metadata: { rawResponse: "RAW_RUN_REQUEST_SHOULD_NOT_PROJECT" },
+					sourceRefs: [
+						{
+							kind: "provider-raw",
+							id: "raw-explicit-request",
+							metadata: { stdout: "RAW_RUN_REQUEST_SOURCE_REF_SHOULD_NOT_PROJECT" },
+						},
+					],
 				},
 			],
 		]);
@@ -2888,9 +3044,15 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				expect.objectContaining({ status: "missing-input" }),
 			]),
 		);
+		expect(runStatus.filter((status) => status.runId === "missing-run")).toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "missing-input" })]),
+		);
+		expect(runStatus.filter((status) => status.runId === "missing-run")).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
+		);
 		expect(protocolErrors).toEqual([]);
-		expect(JSON.stringify({ issues, runStatus })).not.toContain(
-			"RAW_RUN_REQUEST_SHOULD_NOT_PROJECT",
+		expect(JSON.stringify({ audit, issues, runStatus })).not.toMatch(
+			/RAW_RUN_REQUEST_SHOULD_NOT_PROJECT|RAW_RUN_REQUEST_SOURCE_REF_SHOULD_NOT_PROJECT|rawResponse|stdout/,
 		);
 	});
 
@@ -2936,6 +3098,9 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 		expect(runStatus).toEqual(
 			expect.arrayContaining([expect.objectContaining({ status: "missing-request" })]),
+		);
+		expect(runStatus).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ status: "retention-gap" })]),
 		);
 		expect(protocolErrors).toEqual([]);
 	});
@@ -3263,7 +3428,11 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 					kind: "tool-call",
 					toolName: "file.read",
 					operation: "read",
-					arguments: { path: "README.md", accessToken: "do-not-project" },
+					arguments: {
+						path: "README.md",
+						accessToken: "do-not-project",
+						rawResponse: "RAW_REQUEST_ARGUMENTS",
+					},
 				},
 			},
 		};
@@ -3298,10 +3467,49 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			issues: expect.arrayContaining([
 				expect.objectContaining({
 					code: "tool-provider-adapter-input-forbidden-runtime-material",
+					details: expect.objectContaining({ area: "request-input" }),
 				}),
 			]),
 		});
-		expect(JSON.stringify(inputs)).not.toMatch(/do-not-project/);
+		expect(JSON.stringify(inputs)).not.toMatch(/do-not-project|RAW_REQUEST_ARGUMENTS|rawResponse/);
+
+		const routeOnlyRequest = toolRequest(
+			"adapter-route-scan-req",
+			"adapter-route-scan-op",
+			"file.read",
+			"read",
+		);
+		const routeOnlyRoute: ExecutorRoute = {
+			kind: "executor-route",
+			routeId: "adapter-route-scan-route",
+			requestId: routeOnlyRequest.requestId,
+			operationId: routeOnlyRequest.operationId,
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			inputKind: "tool-call",
+			metadata: { stdout: "RAW_ROUTE_METADATA" },
+		};
+		const routeOnlyResolutions = resolveToolProviderExecutionPolicies({
+			request: routeOnlyRequest,
+			routes: [routeOnlyRoute],
+			catalogs: [catalog],
+		});
+		const routeOnlyInputs = buildToolProviderAdapterInputs({
+			requests: [routeOnlyRequest],
+			routes: [routeOnlyRoute],
+			catalogs: [catalog],
+			resolutions: routeOnlyResolutions,
+		});
+		expect(routeOnlyInputs[0]).toMatchObject({
+			status: "invalid-policy",
+			issues: expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-input-forbidden-runtime-material",
+					details: expect.objectContaining({ area: "route-metadata" }),
+				}),
+			]),
+		});
+		expect(JSON.stringify(routeOnlyInputs)).not.toMatch(/RAW_ROUTE_METADATA|stdout/);
 	});
 
 	it("rejects stale adapter-input route identities and unavailable catalogs", () => {
@@ -3636,7 +3844,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				limits: [{ unit: "bytes", softLimit: 20, hardLimit: 10 }, { softLimit: Number.NaN }],
 			},
 			timeout: { timeoutMs: -1, idleTimeoutMs: Number.POSITIVE_INFINITY },
-			metadata: { apiKey: "do-not-store" },
+			metadata: { apiKey: "do-not-store", rawResponse: "RAW_POLICY_VALIDATION" },
 		});
 		expect(issues).toEqual(
 			expect.arrayContaining([
@@ -3663,6 +3871,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			]),
 		);
 		expect(issues.every((issue) => issue.kind === "issue")).toBe(true);
+		expect(JSON.stringify(issues)).not.toMatch(/do-not-store|RAW_POLICY_VALIDATION|rawResponse/);
 
 		expect(
 			validateToolProviderExecutionPolicy({

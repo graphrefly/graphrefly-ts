@@ -1421,10 +1421,10 @@ export function localBuiltinToolProviderCatalog(
 			inputKind: "tool-call",
 			profileId,
 			executorId,
-			capabilities: sanitizeGraphVisibleRecord(tool.capabilities),
-			limits: sanitizeGraphVisibleRecord(tool.limits),
+			capabilities: sanitizeProviderGraphVisibleRecord(tool.capabilities),
+			limits: sanitizeProviderGraphVisibleRecord(tool.limits),
 			policyRefs: toolPolicyRefs,
-			metadata: sanitizeGraphVisibleRecord(tool.metadata),
+			metadata: sanitizeProviderGraphVisibleRecord(tool.metadata),
 		} satisfies ToolProviderCatalogEntry);
 	});
 	const profilePolicyRefs = policyRefsForProfile(policies, profileId);
@@ -1445,18 +1445,18 @@ export function localBuiltinToolProviderCatalog(
 				),
 				capabilities: Object.freeze({
 					toolNames: Object.freeze(toolEntries.map((tool) => tool.toolName)),
-					...(sanitizeGraphVisibleRecord(opts.capabilities) ?? {}),
+					...(sanitizeProviderGraphVisibleRecord(opts.capabilities) ?? {}),
 				}),
-				limits: sanitizeGraphVisibleRecord(opts.limits),
+				limits: sanitizeProviderGraphVisibleRecord(opts.limits),
 				policyRefs: profilePolicyRefs,
-				metadata: sanitizeGraphVisibleRecord(opts.metadata),
+				metadata: sanitizeProviderGraphVisibleRecord(opts.metadata),
 			} satisfies ExecutorProfile),
 		]),
 		tools: Object.freeze(toolEntries),
 		policies,
 		policyRefs,
 		issues: issues.length === 0 ? undefined : issues,
-		metadata: sanitizeGraphVisibleRecord(opts.metadata),
+		metadata: sanitizeProviderGraphVisibleRecord(opts.metadata),
 	});
 }
 
@@ -1626,7 +1626,10 @@ export function validateToolProviderExecutionPolicy(policy: unknown): readonly D
 			}
 		}
 	}
-	for (const forbidden of forbiddenDataKeys(policy)) {
+	for (const forbidden of [
+		...forbiddenDataKeys(policy),
+		...forbiddenProviderRawMaterialKeys(policy),
+	]) {
 		issues.push(
 			dataIssue(
 				"tool-provider-policy-forbidden-runtime-material",
@@ -1958,7 +1961,7 @@ export function requestToolProviderAdapterRun(
 		executorId: input.executorId,
 		profileId: input.profileId,
 		attempt,
-		reason: opts.reason ?? (attempt === 1 ? "initial" : "retry"),
+		reason: sanitizeToolProviderAdapterRunReason(opts.reason, attempt),
 		retryOfOutcomeId: opts.retryOfOutcomeId,
 		policyRefs: sanitizeAdapterInputSourceRefs(opts.policyRefs ?? input.policyRefs ?? []),
 		sourceRefs: sanitizeAdapterInputSourceRefs([
@@ -1992,6 +1995,7 @@ function toolProviderAdapterRunProjectorInternal(
 		readonly runRequests?: readonly Node<ToolProviderAdapterRunRequested>[];
 		readonly autoRunReadyInputs?: boolean;
 		readonly now?: () => number;
+		readonly publicText?: ToolProviderPublicTextPolicy;
 		readonly privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks;
 	},
 ): ToolProviderAdapterRunBundle {
@@ -2056,7 +2060,7 @@ function toolProviderAdapterRunProjectorInternal(
 			}
 			forEachDepBatch(ctx, 1, explicitRunDeps.length, (raw) => {
 				if (!isToolProviderAdapterRunRequestedLike(raw)) {
-					const request = fallbackToolProviderAdapterRunRequest(raw);
+					const request = fallbackToolProviderAdapterRunRequest(raw, opts.publicText);
 					const issue = dataIssue(
 						"tool-provider-adapter-run-request-invalid-shape",
 						"Tool provider adapter run request must be a data object with runId, adapterInputId, requestId, operationId, and attempt.",
@@ -2091,7 +2095,7 @@ function toolProviderAdapterRunProjectorInternal(
 						emitRunRequested(
 							ctx,
 							state,
-							sanitizeRetainedToolProviderAdapterRunRequest(request),
+							sanitizeRetainedToolProviderAdapterRunRequest(request, opts.publicText),
 							opts.privateRetentionHooks,
 						);
 						return;
@@ -2167,7 +2171,7 @@ function toolProviderAdapterRunProjectorInternal(
 				emitRunRequested(
 					ctx,
 					state,
-					sanitizeToolProviderAdapterRunRequest(request, input),
+					sanitizeToolProviderAdapterRunRequest(request, input, opts.publicText),
 					opts.privateRetentionHooks,
 				);
 			});
@@ -3879,6 +3883,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		runRequests: opts.runRequests,
 		autoRunReadyInputs: opts.autoRunReadyInputs,
 		now: opts.now,
+		publicText: opts.publicText,
 		privateRetentionHooks: {
 			onRunRequestKey(entry) {
 				trackRunRequest(entry.request, entry.key, entry.dropKey);
@@ -4001,12 +4006,23 @@ function defaultToolProviderAdapterRunId(
 	return `${adapterInputId}:run-${attempt}${suffix}`;
 }
 
+function sanitizeToolProviderAdapterRunReason(
+	reason: ToolProviderAdapterRunReason | undefined,
+	attempt: number,
+	policy?: ToolProviderPublicTextPolicy,
+): ToolProviderAdapterRunReason {
+	const value = reason ?? (attempt === 1 ? "initial" : "retry");
+	return boundPublicText(value, maxPublicReasonChars(policy)).text as ToolProviderAdapterRunReason;
+}
+
 function sanitizeToolProviderAdapterRunRequest(
 	request: ToolProviderAdapterRunRequested,
 	input: ToolProviderAdapterInput,
+	policy?: ToolProviderPublicTextPolicy,
 ): ToolProviderAdapterRunRequested {
 	return Object.freeze({
 		...request,
+		reason: sanitizeToolProviderAdapterRunReason(request.reason, request.attempt, policy),
 		policyRefs: sanitizeAdapterInputSourceRefs(request.policyRefs ?? input.policyRefs ?? []),
 		sourceRefs: sanitizeAdapterInputSourceRefs([
 			ref("tool-provider-adapter-input", input.adapterInputId),
@@ -4019,6 +4035,7 @@ function sanitizeToolProviderAdapterRunRequest(
 
 function sanitizeRetainedToolProviderAdapterRunRequest(
 	request: ToolProviderAdapterRunRequested,
+	policy?: ToolProviderPublicTextPolicy,
 ): ToolProviderAdapterRunRequested {
 	const policyRefs = sanitizeAdapterInputSourceRefs(request.policyRefs ?? []);
 	const sourceRefs = sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []);
@@ -4034,7 +4051,7 @@ function sanitizeRetainedToolProviderAdapterRunRequest(
 		...(request.executorId === undefined ? {} : { executorId: request.executorId }),
 		...(request.profileId === undefined ? {} : { profileId: request.profileId }),
 		attempt: request.attempt,
-		reason: request.reason,
+		reason: sanitizeToolProviderAdapterRunReason(request.reason, request.attempt, policy),
 		...(request.retryOfOutcomeId === undefined
 			? {}
 			: { retryOfOutcomeId: request.retryOfOutcomeId }),
@@ -4068,7 +4085,10 @@ function isToolProviderAdapterRunRequestedLike(
 	);
 }
 
-function fallbackToolProviderAdapterRunRequest(raw: unknown): ToolProviderAdapterRunRequested {
+function fallbackToolProviderAdapterRunRequest(
+	raw: unknown,
+	policy?: ToolProviderPublicTextPolicy,
+): ToolProviderAdapterRunRequested {
 	const record = isRecord(raw) ? raw : {};
 	const adapterInputId =
 		typeof record.adapterInputId === "string" && record.adapterInputId.length > 0
@@ -4095,8 +4115,11 @@ function fallbackToolProviderAdapterRunRequest(raw: unknown): ToolProviderAdapte
 				? record.operationId
 				: "<invalid-operation>",
 		attempt,
-		reason:
+		reason: sanitizeToolProviderAdapterRunReason(
 			typeof record.reason === "string" && record.reason.length > 0 ? record.reason : "manual",
+			attempt,
+			policy,
+		),
 		sourceRefs: [ref("tool-provider-adapter-run", runId)],
 	} satisfies ToolProviderAdapterRunRequested);
 }
@@ -4326,8 +4349,8 @@ function emitRunAudit(
 					id: `${request.runId}:audit:${state.auditSeq}`,
 					kind,
 					subjectId: request.requestId,
-					sourceRefs: request.sourceRefs,
-					metadata: sanitizeGraphVisibleRecord({
+					sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),
+					metadata: sanitizeProviderGraphVisibleRecord({
 						runId: request.runId,
 						adapterInputId: request.adapterInputId,
 						...metadata,
@@ -6931,7 +6954,7 @@ function forbiddenGraphVisibleMaterialIssues(
 	area: string,
 ): readonly DataIssue[] {
 	if (value === undefined) return [];
-	const forbidden = forbiddenDataKeys(value);
+	const forbidden = [...forbiddenDataKeys(value), ...forbiddenProviderRawMaterialKeys(value)];
 	if (forbidden.length === 0) return [];
 	return Object.freeze(
 		forbidden.map((entry) =>
@@ -6950,7 +6973,7 @@ function forbiddenAdapterInputMaterialIssues(
 	area: string,
 ): readonly DataIssue[] {
 	if (value === undefined) return [];
-	const forbidden = forbiddenDataKeys(value);
+	const forbidden = [...forbiddenDataKeys(value), ...forbiddenProviderRawMaterialKeys(value)];
 	if (forbidden.length === 0) return [];
 	return Object.freeze(
 		forbidden.map((entry) =>
