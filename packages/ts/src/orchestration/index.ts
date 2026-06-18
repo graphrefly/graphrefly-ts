@@ -18,4 +18,3 @@ export {
 export * from "./agent-runtime.js";
 export * from "./process.js";
 export * from "./resilience-bundles.js";
-export * from "./work-item-runtime.js";

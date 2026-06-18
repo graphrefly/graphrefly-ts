@@ -5,7 +5,6 @@ packages:
   - demos/reactive-layout
   - demos/knowledge-graph
   - demos/pagerduty-triage
-  - demos/graphrefly-canvas
   - examples/basic/*
   - examples/compat/*
   - examples/framework/*

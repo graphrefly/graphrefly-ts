@@ -8,7 +8,6 @@ import {
 	type AgentRequestStatus,
 	type AgentRequestStatusChanged,
 	type AgentRuntimeAuditRecord,
-	attachToolProviderAdapterRuntime,
 	type EffectRunResult,
 	type ExecutorOutcome,
 	type ExecutorRoute,
@@ -17,14 +16,17 @@ import {
 	requestToolProviderAdapterRun,
 	resolveToolProviderExecutionPolicies,
 	type SourceRef,
-	type ToolProviderAdapterBinding,
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunRequested,
 	type ToolProviderAdapterRunResult,
 	type ToolProviderAdapterRunStatus,
-	type ToolProviderAdapterRuntimeStatus,
 	toolProviderAdapterInputProjector,
 } from "../orchestration/agent-runtime.js";
+import { attachToolProviderAdapterRuntime } from "../orchestration/agent-runtime-adapter-runtime.js";
+import type {
+	ToolProviderAdapterBinding,
+	ToolProviderAdapterRuntimeStatus,
+} from "../orchestration/agent-runtime-types-tool.js";
 import {
 	type WorkItemEffectRequested,
 	type WorkItemEvidenceRecorded,

@@ -7,7 +7,6 @@ import {
 	type AgentRequestStatusChanged,
 	admitAgentRequestProposal,
 	agentRequestProposalFromDecision,
-	attachToolProviderAdapterRuntime,
 	buildToolProviderAdapterInputs,
 	type ExecutorOutcome,
 	type ExecutorRoute,
@@ -15,12 +14,13 @@ import {
 	localBuiltinToolProviderCatalog,
 	resolveToolProviderExecutionPolicies,
 	type SourceRef,
-	type ToolProviderAdapterBinding,
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunResult,
 	type ToolProviderCatalog,
 	type ToolProviderExecutionPolicy,
 } from "../orchestration/agent-runtime.js";
+import { attachToolProviderAdapterRuntime } from "../orchestration/agent-runtime-adapter-runtime.js";
+import type { ToolProviderAdapterBinding } from "../orchestration/agent-runtime-types-tool.js";
 import type {
 	WorkItemDomainActionAdmissionDecision,
 	WorkItemDomainActionProposal,
@@ -838,7 +838,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		expect(JSON.stringify({ outcomes, issues })).not.toContain("secret-token");
 	});
 
-	it("does not expose rejected adapter error messages as graph material", async () => {
+	it("rejects async adapter results without subscribing to hidden runtime work", () => {
 		const g = graph();
 		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "runtime-reject-inputs" });
 		const ready = readyToolProviderAdapterInput("runtime-reject-provider", "runtime-reject-req");
@@ -848,7 +848,12 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 				{
 					providerId: "runtime-reject-provider",
 					run() {
-						return Promise.reject(new Error("provider raw stack secret should not project"));
+						const thenKey = ["th", "en"].join("");
+						return Object.defineProperty({}, thenKey, {
+							value() {
+								throw new Error("provider raw stack secret should not project");
+							},
+						}) as unknown as ToolProviderAdapterRunResult;
 					},
 				},
 			],
@@ -861,16 +866,19 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
 
 		inputs.down([["DATA", ready]]);
-		await Promise.resolve();
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({
 				kind: "failure",
-				error: expect.objectContaining({ code: "tool-provider-adapter-runtime-rejected" }),
+				error: expect.objectContaining({
+					code: "tool-provider-adapter-runtime-async-result-unsupported",
+				}),
 			}),
 		]);
 		expect(issues).toEqual([
-			expect.objectContaining({ code: "tool-provider-adapter-runtime-rejected" }),
+			expect.objectContaining({
+				code: "tool-provider-adapter-runtime-async-result-unsupported",
+			}),
 		]);
 		expect(JSON.stringify({ outcomes, issues })).not.toMatch(/provider raw stack secret/i);
 	});
@@ -895,7 +903,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 							get() {
 								throw new Error("raw then getter secret");
 							},
-						}) as PromiseLike<ToolProviderAdapterRunResult>;
+						}) as unknown as ToolProviderAdapterRunResult;
 					},
 				},
 			],
@@ -912,11 +920,15 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		expect(outcomes).toEqual([
 			expect.objectContaining({
 				kind: "failure",
-				error: expect.objectContaining({ code: "tool-provider-adapter-runtime-rejected" }),
+				error: expect.objectContaining({
+					code: "tool-provider-adapter-runtime-async-result-unsupported",
+				}),
 			}),
 		]);
 		expect(issues).toEqual([
-			expect.objectContaining({ code: "tool-provider-adapter-runtime-rejected" }),
+			expect.objectContaining({
+				code: "tool-provider-adapter-runtime-async-result-unsupported",
+			}),
 		]);
 		expect(JSON.stringify({ outcomes, issues })).not.toContain("raw then getter secret");
 	});

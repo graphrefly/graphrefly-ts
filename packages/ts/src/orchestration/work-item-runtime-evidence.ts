@@ -1,12 +1,23 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
+import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import type {
+	AgentNeed,
+	AgentOutputEnvelope,
 	AgentRuntimeAuditRecord,
 	EffectRun,
 	EffectRunResult,
 	SourceRef,
 } from "./agent-runtime.js";
+import {
+	boundPublicText,
+	canonicalPublicSourceRefs,
+	cloneGraphVisibleMaterial,
+	oversizedInlineTextKeys,
+	publicMaterialForbiddenKeys,
+	sanitizePublicRecordWithEvidence,
+} from "./agent-runtime-common.js";
 import {
 	deletePendingWorkItemEffectRequest,
 	distinctWorkItemRefs,
@@ -35,6 +46,8 @@ import type {
 	WorkItemSeed,
 	WorkItemStatusRecord,
 } from "./work-item-runtime-types.js";
+
+const WORK_ITEM_EVIDENCE_INLINE_TEXT_LIMIT_CHARS = 512;
 
 export function workItemEffectResultMapper(
 	graph: Graph,
@@ -377,6 +390,7 @@ function workItemEvidenceFromResult(
 	request: WorkItemEffectRequested | undefined,
 	recordedAtMs: number,
 ): WorkItemEvidenceRecorded {
+	const materialIssues: DataIssue[] = [];
 	const base = {
 		kind: "work-item-evidence-recorded",
 		evidenceId: `${workItemId}:${result.effectRunId}:${result.resultId}`,
@@ -388,36 +402,202 @@ function workItemEvidenceFromResult(
 		planId: request?.planId,
 		planMemberId: request?.planMemberId,
 		status: result.status,
-		sourceRefs: uniqueSourceRefs([
-			ref("work-item", workItemId),
-			ref("effect-run", result.effectRunId),
-			ref("effect-run-result", result.resultId),
-			...(run.sourceRefs ?? []),
-			...(run.subjectRefs ?? []),
-			...(run.policyRefs ?? []),
-			...(result.sourceRefs ?? []),
-			...(result.subjectRefs ?? []),
-		]),
-		issues: result.issues,
-		auditRefs: result.auditRefs,
+		sourceRefs: canonicalPublicSourceRefs(
+			uniqueSourceRefs([
+				ref("work-item", workItemId),
+				ref("effect-run", result.effectRunId),
+				ref("effect-run-result", result.resultId),
+				...(run.sourceRefs ?? []),
+				...(run.subjectRefs ?? []),
+				...(run.policyRefs ?? []),
+				...(result.sourceRefs ?? []),
+				...(result.subjectRefs ?? []),
+			]),
+		),
+		issues: sanitizeEvidenceIssues(result.issues, result, materialIssues),
+		auditRefs: cloneStringArray(result.auditRefs),
 		recordedAtMs,
-		metadata: {
-			...(result.metadata ?? {}),
-			...(request?.requestId === undefined ? {} : { requestId: request.requestId }),
-			...(request?.executionInputRevision === undefined
-				? {}
-				: { executionInputRevision: request.executionInputRevision }),
-			...(request?.planId === undefined ? {} : { planId: request.planId }),
-			...(request?.planMemberId === undefined ? {} : { planMemberId: request.planMemberId }),
-		},
+		metadata: sanitizeEvidenceMetadata(
+			{
+				...(result.metadata ?? {}),
+				...(request?.requestId === undefined ? {} : { requestId: request.requestId }),
+				...(request?.executionInputRevision === undefined
+					? {}
+					: { executionInputRevision: request.executionInputRevision }),
+				...(request?.planId === undefined ? {} : { planId: request.planId }),
+				...(request?.planMemberId === undefined ? {} : { planMemberId: request.planMemberId }),
+			},
+			result,
+			materialIssues,
+		),
 	} satisfies Omit<WorkItemEvidenceRecorded, "output" | "error" | "needs" | "reason" | "timeoutMs">;
-	if (result.status === "completed") return { ...base, output: result.output };
-	if (result.status === "failed") return { ...base, error: result.error };
-	if (result.status === "blocked") return { ...base, needs: result.needs };
-	if (result.status === "timeout") return { ...base, timeoutMs: result.timeoutMs };
+	const finalize = (
+		evidence: Omit<WorkItemEvidenceRecorded, "issues"> & {
+			readonly issues?: readonly DataIssue[];
+		},
+	): WorkItemEvidenceRecorded => ({
+		...evidence,
+		issues: Object.freeze([...(evidence.issues ?? []), ...materialIssues]),
+	});
+	if (result.status === "completed") {
+		const output = sanitizeEvidenceOutput(result.output, result, materialIssues);
+		return finalize({ ...base, output });
+	}
+	if (result.status === "failed") {
+		const error = sanitizeEvidenceIssue(result.error, result, materialIssues);
+		return finalize({ ...base, error });
+	}
+	if (result.status === "blocked") {
+		const needs = result.needs.map((need) => sanitizeEvidenceNeed(need, result, materialIssues));
+		return {
+			...finalize({ ...base, needs }),
+		};
+	}
+	if (result.status === "timeout") return finalize({ ...base, timeoutMs: result.timeoutMs });
 	if (result.status === "canceled" || result.status === "waived")
-		return { ...base, reason: result.reason };
-	return base;
+		return finalize({
+			...base,
+			reason: result.reason === undefined ? undefined : boundPublicText(result.reason, 280).text,
+		});
+	return finalize(base);
+}
+
+function sanitizeEvidenceOutput(
+	output: AgentOutputEnvelope,
+	result: EffectRunResult,
+	issues: DataIssue[],
+): AgentOutputEnvelope {
+	const value = sanitizeEvidenceValue(output.value, result, "output.value", issues);
+	const metadata = sanitizeEvidenceMetadata(output.metadata, result, issues);
+	return Object.freeze({
+		kind: output.kind,
+		value,
+		refs: output.refs === undefined ? undefined : canonicalPublicSourceRefs(output.refs),
+		summary: output.summary === undefined ? undefined : boundPublicText(output.summary, 280).text,
+		metadata,
+	} satisfies AgentOutputEnvelope);
+}
+
+function sanitizeEvidenceNeed(
+	need: AgentNeed,
+	result: EffectRunResult,
+	issues: DataIssue[],
+): AgentNeed {
+	return Object.freeze({
+		kind: need.kind,
+		message: need.message === undefined ? undefined : boundPublicText(need.message, 280).text,
+		refs: need.refs === undefined ? undefined : canonicalPublicSourceRefs(need.refs),
+		metadata: sanitizeEvidenceMetadata(need.metadata, result, issues),
+	} satisfies AgentNeed);
+}
+
+function sanitizeEvidenceIssues(
+	input: readonly DataIssue[] | undefined,
+	result: EffectRunResult,
+	issues: DataIssue[],
+): readonly DataIssue[] | undefined {
+	if (input === undefined) return undefined;
+	return Object.freeze(input.map((issue) => sanitizeEvidenceIssue(issue, result, issues)));
+}
+
+function sanitizeEvidenceIssue(
+	issue: DataIssue,
+	result: EffectRunResult,
+	issues: DataIssue[],
+): DataIssue {
+	return Object.freeze({
+		kind: "issue",
+		code: issue.code,
+		message: boundPublicText(issue.message, 280).text,
+		severity: issue.severity,
+		source: issue.source,
+		subjectId: issue.subjectId,
+		correlationId: issue.correlationId,
+		causationId: issue.causationId,
+		path: clonePathArray(issue.path),
+		refs: cloneStringArray(issue.refs),
+		retryable: issue.retryable,
+		details: sanitizeEvidenceValue(issue.details, result, "issue.details", issues),
+		metadata: sanitizeEvidenceMetadata(issue.metadata, result, issues),
+	} satisfies DataIssue);
+}
+
+function sanitizeEvidenceMetadata(
+	metadata: Record<string, unknown> | undefined,
+	result: EffectRunResult,
+	issues: DataIssue[],
+): Record<string, unknown> | undefined {
+	if (metadata === undefined) return undefined;
+	const sanitized = sanitizePublicRecordWithEvidence(metadata, { mode: "provider" });
+	if (sanitized === undefined) {
+		issues.push(redactedEvidenceMaterialIssue(result, "metadata", "forbidden-runtime-material"));
+		return undefined;
+	}
+	for (const entry of sanitized.truncated) {
+		issues.push(
+			redactedEvidenceMaterialIssue(result, `metadata.${entry.path.join(".")}`, "text-truncated"),
+		);
+	}
+	return Object.freeze(sanitized.value);
+}
+
+function sanitizeEvidenceValue(
+	value: unknown,
+	result: EffectRunResult,
+	area: string,
+	issues: DataIssue[],
+): unknown {
+	if (value === undefined) return undefined;
+	const forbidden = [
+		...publicMaterialForbiddenKeys(value, "provider"),
+		...oversizedInlineTextKeys(value, WORK_ITEM_EVIDENCE_INLINE_TEXT_LIMIT_CHARS),
+	];
+	if (forbidden.length > 0) {
+		const entry = forbidden[0];
+		issues.push(
+			redactedEvidenceMaterialIssue(
+				result,
+				formatEvidenceMaterialArea(area, entry?.path ?? []),
+				entry?.reason ?? "forbidden",
+			),
+		);
+		return undefined;
+	}
+	return cloneGraphVisibleMaterial(value);
+}
+
+function cloneStringArray(input: readonly string[] | undefined): readonly string[] | undefined {
+	if (input === undefined) return undefined;
+	return Object.freeze([...input]);
+}
+
+function clonePathArray(
+	input: readonly (string | number)[] | undefined,
+): readonly (string | number)[] | undefined {
+	if (input === undefined) return undefined;
+	return Object.freeze([...input]);
+}
+
+function formatEvidenceMaterialArea(area: string, path: readonly (string | number)[]): string {
+	if (path.length === 0) return area;
+	return `${area}.${path.map((entry) => String(entry)).join(".")}`;
+}
+
+function redactedEvidenceMaterialIssue(
+	result: EffectRunResult,
+	area: string,
+	reason: string,
+): DataIssue {
+	return Object.freeze({
+		kind: "issue",
+		code: "work-item-evidence-public-material-redacted",
+		message:
+			"WorkItem evidence material was omitted because it was not bounded public graph material.",
+		severity: "warning",
+		subjectId: result.effectRunId,
+		refs: [`effect-run-result:${result.resultId}`],
+		details: { area, reason },
+	} satisfies DataIssue);
 }
 
 function workItemMappingPolicyIssue(

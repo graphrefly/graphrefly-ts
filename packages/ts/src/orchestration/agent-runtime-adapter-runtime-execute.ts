@@ -5,7 +5,6 @@ import type {
 } from "./agent-runtime-adapter-retention.js";
 import { runRequestIdentityIssues } from "./agent-runtime-adapter-run.js";
 import { dataIssue, ref } from "./agent-runtime-common.js";
-import { readThenable } from "./agent-runtime-executor-outcome.js";
 import type { AgentRequestStatus } from "./agent-runtime-types-core.js";
 import type {
 	ToolProviderAdapterBinding,
@@ -151,9 +150,7 @@ export function runAdapterRuntimeRequest<TArguments = unknown, TResult = unknown
 		attempt: request.attempt,
 		reason: request.reason,
 	});
-	let result:
-		| ToolProviderAdapterRunResult<TResult>
-		| PromiseLike<ToolProviderAdapterRunResult<TResult>>;
+	let result: ToolProviderAdapterRunResult<TResult>;
 	try {
 		result = binding.run(input, {
 			runId: request.runId,
@@ -166,41 +163,23 @@ export function runAdapterRuntimeRequest<TArguments = unknown, TResult = unknown
 		ctx.publishRuntimeFailure(input, request, "tool-provider-adapter-runtime-threw", error);
 		return;
 	}
-	const thenable = readThenable(result);
-	if (thenable.error !== undefined) {
+	if (isThenableResult(result)) {
 		ctx.publishRuntimeFailure(
 			input,
 			request,
-			"tool-provider-adapter-runtime-rejected",
-			thenable.error,
+			"tool-provider-adapter-runtime-async-result-unsupported",
+			new Error("Tool provider adapter runtime bindings must return synchronously."),
 		);
 		return;
 	}
-	if (thenable.subscribe !== undefined) {
-		let settled = false;
-		try {
-			thenable.subscribe(
-				(value) => {
-					if (settled) return;
-					settled = true;
-					ctx.publishOutcome(input, value, request);
-				},
-				(error) => {
-					if (settled) return;
-					settled = true;
-					ctx.publishRuntimeFailure(
-						input,
-						request,
-						"tool-provider-adapter-runtime-rejected",
-						error,
-					);
-				},
-			);
-		} catch (error) {
-			if (!settled)
-				ctx.publishRuntimeFailure(input, request, "tool-provider-adapter-runtime-rejected", error);
-		}
-		return;
+	ctx.publishOutcome(input, result, request);
+}
+
+function isThenableResult(value: unknown): boolean {
+	if (value === null || (typeof value !== "object" && typeof value !== "function")) return false;
+	try {
+		return typeof (value as { readonly then?: unknown }).then === "function";
+	} catch {
+		return true;
 	}
-	ctx.publishOutcome(input, result as ToolProviderAdapterRunResult<TResult>, request);
 }

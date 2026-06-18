@@ -5,7 +5,6 @@ import {
 	type AgentRequestFact,
 	type AgentRequestIssued,
 	type AgentRequestStatusChanged,
-	attachToolProviderAdapterRuntime,
 	buildToolProviderAdapterInputs,
 	buildToolProviderExecutorOutcome,
 	type ExecutorRoute,
@@ -15,11 +14,12 @@ import {
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunRequested,
 	type ToolProviderAdapterRunStatus,
-	type ToolProviderAdapterRuntimeStatus,
 	type ToolProviderCatalog,
 	type ToolProviderPolicyResolution,
 	toolProviderPolicyResolutionProjector,
 } from "../orchestration/agent-runtime.js";
+import { attachToolProviderAdapterRuntime } from "../orchestration/agent-runtime-adapter-runtime.js";
+import type { ToolProviderAdapterRuntimeStatus } from "../orchestration/agent-runtime-types-tool.js";
 import type {
 	WorkItemDomainActionAdmissionDecision,
 	WorkItemDomainActionProposal,

@@ -755,6 +755,106 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		expect(statuses).not.toContainEqual(expect.objectContaining({ state: "resolved" }));
 	});
 
+	it("clones evidence arrays and redacts oversized WorkItem output values", () => {
+		const g = graph();
+		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });
+		const effectRuns = g.node<EffectRun>([], null, { name: "effectRuns" });
+		const results = g.node<EffectRunResult>([], null, { name: "results" });
+		const mapper = workItemEffectResultMapper(g, {
+			workItems,
+			effectRuns,
+			effectRunResults: results,
+			now: () => 901,
+		});
+		const evidence: WorkItemEvidenceRecorded[] = [];
+		mapper.evidence.subscribe(
+			(msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded),
+		);
+		mapper.issues.subscribe(() => {});
+		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		for (const runId of ["run-oversized", "run-mutable"]) {
+			effectRuns.down([
+				[
+					"DATA",
+					effectRun({
+						effectRunId: runId,
+						subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+						goal: { kind: "verify" },
+					}),
+				],
+			]);
+		}
+
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-oversized:result",
+					status: "completed",
+					effectRunId: "run-oversized",
+					output: {
+						kind: "tool-output",
+						value: { content: "large-content-".repeat(80) },
+					},
+				},
+			],
+		]);
+
+		const auditRefs = ["audit-1"];
+		const issueRefs = ["issue-ref-1"];
+		const issuePath: (string | number)[] = ["error", 0];
+		const issue: DataIssue = {
+			kind: "issue",
+			code: "provider-failed",
+			message: "provider failed",
+			refs: issueRefs,
+			path: issuePath,
+		};
+		results.down([
+			[
+				"DATA",
+				{
+					kind: "effect-run-result",
+					resultId: "run-mutable:result",
+					status: "failed",
+					effectRunId: "run-mutable",
+					auditRefs,
+					error: issue,
+					issues: [issue],
+				},
+			],
+		]);
+		auditRefs.push("audit-mutated");
+		issueRefs.push("issue-ref-mutated");
+		issuePath.push("mutated");
+
+		const oversized = evidence.find((fact) => fact.effectRunId === "run-oversized");
+		expect(oversized?.output).toEqual({ kind: "tool-output", value: undefined });
+		expect(oversized?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "work-item-evidence-public-material-redacted",
+					details: expect.objectContaining({
+						area: "output.value.content",
+						reason: "oversized-inline-text",
+					}),
+				}),
+			]),
+		);
+		expect(JSON.stringify(oversized)).not.toContain("large-content-");
+
+		const mutable = evidence.find((fact) => fact.effectRunId === "run-mutable");
+		expect(mutable?.auditRefs).toEqual(["audit-1"]);
+		expect(mutable?.error?.refs).toEqual(["issue-ref-1"]);
+		expect(mutable?.error?.path).toEqual(["error", 0]);
+		expect(mutable?.issues?.[0]?.refs).toEqual(["issue-ref-1"]);
+		expect(mutable?.issues?.[0]?.path).toEqual(["error", 0]);
+		expect(Object.isFrozen(mutable?.auditRefs)).toBe(true);
+		expect(Object.isFrozen(mutable?.error?.refs)).toBe(true);
+		expect(Object.isFrozen(mutable?.error?.path)).toBe(true);
+	});
+
 	it("emits DataIssue instead of evidence for stale or unknown WorkItem/effectRun refs", () => {
 		const g = graph();
 		const workItems = g.node<WorkItemSeed>([], null, { name: "workItems" });

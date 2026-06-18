@@ -2,7 +2,6 @@ export {
 	requestToolProviderAdapterRun,
 	toolProviderAdapterRunProjector,
 } from "./agent-runtime-adapter-run.js";
-export { attachToolProviderAdapterRuntime } from "./agent-runtime-adapter-runtime.js";
 export { structuredAgentDecisionInterpreter } from "./agent-runtime-decision-interpreter.js";
 export { effectRunCompletionProjector } from "./agent-runtime-effect-completion.js";
 export { buildToolProviderExecutorOutcome } from "./agent-runtime-executor-outcome.js";
@@ -34,4 +33,36 @@ export {
 export type * from "./agent-runtime-types-agent.js";
 export type * from "./agent-runtime-types-core.js";
 export { effectRun } from "./agent-runtime-types-core.js";
-export type * from "./agent-runtime-types-tool.js";
+export type {
+	ExecutorOutcomeView,
+	ExecutorOutcomeViewAudience,
+	ExecutorOutcomeViewBundle,
+	ExecutorOutcomeViewPolicy,
+	LocalBuiltinToolProviderCatalogOptions,
+	ToolCallInput,
+	ToolProviderAdapterInput,
+	ToolProviderAdapterInputBundle,
+	ToolProviderAdapterInputStatus,
+	ToolProviderAdapterRunBundle,
+	ToolProviderAdapterRunReason,
+	ToolProviderAdapterRunRequested,
+	ToolProviderAdapterRunStatus,
+	ToolProviderApprovalPolicy,
+	ToolProviderArtifactPolicy,
+	ToolProviderCatalog,
+	ToolProviderCatalogEntry,
+	ToolProviderExecutionPolicy,
+	ToolProviderFilesystemPolicy,
+	ToolProviderKind,
+	ToolProviderNetworkPolicy,
+	ToolProviderPathRule,
+	ToolProviderPolicyResolution,
+	ToolProviderPolicyResolutionBundle,
+	ToolProviderPolicyResolutionStatus,
+	ToolProviderPublicTextPolicy,
+	ToolProviderRedactionPolicy,
+	ToolProviderSizeCapacityPolicy,
+	ToolProviderSizeLimit,
+	ToolProviderSizeUnit,
+	ToolProviderTimeoutPolicy,
+} from "./agent-runtime-types-tool.js";

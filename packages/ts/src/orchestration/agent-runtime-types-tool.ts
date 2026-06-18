@@ -558,7 +558,7 @@ export interface ToolProviderAdapterBinding<TArguments = unknown, TResult = unkn
 	run(
 		input: ToolProviderAdapterInput<TArguments>,
 		ctx: ToolProviderAdapterRunContext,
-	): ToolProviderAdapterRunResult<TResult> | PromiseLike<ToolProviderAdapterRunResult<TResult>>;
+	): ToolProviderAdapterRunResult<TResult>;
 }
 
 export interface ToolProviderAdapterRuntimeOptions<TArguments = unknown, TResult = unknown> {

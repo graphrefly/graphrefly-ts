@@ -3,7 +3,6 @@ import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentRequestIssued,
-	attachToolProviderAdapterRuntime,
 	buildToolProviderAdapterInputs,
 	type ExecutorRoute,
 	localBuiltinToolProviderCatalog,
@@ -12,8 +11,9 @@ import {
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunRequested,
 	type ToolProviderAdapterRunStatus,
-	type ToolProviderAdapterRuntimeStatus,
 } from "../orchestration/agent-runtime.js";
+import { attachToolProviderAdapterRuntime } from "../orchestration/agent-runtime-adapter-runtime.js";
+import type { ToolProviderAdapterRuntimeStatus } from "../orchestration/agent-runtime-types-tool.js";
 import type {
 	WorkItemDomainActionAdmissionDecision,
 	WorkItemDomainActionProposal,
