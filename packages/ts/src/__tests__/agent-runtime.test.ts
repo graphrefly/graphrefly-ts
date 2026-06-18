@@ -792,6 +792,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		const admitted = admitAgentRequestProposal(proposal, {
 			requestId: "request-issue-sanitize",
 			operationId: "op-issue-sanitize",
+			reason: `${"admit-reason-".repeat(80)}RAW_ADMISSION_REASON_SHOULD_NOT_PROJECT`,
 			sourceRefs: [
 				{
 					kind: "provider-raw",
@@ -800,10 +801,14 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 					rawResponse: "RAW_REQUEST_SOURCE_REF_EXTRA_SHOULD_NOT_PROJECT",
 				} as unknown as SourceRef,
 			],
+			metadata: { rawResponse: "RAW_ADMISSION_METADATA_SHOULD_NOT_PROJECT" },
 		});
 
 		const issuedRequest = issueAgentRequest(proposal, admitted);
 
+		expect(admitted.reason?.length).toBeLessThanOrEqual(512);
+		expect(admitted.sourceRefs).toEqual([{ kind: "provider-raw", id: "admission-ref" }]);
+		expect(admitted).not.toHaveProperty("metadata");
 		expect(issuedRequest.input).toMatchObject({
 			inputId: "input-issue-sanitize",
 			inputKind: "tool-call",
@@ -816,8 +821,9 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		expect(issuedRequest).not.toHaveProperty("metadata");
 		expect(issuedRequest.sourceRefs).toEqual([{ kind: "provider-raw", id: "admission-ref" }]);
 		expect(JSON.stringify(issuedRequest)).not.toMatch(
-			/RAW_REQUEST_|rawResponse|providerRaw|stdout|stderr|client|apiKey|REQUEST_INPUT_SECRET/,
+			/RAW_REQUEST_|RAW_ADMISSION_|rawResponse|providerRaw|stdout|stderr|client|apiKey|REQUEST_INPUT_SECRET/,
 		);
+		expect(JSON.stringify(admitted)).not.toMatch(/RAW_ADMISSION_|rawResponse|stderr/);
 
 		const mutablePayload = { nested: { public: "ok" } };
 		const safeProposal = agentRequestProposalFromDecision(decision, {
@@ -1735,6 +1741,101 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		);
 	});
 
+	it("sanitizes fallback invalid-shape run request status and audit material", () => {
+		const g = graph();
+		const inputs = g.node<ToolProviderAdapterInput>([], null, {
+			name: "runtime-invalid-run-request-inputs",
+		});
+		const runRequests = g.node<ToolProviderAdapterRunRequested>([], null, {
+			name: "runtime-invalid-run-requests",
+		});
+		const runtime = attachToolProviderAdapterRuntime(g, {
+			inputs,
+			runRequests: [runRequests],
+			autoRunReadyInputs: false,
+			publicText: { maxReasonChars: 24, maxMetadataStringChars: 20 },
+			bindings: [],
+		});
+		const runStatus: ToolProviderAdapterRunStatus[] = [];
+		const issues: DataIssue[] = [];
+		const audit: unknown[] = [];
+		runtime.runStatus.subscribe(
+			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+		);
+		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+
+		runRequests.down([
+			[
+				"DATA",
+				{
+					kind: "tool-provider-adapter-run-requested",
+					runId: "invalid-run",
+					adapterInputId: "invalid-input",
+					requestId: "invalid-request",
+					attempt: 1,
+					reason: `${"invalid-reason-".repeat(20)}RAW_INVALID_REASON_SHOULD_NOT_PROJECT`,
+					sourceRefs: [
+						{
+							kind: "provider-raw",
+							id: "raw-source",
+							metadata: { stdout: "RAW_INVALID_SOURCE_REF_SHOULD_NOT_PROJECT" },
+						},
+					],
+					metadata: { rawResponse: "RAW_INVALID_METADATA_SHOULD_NOT_PROJECT" },
+				} as unknown as ToolProviderAdapterRunRequested,
+			],
+		]);
+
+		expect(runStatus).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					runId: "invalid-run",
+					adapterInputId: "invalid-input",
+					requestId: "invalid-request",
+					operationId: "<invalid-operation>",
+					status: "mismatched-request",
+					attempt: 1,
+					sourceRefs: [
+						{ kind: "tool-provider-adapter-run", id: "invalid-run" },
+						{ kind: "provider-raw", id: "raw-source" },
+					],
+					issues: [
+						expect.objectContaining({
+							code: "tool-provider-adapter-run-request-invalid-shape",
+						}),
+					],
+				}),
+			]),
+		);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "tool-provider-adapter-run-request-invalid-shape",
+				}),
+			]),
+		);
+		expect(audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "tool-provider-adapter-run-request-invalid-shape",
+					sourceRefs: [
+						{ kind: "tool-provider-adapter-run", id: "invalid-run" },
+						{ kind: "provider-raw", id: "raw-source" },
+					],
+					metadata: expect.objectContaining({
+						runId: "invalid-run",
+						adapterInputId: "invalid-input",
+						issueCode: "tool-provider-adapter-run-request-invalid-shape",
+					}),
+				}),
+			]),
+		);
+		expect(JSON.stringify({ runStatus, issues, audit })).not.toMatch(
+			/RAW_INVALID_|rawResponse|stdout|stderr|apiKey/,
+		);
+	});
+
 	it("bounds execution proofs, gaps trimmed replay, and still allows explicit attempt 2", () => {
 		const g = graph();
 		const inputs = g.node<ToolProviderAdapterInput>([], null, {
@@ -1846,6 +1947,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		const runStatus: ToolProviderAdapterRunStatus[] = [];
 		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
 		const issues: DataIssue[] = [];
+		const audit: unknown[] = [];
 		runtime.runStatus.subscribe(
 			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
 		);
@@ -1853,6 +1955,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
 		);
 		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
 
 		inputs.down([["DATA", ready]]);
 		runRequests.down([
@@ -1880,6 +1983,21 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 					issueCode: "tool-provider-adapter-runtime-duplicate-execution-coordinate",
 				}),
 			]),
+		);
+		expect(audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "tool-provider-adapter-runtime-duplicate-execution-coordinate",
+					metadata: expect.objectContaining({
+						adapterInputId: ready.adapterInputId,
+						attempt: 1,
+						key: expect.stringMatching(/^key:[a-z0-9]+:\d+$/),
+					}),
+				}),
+			]),
+		);
+		expect(JSON.stringify({ audit, runtimeStatus, issues })).not.toContain(
+			`${ready.adapterInputId}:1`,
 		);
 	});
 
@@ -3239,6 +3357,18 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				}),
 			]),
 		);
+		expect(
+			runStatus.find((status) => status.runId === `${ready.adapterInputId}:invalid-run`),
+		).toMatchObject({
+			adapterInputId: ready.adapterInputId,
+			requestId: ready.requestId,
+			operationId: "<invalid-operation>",
+			status: "mismatched-request",
+			attempt: 1,
+			sourceRefs: [
+				{ kind: "tool-provider-adapter-run", id: `${ready.adapterInputId}:invalid-run` },
+			],
+		});
 		expect(protocolErrors).toEqual([]);
 		expect(JSON.stringify({ audit, issues, runStatus })).not.toMatch(
 			/RAW_RUN_REQUEST_SHOULD_NOT_PROJECT|RAW_RUN_REQUEST_SOURCE_REF_SHOULD_NOT_PROJECT|rawResponse|stdout/,
@@ -3338,6 +3468,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 
 	it("builds provider-neutral ExecutorOutcome facts from adapter run results", () => {
 		const ready = readyToolProviderAdapterInput("build-runtime-provider", "build-runtime-req");
+		const mutableValue = { ok: true, nested: { note: "safe" } };
 		const outcome = buildToolProviderExecutorOutcome(
 			ready,
 			{
@@ -3371,6 +3502,15 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				expect.objectContaining({ kind: "tool-provider-policy-resolution" }),
 			]),
 		);
+		const cloned = buildToolProviderExecutorOutcome(ready, {
+			kind: "result",
+			result: { kind: "tool-output", value: mutableValue },
+		});
+		mutableValue.nested = { note: "RAW_MUTATED_PROVIDER_MATERIAL_SHOULD_NOT_PROJECT" };
+		(mutableValue as Record<string, unknown>).rawResponse =
+			"RAW_MUTATED_PROVIDER_MATERIAL_SHOULD_NOT_PROJECT";
+		expect(JSON.stringify(cloned)).not.toMatch(/RAW_MUTATED_PROVIDER_MATERIAL|rawResponse/);
+		expect(Object.isFrozen((cloned as { result: { value: unknown } }).result.value)).toBe(true);
 	});
 
 	it("projects D360 policy resolution issues as DATA facts", () => {
@@ -4109,7 +4249,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 		const outcomes = g.node<ExecutorOutcome>([], null, { name: "outcomes" });
 		const projector = executorOutcomeViewProjector(g, {
 			outcomes,
-			policy: { maxSummaryChars: 18 },
+			policy: { maxSummaryChars: 18, includeMetadata: true },
 		});
 		const views: unknown[] = [];
 		const audit: unknown[] = [];
@@ -4135,7 +4275,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 						refs: [{ kind: "artifact", id: "stdout-summary-ref" }],
 					},
 					evidenceRefs: [{ kind: "executor-route", id: "route-large" }],
-					metadata: { providerRawId: "raw-123" },
+					metadata: { rawResponse: "raw-123" },
 				}),
 			],
 		]);
@@ -4152,6 +4292,7 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				{ kind: "executor-route", id: "route-large" },
 			],
 		});
+		expect(views.at(-1)).not.toHaveProperty("metadata");
 		expect((views.at(-1) as { summary: string }).summary).toMatch(/^stdout/);
 		expect((views.at(-1) as { summary: string }).summary.length).toBeLessThanOrEqual(18);
 		expect(JSON.stringify(views.at(-1))).not.toContain("RAW_STDOUT_SHOULD_NOT_APPEAR");
@@ -4967,6 +5108,18 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 				},
 			],
 		]);
+		requestFacts.down([
+			[
+				"DATA",
+				{
+					kind: "status",
+					requestId: "request-1",
+					operationId: "op-1",
+					effectRunId: "run-1",
+					status: "completed",
+				},
+			],
+		]);
 
 		const latest = views.at(-1) as {
 			requestsById: Map<string, AgentRequestIssued>;
@@ -4974,12 +5127,18 @@ describe("CSP-8 experimental agent runtime kernel (D236)", () => {
 			statusByRequest: Map<string, AgentRequestStatusChanged>;
 			pending: readonly AgentRequestIssued[];
 			awaitingProvider: readonly AgentRequestIssued[];
+			audit: readonly { readonly kind: string }[];
 		};
 		expect(latest.requestsById.get("request-1")).toMatchObject({ operationId: "op-1" });
 		expect(latest.requestsByEffectRun.get("run-1")).toEqual(["request-1"]);
-		expect(latest.statusByRequest.get("request-1")?.status).toBe("awaiting-provider");
-		expect(latest.pending).toHaveLength(1);
-		expect(latest.awaitingProvider).toHaveLength(1);
+		expect(latest.statusByRequest.get("request-1")?.status).toBe("completed");
+		expect(latest.pending).toHaveLength(0);
+		expect(latest.awaitingProvider).toHaveLength(0);
+		expect(latest.audit.map((record) => record.kind)).toEqual([
+			"agent-request-issued",
+			"agent-request-status",
+			"agent-request-status",
+		]);
 	});
 
 	it("sanitizes rejected and status issues before storing AgentRequest ledger views", () => {
@@ -6962,6 +7121,7 @@ function expectRetentionScorerEntryPayloadSafe(index: string, entry: unknown): v
 		expect(value === undefined || typeof value === "string" || typeof value === "number").toBe(
 			true,
 		);
+		if (key === "key") expect(value).toEqual(expect.stringMatching(/^key:[a-z0-9]+:\d+$/));
 	}
 	expectNoForbiddenRetentionPayload(record);
 }

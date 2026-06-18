@@ -1122,6 +1122,9 @@ export function admitAgentRequestProposal(
 		readonly metadata?: Record<string, unknown>;
 	},
 ): AgentRequestAdmitted {
+	const sourceRefs =
+		opts.sourceRefs === undefined ? undefined : sanitizeAdapterInputSourceRefs(opts.sourceRefs);
+	const metadata = sanitizeProviderGraphVisibleRecord(opts.metadata);
 	return {
 		kind: "admitted",
 		proposalId: proposal.proposalId,
@@ -1130,9 +1133,11 @@ export function admitAgentRequestProposal(
 		effectRunId: proposal.effectRunId,
 		agentRunId: proposal.agentRunId,
 		admittedAtMs: opts.admittedAtMs,
-		reason: opts.reason,
-		sourceRefs: opts.sourceRefs,
-		metadata: opts.metadata,
+		...(opts.reason === undefined
+			? {}
+			: { reason: boundPublicText(opts.reason, maxPublicReasonChars()).text }),
+		...(sourceRefs === undefined || sourceRefs.length === 0 ? {} : { sourceRefs }),
+		...(metadata === undefined ? {} : { metadata }),
 	};
 }
 
@@ -2146,6 +2151,9 @@ function toolProviderAdapterRunProjectorInternal(
 						},
 						opts.privateRetentionHooks,
 					);
+					emitRunAudit(ctx, state, "tool-provider-adapter-run-request-invalid-shape", request, {
+						issueCode: issue.code,
+					});
 					return;
 				}
 				const request = raw;
@@ -2532,9 +2540,11 @@ function runtimeRetentionScorerEntry<Entry>(
 	}
 	for (const [key, value] of Object.entries(entry)) {
 		bounded[key] =
-			typeof value === "string" && value.length > maxRuntimeRetentionScorerStringChars
-				? `bounded:${stableStringHash(value)}:${value.length}`
-				: value;
+			key === "key" && typeof value === "string"
+				? runtimeDiagnosticKey(value)
+				: typeof value === "string" && value.length > maxRuntimeRetentionScorerStringChars
+					? `bounded:${stableStringHash(value)}:${value.length}`
+					: value;
 	}
 	return Object.freeze(bounded) as Entry;
 }
@@ -3392,7 +3402,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 					typeof record.adapterInputId === "string"
 						? record.adapterInputId
 						: typeof record.key === "string"
-							? record.key
+							? runtimeDiagnosticKey(record.key)
 							: index,
 				refs: runtimeEvidenceSourceRefs(index),
 				details: runtimeEvidenceMetadata(index, { key }),
@@ -3719,7 +3729,11 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 					subjectId: request.adapterInputId,
 					sourceRefs: [ref("tool-provider-adapter-run", request.runId)],
 					issueCode: issue.code,
-					metadata: { coordinate },
+					metadata: {
+						adapterInputId: request.adapterInputId,
+						attempt: request.attempt,
+						key: runtimeDiagnosticKey(coordinate),
+					},
 				});
 			}
 			return false;
@@ -3818,7 +3832,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 				refs: sourceRefs,
 				details: {
 					index: "retentionEvidence",
-					key: victim.key,
+					key: runtimeDiagnosticKey(victim.key),
 					gapKind: "evidence-horizon-closed",
 				},
 			},
@@ -4231,6 +4245,9 @@ function fallbackToolProviderAdapterRunRequest(
 		typeof record.attempt === "number" && Number.isInteger(record.attempt) && record.attempt > 0
 			? record.attempt
 			: 1;
+	const metadata = isRecord(record.metadata)
+		? sanitizeProviderGraphVisibleRecord(record.metadata, policy)
+		: undefined;
 	return Object.freeze({
 		kind: "tool-provider-adapter-run-requested",
 		runId,
@@ -4249,8 +4266,32 @@ function fallbackToolProviderAdapterRunRequest(
 			attempt,
 			policy,
 		),
-		sourceRefs: [ref("tool-provider-adapter-run", runId)],
+		sourceRefs: sanitizeAdapterInputSourceRefs([
+			ref("tool-provider-adapter-run", runId),
+			...sanitizeUntrustedSourceRefs(record.sourceRefs),
+		]),
+		...(metadata === undefined ? {} : { metadata }),
 	} satisfies ToolProviderAdapterRunRequested);
+}
+
+function sanitizeUntrustedSourceRefs(value: unknown): readonly SourceRef[] {
+	if (!Array.isArray(value)) return [];
+	return Object.freeze(
+		value
+			.filter(
+				(sourceRef): sourceRef is SourceRef =>
+					isRecord(sourceRef) &&
+					typeof sourceRef.kind === "string" &&
+					sourceRef.kind.length > 0 &&
+					typeof sourceRef.id === "string" &&
+					sourceRef.id.length > 0,
+			)
+			.map((sourceRef) => ({
+				kind: sourceRef.kind,
+				id: sourceRef.id,
+				...(isRecord(sourceRef.metadata) ? { metadata: sourceRef.metadata } : {}),
+			})),
+	);
 }
 
 function runRequestIdentityIssues(
@@ -4404,20 +4445,44 @@ function emitRunStatus(
 	status: ToolProviderAdapterRunStatus,
 	privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks,
 ): void {
-	const key = stableJsonStringify({
+	const cleanSourceRefs =
+		status.sourceRefs === undefined ? undefined : sanitizeAdapterInputSourceRefs(status.sourceRefs);
+	const cleanIssues =
+		status.issues === undefined
+			? undefined
+			: Object.freeze(status.issues.map((issue) => sanitizeAdapterInputIssue(issue)));
+	const cleanMetadata = sanitizeProviderGraphVisibleRecord(status.metadata);
+	const cleanStatus = Object.freeze({
+		kind: status.kind,
 		runId: status.runId,
 		adapterInputId: status.adapterInputId,
-		requestId: status.requestId,
-		attempt: status.attempt,
+		...(status.requestId === undefined ? {} : { requestId: status.requestId }),
+		...(status.operationId === undefined ? {} : { operationId: status.operationId }),
 		status: status.status,
-		outcomeId: status.outcomeId,
+		...(status.attempt === undefined ? {} : { attempt: status.attempt }),
+		...(status.outcomeId === undefined ? {} : { outcomeId: status.outcomeId }),
+		...(cleanIssues === undefined || cleanIssues.length === 0 ? {} : { issues: cleanIssues }),
+		...(cleanSourceRefs === undefined || cleanSourceRefs.length === 0
+			? {}
+			: { sourceRefs: cleanSourceRefs }),
+		...(cleanMetadata === undefined ? {} : { metadata: cleanMetadata }),
+	} satisfies ToolProviderAdapterRunStatus);
+	const key = stableJsonStringify({
+		runId: cleanStatus.runId,
+		adapterInputId: cleanStatus.adapterInputId,
+		requestId: cleanStatus.requestId,
+		attempt: cleanStatus.attempt,
+		status: cleanStatus.status,
+		outcomeId: cleanStatus.outcomeId,
 	});
 	if (state.statusKeys.has(key)) return;
 	state.statusKeys.add(key);
-	ctx.down([["DATA", { kind: "status", status } satisfies ToolProviderAdapterRunFact]]);
+	ctx.down([
+		["DATA", { kind: "status", status: cleanStatus } satisfies ToolProviderAdapterRunFact],
+	]);
 	privateRetentionHooks?.onRunStatusKey?.({
 		key,
-		status,
+		status: cleanStatus,
 		dropKey: () => state.statusKeys.delete(key),
 	});
 }
@@ -6303,6 +6368,9 @@ function executorOutcomeViewProjectionFromOutcome(
 		...outcomeIssues(outcome),
 		...(summary.truncated ? [outcomeSummaryTruncationIssue(outcome, summary, policy)] : []),
 	]);
+	const metadata = policy.includeMetadata
+		? sanitizeProviderGraphVisibleRecord(outcome.metadata)
+		: undefined;
 	const view = Object.freeze({
 		kind: "executor-outcome-view",
 		viewId: `${outcome.outcomeId}:${policy.audience}`,
@@ -6325,7 +6393,7 @@ function executorOutcomeViewProjectionFromOutcome(
 		materialRefs: outcomeMaterialRefs(outcome),
 		issues: policy.includeIssues && issues.length > 0 ? issues : undefined,
 		usage: policy.includeUsage ? outcome.usage : undefined,
-		metadata: policy.includeMetadata ? outcome.metadata : undefined,
+		...(metadata === undefined ? {} : { metadata }),
 	} satisfies ExecutorOutcomeView);
 	return Object.freeze({ view, issues });
 }
@@ -7363,7 +7431,7 @@ function sanitizeInlineOutputValue(
 		...publicMaterialForbiddenKeys(value, "provider"),
 		...oversizedInlineTextKeys(value, maxPublicSummaryChars(policy)),
 	];
-	if (forbidden.length === 0) return value;
+	if (forbidden.length === 0) return cloneGraphVisibleMaterial(value);
 	for (const entry of forbidden) {
 		issues.push(
 			dataIssue(
