@@ -5,6 +5,12 @@ import type {
 	WorkItemEvidenceRecorded,
 } from "../orchestration/work-item-runtime.js";
 import {
+	DEFAULT_WORK_ITEM_LINK_TYPE_CATALOG_SEED,
+	DEFAULT_WORK_ITEM_TYPE_CATALOG_SEED,
+	type RecommendedActionView,
+	type RequiredInputGate,
+	type RequiredInputResponseProposed,
+	type SidePanelActionIntent,
 	type VerificationPlan,
 	verificationPlanChanged,
 	type WorkItemAuthoringInput,
@@ -12,7 +18,11 @@ import {
 	type WorkItemEffectPlanProposed,
 	type WorkItemEffectPlanResult,
 	type WorkItemEffectPlanStatus,
+	type WorkItemLinked,
+	type WorkItemLinkProjection,
 	type WorkItemProjection,
+	type WorkItemSpawnAdmission,
+	type WorkItemSpawnApplication,
 	type WorkItemVerificationMappingPolicy,
 	workItemAuthoringProjector,
 	workItemCreatedFromDraft,
@@ -221,6 +231,91 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 				idempotencyKey: "spawn:wi-parent:wi-child",
 			},
 		});
+	});
+
+	it("publishes Workspace WorkItem model seeds and proposal-facing view shapes", () => {
+		expect(DEFAULT_WORK_ITEM_TYPE_CATALOG_SEED.map((entry) => entry.kind)).toEqual([
+			"task",
+			"spike",
+			"review",
+		]);
+		expect(DEFAULT_WORK_ITEM_LINK_TYPE_CATALOG_SEED.map((entry) => entry.linkKind)).toEqual([
+			"parent-child",
+			"blocks",
+			"related",
+			"duplicate",
+			"spawned-from",
+		]);
+
+		const linkFact = {
+			kind: "work-item-linked",
+			eventId: "link:event:1",
+			linkId: "link:1",
+			fromWorkItemId: "wi-1",
+			toWorkItemId: "wi-2",
+			linkKind: "blocks",
+		} satisfies WorkItemLinked;
+		const linkProjection = {
+			linkId: linkFact.linkId,
+			fromWorkItemId: linkFact.fromWorkItemId,
+			toWorkItemId: linkFact.toWorkItemId,
+			linkKind: linkFact.linkKind,
+			direction: "directed",
+			active: true,
+			lastEventId: linkFact.eventId,
+		} satisfies WorkItemLinkProjection;
+		const spawnAdmission = {
+			kind: "work-item-spawn-admission",
+			admissionId: "spawn-admission:1",
+			proposalId: "spawn-1",
+			state: "admitted",
+			decisionId: "spawn-decision:1",
+			proposedWorkItemId: "wi-child",
+		} satisfies WorkItemSpawnAdmission;
+		const spawnApplication = {
+			kind: "work-item-spawn-application",
+			applicationId: "spawn-application:1",
+			admissionId: spawnAdmission.admissionId,
+			proposalId: spawnAdmission.proposalId,
+			state: "applied",
+			linkFacts: [linkFact],
+		} satisfies WorkItemSpawnApplication;
+		const requiredInput = {
+			kind: "required-input-gate",
+			gateId: "gate:1",
+			requestId: "required-input:1",
+			workItemId: "wi-1",
+			status: "requested",
+			prompt: "Confirm metric definition",
+		} satisfies RequiredInputGate;
+		const response = {
+			kind: "required-input-response-proposed",
+			proposalId: "input-response:1",
+			requestId: requiredInput.requestId,
+			workItemId: requiredInput.workItemId,
+			summary: "Use weekly activated accounts",
+		} satisfies RequiredInputResponseProposed;
+		const action = {
+			kind: "recommended-action-view",
+			actionId: "provide-input",
+			label: "Provide input",
+			tone: "attention",
+			loweringKind: "required-input-response-proposed",
+			draftSeed: response,
+		} satisfies RecommendedActionView;
+		const intent = {
+			kind: "side-panel-action-intent",
+			intentId: "intent:1",
+			actionId: action.actionId,
+			loweringKind: action.loweringKind,
+			workItemId: requiredInput.workItemId,
+			draft: response,
+		} satisfies SidePanelActionIntent<RequiredInputResponseProposed>;
+
+		expect(linkProjection.active).toBe(true);
+		expect(spawnApplication.linkFacts).toEqual([linkFact]);
+		expect(action.draftSeed).toBe(response);
+		expect(intent.loweringKind).toBe("required-input-response-proposed");
 	});
 
 	it("turns malformed runtime drafts, duplicate creates, and invalid patches into visible issues", () => {
