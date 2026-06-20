@@ -24,6 +24,7 @@ import type {
 	WorkItemDomainActionApplyPolicy,
 	WorkItemDomainActionStatus,
 	WorkItemPatchActionPayload,
+	WorkItemSpawnActionPayload,
 } from "./actions-types.js";
 import { patchFieldKeys } from "./actions-types.js";
 import {
@@ -31,7 +32,9 @@ import {
 	type VerificationPlan,
 	validateAcceptanceCriteria,
 	validateVerificationPlan,
+	validateWorkItemDraft,
 	type WorkItemAuthoringFact,
+	type WorkItemCreated,
 	type WorkItemPatch,
 	type WorkItemProjection,
 } from "./scheduling.js";
@@ -515,25 +518,150 @@ function lowerSpawnAction<T>(
 			message: "Spawn action remains proposal/admission only without explicit create policy",
 		};
 	}
-	emitApplicationIssue(
-		ctx,
-		state,
-		`spawn-create-policy:${admission.admissionId}:${policy.policyId}`,
-		"policy-mismatch",
-		`Spawn create policy '${policy.policyId}' is incomplete: child creation requires an explicit create/link/idempotency policy surface`,
-		proposal.workItemId,
-		admissionRefs(admission, proposal, policy),
-		{
-			requires: ["linkParent", "idempotencyKey", "maxChildrenPerAdmission", "link-fact-vocabulary"],
-		},
-	);
-	return {
-		state: "proposal-only",
-		facts: [],
-		code: "policy-mismatch",
-		message:
-			"Spawn action remains proposal/admission only until explicit create/link policy is available",
+	const policyIssue = validateSpawnCreatePolicy(policy, proposal);
+	if (policyIssue !== undefined) {
+		emitApplicationIssue(
+			ctx,
+			state,
+			`spawn-create-policy:${admission.admissionId}:${policy.policyId}:${policyIssue.field}`,
+			"policy-mismatch",
+			policyIssue.message,
+			proposal.workItemId,
+			admissionRefs(admission, proposal, policy),
+			{ field: policyIssue.field },
+		);
+		return {
+			state: "policy-rejected",
+			facts: [],
+			code: "policy-mismatch",
+			message: policyIssue.message,
+		};
+	}
+	const payload = normalizeSpawnPayload<T>(proposal.payload);
+	if (typeof payload === "string") {
+		emitApplicationIssue(
+			ctx,
+			state,
+			`invalid-spawn-payload:${admission.admissionId}`,
+			"invalid-patch",
+			payload,
+			proposal.workItemId,
+			admissionRefs(admission, proposal, policy),
+		);
+		return { state: "rejected", facts: [], code: "invalid-patch", message: payload };
+	}
+	const childWorkItemId =
+		payload.childWorkItemId ??
+		payload.workItemId ??
+		policy.spawn.childWorkItemId ??
+		(policy.spawn.childIdPrefix === undefined
+			? undefined
+			: `${policy.spawn.childIdPrefix}${admission.admissionId}`);
+	if (childWorkItemId === undefined || childWorkItemId.trim() === "") {
+		const message = "Spawn create action requires a childWorkItemId or create policy child id";
+		emitApplicationIssue(
+			ctx,
+			state,
+			`missing-spawn-child-id:${admission.admissionId}`,
+			"missing-required-field",
+			message,
+			proposal.workItemId,
+			admissionRefs(admission, proposal, policy),
+		);
+		return { state: "rejected", facts: [], code: "missing-required-field", message };
+	}
+	if (state.workItems.has(childWorkItemId)) {
+		const message = `Spawn create action would duplicate WorkItem '${childWorkItemId}'`;
+		emitApplicationIssue(
+			ctx,
+			state,
+			`duplicate-spawn-child:${admission.admissionId}:${childWorkItemId}`,
+			"duplicate-id",
+			message,
+			childWorkItemId,
+			admissionRefs(admission, proposal, policy),
+		);
+		return { state: "duplicate", facts: [], code: "duplicate-id", message };
+	}
+	if (payload.draft === undefined) {
+		const message = "Spawn create action requires a draft payload";
+		emitApplicationIssue(
+			ctx,
+			state,
+			`missing-spawn-draft:${admission.admissionId}`,
+			"missing-required-field",
+			message,
+			childWorkItemId,
+			admissionRefs(admission, proposal, policy),
+		);
+		return { state: "rejected", facts: [], code: "missing-required-field", message };
+	}
+	const issues = validateWorkItemDraft(payload.draft, { workItemId: childWorkItemId });
+	if (issues.length > 0) {
+		for (const item of issues) emitApplicationFact(ctx, "issue", item);
+		return {
+			state: "rejected",
+			facts: [],
+			code: issues[0]?.code,
+			message: issues[0]?.message,
+		};
+	}
+	const metadata = {
+		...(payload.metadata ?? {}),
+		actionKind: proposal.actionKind,
+		parentWorkItemId: policy.spawn.linkParent === true ? proposal.workItemId : undefined,
+		sourceProposalId: proposal.proposalId,
+		idempotencyKey: payload.idempotencyKey ?? policy.spawn.idempotencyKey,
 	};
+	const created: WorkItemCreated<T> = {
+		kind: "work-item-created",
+		eventId: payload.eventId ?? `${admission.admissionId}:work-item-created:${childWorkItemId}`,
+		workItemId: childWorkItemId,
+		draft: payload.draft,
+		authorId: payload.authorId,
+		sourceRefs: actionSourceRefs(admission, proposal, policy),
+		metadata,
+	};
+	return { state: "applied", facts: [created] };
+}
+
+function validateSpawnCreatePolicy(
+	policy: WorkItemDomainActionApplyPolicy,
+	proposal: WorkItemDomainActionProposal,
+): { readonly field: string; readonly message: string } | undefined {
+	if (policy.spawn?.idempotencyKey === undefined || policy.spawn.idempotencyKey.trim() === "") {
+		return {
+			field: "idempotencyKey",
+			message: `Spawn create policy '${policy.policyId}' requires an idempotencyKey`,
+		};
+	}
+	if (
+		policy.spawn.maxChildrenPerAdmission === undefined ||
+		policy.spawn.maxChildrenPerAdmission < 1
+	) {
+		return {
+			field: "maxChildrenPerAdmission",
+			message: `Spawn create policy '${policy.policyId}' requires maxChildrenPerAdmission >= 1`,
+		};
+	}
+	if (proposal.actionKind === "spawn-child" && policy.spawn.linkParent !== true) {
+		return {
+			field: "linkParent",
+			message: `Spawn child create policy '${policy.policyId}' requires linkParent: true`,
+		};
+	}
+	return undefined;
+}
+
+function normalizeSpawnPayload<T>(payload: unknown): WorkItemSpawnActionPayload<T> | string {
+	if (!isRecord(payload)) return "Spawn action payload must be an object";
+	if ("draft" in payload && payload.draft !== undefined && !isRecord(payload.draft)) {
+		return "Spawn action payload.draft must be an object";
+	}
+	if ("metadata" in payload && payload.metadata !== undefined && !isRecord(payload.metadata)) {
+		return "Spawn action payload.metadata must be an object";
+	}
+	return payload as WorkItemSpawnActionPayload<T>;
 }
 
 function normalizePatchPayload<T>(payload: unknown): WorkItemPatchActionPayload<T> | string {

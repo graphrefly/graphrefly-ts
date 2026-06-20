@@ -374,7 +374,7 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		expect(setup.applicationStatus.at(-1)).toMatchObject({ state: "duplicate" });
 	});
 
-	it("keeps spawn actions proposal/admission-only unless explicit create policy is present", () => {
+	it("lowers admitted spawn actions to WorkItemCreated only under explicit create policy", () => {
 		const setup = setupActions();
 		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-parent", draft())]]);
 		setup.applyPolicies.down([
@@ -396,9 +396,9 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		expect(setup.appliedFacts).toEqual([]);
 		expect(setup.applications.at(-1)).toMatchObject({ state: "proposal-only" });
 
-		const createSetup = setupActions();
-		createSetup.seed.down([["DATA", workItemCreatedFromDraft("wi-parent", draft())]]);
-		createSetup.applyPolicies.down([
+		const incompleteCreateSetup = setupActions();
+		incompleteCreateSetup.seed.down([["DATA", workItemCreatedFromDraft("wi-parent", draft())]]);
+		incompleteCreateSetup.applyPolicies.down([
 			[
 				"DATA",
 				workItemDomainActionApplyPolicy("spawn-create", {
@@ -407,7 +407,7 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 				}),
 			],
 		]);
-		createSetup.proposals.down([
+		incompleteCreateSetup.proposals.down([
 			[
 				"DATA",
 				workItemDomainActionProposalIntake("spawn-create", "wi-parent", "spawn-child", {
@@ -416,16 +416,75 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 				}),
 			],
 		]);
-		createSetup.decisions.down([
+		incompleteCreateSetup.decisions.down([
 			[
 				"DATA",
 				admissionDecision("spawn-create-decision", "spawn-create-admission", "spawn-create"),
 			],
 		]);
 
-		expect(createSetup.appliedFacts).toEqual([]);
-		expect(createSetup.applicationIssues.at(-1)).toMatchObject({ code: "policy-mismatch" });
-		expect(createSetup.applications.at(-1)).toMatchObject({ state: "proposal-only" });
+		expect(incompleteCreateSetup.appliedFacts).toEqual([]);
+		expect(incompleteCreateSetup.applicationIssues.at(-1)).toMatchObject({
+			code: "policy-mismatch",
+		});
+		expect(incompleteCreateSetup.applications.at(-1)).toMatchObject({
+			state: "policy-rejected",
+			producedFactIds: [],
+		});
+
+		const createSetup = setupActions();
+		createSetup.seed.down([["DATA", workItemCreatedFromDraft("wi-parent", draft())]]);
+		createSetup.applyPolicies.down([
+			[
+				"DATA",
+				workItemDomainActionApplyPolicy("spawn-create-complete", {
+					actionKinds: ["spawn-child"],
+					spawn: {
+						create: true,
+						linkParent: true,
+						idempotencyKey: "spawn:create:wi-child",
+						maxChildrenPerAdmission: 1,
+					},
+				}),
+			],
+		]);
+		createSetup.proposals.down([
+			[
+				"DATA",
+				workItemDomainActionProposalIntake("spawn-create-complete", "wi-parent", "spawn-child", {
+					payload: { childWorkItemId: "wi-child", draft: draft({ summary: "Child" }) },
+					metadata: { executionInputRevision: 1, applyPolicyId: "spawn-create-complete" },
+				}),
+			],
+		]);
+		createSetup.decisions.down([
+			[
+				"DATA",
+				admissionDecision(
+					"spawn-create-complete-decision",
+					"spawn-create-complete-admission",
+					"spawn-create-complete",
+				),
+			],
+		]);
+
+		expect(createSetup.appliedFacts).toEqual([
+			expect.objectContaining({
+				kind: "work-item-created",
+				workItemId: "wi-child",
+				draft: expect.objectContaining({ summary: "Child" }),
+				metadata: expect.objectContaining({
+					parentWorkItemId: "wi-parent",
+					sourceProposalId: "spawn-create-complete",
+					idempotencyKey: "spawn:create:wi-child",
+				}),
+			}),
+		]);
+		expect(createSetup.applications.at(-1)).toMatchObject({
+			state: "applied",
+			actionKind: "spawn-child",
+			producedFactIds: ["spawn-create-complete-admission:work-item-created:wi-child"],
+		});
 	});
 
 	it("turns malformed runtime action payloads into DataIssue/status instead of protocol ERROR", () => {

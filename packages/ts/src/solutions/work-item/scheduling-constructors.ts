@@ -36,8 +36,10 @@ export function workItemSpawnProposed<TInput = unknown>(
 		kind: "work-item-spawn-proposed",
 		proposalId,
 		draft,
+		proposedWorkItemId: opts.proposedWorkItemId,
 		parentWorkItemId: opts.parentWorkItemId,
 		proposedBy: opts.proposedBy,
+		idempotencyKey: opts.idempotencyKey,
 		sourceRefs: opts.sourceRefs,
 		metadata: opts.metadata,
 	};

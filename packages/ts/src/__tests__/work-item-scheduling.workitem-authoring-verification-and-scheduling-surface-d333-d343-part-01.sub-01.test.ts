@@ -204,7 +204,9 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 			[
 				"DATA",
 				workItemSpawnProposed("spawn-1", draft({ summary: "Proposed child" }), {
+					proposedWorkItemId: "wi-child",
 					parentWorkItemId: "wi-parent",
+					idempotencyKey: "spawn:wi-parent:wi-child",
 				}),
 			],
 		]);
@@ -212,8 +214,12 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		expect(workItems).toEqual([]);
 		expect(status.at(-1)).toMatchObject({
 			state: "deferred",
-			workItemId: "wi-parent",
-			metadata: { proposalId: "spawn-1" },
+			workItemId: "wi-child",
+			metadata: {
+				proposalId: "spawn-1",
+				parentWorkItemId: "wi-parent",
+				idempotencyKey: "spawn:wi-parent:wi-child",
+			},
 		});
 	});
 

@@ -96,6 +96,7 @@ export interface WorkItemSpawnActionPayload<TInput = unknown> {
 	readonly draft?: WorkItemDraft<TInput>;
 	readonly authorId?: string;
 	readonly eventId?: string;
+	readonly idempotencyKey?: string;
 	readonly metadata?: Record<string, unknown>;
 }
 

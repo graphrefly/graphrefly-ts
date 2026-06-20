@@ -79,23 +79,32 @@ function reduceAuthoring<T>(
 	policy?: WorkItemAuthoringPolicy,
 ): void {
 	if (input.kind === "work-item-spawn-proposed") {
-		const issues = validateWorkItemDraft(input.draft, { workItemId: input.parentWorkItemId });
+		const statusWorkItemId = input.proposedWorkItemId ?? input.parentWorkItemId;
+		const issues = validateWorkItemDraft(input.draft, { workItemId: statusWorkItemId });
 		if (issues.length > 0) {
 			for (const item of issues) emit(ctx, "issue", item);
 			emitStatus(ctx, state, {
 				state: "rejected",
 				code: issues[0]?.code as WorkItemValidationIssueCode | undefined,
-				workItemId: input.parentWorkItemId,
+				workItemId: statusWorkItemId,
 				message: issues[0]?.message,
-				metadata: { proposalId: input.proposalId },
+				metadata: {
+					proposalId: input.proposalId,
+					parentWorkItemId: input.parentWorkItemId,
+					idempotencyKey: input.idempotencyKey,
+				},
 			});
 			return;
 		}
 		emitStatus(ctx, state, {
 			state: "deferred",
-			workItemId: input.parentWorkItemId,
+			workItemId: statusWorkItemId,
 			message: `WorkItem spawn proposal '${input.proposalId}' carries draft data but is not applied`,
-			metadata: { proposalId: input.proposalId },
+			metadata: {
+				proposalId: input.proposalId,
+				parentWorkItemId: input.parentWorkItemId,
+				idempotencyKey: input.idempotencyKey,
+			},
 		});
 		return;
 	}

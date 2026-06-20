@@ -180,9 +180,11 @@ export type WorkItemAuthoringFact<TInput = unknown> =
 export interface WorkItemSpawnProposed<TInput = unknown> {
 	readonly kind: "work-item-spawn-proposed";
 	readonly proposalId: string;
+	readonly proposedWorkItemId?: string;
 	readonly parentWorkItemId?: string;
 	readonly draft: WorkItemDraft<TInput>;
 	readonly proposedBy?: string;
+	readonly idempotencyKey?: string;
 	readonly sourceRefs?: readonly SourceRef[];
 	readonly metadata?: Record<string, unknown>;
 }
