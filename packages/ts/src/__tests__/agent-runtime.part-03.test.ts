@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
+import type { ToolProviderAdapterRuntimeStatus } from "../executors/tool-provider-runtime.js";
+import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentRequestIssued,
@@ -14,8 +16,6 @@ import {
 	type ToolProviderAdapterRunRequested,
 	type ToolProviderAdapterRunStatus,
 } from "../orchestration/agent-runtime.js";
-import { attachToolProviderAdapterRuntime } from "../orchestration/agent-runtime-adapter-runtime.js";
-import type { ToolProviderAdapterRuntimeStatus } from "../orchestration/agent-runtime-types-tool.js";
 import type {
 	WorkItemDomainActionAdmissionDecision,
 	WorkItemDomainActionProposal,

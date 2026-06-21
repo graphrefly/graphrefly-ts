@@ -49,6 +49,14 @@ const expectedSubpaths = {
 	"./adapters/svelte": { present: ["nodeReadable", "nodeWritable", "nodeRecord"], absent: [] },
 	"./cqrs/messaging": { present: ["cqrsMessagingRecipe"], absent: [] },
 	"./cqrs/work-queue": { present: ["cqrsWorkQueueRecipe"], absent: [] },
+	"./executors/tool-provider": {
+		present: ["toolProviderExecutionRecipe"],
+		absent: [],
+	},
+	"./executors/tool-provider-runtime": {
+		present: ["attachToolProviderAdapterRuntime"],
+		absent: [],
+	},
 	"./inspection/boundary": { present: ["boundaryManifest"], absent: [] },
 	"./orchestration/messaging": { present: ["orchestrationMessagingRecipe"], absent: [] },
 	"./orchestration/work-queue": { present: ["orchestrationWorkQueueRecipe"], absent: [] },
@@ -74,6 +82,8 @@ const forbiddenFrameworkSpecifiers = [
 ];
 
 const rootAbsentExports = [
+	"attachToolProviderAdapterRuntime",
+	"toolProviderExecutionRecipe",
 	"useNodeValue",
 	"useNodeInput",
 	"useNodeRecord",
@@ -300,6 +310,32 @@ import { useNodeInput, useNodeRecord, useNodeValue } from "@graphrefly/ts/adapte
 import { createNodeInput, createNodeRecord, createNodeValue } from "@graphrefly/ts/adapters/solid";
 import { nodeReadable, nodeRecord, nodeWritable } from "@graphrefly/ts/adapters/svelte";
 import { useNodeInput as useVueNodeInput, useNodeRecord as useVueNodeRecord, useNodeValue as useVueNodeValue } from "@graphrefly/ts/adapters/vue";
+import {
+	toolProviderExecutionRecipe,
+	type ToolProviderExecutionRecipeBundle,
+	type ToolProviderExecutionRecipeOptions,
+} from "@graphrefly/ts/executors/tool-provider";
+import {
+	attachToolProviderAdapterRuntime,
+	type ToolProviderAdapterBinding,
+	type ToolProviderAdapterExecutionRetentionEntry,
+	type ToolProviderAdapterInputRetentionEntry,
+	type ToolProviderAdapterRunContext,
+	type ToolProviderAdapterRunIssueRetentionEntry,
+	type ToolProviderAdapterRunRequestRetentionEntry,
+	type ToolProviderAdapterRunResult,
+	type ToolProviderAdapterRunStatusRetentionEntry,
+	type ToolProviderAdapterRuntimeHandle,
+	type ToolProviderAdapterRuntimeIndexRetentionPolicy,
+	type ToolProviderAdapterRuntimeOptions,
+	type ToolProviderAdapterRuntimeRetentionEvidenceEntry,
+	type ToolProviderAdapterRuntimeRetentionIndex,
+	type ToolProviderAdapterRuntimeRetentionOrder,
+	type ToolProviderAdapterRuntimeRetentionPolicy,
+	type ToolProviderAdapterRuntimeStatus,
+	type ToolProviderAdapterRuntimeStatusKind,
+	type ToolProviderPublicTextPolicy,
+} from "@graphrefly/ts/executors/tool-provider-runtime";
 import { boundaryManifest, type BoundaryManifest, type BoundaryNode, type BoundaryRole } from "@graphrefly/ts/inspection/boundary";
 
 void externalStore;
@@ -319,13 +355,55 @@ void nodeWritable;
 void useVueNodeInput;
 void useVueNodeRecord;
 void useVueNodeValue;
+void toolProviderExecutionRecipe;
+void attachToolProviderAdapterRuntime;
 void boundaryManifest;
 
 declare const manifest: BoundaryManifest;
 const role: BoundaryRole = "input";
 const node: BoundaryNode | undefined = manifest.inputs[0] ?? manifest.outputs[0];
+declare const recipeBundle: ToolProviderExecutionRecipeBundle;
+declare const recipeOptions: ToolProviderExecutionRecipeOptions;
+declare const runtimeBinding: ToolProviderAdapterBinding;
+declare const runtimeExecutionRetentionEntry: ToolProviderAdapterExecutionRetentionEntry;
+declare const runtimeInputRetentionEntry: ToolProviderAdapterInputRetentionEntry;
+declare const runtimeRunContext: ToolProviderAdapterRunContext;
+declare const runtimeRunIssueRetentionEntry: ToolProviderAdapterRunIssueRetentionEntry;
+declare const runtimeRunRequestRetentionEntry: ToolProviderAdapterRunRequestRetentionEntry;
+declare const runtimeRunResult: ToolProviderAdapterRunResult;
+declare const runtimeRunStatusRetentionEntry: ToolProviderAdapterRunStatusRetentionEntry;
+declare const runtimeHandle: ToolProviderAdapterRuntimeHandle;
+declare const runtimeIndexRetentionPolicy: ToolProviderAdapterRuntimeIndexRetentionPolicy<unknown>;
+declare const runtimeOptions: ToolProviderAdapterRuntimeOptions;
+declare const runtimeRetentionEvidenceEntry: ToolProviderAdapterRuntimeRetentionEvidenceEntry;
+declare const runtimeRetentionIndex: ToolProviderAdapterRuntimeRetentionIndex;
+const runtimeRetentionOrder: ToolProviderAdapterRuntimeRetentionOrder = "fifo";
+declare const runtimeRetentionPolicy: ToolProviderAdapterRuntimeRetentionPolicy;
+declare const runtimeStatus: ToolProviderAdapterRuntimeStatus;
+declare const runtimeStatusKind: ToolProviderAdapterRuntimeStatusKind;
+declare const publicTextPolicy: ToolProviderPublicTextPolicy;
 void role;
 void node;
+void recipeBundle;
+void recipeOptions;
+void runtimeBinding;
+void runtimeExecutionRetentionEntry;
+void runtimeInputRetentionEntry;
+void runtimeRunContext;
+void runtimeRunIssueRetentionEntry;
+void runtimeRunRequestRetentionEntry;
+void runtimeRunResult;
+void runtimeRunStatusRetentionEntry;
+void runtimeHandle;
+void runtimeIndexRetentionPolicy;
+void runtimeOptions;
+void runtimeRetentionEvidenceEntry;
+void runtimeRetentionIndex;
+void runtimeRetentionOrder;
+void runtimeRetentionPolicy;
+void runtimeStatus;
+void runtimeStatusKind;
+void publicTextPolicy;
 `,
 	);
 	const rootForbiddenNames = [...rootAbsentExports, ...rootAbsentTypeExports].join(", ");

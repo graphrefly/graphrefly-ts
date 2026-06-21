@@ -168,6 +168,26 @@
 				"default": "./dist/executors/work-queue.cjs"
 			}
 		},
+		"./executors/tool-provider-runtime": {
+			"import": {
+				"types": "./dist/executors/tool-provider-runtime.d.ts",
+				"default": "./dist/executors/tool-provider-runtime.js"
+			},
+			"require": {
+				"types": "./dist/executors/tool-provider-runtime.d.cts",
+				"default": "./dist/executors/tool-provider-runtime.cjs"
+			}
+		},
+		"./executors/tool-provider": {
+			"import": {
+				"types": "./dist/executors/tool-provider.d.ts",
+				"default": "./dist/executors/tool-provider.js"
+			},
+			"require": {
+				"types": "./dist/executors/tool-provider.d.cts",
+				"default": "./dist/executors/tool-provider.cjs"
+			}
+		},
 		"./inspection/boundary": {
 			"import": {
 				"types": "./dist/inspection/boundary.d.ts",

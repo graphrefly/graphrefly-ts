@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
+import type {
+	ToolProviderAdapterBinding,
+	ToolProviderAdapterRuntimeStatus,
+} from "../executors/tool-provider-runtime.js";
+import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
 import { type Graph, graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import {
@@ -22,11 +27,6 @@ import {
 	type ToolProviderAdapterRunStatus,
 	toolProviderAdapterInputProjector,
 } from "../orchestration/agent-runtime.js";
-import { attachToolProviderAdapterRuntime } from "../orchestration/agent-runtime-adapter-runtime.js";
-import type {
-	ToolProviderAdapterBinding,
-	ToolProviderAdapterRuntimeStatus,
-} from "../orchestration/agent-runtime-types-tool.js";
 import {
 	type WorkItemEffectRequested,
 	type WorkItemEvidenceRecorded,

@@ -21,6 +21,8 @@ import type {
 	ViewCachePolicy as DataStructuresViewCachePolicy,
 } from "../data-structures/index.js";
 import * as dataStructures from "../data-structures/index.js";
+import * as executorToolProviderRecipe from "../executors/tool-provider.js";
+import * as executorToolProviderRuntime from "../executors/tool-provider-runtime.js";
 import * as executorWorkQueueRecipe from "../executors/work-queue.js";
 import * as graphLayer from "../graph/index.js";
 import type {
@@ -119,6 +121,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./cqrs/work-queue",
 			"./data",
 			"./data-structures",
+			"./executors/tool-provider",
+			"./executors/tool-provider-runtime",
 			"./executors/work-queue",
 			"./graph",
 			"./inspection/boundary",
@@ -317,6 +321,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof workItemWorkQueueRecipe.workItemSubmitCommand).toBe("function");
 		expect(typeof executorWorkQueueRecipe.executorWorkQueueRecipe).toBe("function");
 		expect(typeof executorWorkQueueRecipe.executorSubmitCommand).toBe("function");
+		expect(typeof executorToolProviderRecipe.toolProviderExecutionRecipe).toBe("function");
+		expect(typeof executorToolProviderRuntime.attachToolProviderAdapterRuntime).toBe("function");
 		expect(typeof orchestration.retryPolicy).toBe("function");
 		expect(typeof orchestration.retryStatusBundle).toBe("function");
 		expect(typeof orchestration.breakerBundle).toBe("function");

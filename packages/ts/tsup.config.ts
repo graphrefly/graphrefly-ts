@@ -18,6 +18,8 @@ export default defineConfig({
 		"src/data-structures/index.ts",
 		"src/graph/index.ts",
 		"src/inspection/boundary.ts",
+		"src/executors/tool-provider.ts",
+		"src/executors/tool-provider-runtime.ts",
 		"src/executors/work-queue.ts",
 		"src/messaging/index.ts",
 		"src/operators/index.ts",
