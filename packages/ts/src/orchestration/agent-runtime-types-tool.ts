@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { CapacityPolicy, ReactiveOpt, RetentionPolicy } from "../graph/policies/types.js";
+import type { RetryPolicy } from "../graph/resilience.js";
 import type { Node } from "../node/node.js";
 import type { AgentNeed, AgentRuntimeAuditRecord } from "./agent-runtime-types-agent.js";
 import type {
@@ -496,6 +497,92 @@ export interface ToolProviderRunAdmissionBundle {
 	readonly issues: Node<DataIssue>;
 	readonly audit: Node<AgentRuntimeAuditRecord>;
 	readonly views: Node<ToolProviderRunAdmissionViews>;
+}
+
+export interface ToolProviderRunRetryPolicy {
+	readonly kind: "tool-provider-run-retry-policy";
+	readonly policyId: string;
+	readonly retryPolicy: RetryPolicy;
+	readonly runId?: string;
+	readonly requestId?: string;
+	readonly adapterInputId?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderRunRetryProposal {
+	readonly kind: "tool-provider-run-retry-proposal";
+	readonly proposalId: string;
+	readonly outcomeId: string;
+	readonly fromRunId: string;
+	readonly fromRequestId: string;
+	readonly fromAttempt: number;
+	readonly nextAttempt: number;
+	readonly nextRunId: string;
+	readonly adapterInputId: string;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly policyId?: string;
+	readonly policyRefs?: readonly SourceRef[];
+	readonly maxAttempts: number;
+	readonly nextDelayMs?: number;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderRunRetryScheduled {
+	readonly kind: "tool-provider-run-retry-scheduled";
+	readonly scheduleId: string;
+	readonly outcomeId: string;
+	readonly proposalId: string;
+	readonly fromRunId: string;
+	readonly nextRunId: string;
+	readonly nextAttempt: number;
+	readonly retryAtMs: number;
+	readonly retryAfterMs: number;
+	readonly sourceRefs?: readonly SourceRef[];
+}
+
+export type ToolProviderRunRetryStatusState =
+	| "scheduled"
+	| "ready"
+	| "exhausted"
+	| "not-retryable"
+	| "blocked";
+
+export interface ToolProviderRunRetryStatus {
+	readonly kind: "tool-provider-run-retry-status";
+	readonly statusId: string;
+	readonly outcomeId: string;
+	readonly proposalId: string;
+	readonly fromRunId: string;
+	readonly adapterInputId: string;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly nextRunId?: string;
+	readonly nextAttempt?: number;
+	readonly nextRetryAtMs?: number;
+	readonly state: ToolProviderRunRetryStatusState;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly issueCodes?: readonly string[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderRunRetryViews {
+	readonly proposalsByOutcome: ReadonlyMap<string, ToolProviderRunRetryProposal>;
+	readonly scheduledByOutcome: ReadonlyMap<string, ToolProviderRunRetryScheduled>;
+	readonly nextRunRequestsByOutcome: ReadonlyMap<string, ToolProviderAdapterRunRequested>;
+	readonly statusByOutcome: ReadonlyMap<string, ToolProviderRunRetryStatus>;
+}
+
+export interface ToolProviderRunRetryBundle {
+	readonly proposals: Node<ToolProviderRunRetryProposal>;
+	readonly scheduled: Node<ToolProviderRunRetryScheduled>;
+	readonly runRequests: Node<ToolProviderAdapterRunRequested>;
+	readonly status: Node<ToolProviderRunRetryStatus>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+	readonly views: Node<ToolProviderRunRetryViews>;
 }
 
 export interface ToolProviderPublicTextPolicy {

@@ -80,6 +80,11 @@ import type {
 	ToolProviderRunAdmissionDecision,
 	ToolProviderRunAdmissionProposal,
 	ToolProviderRunAdmissionStatus,
+	ToolProviderRunRetryBundle,
+	ToolProviderRunRetryPolicy,
+	ToolProviderRunRetryProposal,
+	ToolProviderRunRetryScheduled,
+	ToolProviderRunRetryStatus,
 } from "../orchestration/index.js";
 import * as orchestration from "../orchestration/index.js";
 import * as orchestrationMessagingRecipe from "../orchestration/messaging.js";
@@ -363,6 +368,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.requestToolProviderAdapterRun).toBe("function");
 		expect(typeof orchestration.toolProviderAdapterRunProjector).toBe("function");
 		expect(typeof orchestration.toolProviderRunAdmissionProjector).toBe("function");
+		expect(typeof orchestration.toolProviderRunRetryProjector).toBe("function");
 		expect(typeof orchestration.buildToolProviderExecutorOutcome).toBe("function");
 		expect(Object.hasOwn(orchestration, "attachToolProviderAdapterRuntime")).toBe(false);
 		expectTypeOf<ToolProviderExecutionPolicy>().toMatchTypeOf<{
@@ -409,6 +415,18 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		}>();
 		expectTypeOf<ToolProviderRunAdmissionStatus>().toHaveProperty("state");
 		expectTypeOf<ToolProviderRunAdmissionBundle>().toHaveProperty("approvedRunRequests");
+		expectTypeOf<ToolProviderRunRetryPolicy>().toMatchTypeOf<{
+			readonly kind: "tool-provider-run-retry-policy";
+			readonly policyId: string;
+		}>();
+		expectTypeOf<ToolProviderRunRetryProposal>().toMatchTypeOf<{
+			readonly kind: "tool-provider-run-retry-proposal";
+			readonly nextAttempt: number;
+			readonly nextRunId: string;
+		}>();
+		expectTypeOf<ToolProviderRunRetryScheduled>().toHaveProperty("retryAtMs");
+		expectTypeOf<ToolProviderRunRetryStatus>().toHaveProperty("state");
+		expectTypeOf<ToolProviderRunRetryBundle>().toHaveProperty("runRequests");
 		expectTypeOf<ToolProviderPublicTextPolicy>().toHaveProperty("maxSummaryChars");
 		expectTypeOf<ToolProviderAdapterRunResult>().toMatchTypeOf<{ readonly kind: string }>();
 		expectTypeOf<ExecutorArtifactMaterial>().toMatchTypeOf<{

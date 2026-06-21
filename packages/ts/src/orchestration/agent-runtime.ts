@@ -31,6 +31,7 @@ export {
 	validateToolProviderExecutionPolicy,
 } from "./agent-runtime-tool-provider-policy.js";
 export { toolProviderRunAdmissionProjector } from "./agent-runtime-tool-provider-run-admission.js";
+export { toolProviderRunRetryProjector } from "./agent-runtime-tool-provider-run-retry.js";
 export type * from "./agent-runtime-types-agent.js";
 export type * from "./agent-runtime-types-core.js";
 export { effectRun } from "./agent-runtime-types-core.js";
@@ -70,6 +71,13 @@ export type {
 	ToolProviderRunAdmissionState,
 	ToolProviderRunAdmissionStatus,
 	ToolProviderRunAdmissionViews,
+	ToolProviderRunRetryBundle,
+	ToolProviderRunRetryPolicy,
+	ToolProviderRunRetryProposal,
+	ToolProviderRunRetryScheduled,
+	ToolProviderRunRetryStatus,
+	ToolProviderRunRetryStatusState,
+	ToolProviderRunRetryViews,
 	ToolProviderSizeCapacityPolicy,
 	ToolProviderSizeLimit,
 	ToolProviderSizeUnit,
