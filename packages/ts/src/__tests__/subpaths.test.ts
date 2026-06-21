@@ -22,6 +22,7 @@ import type {
 } from "../data-structures/index.js";
 import * as dataStructures from "../data-structures/index.js";
 import * as executorToolProviderRecipe from "../executors/tool-provider.js";
+import * as executorToolProviderAdapters from "../executors/tool-provider-adapters.js";
 import * as executorToolProviderRuntime from "../executors/tool-provider-runtime.js";
 import * as executorWorkQueueRecipe from "../executors/work-queue.js";
 import * as graphLayer from "../graph/index.js";
@@ -64,6 +65,8 @@ import * as boundaryInspection from "../inspection/boundary.js";
 import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
 import type {
+	ExecutorArtifactMaterial,
+	SizeCapacityEvidence,
 	ToolProviderAdapterInput,
 	ToolProviderAdapterInputBundle,
 	ToolProviderAdapterInputStatus,
@@ -73,6 +76,10 @@ import type {
 	ToolProviderAdapterRunStatus,
 	ToolProviderExecutionPolicy,
 	ToolProviderPublicTextPolicy,
+	ToolProviderRunAdmissionBundle,
+	ToolProviderRunAdmissionDecision,
+	ToolProviderRunAdmissionProposal,
+	ToolProviderRunAdmissionStatus,
 } from "../orchestration/index.js";
 import * as orchestration from "../orchestration/index.js";
 import * as orchestrationMessagingRecipe from "../orchestration/messaging.js";
@@ -122,6 +129,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./data",
 			"./data-structures",
 			"./executors/tool-provider",
+			"./executors/tool-provider-adapters",
 			"./executors/tool-provider-runtime",
 			"./executors/work-queue",
 			"./graph",
@@ -322,6 +330,19 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof executorWorkQueueRecipe.executorWorkQueueRecipe).toBe("function");
 		expect(typeof executorWorkQueueRecipe.executorSubmitCommand).toBe("function");
 		expect(typeof executorToolProviderRecipe.toolProviderExecutionRecipe).toBe("function");
+		expect(typeof executorToolProviderAdapters.localBuiltinToolProviderBinding).toBe("function");
+		expect(typeof executorToolProviderAdapters.localBuiltinToolProviderAdapterPack).toBe(
+			"function",
+		);
+		expect(typeof executorToolProviderAdapters.processToolProviderBinding).toBe("function");
+		expect(typeof executorToolProviderAdapters.processToolProviderAdapterPack).toBe("function");
+		expect(typeof executorToolProviderAdapters.processToolProviderCatalog).toBe("function");
+		expect(typeof executorToolProviderAdapters.httpToolProviderCatalog).toBe("function");
+		expect(typeof executorToolProviderAdapters.httpToolProviderRuntime).toBe("function");
+		expect(Object.hasOwn(executorToolProviderAdapters, "attachToolProviderAdapterRuntime")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(executorToolProviderAdapters, "toolProviderExecutionRecipe")).toBe(false);
 		expect(typeof executorToolProviderRuntime.attachToolProviderAdapterRuntime).toBe("function");
 		expect(typeof orchestration.retryPolicy).toBe("function");
 		expect(typeof orchestration.retryStatusBundle).toBe("function");
@@ -341,6 +362,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.toolProviderAdapterInputProjector).toBe("function");
 		expect(typeof orchestration.requestToolProviderAdapterRun).toBe("function");
 		expect(typeof orchestration.toolProviderAdapterRunProjector).toBe("function");
+		expect(typeof orchestration.toolProviderRunAdmissionProjector).toBe("function");
 		expect(typeof orchestration.buildToolProviderExecutorOutcome).toBe("function");
 		expect(Object.hasOwn(orchestration, "attachToolProviderAdapterRuntime")).toBe(false);
 		expectTypeOf<ToolProviderExecutionPolicy>().toMatchTypeOf<{
@@ -374,8 +396,26 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		}>();
 		expectTypeOf<ToolProviderAdapterRunStatus>().toHaveProperty("status");
 		expectTypeOf<ToolProviderAdapterRunBundle>().toHaveProperty("requests");
+		expectTypeOf<ToolProviderRunAdmissionProposal>().toMatchTypeOf<{
+			readonly kind: "tool-provider-run-admission-proposal";
+			readonly proposalId: string;
+			readonly approvalMode: string;
+		}>();
+		expectTypeOf<ToolProviderRunAdmissionDecision>().toMatchTypeOf<{
+			readonly kind: "tool-provider-run-admission-decision";
+			readonly decisionId: string;
+			readonly proposalId: string;
+			readonly outcome: "admit" | "block" | "defer";
+		}>();
+		expectTypeOf<ToolProviderRunAdmissionStatus>().toHaveProperty("state");
+		expectTypeOf<ToolProviderRunAdmissionBundle>().toHaveProperty("approvedRunRequests");
 		expectTypeOf<ToolProviderPublicTextPolicy>().toHaveProperty("maxSummaryChars");
 		expectTypeOf<ToolProviderAdapterRunResult>().toMatchTypeOf<{ readonly kind: string }>();
+		expectTypeOf<ExecutorArtifactMaterial>().toMatchTypeOf<{
+			readonly kind: string;
+			readonly dataMode: "inline" | "summary" | "ref" | (string & {});
+		}>();
+		expectTypeOf<SizeCapacityEvidence>().toHaveProperty("measurementSource");
 		expect(Object.hasOwn(orchestration, "workItemEffectRunProjector")).toBe(false);
 		expect(typeof orchestrationMessagingRecipe.orchestrationMessagingRecipe).toBe("function");
 		expect(typeof orchestrationWorkQueueRecipe.orchestrationWorkQueueRecipe).toBe("function");

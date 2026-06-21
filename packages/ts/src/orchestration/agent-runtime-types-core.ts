@@ -255,6 +255,22 @@ export interface ExecutorUsage {
 	readonly latencyMs?: number;
 }
 
+export interface SizeCapacityEvidence {
+	readonly kind: "size-capacity-evidence";
+	readonly unit: string;
+	readonly quantity: number;
+	readonly measurementSource: string;
+	readonly estimated?: boolean;
+	readonly encoding?: string;
+	readonly mediaType?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly refs?: readonly SourceRef[];
+	readonly issues?: readonly DataIssue[];
+	readonly sensitivity?: readonly string[];
+	readonly redaction?: Record<string, unknown>;
+	readonly metadata?: Record<string, unknown>;
+}
+
 export interface ExecutorOutcomeBase {
 	readonly kind: ExecutorOutcomeStatus;
 	readonly outcomeId: string;
@@ -278,6 +294,30 @@ export interface AgentOutputEnvelope<T = unknown> {
 	readonly value?: T;
 	readonly refs?: readonly SourceRef[];
 	readonly summary?: string;
+	readonly artifacts?: readonly ExecutorArtifactMaterial[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ExecutorArtifactMaterial<T = unknown> {
+	readonly kind: string;
+	readonly format?: string;
+	readonly schemaRef?: string;
+	readonly schemaKind?: string;
+	readonly mimeType?: string;
+	readonly mediaType?: string;
+	readonly filename?: string;
+	readonly byteLength?: number;
+	readonly digest?: string;
+	readonly encoding?: string;
+	readonly dataMode: "inline" | "summary" | "ref" | (string & {});
+	readonly summary?: string;
+	readonly value?: T;
+	readonly ref?: SourceRef;
+	readonly refs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly sizeEvidence?: readonly SizeCapacityEvidence[];
+	readonly sensitivity?: readonly string[];
+	readonly redaction?: Record<string, unknown>;
 	readonly metadata?: Record<string, unknown>;
 }
 

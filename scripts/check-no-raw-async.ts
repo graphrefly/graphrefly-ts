@@ -42,10 +42,16 @@ const ALLOW_ALL = new Set<string>([
 /**
  * Pattern-scoped exceptions. D82 storage binding helpers are adapter-owned async
  * outside the sync wave core, but only the Promise forms used for adapter I/O
- * normalization/serialization are allowed here; timers, async/await, for-await, and
- * unrelated Promise combinators remain banned.
+ * normalization/serialization are allowed there. D416 allows the HTTP tool-provider
+ * runtime helper to host async driver execution at the Layer C adapter/runtime boundary.
+ * Timers, async/await, for-await, and unrelated Promise combinators remain banned
+ * unless explicitly listed for a sanctioned boundary file.
  */
 const ALLOW_LABELS = new Map<string, ReadonlySet<string>>([
+	[
+		"packages/ts/src/executors/tool-provider-adapters.ts",
+		new Set<string>(["Promise.resolve()", "setTimeout("]),
+	],
 	[
 		"packages/ts/src/storage/append-log.ts",
 		new Set<string>(["Promise.resolve()", "Promise.all()"]),

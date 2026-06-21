@@ -30,6 +30,7 @@ export {
 	toolProviderPolicyResolutionProjector,
 	validateToolProviderExecutionPolicy,
 } from "./agent-runtime-tool-provider-policy.js";
+export { toolProviderRunAdmissionProjector } from "./agent-runtime-tool-provider-run-admission.js";
 export type * from "./agent-runtime-types-agent.js";
 export type * from "./agent-runtime-types-core.js";
 export { effectRun } from "./agent-runtime-types-core.js";
@@ -61,6 +62,14 @@ export type {
 	ToolProviderPolicyResolutionStatus,
 	ToolProviderPublicTextPolicy,
 	ToolProviderRedactionPolicy,
+	ToolProviderRunAdmission,
+	ToolProviderRunAdmissionBundle,
+	ToolProviderRunAdmissionDecision,
+	ToolProviderRunAdmissionOutcome,
+	ToolProviderRunAdmissionProposal,
+	ToolProviderRunAdmissionState,
+	ToolProviderRunAdmissionStatus,
+	ToolProviderRunAdmissionViews,
 	ToolProviderSizeCapacityPolicy,
 	ToolProviderSizeLimit,
 	ToolProviderSizeUnit,

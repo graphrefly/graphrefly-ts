@@ -53,6 +53,18 @@ const expectedSubpaths = {
 		present: ["toolProviderExecutionRecipe"],
 		absent: [],
 	},
+	"./executors/tool-provider-adapters": {
+		present: [
+			"localBuiltinToolProviderBinding",
+			"localBuiltinToolProviderAdapterPack",
+			"processToolProviderBinding",
+			"processToolProviderAdapterPack",
+			"processToolProviderCatalog",
+			"httpToolProviderCatalog",
+			"httpToolProviderRuntime",
+		],
+		absent: ["attachToolProviderAdapterRuntime", "toolProviderExecutionRecipe"],
+	},
 	"./executors/tool-provider-runtime": {
 		present: ["attachToolProviderAdapterRuntime"],
 		absent: [],
@@ -84,6 +96,10 @@ const forbiddenFrameworkSpecifiers = [
 const rootAbsentExports = [
 	"attachToolProviderAdapterRuntime",
 	"toolProviderExecutionRecipe",
+	"localBuiltinToolProviderBinding",
+	"processToolProviderBinding",
+	"httpToolProviderCatalog",
+	"httpToolProviderRuntime",
 	"useNodeValue",
 	"useNodeInput",
 	"useNodeRecord",
@@ -316,6 +332,20 @@ import {
 	type ToolProviderExecutionRecipeOptions,
 } from "@graphrefly/ts/executors/tool-provider";
 import {
+	httpToolProviderCatalog,
+	httpToolProviderRuntime,
+	localBuiltinToolProviderAdapterPack,
+	localBuiltinToolProviderBinding,
+	processToolProviderAdapterPack,
+	processToolProviderBinding,
+	processToolProviderCatalog,
+	type HttpToolProviderDriver,
+	type HttpToolProviderRuntimeBundle,
+	type HttpToolProviderRuntimeOptions,
+	type LocalBuiltinToolProviderBindingOptions,
+	type ProcessToolProviderBindingOptions,
+} from "@graphrefly/ts/executors/tool-provider-adapters";
+import {
 	attachToolProviderAdapterRuntime,
 	type ToolProviderAdapterBinding,
 	type ToolProviderAdapterExecutionRetentionEntry,
@@ -357,6 +387,13 @@ void useVueNodeRecord;
 void useVueNodeValue;
 void toolProviderExecutionRecipe;
 void attachToolProviderAdapterRuntime;
+void httpToolProviderCatalog;
+void httpToolProviderRuntime;
+void localBuiltinToolProviderAdapterPack;
+void localBuiltinToolProviderBinding;
+void processToolProviderAdapterPack;
+void processToolProviderBinding;
+void processToolProviderCatalog;
 void boundaryManifest;
 
 declare const manifest: BoundaryManifest;
@@ -382,6 +419,11 @@ declare const runtimeRetentionPolicy: ToolProviderAdapterRuntimeRetentionPolicy;
 declare const runtimeStatus: ToolProviderAdapterRuntimeStatus;
 declare const runtimeStatusKind: ToolProviderAdapterRuntimeStatusKind;
 declare const publicTextPolicy: ToolProviderPublicTextPolicy;
+declare const httpDriver: HttpToolProviderDriver;
+declare const httpRuntimeBundle: HttpToolProviderRuntimeBundle;
+declare const httpRuntimeOptions: HttpToolProviderRuntimeOptions;
+declare const localBindingOptions: LocalBuiltinToolProviderBindingOptions;
+declare const processBindingOptions: ProcessToolProviderBindingOptions;
 void role;
 void node;
 void recipeBundle;
@@ -404,6 +446,11 @@ void runtimeRetentionPolicy;
 void runtimeStatus;
 void runtimeStatusKind;
 void publicTextPolicy;
+void httpDriver;
+void httpRuntimeBundle;
+void httpRuntimeOptions;
+void localBindingOptions;
+void processBindingOptions;
 `,
 	);
 	const rootForbiddenNames = [...rootAbsentExports, ...rootAbsentTypeExports].join(", ");

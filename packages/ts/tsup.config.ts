@@ -19,6 +19,7 @@ export default defineConfig({
 		"src/graph/index.ts",
 		"src/inspection/boundary.ts",
 		"src/executors/tool-provider.ts",
+		"src/executors/tool-provider-adapters.ts",
 		"src/executors/tool-provider-runtime.ts",
 		"src/executors/work-queue.ts",
 		"src/messaging/index.ts",

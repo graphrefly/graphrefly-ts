@@ -3,7 +3,12 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import type { AgentNeed } from "./agent-runtime-types-agent.js";
-import type { AgentOutputEnvelope, SourceRef } from "./agent-runtime-types-core.js";
+import type {
+	AgentOutputEnvelope,
+	ExecutorArtifactMaterial,
+	SizeCapacityEvidence,
+	SourceRef,
+} from "./agent-runtime-types-core.js";
 import type {
 	ToolProviderAdapterInput,
 	ToolProviderExecutionPolicy,
@@ -268,8 +273,99 @@ export function sanitizeAgentOutputEnvelope<T>(
 		value: value as T | undefined,
 		refs: envelope.refs === undefined ? undefined : sanitizeAdapterInputSourceRefs(envelope.refs),
 		summary,
+		artifacts:
+			envelope.artifacts === undefined
+				? undefined
+				: Object.freeze(
+						envelope.artifacts.map((artifact) =>
+							sanitizeExecutorArtifactMaterial(artifact, input, policy, issues),
+						),
+					),
 		metadata,
 	} satisfies AgentOutputEnvelope<T>);
+}
+
+export function sanitizeExecutorArtifactMaterial(
+	artifact: ExecutorArtifactMaterial,
+	input: ToolProviderAdapterInput,
+	policy: ToolProviderPublicTextPolicy | undefined,
+	issues: DataIssue[],
+): ExecutorArtifactMaterial {
+	const metadata = sanitizeRuntimeMetadata(artifact.metadata, input, policy, issues);
+	const redaction = sanitizeRuntimeMetadata(artifact.redaction, input, policy, issues);
+	return Object.freeze({
+		kind: artifact.kind,
+		...(artifact.format === undefined ? {} : { format: artifact.format }),
+		...(artifact.schemaRef === undefined ? {} : { schemaRef: artifact.schemaRef }),
+		...(artifact.schemaKind === undefined ? {} : { schemaKind: artifact.schemaKind }),
+		...(artifact.mimeType === undefined ? {} : { mimeType: artifact.mimeType }),
+		...(artifact.mediaType === undefined ? {} : { mediaType: artifact.mediaType }),
+		...(artifact.filename === undefined ? {} : { filename: artifact.filename }),
+		...(artifact.byteLength === undefined ? {} : { byteLength: artifact.byteLength }),
+		...(artifact.digest === undefined ? {} : { digest: artifact.digest }),
+		...(artifact.encoding === undefined ? {} : { encoding: artifact.encoding }),
+		dataMode: artifact.dataMode,
+		...(artifact.summary === undefined
+			? {}
+			: { summary: boundedPublicText(artifact.summary, "summary", input, policy, issues) }),
+		...(artifact.value === undefined
+			? {}
+			: { value: sanitizeInlineOutputValue(artifact.value, input, policy, issues) }),
+		...(artifact.ref === undefined
+			? {}
+			: { ref: sanitizeAdapterInputSourceRefs([artifact.ref])[0] }),
+		...(artifact.refs === undefined ? {} : { refs: sanitizeAdapterInputSourceRefs(artifact.refs) }),
+		...(artifact.sourceRefs === undefined
+			? {}
+			: { sourceRefs: sanitizeAdapterInputSourceRefs(artifact.sourceRefs) }),
+		...(artifact.sizeEvidence === undefined
+			? {}
+			: {
+					sizeEvidence: Object.freeze(
+						artifact.sizeEvidence.map((evidence) =>
+							sanitizeSizeCapacityEvidence(evidence, input, policy, issues),
+						),
+					),
+				}),
+		...(artifact.sensitivity === undefined
+			? {}
+			: { sensitivity: Object.freeze([...artifact.sensitivity]) }),
+		...(redaction === undefined ? {} : { redaction }),
+		...(metadata === undefined ? {} : { metadata }),
+	} satisfies ExecutorArtifactMaterial);
+}
+
+function sanitizeSizeCapacityEvidence(
+	evidence: SizeCapacityEvidence,
+	input: ToolProviderAdapterInput,
+	policy: ToolProviderPublicTextPolicy | undefined,
+	issues: DataIssue[],
+): SizeCapacityEvidence {
+	const metadata = sanitizeRuntimeMetadata(evidence.metadata, input, policy, issues);
+	const redaction = sanitizeRuntimeMetadata(evidence.redaction, input, policy, issues);
+	return Object.freeze({
+		kind: "size-capacity-evidence",
+		unit: evidence.unit,
+		quantity: evidence.quantity,
+		measurementSource: evidence.measurementSource,
+		...(evidence.estimated === undefined ? {} : { estimated: evidence.estimated }),
+		...(evidence.encoding === undefined ? {} : { encoding: evidence.encoding }),
+		...(evidence.mediaType === undefined ? {} : { mediaType: evidence.mediaType }),
+		...(evidence.sourceRefs === undefined
+			? {}
+			: { sourceRefs: sanitizeAdapterInputSourceRefs(evidence.sourceRefs) }),
+		...(evidence.refs === undefined ? {} : { refs: sanitizeAdapterInputSourceRefs(evidence.refs) }),
+		...(evidence.issues === undefined
+			? {}
+			: {
+					issues: Object.freeze(evidence.issues.map((issue) => sanitizeAdapterInputIssue(issue))),
+				}),
+		...(evidence.sensitivity === undefined
+			? {}
+			: { sensitivity: Object.freeze([...evidence.sensitivity]) }),
+		...(redaction === undefined ? {} : { redaction }),
+		...(metadata === undefined ? {} : { metadata }),
+	} satisfies SizeCapacityEvidence);
 }
 
 export function sanitizeAgentNeed(

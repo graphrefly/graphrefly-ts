@@ -188,6 +188,16 @@
 				"default": "./dist/executors/tool-provider.cjs"
 			}
 		},
+		"./executors/tool-provider-adapters": {
+			"import": {
+				"types": "./dist/executors/tool-provider-adapters.d.ts",
+				"default": "./dist/executors/tool-provider-adapters.js"
+			},
+			"require": {
+				"types": "./dist/executors/tool-provider-adapters.d.cts",
+				"default": "./dist/executors/tool-provider-adapters.cjs"
+			}
+		},
 		"./inspection/boundary": {
 			"import": {
 				"types": "./dist/inspection/boundary.d.ts",

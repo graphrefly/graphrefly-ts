@@ -412,6 +412,92 @@ export interface ToolProviderAdapterRunBundle {
 	readonly audit: Node<AgentRuntimeAuditRecord>;
 }
 
+export type ToolProviderRunAdmissionOutcome = "admit" | "block" | "defer";
+export type ToolProviderRunAdmissionState = "admitted" | "blocked" | "deferred" | "waiting";
+
+export interface ToolProviderRunAdmissionProposal {
+	readonly kind: "tool-provider-run-admission-proposal";
+	readonly proposalId: string;
+	readonly runId: string;
+	readonly adapterInputId: string;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId?: string;
+	readonly providerId?: string;
+	readonly executorId?: string;
+	readonly profileId?: string;
+	readonly toolName?: string;
+	readonly operation?: string;
+	readonly attempt: number;
+	readonly reason: ToolProviderAdapterRunReason;
+	readonly approvalMode: "auto" | "require" | "never" | "custom" | (string & {});
+	readonly policyRefs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly needs?: readonly AgentNeed[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderRunAdmissionDecision {
+	readonly kind: "tool-provider-run-admission-decision";
+	readonly decisionId: string;
+	readonly proposalId: string;
+	readonly admissionId: string;
+	readonly outcome: ToolProviderRunAdmissionOutcome;
+	readonly approvedRunId?: string;
+	readonly reason?: string;
+	readonly decidedByRef?: SourceRef;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderRunAdmission {
+	readonly kind: "tool-provider-run-admission";
+	readonly admissionId: string;
+	readonly proposalId: string;
+	readonly runId: string;
+	readonly adapterInputId: string;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly state: ToolProviderRunAdmissionState;
+	readonly decisionId?: string;
+	readonly approvedRunId?: string;
+	readonly reason?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderRunAdmissionStatus {
+	readonly kind: "tool-provider-run-admission-status";
+	readonly proposalId: string;
+	readonly runId: string;
+	readonly adapterInputId: string;
+	readonly requestId?: string;
+	readonly operationId?: string;
+	readonly state: ToolProviderRunAdmissionState | "issue";
+	readonly admissionId?: string;
+	readonly decisionId?: string;
+	readonly approvedRunId?: string;
+	readonly issues?: readonly DataIssue[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface ToolProviderRunAdmissionViews {
+	readonly admissionsByProposal: ReadonlyMap<string, ToolProviderRunAdmission>;
+	readonly admissionsByRun: ReadonlyMap<string, readonly ToolProviderRunAdmission[]>;
+	readonly proposalsByRun: ReadonlyMap<string, readonly ToolProviderRunAdmissionProposal[]>;
+}
+
+export interface ToolProviderRunAdmissionBundle {
+	readonly proposals: Node<ToolProviderRunAdmissionProposal>;
+	readonly admissions: Node<ToolProviderRunAdmission>;
+	readonly approvedRunRequests: Node<ToolProviderAdapterRunRequested>;
+	readonly status: Node<ToolProviderRunAdmissionStatus>;
+	readonly issues: Node<DataIssue>;
+	readonly audit: Node<AgentRuntimeAuditRecord>;
+	readonly views: Node<ToolProviderRunAdmissionViews>;
+}
+
 export interface ToolProviderPublicTextPolicy {
 	readonly maxMessageChars?: number;
 	readonly maxSummaryChars?: number;
