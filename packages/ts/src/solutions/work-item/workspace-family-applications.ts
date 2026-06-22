@@ -642,6 +642,26 @@ export interface WorkspaceProposalRepairReviewDecisionRecordingOptions {
 	readonly expectedCurrentState?: WorkspaceProposalRepairReviewExpectedCurrentState;
 }
 
+export interface WorkspaceProposalRepairReviewDecisionRecordingInput {
+	readonly kind: "workspace-proposal-repair-review-decision-recording-input";
+	readonly repairRequestId: string;
+	readonly reviewDecisionId: string;
+	readonly intent: WorkspaceProposalRepairReviewDecisionIntent;
+	readonly reviewerRef?: SourceRef;
+	readonly actorRef?: SourceRef;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly reason?: string;
+	readonly code?: string;
+	readonly resolvesRefs?: readonly SourceRef[];
+	readonly supersedesRefs?: readonly SourceRef[];
+	readonly decidedAtMs?: number;
+	readonly metadata?: Record<string, unknown>;
+	readonly expectedCurrentState?: WorkspaceProposalRepairReviewExpectedCurrentState;
+}
+
 export interface WorkspaceProposalRepairReviewDecisionRecordingResult {
 	readonly kind: "workspace-proposal-repair-review-decision-recording-result";
 	readonly status: WorkspaceProposalRepairReviewDecisionRecordingStatus;
@@ -649,6 +669,25 @@ export interface WorkspaceProposalRepairReviewDecisionRecordingResult {
 	readonly issues: readonly WorkspaceProposalRecordedIssue[];
 	readonly audit?: WorkspaceProposalAuditMaterial;
 	readonly sourceRefs: readonly SourceRef[];
+}
+
+export interface WorkspaceProposalRepairReviewDecisionRecordingProjectionInput {
+	readonly requests?: readonly WorkspaceProposalRepairReviewRequest[];
+	readonly recordingInputs?: readonly WorkspaceProposalRepairReviewDecisionRecordingInput[];
+	readonly statuses?: readonly WorkspaceProposalRepairReviewStatus[];
+}
+
+export interface WorkspaceProposalRepairReviewDecisionRecordingProjectorOptions {
+	readonly name?: string;
+	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
+	readonly recordingInputs: Node<WorkspaceProposalRepairReviewDecisionRecordingInput>;
+	readonly statuses?: Node<WorkspaceProposalRepairReviewStatus>;
+}
+
+export interface WorkspaceProposalRepairReviewDecisionRecordingProjectorBundle {
+	readonly results: Node<WorkspaceProposalRepairReviewDecisionRecordingResult>;
+	readonly decisions: Node<WorkspaceProposalRepairReviewDecision>;
+	readonly issues: Node<WorkspaceProposalRecordedIssue>;
 }
 
 export interface WorkspaceProposalFamilyOutcomeDetail {
@@ -842,6 +881,163 @@ export interface WorkspaceProposalRepairActionDescriptorProjectorBundle {
 	readonly descriptors: Node<WorkspaceProposalRepairActionDescriptor>;
 }
 
+export interface WorkspaceProposalRepairActionIntent {
+	readonly kind: "workspace-proposal-repair-action-intent";
+	readonly intentId: string;
+	readonly descriptorId: string;
+	readonly repairRequestId: string;
+	readonly actionKind: WorkspaceProposalRepairActionKind;
+	readonly applicationId: string;
+	readonly proposalId: string;
+	readonly decisionId: string;
+	readonly idempotencyKey: string;
+	readonly proposalFamily: WorkspaceProposalFamily;
+	readonly reviewerRef?: SourceRef;
+	readonly actorRef?: SourceRef;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+	readonly expectedCurrentState?: WorkspaceProposalRepairReviewExpectedCurrentState;
+}
+
+export type WorkspaceProposalRepairActionIntentValidationStatus = "accepted" | "blocked";
+
+export interface WorkspaceProposalRepairActionIntentValidationOptions {
+	readonly descriptor?: WorkspaceProposalRepairActionDescriptor;
+	readonly request?: WorkspaceProposalRepairReviewRequest;
+	readonly currentStatus?: WorkspaceProposalRepairReviewStatus;
+	readonly expectedCurrentState?: WorkspaceProposalRepairReviewExpectedCurrentState;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly policyStatus?: "allowed" | "blocked" | "missing" | "unknown";
+	readonly policyIssues?: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+}
+
+export interface WorkspaceProposalRepairActionIntentValidationResult {
+	readonly kind: "workspace-proposal-repair-action-intent-validation-result";
+	readonly status: WorkspaceProposalRepairActionIntentValidationStatus;
+	readonly intentId?: string;
+	readonly descriptorId?: string;
+	readonly repairRequestId?: string;
+	readonly actionKind?: WorkspaceProposalRepairActionKind;
+	readonly applicationId?: string;
+	readonly proposalId?: string;
+	readonly decisionId?: string;
+	readonly idempotencyKey?: string;
+	readonly proposalFamily?: WorkspaceProposalFamily;
+	readonly issues: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly intent?: WorkspaceProposalRepairActionIntent;
+}
+
+export interface WorkspaceProposalRepairReviewDecisionRecordingInputPreparationOptions {
+	readonly reviewDecisionId?: string;
+	readonly reviewerRef?: SourceRef;
+	readonly actorRef?: SourceRef;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly reason?: string;
+	readonly code?: string;
+	readonly resolvesRefs?: readonly SourceRef[];
+	readonly supersedesRefs?: readonly SourceRef[];
+	readonly decidedAtMs?: number;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalRepairReviewDecisionRecordingInputPreparationResult {
+	readonly kind: "workspace-proposal-repair-review-decision-recording-input-preparation-result";
+	readonly status: "prepared" | "blocked";
+	readonly recordingInput?: WorkspaceProposalRepairReviewDecisionRecordingInput;
+	readonly issues: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+}
+
+export interface WorkspaceProposalRepairActionIntentProjectorOptions {
+	readonly name?: string;
+	readonly intents: Node<WorkspaceProposalRepairActionIntent>;
+	readonly descriptors: Node<WorkspaceProposalRepairActionDescriptor>;
+	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
+	readonly statuses?: Node<WorkspaceProposalRepairReviewStatus>;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly policyStatus?: "allowed" | "blocked" | "missing" | "unknown";
+}
+
+export interface WorkspaceProposalRepairActionIntentProjectorBundle {
+	readonly results: Node<WorkspaceProposalRepairActionIntentValidationResult>;
+}
+
+export interface WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions {
+	readonly previewId?: string;
+	readonly currentStatus?: WorkspaceProposalRepairReviewStatus;
+	readonly expectedCurrentState?: WorkspaceProposalRepairReviewExpectedCurrentState;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly policyStatus?: "allowed" | "blocked" | "missing" | "unknown";
+	readonly policyIssues?: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly contextRefs?: readonly SourceRef[];
+	readonly suggestedFamily?: WorkspaceProposalFamily;
+	readonly suggestedLoweringKind?: string;
+	readonly reason?: string;
+	readonly code?: string;
+	readonly suggestedDraftPatch?: Record<string, unknown>;
+	readonly maxSuggestedDraftPatchBytes?: number;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalRepairSuccessorProposalIntakePreview {
+	readonly kind: "workspace-proposal-repair-successor-proposal-intake-preview";
+	readonly previewId: string;
+	readonly status: "proposal-context-ready" | "blocked";
+	readonly intentId: string;
+	readonly actionIntentId?: string;
+	readonly descriptorId: string;
+	readonly repairRequestId: string;
+	readonly actionKind: "open-successor-proposal-flow";
+	readonly applicationId: string;
+	readonly proposalId: string;
+	readonly decisionId: string;
+	readonly idempotencyKey: string;
+	readonly proposalFamily: WorkspaceProposalFamily;
+	readonly suggestedFamily?: WorkspaceProposalFamily;
+	readonly suggestedLoweringKind?: string;
+	readonly targetRefs: readonly SourceRef[];
+	readonly contextRefs: readonly SourceRef[];
+	readonly reason?: string;
+	readonly code?: string;
+	readonly suggestedDraftPatch?: Record<string, unknown>;
+	readonly diagnostics: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorOptions {
+	readonly name?: string;
+	readonly intents: Node<WorkspaceProposalRepairActionIntent>;
+	readonly descriptors: Node<WorkspaceProposalRepairActionDescriptor>;
+	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
+	readonly statuses?: Node<WorkspaceProposalRepairReviewStatus>;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly policyStatus?: "allowed" | "blocked" | "missing" | "unknown";
+	readonly maxSuggestedDraftPatchBytes?: number;
+}
+
+export interface WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorBundle {
+	readonly previews: Node<WorkspaceProposalRepairSuccessorProposalIntakePreview>;
+}
+
 type WorkspaceProposalFamilyApplicationRuntimeFact<TInput = unknown, TValue = unknown> =
 	| {
 			readonly kind: "required-input-response-applied";
@@ -868,6 +1064,10 @@ type WorkspaceProposalFamilyApplicationDiagnosticInputFact =
 	| { readonly kind: "repair-request"; readonly value: WorkspaceProposalRepairReviewRequest }
 	| { readonly kind: "repair-decision"; readonly value: WorkspaceProposalRepairReviewDecision }
 	| { readonly kind: "repair-status"; readonly value: WorkspaceProposalRepairReviewStatus }
+	| {
+			readonly kind: "repair-decision-recording-input";
+			readonly value: WorkspaceProposalRepairReviewDecisionRecordingInput;
+	  }
 	| { readonly kind: "diagnostic"; readonly value: WorkspaceProposalFamilyApplicationDiagnostic }
 	| {
 			readonly kind: "read-model-query";
@@ -885,12 +1085,17 @@ interface WorkspaceProposalFamilyApplicationProjectionState {
 	readonly repairRequests: Map<string, WorkspaceProposalRepairReviewRequest>;
 	readonly repairDecisions: Map<string, WorkspaceProposalRepairReviewDecision>;
 	readonly repairStatuses: Map<string, WorkspaceProposalRepairReviewStatus>;
+	readonly repairDecisionRecordingInputs: Map<
+		string,
+		WorkspaceProposalRepairReviewDecisionRecordingInput
+	>;
 	readonly diagnostics: Map<string, WorkspaceProposalFamilyApplicationDiagnostic>;
 	readonly readModelQueries: Map<string, WorkspaceProposalFamilyApplicationReadModelQuery>;
 	readonly outcomes: Map<string, WorkspaceProposalFamilyOutcomeRecord>;
 	readonly emittedDiagnostics: Map<string, string>;
 	readonly emittedRepairRequests: Map<string, string>;
 	readonly emittedRepairStatuses: Map<string, string>;
+	readonly emittedRepairDecisionRecordings: Map<string, string>;
 	readonly emittedReadModels: Map<string, string>;
 	readonly emittedRepairActionDescriptors: Map<string, string>;
 }
@@ -1604,6 +1809,158 @@ export function recordWorkspaceProposalRepairReviewDecision(
 	};
 }
 
+export function projectWorkspaceProposalRepairReviewDecisionRecordings(
+	input: WorkspaceProposalRepairReviewDecisionRecordingProjectionInput,
+): readonly WorkspaceProposalRepairReviewDecisionRecordingResult[] {
+	const requests = new Map<string, WorkspaceProposalRepairReviewRequest>();
+	for (const request of input.requests ?? []) requests.set(request.repairRequestId, request);
+	const statuses = new Map<string, WorkspaceProposalRepairReviewStatus>();
+	for (const status of input.statuses ?? [])
+		statuses.set(repairReviewStatusProjectionKey(status), status);
+	const groupedInputs = new Map<
+		string,
+		{
+			readonly input: WorkspaceProposalRepairReviewDecisionRecordingInput;
+			readonly signature: string;
+			readonly conflict: boolean;
+		}
+	>();
+	for (const recordingInput of input.recordingInputs ?? []) {
+		const key = recordingInput.reviewDecisionId;
+		const signature = repairReviewDecisionRecordingInputSignature(recordingInput);
+		const existing = groupedInputs.get(key);
+		if (existing === undefined) {
+			groupedInputs.set(key, { input: recordingInput, signature, conflict: false });
+			continue;
+		}
+		if (existing.signature !== signature) {
+			groupedInputs.set(key, { ...existing, conflict: true });
+		}
+	}
+	const results: WorkspaceProposalRepairReviewDecisionRecordingResult[] = [];
+	for (const entry of groupedInputs.values()) {
+		const request = requests.get(entry.input.repairRequestId);
+		if (entry.conflict) {
+			results.push(
+				blockedRepairReviewDecisionRecordingResult(entry.input, request, [
+					repairReviewDecisionRecordingInputIssue(
+						"conflicting-repair-review-decision-recording-input",
+						"Repair-review decision recording inputs conflict for the same reviewDecisionId.",
+						entry.input,
+						request,
+					),
+				]),
+			);
+			continue;
+		}
+		if (entry.input.kind !== "workspace-proposal-repair-review-decision-recording-input") {
+			results.push(
+				blockedRepairReviewDecisionRecordingResult(entry.input, request, [
+					repairReviewDecisionRecordingInputIssue(
+						"malformed-recording-options",
+						"Repair-review decision recording projector requires typed recording input material.",
+						entry.input,
+						request,
+					),
+				]),
+			);
+			continue;
+		}
+		if (request === undefined) {
+			results.push(
+				blockedRepairReviewDecisionRecordingResult(entry.input, undefined, [
+					repairReviewDecisionRecordingInputIssue(
+						"missing-repair-review-request",
+						"Repair-review decision recording input requires a matching repair-review request.",
+						entry.input,
+						undefined,
+					),
+				]),
+			);
+			continue;
+		}
+		const currentStatus = statuses.get(repairReviewStatusProjectionKeyFromRequest(request));
+		results.push(
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: entry.input.reviewDecisionId,
+				intent: entry.input.intent,
+				reviewerRef: entry.input.reviewerRef,
+				actorRef: entry.input.actorRef,
+				capabilityRefs: entry.input.capabilityRefs,
+				policyRefs: entry.input.policyRefs,
+				sourceRefs: entry.input.sourceRefs,
+				audit: entry.input.audit,
+				reason: entry.input.reason,
+				code: entry.input.code,
+				resolvesRefs: entry.input.resolvesRefs,
+				supersedesRefs: entry.input.supersedesRefs,
+				decidedAtMs: entry.input.decidedAtMs,
+				metadata: entry.input.metadata,
+				currentStatus,
+				expectedCurrentState: entry.input.expectedCurrentState,
+			}),
+		);
+	}
+	return results;
+}
+
+/** Graph-visible variant of `projectWorkspaceProposalRepairReviewDecisionRecordings`. */
+export function workspaceProposalRepairReviewDecisionRecordingProjector(
+	graph: Graph,
+	opts: WorkspaceProposalRepairReviewDecisionRecordingProjectorOptions,
+): WorkspaceProposalRepairReviewDecisionRecordingProjectorBundle {
+	const name = opts.name ?? "workspaceProposalRepairReviewDecisionRecording";
+	const { deps, depKinds } = repairReviewDecisionRecordingProjectionDeps(opts);
+	const runtime = graph.node<
+		| {
+				readonly kind: "repair-decision-recording-result";
+				readonly value: WorkspaceProposalRepairReviewDecisionRecordingResult;
+		  }
+		| {
+				readonly kind: "repair-decision";
+				readonly value: WorkspaceProposalRepairReviewDecision;
+		  }
+		| { readonly kind: "issue"; readonly value: WorkspaceProposalRecordedIssue }
+		| undefined
+	>(
+		deps,
+		(ctx) => {
+			const state = familyProjectionState(ctx);
+			ingestDiagnosticInputFacts(ctx, state, depKinds);
+			for (const result of projectWorkspaceProposalRepairReviewDecisionRecordings({
+				requests: [...state.repairRequests.values()],
+				recordingInputs: [...state.repairDecisionRecordingInputs.values()],
+				statuses: [...state.repairStatuses.values()],
+			})) {
+				const emissionKey = repairReviewDecisionRecordingResultKey(result);
+				const signature = stableStringify(result);
+				if (state.emittedRepairDecisionRecordings.get(emissionKey) === signature) continue;
+				state.emittedRepairDecisionRecordings.set(emissionKey, signature);
+				ctx.down([["DATA", { kind: "repair-decision-recording-result", value: result }]]);
+				for (const issue of result.issues) {
+					ctx.down([["DATA", { kind: "issue", value: issue }]]);
+				}
+				if (result.decision !== undefined) {
+					ctx.down([["DATA", { kind: "repair-decision", value: result.decision }]]);
+				}
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalRepairReviewDecisionRecordingProjector"),
+	);
+	return {
+		results: project(graph, runtime, `${name}/results`, `${name}Results`, (fact) =>
+			fact?.kind === "repair-decision-recording-result" ? fact.value : undefined,
+		),
+		decisions: project(graph, runtime, `${name}/decisions`, `${name}Decisions`, (fact) =>
+			fact?.kind === "repair-decision" ? fact.value : undefined,
+		),
+		issues: project(graph, runtime, `${name}/issues`, `${name}Issues`, (fact) =>
+			fact?.kind === "issue" ? fact.value : undefined,
+		),
+	};
+}
+
 /** Graph-visible variant of `projectWorkspaceProposalRepairReviewStatuses`. */
 export function workspaceProposalRepairReviewStatusProjector(
 	graph: Graph,
@@ -1918,6 +2275,453 @@ export function workspaceProposalRepairActionDescriptorProjector(
 	return {
 		descriptors: project(graph, runtime, `${name}/descriptors`, `${name}Descriptors`, (fact) =>
 			fact?.kind === "repair-action-descriptor" ? fact.value : undefined,
+		),
+	};
+}
+
+export function validateWorkspaceProposalRepairActionIntent(
+	intent: WorkspaceProposalRepairActionIntent | unknown,
+	optionsOrDescriptor:
+		| WorkspaceProposalRepairActionIntentValidationOptions
+		| WorkspaceProposalRepairActionDescriptor
+		| undefined = {},
+	request?: WorkspaceProposalRepairReviewRequest,
+	currentStatus?: WorkspaceProposalRepairReviewStatus,
+): WorkspaceProposalRepairActionIntentValidationResult {
+	const options = repairActionValidationOptions(optionsOrDescriptor, request, currentStatus);
+	const issues = repairActionIntentIssues(intent, options);
+	const accepted = issues.length === 0 && isRepairActionIntentMaterial(intent);
+	const normalized = accepted
+		? immutableClone(intent as WorkspaceProposalRepairActionIntent)
+		: undefined;
+	const record = isRecord(intent) ? intent : {};
+	const sourceRefs = repairActionSourceRefs([
+		...(isRepairActionIntentMaterial(intent) ? (intent.sourceRefs ?? []) : []),
+		...(options.sourceRefs ?? []),
+		...(safeWorkspaceProposalAudit(options.audit)?.sourceRefs ?? []),
+	]);
+	const audit =
+		safeWorkspaceProposalAudit(options.audit) ??
+		(accepted ? safeWorkspaceProposalAudit(normalized?.audit) : undefined);
+	return {
+		kind: "workspace-proposal-repair-action-intent-validation-result",
+		status: accepted ? "accepted" : "blocked",
+		...(normalized !== undefined
+			? {}
+			: {
+					intentId: stringField(record.intentId),
+					descriptorId: stringField(record.descriptorId),
+					repairRequestId: stringField(record.repairRequestId),
+					actionKind: repairActionKinds.includes(
+						record.actionKind as WorkspaceProposalRepairActionKind,
+					)
+						? (record.actionKind as WorkspaceProposalRepairActionKind)
+						: undefined,
+					applicationId: stringField(record.applicationId),
+					proposalId: stringField(record.proposalId),
+					decisionId: stringField(record.decisionId),
+					idempotencyKey: stringField(record.idempotencyKey),
+					proposalFamily: stringField(record.proposalFamily) as WorkspaceProposalFamily | undefined,
+				}),
+		...(normalized === undefined
+			? {}
+			: {
+					intentId: normalized.intentId,
+					descriptorId: normalized.descriptorId,
+					repairRequestId: normalized.repairRequestId,
+					actionKind: normalized.actionKind,
+					applicationId: normalized.applicationId,
+					proposalId: normalized.proposalId,
+					decisionId: normalized.decisionId,
+					idempotencyKey: normalized.idempotencyKey,
+					proposalFamily: normalized.proposalFamily,
+					...(accepted ? { intent: normalized } : {}),
+				}),
+		issues,
+		sourceRefs,
+		...(audit === undefined ? {} : { audit }),
+	};
+}
+
+export function prepareWorkspaceProposalRepairReviewDecisionRecordingInput(
+	intent: WorkspaceProposalRepairActionIntent | unknown,
+	optionsOrDescriptor:
+		| (WorkspaceProposalRepairActionIntentValidationOptions &
+				WorkspaceProposalRepairReviewDecisionRecordingInputPreparationOptions)
+		| WorkspaceProposalRepairActionDescriptor
+		| undefined,
+	request?: WorkspaceProposalRepairReviewRequest,
+	currentStatus?: WorkspaceProposalRepairReviewStatus,
+	preparationOptions?: WorkspaceProposalRepairReviewDecisionRecordingInputPreparationOptions,
+): WorkspaceProposalRepairReviewDecisionRecordingInputPreparationResult {
+	const options =
+		preparationOptions === undefined
+			? ((optionsOrDescriptor ?? {}) as WorkspaceProposalRepairActionIntentValidationOptions &
+					WorkspaceProposalRepairReviewDecisionRecordingInputPreparationOptions)
+			: {
+					...preparationOptions,
+					...repairActionValidationOptions(optionsOrDescriptor, request, currentStatus),
+				};
+	const validation = validateWorkspaceProposalRepairActionIntent(intent, options);
+	const issues: WorkspaceProposalRecordedIssue[] = [...validation.issues];
+	const safeAudit = safeWorkspaceProposalAudit(options.audit);
+	const sourceRefs = repairActionSourceRefs([
+		...(options.sourceRefs ?? []),
+		...(safeAudit?.sourceRefs ?? []),
+	]);
+	if (validation.intent === undefined || options.request === undefined) {
+		return {
+			kind: "workspace-proposal-repair-review-decision-recording-input-preparation-result",
+			status: "blocked",
+			issues: dedupeRepairActionIssues(issues),
+			sourceRefs,
+			...(safeAudit === undefined ? {} : { audit: safeAudit }),
+		};
+	}
+	const decisionIntent = repairActionDecisionIntent(validation.intent.actionKind);
+	if (decisionIntent === undefined) {
+		issues.push(
+			repairActionIntentIssue(
+				"unsupported-repair-action-intent",
+				"Successor proposal actions do not lower to repair-review decision recording input.",
+				validation.intent,
+				options.request,
+			),
+		);
+	}
+	const recordingOptions: WorkspaceProposalRepairReviewDecisionRecordingOptions = {
+		reviewDecisionId: options.reviewDecisionId,
+		intent: decisionIntent,
+		reviewerRef: options.reviewerRef ?? validation.intent.reviewerRef,
+		actorRef: options.actorRef ?? validation.intent.actorRef,
+		capabilityRefs: options.capabilityRefs,
+		policyRefs: options.policyRefs,
+		sourceRefs: options.sourceRefs,
+		audit: options.audit,
+		reason: options.reason,
+		code: options.code,
+		resolvesRefs: options.resolvesRefs,
+		supersedesRefs: options.supersedesRefs,
+		decidedAtMs: options.decidedAtMs,
+		metadata: {
+			...(options.metadata ?? {}),
+			repairActionIntentId: validation.intent.intentId,
+			repairActionDescriptorId: validation.intent.descriptorId,
+			repairActionKind: validation.intent.actionKind,
+		},
+		currentStatus: options.currentStatus,
+		expectedCurrentState: options.expectedCurrentState ?? validation.intent.expectedCurrentState,
+	};
+	if (decisionIntent !== undefined) {
+		issues.push(...repairReviewDecisionRecordingIssues(options.request, recordingOptions));
+	}
+	if (issues.length > 0 || decisionIntent === undefined) {
+		return {
+			kind: "workspace-proposal-repair-review-decision-recording-input-preparation-result",
+			status: "blocked",
+			issues: dedupeRepairActionIssues(issues),
+			sourceRefs,
+			...(safeAudit === undefined ? {} : { audit: safeAudit }),
+		};
+	}
+	const metadata = recordingOptions.metadata ?? {};
+	const recordingInput: WorkspaceProposalRepairReviewDecisionRecordingInput = {
+		kind: "workspace-proposal-repair-review-decision-recording-input",
+		repairRequestId: options.request.repairRequestId,
+		reviewDecisionId: options.reviewDecisionId!,
+		intent: decisionIntent,
+		...(recordingOptions.reviewerRef === undefined
+			? {}
+			: { reviewerRef: immutableClone(recordingOptions.reviewerRef) }),
+		...(recordingOptions.actorRef === undefined
+			? {}
+			: { actorRef: immutableClone(recordingOptions.actorRef) }),
+		...(recordingOptions.capabilityRefs === undefined
+			? {}
+			: { capabilityRefs: immutableClone(recordingOptions.capabilityRefs) }),
+		...(recordingOptions.policyRefs === undefined
+			? {}
+			: { policyRefs: immutableClone(recordingOptions.policyRefs) }),
+		...(recordingOptions.sourceRefs === undefined
+			? {}
+			: { sourceRefs: immutableClone(recordingOptions.sourceRefs) }),
+		audit: immutableClone(options.audit),
+		...(options.reason === undefined ? {} : { reason: options.reason }),
+		...(options.code === undefined ? {} : { code: options.code }),
+		...(options.resolvesRefs === undefined
+			? {}
+			: { resolvesRefs: immutableClone(options.resolvesRefs) }),
+		...(options.supersedesRefs === undefined
+			? {}
+			: { supersedesRefs: immutableClone(options.supersedesRefs) }),
+		...(options.decidedAtMs === undefined ? {} : { decidedAtMs: options.decidedAtMs }),
+		...(Object.keys(metadata).length === 0 ? {} : { metadata: immutableClone(metadata) }),
+		...(recordingOptions.expectedCurrentState === undefined
+			? {}
+			: { expectedCurrentState: immutableClone(recordingOptions.expectedCurrentState) }),
+	};
+	return {
+		kind: "workspace-proposal-repair-review-decision-recording-input-preparation-result",
+		status: "prepared",
+		recordingInput,
+		issues: [],
+		sourceRefs: recordingInput.sourceRefs ?? [],
+		audit: recordingInput.audit,
+	};
+}
+
+export function projectWorkspaceProposalRepairSuccessorProposalIntakePreview(
+	intent: WorkspaceProposalRepairActionIntent | unknown,
+	options: WorkspaceProposalRepairActionIntentValidationOptions &
+		WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions = {},
+): WorkspaceProposalRepairSuccessorProposalIntakePreview {
+	const validation = validateWorkspaceProposalRepairActionIntent(intent, options);
+	const normalized = validation.intent;
+	const diagnostics: WorkspaceProposalRecordedIssue[] = [...validation.issues];
+	if (normalized === undefined) {
+		return blockedRepairSuccessorPreview(intent, diagnostics, options);
+	}
+	if (normalized.actionKind !== "open-successor-proposal-flow") {
+		diagnostics.push(
+			repairActionIntentIssue(
+				"unsupported-repair-action-intent",
+				"Only open-successor-proposal-flow lowers to successor proposal intake preview.",
+				normalized,
+				options.request,
+			),
+		);
+	}
+	diagnostics.push(...repairActionSuggestedDraftPatchIssues(normalized, options));
+	diagnostics.push(...repairActionPreviewMetadataIssues(normalized, options));
+	const targetRefs = repairActionSourceRefs([
+		...(options.request === undefined
+			? []
+			: [
+					{ kind: "workspace-proposal-repair-review-request", id: options.request.repairRequestId },
+				]),
+		...(options.request === undefined ? [] : repairReviewSubjectRefs(options.request)),
+	]);
+	const contextRefs = repairActionSourceRefs([
+		...targetRefs,
+		...(options.currentStatus === undefined
+			? []
+			: [
+					{
+						kind: "workspace-proposal-repair-review-status",
+						id: options.currentStatus.repairRequestId,
+					},
+				]),
+		...(options.contextRefs ?? []),
+	]);
+	const sourceRefs = repairActionSourceRefs([
+		...(normalized.sourceRefs ?? []),
+		...(options.descriptor?.sourceRefs ?? []),
+		...(options.request?.sourceRefs ?? []),
+		...(options.sourceRefs ?? []),
+		...(safeWorkspaceProposalAudit(options.audit)?.sourceRefs ?? []),
+	]);
+	const previewAudit =
+		safeWorkspaceProposalAudit(options.audit) ?? safeWorkspaceProposalAudit(normalized.audit);
+	const previewId =
+		options.previewId ??
+		`workspace-proposal-repair-successor-preview:${stableStringify({
+			intentId: normalized.intentId,
+			descriptorId: normalized.descriptorId,
+			repairRequestId: normalized.repairRequestId,
+		})}`;
+	return {
+		kind: "workspace-proposal-repair-successor-proposal-intake-preview",
+		previewId,
+		status: diagnostics.length === 0 ? "proposal-context-ready" : "blocked",
+		intentId: normalized.intentId,
+		actionIntentId: normalized.intentId,
+		descriptorId: normalized.descriptorId,
+		repairRequestId: normalized.repairRequestId,
+		actionKind: "open-successor-proposal-flow",
+		applicationId: normalized.applicationId,
+		proposalId: normalized.proposalId,
+		decisionId: normalized.decisionId,
+		idempotencyKey: normalized.idempotencyKey,
+		proposalFamily: normalized.proposalFamily,
+		suggestedFamily: options.suggestedFamily ?? normalized.proposalFamily,
+		...(options.suggestedLoweringKind === undefined
+			? {}
+			: { suggestedLoweringKind: options.suggestedLoweringKind }),
+		targetRefs,
+		contextRefs,
+		...(options.reason === undefined ? {} : { reason: options.reason }),
+		code: options.code ?? options.request?.code,
+		...(options.suggestedDraftPatch === undefined
+			? {}
+			: diagnostics.length === 0
+				? { suggestedDraftPatch: immutableClone(options.suggestedDraftPatch) }
+				: {}),
+		diagnostics: dedupeRepairActionIssues(diagnostics),
+		sourceRefs,
+		...(previewAudit === undefined ? {} : { audit: previewAudit }),
+		...(options.metadata === undefined || diagnostics.length > 0
+			? {}
+			: { metadata: immutableClone(options.metadata) }),
+	};
+}
+
+export function previewWorkspaceProposalRepairSuccessorProposalIntake(
+	intentOrRequest:
+		| WorkspaceProposalRepairActionIntent
+		| WorkspaceProposalRepairReviewRequest
+		| undefined,
+	optionsOrStatus?:
+		| (WorkspaceProposalRepairActionIntentValidationOptions &
+				WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions)
+		| WorkspaceProposalRepairReviewStatus,
+	intent?: WorkspaceProposalRepairActionIntent | unknown,
+	options: WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions = {},
+): WorkspaceProposalRepairSuccessorProposalIntakePreview {
+	if (isRepairActionIntentMaterial(intentOrRequest)) {
+		return projectWorkspaceProposalRepairSuccessorProposalIntakePreview(
+			intentOrRequest,
+			(optionsOrStatus ?? {}) as WorkspaceProposalRepairActionIntentValidationOptions &
+				WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions,
+		);
+	}
+	const inlineOptions = isRepairReviewStatusMaterial(optionsOrStatus)
+		? {}
+		: ((optionsOrStatus ?? {}) as WorkspaceProposalRepairActionIntentValidationOptions &
+				WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions);
+	return projectWorkspaceProposalRepairSuccessorProposalIntakePreview(intent, {
+		...inlineOptions,
+		...options,
+		request: intentOrRequest,
+		currentStatus: isRepairReviewStatusMaterial(optionsOrStatus)
+			? optionsOrStatus
+			: (options.currentStatus ?? inlineOptions.currentStatus),
+		expectedCurrentState:
+			options.expectedCurrentState ??
+			inlineOptions.expectedCurrentState ??
+			(isRepairActionIntentMaterial(intent) ? intent.expectedCurrentState : undefined),
+	});
+}
+
+export function workspaceProposalRepairActionIntentProjector(
+	graph: Graph,
+	opts: WorkspaceProposalRepairActionIntentProjectorOptions,
+): WorkspaceProposalRepairActionIntentProjectorBundle {
+	const name = opts.name ?? "workspaceProposalRepairActionIntent";
+	const deps =
+		opts.statuses === undefined
+			? [opts.intents, opts.descriptors, opts.requests]
+			: [opts.intents, opts.descriptors, opts.requests, opts.statuses];
+	const runtime = graph.node<
+		| {
+				readonly kind: "repair-action-intent-validation-result";
+				readonly value: WorkspaceProposalRepairActionIntentValidationResult;
+		  }
+		| undefined
+	>(
+		deps,
+		(ctx) => {
+			const state = repairActionIntentGraphState(ctx);
+			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
+			for (const entry of state.intents.values()) {
+				if (entry.conflict) {
+					const result = conflictingRepairActionIntentValidationResult(entry.intent);
+					const signature = stableStringify(result);
+					if (state.emittedResults.get(entry.intent.intentId) === signature) continue;
+					state.emittedResults.set(entry.intent.intentId, signature);
+					ctx.down([["DATA", { kind: "repair-action-intent-validation-result", value: result }]]);
+					continue;
+				}
+				const intent = entry.intent;
+				const request = state.requests.get(intent.repairRequestId);
+				const result = validateWorkspaceProposalRepairActionIntent(intent, {
+					descriptor: state.descriptors.get(intent.descriptorId),
+					request,
+					currentStatus:
+						request === undefined
+							? undefined
+							: state.statuses.get(repairReviewStatusProjectionKeyFromRequest(request)),
+					expectedCurrentState: intent.expectedCurrentState,
+					capabilityRefs: opts.capabilityRefs,
+					policyRefs: opts.policyRefs,
+					policyStatus: opts.policyStatus,
+				});
+				const signature = stableStringify(result);
+				if (state.emittedResults.get(intent.intentId) === signature) continue;
+				state.emittedResults.set(intent.intentId, signature);
+				ctx.down([["DATA", { kind: "repair-action-intent-validation-result", value: result }]]);
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalRepairActionIntentProjector"),
+	);
+	return {
+		results: project(graph, runtime, `${name}/results`, `${name}Results`, (fact) =>
+			fact?.kind === "repair-action-intent-validation-result" ? fact.value : undefined,
+		),
+	};
+}
+
+export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
+	graph: Graph,
+	opts: WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorOptions,
+): WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorBundle {
+	const name = opts.name ?? "workspaceProposalRepairSuccessorProposalIntakePreview";
+	const deps =
+		opts.statuses === undefined
+			? [opts.intents, opts.descriptors, opts.requests]
+			: [opts.intents, opts.descriptors, opts.requests, opts.statuses];
+	const runtime = graph.node<
+		| {
+				readonly kind: "successor-proposal-intake-preview";
+				readonly value: WorkspaceProposalRepairSuccessorProposalIntakePreview;
+		  }
+		| undefined
+	>(
+		deps,
+		(ctx) => {
+			const state = repairActionIntentGraphState(ctx);
+			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
+			for (const entry of state.intents.values()) {
+				if (entry.intent.actionKind !== "open-successor-proposal-flow") continue;
+				const intent = entry.intent;
+				if (entry.conflict) {
+					const preview = blockedRepairSuccessorPreview(
+						intent,
+						[conflictingRepairActionIntentIssue(intent)],
+						{},
+					);
+					const signature = stableStringify(preview);
+					if (state.emittedPreviews.get(preview.previewId) === signature) continue;
+					state.emittedPreviews.set(preview.previewId, signature);
+					ctx.down([["DATA", { kind: "successor-proposal-intake-preview", value: preview }]]);
+					continue;
+				}
+				const request = state.requests.get(intent.repairRequestId);
+				const preview = projectWorkspaceProposalRepairSuccessorProposalIntakePreview(intent, {
+					descriptor: state.descriptors.get(intent.descriptorId),
+					request,
+					currentStatus:
+						request === undefined
+							? undefined
+							: state.statuses.get(repairReviewStatusProjectionKeyFromRequest(request)),
+					expectedCurrentState: intent.expectedCurrentState,
+					capabilityRefs: opts.capabilityRefs,
+					policyRefs: opts.policyRefs,
+					policyStatus: opts.policyStatus,
+					maxSuggestedDraftPatchBytes: opts.maxSuggestedDraftPatchBytes,
+				});
+				const signature = stableStringify(preview);
+				if (state.emittedPreviews.get(preview.previewId) === signature) continue;
+				state.emittedPreviews.set(preview.previewId, signature);
+				ctx.down([["DATA", { kind: "successor-proposal-intake-preview", value: preview }]]);
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalRepairSuccessorProposalIntakePreviewProjector"),
+	);
+	return {
+		previews: project(graph, runtime, `${name}/previews`, `${name}Previews`, (fact) =>
+			fact?.kind === "successor-proposal-intake-preview" ? fact.value : undefined,
 		),
 	};
 }
@@ -2399,16 +3203,696 @@ function repairActionDisabledCode(
 
 function repairActionRoute(
 	actionKind: WorkspaceProposalRepairActionKind,
-): "repair-review-decision-intake" | "workspace-proposal-intake" {
+): "repair-review-decision-intake" | "successor-proposal-intake-preview" {
 	return actionKind === "open-successor-proposal-flow"
-		? "workspace-proposal-intake"
+		? "successor-proposal-intake-preview"
 		: "repair-review-decision-intake";
+}
+
+function repairActionDecisionIntent(
+	actionKind: WorkspaceProposalRepairActionKind,
+): WorkspaceProposalRepairReviewDecisionIntent | undefined {
+	switch (actionKind) {
+		case "acknowledge-review":
+			return "acknowledged";
+		case "withdraw-review":
+			return "withdrawn";
+		case "mark-human-resolved":
+			return "resolved";
+		case "supersede-review":
+			return "superseded";
+		case "open-successor-proposal-flow":
+			return undefined;
+	}
+}
+
+function repairActionIntentIssues(
+	intent: WorkspaceProposalRepairActionIntent | unknown,
+	options: WorkspaceProposalRepairActionIntentValidationOptions,
+): readonly WorkspaceProposalRecordedIssue[] {
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	const request = options.request;
+	const descriptor = options.descriptor;
+	const currentStatus = options.currentStatus;
+	if (!isRepairActionIntentMaterial(intent)) {
+		return [
+			repairActionIntentIssue(
+				"malformed-repair-action-intent",
+				"Repair action intent requires typed data-only material.",
+				intent,
+				request,
+			),
+		];
+	}
+	const actionIntent = intent;
+	for (const [label, value] of [
+		["repairActionIntent", actionIntent],
+		["repairActionDescriptor", descriptor],
+		["repairReviewRequest", request],
+		["repairReviewStatus", currentStatus],
+		["repairActionIntentValidationOptions", options],
+	] as const) {
+		if (value === undefined) continue;
+		for (const issue of workspaceProposalDataOnlyIssues(value, label)) {
+			issues.push(repairActionIssueFromDataOnly(issue, actionIntent, request));
+		}
+	}
+	for (const [field, value] of [
+		["intentId", actionIntent.intentId],
+		["descriptorId", actionIntent.descriptorId],
+		["repairRequestId", actionIntent.repairRequestId],
+		["applicationId", actionIntent.applicationId],
+		["proposalId", actionIntent.proposalId],
+		["decisionId", actionIntent.decisionId],
+		["idempotencyKey", actionIntent.idempotencyKey],
+		["proposalFamily", actionIntent.proposalFamily],
+	] as const) {
+		if (blank(value)) {
+			issues.push(
+				repairActionIntentIssue(
+					"malformed-repair-action-intent",
+					`Repair action intent requires ${field}.`,
+					intent,
+					request,
+				),
+			);
+		}
+	}
+	if (!repairActionKinds.includes(actionIntent.actionKind)) {
+		issues.push(
+			repairActionIntentIssue(
+				"unsupported-repair-action-intent",
+				"Repair action intent requires a supported actionKind.",
+				intent,
+				request,
+			),
+		);
+	}
+	if (request === undefined) {
+		issues.push(
+			repairActionIntentIssue(
+				"missing-repair-review-request",
+				"Repair action intent requires a matching repair-review request.",
+				intent,
+				request,
+			),
+		);
+	} else if (!isRepairReviewRequestMaterial(request)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-repair-review-request",
+				"Repair action intent requires typed repair-review request material.",
+				intent,
+				request,
+			),
+		);
+	} else if (
+		actionIntent.repairRequestId !== request.repairRequestId ||
+		!repairReviewCoordinatesMatch(request, actionIntent)
+	) {
+		issues.push(
+			repairActionIntentIssue(
+				"repair-action-intent-coordinate-mismatch",
+				"Repair action intent coordinates must match the repair-review request.",
+				intent,
+				request,
+			),
+		);
+	}
+	if (descriptor === undefined) {
+		issues.push(
+			repairActionIntentIssue(
+				"missing-repair-action-descriptor",
+				"Repair action intent requires matching repair action descriptor material.",
+				intent,
+				request,
+			),
+		);
+	} else if (!isRepairActionDescriptorMaterial(descriptor)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-repair-action-descriptor",
+				"Repair action intent requires typed repair action descriptor material.",
+				intent,
+				request,
+			),
+		);
+	} else {
+		if (
+			actionIntent.descriptorId !== descriptor.descriptorId ||
+			actionIntent.repairRequestId !== descriptor.repairRequestId ||
+			actionIntent.actionKind !== descriptor.actionKind ||
+			!coordinatesMatchExact(actionIntent, descriptor)
+		) {
+			issues.push(
+				repairActionIntentIssue(
+					"repair-action-intent-descriptor-mismatch",
+					"Repair action intent must match descriptor id, request, action, and coordinates.",
+					intent,
+					request,
+				),
+			);
+		}
+		if (!descriptor.enabled) {
+			issues.push(
+				repairActionIntentIssue(
+					"repair-action-lifecycle-disabled",
+					"Repair action descriptor is disabled by lifecycle state.",
+					intent,
+					request,
+				),
+			);
+		}
+	}
+	const expectedCurrentState: WorkspaceProposalRepairReviewExpectedCurrentState | undefined =
+		options.expectedCurrentState ?? actionIntent.expectedCurrentState;
+	if (currentStatus !== undefined) {
+		if (request === undefined || !repairReviewCoordinatesMatch(request, currentStatus)) {
+			issues.push(
+				repairActionIntentIssue(
+					"current-status-coordinate-mismatch",
+					"Repair action current status guard must match the repair-review request.",
+					intent,
+					request,
+				),
+			);
+		} else if (
+			expectedCurrentState !== undefined &&
+			!repairReviewExpectedStateMatchesStatus(expectedCurrentState, currentStatus)
+		) {
+			issues.push(
+				repairActionIntentIssue(
+					"stale-repair-review-state",
+					"Repair action current status no longer matches the expected guard state.",
+					intent,
+					request,
+				),
+			);
+		}
+	} else if (expectedCurrentState !== undefined) {
+		issues.push(
+			repairActionIntentIssue(
+				"stale-repair-review-state",
+				"Repair action expected current state guard requires current status material.",
+				intent,
+				request,
+			),
+		);
+	}
+	if (actionIntent.reviewerRef === undefined && actionIntent.actorRef === undefined) {
+		issues.push(
+			repairActionIntentIssue(
+				"missing-repair-action-authority-material",
+				"Repair action intent requires reviewer or actor ref material.",
+				intent,
+				request,
+			),
+		);
+	}
+	if (
+		(options.capabilityRefs !== undefined &&
+			(!Array.isArray(options.capabilityRefs) || options.capabilityRefs.length === 0)) ||
+		(options.policyRefs !== undefined &&
+			(!Array.isArray(options.policyRefs) || options.policyRefs.length === 0))
+	) {
+		issues.push(
+			repairActionIntentIssue(
+				"missing-repair-action-policy-material",
+				"Repair action intent validation requires non-empty supplied capability or policy refs when present.",
+				intent,
+				request,
+			),
+		);
+	}
+	if (options.capabilityRefs === undefined && options.policyRefs === undefined) {
+		issues.push(
+			repairActionIntentIssue(
+				"missing-repair-action-policy-material",
+				"Repair action intent validation requires explicit intake policy or capability material.",
+				intent,
+				request,
+			),
+		);
+	}
+	for (const [field, refs] of [
+		["capabilityRefs", actionIntent.capabilityRefs],
+		["policyRefs", actionIntent.policyRefs],
+		["sourceRefs", actionIntent.sourceRefs],
+		["validationCapabilityRefs", options.capabilityRefs],
+		["validationPolicyRefs", options.policyRefs],
+		["validationSourceRefs", options.sourceRefs],
+	] as const) {
+		if (refs !== undefined && !repairReviewDecisionSourceRefsAreValid(refs)) {
+			issues.push(
+				repairActionIntentIssue(
+					"malformed-ref",
+					`Repair action intent ${field} must be a dense array of data-only refs.`,
+					intent,
+					request,
+				),
+			);
+		}
+	}
+	for (const [field, value] of [
+		["reviewerRef", actionIntent.reviewerRef],
+		["actorRef", actionIntent.actorRef],
+	] as const) {
+		if (value !== undefined && !repairReviewDecisionSourceRefIsValid(value)) {
+			issues.push(
+				repairActionIntentIssue(
+					"malformed-ref",
+					`Repair action intent ${field} must be a data-only ref.`,
+					intent,
+					request,
+				),
+			);
+		}
+	}
+	if (actionIntent.audit !== undefined && !isWorkspaceProposalAuditMaterial(actionIntent.audit)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-audit",
+				"Repair action intent audit material must be data-only audit material.",
+				intent,
+				request,
+			),
+		);
+	}
+	if (actionIntent.metadata !== undefined && !isRecord(actionIntent.metadata)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-metadata",
+				"Repair action intent metadata must be bounded object material.",
+				intent,
+				request,
+			),
+		);
+	}
+	if (options.policyStatus !== undefined && options.policyStatus !== "allowed") {
+		issues.push(
+			repairActionIntentIssue(
+				options.policyStatus === "blocked"
+					? "blocked-repair-action-policy"
+					: "missing-repair-action-policy",
+				"Repair action policy/capability validation failed closed at intake.",
+				intent,
+				request,
+			),
+		);
+	}
+	issues.push(
+		...(options.policyIssues ?? []).map((issue) =>
+			repairActionIssueFromDataOnly(issue, actionIntent, request),
+		),
+	);
+	return dedupeRepairActionIssues(issues);
+}
+
+function repairActionSourceRefs(values: readonly SourceRef[]): readonly SourceRef[] {
+	return immutableClone(uniqueRefs(values.filter(repairReviewDecisionSourceRefIsValid)));
+}
+
+function repairActionValidationOptions(
+	optionsOrDescriptor:
+		| WorkspaceProposalRepairActionIntentValidationOptions
+		| WorkspaceProposalRepairActionDescriptor
+		| undefined,
+	request: WorkspaceProposalRepairReviewRequest | undefined,
+	currentStatus: WorkspaceProposalRepairReviewStatus | undefined,
+): WorkspaceProposalRepairActionIntentValidationOptions {
+	if (optionsOrDescriptor === undefined || isRepairActionDescriptorMaterial(optionsOrDescriptor)) {
+		return { descriptor: optionsOrDescriptor, request, currentStatus };
+	}
+	return optionsOrDescriptor;
+}
+
+function isRepairActionIntentMaterial(
+	value: unknown,
+): value is WorkspaceProposalRepairActionIntent {
+	return isRecord(value) && value.kind === "workspace-proposal-repair-action-intent";
+}
+
+function isRepairActionDescriptorMaterial(
+	value: unknown,
+): value is WorkspaceProposalRepairActionDescriptor {
+	return (
+		isRecord(value) &&
+		value.kind === "workspace-proposal-repair-action-descriptor" &&
+		nonBlankString(value.descriptorId) &&
+		nonBlankString(value.repairRequestId) &&
+		repairActionKinds.includes(value.actionKind as WorkspaceProposalRepairActionKind) &&
+		typeof value.enabled === "boolean" &&
+		nonBlankString(value.applicationId) &&
+		nonBlankString(value.proposalId) &&
+		nonBlankString(value.decisionId) &&
+		nonBlankString(value.idempotencyKey) &&
+		nonBlankString(value.proposalFamily)
+	);
+}
+
+function isRepairReviewRequestMaterial(
+	value: unknown,
+): value is WorkspaceProposalRepairReviewRequest {
+	return (
+		isRecord(value) &&
+		value.kind === "workspace-proposal-repair-review-request" &&
+		nonBlankString(value.repairRequestId) &&
+		nonBlankString(value.applicationId) &&
+		nonBlankString(value.proposalId) &&
+		nonBlankString(value.decisionId) &&
+		nonBlankString(value.idempotencyKey) &&
+		nonBlankString(value.proposalFamily)
+	);
+}
+
+function dedupeRepairActionIssues(
+	issues: readonly WorkspaceProposalRecordedIssue[],
+): readonly WorkspaceProposalRecordedIssue[] {
+	const out = new Map<string, WorkspaceProposalRecordedIssue>();
+	for (const issue of issues) out.set(stableStringify(issue), issue);
+	return [...out.values()];
+}
+
+function blockedRepairSuccessorPreview(
+	intent: WorkspaceProposalRepairActionIntent | unknown,
+	diagnostics: readonly WorkspaceProposalRecordedIssue[],
+	options: WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions,
+): WorkspaceProposalRepairSuccessorProposalIntakePreview {
+	const record = isRecord(intent) ? intent : {};
+	return {
+		kind: "workspace-proposal-repair-successor-proposal-intake-preview",
+		previewId:
+			options.previewId ??
+			`workspace-proposal-repair-successor-preview:blocked:${stringField(record.intentId) ?? "unknown"}`,
+		status: "blocked",
+		intentId: stringField(record.intentId) ?? "",
+		actionIntentId: stringField(record.intentId) ?? "",
+		descriptorId: stringField(record.descriptorId) ?? "",
+		repairRequestId: stringField(record.repairRequestId) ?? "",
+		actionKind: "open-successor-proposal-flow",
+		applicationId: stringField(record.applicationId) ?? "",
+		proposalId: stringField(record.proposalId) ?? "",
+		decisionId: stringField(record.decisionId) ?? "",
+		idempotencyKey: stringField(record.idempotencyKey) ?? "",
+		proposalFamily: (stringField(record.proposalFamily) ?? "") as WorkspaceProposalFamily,
+		targetRefs: [],
+		contextRefs: [],
+		diagnostics: dedupeRepairActionIssues(diagnostics),
+		sourceRefs: repairActionSourceRefs([
+			...(options.sourceRefs ?? []),
+			...(safeWorkspaceProposalAudit(options.audit)?.sourceRefs ?? []),
+		]),
+		...(safeWorkspaceProposalAudit(options.audit) === undefined
+			? {}
+			: { audit: safeWorkspaceProposalAudit(options.audit) }),
+	};
+}
+
+function repairActionSuggestedDraftPatchIssues(
+	intent: WorkspaceProposalRepairActionIntent,
+	options: WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions,
+): readonly WorkspaceProposalRecordedIssue[] {
+	if (options.suggestedDraftPatch === undefined) return [];
+	const issues = workspaceProposalDataOnlyIssues(
+		options.suggestedDraftPatch,
+		"repairSuccessorProposalSuggestedDraftPatch",
+	).map((issue) => repairActionIssueFromDataOnly(issue, intent, undefined));
+	if (issues.length > 0) return issues;
+	const maxBytes = options.maxSuggestedDraftPatchBytes ?? 16 * 1024;
+	if (
+		new TextEncoder().encode(stableStringify(options.suggestedDraftPatch)).byteLength > maxBytes
+	) {
+		return [
+			...issues,
+			repairActionIntentIssue(
+				"suggested-draft-patch-too-large",
+				"Repair successor proposal suggested draft patch exceeds the bounded preview limit.",
+				intent,
+				undefined,
+			),
+		];
+	}
+	return [...issues, ...repairActionReservedPreviewKeyIssues(intent, options.suggestedDraftPatch)];
+}
+
+function repairActionPreviewMetadataIssues(
+	intent: WorkspaceProposalRepairActionIntent,
+	options: WorkspaceProposalRepairSuccessorProposalIntakePreviewOptions,
+): readonly WorkspaceProposalRecordedIssue[] {
+	if (options.metadata === undefined) return [];
+	const issues = workspaceProposalDataOnlyIssues(
+		options.metadata,
+		"repairSuccessorProposalMetadata",
+	).map((issue) => repairActionIssueFromDataOnly(issue, intent, undefined));
+	if (issues.length > 0) return issues;
+	return [...issues, ...repairActionReservedPreviewKeyIssues(intent, options.metadata)];
+}
+
+function repairActionReservedPreviewKeyIssues(
+	intent: WorkspaceProposalRepairActionIntent,
+	value: unknown,
+): readonly WorkspaceProposalRecordedIssue[] {
+	const reserved = new Set([
+		"successorProposalId",
+		"successorAdmissionId",
+		"successorApplicationId",
+		"admissionId",
+		"applicationId",
+		"proposalId",
+		"proposalRecorded",
+		"admissionDecision",
+		"applicationStatus",
+	]);
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	const visit = (entry: unknown): void => {
+		if (Array.isArray(entry)) {
+			for (const item of entry) visit(item);
+			return;
+		}
+		if (!isRecord(entry)) return;
+		for (const [key, child] of Object.entries(entry)) {
+			if (reserved.has(key) || repairActionPreviewKeyCarriesTruth(key)) {
+				issues.push(
+					repairActionIntentIssue(
+						"forbidden-successor-truth-material",
+						"Repair successor proposal preview must not carry proposal/admission/application truth identifiers.",
+						intent,
+						undefined,
+					),
+				);
+			}
+			visit(child);
+		}
+	};
+	visit(value);
+	return dedupeRepairActionIssues(issues);
+}
+
+function repairActionPreviewKeyCarriesTruth(key: string): boolean {
+	const normalized = key
+		.replace(/([a-z0-9])([A-Z])/gu, "$1-$2")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/gu, "-");
+	const tokens = normalized.split("-").filter((token) => token.length > 0);
+	const hasTruthDomain = tokens.some((token) =>
+		["proposal", "admission", "application", "successor"].includes(token),
+	);
+	const hasTruthHandle = tokens.some((token) =>
+		[
+			"id",
+			"ids",
+			"ref",
+			"refs",
+			"record",
+			"recorded",
+			"decision",
+			"status",
+			"truth",
+			"fact",
+		].includes(token),
+	);
+	return hasTruthDomain && hasTruthHandle;
+}
+
+function repairActionIntentIssue(
+	code: string,
+	message: string,
+	intent: Partial<WorkspaceProposalRepairActionIntent> | unknown,
+	request: WorkspaceProposalRepairReviewRequest | undefined,
+): WorkspaceProposalRecordedIssue {
+	const intentRecord = isRecord(intent) ? intent : {};
+	return {
+		kind: "issue",
+		source: "workspace-proposal",
+		severity: "error",
+		code,
+		message,
+		subjectId: request?.proposalId ?? stringField(intentRecord.proposalId),
+		refs: [
+			...(stringField(intentRecord.intentId) === undefined
+				? []
+				: [`workspace-proposal-repair-action-intent:${stringField(intentRecord.intentId)}`]),
+			...(request === undefined
+				? []
+				: [`workspace-proposal-repair-review-request:${request.repairRequestId}`]),
+		],
+	};
+}
+
+function repairActionIssueFromDataOnly(
+	issue: WorkspaceProposalRecordedIssue,
+	intent: WorkspaceProposalRepairActionIntent,
+	request: WorkspaceProposalRepairReviewRequest | undefined,
+): WorkspaceProposalRecordedIssue {
+	return {
+		...issue,
+		subjectId: issue.subjectId ?? request?.proposalId ?? intent.proposalId,
+		refs: issue.refs ?? [
+			`workspace-proposal-repair-action-intent:${intent.intentId}`,
+			...(request === undefined
+				? []
+				: [`workspace-proposal-repair-review-request:${request.repairRequestId}`]),
+		],
+	};
+}
+
+function repairReviewSubjectRefs(
+	request: WorkspaceProposalRepairReviewRequest,
+): readonly SourceRef[] {
+	return (request.subjectRefs ?? []).filter(repairReviewDecisionSourceRefIsValid);
 }
 
 function repairActionDescriptorSignature(
 	descriptor: WorkspaceProposalRepairActionDescriptor,
 ): string {
 	return stableStringify(descriptor);
+}
+
+function repairActionIntentSignature(intent: WorkspaceProposalRepairActionIntent): string {
+	return stableStringify({
+		kind: intent.kind,
+		intentId: intent.intentId,
+		descriptorId: intent.descriptorId,
+		repairRequestId: intent.repairRequestId,
+		actionKind: intent.actionKind,
+		applicationId: intent.applicationId,
+		proposalId: intent.proposalId,
+		decisionId: intent.decisionId,
+		idempotencyKey: intent.idempotencyKey,
+		proposalFamily: intent.proposalFamily,
+		reviewerRef: intent.reviewerRef,
+		actorRef: intent.actorRef,
+		capabilityRefs: intent.capabilityRefs,
+		policyRefs: intent.policyRefs,
+		sourceRefs: intent.sourceRefs,
+		audit: intent.audit,
+		metadata: intent.metadata,
+		expectedCurrentState: intent.expectedCurrentState,
+	});
+}
+
+function repairReviewDecisionRecordingInputSignature(
+	input: WorkspaceProposalRepairReviewDecisionRecordingInput,
+): string {
+	return stableStringify({
+		kind: input.kind,
+		repairRequestId: input.repairRequestId,
+		reviewDecisionId: input.reviewDecisionId,
+		intent: input.intent,
+		reviewerRef: input.reviewerRef,
+		actorRef: input.actorRef,
+		capabilityRefs: input.capabilityRefs,
+		policyRefs: input.policyRefs,
+		sourceRefs: input.sourceRefs,
+		audit: input.audit,
+		reason: input.reason,
+		code: input.code,
+		resolvesRefs: input.resolvesRefs,
+		supersedesRefs: input.supersedesRefs,
+		decidedAtMs: input.decidedAtMs,
+		metadata: input.metadata,
+		expectedCurrentState: input.expectedCurrentState,
+	});
+}
+
+function repairReviewDecisionRecordingResultKey(
+	result: WorkspaceProposalRepairReviewDecisionRecordingResult,
+): string {
+	return stableStringify(result);
+}
+
+function blockedRepairReviewDecisionRecordingResult(
+	input: WorkspaceProposalRepairReviewDecisionRecordingInput,
+	request: WorkspaceProposalRepairReviewRequest | undefined,
+	issues: readonly WorkspaceProposalRecordedIssue[],
+): WorkspaceProposalRepairReviewDecisionRecordingResult {
+	const audit =
+		safeWorkspaceProposalAudit(input.audit) ?? safeWorkspaceProposalAudit(request?.audit);
+	return {
+		kind: "workspace-proposal-repair-review-decision-recording-result",
+		status: "blocked",
+		decision: undefined,
+		issues: [...dedupeRecordingIssues(issues)],
+		sourceRefs: repairActionSourceRefs(input.sourceRefs ?? []),
+		...(audit === undefined ? {} : { audit }),
+	};
+}
+
+function conflictingRepairActionIntentValidationResult(
+	intent: WorkspaceProposalRepairActionIntent,
+): WorkspaceProposalRepairActionIntentValidationResult {
+	const audit = safeWorkspaceProposalAudit(intent.audit);
+	return {
+		kind: "workspace-proposal-repair-action-intent-validation-result",
+		status: "blocked",
+		intentId: intent.intentId,
+		descriptorId: intent.descriptorId,
+		repairRequestId: intent.repairRequestId,
+		actionKind: intent.actionKind,
+		applicationId: intent.applicationId,
+		proposalId: intent.proposalId,
+		decisionId: intent.decisionId,
+		idempotencyKey: intent.idempotencyKey,
+		proposalFamily: intent.proposalFamily,
+		issues: [conflictingRepairActionIntentIssue(intent)],
+		sourceRefs: repairActionSourceRefs(intent.sourceRefs ?? []),
+		...(audit === undefined ? {} : { audit }),
+	};
+}
+
+function conflictingRepairActionIntentIssue(
+	intent: WorkspaceProposalRepairActionIntent,
+): WorkspaceProposalRecordedIssue {
+	return repairActionIntentIssue(
+		"conflicting-repair-action-intent",
+		"Repair action intent facts conflict for the same intentId.",
+		intent,
+		undefined,
+	);
+}
+
+function repairReviewDecisionRecordingInputIssue(
+	code: string,
+	message: string,
+	input: WorkspaceProposalRepairReviewDecisionRecordingInput,
+	request: WorkspaceProposalRepairReviewRequest | undefined,
+): WorkspaceProposalRecordedIssue {
+	return {
+		kind: "issue",
+		source: "workspace-proposal",
+		severity: "error",
+		code,
+		message,
+		subjectId: request?.proposalId,
+		refs: [
+			...(blank(input.reviewDecisionId)
+				? []
+				: [`workspace-proposal-repair-review-decision:${input.reviewDecisionId}`]),
+			...(request === undefined
+				? [`workspace-proposal-repair-review-request:${input.repairRequestId}`]
+				: [`workspace-proposal-repair-review-request:${request.repairRequestId}`]),
+		],
+	};
 }
 
 function repairReviewDecisionRecordingIssues(
@@ -2726,6 +4210,16 @@ function isWorkspaceProposalAuditMaterial(value: unknown): value is WorkspacePro
 		(value.metadata === undefined || isRecord(value.metadata)) &&
 		workspaceProposalDataOnlyIssues(value, "repairReviewDecisionAudit").length === 0
 	);
+}
+
+function safeWorkspaceProposalAudit(value: unknown): WorkspaceProposalAuditMaterial | undefined {
+	try {
+		return isWorkspaceProposalAuditMaterial(value)
+			? immutableClone(value as WorkspaceProposalAuditMaterial)
+			: undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function repairReviewExpectedStateMatchesStatus(
@@ -3573,6 +5067,20 @@ function repairReviewStatusProjectionDeps(
 	return { deps, depKinds };
 }
 
+function repairReviewDecisionRecordingProjectionDeps(
+	opts: WorkspaceProposalRepairReviewDecisionRecordingProjectorOptions,
+): {
+	readonly deps: readonly Node<unknown>[];
+	readonly depKinds: readonly WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][];
+} {
+	const deps: Node<unknown>[] = [];
+	const depKinds: WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][] = [];
+	pushProjectionDep(deps, depKinds, opts.requests, "repair-request");
+	pushProjectionDep(deps, depKinds, opts.recordingInputs, "repair-decision-recording-input");
+	pushProjectionDep(deps, depKinds, opts.statuses, "repair-status");
+	return { deps, depKinds };
+}
+
 function readModelProjectionDeps(
 	opts: WorkspaceProposalFamilyApplicationReadModelProjectorOptions,
 ): {
@@ -3680,6 +5188,11 @@ function ingestDiagnosticInputFact(
 			state.repairStatuses.set(repairReviewStatusProjectionKey(status), status);
 			return;
 		}
+		case "repair-decision-recording-input": {
+			const input = raw as WorkspaceProposalRepairReviewDecisionRecordingInput;
+			state.repairDecisionRecordingInputs.set(repairReviewDecisionRecordingInputKey(input), input);
+			return;
+		}
 		case "diagnostic": {
 			const diagnostic = raw as WorkspaceProposalFamilyApplicationDiagnostic;
 			state.diagnostics.set(diagnostic.diagnosticId, diagnostic);
@@ -3709,16 +5222,77 @@ function familyProjectionState(ctx: Ctx): WorkspaceProposalFamilyApplicationProj
 			repairRequests: new Map(),
 			repairDecisions: new Map(),
 			repairStatuses: new Map(),
+			repairDecisionRecordingInputs: new Map(),
 			diagnostics: new Map(),
 			readModelQueries: new Map(),
 			outcomes: new Map(),
 			emittedDiagnostics: new Map(),
 			emittedRepairRequests: new Map(),
 			emittedRepairStatuses: new Map(),
+			emittedRepairDecisionRecordings: new Map(),
 			emittedReadModels: new Map(),
 			emittedRepairActionDescriptors: new Map(),
 		}
 	);
+}
+
+interface WorkspaceProposalRepairActionIntentGraphState {
+	readonly intents: Map<
+		string,
+		{
+			readonly intent: WorkspaceProposalRepairActionIntent;
+			readonly signature: string;
+			readonly conflict: boolean;
+		}
+	>;
+	readonly descriptors: Map<string, WorkspaceProposalRepairActionDescriptor>;
+	readonly requests: Map<string, WorkspaceProposalRepairReviewRequest>;
+	readonly statuses: Map<string, WorkspaceProposalRepairReviewStatus>;
+	readonly emittedResults: Map<string, string>;
+	readonly emittedPreviews: Map<string, string>;
+}
+
+function repairActionIntentGraphState(ctx: Ctx): WorkspaceProposalRepairActionIntentGraphState {
+	return (
+		ctx.state.get<WorkspaceProposalRepairActionIntentGraphState>() ?? {
+			intents: new Map(),
+			descriptors: new Map(),
+			requests: new Map(),
+			statuses: new Map(),
+			emittedResults: new Map(),
+			emittedPreviews: new Map(),
+		}
+	);
+}
+
+function ingestRepairActionIntentGraphFacts(
+	ctx: Ctx,
+	state: WorkspaceProposalRepairActionIntentGraphState,
+	hasStatuses: boolean,
+): void {
+	for (const raw of depBatch(ctx, 0) ?? []) {
+		const intent = raw as WorkspaceProposalRepairActionIntent;
+		const signature = repairActionIntentSignature(intent);
+		const existing = state.intents.get(intent.intentId);
+		if (existing === undefined) {
+			state.intents.set(intent.intentId, { intent, signature, conflict: false });
+		} else if (existing.signature !== signature) {
+			state.intents.set(intent.intentId, { ...existing, conflict: true });
+		}
+	}
+	for (const raw of depBatch(ctx, 1) ?? []) {
+		const descriptor = raw as WorkspaceProposalRepairActionDescriptor;
+		state.descriptors.set(descriptor.descriptorId, descriptor);
+	}
+	for (const raw of depBatch(ctx, 2) ?? []) {
+		const request = raw as WorkspaceProposalRepairReviewRequest;
+		state.requests.set(request.repairRequestId, request);
+	}
+	if (!hasStatuses) return;
+	for (const raw of depBatch(ctx, 3) ?? []) {
+		const status = raw as WorkspaceProposalRepairReviewStatus;
+		state.statuses.set(repairReviewStatusProjectionKey(status), status);
+	}
 }
 
 function uniqueIssues(
@@ -3804,6 +5378,30 @@ function repairReviewStatusProjectionKey(status: WorkspaceProposalRepairReviewSt
 		decisionId: status.decisionId,
 		idempotencyKey: status.idempotencyKey,
 		proposalFamily: status.proposalFamily,
+	});
+}
+
+function repairReviewStatusProjectionKeyFromRequest(
+	request: WorkspaceProposalRepairReviewRequest,
+): string {
+	return stableStringify({
+		repairRequestId: request.repairRequestId,
+		applicationId: request.applicationId,
+		proposalId: request.proposalId,
+		decisionId: request.decisionId,
+		idempotencyKey: request.idempotencyKey,
+		proposalFamily: request.proposalFamily,
+	});
+}
+
+function repairReviewDecisionRecordingInputKey(
+	input: WorkspaceProposalRepairReviewDecisionRecordingInput,
+): string {
+	return stableStringify({
+		reviewDecisionId: stringField(
+			(input as { readonly reviewDecisionId?: unknown }).reviewDecisionId,
+		),
+		signature: repairReviewDecisionRecordingInputSignature(input),
 	});
 }
 
@@ -5250,11 +6848,20 @@ function capitalize(value: string): string {
 	return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }
 
-function stableStringify(value: unknown): string {
-	if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-	if (!isRecord(value)) return JSON.stringify(value);
-	return `{${Object.keys(value)
-		.sort()
-		.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-		.join(",")}}`;
+function stableStringify(value: unknown, stack: WeakSet<object> = new WeakSet()): string {
+	if (typeof value === "object" && value !== null) {
+		if (stack.has(value)) return JSON.stringify("[Circular]");
+		stack.add(value);
+	}
+	try {
+		if (Array.isArray(value))
+			return `[${value.map((entry) => stableStringify(entry, stack)).join(",")}]`;
+		if (!isRecord(value)) return JSON.stringify(value);
+		return `{${Object.keys(value)
+			.sort()
+			.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key], stack)}`)
+			.join(",")}}`;
+	} finally {
+		if (typeof value === "object" && value !== null) stack.delete(value);
+	}
 }

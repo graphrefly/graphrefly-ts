@@ -1,7 +1,5 @@
-import {
-	CanvasMeasureAdapter,
-	type MeasurementAdapter,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+import type { MeasurementAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+import { CanvasMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout/browser";
 
 export const LAYOUT_FONT = '14px "Fira Code", ui-monospace, monospace';
 export const LAYOUT_LINE_HEIGHT = 22;

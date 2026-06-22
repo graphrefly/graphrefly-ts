@@ -17,6 +17,8 @@
 			"!**/.astro",
 			"!.tmp",
 			"!TRASH",
+			"!archive/examples",
+			"!archive/packages",
 			"!benchmarks",
 			"!website",
 			"!examples/nestjs",

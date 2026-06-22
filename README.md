@@ -7,7 +7,7 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is th
 [![npm](https://img.shields.io/npm/v/@graphrefly/ts?color=blue)](https://www.npmjs.com/package/@graphrefly/ts)
 [![license](https://img.shields.io/github/license/graphrefly/graphrefly-ts)](./LICENSE)
 
-[Docs](https://graphrefly.dev) | [Spec](https://graphrefly.dev/spec/) | [Python API](https://graphrefly.dev/py/api/) | [TS API Reference](https://graphrefly.dev/api/node/)
+[Docs](https://graphrefly.dev) | [Spec](https://graphrefly.dev/spec/) | [Python API](https://graphrefly.dev/py/api/) | [TS API Reference](https://graphrefly.dev/api/reactivelayout/)
 
 ## Packages
 
@@ -15,7 +15,7 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. Code is th
 |---|---|
 | [`@graphrefly/ts`](./packages/ts) | Clean-slate TypeScript implementation: substrate, graph, operators, sources, storage, render, testing, and data structures in one self-contained package. This is the current TS target. |
 | `@graphrefly/graphrefly` | Retired root package name. CSP-9/B65 removed active root implementation ownership; use `@graphrefly/ts` and its D125 subpaths. |
-| [`@graphrefly/pure-ts`](./packages/pure-ts) | Frozen read-only reference for old behavior and edge cases. It remains only because B66 still has live legacy consumers. Do not add new development here. |
+| [`@graphrefly/pure-ts`](./packages/pure-ts) | Frozen read-only reference for old behavior and edge cases. It remains only until B66 can delete it. Do not add new development here. |
 
 ---
 
@@ -68,7 +68,7 @@ The graph core is synchronous. Async work lives at source, pool, storage, or wir
 | Data structures | Present: `reactiveMap`, `reactiveList`, `reactiveIndex`, `reactiveLog`, `ReactiveView`, and `reactiveCascadingCache`. |
 | Storage | Present as passive helpers: KV, append log, versioned KV, read-through, content-addressed storage, observe-event logs, WAL frame codecs, browser/node backends. Old graph-owned `attachSnapshotStorage` / `restoreSnapshot` convenience APIs are retired; graph restore is `restoreGraph(checkpoint, { registry })`. |
 | Render/inspection | Present: describe renderers, diagnostics, observe filters, profile. Old fake live-topology streams are not restored; D118 keeps `describe()` as a snapshot until real topology-event egress exists. |
-| Presentation | The old root `src/` implementation is retired. Remaining legacy consumers are tracked through B64/B66: CLI, examples, demos, parity-tests, RN/Hermes fixture, and docs. |
+| Presentation | The old root `src/` implementation is retired. Remaining legacy consumers are tracked through B64/B66: archived historical docs, design-gated demos, and legacy recipe/comparison pages. |
 
 So the old `pure-ts` reference is still useful for edge cases and product memory, but the remaining work is no longer "copy the extras layer." It is mainly entrypoint cleanup, presentation rebasing, and explicit decisions for old shapes that conflict with the clean-slate floor.
 
@@ -191,7 +191,7 @@ Clean-slate TS lives in `packages/ts`. The old root presentation implementation 
 |------|----------|
 | `packages/ts/src/` | Clean-slate TS package: substrate, graph, operators, sources, storage, render, data structures, testing |
 | `packages/pure-ts/` | Frozen read-only reference and temporary legacy-consumer dependency |
-| `packages/parity-tests/` | Retired old parity-test package; clean-slate parity is behavioral conformance in `~/src/graphrefly/spec/conformance.jsonl` |
+| `archive/packages/parity-tests/` | Archived old structural parity-test package; clean-slate parity is behavioral conformance in `~/src/graphrefly/spec/conformance.jsonl` |
 | `~/src/graphrefly` | Language-neutral authority: decisions, rules, conformance, formal model, sequencer |
 | `website/` | Astro + Starlight docs site ([graphrefly.dev](https://graphrefly.dev)) |
 
@@ -202,8 +202,7 @@ The Rust and Python sibling implementations are self-contained packages in `~/sr
 ```bash
 pnpm test            # clean-slate TS test suite
 pnpm test:ts         # clean-slate TS test suite
-pnpm test:parity     # retired old parity package, kept only while B66 is blocked
-pnpm run lint        # biome check + clean-slate no-raw-async + tsc --noEmit on parity-tests/evals
+pnpm run lint        # biome check + clean-slate no-raw-async + active package typecheck gate
 pnpm run lint:fix    # biome --write
 pnpm run build       # @graphrefly/ts build
 pnpm bench           # clean-slate TS B49 probe

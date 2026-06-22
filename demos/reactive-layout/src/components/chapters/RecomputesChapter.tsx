@@ -27,10 +27,10 @@ export default function RecomputesChapterUI({ onHover }: ChapterProps) {
 	const lineBreaks = useNodeValue(chapter.bundle.lineBreaks);
 
 	const [text, setText] = useState<string>(() => {
-		return (chapter.bundle.graph.resolve("text").cache as string) ?? "";
+		return (chapter.bundle.input.text.cache as string) ?? "";
 	});
 	const [maxWidth, setMaxWidth] = useState<number>(() => {
-		return (chapter.bundle.graph.resolve("max-width").cache as number) ?? 520;
+		return (chapter.bundle.input.maxWidth.cache as number) ?? 520;
 	});
 
 	// Live counters — kept in React state via a tick so renders pick up refs.

@@ -1,5 +1,5 @@
 /**
- * On-device RN/Hermes spike screen for @graphrefly/pure-ts
+ * On-device RN/Hermes spike screen for @graphrefly/ts
  * (graphrefly-ts#4). This is the PERIODIC tier: real Hermes VM + RN
  * polyfills, exercised via `expo run:ios` (dev) and
  * `expo run:ios --configuration Release` (Hermes bytecode).
@@ -10,35 +10,22 @@
  * both. Renders a PASS/FAIL banner so a single screenshot confirms
  * the run; mirrors to console for device logs.
  */
-import { DATA, node } from "@graphrefly/pure-ts";
+import type { Node } from "@graphrefly/ts/core";
+import { type Graph, graph } from "@graphrefly/ts/graph";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 
-const mkState = (initial: unknown) => node([], undefined, { initial } as never);
+const mkState = (g: Graph, initial: unknown) => g.state(initial);
 
-const mkDerived = (deps: ReadonlyArray<unknown>, compute: (...a: unknown[]) => unknown) =>
-	node(
-		deps as never,
-		((
-			data: ReadonlyArray<ReadonlyArray<unknown> | undefined>,
-			actions: { emit: (v: unknown) => void },
-			ctx: { prevData: ReadonlyArray<unknown> },
-		) => {
-			const args = deps.map((_, i) => {
-				const b = data[i];
-				return b?.length ? b[b.length - 1] : ctx.prevData[i];
-			});
-			actions.emit(compute(...args));
-		}) as never,
-	);
+const mkDerived = (
+	g: Graph,
+	deps: ReadonlyArray<Node<unknown>>,
+	compute: (...a: unknown[]) => unknown,
+) => g.derived(deps, (...args) => compute(...args));
 
-const onData = (n: unknown, cb: (v: unknown) => void) =>
-	(
-		n as {
-			subscribe: (s: (m: ReadonlyArray<ReadonlyArray<unknown>>) => void) => () => void;
-		}
-	).subscribe((msgs) => {
-		for (const m of msgs) if (m[0] === DATA) cb(m[1]);
+const onData = (n: Node<unknown>, cb: (v: unknown) => void) =>
+	n.subscribe((msg) => {
+		if (msg[0] === "DATA") cb(msg[1]);
 	});
 
 function runSpike(): { pass: boolean; lines: string[] } {
@@ -55,22 +42,23 @@ function runSpike(): { pass: boolean; lines: string[] } {
 	};
 
 	try {
-		const a = mkState(1);
-		const b = mkState(2);
-		const sum = mkDerived([a, b], (x, y) => (x as number) + (y as number));
+		const g = graph();
+		const a = mkState(g, 1);
+		const b = mkState(g, 2);
+		const sum = mkDerived(g, [a, b], (x, y) => (x as number) + (y as number));
 		const sumSeen: unknown[] = [];
 		onData(sum, (v) => sumSeen.push(v));
-		(a as { emit: (v: unknown) => void }).emit(10);
-		(b as { emit: (v: unknown) => void }).emit(20);
+		a.set(10);
+		b.set(20);
 		expect("block1 sum emissions", sumSeen, [3, 12, 30]);
 
-		const a2 = mkState(1);
-		const b2 = mkDerived([a2], (x) => (x as number) * 2);
-		const c2 = mkDerived([a2, b2], (x, y) => (x as number) + (y as number));
+		const a2 = mkState(g, 1);
+		const b2 = mkDerived(g, [a2], (x) => (x as number) * 2);
+		const c2 = mkDerived(g, [a2, b2], (x, y) => (x as number) + (y as number));
 		const c2Seen: unknown[] = [];
 		onData(c2, (v) => c2Seen.push(v));
 		const before = c2Seen.length;
-		(a2 as { emit: (v: unknown) => void }).emit(5);
+		a2.set(5);
 		expect("block2 c2 initial", c2Seen.slice(0, before), [3]);
 		expect("block2 c2 after set==5 (ONCE, not twice)", c2Seen.slice(before), [15]);
 	} catch (err) {
@@ -91,8 +79,11 @@ function runSpike(): { pass: boolean; lines: string[] } {
 		const rp = hermes.getRuntimeProperties();
 		log(`hermes bytecode v: ${rp["Bytecode Version"]} build: ${rp.Build ?? "?"}`);
 	}
-	const rnv = (Platform.constants as { reactNativeVersion?: Record<string, number> })
-		.reactNativeVersion;
+	const rnv = (
+		Platform.constants as unknown as {
+			reactNativeVersion?: { major: number; minor: number; patch: number };
+		}
+	).reactNativeVersion;
 	log(
 		`RN ${rnv ? `${rnv.major}.${rnv.minor}.${rnv.patch}` : "?"} / ${Platform.OS} ${Platform.Version}`,
 	);
@@ -133,7 +124,7 @@ export default function App() {
 					{r == null ? "running…" : pass ? "PASS ✅" : "FAIL ❌"}
 				</Text>
 				<Text style={{ color: "#cde", fontSize: 13, marginTop: 4 }}>
-					graphrefly-ts#4 · pure-ts 0.45.0 · Expo SDK 55 / RN 0.83.6
+					graphrefly-ts#4 · @graphrefly/ts · Expo SDK 55 / RN 0.83.6
 				</Text>
 			</View>
 			<ScrollView style={{ flex: 1, padding: 12 }}>

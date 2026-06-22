@@ -1,6 +1,6 @@
 /**
  * Node sanity runner for the RN/Hermes spike (graphrefly-ts#4).
- * Fast dev-loop check that the pure-ts API translation is correct
+ * Fast dev-loop check that the @graphrefly/ts API translation is correct
  * before involving the real Hermes engine. CI uses run-hermes instead.
  */
 import { probes, runSpike } from "./spike-core.mjs";

@@ -1,8 +1,7 @@
-import type { DATA as _DATA } from "@graphrefly/graphrefly";
-import type { ReactiveLayoutBundle } from "@graphrefly/graphrefly/utils/reactive-layout";
 import { useState } from "react";
 import { buildPlaygroundChapter, type PlaygroundChapter } from "../../lib/chapters/playground";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types";
+import type { DemoReactiveLayoutBundle } from "../../lib/layout-bundles";
 import { LAYOUT_LINE_HEIGHT } from "../../lib/measure-adapter";
 import { useNodeValue } from "../../lib/use-node-value";
 
@@ -19,7 +18,7 @@ function ParagraphCard({
 	id,
 	onHover,
 }: {
-	bundle: ReactiveLayoutBundle;
+	bundle: DemoReactiveLayoutBundle;
 	id: string;
 	onHover: ChapterProps["onHover"];
 }) {
@@ -28,11 +27,11 @@ function ParagraphCard({
 	const segments = useNodeValue(bundle.segments);
 
 	const [text, setText] = useState<string>(() => {
-		const s = bundle.graph.resolve("text").cache;
+		const s = bundle.input.text.cache;
 		return (s as string) ?? "";
 	});
 	const [maxWidth, setMaxWidth] = useState<number>(() => {
-		const s = bundle.graph.resolve("max-width").cache;
+		const s = bundle.input.maxWidth.cache;
 		return (s as number) ?? 480;
 	});
 	const [fontSize, setFontSize] = useState<number>(14);

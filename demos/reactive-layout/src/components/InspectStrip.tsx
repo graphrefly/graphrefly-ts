@@ -1,6 +1,6 @@
-import type { Graph } from "@graphrefly/graphrefly";
-import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
+import type { Graph } from "@graphrefly/ts/graph";
 import { useEffect, useState } from "react";
+import type { DemoShellHandle } from "../lib/shell";
 
 type NodeDetail = {
 	path: string;
@@ -16,15 +16,32 @@ type MetaSnapshot = {
 	layoutTimeNs: bigint | null;
 };
 
+function segmentNodeId(graph: Graph): string | null {
+	const described = graph
+		.describe()
+		.nodes.find((node) => node.id === "segments" || node.id.endsWith(":segments"));
+	return described?.id ?? null;
+}
+
+function metaCache<T>(meta: Record<string, unknown>, key: string): T | null {
+	const value = meta[key];
+	if (value === null || typeof value !== "object" || !("cache" in value)) return null;
+	return (value as { cache?: T }).cache ?? null;
+}
+
 function readMetaSnapshot(graph: Graph | null): MetaSnapshot {
 	if (!graph) return { cacheHitRate: null, segmentCount: null, layoutTimeNs: null };
 	try {
-		const seg = graph.resolve("segments");
-		const meta = seg.meta ?? {};
+		const segmentsId = segmentNodeId(graph);
+		const described =
+			segmentsId === null
+				? undefined
+				: graph.describe().nodes.find((node) => node.id === segmentsId);
+		const meta = described?.meta ?? {};
 		return {
-			cacheHitRate: (meta["cache-hit-rate"]?.cache as number | null) ?? null,
-			segmentCount: (meta["segment-count"]?.cache as number | null) ?? null,
-			layoutTimeNs: (meta["layout-time-ns"]?.cache as bigint | null) ?? null,
+			cacheHitRate: metaCache<number>(meta, "cache-hit-rate"),
+			segmentCount: metaCache<number>(meta, "segment-count"),
+			layoutTimeNs: metaCache<bigint>(meta, "layout-time-ns"),
 		};
 	} catch {
 		return { cacheHitRate: null, segmentCount: null, layoutTimeNs: null };
@@ -50,7 +67,8 @@ export default function InspectStrip({
 	const [meta, setMeta] = useState<MetaSnapshot>(() => readMetaSnapshot(activeGraph));
 
 	useEffect(() => {
-		const nd = shell.graph.resolve("inspect/node-detail");
+		const nd = shell.graph.find("inspect/node-detail");
+		if (!nd) return;
 		const u = nd.subscribe(() => {
 			setDetail((nd.cache as NodeDetail | null) ?? null);
 		});
@@ -63,17 +81,12 @@ export default function InspectStrip({
 		if (!activeGraph) return;
 		// Subscribe to meta nodes on `segments` if present.
 		try {
-			const segs = activeGraph.resolve("segments");
-			const unsubs: Array<() => void> = [];
-			const m = segs.meta;
-			if (m) {
-				for (const n of Object.values(m)) {
-					unsubs.push(n.subscribe(() => setMeta(readMetaSnapshot(activeGraph))));
-				}
-			}
-			return () => {
-				for (const u of unsubs) u();
-			};
+			const segmentsId = segmentNodeId(activeGraph);
+			if (segmentsId === null) return;
+			const unsub = activeGraph
+				.observe(segmentsId)
+				.subscribe(() => setMeta(readMetaSnapshot(activeGraph)));
+			return () => unsub();
 		} catch {
 			return;
 		}

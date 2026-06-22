@@ -22,9 +22,9 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 
 | Integration | Type | Entry |
 |---|---|---|
-| NestJS | Compat | `@graphrefly/graphrefly/compat/nestjs` |
-| Jotai | Compat | `@graphrefly/graphrefly/compat/jotai` |
-| Nanostores | Compat | `@graphrefly/graphrefly/compat/nanostores` |
-| Zustand | Compat | `@graphrefly/graphrefly/compat/zustand` |
+| NestJS | Retired legacy compat | Archived pending clean-slate design |
+| Jotai | Retired legacy compat | Archived pending clean-slate design |
+| Nanostores | Retired legacy compat | Archived pending clean-slate design |
+| Zustand | Retired legacy compat | Archived pending clean-slate design |
 
 See [Compat](/integrations/compat/) for framework integration guidance.

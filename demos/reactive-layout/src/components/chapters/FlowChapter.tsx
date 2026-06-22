@@ -1,10 +1,10 @@
-import { DATA } from "@graphrefly/graphrefly";
-import { fromRaf } from "@graphrefly/graphrefly/base/sources/browser";
+import { graph } from "@graphrefly/ts/graph";
 import type {
 	FlowContainer,
+	FlowLinesResult,
 	Obstacle,
-	PositionedLine,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+} from "@graphrefly/ts/solutions/reactive-layout";
+import { fromRaf } from "@graphrefly/ts/sources/browser";
 import { useEffect, useRef, useState } from "react";
 import { buildFlowChapter, type FlowChapter } from "../../lib/chapters/flow.js";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types.js";
@@ -161,9 +161,9 @@ function driftObstacles(
 		let x = o.x + drift.vx * dt * 0.06;
 		let y = o.y + drift.vy * dt * 0.04;
 		const minX = padX;
-		const maxX = container.width - padX - o.w;
+		const maxX = container.width - padX - o.width;
 		const minY = padY;
-		const maxY = container.height - padY - o.h;
+		const maxY = container.height - padY - o.height;
 		if (x <= minX || x >= maxX) {
 			drift.vx *= -1;
 			x = Math.max(minX, Math.min(maxX, x));
@@ -178,17 +178,17 @@ function driftObstacles(
 
 export default function FlowChapterUI({ onHover }: ChapterProps) {
 	const chapter = getFlowChapter();
-	const lines = useNodeValue(chapter.bundle.flowLines) as PositionedLine[] | null;
+	const flowLines = useNodeValue(chapter.bundle.flowLines) as FlowLinesResult | null;
+	const lines = flowLines?.lines ?? null;
 	// Obstacles live in the graph — the demo reads them reactively and writes
 	// back via chapter.bundle.setObstacles. No React state for obstacles.
 	const obstacles =
-		(useNodeValue(chapter.bundle.graph.node("obstacles")) as Obstacle[] | null) ??
-		chapter.initialObstacles;
+		(useNodeValue(chapter.bundle.input.obstacles) as Obstacle[] | null) ?? chapter.initialObstacles;
 
 	const [paused, setPaused] = useState(false);
 	const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
 	const [frameSize, setFrameSize] = useState<{ width: number; height: number }>(() => {
-		const c = chapter.bundle.graph.node("container").cache as FlowContainer;
+		const c = chapter.bundle.input.container.cache as FlowContainer;
 		return { width: c.width, height: c.height };
 	});
 	const dragRef = useRef<DragState | null>(null);
@@ -226,15 +226,14 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 			vx: 0.18 + (i % 2 === 0 ? 0.05 : -0.04),
 			vy: 0.12 + (i % 2 === 0 ? -0.03 : 0.05),
 		}));
-		const raf = fromRaf();
+		const rafGraph = graph({ name: "flow-raf" });
+		const raf = rafGraph.initNode(fromRaf(), [], { name: "flow-raf/tick" });
 		let lastT = -1;
-		const unsub = raf.subscribe((msgs) => {
+		const unsub = raf.subscribe((msg) => {
 			// Collect the latest DATA timestamp in this batch (rAF is single-
 			// emission per tick, but batches can in principle coalesce).
 			let t = -1;
-			for (const m of msgs) {
-				if (m[0] === DATA) t = m[1] as number;
-			}
+			if (msg[0] === "DATA") t = msg[1] as number;
 			if (t < 0) return;
 			if (lastT < 0) {
 				lastT = t;
@@ -244,8 +243,8 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 			lastT = t;
 			// Read current state each tick — avoids stale-closure bugs when
 			// the container is resized mid-animation.
-			const prev = chapter.bundle.graph.node("obstacles").cache as Obstacle[];
-			const container = chapter.bundle.graph.node("container").cache as FlowContainer;
+			const prev = chapter.bundle.input.obstacles.cache as Obstacle[];
+			const container = chapter.bundle.input.container.cache as FlowContainer;
 			const draggedIdx = dragRef.current?.obstacleIndex ?? -1;
 			const next = driftObstacles(prev, drifts, dt, container, draggedIdx);
 			chapter.bundle.setObstacles(next);
@@ -281,7 +280,7 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 		if (!s) return;
 		const dx = e.clientX - s.startClientX;
 		const dy = e.clientY - s.startClientY;
-		const current = chapter.bundle.graph.node("obstacles").cache as Obstacle[];
+		const current = chapter.bundle.input.obstacles.cache as Obstacle[];
 		const next = [...current];
 		const o = next[s.obstacleIndex]!;
 		if (o.kind === "circle") {
@@ -337,8 +336,8 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 					<div className="flow-lines" data-flow="lines">
 						{(lines ?? []).map((l, i, arr) => {
 							const isLast = i === arr.length - 1;
-							const textAlign = l.flushToRight ? "right" : "justify";
-							const textAlignLast = isLast ? "left" : l.flushToRight ? "right" : "justify";
+							const textAlign = "justify";
+							const textAlignLast = isLast ? "left" : "justify";
 							return (
 								<div
 									key={`${i}-${l.y}-${l.x}`}
@@ -380,7 +379,7 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 									</div>
 								);
 							}
-							const ascii = renderRectAscii(o.x, o.y, o.w, o.h);
+							const ascii = renderRectAscii(o.x, o.y, o.width, o.height);
 							// No `width` / `height` styles — let the <pre> define its
 							// own rendered size (monospace glyph width isn't exactly
 							// CELL_W, so a cell-grid-based width would clip the left/

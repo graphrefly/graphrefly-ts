@@ -1,14 +1,14 @@
 /**
  * RN/Hermes engine smoke — the ongoing per-commit indicator that
- * @graphrefly/pure-ts is compatible with the Hermes engine that
+ * @graphrefly/ts is compatible with the Hermes engine that
  * React Native 0.85.3 ships (graphrefly-ts#4).
  *
  * Two faithful, fast, pinned gates:
  *
- *   1. BYTECODE gate — esbuild-bundle the spike + pure-ts, then run
+ *   1. BYTECODE gate — esbuild-bundle the spike + @graphrefly/ts, then run
  *      it through `hermesc -emit-binary -O`, the EXACT compiler RN
  *      0.85.3 uses (npm `hermes-compiler@250829098.0.10`, pinned).
- *      `-O` mirrors a RN *release* build. Success = pure-ts's real
+ *      `-O` mirrors a RN *release* build. Success = @graphrefly/ts's real
  *      shipped syntax parses + semantically analyses + generates
  *      optimized Hermes bytecode against RN's actual toolchain.
  *
@@ -38,7 +38,7 @@ const require = createRequire(import.meta.url);
 
 // ─── Version matrix (bump deliberately; recorded in issue #4) ────────
 const MATRIX = {
-	"@graphrefly/pure-ts": "0.45.0",
+	"@graphrefly/ts": "0.0.1",
 	"hermes-compiler (= RN 0.85.3's exact hermesc)": "250829098.0.10",
 	"react-native (rn-hermes-fixture, Expo SDK 55 matrix)": "0.83.6",
 	"expo (rn-hermes-fixture)": "SDK 55 (55.x)",
@@ -67,7 +67,7 @@ async function bundle() {
 		format: "iife",
 		platform: "neutral",
 		// RN 0.85.3's hermesc is modern (full ES2015+ incl. classes);
-		// keep pure-ts's real shipped syntax so the gate tests what
+		// keep @graphrefly/ts's real shipped syntax so the gate tests what
 		// actually ships rather than a down-levelled variant.
 		target: "es2018",
 		// Bare Hermes has no `console`; route it to `print` (only

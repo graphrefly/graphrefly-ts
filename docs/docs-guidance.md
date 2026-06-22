@@ -30,9 +30,9 @@ The TS library ships a **three-tier subpath convention** so browser and Node con
 
 | Tier | Subpath shape | Contains | Allowed imports |
 |------|--------------|----------|-----------------|
-| **Universal** (default) | `@graphrefly/graphrefly`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/utils/<domain>` | Protocol, operators, reactive data structures, pattern factories that don't touch filesystem / DOM | Core, `core/hash` (uses `globalThis.crypto.subtle`), `storage-core`, other universal extras. Zero `node:*`. Zero DOM globals. |
-| **Node-only** | `@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/utils/<domain>/node` | Filesystem sources, SQLite storage, `child_process` adapters, Node-specific middleware | May import `node:*`. May import universal modules. |
-| **Browser-only** | `@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/utils/<domain>/browser` | IndexedDB storage, WebLLM / Chrome Nano adapters, DOM-specific helpers | May use `window`, `document`, `indexedDB`, `Worker` globals. May import universal modules. |
+| **Universal** (default) | `@graphrefly/ts/<capability>` | Protocol, graph, operators, storage contracts, renderers, and DOM-free solutions | Zero `node:*`. Zero DOM globals. |
+| **Node-only** | `@graphrefly/ts/<capability>/node` or focused node subpaths | Filesystem or Node runtime adapters | May import `node:*`. May import universal modules. |
+| **Browser-only** | `@graphrefly/ts/<capability>/browser` or focused browser subpaths | IndexedDB, Canvas, DOM, browser workers, and other browser-only helpers | May use browser globals. May import universal modules. |
 
 **Rule of thumb:** pick the lowest tier that can execute your code. A pattern factory that *mentions* `fileStorage` in its JSDoc but doesn't import it stays universal; a factory that *calls* `fileStorage()` must live under `<domain>/node`.
 
@@ -64,7 +64,7 @@ Cross-reference: the exports map is `sideEffects: false` — individual entries 
 
 ### Writing JSDoc for node-only / browser-only APIs
 
-- **Single-tier symbol:** JSDoc `@example` imports from the correct subpath — `import { fileStorage } from "@graphrefly/graphrefly/extra/node"`, not `"@graphrefly/graphrefly/extra"`.
+- **Single-tier symbol:** JSDoc `@example` imports from the correct `@graphrefly/ts` subpath for that symbol.
 - **Adapter with both tiers** (e.g. `fallbackAdapter`): the browser-safe base lives in `patterns/ai`, the Node-extended variant in `patterns/ai/node`. Each file's JSDoc `@example` uses its own subpath; cross-reference the other via `{@link }` or a prose note.
 - **Aggregator files** (`extra/node.ts`, `patterns/<x>/browser.ts`): have a `@module` docstring explaining what the aggregator is for and which global APIs it assumes.
 
@@ -75,7 +75,7 @@ Cross-reference: the exports map is `sideEffects: false` — individual entries 
 | Tier | What | TS | PY |
 |------|------|----|----|
 | **0 — Protocol spec** | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | Both sites via `sync-docs.mjs` | Both sites via `sync-docs.mjs` |
-| **1 — JSDoc / Docstrings** | Structured doc blocks on exports | `src/**/*.ts` → `gen-api-docs.mjs` → `website/src/content/docs/api/` | `src/graphrefly/**/*.py` → `gen_api_docs.py` → `website/src/content/docs/api/` |
+| **1 — JSDoc / Docstrings** | Structured doc blocks on exports | `packages/ts/src/**/*.ts`; TS API pages are currently a hand-vetted clean-slate allowlist | `src/graphrefly/**/*.py` → `gen_api_docs.py` → `website/src/content/docs/api/` |
 | **2 — Runnable examples** | Self-contained scripts | `examples/*.ts` | `examples/*.py` (in graphrefly-py) |
 | **3 — Recipes / guides** | Long-form Starlight pages | `website/src/content/docs/recipes/` | `website/src/content/docs/recipes/` (in graphrefly-py) |
 | **4 — Interactive demos** | Live UI / Pyodide labs | `website/src/components/examples/` (Astro) | `website/src/content/docs/lab/` (Pyodide) |
@@ -96,17 +96,7 @@ Cross-reference: the exports map is `sideEffects: false` — individual entries 
 
 ### TypeScript
 
-API reference pages (`website/src/content/docs/api/*.md`) are **generated** from structured JSDoc on exported functions via `website/scripts/gen-api-docs.mjs`.
-
-```bash
-pnpm --filter @graphrefly/docs-site docs:gen              # regenerate all
-pnpm --filter @graphrefly/docs-site docs:gen node map      # specific functions
-pnpm --filter @graphrefly/docs-site docs:gen:check         # CI dry-run — exit 1 if stale
-```
-
-**Do NOT edit `website/src/content/docs/api/*.md` by hand** — edit the JSDoc in source, then run `docs:gen`.
-
-To add a new function, register it in `website/scripts/gen-api-docs.mjs` in the `REGISTRY` object.
+The old TypeScript API generator was retired with the legacy root/pure-ts docs source. Current TS API reference pages are a small, hand-vetted clean-slate allowlist backed by real `@graphrefly/ts` export-map entries. A replacement generator must fail closed from `packages/ts/package.json` exports plus an explicit allowlist; do not map old symbols to guessed subpaths.
 
 ### Python
 
@@ -181,7 +171,7 @@ Every exported function must have a structured JSDoc block. The generator reads 
 
 - **Description:** One or two sentences. Start with a verb ("Creates", "Transforms").
 - **@param:** Use `@param name - Description.` (the `- ` is stripped by the generator).
-- **@example:** First example has no title (becomes "Basic Usage"). Additional examples have a title. Use the correct install package for the symbol's tier: `@graphrefly/pure-ts` (substrate), `@graphrefly/graphrefly` (presentation), or a subpath (`@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/base/sources/browser`, etc.) per the browser/Node/universal split above.
+- **@example:** First example has no title (becomes "Basic Usage"). Additional examples have a title. Import from the narrowest real `@graphrefly/ts` subpath for the symbol.
 - **@remarks:** One per bullet. Start with `**Bold keyword:**`.
 - **Overloaded functions:** Put the structured JSDoc above the **implementation** (the declaration with a body).
 

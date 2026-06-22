@@ -23,7 +23,6 @@
 		"build": "pnpm --filter @graphrefly/ts build",
 		"test": "pnpm --filter @graphrefly/ts test",
 		"test:ts": "pnpm --filter @graphrefly/ts test",
-		"test:parity": "pnpm --filter @graphrefly/parity-tests test",
 		"probe:b49:ts": "tsx packages/ts/src/__bench__/b49-probe.ts",
 		"bench": "pnpm run probe:b49:ts",
 		"changeset": "changeset",

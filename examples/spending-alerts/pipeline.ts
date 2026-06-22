@@ -3,9 +3,8 @@
  *
  * Five hops on the causal spine from a raw transaction to a human-readable
  * alert, plus two side inputs (per-vendor stats, user profile). Every node
- * is added to a named `Graph` so `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })`
- * walks backward through `deps` and renders every step's value + `trace()`
- * annotation.
+ * is registered on a named `Graph` so `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })`
+ * walks backward through `deps` and renders every step's current value.
  *
  * ```
  *   txFeed (source)
@@ -20,15 +19,16 @@
  * ```
  *
  * The pipeline is factored so consumers pick the **justifier** — the
- * deterministic templater shipped here, or (in the browser demo) a
- * `promptNode` backed by Chrome Nano. Both shapes `(reason, txn) => string`.
- * Structural explainability doesn't change: the graph topology *is* the
- * trace, regardless of which justifier is plugged in.
+ * deterministic templater shipped here, or any caller-supplied synchronous
+ * justifier. Both shapes are `(reason, txn) => string`.
+ * Structural explainability doesn't change: the graph topology and
+ * current node values are the trace, regardless of which justifier is plugged in.
  *
  * @module
  */
 
-import { derived, Graph, producer, state } from "@graphrefly/graphrefly";
+import { type Ctx, depBatch } from "@graphrefly/ts/core";
+import { Graph } from "@graphrefly/ts/graph";
 
 export interface Transaction {
 	readonly id: string;
@@ -74,16 +74,14 @@ export interface ReasonFactors {
 
 /**
  * A justifier turns the structured reason + txn into natural language.
- * Sync by design so the derived node stays within a single wave. In the
- * browser demo, Chrome Nano's async output is composed via `promptNode`
- * downstream — the `alertMessage` node emits the template fragment, then
- * a separate `llmAlert` node re-phrases it. Keeps the core pipeline
- * deterministic and explainable-without-LLM.
+ * Sync by design so the derived node stays within a single wave. A browser
+ * demo can compose async phrasing downstream at an explicit adapter boundary;
+ * this core pipeline remains deterministic and explainable-without-LLM.
  */
 export type Justifier = (reason: ReasonFactors, txn: Transaction) => string;
 
 export interface SpendingAlertsOptions {
-	/** Static user profile — in a real app this would come from a `fromStorage` source. */
+	/** Static user profile — in a real app this would come from a retained app-data node. */
 	readonly profile?: UserProfile;
 	/** z-score cutoff for flagging. Default 3. */
 	readonly zThreshold?: number;
@@ -99,6 +97,14 @@ export interface SpendingAlertsGraph {
 	 * stops emitting; subscribers drain what was sent. */
 	readonly feed: (txn: Transaction) => void;
 }
+
+interface VendorAccumulator {
+	readonly count: number;
+	readonly mean: number;
+	readonly m2: number;
+}
+
+type VendorAccumulatorByVendor = Record<string, VendorAccumulator>;
 
 const DEFAULT_PROFILE: UserProfile = {
 	dailyAverage: 45,
@@ -122,7 +128,7 @@ const defaultJustifier: Justifier = (reason, txn) => {
  * Build the spending-alerts graph. Returns a live `Graph` plus a `feed()`
  * function to push transactions through. The graph exposes named nodes so
  * `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` produces a walkable causal
- * chain enriched with each node's value and annotation.
+ * chain enriched with each node's current value.
  */
 export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingAlertsGraph {
 	const profile = opts.profile ?? DEFAULT_PROFILE;
@@ -130,14 +136,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	const dailyRatioThreshold = opts.dailyRatioThreshold ?? 5;
 	const justifier = opts.justifier ?? defaultJustifier;
 
-	const graph = new Graph("spending-alerts");
-
-	// Annotate each node with the WHY so `explain()` surfaces it alongside
-	// the value. This is what turns a chain of values into a chain of
-	// reasoning.
-	const trace = (path: string, reason: string): void => {
-		graph.trace(path, reason);
-	};
+	const graph = new Graph({ name: "spending-alerts" });
 
 	// 1. Source — raw transaction stream. The producer captures `emit` on
 	// activation; the caller's `feed()` closes over it to push txns in.
@@ -146,61 +145,58 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	// lifecycle state rather than always blaming the caller for ordering.
 	let pushTxn: ((txn: Transaction) => void) | null = null;
 	let status: "pending" | "active" | "deactivated" = "pending";
-	const txFeed = producer<Transaction>(
-		(actions) => {
-			pushTxn = (txn) => actions.emit(txn);
+	const txFeed = graph.producer<Transaction>(
+		(ctx: Ctx) => {
+			pushTxn = (txn) => ctx.down([["DATA", txn]]);
 			status = "active";
-			return () => {
+			ctx.onDeactivation(() => {
 				pushTxn = null;
 				status = "deactivated";
-			};
+			});
 		},
 		{ name: "txFeed" },
 	);
-	graph.add(txFeed, { name: "txFeed" });
-	trace("txFeed", "Raw transaction stream from bank API / simulator.");
 
-	// 2. Running per-vendor stats (mean / std). Stateful accumulator —
-	// held in a closure; each new txn updates the map then the derived
-	// node emits the current snapshot for the txn's vendor.
-	const statsByVendor = new Map<string, { count: number; mean: number; m2: number }>();
-	const vendorStats = derived<VendorStats>(
+	// 2. Running per-vendor stats (mean / std). The accumulator is per-node
+	// graph state (R-ctx-state), so lifecycle/checkpoint behavior stays owned
+	// by the node rather than by a factory closure.
+	const vendorStats = graph.node<VendorStats>(
 		[txFeed],
-		([rawTxn]) => {
-			const txn = rawTxn as Transaction;
-			// Welford online update.
-			const prev = statsByVendor.get(txn.vendor) ?? {
-				count: 0,
-				mean: 0,
-				m2: 0,
-			};
-			const count = prev.count + 1;
-			const delta = txn.amount - prev.mean;
-			const mean = prev.mean + delta / count;
-			const m2 = prev.m2 + delta * (txn.amount - mean);
-			statsByVendor.set(txn.vendor, { count, mean, m2 });
-			const std = count >= 2 ? Math.sqrt(m2 / (count - 1)) : 0;
-			return { count, mean, std };
+		(ctx: Ctx) => {
+			const batch = depBatch(ctx, 0);
+			if (batch === null) return;
+			const statsByVendor =
+				ctx.state.get<VendorAccumulatorByVendor>() ??
+				(Object.create(null) as VendorAccumulatorByVendor);
+			for (const value of batch) {
+				const txn = value as Transaction;
+				// Welford online update.
+				const prev = statsByVendor[txn.vendor] ?? {
+					count: 0,
+					mean: 0,
+					m2: 0,
+				};
+				const count = prev.count + 1;
+				const delta = txn.amount - prev.mean;
+				const mean = prev.mean + delta / count;
+				const m2 = prev.m2 + delta * (txn.amount - mean);
+				statsByVendor[txn.vendor] = { count, mean, m2 };
+				const std = count >= 2 ? Math.sqrt(m2 / (count - 1)) : 0;
+				ctx.down([["DATA", { count, mean, std }]]);
+			}
+			ctx.state.set(statsByVendor);
 		},
 		{ name: "vendorStats" },
 	);
-	graph.add(vendorStats, { name: "vendorStats" });
-	trace("vendorStats", "Running per-vendor mean + sample std (Welford online update).");
 
-	// 3. User profile — static state for this demo; in a real app this is
-	// `fromStorage(...)` so it persists across sessions.
-	const userProfile = state<UserProfile>(profile, { name: "userProfile" });
-	graph.add(userProfile, { name: "userProfile" });
-	trace("userProfile", "User baseline: daily-average spend + typical categories.");
+	// 3. User profile — static state for this demo.
+	const userProfile = graph.state<UserProfile>(profile, { name: "userProfile" });
 
 	// 4. Anomaly score — composes txn × vendor stats × user profile. This is
 	// the structural join point; `deps` above are what `explainPath` walks.
-	const anomalyScore = derived<AnomalyScore>(
+	const anomalyScore = graph.derived(
 		[txFeed, vendorStats, userProfile],
-		([rawTxn, rawStats, rawProfile]) => {
-			const txn = rawTxn as Transaction;
-			const stats = rawStats as VendorStats;
-			const prof = rawProfile as UserProfile;
+		(txn, stats, prof): AnomalyScore => {
 			const scale = stats.std > 0 ? stats.std : Math.max(stats.mean, 1);
 			const zScore = (txn.amount - stats.mean) / scale;
 			const dailyRatio = txn.amount / Math.max(prof.dailyAverage, 1);
@@ -210,16 +206,13 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "anomalyScore" },
 	);
-	graph.add(anomalyScore, { name: "anomalyScore" });
-	trace("anomalyScore", "z-score vs vendor history + daily-spend ratio + category familiarity.");
 
 	// 5. Threshold gate — binary flagged? + the threshold used. Echoes
 	// the txn + score so `reasonFactors` has what it needs without
 	// shortcutting back to `txFeed` or `anomalyScore`.
-	const thresholdGate = derived<Flagged>(
+	const thresholdGate = graph.derived(
 		[anomalyScore],
-		([rawScore]) => {
-			const score = rawScore as AnomalyScore;
+		(score): Flagged => {
 			const flagged =
 				score.zScore > zThreshold ||
 				score.dailyRatio > dailyRatioThreshold ||
@@ -228,20 +221,14 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "thresholdGate" },
 	);
-	graph.add(thresholdGate, { name: "thresholdGate" });
-	trace(
-		"thresholdGate",
-		`Flag when zScore > ${zThreshold} OR dailyRatio > ${dailyRatioThreshold} OR category is unknown.`,
-	);
 
 	// 6. Reason factors — structured list of contributing signals + the
 	// originating txn. Only depends on `thresholdGate` so the causal spine
 	// stays `txFeed → anomalyScore → thresholdGate → reasonFactors →
 	// alertMessage`.
-	const reasonFactors = derived<ReasonFactors>(
+	const reasonFactors = graph.derived(
 		[thresholdGate],
-		([rawGate]) => {
-			const gate = rawGate as Flagged;
+		(gate): ReasonFactors => {
 			const { score, txn } = gate;
 			if (!gate.flagged) return { factors: [], severity: "low", txn };
 			const factors: string[] = [];
@@ -260,26 +247,18 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "reasonFactors" },
 	);
-	graph.add(reasonFactors, { name: "reasonFactors" });
-	trace("reasonFactors", "Decomposes the flag into contributing signals — trustable breakdown.");
 
 	// 7. Alert message — human-readable final output. Only depends on
 	// `reasonFactors` so `graph.describe({ explain: { from: 'txFeed', to: 'alertMessage' } })` walks
 	// through every intermediate on the reasoning spine. Pluggable via
-	// `justifier` (deterministic template here; swap for a `promptNode` in
-	// the browser demo — the graph topology is identical either way).
-	const alertMessage = derived<string>(
+	// `justifier` (deterministic template here; richer phrasing can be
+	// composed downstream through an explicit adapter boundary).
+	graph.derived(
 		[reasonFactors],
-		([rawReason]) => {
-			const reason = rawReason as ReasonFactors;
+		(reason): string => {
 			return justifier(reason, reason.txn);
 		},
 		{ name: "alertMessage" },
-	);
-	graph.add(alertMessage, { name: "alertMessage" });
-	trace(
-		"alertMessage",
-		"Final human-readable alert. Swap the justifier for a promptNode to get LLM-authored rationale.",
 	);
 
 	return {

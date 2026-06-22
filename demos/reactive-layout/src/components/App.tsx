@@ -1,4 +1,3 @@
-import type { DemoShellHandle, HoverTarget } from "@graphrefly/graphrefly/utils/demo-shell";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildAdaptersChapter } from "../lib/chapters/adapters";
 import { buildBatchChapter } from "../lib/chapters/batch";
@@ -7,6 +6,7 @@ import { buildFlowChapter } from "../lib/chapters/flow";
 import { buildPlaygroundChapter } from "../lib/chapters/playground";
 import { buildRecomputesChapter } from "../lib/chapters/recomputes";
 import type { Chapter } from "../lib/chapters/types";
+import type { DemoShellHandle, HoverTarget } from "../lib/shell";
 import { focusChapter, getShell } from "../lib/shell";
 import CodePane from "./CodePane";
 import AdaptersChapterUI, { getAdaptersChapter } from "./chapters/AdaptersChapter";
@@ -17,6 +17,12 @@ import PlaygroundChapterUI, { getPlaygroundChapter } from "./chapters/Playground
 import RecomputesChapterUI, { getRecomputesChapter } from "./chapters/RecomputesChapter";
 import GraphPane from "./GraphPane";
 import InspectStrip from "./InspectStrip";
+
+function requireShellNode(shell: DemoShellHandle, id: string) {
+	const node = shell.graph.find(id);
+	if (!node) throw new Error(`Reactive layout shell missing node '${id}'`);
+	return node;
+}
 
 // The getX helpers memoize the underlying chapter builders — they run once per
 // page. The `buildX` imports are retained above to keep them in the dependency
@@ -126,9 +132,9 @@ export default function App() {
 		const shell = getShell();
 		shellRef.current = shell;
 
-		const mermaidNode = shell.graph.resolve("graph/mermaid");
-		const codeScrollNode = shell.graph.resolve("highlight/code-scroll");
-		const hoverNode = shell.graph.resolve("hover/target");
+		const mermaidNode = requireShellNode(shell, "graph/mermaid");
+		const codeScrollNode = requireShellNode(shell, "highlight/code-scroll");
+		const hoverNode = requireShellNode(shell, "hover/target");
 
 		const u1 = mermaidNode.subscribe(() => {
 			setMermaidText((mermaidNode.cache as string) ?? "");

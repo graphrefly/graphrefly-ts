@@ -1,161 +1,53 @@
-# GraphReFly — TypeScript packages (`@graphrefly/graphrefly`, `@graphrefly/pure-ts`, `@graphrefly/native`)
+# GraphReFly — TypeScript clean-slate implementation
 
-The reactive harness layer for agent workflows. Reactive graph runtime for human + LLM co-operation — causal tracing, persistent checkpoints, policy enforcement, zero dependencies.
+GraphReFly is a reactive universal reduction layer: high fan-in/out data becomes explicit graph facts, reductions, effects, and inspectable topology. This repo is the TypeScript implementation, published as `@graphrefly/ts`.
 
-Keywords: harness engineering, agent harness, reactive graph, causal trace, explain, agent orchestration, LLM co-operation, human-in-the-loop, reactive middleware, universal reduction layer.
+## Current Package Truth
 
-This file is an AI-oriented index for the TypeScript repos. It intentionally points to generated API docs and source-of-truth docs instead of duplicating a long API list that can drift.
+- `@graphrefly/ts` is the only active TypeScript implementation.
+- `@graphrefly/graphrefly` is a retired root package identity only.
+- `@graphrefly/pure-ts` is a frozen read-only reference for old behavior and edge cases until B66 deletion.
+- `archive/packages/parity-tests` preserves the old structural `Impl` parity harness for history only.
+- Cross-runtime parity is behavioral conformance in `~/src/graphrefly/spec/conformance.jsonl`, not symbol-set matching.
 
-## Canonical behavior and docs authority
+## Authority
 
-- Behavior spec: `~/src/graphrefly/GRAPHREFLY-SPEC.md`
-- Composition guidance: `~/src/graphrefly/COMPOSITION-GUIDE.md`
-- Docs conventions: `docs/docs-guidance.md`
-- Active sequencer + decision log: `docs/implementation-plan.md`, `docs/rust-port-decisions.md`
-- Cross-track-ledger (TS ↔ native couplings): `docs/cross-track-ledger.md`
-- Roadmap / vision frame: `docs/roadmap.md`
-- Testing standard: `docs/test-guidance.md`
+The language-neutral authority lives in `~/src/graphrefly`:
 
-## Active strategy docs (read for current direction)
+- Decisions: `decisions/decisions.jsonl`
+- Protocol rules: `spec/rules.jsonl`
+- Conformance scenarios: `spec/conformance.jsonl`
+- Formal model: `formal/*.tla`
+- Sequencer/backlog: `plan/*.jsonl`
+- Dashboard check: `node ~/src/graphrefly/dashboard/build.mjs --check`
 
-- `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md` — spec-as-projection reframe, multi-agent subgraph ownership protocol (L0–L3), catalog reframed as user-host concern. Wave 2 narrative source-of-truth.
-- `archive/docs/SESSION-DS-14-changesets-design.md` — universal `BaseChange<T>` envelope, `mutations` companion bundles, `mutate(act, opts)` factory.
-- `archive/docs/SESSION-reactive-collaboration-harness.md` — 7-stage reactive collaboration loop (INTAKE→TRIAGE→QUEUE→GATE→EXECUTE→VERIFY→REFLECT), `harnessLoop()` factory.
-- `archive/docs/SESSION-marketing-promotion-strategy.md` — positioning pillars, wave plan, reply-marketing playbooks, competitive intel.
+When this repo and the authority repo disagree, the authority repo wins.
 
-## Primary links
+## Useful Entry Points
 
-- Site: https://graphrefly.dev
-- API reference: https://graphrefly.dev/api/node/
-- Python docs: https://graphrefly.dev/py/api/
+- Package source: `packages/ts/src`
+- Core protocol/substrate: `@graphrefly/ts/core`
+- Graph layer and inspection: `@graphrefly/ts/graph`
+- Operators: `@graphrefly/ts/operators`
+- Sources: `@graphrefly/ts/sources`, `@graphrefly/ts/sources/browser`, `@graphrefly/ts/sources/node`
+- Storage: `@graphrefly/ts/storage`, `@graphrefly/ts/storage/browser`, `@graphrefly/ts/storage/node`
+- Render helpers: `@graphrefly/ts/render`
+- Reactive layout solution: `@graphrefly/ts/solutions/reactive-layout`
 
-## Three-package install-time model (Unit 6 D198, locked 2026-05-14)
+## Commands
 
-Consumers pick a substrate provider at **install time**. Both substrate packages expose the same public API — enforced cross-arm by `packages/parity-tests/`.
+```bash
+pnpm --filter @graphrefly/ts test
+pnpm --filter @graphrefly/ts build
+pnpm run lint
+pnpm run dashboard:check
+```
 
-| Package | What it is | Build artifact | Role |
-|---|---|---|---|
-| `@graphrefly/graphrefly` | Presentation layer: IO adapters, AI patterns, composition helpers, framework adapters, render helpers. Re-exports the chosen substrate's surface for ergonomic single-import UX. | TS only (browser + Node) | presentation |
-| `@graphrefly/pure-ts` | Pure-TypeScript substrate: `node` primitive, `Graph`, operators, sources, data structures, storage tiers. Default sync substrate; universal browser + Node. | TS only | substrate |
-| `@graphrefly/native` | Rust substrate via napi-rs. Async-only public surface (Node-only). | `.node` binary + TS wrapper | substrate (async) |
+## Clean-Slate Floor
 
-`@graphrefly/pure-ts` is the **sole working sync substrate** for `@graphrefly/graphrefly` today (D206). `@graphrefly/native` is a real shipping substrate + parity arm but NOT a sync drop-in via overrides — the async-everywhere presentation rebase (D080) stays deferred until consumer pressure. A future `@graphrefly/wasm` is deferred per D196 until a browser-Rust consumer surfaces.
-
-## Package entry points
-
-- Presentation root: `@graphrefly/graphrefly`
-- Substrate roots: `@graphrefly/pure-ts`, `@graphrefly/native`
-
-### `@graphrefly/graphrefly` subpaths (presentation)
-
-The presentation package follows a 4-layer model (D200, 2026-05-14): `base/` (domain-agnostic infrastructure) → `utils/` (domain building blocks) → `presets/` (opinionated compositions) → `solutions/` (user-facing products). All re-exported at the root barrel.
-
-- `@graphrefly/graphrefly` — root barrel; re-exports substrate (`@graphrefly/pure-ts`) + all four layers + `compat/*`.
-- `@graphrefly/graphrefly/base`, `base/io`, `base/composition`, `base/meta`, `base/mutation`, `base/render`, `base/sources`, `base/sources/event`, `base/sources/node`, `base/sources/browser`, `base/utils`, `base/worker` — base-layer subpaths.
-- `@graphrefly/graphrefly/utils`, `utils/ai`, `utils/ai/node`, `utils/ai/browser`, `utils/cqrs`, `utils/demo-shell`, `utils/domain-templates`, `utils/graphspec`, `utils/harness`, `utils/inspect`, `utils/job-queue`, `utils/memory`, `utils/messaging`, `utils/orchestration`, `utils/process`, `utils/reactive-layout`, `utils/reduction`, `utils/resilience`.
-- `@graphrefly/graphrefly/presets`, `presets/ai`, `presets/harness`, `presets/inspect`, `presets/memory`, `presets/resilience`.
-- `@graphrefly/graphrefly/solutions` — vertical packages (deferred until consumer pressure; barrel present, vertical folders not shipped).
-- `@graphrefly/graphrefly/compat/{react,vue,svelte,solid,nestjs,jotai,zustand,nanostores,signals}` — framework adapters.
-- `@graphrefly/graphrefly/extra/node` + `extra/browser` — runtime-specific re-exports of the substrate's Node-only / browser-only surface.
-
-### `@graphrefly/pure-ts` subpaths (substrate)
-
-- `@graphrefly/pure-ts` — universal default (browser + Node safe).
-- `@graphrefly/pure-ts/core` — `node` primitive, `batch`, `Actor`, `policy`, central clock.
-- `@graphrefly/pure-ts/graph` — `Graph` container, `describe`/`observe`/`snapshot`/`mount`.
-- `@graphrefly/pure-ts/extra` — operators, sync sources, data structures, universal storage.
-- `@graphrefly/pure-ts/extra/operators`, `extra/sources`, `extra/storage`, `extra/storage/wal`.
-- `@graphrefly/pure-ts/extra/node`, `extra/storage/node` — Node-only (may import `node:*`).
-- `@graphrefly/pure-ts/extra/browser`, `extra/storage/browser` — browser-only (may use DOM globals).
-- `@graphrefly/pure-ts/testing` — test helpers for parity / regression suites.
-
-## Public API by layer (presentation 4-layer model, D200)
-
-Full export lists live in the generated API pages under `website/src/content/docs/api/`. The descriptions below explain *what lives in each layer and why* so an LLM reading this cold can navigate without consuming the drift-prone catalog. The CI-enforced layer boundary is in `scripts/check-layer-boundary.ts` (D201).
-
-### Substrate (re-exported from `@graphrefly/pure-ts` at the root barrel)
-
-The minimal reactive substrate. One primitive (`node`) plus a `Graph` container that exposes the **sugar as methods** (`g.state(name, …)`, `g.derived(name, deps, fn)`, `g.effect(deps, fn)`, `g.producer(name, factory)`); freestanding `pipe`, `dynamicNode`, `autoTrackNode` are available for off-`Graph` composition. Protocol internals: message types (`DATA`, `DIRTY`, `RESOLVED`, `COMPLETE`, `ERROR`, `TEARDOWN`, `INVALIDATE`, `PAUSE`, `RESUME`), two-phase batch semantics (`batch`, `isBatching`, `partitionForBatch`), guard/policy (`policy`, `GuardDenied`, `accessHintForGuard`), actor identity (`Actor`), the central clock (`monotonicNs`, `wallClockNs`). **Anything outside the substrate must not call `Date.now()` / `performance.now()` directly — use `core/clock.ts`.** Spec §5.8–5.12 invariants are enforced here.
-
-The `Graph` container exposes `describe` / `observe` / `snapshot` / `restoreSnapshot` / `mount` / `attachSnapshotStorage` / `teardown`. Causal walkback is `g.describe({ explain: { from, to } })` (there is no `graph.explain()` method). Diagram rendering is a pure renderer over a describe snapshot: `graphSpecToMermaid(g.describe())`, `graphSpecToPretty`, `graphSpecToD2` — exported from `@graphrefly/graphrefly/base/render`. `reachable(graph, startPath)` computes the dependency closure.
-
-### `base/` — domain-agnostic infrastructure
-
-- `base/io` — fromHttp, fromWebSocket, fromSSE, fromWebhook, fromKafka, fromNats, fromPulsar, fromRabbitMQ, drizzle, prisma, kysely, clickhouse, otel, prometheus, statsd, syslog, csv, ndjson.
-- `base/composition` — verifiable, distill, pubsub, backpressure (`createWatermarkController`), externalProducer, materialize, externalRegister.
-- `base/mutation` — `mutate(act, opts)` factory + lightMutation, auditLog helpers.
-- `base/render` — `graphSpecToMermaid`, `graphSpecToD2`, `graphSpecToPretty`, mermaid URL helpers.
-- `base/sources/event` — fromCron, dom event sources.
-- `base/sources/node` — fromGitHook, fromFSWatch, server-side event sources (Node-only).
-- `base/sources/browser` — DOM-using browser sources.
-- `base/meta` — domainMeta, keepalive helpers.
-- `base/worker` — worker bridge.
-
-### `utils/` — domain building blocks
-
-- `utils/messaging` — `topic`, `subscription` (cursor / `pull` / `ack`), `topicBridge`, `messagingHub` (Pulsar-inspired lazy topic registry).
-- `utils/orchestration` — `pipelineGraph` (with `approvalGate` method — the human-approval gate; this replaced the older `gate(...)` name), `humanInput`, `tracker`, `classify`, `catch`.
-- `utils/memory` — `reactiveFactStore<T>()` (DS-14.7 v1 substrate; cascade + temporal + dependentsIndex), `simpleFactStore` (deferred to v1.1), `persistentFactStore`.
-- `utils/ai` — `chatStream`, `toolRegistry`, `systemPromptBuilder`, `llmExtractor`, `llmConsolidator`, `fromLLM`, `streamingPromptNode`, `streamExtractor`, `knobsAsTools`, `gaugesAsContext`. AI provider adapters under `utils/ai/adapters/` (Anthropic, OpenAI, Google, etc.); Node-only and browser-only variants split via `utils/ai/node` and `utils/ai/browser`.
-- `utils/resilience` — `circuitBreaker`, `withBreaker`, `withStatus`, `rateLimiter`, `withMaxAttempts`, fallback, budgetGate.
-- `utils/cqrs` — `cqrs(name, opts?)` Graph (commands / events / projections / sagas).
-- `utils/harness` — stage type primitives, evalSource, beforeAfterCompare, actuatorExecutor, evalIntakeBridge, HarnessExecutor, HarnessVerifier.
-- `utils/inspect` — `graphLens`, `audit`, `policyGate`, structured introspection.
-- `utils/job-queue` — `jobQueue`, `jobFlow`.
-- `utils/graphspec` — spec compile/decompile + `validateOwnership(spec, prDiff)` (multi-agent claim linter).
-- `utils/reactive-layout` — `reactiveLayout`, `reactiveBlockLayout`, Knuth-Plass-style line breaking as a state→derived graph (Pretext-inspired).
-- `utils/reduction` — universal reduction primitives for massive-info → actionable-items pipelines.
-
-### `presets/` — opinionated compositions
-
-- `presets/ai` — `agentLoop` (ReAct inner loop), `agentMemory` (distill + vectors + KG + tiers with OpenViking decay).
-- `presets/harness` — `harnessLoop` (INTAKE → TRIAGE → QUEUE → GATE → EXECUTE → VERIFY → REFLECT), `refineLoop`, `harnessProfile`, `ownershipController` (L0 static / L1 TTL / L2 heartbeat / L3 supervisor staircase).
-- `presets/resilience` — `resilientPipeline` (rateLimiter → breaker → retry → timeout → fallback in the correct order).
-- `presets/inspect` — `guardedExecution` (Actor / Guard ABAC + policy + budgetGate + scoped describe).
-- `presets/memory` — composed memory products on top of `reactiveFactStore`.
-
-### `solutions/` — user-facing products
-
-Barrel re-exports preset combinations. Vertical folders (`solutions/customer-support-bot/`, `solutions/code-review-agent/`, etc.) are deferred until consumer pressure (D202).
-
-### `compat/*` — framework adapters
-
-React (`useNode`), Vue (`useNode → Ref`), Svelte (`toStore`), Solid (`useNode → Signal`), NestJS (`GraphReflyModule.forRoot()`), plus interop shims for Jotai, Zustand, Nanostores, TC39 Signals proposal. Each compat layer lives in its own subpath so unused adapters tree-shake out.
-
-## Design docs that back the above
-
-- Phase 4+ factory authors must read `~/src/graphrefly/COMPOSITION-GUIDE.md` before composing primitives — covers lazy activation, subscription ordering, null guards, feedback cycles, `promptNode` SENTINEL, wiring order.
-- Backlog / anti-patterns / deferred follow-ups: `docs/optimizations.md`.
-- Historical design decisions and parity notes: `archive/optimizations/`.
-- Cross-track coupling between TS and native: `docs/cross-track-ledger.md` (the single place to log `Impl`-widening changes; see also `~/src/graphrefly-rs/docs/migration-status.md`).
-
-## Generated docs workflow
-
-TypeScript API pages are generated from JSDoc:
-
-- Generator: `website/scripts/gen-api-docs.mjs`
-- Output: `website/src/content/docs/api/*.md`
-- Commands:
-  - `pnpm --dir website docs:gen`
-  - `pnpm --dir website docs:gen:check`
-  - `pnpm --dir website sync-docs`
-  - `pnpm --dir website sync-docs:check`
-
-Do not hand-edit generated API pages or `website/public/llms.txt` (mirror of root `llms.txt`).
-
-## Core design invariants
-
-- No polling; propagation is reactive.
-- No imperative triggers outside graph/message flow.
-- No raw async primitives inside reactive layer logic.
-- Use central clock (`monotonicNs` / `wallClockNs`) and `messageTier` helpers for timing/tier semantics.
-- Keep Phase 4+ surfaces developer-oriented (hide protocol internals from primary API docs).
-- Substrate vs presentation classification follows the layering predicate in `~/src/graphrefly-rs/CLAUDE.md` § "Layering predicate — substrate vs presentation".
-
-## Harness engineering coverage
-
-GraphReFly covers the 8 requirements of a production agent harness — context/state control, execution boundary, control flow, verification, observability, policy/safety, human governance, continuous improvement. Mapping lives in `README.md` and `archive/docs/SESSION-harness-engineering-strategy.md` (with Wave 2 framing reframed by `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md`).
-
-## Reactive collaboration loop (§9.0)
-
-`harnessLoop()` wires a static topology: INTAKE → TRIAGE → QUEUE → GATE → EXECUTE → VERIFY → REFLECT. Static topology + flowing data (the Kafka insight). Humans steer via `approvalGate.modify((value, index, pending) => T, n?)`. Strategy model (`rootCause × intervention → successRate`) feeds TRIAGE routing. Design source: `archive/docs/SESSION-reactive-collaboration-harness.md`.
+- Eight verbs only: `node`, `graph`, `batch`, `state`, `producer`, `derived`, `effect`, `mount`.
+- All user functions go through the dispatcher.
+- The wave protocol implementation is synchronous; async belongs at source, pool, storage, or wire-bridge boundaries.
+- DATA moves through messages, not hidden cache peeks inside reactive functions.
+- Operators are node sugar and per-language; they are not parity verbs.
+- No restoration of old `compat/*`, `utils/*`, `presets/*`, `base/*`, `GraphSpec`, `factoryTag`, `Actor`, `guard`, old structural `Impl` parity, fake topology streams, or storage-owned hydration/restore.

@@ -1,4 +1,4 @@
-import type { Node } from "@graphrefly/graphrefly";
+import type { Node } from "@graphrefly/ts/core";
 import { useEffect, useState } from "react";
 
 /**

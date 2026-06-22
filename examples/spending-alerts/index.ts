@@ -3,7 +3,7 @@
  *
  * Feeds a handful of transactions through the graph defined in
  * `pipeline.ts`, prints each alert, and — on the first flagged txn —
- * renders the structural causal chain via `graph.explain`.
+ * renders the structural causal chain via `graph.describe({ explain })`.
  *
  * Run:
  *   pnpm --filter @graphrefly-examples/spending-alerts start
@@ -12,7 +12,7 @@
  *   npx tsx examples/spending-alerts/index.ts
  */
 
-import { DATA } from "@graphrefly/graphrefly";
+import { describeToPretty } from "@graphrefly/ts/render";
 import { spendingAlertsGraph, type Transaction } from "./pipeline.js";
 
 const { graph, feed } = spendingAlertsGraph({
@@ -22,31 +22,32 @@ const { graph, feed } = spendingAlertsGraph({
 	},
 });
 
-const alertMessage = graph.resolve("alertMessage");
+const alertMessage = graph.find("alertMessage");
+if (alertMessage === undefined) {
+	throw new Error("spending-alerts graph is missing the alertMessage node");
+}
 
 // Subscribe BEFORE feeding — sources push lazily on activation.
 let firstFlagExplained = false;
-alertMessage.subscribe((msgs) => {
-	for (const [type, value] of msgs) {
-		if (type !== DATA) continue;
-		const text = value as string;
-		const rule = "─".repeat(60);
-		console.log(`\n${rule}`);
-		console.log(text);
-		// When the text mentions "flagged" AND we haven't rendered the
-		// chain yet, explain what led here. The chain's text is the
-		// answer to homepage pain-point 02 — "why was this flagged?"
-		if (!firstFlagExplained && text.includes("flagged")) {
-			firstFlagExplained = true;
-			const chain = graph.describe({ explain: { from: "txFeed", to: "alertMessage" } });
-			const heavy = "═".repeat(60);
-			console.log(`\n${heavy}`);
-			console.log(
-				"Causal chain — graph.describe({ explain: { from: 'txFeed', to: 'alertMessage' } }):",
-			);
-			console.log(heavy);
-			console.log(chain.text);
-		}
+alertMessage.subscribe(([type, value]) => {
+	if (type !== "DATA") return;
+	const text = value as string;
+	const rule = "─".repeat(60);
+	console.log(`\n${rule}`);
+	console.log(text);
+	// When the text mentions "flagged" AND we haven't rendered the
+	// chain yet, explain what led here. The chain's text is the
+	// answer to homepage pain-point 02 — "why was this flagged?"
+	if (!firstFlagExplained && text.includes("flagged")) {
+		firstFlagExplained = true;
+		const chain = graph.describe({ explain: { from: "txFeed", to: "alertMessage" } });
+		const heavy = "═".repeat(60);
+		console.log(`\n${heavy}`);
+		console.log(
+			"Causal chain — graph.describe({ explain: { from: 'txFeed', to: 'alertMessage' } }):",
+		);
+		console.log(heavy);
+		console.log(describeToPretty(chain));
 	}
 });
 
@@ -85,5 +86,3 @@ const TRANSACTIONS: readonly Transaction[] = [
 ];
 
 for (const txn of TRANSACTIONS) feed(txn);
-
-graph.destroy();

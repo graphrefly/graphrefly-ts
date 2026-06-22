@@ -1,13 +1,10 @@
 /**
  * Typecheck gate for legacy workspace packages that nothing else typechecks.
  *
- * `packages/parity-tests/` runs via vitest, which strips types through esbuild,
- * so `tsc` does not otherwise run on it in `pnpm test`, `pnpm build`, or CI.
- * This script closes that gap by running `tsc --noEmit` and hard-failing on
- * any error.
- *
- * **No baseline.** The checked package was driven to **zero** errors. A new
- * type error fails `pnpm lint`; do not add a baseline to silence it.
+ * B66 note: the old structural Impl parity harness was retired to
+ * `archive/packages/parity-tests`; clean-slate parity is authority conformance
+ * in `~/src/graphrefly/spec/conformance.jsonl` (D24). Keep this gate empty
+ * until another active workspace package genuinely needs standalone tsc.
  *
  * B65 note: `evals/` still imports the retired root `src/` implementation and
  * is no longer part of the active clean-slate lint gate. Migrate or retire it
@@ -21,9 +18,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 const TSC = resolve(ROOT, "node_modules/.bin/tsc");
 
 /** Previously-ungated packages this gate now enforces. */
-const TARGETS: readonly { name: string; project: string }[] = [
-	{ name: "parity-tests", project: "packages/parity-tests/tsconfig.json" },
-];
+const TARGETS: readonly { name: string; project: string }[] = [];
 
 let failed = false;
 
