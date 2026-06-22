@@ -14,6 +14,10 @@ import type {
 	ExecutorUsage,
 	SourceRef,
 } from "./agent-runtime-types-core.js";
+import type {
+	ScheduledReadinessReady,
+	ScheduledReadinessRequested,
+} from "./scheduled-readiness.js";
 
 /**
  * Provider-neutral tool-call request input (D359). Concrete clients, secrets,
@@ -533,6 +537,7 @@ export interface ToolProviderRunRetryProposal {
 export interface ToolProviderRunRetryScheduled {
 	readonly kind: "tool-provider-run-retry-scheduled";
 	readonly scheduleId: string;
+	readonly readinessScheduleId?: string;
 	readonly outcomeId: string;
 	readonly proposalId: string;
 	readonly fromRunId: string;
@@ -571,6 +576,8 @@ export interface ToolProviderRunRetryStatus {
 export interface ToolProviderRunRetryViews {
 	readonly proposalsByOutcome: ReadonlyMap<string, ToolProviderRunRetryProposal>;
 	readonly scheduledByOutcome: ReadonlyMap<string, ToolProviderRunRetryScheduled>;
+	readonly readinessSchedulesByOutcome: ReadonlyMap<string, ScheduledReadinessRequested>;
+	readonly readinessBySchedule: ReadonlyMap<string, ScheduledReadinessReady>;
 	readonly nextRunRequestsByOutcome: ReadonlyMap<string, ToolProviderAdapterRunRequested>;
 	readonly statusByOutcome: ReadonlyMap<string, ToolProviderRunRetryStatus>;
 }
@@ -578,6 +585,7 @@ export interface ToolProviderRunRetryViews {
 export interface ToolProviderRunRetryBundle {
 	readonly proposals: Node<ToolProviderRunRetryProposal>;
 	readonly scheduled: Node<ToolProviderRunRetryScheduled>;
+	readonly readinessSchedules: Node<ScheduledReadinessRequested>;
 	readonly runRequests: Node<ToolProviderAdapterRunRequested>;
 	readonly status: Node<ToolProviderRunRetryStatus>;
 	readonly issues: Node<DataIssue>;

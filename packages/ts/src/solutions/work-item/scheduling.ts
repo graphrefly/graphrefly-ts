@@ -13,4 +13,6 @@ export * from "./scheduling-effect-plan-validation.js";
 export * from "./scheduling-types.js";
 export * from "./scheduling-validation.js";
 export * from "./scheduling-verification.js";
+export * from "./workspace-family-applications.js";
 export * from "./workspace-model.js";
+export * from "./workspace-proposals.js";

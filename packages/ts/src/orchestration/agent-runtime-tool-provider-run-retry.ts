@@ -29,6 +29,10 @@ import type {
 	ToolProviderRunRetryStatusState,
 	ToolProviderRunRetryViews,
 } from "./agent-runtime-types-tool.js";
+import type {
+	ScheduledReadinessReady,
+	ScheduledReadinessRequested,
+} from "./scheduled-readiness.js";
 
 export function toolProviderRunRetryProjector(
 	graph: Graph,
@@ -38,17 +42,21 @@ export function toolProviderRunRetryProjector(
 		readonly outcomes: Node<ExecutorOutcome>;
 		readonly policies?: readonly Node<ToolProviderRunRetryPolicy>[];
 		readonly nowMs?: Node<number>;
+		readonly readiness?: readonly Node<ScheduledReadinessReady>[];
 	},
 ): ToolProviderRunRetryBundle {
 	const name = opts.name ?? "toolProviderRunRetry";
 	const policyDeps = opts.policies ?? [];
 	const nowDeps = opts.nowMs === undefined ? [] : [opts.nowMs];
+	const readinessDeps = opts.readiness ?? [];
 	const outcomeDepIndex = 1 + policyDeps.length;
 	const nowDepIndex = outcomeDepIndex + 1;
+	const readinessDepStart = nowDepIndex + nowDeps.length;
 	const runtime = graph.node<ToolProviderRunRetryFact>(
-		[opts.inputs, ...policyDeps, opts.outcomes, ...nowDeps],
+		[opts.inputs, ...policyDeps, opts.outcomes, ...nowDeps, ...readinessDeps],
 		(ctx) => {
 			const state = ctx.state.get<ToolProviderRunRetryProjectorState>() ?? initialRetryState();
+			state.usesSharedReadiness = readinessDeps.length > 0;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const input = raw as ToolProviderAdapterInput;
 				state.inputsById.set(input.adapterInputId, input);
@@ -66,6 +74,14 @@ export function toolProviderRunRetryProjector(
 			for (const rawNow of depBatch(ctx, nowDepIndex) ?? []) {
 				if (typeof rawNow === "number" && Number.isFinite(rawNow)) state.nowMs = rawNow;
 			}
+			forEachDepBatch(ctx, readinessDepStart, readinessDeps.length, (raw) => {
+				const ready = sanitizeRetryReadinessReady(raw);
+				if (!ready.ok) {
+					emitIssue(ctx, state, ready.issue);
+					return;
+				}
+				state.readinessBySchedule.set(ready.scheduleId, ready);
+			});
 			for (const raw of depBatch(ctx, outcomeDepIndex) ?? []) {
 				retainOutcome(state, raw as ExecutorOutcome);
 			}
@@ -90,6 +106,13 @@ export function toolProviderRunRetryProjector(
 			`${name}/scheduled`,
 			"toolProviderRunRetryScheduled",
 			(fact) => (fact.kind === "scheduled" ? fact.scheduled : undefined),
+		),
+		readinessSchedules: projectRuntimeFact(
+			graph,
+			runtime,
+			`${name}/readinessSchedules`,
+			"toolProviderRunRetryReadinessSchedules",
+			(fact) => (fact.kind === "readiness-schedule" ? fact.schedule : undefined),
 		),
 		runRequests: projectRuntimeFact(
 			graph,
@@ -132,6 +155,7 @@ export function toolProviderRunRetryProjector(
 type ToolProviderRunRetryFact =
 	| { readonly kind: "proposal"; readonly proposal: ToolProviderRunRetryProposal }
 	| { readonly kind: "scheduled"; readonly scheduled: ToolProviderRunRetryScheduled }
+	| { readonly kind: "readiness-schedule"; readonly schedule: ScheduledReadinessRequested }
 	| { readonly kind: "run-request"; readonly request: ToolProviderAdapterRunRequested }
 	| { readonly kind: "status"; readonly status: ToolProviderRunRetryStatus }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
@@ -145,15 +169,19 @@ interface ToolProviderRunRetryProjectorState {
 	outcomesById: Map<string, ExecutorOutcome>;
 	proposalsByOutcome: Map<string, ToolProviderRunRetryProposal>;
 	scheduledByOutcome: Map<string, ToolProviderRunRetryScheduled>;
+	readinessSchedulesByOutcome: Map<string, ScheduledReadinessRequested>;
+	readinessBySchedule: Map<string, ScheduledReadinessReady>;
 	nextRequestsByOutcome: Map<string, ToolProviderAdapterRunRequested>;
 	statusByOutcome: Map<string, ToolProviderRunRetryStatus>;
 	proposalKeys: Set<string>;
 	scheduledKeys: Set<string>;
+	readinessScheduleKeys: Set<string>;
 	requestKeys: Set<string>;
 	statusKeys: Set<string>;
 	issueKeys: Set<string>;
 	auditSeq: number;
 	nowMs: number | undefined;
+	usesSharedReadiness: boolean;
 }
 
 interface RetryPolicyChoice {
@@ -169,15 +197,19 @@ function initialRetryState(): ToolProviderRunRetryProjectorState {
 		outcomesById: new Map(),
 		proposalsByOutcome: new Map(),
 		scheduledByOutcome: new Map(),
+		readinessSchedulesByOutcome: new Map(),
+		readinessBySchedule: new Map(),
 		nextRequestsByOutcome: new Map(),
 		statusByOutcome: new Map(),
 		proposalKeys: new Set(),
 		scheduledKeys: new Set(),
+		readinessScheduleKeys: new Set(),
 		requestKeys: new Set(),
 		statusKeys: new Set(),
 		issueKeys: new Set(),
 		auditSeq: 0,
 		nowMs: undefined,
+		usesSharedReadiness: false,
 	};
 }
 
@@ -376,6 +408,9 @@ function evaluateOutcome(
 	const scheduled = retryScheduled(input, outcome, proposal, state.nowMs + delayMs, delayMs);
 	state.scheduledByOutcome.set(outcome.outcomeId, scheduled);
 	emitScheduled(ctx, state, scheduled);
+	const readinessSchedule = retryReadinessSchedule(input, outcome, proposal, scheduled);
+	state.readinessSchedulesByOutcome.set(outcome.outcomeId, readinessSchedule);
+	emitReadinessSchedule(ctx, state, readinessSchedule);
 	emitStatus(
 		ctx,
 		state,
@@ -392,16 +427,145 @@ function processDueRetries(
 	ctx: { down: (msgs: readonly ["DATA", ToolProviderRunRetryFact][]) => void },
 	state: ToolProviderRunRetryProjectorState,
 ): void {
-	if (state.nowMs === undefined) return;
 	for (const [outcomeId, scheduled] of state.scheduledByOutcome) {
-		if (scheduled.retryAtMs > state.nowMs) continue;
+		const readiness = state.readinessBySchedule.get(
+			scheduled.readinessScheduleId ?? scheduled.scheduleId,
+		);
+		const readinessSchedule = state.readinessSchedulesByOutcome.get(outcomeId);
+		const readyByReadiness =
+			readiness !== undefined &&
+			readiness.readyAtMs === scheduled.retryAtMs &&
+			readiness.nowMs >= scheduled.retryAtMs &&
+			readinessSchedule !== undefined &&
+			readinessMatchesSchedule(readiness, readinessSchedule);
+		if (readiness !== undefined && !readyByReadiness) {
+			emitIssue(
+				ctx,
+				state,
+				dataIssue(
+					"tool-provider-run-retry-readiness-mismatch",
+					"Tool provider delayed retry readiness fact does not match the scheduled retry eligibility.",
+					{
+						subjectId: scheduled.scheduleId,
+						refs: sanitizeAdapterInputSourceRefs([
+							ref("tool-provider-run-retry-scheduled", scheduled.scheduleId),
+							ref("scheduled-readiness-ready", readiness.scheduleId),
+						]),
+						details: {
+							retryAtMs: scheduled.retryAtMs,
+							readyAtMs: readiness.readyAtMs,
+							nowMs: readiness.nowMs,
+						},
+					},
+				),
+			);
+		}
+		const readyByClock =
+			!state.usesSharedReadiness && state.nowMs !== undefined && scheduled.retryAtMs <= state.nowMs;
+		if (!readyByReadiness && !readyByClock) continue;
 		if (state.nextRequestsByOutcome.has(outcomeId)) continue;
 		const proposal = state.proposalsByOutcome.get(outcomeId);
 		if (proposal === undefined) continue;
 		const input = state.inputsById.get(proposal.adapterInputId);
 		if (input === undefined) continue;
-		emitRunRequest(ctx, state, input, proposal, "scheduled");
+		emitRunRequest(ctx, state, input, proposal, "scheduled", readiness);
 	}
+}
+
+function sanitizeRetryReadinessReady(
+	raw: unknown,
+):
+	| ({ readonly ok: true } & ScheduledReadinessReady)
+	| { readonly ok: false; readonly issue: DataIssue } {
+	if (
+		!isRecord(raw) ||
+		raw.kind !== "scheduled-readiness-ready" ||
+		typeof raw.scheduleId !== "string" ||
+		raw.scheduleId.length === 0 ||
+		typeof raw.readyAtMs !== "number" ||
+		!Number.isFinite(raw.readyAtMs) ||
+		typeof raw.nowMs !== "number" ||
+		!Number.isFinite(raw.nowMs) ||
+		!Array.isArray(raw.subjectRefs) ||
+		(raw.sourceRefs !== undefined && !Array.isArray(raw.sourceRefs))
+	) {
+		return {
+			ok: false,
+			issue: dataIssue(
+				"tool-provider-run-retry-readiness-malformed",
+				"Tool provider delayed retry readiness fact must be graph-visible scheduled readiness material.",
+				{
+					subjectId:
+						isRecord(raw) && typeof raw.scheduleId === "string"
+							? raw.scheduleId
+							: "unknown-scheduled-readiness",
+				},
+			),
+		};
+	}
+	return Object.freeze({
+		ok: true,
+		kind: "scheduled-readiness-ready",
+		scheduleId: raw.scheduleId,
+		subjectRefs: sanitizeAdapterInputSourceRefs(
+			raw.subjectRefs.flatMap((entry) => {
+				const sourceRef = sourceRefOrUndefined(entry);
+				return sourceRef === undefined ? [] : [sourceRef];
+			}),
+		),
+		readyAtMs: raw.readyAtMs,
+		...(typeof raw.deadlineMs === "number" && Number.isFinite(raw.deadlineMs)
+			? { deadlineMs: raw.deadlineMs }
+			: {}),
+		nowMs: raw.nowMs,
+		...(raw.sourceRefs === undefined
+			? {}
+			: {
+					sourceRefs: sanitizeAdapterInputSourceRefs(
+						raw.sourceRefs.flatMap((entry) => {
+							const sourceRef = sourceRefOrUndefined(entry);
+							return sourceRef === undefined ? [] : [sourceRef];
+						}),
+					),
+				}),
+		...(isRecord(raw.metadata)
+			? { metadata: sanitizeProviderGraphVisibleRecord(raw.metadata) }
+			: {}),
+	});
+}
+
+function readinessMatchesSchedule(
+	readiness: ScheduledReadinessReady,
+	schedule: ScheduledReadinessRequested,
+): boolean {
+	const subjectRefs = sanitizeAdapterInputSourceRefs(schedule.subjectRefs);
+	const readySubjectRefs = sanitizeAdapterInputSourceRefs(readiness.subjectRefs);
+	if (!sourceRefsContainAll(readySubjectRefs, subjectRefs)) return false;
+	return sourceRefsContainAll(sanitizeAdapterInputSourceRefs(readiness.sourceRefs ?? []), [
+		ref("scheduled-readiness", schedule.scheduleId),
+		...(schedule.sourceRefs ?? []),
+	]);
+}
+
+function sourceRefsContainAll(
+	actual: readonly SourceRef[],
+	expected: readonly SourceRef[],
+): boolean {
+	const actualKeys = new Set(actual.map(sourceRefKey));
+	return expected.every((sourceRef) => actualKeys.has(sourceRefKey(sourceRef)));
+}
+
+function sourceRefKey(sourceRef: SourceRef): string {
+	return `${sourceRef.kind}:${sourceRef.id}`;
+}
+
+function sourceRefOrUndefined(value: unknown): SourceRef | undefined {
+	if (!isRecord(value)) return undefined;
+	if (typeof value.kind !== "string" || value.kind.length === 0) return undefined;
+	if (typeof value.id !== "string" || value.id.length === 0) return undefined;
+	return isRecord(value.metadata)
+		? { kind: value.kind, id: value.id, metadata: value.metadata }
+		: { kind: value.kind, id: value.id };
 }
 
 function sanitizeToolProviderRunRetryPolicy(
@@ -503,6 +667,7 @@ function retryScheduled(
 	return Object.freeze({
 		kind: "tool-provider-run-retry-scheduled",
 		scheduleId: `${proposal.proposalId}:scheduled`,
+		readinessScheduleId: `${proposal.proposalId}:scheduled-readiness`,
 		outcomeId: outcome.outcomeId,
 		proposalId: proposal.proposalId,
 		fromRunId: proposal.fromRunId,
@@ -518,12 +683,45 @@ function retryScheduled(
 	} satisfies ToolProviderRunRetryScheduled);
 }
 
+function retryReadinessSchedule(
+	input: ToolProviderAdapterInput,
+	outcome: ExecutorOutcome,
+	proposal: ToolProviderRunRetryProposal,
+	scheduled: ToolProviderRunRetryScheduled,
+): ScheduledReadinessRequested {
+	return Object.freeze({
+		kind: "scheduled-readiness-requested",
+		scheduleId: scheduled.readinessScheduleId ?? scheduled.scheduleId,
+		subjectRefs: sanitizeAdapterInputSourceRefs([
+			ref("tool-provider-run-retry-proposal", proposal.proposalId),
+			ref("tool-provider-run-retry-scheduled", scheduled.scheduleId),
+			ref("tool-provider-adapter-input", input.adapterInputId),
+		]),
+		readyAtMs: scheduled.retryAtMs,
+		reason: "tool-provider-retry",
+		policyRefs: proposal.policyRefs,
+		sourceRefs: sanitizeAdapterInputSourceRefs([
+			ref("executor-outcome", outcome.outcomeId),
+			ref("tool-provider-run-retry-proposal", proposal.proposalId),
+			ref("tool-provider-run-retry-scheduled", scheduled.scheduleId),
+			...(scheduled.sourceRefs ?? []),
+		]),
+		metadata: sanitizeProviderGraphVisibleRecord({
+			outcomeId: outcome.outcomeId,
+			nextRunId: proposal.nextRunId,
+			nextAttempt: proposal.nextAttempt,
+			retryAfterMs: scheduled.retryAfterMs,
+		}),
+	} satisfies ScheduledReadinessRequested);
+}
+
 function emitRunRequest(
 	ctx: { down: (msgs: readonly ["DATA", ToolProviderRunRetryFact][]) => void },
 	state: ToolProviderRunRetryProjectorState,
 	input: ToolProviderAdapterInput,
 	proposal: ToolProviderRunRetryProposal,
 	mode: "immediate" | "scheduled",
+	readiness?: ScheduledReadinessReady,
 ): void {
 	const key = `request:${proposal.outcomeId}:${proposal.nextRunId}`;
 	if (state.requestKeys.has(key)) return;
@@ -540,11 +738,18 @@ function emitRunRequest(
 			...(mode === "scheduled"
 				? [ref("tool-provider-run-retry-scheduled", `${proposal.proposalId}:scheduled`)]
 				: []),
+			...(readiness === undefined
+				? []
+				: [
+						ref("scheduled-readiness-ready", readiness.scheduleId),
+						...(readiness.sourceRefs ?? []),
+					]),
 		]),
 		metadata: {
 			retryMode: mode,
 			retryProposalId: proposal.proposalId,
 			retryOfOutcomeId: proposal.outcomeId,
+			...(readiness === undefined ? {} : { readinessScheduleId: readiness.scheduleId }),
 		},
 	});
 	state.nextRequestsByOutcome.set(proposal.outcomeId, request);
@@ -602,6 +807,24 @@ function emitScheduled(
 		},
 	});
 	ctx.down([["DATA", { kind: "scheduled", scheduled }]]);
+}
+
+function emitReadinessSchedule(
+	ctx: { down: (msgs: readonly ["DATA", ToolProviderRunRetryFact][]) => void },
+	state: ToolProviderRunRetryProjectorState,
+	schedule: ScheduledReadinessRequested,
+): void {
+	const key = `readiness-schedule:${schedule.scheduleId}`;
+	if (state.readinessScheduleKeys.has(key)) return;
+	state.readinessScheduleKeys.add(key);
+	emitAudit(ctx, state, "tool-provider-run-retry-readiness-scheduled", {
+		sourceRefs: schedule.sourceRefs,
+		metadata: {
+			scheduleId: schedule.scheduleId,
+			readyAtMs: schedule.readyAtMs,
+		},
+	});
+	ctx.down([["DATA", { kind: "readiness-schedule", schedule }]]);
 }
 
 function emitStatus(
@@ -788,6 +1011,8 @@ function buildRetryViews(state: ToolProviderRunRetryProjectorState): ToolProvide
 	return Object.freeze({
 		proposalsByOutcome: new Map(state.proposalsByOutcome),
 		scheduledByOutcome: new Map(state.scheduledByOutcome),
+		readinessSchedulesByOutcome: new Map(state.readinessSchedulesByOutcome),
+		readinessBySchedule: new Map(state.readinessBySchedule),
 		nextRunRequestsByOutcome: new Map(state.nextRequestsByOutcome),
 		statusByOutcome: new Map(state.statusByOutcome),
 	});

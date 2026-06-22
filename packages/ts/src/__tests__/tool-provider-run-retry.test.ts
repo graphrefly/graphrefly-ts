@@ -5,6 +5,8 @@ import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
 import type {
 	ExecutorOutcome,
+	ScheduledReadinessReady,
+	ScheduledReadinessRequested,
 	SourceRef,
 	ToolProviderAdapterInput,
 	ToolProviderAdapterRunRequested,
@@ -14,11 +16,11 @@ import type {
 	ToolProviderRunRetryScheduled,
 	ToolProviderRunRetryStatus,
 	ToolProviderRunRetryViews,
-} from "../orchestration/agent-runtime.js";
+} from "../orchestration/index.js";
 import {
 	toolProviderRunAdmissionProjector,
 	toolProviderRunRetryProjector,
-} from "../orchestration/agent-runtime.js";
+} from "../orchestration/index.js";
 
 describe("toolProviderRunRetryProjector (D422)", () => {
 	it("emits one immediate retry run request with attempt provenance", () => {
@@ -196,8 +198,17 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 			expect.objectContaining({
 				outcomeId: outcome.outcomeId,
 				nextAttempt: 2,
+				readinessScheduleId: `${outcome.outcomeId}:retry-proposal:scheduled-readiness`,
 				retryAtMs: 1_050,
 				retryAfterMs: 50,
+			}),
+		]);
+		expect(harness.seen.readinessSchedules).toEqual([
+			expect.objectContaining({
+				kind: "scheduled-readiness-requested",
+				scheduleId: `${outcome.outcomeId}:retry-proposal:scheduled-readiness`,
+				readyAtMs: 1_050,
+				reason: "tool-provider-retry",
 			}),
 		]);
 		expect(harness.seen.runRequests).toEqual([]);
@@ -213,6 +224,145 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 				retryOfOutcomeId: outcome.outcomeId,
 			}),
 		]);
+	});
+
+	it("can consume shared scheduled-readiness ready facts for delayed retries", () => {
+		const harness = createRetryHarness({ includeClock: true, includeReadiness: true });
+		const input = readyInput("retry-shared-ready");
+		const outcome = retryableFailure(input, { attempt: 1, runId: "run-shared-ready" });
+
+		harness.inputs.down([["DATA", input]]);
+		harness.policies.down([
+			["DATA", retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 })],
+		]);
+		harness.nowMs?.down([["DATA", 1_000]]);
+		harness.outcomes.down([["DATA", outcome]]);
+
+		expect(harness.seen.runRequests).toEqual([]);
+		const schedule = harness.seen.readinessSchedules[0];
+		expect(schedule).toEqual(
+			expect.objectContaining({
+				scheduleId: `${outcome.outcomeId}:retry-proposal:scheduled-readiness`,
+				readyAtMs: 1_050,
+			}),
+		);
+
+		harness.nowMs?.down([["DATA", 1_050]]);
+		expect(harness.seen.runRequests).toEqual([]);
+
+		harness.readiness?.down([
+			[
+				"DATA",
+				{
+					kind: "scheduled-readiness-ready",
+					scheduleId: schedule?.scheduleId ?? "missing",
+					subjectRefs: schedule?.subjectRefs ?? [],
+					readyAtMs: schedule?.readyAtMs ?? 0,
+					nowMs: 1_050,
+					sourceRefs: [
+						{ kind: "scheduled-readiness", id: schedule?.scheduleId ?? "missing" },
+						...(schedule?.sourceRefs ?? []),
+					],
+				},
+			],
+		]);
+
+		expect(harness.seen.runRequests).toEqual([
+			expect.objectContaining({
+				runId: "run-shared-ready:retry-2",
+				attempt: 2,
+				retryOfOutcomeId: outcome.outcomeId,
+				sourceRefs: expect.arrayContaining([
+					{ kind: "scheduled-readiness-ready", id: schedule?.scheduleId },
+				]),
+				metadata: expect.objectContaining({ readinessScheduleId: schedule?.scheduleId }),
+			}),
+		]);
+	});
+
+	it("rejects mismatched shared readiness facts without releasing a delayed retry early", () => {
+		const harness = createRetryHarness({ includeClock: true, includeReadiness: true });
+		const input = readyInput("retry-readiness-mismatch");
+		const outcome = retryableFailure(input, { attempt: 1, runId: "run-readiness-mismatch" });
+
+		harness.inputs.down([["DATA", input]]);
+		harness.policies.down([
+			["DATA", retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 })],
+		]);
+		harness.nowMs?.down([["DATA", 1_000]]);
+		harness.outcomes.down([["DATA", outcome]]);
+		const schedule = harness.seen.readinessSchedules[0];
+
+		harness.readiness?.down([
+			[
+				"DATA",
+				{
+					kind: "scheduled-readiness-ready",
+					scheduleId: schedule?.scheduleId ?? "missing",
+					subjectRefs: schedule?.subjectRefs ?? [],
+					readyAtMs: 1_049,
+					nowMs: 1_049,
+					sourceRefs: [
+						{ kind: "scheduled-readiness", id: schedule?.scheduleId ?? "missing" },
+						...(schedule?.sourceRefs ?? []),
+					],
+				},
+			],
+		]);
+
+		expect(harness.seen.runRequests).toEqual([]);
+		expect(harness.seen.issues).toEqual([
+			expect.objectContaining({ code: "tool-provider-run-retry-readiness-mismatch" }),
+		]);
+	});
+
+	it("rejects malformed or unprovenanced shared readiness facts without releasing retry", () => {
+		const harness = createRetryHarness({ includeClock: true, includeReadiness: true });
+		const input = readyInput("retry-readiness-provenance");
+		const outcome = retryableFailure(input, { attempt: 1, runId: "run-readiness-provenance" });
+
+		harness.inputs.down([["DATA", input]]);
+		harness.policies.down([
+			["DATA", retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 })],
+		]);
+		harness.nowMs?.down([["DATA", 1_000]]);
+		harness.outcomes.down([["DATA", outcome]]);
+		const schedule = harness.seen.readinessSchedules[0];
+
+		harness.readiness?.down([
+			[
+				"DATA",
+				{
+					kind: "scheduled-readiness-ready",
+					scheduleId: schedule?.scheduleId ?? "missing",
+					subjectRefs: schedule?.subjectRefs ?? [],
+					readyAtMs: schedule?.readyAtMs ?? 0,
+					nowMs: 1_050,
+					sourceRefs: { kind: "not-array", id: "bad" },
+				} as unknown as ScheduledReadinessReady,
+			],
+		]);
+		harness.readiness?.down([
+			[
+				"DATA",
+				{
+					kind: "scheduled-readiness-ready",
+					scheduleId: schedule?.scheduleId ?? "missing",
+					subjectRefs: schedule?.subjectRefs ?? [],
+					readyAtMs: schedule?.readyAtMs ?? 0,
+					nowMs: 1_050,
+					sourceRefs: [{ kind: "external-ready", id: "unprovenanced" }],
+				},
+			],
+		]);
+
+		expect(harness.seen.runRequests).toEqual([]);
+		expect(harness.seen.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-run-retry-readiness-malformed" }),
+				expect.objectContaining({ code: "tool-provider-run-retry-readiness-mismatch" }),
+			]),
+		);
 	});
 
 	it("can schedule a delayed retry after the visible clock fact arrives later", () => {
@@ -399,26 +549,34 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 	});
 });
 
-function createRetryHarness(opts: { readonly includeClock?: boolean } = {}) {
+function createRetryHarness(
+	opts: { readonly includeClock?: boolean; readonly includeReadiness?: boolean } = {},
+) {
 	const g = graph();
 	const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "retry-inputs" });
 	const outcomes = g.node<ExecutorOutcome>([], null, { name: "retry-outcomes" });
 	const policies = g.node<ToolProviderRunRetryPolicy>([], null, { name: "retry-policies" });
 	const nowMs = opts.includeClock ? g.node<number>([], null, { name: "retry-now-ms" }) : undefined;
+	const readiness = opts.includeReadiness
+		? g.node<ScheduledReadinessReady>([], null, { name: "retry-readiness" })
+		: undefined;
 	const bundle = toolProviderRunRetryProjector(g, {
 		inputs,
 		outcomes,
 		policies: [policies],
 		...(nowMs === undefined ? {} : { nowMs }),
+		...(readiness === undefined ? {} : { readiness: [readiness] }),
 	});
 	return {
 		inputs,
 		outcomes,
 		policies,
 		nowMs,
+		readiness,
 		seen: {
 			proposals: collectData<ToolProviderRunRetryProposal>(bundle.proposals),
 			scheduled: collectData<ToolProviderRunRetryScheduled>(bundle.scheduled),
+			readinessSchedules: collectData<ScheduledReadinessRequested>(bundle.readinessSchedules),
 			runRequests: collectData<ToolProviderAdapterRunRequested>(bundle.runRequests),
 			status: collectData<ToolProviderRunRetryStatus>(bundle.status),
 			issues: collectData<DataIssue>(bundle.issues),

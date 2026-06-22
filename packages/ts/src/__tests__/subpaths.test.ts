@@ -66,6 +66,11 @@ import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
 import type {
 	ExecutorArtifactMaterial,
+	ScheduledReadinessBundle,
+	ScheduledReadinessClock,
+	ScheduledReadinessReady,
+	ScheduledReadinessRequested,
+	ScheduledReadinessStatus,
 	SizeCapacityEvidence,
 	ToolProviderAdapterInput,
 	ToolProviderAdapterInputBundle,
@@ -328,7 +333,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof workItemScheduling.workItemVerificationRequestLowerer).toBe("function");
 		expect(typeof workItemScheduling.workItemVerificationResultMapper).toBe("function");
 		expect(typeof workItemScheduling.workItemCreatedFromDraft).toBe("function");
+		expect(typeof workItemScheduling.recordWorkspaceProposal).toBe("function");
+		expect(typeof workItemScheduling.decideWorkspaceProposalAdmission).toBe("function");
+		expect(typeof workItemScheduling.projectWorkspaceProposalApplicationStatus).toBe("function");
+		expect(typeof workItemScheduling.assertWorkspaceProposalDataOnly).toBe("function");
 		expect(Object.hasOwn(solutions, "workItemAuthoringProjector")).toBe(false);
+		expect(Object.hasOwn(solutions, "recordWorkspaceProposal")).toBe(false);
 		expect(Object.hasOwn(solutions, "workItemDomainActionApplicationProjector")).toBe(false);
 		expect(typeof workItemWorkQueueRecipe.workItemWorkQueueRecipe).toBe("function");
 		expect(typeof workItemWorkQueueRecipe.workItemSubmitCommand).toBe("function");
@@ -369,6 +379,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.toolProviderAdapterRunProjector).toBe("function");
 		expect(typeof orchestration.toolProviderRunAdmissionProjector).toBe("function");
 		expect(typeof orchestration.toolProviderRunRetryProjector).toBe("function");
+		expect(typeof orchestration.scheduledReadinessProjector).toBe("function");
 		expect(typeof orchestration.buildToolProviderExecutorOutcome).toBe("function");
 		expect(Object.hasOwn(orchestration, "attachToolProviderAdapterRuntime")).toBe(false);
 		expectTypeOf<ToolProviderExecutionPolicy>().toMatchTypeOf<{
@@ -427,6 +438,19 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<ToolProviderRunRetryScheduled>().toHaveProperty("retryAtMs");
 		expectTypeOf<ToolProviderRunRetryStatus>().toHaveProperty("state");
 		expectTypeOf<ToolProviderRunRetryBundle>().toHaveProperty("runRequests");
+		expectTypeOf<ScheduledReadinessRequested>().toMatchTypeOf<{
+			readonly kind: "scheduled-readiness-requested";
+			readonly scheduleId: string;
+			readonly subjectRefs: readonly unknown[];
+			readonly readyAtMs: number;
+		}>();
+		expectTypeOf<ScheduledReadinessClock>().toMatchTypeOf<{
+			readonly kind: "scheduled-readiness-clock";
+			readonly nowMs: number;
+		}>();
+		expectTypeOf<ScheduledReadinessReady>().toHaveProperty("readyAtMs");
+		expectTypeOf<ScheduledReadinessStatus>().toHaveProperty("state");
+		expectTypeOf<ScheduledReadinessBundle>().toHaveProperty("ready");
 		expectTypeOf<ToolProviderPublicTextPolicy>().toHaveProperty("maxSummaryChars");
 		expectTypeOf<ToolProviderAdapterRunResult>().toMatchTypeOf<{ readonly kind: string }>();
 		expectTypeOf<ExecutorArtifactMaterial>().toMatchTypeOf<{
