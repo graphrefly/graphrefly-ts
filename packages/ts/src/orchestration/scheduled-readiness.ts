@@ -537,7 +537,7 @@ function emitStatus(
 	status: ScheduledReadinessStatus,
 ): void {
 	state.statusById.set(status.scheduleId, status);
-	const key = `status:${status.scheduleId}:${status.state}:${(status.issueCodes ?? []).join(",")}`;
+	const key = `status:${stableJsonStringify(status)}`;
 	if (state.emittedKeys.has(key)) return;
 	state.emittedKeys.add(key);
 	ctx.down([["DATA", { kind: "status", status }]]);

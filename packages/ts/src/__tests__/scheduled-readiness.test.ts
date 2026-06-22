@@ -31,7 +31,12 @@ describe("scheduledReadinessProjector (D424)", () => {
 			harness.seen.status.filter(
 				(status) => status.scheduleId === "sched-pending" && status.state === "pending",
 			),
-		).toHaveLength(1);
+		).toHaveLength(3);
+		expect(
+			harness.seen.status
+				.filter((status) => status.scheduleId === "sched-pending" && status.state === "pending")
+				.map((status) => status.nowMs),
+		).toEqual([undefined, 999, 999.5]);
 		expect(harness.seen.status).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ scheduleId: "sched-pending", state: "pending" }),

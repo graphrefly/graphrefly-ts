@@ -13,6 +13,26 @@ import type { Node } from "../node/node.js";
 import type { ProcessEffectRequest } from "../orchestration/index.js";
 import type { WorkQueueCommand, WorkQueueRecord } from "../work-queue/index.js";
 
+export type {
+	WorkQueueLeaseExpirationCommandBundle,
+	WorkQueueReadinessCandidate,
+	WorkQueueReadinessCandidateKind,
+	WorkQueueReadinessHandoffBundle,
+	WorkQueueReadinessHandoffStatus,
+	WorkQueueReadinessHandoffStatusState,
+	WorkQueueReadinessHandoffViews,
+	WorkQueueScheduledReadinessBundle,
+	WorkQueueScheduledReadinessScheduleKind,
+	WorkQueueScheduledReadinessStatus,
+	WorkQueueScheduledReadinessStatusState,
+	WorkQueueScheduledReadinessViews,
+} from "./work-queue-scheduled-readiness.js";
+export {
+	workQueueLeaseExpirationCommandProjector,
+	workQueueReadinessHandoffProjector,
+	workQueueScheduledReadinessProjector,
+} from "./work-queue-scheduled-readiness.js";
+
 export interface OrchestrationQueuedEffectPayload<TEffect = unknown> {
 	readonly kind: "orchestration-queued-effect";
 	readonly effect: ProcessEffectRequest<TEffect>;

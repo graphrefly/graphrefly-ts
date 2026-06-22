@@ -61,6 +61,7 @@ import type {
 	TopologyGroupReleaseOptions,
 	ViewCachePolicy,
 } from "../index.js";
+import * as rootPackage from "../index.js";
 import * as boundaryInspection from "../inspection/boundary.js";
 import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
@@ -93,6 +94,13 @@ import type {
 } from "../orchestration/index.js";
 import * as orchestration from "../orchestration/index.js";
 import * as orchestrationMessagingRecipe from "../orchestration/messaging.js";
+import type {
+	WorkQueueLeaseExpirationCommandBundle,
+	WorkQueueReadinessHandoffBundle,
+	WorkQueueReadinessHandoffStatus,
+	WorkQueueScheduledReadinessBundle,
+	WorkQueueScheduledReadinessStatus,
+} from "../orchestration/work-queue.js";
 import * as orchestrationWorkQueueRecipe from "../orchestration/work-queue.js";
 import * as eventFlowPatterns from "../patterns/event-flow.js";
 import * as patterns from "../patterns/index.js";
@@ -337,8 +345,31 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof workItemScheduling.decideWorkspaceProposalAdmission).toBe("function");
 		expect(typeof workItemScheduling.projectWorkspaceProposalApplicationStatus).toBe("function");
 		expect(typeof workItemScheduling.assertWorkspaceProposalDataOnly).toBe("function");
+		expect(
+			typeof workItemScheduling.workspaceProposalRequiredInputResponseApplicationProjector,
+		).toBe("function");
+		expect(typeof workItemScheduling.workspaceProposalWorkItemSpawnApplicationProjector).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.workspaceProposalWorkItemLinkApplicationProjector).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.workspaceProposalDomainActionApplicationProjector).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.recordWorkspaceProposalRequiredInputResponseOutcome).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.recordWorkspaceProposalWorkItemSpawnOutcome).toBe("function");
+		expect(typeof workItemScheduling.recordWorkspaceProposalWorkItemLinkOutcome).toBe("function");
+		expect(typeof workItemScheduling.recordWorkspaceProposalDomainActionOutcome).toBe("function");
+		expect(typeof workItemScheduling.projectWorkspaceProposalFamilyOutcomeIndex).toBe("function");
 		expect(Object.hasOwn(solutions, "workItemAuthoringProjector")).toBe(false);
 		expect(Object.hasOwn(solutions, "recordWorkspaceProposal")).toBe(false);
+		expect(
+			Object.hasOwn(solutions, "workspaceProposalRequiredInputResponseApplicationProjector"),
+		).toBe(false);
+		expect(Object.hasOwn(solutions, "recordWorkspaceProposalDomainActionOutcome")).toBe(false);
 		expect(Object.hasOwn(solutions, "workItemDomainActionApplicationProjector")).toBe(false);
 		expect(typeof workItemWorkQueueRecipe.workItemWorkQueueRecipe).toBe("function");
 		expect(typeof workItemWorkQueueRecipe.workItemSubmitCommand).toBe("function");
@@ -463,6 +494,24 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestrationWorkQueueRecipe.orchestrationWorkQueueRecipe).toBe("function");
 		expect(Object.hasOwn(orchestration, "orchestrationMessagingRecipe")).toBe(false);
 		expect(Object.hasOwn(orchestration, "orchestrationWorkQueueRecipe")).toBe(false);
+		expect(Object.hasOwn(orchestration, "workQueueScheduledReadinessProjector")).toBe(false);
+		expect(Object.hasOwn(orchestration, "workQueueReadinessHandoffProjector")).toBe(false);
+		expect(Object.hasOwn(orchestration, "workQueueLeaseExpirationCommandProjector")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "workQueueScheduledReadinessProjector")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "workQueueReadinessHandoffProjector")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "workQueueLeaseExpirationCommandProjector")).toBe(false);
+		expect(typeof orchestrationWorkQueueRecipe.workQueueScheduledReadinessProjector).toBe(
+			"function",
+		);
+		expect(typeof orchestrationWorkQueueRecipe.workQueueReadinessHandoffProjector).toBe("function");
+		expect(typeof orchestrationWorkQueueRecipe.workQueueLeaseExpirationCommandProjector).toBe(
+			"function",
+		);
+		expectTypeOf<WorkQueueScheduledReadinessBundle>().toHaveProperty("readinessSchedules");
+		expectTypeOf<WorkQueueScheduledReadinessStatus>().toHaveProperty("readyAtMs");
+		expectTypeOf<WorkQueueReadinessHandoffBundle>().toHaveProperty("candidates");
+		expectTypeOf<WorkQueueReadinessHandoffStatus>().toHaveProperty("candidateKind");
+		expectTypeOf<WorkQueueLeaseExpirationCommandBundle>().toHaveProperty("commands");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
 		expect(typeof solutions.capabilityAdmissionProjector).toBe("function");
 		expect(typeof solutions.capabilityAdmissionProposal).toBe("function");

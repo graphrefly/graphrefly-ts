@@ -261,6 +261,8 @@ export interface WorkspaceProposalApplicationOptions extends WorkspaceProposalPr
 	readonly applicationId: string;
 	readonly emittedFactRefs?: readonly WorkspaceProposalApplicationFamilyRef[];
 	readonly familyIssues?: readonly WorkspaceProposalRecordedIssue[];
+	readonly state?: WorkspaceProposalApplicationState;
+	readonly code?: string;
 	readonly sourceRefs?: readonly SourceRef[];
 	readonly audit?: WorkspaceProposalAuditMaterial;
 }
@@ -721,8 +723,11 @@ export function projectWorkspaceProposalApplicationStatus(
 		emittedFactRefs.length === 0 &&
 		familySupported(record.proposalFamily, options) &&
 		issues.length === 0;
-	const state: WorkspaceProposalApplicationState =
-		issues.length > 0 ? "blocked" : pendingFamilyRefs ? "pending" : "applied";
+	const state = resolveApplicationState(issues, pendingFamilyRefs, options.state);
+	const terminalRecorded =
+		(state === "applied" || state === "recorded") &&
+		issues.length === 0 &&
+		emittedFactRefs.length > 0;
 	const status: WorkspaceProposalApplicationStatus = freezeRecord({
 		kind: "workspace-proposal-application-status",
 		applicationId: options.applicationId,
@@ -736,9 +741,10 @@ export function projectWorkspaceProposalApplicationStatus(
 		targetRefs: immutableClone(record.targetRefs),
 		policyRefs: immutableClone(record.policyRefs),
 		state,
-		code: pendingFamilyRefs ? "pending-family-emitted-fact-refs" : issues[0]?.code,
+		code:
+			options.code ?? (pendingFamilyRefs ? "pending-family-emitted-fact-refs" : issues[0]?.code),
 		issues: immutableClone(issues),
-		emittedFactRefs: state === "applied" ? emittedFactRefs : [],
+		emittedFactRefs: terminalRecorded ? emittedFactRefs : [],
 		sourceRefs: uniqueRefs([
 			...recordRefs(record),
 			{ kind: "workspace-proposal-admission-decision", id: decision.decisionId },
@@ -748,20 +754,41 @@ export function projectWorkspaceProposalApplicationStatus(
 		]),
 		audit: immutableClone(options.audit ?? record.audit),
 	});
-	const recorded =
-		state === "applied"
-			? freezeRecord({
-					kind: "workspace-proposal-application-recorded",
-					applicationRecordId: `${options.applicationId}:recorded`,
-					applicationId: options.applicationId,
-					proposalId: record.proposalId,
-					decisionId: decision.decisionId,
-					emittedFactRefs,
-					sourceRefs: status.sourceRefs,
-					audit: status.audit,
-				} satisfies WorkspaceProposalApplicationRecorded)
-			: undefined;
+	const recorded = terminalRecorded
+		? freezeRecord({
+				kind: "workspace-proposal-application-recorded",
+				applicationRecordId: `${options.applicationId}:recorded`,
+				applicationId: options.applicationId,
+				proposalId: record.proposalId,
+				decisionId: decision.decisionId,
+				emittedFactRefs,
+				sourceRefs: status.sourceRefs,
+				audit: status.audit,
+			} satisfies WorkspaceProposalApplicationRecorded)
+		: undefined;
 	return { status, recorded, issues };
+}
+
+function resolveApplicationState(
+	issues: readonly WorkspaceProposalRecordedIssue[],
+	pendingFamilyRefs: boolean,
+	requestedState: WorkspaceProposalApplicationState | undefined,
+): WorkspaceProposalApplicationState {
+	if (issues.length > 0) {
+		return requestedState === "repair-needed" ||
+			requestedState === "idempotency-conflict" ||
+			requestedState === "not-applied" ||
+			requestedState === "partial"
+			? requestedState
+			: "blocked";
+	}
+	if (
+		pendingFamilyRefs &&
+		(requestedState === undefined || requestedState === "applied" || requestedState === "recorded")
+	) {
+		return "pending";
+	}
+	return requestedState ?? (pendingFamilyRefs ? "pending" : "applied");
 }
 
 export function validateWorkspaceProposalApplicationEnvelope(
