@@ -4,7 +4,9 @@ import {
 	decideWorkspaceProposalAdmission,
 	projectWorkspaceProposalApplicationStatus,
 	projectWorkspaceProposalDomainActionApplicationStatus,
+	projectWorkspaceProposalFamilyApplicationDiagnostics,
 	projectWorkspaceProposalFamilyOutcomeIndex,
+	projectWorkspaceProposalRepairReviewRequests,
 	projectWorkspaceProposalRequiredInputResponseApplication,
 	projectWorkspaceProposalWorkItemLinkApplication,
 	projectWorkspaceProposalWorkItemSpawnApplication,
@@ -33,6 +35,8 @@ import {
 	type WorkspaceProposalWorkItemSpawnApplicationContext,
 	workspaceProposalApplicationFamilyRef,
 	workspaceProposalDomainActionApplicationProjector,
+	workspaceProposalFamilyApplicationDiagnosticProjector,
+	workspaceProposalRepairReviewProjector,
 	workspaceProposalRequiredInputResponseApplicationProjector,
 	workspaceProposalWorkItemLinkApplicationProjector,
 	workspaceProposalWorkItemSpawnApplicationProjector,
@@ -497,9 +501,20 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			expect(harness.status).toEqual([]);
 			expect(harness.recorded).toEqual([]);
 			expect(harness.familyTruth).toEqual([]);
+			expect(harness.repairRequests).toEqual([]);
 			expect(harness.issues.map((entry) => entry.code)).toEqual([
 				"missing-workspace-proposal-recorded",
 				"missing-workspace-proposal-admission-decision",
+			]);
+			expect(harness.diagnostics.map((entry) => entry.code)).toEqual([
+				"missing-workspace-proposal-recorded",
+				"missing-workspace-proposal-admission-decision",
+				"missing-durable-handoff",
+			]);
+			expect(harness.diagnostics.map((entry) => entry.classification)).toEqual([
+				"missing-durable-handoff",
+				"missing-durable-handoff",
+				"missing-durable-handoff",
 			]);
 			expect(harness.audit).toEqual([
 				expect.objectContaining({
@@ -541,11 +556,20 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(harness.audit).toHaveLength(1);
 		expect(harness.status).toEqual([]);
 		expect(harness.familyTruth).toEqual([]);
+		expect(harness.diagnostics.map((entry) => entry.code)).toEqual([
+			"missing-workspace-proposal-recorded",
+			"missing-workspace-proposal-admission-decision",
+			"missing-durable-handoff",
+		]);
+		expect(harness.repairRequests).toEqual([]);
 
+		harness.gates.down([["DATA", requiredInputGate()]]);
 		harness.records.down([["DATA", record]]);
 		harness.decisions.down([["DATA", admittedDecision(record)]]);
-		harness.gates.down([["DATA", requiredInputGate()]]);
 
+		expect(harness.diagnostics.map((entry) => entry.code)).toContain(
+			"missing-workspace-proposal-recorded",
+		);
 		expect(harness.familyTruth).toHaveLength(1);
 		expect(harness.status.at(-1)).toMatchObject({
 			applicationId: "application-required-late",
@@ -560,6 +584,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(harness.recorded.at(-1)).toMatchObject({
 			applicationId: "application-required-late",
 		});
+		expect(harness.repairRequests).toEqual([]);
 	});
 
 	it("diagnoses an explicit missing decisionId without falling back to another proposal decision", () => {
@@ -886,11 +911,15 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			...linkDraft(),
 			eventId: "link-event-1",
 		});
-		const second = proposalRecord("work-item-link", {
-			...linkDraft(),
-			proposalId: "proposal-2",
-			eventId: "link-event-1",
-		});
+		const second = proposalRecordWithProposalId(
+			"work-item-link",
+			{
+				...linkDraft(),
+				proposalId: "proposal-2",
+				eventId: "link-event-1",
+			},
+			"proposal-2",
+		);
 		const secondDecision = admittedDecision(second);
 
 		workItems.down([["DATA", workItem("wi-1")]]);
@@ -927,6 +956,40 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			code: "idempotency-conflict",
 			emittedFactRefs: [],
 		});
+
+		const diagnostics = workspaceProposalFamilyApplicationDiagnosticProjector(g, {
+			applicationStatuses: bundle.status,
+		});
+		const repair = workspaceProposalRepairReviewProjector(g, {
+			applicationStatuses: bundle.status,
+		});
+		const diagnosticView = collectData(diagnostics.diagnostics);
+		const repairRequests = collectData(repair.requests);
+
+		contexts.down([
+			[
+				"DATA",
+				{
+					kind: "workspace-proposal-work-item-link-application-context",
+					applicationId: "application-link-2",
+					proposalId: second.proposalId,
+				},
+			],
+		]);
+
+		expect(linked).toHaveLength(1);
+		expect(diagnosticView.map((entry) => entry.code)).toContain("idempotency-conflict");
+		expect(repairRequests).toEqual([
+			expect.objectContaining({
+				kind: "workspace-proposal-repair-review-request",
+				applicationId: "application-link-2",
+				proposalId: "proposal-2",
+				decisionId: secondDecision.decisionId,
+				idempotencyKey: second.idempotencyKey,
+				proposalFamily: "work-item-link",
+				code: "idempotency-conflict",
+			}),
+		]);
 	});
 
 	it("graph domain-action adapter stays repair-needed until D430-provenance facts arrive", () => {
@@ -970,6 +1033,21 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			code: "missing-domain-action-facts",
 			emittedFactRefs: [],
 		});
+		expect(
+			projectWorkspaceProposalRepairReviewRequests({
+				applicationStatuses: status,
+			}),
+		).toEqual([
+			expect.objectContaining({
+				kind: "workspace-proposal-repair-review-request",
+				applicationId: "application-domain-missing",
+				proposalId: record.proposalId,
+				decisionId: "decision-1",
+				idempotencyKey: record.idempotencyKey,
+				proposalFamily: "work-item-domain-action",
+				code: "missing-domain-action-facts",
+			}),
+		]);
 	});
 
 	it("graph domain-action adapter waits for every explicitly requested emitted fact id", () => {
@@ -1355,6 +1433,243 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			}),
 		]);
 	});
+
+	it("projects diagnostic view and repair review from existing durable material only", () => {
+		const record = proposalRecord("work-item-link", linkDraft());
+		const application = projectWorkspaceProposalWorkItemLinkApplication(
+			record,
+			admittedDecision(record),
+			{
+				applicationId: "application-link-diagnostics",
+				workItems: [workItem("wi-1"), workItem("wi-2")],
+			},
+		);
+		const outcomeStatus = recordWorkspaceProposalWorkItemLinkOutcome(application.status, {
+			outcomeId: "link-diagnostic-outcome",
+			horizon: {
+				kind: "workspace-proposal-family-evidence-horizon",
+				horizonId: "horizon-closed-diagnostic",
+				applicationId: application.status.applicationId,
+				state: "closed",
+			},
+		}).status;
+		const duplicateDiagnostics = projectWorkspaceProposalFamilyApplicationDiagnostics({
+			applicationStatuses: [application.status, application.status],
+			outcomeStatuses: [outcomeStatus, outcomeStatus],
+		});
+
+		expect(duplicateDiagnostics.map((entry) => entry.classification)).toEqual([
+			"missing-family-material",
+		]);
+		expect(duplicateDiagnostics[0]).toMatchObject({
+			kind: "workspace-proposal-family-application-diagnostic",
+			applicationId: "application-link-diagnostics",
+			proposalId: record.proposalId,
+			decisionId: "decision-1",
+			proposalFamily: "work-item-link",
+			code: "missing-required-field",
+		});
+
+		expect(
+			projectWorkspaceProposalRepairReviewRequests({
+				outcomeStatuses: [outcomeStatus],
+			}),
+		).toEqual([]);
+		expect(
+			projectWorkspaceProposalRepairReviewRequests({
+				applicationStatuses: [application.status],
+				outcomeStatuses: [{ ...outcomeStatus, proposalId: "other-proposal" }],
+			}),
+		).toEqual([]);
+		expect(
+			projectWorkspaceProposalRepairReviewRequests({
+				applicationStatuses: [application.status],
+				outcomeStatuses: [outcomeStatus, outcomeStatus],
+			}),
+		).toEqual([
+			expect.objectContaining({
+				applicationId: "application-link-diagnostics",
+				code: "missing-required-field",
+				proposalFamily: "work-item-link",
+			}),
+		]);
+	});
+
+	it("dedupes graph-visible diagnostic and repair review projection on replay", () => {
+		const g = graph();
+		const statuses = g.node<WorkspaceProposalApplicationStatus>([], null, { name: "statuses" });
+		const diagnostics = workspaceProposalFamilyApplicationDiagnosticProjector(g, {
+			applicationStatuses: statuses,
+		});
+		const repair = workspaceProposalRepairReviewProjector(g, {
+			applicationStatuses: statuses,
+		});
+		const diagnosticView = collectData(diagnostics.diagnostics);
+		const repairRequests = collectData(repair.requests);
+		const record = proposalRecord("work-item-domain-action", {
+			kind: "work-item-domain-action-proposal-intake",
+			proposalId: "proposal-1",
+			workItemId: "wi-1",
+			actionKind: "patch",
+			payload: { patch: { summary: "Updated" } },
+		});
+		const pending = projectWorkspaceProposalDomainActionApplicationStatus(
+			record,
+			admittedDecision(record),
+			{
+				applicationId: "application-domain-replay-repair",
+				emittedFacts: [],
+			},
+		).status;
+		const repairNeeded = {
+			...pending,
+			state: "repair-needed",
+			code: "missing-domain-action-facts",
+			issues: [
+				{
+					kind: "issue",
+					source: "workspace-proposal",
+					severity: "error",
+					code: "missing-domain-action-facts",
+					message: "Workspace proposal family application material is missing",
+					subjectId: pending.proposalId,
+					refs: pending.sourceRefs.map((sourceRef) => `${sourceRef.kind}:${sourceRef.id}`),
+				},
+			],
+		} satisfies typeof pending;
+
+		statuses.down([["DATA", repairNeeded]]);
+		statuses.down([["DATA", repairNeeded]]);
+
+		expect(diagnosticView).toHaveLength(1);
+		expect(diagnosticView[0]).toMatchObject({
+			classification: "missing-family-material",
+			code: "missing-domain-action-facts",
+		});
+		expect(repairRequests).toHaveLength(1);
+		expect(repairRequests[0]?.repairRequestId).toContain("workspace-proposal-repair-review:");
+
+		const repairIssue = repairNeeded.issues[0];
+		if (repairIssue === undefined) throw new Error("expected repair issue");
+		const updatedRepairNeeded = {
+			...repairNeeded,
+			issues: [
+				{
+					...repairIssue,
+					message: "Workspace proposal family application material is still missing",
+				},
+			],
+			sourceRefs: [
+				...repairNeeded.sourceRefs,
+				{ kind: "manual-review", id: "repair-context-updated" },
+			],
+		} satisfies typeof repairNeeded;
+
+		statuses.down([["DATA", updatedRepairNeeded]]);
+
+		expect(diagnosticView).toHaveLength(2);
+		expect(diagnosticView.at(-1)?.issues[0]?.message).toBe(
+			"Workspace proposal family application material is still missing",
+		);
+		expect(repairRequests).toHaveLength(2);
+		expect(repairRequests.at(-1)?.repairRequestId).toBe(repairRequests[0]?.repairRequestId);
+
+		const oldDelimitedCollisionA = {
+			...repairNeeded,
+			applicationId: "a:b",
+			proposalId: "proposal-a",
+			decisionId: "decision-a",
+			idempotencyKey: "c",
+		} satisfies typeof repairNeeded;
+		const oldDelimitedCollisionB = {
+			...repairNeeded,
+			applicationId: "a",
+			proposalId: "proposal-b",
+			decisionId: "decision-b",
+			idempotencyKey: "b:c",
+		} satisfies typeof repairNeeded;
+		const collisionIds = projectWorkspaceProposalRepairReviewRequests({
+			applicationStatuses: [oldDelimitedCollisionA, oldDelimitedCollisionB],
+		}).map((entry) => entry.repairRequestId);
+		expect(collisionIds).toHaveLength(2);
+		expect(new Set(collisionIds).size).toBe(2);
+	});
+
+	it("classifies malformed repair-needed material before missing-family fallback", () => {
+		const record = proposalRecord("work-item-link", linkDraft());
+		const pending = projectWorkspaceProposalWorkItemLinkApplication(
+			record,
+			admittedDecision(record),
+			{
+				applicationId: "application-malformed-repair",
+				workItems: [workItem("wi-1"), workItem("wi-2")],
+			},
+		).status;
+		const malformedRepair = {
+			...pending,
+			state: "repair-needed",
+			code: "malformed-family-draft",
+			issues: [
+				{
+					kind: "issue",
+					source: "workspace-proposal",
+					severity: "error",
+					code: "malformed-family-draft",
+					message: "WorkItem link draft is malformed",
+					subjectId: pending.proposalId,
+					refs: pending.sourceRefs.map((sourceRef) => `${sourceRef.kind}:${sourceRef.id}`),
+				},
+			],
+		} satisfies typeof pending;
+
+		expect(
+			projectWorkspaceProposalFamilyApplicationDiagnostics({
+				applicationStatuses: [malformedRepair],
+			}),
+		).toEqual([
+			expect.objectContaining({
+				classification: "malformed-family-material",
+				code: "malformed-family-draft",
+			}),
+		]);
+		expect(
+			projectWorkspaceProposalRepairReviewRequests({
+				applicationStatuses: [malformedRepair],
+			}),
+		).toEqual([]);
+	});
+
+	it("keeps D438 missing durable diagnostics out of repair review lowering", () => {
+		const missingIssue = {
+			kind: "issue",
+			source: "workspace-proposal",
+			severity: "error",
+			code: "missing-workspace-proposal-recorded",
+			message: "Workspace family application context references a missing durable proposal record",
+			subjectId: "proposal-missing",
+			refs: [
+				"workspace-proposal-application-context:application-missing",
+				"workspace-proposal-recorded:proposal-missing",
+			],
+			metadata: {
+				applicationId: "application-missing",
+				proposalId: "proposal-missing",
+			},
+		} satisfies WorkspaceProposalRecordedIssue;
+		const diagnostics = projectWorkspaceProposalFamilyApplicationDiagnostics({
+			issues: [missingIssue, missingIssue],
+		});
+
+		expect(diagnostics).toEqual([
+			expect.objectContaining({
+				classification: "missing-durable-handoff",
+				code: "missing-workspace-proposal-recorded",
+				applicationId: "application-missing",
+				proposalId: "proposal-missing",
+			}),
+		]);
+		expect(projectWorkspaceProposalRepairReviewRequests({})).toEqual([]);
+	});
 });
 
 function requiredInputProjectorHarness() {
@@ -1377,6 +1692,14 @@ function requiredInputProjectorHarness() {
 		contexts,
 		gates,
 	});
+	const diagnostics = workspaceProposalFamilyApplicationDiagnosticProjector(g, {
+		issues: bundle.issues,
+		audit: bundle.audit,
+		applicationStatuses: bundle.status,
+	});
+	const repair = workspaceProposalRepairReviewProjector(g, {
+		applicationStatuses: bundle.status,
+	});
 	return {
 		records,
 		decisions,
@@ -1386,6 +1709,8 @@ function requiredInputProjectorHarness() {
 		recorded: collectData(bundle.recorded),
 		issues: collectData(bundle.issues),
 		audit: collectData(bundle.audit),
+		diagnostics: collectData(diagnostics.diagnostics),
+		repairRequests: collectData(repair.requests),
 		familyTruth: collectData(bundle.applied),
 	};
 }
@@ -1404,6 +1729,14 @@ function spawnProjectorHarness() {
 		decisions,
 		contexts,
 	});
+	const diagnostics = workspaceProposalFamilyApplicationDiagnosticProjector(g, {
+		issues: bundle.issues,
+		audit: bundle.audit,
+		applicationStatuses: bundle.status,
+	});
+	const repair = workspaceProposalRepairReviewProjector(g, {
+		applicationStatuses: bundle.status,
+	});
 	const familyTruth = collectDataFromNodes(bundle.created, bundle.linked);
 	return {
 		records,
@@ -1413,6 +1746,8 @@ function spawnProjectorHarness() {
 		recorded: collectData(bundle.recorded),
 		issues: collectData(bundle.issues),
 		audit: collectData(bundle.audit),
+		diagnostics: collectData(diagnostics.diagnostics),
+		repairRequests: collectData(repair.requests),
 		familyTruth,
 	};
 }
@@ -1431,6 +1766,14 @@ function linkProjectorHarness() {
 		decisions,
 		contexts,
 	});
+	const diagnostics = workspaceProposalFamilyApplicationDiagnosticProjector(g, {
+		issues: bundle.issues,
+		audit: bundle.audit,
+		applicationStatuses: bundle.status,
+	});
+	const repair = workspaceProposalRepairReviewProjector(g, {
+		applicationStatuses: bundle.status,
+	});
 	const familyTruth = collectDataFromNodes(bundle.linked, bundle.unlinked);
 	return {
 		records,
@@ -1440,6 +1783,8 @@ function linkProjectorHarness() {
 		recorded: collectData(bundle.recorded),
 		issues: collectData(bundle.issues),
 		audit: collectData(bundle.audit),
+		diagnostics: collectData(diagnostics.diagnostics),
+		repairRequests: collectData(repair.requests),
 		familyTruth,
 	};
 }
@@ -1458,6 +1803,14 @@ function domainActionProjectorHarness() {
 		contexts,
 		emittedFacts,
 	});
+	const diagnostics = workspaceProposalFamilyApplicationDiagnosticProjector(g, {
+		issues: bundle.issues,
+		audit: bundle.audit,
+		applicationStatuses: bundle.status,
+	});
+	const repair = workspaceProposalRepairReviewProjector(g, {
+		applicationStatuses: bundle.status,
+	});
 	return {
 		records,
 		decisions,
@@ -1467,6 +1820,8 @@ function domainActionProjectorHarness() {
 		recorded: collectData(bundle.recorded),
 		issues: collectData(bundle.issues),
 		audit: collectData(bundle.audit),
+		diagnostics: collectData(diagnostics.diagnostics),
+		repairRequests: collectData(repair.requests),
 		familyTruth: [] as unknown[],
 	};
 }

@@ -452,6 +452,79 @@ export interface WorkspaceProposalRepairReviewRequest {
 	readonly audit?: WorkspaceProposalAuditMaterial;
 }
 
+/** D438/D434 diagnostic classes for Workspace family application view material. */
+export type WorkspaceProposalFamilyApplicationDiagnosticClass =
+	| "missing-durable-handoff"
+	| "missing-family-material"
+	| "idempotency-conflict"
+	| "malformed-family-material";
+
+/**
+ * Human-visible Workspace diagnostic view material.
+ *
+ * This is projection-only: it does not create proposal, admission, application,
+ * family truth, outcome, or repair authority (D438/D434/D437).
+ */
+export interface WorkspaceProposalFamilyApplicationDiagnostic {
+	readonly kind: "workspace-proposal-family-application-diagnostic";
+	readonly diagnosticId: string;
+	readonly classification: WorkspaceProposalFamilyApplicationDiagnosticClass;
+	readonly applicationId?: string;
+	readonly proposalId?: string;
+	readonly decisionId?: string;
+	readonly idempotencyKey?: string;
+	readonly proposalFamily?: WorkspaceProposalFamily;
+	readonly code: string;
+	readonly issues: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+}
+
+/** Existing material consumed by the family application diagnostic projector. */
+export interface WorkspaceProposalFamilyApplicationDiagnosticProjectionInput {
+	readonly issues?: readonly WorkspaceProposalRecordedIssue[];
+	readonly audit?: readonly WorkspaceProposalFamilyApplicationAuditRecord[];
+	readonly applicationStatuses?: readonly WorkspaceProposalApplicationStatus[];
+	readonly outcomeStatuses?: readonly WorkspaceProposalFamilyOutcomeRecordStatus[];
+	readonly outcomeIndex?: readonly WorkspaceProposalFamilyOutcomeIndexEntry[];
+}
+
+/** Graph inputs for the family application diagnostic projector. */
+export interface WorkspaceProposalFamilyApplicationDiagnosticProjectorOptions {
+	readonly name?: string;
+	readonly issues?: Node<WorkspaceProposalRecordedIssue>;
+	readonly audit?: Node<WorkspaceProposalFamilyApplicationAuditRecord>;
+	readonly applicationStatuses?: Node<WorkspaceProposalApplicationStatus>;
+	readonly outcomeStatuses?: Node<WorkspaceProposalFamilyOutcomeRecordStatus>;
+	readonly outcomeIndex?: Node<WorkspaceProposalFamilyOutcomeIndexEntry>;
+}
+
+/** Graph-visible diagnostic projection output. */
+export interface WorkspaceProposalFamilyApplicationDiagnosticProjectorBundle {
+	readonly diagnostics: Node<WorkspaceProposalFamilyApplicationDiagnostic>;
+}
+
+/** Existing durable status/outcome/index material eligible for repair review lowering. */
+export interface WorkspaceProposalRepairReviewProjectionInput {
+	readonly applicationStatuses?: readonly WorkspaceProposalApplicationStatus[];
+	readonly outcomeStatuses?: readonly WorkspaceProposalFamilyOutcomeRecordStatus[];
+	readonly outcomeIndex?: readonly WorkspaceProposalFamilyOutcomeIndexEntry[];
+}
+
+/** Graph inputs for human-visible repair review request projection. */
+export interface WorkspaceProposalRepairReviewProjectorOptions {
+	readonly name?: string;
+	readonly applicationStatuses?: Node<WorkspaceProposalApplicationStatus>;
+	readonly outcomeStatuses?: Node<WorkspaceProposalFamilyOutcomeRecordStatus>;
+	readonly outcomeIndex?: Node<WorkspaceProposalFamilyOutcomeIndexEntry>;
+}
+
+/** Graph-visible human review requests; requests do not authorize remutation. */
+export interface WorkspaceProposalRepairReviewProjectorBundle {
+	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
+}
+
 type WorkspaceProposalFamilyApplicationRuntimeFact<TInput = unknown, TValue = unknown> =
 	| {
 			readonly kind: "required-input-response-applied";
@@ -464,6 +537,26 @@ type WorkspaceProposalFamilyApplicationRuntimeFact<TInput = unknown, TValue = un
 	| { readonly kind: "recorded"; readonly value: WorkspaceProposalApplicationRecorded }
 	| { readonly kind: "issue"; readonly value: WorkspaceProposalRecordedIssue }
 	| { readonly kind: "audit"; readonly value: WorkspaceProposalFamilyApplicationAuditRecord };
+
+type WorkspaceProposalFamilyApplicationDiagnosticInputFact =
+	| { readonly kind: "issue"; readonly value: WorkspaceProposalRecordedIssue }
+	| { readonly kind: "audit"; readonly value: WorkspaceProposalFamilyApplicationAuditRecord }
+	| { readonly kind: "application-status"; readonly value: WorkspaceProposalApplicationStatus }
+	| {
+			readonly kind: "outcome-status";
+			readonly value: WorkspaceProposalFamilyOutcomeRecordStatus;
+	  }
+	| { readonly kind: "outcome-index"; readonly value: WorkspaceProposalFamilyOutcomeIndexEntry };
+
+interface WorkspaceProposalFamilyApplicationProjectionState {
+	readonly issues: Map<string, WorkspaceProposalRecordedIssue>;
+	readonly audit: Map<string, WorkspaceProposalFamilyApplicationAuditRecord>;
+	readonly applicationStatuses: Map<string, WorkspaceProposalApplicationStatus>;
+	readonly outcomeStatuses: Map<string, WorkspaceProposalFamilyOutcomeRecordStatus>;
+	readonly outcomeIndex: Map<string, WorkspaceProposalFamilyOutcomeIndexEntry>;
+	readonly emittedDiagnostics: Map<string, string>;
+	readonly emittedRepairRequests: Map<string, string>;
+}
 
 interface WorkspaceProposalFamilyProjectorState<TInput = unknown, TDraft = unknown> {
 	readonly records: Map<string, WorkspaceProposalRecorded<TDraft>>;
@@ -941,6 +1034,655 @@ export function projectWorkspaceProposalFamilyOutcomeIndex(
 			issues,
 		} satisfies WorkspaceProposalFamilyOutcomeIndexEntry;
 	});
+}
+
+/**
+ * Projects D438/D434/D437 diagnostic view material from existing graph facts only.
+ *
+ * Missing durable handoff issues remain diagnostic-only and never synthesize
+ * application status, family truth, outcome, or repair review authority.
+ */
+export function projectWorkspaceProposalFamilyApplicationDiagnostics(
+	input: WorkspaceProposalFamilyApplicationDiagnosticProjectionInput,
+): readonly WorkspaceProposalFamilyApplicationDiagnostic[] {
+	const diagnostics = new Map<string, WorkspaceProposalFamilyApplicationDiagnostic>();
+	for (const issue of input.issues ?? []) {
+		const classification = diagnosticClassForIssue(issue);
+		if (classification === undefined) continue;
+		upsertDiagnostic(diagnostics, diagnosticFromIssue(issue, classification));
+	}
+	for (const audit of input.audit ?? []) {
+		if (audit.code === "missing-durable-handoff") {
+			upsertDiagnostic(diagnostics, diagnosticFromAudit(audit, "missing-durable-handoff"));
+		}
+	}
+	for (const status of input.applicationStatuses ?? []) {
+		const classification = diagnosticClassForApplicationStatus(status);
+		if (classification === undefined) continue;
+		upsertDiagnostic(diagnostics, diagnosticFromApplicationStatus(status, classification));
+	}
+	for (const status of input.outcomeStatuses ?? []) {
+		const classification = diagnosticClassForOutcomeStatus(status);
+		if (classification === undefined) continue;
+		upsertDiagnostic(diagnostics, diagnosticFromOutcomeStatus(status, classification));
+	}
+	for (const entry of input.outcomeIndex ?? []) {
+		if (entry.state !== "idempotency-conflict") continue;
+		upsertDiagnostic(diagnostics, diagnosticFromOutcomeIndex(entry));
+	}
+	return [...diagnostics.values()];
+}
+
+/** Graph-visible variant of `projectWorkspaceProposalFamilyApplicationDiagnostics`. */
+export function workspaceProposalFamilyApplicationDiagnosticProjector(
+	graph: Graph,
+	opts: WorkspaceProposalFamilyApplicationDiagnosticProjectorOptions,
+): WorkspaceProposalFamilyApplicationDiagnosticProjectorBundle {
+	const name = opts.name ?? "workspaceProposalFamilyApplicationDiagnostic";
+	const { deps, depKinds } = diagnosticProjectionDeps(opts);
+	const runtime = graph.node<
+		| { readonly kind: "diagnostic"; readonly value: WorkspaceProposalFamilyApplicationDiagnostic }
+		| undefined
+	>(
+		deps,
+		(ctx) => {
+			const state = familyProjectionState(ctx);
+			ingestDiagnosticInputFacts(ctx, state, depKinds);
+			for (const diagnostic of projectWorkspaceProposalFamilyApplicationDiagnostics({
+				issues: [...state.issues.values()],
+				audit: [...state.audit.values()],
+				applicationStatuses: [...state.applicationStatuses.values()],
+				outcomeStatuses: [...state.outcomeStatuses.values()],
+				outcomeIndex: [...state.outcomeIndex.values()],
+			})) {
+				const signature = diagnosticSignature(diagnostic);
+				if (state.emittedDiagnostics.get(diagnostic.diagnosticId) === signature) continue;
+				state.emittedDiagnostics.set(diagnostic.diagnosticId, signature);
+				ctx.down([["DATA", { kind: "diagnostic", value: diagnostic }]]);
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalFamilyApplicationDiagnosticProjector"),
+	);
+	return {
+		diagnostics: project(graph, runtime, `${name}/diagnostics`, `${name}Diagnostics`, (fact) =>
+			fact?.kind === "diagnostic" ? fact.value : undefined,
+		),
+	};
+}
+
+/**
+ * Lowers durable repair-needed or idempotency-conflict material to human review.
+ *
+ * The lowerer requires durable application coordinates and never emits retry,
+ * remutation, family facts, or proposal/admission/application truth.
+ */
+export function projectWorkspaceProposalRepairReviewRequests(
+	input: WorkspaceProposalRepairReviewProjectionInput,
+): readonly WorkspaceProposalRepairReviewRequest[] {
+	const applicationStatuses = new Map(
+		(input.applicationStatuses ?? []).map((status) => [status.applicationId, status]),
+	);
+	const requests = new Map<string, WorkspaceProposalRepairReviewRequest>();
+	for (const status of applicationStatuses.values()) {
+		if (!repairReviewState(status.state)) continue;
+		if (!repairReviewClassification(diagnosticClassForApplicationStatus(status))) continue;
+		upsertRepairRequest(requests, repairRequestFromApplicationStatus(status));
+	}
+	for (const status of input.outcomeStatuses ?? []) {
+		if (!repairReviewState(status.state)) continue;
+		const applicationStatus = applicationStatuses.get(status.applicationId);
+		if (applicationStatus === undefined) continue;
+		if (!sameApplicationCoordinates(applicationStatus, status)) continue;
+		if (!repairReviewClassification(diagnosticClassForOutcomeStatus(status))) continue;
+		upsertRepairRequest(requests, repairRequestFromOutcomeStatus(status, applicationStatus));
+	}
+	for (const entry of input.outcomeIndex ?? []) {
+		if (entry.state !== "idempotency-conflict") continue;
+		const applicationStatus = applicationStatuses.get(entry.applicationId);
+		if (applicationStatus === undefined) continue;
+		if (!sameApplicationCoordinates(applicationStatus, entry)) continue;
+		upsertRepairRequest(requests, repairRequestFromOutcomeIndex(entry, applicationStatus));
+	}
+	return [...requests.values()];
+}
+
+/** Graph-visible variant of `projectWorkspaceProposalRepairReviewRequests`. */
+export function workspaceProposalRepairReviewProjector(
+	graph: Graph,
+	opts: WorkspaceProposalRepairReviewProjectorOptions,
+): WorkspaceProposalRepairReviewProjectorBundle {
+	const name = opts.name ?? "workspaceProposalRepairReview";
+	const { deps, depKinds } = repairReviewProjectionDeps(opts);
+	const runtime = graph.node<
+		| {
+				readonly kind: "repair-review-request";
+				readonly value: WorkspaceProposalRepairReviewRequest;
+		  }
+		| undefined
+	>(
+		deps,
+		(ctx) => {
+			const state = familyProjectionState(ctx);
+			ingestDiagnosticInputFacts(ctx, state, depKinds);
+			for (const request of projectWorkspaceProposalRepairReviewRequests({
+				applicationStatuses: [...state.applicationStatuses.values()],
+				outcomeStatuses: [...state.outcomeStatuses.values()],
+				outcomeIndex: [...state.outcomeIndex.values()],
+			})) {
+				const signature = repairRequestSignature(request);
+				if (state.emittedRepairRequests.get(request.repairRequestId) === signature) continue;
+				state.emittedRepairRequests.set(request.repairRequestId, signature);
+				ctx.down([["DATA", { kind: "repair-review-request", value: request }]]);
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalRepairReviewProjector"),
+	);
+	return {
+		requests: project(graph, runtime, `${name}/requests`, `${name}Requests`, (fact) =>
+			fact?.kind === "repair-review-request" ? fact.value : undefined,
+		),
+	};
+}
+
+function diagnosticClassForIssue(
+	issue: WorkspaceProposalRecordedIssue,
+): WorkspaceProposalFamilyApplicationDiagnosticClass | undefined {
+	switch (issue.code) {
+		case "missing-workspace-proposal-recorded":
+		case "missing-workspace-proposal-admission-decision":
+			return "missing-durable-handoff";
+		case "idempotency-conflict":
+			return "idempotency-conflict";
+		case "missing-required-input-gate":
+		case "missing-domain-action-facts":
+		case "missing-family-application-ref":
+		case "application-not-recordable":
+		case "application-status-has-issues":
+		case "missing-required-field":
+			return "missing-family-material";
+		case "malformed-family-draft":
+		case "malformed-family-context":
+		case "malformed-family-evidence-horizon":
+		case "malformed-family-completion-policy":
+		case "malformed-application-status":
+		case "forbidden-runtime-material":
+			return "malformed-family-material";
+		default:
+			return undefined;
+	}
+}
+
+function diagnosticClassForApplicationStatus(
+	status: WorkspaceProposalApplicationStatus,
+): WorkspaceProposalFamilyApplicationDiagnosticClass | undefined {
+	if (status.state === "idempotency-conflict") return "idempotency-conflict";
+	const issueClass = firstDiagnosticClass(status.issues);
+	if (status.state === "repair-needed") return issueClass ?? "missing-family-material";
+	return issueClass === "missing-durable-handoff" ? undefined : issueClass;
+}
+
+function diagnosticClassForOutcomeStatus(
+	status: WorkspaceProposalFamilyOutcomeRecordStatus,
+): WorkspaceProposalFamilyApplicationDiagnosticClass | undefined {
+	if (status.state === "idempotency-conflict") return "idempotency-conflict";
+	if (status.state === "repair-needed" || status.state === "pending") {
+		const issueClass = firstDiagnosticClass(status.issues);
+		return issueClass ?? "missing-family-material";
+	}
+	return firstDiagnosticClass(status.issues);
+}
+
+function firstDiagnosticClass(
+	issues: readonly WorkspaceProposalRecordedIssue[],
+): WorkspaceProposalFamilyApplicationDiagnosticClass | undefined {
+	for (const issue of issues) {
+		const classification = diagnosticClassForIssue(issue);
+		if (classification !== undefined) return classification;
+	}
+	return undefined;
+}
+
+function diagnosticFromIssue(
+	issue: WorkspaceProposalRecordedIssue,
+	classification: WorkspaceProposalFamilyApplicationDiagnosticClass,
+): WorkspaceProposalFamilyApplicationDiagnostic {
+	const metadata = isRecord(issue.metadata) ? issue.metadata : {};
+	const applicationId = stringField(metadata.applicationId);
+	const proposalId = stringField(metadata.proposalId) ?? issue.subjectId;
+	const decisionId = stringField(metadata.decisionId);
+	return {
+		kind: "workspace-proposal-family-application-diagnostic",
+		diagnosticId: diagnosticId({
+			classification,
+			code: issue.code,
+			applicationId,
+			proposalId,
+			decisionId,
+			refs: issue.refs,
+		}),
+		classification,
+		applicationId,
+		proposalId,
+		decisionId,
+		code: issue.code,
+		issues: [issue],
+		sourceRefs: [],
+		metadata: { refs: issue.refs },
+	};
+}
+
+function diagnosticFromAudit(
+	audit: WorkspaceProposalFamilyApplicationAuditRecord,
+	classification: WorkspaceProposalFamilyApplicationDiagnosticClass,
+): WorkspaceProposalFamilyApplicationDiagnostic {
+	const code = audit.code ?? classification;
+	return {
+		kind: "workspace-proposal-family-application-diagnostic",
+		diagnosticId: diagnosticId({
+			classification,
+			code,
+			applicationId: audit.applicationId,
+			proposalId: audit.proposalId,
+			decisionId: audit.decisionId,
+			proposalFamily: audit.proposalFamily,
+		}),
+		classification,
+		applicationId: audit.applicationId,
+		proposalId: audit.proposalId,
+		decisionId: audit.decisionId,
+		proposalFamily: audit.proposalFamily,
+		code,
+		issues: audit.issues ?? [],
+		sourceRefs: audit.sourceRefs ?? [],
+		audit: audit.audit,
+		metadata: audit.metadata,
+	};
+}
+
+function diagnosticFromApplicationStatus(
+	status: WorkspaceProposalApplicationStatus,
+	classification: WorkspaceProposalFamilyApplicationDiagnosticClass,
+): WorkspaceProposalFamilyApplicationDiagnostic {
+	const code = status.code ?? status.issues[0]?.code ?? status.state;
+	return {
+		kind: "workspace-proposal-family-application-diagnostic",
+		diagnosticId: diagnosticId({
+			classification,
+			code,
+			applicationId: status.applicationId,
+			proposalId: status.proposalId,
+			decisionId: status.decisionId,
+			idempotencyKey: status.idempotencyKey,
+			proposalFamily: status.proposalFamily,
+		}),
+		classification,
+		applicationId: status.applicationId,
+		proposalId: status.proposalId,
+		decisionId: status.decisionId,
+		idempotencyKey: status.idempotencyKey,
+		proposalFamily: status.proposalFamily,
+		code,
+		issues: status.issues,
+		sourceRefs: status.sourceRefs,
+		audit: status.audit,
+		metadata: status.metadata,
+	};
+}
+
+function diagnosticFromOutcomeStatus(
+	status: WorkspaceProposalFamilyOutcomeRecordStatus,
+	classification: WorkspaceProposalFamilyApplicationDiagnosticClass,
+): WorkspaceProposalFamilyApplicationDiagnostic {
+	const code = status.code ?? status.issues[0]?.code ?? status.state;
+	return {
+		kind: "workspace-proposal-family-application-diagnostic",
+		diagnosticId: diagnosticId({
+			classification,
+			code,
+			applicationId: status.applicationId,
+			proposalId: status.proposalId,
+			decisionId: status.decisionId,
+			idempotencyKey: status.idempotencyKey,
+			proposalFamily: status.proposalFamily,
+			outcomeId: status.outcomeId,
+		}),
+		classification,
+		applicationId: status.applicationId,
+		proposalId: status.proposalId,
+		decisionId: status.decisionId,
+		idempotencyKey: status.idempotencyKey,
+		proposalFamily: status.proposalFamily,
+		code,
+		issues: status.issues,
+		sourceRefs: status.sourceRefs,
+		audit: status.audit,
+		metadata: status.metadata,
+	};
+}
+
+function diagnosticFromOutcomeIndex(
+	entry: WorkspaceProposalFamilyOutcomeIndexEntry,
+): WorkspaceProposalFamilyApplicationDiagnostic {
+	const code = entry.issues[0]?.code ?? "idempotency-conflict";
+	return {
+		kind: "workspace-proposal-family-application-diagnostic",
+		diagnosticId: diagnosticId({
+			classification: "idempotency-conflict",
+			code,
+			applicationId: entry.applicationId,
+			proposalId: entry.proposalId,
+			decisionId: entry.decisionId,
+			idempotencyKey: entry.idempotencyKey,
+			proposalFamily: entry.proposalFamily,
+			indexKey: entry.indexKey,
+		}),
+		classification: "idempotency-conflict",
+		applicationId: entry.applicationId,
+		proposalId: entry.proposalId,
+		decisionId: entry.decisionId,
+		idempotencyKey: entry.idempotencyKey,
+		proposalFamily: entry.proposalFamily,
+		code,
+		issues: entry.issues,
+		sourceRefs: entry.sourceRefs,
+		audit: entry.audit,
+		metadata: { indexKey: entry.indexKey },
+	};
+}
+
+function upsertDiagnostic(
+	diagnostics: Map<string, WorkspaceProposalFamilyApplicationDiagnostic>,
+	diagnostic: WorkspaceProposalFamilyApplicationDiagnostic,
+): void {
+	const existing = diagnostics.get(diagnostic.diagnosticId);
+	if (existing === undefined) {
+		diagnostics.set(diagnostic.diagnosticId, diagnostic);
+		return;
+	}
+	diagnostics.set(diagnostic.diagnosticId, {
+		...existing,
+		issues: uniqueIssues([...existing.issues, ...diagnostic.issues]),
+		sourceRefs: uniqueRefs([...existing.sourceRefs, ...diagnostic.sourceRefs]),
+		audit: existing.audit ?? diagnostic.audit,
+		metadata: { ...(diagnostic.metadata ?? {}), ...(existing.metadata ?? {}) },
+	});
+}
+
+function diagnosticId(parts: Record<string, unknown>): string {
+	return `workspace-proposal-family-application-diagnostic:${stableStringify(parts)}`;
+}
+
+function repairReviewState(
+	state: WorkspaceProposalApplicationState | WorkspaceProposalFamilyOutcomeRecordState,
+): boolean {
+	return state === "repair-needed" || state === "idempotency-conflict";
+}
+
+function repairReviewClassification(
+	classification: WorkspaceProposalFamilyApplicationDiagnosticClass | undefined,
+): boolean {
+	return classification === "missing-family-material" || classification === "idempotency-conflict";
+}
+
+function diagnosticSignature(diagnostic: WorkspaceProposalFamilyApplicationDiagnostic): string {
+	return stableStringify({
+		code: diagnostic.code,
+		issues: diagnostic.issues,
+		sourceRefs: diagnostic.sourceRefs,
+		audit: diagnostic.audit,
+		metadata: diagnostic.metadata,
+	});
+}
+
+function repairRequestSignature(request: WorkspaceProposalRepairReviewRequest): string {
+	return stableStringify({
+		code: request.code,
+		issues: request.issues,
+		sourceRefs: request.sourceRefs,
+		audit: request.audit,
+	});
+}
+
+function sameApplicationCoordinates(
+	status: WorkspaceProposalApplicationStatus,
+	material: WorkspaceProposalFamilyOutcomeRecordStatus | WorkspaceProposalFamilyOutcomeIndexEntry,
+): boolean {
+	return (
+		status.applicationId === material.applicationId &&
+		status.proposalId === material.proposalId &&
+		status.decisionId === material.decisionId &&
+		status.idempotencyKey === material.idempotencyKey &&
+		status.proposalFamily === material.proposalFamily
+	);
+}
+
+function repairRequestFromApplicationStatus(
+	status: WorkspaceProposalApplicationStatus,
+): WorkspaceProposalRepairReviewRequest {
+	const code = status.code ?? status.issues[0]?.code ?? status.state;
+	return {
+		kind: "workspace-proposal-repair-review-request",
+		repairRequestId: repairRequestId(status, code),
+		applicationId: status.applicationId,
+		proposalId: status.proposalId,
+		decisionId: status.decisionId,
+		idempotencyKey: status.idempotencyKey,
+		proposalFamily: status.proposalFamily,
+		code,
+		issues: status.issues,
+		sourceRefs: status.sourceRefs,
+		audit: status.audit,
+	};
+}
+
+function repairRequestFromOutcomeStatus(
+	status: WorkspaceProposalFamilyOutcomeRecordStatus,
+	applicationStatus: WorkspaceProposalApplicationStatus,
+): WorkspaceProposalRepairReviewRequest {
+	const code = status.code ?? status.issues[0]?.code ?? status.state;
+	return {
+		kind: "workspace-proposal-repair-review-request",
+		repairRequestId: repairRequestId(status, code, status.outcomeId),
+		applicationId: status.applicationId,
+		proposalId: status.proposalId,
+		decisionId: status.decisionId,
+		idempotencyKey: status.idempotencyKey,
+		proposalFamily: status.proposalFamily,
+		code,
+		issues: status.issues,
+		sourceRefs: uniqueRefs([
+			{ kind: "workspace-proposal-application-status", id: applicationStatus.applicationId },
+			...status.sourceRefs,
+		]),
+		audit: status.audit ?? applicationStatus.audit,
+	};
+}
+
+function repairRequestFromOutcomeIndex(
+	entry: WorkspaceProposalFamilyOutcomeIndexEntry,
+	applicationStatus: WorkspaceProposalApplicationStatus,
+): WorkspaceProposalRepairReviewRequest {
+	const code = entry.issues[0]?.code ?? "idempotency-conflict";
+	return {
+		kind: "workspace-proposal-repair-review-request",
+		repairRequestId: repairRequestId(entry, code, entry.indexKey),
+		applicationId: entry.applicationId,
+		proposalId: entry.proposalId,
+		decisionId: entry.decisionId,
+		idempotencyKey: entry.idempotencyKey,
+		proposalFamily: entry.proposalFamily,
+		code,
+		issues: entry.issues,
+		sourceRefs: uniqueRefs([
+			{ kind: "workspace-proposal-application-status", id: applicationStatus.applicationId },
+			...entry.sourceRefs,
+		]),
+		audit: entry.audit ?? applicationStatus.audit,
+	};
+}
+
+function upsertRepairRequest(
+	requests: Map<string, WorkspaceProposalRepairReviewRequest>,
+	request: WorkspaceProposalRepairReviewRequest,
+): void {
+	const existing = requests.get(request.repairRequestId);
+	if (existing === undefined) {
+		requests.set(request.repairRequestId, request);
+		return;
+	}
+	requests.set(request.repairRequestId, {
+		...existing,
+		issues: uniqueIssues([...existing.issues, ...request.issues]),
+		sourceRefs: uniqueRefs([...existing.sourceRefs, ...request.sourceRefs]),
+		audit: existing.audit ?? request.audit,
+	});
+}
+
+function repairRequestId(
+	coordinates: Pick<
+		WorkspaceProposalRepairReviewRequest,
+		"applicationId" | "proposalId" | "decisionId" | "idempotencyKey" | "proposalFamily"
+	>,
+	code: string,
+	extra?: string,
+): string {
+	return `workspace-proposal-repair-review:${stableStringify({
+		applicationId: coordinates.applicationId,
+		proposalId: coordinates.proposalId,
+		decisionId: coordinates.decisionId,
+		idempotencyKey: coordinates.idempotencyKey,
+		proposalFamily: coordinates.proposalFamily,
+		code,
+		extra,
+	})}`;
+}
+
+function diagnosticProjectionDeps(
+	opts: WorkspaceProposalFamilyApplicationDiagnosticProjectorOptions,
+): {
+	readonly deps: readonly Node<unknown>[];
+	readonly depKinds: readonly WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][];
+} {
+	const deps: Node<unknown>[] = [];
+	const depKinds: WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][] = [];
+	pushProjectionDep(deps, depKinds, opts.issues, "issue");
+	pushProjectionDep(deps, depKinds, opts.audit, "audit");
+	pushProjectionDep(deps, depKinds, opts.applicationStatuses, "application-status");
+	pushProjectionDep(deps, depKinds, opts.outcomeStatuses, "outcome-status");
+	pushProjectionDep(deps, depKinds, opts.outcomeIndex, "outcome-index");
+	return { deps, depKinds };
+}
+
+function repairReviewProjectionDeps(opts: WorkspaceProposalRepairReviewProjectorOptions): {
+	readonly deps: readonly Node<unknown>[];
+	readonly depKinds: readonly WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][];
+} {
+	const deps: Node<unknown>[] = [];
+	const depKinds: WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][] = [];
+	pushProjectionDep(deps, depKinds, opts.applicationStatuses, "application-status");
+	pushProjectionDep(deps, depKinds, opts.outcomeStatuses, "outcome-status");
+	pushProjectionDep(deps, depKinds, opts.outcomeIndex, "outcome-index");
+	return { deps, depKinds };
+}
+
+function pushProjectionDep(
+	deps: Node<unknown>[],
+	depKinds: WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][],
+	node: Node<unknown> | undefined,
+	kind: WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"],
+): void {
+	if (node === undefined) return;
+	deps.push(node);
+	depKinds.push(kind);
+}
+
+function ingestDiagnosticInputFacts(
+	ctx: Ctx,
+	state: WorkspaceProposalFamilyApplicationProjectionState,
+	depKinds: readonly WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][],
+): void {
+	for (let index = 0; index < depKinds.length; index += 1) {
+		for (const raw of depBatch(ctx, index) ?? []) {
+			ingestDiagnosticInputFact(state, depKinds[index], raw);
+		}
+	}
+}
+
+function ingestDiagnosticInputFact(
+	state: WorkspaceProposalFamilyApplicationProjectionState,
+	kind: WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"],
+	raw: unknown,
+): void {
+	switch (kind) {
+		case "issue": {
+			const issue = raw as WorkspaceProposalRecordedIssue;
+			state.issues.set(issueKey(issue), issue);
+			return;
+		}
+		case "audit": {
+			const audit = raw as WorkspaceProposalFamilyApplicationAuditRecord;
+			state.audit.set(audit.auditId, audit);
+			return;
+		}
+		case "application-status": {
+			const status = raw as WorkspaceProposalApplicationStatus;
+			state.applicationStatuses.set(status.applicationId, status);
+			return;
+		}
+		case "outcome-status": {
+			const status = raw as WorkspaceProposalFamilyOutcomeRecordStatus;
+			state.outcomeStatuses.set(`${status.applicationId}:${status.outcomeId}`, status);
+			return;
+		}
+		case "outcome-index": {
+			const entry = raw as WorkspaceProposalFamilyOutcomeIndexEntry;
+			state.outcomeIndex.set(entry.indexKey, entry);
+		}
+	}
+}
+
+function familyProjectionState(ctx: Ctx): WorkspaceProposalFamilyApplicationProjectionState {
+	return (
+		ctx.state.get<WorkspaceProposalFamilyApplicationProjectionState>() ?? {
+			issues: new Map(),
+			audit: new Map(),
+			applicationStatuses: new Map(),
+			outcomeStatuses: new Map(),
+			outcomeIndex: new Map(),
+			emittedDiagnostics: new Map(),
+			emittedRepairRequests: new Map(),
+		}
+	);
+}
+
+function uniqueIssues(
+	issues: readonly WorkspaceProposalRecordedIssue[],
+): readonly WorkspaceProposalRecordedIssue[] {
+	const seen = new Set<string>();
+	const out: WorkspaceProposalRecordedIssue[] = [];
+	for (const issue of issues) {
+		const key = issueKey(issue);
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(issue);
+	}
+	return out;
+}
+
+function issueKey(issue: WorkspaceProposalRecordedIssue): string {
+	return stableStringify({
+		code: issue.code,
+		subjectId: issue.subjectId,
+		refs: issue.refs,
+		metadata: issue.metadata,
+		message: issue.message,
+	});
+}
+
+function stringField(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
 export function projectWorkspaceProposalRequiredInputResponseApplication<TValue = unknown>(
