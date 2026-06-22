@@ -485,6 +485,9 @@ export interface WorkspaceProposalRepairReviewDecision {
 	readonly proposalFamily: WorkspaceProposalFamily;
 	readonly intent: WorkspaceProposalRepairReviewDecisionIntent;
 	readonly reviewerRef?: SourceRef;
+	readonly actorRef?: SourceRef;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
 	readonly reason?: string;
 	readonly code?: string;
 	readonly resolvesRefs?: readonly SourceRef[];
@@ -611,6 +614,43 @@ export interface WorkspaceProposalRepairReviewStatusProjectorBundle {
 	readonly statuses: Node<WorkspaceProposalRepairReviewStatus>;
 }
 
+export type WorkspaceProposalRepairReviewDecisionRecordingStatus = "recorded" | "blocked";
+
+export interface WorkspaceProposalRepairReviewExpectedCurrentState {
+	readonly state?: WorkspaceProposalRepairReviewLifecycleState;
+	readonly code?: string;
+	readonly proofKind?: WorkspaceProposalRepairReviewProofKind;
+	readonly proofRefs?: readonly SourceRef[];
+}
+
+export interface WorkspaceProposalRepairReviewDecisionRecordingOptions {
+	readonly reviewDecisionId?: string;
+	readonly intent?: WorkspaceProposalRepairReviewDecisionIntent;
+	readonly reviewerRef?: SourceRef;
+	readonly actorRef?: SourceRef;
+	readonly capabilityRefs?: readonly SourceRef[];
+	readonly policyRefs?: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly reason?: string;
+	readonly code?: string;
+	readonly resolvesRefs?: readonly SourceRef[];
+	readonly supersedesRefs?: readonly SourceRef[];
+	readonly decidedAtMs?: number;
+	readonly metadata?: Record<string, unknown>;
+	readonly currentStatus?: WorkspaceProposalRepairReviewStatus;
+	readonly expectedCurrentState?: WorkspaceProposalRepairReviewExpectedCurrentState;
+}
+
+export interface WorkspaceProposalRepairReviewDecisionRecordingResult {
+	readonly kind: "workspace-proposal-repair-review-decision-recording-result";
+	readonly status: WorkspaceProposalRepairReviewDecisionRecordingStatus;
+	readonly decision?: WorkspaceProposalRepairReviewDecision;
+	readonly issues: readonly WorkspaceProposalRecordedIssue[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly sourceRefs: readonly SourceRef[];
+}
+
 export interface WorkspaceProposalFamilyOutcomeDetail {
 	readonly kind: "workspace-proposal-family-outcome-detail";
 	readonly outcomeRef: WorkspaceProposalFamilyOutcomeRef;
@@ -622,10 +662,14 @@ export interface WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic {
 	readonly kind: "workspace-proposal-family-application-read-model-display-diagnostic";
 	readonly diagnosticId: string;
 	readonly code:
+		| "incomplete-read-model-query"
+		| "malformed-read-model-query"
 		| "missing-outcome-detail"
 		| "mismatched-outcome-detail"
 		| "mismatched-outcome-status";
 	readonly message: string;
+	readonly queryId?: string;
+	readonly viewId?: string;
 	readonly applicationId?: string;
 	readonly proposalId?: string;
 	readonly decisionId?: string;
@@ -638,11 +682,14 @@ export interface WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic {
 export interface WorkspaceProposalFamilyApplicationReadModel {
 	readonly kind: "workspace-proposal-family-application-read-model";
 	readonly readModelId: string;
+	readonly queryId?: string;
+	readonly viewId?: string;
 	readonly applicationId?: string;
 	readonly proposalId?: string;
 	readonly decisionId?: string;
 	readonly idempotencyKey?: string;
 	readonly proposalFamily?: WorkspaceProposalFamily;
+	readonly filters?: WorkspaceProposalFamilyApplicationReadModelNormalizedFilters;
 	readonly diagnostics: readonly WorkspaceProposalFamilyApplicationDiagnostic[];
 	readonly repairReviewStatuses: readonly WorkspaceProposalRepairReviewStatus[];
 	readonly outcomeIndexes: readonly WorkspaceProposalFamilyOutcomeIndexEntry[];
@@ -656,12 +703,49 @@ export interface WorkspaceProposalFamilyApplicationReadModel {
 	};
 }
 
+export interface WorkspaceProposalFamilyApplicationReadModelPage {
+	readonly offset?: number;
+	readonly limit?: number;
+}
+
+export interface WorkspaceProposalFamilyApplicationReadModelFilters {
+	readonly outcomeIds?: readonly string[];
+	readonly outcomeKinds?: readonly WorkspaceProposalFamilyOutcomeRecord["kind"][];
+	readonly diagnosticCodes?: readonly string[];
+	readonly repairStates?: readonly WorkspaceProposalRepairReviewLifecycleState[];
+}
+
+export interface WorkspaceProposalFamilyApplicationReadModelNormalizedFilters {
+	readonly outcomeIds: readonly string[];
+	readonly outcomeKinds: readonly WorkspaceProposalFamilyOutcomeRecord["kind"][];
+	readonly diagnosticCodes: readonly string[];
+	readonly repairStates: readonly WorkspaceProposalRepairReviewLifecycleState[];
+}
+
+export interface WorkspaceProposalFamilyApplicationReadModelQuery {
+	readonly kind: "workspace-proposal-family-application-read-model-query";
+	readonly queryId: string;
+	readonly viewId?: string;
+	readonly applicationId: string;
+	readonly proposalId: string;
+	readonly decisionId: string;
+	readonly idempotencyKey: string;
+	readonly proposalFamily: WorkspaceProposalFamily;
+	readonly page?: WorkspaceProposalFamilyApplicationReadModelPage;
+	readonly filters?: WorkspaceProposalFamilyApplicationReadModelFilters;
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+}
+
 export interface WorkspaceProposalFamilyApplicationReadModelProjectionInput {
 	readonly diagnostics?: readonly WorkspaceProposalFamilyApplicationDiagnostic[];
 	readonly repairReviewStatuses?: readonly WorkspaceProposalRepairReviewStatus[];
 	readonly outcomeIndex?: readonly WorkspaceProposalFamilyOutcomeIndexEntry[];
 	readonly outcomeStatuses?: readonly WorkspaceProposalFamilyOutcomeRecordStatus[];
 	readonly outcomes?: readonly WorkspaceProposalFamilyOutcomeRecord[];
+	readonly queryId?: string;
+	readonly viewId?: string;
 	readonly applicationId?: string;
 	readonly proposalId?: string;
 	readonly decisionId?: string;
@@ -669,6 +753,8 @@ export interface WorkspaceProposalFamilyApplicationReadModelProjectionInput {
 	readonly proposalFamily?: WorkspaceProposalFamily;
 	readonly offset?: number;
 	readonly limit?: number;
+	readonly filters?: WorkspaceProposalFamilyApplicationReadModelFilters;
+	readonly displayDiagnostics?: readonly WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[];
 }
 
 export interface WorkspaceProposalFamilyApplicationReadModelProjectorOptions {
@@ -687,8 +773,73 @@ export interface WorkspaceProposalFamilyApplicationReadModelProjectorOptions {
 	readonly limit?: number;
 }
 
+export interface WorkspaceProposalFamilyApplicationReadModelsProjectionInput {
+	readonly queries?: readonly WorkspaceProposalFamilyApplicationReadModelQuery[];
+	readonly diagnostics?: readonly WorkspaceProposalFamilyApplicationDiagnostic[];
+	readonly repairReviewStatuses?: readonly WorkspaceProposalRepairReviewStatus[];
+	readonly outcomeIndex?: readonly WorkspaceProposalFamilyOutcomeIndexEntry[];
+	readonly outcomeStatuses?: readonly WorkspaceProposalFamilyOutcomeRecordStatus[];
+	readonly outcomes?: readonly WorkspaceProposalFamilyOutcomeRecord[];
+}
+
+export interface WorkspaceProposalFamilyApplicationReadModelsProjectorOptions {
+	readonly name?: string;
+	readonly queries: Node<WorkspaceProposalFamilyApplicationReadModelQuery>;
+	readonly diagnostics?: Node<WorkspaceProposalFamilyApplicationDiagnostic>;
+	readonly repairReviewStatuses?: Node<WorkspaceProposalRepairReviewStatus>;
+	readonly outcomeIndex?: Node<WorkspaceProposalFamilyOutcomeIndexEntry>;
+	readonly outcomeStatuses?: Node<WorkspaceProposalFamilyOutcomeRecordStatus>;
+	readonly outcomes?: Node<WorkspaceProposalFamilyOutcomeRecord>;
+}
+
 export interface WorkspaceProposalFamilyApplicationReadModelProjectorBundle {
 	readonly readModels: Node<WorkspaceProposalFamilyApplicationReadModel>;
+}
+
+export type WorkspaceProposalRepairActionKind =
+	| "acknowledge-review"
+	| "withdraw-review"
+	| "mark-human-resolved"
+	| "supersede-review"
+	| "open-successor-proposal-flow";
+
+export type WorkspaceProposalRepairActionDescriptorDisabledCode =
+	| "repair-review-already-acknowledged"
+	| "repair-review-conflict"
+	| "repair-review-terminal";
+
+export interface WorkspaceProposalRepairActionDescriptor {
+	readonly kind: "workspace-proposal-repair-action-descriptor";
+	readonly descriptorId: string;
+	readonly repairRequestId: string;
+	readonly repairState: WorkspaceProposalRepairReviewLifecycleState;
+	readonly repairStatusRef?: SourceRef;
+	readonly actionKind: WorkspaceProposalRepairActionKind;
+	readonly enabled: boolean;
+	readonly disabledCode?: WorkspaceProposalRepairActionDescriptorDisabledCode;
+	readonly applicationId: string;
+	readonly proposalId: string;
+	readonly decisionId: string;
+	readonly idempotencyKey: string;
+	readonly proposalFamily: WorkspaceProposalFamily;
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalRepairActionDescriptorProjectionInput {
+	readonly requests?: readonly WorkspaceProposalRepairReviewRequest[];
+	readonly statuses?: readonly WorkspaceProposalRepairReviewStatus[];
+}
+
+export interface WorkspaceProposalRepairActionDescriptorProjectorOptions {
+	readonly name?: string;
+	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
+	readonly statuses?: Node<WorkspaceProposalRepairReviewStatus>;
+}
+
+export interface WorkspaceProposalRepairActionDescriptorProjectorBundle {
+	readonly descriptors: Node<WorkspaceProposalRepairActionDescriptor>;
 }
 
 type WorkspaceProposalFamilyApplicationRuntimeFact<TInput = unknown, TValue = unknown> =
@@ -718,6 +869,10 @@ type WorkspaceProposalFamilyApplicationDiagnosticInputFact =
 	| { readonly kind: "repair-decision"; readonly value: WorkspaceProposalRepairReviewDecision }
 	| { readonly kind: "repair-status"; readonly value: WorkspaceProposalRepairReviewStatus }
 	| { readonly kind: "diagnostic"; readonly value: WorkspaceProposalFamilyApplicationDiagnostic }
+	| {
+			readonly kind: "read-model-query";
+			readonly value: WorkspaceProposalFamilyApplicationReadModelQuery;
+	  }
 	| { readonly kind: "outcome"; readonly value: WorkspaceProposalFamilyOutcomeRecord };
 
 interface WorkspaceProposalFamilyApplicationProjectionState {
@@ -731,11 +886,13 @@ interface WorkspaceProposalFamilyApplicationProjectionState {
 	readonly repairDecisions: Map<string, WorkspaceProposalRepairReviewDecision>;
 	readonly repairStatuses: Map<string, WorkspaceProposalRepairReviewStatus>;
 	readonly diagnostics: Map<string, WorkspaceProposalFamilyApplicationDiagnostic>;
+	readonly readModelQueries: Map<string, WorkspaceProposalFamilyApplicationReadModelQuery>;
 	readonly outcomes: Map<string, WorkspaceProposalFamilyOutcomeRecord>;
 	readonly emittedDiagnostics: Map<string, string>;
 	readonly emittedRepairRequests: Map<string, string>;
 	readonly emittedRepairStatuses: Map<string, string>;
 	readonly emittedReadModels: Map<string, string>;
+	readonly emittedRepairActionDescriptors: Map<string, string>;
 }
 
 interface WorkspaceProposalFamilyProjectorState<TInput = unknown, TDraft = unknown> {
@@ -1380,6 +1537,73 @@ export function projectWorkspaceProposalRepairReviewStatuses(
 	);
 }
 
+export function recordWorkspaceProposalRepairReviewDecision(
+	request: WorkspaceProposalRepairReviewRequest,
+	options: WorkspaceProposalRepairReviewDecisionRecordingOptions,
+): WorkspaceProposalRepairReviewDecisionRecordingResult {
+	const issues = repairReviewDecisionRecordingIssues(request, options);
+	if (issues.length > 0) {
+		return {
+			kind: "workspace-proposal-repair-review-decision-recording-result",
+			status: "blocked",
+			issues,
+			sourceRefs: [],
+		};
+	}
+	const sourceRefs = immutableClone(
+		uniqueRefs([
+			...options.sourceRefs!.filter(repairReviewDecisionSourceRefIsValid),
+			...(repairReviewDecisionSourceRefIsValid(options.reviewerRef) ? [options.reviewerRef] : []),
+			...(repairReviewDecisionSourceRefIsValid(options.actorRef) ? [options.actorRef] : []),
+			...(Array.isArray(options.capabilityRefs)
+				? options.capabilityRefs.filter(repairReviewDecisionSourceRefIsValid)
+				: []),
+			...(Array.isArray(options.policyRefs)
+				? options.policyRefs.filter(repairReviewDecisionSourceRefIsValid)
+				: []),
+		]),
+	);
+	const decision: WorkspaceProposalRepairReviewDecision = {
+		kind: "workspace-proposal-repair-review-decision",
+		reviewDecisionId: options.reviewDecisionId!,
+		repairRequestId: request.repairRequestId,
+		applicationId: request.applicationId,
+		proposalId: request.proposalId,
+		decisionId: request.decisionId,
+		idempotencyKey: request.idempotencyKey,
+		proposalFamily: request.proposalFamily,
+		intent: options.intent!,
+		...(options.reviewerRef === undefined
+			? {}
+			: { reviewerRef: immutableClone(options.reviewerRef) }),
+		...(options.actorRef === undefined ? {} : { actorRef: immutableClone(options.actorRef) }),
+		...(options.capabilityRefs === undefined
+			? {}
+			: { capabilityRefs: immutableClone(options.capabilityRefs) }),
+		...(options.policyRefs === undefined ? {} : { policyRefs: immutableClone(options.policyRefs) }),
+		...(options.reason === undefined ? {} : { reason: options.reason }),
+		...(options.code === undefined ? {} : { code: options.code }),
+		...(options.resolvesRefs === undefined
+			? {}
+			: { resolvesRefs: immutableClone(options.resolvesRefs) }),
+		...(options.supersedesRefs === undefined
+			? {}
+			: { supersedesRefs: immutableClone(options.supersedesRefs) }),
+		...(options.decidedAtMs === undefined ? {} : { decidedAtMs: options.decidedAtMs }),
+		...(sourceRefs.length === 0 ? {} : { sourceRefs }),
+		...(options.audit === undefined ? {} : { audit: immutableClone(options.audit) }),
+		...(options.metadata === undefined ? {} : { metadata: immutableClone(options.metadata) }),
+	};
+	return {
+		kind: "workspace-proposal-repair-review-decision-recording-result",
+		status: "recorded",
+		decision,
+		issues: [],
+		audit: decision.audit,
+		sourceRefs: immutableClone(sourceRefs),
+	};
+}
+
 /** Graph-visible variant of `projectWorkspaceProposalRepairReviewStatuses`. */
 export function workspaceProposalRepairReviewStatusProjector(
 	graph: Graph,
@@ -1427,15 +1651,23 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 ): WorkspaceProposalFamilyApplicationReadModel {
 	const coordinates = readModelCoordinates(input);
 	const hasCompleteCoordinates = readModelCoordinatesComplete(coordinates);
+	const filters = normalizeReadModelFilters(input.filters).filters;
 	const diagnostics = (input.diagnostics ?? []).filter((diagnostic) =>
-		hasCompleteCoordinates ? coordinatesMatchExact(coordinates, diagnostic) : false,
+		hasCompleteCoordinates
+			? coordinatesMatchExact(coordinates, diagnostic) &&
+				matchesOptionalSet(filters.diagnosticCodes, diagnostic.code)
+			: false,
 	);
 	const repairReviewStatuses = (input.repairReviewStatuses ?? []).filter((status) =>
-		hasCompleteCoordinates ? coordinatesMatchExact(coordinates, status) : false,
+		hasCompleteCoordinates
+			? coordinatesMatchExact(coordinates, status) &&
+				matchesOptionalSet(filters.repairStates, status.state)
+			: false,
 	);
-	const outcomeIndexes = (input.outcomeIndex ?? []).filter((entry) =>
-		hasCompleteCoordinates ? coordinatesMatchExact(coordinates, entry) : false,
-	);
+	const outcomeIndexes = (input.outcomeIndex ?? [])
+		.filter((entry) => (hasCompleteCoordinates ? coordinatesMatchExact(coordinates, entry) : false))
+		.map((entry) => filterOutcomeIndexEntry(entry, filters))
+		.filter((entry) => entry.outcomeRefs.length > 0 || entry.state === "idempotency-conflict");
 	const allOutcomeRefs = outcomeIndexes.flatMap((entry) => entry.outcomeRefs);
 	const offset = normalizePageOffset(input.offset);
 	const limit = normalizePageLimit(input.limit);
@@ -1443,7 +1675,9 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 	const outcomes = groupByOutcomeId(input.outcomes ?? []);
 	const statuses = groupByOutcomeId(input.outcomeStatuses ?? []);
 	const outcomeDetails: WorkspaceProposalFamilyOutcomeDetail[] = [];
-	const displayDiagnostics: WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[] = [];
+	const displayDiagnostics: WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[] = [
+		...(input.displayDiagnostics ?? []),
+	];
 	for (const outcomeRef of pagedRefs) {
 		const outcomeCandidates = outcomes.get(outcomeRef.outcomeId) ?? [];
 		const statusCandidates = statuses.get(outcomeRef.outcomeId) ?? [];
@@ -1471,11 +1705,17 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 	return {
 		kind: "workspace-proposal-family-application-read-model",
 		readModelId: `workspace-proposal-family-application-read-model:${stableStringify({
+			queryId: stringField(input.queryId),
+			viewId: stringField(input.viewId),
 			...coordinates,
 			offset,
 			limit,
+			filters,
 		})}`,
+		...(stringField(input.queryId) === undefined ? {} : { queryId: stringField(input.queryId) }),
+		...(stringField(input.viewId) === undefined ? {} : { viewId: stringField(input.viewId) }),
 		...coordinates,
+		filters,
 		diagnostics,
 		repairReviewStatuses,
 		outcomeIndexes,
@@ -1488,6 +1728,50 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 			returnedOutcomeRefs: pagedRefs.length,
 		},
 	};
+}
+
+export function projectWorkspaceProposalFamilyApplicationReadModels(
+	input: WorkspaceProposalFamilyApplicationReadModelsProjectionInput,
+): readonly WorkspaceProposalFamilyApplicationReadModel[] {
+	const currentQueries = new Map<string, WorkspaceProposalFamilyApplicationReadModelQuery>();
+	for (const query of input.queries ?? []) {
+		currentQueries.set(readModelQueryProjectionKey(query), query);
+	}
+	return [...currentQueries.values()].map((query) => {
+		const normalized = normalizeReadModelQuery(query);
+		if (!normalized.complete || normalized.malformed) {
+			return projectWorkspaceProposalFamilyApplicationReadModel({
+				queryId: normalized.queryId,
+				viewId: normalized.viewId,
+				offset: normalized.page.offset,
+				limit: normalized.page.limit,
+				filters: normalized.filters,
+				displayDiagnostics: [
+					readModelQueryDisplayDiagnostic(
+						normalized.malformed ? "malformed-read-model-query" : "incomplete-read-model-query",
+						normalized,
+					),
+				],
+			});
+		}
+		return projectWorkspaceProposalFamilyApplicationReadModel({
+			diagnostics: input.diagnostics,
+			repairReviewStatuses: input.repairReviewStatuses,
+			outcomeIndex: input.outcomeIndex,
+			outcomeStatuses: input.outcomeStatuses,
+			outcomes: input.outcomes,
+			queryId: normalized.queryId,
+			viewId: normalized.viewId,
+			applicationId: normalized.coordinates.applicationId,
+			proposalId: normalized.coordinates.proposalId,
+			decisionId: normalized.coordinates.decisionId,
+			idempotencyKey: normalized.coordinates.idempotencyKey,
+			proposalFamily: normalized.coordinates.proposalFamily,
+			offset: normalized.page.offset,
+			limit: normalized.page.limit,
+			filters: normalized.filters,
+		});
+	});
 }
 
 /** Graph-visible variant of `projectWorkspaceProposalFamilyApplicationReadModel`. */
@@ -1534,6 +1818,106 @@ export function workspaceProposalFamilyApplicationReadModelProjector(
 	return {
 		readModels: project(graph, runtime, `${name}/readModels`, `${name}ReadModels`, (fact) =>
 			fact?.kind === "read-model" ? fact.value : undefined,
+		),
+	};
+}
+
+/** Graph-visible query-driven variant of `projectWorkspaceProposalFamilyApplicationReadModels`. */
+export function workspaceProposalFamilyApplicationReadModelsProjector(
+	graph: Graph,
+	opts: WorkspaceProposalFamilyApplicationReadModelsProjectorOptions,
+): WorkspaceProposalFamilyApplicationReadModelProjectorBundle {
+	const name = opts.name ?? "workspaceProposalFamilyApplicationReadModels";
+	const { deps, depKinds } = readModelsProjectionDeps(opts);
+	const runtime = graph.node<
+		| {
+				readonly kind: "read-model";
+				readonly value: WorkspaceProposalFamilyApplicationReadModel;
+		  }
+		| undefined
+	>(
+		deps,
+		(ctx) => {
+			const state = familyProjectionState(ctx);
+			ingestDiagnosticInputFacts(ctx, state, depKinds);
+			for (const readModel of projectWorkspaceProposalFamilyApplicationReadModels({
+				queries: [...state.readModelQueries.values()],
+				diagnostics: [...state.diagnostics.values()],
+				repairReviewStatuses: [...state.repairStatuses.values()],
+				outcomeIndex: [...state.outcomeIndex.values()],
+				outcomeStatuses: [...state.outcomeStatuses.values()],
+				outcomes: [...state.outcomes.values()],
+			})) {
+				const signature = readModelEmissionSignature(readModel);
+				if (state.emittedReadModels.get(readModelCurrentViewKey(readModel)) === signature) {
+					continue;
+				}
+				state.emittedReadModels.set(readModelCurrentViewKey(readModel), signature);
+				ctx.down([["DATA", { kind: "read-model", value: readModel }]]);
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalFamilyApplicationReadModelsProjector"),
+	);
+	return {
+		readModels: project(graph, runtime, `${name}/readModels`, `${name}ReadModels`, (fact) =>
+			fact?.kind === "read-model" ? fact.value : undefined,
+		),
+	};
+}
+
+export function projectWorkspaceProposalRepairActionDescriptors(
+	input: WorkspaceProposalRepairActionDescriptorProjectionInput,
+): readonly WorkspaceProposalRepairActionDescriptor[] {
+	const descriptors: WorkspaceProposalRepairActionDescriptor[] = [];
+	for (const request of input.requests ?? []) {
+		const status = matchingRepairReviewStatus(request, input.statuses ?? []);
+		const state = status?.state ?? "open";
+		for (const actionKind of repairActionKinds) {
+			descriptors.push(repairActionDescriptor(request, status, actionKind, state));
+		}
+	}
+	return descriptors;
+}
+
+export function workspaceProposalRepairActionDescriptorProjector(
+	graph: Graph,
+	opts: WorkspaceProposalRepairActionDescriptorProjectorOptions,
+): WorkspaceProposalRepairActionDescriptorProjectorBundle {
+	const name = opts.name ?? "workspaceProposalRepairActionDescriptor";
+	const deps =
+		opts.statuses === undefined ? [opts.requests as Node<unknown>] : [opts.requests, opts.statuses];
+	const depKinds: readonly WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][] =
+		opts.statuses === undefined ? ["repair-request"] : ["repair-request", "repair-status"];
+	const runtime = graph.node<
+		| {
+				readonly kind: "repair-action-descriptor";
+				readonly value: WorkspaceProposalRepairActionDescriptor;
+		  }
+		| undefined
+	>(
+		deps,
+		(ctx) => {
+			const state = familyProjectionState(ctx);
+			ingestDiagnosticInputFacts(ctx, state, depKinds);
+			for (const descriptor of projectWorkspaceProposalRepairActionDescriptors({
+				requests: [...state.repairRequests.values()],
+				statuses: [...state.repairStatuses.values()],
+			})) {
+				const signature = repairActionDescriptorSignature(descriptor);
+				if (state.emittedRepairActionDescriptors.get(descriptor.descriptorId) === signature) {
+					continue;
+				}
+				state.emittedRepairActionDescriptors.set(descriptor.descriptorId, signature);
+				ctx.down([["DATA", { kind: "repair-action-descriptor", value: descriptor }]]);
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalRepairActionDescriptorProjector"),
+	);
+	return {
+		descriptors: project(graph, runtime, `${name}/descriptors`, `${name}Descriptors`, (fact) =>
+			fact?.kind === "repair-action-descriptor" ? fact.value : undefined,
 		),
 	};
 }
@@ -1912,6 +2296,493 @@ function repairReviewStatusSignature(status: WorkspaceProposalRepairReviewStatus
 	});
 }
 
+const repairActionKinds = [
+	"acknowledge-review",
+	"withdraw-review",
+	"mark-human-resolved",
+	"supersede-review",
+	"open-successor-proposal-flow",
+] as const satisfies readonly WorkspaceProposalRepairActionKind[];
+
+function repairActionDescriptor(
+	request: WorkspaceProposalRepairReviewRequest,
+	status: WorkspaceProposalRepairReviewStatus | undefined,
+	actionKind: WorkspaceProposalRepairActionKind,
+	state: WorkspaceProposalRepairReviewLifecycleState,
+): WorkspaceProposalRepairActionDescriptor {
+	const disabledCode = repairActionDisabledCode(actionKind, state);
+	const repairStatusRef =
+		status === undefined
+			? undefined
+			: { kind: "workspace-proposal-repair-review-status", id: status.repairRequestId };
+	const audit = repairActionDescriptorAudit(status?.audit ?? request.audit);
+	return {
+		kind: "workspace-proposal-repair-action-descriptor",
+		descriptorId: `workspace-proposal-repair-action-descriptor:${stableStringify({
+			repairRequestId: request.repairRequestId,
+			actionKind,
+		})}`,
+		repairRequestId: request.repairRequestId,
+		repairState: state,
+		...(repairStatusRef === undefined ? {} : { repairStatusRef }),
+		actionKind,
+		enabled: disabledCode === undefined,
+		...(disabledCode === undefined ? {} : { disabledCode }),
+		applicationId: request.applicationId,
+		proposalId: request.proposalId,
+		decisionId: request.decisionId,
+		idempotencyKey: request.idempotencyKey,
+		proposalFamily: request.proposalFamily,
+		sourceRefs: repairActionDescriptorSourceRefs([
+			...request.sourceRefs,
+			...(status?.sourceRefs ?? []),
+			...(repairStatusRef === undefined ? [] : [repairStatusRef]),
+		]),
+		...(audit === undefined ? {} : { audit }),
+		metadata: {
+			repairRequestId: request.repairRequestId,
+			repairState: state,
+			route: repairActionRoute(actionKind),
+		},
+	};
+}
+
+function matchingRepairReviewStatus(
+	request: WorkspaceProposalRepairReviewRequest,
+	statuses: readonly WorkspaceProposalRepairReviewStatus[],
+): WorkspaceProposalRepairReviewStatus | undefined {
+	for (let index = statuses.length - 1; index >= 0; index -= 1) {
+		const status = statuses[index];
+		if (
+			status !== undefined &&
+			status.repairRequestId === request.repairRequestId &&
+			repairReviewCoordinatesMatch(request, status)
+		) {
+			return status;
+		}
+	}
+	return undefined;
+}
+
+function repairActionDescriptorSourceRefs(values: readonly SourceRef[]): readonly SourceRef[] {
+	return uniqueRefs(
+		values.filter(
+			(value) =>
+				isSourceRef(value) &&
+				workspaceProposalDataOnlyIssues(value, "repairActionDescriptorSourceRef").length === 0,
+		),
+	);
+}
+
+function repairActionDescriptorAudit(
+	audit: WorkspaceProposalAuditMaterial | undefined,
+): WorkspaceProposalAuditMaterial | undefined {
+	if (!isWorkspaceProposalAuditMaterial(audit)) return undefined;
+	const sourceRefs = repairActionDescriptorSourceRefs(audit.sourceRefs ?? []);
+	const { sourceRefs: _sourceRefs, ...rest } = audit;
+	return sourceRefs.length === 0 ? rest : { ...rest, sourceRefs };
+}
+
+function repairActionDisabledCode(
+	actionKind: WorkspaceProposalRepairActionKind,
+	state: WorkspaceProposalRepairReviewLifecycleState,
+): WorkspaceProposalRepairActionDescriptorDisabledCode | undefined {
+	if (state === "conflict") return "repair-review-conflict";
+	if (state === "resolved" || state === "withdrawn" || state === "superseded") {
+		return "repair-review-terminal";
+	}
+	if (state === "acknowledged" && actionKind === "acknowledge-review") {
+		return "repair-review-already-acknowledged";
+	}
+	return undefined;
+}
+
+function repairActionRoute(
+	actionKind: WorkspaceProposalRepairActionKind,
+): "repair-review-decision-intake" | "workspace-proposal-intake" {
+	return actionKind === "open-successor-proposal-flow"
+		? "workspace-proposal-intake"
+		: "repair-review-decision-intake";
+}
+
+function repairActionDescriptorSignature(
+	descriptor: WorkspaceProposalRepairActionDescriptor,
+): string {
+	return stableStringify(descriptor);
+}
+
+function repairReviewDecisionRecordingIssues(
+	request: WorkspaceProposalRepairReviewRequest,
+	options: WorkspaceProposalRepairReviewDecisionRecordingOptions | undefined,
+): WorkspaceProposalRecordedIssue[] {
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	if (!isRecord(request) || request.kind !== "workspace-proposal-repair-review-request") {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"malformed-repair-review-request",
+				"Repair-review decision recording requires an existing repair-review request.",
+				undefined,
+			),
+		);
+		return issues;
+	}
+	if (!isRecord(options)) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"malformed-recording-options",
+				"Repair-review decision recording requires data-only options material.",
+				request,
+			),
+		);
+		return issues;
+	}
+	const requestDataOnlyIssues = workspaceProposalDataOnlyIssues(request, "repairReviewRequest");
+	for (const entry of requestDataOnlyIssues) {
+		issues.push(repairReviewDecisionIssueFromDataOnly(entry, request));
+	}
+	const optionDataOnlyIssues = workspaceProposalDataOnlyIssues(
+		options,
+		"repairReviewDecisionOptions",
+	);
+	for (const entry of optionDataOnlyIssues) {
+		issues.push(repairReviewDecisionIssueFromDataOnly(entry, request));
+	}
+	if (requestDataOnlyIssues.length > 0 || optionDataOnlyIssues.length > 0) {
+		return [...dedupeRecordingIssues(issues)];
+	}
+	for (const [field, value] of [
+		["repairRequestId", request.repairRequestId],
+		["applicationId", request.applicationId],
+		["proposalId", request.proposalId],
+		["decisionId", request.decisionId],
+		["idempotencyKey", request.idempotencyKey],
+		["proposalFamily", request.proposalFamily],
+	] as const) {
+		if (blank(value)) {
+			issues.push(
+				repairReviewDecisionRecordingIssue(
+					"malformed-repair-review-request",
+					`Repair-review request requires ${field}.`,
+					request,
+				),
+			);
+		}
+	}
+	if (blank(options.reviewDecisionId)) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"missing-review-decision-id",
+				"Repair-review decision recording requires a Workspace-supplied reviewDecisionId.",
+				request,
+			),
+		);
+	}
+	if (!repairReviewDecisionIntentIsKnown(options.intent)) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"unsupported-repair-review-intent",
+				"Repair-review decision recording requires a supported lifecycle intent.",
+				request,
+			),
+		);
+	}
+	if (options.reviewerRef === undefined && options.actorRef === undefined) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"missing-review-authority-material",
+				"Repair-review decision recording requires reviewer or actor ref material.",
+				request,
+			),
+		);
+	}
+	if (
+		(!Array.isArray(options.capabilityRefs) || options.capabilityRefs.length === 0) &&
+		(!Array.isArray(options.policyRefs) || options.policyRefs.length === 0)
+	) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"missing-review-authority-material",
+				"Repair-review decision recording requires explicit capability or policy material.",
+				request,
+			),
+		);
+	}
+	if (!Array.isArray(options.sourceRefs) || options.sourceRefs.length === 0) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"missing-review-audit-material",
+				"Repair-review decision recording requires explicit source refs.",
+				request,
+			),
+		);
+	}
+	if (options.audit === undefined) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"missing-review-audit-material",
+				"Repair-review decision recording requires explicit audit material.",
+				request,
+			),
+		);
+	}
+	if (blank(options.reason) && blank(options.code)) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"missing-review-audit-material",
+				"Repair-review decision recording requires reason or code material.",
+				request,
+			),
+		);
+	}
+	for (const field of [
+		"repairRequestId",
+		"applicationId",
+		"proposalId",
+		"decisionId",
+		"idempotencyKey",
+		"proposalFamily",
+	] as const) {
+		if (Object.hasOwn(options, field)) {
+			issues.push(
+				repairReviewDecisionRecordingIssue(
+					"coordinate-override-forbidden",
+					"Repair-review decision recording copies coordinates from the request.",
+					request,
+				),
+			);
+			break;
+		}
+	}
+	for (const [field, value] of [
+		["reviewerRef", options.reviewerRef],
+		["actorRef", options.actorRef],
+	] as const) {
+		if (value !== undefined && !repairReviewDecisionSourceRefIsValid(value)) {
+			issues.push(
+				repairReviewDecisionRecordingIssue(
+					"malformed-ref",
+					`Repair-review decision ${field} must be a data-only source ref.`,
+					request,
+				),
+			);
+		}
+	}
+	for (const [field, refs] of [
+		["capabilityRefs", options.capabilityRefs],
+		["policyRefs", options.policyRefs],
+		["sourceRefs", options.sourceRefs],
+		["resolvesRefs", options.resolvesRefs],
+		["supersedesRefs", options.supersedesRefs],
+	] as const) {
+		if (refs !== undefined && !repairReviewDecisionSourceRefsAreValid(refs)) {
+			issues.push(
+				repairReviewDecisionRecordingIssue(
+					"malformed-ref",
+					`Repair-review decision ${field} must be a dense array of data-only refs.`,
+					request,
+				),
+			);
+		}
+	}
+	if (options.audit !== undefined && !isWorkspaceProposalAuditMaterial(options.audit)) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"malformed-audit",
+				"Repair-review decision audit material must be data-only audit material.",
+				request,
+			),
+		);
+	}
+	if (options.metadata !== undefined && !isRecord(options.metadata)) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"malformed-metadata",
+				"Repair-review decision metadata must be data-only object material.",
+				request,
+			),
+		);
+	}
+	if (
+		options.decidedAtMs !== undefined &&
+		(typeof options.decidedAtMs !== "number" || !Number.isFinite(options.decidedAtMs))
+	) {
+		issues.push(
+			repairReviewDecisionRecordingIssue(
+				"malformed-decision-time",
+				"Repair-review decision time must be a finite number when supplied.",
+				request,
+			),
+		);
+	}
+	if (options.currentStatus !== undefined) {
+		if (
+			!isRepairReviewStatusMaterial(options.currentStatus) ||
+			!repairReviewCoordinatesMatch(request, options.currentStatus)
+		) {
+			issues.push(
+				repairReviewDecisionRecordingIssue(
+					"current-status-coordinate-mismatch",
+					"Repair-review current status guard must match the request coordinates.",
+					request,
+				),
+			);
+		}
+	}
+	if (options.expectedCurrentState !== undefined) {
+		if (!isRecord(options.expectedCurrentState)) {
+			issues.push(
+				repairReviewDecisionRecordingIssue(
+					"stale-repair-review-state",
+					"Repair-review expected current state guard must be data-only state material.",
+					request,
+				),
+			);
+		} else if (options.currentStatus === undefined) {
+			issues.push(
+				repairReviewDecisionRecordingIssue(
+					"stale-repair-review-state",
+					"Repair-review expected current state guard requires current status material.",
+					request,
+				),
+			);
+		} else if (
+			isRepairReviewStatusMaterial(options.currentStatus) &&
+			repairReviewCoordinatesMatch(request, options.currentStatus) &&
+			!repairReviewExpectedStateMatchesStatus(options.expectedCurrentState, options.currentStatus)
+		) {
+			issues.push(
+				repairReviewDecisionRecordingIssue(
+					"stale-repair-review-state",
+					"Repair-review current status no longer matches the expected guard state.",
+					request,
+				),
+			);
+		}
+	}
+	return [...dedupeRecordingIssues(issues)];
+}
+
+function repairReviewDecisionIntentIsKnown(
+	intent: unknown,
+): intent is WorkspaceProposalRepairReviewDecisionIntent {
+	return (
+		intent === "acknowledged" ||
+		intent === "resolved" ||
+		intent === "withdrawn" ||
+		intent === "superseded"
+	);
+}
+
+function repairReviewDecisionSourceRefIsValid(value: unknown): value is SourceRef {
+	return (
+		isSourceRef(value) &&
+		workspaceProposalDataOnlyIssues(value, "repairReviewDecisionRef").length === 0
+	);
+}
+
+function repairReviewDecisionSourceRefsAreValid(value: unknown): value is readonly SourceRef[] {
+	return (
+		Array.isArray(value) &&
+		isDenseArray(value) &&
+		value.every((entry) => repairReviewDecisionSourceRefIsValid(entry))
+	);
+}
+
+function isRepairReviewStatusMaterial(
+	value: unknown,
+): value is WorkspaceProposalRepairReviewStatus {
+	return (
+		isRecord(value) &&
+		value.kind === "workspace-proposal-repair-review-status" &&
+		nonBlankString(value.repairRequestId) &&
+		nonBlankString(value.applicationId) &&
+		nonBlankString(value.proposalId) &&
+		nonBlankString(value.decisionId) &&
+		nonBlankString(value.idempotencyKey) &&
+		nonBlankString(value.proposalFamily) &&
+		(value.state === "open" ||
+			value.state === "acknowledged" ||
+			value.state === "resolved" ||
+			value.state === "withdrawn" ||
+			value.state === "superseded" ||
+			value.state === "conflict") &&
+		Array.isArray(value.proofRefs) &&
+		Array.isArray(value.decisions) &&
+		Array.isArray(value.conflicts) &&
+		Array.isArray(value.issues) &&
+		Array.isArray(value.sourceRefs)
+	);
+}
+
+function isWorkspaceProposalAuditMaterial(value: unknown): value is WorkspaceProposalAuditMaterial {
+	if (!isRecord(value)) return false;
+	return (
+		(value.auditId === undefined || typeof value.auditId === "string") &&
+		(value.actorId === undefined || typeof value.actorId === "string") &&
+		(value.recordedAtMs === undefined ||
+			(typeof value.recordedAtMs === "number" && Number.isFinite(value.recordedAtMs))) &&
+		(value.reason === undefined || typeof value.reason === "string") &&
+		(value.sourceRefs === undefined || repairReviewDecisionSourceRefsAreValid(value.sourceRefs)) &&
+		(value.metadata === undefined || isRecord(value.metadata)) &&
+		workspaceProposalDataOnlyIssues(value, "repairReviewDecisionAudit").length === 0
+	);
+}
+
+function repairReviewExpectedStateMatchesStatus(
+	expected: WorkspaceProposalRepairReviewExpectedCurrentState,
+	status: WorkspaceProposalRepairReviewStatus,
+): boolean {
+	if (expected.state !== undefined && expected.state !== status.state) return false;
+	if (expected.code !== undefined && expected.code !== status.code) return false;
+	if (expected.proofKind !== undefined && expected.proofKind !== status.proofKind) return false;
+	if (
+		expected.proofRefs !== undefined &&
+		(!repairReviewDecisionSourceRefsAreValid(expected.proofRefs) ||
+			stableStringify(expected.proofRefs) !== stableStringify(status.proofRefs))
+	) {
+		return false;
+	}
+	return true;
+}
+
+function repairReviewDecisionIssueFromDataOnly(
+	issue: WorkspaceProposalRecordedIssue,
+	request: WorkspaceProposalRepairReviewRequest,
+): WorkspaceProposalRecordedIssue {
+	return {
+		...issue,
+		subjectId: issue.subjectId ?? request.proposalId,
+		refs: issue.refs ?? [`workspace-proposal-repair-review-request:${request.repairRequestId}`],
+	};
+}
+
+function repairReviewDecisionRecordingIssue(
+	code: string,
+	message: string,
+	request: WorkspaceProposalRepairReviewRequest | undefined,
+): WorkspaceProposalRecordedIssue {
+	return {
+		kind: "issue",
+		source: "workspace-proposal",
+		severity: "error",
+		code,
+		message,
+		...(request === undefined ? {} : { subjectId: request.proposalId }),
+		refs:
+			request === undefined
+				? []
+				: [`workspace-proposal-repair-review-request:${request.repairRequestId}`],
+	};
+}
+
+function dedupeRecordingIssues(
+	issues: readonly WorkspaceProposalRecordedIssue[],
+): readonly WorkspaceProposalRecordedIssue[] {
+	const out = new Map<string, WorkspaceProposalRecordedIssue>();
+	for (const issue of issues) out.set(stableStringify(issue), issue);
+	return [...out.values()];
+}
+
 function readModelCoordinates(input: WorkspaceProposalFamilyApplicationReadModelProjectionInput): {
 	readonly applicationId?: string;
 	readonly proposalId?: string;
@@ -2044,6 +2915,202 @@ function readModelDisplayDiagnostic(
 	};
 }
 
+interface NormalizedReadModelQuery {
+	readonly complete: boolean;
+	readonly malformed: boolean;
+	readonly queryId?: string;
+	readonly viewId?: string;
+	readonly coordinates: {
+		readonly applicationId?: string;
+		readonly proposalId?: string;
+		readonly decisionId?: string;
+		readonly idempotencyKey?: string;
+		readonly proposalFamily?: WorkspaceProposalFamily;
+	};
+	readonly page: {
+		readonly offset: number;
+		readonly limit: number;
+	};
+	readonly filters: WorkspaceProposalFamilyApplicationReadModelNormalizedFilters;
+	readonly sourceRefs: readonly SourceRef[];
+}
+
+interface NormalizedReadModelFilterResult {
+	readonly filters: WorkspaceProposalFamilyApplicationReadModelNormalizedFilters;
+	readonly malformed: boolean;
+}
+
+function normalizeReadModelQuery(
+	query: WorkspaceProposalFamilyApplicationReadModelQuery,
+): NormalizedReadModelQuery {
+	const queryRecord: Record<string, unknown> = isRecord(query) ? query : {};
+	const sourceRefResult = readModelQuerySourceRefs(queryRecord.sourceRefs);
+	const auditSourceRefResult = readModelQuerySourceRefs(
+		isRecord(queryRecord.audit) ? queryRecord.audit.sourceRefs : undefined,
+	);
+	const dataOnlyIssues = workspaceProposalDataOnlyIssues(query, "readModelQuery");
+	const coordinates = {
+		applicationId: stringField(queryRecord.applicationId),
+		proposalId: stringField(queryRecord.proposalId),
+		decisionId: stringField(queryRecord.decisionId),
+		idempotencyKey: stringField(queryRecord.idempotencyKey),
+		proposalFamily: stringField(queryRecord.proposalFamily) as WorkspaceProposalFamily | undefined,
+	};
+	const page = isRecord(queryRecord.page) ? queryRecord.page : {};
+	const kind = stringField(queryRecord.kind);
+	const queryId = stringField(queryRecord.queryId);
+	const filterResult = normalizeReadModelFilters(
+		isRecord(queryRecord.filters) ? queryRecord.filters : undefined,
+	);
+	const complete =
+		queryId !== undefined &&
+		readModelCoordinatesComplete(coordinates) &&
+		kind === "workspace-proposal-family-application-read-model-query";
+	const malformed =
+		kind !== "workspace-proposal-family-application-read-model-query" ||
+		queryId === undefined ||
+		(queryRecord.sourceRefs !== undefined && !Array.isArray(queryRecord.sourceRefs)) ||
+		sourceRefResult.malformed ||
+		auditSourceRefResult.malformed ||
+		filterResult.malformed ||
+		dataOnlyIssues.length > 0;
+	return {
+		complete,
+		malformed,
+		queryId,
+		viewId: stringField(queryRecord.viewId),
+		coordinates,
+		page: {
+			offset: normalizePageOffset(page.offset),
+			limit: normalizePageLimit(page.limit),
+		},
+		filters: filterResult.filters,
+		sourceRefs: uniqueRefs([...sourceRefResult.refs, ...auditSourceRefResult.refs]),
+	};
+}
+
+function readModelQueryDisplayDiagnostic(
+	code: "incomplete-read-model-query" | "malformed-read-model-query",
+	normalized: NormalizedReadModelQuery,
+): WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic {
+	return {
+		kind: "workspace-proposal-family-application-read-model-display-diagnostic",
+		diagnosticId: `workspace-proposal-family-application-read-model-display-diagnostic:${stableStringify(
+			{
+				code,
+				queryId: normalized.queryId,
+				viewId: normalized.viewId,
+				coordinates: normalized.coordinates,
+				page: normalized.page,
+				filters: normalized.filters,
+			},
+		)}`,
+		code,
+		message:
+			code === "malformed-read-model-query"
+				? "Workspace proposal family read-model query is malformed"
+				: "Workspace proposal family read-model query is incomplete",
+		...(normalized.queryId === undefined ? {} : { queryId: normalized.queryId }),
+		...(normalized.viewId === undefined ? {} : { viewId: normalized.viewId }),
+		...normalized.coordinates,
+		sourceRefs: normalized.sourceRefs,
+	};
+}
+
+function readModelQuerySourceRefs(value: unknown): {
+	readonly refs: readonly SourceRef[];
+	readonly malformed: boolean;
+} {
+	if (value === undefined) return { refs: [], malformed: false };
+	if (!Array.isArray(value)) return { refs: [], malformed: true };
+	const refs: SourceRef[] = [];
+	let malformed = false;
+	for (const entry of value) {
+		if (!isSourceRef(entry) || workspaceProposalDataOnlyIssues(entry, "sourceRef").length > 0) {
+			malformed = true;
+			continue;
+		}
+		refs.push(entry);
+	}
+	return { refs: uniqueRefs(refs), malformed };
+}
+
+function normalizeReadModelFilters(
+	filters: WorkspaceProposalFamilyApplicationReadModelFilters | undefined,
+): NormalizedReadModelFilterResult {
+	const outcomeKinds = normalizeClosedStringFilter(
+		filters?.outcomeKinds,
+		workspaceProposalFamilyOutcomeKinds,
+	);
+	const repairStates = normalizeClosedStringFilter(
+		filters?.repairStates,
+		workspaceProposalRepairReviewLifecycleStates,
+	);
+	return {
+		filters: {
+			outcomeIds: normalizeStringFilter(filters?.outcomeIds),
+			outcomeKinds: outcomeKinds.values,
+			diagnosticCodes: normalizeStringFilter(filters?.diagnosticCodes),
+			repairStates: repairStates.values,
+		},
+		malformed: outcomeKinds.malformed || repairStates.malformed,
+	};
+}
+
+function normalizeStringFilter(values: readonly unknown[] | undefined): readonly string[] {
+	if (!Array.isArray(values)) return [];
+	return [...new Set(values.map(stringField).filter((value) => value !== undefined))].sort();
+}
+
+function normalizeClosedStringFilter<T extends string>(
+	values: readonly unknown[] | undefined,
+	allowedValues: readonly T[],
+): { readonly values: readonly T[]; readonly malformed: boolean } {
+	if (!Array.isArray(values)) return { values: [], malformed: false };
+	const allowed = new Set<string>(allowedValues);
+	const normalized = normalizeStringFilter(values);
+	return {
+		values: normalized.filter((value): value is T => allowed.has(value)),
+		malformed: normalized.some((value) => !allowed.has(value)),
+	};
+}
+
+const workspaceProposalFamilyOutcomeKinds = [
+	"workspace-proposal-required-input-response-outcome-recorded",
+	"workspace-proposal-work-item-spawn-outcome-recorded",
+	"workspace-proposal-work-item-link-outcome-recorded",
+	"workspace-proposal-domain-action-outcome-recorded",
+] as const satisfies readonly WorkspaceProposalFamilyOutcomeRecord["kind"][];
+
+const workspaceProposalRepairReviewLifecycleStates = [
+	"open",
+	"acknowledged",
+	"resolved",
+	"withdrawn",
+	"superseded",
+	"conflict",
+] as const satisfies readonly WorkspaceProposalRepairReviewLifecycleState[];
+
+function matchesOptionalSet<T extends string>(values: readonly T[], value: T): boolean {
+	return values.length === 0 || values.includes(value);
+}
+
+function filterOutcomeIndexEntry(
+	entry: WorkspaceProposalFamilyOutcomeIndexEntry,
+	filters: WorkspaceProposalFamilyApplicationReadModelNormalizedFilters,
+): WorkspaceProposalFamilyOutcomeIndexEntry {
+	if (filters.outcomeIds.length === 0 && filters.outcomeKinds.length === 0) return entry;
+	const outcomeRefs = entry.outcomeRefs.filter(
+		(ref) =>
+			matchesOptionalSet(filters.outcomeIds, ref.outcomeId) &&
+			matchesOptionalSet(filters.outcomeKinds, ref.outcomeKind),
+	);
+	return {
+		...entry,
+		outcomeRefs,
+	};
+}
+
 function normalizePageOffset(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
@@ -2055,12 +3122,30 @@ function normalizePageLimit(value: unknown): number {
 
 function readModelSignature(readModel: WorkspaceProposalFamilyApplicationReadModel): string {
 	return stableStringify({
+		queryId: readModel.queryId,
+		viewId: readModel.viewId,
+		filters: readModel.filters,
 		diagnostics: readModel.diagnostics,
 		repairReviewStatuses: readModel.repairReviewStatuses,
 		outcomeIndexes: readModel.outcomeIndexes,
 		outcomeDetails: readModel.outcomeDetails,
 		displayDiagnostics: readModel.displayDiagnostics,
 		page: readModel.page,
+	});
+}
+
+function readModelCurrentViewKey(readModel: WorkspaceProposalFamilyApplicationReadModel): string {
+	return stableStringify({
+		currentViewId: readModel.viewId ?? readModel.queryId ?? readModel.readModelId,
+	});
+}
+
+function readModelEmissionSignature(
+	readModel: WorkspaceProposalFamilyApplicationReadModel,
+): string {
+	return stableStringify({
+		readModelId: readModel.readModelId,
+		signature: readModelSignature(readModel),
 	});
 }
 
@@ -2504,6 +3589,23 @@ function readModelProjectionDeps(
 	return { deps, depKinds };
 }
 
+function readModelsProjectionDeps(
+	opts: WorkspaceProposalFamilyApplicationReadModelsProjectorOptions,
+): {
+	readonly deps: readonly Node<unknown>[];
+	readonly depKinds: readonly WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][];
+} {
+	const deps: Node<unknown>[] = [];
+	const depKinds: WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][] = [];
+	pushProjectionDep(deps, depKinds, opts.queries, "read-model-query");
+	pushProjectionDep(deps, depKinds, opts.diagnostics, "diagnostic");
+	pushProjectionDep(deps, depKinds, opts.repairReviewStatuses, "repair-status");
+	pushProjectionDep(deps, depKinds, opts.outcomeIndex, "outcome-index");
+	pushProjectionDep(deps, depKinds, opts.outcomeStatuses, "outcome-status");
+	pushProjectionDep(deps, depKinds, opts.outcomes, "outcome");
+	return { deps, depKinds };
+}
+
 function pushProjectionDep(
 	deps: Node<unknown>[],
 	depKinds: WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][],
@@ -2575,12 +3677,17 @@ function ingestDiagnosticInputFact(
 		}
 		case "repair-status": {
 			const status = raw as WorkspaceProposalRepairReviewStatus;
-			state.repairStatuses.set(status.repairRequestId, status);
+			state.repairStatuses.set(repairReviewStatusProjectionKey(status), status);
 			return;
 		}
 		case "diagnostic": {
 			const diagnostic = raw as WorkspaceProposalFamilyApplicationDiagnostic;
 			state.diagnostics.set(diagnostic.diagnosticId, diagnostic);
+			return;
+		}
+		case "read-model-query": {
+			const query = raw as WorkspaceProposalFamilyApplicationReadModelQuery;
+			state.readModelQueries.set(readModelQueryProjectionKey(query), query);
 			return;
 		}
 		case "outcome": {
@@ -2603,11 +3710,13 @@ function familyProjectionState(ctx: Ctx): WorkspaceProposalFamilyApplicationProj
 			repairDecisions: new Map(),
 			repairStatuses: new Map(),
 			diagnostics: new Map(),
+			readModelQueries: new Map(),
 			outcomes: new Map(),
 			emittedDiagnostics: new Map(),
 			emittedRepairRequests: new Map(),
 			emittedRepairStatuses: new Map(),
 			emittedReadModels: new Map(),
+			emittedRepairActionDescriptors: new Map(),
 		}
 	);
 }
@@ -2684,6 +3793,27 @@ function outcomeIndexProjectionKey(entry: WorkspaceProposalFamilyOutcomeIndexEnt
 function outcomeProjectionKey(outcome: WorkspaceProposalFamilyOutcomeRecord): string {
 	return stableStringify({
 		ref: workspaceProposalFamilyOutcomeRef(outcome),
+	});
+}
+
+function repairReviewStatusProjectionKey(status: WorkspaceProposalRepairReviewStatus): string {
+	return stableStringify({
+		repairRequestId: status.repairRequestId,
+		applicationId: status.applicationId,
+		proposalId: status.proposalId,
+		decisionId: status.decisionId,
+		idempotencyKey: status.idempotencyKey,
+		proposalFamily: status.proposalFamily,
+	});
+}
+
+function readModelQueryProjectionKey(
+	query: WorkspaceProposalFamilyApplicationReadModelQuery,
+): string {
+	const queryId = stringField((query as { readonly queryId?: unknown }).queryId);
+	const viewId = stringField((query as { readonly viewId?: unknown }).viewId);
+	return stableStringify({
+		currentViewId: viewId ?? queryId,
 	});
 }
 
@@ -3611,6 +4741,13 @@ function nonBlankString(value: unknown): value is string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object";
+}
+
+function isDenseArray(value: readonly unknown[]): boolean {
+	for (let index = 0; index < value.length; index += 1) {
+		if (!Object.hasOwn(value, index)) return false;
+	}
+	return true;
 }
 
 function familyProjectorState<TInput, TDraft>(

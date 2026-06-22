@@ -6,7 +6,9 @@ import {
 	projectWorkspaceProposalDomainActionApplicationStatus,
 	projectWorkspaceProposalFamilyApplicationDiagnostics,
 	projectWorkspaceProposalFamilyApplicationReadModel,
+	projectWorkspaceProposalFamilyApplicationReadModels,
 	projectWorkspaceProposalFamilyOutcomeIndex,
+	projectWorkspaceProposalRepairActionDescriptors,
 	projectWorkspaceProposalRepairReviewRequests,
 	projectWorkspaceProposalRepairReviewStatuses,
 	projectWorkspaceProposalRequiredInputResponseApplication,
@@ -16,6 +18,7 @@ import {
 	type RequiredInputResponseProposed,
 	recordWorkspaceProposal,
 	recordWorkspaceProposalDomainActionOutcome,
+	recordWorkspaceProposalRepairReviewDecision,
 	recordWorkspaceProposalRequiredInputResponseOutcome,
 	recordWorkspaceProposalWorkItemLinkOutcome,
 	recordWorkspaceProposalWorkItemSpawnOutcome,
@@ -31,8 +34,10 @@ import {
 	type WorkspaceProposalApplicationStatus,
 	type WorkspaceProposalDomainActionApplicationContext,
 	type WorkspaceProposalFamily,
+	type WorkspaceProposalFamilyApplicationReadModelQuery,
 	type WorkspaceProposalReadyRequest,
 	type WorkspaceProposalRecorded,
+	type WorkspaceProposalRepairActionDescriptor,
 	type WorkspaceProposalRepairReviewDecision,
 	type WorkspaceProposalRepairReviewRequest,
 	type WorkspaceProposalRequiredInputResponseApplicationContext,
@@ -42,6 +47,8 @@ import {
 	workspaceProposalDomainActionApplicationProjector,
 	workspaceProposalFamilyApplicationDiagnosticProjector,
 	workspaceProposalFamilyApplicationReadModelProjector,
+	workspaceProposalFamilyApplicationReadModelsProjector,
+	workspaceProposalRepairActionDescriptorProjector,
 	workspaceProposalRepairReviewProjector,
 	workspaceProposalRepairReviewStatusProjector,
 	workspaceProposalRequiredInputResponseApplicationProjector,
@@ -1745,6 +1752,259 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		}
 	});
 
+	it("records D450 repair-review decisions from request coordinates only", () => {
+		const { request } = repairReviewFixture();
+		const requestBefore = structuredClone(request);
+		const options = {
+			reviewDecisionId: "review-decision:d450-ack",
+			intent: "acknowledged",
+			reviewerRef: { kind: "actor", id: "reviewer:d450" },
+			actorRef: { kind: "actor", id: "actor:d450" },
+			capabilityRefs: [{ kind: "capability", id: "repair-review:write" }],
+			policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+			sourceRefs: [{ kind: "manual-review", id: "source:d450" }],
+			audit: {
+				auditId: "audit:d450",
+				actorId: "actor:d450",
+				sourceRefs: [{ kind: "manual-review", id: "audit-source:d450" }],
+			},
+			reason: "human acknowledged the review request",
+			code: "acknowledged-by-reviewer",
+			decidedAtMs: 450,
+			metadata: { queue: "repair-review" },
+		} as const;
+		const optionsBefore = structuredClone(options);
+		const result = recordWorkspaceProposalRepairReviewDecision(request, options);
+
+		expect(result).toMatchObject({
+			kind: "workspace-proposal-repair-review-decision-recording-result",
+			status: "recorded",
+			issues: [],
+			decision: {
+				kind: "workspace-proposal-repair-review-decision",
+				reviewDecisionId: "review-decision:d450-ack",
+				repairRequestId: request.repairRequestId,
+				applicationId: request.applicationId,
+				proposalId: request.proposalId,
+				decisionId: request.decisionId,
+				idempotencyKey: request.idempotencyKey,
+				proposalFamily: request.proposalFamily,
+				intent: "acknowledged",
+				reviewerRef: { kind: "actor", id: "reviewer:d450" },
+				actorRef: { kind: "actor", id: "actor:d450" },
+			},
+		});
+		expect(structuredClone(result)).toEqual(result);
+		expect(request).toEqual(requestBefore);
+		expect(options).toEqual(optionsBefore);
+		(options.sourceRefs[0] as { id: string }).id = "source:d450-mutated";
+		expect(result.sourceRefs).toContainEqual({ kind: "manual-review", id: "source:d450" });
+		expect(result.decision?.sourceRefs).toContainEqual({
+			kind: "manual-review",
+			id: "source:d450",
+		});
+		expect(JSON.stringify(result)).not.toContain("WorkItemCreated");
+		expect(JSON.stringify(result)).not.toContain("RequiredInputSatisfied");
+		expect(JSON.stringify(result)).not.toContain("WorkItemLinked");
+		expect(JSON.stringify(result)).not.toContain("domain-mutation");
+		expect(JSON.stringify(result)).not.toContain("runtime-private");
+
+		for (const intent of ["resolved", "withdrawn", "superseded"] as const) {
+			const recorded = recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: `review-decision:d450-${intent}`,
+				intent,
+				reviewerRef: { kind: "actor", id: "reviewer:d450" },
+				capabilityRefs: [{ kind: "capability", id: `repair-review:${intent}` }],
+				policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+				sourceRefs: [{ kind: "manual-review", id: `source:d450-${intent}` }],
+				audit: {
+					auditId: `audit:d450-${intent}`,
+					actorId: "actor:d450",
+					sourceRefs: [{ kind: "manual-review", id: `audit-source:d450-${intent}` }],
+				},
+				code: `review-${intent}`,
+				resolvesRefs:
+					intent === "resolved"
+						? [{ kind: "workspace-proposal-family-outcome-index-entry", id: "outcome-index:1" }]
+						: undefined,
+				supersedesRefs:
+					intent === "superseded"
+						? [{ kind: "workspace-proposal-repair-review-decision", id: "prior-review" }]
+						: undefined,
+			});
+			expect(recorded.status).toBe("recorded");
+			expect(recorded.decision).toMatchObject({
+				applicationId: request.applicationId,
+				proposalId: request.proposalId,
+				decisionId: request.decisionId,
+				idempotencyKey: request.idempotencyKey,
+				proposalFamily: request.proposalFamily,
+				intent,
+			});
+		}
+	});
+
+	it("fails D450 repair-review decision intake closed for overrides, stale guards, and forbidden material", () => {
+		const { request } = repairReviewFixture();
+		const openStatus = projectWorkspaceProposalRepairReviewStatuses({ requests: [request] })[0]!;
+		const acknowledged = recordWorkspaceProposalRepairReviewDecision(request, {
+			reviewDecisionId: "review-decision:d450-status",
+			intent: "acknowledged",
+			reviewerRef: { kind: "actor", id: "reviewer:d450" },
+			capabilityRefs: [{ kind: "capability", id: "repair-review:write" }],
+			policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+			sourceRefs: [{ kind: "manual-review", id: "source:d450-status" }],
+			audit: {
+				auditId: "audit:d450-status",
+				actorId: "actor:d450",
+				sourceRefs: [{ kind: "manual-review", id: "audit-source:d450-status" }],
+			},
+			code: "acknowledged-by-reviewer",
+			currentStatus: openStatus,
+			expectedCurrentState: { state: "open", code: "open" },
+		});
+		expect(acknowledged.status).toBe("recorded");
+
+		const status = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [request],
+			decisions: [acknowledged.decision!],
+		})[0]!;
+		expect(status).toMatchObject({
+			state: "acknowledged",
+			proofKind: "human-decision",
+			decisions: [acknowledged.decision],
+		});
+
+		const invalid = [
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				intent: "acknowledged",
+				reviewerRef: { kind: "actor", id: "reviewer:d450" },
+			}),
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: "review-decision:d450-bad-intent",
+				intent: "retry-now" as never,
+				reviewerRef: { kind: "actor", id: "reviewer:d450" },
+			}),
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: "review-decision:d450-override",
+				intent: "acknowledged",
+				applicationId: "application:override",
+				reviewerRef: { kind: "actor", id: "reviewer:d450" },
+			} as never),
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: "review-decision:d450-stale",
+				intent: "resolved",
+				reviewerRef: { kind: "actor", id: "reviewer:d450" },
+				capabilityRefs: [{ kind: "capability", id: "repair-review:write" }],
+				policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+				sourceRefs: [{ kind: "manual-review", id: "source:d450-stale" }],
+				audit: {
+					auditId: "audit:d450-stale",
+					actorId: "actor:d450",
+					sourceRefs: [{ kind: "manual-review", id: "audit-source:d450-stale" }],
+				},
+				code: "resolved-by-reviewer",
+				currentStatus: status,
+				expectedCurrentState: { state: "open" },
+			}),
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: "review-decision:d450-unverifiable",
+				intent: "resolved",
+				reviewerRef: { kind: "actor", id: "reviewer:d450" },
+				capabilityRefs: [{ kind: "capability", id: "repair-review:write" }],
+				policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+				sourceRefs: [{ kind: "manual-review", id: "source:d450-unverifiable" }],
+				audit: {
+					auditId: "audit:d450-unverifiable",
+					actorId: "actor:d450",
+					sourceRefs: [{ kind: "manual-review", id: "audit-source:d450-unverifiable" }],
+				},
+				code: "resolved-by-reviewer",
+				expectedCurrentState: { state: "open" },
+			}),
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: "review-decision:d450-unaudited",
+				intent: "acknowledged",
+			}),
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: "review-decision:d450-forbidden",
+				intent: "acknowledged",
+				reviewerRef: { kind: "actor", id: "credential:leak" },
+				capabilityRefs: [{ kind: "capability", id: "repair-review:write" }],
+				policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+				sourceRefs: [{ kind: "manual-review", id: "source:d450-forbidden" }],
+				audit: {
+					auditId: "audit:d450-forbidden",
+					actorId: "actor:d450",
+					sourceRefs: [{ kind: "manual-review", id: "audit-source:d450-forbidden" }],
+				},
+				code: "acknowledged-by-reviewer",
+			}),
+			recordWorkspaceProposalRepairReviewDecision(request, {
+				reviewDecisionId: "review-decision:d450-callback",
+				intent: "acknowledged",
+				reviewerRef: { kind: "actor", id: "reviewer:d450" },
+				capabilityRefs: [{ kind: "capability", id: "repair-review:write" }],
+				policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+				sourceRefs: [{ kind: "manual-review", id: "source:d450-callback" }],
+				audit: {
+					auditId: "audit:d450-callback",
+					actorId: "actor:d450",
+					sourceRefs: [{ kind: "manual-review", id: "audit-source:d450-callback" }],
+				},
+				code: "acknowledged-by-reviewer",
+				metadata: { callback: () => undefined },
+			} as never),
+		];
+		expect(invalid.every((entry) => entry.status === "blocked")).toBe(true);
+		expect(invalid.every((entry) => entry.sourceRefs.length === 0)).toBe(true);
+		expect(JSON.stringify(invalid)).not.toContain("credential:leak");
+		expect(invalid.flatMap((entry) => entry.issues.map((issue) => issue.code))).toEqual(
+			expect.arrayContaining([
+				"missing-review-decision-id",
+				"unsupported-repair-review-intent",
+				"coordinate-override-forbidden",
+				"stale-repair-review-state",
+				"missing-review-authority-material",
+				"missing-review-audit-material",
+				"forbidden-runtime-material",
+				"non-data-material",
+			]),
+		);
+		expect(JSON.stringify(invalid)).not.toContain("WorkItemCreated");
+		expect(JSON.stringify(invalid)).not.toContain("RequiredInputSatisfied");
+		expect(JSON.stringify(invalid)).not.toContain("workspace-proposal-family-outcome-recorded");
+
+		const accessorOptions = {
+			reviewDecisionId: "review-decision:d450-accessor",
+			intent: "acknowledged",
+			reviewerRef: { kind: "actor", id: "reviewer:d450" },
+			capabilityRefs: [{ kind: "capability", id: "repair-review:write" }],
+			policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+			audit: {
+				auditId: "audit:d450-accessor",
+				actorId: "actor:d450",
+			},
+			code: "acknowledged-by-reviewer",
+		};
+		Object.defineProperty(accessorOptions, "sourceRefs", {
+			enumerable: true,
+			get() {
+				throw new Error("sourceRefs getter must not run");
+			},
+		});
+		expect(() =>
+			recordWorkspaceProposalRepairReviewDecision(request, accessorOptions as never),
+		).not.toThrow();
+		expect(
+			recordWorkspaceProposalRepairReviewDecision(request, accessorOptions as never),
+		).toMatchObject({
+			status: "blocked",
+			sourceRefs: [],
+			issues: expect.arrayContaining([expect.objectContaining({ code: "non-data-material" })]),
+		});
+	});
+
 	it("resolves D444 lifecycle only from matching durable proof coordinates", () => {
 		const { request, appliedStatus, outcome, outcomeStatus, outcomeIndex } = repairReviewFixture();
 
@@ -2213,6 +2473,528 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			status: expect.objectContaining({ proposalId: fixture.request.proposalId }),
 		});
 	});
+
+	it("projects D448 query-driven read-model pages without query-side classification authority", () => {
+		const fixture = repairReviewFixture();
+		const coordinates = repairReviewReadModelCoordinates(fixture.request);
+		const repairStatus = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			outcomeStatuses: [fixture.outcomeStatus],
+		})[0];
+		const diagnosticSourceStatus = {
+			...fixture.outcomeStatus,
+			state: "repair-needed",
+			outcomeRefs: [],
+			issues: [
+				{
+					kind: "issue",
+					source: "workspace-proposal",
+					severity: "error",
+					code: "missing-required-field",
+					message: "Outcome detail missing",
+					subjectId: fixture.request.proposalId,
+					refs: [],
+				},
+			],
+		} satisfies typeof fixture.outcomeStatus;
+		const diagnostic = projectWorkspaceProposalFamilyApplicationDiagnostics({
+			outcomeStatuses: [diagnosticSourceStatus],
+		})[0];
+		if (diagnostic === undefined) throw new Error("expected D448 diagnostic fixture");
+		if (repairStatus === undefined) throw new Error("expected D448 repair status fixture");
+		const query = readModelQuery("query-complete", coordinates);
+		const readModel = projectWorkspaceProposalFamilyApplicationReadModels({
+			queries: [query],
+			diagnostics: [diagnostic],
+			repairReviewStatuses: [repairStatus],
+			outcomeIndex: fixture.outcomeIndex,
+			outcomeStatuses: [fixture.outcomeStatus],
+			outcomes: [fixture.outcome],
+		})[0];
+
+		expect(readModel).toMatchObject({
+			queryId: "query-complete",
+			viewId: "view-query-complete",
+			...coordinates,
+			diagnostics: [diagnostic],
+			repairReviewStatuses: [repairStatus],
+			displayDiagnostics: [],
+			page: { offset: 0, limit: 50, totalOutcomeRefs: 1, returnedOutcomeRefs: 1 },
+		});
+		expect(readModel?.outcomeDetails[0]).toMatchObject({
+			outcome: expect.objectContaining({ outcomeId: fixture.outcome.outcomeId }),
+			status: expect.objectContaining({ outcomeId: fixture.outcome.outcomeId }),
+		});
+
+		const incomplete = projectWorkspaceProposalFamilyApplicationReadModels({
+			queries: [
+				{
+					kind: "workspace-proposal-family-application-read-model-query",
+					queryId: "query-incomplete",
+					viewId: "view-incomplete",
+					applicationId: coordinates.applicationId,
+					proposalId: coordinates.proposalId,
+					idempotencyKey: coordinates.idempotencyKey,
+					proposalFamily: coordinates.proposalFamily,
+					page: { offset: -10, limit: 999 },
+					sourceRefs: [sourceRef],
+				} as WorkspaceProposalFamilyApplicationReadModelQuery,
+			],
+			diagnostics: [diagnostic],
+			repairReviewStatuses: [repairStatus],
+			outcomeIndex: fixture.outcomeIndex,
+			outcomeStatuses: [fixture.outcomeStatus],
+			outcomes: [fixture.outcome],
+		})[0];
+		expect(incomplete).toMatchObject({
+			queryId: "query-incomplete",
+			viewId: "view-incomplete",
+			diagnostics: [],
+			repairReviewStatuses: [],
+			outcomeIndexes: [],
+			outcomeDetails: [],
+			page: { offset: 0, limit: 100, totalOutcomeRefs: 0, returnedOutcomeRefs: 0 },
+		});
+		expect(incomplete?.displayDiagnostics.map((entry) => entry.code)).toEqual([
+			"incomplete-read-model-query",
+		]);
+
+		const rawIssueQuery = {
+			...query,
+			queryId: "query-raw-issue",
+			rawIssues: [
+				{
+					code: "missing-domain-action-facts",
+					message: "query descriptors must not classify this",
+				},
+			],
+		} as WorkspaceProposalFamilyApplicationReadModelQuery;
+		const rawIssueOnly = projectWorkspaceProposalFamilyApplicationReadModels({
+			queries: [rawIssueQuery],
+		})[0];
+		expect(rawIssueOnly?.diagnostics).toEqual([]);
+		expect(rawIssueOnly?.repairReviewStatuses).toEqual([]);
+
+		const forbiddenMaterial = projectWorkspaceProposalFamilyApplicationReadModels({
+			queries: [
+				{
+					...query,
+					queryId: "query-forbidden-material",
+					metadata: { callback: "doRepair" },
+					sourceRefs: [
+						{ kind: "source", id: "safe" },
+						{ kind: "source", id: "bad", metadata: { providerClient: "x" } },
+					],
+				},
+			],
+			diagnostics: [diagnostic],
+			repairReviewStatuses: [repairStatus],
+			outcomeIndex: fixture.outcomeIndex,
+			outcomeStatuses: [fixture.outcomeStatus],
+			outcomes: [fixture.outcome],
+		})[0];
+		expect(forbiddenMaterial).toMatchObject({
+			queryId: "query-forbidden-material",
+			diagnostics: [],
+			repairReviewStatuses: [],
+			outcomeIndexes: [],
+			outcomeDetails: [],
+		});
+		expect(forbiddenMaterial?.displayDiagnostics.map((entry) => entry.code)).toEqual([
+			"malformed-read-model-query",
+		]);
+		expect(forbiddenMaterial?.displayDiagnostics[0]?.sourceRefs).toEqual([
+			{ kind: "source", id: "safe" },
+		]);
+	});
+
+	it("normalizes D448 page/filter identity and narrows only projected material", () => {
+		const fixture = repairReviewFixture();
+		const coordinates = repairReviewReadModelCoordinates(fixture.request);
+		const secondOutcome = recordWorkspaceProposalWorkItemLinkOutcome(fixture.appliedStatus, {
+			outcomeId: "repair-review-outcome-2",
+			linkRef: { kind: "work-item-link", id: "link-2" },
+		}).outcome;
+		if (secondOutcome === undefined) throw new Error("expected second D448 outcome");
+		const outcomeIndex = projectWorkspaceProposalFamilyOutcomeIndex([secondOutcome]);
+		const diagnosticA = {
+			kind: "workspace-proposal-family-application-diagnostic",
+			diagnosticId: "diagnostic-a",
+			classification: "missing-family-material",
+			...coordinates,
+			code: "diagnostic-a",
+			issues: [],
+			sourceRefs: [sourceRef],
+		} as const;
+		const diagnosticB = { ...diagnosticA, diagnosticId: "diagnostic-b", code: "diagnostic-b" };
+		const openStatus = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+		})[0];
+		const resolvedStatus = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			outcomeStatuses: [fixture.outcomeStatus],
+		})[0];
+		if (openStatus === undefined || resolvedStatus === undefined) {
+			throw new Error("expected D448 repair statuses");
+		}
+		const filtered = projectWorkspaceProposalFamilyApplicationReadModels({
+			queries: [
+				readModelQuery("query-filtered", coordinates, {
+					page: { offset: -1, limit: 999 },
+					filters: {
+						outcomeIds: [secondOutcome.outcomeId],
+						outcomeKinds: [secondOutcome.kind],
+						diagnosticCodes: ["diagnostic-b"],
+						repairStates: ["open"],
+					},
+				}),
+			],
+			diagnostics: [diagnosticA, diagnosticB],
+			repairReviewStatuses: [openStatus, resolvedStatus],
+			outcomeIndex,
+			outcomes: [fixture.outcome, secondOutcome],
+		})[0];
+
+		expect(filtered).toMatchObject({
+			filters: {
+				outcomeIds: [secondOutcome.outcomeId],
+				outcomeKinds: [secondOutcome.kind],
+				diagnosticCodes: ["diagnostic-b"],
+				repairStates: ["open"],
+			},
+			page: { offset: 0, limit: 100, totalOutcomeRefs: 1, returnedOutcomeRefs: 1 },
+		});
+		expect(filtered?.diagnostics.map((entry) => entry.code)).toEqual(["diagnostic-b"]);
+		expect(filtered?.repairReviewStatuses.map((entry) => entry.state)).toEqual(["open"]);
+		expect(filtered?.outcomeDetails.map((entry) => entry.outcomeRef.outcomeId)).toEqual([
+			secondOutcome.outcomeId,
+		]);
+		expect(filtered?.readModelId).not.toBe(
+			projectWorkspaceProposalFamilyApplicationReadModels({
+				queries: [readModelQuery("query-filtered", coordinates, { page: { offset: 1, limit: 1 } })],
+				outcomeIndex,
+			})[0]?.readModelId,
+		);
+		const invalidClosedFilters = projectWorkspaceProposalFamilyApplicationReadModels({
+			queries: [
+				readModelQuery("query-invalid-closed-filters", coordinates, {
+					filters: {
+						outcomeKinds: ["not-an-outcome-kind"] as readonly never[],
+						repairStates: ["retry-now"] as readonly never[],
+					},
+				}),
+			],
+			diagnostics: [diagnosticA, diagnosticB],
+			repairReviewStatuses: [openStatus, resolvedStatus],
+			outcomeIndex,
+			outcomes: [fixture.outcome, secondOutcome],
+		})[0];
+		expect(invalidClosedFilters).toMatchObject({
+			queryId: "query-invalid-closed-filters",
+			diagnostics: [],
+			repairReviewStatuses: [],
+			outcomeIndexes: [],
+			outcomeDetails: [],
+		});
+		expect(invalidClosedFilters?.displayDiagnostics.map((entry) => entry.code)).toEqual([
+			"malformed-read-model-query",
+		]);
+		const pureCurrentView = projectWorkspaceProposalFamilyApplicationReadModels({
+			queries: [
+				{
+					...readModelQuery("query-pure-a", coordinates, { page: { offset: 0, limit: 1 } }),
+					viewId: "shared-pure-view",
+				},
+				{
+					...readModelQuery("query-pure-b", coordinates, { page: { offset: 1, limit: 1 } }),
+					viewId: "shared-pure-view",
+				},
+			],
+			outcomeIndex,
+		});
+		expect(pureCurrentView).toHaveLength(1);
+		expect(pureCurrentView[0]).toMatchObject({
+			queryId: "query-pure-b",
+			page: { offset: 1, limit: 1 },
+		});
+	});
+
+	it("preserves graph-visible D448 query/view pages and dedupes normalized replay", () => {
+		const g = graph();
+		const queries = g.node<WorkspaceProposalFamilyApplicationReadModelQuery>([], null, {
+			name: "queries",
+		});
+		const outcomeIndex = g.node<
+			ReturnType<typeof projectWorkspaceProposalFamilyOutcomeIndex>[number]
+		>([], null, { name: "outcomeIndex" });
+		const outcomes = g.node<NonNullable<ReturnType<typeof repairReviewFixture>["outcome"]>>(
+			[],
+			null,
+			{ name: "outcomes" },
+		);
+		const projector = workspaceProposalFamilyApplicationReadModelsProjector(g, {
+			queries,
+			outcomeIndex,
+			outcomes,
+		});
+		const readModels = collectData(projector.readModels);
+		const fixture = repairReviewFixture();
+		const coordinates = repairReviewReadModelCoordinates(fixture.request);
+		const secondOutcome = recordWorkspaceProposalWorkItemLinkOutcome(fixture.appliedStatus, {
+			outcomeId: "repair-review-outcome-graph-2",
+			linkRef: { kind: "work-item-link", id: "link-2" },
+		}).outcome;
+		if (secondOutcome === undefined) throw new Error("expected graph D448 second outcome");
+		const index = projectWorkspaceProposalFamilyOutcomeIndex([fixture.outcome, secondOutcome])[0];
+		if (index === undefined) throw new Error("expected graph D448 outcome index");
+
+		outcomeIndex.down([["DATA", index]]);
+		outcomes.down([["DATA", fixture.outcome]]);
+		outcomes.down([["DATA", secondOutcome]]);
+		queries.down([
+			["DATA", readModelQuery("query-page-a", coordinates, { page: { offset: -1, limit: 999 } })],
+		]);
+		queries.down([
+			["DATA", readModelQuery("query-page-a", coordinates, { page: { offset: 0, limit: 100 } })],
+		]);
+		queries.down([
+			["DATA", readModelQuery("query-page-b", coordinates, { page: { offset: 1, limit: 1 } })],
+		]);
+
+		expect(readModels.map((entry) => entry.queryId)).toEqual(["query-page-a", "query-page-b"]);
+		expect(readModels[0]?.page).toMatchObject({ offset: 0, limit: 100 });
+		expect(readModels[1]?.page).toMatchObject({ offset: 1, limit: 1 });
+		expect(readModels[0]?.readModelId).not.toBe(readModels[1]?.readModelId);
+
+		const sameViewA = {
+			...readModelQuery("query-same-view-a", coordinates, { page: { offset: 0, limit: 1 } }),
+			viewId: "shared-current-view",
+		};
+		const sameViewB = {
+			...readModelQuery("query-same-view-b", coordinates, { page: { offset: 1, limit: 1 } }),
+			viewId: "shared-current-view",
+		};
+		queries.down([["DATA", sameViewA]]);
+		queries.down([["DATA", sameViewB]]);
+		queries.down([["DATA", sameViewA]]);
+
+		expect(readModels.slice(2).map((entry) => entry.queryId)).toEqual([
+			"query-same-view-a",
+			"query-same-view-b",
+			"query-same-view-a",
+		]);
+	});
+
+	it("projects D449 repair action descriptors as non-executable affordances", () => {
+		const fixture = repairReviewFixture();
+		const open = projectWorkspaceProposalRepairReviewStatuses({ requests: [fixture.request] })[0];
+		const acknowledged = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			decisions: [repairReviewDecision(fixture.request, "acknowledged", "review-ack-d449")],
+		})[0];
+		const resolved = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			decisions: [repairReviewDecision(fixture.request, "resolved", "review-resolved-d449")],
+		})[0];
+		const withdrawn = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			decisions: [repairReviewDecision(fixture.request, "withdrawn", "review-withdrawn-d449")],
+		})[0];
+		const superseded = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			decisions: [repairReviewDecision(fixture.request, "superseded", "review-superseded-d449")],
+		})[0];
+		const conflict = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			decisions: [
+				repairReviewDecision(fixture.request, "resolved", "review-conflict-resolved"),
+				repairReviewDecision(fixture.request, "withdrawn", "review-conflict-withdrawn"),
+			],
+		})[0];
+
+		for (const status of [open, acknowledged, conflict, resolved, withdrawn, superseded]) {
+			if (status === undefined) throw new Error("expected D449 status fixture");
+			const descriptors = projectWorkspaceProposalRepairActionDescriptors({
+				requests: [fixture.request],
+				statuses: [status],
+			});
+			expect(descriptors.map((entry) => entry.actionKind).sort()).toEqual([
+				"acknowledge-review",
+				"mark-human-resolved",
+				"open-successor-proposal-flow",
+				"supersede-review",
+				"withdraw-review",
+			]);
+			for (const descriptor of descriptors) {
+				expect(descriptor).toMatchObject({
+					kind: "workspace-proposal-repair-action-descriptor",
+					repairRequestId: fixture.request.repairRequestId,
+					repairState: status.state,
+					applicationId: fixture.request.applicationId,
+					proposalId: fixture.request.proposalId,
+					decisionId: fixture.request.decisionId,
+					idempotencyKey: fixture.request.idempotencyKey,
+					proposalFamily: fixture.request.proposalFamily,
+				});
+				expectForbiddenDescriptorKeys(descriptor);
+			}
+		}
+
+		const acknowledgedDescriptors = projectWorkspaceProposalRepairActionDescriptors({
+			requests: [fixture.request],
+			statuses: [acknowledged!],
+		});
+		expect(
+			acknowledgedDescriptors.find((entry) => entry.actionKind === "acknowledge-review"),
+		).toMatchObject({
+			enabled: false,
+			disabledCode: "repair-review-already-acknowledged",
+		});
+		expect(
+			acknowledgedDescriptors.find((entry) => entry.actionKind === "withdraw-review"),
+		).toMatchObject({ enabled: true });
+		for (const terminal of [resolved!, withdrawn!, superseded!]) {
+			expect(
+				projectWorkspaceProposalRepairActionDescriptors({
+					requests: [fixture.request],
+					statuses: [terminal],
+				}).every(
+					(descriptor) =>
+						descriptor.enabled === false && descriptor.disabledCode === "repair-review-terminal",
+				),
+			).toBe(true);
+		}
+		expect(
+			projectWorkspaceProposalRepairActionDescriptors({
+				requests: [fixture.request],
+				statuses: [conflict!],
+			}).every(
+				(descriptor) =>
+					descriptor.enabled === false && descriptor.disabledCode === "repair-review-conflict",
+			),
+		).toBe(true);
+		const mismatchedStatus = { ...resolved!, proposalId: "other-proposal" };
+		expect(
+			projectWorkspaceProposalRepairActionDescriptors({
+				requests: [fixture.request],
+				statuses: [mismatchedStatus],
+			}).every((descriptor) => descriptor.repairState === "open" && descriptor.enabled),
+		).toBe(true);
+		expect(
+			projectWorkspaceProposalRepairActionDescriptors({
+				requests: [fixture.request],
+				statuses: [resolved!, mismatchedStatus],
+			}).every(
+				(descriptor) =>
+					descriptor.repairState === "resolved" &&
+					descriptor.enabled === false &&
+					descriptor.disabledCode === "repair-review-terminal",
+			),
+		).toBe(true);
+		const toxicRequest = {
+			...fixture.request,
+			sourceRefs: [
+				sourceRef,
+				{ kind: "source", id: "bad-request-ref", metadata: { providerClient: "x" } },
+			],
+			audit: {
+				auditId: "audit:d449-toxic-request",
+				sourceRefs: [{ kind: "source", id: "bad-audit-ref", metadata: { callback: "x" } }],
+				metadata: { callback: "x" },
+			},
+		};
+		const toxicStatus = {
+			...acknowledged!,
+			sourceRefs: [
+				{ kind: "manual-review", id: "safe-status-ref" },
+				{ kind: "source", id: "bad-status-ref", metadata: { runtimeHandle: "x" } },
+			],
+			audit: {
+				auditId: "audit:d449-toxic-status",
+				sourceRefs: [{ kind: "manual-review", id: "safe-status-audit-ref" }],
+				metadata: { providerClient: "x" },
+			},
+		};
+		const toxicDescriptor = projectWorkspaceProposalRepairActionDescriptors({
+			requests: [toxicRequest],
+			statuses: [toxicStatus],
+		})[0];
+		expect(toxicDescriptor).toMatchObject({
+			sourceRefs: expect.arrayContaining([
+				sourceRef,
+				{ kind: "manual-review", id: "safe-status-ref" },
+				{ kind: "workspace-proposal-repair-review-status", id: fixture.request.repairRequestId },
+			]),
+		});
+		expect(toxicDescriptor?.audit).toBeUndefined();
+		expectForbiddenDescriptorKeys(toxicDescriptor);
+
+		const reviewDescriptor = acknowledgedDescriptors.find(
+			(entry) => entry.actionKind === "mark-human-resolved",
+		);
+		if (reviewDescriptor === undefined) throw new Error("expected D449 review descriptor");
+		const recorded = recordWorkspaceProposalRepairReviewDecision(fixture.request, {
+			reviewDecisionId: "review-from-descriptor",
+			intent: "resolved",
+			reviewerRef: { kind: "actor", id: "reviewer:d449" },
+			policyRefs: [{ kind: "policy", id: "repair-review:policy" }],
+			sourceRefs: reviewDescriptor.sourceRefs,
+			audit: {
+				auditId: "audit:review-from-descriptor",
+				actorId: "actor:d449",
+				sourceRefs: reviewDescriptor.sourceRefs,
+			},
+			code: "resolved-from-review-descriptor",
+			metadata: reviewDescriptor.metadata,
+		});
+		expect(recorded.status).toBe("recorded");
+		expect(recorded.decision).toMatchObject({
+			reviewDecisionId: "review-from-descriptor",
+			repairRequestId: fixture.request.repairRequestId,
+			intent: "resolved",
+			sourceRefs: expect.arrayContaining(reviewDescriptor.sourceRefs),
+			metadata: reviewDescriptor.metadata,
+		});
+	});
+
+	it("exposes graph-visible D449 repair action descriptors without mutation payloads", () => {
+		const g = graph();
+		const requests = g.node<WorkspaceProposalRepairReviewRequest>([], null, { name: "requests" });
+		const statuses = g.node<
+			ReturnType<typeof projectWorkspaceProposalRepairReviewStatuses>[number]
+		>([], null, { name: "statuses" });
+		const projector = workspaceProposalRepairActionDescriptorProjector(g, {
+			requests,
+			statuses,
+		});
+		const descriptors = collectData<WorkspaceProposalRepairActionDescriptor>(projector.descriptors);
+		const fixture = repairReviewFixture();
+		const resolved = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			outcomeStatuses: [fixture.outcomeStatus],
+		})[0];
+		if (resolved === undefined) throw new Error("expected D449 resolved status");
+
+		requests.down([["DATA", fixture.request]]);
+		statuses.down([["DATA", resolved]]);
+		statuses.down([["DATA", { ...resolved, proposalId: "other-proposal" }]]);
+
+		expect(descriptors).toHaveLength(10);
+		expect(descriptors.slice(0, 5).every((descriptor) => descriptor.repairState === "open")).toBe(
+			true,
+		);
+		expect(
+			descriptors
+				.slice(5)
+				.every(
+					(descriptor) =>
+						descriptor.repairState === "resolved" &&
+						descriptor.enabled === false &&
+						descriptor.disabledCode === "repair-review-terminal",
+				),
+		).toBe(true);
+		for (const descriptor of descriptors) expectForbiddenDescriptorKeys(descriptor);
+	});
 });
 
 function requiredInputProjectorHarness() {
@@ -2606,6 +3388,60 @@ function repairReviewDecision(
 		reviewerRef: { kind: "actor", id: "reviewer-1" },
 		sourceRefs: [{ kind: "manual-review", id: reviewDecisionId }],
 	};
+}
+
+function readModelQuery(
+	queryId: string,
+	coordinates: ReturnType<typeof repairReviewReadModelCoordinates>,
+	options: {
+		readonly page?: WorkspaceProposalFamilyApplicationReadModelQuery["page"];
+		readonly filters?: WorkspaceProposalFamilyApplicationReadModelQuery["filters"];
+	} = {},
+): WorkspaceProposalFamilyApplicationReadModelQuery {
+	return {
+		kind: "workspace-proposal-family-application-read-model-query",
+		queryId,
+		viewId: `view-${queryId}`,
+		...coordinates,
+		page: options.page,
+		filters: options.filters,
+		sourceRefs: [sourceRef],
+	};
+}
+
+function expectForbiddenDescriptorKeys(value: unknown): void {
+	const forbidden = new Set([
+		"command",
+		"commands",
+		"callback",
+		"callbacks",
+		"handler",
+		"onClick",
+		"onSubmit",
+		"draftFactory",
+		"proposalDraft",
+		"successorProposalId",
+		"successorAdmissionId",
+		"successorApplicationId",
+		"mutationIntent",
+		"providerClient",
+		"runtimeHandle",
+		"retryCommand",
+		"familyFact",
+		"applicationStatus",
+	]);
+	const visit = (item: unknown): void => {
+		if (Array.isArray(item)) {
+			for (const entry of item) visit(entry);
+			return;
+		}
+		if (item === null || typeof item !== "object") return;
+		for (const [key, child] of Object.entries(item)) {
+			expect(forbidden.has(key), `forbidden descriptor key ${key}`).toBe(false);
+			visit(child);
+		}
+	};
+	visit(value);
 }
 
 function d430ApplicationRefs(

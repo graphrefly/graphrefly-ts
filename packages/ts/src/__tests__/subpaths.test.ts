@@ -113,6 +113,10 @@ import * as reactiveLayoutNodeCanvas from "../solutions/reactive-layout/node-can
 import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-native/index.js";
 import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
 import * as workItemActions from "../solutions/work-item/actions.js";
+import type {
+	WorkspaceProposalFamilyApplicationReadModelQuery,
+	WorkspaceProposalRepairActionDescriptor,
+} from "../solutions/work-item/scheduling.js";
 import * as workItemScheduling from "../solutions/work-item/scheduling.js";
 import * as workItemWorkQueueRecipe from "../solutions/work-item/work-queue.js";
 import * as sourcesBrowser from "../sources/browser.js";
@@ -180,6 +184,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		]);
 		expect(exportsJson.exports?.["./base"]).toBeUndefined();
 		expect(exportsJson.exports?.["./compat"]).toBeUndefined();
+		expect(exportsJson.exports?.["./canvas"]).toBeUndefined();
+		expect(exportsJson.exports?.["./solutions/canvas"]).toBeUndefined();
+		expect(exportsJson.exports?.["./workspace-intents"]).toBeUndefined();
+		expect(exportsJson.exports?.["./solutions/workspace-intents"]).toBeUndefined();
 		expect(exportsJson.exports?.["./presets"]).toBeUndefined();
 		expect(exportsJson.exports?.["./utils"]).toBeUndefined();
 		expect(exportsJson.exports?.["./graph/render"]).toBeUndefined();
@@ -372,6 +380,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		);
 		expect(typeof workItemScheduling.projectWorkspaceProposalRepairReviewRequests).toBe("function");
 		expect(typeof workItemScheduling.workspaceProposalRepairReviewProjector).toBe("function");
+		expect(typeof workItemScheduling.recordWorkspaceProposalRepairReviewDecision).toBe("function");
 		expect(typeof workItemScheduling.projectWorkspaceProposalRepairReviewStatuses).toBe("function");
 		expect(typeof workItemScheduling.workspaceProposalRepairReviewStatusProjector).toBe("function");
 		expect(typeof workItemScheduling.projectWorkspaceProposalFamilyApplicationReadModel).toBe(
@@ -380,6 +389,30 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof workItemScheduling.workspaceProposalFamilyApplicationReadModelProjector).toBe(
 			"function",
 		);
+		expect(typeof workItemScheduling.projectWorkspaceProposalFamilyApplicationReadModels).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.workspaceProposalFamilyApplicationReadModelsProjector).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.projectWorkspaceProposalRepairActionDescriptors).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.workspaceProposalRepairActionDescriptorProjector).toBe(
+			"function",
+		);
+		expectTypeOf<WorkspaceProposalFamilyApplicationReadModelQuery>()
+			.toHaveProperty("queryId")
+			.toEqualTypeOf<string>();
+		expectTypeOf<WorkspaceProposalRepairActionDescriptor>()
+			.toHaveProperty("actionKind")
+			.toEqualTypeOf<
+				| "acknowledge-review"
+				| "withdraw-review"
+				| "mark-human-resolved"
+				| "supersede-review"
+				| "open-successor-proposal-flow"
+			>();
 		expect(Object.hasOwn(solutions, "workItemAuthoringProjector")).toBe(false);
 		expect(Object.hasOwn(solutions, "recordWorkspaceProposal")).toBe(false);
 		expect(
@@ -389,19 +422,39 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			false,
 		);
 		expect(Object.hasOwn(solutions, "projectWorkspaceProposalRepairReviewRequests")).toBe(false);
+		expect(Object.hasOwn(solutions, "recordWorkspaceProposalRepairReviewDecision")).toBe(false);
 		expect(Object.hasOwn(solutions, "projectWorkspaceProposalRepairReviewStatuses")).toBe(false);
 		expect(Object.hasOwn(solutions, "workspaceProposalFamilyApplicationReadModelProjector")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(solutions, "workspaceProposalFamilyApplicationReadModelsProjector")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(solutions, "workspaceProposalRepairActionDescriptorProjector")).toBe(
 			false,
 		);
 		expect(
 			Object.hasOwn(rootPackage, "workspaceProposalFamilyApplicationDiagnosticProjector"),
 		).toBe(false);
 		expect(Object.hasOwn(rootPackage, "projectWorkspaceProposalRepairReviewRequests")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "recordWorkspaceProposalRepairReviewDecision")).toBe(false);
 		expect(Object.hasOwn(rootPackage, "projectWorkspaceProposalRepairReviewStatuses")).toBe(false);
 		expect(Object.hasOwn(rootPackage, "workspaceProposalFamilyApplicationReadModelProjector")).toBe(
 			false,
 		);
+		expect(
+			Object.hasOwn(rootPackage, "workspaceProposalFamilyApplicationReadModelsProjector"),
+		).toBe(false);
+		expect(Object.hasOwn(rootPackage, "workspaceProposalRepairActionDescriptorProjector")).toBe(
+			false,
+		);
 		expect(Object.hasOwn(solutions, "recordWorkspaceProposalDomainActionOutcome")).toBe(false);
+		expect(Object.hasOwn(workItemActions, "workspaceProposalRepairActionDescriptorProjector")).toBe(
+			false,
+		);
+		expect(
+			Object.hasOwn(workItemActions, "projectWorkspaceProposalFamilyApplicationReadModels"),
+		).toBe(false);
 		expect(Object.hasOwn(solutions, "workItemDomainActionApplicationProjector")).toBe(false);
 		expect(typeof workItemWorkQueueRecipe.workItemWorkQueueRecipe).toBe("function");
 		expect(typeof workItemWorkQueueRecipe.workItemSubmitCommand).toBe("function");
