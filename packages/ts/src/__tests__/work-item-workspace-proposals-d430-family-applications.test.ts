@@ -446,6 +446,166 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		);
 	});
 
+	it("diagnoses missing durable handoff material per family without status or family truth", () => {
+		const required = requiredInputProjectorHarness();
+		const spawn = spawnProjectorHarness();
+		const link = linkProjectorHarness();
+		const domain = domainActionProjectorHarness();
+
+		required.contexts.down([
+			[
+				"DATA",
+				{
+					kind: "workspace-proposal-required-input-response-application-context",
+					applicationId: "application-required-missing",
+					proposalId: "proposal-required-missing",
+				},
+			],
+		]);
+		spawn.contexts.down([
+			[
+				"DATA",
+				{
+					kind: "workspace-proposal-work-item-spawn-application-context",
+					applicationId: "application-spawn-missing",
+					proposalId: "proposal-spawn-missing",
+				},
+			],
+		]);
+		link.contexts.down([
+			[
+				"DATA",
+				{
+					kind: "workspace-proposal-work-item-link-application-context",
+					applicationId: "application-link-missing",
+					proposalId: "proposal-link-missing",
+				},
+			],
+		]);
+		domain.contexts.down([
+			[
+				"DATA",
+				{
+					kind: "workspace-proposal-domain-action-application-context",
+					applicationId: "application-domain-missing-durable",
+					proposalId: "proposal-domain-missing",
+				},
+			],
+		]);
+
+		for (const harness of [required, spawn, link, domain]) {
+			expect(harness.status).toEqual([]);
+			expect(harness.recorded).toEqual([]);
+			expect(harness.familyTruth).toEqual([]);
+			expect(harness.issues.map((entry) => entry.code)).toEqual([
+				"missing-workspace-proposal-recorded",
+				"missing-workspace-proposal-admission-decision",
+			]);
+			expect(harness.audit).toEqual([
+				expect.objectContaining({
+					state: "pending",
+					code: "missing-durable-handoff",
+					emittedFactRefs: [],
+					metadata: expect.objectContaining({
+						diagnostic: "missing-durable-handoff",
+						missingRecord: true,
+						missingDecision: true,
+					}),
+				}),
+			]);
+		}
+	});
+
+	it("dedupes missing durable handoff diagnostics and recovers when record and decision arrive", () => {
+		const harness = requiredInputProjectorHarness();
+		const context = {
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-required-late",
+			proposalId: "proposal-1",
+		} satisfies WorkspaceProposalRequiredInputResponseApplicationContext;
+		const record = proposalRecord("required-input-response", {
+			kind: "required-input-response-proposed",
+			proposalId: "proposal-1",
+			requestId: "request-1",
+			workItemId: "wi-1",
+			value: "answer",
+		} satisfies RequiredInputResponseProposed<string>);
+
+		harness.contexts.down([["DATA", context]]);
+		harness.contexts.down([["DATA", context]]);
+
+		expect(harness.issues.map((entry) => entry.code)).toEqual([
+			"missing-workspace-proposal-recorded",
+			"missing-workspace-proposal-admission-decision",
+		]);
+		expect(harness.audit).toHaveLength(1);
+		expect(harness.status).toEqual([]);
+		expect(harness.familyTruth).toEqual([]);
+
+		harness.records.down([["DATA", record]]);
+		harness.decisions.down([["DATA", admittedDecision(record)]]);
+		harness.gates.down([["DATA", requiredInputGate()]]);
+
+		expect(harness.familyTruth).toHaveLength(1);
+		expect(harness.status.at(-1)).toMatchObject({
+			applicationId: "application-required-late",
+			state: "applied",
+			emittedFactRefs: [
+				expect.objectContaining({
+					factKind: "required-input-response-applied",
+					factId: "application-required-late",
+				}),
+			],
+		});
+		expect(harness.recorded.at(-1)).toMatchObject({
+			applicationId: "application-required-late",
+		});
+	});
+
+	it("diagnoses an explicit missing decisionId without falling back to another proposal decision", () => {
+		const harness = spawnProjectorHarness();
+		const record = proposalRecord("work-item-spawn", {
+			kind: "work-item-spawn-proposed",
+			proposalId: "proposal-1",
+			proposedWorkItemId: "child-1",
+			draft: workItemDraft("Child"),
+		} satisfies WorkItemSpawnProposed);
+		const decision = admittedDecision(record);
+
+		harness.records.down([["DATA", record]]);
+		harness.decisions.down([["DATA", decision]]);
+		harness.contexts.down([
+			[
+				"DATA",
+				{
+					kind: "workspace-proposal-work-item-spawn-application-context",
+					applicationId: "application-spawn-wrong-decision",
+					proposalId: record.proposalId,
+					decisionId: "decision-missing",
+				},
+			],
+		]);
+
+		expect(harness.familyTruth).toEqual([]);
+		expect(harness.status).toEqual([]);
+		expect(harness.recorded).toEqual([]);
+		expect(harness.issues.map((entry) => entry.code)).toEqual([
+			"missing-workspace-proposal-admission-decision",
+		]);
+		expect(harness.issues[0]?.refs).toContain(
+			"workspace-proposal-admission-decision:decision-missing",
+		);
+
+		harness.decisions.down([["DATA", admittedDecisionWithId(record, "decision-missing")]]);
+
+		expect(harness.familyTruth).toHaveLength(1);
+		expect(harness.status.at(-1)).toMatchObject({
+			applicationId: "application-spawn-wrong-decision",
+			decisionId: "decision-missing",
+			state: "applied",
+		});
+	});
+
 	it("graph required-input projector applies once and re-references on replay", () => {
 		const g = graph();
 		const records = g.node<WorkspaceProposalRecorded<RequiredInputResponseProposed<string>>>(
@@ -1197,6 +1357,120 @@ describe("Workspace proposal family application helpers (D430)", () => {
 	});
 });
 
+function requiredInputProjectorHarness() {
+	const g = graph();
+	const records = g.node<WorkspaceProposalRecorded<RequiredInputResponseProposed<string>>>(
+		[],
+		null,
+		{
+			name: "records",
+		},
+	);
+	const decisions = g.node<WorkspaceProposalAdmissionDecision>([], null, { name: "decisions" });
+	const contexts = g.node<WorkspaceProposalRequiredInputResponseApplicationContext>([], null, {
+		name: "contexts",
+	});
+	const gates = g.node<RequiredInputGate>([], null, { name: "gates" });
+	const bundle = workspaceProposalRequiredInputResponseApplicationProjector(g, {
+		records,
+		decisions,
+		contexts,
+		gates,
+	});
+	return {
+		records,
+		decisions,
+		contexts,
+		gates,
+		status: collectData(bundle.status),
+		recorded: collectData(bundle.recorded),
+		issues: collectData(bundle.issues),
+		audit: collectData(bundle.audit),
+		familyTruth: collectData(bundle.applied),
+	};
+}
+
+function spawnProjectorHarness() {
+	const g = graph();
+	const records = g.node<WorkspaceProposalRecorded<WorkItemSpawnProposed>>([], null, {
+		name: "records",
+	});
+	const decisions = g.node<WorkspaceProposalAdmissionDecision>([], null, { name: "decisions" });
+	const contexts = g.node<WorkspaceProposalWorkItemSpawnApplicationContext>([], null, {
+		name: "contexts",
+	});
+	const bundle = workspaceProposalWorkItemSpawnApplicationProjector(g, {
+		records,
+		decisions,
+		contexts,
+	});
+	const familyTruth = collectDataFromNodes(bundle.created, bundle.linked);
+	return {
+		records,
+		decisions,
+		contexts,
+		status: collectData(bundle.status),
+		recorded: collectData(bundle.recorded),
+		issues: collectData(bundle.issues),
+		audit: collectData(bundle.audit),
+		familyTruth,
+	};
+}
+
+function linkProjectorHarness() {
+	const g = graph();
+	const records = g.node<WorkspaceProposalRecorded<ReturnType<typeof linkDraft>>>([], null, {
+		name: "records",
+	});
+	const decisions = g.node<WorkspaceProposalAdmissionDecision>([], null, { name: "decisions" });
+	const contexts = g.node<WorkspaceProposalWorkItemLinkApplicationContext>([], null, {
+		name: "contexts",
+	});
+	const bundle = workspaceProposalWorkItemLinkApplicationProjector(g, {
+		records,
+		decisions,
+		contexts,
+	});
+	const familyTruth = collectDataFromNodes(bundle.linked, bundle.unlinked);
+	return {
+		records,
+		decisions,
+		contexts,
+		status: collectData(bundle.status),
+		recorded: collectData(bundle.recorded),
+		issues: collectData(bundle.issues),
+		audit: collectData(bundle.audit),
+		familyTruth,
+	};
+}
+
+function domainActionProjectorHarness() {
+	const g = graph();
+	const records = g.node<WorkspaceProposalRecorded>([], null, { name: "records" });
+	const decisions = g.node<WorkspaceProposalAdmissionDecision>([], null, { name: "decisions" });
+	const contexts = g.node<WorkspaceProposalDomainActionApplicationContext>([], null, {
+		name: "contexts",
+	});
+	const emittedFacts = g.node<WorkItemAuthoringFact>([], null, { name: "domainFacts" });
+	const bundle = workspaceProposalDomainActionApplicationProjector(g, {
+		records,
+		decisions,
+		contexts,
+		emittedFacts,
+	});
+	return {
+		records,
+		decisions,
+		contexts,
+		emittedFacts,
+		status: collectData(bundle.status),
+		recorded: collectData(bundle.recorded),
+		issues: collectData(bundle.issues),
+		audit: collectData(bundle.audit),
+		familyTruth: [] as unknown[],
+	};
+}
+
 function proposalRecord<TDraft>(
 	family: WorkspaceProposalFamily,
 	draft: TDraft,
@@ -1224,6 +1498,19 @@ function proposalRecordWithProposalId<TDraft>(
 
 function admittedDecision(record: WorkspaceProposalRecorded): WorkspaceProposalAdmissionDecision {
 	const result = decideWorkspaceProposalAdmission(record, admissionMaterial(record.proposalFamily));
+	expect(result.issues).toEqual([]);
+	expect(result.decision.status).toBe("admitted");
+	return result.decision;
+}
+
+function admittedDecisionWithId(
+	record: WorkspaceProposalRecorded,
+	decisionId: string,
+): WorkspaceProposalAdmissionDecision {
+	const result = decideWorkspaceProposalAdmission(record, {
+		...admissionMaterial(record.proposalFamily),
+		decisionId,
+	});
 	expect(result.issues).toEqual([]);
 	expect(result.decision.status).toBe("admitted");
 	return result.decision;
@@ -1364,5 +1651,19 @@ function collectData<T>(node: {
 	node.subscribe((msg) => {
 		if (msg[0] === "DATA") out.push(msg[1] as T);
 	});
+	return out;
+}
+
+function collectDataFromNodes<T>(
+	...nodes: {
+		subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
+	}[]
+): T[] {
+	const out: T[] = [];
+	for (const node of nodes) {
+		node.subscribe((msg) => {
+			if (msg[0] === "DATA") out.push(msg[1] as T);
+		});
+	}
 	return out;
 }

@@ -243,10 +243,12 @@ export interface WorkspaceProposalFamilyApplicationAuditRecord {
 	readonly auditId: string;
 	readonly applicationId: string;
 	readonly proposalId: string;
-	readonly decisionId: string;
+	readonly decisionId?: string;
 	readonly proposalFamily: string;
 	readonly state: WorkspaceProposalApplicationState;
 	readonly emittedFactRefs: readonly WorkspaceProposalApplicationFamilyRef[];
+	readonly code?: string;
+	readonly issues?: readonly WorkspaceProposalRecordedIssue[];
 	readonly sourceRefs?: readonly SourceRef[];
 	readonly audit?: WorkspaceProposalAuditMaterial;
 	readonly metadata?: Record<string, unknown>;
@@ -485,6 +487,7 @@ interface WorkspaceProposalFamilyProjectorState<TInput = unknown, TDraft = unkno
 	readonly domainApplications: Map<string, WorkItemDomainActionApplication>;
 	readonly applicationRefs: Map<string, WorkspaceProposalApplicationReplayEntry>;
 	readonly factOwners: Map<string, string>;
+	readonly durableHandoffDiagnostics: Set<string>;
 }
 
 interface WorkspaceProposalApplicationReplayEntry {
@@ -525,7 +528,10 @@ export function workspaceProposalRequiredInputResponseApplicationProjector<TValu
 			for (const context of state.contexts.values()) {
 				const record = state.records.get(context.proposalId);
 				const decision = decisionForContext(state, context);
-				if (record === undefined || decision === undefined) continue;
+				if (record === undefined || decision === undefined) {
+					emitMissingDurableHandoffDiagnostics(ctx, state, context, "required-input-response");
+					continue;
+				}
 				const draft = record.draft;
 				const draftShapeIssues = requiredInputDraftShapeIssues(record, draft);
 				if (draftShapeIssues.length > 0) {
@@ -620,7 +626,10 @@ export function workspaceProposalWorkItemSpawnApplicationProjector<TInput = unkn
 			for (const context of state.contexts.values()) {
 				const record = state.records.get(context.proposalId);
 				const decision = decisionForContext(state, context);
-				if (record === undefined || decision === undefined) continue;
+				if (record === undefined || decision === undefined) {
+					emitMissingDurableHandoffDiagnostics(ctx, state, context, "work-item-spawn");
+					continue;
+				}
 				const spawnContext = context as WorkspaceProposalWorkItemSpawnApplicationContext;
 				const result = projectWorkspaceProposalWorkItemSpawnApplication(record, decision, {
 					applicationId: context.applicationId,
@@ -679,7 +688,10 @@ export function workspaceProposalWorkItemLinkApplicationProjector<TInput = unkno
 			for (const context of state.contexts.values()) {
 				const record = state.records.get(context.proposalId);
 				const decision = decisionForContext(state, context);
-				if (record === undefined || decision === undefined) continue;
+				if (record === undefined || decision === undefined) {
+					emitMissingDurableHandoffDiagnostics(ctx, state, context, "work-item-link");
+					continue;
+				}
 				const linkContext = context as WorkspaceProposalWorkItemLinkApplicationContext;
 				const result = projectWorkspaceProposalWorkItemLinkApplication(record, decision, {
 					applicationId: context.applicationId,
@@ -736,7 +748,10 @@ export function workspaceProposalDomainActionApplicationProjector(
 			for (const context of state.contexts.values()) {
 				const record = state.records.get(context.proposalId);
 				const decision = decisionForContext(state, context);
-				if (record === undefined || decision === undefined) continue;
+				if (record === undefined || decision === undefined) {
+					emitMissingDurableHandoffDiagnostics(ctx, state, context, "work-item-domain-action");
+					continue;
+				}
 				const domainContext = context as WorkspaceProposalDomainActionApplicationContext;
 				const selectedDomainFacts = selectDomainFacts(state, domainContext);
 				const domainApplication =
@@ -1867,6 +1882,7 @@ function familyProjectorState<TInput, TDraft>(
 			domainApplications: new Map(),
 			applicationRefs: new Map(),
 			factOwners: new Map(),
+			durableHandoffDiagnostics: new Set(),
 		}
 	);
 }
@@ -2092,6 +2108,137 @@ function emitApplicationStatusFacts(
 		audit: result.status.audit,
 		metadata: replayState === undefined ? undefined : { replayState },
 	});
+}
+
+function emitMissingDurableHandoffDiagnostics<TInput, TDraft>(
+	ctx: Ctx,
+	state: WorkspaceProposalFamilyProjectorState<TInput, TDraft>,
+	context: {
+		readonly applicationId: string;
+		readonly proposalId: string;
+		readonly decisionId?: string;
+		readonly sourceRefs?: readonly SourceRef[];
+		readonly audit?: WorkspaceProposalAuditMaterial;
+	},
+	proposalFamily: WorkspaceProposalFamily,
+): void {
+	const record = state.records.get(context.proposalId);
+	const decision = decisionForContext(state, context);
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	if (record === undefined) {
+		issues.push(
+			missingDurableHandoffIssue(
+				context,
+				"missing-workspace-proposal-recorded",
+				"Workspace family application context references a missing durable proposal record",
+			),
+		);
+	}
+	if (decision === undefined) {
+		issues.push(
+			missingDurableHandoffIssue(
+				context,
+				"missing-workspace-proposal-admission-decision",
+				"Workspace family application context references a missing durable admission decision",
+			),
+		);
+	}
+	const newIssues = issues.filter((issue) => {
+		const key = durableHandoffDiagnosticKey(context, issue.code);
+		if (state.durableHandoffDiagnostics.has(key)) return false;
+		state.durableHandoffDiagnostics.add(key);
+		return true;
+	});
+	if (newIssues.length === 0) return;
+	for (const issue of newIssues) emitRuntime(ctx, "issue", issue);
+	emitRuntime(ctx, "audit", {
+		kind: "workspace-proposal-family-application-audit",
+		auditId: `${context.applicationId}:missing-durable-handoff:audit`,
+		applicationId: context.applicationId,
+		proposalId: context.proposalId,
+		decisionId: context.decisionId,
+		proposalFamily,
+		state: "pending",
+		code: "missing-durable-handoff",
+		issues: newIssues,
+		emittedFactRefs: [],
+		sourceRefs: missingDurableHandoffSourceRefs(context),
+		audit: context.audit,
+		metadata: {
+			diagnostic: "missing-durable-handoff",
+			missingRecord: record === undefined,
+			missingDecision: decision === undefined,
+		},
+	});
+}
+
+function missingDurableHandoffIssue(
+	context: {
+		readonly applicationId: string;
+		readonly proposalId: string;
+		readonly decisionId?: string;
+		readonly sourceRefs?: readonly SourceRef[];
+	},
+	code: string,
+	message: string,
+): WorkspaceProposalRecordedIssue {
+	return {
+		kind: "issue",
+		source: "workspace-proposal",
+		severity: "error",
+		code,
+		message,
+		subjectId: context.proposalId,
+		refs: missingDurableHandoffRefs(context),
+		metadata: {
+			applicationId: context.applicationId,
+			proposalId: context.proposalId,
+			...(context.decisionId === undefined ? {} : { decisionId: context.decisionId }),
+		},
+	};
+}
+
+function durableHandoffDiagnosticKey(
+	context: {
+		readonly applicationId: string;
+		readonly proposalId: string;
+		readonly decisionId?: string;
+	},
+	code: string,
+): string {
+	return `${context.applicationId}:${context.proposalId}:${context.decisionId ?? "<by-proposal>"}:${code}`;
+}
+
+function missingDurableHandoffRefs(context: {
+	readonly applicationId: string;
+	readonly proposalId: string;
+	readonly decisionId?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+}): readonly string[] {
+	return [
+		`workspace-proposal-application-context:${context.applicationId}`,
+		`workspace-proposal-recorded:${context.proposalId}`,
+		...(context.decisionId === undefined
+			? []
+			: [`workspace-proposal-admission-decision:${context.decisionId}`]),
+		...(context.sourceRefs ?? []).map((sourceRef) => `${sourceRef.kind}:${sourceRef.id}`),
+	];
+}
+
+function missingDurableHandoffSourceRefs(context: {
+	readonly applicationId: string;
+	readonly proposalId: string;
+	readonly decisionId?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+}): readonly SourceRef[] {
+	return uniqueRefs([
+		{ kind: "workspace-proposal-application-context", id: context.applicationId },
+		{ kind: "workspace-proposal-recorded", id: context.proposalId },
+		...(context.decisionId === undefined
+			? []
+			: [{ kind: "workspace-proposal-admission-decision", id: context.decisionId }]),
+		...(context.sourceRefs ?? []),
+	]);
 }
 
 function emitFamilyFact(ctx: Ctx, fact: WorkspaceProposalEmittableFamilyFact): void {
