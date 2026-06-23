@@ -8,6 +8,5 @@
 export * from "./agentic-memory-storage.js";
 export * from "./bridge.js";
 export * from "./environment.js";
-export * from "./nestjs.js";
 export * from "./reactive-collection-storage.js";
 export * from "./store.js";

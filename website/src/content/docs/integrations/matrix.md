@@ -1,6 +1,6 @@
 ---
 title: "Integration Matrix"
-description: "Current integration surface across adapters and compat layers."
+description: "Current integration surface across focused clean-slate adapter subpaths."
 ---
 
 This matrix is the fast inventory view. Use it to find what exists today, where to look next, and which package or doc path to start from.
@@ -18,13 +18,17 @@ This matrix is the fast inventory view. Use it to find what exists today, where 
 
 See [Adapters](/integrations/adapters/) for usage guidance and naming conventions.
 
-## Compat
+## Framework and Host Bindings
 
 | Integration | Type | Entry |
 |---|---|---|
-| NestJS | Retired legacy compat | Archived pending clean-slate design |
-| Jotai | Retired legacy compat | Archived pending clean-slate design |
-| Nanostores | Retired legacy compat | Archived pending clean-slate design |
-| Zustand | Retired legacy compat | Archived pending clean-slate design |
+| React | Framework adapter | `@graphrefly/ts/adapters/react` |
+| Vue | Framework adapter | `@graphrefly/ts/adapters/vue` |
+| Solid | Framework adapter | `@graphrefly/ts/adapters/solid` |
+| Svelte | Framework adapter | `@graphrefly/ts/adapters/svelte` |
+| NestJS | Experimental host boundary adapter | `@graphrefly/ts/adapters/nestjs` |
+| Jotai-style facade | Framework-neutral store facade | `jotaiAtom` from `@graphrefly/ts/adapters` |
+| Nanostores-style facade | Framework-neutral store facade | `nanoAtom` from `@graphrefly/ts/adapters` |
+| Zustand-style facade | Framework-neutral store facade | `zustandStore` from `@graphrefly/ts/adapters` |
 
-See [Compat](/integrations/compat/) for framework integration guidance.
+Legacy `@graphrefly/graphrefly/compat/*` imports are retired.

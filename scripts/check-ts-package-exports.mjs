@@ -38,7 +38,23 @@ const expectedSubpaths = {
 			"nodeReadable",
 			"nodeWritable",
 			"nodeRecord",
+			"fromNestReq",
+			"toNestHttp",
 		],
+	},
+	"./adapters/nestjs": {
+		present: [
+			"fromNestReq",
+			"fromNestGuard",
+			"fromNestIntercept",
+			"fromNestError",
+			"fromNestLifecycle",
+			"fromNestCron",
+			"toNestHttp",
+			"NestBoundary",
+			"getNestBoundaryToken",
+		],
+		absent: [],
 	},
 	"./adapters/react": { present: ["useNodeValue", "useNodeInput", "useNodeRecord"], absent: [] },
 	"./adapters/vue": { present: ["useNodeValue", "useNodeInput", "useNodeRecord"], absent: [] },
@@ -72,6 +88,25 @@ const expectedSubpaths = {
 	"./inspection/boundary": { present: ["boundaryManifest"], absent: [] },
 	"./orchestration/messaging": { present: ["orchestrationMessagingRecipe"], absent: [] },
 	"./orchestration/work-queue": { present: ["orchestrationWorkQueueRecipe"], absent: [] },
+	"./solutions/work-item/scheduling": {
+		present: [
+			"isWorkspaceProposalProjectionReleaseMaterial",
+			"validateWorkspaceProposalProjectionReleaseMaterial",
+			"workspaceProposalProjectionReleaseDiagnosticProjector",
+		],
+		absent: [
+			"genericFamilyFactReader",
+			"readFamilyFact",
+			"recordFamilyOutcome",
+			"selectorAdapter",
+			"selectorAdapterRegistry",
+			"providerHandle",
+			"storageHandle",
+			"queryHandle",
+			"opaqueProviderCursor",
+			"providerCursor",
+		],
+	},
 };
 
 const forbiddenFrameworkSpecifiers = [
@@ -110,6 +145,9 @@ const rootAbsentExports = [
 	"nodeWritable",
 	"nodeRecord",
 	"boundaryManifest",
+	"isWorkspaceProposalProjectionReleaseMaterial",
+	"validateWorkspaceProposalProjectionReleaseMaterial",
+	"workspaceProposalProjectionReleaseDiagnosticProjector",
 ];
 
 const rootAbsentTypeExports = [
@@ -118,6 +156,12 @@ const rootAbsentTypeExports = [
 	"BoundaryRole",
 	"InputBoundaryNode",
 	"OutputBoundaryNode",
+	"WorkspaceProposalProjectionRelease",
+	"WorkspaceProposalProjectionReleaseDiagnostic",
+	"WorkspaceProposalProjectionReleaseDiagnosticProjectorBundle",
+	"WorkspaceProposalProjectionReleaseDiagnosticProjectorOptions",
+	"WorkspaceProposalProjectionReleaseTargetKind",
+	"WorkspaceProposalProjectionReleaseValidationResult",
 ];
 
 function fail(message) {
@@ -367,6 +411,17 @@ import {
 	type ToolProviderPublicTextPolicy,
 } from "@graphrefly/ts/executors/tool-provider-runtime";
 import { boundaryManifest, type BoundaryManifest, type BoundaryNode, type BoundaryRole } from "@graphrefly/ts/inspection/boundary";
+import {
+	isWorkspaceProposalProjectionReleaseMaterial,
+	validateWorkspaceProposalProjectionReleaseMaterial,
+	workspaceProposalProjectionReleaseDiagnosticProjector,
+	type WorkspaceProposalProjectionRelease,
+	type WorkspaceProposalProjectionReleaseDiagnostic,
+	type WorkspaceProposalProjectionReleaseDiagnosticProjectorBundle,
+	type WorkspaceProposalProjectionReleaseDiagnosticProjectorOptions,
+	type WorkspaceProposalProjectionReleaseTargetKind,
+	type WorkspaceProposalProjectionReleaseValidationResult,
+} from "@graphrefly/ts/solutions/work-item/scheduling";
 
 void externalStore;
 void readableStore;
@@ -395,6 +450,9 @@ void processToolProviderAdapterPack;
 void processToolProviderBinding;
 void processToolProviderCatalog;
 void boundaryManifest;
+void isWorkspaceProposalProjectionReleaseMaterial;
+void validateWorkspaceProposalProjectionReleaseMaterial;
+void workspaceProposalProjectionReleaseDiagnosticProjector;
 
 declare const manifest: BoundaryManifest;
 const role: BoundaryRole = "input";
@@ -424,6 +482,12 @@ declare const httpRuntimeBundle: HttpToolProviderRuntimeBundle;
 declare const httpRuntimeOptions: HttpToolProviderRuntimeOptions;
 declare const localBindingOptions: LocalBuiltinToolProviderBindingOptions;
 declare const processBindingOptions: ProcessToolProviderBindingOptions;
+declare const projectionRelease: WorkspaceProposalProjectionRelease;
+declare const projectionReleaseDiagnostic: WorkspaceProposalProjectionReleaseDiagnostic;
+declare const projectionReleaseDiagnosticProjectorBundle: WorkspaceProposalProjectionReleaseDiagnosticProjectorBundle;
+declare const projectionReleaseDiagnosticProjectorOptions: WorkspaceProposalProjectionReleaseDiagnosticProjectorOptions;
+declare const projectionReleaseValidationResult: WorkspaceProposalProjectionReleaseValidationResult;
+const projectionReleaseTargetKind: WorkspaceProposalProjectionReleaseTargetKind = "family-read-model-query";
 void role;
 void node;
 void recipeBundle;
@@ -451,6 +515,12 @@ void httpRuntimeBundle;
 void httpRuntimeOptions;
 void localBindingOptions;
 void processBindingOptions;
+void projectionRelease;
+void projectionReleaseDiagnostic;
+void projectionReleaseDiagnosticProjectorBundle;
+void projectionReleaseDiagnosticProjectorOptions;
+void projectionReleaseValidationResult;
+void projectionReleaseTargetKind;
 `,
 	);
 	const rootForbiddenNames = [...rootAbsentExports, ...rootAbsentTypeExports].join(", ");
@@ -461,7 +531,12 @@ void processBindingOptions;
 	);
 	writeFileSync(
 		join(tmp, "adapters-negative.mts"),
-		`import type { useNodeValue, useNodeInput, useNodeRecord, createNodeValue, createNodeInput, createNodeRecord, nodeReadable, nodeWritable, nodeRecord } from "@graphrefly/ts/adapters";
+		`import type { useNodeValue, useNodeInput, useNodeRecord, createNodeValue, createNodeInput, createNodeRecord, nodeReadable, nodeWritable, nodeRecord, fromNestReq, toNestHttp } from "@graphrefly/ts/adapters";
+`,
+	);
+	writeFileSync(
+		join(tmp, "scheduling-negative.mts"),
+		`import type { ${expectedSubpaths["./solutions/work-item/scheduling"].absent.join(", ")} } from "@graphrefly/ts/solutions/work-item/scheduling";
 `,
 	);
 
@@ -489,6 +564,11 @@ void processBindingOptions;
 	execFileSync(TSC, ["-p", "tsconfig.json"], { cwd: tmp, stdio: "pipe" });
 	expectTscFailure(tmp, "root-negative.mts", [...rootAbsentExports, ...rootAbsentTypeExports]);
 	expectTscFailure(tmp, "adapters-negative.mts", expectedSubpaths["./adapters"].absent);
+	expectTscFailure(
+		tmp,
+		"scheduling-negative.mts",
+		expectedSubpaths["./solutions/work-item/scheduling"].absent,
+	);
 } catch (e) {
 	fail(`${e.message ?? e}\n${errorOutput(e)}`.trim());
 } finally {

@@ -1,13 +1,12 @@
 packages:
   - .
   - website
-  - demos/compat-matrix
   - demos/reactive-layout
   - demos/knowledge-graph
   - demos/pagerduty-triage
   - examples/basic/*
-  - examples/compat/*
   - examples/framework/*
+  - examples/nestjs-graph-boundary
   - examples/reactive-layout/*
   - examples/knowledge-graph
   - examples/spending-alerts

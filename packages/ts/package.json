@@ -28,6 +28,16 @@
 				"default": "./dist/adapters/index.cjs"
 			}
 		},
+		"./adapters/nestjs": {
+			"import": {
+				"types": "./dist/adapters/nestjs.d.ts",
+				"default": "./dist/adapters/nestjs.js"
+			},
+			"require": {
+				"types": "./dist/adapters/nestjs.d.cts",
+				"default": "./dist/adapters/nestjs.cjs"
+			}
+		},
 		"./adapters/observe-storage": {
 			"import": {
 				"types": "./dist/adapters/observe-storage.d.ts",

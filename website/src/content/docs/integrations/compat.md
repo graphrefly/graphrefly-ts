@@ -1,25 +1,18 @@
 ---
-title: "Compat"
-description: "Framework compatibility layers that embed GraphReFly into application runtimes."
+title: "Retired Compat"
+description: "Historical note for the retired pre-clean-slate compatibility layers."
 ---
 
-Compat packages make GraphReFly feel native inside framework ecosystems.
+The old `@graphrefly/graphrefly/compat/*` runtime model is retired. Clean-slate framework and host bindings now live under focused `@graphrefly/ts/adapters/*` subpaths.
 
-## Current compat layers
+## Current replacements
 
-- **NestJS**: Graph module wiring, CQRS helpers, guards, and stream bridges.
-- **Jotai**: Bind graph nodes into atom-driven React state.
-- **Nanostores**: Expose graph values through store-first reactive APIs.
-- **Zustand**: Bridge graph updates into lightweight store slices.
+- **NestJS**: `@graphrefly/ts/adapters/nestjs` keyed ingress/egress boundary nodes.
+- **React/Vue/Solid/Svelte**: focused framework adapter subpaths.
+- **Jotai/Nanostores/Zustand-style facades**: small store facades from `@graphrefly/ts/adapters`.
 
 See the full walkthrough in [NestJS Integration](/recipes/nestjs-integration/).
 
-## When to use compat
+## What stayed retired
 
-- You want framework-native dependency injection and lifecycle hooks.
-- You are integrating GraphReFly into an existing app architecture incrementally.
-- You want framework ergonomics without losing graph observability and checkpointing.
-
-## When to use raw API instead
-
-Use core/extra APIs directly when you are building standalone runtimes or libraries that should stay framework-agnostic.
+Do not use `compat/nestjs`, `GraphReflyModule`, `GraphReflyGuard`, `Actor`, `CqrsGraph`, hidden event buses, or root `@graphrefly/graphrefly` imports for clean-slate work.

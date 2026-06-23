@@ -31,6 +31,7 @@ import {
 	recordWorkspaceProposalWorkItemLinkOutcome,
 	recordWorkspaceProposalWorkItemSpawnOutcome,
 	validateWorkspaceProposalApplicationEnvelope,
+	validateWorkspaceProposalProjectionReleaseMaterial,
 	validateWorkspaceProposalRepairActionDisplayPolicyAdvisory,
 	validateWorkspaceProposalRepairActionIntent,
 	type WorkItemAuthoringFact,
@@ -48,6 +49,7 @@ import {
 	type WorkspaceProposalFamilyOutcomeDetailSupplyRequest,
 	type WorkspaceProposalFamilyOutcomeDetailSupplyResult,
 	type WorkspaceProposalProjectionRelease,
+	type WorkspaceProposalProjectionReleaseDiagnostic,
 	type WorkspaceProposalReadyRequest,
 	type WorkspaceProposalRecorded,
 	type WorkspaceProposalRepairActionDescriptor,
@@ -69,6 +71,7 @@ import {
 	workspaceProposalFamilyApplicationReadModelProjector,
 	workspaceProposalFamilyApplicationReadModelsProjector,
 	workspaceProposalFamilyOutcomeDetailSupplyProjector,
+	workspaceProposalProjectionReleaseDiagnosticProjector,
 	workspaceProposalRepairActionDescriptorProjector,
 	workspaceProposalRepairActionDisplayPolicyAdvisoryProjector,
 	workspaceProposalRepairActionIntentProjector,
@@ -2802,6 +2805,54 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(results[0]?.readyRequest).toBeDefined();
 		expect(readyRequests).toHaveLength(1);
 
+		expect(() =>
+			releases.down([
+				[
+					"DATA",
+					{
+						kind: "workspace-proposal-projection-release",
+						releaseId: "projection-release:d472-successor-preparation-bad",
+						targetKind: "repair-successor-preparation",
+						targetId: input.preparationId,
+						preparationId: input.preparationId,
+						sourceRefs: [{ kind: "provider", id: "runtime-private" }],
+					} as never,
+				],
+			]),
+		).not.toThrow();
+		inputs.down([["DATA", structuredClone(input)]]);
+		expect(results).toHaveLength(1);
+		expect(readyRequests).toHaveLength(1);
+
+		for (const mismatch of [
+			{ applicationId: "other-application" },
+			{ proposalId: "other-proposal" },
+			{ decisionId: "other-decision" },
+			{ idempotencyKey: "other-idempotency" },
+			{ proposalFamily: "required-input-response" as const },
+		]) {
+			releases.down([
+				[
+					"DATA",
+					projectionRelease(
+						`projection-release:d472-successor-preparation-coordinate-mismatch:${
+							Object.keys(mismatch)[0]
+						}`,
+						"repair-successor-preparation",
+						input.preparationId,
+						{
+							preparationId: input.preparationId,
+							previewId: preview.previewId,
+							...mismatch,
+						},
+					),
+				],
+			]);
+			inputs.down([["DATA", structuredClone(input)]]);
+			expect(results).toHaveLength(1);
+			expect(readyRequests).toHaveLength(1);
+		}
+
 		releases.down([
 			[
 				"DATA",
@@ -4643,30 +4694,215 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		).toBe(false);
 	});
 
+	it("projects D473 release diagnostics separately from release-consuming projectors", () => {
+		const release: WorkspaceProposalProjectionRelease = {
+			kind: "workspace-proposal-projection-release",
+			releaseId: "projection-release:d473-valid",
+			targetKind: "family-read-model-query",
+			targetId: "view:d473",
+			viewId: "view:d473",
+			queryId: "query:d473",
+			sourceRefs: [{ kind: "workspace-projection-release", id: "source:d473" }],
+		};
+
+		const accepted = validateWorkspaceProposalProjectionReleaseMaterial(release);
+		expect(accepted).toMatchObject({
+			kind: "workspace-proposal-projection-release-validation-result",
+			status: "accepted",
+			release,
+			issues: [],
+		});
+		expect(accepted.release).not.toBe(release);
+		expect(accepted.release?.sourceRefs).not.toBe(release.sourceRefs);
+		expect(Object.isFrozen(accepted.release)).toBe(true);
+		expect(Object.isFrozen(accepted.release?.sourceRefs)).toBe(true);
+
+		const blocked = validateWorkspaceProposalProjectionReleaseMaterial({
+			...release,
+			releaseId: "projection-release:d473-blocked",
+			storageOwner: "runtime-private-secret",
+		});
+		expect(blocked).toMatchObject({
+			status: "blocked",
+			releaseId: "projection-release:d473-blocked",
+			targetKind: "family-read-model-query",
+			targetId: "view:d473",
+			issues: expect.arrayContaining([
+				expect.objectContaining({ code: "forbidden-projection-release-material" }),
+			]),
+		});
+		expect(blocked).not.toHaveProperty("release");
+		expect(JSON.stringify(blocked)).not.toContain("runtime-private-secret");
+		for (const forbiddenAuthorityKey of [
+			"record",
+			"decision",
+			"applicationStatus",
+			"readyRequest",
+			"policyProof",
+			"permissionProof",
+			"storageOwner",
+			"providerCursor",
+			"runtimeHandle",
+		]) {
+			expect(Object.hasOwn(release, forbiddenAuthorityKey)).toBe(false);
+		}
+
+		const g = graph();
+		const releases = g.node<unknown>([], null, { name: "d473ReleaseDiagnosticsInput" });
+		const bundle = workspaceProposalProjectionReleaseDiagnosticProjector(g, { releases });
+		const diagnostics = collectData<WorkspaceProposalProjectionReleaseDiagnostic>(
+			bundle.diagnostics,
+		);
+
+		releases.down([["DATA", release]]);
+		expect(diagnostics).toHaveLength(0);
+
+		releases.down([
+			[
+				"DATA",
+				{
+					...release,
+					releaseId: "projection-release:d473-blocked",
+					storageOwner: "runtime-private-secret",
+				},
+			],
+		]);
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0]).toMatchObject({
+			kind: "workspace-proposal-projection-release-diagnostic",
+			releaseId: "projection-release:d473-blocked",
+			targetKind: "family-read-model-query",
+			targetId: "view:d473",
+			status: "blocked",
+			issues: expect.arrayContaining([
+				expect.objectContaining({ code: "forbidden-projection-release-material" }),
+			]),
+		});
+		expect(JSON.stringify(diagnostics)).not.toContain("runtime-private-secret");
+
+		releases.down([
+			[
+				"DATA",
+				{
+					...release,
+					releaseId: "projection-release:d473-blocked",
+					storageOwner: "runtime-private-secret",
+				},
+			],
+		]);
+		expect(diagnostics).toHaveLength(2);
+	});
+
+	it("diagnoses malformed D473 releases for every closed D472 target kind", () => {
+		const base = {
+			kind: "workspace-proposal-projection-release",
+			releaseId: "projection-release:d473-target",
+			sourceRefs: [{ kind: "workspace-projection-release", id: "source:d473-target" }],
+		} as const;
+		const releases: readonly WorkspaceProposalProjectionRelease[] = [
+			{
+				...base,
+				releaseId: "projection-release:d473-read-model",
+				targetKind: "family-read-model-query",
+				targetId: "view:d473-read-model",
+				viewId: "view:d473-read-model",
+			},
+			{
+				...base,
+				releaseId: "projection-release:d473-supply",
+				targetKind: "outcome-detail-supply-request",
+				targetId: "view:d473-supply",
+				viewId: "view:d473-supply",
+			},
+			{
+				...base,
+				releaseId: "projection-release:d473-advisory",
+				targetKind: "repair-action-advisory",
+				targetId: "descriptor:d473",
+				descriptorId: "descriptor:d473",
+			},
+			{
+				...base,
+				releaseId: "projection-release:d473-intent",
+				targetKind: "repair-action-intent",
+				targetId: "intent:d473",
+				intentId: "intent:d473",
+			},
+			{
+				...base,
+				releaseId: "projection-release:d473-preview",
+				targetKind: "repair-successor-preview",
+				targetId: "preview:d473",
+				intentId: "intent:d473",
+				previewId: "preview:d473",
+			},
+			{
+				...base,
+				releaseId: "projection-release:d473-preparation",
+				targetKind: "repair-successor-preparation",
+				targetId: "preparation:d473",
+				preparationId: "preparation:d473",
+			},
+		];
+		for (const release of releases) {
+			expect(isWorkspaceProposalProjectionReleaseMaterial(release)).toBe(true);
+			const blocked = validateWorkspaceProposalProjectionReleaseMaterial({
+				...release,
+				providerCursor: "opaque-provider-cursor",
+			});
+			expect(blocked).toMatchObject({
+				status: "blocked",
+				releaseId: release.releaseId,
+				targetKind: release.targetKind,
+				targetId: release.targetId,
+				issues: expect.arrayContaining([
+					expect.objectContaining({ code: "forbidden-projection-release-material" }),
+				]),
+			});
+			expect(blocked).not.toHaveProperty("release");
+			expect(JSON.stringify(blocked)).not.toContain("opaque-provider-cursor");
+		}
+	});
+
 	it("uses D472 read-model releases to prune query current-view material only", () => {
 		const fixture = repairReviewFixture();
 		const coordinates = repairReviewReadModelCoordinates(fixture.request);
+		const repairStatus = projectWorkspaceProposalRepairReviewStatuses({
+			requests: [fixture.request],
+			outcomeStatuses: [fixture.outcomeStatus],
+		})[0];
+		if (repairStatus === undefined) throw new Error("expected D472 release repair status");
 		const g = graph();
 		const queries = g.node<WorkspaceProposalFamilyApplicationReadModelQuery>([], null, {
 			name: "d472ReadModelQueries",
 		});
+		const repairStatuses = g.node<typeof repairStatus>([], null, {
+			name: "d472ReadModelRepairStatuses",
+		});
 		const outcomeIndex = g.node<
 			ReturnType<typeof projectWorkspaceProposalFamilyOutcomeIndex>[number]
 		>([], null, { name: "d472ReadModelOutcomeIndex" });
+		const outcomeStatuses = g.node<typeof fixture.outcomeStatus>([], null, {
+			name: "d472ReadModelOutcomeStatuses",
+		});
 		const outcomes = g.node<typeof fixture.outcome>([], null, { name: "d472ReadModelOutcomes" });
 		const releases = g.node<WorkspaceProposalProjectionRelease>([], null, {
 			name: "d472ReadModelReleases",
 		});
 		const projector = workspaceProposalFamilyApplicationReadModelsProjector(g, {
 			queries,
+			repairReviewStatuses: repairStatuses,
 			outcomeIndex,
+			outcomeStatuses,
 			outcomes,
 			releases,
 		});
 		const readModels = collectData(projector.readModels);
 		const query = readModelQuery("query-d472-release", coordinates, { page: { limit: 1 } });
 
+		repairStatuses.down([["DATA", repairStatus]]);
 		outcomeIndex.down([["DATA", fixture.outcomeIndex[0]!]]);
+		outcomeStatuses.down([["DATA", fixture.outcomeStatus]]);
 		outcomes.down([["DATA", fixture.outcome]]);
 		queries.down([["DATA", query]]);
 		queries.down([["DATA", structuredClone(query)]]);
@@ -4688,24 +4924,49 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		).not.toThrow();
 		queries.down([["DATA", structuredClone(query)]]);
 		expect(readModels).toHaveLength(1);
-
 		releases.down([
 			[
 				"DATA",
 				projectionRelease(
-					"projection-release:d472-read-model-coordinate-mismatch",
+					"projection-release:d472-read-model-unknown-target",
 					"family-read-model-query",
-					query.viewId,
+					"view:unknown",
 					{
-						queryId: query.queryId,
-						viewId: query.viewId,
-						proposalId: "other-proposal",
+						queryId: "query:unknown",
+						viewId: "view:unknown",
+						...coordinates,
 					},
 				),
 			],
 		]);
 		queries.down([["DATA", structuredClone(query)]]);
 		expect(readModels).toHaveLength(1);
+
+		for (const mismatch of [
+			{ applicationId: "other-application" },
+			{ proposalId: "other-proposal" },
+			{ decisionId: "other-decision" },
+			{ idempotencyKey: "other-idempotency" },
+			{ proposalFamily: "work-item-spawn" as const },
+		]) {
+			releases.down([
+				[
+					"DATA",
+					projectionRelease(
+						`projection-release:d472-read-model-coordinate-mismatch:${Object.keys(mismatch)[0]}`,
+						"family-read-model-query",
+						query.viewId,
+						{
+							queryId: query.queryId,
+							viewId: query.viewId,
+							...mismatch,
+						},
+					),
+				],
+			]);
+			queries.down([["DATA", structuredClone(query)]]);
+			expect(readModels).toHaveLength(1);
+		}
 
 		releases.down([
 			[
@@ -4729,20 +4990,58 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			"query-d472-release",
 			"query-d472-release",
 		]);
+		expect(readModels.at(-1)).toMatchObject({
+			page: { offset: 0, limit: 1 },
+			outcomeIndexes: [
+				expect.objectContaining({
+					outcomeRefs: [expect.objectContaining({ outcomeId: fixture.outcome.outcomeId })],
+				}),
+			],
+		});
+		queries.down([
+			[
+				"DATA",
+				readModelQuery("query-d472-release", coordinates, { page: { offset: 1, limit: 1 } }),
+			],
+		]);
+		expect(readModels).toHaveLength(3);
+		expect(readModels.at(-1)).toMatchObject({
+			queryId: "query-d472-release",
+			page: { offset: 1, limit: 1 },
+			outcomeIndexes: [
+				expect.objectContaining({
+					outcomeRefs: [expect.objectContaining({ outcomeId: fixture.outcome.outcomeId })],
+				}),
+			],
+		});
 		expect(JSON.stringify(readModels)).not.toMatch(/runtime-private|storage|provider/i);
 	});
 
 	it("uses D472 supply releases without deleting supplied outcome facts", () => {
 		const fixture = repairReviewFixture();
+		const coordinates = repairReviewReadModelCoordinates(fixture.request);
 		const ref = fixture.outcomeIndex[0]?.outcomeRefs[0];
 		if (ref === undefined) throw new Error("expected D472 supply ref");
+		const secondOutcome = recordWorkspaceProposalWorkItemLinkOutcome(fixture.appliedStatus, {
+			outcomeId: "repair-review-outcome-d472-supply-2",
+			linkRef: { kind: "work-item-link", id: "link:d472-supply-2" },
+		}).outcome;
+		if (secondOutcome === undefined) throw new Error("expected D472 supply second outcome");
+		const secondRef = projectWorkspaceProposalFamilyOutcomeIndex([secondOutcome])[0]
+			?.outcomeRefs[0];
+		if (secondRef === undefined) throw new Error("expected D472 supply second ref");
 		const request: WorkspaceProposalFamilyOutcomeDetailSupplyRequest = {
 			kind: "workspace-proposal-family-outcome-detail-supply-request",
 			supplyRequestId: "supply:d472-release",
 			viewId: "view:d472-supply",
-			...repairReviewReadModelCoordinates(fixture.request),
-			requestedOutcomeRefs: [ref],
+			...coordinates,
+			requestedOutcomeRefs: [ref, secondRef],
+			page: { offset: 0, limit: 1 },
 			sourceRefs: [sourceRef],
+		};
+		const secondPageRequest: WorkspaceProposalFamilyOutcomeDetailSupplyRequest = {
+			...request,
+			page: { offset: 1, limit: 1 },
 		};
 		const g = graph();
 		const requests = g.node<WorkspaceProposalFamilyOutcomeDetailSupplyRequest>([], null, {
@@ -4763,12 +5062,57 @@ describe("Workspace proposal family application helpers (D430)", () => {
 
 		requests.down([["DATA", request]]);
 		outcomes.down([["DATA", fixture.outcome]]);
+		outcomes.down([["DATA", secondOutcome]]);
 		requests.down([["DATA", structuredClone(request)]]);
 		expect(results).toHaveLength(2);
 		expect(results.at(-1)).toMatchObject({
 			currentViewId: "view:d472-supply",
 			suppliedOutcomeFacts: [expect.objectContaining({ outcomeId: ref.outcomeId })],
+			page: { offset: 0, limit: 1 },
 		});
+		releases.down([
+			[
+				"DATA",
+				projectionRelease(
+					"projection-release:d472-supply-unknown-target",
+					"outcome-detail-supply-request",
+					"view:unknown",
+					{
+						supplyRequestId: "supply:unknown",
+						viewId: "view:unknown",
+						...coordinates,
+					},
+				),
+			],
+		]);
+		requests.down([["DATA", structuredClone(request)]]);
+		expect(results).toHaveLength(2);
+
+		for (const mismatch of [
+			{ applicationId: "other-application" },
+			{ proposalId: "other-proposal" },
+			{ decisionId: "other-decision" },
+			{ idempotencyKey: "other-idempotency" },
+			{ proposalFamily: "work-item-spawn" as const },
+		]) {
+			releases.down([
+				[
+					"DATA",
+					projectionRelease(
+						`projection-release:d472-supply-coordinate-mismatch:${Object.keys(mismatch)[0]}`,
+						"outcome-detail-supply-request",
+						request.viewId,
+						{
+							supplyRequestId: request.supplyRequestId,
+							viewId: request.viewId,
+							...mismatch,
+						},
+					),
+				],
+			]);
+			requests.down([["DATA", structuredClone(request)]]);
+			expect(results).toHaveLength(2);
+		}
 
 		releases.down([
 			[
@@ -4781,12 +5125,26 @@ describe("Workspace proposal family application helpers (D430)", () => {
 				),
 			],
 		]);
-		requests.down([["DATA", structuredClone(request)]]);
+		requests.down([["DATA", secondPageRequest]]);
 
 		expect(results).toHaveLength(3);
 		expect(results.at(-1)).toMatchObject({
-			suppliedOutcomeFacts: [expect.objectContaining({ outcomeId: ref.outcomeId })],
+			suppliedOutcomeFacts: [expect.objectContaining({ outcomeId: secondOutcome.outcomeId })],
 			displayDiagnostics: [],
+			page: { offset: 1, limit: 1 },
+		});
+		expect(results.at(-1)?.suppliedOutcomeFacts).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ outcomeId: fixture.outcome.outcomeId })]),
+		);
+		requests.down([["DATA", { ...secondPageRequest, page: { offset: 0, limit: 2 } }]]);
+		expect(results).toHaveLength(4);
+		expect(results.at(-1)).toMatchObject({
+			suppliedOutcomeFacts: [
+				expect.objectContaining({ outcomeId: fixture.outcome.outcomeId }),
+				expect.objectContaining({ outcomeId: secondOutcome.outcomeId }),
+			],
+			displayDiagnostics: [],
+			page: { offset: 0, limit: 2 },
 		});
 		expect(JSON.stringify(results)).not.toMatch(/cursor|storage|provider|runtime/i);
 	});

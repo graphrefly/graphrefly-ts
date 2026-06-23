@@ -126,14 +126,12 @@ export default defineConfig({
 						{ label: "Overview", link: "/integrations" },
 						{ label: "Integration Matrix", link: "/integrations/matrix" },
 						{ label: "Adapters", link: "/integrations/adapters" },
-						{ label: "Compat", link: "/integrations/compat" },
 					],
 				},
 				{
 					label: "Demos",
 					items: [
 						{ label: "Overview", link: "/demos" },
-						{ label: "Compat matrix", link: "/demos/compat-matrix/" },
 						{ label: "Reactive layout", link: "/demos/reactive-layout/" },
 						{ label: "Knowledge graph", link: "/demos/knowledge-graph/" },
 						{ label: "PagerDuty triage", link: "/demos/pagerduty-triage/" },

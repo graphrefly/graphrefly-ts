@@ -880,6 +880,42 @@ export interface WorkspaceProposalProjectionRelease {
 	readonly metadata?: Record<string, unknown>;
 }
 
+/**
+ * D473 validation result for projection release material.
+ *
+ * Accepted results carry a frozen data-only release DTO; blocked results are
+ * diagnostics input only and do not prove that any retained state existed.
+ */
+export interface WorkspaceProposalProjectionReleaseValidationResult {
+	readonly kind: "workspace-proposal-projection-release-validation-result";
+	readonly status: "accepted" | "blocked";
+	readonly release?: WorkspaceProposalProjectionRelease;
+	readonly releaseId?: string;
+	readonly targetKind?: WorkspaceProposalProjectionReleaseTargetKind;
+	readonly targetId?: string;
+	readonly issues: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+}
+
+/**
+ * D473 data-only diagnostic for malformed or unsafe release material.
+ *
+ * Diagnostics report why a release was ignored; they are not permission,
+ * retention, deletion, revocation, or historical-truth evidence.
+ */
+export interface WorkspaceProposalProjectionReleaseDiagnostic {
+	readonly kind: "workspace-proposal-projection-release-diagnostic";
+	readonly diagnosticId: string;
+	readonly releaseId?: string;
+	readonly targetKind?: WorkspaceProposalProjectionReleaseTargetKind;
+	readonly targetId?: string;
+	readonly status: "blocked";
+	readonly issues: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+}
+
 export interface WorkspaceProposalFamilyApplicationReadModelProjectionInput {
 	readonly diagnostics?: readonly WorkspaceProposalFamilyApplicationDiagnostic[];
 	readonly repairReviewStatuses?: readonly WorkspaceProposalRepairReviewStatus[];
@@ -939,6 +975,22 @@ export interface WorkspaceProposalFamilyApplicationReadModelsProjectorOptions {
 	readonly outcomeIndex?: Node<WorkspaceProposalFamilyOutcomeIndexEntry>;
 	readonly outcomeStatuses?: Node<WorkspaceProposalFamilyOutcomeRecordStatus>;
 	readonly outcomes?: Node<WorkspaceProposalFamilyOutcomeRecord>;
+}
+
+/**
+ * Inputs for the D473 release diagnostic projector.
+ *
+ * The projector observes unknown release material and emits only blocked
+ * diagnostics; it does not apply release/prune behavior itself.
+ */
+export interface WorkspaceProposalProjectionReleaseDiagnosticProjectorOptions {
+	readonly name?: string;
+	readonly releases: Node<unknown>;
+}
+
+/** Data-only diagnostic projection bundle for rejected D472 release material. */
+export interface WorkspaceProposalProjectionReleaseDiagnosticProjectorBundle {
+	readonly diagnostics: Node<WorkspaceProposalProjectionReleaseDiagnostic>;
 }
 
 export interface WorkspaceProposalFamilyApplicationReadModelProjectorBundle {
@@ -2484,6 +2536,36 @@ export function projectWorkspaceProposalFamilyApplicationReadModels(
 			search: normalized.search,
 		});
 	});
+}
+
+export function workspaceProposalProjectionReleaseDiagnosticProjector(
+	graph: Graph,
+	opts: WorkspaceProposalProjectionReleaseDiagnosticProjectorOptions,
+): WorkspaceProposalProjectionReleaseDiagnosticProjectorBundle {
+	const name = opts.name ?? "workspaceProposalProjectionReleaseDiagnostic";
+	const runtime = graph.node<
+		| {
+				readonly kind: "projection-release-diagnostic";
+				readonly value: WorkspaceProposalProjectionReleaseDiagnostic;
+		  }
+		| undefined
+	>(
+		[opts.releases],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const validation = validateWorkspaceProposalProjectionReleaseMaterial(raw);
+				if (validation.status !== "blocked") continue;
+				const diagnostic = workspaceProposalProjectionReleaseDiagnosticFromValidation(validation);
+				ctx.down([["DATA", { kind: "projection-release-diagnostic", value: diagnostic }]]);
+			}
+		},
+		runtimeOptions(name, "workspaceProposalProjectionReleaseDiagnosticProjector"),
+	);
+	return {
+		diagnostics: project(graph, runtime, `${name}/diagnostics`, `${name}Diagnostics`, (fact) =>
+			fact?.kind === "projection-release-diagnostic" ? fact.value : undefined,
+		),
+	};
 }
 
 /** Graph-visible variant of `projectWorkspaceProposalFamilyApplicationReadModel`. */
@@ -7563,6 +7645,41 @@ export function isWorkspaceProposalProjectionReleaseMaterial(
 	return workspaceProposalProjectionReleaseIssues(value).length === 0;
 }
 
+/**
+ * Validate D472 release material and clone accepted DTOs before projection use.
+ *
+ * Validation is fail-closed: malformed material is reportable through D473
+ * diagnostics but cannot prune current-view state or satisfy policy checks.
+ */
+export function validateWorkspaceProposalProjectionReleaseMaterial(
+	value: unknown,
+): WorkspaceProposalProjectionReleaseValidationResult {
+	const issues = workspaceProposalProjectionReleaseIssues(value);
+	const record = isRecord(value) ? value : {};
+	const targetKind = workspaceProposalProjectionReleaseTargetKinds.includes(
+		record.targetKind as WorkspaceProposalProjectionReleaseTargetKind,
+	)
+		? (record.targetKind as WorkspaceProposalProjectionReleaseTargetKind)
+		: undefined;
+	const base = {
+		kind: "workspace-proposal-projection-release-validation-result" as const,
+		releaseId: stringField(record.releaseId),
+		targetKind,
+		targetId: stringField(record.targetId),
+		issues,
+		sourceRefs: safeWorkspaceProposalProjectionReleaseSourceRefs(record),
+		audit: safeWorkspaceProposalAudit(record.audit),
+	};
+	if (issues.length === 0) {
+		return {
+			...base,
+			status: "accepted",
+			release: immutableClone(value as WorkspaceProposalProjectionRelease),
+		};
+	}
+	return { ...base, status: "blocked" };
+}
+
 function workspaceProposalProjectionReleaseIssues(
 	value: unknown,
 ): readonly WorkspaceProposalRecordedIssue[] {
@@ -7748,6 +7865,44 @@ function workspaceProposalProjectionReleaseIssues(
 		issues.push(issue);
 	}
 	return dedupeRepairActionIssues(issues);
+}
+
+function workspaceProposalProjectionReleaseDiagnosticFromValidation(
+	validation: WorkspaceProposalProjectionReleaseValidationResult,
+): WorkspaceProposalProjectionReleaseDiagnostic {
+	return {
+		kind: "workspace-proposal-projection-release-diagnostic",
+		diagnosticId: workspaceProposalProjectionReleaseDiagnosticId(validation),
+		releaseId: validation.releaseId,
+		targetKind: validation.targetKind,
+		targetId: validation.targetId,
+		status: "blocked",
+		issues: validation.issues,
+		sourceRefs: validation.sourceRefs,
+		audit: validation.audit,
+	};
+}
+
+function workspaceProposalProjectionReleaseDiagnosticId(
+	validation: WorkspaceProposalProjectionReleaseValidationResult,
+): string {
+	const anchor =
+		validation.releaseId ??
+		validation.targetId ??
+		validation.targetKind ??
+		"malformed-projection-release";
+	return `workspace-proposal-projection-release-diagnostic:${anchor}:${stableStringify(
+		validation.issues.map((issue) => issue.code),
+	)}`;
+}
+
+function safeWorkspaceProposalProjectionReleaseSourceRefs(
+	record: Record<string, unknown>,
+): readonly SourceRef[] {
+	return repairReviewDecisionSourceRefsAreValid(record.sourceRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(record.sourceRefs as readonly SourceRef[])
+		? (record.sourceRefs as readonly SourceRef[])
+		: [];
 }
 
 function workspaceProposalProjectionReleaseTargetIdentityIssues(

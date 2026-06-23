@@ -1,28 +1,13 @@
 ---
 title: "Demos"
-description: "Interactive demos showing GraphReFly compat layers across frameworks and state libraries."
+description: "Interactive demos showing clean-slate GraphReFly compositions."
 ---
 
-Live demos that show GraphReFly working alongside popular state libraries inside every major UI framework.
-
-## Compat matrix
-
-**4 state libraries × 4 frameworks** — all on one page per framework.
-
-| Framework | State libraries shown |
-|-----------|----------------------|
-| React | GraphReFly, Jotai, Nanostores, Zustand |
-| Vue | GraphReFly, Jotai, Nanostores, Zustand |
-| SolidJS | GraphReFly, Jotai, Nanostores, Zustand |
-| Svelte | GraphReFly, Jotai, Nanostores, Zustand |
-
-Each page exercises all three framework binding APIs: `useStore`, `useSubscribe`, and `useSubscribeRecord`.
-
-[Read the compat adapter notes →](/integrations/compat/)
+Live demos that show GraphReFly clean-slate graph composition, inspection, and host boundaries.
 
 ## Reactive layout
 
-Text measurement and line-breaking as a reactive graph — five chapters walk through incremental recomputation, `batch()` coalescing, pluggable measurement backends, and mixed-content block flow. The demo is hosted inside the same `demo-shell` used by compat matrix, so the topology mermaid and the source code driving each chapter are always visible to the right of the main canvas.
+Text measurement and line-breaking as a reactive graph — five chapters walk through incremental recomputation, `batch()` coalescing, pluggable measurement backends, and mixed-content block flow. The demo uses the shared clean-slate demo shell, so the topology mermaid and the source code driving each chapter are always visible to the right of the main canvas.
 
 [Read the reactive layout solution →](/solutions/reactive-layout/)
 
@@ -40,4 +25,4 @@ Two-mode alert triage — Baseline (manual every time) vs GraphReFly (`agentMemo
 
 ## Source
 
-Demo source lives at `demos/compat-matrix/`, `demos/reactive-layout/`, `demos/knowledge-graph/`, and `demos/pagerduty-triage/` in the repo.
+Demo source lives at `demos/reactive-layout/`, `demos/knowledge-graph/`, and `demos/pagerduty-triage/` in the repo. The retired compat matrix is no longer an active clean-slate demo.

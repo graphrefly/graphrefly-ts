@@ -63,18 +63,17 @@ d.get(); // "4-6" — always consistent, never "4-3"
 
 ## Migration Path
 
-### Drop-in Compat Layer
+### Clean-Slate Facade
 
-For incremental migration, use the Jotai-compatible adapter:
+For incremental migration, bind caller-owned GraphReFly nodes through the Jotai-style facade:
 
 ```ts
-import { atom } from '@graphrefly/graphrefly/compat/jotai';
+import { jotaiAtom } from '@graphrefly/ts/adapters';
 
-const countAtom = atom(0);
-const doubledAtom = atom((get) => get(countAtom) * 2);
+const countAtom = jotaiAtom(countNode);
 ```
 
-This preserves Jotai's `atom((get) => ...)` API while adding diamond resolution under the hood.
+The old `@graphrefly/graphrefly/compat/jotai` path is retired.
 
 ### Native API
 

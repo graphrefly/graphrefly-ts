@@ -1,0 +1,24 @@
+{
+	"name": "@graphrefly-examples/nestjs-graph-boundary",
+	"private": true,
+	"version": "0.0.8",
+	"type": "module",
+	"description": "NestJS keyed ingress/egress boundary nodes over @graphrefly/ts.",
+	"scripts": {
+		"start": "tsx src/main.ts",
+		"check": "pnpm --dir ../.. --filter @graphrefly/ts build && tsc --noEmit"
+	},
+	"dependencies": {
+		"@graphrefly/ts": "workspace:*",
+		"@nestjs/common": "^11.1.17",
+		"@nestjs/core": "^11.1.17",
+		"@nestjs/platform-express": "^11.1.18",
+		"reflect-metadata": "^0.2.2",
+		"rxjs": "^7.8.2"
+	},
+	"devDependencies": {
+		"@types/node": "^25.5.0",
+		"tsx": "^4.21.0",
+		"typescript": "^5.7.0"
+	}
+}

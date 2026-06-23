@@ -59,18 +59,17 @@ count.set(1);
 doubled.get();  // 2 — automatically recomputed
 ```
 
-### Option 2: Drop-in Compat Layer
+### Option 2: Clean-Slate Facade
 
-For incremental migration, use the Zustand-compatible adapter:
+For incremental migration, bind a caller-owned state node through the Zustand-style facade:
 
 ```ts
-import { create } from '@graphrefly/graphrefly/compat/zustand';
+import { zustandStore } from '@graphrefly/ts/adapters';
 
-const useStore = create((set, get) => ({
-  count: 0,
-  increment: () => set((s) => ({ count: s.count + 1 })),
-}));
+const store = zustandStore(countNode);
 ```
+
+The old `@graphrefly/graphrefly/compat/zustand` path is retired.
 
 This gives you the same `create((set, get) => ...)` API while allowing you to incrementally adopt `derived()` and streaming operators on top.
 

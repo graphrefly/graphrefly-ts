@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import * as adapters from "../adapters/index.js";
+import * as nestjsAdapters from "../adapters/nestjs.js";
 import * as observeStorage from "../adapters/observe-storage.js";
 import * as reactAdapters from "../adapters/react.js";
 import * as solidAdapters from "../adapters/solid.js";
@@ -116,6 +117,7 @@ import * as workItemActions from "../solutions/work-item/actions.js";
 import type {
 	WorkspaceProposalFamilyApplicationReadModelQuery,
 	WorkspaceProposalProjectionRelease,
+	WorkspaceProposalProjectionReleaseDiagnostic,
 	WorkspaceProposalRepairActionDescriptor,
 } from "../solutions/work-item/scheduling.js";
 import * as workItemScheduling from "../solutions/work-item/scheduling.js";
@@ -139,6 +141,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.keys(exportsJson.exports ?? {}).sort()).toEqual([
 			".",
 			"./adapters",
+			"./adapters/nestjs",
 			"./adapters/observe-storage",
 			"./adapters/react",
 			"./adapters/solid",
@@ -237,7 +240,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof dataStructures.reactiveMap).toBe("function");
 		expect(typeof render.describeToJson).toBe("function");
 		expect(typeof render.describeToMermaidUrl).toBe("function");
-		expect(typeof adapters.getGraphToken).toBe("function");
 		expect(typeof adapters.jotaiAtom).toBe("function");
 		expect(typeof adapters.nanoAtom).toBe("function");
 		expect(typeof adapters.recordReadableStore).toBe("function");
@@ -245,6 +247,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.externalStore).toBe("function");
 		expect(typeof adapters.readableStore).toBe("function");
 		expect(typeof adapters.subscribeNodeValues).toBe("function");
+		expect(Object.hasOwn(adapters, "fromNestReq")).toBe(false);
+		expect(Object.hasOwn(adapters, "toNestHttp")).toBe(false);
 		expect(Object.hasOwn(adapters, "reactExternalStore")).toBe(false);
 		expect(Object.hasOwn(adapters, "svelteReadableStore")).toBe(false);
 		expect(Object.hasOwn(adapters, "svelteWritableStore")).toBe(false);
@@ -274,6 +278,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(adapters, "dedupeReducer")).toBe(false);
 		expect(typeof adapters.writableStore).toBe("function");
 		expect(typeof adapters.zustandStore).toBe("function");
+		expect(typeof nestjsAdapters.fromNestReq).toBe("function");
+		expect(typeof nestjsAdapters.fromNestGuard).toBe("function");
+		expect(typeof nestjsAdapters.fromNestIntercept).toBe("function");
+		expect(typeof nestjsAdapters.fromNestError).toBe("function");
+		expect(typeof nestjsAdapters.fromNestLifecycle).toBe("function");
+		expect(typeof nestjsAdapters.fromNestCron).toBe("function");
+		expect(typeof nestjsAdapters.toNestHttp).toBe("function");
+		expect(typeof nestjsAdapters.getGraphToken).toBe("function");
+		expect(typeof nestjsAdapters.getNestBoundaryToken).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof patterns.profileSummary).toBe("function");
@@ -435,6 +448,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			typeof workItemScheduling.workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector,
 		).toBe("function");
 		expect(typeof workItemScheduling.isWorkspaceProposalProjectionReleaseMaterial).toBe("function");
+		expect(typeof workItemScheduling.validateWorkspaceProposalProjectionReleaseMaterial).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.workspaceProposalProjectionReleaseDiagnosticProjector).toBe(
+			"function",
+		);
 		expectTypeOf<WorkspaceProposalFamilyApplicationReadModelQuery>()
 			.toHaveProperty("queryId")
 			.toEqualTypeOf<string>();
@@ -448,6 +467,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 				| "repair-successor-preview"
 				| "repair-successor-preparation"
 			>();
+		expectTypeOf<WorkspaceProposalProjectionReleaseDiagnostic>()
+			.toHaveProperty("status")
+			.toEqualTypeOf<"blocked">();
 		expectTypeOf<WorkspaceProposalRepairActionDescriptor>()
 			.toHaveProperty("actionKind")
 			.toEqualTypeOf<
@@ -525,6 +547,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			),
 		).toBe(false);
 		expect(Object.hasOwn(solutions, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(false);
+		expect(Object.hasOwn(solutions, "validateWorkspaceProposalProjectionReleaseMaterial")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(solutions, "workspaceProposalProjectionReleaseDiagnosticProjector")).toBe(
+			false,
+		);
 		expect(
 			Object.hasOwn(rootPackage, "workspaceProposalFamilyApplicationDiagnosticProjector"),
 		).toBe(false);
@@ -563,6 +591,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			),
 		).toBe(false);
 		expect(Object.hasOwn(rootPackage, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "validateWorkspaceProposalProjectionReleaseMaterial")).toBe(
+			false,
+		);
+		expect(
+			Object.hasOwn(rootPackage, "workspaceProposalProjectionReleaseDiagnosticProjector"),
+		).toBe(false);
 		expect(Object.hasOwn(solutions, "recordWorkspaceProposalDomainActionOutcome")).toBe(false);
 		expect(Object.hasOwn(workItemActions, "workspaceProposalRepairActionDescriptorProjector")).toBe(
 			false,
@@ -591,6 +625,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(workItemActions, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(
 			false,
 		);
+		expect(
+			Object.hasOwn(workItemActions, "validateWorkspaceProposalProjectionReleaseMaterial"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(workItemActions, "workspaceProposalProjectionReleaseDiagnosticProjector"),
+		).toBe(false);
 		expect(Object.hasOwn(solutions, "workItemDomainActionApplicationProjector")).toBe(false);
 		expect(typeof workItemWorkQueueRecipe.workItemWorkQueueRecipe).toBe("function");
 		expect(typeof workItemWorkQueueRecipe.workItemSubmitCommand).toBe("function");

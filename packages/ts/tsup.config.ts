@@ -4,6 +4,7 @@ export default defineConfig({
 	entry: [
 		"src/index.ts",
 		"src/adapters/index.ts",
+		"src/adapters/nestjs.ts",
 		"src/adapters/observe-storage.ts",
 		"src/adapters/react.ts",
 		"src/adapters/solid.ts",

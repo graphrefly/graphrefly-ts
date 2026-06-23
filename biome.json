@@ -104,6 +104,14 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["examples/nestjs-graph-boundary/**"],
+			"javascript": {
+				"parser": {
+					"unsafeParameterDecoratorsEnabled": true
+				}
+			}
 		}
 	]
 }

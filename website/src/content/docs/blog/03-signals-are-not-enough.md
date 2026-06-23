@@ -215,14 +215,13 @@ You shouldn't need to choose between "reactive counter" and "cancelable debounce
 
 ## The compatibility layer approach
 
-We're not asking anyone to abandon Signals. We built compatibility wrappers:
+We're not asking anyone to abandon Signals. The retired compat wrappers proved the bridge pattern; clean-slate keeps framework bridges under focused adapter subpaths.
 
 ```ts
-import { SignalState, SignalComputed } from '@graphrefly/graphrefly/compat/signals';
+import { signalFromNode } from '@graphrefly/ts/adapters';
 
-// TC39 Signals API, GraphReFly engine
-const count = new SignalState(0);
-const doubled = new SignalComputed(() => count.get() * 2);
+// Signal-style facade over a caller-owned GraphReFly node
+const countSignal = signalFromNode(countNode);
 
 // But now you can also do this:
 pipe(
