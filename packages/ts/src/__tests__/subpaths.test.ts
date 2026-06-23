@@ -115,6 +115,7 @@ import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js"
 import * as workItemActions from "../solutions/work-item/actions.js";
 import type {
 	WorkspaceProposalFamilyApplicationReadModelQuery,
+	WorkspaceProposalProjectionRelease,
 	WorkspaceProposalRepairActionDescriptor,
 } from "../solutions/work-item/scheduling.js";
 import * as workItemScheduling from "../solutions/work-item/scheduling.js";
@@ -433,9 +434,20 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			typeof workItemScheduling.workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector,
 		).toBe("function");
+		expect(typeof workItemScheduling.isWorkspaceProposalProjectionReleaseMaterial).toBe("function");
 		expectTypeOf<WorkspaceProposalFamilyApplicationReadModelQuery>()
 			.toHaveProperty("queryId")
 			.toEqualTypeOf<string>();
+		expectTypeOf<WorkspaceProposalProjectionRelease>()
+			.toHaveProperty("targetKind")
+			.toEqualTypeOf<
+				| "family-read-model-query"
+				| "outcome-detail-supply-request"
+				| "repair-action-advisory"
+				| "repair-action-intent"
+				| "repair-successor-preview"
+				| "repair-successor-preparation"
+			>();
 		expectTypeOf<WorkspaceProposalRepairActionDescriptor>()
 			.toHaveProperty("actionKind")
 			.toEqualTypeOf<
@@ -512,6 +524,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 				"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",
 			),
 		).toBe(false);
+		expect(Object.hasOwn(solutions, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(false);
 		expect(
 			Object.hasOwn(rootPackage, "workspaceProposalFamilyApplicationDiagnosticProjector"),
 		).toBe(false);
@@ -549,6 +562,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 				"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",
 			),
 		).toBe(false);
+		expect(Object.hasOwn(rootPackage, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(false);
 		expect(Object.hasOwn(solutions, "recordWorkspaceProposalDomainActionOutcome")).toBe(false);
 		expect(Object.hasOwn(workItemActions, "workspaceProposalRepairActionDescriptorProjector")).toBe(
 			false,
@@ -574,6 +588,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			Object.hasOwn(workItemActions, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
 		).toBe(false);
+		expect(Object.hasOwn(workItemActions, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(
+			false,
+		);
 		expect(Object.hasOwn(solutions, "workItemDomainActionApplicationProjector")).toBe(false);
 		expect(typeof workItemWorkQueueRecipe.workItemWorkQueueRecipe).toBe("function");
 		expect(typeof workItemWorkQueueRecipe.workItemSubmitCommand).toBe("function");

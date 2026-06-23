@@ -835,6 +835,51 @@ export interface WorkspaceProposalFamilyApplicationReadModelQuery {
 	readonly metadata?: Record<string, unknown>;
 }
 
+/**
+ * Closed D472 current-view scopes that Workspace projection release material may target.
+ *
+ * Release targets are projector-local display/read-model retention scopes only; they are
+ * not proposal truth, permission proof, storage ownership, or history deletion handles.
+ */
+export type WorkspaceProposalProjectionReleaseTargetKind =
+	| "family-read-model-query"
+	| "outcome-detail-supply-request"
+	| "repair-action-advisory"
+	| "repair-action-intent"
+	| "repair-successor-preview"
+	| "repair-successor-preparation";
+
+/**
+ * D472 graph-visible request to release projector-local current-view material.
+ *
+ * A release may let a projector prune retained request/input/signature state, but it
+ * does not revoke DATA history, delete proposal/admission/application/family truth,
+ * satisfy policy validation, or carry runtime/storage/provider handles.
+ */
+export interface WorkspaceProposalProjectionRelease {
+	readonly kind: "workspace-proposal-projection-release";
+	readonly releaseId: string;
+	readonly targetKind: WorkspaceProposalProjectionReleaseTargetKind;
+	readonly targetId: string;
+	readonly sourceRefs: readonly SourceRef[];
+	readonly viewId?: string;
+	readonly applicationId?: string;
+	readonly proposalId?: string;
+	readonly decisionId?: string;
+	readonly idempotencyKey?: string;
+	readonly proposalFamily?: WorkspaceProposalFamily;
+	readonly queryId?: string;
+	readonly supplyRequestId?: string;
+	readonly descriptorId?: string;
+	readonly repairRequestId?: string;
+	readonly actionKind?: WorkspaceProposalRepairActionKind;
+	readonly intentId?: string;
+	readonly previewId?: string;
+	readonly preparationId?: string;
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+}
+
 export interface WorkspaceProposalFamilyApplicationReadModelProjectionInput {
 	readonly diagnostics?: readonly WorkspaceProposalFamilyApplicationDiagnostic[];
 	readonly repairReviewStatuses?: readonly WorkspaceProposalRepairReviewStatus[];
@@ -888,6 +933,7 @@ export interface WorkspaceProposalFamilyApplicationReadModelsProjectionInput {
 export interface WorkspaceProposalFamilyApplicationReadModelsProjectorOptions {
 	readonly name?: string;
 	readonly queries: Node<WorkspaceProposalFamilyApplicationReadModelQuery>;
+	readonly releases?: Node<WorkspaceProposalProjectionRelease>;
 	readonly diagnostics?: Node<WorkspaceProposalFamilyApplicationDiagnostic>;
 	readonly repairReviewStatuses?: Node<WorkspaceProposalRepairReviewStatus>;
 	readonly outcomeIndex?: Node<WorkspaceProposalFamilyOutcomeIndexEntry>;
@@ -945,6 +991,7 @@ export interface WorkspaceProposalFamilyOutcomeDetailSupplyProjectorOptions {
 	readonly name?: string;
 	readonly requests: Node<WorkspaceProposalFamilyOutcomeDetailSupplyRequest>;
 	readonly suppliedOutcomes: Node<WorkspaceProposalFamilyOutcomeRecord>;
+	readonly releases?: Node<WorkspaceProposalProjectionRelease>;
 }
 
 export interface WorkspaceProposalFamilyOutcomeDetailSupplyProjectorBundle {
@@ -1120,6 +1167,7 @@ export interface WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorOpti
 	readonly name?: string;
 	readonly descriptors: Node<WorkspaceProposalRepairActionDescriptor>;
 	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
+	readonly releases?: Node<WorkspaceProposalProjectionRelease>;
 	readonly displayAssessment?: WorkspaceProposalRepairActionDisplayPolicyAssessment;
 	readonly policyEvidenceRefs?: readonly SourceRef[];
 	readonly capabilityEvidenceRefs?: readonly SourceRef[];
@@ -1166,6 +1214,7 @@ export interface WorkspaceProposalRepairActionIntentProjectorOptions {
 	readonly descriptors: Node<WorkspaceProposalRepairActionDescriptor>;
 	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
 	readonly statuses?: Node<WorkspaceProposalRepairReviewStatus>;
+	readonly releases?: Node<WorkspaceProposalProjectionRelease>;
 	readonly capabilityRefs?: readonly SourceRef[];
 	readonly policyRefs?: readonly SourceRef[];
 	readonly policyStatus?: "allowed" | "blocked" | "missing" | "unknown";
@@ -1277,6 +1326,7 @@ export interface WorkspaceProposalRepairSuccessorProposalReadyRequestPreparation
 	readonly preparationInputs: Node<
 		WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>
 	>;
+	readonly releases?: Node<WorkspaceProposalProjectionRelease>;
 }
 
 export interface WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorBundle<
@@ -1295,6 +1345,7 @@ export interface WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorO
 	readonly descriptors: Node<WorkspaceProposalRepairActionDescriptor>;
 	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
 	readonly statuses?: Node<WorkspaceProposalRepairReviewStatus>;
+	readonly releases?: Node<WorkspaceProposalProjectionRelease>;
 	readonly capabilityRefs?: readonly SourceRef[];
 	readonly policyRefs?: readonly SourceRef[];
 	readonly policyStatus?: "allowed" | "blocked" | "missing" | "unknown";
@@ -1340,7 +1391,8 @@ type WorkspaceProposalFamilyApplicationDiagnosticInputFact =
 			readonly kind: "read-model-query";
 			readonly value: WorkspaceProposalFamilyApplicationReadModelQuery;
 	  }
-	| { readonly kind: "outcome"; readonly value: WorkspaceProposalFamilyOutcomeRecord };
+	| { readonly kind: "outcome"; readonly value: WorkspaceProposalFamilyOutcomeRecord }
+	| { readonly kind: "projection-release"; readonly value: WorkspaceProposalProjectionRelease };
 
 interface WorkspaceProposalFamilyApplicationProjectionState {
 	readonly issues: Map<string, WorkspaceProposalRecordedIssue>;
@@ -2711,6 +2763,10 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 	opts: WorkspaceProposalFamilyOutcomeDetailSupplyProjectorOptions,
 ): WorkspaceProposalFamilyOutcomeDetailSupplyProjectorBundle {
 	const name = opts.name ?? "workspaceProposalFamilyOutcomeDetailSupply";
+	const deps =
+		opts.releases === undefined
+			? [opts.requests, opts.suppliedOutcomes]
+			: [opts.requests, opts.suppliedOutcomes, opts.releases];
 	const runtime = graph.node<
 		| {
 				readonly kind: "outcome-detail-supply-result";
@@ -2718,7 +2774,7 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 		  }
 		| undefined
 	>(
-		[opts.requests, opts.suppliedOutcomes],
+		deps,
 		(ctx) => {
 			const state = ctx.state.get<{
 				readonly requests: Map<string, WorkspaceProposalFamilyOutcomeDetailSupplyRequest>;
@@ -2737,6 +2793,11 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 				const outcome = raw as WorkspaceProposalFamilyOutcomeRecord;
 				if (isOutcomeDetailSupplyOutcomeRecordShape(outcome)) {
 					state.suppliedOutcomes.set(outcomeProjectionKey(outcome), outcome);
+				}
+			}
+			if (opts.releases !== undefined) {
+				for (const raw of depBatch(ctx, 2) ?? []) {
+					pruneOutcomeDetailSupplyRelease(state, raw);
 				}
 			}
 			for (const result of projectWorkspaceProposalFamilyOutcomeDetailSupplyResults({
@@ -3333,6 +3394,10 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 	opts: WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorOptions,
 ): WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorBundle {
 	const name = opts.name ?? "workspaceProposalRepairActionDisplayPolicyAdvisory";
+	const deps =
+		opts.releases === undefined
+			? [opts.descriptors, opts.requests]
+			: [opts.descriptors, opts.requests, opts.releases];
 	const runtime = graph.node<
 		| {
 				readonly kind: "repair-action-display-policy-advisory";
@@ -3340,7 +3405,7 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 		  }
 		| undefined
 	>(
-		[opts.descriptors, opts.requests],
+		deps,
 		(ctx) => {
 			const state = ctx.state.get<{
 				readonly descriptors: Map<string, WorkspaceProposalRepairActionDescriptor>;
@@ -3358,6 +3423,11 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 			for (const raw of depBatch(ctx, 1) ?? []) {
 				const request = raw as WorkspaceProposalRepairReviewRequest;
 				state.requests.set(request.repairRequestId, request);
+			}
+			if (opts.releases !== undefined) {
+				for (const raw of depBatch(ctx, 2) ?? []) {
+					pruneRepairActionAdvisoryRelease(state, raw);
+				}
 			}
 			for (const descriptor of state.descriptors.values()) {
 				const request = state.requests.get(descriptor.repairRequestId);
@@ -3661,10 +3731,7 @@ export function workspaceProposalRepairActionIntentProjector(
 	opts: WorkspaceProposalRepairActionIntentProjectorOptions,
 ): WorkspaceProposalRepairActionIntentProjectorBundle {
 	const name = opts.name ?? "workspaceProposalRepairActionIntent";
-	const deps =
-		opts.statuses === undefined
-			? [opts.intents, opts.descriptors, opts.requests]
-			: [opts.intents, opts.descriptors, opts.requests, opts.statuses];
+	const deps = repairActionIntentProjectorDeps(opts);
 	const runtime = graph.node<
 		| {
 				readonly kind: "repair-action-intent-validation-result";
@@ -3676,6 +3743,12 @@ export function workspaceProposalRepairActionIntentProjector(
 		(ctx) => {
 			const state = repairActionIntentGraphState(ctx);
 			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
+			if (opts.releases !== undefined) {
+				for (const raw of depBatch(ctx, repairActionReleaseDepIndex(opts.statuses !== undefined)) ??
+					[]) {
+					pruneRepairActionIntentRelease(state, raw);
+				}
+			}
 			for (const entry of state.intents.values()) {
 				if (entry.conflict) {
 					const result = conflictingRepairActionIntentValidationResult(entry.intent);
@@ -3720,10 +3793,7 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 	opts: WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorOptions,
 ): WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorBundle {
 	const name = opts.name ?? "workspaceProposalRepairSuccessorProposalIntakePreview";
-	const deps =
-		opts.statuses === undefined
-			? [opts.intents, opts.descriptors, opts.requests]
-			: [opts.intents, opts.descriptors, opts.requests, opts.statuses];
+	const deps = repairActionIntentProjectorDeps(opts);
 	const runtime = graph.node<
 		| {
 				readonly kind: "successor-proposal-intake-preview";
@@ -3735,6 +3805,12 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 		(ctx) => {
 			const state = repairActionIntentGraphState(ctx);
 			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
+			if (opts.releases !== undefined) {
+				for (const raw of depBatch(ctx, repairActionReleaseDepIndex(opts.statuses !== undefined)) ??
+					[]) {
+					pruneRepairSuccessorPreviewRelease(state, raw);
+				}
+			}
 			for (const entry of state.intents.values()) {
 				if (entry.intent.actionKind !== "open-successor-proposal-flow") continue;
 				const intent = entry.intent;
@@ -3787,6 +3863,10 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 	opts: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorOptions<TDraft>,
 ): WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorBundle<TDraft> {
 	const name = opts.name ?? "workspaceProposalRepairSuccessorProposalReadyRequestPreparation";
+	const deps =
+		opts.releases === undefined
+			? [opts.previews, opts.preparationInputs]
+			: [opts.previews, opts.preparationInputs, opts.releases];
 	const runtime = graph.node<
 		| {
 				readonly kind: "successor-ready-request-preparation-result";
@@ -3802,7 +3882,7 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 		  }
 		| undefined
 	>(
-		[opts.previews, opts.preparationInputs],
+		deps,
 		(ctx) => {
 			const state = repairSuccessorPreparationGraphState<TDraft>(ctx);
 			for (const raw of depBatch(ctx, 0) ?? []) {
@@ -3814,16 +3894,20 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 					raw as WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>;
 				state.inputs.set(input.preparationId, input);
 			}
+			if (opts.releases !== undefined) {
+				for (const raw of depBatch(ctx, 2) ?? []) {
+					pruneRepairSuccessorPreparationRelease(state, raw);
+				}
+			}
 			for (const input of state.inputs.values()) {
 				const preview = state.previews.get(input.previewId);
 				let result: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationResult<TDraft> =
 					prepareWorkspaceProposalRepairSuccessorProposalReadyRequest<TDraft>(preview, input);
 				const preparedReadyRequest = state.preparedReadyRequests.get(input.preparationId);
 				if (preparedReadyRequest !== undefined) {
-					const preparedSignature = stableStringify(preparedReadyRequest);
 					const resultReadySignature =
 						result.readyRequest === undefined ? undefined : stableStringify(result.readyRequest);
-					if (resultReadySignature !== preparedSignature) {
+					if (resultReadySignature !== preparedReadyRequest.signature) {
 						const issue = repairActionIntentIssue(
 							"repair-successor-preparation-already-prepared",
 							"Repair successor ready-request preparation is immutable after its first prepared ready request.",
@@ -3836,12 +3920,16 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 							status: "blocked",
 							issues: dedupeRepairActionIssues([...result.issues, issue]),
 						};
+					} else if (preparedReadyRequest.compacted) {
+						const { readyRequest: _readyRequest, ...preparedResult } = result;
+						result = preparedResult;
 					}
 				} else if (result.readyRequest !== undefined) {
-					state.preparedReadyRequests.set(
-						input.preparationId,
-						immutableClone(result.readyRequest) as WorkspaceProposalReadyRequest<TDraft>,
-					);
+					state.preparedReadyRequests.set(input.preparationId, {
+						signature: stableStringify(result.readyRequest),
+						compacted: false,
+						value: immutableClone(result.readyRequest) as WorkspaceProposalReadyRequest<TDraft>,
+					});
 				}
 				const signature = stableStringify(result);
 				if (state.emittedResults.get(input.preparationId) === signature) continue;
@@ -7269,6 +7357,7 @@ function readModelsProjectionDeps(
 	pushProjectionDep(deps, depKinds, opts.outcomeIndex, "outcome-index");
 	pushProjectionDep(deps, depKinds, opts.outcomeStatuses, "outcome-status");
 	pushProjectionDep(deps, depKinds, opts.outcomes, "outcome");
+	pushProjectionDep(deps, depKinds, opts.releases, "projection-release");
 	return { deps, depKinds };
 }
 
@@ -7364,6 +7453,10 @@ function ingestDiagnosticInputFact(
 		case "outcome": {
 			const outcome = raw as WorkspaceProposalFamilyOutcomeRecord;
 			state.outcomes.set(outcomeProjectionKey(outcome), outcome);
+			return;
+		}
+		case "projection-release": {
+			pruneReadModelQueryRelease(state, raw);
 		}
 	}
 }
@@ -7417,7 +7510,680 @@ interface WorkspaceProposalRepairSuccessorReadyRequestPreparationGraphState<TDra
 		WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>
 	>;
 	readonly emittedResults: Map<string, string>;
-	readonly preparedReadyRequests: Map<string, WorkspaceProposalReadyRequest<TDraft>>;
+	readonly preparedReadyRequests: Map<
+		string,
+		{
+			readonly signature: string;
+			readonly compacted: boolean;
+			readonly value?: WorkspaceProposalReadyRequest<TDraft>;
+		}
+	>;
+}
+
+const workspaceProposalProjectionReleaseTargetKinds = [
+	"family-read-model-query",
+	"outcome-detail-supply-request",
+	"repair-action-advisory",
+	"repair-action-intent",
+	"repair-successor-preview",
+	"repair-successor-preparation",
+] as const satisfies readonly WorkspaceProposalProjectionReleaseTargetKind[];
+
+const workspaceProposalProjectionReleaseKeys = new Set([
+	"kind",
+	"releaseId",
+	"targetKind",
+	"targetId",
+	"sourceRefs",
+	"viewId",
+	"applicationId",
+	"proposalId",
+	"decisionId",
+	"idempotencyKey",
+	"proposalFamily",
+	"queryId",
+	"supplyRequestId",
+	"descriptorId",
+	"repairRequestId",
+	"actionKind",
+	"intentId",
+	"previewId",
+	"preparationId",
+	"audit",
+	"metadata",
+]);
+
+/**
+ * Validate D472 projection release material before a projector treats it as a
+ * bounded current-view retention hint.
+ */
+export function isWorkspaceProposalProjectionReleaseMaterial(
+	value: unknown,
+): value is WorkspaceProposalProjectionRelease {
+	return workspaceProposalProjectionReleaseIssues(value).length === 0;
+}
+
+function workspaceProposalProjectionReleaseIssues(
+	value: unknown,
+): readonly WorkspaceProposalRecordedIssue[] {
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	const record = isRecord(value) ? value : {};
+	if (!isRecord(value)) {
+		issues.push(
+			projectionReleaseIssue(
+				"malformed-projection-release",
+				"Projection release must be object material.",
+			),
+		);
+		return issues;
+	}
+	for (const key of Object.keys(record)) {
+		if (workspaceProposalProjectionReleaseKeys.has(key)) continue;
+		issues.push(
+			projectionReleaseIssue(
+				"forbidden-projection-release-material",
+				"Projection release must not carry truth, runtime, storage, proof, or private top-level material.",
+			),
+		);
+	}
+	if (record.kind !== "workspace-proposal-projection-release") {
+		issues.push(
+			projectionReleaseIssue("malformed-projection-release", "Projection release kind is invalid."),
+		);
+	}
+	if (stringField(record.releaseId) === undefined) {
+		issues.push(
+			projectionReleaseIssue(
+				"malformed-projection-release",
+				"Projection release requires releaseId.",
+			),
+		);
+	}
+	if (
+		!workspaceProposalProjectionReleaseTargetKinds.includes(
+			record.targetKind as WorkspaceProposalProjectionReleaseTargetKind,
+		)
+	) {
+		issues.push(
+			projectionReleaseIssue(
+				"unsupported-projection-release-target",
+				"Projection release targetKind is not a closed Workspace proposal projection target.",
+			),
+		);
+	}
+	if (stringField(record.targetId) === undefined) {
+		issues.push(
+			projectionReleaseIssue(
+				"malformed-projection-release",
+				"Projection release requires targetId.",
+			),
+		);
+	}
+	if (
+		!repairReviewDecisionSourceRefsAreValid(record.sourceRefs) ||
+		!workspaceProposalBoundarySourceRefsAreSafe(
+			record.sourceRefs as readonly SourceRef[] | undefined,
+		)
+	) {
+		issues.push(
+			projectionReleaseIssue(
+				"malformed-projection-release",
+				"Projection release requires boundary-safe sourceRefs.",
+			),
+		);
+	}
+	if (record.audit !== undefined) {
+		const audit = safeWorkspaceProposalAudit(record.audit);
+		if (audit === undefined || !workspaceProposalBoundarySourceRefsAreSafe(audit.sourceRefs)) {
+			issues.push(
+				projectionReleaseIssue(
+					"malformed-projection-release",
+					"Projection release audit must be boundary-safe data material.",
+				),
+			);
+		}
+		for (const issue of workspaceProposalDataOnlyIssues(record.audit, "projectionReleaseAudit")) {
+			issues.push(projectionReleaseDataOnlyIssue(issue));
+		}
+		if (
+			isRecord((record.audit as { readonly metadata?: unknown }).metadata) &&
+			projectionReleaseMetadataHasRevocationVocabulary(
+				(record.audit as { readonly metadata: Record<string, unknown> }).metadata,
+			)
+		) {
+			issues.push(
+				projectionReleaseIssue(
+					"forbidden-projection-release-vocabulary",
+					"Projection release audit metadata must not carry revocation, eviction, cache, storage, or proof vocabulary.",
+				),
+			);
+		}
+	}
+	for (const issue of workspaceProposalDataOnlyIssues(
+		record.sourceRefs,
+		"projectionReleaseSourceRefs",
+	)) {
+		issues.push(projectionReleaseDataOnlyIssue(issue));
+	}
+	if (record.metadata !== undefined) {
+		if (!isRecord(record.metadata)) {
+			issues.push(
+				projectionReleaseIssue(
+					"malformed-metadata",
+					"Projection release metadata must be bounded object material.",
+				),
+			);
+		} else {
+			for (const issue of workspaceProposalDataOnlyIssues(
+				record.metadata,
+				"projectionReleaseMetadata",
+			)) {
+				issues.push(projectionReleaseDataOnlyIssue(issue));
+			}
+			if (workspaceProposalBoundaryMetadataSize(record.metadata) > 4096) {
+				issues.push(
+					projectionReleaseIssue(
+						"malformed-metadata",
+						"Projection release metadata exceeds the bounded display limit.",
+					),
+				);
+			}
+			if (projectionReleaseMetadataHasRevocationVocabulary(record.metadata)) {
+				issues.push(
+					projectionReleaseIssue(
+						"forbidden-projection-release-vocabulary",
+						"Projection release metadata must not carry revocation, eviction, cache, storage, or truth-mutation vocabulary.",
+					),
+				);
+			}
+		}
+	}
+	for (const field of [
+		"viewId",
+		"applicationId",
+		"proposalId",
+		"decisionId",
+		"idempotencyKey",
+		"proposalFamily",
+		"queryId",
+		"supplyRequestId",
+		"descriptorId",
+		"repairRequestId",
+		"intentId",
+		"previewId",
+		"preparationId",
+	] as const) {
+		if (record[field] !== undefined && stringField(record[field]) === undefined) {
+			issues.push(
+				projectionReleaseIssue(
+					"malformed-projection-release",
+					`Projection release optional ${field} must be a nonblank string when present.`,
+				),
+			);
+		}
+	}
+	if (
+		record.actionKind !== undefined &&
+		!repairActionKinds.includes(record.actionKind as WorkspaceProposalRepairActionKind)
+	) {
+		issues.push(
+			projectionReleaseIssue(
+				"malformed-projection-release",
+				"Projection release actionKind is not a closed repair action kind.",
+			),
+		);
+	}
+	if (
+		record.targetKind === "repair-successor-preview" &&
+		stringField(record.intentId) === undefined
+	) {
+		issues.push(
+			projectionReleaseIssue(
+				"malformed-projection-release",
+				"Repair successor preview release requires intentId to avoid immediate re-preview.",
+			),
+		);
+	}
+	for (const issue of workspaceProposalProjectionReleaseTargetIdentityIssues(record)) {
+		issues.push(issue);
+	}
+	return dedupeRepairActionIssues(issues);
+}
+
+function workspaceProposalProjectionReleaseTargetIdentityIssues(
+	record: Record<string, unknown>,
+): readonly WorkspaceProposalRecordedIssue[] {
+	const targetId = stringField(record.targetId);
+	if (targetId === undefined) return [];
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	const mismatch = (message: string): void => {
+		issues.push(projectionReleaseIssue("projection-release-coordinate-mismatch", message));
+	};
+	const conflictsWithAll = (...values: readonly unknown[]): boolean => {
+		const ids = values
+			.map((value) => stringField(value))
+			.filter((value): value is string => value !== undefined);
+		return ids.length > 0 && !ids.includes(targetId);
+	};
+	switch (record.targetKind) {
+		case "family-read-model-query": {
+			if (conflictsWithAll(record.viewId, record.queryId)) {
+				mismatch("Read-model release targetId must match viewId or queryId when provided.");
+			}
+			break;
+		}
+		case "outcome-detail-supply-request": {
+			if (conflictsWithAll(record.viewId, record.supplyRequestId)) {
+				mismatch(
+					"Outcome detail supply release targetId must match viewId or supplyRequestId when provided.",
+				);
+			}
+			break;
+		}
+		case "repair-action-intent": {
+			if (conflictsWithAll(record.intentId)) {
+				mismatch("Repair action intent release targetId must match intentId when provided.");
+			}
+			break;
+		}
+		case "repair-successor-preview": {
+			if (conflictsWithAll(record.previewId)) {
+				mismatch("Repair successor preview release targetId must match previewId when provided.");
+			}
+			break;
+		}
+		case "repair-successor-preparation": {
+			if (conflictsWithAll(record.preparationId)) {
+				mismatch(
+					"Repair successor preparation release targetId must match preparationId when provided.",
+				);
+			}
+			break;
+		}
+		case "repair-action-advisory": {
+			if (conflictsWithAll(record.descriptorId, record.repairRequestId)) {
+				mismatch(
+					"Repair advisory release targetId must match descriptorId or repairRequestId when provided.",
+				);
+			}
+			break;
+		}
+	}
+	return issues;
+}
+
+function projectionReleaseIssue(code: string, message: string): WorkspaceProposalRecordedIssue {
+	return {
+		kind: "issue",
+		source: "workspace-proposal",
+		severity: "error",
+		code,
+		message,
+	};
+}
+
+function projectionReleaseDataOnlyIssue(
+	issue: WorkspaceProposalRecordedIssue,
+): WorkspaceProposalRecordedIssue {
+	return {
+		...issue,
+		code:
+			issue.code === "forbidden-runtime-material"
+				? "forbidden-projection-release-runtime-material"
+				: issue.code,
+	};
+}
+
+function projectionReleaseMetadataHasRevocationVocabulary(value: Record<string, unknown>): boolean {
+	const forbidden = new Set([
+		"delete",
+		"deleted",
+		"deletion",
+		"cache",
+		"evict",
+		"evicted",
+		"eviction",
+		"lru",
+		"proof",
+		"revoke",
+		"revoked",
+		"revocation",
+		"storage",
+		"storageowner",
+		"cacheowner",
+		"truthmutation",
+		"permissionproof",
+		"policyproof",
+	]);
+	const seen = new WeakSet<object>();
+	const visit = (entry: unknown): boolean => {
+		if (typeof entry === "string") {
+			const normalized = entry.toLowerCase().replace(/[-_\s]/g, "");
+			return [...forbidden].some((token) => normalized.includes(token));
+		}
+		if (Array.isArray(entry)) return entry.some(visit);
+		if (!isRecord(entry) || seen.has(entry)) return false;
+		seen.add(entry);
+		for (const [key, child] of Object.entries(entry)) {
+			const normalized = key.toLowerCase().replace(/[-_\s]/g, "");
+			if ([...forbidden].some((token) => normalized.includes(token)) || visit(child)) return true;
+		}
+		return false;
+	};
+	return visit(value);
+}
+
+function pruneReadModelQueryRelease(
+	state: WorkspaceProposalFamilyApplicationProjectionState,
+	raw: unknown,
+): void {
+	if (
+		!isWorkspaceProposalProjectionReleaseMaterial(raw) ||
+		raw.targetKind !== "family-read-model-query"
+	) {
+		return;
+	}
+	const currentViewId = raw.viewId ?? raw.queryId ?? raw.targetId;
+	const key = stableStringify({ currentViewId });
+	const query = state.readModelQueries.get(key);
+	if (query !== undefined && !projectionReleaseMatchesReadModelQuery(raw, query)) return;
+	if (query === undefined && projectionReleaseHasWorkspaceCoordinates(raw)) return;
+	state.readModelQueries.delete(key);
+	state.emittedReadModels.delete(key);
+}
+
+function pruneOutcomeDetailSupplyRelease(
+	state: {
+		readonly requests: Map<string, WorkspaceProposalFamilyOutcomeDetailSupplyRequest>;
+		readonly emittedResults: Map<string, string>;
+	},
+	raw: unknown,
+): void {
+	if (
+		!isWorkspaceProposalProjectionReleaseMaterial(raw) ||
+		raw.targetKind !== "outcome-detail-supply-request"
+	) {
+		return;
+	}
+	const currentViewId = raw.viewId ?? raw.supplyRequestId ?? raw.targetId;
+	const key = stableStringify({ currentViewId });
+	const request = state.requests.get(key);
+	if (request !== undefined && !projectionReleaseMatchesSupplyRequest(raw, request)) return;
+	if (request === undefined && projectionReleaseHasWorkspaceCoordinates(raw)) return;
+	state.requests.delete(key);
+	state.emittedResults.delete(currentViewId);
+}
+
+function pruneRepairActionAdvisoryRelease(
+	state: {
+		readonly descriptors: Map<string, WorkspaceProposalRepairActionDescriptor>;
+		readonly emittedAdvisories: Map<string, string>;
+	},
+	raw: unknown,
+): void {
+	if (
+		!isWorkspaceProposalProjectionReleaseMaterial(raw) ||
+		raw.targetKind !== "repair-action-advisory"
+	) {
+		return;
+	}
+	let matchedAdvisory = false;
+	for (const [descriptorId, descriptor] of state.descriptors) {
+		if (!projectionReleaseMatchesAdvisory(raw, descriptor)) continue;
+		state.descriptors.delete(descriptorId);
+		state.emittedAdvisories.delete(repairActionAdvisoryKey(descriptor));
+		matchedAdvisory = true;
+	}
+	if (!matchedAdvisory && projectionReleaseHasWorkspaceCoordinates(raw)) return;
+	if (
+		raw.descriptorId !== undefined &&
+		raw.repairRequestId !== undefined &&
+		raw.actionKind !== undefined
+	) {
+		state.emittedAdvisories.delete(
+			repairActionAdvisoryKey({
+				descriptorId: raw.descriptorId,
+				repairRequestId: raw.repairRequestId,
+				actionKind: raw.actionKind,
+			}),
+		);
+	}
+	state.emittedAdvisories.delete(raw.targetId);
+}
+
+function pruneRepairActionIntentRelease(
+	state: WorkspaceProposalRepairActionIntentGraphState,
+	raw: unknown,
+): void {
+	if (
+		!isWorkspaceProposalProjectionReleaseMaterial(raw) ||
+		raw.targetKind !== "repair-action-intent"
+	) {
+		return;
+	}
+	const intentId = raw.intentId ?? raw.targetId;
+	const entry = state.intents.get(intentId);
+	if (entry !== undefined && !projectionReleaseMatchesIntent(raw, entry.intent)) return;
+	if (entry === undefined && projectionReleaseHasWorkspaceCoordinates(raw)) return;
+	state.intents.delete(intentId);
+	state.emittedResults.delete(intentId);
+}
+
+function pruneRepairSuccessorPreviewRelease(
+	state: WorkspaceProposalRepairActionIntentGraphState,
+	raw: unknown,
+): void {
+	if (!isWorkspaceProposalProjectionReleaseMaterial(raw)) return;
+	if (raw.targetKind === "repair-action-intent") {
+		const intentId = raw.intentId ?? raw.targetId;
+		const entry = state.intents.get(intentId);
+		if (entry !== undefined && !projectionReleaseMatchesIntent(raw, entry.intent)) return;
+		if (entry === undefined && projectionReleaseHasWorkspaceCoordinates(raw)) return;
+		if (entry !== undefined) {
+			state.emittedPreviews.delete(repairSuccessorPreviewIdFromIntent(entry.intent));
+		}
+		state.intents.delete(intentId);
+		state.emittedResults.delete(intentId);
+		return;
+	}
+	if (raw.targetKind !== "repair-successor-preview" || raw.intentId === undefined) return;
+	const entry = state.intents.get(raw.intentId);
+	if (entry !== undefined && !projectionReleaseMatchesIntent(raw, entry.intent)) return;
+	if (entry === undefined && projectionReleaseHasWorkspaceCoordinates(raw)) return;
+	if (
+		entry !== undefined &&
+		raw.previewId !== undefined &&
+		raw.previewId !== repairSuccessorPreviewIdFromIntent(entry.intent)
+	) {
+		return;
+	}
+	if (entry !== undefined) {
+		state.emittedPreviews.delete(repairSuccessorPreviewIdFromIntent(entry.intent));
+	}
+	state.intents.delete(raw.intentId);
+	state.emittedPreviews.delete(raw.previewId ?? raw.targetId);
+}
+
+function pruneRepairSuccessorPreparationRelease<TDraft>(
+	state: WorkspaceProposalRepairSuccessorReadyRequestPreparationGraphState<TDraft>,
+	raw: unknown,
+): void {
+	if (
+		!isWorkspaceProposalProjectionReleaseMaterial(raw) ||
+		raw.targetKind !== "repair-successor-preparation"
+	) {
+		return;
+	}
+	const preparationId = raw.preparationId ?? raw.targetId;
+	const input = state.inputs.get(preparationId);
+	if (input !== undefined && !projectionReleaseMatchesPreparationInput(raw, input)) return;
+	if (input === undefined && projectionReleaseHasWorkspaceCoordinates(raw)) return;
+	state.inputs.delete(preparationId);
+	state.emittedResults.delete(preparationId);
+	if (
+		input !== undefined &&
+		![...state.inputs.values()].some((candidate) => candidate.previewId === input.previewId)
+	) {
+		state.previews.delete(input.previewId);
+	}
+	const prepared = state.preparedReadyRequests.get(preparationId);
+	if (prepared !== undefined) {
+		state.preparedReadyRequests.set(preparationId, {
+			signature: prepared.signature,
+			compacted: true,
+		});
+	}
+}
+
+function projectionReleaseMatchesAdvisory(
+	release: WorkspaceProposalProjectionRelease,
+	descriptor: WorkspaceProposalRepairActionDescriptor,
+): boolean {
+	if (!projectionReleaseWorkspaceCoordinatesMatch(release, descriptor)) return false;
+	if (release.descriptorId !== undefined && release.descriptorId !== descriptor.descriptorId) {
+		return false;
+	}
+	if (
+		release.repairRequestId !== undefined &&
+		release.repairRequestId !== descriptor.repairRequestId
+	) {
+		return false;
+	}
+	if (release.actionKind !== undefined && release.actionKind !== descriptor.actionKind) {
+		return false;
+	}
+	return (
+		release.descriptorId !== undefined ||
+		release.repairRequestId !== undefined ||
+		release.targetId === descriptor.descriptorId ||
+		release.targetId === descriptor.repairRequestId ||
+		release.targetId === repairActionAdvisoryKey(descriptor)
+	);
+}
+
+function projectionReleaseMatchesReadModelQuery(
+	release: WorkspaceProposalProjectionRelease,
+	query: WorkspaceProposalFamilyApplicationReadModelQuery,
+): boolean {
+	const currentViewId = query.viewId ?? query.queryId;
+	return (
+		release.targetId === currentViewId &&
+		(release.viewId === undefined || release.viewId === currentViewId) &&
+		(release.queryId === undefined || release.queryId === query.queryId) &&
+		projectionReleaseWorkspaceCoordinatesMatch(release, query)
+	);
+}
+
+function projectionReleaseMatchesSupplyRequest(
+	release: WorkspaceProposalProjectionRelease,
+	request: WorkspaceProposalFamilyOutcomeDetailSupplyRequest,
+): boolean {
+	const currentViewId = request.viewId ?? request.supplyRequestId;
+	return (
+		release.targetId === currentViewId &&
+		(release.viewId === undefined || release.viewId === currentViewId) &&
+		(release.supplyRequestId === undefined ||
+			release.supplyRequestId === request.supplyRequestId) &&
+		projectionReleaseWorkspaceCoordinatesMatch(release, request)
+	);
+}
+
+function projectionReleaseMatchesIntent(
+	release: WorkspaceProposalProjectionRelease,
+	intent: WorkspaceProposalRepairActionIntent,
+): boolean {
+	return (
+		(release.intentId === undefined || release.intentId === intent.intentId) &&
+		(release.descriptorId === undefined || release.descriptorId === intent.descriptorId) &&
+		(release.repairRequestId === undefined || release.repairRequestId === intent.repairRequestId) &&
+		(release.actionKind === undefined || release.actionKind === intent.actionKind) &&
+		projectionReleaseWorkspaceCoordinatesMatch(release, intent)
+	);
+}
+
+function projectionReleaseMatchesPreparationInput<TDraft>(
+	release: WorkspaceProposalProjectionRelease,
+	input: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>,
+): boolean {
+	return (
+		release.targetId === input.preparationId &&
+		(release.preparationId === undefined || release.preparationId === input.preparationId) &&
+		(release.previewId === undefined || release.previewId === input.previewId) &&
+		(release.intentId === undefined || release.intentId === input.intent.intentId) &&
+		(release.descriptorId === undefined ||
+			release.descriptorId === input.descriptor.descriptorId) &&
+		(release.repairRequestId === undefined ||
+			release.repairRequestId === input.request.repairRequestId) &&
+		(release.actionKind === undefined || release.actionKind === input.intent.actionKind) &&
+		projectionReleaseWorkspaceCoordinatesMatch(release, input.request)
+	);
+}
+
+function projectionReleaseWorkspaceCoordinatesMatch(
+	release: WorkspaceProposalProjectionRelease,
+	value: {
+		readonly applicationId?: string;
+		readonly proposalId?: string;
+		readonly decisionId?: string;
+		readonly idempotencyKey?: string;
+		readonly proposalFamily?: WorkspaceProposalFamily;
+	},
+): boolean {
+	return (
+		(release.applicationId === undefined || release.applicationId === value.applicationId) &&
+		(release.proposalId === undefined || release.proposalId === value.proposalId) &&
+		(release.decisionId === undefined || release.decisionId === value.decisionId) &&
+		(release.idempotencyKey === undefined || release.idempotencyKey === value.idempotencyKey) &&
+		(release.proposalFamily === undefined || release.proposalFamily === value.proposalFamily)
+	);
+}
+
+function projectionReleaseHasWorkspaceCoordinates(
+	release: WorkspaceProposalProjectionRelease,
+): boolean {
+	return (
+		release.applicationId !== undefined ||
+		release.proposalId !== undefined ||
+		release.decisionId !== undefined ||
+		release.idempotencyKey !== undefined ||
+		release.proposalFamily !== undefined
+	);
+}
+
+function repairActionAdvisoryKey(
+	value: Pick<
+		WorkspaceProposalRepairActionDescriptor,
+		"descriptorId" | "repairRequestId" | "actionKind"
+	>,
+): string {
+	return stableStringify({
+		descriptorId: value.descriptorId,
+		repairRequestId: value.repairRequestId,
+		actionKind: value.actionKind,
+	});
+}
+
+function repairSuccessorPreviewIdFromIntent(intent: WorkspaceProposalRepairActionIntent): string {
+	return `workspace-proposal-repair-successor-preview:${stableStringify({
+		intentId: intent.intentId,
+		descriptorId: intent.descriptorId,
+		repairRequestId: intent.repairRequestId,
+	})}`;
+}
+
+function repairActionIntentProjectorDeps(
+	opts:
+		| WorkspaceProposalRepairActionIntentProjectorOptions
+		| WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorOptions,
+): readonly Node<unknown>[] {
+	const deps: Node<unknown>[] = [opts.intents, opts.descriptors, opts.requests];
+	if (opts.statuses !== undefined) deps.push(opts.statuses);
+	if (opts.releases !== undefined) deps.push(opts.releases);
+	return deps;
+}
+
+function repairActionReleaseDepIndex(hasStatuses: boolean): number {
+	return hasStatuses ? 4 : 3;
 }
 
 function repairActionIntentGraphState(ctx: Ctx): WorkspaceProposalRepairActionIntentGraphState {
