@@ -395,6 +395,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof workItemScheduling.workspaceProposalFamilyApplicationReadModelsProjector).toBe(
 			"function",
 		);
+		expect(typeof workItemScheduling.projectWorkspaceProposalFamilyOutcomeDetailSupplyResults).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.workspaceProposalFamilyOutcomeDetailSupplyProjector).toBe(
+			"function",
+		);
 		expect(typeof workItemScheduling.projectWorkspaceProposalRepairActionDescriptors).toBe(
 			"function",
 		);
@@ -408,9 +414,24 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			typeof workItemScheduling.projectWorkspaceProposalRepairSuccessorProposalIntakePreview,
 		).toBe("function");
+		expect(
+			typeof workItemScheduling.validateWorkspaceProposalRepairActionDisplayPolicyAdvisory,
+		).toBe("function");
+		expect(
+			typeof workItemScheduling.projectWorkspaceProposalRepairActionDisplayPolicyAdvisory,
+		).toBe("function");
+		expect(
+			typeof workItemScheduling.workspaceProposalRepairActionDisplayPolicyAdvisoryProjector,
+		).toBe("function");
+		expect(
+			typeof workItemScheduling.prepareWorkspaceProposalRepairSuccessorProposalReadyRequest,
+		).toBe("function");
 		expect(typeof workItemScheduling.workspaceProposalRepairActionIntentProjector).toBe("function");
 		expect(
 			typeof workItemScheduling.workspaceProposalRepairSuccessorProposalIntakePreviewProjector,
+		).toBe("function");
+		expect(
+			typeof workItemScheduling.workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector,
 		).toBe("function");
 		expectTypeOf<WorkspaceProposalFamilyApplicationReadModelQuery>()
 			.toHaveProperty("queryId")
@@ -434,6 +455,21 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		>()
 			.toHaveProperty("previewId")
 			.toEqualTypeOf<string>();
+		expectTypeOf<
+			import("../solutions/work-item/scheduling.js").WorkspaceProposalRepairActionDisplayPolicyAdvisory
+		>()
+			.toHaveProperty("authority")
+			.toEqualTypeOf<"display-only-advisory">();
+		expectTypeOf<
+			import("../solutions/work-item/scheduling.js").WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput
+		>()
+			.toHaveProperty("successorProposalId")
+			.toEqualTypeOf<string>();
+		expectTypeOf<
+			import("../solutions/work-item/scheduling.js").WorkspaceProposalFamilyOutcomeDetailSupplyRequest
+		>()
+			.toHaveProperty("supplyRequestId")
+			.toEqualTypeOf<string>();
 		expect(Object.hasOwn(solutions, "workItemAuthoringProjector")).toBe(false);
 		expect(Object.hasOwn(solutions, "recordWorkspaceProposal")).toBe(false);
 		expect(
@@ -451,12 +487,30 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(solutions, "workspaceProposalFamilyApplicationReadModelsProjector")).toBe(
 			false,
 		);
+		expect(Object.hasOwn(solutions, "workspaceProposalFamilyOutcomeDetailSupplyProjector")).toBe(
+			false,
+		);
 		expect(Object.hasOwn(solutions, "workspaceProposalRepairActionDescriptorProjector")).toBe(
 			false,
 		);
 		expect(Object.hasOwn(solutions, "validateWorkspaceProposalRepairActionIntent")).toBe(false);
 		expect(
 			Object.hasOwn(solutions, "projectWorkspaceProposalRepairSuccessorProposalIntakePreview"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(solutions, "validateWorkspaceProposalRepairActionDisplayPolicyAdvisory"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(solutions, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(solutions, "prepareWorkspaceProposalRepairSuccessorProposalReadyRequest"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(
+				solutions,
+				"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",
+			),
 		).toBe(false);
 		expect(
 			Object.hasOwn(rootPackage, "workspaceProposalFamilyApplicationDiagnosticProjector"),
@@ -470,12 +524,30 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			Object.hasOwn(rootPackage, "workspaceProposalFamilyApplicationReadModelsProjector"),
 		).toBe(false);
+		expect(Object.hasOwn(rootPackage, "workspaceProposalFamilyOutcomeDetailSupplyProjector")).toBe(
+			false,
+		);
 		expect(Object.hasOwn(rootPackage, "workspaceProposalRepairActionDescriptorProjector")).toBe(
 			false,
 		);
 		expect(Object.hasOwn(rootPackage, "validateWorkspaceProposalRepairActionIntent")).toBe(false);
 		expect(
 			Object.hasOwn(rootPackage, "projectWorkspaceProposalRepairSuccessorProposalIntakePreview"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(rootPackage, "validateWorkspaceProposalRepairActionDisplayPolicyAdvisory"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(rootPackage, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(rootPackage, "prepareWorkspaceProposalRepairSuccessorProposalReadyRequest"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(
+				rootPackage,
+				"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",
+			),
 		).toBe(false);
 		expect(Object.hasOwn(solutions, "recordWorkspaceProposalDomainActionOutcome")).toBe(false);
 		expect(Object.hasOwn(workItemActions, "workspaceProposalRepairActionDescriptorProjector")).toBe(
@@ -491,7 +563,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			),
 		).toBe(false);
 		expect(
+			Object.hasOwn(workItemActions, "prepareWorkspaceProposalRepairSuccessorProposalReadyRequest"),
+		).toBe(false);
+		expect(
 			Object.hasOwn(workItemActions, "projectWorkspaceProposalFamilyApplicationReadModels"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(workItemActions, "workspaceProposalFamilyOutcomeDetailSupplyProjector"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(workItemActions, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
 		).toBe(false);
 		expect(Object.hasOwn(solutions, "workItemDomainActionApplicationProjector")).toBe(false);
 		expect(typeof workItemWorkQueueRecipe.workItemWorkQueueRecipe).toBe("function");

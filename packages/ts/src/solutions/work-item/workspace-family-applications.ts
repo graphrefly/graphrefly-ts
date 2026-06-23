@@ -31,8 +31,10 @@ import {
 	type WorkspaceProposalApplicationStatus,
 	type WorkspaceProposalAuditMaterial,
 	type WorkspaceProposalFamily,
+	type WorkspaceProposalReadyRequest,
 	type WorkspaceProposalRecorded,
 	type WorkspaceProposalRecordedIssue,
+	type WorkspaceProposalTargetRef,
 	workspaceProposalApplicationFamilyRef,
 	workspaceProposalDataOnlyIssues,
 } from "./workspace-proposals.js";
@@ -703,6 +705,11 @@ export interface WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic {
 	readonly code:
 		| "incomplete-read-model-query"
 		| "malformed-read-model-query"
+		| "malformed-read-model-presentation-options"
+		| "malformed-outcome-detail-supply-request"
+		| "malformed-supplied-outcome-detail"
+		| "missing-supplied-outcome-detail"
+		| "mismatched-supplied-outcome-detail"
 		| "missing-outcome-detail"
 		| "mismatched-outcome-detail"
 		| "mismatched-outcome-status";
@@ -718,6 +725,50 @@ export interface WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic {
 	readonly sourceRefs: readonly SourceRef[];
 }
 
+export type WorkspaceProposalFamilyApplicationReadModelSortField =
+	| "outcome-id"
+	| "outcome-kind"
+	| "diagnostic-code"
+	| "repair-state"
+	| "recorded-at-ms";
+
+export type WorkspaceProposalFamilyApplicationReadModelSortDirection = "asc" | "desc";
+
+export interface WorkspaceProposalFamilyApplicationReadModelSortOption {
+	readonly field: WorkspaceProposalFamilyApplicationReadModelSortField;
+	readonly direction: WorkspaceProposalFamilyApplicationReadModelSortDirection;
+}
+
+export type WorkspaceProposalFamilyApplicationReadModelGroupField =
+	| "outcome-kind"
+	| "repair-state"
+	| "diagnostic-code";
+
+export type WorkspaceProposalFamilyApplicationReadModelSearchField =
+	| "outcome-id"
+	| "outcome-kind"
+	| "diagnostic-code"
+	| "diagnostic-message"
+	| "repair-state";
+
+export interface WorkspaceProposalFamilyApplicationReadModelSearchOptions {
+	readonly text?: string;
+	readonly fields?: readonly WorkspaceProposalFamilyApplicationReadModelSearchField[];
+}
+
+export interface WorkspaceProposalFamilyApplicationReadModelNormalizedSearch {
+	readonly text: string;
+	readonly fields: readonly WorkspaceProposalFamilyApplicationReadModelSearchField[];
+}
+
+export interface WorkspaceProposalFamilyApplicationReadModelDisplayGroup {
+	readonly kind: "workspace-proposal-family-application-read-model-display-group";
+	readonly field: WorkspaceProposalFamilyApplicationReadModelGroupField;
+	readonly value: string;
+	readonly outcomeRefs: readonly WorkspaceProposalFamilyOutcomeRef[];
+	readonly count: number;
+}
+
 export interface WorkspaceProposalFamilyApplicationReadModel {
 	readonly kind: "workspace-proposal-family-application-read-model";
 	readonly readModelId: string;
@@ -729,10 +780,14 @@ export interface WorkspaceProposalFamilyApplicationReadModel {
 	readonly idempotencyKey?: string;
 	readonly proposalFamily?: WorkspaceProposalFamily;
 	readonly filters?: WorkspaceProposalFamilyApplicationReadModelNormalizedFilters;
+	readonly sort?: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[];
+	readonly groupBy?: readonly WorkspaceProposalFamilyApplicationReadModelGroupField[];
+	readonly search?: WorkspaceProposalFamilyApplicationReadModelNormalizedSearch;
 	readonly diagnostics: readonly WorkspaceProposalFamilyApplicationDiagnostic[];
 	readonly repairReviewStatuses: readonly WorkspaceProposalRepairReviewStatus[];
 	readonly outcomeIndexes: readonly WorkspaceProposalFamilyOutcomeIndexEntry[];
 	readonly outcomeDetails: readonly WorkspaceProposalFamilyOutcomeDetail[];
+	readonly displayGroups: readonly WorkspaceProposalFamilyApplicationReadModelDisplayGroup[];
 	readonly displayDiagnostics: readonly WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[];
 	readonly page: {
 		readonly offset: number;
@@ -772,6 +827,9 @@ export interface WorkspaceProposalFamilyApplicationReadModelQuery {
 	readonly proposalFamily: WorkspaceProposalFamily;
 	readonly page?: WorkspaceProposalFamilyApplicationReadModelPage;
 	readonly filters?: WorkspaceProposalFamilyApplicationReadModelFilters;
+	readonly sort?: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[];
+	readonly groupBy?: readonly WorkspaceProposalFamilyApplicationReadModelGroupField[];
+	readonly search?: WorkspaceProposalFamilyApplicationReadModelSearchOptions;
 	readonly sourceRefs: readonly SourceRef[];
 	readonly audit?: WorkspaceProposalAuditMaterial;
 	readonly metadata?: Record<string, unknown>;
@@ -793,6 +851,9 @@ export interface WorkspaceProposalFamilyApplicationReadModelProjectionInput {
 	readonly offset?: number;
 	readonly limit?: number;
 	readonly filters?: WorkspaceProposalFamilyApplicationReadModelFilters;
+	readonly sort?: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[];
+	readonly groupBy?: readonly WorkspaceProposalFamilyApplicationReadModelGroupField[];
+	readonly search?: WorkspaceProposalFamilyApplicationReadModelSearchOptions;
 	readonly displayDiagnostics?: readonly WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[];
 }
 
@@ -810,6 +871,9 @@ export interface WorkspaceProposalFamilyApplicationReadModelProjectorOptions {
 	readonly proposalFamily?: WorkspaceProposalFamily;
 	readonly offset?: number;
 	readonly limit?: number;
+	readonly sort?: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[];
+	readonly groupBy?: readonly WorkspaceProposalFamilyApplicationReadModelGroupField[];
+	readonly search?: WorkspaceProposalFamilyApplicationReadModelSearchOptions;
 }
 
 export interface WorkspaceProposalFamilyApplicationReadModelsProjectionInput {
@@ -833,6 +897,58 @@ export interface WorkspaceProposalFamilyApplicationReadModelsProjectorOptions {
 
 export interface WorkspaceProposalFamilyApplicationReadModelProjectorBundle {
 	readonly readModels: Node<WorkspaceProposalFamilyApplicationReadModel>;
+}
+
+export interface WorkspaceProposalFamilyOutcomeDetailSupplyRequest {
+	readonly kind: "workspace-proposal-family-outcome-detail-supply-request";
+	readonly supplyRequestId: string;
+	readonly viewId?: string;
+	readonly applicationId: string;
+	readonly proposalId: string;
+	readonly decisionId: string;
+	readonly idempotencyKey: string;
+	readonly proposalFamily: WorkspaceProposalFamily;
+	readonly requestedOutcomeRefs: readonly WorkspaceProposalFamilyOutcomeRef[];
+	readonly page?: WorkspaceProposalFamilyApplicationReadModelPage;
+	readonly filters?: WorkspaceProposalFamilyApplicationReadModelFilters;
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalFamilyOutcomeDetailSupplyResult {
+	readonly kind: "workspace-proposal-family-outcome-detail-supply-result";
+	readonly supplyRequestId?: string;
+	readonly viewId?: string;
+	readonly currentViewId: string;
+	readonly applicationId?: string;
+	readonly proposalId?: string;
+	readonly decisionId?: string;
+	readonly idempotencyKey?: string;
+	readonly proposalFamily?: WorkspaceProposalFamily;
+	readonly suppliedOutcomeFacts: readonly WorkspaceProposalFamilyOutcomeRecord[];
+	readonly missingRefs: readonly WorkspaceProposalFamilyOutcomeRef[];
+	readonly mismatchedRefs: readonly WorkspaceProposalFamilyOutcomeRef[];
+	readonly displayDiagnostics: readonly WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[];
+	readonly page: { readonly offset: number; readonly limit: number };
+	readonly filters: WorkspaceProposalFamilyApplicationReadModelNormalizedFilters;
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+}
+
+export interface WorkspaceProposalFamilyOutcomeDetailSupplyProjectionInput {
+	readonly requests?: readonly WorkspaceProposalFamilyOutcomeDetailSupplyRequest[];
+	readonly suppliedOutcomes?: readonly WorkspaceProposalFamilyOutcomeRecord[];
+}
+
+export interface WorkspaceProposalFamilyOutcomeDetailSupplyProjectorOptions {
+	readonly name?: string;
+	readonly requests: Node<WorkspaceProposalFamilyOutcomeDetailSupplyRequest>;
+	readonly suppliedOutcomes: Node<WorkspaceProposalFamilyOutcomeRecord>;
+}
+
+export interface WorkspaceProposalFamilyOutcomeDetailSupplyProjectorBundle {
+	readonly results: Node<WorkspaceProposalFamilyOutcomeDetailSupplyResult>;
 }
 
 export type WorkspaceProposalRepairActionKind =
@@ -935,6 +1051,90 @@ export interface WorkspaceProposalRepairActionIntentValidationResult {
 	readonly intent?: WorkspaceProposalRepairActionIntent;
 }
 
+export type WorkspaceProposalRepairActionDisplayPolicyAssessment =
+	| "not-evaluated"
+	| "no-known-blocker"
+	| "known-blocker"
+	| "needs-review"
+	| "unknown";
+
+export interface WorkspaceProposalRepairActionDisplayPolicyAdvisoryIssue {
+	readonly kind: string;
+	readonly message: string;
+	readonly severity?: "info" | "warning" | "error";
+	readonly ref?: SourceRef;
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * D468 display-only policy advisory. This DTO is intentionally joinable by
+ * repair action coordinates but is never permission proof for intake.
+ */
+export interface WorkspaceProposalRepairActionDisplayPolicyAdvisory {
+	readonly kind: "workspace-proposal-repair-action-display-policy-advisory";
+	readonly authority: "display-only-advisory";
+	readonly descriptorId: string;
+	readonly repairRequestId: string;
+	readonly actionKind: WorkspaceProposalRepairActionKind;
+	readonly applicationId: string;
+	readonly proposalId: string;
+	readonly decisionId: string;
+	readonly idempotencyKey: string;
+	readonly proposalFamily: WorkspaceProposalFamily;
+	readonly displayAssessment: WorkspaceProposalRepairActionDisplayPolicyAssessment;
+	readonly policyEvidenceRefs?: readonly SourceRef[];
+	readonly capabilityEvidenceRefs?: readonly SourceRef[];
+	readonly advisoryIssues?: readonly WorkspaceProposalRepairActionDisplayPolicyAdvisoryIssue[];
+	readonly displayCode?: string;
+	readonly displayMessage?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalRepairActionDisplayPolicyAdvisoryValidationResult {
+	readonly kind: "workspace-proposal-repair-action-display-policy-advisory-validation-result";
+	readonly status: "accepted" | "blocked";
+	readonly descriptorId?: string;
+	readonly repairRequestId?: string;
+	readonly actionKind?: WorkspaceProposalRepairActionKind;
+	readonly applicationId?: string;
+	readonly proposalId?: string;
+	readonly decisionId?: string;
+	readonly idempotencyKey?: string;
+	readonly proposalFamily?: WorkspaceProposalFamily;
+	readonly issues: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly advisory?: WorkspaceProposalRepairActionDisplayPolicyAdvisory;
+}
+
+export interface WorkspaceProposalRepairActionDisplayPolicyAdvisoryValidationOptions {
+	readonly descriptor?: WorkspaceProposalRepairActionDescriptor;
+	readonly request?: WorkspaceProposalRepairReviewRequest;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+}
+
+export interface WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorOptions {
+	readonly name?: string;
+	readonly descriptors: Node<WorkspaceProposalRepairActionDescriptor>;
+	readonly requests: Node<WorkspaceProposalRepairReviewRequest>;
+	readonly displayAssessment?: WorkspaceProposalRepairActionDisplayPolicyAssessment;
+	readonly policyEvidenceRefs?: readonly SourceRef[];
+	readonly capabilityEvidenceRefs?: readonly SourceRef[];
+	readonly advisoryIssues?: readonly WorkspaceProposalRepairActionDisplayPolicyAdvisoryIssue[];
+	readonly displayCode?: string;
+	readonly displayMessage?: string;
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorBundle {
+	readonly advisories: Node<WorkspaceProposalRepairActionDisplayPolicyAdvisory>;
+}
+
 export interface WorkspaceProposalRepairReviewDecisionRecordingInputPreparationOptions {
 	readonly reviewDecisionId?: string;
 	readonly reviewerRef?: SourceRef;
@@ -1020,6 +1220,73 @@ export interface WorkspaceProposalRepairSuccessorProposalIntakePreview {
 	readonly sourceRefs: readonly SourceRef[];
 	readonly audit?: WorkspaceProposalAuditMaterial;
 	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<
+	TDraft = unknown,
+> {
+	readonly kind: "workspace-proposal-repair-successor-proposal-ready-request-preparation-input";
+	readonly preparationId: string;
+	readonly previewId: string;
+	readonly intent: WorkspaceProposalRepairActionIntent;
+	readonly descriptor: WorkspaceProposalRepairActionDescriptor;
+	readonly request: WorkspaceProposalRepairReviewRequest;
+	readonly intentValidation: WorkspaceProposalRepairActionIntentValidationResult;
+	readonly currentStatus?: WorkspaceProposalRepairReviewStatus;
+	readonly expectedCurrentState?: WorkspaceProposalRepairReviewExpectedCurrentState;
+	readonly successorProposalId: string;
+	readonly intakeRequestId: string;
+	readonly successorIdempotencyKey: string;
+	readonly workspaceId: string;
+	readonly actorRef: SourceRef;
+	readonly capabilityRefs: readonly SourceRef[];
+	readonly policyRefs: readonly SourceRef[];
+	readonly projectionBundleRefs: readonly SourceRef[];
+	readonly sourceRefs?: readonly SourceRef[];
+	readonly audit: WorkspaceProposalAuditMaterial;
+	readonly targetRefs: readonly WorkspaceProposalTargetRef[];
+	readonly successorProposalFamily: WorkspaceProposalFamily;
+	readonly successorLoweringKind: string;
+	readonly draft?: TDraft;
+	readonly draftRefs?: readonly SourceRef[];
+	readonly finalDraftSourceRefs?: readonly SourceRef[];
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationResult<
+	TDraft = unknown,
+> {
+	readonly kind: "workspace-proposal-repair-successor-proposal-ready-request-preparation-result";
+	readonly status: "prepared" | "blocked";
+	readonly preparationId?: string;
+	readonly previewId?: string;
+	readonly repairRequestId?: string;
+	readonly descriptorId?: string;
+	readonly intentId?: string;
+	readonly readyRequest?: WorkspaceProposalReadyRequest<TDraft>;
+	readonly issues: readonly WorkspaceProposalRecordedIssue[];
+	readonly sourceRefs: readonly SourceRef[];
+	readonly audit?: WorkspaceProposalAuditMaterial;
+}
+
+export interface WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorOptions<
+	TDraft = unknown,
+> {
+	readonly name?: string;
+	readonly previews: Node<WorkspaceProposalRepairSuccessorProposalIntakePreview>;
+	readonly preparationInputs: Node<
+		WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>
+	>;
+}
+
+export interface WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorBundle<
+	TDraft = unknown,
+> {
+	readonly results: Node<
+		WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationResult<TDraft>
+	>;
+	readonly readyRequests: Node<WorkspaceProposalReadyRequest<TDraft>>;
+	readonly issues: Node<WorkspaceProposalRecordedIssue>;
 }
 
 export interface WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorOptions {
@@ -2009,6 +2276,11 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 	const coordinates = readModelCoordinates(input);
 	const hasCompleteCoordinates = readModelCoordinatesComplete(coordinates);
 	const filters = normalizeReadModelFilters(input.filters).filters;
+	const presentation = normalizeReadModelPresentationOptions(
+		input.sort,
+		input.groupBy,
+		input.search,
+	);
 	const diagnostics = (input.diagnostics ?? []).filter((diagnostic) =>
 		hasCompleteCoordinates
 			? coordinatesMatchExact(coordinates, diagnostic) &&
@@ -2025,15 +2297,27 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 		.filter((entry) => (hasCompleteCoordinates ? coordinatesMatchExact(coordinates, entry) : false))
 		.map((entry) => filterOutcomeIndexEntry(entry, filters))
 		.filter((entry) => entry.outcomeRefs.length > 0 || entry.state === "idempotency-conflict");
-	const allOutcomeRefs = outcomeIndexes.flatMap((entry) => entry.outcomeRefs);
+	const outcomes = groupByOutcomeId(input.outcomes ?? []);
+	const statuses = groupByOutcomeId(input.outcomeStatuses ?? []);
+	const allOutcomeRefs = sortReadModelOutcomeRefs(
+		outcomeIndexes
+			.flatMap((entry) => entry.outcomeRefs)
+			.filter((ref) =>
+				readModelSearchMatches(ref, presentation.search, diagnostics, repairReviewStatuses),
+			),
+		presentation.sort,
+		diagnostics,
+		repairReviewStatuses,
+		outcomes,
+		statuses,
+	);
 	const offset = normalizePageOffset(input.offset);
 	const limit = normalizePageLimit(input.limit);
 	const pagedRefs = allOutcomeRefs.slice(offset, offset + limit);
-	const outcomes = groupByOutcomeId(input.outcomes ?? []);
-	const statuses = groupByOutcomeId(input.outcomeStatuses ?? []);
 	const outcomeDetails: WorkspaceProposalFamilyOutcomeDetail[] = [];
 	const displayDiagnostics: WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[] = [
 		...(input.displayDiagnostics ?? []),
+		...presentation.diagnostics,
 	];
 	for (const outcomeRef of pagedRefs) {
 		const outcomeCandidates = outcomes.get(outcomeRef.outcomeId) ?? [];
@@ -2059,6 +2343,12 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 			...(status !== undefined ? { status } : {}),
 		});
 	}
+	const displayGroups = readModelDisplayGroups(
+		pagedRefs,
+		presentation.groupBy,
+		diagnostics,
+		repairReviewStatuses,
+	);
 	return {
 		kind: "workspace-proposal-family-application-read-model",
 		readModelId: `workspace-proposal-family-application-read-model:${stableStringify({
@@ -2068,15 +2358,22 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 			offset,
 			limit,
 			filters,
+			sort: presentation.sort,
+			groupBy: presentation.groupBy,
+			search: presentation.search,
 		})}`,
 		...(stringField(input.queryId) === undefined ? {} : { queryId: stringField(input.queryId) }),
 		...(stringField(input.viewId) === undefined ? {} : { viewId: stringField(input.viewId) }),
 		...coordinates,
 		filters,
+		sort: presentation.sort,
+		groupBy: presentation.groupBy,
+		search: presentation.search,
 		diagnostics,
 		repairReviewStatuses,
 		outcomeIndexes,
 		outcomeDetails,
+		displayGroups,
 		displayDiagnostics,
 		page: {
 			offset,
@@ -2103,6 +2400,9 @@ export function projectWorkspaceProposalFamilyApplicationReadModels(
 				offset: normalized.page.offset,
 				limit: normalized.page.limit,
 				filters: normalized.filters,
+				sort: normalized.sort,
+				groupBy: normalized.groupBy,
+				search: normalized.search,
 				displayDiagnostics: [
 					readModelQueryDisplayDiagnostic(
 						normalized.malformed ? "malformed-read-model-query" : "incomplete-read-model-query",
@@ -2127,6 +2427,9 @@ export function projectWorkspaceProposalFamilyApplicationReadModels(
 			offset: normalized.page.offset,
 			limit: normalized.page.limit,
 			filters: normalized.filters,
+			sort: normalized.sort,
+			groupBy: normalized.groupBy,
+			search: normalized.search,
 		});
 	});
 }
@@ -2162,6 +2465,9 @@ export function workspaceProposalFamilyApplicationReadModelProjector(
 				proposalFamily: opts.proposalFamily,
 				offset: opts.offset,
 				limit: opts.limit,
+				sort: opts.sort,
+				groupBy: opts.groupBy,
+				search: opts.search,
 			});
 			const signature = readModelSignature(readModel);
 			if (state.emittedReadModels.get(readModel.readModelId) !== signature) {
@@ -2219,6 +2525,236 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 	return {
 		readModels: project(graph, runtime, `${name}/readModels`, `${name}ReadModels`, (fact) =>
 			fact?.kind === "read-model" ? fact.value : undefined,
+		),
+	};
+}
+
+export function projectWorkspaceProposalFamilyOutcomeDetailSupplyResults(
+	input: WorkspaceProposalFamilyOutcomeDetailSupplyProjectionInput,
+): readonly WorkspaceProposalFamilyOutcomeDetailSupplyResult[] {
+	const suppliedByOutcomeId = groupByOutcomeId(input.suppliedOutcomes ?? []);
+	return [...currentSupplyRequests(input.requests ?? []).values()].map((request) =>
+		projectWorkspaceProposalFamilyOutcomeDetailSupplyResult(request, suppliedByOutcomeId),
+	);
+}
+
+export function projectWorkspaceProposalFamilyOutcomeDetailSupplyResult(
+	request: WorkspaceProposalFamilyOutcomeDetailSupplyRequest | unknown,
+	suppliedOutcomes:
+		| readonly WorkspaceProposalFamilyOutcomeRecord[]
+		| ReadonlyMap<string, readonly WorkspaceProposalFamilyOutcomeRecord[]> = [],
+): WorkspaceProposalFamilyOutcomeDetailSupplyResult {
+	const issues = outcomeDetailSupplyRequestIssues(request);
+	const requestRecord = isRecord(request) ? request : {};
+	const requestAudit = safeWorkspaceProposalAudit(requestRecord.audit);
+	const boundarySafeRequestAudit =
+		requestAudit === undefined ||
+		!workspaceProposalBoundarySourceRefsAreSafe(requestAudit.sourceRefs)
+			? undefined
+			: requestAudit;
+	const sourceRefs = repairActionSourceRefs([
+		...safeBoundarySourceRefs(requestRecord.sourceRefs),
+		...(boundarySafeRequestAudit?.sourceRefs ?? []),
+	]);
+	const pageRecord = isRecord(requestRecord.page) ? requestRecord.page : {};
+	const filters = normalizeReadModelFilters(
+		isRecord(requestRecord.filters)
+			? (requestRecord.filters as WorkspaceProposalFamilyApplicationReadModelFilters)
+			: undefined,
+	).filters;
+	const currentViewId =
+		stringField(requestRecord.viewId) ?? stringField(requestRecord.supplyRequestId) ?? "unknown";
+	const coordinates = {
+		applicationId: stringField(requestRecord.applicationId),
+		proposalId: stringField(requestRecord.proposalId),
+		decisionId: stringField(requestRecord.decisionId),
+		idempotencyKey: stringField(requestRecord.idempotencyKey),
+		proposalFamily: stringField(requestRecord.proposalFamily) as
+			| WorkspaceProposalFamily
+			| undefined,
+	};
+	if (issues.length > 0 || !isOutcomeDetailSupplyRequestMaterial(request)) {
+		return {
+			kind: "workspace-proposal-family-outcome-detail-supply-result",
+			...(stringField(requestRecord.supplyRequestId) === undefined
+				? {}
+				: { supplyRequestId: stringField(requestRecord.supplyRequestId) }),
+			...(stringField(requestRecord.viewId) === undefined
+				? {}
+				: { viewId: stringField(requestRecord.viewId) }),
+			currentViewId,
+			...coordinates,
+			suppliedOutcomeFacts: [],
+			missingRefs: [],
+			mismatchedRefs: [],
+			displayDiagnostics: [
+				outcomeDetailSupplyDiagnostic(
+					"malformed-outcome-detail-supply-request",
+					"Workspace proposal family outcome detail supply request is malformed",
+					undefined,
+					coordinates,
+					sourceRefs,
+				),
+			],
+			page: {
+				offset: normalizePageOffset(pageRecord.offset),
+				limit: normalizePageLimit(pageRecord.limit),
+			},
+			filters,
+			sourceRefs,
+			...(boundarySafeRequestAudit === undefined ? {} : { audit: boundarySafeRequestAudit }),
+		};
+	}
+	const suppliedMap: ReadonlyMap<string, readonly WorkspaceProposalFamilyOutcomeRecord[]> =
+		Array.isArray(suppliedOutcomes)
+			? groupByOutcomeId<WorkspaceProposalFamilyOutcomeRecord>(
+					suppliedOutcomes as readonly WorkspaceProposalFamilyOutcomeRecord[],
+				)
+			: (suppliedOutcomes as ReadonlyMap<string, readonly WorkspaceProposalFamilyOutcomeRecord[]>);
+	const offset = normalizePageOffset(request.page?.offset);
+	const limit = normalizePageLimit(request.page?.limit);
+	const pagedRequestRefs = request.requestedOutcomeRefs.slice(offset, offset + limit);
+	const pagedRefs = pagedRequestRefs.filter((ref) =>
+		supplyRequestRefMatches(request, ref, filters),
+	);
+	const suppliedOutcomeFacts: WorkspaceProposalFamilyOutcomeRecord[] = [];
+	const missingRefs: WorkspaceProposalFamilyOutcomeRef[] = [];
+	const mismatchedRefs: WorkspaceProposalFamilyOutcomeRef[] = [];
+	const displayDiagnostics: WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[] = [];
+	for (const ref of pagedRefs) {
+		const candidates = suppliedMap.get(ref.outcomeId) ?? [];
+		const match = candidates.find((candidate) => sameOutcomeRefCoordinates(ref, candidate));
+		if (match !== undefined) {
+			const dataOnlyIssues = workspaceProposalDataOnlyIssues(match, "suppliedOutcomeDetail");
+			if (dataOnlyIssues.length === 0 && outcomeDetailSupplyOutcomeBoundaryRefsAreSafe(match)) {
+				suppliedOutcomeFacts.push(match);
+			} else {
+				mismatchedRefs.push(ref);
+				displayDiagnostics.push(
+					outcomeDetailSupplyDiagnostic(
+						"malformed-supplied-outcome-detail",
+						"Workspace proposal family supplied outcome detail is not data-only material",
+						ref,
+						request,
+						request.sourceRefs,
+					),
+				);
+			}
+			continue;
+		}
+		if (candidates.length === 0) {
+			missingRefs.push(ref);
+			displayDiagnostics.push(
+				outcomeDetailSupplyDiagnostic(
+					"missing-supplied-outcome-detail",
+					"Workspace proposal family outcome detail supply did not include a requested ref",
+					ref,
+					request,
+					request.sourceRefs,
+				),
+			);
+		} else {
+			mismatchedRefs.push(ref);
+			displayDiagnostics.push(
+				outcomeDetailSupplyDiagnostic(
+					"mismatched-supplied-outcome-detail",
+					"Workspace proposal family outcome detail supply mismatches a requested ref",
+					ref,
+					request,
+					request.sourceRefs,
+				),
+			);
+		}
+	}
+	for (const ref of pagedRequestRefs) {
+		if (sameSupplyRequestCoordinates(request, ref)) continue;
+		mismatchedRefs.push(ref);
+		displayDiagnostics.push(
+			outcomeDetailSupplyDiagnostic(
+				"mismatched-supplied-outcome-detail",
+				"Workspace proposal family outcome detail request ref mismatches supply coordinates",
+				ref,
+				request,
+				request.sourceRefs,
+			),
+		);
+	}
+	return {
+		kind: "workspace-proposal-family-outcome-detail-supply-result",
+		supplyRequestId: request.supplyRequestId,
+		...(request.viewId === undefined ? {} : { viewId: request.viewId }),
+		currentViewId: request.viewId ?? request.supplyRequestId,
+		applicationId: request.applicationId,
+		proposalId: request.proposalId,
+		decisionId: request.decisionId,
+		idempotencyKey: request.idempotencyKey,
+		proposalFamily: request.proposalFamily,
+		suppliedOutcomeFacts: dedupeOutcomes(suppliedOutcomeFacts),
+		missingRefs,
+		mismatchedRefs,
+		displayDiagnostics,
+		page: {
+			offset,
+			limit,
+		},
+		filters,
+		sourceRefs: repairActionSourceRefs([
+			...request.sourceRefs,
+			...(request.audit?.sourceRefs ?? []),
+		]),
+		...(request.audit === undefined ? {} : { audit: immutableClone(request.audit) }),
+	};
+}
+
+export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
+	graph: Graph,
+	opts: WorkspaceProposalFamilyOutcomeDetailSupplyProjectorOptions,
+): WorkspaceProposalFamilyOutcomeDetailSupplyProjectorBundle {
+	const name = opts.name ?? "workspaceProposalFamilyOutcomeDetailSupply";
+	const runtime = graph.node<
+		| {
+				readonly kind: "outcome-detail-supply-result";
+				readonly value: WorkspaceProposalFamilyOutcomeDetailSupplyResult;
+		  }
+		| undefined
+	>(
+		[opts.requests, opts.suppliedOutcomes],
+		(ctx) => {
+			const state = ctx.state.get<{
+				readonly requests: Map<string, WorkspaceProposalFamilyOutcomeDetailSupplyRequest>;
+				readonly suppliedOutcomes: Map<string, WorkspaceProposalFamilyOutcomeRecord>;
+				readonly emittedResults: Map<string, string>;
+			}>() ?? {
+				requests: new Map(),
+				suppliedOutcomes: new Map(),
+				emittedResults: new Map(),
+			};
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const request = raw as WorkspaceProposalFamilyOutcomeDetailSupplyRequest;
+				state.requests.set(outcomeDetailSupplyRequestProjectionKey(request), request);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const outcome = raw as WorkspaceProposalFamilyOutcomeRecord;
+				if (isOutcomeDetailSupplyOutcomeRecordShape(outcome)) {
+					state.suppliedOutcomes.set(outcomeProjectionKey(outcome), outcome);
+				}
+			}
+			for (const result of projectWorkspaceProposalFamilyOutcomeDetailSupplyResults({
+				requests: [...state.requests.values()],
+				suppliedOutcomes: [...state.suppliedOutcomes.values()],
+			})) {
+				const signature = stableStringify(result);
+				if (state.emittedResults.get(result.currentViewId) === signature) continue;
+				state.emittedResults.set(result.currentViewId, signature);
+				ctx.down([["DATA", { kind: "outcome-detail-supply-result", value: result }]]);
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalFamilyOutcomeDetailSupplyProjector"),
+	);
+	return {
+		results: project(graph, runtime, `${name}/results`, `${name}Results`, (fact) =>
+			fact?.kind === "outcome-detail-supply-result" ? fact.value : undefined,
 		),
 	};
 }
@@ -2602,6 +3138,524 @@ export function previewWorkspaceProposalRepairSuccessorProposalIntake(
 	});
 }
 
+export function validateWorkspaceProposalRepairActionDisplayPolicyAdvisory(
+	advisory: WorkspaceProposalRepairActionDisplayPolicyAdvisory | unknown,
+	options: WorkspaceProposalRepairActionDisplayPolicyAdvisoryValidationOptions = {},
+): WorkspaceProposalRepairActionDisplayPolicyAdvisoryValidationResult {
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	const record = isRecord(advisory) ? advisory : {};
+	const safeAudit = safeWorkspaceProposalAudit(record.audit ?? options.audit);
+	const boundarySafeAudit =
+		safeAudit === undefined || !workspaceProposalBoundarySourceRefsAreSafe(safeAudit.sourceRefs)
+			? undefined
+			: safeAudit;
+	const sourceRefs = repairActionSourceRefs([
+		...(Array.isArray(record.sourceRefs) ? (record.sourceRefs as SourceRef[]) : []),
+		...(options.sourceRefs ?? []),
+		...(boundarySafeAudit?.sourceRefs ?? []),
+	]);
+	if (!isRepairActionDisplayPolicyAdvisoryMaterial(advisory)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-repair-action-display-policy-advisory",
+				"Repair action display policy advisory requires typed display-only data material.",
+				record,
+				options.request,
+			),
+		);
+	} else {
+		for (const [label, value] of [
+			["repairActionDisplayPolicyAdvisory", advisory],
+			["repairActionDisplayPolicyAdvisoryOptions", options],
+		] as const) {
+			for (const entry of workspaceProposalDataOnlyIssues(value, label)) {
+				issues.push(
+					repairActionIssueFromDataOnly(
+						entry,
+						repairActionIssueIntentFallback(advisory),
+						options.request,
+					),
+				);
+			}
+		}
+		if (repairActionAdvisoryHasPermissionProofMaterial(advisory)) {
+			issues.push(
+				repairActionIntentIssue(
+					"forbidden-repair-action-permission-proof-vocabulary",
+					"Repair action display policy advisory must not use permission-proof vocabulary.",
+					advisory,
+					options.request,
+				),
+			);
+		}
+		if (
+			!workspaceProposalBoundarySourceRefsAreSafe(advisory.policyEvidenceRefs) ||
+			!workspaceProposalBoundarySourceRefsAreSafe(advisory.capabilityEvidenceRefs) ||
+			!workspaceProposalBoundarySourceRefsAreSafe(advisory.sourceRefs) ||
+			(advisory.audit !== undefined &&
+				!workspaceProposalBoundarySourceRefsAreSafe(advisory.audit.sourceRefs))
+		) {
+			issues.push(
+				repairActionIntentIssue(
+					"forbidden-runtime-material",
+					"Repair action display policy advisory refs must not carry runtime/provider/storage/query/client/file/network material.",
+					advisory,
+					options.request,
+				),
+			);
+		}
+		if (
+			isRecord(advisory.metadata) &&
+			workspaceProposalBoundaryMetadataSize(advisory.metadata) >
+				workspaceProposalRepairAdvisoryMetadataMaxBytes
+		) {
+			issues.push(
+				repairActionIntentIssue(
+					"malformed-metadata",
+					"Repair action display policy advisory metadata exceeds the bounded display limit.",
+					advisory,
+					options.request,
+				),
+			);
+		}
+		if (
+			options.descriptor !== undefined &&
+			(advisory.descriptorId !== options.descriptor.descriptorId ||
+				advisory.repairRequestId !== options.descriptor.repairRequestId ||
+				advisory.actionKind !== options.descriptor.actionKind ||
+				!repairActionCoordinatesMatchDescriptor(advisory, options.descriptor))
+		) {
+			issues.push(
+				repairActionIntentIssue(
+					"repair-action-advisory-coordinate-mismatch",
+					"Repair action display policy advisory must match descriptor coordinates.",
+					advisory,
+					options.request,
+				),
+			);
+		}
+		if (
+			options.request !== undefined &&
+			(advisory.repairRequestId !== options.request.repairRequestId ||
+				!repairReviewCoordinatesMatch(options.request, advisory))
+		) {
+			issues.push(
+				repairActionIntentIssue(
+					"repair-action-advisory-coordinate-mismatch",
+					"Repair action display policy advisory must match repair-review request coordinates.",
+					advisory,
+					options.request,
+				),
+			);
+		}
+	}
+	const accepted = isRepairActionDisplayPolicyAdvisoryMaterial(advisory) && issues.length === 0;
+	return {
+		kind: "workspace-proposal-repair-action-display-policy-advisory-validation-result",
+		status: accepted ? "accepted" : "blocked",
+		...(stringField(record.descriptorId) === undefined
+			? {}
+			: { descriptorId: stringField(record.descriptorId) }),
+		...(stringField(record.repairRequestId) === undefined
+			? {}
+			: { repairRequestId: stringField(record.repairRequestId) }),
+		...(repairActionKinds.includes(record.actionKind as WorkspaceProposalRepairActionKind)
+			? { actionKind: record.actionKind as WorkspaceProposalRepairActionKind }
+			: {}),
+		...(stringField(record.applicationId) === undefined
+			? {}
+			: { applicationId: stringField(record.applicationId) }),
+		...(stringField(record.proposalId) === undefined
+			? {}
+			: { proposalId: stringField(record.proposalId) }),
+		...(stringField(record.decisionId) === undefined
+			? {}
+			: { decisionId: stringField(record.decisionId) }),
+		...(stringField(record.idempotencyKey) === undefined
+			? {}
+			: { idempotencyKey: stringField(record.idempotencyKey) }),
+		...(stringField(record.proposalFamily) === undefined
+			? {}
+			: { proposalFamily: stringField(record.proposalFamily) as WorkspaceProposalFamily }),
+		issues: dedupeRepairActionIssues(issues),
+		sourceRefs,
+		...(boundarySafeAudit === undefined ? {} : { audit: boundarySafeAudit }),
+		...(accepted ? { advisory: immutableClone(advisory) } : {}),
+	};
+}
+
+export function projectWorkspaceProposalRepairActionDisplayPolicyAdvisory(
+	descriptor: WorkspaceProposalRepairActionDescriptor,
+	request: WorkspaceProposalRepairReviewRequest,
+	options: Omit<
+		WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorOptions,
+		"name" | "descriptors" | "requests"
+	> = {},
+): WorkspaceProposalRepairActionDisplayPolicyAdvisory {
+	const policyEvidenceRefs = safeAdvisorySourceRefs(options.policyEvidenceRefs);
+	const capabilityEvidenceRefs = safeAdvisorySourceRefs(options.capabilityEvidenceRefs);
+	const advisoryIssues = safeAdvisoryIssues(options.advisoryIssues);
+	const displayCode = safeAdvisoryText(options.displayCode);
+	const displayMessage = safeAdvisoryText(options.displayMessage);
+	const sourceRefs = safeAdvisorySourceRefs(options.sourceRefs);
+	const audit = safeAdvisoryAudit(options.audit);
+	const metadata = safeAdvisoryMetadata(options.metadata);
+	return {
+		kind: "workspace-proposal-repair-action-display-policy-advisory",
+		authority: "display-only-advisory",
+		descriptorId: descriptor.descriptorId,
+		repairRequestId: request.repairRequestId,
+		actionKind: descriptor.actionKind,
+		applicationId: request.applicationId,
+		proposalId: request.proposalId,
+		decisionId: request.decisionId,
+		idempotencyKey: request.idempotencyKey,
+		proposalFamily: request.proposalFamily,
+		displayAssessment: options.displayAssessment ?? "not-evaluated",
+		...(policyEvidenceRefs.length === 0 ? {} : { policyEvidenceRefs }),
+		...(capabilityEvidenceRefs.length === 0 ? {} : { capabilityEvidenceRefs }),
+		...(advisoryIssues.length === 0 ? {} : { advisoryIssues }),
+		...(displayCode === undefined ? {} : { displayCode }),
+		...(displayMessage === undefined ? {} : { displayMessage }),
+		sourceRefs: repairActionSourceRefs([
+			...descriptor.sourceRefs,
+			...request.sourceRefs,
+			...sourceRefs,
+			...(audit?.sourceRefs ?? []),
+		]),
+		...(audit === undefined ? {} : { audit }),
+		...(metadata === undefined ? {} : { metadata }),
+	};
+}
+
+export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
+	graph: Graph,
+	opts: WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorOptions,
+): WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorBundle {
+	const name = opts.name ?? "workspaceProposalRepairActionDisplayPolicyAdvisory";
+	const runtime = graph.node<
+		| {
+				readonly kind: "repair-action-display-policy-advisory";
+				readonly value: WorkspaceProposalRepairActionDisplayPolicyAdvisory;
+		  }
+		| undefined
+	>(
+		[opts.descriptors, opts.requests],
+		(ctx) => {
+			const state = ctx.state.get<{
+				readonly descriptors: Map<string, WorkspaceProposalRepairActionDescriptor>;
+				readonly requests: Map<string, WorkspaceProposalRepairReviewRequest>;
+				readonly emittedAdvisories: Map<string, string>;
+			}>() ?? {
+				descriptors: new Map(),
+				requests: new Map(),
+				emittedAdvisories: new Map(),
+			};
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const descriptor = raw as WorkspaceProposalRepairActionDescriptor;
+				state.descriptors.set(descriptor.descriptorId, descriptor);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const request = raw as WorkspaceProposalRepairReviewRequest;
+				state.requests.set(request.repairRequestId, request);
+			}
+			for (const descriptor of state.descriptors.values()) {
+				const request = state.requests.get(descriptor.repairRequestId);
+				if (request === undefined || !repairReviewCoordinatesMatch(request, descriptor)) continue;
+				if (
+					repairActionAdvisoryHasPermissionProofMaterial({
+						policyEvidenceRefs: opts.policyEvidenceRefs,
+						capabilityEvidenceRefs: opts.capabilityEvidenceRefs,
+						advisoryIssues: opts.advisoryIssues,
+						displayCode: opts.displayCode,
+						displayMessage: opts.displayMessage,
+						sourceRefs: opts.sourceRefs,
+						audit: opts.audit,
+						metadata: opts.metadata,
+					})
+				) {
+					continue;
+				}
+				const advisory = projectWorkspaceProposalRepairActionDisplayPolicyAdvisory(
+					descriptor,
+					request,
+					{
+						displayAssessment: opts.displayAssessment,
+						policyEvidenceRefs: opts.policyEvidenceRefs,
+						capabilityEvidenceRefs: opts.capabilityEvidenceRefs,
+						advisoryIssues: opts.advisoryIssues,
+						displayCode: opts.displayCode,
+						displayMessage: opts.displayMessage,
+						sourceRefs: opts.sourceRefs,
+						audit: opts.audit,
+						metadata: opts.metadata,
+					},
+				);
+				const validation = validateWorkspaceProposalRepairActionDisplayPolicyAdvisory(advisory, {
+					descriptor,
+					request,
+				});
+				if (validation.status !== "accepted" || validation.advisory === undefined) continue;
+				const signature = stableStringify(advisory);
+				const key = stableStringify({
+					descriptorId: advisory.descriptorId,
+					repairRequestId: advisory.repairRequestId,
+					actionKind: advisory.actionKind,
+				});
+				if (state.emittedAdvisories.get(key) === signature) continue;
+				state.emittedAdvisories.set(key, signature);
+				ctx.down([["DATA", { kind: "repair-action-display-policy-advisory", value: advisory }]]);
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(name, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
+	);
+	return {
+		advisories: project(graph, runtime, `${name}/advisories`, `${name}Advisories`, (fact) =>
+			fact?.kind === "repair-action-display-policy-advisory" ? fact.value : undefined,
+		),
+	};
+}
+
+export function prepareWorkspaceProposalRepairSuccessorProposalReadyRequest<TDraft = unknown>(
+	preview: WorkspaceProposalRepairSuccessorProposalIntakePreview | unknown,
+	input: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft> | unknown,
+): WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationResult<TDraft> {
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	const previewRecord = isRecord(preview) ? preview : {};
+	const inputRecord = isRecord(input) ? input : {};
+	const validationRecord = isRecord(inputRecord.intentValidation)
+		? inputRecord.intentValidation
+		: {};
+	const validationAudit = safeWorkspaceProposalAudit(validationRecord.audit);
+	const boundarySafeValidationAudit =
+		validationAudit === undefined ||
+		!workspaceProposalBoundarySourceRefsAreSafe(validationAudit.sourceRefs)
+			? undefined
+			: validationAudit;
+	const safeAudit = safeWorkspaceProposalAudit(inputRecord.audit);
+	const boundarySafeAudit =
+		safeAudit === undefined || !workspaceProposalBoundarySourceRefsAreSafe(safeAudit.sourceRefs)
+			? undefined
+			: safeAudit;
+	const sourceRefs = repairActionSourceRefs([
+		...(Array.isArray(previewRecord.sourceRefs) ? (previewRecord.sourceRefs as SourceRef[]) : []),
+		...(Array.isArray(inputRecord.sourceRefs) ? (inputRecord.sourceRefs as SourceRef[]) : []),
+		...(Array.isArray(inputRecord.finalDraftSourceRefs)
+			? (inputRecord.finalDraftSourceRefs as SourceRef[])
+			: []),
+		...(Array.isArray(validationRecord.sourceRefs)
+			? (validationRecord.sourceRefs as SourceRef[])
+			: []),
+		...(boundarySafeValidationAudit?.sourceRefs ?? []),
+		...(boundarySafeAudit?.sourceRefs ?? []),
+	]);
+	if (!isRepairSuccessorPreviewMaterial(preview)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-repair-successor-preview",
+				"Repair successor ready-request preparation requires a typed successor preview.",
+				preview,
+				undefined,
+			),
+		);
+	}
+	if (!isRepairSuccessorReadyRequestPreparationInput(input)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-repair-successor-preparation-input",
+				"Repair successor ready-request preparation requires explicit typed preparation input.",
+				input,
+				undefined,
+			),
+		);
+	}
+	for (const [label, value] of [
+		["repairSuccessorPreview", preview],
+		["repairSuccessorReadyRequestPreparationInput", input],
+	] as const) {
+		for (const entry of workspaceProposalDataOnlyIssues(value, label)) {
+			issues.push(
+				repairActionIssueFromDataOnly(
+					entry,
+					repairActionIssueIntentFallback(input),
+					isRepairSuccessorReadyRequestPreparationInput(input) ? input.request : undefined,
+				),
+			);
+		}
+	}
+	if (isRepairSuccessorPreviewMaterial(preview) && preview.status !== "proposal-context-ready") {
+		issues.push(
+			repairActionIntentIssue(
+				"repair-successor-preview-not-ready",
+				"Repair successor preview must be proposal-context-ready before ready-request preparation.",
+				preview,
+				undefined,
+			),
+		);
+	}
+	if (
+		isRepairSuccessorPreviewMaterial(preview) &&
+		isRepairSuccessorReadyRequestPreparationInput(input)
+	) {
+		if (
+			input.previewId !== preview.previewId ||
+			input.intent.intentId !== preview.intentId ||
+			input.descriptor.descriptorId !== preview.descriptorId ||
+			input.request.repairRequestId !== preview.repairRequestId ||
+			input.intent.actionKind !== "open-successor-proposal-flow" ||
+			input.descriptor.actionKind !== "open-successor-proposal-flow" ||
+			!repairActionPreviewCoordinatesMatchInput(preview, input) ||
+			!repairActionIntentValidationMatchesPreparationInput(input.intentValidation, input)
+		) {
+			issues.push(
+				repairActionIntentIssue(
+					"repair-successor-preparation-coordinate-mismatch",
+					"Repair successor preparation input must match preview, intent, descriptor, and repair request coordinates.",
+					input.intent,
+					input.request,
+				),
+			);
+		}
+		if (input.intentValidation.status !== "accepted" || input.intentValidation.issues.length > 0) {
+			issues.push(
+				repairActionIntentIssue(
+					"blocked-repair-action-intent-validation",
+					"Repair successor preparation requires an accepted repair action intent validation result.",
+					input.intent,
+					input.request,
+				),
+			);
+		}
+		if (!workspaceProposalTargetRefsAreValid(input.targetRefs)) {
+			issues.push(
+				repairActionIntentIssue(
+					"malformed-repair-successor-preparation-input",
+					"Repair successor ready-request preparation requires bounded target refs.",
+					input.intent,
+					input.request,
+				),
+			);
+		}
+		if (input.draft === undefined && !nonEmptySourceRefs(input.draftRefs)) {
+			issues.push(
+				repairActionIntentIssue(
+					"missing-draft-material",
+					"Repair successor ready-request preparation requires final draft material or draft refs.",
+					input.intent,
+					input.request,
+				),
+			);
+		}
+		if (
+			(input.draft !== undefined || input.draftRefs !== undefined) &&
+			!nonEmptySourceRefs(input.finalDraftSourceRefs)
+		) {
+			issues.push(
+				repairActionIntentIssue(
+					"missing-final-draft-source",
+					"Repair successor final draft material requires explicit final draft source refs.",
+					input.intent,
+					input.request,
+				),
+			);
+		}
+		if (repairSuccessorPreparationMetadataHasTruthMaterial(input.metadata)) {
+			issues.push(
+				repairActionIntentIssue(
+					"malformed-repair-successor-preparation-input",
+					"Repair successor ready-request preparation metadata must not carry admission/application/recorded truth material.",
+					input.intent,
+					input.request,
+				),
+			);
+		}
+		if (boundarySafeAudit === undefined) {
+			issues.push(
+				repairActionIntentIssue(
+					"missing-audit",
+					"Repair successor ready-request preparation requires data-only audit material.",
+					input.intent,
+					input.request,
+				),
+			);
+		}
+	}
+	const cleanIssues = dedupeRepairActionIssues(issues);
+	const blockedPreviewId =
+		stringField(previewRecord.previewId) ?? stringField(inputRecord.previewId);
+	const blockedRepairRequestId =
+		stringField(previewRecord.repairRequestId) ?? stringField(inputRecord.repairRequestId);
+	if (
+		cleanIssues.length > 0 ||
+		!isRepairSuccessorPreviewMaterial(preview) ||
+		!isRepairSuccessorReadyRequestPreparationInput(input) ||
+		boundarySafeAudit === undefined
+	) {
+		return {
+			kind: "workspace-proposal-repair-successor-proposal-ready-request-preparation-result",
+			status: "blocked",
+			...(stringField(inputRecord.preparationId) === undefined
+				? {}
+				: { preparationId: stringField(inputRecord.preparationId) }),
+			...(blockedPreviewId === undefined ? {} : { previewId: blockedPreviewId }),
+			...(blockedRepairRequestId === undefined ? {} : { repairRequestId: blockedRepairRequestId }),
+			...(stringField(previewRecord.descriptorId) === undefined
+				? {}
+				: { descriptorId: stringField(previewRecord.descriptorId) }),
+			...(stringField(previewRecord.intentId) === undefined
+				? {}
+				: { intentId: stringField(previewRecord.intentId) }),
+			issues: cleanIssues,
+			sourceRefs,
+			...(boundarySafeAudit === undefined ? {} : { audit: boundarySafeAudit }),
+		};
+	}
+	const readyRequest = immutableClone<WorkspaceProposalReadyRequest<TDraft>>({
+		kind: "workspace-proposal-ready-request",
+		proposalId: input.successorProposalId,
+		intakeRequestId: input.intakeRequestId,
+		idempotencyKey: input.successorIdempotencyKey,
+		workspaceId: input.workspaceId,
+		proposalFamily: input.successorProposalFamily,
+		loweringKind: input.successorLoweringKind,
+		...(input.draft === undefined ? {} : { draft: immutableClone(input.draft) as TDraft }),
+		...(input.draftRefs === undefined ? {} : { draftRefs: immutableClone(input.draftRefs) }),
+		targetRefs: immutableClone(input.targetRefs),
+		actorRef: immutableClone(input.actorRef),
+		capabilityRefs: immutableClone(input.capabilityRefs),
+		policyRefs: immutableClone(input.policyRefs),
+		projectionBundleRefs: immutableClone(input.projectionBundleRefs),
+		sourceRefs,
+		audit: boundarySafeAudit,
+		metadata: immutableClone({
+			...(input.metadata ?? {}),
+			repairSuccessorPreviewId: preview.previewId,
+			repairActionIntentId: input.intent.intentId,
+			repairActionDescriptorId: input.descriptor.descriptorId,
+			repairRequestId: input.request.repairRequestId,
+			repairActionKind: input.intent.actionKind,
+			predecessorProposalId: preview.proposalId,
+			predecessorDecisionId: preview.decisionId,
+			predecessorIdempotencyKey: preview.idempotencyKey,
+			predecessorProposalFamily: preview.proposalFamily,
+		}),
+	});
+	return {
+		kind: "workspace-proposal-repair-successor-proposal-ready-request-preparation-result",
+		status: "prepared",
+		preparationId: input.preparationId,
+		previewId: preview.previewId,
+		repairRequestId: preview.repairRequestId,
+		descriptorId: preview.descriptorId,
+		intentId: preview.intentId,
+		readyRequest,
+		issues: [],
+		sourceRefs,
+		audit: boundarySafeAudit,
+	};
+}
+
 export function workspaceProposalRepairActionIntentProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairActionIntentProjectorOptions,
@@ -2722,6 +3776,104 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 	return {
 		previews: project(graph, runtime, `${name}/previews`, `${name}Previews`, (fact) =>
 			fact?.kind === "successor-proposal-intake-preview" ? fact.value : undefined,
+		),
+	};
+}
+
+export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector<
+	TDraft = unknown,
+>(
+	graph: Graph,
+	opts: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorOptions<TDraft>,
+): WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorBundle<TDraft> {
+	const name = opts.name ?? "workspaceProposalRepairSuccessorProposalReadyRequestPreparation";
+	const runtime = graph.node<
+		| {
+				readonly kind: "successor-ready-request-preparation-result";
+				readonly value: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationResult<TDraft>;
+		  }
+		| {
+				readonly kind: "successor-ready-request";
+				readonly value: WorkspaceProposalReadyRequest<TDraft>;
+		  }
+		| {
+				readonly kind: "issue";
+				readonly value: WorkspaceProposalRecordedIssue;
+		  }
+		| undefined
+	>(
+		[opts.previews, opts.preparationInputs],
+		(ctx) => {
+			const state = repairSuccessorPreparationGraphState<TDraft>(ctx);
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const preview = raw as WorkspaceProposalRepairSuccessorProposalIntakePreview;
+				state.previews.set(preview.previewId, preview);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const input =
+					raw as WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>;
+				state.inputs.set(input.preparationId, input);
+			}
+			for (const input of state.inputs.values()) {
+				const preview = state.previews.get(input.previewId);
+				let result: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationResult<TDraft> =
+					prepareWorkspaceProposalRepairSuccessorProposalReadyRequest<TDraft>(preview, input);
+				const preparedReadyRequest = state.preparedReadyRequests.get(input.preparationId);
+				if (preparedReadyRequest !== undefined) {
+					const preparedSignature = stableStringify(preparedReadyRequest);
+					const resultReadySignature =
+						result.readyRequest === undefined ? undefined : stableStringify(result.readyRequest);
+					if (resultReadySignature !== preparedSignature) {
+						const issue = repairActionIntentIssue(
+							"repair-successor-preparation-already-prepared",
+							"Repair successor ready-request preparation is immutable after its first prepared ready request.",
+							input.intent,
+							input.request,
+						);
+						const { readyRequest: _readyRequest, ...blockedResult } = result;
+						result = {
+							...blockedResult,
+							status: "blocked",
+							issues: dedupeRepairActionIssues([...result.issues, issue]),
+						};
+					}
+				} else if (result.readyRequest !== undefined) {
+					state.preparedReadyRequests.set(
+						input.preparationId,
+						immutableClone(result.readyRequest) as WorkspaceProposalReadyRequest<TDraft>,
+					);
+				}
+				const signature = stableStringify(result);
+				if (state.emittedResults.get(input.preparationId) === signature) continue;
+				state.emittedResults.set(input.preparationId, signature);
+				ctx.down([["DATA", { kind: "successor-ready-request-preparation-result", value: result }]]);
+				for (const issue of result.issues) {
+					ctx.down([["DATA", { kind: "issue", value: issue }]]);
+				}
+				if (result.readyRequest !== undefined) {
+					ctx.down([["DATA", { kind: "successor-ready-request", value: result.readyRequest }]]);
+				}
+			}
+			ctx.state.set(state);
+		},
+		runtimeOptions(
+			name,
+			"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",
+		),
+	);
+	return {
+		results: project(graph, runtime, `${name}/results`, `${name}Results`, (fact) =>
+			fact?.kind === "successor-ready-request-preparation-result" ? fact.value : undefined,
+		),
+		readyRequests: project(
+			graph,
+			runtime,
+			`${name}/readyRequests`,
+			`${name}ReadyRequests`,
+			(fact) => (fact?.kind === "successor-ready-request" ? fact.value : undefined),
+		),
+		issues: project(graph, runtime, `${name}/issues`, `${name}Issues`, (fact) =>
+			fact?.kind === "issue" ? fact.value : undefined,
 		),
 	};
 }
@@ -3509,7 +4661,14 @@ function repairActionIntentIssues(
 }
 
 function repairActionSourceRefs(values: readonly SourceRef[]): readonly SourceRef[] {
-	return immutableClone(uniqueRefs(values.filter(repairReviewDecisionSourceRefIsValid)));
+	return immutableClone(
+		uniqueRefs(
+			values.filter(
+				(ref) =>
+					repairReviewDecisionSourceRefIsValid(ref) && workspaceProposalBoundaryRefIsSafe(ref),
+			),
+		),
+	);
 }
 
 function repairActionValidationOptions(
@@ -3563,6 +4722,689 @@ function isRepairReviewRequestMaterial(
 		nonBlankString(value.idempotencyKey) &&
 		nonBlankString(value.proposalFamily)
 	);
+}
+
+function isRepairActionIntentValidationResultMaterial(
+	value: unknown,
+): value is WorkspaceProposalRepairActionIntentValidationResult {
+	return (
+		isRecord(value) &&
+		value.kind === "workspace-proposal-repair-action-intent-validation-result" &&
+		(value.status === "accepted" || value.status === "blocked") &&
+		(value.intentId === undefined || nonBlankString(value.intentId)) &&
+		(value.descriptorId === undefined || nonBlankString(value.descriptorId)) &&
+		(value.repairRequestId === undefined || nonBlankString(value.repairRequestId)) &&
+		(value.actionKind === undefined ||
+			repairActionKinds.includes(value.actionKind as WorkspaceProposalRepairActionKind)) &&
+		(value.applicationId === undefined || nonBlankString(value.applicationId)) &&
+		(value.proposalId === undefined || nonBlankString(value.proposalId)) &&
+		(value.decisionId === undefined || nonBlankString(value.decisionId)) &&
+		(value.idempotencyKey === undefined || nonBlankString(value.idempotencyKey)) &&
+		(value.proposalFamily === undefined || nonBlankString(value.proposalFamily)) &&
+		Array.isArray(value.issues) &&
+		nonEmptySourceRefs(value.sourceRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.sourceRefs) &&
+		(value.audit === undefined ||
+			(isWorkspaceProposalAuditMaterial(value.audit) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.audit.sourceRefs))) &&
+		(value.intent === undefined || isRepairActionIntentMaterial(value.intent))
+	);
+}
+
+const repairActionDisplayPolicyAssessments = [
+	"not-evaluated",
+	"no-known-blocker",
+	"known-blocker",
+	"needs-review",
+	"unknown",
+] as const satisfies readonly WorkspaceProposalRepairActionDisplayPolicyAssessment[];
+
+function isRepairActionDisplayPolicyAdvisoryMaterial(
+	value: unknown,
+): value is WorkspaceProposalRepairActionDisplayPolicyAdvisory {
+	if (!isRecord(value)) return false;
+	return (
+		value.kind === "workspace-proposal-repair-action-display-policy-advisory" &&
+		value.authority === "display-only-advisory" &&
+		nonBlankString(value.descriptorId) &&
+		nonBlankString(value.repairRequestId) &&
+		repairActionKinds.includes(value.actionKind as WorkspaceProposalRepairActionKind) &&
+		nonBlankString(value.applicationId) &&
+		nonBlankString(value.proposalId) &&
+		nonBlankString(value.decisionId) &&
+		nonBlankString(value.idempotencyKey) &&
+		nonBlankString(value.proposalFamily) &&
+		repairActionDisplayPolicyAssessments.includes(
+			value.displayAssessment as WorkspaceProposalRepairActionDisplayPolicyAssessment,
+		) &&
+		(value.policyEvidenceRefs === undefined ||
+			(nonEmptySourceRefs(value.policyEvidenceRefs) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.policyEvidenceRefs))) &&
+		(value.capabilityEvidenceRefs === undefined ||
+			(nonEmptySourceRefs(value.capabilityEvidenceRefs) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.capabilityEvidenceRefs))) &&
+		(value.sourceRefs === undefined ||
+			(nonEmptySourceRefs(value.sourceRefs) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.sourceRefs))) &&
+		(value.audit === undefined ||
+			(isWorkspaceProposalAuditMaterial(value.audit) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.audit.sourceRefs))) &&
+		(value.advisoryIssues === undefined ||
+			(Array.isArray(value.advisoryIssues) &&
+				value.advisoryIssues.length <= 25 &&
+				value.advisoryIssues.every(isRepairActionDisplayAdvisoryIssue))) &&
+		(value.displayCode === undefined || typeof value.displayCode === "string") &&
+		(value.displayMessage === undefined || typeof value.displayMessage === "string")
+	);
+}
+
+function isRepairActionDisplayAdvisoryIssue(
+	value: unknown,
+): value is WorkspaceProposalRepairActionDisplayPolicyAdvisoryIssue {
+	return (
+		isRecord(value) &&
+		nonBlankString(value.kind) &&
+		typeof value.message === "string" &&
+		(value.severity === undefined ||
+			value.severity === "info" ||
+			value.severity === "warning" ||
+			value.severity === "error") &&
+		(value.ref === undefined ||
+			(isSourceRef(value.ref) && workspaceProposalBoundaryRefIsSafe(value.ref))) &&
+		(value.metadata === undefined || isRecord(value.metadata))
+	);
+}
+
+function repairActionAdvisoryHasPermissionProofMaterial(value: unknown): boolean {
+	const forbidden = new Set(["allowed", "permitted", "authorized", "cansubmit"]);
+	const seen = new WeakSet<object>();
+	const visit = (entry: unknown): boolean => {
+		if (typeof entry === "string") {
+			const normalized = entry.toLowerCase().replace(/[-_\s]/g, "");
+			return [...forbidden].some((token) => normalized.includes(token));
+		}
+		if (Array.isArray(entry)) return entry.some(visit);
+		if (!isRecord(entry)) return false;
+		if (seen.has(entry)) return false;
+		seen.add(entry);
+		for (const [key, child] of Object.entries(entry)) {
+			const normalized = key.toLowerCase().replace(/[-_\s]/g, "");
+			if (forbidden.has(normalized)) return true;
+			if (visit(child)) return true;
+		}
+		return false;
+	};
+	return visit(value);
+}
+
+const workspaceProposalBoundaryRefForbiddenTokens = new Set([
+	"adapter",
+	"callback",
+	"client",
+	"credential",
+	"credentials",
+	"cursor",
+	"file",
+	"handle",
+	"network",
+	"provider",
+	"query",
+	"runtime",
+	"secret",
+	"storage",
+]);
+
+function workspaceProposalBoundaryTextHasForbiddenToken(text: string): boolean {
+	const tokens = text
+		.replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
+		.toLowerCase()
+		.split(/[^a-z0-9]+/u)
+		.filter((token) => token.length > 0);
+	return tokens.some((token) => workspaceProposalBoundaryRefForbiddenTokens.has(token));
+}
+
+function workspaceProposalBoundaryRefIsSafe(ref: SourceRef | WorkspaceProposalTargetRef): boolean {
+	return (
+		!workspaceProposalBoundaryTextHasForbiddenToken(ref.kind) &&
+		!workspaceProposalBoundaryTextHasForbiddenToken(ref.id)
+	);
+}
+
+function workspaceProposalBoundarySourceRefsAreSafe(
+	value: readonly SourceRef[] | undefined,
+): boolean {
+	return value === undefined || value.every(workspaceProposalBoundaryRefIsSafe);
+}
+
+function safeBoundarySourceRefs(value: unknown): readonly SourceRef[] {
+	if (!Array.isArray(value)) return [];
+	return repairActionSourceRefs(
+		value.filter(
+			(ref): ref is SourceRef => isSourceRef(ref) && workspaceProposalBoundaryRefIsSafe(ref),
+		),
+	);
+}
+
+function workspaceProposalBoundaryMetadataSize(value: Record<string, unknown>): number {
+	try {
+		return new TextEncoder().encode(stableStringify(value)).byteLength;
+	} catch {
+		return Number.POSITIVE_INFINITY;
+	}
+}
+
+const workspaceProposalRepairAdvisoryMetadataMaxBytes = 4096;
+
+function safeAdvisoryText(value: string | undefined): string | undefined {
+	if (value === undefined || repairActionAdvisoryHasPermissionProofMaterial(value))
+		return undefined;
+	return value;
+}
+
+function safeAdvisorySourceRefs(value: readonly SourceRef[] | undefined): readonly SourceRef[] {
+	if (value === undefined) return [];
+	return repairActionSourceRefs(
+		value.filter(
+			(ref) =>
+				isSourceRef(ref) &&
+				workspaceProposalBoundaryRefIsSafe(ref) &&
+				!repairActionAdvisoryHasPermissionProofMaterial(ref),
+		),
+	);
+}
+
+function safeAdvisoryIssues(
+	value: readonly WorkspaceProposalRepairActionDisplayPolicyAdvisoryIssue[] | undefined,
+): readonly WorkspaceProposalRepairActionDisplayPolicyAdvisoryIssue[] {
+	if (value === undefined) return [];
+	return immutableClone(
+		value.filter(
+			(issue) =>
+				isRepairActionDisplayAdvisoryIssue(issue) &&
+				workspaceProposalDataOnlyIssues(issue, "repairActionDisplayPolicyAdvisoryIssue").length ===
+					0 &&
+				!repairActionAdvisoryHasPermissionProofMaterial(issue),
+		),
+	);
+}
+
+function safeAdvisoryAudit(
+	value: WorkspaceProposalAuditMaterial | undefined,
+): WorkspaceProposalAuditMaterial | undefined {
+	const audit = safeWorkspaceProposalAudit(value);
+	if (
+		audit === undefined ||
+		repairActionAdvisoryHasPermissionProofMaterial(audit) ||
+		!workspaceProposalBoundarySourceRefsAreSafe(audit.sourceRefs)
+	) {
+		return undefined;
+	}
+	return audit;
+}
+
+function safeAdvisoryMetadata(
+	value: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+	if (
+		value === undefined ||
+		workspaceProposalDataOnlyIssues(value, "repairActionDisplayPolicyAdvisoryMetadata").length >
+			0 ||
+		repairActionAdvisoryHasPermissionProofMaterial(value) ||
+		workspaceProposalBoundaryMetadataSize(value) > workspaceProposalRepairAdvisoryMetadataMaxBytes
+	) {
+		return undefined;
+	}
+	return immutableClone(value);
+}
+
+function repairActionCoordinatesMatchDescriptor(
+	material: {
+		readonly applicationId: string;
+		readonly proposalId: string;
+		readonly decisionId: string;
+		readonly idempotencyKey: string;
+		readonly proposalFamily: WorkspaceProposalFamily;
+	},
+	descriptor: WorkspaceProposalRepairActionDescriptor,
+): boolean {
+	return (
+		material.applicationId === descriptor.applicationId &&
+		material.proposalId === descriptor.proposalId &&
+		material.decisionId === descriptor.decisionId &&
+		material.idempotencyKey === descriptor.idempotencyKey &&
+		material.proposalFamily === descriptor.proposalFamily
+	);
+}
+
+function isRepairSuccessorPreviewMaterial(
+	value: unknown,
+): value is WorkspaceProposalRepairSuccessorProposalIntakePreview {
+	return (
+		isRecord(value) &&
+		value.kind === "workspace-proposal-repair-successor-proposal-intake-preview" &&
+		nonBlankString(value.previewId) &&
+		(value.status === "proposal-context-ready" || value.status === "blocked") &&
+		nonBlankString(value.intentId) &&
+		nonBlankString(value.descriptorId) &&
+		nonBlankString(value.repairRequestId) &&
+		value.actionKind === "open-successor-proposal-flow" &&
+		nonBlankString(value.applicationId) &&
+		nonBlankString(value.proposalId) &&
+		nonBlankString(value.decisionId) &&
+		nonBlankString(value.idempotencyKey) &&
+		nonBlankString(value.proposalFamily) &&
+		nonEmptySourceRefs(value.targetRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.targetRefs) &&
+		nonEmptySourceRefs(value.contextRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.contextRefs) &&
+		Array.isArray(value.diagnostics) &&
+		nonEmptySourceRefs(value.sourceRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.sourceRefs) &&
+		(value.audit === undefined ||
+			(isWorkspaceProposalAuditMaterial(value.audit) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.audit.sourceRefs)))
+	);
+}
+
+function isRepairSuccessorReadyRequestPreparationInput<TDraft>(
+	value: unknown,
+): value is WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft> {
+	if (!isRecord(value)) return false;
+	return (
+		value.kind === "workspace-proposal-repair-successor-proposal-ready-request-preparation-input" &&
+		nonBlankString(value.preparationId) &&
+		nonBlankString(value.previewId) &&
+		isRepairActionIntentMaterial(value.intent) &&
+		isRepairActionDescriptorMaterial(value.descriptor) &&
+		isRepairReviewRequestMaterial(value.request) &&
+		isRepairActionIntentValidationResultMaterial(value.intentValidation) &&
+		(value.currentStatus === undefined || isRepairReviewStatusMaterial(value.currentStatus)) &&
+		nonBlankString(value.successorProposalId) &&
+		nonBlankString(value.intakeRequestId) &&
+		nonBlankString(value.successorIdempotencyKey) &&
+		nonBlankString(value.workspaceId) &&
+		isSourceRef(value.actorRef) &&
+		workspaceProposalBoundaryRefIsSafe(value.actorRef) &&
+		nonEmptySourceRefs(value.capabilityRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.capabilityRefs) &&
+		nonEmptySourceRefs(value.policyRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.policyRefs) &&
+		nonEmptySourceRefs(value.projectionBundleRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.projectionBundleRefs) &&
+		(value.sourceRefs === undefined ||
+			(nonEmptySourceRefs(value.sourceRefs) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.sourceRefs))) &&
+		isWorkspaceProposalAuditMaterial(value.audit) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.audit.sourceRefs) &&
+		workspaceProposalTargetRefsAreValid(value.targetRefs) &&
+		nonBlankString(value.successorProposalFamily) &&
+		nonBlankString(value.successorLoweringKind) &&
+		(value.draftRefs === undefined ||
+			(nonEmptySourceRefs(value.draftRefs) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.draftRefs))) &&
+		(value.finalDraftSourceRefs === undefined ||
+			(nonEmptySourceRefs(value.finalDraftSourceRefs) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.finalDraftSourceRefs))) &&
+		(value.metadata === undefined || isRecord(value.metadata))
+	);
+}
+
+function repairSuccessorPreparationMetadataHasTruthMaterial(value: unknown): boolean {
+	if (!isRecord(value)) return false;
+	const forbidden = new Set([
+		"admissionid",
+		"applicationstate",
+		"applicationstatus",
+		"emittedfactrefs",
+		"proposalrecorded",
+		"recordedproposal",
+		"successoradmissionid",
+		"workspaceproposalrecorded",
+	]);
+	const seen = new WeakSet<object>();
+	const visit = (entry: unknown): boolean => {
+		if (Array.isArray(entry)) return entry.some(visit);
+		if (!isRecord(entry)) return false;
+		if (seen.has(entry)) return false;
+		seen.add(entry);
+		for (const [key, child] of Object.entries(entry)) {
+			if (forbidden.has(key.toLowerCase().replace(/[-_\s]/g, ""))) return true;
+			if (visit(child)) return true;
+		}
+		return false;
+	};
+	return visit(value);
+}
+
+function repairActionPreviewCoordinatesMatchInput<TDraft>(
+	preview: WorkspaceProposalRepairSuccessorProposalIntakePreview,
+	input: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>,
+): boolean {
+	return (
+		preview.applicationId === input.intent.applicationId &&
+		preview.proposalId === input.intent.proposalId &&
+		preview.decisionId === input.intent.decisionId &&
+		preview.idempotencyKey === input.intent.idempotencyKey &&
+		preview.proposalFamily === input.intent.proposalFamily &&
+		repairReviewCoordinatesMatch(input.request, input.intent) &&
+		repairActionCoordinatesMatchDescriptor(input.intent, input.descriptor)
+	);
+}
+
+function repairActionIntentValidationMatchesPreparationInput<TDraft>(
+	validation: WorkspaceProposalRepairActionIntentValidationResult,
+	input: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>,
+): boolean {
+	return (
+		validation.intentId === input.intent.intentId &&
+		validation.descriptorId === input.descriptor.descriptorId &&
+		validation.repairRequestId === input.request.repairRequestId &&
+		validation.actionKind === input.intent.actionKind &&
+		validation.applicationId === input.request.applicationId &&
+		validation.proposalId === input.request.proposalId &&
+		validation.decisionId === input.request.decisionId &&
+		validation.idempotencyKey === input.request.idempotencyKey &&
+		validation.proposalFamily === input.request.proposalFamily &&
+		(validation.intent === undefined ||
+			stableStringify(validation.intent) === stableStringify(input.intent))
+	);
+}
+
+function nonEmptySourceRefs(value: unknown): value is readonly SourceRef[] {
+	return Array.isArray(value) && value.length > 0 && value.every(isSourceRef);
+}
+
+function workspaceProposalTargetRefsAreValid(
+	value: unknown,
+): value is readonly WorkspaceProposalTargetRef[] {
+	return (
+		Array.isArray(value) &&
+		value.length > 0 &&
+		value.every(
+			(ref) =>
+				isRecord(ref) &&
+				nonBlankString(ref.kind) &&
+				nonBlankString(ref.id) &&
+				workspaceProposalBoundaryRefIsSafe(ref as unknown as WorkspaceProposalTargetRef) &&
+				workspaceProposalDataOnlyIssues(ref, "repairSuccessorTargetRef").length === 0,
+		)
+	);
+}
+
+function repairActionIssueIntentFallback(value: unknown): WorkspaceProposalRepairActionIntent {
+	if (isRepairSuccessorReadyRequestPreparationInput(value)) return value.intent;
+	if (isRepairActionIntentMaterial(value)) return value;
+	return {
+		kind: "workspace-proposal-repair-action-intent",
+		intentId: stringField(isRecord(value) ? value.intentId : undefined) ?? "unknown",
+		descriptorId: stringField(isRecord(value) ? value.descriptorId : undefined) ?? "unknown",
+		repairRequestId: stringField(isRecord(value) ? value.repairRequestId : undefined) ?? "unknown",
+		actionKind: "open-successor-proposal-flow",
+		applicationId: stringField(isRecord(value) ? value.applicationId : undefined) ?? "unknown",
+		proposalId: stringField(isRecord(value) ? value.proposalId : undefined) ?? "unknown",
+		decisionId: stringField(isRecord(value) ? value.decisionId : undefined) ?? "unknown",
+		idempotencyKey: stringField(isRecord(value) ? value.idempotencyKey : undefined) ?? "unknown",
+		proposalFamily:
+			(stringField(
+				isRecord(value) ? value.proposalFamily : undefined,
+			) as WorkspaceProposalFamily) ?? "unknown",
+	};
+}
+
+function isOutcomeDetailSupplyRequestMaterial(
+	value: unknown,
+): value is WorkspaceProposalFamilyOutcomeDetailSupplyRequest {
+	return (
+		isRecord(value) &&
+		value.kind === "workspace-proposal-family-outcome-detail-supply-request" &&
+		nonBlankString(value.supplyRequestId) &&
+		nonBlankString(value.applicationId) &&
+		nonBlankString(value.proposalId) &&
+		nonBlankString(value.decisionId) &&
+		nonBlankString(value.idempotencyKey) &&
+		nonBlankString(value.proposalFamily) &&
+		Array.isArray(value.requestedOutcomeRefs) &&
+		value.requestedOutcomeRefs.length > 0 &&
+		value.requestedOutcomeRefs.every(isOutcomeDetailSupplyRequestedRefMaterial) &&
+		repairReviewDecisionSourceRefsAreValid(value.sourceRefs) &&
+		workspaceProposalBoundarySourceRefsAreSafe(value.sourceRefs) &&
+		(value.audit === undefined ||
+			(isWorkspaceProposalAuditMaterial(value.audit) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.audit.sourceRefs))) &&
+		(value.metadata === undefined || isRecord(value.metadata))
+	);
+}
+
+function isOutcomeDetailSupplyRequestedRefMaterial(
+	value: unknown,
+): value is WorkspaceProposalFamilyOutcomeRef {
+	return (
+		isRecord(value) &&
+		value.kind === "workspace-proposal-family-outcome-ref" &&
+		nonBlankString(value.outcomeId) &&
+		workspaceProposalFamilyOutcomeKinds.includes(
+			value.outcomeKind as WorkspaceProposalFamilyOutcomeRecord["kind"],
+		) &&
+		nonBlankString(value.applicationId) &&
+		nonBlankString(value.proposalId) &&
+		nonBlankString(value.decisionId) &&
+		nonBlankString(value.idempotencyKey) &&
+		nonBlankString(value.proposalFamily) &&
+		(value.sourceRefs === undefined ||
+			(repairReviewDecisionSourceRefsAreValid(value.sourceRefs) &&
+				workspaceProposalBoundarySourceRefsAreSafe(value.sourceRefs)))
+	);
+}
+
+function outcomeDetailSupplyRequestIssues(
+	request: WorkspaceProposalFamilyOutcomeDetailSupplyRequest | unknown,
+): readonly WorkspaceProposalRecordedIssue[] {
+	const issues: WorkspaceProposalRecordedIssue[] = [];
+	const record = isRecord(request) ? request : {};
+	for (const issue of workspaceProposalDataOnlyIssues(request, "outcomeDetailSupplyRequest")) {
+		issues.push({ ...issue, subjectId: issue.subjectId ?? stringField(record.proposalId) });
+	}
+	if (!isRecord(request)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-outcome-detail-supply-request",
+				"Outcome detail supply request requires typed object material.",
+				{},
+				undefined,
+			),
+		);
+		return issues;
+	}
+	for (const field of [
+		"supplyRequestId",
+		"applicationId",
+		"proposalId",
+		"decisionId",
+		"idempotencyKey",
+		"proposalFamily",
+	] as const) {
+		if (blank(record[field])) {
+			issues.push(
+				repairActionIntentIssue(
+					"malformed-outcome-detail-supply-request",
+					`Outcome detail supply request requires ${field}.`,
+					{ proposalId: record.proposalId },
+					undefined,
+				),
+			);
+		}
+	}
+	if (!Array.isArray(record.requestedOutcomeRefs) || record.requestedOutcomeRefs.length === 0) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-outcome-detail-supply-request",
+				"Outcome detail supply request requires requested outcome refs.",
+				{ proposalId: record.proposalId },
+				undefined,
+			),
+		);
+	} else if (!record.requestedOutcomeRefs.every(isOutcomeDetailSupplyRequestedRefMaterial)) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-outcome-detail-supply-request",
+				"Outcome detail supply request refs must carry full thin outcome coordinates.",
+				{ proposalId: record.proposalId },
+				undefined,
+			),
+		);
+	}
+	if (
+		!repairReviewDecisionSourceRefsAreValid(record.sourceRefs) ||
+		!workspaceProposalBoundarySourceRefsAreSafe(
+			record.sourceRefs as readonly SourceRef[] | undefined,
+		)
+	) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-outcome-detail-supply-request",
+				"Outcome detail supply request requires data-only boundary-safe source refs.",
+				{ proposalId: record.proposalId },
+				undefined,
+			),
+		);
+	}
+	const auditRecord = record.audit;
+	if (
+		isRecord(auditRecord) &&
+		(!isWorkspaceProposalAuditMaterial(auditRecord) ||
+			!workspaceProposalBoundarySourceRefsAreSafe(
+				(auditRecord as { readonly sourceRefs?: readonly SourceRef[] }).sourceRefs,
+			))
+	) {
+		issues.push(
+			repairActionIntentIssue(
+				"malformed-outcome-detail-supply-request",
+				"Outcome detail supply request audit must be data-only boundary-safe material.",
+				{ proposalId: record.proposalId },
+				undefined,
+			),
+		);
+	}
+	return dedupeRepairActionIssues(issues);
+}
+
+function isOutcomeDetailSupplyOutcomeRecordShape(
+	value: unknown,
+): value is WorkspaceProposalFamilyOutcomeRecord {
+	return (
+		isRecord(value) &&
+		workspaceProposalFamilyOutcomeKinds.includes(
+			value.kind as WorkspaceProposalFamilyOutcomeRecord["kind"],
+		) &&
+		nonBlankString(value.outcomeId) &&
+		nonBlankString(value.applicationId) &&
+		nonBlankString(value.proposalId) &&
+		nonBlankString(value.decisionId) &&
+		nonBlankString(value.idempotencyKey) &&
+		nonBlankString(value.proposalFamily) &&
+		Array.isArray(value.sourceRefs)
+	);
+}
+
+function outcomeDetailSupplyOutcomeBoundaryRefsAreSafe(
+	outcome: WorkspaceProposalFamilyOutcomeRecord,
+): boolean {
+	const familyRef =
+		outcome.kind === "workspace-proposal-required-input-response-outcome-recorded"
+			? outcome.responseRef
+			: outcome.kind === "workspace-proposal-work-item-spawn-outcome-recorded"
+				? outcome.workItemRef
+				: outcome.kind === "workspace-proposal-work-item-link-outcome-recorded"
+					? outcome.linkRef
+					: outcome.actionRef;
+	return (
+		workspaceProposalBoundarySourceRefsAreSafe(outcome.sourceRefs) &&
+		(outcome.audit === undefined ||
+			workspaceProposalBoundarySourceRefsAreSafe(outcome.audit.sourceRefs)) &&
+		workspaceProposalBoundaryRefIsSafe(familyRef)
+	);
+}
+
+function currentSupplyRequests(
+	requests: readonly WorkspaceProposalFamilyOutcomeDetailSupplyRequest[],
+): ReadonlyMap<string, WorkspaceProposalFamilyOutcomeDetailSupplyRequest> {
+	const out = new Map<string, WorkspaceProposalFamilyOutcomeDetailSupplyRequest>();
+	for (const request of requests)
+		out.set(outcomeDetailSupplyRequestProjectionKey(request), request);
+	return out;
+}
+
+function outcomeDetailSupplyRequestProjectionKey(
+	request: WorkspaceProposalFamilyOutcomeDetailSupplyRequest,
+): string {
+	return stableStringify({
+		currentViewId:
+			stringField((request as { readonly viewId?: unknown }).viewId) ??
+			stringField((request as { readonly supplyRequestId?: unknown }).supplyRequestId),
+	});
+}
+
+function sameSupplyRequestCoordinates(
+	request: WorkspaceProposalFamilyOutcomeDetailSupplyRequest,
+	ref: WorkspaceProposalFamilyOutcomeRef,
+): boolean {
+	return (
+		request.applicationId === ref.applicationId &&
+		request.proposalId === ref.proposalId &&
+		request.decisionId === ref.decisionId &&
+		request.idempotencyKey === ref.idempotencyKey &&
+		request.proposalFamily === ref.proposalFamily
+	);
+}
+
+function supplyRequestRefMatches(
+	request: WorkspaceProposalFamilyOutcomeDetailSupplyRequest,
+	ref: WorkspaceProposalFamilyOutcomeRef,
+	filters: WorkspaceProposalFamilyApplicationReadModelNormalizedFilters,
+): boolean {
+	return (
+		sameSupplyRequestCoordinates(request, ref) &&
+		matchesOptionalSet(filters.outcomeIds, ref.outcomeId) &&
+		matchesOptionalSet(filters.outcomeKinds, ref.outcomeKind)
+	);
+}
+
+function outcomeDetailSupplyDiagnostic(
+	code:
+		| "malformed-outcome-detail-supply-request"
+		| "malformed-supplied-outcome-detail"
+		| "missing-supplied-outcome-detail"
+		| "mismatched-supplied-outcome-detail",
+	message: string,
+	outcomeRef: WorkspaceProposalFamilyOutcomeRef | undefined,
+	coordinates: {
+		readonly applicationId?: string;
+		readonly proposalId?: string;
+		readonly decisionId?: string;
+		readonly idempotencyKey?: string;
+		readonly proposalFamily?: WorkspaceProposalFamily;
+	},
+	sourceRefs: readonly SourceRef[],
+): WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic {
+	return {
+		kind: "workspace-proposal-family-application-read-model-display-diagnostic",
+		diagnosticId: `workspace-proposal-family-application-read-model-display-diagnostic:${stableStringify(
+			{ code, outcomeRef, coordinates },
+		)}`,
+		code,
+		message,
+		...coordinates,
+		...(outcomeRef === undefined ? {} : { outcomeRef }),
+		sourceRefs: repairActionSourceRefs(sourceRefs),
+	};
+}
+
+function dedupeOutcomes(
+	outcomes: readonly WorkspaceProposalFamilyOutcomeRecord[],
+): readonly WorkspaceProposalFamilyOutcomeRecord[] {
+	const out = new Map<string, WorkspaceProposalFamilyOutcomeRecord>();
+	for (const outcome of outcomes) out.set(outcomeProjectionKey(outcome), outcome);
+	return [...out.values()];
 }
 
 function dedupeRepairActionIssues(
@@ -4426,6 +6268,9 @@ interface NormalizedReadModelQuery {
 		readonly limit: number;
 	};
 	readonly filters: WorkspaceProposalFamilyApplicationReadModelNormalizedFilters;
+	readonly sort: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[];
+	readonly groupBy: readonly WorkspaceProposalFamilyApplicationReadModelGroupField[];
+	readonly search: WorkspaceProposalFamilyApplicationReadModelNormalizedSearch;
 	readonly sourceRefs: readonly SourceRef[];
 }
 
@@ -4456,6 +6301,11 @@ function normalizeReadModelQuery(
 	const filterResult = normalizeReadModelFilters(
 		isRecord(queryRecord.filters) ? queryRecord.filters : undefined,
 	);
+	const presentation = normalizeReadModelPresentationOptions(
+		queryRecord.sort,
+		queryRecord.groupBy,
+		isRecord(queryRecord.search) ? queryRecord.search : queryRecord.search,
+	);
 	const complete =
 		queryId !== undefined &&
 		readModelCoordinatesComplete(coordinates) &&
@@ -4467,6 +6317,7 @@ function normalizeReadModelQuery(
 		sourceRefResult.malformed ||
 		auditSourceRefResult.malformed ||
 		filterResult.malformed ||
+		presentation.malformed ||
 		dataOnlyIssues.length > 0;
 	return {
 		complete,
@@ -4479,6 +6330,9 @@ function normalizeReadModelQuery(
 			limit: normalizePageLimit(page.limit),
 		},
 		filters: filterResult.filters,
+		sort: presentation.sort,
+		groupBy: presentation.groupBy,
+		search: presentation.search,
 		sourceRefs: uniqueRefs([...sourceRefResult.refs, ...auditSourceRefResult.refs]),
 	};
 }
@@ -4497,6 +6351,9 @@ function readModelQueryDisplayDiagnostic(
 				coordinates: normalized.coordinates,
 				page: normalized.page,
 				filters: normalized.filters,
+				sort: normalized.sort,
+				groupBy: normalized.groupBy,
+				search: normalized.search,
 			},
 		)}`,
 		code,
@@ -4551,6 +6408,130 @@ function normalizeReadModelFilters(
 	};
 }
 
+interface NormalizedReadModelPresentationResult {
+	readonly sort: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[];
+	readonly groupBy: readonly WorkspaceProposalFamilyApplicationReadModelGroupField[];
+	readonly search: WorkspaceProposalFamilyApplicationReadModelNormalizedSearch;
+	readonly diagnostics: readonly WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic[];
+	readonly malformed: boolean;
+}
+
+function normalizeReadModelPresentationOptions(
+	sort: unknown,
+	groupBy: unknown,
+	search: unknown,
+): NormalizedReadModelPresentationResult {
+	const sortResult = normalizeReadModelSort(sort);
+	const groupResult = normalizeClosedStringFilter(
+		Array.isArray(groupBy) ? groupBy : groupBy === undefined ? undefined : [groupBy],
+		readModelGroupFields,
+	);
+	const searchResult = normalizeReadModelSearch(search);
+	const malformed =
+		sortResult.malformed ||
+		groupResult.malformed ||
+		searchResult.malformed ||
+		(sort !== undefined && !Array.isArray(sort)) ||
+		(groupBy !== undefined && !Array.isArray(groupBy));
+	const diagnostics = malformed
+		? [readModelPresentationDiagnostic(sortResult.sort, groupResult.values, searchResult.search)]
+		: [];
+	return {
+		sort: sortResult.sort,
+		groupBy: groupResult.values,
+		search: searchResult.search,
+		diagnostics,
+		malformed,
+	};
+}
+
+function normalizeReadModelSort(sort: unknown): {
+	readonly sort: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[];
+	readonly malformed: boolean;
+} {
+	if (sort === undefined) return { sort: [], malformed: false };
+	if (!Array.isArray(sort)) return { sort: [], malformed: true };
+	const allowedFields = new Set<string>(readModelSortFields);
+	const allowedDirections = new Set<string>(["asc", "desc"]);
+	const byField = new Map<
+		WorkspaceProposalFamilyApplicationReadModelSortField,
+		WorkspaceProposalFamilyApplicationReadModelSortDirection
+	>();
+	let malformed = false;
+	for (const entry of sort) {
+		if (!isRecord(entry)) {
+			malformed = true;
+			continue;
+		}
+		const field = stringField(entry.field);
+		const direction = stringField(entry.direction);
+		if (
+			field === undefined ||
+			direction === undefined ||
+			!allowedFields.has(field) ||
+			!allowedDirections.has(direction)
+		) {
+			malformed = true;
+			continue;
+		}
+		byField.set(
+			field as WorkspaceProposalFamilyApplicationReadModelSortField,
+			direction as WorkspaceProposalFamilyApplicationReadModelSortDirection,
+		);
+	}
+	return {
+		sort: [...byField.entries()].map(([field, direction]) => ({ field, direction })),
+		malformed,
+	};
+}
+
+function normalizeReadModelSearch(search: unknown): {
+	readonly search: WorkspaceProposalFamilyApplicationReadModelNormalizedSearch;
+	readonly malformed: boolean;
+} {
+	if (search === undefined) return { search: { text: "", fields: [] }, malformed: false };
+	if (!isRecord(search)) return { search: { text: "", fields: [] }, malformed: true };
+	const fieldResult = normalizeClosedStringFilter(
+		Array.isArray(search.fields) ? search.fields : undefined,
+		readModelSearchFields,
+	);
+	return {
+		search: {
+			text: boundedSearchText(search.text),
+			fields: fieldResult.values.length === 0 ? [...readModelSearchFields] : fieldResult.values,
+		},
+		malformed:
+			fieldResult.malformed ||
+			(search.fields !== undefined && !Array.isArray(search.fields)) ||
+			(search.text !== undefined && typeof search.text !== "string"),
+	};
+}
+
+function boundedSearchText(value: unknown): string {
+	return typeof value === "string" ? value.trim().slice(0, 128) : "";
+}
+
+function readModelPresentationDiagnostic(
+	sort: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[],
+	groupBy: readonly WorkspaceProposalFamilyApplicationReadModelGroupField[],
+	search: WorkspaceProposalFamilyApplicationReadModelNormalizedSearch,
+): WorkspaceProposalFamilyApplicationReadModelDisplayDiagnostic {
+	return {
+		kind: "workspace-proposal-family-application-read-model-display-diagnostic",
+		diagnosticId: `workspace-proposal-family-application-read-model-display-diagnostic:${stableStringify(
+			{
+				code: "malformed-read-model-presentation-options",
+				sort,
+				groupBy,
+				search,
+			},
+		)}`,
+		code: "malformed-read-model-presentation-options",
+		message: "Workspace proposal family read-model presentation options are malformed",
+		sourceRefs: [],
+	};
+}
+
 function normalizeStringFilter(values: readonly unknown[] | undefined): readonly string[] {
 	if (!Array.isArray(values)) return [];
 	return [...new Set(values.map(stringField).filter((value) => value !== undefined))].sort();
@@ -4585,6 +6566,28 @@ const workspaceProposalRepairReviewLifecycleStates = [
 	"conflict",
 ] as const satisfies readonly WorkspaceProposalRepairReviewLifecycleState[];
 
+const readModelSortFields = [
+	"diagnostic-code",
+	"outcome-id",
+	"outcome-kind",
+	"recorded-at-ms",
+	"repair-state",
+] as const satisfies readonly WorkspaceProposalFamilyApplicationReadModelSortField[];
+
+const readModelGroupFields = [
+	"diagnostic-code",
+	"outcome-kind",
+	"repair-state",
+] as const satisfies readonly WorkspaceProposalFamilyApplicationReadModelGroupField[];
+
+const readModelSearchFields = [
+	"diagnostic-code",
+	"diagnostic-message",
+	"outcome-id",
+	"outcome-kind",
+	"repair-state",
+] as const satisfies readonly WorkspaceProposalFamilyApplicationReadModelSearchField[];
+
 function matchesOptionalSet<T extends string>(values: readonly T[], value: T): boolean {
 	return values.length === 0 || values.includes(value);
 }
@@ -4603,6 +6606,161 @@ function filterOutcomeIndexEntry(
 		...entry,
 		outcomeRefs,
 	};
+}
+
+function readModelSearchMatches(
+	ref: WorkspaceProposalFamilyOutcomeRef,
+	search: WorkspaceProposalFamilyApplicationReadModelNormalizedSearch,
+	diagnostics: readonly WorkspaceProposalFamilyApplicationDiagnostic[],
+	repairReviewStatuses: readonly WorkspaceProposalRepairReviewStatus[],
+): boolean {
+	if (search.text === "") return true;
+	const text = search.text.toLowerCase();
+	const haystack: string[] = [];
+	const fields = new Set(search.fields);
+	if (fields.has("outcome-id")) haystack.push(ref.outcomeId);
+	if (fields.has("outcome-kind")) haystack.push(ref.outcomeKind);
+	if (fields.has("diagnostic-code") || fields.has("diagnostic-message")) {
+		for (const diagnostic of diagnostics) {
+			if (!coordinatesMatchExact(ref, diagnostic)) continue;
+			if (fields.has("diagnostic-code")) haystack.push(diagnostic.code);
+			if (fields.has("diagnostic-message")) {
+				for (const issue of diagnostic.issues) haystack.push(issue.message);
+			}
+		}
+	}
+	if (fields.has("repair-state")) {
+		for (const status of repairReviewStatuses) {
+			if (coordinatesMatchExact(ref, status)) haystack.push(status.state);
+		}
+	}
+	return haystack.some((value) => value.toLowerCase().includes(text));
+}
+
+function sortReadModelOutcomeRefs(
+	refs: readonly WorkspaceProposalFamilyOutcomeRef[],
+	sort: readonly WorkspaceProposalFamilyApplicationReadModelSortOption[],
+	diagnostics: readonly WorkspaceProposalFamilyApplicationDiagnostic[],
+	repairReviewStatuses: readonly WorkspaceProposalRepairReviewStatus[],
+	outcomes: ReadonlyMap<string, readonly WorkspaceProposalFamilyOutcomeRecord[]>,
+	statuses: ReadonlyMap<string, readonly WorkspaceProposalFamilyOutcomeRecordStatus[]>,
+): readonly WorkspaceProposalFamilyOutcomeRef[] {
+	if (sort.length === 0) return refs;
+	return [...refs].sort((left, right) => {
+		for (const option of sort) {
+			const compared = compareReadModelSortValue(
+				readModelSortValue(
+					left,
+					option.field,
+					diagnostics,
+					repairReviewStatuses,
+					outcomes,
+					statuses,
+				),
+				readModelSortValue(
+					right,
+					option.field,
+					diagnostics,
+					repairReviewStatuses,
+					outcomes,
+					statuses,
+				),
+			);
+			if (compared !== 0) return option.direction === "asc" ? compared : -compared;
+		}
+		return compareReadModelSortValue(left.outcomeId, right.outcomeId);
+	});
+}
+
+function readModelSortValue(
+	ref: WorkspaceProposalFamilyOutcomeRef,
+	field: WorkspaceProposalFamilyApplicationReadModelSortField,
+	diagnostics: readonly WorkspaceProposalFamilyApplicationDiagnostic[],
+	repairReviewStatuses: readonly WorkspaceProposalRepairReviewStatus[],
+	outcomes: ReadonlyMap<string, readonly WorkspaceProposalFamilyOutcomeRecord[]>,
+	statuses: ReadonlyMap<string, readonly WorkspaceProposalFamilyOutcomeRecordStatus[]>,
+): string | number {
+	switch (field) {
+		case "outcome-id":
+			return ref.outcomeId;
+		case "outcome-kind":
+			return ref.outcomeKind;
+		case "diagnostic-code":
+			return diagnostics.find((diagnostic) => coordinatesMatchExact(ref, diagnostic))?.code ?? "";
+		case "repair-state":
+			return repairReviewStatuses.find((status) => coordinatesMatchExact(ref, status))?.state ?? "";
+		case "recorded-at-ms": {
+			const outcome = (outcomes.get(ref.outcomeId) ?? []).find((entry) =>
+				sameOutcomeRefCoordinates(ref, entry),
+			);
+			const status = (statuses.get(ref.outcomeId) ?? []).find((entry) =>
+				sameOutcomeRefCoordinates(ref, entry),
+			);
+			return outcome?.audit?.recordedAtMs ?? status?.audit?.recordedAtMs ?? 0;
+		}
+	}
+}
+
+function compareReadModelSortValue(left: string | number, right: string | number): number {
+	if (typeof left === "number" && typeof right === "number") return left - right;
+	const leftString = String(left);
+	const rightString = String(right);
+	if (leftString < rightString) return -1;
+	if (leftString > rightString) return 1;
+	return 0;
+}
+
+function readModelDisplayGroups(
+	refs: readonly WorkspaceProposalFamilyOutcomeRef[],
+	groupBy: readonly WorkspaceProposalFamilyApplicationReadModelGroupField[],
+	diagnostics: readonly WorkspaceProposalFamilyApplicationDiagnostic[],
+	repairReviewStatuses: readonly WorkspaceProposalRepairReviewStatus[],
+): readonly WorkspaceProposalFamilyApplicationReadModelDisplayGroup[] {
+	const groups: WorkspaceProposalFamilyApplicationReadModelDisplayGroup[] = [];
+	for (const field of groupBy) {
+		const byValue = new Map<string, WorkspaceProposalFamilyOutcomeRef[]>();
+		for (const ref of refs) {
+			for (const value of readModelGroupValues(ref, field, diagnostics, repairReviewStatuses)) {
+				byValue.set(value, [...(byValue.get(value) ?? []), ref]);
+			}
+		}
+		for (const [value, outcomeRefs] of [...byValue.entries()].sort(([left], [right]) =>
+			compareReadModelSortValue(left, right),
+		)) {
+			groups.push({
+				kind: "workspace-proposal-family-application-read-model-display-group",
+				field,
+				value,
+				outcomeRefs,
+				count: outcomeRefs.length,
+			});
+		}
+	}
+	return groups;
+}
+
+function readModelGroupValues(
+	ref: WorkspaceProposalFamilyOutcomeRef,
+	field: WorkspaceProposalFamilyApplicationReadModelGroupField,
+	diagnostics: readonly WorkspaceProposalFamilyApplicationDiagnostic[],
+	repairReviewStatuses: readonly WorkspaceProposalRepairReviewStatus[],
+): readonly string[] {
+	switch (field) {
+		case "outcome-kind":
+			return [ref.outcomeKind];
+		case "repair-state":
+			return uniqueStrings(
+				repairReviewStatuses
+					.filter((status) => coordinatesMatchExact(ref, status))
+					.map((status) => status.state),
+			);
+		case "diagnostic-code":
+			return uniqueStrings(
+				diagnostics
+					.filter((diagnostic) => coordinatesMatchExact(ref, diagnostic))
+					.map((diagnostic) => diagnostic.code),
+			);
+	}
 }
 
 function normalizePageOffset(value: unknown): number {
@@ -5252,6 +7410,16 @@ interface WorkspaceProposalRepairActionIntentGraphState {
 	readonly emittedPreviews: Map<string, string>;
 }
 
+interface WorkspaceProposalRepairSuccessorReadyRequestPreparationGraphState<TDraft = unknown> {
+	readonly previews: Map<string, WorkspaceProposalRepairSuccessorProposalIntakePreview>;
+	readonly inputs: Map<
+		string,
+		WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>
+	>;
+	readonly emittedResults: Map<string, string>;
+	readonly preparedReadyRequests: Map<string, WorkspaceProposalReadyRequest<TDraft>>;
+}
+
 function repairActionIntentGraphState(ctx: Ctx): WorkspaceProposalRepairActionIntentGraphState {
 	return (
 		ctx.state.get<WorkspaceProposalRepairActionIntentGraphState>() ?? {
@@ -5261,6 +7429,19 @@ function repairActionIntentGraphState(ctx: Ctx): WorkspaceProposalRepairActionIn
 			statuses: new Map(),
 			emittedResults: new Map(),
 			emittedPreviews: new Map(),
+		}
+	);
+}
+
+function repairSuccessorPreparationGraphState<TDraft>(
+	ctx: Ctx,
+): WorkspaceProposalRepairSuccessorReadyRequestPreparationGraphState<TDraft> {
+	return (
+		ctx.state.get<WorkspaceProposalRepairSuccessorReadyRequestPreparationGraphState<TDraft>>() ?? {
+			previews: new Map(),
+			inputs: new Map(),
+			emittedResults: new Map(),
+			preparedReadyRequests: new Map(),
 		}
 	);
 }
@@ -6319,6 +8500,10 @@ function uniqueRefs(sourceRefs: readonly SourceRef[]): readonly SourceRef[] {
 		out.push(sourceRef);
 	}
 	return out;
+}
+
+function uniqueStrings(values: readonly string[]): readonly string[] {
+	return [...new Set(values)].sort();
 }
 
 function recordRefs(record: WorkspaceProposalRecorded): readonly string[] {
