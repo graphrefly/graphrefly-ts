@@ -10,6 +10,8 @@ This repo is **`@graphrefly/ts`** — the self-contained TypeScript implementati
 
 > **Stale-infra guard.** Do NOT reach for the retired port-model surfaces: `packages/pure-ts/**` (frozen read-only reference only, D41), `docs/implementation-plan.md`, `docs/optimizations.md`, `docs/roadmap.md`, `docs/test-guidance.md`, `docs/docs-guidance.md`, `GRAPHREFLY-SPEC.md`/`COMPOSITION-GUIDE.md` (migrated to `spec/rules.jsonl` + `guide/guide.jsonl`, B7), the `Impl`/facade/actor model / 3-digit D### port decisions. The clean-slate authority is the jsonl below.
 
+> **Ownership guard.** The current working directory is execution context, not architectural ownership. Before implementing anything that mixes Workspace, Canvas, or product-surface vocabulary, classify every new symbol as protocol, `@graphrefly/ts` library/solution, Canvas product, or docs-only. Canvas-owned lifecycle material such as `CanvasWorkspace*` DTOs/helpers, Canvas slot lifecycle lowering, lifecycle reason vocabularies, retention-pressure policy/status, selector adapters, component registries, and product lifecycle APIs belong in `~/src/graphrefly-canvas` unless an explicit D# says `@graphrefly/ts` owns that public API. Focused subpath exports and subpath smoke tests count as TS library API expansion; do not treat "root index unchanged" as sufficient.
+
 The user's task/context is: $ARGUMENTS
 
 ### Mode detection

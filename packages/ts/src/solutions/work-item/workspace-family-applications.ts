@@ -916,90 +916,6 @@ export interface WorkspaceProposalProjectionReleaseDiagnostic {
 	readonly audit?: WorkspaceProposalAuditMaterial;
 }
 
-/**
- * D476 graph-visible Canvas owner/provenance for a Workspace projection slot.
- *
- * `viewId` is the projection-slot identity. `canvasViewId`/`canvasSessionId`
- * describe the Canvas owner/provenance that surfaced the slot.
- */
-export interface CanvasWorkspaceProposalProjectionSlot {
-	readonly kind: "canvas-workspace-proposal-projection-slot";
-	readonly slotId: string;
-	readonly viewId: string;
-	readonly targetKind: WorkspaceProposalProjectionReleaseTargetKind;
-	readonly targetId: string;
-	readonly sourceRefs: readonly SourceRef[];
-	readonly canvasViewId?: string;
-	readonly canvasSessionId?: string;
-	readonly applicationId?: string;
-	readonly proposalId?: string;
-	readonly decisionId?: string;
-	readonly idempotencyKey?: string;
-	readonly proposalFamily?: WorkspaceProposalFamily;
-	readonly queryId?: string;
-	readonly supplyRequestId?: string;
-	readonly descriptorId?: string;
-	readonly repairRequestId?: string;
-	readonly actionKind?: WorkspaceProposalRepairActionKind;
-	readonly intentId?: string;
-	readonly previewId?: string;
-	readonly preparationId?: string;
-	readonly audit?: WorkspaceProposalAuditMaterial;
-	readonly metadata?: Record<string, unknown>;
-}
-
-/** D476 Canvas-side lifecycle material saying a projection slot left current view. */
-export interface CanvasWorkspaceProposalProjectionSlotLifecycle {
-	readonly kind: "canvas-workspace-proposal-projection-slot-lifecycle";
-	readonly lifecycleId: string;
-	readonly transition: "release-current-view-slot";
-	readonly slot: CanvasWorkspaceProposalProjectionSlot;
-	readonly releaseId?: string;
-	readonly sourceRefs?: readonly SourceRef[];
-	readonly audit?: WorkspaceProposalAuditMaterial;
-	readonly metadata?: Record<string, unknown>;
-}
-
-export type CanvasWorkspaceProposalProjectionSlotReleaseStatusKind =
-	| "emitted"
-	| "skipped-invalid-slot"
-	| "skipped-unsupported-target"
-	| "malformed-lifecycle";
-
-/** D476 Canvas-side non-authoritative release lowering status. */
-export interface CanvasWorkspaceProposalProjectionSlotReleaseStatus {
-	readonly kind: "canvas-workspace-proposal-projection-slot-release-status";
-	readonly statusId: string;
-	readonly lifecycleId?: string;
-	readonly slotId?: string;
-	readonly viewId?: string;
-	readonly canvasViewId?: string;
-	readonly canvasSessionId?: string;
-	readonly targetKind?: WorkspaceProposalProjectionReleaseTargetKind;
-	readonly targetId?: string;
-	readonly releaseId?: string;
-	readonly status: CanvasWorkspaceProposalProjectionSlotReleaseStatusKind;
-	readonly issues: readonly WorkspaceProposalRecordedIssue[];
-	readonly sourceRefs: readonly SourceRef[];
-	readonly audit?: WorkspaceProposalAuditMaterial;
-}
-
-export interface CanvasWorkspaceProposalProjectionSlotReleaseResult {
-	readonly kind: "canvas-workspace-proposal-projection-slot-release-result";
-	readonly status: CanvasWorkspaceProposalProjectionSlotReleaseStatus;
-	readonly release?: WorkspaceProposalProjectionRelease;
-}
-
-export interface CanvasWorkspaceProposalProjectionSlotReleaseProjectorOptions {
-	readonly name?: string;
-	readonly lifecycles: Node<unknown>;
-}
-
-export interface CanvasWorkspaceProposalProjectionSlotReleaseProjectorBundle {
-	readonly releases: Node<WorkspaceProposalProjectionRelease>;
-	readonly statuses: Node<CanvasWorkspaceProposalProjectionSlotReleaseStatus>;
-}
-
 export interface WorkspaceProposalFamilyApplicationReadModelProjectionInput {
 	readonly diagnostics?: readonly WorkspaceProposalFamilyApplicationDiagnostic[];
 	readonly repairReviewStatuses?: readonly WorkspaceProposalRepairReviewStatus[];
@@ -2652,116 +2568,6 @@ export function workspaceProposalProjectionReleaseDiagnosticProjector(
 	};
 }
 
-export function releaseWorkspaceProposalProjectionFromCanvasSlot(
-	lifecycle: CanvasWorkspaceProposalProjectionSlotLifecycle | unknown,
-): CanvasWorkspaceProposalProjectionSlotReleaseResult {
-	const validation = validateCanvasWorkspaceProposalProjectionSlotLifecycle(lifecycle);
-	if (validation.status !== "emitted") {
-		return {
-			kind: "canvas-workspace-proposal-projection-slot-release-result",
-			status: validation,
-		};
-	}
-	const record = lifecycle as CanvasWorkspaceProposalProjectionSlotLifecycle;
-	const slot = record.slot;
-	const audit = record.audit ?? slot.audit;
-	const metadata = record.metadata ?? slot.metadata;
-	const release: WorkspaceProposalProjectionRelease = immutableClone({
-		kind: "workspace-proposal-projection-release",
-		releaseId:
-			stringField(record.releaseId) ??
-			`canvas-workspace-proposal-projection-release:${record.lifecycleId}`,
-		targetKind: slot.targetKind,
-		targetId: slot.targetId,
-		viewId: slot.viewId,
-		sourceRefs: canvasWorkspaceProjectionSlotSourceRefs(record),
-		...(stringField(slot.applicationId) === undefined ? {} : { applicationId: slot.applicationId }),
-		...(stringField(slot.proposalId) === undefined ? {} : { proposalId: slot.proposalId }),
-		...(stringField(slot.decisionId) === undefined ? {} : { decisionId: slot.decisionId }),
-		...(stringField(slot.idempotencyKey) === undefined
-			? {}
-			: { idempotencyKey: slot.idempotencyKey }),
-		...(stringField(slot.proposalFamily) === undefined
-			? {}
-			: { proposalFamily: slot.proposalFamily }),
-		...(stringField(slot.queryId) === undefined ? {} : { queryId: slot.queryId }),
-		...(stringField(slot.supplyRequestId) === undefined
-			? {}
-			: { supplyRequestId: slot.supplyRequestId }),
-		...(stringField(slot.descriptorId) === undefined ? {} : { descriptorId: slot.descriptorId }),
-		...(stringField(slot.repairRequestId) === undefined
-			? {}
-			: { repairRequestId: slot.repairRequestId }),
-		...(slot.actionKind === undefined ? {} : { actionKind: slot.actionKind }),
-		...(stringField(slot.intentId) === undefined ? {} : { intentId: slot.intentId }),
-		...(stringField(slot.previewId) === undefined ? {} : { previewId: slot.previewId }),
-		...(stringField(slot.preparationId) === undefined ? {} : { preparationId: slot.preparationId }),
-		...(audit === undefined ? {} : { audit: immutableClone(audit) }),
-		...(metadata === undefined ? {} : { metadata: immutableClone(metadata) }),
-	} satisfies WorkspaceProposalProjectionRelease);
-	const releaseValidation = validateWorkspaceProposalProjectionReleaseMaterial(release);
-	if (releaseValidation.status === "blocked") {
-		return {
-			kind: "canvas-workspace-proposal-projection-slot-release-result",
-			status: canvasWorkspaceProjectionSlotReleaseStatus(
-				"skipped-invalid-slot",
-				record,
-				releaseValidation.issues,
-				release.releaseId,
-			),
-		};
-	}
-	return {
-		kind: "canvas-workspace-proposal-projection-slot-release-result",
-		release,
-		status: canvasWorkspaceProjectionSlotReleaseStatus("emitted", record, [], release.releaseId),
-	};
-}
-
-export function canvasWorkspaceProposalProjectionSlotReleaseProjector(
-	graph: Graph,
-	opts: CanvasWorkspaceProposalProjectionSlotReleaseProjectorOptions,
-): CanvasWorkspaceProposalProjectionSlotReleaseProjectorBundle {
-	const name = opts.name ?? "canvasWorkspaceProposalProjectionSlotRelease";
-	const runtime = graph.node<
-		| {
-				readonly kind: "canvas-slot-release";
-				readonly release: WorkspaceProposalProjectionRelease;
-				readonly status: CanvasWorkspaceProposalProjectionSlotReleaseStatus;
-		  }
-		| {
-				readonly kind: "canvas-slot-release-status";
-				readonly status: CanvasWorkspaceProposalProjectionSlotReleaseStatus;
-		  }
-		| undefined
-	>(
-		[opts.lifecycles],
-		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const result = releaseWorkspaceProposalProjectionFromCanvasSlot(raw);
-				if (result.release === undefined) {
-					ctx.down([["DATA", { kind: "canvas-slot-release-status", status: result.status }]]);
-					continue;
-				}
-				ctx.down([
-					["DATA", { kind: "canvas-slot-release", release: result.release, status: result.status }],
-				]);
-			}
-		},
-		runtimeOptions(name, "canvasWorkspaceProposalProjectionSlotReleaseProjector"),
-	);
-	return {
-		releases: project(graph, runtime, `${name}/releases`, `${name}Releases`, (fact) =>
-			fact?.kind === "canvas-slot-release" ? fact.release : undefined,
-		),
-		statuses: project(graph, runtime, `${name}/statuses`, `${name}Statuses`, (fact) =>
-			fact?.kind === "canvas-slot-release" || fact?.kind === "canvas-slot-release-status"
-				? fact.status
-				: undefined,
-		),
-	};
-}
-
 /** Graph-visible variant of `projectWorkspaceProposalFamilyApplicationReadModel`. */
 export function workspaceProposalFamilyApplicationReadModelProjector(
 	graph: Graph,
@@ -4096,6 +3902,7 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 						[conflictingRepairActionIntentIssue(intent)],
 						{},
 					);
+					if (state.releasedPreviews.has(preview.previewId)) continue;
 					const signature = stableStringify(preview);
 					if (state.emittedPreviews.get(preview.previewId) === signature) continue;
 					state.emittedPreviews.set(preview.previewId, signature);
@@ -4116,6 +3923,7 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 					policyStatus: opts.policyStatus,
 					maxSuggestedDraftPatchBytes: opts.maxSuggestedDraftPatchBytes,
 				});
+				if (state.releasedPreviews.has(preview.previewId)) continue;
 				const signature = stableStringify(preview);
 				if (state.emittedPreviews.get(preview.previewId) === signature) continue;
 				state.emittedPreviews.set(preview.previewId, signature);
@@ -7777,6 +7585,7 @@ interface WorkspaceProposalRepairActionIntentGraphState {
 	readonly statuses: Map<string, WorkspaceProposalRepairReviewStatus>;
 	readonly emittedResults: Map<string, string>;
 	readonly emittedPreviews: Map<string, string>;
+	readonly releasedPreviews: Set<string>;
 }
 
 interface WorkspaceProposalRepairSuccessorReadyRequestPreparationGraphState<TDraft = unknown> {
@@ -7805,43 +7614,6 @@ const workspaceProposalProjectionReleaseTargetKinds = [
 	"repair-successor-preparation",
 ] as const satisfies readonly WorkspaceProposalProjectionReleaseTargetKind[];
 
-const canvasWorkspaceProposalProjectionSlotKeys = new Set([
-	"kind",
-	"slotId",
-	"viewId",
-	"targetKind",
-	"targetId",
-	"sourceRefs",
-	"canvasViewId",
-	"canvasSessionId",
-	"applicationId",
-	"proposalId",
-	"decisionId",
-	"idempotencyKey",
-	"proposalFamily",
-	"queryId",
-	"supplyRequestId",
-	"descriptorId",
-	"repairRequestId",
-	"actionKind",
-	"intentId",
-	"previewId",
-	"preparationId",
-	"audit",
-	"metadata",
-]);
-
-const canvasWorkspaceProposalProjectionSlotLifecycleKeys = new Set([
-	"kind",
-	"lifecycleId",
-	"transition",
-	"slot",
-	"releaseId",
-	"sourceRefs",
-	"audit",
-	"metadata",
-]);
-
 const workspaceProposalProjectionReleaseKeys = new Set([
 	"kind",
 	"releaseId",
@@ -7866,555 +7638,6 @@ const workspaceProposalProjectionReleaseKeys = new Set([
 	"metadata",
 ]);
 
-export function isCanvasWorkspaceProposalProjectionSlotMaterial(
-	value: unknown,
-): value is CanvasWorkspaceProposalProjectionSlot {
-	return canvasWorkspaceProposalProjectionSlotIssues(value).length === 0;
-}
-
-export function validateCanvasWorkspaceProposalProjectionSlotLifecycle(
-	value: unknown,
-): CanvasWorkspaceProposalProjectionSlotReleaseStatus {
-	const lifecycle = isRecord(value) ? value : {};
-	if (!isRecord(value)) {
-		return canvasWorkspaceMalformedLifecycleStatus(value, [
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-lifecycle",
-				"Canvas projection slot lifecycle must be object material.",
-			),
-		]);
-	}
-	const lifecycleIssues = canvasWorkspaceProposalProjectionSlotLifecycleIssues(value);
-	if (lifecycleIssues.length > 0) {
-		return canvasWorkspaceProjectionSlotReleaseStatus(
-			"malformed-lifecycle",
-			value as unknown as CanvasWorkspaceProposalProjectionSlotLifecycle,
-			lifecycleIssues,
-			safeStringField(lifecycle, "releaseId"),
-		);
-	}
-	const slotIssues = canvasWorkspaceProposalProjectionSlotIssues(lifecycle.slot);
-	if (slotIssues.length > 0) {
-		const targetKind = (lifecycle.slot as { readonly targetKind?: unknown } | undefined)
-			?.targetKind;
-		return canvasWorkspaceProjectionSlotReleaseStatus(
-			workspaceProposalProjectionReleaseTargetKinds.includes(
-				targetKind as WorkspaceProposalProjectionReleaseTargetKind,
-			)
-				? "skipped-invalid-slot"
-				: "skipped-unsupported-target",
-			value as unknown as CanvasWorkspaceProposalProjectionSlotLifecycle,
-			slotIssues,
-			stringField(lifecycle.releaseId),
-		);
-	}
-	return canvasWorkspaceProjectionSlotReleaseStatus(
-		"emitted",
-		value as unknown as CanvasWorkspaceProposalProjectionSlotLifecycle,
-		[],
-		stringField(lifecycle.releaseId) ??
-			`canvas-workspace-proposal-projection-release:${stringField(lifecycle.lifecycleId)}`,
-	);
-}
-
-function canvasWorkspaceProposalProjectionSlotLifecycleIssues(
-	value: unknown,
-): readonly WorkspaceProposalRecordedIssue[] {
-	const issues: WorkspaceProposalRecordedIssue[] = [];
-	const record = isRecord(value) ? value : {};
-	for (const key of Object.keys(record)) {
-		if (canvasWorkspaceProposalProjectionSlotLifecycleKeys.has(key)) continue;
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"forbidden-canvas-projection-lifecycle-material",
-				"Canvas projection slot lifecycle must not carry commands, runtime, storage, truth, or private top-level material.",
-			),
-		);
-	}
-	const dataOnlyIssues = canvasWorkspaceProjectionSlotStructuralDataIssues(
-		value,
-		"canvasProjectionLifecycle",
-	);
-	if (dataOnlyIssues.length > 0) {
-		return dedupeRepairActionIssues([...issues, ...dataOnlyIssues]);
-	}
-	if (record.kind !== "canvas-workspace-proposal-projection-slot-lifecycle") {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-lifecycle",
-				"Canvas projection slot lifecycle kind is invalid.",
-			),
-		);
-	}
-	if (stringField(record.lifecycleId) === undefined) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-lifecycle",
-				"Canvas projection slot lifecycle requires lifecycleId.",
-			),
-		);
-	}
-	if (record.transition !== "release-current-view-slot") {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-lifecycle",
-				"Canvas projection slot lifecycle transition must be release-current-view-slot.",
-			),
-		);
-	}
-	if (!isRecord(record.slot)) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-lifecycle",
-				"Canvas projection slot lifecycle requires slot material.",
-			),
-		);
-	}
-	if (
-		record.sourceRefs !== undefined &&
-		(!repairReviewDecisionSourceRefsAreValid(record.sourceRefs) ||
-			!workspaceProposalBoundarySourceRefsAreSafe(record.sourceRefs as readonly SourceRef[]))
-	) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-lifecycle",
-				"Canvas projection slot lifecycle sourceRefs must be boundary-safe.",
-			),
-		);
-	}
-	if (record.sourceRefs !== undefined) {
-		issues.push(
-			...canvasWorkspaceProjectionSlotDataIssues(
-				record.sourceRefs,
-				"canvasProjectionLifecycle.sourceRefs",
-			),
-		);
-	}
-	if (record.audit !== undefined) {
-		const audit = safeWorkspaceProposalAudit(record.audit);
-		issues.push(
-			...canvasWorkspaceProjectionSlotDataIssues(record.audit, "canvasProjectionLifecycle.audit"),
-		);
-		if (audit === undefined || !workspaceProposalBoundarySourceRefsAreSafe(audit.sourceRefs)) {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue(
-					"malformed-canvas-projection-lifecycle",
-					"Canvas projection slot lifecycle audit must be boundary-safe data material.",
-				),
-			);
-		}
-		if (
-			isRecord((record.audit as { readonly metadata?: unknown }).metadata) &&
-			projectionReleaseMetadataHasRevocationVocabulary(
-				(record.audit as { readonly metadata: Record<string, unknown> }).metadata,
-			)
-		) {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue(
-					"forbidden-canvas-projection-slot-vocabulary",
-					"Canvas projection slot lifecycle audit metadata must not carry revocation, eviction, cache, storage, or proof vocabulary.",
-				),
-			);
-		}
-	}
-	if (record.metadata !== undefined) {
-		issues.push(...canvasWorkspaceProjectionSlotMetadataIssues(record.metadata));
-	}
-	return dedupeRepairActionIssues(issues);
-}
-
-function canvasWorkspaceProposalProjectionSlotIssues(
-	value: unknown,
-): readonly WorkspaceProposalRecordedIssue[] {
-	const issues: WorkspaceProposalRecordedIssue[] = [];
-	const record = isRecord(value) ? value : {};
-	if (!isRecord(value)) {
-		return [
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-slot",
-				"Canvas projection slot must be object material.",
-			),
-		];
-	}
-	for (const key of Object.keys(record)) {
-		if (canvasWorkspaceProposalProjectionSlotKeys.has(key)) continue;
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"forbidden-canvas-projection-slot-material",
-				"Canvas projection slot must not carry commands, callbacks, runtime, storage, truth, or private top-level material.",
-			),
-		);
-	}
-	const dataOnlyIssues = canvasWorkspaceProjectionSlotStructuralDataIssues(
-		value,
-		"canvasProjectionSlot",
-	);
-	if (dataOnlyIssues.length > 0) {
-		return dedupeRepairActionIssues([...issues, ...dataOnlyIssues]);
-	}
-	if (record.kind !== "canvas-workspace-proposal-projection-slot") {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-slot",
-				"Canvas projection slot kind is invalid.",
-			),
-		);
-	}
-	for (const field of ["slotId", "viewId", "targetId"] as const) {
-		if (stringField(record[field]) === undefined) {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue(
-					"malformed-canvas-projection-slot",
-					`Canvas projection slot requires ${field}.`,
-				),
-			);
-		}
-	}
-	if (
-		stringField(record.canvasViewId) === undefined &&
-		stringField(record.canvasSessionId) === undefined
-	) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-slot",
-				"Canvas projection slot requires canvasViewId or canvasSessionId owner/provenance context.",
-			),
-		);
-	}
-	if (
-		!workspaceProposalProjectionReleaseTargetKinds.includes(
-			record.targetKind as WorkspaceProposalProjectionReleaseTargetKind,
-		)
-	) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"unsupported-canvas-projection-slot-target",
-				"Canvas projection slot targetKind is not a closed Workspace proposal projection target.",
-			),
-		);
-	}
-	if (canvasWorkspaceProjectionSlotHasWildcardTarget(record)) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-slot",
-				"Canvas projection slot release target must be concrete, not wildcard or workspace-wide.",
-			),
-		);
-	}
-	if (
-		!repairReviewDecisionSourceRefsAreValid(record.sourceRefs) ||
-		!workspaceProposalBoundarySourceRefsAreSafe(
-			record.sourceRefs as readonly SourceRef[] | undefined,
-		)
-	) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-slot",
-				"Canvas projection slot requires boundary-safe sourceRefs.",
-			),
-		);
-	}
-	if (
-		record.actionKind !== undefined &&
-		!repairActionKinds.includes(record.actionKind as WorkspaceProposalRepairActionKind)
-	) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-canvas-projection-slot",
-				"Canvas projection slot actionKind is not a closed repair action kind.",
-			),
-		);
-	}
-	issues.push(
-		...canvasWorkspaceProjectionSlotDataIssues(
-			record.sourceRefs,
-			"canvasProjectionSlot.sourceRefs",
-		),
-	);
-	issues.push(...canvasWorkspaceProjectionSlotTargetIssues(record));
-	if (record.audit !== undefined) {
-		const audit = safeWorkspaceProposalAudit(record.audit);
-		issues.push(
-			...canvasWorkspaceProjectionSlotDataIssues(record.audit, "canvasProjectionSlot.audit"),
-		);
-		if (audit === undefined || !workspaceProposalBoundarySourceRefsAreSafe(audit.sourceRefs)) {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue(
-					"malformed-canvas-projection-slot",
-					"Canvas projection slot audit must be boundary-safe data material.",
-				),
-			);
-		}
-		if (
-			isRecord((record.audit as { readonly metadata?: unknown }).metadata) &&
-			projectionReleaseMetadataHasRevocationVocabulary(
-				(record.audit as { readonly metadata: Record<string, unknown> }).metadata,
-			)
-		) {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue(
-					"forbidden-canvas-projection-slot-vocabulary",
-					"Canvas projection slot audit metadata must not carry revocation, eviction, cache, storage, or proof vocabulary.",
-				),
-			);
-		}
-	}
-	if (record.metadata !== undefined) {
-		issues.push(...canvasWorkspaceProjectionSlotMetadataIssues(record.metadata));
-	}
-	return dedupeRepairActionIssues(issues);
-}
-
-function canvasWorkspaceProjectionSlotTargetIssues(
-	record: Record<string, unknown>,
-): readonly WorkspaceProposalRecordedIssue[] {
-	const issues: WorkspaceProposalRecordedIssue[] = [];
-	const targetId = stringField(record.targetId);
-	if (targetId === undefined) return issues;
-	const requireField = (field: string, message: string): void => {
-		if (stringField(record[field]) !== undefined) return;
-		issues.push(canvasWorkspaceProjectionSlotIssue("malformed-canvas-projection-slot", message));
-	};
-	const requireTargetMatch = (fields: readonly string[], message: string): void => {
-		const values = fields.map((field) => stringField(record[field])).filter(nonBlankString);
-		if (values.length > 0 && !values.includes(targetId)) {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue("canvas-projection-slot-target-mismatch", message),
-			);
-		}
-	};
-	switch (record.targetKind) {
-		case "family-read-model-query":
-			requireTargetMatch(
-				["viewId", "queryId"],
-				"Canvas read-model slot targetId must match viewId or queryId.",
-			);
-			break;
-		case "outcome-detail-supply-request":
-			requireTargetMatch(
-				["viewId", "supplyRequestId"],
-				"Canvas outcome detail supply slot targetId must match viewId or supplyRequestId.",
-			);
-			break;
-		case "repair-action-advisory":
-			if (stringField(record.descriptorId) === undefined) {
-				issues.push(
-					canvasWorkspaceProjectionSlotIssue(
-						"malformed-canvas-projection-slot",
-						"Canvas repair advisory slot requires descriptorId; request-wide or actionKind-only advisory release is too broad.",
-					),
-				);
-			}
-			if (!canvasWorkspaceProjectionSlotAdvisoryTargetMatches(record, targetId)) {
-				issues.push(
-					canvasWorkspaceProjectionSlotIssue(
-						"canvas-projection-slot-target-mismatch",
-						"Canvas repair advisory slot targetId must match descriptorId or the full advisory key.",
-					),
-				);
-			}
-			break;
-		case "repair-action-intent":
-			requireField("intentId", "Canvas repair action intent slot requires intentId.");
-			requireTargetMatch(
-				["intentId"],
-				"Canvas repair action intent slot targetId must match intentId.",
-			);
-			break;
-		case "repair-successor-preview":
-			requireField("previewId", "Canvas successor preview slot requires previewId.");
-			requireField("intentId", "Canvas successor preview slot requires intentId.");
-			requireTargetMatch(
-				["previewId"],
-				"Canvas successor preview slot targetId must match previewId.",
-			);
-			break;
-		case "repair-successor-preparation":
-			requireField("preparationId", "Canvas successor preparation slot requires preparationId.");
-			requireTargetMatch(
-				["preparationId"],
-				"Canvas successor preparation slot targetId must match preparationId.",
-			);
-			break;
-	}
-	return issues;
-}
-
-function canvasWorkspaceProjectionSlotDataIssues(
-	value: unknown,
-	label: string,
-): readonly WorkspaceProposalRecordedIssue[] {
-	return workspaceProposalDataOnlyIssues(value, label).map((issue) => ({
-		...issue,
-		code:
-			issue.code === "forbidden-runtime-material"
-				? "forbidden-canvas-projection-slot-runtime-material"
-				: issue.code,
-	}));
-}
-
-function canvasWorkspaceProjectionSlotStructuralDataIssues(
-	value: unknown,
-	label: string,
-): readonly WorkspaceProposalRecordedIssue[] {
-	const issues: WorkspaceProposalRecordedIssue[] = [];
-	const active = new WeakSet<object>();
-	const visit = (entry: unknown, path: string): void => {
-		if (
-			entry === null ||
-			typeof entry === "number" ||
-			typeof entry === "boolean" ||
-			typeof entry === "undefined" ||
-			typeof entry === "string"
-		) {
-			return;
-		}
-		if (typeof entry === "function" || typeof entry === "symbol" || typeof entry === "bigint") {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue("non-data-material", `${path} is not structured data`),
-			);
-			return;
-		}
-		if (typeof entry !== "object") return;
-		if (active.has(entry)) {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue("cyclic-data-material", `${path} contains a cycle`),
-			);
-			return;
-		}
-		active.add(entry);
-		if (Array.isArray(entry)) {
-			for (let index = 0; index < entry.length; index += 1) {
-				if (!Object.hasOwn(entry, index)) {
-					issues.push(
-						canvasWorkspaceProjectionSlotIssue(
-							"non-data-material",
-							`${path}[${index}] is a sparse array hole`,
-						),
-					);
-					continue;
-				}
-				visit(entry[index], `${path}[${index}]`);
-			}
-			for (const key of Reflect.ownKeys(entry)) {
-				inspectCanvasWorkspaceProjectionSlotOwnKey(entry, key, path, true, visit, issues);
-			}
-			active.delete(entry);
-			return;
-		}
-		const proto = Object.getPrototypeOf(entry);
-		if (proto !== Object.prototype && proto !== null) {
-			issues.push(
-				canvasWorkspaceProjectionSlotIssue(
-					"non-data-material",
-					`${path} must be a plain object or array`,
-				),
-			);
-			active.delete(entry);
-			return;
-		}
-		for (const key of Reflect.ownKeys(entry)) {
-			inspectCanvasWorkspaceProjectionSlotOwnKey(entry, key, path, false, visit, issues);
-		}
-		active.delete(entry);
-	};
-	visit(value, label);
-	return dedupeRepairActionIssues(issues);
-}
-
-function inspectCanvasWorkspaceProjectionSlotOwnKey(
-	entry: object,
-	key: string | symbol,
-	path: string,
-	arrayKey: boolean,
-	visit: (entry: unknown, path: string) => void,
-	issues: WorkspaceProposalRecordedIssue[],
-): void {
-	if (typeof key !== "string") {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue("non-data-material", `${path} contains a non-string key`),
-		);
-		return;
-	}
-	if (arrayKey && (key === "length" || canvasWorkspaceProjectionSlotArrayIndexKey(key))) return;
-	const childPath = `${path}.${key}`;
-	const descriptor = Object.getOwnPropertyDescriptor(entry, key);
-	if (descriptor?.get !== undefined || descriptor?.set !== undefined) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue("non-data-material", `${childPath} uses an accessor`),
-		);
-		return;
-	}
-	visit((entry as Record<string, unknown>)[key], childPath);
-}
-
-function canvasWorkspaceProjectionSlotArrayIndexKey(key: string): boolean {
-	if (key === "") return false;
-	const index = Number(key);
-	return Number.isInteger(index) && index >= 0 && String(index) === key;
-}
-
-function canvasWorkspaceProjectionSlotMetadataIssues(
-	value: unknown,
-): readonly WorkspaceProposalRecordedIssue[] {
-	const issues: WorkspaceProposalRecordedIssue[] = [];
-	if (!isRecord(value)) {
-		return [
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-metadata",
-				"Canvas projection slot metadata must be bounded object material.",
-			),
-		];
-	}
-	const dataIssues = canvasWorkspaceProjectionSlotDataIssues(
-		value,
-		"canvasProjectionSlot.metadata",
-	);
-	if (dataIssues.length > 0) return [...issues, ...dataIssues];
-	if (workspaceProposalBoundaryMetadataSize(value) > 4096) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"malformed-metadata",
-				"Canvas projection slot metadata exceeds the bounded display limit.",
-			),
-		);
-	}
-	if (projectionReleaseMetadataHasRevocationVocabulary(value)) {
-		issues.push(
-			canvasWorkspaceProjectionSlotIssue(
-				"forbidden-canvas-projection-slot-vocabulary",
-				"Canvas projection slot metadata must not carry revocation, eviction, cache, storage, or truth-mutation vocabulary.",
-			),
-		);
-	}
-	return issues;
-}
-
-function canvasWorkspaceProjectionSlotHasWildcardTarget(record: Record<string, unknown>): boolean {
-	const targetId = stringField(record.targetId)?.toLowerCase();
-	return workspaceProjectionReleaseTargetIdIsWildcard(targetId);
-}
-
-function canvasWorkspaceProjectionSlotAdvisoryTargetMatches(
-	record: Record<string, unknown>,
-	targetId: string,
-): boolean {
-	const descriptorId = stringField(record.descriptorId);
-	if (descriptorId === undefined) return false;
-	if (targetId === descriptorId) return true;
-	const repairRequestId = stringField(record.repairRequestId);
-	const actionKind = repairActionKinds.includes(
-		record.actionKind as WorkspaceProposalRepairActionKind,
-	)
-		? (record.actionKind as WorkspaceProposalRepairActionKind)
-		: undefined;
-	return (
-		repairRequestId !== undefined &&
-		actionKind !== undefined &&
-		targetId === repairActionAdvisoryKey({ descriptorId, repairRequestId, actionKind })
-	);
-}
-
 function workspaceProjectionReleaseTargetIdIsWildcard(targetId: string | undefined): boolean {
 	return (
 		targetId === "*" ||
@@ -8423,125 +7646,6 @@ function workspaceProjectionReleaseTargetIdIsWildcard(targetId: string | undefin
 		targetId === "workspace-wide" ||
 		targetId === "workspace:*"
 	);
-}
-
-function canvasWorkspaceMalformedLifecycleStatus(
-	value: unknown,
-	issues: readonly WorkspaceProposalRecordedIssue[],
-): CanvasWorkspaceProposalProjectionSlotReleaseStatus {
-	const record = isRecord(value) ? value : {};
-	return {
-		kind: "canvas-workspace-proposal-projection-slot-release-status",
-		statusId: `canvas-workspace-proposal-projection-slot-release-status:malformed-lifecycle:${stableStringify(
-			issues.map((issue) => issue.code),
-		)}`,
-		lifecycleId: safeStringField(record, "lifecycleId"),
-		releaseId: safeStringField(record, "releaseId"),
-		status: "malformed-lifecycle",
-		issues,
-		sourceRefs: [],
-		audit: safeWorkspaceProposalProjectionReleaseAudit(safeField(record, "audit")),
-	};
-}
-
-function canvasWorkspaceProjectionSlotReleaseStatus(
-	status: CanvasWorkspaceProposalProjectionSlotReleaseStatusKind,
-	lifecycle: CanvasWorkspaceProposalProjectionSlotLifecycle,
-	issues: readonly WorkspaceProposalRecordedIssue[],
-	releaseId: string | undefined,
-): CanvasWorkspaceProposalProjectionSlotReleaseStatus {
-	const slot = safeRecordField(lifecycle, "slot");
-	const slotId = safeStringField(slot, "slotId");
-	const viewId = safeStringField(slot, "viewId");
-	const rawTargetKind = safeField(slot, "targetKind");
-	const targetKind = workspaceProposalProjectionReleaseTargetKinds.includes(
-		rawTargetKind as WorkspaceProposalProjectionReleaseTargetKind,
-	)
-		? (rawTargetKind as WorkspaceProposalProjectionReleaseTargetKind)
-		: undefined;
-	return {
-		kind: "canvas-workspace-proposal-projection-slot-release-status",
-		statusId: `canvas-workspace-proposal-projection-slot-release-status:${status}:${
-			safeStringField(lifecycle, "lifecycleId") ?? slotId ?? viewId ?? "unknown"
-		}:${stableStringify(issues.map((issue) => issue.code))}`,
-		lifecycleId: safeStringField(lifecycle, "lifecycleId"),
-		slotId,
-		viewId,
-		canvasViewId: safeStringField(slot, "canvasViewId"),
-		canvasSessionId: safeStringField(slot, "canvasSessionId"),
-		targetKind,
-		targetId: safeStringField(slot, "targetId"),
-		releaseId,
-		status,
-		issues,
-		sourceRefs: canvasWorkspaceProjectionSlotSourceRefs(lifecycle),
-		audit: safeWorkspaceProposalProjectionReleaseAudit(
-			safeField(lifecycle, "audit") ?? safeField(slot, "audit"),
-		),
-	};
-}
-
-function canvasWorkspaceProjectionSlotSourceRefs(
-	lifecycle: CanvasWorkspaceProposalProjectionSlotLifecycle,
-): readonly SourceRef[] {
-	const slot = safeRecordField(lifecycle, "slot");
-	const refs: SourceRef[] = [
-		...canvasWorkspaceSourceRefArray(safeField(slot, "sourceRefs")),
-		...canvasWorkspaceSourceRefArray(safeField(lifecycle, "sourceRefs")),
-		...canvasWorkspaceAuditSourceRefs(safeField(slot, "audit")),
-		...canvasWorkspaceAuditSourceRefs(safeField(lifecycle, "audit")),
-	];
-	const slotId = safeStringField(slot, "slotId");
-	if (slotId !== undefined)
-		refs.push({ kind: "canvas-workspace-proposal-projection-slot", id: slotId });
-	const viewId = safeStringField(slot, "viewId");
-	if (viewId !== undefined)
-		refs.push({ kind: "canvas-workspace-proposal-projection-view", id: viewId });
-	const canvasViewId = safeStringField(slot, "canvasViewId");
-	if (canvasViewId !== undefined) refs.push({ kind: "canvas-view", id: canvasViewId });
-	const canvasSessionId = safeStringField(slot, "canvasSessionId");
-	if (canvasSessionId !== undefined) refs.push({ kind: "canvas-session", id: canvasSessionId });
-	return repairActionSourceRefs(refs);
-}
-
-function canvasWorkspaceSourceRefArray(value: unknown): readonly SourceRef[] {
-	return safeBoundarySourceRefs(value);
-}
-
-function canvasWorkspaceAuditSourceRefs(value: unknown): readonly SourceRef[] {
-	if (!isRecord(value)) return [];
-	return canvasWorkspaceSourceRefArray(safeField(value, "sourceRefs"));
-}
-
-function safeField(record: unknown, key: string): unknown {
-	if (!isRecord(record)) return undefined;
-	const descriptor = Object.getOwnPropertyDescriptor(record, key);
-	if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
-		return undefined;
-	}
-	return descriptor.value;
-}
-
-function safeRecordField(record: unknown, key: string): Record<string, unknown> | undefined {
-	const value = safeField(record, key);
-	return isRecord(value) ? value : undefined;
-}
-
-function safeStringField(record: unknown, key: string): string | undefined {
-	return stringField(safeField(record, key));
-}
-
-function canvasWorkspaceProjectionSlotIssue(
-	code: string,
-	message: string,
-): WorkspaceProposalRecordedIssue {
-	return {
-		kind: "issue",
-		source: "workspace-proposal",
-		severity: "error",
-		code,
-		message,
-	};
 }
 
 /**
@@ -9105,11 +8209,14 @@ function pruneRepairSuccessorPreviewRelease(
 		const entry = state.intents.get(intentId);
 		if (entry !== undefined && !projectionReleaseMatchesIntent(raw, entry.intent)) return;
 		if (entry === undefined && projectionReleaseHasWorkspaceCoordinates(raw)) return;
-		if (entry !== undefined) {
-			state.emittedPreviews.delete(repairSuccessorPreviewIdFromIntent(entry.intent));
-		}
+		const previewId =
+			entry === undefined
+				? (raw.previewId ?? raw.targetId)
+				: repairSuccessorPreviewIdFromIntent(entry.intent);
+		if (entry !== undefined) state.emittedPreviews.delete(previewId);
 		state.intents.delete(intentId);
 		state.emittedResults.delete(intentId);
+		state.releasedPreviews.delete(previewId);
 		return;
 	}
 	if (raw.targetKind !== "repair-successor-preview" || raw.intentId === undefined) return;
@@ -9126,8 +8233,12 @@ function pruneRepairSuccessorPreviewRelease(
 	if (entry !== undefined) {
 		state.emittedPreviews.delete(repairSuccessorPreviewIdFromIntent(entry.intent));
 	}
-	state.intents.delete(raw.intentId);
-	state.emittedPreviews.delete(raw.previewId ?? raw.targetId);
+	const previewId =
+		entry === undefined
+			? (raw.previewId ?? raw.targetId)
+			: repairSuccessorPreviewIdFromIntent(entry.intent);
+	state.releasedPreviews.add(previewId);
+	state.emittedPreviews.delete(previewId);
 }
 
 function pruneRepairSuccessorPreparationRelease<TDraft>(
@@ -9146,12 +8257,6 @@ function pruneRepairSuccessorPreparationRelease<TDraft>(
 	if (input === undefined && projectionReleaseHasWorkspaceCoordinates(raw)) return;
 	state.inputs.delete(preparationId);
 	state.emittedResults.delete(preparationId);
-	if (
-		input !== undefined &&
-		![...state.inputs.values()].some((candidate) => candidate.previewId === input.previewId)
-	) {
-		state.previews.delete(input.previewId);
-	}
 	const prepared = state.preparedReadyRequests.get(preparationId);
 	if (prepared !== undefined) {
 		state.preparedReadyRequests.set(preparationId, {
@@ -9318,6 +8423,7 @@ function repairActionIntentGraphState(ctx: Ctx): WorkspaceProposalRepairActionIn
 			statuses: new Map(),
 			emittedResults: new Map(),
 			emittedPreviews: new Map(),
+			releasedPreviews: new Set(),
 		}
 	);
 }
@@ -9343,6 +8449,7 @@ function ingestRepairActionIntentGraphFacts(
 	for (const raw of depBatch(ctx, 0) ?? []) {
 		const intent = raw as WorkspaceProposalRepairActionIntent;
 		const signature = repairActionIntentSignature(intent);
+		state.releasedPreviews.delete(repairSuccessorPreviewIdFromIntent(intent));
 		const existing = state.intents.get(intent.intentId);
 		if (existing === undefined) {
 			state.intents.set(intent.intentId, { intent, signature, conflict: false });

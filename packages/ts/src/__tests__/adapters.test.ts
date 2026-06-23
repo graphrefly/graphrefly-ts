@@ -12,6 +12,9 @@ import {
 	zustandStore,
 } from "../adapters/index.js";
 import {
+	createNestGraphBoundaryInterceptor,
+	createNestGraphBoundaryRunner,
+	fromNestCron,
 	fromNestError,
 	fromNestGuard,
 	fromNestIntercept,
@@ -19,8 +22,10 @@ import {
 	fromNestReq,
 	GRAPHREFLY_REQUEST_GRAPH,
 	GRAPHREFLY_ROOT_GRAPH,
-	GraphCron,
+	GraphHttpReply,
 	GraphInterval,
+	GraphLifecycle,
+	GraphReq,
 	getGraphToken,
 	getNestBoundaryToken,
 	getNodeToken,
@@ -28,12 +33,13 @@ import {
 	CRON_HANDLERS as NEST_CRON_HANDLERS,
 	EVENT_HANDLERS as NEST_EVENT_HANDLERS,
 	INTERVAL_HANDLERS as NEST_INTERVAL_HANDLERS,
-	NestBoundary,
 	type NestBoundaryEnvelope,
+	type NestReplyEnvelope,
 	nestProvider,
 	OnGraphEvent,
 	toNestHttp,
 } from "../adapters/nestjs.js";
+import { depLatest } from "../ctx/types.js";
 import { graph } from "../graph/index.js";
 
 describe("framework-neutral store adapters (B61)", () => {
@@ -255,22 +261,14 @@ describe("framework-neutral store adapters (B61)", () => {
 	it("exposes dependency-free NestJS tokens and method metadata helpers", () => {
 		class Service {
 			handle() {}
-			tick() {}
 			interval() {}
 		}
 		const eventInitializers: Array<(this: unknown) => void> = [];
-		const cronInitializers: Array<(this: unknown) => void> = [];
 
 		OnGraphEvent("orders::created")(Service.prototype.handle, {
 			name: "handle",
 			addInitializer(fn: (this: unknown) => void) {
 				eventInitializers.push(fn);
-			},
-		} as ClassMethodDecoratorContext);
-		GraphCron("* * * * *")(Service.prototype.tick, {
-			name: "tick",
-			addInitializer(fn: (this: unknown) => void) {
-				cronInitializers.push(fn);
 			},
 		} as ClassMethodDecoratorContext);
 		GraphInterval(1000)(Service.prototype, "interval", {
@@ -282,10 +280,6 @@ describe("framework-neutral store adapters (B61)", () => {
 			fn.call(service);
 			fn.call(service);
 		});
-		cronInitializers.forEach((fn) => {
-			fn.call(service);
-			fn.call(service);
-		});
 
 		expect(GRAPHREFLY_ROOT_GRAPH).toBe(Symbol.for("graphrefly:root-graph"));
 		expect(GRAPHREFLY_REQUEST_GRAPH).toBe(Symbol.for("graphrefly:request-graph"));
@@ -294,17 +288,28 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect(NEST_EVENT_HANDLERS.get(Service)).toEqual([
 			{ nodeName: "orders::created", methodKey: "handle" },
 		]);
-		expect(NEST_CRON_HANDLERS.get(Service)).toEqual([{ expr: "* * * * *", methodKey: "tick" }]);
+		expect(NEST_CRON_HANDLERS.get(Service)).toBeUndefined();
 		expect(NEST_INTERVAL_HANDLERS.get(Service)).toEqual([{ ms: 1000, methodKey: "interval" }]);
 	});
 
-	it("exposes focused NestJS boundary tokens, provider shapes, and binding metadata", () => {
+	it("records concrete D478 GraphReq and GraphHttpReply binding metadata", () => {
+		const g = graph();
+		const req = fromNestReq(g, { bindingId: "node.http.in" });
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
+			name: "reply/node",
+		});
 		class Controller {
 			post() {}
 		}
 		const initializers: Array<(this: unknown) => void> = [];
 
-		NestBoundary("request", "orders.http")(Controller.prototype.post, {
+		GraphReq(req, { bindingId: "http.orders.create.in" })(Controller.prototype.post, {
+			name: "post",
+			addInitializer(fn: (this: unknown) => void) {
+				initializers.push(fn);
+			},
+		} as ClassMethodDecoratorContext);
+		GraphHttpReply(reply, { bindingId: "http.orders.create.out" })(Controller.prototype.post, {
 			name: "post",
 			addInitializer(fn: (this: unknown) => void) {
 				initializers.push(fn);
@@ -320,8 +325,23 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect(token).toBe(Symbol.for("graphrefly:nest-boundary:orders.http"));
 		expect(nestProvider(token, "value")).toEqual({ provide: token, useValue: "value" });
 		expect(NEST_BOUNDARY_BINDINGS.get(Controller)).toEqual([
-			{ kind: "request", bindingId: "orders.http", methodKey: "post" },
+			expect.objectContaining({
+				direction: "ingress",
+				kind: "request",
+				bindingId: "http.orders.create.in",
+				methodKey: "post",
+				boundary: req,
+			}),
+			expect.objectContaining({
+				direction: "egress",
+				kind: "http",
+				bindingId: "http.orders.create.out",
+				methodKey: "post",
+				replyNode: reply,
+			}),
 		]);
+		expect(() => GraphReq(fromNestGuard(g))).toThrow(/expected a request boundary/);
+		expect(() => GraphHttpReply(reply, {} as { readonly bindingId: string })).toThrow(/bindingId/);
 	});
 
 	it("builds keyed Nest ingress envelopes with stable explicit binding ids", () => {
@@ -350,9 +370,30 @@ describe("framework-neutral store adapters (B61)", () => {
 			payload: { orderId: "o-1" },
 		});
 		expect(seen).toEqual([envelope]);
-		expect(g.describe().nodes.some((node) => node.id === "nestjs/request/orders.create")).toBe(
-			true,
-		);
+		expect(g.describe().nodes.some((node) => node.meta?.bindingId === "orders.create")).toBe(true);
+	});
+
+	it("allows lifecycle and cron ingress envelopes without fake request ids", () => {
+		const g = graph();
+		const lifecycle = fromNestLifecycle(g, {
+			bindingId: "lifecycle.app.in",
+			payload: (host: { readonly event: string }) => ({ event: host.event }),
+		});
+		const cron = fromNestCron(g, {
+			bindingId: "cron.daily.in",
+			payload: (host: { readonly tick: string }) => ({ tick: host.tick }),
+		});
+
+		expect(lifecycle.emit({ event: "module-destroy" })).toEqual({
+			bindingId: "lifecycle.app.in",
+			version: 1,
+			payload: { event: "module-destroy" },
+		});
+		expect(cron.emit({ tick: "midnight" })).toEqual({
+			bindingId: "cron.daily.in",
+			version: 1,
+			payload: { tick: "midnight" },
+		});
 	});
 
 	it("uses deterministic non-random binding ids for Nest ingress fallbacks", () => {
@@ -366,7 +407,7 @@ describe("framework-neutral store adapters (B61)", () => {
 
 	it("keeps host-private HTTP handles out of graph DATA and resolves only matching request ids", () => {
 		const g = graph();
-		const egress = g.node<NestBoundaryEnvelope<{ readonly status: number; readonly body: string }>>(
+		const egress = g.node<NestReplyEnvelope<{ readonly status: number; readonly body: string }>>(
 			[],
 			null,
 			{ name: "nestjs/http/orders.out" },
@@ -433,7 +474,7 @@ describe("framework-neutral store adapters (B61)", () => {
 
 	it("matches Nest HTTP egress by request id by default and scopes by binding id only when requested", () => {
 		const g = graph();
-		const egress = g.node<NestBoundaryEnvelope<{ readonly ok: true }>>([], null, {
+		const egress = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
 			name: "nestjs/http/default.out",
 		});
 		const http = toNestHttp(egress);
@@ -460,21 +501,251 @@ describe("framework-neutral store adapters (B61)", () => {
 		http.dispose();
 	});
 
-	it("guards Nest HTTP pending lifecycle and diagnostic retention", () => {
+	it("brackets decorator-bound attach, emit, and cleanup in the high-level runner", async () => {
 		const g = graph();
-		const egress = g.node<NestBoundaryEnvelope<{ readonly ok: boolean }>>([], null, {
+		const req = fromNestReq<
+			{ readonly requestId: string; readonly body: { readonly ok: true }; readonly fail?: boolean },
+			{ readonly ok: true }
+		>(g, {
+			bindingId: "node.orders.in",
+			requestId: (host) => host.requestId,
+			payload: (host) => {
+				if (host.fail) throw new Error("payload failed");
+				return host.body;
+			},
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>(
+			[req.node],
+			(ctx) => {
+				const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ readonly ok: true }>;
+				if (envelope.requestId === undefined) return;
+				ctx.down([
+					[
+						"DATA",
+						{
+							requestId: envelope.requestId,
+							bindingId: "http.orders.out",
+							version: 1,
+							payload: envelope.payload,
+						},
+					],
+				]);
+			},
+			{ name: "http.orders.out" },
+		);
+		class Controller {
+			post() {}
+		}
+		GraphReq(req, { bindingId: "http.orders.in" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		GraphHttpReply(reply, { bindingId: "http.orders.out" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		const runner = createNestGraphBoundaryRunner();
+
+		expect(() =>
+			runner.run(Controller, "post", { requestId: "req-1", body: { ok: true }, fail: true }),
+		).toThrow(/payload failed/);
+		await expect(
+			runner.run(Controller, "post", { requestId: "req-1", body: { ok: true } }),
+		).resolves.toEqual({ ok: true });
+		expect(() => runner.run(Controller, "post", { body: { ok: true } })).toThrow(
+			/GraphHttpReply requires/,
+		);
+		runner.dispose();
+	});
+
+	it("fails fast when GraphHttpReply is configured without a matching ingress binding", () => {
+		const g = graph();
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
+			name: "http.reply-only.out",
+		});
+		class Controller {
+			post() {}
+		}
+		GraphHttpReply(reply, { bindingId: "http.reply-only.out" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		const runner = createNestGraphBoundaryRunner();
+
+		expect(() => runner.run(Controller, "post", { requestId: "req-reply-only" })).toThrow(
+			/requires at least one ingress/,
+		);
+		runner.dispose();
+	});
+
+	it("does not emit ingress when high-level reply attach fails", () => {
+		const g = graph();
+		const req = fromNestReq<{ readonly requestId: string }, { readonly ok: true }>(g, {
+			bindingId: "node.duplicate.in",
+			payload: () => ({ ok: true }),
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
+			name: "http.duplicate.out",
+		});
+		const seen: unknown[] = [];
+		const unsubscribe = req.node.subscribe((msg) => {
+			if (msg[0] === "DATA") seen.push(msg[1]);
+		});
+		class Controller {
+			post() {}
+		}
+		GraphReq(req, { bindingId: "http.duplicate.in" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		GraphHttpReply(reply, { bindingId: "http.duplicate.out" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		const runner = createNestGraphBoundaryRunner();
+		const pending = runner.run(Controller, "post", { requestId: "req-dup" });
+		if (pending) pending.catch(() => undefined);
+
+		expect(() => runner.run(Controller, "post", { requestId: "req-dup" })).toThrow(
+			/duplicate pending/,
+		);
+		expect(seen).toHaveLength(1);
+		unsubscribe();
+		runner.dispose();
+	});
+
+	it("resolves inherited Nest boundary metadata for subclass controllers", async () => {
+		const g = graph();
+		const req = fromNestReq<{ readonly requestId: string }, { readonly ok: true }>(g, {
+			bindingId: "node.inherited.in",
+			payload: () => ({ ok: true }),
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>(
+			[req.node],
+			(ctx) => {
+				const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ readonly ok: true }>;
+				if (envelope.requestId === undefined) return;
+				ctx.down([
+					[
+						"DATA",
+						{
+							requestId: envelope.requestId,
+							bindingId: "http.inherited.out",
+							version: 1,
+							payload: envelope.payload,
+						},
+					],
+				]);
+			},
+			{ name: "http.inherited.out" },
+		);
+		class BaseController {
+			post() {}
+		}
+		class ChildController extends BaseController {}
+		GraphReq(req, { bindingId: "http.inherited.in" })(BaseController.prototype, "post", {
+			value: BaseController.prototype.post,
+		});
+		GraphHttpReply(reply, { bindingId: "http.inherited.out" })(BaseController.prototype, "post", {
+			value: BaseController.prototype.post,
+		});
+		const runner = createNestGraphBoundaryRunner();
+
+		await expect(
+			runner.run(ChildController, "post", { requestId: "req-inherited" }),
+		).resolves.toEqual({ ok: true });
+		runner.dispose();
+	});
+
+	it("derives a default request id in the high-level interceptor for plain Nest HTTP requests", async () => {
+		const g = graph();
+		const req = fromNestReq<{ readonly requestId: string }, { readonly ok: true }>(g, {
+			bindingId: "node.default-interceptor.in",
+			payload: () => ({ ok: true }),
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>(
+			[req.node],
+			(ctx) => {
+				const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ readonly ok: true }>;
+				if (envelope.requestId === undefined) return;
+				ctx.down([
+					[
+						"DATA",
+						{
+							requestId: envelope.requestId,
+							bindingId: "http.default-interceptor.out",
+							version: 1,
+							payload: envelope.payload,
+						},
+					],
+				]);
+			},
+			{ name: "http.default-interceptor.out" },
+		);
+		class Controller {
+			post() {}
+		}
+		GraphReq(req, { bindingId: "http.default-interceptor.in" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		GraphHttpReply(reply, { bindingId: "http.default-interceptor.out" })(
+			Controller.prototype,
+			"post",
+			{ value: Controller.prototype.post },
+		);
+		const interceptor = createNestGraphBoundaryInterceptor();
+		const context = {
+			getClass: () => Controller,
+			getHandler: () => Controller.prototype.post,
+			switchToHttp: () => ({
+				getRequest: () => ({ headers: { "x-request-id": "header-req" } }),
+			}),
+		};
+
+		await expect(interceptor.intercept(context)).resolves.toEqual({ ok: true });
+		interceptor.dispose();
+	});
+
+	it("does not synthesize requestId for lifecycle-only interceptor bindings", () => {
+		const g = graph();
+		const lifecycle = fromNestLifecycle<unknown, { readonly event: string }>(g, {
+			bindingId: "node.lifecycle.only",
+			payload: () => ({ event: "teardown" }),
+		});
+		const seen: NestBoundaryEnvelope<{ readonly event: string }>[] = [];
+		const unsubscribe = lifecycle.node.subscribe((msg) => {
+			if (msg[0] === "DATA") seen.push(msg[1] as NestBoundaryEnvelope<{ readonly event: string }>);
+		});
+		class Controller {
+			teardown() {}
+		}
+		GraphLifecycle(lifecycle, { bindingId: "lifecycle.only" })(Controller.prototype, "teardown", {
+			value: Controller.prototype.teardown,
+		});
+		const interceptor = createNestGraphBoundaryInterceptor();
+		const context = {
+			getClass: () => Controller,
+			getHandler: () => Controller.prototype.teardown,
+			switchToHttp: () => ({
+				getRequest: () => ({ headers: {} }),
+			}),
+		};
+
+		expect(interceptor.intercept(context, { handle: () => "next" })).toBe("next");
+		expect(seen).toEqual([
+			{
+				bindingId: "lifecycle.only",
+				version: 1,
+				payload: { event: "teardown" },
+			},
+		]);
+		unsubscribe();
+		interceptor.dispose();
+	});
+
+	it("guards Nest HTTP pending lifecycle and low-level diagnostic retention", () => {
+		const g = graph();
+		const egress = g.node<NestReplyEnvelope<{ readonly ok: boolean }>>([], null, {
 			name: "nestjs/http/guarded.out",
 		});
-		const onDiagnostic = vi
-			.fn()
-			.mockImplementationOnce(() => {
-				throw new Error("diagnostic handler failed");
-			})
-			.mockImplementation(() => undefined);
 		const http = toNestHttp(egress, {
 			bindingId: "orders.http",
 			maxDiagnostics: 2,
-			onDiagnostic,
 		});
 		const handle = { resolve: vi.fn(), reject: vi.fn() };
 
@@ -496,7 +767,6 @@ describe("framework-neutral store adapters (B61)", () => {
 			],
 		]);
 
-		expect(onDiagnostic).toHaveBeenCalledTimes(3);
 		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual([
 			"stale-egress",
 			"stale-egress",
@@ -510,7 +780,7 @@ describe("framework-neutral store adapters (B61)", () => {
 
 	it("rejects pending Nest HTTP handles on terminal egress and dispose", () => {
 		const g = graph();
-		const egress = g.node<NestBoundaryEnvelope<{ readonly ok: boolean }>>([], null, {
+		const egress = g.node<NestReplyEnvelope<{ readonly ok: boolean }>>([], null, {
 			name: "nestjs/http/terminal.out",
 		});
 		const http = toNestHttp(egress, { bindingId: "orders.http" });
@@ -563,14 +833,13 @@ describe("framework-neutral store adapters (B61)", () => {
 			req.emit({ requestId: "req-1" }, { payload: { text: "this is too large" } }),
 		).toThrow(/exceeds/);
 		expect(() => req.emit({ requestId: "req-1" }, { payload: Number.NaN })).toThrow(/finite/);
-		expect(() => fromNestReq(g, { bindingId: "bad.version", version: 0 })).toThrow(
-			/positive safe integer/,
-		);
+		expect(() => fromNestReq(g, { bindingId: "bad.version", version: 0 })).toThrow(/must be 1/);
+		expect(() => fromNestReq(g, { bindingId: "future.version", version: 2 })).toThrow(/must be 1/);
 		expect(() => req.emit({ requestId: "req-1" }, { version: Number.NaN, payload: null })).toThrow(
-			/positive safe integer/,
+			/must be 1/,
 		);
 
-		const egress = g.node<NestBoundaryEnvelope<unknown>>([], null, {
+		const egress = g.node<NestReplyEnvelope<unknown>>([], null, {
 			name: "nestjs/http/strict.out",
 		});
 		const http = toNestHttp(egress, { bindingId: "orders.strict", maxPayloadBytes: 24 });
@@ -578,6 +847,7 @@ describe("framework-neutral store adapters (B61)", () => {
 
 		http.attach({ requestId: "req-1", handle });
 		egress.down([
+			["DATA", { bindingId: "orders.strict", version: 1, payload: { ok: true } }],
 			["DATA", { requestId: "req-1", bindingId: "orders.strict", version: 1, payload: undefined }],
 			[
 				"DATA",
@@ -588,11 +858,22 @@ describe("framework-neutral store adapters (B61)", () => {
 					payload: { socket: () => undefined },
 				},
 			],
+			[
+				"DATA",
+				{
+					requestId: "req-1",
+					bindingId: "orders.strict",
+					version: 2,
+					payload: { ok: true },
+				},
+			],
 		]);
 
 		expect(handle.resolve).not.toHaveBeenCalled();
 		expect(http.pendingCount()).toBe(1);
 		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual([
+			"malformed-egress",
+			"malformed-egress",
 			"malformed-egress",
 			"malformed-egress",
 		]);

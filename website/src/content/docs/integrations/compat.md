@@ -7,7 +7,7 @@ The old `@graphrefly/graphrefly/compat/*` runtime model is retired. Clean-slate 
 
 ## Current replacements
 
-- **NestJS**: `@graphrefly/ts/adapters/nestjs` keyed ingress/egress boundary nodes.
+- **NestJS**: `@graphrefly/ts/adapters/nestjs` keyed ingress/egress boundary nodes plus D478 decorators/providers over existing graph nodes.
 - **React/Vue/Solid/Svelte**: focused framework adapter subpaths.
 - **Jotai/Nanostores/Zustand-style facades**: small store facades from `@graphrefly/ts/adapters`.
 
