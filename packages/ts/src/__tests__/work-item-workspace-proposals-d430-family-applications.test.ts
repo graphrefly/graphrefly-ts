@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import {
+	type CanvasWorkspaceProposalProjectionSlot,
+	type CanvasWorkspaceProposalProjectionSlotLifecycle,
+	type CanvasWorkspaceProposalProjectionSlotReleaseStatus,
+	canvasWorkspaceProposalProjectionSlotReleaseProjector,
 	decideWorkspaceProposalAdmission,
+	isCanvasWorkspaceProposalProjectionSlotMaterial,
 	isWorkspaceProposalProjectionReleaseMaterial,
 	prepareWorkspaceProposalRepairReviewDecisionRecordingInput,
 	prepareWorkspaceProposalRepairSuccessorProposalReadyRequest,
@@ -30,6 +35,8 @@ import {
 	recordWorkspaceProposalRequiredInputResponseOutcome,
 	recordWorkspaceProposalWorkItemLinkOutcome,
 	recordWorkspaceProposalWorkItemSpawnOutcome,
+	releaseWorkspaceProposalProjectionFromCanvasSlot,
+	validateCanvasWorkspaceProposalProjectionSlotLifecycle,
 	validateWorkspaceProposalApplicationEnvelope,
 	validateWorkspaceProposalProjectionReleaseMaterial,
 	validateWorkspaceProposalRepairActionDisplayPolicyAdvisory,
@@ -4647,6 +4654,23 @@ describe("Workspace proposal family application helpers (D430)", () => {
 				targetId: release.queryId,
 			}),
 		).toBe(true);
+		expect(isWorkspaceProposalProjectionReleaseMaterial({ ...release, targetId: "*" })).toBe(false);
+		expect(
+			isWorkspaceProposalProjectionReleaseMaterial({
+				...release,
+				targetKind: "repair-action-advisory",
+				targetId: "open-successor-proposal-flow",
+				actionKind: "open-successor-proposal-flow",
+			}),
+		).toBe(false);
+		expect(
+			isWorkspaceProposalProjectionReleaseMaterial({
+				...release,
+				targetKind: "repair-action-advisory",
+				targetId: "repair-request:d472",
+				repairRequestId: "repair-request:d472",
+			}),
+		).toBe(false);
 		for (const mismatched of [
 			{ ...release, targetId: "other-view" },
 			{
@@ -4692,6 +4716,510 @@ describe("Workspace proposal family application helpers (D430)", () => {
 				targetId: "preview:d472",
 			}),
 		).toBe(false);
+	});
+
+	it("lowers D476 Canvas projection slots into concrete Workspace release facts", () => {
+		const slots = [
+			canvasProjectionSlot({
+				slotId: "slot:d476-readmodel",
+				viewId: "view:d476-readmodel",
+				targetKind: "family-read-model-query",
+				targetId: "view:d476-readmodel",
+				queryId: "query:d476",
+			}),
+			canvasProjectionSlot({
+				slotId: "slot:d476-detail",
+				viewId: "view:d476-detail",
+				targetKind: "outcome-detail-supply-request",
+				targetId: "view:d476-detail",
+				supplyRequestId: "supply:d476",
+			}),
+			canvasProjectionSlot({
+				slotId: "slot:d476-advisory",
+				viewId: "view:d476-advisory",
+				targetKind: "repair-action-advisory",
+				targetId: "descriptor:d476",
+				descriptorId: "descriptor:d476",
+				repairRequestId: "repair-request:d476",
+				actionKind: "open-successor-proposal-flow",
+			}),
+			canvasProjectionSlot({
+				slotId: "slot:d476-intent",
+				viewId: "view:d476-intent",
+				targetKind: "repair-action-intent",
+				targetId: "intent:d476",
+				intentId: "intent:d476",
+			}),
+			canvasProjectionSlot({
+				slotId: "slot:d476-preview",
+				viewId: "view:d476-preview",
+				targetKind: "repair-successor-preview",
+				targetId: "preview:d476",
+				intentId: "intent:d476",
+				previewId: "preview:d476",
+			}),
+			canvasProjectionSlot({
+				slotId: "slot:d476-preparation",
+				viewId: "view:d476-preparation",
+				targetKind: "repair-successor-preparation",
+				targetId: "preparation:d476",
+				preparationId: "preparation:d476",
+			}),
+		] as const;
+
+		for (const slot of slots) {
+			expect(isCanvasWorkspaceProposalProjectionSlotMaterial(slot)).toBe(true);
+			const lifecycle = canvasProjectionSlotLifecycle(slot, `lifecycle:${slot.slotId}`);
+			expect(validateCanvasWorkspaceProposalProjectionSlotLifecycle(lifecycle)).toMatchObject({
+				status: "emitted",
+				slotId: slot.slotId,
+				viewId: slot.viewId,
+				canvasViewId: "canvas-view:d476",
+				targetKind: slot.targetKind,
+				targetId: slot.targetId,
+			});
+			const result = releaseWorkspaceProposalProjectionFromCanvasSlot(lifecycle);
+			expect(result).toMatchObject({
+				kind: "canvas-workspace-proposal-projection-slot-release-result",
+				status: {
+					status: "emitted",
+					slotId: slot.slotId,
+					viewId: slot.viewId,
+					targetKind: slot.targetKind,
+					targetId: slot.targetId,
+				},
+				release: {
+					kind: "workspace-proposal-projection-release",
+					releaseId: `canvas-workspace-proposal-projection-release:lifecycle:${slot.slotId}`,
+					targetKind: slot.targetKind,
+					targetId: slot.targetId,
+					viewId: slot.viewId,
+				},
+			});
+			expect(validateWorkspaceProposalProjectionReleaseMaterial(result.release)).toMatchObject({
+				status: "accepted",
+				issues: [],
+			});
+			expect(result.release?.sourceRefs).toEqual(
+				expect.arrayContaining([
+					{ kind: "canvas-workspace-proposal-projection-slot", id: slot.slotId },
+					{ kind: "canvas-workspace-proposal-projection-view", id: slot.viewId },
+					{ kind: "canvas-view", id: "canvas-view:d476" },
+					{ kind: "canvas-session", id: "canvas-session:d476" },
+				]),
+			);
+			expect(JSON.stringify(result)).not.toMatch(
+				/\b(pruned|missed|not-retained|not retained|deleted|evicted|storageOwner|runtimeHandle)\b/i,
+			);
+		}
+	});
+
+	it("reports D476 Canvas-side skipped status without wildcard or actionKind-only release", () => {
+		const g = graph();
+		const lifecycles = g.node<unknown>([], null, { name: "d476CanvasLifecycles" });
+		const bundle = canvasWorkspaceProposalProjectionSlotReleaseProjector(g, { lifecycles });
+		const releases = collectData<WorkspaceProposalProjectionRelease>(bundle.releases);
+		const statuses = collectData<CanvasWorkspaceProposalProjectionSlotReleaseStatus>(
+			bundle.statuses,
+		);
+
+		const valid = canvasProjectionSlotLifecycle(
+			canvasProjectionSlot({
+				slotId: "slot:d476-projector-valid",
+				viewId: "view:d476-projector-valid",
+				targetKind: "repair-successor-preview",
+				targetId: "preview:d476-projector",
+				intentId: "intent:d476-projector",
+				previewId: "preview:d476-projector",
+			}),
+			"lifecycle:d476-projector-valid",
+		);
+		const actionKindOnly = canvasProjectionSlotLifecycle(
+			canvasProjectionSlot({
+				slotId: "slot:d476-action-kind-only",
+				viewId: "view:d476-action-kind-only",
+				targetKind: "repair-action-advisory",
+				targetId: "open-successor-proposal-flow",
+				actionKind: "open-successor-proposal-flow",
+			}),
+			"lifecycle:d476-action-kind-only",
+		);
+		const wildcard = canvasProjectionSlotLifecycle(
+			canvasProjectionSlot({
+				slotId: "slot:d476-wildcard",
+				viewId: "view:d476-wildcard",
+				targetKind: "family-read-model-query",
+				targetId: "*",
+			}),
+			"lifecycle:d476-wildcard",
+		);
+		const unsupported = canvasProjectionSlotLifecycle(
+			{
+				...canvasProjectionSlot({
+					slotId: "slot:d476-unsupported",
+					viewId: "view:d476-unsupported",
+					targetKind: "family-read-model-query",
+					targetId: "view:d476-unsupported",
+				}),
+				targetKind: "workspace-wide" as never,
+			},
+			"lifecycle:d476-unsupported",
+		);
+		const cyclicMetadata: Record<string, unknown> = {};
+		cyclicMetadata.self = cyclicMetadata;
+		const cyclicSlotMetadata = canvasProjectionSlotLifecycle(
+			{
+				...canvasProjectionSlot({
+					slotId: "slot:d476-cyclic",
+					viewId: "view:d476-cyclic",
+					targetKind: "family-read-model-query",
+					targetId: "view:d476-cyclic",
+				}),
+				metadata: cyclicMetadata,
+			},
+			"lifecycle:d476-cyclic",
+		);
+		const malformedRefs = {
+			...valid,
+			lifecycleId: "lifecycle:d476-malformed-refs",
+			sourceRefs: 42,
+			slot: {
+				...valid.slot,
+				slotId: "slot:d476-malformed-refs",
+				sourceRefs: 42,
+				audit: { auditId: "audit:d476-malformed-refs", sourceRefs: {} },
+			},
+		};
+		const unsafeAudit = {
+			...valid,
+			lifecycleId: "lifecycle:d476-unsafe-audit",
+			audit: {
+				auditId: "audit:d476-unsafe-audit",
+				sourceRefs: [sourceRef],
+				metadata: { storageOwner: "hidden-cache-owner" },
+			},
+		};
+		const unsafeRefs = canvasProjectionSlotLifecycle(
+			{
+				...canvasProjectionSlot({
+					slotId: "slot:d476-unsafe-refs",
+					viewId: "view:d476-unsafe-refs",
+					targetKind: "family-read-model-query",
+					targetId: "view:d476-unsafe-refs",
+					sourceRefs: [
+						{ kind: "runtime", id: "runtime-handle-secret" },
+						{ kind: "canvas-safe-source", id: "safe:d476" },
+					],
+				}),
+			},
+			"lifecycle:d476-unsafe-refs",
+		);
+		const accessorSlot = Object.create(null, {
+			kind: {
+				enumerable: true,
+				get() {
+					throw new Error("D476 accessor should not be read");
+				},
+			},
+			slotId: { enumerable: true, value: "slot:d476-accessor" },
+			viewId: { enumerable: true, value: "view:d476-accessor" },
+			targetKind: { enumerable: true, value: "family-read-model-query" },
+			targetId: { enumerable: true, value: "view:d476-accessor" },
+			sourceRefs: {
+				enumerable: true,
+				value: [{ kind: "canvas-workspace-projection-slot-source", id: "slot:d476-accessor" }],
+			},
+			canvasViewId: { enumerable: true, value: "canvas-view:d476" },
+		});
+		const accessorLifecycle = {
+			kind: "canvas-workspace-proposal-projection-slot-lifecycle",
+			lifecycleId: "lifecycle:d476-accessor",
+			transition: "release-current-view-slot",
+			slot: accessorSlot,
+		};
+
+		expect(() =>
+			lifecycles.down([
+				["DATA", valid],
+				["DATA", actionKindOnly],
+				["DATA", wildcard],
+				["DATA", unsupported],
+				["DATA", cyclicSlotMetadata],
+				["DATA", malformedRefs],
+				["DATA", unsafeAudit],
+				["DATA", unsafeRefs],
+				["DATA", accessorLifecycle],
+				["DATA", { kind: "canvas-workspace-proposal-projection-slot-lifecycle" }],
+			]),
+		).not.toThrow();
+
+		expect(releases).toHaveLength(1);
+		expect(releases[0]).toMatchObject({
+			targetKind: "repair-successor-preview",
+			targetId: "preview:d476-projector",
+			intentId: "intent:d476-projector",
+		});
+		expect(statuses.map((entry) => entry.status)).toEqual([
+			"emitted",
+			"skipped-invalid-slot",
+			"skipped-invalid-slot",
+			"skipped-unsupported-target",
+			"malformed-lifecycle",
+			"malformed-lifecycle",
+			"malformed-lifecycle",
+			"skipped-invalid-slot",
+			"malformed-lifecycle",
+			"malformed-lifecycle",
+		]);
+		expect(statuses[1]?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ message: expect.stringContaining("descriptorId") }),
+			]),
+		);
+		expect(statuses[2]?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					message: expect.stringContaining("must be concrete"),
+				}),
+			]),
+		);
+		expect(statuses[4]?.issues).toEqual(
+			expect.arrayContaining([expect.objectContaining({ code: "cyclic-data-material" })]),
+		);
+		expect(statuses[5]?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					message: expect.stringContaining("sourceRefs must be boundary-safe"),
+				}),
+			]),
+		);
+		expect(statuses[6]?.audit?.metadata).toBeUndefined();
+		expect(statuses[7]?.sourceRefs).toEqual(
+			expect.arrayContaining([{ kind: "canvas-safe-source", id: "safe:d476" }]),
+		);
+		expect(statuses[7]?.sourceRefs).not.toEqual(
+			expect.arrayContaining([{ kind: "runtime", id: "runtime-handle-secret" }]),
+		);
+		expect(statuses[8]?.issues).toEqual(
+			expect.arrayContaining([expect.objectContaining({ code: "non-data-material" })]),
+		);
+		expect(JSON.stringify(statuses)).not.toMatch(
+			/\b(pruned|missed|not-retained|not retained|deleted|evicted|storageOwner|hidden-cache-owner|runtime-handle-secret)\b/i,
+		);
+	});
+
+	it("drives D476 repair release choreography without revoking ready requests", () => {
+		const fixture = repairReviewFixture();
+		const status = projectWorkspaceProposalRepairReviewStatuses({ requests: [fixture.request] })[0];
+		if (status === undefined) throw new Error("expected D476 repair status");
+		const descriptor = projectWorkspaceProposalRepairActionDescriptors({
+			requests: [fixture.request],
+			statuses: [status],
+		}).find((entry) => entry.actionKind === "open-successor-proposal-flow");
+		if (descriptor === undefined) throw new Error("expected D476 descriptor");
+		const intent = repairActionIntent(fixture.request, descriptor, {
+			actionKind: "open-successor-proposal-flow",
+		});
+		const intentValidation = validateWorkspaceProposalRepairActionIntent(intent, {
+			descriptor,
+			request: fixture.request,
+			currentStatus: status,
+			capabilityRefs: intent.capabilityRefs,
+			policyRefs: intent.policyRefs,
+			policyStatus: "allowed",
+		});
+		const g = graph();
+		const requests = g.node<WorkspaceProposalRepairReviewRequest>([], null, {
+			name: "d476RepairRequests",
+		});
+		const statuses = g.node<typeof status>([], null, { name: "d476RepairStatuses" });
+		const descriptors = g.node<WorkspaceProposalRepairActionDescriptor>([], null, {
+			name: "d476RepairDescriptors",
+		});
+		const intents = g.node<WorkspaceProposalRepairActionIntent>([], null, {
+			name: "d476RepairIntents",
+		});
+		const lifecycles = g.node<CanvasWorkspaceProposalProjectionSlotLifecycle>([], null, {
+			name: "d476CanvasRepairLifecycles",
+		});
+		const preparationInputs = g.node<
+			WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<{
+				readonly title: string;
+			}>
+		>([], null, { name: "d476PreparationInputs" });
+		const canvasReleases = canvasWorkspaceProposalProjectionSlotReleaseProjector(g, {
+			lifecycles,
+		});
+		const intentProjector = workspaceProposalRepairActionIntentProjector(g, {
+			intents,
+			descriptors,
+			requests,
+			statuses,
+			releases: canvasReleases.releases,
+			capabilityRefs: intent.capabilityRefs,
+			policyRefs: intent.policyRefs,
+			policyStatus: "allowed",
+		});
+		const previewProjector = workspaceProposalRepairSuccessorProposalIntakePreviewProjector(g, {
+			intents,
+			descriptors,
+			requests,
+			statuses,
+			releases: canvasReleases.releases,
+			capabilityRefs: intent.capabilityRefs,
+			policyRefs: intent.policyRefs,
+			policyStatus: "allowed",
+		});
+		const preparationProjector =
+			workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector(g, {
+				previews: previewProjector.previews,
+				preparationInputs,
+				releases: canvasReleases.releases,
+			});
+		const releaseFacts = collectData<WorkspaceProposalProjectionRelease>(canvasReleases.releases);
+		const releaseStatuses = collectData<CanvasWorkspaceProposalProjectionSlotReleaseStatus>(
+			canvasReleases.statuses,
+		);
+		const validations = collectData<WorkspaceProposalRepairActionIntentValidationResult>(
+			intentProjector.results,
+		);
+		const previews = collectData<WorkspaceProposalRepairSuccessorProposalIntakePreview>(
+			previewProjector.previews,
+		);
+		const preparations = collectData<
+			WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationResult<{
+				readonly title: string;
+			}>
+		>(preparationProjector.results);
+		const readyRequests = collectData<WorkspaceProposalReadyRequest>(
+			preparationProjector.readyRequests,
+		);
+
+		requests.down([["DATA", fixture.request]]);
+		statuses.down([["DATA", status]]);
+		descriptors.down([["DATA", descriptor]]);
+		intents.down([["DATA", intent]]);
+		expect(validations).toHaveLength(1);
+		expect(previews).toHaveLength(1);
+		const preview = previews[0];
+		if (preview === undefined) throw new Error("expected D476 preview");
+		const input: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<{
+			readonly title: string;
+		}> = {
+			kind: "workspace-proposal-repair-successor-proposal-ready-request-preparation-input",
+			preparationId: "successor-preparation:d476",
+			previewId: preview.previewId,
+			intent,
+			intentValidation,
+			descriptor,
+			request: fixture.request,
+			currentStatus: status,
+			successorProposalId: "successor-proposal:d476",
+			intakeRequestId: "successor-intake:d476",
+			successorIdempotencyKey: "successor-idempotency:d476",
+			workspaceId: "workspace:d476",
+			actorRef,
+			capabilityRefs: [capabilityRef],
+			policyRefs: [policyRef],
+			projectionBundleRefs: [projectionRef],
+			sourceRefs: [sourceRef],
+			audit: { auditId: "audit:d476", sourceRefs: [sourceRef] },
+			targetRefs: [{ kind: "work-item", id: "target:d476" }],
+			successorProposalFamily: fixture.request.proposalFamily,
+			successorLoweringKind: "work-item-spawn",
+			draft: { title: "prepared request bulk d476" },
+			finalDraftSourceRefs: [{ kind: "workspace-final-draft", id: "draft:d476" }],
+		};
+		preparationInputs.down([["DATA", input]]);
+		expect(preparations).toHaveLength(1);
+		expect(preparations[0]).toMatchObject({ status: "prepared" });
+		expect(readyRequests).toHaveLength(1);
+
+		lifecycles.down([
+			[
+				"DATA",
+				canvasProjectionSlotLifecycle(
+					canvasProjectionSlot({
+						slotId: "slot:d476-preparation",
+						viewId: "view:d476-preparation",
+						targetKind: "repair-successor-preparation",
+						targetId: input.preparationId,
+						preparationId: input.preparationId,
+					}),
+					"lifecycle:d476-preparation",
+				),
+			],
+			[
+				"DATA",
+				canvasProjectionSlotLifecycle(
+					canvasProjectionSlot({
+						slotId: "slot:d476-preview",
+						viewId: "view:d476-preview",
+						targetKind: "repair-successor-preview",
+						targetId: preview.previewId,
+						intentId: intent.intentId,
+						previewId: preview.previewId,
+					}),
+					"lifecycle:d476-preview",
+				),
+			],
+			[
+				"DATA",
+				canvasProjectionSlotLifecycle(
+					canvasProjectionSlot({
+						slotId: "slot:d476-intent",
+						viewId: "view:d476-intent",
+						targetKind: "repair-action-intent",
+						targetId: intent.intentId,
+						intentId: intent.intentId,
+					}),
+					"lifecycle:d476-intent",
+				),
+			],
+		]);
+		expect(releaseFacts.map((entry) => entry.targetKind)).toEqual([
+			"repair-successor-preparation",
+			"repair-successor-preview",
+			"repair-action-intent",
+		]);
+		expect(releaseStatuses.map((entry) => entry.status)).toEqual(["emitted", "emitted", "emitted"]);
+		expect(readyRequests).toHaveLength(1);
+
+		requests.down([["DATA", structuredClone(fixture.request)]]);
+		statuses.down([["DATA", structuredClone(status)]]);
+		descriptors.down([["DATA", structuredClone(descriptor)]]);
+		expect(previews).toHaveLength(1);
+		expect(validations).toHaveLength(1);
+
+		intents.down([["DATA", structuredClone(intent)]]);
+		expect(validations).toHaveLength(2);
+		expect(previews).toHaveLength(2);
+		preparationInputs.down([["DATA", structuredClone(input)]]);
+		expect(preparations).toHaveLength(2);
+		expect(preparations.at(-1)).toMatchObject({ status: "prepared", issues: [] });
+		expect(preparations.at(-1)).not.toHaveProperty("readyRequest");
+		expect(readyRequests).toHaveLength(1);
+
+		preparationInputs.down([
+			[
+				"DATA",
+				{
+					...input,
+					successorProposalId: "successor-proposal:d476-different",
+					draft: { title: "different after release" },
+				},
+			],
+		]);
+		expect(preparations.at(-1)).toMatchObject({
+			status: "blocked",
+			issues: expect.arrayContaining([
+				expect.objectContaining({ code: "repair-successor-preparation-already-prepared" }),
+			]),
+		});
+		expect(readyRequests).toHaveLength(1);
+		expect(JSON.stringify({ releaseStatuses, preparations })).not.toMatch(
+			/\b(pruned|missed|not-retained|not retained|revoked|deleted|evicted)\b/i,
+		);
 	});
 
 	it("projects D473 release diagnostics separately from release-consuming projectors", () => {
@@ -4785,12 +5313,37 @@ describe("Workspace proposal family application helpers (D430)", () => {
 				"DATA",
 				{
 					...release,
+					releaseId: "projection-release:d473-unsafe-audit",
+					audit: {
+						auditId: "audit:d473-unsafe",
+						sourceRefs: [{ kind: "workspace-projection-release", id: "audit-source:d473" }],
+						metadata: { storageOwner: "hidden-cache-owner" },
+					},
+				},
+			],
+		]);
+		expect(diagnostics).toHaveLength(2);
+		expect(diagnostics[1]).toMatchObject({
+			releaseId: "projection-release:d473-unsafe-audit",
+			status: "blocked",
+			issues: expect.arrayContaining([
+				expect.objectContaining({ code: "forbidden-projection-release-vocabulary" }),
+			]),
+		});
+		expect(diagnostics[1]?.audit?.metadata).toBeUndefined();
+		expect(JSON.stringify(diagnostics)).not.toContain("hidden-cache-owner");
+
+		releases.down([
+			[
+				"DATA",
+				{
+					...release,
 					releaseId: "projection-release:d473-blocked",
 					storageOwner: "runtime-private-secret",
 				},
 			],
 		]);
-		expect(diagnostics).toHaveLength(2);
+		expect(diagnostics).toHaveLength(3);
 	});
 
 	it("diagnoses malformed D473 releases for every closed D472 target kind", () => {
@@ -5981,6 +6534,43 @@ function projectionRelease(
 		targetId,
 		sourceRefs: [{ kind: "workspace-projection-release", id: releaseId }],
 		...options,
+	};
+}
+
+function canvasProjectionSlot(
+	options: Omit<
+		CanvasWorkspaceProposalProjectionSlot,
+		"kind" | "sourceRefs" | "canvasViewId" | "canvasSessionId"
+	> &
+		Partial<
+			Pick<CanvasWorkspaceProposalProjectionSlot, "canvasViewId" | "canvasSessionId" | "sourceRefs">
+		>,
+): CanvasWorkspaceProposalProjectionSlot {
+	return {
+		kind: "canvas-workspace-proposal-projection-slot",
+		canvasViewId: "canvas-view:d476",
+		canvasSessionId: "canvas-session:d476",
+		sourceRefs: [{ kind: "canvas-workspace-projection-slot-source", id: options.slotId }],
+		...options,
+	};
+}
+
+function canvasProjectionSlotLifecycle(
+	slot: CanvasWorkspaceProposalProjectionSlot,
+	lifecycleId: string,
+): CanvasWorkspaceProposalProjectionSlotLifecycle {
+	return {
+		kind: "canvas-workspace-proposal-projection-slot-lifecycle",
+		lifecycleId,
+		transition: "release-current-view-slot",
+		slot,
+		sourceRefs: [{ kind: "canvas-workspace-projection-lifecycle", id: lifecycleId }],
+		audit: {
+			auditId: `audit:${lifecycleId}`,
+			actorId: "actor:d476",
+			sourceRefs: [{ kind: "canvas-workspace-projection-lifecycle", id: `audit:${lifecycleId}` }],
+		},
+		metadata: { reason: "slot left current view" },
 	};
 }
 

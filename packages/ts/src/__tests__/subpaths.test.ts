@@ -115,6 +115,10 @@ import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-n
 import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
 import * as workItemActions from "../solutions/work-item/actions.js";
 import type {
+	CanvasWorkspaceProposalProjectionSlot,
+	CanvasWorkspaceProposalProjectionSlotLifecycle,
+	CanvasWorkspaceProposalProjectionSlotReleaseResult,
+	CanvasWorkspaceProposalProjectionSlotReleaseStatus,
 	WorkspaceProposalFamilyApplicationReadModelQuery,
 	WorkspaceProposalProjectionRelease,
 	WorkspaceProposalProjectionReleaseDiagnostic,
@@ -447,6 +451,18 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			typeof workItemScheduling.workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector,
 		).toBe("function");
+		expect(typeof workItemScheduling.isCanvasWorkspaceProposalProjectionSlotMaterial).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.validateCanvasWorkspaceProposalProjectionSlotLifecycle).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.releaseWorkspaceProposalProjectionFromCanvasSlot).toBe(
+			"function",
+		);
+		expect(typeof workItemScheduling.canvasWorkspaceProposalProjectionSlotReleaseProjector).toBe(
+			"function",
+		);
 		expect(typeof workItemScheduling.isWorkspaceProposalProjectionReleaseMaterial).toBe("function");
 		expect(typeof workItemScheduling.validateWorkspaceProposalProjectionReleaseMaterial).toBe(
 			"function",
@@ -470,6 +486,23 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<WorkspaceProposalProjectionReleaseDiagnostic>()
 			.toHaveProperty("status")
 			.toEqualTypeOf<"blocked">();
+		expectTypeOf<CanvasWorkspaceProposalProjectionSlot>()
+			.toHaveProperty("viewId")
+			.toEqualTypeOf<string>();
+		expectTypeOf<CanvasWorkspaceProposalProjectionSlot>()
+			.toHaveProperty("canvasViewId")
+			.toEqualTypeOf<string | undefined>();
+		expectTypeOf<CanvasWorkspaceProposalProjectionSlotLifecycle>()
+			.toHaveProperty("transition")
+			.toEqualTypeOf<"release-current-view-slot">();
+		expectTypeOf<CanvasWorkspaceProposalProjectionSlotReleaseStatus>()
+			.toHaveProperty("status")
+			.toEqualTypeOf<
+				"emitted" | "skipped-invalid-slot" | "skipped-unsupported-target" | "malformed-lifecycle"
+			>();
+		expectTypeOf<CanvasWorkspaceProposalProjectionSlotReleaseResult>()
+			.toHaveProperty("release")
+			.toEqualTypeOf<WorkspaceProposalProjectionRelease | undefined>();
 		expectTypeOf<WorkspaceProposalRepairActionDescriptor>()
 			.toHaveProperty("actionKind")
 			.toEqualTypeOf<
@@ -546,6 +579,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 				"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",
 			),
 		).toBe(false);
+		expect(Object.hasOwn(solutions, "isCanvasWorkspaceProposalProjectionSlotMaterial")).toBe(false);
+		expect(Object.hasOwn(solutions, "validateCanvasWorkspaceProposalProjectionSlotLifecycle")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(solutions, "releaseWorkspaceProposalProjectionFromCanvasSlot")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(solutions, "canvasWorkspaceProposalProjectionSlotReleaseProjector")).toBe(
+			false,
+		);
 		expect(Object.hasOwn(solutions, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(false);
 		expect(Object.hasOwn(solutions, "validateWorkspaceProposalProjectionReleaseMaterial")).toBe(
 			false,
@@ -590,6 +633,18 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 				"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",
 			),
 		).toBe(false);
+		expect(Object.hasOwn(rootPackage, "isCanvasWorkspaceProposalProjectionSlotMaterial")).toBe(
+			false,
+		);
+		expect(
+			Object.hasOwn(rootPackage, "validateCanvasWorkspaceProposalProjectionSlotLifecycle"),
+		).toBe(false);
+		expect(Object.hasOwn(rootPackage, "releaseWorkspaceProposalProjectionFromCanvasSlot")).toBe(
+			false,
+		);
+		expect(
+			Object.hasOwn(rootPackage, "canvasWorkspaceProposalProjectionSlotReleaseProjector"),
+		).toBe(false);
 		expect(Object.hasOwn(rootPackage, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(false);
 		expect(Object.hasOwn(rootPackage, "validateWorkspaceProposalProjectionReleaseMaterial")).toBe(
 			false,
@@ -621,6 +676,18 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		).toBe(false);
 		expect(
 			Object.hasOwn(workItemActions, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
+		).toBe(false);
+		expect(Object.hasOwn(workItemActions, "isCanvasWorkspaceProposalProjectionSlotMaterial")).toBe(
+			false,
+		);
+		expect(
+			Object.hasOwn(workItemActions, "validateCanvasWorkspaceProposalProjectionSlotLifecycle"),
+		).toBe(false);
+		expect(Object.hasOwn(workItemActions, "releaseWorkspaceProposalProjectionFromCanvasSlot")).toBe(
+			false,
+		);
+		expect(
+			Object.hasOwn(workItemActions, "canvasWorkspaceProposalProjectionSlotReleaseProjector"),
 		).toBe(false);
 		expect(Object.hasOwn(workItemActions, "isWorkspaceProposalProjectionReleaseMaterial")).toBe(
 			false,
