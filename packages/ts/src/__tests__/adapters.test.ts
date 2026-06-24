@@ -1,3 +1,4 @@
+import { APP_FILTER } from "@nestjs/core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	externalStore,
@@ -13,10 +14,15 @@ import {
 } from "../adapters/index.js";
 import {
 	createGraphExceptionFilter,
+	createGraphGuardDeniedFilter,
+	GraphGuardDeniedException,
+	GraphGuardDeniedFilter,
+	isGraphGuardDeniedException,
 	provideGraphBoundaryInterceptor,
 	provideGraphCronScheduler,
 	provideGraphExceptionFilter,
 	provideGraphGuard,
+	provideGraphGuardDeniedFilter,
 	provideGraphLifecycleHooks,
 } from "../adapters/nestjs/native.js";
 import {
@@ -521,6 +527,47 @@ describe("framework-neutral store adapters (B61)", () => {
 		http.dispose();
 	});
 
+	it("rejects future Nest HTTP attaches after terminal egress", () => {
+		const g = graph();
+		const egress = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
+			name: "nestjs/http/terminal.out",
+		});
+		const http = toNestHttp(egress, { bindingId: "terminal.http" });
+		const error = new Error("terminal boom");
+		const firstRejected: unknown[] = [];
+		const laterRejected: unknown[] = [];
+
+		http.attach({
+			requestId: "req-1",
+			handle: {
+				resolve: vi.fn(),
+				reject(rejected) {
+					firstRejected.push(rejected);
+				},
+			},
+		});
+		egress.down([["ERROR", error]]);
+		const cleanup = http.attach({
+			requestId: "req-2",
+			handle: {
+				resolve: vi.fn(),
+				reject(rejected) {
+					laterRejected.push(rejected);
+				},
+			},
+		});
+
+		expect(firstRejected).toEqual([error]);
+		expect(laterRejected).toEqual([error]);
+		expect(cleanup()).toBe(false);
+		expect(http.pendingCount()).toBe(0);
+		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual([
+			"terminal-egress",
+			"terminal-egress",
+		]);
+		http.dispose();
+	});
+
 	it("brackets decorator-bound attach, emit, and cleanup in the high-level runner", async () => {
 		const g = graph();
 		const req = fromNestReq<
@@ -889,13 +936,32 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect(http.pendingCount()).toBe(0);
 		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toContain("terminal-egress");
 
-		http.attach({ requestId: "req-dispose", handle: disposeHandle });
+		const terminalCleanup = http.attach({ requestId: "req-after-terminal", handle: disposeHandle });
 		http.dispose();
 
 		expect(disposeHandle.resolve).not.toHaveBeenCalled();
 		expect(disposeHandle.reject).toHaveBeenCalledTimes(1);
+		expect(terminalCleanup()).toBe(false);
 		expect(http.pendingCount()).toBe(0);
-		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toContain("dispose-pending");
+		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).not.toContain(
+			"dispose-pending",
+		);
+
+		const disposeEgress = g.node<NestReplyEnvelope<{ readonly ok: boolean }>>([], null, {
+			name: "nestjs/http/dispose.out",
+		});
+		const disposeHttp = toNestHttp(disposeEgress, { bindingId: "orders.dispose" });
+		const liveDisposeHandle = { resolve: vi.fn(), reject: vi.fn() };
+
+		disposeHttp.attach({ requestId: "req-dispose", handle: liveDisposeHandle });
+		disposeHttp.dispose();
+
+		expect(liveDisposeHandle.resolve).not.toHaveBeenCalled();
+		expect(liveDisposeHandle.reject).toHaveBeenCalledTimes(1);
+		expect(disposeHttp.pendingCount()).toBe(0);
+		expect(disposeHttp.diagnostics().map((diagnostic) => diagnostic.kind)).toContain(
+			"dispose-pending",
+		);
 	});
 
 	it("rejects non-data Nest boundary payload material on ingress and egress", () => {
@@ -1106,6 +1172,11 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect(provideGraphExceptionFilter({ target: () => undefined })).toMatchObject({
 			provide: expect.anything(),
 		});
+		const guardDeniedProvider = provideGraphGuardDeniedFilter();
+		expect(createGraphGuardDeniedFilter()).toBeInstanceOf(GraphGuardDeniedFilter);
+		expect(guardDeniedProvider).toBe(GraphGuardDeniedFilter);
+		expect(guardDeniedProvider).not.toBe(APP_FILTER);
+		expect(provideGraphExceptionFilter({ target: () => undefined }).provide).not.toBe(APP_FILTER);
 		expect(provideGraphCronScheduler({ targets: [] })).toMatchObject({
 			provide: expect.any(Symbol),
 		});
@@ -1113,6 +1184,22 @@ describe("framework-neutral store adapters (B61)", () => {
 			provide: expect.any(Symbol),
 		});
 		expect("GraphReq" in ({} as typeof import("../adapters/index.js"))).toBe(false);
+	});
+
+	it("targeted guard-denial filter rethrows ordinary exceptions", () => {
+		const filter = createGraphGuardDeniedFilter();
+		const host = {
+			switchToHttp: () => ({
+				getResponse: () => ({
+					status: vi.fn(),
+					json: vi.fn(),
+				}),
+			}),
+		} as Parameters<GraphGuardDeniedFilter["catch"]>[1];
+
+		expect(() => filter.catch(new Error("ordinary"), host)).toThrow("ordinary");
+		const denial = new GraphGuardDeniedException({ status: 403, body: { denied: true } });
+		expect(isGraphGuardDeniedException(denial)).toBe(true);
 	});
 
 	it("native guard provider consumes GraphGuard and GraphGuardDecision metadata", async () => {
@@ -1133,7 +1220,12 @@ describe("framework-neutral store adapters (B61)", () => {
 						version: 1,
 						payload: envelope.payload.allow
 							? { kind: "allow" }
-							: { kind: "deny", status: 409, body: { accepted: false } },
+							: {
+									kind: "deny",
+									status: 409,
+									body: { accepted: false },
+									headers: { "x-graphrefly-guard": "denied" },
+								},
 					},
 				],
 			]);
@@ -1172,10 +1264,34 @@ describe("framework-neutral store adapters (B61)", () => {
 			await denyBridge.canActivate(context);
 			throw new Error("expected guard denial to throw");
 		} catch (error) {
+			expect(isGraphGuardDeniedException(error)).toBe(true);
 			expect((error as { getStatus?: () => number }).getStatus?.()).toBe(409);
 			expect((error as { getResponse?: () => unknown }).getResponse?.()).toEqual({
 				accepted: false,
 			});
+			const headers: Record<string, string> = {};
+			const statuses: number[] = [];
+			const bodies: unknown[] = [];
+			const guardHost = {
+				switchToHttp: () => ({
+					getResponse: () => ({
+						setHeader(name: string, value: string) {
+							headers[name] = value;
+						},
+						status(value: number) {
+							statuses.push(value);
+						},
+						json(value: unknown) {
+							bodies.push(value);
+							return value;
+						},
+					}),
+				}),
+			} as Parameters<GraphGuardDeniedFilter["catch"]>[1];
+			createGraphGuardDeniedFilter().catch(error, guardHost);
+			expect(headers).toEqual({ "x-graphrefly-guard": "denied" });
+			expect(statuses).toEqual([409]);
+			expect(bodies).toEqual([{ accepted: false }]);
 		}
 		bridge.onModuleDestroy();
 		denyBridge.onModuleDestroy();
@@ -1251,6 +1367,143 @@ describe("framework-neutral store adapters (B61)", () => {
 		bridge.onModuleDestroy();
 	});
 
+	it("native guard denial lowers HttpDataIssue headers through the targeted filter", async () => {
+		const g = graph();
+		const guard = fromNestGuard<{ readonly requestId: string }, { readonly apiKey: string }>(g, {
+			bindingId: "node.native.guard.issue.in",
+		});
+		const issue: HttpDataIssue = {
+			kind: "issue",
+			code: "orders.forbidden",
+			message: "Orders require a valid key.",
+			status: 451,
+			body: { accepted: false, code: "orders.forbidden" },
+			headers: { "x-graphrefly-issue": "orders.forbidden" },
+		};
+		const decision = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>([guard.node], (ctx) => {
+			const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ readonly apiKey: string }>;
+			if (envelope.requestId === undefined) return;
+			ctx.down([
+				[
+					"DATA",
+					{
+						requestId: envelope.requestId,
+						bindingId: "native.guard.issue.out",
+						version: 1,
+						payload: { kind: "deny", issue },
+					},
+				],
+			]);
+		});
+		class Controller {
+			guarded() {}
+		}
+		GraphGuard(guard, {
+			bindingId: "native.guard.issue.in",
+			payload: () => ({ apiKey: "bad" }),
+			requestId: (host) => host.requestId,
+		})(Controller.prototype, "guarded", { value: Controller.prototype.guarded });
+		GraphGuardDecision(decision, { bindingId: "native.guard.issue.out" })(
+			Controller.prototype,
+			"guarded",
+			{ value: Controller.prototype.guarded },
+		);
+		const bridge = provideGraphGuard({
+			host: () => ({ requestId: "req-issue" }),
+			requestId: (host) => host.requestId,
+		}).useValue as { canActivate(context: unknown): Promise<boolean>; onModuleDestroy(): void };
+		const context = {
+			getClass: () => Controller,
+			getHandler: () => Controller.prototype.guarded,
+			switchToHttp: () => ({ getRequest: () => ({}) }),
+		};
+		const statuses: number[] = [];
+		const bodies: unknown[] = [];
+		const headers: Record<string, string> = {};
+		const host = {
+			switchToHttp: () => ({
+				getResponse: () => ({
+					header(name: string, value: string) {
+						headers[name] = value;
+					},
+					status(value: number) {
+						statuses.push(value);
+					},
+					json(value: unknown) {
+						bodies.push(value);
+						return value;
+					},
+				}),
+			}),
+		} as Parameters<GraphGuardDeniedFilter["catch"]>[1];
+
+		await expect(bridge.canActivate(context)).rejects.toBeInstanceOf(GraphGuardDeniedException);
+		try {
+			await bridge.canActivate(context);
+			throw new Error("expected guard denial to throw");
+		} catch (error) {
+			createGraphGuardDeniedFilter().catch(error, host);
+		}
+
+		expect(statuses).toEqual([451]);
+		expect(headers).toEqual({ "x-graphrefly-issue": "orders.forbidden" });
+		expect(bodies).toEqual([{ accepted: false, code: "orders.forbidden" }]);
+		bridge.onModuleDestroy();
+	});
+
+	it("native guard decision protocol ERROR uses binding-level protocol-error lowering", async () => {
+		const g = graph();
+		const guard = fromNestGuard<{ readonly requestId: string }, { readonly value: string }>(g, {
+			bindingId: "node.native.guard.protocol.in",
+		});
+		const decision = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>([guard.node], (ctx) => {
+			const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ readonly value: string }>;
+			if (envelope.requestId === undefined) return;
+			ctx.down([["ERROR", new Error(`secret:${envelope.payload.value}`)]]);
+		});
+		class Controller {
+			guarded() {}
+		}
+		GraphGuard(guard, {
+			bindingId: "native.guard.protocol.in",
+			payload: () => ({ value: "hidden" }),
+			requestId: (host) => host.requestId,
+		})(Controller.prototype, "guarded", { value: Controller.prototype.guarded });
+		GraphGuardDecision(decision, {
+			bindingId: "native.guard.protocol.out",
+			protocolError: () => ({
+				status: 599,
+				body: { code: "guard.binding.protocol", message: "binding wins" },
+			}),
+		})(Controller.prototype, "guarded", { value: Controller.prototype.guarded });
+		const bridge = provideGraphGuard({
+			host: () => ({ requestId: "req-guard-protocol" }),
+			protocolError: () => ({
+				status: 598,
+				body: { code: "guard.provider.protocol", message: "provider loses" },
+			}),
+			requestId: (host) => host.requestId,
+		}).useValue as { canActivate(context: unknown): Promise<boolean>; onModuleDestroy(): void };
+		const context = {
+			getClass: () => Controller,
+			getHandler: () => Controller.prototype.guarded,
+			switchToHttp: () => ({ getRequest: () => ({}) }),
+		};
+
+		try {
+			await bridge.canActivate(context);
+			throw new Error("expected guard protocol error to throw");
+		} catch (error) {
+			expect(isGraphGuardDeniedException(error)).toBe(false);
+			expect((error as { getStatus?: () => number }).getStatus?.()).toBe(599);
+			expect((error as { getResponse?: () => unknown }).getResponse?.()).toEqual({
+				code: "guard.binding.protocol",
+				message: "binding wins",
+			});
+		}
+		bridge.onModuleDestroy();
+	});
+
 	it("native exception filter handles GraphError with HTTP DATA lowering", async () => {
 		const g = graph();
 		const errorIn = fromNestError<
@@ -1318,6 +1571,64 @@ describe("framework-neutral store adapters (B61)", () => {
 
 		expect(statuses).toEqual([418]);
 		expect(bodies).toEqual([{ message: "handled" }]);
+		filter.onModuleDestroy();
+	});
+
+	it("native exception filter lowers reply protocol ERROR through the safe 500 fallback", () => {
+		const g = graph();
+		const errorIn = fromNestError<
+			{ readonly requestId: string; readonly exception: Error },
+			{ message: string }
+		>(g, { bindingId: "node.native.error.protocol.in" });
+		const errorOut = g.node<NestReplyEnvelope<unknown>>([errorIn.node], (ctx) => {
+			const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ message: string }>;
+			if (envelope.requestId === undefined) return;
+			ctx.down([["ERROR", new Error(`secret:${envelope.payload.message}`)]]);
+		});
+		class Controller {
+			handled() {}
+		}
+		GraphError(errorIn, {
+			bindingId: "native.error.protocol.in",
+			payload: (host) => ({ message: host.exception.message }),
+			requestId: (host) => host.requestId,
+		})(Controller.prototype, "handled", { value: Controller.prototype.handled });
+		GraphHttpReply(errorOut, { bindingId: "native.error.protocol.out" })(
+			Controller.prototype,
+			"handled",
+			{ value: Controller.prototype.handled },
+		);
+		const statuses: number[] = [];
+		const bodies: unknown[] = [];
+		const filter = createGraphExceptionFilter({
+			target: () => ({ target: Controller, methodKey: "handled" }),
+			host: (_host, exception) => ({
+				requestId: "req-error-protocol",
+				exception: exception instanceof Error ? exception : new Error(String(exception)),
+			}),
+			requestId: (host) => host.requestId,
+		}) as { catch(exception: unknown, host: unknown): unknown; onModuleDestroy(): void };
+		const host = {
+			switchToHttp: () => ({
+				getRequest: () => ({}),
+				getResponse: () => ({
+					status(value: number) {
+						statuses.push(value);
+					},
+					json(value: unknown) {
+						bodies.push(value);
+						return value;
+					},
+				}),
+			}),
+		};
+
+		filter.catch(new Error("handled"), host);
+
+		expect(statuses).toEqual([500]);
+		expect(bodies).toEqual([
+			{ code: "graphrefly.protocol_error", message: "GraphReFly reply pipeline failed" },
+		]);
 		filter.onModuleDestroy();
 	});
 

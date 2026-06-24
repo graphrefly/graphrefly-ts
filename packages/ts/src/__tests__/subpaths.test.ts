@@ -3,7 +3,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import * as adapters from "../adapters/index.js";
+import * as nestjsMicroservicesAdapters from "../adapters/nestjs/microservices.js";
 import * as nestjsNativeAdapters from "../adapters/nestjs/native.js";
+import * as nestjsWebsocketsAdapters from "../adapters/nestjs/websockets.js";
 import * as nestjsAdapters from "../adapters/nestjs.js";
 import * as observeStorage from "../adapters/observe-storage.js";
 import * as reactAdapters from "../adapters/react.js";
@@ -143,7 +145,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			".",
 			"./adapters",
 			"./adapters/nestjs",
+			"./adapters/nestjs/microservices",
 			"./adapters/nestjs/native",
+			"./adapters/nestjs/websockets",
 			"./adapters/observe-storage",
 			"./adapters/react",
 			"./adapters/solid",
@@ -295,9 +299,13 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof nestjsNativeAdapters.provideGraphGuard).toBe("function");
 		expect(typeof nestjsNativeAdapters.createGraphExceptionFilter).toBe("function");
 		expect(typeof nestjsNativeAdapters.provideGraphExceptionFilter).toBe("function");
+		expect(typeof nestjsNativeAdapters.createGraphGuardDeniedFilter).toBe("function");
+		expect(typeof nestjsNativeAdapters.provideGraphGuardDeniedFilter).toBe("function");
 		expect(typeof nestjsNativeAdapters.provideGraphCronScheduler).toBe("function");
 		expect(typeof nestjsNativeAdapters.provideGraphLifecycleHooks).toBe("function");
 		expect(typeof nestjsNativeAdapters.GRAPHREFLY_NEST_EXCEPTION_FILTER).toBe("symbol");
+		expect(typeof nestjsWebsocketsAdapters.fromNestWs).toBe("function");
+		expect(typeof nestjsMicroservicesAdapters.fromNestMessage).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof patterns.profileSummary).toBe("function");
@@ -914,6 +922,47 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(solutions, "persistAgenticMemoryRecords")).toBe(false);
 		expect(Object.hasOwn(solutions, "openPersistentReactiveMap")).toBe(false);
 		expect(Object.hasOwn(solutions, "Graph")).toBe(false);
+	});
+
+	it("keeps future NestJS WebSocket and microservice boundaries in focused subpaths", () => {
+		const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+		const httpOrStructuralEntries = [
+			join(sourceRoot, "adapters", "nestjs.ts"),
+			join(sourceRoot, "adapters", "nestjs", "native.ts"),
+		];
+		const boundarySubpaths = [
+			join(sourceRoot, "adapters", "nestjs", "websockets.ts"),
+			join(sourceRoot, "adapters", "nestjs", "microservices.ts"),
+		];
+
+		for (const file of [...httpOrStructuralEntries, ...boundarySubpaths]) {
+			const source = readFileSync(file, "utf8");
+			expect(source).not.toContain("@nestjs/websockets");
+			expect(source).not.toContain("@nestjs/microservices");
+		}
+		expect(Object.hasOwn(nestjsAdapters, "GraphWs")).toBe(false);
+		expect(Object.hasOwn(nestjsAdapters, "GraphMessage")).toBe(false);
+	});
+
+	it("documents D486 cron misfire and catch-up default skip semantics", () => {
+		const docsPath = join(
+			dirname(fileURLToPath(import.meta.url)),
+			"..",
+			"..",
+			"..",
+			"..",
+			"website",
+			"src",
+			"content",
+			"docs",
+			"recipes",
+			"nestjs-integration.md",
+		);
+		const docs = readFileSync(docsPath, "utf8");
+
+		expect(docs).toContain("missed ticks");
+		expect(docs).toContain("skipped by default");
+		expect(docs).toContain("no missed-status or catch-up DATA");
 	});
 
 	it("exports node-only sources as a package subpath without polluting universal sources", () => {

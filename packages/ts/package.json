@@ -38,6 +38,16 @@
 				"default": "./dist/adapters/nestjs.cjs"
 			}
 		},
+		"./adapters/nestjs/microservices": {
+			"import": {
+				"types": "./dist/adapters/nestjs/microservices.d.ts",
+				"default": "./dist/adapters/nestjs/microservices.js"
+			},
+			"require": {
+				"types": "./dist/adapters/nestjs/microservices.d.cts",
+				"default": "./dist/adapters/nestjs/microservices.cjs"
+			}
+		},
 		"./adapters/nestjs/native": {
 			"import": {
 				"types": "./dist/adapters/nestjs/native.d.ts",
@@ -46,6 +56,16 @@
 			"require": {
 				"types": "./dist/adapters/nestjs/native.d.cts",
 				"default": "./dist/adapters/nestjs/native.cjs"
+			}
+		},
+		"./adapters/nestjs/websockets": {
+			"import": {
+				"types": "./dist/adapters/nestjs/websockets.d.ts",
+				"default": "./dist/adapters/nestjs/websockets.js"
+			},
+			"require": {
+				"types": "./dist/adapters/nestjs/websockets.d.cts",
+				"default": "./dist/adapters/nestjs/websockets.cjs"
 			}
 		},
 		"./adapters/observe-storage": {

@@ -15,7 +15,7 @@ import type {
 	OnModuleInit,
 	Provider,
 } from "@nestjs/common";
-import { HttpException, type NestInterceptor } from "@nestjs/common";
+import { Catch, HttpException, type NestInterceptor } from "@nestjs/common";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { from, type Observable } from "rxjs";
 import {
@@ -125,6 +125,14 @@ export function createGraphExceptionFilter<THost = unknown>(
 	return new GraphExceptionFilterBridge(opts);
 }
 
+export function provideGraphGuardDeniedFilter(): Provider {
+	return GraphGuardDeniedFilter;
+}
+
+export function createGraphGuardDeniedFilter(): ExceptionFilter {
+	return new GraphGuardDeniedFilter();
+}
+
 export function provideGraphCronScheduler(opts: GraphCronSchedulerProviderOptions): Provider {
 	return { provide: GRAPHREFLY_NEST_CRON_SCHEDULER, useValue: new GraphCronSchedulerBridge(opts) };
 }
@@ -229,6 +237,14 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 			}
 			for (const entry of guardEmits)
 				entry.guard.boundary.emit(host, bindingEmitOptions(host, entry.guard, entry.requestId));
+			const rejected = pending.find((state) => state.status === "rejected");
+			if (rejected !== undefined) {
+				throw new GraphGuardProtocolErrorException(
+					lowerProtocolError(rejected.error, host, {
+						protocolError: rejected.binding.protocolError ?? this.opts.protocolError,
+					}),
+				);
+			}
 			if (pending.some((state) => state.status !== "resolved")) return false;
 			const denied = pending.find(
 				(
@@ -239,7 +255,7 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 				} => state.status === "resolved" && state.payload?.kind === "deny",
 			);
 			if (denied !== undefined) {
-				throw new GraphGuardDeniedHttpException(
+				throw new GraphGuardDeniedException(
 					guardDecisionResponse(denied.payload, host, {
 						issueResponse: denied.binding.issueResponse ?? this.opts.issueResponse,
 					}),
@@ -247,7 +263,9 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 			}
 			return pending.every((state) => state.payload?.kind === "allow");
 		} catch (error) {
-			if (error instanceof GraphGuardDeniedHttpException) throw error;
+			if (isGraphGuardDeniedException(error) || error instanceof GraphGuardProtocolErrorException) {
+				throw error;
+			}
 			return false;
 		} finally {
 			for (const cleanup of cleanups) cleanup();
@@ -277,7 +295,7 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 	}
 }
 
-class GraphExceptionFilterBridge<THost> implements ExceptionFilter, OnModuleDestroy {
+export class GraphExceptionFilterBridge<THost> implements ExceptionFilter, OnModuleDestroy {
 	private readonly replies = new WeakMap<
 		object,
 		Map<string, ReturnType<typeof toNestHttp<NestHttpReplyPayloadUnknown>>>
@@ -646,14 +664,33 @@ function guardDecisionResponse<THost>(
 	};
 }
 
-class GraphGuardDeniedHttpException extends HttpException {
-	readonly headers?: Record<string, string>;
+export class GraphGuardDeniedException extends HttpException {
+	readonly payload: NestHttpResponsePayload;
 
 	constructor(payload: NestHttpResponsePayload) {
 		super(payload.body ?? {}, payload.status);
-		this.headers = payload.headers;
+		this.payload = payload;
 	}
 }
+
+class GraphGuardProtocolErrorException extends HttpException {
+	constructor(payload: NestHttpResponsePayload) {
+		super(payload.body ?? {}, payload.status);
+	}
+}
+
+export function isGraphGuardDeniedException(value: unknown): value is GraphGuardDeniedException {
+	return value instanceof GraphGuardDeniedException;
+}
+
+export class GraphGuardDeniedFilter implements ExceptionFilter {
+	catch(exception: unknown, host: ArgumentsHost): unknown {
+		if (!isGraphGuardDeniedException(exception)) throw exception;
+		return writeHttpResponse(host, exception.payload);
+	}
+}
+
+Catch(GraphGuardDeniedException)(GraphGuardDeniedFilter);
 
 function writeHttpResponse(
 	host: ArgumentsHost,

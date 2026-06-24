@@ -20,9 +20,11 @@ import {
 } from "@graphrefly/ts/adapters/nestjs";
 import {
 	createGraphExceptionFilter,
+	GraphGuardDeniedFilter,
 	provideGraphBoundaryInterceptor,
 	provideGraphCronScheduler,
 	provideGraphGuard,
+	provideGraphGuardDeniedFilter,
 	provideGraphLifecycleHooks,
 } from "@graphrefly/ts/adapters/nestjs/native";
 import { type Graph, graph } from "@graphrefly/ts/graph";
@@ -159,6 +161,7 @@ const ordersGuardOut = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>(
 									reason: "missing demo api key",
 									status: 403,
 									body: { accepted: false, reason: "send x-api-key: demo-key" },
+									headers: { "x-graphrefly-guard": "orders.denied" },
 								},
 				},
 			],
@@ -340,6 +343,7 @@ class DemoController {
 	}
 
 	@Post("orders")
+	@UseFilters(GraphGuardDeniedFilter)
 	@GraphGuard(ordersGuardIn, {
 		bindingId: "guard.orders.in",
 		payload: (host: HttpHost<OrderRequest>) => ({
@@ -453,6 +457,7 @@ class DemoController {
 			},
 			requestId: (host) => host.requestId,
 		}),
+		provideGraphGuardDeniedFilter(),
 		provideGraphCronScheduler({
 			targets: [
 				{

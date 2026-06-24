@@ -182,6 +182,7 @@ export interface NestGuardDecisionDecoratorOptions<THost = unknown> {
 	readonly bindingId: string;
 	readonly order?: number;
 	readonly issueResponse?: NestIssueResponse<THost>;
+	readonly protocolError?: NestProtocolErrorResponse<THost>;
 }
 
 export interface NestGraphRunOptions<THost = unknown> {
@@ -284,6 +285,7 @@ export interface NestGuardDecisionBindingMeta {
 	readonly decisionNode: Node<NestReplyEnvelope<GraphGuardDecision>>;
 	readonly order?: number;
 	readonly issueResponse?: NestIssueResponse<unknown>;
+	readonly protocolError?: NestProtocolErrorResponse<unknown>;
 }
 
 export type NestBoundaryBindingMeta =
@@ -412,6 +414,12 @@ export function toNestHttp<TPayload = unknown>(
 	const pending = new Map<string, NestHttpPendingEntry<TPayload>>();
 	const diagnostics: NestBoundaryDiagnostic[] = [];
 	let active = true;
+	let terminal:
+		| {
+				readonly error: unknown;
+				readonly message: string;
+		  }
+		| undefined;
 
 	const report = (diagnostic: NestBoundaryDiagnostic) => {
 		pushDiagnostic(diagnostics, diagnostic, maxDiagnostics);
@@ -440,14 +448,15 @@ export function toNestHttp<TPayload = unknown>(
 		kind: "dispose-pending" | "terminal-egress",
 		error: unknown,
 		message: string,
-	): void => {
+	): number => {
 		const entries = [...pending.values()];
 		pending.clear();
-		if (entries.length === 0) return;
+		if (entries.length === 0) return 0;
 		report({ kind, bindingId: scopedBindingId, message, error });
 		for (const entry of entries) {
 			rejectEntry(entry, error, undefined, `toNestHttp(${bindingId}) pending reject threw`);
 		}
+		return entries.length;
 	};
 
 	const unsubscribe = egress.subscribe((msg: Message) => {
@@ -457,11 +466,11 @@ export function toNestHttp<TPayload = unknown>(
 				msg[0] === "ERROR"
 					? msg[1]
 					: new Error(`toNestHttp(${bindingId}) egress received ${msg[0]}`);
-			rejectPending(
-				"terminal-egress",
-				error,
-				`toNestHttp(${bindingId}) rejected pending requests after ${msg[0]}`,
-			);
+			const message = `toNestHttp(${bindingId}) rejected pending requests after ${msg[0]}`;
+			terminal = { error, message };
+			const rejectedCount = rejectPending("terminal-egress", error, message);
+			if (rejectedCount === 0)
+				report({ kind: "terminal-egress", bindingId: scopedBindingId, message, error });
 			return;
 		}
 		if (msg[0] !== "DATA") return;
@@ -529,6 +538,27 @@ export function toNestHttp<TPayload = unknown>(
 				throw new Error(
 					`toNestHttp.attach expected bindingId ${scopedBindingId}, got ${registrationBindingId}`,
 				);
+			}
+			if (terminal !== undefined) {
+				const entry = {
+					requestId: registration.requestId,
+					bindingId: registrationBindingId,
+					handle: registration.handle,
+				};
+				report({
+					kind: "terminal-egress",
+					requestId: registration.requestId,
+					bindingId: registrationBindingId,
+					message: terminal.message,
+					error: terminal.error,
+				});
+				rejectEntry(
+					entry,
+					terminal.error,
+					undefined,
+					`toNestHttp(${bindingId}) terminal response handle reject threw`,
+				);
+				return () => false;
 			}
 			const key = keyOf(registration.requestId, scopedBindingId);
 			if (pending.has(key)) {
@@ -654,6 +684,7 @@ export function GraphGuardDecision<THost = unknown>(
 		decisionNode,
 		order: opts.order,
 		issueResponse: opts.issueResponse as NestIssueResponse<unknown> | undefined,
+		protocolError: opts.protocolError as NestProtocolErrorResponse<unknown> | undefined,
 	}));
 }
 

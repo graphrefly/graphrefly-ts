@@ -1,6 +1,6 @@
 ---
 title: "NestJS Integration"
-description: "Clean-slate NestJS integration with D484 Nest-native provider bridge ergonomics."
+description: "Clean-slate NestJS integration with D486 Nest-native provider bridge ergonomics."
 ---
 
 # NestJS Integration
@@ -9,6 +9,7 @@ The clean-slate NestJS adapter has two focused subpaths:
 
 - `@graphrefly/ts/adapters/nestjs` is dependency-light structural metadata: boundary factories, binding decorators, envelopes, and lowering types.
 - `@graphrefly/ts/adapters/nestjs/native` imports Nest/RxJS and provides standard Nest phase bridges.
+- `@graphrefly/ts/adapters/nestjs/websockets` and `@graphrefly/ts/adapters/nestjs/microservices` are focused future bridge boundaries. Today they re-export only dependency-light structural factories; HTTP native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`.
 
 Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. The adapter does not create business graphs, rewrite Nest routing, provide `compat/nestjs`, revive `Actor` or `CqrsGraph`, scan the container by default, or hide a message bus.
 
@@ -94,7 +95,33 @@ The provider reads metadata for the current class/handler only, attaches host-pr
 
 ## Guards, Filters, and Issues
 
-Use `GraphGuard(...)` with `GraphGuardDecision(...)` for guard phase decisions. Missing decisions fail closed. Use `GraphFilter(...)` for generic filter bindings; `GraphError(...)` is exception-oriented sugar. Filter/error bindings default to handle mode and can opt into observe mode.
+Use `GraphGuard(...)` with `GraphGuardDecision(...)` for guard phase decisions. Missing, malformed, rejected, or requestId-less decisions fail closed. Guard denial is graph-visible DATA, not protocol `ERROR`; response status/body/headers are written by the targeted GraphReFly guard-denial filter.
+
+```ts
+import { UseFilters } from "@nestjs/common";
+import { GraphGuardDeniedFilter } from "@graphrefly/ts/adapters/nestjs/native";
+
+class OrdersController {
+  @UseFilters(GraphGuardDeniedFilter)
+  @GraphGuard(ordersGuardIn, { bindingId: "guard.orders.in" })
+  @GraphGuardDecision(ordersGuardOut, { bindingId: "guard.orders.out" })
+  createOrder() {}
+}
+
+// A deny payload can carry status/body/headers directly:
+const denied = {
+  kind: "deny",
+  status: 403,
+  body: { accepted: false },
+  headers: { "x-graphrefly-guard": "orders.denied" },
+} satisfies GraphGuardDecision;
+```
+
+`createGraphGuardDeniedFilter()` returns the same narrow helper as an instance, and `provideGraphGuardDeniedFilter()` registers the class-token provider used by `@UseFilters(GraphGuardDeniedFilter)`. The helper catches only the GraphReFly-owned guard denial exception; it is not a catch-all `APP_FILTER` and does not own ordinary Nest exceptions.
+
+`GraphGuardDecision(...)` supports binding-level `issueResponse` for deny issues and binding-level `protocolError` for reply-node `ERROR`, with binding options taking precedence over provider defaults.
+
+Use `GraphFilter(...)` for generic filter bindings; `GraphError(...)` is exception-oriented sugar. Filter/error bindings default to handle mode and can opt into observe mode.
 
 For exception handling, prefer the targeted helper:
 
@@ -134,7 +161,7 @@ Plain `DataIssue` values lower through `issueResponse(issue, host)`. Protocol `E
 
 `GraphCron(...)` is consumed by `provideGraphCronScheduler(...)`; it does not require `@nestjs/schedule`. The scheduler is a Nest/source boundary that starts and stops host-private timers on module lifecycle hooks and emits ordinary cron ingress DATA.
 
-`fromCron(...)` and `GraphCron` support IANA timezone strings through runtime `Intl` support. Defaults are explicit: nonexistent DST wall-clock minutes are skipped, and repeated wall-clock minutes fire at most once.
+`fromCron(...)` and `GraphCron` support IANA timezone strings through runtime `Intl` support. Defaults are explicit: nonexistent DST wall-clock minutes are skipped, repeated wall-clock minutes fire at most once, and missed ticks while the host app/provider/event loop is unavailable are skipped by default. Restart or resume continues from the current time only; no missed-status or catch-up DATA is synthesized.
 
 ## Inspection and Logging
 
@@ -169,4 +196,4 @@ It includes:
 - `POST /lifecycle/teardown`
 - `GET /graph`
 
-`POST /echo` and `POST /orders` use the D484 native provider bridge. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)`.
+`POST /echo` and `POST /orders` use the D486 native provider bridge. `POST /orders` shows guard denial response headers through `GraphGuardDeniedFilter`. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)`.
