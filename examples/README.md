@@ -20,7 +20,7 @@ examples/
 │   ├── vue/                     Vite + Vue 3, useNodeInput/useNodeValue via `@graphrefly/ts/adapters/vue` (D238)
 │   ├── solid/                   Vite + SolidJS, createNodeInput/createNodeValue via `@graphrefly/ts/adapters/solid` (D238)
 │   └── svelte/                  Vite + Svelte 5 (runes), nodeWritable/nodeReadable via `@graphrefly/ts/adapters/svelte` (D238)
-├── nestjs-graph-boundary/       NestJS keyed ingress/egress boundary nodes via `@graphrefly/ts/adapters/nestjs`
+├── nestjs-graph-boundary/       NestJS HTTP, WebSocket, message, cron, guard/filter boundary nodes via focused adapter subpaths
 ├── reactive-layout/
 │   └── flow/                    Multi-column text wrapping drifting obstacles
 ```

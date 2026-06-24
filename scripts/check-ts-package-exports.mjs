@@ -17,7 +17,18 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PKG = join(ROOT, "packages", "ts");
 const TSC = join(ROOT, "node_modules", ".bin", "tsc");
 const packageJson = JSON.parse(readFileSync(join(PKG, "package.json"), "utf8"));
-const optionalPeers = ["canvas", "react", "solid-js", "svelte", "vue"];
+const optionalPeers = [
+	"@nestjs/common",
+	"@nestjs/core",
+	"@nestjs/microservices",
+	"@nestjs/websockets",
+	"canvas",
+	"react",
+	"rxjs",
+	"solid-js",
+	"svelte",
+	"vue",
+];
 
 const expectedSubpaths = {
 	"./adapters": {
@@ -63,6 +74,38 @@ const expectedSubpaths = {
 			"getNestBoundaryToken",
 		],
 		absent: [],
+	},
+	"./adapters/nestjs/native": {
+		present: [
+			"provideGraphBoundaryInterceptor",
+			"provideGraphGuard",
+			"provideGraphExceptionFilter",
+			"provideGraphCronScheduler",
+			"provideGraphLifecycleHooks",
+			"provideGraphGuardDeniedFilter",
+		],
+		absent: [],
+	},
+	"./adapters/nestjs/websockets": {
+		present: [
+			"fromNestWs",
+			"GraphWs",
+			"GraphWsAck",
+			"GraphWsReply",
+			"createGraphWsBridge",
+			"provideGraphWsBridge",
+		],
+		absent: ["fromNestMessage", "GraphMessage", "GraphMessageReply"],
+	},
+	"./adapters/nestjs/microservices": {
+		present: [
+			"fromNestMessage",
+			"GraphMessage",
+			"GraphMessageReply",
+			"createGraphMessageBridge",
+			"provideGraphMessageBridge",
+		],
+		absent: ["fromNestWs", "GraphWs", "GraphWsAck", "GraphWsReply"],
 	},
 	"./adapters/react": { present: ["useNodeValue", "useNodeInput", "useNodeRecord"], absent: [] },
 	"./adapters/vue": { present: ["useNodeValue", "useNodeInput", "useNodeRecord"], absent: [] },
@@ -313,7 +356,9 @@ try {
 	for (const peer of optionalPeers) {
 		const realPeer = join(ROOT, "node_modules", peer);
 		if (existsSync(realPeer)) {
-			symlinkSync(realPeer, join(tmp, "node_modules", peer), "dir");
+			const link = join(tmp, "node_modules", peer);
+			mkdirSync(dirname(link), { recursive: true });
+			symlinkSync(realPeer, link, "dir");
 		}
 	}
 	writeFileSync(

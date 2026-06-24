@@ -50,6 +50,7 @@ export interface GraphWsBridge<THost = unknown> extends OnGatewayDisconnect {
 		host: THost,
 		opts?: NestGraphRunOptions<THost>,
 	): Promise<unknown> | undefined;
+	onModuleDestroy(): void;
 	diagnostics(): readonly NestBoundaryDiagnostic[];
 	dispose(): void;
 }
@@ -99,6 +100,10 @@ class GraphWsBridgeImpl<THost> implements GraphWsBridge<THost> {
 			);
 		}
 		this.pendingByClient.delete(client);
+	}
+
+	onModuleDestroy(): void {
+		this.dispose();
 	}
 
 	handleMessage(

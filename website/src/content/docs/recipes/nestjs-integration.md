@@ -5,11 +5,24 @@ description: "Clean-slate NestJS integration with D486 Nest-native provider brid
 
 # NestJS Integration
 
-The clean-slate NestJS adapter has two focused subpaths:
+Install GraphReFly plus the Nest peers for the phases you use:
 
-- `@graphrefly/ts/adapters/nestjs` is dependency-light structural metadata: boundary factories, binding decorators, envelopes, and lowering types.
-- `@graphrefly/ts/adapters/nestjs/native` imports Nest/RxJS and provides standard Nest phase bridges.
-- `@graphrefly/ts/adapters/nestjs/websockets` and `@graphrefly/ts/adapters/nestjs/microservices` are focused optional-peer native bridges for gateway/message-pattern phases. HTTP native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`.
+```bash
+pnpm add @graphrefly/ts @nestjs/common @nestjs/core rxjs
+pnpm add @nestjs/websockets @nestjs/platform-ws      # only for the WebSocket bridge
+pnpm add @nestjs/microservices                       # only for the message bridge
+```
+
+The clean-slate NestJS adapter has focused subpaths:
+
+| Import path | Use |
+|---|---|
+| `@graphrefly/ts/adapters/nestjs` | Dependency-light structural metadata: boundary factories, binding decorators, envelopes, and lowering types. |
+| `@graphrefly/ts/adapters/nestjs/native` | Nest/RxJS native phase bridges for HTTP interceptor, guard, filter, cron, and lifecycle phases. |
+| `@graphrefly/ts/adapters/nestjs/websockets` | Focused optional-peer native bridge for `@nestjs/websockets` gateway ingress plus ack/reply egress. |
+| `@graphrefly/ts/adapters/nestjs/microservices` | Focused optional-peer native bridge for `@nestjs/microservices` message-pattern ingress plus reply egress. |
+
+HTTP/native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`. The WebSocket and message subpaths import only their matching optional peer.
 
 Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. The adapter does not create business graphs, rewrite Nest routing, provide `compat/nestjs`, revive `Actor` or `CqrsGraph`, scan the container by default, or hide a message bus.
 
@@ -97,7 +110,7 @@ The provider reads metadata for the current class/handler only, attaches host-pr
 
 Use `GraphWs(...)` with `GraphWsAck(...)` or `GraphWsReply(...)` through `provideGraphWsBridge(...)` from `@graphrefly/ts/adapters/nestjs/websockets`. Use `GraphMessage(...)` with `GraphMessageReply(...)` through `provideGraphMessageBridge(...)` from `@graphrefly/ts/adapters/nestjs/microservices`.
 
-These native bridges read only the metadata for the current gateway/controller method, require explicit payload selectors, and correlate reply-capable egress by both `requestId` and `bindingId`. Sockets, clients, ack callbacks, message contexts, and reply handles stay host-private; graph-visible DATA carries only the selected payload envelope. Wrong-binding, stale, malformed, terminal, timeout, disconnect, and dispose cases are adapter diagnostics and cleanup paths, not protocol `ERROR`.
+These native phase bridges read only the metadata for the current gateway/controller method, require explicit payload selectors, and correlate reply-capable egress by both `requestId` and `bindingId`. Sockets, clients, ack callbacks, message contexts, transport clients, Observables, Promises, and reply handles stay host-private pending handles; graph-visible DATA carries only the selected payload envelope. Wrong-binding, stale, malformed, terminal, timeout, disconnect, and dispose cases are adapter diagnostics and cleanup paths, not protocol `ERROR`.
 
 ## Guards, Filters, and Issues
 
@@ -201,5 +214,7 @@ It includes:
 - `GET /audit/:requestId`
 - `POST /lifecycle/teardown`
 - `GET /graph`
+- WebSocket `orders.reserve` on `/graphrefly`
+- TCP microservice pattern `orders.reserve` on `MICRO_HOST:MICRO_PORT` (default `127.0.0.1:3001`)
 
-`POST /echo` and `POST /orders` use the D486 native provider bridge. `POST /orders` shows guard denial response headers through `GraphGuardDeniedFilter`. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)`.
+`POST /echo` and `POST /orders` use the D486 native provider bridge. The WebSocket and message-pattern methods use the D488 focused optional-peer subpaths with `requestId` plus `bindingId` correlation. `POST /orders` shows guard denial response headers through `GraphGuardDeniedFilter`. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)`.

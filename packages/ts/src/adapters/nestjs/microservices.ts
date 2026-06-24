@@ -47,6 +47,7 @@ export interface GraphMessageBridge<THost = unknown>
 		host: THost,
 		opts?: NestGraphRunOptions<THost>,
 	): Promise<unknown> | undefined;
+	onModuleDestroy(): void;
 	diagnostics(): readonly NestBoundaryDiagnostic[];
 	dispose(): void;
 }
@@ -76,6 +77,10 @@ class GraphMessageBridgeImpl<THost> implements GraphMessageBridge<THost> {
 	constructor(private readonly opts: GraphMessageBridgeOptions<THost>) {}
 
 	close(): void {
+		this.dispose();
+	}
+
+	onModuleDestroy(): void {
 		this.dispose();
 	}
 

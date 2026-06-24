@@ -364,9 +364,18 @@ importers:
       '@nestjs/core':
         specifier: ^11.1.17
         version: 11.1.17(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.27)(@nestjs/platform-express@11.1.18)(@nestjs/websockets@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/microservices':
+        specifier: ^11.1.27
+        version: 11.1.27(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)(@nestjs/websockets@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/platform-express':
         specifier: ^11.1.18
         version: 11.1.18(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)
+      '@nestjs/platform-ws':
+        specifier: ^11.1.18
+        version: 11.1.18(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/websockets@11.1.18)(rxjs@7.8.2)
+      '@nestjs/websockets':
+        specifier: ^11.1.18
+        version: 11.1.18(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2

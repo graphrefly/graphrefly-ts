@@ -19,6 +19,14 @@ import {
 	type NestReplyEnvelope,
 } from "@graphrefly/ts/adapters/nestjs";
 import {
+	fromNestMessage,
+	GRAPHREFLY_NEST_MESSAGE_BRIDGE,
+	GraphMessage,
+	type GraphMessageBridge,
+	GraphMessageReply,
+	provideGraphMessageBridge,
+} from "@graphrefly/ts/adapters/nestjs/microservices";
+import {
 	createGraphExceptionFilter,
 	GraphGuardDeniedFilter,
 	provideGraphBoundaryInterceptor,
@@ -27,12 +35,22 @@ import {
 	provideGraphGuardDeniedFilter,
 	provideGraphLifecycleHooks,
 } from "@graphrefly/ts/adapters/nestjs/native";
+import {
+	fromNestWs,
+	GRAPHREFLY_NEST_WS_BRIDGE,
+	GraphWs,
+	GraphWsAck,
+	type GraphWsBridge,
+	GraphWsReply,
+	provideGraphWsBridge,
+} from "@graphrefly/ts/adapters/nestjs/websockets";
 import { type Graph, graph } from "@graphrefly/ts/graph";
 import {
 	Body,
 	Controller,
 	Get,
 	Headers,
+	Inject,
 	Injectable,
 	Logger,
 	Module,
@@ -42,6 +60,15 @@ import {
 	UseFilters,
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import { Ctx, MessagePattern, Payload, Transport } from "@nestjs/microservices";
+import { WsAdapter } from "@nestjs/platform-ws";
+import {
+	Ack,
+	ConnectedSocket,
+	MessageBody,
+	SubscribeMessage,
+	WebSocketGateway,
+} from "@nestjs/websockets";
 
 interface HttpHost<T> {
 	readonly requestId: string;
@@ -64,6 +91,19 @@ interface OrderRequest {
 	readonly orderId: string;
 	readonly item: string;
 	readonly quantity: number;
+}
+
+interface WsOrderHost {
+	readonly requestId: string;
+	readonly body: OrderRequest;
+	readonly client: object;
+	readonly ack: (payload: unknown, envelope: NestReplyEnvelope<unknown>) => void;
+}
+
+interface MessageOrderHost {
+	readonly requestId: string;
+	readonly body: OrderRequest;
+	readonly context: object;
 }
 
 interface AuditEntry {
@@ -245,6 +285,84 @@ const errorOut = g.node<NestReplyEnvelope<HttpResult>>(
 	{ name: "http.error.out" },
 );
 
+const wsOrdersIn = fromNestWs<WsOrderHost, OrderRequest>(g, {
+	bindingId: "node.ws.orders.in",
+});
+
+const wsOrdersAck = g.node<
+	NestReplyEnvelope<{ readonly accepted: true; readonly orderId: string }>
+>(
+	[wsOrdersIn.node],
+	(ctx) => {
+		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<OrderRequest>;
+		if (envelope.requestId === undefined) return;
+		ctx.down([
+			[
+				"DATA",
+				{
+					requestId: envelope.requestId,
+					bindingId: "ws.orders.ack",
+					version: 1,
+					payload: { accepted: true, orderId: envelope.payload.orderId },
+				},
+			],
+		]);
+	},
+	{ name: "ws.orders.ack" },
+);
+
+const wsOrdersReply = g.node<NestReplyEnvelope<HttpResult>>(
+	[wsOrdersIn.node],
+	(ctx) => {
+		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<OrderRequest>;
+		if (envelope.requestId === undefined) return;
+		ctx.down([
+			[
+				"DATA",
+				{
+					requestId: envelope.requestId,
+					bindingId: "ws.orders.reply",
+					version: 1,
+					payload: result(202, {
+						accepted: true,
+						transport: "websocket",
+						orderId: envelope.payload.orderId,
+					}),
+				},
+			],
+		]);
+	},
+	{ name: "ws.orders.reply" },
+);
+
+const messageOrdersIn = fromNestMessage<MessageOrderHost, OrderRequest>(g, {
+	bindingId: "node.message.orders.in",
+});
+
+const messageOrdersReply = g.node<NestReplyEnvelope<HttpResult>>(
+	[messageOrdersIn.node],
+	(ctx) => {
+		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<OrderRequest>;
+		if (envelope.requestId === undefined) return;
+		ctx.down([
+			[
+				"DATA",
+				{
+					requestId: envelope.requestId,
+					bindingId: "message.orders.reply",
+					version: 1,
+					payload: result(202, {
+						accepted: true,
+						transport: "microservice",
+						orderId: envelope.payload.orderId,
+					}),
+				},
+			],
+		]);
+	},
+	{ name: "message.orders.reply" },
+);
+
 const graphHandledExceptionFilter = createGraphExceptionFilter({
 	target: (_host, exception) =>
 		exception instanceof Error && exception.message === "graph-handled"
@@ -405,11 +523,71 @@ class DemoController {
 	}
 }
 
+@WebSocketGateway({ path: "/graphrefly" })
+class OrdersGateway {
+	constructor(
+		@Inject(GRAPHREFLY_NEST_WS_BRIDGE)
+		private readonly bridge: GraphWsBridge<WsOrderHost>,
+	) {}
+
+	handleDisconnect(client: object): void {
+		this.bridge.handleDisconnect(client);
+	}
+
+	@SubscribeMessage("orders.reserve")
+	@GraphWs(wsOrdersIn, {
+		bindingId: "ws.orders.in",
+		payload: (host: WsOrderHost) => host.body,
+		requestId: (host: WsOrderHost) => host.requestId,
+	})
+	@GraphWsAck(wsOrdersAck, { bindingId: "ws.orders.ack" })
+	@GraphWsReply(wsOrdersReply, { bindingId: "ws.orders.reply" })
+	reserve(
+		@MessageBody() body: OrderRequest & { readonly requestId?: string },
+		@ConnectedSocket() client: object,
+		@Ack() ack: WsOrderHost["ack"],
+	): Promise<unknown> | undefined {
+		return this.bridge.handleMessage(OrdersGateway, "reserve", {
+			requestId: requestId("ws", nextRequestSeq, body.requestId),
+			body,
+			client,
+			ack,
+		});
+	}
+}
+
+@Controller()
+class OrdersMessageController {
+	constructor(
+		@Inject(GRAPHREFLY_NEST_MESSAGE_BRIDGE)
+		private readonly bridge: GraphMessageBridge<MessageOrderHost>,
+	) {}
+
+	@MessagePattern("orders.reserve")
+	@GraphMessage(messageOrdersIn, {
+		bindingId: "message.orders.in",
+		payload: (host: MessageOrderHost) => host.body,
+		requestId: (host: MessageOrderHost) => host.requestId,
+	})
+	@GraphMessageReply(messageOrdersReply, { bindingId: "message.orders.reply" })
+	reserve(
+		@Payload() body: OrderRequest & { readonly requestId?: string },
+		@Ctx() context: object,
+	): Promise<unknown> | undefined {
+		return this.bridge.handleMessage(OrdersMessageController, "reserve", {
+			requestId: requestId("message", nextRequestSeq, body.requestId),
+			body,
+			context,
+		});
+	}
+}
+
 @Module({
-	controllers: [DemoController],
+	controllers: [DemoController, OrdersMessageController],
 	providers: [
 		GraphBoundaryDemo,
 		GraphAuditLogger,
+		OrdersGateway,
 		provideGraphBoundaryInterceptor({
 			host: (context) => {
 				const req = context.switchToHttp?.().getRequest<{
@@ -478,11 +656,29 @@ class DemoController {
 				},
 			],
 		}),
+		provideGraphWsBridge<WsOrderHost>({
+			ack: (host) => host.ack,
+			client: (host) => host.client,
+		}),
+		provideGraphMessageBridge<MessageOrderHost>(),
 	],
 })
 class AppModule {}
 
 const app = await NestFactory.create(AppModule);
+const attachWsAdapter = app.useWebSocketAdapter.bind(app);
+attachWsAdapter(new WsAdapter(app));
+app.connectMicroservice({
+	transport: Transport.TCP,
+	options: {
+		host: process.env.MICRO_HOST ?? "127.0.0.1",
+		port: Number(process.env.MICRO_PORT ?? 3001),
+	},
+});
 const port = Number(process.env.PORT ?? 3000);
+await app.startAllMicroservices();
 await app.listen(port);
 console.log(`NestJS GraphBoundary demo listening on http://localhost:${port}`);
+console.log(
+	`NestJS GraphBoundary message transport listening on ${process.env.MICRO_HOST ?? "127.0.0.1"}:${Number(process.env.MICRO_PORT ?? 3001)}`,
+);

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
@@ -138,6 +138,20 @@ const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), "..", ".."
 const exportsJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
 	exports?: Record<string, unknown>;
 };
+
+function listTsFiles(dir: string): string[] {
+	const files: string[] = [];
+	for (const entry of readdirSync(dir)) {
+		const path = join(dir, entry);
+		const stat = statSync(path);
+		if (stat.isDirectory()) {
+			files.push(...listTsFiles(path));
+			continue;
+		}
+		if (entry.endsWith(".ts")) files.push(path);
+	}
+	return files;
+}
 
 describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("publishes only the intended package subpaths", () => {
@@ -926,28 +940,26 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 
 	it("keeps D488 NestJS WebSocket and microservice peers in focused subpaths", () => {
 		const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-		const httpOrStructuralEntries = [
-			join(sourceRoot, "adapters", "nestjs.ts"),
-			join(sourceRoot, "adapters", "nestjs", "native.ts"),
-		];
-		const websockets = readFileSync(
-			join(sourceRoot, "adapters", "nestjs", "websockets.ts"),
-			"utf8",
-		);
-		const microservices = readFileSync(
-			join(sourceRoot, "adapters", "nestjs", "microservices.ts"),
-			"utf8",
-		);
+		const nestRoot = join(sourceRoot, "adapters", "nestjs");
+		const websocketFile = join(nestRoot, "websockets.ts");
+		const microserviceFile = join(nestRoot, "microservices.ts");
+		const nestAdapterFiles = [join(sourceRoot, "adapters", "nestjs.ts"), ...listTsFiles(nestRoot)];
 
-		for (const file of httpOrStructuralEntries) {
+		for (const file of nestAdapterFiles) {
 			const source = readFileSync(file, "utf8");
-			expect(source).not.toContain("@nestjs/websockets");
-			expect(source).not.toContain("@nestjs/microservices");
+			if (file === websocketFile) {
+				expect(source).toContain("@nestjs/websockets");
+				expect(source).not.toContain("@nestjs/microservices");
+				continue;
+			}
+			if (file === microserviceFile) {
+				expect(source).toContain("@nestjs/microservices");
+				expect(source).not.toContain("@nestjs/websockets");
+				continue;
+			}
+			expect(source, file).not.toContain("@nestjs/websockets");
+			expect(source, file).not.toContain("@nestjs/microservices");
 		}
-		expect(websockets).toContain("@nestjs/websockets");
-		expect(websockets).not.toContain("@nestjs/microservices");
-		expect(microservices).toContain("@nestjs/microservices");
-		expect(microservices).not.toContain("@nestjs/websockets");
 		expect(typeof nestjsAdapters.GraphWs).toBe("function");
 		expect(typeof nestjsAdapters.GraphMessage).toBe("function");
 		expect(typeof nestjsWebsocketsAdapters.createGraphWsBridge).toBe("function");
