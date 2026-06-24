@@ -7,6 +7,7 @@
  * host lifecycle objects at the framework edge.
  */
 
+import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import type { Message } from "../protocol/messages.js";
@@ -38,7 +39,46 @@ export type NestBoundaryKind =
 	| "ws"
 	| "message";
 
-export type NestEgressKind = "http" | "ws" | "ws-ack" | "message-reply";
+export type NestEgressKind = "http" | "guard-decision" | "ws" | "ws-ack" | "message-reply";
+export type NestFilterMode = "handle" | "observe";
+
+export interface NestHttpResponsePayload<TBody = unknown> {
+	readonly status: number;
+	readonly body?: TBody;
+	readonly headers?: Record<string, string>;
+}
+
+export interface HttpDataIssue extends DataIssue {
+	readonly status: number;
+	readonly body?: unknown;
+	readonly headers?: Record<string, string>;
+}
+
+export type NestIssueResponse<THost = unknown> = (
+	issue: DataIssue,
+	host: THost,
+) => NestHttpResponsePayload;
+
+export type NestProtocolErrorResponse<THost = unknown> = (
+	errorPayload: unknown,
+	host: THost,
+) => NestHttpResponsePayload;
+
+export type GraphGuardDecision =
+	| {
+			readonly kind: "allow";
+			readonly reason?: string;
+			readonly metadata?: Record<string, unknown>;
+	  }
+	| {
+			readonly kind: "deny";
+			readonly reason?: string;
+			readonly status?: number;
+			readonly body?: unknown;
+			readonly headers?: Record<string, string>;
+			readonly issue?: DataIssue | HttpDataIssue;
+			readonly metadata?: Record<string, unknown>;
+	  };
 
 export interface NestBoundaryDiagnostic {
 	readonly kind:
@@ -117,12 +157,31 @@ interface NestHttpPendingEntry<TPayload> {
 	readonly handle: NestHttpResponseHandle<TPayload>;
 }
 
-export interface NestBoundaryDecoratorOptions {
+export interface NestBoundaryDecoratorOptions<THost = unknown, TPayload = unknown> {
 	readonly bindingId?: string;
+	readonly payload?: (host: THost) => TPayload;
+	readonly requestId?: string | ((host: THost) => string | undefined);
+	readonly order?: number;
 }
 
-export interface NestHttpReplyDecoratorOptions {
+export interface NestFilterDecoratorOptions<THost = unknown, TPayload = unknown>
+	extends NestBoundaryDecoratorOptions<THost, TPayload> {
+	readonly mode?: NestFilterMode;
+	readonly issueResponse?: NestIssueResponse<THost>;
+	readonly protocolError?: NestProtocolErrorResponse<THost>;
+}
+
+export interface NestHttpReplyDecoratorOptions<THost = unknown> {
 	readonly bindingId: string;
+	readonly order?: number;
+	readonly issueResponse?: NestIssueResponse<THost>;
+	readonly protocolError?: NestProtocolErrorResponse<THost>;
+}
+
+export interface NestGuardDecisionDecoratorOptions<THost = unknown> {
+	readonly bindingId: string;
+	readonly order?: number;
+	readonly issueResponse?: NestIssueResponse<THost>;
 }
 
 export interface NestGraphRunOptions<THost = unknown> {
@@ -198,6 +257,12 @@ export interface NestIngressBindingMeta {
 	bindingId: string;
 	methodKey: string | symbol;
 	readonly boundary: NestIngressBoundary<unknown, unknown>;
+	readonly payload?: (host: unknown) => unknown;
+	readonly requestId?: string | ((host: unknown) => string | undefined);
+	readonly order?: number;
+	readonly mode?: NestFilterMode;
+	readonly issueResponse?: NestIssueResponse<unknown>;
+	readonly protocolError?: NestProtocolErrorResponse<unknown>;
 }
 
 export interface NestHttpReplyBindingMeta {
@@ -206,9 +271,25 @@ export interface NestHttpReplyBindingMeta {
 	readonly bindingId: string;
 	readonly methodKey: string | symbol;
 	readonly replyNode: Node<NestReplyEnvelope<unknown>>;
+	readonly order?: number;
+	readonly issueResponse?: NestIssueResponse<unknown>;
+	readonly protocolError?: NestProtocolErrorResponse<unknown>;
 }
 
-export type NestBoundaryBindingMeta = NestIngressBindingMeta | NestHttpReplyBindingMeta;
+export interface NestGuardDecisionBindingMeta {
+	readonly direction: "egress";
+	readonly kind: "guard-decision";
+	readonly bindingId: string;
+	readonly methodKey: string | symbol;
+	readonly decisionNode: Node<NestReplyEnvelope<GraphGuardDecision>>;
+	readonly order?: number;
+	readonly issueResponse?: NestIssueResponse<unknown>;
+}
+
+export type NestBoundaryBindingMeta =
+	| NestIngressBindingMeta
+	| NestHttpReplyBindingMeta
+	| NestGuardDecisionBindingMeta;
 
 export const EVENT_HANDLERS = new WeakMap<DecoratorHostConstructor, OnGraphEventMeta[]>();
 export const INTERVAL_HANDLERS = new WeakMap<DecoratorHostConstructor, GraphIntervalMeta[]>();
@@ -482,7 +563,7 @@ export function toNestHttp<TPayload = unknown>(
 /** D478 route-request decorator over an existing ingress boundary. */
 export function GraphReq<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
-	opts: NestBoundaryDecoratorOptions = {},
+	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
 ): GraphMethodDecorator {
 	return graphIngressBinding("request", boundary, opts);
 }
@@ -490,7 +571,7 @@ export function GraphReq<THost = unknown, TPayload = unknown>(
 /** D478 route-guard decorator over an existing ingress boundary. */
 export function GraphGuard<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
-	opts: NestBoundaryDecoratorOptions = {},
+	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
 ): GraphMethodDecorator {
 	return graphIngressBinding("guard", boundary, opts);
 }
@@ -498,23 +579,31 @@ export function GraphGuard<THost = unknown, TPayload = unknown>(
 /** D478 route-interceptor decorator over an existing ingress boundary. */
 export function GraphIntercept<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
-	opts: NestBoundaryDecoratorOptions = {},
+	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
 ): GraphMethodDecorator {
 	return graphIngressBinding("interceptor", boundary, opts);
 }
 
-/** D478 exception/error decorator over an existing ingress boundary. */
-export function GraphError<THost = unknown, TPayload = unknown>(
+/** D484 generic filter decorator over an existing ingress boundary. */
+export function GraphFilter<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
-	opts: NestBoundaryDecoratorOptions = {},
+	opts: NestFilterDecoratorOptions<THost, TPayload> = {},
 ): GraphMethodDecorator {
 	return graphIngressBinding("error", boundary, opts);
+}
+
+/** D484 exception-oriented sugar over GraphFilter. */
+export function GraphError<THost = unknown, TPayload = unknown>(
+	boundary: NestIngressBoundary<THost, TPayload>,
+	opts: NestFilterDecoratorOptions<THost, TPayload> = {},
+): GraphMethodDecorator {
+	return GraphFilter(boundary, opts);
 }
 
 /** D478 lifecycle decorator over an existing ingress boundary. */
 export function GraphLifecycle<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
-	opts: NestBoundaryDecoratorOptions = {},
+	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
 ): GraphMethodDecorator {
 	return graphIngressBinding("lifecycle", boundary, opts);
 }
@@ -522,15 +611,15 @@ export function GraphLifecycle<THost = unknown, TPayload = unknown>(
 /** D478 cron/schedule decorator over an existing ingress boundary. */
 export function GraphCron<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
-	opts: NestBoundaryDecoratorOptions = {},
+	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
 ): GraphMethodDecorator {
 	return graphIngressBinding("cron", boundary, opts);
 }
 
 /** D478 HTTP reply decorator over an existing reply node. */
-export function GraphHttpReply<TPayload = unknown>(
+export function GraphHttpReply<THost = unknown, TPayload = unknown>(
 	replyNode: Node<NestReplyEnvelope<TPayload>>,
-	opts: NestHttpReplyDecoratorOptions,
+	opts: NestHttpReplyDecoratorOptions<THost>,
 ): GraphMethodDecorator {
 	const bindingId = opts?.bindingId;
 	if (typeof bindingId !== "string" || bindingId.length === 0) {
@@ -542,6 +631,29 @@ export function GraphHttpReply<TPayload = unknown>(
 		bindingId,
 		methodKey,
 		replyNode: replyNode as Node<NestReplyEnvelope<unknown>>,
+		order: opts.order,
+		issueResponse: opts.issueResponse as NestIssueResponse<unknown> | undefined,
+		protocolError: opts.protocolError as NestProtocolErrorResponse<unknown> | undefined,
+	}));
+}
+
+/** D484 guard decision egress decorator over an existing reply-correlated decision node. */
+export function GraphGuardDecision<THost = unknown>(
+	decisionNode: Node<NestReplyEnvelope<GraphGuardDecision>>,
+	opts: NestGuardDecisionDecoratorOptions<THost>,
+): GraphMethodDecorator {
+	const bindingId = opts?.bindingId;
+	if (typeof bindingId !== "string" || bindingId.length === 0) {
+		throw new Error("GraphGuardDecision requires a non-empty bindingId");
+	}
+	return registerMeta(NEST_BOUNDARY_BINDINGS, (methodKey) => ({
+		direction: "egress" as const,
+		kind: "guard-decision" as const,
+		bindingId,
+		methodKey,
+		decisionNode,
+		order: opts.order,
+		issueResponse: opts.issueResponse as NestIssueResponse<unknown> | undefined,
 	}));
 }
 
@@ -570,24 +682,26 @@ export function createNestGraphBoundaryRunner(): NestGraphBoundaryRunner {
 	return {
 		run(target, methodKey, host, opts = {}) {
 			const ctor = typeof target === "function" ? target : target.constructor;
-			const bindings = boundaryBindingsFor(ctor as DecoratorHostConstructor).filter(
-				(binding) => binding.methodKey === methodKey,
-			);
+			const bindings = getNestBoundaryBindings(ctor as DecoratorHostConstructor, methodKey);
 			if (bindings.length === 0) return undefined;
 			const requestId = requestIdFromRunOptions(host, opts);
-			const replies = bindings.filter(
-				(binding): binding is NestHttpReplyBindingMeta => binding.direction === "egress",
-			);
+			const replies = bindings.filter(isHttpReplyBinding);
 			const ingress = bindings.filter(
-				(binding): binding is NestIngressBindingMeta => binding.direction === "ingress",
+				(binding): binding is NestIngressBindingMeta =>
+					binding.direction === "ingress" &&
+					(binding.kind === "request" || binding.kind === "interceptor"),
 			);
 			if (replies.length > 0 && ingress.length === 0) {
 				throw new Error("Nest GraphHttpReply requires at least one ingress boundary");
 			}
-			if (replies.length > 0 && requestId === undefined) {
+			const ingressEmits = ingress.map((binding) => ({
+				binding,
+				requestId: requestIdFromBinding(host, binding) ?? requestId,
+			}));
+			const replyRequestIds = uniqueDefinedStrings(ingressEmits.map((entry) => entry.requestId));
+			if (replies.length > 0 && replyRequestIds.length === 0) {
 				throw new Error("Nest GraphHttpReply requires a stable requestId");
 			}
-			const replyRequestId = requestId as string;
 			const cleanups: Array<() => boolean> = [];
 			let resolveReply: ((value: unknown) => void) | undefined;
 			let rejectReply: ((reason?: unknown) => void) | undefined;
@@ -601,22 +715,25 @@ export function createNestGraphBoundaryRunner(): NestGraphBoundaryRunner {
 			try {
 				for (const reply of replies) {
 					const http = httpBoundaryFor(reply.replyNode, reply.bindingId);
-					cleanups.push(
-						http.attach({
-							requestId: replyRequestId,
-							bindingId: reply.bindingId,
-							handle: {
-								resolve: resolveReply ?? (() => undefined),
-								reject: rejectReply ?? (() => undefined),
-							},
-						}),
-					);
+					for (const replyRequestId of replyRequestIds) {
+						cleanups.push(
+							http.attach({
+								requestId: replyRequestId,
+								bindingId: reply.bindingId,
+								handle: {
+									resolve: resolveReply ?? (() => undefined),
+									reject: rejectReply ?? (() => undefined),
+								},
+							}),
+						);
+					}
 				}
-				for (const binding of ingress) {
-					binding.boundary.emit(host, {
-						bindingId: binding.bindingId,
-						requestId,
-						requireRequestId: requiresRequestId(binding.kind),
+				for (const entry of ingressEmits) {
+					entry.binding.boundary.emit(host, {
+						bindingId: entry.binding.bindingId,
+						requestId: entry.requestId,
+						...bindingPayloadEmitOption(host, entry.binding),
+						requireRequestId: requiresRequestId(entry.binding.kind),
 					});
 				}
 			} catch (error) {
@@ -647,9 +764,7 @@ export function createNestGraphBoundaryInterceptor<THost = unknown>(
 			const handler = context.getHandler();
 			const methodKey = methodKeyForHandler(ctor, handler);
 			if (methodKey === undefined) return next?.handle();
-			const bindings = boundaryBindingsFor(ctor).filter(
-				(binding) => binding.methodKey === methodKey,
-			);
+			const bindings = getNestBoundaryBindings(ctor, methodKey);
 			const needsSyntheticRequestId = bindings.some(
 				(binding) =>
 					binding.direction === "egress" ||
@@ -666,6 +781,123 @@ export function createNestGraphBoundaryInterceptor<THost = unknown>(
 			runner.dispose();
 		},
 	};
+}
+
+export function getNestBoundaryBindings(
+	target: DecoratorHostConstructor | object,
+	methodKey?: string | symbol,
+): readonly NestBoundaryBindingMeta[] {
+	const ctor =
+		typeof target === "function"
+			? (target as DecoratorHostConstructor)
+			: ((target as { constructor: DecoratorHostConstructor })
+					.constructor as DecoratorHostConstructor);
+	const bindings = boundaryBindingsFor(ctor);
+	return sortBoundaryBindings(
+		methodKey === undefined
+			? bindings
+			: bindings.filter((binding) => binding.methodKey === methodKey),
+	);
+}
+
+export function resolveNestMethodKey(
+	ctor: DecoratorHostConstructor,
+	handler: DecoratorBoundMethod,
+): string | symbol | undefined {
+	return methodKeyForHandler(ctor, handler);
+}
+
+export function bindingRequestId<THost>(
+	host: THost,
+	binding: NestBoundaryBindingMeta,
+	fallback?: string | ((host: THost) => string | undefined),
+): string | undefined {
+	if (binding.direction === "ingress") {
+		const requestId = requestIdFromBinding(host, binding);
+		if (requestId !== undefined) return requestId;
+	}
+	if (typeof fallback === "string") {
+		assertNonEmptyString(fallback, "requestId");
+		return fallback;
+	}
+	if (typeof fallback === "function") {
+		const requestId = fallback(host);
+		if (requestId !== undefined) assertNonEmptyString(requestId, "requestId");
+		return requestId;
+	}
+	return requestIdOf(host, {}, {});
+}
+
+export function bindingEmitOptions<THost>(
+	host: THost,
+	binding: NestIngressBindingMeta,
+	requestId?: string,
+): NestIngressEmitOptions<unknown> {
+	return {
+		bindingId: binding.bindingId,
+		requestId,
+		...bindingPayloadEmitOption(host, binding),
+		requireRequestId: requiresRequestId(binding.kind),
+	};
+}
+
+export function isDataIssue(value: unknown): value is DataIssue {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		(value as { kind?: unknown }).kind === "issue" &&
+		typeof (value as { code?: unknown }).code === "string" &&
+		typeof (value as { message?: unknown }).message === "string"
+	);
+}
+
+export function isHttpDataIssue(value: unknown): value is HttpDataIssue {
+	return isDataIssue(value) && Number.isInteger((value as { status?: unknown }).status);
+}
+
+export function issueResponse<THost = unknown>(
+	issue: DataIssue,
+	_host?: THost,
+): NestHttpResponsePayload {
+	if (isHttpDataIssue(issue)) {
+		return {
+			status: issue.status,
+			body: issue.body ?? { code: issue.code, message: issue.message },
+			headers: issue.headers,
+		};
+	}
+	return {
+		status: 400,
+		body: { code: issue.code, message: issue.message },
+	};
+}
+
+export function protocolError<THost = unknown>(
+	_errorPayload: unknown,
+	_host?: THost,
+): NestHttpResponsePayload {
+	return {
+		status: 500,
+		body: { code: "graphrefly.protocol_error", message: "GraphReFly reply pipeline failed" },
+	};
+}
+
+export function lowerHttpReplyPayload<THost = unknown>(
+	payload: unknown,
+	host: THost,
+	opts: { readonly issueResponse?: NestIssueResponse<THost> } = {},
+): NestHttpResponsePayload {
+	if (isHttpResponsePayload(payload)) return payload;
+	if (isDataIssue(payload)) return (opts.issueResponse ?? issueResponse)(payload, host);
+	return { status: 200, body: payload };
+}
+
+export function lowerProtocolError<THost = unknown>(
+	errorPayload: unknown,
+	host: THost,
+	opts: { readonly protocolError?: NestProtocolErrorResponse<THost> } = {},
+): NestHttpResponsePayload {
+	return (opts.protocolError ?? protocolError)(errorPayload, host);
 }
 
 function nestIngress<THost, TPayload>(
@@ -749,6 +981,55 @@ function requestIdFromRunOptions<THost>(
 	return requestIdOf(host, {}, {});
 }
 
+function requestIdFromBinding<THost>(
+	host: THost,
+	binding: NestIngressBindingMeta,
+): string | undefined {
+	if (typeof binding.requestId === "string") {
+		assertNonEmptyString(binding.requestId, "requestId");
+		return binding.requestId;
+	}
+	if (typeof binding.requestId === "function") {
+		const requestId = binding.requestId(host);
+		if (requestId !== undefined) assertNonEmptyString(requestId, "requestId");
+		return requestId;
+	}
+	return undefined;
+}
+
+function bindingPayloadEmitOption<THost>(
+	host: THost,
+	binding: NestIngressBindingMeta,
+): { readonly payload: unknown } | Record<string, never> {
+	return binding.payload === undefined ? {} : { payload: binding.payload(host) };
+}
+
+function isHttpResponsePayload(value: unknown): value is NestHttpResponsePayload {
+	if (value === null || typeof value !== "object") return false;
+	const status = (value as { status?: unknown }).status;
+	if (!Number.isInteger(status)) return false;
+	const headers = (value as { headers?: unknown }).headers;
+	return headers === undefined || isStringRecord(headers);
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+	for (const entry of Object.values(value)) if (typeof entry !== "string") return false;
+	return true;
+}
+
+function isHttpReplyBinding(binding: NestBoundaryBindingMeta): binding is NestHttpReplyBindingMeta {
+	return binding.direction === "egress" && binding.kind === "http";
+}
+
+function uniqueDefinedStrings(values: readonly (string | undefined)[]): string[] {
+	const seen = new Set<string>();
+	for (const value of values) {
+		if (value !== undefined) seen.add(value);
+	}
+	return [...seen];
+}
+
 function defaultNestHttpHost(
 	context: NestExecutionContextLike,
 	nextSeq: () => number,
@@ -785,7 +1066,7 @@ function requestIdFromHeaders(headers: unknown): string | undefined {
 function graphIngressBinding<THost, TPayload>(
 	kind: NestBoundaryKind,
 	boundary: NestIngressBoundary<THost, TPayload>,
-	opts: NestBoundaryDecoratorOptions,
+	opts: NestBoundaryDecoratorOptions<THost, TPayload> & NestFilterDecoratorOptions<THost, TPayload>,
 ): GraphMethodDecorator {
 	if (boundary.kind !== kind) {
 		throw new Error(`Graph${kind} expected a ${kind} boundary, got ${boundary.kind}`);
@@ -798,6 +1079,12 @@ function graphIngressBinding<THost, TPayload>(
 		bindingId,
 		methodKey,
 		boundary: boundary as NestIngressBoundary<unknown, unknown>,
+		payload: opts.payload as ((host: unknown) => unknown) | undefined,
+		requestId: opts.requestId as string | ((host: unknown) => string | undefined) | undefined,
+		order: opts.order,
+		mode: opts.mode,
+		issueResponse: opts.issueResponse as NestIssueResponse<unknown> | undefined,
+		protocolError: opts.protocolError as NestProtocolErrorResponse<unknown> | undefined,
 	}));
 }
 
@@ -826,6 +1113,15 @@ function boundaryBindingsFor(ctor: DecoratorHostConstructor): NestBoundaryBindin
 		current = Object.getPrototypeOf(current);
 	}
 	return bindings;
+}
+
+function sortBoundaryBindings(
+	bindings: readonly NestBoundaryBindingMeta[],
+): readonly NestBoundaryBindingMeta[] {
+	return bindings
+		.map((binding, index) => ({ binding, index }))
+		.sort((a, b) => (a.binding.order ?? 0) - (b.binding.order ?? 0) || a.index - b.index)
+		.map(({ binding }) => binding);
 }
 
 function methodOnPrototypeChain(

@@ -1,11 +1,16 @@
 ---
 title: "NestJS Integration"
-description: "Clean-slate NestJS integration with D478 decorator/provider boundary ergonomics."
+description: "Clean-slate NestJS integration with D484 Nest-native provider bridge ergonomics."
 ---
 
 # NestJS Integration
 
-The clean-slate NestJS adapter lives at `@graphrefly/ts/adapters/nestjs`. It binds ordinary Nest controller methods to existing graph boundary nodes; it does not create business graphs, rewrite Nest routing, provide `compat/nestjs`, revive `Actor` or `CqrsGraph`, or hide a message bus.
+The clean-slate NestJS adapter has two focused subpaths:
+
+- `@graphrefly/ts/adapters/nestjs` is dependency-light structural metadata: boundary factories, binding decorators, envelopes, and lowering types.
+- `@graphrefly/ts/adapters/nestjs/native` imports Nest/RxJS and provides standard Nest phase bridges.
+
+Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. The adapter does not create business graphs, rewrite Nest routing, provide `compat/nestjs`, revive `Actor` or `CqrsGraph`, scan the container by default, or hide a message bus.
 
 ## Envelope
 
@@ -39,11 +44,7 @@ import {
 
 const g = graph({ name: "orders" });
 
-const ordersIn = fromNestReq(g, {
-  bindingId: "node.orders.in",
-  requestId: (req: { requestId: string }) => req.requestId,
-  payload: (req: { body: unknown }) => req.body,
-});
+const ordersIn = fromNestReq(g, { bindingId: "node.orders.in" });
 
 const ordersOut = g.node<NestReplyEnvelope>(
   [ordersIn.node],
@@ -64,13 +65,76 @@ const ordersOut = g.node<NestReplyEnvelope>(
 );
 
 class OrdersController {
-  @GraphReq(ordersIn, { bindingId: "http.orders.in" })
+  @GraphReq(ordersIn, {
+    bindingId: "http.orders.in",
+    requestId: (req: { requestId: string }) => req.requestId,
+    payload: (req: { body: unknown }) => req.body,
+  })
   @GraphHttpReply(ordersOut, { bindingId: "http.orders.out" })
   createOrder() {}
 }
 ```
 
-A Nest provider/interceptor calls the adapter runner, reads the decorator metadata for the current `ExecutionContext`, attaches a host-private pending reply handle, emits ingress DATA, and cleans up the pending handle. Controller users do not call `attach` on the decorator path. Low-level `toNestHttp(...)` remains available for custom hosts.
+Register the native phase bridge with Nest providers:
+
+```ts
+import { provideGraphBoundaryInterceptor } from "@graphrefly/ts/adapters/nestjs/native";
+
+@Module({
+  providers: [
+    provideGraphBoundaryInterceptor({
+      host: (context) => context.switchToHttp().getRequest(),
+    }),
+  ],
+})
+class AppModule {}
+```
+
+The provider reads metadata for the current class/handler only, attaches host-private pending reply handles, emits ingress DATA, lowers HTTP DATA replies, and cleans up. Controller users do not call `attach` on the decorator path. Low-level `emit(...)` and `toNestHttp(...)` remain available for custom hosts.
+
+## Guards, Filters, and Issues
+
+Use `GraphGuard(...)` with `GraphGuardDecision(...)` for guard phase decisions. Missing decisions fail closed. Use `GraphFilter(...)` for generic filter bindings; `GraphError(...)` is exception-oriented sugar. Filter/error bindings default to handle mode and can opt into observe mode.
+
+For exception handling, prefer the targeted helper:
+
+```ts
+import { UseFilters } from "@nestjs/common";
+import { createGraphExceptionFilter } from "@graphrefly/ts/adapters/nestjs/native";
+
+const graphErrorFilter = createGraphExceptionFilter({
+  target: () => ({ target: OrdersController, methodKey: "handledError" }),
+});
+
+class OrdersController {
+  @UseFilters(graphErrorFilter)
+  @GraphError(errorIn, { bindingId: "error.orders.in" })
+  @GraphHttpReply(errorOut, { bindingId: "http.error.out" })
+  handledError() {}
+}
+```
+
+`provideGraphExceptionFilter(...)` exposes the same helper through a GraphReFly token for explicit Nest DI wiring. It is not registered as a catch-all `APP_FILTER`: Nest's global `ArgumentsHost` does not reliably expose the current route class/handler, and GraphReFly does not scan the container or own pass-through routing between unrelated filters.
+
+HTTP business failures are DATA payloads, either `{ status, body, headers? }` or `HttpDataIssue`:
+
+```ts
+const issue = {
+  kind: "issue",
+  code: "orders.not_admitted",
+  message: "Order was not admitted.",
+  status: 403,
+  body: { accepted: false },
+} satisfies HttpDataIssue;
+```
+
+Plain `DataIssue` values lower through `issueResponse(issue, host)`. Protocol `ERROR` from a reply node is graph/reply pipeline failure, not a business error path; it lowers through `protocolError(errorPayload, host)` with binding override before provider override before the safe 500 fallback.
+
+## Cron
+
+`GraphCron(...)` is consumed by `provideGraphCronScheduler(...)`; it does not require `@nestjs/schedule`. The scheduler is a Nest/source boundary that starts and stops host-private timers on module lifecycle hooks and emits ordinary cron ingress DATA.
+
+`fromCron(...)` and `GraphCron` support IANA timezone strings through runtime `Intl` support. Defaults are explicit: nonexistent DST wall-clock minutes are skipped, and repeated wall-clock minutes fire at most once.
 
 ## Inspection and Logging
 
@@ -99,8 +163,10 @@ It includes:
 - `POST /echo`
 - `POST /policy`
 - `POST /orders`
+- `POST /handled-error`
+- `POST /cron/tick`
 - `GET /audit/:requestId`
 - `POST /lifecycle/teardown`
 - `GET /graph`
 
-`POST /echo` and `POST /orders` use the D478 decorator/provider path. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)`.
+`POST /echo` and `POST /orders` use the D484 native provider bridge. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)`.

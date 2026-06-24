@@ -346,6 +346,21 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 		expect(matchesCron(schedule, new Date(2026, 2, 30, 8, 31))).toBe(false);
 	});
 
+	it("matchesCron projects dates through an IANA timezone", () => {
+		const schedule = parseCron("30 1 * * 0");
+
+		expect(
+			matchesCron(schedule, new Date("2026-03-08T09:30:00.000Z"), {
+				timezone: "America/Los_Angeles",
+			}),
+		).toBe(true);
+		expect(
+			matchesCron(parseCron("30 2 8 3 0"), new Date("2026-03-08T10:30:00.000Z"), {
+				timezone: "America/Los_Angeles",
+			}),
+		).toBe(false);
+	});
+
 	it("fromCron emits at most once per matching minute and tears down its interval", () => {
 		const now = new Date(2026, 2, 30, 8, 30, 0);
 		vi.setSystemTime(now);
@@ -374,9 +389,30 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 		expect(data(msgs)[0]).toBeInstanceOf(Date);
 	});
 
+	it("fromCron validates timezone and fires a repeated DST wall-clock minute once", () => {
+		const firstRepeated = new Date("2026-11-01T08:30:00.000Z");
+		vi.setSystemTime(firstRepeated);
+		const g = graph();
+		const n = g.initNode(
+			fromCron("30 1 1 11 0", { tickMs: 60 * 60 * 1000, timezone: "America/Los_Angeles" }),
+			[],
+		);
+		const msgs: Message[] = [];
+		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+
+		expect(data(msgs)).toEqual([(BigInt(firstRepeated.getTime()) * 1_000_000n).toString()]);
+		vi.advanceTimersByTime(60 * 60 * 1000);
+		expect(data(msgs)).toHaveLength(1);
+		expect(() => fromCron("* * * * *", { timezone: "Not/A_Zone" })).toThrow(/unsupported/);
+
+		unsubscribe();
+	});
+
 	it("fromCron accepts the exported FromCronOptions type", () => {
 		const opts: FromCronOptions =
-			Math.random() > 2 ? { output: "date" } : { output: "timestamp_ns" };
+			Math.random() > 2
+				? { output: "date", timezone: "UTC", dst: { nonexistent: "skip", repeated: "once" } }
+				: { output: "timestamp_ns" };
 
 		expectTypeOf(fromCron("* * * * *", opts)).toEqualTypeOf<
 			Operator<never, Date | number | string>

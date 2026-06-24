@@ -239,6 +239,16 @@ export interface TimerSourceOpts extends AsyncSourceOpts {
 export interface FromCronOptions extends AsyncSourceOpts {
 	/** Cron matcher polling interval in milliseconds. Default: 60_000. */
 	tickMs?: number;
+	/** IANA timezone used for wall-clock cron matching. Defaults to the host-local timezone. */
+	timezone?: string;
+	/**
+	 * DST policy for timezone-aware matching. Current D484 defaults are explicit: nonexistent
+	 * wall-clock minutes are skipped, and repeated wall-clock minutes fire at most once.
+	 */
+	dst?: {
+		readonly nonexistent?: "skip";
+		readonly repeated?: "once";
+	};
 	/**
 	 * Emitted value shape. `timestamp_ns` is a decimal string so it cannot lose precision as a
 	 * JavaScript number; use `timestamp_ms` when numeric millisecond precision is enough.
@@ -344,19 +354,118 @@ export function parseCron(expr: string): CronSchedule {
 	};
 }
 
-/** Test whether a local Date matches a parsed cron schedule. */
-export function matchesCron(schedule: CronSchedule, date: Date): boolean {
+export interface CronMatchOptions {
+	/** IANA timezone used for wall-clock projection. Defaults to the host-local timezone. */
+	timezone?: string;
+}
+
+interface CronWallClockFields {
+	readonly year: number;
+	readonly month: number;
+	readonly day: number;
+	readonly hour: number;
+	readonly minute: number;
+	readonly dayOfWeek: number;
+}
+
+/** Test whether a Date matches a parsed cron schedule in host-local time or an IANA timezone. */
+export function matchesCron(
+	schedule: CronSchedule,
+	date: Date,
+	opts: CronMatchOptions = {},
+): boolean {
+	const fields = cronWallClockFields(date, opts.timezone);
 	return (
-		schedule.minutes.has(date.getMinutes()) &&
-		schedule.hours.has(date.getHours()) &&
-		schedule.daysOfMonth.has(date.getDate()) &&
-		schedule.months.has(date.getMonth() + 1) &&
-		schedule.daysOfWeek.has(date.getDay())
+		schedule.minutes.has(fields.minute) &&
+		schedule.hours.has(fields.hour) &&
+		schedule.daysOfMonth.has(fields.day) &&
+		schedule.months.has(fields.month) &&
+		schedule.daysOfWeek.has(fields.dayOfWeek)
 	);
 }
 
-function cronMinuteKey(date: Date): string {
-	return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}-${date.getHours()}-${date.getMinutes()}`;
+function cronMinuteKey(date: Date, timezone?: string): string {
+	const fields = cronWallClockFields(date, timezone);
+	return `${fields.year}-${fields.month}-${fields.day}-${fields.hour}-${fields.minute}`;
+}
+
+function cronDayKey(date: Date, timezone?: string): string {
+	const fields = cronWallClockFields(date, timezone);
+	return `${fields.year}-${fields.month}-${fields.day}`;
+}
+
+function cronWallClockFields(date: Date, timezone?: string): CronWallClockFields {
+	if (timezone === undefined) {
+		return {
+			year: date.getFullYear(),
+			month: date.getMonth() + 1,
+			day: date.getDate(),
+			hour: date.getHours(),
+			minute: date.getMinutes(),
+			dayOfWeek: date.getDay(),
+		};
+	}
+	const parts = timezoneFormatter(timezone).formatToParts(date);
+	const values: Record<string, number> = {};
+	for (const part of parts) {
+		if (
+			part.type === "year" ||
+			part.type === "month" ||
+			part.type === "day" ||
+			part.type === "hour" ||
+			part.type === "minute"
+		) {
+			values[part.type] = Number.parseInt(part.value, 10);
+		}
+	}
+	const year = values.year;
+	const month = values.month;
+	const day = values.day;
+	const hour = values.hour;
+	const minute = values.minute;
+	if (
+		year === undefined ||
+		month === undefined ||
+		day === undefined ||
+		hour === undefined ||
+		minute === undefined
+	) {
+		throw new Error(`fromCron: timezone projection failed for ${timezone}`);
+	}
+	return {
+		year,
+		month,
+		day,
+		hour,
+		minute,
+		dayOfWeek: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
+	};
+}
+
+const TIMEZONE_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
+function timezoneFormatter(timezone: string): Intl.DateTimeFormat {
+	const existing = TIMEZONE_FORMATTERS.get(timezone);
+	if (existing !== undefined) return existing;
+	assertNonEmptyString(timezone, "fromCron: timezone");
+	try {
+		const formatter = new Intl.DateTimeFormat("en-US-u-ca-gregory-nu-latn", {
+			timeZone: timezone,
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			hourCycle: "h23",
+		});
+		formatter.format(new Date(0));
+		TIMEZONE_FORMATTERS.set(timezone, formatter);
+		return formatter;
+	} catch (error) {
+		throw new RangeError(
+			`fromCron: unsupported IANA timezone '${timezone}' (${error instanceof Error ? error.message : String(error)})`,
+		);
+	}
 }
 
 function dateToTimestampNs(date: Date): string {
@@ -384,7 +493,14 @@ export function fromCron(
 	opts: FromCronOptions = {},
 ): Operator<never, Date | number | string> {
 	const schedule = parseCron(expr);
-	const { tickMs = 60_000, output = "timestamp_ns", signal } = opts;
+	const { tickMs = 60_000, output = "timestamp_ns", signal, timezone } = opts;
+	if (opts.dst?.nonexistent !== undefined && opts.dst.nonexistent !== "skip") {
+		throw new RangeError("fromCron: dst.nonexistent currently supports only 'skip'");
+	}
+	if (opts.dst?.repeated !== undefined && opts.dst.repeated !== "once") {
+		throw new RangeError("fromCron: dst.repeated currently supports only 'once'");
+	}
+	if (timezone !== undefined) timezoneFormatter(timezone);
 	if (!Number.isFinite(tickMs) || tickMs <= 0) {
 		throw new RangeError("fromCron: tickMs must be a positive finite number");
 	}
@@ -393,6 +509,8 @@ export function fromCron(
 		(ctx) => {
 			let done = false;
 			let lastFiredKey: string | undefined;
+			let firedTimezoneDay: string | undefined;
+			const firedTimezoneMinutes = new Set<string>();
 			let intervalId: ReturnType<typeof setInterval> | undefined;
 			const cleanup = () => {
 				done = true;
@@ -413,9 +531,19 @@ export function fromCron(
 			const check = () => {
 				if (done) return;
 				const now = new Date();
-				const key = cronMinuteKey(now);
-				if (key !== lastFiredKey && matchesCron(schedule, now)) {
+				const key = cronMinuteKey(now, timezone);
+				const alreadyFired =
+					timezone === undefined ? key === lastFiredKey : firedTimezoneMinutes.has(key);
+				if (!alreadyFired && matchesCron(schedule, now, { timezone })) {
 					lastFiredKey = key;
+					if (timezone !== undefined) {
+						const dayKey = cronDayKey(now, timezone);
+						if (dayKey !== firedTimezoneDay) {
+							firedTimezoneDay = dayKey;
+							firedTimezoneMinutes.clear();
+						}
+						firedTimezoneMinutes.add(key);
+					}
 					emitNow(now);
 				}
 			};

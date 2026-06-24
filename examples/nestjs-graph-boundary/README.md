@@ -2,7 +2,7 @@
 
 Clean-slate NestJS integration demo for `@graphrefly/ts/adapters/nestjs`.
 
-The demo uses D478 decorator/provider ergonomics: `POST /echo` and `POST /orders` bind existing graph boundary nodes with `@GraphReq(...)` and `@GraphHttpReply(...)`, while a Nest interceptor provider brackets per-request attach/emit/cleanup internally. It also shows a Nest Logger provider observing the graph-visible `orders.audit` node through `graph.observe(...)`.
+The demo uses the D484 provider bridge: `POST /echo` and `POST /orders` bind existing graph boundary nodes with `@GraphReq(...)` and `@GraphHttpReply(...)`, while standard GraphReFly Nest providers consume the metadata for interceptor, guard, filter, cron, and lifecycle phases. It also shows a Nest Logger provider observing the graph-visible `orders.audit` node through `graph.observe(...)`.
 
 The adapter owns only keyed ingress/egress bindings and host-private pending HTTP handles. Admission, policy, audit, and lifecycle semantics are ordinary graph composition.
 
@@ -15,6 +15,8 @@ Endpoints:
 - `POST /echo`
 - `POST /policy`
 - `POST /orders`
+- `POST /handled-error`
+- `POST /cron/tick`
 - `GET /audit/:requestId`
 - `POST /lifecycle/teardown`
 

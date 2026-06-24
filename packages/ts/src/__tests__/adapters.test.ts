@@ -12,6 +12,14 @@ import {
 	zustandStore,
 } from "../adapters/index.js";
 import {
+	createGraphExceptionFilter,
+	provideGraphBoundaryInterceptor,
+	provideGraphCronScheduler,
+	provideGraphExceptionFilter,
+	provideGraphGuard,
+	provideGraphLifecycleHooks,
+} from "../adapters/nestjs/native.js";
+import {
 	createNestGraphBoundaryInterceptor,
 	createNestGraphBoundaryRunner,
 	fromNestCron,
@@ -22,13 +30,24 @@ import {
 	fromNestReq,
 	GRAPHREFLY_REQUEST_GRAPH,
 	GRAPHREFLY_ROOT_GRAPH,
+	GraphCron,
+	GraphError,
+	GraphFilter,
+	GraphGuard,
+	GraphGuardDecision,
+	type GraphGuardDecision as GraphGuardDecisionPayload,
 	GraphHttpReply,
 	GraphInterval,
 	GraphLifecycle,
 	GraphReq,
 	getGraphToken,
+	getNestBoundaryBindings,
 	getNestBoundaryToken,
 	getNodeToken,
+	type HttpDataIssue,
+	issueResponse,
+	lowerHttpReplyPayload,
+	lowerProtocolError,
 	NEST_BOUNDARY_BINDINGS,
 	CRON_HANDLERS as NEST_CRON_HANDLERS,
 	EVENT_HANDLERS as NEST_EVENT_HANDLERS,
@@ -37,6 +56,7 @@ import {
 	type NestReplyEnvelope,
 	nestProvider,
 	OnGraphEvent,
+	protocolError,
 	toNestHttp,
 } from "../adapters/nestjs.js";
 import { depLatest } from "../ctx/types.js";
@@ -556,6 +576,86 @@ describe("framework-neutral store adapters (B61)", () => {
 		runner.dispose();
 	});
 
+	it("uses binding-level request ids when attaching high-level HTTP replies", async () => {
+		const g = graph();
+		const req = fromNestReq<
+			{ readonly routeRequestId: string; readonly body: { readonly ok: true } },
+			{ readonly ok: true }
+		>(g, {
+			bindingId: "node.binding-request.in",
+			payload: (host) => host.body,
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([req.node], (ctx) => {
+			const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ readonly ok: true }>;
+			if (envelope.requestId === undefined) return;
+			ctx.down([
+				[
+					"DATA",
+					{
+						requestId: envelope.requestId,
+						bindingId: "http.binding-request.out",
+						version: 1,
+						payload: envelope.payload,
+					},
+				],
+			]);
+		});
+		class Controller {
+			post() {}
+		}
+		GraphReq(req, {
+			bindingId: "http.binding-request.in",
+			requestId: (host) => host.routeRequestId,
+		})(Controller.prototype, "post", { value: Controller.prototype.post });
+		GraphHttpReply(reply, { bindingId: "http.binding-request.out" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		const runner = createNestGraphBoundaryRunner();
+
+		await expect(
+			runner.run(Controller, "post", {
+				routeRequestId: "req-binding",
+				body: { ok: true },
+			}),
+		).resolves.toEqual({ ok: true });
+		runner.dispose();
+	});
+
+	it("limits the high-level interceptor runner to request/interceptor ingress and HTTP egress", () => {
+		const g = graph();
+		const req = fromNestReq<{ readonly requestId: string }, { readonly ok: true }>(g, {
+			bindingId: "node.phase.request.in",
+			payload: () => ({ ok: true }),
+		});
+		const guard = fromNestGuard<{ readonly requestId: string }, { readonly guard: true }>(g, {
+			bindingId: "node.phase.guard.in",
+			payload: () => ({ guard: true }),
+		});
+		const decision = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>([], null);
+		const requestSeen: unknown[] = [];
+		const guardSeen: unknown[] = [];
+		req.node.subscribe((msg) => msg[0] === "DATA" && requestSeen.push(msg[1]));
+		guard.node.subscribe((msg) => msg[0] === "DATA" && guardSeen.push(msg[1]));
+		class Controller {
+			post() {}
+		}
+		GraphReq(req, { bindingId: "http.phase.request.in" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		GraphGuard(guard, { bindingId: "guard.phase.in" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		GraphGuardDecision(decision, { bindingId: "guard.phase.out" })(Controller.prototype, "post", {
+			value: Controller.prototype.post,
+		});
+		const runner = createNestGraphBoundaryRunner();
+
+		expect(runner.run(Controller, "post", { requestId: "req-phase" })).toBeUndefined();
+		expect(requestSeen).toHaveLength(1);
+		expect(guardSeen).toHaveLength(0);
+		runner.dispose();
+	});
+
 	it("fails fast when GraphHttpReply is configured without a matching ingress binding", () => {
 		const g = graph();
 		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
@@ -701,7 +801,7 @@ describe("framework-neutral store adapters (B61)", () => {
 		interceptor.dispose();
 	});
 
-	it("does not synthesize requestId for lifecycle-only interceptor bindings", () => {
+	it("ignores lifecycle-only metadata in the interceptor phase bridge", () => {
 		const g = graph();
 		const lifecycle = fromNestLifecycle<unknown, { readonly event: string }>(g, {
 			bindingId: "node.lifecycle.only",
@@ -727,13 +827,7 @@ describe("framework-neutral store adapters (B61)", () => {
 		};
 
 		expect(interceptor.intercept(context, { handle: () => "next" })).toBe("next");
-		expect(seen).toEqual([
-			{
-				bindingId: "lifecycle.only",
-				version: 1,
-				payload: { event: "teardown" },
-			},
-		]);
+		expect(seen).toEqual([]);
 		unsubscribe();
 		interceptor.dispose();
 	});
@@ -890,5 +984,542 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect(() =>
 			req.emit({ requestId: "req-1" }, { payload: { socket: new Map<string, string>() } }),
 		).toThrow(/plain data object/);
+	});
+
+	it("lets binding-level payload and requestId override factory defaults", () => {
+		const g = graph();
+		const req = fromNestReq<{ requestId: string; body: { value: string } }, { value: string }>(g, {
+			bindingId: "node.shared.in",
+			payload: () => ({ value: "factory" }),
+			requestId: "factory-req",
+		});
+		const seen: unknown[] = [];
+		req.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class Controller {
+			a() {}
+			b() {}
+		}
+		GraphReq(req, {
+			bindingId: "route.a",
+			payload: (host) => host.body,
+			requestId: (host) => host.requestId,
+			order: 2,
+		})(Controller.prototype, "a", { value: Controller.prototype.a });
+		GraphReq(req, {
+			bindingId: "route.b",
+			payload: () => ({ value: "binding-b" }),
+			requestId: "route-b-req",
+			order: 1,
+		})(Controller.prototype, "b", { value: Controller.prototype.b });
+
+		const runner = createNestGraphBoundaryRunner();
+		runner.run(Controller, "a", { requestId: "route-a-req", body: { value: "binding-a" } });
+		runner.run(Controller, "b", { requestId: "ignored", body: { value: "ignored" } });
+
+		expect(seen).toEqual([
+			{
+				bindingId: "route.a",
+				version: 1,
+				requestId: "route-a-req",
+				payload: { value: "binding-a" },
+			},
+			{
+				bindingId: "route.b",
+				version: 1,
+				requestId: "route-b-req",
+				payload: { value: "binding-b" },
+			},
+		]);
+		expect(getNestBoundaryBindings(Controller, "a")[0]).toMatchObject({
+			bindingId: "route.a",
+			order: 2,
+		});
+		runner.dispose();
+	});
+
+	it("records GraphFilter, GraphError sugar, GraphGuardDecision, and lowerers", () => {
+		const g = graph();
+		const error = fromNestError(g, { bindingId: "node.error.in" });
+		const guard = fromNestGuard(g, { bindingId: "node.guard.in" });
+		const decision = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>([], null);
+		class Controller {
+			filtered() {}
+			guarded() {}
+		}
+
+		GraphFilter(error, { bindingId: "filter.generic", mode: "observe", order: 1 })(
+			Controller.prototype,
+			"filtered",
+			{ value: Controller.prototype.filtered },
+		);
+		GraphError(error, { bindingId: "filter.error", mode: "handle", order: 2 })(
+			Controller.prototype,
+			"filtered",
+			{ value: Controller.prototype.filtered },
+		);
+		GraphGuard(guard, { bindingId: "guard.in" })(Controller.prototype, "guarded", {
+			value: Controller.prototype.guarded,
+		});
+		GraphGuardDecision(decision, { bindingId: "guard.out" })(Controller.prototype, "guarded", {
+			value: Controller.prototype.guarded,
+		});
+
+		expect(
+			getNestBoundaryBindings(Controller, "filtered").map((binding) => binding.bindingId),
+		).toEqual(["filter.generic", "filter.error"]);
+		expect(getNestBoundaryBindings(Controller, "guarded").map((binding) => binding.kind)).toEqual([
+			"guard",
+			"guard-decision",
+		]);
+
+		const httpIssue: HttpDataIssue = {
+			kind: "issue",
+			code: "orders.closed",
+			message: "Orders are closed.",
+			status: 409,
+			body: { ok: false },
+			headers: { "x-graphrefly-issue": "orders.closed" },
+		};
+		expect(issueResponse(httpIssue)).toEqual({
+			status: 409,
+			body: { ok: false },
+			headers: { "x-graphrefly-issue": "orders.closed" },
+		});
+		expect(lowerHttpReplyPayload({ status: 202, body: { ok: true } }, {})).toEqual({
+			status: 202,
+			body: { ok: true },
+		});
+		expect(lowerHttpReplyPayload({ kind: "issue", code: "bad", message: "Bad" }, {})).toEqual({
+			status: 400,
+			body: { code: "bad", message: "Bad" },
+		});
+		expect(protocolError(new Error("secret")).status).toBe(500);
+		expect(
+			lowerProtocolError("boom", {}, { protocolError: () => ({ status: 599, body: "masked" }) }),
+		).toEqual({ status: 599, body: "masked" });
+	});
+
+	it("exports Nest-native provider bridge objects without leaking them through the generic barrel", () => {
+		expect(provideGraphBoundaryInterceptor()).toMatchObject({ provide: expect.anything() });
+		expect(provideGraphGuard()).toMatchObject({ provide: expect.anything() });
+		expect(typeof createGraphExceptionFilter({ target: () => undefined }).catch).toBe("function");
+		expect(provideGraphExceptionFilter({ target: () => undefined })).toMatchObject({
+			provide: expect.anything(),
+		});
+		expect(provideGraphCronScheduler({ targets: [] })).toMatchObject({
+			provide: expect.any(Symbol),
+		});
+		expect(provideGraphLifecycleHooks({ targets: [] })).toMatchObject({
+			provide: expect.any(Symbol),
+		});
+		expect("GraphReq" in ({} as typeof import("../adapters/index.js"))).toBe(false);
+	});
+
+	it("native guard provider consumes GraphGuard and GraphGuardDecision metadata", async () => {
+		const g = graph();
+		const guard = fromNestGuard<
+			{ readonly requestId: string; readonly allow: boolean },
+			{ allow: boolean }
+		>(g, { bindingId: "node.native.guard.in" });
+		const decision = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>([guard.node], (ctx) => {
+			const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ allow: boolean }>;
+			if (envelope.requestId === undefined) return;
+			ctx.down([
+				[
+					"DATA",
+					{
+						requestId: envelope.requestId,
+						bindingId: "native.guard.out",
+						version: 1,
+						payload: envelope.payload.allow
+							? { kind: "allow" }
+							: { kind: "deny", status: 409, body: { accepted: false } },
+					},
+				],
+			]);
+		});
+		class Controller {
+			guarded() {}
+		}
+		GraphGuard(guard, {
+			bindingId: "native.guard.in",
+			payload: (host) => ({ allow: host.allow }),
+			requestId: (host) => host.requestId,
+		})(Controller.prototype, "guarded", { value: Controller.prototype.guarded });
+		GraphGuardDecision(decision, { bindingId: "native.guard.out" })(
+			Controller.prototype,
+			"guarded",
+			{
+				value: Controller.prototype.guarded,
+			},
+		);
+		const bridge = provideGraphGuard({
+			host: () => ({ requestId: "req-allow", allow: true }),
+			requestId: (host) => host.requestId,
+		}).useValue as { canActivate(context: unknown): Promise<boolean>; onModuleDestroy(): void };
+		const context = {
+			getClass: () => Controller,
+			getHandler: () => Controller.prototype.guarded,
+			switchToHttp: () => ({ getRequest: () => ({}) }),
+		};
+
+		await expect(bridge.canActivate(context)).resolves.toBe(true);
+		const denyBridge = provideGraphGuard({
+			host: () => ({ requestId: "req-deny", allow: false }),
+			requestId: (host) => host.requestId,
+		}).useValue as typeof bridge;
+		try {
+			await denyBridge.canActivate(context);
+			throw new Error("expected guard denial to throw");
+		} catch (error) {
+			expect((error as { getStatus?: () => number }).getStatus?.()).toBe(409);
+			expect((error as { getResponse?: () => unknown }).getResponse?.()).toEqual({
+				accepted: false,
+			});
+		}
+		bridge.onModuleDestroy();
+		denyBridge.onModuleDestroy();
+	});
+
+	it("native guard provider correlates each guard binding with its own request id", async () => {
+		const g = graph();
+		type GuardHost = {
+			readonly leftRequestId: string;
+			readonly rightRequestId: string;
+		};
+		const leftGuard = fromNestGuard<GuardHost, { readonly side: "left" }>(g, {
+			bindingId: "node.native.guard.left.in",
+		});
+		const rightGuard = fromNestGuard<GuardHost, { readonly side: "right" }>(g, {
+			bindingId: "node.native.guard.right.in",
+		});
+		const decision = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>(
+			[leftGuard.node, rightGuard.node],
+			(ctx) => {
+				const envelopes = [depLatest(ctx, 0), depLatest(ctx, 1)] as Array<
+					NestBoundaryEnvelope<{ readonly side: "left" | "right" }> | undefined
+				>;
+				const messages = envelopes
+					.filter(
+						(envelope): envelope is NestBoundaryEnvelope<{ readonly side: "left" | "right" }> =>
+							envelope?.requestId !== undefined,
+					)
+					.map(
+						(envelope) =>
+							[
+								"DATA",
+								{
+									requestId: envelope.requestId,
+									bindingId: "native.guard.multi.out",
+									version: 1,
+									payload: { kind: "allow", metadata: { side: envelope.payload.side } },
+								},
+							] as const,
+					);
+				if (messages.length > 0) ctx.down(messages);
+			},
+		);
+		class Controller {
+			guarded() {}
+		}
+		GraphGuard(leftGuard, {
+			bindingId: "native.guard.left.in",
+			payload: () => ({ side: "left" }),
+			requestId: (host) => host.leftRequestId,
+		})(Controller.prototype, "guarded", { value: Controller.prototype.guarded });
+		GraphGuard(rightGuard, {
+			bindingId: "native.guard.right.in",
+			payload: () => ({ side: "right" }),
+			requestId: (host) => host.rightRequestId,
+		})(Controller.prototype, "guarded", { value: Controller.prototype.guarded });
+		GraphGuardDecision(decision, { bindingId: "native.guard.multi.out" })(
+			Controller.prototype,
+			"guarded",
+			{ value: Controller.prototype.guarded },
+		);
+		const bridge = provideGraphGuard({
+			host: () => ({ leftRequestId: "req-left", rightRequestId: "req-right" }),
+			requestId: () => "provider-fallback",
+		}).useValue as { canActivate(context: unknown): Promise<boolean>; onModuleDestroy(): void };
+		const context = {
+			getClass: () => Controller,
+			getHandler: () => Controller.prototype.guarded,
+			switchToHttp: () => ({ getRequest: () => ({}) }),
+		};
+
+		await expect(bridge.canActivate(context)).resolves.toBe(true);
+		bridge.onModuleDestroy();
+	});
+
+	it("native exception filter handles GraphError with HTTP DATA lowering", async () => {
+		const g = graph();
+		const errorIn = fromNestError<
+			{ readonly requestId: string; readonly exception: Error },
+			{ message: string }
+		>(g, { bindingId: "node.native.error.in" });
+		const errorOut = g.node<NestReplyEnvelope<{ status: number; body: { message: string } }>>(
+			[errorIn.node],
+			(ctx) => {
+				const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ message: string }>;
+				if (envelope.requestId === undefined) return;
+				ctx.down([
+					[
+						"DATA",
+						{
+							requestId: envelope.requestId,
+							bindingId: "native.error.out",
+							version: 1,
+							payload: { status: 418, body: { message: envelope.payload.message } },
+						},
+					],
+				]);
+			},
+		);
+		class Controller {
+			handled() {}
+		}
+		GraphError(errorIn, {
+			bindingId: "native.error.in",
+			payload: (host) => ({ message: host.exception.message }),
+			requestId: (host) => host.requestId,
+		})(Controller.prototype, "handled", { value: Controller.prototype.handled });
+		GraphHttpReply(errorOut, { bindingId: "native.error.out" })(Controller.prototype, "handled", {
+			value: Controller.prototype.handled,
+		});
+		const statuses: number[] = [];
+		const bodies: unknown[] = [];
+		const filter = provideGraphExceptionFilter({
+			target: () => ({ target: Controller, methodKey: "handled" }),
+			host: (_host, exception) => ({
+				requestId: "req-error",
+				exception: exception instanceof Error ? exception : new Error(String(exception)),
+			}),
+			requestId: (host) => host.requestId,
+		}).useValue as {
+			catch(exception: unknown, host: unknown): Promise<unknown>;
+			onModuleDestroy(): void;
+		};
+		const host = {
+			switchToHttp: () => ({
+				getRequest: () => ({}),
+				getResponse: () => ({
+					status(value: number) {
+						statuses.push(value);
+					},
+					json(value: unknown) {
+						bodies.push(value);
+						return value;
+					},
+				}),
+			}),
+		};
+
+		await filter.catch(new Error("handled"), host);
+
+		expect(statuses).toEqual([418]);
+		expect(bodies).toEqual([{ message: "handled" }]);
+		filter.onModuleDestroy();
+	});
+
+	it("native exception filter lowers directly when no handling filter has a request id", () => {
+		const g = graph();
+		const errorIn = fromNestError<{ readonly exception: Error }, { message: string }>(g, {
+			bindingId: "node.native.error.no-request.in",
+		});
+		class Controller {
+			handled() {}
+		}
+		GraphError(errorIn, {
+			bindingId: "native.error.no-request.in",
+			payload: (host) => ({ message: host.exception.message }),
+		})(Controller.prototype, "handled", { value: Controller.prototype.handled });
+		const statuses: number[] = [];
+		const bodies: unknown[] = [];
+		const filter = createGraphExceptionFilter({
+			target: () => ({ target: Controller, methodKey: "handled" }),
+			host: (_host, exception) => ({
+				exception: exception instanceof Error ? exception : new Error(String(exception)),
+			}),
+		}) as { catch(exception: unknown, host: unknown): unknown; onModuleDestroy(): void };
+		const host = {
+			switchToHttp: () => ({
+				getRequest: () => ({}),
+				getResponse: () => ({
+					status(value: number) {
+						statuses.push(value);
+					},
+					json(value: unknown) {
+						bodies.push(value);
+						return value;
+					},
+				}),
+			}),
+		};
+
+		filter.catch(new Error("handled"), host);
+
+		expect(statuses).toEqual([500]);
+		expect(bodies).toEqual([
+			{ code: "graphrefly.protocol_error", message: "GraphReFly reply pipeline failed" },
+		]);
+		filter.onModuleDestroy();
+	});
+
+	it("native exception filter emits request-correlated observe filters before direct lowering", () => {
+		const g = graph();
+		const errorIn = fromNestError<
+			{ readonly requestId: string; readonly exception: Error },
+			{ readonly message: string }
+		>(g, {
+			bindingId: "node.native.error.observe.in",
+		});
+		const seen: string[] = [];
+		errorIn.node.subscribe((msg) => {
+			if (msg[0] === "DATA") seen.push(msg[1].bindingId);
+		});
+		class Controller {
+			handled() {}
+		}
+		GraphFilter(errorIn, {
+			bindingId: "native.error.observe.in",
+			mode: "observe",
+			payload: (host) => ({ message: host.exception.message }),
+			requestId: (host) => host.requestId,
+			order: 1,
+		})(Controller.prototype, "handled", { value: Controller.prototype.handled });
+		GraphError(errorIn, {
+			bindingId: "native.error.handle.in",
+			payload: (host) => ({ message: host.exception.message }),
+			requestId: (host) => host.requestId,
+			order: 2,
+		})(Controller.prototype, "handled", { value: Controller.prototype.handled });
+		const statuses: number[] = [];
+		const filter = createGraphExceptionFilter({
+			target: () => ({ target: Controller, methodKey: "handled" }),
+			host: (_host, exception) => ({
+				requestId: "err-observe",
+				exception: exception instanceof Error ? exception : new Error(String(exception)),
+			}),
+		}) as { catch(exception: unknown, host: unknown): unknown; onModuleDestroy(): void };
+		const host = {
+			switchToHttp: () => ({
+				getRequest: () => ({}),
+				getResponse: () => ({
+					status(value: number) {
+						statuses.push(value);
+					},
+					json(value: unknown) {
+						return value;
+					},
+				}),
+			}),
+		};
+
+		filter.catch(new Error("handled"), host);
+
+		expect(seen).toEqual(["native.error.observe.in", "native.error.handle.in"]);
+		expect(statuses).toEqual([500]);
+		filter.onModuleDestroy();
+	});
+
+	it("native cron provider starts and stops timers while emitting GraphCron ingress", () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-01-05T08:30:00.000Z"));
+		const g = graph();
+		const cron = fromNestCron<{ readonly timestamp_ns: string }, { tick: string }>(g, {
+			bindingId: "node.native.cron.in",
+		});
+		const seen: unknown[] = [];
+		cron.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class Controller {
+			tick() {}
+		}
+		GraphCron(cron, {
+			bindingId: "native.cron.in",
+			payload: (host) => ({ tick: host.timestamp_ns }),
+		})(Controller.prototype, "tick", { value: Controller.prototype.tick });
+		const scheduler = provideGraphCronScheduler({
+			targets: [
+				{
+					target: Controller,
+					methodKey: "tick",
+					expr: "30 8 * * 1",
+					tickMs: 1000,
+					timezone: "UTC",
+				},
+			],
+		}).useValue as { onModuleInit(): void; onModuleDestroy(): void };
+
+		scheduler.onModuleInit();
+
+		expect(seen).toHaveLength(1);
+		expect(vi.getTimerCount()).toBe(1);
+		scheduler.onModuleDestroy();
+		expect(vi.getTimerCount()).toBe(0);
+		vi.useRealTimers();
+	});
+
+	it("native cron provider dedupes by current wall-clock minute without blocking later days", () => {
+		vi.useFakeTimers();
+		try {
+			vi.setSystemTime(new Date("2026-01-05T08:30:00.000Z"));
+			const g = graph();
+			const cron = fromNestCron<{ readonly timestamp_ms: number }, { readonly tick: number }>(g, {
+				bindingId: "node.native.cron.daily.in",
+			});
+			const seen: unknown[] = [];
+			cron.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+			class Controller {
+				tick() {}
+			}
+			GraphCron(cron, {
+				bindingId: "native.cron.daily.in",
+				payload: (host) => ({ tick: host.timestamp_ms }),
+			})(Controller.prototype, "tick", { value: Controller.prototype.tick });
+			const scheduler = provideGraphCronScheduler({
+				targets: [
+					{
+						target: Controller,
+						methodKey: "tick",
+						expr: "30 8 * * *",
+						tickMs: 1000,
+						timezone: "UTC",
+					},
+				],
+			}).useValue as { onModuleInit(): void; onModuleDestroy(): void };
+
+			scheduler.onModuleInit();
+			vi.advanceTimersByTime(30_000);
+			vi.setSystemTime(new Date("2026-01-06T08:30:00.000Z"));
+			vi.advanceTimersByTime(1_000);
+			scheduler.onModuleDestroy();
+
+			expect(seen).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("native cron provider rolls back timers when module init fails partway", () => {
+		vi.useFakeTimers();
+		try {
+			vi.setSystemTime(new Date("2026-01-05T08:30:00.000Z"));
+			class Controller {
+				tick() {}
+				bad() {}
+			}
+			const scheduler = provideGraphCronScheduler({
+				targets: [
+					{ target: Controller, methodKey: "tick", expr: "* * * * *", tickMs: 1000 },
+					{ target: Controller, methodKey: "bad", expr: "* * * * *", tickMs: 0 },
+				],
+			}).useValue as { onModuleInit(): void; onModuleDestroy(): void };
+
+			expect(() => scheduler.onModuleInit()).toThrow(/tickMs/);
+			expect(vi.getTimerCount()).toBe(0);
+			scheduler.onModuleDestroy();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

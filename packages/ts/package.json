@@ -38,6 +38,16 @@
 				"default": "./dist/adapters/nestjs.cjs"
 			}
 		},
+		"./adapters/nestjs/native": {
+			"import": {
+				"types": "./dist/adapters/nestjs/native.d.ts",
+				"default": "./dist/adapters/nestjs/native.js"
+			},
+			"require": {
+				"types": "./dist/adapters/nestjs/native.d.cts",
+				"default": "./dist/adapters/nestjs/native.cjs"
+			}
+		},
 		"./adapters/observe-storage": {
 			"import": {
 				"types": "./dist/adapters/observe-storage.d.ts",
@@ -523,17 +533,29 @@
 	},
 	"license": "MIT",
 	"peerDependencies": {
+		"@nestjs/common": "^11.0.0",
+		"@nestjs/core": "^11.0.0",
 		"canvas": "^3.2.3",
 		"react": "^18.0.0 || ^19.0.0",
+		"rxjs": "^7.8.0",
 		"solid-js": "^1.9.0",
 		"svelte": "^5.0.0",
 		"vue": "^3.5.0"
 	},
 	"peerDependenciesMeta": {
+		"@nestjs/common": {
+			"optional": true
+		},
+		"@nestjs/core": {
+			"optional": true
+		},
 		"canvas": {
 			"optional": true
 		},
 		"react": {
+			"optional": true
+		},
+		"rxjs": {
 			"optional": true
 		},
 		"solid-js": {

@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import * as adapters from "../adapters/index.js";
+import * as nestjsNativeAdapters from "../adapters/nestjs/native.js";
 import * as nestjsAdapters from "../adapters/nestjs.js";
 import * as observeStorage from "../adapters/observe-storage.js";
 import * as reactAdapters from "../adapters/react.js";
@@ -142,6 +143,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			".",
 			"./adapters",
 			"./adapters/nestjs",
+			"./adapters/nestjs/native",
 			"./adapters/observe-storage",
 			"./adapters/react",
 			"./adapters/solid",
@@ -285,8 +287,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof nestjsAdapters.fromNestLifecycle).toBe("function");
 		expect(typeof nestjsAdapters.fromNestCron).toBe("function");
 		expect(typeof nestjsAdapters.toNestHttp).toBe("function");
+		expect(typeof nestjsAdapters.GraphFilter).toBe("function");
+		expect(typeof nestjsAdapters.GraphGuardDecision).toBe("function");
 		expect(typeof nestjsAdapters.getGraphToken).toBe("function");
 		expect(typeof nestjsAdapters.getNestBoundaryToken).toBe("function");
+		expect(typeof nestjsNativeAdapters.provideGraphBoundaryInterceptor).toBe("function");
+		expect(typeof nestjsNativeAdapters.provideGraphGuard).toBe("function");
+		expect(typeof nestjsNativeAdapters.createGraphExceptionFilter).toBe("function");
+		expect(typeof nestjsNativeAdapters.provideGraphExceptionFilter).toBe("function");
+		expect(typeof nestjsNativeAdapters.provideGraphCronScheduler).toBe("function");
+		expect(typeof nestjsNativeAdapters.provideGraphLifecycleHooks).toBe("function");
+		expect(typeof nestjsNativeAdapters.GRAPHREFLY_NEST_EXCEPTION_FILTER).toBe("symbol");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof patterns.profileSummary).toBe("function");
