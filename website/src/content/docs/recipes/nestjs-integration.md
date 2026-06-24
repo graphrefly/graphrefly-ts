@@ -285,7 +285,9 @@ Graph-visible adapter diagnostics require an explicitly wired diagnostic ingress
 
 ```ts
 import { fromNestDiagnostics } from "@graphrefly/ts/adapters/nestjs";
+import { provideGraphMessageProviders } from "@graphrefly/ts/adapters/nestjs/microservices";
 import { provideGraphNativeProviders } from "@graphrefly/ts/adapters/nestjs/native";
+import { provideGraphWsProviders } from "@graphrefly/ts/adapters/nestjs/websockets";
 
 const nestDiagnostics = fromNestDiagnostics(g, {
   bindingId: "node.nest.diagnostics",
@@ -299,12 +301,18 @@ const nestDiagnostics = fromNestDiagnostics(g, {
         guard: { diagnosticBoundary: nestDiagnostics },
       },
     }),
+    ...provideGraphWsProviders({
+      bridge: { diagnosticBoundary: nestDiagnostics },
+    }),
+    ...provideGraphMessageProviders({
+      bridge: { diagnosticBoundary: nestDiagnostics },
+    }),
   ],
 })
 class AppModule {}
 ```
 
-Graph-visible diagnostics emit only sanitized data-only payloads: `kind`, `phase`, `requestId`, `bindingId`, `expectedBindingId`, `message`, and optional `{ name, message }` error summary. Raw sockets, clients, contexts, callbacks, transport handles, Promises, Observables, and raw Error objects never enter graph DATA.
+Graph-visible diagnostics emit only sanitized data-only payloads: `kind`, `phase`, `requestId`, `bindingId`, `expectedBindingId`, `message`, and optional `{ name, message }` error summary. Raw sockets, clients, contexts, callbacks, transport handles, Promises, Observables, and raw Error objects never enter graph DATA. WS and message diagnostics use the same explicit ingress recipe as HTTP/native diagnostics; they do not get a separate logging channel.
 
 There is no `onDiagnostic` callback or logging API. Log or audit diagnostics by composing explicit graph nodes and subscribing with `graph.observe(...)`, the same as other graph-visible status.
 

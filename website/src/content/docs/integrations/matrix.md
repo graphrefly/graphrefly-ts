@@ -27,11 +27,13 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Solid | Framework adapter | `@graphrefly/ts/adapters/solid` |
 | Svelte | Framework adapter | `@graphrefly/ts/adapters/svelte` |
 | NestJS structural metadata | D484 dependency-light boundary factories/decorators | `@graphrefly/ts/adapters/nestjs` |
-| NestJS native providers | D486 phase bridges for interceptor/guard/filter/cron/lifecycle plus targeted guard-denial response filter | `@graphrefly/ts/adapters/nestjs/native` |
-| NestJS WebSocket boundary | D488 focused optional-peer native gateway bridge | `@graphrefly/ts/adapters/nestjs/websockets` |
-| NestJS microservice boundary | D488 focused optional-peer native message-pattern bridge | `@graphrefly/ts/adapters/nestjs/microservices` |
+| NestJS native providers | D494 HTTP/guard/filter/cron/lifecycle provider bundles and explicit targets | `@graphrefly/ts/adapters/nestjs/native` |
+| NestJS WebSocket boundary | D488 focused optional-peer gateway bridge plus D495 provider bundle | `@graphrefly/ts/adapters/nestjs/websockets` |
+| NestJS microservice boundary | D488 focused optional-peer message-pattern bridge plus D495 provider bundle | `@graphrefly/ts/adapters/nestjs/microservices` |
 | Jotai-style facade | Framework-neutral store facade | `jotaiAtom` from `@graphrefly/ts/adapters` |
 | Nanostores-style facade | Framework-neutral store facade | `nanoAtom` from `@graphrefly/ts/adapters` |
 | Zustand-style facade | Framework-neutral store facade | `zustandStore` from `@graphrefly/ts/adapters` |
 
 Legacy `@graphrefly/graphrefly/compat/*` imports are retired.
+
+NestJS provider bundles are explicit arrays over existing options. They are not modules, do not scan the container, do not create graphs, and do not own retry, session, reconnect, or transport lifecycle policy. Graph-visible adapter diagnostics require an explicitly wired sanitized diagnostics ingress boundary; there is no diagnostics callback or logging API.

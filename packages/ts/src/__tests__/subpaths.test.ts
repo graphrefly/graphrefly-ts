@@ -1007,6 +1007,38 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(docs).toContain("no missed-status or catch-up DATA");
 	});
 
+	it("documents D495 focused NestJS provider bundles and diagnostics recipe boundaries", () => {
+		const docsRoot = join(
+			dirname(fileURLToPath(import.meta.url)),
+			"..",
+			"..",
+			"..",
+			"..",
+			"website",
+			"src",
+			"content",
+			"docs",
+		);
+		const recipe = readFileSync(join(docsRoot, "recipes", "nestjs-integration.md"), "utf8");
+		const matrix = readFileSync(join(docsRoot, "integrations", "matrix.md"), "utf8");
+		const compat = readFileSync(join(docsRoot, "integrations", "compat.md"), "utf8");
+
+		for (const docs of [recipe, matrix, compat]) {
+			expect(docs).toContain("D495");
+			expect(docs).toContain("provider bundle");
+			expect(docs).toContain("diagnostics");
+		}
+		expect(recipe).toContain("provideGraphWsProviders");
+		expect(recipe).toContain("provideGraphMessageProviders");
+		expect(recipe).toContain("bridge: { diagnosticBoundary: nestDiagnostics }");
+		expect(recipe).toContain("There is no `onDiagnostic` callback or logging API");
+		expect(matrix).toContain("do not scan the container");
+		expect(matrix).toContain("do not create graphs");
+		expect(matrix).toContain("do not own retry, session, reconnect, or transport lifecycle policy");
+		expect(compat).toContain("hidden graph creation");
+		expect(compat).toContain("transport retry/session/reconnect ownership");
+	});
+
 	it("exports node-only sources as a package subpath without polluting universal sources", () => {
 		expect(exportsJson.exports?.["./sources/node"]).toBeDefined();
 		expect(typeof sourcesNode.fromFSWatch).toBe("function");

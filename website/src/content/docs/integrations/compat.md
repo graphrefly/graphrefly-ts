@@ -7,7 +7,9 @@ The old `@graphrefly/graphrefly/compat/*` runtime model is retired. Clean-slate 
 
 ## Current replacements
 
-- **NestJS**: `@graphrefly/ts/adapters/nestjs` keyed ingress/egress boundary nodes plus D478 decorators/providers over existing graph nodes.
+- **NestJS structural metadata**: `@graphrefly/ts/adapters/nestjs` keyed ingress/egress boundary nodes plus decorators over existing graph nodes.
+- **NestJS HTTP/native providers**: `@graphrefly/ts/adapters/nestjs/native` explicit D494 provider bundles for interceptor, guard, filter, cron, and lifecycle phases.
+- **NestJS WebSocket/message providers**: `@graphrefly/ts/adapters/nestjs/websockets` and `@graphrefly/ts/adapters/nestjs/microservices` focused D495 provider bundles over the existing D488 bridges.
 - **React/Vue/Solid/Svelte**: focused framework adapter subpaths.
 - **Jotai/Nanostores/Zustand-style facades**: small store facades from `@graphrefly/ts/adapters`.
 
@@ -15,4 +17,6 @@ See the full walkthrough in [NestJS Integration](/recipes/nestjs-integration/).
 
 ## What stayed retired
 
-Do not use `compat/nestjs`, `GraphReflyModule`, `GraphReflyGuard`, `Actor`, `CqrsGraph`, hidden event buses, or root `@graphrefly/graphrefly` imports for clean-slate work.
+Do not use `compat/nestjs`, `GraphReflyModule`, `GraphReflyGuard`, `Actor`, `CqrsGraph`, hidden event buses, root `@graphrefly/graphrefly` imports, container scanning, hidden graph creation, or transport retry/session/reconnect ownership for clean-slate work.
+
+Adapter diagnostics are not a callback or logging API. Use host-side `diagnostics()` snapshots for local bridge state, or wire `fromNestDiagnostics(...)` explicitly when diagnostics should become sanitized graph DATA.
