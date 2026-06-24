@@ -25,7 +25,7 @@ import {
 	GraphMessage,
 	type GraphMessageBridge,
 	GraphMessageReply,
-	provideGraphMessageBridge,
+	provideGraphMessageProviders,
 } from "@graphrefly/ts/adapters/nestjs/microservices";
 import {
 	createGraphCronController,
@@ -42,7 +42,7 @@ import {
 	GraphWsAck,
 	type GraphWsBridge,
 	GraphWsReply,
-	provideGraphWsBridge,
+	provideGraphWsProviders,
 } from "@graphrefly/ts/adapters/nestjs/websockets";
 import { type Graph, graph } from "@graphrefly/ts/graph";
 import {
@@ -683,12 +683,16 @@ const manualCronController = createGraphCronController({ targets: cronTargets })
 			cronScheduler: { targets: cronTargets },
 			lifecycleHooks: { targets: lifecycleTargets },
 		}),
-		provideGraphWsBridge<WsOrderHost>({
-			ack: (host) => host.ack,
-			client: (host) => host.client,
-			diagnosticBoundary: diagnosticsIn,
+		...provideGraphWsProviders<WsOrderHost>({
+			bridge: {
+				ack: (host) => host.ack,
+				client: (host) => host.client,
+				diagnosticBoundary: diagnosticsIn,
+			},
 		}),
-		provideGraphMessageBridge<MessageOrderHost>({ diagnosticBoundary: diagnosticsIn }),
+		...provideGraphMessageProviders<MessageOrderHost>({
+			bridge: { diagnosticBoundary: diagnosticsIn },
+		}),
 	],
 })
 class AppModule {}

@@ -326,7 +326,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof nestjsNativeAdapters.provideGraphNativeProviders).toBe("function");
 		expect(typeof nestjsNativeAdapters.GRAPHREFLY_NEST_EXCEPTION_FILTER).toBe("symbol");
 		expect(typeof nestjsWebsocketsAdapters.fromNestWs).toBe("function");
+		expect(typeof nestjsWebsocketsAdapters.provideGraphWsProviders).toBe("function");
 		expect(typeof nestjsMicroservicesAdapters.fromNestMessage).toBe("function");
+		expect(typeof nestjsMicroservicesAdapters.provideGraphMessageProviders).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof patterns.profileSummary).toBe("function");
@@ -971,11 +973,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof nestjsAdapters.GraphMessage).toBe("function");
 		expect(typeof nestjsWebsocketsAdapters.createGraphWsBridge).toBe("function");
 		expect(typeof nestjsWebsocketsAdapters.provideGraphWsBridge).toBe("function");
+		expect(typeof nestjsWebsocketsAdapters.provideGraphWsProviders).toBe("function");
 		expect(typeof nestjsWebsocketsAdapters.GraphWsAck).toBe("function");
 		expect(typeof nestjsWebsocketsAdapters.GraphWsReply).toBe("function");
 		expect(typeof nestjsMicroservicesAdapters.createGraphMessageBridge).toBe("function");
 		expect(typeof nestjsMicroservicesAdapters.provideGraphMessageBridge).toBe("function");
+		expect(typeof nestjsMicroservicesAdapters.provideGraphMessageProviders).toBe("function");
 		expect(typeof nestjsMicroservicesAdapters.GraphMessageReply).toBe("function");
+		expect(Object.hasOwn(nestjsAdapters, "provideGraphWsProviders")).toBe(false);
+		expect(Object.hasOwn(nestjsAdapters, "provideGraphMessageProviders")).toBe(false);
+		expect(Object.hasOwn(nestjsNativeAdapters, "provideGraphWsProviders")).toBe(false);
+		expect(Object.hasOwn(nestjsNativeAdapters, "provideGraphMessageProviders")).toBe(false);
 	});
 
 	it("documents D486 cron misfire and catch-up default skip semantics", () => {

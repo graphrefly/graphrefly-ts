@@ -41,6 +41,11 @@ export interface GraphMessageBridgeOptions<THost = unknown> extends NestGraphRun
 	readonly maxDiagnostics?: number;
 }
 
+/** D495 focused microservice/message provider bundle options. */
+export interface GraphMessageProviderBundleOptions<THost = unknown> {
+	readonly bridge?: GraphMessageBridgeOptions<THost> | false;
+}
+
 /** Explicit Nest message-pattern phase bridge over `GraphMessage` and `GraphMessageReply` metadata. */
 export interface GraphMessageBridge<THost = unknown>
 	extends Pick<CustomTransportStrategy, "close"> {
@@ -62,6 +67,13 @@ export function provideGraphMessageBridge<THost = unknown>(
 	opts: GraphMessageBridgeOptions<THost> = {},
 ): NestProviderBinding<GraphMessageBridge<THost>> {
 	return { provide: GRAPHREFLY_NEST_MESSAGE_BRIDGE, useValue: createGraphMessageBridge(opts) };
+}
+
+/** Build the D495 focused message provider bundle without adding a router or event bus. */
+export function provideGraphMessageProviders<THost = unknown>(
+	opts: GraphMessageProviderBundleOptions<THost> = {},
+): NestProviderBinding<GraphMessageBridge<THost>>[] {
+	return opts.bridge === false ? [] : [provideGraphMessageBridge(opts.bridge ?? {})];
 }
 
 /** Create a host-private message bridge instance without adding a router or event bus. */

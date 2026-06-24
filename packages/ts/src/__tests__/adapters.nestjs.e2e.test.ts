@@ -1,9 +1,16 @@
 import "reflect-metadata";
+import type { AddressInfo } from "node:net";
 import { Controller, type INestApplication, Module, Post } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { MessagePattern } from "@nestjs/microservices";
+import {
+	type ClientProxy,
+	ClientProxyFactory,
+	MessagePattern,
+	Transport,
+} from "@nestjs/microservices";
 import { WsAdapter } from "@nestjs/platform-ws";
 import { SubscribeMessage, WebSocketGateway } from "@nestjs/websockets";
+import { firstValueFrom } from "rxjs";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	fromNestMessage,
@@ -11,7 +18,7 @@ import {
 	GraphMessage,
 	type GraphMessageBridge,
 	GraphMessageReply,
-	provideGraphMessageBridge,
+	provideGraphMessageProviders,
 } from "../adapters/nestjs/microservices.js";
 import { provideGraphBoundaryInterceptor } from "../adapters/nestjs/native.js";
 import {
@@ -21,7 +28,7 @@ import {
 	GraphWsAck,
 	type GraphWsBridge,
 	GraphWsReply,
-	provideGraphWsBridge,
+	provideGraphWsProviders,
 } from "../adapters/nestjs/websockets.js";
 import {
 	fromNestReq,
@@ -55,8 +62,13 @@ interface E2eMessageHost {
 interface E2eNestHarness {
 	readonly app: INestApplication;
 	readonly url: string;
+	readonly tcpPort: number;
 	readonly wsGateway: {
-		handle(body: WsMessageBody, client: object, ack: E2eWsHost["ack"]): unknown;
+		handle(
+			bodyOrClient: WsMessageBody | object,
+			clientOrBody: object | WsMessageBody,
+			ack?: E2eWsHost["ack"],
+		): unknown;
 		pending(body: WsMessageBody, client: object, ack: E2eWsHost["ack"]): unknown;
 		handleDisconnect(client: object): void;
 	};
@@ -84,8 +96,10 @@ interface MessagePatternBody {
 }
 
 const openHarnesses: E2eNestHarness[] = [];
+const openClients: ClientProxy[] = [];
 
 afterEach(async () => {
+	for (const client of openClients.splice(0).reverse()) client.close();
 	for (const harness of openHarnesses.splice(0).reverse()) await harness.close();
 });
 
@@ -209,6 +223,72 @@ describe("NestJS v1 e2e wiring (D488/D489)", () => {
 		await harness.close();
 		await wsPendingRejected;
 		await messagePendingRejected;
+	});
+
+	it("accepts live WebSocket and TCP transport traffic as test-only coverage over existing APIs", async () => {
+		const harness = await createE2eNestHarness();
+		openHarnesses.push(harness);
+
+		const socket = await openWebSocket(harness.url);
+		try {
+			const liveWsReply = nextWebSocketJson(socket);
+			socket.send(
+				JSON.stringify({
+					event: "orders",
+					data: {
+						requestId: "req-ws-live",
+						payload: { orderId: "ord-ws-live" },
+					},
+				}),
+			);
+
+			await expect(liveWsReply).resolves.toEqual({
+				ok: true,
+				kind: "ws",
+				orderId: "ord-ws-live",
+			});
+		} finally {
+			socket.close();
+		}
+
+		expect(harness.wsSeen).toEqual([
+			{
+				bindingId: "ws.e2e.in",
+				version: 1,
+				requestId: "req-ws-live",
+				payload: { orderId: "ord-ws-live" },
+			},
+		]);
+		expect(harness.graphJson()).not.toContain("WebSocket");
+		expect(harness.graphJson()).not.toContain("readyState");
+
+		const client = ClientProxyFactory.create({
+			transport: Transport.TCP,
+			options: { host: "127.0.0.1", port: harness.tcpPort },
+		});
+		openClients.push(client);
+		await client.connect();
+		const liveMessageReply = await firstValueFrom(
+			client.send("orders.e2e", {
+				requestId: "req-message-live",
+				payload: { orderId: "ord-message-live" },
+			}),
+		);
+
+		expect(liveMessageReply).toEqual({
+			ok: true,
+			kind: "message",
+			orderId: "ord-message-live",
+		});
+		expect(harness.messageSeen).toEqual([
+			{
+				bindingId: "message.e2e.in",
+				version: 1,
+				requestId: "req-message-live",
+				payload: { orderId: "ord-message-live" },
+			},
+		]);
+		expect(harness.graphJson()).not.toContain("message-context");
 	});
 });
 
@@ -381,8 +461,15 @@ async function createE2eNestHarness(): Promise<E2eNestHarness> {
 	class E2eWsGateway {
 		bridge?: GraphWsBridge<E2eWsHost>;
 
-		handle(body: WsMessageBody, client: object, ack: E2eWsHost["ack"]): unknown {
+		handle(
+			bodyOrClient: WsMessageBody | object,
+			clientOrBody: object | WsMessageBody,
+			ack: E2eWsHost["ack"] = () => undefined,
+		): unknown {
 			if (this.bridge === undefined) throw new Error("GraphWsBridge was not attached");
+			const [client, body] = isWsMessageBody(bodyOrClient)
+				? [clientOrBody as object, bodyOrClient]
+				: [bodyOrClient, clientOrBody as WsMessageBody];
 			return this.bridge.handleMessage(E2eWsGateway, "handle", {
 				requestId: body.requestId,
 				payload: body.payload,
@@ -512,11 +599,13 @@ async function createE2eNestHarness(): Promise<E2eNestHarness> {
 					},
 					requestId: (host: E2eHttpHost) => host.requestId,
 				}),
-				provideGraphWsBridge<E2eWsHost>({
-					ack: (host) => host.ack,
-					client: (host) => host.client,
+				...provideGraphWsProviders<E2eWsHost>({
+					bridge: {
+						ack: (host) => host.ack,
+						client: (host) => host.client,
+					},
 				}),
-				provideGraphMessageBridge<E2eMessageHost>(),
+				...provideGraphMessageProviders<E2eMessageHost>(),
 			],
 		}),
 		E2eAppModule,
@@ -525,6 +614,12 @@ async function createE2eNestHarness(): Promise<E2eNestHarness> {
 	const app = await NestFactory.create(E2eAppModule, { logger: false });
 	const attachWsAdapter = app.useWebSocketAdapter.bind(app);
 	attachWsAdapter(new WsAdapter(app));
+	const microservice = app.connectMicroservice({
+		transport: Transport.TCP,
+		options: { host: "127.0.0.1", port: 0 },
+	});
+	await app.startAllMicroservices();
+	const tcpPort = tcpPortFor(microservice.unwrap());
 	await app.listen(0, "127.0.0.1");
 	const wsGateway = app.get(E2eWsGateway);
 	const messageController = app.get(E2eMessageController, { strict: false });
@@ -537,6 +632,7 @@ async function createE2eNestHarness(): Promise<E2eNestHarness> {
 	return {
 		app,
 		url: await app.getUrl(),
+		tcpPort,
 		wsGateway,
 		messageController,
 		wsBridge,
@@ -551,6 +647,49 @@ async function createE2eNestHarness(): Promise<E2eNestHarness> {
 			await app.close();
 		},
 	};
+}
+
+function isWsMessageBody(value: unknown): value is WsMessageBody {
+	return value !== null && typeof value === "object" && "requestId" in value && "payload" in value;
+}
+
+function tcpPortFor(server: unknown): number {
+	const address =
+		server !== null && typeof server === "object" && "address" in server
+			? (server as { address: () => AddressInfo | string | null }).address()
+			: undefined;
+	if (address === null || address === undefined || typeof address === "string") {
+		throw new Error("Nest TCP live acceptance test could not resolve a random TCP port");
+	}
+	return address.port;
+}
+
+async function openWebSocket(baseUrl: string): Promise<WebSocket> {
+	const url = baseUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+	const socket = new WebSocket(url);
+	await new Promise<void>((resolve, reject) => {
+		socket.addEventListener("open", () => resolve(), { once: true });
+		socket.addEventListener("error", () => reject(new Error("WebSocket connection failed")), {
+			once: true,
+		});
+	});
+	return socket;
+}
+
+function nextWebSocketJson(socket: WebSocket): Promise<unknown> {
+	return new Promise((resolve, reject) => {
+		socket.addEventListener(
+			"message",
+			(event) => {
+				try {
+					resolve(JSON.parse(String(event.data)));
+				} catch (error) {
+					reject(error);
+				}
+			},
+			{ once: true },
+		);
+	});
 }
 
 function applyClassDecorator(decorator: ClassDecorator, target: abstract new () => unknown): void {

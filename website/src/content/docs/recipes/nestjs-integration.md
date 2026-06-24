@@ -1,6 +1,6 @@
 ---
 title: "NestJS Integration"
-description: "Clean-slate NestJS integration with D494 provider ergonomics and explicit diagnostics."
+description: "Clean-slate NestJS integration with D495 focused provider ergonomics and explicit diagnostics."
 ---
 
 # NestJS Integration
@@ -24,7 +24,7 @@ The clean-slate NestJS adapter has focused subpaths:
 
 HTTP/native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`. The WebSocket and message subpaths import only their matching optional peer.
 
-Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. D494 is an ergonomics and testability slice. NestJS provider bundle helpers and explicit target helpers reduce module boilerplate, but they never scan the Nest container, create graphs, own business graphs, add hidden route registries, or introduce hidden event buses.
+Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. D494/D495 are ergonomics and testability slices. NestJS provider bundle helpers and explicit target helpers reduce module boilerplate, but they never scan the Nest container, create graphs, own business graphs, add hidden route registries, introduce hidden event buses, or own retry/session/transport lifecycle policy.
 
 ## Envelope
 
@@ -149,9 +149,34 @@ The bundle returns ordinary `Provider[]`. It is not a module, does not create a 
 
 ## WebSocket and Message Bridges
 
-Use `GraphWs(...)` with `GraphWsAck(...)` or `GraphWsReply(...)` through `provideGraphWsBridge(...)` from `@graphrefly/ts/adapters/nestjs/websockets`. Use `GraphMessage(...)` with `GraphMessageReply(...)` through `provideGraphMessageBridge(...)` from `@graphrefly/ts/adapters/nestjs/microservices`.
+D495 extends the NestJS ergonomics slice to focused transport subpaths. WebSocket modules may use `provideGraphWsProviders(...)` from `@graphrefly/ts/adapters/nestjs/websockets`, and message-pattern modules may use `provideGraphMessageProviders(...)` from `@graphrefly/ts/adapters/nestjs/microservices`. Each helper returns an ordinary explicit Nest provider array over existing bridge options. These helpers are not modules, do not create graphs, do not scan the container, do not discover routes or handlers, and do not own retry, session, or transport lifecycle policy.
+
+Use `GraphWs(...)` with `GraphWsAck(...)` or `GraphWsReply(...)` through `provideGraphWsProviders(...)` or the primitive `provideGraphWsBridge(...)` from `@graphrefly/ts/adapters/nestjs/websockets`. Use `GraphMessage(...)` with `GraphMessageReply(...)` through `provideGraphMessageProviders(...)` or the primitive `provideGraphMessageBridge(...)` from `@graphrefly/ts/adapters/nestjs/microservices`.
+
+```ts
+import { provideGraphMessageProviders } from "@graphrefly/ts/adapters/nestjs/microservices";
+import { provideGraphWsProviders } from "@graphrefly/ts/adapters/nestjs/websockets";
+
+@Module({
+  providers: [
+    ...provideGraphWsProviders({
+      bridge: {
+        ack: (host: WsHost) => host.ack,
+        client: (host: WsHost) => host.client,
+        diagnosticBoundary: nestDiagnostics,
+      },
+    }),
+    ...provideGraphMessageProviders({
+      bridge: { diagnosticBoundary: nestDiagnostics },
+    }),
+  ],
+})
+class AppModule {}
+```
 
 These native phase bridges read only the metadata for the current gateway/controller method, require explicit payload selectors, and correlate reply-capable egress by both `requestId` and `bindingId`. Sockets, clients, ack callbacks, message contexts, transport clients, Observables, Promises, and reply handles stay host-private pending handles; graph-visible DATA carries only the selected payload envelope. Wrong-binding, stale, malformed, terminal, timeout, disconnect, and dispose cases are adapter diagnostics and cleanup paths, not protocol `ERROR`.
+
+The optional-peer boundary remains strict: `@nestjs/websockets` is imported only by the WebSocket subpath, and `@nestjs/microservices` is imported only by the microservice/message subpath. The structural `@graphrefly/ts/adapters/nestjs` surface and HTTP/native `@graphrefly/ts/adapters/nestjs/native` surface do not pull those transport peers.
 
 ## Guards, Filters, and Issues
 
@@ -281,6 +306,8 @@ class AppModule {}
 
 Graph-visible diagnostics emit only sanitized data-only payloads: `kind`, `phase`, `requestId`, `bindingId`, `expectedBindingId`, `message`, and optional `{ name, message }` error summary. Raw sockets, clients, contexts, callbacks, transport handles, Promises, Observables, and raw Error objects never enter graph DATA.
 
+There is no `onDiagnostic` callback or logging API. Log or audit diagnostics by composing explicit graph nodes and subscribing with `graph.observe(...)`, the same as other graph-visible status.
+
 ## Runnable Example
 
 The example lives at `examples/nestjs-graph-boundary/`:
@@ -303,6 +330,6 @@ It includes:
 - WebSocket `orders.reserve` on `/graphrefly`
 - TCP microservice pattern `orders.reserve` on `MICRO_HOST:MICRO_PORT` (default `127.0.0.1:3001`)
 
-`POST /echo` and `POST /orders` use the D494 native provider bundle. The WebSocket and message-pattern methods use the D488 focused optional-peer subpaths with `requestId` plus `bindingId` correlation. `POST /orders` shows guard denial response headers through `GraphGuardDeniedFilter`. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. `POST /cron/check` demonstrates the deterministic manual cron controller. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)` and an explicit diagnostic boundary for sanitized adapter diagnostics.
+`POST /echo` and `POST /orders` use the D494 native provider bundle. The WebSocket and message-pattern methods use the D495 focused optional-peer provider bundles with `requestId` plus `bindingId` correlation. `POST /orders` shows guard denial response headers through `GraphGuardDeniedFilter`. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. `POST /cron/check` demonstrates the deterministic manual cron controller. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)` and an explicit diagnostic boundary for sanitized adapter diagnostics.
 
-WebSocket and microservice helpers stay in their focused optional-peer subpaths. This D494 slice does not add new live WebSocket or TCP transport e2e coverage.
+WebSocket and microservice helpers stay in their focused optional-peer subpaths. Live WebSocket and TCP tests are acceptance coverage over the existing public APIs; they do not define new public transport policy.

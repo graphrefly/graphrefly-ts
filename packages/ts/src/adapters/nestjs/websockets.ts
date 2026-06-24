@@ -45,6 +45,11 @@ export interface GraphWsBridgeOptions<THost = unknown> extends NestGraphRunOptio
 	readonly maxDiagnostics?: number;
 }
 
+/** D495 focused WebSocket provider bundle options. */
+export interface GraphWsProviderBundleOptions<THost = unknown> {
+	readonly bridge?: GraphWsBridgeOptions<THost> | false;
+}
+
 /** Explicit Nest WebSocket phase bridge over `GraphWs`, `GraphWsAck`, and `GraphWsReply` metadata. */
 export interface GraphWsBridge<THost = unknown> extends OnGatewayDisconnect {
 	handleMessage(
@@ -73,6 +78,13 @@ export function provideGraphWsBridge<THost = unknown>(
 	opts: GraphWsBridgeOptions<THost> = {},
 ): NestProviderBinding<GraphWsBridge<THost>> {
 	return { provide: GRAPHREFLY_NEST_WS_BRIDGE, useValue: createGraphWsBridge(opts) };
+}
+
+/** Build the D495 focused WebSocket provider bundle without scanning or creating graphs. */
+export function provideGraphWsProviders<THost = unknown>(
+	opts: GraphWsProviderBundleOptions<THost> = {},
+): NestProviderBinding<GraphWsBridge<THost>>[] {
+	return opts.bridge === false ? [] : [provideGraphWsBridge(opts.bridge ?? {})];
 }
 
 /** Create a host-private WebSocket bridge instance without scanning the Nest container. */

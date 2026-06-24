@@ -15,8 +15,11 @@ import {
 import {
 	createGraphMessageBridge,
 	fromNestMessage,
+	GRAPHREFLY_NEST_MESSAGE_BRIDGE,
 	GraphMessage,
+	type GraphMessageBridge,
 	GraphMessageReply,
+	provideGraphMessageProviders,
 } from "../adapters/nestjs/microservices.js";
 import {
 	createGraphCronController,
@@ -39,9 +42,12 @@ import {
 import {
 	createGraphWsBridge,
 	fromNestWs,
+	GRAPHREFLY_NEST_WS_BRIDGE,
 	GraphWs,
 	GraphWsAck,
+	type GraphWsBridge,
 	GraphWsReply,
+	provideGraphWsProviders,
 } from "../adapters/nestjs/websockets.js";
 import {
 	createNestGraphBoundaryInterceptor,
@@ -1248,6 +1254,133 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect(lifecycleTarget).toMatchObject({ target: Controller, methodKey: "stop" });
 		expect(nativeProviders).toHaveLength(2);
 		expect(nativeProviders.every((provider) => typeof provider !== "function")).toBe(true);
+	});
+
+	it("builds D495 focused WebSocket and message provider bundles over explicit bridge options", async () => {
+		vi.useFakeTimers();
+		try {
+			const g = graph();
+			const diagnostics = fromNestDiagnostics(g, {
+				bindingId: "node.transport.bundle.diagnostics",
+			});
+			const seenDiagnostics: unknown[] = [];
+			diagnostics.node.subscribe((msg) => {
+				if (msg[0] === "DATA") seenDiagnostics.push((msg[1] as NestBoundaryEnvelope).payload);
+			});
+
+			const wsIngress = fromNestWs(g, {
+				bindingId: "node.bundle.ws.in",
+				payload: (host: { readonly payload: unknown }) => host.payload,
+			});
+			const wsReply = g.node<NestReplyEnvelope<unknown>>([], null, {
+				name: "bundle.ws.reply",
+			});
+			class BundleGateway {
+				handle() {}
+			}
+			GraphWs(wsIngress, {
+				bindingId: "bundle.ws.in",
+				requestId: (host: { readonly requestId: string }) => host.requestId,
+				payload: (host: { readonly payload: unknown }) => host.payload,
+			})(BundleGateway.prototype, "handle", { value: BundleGateway.prototype.handle });
+			GraphWsReply(wsReply, { bindingId: "bundle.ws.reply" })(BundleGateway.prototype, "handle", {
+				value: BundleGateway.prototype.handle,
+			});
+
+			const wsProviders = provideGraphWsProviders({
+				bridge: {
+					diagnosticBoundary: diagnostics,
+					maxDiagnostics: 1,
+					timeoutMs: 20,
+				},
+			});
+			expect(wsProviders.map((provider) => provider.provide)).toEqual([GRAPHREFLY_NEST_WS_BRIDGE]);
+			expect(provideGraphWsProviders({ bridge: false })).toEqual([]);
+			const wsProvider = wsProviders[0];
+			if (wsProvider === undefined || !("useValue" in wsProvider)) {
+				throw new Error("Expected GraphWs provider bundle to return an explicit useValue provider");
+			}
+			const wsBridge = wsProvider.useValue as GraphWsBridge<{
+				readonly requestId: string;
+				readonly payload: unknown;
+			}>;
+			const wsPending = wsBridge.handleMessage(BundleGateway, "handle", {
+				requestId: "req-bundle-ws",
+				payload: { ok: true },
+			});
+			vi.advanceTimersByTime(20);
+			await expect(wsPending).rejects.toThrow(/timed out/);
+			expect(wsBridge.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual(["timeout"]);
+
+			const messageIngress = fromNestMessage(g, {
+				bindingId: "node.bundle.message.in",
+				payload: (host: { readonly payload: unknown }) => host.payload,
+			});
+			const messageReply = g.node<NestReplyEnvelope<unknown>>([], null, {
+				name: "bundle.message.reply",
+			});
+			class BundleMessageController {
+				handle() {}
+			}
+			GraphMessage(messageIngress, {
+				bindingId: "bundle.message.in",
+				requestId: (host: { readonly requestId: string }) => host.requestId,
+				payload: (host: { readonly payload: unknown }) => host.payload,
+			})(BundleMessageController.prototype, "handle", {
+				value: BundleMessageController.prototype.handle,
+			});
+			GraphMessageReply(messageReply, { bindingId: "bundle.message.reply" })(
+				BundleMessageController.prototype,
+				"handle",
+				{ value: BundleMessageController.prototype.handle },
+			);
+
+			const messageProviders = provideGraphMessageProviders({
+				bridge: {
+					diagnosticBoundary: diagnostics,
+					maxDiagnostics: 1,
+					timeoutMs: 20,
+				},
+			});
+			expect(messageProviders.map((provider) => provider.provide)).toEqual([
+				GRAPHREFLY_NEST_MESSAGE_BRIDGE,
+			]);
+			expect(provideGraphMessageProviders({ bridge: false })).toEqual([]);
+			const messageProvider = messageProviders[0];
+			if (messageProvider === undefined || !("useValue" in messageProvider)) {
+				throw new Error(
+					"Expected GraphMessage provider bundle to return an explicit useValue provider",
+				);
+			}
+			const messageBridge = messageProvider.useValue as GraphMessageBridge<{
+				readonly requestId: string;
+				readonly payload: unknown;
+			}>;
+			const messagePending = messageBridge.handleMessage(BundleMessageController, "handle", {
+				requestId: "req-bundle-message",
+				payload: { ok: true },
+			});
+			vi.advanceTimersByTime(20);
+			await expect(messagePending).rejects.toThrow(/timed out/);
+			expect(messageBridge.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual(["timeout"]);
+
+			expect(seenDiagnostics).toEqual([
+				expect.objectContaining({
+					kind: "timeout",
+					phase: "ws",
+					requestId: "req-bundle-ws",
+				}),
+				expect.objectContaining({
+					kind: "timeout",
+					phase: "message",
+					requestId: "req-bundle-message",
+				}),
+			]);
+			wsBridge.dispose();
+			messageBridge.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("emits graph-visible Nest diagnostics only through an explicit sanitized boundary", () => {
