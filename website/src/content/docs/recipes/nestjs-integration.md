@@ -9,7 +9,7 @@ The clean-slate NestJS adapter has two focused subpaths:
 
 - `@graphrefly/ts/adapters/nestjs` is dependency-light structural metadata: boundary factories, binding decorators, envelopes, and lowering types.
 - `@graphrefly/ts/adapters/nestjs/native` imports Nest/RxJS and provides standard Nest phase bridges.
-- `@graphrefly/ts/adapters/nestjs/websockets` and `@graphrefly/ts/adapters/nestjs/microservices` are focused future bridge boundaries. Today they re-export only dependency-light structural factories; HTTP native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`.
+- `@graphrefly/ts/adapters/nestjs/websockets` and `@graphrefly/ts/adapters/nestjs/microservices` are focused optional-peer native bridges for gateway/message-pattern phases. HTTP native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`.
 
 Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. The adapter does not create business graphs, rewrite Nest routing, provide `compat/nestjs`, revive `Actor` or `CqrsGraph`, scan the container by default, or hide a message bus.
 
@@ -92,6 +92,12 @@ class AppModule {}
 ```
 
 The provider reads metadata for the current class/handler only, attaches host-private pending reply handles, emits ingress DATA, lowers HTTP DATA replies, and cleans up. Controller users do not call `attach` on the decorator path. Low-level `emit(...)` and `toNestHttp(...)` remain available for custom hosts.
+
+## WebSocket and Message Bridges
+
+Use `GraphWs(...)` with `GraphWsAck(...)` or `GraphWsReply(...)` through `provideGraphWsBridge(...)` from `@graphrefly/ts/adapters/nestjs/websockets`. Use `GraphMessage(...)` with `GraphMessageReply(...)` through `provideGraphMessageBridge(...)` from `@graphrefly/ts/adapters/nestjs/microservices`.
+
+These native bridges read only the metadata for the current gateway/controller method, require explicit payload selectors, and correlate reply-capable egress by both `requestId` and `bindingId`. Sockets, clients, ack callbacks, message contexts, and reply handles stay host-private; graph-visible DATA carries only the selected payload envelope. Wrong-binding, stale, malformed, terminal, timeout, disconnect, and dispose cases are adapter diagnostics and cleanup paths, not protocol `ERROR`.
 
 ## Guards, Filters, and Issues
 

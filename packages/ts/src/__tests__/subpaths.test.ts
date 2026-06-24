@@ -924,24 +924,39 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(solutions, "Graph")).toBe(false);
 	});
 
-	it("keeps future NestJS WebSocket and microservice boundaries in focused subpaths", () => {
+	it("keeps D488 NestJS WebSocket and microservice peers in focused subpaths", () => {
 		const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 		const httpOrStructuralEntries = [
 			join(sourceRoot, "adapters", "nestjs.ts"),
 			join(sourceRoot, "adapters", "nestjs", "native.ts"),
 		];
-		const boundarySubpaths = [
+		const websockets = readFileSync(
 			join(sourceRoot, "adapters", "nestjs", "websockets.ts"),
+			"utf8",
+		);
+		const microservices = readFileSync(
 			join(sourceRoot, "adapters", "nestjs", "microservices.ts"),
-		];
+			"utf8",
+		);
 
-		for (const file of [...httpOrStructuralEntries, ...boundarySubpaths]) {
+		for (const file of httpOrStructuralEntries) {
 			const source = readFileSync(file, "utf8");
 			expect(source).not.toContain("@nestjs/websockets");
 			expect(source).not.toContain("@nestjs/microservices");
 		}
-		expect(Object.hasOwn(nestjsAdapters, "GraphWs")).toBe(false);
-		expect(Object.hasOwn(nestjsAdapters, "GraphMessage")).toBe(false);
+		expect(websockets).toContain("@nestjs/websockets");
+		expect(websockets).not.toContain("@nestjs/microservices");
+		expect(microservices).toContain("@nestjs/microservices");
+		expect(microservices).not.toContain("@nestjs/websockets");
+		expect(typeof nestjsAdapters.GraphWs).toBe("function");
+		expect(typeof nestjsAdapters.GraphMessage).toBe("function");
+		expect(typeof nestjsWebsocketsAdapters.createGraphWsBridge).toBe("function");
+		expect(typeof nestjsWebsocketsAdapters.provideGraphWsBridge).toBe("function");
+		expect(typeof nestjsWebsocketsAdapters.GraphWsAck).toBe("function");
+		expect(typeof nestjsWebsocketsAdapters.GraphWsReply).toBe("function");
+		expect(typeof nestjsMicroservicesAdapters.createGraphMessageBridge).toBe("function");
+		expect(typeof nestjsMicroservicesAdapters.provideGraphMessageBridge).toBe("function");
+		expect(typeof nestjsMicroservicesAdapters.GraphMessageReply).toBe("function");
 	});
 
 	it("documents D486 cron misfire and catch-up default skip semantics", () => {

@@ -555,6 +555,8 @@
 	"peerDependencies": {
 		"@nestjs/common": "^11.0.0",
 		"@nestjs/core": "^11.0.0",
+		"@nestjs/microservices": "^11.0.0",
+		"@nestjs/websockets": "^11.0.0",
 		"canvas": "^3.2.3",
 		"react": "^18.0.0 || ^19.0.0",
 		"rxjs": "^7.8.0",
@@ -567,6 +569,12 @@
 			"optional": true
 		},
 		"@nestjs/core": {
+			"optional": true
+		},
+		"@nestjs/microservices": {
+			"optional": true
+		},
+		"@nestjs/websockets": {
 			"optional": true
 		},
 		"canvas": {

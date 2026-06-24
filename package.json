@@ -51,6 +51,7 @@
 		"@google/genai": "^1.48.0",
 		"@nestjs/common": "^11.1.17",
 		"@nestjs/core": "^11.1.17",
+		"@nestjs/microservices": "^11.1.27",
 		"@nestjs/platform-express": "^11.1.18",
 		"@nestjs/platform-ws": "^11.1.18",
 		"@nestjs/testing": "^11.1.17",

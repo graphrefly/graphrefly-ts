@@ -13,6 +13,12 @@ import {
 	zustandStore,
 } from "../adapters/index.js";
 import {
+	createGraphMessageBridge,
+	fromNestMessage,
+	GraphMessage,
+	GraphMessageReply,
+} from "../adapters/nestjs/microservices.js";
+import {
 	createGraphExceptionFilter,
 	createGraphGuardDeniedFilter,
 	GraphGuardDeniedException,
@@ -25,6 +31,13 @@ import {
 	provideGraphGuardDeniedFilter,
 	provideGraphLifecycleHooks,
 } from "../adapters/nestjs/native.js";
+import {
+	createGraphWsBridge,
+	fromNestWs,
+	GraphWs,
+	GraphWsAck,
+	GraphWsReply,
+} from "../adapters/nestjs/websockets.js";
 import {
 	createNestGraphBoundaryInterceptor,
 	createNestGraphBoundaryRunner,
@@ -1030,7 +1043,8 @@ describe("framework-neutral store adapters (B61)", () => {
 		]);
 
 		expect(handle.resolve).not.toHaveBeenCalled();
-		expect(http.pendingCount()).toBe(1);
+		expect(handle.reject).toHaveBeenCalledTimes(1);
+		expect(http.pendingCount()).toBe(0);
 		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual([
 			"malformed-egress",
 			"malformed-egress",
@@ -1731,6 +1745,488 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect(seen).toEqual(["native.error.observe.in", "native.error.handle.in"]);
 		expect(statuses).toEqual([500]);
 		filter.onModuleDestroy();
+	});
+
+	it("native websocket bridge correlates ack/reply by requestId and bindingId without handle DATA", async () => {
+		const g = graph();
+		const ingress = fromNestWs<
+			{
+				readonly requestId: string;
+				readonly body: string;
+				readonly socket: unknown;
+				readonly ack: unknown;
+			},
+			{ readonly body: string }
+		>(g, { bindingId: "node.ws.orders.in" });
+		const ack = g.node<NestReplyEnvelope<{ readonly accepted: true }>>([], null, {
+			name: "nestjs/ws/orders.ack",
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
+			name: "nestjs/ws/orders.reply",
+		});
+		const seen: NestBoundaryEnvelope[] = [];
+		ingress.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class Gateway {
+			handle() {}
+		}
+		GraphWs(ingress, {
+			bindingId: "ws.orders.in",
+			requestId: (host) => host.requestId,
+			payload: (host) => ({ body: host.body }),
+		})(Gateway.prototype, "handle", { value: Gateway.prototype.handle });
+		GraphWsAck(ack, { bindingId: "ws.orders.ack" })(Gateway.prototype, "handle", {
+			value: Gateway.prototype.handle,
+		});
+		GraphWsReply(reply, { bindingId: "ws.orders.reply" })(Gateway.prototype, "handle", {
+			value: Gateway.prototype.handle,
+		});
+		const ackFn = vi.fn();
+		const bridge = createGraphWsBridge({
+			ack: (host) => host.ack as (payload: unknown) => void,
+		});
+
+		const result = bridge.handleMessage(Gateway, "handle", {
+			requestId: "req-ws-1",
+			body: "create",
+			socket: { send: vi.fn() },
+			ack: ackFn,
+		});
+
+		expect(seen).toEqual([
+			{
+				bindingId: "ws.orders.in",
+				version: 1,
+				requestId: "req-ws-1",
+				payload: { body: "create" },
+			},
+		]);
+		expect(JSON.stringify(seen[0])).not.toContain("socket");
+		expect(JSON.stringify(seen[0])).not.toContain("ack");
+
+		ack.down([
+			[
+				"DATA",
+				{
+					bindingId: "ws.orders.ack",
+					version: 1,
+					requestId: "req-ws-1",
+					payload: { accepted: true },
+				},
+			],
+		]);
+		expect(ackFn).toHaveBeenCalledWith({ accepted: true }, expect.any(Object));
+		reply.down([
+			[
+				"DATA",
+				{
+					bindingId: "ws.orders.reply",
+					version: 1,
+					requestId: "req-ws-1",
+					payload: { ok: true },
+				},
+			],
+		]);
+
+		await expect(result).resolves.toEqual({ ok: true });
+		expect(bridge.diagnostics()).toEqual([]);
+		bridge.dispose();
+	});
+
+	it("native websocket bridge diagnoses wrong/stale/malformed/terminal egress and timeout cleanup", async () => {
+		vi.useFakeTimers();
+		try {
+			const g = graph();
+			const ingress = fromNestWs(g, {
+				bindingId: "node.ws.strict.in",
+				payload: (host: { readonly payload: unknown }) => host.payload,
+			});
+			const reply = g.node<NestReplyEnvelope<unknown>>([], null, {
+				name: "nestjs/ws/strict.reply",
+			});
+			class Gateway {
+				handle() {}
+			}
+			GraphWs(ingress, {
+				bindingId: "ws.strict.in",
+				requestId: (host: { readonly requestId: string }) => host.requestId,
+				payload: (host: { readonly payload: unknown }) => host.payload,
+			})(Gateway.prototype, "handle", { value: Gateway.prototype.handle });
+			GraphWsReply(reply, { bindingId: "ws.strict.reply" })(Gateway.prototype, "handle", {
+				value: Gateway.prototype.handle,
+			});
+			const bridge = createGraphWsBridge({ timeoutMs: 20 });
+			const terminal = bridge.handleMessage(Gateway, "handle", {
+				requestId: "req-ws-terminal",
+				payload: { ok: true },
+			});
+			reply.down([
+				[
+					"DATA",
+					{
+						bindingId: "ws.other.reply",
+						version: 1,
+						requestId: "req-ws-terminal",
+						payload: { wrong: true },
+					},
+				],
+				[
+					"DATA",
+					{
+						bindingId: "ws.strict.reply",
+						version: 1,
+						requestId: "req-stale",
+						payload: { stale: true },
+					},
+				],
+				[
+					"DATA",
+					{
+						bindingId: "ws.strict.reply",
+						version: 1,
+						requestId: "req-ws-terminal",
+						payload: { socket: () => undefined },
+					},
+				],
+				["COMPLETE"],
+			]);
+			await expect(terminal).rejects.toThrow(/data-only/);
+			expect(bridge.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual([
+				"binding-mismatch",
+				"stale-egress",
+				"malformed-egress",
+				"terminal-egress",
+			]);
+			bridge.dispose();
+
+			const timeoutReply = g.node<NestReplyEnvelope<unknown>>([], null, {
+				name: "nestjs/ws/timeout.reply",
+			});
+			class TimeoutGateway {
+				handle() {}
+			}
+			GraphWs(ingress, {
+				bindingId: "ws.strict.in",
+				requestId: (host: { readonly requestId: string }) => host.requestId,
+				payload: (host: { readonly payload: unknown }) => host.payload,
+			})(TimeoutGateway.prototype, "handle", { value: TimeoutGateway.prototype.handle });
+			GraphWsReply(timeoutReply, { bindingId: "ws.timeout.reply" })(
+				TimeoutGateway.prototype,
+				"handle",
+				{ value: TimeoutGateway.prototype.handle },
+			);
+			const timeoutBridge = createGraphWsBridge({ timeoutMs: 20 });
+			const timeout = timeoutBridge.handleMessage(TimeoutGateway, "handle", {
+				requestId: "req-ws-timeout",
+				payload: { ok: true },
+			});
+			vi.advanceTimersByTime(20);
+			await expect(timeout).rejects.toThrow(/timed out/);
+			expect(timeoutBridge.diagnostics().map((diagnostic) => diagnostic.kind)).toContain("timeout");
+			timeoutBridge.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("native websocket bridge cleans earlier pending registrations when terminal setup settles", async () => {
+		const g = graph();
+		const ingress = fromNestWs(g, {
+			bindingId: "node.ws.cleanup.in",
+			payload: (host: { readonly payload: unknown }) => host.payload,
+		});
+		const ack = g.node<NestReplyEnvelope<unknown>>([], null, {
+			name: "nestjs/ws/cleanup.ack",
+		});
+		const terminalReply = g.node<NestReplyEnvelope<unknown>>([], null, {
+			name: "nestjs/ws/cleanup.terminal",
+		});
+		const seen: NestBoundaryEnvelope[] = [];
+		ingress.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class Gateway {
+			handle() {}
+		}
+		GraphWs(ingress, {
+			bindingId: "ws.cleanup.in",
+			requestId: (host: { readonly requestId: string }) => host.requestId,
+			payload: (host: { readonly payload: unknown }) => host.payload,
+		})(Gateway.prototype, "handle", { value: Gateway.prototype.handle });
+		GraphWsAck(ack, { bindingId: "ws.cleanup.ack" })(Gateway.prototype, "handle", {
+			value: Gateway.prototype.handle,
+		});
+		GraphWsReply(terminalReply, { bindingId: "ws.cleanup.terminal" })(Gateway.prototype, "handle", {
+			value: Gateway.prototype.handle,
+		});
+		const ackFn = vi.fn();
+		const bridge = createGraphWsBridge({
+			ack: (host: { readonly ack: (payload: unknown) => void }) => host.ack,
+		});
+		terminalReply.down([["COMPLETE"]]);
+
+		await expect(
+			bridge.handleMessage(Gateway, "handle", {
+				requestId: "req-ws-cleanup",
+				payload: { ok: true },
+				ack: ackFn,
+				socket: {},
+			}),
+		).rejects.toThrow();
+		expect(seen.filter((entry) => entry.requestId === "req-ws-cleanup")).toEqual([]);
+
+		ack.down([
+			[
+				"DATA",
+				{
+					bindingId: "ws.cleanup.ack",
+					version: 1,
+					requestId: "req-ws-cleanup",
+					payload: { accepted: true },
+				},
+			],
+		]);
+		expect(ackFn).not.toHaveBeenCalled();
+		expect(bridge.diagnostics().map((diagnostic) => diagnostic.kind)).toContain("stale-egress");
+		bridge.dispose();
+	});
+
+	it("native websocket bridge rejects unsafe defaults and cleans up on disconnect/dispose", async () => {
+		const g = graph();
+		const rawIngress = fromNestWs(g, { bindingId: "node.ws.raw.in" });
+		const safeIngress = fromNestWs(g, {
+			bindingId: "node.ws.safe.in",
+			payload: (host: { readonly payload: unknown }) => host.payload,
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
+			name: "nestjs/ws/lifecycle.reply",
+		});
+		const seen: NestBoundaryEnvelope[] = [];
+		rawIngress.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		safeIngress.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class RawGateway {
+			handle() {}
+		}
+		class SafeGateway {
+			handle() {}
+		}
+		GraphWs(rawIngress, {
+			bindingId: "ws.raw.in",
+			requestId: (host: { readonly requestId: string }) => host.requestId,
+		})(RawGateway.prototype, "handle", { value: RawGateway.prototype.handle });
+		GraphWs(safeIngress, {
+			bindingId: "ws.safe.in",
+			requestId: (host: { readonly requestId: string }) => host.requestId,
+			payload: (host: { readonly payload: unknown }) => host.payload,
+		})(SafeGateway.prototype, "handle", { value: SafeGateway.prototype.handle });
+		GraphWsReply(reply, { bindingId: "ws.lifecycle.reply" })(SafeGateway.prototype, "handle", {
+			value: SafeGateway.prototype.handle,
+		});
+		const bridge = createGraphWsBridge();
+		expect(() =>
+			bridge.handleMessage(RawGateway, "handle", {
+				requestId: "req-ws-raw",
+				socket: { id: "socket-1" },
+			}),
+		).toThrow(/payload selector/);
+		expect(seen).toEqual([]);
+
+		const socket = { id: "socket-2" };
+		const pending = bridge.handleMessage(SafeGateway, "handle", {
+			requestId: "req-ws-disconnect",
+			payload: { ok: true },
+			socket,
+		});
+		bridge.handleDisconnect(socket);
+		await expect(pending).rejects.toThrow(/disconnected/);
+		expect(bridge.diagnostics().map((diagnostic) => diagnostic.kind)).toContain("dispose-pending");
+
+		bridge.dispose();
+		expect(() =>
+			bridge.handleMessage(SafeGateway, "handle", {
+				requestId: "req-ws-after-dispose",
+				payload: { ok: true },
+				socket: {},
+			}),
+		).toThrow(/disposed/);
+		expect(seen.filter((entry) => entry.requestId === "req-ws-after-dispose")).toEqual([]);
+	});
+
+	it("native message bridge correlates replies and dispose cleanup without message-context DATA", async () => {
+		const g = graph();
+		const ingress = fromNestMessage<
+			{ readonly requestId: string; readonly message: string; readonly context: unknown },
+			{ readonly message: string }
+		>(g, { bindingId: "node.message.orders.in" });
+		const reply = g.node<NestReplyEnvelope<{ readonly result: string }>>([], null, {
+			name: "nestjs/message/orders.reply",
+		});
+		const seen: NestBoundaryEnvelope[] = [];
+		ingress.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class Controller {
+			handle() {}
+		}
+		GraphMessage(ingress, {
+			bindingId: "message.orders.in",
+			requestId: (host) => host.requestId,
+			payload: (host) => ({ message: host.message }),
+		})(Controller.prototype, "handle", { value: Controller.prototype.handle });
+		GraphMessageReply(reply, { bindingId: "message.orders.reply" })(
+			Controller.prototype,
+			"handle",
+			{ value: Controller.prototype.handle },
+		);
+		const bridge = createGraphMessageBridge();
+		const result = bridge.handleMessage(Controller, "handle", {
+			requestId: "req-message-1",
+			message: "reserve",
+			context: { ack: vi.fn() },
+		});
+
+		expect(seen).toEqual([
+			{
+				bindingId: "message.orders.in",
+				version: 1,
+				requestId: "req-message-1",
+				payload: { message: "reserve" },
+			},
+		]);
+		expect(JSON.stringify(seen[0])).not.toContain("context");
+		reply.down([
+			[
+				"DATA",
+				{
+					bindingId: "message.orders.reply",
+					version: 1,
+					requestId: "req-message-1",
+					payload: { result: "ok" },
+				},
+			],
+		]);
+		await expect(result).resolves.toEqual({ result: "ok" });
+
+		const pending = bridge.handleMessage(Controller, "handle", {
+			requestId: "req-message-dispose",
+			message: "reserve",
+			context: {},
+		});
+		bridge.dispose();
+		await expect(pending).rejects.toThrow(/disposed/);
+		expect(bridge.diagnostics().map((diagnostic) => diagnostic.kind)).toContain("dispose-pending");
+	});
+
+	it("native message bridge rejects unsafe defaults and suppresses ingress after terminal reply setup", async () => {
+		const g = graph();
+		const rawIngress = fromNestMessage(g, { bindingId: "node.message.raw.in" });
+		const safeIngress = fromNestMessage(g, {
+			bindingId: "node.message.safe.in",
+			payload: (host: { readonly payload: unknown }) => host.payload,
+		});
+		const terminalReply = g.node<NestReplyEnvelope<unknown>>([], null, {
+			name: "nestjs/message/terminal.reply",
+		});
+		const seen: NestBoundaryEnvelope[] = [];
+		rawIngress.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		safeIngress.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class RawController {
+			handle() {}
+		}
+		class SafeController {
+			handle() {}
+		}
+		GraphMessage(rawIngress, {
+			bindingId: "message.raw.in",
+			requestId: (host: { readonly requestId: string }) => host.requestId,
+		})(RawController.prototype, "handle", { value: RawController.prototype.handle });
+		GraphMessage(safeIngress, {
+			bindingId: "message.safe.in",
+			requestId: (host: { readonly requestId: string }) => host.requestId,
+			payload: (host: { readonly payload: unknown }) => host.payload,
+		})(SafeController.prototype, "handle", { value: SafeController.prototype.handle });
+		GraphMessageReply(terminalReply, { bindingId: "message.terminal.reply" })(
+			SafeController.prototype,
+			"handle",
+			{ value: SafeController.prototype.handle },
+		);
+		const bridge = createGraphMessageBridge();
+		expect(() =>
+			bridge.handleMessage(RawController, "handle", {
+				requestId: "req-message-raw",
+				context: { pattern: "orders" },
+			}),
+		).toThrow(/payload selector/);
+		expect(seen).toEqual([]);
+
+		terminalReply.down([["COMPLETE"]]);
+		await expect(
+			bridge.handleMessage(SafeController, "handle", {
+				requestId: "req-message-terminal",
+				payload: { ok: true },
+			}),
+		).rejects.toThrow();
+		expect(seen.filter((entry) => entry.requestId === "req-message-terminal")).toEqual([]);
+		bridge.dispose();
+		expect(() =>
+			bridge.handleMessage(SafeController, "handle", {
+				requestId: "req-message-after-dispose",
+				payload: { ok: true },
+			}),
+		).toThrow(/disposed/);
+	});
+
+	it("native message bridge cleans earlier pending registrations when terminal setup settles", async () => {
+		const g = graph();
+		const ingress = fromNestMessage(g, {
+			bindingId: "node.message.cleanup.in",
+			payload: (host: { readonly payload: unknown }) => host.payload,
+		});
+		const firstReply = g.node<NestReplyEnvelope<unknown>>([], null, {
+			name: "nestjs/message/cleanup.first",
+		});
+		const terminalReply = g.node<NestReplyEnvelope<unknown>>([], null, {
+			name: "nestjs/message/cleanup.terminal",
+		});
+		const seen: NestBoundaryEnvelope[] = [];
+		ingress.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class Controller {
+			handle() {}
+		}
+		GraphMessage(ingress, {
+			bindingId: "message.cleanup.in",
+			requestId: (host: { readonly requestId: string }) => host.requestId,
+			payload: (host: { readonly payload: unknown }) => host.payload,
+		})(Controller.prototype, "handle", { value: Controller.prototype.handle });
+		GraphMessageReply(firstReply, { bindingId: "message.cleanup.first" })(
+			Controller.prototype,
+			"handle",
+			{ value: Controller.prototype.handle },
+		);
+		GraphMessageReply(terminalReply, { bindingId: "message.cleanup.terminal" })(
+			Controller.prototype,
+			"handle",
+			{ value: Controller.prototype.handle },
+		);
+		const bridge = createGraphMessageBridge();
+		terminalReply.down([["COMPLETE"]]);
+
+		await expect(
+			bridge.handleMessage(Controller, "handle", {
+				requestId: "req-message-cleanup",
+				payload: { ok: true },
+			}),
+		).rejects.toThrow();
+		expect(seen.filter((entry) => entry.requestId === "req-message-cleanup")).toEqual([]);
+
+		firstReply.down([
+			[
+				"DATA",
+				{
+					bindingId: "message.cleanup.first",
+					version: 1,
+					requestId: "req-message-cleanup",
+					payload: { ok: true },
+				},
+			],
+		]);
+		expect(bridge.diagnostics().map((diagnostic) => diagnostic.kind)).toContain("stale-egress");
+		bridge.dispose();
 	});
 
 	it("native cron provider starts and stops timers while emitting GraphCron ingress", () => {

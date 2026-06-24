@@ -55,6 +55,14 @@ const ALLOW_LABELS = new Map<string, ReadonlySet<string>>([
 	],
 	["packages/ts/src/adapters/nestjs.ts", new Set<string>(["new Promise"])],
 	[
+		"packages/ts/src/adapters/nestjs/microservices.ts",
+		new Set<string>(["new Promise", "setTimeout("]),
+	],
+	[
+		"packages/ts/src/adapters/nestjs/websockets.ts",
+		new Set<string>(["new Promise", "setTimeout("]),
+	],
+	[
 		"packages/ts/src/storage/append-log.ts",
 		new Set<string>(["Promise.resolve()", "Promise.all()"]),
 	],

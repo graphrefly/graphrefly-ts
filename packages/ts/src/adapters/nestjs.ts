@@ -39,7 +39,7 @@ export type NestBoundaryKind =
 	| "ws"
 	| "message";
 
-export type NestEgressKind = "http" | "guard-decision" | "ws" | "ws-ack" | "message-reply";
+export type NestEgressKind = "http" | "guard-decision" | "ws-ack" | "ws-reply" | "message-reply";
 export type NestFilterMode = "handle" | "observe";
 
 export interface NestHttpResponsePayload<TBody = unknown> {
@@ -87,6 +87,7 @@ export interface NestBoundaryDiagnostic {
 		| "malformed-egress"
 		| "stale-egress"
 		| "terminal-egress"
+		| "timeout"
 		| "resolve-threw"
 		| "reject-threw";
 	readonly requestId?: string;
@@ -123,24 +124,33 @@ export interface NestIngressEmitOptions<TPayload> {
 	readonly requireRequestId?: boolean;
 }
 
-export interface NestHttpResponseHandle<TPayload> {
+export interface NestReplyResponseHandle<TPayload> {
 	resolve(payload: TPayload, envelope: NestReplyEnvelope<TPayload>): void;
 	reject(error: unknown, envelope?: NestReplyEnvelope<TPayload>): void;
 }
 
-export interface NestHttpPendingRegistration<TPayload> {
+export interface NestReplyPendingRegistration<TPayload> {
 	readonly requestId: string;
-	readonly handle: NestHttpResponseHandle<TPayload>;
+	readonly handle: NestReplyResponseHandle<TPayload>;
 	readonly bindingId?: string;
 }
 
-export interface NestHttpBoundary<TPayload = unknown> {
-	readonly kind: "http";
+export interface NestReplyBoundary<TPayload = unknown> {
+	readonly kind: NestEgressKind;
 	readonly bindingId: string;
-	attach(registration: NestHttpPendingRegistration<TPayload>): () => boolean;
+	attach(registration: NestReplyPendingRegistration<TPayload>): () => boolean;
 	pendingCount(): number;
 	diagnostics(): readonly NestBoundaryDiagnostic[];
 	dispose(): void;
+}
+
+export interface NestHttpResponseHandle<TPayload> extends NestReplyResponseHandle<TPayload> {}
+
+export interface NestHttpPendingRegistration<TPayload>
+	extends NestReplyPendingRegistration<TPayload> {}
+
+export interface NestHttpBoundary<TPayload = unknown> extends NestReplyBoundary<TPayload> {
+	readonly kind: "http";
 }
 
 export interface ToNestHttpOptions<TPayload> {
@@ -149,13 +159,16 @@ export interface ToNestHttpOptions<TPayload> {
 	readonly maxPayloadBytes?: number;
 	readonly name?: string;
 	readonly transform?: (payload: TPayload, envelope: NestReplyEnvelope<TPayload>) => TPayload;
+	readonly label?: string;
 }
 
-interface NestHttpPendingEntry<TPayload> {
+interface NestReplyPendingEntry<TPayload> {
 	readonly requestId: string;
 	readonly bindingId?: string;
-	readonly handle: NestHttpResponseHandle<TPayload>;
+	readonly handle: NestReplyResponseHandle<TPayload>;
 }
+
+interface NestHttpPendingEntry<TPayload> extends NestReplyPendingEntry<TPayload> {}
 
 export interface NestBoundaryDecoratorOptions<THost = unknown, TPayload = unknown> {
 	readonly bindingId?: string;
@@ -288,10 +301,40 @@ export interface NestGuardDecisionBindingMeta {
 	readonly protocolError?: NestProtocolErrorResponse<unknown>;
 }
 
+export interface NestWsAckBindingMeta {
+	readonly direction: "egress";
+	readonly kind: "ws-ack";
+	readonly bindingId: string;
+	readonly methodKey: string | symbol;
+	readonly ackNode: Node<NestReplyEnvelope<unknown>>;
+	readonly order?: number;
+}
+
+export interface NestWsReplyBindingMeta {
+	readonly direction: "egress";
+	readonly kind: "ws-reply";
+	readonly bindingId: string;
+	readonly methodKey: string | symbol;
+	readonly replyNode: Node<NestReplyEnvelope<unknown>>;
+	readonly order?: number;
+}
+
+export interface NestMessageReplyBindingMeta {
+	readonly direction: "egress";
+	readonly kind: "message-reply";
+	readonly bindingId: string;
+	readonly methodKey: string | symbol;
+	readonly replyNode: Node<NestReplyEnvelope<unknown>>;
+	readonly order?: number;
+}
+
 export type NestBoundaryBindingMeta =
 	| NestIngressBindingMeta
 	| NestHttpReplyBindingMeta
-	| NestGuardDecisionBindingMeta;
+	| NestGuardDecisionBindingMeta
+	| NestWsAckBindingMeta
+	| NestWsReplyBindingMeta
+	| NestMessageReplyBindingMeta;
 
 export const EVENT_HANDLERS = new WeakMap<DecoratorHostConstructor, OnGraphEventMeta[]>();
 export const INTERVAL_HANDLERS = new WeakMap<DecoratorHostConstructor, GraphIntervalMeta[]>();
@@ -477,8 +520,24 @@ export function toNestHttp<TPayload = unknown>(
 		const envelope = msg[1] as NestReplyEnvelope<TPayload>;
 		const malformed = validateEnvelope(envelope, maxPayloadBytes);
 		if (malformed !== undefined) {
+			const correlated = malformedCorrelation(msg[1], scopedBindingId);
+			if (correlated !== undefined) {
+				const pendingKey = keyOf(correlated.requestId, scopedBindingId);
+				const entry = pending.get(pendingKey);
+				if (entry !== undefined) {
+					pending.delete(pendingKey);
+					rejectEntry(
+						entry,
+						new Error(malformed),
+						undefined,
+						`toNestHttp(${bindingId}) rejected malformed correlated egress`,
+					);
+				}
+			}
 			report({
 				kind: "malformed-egress",
+				requestId: correlated?.requestId,
+				bindingId: correlated?.bindingId,
 				message: malformed,
 			});
 			return;
@@ -646,6 +705,22 @@ export function GraphCron<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("cron", boundary, opts);
 }
 
+/** D488 WebSocket message ingress decorator over an existing boundary. */
+export function GraphWs<THost = unknown, TPayload = unknown>(
+	boundary: NestIngressBoundary<THost, TPayload>,
+	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
+): GraphMethodDecorator {
+	return graphIngressBinding("ws", boundary, opts);
+}
+
+/** D488 microservice/message ingress decorator over an existing boundary. */
+export function GraphMessage<THost = unknown, TPayload = unknown>(
+	boundary: NestIngressBoundary<THost, TPayload>,
+	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
+): GraphMethodDecorator {
+	return graphIngressBinding("message", boundary, opts);
+}
+
 /** D478 HTTP reply decorator over an existing reply node. */
 export function GraphHttpReply<THost = unknown, TPayload = unknown>(
 	replyNode: Node<NestReplyEnvelope<TPayload>>,
@@ -686,6 +761,30 @@ export function GraphGuardDecision<THost = unknown>(
 		issueResponse: opts.issueResponse as NestIssueResponse<unknown> | undefined,
 		protocolError: opts.protocolError as NestProtocolErrorResponse<unknown> | undefined,
 	}));
+}
+
+/** D488 WebSocket acknowledgement egress decorator over an existing reply-correlated node. */
+export function GraphWsAck<TPayload = unknown>(
+	ackNode: Node<NestReplyEnvelope<TPayload>>,
+	opts: { readonly bindingId: string; readonly order?: number },
+): GraphMethodDecorator {
+	return graphReplyBinding("ws-ack", ackNode, opts, "GraphWsAck");
+}
+
+/** D488 WebSocket reply egress decorator over an existing reply-correlated node. */
+export function GraphWsReply<TPayload = unknown>(
+	replyNode: Node<NestReplyEnvelope<TPayload>>,
+	opts: { readonly bindingId: string; readonly order?: number },
+): GraphMethodDecorator {
+	return graphReplyBinding("ws-reply", replyNode, opts, "GraphWsReply");
+}
+
+/** D488 microservice/message reply egress decorator over an existing reply-correlated node. */
+export function GraphMessageReply<TPayload = unknown>(
+	replyNode: Node<NestReplyEnvelope<TPayload>>,
+	opts: { readonly bindingId: string; readonly order?: number },
+): GraphMethodDecorator {
+	return graphReplyBinding("message-reply", replyNode, opts, "GraphMessageReply");
 }
 
 export function createNestGraphBoundaryRunner(): NestGraphBoundaryRunner {
@@ -1119,6 +1218,39 @@ function graphIngressBinding<THost, TPayload>(
 	}));
 }
 
+function graphReplyBinding<TPayload>(
+	kind: "ws-ack" | "ws-reply" | "message-reply",
+	node: Node<NestReplyEnvelope<TPayload>>,
+	opts: { readonly bindingId: string; readonly order?: number },
+	decoratorName: string,
+): GraphMethodDecorator {
+	const bindingId = opts?.bindingId;
+	if (typeof bindingId !== "string" || bindingId.length === 0) {
+		throw new Error(`${decoratorName} requires a non-empty bindingId`);
+	}
+	const replyNode = node as Node<NestReplyEnvelope<unknown>>;
+	return registerMeta(NEST_BOUNDARY_BINDINGS, (methodKey) => {
+		if (kind === "ws-ack") {
+			return {
+				direction: "egress" as const,
+				kind,
+				bindingId,
+				methodKey,
+				ackNode: replyNode,
+				order: opts.order,
+			};
+		}
+		return {
+			direction: "egress" as const,
+			kind,
+			bindingId,
+			methodKey,
+			replyNode,
+			order: opts.order,
+		};
+	});
+}
+
 function methodKeyForHandler(
 	ctor: DecoratorHostConstructor,
 	handler: DecoratorBoundMethod,
@@ -1217,6 +1349,19 @@ function validateEnvelope(value: unknown, maxPayloadBytes: number): string | und
 		return `egress envelope version must be ${NEST_BOUNDARY_ENVELOPE_VERSION}`;
 	}
 	return undefined;
+}
+
+function malformedCorrelation(
+	value: unknown,
+	scopedBindingId: string | undefined,
+): { readonly requestId: string; readonly bindingId: string } | undefined {
+	if (value === null || typeof value !== "object") return undefined;
+	const requestId = (value as { readonly requestId?: unknown }).requestId;
+	const bindingId = (value as { readonly bindingId?: unknown }).bindingId;
+	if (typeof requestId !== "string" || requestId.length === 0) return undefined;
+	if (typeof bindingId !== "string" || bindingId.length === 0) return undefined;
+	if (scopedBindingId !== undefined && bindingId !== scopedBindingId) return undefined;
+	return { requestId, bindingId };
 }
 
 function parseEnvelopeVersion(value: unknown, label: string): number {

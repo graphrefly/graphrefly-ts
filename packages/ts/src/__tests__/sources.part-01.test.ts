@@ -335,6 +335,7 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 		expect([...schedule.daysOfWeek]).toEqual([1, 2, 3, 4, 5]);
 		expect(() => parseCron("60 * * * *")).toThrow(RangeError);
 		expect(() => parseCron("* * * *")).toThrow(/expected 5 fields/);
+		expect(() => parseCron("0 * * * * *")).toThrow(/expected 5 fields/);
 		expect(() => parseCron("*/5foo * * * *")).toThrow(/Invalid cron step/);
 		expect(() => parseCron("1/2/3 * * * *")).toThrow(/Invalid cron step/);
 		expect(() => parseCron("8-12bar * * * *")).toThrow(/Invalid cron field/);
@@ -377,6 +378,26 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 		unsubscribe();
 		expect(vi.getTimerCount()).toBe(0);
 		expect(g.describe().nodes.find((node) => node.id === "cron")?.factory).toBe("fromCron");
+	});
+
+	it("fromCron resumes from current time without catch-up or missed-status payloads", () => {
+		const first = new Date(2026, 2, 30, 8, 30, 0);
+		const resumed = new Date(2026, 2, 30, 8, 35, 0);
+		vi.setSystemTime(first);
+		const g = graph();
+		const n = g.initNode(fromCron("* * * * *", { tickMs: 1000, output: "timestamp_ms" }), []);
+		const msgs: Message[] = [];
+		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+
+		vi.setSystemTime(new Date(resumed.getTime() - 1000));
+		vi.advanceTimersByTime(1000);
+
+		expect(data(msgs)).toEqual([first.getTime(), resumed.getTime()]);
+		expect(data(msgs)).not.toHaveLength(6);
+		for (const payload of data(msgs)) {
+			expect(typeof payload).toBe("number");
+		}
+		unsubscribe();
 	});
 
 	it("fromCron can emit Date values", () => {
