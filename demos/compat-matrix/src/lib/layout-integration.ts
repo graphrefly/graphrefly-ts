@@ -4,8 +4,8 @@
 //
 // (1) `getMeasurementAdapter()` — a lazily-created browser
 //     `CanvasMeasureAdapter` to pass into `demoShell({ adapter })`. With an
-//     adapter present, demoShell exposes `layout/code-lines` (and
-//     `layout/graph-labels`) derived nodes that recompute reactively when
+//     adapter present, demoShell exposes `layout/code-lines`, a derived node
+//     that recomputes reactively when
 //     either the code text OR the side-pane width changes.
 //
 // (2) `createLeaderboardLayout()` — a `reactiveBlockLayout` bundle for the
@@ -18,18 +18,18 @@
 //     can answer "which grapheme did the user click on?" against the
 //     current `layout/code-lines` and the raw snippet text.
 
+import type { Node } from "@graphrefly/ts/graph";
 import {
 	analyzeAndMeasure,
-	CanvasMeasureAdapter,
 	type CharPosition,
 	type ContentBlock,
 	computeCharPositions,
 	computeLineBreaks,
 	type LineBreaksResult,
 	type MeasurementAdapter,
-	type Node,
 	reactiveBlockLayout,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+} from "@graphrefly/ts/solutions/reactive-layout";
+import { CanvasMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout/browser";
 
 /** Font string shared across shell measurements + per-framework renders. */
 export const LAYOUT_FONT = '13px "Fira Code", ui-monospace, monospace';

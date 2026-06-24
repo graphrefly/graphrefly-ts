@@ -1,279 +1,232 @@
-import { DATA, Graph, type Node } from "@graphrefly/graphrefly";
-import { atom as jotaiAtom } from "@graphrefly/graphrefly/compat/jotai";
 import {
-	atom as nanoAtom,
-	computed as nanoComputed,
-} from "@graphrefly/graphrefly/compat/nanostores";
-import { create as zustandCreate } from "@graphrefly/graphrefly/compat/zustand";
+	zustandStore as createZustandStore,
+	type JotaiAtom,
+	jotaiAtom,
+	type NanoAtom,
+	type NodeRecordFactory,
+	nanoAtom,
+	type WritableJotaiAtom,
+	type WritableNanoAtom,
+	type WritableNode,
+	type ZustandStoreApi,
+} from "@graphrefly/ts/adapters";
+import { type Graph, graph, type Node } from "@graphrefly/ts/graph";
 import { createLeaderboardLayout } from "./layout-integration";
 
-export const counterGraph = new Graph("compat-matrix");
+export const counterGraph: Graph = graph({ name: "compat-matrix" });
 
-/** Scalar dep read for `graph.derived` fns (last DATA per dep, else prev wave). */
-function depVals(
-	data: readonly (readonly unknown[] | undefined)[],
-	ctx: { readonly prevData: readonly unknown[] },
-): readonly unknown[] {
-	return data.map((b, i) => (b != null && b.length > 0 ? b[b.length - 1] : ctx.prevData[i]));
+// 1. GraphReFly raw: direct node access through focused framework adapters.
+export const rawNode = counterGraph.state(0, { name: "graphrefly/count" });
+export const rawDoubledNode = counterGraph.derived([rawNode], (n) => (n ?? 0) * 2, {
+	name: "graphrefly/doubled",
+});
+
+// 2. Jotai-style facade over caller-owned GraphReFly nodes.
+export const jotaiNode = counterGraph.state(0, { name: "jotai/count" });
+export const jotaiCounter: WritableJotaiAtom<number> = jotaiAtom(jotaiNode);
+export const jotaiDoubledNode = counterGraph.derived([jotaiNode], (n) => (n ?? 0) * 2, {
+	name: "jotai/doubled",
+});
+export const jotaiDoubled: JotaiAtom<number> = jotaiAtom(jotaiDoubledNode);
+
+// 3. Nanostores-style facade over caller-owned GraphReFly nodes.
+export const nanoNode = counterGraph.state(0, { name: "nanostores/count" });
+export const nanoCounter: WritableNanoAtom<number> = nanoAtom(nanoNode);
+export const nanoDoubledNode = counterGraph.derived([nanoNode], (n) => (n ?? 0) * 2, {
+	name: "nanostores/doubled",
+});
+export const nanoDoubled: NanoAtom<number> = nanoAtom(nanoDoubledNode);
+
+// 4. Zustand-compatible facade. The graph node carries serializable state;
+// the store snapshot adds the caller-owned commands expected by Zustand users.
+type ZustandNodeState = { count: number };
+export type ZustandState = ZustandNodeState & { inc: () => void; dec: () => void };
+
+export const zustandCountNode = counterGraph.state<ZustandNodeState>(
+	{ count: 0 },
+	{ name: "zustand/count" },
+);
+
+let cachedZustandCount: number | undefined;
+let cachedZustandSnapshot: ZustandState | undefined;
+function zustandSnapshot(): ZustandState {
+	const base = zustandCountNode.cache ?? { count: 0 };
+	if (cachedZustandSnapshot && cachedZustandCount === base.count) return cachedZustandSnapshot;
+	cachedZustandCount = base.count;
+	cachedZustandSnapshot = {
+		count: base.count,
+		inc: () => zustandStoreRef?.setState((state) => ({ count: state.count + 1 })),
+		dec: () => zustandStoreRef?.setState((state) => ({ count: state.count - 1 })),
+	};
+	return cachedZustandSnapshot;
 }
 
-// ── 1. GraphReFly raw ─────────────────────────────────────
-// Direct node access via useStore / useSubscribe
-export const rawNode = counterGraph.state("graphrefly/count", 0);
+function zustandWriteSnapshot(value: ZustandState): ZustandNodeState {
+	return {
+		count: value.count,
+	};
+}
 
-// Derived: doubled — using GraphReFly's native `graph.derived`
-export const rawDoubledNode = counterGraph.derived("graphrefly/doubled", [rawNode], (data, ctx) => {
-	const [n] = depVals(data, ctx);
-	return [((n as number) ?? 0) * 2];
-});
-
-// ── 2. Jotai compat ───────────────────────────────────────
-// Backing node for the jotai atom
-export const jotaiNode = counterGraph.state("jotai/count", 0);
-
-// Jotai writable derived atom: reads from jotaiNode, writes to jotaiNode.
-// autoTrackNode inside createDerivedAtom uses `a._node` for tracking,
-// so a minimal shape with just `_node` is sufficient.
-export const jotaiCounter = jotaiAtom(
-	(get) => get({ _node: jotaiNode } as any) ?? 0,
-	(_get, _set, v: number) => jotaiNode.emit(v),
-);
-
-// Derived: doubled — using Jotai's read-only derived atom API
-export const jotaiDoubled = jotaiAtom(
-	(get) => ((get({ _node: jotaiNode } as any) as number) ?? 0) * 2,
-);
-
-// ── 3. Nanostores compat ──────────────────────────────────
-// Backing node for the nanostores atom
-export const nanoNode = counterGraph.state("nanostores/count", 0);
-
-// Nanostores atom — synced bidirectionally with nanoNode.
-// Re-entrancy guard prevents infinite loop: set → listen → emit → subscribe → set → ...
-export const nanoCounter = nanoAtom(0);
-let nanoSyncing = false;
-// nanoNode → nanoCounter (push changes from graph to atom)
-nanoNode.subscribe((msgs) => {
-	if (nanoSyncing) return;
-	for (const [t, v] of msgs) {
-		if (t === DATA) {
-			nanoSyncing = true;
-			nanoCounter.set(v as number);
-			nanoSyncing = false;
-		}
-	}
-});
-// nanoCounter → nanoNode (push changes from atom to graph, skip initial)
-nanoCounter.listen((v) => {
-	if (nanoSyncing) return;
-	nanoSyncing = true;
-	nanoNode.emit(v);
-	nanoSyncing = false;
-});
-
-// Derived: doubled — using Nanostores' native `computed` API
-export const nanoDoubled = nanoComputed(nanoCounter, (n) => (n ?? 0) * 2);
-
-// ── 4. Zustand compat ─────────────────────────────────────
-type ZustandState = { count: number; inc: () => void; dec: () => void };
-export const zustandStore = zustandCreate<ZustandState>((set, get) => ({
-	count: 0,
-	inc: () => set((s) => ({ ...s, count: s.count + 1 })),
-	dec: () => set((s) => ({ ...s, count: s.count - 1 })),
-}));
-// Zustand's backing node lives on Graph "zustand" — cannot mount it on
-// counterGraph (single-owner invariant). Mirror count onto compat-matrix for
-// leaderboard / total / describe, same pattern as nanostores ↔ nanoNode.
-export const zustandCountNode = counterGraph.state("zustand/count", 0);
-let zustandCountSyncing = false;
-zustandStore.subscribe((state) => {
-	if (zustandCountSyncing) return;
-	zustandCountSyncing = true;
-	zustandCountNode.emit(state.count);
-	zustandCountSyncing = false;
-});
-zustandCountNode.emit(zustandStore.getState().count);
-
-// Derived: doubled — zustand has no computed() API, so the idiomatic
-// pattern is a selector `(s) => s.count * 2`. Framework code calls this
-// through useSyncExternalStore-with-selector (React/Vue/Solid/Svelte).
-export const zustandDoubledSelector = (s: ZustandState | null): number =>
-	((s?.count ?? 0) as number) * 2;
-
-// ── Total (for useSubscribe demo) ─────────────────────────
-export const totalNode = counterGraph.derived(
-	"total",
-	[rawNode, jotaiNode, nanoNode, zustandCountNode],
-	(data, ctx) => {
-		const [a, b, c, d] = depVals(data, ctx);
-		return [
-			((a as number) || 0) + ((b as number) || 0) + ((c as number) || 0) + ((d as number) || 0),
-		];
+let zustandStoreRef: ZustandStoreApi<ZustandState> | undefined;
+export const zustandStore: ZustandStoreApi<ZustandState> = createZustandStore(
+	zustandCountNode as unknown as WritableNode<ZustandState>,
+	zustandSnapshot(),
+	{
+		getSnapshot: () => zustandSnapshot(),
+		write: (_node, value) => {
+			zustandCountNode.set(zustandWriteSnapshot(value));
+		},
 	},
 );
+zustandStoreRef = zustandStore;
 
-// ── Keys + factory for useSubscribeRecord demo ────────────
-export const keysNode = counterGraph.state("counter-keys", [
-	"graphrefly",
-	"jotai",
-	"nanostores",
-	"zustand",
-]);
+export const zustandDoubledSelector = (s: ZustandState | null): number => (s?.count ?? 0) * 2;
 
-export const counterNodeFactory = (key: string): { count: Node<number> } => {
+export const zustandCountValueNode = counterGraph.derived(
+	[zustandCountNode],
+	(state) => state?.count ?? 0,
+	{ name: "zustand/count-value" },
+);
+
+// Total and keyed-record demo nodes.
+export const totalNode = counterGraph.derived(
+	[rawNode, jotaiNode, nanoNode, zustandCountValueNode],
+	(a, b, c, d) => (a ?? 0) + (b ?? 0) + (c ?? 0) + (d ?? 0),
+	{ name: "total" },
+);
+
+export const keysNode = counterGraph.state<readonly string[]>(
+	["graphrefly", "jotai", "nanostores", "zustand"],
+	{ name: "counter-keys" },
+);
+
+export const counterNodeFactory: NodeRecordFactory<string, { count: number }> = (key) => {
 	const map: Record<string, Node<number>> = {
-		graphrefly: rawNode as Node<number>,
-		jotai: jotaiNode as Node<number>,
-		nanostores: nanoNode as Node<number>,
-		zustand: zustandCountNode as Node<number>,
+		graphrefly: rawNode,
+		jotai: jotaiNode,
+		nanostores: nanoNode,
+		zustand: zustandCountValueNode,
 	};
-	return { count: map[key] ?? (rawNode as Node<number>) };
+	return { count: map[key] ?? rawNode };
 };
 
-// ── Reactive-layout integration: leaderboard block-flow positions ─────────
-// Rebuilds when `keysNode` emits new library labels — each framework can
-// subscribe to `leaderboardTotalHeight` for an auto-sizing leaderboard.
+// Reactive-layout integration: leaderboard block-flow positions.
 const leaderboardLayout = createLeaderboardLayout(
 	["graphrefly", "jotai", "nanostores", "zustand"].map((k) => `${k.toUpperCase()}  ${k}/count`),
 );
 export const leaderboardTotalHeight = leaderboardLayout.totalHeight;
-keysNode.subscribe((msgs) => {
-	for (const [t, v] of msgs) {
-		if (t === DATA) {
-			leaderboardLayout.setBlocks((v as string[]).map((k) => `${k.toUpperCase()}  ${k}/count`));
-		}
+keysNode.subscribe((msg) => {
+	if (msg[0] === "DATA") {
+		leaderboardLayout.setBlocks(
+			(msg[1] as readonly string[]).map((k) => `${k.toUpperCase()}  ${k}/count`),
+		);
 	}
 });
-
-// Code snippet strings (shown in the demo shell's code pane).
-//
-// Library-specific snippets (jotai / nanostores / zustand) describe the
-// compat library's *own* API — framework-agnostic, so they're shared.
-// Framework-specific snippets (`graphrefly` direct bindings and the
-// `leaderboard` using `useSubscribeRecord`) are parameterised per
-// framework below and selected via `getCodeSnippets(framework)`.
 
 export type FrameworkName = "react" | "vue" | "solid" | "svelte";
 
 const GRAPHREFLY_BY_FRAMEWORK: Record<FrameworkName, string> = {
-	react: `// GraphReFly — direct node binding + native derived() [React]
-import { state, derived } from "@graphrefly/graphrefly";
-import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/react";
+	react: `// GraphReFly direct node binding [React]
+import { graph } from "@graphrefly/ts/graph";
+import { useNodeInput, useNodeValue } from "@graphrefly/ts/adapters/react";
 
-const count   = state(0, { name: "count" });
-const doubled = derived([count], ([n]) => (n ?? 0) * 2);
+const g = graph({ name: "counter" });
+const count = g.state(0, { name: "count" });
+const doubled = g.derived([count], (n) => (n ?? 0) * 2, { name: "doubled" });
 
 function Counter() {
-  const [value, setValue] = useStore(count);   // [value, setter]
-  const dbl = useSubscribe(doubled);           // read-only value
+  const [value, setValue] = useNodeInput(count);
+  const dbl = useNodeValue(doubled);
 
   return (
     <div>
       <button onClick={() => setValue((value ?? 0) - 1)}>-</button>
-      <span>{value} · doubled = {dbl}</span>
+      <span>{value} / doubled = {dbl}</span>
       <button onClick={() => setValue((value ?? 0) + 1)}>+</button>
     </div>
   );
 }`,
-	vue: `<!-- GraphReFly — direct node binding + native derived() [Vue] -->
+	vue: `<!-- GraphReFly direct node binding [Vue] -->
 <script setup lang="ts">
-import { state, derived } from "@graphrefly/graphrefly";
-import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/vue";
+import { graph } from "@graphrefly/ts/graph";
+import { useNodeInput, useNodeValue } from "@graphrefly/ts/adapters/vue";
 
-const count   = state(0, { name: "count" });
-const doubled = derived([count], ([n]) => (n ?? 0) * 2);
+const g = graph({ name: "counter" });
+const count = g.state(0, { name: "count" });
+const doubled = g.derived([count], (n) => (n ?? 0) * 2, { name: "doubled" });
 
-// useStore → writable Ref (v-model friendly)
-const value = useStore(count);
-// useSubscribe → read-only Ref from any node, including derived
-const dbl = useSubscribe(doubled);
+const [value, setValue] = useNodeInput(count);
+const dbl = useNodeValue(doubled);
 </script>
 
 <template>
   <div>
-    <button @click="value = (value ?? 0) - 1">-</button>
-    <span>{{ value }} · doubled = {{ dbl }}</span>
-    <button @click="value = (value ?? 0) + 1">+</button>
+    <button @click="setValue((value ?? 0) - 1)">-</button>
+    <span>{{ value }} / doubled = {{ dbl }}</span>
+    <button @click="setValue((value ?? 0) + 1)">+</button>
   </div>
 </template>`,
-	solid: `// GraphReFly — direct node binding + native derived() [SolidJS]
-import { state, derived } from "@graphrefly/graphrefly";
-import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/solid";
+	solid: `// GraphReFly direct node binding [SolidJS]
+import { graph } from "@graphrefly/ts/graph";
+import { createNodeInput, createNodeValue } from "@graphrefly/ts/adapters/solid";
 
-const count   = state(0, { name: "count" });
-const doubled = derived([count], ([n]) => (n ?? 0) * 2);
+const g = graph({ name: "counter" });
+const count = g.state(0, { name: "count" });
+const doubled = g.derived([count], (n) => (n ?? 0) * 2, { name: "doubled" });
 
 export function Counter() {
-  // useStore → [Accessor<T>, setter]
-  const [value, setValue] = useStore(count);
-  const dbl = useSubscribe(doubled);           // Accessor<number | null>
+  const [value, setValue] = createNodeInput(count);
+  const dbl = createNodeValue(doubled);
 
   return (
     <div>
       <button onClick={() => setValue((value() ?? 0) - 1)}>-</button>
-      <span>{value()} · doubled = {dbl()}</span>
+      <span>{value()} / doubled = {dbl()}</span>
       <button onClick={() => setValue((value() ?? 0) + 1)}>+</button>
     </div>
   );
 }`,
-	svelte: `<!-- GraphReFly — direct node binding + native derived() [Svelte] -->
+	svelte: `<!-- GraphReFly direct node binding [Svelte] -->
 <script lang="ts">
-  import { state, derived } from "@graphrefly/graphrefly";
-  import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/svelte";
+  import { graph } from "@graphrefly/ts/graph";
+  import { nodeWritable, nodeReadable } from "@graphrefly/ts/adapters/svelte";
 
-  const count   = state(0, { name: "count" });
-  const doubled = derived([count], ([n]) => (n ?? 0) * 2);
+  const g = graph({ name: "counter" });
+  const count = g.state(0, { name: "count" });
+  const doubled = g.derived([count], (n) => (n ?? 0) * 2, { name: "doubled" });
 
-  // useStore → Svelte writable store; useSubscribe → readable store.
-  // Auto-subscribe via the \`$\` prefix in the template.
-  const value = useStore(count);
-  const dbl   = useSubscribe(doubled);
+  const value = nodeWritable(count);
+  const dbl = nodeReadable(doubled);
 </script>
 
 <div>
   <button on:click={() => $value = ($value ?? 0) - 1}>-</button>
-  <span>{$value} · doubled = {$dbl}</span>
+  <span>{$value} / doubled = {$dbl}</span>
   <button on:click={() => $value = ($value ?? 0) + 1}>+</button>
 </div>`,
 };
 
 const LEADERBOARD_BY_FRAMEWORK: Record<FrameworkName, string> = {
-	react: `// Leaderboard — useSubscribeRecord maps a keys node through a factory [React]
-import {
-  useSubscribeRecord,
-  useSubscribe,
-} from "@graphrefly/graphrefly/compat/react";
+	react: `// Leaderboard: useNodeRecord maps keys through a node factory [React]
+import { useNodeRecord, useNodeValue } from "@graphrefly/ts/adapters/react";
 
-const keys = state(["graphrefly", "jotai", "nanostores", "zustand"]);
-
-// factory: (key) => { count: Node<number> }
-// reacts to key additions/removals AND inner count changes
-const record = useSubscribeRecord(keys, (key) => ({
-  count: nodeForKey(key),
-}));
-
-const total = useSubscribe(totalNode);
+const keys = g.state(["graphrefly", "jotai", "nanostores", "zustand"]);
+const record = useNodeRecord(keys, (key) => ({ count: nodeForKey(key) }));
+const total = useNodeValue(totalNode);
 
 return (
   <ul>
-    {Object.entries(record).map(([k, v]) => <li>{k}: {v.count}</li>)}
+    {Object.entries(record).map(([k, v]) => <li key={k}>{k}: {v.count}</li>)}
     <li>Total: {total}</li>
   </ul>
 );`,
-	vue: `<!-- Leaderboard — useSubscribeRecord maps a keys node through a factory [Vue] -->
+	vue: `<!-- Leaderboard: useNodeRecord maps keys through a node factory [Vue] -->
 <script setup lang="ts">
-import {
-  useSubscribeRecord,
-  useSubscribe,
-} from "@graphrefly/graphrefly/compat/vue";
+import { useNodeRecord, useNodeValue } from "@graphrefly/ts/adapters/vue";
 
-const keys = state(["graphrefly", "jotai", "nanostores", "zustand"]);
-
-// record is a reactive object; re-keyed when \`keys\` changes
-const record = useSubscribeRecord(keys, (key) => ({
-  count: nodeForKey(key),
-}));
-const total = useSubscribe(totalNode);
+const keys = g.state(["graphrefly", "jotai", "nanostores", "zustand"]);
+const record = useNodeRecord(keys, (key) => ({ count: nodeForKey(key) }));
+const total = useNodeValue(totalNode);
 </script>
 
 <template>
@@ -282,19 +235,12 @@ const total = useSubscribe(totalNode);
     <li>Total: {{ total }}</li>
   </ul>
 </template>`,
-	solid: `// Leaderboard — useSubscribeRecord maps a keys node through a factory [SolidJS]
-import {
-  useSubscribeRecord,
-  useSubscribe,
-} from "@graphrefly/graphrefly/compat/solid";
+	solid: `// Leaderboard: createNodeRecord maps keys through a node factory [SolidJS]
+import { createNodeRecord, createNodeValue } from "@graphrefly/ts/adapters/solid";
 
-const keys = state(["graphrefly", "jotai", "nanostores", "zustand"]);
-
-// record is Accessor<Record<string, { count: number }>>
-const record = useSubscribeRecord(keys, (key) => ({
-  count: nodeForKey(key),
-}));
-const total = useSubscribe(totalNode);
+const keys = g.state(["graphrefly", "jotai", "nanostores", "zustand"]);
+const record = createNodeRecord(keys, (key) => ({ count: nodeForKey(key) }));
+const total = createNodeValue(totalNode);
 
 return (
   <ul>
@@ -304,20 +250,13 @@ return (
     <li>Total: {total()}</li>
   </ul>
 );`,
-	svelte: `<!-- Leaderboard — useSubscribeRecord maps a keys node through a factory [Svelte] -->
+	svelte: `<!-- Leaderboard: nodeRecord maps keys through a node factory [Svelte] -->
 <script lang="ts">
-  import {
-    useSubscribeRecord,
-    useSubscribe,
-  } from "@graphrefly/graphrefly/compat/svelte";
+  import { nodeRecord, nodeReadable } from "@graphrefly/ts/adapters/svelte";
 
-  const keys = state(["graphrefly", "jotai", "nanostores", "zustand"]);
-
-  // recordStore is a Svelte readable store; \`$recordStore\` auto-subscribes.
-  const recordStore = useSubscribeRecord(keys, (key) => ({
-    count: nodeForKey(key),
-  }));
-  const totalStore = useSubscribe(totalNode);
+  const keys = g.state(["graphrefly", "jotai", "nanostores", "zustand"]);
+  const recordStore = nodeRecord(keys, (key) => ({ count: nodeForKey(key) }));
+  const totalStore = nodeReadable(totalNode);
 </script>
 
 <ul>
@@ -329,61 +268,59 @@ return (
 };
 
 const SHARED_SNIPPETS = {
-	jotai: `// Jotai compat — atom API over GraphReFly node
-import { state } from "@graphrefly/graphrefly";
-import { atom } from "@graphrefly/graphrefly/compat/jotai";
+	jotai: `// Jotai-style facade over a caller-owned GraphReFly node
+import { graph } from "@graphrefly/ts/graph";
+import { jotaiAtom } from "@graphrefly/ts/adapters";
 
-const countNode = state(0, { name: "count" });
+const g = graph({ name: "jotai-counter" });
+const countNode = g.state(0, { name: "count" });
+const counter = jotaiAtom(countNode);
 
-// Writable derived atom — reads + writes countNode
-const counter = atom(
-  (get) => get({ _node: countNode, ... }) ?? 0,
-  (_get, _set, v: number) => countNode.emit(v),
-);
+const doubledNode = g.derived([countNode], (n) => (n ?? 0) * 2, {
+  name: "doubled",
+});
+const doubled = jotaiAtom(doubledNode);
 
-// Read-only derived atom — Jotai's native computed pattern
-const doubled = atom((get) => (get(counter) ?? 0) * 2);
+counter.get();
+counter.set(1);
+counter.subscribe((value) => console.log(value));
+doubled.subscribe((value) => console.log(value));`,
 
-// counter.get() / .set(v) / .subscribe(cb) / .update(fn)
-// doubled.get() / .subscribe(cb)  (read-only)`,
+	nanostores: `// Nanostores-style facade over a caller-owned GraphReFly node
+import { graph } from "@graphrefly/ts/graph";
+import { nanoAtom } from "@graphrefly/ts/adapters";
 
-	nanostores: `// Nanostores compat — atom + computed API
-import { atom, computed } from "@graphrefly/graphrefly/compat/nanostores";
+const g = graph({ name: "nano-counter" });
+const countNode = g.state(0, { name: "count" });
+const counter = nanoAtom(countNode);
 
-const counter = atom(0);
-// counter.get()            → current value
-// counter.set(v)           → emit to GraphReFly node
-// counter.subscribe(cb)    → fires immediately with current value
-// counter.listen(cb)       → fires only on changes
+const doubledNode = g.derived([countNode], (n) => (n ?? 0) * 2, {
+  name: "doubled",
+});
+const doubled = nanoAtom(doubledNode);
 
-// Computed from the counter atom
-const doubled = computed(counter, (n) => (n ?? 0) * 2);
+counter.get();
+counter.set(1);
+counter.listen((value) => console.log(value));
+doubled.subscribe((value) => console.log(value));`,
 
-// Bidirectional: nanostores atom <-> GraphReFly state node
-// Changes in one propagate to the other reactively`,
+	zustand: `// Zustand-compatible facade over a caller-owned GraphReFly node
+import { graph } from "@graphrefly/ts/graph";
+import { zustandStore } from "@graphrefly/ts/adapters";
 
-	zustand: `// Zustand compat — store API + selector-based derivation
-import { create } from "@graphrefly/graphrefly/compat/zustand";
+const g = graph({ name: "zustand-counter" });
+const countNode = g.state({ count: 0 }, { name: "count" });
+const store = zustandStore(countNode);
 
-const store = create<{ count: number; inc: () => void; dec: () => void }>(
-  (set, get) => ({
-    count: 0,
-    inc: () => set({ count: get().count + 1 }),
-    dec: () => set({ count: get().count - 1 }),
-  })
-);
+store.setState((state) => ({ count: state.count + 1 }));
+store.subscribe((state) => console.log(state.count));
 
-// Zustand has no native computed() — derive via selectors at read time:
-const doubled = (s) => s.count * 2;
-
-// React/Vue/Solid/Svelte subscribe with the selector:
-//   useSyncExternalStore(store.subscribe, () => doubled(store.getState()))
-
-// Backed by a GraphReFly state node — inspectable, snapshotable, diffable`,
+// Zustand-style computed values stay selectors at read time.
+const doubled = (state: { count: number }) => state.count * 2;
+const currentDoubled = doubled(store.getState());`,
 };
 
-/** Per-framework code-snippet bundle. The `graphrefly` and `leaderboard`
- *  entries are framework-specific; the others are shared. */
+/** Per-framework code-snippet bundle. */
 export function getCodeSnippets(framework: FrameworkName): Record<string, string> {
 	return {
 		graphrefly: GRAPHREFLY_BY_FRAMEWORK[framework],

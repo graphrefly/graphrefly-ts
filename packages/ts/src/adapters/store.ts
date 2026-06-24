@@ -298,8 +298,8 @@ export function zustandStore<T extends object>(
 			let prev = api.getState();
 			const unsub = subscribeNodeValues(
 				node,
-				(value) => {
-					const next = value as T;
+				() => {
+					const next = api.getState();
 					listener(next, prev);
 					prev = next;
 				},

@@ -1,8 +1,10 @@
 <script lang="ts">
-import type { Node } from "@graphrefly/graphrefly";
-import { useStore, useSubscribe, useSubscribeRecord } from "@graphrefly/graphrefly/compat/svelte";
-import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
-import { demoShell } from "@graphrefly/graphrefly/utils/demo-shell";
+import {
+	nodeRecord,
+	nodeWritable as useStore,
+	nodeReadable as useSubscribe,
+} from "@graphrefly/ts/adapters/svelte";
+import type { Node } from "@graphrefly/ts/graph";
 import { onMount } from "svelte";
 import { readable, writable } from "svelte/store";
 import {
@@ -21,6 +23,7 @@ import {
 	zustandDoubledSelector,
 	zustandStore,
 } from "../lib/counter";
+import { type DemoShellHandle, demoShell } from "../lib/demo-shell";
 import {
 	type CodeLayoutSummary,
 	getMeasurementAdapter,
@@ -42,10 +45,10 @@ const LIB_LABELS: Record<LibName, string> = {
 };
 
 const LIB_DESCS: Record<LibName, string> = {
-	graphrefly: "Direct node · useStore / useSubscribe",
-	jotai: "Derived atom · atom(read, write)",
-	nanostores: "Sync atom · bidirectional bridge",
-	zustand: "Store API · create(initializer)",
+	graphrefly: "Direct node · framework adapter",
+	jotai: "jotaiAtom facade",
+	nanostores: "nanoAtom facade",
+	zustand: "zustandStore facade",
 };
 
 const libs: LibName[] = ["graphrefly", "jotai", "nanostores", "zustand"];
@@ -73,25 +76,29 @@ let currentTitle = $derived(
 	selectedLib === null
 		? "Select a card to see code"
 		: selectedLib === "leaderboard"
-			? "Leaderboard — useSubscribeRecord code"
+			? "Leaderboard — node record code"
 			: `${LIB_LABELS[selectedLib]} — binding code`,
 );
 
 // ── GraphReFly raw — Svelte writable store ───────────────────────
-const rawStore = useStore(rawNode as Node<number>);
-const rawDoubledStore = useSubscribe(rawDoubledNode as Node<number>);
+const rawStore = useStore(rawNode);
+const rawDoubledStore = useSubscribe(rawDoubledNode);
 
 // ── Jotai — bridge to Svelte writable ────────────────────────────
 const jotaiStore = writable<number>(jotaiCounter.get() ?? 0);
-const jotaiUnsub = jotaiCounter.subscribe((v: number) => jotaiStore.set(v));
+const jotaiUnsub = jotaiCounter.subscribe((v: number | undefined) => jotaiStore.set(v ?? 0));
 const jotaiDoubledStore = writable<number>(jotaiDoubled.get() ?? 0);
-const jotaiDoubledUnsub = jotaiDoubled.subscribe((v: number) => jotaiDoubledStore.set(v));
+const jotaiDoubledUnsub = jotaiDoubled.subscribe((v: number | undefined) =>
+	jotaiDoubledStore.set(v ?? 0),
+);
 
 // ── Nanostores — bridge to Svelte writable ───────────────────────
-const nanoStore = writable<number>(nanoCounter.get());
-const nanoUnsub = nanoCounter.subscribe((v: number) => nanoStore.set(v));
+const nanoStore = writable<number>(nanoCounter.get() ?? 0);
+const nanoUnsub = nanoCounter.subscribe((v: number | undefined) => nanoStore.set(v ?? 0));
 const nanoDoubledStore = writable<number>(nanoDoubled.get() ?? 0);
-const nanoDoubledUnsub = nanoDoubled.subscribe((v: number) => nanoDoubledStore.set(v));
+const nanoDoubledUnsub = nanoDoubled.subscribe((v: number | undefined) =>
+	nanoDoubledStore.set(v ?? 0),
+);
 
 // ── Zustand — bridge to Svelte readable ──────────────────────────
 type ZustandState = { count: number; inc: () => void; dec: () => void };
@@ -105,9 +112,9 @@ const zustandDoubledSvelteStore = readable<number>(
 );
 
 // ── Total & leaderboard ──────────────────────────────────────────
-const totalStore = useSubscribe(totalNode as Node<number>);
-const recordStore = useSubscribeRecord(
-	keysNode as Node<string[]>,
+const totalStore = useSubscribe(totalNode);
+const recordStore = nodeRecord(
+	keysNode,
 	counterNodeFactory as (key: string) => { count: Node<number> },
 );
 
@@ -412,7 +419,7 @@ function setNano(v: number) {
       tabindex="0"
       onkeydown={(e) => e.key === 'Enter' && selectLib('leaderboard')}
     >
-      <div class="leaderboard-title">Leaderboard — useSubscribeRecord</div>
+      <div class="leaderboard-title">Leaderboard — node record</div>
       <div class="leaderboard-rows">
         {#each libs as lib}
           <button

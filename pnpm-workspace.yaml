@@ -2,6 +2,7 @@ packages:
   - .
   - website
   - demos/reactive-layout
+  - demos/compat-matrix
   - demos/knowledge-graph
   - demos/pagerduty-triage
   - examples/basic/*

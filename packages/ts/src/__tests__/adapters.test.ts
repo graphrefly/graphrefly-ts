@@ -285,6 +285,32 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect(signalSeen).toEqual([11, 12, 13]);
 	});
 
+	it("delivers custom Zustand snapshots to subscribers instead of raw node DATA", () => {
+		const g = graph();
+		const state = g.state({ count: 1 });
+		const store = zustandStore(
+			state,
+			{ count: 1, inc: () => {} },
+			{
+				getSnapshot: () => ({
+					count: state.cache?.count ?? 0,
+					inc: () => store.setState((prev) => ({ count: prev.count + 1 })),
+				}),
+				write: (_node, value) => state.set({ count: value.count }),
+			},
+		);
+		const seen: Array<{ count: number; hasInc: boolean }> = [];
+		const unsub = store.subscribe((next) => {
+			seen.push({ count: next.count, hasInc: typeof next.inc === "function" });
+		});
+
+		store.setState((prev) => ({ count: prev.count + 1 }));
+		unsub();
+		store.destroy();
+
+		expect(seen).toEqual([{ count: 2, hasInc: true }]);
+	});
+
 	it("requires writable facades to use StateNode.set or an explicit write bridge", () => {
 		const g = graph();
 		const readonly = g.node<number>([], null);

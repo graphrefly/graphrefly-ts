@@ -153,6 +153,18 @@ function listTsFiles(dir: string): string[] {
 	return files;
 }
 
+function docsPath(...segments: string[]): string {
+	return join(
+		dirname(fileURLToPath(import.meta.url)),
+		"..",
+		"..",
+		"..",
+		"..",
+		"website",
+		...segments,
+	);
+}
+
 describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("publishes only the intended package subpaths", () => {
 		expect(Object.keys(exportsJson.exports ?? {}).sort()).toEqual([
@@ -218,6 +230,45 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(exportsJson.exports?.["./graph/sources"]).toBeUndefined();
 		expect(exportsJson.exports?.["./graph/operators"]).toBeUndefined();
 		expect(exportsJson.exports?.["./storage/wal"]).toBeUndefined();
+	});
+
+	it("keeps the integration matrix aligned with published package subpaths", () => {
+		const matrix = readFileSync(
+			docsPath("src", "content", "docs", "integrations", "matrix.md"),
+			"utf8",
+		);
+		const matrixEntries = matrix
+			.split("\n")
+			.filter((line) => line.startsWith("|"))
+			.map((line) => line.split("|").map((cell) => cell.trim())[3])
+			.filter((cell): cell is string => cell !== undefined);
+		const documentedSubpaths = Array.from(
+			matrixEntries
+				.filter((entry) => /^`@graphrefly\/ts(?:\/[\w./-]+)?`$/.test(entry))
+				.join("\n")
+				.matchAll(/`(@graphrefly\/ts(?:\/[\w./-]+)?)`/g),
+			(match) => match[1],
+		).map((specifier) =>
+			specifier === "@graphrefly/ts" ? "." : `.${specifier.slice("@graphrefly/ts".length)}`,
+		);
+
+		expect(documentedSubpaths.length).toBeGreaterThan(0);
+		for (const subpath of documentedSubpaths) {
+			expect(exportsJson.exports, subpath).toHaveProperty(subpath);
+		}
+		for (const subpath of Object.keys(exportsJson.exports ?? {})) {
+			expect(documentedSubpaths, subpath).toContain(subpath);
+		}
+		for (const staleEntry of [
+			"fromOTel",
+			"fromKafka",
+			"fromWebhook",
+			"toSSE",
+			"fromMCP",
+			"toPostgres",
+		]) {
+			expect(matrixEntries).not.toContain(`\`${staleEntry}\``);
+		}
 	});
 
 	it("exposes the clean-slate layer surfaces from source barrels", () => {

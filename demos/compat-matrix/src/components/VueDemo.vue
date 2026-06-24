@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import type { Node } from "@graphrefly/graphrefly";
-import type { WritableAtom } from "@graphrefly/graphrefly/compat/jotai";
-import type { NanoAtom, NanoComputed } from "@graphrefly/graphrefly/compat/nanostores";
-import { useStore, useSubscribe, useSubscribeRecord } from "@graphrefly/graphrefly/compat/vue";
-import type { StoreApi } from "@graphrefly/graphrefly/compat/zustand";
-import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
-import { demoShell } from "@graphrefly/graphrefly/utils/demo-shell";
+import type {
+	NanoAtom,
+	WritableJotaiAtom,
+	WritableNanoAtom,
+	WritableNode,
+	ZustandStoreApi,
+} from "@graphrefly/ts/adapters";
+import {
+	useNodeInput,
+	useNodeRecord,
+	useNodeValue as useSubscribe,
+} from "@graphrefly/ts/adapters/vue";
+import type { Node } from "@graphrefly/ts/graph";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
 	counterGraph,
@@ -23,6 +29,7 @@ import {
 	zustandDoubledSelector,
 	zustandStore,
 } from "../lib/counter";
+import { type DemoShellHandle, demoShell } from "../lib/demo-shell";
 import {
 	type CodeLayoutSummary,
 	getMeasurementAdapter,
@@ -44,13 +51,23 @@ const LIB_LABELS: Record<LibName, string> = {
 };
 
 const LIB_DESCS: Record<LibName, string> = {
-	graphrefly: "Direct node · useStore / useSubscribe",
-	jotai: "Derived atom · atom(read, write)",
-	nanostores: "Sync atom · bidirectional bridge",
-	zustand: "Store API · create(initializer)",
+	graphrefly: "Direct node · framework adapter",
+	jotai: "jotaiAtom facade",
+	nanostores: "nanoAtom facade",
+	zustand: "zustandStore facade",
 };
 
 const codeSnippets = getCodeSnippets("vue");
+
+function useStore<T>(node: WritableNode<T>) {
+	const [value, setValue] = useNodeInput(node);
+	return computed({
+		get: () => value.value,
+		set: (next: T | undefined) => {
+			if (next !== undefined) setValue(next);
+		},
+	});
+}
 
 // ── Shell ─────────────────────────────────────────────────────────────
 const shell = ref<DemoShellHandle | null>(null);
@@ -66,13 +83,13 @@ const leaderboardH = ref(0);
 const codeHit = ref<{ line: number; graphemeIndex: number } | null>(null);
 
 // ── GraphReFly raw binding ────────────────────────────────────────────
-const rawCount = useStore(rawNode as Node<number>);
-const rawDoubled = useSubscribe(rawDoubledNode as Node<number>);
+const rawCount = useStore(rawNode);
+const rawDoubled = useSubscribe(rawDoubledNode);
 
 // ── Jotai atom bridging ───────────────────────────────────────────────
-function useJotaiAtom<T>(atom: WritableAtom<T>) {
-	const value = ref<T>(atom.get()) as ReturnType<typeof ref<T>>;
-	const unsub = atom.subscribe((v: T) => {
+function useJotaiAtom<T>(atom: WritableJotaiAtom<T>) {
+	const value = ref<T | undefined>(atom.get()) as ReturnType<typeof ref<T | undefined>>;
+	const unsub = atom.subscribe((v: T | undefined) => {
 		value.value = v;
 	});
 	onUnmounted(() => unsub());
@@ -81,9 +98,12 @@ function useJotaiAtom<T>(atom: WritableAtom<T>) {
 		set: (v: T) => atom.set(v),
 	};
 }
-function useJotaiReadonly<T>(atom: { get(): T; subscribe(cb: (v: T) => void): () => void }) {
-	const value = ref<T>(atom.get()) as ReturnType<typeof ref<T>>;
-	const unsub = atom.subscribe((v: T) => {
+function useJotaiReadonly<T>(atom: {
+	get(): T | undefined;
+	subscribe(cb: (v: T | undefined) => void): () => void;
+}) {
+	const value = ref<T | undefined>(atom.get()) as ReturnType<typeof ref<T | undefined>>;
+	const unsub = atom.subscribe((v: T | undefined) => {
 		value.value = v;
 	});
 	onUnmounted(() => unsub());
@@ -93,9 +113,9 @@ const jotai = useJotaiAtom(jotaiCounter);
 const jotaiDoubledVal = useJotaiReadonly(jotaiDoubled);
 
 // ── Nanostores atom bridging ──────────────────────────────────────────
-function useNanoAtom<T>(store: NanoAtom<T>) {
-	const value = ref<T>(store.get()) as ReturnType<typeof ref<T>>;
-	const unsub = store.subscribe((v: T) => {
+function useNanoAtom<T>(store: WritableNanoAtom<T>) {
+	const value = ref<T | undefined>(store.get()) as ReturnType<typeof ref<T | undefined>>;
+	const unsub = store.subscribe((v: T | undefined) => {
 		value.value = v;
 	});
 	onUnmounted(() => unsub());
@@ -104,9 +124,9 @@ function useNanoAtom<T>(store: NanoAtom<T>) {
 		set: (v: T) => store.set(v),
 	};
 }
-function useNanoComputedValue<T>(store: NanoComputed<T>) {
-	const value = ref<T>(store.get()) as ReturnType<typeof ref<T>>;
-	const unsub = store.subscribe((v: T) => {
+function useNanoComputedValue<T>(store: NanoAtom<T>) {
+	const value = ref<T | undefined>(store.get()) as ReturnType<typeof ref<T | undefined>>;
+	const unsub = store.subscribe((v: T | undefined) => {
 		value.value = v;
 	});
 	onUnmounted(() => unsub());
@@ -116,7 +136,7 @@ const nano = useNanoAtom(nanoCounter);
 const nanoDoubledVal = useNanoComputedValue(nanoDoubled);
 
 // ── Zustand store bridging ────────────────────────────────────────────
-function useZustandStore<T extends object>(store: StoreApi<T>) {
+function useZustandStore<T extends object>(store: ZustandStoreApi<T>) {
 	const value = ref<T>(store.getState()) as ReturnType<typeof ref<T>>;
 	const unsub = store.subscribe((state: T) => {
 		value.value = state;
@@ -124,7 +144,7 @@ function useZustandStore<T extends object>(store: StoreApi<T>) {
 	onUnmounted(() => unsub());
 	return computed(() => value.value);
 }
-function useZustandSelector<T extends object, R>(store: StoreApi<T>, selector: (s: T) => R) {
+function useZustandSelector<T extends object, R>(store: ZustandStoreApi<T>, selector: (s: T) => R) {
 	const value = ref<R>(selector(store.getState())) as ReturnType<typeof ref<R>>;
 	const unsub = store.subscribe((state: T) => {
 		value.value = selector(state);
@@ -136,11 +156,10 @@ const zustand = useZustandStore(zustandStore);
 const zustandDoubledVal = useZustandSelector(zustandStore, zustandDoubledSelector);
 
 // ── Read-only subscriptions ───────────────────────────────────────────
-const total = useSubscribe(totalNode as Node<number>);
+const total = useSubscribe(totalNode);
 
-const keysRef = useSubscribe(keysNode as Node<string[]>);
-const record = useSubscribeRecord(
-	keysRef,
+const record = useNodeRecord(
+	keysNode,
 	counterNodeFactory as (key: string) => { count: Node<number> },
 );
 
@@ -158,7 +177,7 @@ const totalVal = computed(() => (total.value as number) ?? 0);
 const currentSnippet = computed(() => (selectedLib.value ? codeSnippets[selectedLib.value] : null));
 const currentTitle = computed(() => {
 	if (!selectedLib.value) return "Select a card to see code";
-	if (selectedLib.value === "leaderboard") return "Leaderboard — useSubscribeRecord code";
+	if (selectedLib.value === "leaderboard") return "Leaderboard — node record code";
 	return `${LIB_LABELS[selectedLib.value]} — binding code`;
 });
 
@@ -435,7 +454,7 @@ function onCodePaneClick(e: MouseEvent) {
         :class="{ selected: selectedLib === 'leaderboard' }"
         @click="selectLib('leaderboard')"
       >
-        <div class="leaderboard-title">Leaderboard — useSubscribeRecord</div>
+        <div class="leaderboard-title">Leaderboard — node record</div>
         <div class="leaderboard-rows">
           <button
             v-for="lib in (['graphrefly', 'jotai', 'nanostores', 'zustand'] as LibName[])"

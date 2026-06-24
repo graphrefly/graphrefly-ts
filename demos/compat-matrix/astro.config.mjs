@@ -35,25 +35,8 @@ export default defineConfig({
 	vite: {
 		resolve: {
 			conditions: ["browser"],
-			dedupe: ["@graphrefly/pure-ts"],
 			alias: [{ find: /^svelte$/, replacement: svelteClientEntry }],
 		},
-		build: {
-			rollupOptions: {
-				// `@mlc-ai/web-llm` — peer dep of the library's browser
-				// `webllmAdapter` (dynamic import with `.catch()`).
-				// `node:*` builtins — the library's Node-only code paths
-				// (`fallbackAdapter`, `withReplayCache`, `fileStorage`,
-				// `sqliteStorage`) import them; the demo never calls them,
-				// but rollup tree-shakes the dist and needs them externalized.
-				external: ["@mlc-ai/web-llm", /^node:/],
-			},
-		},
-		optimizeDeps: {
-			exclude: ["@mlc-ai/web-llm"],
-			esbuildOptions: {
-				conditions: ["browser"],
-			},
-		},
+		optimizeDeps: { esbuildOptions: { conditions: ["browser"] } },
 	},
 });
