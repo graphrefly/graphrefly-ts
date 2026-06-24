@@ -304,11 +304,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof nestjsAdapters.fromNestError).toBe("function");
 		expect(typeof nestjsAdapters.fromNestLifecycle).toBe("function");
 		expect(typeof nestjsAdapters.fromNestCron).toBe("function");
+		expect(typeof nestjsAdapters.fromNestDiagnostics).toBe("function");
+		expect(typeof nestjsAdapters.sanitizeNestDiagnostic).toBe("function");
 		expect(typeof nestjsAdapters.toNestHttp).toBe("function");
 		expect(typeof nestjsAdapters.GraphFilter).toBe("function");
 		expect(typeof nestjsAdapters.GraphGuardDecision).toBe("function");
 		expect(typeof nestjsAdapters.getGraphToken).toBe("function");
 		expect(typeof nestjsAdapters.getNestBoundaryToken).toBe("function");
+		expect(typeof nestjsNativeAdapters.createGraphCronController).toBe("function");
+		expect(typeof nestjsNativeAdapters.graphCronTarget).toBe("function");
+		expect(typeof nestjsNativeAdapters.graphLifecycleTarget).toBe("function");
 		expect(typeof nestjsNativeAdapters.provideGraphBoundaryInterceptor).toBe("function");
 		expect(typeof nestjsNativeAdapters.provideGraphGuard).toBe("function");
 		expect(typeof nestjsNativeAdapters.createGraphExceptionFilter).toBe("function");
@@ -317,6 +322,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof nestjsNativeAdapters.provideGraphGuardDeniedFilter).toBe("function");
 		expect(typeof nestjsNativeAdapters.provideGraphCronScheduler).toBe("function");
 		expect(typeof nestjsNativeAdapters.provideGraphLifecycleHooks).toBe("function");
+		expect(typeof nestjsNativeAdapters.provideGraphNativeHttpProviders).toBe("function");
+		expect(typeof nestjsNativeAdapters.provideGraphNativeProviders).toBe("function");
 		expect(typeof nestjsNativeAdapters.GRAPHREFLY_NEST_EXCEPTION_FILTER).toBe("symbol");
 		expect(typeof nestjsWebsocketsAdapters.fromNestWs).toBe("function");
 		expect(typeof nestjsMicroservicesAdapters.fromNestMessage).toBe("function");

@@ -1,4 +1,4 @@
-import { APP_FILTER } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	externalStore,
@@ -19,10 +19,13 @@ import {
 	GraphMessageReply,
 } from "../adapters/nestjs/microservices.js";
 import {
+	createGraphCronController,
 	createGraphExceptionFilter,
 	createGraphGuardDeniedFilter,
 	GraphGuardDeniedException,
 	GraphGuardDeniedFilter,
+	graphCronTarget,
+	graphLifecycleTarget,
 	isGraphGuardDeniedException,
 	provideGraphBoundaryInterceptor,
 	provideGraphCronScheduler,
@@ -30,6 +33,8 @@ import {
 	provideGraphGuard,
 	provideGraphGuardDeniedFilter,
 	provideGraphLifecycleHooks,
+	provideGraphNativeHttpProviders,
+	provideGraphNativeProviders,
 } from "../adapters/nestjs/native.js";
 import {
 	createGraphWsBridge,
@@ -42,6 +47,7 @@ import {
 	createNestGraphBoundaryInterceptor,
 	createNestGraphBoundaryRunner,
 	fromNestCron,
+	fromNestDiagnostics,
 	fromNestError,
 	fromNestGuard,
 	fromNestIntercept,
@@ -72,10 +78,12 @@ import {
 	EVENT_HANDLERS as NEST_EVENT_HANDLERS,
 	INTERVAL_HANDLERS as NEST_INTERVAL_HANDLERS,
 	type NestBoundaryEnvelope,
+	type NestDiagnosticIngressBoundary,
 	type NestReplyEnvelope,
 	nestProvider,
 	OnGraphEvent,
 	protocolError,
+	sanitizeNestDiagnostic,
 	toNestHttp,
 } from "../adapters/nestjs.js";
 import { depLatest } from "../ctx/types.js";
@@ -1200,6 +1208,239 @@ describe("framework-neutral store adapters (B61)", () => {
 		expect("GraphReq" in ({} as typeof import("../adapters/index.js"))).toBe(false);
 	});
 
+	it("builds explicit native provider bundles without scanning or creating graphs", () => {
+		const target = () => ({ target: class Target {}, methodKey: "handle" });
+		const httpProviders = provideGraphNativeHttpProviders({
+			boundaryInterceptor: { host: () => ({ requestId: "req-1" }) },
+			guard: {},
+			exceptionFilter: { target },
+		});
+
+		expect(
+			httpProviders.map((provider) =>
+				typeof provider === "function" ? provider : provider.provide,
+			),
+		).toEqual([APP_INTERCEPTOR, APP_GUARD, GraphGuardDeniedFilter, expect.any(Symbol)]);
+		expect(provideGraphNativeHttpProviders({ guardDeniedFilter: false })).toHaveLength(2);
+
+		class Controller {
+			tick() {}
+			stop() {}
+		}
+		const cronTarget = graphCronTarget(Controller, "tick", {
+			expr: "* * * * *",
+			timezone: "UTC",
+			target: class WrongCronTarget {},
+			methodKey: "wrong",
+		} as Parameters<typeof graphCronTarget>[2]);
+		const lifecycleTarget = graphLifecycleTarget(Controller, "stop", {
+			event: "module-destroy",
+			target: class WrongLifecycleTarget {},
+			methodKey: "wrong",
+		});
+		const nativeProviders = provideGraphNativeProviders({
+			http: false,
+			cronScheduler: { targets: [cronTarget] },
+			lifecycleHooks: { targets: [lifecycleTarget] },
+		});
+
+		expect(cronTarget).toMatchObject({ target: Controller, methodKey: "tick" });
+		expect(lifecycleTarget).toMatchObject({ target: Controller, methodKey: "stop" });
+		expect(nativeProviders).toHaveLength(2);
+		expect(nativeProviders.every((provider) => typeof provider !== "function")).toBe(true);
+	});
+
+	it("emits graph-visible Nest diagnostics only through an explicit sanitized boundary", () => {
+		const g = graph();
+		const diagnostics = fromNestDiagnostics(g, {
+			bindingId: "node.nest.diagnostics",
+			phase: "http",
+		});
+		const seen: unknown[] = [];
+		diagnostics.node.subscribe((msg) => {
+			if (msg[0] === "DATA") seen.push((msg[1] as NestBoundaryEnvelope).payload);
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null, {
+			name: "nestjs/diagnostic/reply",
+		});
+		const hiddenHandle = { socket: { id: "raw" }, callback: () => undefined };
+		const error = Object.assign(new Error("private failure"), hiddenHandle);
+		const http = toNestHttp(reply, {
+			bindingId: "http.diagnostics.out",
+			diagnosticBoundary: diagnostics,
+		});
+		http.attach({
+			requestId: "req-diagnostic",
+			bindingId: "http.diagnostics.out",
+			handle: {
+				resolve: vi.fn(),
+				reject: vi.fn(),
+			},
+		});
+
+		reply.down([["ERROR", error]]);
+
+		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual(["terminal-egress"]);
+		expect(seen).toEqual([
+			{
+				kind: "terminal-egress",
+				phase: "http",
+				bindingId: "http.diagnostics.out",
+				message: "toNestHttp(http.diagnostics.out) rejected pending requests after ERROR",
+				error: { name: "Error", message: "private failure" },
+			},
+		]);
+		expect(JSON.stringify(seen)).not.toContain("socket");
+		expect(JSON.stringify(seen)).not.toContain("callback");
+	});
+
+	it("keeps host cleanup alive when explicit diagnostic ingress rejects DATA", () => {
+		const g = graph();
+		const diagnostics = fromNestDiagnostics(g, {
+			bindingId: "node.nest.tight-diagnostics",
+			maxPayloadBytes: 1,
+		});
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null);
+		const reject = vi.fn();
+		const http = toNestHttp(reply, {
+			bindingId: "http.tight-diagnostics.out",
+			diagnosticBoundary: diagnostics,
+		});
+		http.attach({
+			requestId: "req-tight",
+			bindingId: "http.tight-diagnostics.out",
+			handle: {
+				resolve: vi.fn(),
+				reject,
+			},
+		});
+
+		expect(() =>
+			reply.down([["ERROR", new Error("too large for diagnostic ingress")]]),
+		).not.toThrow();
+		expect(reject).toHaveBeenCalledOnce();
+		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual(["terminal-egress"]);
+	});
+
+	it("passes sanitized diagnostics into structural diagnostic boundaries", () => {
+		const g = graph();
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null);
+		const emitted: Array<{ readonly host: unknown; readonly payload: unknown }> = [];
+		const diagnosticBoundary: NestDiagnosticIngressBoundary = {
+			kind: "diagnostics",
+			bindingId: "custom.diagnostics",
+			version: 1,
+			node: fromNestDiagnostics(g).node,
+			envelope(host, opts) {
+				return {
+					bindingId: opts?.bindingId ?? "custom.diagnostics",
+					version: opts?.version ?? 1,
+					payload: opts?.payload ?? host,
+				};
+			},
+			emit(host, opts) {
+				emitted.push({ host, payload: opts?.payload });
+				return this.envelope(host, opts);
+			},
+		};
+		const http = toNestHttp(reply, {
+			bindingId: "http.custom-diagnostics.out",
+			diagnosticBoundary,
+		});
+
+		reply.down([["ERROR", Object.assign(new Error("masked"), { socket: { id: "raw" } })]]);
+
+		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual(["terminal-egress"]);
+		expect(emitted).toEqual([
+			{
+				host: {
+					kind: "terminal-egress",
+					phase: "http",
+					bindingId: "http.custom-diagnostics.out",
+					message: "toNestHttp(http.custom-diagnostics.out) rejected pending requests after ERROR",
+					error: { name: "Error", message: "masked" },
+				},
+				payload: {
+					kind: "terminal-egress",
+					phase: "http",
+					bindingId: "http.custom-diagnostics.out",
+					message: "toNestHttp(http.custom-diagnostics.out) rejected pending requests after ERROR",
+					error: { name: "Error", message: "masked" },
+				},
+			},
+		]);
+		expect(JSON.stringify(emitted)).not.toContain("socket");
+	});
+
+	it("keeps Nest diagnostics as host snapshots by default", () => {
+		const g = graph();
+		const diagnostics = fromNestDiagnostics(g, { bindingId: "node.unwired.diagnostics" });
+		const seen: unknown[] = [];
+		diagnostics.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		const reply = g.node<NestReplyEnvelope<{ readonly ok: true }>>([], null);
+		const http = toNestHttp(reply, { bindingId: "http.host-snapshot.out" });
+
+		reply.down([
+			[
+				"DATA",
+				{
+					requestId: "stale",
+					bindingId: "http.host-snapshot.out",
+					version: 1,
+					payload: { ok: true },
+				},
+			],
+		]);
+
+		expect(http.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual(["stale-egress"]);
+		expect(seen).toEqual([]);
+		expect(sanitizeNestDiagnostic({ kind: "timeout", message: "late", error: "deadline" })).toEqual(
+			{
+				kind: "timeout",
+				phase: "adapter",
+				message: "late",
+				error: { message: "deadline" },
+			},
+		);
+		expect(
+			sanitizeNestDiagnostic({
+				kind: "timeout",
+				message: "opaque",
+				error: {
+					get message() {
+						throw new Error("hostile getter");
+					},
+					toString() {
+						throw new Error("hostile toString");
+					},
+				},
+			}),
+		).toEqual({
+			kind: "timeout",
+			phase: "adapter",
+			message: "opaque",
+			error: { message: "opaque diagnostic error" },
+		});
+		function hiddenCallback() {
+			return "host-private source";
+		}
+		hiddenCallback.toString = () => {
+			throw new Error("hostile function toString");
+		};
+		expect(
+			sanitizeNestDiagnostic({
+				kind: "timeout",
+				message: "function",
+				error: hiddenCallback,
+			}),
+		).toEqual({
+			kind: "timeout",
+			phase: "adapter",
+			message: "function",
+			error: { message: "opaque diagnostic function" },
+		});
+	});
+
 	it("targeted guard-denial filter rethrows ordinary exceptions", () => {
 		const filter = createGraphGuardDeniedFilter();
 		const host = {
@@ -1921,7 +2162,7 @@ describe("framework-neutral store adapters (B61)", () => {
 			});
 			vi.advanceTimersByTime(20);
 			await expect(timeout).rejects.toThrow(/timed out/);
-			expect(timeoutBridge.diagnostics().map((diagnostic) => diagnostic.kind)).toContain("timeout");
+			expect(timeoutBridge.diagnostics().map((diagnostic) => diagnostic.kind)).toEqual(["timeout"]);
 			timeoutBridge.dispose();
 		} finally {
 			vi.useRealTimers();
@@ -2305,6 +2546,53 @@ describe("framework-neutral store adapters (B61)", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("manual cron controller checks current time deterministically without catch-up DATA", () => {
+		const g = graph();
+		const cron = fromNestCron<{ readonly timestamp_ms: number }, { readonly tick: number }>(g, {
+			bindingId: "node.native.cron.manual.in",
+		});
+		const seen: unknown[] = [];
+		cron.node.subscribe((msg) => msg[0] === "DATA" && seen.push(msg[1]));
+		class Controller {
+			tick() {}
+		}
+		GraphCron(cron, {
+			bindingId: "native.cron.manual.in",
+			payload: (host) => ({ tick: host.timestamp_ms }),
+		})(Controller.prototype, "tick", { value: Controller.prototype.tick });
+		const controller = createGraphCronController({
+			targets: [
+				graphCronTarget(Controller, "tick", {
+					expr: "30 8 * * 1",
+					timezone: "UTC",
+				}),
+			],
+		});
+
+		controller.check(new Date("2026-01-05T08:29:00.000Z"));
+		controller.check(new Date("2026-01-05T08:30:00.000Z"));
+		controller.check(new Date("2026-01-05T08:30:59.000Z"));
+		controller.check(new Date("2026-01-12T08:30:00.000Z"));
+
+		expect(seen).toEqual([
+			{
+				bindingId: "native.cron.manual.in",
+				version: 1,
+				payload: { tick: Date.parse("2026-01-05T08:30:00.000Z") },
+			},
+			{
+				bindingId: "native.cron.manual.in",
+				version: 1,
+				payload: { tick: Date.parse("2026-01-12T08:30:00.000Z") },
+			},
+		]);
+		expect(() =>
+			createGraphCronController({
+				targets: [graphCronTarget(Controller, "tick", { expr: "0 30 8 * * 1" })],
+			}),
+		).toThrow(/expected 5 fields/);
 	});
 
 	it("native cron provider rolls back timers when module init fails partway", () => {

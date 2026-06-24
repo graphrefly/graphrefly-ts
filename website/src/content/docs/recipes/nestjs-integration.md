@@ -1,6 +1,6 @@
 ---
 title: "NestJS Integration"
-description: "Clean-slate NestJS integration with D486 Nest-native provider bridge ergonomics."
+description: "Clean-slate NestJS integration with D494 provider ergonomics and explicit diagnostics."
 ---
 
 # NestJS Integration
@@ -24,7 +24,7 @@ The clean-slate NestJS adapter has focused subpaths:
 
 HTTP/native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`. The WebSocket and message subpaths import only their matching optional peer.
 
-Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. The adapter does not create business graphs, rewrite Nest routing, provide `compat/nestjs`, revive `Actor` or `CqrsGraph`, scan the container by default, or hide a message bus.
+Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. D494 is an ergonomics and testability slice. NestJS provider bundle helpers and explicit target helpers reduce module boilerplate, but they never scan the Nest container, create graphs, own business graphs, add hidden route registries, or introduce hidden event buses.
 
 ## Envelope
 
@@ -106,6 +106,47 @@ class AppModule {}
 
 The provider reads metadata for the current class/handler only, attaches host-private pending reply handles, emits ingress DATA, lowers HTTP DATA replies, and cleans up. Controller users do not call `attach` on the decorator path. Low-level `emit(...)` and `toNestHttp(...)` remain available for custom hosts.
 
+For common native wiring, use the explicit provider bundles:
+
+```ts
+import {
+  graphCronTarget,
+  graphLifecycleTarget,
+  provideGraphNativeProviders,
+} from "@graphrefly/ts/adapters/nestjs/native";
+
+const cronTargets = [
+  graphCronTarget(OrdersController, "cronTick", {
+    expr: "* * * * *",
+    timezone: "UTC",
+  }),
+];
+
+@Module({
+  providers: [
+    ...provideGraphNativeProviders({
+      http: {
+        boundaryInterceptor: {
+          host: (context) => context.switchToHttp().getRequest(),
+        },
+        guard: {},
+      },
+      cronScheduler: { targets: cronTargets },
+      lifecycleHooks: {
+        targets: [
+          graphLifecycleTarget(OrdersController, "teardown", {
+            event: "module-destroy",
+          }),
+        ],
+      },
+    }),
+  ],
+})
+class AppModule {}
+```
+
+The bundle returns ordinary `Provider[]`. It is not a module, does not create a graph, and does not discover targets. Targets remain explicit data supplied by the host app.
+
 ## WebSocket and Message Bridges
 
 Use `GraphWs(...)` with `GraphWsAck(...)` or `GraphWsReply(...)` through `provideGraphWsBridge(...)` from `@graphrefly/ts/adapters/nestjs/websockets`. Use `GraphMessage(...)` with `GraphMessageReply(...)` through `provideGraphMessageBridge(...)` from `@graphrefly/ts/adapters/nestjs/microservices`.
@@ -182,9 +223,28 @@ Plain `DataIssue` values lower through `issueResponse(issue, host)`. Protocol `E
 
 `fromCron(...)` and `GraphCron` support IANA timezone strings through runtime `Intl` support. Defaults are explicit: nonexistent DST wall-clock minutes are skipped, repeated wall-clock minutes fire at most once, and missed ticks while the host app/provider/event loop is unavailable are skipped by default. Restart or resume continues from the current time only; no missed-status or catch-up DATA is synthesized.
 
+The deterministic controller is for manual checks and tests:
+
+```ts
+import { createGraphCronController, graphCronTarget } from "@graphrefly/ts/adapters/nestjs/native";
+
+const controller = createGraphCronController({
+  targets: [
+    graphCronTarget(OrdersController, "cronTick", {
+      expr: "30 8 * * 1",
+      timezone: "UTC",
+    }),
+  ],
+});
+
+controller.check(new Date("2026-01-05T08:30:00.000Z"));
+```
+
+Cron remains five-field, minute-granularity, skip/current-time-only, and deduped per matched wall-clock minute. The deterministic cron controller does not add seconds grammar, missed-status DATA, catch-up replay DATA, scheduledAt/actualAt/missedCount payloads, or a graph-core scheduler.
+
 ## Inspection and Logging
 
-Adapter diagnostics are not a stable logging callback and are not graph inspection. Use graph-visible audit/status/issues nodes and observe them:
+Adapter diagnostics are host-side snapshots by default. `diagnostics()` on reply/bridge objects remains a host diagnostic snapshot and does not emit graph DATA by itself. Adapter diagnostics are not a stable logging callback and are not graph inspection. Use graph-visible audit/status/issues nodes and observe them:
 
 ```ts
 const stop = g.observe("orders.audit").subscribe((event) => {
@@ -195,6 +255,31 @@ const stop = g.observe("orders.audit").subscribe((event) => {
 ```
 
 `graph.describe()` and `graph.observe()` remain the inspection path. Ordinary business HTTP failures are DATA payloads such as `{ status, body }`, not protocol `ERROR`.
+
+Graph-visible adapter diagnostics require an explicitly wired diagnostic ingress boundary:
+
+```ts
+import { fromNestDiagnostics } from "@graphrefly/ts/adapters/nestjs";
+import { provideGraphNativeProviders } from "@graphrefly/ts/adapters/nestjs/native";
+
+const nestDiagnostics = fromNestDiagnostics(g, {
+  bindingId: "node.nest.diagnostics",
+});
+
+@Module({
+  providers: [
+    ...provideGraphNativeProviders({
+      http: {
+        boundaryInterceptor: { diagnosticBoundary: nestDiagnostics },
+        guard: { diagnosticBoundary: nestDiagnostics },
+      },
+    }),
+  ],
+})
+class AppModule {}
+```
+
+Graph-visible diagnostics emit only sanitized data-only payloads: `kind`, `phase`, `requestId`, `bindingId`, `expectedBindingId`, `message`, and optional `{ name, message }` error summary. Raw sockets, clients, contexts, callbacks, transport handles, Promises, Observables, and raw Error objects never enter graph DATA.
 
 ## Runnable Example
 
@@ -211,10 +296,13 @@ It includes:
 - `POST /orders`
 - `POST /handled-error`
 - `POST /cron/tick`
+- `POST /cron/check`
 - `GET /audit/:requestId`
 - `POST /lifecycle/teardown`
 - `GET /graph`
 - WebSocket `orders.reserve` on `/graphrefly`
 - TCP microservice pattern `orders.reserve` on `MICRO_HOST:MICRO_PORT` (default `127.0.0.1:3001`)
 
-`POST /echo` and `POST /orders` use the D486 native provider bridge. The WebSocket and message-pattern methods use the D488 focused optional-peer subpaths with `requestId` plus `bindingId` correlation. `POST /orders` shows guard denial response headers through `GraphGuardDeniedFilter`. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)`.
+`POST /echo` and `POST /orders` use the D494 native provider bundle. The WebSocket and message-pattern methods use the D488 focused optional-peer subpaths with `requestId` plus `bindingId` correlation. `POST /orders` shows guard denial response headers through `GraphGuardDeniedFilter`. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. `POST /cron/check` demonstrates the deterministic manual cron controller. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)` and an explicit diagnostic boundary for sanitized adapter diagnostics.
+
+WebSocket and microservice helpers stay in their focused optional-peer subpaths. This D494 slice does not add new live WebSocket or TCP transport e2e coverage.

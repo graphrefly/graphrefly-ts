@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { depLatest } from "@graphrefly/ts";
 import {
 	fromNestCron,
+	fromNestDiagnostics,
 	fromNestError,
 	fromNestGuard,
 	fromNestLifecycle,
@@ -27,13 +28,12 @@ import {
 	provideGraphMessageBridge,
 } from "@graphrefly/ts/adapters/nestjs/microservices";
 import {
+	createGraphCronController,
 	createGraphExceptionFilter,
 	GraphGuardDeniedFilter,
-	provideGraphBoundaryInterceptor,
-	provideGraphCronScheduler,
-	provideGraphGuard,
-	provideGraphGuardDeniedFilter,
-	provideGraphLifecycleHooks,
+	graphCronTarget,
+	graphLifecycleTarget,
+	provideGraphNativeProviders,
 } from "@graphrefly/ts/adapters/nestjs/native";
 import {
 	fromNestWs,
@@ -46,6 +46,7 @@ import {
 } from "@graphrefly/ts/adapters/nestjs/websockets";
 import { type Graph, graph } from "@graphrefly/ts/graph";
 import {
+	BadRequestException,
 	Body,
 	Controller,
 	Get,
@@ -135,6 +136,11 @@ function result<T>(status: number, body: T): HttpResult<T> {
 }
 
 const g = graph({ name: "nestjs-graph-boundary" });
+
+const diagnosticsIn = fromNestDiagnostics(g, {
+	bindingId: "node.nest.diagnostics",
+	phase: "adapter",
+});
 
 const policy = g.state<PolicyState>({ acceptOrders: true }, { name: "policy/current" });
 
@@ -364,6 +370,7 @@ const messageOrdersReply = g.node<NestReplyEnvelope<HttpResult>>(
 );
 
 const graphHandledExceptionFilter = createGraphExceptionFilter({
+	diagnosticBoundary: diagnosticsIn,
 	target: (_host, exception) =>
 		exception instanceof Error && exception.message === "graph-handled"
 			? { target: DemoController, methodKey: "handledError" }
@@ -400,7 +407,7 @@ const lifecycleIn = fromNestLifecycle<unknown, { readonly event: string }>(g, {
 class GraphAuditLogger implements OnModuleDestroy {
 	private readonly logger = new Logger("GraphAudit");
 	private readonly audit = new Map<string, AuditEntry>();
-	private readonly stop = g.observe("orders.audit").subscribe((event) => {
+	private readonly stopAudit = g.observe("orders.audit").subscribe((event) => {
 		if (event.msg[0] !== "DATA") return;
 		const entry = event.msg[1] as AuditEntry;
 		this.audit.set(entry.requestId, entry);
@@ -410,13 +417,19 @@ class GraphAuditLogger implements OnModuleDestroy {
 			}`,
 		);
 	});
+	private readonly stopDiagnostics = diagnosticsIn.node.subscribe((msg) => {
+		if (msg[0] !== "DATA") return;
+		const envelope = msg[1] as NestBoundaryEnvelope;
+		this.logger.warn(`nest.diagnostic ${JSON.stringify(envelope.payload)}`);
+	});
 
 	auditEntry(requestId: string): AuditEntry | undefined {
 		return this.audit.get(requestId);
 	}
 
 	onModuleDestroy(): void {
-		this.stop();
+		this.stopAudit();
+		this.stopDiagnostics();
 	}
 }
 
@@ -517,6 +530,16 @@ class DemoController {
 		return result(202, { cron: "registered" });
 	}
 
+	@Post("cron/check")
+	manualCronCheck(@Body() body: { readonly iso?: string } = {}): HttpResult {
+		const now = body.iso === undefined ? new Date() : new Date(body.iso);
+		if (!Number.isFinite(now.getTime())) {
+			throw new BadRequestException("cron/check requires a valid ISO date");
+		}
+		manualCronController.check(now);
+		return result(202, { checkedAt: now.toISOString() });
+	}
+
 	@Get("graph")
 	graph(): ReturnType<GraphBoundaryDemo["describe"]> {
 		return this.demo.describe();
@@ -582,85 +605,90 @@ class OrdersMessageController {
 	}
 }
 
+const cronTargets = [
+	graphCronTarget(DemoController, "cronTick", {
+		expr: "* * * * *",
+		timezone: "UTC",
+	}),
+];
+
+const lifecycleTargets = [
+	graphLifecycleTarget(DemoController, "teardown", {
+		event: "module-destroy",
+		host: () => ({ event: "module-destroy" }),
+	}),
+];
+
+const manualCronController = createGraphCronController({ targets: cronTargets });
+
 @Module({
 	controllers: [DemoController, OrdersMessageController],
 	providers: [
 		GraphBoundaryDemo,
 		GraphAuditLogger,
 		OrdersGateway,
-		provideGraphBoundaryInterceptor({
-			host: (context) => {
-				const req = context.switchToHttp?.().getRequest<{
-					body?: unknown;
-					headers?: Record<string, string | string[] | undefined>;
-					id?: string;
-					path?: string;
-					requestId?: string;
-				}>() ?? { body: {}, headers: {}, path: undefined };
-				return {
-					requestId: requestId(
-						String(context.getHandler().name || "graph"),
-						nextRequestSeq,
-						req.requestId,
-						req.id,
-						req.headers?.["x-request-id"],
-						req.headers?.["x-correlation-id"],
-					),
-					body: req.body ?? {},
-					headers: req.headers,
-					path: req.path,
-				};
-			},
-			requestId: (host) => host.requestId,
-		}),
-		provideGraphGuard({
-			host: (context) => {
-				const req = context.switchToHttp().getRequest<{
-					body?: OrderRequest;
-					headers?: Record<string, string | string[] | undefined>;
-					id?: string;
-					requestId?: string;
-				}>();
-				return {
-					requestId: requestId(
-						"guard",
-						nextRequestSeq,
-						req.requestId,
-						req.id,
-						req.headers?.["x-request-id"],
-					),
-					body: req.body ?? { orderId: "", item: "", quantity: 0 },
-					headers: req.headers,
-				};
-			},
-			requestId: (host) => host.requestId,
-		}),
-		provideGraphGuardDeniedFilter(),
-		provideGraphCronScheduler({
-			targets: [
-				{
-					target: DemoController,
-					methodKey: "cronTick",
-					expr: "* * * * *",
-					timezone: "UTC",
+		...provideGraphNativeProviders({
+			http: {
+				boundaryInterceptor: {
+					diagnosticBoundary: diagnosticsIn,
+					host: (context) => {
+						const req = context.switchToHttp?.().getRequest<{
+							body?: unknown;
+							headers?: Record<string, string | string[] | undefined>;
+							id?: string;
+							path?: string;
+							requestId?: string;
+						}>() ?? { body: {}, headers: {}, path: undefined };
+						return {
+							requestId: requestId(
+								String(context.getHandler().name || "graph"),
+								nextRequestSeq,
+								req.requestId,
+								req.id,
+								req.headers?.["x-request-id"],
+								req.headers?.["x-correlation-id"],
+							),
+							body: req.body ?? {},
+							headers: req.headers,
+							path: req.path,
+						};
+					},
+					requestId: (host) => host.requestId,
 				},
-			],
-		}),
-		provideGraphLifecycleHooks({
-			targets: [
-				{
-					target: DemoController,
-					methodKey: "teardown",
-					event: "module-destroy",
-					host: () => ({ event: "module-destroy" }),
+				guard: {
+					diagnosticBoundary: diagnosticsIn,
+					host: (context) => {
+						const req = context.switchToHttp().getRequest<{
+							body?: OrderRequest;
+							headers?: Record<string, string | string[] | undefined>;
+							id?: string;
+							requestId?: string;
+						}>();
+						return {
+							requestId: requestId(
+								"guard",
+								nextRequestSeq,
+								req.requestId,
+								req.id,
+								req.headers?.["x-request-id"],
+							),
+							body: req.body ?? { orderId: "", item: "", quantity: 0 },
+							headers: req.headers,
+							path: undefined,
+						};
+					},
+					requestId: (host) => host.requestId,
 				},
-			],
+			},
+			cronScheduler: { targets: cronTargets },
+			lifecycleHooks: { targets: lifecycleTargets },
 		}),
 		provideGraphWsBridge<WsOrderHost>({
 			ack: (host) => host.ack,
 			client: (host) => host.client,
+			diagnosticBoundary: diagnosticsIn,
 		}),
-		provideGraphMessageBridge<MessageOrderHost>(),
+		provideGraphMessageBridge<MessageOrderHost>({ diagnosticBoundary: diagnosticsIn }),
 	],
 })
 class AppModule {}

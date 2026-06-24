@@ -17,6 +17,7 @@ import {
 	type NestBoundaryBindingMeta,
 	type NestBoundaryDiagnostic,
 	type NestBoundaryEnvelope,
+	type NestDiagnosticIngressBoundary,
 	type NestGraphRunOptions,
 	type NestIngressBindingMeta,
 	type NestIngressBoundary,
@@ -26,6 +27,7 @@ import {
 	type NestProviderBinding,
 	type NestReplyEnvelope,
 	type NestReplyResponseHandle,
+	sanitizeNestDiagnostic,
 	toNestHttp,
 } from "../nestjs.js";
 
@@ -34,6 +36,7 @@ export const GRAPHREFLY_NEST_MESSAGE_BRIDGE = Symbol.for("graphrefly:nest:messag
 
 /** Options for the D488 Nest message bridge; transport contexts stay host-private. */
 export interface GraphMessageBridgeOptions<THost = unknown> extends NestGraphRunOptions<THost> {
+	readonly diagnosticBoundary?: NestDiagnosticIngressBoundary;
 	readonly timeoutMs?: number;
 	readonly maxDiagnostics?: number;
 }
@@ -213,6 +216,8 @@ class GraphMessageBridgeImpl<THost> implements GraphMessageBridge<THost> {
 		if (existing !== undefined) return existing;
 		const boundary = toNestHttp(binding.replyNode, {
 			bindingId: binding.bindingId,
+			diagnosticBoundary: this.opts.diagnosticBoundary,
+			diagnosticPhase: "message",
 			name: "nestjs.message-reply",
 			maxDiagnostics: this.opts.maxDiagnostics,
 		});
@@ -223,6 +228,13 @@ class GraphMessageBridgeImpl<THost> implements GraphMessageBridge<THost> {
 
 	private diagnose(diagnostic: NestBoundaryDiagnostic): void {
 		this.localDiagnostics.push(diagnostic);
+		try {
+			const phase = diagnostic.phase ?? "message";
+			const payload = sanitizeNestDiagnostic({ ...diagnostic, phase }, phase);
+			this.opts.diagnosticBoundary?.emit(payload, { payload });
+		} catch {
+			// Graph-visible diagnostics are optional and must not interrupt host cleanup.
+		}
 		if (
 			this.opts.maxDiagnostics !== undefined &&
 			this.localDiagnostics.length > this.opts.maxDiagnostics

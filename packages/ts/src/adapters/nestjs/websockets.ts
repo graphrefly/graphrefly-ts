@@ -18,6 +18,7 @@ import {
 	type NestBoundaryBindingMeta,
 	type NestBoundaryDiagnostic,
 	type NestBoundaryEnvelope,
+	type NestDiagnosticIngressBoundary,
 	type NestGraphRunOptions,
 	type NestIngressBindingMeta,
 	type NestIngressBoundary,
@@ -28,6 +29,7 @@ import {
 	type NestReplyResponseHandle,
 	type NestWsAckBindingMeta,
 	type NestWsReplyBindingMeta,
+	sanitizeNestDiagnostic,
 	toNestHttp,
 } from "../nestjs.js";
 
@@ -38,6 +40,7 @@ export const GRAPHREFLY_NEST_WS_BRIDGE = Symbol.for("graphrefly:nest:ws-bridge")
 export interface GraphWsBridgeOptions<THost = unknown> extends NestGraphRunOptions<THost> {
 	readonly ack?: (host: THost) => (payload: unknown, envelope: NestReplyEnvelope<unknown>) => void;
 	readonly client?: (host: THost) => object | undefined;
+	readonly diagnosticBoundary?: NestDiagnosticIngressBoundary;
 	readonly timeoutMs?: number;
 	readonly maxDiagnostics?: number;
 }
@@ -200,12 +203,6 @@ class GraphWsBridgeImpl<THost> implements GraphWsBridge<THost> {
 			if (this.opts.timeoutMs !== undefined) {
 				activePending.timeout = setTimeout(() => {
 					const error = new Error(`GraphWs native bridge timed out waiting for ${requestIds[0]}`);
-					this.diagnose({
-						kind: "timeout",
-						requestId: requestIds[0],
-						message: error.message,
-						error,
-					});
 					this.rejectPending(activePending as WsPending, error, "timeout");
 				}, this.opts.timeoutMs);
 			}
@@ -250,6 +247,8 @@ class GraphWsBridgeImpl<THost> implements GraphWsBridge<THost> {
 		if (existing !== undefined) return existing;
 		const boundary = toNestHttp(node, {
 			bindingId: binding.bindingId,
+			diagnosticBoundary: this.opts.diagnosticBoundary,
+			diagnosticPhase: "ws",
 			name: `nestjs.${binding.kind}`,
 			maxDiagnostics: this.opts.maxDiagnostics,
 		});
@@ -280,6 +279,13 @@ class GraphWsBridgeImpl<THost> implements GraphWsBridge<THost> {
 
 	private diagnose(diagnostic: NestBoundaryDiagnostic): void {
 		this.localDiagnostics.push(diagnostic);
+		try {
+			const phase = diagnostic.phase ?? "ws";
+			const payload = sanitizeNestDiagnostic({ ...diagnostic, phase }, phase);
+			this.opts.diagnosticBoundary?.emit(payload, { payload });
+		} catch {
+			// Graph-visible diagnostics are optional and must not interrupt host cleanup.
+		}
 		if (
 			this.opts.maxDiagnostics !== undefined &&
 			this.localDiagnostics.length > this.opts.maxDiagnostics

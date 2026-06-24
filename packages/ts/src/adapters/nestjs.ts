@@ -36,11 +36,23 @@ export type NestBoundaryKind =
 	| "error"
 	| "lifecycle"
 	| "cron"
+	| "diagnostics"
 	| "ws"
 	| "message";
 
 export type NestEgressKind = "http" | "guard-decision" | "ws-ack" | "ws-reply" | "message-reply";
 export type NestFilterMode = "handle" | "observe";
+export type NestDiagnosticPhase =
+	| "adapter"
+	| "http"
+	| "guard"
+	| "filter"
+	| "cron"
+	| "lifecycle"
+	| "ws"
+	| "message"
+	| NestBoundaryKind
+	| NestEgressKind;
 
 export interface NestHttpResponsePayload<TBody = unknown> {
 	readonly status: number;
@@ -90,12 +102,42 @@ export interface NestBoundaryDiagnostic {
 		| "timeout"
 		| "resolve-threw"
 		| "reject-threw";
+	readonly phase?: NestDiagnosticPhase;
 	readonly requestId?: string;
 	readonly bindingId?: string;
 	readonly expectedBindingId?: string;
 	readonly message: string;
 	readonly error?: unknown;
 }
+
+export interface NestDiagnosticErrorPayload {
+	readonly name?: string;
+	readonly message: string;
+}
+
+export interface NestDiagnosticPayload {
+	readonly kind: NestBoundaryDiagnostic["kind"];
+	readonly phase: NestDiagnosticPhase;
+	readonly requestId?: string;
+	readonly bindingId?: string;
+	readonly expectedBindingId?: string;
+	readonly message: string;
+	readonly error?: NestDiagnosticErrorPayload;
+}
+
+export interface NestDiagnosticInput extends NestBoundaryDiagnostic {
+	readonly phase?: NestDiagnosticPhase;
+}
+
+export interface NestDiagnosticsOptions
+	extends Omit<NestIngressOptions<NestDiagnosticInput, NestDiagnosticPayload>, "payload"> {
+	readonly phase?: NestDiagnosticPhase;
+}
+
+export type NestDiagnosticIngressBoundary = NestIngressBoundary<
+	NestDiagnosticInput,
+	NestDiagnosticPayload
+>;
 
 export interface NestIngressBoundary<THost = unknown, TPayload = THost> {
 	readonly kind: NestBoundaryKind;
@@ -155,6 +197,8 @@ export interface NestHttpBoundary<TPayload = unknown> extends NestReplyBoundary<
 
 export interface ToNestHttpOptions<TPayload> {
 	readonly bindingId?: string;
+	readonly diagnosticBoundary?: NestDiagnosticIngressBoundary;
+	readonly diagnosticPhase?: NestDiagnosticPhase;
 	readonly maxDiagnostics?: number;
 	readonly maxPayloadBytes?: number;
 	readonly name?: string;
@@ -202,6 +246,11 @@ export interface NestGraphRunOptions<THost = unknown> {
 	readonly requestId?: string | ((host: THost) => string | undefined);
 }
 
+export interface NestGraphBoundaryRunnerOptions {
+	readonly diagnosticBoundary?: NestDiagnosticIngressBoundary;
+	readonly diagnosticPhase?: NestDiagnosticPhase;
+}
+
 export interface NestGraphBoundaryRunner {
 	run<THost = unknown>(
 		target: DecoratorHostConstructor | object,
@@ -223,7 +272,8 @@ export interface NestCallHandlerLike {
 }
 
 export interface NestGraphBoundaryInterceptorOptions<THost = unknown>
-	extends NestGraphRunOptions<THost> {
+	extends NestGraphRunOptions<THost>,
+		NestGraphBoundaryRunnerOptions {
 	readonly host?: (context: NestExecutionContextLike) => THost;
 	readonly runner?: NestGraphBoundaryRunner;
 }
@@ -423,6 +473,17 @@ export function fromNestCron<THost = unknown, TPayload = THost>(
 	return nestIngress(graph, "cron", opts);
 }
 
+/** D494 explicit graph-visible diagnostics ingress. Emits sanitized data-only payloads. */
+export function fromNestDiagnostics(
+	graph: Graph,
+	opts: NestDiagnosticsOptions = {},
+): NestDiagnosticIngressBoundary {
+	return nestIngress<NestDiagnosticInput, NestDiagnosticPayload>(graph, "diagnostics", {
+		...opts,
+		payload: (diagnostic) => sanitizeNestDiagnostic(diagnostic, opts.phase),
+	});
+}
+
 /** D474 later/optional WebSocket ingress. Kept thin for first-slice experiments. */
 export function fromNestWs<THost = unknown, TPayload = THost>(
 	graph: Graph,
@@ -466,6 +527,13 @@ export function toNestHttp<TPayload = unknown>(
 
 	const report = (diagnostic: NestBoundaryDiagnostic) => {
 		pushDiagnostic(diagnostics, diagnostic, maxDiagnostics);
+		try {
+			const phase = diagnostic.phase ?? opts.diagnosticPhase ?? "http";
+			const payload = sanitizeNestDiagnostic({ ...diagnostic, phase }, phase);
+			opts.diagnosticBoundary?.emit(payload, { payload });
+		} catch {
+			// Graph-visible diagnostics are optional and must not interrupt host cleanup.
+		}
 	};
 	const keyOf = (requestId: string, requestBindingId?: string) =>
 		requestBindingId === undefined ? requestId : `${requestBindingId}\u0000${requestId}`;
@@ -787,7 +855,9 @@ export function GraphMessageReply<TPayload = unknown>(
 	return graphReplyBinding("message-reply", replyNode, opts, "GraphMessageReply");
 }
 
-export function createNestGraphBoundaryRunner(): NestGraphBoundaryRunner {
+export function createNestGraphBoundaryRunner(
+	opts: NestGraphBoundaryRunnerOptions = {},
+): NestGraphBoundaryRunner {
 	const httpBoundaries = new Map<
 		Node<NestReplyEnvelope<unknown>>,
 		Map<string, NestHttpBoundary<unknown>>
@@ -803,7 +873,11 @@ export function createNestGraphBoundaryRunner(): NestGraphBoundaryRunner {
 		}
 		let boundary = byBinding.get(bindingId);
 		if (boundary === undefined) {
-			boundary = toNestHttp(node, { bindingId });
+			boundary = toNestHttp(node, {
+				bindingId,
+				diagnosticBoundary: opts.diagnosticBoundary,
+				diagnosticPhase: opts.diagnosticPhase ?? "http",
+			});
 			byBinding.set(bindingId, boundary);
 		}
 		return boundary;
@@ -886,7 +960,7 @@ export function createNestGraphBoundaryRunner(): NestGraphBoundaryRunner {
 export function createNestGraphBoundaryInterceptor<THost = unknown>(
 	opts: NestGraphBoundaryInterceptorOptions<THost> = {},
 ): NestGraphBoundaryInterceptor {
-	const runner = opts.runner ?? createNestGraphBoundaryRunner();
+	const runner = opts.runner ?? createNestGraphBoundaryRunner(opts);
 	let nextRequestSeq = 1;
 	return {
 		intercept(context, next) {
@@ -1028,6 +1102,23 @@ export function lowerProtocolError<THost = unknown>(
 	opts: { readonly protocolError?: NestProtocolErrorResponse<THost> } = {},
 ): NestHttpResponsePayload {
 	return (opts.protocolError ?? protocolError)(errorPayload, host);
+}
+
+export function sanitizeNestDiagnostic(
+	diagnostic: NestDiagnosticInput,
+	defaultPhase: NestDiagnosticPhase = "adapter",
+): NestDiagnosticPayload {
+	const payload: NestDiagnosticPayload = {
+		kind: diagnostic.kind,
+		phase: diagnostic.phase ?? defaultPhase,
+		message: diagnostic.message,
+		...optionalStringField("requestId", diagnostic.requestId),
+		...optionalStringField("bindingId", diagnostic.bindingId),
+		...optionalStringField("expectedBindingId", diagnostic.expectedBindingId),
+		...optionalDiagnosticError(diagnostic.error),
+	};
+	assertGraphVisibleData(payload, "NestDiagnosticPayload", NEST_BOUNDARY_PAYLOAD_MAX_BYTES);
+	return payload;
 }
 
 function nestIngress<THost, TPayload>(
@@ -1373,6 +1464,63 @@ function parseEnvelopeVersion(value: unknown, label: string): number {
 
 function assertNonEmptyString(value: string, label: string): void {
 	if (value.length === 0) throw new Error(`${label} must be a non-empty string`);
+}
+
+function optionalStringField<K extends "requestId" | "bindingId" | "expectedBindingId">(
+	key: K,
+	value: string | undefined,
+): Record<K, string> | Record<string, never> {
+	return value === undefined ? {} : ({ [key]: value } as Record<K, string>);
+}
+
+function optionalDiagnosticError(
+	error: unknown,
+): { readonly error: NestDiagnosticErrorPayload } | Record<string, never> {
+	const summarized = summarizeDiagnosticError(error);
+	return summarized === undefined ? {} : { error: summarized };
+}
+
+function summarizeDiagnosticError(error: unknown): NestDiagnosticErrorPayload | undefined {
+	if (error === undefined) return undefined;
+	if (error instanceof Error) {
+		return {
+			...optionalDiagnosticName(safeDiagnosticString(() => error.name)),
+			message: safeDiagnosticString(() => error.message) ?? "diagnostic error",
+		};
+	}
+	if (typeof error === "string") return { message: error };
+	if (typeof error === "number" || typeof error === "boolean" || typeof error === "bigint") {
+		return { message: String(error) };
+	}
+	if (typeof error === "symbol") return { message: error.description ?? "symbol" };
+	if (typeof error === "function") return { message: "opaque diagnostic function" };
+	if (error !== null && typeof error === "object") {
+		const record = error as { readonly name?: unknown; readonly message?: unknown };
+		const message = safeDiagnosticString(() => record.message);
+		if (message !== undefined) {
+			return {
+				...optionalDiagnosticName(safeDiagnosticString(() => record.name)),
+				message,
+			};
+		}
+		return { message: "opaque diagnostic error" };
+	}
+	return { message: String(error) };
+}
+
+function safeDiagnosticString(read: () => unknown): string | undefined {
+	try {
+		const value = read();
+		return typeof value === "string" ? value : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function optionalDiagnosticName(
+	name: string | undefined,
+): { readonly name: string } | Record<string, never> {
+	return name === undefined || name.length === 0 ? {} : { name };
 }
 
 function payloadByteLimit(value: number | undefined): number {

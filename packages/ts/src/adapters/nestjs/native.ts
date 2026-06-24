@@ -36,6 +36,7 @@ import {
 	lowerHttpReplyPayload,
 	lowerProtocolError,
 	type NestBoundaryBindingMeta,
+	type NestDiagnosticIngressBoundary,
 	type NestGraphRunOptions,
 	type NestHttpReplyBindingMeta,
 	type NestHttpResponsePayload,
@@ -53,6 +54,7 @@ export const GRAPHREFLY_NEST_LIFECYCLE_HOOKS = Symbol.for("graphrefly:nest:lifec
 
 export interface GraphNativeHostOptions<THost = unknown> extends NestGraphRunOptions<THost> {
 	readonly host?: (context: ExecutionContext) => THost;
+	readonly diagnosticBoundary?: NestDiagnosticIngressBoundary;
 }
 
 export interface GraphNativeHttpOptions<THost = unknown> extends GraphNativeHostOptions<THost> {
@@ -71,6 +73,7 @@ export interface GraphExceptionFilterProviderOptions<THost = unknown> {
 		host: ArgumentsHost,
 		exception: unknown,
 	) => GraphExceptionFilterTarget | undefined;
+	readonly diagnosticBoundary?: NestDiagnosticIngressBoundary;
 	readonly requestId?: string | ((host: THost) => string | undefined);
 	readonly issueResponse?: NestIssueResponse<THost>;
 	readonly protocolError?: NestProtocolErrorResponse<THost>;
@@ -90,6 +93,14 @@ export interface GraphCronSchedulerProviderOptions {
 	readonly targets: readonly GraphCronProviderTarget[];
 }
 
+export interface GraphCronController {
+	check(now: Date): void;
+}
+
+export interface GraphCronControllerOptions {
+	readonly targets: readonly GraphCronProviderTarget[];
+}
+
 export interface GraphLifecycleProviderTarget<THost = unknown> {
 	readonly target: DecoratorHostConstructor | object;
 	readonly methodKey?: string | symbol;
@@ -99,6 +110,19 @@ export interface GraphLifecycleProviderTarget<THost = unknown> {
 
 export interface GraphLifecycleHooksProviderOptions {
 	readonly targets: readonly GraphLifecycleProviderTarget[];
+}
+
+export interface GraphNativeHttpProviderBundleOptions<THost = unknown> {
+	readonly boundaryInterceptor?: GraphNativeHttpOptions<THost> | false;
+	readonly guard?: GraphNativeHttpOptions<THost> | false;
+	readonly guardDeniedFilter?: boolean;
+	readonly exceptionFilter?: GraphExceptionFilterProviderOptions<THost>;
+}
+
+export interface GraphNativeProviderBundleOptions<THost = unknown> {
+	readonly http?: GraphNativeHttpProviderBundleOptions<THost> | false;
+	readonly cronScheduler?: GraphCronSchedulerProviderOptions;
+	readonly lifecycleHooks?: GraphLifecycleHooksProviderOptions;
 }
 
 export function provideGraphBoundaryInterceptor<THost = unknown>(
@@ -144,10 +168,60 @@ export function provideGraphLifecycleHooks(opts: GraphLifecycleHooksProviderOpti
 	};
 }
 
-class GraphBoundaryInterceptorBridge<THost> implements NestInterceptor, OnModuleDestroy {
-	private readonly runner = createNestGraphBoundaryRunner();
+export function provideGraphNativeHttpProviders<THost = unknown>(
+	opts: GraphNativeHttpProviderBundleOptions<THost> = {},
+): Provider[] {
+	const providers: Provider[] = [];
+	if (opts.boundaryInterceptor !== false)
+		providers.push(provideGraphBoundaryInterceptor(opts.boundaryInterceptor ?? {}));
+	if (opts.guard !== false) providers.push(provideGraphGuard(opts.guard ?? {}));
+	if (opts.guardDeniedFilter ?? true) providers.push(provideGraphGuardDeniedFilter());
+	if (opts.exceptionFilter !== undefined)
+		providers.push(provideGraphExceptionFilter(opts.exceptionFilter));
+	return providers;
+}
 
-	constructor(private readonly opts: GraphNativeHttpOptions<THost>) {}
+export function provideGraphNativeProviders<THost = unknown>(
+	opts: GraphNativeProviderBundleOptions<THost> = {},
+): Provider[] {
+	const providers: Provider[] = [];
+	if (opts.http !== false) providers.push(...provideGraphNativeHttpProviders(opts.http ?? {}));
+	if (opts.cronScheduler !== undefined)
+		providers.push(provideGraphCronScheduler(opts.cronScheduler));
+	if (opts.lifecycleHooks !== undefined)
+		providers.push(provideGraphLifecycleHooks(opts.lifecycleHooks));
+	return providers;
+}
+
+export function graphCronTarget<THost = unknown>(
+	target: DecoratorHostConstructor | object,
+	methodKey: string | symbol,
+	opts: Omit<GraphCronProviderTarget<THost>, "target" | "methodKey">,
+): GraphCronProviderTarget<THost> {
+	return { ...opts, target, methodKey };
+}
+
+export function graphLifecycleTarget<THost = unknown>(
+	target: DecoratorHostConstructor | object,
+	methodKey: string | symbol,
+	opts: Omit<GraphLifecycleProviderTarget<THost>, "target" | "methodKey"> = {},
+): GraphLifecycleProviderTarget<THost> {
+	return { ...opts, target, methodKey };
+}
+
+export function createGraphCronController(opts: GraphCronControllerOptions): GraphCronController {
+	return new GraphCronControllerImpl(opts);
+}
+
+class GraphBoundaryInterceptorBridge<THost> implements NestInterceptor, OnModuleDestroy {
+	private readonly runner: ReturnType<typeof createNestGraphBoundaryRunner>;
+
+	constructor(private readonly opts: GraphNativeHttpOptions<THost>) {
+		this.runner = createNestGraphBoundaryRunner({
+			diagnosticBoundary: opts.diagnosticBoundary,
+			diagnosticPhase: "http",
+		});
+	}
 
 	intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
 		const host = this.opts.host?.(context) ?? (defaultHttpHost(context) as THost);
@@ -288,7 +362,11 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 		}
 		const existing = byBinding.get(binding.bindingId);
 		if (existing !== undefined) return existing;
-		const boundary = toNestHttp(binding.decisionNode, { bindingId: binding.bindingId });
+		const boundary = toNestHttp(binding.decisionNode, {
+			bindingId: binding.bindingId,
+			diagnosticBoundary: this.opts.diagnosticBoundary,
+			diagnosticPhase: "guard",
+		});
 		byBinding.set(binding.bindingId, boundary);
 		this.disposableDecisions.add(boundary);
 		return boundary;
@@ -434,10 +512,34 @@ export class GraphExceptionFilterBridge<THost> implements ExceptionFilter, OnMod
 		if (existing !== undefined) return existing;
 		const boundary = toNestHttp(binding.replyNode as NodeReplyPayload, {
 			bindingId: binding.bindingId,
+			diagnosticBoundary: this.opts.diagnosticBoundary,
+			diagnosticPhase: "filter",
 		});
 		byBinding.set(binding.bindingId, boundary);
 		this.disposableReplies.add(boundary);
 		return boundary;
+	}
+}
+
+class GraphCronControllerImpl implements GraphCronController {
+	private readonly targets: Array<{
+		readonly target: GraphCronProviderTarget;
+		readonly schedule: CronSchedule;
+		readonly fired: Set<string>;
+	}>;
+
+	constructor(opts: GraphCronControllerOptions) {
+		this.targets = opts.targets.map((target) => ({
+			target,
+			schedule: parseCron(target.expr),
+			fired: new Set<string>(),
+		}));
+	}
+
+	check(now: Date): void {
+		for (const entry of this.targets) {
+			emitCronTarget(entry.target, entry.schedule, entry.fired, now);
+		}
 	}
 }
 
@@ -460,13 +562,12 @@ class GraphCronSchedulerBridge implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private startTarget(target: GraphCronProviderTarget): void {
-		const schedule = parseCron(target.expr);
 		const tickMs = target.tickMs ?? 60_000;
 		if (!Number.isFinite(tickMs) || tickMs <= 0) {
 			throw new RangeError("provideGraphCronScheduler: tickMs must be a positive finite number");
 		}
-		const fired = new Set<string>();
-		const check = () => emitCronTarget(target, schedule, fired, new Date());
+		const controller = createGraphCronController({ targets: [target] });
+		const check = () => controller.check(new Date());
 		check();
 		this.timers.push(setInterval(check, tickMs));
 	}
