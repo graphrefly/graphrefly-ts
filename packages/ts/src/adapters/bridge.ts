@@ -328,6 +328,25 @@ type WireBridgeProtobufOutboundResult =
 	| { readonly kind: "encoded"; readonly bytes: Uint8Array }
 	| { readonly kind: "issue"; readonly issue: WireBridgeProtobufIssue };
 
+type WireBridgeProtobufEvent =
+	| {
+			readonly kind: "inbound";
+			readonly result: WireBridgeProtobufInboundResult;
+	  }
+	| {
+			readonly kind: "outbound";
+			readonly result: WireBridgeProtobufOutboundResult;
+	  };
+
+type WireBridgeProtobufInboundEvent = Extract<
+	WireBridgeProtobufEvent,
+	{ readonly kind: "inbound" }
+>;
+type WireBridgeProtobufOutboundEvent = Extract<
+	WireBridgeProtobufEvent,
+	{ readonly kind: "outbound" }
+>;
+
 /**
  * D498 focused canonical protobuf byte adapter over an existing semantic wireBridge bundle.
  *
@@ -345,74 +364,20 @@ export function wireBridgeProtobuf(
 		name: `${name}/inboundBytes`,
 		factory: "wireBridgeProtobufInboundBytes",
 	});
-	const issues = topology.node<WireBridgeProtobufIssue>([], null, {
-		name: `${name}/issues`,
-		factory: "wireBridgeProtobufIssues",
-	});
-	const status = topology.node<WireBridgeProtobufStatus>([], null, {
-		name: `${name}/status`,
-		factory: "wireBridgeProtobufStatus",
-	});
-	let currentStatus: WireBridgeProtobufStatus = {
-		decoded: 0,
-		encoded: 0,
-		issues: 0,
-		state: "idle",
-	};
-	const recordStatus = (event: "decoded" | "encoded" | WireBridgeProtobufIssue) => {
-		currentStatus =
-			event === "decoded"
-				? {
-						...currentStatus,
-						decoded: currentStatus.decoded + 1,
-						state: currentStatus.issues > 0 ? "issues" : "active",
-					}
-				: event === "encoded"
-					? {
-							...currentStatus,
-							encoded: currentStatus.encoded + 1,
-							state: currentStatus.issues > 0 ? "issues" : "active",
-						}
-					: {
-							...currentStatus,
-							issues: currentStatus.issues + 1,
-							state: "issues",
-							lastIssue: event,
-						};
-		status.down([["DATA", currentStatus]]);
-	};
 	const inboundResults = topology.node<WireBridgeProtobufInboundResult>(
 		[inboundBytes],
 		(ctx) => {
 			for (const bytes of depBatch(ctx, 0) ?? []) {
 				const result = wireBridgeProtobufInboundResult(bytes as Uint8Array, bridge.sessionId);
-				if (result.kind === "issue") {
-					issues.down([["DATA", result.issue]]);
-					recordStatus(result.issue);
-				} else {
-					recordStatus("decoded");
-				}
 				ctx.down([["DATA", result]]);
 			}
 		},
 		{
 			name: `${name}/inboundResults`,
 			factory: "wireBridgeProtobufInboundResults",
-		},
-	);
-	const inboundDecoded = topology.node<
-		WireBridgeEnvelope<WireBridgeProtobufData> | WireBridgeInvalidIngress
-	>(
-		[inboundResults],
-		(ctx) => {
-			for (const result of depBatch(ctx, 0) ?? []) {
-				const typed = result as WireBridgeProtobufInboundResult;
-				ctx.down([["DATA", typed.kind === "decoded" ? typed.envelope : typed.invalid]]);
-			}
-		},
-		{
-			name: `${name}/inboundDecoded`,
-			factory: "wireBridgeProtobufInboundDecoded",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
 		},
 	);
 	const outboundResults = topology.node<WireBridgeProtobufOutboundResult>(
@@ -429,29 +394,165 @@ export function wireBridgeProtobuf(
 					const issue = protobufIssue("outbound", "encode", error);
 					result = { kind: "issue", issue };
 				}
-				if (result.kind === "issue") {
-					issues.down([["DATA", result.issue]]);
-					recordStatus(result.issue);
-				} else {
-					recordStatus("encoded");
-				}
 				ctx.down([["DATA", result]]);
 			}
 		},
 		{
 			name: `${name}/outboundResults`,
 			factory: "wireBridgeProtobufOutboundResults",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
 		},
 	);
-	const outboundBytes = topology.node<Uint8Array>(
+	const inboundEvents = topology.node<WireBridgeProtobufInboundEvent>(
+		[inboundResults],
+		(ctx) => {
+			for (const result of depBatch(ctx, 0) ?? []) {
+				ctx.down([
+					["DATA", { kind: "inbound", result: result as WireBridgeProtobufInboundResult }],
+				]);
+			}
+		},
+		{
+			name: `${name}/inboundEvents`,
+			factory: "wireBridgeProtobufInboundEvents",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const outboundEvents = topology.node<WireBridgeProtobufOutboundEvent>(
 		[outboundResults],
 		(ctx) => {
 			for (const result of depBatch(ctx, 0) ?? []) {
-				const typed = result as WireBridgeProtobufOutboundResult;
-				if (typed.kind === "encoded") ctx.down([["DATA", typed.bytes]]);
+				ctx.down([
+					["DATA", { kind: "outbound", result: result as WireBridgeProtobufOutboundResult }],
+				]);
 			}
 		},
-		{ name: `${name}/outboundBytes`, factory: "wireBridgeProtobufOutboundBytes" },
+		{
+			name: `${name}/outboundEvents`,
+			factory: "wireBridgeProtobufOutboundEvents",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const inboundDecoded = topology.node<
+		WireBridgeEnvelope<WireBridgeProtobufData> | WireBridgeInvalidIngress
+	>(
+		[inboundEvents],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as WireBridgeProtobufInboundEvent;
+				const result = event.result;
+				ctx.down([["DATA", result.kind === "decoded" ? result.envelope : result.invalid]]);
+			}
+		},
+		{
+			name: `${name}/inboundDecoded`,
+			factory: "wireBridgeProtobufInboundDecoded",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const outboundBytes = topology.node<Uint8Array>(
+		[outboundEvents],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as WireBridgeProtobufOutboundEvent;
+				if (event.result.kind === "encoded") {
+					ctx.down([["DATA", event.result.bytes]]);
+				}
+			}
+		},
+		{
+			name: `${name}/outboundBytes`,
+			factory: "wireBridgeProtobufOutboundBytes",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const issues = topology.node<WireBridgeProtobufIssue>(
+		[inboundEvents, outboundEvents],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as WireBridgeProtobufInboundEvent;
+				const result = event.result;
+				if (result.kind === "issue") ctx.down([["DATA", result.issue]]);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const event = raw as WireBridgeProtobufOutboundEvent;
+				const result = event.result;
+				if (result.kind === "issue") ctx.down([["DATA", result.issue]]);
+			}
+		},
+		{
+			name: `${name}/issues`,
+			factory: "wireBridgeProtobufIssues",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const status = topology.node<WireBridgeProtobufStatus>(
+		[inboundEvents, outboundEvents],
+		(ctx) => {
+			let status =
+				ctx.state.get<WireBridgeProtobufStatus>() ??
+				({ decoded: 0, encoded: 0, issues: 0, state: "idle" } satisfies WireBridgeProtobufStatus);
+			const emitStatus = (next: WireBridgeProtobufStatus) => {
+				status = next;
+				ctx.state.set(status);
+				ctx.down([["DATA", status]]);
+			};
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as WireBridgeProtobufInboundEvent;
+				const result = event.result;
+				if (result.kind === "decoded") {
+					emitStatus({
+						...status,
+						decoded: status.decoded + 1,
+						state: status.issues > 0 ? "issues" : "active",
+					});
+				} else {
+					emitStatus({
+						...status,
+						issues: status.issues + 1,
+						state: "issues",
+						lastIssue: result.issue,
+					});
+				}
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const event = raw as WireBridgeProtobufOutboundEvent;
+				const result = event.result;
+				if (result.kind === "encoded") {
+					emitStatus({
+						...status,
+						encoded: status.encoded + 1,
+						state: status.issues > 0 ? "issues" : "active",
+					});
+				} else {
+					emitStatus({
+						...status,
+						issues: status.issues + 1,
+						state: "issues",
+						lastIssue: result.issue,
+					});
+				}
+			}
+		},
+		{
+			name: `${name}/status`,
+			factory: "wireBridgeProtobufStatus",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
 	);
 	try {
 		attachWireBridgeInboundSource(bridge, inboundDecoded);

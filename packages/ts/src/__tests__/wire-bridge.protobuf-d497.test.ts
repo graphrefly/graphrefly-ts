@@ -77,6 +77,12 @@ function vectorById(message: VectorRecord["message"], id: string): VectorRecord 
 	return record;
 }
 
+const canonicalInboundBytes = () =>
+	fromHex(vectorById("WireBridgeEnvelope", "positive.data.empty_value").hex);
+
+const malformedInboundBytes = () =>
+	fromHex(vectorById("WireBridgeEnvelope", "negative.old_wireframe_shape").hex);
+
 describe("D497 canonical protobuf wire bridge envelope vectors", () => {
 	it("parses fixture records with stable schema fields", () => {
 		const records = vectors(envelopeFixtureUrl, "WireBridgeEnvelope");
@@ -288,9 +294,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		protobuf.issues.subscribe((msg) => issues.push(msg));
 		protobuf.status.subscribe((msg) => status.push(msg));
 
-		protobuf.inboundBytes.down([
-			["DATA", fromHex(vectorById("WireBridgeEnvelope", "positive.data.empty_value").hex)],
-		]);
+		protobuf.inboundBytes.down([["DATA", canonicalInboundBytes()]]);
 
 		expect(dataMessages(issues)).toEqual([]);
 		expect(dataMessages(inbound)).toContainEqual([
@@ -307,6 +311,65 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		]);
 	});
 
+	it("emits one status fact for each protobuf observation in a multi-DATA wave", () => {
+		const g = graph();
+		const bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g, {
+			name: "bridge",
+			sessionId: "s1",
+		});
+		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
+		const status: unknown[] = [];
+		protobuf.status.subscribe((msg) => status.push(msg));
+
+		protobuf.inboundBytes.down([
+			["DATA", canonicalInboundBytes()],
+			["DATA", malformedInboundBytes()],
+		]);
+
+		expect(dataMessages(status)).toEqual([
+			["DATA", { decoded: 1, encoded: 0, issues: 0, state: "active" }],
+			[
+				"DATA",
+				{
+					decoded: 1,
+					encoded: 0,
+					issues: 1,
+					state: "issues",
+					lastIssue: expect.objectContaining({
+						direction: "inbound",
+						operation: "decode",
+						category: "unknown_field",
+					}),
+				},
+			],
+		]);
+	});
+
+	it("does not fabricate protobuf status facts for semantic bridge-only inbound activity", () => {
+		const g = graph();
+		const bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g, {
+			name: "bridge",
+			sessionId: "s1",
+		});
+		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
+		const status: unknown[] = [];
+		protobuf.status.subscribe((msg) => status.push(msg));
+
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope<WireBridgeProtobufData>({
+					sessionId: "s1",
+					type: "data",
+					seq: 1,
+					payload: { kind: "data", value: { kind: "value", value: new Uint8Array([1]) } },
+				}),
+			],
+		]);
+
+		expect(dataMessages(status)).toEqual([]);
+	});
+
 	it("turns malformed inbound bytes into issue and invalid facts, not protocol terminals", () => {
 		const g = graph();
 		const bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g, {
@@ -317,13 +380,13 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const bridgeErrors: unknown[] = [];
 		const bridgeEvents: unknown[] = [];
 		const issues: unknown[] = [];
+		const status: unknown[] = [];
 		bridge.errors.subscribe((msg) => bridgeErrors.push(msg));
 		bridge.events.subscribe((msg) => bridgeEvents.push(msg));
 		protobuf.issues.subscribe((msg) => issues.push(msg));
+		protobuf.status.subscribe((msg) => status.push(msg));
 
-		protobuf.inboundBytes.down([
-			["DATA", fromHex(vectorById("WireBridgeEnvelope", "negative.old_wireframe_shape").hex)],
-		]);
+		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
 
 		expect(dataMessages(issues)).toContainEqual([
 			"DATA",
@@ -333,12 +396,114 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 				category: "unknown_field",
 			}),
 		]);
+		expect(dataMessages(status).at(-1)).toEqual([
+			"DATA",
+			{
+				decoded: 0,
+				encoded: 0,
+				issues: 1,
+				state: "issues",
+				lastIssue: expect.objectContaining({
+					direction: "inbound",
+					operation: "decode",
+					category: "unknown_field",
+				}),
+			},
+		]);
 		expect(dataMessages(bridgeErrors)).toContainEqual([
 			"DATA",
 			expect.stringContaining("WireBridgeDataPayload contains unknown field 10"),
 		]);
 		expect(bridgeEvents).not.toContainEqual(["ERROR", expect.anything()]);
 		expect(bridgeEvents).not.toContainEqual(["COMPLETE"]);
+		expect(issues).not.toContainEqual(["ERROR", expect.anything()]);
+		expect(issues).not.toContainEqual(["COMPLETE"]);
+		expect(status).not.toContainEqual(["ERROR", expect.anything()]);
+		expect(status).not.toContainEqual(["COMPLETE"]);
+	});
+
+	it("keeps malformed inbound issue fanout when bridge inbound subscribes before protobuf side facts", () => {
+		const g = graph();
+		const bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g, {
+			name: "bridge",
+			sessionId: "s1",
+		});
+		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
+		const inbound: unknown[] = [];
+		const issues: unknown[] = [];
+		const status: unknown[] = [];
+		bridge.inbound.subscribe((msg) => inbound.push(msg));
+		protobuf.issues.subscribe((msg) => issues.push(msg));
+		protobuf.status.subscribe((msg) => status.push(msg));
+
+		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
+
+		expect(dataMessages(inbound)).toContainEqual([
+			"DATA",
+			expect.objectContaining({ __wireBridgeInvalidIngress: true }),
+		]);
+		expect(dataMessages(issues)).toContainEqual([
+			"DATA",
+			expect.objectContaining({ direction: "inbound", operation: "decode" }),
+		]);
+		expect(dataMessages(status).at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ issues: 1, state: "issues" }),
+		]);
+	});
+
+	it("keeps malformed inbound issue fanout when protobuf side facts subscribe before bridge inbound", () => {
+		const g = graph();
+		const bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g, {
+			name: "bridge",
+			sessionId: "s1",
+		});
+		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
+		const inbound: unknown[] = [];
+		const issues: unknown[] = [];
+		const status: unknown[] = [];
+		protobuf.issues.subscribe((msg) => issues.push(msg));
+		protobuf.status.subscribe((msg) => status.push(msg));
+		bridge.inbound.subscribe((msg) => inbound.push(msg));
+
+		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
+
+		expect(dataMessages(inbound)).toContainEqual([
+			"DATA",
+			expect.objectContaining({ __wireBridgeInvalidIngress: true }),
+		]);
+		expect(dataMessages(issues)).toContainEqual([
+			"DATA",
+			expect.objectContaining({ direction: "inbound", operation: "decode" }),
+		]);
+		expect(dataMessages(status).at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ issues: 1, state: "issues" }),
+		]);
+	});
+
+	it("lets protobuf issues/status alone activate malformed inbound decoding", () => {
+		const g = graph();
+		const bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g, {
+			name: "bridge",
+			sessionId: "s1",
+		});
+		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
+		const issues: unknown[] = [];
+		const status: unknown[] = [];
+		protobuf.issues.subscribe((msg) => issues.push(msg));
+		protobuf.status.subscribe((msg) => status.push(msg));
+
+		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
+
+		expect(dataMessages(issues)).toContainEqual([
+			"DATA",
+			expect.objectContaining({ direction: "inbound", operation: "decode" }),
+		]);
+		expect(dataMessages(status).at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ issues: 1, state: "issues" }),
+		]);
 	});
 
 	it("encodes outbound semantic byte payloads and preserves valid empty DATA bytes", () => {
@@ -407,8 +572,10 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 		const outboundBytes: unknown[] = [];
 		const issues: unknown[] = [];
+		const status: unknown[] = [];
 		protobuf.outboundBytes.subscribe((msg) => outboundBytes.push(msg));
 		protobuf.issues.subscribe((msg) => issues.push(msg));
+		protobuf.status.subscribe((msg) => status.push(msg));
 
 		bridge.send({ unsafe: true } as never);
 
@@ -420,6 +587,20 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 				operation: "encode",
 				category: "malformed",
 			}),
+		]);
+		expect(dataMessages(status).at(-1)).toEqual([
+			"DATA",
+			{
+				decoded: 0,
+				encoded: 0,
+				issues: 1,
+				state: "issues",
+				lastIssue: expect.objectContaining({
+					direction: "outbound",
+					operation: "encode",
+					category: "malformed",
+				}),
+			},
 		]);
 	});
 
@@ -445,7 +626,104 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			from: "bridge/protobuf/inboundDecoded",
 			to: "bridge/inbound",
 		});
+		expect(snap.edges).toContainEqual({
+			from: "bridge/protobuf/inboundBytes",
+			to: "bridge/protobuf/inboundResults",
+		});
+		expect(snap.edges).toContainEqual({
+			from: "bridge/protobuf/inboundResults",
+			to: "bridge/protobuf/inboundEvents",
+		});
+		expect(snap.edges).toContainEqual({
+			from: "bridge/protobuf/inboundEvents",
+			to: "bridge/protobuf/issues",
+		});
+		expect(snap.edges).toContainEqual({
+			from: "bridge/protobuf/inboundEvents",
+			to: "bridge/protobuf/status",
+		});
+		expect(snap.edges).toContainEqual({
+			from: "bridge/outbound",
+			to: "bridge/protobuf/outboundResults",
+		});
+		expect(snap.edges).toContainEqual({
+			from: "bridge/protobuf/outboundResults",
+			to: "bridge/protobuf/outboundEvents",
+		});
+		expect(snap.edges).toContainEqual({
+			from: "bridge/protobuf/outboundEvents",
+			to: "bridge/protobuf/outboundBytes",
+		});
 		expect(snap.nodes.filter((node) => node.factory === "wireBridgeEvents")).toHaveLength(1);
+	});
+
+	it("describe explain shows protobuf issue/status causal paths through result and event lanes", () => {
+		const g = graph();
+		const bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g, {
+			name: "bridge",
+			sessionId: "s1",
+		});
+		wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
+
+		const issuePath = g.describe({
+			explain: { from: "bridge/protobuf/inboundBytes", to: "bridge/protobuf/issues" },
+		});
+		expect(issuePath.nodes.map((node) => node.id)).toEqual(
+			expect.arrayContaining([
+				"bridge/protobuf/inboundBytes",
+				"bridge/protobuf/inboundEvents",
+				"bridge/protobuf/inboundResults",
+				"bridge/protobuf/issues",
+			]),
+		);
+		expect(issuePath.edges).toEqual(
+			expect.arrayContaining([
+				{ from: "bridge/protobuf/inboundBytes", to: "bridge/protobuf/inboundResults" },
+				{ from: "bridge/protobuf/inboundResults", to: "bridge/protobuf/inboundEvents" },
+				{ from: "bridge/protobuf/inboundEvents", to: "bridge/protobuf/issues" },
+			]),
+		);
+
+		const statusPath = g.describe({
+			explain: { from: "bridge/protobuf/inboundBytes", to: "bridge/protobuf/status" },
+		});
+		expect(statusPath.nodes.map((node) => node.id)).toEqual(
+			expect.arrayContaining([
+				"bridge/protobuf/inboundBytes",
+				"bridge/protobuf/inboundEvents",
+				"bridge/protobuf/inboundResults",
+				"bridge/protobuf/status",
+			]),
+		);
+		expect(statusPath.edges).toEqual(
+			expect.arrayContaining([
+				{ from: "bridge/protobuf/inboundBytes", to: "bridge/protobuf/inboundResults" },
+				{ from: "bridge/protobuf/inboundResults", to: "bridge/protobuf/inboundEvents" },
+				{ from: "bridge/protobuf/inboundEvents", to: "bridge/protobuf/status" },
+			]),
+		);
+
+		const outboundIssuePath = g.describe({
+			explain: { from: "bridge/outbound", to: "bridge/protobuf/issues" },
+		});
+		expect(outboundIssuePath.edges).toEqual(
+			expect.arrayContaining([
+				{ from: "bridge/outbound", to: "bridge/protobuf/outboundResults" },
+				{ from: "bridge/protobuf/outboundResults", to: "bridge/protobuf/outboundEvents" },
+				{ from: "bridge/protobuf/outboundEvents", to: "bridge/protobuf/issues" },
+			]),
+		);
+
+		const outboundStatusPath = g.describe({
+			explain: { from: "bridge/outbound", to: "bridge/protobuf/status" },
+		});
+		expect(outboundStatusPath.edges).toEqual(
+			expect.arrayContaining([
+				{ from: "bridge/outbound", to: "bridge/protobuf/outboundResults" },
+				{ from: "bridge/protobuf/outboundResults", to: "bridge/protobuf/outboundEvents" },
+				{ from: "bridge/protobuf/outboundEvents", to: "bridge/protobuf/status" },
+			]),
+		);
 	});
 
 	it("release detaches protobuf ingress without disabling semantic bridge ingress", () => {
@@ -458,9 +736,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const inbound: unknown[] = [];
 		bridge.inbound.subscribe((msg) => inbound.push(msg));
 
-		protobuf.inboundBytes.down([
-			["DATA", fromHex(vectorById("WireBridgeEnvelope", "positive.data.empty_value").hex)],
-		]);
+		protobuf.inboundBytes.down([["DATA", canonicalInboundBytes()]]);
 		expect(dataMessages(inbound)).toContainEqual([
 			"DATA",
 			expect.objectContaining({ sessionId: "s1", type: "data" }),
@@ -471,11 +747,9 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			from: "bridge/protobuf/inboundDecoded",
 			to: "bridge/inbound",
 		});
-		expect(() =>
-			protobuf.inboundBytes.down([
-				["DATA", fromHex(vectorById("WireBridgeEnvelope", "positive.data.empty_value").hex)],
-			]),
-		).toThrow(/released/);
+		expect(() => protobuf.inboundBytes.down([["DATA", canonicalInboundBytes()]])).toThrow(
+			/released/,
+		);
 
 		bridge.inbound.down([
 			[
