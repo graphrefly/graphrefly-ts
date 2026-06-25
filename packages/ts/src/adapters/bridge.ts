@@ -36,6 +36,21 @@ import type {
 	WireBridgePayload,
 } from "./bridge-types.js";
 
+export type {
+	CanonicalProtobufErrorCategory,
+	CanonicalWireBridgeDataBody,
+	CanonicalWireBridgeEnvelope,
+	CanonicalWireBridgeMetadata,
+	CanonicalWireBridgePayload,
+	CanonicalWireEdgeFrame,
+} from "./bridge-protobuf.js";
+export {
+	CanonicalProtobufError,
+	decodeCanonicalWireBridgeEnvelope,
+	decodeCanonicalWireEdgeFrame,
+	encodeCanonicalWireBridgeEnvelope,
+	encodeCanonicalWireEdgeFrame,
+} from "./bridge-protobuf.js";
 export { remoteCall } from "./bridge-remote-call.js";
 export type {
 	RemoteCallBundle,

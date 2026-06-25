@@ -3,12 +3,12 @@
 	"private": true,
 	"version": "0.0.8",
 	"type": "module",
-	"description": "Reactive knowledge-graph extraction — pre-extracted documents → KG → adjacency. Node-runnable mirror of the browser demo.",
+	"description": "Reactive knowledge-graph reducer over graph-visible semantic-memory assertion facts.",
 	"scripts": {
 		"start": "tsx index.ts"
 	},
 	"dependencies": {
-		"@graphrefly/graphrefly": "workspace:*"
+		"@graphrefly/ts": "workspace:*"
 	},
 	"devDependencies": {
 		"tsx": "^4.21.0",

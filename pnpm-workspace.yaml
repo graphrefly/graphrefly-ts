@@ -3,15 +3,13 @@ packages:
   - website
   - demos/reactive-layout
   - demos/compat-matrix
-  - demos/knowledge-graph
-  - demos/pagerduty-triage
   - examples/basic/*
+  - examples/compat/*
   - examples/framework/*
   - examples/nestjs-graph-boundary
   - examples/reactive-layout/*
   - examples/knowledge-graph
   - examples/spending-alerts
-  - examples/inbox-reducer
   - apps/*
   - scripts/hermes-smoke
   - packages/*

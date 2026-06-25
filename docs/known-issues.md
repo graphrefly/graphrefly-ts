@@ -1,33 +1,23 @@
-# Known issues — deferred to post-Rust-port
+# Known issues
 
-## Demos disabled in `docs:build` pending API migration
+## HISTORICAL — pre-CSP-9 browser demos retired from active workspace
 
-**Symptom:** `pnpm run docs:build` previously ran 4 demos under `demos/`; 3 of them now fail with errors like `"state" is not exported by ... dist/core/index.js, imported by src/lib/counter.ts`.
+**Symptom:** `demos/knowledge-graph/` and `demos/pagerduty-triage/`
+still import retired root/pure-ts surfaces such as old AI utilities,
+`agentMemory`, and `utils/demo-shell`.
 
-**Cause:** The standalone `state` / `derived` / `producer` / `effect` exports were removed from `packages/pure-ts/src/core/sugar.ts` at some point during the Graph narrow-waist refactor (per `project_graph_narrow_waist.md` memory). The "Graph narrow-waist" decision moved these to Graph methods (`Graph.state()` / `Graph.derived()` / `Graph.effect()` / `Graph.produce()`), but the migration of demos / examples / generated docs that still consume the old standalone API was never completed.
+**Cause:** those browser demos were authored before CSP-9/B65/B66 retired
+`@graphrefly/graphrefly` as an implementation owner and froze pure-ts as
+reference-only material.
 
-**Affected callers** (NOT migrated yet):
+**Resolution:** the demos are historical references only. They are not active
+workspace packages, not advertised as runnable clean-slate demos, and should not
+be migrated by reviving compatibility shims. Re-activation requires a separate
+design/migration slice over current `@graphrefly/ts` public subpaths.
+
+Known historical callers:
 - `demos/knowledge-graph/src/lib/{lazy-adapter.ts, chapters/reactive.ts}`
 - `demos/pagerduty-triage/src/lib/pipeline.ts`
-- `examples/basic/state-and-derived/index.ts`
-- `examples/framework/{react,solid,svelte,vue}/src/store.ts`
-- `examples/{harness-refine-hello, inbox-reducer, knowledge-graph, reactive-layout, spending-alerts}/*.ts`
-- 100+ generated `website/src/content/docs/api/*.md` (auto-regenerated; will heal once symbols are re-added or REGISTRY is migrated)
-- `website/scripts/gen-api-docs.mjs` REGISTRY (218 entries point at the missing symbols)
-
-**Workaround in place:** Root `package.json` `docs:build` ships `compat-matrix` + `reactive-layout`; `knowledge-graph` and `pagerduty-triage` remain skipped until migrated. CI is unblocked for the shipped demos; the two skipped demos are NOT in the website static output.
-
-**Decision deferred to:** post-Rust-port (after M5 close + facade build, per PART 13 of `archive/docs/SESSION-rust-port-architecture.md`). Two paths:
-- **A — Re-add standalone `state`/`derived`/`producer`/`effect`** as thin wrappers around `node()` in `core/sugar.ts`. Restores public surface; coexists with Graph methods. Minimal surgery, restores 100+ callers.
-- **B — Migrate every caller** to Graph methods. Heavier, changes demo/example pedagogical surface (every demo grows a Graph instance).
-
-Path A is the cheaper restore. Punt the decision until after the Rust port settles the API surface, since some of those callers may also be affected by other API churn.
-
-## Restoring this when ready
-
-1. Pick A or B and execute.
-2. Edit root `package.json` `docs:build` script to restore the remaining demos (`knowledge-graph`, `pagerduty-triage`) alongside the already-shipped `compat-matrix` + `reactive-layout`.
-3. Delete this section from `known-issues.md`.
 
 ## RESOLVED — `@graphrefly/cli` retired during CSP-9/B66
 

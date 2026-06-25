@@ -33,6 +33,11 @@ const optionalPeers = [
 const expectedSubpaths = {
 	"./adapters": {
 		present: [
+			"CanonicalProtobufError",
+			"decodeCanonicalWireBridgeEnvelope",
+			"decodeCanonicalWireEdgeFrame",
+			"encodeCanonicalWireBridgeEnvelope",
+			"encodeCanonicalWireEdgeFrame",
 			"subscribeNodeValues",
 			"readableStore",
 			"writableStore",

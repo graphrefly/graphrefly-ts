@@ -1,10 +1,18 @@
-# Knowledge-graph extraction (Node-runnable)
+# Knowledge-graph extraction
 
-Pre-parsed documents → reactive `effect` → `knowledgeGraph()` → live `graph.describe({ explain: {...}, reactive: true })`.
+Pre-parsed documents -> graph-visible `KnowledgeAssertion` facts ->
+`knowledgeGraphReducerBundle()` -> deterministic entity/relation/topic
+projections.
 
-Mirrors the browser demo at `demos/knowledge-graph/` (which uses Chrome's built-in Gemini Nano against a real long paper). This example uses pre-parsed documents so it runs in CI with no API key, no model download, no network.
+This is the clean-slate Node-runnable successor for the same concept as the
+historical pre-CSP-9 browser demo at `demos/knowledge-graph/`. That browser
+demo still depends on retired root/pure-ts demo surfaces, so it is not an
+active clean-slate starter. This example uses pre-parsed documents, so it runs
+with no API key, no model download, and no network.
+
+## Run
 
 ```bash
 pnpm install
-pnpm --filter @graphrefly-examples/knowledge-graph start
+pnpm start
 ```

@@ -184,66 +184,6 @@ importers:
         specifier: ^3.5.0
         version: 3.5.31(typescript@5.9.3)
 
-  demos/knowledge-graph:
-    dependencies:
-      '@astrojs/react':
-        specifier: ^4.0.0
-        version: 4.4.2(@types/node@25.5.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(lightningcss@1.32.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
-      '@graphrefly/graphrefly':
-        specifier: workspace:*
-        version: link:../..
-      '@graphrefly/pure-ts':
-        specifier: workspace:*
-        version: link:../../packages/pure-ts
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.0.0
-        version: 19.2.3(@types/react@19.2.14)
-      astro:
-        specifier: ^5.16.0
-        version: 5.18.1(@types/node@25.5.0)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.47.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
-      mermaid:
-        specifier: ^11.4.1
-        version: 11.14.0
-      react:
-        specifier: ^19.0.0
-        version: 19.2.4
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.2.4(react@19.2.4)
-
-  demos/pagerduty-triage:
-    dependencies:
-      '@astrojs/react':
-        specifier: ^4.0.0
-        version: 4.4.2(@types/node@25.5.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(lightningcss@1.32.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
-      '@graphrefly/graphrefly':
-        specifier: workspace:*
-        version: link:../..
-      '@graphrefly/pure-ts':
-        specifier: workspace:*
-        version: link:../../packages/pure-ts
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.0.0
-        version: 19.2.3(@types/react@19.2.14)
-      astro:
-        specifier: ^5.16.0
-        version: 5.18.1(@types/node@25.5.0)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.47.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
-      mermaid:
-        specifier: ^11.4.1
-        version: 11.14.0
-      react:
-        specifier: ^19.0.0
-        version: 19.2.4
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.2.4(react@19.2.4)
-
   demos/reactive-layout:
     dependencies:
       '@astrojs/react':
@@ -272,6 +212,45 @@ importers:
         version: 19.2.4(react@19.2.4)
 
   examples/basic/state-and-derived:
+    dependencies:
+      '@graphrefly/ts':
+        specifier: workspace:*
+        version: link:../../../packages/ts
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  examples/compat/jotai:
+    dependencies:
+      '@graphrefly/ts':
+        specifier: workspace:*
+        version: link:../../../packages/ts
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  examples/compat/nanostores:
+    dependencies:
+      '@graphrefly/ts':
+        specifier: workspace:*
+        version: link:../../../packages/ts
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  examples/compat/zustand:
     dependencies:
       '@graphrefly/ts':
         specifier: workspace:*
@@ -372,24 +351,11 @@ importers:
         specifier: ^2.2.0
         version: 2.2.12(typescript@5.9.3)
 
-  examples/inbox-reducer:
-    dependencies:
-      '@graphrefly/graphrefly':
-        specifier: workspace:*
-        version: link:../..
-    devDependencies:
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-
   examples/knowledge-graph:
     dependencies:
-      '@graphrefly/graphrefly':
+      '@graphrefly/ts':
         specifier: workspace:*
-        version: link:../..
+        version: link:../../packages/ts
     devDependencies:
       tsx:
         specifier: ^4.21.0

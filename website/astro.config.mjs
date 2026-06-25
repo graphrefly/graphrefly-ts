@@ -133,8 +133,7 @@ export default defineConfig({
 					items: [
 						{ label: "Overview", link: "/demos" },
 						{ label: "Reactive layout", link: "/demos/reactive-layout/" },
-						{ label: "Knowledge graph", link: "/demos/knowledge-graph/" },
-						{ label: "PagerDuty triage", link: "/demos/pagerduty-triage/" },
+						{ label: "Spending alerts", link: "/demos/spending-alerts/" },
 					],
 				},
 			],
