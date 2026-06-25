@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { wireBridge, wireBridgeEnvelope, wireBridgeIdempotencyKey } from "../adapters/index.js";
+import {
+	wireBridge,
+	wireBridgeAckDriver,
+	wireBridgeEnvelope,
+	wireBridgeIdempotencyKey,
+	wireEdgeGroup,
+} from "../adapters/index.js";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
 
@@ -199,7 +206,7 @@ describe("wire bridge envelopes (D134)", () => {
 		]);
 	});
 
-	it("retries a data envelope on ack timeout and exhausts through graph-visible facts", () => {
+	it("does not mutate through a hidden ack timer when no driver command arrives (D502)", () => {
 		vi.useFakeTimers();
 		try {
 			const g = graph();
@@ -207,99 +214,247 @@ describe("wire bridge envelopes (D134)", () => {
 				name: "bridge",
 				sessionId: "session-a",
 				retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
-				ackTimeoutMs: 5,
 				now: () => 1000,
 			});
 			const outbound: unknown[] = [];
-			const attempts: unknown[] = [];
 			const errors: unknown[] = [];
 			const status: unknown[] = [];
 			bridge.outbound.subscribe((msg) => outbound.push(msg));
-			bridge.attempts.subscribe((msg) => attempts.push(msg));
 			bridge.errors.subscribe((msg) => errors.push(msg));
 			bridge.status.subscribe((msg) => status.push(msg));
 
 			bridge.send("payload");
-			vi.advanceTimersByTime(5);
-			expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
-			expect(status.at(-1)).toEqual([
-				"DATA",
-				{
-					sessionId: "session-a",
-					state: "waiting",
-					cursor: 0,
-					nextSeq: 2,
-					pending: 1,
-					attempts: 1,
-					acked: 0,
-					nacked: 0,
-					errors: 0,
-					lastSeq: 1,
-					lastDelayMs: 10,
-				},
-			]);
-			vi.advanceTimersByTime(10);
-			vi.advanceTimersByTime(5);
+			const beforeOutbound = [...outbound];
+			const beforeErrors = [...errors];
+			const beforeStatus = [...status];
+			vi.advanceTimersByTime(60_000);
 
-			expect(outbound.filter((msg) => msg[0] === "DATA")).toEqual([
-				[
-					"DATA",
-					{
-						sessionId: "session-a",
-						type: "data",
-						payload: { kind: "data", value: "payload" },
-						metadata: {
-							seq: 1,
-							cursor: 0,
-							idempotencyKey: "session-a:1",
-							attempt: 1,
-							maxAttempts: 2,
-							timestampMs: 1000,
-							ackForSeq: undefined,
-							requestId: undefined,
-						},
-					},
-				],
-				[
-					"DATA",
-					{
-						sessionId: "session-a",
-						type: "data",
-						payload: { kind: "data", value: "payload" },
-						metadata: {
-							seq: 1,
-							cursor: 0,
-							idempotencyKey: "session-a:1",
-							attempt: 2,
-							maxAttempts: 2,
-							timestampMs: 1000,
-							ackForSeq: undefined,
-							requestId: undefined,
-						},
-					},
-				],
-			]);
-			expect(attempts.filter((msg) => msg[0] === "DATA")).toEqual([
-				["DATA", { seq: 1, attempt: 1, maxAttempts: 2 }],
-				["DATA", { seq: 1, attempt: 2, maxAttempts: 2 }],
-			]);
-			expect(errors).toContainEqual(["DATA", "session-a: ack timeout for seq 1"]);
-			expect(status.at(-1)).toEqual([
+			expect(outbound).toEqual(beforeOutbound);
+			expect(errors).toEqual(beforeErrors);
+			expect(status).toEqual(beforeStatus);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("retries only a matching pending ack-timeout seq and attempt (D502)", () => {
+		const g = graph();
+		const bridge = wireBridge<string, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
+			now: () => 1000,
+		});
+		const outbound: unknown[] = [];
+		const events: unknown[] = [];
+		const status: unknown[] = [];
+		bridge.outbound.subscribe((msg) => outbound.push(msg));
+		bridge.events.subscribe((msg) => events.push(msg));
+		bridge.status.subscribe((msg) => status.push(msg));
+
+		bridge.send("payload");
+		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 2 }]]);
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
+		expect(events).not.toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 2 }]);
+
+		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 1 }]]);
+
+		expect(events).toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
+		expect(events).toContainEqual([
+			"DATA",
+			{
+				kind: "retry",
+				seq: 1,
+				attempt: 2,
+				delayMs: 10,
+				error: "session-a: ack timeout for seq 1",
+			},
+		]);
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toEqual([
+			[
 				"DATA",
-				{
+				expect.objectContaining({
+					metadata: expect.objectContaining({ seq: 1, attempt: 1, maxAttempts: 2 }),
+				}),
+			],
+			[
+				"DATA",
+				expect.objectContaining({
+					metadata: expect.objectContaining({ seq: 1, attempt: 2, maxAttempts: 2 }),
+				}),
+			],
+		]);
+		expect(status.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({
+				sessionId: "session-a",
+				state: "open",
+				pending: 1,
+				attempts: 2,
+				lastDelayMs: 10,
+			}),
+		]);
+	});
+
+	it("treats stale ack-timeout after ack as a fail-closed no-op (D502)", () => {
+		const g = graph();
+		const bridge = wireBridge<string, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
+		});
+		const outbound: unknown[] = [];
+		const events: unknown[] = [];
+		bridge.outbound.subscribe((msg) => outbound.push(msg));
+		bridge.events.subscribe((msg) => events.push(msg));
+
+		bridge.send("payload");
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope({
 					sessionId: "session-a",
-					state: "exhausted",
-					cursor: 0,
-					nextSeq: 2,
-					pending: 0,
-					attempts: 2,
-					acked: 0,
-					nacked: 0,
-					errors: 1,
-					lastSeq: 1,
-					lastDelayMs: 10,
-				},
-			]);
+					type: "ack",
+					seq: 1,
+					ackForSeq: 1,
+				}),
+			],
+		]);
+		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 1 }]]);
+
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
+		expect(events).not.toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
+	});
+
+	it("surfaces malformed ack-timeout commands as invalid facts without protocol terminals (D502)", () => {
+		const g = graph();
+		const bridge = wireBridge<string, unknown>(g, { name: "bridge", sessionId: "session-a" });
+		const errors: unknown[] = [];
+		bridge.errors.subscribe((msg) => errors.push(msg));
+
+		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 0 } as never]]);
+
+		expect(errors).toContainEqual([
+			"DATA",
+			"wireBridge: ack-timeout command attempt must be a positive integer",
+		]);
+		expect(bridge.events.status).not.toBe("errored");
+		expect(bridge.status.status).not.toBe("errored");
+	});
+
+	it("keeps retry exhaustion graph-visible for matching ack-timeout commands (D502)", () => {
+		const g = graph();
+		const bridge = wireBridge<string, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+			retry: retryPolicy(1, { kind: "constant", delayMs: 10 }),
+		});
+		const errors: unknown[] = [];
+		const status: unknown[] = [];
+		const events: unknown[] = [];
+		bridge.errors.subscribe((msg) => errors.push(msg));
+		bridge.status.subscribe((msg) => status.push(msg));
+		bridge.events.subscribe((msg) => events.push(msg));
+
+		bridge.send("payload");
+		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 1 }]]);
+
+		expect(events).toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
+		expect(errors).toContainEqual(["DATA", "session-a: ack timeout for seq 1"]);
+		expect(status.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({
+				sessionId: "session-a",
+				state: "exhausted",
+				pending: 0,
+				errors: 1,
+				lastSeq: 1,
+			}),
+		]);
+		expect(bridge.events.status).not.toBe("errored");
+		expect(bridge.status.status).not.toBe("errored");
+	});
+
+	it("derives ack-timeout commands from graph-visible clock facts and declared deps (D502)", () => {
+		const g = graph();
+		const clock = g.node<number>([], null, { name: "clock" });
+		const bridge = wireBridge<string, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
+		});
+		const driver = wireBridgeAckDriver(g, bridge, { name: "ackDriver", clock, timeoutMs: 5 });
+		const commands: unknown[] = [];
+		const outbound: unknown[] = [];
+		const driverStatus: unknown[] = [];
+		driver.commands.subscribe((msg) => commands.push(msg));
+		driver.status.subscribe((msg) => driverStatus.push(msg));
+		bridge.outbound.subscribe((msg) => outbound.push(msg));
+
+		clock.down([["DATA", 1000]]);
+		bridge.send("payload");
+		clock.down([["DATA", 1004]]);
+		expect(commands.filter((msg) => msg[0] === "DATA")).toEqual([]);
+
+		clock.down([["DATA", 1005]]);
+
+		expect(commands).toContainEqual([
+			"DATA",
+			{ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 },
+		]);
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
+		expect(driverStatus).toContainEqual([
+			"DATA",
+			expect.objectContaining({
+				state: "timed-out",
+				pending: 1,
+				commands: 1,
+				nowMs: 1005,
+			}),
+		]);
+		bridge.command.down([
+			["DATA", { kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 }],
+		]);
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
+		clock.down([["DATA", 1014]]);
+		expect(commands.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
+		clock.down([["DATA", 1015]]);
+		expect(commands).toContainEqual([
+			"DATA",
+			{ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1015 },
+		]);
+		bridge.command.down([
+			["DATA", { kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1015 }],
+		]);
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(2);
+		const snap = g.describe();
+		expect(snap.edges).toContainEqual({ from: "clock", to: "ackDriver/events" });
+		expect(snap.edges).toContainEqual({ from: "bridge/attempts", to: "ackDriver/events" });
+		expect(snap.edges).toContainEqual({ from: "bridge/acks", to: "ackDriver/events" });
+		expect(snap.edges).toContainEqual({ from: "bridge/nacks", to: "ackDriver/events" });
+		expect(snap.edges).toContainEqual({ from: "bridge/status", to: "ackDriver/events" });
+		expect(snap.edges).toContainEqual({ from: "ackDriver/events", to: "ackDriver/commands" });
+		expect(snap.edges).not.toContainEqual({ from: "ackDriver/commands", to: "bridge/command" });
+	});
+
+	it("keeps stale explicit ack-timeout ingress as a bridge no-op after ack (D502)", () => {
+		const g = graph();
+		const clock = g.node<number>([], null, { name: "clock" });
+		const bridge = wireBridge<string, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
+		});
+		const driver = wireBridgeAckDriver(g, bridge, { name: "ackDriver", clock, timeoutMs: 5 });
+		const commands: unknown[] = [];
+		const outbound: unknown[] = [];
+		driver.commands.subscribe((msg) => commands.push(msg));
+		bridge.outbound.subscribe((msg) => outbound.push(msg));
+
+		clock.down([["DATA", 1000]]);
+		bridge.send("payload");
+		batch(() => {
+			clock.down([["DATA", 1005]]);
 			bridge.inbound.down([
 				[
 					"DATA",
@@ -311,29 +466,45 @@ describe("wire bridge envelopes (D134)", () => {
 					}),
 				],
 			]);
-			expect(errors).toContainEqual([
-				"DATA",
-				"bridge: late ack for unknown or completed ackForSeq 1",
-			]);
-			expect(status.at(-1)).toEqual([
-				"DATA",
-				{
-					sessionId: "session-a",
-					state: "errored",
-					cursor: 1,
-					nextSeq: 2,
-					pending: 0,
-					attempts: 2,
-					acked: 0,
-					nacked: 0,
-					errors: 2,
-					lastSeq: 1,
-					lastDelayMs: 10,
-				},
-			]);
-		} finally {
-			vi.useRealTimers();
-		}
+		});
+
+		expect(commands).toContainEqual([
+			"DATA",
+			{ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 },
+		]);
+		bridge.command.down([
+			["DATA", { kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 }],
+		]);
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
+	});
+
+	it("releases the ack driver topology so late clocks cannot derive retry commands (D502)", () => {
+		const g = graph();
+		const clock = g.node<number>([], null, { name: "clock" });
+		const bridge = wireBridge<string, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
+		});
+		const driver = wireBridgeAckDriver(g, bridge, { name: "ackDriver", clock, timeoutMs: 5 });
+		const outbound: unknown[] = [];
+		const commands: unknown[] = [];
+		const unsubscribe = driver.commands.subscribe((msg) => commands.push(msg));
+		bridge.outbound.subscribe((msg) => outbound.push(msg));
+
+		clock.down([["DATA", 1000]]);
+		bridge.send("payload");
+		unsubscribe();
+		driver.release();
+		clock.down([["DATA", 1005]]);
+
+		expect(commands.filter((msg) => msg[0] === "DATA")).toEqual([]);
+		expect(g.describe().edges).not.toContainEqual({ from: "clock", to: "ackDriver/events" });
+		expect(g.describe().edges).not.toContainEqual({
+			from: "ackDriver/commands",
+			to: "bridge/command",
+		});
+		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
 	});
 
 	it("close clears pending bridge status without emitting protocol terminal state", () => {
@@ -809,6 +980,235 @@ describe("wire bridge envelopes (D134)", () => {
 					},
 				},
 			],
+		]);
+	});
+
+	it("wireEdgeGroup D501 emits two-phase frames, gates release, fails closed, describes, and releases", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const dataValues = <T>(messages: T[][]): unknown[] =>
+			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
+		const g = graph();
+		const sourceA = g.node<Uint8Array>([], null, { name: "edge/a" });
+		const sourceB = g.node<Uint8Array>([], null, { name: "edge/b" });
+		const bridge = wireBridge(g, { name: "bridgeWeg", sessionId: "session-a" });
+		const group = wireEdgeGroup(g, bridge, {
+			name: "group",
+			edges: [
+				{ edgeId: "a", outbound: sourceA },
+				{ edgeId: "b", outbound: sourceB },
+			],
+		});
+		const outbound: unknown[][] = [];
+		bridge.outbound.subscribe((msg) => outbound.push(msg as unknown[]));
+		batch(() => {
+			sourceA.down([["DATA", bytes(1)]]);
+			sourceB.down([["DATA", bytes(2)]]);
+		});
+		expect(
+			dataValues(outbound).map(
+				(envelope) =>
+					(envelope as { payload?: { value?: { frame?: unknown } } }).payload?.value?.frame,
+			),
+		).toEqual([
+			{ kind: "dirty", edgeId: "a", causeId: "group:cause:1" },
+			{ kind: "dirty", edgeId: "b", causeId: "group:cause:1" },
+			{ kind: "data", edgeId: "a", causeId: "group:cause:1", value: bytes(1) },
+			{ kind: "data", edgeId: "b", causeId: "group:cause:1", value: bytes(2) },
+		]);
+		const inboundA = group.inbound.get("a");
+		const inbound: unknown[][] = [];
+		const issues: unknown[][] = [];
+		const status: unknown[][] = [];
+		inboundA?.subscribe((msg) => inbound.push(msg as unknown[]));
+		group.issues.subscribe((msg) => issues.push(msg as unknown[]));
+		group.status.subscribe((msg) => status.push(msg as unknown[]));
+		const edgeEnvelope = (seq: number, frame: Record<string, unknown>) =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq,
+				payload: { kind: "data", value: { kind: "wire_edge", frame } },
+			});
+		bridge.inbound.down([
+			["DATA", edgeEnvelope(1, { kind: "dirty", edgeId: "a", causeId: "c1" })],
+			["DATA", edgeEnvelope(2, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) })],
+			[
+				"DATA",
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "close",
+					seq: 3,
+					payload: { kind: "close" },
+				}),
+			],
+		]);
+		expect(dataValues(inbound)).toEqual([]);
+		bridge.inbound.down([
+			["DATA", edgeEnvelope(4, { kind: "dirty", edgeId: "a", causeId: "c2" })],
+			["DATA", edgeEnvelope(5, { kind: "dirty", edgeId: "b", causeId: "c2" })],
+			["DATA", edgeEnvelope(6, { kind: "data", edgeId: "a", causeId: "c2", value: bytes(10) })],
+			["DATA", edgeEnvelope(7, { kind: "data", edgeId: "b", causeId: "c2", value: bytes(20) })],
+		]);
+		expect(dataValues(inbound)).toEqual([bytes(10)]);
+		bridge.inbound.down([
+			["DATA", edgeEnvelope(8, { kind: "dirty", edgeId: "z", causeId: "bad" })],
+		]);
+		expect(dataValues(issues)).toContainEqual(
+			expect.objectContaining({ code: "wire-edge-group-unknown-edge" }),
+		);
+		expect(status.at(-1)).toEqual(["DATA", expect.objectContaining({ state: "issues" })]);
+		const snap = g.describe();
+		expect(
+			snap.edges.some(
+				(edge) => edge.to === "group/events" && edge.from.includes("wireBridgeInbound"),
+			),
+		).toBe(true);
+		expect(snap.edges).toContainEqual({ from: "group/events", to: "group/gate" });
+		expect(snap.edges).toContainEqual({ from: "group/gate", to: "group/inbound/a" });
+		expect(snap.edges).toContainEqual({ from: "group/commands", to: "bridgeWeg/command" });
+		const bridge2 = wireBridge(g, { name: "bridgeWeg2", sessionId: "session-b" });
+		const group2 = wireEdgeGroup(g, bridge2, {
+			name: "group2",
+			edges: [
+				{ edgeId: "a", outbound: sourceA },
+				{ edgeId: "b", outbound: sourceB },
+			],
+		});
+		group2.release();
+		expect(g.describe().edges).not.toContainEqual({
+			from: "group2/commands",
+			to: "bridgeWeg2/command",
+		});
+	});
+
+	it("wireEdgeGroup D501 fails closed for malformed, duplicate, data-before-dirty, competing, and incomplete causes", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const dataValues = <T>(messages: T[][]): unknown[] =>
+			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
+		const run = (name: string, frames: Record<string, unknown>[]) => {
+			const g = graph();
+			const bridge = wireBridge(g, { name: `${name}/bridge`, sessionId: "session-a" });
+			const group = wireEdgeGroup(g, bridge, {
+				name,
+				edges: [{ edgeId: "a" }, { edgeId: "b" }],
+			});
+			const inbound: unknown[][] = [];
+			const issues: unknown[][] = [];
+			const status: unknown[][] = [];
+			group.inbound.get("a")?.subscribe((msg) => inbound.push(msg as unknown[]));
+			group.issues.subscribe((msg) => issues.push(msg as unknown[]));
+			group.status.subscribe((msg) => status.push(msg as unknown[]));
+			const envelope = (seq: number, frame: Record<string, unknown>) =>
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq,
+					payload: { kind: "data", value: { kind: "wire_edge", frame } },
+				});
+			bridge.inbound.down(
+				frames.map((frame, index) =>
+					frame.kind === "close"
+						? [
+								"DATA",
+								wireBridgeEnvelope({
+									sessionId: "session-a",
+									type: "close",
+									seq: index + 1,
+									payload: { kind: "close" },
+								}),
+							]
+						: ["DATA", envelope(index + 1, frame)],
+				),
+			);
+			return { inbound, issues, status, group };
+		};
+		const cases: [string, string, Record<string, unknown>[]][] = [
+			[
+				"dup-dirty",
+				"wire-edge-group-duplicate-dirty",
+				[
+					{ kind: "dirty", edgeId: "a", causeId: "c1" },
+					{ kind: "dirty", edgeId: "a", causeId: "c1" },
+				],
+			],
+			[
+				"dup-data",
+				"wire-edge-group-duplicate-data",
+				[
+					{ kind: "dirty", edgeId: "a", causeId: "c1" },
+					{ kind: "dirty", edgeId: "b", causeId: "c1" },
+					{ kind: "data", edgeId: "a", causeId: "c1", value: bytes(1) },
+					{ kind: "data", edgeId: "a", causeId: "c1", value: bytes(2) },
+				],
+			],
+			[
+				"data-before-dirty",
+				"wire-edge-group-data-before-dirty",
+				[{ kind: "data", edgeId: "a", causeId: "c1", value: bytes(1) }],
+			],
+			[
+				"competing",
+				"wire-edge-group-competing-cause",
+				[
+					{ kind: "dirty", edgeId: "a", causeId: "c1" },
+					{ kind: "dirty", edgeId: "b", causeId: "c2" },
+				],
+			],
+			[
+				"malformed",
+				"wire-edge-group-malformed-frame",
+				[{ kind: "dirty", edgeId: "a", causeId: "" }],
+			],
+			[
+				"incomplete",
+				"wire-edge-group-incomplete-cause",
+				[{ kind: "dirty", edgeId: "a", causeId: "c1" }, { kind: "close" }],
+			],
+		];
+		for (const [name, code, frames] of cases) {
+			const result = run(name, frames);
+			expect(dataValues(result.inbound)).toEqual([]);
+			expect(dataValues(result.issues)).toContainEqual(expect.objectContaining({ code }));
+			expect(result.status.at(-1)).toEqual(["DATA", expect.objectContaining({ state: "issues" })]);
+			expect(result.group.issues.status).not.toBe("errored");
+			expect(result.group.status.status).not.toBe("errored");
+		}
+	});
+
+	it("wireEdgeGroup D501 is stable when status/issues subscribe before inbound edges", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const dataValues = <T>(messages: T[][]): unknown[] =>
+			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
+		const g = graph();
+		const bridge = wireBridge(g, { name: "orderBridge", sessionId: "session-a" });
+		const group = wireEdgeGroup(g, bridge, {
+			name: "orderGroup",
+			edges: [{ edgeId: "a" }, { edgeId: "b" }],
+		});
+		const issues: unknown[][] = [];
+		const status: unknown[][] = [];
+		const inbound: unknown[][] = [];
+		group.status.subscribe((msg) => status.push(msg as unknown[]));
+		group.issues.subscribe((msg) => issues.push(msg as unknown[]));
+		group.inbound.get("a")?.subscribe((msg) => inbound.push(msg as unknown[]));
+		const envelope = (seq: number, frame: Record<string, unknown>) =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq,
+				payload: { kind: "data", value: { kind: "wire_edge", frame } },
+			});
+		bridge.inbound.down([
+			["DATA", envelope(1, { kind: "dirty", edgeId: "a", causeId: "c1" })],
+			["DATA", envelope(2, { kind: "dirty", edgeId: "b", causeId: "c1" })],
+			["DATA", envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(1) })],
+			["DATA", envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(2) })],
+		]);
+		expect(dataValues(inbound)).toEqual([bytes(1)]);
+		expect(dataValues(issues)).toEqual([]);
+		expect(status.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({ state: "released", released: 2 }),
 		]);
 	});
 });

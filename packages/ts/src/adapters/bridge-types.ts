@@ -63,6 +63,12 @@ export type WireBridgeCommand<TData = unknown> =
 			readonly idempotencyKey?: string;
 			readonly requestId?: string;
 	  }
+	| {
+			readonly kind: "ack-timeout";
+			readonly seq: number;
+			readonly attempt: number;
+			readonly observedAtMs?: number;
+	  }
 	| { readonly kind: "close"; readonly reason?: unknown; readonly idempotencyKey?: string };
 
 export type WireBridgeEvent<TOutbound = unknown, TInbound = unknown> =
@@ -143,8 +149,6 @@ export interface WireBridgeOptions {
 	readonly name?: string;
 	readonly sessionId: string;
 	readonly retry?: RetryPolicy;
-	/** Finite D134 ack timeout. Defaults to 30s so pending ack tracking is bounded. */
-	readonly ackTimeoutMs?: number;
 	readonly now?: () => number;
 }
 
@@ -169,6 +173,38 @@ export interface WireBridgeBundle<TOutbound = unknown, TInbound = unknown> {
 		opts?: { idempotencyKey?: string; requestId?: string },
 	): void;
 	close(reason?: unknown, opts?: { idempotencyKey?: string }): void;
+}
+
+export interface WireBridgeAckDriverIssue {
+	readonly code: "wire-bridge-ack-driver-clock-invalid" | "wire-bridge-ack-driver-clock-regressed";
+	readonly message: string;
+	readonly seq?: number;
+	readonly attempt?: number;
+	readonly observedAtMs?: number;
+	readonly nowMs?: number;
+}
+
+export interface WireBridgeAckDriverStatus {
+	readonly state: "idle" | "active" | "timed-out" | "issues";
+	readonly pending: number;
+	readonly commands: number;
+	readonly issues: number;
+	readonly nowMs?: number;
+	readonly lastCommand?: Extract<WireBridgeCommand, { readonly kind: "ack-timeout" }>;
+	readonly lastIssue?: WireBridgeAckDriverIssue;
+}
+
+export interface WireBridgeAckDriverOptions {
+	readonly name?: string;
+	readonly clock: Node<number>;
+	readonly timeoutMs: number;
+}
+
+export interface WireBridgeAckDriverBundle {
+	readonly commands: Node<WireBridgeCommand<never>>;
+	readonly status: Node<WireBridgeAckDriverStatus>;
+	readonly issues: Node<WireBridgeAckDriverIssue>;
+	release(): void;
 }
 
 export type WireBridgeProtobufData = Uint8Array | CanonicalWireBridgeDataBody;
@@ -340,11 +376,11 @@ export interface RemoteResponderBundle<TRequest = unknown, TResponse = unknown> 
 
 export interface PendingEnvelope<TData> {
 	envelope: WireBridgeEnvelope<TData>;
-	timer?: ReturnType<typeof setTimeout>;
+	timeoutReportedAttempt?: number;
+	retryDueAtMs?: number;
 }
 
 export interface BridgeState<TData> {
-	active: boolean;
 	cleanupInstalled: boolean;
 	nextSeq: number;
 	cursor: number;

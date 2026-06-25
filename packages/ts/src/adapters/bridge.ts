@@ -31,13 +31,16 @@ import {
 import type {
 	AttachedCommandSources,
 	BridgeState,
-	PendingEnvelope,
 	RemoteCallRequest,
 	RemoteCallResponse,
 	RemoteResponderBundle,
 	RemoteResponderHandler,
 	RemoteResponderHandlerDefinition,
 	RemoteResponderOptions,
+	WireBridgeAckDriverBundle,
+	WireBridgeAckDriverIssue,
+	WireBridgeAckDriverOptions,
+	WireBridgeAckDriverStatus,
 	WireBridgeBundle,
 	WireBridgeCommand,
 	WireBridgeEnvelope,
@@ -88,6 +91,10 @@ export type {
 	RemoteResponderStatus,
 	RemoteResponderStatusState,
 	WireBridgeAck,
+	WireBridgeAckDriverBundle,
+	WireBridgeAckDriverIssue,
+	WireBridgeAckDriverOptions,
+	WireBridgeAckDriverStatus,
 	WireBridgeAttempt,
 	WireBridgeBundle,
 	WireBridgeCommand,
@@ -137,7 +144,6 @@ import {
 	validatePayloadForType,
 } from "./bridge-validation.js";
 
-const defaultAckTimeoutMs = 30_000;
 const bridgeCommandSources = new WeakMap<
 	WireBridgeBundle<unknown, unknown>,
 	AttachedCommandSources<unknown>
@@ -314,6 +320,316 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 	bridgeInboundTargets.set(bundle as WireBridgeBundle<unknown, unknown>, inboundCore);
 	bridgeInboundSources.set(bundle as WireBridgeBundle<unknown, unknown>, { sources: [] });
 	return bundle;
+}
+
+type WireBridgeAckTimeoutCommand = Extract<
+	WireBridgeCommand<never>,
+	{ readonly kind: "ack-timeout" }
+>;
+
+type WireBridgeAckDriverEvent =
+	| {
+			readonly kind: "command";
+			readonly command: WireBridgeAckTimeoutCommand;
+			readonly pending: number;
+			readonly nowMs: number;
+	  }
+	| {
+			readonly kind: "issue";
+			readonly issue: WireBridgeAckDriverIssue;
+			readonly pending: number;
+			readonly nowMs?: number;
+	  }
+	| { readonly kind: "state"; readonly pending: number; readonly nowMs?: number };
+
+interface AckDriverPendingAttempt {
+	readonly seq: number;
+	attempt: number;
+	observedAtMs?: number;
+	timedOutAttempt?: number;
+	timedOutAtMs?: number;
+	retryDueAtMs?: number;
+	retryReleasedAttempt?: number;
+}
+
+interface AckDriverState {
+	nowMs?: number;
+	pending: Map<number, AckDriverPendingAttempt>;
+}
+
+/** D502 explicit graph-visible ack-timeout command driver for a wireBridge. */
+export function wireBridgeAckDriver<TOutbound = unknown, TInbound = unknown>(
+	graph: Graph,
+	bridge: WireBridgeBundle<TOutbound, TInbound>,
+	opts: WireBridgeAckDriverOptions,
+): WireBridgeAckDriverBundle {
+	const name = opts.name ?? `${bridge.sessionId}/wireBridgeAckDriver`;
+	if (!Number.isFinite(opts.timeoutMs) || opts.timeoutMs < 0) {
+		throw new RangeError("wireBridgeAckDriver: timeoutMs must be a non-negative finite number");
+	}
+	const topology = graph.topologyGroup({ name: `${name}.wireBridgeAckDriver` });
+	const active = { current: true };
+	const events = topology.add(wireBridgeAckDriverEventsNode(graph, bridge, opts, name, active));
+	const commands = topology.add(
+		graph.node<WireBridgeCommand<never>>([events], wireBridgeAckDriverCommandsFn(), {
+			name: `${name}/commands`,
+			factory: "wireBridgeAckDriverCommands",
+		}),
+	);
+	const issues = topology.add(wireBridgeAckDriverIssuesNode(graph, events, name));
+	const status = topology.add(wireBridgeAckDriverStatusNode(graph, events, name));
+	let released = false;
+	return {
+		commands,
+		status,
+		issues,
+		release() {
+			if (released) return;
+			active.current = false;
+			try {
+				topology.release({ reason: `${name}.wireBridgeAckDriver.release` });
+				released = true;
+			} catch (error) {
+				active.current = true;
+				throw error;
+			}
+		},
+	};
+}
+
+function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
+	graph: Graph,
+	bridge: WireBridgeBundle<TOutbound, TInbound>,
+	opts: WireBridgeAckDriverOptions,
+	name: string,
+	active: { current: boolean },
+): Node<WireBridgeAckDriverEvent> {
+	return graph.node<WireBridgeAckDriverEvent>(
+		[opts.clock, bridge.attempts, bridge.acks, bridge.nacks, bridge.status],
+		(ctx) => {
+			let state = ctx.state.get<AckDriverState>();
+			if (state === undefined) {
+				state = { pending: new Map() };
+				ctx.state.set(state);
+			}
+			let touched = false;
+			for (const rawClock of depBatch(ctx, 0) ?? []) {
+				if (!Number.isFinite(rawClock) || (rawClock as number) < 0) {
+					ctx.down([
+						[
+							"DATA",
+							{
+								kind: "issue",
+								issue: {
+									code: "wire-bridge-ack-driver-clock-invalid",
+									message: "wireBridgeAckDriver: clock facts must be non-negative finite numbers",
+									nowMs: rawClock as number,
+								},
+								pending: state.pending.size,
+								nowMs: state.nowMs,
+							} satisfies WireBridgeAckDriverEvent,
+						],
+					]);
+					touched = true;
+					continue;
+				}
+				const nowMs = rawClock as number;
+				if (state.nowMs !== undefined && nowMs < state.nowMs) {
+					ctx.down([
+						[
+							"DATA",
+							{
+								kind: "issue",
+								issue: {
+									code: "wire-bridge-ack-driver-clock-regressed",
+									message: "wireBridgeAckDriver: clock facts must be monotonic",
+									nowMs,
+								},
+								pending: state.pending.size,
+								nowMs: state.nowMs,
+							} satisfies WireBridgeAckDriverEvent,
+						],
+					]);
+					touched = true;
+					continue;
+				}
+				state.nowMs = nowMs;
+				touched = true;
+			}
+			for (const rawAttempt of depBatch(ctx, 1) ?? []) {
+				const attempt = rawAttempt as { readonly seq: number; readonly attempt: number };
+				state.pending.set(attempt.seq, {
+					seq: attempt.seq,
+					attempt: attempt.attempt,
+					observedAtMs: state.nowMs,
+				});
+				touched = true;
+			}
+			for (const rawAck of depBatch(ctx, 2) ?? []) {
+				state.pending.delete((rawAck as { readonly ackForSeq: number }).ackForSeq);
+				touched = true;
+			}
+			for (const rawNack of depBatch(ctx, 3) ?? []) {
+				state.pending.delete((rawNack as { readonly ackForSeq: number }).ackForSeq);
+				touched = true;
+			}
+			for (const rawStatus of depBatch(ctx, 4) ?? []) {
+				const status = rawStatus as {
+					readonly state?: string;
+					readonly pending?: number;
+					readonly lastSeq?: number;
+					readonly lastDelayMs?: number;
+				};
+				if (status.pending === 0) state.pending.clear();
+				else if (status.state === "exhausted" && status.lastSeq !== undefined) {
+					state.pending.delete(status.lastSeq);
+				} else if (
+					status.state === "waiting" &&
+					status.lastSeq !== undefined &&
+					status.lastDelayMs !== undefined
+				) {
+					const pending = state.pending.get(status.lastSeq);
+					if (
+						pending?.timedOutAtMs !== undefined &&
+						pending.retryReleasedAttempt !== pending.attempt
+					) {
+						pending.retryDueAtMs = pending.timedOutAtMs + status.lastDelayMs;
+					}
+				}
+				touched = true;
+			}
+			const nowMs = state.nowMs;
+			let emittedCommand = false;
+			if (active.current && nowMs !== undefined) {
+				for (const pending of state.pending.values()) {
+					if (pending.observedAtMs === undefined) {
+						pending.observedAtMs = nowMs;
+						touched = true;
+					}
+					if (
+						pending.observedAtMs !== undefined &&
+						nowMs - pending.observedAtMs >= opts.timeoutMs &&
+						pending.timedOutAttempt !== pending.attempt
+					) {
+						const command: WireBridgeAckTimeoutCommand = {
+							kind: "ack-timeout",
+							seq: pending.seq,
+							attempt: pending.attempt,
+							observedAtMs: nowMs,
+						};
+						pending.timedOutAttempt = pending.attempt;
+						pending.timedOutAtMs = nowMs;
+						ctx.down([["DATA", { kind: "command", command, pending: state.pending.size, nowMs }]]);
+						emittedCommand = true;
+						touched = true;
+					} else if (
+						pending.retryDueAtMs !== undefined &&
+						nowMs >= pending.retryDueAtMs &&
+						pending.retryReleasedAttempt !== pending.attempt
+					) {
+						const command: WireBridgeAckTimeoutCommand = {
+							kind: "ack-timeout",
+							seq: pending.seq,
+							attempt: pending.attempt,
+							observedAtMs: nowMs,
+						};
+						pending.retryReleasedAttempt = pending.attempt;
+						ctx.down([["DATA", { kind: "command", command, pending: state.pending.size, nowMs }]]);
+						emittedCommand = true;
+						touched = true;
+					}
+				}
+			}
+			if (touched && !emittedCommand) {
+				ctx.down([["DATA", { kind: "state", pending: state.pending.size, nowMs }]]);
+			}
+		},
+		{
+			name: `${name}/events`,
+			factory: "wireBridgeAckDriverEvents",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+}
+
+function wireBridgeAckDriverCommandsFn(): (ctx: Ctx) => void {
+	return (ctx) => {
+		for (const raw of depBatch(ctx, 0) ?? []) {
+			const event = raw as WireBridgeAckDriverEvent;
+			if (event.kind === "command") ctx.down([["DATA", event.command]]);
+		}
+	};
+}
+
+function wireBridgeAckDriverIssuesNode(
+	graph: Graph,
+	events: Node<WireBridgeAckDriverEvent>,
+	name: string,
+): Node<WireBridgeAckDriverIssue> {
+	return graph.node<WireBridgeAckDriverIssue>(
+		[events],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as WireBridgeAckDriverEvent;
+				if (event.kind === "issue") ctx.down([["DATA", event.issue]]);
+			}
+		},
+		{ name: `${name}/issues`, factory: "wireBridgeAckDriverIssues" },
+	);
+}
+
+function wireBridgeAckDriverStatusNode(
+	graph: Graph,
+	events: Node<WireBridgeAckDriverEvent>,
+	name: string,
+): Node<WireBridgeAckDriverStatus> {
+	return graph.node<WireBridgeAckDriverStatus>(
+		[events],
+		(ctx) => {
+			let next =
+				ctx.state.get<WireBridgeAckDriverStatus>() ??
+				({
+					state: "idle",
+					pending: 0,
+					commands: 0,
+					issues: 0,
+				} satisfies WireBridgeAckDriverStatus);
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as WireBridgeAckDriverEvent;
+				if (event.kind === "command") {
+					next = {
+						...next,
+						state: "timed-out",
+						pending: event.pending,
+						commands: next.commands + 1,
+						nowMs: event.nowMs,
+						lastCommand: event.command,
+					};
+				} else if (event.kind === "issue") {
+					next = {
+						...next,
+						state: "issues",
+						pending: event.pending,
+						issues: next.issues + 1,
+						nowMs: event.nowMs,
+						lastIssue: event.issue,
+					};
+				} else {
+					next = {
+						...next,
+						state: event.pending > 0 ? "active" : "idle",
+						pending: event.pending,
+						nowMs: event.nowMs,
+					};
+				}
+			}
+			ctx.state.set(next);
+			ctx.down([["DATA", next]]);
+		},
+		{ name: `${name}/status`, factory: "wireBridgeAckDriverStatus" },
+	);
 }
 
 type WireBridgeProtobufInboundResult =
@@ -706,7 +1022,7 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 				state.nextSeq++;
 				beforeEmit?.();
 				ctx.down([["DATA", { kind: "outbound", envelope }]]);
-				if (shouldTrackAck(type)) armAckTimeout(ctx, state, envelope, opts, policy, now);
+				if (shouldTrackAck(type)) state.pending.set(envelope.metadata.seq, { envelope });
 			};
 
 			for (const raw of depBatch(ctx, 1) ?? []) {
@@ -755,15 +1071,15 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 							},
 						);
 						break;
+					case "ack-timeout":
+						processAckTimeoutCommand(ctx, state, commandValue, opts, policy, now);
+						break;
 					case "close":
 						emitOutbound(
 							"close",
 							{ kind: "close", reason: commandValue.reason },
 							commandValue,
 							() => {
-								for (const pending of state.pending.values()) {
-									if (pending.timer !== undefined) clearTimeout(pending.timer);
-								}
 								state.pending.clear();
 							},
 						);
@@ -786,7 +1102,6 @@ function initBridgeState<TPayload>(ctx: Ctx): BridgeState<TPayload> {
 	let state = ctx.state.get<BridgeState<TPayload>>();
 	if (state === undefined) {
 		state = {
-			active: true,
 			cleanupInstalled: false,
 			nextSeq: 1,
 			cursor: 0,
@@ -796,15 +1111,10 @@ function initBridgeState<TPayload>(ctx: Ctx): BridgeState<TPayload> {
 		};
 		ctx.state.set(state);
 	}
-	state.active = true;
 	if (!state.cleanupInstalled) {
 		state.cleanupInstalled = true;
 		ctx.onDeactivation(() => {
-			state.active = false;
 			state.cleanupInstalled = false;
-			for (const pending of state.pending.values()) {
-				if (pending.timer !== undefined) clearTimeout(pending.timer);
-			}
 			state.pending.clear();
 		});
 	}
@@ -1218,86 +1528,94 @@ function protobufIssue(
 	};
 }
 
-function armAckTimeout<TPayload>(
+function processAckTimeoutCommand<TPayload>(
 	ctx: Ctx,
 	state: BridgeState<TPayload>,
-	envelope: WireBridgeEnvelope<TPayload>,
+	command: Extract<WireBridgeCommand<TPayload>, { readonly kind: "ack-timeout" }>,
 	opts: WireBridgeOptions,
 	policy: RetryPolicy,
 	now: () => number,
 ): void {
-	const timeoutMs = opts.ackTimeoutMs ?? defaultAckTimeoutMs;
-	if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
-		throw new RangeError("wireBridge: ackTimeoutMs must be a non-negative finite number");
-	}
-	const pending: PendingEnvelope<TPayload> = { envelope };
-	const schedule = (current: WireBridgeEnvelope<TPayload>) => {
-		pending.timer = setTimeout(() => {
-			pending.timer = undefined;
-			if (!state.active || !state.pending.has(current.metadata.seq)) return;
-			ctx.down([
-				[
-					"DATA",
-					{
-						kind: "timeout",
-						seq: current.metadata.seq,
-						attempt: current.metadata.attempt,
-					} satisfies WireBridgeEvent<TPayload, unknown>,
-				],
-			]);
-			if (!shouldRetry(policy, current.metadata.attempt)) {
-				const error = `${opts.sessionId}: ack timeout for seq ${current.metadata.seq}`;
-				state.pending.delete(current.metadata.seq);
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "exhausted",
-							seq: current.metadata.seq,
-							attempt: current.metadata.attempt,
-							error,
-						} satisfies WireBridgeEvent<TPayload, unknown>,
-					],
-				]);
-				return;
-			}
-			const attempt = current.metadata.attempt + 1;
-			const delayMs = nextRetryDelayMs(policy, attempt) ?? 0;
-			ctx.down([
-				[
-					"DATA",
-					{
-						kind: "retry",
-						seq: current.metadata.seq,
-						attempt,
-						delayMs,
-						error: `${opts.sessionId}: ack timeout for seq ${current.metadata.seq}`,
-					} satisfies WireBridgeEvent<TPayload, unknown>,
-				],
-			]);
-			const retry = wireBridgeEnvelope<TPayload>({
-				sessionId: current.sessionId,
-				type: current.type,
-				seq: current.metadata.seq,
-				cursor: state.cursor,
-				payload: current.payload,
-				idempotencyKey: current.metadata.idempotencyKey,
-				attempt,
-				maxAttempts: policy.maxAttempts,
-				timestampMs: now(),
-				requestId: current.metadata.requestId,
-			});
-			pending.timer = setTimeout(() => {
-				pending.timer = undefined;
-				if (!state.active || !state.pending.has(current.metadata.seq)) return;
-				pending.envelope = retry;
-				ctx.down([["DATA", { kind: "outbound", envelope: retry }]]);
-				schedule(retry);
-			}, delayMs);
-		}, timeoutMs);
+	const pending = state.pending.get(command.seq);
+	if (pending === undefined || pending.envelope.metadata.attempt !== command.attempt) return;
+	const current = pending.envelope;
+	const emitRetryOutbound = () => {
+		const attempt = current.metadata.attempt + 1;
+		const retry = wireBridgeEnvelope<TPayload>({
+			sessionId: current.sessionId,
+			type: current.type,
+			seq: current.metadata.seq,
+			cursor: state.cursor,
+			payload: current.payload,
+			idempotencyKey: current.metadata.idempotencyKey,
+			attempt,
+			maxAttempts: policy.maxAttempts,
+			timestampMs: now(),
+			requestId: current.metadata.requestId,
+		});
+		pending.envelope = retry;
+		pending.timeoutReportedAttempt = undefined;
+		pending.retryDueAtMs = undefined;
+		ctx.down([["DATA", { kind: "outbound", envelope: retry }]]);
 	};
-	state.pending.set(envelope.metadata.seq, pending);
-	schedule(envelope);
+	if (pending.timeoutReportedAttempt === current.metadata.attempt) {
+		if (
+			pending.retryDueAtMs !== undefined &&
+			command.observedAtMs !== undefined &&
+			command.observedAtMs < pending.retryDueAtMs
+		) {
+			return;
+		}
+		emitRetryOutbound();
+		return;
+	}
+	ctx.down([
+		[
+			"DATA",
+			{
+				kind: "timeout",
+				seq: current.metadata.seq,
+				attempt: current.metadata.attempt,
+			} satisfies WireBridgeEvent<TPayload, unknown>,
+		],
+	]);
+	if (!shouldRetry(policy, current.metadata.attempt)) {
+		const error = `${opts.sessionId}: ack timeout for seq ${current.metadata.seq}`;
+		state.pending.delete(current.metadata.seq);
+		ctx.down([
+			[
+				"DATA",
+				{
+					kind: "exhausted",
+					seq: current.metadata.seq,
+					attempt: current.metadata.attempt,
+					error,
+				} satisfies WireBridgeEvent<TPayload, unknown>,
+			],
+		]);
+		return;
+	}
+	const attempt = current.metadata.attempt + 1;
+	const delayMs = nextRetryDelayMs(policy, attempt) ?? 0;
+	const error = `${opts.sessionId}: ack timeout for seq ${current.metadata.seq}`;
+	pending.timeoutReportedAttempt = current.metadata.attempt;
+	if (delayMs > 0 && command.observedAtMs !== undefined) {
+		pending.retryDueAtMs = command.observedAtMs + delayMs;
+	}
+	ctx.down([
+		[
+			"DATA",
+			{
+				kind: "retry",
+				seq: current.metadata.seq,
+				attempt,
+				delayMs,
+				error,
+			} satisfies WireBridgeEvent<TPayload, unknown>,
+		],
+	]);
+	if (pending.retryDueAtMs !== undefined) return;
+	emitRetryOutbound();
 }
 
 function processInbound<TOutbound, TInbound>(
@@ -1363,7 +1681,6 @@ function processInbound<TOutbound, TInbound>(
 			]);
 			return;
 		}
-		if (pending?.timer !== undefined) clearTimeout(pending.timer);
 		state.pending.delete(envelope.metadata.ackForSeq);
 		ctx.down([
 			[
@@ -1384,7 +1701,6 @@ function processInbound<TOutbound, TInbound>(
 			]);
 			return;
 		}
-		if (pending?.timer !== undefined) clearTimeout(pending.timer);
 		state.pending.delete(envelope.metadata.ackForSeq);
 		ctx.down([
 			[

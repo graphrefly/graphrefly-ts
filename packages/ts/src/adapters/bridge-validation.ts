@@ -146,6 +146,7 @@ export function validateCommand(value: unknown): string | undefined {
 		kind !== "send" &&
 		kind !== "ack" &&
 		kind !== "nack" &&
+		kind !== "ack-timeout" &&
 		kind !== "close"
 	) {
 		return "wireBridge: command kind is not recognized";
@@ -155,6 +156,26 @@ export function validateCommand(value: unknown): string | undefined {
 		!isSafePositiveInteger((value as { readonly ackForSeq?: unknown }).ackForSeq)
 	) {
 		return `wireBridge: ${kind} command ackForSeq must be a positive integer`;
+	}
+	if (kind === "ack-timeout") {
+		const timeout = value as {
+			readonly seq?: unknown;
+			readonly attempt?: unknown;
+			readonly observedAtMs?: unknown;
+		};
+		if (!isSafePositiveInteger(timeout.seq)) {
+			return "wireBridge: ack-timeout command seq must be a positive integer";
+		}
+		if (!isSafePositiveInteger(timeout.attempt)) {
+			return "wireBridge: ack-timeout command attempt must be a positive integer";
+		}
+		const observedAtMs = timeout.observedAtMs;
+		if (
+			observedAtMs !== undefined &&
+			(typeof observedAtMs !== "number" || !Number.isFinite(observedAtMs) || observedAtMs < 0)
+		) {
+			return "wireBridge: ack-timeout command observedAtMs must be a non-negative finite number";
+		}
 	}
 	return undefined;
 }
