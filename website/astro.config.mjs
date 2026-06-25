@@ -103,20 +103,12 @@ export default defineConfig({
 				{
 					label: "Comparisons",
 					items: [
-						{ label: "vs Zustand", link: "/comparisons/zustand" },
-						{ label: "vs Jotai", link: "/comparisons/jotai" },
-						{ label: "vs Pretext", link: "/comparisons/pretext" },
-						{ label: "vs RxJS", link: "/comparisons/rxjs" },
-						{ label: "vs LangGraph.js", link: "/comparisons/langgraph" },
-						{ label: "vs Vercel AI SDK", link: "/comparisons/vercel-ai-sdk" },
-						{ label: "vs n8n", link: "/comparisons/n8n" },
-						{ label: "vs Apache Airflow", link: "/comparisons/airflow" },
+						{ label: "Reactive Layout vs Pretext", link: "/comparisons/pretext" },
 					],
 				},
 				{
 					label: "Recipes",
 					items: [
-						{ label: "From callbag-recharge", link: "/recipes/from-callbag-recharge" },
 						{ label: "NestJS Integration", link: "/recipes/nestjs-integration" },
 					],
 				},

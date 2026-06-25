@@ -1,9 +1,13 @@
 ---
 title: "Migrating from callbag-recharge"
 description: "Step-by-step guide for migrating from callbag-recharge to GraphReFly — API mapping, import changes, and behavioral differences."
+draft: true
+pagefind: false
 ---
 
 # Migrating from callbag-recharge
+
+> Historical note (CSP-9): this migration guide is retained as an old callbag/root-package note, not active clean-slate import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly`, `/extra`, or `compat/*` imports from this historical page.
 
 GraphReFly is the successor to callbag-recharge. The core reactive model (two-phase push, diamond resolution, push-phase memoization) is identical. The differences are in API naming, module structure, and the single-primitive architecture.
 
@@ -145,7 +149,7 @@ callbag-recharge used numeric types (`0`, `1`, `2`, `3`) with positional payload
 
 ## Quick migration checklist
 
-- [ ] Replace `@callbag-recharge/callbag-recharge` with `@graphrefly/graphrefly` in `package.json`
+- [ ] Replace `@callbag-recharge/callbag-recharge` with `@graphrefly/ts` in `package.json`
 - [ ] Update all import paths
 - [ ] Rename `dynamicDerived` → `dynamicNode`
 - [ ] Replace `operator()` calls with `derived()`

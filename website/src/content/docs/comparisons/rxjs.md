@@ -1,9 +1,13 @@
 ---
 title: "GraphReFly vs RxJS"
 description: "Comparing GraphReFly and RxJS — first-class state, diamond resolution, and streaming operators in a unified model."
+draft: true
+pagefind: false
 ---
 
 Both GraphReFly and RxJS provide streaming operators for composing asynchronous data flows. GraphReFly adds first-class state (`.get()`/`.set()`), diamond-safe derived computations, and a simpler API surface.
+
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `/extra` imports from this historical page.
 
 ## At a Glance
 

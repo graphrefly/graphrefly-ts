@@ -1,9 +1,13 @@
 ---
 title: "GraphReFly vs Jotai"
 description: "Comparing GraphReFly and Jotai for atomic state — diamond resolution, framework independence, and streaming operators."
+draft: true
+pagefind: false
 ---
 
 Both GraphReFly and Jotai use atomic state with derived computations. GraphReFly adds glitch-free diamond resolution, streaming operators, and works without React.
+
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `compat/*` imports from this historical page.
 
 ## At a Glance
 

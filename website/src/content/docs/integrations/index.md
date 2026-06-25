@@ -16,5 +16,5 @@ GraphReFly integrations are organized by role so teams can quickly choose the ri
 
 ## Related docs
 
-- Recipe examples live under [Recipes](/recipes/from-callbag-recharge/), where integrations are used to solve end-to-end workflows.
+- Recipe examples live under [NestJS Integration](/recipes/nestjs-integration/), where focused adapters are used in a host workflow.
 - API-level references live under the [API docs](/api/reactivelayout/).

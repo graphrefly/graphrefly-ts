@@ -17,6 +17,18 @@ import {
 import type { Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import type {
+	CanonicalWireBridgeDataBody,
+	CanonicalWireBridgeEnvelope,
+	CanonicalWireBridgeMetadata,
+	CanonicalWireBridgePayload,
+	CanonicalWireEdgeFrame,
+} from "./bridge-protobuf.js";
+import {
+	CanonicalProtobufError,
+	decodeCanonicalWireBridgeEnvelope,
+	encodeCanonicalWireBridgeEnvelope,
+} from "./bridge-protobuf.js";
+import type {
 	AttachedCommandSources,
 	BridgeState,
 	PendingEnvelope,
@@ -32,8 +44,14 @@ import type {
 	WireBridgeEnvelopeType,
 	WireBridgeEvent,
 	WireBridgeInvalidIngress,
+	WireBridgeMetadata,
 	WireBridgeOptions,
 	WireBridgePayload,
+	WireBridgeProtobufBundle,
+	WireBridgeProtobufData,
+	WireBridgeProtobufIssue,
+	WireBridgeProtobufOptions,
+	WireBridgeProtobufStatus,
 } from "./bridge-types.js";
 
 export type {
@@ -80,11 +98,17 @@ export type {
 	WireBridgeNack,
 	WireBridgeOptions,
 	WireBridgePayload,
+	WireBridgeProtobufBundle,
+	WireBridgeProtobufData,
+	WireBridgeProtobufIssue,
+	WireBridgeProtobufOptions,
+	WireBridgeProtobufStatus,
 	WireBridgeStatus,
 } from "./bridge-types.js";
 
 import {
 	guardedInboundNode,
+	invalidIngress,
 	isInvalidIngress,
 	projectAcks,
 	projectAttempts,
@@ -121,6 +145,10 @@ const bridgeCommandSources = new WeakMap<
 const bridgeInboundTargets = new WeakMap<
 	WireBridgeBundle<unknown, unknown>,
 	Node<WireBridgeEnvelope<unknown> | WireBridgeInvalidIngress>
+>();
+const bridgeInboundSources = new WeakMap<
+	WireBridgeBundle<unknown, unknown>,
+	{ sources: Node<WireBridgeEnvelope<unknown> | WireBridgeInvalidIngress>[] }
 >();
 
 /** Stable D134 idempotency key helper scoped to one bridge session and sequence. */
@@ -284,7 +312,171 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 	};
 	bridgeCommandSources.set(bundle as WireBridgeBundle<unknown, unknown>, { sources: [] });
 	bridgeInboundTargets.set(bundle as WireBridgeBundle<unknown, unknown>, inboundCore);
+	bridgeInboundSources.set(bundle as WireBridgeBundle<unknown, unknown>, { sources: [] });
 	return bundle;
+}
+
+type WireBridgeProtobufInboundResult =
+	| { readonly kind: "decoded"; readonly envelope: WireBridgeEnvelope<WireBridgeProtobufData> }
+	| {
+			readonly kind: "issue";
+			readonly issue: WireBridgeProtobufIssue;
+			readonly invalid: WireBridgeInvalidIngress;
+	  };
+
+type WireBridgeProtobufOutboundResult =
+	| { readonly kind: "encoded"; readonly bytes: Uint8Array }
+	| { readonly kind: "issue"; readonly issue: WireBridgeProtobufIssue };
+
+/**
+ * D498 focused canonical protobuf byte adapter over an existing semantic wireBridge bundle.
+ *
+ * This helper owns no transport/session/retry policy and does not add wireBridge core options.
+ * Malformed bytes become graph-visible issue/invalid facts, never local protocol terminals.
+ */
+export function wireBridgeProtobuf(
+	graph: Graph,
+	bridge: WireBridgeBundle<WireBridgeProtobufData, WireBridgeProtobufData>,
+	opts: WireBridgeProtobufOptions = {},
+): WireBridgeProtobufBundle {
+	const name = opts.name ?? "wireBridgeProtobuf";
+	const topology = graph.topologyGroup({ name: `${name}.wireBridgeProtobuf` });
+	const inboundBytes = topology.node<Uint8Array>([], null, {
+		name: `${name}/inboundBytes`,
+		factory: "wireBridgeProtobufInboundBytes",
+	});
+	const issues = topology.node<WireBridgeProtobufIssue>([], null, {
+		name: `${name}/issues`,
+		factory: "wireBridgeProtobufIssues",
+	});
+	const status = topology.node<WireBridgeProtobufStatus>([], null, {
+		name: `${name}/status`,
+		factory: "wireBridgeProtobufStatus",
+	});
+	let currentStatus: WireBridgeProtobufStatus = {
+		decoded: 0,
+		encoded: 0,
+		issues: 0,
+		state: "idle",
+	};
+	const recordStatus = (event: "decoded" | "encoded" | WireBridgeProtobufIssue) => {
+		currentStatus =
+			event === "decoded"
+				? {
+						...currentStatus,
+						decoded: currentStatus.decoded + 1,
+						state: currentStatus.issues > 0 ? "issues" : "active",
+					}
+				: event === "encoded"
+					? {
+							...currentStatus,
+							encoded: currentStatus.encoded + 1,
+							state: currentStatus.issues > 0 ? "issues" : "active",
+						}
+					: {
+							...currentStatus,
+							issues: currentStatus.issues + 1,
+							state: "issues",
+							lastIssue: event,
+						};
+		status.down([["DATA", currentStatus]]);
+	};
+	const inboundResults = topology.node<WireBridgeProtobufInboundResult>(
+		[inboundBytes],
+		(ctx) => {
+			for (const bytes of depBatch(ctx, 0) ?? []) {
+				const result = wireBridgeProtobufInboundResult(bytes as Uint8Array, bridge.sessionId);
+				if (result.kind === "issue") {
+					issues.down([["DATA", result.issue]]);
+					recordStatus(result.issue);
+				} else {
+					recordStatus("decoded");
+				}
+				ctx.down([["DATA", result]]);
+			}
+		},
+		{
+			name: `${name}/inboundResults`,
+			factory: "wireBridgeProtobufInboundResults",
+		},
+	);
+	const inboundDecoded = topology.node<
+		WireBridgeEnvelope<WireBridgeProtobufData> | WireBridgeInvalidIngress
+	>(
+		[inboundResults],
+		(ctx) => {
+			for (const result of depBatch(ctx, 0) ?? []) {
+				const typed = result as WireBridgeProtobufInboundResult;
+				ctx.down([["DATA", typed.kind === "decoded" ? typed.envelope : typed.invalid]]);
+			}
+		},
+		{
+			name: `${name}/inboundDecoded`,
+			factory: "wireBridgeProtobufInboundDecoded",
+		},
+	);
+	const outboundResults = topology.node<WireBridgeProtobufOutboundResult>(
+		[bridge.outbound],
+		(ctx) => {
+			for (const envelope of depBatch(ctx, 0) ?? []) {
+				let result: WireBridgeProtobufOutboundResult;
+				try {
+					const canonical = canonicalEnvelopeFromSemantic(
+						envelope as WireBridgeEnvelope<WireBridgeProtobufData>,
+					);
+					result = { kind: "encoded", bytes: encodeCanonicalWireBridgeEnvelope(canonical) };
+				} catch (error) {
+					const issue = protobufIssue("outbound", "encode", error);
+					result = { kind: "issue", issue };
+				}
+				if (result.kind === "issue") {
+					issues.down([["DATA", result.issue]]);
+					recordStatus(result.issue);
+				} else {
+					recordStatus("encoded");
+				}
+				ctx.down([["DATA", result]]);
+			}
+		},
+		{
+			name: `${name}/outboundResults`,
+			factory: "wireBridgeProtobufOutboundResults",
+		},
+	);
+	const outboundBytes = topology.node<Uint8Array>(
+		[outboundResults],
+		(ctx) => {
+			for (const result of depBatch(ctx, 0) ?? []) {
+				const typed = result as WireBridgeProtobufOutboundResult;
+				if (typed.kind === "encoded") ctx.down([["DATA", typed.bytes]]);
+			}
+		},
+		{ name: `${name}/outboundBytes`, factory: "wireBridgeProtobufOutboundBytes" },
+	);
+	try {
+		attachWireBridgeInboundSource(bridge, inboundDecoded);
+	} catch (error) {
+		topology.release({ reason: `${name}.wireBridgeProtobuf.failedAttach` });
+		throw error;
+	}
+	let released = false;
+	return {
+		inboundBytes,
+		outboundBytes,
+		issues,
+		status,
+		release() {
+			if (released) return;
+			detachWireBridgeInboundSource(bridge, inboundDecoded);
+			try {
+				topology.release({ reason: `${name}.wireBridgeProtobuf.release` });
+				released = true;
+			} catch (error) {
+				attachWireBridgeInboundSource(bridge, inboundDecoded);
+				throw error;
+			}
+		},
+	};
 }
 
 export function remoteResponderHandler<TRequest = unknown, TResponse = unknown>(
@@ -566,6 +758,64 @@ function detachWireBridgeCommandSource<TOutbound, TInbound>(
 	}
 }
 
+function attachWireBridgeInboundSource<TOutbound, TInbound>(
+	bridge: WireBridgeBundle<TOutbound, TInbound>,
+	source: Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>,
+): void {
+	const attached = bridgeInboundSources.get(bridge as WireBridgeBundle<unknown, unknown>);
+	if (attached === undefined) {
+		throw new Error("wireBridgeProtobuf: bridge inbound source registry missing");
+	}
+	const sources = attached.sources as Node<
+		WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress
+	>[];
+	const previousSources = [...sources];
+	if (!sources.includes(source)) sources.push(source);
+	try {
+		wireBridgeInboundTarget(bridge).replaceDeps(
+			[...sources],
+			wireBridgeInboundSourceFn(sources.length),
+		);
+	} catch (error) {
+		sources.splice(0, sources.length, ...previousSources);
+		wireBridgeInboundTarget(bridge).replaceDeps(
+			[...previousSources],
+			wireBridgeInboundSourceFn(previousSources.length),
+		);
+		throw error;
+	}
+}
+
+function detachWireBridgeInboundSource<TOutbound, TInbound>(
+	bridge: WireBridgeBundle<TOutbound, TInbound>,
+	source: Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>,
+): void {
+	const attached = bridgeInboundSources.get(bridge as WireBridgeBundle<unknown, unknown>);
+	if (attached === undefined) {
+		throw new Error("wireBridgeProtobuf: bridge inbound source registry missing");
+	}
+	const sources = attached.sources as Node<
+		WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress
+	>[];
+	if (!sources.includes(source)) return;
+	const previousSources = [...sources];
+	const nextSources = sources.filter((candidate) => candidate !== source);
+	sources.splice(0, sources.length, ...nextSources);
+	try {
+		wireBridgeInboundTarget(bridge).replaceDeps(
+			[...nextSources],
+			wireBridgeInboundSourceFn(nextSources.length),
+		);
+	} catch (error) {
+		sources.splice(0, sources.length, ...previousSources);
+		wireBridgeInboundTarget(bridge).replaceDeps(
+			[...previousSources],
+			wireBridgeInboundSourceFn(previousSources.length),
+		);
+		throw error;
+	}
+}
+
 function wireBridgeInboundTarget<TInbound>(
 	bridge: WireBridgeBundle<unknown, TInbound>,
 ): Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress> {
@@ -583,6 +833,287 @@ function wireBridgeCommandSourceFn<TOutbound>(sourceCount: number): (ctx: Ctx) =
 				ctx.down([["DATA", command as WireBridgeCommand<TOutbound>]]);
 			}
 		}
+	};
+}
+
+function wireBridgeInboundSourceFn<TInbound>(sourceCount: number): (ctx: Ctx) => void {
+	return (ctx) => {
+		for (let i = 0; i < sourceCount; i += 1) {
+			for (const envelope of depBatch(ctx, i) ?? []) {
+				ctx.down([["DATA", envelope as WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress]]);
+			}
+		}
+	};
+}
+
+function wireBridgeProtobufInboundResult(
+	bytes: Uint8Array,
+	sessionId: string,
+): WireBridgeProtobufInboundResult {
+	try {
+		const envelope = semanticEnvelopeFromCanonical(decodeCanonicalWireBridgeEnvelope(bytes));
+		return { kind: "decoded", envelope };
+	} catch (error) {
+		const issue = protobufIssue("inbound", "decode", error);
+		return {
+			kind: "issue",
+			issue,
+			invalid: invalidIngress(`${sessionId}: ${issue.message}`),
+		};
+	}
+}
+
+function semanticEnvelopeFromCanonical(
+	envelope: CanonicalWireBridgeEnvelope,
+): WireBridgeEnvelope<WireBridgeProtobufData> {
+	const metadata = semanticMetadataFromCanonical(envelope.metadata);
+	switch (envelope.payload.kind) {
+		case "start":
+			return wireBridgeEnvelope({
+				sessionId: envelope.sessionId,
+				type: "start",
+				seq: metadata.seq,
+				cursor: metadata.cursor,
+				idempotencyKey: metadata.idempotencyKey,
+				attempt: metadata.attempt,
+				maxAttempts: metadata.maxAttempts,
+				timestampMs: metadata.timestampMs,
+				requestId: metadata.requestId,
+			});
+		case "ack":
+			return wireBridgeEnvelope({
+				sessionId: envelope.sessionId,
+				type: "ack",
+				seq: metadata.seq,
+				cursor: metadata.cursor,
+				idempotencyKey: metadata.idempotencyKey,
+				attempt: metadata.attempt,
+				maxAttempts: metadata.maxAttempts,
+				timestampMs: metadata.timestampMs,
+				ackForSeq: metadata.ackForSeq,
+				requestId: metadata.requestId,
+			});
+		case "data":
+			return wireBridgeEnvelope({
+				sessionId: envelope.sessionId,
+				type: "data",
+				seq: metadata.seq,
+				cursor: metadata.cursor,
+				payload: { kind: "data", value: envelope.payload.body },
+				idempotencyKey: metadata.idempotencyKey,
+				attempt: metadata.attempt,
+				maxAttempts: metadata.maxAttempts,
+				timestampMs: metadata.timestampMs,
+				requestId: metadata.requestId,
+			});
+		case "nack":
+			if (envelope.payload.error === undefined) {
+				throw new CanonicalProtobufError(
+					"missing_required",
+					"semantic wireBridge nack requires error bytes",
+				);
+			}
+			return wireBridgeEnvelope({
+				sessionId: envelope.sessionId,
+				type: "nack",
+				seq: metadata.seq,
+				cursor: metadata.cursor,
+				payload: { kind: "error", error: envelope.payload.error },
+				idempotencyKey: metadata.idempotencyKey,
+				attempt: metadata.attempt,
+				maxAttempts: metadata.maxAttempts,
+				timestampMs: metadata.timestampMs,
+				ackForSeq: metadata.ackForSeq,
+				requestId: metadata.requestId,
+			});
+		case "status":
+			return wireBridgeEnvelope({
+				sessionId: envelope.sessionId,
+				type: "status",
+				seq: metadata.seq,
+				cursor: metadata.cursor,
+				payload: { kind: "status", status: envelope.payload.status },
+				idempotencyKey: metadata.idempotencyKey,
+				attempt: metadata.attempt,
+				maxAttempts: metadata.maxAttempts,
+				timestampMs: metadata.timestampMs,
+				requestId: metadata.requestId,
+			});
+		case "error":
+			return wireBridgeEnvelope({
+				sessionId: envelope.sessionId,
+				type: "error",
+				seq: metadata.seq,
+				cursor: metadata.cursor,
+				payload: { kind: "error", error: envelope.payload.error },
+				idempotencyKey: metadata.idempotencyKey,
+				attempt: metadata.attempt,
+				maxAttempts: metadata.maxAttempts,
+				timestampMs: metadata.timestampMs,
+				requestId: metadata.requestId,
+			});
+		case "close":
+			return wireBridgeEnvelope({
+				sessionId: envelope.sessionId,
+				type: "close",
+				seq: metadata.seq,
+				cursor: metadata.cursor,
+				payload: { kind: "close", reason: envelope.payload.reason },
+				idempotencyKey: metadata.idempotencyKey,
+				attempt: metadata.attempt,
+				maxAttempts: metadata.maxAttempts,
+				timestampMs: metadata.timestampMs,
+				requestId: metadata.requestId,
+			});
+	}
+}
+
+function canonicalEnvelopeFromSemantic(
+	envelope: WireBridgeEnvelope<WireBridgeProtobufData>,
+): CanonicalWireBridgeEnvelope {
+	return {
+		sessionId: envelope.sessionId,
+		metadata: {
+			seq: BigInt(envelope.metadata.seq),
+			cursor: BigInt(envelope.metadata.cursor),
+			idempotencyKey: envelope.metadata.idempotencyKey,
+			attempt: envelope.metadata.attempt,
+			maxAttempts: envelope.metadata.maxAttempts,
+			timestampMs:
+				envelope.metadata.timestampMs === undefined
+					? undefined
+					: BigInt(envelope.metadata.timestampMs),
+			ackForSeq:
+				envelope.metadata.ackForSeq === undefined ? undefined : BigInt(envelope.metadata.ackForSeq),
+			requestId: envelope.metadata.requestId,
+		},
+		payload: canonicalPayloadFromSemantic(envelope),
+	};
+}
+
+function canonicalPayloadFromSemantic(
+	envelope: WireBridgeEnvelope<WireBridgeProtobufData>,
+): CanonicalWireBridgePayload {
+	const payload = envelope.payload;
+	switch (envelope.type) {
+		case "start":
+			return { kind: "start" };
+		case "ack":
+			return { kind: "ack" };
+		case "data":
+			if (payload?.kind !== "data") {
+				throw new CanonicalProtobufError("missing_required", "data envelope requires data payload");
+			}
+			return { kind: "data", body: canonicalDataBody(payload.value) };
+		case "nack":
+			if (payload?.kind !== "error") {
+				throw new CanonicalProtobufError(
+					"missing_required",
+					"nack envelope requires error payload",
+				);
+			}
+			return { kind: "nack", error: requiredBytes(payload.error, "nack error") };
+		case "status":
+			if (payload?.kind !== "status") {
+				throw new CanonicalProtobufError(
+					"missing_required",
+					"status envelope requires status payload",
+				);
+			}
+			return { kind: "status", status: requiredBytes(payload.status, "status") };
+		case "error":
+			if (payload?.kind !== "error") {
+				throw new CanonicalProtobufError(
+					"missing_required",
+					"error envelope requires error payload",
+				);
+			}
+			return { kind: "error", error: requiredBytes(payload.error, "error") };
+		case "close":
+			if (payload?.kind !== "close") {
+				throw new CanonicalProtobufError(
+					"missing_required",
+					"close envelope requires close payload",
+				);
+			}
+			return { kind: "close", reason: optionalBytes(payload.reason, "close reason") };
+	}
+}
+
+function canonicalDataBody(value: unknown): CanonicalWireBridgeDataBody {
+	if (value instanceof Uint8Array) return { kind: "value", value };
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		(value as { readonly kind?: unknown }).kind === "value"
+	) {
+		const bytes = (value as { readonly value?: unknown }).value;
+		if (bytes instanceof Uint8Array) return { kind: "value", value: bytes };
+	}
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		(value as { readonly kind?: unknown }).kind === "wire_edge"
+	) {
+		const frame = (value as { readonly frame?: unknown }).frame;
+		return { kind: "wire_edge", frame: frame as CanonicalWireEdgeFrame };
+	}
+	throw new CanonicalProtobufError(
+		"malformed",
+		"wireBridgeProtobuf data payload must be Uint8Array or CanonicalWireBridgeDataBody",
+	);
+}
+
+function semanticMetadataFromCanonical(metadata: CanonicalWireBridgeMetadata): WireBridgeMetadata {
+	return {
+		seq: safeSemanticNumber(metadata.seq, "seq"),
+		cursor: safeSemanticNumber(metadata.cursor, "cursor"),
+		idempotencyKey: metadata.idempotencyKey,
+		attempt: metadata.attempt,
+		maxAttempts: metadata.maxAttempts,
+		timestampMs:
+			metadata.timestampMs === undefined
+				? undefined
+				: safeSemanticNumber(metadata.timestampMs, "timestamp_ms"),
+		ackForSeq:
+			metadata.ackForSeq === undefined
+				? undefined
+				: safeSemanticNumber(metadata.ackForSeq, "ack_for_seq"),
+		requestId: metadata.requestId,
+	};
+}
+
+function safeSemanticNumber(value: bigint, field: string): number {
+	if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
+		throw new CanonicalProtobufError(
+			"malformed",
+			`${field} exceeds semantic wireBridge Number.MAX_SAFE_INTEGER range`,
+		);
+	}
+	return Number(value);
+}
+
+function requiredBytes(value: unknown, field: string): Uint8Array {
+	if (value instanceof Uint8Array) return value;
+	throw new CanonicalProtobufError("malformed", `wireBridgeProtobuf ${field} must be Uint8Array`);
+}
+
+function optionalBytes(value: unknown, field: string): Uint8Array | undefined {
+	if (value === undefined) return undefined;
+	if (value instanceof Uint8Array) return value;
+	throw new CanonicalProtobufError("malformed", `wireBridgeProtobuf ${field} must be Uint8Array`);
+}
+
+function protobufIssue(
+	direction: WireBridgeProtobufIssue["direction"],
+	operation: WireBridgeProtobufIssue["operation"],
+	error: unknown,
+): WireBridgeProtobufIssue {
+	return {
+		direction,
+		operation,
+		message: error instanceof Error ? error.message : String(error),
+		category: error instanceof CanonicalProtobufError ? error.category : undefined,
 	};
 }
 

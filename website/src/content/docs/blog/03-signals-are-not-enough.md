@@ -234,7 +234,7 @@ pipe(
 
 Same API you already know. But when you need stream operators, diamond resolution, completion semantics, or observability — it's there. No second library.
 
-We also have compat layers for [Zustand](/recipes/zustand-migration), [Jotai](/recipes/jotai-migration), and [Nanostores](/recipes/nanostores-migration). The point isn't to replace what works. It's to extend it into territory Signals can't reach.
+Focused framework adapters live under `@graphrefly/ts/adapters/*`, without reviving the retired `compat/*` runtime model. The point isn't to replace what works. It's to extend it into territory Signals can't reach.
 
 ## What GraphReFly costs you
 

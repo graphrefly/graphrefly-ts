@@ -1,5 +1,9 @@
 import type { RetryPolicy } from "../graph/resilience.js";
 import type { Node } from "../node/node.js";
+import type {
+	CanonicalProtobufErrorCategory,
+	CanonicalWireBridgeDataBody,
+} from "./bridge-protobuf.js";
 
 export type WireBridgeEnvelopeType =
 	| "start"
@@ -165,6 +169,35 @@ export interface WireBridgeBundle<TOutbound = unknown, TInbound = unknown> {
 		opts?: { idempotencyKey?: string; requestId?: string },
 	): void;
 	close(reason?: unknown, opts?: { idempotencyKey?: string }): void;
+}
+
+export type WireBridgeProtobufData = Uint8Array | CanonicalWireBridgeDataBody;
+
+export interface WireBridgeProtobufIssue {
+	readonly direction: "inbound" | "outbound";
+	readonly operation: "decode" | "encode";
+	readonly message: string;
+	readonly category?: CanonicalProtobufErrorCategory;
+}
+
+export interface WireBridgeProtobufStatus {
+	readonly decoded: number;
+	readonly encoded: number;
+	readonly issues: number;
+	readonly state: "idle" | "active" | "issues";
+	readonly lastIssue?: WireBridgeProtobufIssue;
+}
+
+export interface WireBridgeProtobufBundle {
+	readonly inboundBytes: Node<Uint8Array>;
+	readonly outboundBytes: Node<Uint8Array>;
+	readonly issues: Node<WireBridgeProtobufIssue>;
+	readonly status: Node<WireBridgeProtobufStatus>;
+	release(): void;
+}
+
+export interface WireBridgeProtobufOptions {
+	readonly name?: string;
 }
 
 export interface RemoteCallRequest<T = unknown> {

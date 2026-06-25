@@ -1,9 +1,13 @@
 ---
 title: "GraphReFly vs Zustand"
 description: "Comparing GraphReFly and Zustand for state management — ergonomics, computed values, diamond resolution, and migration paths."
+draft: true
+pagefind: false
 ---
 
 Both GraphReFly and Zustand are simple, ergonomic state management libraries that prize small APIs and minimal boilerplate. GraphReFly adds diamond-safe computed values, streaming operators, and runtime graph inspectability while preserving a familiar API shape.
+
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `compat/*` imports from this historical page.
 
 ## At a Glance
 

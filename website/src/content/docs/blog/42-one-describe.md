@@ -17,7 +17,7 @@ tags:
 
 ---
 
-> **Update (post-v0.4 — D1 three-layer view):** the `format` sugar option on `describe()` was removed. `describe()` now returns data only (`GraphDescribeOutput` / `GraphSpec`); rendering moved to the pure functions in `@graphrefly/graphrefly/extra/render` — `graphSpecToMermaid`, `graphSpecToAscii`, `graphSpecToD2`, `graphSpecToPretty`, `graphSpecToJson`, `graphSpecToMermaidUrl`. The four-entry-points-into-one consolidation story below still holds — but the "one entry point" is now the data snapshot, with rendering composed on top via `derived` for live formatted output. The cognitive-cost argument carries over.
+> **Update (post-v0.4 — D1 three-layer view):** the `format` sugar option on `describe()` was removed. `describe()` now returns data only (`DescribeSnapshot`); rendering moved to the pure functions in `@graphrefly/ts/render` — `describeToMermaid`, `describeToAscii`, `describeToD2`, `describeToPretty`, `describeToJson`, `describeToMermaidUrl`. The four-entry-points-into-one consolidation story below still holds — but the "one entry point" is now the data snapshot, with rendering composed on top via `derived` for live formatted output. The cognitive-cost argument carries over.
 
 ---
 

@@ -38,6 +38,7 @@ const expectedSubpaths = {
 			"decodeCanonicalWireEdgeFrame",
 			"encodeCanonicalWireBridgeEnvelope",
 			"encodeCanonicalWireEdgeFrame",
+			"wireBridgeProtobuf",
 			"subscribeNodeValues",
 			"readableStore",
 			"writableStore",
@@ -423,7 +424,7 @@ ${runtimeAssertions.replaceAll("await load", "load")}
 
 	writeFileSync(
 		join(tmp, "types-smoke.mts"),
-		`import { externalStore, readableStore, recordReadableStore, subscribeNodeValues, writableStore } from "@graphrefly/ts/adapters";
+		`import { externalStore, readableStore, recordReadableStore, subscribeNodeValues, wireBridgeProtobuf, writableStore, type WireBridgeProtobufBundle, type WireBridgeProtobufData, type WireBridgeProtobufIssue, type WireBridgeProtobufOptions, type WireBridgeProtobufStatus } from "@graphrefly/ts/adapters";
 import { useNodeInput, useNodeRecord, useNodeValue } from "@graphrefly/ts/adapters/react";
 import { createNodeInput, createNodeRecord, createNodeValue } from "@graphrefly/ts/adapters/solid";
 import { nodeReadable, nodeRecord, nodeWritable } from "@graphrefly/ts/adapters/svelte";
@@ -485,6 +486,7 @@ void externalStore;
 void readableStore;
 void recordReadableStore;
 void subscribeNodeValues;
+void wireBridgeProtobuf;
 void writableStore;
 void useNodeInput;
 void useNodeRecord;
@@ -545,6 +547,11 @@ declare const projectionReleaseDiagnostic: WorkspaceProposalProjectionReleaseDia
 declare const projectionReleaseDiagnosticProjectorBundle: WorkspaceProposalProjectionReleaseDiagnosticProjectorBundle;
 declare const projectionReleaseDiagnosticProjectorOptions: WorkspaceProposalProjectionReleaseDiagnosticProjectorOptions;
 declare const projectionReleaseValidationResult: WorkspaceProposalProjectionReleaseValidationResult;
+declare const protobufBundle: WireBridgeProtobufBundle;
+declare const protobufData: WireBridgeProtobufData;
+declare const protobufIssue: WireBridgeProtobufIssue;
+declare const protobufOptions: WireBridgeProtobufOptions;
+declare const protobufStatus: WireBridgeProtobufStatus;
 const projectionReleaseTargetKind: WorkspaceProposalProjectionReleaseTargetKind = "family-read-model-query";
 void role;
 void node;
@@ -579,6 +586,11 @@ void projectionReleaseDiagnosticProjectorBundle;
 void projectionReleaseDiagnosticProjectorOptions;
 void projectionReleaseValidationResult;
 void projectionReleaseTargetKind;
+void protobufBundle;
+void protobufData;
+void protobufIssue;
+void protobufOptions;
+void protobufStatus;
 `,
 	);
 	const rootForbiddenNames = [...rootAbsentExports, ...rootAbsentTypeExports].join(", ");
