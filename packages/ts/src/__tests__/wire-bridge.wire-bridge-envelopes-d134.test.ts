@@ -1081,6 +1081,29 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 	});
 
+	it("wireEdgeGroup release restores bridge command source when topology release is blocked", () => {
+		const g = graph();
+		const bridge = wireBridge(g, { name: "bridgeRelease", sessionId: "session-a" });
+		const group = wireEdgeGroup(g, bridge, {
+			name: "releaseGroup",
+			edges: [{ edgeId: "a" }],
+		});
+		const unsubscribe = group.status.subscribe(() => {});
+
+		expect(() => group.release()).toThrow(/live subscribers/);
+		expect(g.describe().edges).toContainEqual({
+			from: "releaseGroup/commands",
+			to: "bridgeRelease/command",
+		});
+
+		unsubscribe();
+		group.release();
+		expect(g.describe().edges).not.toContainEqual({
+			from: "releaseGroup/commands",
+			to: "bridgeRelease/command",
+		});
+	});
+
 	it("wireEdgeGroup D501 fails closed for malformed, duplicate, data-before-dirty, competing, and incomplete causes", () => {
 		const bytes = (...values: number[]) => new Uint8Array(values);
 		const dataValues = <T>(messages: T[][]): unknown[] =>
@@ -1173,6 +1196,55 @@ describe("wire bridge envelopes (D134)", () => {
 			expect(result.group.issues.status).not.toBe("errored");
 			expect(result.group.status.status).not.toBe("errored");
 		}
+	});
+
+	it("wireEdgeGroup D506 keeps only bounded recent replay tombstones", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const dataValues = <T>(messages: T[][]): unknown[] =>
+			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
+		const g = graph();
+		const bridge = wireBridge(g, { name: "replayBridge", sessionId: "session-a" });
+		const group = wireEdgeGroup(g, bridge, {
+			name: "replayGroup",
+			edges: [{ edgeId: "a" }],
+		});
+		const inbound: unknown[][] = [];
+		const issues: unknown[][] = [];
+		group.inbound.get("a")?.subscribe((msg) => inbound.push(msg as unknown[]));
+		group.issues.subscribe((msg) => issues.push(msg as unknown[]));
+		let seq = 1;
+		const envelope = (causeId: string, kind: "dirty" | "data", value?: Uint8Array) =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: seq++,
+				payload: {
+					kind: "data",
+					value: { kind: "wire_edge", frame: { kind, edgeId: "a", causeId, value } },
+				},
+			});
+		const release = (causeId: string, value: Uint8Array) => {
+			bridge.inbound.down([
+				["DATA", envelope(causeId, "dirty")],
+				["DATA", envelope(causeId, "data", value)],
+			]);
+		};
+
+		release("c1", bytes(1));
+		bridge.inbound.down([["DATA", envelope("c1", "dirty")]]);
+		expect(dataValues(issues)).toContainEqual(
+			expect.objectContaining({
+				code: "wire-edge-group-duplicate-dirty",
+				causeId: "c1",
+			}),
+		);
+
+		for (let i = 2; i <= 1026; i++) release(`c${i}`, bytes(i % 256));
+		const releaseCountBeforeOldReplay = dataValues(inbound).length;
+		release("c1", bytes(99));
+
+		expect(dataValues(inbound).length).toBe(releaseCountBeforeOldReplay + 1);
+		expect(dataValues(inbound).at(-1)).toEqual(bytes(99));
 	});
 
 	it("wireEdgeGroup D501 is stable when status/issues subscribe before inbound edges", () => {

@@ -68,7 +68,29 @@ interface GateState {
 	activeCauseId?: string;
 	dirty: Set<string>;
 	data: Map<string, Uint8Array>;
-	failed: Set<string>;
+	failed: CauseTombstones;
+	released: CauseTombstones;
+}
+
+const WIRE_EDGE_GROUP_CAUSE_TOMBSTONE_LIMIT = 1024;
+
+class CauseTombstones {
+	private readonly seen = new Set<string>();
+	private readonly order: string[] = [];
+
+	has(causeId: string): boolean {
+		return this.seen.has(causeId);
+	}
+
+	add(causeId: string): void {
+		if (this.seen.has(causeId)) return;
+		this.seen.add(causeId);
+		this.order.push(causeId);
+		while (this.order.length > WIRE_EDGE_GROUP_CAUSE_TOMBSTONE_LIMIT) {
+			const evicted = this.order.shift();
+			if (evicted !== undefined) this.seen.delete(evicted);
+		}
+	}
 }
 
 export function wireEdgeGroup(
@@ -187,8 +209,13 @@ export function wireEdgeGroup(
 		release() {
 			if (released) return;
 			bridge.command.replaceDeps([], commandSourceFn());
-			topology.release({ reason: `${name}.wireEdgeGroup.release` });
-			released = true;
+			try {
+				topology.release({ reason: `${name}.wireEdgeGroup.release` });
+				released = true;
+			} catch (error) {
+				bridge.command.replaceDeps([commands], commandSourceFn());
+				throw error;
+			}
 		},
 	};
 }
@@ -393,7 +420,12 @@ function gateFn(name: string, expectedIds: readonly string[]): (ctx: Ctx) => voi
 	return (ctx) => {
 		let st = ctx.state.get<GateState>();
 		if (!st) {
-			st = { dirty: new Set(), data: new Map(), failed: new Set() };
+			st = {
+				dirty: new Set(),
+				data: new Map(),
+				failed: new CauseTombstones(),
+				released: new CauseTombstones(),
+			};
 			ctx.state.set(st);
 		}
 		const emitIssue = (i: WireEdgeGroupIssue) =>
@@ -440,6 +472,18 @@ function gateFn(name: string, expectedIds: readonly string[]): (ctx: Ctx) => voi
 					issue(
 						"wire-edge-group-incomplete-cause",
 						`${name}: cause ${f.causeId} was already failed closed`,
+						{ edgeId: f.edgeId, causeId: f.causeId },
+					),
+				);
+				continue;
+			}
+			if (st.released.has(f.causeId)) {
+				emitIssue(
+					issue(
+						f.kind === "dirty"
+							? "wire-edge-group-duplicate-dirty"
+							: "wire-edge-group-duplicate-data",
+						`${name}: cause ${f.causeId} was already released`,
 						{ edgeId: f.edgeId, causeId: f.causeId },
 					),
 				);
@@ -530,6 +574,7 @@ function gateFn(name: string, expectedIds: readonly string[]): (ctx: Ctx) => voi
 							],
 						]);
 				}
+				st.released.add(f.causeId);
 				reset();
 			} else progress(f.causeId);
 		}
