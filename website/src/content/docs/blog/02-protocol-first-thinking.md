@@ -9,6 +9,10 @@ tags: [architecture, design-philosophy, protocol]
 
 *Arc 1, Post 2 — Origins: From Callbag to GraphReFly*
 
+> Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
+> story. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths;
+> do not copy `@graphrefly/graphrefly` or `/extra` imports from historical snippets.
+
 ---
 
 Most reactive libraries start with an API. You get `Observable`, `Signal`, `Atom`, `Store` — a set of classes or functions that encode a specific model of reactivity. The protocol is an implementation detail, hidden behind the public surface.

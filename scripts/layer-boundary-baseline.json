@@ -1,4 +1,0 @@
-{
-	"_comment": "Cleave A layer-boundary residuals — CLOSED 2026-05-15. The 4-layer DAG is now structurally clean: Class A (zero-domain resilience backoff/_internal/status/retry/timeout reclassified -> base/), Class B (utils/<domain> barrels no longer re-export presets; utils-path consumers repointed at presets/<domain>), Class C (preset-coupled files relocated out of utils/: ai/agents/agent.ts -> presets/ai/agent.ts; harness/{profile,trace,eval-verifier,refine-executor}.ts -> presets/harness/) all landed. Baseline is empty: the ratchet now fails ANY layer-boundary violation as a hard error. Do NOT add entries to silence new violations — fix the layering. Provenance: docs/optimizations.md 'Cleave A layer-boundary residuals', archive/docs/SESSION-DS-cleave-A-file-moves.md.",
-	"baseline": []
-}

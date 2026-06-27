@@ -1,9 +1,13 @@
 ---
 title: "Migrating from callbag-recharge"
 description: "Step-by-step guide for migrating from callbag-recharge to GraphReFly — API mapping, import changes, and behavioral differences."
+draft: true
+pagefind: false
 ---
 
 # Migrating from callbag-recharge
+
+> Historical note (CSP-9): this migration guide is retained as an old callbag/root-package note, not active clean-slate import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly`, `/extra`, or `compat/*` imports from this historical page.
 
 GraphReFly is the successor to callbag-recharge. The core reactive model (two-phase push, diamond resolution, push-phase memoization) is identical. The differences are in API naming, module structure, and the single-primitive architecture.
 
@@ -14,20 +18,20 @@ GraphReFly is the successor to callbag-recharge. The core reactive model (two-ph
 npm uninstall @callbag-recharge/callbag-recharge
 
 # Install GraphReFly
-npm install @graphrefly/graphrefly
+npm install @graphrefly/ts
 ```
 
 ## Import changes
 
 ```diff
 - import { state, derived, effect, producer } from 'callbag-recharge'
-+ import { state, derived, effect, producer } from '@graphrefly/graphrefly'
++ import { graph } from '@graphrefly/ts/graph'
 
 - import { switchMap, debounce, retry } from 'callbag-recharge/extra'
-+ import { switchMap, debounce, retry } from '@graphrefly/graphrefly/extra'
++ import { switchMap, debounce, retry } from '@graphrefly/ts/operators'
 
 - import { Graph } from 'callbag-recharge/graph'
-+ import { Graph } from '@graphrefly/graphrefly/graph'
++ import { Graph } from '@graphrefly/ts/graph'
 ```
 
 ## API mapping
@@ -75,19 +79,19 @@ All 70+ operators carry forward with the same names and semantics. A few notes:
 | `wrap(store)` | `toObservable(node)` | Renamed for clarity |
 | `route(source, pred)` | Use `dynamicNode` or conditional `derived` | `route()` removed; use reactive patterns |
 | `select(store, fn)` | `derived([store], fn)` | `select` removed; `derived` does the same |
-| `createStore(fn)` | Use `@graphrefly/graphrefly/compat/zustand` | Compat layer available |
+| `createStore(fn)` | Use `zustandStore(...)` from `@graphrefly/ts/adapters` over caller-owned nodes | Legacy compat is retired |
 
-### Compat layers
+### Framework adapters
 
 | callbag-recharge | GraphReFly |
 |---|---|
-| `callbag-recharge/compat/zustand` | `@graphrefly/graphrefly/compat/zustand` |
-| `callbag-recharge/compat/jotai` | `@graphrefly/graphrefly/compat/jotai` |
-| `callbag-recharge/compat/react` | `@graphrefly/graphrefly/compat/react` |
-| `callbag-recharge/compat/vue` | `@graphrefly/graphrefly/compat/vue` |
-| `callbag-recharge/compat/svelte` | `@graphrefly/graphrefly/compat/svelte` |
-| `callbag-recharge/compat/solid` | `@graphrefly/graphrefly/compat/solid` |
-| — | `@graphrefly/graphrefly/compat/nestjs` (new) |
+| `callbag-recharge/compat/zustand` | `zustandStore(...)` from `@graphrefly/ts/adapters` |
+| `callbag-recharge/compat/jotai` | `jotaiAtom(...)` from `@graphrefly/ts/adapters` |
+| `callbag-recharge/compat/react` | `@graphrefly/ts/adapters/react` |
+| `callbag-recharge/compat/vue` | `@graphrefly/ts/adapters/vue` |
+| `callbag-recharge/compat/svelte` | `@graphrefly/ts/adapters/svelte` |
+| `callbag-recharge/compat/solid` | `@graphrefly/ts/adapters/solid` |
+| — | `@graphrefly/ts/adapters/nestjs` keyed boundary nodes |
 
 ### Messages
 
@@ -145,7 +149,7 @@ callbag-recharge used numeric types (`0`, `1`, `2`, `3`) with positional payload
 
 ## Quick migration checklist
 
-- [ ] Replace `@callbag-recharge/callbag-recharge` with `@graphrefly/graphrefly` in `package.json`
+- [ ] Replace `@callbag-recharge/callbag-recharge` with `@graphrefly/ts` in `package.json`
 - [ ] Update all import paths
 - [ ] Rename `dynamicDerived` → `dynamicNode`
 - [ ] Replace `operator()` calls with `derived()`

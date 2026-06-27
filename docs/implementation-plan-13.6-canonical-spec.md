@@ -1,5 +1,11 @@
 # GraphReFly Canonical Spec & Invariants (post-Phase 13.6.A)
 
+> **Old-main reference, not clean-slate authority.** This document predates the
+> clean-slate jsonl spec system. For current protocol decisions, use
+> `~/src/graphrefly/spec/rules.jsonl` and the D# log. In particular, clean-slate
+> has a closed 10-message set, no `MessageTypeRegistry`/custom message types,
+> and `messageTier` is a compile-time const table (R-msg-closed-set, R-tier, D18/D34).
+
 *Consolidated source-of-truth for the GraphReFly protocol, primitives, container, patterns, and invariants — incorporating the 24 locks resolved in `implementation-plan-13.6-locks-draft.md`. Supersedes the multi-file split (`GRAPHREFLY-SPEC.md` + `COMPOSITION-GUIDE-*.md`) for read-once handoff.*
 
 **Status:** post-Phase 13.6.A audit, pre-implementation. The canonical text below describes what the spec + composition guide WILL be after the lock-driven edits land. Use this for Rust port; the underlying TS edit work is tracked under Phase 13.6.B.
@@ -2193,4 +2199,3 @@ For your final review pass, cross-check:
 - **Implementation Delta #18** (sugars on Graph in TS, in core in Rust) — re-confirm the divergence is acceptable.
 
 After your review, the next step is to either (a) execute the canonical edits per the dev-dispatch normal workflow (Phase 3), or (b) hand off to the Rust port agent.
-

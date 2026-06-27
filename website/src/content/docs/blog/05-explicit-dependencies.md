@@ -50,7 +50,7 @@ That split is deliberate. Subscriptions are **graph structure**. Reads are **com
 
 ## Why we rejected "just track like Jotai"
 
-The trade-off shows up clearly when you compare APIs side by side — see [GraphReFly vs Jotai](/comparisons/jotai) for the full picture.
+The trade-off shows up clearly when you compare implicit atoms with explicit dependency arrays.
 
 **Implicit tracking** needs a runtime mechanism: a stack or zone of "who is computing right now," hooks in `get()`, dependency diffing when the set changes, and rules for async boundaries. It is powerful — Jotai proves you can ship a minimal API on top — but when something goes wrong, you debug **the tracking implementation**, not just your business logic.
 
@@ -90,7 +90,7 @@ We still use plain `.get()` inside computations. We did not throw away pull sema
 
 - [Push Dirty, Pull Values: Our First Diamond Solution](./04-push-dirty-pull-values) — how pull chains interacted with explicit wiring in v1
 - [Signals Are Not Enough](./03-signals-are-not-enough) — where fine-grained UI signals stop and streaming begins
-- [GraphReFly vs Jotai](/comparisons/jotai) — implicit atoms vs explicit `derived([...], fn)` deps
+- [Signals Are Not Enough](./03-signals-are-not-enough) — where fine-grained UI signals stop and streaming begins
 
 ---
 

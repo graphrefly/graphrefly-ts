@@ -46,17 +46,17 @@ const href = (p: string) => `${base.replace(/\/$/, "")}/${p.replace(/^\//, "")}`
         <tbody>
           <tr>
             <td><span class="row-label graphrefly">GraphReFly raw</span></td>
-            <td class="matrix-cell"><span class="check">✓</span>useStore / useSubscribe</td>
-            <td class="matrix-cell"><span class="check">✓</span>useStore → Ref (writable)</td>
-            <td class="matrix-cell"><span class="check">✓</span>useStore → [Accessor, setter]</td>
-            <td class="matrix-cell"><span class="check">✓</span>useStore → SvelteWritable</td>
+            <td class="matrix-cell"><span class="check">✓</span>useNodeInput / useNodeValue</td>
+            <td class="matrix-cell"><span class="check">✓</span>useNodeInput → Ref + setter</td>
+            <td class="matrix-cell"><span class="check">✓</span>createNodeInput → [Accessor, setter]</td>
+            <td class="matrix-cell"><span class="check">✓</span>nodeWritable / nodeReadable</td>
           </tr>
           <tr>
             <td><span class="row-label jotai">Jotai</span></td>
-            <td class="matrix-cell"><span class="check">✓</span>atom(read, write) · useSyncExternalStore</td>
-            <td class="matrix-cell"><span class="check">✓</span>atom.subscribe → Ref bridge</td>
-            <td class="matrix-cell"><span class="check">✓</span>atom.subscribe → createSignal</td>
-            <td class="matrix-cell"><span class="check">✓</span>atom.subscribe → writable bridge</td>
+            <td class="matrix-cell"><span class="check">✓</span>jotaiAtom facade · useSyncExternalStore</td>
+            <td class="matrix-cell"><span class="check">✓</span>jotaiAtom.subscribe → Ref bridge</td>
+            <td class="matrix-cell"><span class="check">✓</span>jotaiAtom.subscribe → createSignal</td>
+            <td class="matrix-cell"><span class="check">✓</span>jotaiAtom.subscribe → writable bridge</td>
           </tr>
           <tr>
             <td><span class="row-label nanostores">Nanostores</span></td>
@@ -67,7 +67,7 @@ const href = (p: string) => `${base.replace(/\/$/, "")}/${p.replace(/^\//, "")}`
           </tr>
           <tr>
             <td><span class="row-label zustand">Zustand</span></td>
-            <td class="matrix-cell"><span class="check">✓</span>StoreApi · useSyncExternalStore</td>
+            <td class="matrix-cell"><span class="check">✓</span>ZustandStoreApi · useSyncExternalStore</td>
             <td class="matrix-cell"><span class="check">✓</span>store.subscribe → Ref bridge</td>
             <td class="matrix-cell"><span class="check">✓</span>store.subscribe → createSignal</td>
             <td class="matrix-cell"><span class="check">✓</span>store → Svelte readable</td>

@@ -1,6 +1,6 @@
-import type { Graph } from "@graphrefly/graphrefly";
-import type { HoverTarget, NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
+import type { Graph } from "@graphrefly/ts/graph";
 import type { ComponentType } from "react";
+import type { HoverTarget, NodeRegistry } from "../shell";
 
 /**
  * Props pair for any element that should light up a node-registry entry on

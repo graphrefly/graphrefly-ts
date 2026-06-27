@@ -1,0 +1,604 @@
+{
+	"name": "@graphrefly/ts",
+	"version": "0.0.1",
+	"description": "GraphReFly clean-slate TypeScript package — substrate, graph, operators, sources, storage, render, and testing.",
+	"type": "module",
+	"sideEffects": false,
+	"main": "dist/index.cjs",
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		},
+		"./adapters": {
+			"import": {
+				"types": "./dist/adapters/index.d.ts",
+				"default": "./dist/adapters/index.js"
+			},
+			"require": {
+				"types": "./dist/adapters/index.d.cts",
+				"default": "./dist/adapters/index.cjs"
+			}
+		},
+		"./adapters/nestjs": {
+			"import": {
+				"types": "./dist/adapters/nestjs.d.ts",
+				"default": "./dist/adapters/nestjs.js"
+			},
+			"require": {
+				"types": "./dist/adapters/nestjs.d.cts",
+				"default": "./dist/adapters/nestjs.cjs"
+			}
+		},
+		"./adapters/nestjs/microservices": {
+			"import": {
+				"types": "./dist/adapters/nestjs/microservices.d.ts",
+				"default": "./dist/adapters/nestjs/microservices.js"
+			},
+			"require": {
+				"types": "./dist/adapters/nestjs/microservices.d.cts",
+				"default": "./dist/adapters/nestjs/microservices.cjs"
+			}
+		},
+		"./adapters/nestjs/native": {
+			"import": {
+				"types": "./dist/adapters/nestjs/native.d.ts",
+				"default": "./dist/adapters/nestjs/native.js"
+			},
+			"require": {
+				"types": "./dist/adapters/nestjs/native.d.cts",
+				"default": "./dist/adapters/nestjs/native.cjs"
+			}
+		},
+		"./adapters/nestjs/websockets": {
+			"import": {
+				"types": "./dist/adapters/nestjs/websockets.d.ts",
+				"default": "./dist/adapters/nestjs/websockets.js"
+			},
+			"require": {
+				"types": "./dist/adapters/nestjs/websockets.d.cts",
+				"default": "./dist/adapters/nestjs/websockets.cjs"
+			}
+		},
+		"./adapters/observe-storage": {
+			"import": {
+				"types": "./dist/adapters/observe-storage.d.ts",
+				"default": "./dist/adapters/observe-storage.js"
+			},
+			"require": {
+				"types": "./dist/adapters/observe-storage.d.cts",
+				"default": "./dist/adapters/observe-storage.cjs"
+			}
+		},
+		"./adapters/react": {
+			"import": {
+				"types": "./dist/adapters/react.d.ts",
+				"default": "./dist/adapters/react.js"
+			},
+			"require": {
+				"types": "./dist/adapters/react.d.cts",
+				"default": "./dist/adapters/react.cjs"
+			}
+		},
+		"./adapters/solid": {
+			"import": {
+				"types": "./dist/adapters/solid.d.ts",
+				"default": "./dist/adapters/solid.js"
+			},
+			"require": {
+				"types": "./dist/adapters/solid.d.cts",
+				"default": "./dist/adapters/solid.cjs"
+			}
+		},
+		"./adapters/svelte": {
+			"import": {
+				"types": "./dist/adapters/svelte.d.ts",
+				"default": "./dist/adapters/svelte.js"
+			},
+			"require": {
+				"types": "./dist/adapters/svelte.d.cts",
+				"default": "./dist/adapters/svelte.cjs"
+			}
+		},
+		"./adapters/vue": {
+			"import": {
+				"types": "./dist/adapters/vue.d.ts",
+				"default": "./dist/adapters/vue.js"
+			},
+			"require": {
+				"types": "./dist/adapters/vue.d.cts",
+				"default": "./dist/adapters/vue.cjs"
+			}
+		},
+		"./composition": {
+			"import": {
+				"types": "./dist/composition/index.d.ts",
+				"default": "./dist/composition/index.js"
+			},
+			"require": {
+				"types": "./dist/composition/index.d.cts",
+				"default": "./dist/composition/index.cjs"
+			}
+		},
+		"./cqrs": {
+			"import": {
+				"types": "./dist/cqrs/index.d.ts",
+				"default": "./dist/cqrs/index.js"
+			},
+			"require": {
+				"types": "./dist/cqrs/index.d.cts",
+				"default": "./dist/cqrs/index.cjs"
+			}
+		},
+		"./cqrs/messaging": {
+			"import": {
+				"types": "./dist/cqrs/messaging.d.ts",
+				"default": "./dist/cqrs/messaging.js"
+			},
+			"require": {
+				"types": "./dist/cqrs/messaging.d.cts",
+				"default": "./dist/cqrs/messaging.cjs"
+			}
+		},
+		"./cqrs/work-queue": {
+			"import": {
+				"types": "./dist/cqrs/work-queue.d.ts",
+				"default": "./dist/cqrs/work-queue.js"
+			},
+			"require": {
+				"types": "./dist/cqrs/work-queue.d.cts",
+				"default": "./dist/cqrs/work-queue.cjs"
+			}
+		},
+		"./data": {
+			"import": {
+				"types": "./dist/data/index.d.ts",
+				"default": "./dist/data/index.js"
+			},
+			"require": {
+				"types": "./dist/data/index.d.cts",
+				"default": "./dist/data/index.cjs"
+			}
+		},
+		"./core": {
+			"import": {
+				"types": "./dist/core/index.d.ts",
+				"default": "./dist/core/index.js"
+			},
+			"require": {
+				"types": "./dist/core/index.d.cts",
+				"default": "./dist/core/index.cjs"
+			}
+		},
+		"./data-structures": {
+			"import": {
+				"types": "./dist/data-structures/index.d.ts",
+				"default": "./dist/data-structures/index.js"
+			},
+			"require": {
+				"types": "./dist/data-structures/index.d.cts",
+				"default": "./dist/data-structures/index.cjs"
+			}
+		},
+		"./graph": {
+			"import": {
+				"types": "./dist/graph/index.d.ts",
+				"default": "./dist/graph/index.js"
+			},
+			"require": {
+				"types": "./dist/graph/index.d.cts",
+				"default": "./dist/graph/index.cjs"
+			}
+		},
+		"./executors/work-queue": {
+			"import": {
+				"types": "./dist/executors/work-queue.d.ts",
+				"default": "./dist/executors/work-queue.js"
+			},
+			"require": {
+				"types": "./dist/executors/work-queue.d.cts",
+				"default": "./dist/executors/work-queue.cjs"
+			}
+		},
+		"./executors/tool-provider-runtime": {
+			"import": {
+				"types": "./dist/executors/tool-provider-runtime.d.ts",
+				"default": "./dist/executors/tool-provider-runtime.js"
+			},
+			"require": {
+				"types": "./dist/executors/tool-provider-runtime.d.cts",
+				"default": "./dist/executors/tool-provider-runtime.cjs"
+			}
+		},
+		"./executors/tool-provider": {
+			"import": {
+				"types": "./dist/executors/tool-provider.d.ts",
+				"default": "./dist/executors/tool-provider.js"
+			},
+			"require": {
+				"types": "./dist/executors/tool-provider.d.cts",
+				"default": "./dist/executors/tool-provider.cjs"
+			}
+		},
+		"./executors/tool-provider-adapters": {
+			"import": {
+				"types": "./dist/executors/tool-provider-adapters.d.ts",
+				"default": "./dist/executors/tool-provider-adapters.js"
+			},
+			"require": {
+				"types": "./dist/executors/tool-provider-adapters.d.cts",
+				"default": "./dist/executors/tool-provider-adapters.cjs"
+			}
+		},
+		"./inspection/boundary": {
+			"import": {
+				"types": "./dist/inspection/boundary.d.ts",
+				"default": "./dist/inspection/boundary.js"
+			},
+			"require": {
+				"types": "./dist/inspection/boundary.d.cts",
+				"default": "./dist/inspection/boundary.cjs"
+			}
+		},
+		"./messaging": {
+			"import": {
+				"types": "./dist/messaging/index.d.ts",
+				"default": "./dist/messaging/index.js"
+			},
+			"require": {
+				"types": "./dist/messaging/index.d.cts",
+				"default": "./dist/messaging/index.cjs"
+			}
+		},
+		"./work-queue": {
+			"import": {
+				"types": "./dist/work-queue/index.d.ts",
+				"default": "./dist/work-queue/index.js"
+			},
+			"require": {
+				"types": "./dist/work-queue/index.d.cts",
+				"default": "./dist/work-queue/index.cjs"
+			}
+		},
+		"./operators": {
+			"import": {
+				"types": "./dist/operators/index.d.ts",
+				"default": "./dist/operators/index.js"
+			},
+			"require": {
+				"types": "./dist/operators/index.d.cts",
+				"default": "./dist/operators/index.cjs"
+			}
+		},
+		"./orchestration": {
+			"import": {
+				"types": "./dist/orchestration/index.d.ts",
+				"default": "./dist/orchestration/index.js"
+			},
+			"require": {
+				"types": "./dist/orchestration/index.d.cts",
+				"default": "./dist/orchestration/index.cjs"
+			}
+		},
+		"./orchestration/messaging": {
+			"import": {
+				"types": "./dist/orchestration/messaging.d.ts",
+				"default": "./dist/orchestration/messaging.js"
+			},
+			"require": {
+				"types": "./dist/orchestration/messaging.d.cts",
+				"default": "./dist/orchestration/messaging.cjs"
+			}
+		},
+		"./orchestration/work-queue": {
+			"import": {
+				"types": "./dist/orchestration/work-queue.d.ts",
+				"default": "./dist/orchestration/work-queue.js"
+			},
+			"require": {
+				"types": "./dist/orchestration/work-queue.d.cts",
+				"default": "./dist/orchestration/work-queue.cjs"
+			}
+		},
+		"./patterns": {
+			"import": {
+				"types": "./dist/patterns/index.d.ts",
+				"default": "./dist/patterns/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/index.d.cts",
+				"default": "./dist/patterns/index.cjs"
+			}
+		},
+		"./patterns/event-flow": {
+			"import": {
+				"types": "./dist/patterns/event-flow.d.ts",
+				"default": "./dist/patterns/event-flow.js"
+			},
+			"require": {
+				"types": "./dist/patterns/event-flow.d.cts",
+				"default": "./dist/patterns/event-flow.cjs"
+			}
+		},
+		"./render": {
+			"import": {
+				"types": "./dist/render/index.d.ts",
+				"default": "./dist/render/index.js"
+			},
+			"require": {
+				"types": "./dist/render/index.d.cts",
+				"default": "./dist/render/index.cjs"
+			}
+		},
+		"./sources": {
+			"import": {
+				"types": "./dist/sources/index.d.ts",
+				"default": "./dist/sources/index.js"
+			},
+			"require": {
+				"types": "./dist/sources/index.d.cts",
+				"default": "./dist/sources/index.cjs"
+			}
+		},
+		"./sources/browser": {
+			"browser": {
+				"import": {
+					"types": "./dist/sources/browser.d.ts",
+					"default": "./dist/sources/browser.js"
+				},
+				"require": {
+					"types": "./dist/sources/browser.d.cts",
+					"default": "./dist/sources/browser.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/sources/browser.d.ts",
+				"default": "./dist/sources/browser.js"
+			},
+			"require": {
+				"types": "./dist/sources/browser.d.cts",
+				"default": "./dist/sources/browser.cjs"
+			}
+		},
+		"./sources/node": {
+			"import": {
+				"types": "./dist/sources/node.d.ts",
+				"default": "./dist/sources/node.js"
+			},
+			"require": {
+				"types": "./dist/sources/node.d.cts",
+				"default": "./dist/sources/node.cjs"
+			}
+		},
+		"./storage": {
+			"import": {
+				"types": "./dist/storage/index.d.ts",
+				"default": "./dist/storage/index.js"
+			},
+			"require": {
+				"types": "./dist/storage/index.d.cts",
+				"default": "./dist/storage/index.cjs"
+			}
+		},
+		"./storage/node": {
+			"import": {
+				"types": "./dist/storage/node.d.ts",
+				"default": "./dist/storage/node.js"
+			},
+			"require": {
+				"types": "./dist/storage/node.d.cts",
+				"default": "./dist/storage/node.cjs"
+			}
+		},
+		"./storage/browser": {
+			"import": {
+				"types": "./dist/storage/browser.d.ts",
+				"default": "./dist/storage/browser.js"
+			},
+			"require": {
+				"types": "./dist/storage/browser.d.cts",
+				"default": "./dist/storage/browser.cjs"
+			}
+		},
+		"./solutions": {
+			"import": {
+				"types": "./dist/solutions/index.d.ts",
+				"default": "./dist/solutions/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/index.d.cts",
+				"default": "./dist/solutions/index.cjs"
+			}
+		},
+		"./solutions/work-item/work-queue": {
+			"import": {
+				"types": "./dist/solutions/work-item/work-queue.d.ts",
+				"default": "./dist/solutions/work-item/work-queue.js"
+			},
+			"require": {
+				"types": "./dist/solutions/work-item/work-queue.d.cts",
+				"default": "./dist/solutions/work-item/work-queue.cjs"
+			}
+		},
+		"./solutions/work-item/actions": {
+			"import": {
+				"types": "./dist/solutions/work-item/actions.d.ts",
+				"default": "./dist/solutions/work-item/actions.js"
+			},
+			"require": {
+				"types": "./dist/solutions/work-item/actions.d.cts",
+				"default": "./dist/solutions/work-item/actions.cjs"
+			}
+		},
+		"./solutions/work-item/scheduling": {
+			"import": {
+				"types": "./dist/solutions/work-item/scheduling.d.ts",
+				"default": "./dist/solutions/work-item/scheduling.js"
+			},
+			"require": {
+				"types": "./dist/solutions/work-item/scheduling.d.cts",
+				"default": "./dist/solutions/work-item/scheduling.cjs"
+			}
+		},
+		"./solutions/reactive-layout": {
+			"import": {
+				"types": "./dist/solutions/reactive-layout/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/index.cjs"
+			}
+		},
+		"./solutions/reactive-layout/browser": {
+			"browser": {
+				"import": {
+					"types": "./dist/solutions/reactive-layout/browser/index.d.ts",
+					"default": "./dist/solutions/reactive-layout/browser/index.js"
+				},
+				"require": {
+					"types": "./dist/solutions/reactive-layout/browser/index.d.cts",
+					"default": "./dist/solutions/reactive-layout/browser/index.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/solutions/reactive-layout/browser/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/browser/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/browser/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/browser/index.cjs"
+			}
+		},
+		"./solutions/reactive-layout/node-canvas": {
+			"node": {
+				"import": {
+					"types": "./dist/solutions/reactive-layout/node-canvas/index.d.ts",
+					"default": "./dist/solutions/reactive-layout/node-canvas/index.js"
+				},
+				"require": {
+					"types": "./dist/solutions/reactive-layout/node-canvas/index.d.cts",
+					"default": "./dist/solutions/reactive-layout/node-canvas/index.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/solutions/reactive-layout/node-canvas/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/node-canvas/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/node-canvas/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/node-canvas/index.cjs"
+			}
+		},
+		"./solutions/reactive-layout/react-native": {
+			"react-native": {
+				"import": {
+					"types": "./dist/solutions/reactive-layout/react-native/index.d.ts",
+					"default": "./dist/solutions/reactive-layout/react-native/index.js"
+				},
+				"require": {
+					"types": "./dist/solutions/reactive-layout/react-native/index.d.cts",
+					"default": "./dist/solutions/reactive-layout/react-native/index.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/solutions/reactive-layout/react-native/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/react-native/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/react-native/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/react-native/index.cjs"
+			}
+		},
+		"./solutions/reactive-layout/skia": {
+			"import": {
+				"types": "./dist/solutions/reactive-layout/skia/index.d.ts",
+				"default": "./dist/solutions/reactive-layout/skia/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/reactive-layout/skia/index.d.cts",
+				"default": "./dist/solutions/reactive-layout/skia/index.cjs"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./dist/testing/index.d.ts",
+				"default": "./dist/testing/index.js"
+			},
+			"require": {
+				"types": "./dist/testing/index.d.cts",
+				"default": "./dist/testing/index.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist",
+		"LICENSE"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"build": "tsup && node ../../scripts/check-ts-package-exports.mjs",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"license": "MIT",
+	"peerDependencies": {
+		"@nestjs/common": "^11.0.0",
+		"@nestjs/core": "^11.0.0",
+		"@nestjs/microservices": "^11.0.0",
+		"@nestjs/websockets": "^11.0.0",
+		"canvas": "^3.2.3",
+		"react": "^18.0.0 || ^19.0.0",
+		"rxjs": "^7.8.0",
+		"solid-js": "^1.9.0",
+		"svelte": "^5.0.0",
+		"vue": "^3.5.0"
+	},
+	"peerDependenciesMeta": {
+		"@nestjs/common": {
+			"optional": true
+		},
+		"@nestjs/core": {
+			"optional": true
+		},
+		"@nestjs/microservices": {
+			"optional": true
+		},
+		"@nestjs/websockets": {
+			"optional": true
+		},
+		"canvas": {
+			"optional": true
+		},
+		"react": {
+			"optional": true
+		},
+		"rxjs": {
+			"optional": true
+		},
+		"solid-js": {
+			"optional": true
+		},
+		"svelte": {
+			"optional": true
+		},
+		"vue": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"tsup": "^8.5.1",
+		"typescript": "^5.7.0",
+		"vitest": "^3.0.0"
+	}
+}

@@ -5,10 +5,8 @@
 	"scripts": {
 		"sync-docs": "node scripts/sync-docs.mjs",
 		"sync-docs:check": "node scripts/sync-docs.mjs --check",
-		"docs:gen": "node scripts/gen-api-docs.mjs",
-		"docs:gen:check": "node scripts/gen-api-docs.mjs --check",
-		"predev": "pnpm sync-docs && pnpm docs:gen",
-		"prebuild": "pnpm sync-docs && pnpm docs:gen",
+		"predev": "pnpm sync-docs",
+		"prebuild": "pnpm sync-docs",
 		"dev": "astro dev",
 		"start": "astro dev",
 		"build": "astro build",

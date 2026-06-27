@@ -46,7 +46,7 @@ This keeps reactive semantics intact while giving app code predictable state acc
 Once every node speaks store, higher layers become straightforward:
 
 - adapters can load/save against a stable state shape
-- compat wrappers can mirror familiar APIs (like Zustand-style stores via `@graphrefly/graphrefly/compat/zustand`)
+- focused adapters can mirror familiar APIs, such as Zustand-style stores via `zustandStore(...)` from `@graphrefly/ts/adapters`
 - orchestration flows can coordinate around explicit status stores
 - `graph.describe()` can snapshot the entire graph's state for inspection or persistence
 

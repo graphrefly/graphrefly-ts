@@ -9,15 +9,13 @@ export default defineConfig({
 	vite: {
 		resolve: {
 			conditions: ["browser"],
-			dedupe: ["@graphrefly/pure-ts"],
+			dedupe: ["@graphrefly/ts"],
 		},
 		build: {
 			rollupOptions: {
-				// See knowledge-graph/astro.config for the rationale. The
-				// library's Node-only code paths (`fallbackAdapter`,
-				// `withReplayCache`, `fileStorage`, `sqliteStorage`) import
-				// `node:*` builtins; the demos never call them, but rollup
-				// tree-shakes the library dist and needs them externalized.
+				// The solution subpaths include optional Node-only adapters.
+				// This browser demo never calls them, but rollup still sees
+				// those imports while tree-shaking and needs them externalized.
 				external: ["@mlc-ai/web-llm", /^node:/],
 			},
 		},

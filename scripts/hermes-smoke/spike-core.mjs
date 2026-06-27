@@ -1,5 +1,5 @@
 /**
- * Portable RN/Hermes spike for @graphrefly/pure-ts (graphrefly-ts#4).
+ * Portable RN/Hermes spike for @graphrefly/ts (graphrefly-ts#4).
  *
  * Pure, runtime-agnostic. No `node:*`, no DOM, no RN imports. Consumed
  * by THREE runners so the same reactive assertions gate every target:
@@ -7,31 +7,22 @@
  *   - scripts/hermes-smoke/run-hermes.*  — real Hermes engine (CI gate)
  *   - apps/rn-hermes-fixture (Expo)      — periodic on-device RN build
  *
- * Issue #4's snippet uses `state()` / `derived()` / `.set()` as
- * illustrative pseudo-API. pure-ts's real public primitive is `node()`
- * (`state`/`derived` are Graph methods, not standalone exports). This
- * is the faithful translation: manual source = `node([], undefined,
- * {initial})`; derived = `node(deps, fn)` emitting via `actions.emit`.
+ * The spike uses the clean-slate graph layer: manual source = `g.state(initial)`;
+ * derived = `g.derived(deps, fn)`; updates go through `.set()`.
  */
-import { DATA, node } from "@graphrefly/pure-ts";
+import { graph } from "@graphrefly/ts/graph";
 
-function mkState(initial) {
-	return node([], undefined, { initial });
+function mkState(g, initial) {
+	return g.state(initial);
 }
 
-function mkDerived(deps, compute) {
-	return node(deps, (data, actions, ctx) => {
-		const args = deps.map((_, i) => {
-			const batch = data[i];
-			return batch?.length ? batch[batch.length - 1] : ctx.prevData[i];
-		});
-		actions.emit(compute(...args));
-	});
+function mkDerived(g, deps, compute) {
+	return g.derived(deps, compute);
 }
 
 function onData(n, cb) {
-	return n.subscribe((msgs) => {
-		for (const m of msgs) if (m[0] === DATA) cb(m[1]);
+	return n.subscribe((msg) => {
+		if (msg[0] === "DATA") cb(msg[1]);
 	});
 }
 
@@ -47,24 +38,25 @@ export function runSpike() {
 	};
 
 	try {
+		const g = graph();
 		// ---- Block 1: basic propagation ------------------------------
-		const a = mkState(1);
-		const b = mkState(2);
-		const sum = mkDerived([a, b], (x, y) => x + y);
+		const a = mkState(g, 1);
+		const b = mkState(g, 2);
+		const sum = mkDerived(g, [a, b], (x, y) => x + y);
 		const sumSeen = [];
 		onData(sum, (v) => sumSeen.push(v));
-		a.emit(10);
-		b.emit(20);
+		a.set(10);
+		b.set(20);
 		expect("block1 sum emissions", sumSeen, [3, 12, 30]);
 
 		// ---- Block 2: diamond fan-in (cascade dedupe) ----------------
-		const a2 = mkState(1);
-		const b2 = mkDerived([a2], (x) => x * 2);
-		const c2 = mkDerived([a2, b2], (x, y) => x + y);
+		const a2 = mkState(g, 1);
+		const b2 = mkDerived(g, [a2], (x) => x * 2);
+		const c2 = mkDerived(g, [a2, b2], (x, y) => x + y);
 		const c2Seen = [];
 		onData(c2, (v) => c2Seen.push(v));
 		const before = c2Seen.length;
-		a2.emit(5);
+		a2.set(5);
 		expect("block2 c2 initial", c2Seen.slice(0, before), [3]);
 		expect("block2 c2 after set==5 (ONCE, not twice)", c2Seen.slice(before), [15]);
 	} catch (err) {

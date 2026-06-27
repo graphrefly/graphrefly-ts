@@ -1,5 +1,3 @@
-import { monotonicNs } from "@graphrefly/graphrefly";
-import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import {
 	analyzeAndMeasure,
 	computeCharPositions,
@@ -7,10 +5,10 @@ import {
 	type LineBreaksResult,
 	type MeasurementAdapter,
 	type PreparedSegment,
-	type ReactiveLayoutBundle,
-	reactiveLayout,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+} from "@graphrefly/ts/solutions/reactive-layout";
+import { createDemoReactiveLayout, type DemoReactiveLayoutBundle } from "../layout-bundles.js";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
+import type { NodeRegistry } from "../shell.js";
 
 export const RECOMPUTES_SOURCE = `// Reactive mode — incremental recompute via equals + per-dep fan-out.
 const layout = reactiveLayout({ adapter, text, font, lineHeight, maxWidth });
@@ -57,7 +55,7 @@ export function runBaseline(
 	const t0 = monotonicNs();
 	const segments = analyzeAndMeasure(text, font, adapter, new Map());
 	stats.segmentsRuns += 1;
-	const lineBreaks = computeLineBreaks(segments, maxWidth, adapter, font, new Map());
+	const lineBreaks = computeLineBreaks(segments, maxWidth);
 	stats.lineBreaksRuns += 1;
 	const height = lineBreaks.lineCount * lineHeight;
 	stats.heightRuns += 1;
@@ -65,6 +63,10 @@ export function runBaseline(
 	stats.charPositionsRuns += 1;
 	stats.lastWallNs = monotonicNs() - t0;
 	return { segments, lineBreaks, height };
+}
+
+function monotonicNs(): bigint {
+	return BigInt(Math.round(performance.now() * 1_000_000));
 }
 
 export type ReactiveStats = {
@@ -85,7 +87,10 @@ export type ReactiveStats = {
  * where `segments` never re-runs — an earlier version tried that and the
  * reported time kept growing with wall-clock time between edits.
  */
-export function instrumentReactive(bundle: ReactiveLayoutBundle, stats: ReactiveStats): () => void {
+export function instrumentReactive(
+	bundle: DemoReactiveLayoutBundle,
+	stats: ReactiveStats,
+): () => void {
 	const unsubs: Array<() => void> = [];
 	unsubs.push(
 		bundle.segments.subscribe(() => {
@@ -125,7 +130,7 @@ export function timedReactive(stats: ReactiveStats, mutate: () => void): void {
 }
 
 export type RecomputesChapter = {
-	bundle: ReactiveLayoutBundle;
+	bundle: DemoReactiveLayoutBundle;
 	reactiveStats: ReactiveStats;
 	baselineStats: BaselineStats;
 	resetStats: () => void;
@@ -136,7 +141,7 @@ export type RecomputesChapter = {
 
 export function buildRecomputesChapter(): RecomputesChapter {
 	const adapter = getMeasurementAdapter();
-	const bundle = reactiveLayout({
+	const bundle = createDemoReactiveLayout({
 		adapter,
 		name: "layout.recomputes",
 		text: "Drag the width slider to see only line-breaks + downstream re-run. Type to see segments recompute as well.",

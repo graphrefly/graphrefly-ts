@@ -22,10 +22,9 @@
 #     GitHub Actions → org=graphrefly, repo=graphrefly-ts, workflow=release.yml
 #
 # Packages currently in scope (from .changeset/config.json):
-#   - @graphrefly/graphrefly + @graphrefly/pure-ts (fixed pair, always
-#     released at same version — shim + impl)
-#   - @graphrefly/cli (independent versioning)
+#   - @graphrefly/ts (clean-slate TypeScript package)
 # Ignored:
+#   - @graphrefly/graphrefly (retired root package, B65)
 #   - @graphrefly/parity-tests (private)
 
 name: Release
@@ -107,9 +106,8 @@ jobs:
       - name: Test
         run: NODE_ENV=test pnpm test
 
-      # Build before publishing — pure-ts ships pre-built dist/, and
-      # downstream packages import from it. semantic-release's prepublishOnly
-      # ran a duplicate build; the changesets flow runs build once here.
+      # Build before publishing. The release build follows the clean-slate
+      # @graphrefly/ts package; the root package is retired/private.
       - name: Build
         env:
           NODE_OPTIONS: --max-old-space-size=6144

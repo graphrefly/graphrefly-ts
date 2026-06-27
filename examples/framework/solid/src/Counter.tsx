@@ -1,11 +1,10 @@
-import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/solid";
+import { createNodeInput, createNodeValue } from "@graphrefly/ts/adapters/solid";
 import type { Component } from "solid-js";
 import { count, doubled } from "./store";
 
 export const Counter: Component = () => {
-	// `useStore` returns `[Accessor, setter]` — call the accessor to read.
-	const [value, setValue] = useStore(count);
-	const dbl = useSubscribe(doubled);
+	const [value, setValue] = createNodeInput(count);
+	const dbl = createNodeValue(doubled);
 	return (
 		<section>
 			<h1>GraphReFly · Solid</h1>

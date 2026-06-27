@@ -1,19 +1,17 @@
 <script lang="ts">
-import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/svelte";
+import { nodeReadable, nodeWritable } from "@graphrefly/ts/adapters/svelte";
 import { count, doubled } from "./store";
 
-// `useStore` returns a Svelte writable store — `$`-prefix reads and writes it.
-const value = useStore(count);
-// `useSubscribe` returns a readable store for any node (here: a derived).
-const dbl = useSubscribe(doubled);
+const value = nodeWritable(count);
+const dbl = nodeReadable(doubled);
 </script>
 
 <section>
 	<h1>GraphReFly · Svelte 5</h1>
 	<div class="row">
-		<button type="button" on:click={() => ($value = ($value ?? 0) - 1)}>−</button>
+		<button type="button" onclick={() => ($value = ($value ?? 0) - 1)}>−</button>
 		<span class="value">{$value ?? 0}</span>
-		<button type="button" on:click={() => ($value = ($value ?? 0) + 1)}>+</button>
+		<button type="button" onclick={() => ($value = ($value ?? 0) + 1)}>+</button>
 	</div>
 	<p>doubled = <strong>{$dbl ?? 0}</strong></p>
 </section>

@@ -15,6 +15,11 @@ tags:
 
 *Arc 7, Post 40 — NodeV0/V1 and Safe Schema Evolution*
 
+> Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
+> versioning story. Current TypeScript guidance uses `@graphrefly/ts` and
+> focused subpaths; do not copy `@graphrefly/graphrefly` imports from historical
+> snippets.
+
 ---
 
 Here's the scenario every team building long-running agent workflows eventually faces: you have a graph running in production, checkpointing state every few minutes. You need to change the schema — add a field, rename a key, split a node into two. And you can't afford to lose the accumulated state.

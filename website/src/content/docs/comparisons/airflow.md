@@ -1,9 +1,13 @@
 ---
 title: "GraphReFly vs Apache Airflow"
 description: "Both orchestrate data pipelines with DAG semantics — GraphReFly is lightweight, reactive, runs anywhere, and requires no infrastructure."
+draft: true
+pagefind: false
 ---
 
 Both orchestrate data pipelines with DAG semantics. GraphReFly is lightweight, reactive, runs anywhere, and requires no infrastructure.
+
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` imports from this historical page.
 
 ## At a Glance
 
@@ -24,7 +28,7 @@ Both orchestrate data pipelines with DAG semantics. GraphReFly is lightweight, r
 
 ## The Key Difference
 
-Airflow is a platform — you deploy it, manage it, and build on it. GraphReFly is a library — `npm i @graphrefly/graphrefly` and compose pipelines in your existing TypeScript codebase.
+Airflow is a platform — you deploy it, manage it, and build on it. GraphReFly is a library — `npm i @graphrefly/ts` and compose pipelines in your existing TypeScript codebase.
 
 ```python
 # Airflow (Python)

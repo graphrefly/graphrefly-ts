@@ -1,214 +1,83 @@
-# graphrefly — unified agent context
+# graphrefly-ts — agent context (TypeScript implementation)
 
-**GraphReFly** — reactive graph protocol for human + LLM co-operation. This repo (`graphrefly-ts`) is the **single source of truth** for operational docs, skills, roadmap, and optimization records across both the TypeScript and Python implementations.
+**GraphReFly** — reactive universal reduction layer (high fan-in/out → information reduction → push;
+not LLM-limited, D1). This repo is the **TypeScript implementation** (`@graphrefly/ts`): a
+self-contained package (substrate + sugar + operators), **no cross-language peer-deps** (D32).
 
-## Repos
+> **This file points, it does not host.** The language-neutral authority — protocol spec,
+> decisions, design sessions, conformance, formal model — lives in `~/src/graphrefly` (branch
+> `clean-slate`). When anything here disagrees with that repo, **that repo wins.** Do not
+> duplicate its content back into this file.
 
-| Repo | Path | Role |
-|------|------|------|
-| **graphrefly-ts** | this repo | TypeScript implementation + **all operational docs** |
-| **graphrefly-py** | `~/src/graphrefly-py` | Python implementation (must stay in parity) |
-| **graphrefly** (spec) | `~/src/graphrefly` | `GRAPHREFLY-SPEC.md`, `COMPOSITION-GUIDE.md` |
-| **callbag-recharge** | `~/src/callbag-recharge` | TS predecessor (patterns/tests, NOT spec authority) |
-| **callbag-recharge-py** | `~/src/callbag-recharge-py` | PY predecessor (concurrency patterns, subgraph locks) |
+## Authority — where the truth lives (`~/src/graphrefly`)
 
-## Canonical references (read these)
+Read `~/src/graphrefly/CLAUDE.md` first — it is the single-source index for the design.
 
-| Doc | Role |
-|-----|------|
-| `~/src/graphrefly/GRAPHREFLY-SPEC.md` | **Behavior spec** — messages, `node`, `Graph`, invariants |
-| `~/src/graphrefly/COMPOSITION-GUIDE.md` | **Composition guide** — insights, patterns, recipes for Phase 4+ factory authors. **Read before building factories that compose primitives.** Covers: lazy activation, subscription ordering, null guards, feedback cycles, promptNode SENTINEL, wiring order. |
-| `docs/implementation-plan.md` | **CANONICAL pre-1.0 sequencer** — Phases 11–16 + Parked + Open design sessions. Tier 1–10 historical record + the active Phase 11–16 plan locked 2026-04-30 (cleanup → consolidation → multi-agent → changesets/diff → roadmap residuals → eval → launch). Read this FIRST when picking up "what's next." Phase 13 covers multi-agent + intervention substrate (sources: `archive/docs/SESSION-multi-agent-gap-analysis.md` + `SESSION-human-llm-intervention-primitives.md`). |
-| `docs/optimizations.md` | **Active backlog (line-item state)** — open work items, anti-patterns, deferred follow-ups, proposed improvements. Item-level provenance for entries that the implementation-plan.md phases reference. Add new items here. |
-| `archive/optimizations/` | **Optimizations archive** — built-in optimizations, resolved design decisions, cross-language parity notes. Check before introducing new optimizations or debugging perf issues. **Backlog/proposed items belong in `docs/optimizations.md`, not here.** |
-| `docs/cross-track-ledger.md` | **Cross-track coordination ledger** — the single place to log any change that widens the `Impl` contract (`packages/parity-tests/impls/types.ts`) or otherwise couples the presentation track (`@graphrefly/graphrefly`) ↔ Rust-port track (`@graphrefly/native`). Add a row BEFORE landing such a change (N1 → graphrefly-rs migration-status item-8 is the handoff pattern). Not for general optimization items — those stay in `docs/optimizations.md`. |
-| `docs/roadmap.md` | **Vision / wave context** (no longer the active sequencer per 2026-04-30 migration — see `implementation-plan.md`). Useful for the strategic frame: Wave 0/1/2/3 announcement structure, harness engineering positioning, eval-story narrative. New items go to `implementation-plan.md`, not here. |
-| `docs/docs-guidance.md` | How to document APIs and long-form docs (covers both TS and PY) |
-| `docs/test-guidance.md` | How to write and organize tests (covers both TS and PY) |
-| `archive/docs/SESSION-graphrefly-spec-design.md` | Design history and migration from callbag-recharge |
-| `archive/docs/SESSION-reactive-collaboration-harness.md` | **Active** — 7-stage reactive collaboration loop (INTAKE→TRIAGE→QUEUE→GATE→EXECUTE→VERIFY→REFLECT), gate port from callbag-recharge, `promptNode` factory, `valve` rename, strategy model (`rootCause × intervention → successRate`), `harnessLoop()` factory. Source of truth for §9.0. |
-| `archive/docs/SESSION-DS-14.5-A-narrative-reframe.md` | **Active (canonical post-2026-05-04)** — spec-as-projection reframe, multi-agent subgraph ownership protocol (L0–L3 staircase), catalog reframed as user-host concern, Wave 2 narrative shift away from "harness builder". L1–L8 + Q1–Q10 locks. **Read this before editing README / Wave 2 launch copy.** |
-| `archive/docs/SESSION-DS-14-changesets-design.md` | **Active (locked 2026-05-05)** — universal `BaseChange<T>` envelope, `mutations` companion bundles, `mutate(act, opts)` factory, lifecycle-aware diff restore. Substrate for op-log changesets / worker-bridge wire B / `lens.flow` delta / `reactiveLog.scan` / `restoreSnapshot mode "diff"`. Source of truth for Phase 14 implementation. |
-| `archive/docs/SESSION-harness-engineering-strategy.md` | **SUPERSEDED 2026-05-04 by DS-14.5.A** for Wave 2 narrative framing. Original 8-requirement coverage analysis + harness engineering landscape preserved as historical context. New positioning lives in `SESSION-DS-14.5-A-narrative-reframe.md`. |
-| `archive/docs/SESSION-marketing-promotion-strategy.md` | **Active** — positioning pillars (pain-point-first), wave-based announcement plan, pain-point reply marketing playbooks, xiaohongshu strategy, Future AGI competitive intel (§16), prompt optimization algorithm analysis (§17), blog content plan (§18). Source of truth for public-facing copy. **Wave 2 framing should rebase on DS-14.5.A.** |
+| Concern | Source of truth |
+|---|---|
+| **Decisions (why)** — unified D# log | `~/src/graphrefly/decisions/decisions.jsonl` (read via `/decision-guard`) |
+| **Design narrative** — full L0–L6 locks, F-* constraints, flags, spec-amendment list | `~/src/graphrefly/sessions/active/SESSION-clean-slate-redesign.md` (DS-1) |
+| **Protocol rules (宪法)** | `~/src/graphrefly/spec/rules.jsonl` (changed via `/spec-amend`) |
+| **Conformance scenarios (parity)** | `~/src/graphrefly/spec/conformance.jsonl` (driven via `/conformance`) |
+| **Formal model** | `~/src/graphrefly/formal/*.tla` (+ MC configs) |
+| **Sequencer (what next) / backlog / anti-patterns** | `~/src/graphrefly/plan/{phases,backlog,antipatterns}.jsonl` |
+| **Guides (composition / docs / test / contribute)** | `~/src/graphrefly/guide/guide.jsonl` |
+| **Rendered view** (progress / structure / gaps / search) | `~/src/graphrefly/dashboard/` (`node dashboard/build.mjs`) |
+
+Sibling implementations (each self-contained, cross-language = wire bridge, not in-process):
+`@graphrefly/rust` (`~/src/graphrefly-rs`), `@graphrefly/py` (`~/src/graphrefly-py`).
+
+## Clean-slate floor (cite, never violate — full text in DS-1 / `rules.jsonl`)
+
+- **Sacred (L0.7):** topology declarative/serializable/inspectable · wave protocol is a public spec ·
+  wave protocol impl is **sync** · all fn go through the dispatcher.
+- **8 verbs, closed set (D4):** `node` `graph` `batch` `state` + `producer` `derived` `effect` `mount`.
+  Operators are `node` sugar, not verbs — per-language, never in parity (D6).
+- **`ctx.up` / `ctx.down(msgs)` (D8):** one `msgs` array = one wave; may mix tiers. `ctx.up` is
+  **control-tier only** (DIRTY/PAUSE/RESUME/INVALIDATE/TEARDOWN); DATA/RESOLVED/COMPLETE/ERROR are
+  down-only (R-ctx-up). Handle = pure data `(pool_id, handle_id)`, no methods (D7).
+- **7-tier const table + 10-message closed set (D9/D34, R-tier/R-msg-closed-set):** adding a tier
+  or message type is a constitutional change.
+- **graph = single-thread causal/concurrency domain (D22):** parallelism via pool callback or
+  multi-graph + wire bridge; rewire intra-graph only.
+- **parity = behavioral conformance (D24):** structural `Impl` + cross-track-ledger retired.
+- **config dissolved (D26):** clock is graph-local (no global singleton); `messageTier` is a
+  compile-time const table; `onMessage`/`onSubscribe` are substrate-fixed, not user-replaceable (D19).
+- **Forced (F-*):** F-SYNC-CORE (async lives only in pools / wire-bridge) · F-DISPATCH-ALL (no
+  inline-fn bypass) · F-NO-IMPL-DEFINED (spec-locked or explicitly undefined) · F-NO-WEDGE-CUT ·
+  F-NO-LLM-ONLY · F-GRAPH-FIRST-API · F-PERF.
+
+Durable values (memory `feedback_*`): no backward compat (pre-1.0) · no imperative triggers ·
+single source of truth · **no autonomous decisions** (surface spec↔code conflicts, don't silently pick) ·
+no implement without explicit approval · verify premise before greenfield.
+
+## Workflow rules
+
+- **spec-first** (F-NO-IMPL-DEFINED): any protocol behavior change → amend `~/src/graphrefly`
+  `spec/rules.jsonl` + `formal/*.tla` + `spec/conformance.jsonl` **before** code (`/spec-amend`).
+- **decision-first**: any architectural lock → a `D#` in `~/src/graphrefly/decisions/decisions.jsonl`
+  before code (`/design-review` → user approval → append).
+- **consistency gate**: `node ~/src/graphrefly/dashboard/build.mjs --check` (non-zero on broken
+  links / orphans) after touching any spec/decision/plan jsonl.
 
 ## Commands
 
-**TypeScript (this repo) — post-Phase-13.9.A cleave:**
 ```bash
-pnpm test                  # pure-ts test suite + parity-tests
-pnpm test:pure-ts          # just packages/pure-ts (~2980 tests)
-pnpm test:parity           # just packages/parity-tests
-pnpm run lint              # biome check (workspace-wide)
-pnpm run lint:fix          # biome check --write
-pnpm run build             # pure-ts build → root shim build
-pnpm run build:shim        # only the shim (assumes pure-ts already built)
-pnpm bench                 # pure-ts vitest bench
+pnpm test          # full TS test suite
+pnpm run lint      # biome + layer/typecheck gates
+pnpm run lint:fix  # biome check --write
+pnpm run build     # build the package
+pnpm bench         # vitest bench (informational, not a CI gate — L5-Q1)
 ```
 
-For watch-mode work inside the pure-ts package: `pnpm --filter @graphrefly/pure-ts test:watch`.
+## Skills (clean-slate)
 
-**Python (`~/src/graphrefly-py`):**
-```bash
-uv run pytest                          # tests
-uv run ruff check src/ tests/         # lint
-uv run ruff check --fix src/ tests/   # lint fix
-uv run ruff format src/ tests/        # format
-uv run mypy src/                       # type check
-```
+Project-local skills under `.claude/skills/`:
 
-Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv sync` to install dependencies. Distribution name and import path: `graphrefly` (i.e. `pip install graphrefly` — the `graphrefly-py` name refers to the repo, not the published package).
-
-## Documentation workflow (critical)
-
-- `docs/docs-guidance.md` is the cross-language documentation standard.
-- `website/src/content/docs/api/*.md` is generated output. Do not hand-edit.
-- For API docs updates:
-  1. Update source JSDoc/docstrings.
-  2. Run docs generation in the respective repo (`pnpm --dir website docs:gen`).
-  3. Validate with `pnpm --dir website docs:gen:check` and `pnpm --dir website sync-docs:check`.
-- `llms.txt` is an AI index; keep it high-signal and avoid drift-prone, exhaustive inline API inventories.
-
-## Layout
-
-**TypeScript (`graphrefly-ts`) — cleave A executed 2026-05-15 (slices A1–A4); install-time model locked 2026-05-14:**
-
-Three published packages with an explicit substrate-vs-presentation split (see "Three-package install-time model" below). **Cleave A is DONE** — see `archive/docs/SESSION-DS-cleave-A-file-moves.md` for the file-move record + post-execution corrections.
-
-- Root `src/` — the **presentation package `@graphrefly/graphrefly`**. Post-cleave it owns the 4-layer structure (`base/ utils/ presets/ solutions/`) + `compat/`, and `src/index.ts` re-exports substrate from `@graphrefly/pure-ts` (peer) for ergonomic single-import UX. Substrate provider is chosen at install time: install `@graphrefly/pure-ts` (default) OR redirect to `@graphrefly/native` via npm/pnpm `overrides` (Q28 lock = option c). **⚠️ Native-drop-in NOT functional — RESOLVED 2026-05-15 as D206 (Option A + Option C follow-on).** The Q28/D198 overrides redirect does NOT work as written (`@graphrefly/native`'s napi surface is async-only — Core on a tokio blocking pool, sync calls deadlock per D070/D077 — while `@graphrefly/graphrefly` consumes pure-ts's sync API) and is **deferred pending D080**. Per **D206**: `@graphrefly/pure-ts` is the **sole working sync substrate** for `@graphrefly/graphrefly`; `@graphrefly/native` is an honest **async substrate** (`createNativeImpl()` wrapper shipped per Option C; bindings crate source at `0.1.0` per D265 hold-local — npm latest is `0.0.3` until the user-gated tag push triggers OIDC republish) + parity arm — **not** a sync drop-in for presentation via overrides; the async-everywhere presentation rebase (Option B / D080) stays deferred until consumer pressure. Canonical: `docs/rust-port-decisions.md` D206/D207 + `archive/docs/SESSION-DS-native-substrate-contract.md`. Legacy Phase-13.9.A shim folders (`src/{patterns,extra,core,graph,testing}/*`) were deleted — no backward-compat paths.
-- `packages/pure-ts/src/` — the **pure-TS substrate implementation**. Permanent first-class peer alongside `@graphrefly/native` (and a future `@graphrefly/wasm` if a consumer surfaces; see Unit 6 note below). Substrate-only post-cleave:
-  - `core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0). `core/_internal/` holds substrate-internal utilities (`ring-buffer`, `sizeof`, `timer`/`ResettableTimer`) used by `graph/` + reactive structures.
-  - `graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
-  - `extra/` — operators, sync sources, `sources/event/timer` (`fromTimer`), data structures, storage (Node tiers), `composition/{stratify,topology-diff,pubsub}`, `sources/async` (`fromPromise`/`fromAsyncIter`/`fromAny`), `sources/_keepalive`. **Substrate-vs-presentation classification per `extra/` row is locked in `~/src/graphrefly-rs/CLAUDE.md` § "extra/ row classification"; post-execution corrections to A1 doc Q4/Q7/Q8 are recorded in `archive/docs/SESSION-DS-cleave-A-file-moves.md`.**
-  - `patterns/`, `compat/` — **removed from pure-ts.** All `patterns/*` are presentation (D193) and now live in `@graphrefly/graphrefly` (root `src/{utils,presets}/`); `compat/*` moved to root `src/compat/`.
-- `packages/parity-tests/` — cross-impl parity scenarios (vitest `describe.each([pureTsImpl, rustImpl])` when a local `@graphrefly/native` `.node` is built or the published package is installed). See `packages/parity-tests/README.md` for the milestone registry + the "parity scenarios are the consumer pressure signal" rule (D196). **`packages/parity-tests/impls/types.ts` `Impl` interface IS the public-API contract** for the substrate peers (`@graphrefly/pure-ts` and `@graphrefly/native`) — widening it is a public API decision.
-- `packages/cli` — workspace consumer of `@graphrefly/graphrefly`. Imports presentation (e.g. `SurfaceError`) from the root package barrel; substrate flows through the root shim's `export * from "@graphrefly/pure-ts"`.
-
-### Three-package install-time model (Unit 6 D198, locked 2026-05-14)
-
-| Package | Contains | Build artifact | Substrate or presentation? |
-|---|---|---|---|
-| `@graphrefly/pure-ts` | Full TS implementation of the Rust-portable substrate: `core/`, `graph/`, `extra/operators/`, `extra/sources/sync` + `fromTimer`, `extra/data-structures/`, `extra/storage/` (Node tiers), `extra/composition/stratify`. | TS only — browser + Node | substrate |
-| `@graphrefly/native` | Rust impl of the same substrate via napi. Thin TS wrapper exposes the napi surface. | `.node` binary + TS wrapper | substrate (Node-only) |
-| `@graphrefly/graphrefly` | The parts that **never go to Rust**: `patterns/*`, `extra/io/*`, `extra/composition/*` (except `stratify`), `extra/mutation/*`, `extra/sources/event` (`fromEvent`, `fromRaf`), browser sources, graph-sugar (`graph.log/list/map/index`), `compat/*`. | TS only | presentation |
-
-```
-@graphrefly/graphrefly  ← presentation only
-       │  peerDependency: pick ONE substrate provider
-       ▼
-@graphrefly/pure-ts   OR   @graphrefly/native
-```
-
-Both substrate packages MUST expose the same public API — enforced by `packages/parity-tests/`. **No facade with runtime fallback**: the user picks at install time. Supersedes PART 13 Deferred 1's `optionalDependencies` facade plan. `@graphrefly/wasm` is deferred — adds when a browser-Rust consumer surfaces; until then `@graphrefly/pure-ts` is the universal fallback.
-
-Layering predicate that decides which package gets a new symbol lives in `~/src/graphrefly-rs/CLAUDE.md` § "Layering predicate — substrate vs presentation" (single source of truth, D193).
-
-### 4-layer model inside `@graphrefly/graphrefly` (Unit 8 D200, locked 2026-05-14)
-
-Strict top-down dependency layering (CI-enforced via `scripts/check-layer-boundary.ts`, wired into `pnpm lint`; D201 — mechanism amended 2026-05-15 from "Biome custom rule" to a zero-dep script since GritQL can't express rank comparison. Cleave-A layer-boundary residuals CLOSED 2026-05-15: `scripts/layer-boundary-baseline.json` baseline is now empty (`[]`) — the ratchet hard-fails ANY layer-boundary violation. Do not add baseline entries to silence new violations; fix the layering instead):
-
-| Layer | Charter | Examples |
-|---|---|---|
-| `base/` | **Domain-agnostic infrastructure.** Helpers with NO domain semantics. | io (http/ws/sse/webhook), composition helpers (verifiable, distill, pubsub, backpressure, externalProducer), mutation wrappers (lightMutation, auditLog), worker bridge, browser/runtime sources (fromEvent, fromRaf, fromGitHook, fromFSWatch), meta (domainMeta, keepalive) |
-| `utils/` | **Domain building blocks.** Single-purpose factories returning a `Node` or `Graph` (was consolidation-plan's "building blocks"). | messaging (topic, subscription, hub, topicBridge), orchestration (pipelineGraph, approvalGate, humanInput, tracker, classify, catch), cqrs, reduction, memory, ai/{prompts, agents, safety, extractors, adapters}, inspect, harness (stage types, evalSource, beforeAfterCompare) |
-| `presets/` | **Opinionated compositions of utils** (≥3 utils typically). Single-factory products. Vocabulary preserved from consolidation plan. | agentLoop, agentMemory, resilientPipeline, harnessLoop, refineLoop, spawnable, inspect (composite), guardedExecution, reactiveFactStore, taggedContextPool, heterogeneousDebate, actorPool |
-| `solutions/` | **User-facing packaged products.** Top-level barrel re-exports presets + per-vertical multi-preset starter kits (D202 = (c) both). | `solutions/index.ts` barrel re-exports; vertical folders (`solutions/customer-support-bot/`, `solutions/code-review-agent/`, etc.) deferred until consumer pressure |
-| `compat/` | External framework adapters (NestJS, React, Vue, Solid, Svelte, ag-ui translator, a2ui). | sits alongside the 4 layers; depends on solutions/presets/utils/base in top-down order |
-
-Dependency rules:
-
-```
-substrate (@graphrefly/pure-ts | @graphrefly/native)
-   ▲
-   │
-base/         (no domain semantics)
-   ▲
-   │
-utils/        (domain building blocks)
-   ▲
-   │
-presets/      (opinionated compositions of utils)
-   ▲
-   │
-solutions/    (user-facing packaged products)
-   ▲
-   │
-compat/       (external framework adapters)
-```
-
-Within a layer: free composition (e.g., `utils/orchestration/human-input.ts` may import `utils/messaging/topic.ts` — both utils). Cross-layer: strictly top-down. Circular within-layer rejected. Layer-placement rubric: "zero domain → base; single-domain primitive returning Node/Graph → utils; ≥3 utils composition → preset; ≥2 presets or full vertical with adapters/storage wiring → solution."
-
-Source: `archive/docs/SESSION-rust-port-layer-boundary.md` Units 6, 8 (user-locked 2026-05-14).
-
-### Browser / Node / Universal subpath convention (TS)
-
-Public TS APIs are split into three tiers so browser and Node consumers pull only runnable code:
-
-- **Universal default** (`@graphrefly/graphrefly`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/utils/<domain>`) — browser + Node safe. Zero `node:*` imports, zero DOM globals.
-- **Node-only** (`@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/utils/<domain>/node`) — may import `node:*`. Use for `fileStorage`, `sqliteStorage`, `fromGitHook`, `fromFSWatch`, the node `fallbackAdapter` variant, etc.
-- **Browser-only** (`@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/utils/<domain>/browser`) — may use DOM globals. Use for `indexedDbStorage`, `webllmAdapter`, `chromeNanoAdapter`, browser cascade presets.
-
-The build enforces this via `assertBrowserSafeBundles` in `packages/pure-ts/tsup.config.ts` `onSuccess` — any universal entry that transitively imports a Node builtin fails the build with a `via X → Y → Z` chain. Adding a new subpath requires updating BOTH `packages/pure-ts/tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` when Node-only) AND `packages/pure-ts/package.json` `exports`, then mirroring the entry in the root shim (`tsup.config.ts` + `package.json` `exports` + a one-liner `src/<subpath>.ts`). See `docs/docs-guidance.md` § "Browser / Node / Universal split" for the full convention.
-
-**Python (`graphrefly-py`):**
-- `src/graphrefly/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
-- `src/graphrefly/graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
-- `src/graphrefly/extra/` — operators, sources, data structures, resilience (Phase 2–3)
-- `src/graphrefly/patterns/` — domain-layer APIs: orchestration, messaging, memory, AI, CQRS, reactive layout (Phase 4+)
-- `src/graphrefly/compat/` — async runners: asyncio, trio (Phase 5+)
-- `src/graphrefly/integrations/` — framework integrations: FastAPI (Phase 5+)
-
-## Design invariants (spec §5.8–5.12)
-
-These are non-negotiable across all implementations. Validate every change against them.
-
-*Summary; canonical text in `~/src/graphrefly/GRAPHREFLY-SPEC.md` §5.8–5.12. Treat that as the authority if anything below disagrees.*
-
-1. **No polling.** State changes propagate reactively via messages. Never poll a node's value on a timer or busy-wait for status. Use reactive timer sources (`fromTimer`/`from_timer`, `fromCron`/`from_cron`) instead.
-2. **No imperative triggers.** All coordination uses reactive `NodeInput` signals and message flow through topology. No event emitters, callbacks, or `setTimeout`/`threading.Timer` + `set()` workarounds. If you need a trigger, it's a reactive source node.
-3. **No raw async primitives in the reactive layer.** TS: no bare `Promise`, `queueMicrotask`, `setTimeout`, or `process.nextTick`. PY: no bare `asyncio.ensure_future`, `asyncio.create_task`, `threading.Timer`, or raw coroutines. Async boundaries belong in sources (`fromPromise`/`from_awaitable`, `fromAsyncIter`/`from_async_iter`) and the runner layer, not in node fns or operators.
-4. **Central timer and `messageTier`/`message_tier` utilities.** TS: use `clock.ts` for all timestamps. PY: use `clock.py`. Use `messageTier`/`message_tier` utilities for tier classification — never hardcode type checks for checkpoint or batch gating.
-5. **Phase 4+ APIs must be developer-friendly.** Domain-layer APIs (orchestration, messaging, memory, AI, CQRS) use sensible defaults, minimal boilerplate, and clear errors. Protocol internals (`DIRTY`, `RESOLVED`, bitmask) never surface in primary APIs — accessible via `.node()` or `inner` when needed.
-
-## Time utility rule
-
-- **TS:** all timestamps go through `src/core/clock.ts`. Internal/event-order durations: `monotonicNs()`. Wall-clock attribution: `wallClockNs()`.
-- **PY:** same rule with `src/graphrefly/core/clock.py`. Functions: `monotonic_ns()` and `wall_clock_ns()`.
-
-## Auto-checkpoint trigger rule
-
-- For persistence auto-checkpoint behavior, gate saves by `messageTier`/`message_tier >= 3`.
-- Do not describe this as DATA/RESOLVED-only; terminal/teardown lifecycle tiers are included.
-
-## Debugging composition (mandatory procedure)
-
-When debugging OOM, infinite loops, silent failures, or unexpected values in composed factories, follow the **"Debugging composition"** section in `~/src/graphrefly/COMPOSITION-GUIDE.md`. That is the single source of truth for the procedure. Do not skip or improvise around it.
-
-## Dry-run equivalence rule
-
-**Dry-run must be behaviorally identical to the real run except for the actual LLM wire call.** Every observability surface the real run exercises — stage trace, budget stream, `graph.describe` (incl. `describe({ explain })` causal-chain mode), `observe`, stats readouts — must also be exercised in dry-run on the same graph topology. Regressions in `describe` / `describe({ explain })` / `observe` or in graph wiring must surface in dry-run BEFORE the user pays for a real run.
-
-When building an example or demo that has a dry-run path:
-- Construct the exact same graph as the real run; only the adapter differs (shipped `dryRunAdapter` or a shaped mock swapped in via `withDryRun`).
-- Call every inspection / explainability method the real run calls. If the real run prints a causal chain, so must dry-run. If the real run subscribes to `budget.totals`, so must dry-run (totals at zero is fine — presence is the point).
-- On regression, exit non-zero from dry-run with a diagnostic so the user sees the bug *before* the confirmation prompt.
-- Inspection tools to reach for first (all shipped — note: there is **no** `graph.explain()` method; causal chains are `describe({ explain })`, and formats are pure renderers over a describe snapshot, not a `describe({ format })` option): `graph.describe()` then render via `graphSpecToPretty` / `graphSpecToMermaid` / `graphSpecToD2` from `@graphrefly/graphrefly/extra/render`; `graph.describe({ explain: { from, to } })`; `graph.observe(path)`; `reachable(graph, from)`; `graphProfile(graph)`; `harnessProfile(graph)`. If you need a new inspection tool that isn't in this list, flag it in `docs/optimizations.md` as a library candidate before shipping ad-hoc scripts.
-
-## Python-specific invariants
-
-- **Thread safety:** Design for GIL and free-threaded Python. Per-subgraph `RLock`, per-node `_cache_lock`. Core APIs documented as thread-safe (see roadmap Phase 0.4).
-- **No `async def` / `Awaitable` in public APIs.** All public functions return `Node[T]`, `Graph`, `None`, or a plain synchronous value.
-- **Diamond resolution** via unlimited-precision Python `int` bitmask (TS uses `Uint32Array` + `BigInt` for fan-in >31).
-- **Context managers:** PY uses `with batch():` instead of TS's `batch(() => ...)`.
-- **`|` pipe operator:** PY `Node.__or__` maps to TS `pipe()`.
-
-## Claude skills (workflows)
-
-Project-local skills live under `.claude/skills/`. These skills operate on **both** TS and PY repos when relevant:
-
-- **dev-dispatch** — plan, align with spec, implement, self-test
-- **qa** — adversarial review, fixes, test + lint + build, doc touch-ups
-- **design-review** — Q5–Q9 design lens (abstraction, long-term shape, reactive composability, alternatives, coverage). Use BEFORE coding for new primitives; complementary to `/qa` (which finds bugs in landed code).
-- **parity** — cross-language parity check (TS vs PY)
-
-Invoke via the user's Claude Code slash commands or skill names when relevant.
+- **decision-guard** — recall locked D#/values/floor before any decision question.
+- **spec-amend** — spec-first protocol amendment (rules + TLA+ + conformance, then code).
+- **conformance** — drive behavioral conformance scenarios green per runtime.
+- **dashboard** — build / check the `~/src/graphrefly` docs dashboard + consistency gate.
+- **dev-dispatch** — plan, align with spec, implement, self-test.
+- **qa** — adversarial review, fixes, test + lint + build, doc touch-ups.
+- **design-review** — Q5–Q9 design lens before coding new primitives.

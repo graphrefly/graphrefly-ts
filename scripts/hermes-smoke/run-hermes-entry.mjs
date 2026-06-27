@@ -1,5 +1,5 @@
 /**
- * Hermes-engine entry. esbuild bundles this (+ @graphrefly/pure-ts)
+ * Hermes-engine entry. esbuild bundles this (+ @graphrefly/ts)
  * into one Hermes-safe file. The bare `hermes` CLI has no `console`
  * (only `print`) and no `process`; a banner shims `console`, and we
  * signal pass/fail purely via the `RESULT:` stdout marker that the

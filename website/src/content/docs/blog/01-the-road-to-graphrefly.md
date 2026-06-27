@@ -9,6 +9,10 @@ tags: [origins, design-philosophy, architecture]
 
 *Arc 1, Post 1 — Origins: From Callbag to GraphReFly*
 
+> Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
+> story. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths;
+> do not copy `@graphrefly/graphrefly` imports from historical snippets.
+
 ---
 
 In 2018, Andre Staltz published [callbag](https://github.com/callbag/callbag), a spec for reactive programming based on a single function signature. No classes. No inheritance. No framework. Just functions calling functions.

@@ -1,25 +1,14 @@
 /**
- * Typecheck gate for the two workspace packages that nothing else
- * typechecks (surfaced 2026-05-17 by the D2/D3 parity-cleanup batch).
+ * Typecheck gate for legacy workspace packages that nothing else typechecks.
  *
- * `packages/parity-tests/` and `evals/` run via vitest / tsx — both strip
- * types through esbuild, so `tsc` never runs on them in `pnpm test`,
- * `pnpm build`, or CI. That left D3's `Impl`-contract intersection (and
- * any future native/contract drift) an *unenforced* contract. This
- * script closes the gap: it `tsc --noEmit`s each package and hard-fails
- * on ANY error.
+ * B66 note: the old structural Impl parity harness was retired to
+ * `archive/packages/parity-tests`; clean-slate parity is authority conformance
+ * in `~/src/graphrefly/spec/conformance.jsonl` (D24). Keep this gate empty
+ * until another active workspace package genuinely needs standalone tsc.
  *
- * **No baseline.** Both packages were driven to **zero** errors in the
- * same batch (the layer-boundary script keeps a ratchet baseline because
- * its violations were deferred; here there is nothing to defer). A new
- * type error — e.g. a `@graphrefly/native` wrapper signature drifting
- * from the parity `Impl` contract, or an eval script falling behind a
- * substrate API — fails `pnpm lint`. That IS the first-line parity gate
- * D3 asked for. Do not add a baseline to silence a new error; fix it.
- *
- * Zero-dep standalone, wired into `pnpm lint` after
- * `check-layer-boundary.ts` (same discipline, mechanism amended for the
- * typecheck case).
+ * B66 note: `evals/` was retired to `archive/evals` on 2026-06-27. CSP-8 may
+ * design a new clean-slate eval harness later, but this gate should not point
+ * at the archived legacy scripts.
  */
 
 import { execFileSync } from "node:child_process";
@@ -29,10 +18,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 const TSC = resolve(ROOT, "node_modules/.bin/tsc");
 
 /** Previously-ungated packages this gate now enforces. */
-const TARGETS: readonly { name: string; project: string }[] = [
-	{ name: "parity-tests", project: "packages/parity-tests/tsconfig.json" },
-	{ name: "evals", project: "evals/tsconfig.json" },
-];
+const TARGETS: readonly { name: string; project: string }[] = [];
 
 let failed = false;
 

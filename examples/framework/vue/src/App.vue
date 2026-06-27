@@ -1,20 +1,18 @@
 <script setup lang="ts">
-import { useStore, useSubscribe } from "@graphrefly/graphrefly/compat/vue";
+import { useNodeInput, useNodeValue } from "@graphrefly/ts/adapters/vue";
 import { count, doubled } from "./store";
 
-// `useStore` returns a writable Ref — v-model and direct assignment both work.
-const value = useStore(count);
-// `useSubscribe` returns a read-only Ref for any node.
-const dbl = useSubscribe(doubled);
+const [value, setValue] = useNodeInput(count);
+const dbl = useNodeValue(doubled);
 </script>
 
 <template>
 	<section>
 		<h1>GraphReFly · Vue</h1>
 		<div class="row">
-			<button type="button" @click="value = (value ?? 0) - 1">−</button>
+			<button type="button" @click="setValue((value ?? 0) - 1)">−</button>
 			<span class="value">{{ value ?? 0 }}</span>
-			<button type="button" @click="value = (value ?? 0) + 1">+</button>
+			<button type="button" @click="setValue((value ?? 0) + 1)">+</button>
 		</div>
 		<p>doubled = <strong>{{ dbl ?? 0 }}</strong></p>
 	</section>

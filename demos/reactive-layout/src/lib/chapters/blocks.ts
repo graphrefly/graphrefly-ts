@@ -1,11 +1,14 @@
-import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import {
 	type ContentBlock,
-	type ReactiveBlockLayoutBundle,
-	reactiveBlockLayout,
+	ImageSizeAdapter,
 	SvgBoundsAdapter,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+} from "@graphrefly/ts/solutions/reactive-layout";
+import {
+	createDemoReactiveBlockLayout,
+	type DemoReactiveBlockLayoutBundle,
+} from "../layout-bundles.js";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
+import type { NodeRegistry } from "../shell.js";
 
 export const BLOCKS_SOURCE = `// Mixed content as a reactive graph.
 const layout = reactiveBlockLayout({
@@ -15,10 +18,10 @@ const layout = reactiveBlockLayout({
   maxWidth: 520,
   gap: 16,
   blocks: [
-    { type: "text",  text: "A heading over the image." },
-    { type: "svg",   content: "<svg viewBox='0 0 160 48'>…</svg>" },
-    { type: "image", src: "hero.png", naturalWidth: 480, naturalHeight: 270 },
-    { type: "text",  text: "A caption paragraph that can wrap." },
+    { kind: "text",  text: "A heading over the image." },
+    { kind: "svg",   svg: "<svg viewBox='0 0 160 48'>…</svg>" },
+    { kind: "image", src: "hero.png", width: 480, height: 270 },
+    { kind: "text",  text: "A caption paragraph that can wrap." },
   ],
 });
 
@@ -31,7 +34,7 @@ const layout = reactiveBlockLayout({
 `;
 
 export type BlocksChapter = {
-	bundle: ReactiveBlockLayoutBundle;
+	bundle: DemoReactiveBlockLayoutBundle;
 	setMaxWidth: (w: number) => void;
 	sourceCode: string;
 	registry: NodeRegistry;
@@ -40,7 +43,7 @@ export type BlocksChapter = {
 export function buildBlocksChapter(): BlocksChapter {
 	const initialBlocks: ContentBlock[] = [
 		{
-			type: "text",
+			kind: "text",
 			text: "Mixed content layout — the heading before the art.",
 			font: '16px "Fira Code", monospace',
 			lineHeight: 24,
@@ -49,8 +52,8 @@ export function buildBlocksChapter(): BlocksChapter {
 			// Natural dimensions intentionally larger than any slider value so
 			// the block always scales down to the container — letting the user
 			// watch the SVG + the caption below reflow together.
-			type: "svg",
-			content: `<svg viewBox="0 0 1200 360" xmlns="http://www.w3.org/2000/svg">
+			kind: "svg",
+			svg: `<svg viewBox="0 0 1200 360" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="g" x1="0" x2="1">
       <stop offset="0" stop-color="#4de8c2"/>
@@ -63,23 +66,24 @@ export function buildBlocksChapter(): BlocksChapter {
 </svg>`,
 		},
 		{
-			type: "text",
+			kind: "text",
 			text: "A caption that wraps whenever you drag the width slider. Width constraints cascade into each block's measurement, then into the vertical flow.",
 		},
 		{
-			type: "image",
+			kind: "image",
 			src: "placeholder.png",
 			// Same idea: natural width > slider max so the ratio always binds.
-			naturalWidth: 1200,
-			naturalHeight: 450,
+			width: 1200,
+			height: 450,
 		},
 	];
 
-	const bundle = reactiveBlockLayout({
+	const bundle = createDemoReactiveBlockLayout({
 		adapters: {
 			text: getMeasurementAdapter(),
 			// Parse the inline SVG viewBox — no DOM, no async, pure string regex.
 			svg: new SvgBoundsAdapter(),
+			image: new ImageSizeAdapter({ "placeholder.png": { width: 1200, height: 450 } }),
 		},
 		name: "layout.blocks",
 		blocks: initialBlocks,

@@ -1,14 +1,11 @@
-import type { Graph } from "@graphrefly/graphrefly";
-import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
-import {
-	type ReactiveLayoutBundle,
-	reactiveLayout,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+import type { Graph } from "@graphrefly/ts/graph";
+import { createDemoReactiveLayout, type DemoReactiveLayoutBundle } from "../layout-bundles.js";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
+import type { NodeRegistry } from "../shell.js";
 
 export const PLAYGROUND_SOURCE = `// Create one reactive-layout graph. The 4 state inputs are the knobs;
 // the 4 derived outputs auto-recompute only along the paths they feed.
-const layout = reactiveLayout({
+const layout = createDemoReactiveLayout({
   adapter:    new CanvasMeasureAdapter(),
   text:       "GraphReFly — reactive text layout. 中文也能流畅分行。",
   font:       "14px Fira Code",
@@ -25,14 +22,14 @@ layout.setText("Try typing here.");
 layout.setMaxWidth(320);
 
 // Subscribe reactively — no timer, no re-read pattern.
-layout.lineBreaks.subscribe(([[type, v]]) => { if (type === DATA) render(v); });
+layout.lineBreaks.subscribe((msgs) => { for (const [type, v] of msgs) if (type === "DATA") render(v); });
 `;
 
 export type PlaygroundChapter = {
 	graph: Graph;
 	sourceCode: string;
 	registry: NodeRegistry;
-	bundles: ReactiveLayoutBundle[];
+	bundles: DemoReactiveLayoutBundle[];
 };
 
 /**
@@ -44,7 +41,7 @@ export type PlaygroundChapter = {
 export function buildPlaygroundChapter(): PlaygroundChapter {
 	const adapter = getMeasurementAdapter();
 
-	const intro = reactiveLayout({
+	const intro = createDemoReactiveLayout({
 		adapter,
 		name: "layout.intro",
 		text: "GraphReFly — text layout as a reactive graph. Change inputs, only the dependent derived nodes re-run.",
@@ -53,7 +50,7 @@ export function buildPlaygroundChapter(): PlaygroundChapter {
 		maxWidth: 480,
 	});
 
-	const cjk = reactiveLayout({
+	const cjk = createDemoReactiveLayout({
 		adapter,
 		name: "layout.cjk",
 		text: "中文也能流畅分行：标点不会出现在行首，CJK 字符按字形分割。Mixed scripts 同样正常。",
@@ -62,7 +59,7 @@ export function buildPlaygroundChapter(): PlaygroundChapter {
 		maxWidth: 480,
 	});
 
-	const emoji = reactiveLayout({
+	const emoji = createDemoReactiveLayout({
 		adapter,
 		name: "layout.emoji",
 		text: "Emoji 🚀, soft-hy­phens, and URLs like https://graphrefly.dev all keep their break points.",

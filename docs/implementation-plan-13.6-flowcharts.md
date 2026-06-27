@@ -1,5 +1,11 @@
 # GraphReFly Canonical Flowcharts (post-Phase 13.6.A)
 
+> **Old-main reference, not clean-slate authority.** These diagrams predate the
+> clean-slate jsonl spec system. For current protocol decisions, use
+> `~/src/graphrefly/spec/rules.jsonl` and the D# log; clean-slate has a closed
+> 10-message set, no `MessageTypeRegistry`/custom message types, and `messageTier`
+> is a compile-time const table (R-msg-closed-set, R-tier, D18/D34).
+
 *Mermaid diagrams covering all internal methods, properties, and processes from protocol level upward. Companion to `implementation-plan-13.6-canonical-spec.md`. Use side-by-side: each diagram references the canonical spec rules (`R<x.y.z>`) it visualizes.*
 
 **Batch status:**

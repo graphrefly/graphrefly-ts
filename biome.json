@@ -17,10 +17,13 @@
 			"!**/.astro",
 			"!.tmp",
 			"!TRASH",
+			"!archive/evals",
+			"!archive/examples",
+			"!archive/packages",
+			"!archive/website-prototypes",
 			"!benchmarks",
 			"!website",
-			"!examples/nestjs",
-			"!evals/results/replay-cache"
+			"!examples/nestjs"
 		]
 	},
 	"linter": {
@@ -100,6 +103,14 @@
 					"correctness": {
 						"noUnusedVariables": "off"
 					}
+				}
+			}
+		},
+		{
+			"includes": ["examples/nestjs-graph-boundary/**"],
+			"javascript": {
+				"parser": {
+					"unsafeParameterDecoratorsEnabled": true
 				}
 			}
 		}

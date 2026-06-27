@@ -1,6 +1,6 @@
-import { derived, state } from "@graphrefly/graphrefly/core";
+import { graph } from "@graphrefly/ts";
 
-export const count = state(0, { name: "count" });
-export const doubled = derived([count], ([n]) => (n as number) * 2, {
-	name: "doubled",
-});
+const g = graph({ name: "svelte-example" });
+
+export const count = g.state(0, { name: "count" });
+export const doubled = g.derived([count], (n) => n * 2, { name: "doubled" });

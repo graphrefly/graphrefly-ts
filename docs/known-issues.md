@@ -1,50 +1,33 @@
-# Known issues — deferred to post-Rust-port
+# Known issues
 
-## Demos disabled in `docs:build` pending API migration
+## HISTORICAL — pre-CSP-9 browser demos retired from active workspace
 
-**Symptom:** `pnpm run docs:build` previously ran 4 demos under `demos/`; 3 of them now fail with errors like `"state" is not exported by ... dist/core/index.js, imported by src/lib/counter.ts`.
+**Symptom:** `demos/knowledge-graph/` and `demos/pagerduty-triage/`
+still import retired root/pure-ts surfaces such as old AI utilities,
+`agentMemory`, and `utils/demo-shell`.
 
-**Cause:** The standalone `state` / `derived` / `producer` / `effect` exports were removed from `packages/pure-ts/src/core/sugar.ts` at some point during the Graph narrow-waist refactor (per `project_graph_narrow_waist.md` memory). The "Graph narrow-waist" decision moved these to Graph methods (`Graph.state()` / `Graph.derived()` / `Graph.effect()` / `Graph.produce()`), but the migration of demos / examples / generated docs that still consume the old standalone API was never completed.
+**Cause:** those browser demos were authored before CSP-9/B65/B66 retired
+`@graphrefly/graphrefly` as an implementation owner and froze pure-ts as
+reference-only material.
 
-**Affected callers** (NOT migrated yet):
+**Resolution:** the demos are historical references only. They are not active
+workspace packages, not advertised as runnable clean-slate demos, and should not
+be migrated by reviving compatibility shims. Re-activation requires a separate
+design/migration slice over current `@graphrefly/ts` public subpaths.
+
+Known historical callers:
 - `demos/knowledge-graph/src/lib/{lazy-adapter.ts, chapters/reactive.ts}`
 - `demos/pagerduty-triage/src/lib/pipeline.ts`
-- `examples/basic/state-and-derived/index.ts`
-- `examples/framework/{react,solid,svelte,vue}/src/store.ts`
-- `examples/{harness-refine-hello, inbox-reducer, knowledge-graph, reactive-layout, spending-alerts}/*.ts`
-- `packages/cli/tests/dispatch.test.ts` (not in `pnpm test` path; not blocking)
-- 100+ generated `website/src/content/docs/api/*.md` (auto-regenerated; will heal once symbols are re-added or REGISTRY is migrated)
-- `website/scripts/gen-api-docs.mjs` REGISTRY (218 entries point at the missing symbols)
 
-**Workaround in place:** Root `package.json` `docs:build` ships `compat-matrix` + `reactive-layout`; `knowledge-graph` and `pagerduty-triage` remain skipped until migrated. CI is unblocked for the shipped demos; the two skipped demos are NOT in the website static output.
+## RESOLVED — `@graphrefly/cli` retired during CSP-9/B66
 
-**Decision deferred to:** post-Rust-port (after M5 close + facade build, per PART 13 of `archive/docs/SESSION-rust-port-architecture.md`). Two paths:
-- **A — Re-add standalone `state`/`derived`/`producer`/`effect`** as thin wrappers around `node()` in `core/sugar.ts`. Restores public surface; coexists with Graph methods. Minimal surgery, restores 100+ callers.
-- **B — Migrate every caller** to Graph methods. Heavier, changes demo/example pedagogical surface (every demo grows a Graph instance).
+**Symptom:** the CLI package depended on the retired root `@graphrefly/graphrefly` facade and old GraphSpec-oriented APIs.
 
-Path A is the cheaper restore. Punt the decision until after the Rust port settles the API surface, since some of those callers may also be affected by other API churn.
+**Cause:** after B65, there is no active root implementation for the CLI to consume. Migrating the old CLI would require reviving or redesigning `GraphSpec`, `createGraph`, `runReduction`, `SurfaceError`, `Graph.fromSnapshot`, and `Graph.diff` semantics instead of using existing `@graphrefly/ts` public surfaces.
 
-## Restoring this when ready
+**Resolution:** CSP-9/B66 removed `packages/cli` from active workspace, lockfile, release, README, and site docs ownership. A future CLI would be a new clean-slate product over existing `@graphrefly/ts` surfaces, not restoration of the old GraphSpec shell.
 
-1. Pick A or B and execute.
-2. Edit root `package.json` `docs:build` script to restore the remaining demos (`knowledge-graph`, `pagerduty-triage`) alongside the already-shipped `compat-matrix` + `reactive-layout`.
-3. Delete this section from `known-issues.md`.
-
-## `@graphrefly/cli` marked private
-
-**Symptom:** changesets `pnpm release` fails with TypeScript build errors when trying to publish this package — `Property 'explain' does not exist on type 'Graph'`, `Module '"@graphrefly/graphrefly"' has no exported member 'memoryStorage'`, etc.
-
-**Cause:** Same root cause as the demos above — the package references removed/renamed APIs (`Graph.explain`, `memoryStorage`, `StorageTier`, `fileStorage`) that drifted during Phase 4+ refactors.
-
-**Workaround in place:** Package marked `"private": true` in its `package.json`. Changesets respects the flag and skips publishing it. It still builds via `pnpm build` for local dev (no publish guard there), but `prepublishOnly` is gated behind the privacy flag.
-
-**Decision deferred to:** same window as the demo migration (post-Rust-port). Restoration:
-1. Migrate `cli/src/dispatch.ts` to current API (Graph methods, current storage symbols).
-2. Remove `"private": true` from `package.json`.
-3. Restore the `NOT YET PUBLISHED — see docs/known-issues.md` text in `description` to the original.
-4. Set up npm trusted-publisher config at `https://www.npmjs.com/package/@graphrefly/cli/access`.
-5. Push a changeset that bumps → next release publishes.
-6. Delete this section from `known-issues.md`.
+Retained as a tombstone only; remove this section when known-issues archival cleanup happens.
 
 ## ✅ RESOLVED — First-consumer P0s (memo:Re Story 6.4) — fixed in `0.47.0`
 

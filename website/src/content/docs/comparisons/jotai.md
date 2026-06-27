@@ -1,9 +1,13 @@
 ---
 title: "GraphReFly vs Jotai"
 description: "Comparing GraphReFly and Jotai for atomic state — diamond resolution, framework independence, and streaming operators."
+draft: true
+pagefind: false
 ---
 
 Both GraphReFly and Jotai use atomic state with derived computations. GraphReFly adds glitch-free diamond resolution, streaming operators, and works without React.
+
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `compat/*` imports from this historical page.
 
 ## At a Glance
 
@@ -63,18 +67,17 @@ d.get(); // "4-6" — always consistent, never "4-3"
 
 ## Migration Path
 
-### Drop-in Compat Layer
+### Clean-Slate Facade
 
-For incremental migration, use the Jotai-compatible adapter:
+For incremental migration, bind caller-owned GraphReFly nodes through the Jotai-style facade:
 
 ```ts
-import { atom } from '@graphrefly/graphrefly/compat/jotai';
+import { jotaiAtom } from '@graphrefly/ts/adapters';
 
-const countAtom = atom(0);
-const doubledAtom = atom((get) => get(countAtom) * 2);
+const countAtom = jotaiAtom(countNode);
 ```
 
-This preserves Jotai's `atom((get) => ...)` API while adding diamond resolution under the hood.
+The old `@graphrefly/graphrefly/compat/jotai` path is retired.
 
 ### Native API
 

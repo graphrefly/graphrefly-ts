@@ -1,18 +1,21 @@
 packages:
   - .
   - website
-  - demos/compat-matrix
   - demos/reactive-layout
-  - demos/knowledge-graph
-  - demos/pagerduty-triage
+  - demos/compat-matrix
   - examples/basic/*
   - examples/compat/*
   - examples/framework/*
+  - examples/nestjs-graph-boundary
   - examples/reactive-layout/*
   - examples/knowledge-graph
   - examples/spending-alerts
-  - examples/inbox-reducer
-  - examples/harness-refine-hello
-  - examples/nestjs/*
   - apps/*
+  - scripts/hermes-smoke
   - packages/*
+allowBuilds:
+  '@nestjs/core': true
+  canvas: false
+  esbuild: true
+  protobufjs: true
+  sharp: true

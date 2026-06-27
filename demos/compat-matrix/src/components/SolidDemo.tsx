@@ -1,12 +1,18 @@
 /** @jsxImportSource solid-js */
 
-import type { Node } from "@graphrefly/graphrefly";
-import type { ReadableAtom, WritableAtom } from "@graphrefly/graphrefly/compat/jotai";
-import type { NanoAtom, NanoComputed } from "@graphrefly/graphrefly/compat/nanostores";
-import { useStore, useSubscribe, useSubscribeRecord } from "@graphrefly/graphrefly/compat/solid";
-import type { StoreApi } from "@graphrefly/graphrefly/compat/zustand";
-import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
-import { demoShell } from "@graphrefly/graphrefly/utils/demo-shell";
+import type {
+	JotaiAtom,
+	NanoAtom,
+	WritableJotaiAtom,
+	WritableNanoAtom,
+	ZustandStoreApi,
+} from "@graphrefly/ts/adapters";
+import {
+	createNodeRecord,
+	createNodeInput as useStore,
+	createNodeValue as useSubscribe,
+} from "@graphrefly/ts/adapters/solid";
+import type { Node } from "@graphrefly/ts/graph";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
 	counterGraph,
@@ -24,6 +30,7 @@ import {
 	zustandDoubledSelector,
 	zustandStore,
 } from "../lib/counter";
+import { type DemoShellHandle, demoShell } from "../lib/demo-shell";
 import {
 	type CodeLayoutSummary,
 	getMeasurementAdapter,
@@ -45,15 +52,15 @@ const LIB_LABELS: Record<LibName, string> = {
 };
 
 const LIB_DESCS: Record<LibName, string> = {
-	graphrefly: "Direct node · useStore / useSubscribe",
-	jotai: "Derived atom · atom(read, write)",
-	nanostores: "Sync atom · bidirectional bridge",
-	zustand: "Store API · create(initializer)",
+	graphrefly: "Direct node · framework adapter",
+	jotai: "jotaiAtom facade",
+	nanostores: "nanoAtom facade",
+	zustand: "zustandStore facade",
 };
 
 // ── Custom bridging hooks ─────────────────────────────────────────────
 
-function useJotaiAtom<T>(atom: WritableAtom<T>) {
+function useJotaiAtom<T>(atom: WritableJotaiAtom<T>) {
 	const [value, setValue] = createSignal<T>(atom.get(), { equals: false });
 	const unsub = atom.subscribe((v: T) => setValue(() => v));
 	onCleanup(() => unsub());
@@ -63,14 +70,14 @@ function useJotaiAtom<T>(atom: WritableAtom<T>) {
 	};
 }
 
-function useJotaiReadonly<T>(atom: ReadableAtom<T>) {
+function useJotaiReadonly<T>(atom: JotaiAtom<T>) {
 	const [value, setValue] = createSignal<T>(atom.get(), { equals: false });
 	const unsub = atom.subscribe((v: T) => setValue(() => v));
 	onCleanup(() => unsub());
 	return value;
 }
 
-function useNanoAtom<T>(store: NanoAtom<T>) {
+function useNanoAtom<T>(store: WritableNanoAtom<T>) {
 	const [value, setValue] = createSignal<T>(store.get(), { equals: false });
 	const unsub = store.subscribe((v: T) => setValue(() => v));
 	onCleanup(() => unsub());
@@ -80,21 +87,21 @@ function useNanoAtom<T>(store: NanoAtom<T>) {
 	};
 }
 
-function useNanoComputedValue<T>(store: NanoComputed<T>) {
+function useNanoComputedValue<T>(store: NanoAtom<T>) {
 	const [value, setValue] = createSignal<T>(store.get(), { equals: false });
 	const unsub = store.subscribe((v: T) => setValue(() => v));
 	onCleanup(() => unsub());
 	return value;
 }
 
-function useZustandAtom<T extends object>(store: StoreApi<T>) {
+function useZustandAtom<T extends object>(store: ZustandStoreApi<T>) {
 	const [value, setValue] = createSignal<T>(store.getState(), { equals: false });
 	const unsub = store.subscribe((s: T) => setValue(() => s));
 	onCleanup(() => unsub());
 	return value;
 }
 
-function useZustandSelector<T extends object, R>(store: StoreApi<T>, selector: (s: T) => R) {
+function useZustandSelector<T extends object, R>(store: ZustandStoreApi<T>, selector: (s: T) => R) {
 	const [value, setValue] = createSignal<R>(selector(store.getState()), { equals: false });
 	const unsub = store.subscribe((s: T) => setValue(() => selector(s)));
 	onCleanup(() => unsub());
@@ -124,9 +131,9 @@ export default function SolidDemo() {
 	const [codeHit, setCodeHit] = createSignal<{ line: number; graphemeIndex: number } | null>(null);
 
 	// GraphReFly raw — useStore returns [Accessor, setter]
-	const [rawValue, setRawValue] = useStore(rawNode as Node<number>);
+	const [rawValue, setRawValue] = useStore(rawNode);
 	const rawCount = createMemo(() => (rawValue() as number) ?? 0);
-	const rawDoubled = useSubscribe(rawDoubledNode as Node<number>);
+	const rawDoubled = useSubscribe(rawDoubledNode);
 	const rawDoubledVal = createMemo(() => (rawDoubled() as number) ?? 0);
 
 	// Jotai
@@ -148,11 +155,11 @@ export default function SolidDemo() {
 	const zustandDoubledDisplay = createMemo(() => (zustandDoubledVal() as number) ?? 0);
 
 	// Read-only subscriptions
-	const total = useSubscribe(totalNode as Node<number>);
+	const total = useSubscribe(totalNode);
 	const totalVal = createMemo(() => (total() as number) ?? 0);
 
-	const record = useSubscribeRecord(
-		keysNode as Node<string[]>,
+	const record = createNodeRecord(
+		keysNode,
 		counterNodeFactory as (key: string) => { count: Node<number> },
 	);
 
@@ -163,7 +170,7 @@ export default function SolidDemo() {
 	const currentTitle = createMemo(() => {
 		const s = selectedLib();
 		if (!s) return "Select a card to see code";
-		if (s === "leaderboard") return "Leaderboard — useSubscribeRecord code";
+		if (s === "leaderboard") return "Leaderboard — node record code";
 		return `${LIB_LABELS[s]} — binding code`;
 	});
 
@@ -490,7 +497,7 @@ export default function SolidDemo() {
 					class={`leaderboard${selectedLib() === "leaderboard" ? " selected" : ""}`}
 					onClick={() => selectLib("leaderboard")}
 				>
-					<div class="leaderboard-title">Leaderboard — useSubscribeRecord</div>
+					<div class="leaderboard-title">Leaderboard — node record</div>
 					<div class="leaderboard-rows">
 						{libs.map((lib) => (
 							<button

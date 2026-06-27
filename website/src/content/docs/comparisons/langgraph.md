@@ -1,9 +1,13 @@
 ---
 title: "GraphReFly vs LangGraph.js"
 description: "Comparing GraphReFly and LangGraph.js for AI agent orchestration — reactive nodes vs state dictionaries, built-in observability, and streaming."
+draft: true
+pagefind: false
 ---
 
 Both GraphReFly and LangGraph.js orchestrate AI agent workflows with graph semantics. GraphReFly uses reactive nodes with automatic dependency resolution; LangGraph uses state dictionaries and channel-based message passing with explicit edge definitions.
+
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `/extra` imports from this historical page.
 
 ## At a Glance
 

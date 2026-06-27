@@ -1,12 +1,11 @@
-import type { Graph } from "@graphrefly/graphrefly";
-import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
+import type { Graph } from "@graphrefly/ts/graph";
+import type { FlowContainer, Obstacle } from "@graphrefly/ts/solutions/reactive-layout";
 import {
-	type FlowContainer,
-	type Obstacle,
-	type ReactiveFlowLayoutBundle,
-	reactiveFlowLayout,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+	createDemoReactiveFlowLayout,
+	type DemoReactiveFlowLayoutBundle,
+} from "../layout-bundles.js";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
+import type { NodeRegistry } from "../shell.js";
 
 export const FLOW_SOURCE = `// Multi-column text that wraps around moving ASCII obstacles.
 const flow = reactiveFlowLayout({
@@ -27,7 +26,7 @@ const flow = reactiveFlowLayout({
 // from the graph, computes bounce, and writes back via flow.setObstacles.
 // \`segments\` stays cached (text unchanged); only \`flow-lines\` re-runs.
 fromRaf().subscribe(([[, t]]) => {
-  flow.setObstacles(driftObstacles(flow.graph.node("obstacles").cache, t));
+  flow.setObstacles(driftObstacles(flow.input.obstacles.cache, t));
 });
 
 // The cursor carries across slots AND columns — no duplicated text
@@ -43,7 +42,7 @@ const FLOW_CONTAINER: FlowContainer = {
 
 export type FlowChapter = {
 	graph: Graph;
-	bundle: ReactiveFlowLayoutBundle;
+	bundle: DemoReactiveFlowLayoutBundle;
 	setContainerSize: (w: number, h: number) => void;
 	sourceCode: string;
 	registry: NodeRegistry;
@@ -60,12 +59,12 @@ export function buildFlowChapter(): FlowChapter {
 	const adapter = getMeasurementAdapter();
 
 	const initialObstacles: Obstacle[] = [
-		{ kind: "circle", cx: 170, cy: 140, r: 52, hPad: 18, vPad: 6 },
-		{ kind: "circle", cx: 440, cy: 300, r: 44, hPad: 18, vPad: 6 },
-		{ kind: "rect", x: 260, y: 430, w: 120, h: 62, hPad: 18, vPad: 6 },
+		{ kind: "circle", cx: 170, cy: 140, r: 52 },
+		{ kind: "circle", cx: 440, cy: 300, r: 44 },
+		{ kind: "rect", x: 260, y: 430, width: 120, height: 62 },
 	];
 
-	const bundle = reactiveFlowLayout({
+	const bundle = createDemoReactiveFlowLayout({
 		adapter,
 		name: "layout.flow",
 		text: ESSAY,

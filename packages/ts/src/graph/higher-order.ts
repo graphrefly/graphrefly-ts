@@ -1,0 +1,413 @@
+/**
+ * Higher-order operators — switchMap / mergeMap / concatMap / exhaustMap / flatMap
+ * (D47 / R-rewire-deferred / CSP-2.7; per-language sugar, D6/D24, never in parity).
+ *
+ * Each projects every outer value to an INNER source and flattens the inners' emissions. The
+ * inner sources are wired as runtime DEPS via the deferred-self-rewire substrate affordance
+ * (`ctx.rewireNext`, D47) — NOT an internal subscribe (D45 bans that; it would create a describe
+ * island). Growing/shrinking the dep set is deferred to the committed wave boundary, so a fn
+ * never mutates its own topology mid-run (that is the D37 feedback-cycle ERROR). An inner that
+ * COMPLETEs is `unsubscribeDep`'d → its source `_deactivate`s + fires `onDeactivation`: that is the
+ * cancellation / abortInFlight basis (switchMap drops the superseded inner's WORK, not just its
+ * output; mergeMap bounds memory). Built on the bare `node` primitive via the {@link Operator}
+ * factory shape + the `g.initNode` funnel (D43), so the real factory name shows in describe.
+ *
+ * Lifecycle folding (D47/D81): completeWhenDepsComplete:false + terminalAsRealInput:true +
+ * errorWhenDepsError:false — the operator owns completion (emit COMPLETE only when the SOURCE is
+ * done AND no inner is live / pending), and observes source/inner ERROR so it can remove every live
+ * inner before emitting ERROR. Those removals drain after terminal via D62: terminal seals output,
+ * while helper-owned upstream work still sees unsubscribeDep->_deactivate->onDeactivation teardown.
+ *
+ * Alignment: each run issues REMOVES before ADDS so the per-node FIFO drain keeps the operator's
+ * tracked inner list aligned with the live dep order across the intermediate boundary waves (a
+ * removed dep is silent — no settle — and applies before any added dep's push-on-subscribe wave).
+ */
+
+import {
+	CTX_NODE_BINDING,
+	type Ctx,
+	depBatch,
+	depCount,
+	depTerminal,
+	isTerminalComplete,
+	isTerminalError,
+	type NodeFn,
+	terminalErrorValue,
+} from "../ctx/types.js";
+import type { Node } from "../node/node.js";
+import { errorPayload } from "../protocol/messages.js";
+import { initNode, type Operator } from "./operators.js";
+import { fromAsyncIter, fromIter, fromPromise, type NodeInput, of } from "./sources.js";
+
+/** Project an outer value to an inner source (a Node, Promise, (a)sync iterable, or scalar). */
+export type Project<TIn, TOut> = (value: TIn) => NodeInput<TOut>;
+
+type Mode = "merge" | "switch" | "concat" | "exhaust";
+
+/** Options for {@link mergeMap}. */
+export interface MergeMapOptions {
+	/**
+	 * Maximum number of live inner deps at once. `undefined`/`Infinity` keeps the default
+	 * unbounded mergeMap behavior; finite values queue outer values until an inner COMPLETEs.
+	 */
+	readonly concurrent?: number;
+}
+
+/** Per-node bookkeeping (ctx.state): the live inner deps (aligned with deps[1..]) + pending queue. */
+interface MapState<TIn> {
+	inners: Node<unknown>[];
+	queue: TIn[]; // concatMap / bounded mergeMap pending values (lazy projection)
+	sourceDone: boolean;
+}
+
+function uniqueNodes(nodes: readonly Node<unknown>[]): Node<unknown>[] {
+	const seen = new Set<Node<unknown>>();
+	const out: Node<unknown>[] = [];
+	for (const n of nodes) {
+		if (seen.has(n)) continue;
+		seen.add(n);
+		out.push(n);
+	}
+	return out;
+}
+
+function cleanupAllInners<TIn>(ctx: Ctx, st: MapState<TIn>, body: NodeFn): void {
+	for (const inner of uniqueNodes(st.inners)) ctx.rewireNext.unsubscribeDep(inner, body);
+	st.inners = [];
+	st.queue.length = 0;
+	st.sourceDone = true;
+	ctx.state.set(st);
+}
+
+function firstErrorTerminal(ctx: Ctx): unknown {
+	for (let i = 0; i < depCount(ctx); i++) {
+		const terminal = depTerminal(ctx, i);
+		if (isTerminalError(terminal)) return terminalErrorValue(terminal);
+	}
+	return undefined;
+}
+
+function fromAnyInCtx<T>(ctx: Ctx, input: NodeInput<T>): Node<unknown> {
+	const binding = ctx[CTX_NODE_BINDING];
+	if (isNode(input)) return input as Node<unknown>;
+
+	const nodeOpts = binding ? { dispatcher: binding.dispatcher } : {};
+	const make = (op: Operator<never, T>) =>
+		(binding
+			? binding.create(() => initNode(op, [], nodeOpts))
+			: initNode(op, [], nodeOpts)) as Node<unknown>;
+
+	if (isThenable(input)) return make(fromPromise(input as PromiseLike<T>));
+	if (input !== null && input !== undefined) {
+		const candidate = input as {
+			[Symbol.asyncIterator]?: unknown;
+			[Symbol.iterator]?: unknown;
+		};
+		if (typeof candidate[Symbol.asyncIterator] === "function") {
+			return make(fromAsyncIter(input as AsyncIterable<T>));
+		}
+		if (typeof candidate[Symbol.iterator] === "function") {
+			return make(fromIter(input as Iterable<T>));
+		}
+	}
+	return make(of(input as T));
+}
+
+function isNode(x: unknown): x is Node {
+	return (
+		x != null &&
+		typeof x === "object" &&
+		"cache" in x &&
+		typeof (x as Node).subscribe === "function"
+	);
+}
+
+function isThenable(x: unknown): x is PromiseLike<unknown> {
+	return x != null && typeof (x as PromiseLike<unknown>).then === "function";
+}
+
+function normalizeConcurrent(factory: string, concurrent: number | undefined): number {
+	if (concurrent === undefined || concurrent === Number.POSITIVE_INFINITY) {
+		return Number.POSITIVE_INFINITY;
+	}
+	if (!Number.isInteger(concurrent) || concurrent < 1) {
+		throw new RangeError(`${factory}: concurrent must be a positive integer or Infinity`);
+	}
+	return concurrent;
+}
+
+/**
+ * The shared higher-order machinery. The operator depends on the source S at index 0; inner
+ * sources occupy indices 1.. (added/removed at runtime via ctx.rewireNext). The body is
+ * SELF-CATCHING (D30) and re-supplies itself on every rewire (the initNode wrap covers only the
+ * first run; the re-supplied fn must stay self-catching).
+ */
+function mapOperator<TIn, TOut>(
+	factory: string,
+	project: Project<TIn, TOut>,
+	mode: Mode,
+	opts: { concurrent?: number } = {},
+): Operator<TIn, TOut> {
+	const maxConcurrent = normalizeConcurrent(factory, opts.concurrent);
+	const body: NodeFn = (ctx: Ctx) => {
+		let st: MapState<TIn> | undefined;
+		try {
+			st = (ctx.state.get<MapState<TIn>>() ?? {
+				inners: [],
+				queue: [],
+				sourceDone: false,
+			}) as MapState<TIn>;
+			let inners = st.inners;
+			const queue = st.queue;
+
+			// 1. forward any inner DATA this wave (index-independent — flatten whichever inner fired).
+			for (let i = 1; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b && b.length > 0) for (const v of b) ctx.down([["DATA", v]]);
+			}
+
+			// D81: source ERROR / inner ERROR are terminal operator edges. Detach live inners first,
+			// then emit ERROR. Same-wave inner DATA that preceded the terminal is forwarded above.
+			// Do not send COMPLETE/ERROR to those inner sources.
+			const terminalError = firstErrorTerminal(ctx);
+			if (terminalError !== undefined) {
+				cleanupAllInners(ctx, st, body);
+				ctx.down([["ERROR", terminalError]]);
+				return;
+			}
+
+			if (isTerminalComplete(depTerminal(ctx, 0))) st.sourceDone = true;
+
+			// 2. drop inners that terminated this/any wave (bounding); `inners` aligns with deps[1..].
+			const toRemove: Node<unknown>[] = [];
+			const survivors: Node<unknown>[] = [];
+			for (let i = 0; i < inners.length; i++) {
+				if (isTerminalComplete(depTerminal(ctx, i + 1))) toRemove.push(inners[i]);
+				else survivors.push(inners[i]);
+			}
+			inners = survivors;
+
+			// 3. project the source's new value(s) per mode.
+			const toAdd: Node<unknown>[] = [];
+			const make = (v: TIn): Node<unknown> => fromAnyInCtx(ctx, project(v));
+			const isRemovedThisWave = (inner: Node<unknown>): boolean => toRemove.includes(inner);
+			const canTrackInner = (inner: Node<unknown>): boolean =>
+				!inners.includes(inner) && !isRemovedThisWave(inner);
+			const enqueueMerge = (v: TIn) => {
+				if (maxConcurrent === Number.POSITIVE_INFINITY && queue.length === 0) {
+					const inner = make(v);
+					// a projector returning an ALREADY-LIVE Node is already merged: subscribeDep is
+					// set-idempotent, so double-tracking it in `inners` would desync the
+					// inners[i] <-> deps[i+1] map permanently. Skip the duplicate.
+					if (!canTrackInner(inner)) return;
+					inners.push(inner);
+					toAdd.push(inner);
+					return;
+				}
+				queue.push(v);
+			};
+			const drainMergeQueue = () => {
+				while (queue.length > 0 && inners.length < maxConcurrent) {
+					const inner = make(queue.shift() as TIn);
+					if (!canTrackInner(inner)) continue;
+					inners.push(inner);
+					toAdd.push(inner);
+				}
+			};
+			const sb = depBatch(ctx, 0) as readonly TIn[] | null;
+			if (sb && sb.length > 0) {
+				if (mode === "switch") {
+					// switch to the latest value: cancel every current inner EXCEPT a (re-projected)
+					// already-live one — the dep set is unique, so removing+re-adding the same Node
+					// would needlessly tear down + re-subscribe it. Superseded sources torn down.
+					const inner = make(sb[sb.length - 1]);
+					for (const live of inners) if (live !== inner) toRemove.push(live);
+					if (isRemovedThisWave(inner)) {
+						inners = [];
+					} else {
+						if (!inners.includes(inner)) toAdd.push(inner);
+						inners = [inner];
+					}
+				} else if (mode === "merge") {
+					for (const v of sb) {
+						enqueueMerge(v);
+					}
+				} else if (mode === "concat") {
+					for (const v of sb) queue.push(v); // lazy: project on activation
+				} else {
+					// exhaust: ignore the source while an inner is active.
+					if (inners.length === 0) {
+						const inner = make(sb[0]);
+						if (canTrackInner(inner)) {
+							inners.push(inner);
+							toAdd.push(inner);
+						}
+					}
+				}
+			}
+
+			// 3a. bounded mergeMap: drain queued outer values as inner COMPLETEs free slots.
+			if (mode === "merge" && queue.length > 0) drainMergeQueue();
+
+			// 3b. concat: activate the queue head when the single slot is free.
+			if (mode === "concat" && inners.length === 0 && toAdd.length === 0 && queue.length > 0) {
+				const inner = make(queue.shift() as TIn);
+				if (canTrackInner(inner)) {
+					inners.push(inner);
+					toAdd.push(inner);
+				}
+			}
+
+			ctx.state.set({ inners, queue, sourceDone: st.sourceDone });
+
+			// 4. issue REMOVES before ADDS (alignment): a removed dep is silent + applies before the
+			//    added dep's push-on-subscribe settle wave, so the tracked list stays aligned.
+			for (const r of toRemove) ctx.rewireNext.unsubscribeDep(r, body);
+			for (const a of toAdd) ctx.rewireNext.subscribeDep(a, body);
+
+			// 5. completion: the SOURCE is done AND nothing is live or pending → COMPLETE (D47 folding;
+			//    a queued/just-added inner keeps it open). If terminal output happens in a wave that
+			//    also queued cleanup rewire, D62 still drains that queue after terminal.
+			if (st.sourceDone && inners.length === 0 && toAdd.length === 0 && queue.length === 0) {
+				ctx.down([["COMPLETE"]]);
+			}
+		} catch (e) {
+			if (st) cleanupAllInners(ctx, st, body);
+			ctx.down([["ERROR", errorPayload(e, "projector threw without a valid error payload")]]); // D30/D81: a throwing projector → cleanup inners, then ERROR
+		}
+	};
+
+	return {
+		factory,
+		body,
+		// D47/D81 folding: the operator owns completion + terminal ERROR cleanup.
+		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true, errorWhenDepsError: false },
+	};
+}
+
+/**
+ * switchMap: project each source value to an inner; on a new source value, CANCEL the in-flight
+ * inner (its source `_deactivate`s — abortInFlight) and switch to the new one. Only the current
+ * inner's emissions are forwarded.
+ */
+export function switchMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
+	return mapOperator("switchMap", project, "switch");
+}
+
+/**
+ * mergeMap (a.k.a. flatMap): project each source value to an inner and keep ALL inners live,
+ * interleaving their emissions. A completed inner is removed (memory bounding). On source/inner
+ * ERROR or projector failure, every live inner is removed before the operator emits ERROR (D81).
+ */
+export function mergeMap<TIn, TOut>(
+	project: Project<TIn, TOut>,
+	opts: MergeMapOptions = {},
+): Operator<TIn, TOut> {
+	return mapOperator("mergeMap", project, "merge", opts);
+}
+
+/** flatMap: alias of {@link mergeMap} (RxJS naming parity). */
+export function flatMap<TIn, TOut>(
+	project: Project<TIn, TOut>,
+	opts: MergeMapOptions = {},
+): Operator<TIn, TOut> {
+	return mapOperator("flatMap", project, "merge", opts);
+}
+
+/**
+ * concatMap: project each source value to an inner, but run AT MOST ONE inner at a time — queue
+ * later source values (lazy projection) and activate the next only when the active inner COMPLETEs.
+ * Preserves source order.
+ */
+export function concatMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
+	return mapOperator("concatMap", project, "concat");
+}
+
+/**
+ * exhaustMap: while an inner is active, DROP new source values; project the next source value only
+ * after the active inner COMPLETEs.
+ */
+export function exhaustMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
+	return mapOperator("exhaustMap", project, "exhaust");
+}
+
+/** Per-node bookkeeping for {@link repeat}: the round index + the current live inner. */
+interface RepeatState {
+	started: boolean;
+	round: number;
+	inner: Node<unknown> | null;
+}
+
+/**
+ * repeat: play a source `count` times in sequence (RxJS `repeat`). A DEPLESS self-driving operator
+ * (Operator<never, S>, instantiate via `g.initNode(repeat(factory, count), [])`) — NOT a dep-operator.
+ *
+ * It takes a `factory: () => NodeInput<S>` (a RECIPE), not a source Node, because clean-slate Nodes
+ * are HOT/shared (multicast + cache): re-subscribing the SAME node replays its cache, it does not
+ * re-RUN the source. RxJS `repeat` re-subscribes the COLD source = a fresh subscription each round;
+ * the clean-slate analogue is a fresh node per round → a factory. (A `repeat(count)`-over-a-Node
+ * shape remains deferred: D47's no-net-change-is-a-no-op makes
+ * `unsubscribeDep(S)+subscribeDep(S)` on the SAME boundary cancel out. D115 keeps the model to
+ * ordinary unsubscribe plus a later subscribe, so same-node repeat needs a separate future design.)
+ *
+ * Mechanism (reuses the D47 self-rewire substrate, like the *Map family; NOT an internal subscribe,
+ * D45): on activation it mints round 0's inner via `ctx.rewireNext.subscribeDep`; each round's inner DATA
+ * is forwarded; on the inner's COMPLETE (`completeWhenDepsComplete:false + terminalAsRealInput:true`)
+ * it unsubscribeDep's the finished inner and, if rounds remain, subscribeDep's a FRESH `factory()` inner (a
+ * distinct node → a real net change, not the no-op same-node case); after the last round it emits
+ * COMPLETE. An inner ERROR auto-forwards (errorWhenDepsError default → repeat errors). The body is
+ * SELF-CATCHING (D30) and re-supplied on every rewire. The factory MUST mint a FRESH node per call
+ * (a factory returning the same Node makes unsubscribeDep+subscribeDep a net-zero no-op → repeat wedges).
+ */
+export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<never, S> {
+	if (!Number.isInteger(count) || count < 1) {
+		throw new RangeError(`repeat: count must be a positive integer (got ${count})`);
+	}
+	const body: NodeFn = (ctx: Ctx) => {
+		try {
+			const st = (ctx.state.get<RepeatState>() ?? {
+				started: false,
+				round: 0,
+				inner: null,
+			}) as RepeatState;
+			// 1. forward the current inner's DATA this wave (the inner is the sole dep once wired).
+			for (let i = 0; i < depCount(ctx); i++) {
+				const b = depBatch(ctx, i);
+				if (b && b.length > 0) for (const v of b) ctx.down([["DATA", v]]);
+			}
+			// 2. activation: mint round 0's inner.
+			if (!st.started) {
+				st.started = true;
+				st.round = 0;
+				const inner = fromAnyInCtx(ctx, factory());
+				st.inner = inner;
+				ctx.state.set(st);
+				ctx.rewireNext.subscribeDep(inner, body);
+				return;
+			}
+			// 3. inner COMPLETE → next round or terminal COMPLETE.
+			if (st.inner !== null && isTerminalComplete(depTerminal(ctx, 0))) {
+				const old = st.inner;
+				ctx.rewireNext.unsubscribeDep(old, body); // bound the finished round's inner
+				if (st.round + 1 < count) {
+					st.round += 1;
+					const next = fromAnyInCtx(ctx, factory());
+					st.inner = next;
+					ctx.state.set(st);
+					ctx.rewireNext.subscribeDep(next, body);
+				} else {
+					st.inner = null;
+					ctx.state.set(st);
+					ctx.down([["COMPLETE"]]);
+				}
+			}
+		} catch (e) {
+			ctx.down([["ERROR", errorPayload(e, "repeat threw without a valid error payload")]]); // D30 (self-catch survives rewire)
+		}
+	};
+	return {
+		factory: "repeat",
+		body,
+		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
+	};
+}

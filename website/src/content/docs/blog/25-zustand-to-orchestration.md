@@ -27,10 +27,10 @@ Asking teams to jump directly into `node`, `derived()`, and `graph.describe()` i
 
 ## What the wrapper does
 
-The compat layer at `@graphrefly/graphrefly/compat/zustand` maps known patterns onto GraphReFly internals:
+The clean-slate store facade `zustandStore(...)` from `@graphrefly/ts/adapters` maps caller-owned GraphReFly nodes into a Zustand-style shape:
 
 ```ts
-import { createStore } from '@graphrefly/graphrefly/compat/zustand';
+import { zustandStore } from '@graphrefly/ts/adapters';
 
 const useStore = createStore((set) => ({
   count: 0,
@@ -60,7 +60,7 @@ You keep adoption friction low while changing what is possible.
 
 Successful migrations usually follow:
 
-1. Replace store creation with `@graphrefly/graphrefly/compat/zustand` wrapper
+1. Bind existing state nodes through `zustandStore(...)` from `@graphrefly/ts/adapters`
 2. Keep existing actions/selectors stable — components do not change
 3. Move async flows into reactive operators and orchestration nodes
 4. Gradually replace wrapper surfaces with native `state()`, `derived()`, and `effect()` where beneficial

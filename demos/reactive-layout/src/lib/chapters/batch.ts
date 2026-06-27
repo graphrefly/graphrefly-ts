@@ -1,10 +1,7 @@
-import { batch } from "@graphrefly/graphrefly";
-import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
-import {
-	type ReactiveLayoutBundle,
-	reactiveLayout,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+import { batch } from "@graphrefly/ts/core";
+import { createDemoReactiveLayout, type DemoReactiveLayoutBundle } from "../layout-bundles.js";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
+import type { NodeRegistry } from "../shell.js";
 
 export const BATCH_SOURCE = `// Unbatched — 5 writes fan out as 5 separate recompute cycles.
 layout.setText("five");
@@ -33,8 +30,8 @@ export type BatchStats = {
 };
 
 export type BatchChapter = {
-	batched: ReactiveLayoutBundle;
-	unbatched: ReactiveLayoutBundle;
+	batched: DemoReactiveLayoutBundle;
+	unbatched: DemoReactiveLayoutBundle;
 	batchedStats: BatchStats;
 	unbatchedStats: BatchStats;
 	resetStats: () => void;
@@ -47,7 +44,7 @@ export type BatchChapter = {
 export function buildBatchChapter(): BatchChapter {
 	const adapter = getMeasurementAdapter();
 
-	const unbatched = reactiveLayout({
+	const unbatched = createDemoReactiveLayout({
 		adapter,
 		name: "layout.unbatched",
 		text: "Baseline: 5 sequential writes fan out to 5 recompute cycles.",
@@ -56,7 +53,7 @@ export function buildBatchChapter(): BatchChapter {
 		maxWidth: 420,
 	});
 
-	const batched = reactiveLayout({
+	const batched = createDemoReactiveLayout({
 		adapter,
 		name: "layout.batched",
 		text: "Wrapped in batch(): same 5 writes collapse into 1 cycle.",
@@ -97,7 +94,7 @@ export function buildBatchChapter(): BatchChapter {
 	let nonce = 0;
 	const applyFiveEdits = () => {
 		nonce += 1;
-		const writes = (b: ReactiveLayoutBundle) => {
+		const writes = (b: DemoReactiveLayoutBundle) => {
 			b.setText(`edit-${nonce}a`);
 			b.setFont(nonce % 2 === 0 ? LAYOUT_FONT : '15px "Fira Code", monospace');
 			b.setLineHeight(nonce % 2 === 0 ? 22 : 24);

@@ -1,4 +1,4 @@
-import type { LineBreaksResult } from "@graphrefly/graphrefly/utils/reactive-layout";
+import type { LineBreaksResult } from "@graphrefly/ts/solutions/reactive-layout";
 import { useEffect, useRef, useState } from "react";
 import { type AdaptersChapter, buildAdaptersChapter } from "../../lib/chapters/adapters";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types";
@@ -45,7 +45,7 @@ function useCanvasRender(
 export default function AdaptersChapterUI({ onHover }: ChapterProps) {
 	const chapter = getAdaptersChapter();
 	const [text, setText] = useState<string>(() => {
-		return (chapter.canvas.graph.resolve("text").cache as string) ?? "";
+		return (chapter.canvas.input.text.cache as string) ?? "";
 	});
 	const [maxWidth, setMaxWidth] = useState<number>(360);
 

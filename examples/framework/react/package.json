@@ -3,14 +3,14 @@
 	"private": true,
 	"version": "0.0.8",
 	"type": "module",
-	"description": "React binding for GraphReFly — useStore / useSubscribe.",
+	"description": "React binding for GraphReFly — useNodeInput / useNodeValue.",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"@graphrefly/graphrefly": "workspace:*",
+		"@graphrefly/ts": "workspace:*",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0"
 	},

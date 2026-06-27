@@ -1,18 +1,18 @@
-import type { NodeRegistry } from "@graphrefly/graphrefly/utils/demo-shell";
 import {
 	analyzeAndMeasure,
-	CliMeasureAdapter,
+	CellMeasureAdapter,
 	computeLineBreaks,
-	PrecomputedAdapter,
-	type ReactiveLayoutBundle,
-	reactiveLayout,
-} from "@graphrefly/graphrefly/utils/reactive-layout";
+	metricKey,
+	PrecomputedMeasureAdapter,
+} from "@graphrefly/ts/solutions/reactive-layout";
+import { createDemoReactiveLayout, type DemoReactiveLayoutBundle } from "../layout-bundles.js";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
+import type { NodeRegistry } from "../shell.js";
 
 export const ADAPTERS_SOURCE = `// Same topology, three adapters.
 const canvas = reactiveLayout({ adapter: new CanvasMeasureAdapter(),   ...opts });
-const cli    = reactiveLayout({ adapter: new CliMeasureAdapter({ cellPx: 8 }), ...opts });
-const replay = reactiveLayout({ adapter: new PrecomputedAdapter({ metrics }),  ...opts });
+const cli    = createDemoReactiveLayout({ adapter: new CellMeasureAdapter({ cellWidth: 8 }), ...opts });
+const replay = createDemoReactiveLayout({ adapter: new PrecomputedMeasureAdapter({ metrics }),  ...opts });
 
 // Browser preview pixels in, ASCII cell math elsewhere, snapshot replay for SSR.
 // Subscribers to \`lineBreaks\` see the same structure — only the widths differ.
@@ -28,7 +28,7 @@ replay.lineBreaks.subscribe(ssr);
  * This is the demo's SSR story: one measurement pass produces a static JSON
  * blob that replays identically on any device.
  */
-function snapshotMetrics(text: string): Record<string, Record<string, number>> {
+function snapshotMetrics(text: string): Record<string, number> {
 	const adapter = getMeasurementAdapter();
 	const cache = new Map<string, Map<string, number>>();
 	analyzeAndMeasure(text, LAYOUT_FONT, adapter, cache);
@@ -36,17 +36,17 @@ function snapshotMetrics(text: string): Record<string, Record<string, number>> {
 	for (const ch of text) {
 		analyzeAndMeasure(ch, LAYOUT_FONT, adapter, cache);
 	}
-	const out: Record<string, Record<string, number>> = {};
+	const out: Record<string, number> = {};
 	for (const [font, segs] of cache) {
-		out[font] = Object.fromEntries(segs);
+		for (const [segment, width] of segs) out[metricKey(segment, font)] = width;
 	}
 	return out;
 }
 
 export type AdaptersChapter = {
-	canvas: ReactiveLayoutBundle;
-	cli: ReactiveLayoutBundle;
-	replay: ReactiveLayoutBundle;
+	canvas: DemoReactiveLayoutBundle;
+	cli: DemoReactiveLayoutBundle;
+	replay: DemoReactiveLayoutBundle;
 	setText: (t: string) => void;
 	setMaxWidth: (w: number) => void;
 	sourceCode: string;
@@ -59,7 +59,7 @@ export function buildAdaptersChapter(): AdaptersChapter {
 	// Fresh metrics for the precomputed adapter so replay can hit anything in seed.
 	const metrics = snapshotMetrics(seedText);
 
-	const canvas = reactiveLayout({
+	const canvas = createDemoReactiveLayout({
 		adapter: getMeasurementAdapter(),
 		name: "layout.canvas",
 		text: seedText,
@@ -68,8 +68,8 @@ export function buildAdaptersChapter(): AdaptersChapter {
 		maxWidth: 360,
 	});
 
-	const cli = reactiveLayout({
-		adapter: new CliMeasureAdapter({ cellPx: 8 }),
+	const cli = createDemoReactiveLayout({
+		adapter: new CellMeasureAdapter({ cellWidth: 8 }),
 		name: "layout.cli",
 		text: seedText,
 		font: LAYOUT_FONT,
@@ -77,8 +77,8 @@ export function buildAdaptersChapter(): AdaptersChapter {
 		maxWidth: 360,
 	});
 
-	const replay = reactiveLayout({
-		adapter: new PrecomputedAdapter({ metrics, fallback: "per-char" }),
+	const replay = createDemoReactiveLayout({
+		adapter: new PrecomputedMeasureAdapter({ metrics, fallback: "per-char" }),
 		name: "layout.replay",
 		text: seedText,
 		font: LAYOUT_FONT,

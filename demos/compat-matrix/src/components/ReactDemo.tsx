@@ -1,10 +1,16 @@
-import type { Node } from "@graphrefly/graphrefly";
-import type { ReadableAtom, WritableAtom } from "@graphrefly/graphrefly/compat/jotai";
-import type { NanoAtom, NanoComputed } from "@graphrefly/graphrefly/compat/nanostores";
-import { useStore, useSubscribe, useSubscribeRecord } from "@graphrefly/graphrefly/compat/react";
-import type { StoreApi } from "@graphrefly/graphrefly/compat/zustand";
-import type { DemoShellHandle } from "@graphrefly/graphrefly/utils/demo-shell";
-import { demoShell } from "@graphrefly/graphrefly/utils/demo-shell";
+import type {
+	JotaiAtom,
+	NanoAtom,
+	WritableJotaiAtom,
+	WritableNanoAtom,
+	ZustandStoreApi,
+} from "@graphrefly/ts/adapters";
+import {
+	useNodeRecord,
+	useNodeInput as useStore,
+	useNodeValue as useSubscribe,
+} from "@graphrefly/ts/adapters/react";
+import type { Node } from "@graphrefly/ts/graph";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
 	counterGraph,
@@ -22,6 +28,7 @@ import {
 	zustandDoubledSelector,
 	zustandStore,
 } from "../lib/counter";
+import { type DemoShellHandle, demoShell } from "../lib/demo-shell";
 import {
 	type CodeLayoutSummary,
 	getMeasurementAdapter,
@@ -34,7 +41,7 @@ import { attachPanZoom } from "../lib/pan-zoom";
 
 // ── Custom hooks for non-React-native bindings ─────────────────────────
 
-function useAtomValue<T>(atom: ReadableAtom<T> | WritableAtom<T>): T {
+function useAtomValue<T>(atom: JotaiAtom<T> | WritableJotaiAtom<T>): T | undefined {
 	return useSyncExternalStore(
 		(onStoreChange) => atom.subscribe(() => onStoreChange()),
 		() => atom.get(),
@@ -42,7 +49,7 @@ function useAtomValue<T>(atom: ReadableAtom<T> | WritableAtom<T>): T {
 	);
 }
 
-function useNanoValue<T>(store: NanoAtom<T>): [T, (v: T) => void] {
+function useNanoValue<T>(store: WritableNanoAtom<T>): [T | undefined, (v: T) => void] {
 	const value = useSyncExternalStore(
 		(onStoreChange) => store.subscribe(() => onStoreChange()),
 		() => store.get(),
@@ -52,7 +59,7 @@ function useNanoValue<T>(store: NanoAtom<T>): [T, (v: T) => void] {
 	return [value, set];
 }
 
-function useNanoComputed<T>(store: NanoComputed<T>): T {
+function useNanoComputed<T>(store: NanoAtom<T>): T | undefined {
 	return useSyncExternalStore(
 		(onStoreChange) => store.subscribe(() => onStoreChange()),
 		() => store.get(),
@@ -60,7 +67,7 @@ function useNanoComputed<T>(store: NanoComputed<T>): T {
 	);
 }
 
-function useZustandStore<T extends object>(store: StoreApi<T>): T {
+function useZustandStore<T extends object>(store: ZustandStoreApi<T>): T {
 	return useSyncExternalStore(
 		(onStoreChange) => store.subscribe(() => onStoreChange()),
 		() => store.getState(),
@@ -68,7 +75,10 @@ function useZustandStore<T extends object>(store: StoreApi<T>): T {
 	);
 }
 
-function useZustandSelector<T extends object, R>(store: StoreApi<T>, selector: (s: T) => R): R {
+function useZustandSelector<T extends object, R>(
+	store: ZustandStoreApi<T>,
+	selector: (s: T) => R,
+): R {
 	return useSyncExternalStore(
 		(onStoreChange) => store.subscribe(() => onStoreChange()),
 		() => selector(store.getState()),
@@ -88,16 +98,16 @@ const LIB_LABELS: Record<LibName, string> = {
 };
 
 const LIB_DESCS: Record<LibName, string> = {
-	graphrefly: "Direct node · useStore / useSubscribe",
-	jotai: "Derived atom · atom(read, write)",
-	nanostores: "Sync atom · bidirectional bridge",
-	zustand: "Store API · create(initializer)",
+	graphrefly: "Direct node · framework adapter",
+	jotai: "jotaiAtom facade",
+	nanostores: "nanoAtom facade",
+	zustand: "zustandStore facade",
 };
 
 function RawCard({ selected, onSelect }: { selected: boolean; onSelect: () => void }) {
-	const [value, setValue] = useStore(rawNode as Node<number>);
+	const [value, setValue] = useStore(rawNode);
 	const count = (value as number) ?? 0;
-	const doubled = useSubscribe(rawDoubledNode as Node<number>) as number | null;
+	const doubled = useSubscribe(rawDoubledNode) as number | null;
 	return (
 		<div
 			className={`counter-card${selected ? " selected" : ""}`}
@@ -177,7 +187,8 @@ function JotaiCard({ selected, onSelect }: { selected: boolean; onSelect: () => 
 }
 
 function NanoCard({ selected, onSelect }: { selected: boolean; onSelect: () => void }) {
-	const [count, setCount] = useNanoValue(nanoCounter);
+	const [value, setCount] = useNanoValue(nanoCounter);
+	const count = value ?? 0;
 	const doubled = useNanoComputed(nanoDoubled) ?? 0;
 	return (
 		<div
@@ -266,18 +277,18 @@ function Leaderboard({
 	selected: LibName | "leaderboard" | null;
 	onSelect: (lib: LibName | "leaderboard") => void;
 }) {
-	const record = useSubscribeRecord(
-		keysNode as Node<string[]>,
+	const record = useNodeRecord(
+		keysNode,
 		counterNodeFactory as (key: string) => { count: Node<number> },
 	);
-	const total = useSubscribe(totalNode as Node<number>);
+	const total = useSubscribe(totalNode);
 
 	return (
 		<div
 			className={`leaderboard${selected === "leaderboard" ? " selected" : ""}`}
 			onClick={() => onSelect("leaderboard")}
 		>
-			<div className="leaderboard-title">Leaderboard — useSubscribeRecord</div>
+			<div className="leaderboard-title">Leaderboard — node record</div>
 			<div className="leaderboard-rows">
 				{(["graphrefly", "jotai", "nanostores", "zustand"] as LibName[]).map((lib) => (
 					<button
@@ -370,8 +381,7 @@ export default function ReactDemo() {
 	// Create shell once
 	useEffect(() => {
 		// (#1) Pass a CanvasMeasureAdapter so the shell's `layout/code-lines`
-		// derived node (and `layout/graph-labels`) turn on — otherwise
-		// those paths are dormant per demo-shell.ts:343.
+		// derived node can recompute with the side-pane width.
 		const shell = demoShell({
 			mainRatio: 0.6,
 			viewportWidth: window.innerWidth,
@@ -507,7 +517,7 @@ export default function ReactDemo() {
 	const codeSnippet = codeKey ? codeSnippets[codeKey] : null;
 	const codeTitle = codeKey
 		? codeKey === "leaderboard"
-			? "Leaderboard — useSubscribeRecord code"
+			? "Leaderboard — node record code"
 			: `${LIB_LABELS[codeKey as LibName]} — binding code`
 		: "Select a card to see code";
 

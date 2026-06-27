@@ -1,40 +1,143 @@
 ---
 title: "NestJS Integration"
-description: "Build a reactive NestJS backend with GraphReFly — CQRS, scheduled jobs, WebSocket streaming, SSE, and actor-scoped guards."
+description: "Clean-slate NestJS integration with D495 focused provider ergonomics and explicit diagnostics."
 ---
 
 # NestJS Integration
 
-GraphReFly ships a first-class NestJS adapter at `@graphrefly/graphrefly/compat/nestjs`. It gives you a reactive graph inside NestJS's dependency injection, with CQRS event flows, scheduled jobs, real-time streaming, and actor-scoped guards — all wired through the graph protocol.
+Install GraphReFly plus the Nest peers for the phases you use:
 
-This recipe walks through a complete order-flow backend. The full runnable example lives at [`examples/nestjs-order-flow.ts`](https://github.com/graphrefly/graphrefly-ts/blob/main/examples/nestjs-order-flow.ts).
-
-## Install
-
-```bash frame="none"
-npm install @graphrefly/graphrefly @nestjs/common @nestjs/core @nestjs/platform-express reflect-metadata
-# For WebSocket support:
-npm install @nestjs/platform-ws @nestjs/websockets
+```bash
+pnpm add @graphrefly/ts @nestjs/common @nestjs/core rxjs
+pnpm add @nestjs/websockets @nestjs/platform-ws      # only for the WebSocket bridge
+pnpm add @nestjs/microservices                       # only for the message bridge
 ```
 
-## Module registration
+The clean-slate NestJS adapter has focused subpaths:
 
-`GraphReflyModule.forRoot()` creates a global graph singleton. `GraphReflyModule.forCqrs()` mounts a CQRS subgraph that auto-namespaces under the root.
+| Import path | Use |
+|---|---|
+| `@graphrefly/ts/adapters/nestjs` | Dependency-light structural metadata: boundary factories, binding decorators, envelopes, and lowering types. |
+| `@graphrefly/ts/adapters/nestjs/native` | Nest/RxJS native phase bridges for HTTP interceptor, guard, filter, cron, and lifecycle phases. |
+| `@graphrefly/ts/adapters/nestjs/websockets` | Focused optional-peer native bridge for `@nestjs/websockets` gateway ingress plus ack/reply egress. |
+| `@graphrefly/ts/adapters/nestjs/microservices` | Focused optional-peer native bridge for `@nestjs/microservices` message-pattern ingress plus reply egress. |
+
+HTTP/native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`. The WebSocket and message subpaths import only their matching optional peer.
+
+Decorators are binding metadata. Providers are Nest phase bridges. Graph nodes are ordinary topology. D494/D495 are ergonomics and testability slices. NestJS provider bundle helpers and explicit target helpers reduce module boilerplate, but they never scan the Nest container, create graphs, own business graphs, add hidden route registries, introduce hidden event buses, or own retry/session/transport lifecycle policy.
+
+## Envelope
 
 ```ts
-import { Module } from "@nestjs/common";
-import { GraphReflyModule } from "@graphrefly/graphrefly/compat/nestjs";
+type NestBoundaryEnvelope<T = unknown> = {
+  bindingId: string;
+  version: 1;
+  payload: T;
+  requestId?: string;
+};
+
+type NestReplyEnvelope<T = unknown> =
+  NestBoundaryEnvelope<T> & { requestId: string };
+```
+
+`requestId` is optional on the base envelope so lifecycle, cron, and other non-request ingress do not need fake request identity. HTTP replies and other reply-capable egress use `NestReplyEnvelope` and require a present `requestId`.
+
+`bindingId` belongs to the Nest binding, usually supplied on `GraphReq(...)` or `GraphHttpReply(...)`. The graph node remains ordinary topology; its node name is not the durable Nest binding identity. Envelope `version` is the adapter envelope schema version, and v1 is the only accepted default.
+
+## Decorator Path
+
+```ts
+import { graph, depLatest } from "@graphrefly/ts";
+import {
+  fromNestReq,
+  GraphReq,
+  GraphHttpReply,
+  type NestBoundaryEnvelope,
+  type NestReplyEnvelope,
+} from "@graphrefly/ts/adapters/nestjs";
+
+const g = graph({ name: "orders" });
+
+const ordersIn = fromNestReq(g, { bindingId: "node.orders.in" });
+
+const ordersOut = g.node<NestReplyEnvelope>(
+  [ordersIn.node],
+  (ctx) => {
+    const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope;
+    if (envelope.requestId === undefined) return;
+    ctx.down([[
+      "DATA",
+      {
+        requestId: envelope.requestId,
+        bindingId: "http.orders.out",
+        version: 1,
+        payload: { status: 202, body: { accepted: true } },
+      },
+    ]]);
+  },
+  { name: "http.orders.out" },
+);
+
+class OrdersController {
+  @GraphReq(ordersIn, {
+    bindingId: "http.orders.in",
+    requestId: (req: { requestId: string }) => req.requestId,
+    payload: (req: { body: unknown }) => req.body,
+  })
+  @GraphHttpReply(ordersOut, { bindingId: "http.orders.out" })
+  createOrder() {}
+}
+```
+
+Register the native phase bridge with Nest providers:
+
+```ts
+import { provideGraphBoundaryInterceptor } from "@graphrefly/ts/adapters/nestjs/native";
 
 @Module({
-  imports: [
-    // Root graph singleton (global)
-    GraphReflyModule.forRoot({ name: "app" }),
+  providers: [
+    provideGraphBoundaryInterceptor({
+      host: (context) => context.switchToHttp().getRequest(),
+    }),
+  ],
+})
+class AppModule {}
+```
 
-    // CQRS orders subgraph — auto-mounts as app::orders
-    GraphReflyModule.forCqrs({
-      name: "orders",
-      build: (g) => {
-        g.event("orderPlaced");
+The provider reads metadata for the current class/handler only, attaches host-private pending reply handles, emits ingress DATA, lowers HTTP DATA replies, and cleans up. Controller users do not call `attach` on the decorator path. Low-level `emit(...)` and `toNestHttp(...)` remain available for custom hosts.
+
+For common native wiring, use the explicit provider bundles:
+
+```ts
+import {
+  graphCronTarget,
+  graphLifecycleTarget,
+  provideGraphNativeProviders,
+} from "@graphrefly/ts/adapters/nestjs/native";
+
+const cronTargets = [
+  graphCronTarget(OrdersController, "cronTick", {
+    expr: "* * * * *",
+    timezone: "UTC",
+  }),
+];
+
+@Module({
+  providers: [
+    ...provideGraphNativeProviders({
+      http: {
+        boundaryInterceptor: {
+          host: (context) => context.switchToHttp().getRequest(),
+        },
+        guard: {},
+      },
+      cronScheduler: { targets: cronTargets },
+      lifecycleHooks: {
+        targets: [
+          graphLifecycleTarget(OrdersController, "teardown", {
+            event: "module-destroy",
+          }),
+        ],
       },
     }),
   ],
@@ -42,287 +145,199 @@ import { GraphReflyModule } from "@graphrefly/graphrefly/compat/nestjs";
 class AppModule {}
 ```
 
-Inject the graph or a named CQRS subgraph anywhere:
+The bundle returns ordinary `Provider[]`. It is not a module, does not create a graph, and does not discover targets. Targets remain explicit data supplied by the host app.
+
+## WebSocket and Message Bridges
+
+D495 extends the NestJS ergonomics slice to focused transport subpaths. WebSocket modules may use `provideGraphWsProviders(...)` from `@graphrefly/ts/adapters/nestjs/websockets`, and message-pattern modules may use `provideGraphMessageProviders(...)` from `@graphrefly/ts/adapters/nestjs/microservices`. Each helper returns an ordinary explicit Nest provider array over existing bridge options. These helpers are not modules, do not create graphs, do not scan the container, do not discover routes or handlers, and do not own retry, session, or transport lifecycle policy.
+
+Use `GraphWs(...)` with `GraphWsAck(...)` or `GraphWsReply(...)` through `provideGraphWsProviders(...)` or the primitive `provideGraphWsBridge(...)` from `@graphrefly/ts/adapters/nestjs/websockets`. Use `GraphMessage(...)` with `GraphMessageReply(...)` through `provideGraphMessageProviders(...)` or the primitive `provideGraphMessageBridge(...)` from `@graphrefly/ts/adapters/nestjs/microservices`.
 
 ```ts
-import { Inject } from "@nestjs/common";
-import { GRAPHREFLY_ROOT_GRAPH, getGraphToken } from "@graphrefly/graphrefly/compat/nestjs";
-import type { Graph } from "@graphrefly/graphrefly/graph";
-import type { CqrsGraph } from "@graphrefly/graphrefly/patterns";
+import { provideGraphMessageProviders } from "@graphrefly/ts/adapters/nestjs/microservices";
+import { provideGraphWsProviders } from "@graphrefly/ts/adapters/nestjs/websockets";
 
-class OrderController {
-  constructor(
-    @Inject(GRAPHREFLY_ROOT_GRAPH) private graph: Graph,
-    @Inject(getGraphToken("orders")) private orders: CqrsGraph,
-  ) {}
+@Module({
+  providers: [
+    ...provideGraphWsProviders({
+      bridge: {
+        ack: (host: WsHost) => host.ack,
+        client: (host: WsHost) => host.client,
+        diagnosticBoundary: nestDiagnostics,
+      },
+    }),
+    ...provideGraphMessageProviders({
+      bridge: { diagnosticBoundary: nestDiagnostics },
+    }),
+  ],
+})
+class AppModule {}
+```
+
+These native phase bridges read only the metadata for the current gateway/controller method, require explicit payload selectors, and correlate reply-capable egress by both `requestId` and `bindingId`. Sockets, clients, ack callbacks, message contexts, transport clients, Observables, Promises, and reply handles stay host-private pending handles; graph-visible DATA carries only the selected payload envelope. Wrong-binding, stale, malformed, terminal, timeout, disconnect, and dispose cases are adapter diagnostics and cleanup paths, not protocol `ERROR`.
+
+The optional-peer boundary remains strict: `@nestjs/websockets` is imported only by the WebSocket subpath, and `@nestjs/microservices` is imported only by the microservice/message subpath. The structural `@graphrefly/ts/adapters/nestjs` surface and HTTP/native `@graphrefly/ts/adapters/nestjs/native` surface do not pull those transport peers.
+
+## Guards, Filters, and Issues
+
+Use `GraphGuard(...)` with `GraphGuardDecision(...)` for guard phase decisions. Missing, malformed, rejected, or requestId-less decisions fail closed. Guard denial is graph-visible DATA, not protocol `ERROR`; response status/body/headers are written by the targeted GraphReFly guard-denial filter.
+
+```ts
+import { UseFilters } from "@nestjs/common";
+import { GraphGuardDeniedFilter } from "@graphrefly/ts/adapters/nestjs/native";
+
+class OrdersController {
+  @UseFilters(GraphGuardDeniedFilter)
+  @GraphGuard(ordersGuardIn, { bindingId: "guard.orders.in" })
+  @GraphGuardDecision(ordersGuardOut, { bindingId: "guard.orders.out" })
+  createOrder() {}
+}
+
+// A deny payload can carry status/body/headers directly:
+const denied = {
+  kind: "deny",
+  status: 403,
+  body: { accepted: false },
+  headers: { "x-graphrefly-guard": "orders.denied" },
+} satisfies GraphGuardDecision;
+```
+
+`createGraphGuardDeniedFilter()` returns the same narrow helper as an instance, and `provideGraphGuardDeniedFilter()` registers the class-token provider used by `@UseFilters(GraphGuardDeniedFilter)`. The helper catches only the GraphReFly-owned guard denial exception; it is not a catch-all `APP_FILTER` and does not own ordinary Nest exceptions.
+
+`GraphGuardDecision(...)` supports binding-level `issueResponse` for deny issues and binding-level `protocolError` for reply-node `ERROR`, with binding options taking precedence over provider defaults.
+
+Use `GraphFilter(...)` for generic filter bindings; `GraphError(...)` is exception-oriented sugar. Filter/error bindings default to handle mode and can opt into observe mode.
+
+For exception handling, prefer the targeted helper:
+
+```ts
+import { UseFilters } from "@nestjs/common";
+import { createGraphExceptionFilter } from "@graphrefly/ts/adapters/nestjs/native";
+
+const graphErrorFilter = createGraphExceptionFilter({
+  target: () => ({ target: OrdersController, methodKey: "handledError" }),
+});
+
+class OrdersController {
+  @UseFilters(graphErrorFilter)
+  @GraphError(errorIn, { bindingId: "error.orders.in" })
+  @GraphHttpReply(errorOut, { bindingId: "http.error.out" })
+  handledError() {}
 }
 ```
 
-## CQRS order flow
+`provideGraphExceptionFilter(...)` exposes the same helper through a GraphReFly token for explicit Nest DI wiring. It is not registered as a catch-all `APP_FILTER`: Nest's global `ArgumentsHost` does not reliably expose the current route class/handler, and GraphReFly does not scan the container or own pass-through routing between unrelated filters.
 
-Wire commands, events, projections, and sagas through the `CqrsGraph` API:
-
-### Command handler
-
-Dispatch a command that emits an event:
+HTTP business failures are DATA payloads, either `{ status, body, headers? }` or `HttpDataIssue`:
 
 ```ts
-this.orders.command<OrderPayload>("placeOrder", (payload, { emit }) => {
-  emit("orderPlaced", {
-    orderId: payload.id,
-    item: payload.item,
-    amount: payload.amount,
-  });
+const issue = {
+  kind: "issue",
+  code: "orders.not_admitted",
+  message: "Order was not admitted.",
+  status: 403,
+  body: { accepted: false },
+} satisfies HttpDataIssue;
+```
+
+Plain `DataIssue` values lower through `issueResponse(issue, host)`. Protocol `ERROR` from a reply node is graph/reply pipeline failure, not a business error path; it lowers through `protocolError(errorPayload, host)` with binding override before provider override before the safe 500 fallback.
+
+## Cron
+
+`GraphCron(...)` is consumed by `provideGraphCronScheduler(...)`; it does not require `@nestjs/schedule`. The scheduler is a Nest/source boundary that starts and stops host-private timers on module lifecycle hooks and emits ordinary cron ingress DATA.
+
+`fromCron(...)` and `GraphCron` support IANA timezone strings through runtime `Intl` support. Defaults are explicit: nonexistent DST wall-clock minutes are skipped, repeated wall-clock minutes fire at most once, and missed ticks while the host app/provider/event loop is unavailable are skipped by default. Restart or resume continues from the current time only; no missed-status or catch-up DATA is synthesized.
+
+The deterministic controller is for manual checks and tests:
+
+```ts
+import { createGraphCronController, graphCronTarget } from "@graphrefly/ts/adapters/nestjs/native";
+
+const controller = createGraphCronController({
+  targets: [
+    graphCronTarget(OrdersController, "cronTick", {
+      expr: "30 8 * * 1",
+      timezone: "UTC",
+    }),
+  ],
+});
+
+controller.check(new Date("2026-01-05T08:30:00.000Z"));
+```
+
+Cron remains five-field, minute-granularity, skip/current-time-only, and deduped per matched wall-clock minute. The deterministic cron controller does not add seconds grammar, missed-status DATA, catch-up replay DATA, scheduledAt/actualAt/missedCount payloads, or a graph-core scheduler.
+
+## Inspection and Logging
+
+Adapter diagnostics are host-side snapshots by default. `diagnostics()` on reply/bridge objects remains a host diagnostic snapshot and does not emit graph DATA by itself. Adapter diagnostics are not a stable logging callback and are not graph inspection. Use graph-visible audit/status/issues nodes and observe them:
+
+```ts
+const stop = g.observe("orders.audit").subscribe((event) => {
+  if (event.msg[0] === "DATA") {
+    nestLogger.log(JSON.stringify(event.msg[1]));
+  }
 });
 ```
 
-### Projection
+`graph.describe()` and `graph.observe()` remain the inspection path. Ordinary business HTTP failures are DATA payloads such as `{ status, body }`, not protocol `ERROR`.
 
-Fold events into a read model:
-
-```ts
-this.orders.projection<OrderSummary>(
-  "orderSummary",
-  ["orderPlaced"],
-  (current, events) => {
-    let summary = { ...current };
-    for (const evt of events) {
-      const p = evt.payload as { orderId: string; amount: number };
-      summary = {
-        totalOrders: summary.totalOrders + 1,
-        totalRevenue: summary.totalRevenue + p.amount,
-        lastOrderId: p.orderId,
-      };
-    }
-    return summary;
-  },
-  { totalOrders: 0, totalRevenue: 0, lastOrderId: null },
-);
-```
-
-### Saga
-
-Orchestrate side effects in response to events:
+Graph-visible adapter diagnostics require an explicitly wired diagnostic ingress boundary:
 
 ```ts
-this.orders.saga("fulfillment", ["orderPlaced"], (event) => {
-  const p = event.payload as { orderId: string };
-  console.log(`Fulfillment for ${p.orderId} — shipping initiated`);
+import { fromNestDiagnostics } from "@graphrefly/ts/adapters/nestjs";
+import { provideGraphMessageProviders } from "@graphrefly/ts/adapters/nestjs/microservices";
+import { provideGraphNativeProviders } from "@graphrefly/ts/adapters/nestjs/native";
+import { provideGraphWsProviders } from "@graphrefly/ts/adapters/nestjs/websockets";
+
+const nestDiagnostics = fromNestDiagnostics(g, {
+  bindingId: "node.nest.diagnostics",
 });
+
+@Module({
+  providers: [
+    ...provideGraphNativeProviders({
+      http: {
+        boundaryInterceptor: { diagnosticBoundary: nestDiagnostics },
+        guard: { diagnosticBoundary: nestDiagnostics },
+      },
+    }),
+    ...provideGraphWsProviders({
+      bridge: { diagnosticBoundary: nestDiagnostics },
+    }),
+    ...provideGraphMessageProviders({
+      bridge: { diagnosticBoundary: nestDiagnostics },
+    }),
+  ],
+})
+class AppModule {}
 ```
 
-### Dispatch and query
+Graph-visible diagnostics emit only sanitized data-only payloads: `kind`, `phase`, `requestId`, `bindingId`, `expectedBindingId`, `message`, and optional `{ name, message }` error summary. Raw sockets, clients, contexts, callbacks, transport handles, Promises, Observables, and raw Error objects never enter graph DATA. WS and message diagnostics use the same explicit ingress recipe as HTTP/native diagnostics; they do not get a separate logging channel.
 
-```ts
-// POST /orders/place
-@Post("place")
-placeOrder(@Body() body: OrderPayload) {
-  this.orders.dispatch("placeOrder", body);
-  return { status: "ok", orderId: body.id };
-}
+There is no `onDiagnostic` callback or logging API. Log or audit diagnostics by composing explicit graph nodes and subscribing with `graph.observe(...)`, the same as other graph-visible status.
 
-// GET /orders/summary
-@Get("summary")
-getSummary() {
-  return this.orders.resolve("orderSummary").get();
-}
+## Runnable Example
+
+The example lives at `examples/nestjs-graph-boundary/`:
+
+```bash
+pnpm --filter @graphrefly-examples/nestjs-graph-boundary start
 ```
 
-## Actor guard
+It includes:
 
-`GraphReflyGuard` extracts an `Actor` from the request, making it available to graph operations. The guard supports header-based extraction (for development) and JWT payload extraction (for production).
+- `POST /echo`
+- `POST /policy`
+- `POST /orders`
+- `POST /handled-error`
+- `POST /cron/tick`
+- `POST /cron/check`
+- `GET /audit/:requestId`
+- `POST /lifecycle/teardown`
+- `GET /graph`
+- WebSocket `orders.reserve` on `/graphrefly`
+- TCP microservice pattern `orders.reserve` on `MICRO_HOST:MICRO_PORT` (default `127.0.0.1:3001`)
 
-```ts
-import { GraphReflyGuard, fromHeader, getActor } from "@graphrefly/graphrefly/compat/nestjs";
+`POST /echo` and `POST /orders` use the D494 native provider bundle. The WebSocket and message-pattern methods use the D495 focused optional-peer provider bundles with `requestId` plus `bindingId` correlation. `POST /orders` shows guard denial response headers through `GraphGuardDeniedFilter`. `POST /handled-error` uses the targeted exception helper with Nest `@UseFilters(...)`. `POST /cron/check` demonstrates the deterministic manual cron controller. The example also includes a Nest Logger provider that subscribes to the graph-visible `orders.audit` node with `graph.observe(...)` and an explicit diagnostic boundary for sanitized adapter diagnostics.
 
-// Reads Actor from the `x-actor` header (JSON-parsed)
-const actorGuard = GraphReflyGuard(fromHeader());
-
-@Controller("admin")
-@UseGuards(actorGuard)
-class AdminController {
-  constructor(@Inject(GRAPHREFLY_ROOT_GRAPH) private graph: Graph) {}
-
-  @Get("describe")
-  describe(@Req() req: unknown) {
-    const actor = getActor(req);
-    return this.graph.describe({ actor, detail: "standard" });
-  }
-}
-```
-
-```bash frame="none"
-# Test with actor context:
-curl http://localhost:3000/admin/describe \
-  -H 'x-actor: {"type":"human","id":"admin-1"}'
-```
-
-For production, swap to JWT extraction:
-
-```ts
-import { fromJwtPayload } from "@graphrefly/graphrefly/compat/nestjs";
-
-const actorGuard = GraphReflyGuard(fromJwtPayload());
-```
-
-## Scheduled jobs
-
-Use `fromTimer()` and `fromCron()` as reactive graph nodes — no imperative `setInterval` or cron libraries needed.
-
-```ts
-import { fromTimer, fromCron } from "@graphrefly/graphrefly/extra";
-
-// Metrics heartbeat every 10s
-const timerNode = fromTimer(10_000, { period: 10_000, name: "__schedule__.metrics" });
-this.graph.add(timerNode);
-
-// Daily cleanup at midnight
-const cronNode = fromCron("0 0 * * *", { name: "__schedule__.dailyCleanup" });
-this.graph.add(cronNode);
-```
-
-Both are visible in `graph.describe()` and participate in the reactive topology like any other node.
-
-## Real-time streaming
-
-### WebSocket observe
-
-`ObserveGateway` bridges the graph's observe protocol to WebSocket clients:
-
-```ts
-import { ObserveGateway } from "@graphrefly/graphrefly/compat/nestjs";
-
-@WebSocketGateway()
-class GraphWsGateway implements OnModuleDestroy {
-  private gw: ObserveGateway;
-
-  constructor(@Inject(GRAPHREFLY_ROOT_GRAPH) graph: Graph) {
-    this.gw = new ObserveGateway(graph);
-  }
-
-  handleConnection(client: unknown) { this.gw.handleConnection(client); }
-  handleDisconnect(client: unknown) { this.gw.handleDisconnect(client); }
-
-  @SubscribeMessage("observe")
-  onObserve(client: unknown, data: unknown) {
-    this.gw.handleMessage(client, data);
-  }
-
-  onModuleDestroy() { this.gw.destroy(); }
-}
-```
-
-Clients send `{ event: "observe", data: { node: "orders::orderPlaced" } }` and receive reactive updates as the node changes.
-
-### SSE stream
-
-`observeSSE()` returns a `ReadableStream` for Server-Sent Events:
-
-```ts
-import { observeSSE, getActor } from "@graphrefly/graphrefly/compat/nestjs";
-
-@Get("stream")
-streamOrders(@Req() req: unknown, @Res() res: Response) {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.writeHead(200);
-
-  const stream = observeSSE(this.graph, "orders::orderPlaced", {
-    actor: getActor(req),
-    keepAliveMs: 15_000,
-  });
-
-  // Pipe ReadableStream to HTTP response...
-}
-```
-
-```bash frame="none"
-curl -N http://localhost:3000/orders/stream
-```
-
-## Admin introspection
-
-Every node in the graph — CQRS events, projections, scheduled jobs, custom nodes — is visible through `graph.describe()`:
-
-```ts
-@Get("describe")
-describe() {
-  return this.graph.describe();
-}
-```
-
-```bash frame="none"
-curl http://localhost:3000/admin/describe | jq .
-```
-
-Returns the full topology: node names, types, dependency edges, current values, and metadata.
-
-You can also export diagrams directly from the running graph by composing
-the pure renderers from `@graphrefly/graphrefly/extra/render` over
-`graph.describe()`:
-
-```ts
-import { graphSpecToD2, graphSpecToMermaid } from "@graphrefly/graphrefly/extra/render";
-
-@Get("mermaid")
-mermaid() {
-  return graphSpecToMermaid(this.graph.describe(), { direction: "LR" });
-}
-
-@Get("d2")
-d2() {
-  return graphSpecToD2(this.graph.describe(), { direction: "LR" });
-}
-```
-
-```bash frame="none"
-curl http://localhost:3000/admin/mermaid
-curl http://localhost:3000/admin/d2
-```
-
-## Running the example
-
-The complete, bootable example is at `examples/nestjs-order-flow.ts`:
-
-```bash frame="none"
-# Default port (3000)
-pnpm exec tsx --tsconfig examples/tsconfig.json examples/nestjs-order-flow.ts
-
-# Or choose a different port if 3000 is already in use
-PORT=3001 pnpm exec tsx --tsconfig examples/tsconfig.json examples/nestjs-order-flow.ts
-```
-
-Then try:
-
-```bash frame="none"
-# Place an order
-curl -X POST http://localhost:3000/orders/place \
-  -H "Content-Type: application/json" \
-  -d '{"id":"order-1","item":"Widget","amount":29.99}'
-
-# Check the projection
-curl http://localhost:3000/orders/summary
-
-# Stream events via SSE
-curl -N http://localhost:3000/orders/stream
-
-# Inspect the graph topology
-curl http://localhost:3000/admin/describe | jq .
-
-# Export diagrams
-curl http://localhost:3000/admin/mermaid
-curl http://localhost:3000/admin/d2
-```
-
-## Key concepts
-
-| Concept | GraphReFly NestJS | Traditional NestJS |
-|---|---|---|
-| State management | Reactive graph nodes | Services with mutable fields |
-| CQRS | `CqrsGraph` — command/event/projection/saga | `@nestjs/cqrs` — separate buses |
-| Scheduling | `fromTimer()` / `fromCron()` as graph nodes | `@nestjs/schedule` decorators |
-| Real-time | `ObserveGateway` / `observeSSE()` | Manual WebSocket/SSE wiring |
-| Introspection | `graph.describe()` — full topology | None built-in |
-| Actor context | `GraphReflyGuard` + `getActor()` | Custom guards |
-
-The graph approach means every piece of state — commands, events, projections, timers, custom nodes — lives in a single observable topology. You get introspection, snapshotting, and reactive composition for free.
+WebSocket and microservice helpers stay in their focused optional-peer subpaths. Live WebSocket and TCP tests are acceptance coverage over the existing public APIs; they do not define new public transport policy.

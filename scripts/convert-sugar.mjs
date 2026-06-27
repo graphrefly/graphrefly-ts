@@ -73,7 +73,6 @@ const FILES = [
 	"src/__tests__/graphspec/spec-roundtrip.test.ts",
 	"src/__tests__/graphspec/factory-tags-audit.test.ts",
 	"src/__tests__/graphspec/factory-tags-bundles.test.ts",
-	"src/__tests__/evals/catalog-aware-evaluator.test.ts",
 	"src/__tests__/compat/nestjs.test.ts",
 	"src/__tests__/compat/zustand.test.ts",
 	"src/__tests__/properties/_invariants.ts",

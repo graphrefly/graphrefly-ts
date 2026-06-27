@@ -15,7 +15,7 @@ This page is the **consideration-stage** comparison. For setup, APIs, and compos
 | **Bundle** | ~15 KB min+gz, zero-dep | GraphReFly core + `reactive-layout` (tree-shakeable) |
 | **Reactivity** | Bring your own (store, observers, manual) | Native — only dependent nodes recompute |
 | **Beyond single-column text** | You compose by hand | `reactiveBlockLayout`, `reactiveFlowLayout`, exported slot primitives |
-| **Headless / SSR** | DOM-oriented measurement path | `CliMeasureAdapter`, `PrecomputedAdapter`, etc. |
+| **Headless / SSR** | DOM-oriented measurement path | `cellTextMeasurements`, `precomputedTextMeasurements`, etc. |
 | **Observability** | None built-in | `graph.describe()` → mermaid; meta companions; snapshots |
 | **Full i18n (bidi, tab stops, emoji width)** | Strong | **Subset** — see below |
 
@@ -27,11 +27,11 @@ Pretext is a **focused library**: measure and break lines with minimal surface a
 
 | Problem | Pretext | Reactive Layout |
 |---|---|---|
-| Measure text width without DOM reflow | `prepare(text, font)` + `layout(prepared, maxWidth, lineHeight)` | `reactiveLayout({ adapter, text, font, lineHeight, maxWidth })` — canvas-based measurement in a reactive graph |
+| Measure text width without DOM reflow | `prepare(text, font)` + `layout(prepared, maxWidth, lineHeight)` | `text/font -> measurements -> reactiveLayout({ measurements })` — measurement facts in a reactive graph |
 | Cursor-based single-line layout (multi-slot, multi-column) | `layoutNextLine(prepared, cursor, width)` | `layoutNextLine(segments, cursor, slotWidth)` — same shape, same cursor semantics |
 | Carve blocked intervals from a column | Hand-rolled per call site | `carveTextLineSlots(base, blocked, minSlotWidth)` — exported primitive |
-| Stacked heterogeneous blocks (text + image + SVG) | Not in core | `reactiveBlockLayout({ adapters, blocks, maxWidth, gap })` |
-| Multi-column flow around shape obstacles | Hand-rolled over `layoutNextLine` | `reactiveFlowLayout({ text, container, columns, obstacles })` + `Obstacle = Circle \| Rect` + built-in slot carving |
+| Stacked heterogeneous blocks (text + image + SVG) | Not in core | `blockMeasurementProvider(...) -> reactiveBlockLayout({ measurements })` |
+| Multi-column flow around shape obstacles | Hand-rolled over `layoutNextLine` | `textMeasurements -> reactiveFlowLayout({ measurements, container, columns, obstacles })` + `Obstacle = Circle \| Rect` + built-in slot carving |
 | Observability | None | `graph.describe()` → mermaid; `.meta` companions; snapshot serialization |
 | Composable with other reactive work | Bring your own | Native — same protocol as harness, orchestration, messaging, resilience |
 
@@ -43,7 +43,7 @@ Pretext is a **focused library**: measure and break lines with minimal surface a
 
 - **You want inspectability.** Meta companions (`cache-hit-rate`, `layout-time-ns`, `line-count`, …) and one-call graph snapshots for tests and debugging.
 
-- **You're already composing GraphReFly.** Streaming harness output into `setText`, resilience around sources, virtualization with exact heights — layout stays on the same protocol.
+- **You're already composing GraphReFly.** Streaming harness output into the upstream text node, resilience around sources, virtualization with exact heights — layout stays on the same protocol.
 
 ## When to Choose Pretext
 
@@ -80,7 +80,7 @@ Roughly **15 lines** subscribe to `lineBreaks` and drive inputs on `reactiveLayo
 ## See Also
 
 - **[Reactive Layout solution guide](/solutions/reactive-layout/)** — quick start, advanced notes, composition recipes, demo links
-- **[Live demo →](/demos/reactive-layout/)** — playground, adapters, blocks, flow, batching
+- **[Reactive layout solution →](/solutions/reactive-layout/)** — playground, adapters, blocks, flow, batching
 - **[API: `reactiveLayout()`](/api/reactivelayout)** · **[API: `reactiveBlockLayout()`](/api/reactiveblocklayout)** · **[API: `analyzeAndMeasure()`](/api/analyzeandmeasure)** · **[API: `computeLineBreaks()`](/api/computelinebreaks)**
 
 ---

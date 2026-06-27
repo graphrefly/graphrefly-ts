@@ -1,4 +1,4 @@
-import type { ContentBlock, PositionedBlock } from "@graphrefly/graphrefly/utils/reactive-layout";
+import type { ContentBlock, PositionedBlock } from "@graphrefly/ts/solutions/reactive-layout";
 import { useState } from "react";
 import { type BlocksChapter, buildBlocksChapter } from "../../lib/chapters/blocks";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types";
@@ -13,9 +13,9 @@ export function getBlocksChapter(): BlocksChapter {
 
 function textStyleForBlock(index: number): { font: string; lineHeight: number } {
 	const chapter = getBlocksChapter();
-	const blocks = chapter.bundle.graph.resolve("blocks").cache as ContentBlock[] | undefined;
+	const blocks = chapter.bundle.input.blocks.cache as readonly ContentBlock[] | undefined;
 	const src = blocks?.[index];
-	if (src?.type === "text") {
+	if (src?.kind === "text") {
 		return {
 			font: src.font ?? LAYOUT_FONT,
 			lineHeight: src.lineHeight ?? LAYOUT_LINE_HEIGHT,
@@ -24,10 +24,10 @@ function textStyleForBlock(index: number): { font: string; lineHeight: number } 
 	return { font: LAYOUT_FONT, lineHeight: LAYOUT_LINE_HEIGHT };
 }
 
-function BlockRender({ block }: { block: PositionedBlock }) {
-	if (block.type === "text") {
-		const lines = block.textLineBreaks?.lines ?? [];
-		const { font, lineHeight } = textStyleForBlock(block.index);
+function BlockRender({ block, index }: { block: PositionedBlock; index: number }) {
+	if (block.kind === "text") {
+		const lines = block.lineBreaks?.lines ?? [];
+		const { font, lineHeight } = textStyleForBlock(index);
 		return (
 			<div
 				style={{
@@ -57,13 +57,8 @@ function BlockRender({ block }: { block: PositionedBlock }) {
 			</div>
 		);
 	}
-	if (block.type === "svg") {
-		const chapter = getBlocksChapter();
-		const raw = chapter.bundle.graph.resolve("blocks").cache as Array<{
-			type: string;
-			content?: string;
-		}>;
-		const src = raw?.[block.index]?.content ?? "";
+	if (block.kind === "svg") {
+		const src = block.block.kind === "svg" ? block.block.svg : "";
 		return (
 			<div
 				style={{ position: "absolute", left: block.x, top: block.y, width: block.width }}
@@ -137,8 +132,8 @@ export default function BlocksChapterUI({ onHover }: ChapterProps) {
 				data-block="all"
 				style={{ width: maxWidth, height: totalHeight ?? 0 }}
 			>
-				{(blockFlow ?? []).map((b) => (
-					<BlockRender key={b.index} block={b} />
+				{(blockFlow ?? []).map((b, index) => (
+					<BlockRender key={b.id ?? index} block={b} index={index} />
 				))}
 			</div>
 		</div>

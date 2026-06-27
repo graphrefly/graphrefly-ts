@@ -1,9 +1,13 @@
 ---
 title: "GraphReFly vs Vercel AI SDK"
 description: "Both handle LLM streaming — Vercel AI SDK provides React hooks for chat UIs; GraphReFly provides a full reactive graph for streaming state, orchestration, and multi-model coordination."
+draft: true
+pagefind: false
 ---
 
 Both handle LLM streaming. Vercel AI SDK provides React hooks for chat UIs; GraphReFly provides a full reactive graph for streaming state, orchestration, and multi-model coordination.
+
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` imports or old AI utility paths from this historical page.
 
 ## At a Glance
 

@@ -3,14 +3,14 @@
 	"private": true,
 	"version": "0.0.8",
 	"type": "module",
-	"description": "SolidJS binding for GraphReFly — useStore / useSubscribe.",
+	"description": "SolidJS binding for GraphReFly — createNodeInput / createNodeValue.",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"@graphrefly/graphrefly": "workspace:*",
+		"@graphrefly/ts": "workspace:*",
 		"solid-js": "^1.9.0"
 	},
 	"devDependencies": {
