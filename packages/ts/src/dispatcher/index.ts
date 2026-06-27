@@ -4,7 +4,7 @@
  * Canonical authority: ~/src/graphrefly/spec/rules.jsonl
  *   R-handle (D7), R-dispatch-all (D21), R-sync-core (D20/D21).
  *
- * Lifted from the validated handle-dispatch PoC (packages/pure-ts r8-poc, R8/R9):
+ * Lifted from the validated retired handle-dispatch PoC (R8/R9):
  * fn lives in an external pool, indexed by handle; `dispatcher.invoke` is uniformly
  * SYNC void — async/remote behavior lives in the fn body (it kicks off async work
  * and emits later via `ctx.down`), not in a different call mechanism.

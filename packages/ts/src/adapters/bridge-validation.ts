@@ -206,44 +206,35 @@ export function validatePayloadForType(
 	payload: unknown,
 	prefix: string,
 ): string | undefined {
-	const record = typeof payload === "object" && payload !== null ? (payload as object) : undefined;
-	const kind = record === undefined ? undefined : (payload as { readonly kind?: unknown }).kind;
+	const record =
+		typeof payload === "object" && payload !== null
+			? (payload as Record<string, unknown>)
+			: undefined;
+	const kind = record === undefined ? undefined : ownData(record, "kind");
 	switch (type) {
 		case "data":
-			if (kind !== "data" || record === undefined || !("value" in record)) {
+			if (kind !== "data" || record === undefined || !hasOwnData(record, "value")) {
 				return `${prefix}: data envelope requires data payload`;
 			}
-			return wireAdmissiblePayloadError(
-				(payload as { readonly value?: unknown }).value,
-				`${prefix}: data payload`,
-			);
+			return wireAdmissiblePayloadError(ownData(record, "value"), `${prefix}: data payload`);
 		case "nack":
 		case "error":
-			if (kind !== "error" || record === undefined || !("error" in record)) {
+			if (kind !== "error" || record === undefined || !hasOwnData(record, "error")) {
 				return `${prefix}: ${type} envelope requires error payload`;
 			}
-			return wireAdmissiblePayloadError(
-				(payload as { readonly error?: unknown }).error,
-				`${prefix}: ${type} payload`,
-			);
+			return wireAdmissiblePayloadError(ownData(record, "error"), `${prefix}: ${type} payload`);
 		case "status":
-			if (kind !== "status" || record === undefined || !("status" in record)) {
+			if (kind !== "status" || record === undefined || !hasOwnData(record, "status")) {
 				return `${prefix}: status envelope requires status payload`;
 			}
-			return wireAdmissiblePayloadError(
-				(payload as { readonly status?: unknown }).status,
-				`${prefix}: status payload`,
-			);
+			return wireAdmissiblePayloadError(ownData(record, "status"), `${prefix}: status payload`);
 		case "close":
 			if (kind !== "close") return `${prefix}: close envelope requires close payload`;
-			return record !== undefined &&
-				"reason" in record &&
-				(payload as { readonly reason?: unknown }).reason !== undefined
-				? wireAdmissiblePayloadError(
-						(payload as { readonly reason?: unknown }).reason,
-						`${prefix}: close reason`,
-					)
-				: undefined;
+			if (record === undefined || !("reason" in record)) return undefined;
+			if (!hasOwnData(record, "reason")) {
+				return `${prefix}: close reason must be a data property`;
+			}
+			return wireAdmissiblePayloadError(ownData(record, "reason"), `${prefix}: close reason`);
 		case "start":
 		case "ack":
 			return payload === undefined
@@ -335,10 +326,7 @@ function isCanonicalWireBridgeDataBodyLike(value: unknown): boolean {
 	const kind = ownData(value, "kind");
 	if (kind === "wire_edge") return "frame" in value;
 	if (kind !== "value") return false;
-	return (
-		"value" in value &&
-		(ownData(value, "value") instanceof Uint8Array || hasOnlyKeys(value, ["kind", "value"]))
-	);
+	return "value" in value && ownData(value, "value") instanceof Uint8Array;
 }
 
 function isCanonicalWireEdgeFrame(value: unknown): value is CanonicalWireEdgeFrame {
@@ -382,6 +370,11 @@ function isPlainDataRecord(value: unknown): value is Record<string, unknown> {
 function ownData(value: Record<string, unknown>, key: string): unknown {
 	const descriptor = Object.getOwnPropertyDescriptor(value, key);
 	return descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined;
+}
+
+function hasOwnData(value: Record<string, unknown>, key: string): boolean {
+	const descriptor = Object.getOwnPropertyDescriptor(value, key);
+	return descriptor !== undefined && "value" in descriptor;
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {

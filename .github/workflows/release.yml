@@ -25,7 +25,6 @@
 #   - @graphrefly/ts (clean-slate TypeScript package)
 # Ignored:
 #   - @graphrefly/graphrefly (retired root package, B65)
-#   - @graphrefly/pure-ts (frozen reference / legacy-consumer blocker, B66)
 #   - @graphrefly/parity-tests (private)
 
 name: Release
@@ -107,8 +106,8 @@ jobs:
       - name: Test
         run: NODE_ENV=test pnpm test
 
-      # Build before publishing. B65 retired root/pure-ts from this gate; the
-      # release build now follows the clean-slate @graphrefly/ts package.
+      # Build before publishing. The release build follows the clean-slate
+      # @graphrefly/ts package; the root package is retired/private.
       - name: Build
         env:
           NODE_OPTIONS: --max-old-space-size=6144

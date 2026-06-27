@@ -89,6 +89,14 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 		bytes[0] = 9;
 		expect(envelope.payload).toEqual({ kind: "data", value: new Uint8Array([1, 2, 3]) });
+		expect(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				payload: { kind: "data", value: { kind: "value", value: "plain-json" } },
+			}).payload,
+		).toEqual({ kind: "data", value: { kind: "value", value: "plain-json" } });
 
 		const sparse: unknown[] = [];
 		sparse[1] = "hole";
@@ -158,6 +166,19 @@ describe("wire bridge envelopes (D134)", () => {
 				payload: 1 as never,
 			}),
 		).toThrow(/data envelope requires data payload/);
+		const payloadAccessor = {};
+		const getter = vi.fn(() => "data");
+		Object.defineProperty(payloadAccessor, "kind", { get: getter, enumerable: true });
+		Object.defineProperty(payloadAccessor, "value", { value: "ok", enumerable: true });
+		expect(() =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				payload: payloadAccessor as never,
+			}),
+		).toThrow(/data envelope requires data payload/);
+		expect(getter).not.toHaveBeenCalled();
 	});
 
 	it("emits close without an undefined reason payload", () => {

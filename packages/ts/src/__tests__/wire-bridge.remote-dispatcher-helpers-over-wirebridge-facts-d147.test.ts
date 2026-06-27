@@ -113,8 +113,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
+		const status: unknown[] = [];
 		remote.results.subscribe((msg) => results.push(msg));
 		remote.errors.subscribe((msg) => errors.push(msg));
+		remote.status.subscribe((msg) => status.push(msg));
 
 		bridge.inbound.down([
 			[
@@ -147,6 +149,16 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 				requestId: "req-1",
 				error: "remoteCall: orphan response for unknown or completed request",
 			},
+		]);
+		expect(status).toContainEqual([
+			"DATA",
+			expect.objectContaining({
+				state: "errored",
+				operation: "upper",
+				requestId: "req-1",
+				pending: 0,
+				errors: 1,
+			}),
 		]);
 
 		bridge.inbound.down([
@@ -191,8 +203,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
+		const status: unknown[] = [];
 		remote.results.subscribe((msg) => results.push(msg));
 		remote.errors.subscribe((msg) => errors.push(msg));
+		remote.status.subscribe((msg) => status.push(msg));
 
 		batch(() => {
 			bridge.inbound.down([
@@ -227,6 +241,16 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 				requestId: "req-1",
 				error: "remoteCall: orphan response for unknown or completed request",
 			},
+		]);
+		expect(status).toContainEqual([
+			"DATA",
+			expect.objectContaining({
+				state: "errored",
+				operation: "upper",
+				requestId: "req-1",
+				pending: 0,
+				errors: 1,
+			}),
 		]);
 
 		bridge.inbound.down([
@@ -310,6 +334,16 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 				error: "remoteCall: response operation 'lower' did not match pending operation 'upper'",
 			},
 		]);
+		expect(status).toContainEqual([
+			"DATA",
+			expect.objectContaining({
+				state: "errored",
+				operation: "upper",
+				requestId: "req-1",
+				pending: 1,
+				errors: 1,
+			}),
+		]);
 
 		bridge.inbound.down([
 			[
@@ -344,7 +378,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 				requestId: "req-1",
 				pending: 1,
 				completed: 0,
-				errors: 0,
+				errors: 1,
 				timeouts: 0,
 			},
 		]);

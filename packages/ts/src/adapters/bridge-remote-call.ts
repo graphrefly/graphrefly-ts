@@ -430,7 +430,24 @@ function remoteCallStatusNode<TRequest, TResponse>(
 						continue;
 					}
 					const request = remotePendingPeekByRequestId(state.pending, response.requestId);
-					if (request === undefined || !remoteCallResponseMatchesPending(response, request)) {
+					if (request === undefined) {
+						state.status = {
+							...state.status,
+							state: "errored",
+							operation: response.operation,
+							requestId: response.requestId,
+							errors: state.status.errors + 1,
+						};
+						continue;
+					}
+					if (!remoteCallResponseMatchesPending(response, request)) {
+						state.status = {
+							...state.status,
+							state: "errored",
+							operation: request.operation,
+							requestId: request.requestId,
+							errors: state.status.errors + 1,
+						};
 						continue;
 					}
 					if (response.kind === "result") {

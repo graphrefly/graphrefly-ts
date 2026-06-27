@@ -47,15 +47,14 @@ jobs:
 
       - run: pnpm run build
 
-      # B65 retired the old root implementation. Demos still depending on
-      # @graphrefly/graphrefly are B64/B66 cleanup work, not CI blockers here.
+      # The docs build runs against the clean-slate @graphrefly/ts package and
+      # explicitly historical/archive pages.
       - name: Docs build
         run: pnpm run docs:build
         env:
           ASTRO_SITE_URL: https://graphrefly.dev
           ASTRO_BASE_PATH: /
 
-      # B65 retired pure-ts/root benches from this gate; this is the
-      # clean-slate TS B49 probe.
+      # Clean-slate TS B49 probe.
       - name: Benchmark smoke
         run: pnpm bench
