@@ -210,17 +210,17 @@ Goal: establish credibility by showing eval → schema fix → re-eval feedback 
 
 > **Replaces former §9.1 (eval harness), §9.1b (catalog automation), §9.0 closed-loop subsection, and §9.4 (scorecard).** Single source of truth for the eval work.
 >
-> **Cost safety:** Always run `EVAL_MODE=dry-run` first. Default budget cap is `$2 / 100 calls` with replay cache on. See [evals/CHEAP-AND-SAFE.md](../evals/CHEAP-AND-SAFE.md) for the 4-step pre-flight ladder, the USD-cap gotcha for OpenRouter routes, and the cheap-model preset table (GLM, DeepSeek, Gemini Flash, GPT-nano).
+> **Historical as of 2026-06-27:** the old TypeScript eval harness was retired to `archive/evals` during CSP-9/B66 closeout. The `pnpm eval:*` root scripts and scheduled eval workflow are removed. Keep this section as design history only; CSP-8 may introduce a new clean-slate eval harness after the Canvas direction settles.
 
 ##### Next-action sequence (the dependency chain)
 
-1. ~~Write `CatalogFnEntry` objects + Treatment-D templates~~ — DONE (archived id `9.1.2-portable-catalog-and-templates`). `EVAL_TREATMENT=A|B|C|D` env var live in [evals/lib/contrastive.ts](../evals/lib/contrastive.ts).
-2. **Now → Run B + C** automated, two cheap models (e.g. `gemini-2.0-flash` + `z-ai/glm-4.7`), 5 runs each, commit trend data. → §9.1.1 L0 + §9.1.2 + §9.1.3 automated
+1. ~~Write `CatalogFnEntry` objects + Treatment-D templates~~ — DONE (archived id `9.1.2-portable-catalog-and-templates`). `EVAL_TREATMENT=A|B|C|D` env var live in [evals/lib/contrastive.ts](../archive/evals/lib/contrastive.ts).
+2. ~~Run B + C automated~~ — parked with the archived eval harness; do not run from this repo's active root scripts.
 3. ~~Build templates (`resilientFetch`, `adaptivePoller`, `conditionalMap`, `median`, `llmScore` desc)~~ — DONE (same archive entry).
-4. **Run D** — compare A→B→C→D progression. → §9.1.2
-5. **Wire harness execution method** (EXECUTE actuator + VERIFY re-eval + `run-treatments.ts`). Wave 1 dogfood demo. → §9.1.3
-6. **Cross-model validation** — promote to publish-tier models (`claude-sonnet-4-6`, `gpt-4.1`) for the blog numbers. → §9.1.1 + §9.1.3
-7. **Publish**: blog + scorecard + reproduce-guide + design-partner outreach. → §9.1.5
+4. ~~Run D / compare A→D progression~~ — parked with the archived eval harness.
+5. ~~Wire harness execution method~~ — parked; a future CSP-8 eval harness should be redesigned against current `@graphrefly/ts` and Canvas context.
+6. ~~Cross-model validation~~ — parked.
+7. ~~Publish scorecard/reproduce guide~~ — parked until a new eval harness exists.
 
 Steps 2 and 4 are the **internal evidence track**. Step 5 is the **demo track** (we use our own harness to run our own evals — the meta-story for Wave 1). Steps 6-7 are the **external story track**.
 
@@ -240,7 +240,7 @@ Every eval run picks a value from each axis. The intersection determines cost, s
 - **L0 — Graph > Functions contrastive** — DONE infra; Run 1-4 archived. Open: trend data (§9.1.5).
 - **L1 — NL → GraphSpec generation** — DONE infra; uses real `validateSpec()` + `compileSpec()` from `src/patterns/graphspec.ts`.
 - **L1 — Comprehension** — debug/modify/explain via `nl-mod` + `contrastive-bugs` corpora.
-- **Dev-DX** — vitest, no LLM calls; validates `validateSpec()` error messages. Implementation: [evals/dev-dx/seeded-errors.test.ts](../evals/dev-dx/seeded-errors.test.ts).
+- **Dev-DX** — vitest, no LLM calls; validates `validateSpec()` error messages. Implementation: [evals/dev-dx/seeded-errors.test.ts](../archive/evals/dev-dx/seeded-errors.test.ts).
 
 ##### 9.1.2 — Treatment progression (the eval-driven catalog experiment)
 
@@ -249,22 +249,18 @@ Four treatments, same 12 tasks, measuring delta at each automation step.
 | Treatment | Developer does | Library does | Status |
 |-----------|---------------|-------------|--------|
 | A: Manual catalog | Writes `catalogDescription` string | Nothing | DONE — Run 4 baseline 173/180 |
-| B: Auto-gen prompt | Writes `CatalogFnEntry` objects | `generateCatalogPrompt()` | **Ready to run** — `EVAL_TREATMENT=B pnpm eval:contrastive` |
-| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | **Ready to run** — `EVAL_TREATMENT=C pnpm eval:contrastive`. Refine loop wired via `llmRefine` + a cost-safe adapter shim. Records `auto-refine attempts used` as a JudgeScore diagnostic per task. |
-| D: + templates | Same as C + selects templates | + pre-built templates | **Ready to run** — `EVAL_TREATMENT=D pnpm eval:contrastive` |
+| B: Auto-gen prompt | Writes `CatalogFnEntry` objects | `generateCatalogPrompt()` | Historical only; old runner archived |
+| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | Historical only; old runner archived |
+| D: + templates | Same as C + selects templates | + pre-built templates | Historical only; old runner archived |
 | E: + catalog subsetting | Same as D | + task-relevant subset | Future |
 
 **Treatment B/C/D enablement (DONE):**
 
-> Authoring of `CatalogFnEntry` data, Treatment-D templates, the 5 Run-4 gap fixes, the `EVAL_TREATMENT` env var, and contrastive-runner wiring archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.1.2-portable-catalog-and-templates`). Files: [evals/lib/portable-catalog.ts](../evals/lib/portable-catalog.ts), [evals/lib/portable-templates.ts](../evals/lib/portable-templates.ts), [evals/lib/contrastive.ts](../evals/lib/contrastive.ts).
+> Authoring of `CatalogFnEntry` data, Treatment-D templates, the 5 Run-4 gap fixes, the `EVAL_TREATMENT` env var, and contrastive-runner wiring archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.1.2-portable-catalog-and-templates`). Files: [evals/lib/portable-catalog.ts](../archive/evals/lib/portable-catalog.ts), [evals/lib/portable-templates.ts](../archive/evals/lib/portable-templates.ts), [evals/lib/contrastive.ts](../archive/evals/lib/contrastive.ts).
 
 **Treatment B/C/D — execution remaining:**
 
-- [ ] Run Treatment B (auto-gen prompt) — L0 across two cheap models (e.g. `gemini-2.0-flash` + `z-ai/glm-4.7`)
-- [ ] Run Treatment C (auto-gen + refine) — L0 across same two models, track refine counts. Requires wiring `llmCompose` (with `maxAutoRefine: 2`) into contrastive runner; current path is equivalent to B.
-- [ ] Run Treatment D (auto-gen + refine + templates) — L0 across same two models
-- [ ] Compare A→D progression, write up for blog
-- [ ] Cross-model validation on publish-tier model (GPT-4o or Claude Sonnet)
+- [ ] Future CSP-8 eval design should decide which of these experiments still matter and rebuild them on current `@graphrefly/ts` surfaces.
 
 > **Rich catalog types** (`CatalogFnEntry` schema, `generateCatalogPrompt()`): DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.1b-rich-catalog`).
 
@@ -279,26 +275,26 @@ Four treatments, same 12 tasks, measuring delta at each automation step.
 | Auto-refine fixes same error repeatedly | Bad description | Fix description, don't rely on refine |
 | Per-task delta = 0 across A→D | Task at ceiling | Stop adding catalog for it |
 
-**Principle:** Add a catalog fn only when the operation genuinely doesn't exist. Add a template when the LLM composes correct fns in wrong structure. Add docs when the LLM doesn't reach for an existing fn. Add a catalog wrapper (not a primitive) when `dynamicNode` already supports the pattern. See session log [evals/results/session-2026-04-06-catalog-automation.md](../evals/results/session-2026-04-06-catalog-automation.md) §6 for full analysis.
+**Principle:** Add a catalog fn only when the operation genuinely doesn't exist. Add a template when the LLM composes correct fns in wrong structure. Add docs when the LLM doesn't reach for an existing fn. Add a catalog wrapper (not a primitive) when `dynamicNode` already supports the pattern. See session log [evals/results/session-2026-04-06-catalog-automation.md](../archive/evals/results/session-2026-04-06-catalog-automation.md) §6 for full analysis.
 
 **Key metric: score per prompt token.** If this ratio declines, the catalog is growing faster than quality. Declining efficiency = time to prune or subset.
 
-##### 9.1.3 — Execution methods (how a run happens)
+##### 9.1.3 — Execution methods (historical)
 
-Pick one per run. The first three are zero or low cost — exhaust them before reaching for paid API runs.
+These methods belonged to the archived eval harness and are not active repo commands.
 
-> **Mandatory pre-flight ladder for any paid run:** see [evals/CHEAP-AND-SAFE.md](../evals/CHEAP-AND-SAFE.md). Step 1 = `EVAL_MODE=dry-run`. Step 2 = local Ollama. Step 3 = single task with `EVAL_MAX_PRICE_USD=0.10` and `EVAL_REPLAY=write-only`. Step 4 = full corpus with replay cache on. Cost-safety implementation: [evals/lib/llm-client.ts:281](../evals/lib/llm-client.ts) (`createSafeProvider`).
+> **Historical safety note:** the old cost-safety docs now live under `archive/evals`. Reuse ideas from them, not the old scripts, if CSP-8 rebuilds evals.
 
-- **Portable / copy-paste** — DONE; [evals/portable-eval-prompts.md](../evals/portable-eval-prompts.md). Zero cost, any AI. Used for first-look credibility checks and reproducibility claims.
-- **Local Ollama** — DONE; zero cost, slower. Validates pipeline end-to-end before paid runs. `EVAL_PROVIDER=ollama EVAL_MODEL=gemma4:e4b pnpm eval`.
-- **Automated API (cheap budget tier)** — DONE infra; cost-safety wired. Default cheap picks: `gemini-2.0-flash` (in pricing table — USD cap works), `z-ai/glm-4.7` and `deepseek/deepseek-v3.2` via OpenRouter (rely on `EVAL_MAX_CALLS`). Used for treatment-progression iteration.
+- **Portable / copy-paste** — DONE; [evals/portable-eval-prompts.md](../archive/evals/portable-eval-prompts.md). Zero cost, any AI. Used for first-look credibility checks and reproducibility claims.
+- **Local Ollama** — historical; active `pnpm eval` command removed.
+- **Automated API (cheap budget tier)** — historical; active `pnpm eval:*` commands removed.
 - **Automated API (publish tier)** — DONE infra; gated by budget caps. Sonnet/Opus/GPT-4.1 for blog numbers. Used only after cheap-tier validates the methodology.
 - **Harness-driven (dogfood demo)** — partially DONE; the §9.0 harness loop wraps eval runs via `evalIntakeBridge`. Closed-loop automation work moved here from §9.0:
   - [ ] **EXECUTE actuators** — pluggable implementations that apply catalog entry updates, template additions, doc edits, or `CatalogFnEntry` modifications. Default: promptNode (current). Advanced: tool-use agent that writes code + runs lint.
-  - [ ] **VERIFY re-eval** — after EXECUTE produces a fix, re-run *only the affected eval tasks* (not full suite). Wire `affectsEvalTasks` from the triaged item → eval runner → compare before/after scores. Default: promptNode review (current). Advanced: actual eval execution via [evals/lib/runner.ts](../evals/lib/runner.ts).
-  - [ ] **4-treatment runner script** ([evals/scripts/run-treatments.ts](../evals/scripts/run-treatments.ts)) — automate the A→D experiment: iterate treatments, run evals per treatment, collect results, feed into harness loop for comparative analysis. Currently fully manual.
+  - [ ] **VERIFY re-eval** — after EXECUTE produces a fix, re-run *only the affected eval tasks* (not full suite). Wire `affectsEvalTasks` from the triaged item → eval runner → compare before/after scores. Default: promptNode review (current). Advanced: actual eval execution via [evals/lib/runner.ts](../archive/evals/lib/runner.ts).
+  - [ ] **4-treatment runner script** ([evals/scripts/run-treatments.ts](../archive/evals/scripts/run-treatments.ts)) — automate the A→D experiment: iterate treatments, run evals per treatment, collect results, feed into harness loop for comparative analysis. Currently fully manual.
   - [ ] **CI-triggered eval→harness pipeline** — on push/merge, run affected evals → feed results into harness → strategy model updates → report delta. Deferred until EXECUTE actuators are real.
-- **CI scheduled** — DONE; `eval.yml` runs weekly Mon 6am UTC + on manual dispatch. Generates scorecard, runs regression gate (fails if validity drops >5%).
+- **CI scheduled** — retired 2026-06-27; `eval.yml` removed with the archived eval harness.
 
 **Design note:** EXECUTE and VERIFY are intentionally pluggable. The above wires *our specific* actuators for the catalog automation use case. Other users plug in their own. The harness loop infrastructure is general; the actuators are domain-specific.
 
@@ -390,7 +386,7 @@ Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / 
 - [x] Output contract — stdout = JSON by default, `--format=pretty` toggles pretty JSON; `describe` supports `--format=mermaid|d2` for diagram export; stderr = `SurfaceError` JSON payload on failure; exit codes `0` (ok), `1` (error), `2` (usage)
 - [x] Stdin pipe support — any `<spec>` positional accepts `-` for stdin; `reduce --input -` piping works (`cat input.json | graphrefly reduce spec.json --input -`)
 - [x] Zero external args-parser — hand-rolled dispatcher. Keeps the package dependency surface tiny; no `commander`/`yargs`.
-- [ ] `graphrefly eval [run|matrix|scorecard]` — deferred. Existing `tsx evals/scripts/run-all.ts` pipelines cover the workflow today; folding into CLI requires deciding whether eval logic moves into `@graphrefly/cli` or stays in the repo's `evals/` dir.
+- [ ] `graphrefly eval [run|matrix|scorecard]` — deferred to a future CSP-8 eval redesign; the old `evals/scripts/*` pipelines are archived and are not active implementation guidance.
 - [ ] Publish to npm as `@graphrefly/cli`, single `bin` entry, `npx @graphrefly/cli` works without install
 - [ ] "Try it in 30 seconds" section in README: single `npx` command producing visible eval output
 - [ ] Man page / `--help` parity with 9.3-core operations (shared JSDoc source) — `printHelp()` stub exists, parity pass deferred
@@ -404,7 +400,7 @@ Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / 
 Full adapter layer archived to `archive/optimizations/resolved-decisions.jsonl` (id: `llm-adapter-layer-9-3d`). Core, providers, middleware, and routing all landed together. Open follow-ups:
 
 - [x] **`resilientAdapter()` call-path wrapper** — SHIPPED 2026-04-21 at [src/patterns/ai/adapters/middleware/resilient-adapter.ts](../src/patterns/ai/adapters/middleware/resilient-adapter.ts). Composes `withRateLimiter` + `withBudgetGate` + `withBreaker` + `withTimeout` + `withRetry` + `cascadingLlmAdapter` fallback in the documented order; per-attempt deadline rearm; `withTimeout` re-throws `LLMTimeoutError` (so retry's default predicate recognizes it against real fetch/SDK providers). Follow-ups tracked in [docs/optimizations.md](optimizations.md): `onFallback`/`onExhausted` surface, shared limiter across calls.
-- [ ] **`evals/lib/` migration** — fresh eval work after §9.1 will use the new adapter layer directly; the existing imperative stack at `evals/lib/{llm-client, rate-limiter, budget-gate, replay-cache, limits}.ts` stays untouched until then (per QA direction).
+- [ ] **Eval adapter migration** — future CSP-8 eval work should use the current adapter layer directly; the old imperative `archive/evals/lib/{llm-client, rate-limiter, budget-gate, replay-cache, limits}.ts` stack is historical material.
 - [x] ~~**MCP `llmCompose` wiring**~~ — WAS SHIPPED 2026-04-21 in `packages/mcp-server/` (now removed). The `llmCompose` capability remains available via the adapter layer; user-host applications wire it into their own MCP/CLI surfaces.
 - [ ] **Limits registry population** — library ships shape only. Users populate a `CapabilitiesRegistry` with their own data. A first-party curated table can ship as an opt-in `@graphrefly/capabilities-*` package post-1.0 if demand warrants.
 

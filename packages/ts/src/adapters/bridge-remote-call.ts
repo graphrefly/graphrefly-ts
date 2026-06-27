@@ -23,6 +23,7 @@ import type {
 	WireBridgeEvent,
 } from "./bridge-types.js";
 import {
+	remoteMalformedResponseOperation,
 	remoteMalformedResponseRequestId,
 	validateRemoteCallRequest,
 	validateRemoteCallResponse,
@@ -43,8 +44,8 @@ export function remoteCall<TRequest = unknown, TResponse = unknown>(
 	});
 	const responses = remoteCallResponsesNode(graph, bridge.events, timeouts, name);
 	const results = remoteCallResultsNode(graph, responses, name);
-	const status = remoteCallStatusNode(graph, bridge.events, responses, timeouts, name);
-	const errors = remoteCallErrorsNode(graph, responses, timeouts, bridge.events, name);
+	const status = remoteCallStatusNode(graph, bridge.events, timeouts, name);
+	const errors = remoteCallErrorsNode(graph, timeouts, bridge.events, name);
 	return {
 		responses,
 		results,
@@ -126,6 +127,16 @@ function remotePendingTakeBySeqPreview(
 	return state.bySeq.get(seq);
 }
 
+function remotePendingPeekByRequestId(
+	state: RemotePendingState,
+	requestId: string,
+): RemotePendingRequest | undefined {
+	for (const request of state.bySeq.values()) {
+		if (request.requestId === requestId) return request;
+	}
+	return undefined;
+}
+
 function remotePendingInsert(state: RemotePendingState, request: RemotePendingRequest): void {
 	const existingBySeq = state.bySeq.get(request.seq);
 	if (existingBySeq !== undefined) {
@@ -204,6 +215,17 @@ function remoteCallResponseIsTerminal<T>(response: RemoteCallResponse<T>): boole
 	return response.kind === "result" || response.kind === "error";
 }
 
+function remoteCallResponseOperation<T>(response: RemoteCallResponse<T>): string {
+	return response.operation;
+}
+
+function remoteCallResponseMatchesPending<T>(
+	response: RemoteCallResponse<T>,
+	request: RemotePendingRequest,
+): boolean {
+	return remoteCallResponseOperation(response) === request.operation;
+}
+
 function remoteCallResponsesNode<TRequest, TResponse>(
 	graph: Graph,
 	events: Node<WireBridgeEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
@@ -234,13 +256,23 @@ function remoteCallResponsesNode<TRequest, TResponse>(
 					const response = validateRemoteCallResponse<TResponse>(event.envelope.payload.value);
 					if (response === undefined) {
 						const requestId = remoteMalformedResponseRequestId(event.envelope.payload.value);
-						if (requestId !== undefined && remotePendingContains(state.pending, requestId)) {
-							remotePendingTakeByRequestId(state.pending, requestId);
+						const operation = remoteMalformedResponseOperation(event.envelope.payload.value);
+						const request =
+							requestId === undefined
+								? undefined
+								: remotePendingPeekByRequestId(state.pending, requestId);
+						if (
+							request !== undefined &&
+							operation !== undefined &&
+							operation === request.operation
+						) {
+							remotePendingTakeByRequestId(state.pending, request.requestId);
 						}
 						continue;
 					}
 					const requestId = remoteCallResponseRequestId(response);
-					if (remotePendingContains(state.pending, requestId)) {
+					const request = remotePendingPeekByRequestId(state.pending, requestId);
+					if (request !== undefined && remoteCallResponseMatchesPending(response, request)) {
 						if (remoteCallResponseIsTerminal(response)) {
 							remotePendingTakeByRequestId(state.pending, requestId);
 						}
@@ -300,12 +332,11 @@ function remoteCallResultsNode<TResponse>(
 function remoteCallStatusNode<TRequest, TResponse>(
 	graph: Graph,
 	events: Node<WireBridgeEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
-	responses: Node<RemoteCallResponse<TResponse>>,
 	timeouts: Node<RemoteCallTimeout>,
 	name: string,
 ): Node<RemoteCallStatus> {
 	return graph.node<RemoteCallStatus>(
-		[events, responses, timeouts],
+		[events, timeouts],
 		(ctx) => {
 			type State = { status: RemoteCallStatus; pending: RemotePendingState };
 			const state =
@@ -375,50 +406,62 @@ function remoteCallStatusNode<TRequest, TResponse>(
 					const response = validateRemoteCallResponse<TResponse>(event.envelope.payload.value);
 					if (response === undefined) {
 						const requestId = remoteMalformedResponseRequestId(event.envelope.payload.value);
-						if (requestId !== undefined) {
-							const request = remotePendingTakeByRequestId(state.pending, requestId);
-							if (request !== undefined) {
-								state.status = {
-									...state.status,
-									state: "errored",
-									operation: request.operation,
-									requestId,
-									errors: state.status.errors + 1,
-								};
-							}
+						const operation = remoteMalformedResponseOperation(event.envelope.payload.value);
+						const request =
+							requestId === undefined || operation === undefined
+								? undefined
+								: remotePendingPeekByRequestId(state.pending, requestId);
+						const matchedRequest =
+							request !== undefined && request.operation === operation ? request : undefined;
+						if (matchedRequest !== undefined) {
+							remotePendingTakeByRequestId(state.pending, matchedRequest.requestId);
 						}
+						state.status = {
+							...state.status,
+							state: "errored",
+							...(matchedRequest === undefined
+								? {
+										...(operation === undefined ? {} : { operation }),
+										...(requestId === undefined ? {} : { requestId }),
+									}
+								: { operation: matchedRequest.operation, requestId: matchedRequest.requestId }),
+							errors: state.status.errors + 1,
+						};
+						continue;
+					}
+					const request = remotePendingPeekByRequestId(state.pending, response.requestId);
+					if (request === undefined || !remoteCallResponseMatchesPending(response, request)) {
+						continue;
+					}
+					if (response.kind === "result") {
+						remotePendingTakeByRequestId(state.pending, request.requestId);
+						state.status = {
+							...state.status,
+							state: "responded",
+							operation: response.operation,
+							requestId: response.requestId,
+							completed: state.status.completed + 1,
+						};
+					} else if (response.kind === "error") {
+						remotePendingTakeByRequestId(state.pending, request.requestId);
+						state.status = {
+							...state.status,
+							state: "errored",
+							operation: response.operation,
+							requestId: response.requestId,
+							errors: state.status.errors + 1,
+						};
+					} else {
+						state.status = {
+							...state.status,
+							state: "requested",
+							operation: response.operation,
+							requestId: response.requestId,
+						};
 					}
 				}
 			}
 			for (const raw of depBatch(ctx, 1) ?? []) {
-				const response = raw as RemoteCallResponse<TResponse>;
-				if (response.kind === "result") {
-					remotePendingTakeByRequestId(state.pending, response.requestId);
-					state.status = {
-						...state.status,
-						state: "responded",
-						operation: response.operation,
-						requestId: response.requestId,
-						completed: state.status.completed + 1,
-					};
-				} else if (response.kind === "error") {
-					remotePendingTakeByRequestId(state.pending, response.requestId);
-					state.status = {
-						...state.status,
-						state: "errored",
-						operation: response.operation,
-						requestId: response.requestId,
-						errors: state.status.errors + 1,
-					};
-				} else {
-					state.status = {
-						...state.status,
-						operation: response.operation,
-						requestId: response.requestId,
-					};
-				}
-			}
-			for (const raw of depBatch(ctx, 2) ?? []) {
 				const timeout = raw as RemoteCallTimeout;
 				remotePendingTakeByRequestId(state.pending, timeout.requestId);
 				state.status = {
@@ -446,16 +489,25 @@ function remoteCallStatusNode<TRequest, TResponse>(
 
 function remoteCallErrorsNode<TRequest, TResponse>(
 	graph: Graph,
-	responses: Node<RemoteCallResponse<TResponse>>,
 	timeouts: Node<RemoteCallTimeout>,
 	events: Node<WireBridgeEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
 	name: string,
 ): Node<RemoteCallError> {
 	return graph.node<RemoteCallError>(
-		[responses, timeouts, events],
+		[timeouts, events],
 		(ctx) => {
 			const pending = ctx.state.get<RemotePendingState>() ?? remotePendingState();
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const timeout = raw as RemoteCallTimeout;
+				remotePendingTakeByRequestId(pending, timeout.requestId);
+				ctx.down([
+					[
+						"DATA",
+						{ operation: timeout.operation, requestId: timeout.requestId, error: timeout.error },
+					],
+				]);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
 				const event = raw as WireBridgeEvent<
 					RemoteCallRequest<TRequest>,
 					RemoteCallResponse<TResponse>
@@ -478,60 +530,69 @@ function remoteCallErrorsNode<TRequest, TResponse>(
 						}
 						remotePendingInsert(pending, request);
 					}
+					continue;
 				}
-			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const response = raw as RemoteCallResponse<TResponse>;
-				if (response.kind === "error") {
-					remotePendingTakeByRequestId(pending, response.requestId);
-					ctx.down([
-						[
-							"DATA",
-							{
-								operation: response.operation,
-								requestId: response.requestId,
-								error: response.error,
-							},
-						],
-					]);
-				} else if (response.kind === "result") {
-					remotePendingTakeByRequestId(pending, response.requestId);
-				}
-			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
-				const timeout = raw as RemoteCallTimeout;
-				remotePendingTakeByRequestId(pending, timeout.requestId);
-				ctx.down([
-					[
-						"DATA",
-						{ operation: timeout.operation, requestId: timeout.requestId, error: timeout.error },
-					],
-				]);
-			}
-			for (const raw of depBatch(ctx, 2) ?? []) {
-				const event = raw as WireBridgeEvent<
-					RemoteCallRequest<TRequest>,
-					RemoteCallResponse<TResponse>
-				>;
 				if (event.kind === "inbound" && event.envelope.payload?.kind === "data") {
 					const response = validateRemoteCallResponse<TResponse>(event.envelope.payload.value);
 					if (response === undefined) {
 						const requestId = remoteMalformedResponseRequestId(event.envelope.payload.value);
+						const operation = remoteMalformedResponseOperation(event.envelope.payload.value);
 						const request =
-							requestId === undefined
+							requestId === undefined || operation === undefined
 								? undefined
-								: remotePendingTakeByRequestId(pending, requestId);
-						if (request === undefined) continue;
+								: remotePendingPeekByRequestId(pending, requestId);
+						if (request !== undefined && request.operation === operation) {
+							remotePendingTakeByRequestId(pending, request.requestId);
+						}
 						ctx.down([
 							[
 								"DATA",
 								{
-									operation: request.operation,
-									requestId: request.requestId,
+									...(operation === undefined ? {} : { operation }),
+									...(requestId === undefined ? {} : { requestId }),
 									error: "remoteCall: response payload is malformed",
 								},
 							],
 						]);
+					} else {
+						const request = remotePendingPeekByRequestId(pending, response.requestId);
+						if (request === undefined) {
+							ctx.down([
+								[
+									"DATA",
+									{
+										operation: response.operation,
+										requestId: response.requestId,
+										error: "remoteCall: orphan response for unknown or completed request",
+									},
+								],
+							]);
+						} else if (!remoteCallResponseMatchesPending(response, request)) {
+							ctx.down([
+								[
+									"DATA",
+									{
+										operation: request.operation,
+										requestId: request.requestId,
+										error: `remoteCall: response operation '${response.operation}' did not match pending operation '${request.operation}'`,
+									},
+								],
+							]);
+						} else if (response.kind === "error") {
+							remotePendingTakeByRequestId(pending, request.requestId);
+							ctx.down([
+								[
+									"DATA",
+									{
+										operation: response.operation,
+										requestId: response.requestId,
+										error: response.error,
+									},
+								],
+							]);
+						} else if (response.kind === "result") {
+							remotePendingTakeByRequestId(pending, request.requestId);
+						}
 					}
 					continue;
 				}

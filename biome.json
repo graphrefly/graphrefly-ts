@@ -17,12 +17,13 @@
 			"!**/.astro",
 			"!.tmp",
 			"!TRASH",
+			"!archive/evals",
 			"!archive/examples",
 			"!archive/packages",
+			"!archive/website-prototypes",
 			"!benchmarks",
 			"!website",
-			"!examples/nestjs",
-			"!evals/results/replay-cache"
+			"!examples/nestjs"
 		]
 	},
 	"linter": {

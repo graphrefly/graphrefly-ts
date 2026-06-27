@@ -6,6 +6,8 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
+import { assertStrictJsonValue } from "../json/codec.js";
+import type { CanonicalWireBridgeDataBody, CanonicalWireEdgeFrame } from "./bridge-protobuf.js";
 import type {
 	RemoteCallRequest,
 	RemoteCallResponse,
@@ -71,6 +73,13 @@ export function remoteMalformedResponseRequestId(value: unknown): string | undef
 	if (!isRecord(value)) return undefined;
 	return typeof value.requestId === "string" && value.requestId.length > 0
 		? value.requestId
+		: undefined;
+}
+
+export function remoteMalformedResponseOperation(value: unknown): string | undefined {
+	if (!isRecord(value)) return undefined;
+	return typeof value.operation === "string" && value.operation.length > 0
+		? value.operation
 		: undefined;
 }
 
@@ -197,32 +206,204 @@ export function validatePayloadForType(
 	payload: unknown,
 	prefix: string,
 ): string | undefined {
-	const kind =
-		typeof payload === "object" && payload !== null
-			? (payload as { readonly kind?: unknown }).kind
-			: undefined;
+	const record = typeof payload === "object" && payload !== null ? (payload as object) : undefined;
+	const kind = record === undefined ? undefined : (payload as { readonly kind?: unknown }).kind;
 	switch (type) {
 		case "data":
-			return kind === "data" && (payload as { readonly value?: unknown }).value !== undefined
-				? undefined
-				: `${prefix}: data envelope requires data payload`;
+			if (kind !== "data" || record === undefined || !("value" in record)) {
+				return `${prefix}: data envelope requires data payload`;
+			}
+			return wireAdmissiblePayloadError(
+				(payload as { readonly value?: unknown }).value,
+				`${prefix}: data payload`,
+			);
 		case "nack":
 		case "error":
-			return kind === "error" && (payload as { readonly error?: unknown }).error !== undefined
-				? undefined
-				: `${prefix}: ${type} envelope requires error payload`;
+			if (kind !== "error" || record === undefined || !("error" in record)) {
+				return `${prefix}: ${type} envelope requires error payload`;
+			}
+			return wireAdmissiblePayloadError(
+				(payload as { readonly error?: unknown }).error,
+				`${prefix}: ${type} payload`,
+			);
 		case "status":
-			return kind === "status" && (payload as { readonly status?: unknown }).status !== undefined
-				? undefined
-				: `${prefix}: status envelope requires status payload`;
+			if (kind !== "status" || record === undefined || !("status" in record)) {
+				return `${prefix}: status envelope requires status payload`;
+			}
+			return wireAdmissiblePayloadError(
+				(payload as { readonly status?: unknown }).status,
+				`${prefix}: status payload`,
+			);
 		case "close":
-			return kind === "close" ? undefined : `${prefix}: close envelope requires close payload`;
+			if (kind !== "close") return `${prefix}: close envelope requires close payload`;
+			return record !== undefined &&
+				"reason" in record &&
+				(payload as { readonly reason?: unknown }).reason !== undefined
+				? wireAdmissiblePayloadError(
+						(payload as { readonly reason?: unknown }).reason,
+						`${prefix}: close reason`,
+					)
+				: undefined;
 		case "start":
 		case "ack":
 			return payload === undefined
 				? undefined
 				: `${prefix}: ${type} envelope must not carry a payload`;
 	}
+}
+
+export function normalizeWireAdmissiblePayload(value: unknown, label: string): unknown {
+	if (value instanceof Uint8Array) return Uint8Array.from(value);
+	if (isCanonicalWireBridgeDataBody(value)) return cloneCanonicalWireBridgeDataBody(value);
+	if (isCanonicalWireEdgeFrame(value)) return cloneCanonicalWireEdgeFrame(value);
+	if (isCanonicalWireBridgeDataBodyLike(value) || isCanonicalWireEdgeFrameLike(value)) {
+		throw new TypeError(`${label}: invalid canonical wire DTO`);
+	}
+	try {
+		return assertStrictJsonValue(value, label);
+	} catch (error) {
+		throw new TypeError(
+			`${label}: wire-admissible payload must be copied bytes, canonical WireEdgeFrame material, or strict JSON-like material`,
+			{ cause: error },
+		);
+	}
+}
+
+export function wireAdmissiblePayloadError(value: unknown, label: string): string | undefined {
+	try {
+		normalizeWireAdmissiblePayload(value, label);
+		return undefined;
+	} catch (error) {
+		return errorMessage(error);
+	}
+}
+
+export function normalizeWireBridgePayload<T>(
+	payload:
+		| { readonly kind: "data"; readonly value: T }
+		| { readonly kind: "error"; readonly error: unknown }
+		| { readonly kind: "status"; readonly status: unknown }
+		| { readonly kind: "close"; readonly reason?: unknown }
+		| undefined,
+	prefix: string,
+): typeof payload {
+	if (payload === undefined) return undefined;
+	if (payload.kind === "data") {
+		return {
+			...payload,
+			value: normalizeWireAdmissiblePayload(payload.value, `${prefix}: data payload`) as T,
+		};
+	}
+	if (payload.kind === "error") {
+		return {
+			...payload,
+			error: normalizeWireAdmissiblePayload(payload.error, `${prefix}: error payload`),
+		};
+	}
+	if (payload.kind === "status") {
+		return {
+			...payload,
+			status: normalizeWireAdmissiblePayload(payload.status, `${prefix}: status payload`),
+		};
+	}
+	if ("reason" in payload) {
+		if (payload.reason === undefined) return { kind: "close" };
+		return {
+			...payload,
+			reason: normalizeWireAdmissiblePayload(payload.reason, `${prefix}: close reason`),
+		};
+	}
+	return payload;
+}
+
+function isCanonicalWireBridgeDataBody(value: unknown): value is CanonicalWireBridgeDataBody {
+	if (!isPlainDataRecord(value)) return false;
+	const kind = ownData(value, "kind");
+	if (kind === "value") {
+		return hasOnlyKeys(value, ["kind", "value"]) && ownData(value, "value") instanceof Uint8Array;
+	}
+	if (kind === "wire_edge") {
+		return (
+			hasOnlyKeys(value, ["frame", "kind"]) && isCanonicalWireEdgeFrame(ownData(value, "frame"))
+		);
+	}
+	return false;
+}
+
+function isCanonicalWireBridgeDataBodyLike(value: unknown): boolean {
+	if (!isPlainDataRecord(value)) return false;
+	const kind = ownData(value, "kind");
+	if (kind === "wire_edge") return "frame" in value;
+	if (kind !== "value") return false;
+	return (
+		"value" in value &&
+		(ownData(value, "value") instanceof Uint8Array || hasOnlyKeys(value, ["kind", "value"]))
+	);
+}
+
+function isCanonicalWireEdgeFrame(value: unknown): value is CanonicalWireEdgeFrame {
+	if (!isPlainDataRecord(value)) return false;
+	const kind = ownData(value, "kind");
+	const edgeId = ownData(value, "edgeId");
+	const causeId = ownData(value, "causeId");
+	if (typeof edgeId !== "string" || edgeId.length === 0) return false;
+	if (typeof causeId !== "string" || causeId.length === 0) return false;
+	if (kind === "dirty") return hasOnlyKeys(value, ["causeId", "edgeId", "kind"]);
+	if (kind === "data") {
+		return (
+			hasOnlyKeys(value, ["causeId", "edgeId", "kind", "value"]) &&
+			ownData(value, "value") instanceof Uint8Array
+		);
+	}
+	return false;
+}
+
+function isCanonicalWireEdgeFrameLike(value: unknown): boolean {
+	if (!isPlainDataRecord(value)) return false;
+	const kind = ownData(value, "kind");
+	if (kind !== "dirty" && kind !== "data") return false;
+	return "edgeId" in value || "causeId" in value || "value" in value;
+}
+
+function isPlainDataRecord(value: unknown): value is Record<string, unknown> {
+	if (!isRecord(value)) return false;
+	const proto = Object.getPrototypeOf(value);
+	if (proto !== Object.prototype && proto !== null) return false;
+	if (Object.getOwnPropertySymbols(value).length > 0) return false;
+	for (const key of Object.getOwnPropertyNames(value)) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		if (descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function ownData(value: Record<string, unknown>, key: string): unknown {
+	const descriptor = Object.getOwnPropertyDescriptor(value, key);
+	return descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined;
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+	const allowed = new Set(keys);
+	const actual = Object.getOwnPropertyNames(value);
+	return actual.length === keys.length && actual.every((key) => allowed.has(key));
+}
+
+function cloneCanonicalWireBridgeDataBody(
+	value: CanonicalWireBridgeDataBody,
+): CanonicalWireBridgeDataBody {
+	if (value.kind === "value") return { kind: "value", value: Uint8Array.from(value.value) };
+	return { kind: "wire_edge", frame: cloneCanonicalWireEdgeFrame(value.frame) };
+}
+
+function cloneCanonicalWireEdgeFrame(value: CanonicalWireEdgeFrame): CanonicalWireEdgeFrame {
+	return {
+		kind: value.kind,
+		edgeId: value.edgeId,
+		causeId: value.causeId,
+		...(value.value === undefined ? {} : { value: Uint8Array.from(value.value) }),
+	};
 }
 
 export function bridgePayloadError(payload: unknown, fallback: unknown): unknown {

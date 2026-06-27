@@ -138,6 +138,7 @@ import {
 	envelopeTypes,
 	isSafeNonNegativeInteger,
 	isSafePositiveInteger,
+	normalizeWireBridgePayload,
 	shouldTrackAck,
 	validateCommand,
 	validateInboundEnvelope,
@@ -210,10 +211,14 @@ export function wireBridgeEnvelope<TData = unknown>(input: {
 	if (payloadError !== undefined) {
 		throw new RangeError(payloadError);
 	}
+	const payload = normalizeWireBridgePayload(
+		input.payload,
+		`wireBridgeEnvelope ${input.type} envelope`,
+	) as WireBridgePayload<TData> | undefined;
 	return {
 		sessionId: input.sessionId,
 		type: input.type,
-		payload: input.payload,
+		payload,
 		metadata: {
 			seq: input.seq,
 			cursor,
@@ -994,12 +999,16 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 				const seq = state.nextSeq;
 				let envelope: WireBridgeEnvelope<TOutbound>;
 				try {
+					const normalizedPayload = normalizeWireBridgePayload(
+						payload,
+						`wireBridge: outbound ${type} envelope`,
+					) as WireBridgePayload<TOutbound> | undefined;
 					envelope = wireBridgeEnvelope<TOutbound>({
 						sessionId: opts.sessionId,
 						type,
 						seq,
 						cursor: state.cursor,
-						payload,
+						payload: normalizedPayload,
 						idempotencyKey: commandOpts.idempotencyKey,
 						attempt: 1,
 						maxAttempts: policy.maxAttempts,
@@ -1077,7 +1086,9 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 					case "close":
 						emitOutbound(
 							"close",
-							{ kind: "close", reason: commandValue.reason },
+							commandValue.reason === undefined
+								? { kind: "close" }
+								: { kind: "close", reason: commandValue.reason },
 							commandValue,
 							() => {
 								state.pending.clear();
@@ -1369,7 +1380,10 @@ function semanticEnvelopeFromCanonical(
 				type: "close",
 				seq: metadata.seq,
 				cursor: metadata.cursor,
-				payload: { kind: "close", reason: envelope.payload.reason },
+				payload:
+					envelope.payload.reason === undefined
+						? { kind: "close" }
+						: { kind: "close", reason: envelope.payload.reason },
 				idempotencyKey: metadata.idempotencyKey,
 				attempt: metadata.attempt,
 				maxAttempts: metadata.maxAttempts,

@@ -27,20 +27,20 @@ coverage/
 .vite/
 *.tmp
 
-# Eval LLM replay cache — local, machine-specific, regenerated on first run.
+# Archived eval LLM replay cache — local, machine-specific, regenerated on first run.
 # Each entry is sha256(provider+model+prompt+...) → response.json. Do not commit.
-evals/results/replay-cache/
+archive/evals/results/replay-cache/
 
 # Harness-loop retrospective checkpoint (FileCheckpointAdapter output). Written
 # on every run-harness invocation incl. `eval:smoke --dry-run`; machine-local,
 # regenerated. Do not commit (mirrors the replay-cache precedent above).
-evals/results/harness-retrospective/
+archive/evals/results/harness-retrospective/
 
 # Environment (keep examples)
 .env
 .env.*
 !.env.example
-evals/.env
+archive/evals/.env
 
 # pnpm
 .pnpm-store/

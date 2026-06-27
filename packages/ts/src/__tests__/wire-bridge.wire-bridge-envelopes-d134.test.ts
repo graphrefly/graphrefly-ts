@@ -79,6 +79,128 @@ describe("wire bridge envelopes (D134)", () => {
 		).toThrow(/seq/);
 	});
 
+	it("enforces D559 wire-admissible payloads and copies mutable bytes", () => {
+		const bytes = new Uint8Array([1, 2, 3]);
+		const envelope = wireBridgeEnvelope({
+			sessionId: "session-a",
+			type: "data",
+			seq: 1,
+			payload: { kind: "data", value: bytes },
+		});
+		bytes[0] = 9;
+		expect(envelope.payload).toEqual({ kind: "data", value: new Uint8Array([1, 2, 3]) });
+
+		const sparse: unknown[] = [];
+		sparse[1] = "hole";
+		const accessor = {};
+		Object.defineProperty(accessor, "secret", { get: () => "nope", enumerable: true });
+		const hidden = { ok: true };
+		Object.defineProperty(hidden, "secret", { value: "nope", enumerable: false });
+		const thenable = {};
+		const thenKey = "th" + "en";
+		Object.defineProperty(thenable, thenKey, { value: () => undefined, enumerable: true });
+		const dirtyWithValue = {
+			kind: "dirty",
+			edgeId: "edge-a",
+			causeId: "cause-a",
+			value: new Uint8Array([1]),
+		};
+		const dataWithoutValue = { kind: "data", edgeId: "edge-a", causeId: "cause-a" };
+		const canonicalAccessor = {};
+		Object.defineProperty(canonicalAccessor, "kind", {
+			get: () => "dirty",
+			enumerable: true,
+		});
+		Object.defineProperty(canonicalAccessor, "edgeId", { value: "edge-a", enumerable: true });
+		Object.defineProperty(canonicalAccessor, "causeId", { value: "cause-a", enumerable: true });
+		class HostObject {
+			readonly ok = true;
+		}
+		const forbidden = [
+			undefined,
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+			-0,
+			Number.MIN_VALUE,
+			Number.MAX_SAFE_INTEGER + 1,
+			1n,
+			Symbol("x"),
+			() => undefined,
+			accessor,
+			new HostObject(),
+			new Date(),
+			new Map(),
+			Promise.resolve("x"),
+			thenable,
+			sparse,
+			hidden,
+			dirtyWithValue,
+			dataWithoutValue,
+			canonicalAccessor,
+		];
+
+		for (const value of forbidden) {
+			expect(() =>
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq: 1,
+					payload: { kind: "data", value },
+				}),
+			).toThrow(/wire-admissible payload|strict JSON|stableJsonString|invalid canonical wire DTO/);
+		}
+
+		expect(() =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				payload: 1 as never,
+			}),
+		).toThrow(/data envelope requires data payload/);
+	});
+
+	it("emits close without an undefined reason payload", () => {
+		const g = graph();
+		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
+		const outbound: unknown[] = [];
+		const errors: unknown[] = [];
+		bridge.outbound.subscribe((msg) => outbound.push(msg));
+		bridge.errors.subscribe((msg) => errors.push(msg));
+
+		bridge.close();
+
+		expect(errors.filter((msg) => Array.isArray(msg) && msg[0] === "DATA")).toEqual([]);
+		expect(outbound.at(-1)).toEqual([
+			"DATA",
+			expect.objectContaining({
+				type: "close",
+				payload: { kind: "close" },
+			}),
+		]);
+	});
+
+	it("surfaces invalid outbound payloads as bridge issues without protocol terminals", () => {
+		const g = graph();
+		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
+		const errors: unknown[] = [];
+		const outbound: unknown[] = [];
+		bridge.errors.subscribe((msg) => errors.push(msg));
+		bridge.outbound.subscribe((msg) => outbound.push(msg));
+
+		bridge.send({ socket: () => undefined });
+
+		expect(outbound.filter((msg) => Array.isArray(msg) && msg[0] === "DATA")).toEqual([]);
+		expect(errors).toContainEqual([
+			"DATA",
+			expect.stringMatching(
+				/wire-admissible payload|strict JSON|stableJsonString|invalid canonical wire DTO/,
+			),
+		]);
+		expect(bridge.errors.status).not.toBe("errored");
+		expect(bridge.outbound.status).not.toBe("errored");
+	});
+
 	it("exposes command, outbound, inbound, ack, cursor, status, and error nodes in describe", () => {
 		const g = graph();
 		const bridge = wireBridge<{ task: string }, { ok: boolean }>(g, {
@@ -1104,7 +1226,7 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 	});
 
-	it("wireEdgeGroup D501 fails closed for malformed, duplicate, data-before-dirty, competing, and incomplete causes", () => {
+	it("wireEdgeGroup D501 fails closed for duplicate, data-before-dirty, competing, and incomplete causes", () => {
 		const bytes = (...values: number[]) => new Uint8Array(values);
 		const dataValues = <T>(messages: T[][]): unknown[] =>
 			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
@@ -1178,11 +1300,6 @@ describe("wire bridge envelopes (D134)", () => {
 				],
 			],
 			[
-				"malformed",
-				"wire-edge-group-malformed-frame",
-				[{ kind: "dirty", edgeId: "a", causeId: "" }],
-			],
-			[
 				"incomplete",
 				"wire-edge-group-incomplete-cause",
 				[{ kind: "dirty", edgeId: "a", causeId: "c1" }, { kind: "close" }],
@@ -1220,7 +1337,13 @@ describe("wire bridge envelopes (D134)", () => {
 				seq: seq++,
 				payload: {
 					kind: "data",
-					value: { kind: "wire_edge", frame: { kind, edgeId: "a", causeId, value } },
+					value: {
+						kind: "wire_edge",
+						frame:
+							kind === "dirty"
+								? { kind, edgeId: "a", causeId }
+								: { kind, edgeId: "a", causeId, value: value ?? bytes(0) },
+					},
 				},
 			});
 		const release = (causeId: string, value: Uint8Array) => {

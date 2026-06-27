@@ -6,9 +6,9 @@
  * in `~/src/graphrefly/spec/conformance.jsonl` (D24). Keep this gate empty
  * until another active workspace package genuinely needs standalone tsc.
  *
- * B65 note: `evals/` still imports the retired root `src/` implementation and
- * is no longer part of the active clean-slate lint gate. Migrate or retire it
- * in a dedicated B64/B66 cleanup slice before re-adding it here.
+ * B66 note: `evals/` was retired to `archive/evals` on 2026-06-27. CSP-8 may
+ * design a new clean-slate eval harness later, but this gate should not point
+ * at the archived legacy scripts.
  */
 
 import { execFileSync } from "node:child_process";

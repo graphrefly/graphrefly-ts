@@ -112,7 +112,9 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		>(g, { name: "bridge", sessionId: "session-a" });
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
+		const errors: unknown[] = [];
 		remote.results.subscribe((msg) => results.push(msg));
+		remote.errors.subscribe((msg) => errors.push(msg));
 
 		bridge.inbound.down([
 			[
@@ -138,6 +140,14 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		remote.call("upper", "req-1", "hello");
 
 		expect(results).not.toContainEqual(["DATA", expect.anything()]);
+		expect(errors).toContainEqual([
+			"DATA",
+			{
+				operation: "upper",
+				requestId: "req-1",
+				error: "remoteCall: orphan response for unknown or completed request",
+			},
+		]);
 
 		bridge.inbound.down([
 			[
@@ -180,7 +190,9 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		>(g, { name: "bridge", sessionId: "session-a" });
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
+		const errors: unknown[] = [];
 		remote.results.subscribe((msg) => results.push(msg));
+		remote.errors.subscribe((msg) => errors.push(msg));
 
 		batch(() => {
 			bridge.inbound.down([
@@ -208,6 +220,14 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		});
 
 		expect(results).not.toContainEqual(["DATA", expect.anything()]);
+		expect(errors).toContainEqual([
+			"DATA",
+			{
+				operation: "upper",
+				requestId: "req-1",
+				error: "remoteCall: orphan response for unknown or completed request",
+			},
+		]);
 
 		bridge.inbound.down([
 			[
@@ -227,6 +247,125 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 						},
 					},
 					requestId: "req-1",
+				}),
+			],
+		]);
+
+		expect(results).toContainEqual([
+			"DATA",
+			{ operation: "upper", requestId: "req-1", payload: "HELLO" },
+		]);
+	});
+
+	it("remoteCall requires operation correlation and keeps status responses non-terminal", () => {
+		const g = graph();
+		const bridge = wireBridge<
+			{ operation: string; requestId: string; payload: string },
+			{
+				kind: "result" | "status";
+				operation: string;
+				requestId: string;
+				payload?: string;
+				status?: string;
+			}
+		>(g, { name: "bridge", sessionId: "session-a" });
+		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
+		const results: unknown[] = [];
+		const responses: unknown[] = [];
+		const errors: unknown[] = [];
+		const status: unknown[] = [];
+		remote.results.subscribe((msg) => results.push(msg));
+		remote.responses.subscribe((msg) => responses.push(msg));
+		remote.errors.subscribe((msg) => errors.push(msg));
+		remote.status.subscribe((msg) => status.push(msg));
+
+		remote.call("upper", "req-1", "hello");
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq: 1,
+					cursor: 1,
+					payload: {
+						kind: "data",
+						value: {
+							kind: "result",
+							operation: "lower",
+							requestId: "req-1",
+							payload: "wrong",
+						},
+					},
+				}),
+			],
+		]);
+
+		expect(results).not.toContainEqual(["DATA", expect.anything()]);
+		expect(errors).toContainEqual([
+			"DATA",
+			{
+				operation: "upper",
+				requestId: "req-1",
+				error: "remoteCall: response operation 'lower' did not match pending operation 'upper'",
+			},
+		]);
+
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq: 2,
+					cursor: 1,
+					payload: {
+						kind: "data",
+						value: {
+							kind: "status",
+							operation: "upper",
+							requestId: "req-1",
+							status: "working",
+						},
+					},
+				}),
+			],
+		]);
+
+		expect(responses).toContainEqual([
+			"DATA",
+			{ kind: "status", operation: "upper", requestId: "req-1", status: "working" },
+		]);
+		expect(status.at(-1)).toEqual([
+			"DATA",
+			{
+				state: "requested",
+				operation: "upper",
+				requestId: "req-1",
+				pending: 1,
+				completed: 0,
+				errors: 0,
+				timeouts: 0,
+			},
+		]);
+
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq: 3,
+					cursor: 1,
+					payload: {
+						kind: "data",
+						value: {
+							kind: "result",
+							operation: "upper",
+							requestId: "req-1",
+							payload: "HELLO",
+						},
+					},
 				}),
 			],
 		]);
@@ -642,7 +781,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		]);
 	});
 
-	it("remoteCall ignores malformed responses for unknown request ids", () => {
+	it("remoteCall surfaces malformed responses for unknown request ids without buffering", () => {
 		const g = graph();
 		const bridge = wireBridge<{ operation: string; requestId: string; payload: string }, unknown>(
 			g,
@@ -670,13 +809,23 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			],
 		]);
 
-		expect(errors).not.toContainEqual([
+		expect(errors).toContainEqual([
 			"DATA",
-			expect.objectContaining({ requestId: "req-unknown" }),
+			{
+				operation: "upper",
+				requestId: "req-unknown",
+				error: "remoteCall: response payload is malformed",
+			},
 		]);
-		expect(status).not.toContainEqual([
+		expect(status).toContainEqual([
 			"DATA",
-			expect.objectContaining({ state: "errored", requestId: "req-unknown" }),
+			expect.objectContaining({
+				state: "errored",
+				operation: "upper",
+				requestId: "req-unknown",
+				pending: 0,
+				errors: 1,
+			}),
 		]);
 	});
 

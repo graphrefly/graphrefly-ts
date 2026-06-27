@@ -74,8 +74,15 @@ function sortedJsonValue(
 					/^(0|[1-9]\d*)$/.test(key) &&
 					Number.isSafeInteger(Number(key)) &&
 					Number(key) < value.length;
+				const descriptor = Object.getOwnPropertyDescriptor(value, key);
+				if (descriptor !== undefined && ("get" in descriptor || "set" in descriptor)) {
+					throw new TypeError(`stableJsonString: accessor property at ${path}.${key}`);
+				}
 				if (key !== "length" && !isIndex) {
 					throw new TypeError(`stableJsonString: non-index array property at ${path}.${key}`);
+				}
+				if (key !== "length" && descriptor !== undefined && !descriptor.enumerable) {
+					throw new TypeError(`stableJsonString: non-enumerable array property at ${path}.${key}`);
 				}
 			}
 			const out: JsonValue[] = [];
@@ -89,6 +96,15 @@ function sortedJsonValue(
 		}
 		if (Object.getOwnPropertySymbols(value).length > 0) {
 			throw new TypeError(`stableJsonString: symbol-keyed properties at ${path}`);
+		}
+		for (const key of Object.getOwnPropertyNames(value)) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (descriptor !== undefined && ("get" in descriptor || "set" in descriptor)) {
+				throw new TypeError(`stableJsonString: accessor property at ${path}.${key}`);
+			}
+			if (descriptor !== undefined && !descriptor.enumerable) {
+				throw new TypeError(`stableJsonString: non-enumerable property at ${path}.${key}`);
+			}
 		}
 		const out: Record<string, JsonValue> = Object.create(null);
 		for (const key of Object.keys(value as Record<string, unknown>).sort()) {
