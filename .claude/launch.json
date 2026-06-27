@@ -14,18 +14,6 @@
 			"port": 4322
 		},
 		{
-			"name": "knowledge-graph-demo",
-			"runtimeExecutable": "pnpm",
-			"runtimeArgs": ["--dir", "demos/knowledge-graph", "dev"],
-			"port": 4324
-		},
-		{
-			"name": "pagerduty-triage-demo",
-			"runtimeExecutable": "pnpm",
-			"runtimeArgs": ["--dir", "demos/pagerduty-triage", "dev"],
-			"port": 4325
-		},
-		{
 			"name": "website",
 			"runtimeExecutable": "pnpm",
 			"runtimeArgs": ["--dir", "website", "dev"],

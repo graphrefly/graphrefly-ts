@@ -4,9 +4,10 @@ description: "Historical pre-CSP-9 browser demo notes. The active clean-slate su
 ---
 
 These notes describe the historical pre-CSP-9 browser demo for knowledge-graph
-extraction. Its source is retained for reference, but it still depends on
-retired root/pure-ts demo surfaces such as old AI utilities, policy helpers, and
-`utils/demo-shell`, so it is not an active clean-slate demo.
+extraction. Its source was retired from the active tree during CSP-9/B66
+closeout because it depended on retired root/pure-ts demo surfaces such as old
+AI utilities, policy helpers, and `utils/demo-shell`, so it is not an active
+clean-slate demo.
 
 Use [`examples/knowledge-graph/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/knowledge-graph)
 for the active clean-slate version. That example is Node-runnable, deterministic,
@@ -68,6 +69,6 @@ surface.
 
 ## Source
 
-Historical source lives at [`demos/knowledge-graph/`](https://github.com/graphrefly/graphrefly-ts/tree/main/demos/knowledge-graph)
-in the repo. It is not included in the active workspace. The Node-runnable
-clean-slate successor is [`examples/knowledge-graph/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/knowledge-graph).
+The historical browser source was removed from the active workspace rather than
+migrated through compatibility shims. The Node-runnable clean-slate successor is
+[`examples/knowledge-graph/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/knowledge-graph).

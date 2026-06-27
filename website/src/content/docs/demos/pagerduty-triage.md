@@ -4,9 +4,10 @@ description: "Historical pre-CSP-9 browser demo notes retained for reference."
 ---
 
 These notes describe the historical pre-CSP-9 PagerDuty triage browser demo. Its
-source is retained for reference, but it still depends on retired root/pure-ts
-demo surfaces such as old AI utilities, `agentMemory`, and `utils/demo-shell`, so
-it is not an active clean-slate demo or workspace package.
+source was retired from the active tree during CSP-9/B66 closeout because it
+depended on retired root/pure-ts demo surfaces such as old AI utilities,
+`agentMemory`, and `utils/demo-shell`, so it is not an active clean-slate demo or
+workspace package.
 
 The historical demo streamed 60 synthetic alerts through a reactive
 classify-and-route pipeline. Run twice, once in **Baseline** mode and once in
@@ -80,6 +81,7 @@ The token bar at the bottom of the main pane shows cumulative `inputTokens`, `ou
 
 ## Source
 
-Historical source lives at [`demos/pagerduty-triage/`](https://github.com/graphrefly/graphrefly-ts/tree/main/demos/pagerduty-triage)
-in the repo. Re-activating this concept should be a new slice over current
-`@graphrefly/ts` orchestration/pattern public subpaths, not a compatibility shim.
+The historical browser source was removed from the active workspace rather than
+migrated through compatibility shims. Re-activating this concept should be a new
+slice over current `@graphrefly/ts` orchestration/pattern public subpaths, not a
+compatibility shim.

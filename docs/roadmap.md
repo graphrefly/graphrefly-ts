@@ -438,7 +438,7 @@ fromTimer(interval) → fetchTransactions → anomalyDetector → flagNode
 - [x] `examples/spending-alerts/` — SHIPPED 2026-04-21. 5-hop deterministic pipeline (`txFeed → anomalyScore → thresholdGate → reasonFactors → alertMessage`, with `vendorStats`/`userProfile` as side inputs). Runnable via `pnpm --filter @graphrefly-examples/spending-alerts start`.
 - [x] `website/src/content/docs/demos/spending-alerts.md` — SHIPPED 2026-04-21. Walkthrough + causal chain output + "how you get this in your own code" + agent-extension path (swap `alertMessage` for a `promptNode` with `resilientAdapter`).
 - [x] Wire homepage "Demo: Spending Alerts →" link to the docs page.
-- [ ] Interactive 3-pane Astro shell at `demos/spending-alerts/` — follow-up. Will reuse `demoShell` + `lazyAdapter` patterns from `demos/knowledge-graph/`; adds a Chrome-Nano-backed `promptNode` justifier with mock fallback. Non-blocking for Wave 2 (roadmap note: "No GIF required — static walkthrough is sufficient").
+- [ ] Interactive 3-pane Astro shell at `demos/spending-alerts/` — deferred/rethink. Do not reuse the retired pre-CSP-9 `demoShell` / `lazyAdapter` patterns from the deleted `demos/knowledge-graph/`; any browser shell should be redesigned over current `@graphrefly/ts` public subpaths. Non-blocking for Wave 2 (roadmap note: "No GIF required — static walkthrough is sufficient").
 
 #### 9.2 deliverables for announcement
 
@@ -512,18 +512,18 @@ streamingPromptNode
 |---|---|---|---|
 | "Demo: Email Triage →" | 01 Context Without Control | Demo 0 (`website/src/content/docs/demos/email-triage.md`) | Wave 3 |
 | "Demo: Spending Alerts →" | 02 Action Without Explanation | §9.3e (`website/src/content/docs/demos/spending-alerts.md`) | **Wave 2** |
-| "Demo: Knowledge Graph →" | 03 Composition Without Guardrails | Interactive 4-chapter demo at `demos/knowledge-graph/` (Chrome Nano on-device extraction; mock fallback). Docs page at `website/src/content/docs/demos/knowledge-graph.md`. Node-runnable mirror at `examples/knowledge-graph/`. | Wave 2 (interactive) |
+| "Demo: Knowledge Graph →" | 03 Composition Without Guardrails | The old interactive `demos/knowledge-graph/` browser source was retired in CSP-9/B66 because it depended on deleted root/pure-ts AI/demo-shell surfaces. Keep the historical docs page at `website/src/content/docs/demos/knowledge-graph.md`; use the Node-runnable clean-slate mirror at `examples/knowledge-graph/` until a new browser demo is designed over `@graphrefly/ts`. | Wave 2 historical / redesign needed |
 
 - [ ] Demo 0 video/GIF — required to gate Show HN
 - [ ] `website/src/content/docs/demos/email-triage.md` (Demo 0 companion page)
-- [ ] **Port `examples/inbox-reducer` to a website demo page (opened 2026-04-21):** `website/src/content/docs/demos/inbox-reducer.md` companion to the Node-runnable example. Highlights what this example shows well (correct + concise + intuitive + capable): 7-node pipeline, 3 LLM calls over 50 emails, live stage-by-stage trace, `graph.explain` causal chain, dry-run with exact token counts, mermaid.live clickable diagram, fallback/replay-cache/resilience stack in one line, reactive delta demo (honestly framed — see next item for the true reactive-savings demo). Keep as a "here's a complete, production-shaped pipeline" reference. Does NOT replace Email Triage (Demo 0) or Spending Alerts — it's a more thorough walkthrough of adapter stack + observability than those.
+- [x] **Retire the old `examples/inbox-reducer` port plan (opened 2026-04-21, closed 2026-06-27):** the pre-CSP-9 example depended on retired root-package AI/storage/render surfaces and was deleted from the active tree in CSP-9/B66. Do not port it by reviving compatibility shims. A future inbox demo should be designed directly over current `@graphrefly/ts` public subpaths.
 - [ ] **Second inbox-like demo that genuinely shows reactive-savings + explainability (opened 2026-04-21):** The current `inbox-reducer` batches classify over all emails, so a 1-email delta re-runs every stage at full cost — it doesn't sell the reactive-push efficiency claim. Build a sibling example (working name: `inbox-stream` or `live-inbox-reducer`) that:
   - **Classifies per-email** — a `map(emails, classifyOne)`-shaped topology where each email is classified individually (50 small LLM calls initially). Compose via `funnel` or `mergeMap` with configurable concurrency.
   - **Shows real delta savings** — push a 51st email, only THAT email re-classifies (1 small call), downstream extract/rank/brief recompute deterministically plus maybe one small brief call. Vs. a full rerun = 51+N+1 calls.
   - **Leans into `graph.explain`** — for any action item in the final brief, `graph.explain("emails[e42]", "brief")` walks back through its own classify call, its extract call, and the rank decision. Shows causal-chain UX on a DAG with real fan-in/out, not just a linear pipeline.
   - **Streams incoming emails** via `fromTimer` or `fromAsyncIter` so the "arrive live, re-triage" story is visible.
   - Optional: fan-out multiple consumers of `classifications` (actionable / notifications / deferred digest) to show multi-sink reactivity.
-  **Ship as a website demo**: `website/src/content/docs/demos/inbox-stream.md`. This is the demo that sells the "reactive + explainable" moat; `inbox-reducer` stays as the approachable baseline.
+  **Ship as a website demo**: `website/src/content/docs/demos/inbox-stream.md`. This is the demo that sells the "reactive + explainable" moat; the deleted `inbox-reducer` remains historical provenance only.
 - [ ] Show HN: "GraphReFly — the reactive harness layer for agent workflows [harness scorecard inside]"
 - [ ] `@graphrefly/ai-sdk` and/or `@graphrefly/langgraph` on npm
 - [ ] 3 template repos public

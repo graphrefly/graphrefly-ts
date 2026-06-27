@@ -49,13 +49,13 @@ same commands from that directory instead of `examples/<subject>/<name>`.
 `examples/reactive-layout/recipes/` is documentation-only glue, so it has no
 package commands.
 
-## Historical
+## Retired
 
-`examples/inbox-reducer/` is retained as a historical pre-CSP-9 example. It
-still references the retired root package and old AI pattern surfaces, so it
-is not an active clean-slate starter and is not included in the workspace
-examples set. Re-activating it needs a separate design slice over current
-`@graphrefly/ts` public subpaths, not compatibility shims.
+`examples/inbox-reducer/` was retired from the active tree during CSP-9/B66
+closeout. It depended on the retired root package and old AI pattern surfaces,
+so it is not an active clean-slate starter. Re-activating the concept needs a
+separate design slice over current `@graphrefly/ts` public subpaths, not
+compatibility shims.
 
 ## Demos vs examples
 

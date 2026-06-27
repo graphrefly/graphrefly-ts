@@ -23,11 +23,11 @@ examples set.
 
 ## Historical browser demo notes
 
-`demos/knowledge-graph/` and `demos/pagerduty-triage/` are retained only as
-historical pre-CSP-9 notes. Their browser sources still depend on retired
-root/pure-ts demo surfaces such as old AI utilities and `utils/demo-shell`, so
-they are no longer active clean-slate demos or workspace packages. Re-activating
-either one needs a separate migration/design slice over current `@graphrefly/ts`
+`demos/knowledge-graph/` and `demos/pagerduty-triage/` were retired from the
+active tree during CSP-9/B66 closeout. The notes remain as historical
+pre-CSP-9 context because those browser demos depended on retired root/pure-ts
+surfaces such as old AI utilities and `utils/demo-shell`. Re-activating either
+concept needs a separate migration/design slice over current `@graphrefly/ts`
 public subpaths, not compatibility shims.
 
 [Historical knowledge-graph notes →](/demos/knowledge-graph/) ·
@@ -37,5 +37,5 @@ public subpaths, not compatibility shims.
 
 Active demo/walkthrough source lives at `demos/reactive-layout/` and
 `examples/spending-alerts/` in the repo. The compat matrix remains a
-package-surface showcase, while the knowledge-graph and PagerDuty browser demos
-are historical references until migrated.
+package-surface showcase, while the knowledge-graph and PagerDuty browser demo
+concepts are historical references until redesigned over clean-slate surfaces.

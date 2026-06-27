@@ -10,6 +10,10 @@ tags: [architecture, design-philosophy]
 
 *Arc 1, Post 3 — Origins: Why Revive Callbag?*
 
+> Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
+> story. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths;
+> do not copy `@graphrefly/graphrefly` imports from historical snippets.
+
 ---
 
 Let's be clear upfront: TC39 Signals are a good idea. Standardizing fine-grained reactivity at the language level is the right move. Preact Signals, SolidJS, Angular Signals, Vue's ref system — they've all converged on roughly the same model. A standard is overdue.

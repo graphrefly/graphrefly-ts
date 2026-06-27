@@ -1,8 +1,0 @@
-{
-	"extends": "astro/tsconfigs/strict",
-	"compilerOptions": {
-		"jsx": "react-jsx",
-		"jsxImportSource": "react",
-		"types": ["./src/types/dom-chromium-ai.d.ts"]
-	}
-}

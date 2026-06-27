@@ -9,6 +9,10 @@ tags: [architecture, two-phase-push, design-philosophy]
 
 *Arc 3, Post 7 — Architecture Evolution: The Great Unification*
 
+> Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
+> story. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths;
+> do not copy `@graphrefly/graphrefly` imports from historical snippets.
+
 ---
 
 In the predecessor (callbag-recharge), callbag was already doing the hard work: **talkback**, explicit sinks, a graph you could reason about. In our first architecture pass, we still treated it like a **notification bus** while the real numbers moved through a side door.
