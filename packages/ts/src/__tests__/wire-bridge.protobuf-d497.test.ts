@@ -25,13 +25,10 @@ interface VectorRecord {
 }
 
 const envelopeFixtureUrl = new URL(
-	"../../../../../graphrefly/spec/fixtures/protobuf/wire_bridge_envelope.v1.jsonl",
+	"./fixtures/protobuf/wire_bridge_envelope.v1.jsonl",
 	import.meta.url,
 );
-const wireEdgeFixtureUrl = new URL(
-	"../../../../../graphrefly/spec/fixtures/protobuf/wire_edge_frame.v1.jsonl",
-	import.meta.url,
-);
+const wireEdgeFixtureUrl = new URL("./fixtures/protobuf/wire_edge_frame.v1.jsonl", import.meta.url);
 
 function vectors(fixtureUrl: URL, message: VectorRecord["message"]): VectorRecord[] {
 	return readFileSync(fixtureUrl, "utf8")
