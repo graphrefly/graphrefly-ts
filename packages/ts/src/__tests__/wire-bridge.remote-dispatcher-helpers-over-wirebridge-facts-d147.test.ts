@@ -815,21 +815,21 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		]);
 	});
 
-		it("remoteCall keeps malformed orphan responses out of call-level errors", () => {
-			const g = graph();
-			const bridge = wireBridge<
-				{ operation: string; requestId: string; payload: string },
-				unknown
-			>(g, { name: "bridge", sessionId: "session-a" });
-			const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
-			const errors: unknown[] = [];
-			const results: unknown[] = [];
-			const status: unknown[] = [];
-			remote.errors.subscribe((msg) => errors.push(msg));
-			remote.results.subscribe((msg) => results.push(msg));
-			remote.status.subscribe((msg) => status.push(msg));
+	it("remoteCall keeps malformed orphan responses out of call-level errors", () => {
+		const g = graph();
+		const bridge = wireBridge<{ operation: string; requestId: string; payload: string }, unknown>(
+			g,
+			{ name: "bridge", sessionId: "session-a" },
+		);
+		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
+		const errors: unknown[] = [];
+		const results: unknown[] = [];
+		const status: unknown[] = [];
+		remote.errors.subscribe((msg) => errors.push(msg));
+		remote.results.subscribe((msg) => results.push(msg));
+		remote.status.subscribe((msg) => status.push(msg));
 
-			bridge.inbound.down([
+		bridge.inbound.down([
 			[
 				"DATA",
 				wireBridgeEnvelope({
@@ -842,53 +842,53 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 						value: { kind: "result", operation: "upper", requestId: "req-unknown" },
 					},
 				}),
-				],
-			]);
+			],
+		]);
 
-			expect(errors).not.toContainEqual([
-				"DATA",
-				{
-					operation: "upper",
-					requestId: "req-unknown",
-					error: "remoteCall: response payload is malformed",
-				},
-			]);
-			expect(status).not.toContainEqual([
-				"DATA",
-				expect.objectContaining({
-					state: "errored",
-					operation: "upper",
-					requestId: "req-unknown",
-				}),
-			]);
+		expect(errors).not.toContainEqual([
+			"DATA",
+			{
+				operation: "upper",
+				requestId: "req-unknown",
+				error: "remoteCall: response payload is malformed",
+			},
+		]);
+		expect(status).not.toContainEqual([
+			"DATA",
+			expect.objectContaining({
+				state: "errored",
+				operation: "upper",
+				requestId: "req-unknown",
+			}),
+		]);
 
-			remote.call("upper", "req-unknown", "hello");
-			bridge.inbound.down([
-				[
-					"DATA",
-					wireBridgeEnvelope({
-						sessionId: "session-a",
-						type: "data",
-						seq: 2,
-						cursor: 1,
-						payload: {
-							kind: "data",
-							value: {
-								kind: "result",
-								operation: "upper",
-								requestId: "req-unknown",
-								payload: "HELLO",
-							},
+		remote.call("upper", "req-unknown", "hello");
+		bridge.inbound.down([
+			[
+				"DATA",
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq: 2,
+					cursor: 1,
+					payload: {
+						kind: "data",
+						value: {
+							kind: "result",
+							operation: "upper",
+							requestId: "req-unknown",
+							payload: "HELLO",
 						},
-					}),
-				],
-			]);
+					},
+				}),
+			],
+		]);
 
-			expect(results).toContainEqual([
-				"DATA",
-				{ operation: "upper", requestId: "req-unknown", payload: "HELLO" },
-			]);
-		});
+		expect(results).toContainEqual([
+			"DATA",
+			{ operation: "upper", requestId: "req-unknown", payload: "HELLO" },
+		]);
+	});
 
 	it("remoteResponder rejects malformed request payloads before handler dispatch", () => {
 		const g = graph();

@@ -411,18 +411,18 @@ function remoteCallStatusNode<TRequest, TResponse>(
 							requestId === undefined || operation === undefined
 								? undefined
 								: remotePendingPeekByRequestId(state.pending, requestId);
-							const matchedRequest =
-								request !== undefined && request.operation === operation ? request : undefined;
-							if (matchedRequest === undefined) continue;
-							remotePendingTakeByRequestId(state.pending, matchedRequest.requestId);
-							state.status = {
-								...state.status,
-								state: "errored",
-								operation: matchedRequest.operation,
-								requestId: matchedRequest.requestId,
-								errors: state.status.errors + 1,
-							};
-							continue;
+						const matchedRequest =
+							request !== undefined && request.operation === operation ? request : undefined;
+						if (matchedRequest === undefined) continue;
+						remotePendingTakeByRequestId(state.pending, matchedRequest.requestId);
+						state.status = {
+							...state.status,
+							state: "errored",
+							operation: matchedRequest.operation,
+							requestId: matchedRequest.requestId,
+							errors: state.status.errors + 1,
+						};
+						continue;
 					}
 					const request = remotePendingPeekByRequestId(state.pending, response.requestId);
 					if (request === undefined) {
@@ -549,15 +549,15 @@ function remoteCallErrorsNode<TRequest, TResponse>(
 					if (response === undefined) {
 						const requestId = remoteMalformedResponseRequestId(event.envelope.payload.value);
 						const operation = remoteMalformedResponseOperation(event.envelope.payload.value);
-							const request =
-								requestId === undefined || operation === undefined
-									? undefined
-									: remotePendingPeekByRequestId(pending, requestId);
-							if (request === undefined || request.operation !== operation) continue;
-							remotePendingTakeByRequestId(pending, request.requestId);
-							ctx.down([
-								[
-									"DATA",
+						const request =
+							requestId === undefined || operation === undefined
+								? undefined
+								: remotePendingPeekByRequestId(pending, requestId);
+						if (request === undefined || request.operation !== operation) continue;
+						remotePendingTakeByRequestId(pending, request.requestId);
+						ctx.down([
+							[
+								"DATA",
 								{
 									...(operation === undefined ? {} : { operation }),
 									...(requestId === undefined ? {} : { requestId }),
