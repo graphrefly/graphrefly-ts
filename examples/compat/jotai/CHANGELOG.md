@@ -1,5 +1,12 @@
 # @graphrefly-examples/compat-jotai
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies [666225e]
+  - @graphrefly/ts@0.0.3
+
 ## 0.0.8
 
 ### Patch Changes
