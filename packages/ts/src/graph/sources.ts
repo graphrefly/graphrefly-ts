@@ -705,17 +705,54 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
  * Timer source: one-shot (first tick then COMPLETE) or periodic (`{period}` → 0, 1, 2, …).
  * sync pool + pausable:false (a timer keeps producing through PAUSE, R-pause-modes). Emits the
  * tick counter from 0; deactivation clears the timers.
+ *
+ * @param ms - Delay before the first tick in milliseconds.
+ * @param opts - Optional period and source options.
+ * @returns A source operator that emits tick counters.
+ * @example
+ * ```ts
+ * import { graph, timer } from "@graphrefly/ts";
+ *
+ * const tick = graph().initNode(timer(100), []);
+ * ```
+ * @category sources
  */
 export function timer(ms: number, opts?: TimerSourceOpts): Operator<never, number> {
 	return timerSource("timer", ms, opts);
 }
 
-/** Frozen pure-ts name for {@link timer}; preserves the real factory name in describe(). */
+/**
+ * Create a timer source with the legacy `fromTimer` factory name.
+ *
+ * @param ms - Delay before the first tick in milliseconds.
+ * @param opts - Optional period and source options.
+ * @returns A source operator that emits tick counters.
+ * @example
+ * ```ts
+ * import { fromTimer, graph } from "@graphrefly/ts";
+ *
+ * const tick = graph().initNode(fromTimer(100), []);
+ * ```
+ * @remarks **Factory name:** This preserves the real `fromTimer` factory name in `describe()`.
+ * @category sources
+ */
 export function fromTimer(ms: number, opts?: TimerSourceOpts): Operator<never, number> {
 	return timerSource("fromTimer", ms, opts);
 }
 
-/** interval: periodic ticks (0, 1, 2, …), first at `ms`, then every `ms` (RxJS semantics). */
+/**
+ * Emit periodic tick counters.
+ *
+ * @param ms - Delay before the first tick and between later ticks in milliseconds.
+ * @returns A source operator that emits `0`, `1`, `2`, and so on.
+ * @example
+ * ```ts
+ * import { graph, interval } from "@graphrefly/ts";
+ *
+ * const ticks = graph().initNode(interval(1000), []);
+ * ```
+ * @category sources
+ */
 export function interval(ms: number): Operator<never, number> {
 	return timerSource("interval", ms, { period: ms });
 }
@@ -724,6 +761,17 @@ export function interval(ms: number): Operator<never, number> {
  * Lift a Promise (or thenable) to a single-value stream: one DATA then COMPLETE, or ERROR on
  * rejection. async pool (default pausable → a paused source buffers its late emit). Optional
  * `signal` aborts to ERROR.
+ *
+ * @param p - Promise or thenable to lift into the graph.
+ * @param opts - Optional abort signal and async source options.
+ * @returns A source operator that emits one DATA value and COMPLETE, or ERROR on rejection/abort.
+ * @example
+ * ```ts
+ * import { fromPromise, graph } from "@graphrefly/ts";
+ *
+ * const user = graph().initNode(fromPromise(fetch("/user").then((res) => res.json())), []);
+ * ```
+ * @category sources
  */
 export function fromPromise<T>(
 	p: Promise<T> | PromiseLike<T>,
@@ -771,6 +819,17 @@ export function fromPromise<T>(
 /**
  * Read an async iterable: each value → DATA; COMPLETE when done; ERROR on failure. async pool.
  * Optional `signal` aborts the pump.
+ *
+ * @param iterable - Async iterable to pump into the graph.
+ * @param opts - Optional abort signal and async source options.
+ * @returns A source operator that emits every iterable value and then COMPLETE.
+ * @example
+ * ```ts
+ * import { fromAsyncIter, graph } from "@graphrefly/ts";
+ *
+ * const stream = graph().initNode(fromAsyncIter(events()), []);
+ * ```
+ * @category sources
  */
 export function fromAsyncIter<T>(
 	iterable: AsyncIterable<T>,
@@ -809,6 +868,16 @@ export function fromAsyncIter<T>(
 
 /**
  * of: synchronous values — each argument as DATA, then COMPLETE. `of()` is the EMPTY source.
+ *
+ * @param values - Values to emit synchronously on activation.
+ * @returns A source operator that emits each value and then COMPLETE.
+ * @example
+ * ```ts
+ * import { graph, of } from "@graphrefly/ts";
+ *
+ * const values = graph().initNode(of(1, 2, 3), []);
+ * ```
+ * @category sources
  */
 export function of<T = never>(...values: T[]): Operator<never, T> {
 	return source<T>(
@@ -821,7 +890,19 @@ export function of<T = never>(...values: T[]): Operator<never, T> {
 	);
 }
 
-/** fromIter: a sync iterable — each value → DATA (in order), then COMPLETE, on activation. */
+/**
+ * Emit every value from a synchronous iterable.
+ *
+ * @param iterable - Iterable whose values are emitted in order.
+ * @returns A source operator that emits every iterable value and then COMPLETE.
+ * @example
+ * ```ts
+ * import { fromIter, graph } from "@graphrefly/ts";
+ *
+ * const values = graph().initNode(fromIter([1, 2, 3]), []);
+ * ```
+ * @category sources
+ */
 export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
 	return source<T>(
 		"fromIter",
@@ -833,7 +914,18 @@ export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
 	);
 }
 
-/** EMPTY analogue: complete immediately with no DATA. */
+/**
+ * Complete immediately without emitting DATA.
+ *
+ * @returns A source operator that emits COMPLETE on activation.
+ * @example
+ * ```ts
+ * import { empty, graph } from "@graphrefly/ts";
+ *
+ * const done = graph().initNode(empty(), []);
+ * ```
+ * @category sources
+ */
 export function empty<T = never>(): Operator<never, T> {
 	return source<T>(
 		"empty",
@@ -844,12 +936,35 @@ export function empty<T = never>(): Operator<never, T> {
 	);
 }
 
-/** NEVER analogue: activate and remain silent until deactivation. */
+/**
+ * Activate and remain silent until deactivation.
+ *
+ * @returns A source operator that never emits DATA or terminal messages by itself.
+ * @example
+ * ```ts
+ * import { graph, never } from "@graphrefly/ts";
+ *
+ * const quiet = graph().initNode(never(), []);
+ * ```
+ * @category sources
+ */
 export function never<T = never>(): Operator<never, T> {
 	return source<T>("never", () => undefined, { pool: "sync" });
 }
 
-/** Error source: terminate with ERROR on activation, coercing invalid host-language payloads. */
+/**
+ * Terminate with ERROR on activation.
+ *
+ * @param err - Host-language error payload to normalize into a protocol ERROR payload.
+ * @returns A source operator that emits ERROR.
+ * @example
+ * ```ts
+ * import { graph, throwError } from "@graphrefly/ts";
+ *
+ * const failed = graph().initNode(throwError(new Error("boom")), []);
+ * ```
+ * @category sources
+ */
 export function throwError(err: unknown): Operator<never, never> {
 	return source<never>(
 		"throwError",
@@ -863,6 +978,18 @@ export function throwError(err: unknown): Operator<never, never> {
 /**
  * Wrap a DOM-style event target. Each event becomes DATA; deactivation removes the listener.
  * External callbacks are source boundaries (D43), so no polling or operator-level async leaks in.
+ *
+ * @param target - Event target implementing `addEventListener` and `removeEventListener`.
+ * @param type - Event type to subscribe to.
+ * @param opts - Optional listener options and source options.
+ * @returns A source operator that emits each event as DATA.
+ * @example
+ * ```ts
+ * import { fromEvent, graph } from "@graphrefly/ts";
+ *
+ * const clicks = graph().initNode(fromEvent<MouseEvent>(button, "click"), []);
+ * ```
+ * @category sources
  */
 export function fromEvent<T = unknown>(
 	target: EventTargetLike,

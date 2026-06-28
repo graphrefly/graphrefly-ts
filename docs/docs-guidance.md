@@ -95,11 +95,14 @@ If a universal entry starts importing `node:*` or browser globals, move that sym
 
 ### TypeScript
 
-TS API reference pages are generated from the current `@graphrefly/ts` export map plus structured JSDoc. The generator discovers package entrypoints from `packages/ts/tsup.config.ts`, verifies those subpaths exist in `packages/ts/package.json`, recursively follows re-exports, and emits pages for exported functions/classes that have complete API JSDoc (`summary`, `@param` for each parameter, `@returns`, `@example`, and `@category`). It also writes the Starlight API sidebar.
+TS API reference pages are generated from the current `@graphrefly/ts` export map plus JSDoc. The generator discovers package entrypoints from `packages/ts/tsup.config.ts`, verifies those subpaths exist in `packages/ts/package.json`, recursively follows re-exports, and emits pages for exported functions/classes with a JSDoc summary. It also writes the grouped Starlight API sidebar.
+
+Complete structured JSDoc (`@param` for each parameter, `@returns`, `@example`, and `@category`) is still the quality bar. Pages with missing structured tags render a "Documentation Status" section so gaps stay visible instead of silently shrinking the API reference.
 
 ```bash
 pnpm --filter @graphrefly/docs-site docs:gen              # regenerate TS API pages + sidebar
 pnpm --filter @graphrefly/docs-site docs:gen:check        # CI dry-run — exit 1 if generated output is stale
+pnpm --filter @graphrefly/docs-site docs:gen:missing      # list public exports skipped for missing JSDoc summary
 ```
 
 Do not map old `base/`, `utils/`, `compat/`, `presets/`, `@graphrefly/pure-ts`, or deprecated `@graphrefly/graphrefly` symbols to guessed subpaths. If a symbol should appear in the public website reference, make it a real clean-slate package export and give it complete structured JSDoc.

@@ -137,6 +137,21 @@ export {
 } from "./runtime-accessors.js";
 export type { NodeCheckpointState, NodeOptions, NodeRestoreState, Status } from "./types.js";
 
+/**
+ * Reactive substrate node that owns dependencies, wave handling, lifecycle, and subscribers.
+ *
+ * @example
+ * ```ts
+ * import { node } from "@graphrefly/ts";
+ *
+ * const source = node<number>([], null);
+ * source.subscribe((value) => console.log(value));
+ * source.down([["DATA", 1]]);
+ * ```
+ * @remarks **Substrate primitive:** `Node` is graph-agnostic; use `graph().node`,
+ *   `graph().state`, or `graph().derived` when you want inspection and lifecycle ownership.
+ * @category core
+ */
 export class Node<T = unknown> {
 	private readonly _core: NodeCore;
 	private readonly _id: NodeId;
@@ -829,6 +844,21 @@ export class Node<T = unknown> {
  *   node([], fn)                        — producer (runs on activation)
  *   node([a, b], fn)                    — compute / derived
  *   node([dep])                         — passthrough wire
+ *
+ * @param deps - Upstream nodes this node reads positionally from `ctx`.
+ * @param handleOrFn - Dispatcher handle, node function, or `null` for a manual source/state node.
+ * @param opts - Node runtime options such as `initial`, `name`, pool, dispatcher, and restore data.
+ * @returns A graph-agnostic `Node`.
+ * @example
+ * ```ts
+ * import { depLatest, node } from "@graphrefly/ts";
+ *
+ * const source = node<number>([], null, { initial: 1 });
+ * const doubled = node<number>([source], (ctx) => {
+ *   ctx.down([["DATA", Number(depLatest(ctx, 0)) * 2]]);
+ * });
+ * ```
+ * @category core
  */
 export function node<T = unknown>(
 	deps: Node<unknown>[] = [],

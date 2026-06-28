@@ -132,6 +132,15 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
 /**
  * A state node (L4-Q1): a manual source whose `.set(v)` is `node.down([[DATA, v]])` sugar.
  * Extends the substrate Node so it is usable as a dep AND carries the graph-layer `.set`.
+ *
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ *
+ * const count = graph().state(0);
+ * count.set(1);
+ * ```
+ * @category graph
  */
 export class StateNode<T> extends Node<T> {
 	set(v: T): void {
@@ -139,6 +148,21 @@ export class StateNode<T> extends Node<T> {
 	}
 }
 
+/**
+ * Own a single graph-local topology, lifecycle, inspection index, and dispatcher boundary.
+ *
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ *
+ * const g = graph({ name: "counter" });
+ * const count = g.state(0, { name: "count" });
+ * const doubled = g.derived([count], ([value]) => value * 2, { name: "doubled" });
+ * ```
+ * @remarks **Graph-local:** Cross-graph dependencies require a wire bridge; direct deps stay inside
+ *   one graph ownership domain.
+ * @category graph
+ */
 export class Graph {
 	readonly name?: string;
 	private readonly _dispatcher: Dispatcher;
@@ -937,7 +961,22 @@ export class Graph {
 	}
 }
 
-/** Construct a Graph (default global dispatcher; L4-Q4). */
+/**
+ * Construct a graph with graph-local topology, lifecycle, and inspection ownership.
+ *
+ * @param opts - Optional graph name, dispatcher, versioning policy, environment drivers, and
+ *   profiling switch.
+ * @returns A `Graph` instance whose sugar methods create graph-registered nodes.
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ *
+ * const g = graph({ name: "counter" });
+ * const count = g.state(0, { name: "count" });
+ * const doubled = g.derived([count], ([value]) => value * 2);
+ * ```
+ * @category graph
+ */
 export function graph(opts: GraphOptions = {}): Graph {
 	return new Graph(opts);
 }

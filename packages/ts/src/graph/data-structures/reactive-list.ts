@@ -153,6 +153,10 @@ class ListBackend<T> {
  * //   ctx.upNext([["PULL", { pullId: list.pullId }]]);  → SNAPSHOT delivers [1, 2]
  * list.toArray();                 // [1, 2]   (synchronous non-reactive read)
  * ```
+ * @param initial - Optional initial list contents.
+ * @param options - Optional graph binding, dispatcher, name, and capacity policy.
+ * @returns A reactive list with DELTA and lazy SNAPSHOT ports plus imperative mutation helpers.
+ * @category data-structures
  */
 export function reactiveList<T>(
 	initial?: readonly T[],

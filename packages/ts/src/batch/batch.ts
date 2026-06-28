@@ -91,7 +91,28 @@ function rollback(b: ActiveBatch): void {
 	for (const target of b.order) target.__rollbackBatched();
 }
 
-/** Run `fn` as a batch (D12). DATA deferred to commit; throw/rollback discards. */
+/**
+ * Run updates as one coalesced batch.
+ *
+ * @param fn - Synchronous callback that performs node updates and may call `rollback()`.
+ * @returns The callback return value when the batch commits.
+ * @example
+ * ```ts
+ * import { batch, graph } from "@graphrefly/ts";
+ *
+ * const g = graph();
+ * const left = g.state(0);
+ * const right = g.state(0);
+ *
+ * batch(() => {
+ *   left.set(1);
+ *   right.set(2);
+ * });
+ * ```
+ * @remarks **Coalescing:** DATA/RESOLVED/INVALIDATE settle slices are deferred until commit so
+ *   shared downstream nodes recompute once for the batch.
+ * @category core
+ */
 export function batch<R>(fn: (bctx: BatchCtx) => R): R {
 	// Wave-owner boundary (R-rewire-deferred / D47): bracket the whole batch (fn + commit) so a
 	// ctx.rewireNext issued by a fn that runs during COMMIT drains AFTER the commit, never on the

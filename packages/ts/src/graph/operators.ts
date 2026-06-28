@@ -199,7 +199,22 @@ export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
 // (D41) uses a producer + internal `subscribeOr`, the D45-banned describe island; these are
 // declared-dep nodes whose single edge `describe` shows truthfully.
 
-/** map: emit fn(value). A named {@link define} makes the map restorable via the map descriptor (D101). */
+/**
+ * Transform each upstream DATA value with a synchronous mapping function.
+ *
+ * @param fn - Mapping function, or a named `define()` definition for checkpoint restoration.
+ * @returns An operator that emits `fn(value)` for each upstream value.
+ * @example
+ * ```ts
+ * import { graph, map } from "@graphrefly/ts";
+ *
+ * const g = graph();
+ * const count = g.state(1);
+ * const doubled = g.initNode(map((value: number) => value * 2), [count]);
+ * ```
+ * @remarks **Restorable maps:** Passing a named `define()` registers semantic restore metadata.
+ * @category operators
+ */
 export function map<S, T>(fn: ((v: S) => T) | Definition<S, T>): Operator<S, T> {
 	if (isDefinition(fn)) {
 		return mapFromFunction(fn.fn, {
@@ -229,7 +244,21 @@ function mapFromFunction<S, T>(
 	};
 }
 
-/** filter: emit value only when pred(value) (else skip the wave). */
+/**
+ * Pass through upstream values that satisfy a predicate.
+ *
+ * @param pred - Predicate evaluated for each upstream DATA value.
+ * @returns An operator that emits matching values and stays quiet for non-matches.
+ * @example
+ * ```ts
+ * import { filter, graph } from "@graphrefly/ts";
+ *
+ * const g = graph();
+ * const count = g.state(0);
+ * const even = g.initNode(filter((value: number) => value % 2 === 0), [count]);
+ * ```
+ * @category operators
+ */
 export function filter<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "filter",
@@ -241,7 +270,22 @@ export function filter<S>(pred: (v: S) => boolean): Operator<S, S> {
 	};
 }
 
-/** scan: stateful accumulator over the upstream (acc seeded once, kept in ctx.state). */
+/**
+ * Accumulate upstream values and emit each intermediate accumulator.
+ *
+ * @param reducer - Reducer called with the previous accumulator and each upstream value.
+ * @param seed - Initial accumulator value.
+ * @returns An operator that emits the accumulator after every input value.
+ * @example
+ * ```ts
+ * import { graph, scan } from "@graphrefly/ts";
+ *
+ * const g = graph();
+ * const values = g.state(1);
+ * const total = g.initNode(scan((sum: number, value: number) => sum + value, 0), [values]);
+ * ```
+ * @category operators
+ */
 export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T> {
 	return {
 		factory: "scan",
@@ -258,7 +302,19 @@ export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T
 	};
 }
 
-/** take: emit the first n values, then COMPLETE (terminal-is-forever). */
+/**
+ * Emit the first `n` upstream values, then complete.
+ *
+ * @param n - Number of DATA values to pass before completion.
+ * @returns An operator that forwards at most `n` values and then emits COMPLETE.
+ * @example
+ * ```ts
+ * import { graph, take } from "@graphrefly/ts";
+ *
+ * const firstThree = graph().initNode(take<number>(3), [source]);
+ * ```
+ * @category operators
+ */
 export function take<S>(n: number): Operator<S, S> {
 	return {
 		factory: "take",
@@ -282,7 +338,19 @@ export function take<S>(n: number): Operator<S, S> {
 	};
 }
 
-/** distinctUntilChanged: emit only when the value differs from the previous emit. */
+/**
+ * Suppress consecutive duplicate values.
+ *
+ * @param eq - Equality predicate; defaults to `Object.is`.
+ * @returns An operator that emits only when the next value differs from the previous emitted value.
+ * @example
+ * ```ts
+ * import { distinctUntilChanged, graph } from "@graphrefly/ts";
+ *
+ * const stable = graph().initNode(distinctUntilChanged<number>(), [source]);
+ * ```
+ * @category operators
+ */
 export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is): Operator<S, S> {
 	return {
 		factory: "distinctUntilChanged",
@@ -306,6 +374,15 @@ export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is)
 /**
  * merge: interleave several sources — emit each DATA from whichever dep fired. `partial:true`
  * (combine-family): fires on any single dep, not gated on all deps settling.
+ *
+ * @returns An operator that forwards DATA from any dependency.
+ * @example
+ * ```ts
+ * import { graph, merge } from "@graphrefly/ts";
+ *
+ * const merged = graph().initNode(merge<number>(), [left, right]);
+ * ```
+ * @category operators
  */
 export function merge<T>(): Operator<T, T> {
 	return {
@@ -328,6 +405,17 @@ export function merge<T>(): Operator<T, T> {
  * source terminates. `completeWhenDepsComplete:false + terminalAsRealInput:true`: the fn fires on
  * the source COMPLETE (reading `terminal===true`) and emits the accumulator + COMPLETE. An empty
  * source emits the seed (RxJS parity). A source ERROR auto-forwards (errorWhenDepsError default).
+ *
+ * @param reducer - Reducer called with the accumulator and each upstream DATA value.
+ * @param seed - Initial accumulator value emitted if the source completes empty.
+ * @returns An operator that emits one accumulated value when the source completes.
+ * @example
+ * ```ts
+ * import { graph, reduce } from "@graphrefly/ts";
+ *
+ * const total = graph().initNode(reduce((sum: number, value: number) => sum + value, 0), [source]);
+ * ```
+ * @category operators
  */
 export function reduce<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T> {
 	return {
