@@ -97,8 +97,24 @@ function defaultVisibilityDocument(): VisibilityDocumentLike | undefined {
 /**
  * Browser animation-frame source.
  *
- * This is a browser/source boundary, not reactive-layout ownership (D181): every frame timestamp
- * enters the graph as DATA through `ctx.down`, and teardown cancels the pending host callback.
+ * @param opts - Optional scheduler, fallback timer cadence, visibility document, and strict
+ *   background parking flag.
+ * @returns An open-ended source operator that emits animation-frame timestamps as `DATA`.
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ * import { fromRaf } from "@graphrefly/ts/sources/browser";
+ *
+ * const frames = graph().initNode(fromRaf({ pauseWhenHidden: true }), [], { name: "frames" });
+ * frames.subscribe((time) => {
+ *   console.log("frame", time);
+ * });
+ * ```
+ * @remarks **Browser boundary:** Each frame timestamp enters the graph as `DATA` through `ctx.down`,
+ *   and teardown cancels the pending host callback.
+ * @remarks **Hidden tabs:** `pauseWhenHidden: true` parks completely while the document is hidden;
+ *   the default preserves the timer fallback behavior.
+ * @category sources
  */
 export function fromRaf(opts: FromRafOptions = {}): Operator<never, number> {
 	const fallbackMsOpt = opts.fallbackMs;

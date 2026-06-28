@@ -160,5 +160,4 @@ focused subpaths.
 - [API: `computeLineBreaks()`](/api/computelinebreaks)
 - [API: `computeCharPositions()`](/api/computecharpositions)
 
-These API pages are a focused Reactive Layout allowlist, not the full `@graphrefly/ts` package
-reference.
+These API pages are generated from the current `@graphrefly/ts` exports and structured JSDoc.

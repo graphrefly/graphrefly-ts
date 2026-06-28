@@ -1,6 +1,7 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import starlightBlog from "starlight-blog";
+import { apiSidebar } from "./src/generated/api-sidebar.mjs";
 
 /** GitHub Project Pages: set to `/repo-name/` (trailing slash). Root site: `'/'`. */
 const base = process.env.ASTRO_BASE_PATH ?? "/";
@@ -89,16 +90,9 @@ export default defineConfig({
 					],
 				},
 				{
-					label: "Reactive Layout API",
+					label: "API Reference",
 					collapsed: true,
-					items: [
-						{ label: "reactiveLayout()", link: "/api/reactivelayout" },
-						{ label: "reactiveBlockLayout()", link: "/api/reactiveblocklayout" },
-						{ label: "fromRaf()", link: "/api/fromraf" },
-						{ label: "analyzeAndMeasure()", link: "/api/analyzeandmeasure" },
-						{ label: "computeLineBreaks()", link: "/api/computelinebreaks" },
-						{ label: "computeCharPositions()", link: "/api/computecharpositions" },
-					],
+					items: apiSidebar,
 				},
 				{
 					label: "Comparisons",

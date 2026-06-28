@@ -36,8 +36,29 @@ import { emitLayoutError, nonNegativeFinite } from "./utils.js";
 /**
  * Create a graph-visible single-column text layout bundle.
  *
- * D181: this adds ordinary state/output nodes only; it does not add protocol behavior,
- * hidden subscriptions, GraphSpec ownership, storage, or platform globals.
+ * @param opts - Requires a graph and a graph-visible `measurements` node, plus optional
+ *   `lineHeight`, `maxWidth`, `targetId`, `segmentAdapter`, and bundle `name`.
+ * @returns A `ReactiveLayoutBundle` containing input nodes, setters, and graph-visible output
+ *   nodes for segments, line breaks, height, and character positions.
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ * import {
+ *   cellTextMeasurements,
+ *   reactiveLayout,
+ * } from "@graphrefly/ts/solutions/reactive-layout";
+ *
+ * const g = graph({ name: "article" });
+ * const text = g.state("Hello GraphReFly", { name: "text" });
+ * const font = g.state("16px system-ui", { name: "font" });
+ * const measurements = cellTextMeasurements({ graph: g, text, font });
+ *
+ * const layout = reactiveLayout({ graph: g, measurements, maxWidth: 320, lineHeight: 20 });
+ * layout.setMaxWidth(280);
+ * ```
+ * @remarks **Graph-visible:** This creates ordinary state/output nodes only; it does not add
+ *   protocol behavior, hidden subscriptions, GraphSpec ownership, storage, or platform globals.
+ * @category solutions
  */
 export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundle {
 	const { measurements, segmentAdapter: segmentAdapterOpt, name = "reactive-layout" } = opts;
@@ -148,7 +169,39 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 /**
  * Create a graph-visible vertical block layout bundle over the same DOM-free core.
  *
- * Image/SVG sizing is explicit or injected; no async image loading or DOM SVG parsing occurs.
+ * @param opts - Requires a graph and a graph-visible block `measurements` node, plus optional
+ *   `gap`, `targetId`, and bundle `name`.
+ * @returns A `ReactiveBlockLayoutBundle` containing the gap input, measured block output,
+ *   positioned block flow, and total height node.
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ * import {
+ *   blockAdaptersProvider,
+ *   blockMeasurementProvider,
+ *   reactiveBlockLayout,
+ *   type MeasurementAdapter,
+ * } from "@graphrefly/ts/solutions/reactive-layout";
+ *
+ * const g = graph({ name: "cards" });
+ * const blocks = g.state([{ id: "title", kind: "text", text: "Hello" }]);
+ * const maxWidth = g.state(320);
+ * const text = g.state<MeasurementAdapter>({
+ *   measureSegment: (segment) => ({ width: segment.length * 8 }),
+ * });
+ * const measurements = blockMeasurementProvider({
+ *   graph: g,
+ *   blocks,
+ *   maxWidth,
+ *   adapters: blockAdaptersProvider({ graph: g, text }),
+ * });
+ *
+ * const layout = reactiveBlockLayout({ graph: g, measurements, gap: 12 });
+ * layout.setGap(16);
+ * ```
+ * @remarks **DOM-free:** Image/SVG sizing is explicit or injected; no async image loading or
+ *   DOM SVG parsing occurs in the core layout bundle.
+ * @category solutions
  */
 export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveBlockLayoutBundle {
 	const { measurements, name = "reactive-block-layout" } = opts;

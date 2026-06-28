@@ -74,7 +74,7 @@ If a universal entry starts importing `node:*` or browser globals, move that sym
 | Tier | What | TS | PY |
 |------|------|----|----|
 | **0 — Protocol spec** | `~/src/graphrefly/spec/rules.jsonl` plus rendered/prose protocol pages | TS site syncs curated prose pages via `sync-docs.mjs` | PY site syncs its own curated pages |
-| **1 — JSDoc / Docstrings** | Structured doc blocks on exports | `packages/ts/src/**/*.ts`; TS API pages are currently a hand-vetted clean-slate allowlist | `src/graphrefly/**/*.py` → `gen_api_docs.py` → `website/src/content/docs/api/` |
+| **1 — JSDoc / Docstrings** | Structured doc blocks on exports | `packages/ts/src/**/*.ts` → `website/scripts/gen-api-docs.mjs` → `website/src/content/docs/api/` | `src/graphrefly/**/*.py` → `gen_api_docs.py` → `website/src/content/docs/api/` |
 | **2 — Runnable examples** | Self-contained scripts | `examples/*.ts` | `examples/*.py` (in graphrefly-py) |
 | **3 — Recipes / guides** | Long-form Starlight pages | `website/src/content/docs/recipes/` | `website/src/content/docs/recipes/` (in graphrefly-py) |
 | **4 — Interactive demos** | Live UI / Pyodide labs | `demos/` and `website/src/content/docs/demos/` | `website/src/content/docs/lab/` (Pyodide) |
@@ -95,7 +95,14 @@ If a universal entry starts importing `node:*` or browser globals, move that sym
 
 ### TypeScript
 
-The old TypeScript API generator was retired with the legacy root/pure-ts docs source. Current TS API reference pages are a small, hand-vetted clean-slate allowlist backed by real `@graphrefly/ts` export-map entries. Today that allowlist is focused on the Reactive Layout solution; it is not a full package API inventory. A replacement generator must fail closed from `packages/ts/package.json` exports plus an explicit allowlist; do not map old symbols to guessed subpaths.
+TS API reference pages are generated from the current `@graphrefly/ts` export map plus structured JSDoc. The generator discovers package entrypoints from `packages/ts/tsup.config.ts`, verifies those subpaths exist in `packages/ts/package.json`, recursively follows re-exports, and emits pages for exported functions/classes that have complete API JSDoc (`summary`, `@param` for each parameter, `@returns`, `@example`, and `@category`). It also writes the Starlight API sidebar.
+
+```bash
+pnpm --filter @graphrefly/docs-site docs:gen              # regenerate TS API pages + sidebar
+pnpm --filter @graphrefly/docs-site docs:gen:check        # CI dry-run — exit 1 if generated output is stale
+```
+
+Do not map old `base/`, `utils/`, `compat/`, `presets/`, `@graphrefly/pure-ts`, or deprecated `@graphrefly/graphrefly` symbols to guessed subpaths. If a symbol should appear in the public website reference, make it a real clean-slate package export and give it complete structured JSDoc.
 
 ### Python
 
@@ -125,7 +132,7 @@ pnpm --filter @graphrefly/docs-site sync-docs --check      # CI dry-run — exit
 | `roadmap.md`, `optimizations.md`, etc. | `docs/` (this repo) |
 | `robots.txt`, `llms.txt` | repo root → `website/public/` |
 
-`sync-docs` runs automatically on TS site `pnpm dev` and `pnpm build` (via `predev`/`prebuild`). The TS site does not currently run a TS `docs:gen` step.
+`sync-docs` and `docs:gen` both run automatically on TS site `pnpm dev` and `pnpm build` (via `predev`/`prebuild`).
 
 ---
 
@@ -133,7 +140,7 @@ pnpm --filter @graphrefly/docs-site sync-docs --check      # CI dry-run — exit
 
 | URL | Repo | Framework | Content |
 |-----|------|-----------|---------|
-| `graphrefly.dev` | graphrefly-ts | Astro/Starlight | Unified site: homepage, hand-vetted TS API pages, spec, blog, comparisons |
+| `graphrefly.dev` | graphrefly-ts | Astro/Starlight | Unified site: homepage, generated TS API pages, spec, blog, comparisons |
 | `graphrefly.dev/py/` | graphrefly-py | Astro/Starlight | Python API docs, Pyodide lab (proxied via Cloudflare Worker) |
 
 One unified site at `graphrefly.dev`. The `[TS] [PY]` header nav links to `/py/api/` for Python-specific reference. The Python site is built from `graphrefly-py` with `base: /py/` and served via a Cloudflare Worker that proxies `/py/*` requests to `graphrefly-py`'s GitHub Pages. DNS is on Cloudflare (proxy + CDN); hosting is GitHub Pages with GitHub Actions deployment.
@@ -144,7 +151,7 @@ One unified site at `graphrefly.dev`. The `[TS] [PY]` header nav links to `/py/a
 
 ## Structured JSDoc on exported functions (Tier 1)
 
-Every exported function should have a structured JSDoc block. TS JSDoc is the source for IDE/help text and for any future allowlist-based API generator; current TS site pages are hand-vetted markdown.
+Every exported function should have a structured JSDoc block. TS JSDoc is the source for IDE/help text and generated website API pages.
 
 ### Required JSDoc tags
 
@@ -316,7 +323,7 @@ Examples that bit us during Tier 8 / Tier 9.1 (caught in /qa, not at land):
 
 | Change | TS | PY |
 |--------|----|----|
-| New public API | JSDoc + narrow barrel export. Add or update TS site API markdown only when the symbol is part of the hand-vetted allowlist. **Pick the universal / node / browser tier** (see § Browser / Node / Universal split). | Docstring + `__init__.py` + `__all__` + `gen_api_docs.py` |
+| New public API | JSDoc + narrow barrel export. Add complete structured JSDoc when the symbol should appear in TS site API docs; `docs:gen` updates markdown and sidebar. **Pick the universal / node / browser tier** (see § Browser / Node / Universal split). | Docstring + `__init__.py` + `__all__` + `gen_api_docs.py` |
 | New subpath | `packages/ts/tsup.config.ts` `entry` + `packages/ts/package.json` `exports` block + package-export smoke coverage when appropriate + JSDoc `@example` uses the new subpath | n/a (PY doesn't have this split yet) |
 | Protocol or Graph behavior | `~/src/graphrefly/spec/rules.jsonl` via spec-amend + JSDoc/docstring on both |
 | New runnable example | `examples/<name>.ts` | `examples/<name>.py` (in graphrefly-py) |
@@ -367,7 +374,7 @@ Use consistent tags across posts: `architecture`, `performance`, `correctness`, 
 1. Implementation in `packages/ts/src/` + tests (`docs/test-guidance.md`). **Decide tier** (universal / node / browser) and place the file accordingly; see § Browser / Node / Universal split.
 2. Structured JSDoc on the exported function (Tier 1). `@example` imports from the correct subpath.
 3. If introducing a new subpath: add to `packages/ts/tsup.config.ts` `entry`, add `packages/ts/package.json` `exports`, and extend package-export smoke coverage where appropriate.
-4. If the symbol belongs in the public website allowlist, add or update a hand-vetted page under `website/src/content/docs/api/` and wire the sidebar explicitly.
+4. If the symbol belongs in the public website API reference, add complete structured JSDoc and run `pnpm --filter @graphrefly/docs-site docs:gen`.
 5. Run `pnpm run build` and `pnpm run lint`; fix package/export or runtime-tier mistakes by moving the symbol to the right tier.
 6. Runnable example in `examples/` (Tier 2)
 7. Recipe / interactive demo if warranted (Tier 3–4)
@@ -392,7 +399,7 @@ Use consistent tags across posts: `architecture`, `performance`, `correctness`, 
 | Canonical protocol rules | `~/src/graphrefly/spec/rules.jsonl` | Yes, via spec-amend only |
 | TS source of truth (JSDoc) | `packages/ts/src/**/*.ts` | Yes — primary TS edit target |
 | PY source of truth (docstrings) | `~/src/graphrefly-py/src/graphrefly/*.py` | Yes — primary PY edit target |
-| TS API pages | `website/src/content/docs/api/*.md` | Yes — hand-vetted allowlist, not generated full inventory |
+| TS API pages | `website/src/content/docs/api/*.md` | No — generated from structured JSDoc via `website/scripts/gen-api-docs.mjs` |
 | TS entry points | `packages/ts/tsup.config.ts` (`entry`) | Yes — update when adding a subpath |
 | TS package subpath map | `packages/ts/package.json` `exports` | Yes — add `./<subpath>` block for every new subpath |
 | PY API doc generator | `~/src/graphrefly-py/website/scripts/gen_api_docs.py` | Yes |

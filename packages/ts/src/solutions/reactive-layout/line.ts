@@ -22,7 +22,32 @@ import type {
 } from "./types.js";
 import { nonNegativeFinite } from "./utils.js";
 
-/** Segment text and measure every resulting segment with a caller-owned synchronous adapter. */
+/**
+ * Segment text and measure every resulting segment with a caller-owned synchronous adapter.
+ *
+ * @param text - Text to normalize, segment, and measure.
+ * @param font - Font descriptor passed through to the measurement adapter.
+ * @param adapter - Synchronous measurement adapter used for each segment or grapheme.
+ * @param cache - Caller-owned cache keyed by font and segment text.
+ * @param stats - Optional cache hit/miss accounting object updated during measurement.
+ * @param segmentAdapter - Optional segmentation adapter; defaults to the built-in adapter.
+ * @returns A prepared segment list with widths, break kinds, and optional grapheme widths for
+ *   word-like segments.
+ * @example
+ * ```ts
+ * import { analyzeAndMeasure } from "@graphrefly/ts/solutions/reactive-layout";
+ *
+ * const segments = analyzeAndMeasure(
+ *   "Hello world",
+ *   "16px system-ui",
+ *   { measureSegment: (segment) => ({ width: segment.length * 8 }) },
+ *   new Map(),
+ * );
+ * ```
+ * @remarks **Caller-owned adapter:** Measurement stays synchronous and host-injected; browser
+ *   Canvas, Skia, React Native, or test adapters live outside this helper.
+ * @category solutions
+ */
 export function analyzeAndMeasure(
 	text: string,
 	font: string,
@@ -153,7 +178,30 @@ export function analyzeAndMeasure(
 	return out;
 }
 
-/** Greedy single-column line breaking over prepared segments. */
+/**
+ * Compute greedy single-column line breaks over prepared segments.
+ *
+ * @param segments - Prepared segments from `analyzeAndMeasure` or a measurement provider.
+ * @param maxWidth - Maximum line width in pixels; non-finite or negative values produce no useful
+ *   width budget.
+ * @param opts - Optional hyphen width and segment adapter for grapheme-aware slicing.
+ * @returns A `LineBreaksResult` containing ordered layout lines and the line count.
+ * @example
+ * ```ts
+ * import { analyzeAndMeasure, computeLineBreaks } from "@graphrefly/ts/solutions/reactive-layout";
+ *
+ * const segments = analyzeAndMeasure(
+ *   "Hello world",
+ *   "16px system-ui",
+ *   { measureSegment: (segment) => ({ width: segment.length * 8 }) },
+ *   new Map(),
+ * );
+ * const lineBreaks = computeLineBreaks(segments, 64);
+ * ```
+ * @remarks **Pure helper:** This does not subscribe, schedule, or emit messages; reactive bundles
+ *   call it from ordinary graph nodes.
+ * @category solutions
+ */
 export function computeLineBreaks(
 	segments: readonly PreparedSegment[],
 	maxWidth: number,
@@ -535,7 +583,36 @@ export function carveTextLineSlots(
 	return slots;
 }
 
-/** Compute per-grapheme boxes for already-broken lines. */
+/**
+ * Compute per-grapheme boxes for already-broken lines.
+ *
+ * @param lineBreaks - Line break result whose cursors identify the visible grapheme ranges.
+ * @param segments - Prepared segments used to produce the line breaks.
+ * @param lineHeight - Height assigned to every line box.
+ * @param segmentAdapter - Optional segmentation adapter; defaults to the built-in adapter.
+ * @returns Character-position boxes in visual order, each with `x`, `y`, `width`, `height`, and
+ *   zero-based line index.
+ * @example
+ * ```ts
+ * import {
+ *   analyzeAndMeasure,
+ *   computeCharPositions,
+ *   computeLineBreaks,
+ * } from "@graphrefly/ts/solutions/reactive-layout";
+ *
+ * const segments = analyzeAndMeasure(
+ *   "Hello world",
+ *   "16px system-ui",
+ *   { measureSegment: (segment) => ({ width: segment.length * 8 }) },
+ *   new Map(),
+ * );
+ * const lineBreaks = computeLineBreaks(segments, 64);
+ * const positions = computeCharPositions(lineBreaks, segments, 20);
+ * ```
+ * @remarks **Already measured:** Widths come from the prepared segments; this helper only maps the
+ *   line cursors into per-grapheme rectangles.
+ * @category solutions
+ */
 export function computeCharPositions(
 	lineBreaks: LineBreaksResult,
 	segments: readonly PreparedSegment[],
