@@ -89,7 +89,7 @@ export default defineConfig({
 					],
 				},
 				{
-					label: "API — Reactive Layout",
+					label: "Reactive Layout API",
 					collapsed: true,
 					items: [
 						{ label: "reactiveLayout()", link: "/api/reactivelayout" },

@@ -156,3 +156,9 @@ focused subpaths.
 - [API: `reactiveLayout()`](/api/reactivelayout)
 - [API: `reactiveBlockLayout()`](/api/reactiveblocklayout)
 - [API: `fromRaf()`](/api/fromraf)
+- [API: `analyzeAndMeasure()`](/api/analyzeandmeasure)
+- [API: `computeLineBreaks()`](/api/computelinebreaks)
+- [API: `computeCharPositions()`](/api/computecharpositions)
+
+These API pages are a focused Reactive Layout allowlist, not the full `@graphrefly/ts` package
+reference.

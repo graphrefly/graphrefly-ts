@@ -2,17 +2,17 @@
 
 This file is the **single source of truth** for documentation conventions across both **graphrefly-ts** and **graphrefly-py**. All operational docs live in this repo (graphrefly-ts).
 
-Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; **JSDoc/docstrings on exported APIs** feed generated docs; **`examples/`** holds all runnable code.
+Single-source-of-truth strategy: **language-neutral protocol and planning live in `~/src/graphrefly`**; **JSDoc/docstrings on exported APIs** document the package surface; **`examples/`** holds runnable code.
 
 ---
 
 ## Authority order
 
-1. **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** — protocol, node contract, Graph, invariants (cross-language, canonical)
-2. **JSDoc** (TS) / **Docstrings** (PY) on public exports — parameters, returns, examples, remarks (source of truth for API docs)
-3. **`examples/*.ts`** (TS) / **`examples/*.py`** (PY) — all runnable library code (single source for recipes, demos, guides)
-4. **`docs/roadmap.md`** — what is implemented vs planned (covers both TS and PY)
-5. **`README.md`** — install, quick start, links
+1. **`~/src/graphrefly/spec/rules.jsonl`** — protocol rules (the constitution); protocol behavior changes go through spec-amend first.
+2. **`~/src/graphrefly/decisions/decisions.jsonl`** and **`~/src/graphrefly/plan/*.jsonl`** — design locks, sequencer, backlog, and cross-runtime status.
+3. **JSDoc** (TS) / **Docstrings** (PY) on public exports — parameters, returns, examples, and remarks for current package APIs.
+4. **`examples/*.ts`** (TS) / **`examples/*.py`** (PY) — runnable library code when an example is active clean-slate guidance.
+5. **`README.md`** — install, quick start, and links.
 
 ---
 
@@ -20,7 +20,7 @@ Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; 
 
 - When documenting Phase 4+ APIs, never expose protocol internals (`DIRTY`, `RESOLVED`, bitmask) in primary API docs — use domain language (e.g. "the value updates reactively" not "emits DIRTY then DATA").
 - JSDoc `@example` / docstring example blocks should demonstrate reactive patterns, not polling or imperative triggers.
-- Reference the design invariants in **GRAPHREFLY-SPEC §5.8–5.12** when reviewing doc changes for Phase 4+ features.
+- Reference `~/src/graphrefly/spec/rules.jsonl` and the relevant D# decisions when reviewing protocol-adjacent doc changes. Legacy `GRAPHREFLY-SPEC.md` prose is old-main migration material, not clean-slate authority.
 
 ---
 
@@ -38,35 +38,34 @@ The TS library ships a **three-tier subpath convention** so browser and Node con
 
 ### When to create a new subpath vs extending an existing one
 
-- New symbol fits an existing universal barrel (e.g. a new operator in `extra/operators`) → add it there, JSDoc + REGISTRY entry, done.
-- New symbol needs `node:*` or `fileStorage` / `sqliteStorage` → extend the relevant `<x>/node` aggregator (e.g. `src/extra/node.ts`, `src/patterns/ai/node.ts`) or create `<domain>/node` if one doesn't exist yet for that domain.
+- New symbol fits an existing universal barrel (e.g. a new operator in `packages/ts/src/operators/index.ts`) → add it there, export it from the narrow package subpath, and document it in JSDoc.
+- New symbol needs `node:*` or runtime-only storage/process APIs → extend the relevant focused node subpath (e.g. `packages/ts/src/sources/node.ts`, `packages/ts/src/storage/node.ts`) or create a reviewed `<domain>/node` subpath if one does not exist.
 - New symbol needs DOM globals → same pattern under `<x>/browser`.
-- New **domain** that needs its own package-style subpath → add `src/patterns/<domain>/index.ts` (+ optional `<domain>/node.ts`, `<domain>/browser.ts` aggregators).
+- New **domain** that needs its own package-style subpath → add a focused `packages/ts/src/<layer>/<domain>.ts` or `packages/ts/src/<layer>/<domain>/index.ts` entry after the package-layer decision is clear.
 
 ### Three files to update together when adding or moving a subpath
 
-1. **`tsup.config.ts` — `ENTRY_POINTS` array**: add the source path. Entry paths (no `src/` prefix, no `.ts`) are the authoritative allow-list consumed by the build-time guardrail (§ Build-time browser-safety guardrail below).
-2. **`tsup.config.ts` — `nodeOnlyEntries` set** (inside `assertBrowserSafeBundles`): if the new entry is genuinely Node-only, add its no-ext path here so the guardrail doesn't fail the build.
-3. **`package.json` — `exports` map**: add the matching `./<subpath>` block pointing at `dist/<subpath>.{js,cjs}` and `.d.ts` / `.d.cts`. Both `import` and `require` conditions required.
+1. **`packages/ts/tsup.config.ts` — `entry` array**: add the source path with the `src/` prefix and `.ts` extension.
+2. **`packages/ts/package.json` — `exports` map**: add the matching `./<subpath>` block pointing at the built ESM/CJS and DTS files. Both `import` and `require` conditions are required.
+3. **`scripts/check-ts-package-exports.mjs`**: update package-export smoke coverage when the new subpath is public and should be build-checked from an external consumer perspective.
 
 Cross-reference: the exports map is `sideEffects: false` — individual entries shouldn't rely on module-level side effects.
 
-### Build-time browser-safety guardrail
+### Build-time package guardrails
 
-`tsup.config.ts`'s `onSuccess` runs `assertBrowserSafeBundles("dist")` after every build. It:
+`packages/ts/tsup.config.ts` is the build entry allowlist. Package export checks live outside tsup:
 
-1. Walks every file in `dist/`, extracts module specifiers via whitespace-tolerant regexes (handles minified output, side-effect imports, `require()`, `__require()`).
-2. Flags any specifier that matches `node:<builtin>` OR a bare Node builtin name (`BUILTIN_SET`) as a Node dependency.
-3. Seeds a BFS from every declared universal entry (`ENTRY_POINTS` minus `nodeOnlyEntries`) and keeps ESM (`.js`/`.mjs`) and CJS (`.cjs`) resolution trees disjoint.
-4. Fails the build with a `via X → Y → Z` chain if any universal entry transitively reaches a Node builtin.
+1. `pnpm --filter @graphrefly/ts build` must emit every entry declared in `packages/ts/package.json`.
+2. `scripts/check-ts-package-exports.mjs` smoke-checks selected public exports and root-forbidden names.
+3. `pnpm run lint` also runs `scripts/check-no-raw-async.ts` and `scripts/check-typecheck.ts`.
 
-**Keep `NODE_BUILTINS` complete** — it's used both by `restoreNodePrefix` (to re-attach the `node:` prefix esbuild strips) and by the guardrail's bare-name detector. A missing entry silently escapes both.
+If a universal entry starts importing `node:*` or browser globals, move that symbol to a focused node/browser subpath instead of weakening the package split.
 
 ### Writing JSDoc for node-only / browser-only APIs
 
 - **Single-tier symbol:** JSDoc `@example` imports from the correct `@graphrefly/ts` subpath for that symbol.
-- **Adapter with both tiers** (e.g. `fallbackAdapter`): the browser-safe base lives in `patterns/ai`, the Node-extended variant in `patterns/ai/node`. Each file's JSDoc `@example` uses its own subpath; cross-reference the other via `{@link }` or a prose note.
-- **Aggregator files** (`extra/node.ts`, `patterns/<x>/browser.ts`): have a `@module` docstring explaining what the aggregator is for and which global APIs it assumes.
+- **Adapter with both tiers:** keep the dependency-light shape in the universal or adapter subpath, and put runtime-specific helpers in focused node/browser subpaths. Each file's JSDoc `@example` uses its own subpath; cross-reference the other via `{@link }` or a prose note.
+- **Aggregator files** (`sources/node.ts`, `storage/browser.ts`, focused adapter/solution platform entries): have a `@module` docstring explaining what the aggregator is for and which runtime APIs it assumes.
 
 ---
 
@@ -74,17 +73,17 @@ Cross-reference: the exports map is `sideEffects: false` — individual entries 
 
 | Tier | What | TS | PY |
 |------|------|----|----|
-| **0 — Protocol spec** | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | Both sites via `sync-docs.mjs` | Both sites via `sync-docs.mjs` |
+| **0 — Protocol spec** | `~/src/graphrefly/spec/rules.jsonl` plus rendered/prose protocol pages | TS site syncs curated prose pages via `sync-docs.mjs` | PY site syncs its own curated pages |
 | **1 — JSDoc / Docstrings** | Structured doc blocks on exports | `packages/ts/src/**/*.ts`; TS API pages are currently a hand-vetted clean-slate allowlist | `src/graphrefly/**/*.py` → `gen_api_docs.py` → `website/src/content/docs/api/` |
 | **2 — Runnable examples** | Self-contained scripts | `examples/*.ts` | `examples/*.py` (in graphrefly-py) |
 | **3 — Recipes / guides** | Long-form Starlight pages | `website/src/content/docs/recipes/` | `website/src/content/docs/recipes/` (in graphrefly-py) |
-| **4 — Interactive demos** | Live UI / Pyodide labs | `website/src/components/examples/` (Astro) | `website/src/content/docs/lab/` (Pyodide) |
+| **4 — Interactive demos** | Live UI / Pyodide labs | `demos/` and `website/src/content/docs/demos/` | `website/src/content/docs/lab/` (Pyodide) |
 | **5 — `llms.txt`** | AI-readable docs | repo root → `website/public/` | repo root (graphrefly-py) |
 | **6 — `robots.txt`** | Crawler directives | repo root → `website/public/` | — |
 
 ### Unified code location rule
 
-**All library logic lives in `examples/`.** Recipes, demos, and guides never duplicate inline code:
+**Reusable library examples live in `examples/`; interactive demos live in `demos/`.** Recipes, demos, and guides should avoid duplicating long inline code:
 
 - **Recipe pages** import code via Starlight snippet: `import { Code } from '@astrojs/starlight/components'` or file imports
 - **Interactive demos** import stores: `import { ... } from "../../examples/<name>"`
@@ -96,7 +95,7 @@ Cross-reference: the exports map is `sideEffects: false` — individual entries 
 
 ### TypeScript
 
-The old TypeScript API generator was retired with the legacy root/pure-ts docs source. Current TS API reference pages are a small, hand-vetted clean-slate allowlist backed by real `@graphrefly/ts` export-map entries. A replacement generator must fail closed from `packages/ts/package.json` exports plus an explicit allowlist; do not map old symbols to guessed subpaths.
+The old TypeScript API generator was retired with the legacy root/pure-ts docs source. Current TS API reference pages are a small, hand-vetted clean-slate allowlist backed by real `@graphrefly/ts` export-map entries. Today that allowlist is focused on the Reactive Layout solution; it is not a full package API inventory. A replacement generator must fail closed from `packages/ts/package.json` exports plus an explicit allowlist; do not map old symbols to guessed subpaths.
 
 ### Python
 
@@ -122,11 +121,11 @@ pnpm --filter @graphrefly/docs-site sync-docs --check      # CI dry-run — exit
 
 | Source | Origin |
 |--------|--------|
-| `~/src/graphrefly/GRAPHREFLY-SPEC.md` | `~/src/graphrefly/` repo only (no in-repo copy) |
+| Curated protocol/spec pages | `~/src/graphrefly/` authority repo plus local site pages |
 | `roadmap.md`, `optimizations.md`, etc. | `docs/` (this repo) |
 | `robots.txt`, `llms.txt` | repo root → `website/public/` |
 
-Both `sync-docs` and `docs:gen` run automatically on `pnpm dev` and `pnpm build` (via `predev`/`prebuild` hooks).
+`sync-docs` runs automatically on TS site `pnpm dev` and `pnpm build` (via `predev`/`prebuild`). The TS site does not currently run a TS `docs:gen` step.
 
 ---
 
@@ -134,7 +133,7 @@ Both `sync-docs` and `docs:gen` run automatically on `pnpm dev` and `pnpm build`
 
 | URL | Repo | Framework | Content |
 |-----|------|-----------|---------|
-| `graphrefly.dev` | graphrefly-ts | Astro/Starlight | Unified site: homepage, TS API docs, spec, blog, comparisons |
+| `graphrefly.dev` | graphrefly-ts | Astro/Starlight | Unified site: homepage, hand-vetted TS API pages, spec, blog, comparisons |
 | `graphrefly.dev/py/` | graphrefly-py | Astro/Starlight | Python API docs, Pyodide lab (proxied via Cloudflare Worker) |
 
 One unified site at `graphrefly.dev`. The `[TS] [PY]` header nav links to `/py/api/` for Python-specific reference. The Python site is built from `graphrefly-py` with `base: /py/` and served via a Cloudflare Worker that proxies `/py/*` requests to `graphrefly-py`'s GitHub Pages. DNS is on Cloudflare (proxy + CDN); hosting is GitHub Pages with GitHub Actions deployment.
@@ -145,7 +144,7 @@ One unified site at `graphrefly.dev`. The `[TS] [PY]` header nav links to `/py/a
 
 ## Structured JSDoc on exported functions (Tier 1)
 
-Every exported function must have a structured JSDoc block. The generator reads these tags and produces API pages.
+Every exported function should have a structured JSDoc block. TS JSDoc is the source for IDE/help text and for any future allowlist-based API generator; current TS site pages are hand-vetted markdown.
 
 ### Required JSDoc tags
 
@@ -165,7 +164,7 @@ Every exported function must have a structured JSDoc block. The generator reads 
 | `@optionsType` | Name of options interface | `@optionsType NodeOptions` |
 | `@option` | Options table row | `@option property \| type \| default \| description` |
 | `@returnsTable` | Methods table for return type | `method \| signature \| description` |
-| `@category` | Module category | `core`, `extra`, `graph` |
+| `@category` | Module category | Match the D125 package layer, e.g. `core`, `graph`, `operators`, `sources`, `storage`, `adapters`, `orchestration`, `patterns`, `solutions`. |
 
 ### JSDoc conventions
 
@@ -280,7 +279,7 @@ cat archive/optimizations/resolved-decisions.jsonl | python3 -m json.tool --json
 
 ## Spec vs code
 
-- If **implementation** intentionally differs from the spec, **fix the implementation** unless the spec is wrong — then update **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** with a version note (see spec §8).
+- If **implementation** intentionally differs from the protocol rules, **fix the implementation** unless the rules are wrong — then run the spec-amend flow in `~/src/graphrefly` before changing code.
 - Coordinate spec changes across both `graphrefly-ts` and `graphrefly-py`.
 
 ---
@@ -293,7 +292,7 @@ Before deleting a runtime check / type-narrowing helper, confirm:
 
 1. **Live emit path** — does the upstream actually emit the typed shape? (Usually yes — the comment justifying deletion focuses on this.)
 2. **Snapshot-restore path** — does `Graph.restore` / `JsonGraphCodec` round-trip the type cleanly? `Map` / `Set` / `Date` / typed-array values come back as plain `{}` / `[]` / `string` from the default codec; without the helper, downstream `.entries()` / `.size` / `.has()` calls silently return wrong values or throw.
-3. **Plugin-supplied caches** — does anything in `extra/storage-tiers.ts` or a user codec deliver values via the same Node? Same concern as restore.
+3. **Plugin-supplied caches** — does anything in storage adapters, checkpoint/restore helpers, or a user codec deliver values via the same Node? Same concern as restore.
 4. **Test coverage** — is there a regression test that exercises restore / hot-swap-cache for the affected Node? If not, add one BEFORE deletion.
 
 If steps 2–3 pass via "ReactiveMap-style emit always emits a real Map," that's only the live path — restore is separate. Either restore the helper, or convert plain `{}` → `Map` in a `restore`-side hook on the typed Node.
@@ -317,9 +316,9 @@ Examples that bit us during Tier 8 / Tier 9.1 (caught in /qa, not at land):
 
 | Change | TS | PY |
 |--------|----|----|
-| New public API | JSDoc + barrel export + `gen-api-docs.mjs` REGISTRY. **Pick the universal / node / browser tier** (see § Browser / Node / Universal split) — if the symbol needs `node:*` or DOM globals, it goes in `<x>/node` or `<x>/browser`, not the universal barrel. | Docstring + `__init__.py` + `__all__` + `gen_api_docs.py` |
-| New subpath | `tsup.config.ts` `ENTRY_POINTS` + (if node-only) `nodeOnlyEntries` + `package.json` `exports` block + JSDoc `@example` uses the new subpath | n/a (PY doesn't have this split yet) |
-| Protocol or Graph behavior | `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical) + JSDoc/docstring on both |
+| New public API | JSDoc + narrow barrel export. Add or update TS site API markdown only when the symbol is part of the hand-vetted allowlist. **Pick the universal / node / browser tier** (see § Browser / Node / Universal split). | Docstring + `__init__.py` + `__all__` + `gen_api_docs.py` |
+| New subpath | `packages/ts/tsup.config.ts` `entry` + `packages/ts/package.json` `exports` block + package-export smoke coverage when appropriate + JSDoc `@example` uses the new subpath | n/a (PY doesn't have this split yet) |
+| Protocol or Graph behavior | `~/src/graphrefly/spec/rules.jsonl` via spec-amend + JSDoc/docstring on both |
 | New runnable example | `examples/<name>.ts` | `examples/<name>.py` (in graphrefly-py) |
 | Phase / sub-section item completed | Mark ✅ inline in `docs/implementation-plan.md` (or `docs/roadmap.md` for Wave-frame items) with the date. Also re-check `docs/optimizations.md` for any "Active work items" the landed work resolves and move those to the appropriate `archive/optimizations/*.jsonl`. |
 | Whole Phase / Tier completed | Archive the body to `archive/roadmap/*.jsonl` (one JSONL line per sub-section), replace the in-file content with a 2–4-line summary + archive pointer. Open follow-ups (single residual items) move to `docs/optimizations.md` with a back-link. See § Roadmap archive — Workflow for `docs/implementation-plan.md`. |
@@ -365,11 +364,11 @@ Use consistent tags across posts: `architecture`, `performance`, `correctness`, 
 ## Order of execution for new features
 
 **TypeScript:**
-1. Implementation in `src/` + tests (`docs/test-guidance.md`). **Decide tier** (universal / node / browser) and place the file accordingly; see § Browser / Node / Universal split.
+1. Implementation in `packages/ts/src/` + tests (`docs/test-guidance.md`). **Decide tier** (universal / node / browser) and place the file accordingly; see § Browser / Node / Universal split.
 2. Structured JSDoc on the exported function (Tier 1). `@example` imports from the correct subpath.
-3. If introducing a new subpath: add to `tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` if node-only) and `package.json` `exports` map.
-4. Register in `website/scripts/gen-api-docs.mjs` REGISTRY, run `docs:gen`
-5. Run `pnpm run build` — the post-build guardrail (`assertBrowserSafeBundles`) catches Node-builtin leaks into universal entries; fix by moving the symbol to the right tier.
+3. If introducing a new subpath: add to `packages/ts/tsup.config.ts` `entry`, add `packages/ts/package.json` `exports`, and extend package-export smoke coverage where appropriate.
+4. If the symbol belongs in the public website allowlist, add or update a hand-vetted page under `website/src/content/docs/api/` and wire the sidebar explicitly.
+5. Run `pnpm run build` and `pnpm run lint`; fix package/export or runtime-tier mistakes by moving the symbol to the right tier.
 6. Runnable example in `examples/` (Tier 2)
 7. Recipe / interactive demo if warranted (Tier 3–4)
 8. Update `llms.txt` if user-facing (Tier 5)
@@ -390,14 +389,14 @@ Use consistent tags across posts: `architecture`, `performance`, `correctness`, 
 
 | What | Where | Editable? |
 |------|-------|-----------|
-| Canonical spec | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | Yes — coordinate across repos |
-| TS source of truth (JSDoc) | `src/core/*.ts`, `src/extra/*.ts`, `src/graph/*.ts` | Yes — primary TS edit target |
+| Canonical protocol rules | `~/src/graphrefly/spec/rules.jsonl` | Yes, via spec-amend only |
+| TS source of truth (JSDoc) | `packages/ts/src/**/*.ts` | Yes — primary TS edit target |
 | PY source of truth (docstrings) | `~/src/graphrefly-py/src/graphrefly/*.py` | Yes — primary PY edit target |
-| TS API doc generator | `website/scripts/gen-api-docs.mjs` | Yes — add new entries to REGISTRY |
-| TS entry points + guardrail | `tsup.config.ts` (`ENTRY_POINTS`, `nodeOnlyEntries`, `NODE_BUILTINS`) | Yes — update when adding a subpath or a Node builtin |
-| TS package subpath map | `package.json` `exports` | Yes — add `./<subpath>` block for every new subpath |
+| TS API pages | `website/src/content/docs/api/*.md` | Yes — hand-vetted allowlist, not generated full inventory |
+| TS entry points | `packages/ts/tsup.config.ts` (`entry`) | Yes — update when adding a subpath |
+| TS package subpath map | `packages/ts/package.json` `exports` | Yes — add `./<subpath>` block for every new subpath |
 | PY API doc generator | `~/src/graphrefly-py/website/scripts/gen_api_docs.py` | Yes |
-| Generated API pages | `website/src/content/docs/api/*.md` | **No** — regenerated |
+| PY generated API pages | `~/src/graphrefly-py/website/src/content/docs/api/*.md` | **No** — regenerated |
 | Sync script | `website/scripts/sync-docs.mjs` | Yes |
 | TS runnable examples | `examples/*.ts` | Yes |
 | PY runnable examples | `~/src/graphrefly-py/examples/*.py` | Yes |

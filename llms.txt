@@ -6,7 +6,7 @@ GraphReFly is a reactive universal reduction layer: high fan-in/out data becomes
 
 - `@graphrefly/ts` is the only active TypeScript implementation.
 - `@graphrefly/graphrefly` is a retired root package identity only.
-- `@graphrefly/pure-ts` is a frozen read-only reference for old behavior and edge cases until B66 deletion.
+- `@graphrefly/pure-ts` has been deleted from active workspace ownership after CSP-9/B66; remaining mentions are historical/archive references only.
 - `archive/packages/parity-tests` preserves the old structural `Impl` parity harness for history only.
 - Cross-runtime parity is behavioral conformance in `~/src/graphrefly/spec/conformance.jsonl`, not symbol-set matching.
 
