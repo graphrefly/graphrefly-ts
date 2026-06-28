@@ -7,7 +7,7 @@ pagefind: false
 
 Both GraphReFly and Jotai use atomic state with derived computations. GraphReFly adds glitch-free diamond resolution, streaming operators, and works without React.
 
-> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `compat/*` imports from this historical page.
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package or retired compat-path imports from this historical page.
 
 ## At a Glance
 
@@ -54,7 +54,7 @@ const d = atom((get) => `${get(b)}-${get(c)}`);
 
 ```ts
 // GraphReFly — D always sees consistent (B_new, C_new)
-import { state, derived } from '@graphrefly/graphrefly';
+import { state, derived } from '@graphrefly/ts';
 
 const a = state(1);
 const b = derived([a], (a) => a * 2);
@@ -77,14 +77,14 @@ import { jotaiAtom } from '@graphrefly/ts/adapters';
 const countAtom = jotaiAtom(countNode);
 ```
 
-The old `@graphrefly/graphrefly/compat/jotai` path is retired.
+The old compat/Jotai path is retired.
 
 ### Native API
 
 GraphReFly offers two patterns for derived values:
 
 ```ts
-import { state, derived, dynamicNode } from '@graphrefly/graphrefly';
+import { state, derived, dynamicNode } from '@graphrefly/ts';
 
 const count = state(0);
 const multiplier = state(2);

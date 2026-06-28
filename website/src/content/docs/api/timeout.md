@@ -22,7 +22,7 @@ a source ERROR forwards likewise. The idle timer is also torn down when the cons
 ## Import
 
 ```ts
-import { timeout } from "@graphrefly/ts/operators";
+import { timeout } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -58,4 +58,3 @@ This page was generated from source JSDoc, but the structured API tags are incom
 ## Source
 
 `packages/ts/src/graph/time.ts`
-

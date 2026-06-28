@@ -48,4 +48,3 @@ const total = graph().initNode(reduce((sum: number, value: number) => sum + valu
 ## Source
 
 `packages/ts/src/graph/operators.ts`
-

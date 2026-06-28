@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { execFileSync } from "node:child_process";
 import ts from "typescript";
 
 const WEBSITE_DIR = path.resolve(new URL("..", import.meta.url).pathname);
@@ -29,6 +30,26 @@ function writeIfChanged(filePath, text) {
 	fs.mkdirSync(path.dirname(filePath), { recursive: true });
 	fs.writeFileSync(filePath, text);
 	return true;
+}
+
+function findCaseVariant(filePath) {
+	const dir = path.dirname(filePath);
+	const base = path.basename(filePath);
+	if (!fs.existsSync(dir)) return null;
+	const folded = base.toLowerCase();
+	const actual = fs.readdirSync(dir).find((name) => name.toLowerCase() === folded);
+	if (actual === undefined || actual === base) return null;
+	return path.join(dir, actual);
+}
+
+function renameCaseVariant(actualPath, expectedPath) {
+	const dir = path.dirname(expectedPath);
+	const tmpPath = path.join(
+		dir,
+		`.${path.basename(expectedPath)}.${process.pid}.${Date.now()}.rename`,
+	);
+	fs.renameSync(actualPath, tmpPath);
+	fs.renameSync(tmpPath, expectedPath);
 }
 
 function parseSourceFile(filePath) {
@@ -246,6 +267,93 @@ function subpathDepth(subpath) {
 	return subpath === "." ? 0 : subpath.split("/").length;
 }
 
+function canonicalSubpathForSource(filePath) {
+	const sourcePath = path
+		.relative(path.join(PACKAGE_DIR, "src"), filePath)
+		.split(path.sep)
+		.join("/");
+	if (sourcePath === "index.ts") return ".";
+	if (
+		sourcePath.startsWith("ctx/") ||
+		sourcePath.startsWith("dispatcher/") ||
+		sourcePath.startsWith("node/") ||
+		sourcePath.startsWith("protocol/")
+	) {
+		return "./core";
+	}
+	if (sourcePath === "graph/operators.ts") return "./operators";
+	if (sourcePath === "graph/sources.ts") return "./sources";
+	if (sourcePath === "graph/composition.ts") return "./composition";
+	if (sourcePath.startsWith("graph/data-structures/")) return "./data-structures";
+	if (sourcePath.startsWith("graph/")) return "./graph";
+	if (sourcePath.startsWith("sources/browser")) return "./sources/browser";
+	if (sourcePath.startsWith("sources/node")) return "./sources/node";
+	if (sourcePath.startsWith("solutions/reactive-layout/browser/")) {
+		return "./solutions/reactive-layout/browser";
+	}
+	if (sourcePath.startsWith("solutions/reactive-layout/node-canvas/")) {
+		return "./solutions/reactive-layout/node-canvas";
+	}
+	if (sourcePath.startsWith("solutions/reactive-layout/react-native/")) {
+		return "./solutions/reactive-layout/react-native";
+	}
+	if (sourcePath.startsWith("solutions/reactive-layout/skia/")) {
+		return "./solutions/reactive-layout/skia";
+	}
+	if (sourcePath.startsWith("solutions/reactive-layout/")) return "./solutions/reactive-layout";
+	if (sourcePath.startsWith("solutions/work-item/actions")) return "./solutions/work-item/actions";
+	if (sourcePath.startsWith("solutions/work-item/scheduling")) return "./solutions/work-item/scheduling";
+	if (sourcePath.startsWith("solutions/work-item/work-queue")) return "./solutions/work-item/work-queue";
+	if (sourcePath.startsWith("adapters/nestjs/native")) return "./adapters/nestjs/native";
+	if (sourcePath.startsWith("adapters/nestjs/microservices")) return "./adapters/nestjs/microservices";
+	if (sourcePath.startsWith("adapters/nestjs/websockets")) return "./adapters/nestjs/websockets";
+	if (sourcePath === "adapters/nestjs.ts") return "./adapters/nestjs";
+	if (sourcePath === "adapters/observe-storage.ts") return "./adapters/observe-storage";
+	if (sourcePath === "adapters/react.ts") return "./adapters/react";
+	if (sourcePath === "adapters/solid.ts") return "./adapters/solid";
+	if (sourcePath === "adapters/svelte.ts") return "./adapters/svelte";
+	if (sourcePath === "adapters/vue.ts") return "./adapters/vue";
+	if (sourcePath.startsWith("adapters/")) return "./adapters";
+	if (sourcePath.startsWith("cqrs/messaging")) return "./cqrs/messaging";
+	if (sourcePath.startsWith("cqrs/work-queue")) return "./cqrs/work-queue";
+	if (sourcePath.startsWith("cqrs/")) return "./cqrs";
+	if (sourcePath.startsWith("executors/tool-provider-adapters")) {
+		return "./executors/tool-provider-adapters";
+	}
+	if (sourcePath.startsWith("executors/tool-provider-runtime")) {
+		return "./executors/tool-provider-runtime";
+	}
+	if (sourcePath.startsWith("executors/tool-provider")) return "./executors/tool-provider";
+	if (sourcePath.startsWith("executors/work-queue")) return "./executors/work-queue";
+	if (sourcePath.startsWith("orchestration/messaging")) return "./orchestration/messaging";
+	if (sourcePath.startsWith("orchestration/work-queue")) return "./orchestration/work-queue";
+	if (sourcePath.startsWith("orchestration/")) return "./orchestration";
+	if (sourcePath.startsWith("patterns/event-flow")) return "./patterns/event-flow";
+	if (sourcePath.startsWith("patterns/")) return "./patterns";
+	if (sourcePath.startsWith("storage/browser")) return "./storage/browser";
+	if (sourcePath.startsWith("storage/node")) return "./storage/node";
+	if (sourcePath.startsWith("storage/")) return "./storage";
+	const topLevel = sourcePath.split("/")[0];
+	return topLevel ? `./${topLevel}` : ".";
+}
+
+function canonicalCandidateScore(candidate) {
+	const canonical = canonicalSubpathForSource(candidate.filePath);
+	if (candidate.subpath === canonical) return 0;
+	if (candidate.subpath.startsWith(`${canonical}/`)) return 10 + subpathDepth(candidate.subpath);
+	if (canonical.startsWith(`${candidate.subpath}/`)) return 20 + subpathDepth(candidate.subpath);
+	if (candidate.subpath === ".") return 100;
+	return 50 + subpathDepth(candidate.subpath);
+}
+
+function preferCandidate(a, b) {
+	const scoreDelta = canonicalCandidateScore(a) - canonicalCandidateScore(b);
+	if (scoreDelta !== 0) return scoreDelta < 0;
+	const depthDelta = subpathDepth(a.subpath) - subpathDepth(b.subpath);
+	if (depthDelta !== 0) return depthDelta > 0;
+	return a.subpath.localeCompare(b.subpath) < 0;
+}
+
 function discoverDocumentedSymbols() {
 	const candidates = [];
 	const missingSymbols = [];
@@ -289,7 +397,7 @@ function discoverDocumentedSymbols() {
 	const byName = new Map();
 	for (const candidate of candidates) {
 		const current = byName.get(candidate.name);
-		if (!current || subpathDepth(candidate.subpath) > subpathDepth(current.subpath)) {
+		if (!current || preferCandidate(candidate, current)) {
 			byName.set(candidate.name, candidate);
 		}
 	}
@@ -298,10 +406,14 @@ function discoverDocumentedSymbols() {
 
 function categoryFor(info) {
 	const tagged = tagValues(info.doc, "category")[0];
-	if (tagged) return tagged;
+	if (tagged) return normalizeCategory(tagged);
 	if (info.subpath !== ".") return info.subpath.slice(2).split("/")[0];
 	const sourcePath = path.relative(path.join(PACKAGE_DIR, "src"), info.filePath);
 	return sourcePath.split(path.sep)[0] ?? "other";
+}
+
+function normalizeCategory(category) {
+	return category.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
 function compareSymbols(a, b) {
@@ -403,7 +515,7 @@ function renderApiPage(info) {
 	}
 
 	lines.push("## Source", "", `\`${sourcePath}\``, "");
-	return `${lines.join("\n").replace(/\n{3,}/g, "\n\n")}\n`;
+	return `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
 }
 
 function slugFor(info) {
@@ -508,6 +620,50 @@ function generatedApiFiles() {
 		.filter((filePath) => readText(filePath).includes(GENERATOR_MARKER));
 }
 
+function trackedGeneratedApiFiles() {
+	try {
+		return execFileSync(
+			"git",
+			["-C", REPO_DIR, "ls-files", "--", path.relative(REPO_DIR, API_DIR)],
+			{ encoding: "utf8" },
+		)
+			.trim()
+			.split(/\r?\n/)
+			.filter(Boolean)
+			.map((filePath) => path.join(REPO_DIR, filePath));
+	} catch {
+		return [];
+	}
+}
+
+function checkGeneratedApiPolicy() {
+	for (const filePath of trackedGeneratedApiFiles()) {
+		const base = path.basename(filePath);
+		if (base !== base.toLowerCase()) {
+			changed = true;
+			console.error(
+				`stale generated docs: ${path.relative(REPO_DIR, filePath)} should be lowercase`,
+			);
+		}
+	}
+	const forbiddenPatterns = [
+		/@graphrefly\/pure-ts/,
+		/@graphrefly\/graphrefly/,
+		/@graphrefly\/ts\/(?:base|utils|compat|presets)(?=$|[\s`"'/)])/,
+	];
+	for (const filePath of generatedApiFiles()) {
+		const text = readText(filePath);
+		if (!forbiddenPatterns.some((pattern) => pattern.test(text))) continue;
+		changed = true;
+		console.error(
+			`stale generated docs: ${path.relative(
+				REPO_DIR,
+				filePath,
+			)} contains a retired package or subpath import`,
+		);
+	}
+}
+
 const symbols = discoverDocumentedSymbols();
 assignSlugs(symbols);
 const outputs = new Map();
@@ -515,10 +671,23 @@ for (const symbol of symbols) {
 	outputs.set(path.normalize(path.join(API_DIR, fileNameFor(symbol))), renderApiPage(symbol));
 }
 outputs.set(path.normalize(SIDEBAR_PATH), renderSidebar(symbols));
-const outputKeysCaseFolded = new Set([...outputs.keys()].map((filePath) => filePath.toLowerCase()));
 
 let changed = false;
 for (const [filePath, expected] of outputs) {
+	const caseVariant = findCaseVariant(filePath);
+	if (caseVariant !== null) {
+		changed = true;
+		if (CHECK) {
+			console.error(
+				`stale generated docs: ${path.relative(REPO_DIR, caseVariant)} should be ${path.relative(
+					REPO_DIR,
+					filePath,
+				)}`,
+			);
+		} else {
+			renameCaseVariant(caseVariant, filePath);
+		}
+	}
 	const actual = fs.existsSync(filePath) ? readText(filePath) : "";
 	if (actual === expected) continue;
 	changed = true;
@@ -531,7 +700,7 @@ for (const [filePath, expected] of outputs) {
 
 for (const filePath of generatedApiFiles()) {
 	const normalized = path.normalize(filePath);
-	if (outputs.has(normalized) || outputKeysCaseFolded.has(normalized.toLowerCase())) continue;
+	if (outputs.has(normalized)) continue;
 	changed = true;
 	if (CHECK) {
 		console.error(`stale generated docs: ${path.relative(REPO_DIR, filePath)}`);
@@ -539,6 +708,8 @@ for (const filePath of generatedApiFiles()) {
 		fs.unlinkSync(filePath);
 	}
 }
+
+if (CHECK) checkGeneratedApiPolicy();
 
 if (CHECK && changed) {
 	process.exitCode = 1;

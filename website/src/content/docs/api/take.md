@@ -40,4 +40,3 @@ const firstThree = graph().initNode(take<number>(3), [source]);
 ## Source
 
 `packages/ts/src/graph/operators.ts`
-

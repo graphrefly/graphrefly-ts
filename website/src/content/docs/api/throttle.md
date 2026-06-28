@@ -16,7 +16,7 @@ trailing-window form if a consumer needs it.
 ## Import
 
 ```ts
-import { throttle } from "@graphrefly/ts/operators";
+import { throttle } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -47,4 +47,3 @@ This page was generated from source JSDoc, but the structured API tags are incom
 ## Source
 
 `packages/ts/src/graph/time.ts`
-

@@ -10,7 +10,7 @@ Emit periodic tick counters.
 ## Import
 
 ```ts
-import { interval } from "@graphrefly/ts/sources/browser";
+import { interval } from "@graphrefly/ts/sources";
 ```
 
 ## Signature
@@ -40,4 +40,3 @@ const ticks = graph().initNode(interval(1000), []);
 ## Source
 
 `packages/ts/src/graph/sources.ts`
-

@@ -7,7 +7,7 @@ pagefind: false
 
 Both GraphReFly and LangGraph.js orchestrate AI agent workflows with graph semantics. GraphReFly uses reactive nodes with automatic dependency resolution; LangGraph uses state dictionaries and channel-based message passing with explicit edge definitions.
 
-> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `/extra` imports from this historical page.
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package or retired extra-path imports from this historical page.
 
 ## At a Glance
 
@@ -69,9 +69,8 @@ const result = await graph.invoke({ input: 'Build a TODO app' });
 ### GraphReFly Approach
 
 ```ts
-import { state, derived, effect, dynamicNode } from '@graphrefly/graphrefly';
-import { gate } from '@graphrefly/graphrefly/extra';
-import { Graph } from '@graphrefly/graphrefly';
+import { state, derived, effect, dynamicNode, Graph } from '@graphrefly/ts';
+// The historical gate operator is retired; model approvals with explicit graph nodes.
 
 const g = new Graph('agent');
 
@@ -109,8 +108,8 @@ console.log(g.describe());
 LangGraph uses `interrupt()` with checkpoint persistence to pause graph execution and wait for human input. GraphReFly uses `gate()` — a reactive operator that holds a value until a control signal allows it through:
 
 ```ts
-import { state } from '@graphrefly/graphrefly';
-import { gate } from '@graphrefly/graphrefly/extra';
+import { state } from '@graphrefly/ts';
+// The historical gate operator is retired; model approvals with explicit graph nodes.
 
 const aiResult = state(''); // populated by AI
 const humanApproval = state(false); // human sets this
@@ -136,7 +135,7 @@ gatedResult.get(); // "Generated plan: step 1, step 2, step 3"
 LangGraph relies on LangSmith, a paid SaaS platform, for tracing and observability. GraphReFly includes observability as a built-in, free primitive:
 
 ```ts
-import { Graph } from '@graphrefly/graphrefly';
+import { Graph } from '@graphrefly/ts';
 
 const g = new Graph('agent');
 // ... add nodes ...

@@ -14,7 +14,7 @@ tuple per wave (D49 — no dedup; compose `distinctUntilChanged` to suppress unc
 ## Import
 
 ```ts
-import { combine } from "@graphrefly/ts/operators";
+import { combine } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -38,4 +38,3 @@ This page was generated from source JSDoc, but the structured API tags are incom
 ## Source
 
 `packages/ts/src/graph/combinators.ts`
-

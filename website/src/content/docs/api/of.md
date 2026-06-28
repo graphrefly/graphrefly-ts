@@ -10,7 +10,7 @@ of: synchronous values — each argument as DATA, then COMPLETE. `of()` is the E
 ## Import
 
 ```ts
-import { of } from "@graphrefly/ts/sources/browser";
+import { of } from "@graphrefly/ts/sources";
 ```
 
 ## Signature
@@ -40,4 +40,3 @@ const values = graph().initNode(of(1, 2, 3), []);
 ## Source
 
 `packages/ts/src/graph/sources.ts`
-

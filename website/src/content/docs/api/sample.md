@@ -14,7 +14,7 @@ terminal handling). No flush of the held value on source COMPLETE (RxJS sample s
 ## Import
 
 ```ts
-import { sample } from "@graphrefly/ts/operators";
+import { sample } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -38,4 +38,3 @@ This page was generated from source JSDoc, but the structured API tags are incom
 ## Source
 
 `packages/ts/src/graph/combinators.ts`
-

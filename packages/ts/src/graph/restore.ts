@@ -949,6 +949,21 @@ function constructPrepared(
 	return out;
 }
 
+/**
+ * Restore a graph instance from a checkpoint and restore registry.
+ *
+ * @param checkpoint - Serialized graph checkpoint to restore.
+ * @param options - Restore registry and optional dispatcher/versioning overrides.
+ * @returns A live graph rebuilt from the checkpoint.
+ * @example
+ * ```ts
+ * import { defaultRestoreRegistry, graph, restoreGraph } from "@graphrefly/ts";
+ *
+ * const original = graph();
+ * const restored = restoreGraph(original.checkpoint(), { registry: defaultRestoreRegistry });
+ * ```
+ * @category graph
+ */
 export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphOptions): Graph {
 	if (options == null || options.registry === undefined) {
 		throw new Error("restoreGraph: registry is required");

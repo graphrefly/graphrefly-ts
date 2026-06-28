@@ -11,7 +11,7 @@ timer live (equal `ms`, so they fire in arrival order).
 ## Import
 
 ```ts
-import { delay } from "@graphrefly/ts/operators";
+import { delay } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -42,4 +42,3 @@ This page was generated from source JSDoc, but the structured API tags are incom
 ## Source
 
 `packages/ts/src/graph/time.ts`
-

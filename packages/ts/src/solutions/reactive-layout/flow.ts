@@ -15,6 +15,18 @@ import type {
 } from "./types.js";
 import { finiteNumber, nonNegativeFinite, positiveFinite } from "./utils.js";
 
+/**
+ * Derive the sanitized geometry for a flow container and column layout.
+ *
+ * @param container - Container dimensions and padding.
+ * @param columns - Optional column configuration.
+ * @returns The resolved padding, width, height, and per-column width.
+ * @example
+ * ```ts
+ * columnGeometry({ width: 800, height: 600 }, { count: 2, gap: 24 });
+ * ```
+ * @category reactive-layout
+ */
 export function columnGeometry(
 	container: FlowContainer,
 	columns: FlowColumns | undefined,
@@ -38,6 +50,17 @@ export function columnGeometry(
 	return { paddingX, paddingY, count, gap, width, height, columnWidth };
 }
 
+/**
+ * Clamp a flow container to finite, non-negative dimensions.
+ *
+ * @param container - Input container values.
+ * @returns A sanitized container record.
+ * @example
+ * ```ts
+ * sanitizeFlowContainer({ width: -1, height: 200 });
+ * ```
+ * @category reactive-layout
+ */
 export function sanitizeFlowContainer(container: FlowContainer): FlowContainer {
 	return {
 		width: nonNegativeFinite(container.width, 0),
@@ -49,6 +72,17 @@ export function sanitizeFlowContainer(container: FlowContainer): FlowContainer {
 	};
 }
 
+/**
+ * Clamp a flow column definition to finite, non-negative values.
+ *
+ * @param columns - Input column values.
+ * @returns A sanitized column record.
+ * @example
+ * ```ts
+ * sanitizeFlowColumns({ count: 0, gap: -8 });
+ * ```
+ * @category reactive-layout
+ */
 export function sanitizeFlowColumns(columns: FlowColumns): FlowColumns {
 	return {
 		count:
@@ -59,6 +93,17 @@ export function sanitizeFlowColumns(columns: FlowColumns): FlowColumns {
 	};
 }
 
+/**
+ * Clamp obstacle coordinates and sizes to finite, non-negative values.
+ *
+ * @param obstacles - Input obstacle list.
+ * @returns A sanitized obstacle list.
+ * @example
+ * ```ts
+ * sanitizeObstacles([{ kind: "rect", x: 0, y: 0, width: 10, height: 20 }]);
+ * ```
+ * @category reactive-layout
+ */
 export function sanitizeObstacles(obstacles: readonly Obstacle[]): readonly Obstacle[] {
 	return obstacles.map((obstacle) => {
 		if (obstacle.kind === "circle") {
@@ -108,6 +153,19 @@ export function rectIntervalForBand(
 	return { left, right };
 }
 
+/**
+ * Collect obstacle intervals that intersect a horizontal band.
+ *
+ * @param obstacles - Obstacles to test.
+ * @param bandTop - Top edge of the band.
+ * @param bandBottom - Bottom edge of the band.
+ * @returns Sorted blocked intervals inside the band.
+ * @example
+ * ```ts
+ * blockedIntervalsForBand([], 0, 20);
+ * ```
+ * @category reactive-layout
+ */
 export function blockedIntervalsForBand(
 	obstacles: readonly Obstacle[],
 	bandTop: number,

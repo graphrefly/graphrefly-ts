@@ -42,4 +42,3 @@ const even = g.initNode(filter((value: number) => value % 2 === 0), [count]);
 ## Source
 
 `packages/ts/src/graph/operators.ts`
-

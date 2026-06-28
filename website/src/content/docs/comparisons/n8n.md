@@ -7,7 +7,7 @@ pagefind: false
 
 Both wire together multi-step workflows. n8n is a visual automation platform; GraphReFly is a code-first reactive library.
 
-> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` imports from this historical page.
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package imports from this historical page.
 
 ## At a Glance
 
@@ -38,7 +38,7 @@ n8n is a platform for non-developers to automate workflows visually. GraphReFly 
 import {
   state, pipe, filter, switchMap, derived, effect,
   fromWebhook, retry
-} from "@graphrefly/graphrefly";
+} from "@graphrefly/ts";
 
 const webhook = fromWebhook('/api/incoming')
 const enriched = pipe(webhook, switchMap(payload =>

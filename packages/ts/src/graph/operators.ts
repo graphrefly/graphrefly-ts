@@ -103,6 +103,18 @@ export function addToRestoreRegistry(
 	registrySet(registry, entry.ref, entry);
 }
 
+/**
+ * Merge restore registry entries into a duplicate-checking Map.
+ *
+ * @param entries - Additional restore entries to add.
+ * @param base - Optional base registry to copy from.
+ * @returns A Map keyed by restore ref.
+ * @example
+ * ```ts
+ * restoreRegistry([define("trim", (value: string) => value.trim())]);
+ * ```
+ * @category operators
+ */
 export function restoreRegistry(
 	entries: readonly GraphRestoreEntry[] = [],
 	base?: GraphRestoreRegistry,
@@ -121,6 +133,19 @@ function isDefinition<S, T>(fn: ((v: S) => T) | Definition<S, T>): fn is Definit
 	return typeof fn === "object" && fn !== null && (fn as Definition<S, T>).kind === "definition";
 }
 
+/**
+ * Register a named restore definition.
+ *
+ * @param ref - Stable restore reference name.
+ * @param fn - Pure transform function used during restoration.
+ * @param opts - Optional registry to receive the new definition.
+ * @returns A named definition record.
+ * @example
+ * ```ts
+ * define("trim", (value: string) => value.trim());
+ * ```
+ * @category operators
+ */
 export function define<S, T>(
 	ref: string,
 	fn: (v: S) => T,

@@ -13,7 +13,7 @@ terminalAsRealInput:true`. If every dep terminates before any DATA, COMPLETE.
 ## Import
 
 ```ts
-import { race } from "@graphrefly/ts/operators";
+import { race } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -37,4 +37,3 @@ This page was generated from source JSDoc, but the structured API tags are incom
 ## Source
 
 `packages/ts/src/graph/combinators.ts`
-

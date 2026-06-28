@@ -12,7 +12,7 @@ tags: [architecture, design-philosophy]
 
 > Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
 > story. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths;
-> do not copy `@graphrefly/graphrefly` imports from historical snippets.
+> do not copy retired root-package imports from historical snippets.
 
 ---
 
@@ -184,7 +184,7 @@ Signals are opaque. You can read a Signal's value, but you can't inspect the dep
 GraphReFly's graph sees everything:
 
 ```ts
-import { graph } from '@graphrefly/graphrefly';
+import { graph } from '@graphrefly/ts';
 
 const count = state(0, { name: 'count' });
 const doubled = derived([count], () => count.get() * 2, { name: 'doubled' });

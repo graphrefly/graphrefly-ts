@@ -339,7 +339,17 @@ function parseCronInt(text: string, message: string): number {
 	return value;
 }
 
-/** Parse a standard five-field cron expression. */
+/**
+ * Parse a standard five-field cron expression.
+ *
+ * @param expr - Cron expression in `minute hour day month weekday` order.
+ * @returns A normalized cron schedule with one set per field.
+ * @example
+ * ```ts
+ * parseCron("0,5 * * * *");
+ * ```
+ * @category sources
+ */
 export function parseCron(expr: string): CronSchedule {
 	const parts = expr.trim().split(/\s+/);
 	if (parts.length !== 5 || parts.some((part) => part.length === 0)) {
@@ -368,7 +378,19 @@ interface CronWallClockFields {
 	readonly dayOfWeek: number;
 }
 
-/** Test whether a Date matches a parsed cron schedule in host-local time or an IANA timezone. */
+/**
+ * Test whether a date matches a parsed cron schedule.
+ *
+ * @param schedule - Parsed cron schedule to match against.
+ * @param date - Date to test.
+ * @param opts - Optional timezone override.
+ * @returns `true` when the date satisfies all cron fields.
+ * @example
+ * ```ts
+ * matchesCron(parseCron("0 * * * *"), new Date());
+ * ```
+ * @category sources
+ */
 export function matchesCron(
 	schedule: CronSchedule,
 	date: Date,
@@ -488,6 +510,20 @@ export function fromCron(
 	expr: string,
 	opts?: FromCronOptions,
 ): Operator<never, Date | number | string>;
+/**
+ * Emit wall-clock cron ticks on a graph source.
+ *
+ * @param expr - Five-field cron expression.
+ * @param opts - Cron polling, timezone, DST, abort, and output-shape options.
+ * @returns A source operator that emits the current time when the schedule matches.
+ * @example
+ * ```ts
+ * import { graph, fromCron } from "@graphrefly/ts";
+ *
+ * const everyMinute = graph().initNode(fromCron("0 * * * *"), []);
+ * ```
+ * @category sources
+ */
 export function fromCron(
 	expr: string,
 	opts: FromCronOptions = {},
@@ -560,6 +596,18 @@ export function fromCron(
 	);
 }
 
+/**
+ * Run a command and emit its process result once.
+ *
+ * @param program - Executable name or path.
+ * @param args - Command-line arguments.
+ * @returns A source operator that emits one `ProcessResult`.
+ * @example
+ * ```ts
+ * runProcess("git", ["status"]);
+ * ```
+ * @category sources
+ */
 export function runProcess(
 	program: string,
 	args: readonly string[] = [],
@@ -567,6 +615,18 @@ export function runProcess(
 	return runProcessWithOptions({ program, args });
 }
 
+/**
+ * Emit a process result using the legacy `fromProcess` factory name.
+ *
+ * @param program - Executable name or path.
+ * @param args - Command-line arguments.
+ * @returns A source operator that emits one `ProcessResult`.
+ * @example
+ * ```ts
+ * fromProcess("git", ["status"]);
+ * ```
+ * @category sources
+ */
 export function fromProcess(
 	program: string,
 	args: readonly string[] = [],
@@ -574,6 +634,19 @@ export function fromProcess(
 	return processSource("fromProcess", { program, args });
 }
 
+/**
+ * Run a caller-supplied process command through the graph environment driver.
+ *
+ * @param command - Process command object consumed by the graph-local process driver.
+ * @returns A source operator that emits one `ProcessResult`.
+ * @example
+ * ```ts
+ * import { graph, runProcessWithOptions } from "@graphrefly/ts";
+ *
+ * const status = graph().initNode(runProcessWithOptions({ program: "git", args: ["status"] }), []);
+ * ```
+ * @category sources
+ */
 export function runProcessWithOptions(command: ProcessCommand): Operator<never, ProcessResult> {
 	return processSource("runProcess", command);
 }
@@ -587,10 +660,32 @@ function processSource(factory: string, command: ProcessCommand): Operator<never
 	);
 }
 
+/**
+ * Emit a single HTTP response for a GET request.
+ *
+ * @param url - Request URL.
+ * @returns A source operator that emits one `HttpResponse`.
+ * @example
+ * ```ts
+ * fromHttp("https://example.com");
+ * ```
+ * @category sources
+ */
 export function fromHttp(url: string): Operator<never, HttpResponse> {
 	return fromHttpWithOptions({ method: "GET", url });
 }
 
+/**
+ * Emit a single HTTP response using a caller-supplied request object.
+ *
+ * @param request - HTTP request to dispatch.
+ * @returns A source operator that emits one `HttpResponse`.
+ * @example
+ * ```ts
+ * fromHttpWithOptions({ method: "GET", url: "https://example.com" });
+ * ```
+ * @category sources
+ */
 export function fromHttpWithOptions(request: HttpRequest): Operator<never, HttpResponse> {
 	assertNonEmptyString(request.url, "fromHttp: url");
 	assertNonEmptyString(request.method, "fromHttp: method");
@@ -601,10 +696,32 @@ export function fromHttpWithOptions(request: HttpRequest): Operator<never, HttpR
 	);
 }
 
+/**
+ * Emit server-sent events from a URL.
+ *
+ * @param url - SSE endpoint URL.
+ * @returns A source operator that emits each SSE event.
+ * @example
+ * ```ts
+ * fromSSE("https://example.com/events");
+ * ```
+ * @category sources
+ */
 export function fromSSE(url: string): Operator<never, SseEvent> {
 	return fromSSEWithOptions({ url });
 }
 
+/**
+ * Emit server-sent events using a caller-supplied request object.
+ *
+ * @param request - SSE request details.
+ * @returns A source operator that emits each SSE event.
+ * @example
+ * ```ts
+ * fromSSEWithOptions({ url: "https://example.com/events" });
+ * ```
+ * @category sources
+ */
 export function fromSSEWithOptions(request: SseRequest): Operator<never, SseEvent> {
 	assertNonEmptyString(request.url, "fromSSE: url");
 	return driverStreamSource<SseEvent, SseDriverEvent>(
@@ -616,10 +733,32 @@ export function fromSSEWithOptions(request: SseRequest): Operator<never, SseEven
 	);
 }
 
+/**
+ * Emit WebSocket events from a URL.
+ *
+ * @param url - WebSocket endpoint URL.
+ * @returns A source operator that emits connection, message, and close events.
+ * @example
+ * ```ts
+ * fromWebSocket("wss://example.com/socket");
+ * ```
+ * @category sources
+ */
 export function fromWebSocket(url: string): Operator<never, WebSocketEvent> {
 	return fromWebSocketWithOptions({ url });
 }
 
+/**
+ * Emit WebSocket events using a caller-supplied request object.
+ *
+ * @param request - WebSocket request details.
+ * @returns A source operator that emits connection, message, and close events.
+ * @example
+ * ```ts
+ * fromWebSocketWithOptions({ url: "wss://example.com/socket" });
+ * ```
+ * @category sources
+ */
 export function fromWebSocketWithOptions(
 	request: WebSocketRequest,
 ): Operator<never, WebSocketEvent> {
@@ -633,10 +772,32 @@ export function fromWebSocketWithOptions(
 	);
 }
 
+/**
+ * Emit webhook delivery events for a registration id.
+ *
+ * @param id - Webhook registration id.
+ * @returns A source operator that emits each webhook delivery event.
+ * @example
+ * ```ts
+ * fromWebhook("ingest-events");
+ * ```
+ * @category sources
+ */
 export function fromWebhook(id: string): Operator<never, WebhookEvent> {
 	return fromWebhookWithOptions({ id });
 }
 
+/**
+ * Emit webhook delivery events using a caller-supplied registration object.
+ *
+ * @param registration - Webhook registration details.
+ * @returns A source operator that emits each webhook delivery event.
+ * @example
+ * ```ts
+ * fromWebhookWithOptions({ id: "ingest-events", method: "POST" });
+ * ```
+ * @category sources
+ */
 export function fromWebhookWithOptions(
 	registration: WebhookRegistration,
 ): Operator<never, WebhookEvent> {
@@ -1079,9 +1240,20 @@ export function fromAny<T>(
 }
 
 /**
- * Resolve the first DATA from a Node as a Promise. This is a host-boundary escape hatch, not a
- * graph operator; do not call it from reactive node bodies. ERROR rejects, and COMPLETE before DATA
- * rejects because no value exists.
+ * Resolve the first DATA from a Node as a Promise.
+ *
+ * @param source - Node to subscribe to.
+ * @returns A Promise for the first DATA value, or a rejection on ERROR/early completion.
+ * @example
+ * ```ts
+ * import { firstValueFrom, graph } from "@graphrefly/ts";
+ *
+ * const g = graph();
+ * await firstValueFrom(g.state(1));
+ * ```
+ * @remarks Host-boundary escape hatch only. Do not call it from reactive node bodies; use graph
+ * deps/messages there so the topology remains declarative and inspectable.
+ * @category sources
  */
 export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
@@ -1168,9 +1340,18 @@ function nodeInputToPromise<T>(input: NodeInput<T>, opts: { iter?: boolean }): P
 }
 
 /**
- * Keyed singleflight over {@link NodeInput}. Concurrent calls with the same key share one Promise;
- * once that input resolves/rejects, the in-flight entry is cleared and a later call re-runs the
- * factory. Host-boundary helper only; it does not create graph topology.
+ * Keyed singleflight over {@link NodeInput}.
+ *
+ * @param factory - Function that produces a value, iterable, promise, or node for each key.
+ * @param opts - Optional key canonicalizer and iterable handling.
+ * @returns A memoizing loader keyed by the transformed key.
+ * @example
+ * ```ts
+ * const loadUser = singleFromAny((id: string) => fetch(`/api/users/${id}`).then((r) => r.json()));
+ * ```
+ * @remarks Host-boundary helper only. It deduplicates external calls and does not create graph
+ * topology or act as a graph operator.
+ * @category sources
  */
 export function singleFromAny<K, T>(
 	factory: (key: K) => NodeInput<T>,

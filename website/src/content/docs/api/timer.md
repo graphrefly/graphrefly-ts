@@ -12,7 +12,7 @@ tick counter from 0; deactivation clears the timers.
 ## Import
 
 ```ts
-import { timer } from "@graphrefly/ts/sources/browser";
+import { timer } from "@graphrefly/ts/sources";
 ```
 
 ## Signature
@@ -46,4 +46,3 @@ const tick = graph().initNode(timer(100), []);
 ## Source
 
 `packages/ts/src/graph/sources.ts`
-

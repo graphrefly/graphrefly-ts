@@ -32,6 +32,17 @@ export const leftStickyPunctuation = /* @__PURE__ */ new Set([
 	"\u2026",
 ]);
 
+/**
+ * Detect whether a string contains CJK code points.
+ *
+ * @param text - Text to inspect.
+ * @returns `true` when any character falls in a CJK range.
+ * @example
+ * ```ts
+ * isCJK("漢字");
+ * ```
+ * @category reactive-layout
+ */
 export function isCJK(text: string): boolean {
 	for (const ch of text) {
 		const c = ch.codePointAt(0);
@@ -49,10 +60,33 @@ export function isCJK(text: string): boolean {
 	return false;
 }
 
+/**
+ * Collapse repeated whitespace and trim the ends.
+ *
+ * @param text - Text to normalize.
+ * @returns A whitespace-normalized string.
+ * @example
+ * ```ts
+ * normalizeWhitespace("  hello   world  ");
+ * ```
+ * @category reactive-layout
+ */
 export function normalizeWhitespace(text: string): string {
 	return text.replace(/[\t\f ]+/g, " ").replace(/^ | $/g, "");
 }
 
+/**
+ * Split segmented text into render-ready pieces.
+ *
+ * @param text - Input text.
+ * @param segmentAdapter - Segment adapter used to split words and graphemes.
+ * @returns Segment pieces with text, word-like, and break-kind arrays.
+ * @example
+ * ```ts
+ * segmentText("Hello world", getDefaultSegmentAdapter());
+ * ```
+ * @category reactive-layout
+ */
 export function segmentText(
 	text: string,
 	segmentAdapter: SegmentAdapter,
@@ -146,6 +180,16 @@ function* fallbackSegmentGraphemes(text: string): Iterable<SegmentInfo> {
 	}
 }
 
+/**
+ * Build the default segment adapter backed by the runtime's fallback segmenter.
+ *
+ * @returns A fresh default segment adapter.
+ * @example
+ * ```ts
+ * createDefaultSegmentAdapter();
+ * ```
+ * @category reactive-layout
+ */
 export function createDefaultSegmentAdapter(): SegmentAdapter {
 	return {
 		segmentWords(text: string): Iterable<SegmentInfo> {
@@ -159,6 +203,16 @@ export function createDefaultSegmentAdapter(): SegmentAdapter {
 
 let defaultSegmentAdapter: SegmentAdapter | null = null;
 
+/**
+ * Read the shared default segment adapter.
+ *
+ * @returns The cached default segment adapter.
+ * @example
+ * ```ts
+ * getDefaultSegmentAdapter();
+ * ```
+ * @category reactive-layout
+ */
 export function getDefaultSegmentAdapter(): SegmentAdapter {
 	if (defaultSegmentAdapter === null) {
 		defaultSegmentAdapter = createDefaultSegmentAdapter();
@@ -166,11 +220,34 @@ export function getDefaultSegmentAdapter(): SegmentAdapter {
 	return defaultSegmentAdapter;
 }
 
+/**
+ * Normalize a width-like value into a finite, non-negative width.
+ *
+ * @param value - Width value or object with a width field.
+ * @returns A non-negative width.
+ * @example
+ * ```ts
+ * measuredWidth({ width: 24 });
+ * ```
+ * @category reactive-layout
+ */
 export function measuredWidth(value: number | { readonly width: number }): number {
 	const width = typeof value === "number" ? value : value.width;
 	return Number.isFinite(width) && width >= 0 ? width : 0;
 }
 
+/**
+ * Build a stable measurement cache key.
+ *
+ * @param text - Text input.
+ * @param font - Font string.
+ * @returns A deterministic cache key for the text/font pair.
+ * @example
+ * ```ts
+ * metricKey("Hello", "16px sans-serif");
+ * ```
+ * @category reactive-layout
+ */
 export function metricKey(text: string, font: string): string {
 	return `${font}\0${text}`;
 }

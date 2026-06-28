@@ -7,7 +7,7 @@ pagefind: false
 
 Both GraphReFly and Zustand are simple, ergonomic state management libraries that prize small APIs and minimal boilerplate. GraphReFly adds diamond-safe computed values, streaming operators, and runtime graph inspectability while preserving a familiar API shape.
 
-> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `compat/*` imports from this historical page.
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package or retired compat-path imports from this historical page.
 
 ## At a Glance
 
@@ -49,7 +49,7 @@ const doubled = useStore((s) => s.doubled());
 
 ```ts
 // GraphReFly — native
-import { state, derived } from '@graphrefly/graphrefly';
+import { state, derived } from '@graphrefly/ts';
 
 const count = state(0);
 const doubled = derived([count], (c) => c * 2); // diamond-safe, cached
@@ -73,7 +73,7 @@ import { zustandStore } from '@graphrefly/ts/adapters';
 const store = zustandStore(countNode);
 ```
 
-The old `@graphrefly/graphrefly/compat/zustand` path is retired.
+The old compat/Zustand path is retired.
 
 This gives you the same `create((set, get) => ...)` API while allowing you to incrementally adopt `derived()` and streaming operators on top.
 

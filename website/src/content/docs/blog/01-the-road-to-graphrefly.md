@@ -11,7 +11,7 @@ tags: [origins, design-philosophy, architecture]
 
 > Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
 > story. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths;
-> do not copy `@graphrefly/graphrefly` imports from historical snippets.
+> do not copy retired root-package imports from historical snippets.
 
 ---
 
@@ -97,7 +97,7 @@ Instead of a function that switches on numeric types, GraphReFly uses typed mess
 And instead of closures wired by handshake, GraphReFly has `node` — one primitive that becomes a source, derived computation, or effect depending on configuration — living inside a `Graph` container that provides observability, lifecycle, and topology inspection by default.
 
 ```ts
-import { node, state, derived, effect } from '@graphrefly/graphrefly';
+import { node, state, derived, effect } from '@graphrefly/ts';
 
 const count = state(0);
 const doubled = derived([count], () => count.get() * 2);

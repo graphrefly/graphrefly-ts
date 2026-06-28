@@ -39,6 +39,18 @@ export interface RetryStatus {
 
 export const noBackoff: BackoffPolicy = Object.freeze({ kind: "none" });
 
+/**
+ * Build an immutable retry policy.
+ *
+ * @param maxAttempts - Total attempts including the first try.
+ * @param backoff - Backoff strategy used between attempts.
+ * @returns A frozen retry policy record.
+ * @example
+ * ```ts
+ * retryPolicy(3, { kind: "constant", delayMs: 250 });
+ * ```
+ * @category graph
+ */
 export function retryPolicy(maxAttempts = 1, backoff: BackoffPolicy = noBackoff): RetryPolicy {
 	if (!Number.isInteger(maxAttempts) || maxAttempts <= 0) {
 		throw new RangeError("retryPolicy: maxAttempts must be a positive integer");
@@ -46,10 +58,34 @@ export function retryPolicy(maxAttempts = 1, backoff: BackoffPolicy = noBackoff)
 	return Object.freeze({ maxAttempts, backoff });
 }
 
+/**
+ * Check whether another retry attempt remains.
+ *
+ * @param policy - Retry policy to inspect.
+ * @param failedAttempt - The attempt number that just failed.
+ * @returns `true` while the failed attempt is still below the maximum.
+ * @example
+ * ```ts
+ * shouldRetry(retryPolicy(3), 2); // true
+ * ```
+ * @category graph
+ */
 export function shouldRetry(policy: RetryPolicy, failedAttempt: number): boolean {
 	return failedAttempt < policy.maxAttempts;
 }
 
+/**
+ * Compute the delay before the next retry.
+ *
+ * @param policy - Retry policy to use.
+ * @param nextAttempt - The attempt number about to run.
+ * @returns The delay in milliseconds, or `undefined` when the attempt is out of range.
+ * @example
+ * ```ts
+ * nextRetryDelayMs(retryPolicy(3, { kind: "constant", delayMs: 250 }), 2);
+ * ```
+ * @category graph
+ */
 export function nextRetryDelayMs(policy: RetryPolicy, nextAttempt: number): number | undefined {
 	if (!Number.isInteger(nextAttempt) || nextAttempt <= 0 || nextAttempt > policy.maxAttempts) {
 		return undefined;
@@ -57,6 +93,18 @@ export function nextRetryDelayMs(policy: RetryPolicy, nextAttempt: number): numb
 	return backoffDelayMs(policy.backoff, nextAttempt);
 }
 
+/**
+ * Compute the delay for a backoff policy at a specific attempt.
+ *
+ * @param policy - Backoff policy to evaluate.
+ * @param attempt - One-based attempt counter.
+ * @returns The computed delay in milliseconds.
+ * @example
+ * ```ts
+ * backoffDelayMs({ kind: "linear", initialMs: 100, stepMs: 50 }, 3);
+ * ```
+ * @category graph
+ */
 export function backoffDelayMs(policy: BackoffPolicy, attempt: number): number {
 	const safeAttempt = Math.max(1, Math.trunc(attempt));
 	switch (policy.kind) {

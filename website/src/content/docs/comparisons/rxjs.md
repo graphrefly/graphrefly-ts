@@ -7,7 +7,7 @@ pagefind: false
 
 Both GraphReFly and RxJS provide streaming operators for composing asynchronous data flows. GraphReFly adds first-class state (`.get()`/`.set()`), diamond-safe derived computations, and a simpler API surface.
 
-> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` or `/extra` imports from this historical page.
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package or retired extra-path imports from this historical page.
 
 ## At a Glance
 
@@ -19,7 +19,7 @@ Both GraphReFly and RxJS provide streaming operators for composing asynchronous 
 | **Operators** | 200+ | 70+ |
 | **Diamond resolution** | Glitches via `combineLatest` | Glitch-free topological resolution |
 | **Graph inspection** | None | `graph.describe()` — runtime, programmatic |
-| **Interop** | Via adapter | `toObservable()` / `fromAny()` |
+| **Interop** | Via adapter | Source/adapters such as `fromAny()` |
 | **Framework** | Framework-agnostic | Framework-agnostic with adapters for React, Vue, Svelte, Solid, NestJS |
 | **Bundle** | ~30 KB | ~5 KB core (tree-shakeable) |
 
@@ -55,7 +55,7 @@ result$.subscribe(console.log);
 
 ```ts
 // GraphReFly — state is first-class
-import { state, derived } from '@graphrefly/graphrefly';
+import { state, derived } from '@graphrefly/ts';
 
 const count = state(0);
 const multiplier = state(2);
@@ -91,7 +91,7 @@ a$.next(2);
 
 ```ts
 // GraphReFly — no glitch
-import { state, derived } from '@graphrefly/graphrefly';
+import { state, derived } from '@graphrefly/ts';
 
 const a = state(1);
 const b = derived([a], (a) => a * 2);
@@ -104,16 +104,10 @@ d.get(); // "4-6" — always consistent, never "4-3"
 
 ### Interop
 
-GraphReFly provides bidirectional interop with RxJS Observables:
+GraphReFly exposes source/adapters for bringing observable-like inputs into the graph:
 
 ```ts
-import { state } from '@graphrefly/graphrefly';
-import { toObservable, fromAny } from '@graphrefly/graphrefly/extra';
-
-// GraphReFly → RxJS
-const count = state(0);
-const count$ = toObservable(count);
-count$.subscribe(console.log); // works with any RxJS operator
+import { state, fromAny } from '@graphrefly/ts';
 
 // RxJS → GraphReFly
 import { interval } from 'rxjs';

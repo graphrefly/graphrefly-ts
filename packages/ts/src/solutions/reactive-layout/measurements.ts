@@ -52,6 +52,21 @@ import {
 } from "./types.js";
 import { nonNegativeFinite } from "./utils.js";
 
+/**
+ * Create a measurement issue fact.
+ *
+ * @param code - Stable issue code.
+ * @param message - Human-readable issue message.
+ * @param targetId - Measurement target id.
+ * @param measurementKind - Measurement kind tag.
+ * @param opts - Optional source, severity, details, and metadata.
+ * @returns A measurement issue fact.
+ * @example
+ * ```ts
+ * measurementIssue("measurement.failed", "Text measurement failed", "title", "text-segments");
+ * ```
+ * @category reactive-layout
+ */
 export function measurementIssue(
 	code: string,
 	message: string,
@@ -77,6 +92,20 @@ export function measurementIssue(
 	};
 }
 
+/**
+ * Create a successful measurement fact.
+ *
+ * @param targetId - Measurement target id.
+ * @param measurementKind - Measurement kind tag.
+ * @param value - Measured value.
+ * @param opts - Optional source and metadata.
+ * @returns A successful measurement fact.
+ * @example
+ * ```ts
+ * measurementOk("title", "text-segments", { segments: [] });
+ * ```
+ * @category reactive-layout
+ */
 export function measurementOk<T>(
 	targetId: string,
 	measurementKind: string,
@@ -93,6 +122,19 @@ export function measurementOk<T>(
 	};
 }
 
+/**
+ * Read the latest successful measurement value for a target/kind pair.
+ *
+ * @param measurements - Measurement fact list to scan.
+ * @param targetId - Measurement target id.
+ * @param measurementKind - Measurement kind tag.
+ * @returns The latest matching successful value, or `undefined`.
+ * @example
+ * ```ts
+ * latestMeasurementValue(measurements, "title", "text-segments");
+ * ```
+ * @category reactive-layout
+ */
 export function latestMeasurementValue<T>(
 	measurements: Measurements,
 	targetId: string,
@@ -111,6 +153,18 @@ export function latestMeasurementValue<T>(
 	return value;
 }
 
+/**
+ * Measure hyphen width when the adapter supports it.
+ *
+ * @param adapter - Measurement adapter to query.
+ * @param font - Font string passed to the adapter.
+ * @returns The hyphen width, or `undefined` when measurement fails.
+ * @example
+ * ```ts
+ * tryMeasureHyphenWidth(adapter, "16px sans-serif");
+ * ```
+ * @category reactive-layout
+ */
 export function tryMeasureHyphenWidth(
 	adapter: MeasurementAdapter,
 	font: string,
@@ -122,6 +176,18 @@ export function tryMeasureHyphenWidth(
 	}
 }
 
+/**
+ * Validate a size record for measurement output.
+ *
+ * @param size - Size to validate.
+ * @param label - Label used in the error message.
+ * @returns The validated size.
+ * @example
+ * ```ts
+ * validMeasurementSize({ width: 10, height: 20 }, "image");
+ * ```
+ * @category reactive-layout
+ */
 export function validMeasurementSize(size: Size, label: string): Size {
 	if (
 		!Number.isFinite(size.width) ||
@@ -134,6 +200,23 @@ export function validMeasurementSize(size: Size, label: string): Size {
 	return size;
 }
 
+/**
+ * Measure text and package the result as measurement facts.
+ *
+ * @param text - Text to measure.
+ * @param font - Font string to measure with.
+ * @param adapter - Measurement adapter.
+ * @param cache - Shared segment measurement cache.
+ * @param segmentAdapter - Segment adapter used for grapheme/word splitting.
+ * @param targetId - Measurement target id.
+ * @param source - Measurement source label.
+ * @returns Measurement facts describing the text segments and hyphen width.
+ * @example
+ * ```ts
+ * textMeasurementFacts("Hello", "16px sans-serif", adapter, new Map(), segmentAdapter, "title", "demo");
+ * ```
+ * @category reactive-layout
+ */
 export function textMeasurementFacts(
 	text: string,
 	font: string,
@@ -179,6 +262,24 @@ export function textMeasurementFacts(
 	}
 }
 
+/**
+ * Wrap a direct value or state node into a writable node handle.
+ *
+ * @param g - Graph that owns the writable state fallback.
+ * @param input - Existing node or raw initial value.
+ * @param fallback - Fallback value when input is absent.
+ * @param name - Name used for the generated state node.
+ * @returns The node plus a setter that updates the backing state.
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ * import { inputNode } from "@graphrefly/ts/solutions/reactive-layout";
+ *
+ * const g = graph();
+ * inputNode(g, undefined, 0, "count");
+ * ```
+ * @category reactive-layout
+ */
 export function inputNode<T>(
 	g: Graph,
 	input: T | Node<T> | undefined,
@@ -201,6 +302,18 @@ export function inputNode<T>(
 	return { node: state, set: (value: T) => state.set(value) };
 }
 
+/**
+ * Build a scoped measurement name.
+ *
+ * @param scope - Scope prefix.
+ * @param local - Local name.
+ * @returns The scoped name, or `local` when already scoped.
+ * @example
+ * ```ts
+ * scopedName("layout", "text");
+ * ```
+ * @category reactive-layout
+ */
 export function scopedName(scope: string, local: string): string {
 	return scope === local ? local : `${scope}:${local}`;
 }

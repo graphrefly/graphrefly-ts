@@ -11,7 +11,7 @@ tags: [architecture, two-phase-push, design-philosophy]
 
 > Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
 > story. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths;
-> do not copy `@graphrefly/graphrefly` imports from historical snippets.
+> do not copy retired root-package imports from historical snippets.
 
 ---
 
@@ -74,7 +74,7 @@ GraphReFly took the principle and made it native. Message tuples `[[Type, Data?]
 The graph container makes this even more powerful. In callbag-recharge, you had to manually wire sources and sinks. In GraphReFly, the `Graph` knows the full topology and enforces batch semantics — DIRTY propagates immediately even inside a batch, while DATA and RESOLVED defer until the batch exits. The protocol invariant that data flows *through* the graph is not just a design principle; it's enforced by the container.
 
 ```ts
-import { state, derived, Graph, batch } from '@graphrefly/graphrefly';
+import { state, derived, Graph, batch } from '@graphrefly/ts';
 
 const g = new Graph();
 const a = g.add(state(1));

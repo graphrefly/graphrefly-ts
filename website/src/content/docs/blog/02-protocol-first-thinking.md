@@ -11,7 +11,7 @@ tags: [architecture, design-philosophy, protocol]
 
 > Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
 > story. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths;
-> do not copy `@graphrefly/graphrefly` or `/extra` imports from historical snippets.
+> do not copy retired root-package or retired extra-path imports from historical snippets.
 
 ---
 
@@ -64,7 +64,7 @@ This bidirectional setup enabled cancellation, pull semantics, and backpressure 
 GraphReFly replaces the handshake with explicit dependency declarations and a `Graph` container:
 
 ```ts
-import { state, derived, effect, Graph } from '@graphrefly/graphrefly';
+import { state, derived, effect, Graph } from '@graphrefly/ts';
 
 const g = new Graph();
 
@@ -194,7 +194,7 @@ The message protocol is the engine. Users rarely see it.
 The public API is `node` — with sugar constructors for common patterns:
 
 ```ts
-import { state, derived, effect } from '@graphrefly/graphrefly';
+import { state, derived, effect } from '@graphrefly/ts';
 
 const count = state(0);
 const doubled = derived([count], () => count.get() * 2);
@@ -208,18 +208,17 @@ count.set(5); // logs: "doubled: 10"
 
 Three concepts. That's the entire user-facing surface for state management. Everything else — the DIRTY/RESOLVED protocol, the bitmask tracking, the output slot optimization — is internal machinery that makes `get()` and `set()` behave correctly.
 
-But when you need the protocol, it's right there:
+But when you need stream composition, use the current operator surfaces rather
+than the retired extra path:
 
 ```ts
-import { pipe, map, filter, throttle, subscribe } from '@graphrefly/graphrefly/extra';
+import { pipe, map, filter, throttle } from '@graphrefly/ts';
 
 // Same node, now treated as a stream
-pipe(
-  count,
+const doubledPositive = pipe(
   filter(n => n > 0),
   map(n => n * 2),
   throttle(100),
-  subscribe(v => console.log(v))
 );
 ```
 

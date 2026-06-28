@@ -46,4 +46,3 @@ const doubled = g.initNode(map((value: number) => value * 2), [count]);
 ## Source
 
 `packages/ts/src/graph/operators.ts`
-

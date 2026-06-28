@@ -9,8 +9,24 @@ export const apiSidebar = [
 				"link": "/api/batch"
 			},
 			{
+				"label": "isTerminalComplete()",
+				"link": "/api/isterminalcomplete"
+			},
+			{
+				"label": "isTerminalError()",
+				"link": "/api/isterminalerror"
+			},
+			{
+				"label": "terminalErrorValue()",
+				"link": "/api/terminalerrorvalue"
+			},
+			{
 				"label": "depCount()",
 				"link": "/api/depcount"
+			},
+			{
+				"label": "isTerminalNone()",
+				"link": "/api/isterminalnone"
 			},
 			{
 				"label": "depWaves()",
@@ -27,6 +43,10 @@ export const apiSidebar = [
 			{
 				"label": "depTerminal()",
 				"link": "/api/depterminal"
+			},
+			{
+				"label": "Dispatcher",
+				"link": "/api/dispatcher"
 			},
 			{
 				"label": "Node",
@@ -51,6 +71,10 @@ export const apiSidebar = [
 			{
 				"label": "errorPayload()",
 				"link": "/api/errorpayload"
+			},
+			{
+				"label": "messageTier()",
+				"link": "/api/messagetier"
 			},
 			{
 				"label": "isDeferredTier()",
@@ -79,8 +103,76 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
+				"label": "normalizeTopology()",
+				"link": "/api/normalizetopology"
+			},
+			{
+				"label": "canonicalTopologyJson()",
+				"link": "/api/canonicaltopologyjson"
+			},
+			{
+				"label": "canonicalTopologyBytes()",
+				"link": "/api/canonicaltopologybytes"
+			},
+			{
+				"label": "withBlueprintHash()",
+				"link": "/api/withblueprinthash"
+			},
+			{
+				"label": "withBlueprintProvenance()",
+				"link": "/api/withblueprintprovenance"
+			},
+			{
+				"label": "graphBlueprintDiagnostics()",
+				"link": "/api/graphblueprintdiagnostics"
+			},
+			{
 				"label": "reactiveCascadingCache()",
 				"link": "/api/reactivecascadingcache"
+			},
+			{
+				"label": "combine()",
+				"link": "/api/combine"
+			},
+			{
+				"label": "withLatestFrom()",
+				"link": "/api/withlatestfrom"
+			},
+			{
+				"label": "zip()",
+				"link": "/api/zip"
+			},
+			{
+				"label": "concat()",
+				"link": "/api/concat"
+			},
+			{
+				"label": "race()",
+				"link": "/api/race"
+			},
+			{
+				"label": "buffer()",
+				"link": "/api/buffer"
+			},
+			{
+				"label": "bufferCount()",
+				"link": "/api/buffercount"
+			},
+			{
+				"label": "sample()",
+				"link": "/api/sample"
+			},
+			{
+				"label": "takeUntil()",
+				"link": "/api/takeuntil"
+			},
+			{
+				"label": "pipe()",
+				"link": "/api/pipe"
+			},
+			{
+				"label": "reachable()",
+				"link": "/api/reachable"
 			},
 			{
 				"label": "explainPath()",
@@ -89,6 +181,18 @@ export const apiSidebar = [
 			{
 				"label": "validateNoIslands()",
 				"link": "/api/validatenoislands"
+			},
+			{
+				"label": "EnvironmentDrivers",
+				"link": "/api/environmentdrivers"
+			},
+			{
+				"label": "fetchHttpDriver()",
+				"link": "/api/fetchhttpdriver"
+			},
+			{
+				"label": "domWebSocketDriver()",
+				"link": "/api/domwebsocketdriver"
 			},
 			{
 				"label": "StateNode",
@@ -101,6 +205,30 @@ export const apiSidebar = [
 			{
 				"label": "graph()",
 				"link": "/api/graph"
+			},
+			{
+				"label": "switchMap()",
+				"link": "/api/switchmap"
+			},
+			{
+				"label": "mergeMap()",
+				"link": "/api/mergemap"
+			},
+			{
+				"label": "flatMap()",
+				"link": "/api/flatmap"
+			},
+			{
+				"label": "concatMap()",
+				"link": "/api/concatmap"
+			},
+			{
+				"label": "exhaustMap()",
+				"link": "/api/exhaustmap"
+			},
+			{
+				"label": "repeat()",
+				"link": "/api/repeat"
 			},
 			{
 				"label": "filterObserve()",
@@ -139,6 +267,62 @@ export const apiSidebar = [
 				"link": "/api/describetojson"
 			},
 			{
+				"label": "retryPolicy()",
+				"link": "/api/retrypolicy"
+			},
+			{
+				"label": "shouldRetry()",
+				"link": "/api/shouldretry"
+			},
+			{
+				"label": "nextRetryDelayMs()",
+				"link": "/api/nextretrydelayms"
+			},
+			{
+				"label": "backoffDelayMs()",
+				"link": "/api/backoffdelayms"
+			},
+			{
+				"label": "restoreGraph()",
+				"link": "/api/restoregraph"
+			},
+			{
+				"label": "delay()",
+				"link": "/api/delay"
+			},
+			{
+				"label": "debounce()",
+				"link": "/api/debounce"
+			},
+			{
+				"label": "debounceTime()",
+				"link": "/api/debouncetime"
+			},
+			{
+				"label": "throttle()",
+				"link": "/api/throttle"
+			},
+			{
+				"label": "throttleTime()",
+				"link": "/api/throttletime"
+			},
+			{
+				"label": "audit()",
+				"link": "/api/audit"
+			},
+			{
+				"label": "auditTime()",
+				"link": "/api/audittime"
+			},
+			{
+				"label": "timeout()",
+				"link": "/api/timeout"
+			},
+			{
+				"label": "bufferTime()",
+				"link": "/api/buffertime"
+			},
+			{
 				"label": "workerDerived()",
 				"link": "/api/workerderived"
 			}
@@ -149,64 +333,12 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
-				"label": "combine()",
-				"link": "/api/combine"
+				"label": "restoreRegistry()",
+				"link": "/api/restoreregistry"
 			},
 			{
-				"label": "withLatestFrom()",
-				"link": "/api/withlatestfrom"
-			},
-			{
-				"label": "zip()",
-				"link": "/api/zip"
-			},
-			{
-				"label": "concat()",
-				"link": "/api/concat"
-			},
-			{
-				"label": "race()",
-				"link": "/api/race"
-			},
-			{
-				"label": "buffer()",
-				"link": "/api/buffer"
-			},
-			{
-				"label": "bufferCount()",
-				"link": "/api/buffercount"
-			},
-			{
-				"label": "sample()",
-				"link": "/api/sample"
-			},
-			{
-				"label": "takeUntil()",
-				"link": "/api/takeuntil"
-			},
-			{
-				"label": "switchMap()",
-				"link": "/api/switchmap"
-			},
-			{
-				"label": "mergeMap()",
-				"link": "/api/mergemap"
-			},
-			{
-				"label": "flatMap()",
-				"link": "/api/flatmap"
-			},
-			{
-				"label": "concatMap()",
-				"link": "/api/concatmap"
-			},
-			{
-				"label": "exhaustMap()",
-				"link": "/api/exhaustmap"
-			},
-			{
-				"label": "repeat()",
-				"link": "/api/repeat"
+				"label": "define()",
+				"link": "/api/define"
 			},
 			{
 				"label": "initNode()",
@@ -287,42 +419,6 @@ export const apiSidebar = [
 			{
 				"label": "valve()",
 				"link": "/api/valve"
-			},
-			{
-				"label": "delay()",
-				"link": "/api/delay"
-			},
-			{
-				"label": "debounce()",
-				"link": "/api/debounce"
-			},
-			{
-				"label": "debounceTime()",
-				"link": "/api/debouncetime"
-			},
-			{
-				"label": "throttle()",
-				"link": "/api/throttle"
-			},
-			{
-				"label": "throttleTime()",
-				"link": "/api/throttletime"
-			},
-			{
-				"label": "audit()",
-				"link": "/api/audit"
-			},
-			{
-				"label": "auditTime()",
-				"link": "/api/audittime"
-			},
-			{
-				"label": "timeout()",
-				"link": "/api/timeout"
-			},
-			{
-				"label": "bufferTime()",
-				"link": "/api/buffertime"
 			}
 		]
 	},
@@ -337,6 +433,50 @@ export const apiSidebar = [
 			{
 				"label": "matchesCron()",
 				"link": "/api/matchescron"
+			},
+			{
+				"label": "fromCron()",
+				"link": "/api/fromcron"
+			},
+			{
+				"label": "fromProcess()",
+				"link": "/api/fromprocess"
+			},
+			{
+				"label": "runProcessWithOptions()",
+				"link": "/api/runprocesswithoptions"
+			},
+			{
+				"label": "fromHttp()",
+				"link": "/api/fromhttp"
+			},
+			{
+				"label": "fromHttpWithOptions()",
+				"link": "/api/fromhttpwithoptions"
+			},
+			{
+				"label": "fromSSE()",
+				"link": "/api/fromsse"
+			},
+			{
+				"label": "fromSSEWithOptions()",
+				"link": "/api/fromssewithoptions"
+			},
+			{
+				"label": "fromWebSocket()",
+				"link": "/api/fromwebsocket"
+			},
+			{
+				"label": "fromWebSocketWithOptions()",
+				"link": "/api/fromwebsocketwithoptions"
+			},
+			{
+				"label": "fromWebhook()",
+				"link": "/api/fromwebhook"
+			},
+			{
+				"label": "fromWebhookWithOptions()",
+				"link": "/api/fromwebhookwithoptions"
 			},
 			{
 				"label": "timer()",
@@ -415,8 +555,20 @@ export const apiSidebar = [
 				"link": "/api/fromfswatch"
 			},
 			{
+				"label": "fromSpawn()",
+				"link": "/api/fromspawn"
+			},
+			{
 				"label": "nodeProcessDriver()",
 				"link": "/api/nodeprocessdriver"
+			},
+			{
+				"label": "runProcess()",
+				"link": "/api/runprocess"
+			},
+			{
+				"label": "fromGitHook()",
+				"link": "/api/fromgithook"
 			}
 		]
 	},
@@ -470,26 +622,6 @@ export const apiSidebar = [
 		"label": "Storage",
 		"collapsed": true,
 		"items": [
-			{
-				"label": "stableJsonString()",
-				"link": "/api/stablejsonstring"
-			},
-			{
-				"label": "jsonCodecFor()",
-				"link": "/api/jsoncodecfor"
-			},
-			{
-				"label": "strictJsonCodecFor()",
-				"link": "/api/strictjsoncodecfor"
-			},
-			{
-				"label": "assertStrictJsonValue()",
-				"link": "/api/assertstrictjsonvalue"
-			},
-			{
-				"label": "assertStrictJsonObject()",
-				"link": "/api/assertstrictjsonobject"
-			},
 			{
 				"label": "appendLogKey()",
 				"link": "/api/appendlogkey"
@@ -1395,6 +1527,16 @@ export const apiSidebar = [
 		]
 	},
 	{
+		"label": "Work Queue",
+		"collapsed": true,
+		"items": [
+			{
+				"label": "workQueue()",
+				"link": "/api/workqueue"
+			}
+		]
+	},
+	{
 		"label": "Inspection",
 		"collapsed": true,
 		"items": [
@@ -1409,8 +1551,146 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
+				"label": "stableJsonString()",
+				"link": "/api/stablejsonstring"
+			},
+			{
+				"label": "jsonCodecFor()",
+				"link": "/api/jsoncodecfor"
+			},
+			{
+				"label": "strictJsonCodecFor()",
+				"link": "/api/strictjsoncodecfor"
+			},
+			{
 				"label": "strictCanonicalJsonBytes()",
 				"link": "/api/strictcanonicaljsonbytes"
+			},
+			{
+				"label": "assertStrictJsonValue()",
+				"link": "/api/assertstrictjsonvalue"
+			},
+			{
+				"label": "assertStrictJsonObject()",
+				"link": "/api/assertstrictjsonobject"
+			}
+		]
+	},
+	{
+		"label": "Reactive Layout",
+		"collapsed": true,
+		"items": [
+			{
+				"label": "columnGeometry()",
+				"link": "/api/columngeometry"
+			},
+			{
+				"label": "sanitizeFlowContainer()",
+				"link": "/api/sanitizeflowcontainer"
+			},
+			{
+				"label": "sanitizeFlowColumns()",
+				"link": "/api/sanitizeflowcolumns"
+			},
+			{
+				"label": "sanitizeObstacles()",
+				"link": "/api/sanitizeobstacles"
+			},
+			{
+				"label": "blockedIntervalsForBand()",
+				"link": "/api/blockedintervalsforband"
+			},
+			{
+				"label": "measurementIssue()",
+				"link": "/api/measurementissue"
+			},
+			{
+				"label": "measurementOk()",
+				"link": "/api/measurementok"
+			},
+			{
+				"label": "latestMeasurementValue()",
+				"link": "/api/latestmeasurementvalue"
+			},
+			{
+				"label": "tryMeasureHyphenWidth()",
+				"link": "/api/trymeasurehyphenwidth"
+			},
+			{
+				"label": "validMeasurementSize()",
+				"link": "/api/validmeasurementsize"
+			},
+			{
+				"label": "textMeasurementFacts()",
+				"link": "/api/textmeasurementfacts"
+			},
+			{
+				"label": "inputNode()",
+				"link": "/api/inputnode"
+			},
+			{
+				"label": "scopedName()",
+				"link": "/api/scopedname"
+			},
+			{
+				"label": "isCJK()",
+				"link": "/api/iscjk"
+			},
+			{
+				"label": "normalizeWhitespace()",
+				"link": "/api/normalizewhitespace"
+			},
+			{
+				"label": "segmentText()",
+				"link": "/api/segmenttext"
+			},
+			{
+				"label": "createDefaultSegmentAdapter()",
+				"link": "/api/createdefaultsegmentadapter"
+			},
+			{
+				"label": "getDefaultSegmentAdapter()",
+				"link": "/api/getdefaultsegmentadapter"
+			},
+			{
+				"label": "measuredWidth()",
+				"link": "/api/measuredwidth"
+			},
+			{
+				"label": "metricKey()",
+				"link": "/api/metrickey"
+			},
+			{
+				"label": "nonNegativeFinite()",
+				"link": "/api/nonnegativefinite"
+			},
+			{
+				"label": "finiteNumber()",
+				"link": "/api/finitenumber"
+			},
+			{
+				"label": "emitLayoutError()",
+				"link": "/api/emitlayouterror"
+			},
+			{
+				"label": "positiveFinite()",
+				"link": "/api/positivefinite"
+			},
+			{
+				"label": "clampDimension()",
+				"link": "/api/clampdimension"
+			},
+			{
+				"label": "fitSize()",
+				"link": "/api/fitsize"
+			},
+			{
+				"label": "blockMaxWidth()",
+				"link": "/api/blockmaxwidth"
+			},
+			{
+				"label": "resolveTextAdapter()",
+				"link": "/api/resolvetextadapter"
 			}
 		]
 	}

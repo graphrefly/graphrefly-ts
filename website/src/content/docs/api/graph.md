@@ -42,4 +42,3 @@ const doubled = g.derived([count], ([value]) => value * 2);
 ## Source
 
 `packages/ts/src/graph/graph.ts`
-

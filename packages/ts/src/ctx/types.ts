@@ -43,18 +43,47 @@ export type WaveData = readonly (readonly (readonly unknown[])[])[];
 /** Terminal metadata parallel to `waveData`: false = none, true = COMPLETE, otherwise ERROR payload. */
 export type TerminalData = readonly unknown[];
 
-export function isTerminalNone(t: unknown): boolean {
-	return t === false || t === undefined;
-}
-
+/**
+ * Check whether a terminal slot carries COMPLETE.
+ *
+ * @param t - Terminal slot value from {@link Ctx.terminal}.
+ * @returns `true` when the slot is the COMPLETE shorthand `true`.
+ * @example
+ * ```ts
+ * isTerminalComplete(true); // true
+ * ```
+ * @category core
+ */
 export function isTerminalComplete(t: unknown): t is true {
 	return t === true;
 }
 
+/**
+ * Check whether a terminal slot carries ERROR payload data.
+ *
+ * @param t - Terminal slot value from {@link Ctx.terminal}.
+ * @returns `true` when the slot is neither none nor COMPLETE.
+ * @example
+ * ```ts
+ * isTerminalError(new Error("boom")); // true
+ * ```
+ * @category core
+ */
 export function isTerminalError(t: unknown): boolean {
 	return !isTerminalNone(t) && !isTerminalComplete(t);
 }
 
+/**
+ * Read the terminal payload when the slot is an ERROR value.
+ *
+ * @param t - Terminal slot value from {@link Ctx.terminal}.
+ * @returns The payload when `t` is an ERROR slot, otherwise `undefined`.
+ * @example
+ * ```ts
+ * terminalErrorValue(new Error("boom"));
+ * ```
+ * @category core
+ */
 export function terminalErrorValue(t: unknown): unknown {
 	return isTerminalError(t) ? t : undefined;
 }
@@ -154,6 +183,21 @@ export type NodeFn = (ctx: Ctx) => void;
 /** Number of declared dep slots visible in this invocation. */
 export function depCount(ctx: Ctx): number {
 	return ctx.waveData.length;
+}
+
+/**
+ * Check whether a terminal slot carries no terminal state.
+ *
+ * @param t - Terminal slot value from {@link Ctx.terminal}.
+ * @returns `true` when the slot is `false` or `undefined`.
+ * @example
+ * ```ts
+ * isTerminalNone(false); // true
+ * ```
+ * @category core
+ */
+export function isTerminalNone(t: unknown): boolean {
+	return t === false || t === undefined;
 }
 
 /** DATA/SENTINEL projection batches delivered by one dep in this invocation. */

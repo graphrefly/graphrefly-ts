@@ -46,4 +46,3 @@ const total = g.initNode(scan((sum: number, value: number) => sum + value, 0), [
 ## Source
 
 `packages/ts/src/graph/operators.ts`
-

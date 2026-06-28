@@ -10,7 +10,7 @@ Activate and remain silent until deactivation.
 ## Import
 
 ```ts
-import { never } from "@graphrefly/ts/sources/browser";
+import { never } from "@graphrefly/ts/sources";
 ```
 
 ## Signature
@@ -34,4 +34,3 @@ const quiet = graph().initNode(never(), []);
 ## Source
 
 `packages/ts/src/graph/sources.ts`
-

@@ -10,7 +10,7 @@ Run updates as one coalesced batch.
 ## Import
 
 ```ts
-import { batch } from "@graphrefly/ts/core";
+import { batch } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -51,4 +51,3 @@ batch(() => {
 ## Source
 
 `packages/ts/src/batch/batch.ts`
-

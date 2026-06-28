@@ -70,10 +70,6 @@ class PoolTable implements Pool {
 	}
 }
 
-/**
- * First-class dispatcher (D21). Owns pools; graph binds to one (default = process-global,
- * D26 — the only global singleton). Pool trait is pluggable for WorkerPool/RemotePool (D20).
- */
 /** Per-handle profiling counters (D39 / R-profile). Lives on the dispatcher — the invoke
  * funnel (F-DISPATCH-ALL) — NEVER on the thin node (R-node-thin). */
 export interface HandleStat {
@@ -84,6 +80,18 @@ export interface HandleStat {
 
 const statKey = (h: Handle): string => `${h.poolId}:${h.handleId}`;
 
+/**
+ * First-class dispatcher (D21). Owns pools; graph binds to one (default = process-global,
+ * D26 — the only global singleton). Pool trait is pluggable for WorkerPool/RemotePool (D20).
+ *
+ * @example
+ * ```ts
+ * import { Dispatcher } from "@graphrefly/ts";
+ *
+ * const dispatcher = new Dispatcher();
+ * ```
+ * @category core
+ */
 export class Dispatcher {
 	private pools: Pool[] = [];
 	readonly syncPoolId: number;

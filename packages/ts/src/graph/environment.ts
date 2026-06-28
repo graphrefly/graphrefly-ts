@@ -187,6 +187,20 @@ export interface EnvironmentDriversInit {
 	readonly webhook?: LocalWebhookDriver;
 }
 
+/**
+ * Graph-local bundle of environment drivers.
+ *
+ * Instances are immutable snapshots of the process, HTTP, SSE, WebSocket, and webhook
+ * driver set consumed by source/adapter bodies.
+ *
+ * @example
+ * ```ts
+ * import { EnvironmentDrivers, fetchHttpDriver } from "@graphrefly/ts";
+ *
+ * const drivers = new EnvironmentDrivers().withHttp(fetchHttpDriver());
+ * ```
+ * @category graph
+ */
 export class EnvironmentDrivers {
 	readonly process?: LocalProcessDriver;
 	readonly http?: LocalHttpDriver;
@@ -250,6 +264,19 @@ export class EnvironmentDrivers {
 
 const EMPTY_ENVIRONMENT = new EnvironmentDrivers();
 
+/**
+ * Adapt a Fetch-like function into a graph-local HTTP driver.
+ *
+ * @param fetchFn - Fetch implementation that returns a response-like object.
+ * @returns A driver that performs one-shot HTTP requests and reports a single result.
+ * @example
+ * ```ts
+ * import { fetchHttpDriver } from "@graphrefly/ts";
+ *
+ * const http = fetchHttpDriver(fetch);
+ * ```
+ * @category graph
+ */
 export function fetchHttpDriver(fetchFn: FetchLike = requireGlobalFetch()): LocalHttpDriver {
 	return {
 		request(request, callback) {
@@ -277,6 +304,19 @@ export function fetchHttpDriver(fetchFn: FetchLike = requireGlobalFetch()): Loca
 	};
 }
 
+/**
+ * Adapt a DOM/WebSocket constructor into a graph-local WebSocket driver.
+ *
+ * @param WebSocketCtor - WebSocket constructor used to open connections.
+ * @returns A driver that can connect, send, and optionally stream live sessions.
+ * @example
+ * ```ts
+ * import { domWebSocketDriver } from "@graphrefly/ts";
+ *
+ * const ws = domWebSocketDriver(WebSocket);
+ * ```
+ * @category graph
+ */
 export function domWebSocketDriver(
 	WebSocketCtor: WebSocketConstructorLike = requireGlobalWebSocket(),
 ): LocalWebSocketDriver {

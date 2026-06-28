@@ -35,4 +35,3 @@ const merged = graph().initNode(merge<number>(), [left, right]);
 ## Source
 
 `packages/ts/src/graph/operators.ts`
-

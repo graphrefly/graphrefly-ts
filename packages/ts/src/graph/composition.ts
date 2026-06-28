@@ -147,6 +147,16 @@ export function topologyDiff(prev: DescribeSnapshot, next: DescribeSnapshot): De
  * Each step is instantiated through `g.initNode`, so `describe()` still shows the real
  * per-operator factory names and declared edges (D6/D39/D45). This is graph-layer sugar, not a
  * new verb or protocol primitive.
+ *
+ * @param g - Graph that owns the registered operator nodes.
+ * @param source - Upstream node to start from.
+ * @param ops - Unary operator factories to apply in order.
+ * @returns The node produced by the last operator in the chain.
+ * @example
+ * ```ts
+ * const doubled = pipe(g, source, map((value: number) => value * 2));
+ * ```
+ * @category graph
  */
 export function pipe<S>(g: Graph, source: Node<S>): Node<S>;
 export function pipe<S, A>(g: Graph, source: Node<S>, op1: PipeOperator<S, A>): Node<A>;
@@ -195,6 +205,19 @@ export function pipe<S>(
 	source: Node<S>,
 	...ops: readonly PipeOperator<unknown, unknown>[]
 ): Node<unknown>;
+/**
+ * Compose unary operator factories into a graph-registered chain.
+ *
+ * @param g - Graph that owns the registered operator nodes.
+ * @param source - Upstream node to start from.
+ * @param ops - Unary operator factories to apply in order.
+ * @returns The node produced by the last operator in the chain.
+ * @example
+ * ```ts
+ * const doubled = pipe(g, source, map((value: number) => value * 2));
+ * ```
+ * @category graph
+ */
 export function pipe(
 	g: Graph,
 	source: Node<unknown>,

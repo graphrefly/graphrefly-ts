@@ -374,6 +374,23 @@ export function fromFSWatch(
 	});
 }
 
+/**
+ * Stream stdout, stderr, and exit events from a Node child process.
+ *
+ * @param cmd - Executable name or absolute path passed to `child_process.spawn`.
+ * @param args - Arguments passed to the child process.
+ * @param opts - Optional cwd, env, stdio, shell, cancellation, and kill-grace controls.
+ * @returns A node-only source operator that emits `SpawnEvent` DATA values and terminal ERROR/COMPLETE events.
+ * @example
+ * ```ts
+ * import { graph, node } from "@graphrefly/ts";
+ * import { fromSpawn } from "@graphrefly/ts/sources/node";
+ *
+ * const g = graph();
+ * const ls = node(g, fromSpawn("git", ["status", "--short"], { cwd: process.cwd() }));
+ * ```
+ * @category sources
+ */
 export function fromSpawn(
 	cmd: string,
 	args: readonly string[] = [],
@@ -479,6 +496,22 @@ export function nodeProcessDriver(opts: NodeProcessDriverOptions = {}): LocalPro
 	};
 }
 
+/**
+ * Run a Node child process and emit the buffered result once.
+ *
+ * @param cmd - Executable name or path.
+ * @param args - Command-line arguments.
+ * @param opts - Optional cwd, env, shell, signal, stdio, and kill grace settings.
+ * @returns A source operator that emits one process result and then COMPLETE.
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ * import { runProcess } from "@graphrefly/ts/sources/node";
+ *
+ * const status = graph().initNode(runProcess("git", ["status"]), []);
+ * ```
+ * @category sources
+ */
 export function runProcess(
 	cmd: string,
 	args: readonly string[] = [],
@@ -747,6 +780,22 @@ function readGitHead(
 	};
 }
 
+/**
+ * Poll a Git repository for new commits and emit commit-shaped graph events.
+ *
+ * @param repoPath - Path to the Git repository to poll.
+ * @param opts - Poll interval, include/exclude file filters, error tolerance, and cancellation signal.
+ * @returns A node-only source operator that emits `GitEvent` values after the initial baseline commit.
+ * @example
+ * ```ts
+ * import { graph, node } from "@graphrefly/ts";
+ * import { fromGitHook } from "@graphrefly/ts/sources/node";
+ *
+ * const g = graph();
+ * const commits = node(g, fromGitHook(process.cwd(), { include: ["packages/**"] }));
+ * ```
+ * @category sources
+ */
 export function fromGitHook(
 	repoPath: string,
 	opts: FromGitHookOptions = {},

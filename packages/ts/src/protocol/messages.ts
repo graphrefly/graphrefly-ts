@@ -79,6 +79,17 @@ const TIER: Record<MessageType, number> = {
 	TEARDOWN: TIER_TEARDOWN,
 };
 
+/**
+ * Look up the tier number for a message type.
+ *
+ * @param t - One of the closed-set protocol message tags.
+ * @returns The tier assigned by the compile-time tier table.
+ * @example
+ * ```ts
+ * messageTier("DATA"); // 3
+ * ```
+ * @category core
+ */
 export function messageTier(t: MessageType): number {
 	return TIER[t];
 }

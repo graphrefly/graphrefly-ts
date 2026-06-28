@@ -174,6 +174,17 @@ function adjacent(
  *
  * `upstream` follows dep edges toward causes; `downstream` follows reverse deps toward effects.
  * The helper is intentionally pure over `DescribeSnapshot` (D39/D51): it never reads Nodes.
+ *
+ * @param snapshot - Describe snapshot to traverse.
+ * @param from - Starting node id.
+ * @param direction - Direction to follow when `both` is not set.
+ * @param options - Optional depth and detail controls.
+ * @returns Reachable node ids, or a detailed result when `withDetail` is true.
+ * @example
+ * ```ts
+ * reachable(snapshot, "root", "downstream");
+ * ```
+ * @category graph
  */
 export function reachable(
 	snapshot: DescribeSnapshot,
@@ -187,6 +198,20 @@ export function reachable(
 	direction: ReachableDirection,
 	options?: ReachableOptions,
 ): readonly string[];
+/**
+ * Traverse reachable nodes in a describe snapshot.
+ *
+ * @param snapshot - Describe snapshot to traverse.
+ * @param from - Starting node id.
+ * @param direction - Direction to follow when `both` is not set.
+ * @param options - Optional depth and detail controls.
+ * @returns Reachable node ids, or a detailed result when `withDetail` is true.
+ * @example
+ * ```ts
+ * reachable(snapshot, "root", "downstream");
+ * ```
+ * @category graph
+ */
 export function reachable(
 	snapshot: DescribeSnapshot,
 	from: string,

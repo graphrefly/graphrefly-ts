@@ -28,7 +28,7 @@ SELF-CATCHING (D30) and re-supplied on every rewire. The factory MUST mint a FRE
 ## Import
 
 ```ts
-import { repeat } from "@graphrefly/ts/operators";
+import { repeat } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -64,4 +64,3 @@ This page was generated from source JSDoc, but the structured API tags are incom
 ## Source
 
 `packages/ts/src/graph/higher-order.ts`
-

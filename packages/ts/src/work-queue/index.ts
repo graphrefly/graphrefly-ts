@@ -73,6 +73,31 @@ export type {
 	WorkQueueWorkSnapshot,
 } from "./types.js";
 
+/**
+ * Build a graph-visible work queue over a MessageBus subscription.
+ *
+ * @param graph - Graph that owns the queue nodes and command projections.
+ * @param opts - Queue identity, source topic/subscription, bus, retry, lease, and clock options.
+ * @returns A `WorkQueue` handle with graph nodes plus command helpers for submit, claim, complete, fail, cancel, schedule, and projections.
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts";
+ * import { messageBus } from "@graphrefly/ts/messaging";
+ * import { workQueue } from "@graphrefly/ts/work-queue";
+ *
+ * const g = graph();
+ * const bus = messageBus(g, { topics: ["jobs.submit"], name: "jobs" });
+ * const queue = workQueue(g, {
+ *   queueId: "jobs",
+ *   topic: "jobs.submit",
+ *   subscriptionId: "workers",
+ *   bus,
+ * });
+ *
+ * queue.submit({ task: "index" });
+ * ```
+ * @category work-queue
+ */
 export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>): WorkQueue<T> {
 	assertNonEmpty(opts.queueId, "workQueue.queueId");
 	assertNonEmpty(opts.topic, "workQueue.topic");

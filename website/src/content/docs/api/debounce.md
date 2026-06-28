@@ -19,7 +19,7 @@ cannot flush early without detecting COMPLETE inside the switchMap inner); accep
 ## Import
 
 ```ts
-import { debounce } from "@graphrefly/ts/operators";
+import { debounce } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -50,4 +50,3 @@ This page was generated from source JSDoc, but the structured API tags are incom
 ## Source
 
 `packages/ts/src/graph/time.ts`
-

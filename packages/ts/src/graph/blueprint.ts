@@ -93,6 +93,22 @@ export function normalizeTopologyMeta(
 	}
 }
 
+/**
+ * Normalize a graph topology into its canonical blueprint shape.
+ *
+ * @param snapshot - Graph topology snapshot or already-normalized topology.
+ * @returns A normalized topology with derived edges and sorted nodes.
+ * @example
+ * ```ts
+ * import { normalizeTopology } from "@graphrefly/ts/graph";
+ *
+ * const normalized = normalizeTopology({
+ *   nodes: [{ id: "source", factory: "state", deps: [] }],
+ *   edges: [],
+ * });
+ * ```
+ * @category graph
+ */
 export function normalizeTopology(
 	snapshot: GraphTopologySnapshot | NormalizedGraphTopologySnapshot,
 ): NormalizedGraphTopologySnapshot {
@@ -188,18 +204,71 @@ function topologyString(value: unknown, path: string): string {
 	return value;
 }
 
+/**
+ * Serialize a topology to the canonical blueprint JSON string.
+ *
+ * @param snapshot - Graph topology snapshot or normalized topology.
+ * @returns A deterministic JSON string for the normalized topology.
+ * @example
+ * ```ts
+ * import { canonicalTopologyJson } from "@graphrefly/ts/graph";
+ *
+ * canonicalTopologyJson({
+ *   nodes: [{ id: "source", factory: "state", deps: [] }],
+ *   edges: [],
+ * });
+ * ```
+ * @category graph
+ */
 export function canonicalTopologyJson(
 	snapshot: GraphTopologySnapshot | NormalizedGraphTopologySnapshot,
 ): string {
 	return stableJsonString(normalizeTopology(snapshot as GraphTopologySnapshot));
 }
 
+/**
+ * Serialize a topology to canonical JSON bytes.
+ *
+ * @param snapshot - Graph topology snapshot or normalized topology.
+ * @returns The canonical byte representation used for blueprint hashing.
+ * @example
+ * ```ts
+ * import { canonicalTopologyBytes } from "@graphrefly/ts/graph";
+ *
+ * canonicalTopologyBytes({
+ *   nodes: [{ id: "source", factory: "state", deps: [] }],
+ *   edges: [],
+ * });
+ * ```
+ * @category graph
+ */
 export function canonicalTopologyBytes(
 	snapshot: GraphTopologySnapshot | NormalizedGraphTopologySnapshot,
 ): Uint8Array {
 	return strictCanonicalJsonBytes(normalizeTopology(snapshot as GraphTopologySnapshot));
 }
 
+/**
+ * Attach a content hash to a graph blueprint.
+ *
+ * @param blueprint - Blueprint to augment.
+ * @param options - Hash algorithm and hashing function.
+ * @returns The blueprint with a computed `hash` field, or a Promise for one.
+ * @example
+ * ```ts
+ * import { GRAPH_BLUEPRINT_VERSION, normalizeTopology, withBlueprintHash } from "@graphrefly/ts/graph";
+ *
+ * const blueprint = {
+ *   version: GRAPH_BLUEPRINT_VERSION,
+ *   topology: normalizeTopology({ nodes: [], edges: [] }),
+ * };
+ * await withBlueprintHash(blueprint, {
+ *   algorithm: "sha256",
+ *   hash: async () => "abc123",
+ * });
+ * ```
+ * @category graph
+ */
 export function withBlueprintHash(
 	blueprint: GraphBlueprint,
 	options: GraphBlueprintHashOptions,
@@ -238,6 +307,28 @@ export function withBlueprintHash(
 	return withHash(value);
 }
 
+/**
+ * Attach caller-supplied provenance data to a blueprint.
+ *
+ * @param blueprint - Blueprint to augment.
+ * @param provenance - Strict JSON provenance payload.
+ * @returns The blueprint with normalized provenance attached.
+ * @example
+ * ```ts
+ * import {
+ *   GRAPH_BLUEPRINT_VERSION,
+ *   normalizeTopology,
+ *   withBlueprintProvenance,
+ * } from "@graphrefly/ts/graph";
+ *
+ * const blueprint = {
+ *   version: GRAPH_BLUEPRINT_VERSION,
+ *   topology: normalizeTopology({ nodes: [], edges: [] }),
+ * };
+ * withBlueprintProvenance(blueprint, { source: "snapshot" });
+ * ```
+ * @category graph
+ */
 export function withBlueprintProvenance(
 	blueprint: GraphBlueprint,
 	provenance: GraphBlueprintProvenance,
@@ -248,6 +339,22 @@ export function withBlueprintProvenance(
 	};
 }
 
+/**
+ * Diagnose structural issues in a normalized graph topology.
+ *
+ * @param topology - Normalized topology to inspect.
+ * @returns A diagnostics summary and any structural issues found.
+ * @example
+ * ```ts
+ * import { graphBlueprintDiagnostics, normalizeTopology } from "@graphrefly/ts/graph";
+ *
+ * graphBlueprintDiagnostics(normalizeTopology({
+ *   nodes: [{ id: "source", factory: "state", deps: [] }],
+ *   edges: [],
+ * }));
+ * ```
+ * @category graph
+ */
 export function graphBlueprintDiagnostics(
 	topology: NormalizedGraphTopologySnapshot,
 ): GraphBlueprintDiagnostics {

@@ -53,4 +53,3 @@ const doubled = node<number>([source], (ctx) => {
 ## Source
 
 `packages/ts/src/node/node.ts`
-

@@ -7,7 +7,7 @@ pagefind: false
 
 Both orchestrate data pipelines with DAG semantics. GraphReFly is lightweight, reactive, runs anywhere, and requires no infrastructure.
 
-> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly` imports from this historical page.
+> Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package imports from this historical page.
 
 ## At a Glance
 
@@ -46,7 +46,7 @@ def daily_pipeline():
 // GraphReFly (TypeScript)
 import {
   pipe, exhaustMap, derived, effect, retry, fromCron, fromPromise
-} from "@graphrefly/graphrefly";
+} from "@graphrefly/ts";
 
 const daily = fromCron('0 9 * * *')
 const data = pipe(daily, exhaustMap(() => fromPromise(fetchData())), retry(3))

@@ -10,7 +10,7 @@ Complete immediately without emitting DATA.
 ## Import
 
 ```ts
-import { empty } from "@graphrefly/ts/sources/browser";
+import { empty } from "@graphrefly/ts/sources";
 ```
 
 ## Signature
@@ -34,4 +34,3 @@ const done = graph().initNode(empty(), []);
 ## Source
 
 `packages/ts/src/graph/sources.ts`
-

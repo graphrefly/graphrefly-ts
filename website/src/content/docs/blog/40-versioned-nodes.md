@@ -17,7 +17,7 @@ tags:
 
 > Historical note (CSP-9): this post preserves the pre-clean-slate/root-package
 > versioning story. Current TypeScript guidance uses `@graphrefly/ts` and
-> focused subpaths; do not copy `@graphrefly/graphrefly` imports from historical
+> focused subpaths; do not copy retired root-package imports from historical
 > snippets.
 
 ---
@@ -50,14 +50,12 @@ Or set a **default for newly constructed nodes** (without repeating `{ versionin
 
 **`defaultVersioning` must be set before any node is created** — the config freezes on first use, and mutating it after nodes exist is not supported.
 
-Use **`configure`** from the core module (it mutates **`defaultConfig`** safely at startup):
+This section describes the historical v0.4 configuration API. For clean-slate
+code, start from the current `@graphrefly/ts` graph API and the generated API
+reference for versioning-related helpers:
 
 ```typescript
-import { configure, Graph } from "@graphrefly/graphrefly";
-
-configure((cfg) => {
-  cfg.defaultVersioning = 0;
-});
+import { Graph } from "@graphrefly/ts";
 
 const graph = new Graph("agent");
 ```
