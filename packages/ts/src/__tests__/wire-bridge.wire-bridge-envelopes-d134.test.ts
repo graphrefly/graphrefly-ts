@@ -1249,6 +1249,47 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 	});
 
+	it("wireEdgeGroup release keeps private inbound projector state when topology release is blocked", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const g = graph();
+		const bridge = wireBridge(g, { name: "releaseRollbackBridge", sessionId: "session-a" });
+		const group = wireEdgeGroup(g, bridge, {
+			name: "releaseRollbackGroup",
+			edges: [{ edgeId: "a" }, { edgeId: "b" }],
+		});
+		const inboundA = group.inbound.get("a");
+		if (inboundA === undefined) throw new Error("missing inbound edge");
+		const unsubscribe = group.status.subscribe(() => {});
+		const envelope = (seq: number, frame: Record<string, unknown>) =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq,
+				payload: { kind: "data", value: { kind: "wire_edge", frame } },
+			});
+		bridge.inbound.down([
+			["DATA", envelope(1, { kind: "dirty", edgeId: "a", causeId: "c1" })],
+			["DATA", envelope(2, { kind: "dirty", edgeId: "b", causeId: "c1" })],
+			["DATA", envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) })],
+			["DATA", envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) })],
+		]);
+
+		expect(inboundA.cache).toEqual(bytes(10));
+		expect(() => group.release()).toThrow(/live subscribers/);
+		expect(inboundA.cache).toEqual(bytes(10));
+		expect(g.describe().edges).toContainEqual({
+			from: "releaseRollbackGroup/commands",
+			to: "releaseRollbackBridge/command",
+		});
+
+		unsubscribe();
+		group.release();
+		expect(g.describe().edges).not.toContainEqual({
+			from: "releaseRollbackGroup/commands",
+			to: "releaseRollbackBridge/command",
+		});
+	});
+
 	it("wireEdgeGroup D560/D561 admits only complete fresh outbound cohorts after bootstrap", () => {
 		const bytes = (...values: number[]) => new Uint8Array(values);
 		const dataValues = <T>(messages: T[][]): unknown[] =>
@@ -1418,6 +1459,51 @@ describe("wire bridge envelopes (D134)", () => {
 		);
 		expect(group.issues.status).not.toBe("errored");
 		expect(group.status.status).not.toBe("errored");
+	});
+
+	it("wireEdgeGroup D562 drains adapter-owned inbound projectors before tombstoning without public inbound subscribers", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const dataValues = <T>(messages: T[][]): unknown[] =>
+			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
+		const g = graph();
+		const bridge = wireBridge(g, { name: "projectorDrainBridge", sessionId: "session-a" });
+		const group = wireEdgeGroup(g, bridge, {
+			name: "projectorDrainGroup",
+			edges: [{ edgeId: "a" }, { edgeId: "b" }],
+		});
+		const inboundA = group.inbound.get("a");
+		const inboundB = group.inbound.get("b");
+		if (inboundA === undefined || inboundB === undefined) throw new Error("missing inbound edge");
+		const status: unknown[][] = [];
+		const issues: unknown[][] = [];
+		group.status.subscribe((msg) => status.push(msg as unknown[]));
+		group.issues.subscribe((msg) => issues.push(msg as unknown[]));
+		const envelope = (seq: number, frame: Record<string, unknown>) =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq,
+				payload: { kind: "data", value: { kind: "wire_edge", frame } },
+			});
+
+		bridge.inbound.down([
+			["DATA", envelope(1, { kind: "dirty", edgeId: "a", causeId: "c1" })],
+			["DATA", envelope(2, { kind: "dirty", edgeId: "b", causeId: "c1" })],
+			["DATA", envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) })],
+			["DATA", envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) })],
+		]);
+
+		expect(inboundA.cache).toEqual(bytes(10));
+		expect(inboundB.cache).toEqual(bytes(20));
+		expect(dataValues(status).at(-1)).toEqual(
+			expect.objectContaining({ state: "released", dirty: 2, data: 2, released: 2 }),
+		);
+		expect(dataValues(issues)).toEqual([]);
+
+		bridge.inbound.down([["DATA", envelope(5, { kind: "dirty", edgeId: "a", causeId: "c1" })]]);
+		expect(dataValues(issues)).toContainEqual(
+			expect.objectContaining({ code: "wire-edge-group-duplicate-dirty", causeId: "c1" }),
+		);
 	});
 
 	it("wireEdgeGroup D501 fails closed for duplicate, data-before-dirty, competing, and incomplete causes", () => {

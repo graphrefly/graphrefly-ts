@@ -65,6 +65,10 @@ interface ReleaseCohort {
 	readonly causeId: string;
 	readonly values: ReadonlyMap<string, Uint8Array>;
 }
+interface ReleaseDrain {
+	ack(edgeId: string): void;
+	missing(): string[];
+}
 interface OutState {
 	nextCause: number;
 	snapshots: Map<string, Uint8Array>;
@@ -98,6 +102,18 @@ class CauseTombstones {
 			if (evicted !== undefined) this.seen.delete(evicted);
 		}
 	}
+}
+
+function releaseDrain(expectedIds: readonly string[]): ReleaseDrain {
+	const pending = new Set(expectedIds);
+	return {
+		ack(edgeId) {
+			pending.delete(edgeId);
+		},
+		missing() {
+			return [...pending];
+		},
+	};
 }
 
 export function wireEdgeGroup(
@@ -135,13 +151,18 @@ export function wireEdgeGroup(
 		name: `${name}/releaseCohorts`,
 		factory: "wireEdgeGroupReleaseCohorts",
 	});
-	const gate = topology.node<Gate>([events], gateFn(name, expected, releaseCohorts), {
-		name: `${name}/gate`,
-		factory: "wireEdgeGroupGate",
-		partial: true,
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
-	});
+	const releaseDrains = new WeakMap<ReleaseCohort, ReleaseDrain>();
+	const gate = topology.node<Gate>(
+		[events],
+		gateFn(name, expected, releaseCohorts, releaseDrains),
+		{
+			name: `${name}/gate`,
+			factory: "wireEdgeGroupGate",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
 	const commands = topology.node<Command>(
 		[events],
 		(ctx) => {
@@ -196,7 +217,10 @@ export function wireEdgeGroup(
 							for (const raw of depBatch(ctx, 0) ?? []) {
 								const cohort = raw as ReleaseCohort;
 								const value = cohort.values.get(edge.edgeId);
-								if (value !== undefined) ctx.down([["DATA", Uint8Array.from(value)]]);
+								if (value !== undefined) {
+									releaseDrains.get(cohort)?.ack(edge.edgeId);
+									ctx.down([["DATA", Uint8Array.from(value)]]);
+								}
 							}
 						},
 						{
@@ -211,6 +235,17 @@ export function wireEdgeGroup(
 				] as const,
 		),
 	);
+	const inboundProjectorDrainName = `${name}/inboundProjectorDrain`;
+	const inboundProjectorDrain = topology.node<void>([...inbound.values()], () => {}, {
+		name: inboundProjectorDrainName,
+		factory: "wireEdgeGroupInboundProjectorDrain",
+		partial: true,
+		completeWhenDepsComplete: false,
+		errorWhenDepsError: false,
+	});
+	let releaseInboundProjectorDrain: (() => void) | undefined = graph.retain(inboundProjectorDrain, {
+		reason: `${name}.wireEdgeGroup.inboundProjectorDrain`,
+	});
 	bridge.command.replaceDeps([commands], commandSourceFn());
 	let released = false;
 	return {
@@ -220,15 +255,47 @@ export function wireEdgeGroup(
 		release() {
 			if (released) return;
 			bridge.command.replaceDeps([], commandSourceFn());
-			try {
+			const commit = () => {
 				topology.release({ reason: `${name}.wireEdgeGroup.release` });
 				released = true;
+			};
+			try {
+				commit();
 			} catch (error) {
-				bridge.command.replaceDeps([commands], commandSourceFn());
-				throw error;
+				if (
+					releaseInboundProjectorDrain === undefined ||
+					!isPrivateReleaseBlock(error, inboundProjectorDrainName)
+				) {
+					bridge.command.replaceDeps([commands], commandSourceFn());
+					throw error;
+				}
+				const releasePrivateDrain = releaseInboundProjectorDrain;
+				releaseInboundProjectorDrain = undefined;
+				releasePrivateDrain();
+				try {
+					commit();
+				} catch (commitError) {
+					bridge.command.replaceDeps([commands], commandSourceFn());
+					try {
+						releaseInboundProjectorDrain = graph.retain(inboundProjectorDrain, {
+							reason: `${name}.wireEdgeGroup.inboundProjectorDrain`,
+						});
+					} catch {
+						releaseInboundProjectorDrain = undefined;
+					}
+					throw commitError;
+				}
 			}
 		},
 	};
+}
+
+function isPrivateReleaseBlock(error: unknown, nodeName: string): boolean {
+	return (
+		error instanceof Error &&
+		error.message.includes(`'${nodeName}'`) &&
+		error.message.includes("still has live subscribers")
+	);
 }
 
 function commandSourceFn(): (ctx: Ctx) => void {
@@ -446,6 +513,7 @@ function gateFn(
 	name: string,
 	expectedIds: readonly string[],
 	releaseCohorts: Node<ReleaseCohort>,
+	releaseDrains: WeakMap<ReleaseCohort, ReleaseDrain>,
 ): (ctx: Ctx) => void {
 	const expected = new Set(expectedIds);
 	return (ctx) => {
@@ -596,7 +664,20 @@ function gateFn(
 					const value = st.data.get(edgeId);
 					if (value) values.set(edgeId, Uint8Array.from(value));
 				}
-				releaseCohorts.down([["DATA", { causeId: f.causeId, values } satisfies ReleaseCohort]]);
+				const cohort = { causeId: f.causeId, values } satisfies ReleaseCohort;
+				const drain = releaseDrain(expectedIds);
+				releaseDrains.set(cohort, drain);
+				try {
+					releaseCohorts.down([["DATA", cohort]]);
+					const missing = drain.missing();
+					if (missing.length > 0) {
+						throw new Error(
+							`${name}: release cohort ${f.causeId} was not consumed by inbound projectors before tombstone/reset (${missing.join(", ")})`,
+						);
+					}
+				} finally {
+					releaseDrains.delete(cohort);
+				}
 				ctx.down([["DATA", { kind: "release", causeId: f.causeId, values } satisfies Gate]]);
 				st.released.add(f.causeId);
 				reset();
