@@ -12,6 +12,7 @@ export function nodeRecordDepProjection<T>(
 	const token = delivery?.wave ?? {};
 	if (self._dep.waveTokens[idx] !== token) {
 		self._dep.waveData[idx].push([]);
+		self._dep.waveLive[idx].push(delivery !== undefined);
 		self._dep.waveTokens[idx] = token;
 	}
 	return self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
@@ -328,6 +329,7 @@ export function nodeRunWave<T>(self: NodeRuntimeHost<T>): void {
 		self._dep.batch[i] = null;
 		self._dep.waveData[i] = [];
 		self._dep.waveTokens[i] = undefined;
+		self._dep.waveLive[i] = [];
 		self._dep.terminalInput[i] = undefined;
 	}
 	self._wave.emittedDirtyThisWave = false;

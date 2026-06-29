@@ -29,6 +29,17 @@ export interface CtxDepCache {
 	readonly latest: readonly unknown[];
 }
 
+export interface CtxDepWaveOrigin {
+	readonly live: readonly (readonly boolean[])[];
+}
+
+const ctxDepWaveOrigins = new WeakMap<Ctx, CtxDepWaveOrigin>();
+
+/** @internal Attach per-dep wave-origin state without exposing it on the public Ctx shape. */
+export function setCtxDepWaveOrigin(ctx: Ctx, origin: CtxDepWaveOrigin): void {
+	ctxDepWaveOrigins.set(ctx, origin);
+}
+
 /** Internal node-construction binding for graph-local helper-created deps. */
 export const CTX_NODE_BINDING: unique symbol = Symbol("graphrefly.ctx.nodeBinding");
 
@@ -208,6 +219,21 @@ export function depWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown
 /** Flattened DATA projection for old event-counting operator bodies; null = no wave. */
 export function depBatch(ctx: Ctx, depIndex: number): readonly unknown[] | null {
 	const waves = depWaves(ctx, depIndex);
+	if (waves.length === 0) return null;
+	const flattened = waves.flat().filter((v) => v !== SENTINEL);
+	return flattened.length === 0 ? [] : flattened;
+}
+
+/** Internal adapter helper: dep waves produced by live graph-event deliveries only. */
+export function depLiveWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown[])[] {
+	const waves = depWaves(ctx, depIndex);
+	const live = ctxDepWaveOrigins.get(ctx)?.live[depIndex] ?? [];
+	return waves.filter((_, index) => live[index]);
+}
+
+/** Internal adapter helper: flattened DATA values from live-delivered dep waves only. */
+export function depLiveBatch(ctx: Ctx, depIndex: number): readonly unknown[] | null {
+	const waves = depLiveWaves(ctx, depIndex);
 	if (waves.length === 0) return null;
 	const flattened = waves.flat().filter((v) => v !== SENTINEL);
 	return flattened.length === 0 ? [] : flattened;

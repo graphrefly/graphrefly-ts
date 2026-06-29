@@ -10,7 +10,10 @@ import {
 	wireBridge,
 	wireBridgeEnvelope,
 	wireBridgeProtobuf,
+	wireEdgeGroup,
 } from "../adapters/index.js";
+import { batch } from "../batch/batch.js";
+import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 
 interface VectorRecord {
@@ -719,6 +722,275 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 				{ from: "bridge/outbound", to: "bridge/protobuf/outboundResults" },
 				{ from: "bridge/protobuf/outboundResults", to: "bridge/protobuf/outboundEvents" },
 				{ from: "bridge/protobuf/outboundEvents", to: "bridge/protobuf/status" },
+			]),
+		);
+	});
+
+	it("C-1 TS mixed-locality bridge diamond stays coherent over FIFO protobuf WireEdgeGroup pumps", () => {
+		const text = new TextEncoder();
+		const decode = new TextDecoder();
+		const bytes = (value: string) => text.encode(value);
+		const stringOf = (value: Uint8Array) => decode.decode(value);
+		type TraceRow = {
+			readonly direction: "g1_to_g2" | "g2_to_g1";
+			readonly queueIndex: number;
+			readonly seq: bigint;
+			readonly edgeId?: string;
+			readonly causeId?: string;
+			readonly frameKind?: "dirty" | "data";
+			readonly value?: string;
+		};
+		const trace: TraceRow[] = [];
+		const captureBytes = (messages: unknown[], queue: Uint8Array[]) => {
+			for (const msg of dataMessages(messages)) queue.push(Uint8Array.from(msg[1] as Uint8Array));
+			messages.length = 0;
+		};
+		const pumpOne = (
+			direction: TraceRow["direction"],
+			queue: Uint8Array[],
+			target: { down(msgs: readonly [readonly ["DATA", Uint8Array]]): void },
+		) => {
+			const item = queue.shift();
+			if (item === undefined) throw new Error(`empty ${direction} queue`);
+			const decoded = decodeCanonicalWireBridgeEnvelope(item);
+			expect(toHex(encodeCanonicalWireBridgeEnvelope(decoded))).toBe(toHex(item));
+			const payload = decoded.payload;
+			const row: TraceRow = {
+				direction,
+				queueIndex: trace.filter((entry) => entry.direction === direction).length,
+				seq: decoded.metadata.seq,
+				...(payload.kind === "data" && payload.body.kind === "wire_edge"
+					? {
+							edgeId: payload.body.frame.edgeId,
+							causeId: payload.body.frame.causeId,
+							frameKind: payload.body.frame.kind,
+							value:
+								payload.body.frame.kind === "data"
+									? stringOf(payload.body.frame.value ?? new Uint8Array())
+									: undefined,
+						}
+					: {}),
+			};
+			trace.push(row);
+			target.down([["DATA", item]]);
+		};
+		const pumpAll = (
+			direction: TraceRow["direction"],
+			queue: Uint8Array[],
+			target: { down(msgs: readonly [readonly ["DATA", Uint8Array]]): void },
+		) => {
+			while (queue.length > 0) pumpOne(direction, queue, target);
+		};
+		const causeFrames = (direction: TraceRow["direction"], causeId: string) =>
+			trace.filter((row) => row.direction === direction && row.causeId === causeId);
+
+		const g1 = graph();
+		const g2 = graph();
+		const a = g1.node<Uint8Array>([], null, { name: "g1/A" });
+		const aToB = g1.node<Uint8Array>(
+			[a],
+			(ctx) => {
+				for (const value of depBatch(ctx, 0) ?? [])
+					ctx.down([["DATA", Uint8Array.from(value as Uint8Array)]]);
+			},
+			{ name: "g1/A_to_B" },
+		);
+		const aToC = g1.node<Uint8Array>(
+			[a],
+			(ctx) => {
+				for (const value of depBatch(ctx, 0) ?? [])
+					ctx.down([["DATA", Uint8Array.from(value as Uint8Array)]]);
+			},
+			{ name: "g1/A_to_C" },
+		);
+
+		const g1ToG2Bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g1, {
+			name: "g1/to_g2/bridge",
+			sessionId: "g1-to-g2",
+		});
+		const g1ToG2Bytes = wireBridgeProtobuf(g1, g1ToG2Bridge, {
+			name: "g1/to_g2/protobuf",
+		});
+		wireEdgeGroup(g1, g1ToG2Bridge, {
+			name: "g1/split",
+			edges: [
+				{ edgeId: "A:B", outbound: aToB },
+				{ edgeId: "A:C", outbound: aToC },
+			],
+		});
+		const g2FromG1Bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g2, {
+			name: "g2/from_g1/bridge",
+			sessionId: "g1-to-g2",
+		});
+		const g2FromG1Bytes = wireBridgeProtobuf(g2, g2FromG1Bridge, {
+			name: "g2/from_g1/protobuf",
+		});
+		const g2Inbound = wireEdgeGroup(g2, g2FromG1Bridge, {
+			name: "g2/inbound_split",
+			edges: [{ edgeId: "A:B" }, { edgeId: "A:C" }],
+		});
+		const inboundAB = g2Inbound.inbound.get("A:B");
+		const inboundAC = g2Inbound.inbound.get("A:C");
+		if (inboundAB === undefined || inboundAC === undefined) throw new Error("missing g2 inbound");
+		const b = g2.node<Uint8Array>(
+			[inboundAB],
+			(ctx) => {
+				for (const value of depBatch(ctx, 0) ?? [])
+					ctx.down([["DATA", bytes(`B(${stringOf(value as Uint8Array)})`)]]);
+			},
+			{ name: "g2/B" },
+		);
+		const c = g2.node<Uint8Array>(
+			[inboundAC],
+			(ctx) => {
+				for (const value of depBatch(ctx, 0) ?? [])
+					ctx.down([["DATA", bytes(`C(${stringOf(value as Uint8Array)})`)]]);
+			},
+			{ name: "g2/C" },
+		);
+		const g2ToG1Bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g2, {
+			name: "g2/to_g1/bridge",
+			sessionId: "g2-to-g1",
+		});
+		const g2ToG1Bytes = wireBridgeProtobuf(g2, g2ToG1Bridge, {
+			name: "g2/to_g1/protobuf",
+		});
+		wireEdgeGroup(g2, g2ToG1Bridge, {
+			name: "g2/join_out",
+			edges: [
+				{ edgeId: "B:D", outbound: b },
+				{ edgeId: "C:D", outbound: c },
+			],
+		});
+		const g1FromG2Bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g1, {
+			name: "g1/from_g2/bridge",
+			sessionId: "g2-to-g1",
+		});
+		const g1FromG2Bytes = wireBridgeProtobuf(g1, g1FromG2Bridge, {
+			name: "g1/from_g2/protobuf",
+		});
+		const g1Inbound = wireEdgeGroup(g1, g1FromG2Bridge, {
+			name: "g1/inbound_join",
+			edges: [{ edgeId: "B:D" }, { edgeId: "C:D" }],
+		});
+		const inboundBD = g1Inbound.inbound.get("B:D");
+		const inboundCD = g1Inbound.inbound.get("C:D");
+		if (inboundBD === undefined || inboundCD === undefined) throw new Error("missing g1 inbound");
+		let dRuns = 0;
+		const d = g1.node<string>(
+			[inboundBD, inboundCD],
+			(ctx) => {
+				dRuns++;
+				const bBatch = depBatch(ctx, 0);
+				const cBatch = depBatch(ctx, 1);
+				if (bBatch && cBatch) {
+					ctx.down([
+						[
+							"DATA",
+							`${stringOf(bBatch.at(-1) as Uint8Array)}|${stringOf(cBatch.at(-1) as Uint8Array)}`,
+						],
+					]);
+				}
+			},
+			{ name: "g1/D" },
+		);
+
+		const g1ToG2Queue: Uint8Array[] = [];
+		const g2ToG1Queue: Uint8Array[] = [];
+		const g1ToG2Out: unknown[] = [];
+		const g2ToG1Out: unknown[] = [];
+		const g2InboundStatus: unknown[] = [];
+		const g1InboundStatus: unknown[] = [];
+		const dMessages: unknown[] = [];
+		g1ToG2Bytes.outboundBytes.subscribe((msg) => g1ToG2Out.push(msg));
+		g2ToG1Bytes.outboundBytes.subscribe((msg) => g2ToG1Out.push(msg));
+		g2Inbound.status.subscribe((msg) => g2InboundStatus.push(msg));
+		g1Inbound.status.subscribe((msg) => g1InboundStatus.push(msg));
+		d.subscribe((msg) => dMessages.push(msg));
+
+		a.down([["DATA", bytes("a0")]]);
+		captureBytes(g1ToG2Out, g1ToG2Queue);
+		pumpAll("g1_to_g2", g1ToG2Queue, g2FromG1Bytes.inboundBytes);
+		captureBytes(g2ToG1Out, g2ToG1Queue);
+		pumpAll("g2_to_g1", g2ToG1Queue, g1FromG2Bytes.inboundBytes);
+		expect(dataMessages(dMessages).map((msg) => msg[1])).toEqual(["B(a0)|C(a0)"]);
+
+		dMessages.length = 0;
+		dRuns = 0;
+		g2InboundStatus.length = 0;
+		g1InboundStatus.length = 0;
+		trace.length = 0;
+		batch(() => {
+			a.down([["DATA", bytes("a1")]]);
+		});
+		captureBytes(g1ToG2Out, g1ToG2Queue);
+
+		pumpOne("g1_to_g2", g1ToG2Queue, g2FromG1Bytes.inboundBytes);
+		expect(dRuns).toBe(0);
+		expect(dataMessages(dMessages)).toEqual([]);
+		expect(g2ToG1Queue).toEqual([]);
+		expect(dataMessages(g2InboundStatus).at(-1)?.[1]).toEqual(
+			expect.objectContaining({ state: "collecting", dirty: 1, data: 0, released: 2 }),
+		);
+
+		pumpAll("g1_to_g2", g1ToG2Queue, g2FromG1Bytes.inboundBytes);
+		captureBytes(g2ToG1Out, g2ToG1Queue);
+		expect(dRuns).toBe(0);
+		expect(dataMessages(dMessages)).toEqual([]);
+		expect(dataMessages(g2InboundStatus).at(-1)?.[1]).toEqual(
+			expect.objectContaining({ state: "released", released: 4 }),
+		);
+
+		pumpOne("g2_to_g1", g2ToG1Queue, g1FromG2Bytes.inboundBytes);
+		expect(dRuns).toBe(0);
+		expect(dataMessages(dMessages)).toEqual([]);
+
+		pumpAll("g2_to_g1", g2ToG1Queue, g1FromG2Bytes.inboundBytes);
+		expect(dRuns).toBe(1);
+		expect(dataMessages(dMessages).map((msg) => msg[1])).toEqual(["B(a1)|C(a1)"]);
+		expect(dataMessages(g1InboundStatus).at(-1)?.[1]).toEqual(
+			expect.objectContaining({ state: "released", released: 4 }),
+		);
+
+		const g1Cause = trace.find((row) => row.direction === "g1_to_g2" && row.causeId)?.causeId;
+		const g2Cause = trace.find((row) => row.direction === "g2_to_g1" && row.causeId)?.causeId;
+		if (g1Cause === undefined || g2Cause === undefined) throw new Error("missing stimulus causes");
+		expect(causeFrames("g1_to_g2", g1Cause).map((row) => row.frameKind)).toEqual([
+			"dirty",
+			"dirty",
+			"data",
+			"data",
+		]);
+		expect(causeFrames("g2_to_g1", g2Cause).map((row) => row.frameKind)).toEqual([
+			"dirty",
+			"dirty",
+			"data",
+			"data",
+		]);
+		expect(causeFrames("g1_to_g2", g1Cause).filter((row) => row.frameKind === "data")).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ edgeId: "A:B", value: "a1" }),
+				expect.objectContaining({ edgeId: "A:C", value: "a1" }),
+			]),
+		);
+		expect(causeFrames("g2_to_g1", g2Cause).filter((row) => row.frameKind === "data")).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ edgeId: "B:D", value: "B(a1)" }),
+				expect.objectContaining({ edgeId: "C:D", value: "C(a1)" }),
+			]),
+		);
+		expect(g1.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "g1/split/commands", to: "g1/to_g2/bridge/command" },
+				{ from: "g1/inbound_join/releaseCohorts", to: "g1/inbound_join/inbound/B:D" },
+				{ from: "g1/inbound_join/releaseCohorts", to: "g1/inbound_join/inbound/C:D" },
+			]),
+		);
+		expect(g2.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "g2/inbound_split/releaseCohorts", to: "g2/inbound_split/inbound/A:B" },
+				{ from: "g2/inbound_split/releaseCohorts", to: "g2/inbound_split/inbound/A:C" },
+				{ from: "g2/join_out/commands", to: "g2/to_g1/bridge/command" },
 			]),
 		);
 	});

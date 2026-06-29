@@ -176,6 +176,7 @@ export function nodeRewire<T>(
 		self._dep.idxBoxes = newBoxes;
 		self._dep.waveData = newDeps.map(() => []);
 		self._dep.waveTokens = new Array(newDeps.length).fill(undefined);
+		self._dep.waveLive = newDeps.map(() => []);
 		self._syncCtx = null;
 
 		// Subscribe added deps — push-on-subscribe (R-push-subscribe) delivers a cached

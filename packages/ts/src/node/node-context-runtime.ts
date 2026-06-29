@@ -4,6 +4,7 @@ import {
 	CTX_NODE_BINDING,
 	type Ctx,
 	type CtxState,
+	setCtxDepWaveOrigin,
 	type TerminalData,
 	type WaveData,
 } from "../ctx/types.js";
@@ -25,6 +26,7 @@ export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 	// async: snapshot dep inputs so a deferred late-emit reads this wave's view.
 	return self._makeCtx({
 		waveData: self._dep.waveData.map((waves) => waves.map((w) => [...w])),
+		waveLive: self._dep.waveLive.map((waves) => [...waves]),
 		terminal: self._dep.terminalInput.map(terminalView),
 		latest: [...self._dep.prev],
 	});
@@ -32,7 +34,12 @@ export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 
 export function nodeMakeCtx<T>(
 	self: NodeRuntimeHost<T>,
-	snapshot?: { waveData: unknown[][][]; terminal: unknown[]; latest: unknown[] },
+	snapshot?: {
+		waveData: unknown[][][];
+		waveLive?: boolean[][];
+		terminal: unknown[];
+		latest: unknown[];
+	},
 ): Ctx {
 	const ctx: Ctx = {
 		// Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
@@ -86,6 +93,7 @@ export function nodeMakeCtx<T>(
 				withEnvironmentDrivers(self._slot.environment, () => withNodeCore(self._core, factory)),
 		},
 	};
+	setCtxDepWaveOrigin(ctx, { live: snapshot?.waveLive ?? self._dep.waveLive });
 	if (self._slot.dynamic) {
 		// R-dynamic-node: read a dep's latest by index. Untracked deps still drive waves and
 		// re-run the fn; under D49 (no equals-substitution) the fn re-emits its current value
@@ -104,6 +112,7 @@ export function nodeRefreshCtx<T>(self: NodeRuntimeHost<T>, ctx: Ctx): void {
 		(ctx as { pull?: PullDemand }).pull = self._control.activePull;
 	}
 	ctx[CTX_DEP_CACHE] = { latest: self._dep.prev };
+	setCtxDepWaveOrigin(ctx, { live: self._dep.waveLive });
 }
 
 export function nodeMakeState<T>(self: NodeRuntimeHost<T>): CtxState {

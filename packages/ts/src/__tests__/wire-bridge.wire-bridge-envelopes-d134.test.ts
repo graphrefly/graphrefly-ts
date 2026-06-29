@@ -7,6 +7,7 @@ import {
 	wireEdgeGroup,
 } from "../adapters/index.js";
 import { batch } from "../batch/batch.js";
+import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
 
@@ -1207,7 +1208,8 @@ describe("wire bridge envelopes (D134)", () => {
 			),
 		).toBe(true);
 		expect(snap.edges).toContainEqual({ from: "group/events", to: "group/gate" });
-		expect(snap.edges).toContainEqual({ from: "group/gate", to: "group/inbound/a" });
+		expect(snap.edges).toContainEqual({ from: "group/releaseCohorts", to: "group/inbound/a" });
+		expect(snap.edges).not.toContainEqual({ from: "group/gate", to: "group/inbound/a" });
 		expect(snap.edges).toContainEqual({ from: "group/commands", to: "bridgeWeg/command" });
 		const bridge2 = wireBridge(g, { name: "bridgeWeg2", sessionId: "session-b" });
 		const group2 = wireEdgeGroup(g, bridge2, {
@@ -1245,6 +1247,177 @@ describe("wire bridge envelopes (D134)", () => {
 			from: "releaseGroup/commands",
 			to: "bridgeRelease/command",
 		});
+	});
+
+	it("wireEdgeGroup D560/D561 admits only complete fresh outbound cohorts after bootstrap", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const dataValues = <T>(messages: T[][]): unknown[] =>
+			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
+		const frames = (messages: unknown[][]) =>
+			dataValues(messages).map(
+				(envelope) =>
+					(envelope as { payload?: { value?: { frame?: unknown } } }).payload?.value?.frame,
+			);
+		const g = graph();
+		const sourceA = g.node<Uint8Array>([], null, { name: "fresh/a" });
+		const sourceB = g.node<Uint8Array>([], null, { name: "fresh/b" });
+		const bridge = wireBridge(g, { name: "freshBridge", sessionId: "session-a" });
+		wireEdgeGroup(g, bridge, {
+			name: "freshGroup",
+			edges: [
+				{ edgeId: "a", outbound: sourceA },
+				{ edgeId: "b", outbound: sourceB },
+			],
+		});
+		const outbound: unknown[][] = [];
+		bridge.outbound.subscribe((msg) => outbound.push(msg as unknown[]));
+
+		sourceA.down([["DATA", bytes(1)]]);
+		expect(frames(outbound)).toEqual([]);
+
+		sourceB.down([["DATA", bytes(2)]]);
+		expect(frames(outbound)).toEqual([
+			{ kind: "dirty", edgeId: "a", causeId: "freshGroup:cause:1" },
+			{ kind: "dirty", edgeId: "b", causeId: "freshGroup:cause:1" },
+			{ kind: "data", edgeId: "a", causeId: "freshGroup:cause:1", value: bytes(1) },
+			{ kind: "data", edgeId: "b", causeId: "freshGroup:cause:1", value: bytes(2) },
+		]);
+
+		outbound.length = 0;
+		batch(() => {
+			sourceA.down([["DATA", bytes(1)]]);
+			sourceB.down([["DATA", bytes(2)]]);
+		});
+		expect(frames(outbound)).toEqual([
+			{ kind: "dirty", edgeId: "a", causeId: "freshGroup:cause:2" },
+			{ kind: "dirty", edgeId: "b", causeId: "freshGroup:cause:2" },
+			{ kind: "data", edgeId: "a", causeId: "freshGroup:cause:2", value: bytes(1) },
+			{ kind: "data", edgeId: "b", causeId: "freshGroup:cause:2", value: bytes(2) },
+		]);
+
+		outbound.length = 0;
+		batch(() => {
+			sourceA.down([["INVALIDATE"]]);
+			sourceA.down([["DATA", bytes(5)]]);
+			sourceB.down([["DATA", bytes(6)]]);
+		});
+		expect(frames(outbound)).toEqual([
+			{ kind: "dirty", edgeId: "a", causeId: "freshGroup:cause:3" },
+			{ kind: "dirty", edgeId: "b", causeId: "freshGroup:cause:3" },
+			{ kind: "data", edgeId: "a", causeId: "freshGroup:cause:3", value: bytes(5) },
+			{ kind: "data", edgeId: "b", causeId: "freshGroup:cause:3", value: bytes(6) },
+		]);
+
+		outbound.length = 0;
+		batch(() => {
+			sourceA.down([["DATA", bytes(3)], ["INVALIDATE"]]);
+			sourceB.down([["DATA", bytes(4)]]);
+		});
+		expect(frames(outbound)).toEqual([]);
+	});
+
+	it("wireEdgeGroup D561 does not form post-bootstrap causes from current replay alone", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const dataValues = <T>(messages: T[][]): unknown[] =>
+			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
+		const frameCauseIds = (messages: unknown[][]) =>
+			dataValues(messages)
+				.map(
+					(envelope) =>
+						(envelope as { payload?: { value?: { frame?: { causeId?: string } } } }).payload?.value
+							?.frame?.causeId,
+				)
+				.filter((causeId): causeId is string => causeId !== undefined);
+		const g = graph();
+		const sourceA = g.node<Uint8Array>([], null, { name: "replay/a" });
+		const sourceB = g.node<Uint8Array>([], null, { name: "replay/b" });
+		const bridge = wireBridge(g, { name: "replayFreshBridge", sessionId: "session-a" });
+		wireEdgeGroup(g, bridge, {
+			name: "replayFreshGroup",
+			edges: [
+				{ edgeId: "a", outbound: sourceA },
+				{ edgeId: "b", outbound: sourceB },
+			],
+		});
+		const first: unknown[][] = [];
+		const unsubscribe = bridge.outbound.subscribe((msg) => first.push(msg as unknown[]));
+		batch(() => {
+			sourceA.down([["DATA", bytes(1)]]);
+			sourceB.down([["DATA", bytes(2)]]);
+		});
+		expect(frameCauseIds(first)).toContain("replayFreshGroup:cause:1");
+
+		unsubscribe();
+		const replayOnly: unknown[][] = [];
+		bridge.outbound.subscribe((msg) => replayOnly.push(msg as unknown[]));
+
+		expect(frameCauseIds(replayOnly)).not.toContain("replayFreshGroup:cause:2");
+	});
+
+	it("wireEdgeGroup D562 isolates partial inbound progress from edge projectors and releases one cohort", () => {
+		const bytes = (...values: number[]) => new Uint8Array(values);
+		const dataValues = <T>(messages: T[][]): unknown[] =>
+			messages.filter((msg) => msg[0] === "DATA").map((msg) => msg[1]);
+		const g = graph();
+		const bridge = wireBridge(g, { name: "releaseLaneBridge", sessionId: "session-a" });
+		const group = wireEdgeGroup(g, bridge, {
+			name: "releaseLaneGroup",
+			edges: [{ edgeId: "a" }, { edgeId: "b" }],
+		});
+		const inboundA = group.inbound.get("a");
+		const inboundB = group.inbound.get("b");
+		if (inboundA === undefined || inboundB === undefined) throw new Error("missing inbound edge");
+		const join = g.node<readonly [Uint8Array, Uint8Array]>(
+			[inboundA, inboundB],
+			(ctx) => {
+				const a = depBatch(ctx, 0);
+				const b = depBatch(ctx, 1);
+				if (a && b) ctx.down([["DATA", [a.at(-1), b.at(-1)] as const]]);
+			},
+			{ name: "releaseLaneJoin" },
+		);
+		const inboundMessages: unknown[][] = [];
+		const joinMessages: unknown[][] = [];
+		const status: unknown[][] = [];
+		const issues: unknown[][] = [];
+		inboundA.subscribe((msg) => inboundMessages.push(msg as unknown[]));
+		join.subscribe((msg) => joinMessages.push(msg as unknown[]));
+		group.status.subscribe((msg) => status.push(msg as unknown[]));
+		group.issues.subscribe((msg) => issues.push(msg as unknown[]));
+		const envelope = (seq: number, frame: Record<string, unknown>) =>
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq,
+				payload: { kind: "data", value: { kind: "wire_edge", frame } },
+			});
+
+		bridge.inbound.down([
+			["DATA", envelope(1, { kind: "dirty", edgeId: "a", causeId: "c1" })],
+			["DATA", envelope(2, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) })],
+		]);
+		expect(inboundMessages).toEqual([["START"]]);
+		expect(joinMessages).toEqual([["START"]]);
+		expect(dataValues(status).at(-1)).toEqual(
+			expect.objectContaining({ state: "collecting", dirty: 1, data: 1, released: 0 }),
+		);
+
+		bridge.inbound.down([
+			["DATA", envelope(3, { kind: "dirty", edgeId: "b", causeId: "c1" })],
+			["DATA", envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) })],
+		]);
+		expect(dataValues(inboundMessages)).toEqual([bytes(10)]);
+		expect(dataValues(joinMessages)).toEqual([[bytes(10), bytes(20)]]);
+		expect(dataValues(status).at(-1)).toEqual(
+			expect.objectContaining({ state: "released", dirty: 2, data: 2, released: 2 }),
+		);
+
+		bridge.inbound.down([["DATA", envelope(5, { kind: "dirty", edgeId: "a", causeId: "c1" })]]);
+		expect(dataValues(issues)).toContainEqual(
+			expect.objectContaining({ code: "wire-edge-group-duplicate-dirty", causeId: "c1" }),
+		);
+		expect(group.issues.status).not.toBe("errored");
+		expect(group.status.status).not.toBe("errored");
 	});
 
 	it("wireEdgeGroup D501 fails closed for duplicate, data-before-dirty, competing, and incomplete causes", () => {

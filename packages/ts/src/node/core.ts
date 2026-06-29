@@ -11,6 +11,7 @@ export interface DepBookkeeping {
 	batch: Array<unknown[] | null>;
 	waveData: unknown[][][];
 	waveTokens: Array<object | undefined>;
+	waveLive: boolean[][];
 	prev: unknown[];
 	hasData: boolean[];
 	dirty: boolean[];
@@ -279,6 +280,7 @@ export function makeDepBookkeeping(depCount: number): DepBookkeeping {
 		batch: new Array(depCount).fill(null),
 		waveData: Array.from({ length: depCount }, () => []),
 		waveTokens: new Array(depCount).fill(undefined),
+		waveLive: Array.from({ length: depCount }, () => []),
 		prev: new Array(depCount).fill(SENTINEL),
 		hasData: new Array(depCount).fill(false),
 		dirty: new Array(depCount).fill(false),

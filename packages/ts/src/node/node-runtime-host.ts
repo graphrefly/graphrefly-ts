@@ -63,7 +63,12 @@ export interface NodeRuntimeHost<T = unknown> {
 	_passthroughEmit(): void;
 	_runWave(): void;
 	_buildCtx(): Ctx;
-	_makeCtx(snapshot?: { waveData: unknown[][][]; terminal: unknown[]; latest: unknown[] }): Ctx;
+	_makeCtx(snapshot?: {
+		waveData: unknown[][][];
+		waveLive?: boolean[][];
+		terminal: unknown[];
+		latest: unknown[];
+	}): Ctx;
 	_refreshCtx(ctx: Ctx): void;
 	_makeState(): CtxState;
 	_down(msgs: Wave): void;

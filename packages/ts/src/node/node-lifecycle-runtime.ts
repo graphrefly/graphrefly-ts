@@ -69,6 +69,7 @@ export function nodeSeedRestoredDepAt<T>(
 	self._dep.batch[idx] = null;
 	self._dep.waveData[idx] = [];
 	self._dep.waveTokens[idx] = undefined;
+	self._dep.waveLive[idx] = [];
 	self._dep.prev[idx] = seedData ? dep._value.cache : SENTINEL;
 	self._dep.hasData[idx] = seedData;
 	self._dep.dirty[idx] = false;
@@ -166,6 +167,7 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._dep.batch = [];
 	self._dep.waveData = [];
 	self._dep.waveTokens = [];
+	self._dep.waveLive = [];
 	self._dep.prev = [];
 	self._dep.hasData = [];
 	self._dep.dirty = [];
@@ -208,6 +210,7 @@ export function nodeResetDepState<T>(self: NodeRuntimeHost<T>): void {
 		self._dep.batch[i] = null;
 		self._dep.waveData[i] = [];
 		self._dep.waveTokens[i] = undefined;
+		self._dep.waveLive[i] = [];
 		self._dep.prev[i] = SENTINEL;
 		self._dep.hasData[i] = false;
 		self._dep.dirty[i] = false;

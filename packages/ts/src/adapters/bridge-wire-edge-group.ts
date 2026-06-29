@@ -1,6 +1,7 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import { type Ctx, depBatch, depLiveWaves, depWaves } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
+import { SENTINEL } from "../protocol/messages.js";
 import type { CanonicalWireEdgeFrame } from "./bridge-protobuf.js";
 import type {
 	WireBridgeBundle,
@@ -57,12 +58,18 @@ type Event =
 	| { kind: "bridge-end" }
 	| { kind: "issue"; issue: WireEdgeGroupIssue };
 type Gate =
-	| { kind: "release"; causeId: string; edgeId: string; value: Uint8Array }
+	| { kind: "release"; causeId: string; values: ReadonlyMap<string, Uint8Array> }
 	| { kind: "progress"; causeId: string; dirty: number; data: number }
 	| { kind: "issue"; issue: WireEdgeGroupIssue };
+interface ReleaseCohort {
+	readonly causeId: string;
+	readonly values: ReadonlyMap<string, Uint8Array>;
+}
 interface OutState {
 	nextCause: number;
 	snapshots: Map<string, Uint8Array>;
+	pendingFresh: Map<string, Uint8Array>;
+	emittedCause: boolean;
 }
 interface GateState {
 	activeCauseId?: string;
@@ -124,7 +131,11 @@ export function wireEdgeGroup(
 			terminalAsRealInput: true,
 		},
 	);
-	const gate = topology.node<Gate>([events], gateFn(name, expected), {
+	const releaseCohorts = topology.node<ReleaseCohort>([], null, {
+		name: `${name}/releaseCohorts`,
+		factory: "wireEdgeGroupReleaseCohorts",
+	});
+	const gate = topology.node<Gate>([events], gateFn(name, expected, releaseCohorts), {
 		name: `${name}/gate`,
 		factory: "wireEdgeGroupGate",
 		partial: true,
@@ -180,12 +191,12 @@ export function wireEdgeGroup(
 				[
 					edge.edgeId,
 					topology.node<Uint8Array>(
-						[gate],
+						[releaseCohorts],
 						(ctx) => {
 							for (const raw of depBatch(ctx, 0) ?? []) {
-								const event = raw as Gate;
-								if (event.kind === "release" && event.edgeId === edge.edgeId)
-									ctx.down([["DATA", Uint8Array.from(event.value)]]);
+								const cohort = raw as ReleaseCohort;
+								const value = cohort.values.get(edge.edgeId);
+								if (value !== undefined) ctx.down([["DATA", Uint8Array.from(value)]]);
 							}
 						},
 						{
@@ -269,31 +280,45 @@ function eventsFn(
 	return (ctx) => {
 		let st = ctx.state.get<OutState>();
 		if (!st) {
-			st = { nextCause: 1, snapshots: new Map() };
+			st = {
+				nextCause: 1,
+				snapshots: new Map(),
+				pendingFresh: new Map(),
+				emittedCause: false,
+			};
 			ctx.state.set(st);
+			ctx.state.persist(true);
 		}
 		let trigger = false;
 		for (let i = 0; i < outboundIndexes.length; i++) {
 			const edge = byDep.get(i);
 			if (!edge) continue;
-			for (const raw of depBatch(ctx, i) ?? []) {
-				if (!(raw instanceof Uint8Array))
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "issue",
-								issue: issue(
-									"wire-edge-group-malformed-frame",
-									`${name}: outbound edge ${edge.edgeId} must emit Uint8Array bytes`,
-									{ edgeId: edge.edgeId },
-								),
-							} satisfies Event,
-						],
-					]);
-				else {
-					st.snapshots.set(edge.edgeId, Uint8Array.from(raw));
-					trigger = true;
+			const waves = st.emittedCause ? depLiveWaves(ctx, i) : depWaves(ctx, i);
+			for (const wave of waves) {
+				for (const raw of wave) {
+					if (raw === SENTINEL) {
+						st.snapshots.delete(edge.edgeId);
+						st.pendingFresh.delete(edge.edgeId);
+					} else if (!(raw instanceof Uint8Array)) {
+						ctx.down([
+							[
+								"DATA",
+								{
+									kind: "issue",
+									issue: issue(
+										"wire-edge-group-malformed-frame",
+										`${name}: outbound edge ${edge.edgeId} must emit Uint8Array bytes`,
+										{ edgeId: edge.edgeId },
+									),
+								} satisfies Event,
+							],
+						]);
+					} else {
+						const value = Uint8Array.from(raw);
+						st.snapshots.set(edge.edgeId, value);
+						st.pendingFresh.set(edge.edgeId, Uint8Array.from(value));
+						trigger = true;
+					}
 				}
 			}
 		}
@@ -310,7 +335,7 @@ function emitOutbound(
 	edges: readonly WireEdgeGroupEdge[],
 	st: OutState,
 ): void {
-	const missing = edges.filter((edge) => !st.snapshots.has(edge.edgeId));
+	const missing = edges.filter((edge) => !st.pendingFresh.has(edge.edgeId));
 	if (missing.length) {
 		for (const edge of missing)
 			ctx.down([
@@ -340,7 +365,7 @@ function emitOutbound(
 			],
 		]);
 	for (const edge of edges) {
-		const value = st.snapshots.get(edge.edgeId);
+		const value = st.pendingFresh.get(edge.edgeId);
 		if (value)
 			ctx.down([
 				[
@@ -352,6 +377,8 @@ function emitOutbound(
 				],
 			]);
 	}
+	st.pendingFresh.clear();
+	st.emittedCause = true;
 }
 function frameEvent(name: string, envelope: WireBridgeEnvelope<unknown>): Event | undefined {
 	if (envelope.type === "close" || envelope.type === "error") return { kind: "bridge-end" };
@@ -415,7 +442,11 @@ function validate(name: string, frame: unknown): WireEdgeGroupIssue | undefined 
 		);
 	return undefined;
 }
-function gateFn(name: string, expectedIds: readonly string[]): (ctx: Ctx) => void {
+function gateFn(
+	name: string,
+	expectedIds: readonly string[],
+	releaseCohorts: Node<ReleaseCohort>,
+): (ctx: Ctx) => void {
 	const expected = new Set(expectedIds);
 	return (ctx) => {
 		let st = ctx.state.get<GateState>();
@@ -427,6 +458,7 @@ function gateFn(name: string, expectedIds: readonly string[]): (ctx: Ctx) => voi
 				released: new CauseTombstones(),
 			};
 			ctx.state.set(st);
+			ctx.state.persist(true);
 		}
 		const emitIssue = (i: WireEdgeGroupIssue) =>
 			ctx.down([["DATA", { kind: "issue", issue: i } satisfies Gate]]);
@@ -559,21 +591,13 @@ function gateFn(name: string, expectedIds: readonly string[]): (ctx: Ctx) => voi
 			}
 			st.data.set(f.edgeId, Uint8Array.from(f.value ?? new Uint8Array()));
 			if (st.dirty.size === expectedIds.length && st.data.size === expectedIds.length) {
+				const values = new Map<string, Uint8Array>();
 				for (const edgeId of expectedIds) {
 					const value = st.data.get(edgeId);
-					if (value)
-						ctx.down([
-							[
-								"DATA",
-								{
-									kind: "release",
-									causeId: f.causeId,
-									edgeId,
-									value: Uint8Array.from(value),
-								} satisfies Gate,
-							],
-						]);
+					if (value) values.set(edgeId, Uint8Array.from(value));
 				}
+				releaseCohorts.down([["DATA", { causeId: f.causeId, values } satisfies ReleaseCohort]]);
+				ctx.down([["DATA", { kind: "release", causeId: f.causeId, values } satisfies Gate]]);
 				st.released.add(f.causeId);
 				reset();
 			} else progress(f.causeId);
@@ -616,7 +640,7 @@ function statusFn(expectedIds: readonly string[]): (ctx: Ctx) => void {
 					activeCauseId: ev.causeId,
 					dirty: expectedIds.length,
 					data: expectedIds.length,
-					released: next.released + 1,
+					released: next.released + ev.values.size,
 				};
 		}
 		ctx.state.set(next);

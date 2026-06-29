@@ -725,6 +725,7 @@ export class Node<T = unknown> {
 
 	private _makeCtx(snapshot?: {
 		waveData: unknown[][][];
+		waveLive?: boolean[][];
 		terminal: unknown[];
 		latest: unknown[];
 	}): Ctx {
