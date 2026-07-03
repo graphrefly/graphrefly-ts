@@ -154,7 +154,15 @@ const expectedSubpaths = {
 		absent: ["agenticMemoryBundle", "workItemAuthoringProjector", "persistAgenticMemoryRecords"],
 	},
 	"./scoring": {
-		present: ["cosineSimilarity", "admissionScored", "admissionFilter3D"],
+		present: [
+			"cosineSimilarity",
+			"admissionScored",
+			"admissionFilter3D",
+			"scoreSubjects",
+			"rankScoredSubjects",
+			"normalizeScoreSignal",
+			"isFiniteScore",
+		],
 		absent: ["memoryRetrievalBundle", "agenticMemoryBundle", "workItemAuthoringProjector"],
 	},
 	"./solutions/agentic-memory": {
@@ -515,7 +523,19 @@ import {
 	memoryRetrievalBundle,
 	type MemoryRetrievalBundleOptions,
 } from "@graphrefly/ts/memory/semantic";
-import { admissionScored, cosineSimilarity, type ScoringPolicy } from "@graphrefly/ts/scoring";
+import {
+	admissionScored,
+	cosineSimilarity,
+	isFiniteScore,
+	normalizeScoreSignal,
+	rankScoredSubjects,
+	scoreSubjects,
+	type ScoredSubject,
+	type ScorePolicy,
+	type ScoringPolicy,
+	type ScoreSignal,
+	type ScoreSubject,
+} from "@graphrefly/ts/scoring";
 import {
 	agenticMemoryBundle,
 	type AgenticMemoryBundleOptions as FocusedAgenticMemoryBundleOptions,
@@ -570,6 +590,10 @@ void validateMemoryFragment;
 void memoryRetrievalBundle;
 void admissionScored;
 void cosineSimilarity;
+void isFiniteScore;
+void normalizeScoreSignal;
+void rankScoredSubjects;
+void scoreSubjects;
 void agenticMemoryBundle;
 void agenticWorkItemMemory;
 void workItemAuthoringProjector;
@@ -583,6 +607,10 @@ const node: BoundaryNode | undefined = manifest.inputs[0] ?? manifest.outputs[0]
 declare const memoryNamespaceFragment: MemoryNamespaceFragment;
 declare const memoryRetrievalOptions: MemoryRetrievalBundleOptions;
 declare const scoringPolicy: ScoringPolicy;
+declare const scorePolicy: ScorePolicy;
+declare const scoreSignal: ScoreSignal;
+declare const scoreSubject: ScoreSubject;
+declare const scoredSubject: ScoredSubject;
 declare const focusedAgenticMemoryBundleOptions: FocusedAgenticMemoryBundleOptions;
 declare const focusedAgenticMemoryRecord: FocusedAgenticMemoryRecord;
 declare const workItemProjection: WorkItemProjection;
@@ -627,6 +655,10 @@ void node;
 void memoryNamespaceFragment;
 void memoryRetrievalOptions;
 void scoringPolicy;
+void scorePolicy;
+void scoreSignal;
+void scoreSubject;
+void scoredSubject;
 void focusedAgenticMemoryBundleOptions;
 void focusedAgenticMemoryRecord;
 void workItemProjection;

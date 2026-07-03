@@ -410,6 +410,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof scoring.cosineSimilarity).toBe("function");
 		expect(typeof scoring.admissionScored).toBe("function");
 		expect(typeof scoring.admissionFilter3D).toBe("function");
+		expect(typeof scoring.scoreSubjects).toBe("function");
+		expect(typeof scoring.rankScoredSubjects).toBe("function");
+		expect(typeof scoring.normalizeScoreSignal).toBe("function");
+		expect(typeof scoring.isFiniteScore).toBe("function");
 		expect(Object.hasOwn(scoring, "memoryRetrievalBundle")).toBe(false);
 		expect(Object.hasOwn(scoring, "agenticMemoryBundle")).toBe(false);
 		expect(typeof memory.validateMemoryFragment).toBe("function");

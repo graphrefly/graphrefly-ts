@@ -25,3 +25,26 @@ export {
 	type ScoringPolicy,
 	type VectorSearchResult,
 } from "../patterns/semantic-memory.js";
+export {
+	isFiniteScore,
+	normalizeScoreSignal,
+	rankScoredSubjects,
+	scoreSubjects,
+} from "./helpers.js";
+export type {
+	NormalizedScoreSignal,
+	ScoreBreakdown,
+	ScoredSubject,
+	ScoredView,
+	ScoreMissingBehavior,
+	ScorePolicy,
+	ScorePolicyDimension,
+	ScoreRef,
+	ScoreSignal,
+	ScoreSubject,
+	ScoreSubjectsOptions,
+	ScoreTieBreaker,
+	ScoringCursor,
+	ScoringIssue,
+	ScoringStatus,
+} from "./types.js";
