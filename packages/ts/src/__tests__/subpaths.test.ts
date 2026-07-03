@@ -32,6 +32,7 @@ import * as executorWorkQueueRecipe from "../executors/work-queue.js";
 import * as graphLayer from "../graph/index.js";
 import type {
 	AgenticMemoryBundleOptions,
+	AgenticMemoryConsolidationApplicationBundle,
 	AgenticMemoryConsolidationBundle,
 	AgenticMemoryConsolidationBundleOptions,
 	AgenticMemoryContextAttribution,
@@ -41,6 +42,9 @@ import type {
 	AgenticMemoryProposalAdmissionDecision,
 	AgenticMemoryProposalAdmissionPolicy,
 	AgenticMemoryRecord,
+	AgenticMemoryRecordApplicationDecision,
+	AgenticMemoryRecordApplicationHistory,
+	AgenticMemoryRecordApplicationPolicy,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
 	AgenticMemoryRecordsPersistenceHandle,
@@ -948,7 +952,13 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof rootPackage.agenticMemoryContextPackingBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryRecordAdmissionBundle).toBe("function");
 		expect(typeof rootPackage.admitAgenticMemoryRecordProposals).toBe("function");
+		expect(typeof rootPackage.agenticMemoryRecordApplicationBundle).toBe("function");
+		expect(typeof rootPackage.agenticMemoryConsolidationApplicationBundle).toBe("function");
+		expect(typeof rootPackage.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordApplicationBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryConsolidationApplicationBundle).toBe("function");
+		expect(typeof solutions.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryKgProjectionBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordFrame).toBe("function");
@@ -956,10 +966,19 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.agenticMemoryRecordCodec).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRetentionBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryConsolidationBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryContextPackingBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordAdmissionBundle).toBe("function");
 		expect(typeof agenticMemory.admitAgenticMemoryRecordProposals).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordApplicationBundle).toBe("function");
+		expect(typeof agenticMemory.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
+		expectTypeOf<AgenticMemoryRecordApplicationPolicy>().toHaveProperty("policyId");
+		expectTypeOf<AgenticMemoryRecordApplicationDecision>()
+			.toHaveProperty("reasonCode")
+			.toEqualTypeOf<string>();
+		expectTypeOf<AgenticMemoryRecordApplicationHistory>().toHaveProperty("entries");
+		expectTypeOf<AgenticMemoryConsolidationApplicationBundle>().toHaveProperty("application");
 		expectTypeOf<AgenticMemoryRecordCandidateMaterial>().toHaveProperty("record");
 		expectTypeOf<AgenticMemoryRecordCandidateMaterial>().toHaveProperty("attribution");
 		expectTypeOf<AgenticMemoryContextAttribution>()
@@ -1050,6 +1069,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.agenticMemoryRecordCodec).toBe("function");
 		expect(typeof solutions.agenticMemoryRetentionBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryConsolidationBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryContextPackingBundle).toBe("function");
 		expect(typeof workItemSolution.workItemAuthoringProjector).toBe("function");
 		expect(typeof workItemSolution.workItemDomainActionProposalIntakeProjector).toBe("function");

@@ -269,6 +269,173 @@ export interface AgenticMemoryRecordAdmissionBundleOptions<T = unknown> {
 	readonly policy: Node<AgenticMemoryRecordAdmissionPolicy>;
 }
 
+/**
+ * D577 policy for the AgenticMemory-owned application stage after admission.
+ *
+ * This policy is DATA only. It owns no storage, hydration, provider/runtime,
+ * permission, graph/node handle, or protocol authority.
+ */
+export interface AgenticMemoryRecordApplicationPolicy {
+	readonly kind: "agentic-memory-record-application-policy";
+	readonly policyId: FactId;
+	readonly requireAdmittedState?: true;
+	readonly rejectDuplicateRecordIds?: true;
+	readonly rejectDuplicateFragmentIds?: true;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+/** Graph-visible evidence that an admission/material coordinate was already applied. */
+export interface AgenticMemoryRecordApplicationEvidence {
+	readonly kind: "agentic-memory-record-application-evidence";
+	readonly applicationId?: FactId;
+	readonly admissionId: FactId;
+	readonly proposalId?: FactId;
+	readonly idempotencyKey?: string;
+	readonly recordId: FactId;
+	readonly fragmentId: FactId;
+	readonly targetRecordId?: FactId;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+/** Optional DATA-only application/idempotency history supplied by the graph. */
+export interface AgenticMemoryRecordApplicationHistory {
+	readonly kind: "agentic-memory-record-application-history";
+	readonly entries: readonly AgenticMemoryRecordApplicationEvidence[];
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+export type AgenticMemoryRecordApplicationDecisionState = "applied" | "skipped" | "rejected";
+
+export type AgenticMemoryRecordApplicationReasonCode =
+	| "applied-create"
+	| "already-applied"
+	| "skipped-non-admitted"
+	| "blocked-admission-issues"
+	| "record-id-conflict"
+	| "fragment-id-conflict"
+	| "target-record-id-mismatch"
+	| "idempotency-conflict"
+	| "invalid-history"
+	| "invalid-policy"
+	| (string & {});
+
+/** D577 application decision fact. Rejected decisions are DATA decisions, not protocol ERRORs. */
+export interface AgenticMemoryRecordApplicationDecision<T = unknown> {
+	readonly kind: "agentic-memory-record-application-decision";
+	readonly applicationId: FactId;
+	readonly admissionId: FactId;
+	readonly proposalId: FactId;
+	readonly state: AgenticMemoryRecordApplicationDecisionState;
+	readonly reasonCode: AgenticMemoryRecordApplicationReasonCode;
+	readonly reason?: string;
+	readonly candidateMaterial: AgenticMemoryRecordCandidateMaterial<T>;
+	readonly record?: AgenticMemoryRecord<T>;
+	readonly targetRecordId?: FactId;
+	readonly idempotencyKey?: string;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
+}
+
+export interface AgenticMemoryRecordApplicationAuditEntry {
+	readonly kind: "agentic-memory-record-application-audit";
+	readonly applicationId: FactId;
+	readonly admissionId: FactId;
+	readonly proposalId: FactId;
+	readonly state: AgenticMemoryRecordApplicationDecisionState;
+	readonly reasonCode: AgenticMemoryRecordApplicationReasonCode;
+	readonly reason?: string;
+	readonly recordId: FactId;
+	readonly fragmentId: FactId;
+	readonly targetRecordId?: FactId;
+	readonly idempotencyKey?: string;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
+}
+
+export interface AgenticMemoryRecordApplicationCursor {
+	readonly evaluation: number;
+	readonly records: number;
+	readonly validRecords: number;
+	readonly invalidRecords: number;
+	readonly admissions: number;
+	readonly validAdmissions: number;
+	readonly invalidAdmissions: number;
+	readonly historyEntries: number;
+	readonly invalidHistoryEntries: number;
+	readonly applied: number;
+	readonly skipped: number;
+	readonly rejected: number;
+	readonly issues: number;
+}
+
+export type AgenticMemoryRecordApplicationStatusState =
+	| "ready"
+	| "empty"
+	| "partial"
+	| "blocked"
+	| "error";
+
+export interface AgenticMemoryRecordApplicationStatus {
+	readonly state: AgenticMemoryRecordApplicationStatusState;
+	readonly cursor: AgenticMemoryRecordApplicationCursor;
+}
+
+export interface AgenticMemoryRecordApplicationSnapshot<T = unknown> {
+	readonly records: readonly AgenticMemoryRecord<T>[];
+	readonly appliedRecords: readonly AgenticMemoryRecord<T>[];
+	readonly applicationDecisions: readonly AgenticMemoryRecordApplicationDecision<T>[];
+	readonly status: AgenticMemoryRecordApplicationStatus;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgenticMemoryRecordApplicationAuditEntry[];
+	readonly cursor: AgenticMemoryRecordApplicationCursor;
+}
+
+export interface AgenticMemoryRecordApplicationOptions<T = unknown> {
+	readonly records?: readonly AgenticMemoryRecord<T>[];
+	readonly history?:
+		| AgenticMemoryRecordApplicationHistory
+		| readonly AgenticMemoryRecordApplicationEvidence[];
+	readonly evaluation?: number;
+}
+
+export interface AgenticMemoryRecordApplicationBundle<T = unknown> {
+	readonly input: {
+		readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
+		readonly admissions: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
+		readonly policy: Node<AgenticMemoryRecordApplicationPolicy>;
+		readonly history?:
+			| Node<AgenticMemoryRecordApplicationHistory>
+			| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
+	};
+	readonly projection: Node<AgenticMemoryRecordApplicationSnapshot<T>>;
+	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
+	readonly appliedRecords: Node<readonly AgenticMemoryRecord<T>[]>;
+	readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
+	readonly status: Node<AgenticMemoryRecordApplicationStatus>;
+	readonly issues: Node<readonly DataIssue[]>;
+	readonly audit: Node<readonly AgenticMemoryRecordApplicationAuditEntry[]>;
+	readonly cursor: Node<AgenticMemoryRecordApplicationCursor>;
+}
+
+export interface AgenticMemoryRecordApplicationBundleOptions<T = unknown> {
+	readonly name?: string;
+	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
+	readonly admissions: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
+	readonly policy: Node<AgenticMemoryRecordApplicationPolicy>;
+	readonly history?:
+		| Node<AgenticMemoryRecordApplicationHistory>
+		| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
+}
+
 export interface AgenticMemoryRecordMetadata {
 	readonly recordId: FactId;
 	readonly kind: AgenticMemoryKind;
@@ -684,6 +851,43 @@ export interface AgenticMemoryConsolidationBundleOptions<T = unknown> {
 	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
 	readonly requests: Node<readonly AgenticMemoryConsolidationRequest[]>;
 	readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
+}
+
+export interface AgenticMemoryConsolidationApplicationBundle<T = unknown> {
+	readonly input: {
+		readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
+		readonly requests: Node<readonly AgenticMemoryConsolidationRequest[]>;
+		readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
+		readonly admissionPolicy: Node<AgenticMemoryRecordAdmissionPolicy>;
+		readonly applicationPolicy: Node<AgenticMemoryRecordApplicationPolicy>;
+		readonly applicationHistory?:
+			| Node<AgenticMemoryRecordApplicationHistory>
+			| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
+	};
+	/** D171 consolidation projection: emits proposal-compatible DATA, not record truth. */
+	readonly consolidation: AgenticMemoryConsolidationBundle<T>;
+	/** D572/D573 proposal admission over consolidation-emitted proposals. */
+	readonly admission: AgenticMemoryRecordAdmissionBundle<T>;
+	/** D577 AgenticMemory-owned record application boundary. */
+	readonly application: AgenticMemoryRecordApplicationBundle<T>;
+	/** Full next AgenticMemoryRecord snapshot after admitted create-only application. */
+	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
+	readonly appliedRecords: Node<readonly AgenticMemoryRecord<T>[]>;
+	readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
+	readonly applicationStatus: Node<AgenticMemoryRecordApplicationStatus>;
+	readonly applicationIssues: Node<readonly DataIssue[]>;
+}
+
+export interface AgenticMemoryConsolidationApplicationBundleOptions<T = unknown> {
+	readonly name?: string;
+	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
+	readonly requests: Node<readonly AgenticMemoryConsolidationRequest[]>;
+	readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
+	readonly admissionPolicy: Node<AgenticMemoryRecordAdmissionPolicy>;
+	readonly applicationPolicy: Node<AgenticMemoryRecordApplicationPolicy>;
+	readonly applicationHistory?:
+		| Node<AgenticMemoryRecordApplicationHistory>
+		| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
 }
 
 export interface AgenticMemoryContextText {

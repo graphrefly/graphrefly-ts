@@ -172,6 +172,9 @@ const expectedSubpaths = {
 			"agenticMemoryRetentionBundle",
 			"admitAgenticMemoryRecordProposals",
 			"agenticMemoryRecordAdmissionBundle",
+			"applyAgenticMemoryRecordAdmissions",
+			"agenticMemoryRecordApplicationBundle",
+			"agenticMemoryConsolidationApplicationBundle",
 		],
 		absent: [
 			"workItemAuthoringProjector",
@@ -545,10 +548,15 @@ import {
 import {
 	admitAgenticMemoryRecordProposals,
 	agenticMemoryBundle,
+	agenticMemoryConsolidationApplicationBundle,
 	type AgenticMemoryBundleOptions as FocusedAgenticMemoryBundleOptions,
+	type AgenticMemoryConsolidationApplicationBundle,
 	type AgenticMemoryRecord as FocusedAgenticMemoryRecord,
 	agenticMemoryRecordAdmissionBundle,
 	type AgenticMemoryRecordAdmissionPolicy,
+	agenticMemoryRecordApplicationBundle,
+	type AgenticMemoryRecordApplicationPolicy,
+	applyAgenticMemoryRecordAdmissions,
 } from "@graphrefly/ts/solutions/agentic-memory";
 import * as agenticWorkItemMemory from "@graphrefly/ts/solutions/agentic-work-item-memory";
 import {
@@ -605,7 +613,10 @@ void rankScoredSubjects;
 void scoreSubjects;
 void admitAgenticMemoryRecordProposals;
 void agenticMemoryBundle;
+void agenticMemoryConsolidationApplicationBundle;
 void agenticMemoryRecordAdmissionBundle;
+void agenticMemoryRecordApplicationBundle;
+void applyAgenticMemoryRecordAdmissions;
 void agenticWorkItemMemory;
 void workItemAuthoringProjector;
 void isWorkspaceProposalProjectionReleaseMaterial;
@@ -623,8 +634,10 @@ declare const scoreSignal: ScoreSignal;
 declare const scoreSubject: ScoreSubject;
 declare const scoredSubject: ScoredSubject;
 declare const focusedAgenticMemoryBundleOptions: FocusedAgenticMemoryBundleOptions;
+declare const focusedConsolidationApplicationBundle: AgenticMemoryConsolidationApplicationBundle;
 declare const focusedAgenticMemoryRecord: FocusedAgenticMemoryRecord;
 declare const agenticMemoryRecordAdmissionPolicy: AgenticMemoryRecordAdmissionPolicy;
+declare const agenticMemoryRecordApplicationPolicy: AgenticMemoryRecordApplicationPolicy;
 declare const workItemProjection: WorkItemProjection;
 declare const recipeBundle: ToolProviderExecutionRecipeBundle;
 declare const recipeOptions: ToolProviderExecutionRecipeOptions;
@@ -672,8 +685,10 @@ void scoreSignal;
 void scoreSubject;
 void scoredSubject;
 void focusedAgenticMemoryBundleOptions;
+void focusedConsolidationApplicationBundle;
 void focusedAgenticMemoryRecord;
 void agenticMemoryRecordAdmissionPolicy;
+void agenticMemoryRecordApplicationPolicy;
 void workItemProjection;
 void recipeBundle;
 void recipeOptions;

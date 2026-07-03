@@ -14,9 +14,11 @@ export type {
 } from "../patterns/semantic-memory.js";
 export * from "./agentic-memory-bundle.js";
 export * from "./agentic-memory-consolidation.js";
+export * from "./agentic-memory-consolidation-application.js";
 export * from "./agentic-memory-context-packing.js";
 export * from "./agentic-memory-frame.js";
 export * from "./agentic-memory-kg.js";
 export * from "./agentic-memory-proposal-admission.js";
+export * from "./agentic-memory-record-application.js";
 export * from "./agentic-memory-retention.js";
 export * from "./agentic-memory-types.js";
