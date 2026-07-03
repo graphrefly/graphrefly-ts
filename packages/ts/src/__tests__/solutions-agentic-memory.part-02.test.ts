@@ -17,6 +17,8 @@ import {
 	type AgenticMemoryKgAssertionDraft,
 	type AgenticMemoryKgProjectionError,
 	type AgenticMemoryPackedContext,
+	type AgenticMemoryProposalAdmissionDecision,
+	type AgenticMemoryProposalAdmissionPolicy,
 	type AgenticMemoryRecord,
 	type AgenticMemoryRecordAdmission,
 	type AgenticMemoryRecordAdmissionPolicy,
@@ -25,6 +27,7 @@ import {
 	type AgenticMemoryRetentionCommand,
 	type AgenticMemoryRetentionError,
 	type AgenticMemorySourceProjection,
+	admitAgenticMemoryRecordProposals,
 	agenticMemoryBundle,
 	agenticMemoryConsolidationBundle,
 	agenticMemoryContextPackingBundle,
@@ -275,10 +278,13 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				{
 					kind: "agentic-memory-record-proposal",
 					proposalId: "proposal-1",
-					candidateRecord: record({
-						id: "record-new",
-						fragment: fragment({ id: "new", payload: "new insight" }),
-					}),
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-new",
+							fragment: fragment({ id: "new", payload: "new insight" }),
+						}),
+					},
 					reason: "human-approved import",
 					sourceRefs: [{ kind: "review", id: "review-1" }],
 					policyRefs: [{ kind: "policy", id: "mapper-1" }],
@@ -329,7 +335,9 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 					admissionId: 'admission:["admission-policy","proposal-1"]',
 					proposalId: "proposal-1",
 					state: "admitted",
-					candidateRecord: expect.objectContaining({ id: "record-new" }),
+					candidateMaterial: expect.objectContaining({
+						record: expect.objectContaining({ id: "record-new" }),
+					}),
 					sourceRefs: expect.arrayContaining([{ kind: "review", id: "review-1" }]),
 					policyRefs: expect.arrayContaining([
 						{ kind: "agentic-memory-record-admission-policy", id: "admission-policy" },
@@ -360,19 +368,25 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				{
 					kind: "agentic-memory-record-proposal",
 					proposalId: "duplicate",
-					candidateRecord: record({
-						id: "record-existing",
-						fragment: fragment({ id: "replacement" }),
-					}),
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-existing",
+							fragment: fragment({ id: "replacement" }),
+						}),
+					},
 					sourceRefs: [{ kind: "import", id: "import-1" }],
 				},
 				{
 					kind: "agentic-memory-record-proposal",
 					proposalId: "missing-source",
-					candidateRecord: record({
-						id: "record-new",
-						fragment: fragment({ id: "new" }),
-					}),
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-new",
+							fragment: fragment({ id: "new" }),
+						}),
+					},
 				},
 			],
 			{ name: "proposals" },
@@ -427,21 +441,30 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 			{
 				kind: "agentic-memory-record-proposal",
 				proposalId: "bad-candidate",
-				candidateRecord: record({ id: "", fragment: fragment({ id: "" }) }),
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "", fragment: fragment({ id: "" }) }),
+				},
 				sourceRefs: [{ kind: "import", id: "import-1" }],
 			},
 			{
 				kind: "agentic-memory-record-proposal",
 				proposalId: "unreadable",
-				candidateRecord: record({ id: "unreadable", fragment: fragment({ id: "unreadable" }) }),
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "unreadable", fragment: fragment({ id: "unreadable" }) }),
+				},
 			},
 			{
 				kind: "agentic-memory-record-proposal",
 				proposalId: "runtime-field",
-				candidateRecord: record({
-					id: "runtime-field",
-					fragment: fragment({ id: "runtime-field" }),
-				}),
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({
+						id: "runtime-field",
+						fragment: fragment({ id: "runtime-field" }),
+					}),
+				},
 				sourceRefs: [
 					{
 						kind: "import",
@@ -507,7 +530,10 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				{
 					kind: "agentic-memory-record-proposal",
 					proposalId: "proposal-1",
-					candidateRecord: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+					},
 					sourceRefs: [{ kind: "import", id: "import-1" }],
 				},
 			],
@@ -530,13 +556,19 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 			proposals,
 			policy,
 		});
-		const needsReview = collect(bundle.needsReview);
+		const rejected = collect(bundle.rejected);
 		const issues = collect(bundle.issues);
 		const status = collect(bundle.status);
 
-		expect(
-			data<readonly AgenticMemoryRecordAdmission<string>[]>(needsReview.messages).at(-1),
-		).toEqual([expect.objectContaining({ proposalId: "proposal-1", state: "needs-review" })]);
+		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(rejected.messages).at(-1)).toEqual(
+			[
+				expect.objectContaining({
+					proposalId: "proposal-1",
+					state: "rejected",
+					reason: "policy:invalid-policy",
+				}),
+			],
+		);
 		const latestIssues = data<readonly { readonly code: string; readonly details?: unknown }[]>(
 			issues.messages,
 		).at(-1);
@@ -546,9 +578,259 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 		expect(latestIssues?.every((issue) => !Object.hasOwn(issue, "details"))).toBe(true);
 		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
 			state: "partial",
-			cursor: { validProposals: 1, invalidProposals: 0, invalidPolicies: 1 },
+			cursor: { validProposals: 1, invalidProposals: 0, invalidPolicies: 1, rejected: 1 },
 		});
 		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("exposes a deterministic pure proposal admission helper", () => {
+		const proposals: readonly AgenticMemoryRecordProposal<string>[] = [
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "proposal:a",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "record:a", fragment: fragment({ id: "fragment:a" }) }),
+					sourceRefs: [{ kind: "candidate", id: "source:a" }],
+				},
+				sourceRefs: [{ kind: "proposal", id: "source:b" }],
+				policyRefs: [{ kind: "proposal-policy", id: "policy:a" }],
+				evidenceRefs: [{ kind: "evidence", id: "evidence:a" }],
+				idempotencyKey: "idem:a",
+				correlationId: "corr:a",
+			},
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "proposal:b",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "record:b", fragment: fragment({ id: "fragment:b" }) }),
+				},
+				sourceRefs: [{ kind: "proposal", id: "source:c" }],
+			},
+		];
+		const policy: AgenticMemoryProposalAdmissionPolicy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "policy:a",
+			defaultState: "admitted",
+			requireSourceRefs: true,
+			policyRefs: [{ kind: "policy", id: "policy:b" }],
+		};
+
+		const snapshot = admitAgenticMemoryRecordProposals(proposals, policy, {
+			records: [record({ id: "record:b", fragment: fragment({ id: "existing-b" }) })],
+			evaluation: 7,
+		});
+
+		expect(snapshot.admissions.map((admission) => admission.proposalId)).toEqual([
+			"proposal:a",
+			"proposal:b",
+		]);
+		expect(snapshot.admitted).toEqual([
+			expect.objectContaining<Partial<AgenticMemoryProposalAdmissionDecision<string>>>({
+				admissionId: 'admission:["policy:a","proposal:a"]',
+				state: "admitted",
+				idempotencyKey: "idem:a",
+				correlationId: "corr:a",
+				sourceRefs: [
+					{ kind: "candidate", id: "source:a" },
+					{ kind: "proposal", id: "source:b" },
+				],
+				evidenceRefs: [{ kind: "evidence", id: "evidence:a" }],
+			}),
+		]);
+		expect(snapshot.rejected).toEqual([
+			expect.objectContaining({
+				admissionId: 'admission:["policy:a","proposal:b"]',
+				proposalId: "proposal:b",
+				state: "rejected",
+				reason: "candidate record id already exists",
+			}),
+		]);
+		expect(snapshot.status).toMatchObject({
+			state: "ready",
+			cursor: { evaluation: 7, admitted: 1, rejected: 1, needsReview: 0, issues: 0 },
+		});
+		expect(snapshot.audit.map((entry) => entry.admissionId)).toEqual([
+			'admission:["policy:a","proposal:a"]',
+			'admission:["policy:a","proposal:b"]',
+		]);
+	});
+
+	it("freezes malformed proposal input snapshots", () => {
+		const snapshot = admitAgenticMemoryRecordProposals("not-proposals", {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "policy:a",
+			defaultState: "admitted",
+		});
+
+		expect(snapshot.status).toMatchObject({
+			state: "error",
+			cursor: { invalidProposals: 1, validProposals: 0 },
+		});
+		expect(Object.isFrozen(snapshot.admissions)).toBe(true);
+		expect(Object.isFrozen(snapshot.admitted)).toBe(true);
+		expect(Object.isFrozen(snapshot.rejected)).toBe(true);
+		expect(Object.isFrozen(snapshot.needsReview)).toBe(true);
+		expect(Object.isFrozen(snapshot.issues)).toBe(true);
+		expect(Object.isFrozen(snapshot.audit)).toBe(true);
+	});
+
+	it("reports malformed helper records as DATA issues without throwing", () => {
+		const hostileRecord = Object.defineProperty({}, "id", {
+			get() {
+				throw new Error("hostile id");
+			},
+		}) as AgenticMemoryRecord<string>;
+
+		const snapshot = admitAgenticMemoryRecordProposals(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "proposal:a",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record:a", fragment: fragment({ id: "fragment:a" }) }),
+					},
+					sourceRefs: [{ kind: "import", id: "import:a" }],
+				},
+			],
+			{
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "policy:a",
+				defaultState: "admitted",
+				requireSourceRefs: true,
+			},
+			{ records: [hostileRecord] },
+		);
+
+		expect(snapshot.admitted).toEqual([expect.objectContaining({ proposalId: "proposal:a" })]);
+		expect(snapshot.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.record.invalid",
+				message: "agenticMemoryBundle: record access failed: hostile id",
+			}),
+		]);
+		expect(snapshot.status).toMatchObject({
+			state: "partial",
+			cursor: { admitted: 1, issues: 1 },
+		});
+	});
+
+	it("fails closed when admission policy material is missing", () => {
+		const snapshot = admitAgenticMemoryRecordProposals(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "proposal-1",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+					},
+				},
+			],
+			undefined,
+		);
+
+		expect(snapshot.rejected).toEqual([
+			expect.objectContaining({
+				proposalId: "proposal-1",
+				state: "rejected",
+				admissionId: 'admission:["invalid-policy","proposal-1"]',
+			}),
+		]);
+		expect(snapshot.issues).toEqual([
+			expect.objectContaining({ code: "agentic-memory.admission-policy.invalid" }),
+		]);
+		expect(snapshot.status).toMatchObject({
+			state: "partial",
+			cursor: { invalidPolicies: 1, rejected: 1, admitted: 0 },
+		});
+	});
+
+	it("fails closed when proposal and candidate target ids conflict", () => {
+		const snapshot = admitAgenticMemoryRecordProposals(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "proposal-1",
+					targetRecordId: "record-target-a",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+						targetRecordId: "record-target-b",
+					},
+					sourceRefs: [{ kind: "import", id: "import-1" }],
+				},
+			],
+			{
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "policy-1",
+				defaultState: "admitted",
+			},
+		);
+
+		expect(snapshot.admissions).toEqual([]);
+		expect(snapshot.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.proposal.invalid",
+				refs: expect.arrayContaining([
+					"proposal.targetRecordId conflicts with candidateMaterial.targetRecordId",
+				]),
+			}),
+		]);
+		expect(snapshot.status).toMatchObject({
+			state: "error",
+			cursor: { validProposals: 0, invalidProposals: 1, admitted: 0 },
+		});
+	});
+
+	it("rejects duplicate target record ids within one proposal batch", () => {
+		const snapshot = admitAgenticMemoryRecordProposals(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "first",
+					targetRecordId: "record-target",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "candidate-a", fragment: fragment({ id: "candidate-a" }) }),
+					},
+					sourceRefs: [{ kind: "import", id: "import-a" }],
+				},
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "second",
+					targetRecordId: "record-target",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "candidate-b", fragment: fragment({ id: "candidate-b" }) }),
+					},
+					sourceRefs: [{ kind: "import", id: "import-b" }],
+				},
+			],
+			{
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "policy-1",
+				defaultState: "admitted",
+				requireSourceRefs: true,
+			},
+		);
+
+		expect(snapshot.admitted).toEqual([
+			expect.objectContaining({ proposalId: "first", targetRecordId: "record-target" }),
+		]);
+		expect(snapshot.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.proposal.duplicate-target-record-id",
+				subjectId: "second",
+				refs: ["record-target"],
+			}),
+		]);
+		expect(snapshot.status).toMatchObject({
+			state: "partial",
+			cursor: { validProposals: 1, invalidProposals: 1, admitted: 1 },
+		});
 	});
 
 	it("snapshots refs and preserves colon-distinct policy refs", () => {
@@ -560,7 +842,10 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				{
 					kind: "agentic-memory-record-proposal",
 					proposalId: "proposal-1",
-					candidateRecord: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+					},
 					sourceRefs: [sourceRef],
 					policyRefs: [
 						{ kind: "a:b", id: "c" },
@@ -610,13 +895,19 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				{
 					kind: "agentic-memory-record-proposal",
 					proposalId: "first",
-					candidateRecord: record({ id: "record-dupe", fragment: fragment({ id: "dupe-a" }) }),
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-dupe", fragment: fragment({ id: "dupe-a" }) }),
+					},
 					sourceRefs: [{ kind: "import", id: "import-a" }],
 				},
 				{
 					kind: "agentic-memory-record-proposal",
 					proposalId: "second",
-					candidateRecord: record({ id: "record-dupe", fragment: fragment({ id: "dupe-b" }) }),
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-dupe", fragment: fragment({ id: "dupe-b" }) }),
+					},
 					sourceRefs: [{ kind: "import", id: "import-b" }],
 				},
 			],

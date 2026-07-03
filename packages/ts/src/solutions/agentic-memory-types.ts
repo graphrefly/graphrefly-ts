@@ -79,6 +79,17 @@ export interface AgenticMemoryFactRef {
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
 }
 
+/** D572 candidate material carried by proposal/admission facts, not record truth. */
+export interface AgenticMemoryRecordCandidateMaterial<T = unknown> {
+	readonly kind: "agentic-memory-record-candidate-material";
+	readonly record: AgenticMemoryRecord<T>;
+	readonly targetRecordId?: FactId;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
 /**
  * D572 generic proposal fact for creating or changing AgenticMemoryRecord truth.
  *
@@ -88,9 +99,10 @@ export interface AgenticMemoryFactRef {
 export interface AgenticMemoryRecordProposal<T = unknown> {
 	readonly kind: "agentic-memory-record-proposal";
 	readonly proposalId: FactId;
-	readonly candidateRecord: AgenticMemoryRecord<T>;
+	readonly candidateMaterial: AgenticMemoryRecordCandidateMaterial<T>;
 	readonly targetRecordId?: FactId;
 	readonly reason?: string;
+	/** Producer-supplied status material; admission state remains policy-owned. */
 	readonly proposalStatus?: string;
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
 	readonly policyRefs?: readonly AgenticMemoryFactRef[];
@@ -101,12 +113,14 @@ export interface AgenticMemoryRecordProposal<T = unknown> {
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
 }
 
-export type AgenticMemoryRecordAdmissionDecisionState = "admitted" | "rejected" | "needs-review";
+export type AgenticMemoryProposalAdmissionDecisionState = "admitted" | "rejected" | "needs-review";
 
-export interface AgenticMemoryRecordAdmissionPolicy {
+export type AgenticMemoryRecordAdmissionDecisionState = AgenticMemoryProposalAdmissionDecisionState;
+
+export interface AgenticMemoryProposalAdmissionPolicy {
 	readonly kind: "agentic-memory-record-admission-policy";
 	readonly policyId: FactId;
-	readonly defaultState?: AgenticMemoryRecordAdmissionDecisionState;
+	readonly defaultState?: AgenticMemoryProposalAdmissionDecisionState;
 	readonly requireSourceRefs?: boolean;
 	readonly rejectDuplicateRecordIds?: boolean;
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
@@ -114,12 +128,14 @@ export interface AgenticMemoryRecordAdmissionPolicy {
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
 }
 
-export interface AgenticMemoryRecordAdmission<T = unknown> {
+export type AgenticMemoryRecordAdmissionPolicy = AgenticMemoryProposalAdmissionPolicy;
+
+export interface AgenticMemoryProposalAdmissionDecision<T = unknown> {
 	readonly kind: "agentic-memory-record-admission";
 	readonly admissionId: FactId;
 	readonly proposalId: FactId;
-	readonly state: AgenticMemoryRecordAdmissionDecisionState;
-	readonly candidateRecord: AgenticMemoryRecord<T>;
+	readonly state: AgenticMemoryProposalAdmissionDecisionState;
+	readonly candidateMaterial: AgenticMemoryRecordCandidateMaterial<T>;
 	readonly targetRecordId?: FactId;
 	readonly reason?: string;
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
@@ -130,17 +146,21 @@ export interface AgenticMemoryRecordAdmission<T = unknown> {
 	readonly causationId?: string;
 }
 
-export interface AgenticMemoryRecordAdmissionAuditEntry {
+export type AgenticMemoryRecordAdmission<T = unknown> = AgenticMemoryProposalAdmissionDecision<T>;
+
+export interface AgenticMemoryProposalAdmissionAudit {
 	readonly kind: "agentic-memory-record-admission-audit";
 	readonly admissionId: FactId;
 	readonly proposalId: FactId;
-	readonly state: AgenticMemoryRecordAdmissionDecisionState;
+	readonly state: AgenticMemoryProposalAdmissionDecisionState;
 	readonly reason?: string;
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
 	readonly policyRefs?: readonly AgenticMemoryFactRef[];
 }
 
-export interface AgenticMemoryRecordAdmissionCursor {
+export type AgenticMemoryRecordAdmissionAuditEntry = AgenticMemoryProposalAdmissionAudit;
+
+export interface AgenticMemoryProposalAdmissionCursor {
 	readonly evaluation: number;
 	readonly proposals: number;
 	readonly validProposals: number;
@@ -152,27 +172,43 @@ export interface AgenticMemoryRecordAdmissionCursor {
 	readonly issues: number;
 }
 
-export type AgenticMemoryRecordAdmissionStatusState =
+export type AgenticMemoryRecordAdmissionCursor = AgenticMemoryProposalAdmissionCursor;
+
+export type AgenticMemoryProposalAdmissionStatusState =
 	| "ready"
 	| "empty"
 	| "partial"
 	| "blocked"
 	| "error";
 
-export interface AgenticMemoryRecordAdmissionStatus {
-	readonly state: AgenticMemoryRecordAdmissionStatusState;
-	readonly cursor: AgenticMemoryRecordAdmissionCursor;
+export type AgenticMemoryRecordAdmissionStatusState = AgenticMemoryProposalAdmissionStatusState;
+
+export interface AgenticMemoryProposalAdmissionStatus {
+	readonly state: AgenticMemoryProposalAdmissionStatusState;
+	readonly cursor: AgenticMemoryProposalAdmissionCursor;
 }
 
-export interface AgenticMemoryRecordAdmissionSnapshot<T = unknown> {
-	readonly admissions: readonly AgenticMemoryRecordAdmission<T>[];
-	readonly admitted: readonly AgenticMemoryRecordAdmission<T>[];
-	readonly rejected: readonly AgenticMemoryRecordAdmission<T>[];
-	readonly needsReview: readonly AgenticMemoryRecordAdmission<T>[];
-	readonly status: AgenticMemoryRecordAdmissionStatus;
-	readonly issues: readonly DataIssue[];
-	readonly audit: readonly AgenticMemoryRecordAdmissionAuditEntry[];
-	readonly cursor: AgenticMemoryRecordAdmissionCursor;
+export type AgenticMemoryRecordAdmissionStatus = AgenticMemoryProposalAdmissionStatus;
+
+export type AgenticMemoryProposalAdmissionIssue = DataIssue;
+
+export interface AgenticMemoryProposalAdmissionSnapshot<T = unknown> {
+	readonly admissions: readonly AgenticMemoryProposalAdmissionDecision<T>[];
+	readonly admitted: readonly AgenticMemoryProposalAdmissionDecision<T>[];
+	readonly rejected: readonly AgenticMemoryProposalAdmissionDecision<T>[];
+	readonly needsReview: readonly AgenticMemoryProposalAdmissionDecision<T>[];
+	readonly status: AgenticMemoryProposalAdmissionStatus;
+	readonly issues: readonly AgenticMemoryProposalAdmissionIssue[];
+	readonly audit: readonly AgenticMemoryProposalAdmissionAudit[];
+	readonly cursor: AgenticMemoryProposalAdmissionCursor;
+}
+
+export type AgenticMemoryRecordAdmissionSnapshot<T = unknown> =
+	AgenticMemoryProposalAdmissionSnapshot<T>;
+
+export interface AgenticMemoryProposalAdmissionOptions<T = unknown> {
+	readonly records?: readonly AgenticMemoryRecord<T>[];
+	readonly evaluation?: number;
 }
 
 export interface AgenticMemoryRecordAdmissionBundle<T = unknown> {

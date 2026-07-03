@@ -15,16 +15,17 @@ import {
 } from "./agentic-memory-shared.js";
 import type {
 	AgenticMemoryFactRef,
-	AgenticMemoryRecord,
-	AgenticMemoryRecordAdmission,
-	AgenticMemoryRecordAdmissionAuditEntry,
+	AgenticMemoryProposalAdmissionAudit,
+	AgenticMemoryProposalAdmissionCursor,
+	AgenticMemoryProposalAdmissionDecision,
+	AgenticMemoryProposalAdmissionDecisionState,
+	AgenticMemoryProposalAdmissionOptions,
+	AgenticMemoryProposalAdmissionPolicy,
+	AgenticMemoryProposalAdmissionSnapshot,
+	AgenticMemoryProposalAdmissionStatus,
 	AgenticMemoryRecordAdmissionBundle,
 	AgenticMemoryRecordAdmissionBundleOptions,
-	AgenticMemoryRecordAdmissionCursor,
-	AgenticMemoryRecordAdmissionDecisionState,
-	AgenticMemoryRecordAdmissionPolicy,
-	AgenticMemoryRecordAdmissionSnapshot,
-	AgenticMemoryRecordAdmissionStatus,
+	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordProposal,
 	StrictJsonValue,
 } from "./agentic-memory-types.js";
@@ -34,7 +35,7 @@ export function agenticMemoryRecordAdmissionBundle<T = unknown>(
 	opts: AgenticMemoryRecordAdmissionBundleOptions<T>,
 ): AgenticMemoryRecordAdmissionBundle<T> {
 	const name = opts.name ?? "agenticMemoryRecordAdmission";
-	const projection = graph.node<AgenticMemoryRecordAdmissionSnapshot<T>>(
+	const projection = graph.node<AgenticMemoryProposalAdmissionSnapshot<T>>(
 		[opts.records, opts.proposals, opts.policy],
 		(ctx) => {
 			const state =
@@ -43,34 +44,21 @@ export function agenticMemoryRecordAdmissionBundle<T = unknown>(
 			state.evaluation += 1;
 			const recordProjection = validateAndProjectRecords<T>(depLatest(ctx, 0));
 			const policy = safeValidateAdmissionPolicy(depLatest(ctx, 2));
-			const projected = projectProposalAdmissions<T>(
-				depLatest(ctx, 1),
-				recordProjection.records,
-				policy.policy,
-			);
-			const cursor: AgenticMemoryRecordAdmissionCursor = Object.freeze({
+			const projected = projectProposalAdmissions<T>(depLatest(ctx, 1), policy.policy, {
+				records: recordProjection.records,
 				evaluation: state.evaluation,
-				proposals: projected.proposals,
-				validProposals: projected.validProposals,
-				invalidProposals: projected.invalidProposals,
+			});
+			const cursor = Object.freeze({
+				...projected.cursor,
 				invalidPolicies: policy.invalidPolicies,
-				admitted: projected.admitted.length,
-				rejected: projected.rejected.length,
-				needsReview: projected.needsReview.length,
 				issues: recordProjection.errors.length + policy.issues.length + projected.issues.length,
 			});
 			const issues = Object.freeze([
-				...recordProjection.errors.map((error) =>
-					dataIssue("agentic-memory.record.invalid", error.message, {
-						severity: "error",
-						subjectId: error.recordId,
-						refs: error.validationErrors,
-					}),
-				),
+				...recordProjectionIssues(recordProjection.errors),
 				...policy.issues,
 				...projected.issues,
 			]);
-			const status: AgenticMemoryRecordAdmissionStatus = Object.freeze({
+			const status: AgenticMemoryProposalAdmissionStatus = Object.freeze({
 				state: admissionStatus(cursor),
 				cursor,
 			});
@@ -160,41 +148,80 @@ export function agenticMemoryRecordAdmissionBundle<T = unknown>(
 	};
 }
 
+export function admitAgenticMemoryRecordProposals<T = unknown>(
+	proposals: unknown,
+	policy: unknown,
+	opts: AgenticMemoryProposalAdmissionOptions<T> = {},
+): AgenticMemoryProposalAdmissionSnapshot<T> {
+	const validatedPolicy = safeValidateAdmissionPolicy(policy);
+	const recordProjection = validateAndProjectRecords<T>(opts.records ?? []);
+	const projected = projectProposalAdmissions<T>(proposals, validatedPolicy.policy, {
+		...opts,
+		records: recordProjection.records,
+	});
+	const cursor = Object.freeze({
+		...projected.cursor,
+		invalidPolicies: validatedPolicy.invalidPolicies,
+		issues:
+			recordProjection.errors.length + validatedPolicy.issues.length + projected.issues.length,
+	});
+	return Object.freeze({
+		admissions: projected.admissions,
+		admitted: projected.admitted,
+		rejected: projected.rejected,
+		needsReview: projected.needsReview,
+		status: Object.freeze({
+			state: admissionStatus(cursor),
+			cursor,
+		}),
+		issues: Object.freeze([
+			...recordProjectionIssues(recordProjection.errors),
+			...validatedPolicy.issues,
+			...projected.issues,
+		]),
+		audit: projected.audit,
+		cursor,
+	});
+}
+
 function projectProposalAdmissions<T>(
 	value: unknown,
-	records: readonly AgenticMemoryRecord<T>[],
-	policy: AgenticMemoryRecordAdmissionPolicy,
+	policy: AgenticMemoryProposalAdmissionPolicy,
+	opts: AgenticMemoryProposalAdmissionOptions<T> = {},
 ): {
 	readonly proposals: number;
 	readonly validProposals: number;
 	readonly invalidProposals: number;
-	readonly admissions: readonly AgenticMemoryRecordAdmission<T>[];
-	readonly admitted: readonly AgenticMemoryRecordAdmission<T>[];
-	readonly rejected: readonly AgenticMemoryRecordAdmission<T>[];
-	readonly needsReview: readonly AgenticMemoryRecordAdmission<T>[];
+	readonly admissions: readonly AgenticMemoryProposalAdmissionDecision<T>[];
+	readonly admitted: readonly AgenticMemoryProposalAdmissionDecision<T>[];
+	readonly rejected: readonly AgenticMemoryProposalAdmissionDecision<T>[];
+	readonly needsReview: readonly AgenticMemoryProposalAdmissionDecision<T>[];
 	readonly issues: readonly DataIssue[];
-	readonly audit: readonly AgenticMemoryRecordAdmissionAuditEntry[];
+	readonly audit: readonly AgenticMemoryProposalAdmissionAudit[];
+	readonly cursor: Omit<AgenticMemoryProposalAdmissionSnapshot<T>["cursor"], "invalidPolicies">;
 } {
-	const admissions: AgenticMemoryRecordAdmission<T>[] = [];
+	const admissions: AgenticMemoryProposalAdmissionDecision<T>[] = [];
 	const issues: DataIssue[] = [];
-	const audit: AgenticMemoryRecordAdmissionAuditEntry[] = [];
+	const audit: AgenticMemoryProposalAdmissionAudit[] = [];
 	let proposals = 0;
 	let invalidProposals = 0;
+	const records = opts.records ?? [];
 	if (!Array.isArray(value)) {
 		return {
 			proposals,
 			validProposals: 0,
 			invalidProposals: 1,
-			admissions,
-			admitted: [],
-			rejected: [],
-			needsReview: [],
-			issues: [
+			admissions: Object.freeze(admissions),
+			admitted: Object.freeze([]),
+			rejected: Object.freeze([]),
+			needsReview: Object.freeze([]),
+			issues: Object.freeze([
 				dataIssue("agentic-memory.proposal.invalid-input", "proposals input must be an array", {
 					severity: "error",
 				}),
-			],
-			audit,
+			]),
+			audit: Object.freeze(audit),
+			cursor: proposalAdmissionCursor(opts.evaluation, 0, 0, 1, 0, 0, 0, 1),
 		};
 	}
 	const length = safeArrayLength(value);
@@ -203,23 +230,25 @@ function projectProposalAdmissions<T>(
 			proposals,
 			validProposals: 0,
 			invalidProposals: 1,
-			admissions,
-			admitted: [],
-			rejected: [],
-			needsReview: [],
-			issues: [
+			admissions: Object.freeze(admissions),
+			admitted: Object.freeze([]),
+			rejected: Object.freeze([]),
+			needsReview: Object.freeze([]),
+			issues: Object.freeze([
 				dataIssue(
 					"agentic-memory.proposal.invalid-input",
 					"proposals input length could not be read",
 					{ severity: "error" },
 				),
-			],
-			audit,
+			]),
+			audit: Object.freeze(audit),
+			cursor: proposalAdmissionCursor(opts.evaluation, 0, 0, 1, 0, 0, 0, 1),
 		};
 	}
 	proposals = length;
 	const seenProposals = new Set<FactId>();
 	const seenCandidateRecordIds = new Set<FactId>();
+	const seenTargetRecordIds = new Set<FactId>();
 	const currentRecordIds = new Set(records.map((record) => record.id));
 	for (let index = 0; index < length; index += 1) {
 		let raw: unknown;
@@ -257,7 +286,7 @@ function projectProposalAdmissions<T>(
 			continue;
 		}
 		seenProposals.add(proposal.proposalId);
-		if (seenCandidateRecordIds.has(proposal.candidateRecord.id)) {
+		if (seenCandidateRecordIds.has(proposal.candidateMaterial.record.id)) {
 			invalidProposals += 1;
 			issues.push(
 				dataIssue(
@@ -266,14 +295,35 @@ function projectProposalAdmissions<T>(
 					{
 						severity: "error",
 						subjectId: proposal.proposalId,
-						path: [index, "candidateRecord", "id"],
-						refs: [proposal.candidateRecord.id],
+						path: [index, "candidateMaterial", "record", "id"],
+						refs: [proposal.candidateMaterial.record.id],
 					},
 				),
 			);
 			continue;
 		}
-		seenCandidateRecordIds.add(proposal.candidateRecord.id);
+		seenCandidateRecordIds.add(proposal.candidateMaterial.record.id);
+		const effectiveTargetRecordId =
+			proposal.targetRecordId ??
+			proposal.candidateMaterial.targetRecordId ??
+			proposal.candidateMaterial.record.id;
+		if (seenTargetRecordIds.has(effectiveTargetRecordId)) {
+			invalidProposals += 1;
+			issues.push(
+				dataIssue(
+					"agentic-memory.proposal.duplicate-target-record-id",
+					"duplicate target record id in proposal batch",
+					{
+						severity: "error",
+						subjectId: proposal.proposalId,
+						path: [index, "targetRecordId"],
+						refs: [effectiveTargetRecordId],
+					},
+				),
+			);
+			continue;
+		}
+		seenTargetRecordIds.add(effectiveTargetRecordId);
 		const admission = admitProposal(proposal, currentRecordIds, policy);
 		admissions.push(admission);
 		audit.push(admissionAudit(admission, policy));
@@ -293,6 +343,16 @@ function projectProposalAdmissions<T>(
 		needsReview,
 		issues: Object.freeze(issues),
 		audit: Object.freeze(audit),
+		cursor: proposalAdmissionCursor(
+			opts.evaluation,
+			proposals,
+			admissions.length,
+			invalidProposals,
+			admitted.length,
+			rejected.length,
+			needsReview.length,
+			issues.length,
+		),
 	};
 }
 
@@ -335,6 +395,23 @@ function validateProposal<T>(
 			}
 		}
 	}
+	const candidateMaterial = validateCandidateMaterial<T>(value.candidateMaterial, index);
+	if (candidateMaterial.issues.length > 0 || candidateMaterial.material === undefined) {
+		validationErrors.push(
+			...candidateMaterial.issues.flatMap((issue) =>
+				(issue.refs ?? [issue.message]).map((message) => `candidateMaterial: ${message}`),
+			),
+		);
+	}
+	if (
+		isNonEmptyString(value.targetRecordId) &&
+		candidateMaterial.material?.targetRecordId !== undefined &&
+		value.targetRecordId !== candidateMaterial.material.targetRecordId
+	) {
+		validationErrors.push(
+			"proposal.targetRecordId conflicts with candidateMaterial.targetRecordId",
+		);
+	}
 	if (value.metadata !== undefined && !isStrictJsonObject(value.metadata)) {
 		validationErrors.push("proposal.metadata must be a strict JSON object");
 	}
@@ -350,15 +427,11 @@ function validateProposal<T>(
 			validationErrors.push(`proposal.${field} must be a string when present`);
 		}
 	}
-	const candidate = validateAndSnapshotRecord<T>(value.candidateRecord, index);
-	if (candidate.errors.length > 0 || candidate.record === undefined) {
-		validationErrors.push(
-			...candidate.errors.flatMap((error) =>
-				(error.validationErrors ?? [error.message]).map((message) => `candidateRecord: ${message}`),
-			),
-		);
-	}
-	if (validationErrors.length > 0 || proposalId === undefined || candidate.record === undefined) {
+	if (
+		validationErrors.length > 0 ||
+		proposalId === undefined ||
+		candidateMaterial.material === undefined
+	) {
 		return {
 			issues: [
 				dataIssue("agentic-memory.proposal.invalid", "proposal is invalid", {
@@ -374,7 +447,7 @@ function validateProposal<T>(
 		proposal: Object.freeze({
 			kind: "agentic-memory-record-proposal",
 			proposalId,
-			candidateRecord: candidate.record,
+			candidateMaterial: candidateMaterial.material,
 			...(value.targetRecordId === undefined
 				? {}
 				: { targetRecordId: value.targetRecordId as FactId }),
@@ -402,18 +475,32 @@ function validateProposal<T>(
 	};
 }
 
+function recordProjectionIssues(
+	errors: readonly ReturnType<typeof validateAndProjectRecords>["errors"][number][],
+): readonly DataIssue[] {
+	return errors.map((error) =>
+		dataIssue("agentic-memory.record.invalid", error.message, {
+			severity: "error",
+			subjectId: error.recordId,
+			refs: error.validationErrors,
+		}),
+	);
+}
+
 function admitProposal<T>(
 	proposal: AgenticMemoryRecordProposal<T>,
 	currentRecordIds: ReadonlySet<FactId>,
-	policy: AgenticMemoryRecordAdmissionPolicy,
-): AgenticMemoryRecordAdmission<T> {
+	policy: AgenticMemoryProposalAdmissionPolicy,
+): AgenticMemoryProposalAdmissionDecision<T> {
+	const targetRecordId = proposal.targetRecordId ?? proposal.candidateMaterial.targetRecordId;
 	const duplicate =
 		(policy.rejectDuplicateRecordIds ?? true) &&
-		currentRecordIds.has(proposal.candidateRecord.id) &&
-		proposal.targetRecordId !== proposal.candidateRecord.id;
+		currentRecordIds.has(proposal.candidateMaterial.record.id) &&
+		targetRecordId !== proposal.candidateMaterial.record.id;
 	const missingSourceRefs =
-		(policy.requireSourceRefs ?? false) && (proposal.sourceRefs?.length ?? 0) === 0;
-	const state: AgenticMemoryRecordAdmissionDecisionState = duplicate
+		(policy.requireSourceRefs ?? false) &&
+		(proposal.sourceRefs?.length ?? 0) + (proposal.candidateMaterial.sourceRefs?.length ?? 0) === 0;
+	const state: AgenticMemoryProposalAdmissionDecisionState = duplicate
 		? "rejected"
 		: missingSourceRefs
 			? "needs-review"
@@ -423,31 +510,121 @@ function admitProposal<T>(
 		: missingSourceRefs
 			? "policy requires sourceRefs"
 			: (proposal.reason ?? `policy:${policy.policyId}`);
+	const evidenceRefs = mergeRefs([
+		...(proposal.candidateMaterial.evidenceRefs ?? []),
+		...(proposal.evidenceRefs ?? []),
+	]);
 	return Object.freeze({
 		kind: "agentic-memory-record-admission",
 		admissionId: compoundTupleKey("admission", [policy.policyId, proposal.proposalId]),
 		proposalId: proposal.proposalId,
 		state,
-		candidateRecord: proposal.candidateRecord,
-		...(proposal.targetRecordId === undefined ? {} : { targetRecordId: proposal.targetRecordId }),
+		candidateMaterial: proposal.candidateMaterial,
+		...(targetRecordId === undefined ? {} : { targetRecordId }),
 		reason,
-		sourceRefs: mergeRefs([...(proposal.sourceRefs ?? []), ...(policy.sourceRefs ?? [])]),
+		sourceRefs: mergeRefs([
+			...(proposal.candidateMaterial.sourceRefs ?? []),
+			...(proposal.sourceRefs ?? []),
+			...(policy.sourceRefs ?? []),
+		]),
 		policyRefs: mergeRefs([
+			...(proposal.candidateMaterial.policyRefs ?? []),
 			...(proposal.policyRefs ?? []),
 			{ kind: "agentic-memory-record-admission-policy", id: policy.policyId },
 			...(policy.policyRefs ?? []),
 		]),
-		...(proposal.evidenceRefs === undefined ? {} : { evidenceRefs: proposal.evidenceRefs }),
+		...(evidenceRefs === undefined ? {} : { evidenceRefs }),
 		...(proposal.idempotencyKey === undefined ? {} : { idempotencyKey: proposal.idempotencyKey }),
 		...(proposal.correlationId === undefined ? {} : { correlationId: proposal.correlationId }),
 		...(proposal.causationId === undefined ? {} : { causationId: proposal.causationId }),
 	});
 }
 
+function validateCandidateMaterial<T>(
+	value: unknown,
+	index: number,
+): {
+	readonly material?: AgenticMemoryRecordCandidateMaterial<T>;
+	readonly issues: readonly DataIssue[];
+} {
+	if (!isPlainRecord(value)) {
+		return {
+			issues: [
+				dataIssue("agentic-memory.proposal.invalid", "candidateMaterial must be an object", {
+					severity: "error",
+					path: [index, "candidateMaterial"],
+				}),
+			],
+		};
+	}
+	const validationErrors: string[] = [];
+	validationErrors.push(...forbiddenRuntimeFields(value, "candidateMaterial"));
+	if (value.kind !== "agentic-memory-record-candidate-material") {
+		validationErrors.push(
+			"candidateMaterial.kind must be agentic-memory-record-candidate-material",
+		);
+	}
+	if (value.targetRecordId !== undefined && !isNonEmptyString(value.targetRecordId)) {
+		validationErrors.push("candidateMaterial.targetRecordId must be non-empty when present");
+	}
+	for (const [field, refs] of [
+		["sourceRefs", value.sourceRefs],
+		["policyRefs", value.policyRefs],
+		["evidenceRefs", value.evidenceRefs],
+	] as const) {
+		if (refs !== undefined) {
+			const refErrors = validateFactRefs(refs);
+			if (refErrors.length > 0) {
+				validationErrors.push(...refErrors.map((error) => `candidateMaterial.${field}: ${error}`));
+			}
+		}
+	}
+	if (value.metadata !== undefined && !isStrictJsonObject(value.metadata)) {
+		validationErrors.push("candidateMaterial.metadata must be a strict JSON object");
+	}
+	const candidate = validateAndSnapshotRecord<T>(value.record, index);
+	if (candidate.errors.length > 0 || candidate.record === undefined) {
+		validationErrors.push(
+			...candidate.errors.flatMap((error) =>
+				(error.validationErrors ?? [error.message]).map(
+					(message) => `candidateMaterial.record: ${message}`,
+				),
+			),
+		);
+	}
+	if (validationErrors.length > 0 || candidate.record === undefined) {
+		return {
+			issues: [
+				dataIssue("agentic-memory.proposal.invalid", "candidateMaterial is invalid", {
+					severity: "error",
+					path: [index, "candidateMaterial"],
+					refs: validationErrors,
+				}),
+			],
+		};
+	}
+	return {
+		material: Object.freeze({
+			kind: "agentic-memory-record-candidate-material",
+			record: candidate.record,
+			...(value.targetRecordId === undefined
+				? {}
+				: { targetRecordId: value.targetRecordId as FactId }),
+			...(value.sourceRefs === undefined ? {} : { sourceRefs: snapshotFactRefs(value.sourceRefs) }),
+			...(value.policyRefs === undefined ? {} : { policyRefs: snapshotFactRefs(value.policyRefs) }),
+			...(value.evidenceRefs === undefined
+				? {}
+				: { evidenceRefs: snapshotFactRefs(value.evidenceRefs) }),
+			...(value.metadata === undefined ? {} : { metadata: cloneStrictJsonObject(value.metadata) }),
+		}),
+		issues: [],
+	};
+}
+
 function admissionAudit<T>(
-	admission: AgenticMemoryRecordAdmission<T>,
-	policy: AgenticMemoryRecordAdmissionPolicy,
-): AgenticMemoryRecordAdmissionAuditEntry {
+	admission: AgenticMemoryProposalAdmissionDecision<T>,
+	policy: AgenticMemoryProposalAdmissionPolicy,
+): AgenticMemoryProposalAdmissionAudit {
 	return Object.freeze({
 		kind: "agentic-memory-record-admission-audit",
 		admissionId: admission.admissionId,
@@ -463,7 +640,7 @@ function admissionAudit<T>(
 }
 
 function safeValidateAdmissionPolicy(value: unknown): {
-	readonly policy: AgenticMemoryRecordAdmissionPolicy;
+	readonly policy: AgenticMemoryProposalAdmissionPolicy;
 	readonly issues: readonly DataIssue[];
 	readonly invalidPolicies: number;
 } {
@@ -485,7 +662,7 @@ function safeValidateAdmissionPolicy(value: unknown): {
 }
 
 function validateAdmissionPolicy(value: unknown): {
-	readonly policy: AgenticMemoryRecordAdmissionPolicy;
+	readonly policy: AgenticMemoryProposalAdmissionPolicy;
 	readonly issues: readonly DataIssue[];
 	readonly invalidPolicies: number;
 } {
@@ -550,7 +727,7 @@ function validateAdmissionPolicy(value: unknown): {
 			policyId,
 			...(value.defaultState === undefined
 				? {}
-				: { defaultState: value.defaultState as AgenticMemoryRecordAdmissionDecisionState }),
+				: { defaultState: value.defaultState as AgenticMemoryProposalAdmissionDecisionState }),
 			...(value.requireSourceRefs === undefined
 				? {}
 				: { requireSourceRefs: value.requireSourceRefs as boolean }),
@@ -685,17 +862,39 @@ function unexpectedFields(
 		.sort();
 }
 
-function defaultAdmissionPolicy(): AgenticMemoryRecordAdmissionPolicy {
+function defaultAdmissionPolicy(): AgenticMemoryProposalAdmissionPolicy {
 	return Object.freeze({
 		kind: "agentic-memory-record-admission-policy",
 		policyId: "invalid-policy",
-		defaultState: "needs-review",
+		defaultState: "rejected",
+	});
+}
+
+function proposalAdmissionCursor(
+	evaluation: number | undefined,
+	proposals: number,
+	validProposals: number,
+	invalidProposals: number,
+	admitted: number,
+	rejected: number,
+	needsReview: number,
+	issues: number,
+): Omit<AgenticMemoryProposalAdmissionCursor, "invalidPolicies"> {
+	return Object.freeze({
+		evaluation: evaluation ?? 0,
+		proposals,
+		validProposals,
+		invalidProposals,
+		admitted,
+		rejected,
+		needsReview,
+		issues,
 	});
 }
 
 function admissionStatus(
-	cursor: AgenticMemoryRecordAdmissionCursor,
-): AgenticMemoryRecordAdmissionStatus["state"] {
+	cursor: AgenticMemoryProposalAdmissionCursor,
+): AgenticMemoryProposalAdmissionStatus["state"] {
 	if ((cursor.invalidProposals > 0 || cursor.invalidPolicies > 0) && cursor.validProposals === 0) {
 		return "error";
 	}

@@ -35,7 +35,10 @@ import type {
 	AgenticMemoryConsolidationBundleOptions,
 	AgenticMemoryContextPackingBundleOptions,
 	AgenticMemoryKgProjectionBundleOptions,
+	AgenticMemoryProposalAdmissionDecision,
+	AgenticMemoryProposalAdmissionPolicy,
 	AgenticMemoryRecord,
+	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
 	AgenticMemoryRecordsPersistenceHandle,
 	AgenticMemoryRetentionBundleOptions,
@@ -948,6 +951,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.agenticMemoryConsolidationBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryContextPackingBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordAdmissionBundle).toBe("function");
+		expect(typeof agenticMemory.admitAgenticMemoryRecordProposals).toBe("function");
+		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
+		expectTypeOf<AgenticMemoryRecordCandidateMaterial>().toHaveProperty("record");
+		expectTypeOf<AgenticMemoryProposalAdmissionPolicy>().toHaveProperty("policyId");
+		expectTypeOf<AgenticMemoryProposalAdmissionDecision>().toHaveProperty("admissionId");
 		expect(Object.hasOwn(agenticMemory, "workItemAuthoringProjector")).toBe(false);
 		expect(Object.keys(agenticWorkItemMemory)).toEqual([]);
 		expect(typeof solutions.capabilityAdmissionProjector).toBe("function");

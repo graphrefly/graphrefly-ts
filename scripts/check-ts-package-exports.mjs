@@ -170,6 +170,7 @@ const expectedSubpaths = {
 			"agenticMemoryBundle",
 			"agenticMemoryRecordFrame",
 			"agenticMemoryRetentionBundle",
+			"admitAgenticMemoryRecordProposals",
 			"agenticMemoryRecordAdmissionBundle",
 		],
 		absent: [
@@ -542,6 +543,7 @@ import {
 	type ScoreSubject,
 } from "@graphrefly/ts/scoring";
 import {
+	admitAgenticMemoryRecordProposals,
 	agenticMemoryBundle,
 	type AgenticMemoryBundleOptions as FocusedAgenticMemoryBundleOptions,
 	type AgenticMemoryRecord as FocusedAgenticMemoryRecord,
@@ -601,6 +603,7 @@ void isFiniteScore;
 void normalizeScoreSignal;
 void rankScoredSubjects;
 void scoreSubjects;
+void admitAgenticMemoryRecordProposals;
 void agenticMemoryBundle;
 void agenticMemoryRecordAdmissionBundle;
 void agenticWorkItemMemory;
