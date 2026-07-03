@@ -145,6 +145,43 @@ const expectedSubpaths = {
 	"./inspection/boundary": { present: ["boundaryManifest"], absent: [] },
 	"./orchestration/messaging": { present: ["orchestrationMessagingRecipe"], absent: [] },
 	"./orchestration/work-queue": { present: ["orchestrationWorkQueueRecipe"], absent: [] },
+	"./memory": {
+		present: ["validateMemoryFragment", "filterMemoryFragments", "memoryRetrievalBundle"],
+		absent: ["agenticMemoryBundle", "workItemAuthoringProjector", "persistAgenticMemoryRecords"],
+	},
+	"./memory/semantic": {
+		present: ["validateMemoryFragment", "filterMemoryFragments", "memoryRetrievalBundle"],
+		absent: ["agenticMemoryBundle", "workItemAuthoringProjector", "persistAgenticMemoryRecords"],
+	},
+	"./scoring": {
+		present: ["cosineSimilarity", "admissionScored", "admissionFilter3D"],
+		absent: ["memoryRetrievalBundle", "agenticMemoryBundle", "workItemAuthoringProjector"],
+	},
+	"./solutions/agentic-memory": {
+		present: ["agenticMemoryBundle", "agenticMemoryRecordFrame", "agenticMemoryRetentionBundle"],
+		absent: [
+			"workItemAuthoringProjector",
+			"workItemEffectRunProjector",
+			"persistAgenticMemoryRecords",
+		],
+	},
+	"./solutions/agentic-work-item-memory": {
+		present: [],
+		absent: [
+			"agenticMemoryBundle",
+			"workItemAuthoringProjector",
+			"workItemEffectRunProjector",
+			"persistAgenticMemoryRecords",
+		],
+	},
+	"./solutions/work-item": {
+		present: [
+			"workItemAuthoringProjector",
+			"workItemDomainActionAdmissionProjector",
+			"workItemWorkQueueRecipe",
+		],
+		absent: ["agenticMemoryBundle", "workItemEffectRunProjector"],
+	},
 	"./solutions/work-item/scheduling": {
 		present: [
 			"isWorkspaceProposalProjectionReleaseMaterial",
@@ -471,6 +508,25 @@ import {
 } from "@graphrefly/ts/executors/tool-provider-runtime";
 import { boundaryManifest, type BoundaryManifest, type BoundaryNode, type BoundaryRole } from "@graphrefly/ts/inspection/boundary";
 import {
+	validateMemoryFragment,
+	type MemoryFragment as MemoryNamespaceFragment,
+} from "@graphrefly/ts/memory";
+import {
+	memoryRetrievalBundle,
+	type MemoryRetrievalBundleOptions,
+} from "@graphrefly/ts/memory/semantic";
+import { admissionScored, cosineSimilarity, type ScoringPolicy } from "@graphrefly/ts/scoring";
+import {
+	agenticMemoryBundle,
+	type AgenticMemoryBundleOptions as FocusedAgenticMemoryBundleOptions,
+	type AgenticMemoryRecord as FocusedAgenticMemoryRecord,
+} from "@graphrefly/ts/solutions/agentic-memory";
+import * as agenticWorkItemMemory from "@graphrefly/ts/solutions/agentic-work-item-memory";
+import {
+	workItemAuthoringProjector,
+	type WorkItemProjection,
+} from "@graphrefly/ts/solutions/work-item";
+import {
 	isWorkspaceProposalProjectionReleaseMaterial,
 	validateWorkspaceProposalProjectionReleaseMaterial,
 	workspaceProposalProjectionReleaseDiagnosticProjector,
@@ -510,6 +566,13 @@ void processToolProviderAdapterPack;
 void processToolProviderBinding;
 void processToolProviderCatalog;
 void boundaryManifest;
+void validateMemoryFragment;
+void memoryRetrievalBundle;
+void admissionScored;
+void cosineSimilarity;
+void agenticMemoryBundle;
+void agenticWorkItemMemory;
+void workItemAuthoringProjector;
 void isWorkspaceProposalProjectionReleaseMaterial;
 void validateWorkspaceProposalProjectionReleaseMaterial;
 void workspaceProposalProjectionReleaseDiagnosticProjector;
@@ -517,6 +580,12 @@ void workspaceProposalProjectionReleaseDiagnosticProjector;
 declare const manifest: BoundaryManifest;
 const role: BoundaryRole = "input";
 const node: BoundaryNode | undefined = manifest.inputs[0] ?? manifest.outputs[0];
+declare const memoryNamespaceFragment: MemoryNamespaceFragment;
+declare const memoryRetrievalOptions: MemoryRetrievalBundleOptions;
+declare const scoringPolicy: ScoringPolicy;
+declare const focusedAgenticMemoryBundleOptions: FocusedAgenticMemoryBundleOptions;
+declare const focusedAgenticMemoryRecord: FocusedAgenticMemoryRecord;
+declare const workItemProjection: WorkItemProjection;
 declare const recipeBundle: ToolProviderExecutionRecipeBundle;
 declare const recipeOptions: ToolProviderExecutionRecipeOptions;
 declare const runtimeBinding: ToolProviderAdapterBinding;
@@ -555,6 +624,12 @@ declare const protobufStatus: WireBridgeProtobufStatus;
 const projectionReleaseTargetKind: WorkspaceProposalProjectionReleaseTargetKind = "family-read-model-query";
 void role;
 void node;
+void memoryNamespaceFragment;
+void memoryRetrievalOptions;
+void scoringPolicy;
+void focusedAgenticMemoryBundleOptions;
+void focusedAgenticMemoryRecord;
+void workItemProjection;
 void recipeBundle;
 void recipeOptions;
 void runtimeBinding;

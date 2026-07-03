@@ -1,0 +1,16 @@
+export {
+	type KnowledgeGraphCursor,
+	type KnowledgeGraphEntity,
+	type KnowledgeGraphError,
+	type KnowledgeGraphErrorCode,
+	type KnowledgeGraphIndex,
+	type KnowledgeGraphPolicy,
+	type KnowledgeGraphReducerBundle,
+	type KnowledgeGraphReducerBundleOptions,
+	type KnowledgeGraphRelation,
+	type KnowledgeGraphSnapshot,
+	type KnowledgeGraphStatus,
+	type KnowledgeGraphStatusState,
+	type KnowledgeGraphTopic,
+	knowledgeGraphReducerBundle,
+} from "../../patterns/semantic-memory-graph.js";

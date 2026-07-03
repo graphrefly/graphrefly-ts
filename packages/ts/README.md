@@ -178,15 +178,22 @@ Other focused surfaces include:
 - `@graphrefly/ts/adapters/nestjs`
 - `@graphrefly/ts/adapters/observe-storage`
 - `@graphrefly/ts/messaging`
+- `@graphrefly/ts/memory`
+- `@graphrefly/ts/memory/semantic`
 - `@graphrefly/ts/work-queue`
 - `@graphrefly/ts/orchestration`
 - `@graphrefly/ts/cqrs`
 - `@graphrefly/ts/executors/tool-provider`
 - `@graphrefly/ts/executors/tool-provider-runtime`
 - `@graphrefly/ts/executors/tool-provider-adapters`
+- `@graphrefly/ts/scoring`
+- `@graphrefly/ts/solutions/agentic-memory`
+- `@graphrefly/ts/solutions/agentic-work-item-memory`
 - `@graphrefly/ts/solutions/reactive-layout`
+- `@graphrefly/ts/solutions/work-item`
 - `@graphrefly/ts/solutions/work-item/actions`
 - `@graphrefly/ts/solutions/work-item/scheduling`
+- `@graphrefly/ts/solutions/work-item/work-queue`
 
 ## Package Status
 

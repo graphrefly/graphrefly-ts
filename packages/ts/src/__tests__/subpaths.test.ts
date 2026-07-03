@@ -67,6 +67,8 @@ import type {
 } from "../index.js";
 import * as rootPackage from "../index.js";
 import * as boundaryInspection from "../inspection/boundary.js";
+import * as memory from "../memory/index.js";
+import * as semanticMemory from "../memory/semantic/index.js";
 import * as messaging from "../messaging/index.js";
 import * as operators from "../operators/index.js";
 import type {
@@ -109,6 +111,9 @@ import * as orchestrationWorkQueueRecipe from "../orchestration/work-queue.js";
 import * as eventFlowPatterns from "../patterns/event-flow.js";
 import * as patterns from "../patterns/index.js";
 import * as render from "../render/index.js";
+import * as scoring from "../scoring/index.js";
+import * as agenticMemory from "../solutions/agentic-memory/index.js";
+import * as agenticWorkItemMemory from "../solutions/agentic-work-item-memory/index.js";
 import type { ImageSizeLookup } from "../solutions/index.js";
 import * as solutions from "../solutions/index.js";
 import * as reactiveLayoutBrowser from "../solutions/reactive-layout/browser/index.js";
@@ -117,6 +122,7 @@ import * as reactiveLayoutNodeCanvas from "../solutions/reactive-layout/node-can
 import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-native/index.js";
 import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
 import * as workItemActions from "../solutions/work-item/actions.js";
+import * as workItemSolution from "../solutions/work-item/index.js";
 import type {
 	WorkspaceProposalFamilyApplicationReadModelQuery,
 	WorkspaceProposalProjectionRelease,
@@ -192,6 +198,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./executors/work-queue",
 			"./graph",
 			"./inspection/boundary",
+			"./memory",
+			"./memory/semantic",
 			"./messaging",
 			"./operators",
 			"./orchestration",
@@ -200,12 +208,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./patterns",
 			"./patterns/event-flow",
 			"./render",
+			"./scoring",
 			"./solutions",
+			"./solutions/agentic-memory",
+			"./solutions/agentic-work-item-memory",
 			"./solutions/reactive-layout",
 			"./solutions/reactive-layout/browser",
 			"./solutions/reactive-layout/node-canvas",
 			"./solutions/reactive-layout/react-native",
 			"./solutions/reactive-layout/skia",
+			"./solutions/work-item",
 			"./solutions/work-item/actions",
 			"./solutions/work-item/scheduling",
 			"./solutions/work-item/work-queue",
@@ -395,6 +407,20 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof patterns.filterMemoryFragments).toBe("function");
 		expect(typeof patterns.memoryRetrievalBundle).toBe("function");
 		expect(typeof patterns.knowledgeGraphReducerBundle).toBe("function");
+		expect(typeof scoring.cosineSimilarity).toBe("function");
+		expect(typeof scoring.admissionScored).toBe("function");
+		expect(typeof scoring.admissionFilter3D).toBe("function");
+		expect(Object.hasOwn(scoring, "memoryRetrievalBundle")).toBe(false);
+		expect(Object.hasOwn(scoring, "agenticMemoryBundle")).toBe(false);
+		expect(typeof memory.validateMemoryFragment).toBe("function");
+		expect(typeof memory.filterMemoryFragments).toBe("function");
+		expect(typeof memory.memoryRetrievalBundle).toBe("function");
+		expect(typeof memory.knowledgeGraphReducerBundle).toBe("function");
+		expect(Object.hasOwn(memory, "agenticMemoryBundle")).toBe(false);
+		expect(typeof semanticMemory.validateMemoryFragment).toBe("function");
+		expect(typeof semanticMemory.filterMemoryFragments).toBe("function");
+		expect(typeof semanticMemory.memoryRetrievalBundle).toBe("function");
+		expect(typeof semanticMemory.knowledgeGraphReducerBundle).toBe("function");
 		expect(typeof adapters.persistAgenticMemoryRecords).toBe("function");
 		expect(typeof adapters.openPersistentAgenticMemoryRecords).toBe("function");
 		expect(typeof adapters.loadAgenticMemoryRecordsState).toBe("function");
@@ -909,6 +935,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<WorkQueueReadinessHandoffStatus>().toHaveProperty("candidateKind");
 		expectTypeOf<WorkQueueLeaseExpirationCommandBundle>().toHaveProperty("commands");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryKgProjectionBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordFrame).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordFrameCodec).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordCodec).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRetentionBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryConsolidationBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryContextPackingBundle).toBe("function");
+		expect(Object.hasOwn(agenticMemory, "workItemAuthoringProjector")).toBe(false);
+		expect(Object.keys(agenticWorkItemMemory)).toEqual([]);
 		expect(typeof solutions.capabilityAdmissionProjector).toBe("function");
 		expect(typeof solutions.capabilityAdmissionProposal).toBe("function");
 		expect(Object.hasOwn(solutions, "workItemWorkQueueRecipe")).toBe(false);
@@ -985,6 +1021,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.agenticMemoryRetentionBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryConsolidationBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryContextPackingBundle).toBe("function");
+		expect(typeof workItemSolution.workItemAuthoringProjector).toBe("function");
+		expect(typeof workItemSolution.workItemDomainActionProposalIntakeProjector).toBe("function");
+		expect(typeof workItemSolution.workItemDomainActionAdmissionProjector).toBe("function");
+		expect(typeof workItemSolution.workItemWorkQueueRecipe).toBe("function");
+		expect(Object.hasOwn(workItemSolution, "agenticMemoryBundle")).toBe(false);
+		expect(Object.hasOwn(workItemSolution, "workItemEffectRunProjector")).toBe(false);
 		expect(typeof graphLayer.workerDerived).toBe("function");
 		expect(Object.hasOwn(patterns, "guardedExecution")).toBe(false);
 		expect(Object.hasOwn(patterns, "inspect")).toBe(false);

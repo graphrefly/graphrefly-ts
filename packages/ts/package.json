@@ -266,6 +266,26 @@
 				"default": "./dist/messaging/index.cjs"
 			}
 		},
+		"./memory": {
+			"import": {
+				"types": "./dist/memory/index.d.ts",
+				"default": "./dist/memory/index.js"
+			},
+			"require": {
+				"types": "./dist/memory/index.d.cts",
+				"default": "./dist/memory/index.cjs"
+			}
+		},
+		"./memory/semantic": {
+			"import": {
+				"types": "./dist/memory/semantic/index.d.ts",
+				"default": "./dist/memory/semantic/index.js"
+			},
+			"require": {
+				"types": "./dist/memory/semantic/index.d.cts",
+				"default": "./dist/memory/semantic/index.cjs"
+			}
+		},
 		"./work-queue": {
 			"import": {
 				"types": "./dist/work-queue/index.d.ts",
@@ -346,6 +366,16 @@
 				"default": "./dist/render/index.cjs"
 			}
 		},
+		"./scoring": {
+			"import": {
+				"types": "./dist/scoring/index.d.ts",
+				"default": "./dist/scoring/index.js"
+			},
+			"require": {
+				"types": "./dist/scoring/index.d.cts",
+				"default": "./dist/scoring/index.cjs"
+			}
+		},
 		"./sources": {
 			"import": {
 				"types": "./dist/sources/index.d.ts",
@@ -424,6 +454,36 @@
 			"require": {
 				"types": "./dist/solutions/index.d.cts",
 				"default": "./dist/solutions/index.cjs"
+			}
+		},
+		"./solutions/agentic-memory": {
+			"import": {
+				"types": "./dist/solutions/agentic-memory/index.d.ts",
+				"default": "./dist/solutions/agentic-memory/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/agentic-memory/index.d.cts",
+				"default": "./dist/solutions/agentic-memory/index.cjs"
+			}
+		},
+		"./solutions/agentic-work-item-memory": {
+			"import": {
+				"types": "./dist/solutions/agentic-work-item-memory/index.d.ts",
+				"default": "./dist/solutions/agentic-work-item-memory/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/agentic-work-item-memory/index.d.cts",
+				"default": "./dist/solutions/agentic-work-item-memory/index.cjs"
+			}
+		},
+		"./solutions/work-item": {
+			"import": {
+				"types": "./dist/solutions/work-item/index.d.ts",
+				"default": "./dist/solutions/work-item/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/work-item/index.d.cts",
+				"default": "./dist/solutions/work-item/index.cjs"
 			}
 		},
 		"./solutions/work-item/work-queue": {

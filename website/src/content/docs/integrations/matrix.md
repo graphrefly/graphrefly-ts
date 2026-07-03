@@ -46,14 +46,20 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Tool-provider runtime | Explicit low-level adapter runtime attach boundary; runtime handles stay private data | `@graphrefly/ts/executors/tool-provider-runtime` |
 | Tool-provider adapter pack | Local builtin, process, and HTTP adapter helpers | `@graphrefly/ts/executors/tool-provider-adapters` |
 | Boundary inspection | Boundary manifest inspection helpers | `@graphrefly/ts/inspection/boundary` |
+| Memory | Horizontal memory and fact-fragment families | `@graphrefly/ts/memory` |
+| Semantic memory | Focused semantic memory fact-fragment helpers | `@graphrefly/ts/memory/semantic` |
 | Patterns | Reusable projection patterns | `@graphrefly/ts/patterns` |
 | Event-flow pattern | Focused event-flow pattern | `@graphrefly/ts/patterns/event-flow` |
+| Scoring | Reusable subjects/signals/policy scoring helpers | `@graphrefly/ts/scoring` |
 | Solutions | Vertical solution kits | `@graphrefly/ts/solutions` |
+| Agentic memory | Focused agentic memory solution | `@graphrefly/ts/solutions/agentic-memory` |
+| Agentic WorkItem memory bridge | Replaceable bridge recipe namespace | `@graphrefly/ts/solutions/agentic-work-item-memory` |
 | Reactive layout | DOM-free reactive layout solution core | `@graphrefly/ts/solutions/reactive-layout` |
 | Reactive layout browser | Browser measurement helpers | `@graphrefly/ts/solutions/reactive-layout/browser` |
 | Reactive layout node-canvas | Node canvas measurement helpers | `@graphrefly/ts/solutions/reactive-layout/node-canvas` |
 | Reactive layout React Native | React Native measurement helpers | `@graphrefly/ts/solutions/reactive-layout/react-native` |
 | Reactive layout Skia | Skia measurement helpers | `@graphrefly/ts/solutions/reactive-layout/skia` |
+| Work item | Focused WorkItem solution barrel | `@graphrefly/ts/solutions/work-item` |
 | Work-item actions | Focused work-item action projectors | `@graphrefly/ts/solutions/work-item/actions` |
 | Work-item scheduling | Focused work-item scheduling projectors | `@graphrefly/ts/solutions/work-item/scheduling` |
 | Work-item work-queue recipe | Focused work-item work-queue recipe | `@graphrefly/ts/solutions/work-item/work-queue` |
