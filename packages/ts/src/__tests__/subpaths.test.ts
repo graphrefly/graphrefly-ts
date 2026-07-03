@@ -32,8 +32,11 @@ import * as executorWorkQueueRecipe from "../executors/work-queue.js";
 import * as graphLayer from "../graph/index.js";
 import type {
 	AgenticMemoryBundleOptions,
+	AgenticMemoryConsolidationBundle,
 	AgenticMemoryConsolidationBundleOptions,
+	AgenticMemoryContextAttribution,
 	AgenticMemoryContextPackingBundleOptions,
+	AgenticMemoryContextTruncation,
 	AgenticMemoryKgProjectionBundleOptions,
 	AgenticMemoryProposalAdmissionDecision,
 	AgenticMemoryProposalAdmissionPolicy,
@@ -941,6 +944,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<WorkQueueReadinessHandoffBundle>().toHaveProperty("candidates");
 		expectTypeOf<WorkQueueReadinessHandoffStatus>().toHaveProperty("candidateKind");
 		expectTypeOf<WorkQueueLeaseExpirationCommandBundle>().toHaveProperty("commands");
+		expect(typeof rootPackage.agenticMemoryBundle).toBe("function");
+		expect(typeof rootPackage.agenticMemoryContextPackingBundle).toBe("function");
+		expect(typeof rootPackage.agenticMemoryRecordAdmissionBundle).toBe("function");
+		expect(typeof rootPackage.admitAgenticMemoryRecordProposals).toBe("function");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryKgProjectionBundle).toBe("function");
@@ -954,6 +961,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.admitAgenticMemoryRecordProposals).toBe("function");
 		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
 		expectTypeOf<AgenticMemoryRecordCandidateMaterial>().toHaveProperty("record");
+		expectTypeOf<AgenticMemoryRecordCandidateMaterial>().toHaveProperty("attribution");
+		expectTypeOf<AgenticMemoryContextAttribution>()
+			.toHaveProperty("fragmentId")
+			.toEqualTypeOf<string | undefined>();
+		expectTypeOf<AgenticMemoryContextAttribution>()
+			.toHaveProperty("rank")
+			.toEqualTypeOf<number | undefined>();
+		expectTypeOf<AgenticMemoryContextTruncation>()
+			.toHaveProperty("omittedChars")
+			.toEqualTypeOf<number | undefined>();
 		expectTypeOf<AgenticMemoryProposalAdmissionPolicy>().toHaveProperty("policyId");
 		expectTypeOf<AgenticMemoryProposalAdmissionDecision>().toHaveProperty("admissionId");
 		expect(Object.hasOwn(agenticMemory, "workItemAuthoringProjector")).toBe(false);
@@ -1299,6 +1316,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			.toMatchTypeOf<unknown>();
 		expectTypeOf<AgenticMemoryConsolidationBundleOptions>()
 			.toHaveProperty("outcomes")
+			.toMatchTypeOf<unknown>();
+		expectTypeOf<AgenticMemoryConsolidationBundle>()
+			.toHaveProperty("recordProposals")
 			.toMatchTypeOf<unknown>();
 		expectTypeOf<AgenticMemoryRecordsPersistenceHandle>()
 			.toHaveProperty("cursor")

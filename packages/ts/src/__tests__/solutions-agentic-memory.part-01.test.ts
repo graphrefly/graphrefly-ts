@@ -177,6 +177,7 @@ describe("agenticMemoryBundle solution (D164)", () => {
 					persistenceLevel: entry.record?.persistenceLevel,
 					artifactKind: entry.record?.artifactKind,
 					scope: entry.record?.scope,
+					attribution: entry.attribution,
 				})),
 		).toEqual([
 			{
@@ -186,6 +187,7 @@ describe("agenticMemoryBundle solution (D164)", () => {
 				persistenceLevel: "longTerm",
 				artifactKind: "procedure",
 				scope: { projectId: "project-1", userId: "user-1" },
+				attribution: { fragmentId: "near", recordId: "record-near", rank: 1 },
 			},
 			{
 				fragmentId: "far",
@@ -194,6 +196,7 @@ describe("agenticMemoryBundle solution (D164)", () => {
 				persistenceLevel: "session",
 				artifactKind: "raw",
 				scope: { sessionId: "session-1", tenantId: "tenant-1" },
+				attribution: { fragmentId: "far", recordId: "record-far", rank: 2 },
 			},
 		]);
 		expect(data<AgenticMemorySourceProjection[]>(sources.messages).at(-1)).toEqual([

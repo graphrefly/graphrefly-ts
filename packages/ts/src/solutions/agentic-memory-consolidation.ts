@@ -27,7 +27,10 @@ import type {
 	AgenticMemoryConsolidationSnapshot,
 	AgenticMemoryConsolidationStatus,
 	AgenticMemoryError,
+	AgenticMemoryFactRef,
 	AgenticMemoryRecord,
+	AgenticMemoryRecordCandidateMaterial,
+	AgenticMemoryRecordProposal,
 	AgenticMemoryRetentionError,
 } from "./agentic-memory-types.js";
 
@@ -57,6 +60,7 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 				invalidOutcomes: outcomes.invalidOutcomes,
 				results: outcomes.results.length,
 				proposedRecordDrafts: outcomes.proposedRecordDrafts.length,
+				recordProposals: outcomes.recordProposals.length,
 			});
 			const errors = Object.freeze(
 				[
@@ -76,6 +80,7 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 					Object.freeze({
 						results: Object.freeze(outcomes.results),
 						proposedRecordDrafts: Object.freeze(outcomes.proposedRecordDrafts),
+						recordProposals: Object.freeze(outcomes.recordProposals),
 						commands: Object.freeze(outcomes.commands),
 						status,
 						errors,
@@ -107,6 +112,13 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 			`${name}/proposedRecordDrafts`,
 			"agenticMemoryConsolidationRecordDrafts",
 			(fact) => fact.proposedRecordDrafts,
+		),
+		recordProposals: solutionProjection(
+			graph,
+			projection,
+			`${name}/recordProposals`,
+			"agenticMemoryConsolidationRecordProposals",
+			(fact) => fact.recordProposals,
 		),
 		commands: solutionProjection(
 			graph,
@@ -273,6 +285,7 @@ function projectConsolidationOutcomes<T>(
 ): {
 	readonly results: readonly AgenticMemoryConsolidationResult[];
 	readonly proposedRecordDrafts: readonly AgenticMemoryConsolidationRecordDraft<T>[];
+	readonly recordProposals: readonly AgenticMemoryRecordProposal<T>[];
 	readonly commands: readonly AgenticMemoryConsolidationCommand[];
 	readonly errors: readonly Omit<AgenticMemoryConsolidationError, "cursor">[];
 	readonly validOutcomes: number;
@@ -281,6 +294,7 @@ function projectConsolidationOutcomes<T>(
 	const byRequest = new Map(requests.map((request) => [request.id, request]));
 	const results: AgenticMemoryConsolidationResult[] = [];
 	const proposedRecordDrafts: AgenticMemoryConsolidationRecordDraft<T>[] = [];
+	const recordProposals: AgenticMemoryRecordProposal<T>[] = [];
 	const commands: AgenticMemoryConsolidationCommand[] = [];
 	const errors: Omit<AgenticMemoryConsolidationError, "cursor">[] = [];
 	let validOutcomes = 0;
@@ -289,6 +303,7 @@ function projectConsolidationOutcomes<T>(
 		return {
 			results,
 			proposedRecordDrafts,
+			recordProposals,
 			commands,
 			validOutcomes,
 			invalidOutcomes: 1,
@@ -306,6 +321,7 @@ function projectConsolidationOutcomes<T>(
 		return {
 			results,
 			proposedRecordDrafts,
+			recordProposals,
 			commands,
 			validOutcomes,
 			invalidOutcomes: 1,
@@ -412,13 +428,46 @@ function projectConsolidationOutcomes<T>(
 				record.id,
 			]),
 		);
+		const proposalIds = validOutcome.records.map((record) =>
+			compoundTupleKey("agentic-memory-record-proposal", [
+				validOutcome.requestId,
+				validOutcome.id,
+				record.id,
+			]),
+		);
 		for (let recordIndex = 0; recordIndex < validOutcome.records.length; recordIndex += 1) {
+			const record = validOutcome.records[recordIndex] as AgenticMemoryRecord<T>;
+			const draftId = draftIds[recordIndex] as FactId;
+			const proposalId = proposalIds[recordIndex] as FactId;
+			const refs = consolidationProposalRefs(request, validOutcome.id, draftId);
+			const candidateMaterial: AgenticMemoryRecordCandidateMaterial<T> = Object.freeze({
+				kind: "agentic-memory-record-candidate-material",
+				record,
+				sourceRefs: refs,
+				evidenceRefs: refs,
+			});
 			proposedRecordDrafts.push(
 				Object.freeze({
-					id: draftIds[recordIndex] as FactId,
+					id: draftId,
 					requestId: validOutcome.requestId,
 					outcomeId: validOutcome.id,
-					record: validOutcome.records[recordIndex] as AgenticMemoryRecord<T>,
+					record,
+					proposalId,
+					candidateMaterial,
+				}),
+			);
+			recordProposals.push(
+				Object.freeze({
+					kind: "agentic-memory-record-proposal",
+					proposalId,
+					candidateMaterial,
+					reason: request.reason ?? validOutcome.provenance ?? "consolidation",
+					proposalStatus: "consolidation-proposed",
+					sourceRefs: refs,
+					evidenceRefs: refs,
+					idempotencyKey: proposalId,
+					correlationId: request.id,
+					causationId: validOutcome.id,
 				}),
 			);
 		}
@@ -434,6 +483,7 @@ function projectConsolidationOutcomes<T>(
 				state: "proposed",
 				sourceRecordIds: request.recordIds,
 				proposedRecordIds: Object.freeze(validOutcome.records.map((record) => record.id)),
+				proposalIds: Object.freeze(proposalIds),
 				...(validOutcome.provenance === undefined ? {} : { provenance: validOutcome.provenance }),
 			}),
 		);
@@ -444,6 +494,7 @@ function projectConsolidationOutcomes<T>(
 				requestId: validOutcome.requestId,
 				outcomeId: validOutcome.id,
 				draftIds: Object.freeze(draftIds),
+				proposalIds: Object.freeze(proposalIds),
 			}),
 		);
 	}
@@ -451,11 +502,24 @@ function projectConsolidationOutcomes<T>(
 	return {
 		results: Object.freeze(results),
 		proposedRecordDrafts: Object.freeze(proposedRecordDrafts),
+		recordProposals: Object.freeze(recordProposals),
 		commands: Object.freeze(commands),
 		errors,
 		validOutcomes,
 		invalidOutcomes,
 	};
+}
+
+function consolidationProposalRefs(
+	request: AgenticMemoryConsolidationRequest,
+	outcomeId: FactId,
+	draftId: FactId,
+): readonly AgenticMemoryFactRef[] {
+	return Object.freeze([
+		Object.freeze({ kind: "agentic-memory-consolidation-request", id: request.id }),
+		Object.freeze({ kind: "agentic-memory-consolidation-outcome", id: outcomeId }),
+		Object.freeze({ kind: "agentic-memory-consolidation-record-draft", id: draftId }),
+	]);
 }
 
 function validateConsolidationOutcome<T>(

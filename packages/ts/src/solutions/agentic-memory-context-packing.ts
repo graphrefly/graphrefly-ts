@@ -5,11 +5,13 @@ import { solutionProjection } from "./agentic-memory-projection.js";
 import {
 	agenticStatusState,
 	assertStrictJsonValue,
+	cloneStrictJsonObject,
 	errorMessage,
 	freezeError,
 	isNonEmptyString,
 	isPlainRecord,
 	safeArrayLength,
+	validateAgenticMemoryContextAttribution,
 	validateRecordMetadata,
 } from "./agentic-memory-shared.js";
 import type {
@@ -24,7 +26,6 @@ import type {
 	AgenticMemoryContextText,
 	AgenticMemoryPackedContext,
 	AgenticMemoryPackedContextEntry,
-	StrictJsonValue,
 	ValidatedPackingContext,
 } from "./agentic-memory-types.js";
 
@@ -136,6 +137,7 @@ function packContext(
 				cost,
 				chars: textFact.text.length,
 				...(entry.record === undefined ? {} : { record: entry.record }),
+				...(entry.attribution === undefined ? {} : { attribution: entry.attribution }),
 				...(policy.includeMetadata && textFact.metadata !== undefined
 					? { metadata: textFact.metadata }
 					: {}),
@@ -250,10 +252,27 @@ function validatePackingContext(
 				});
 				continue;
 			}
+			const attribution = validateAgenticMemoryContextAttribution(raw.attribution, {
+				fragmentId: raw.fragmentId,
+				recordId: record.metadata?.recordId,
+			});
+			if (!attribution.ok) {
+				errors.push({
+					code: "invalid-context",
+					message: "agenticMemoryContextPackingBundle: context entry attribution is invalid",
+					index: i,
+					fragmentId: raw.fragmentId,
+					validationErrors: Object.freeze(attribution.errors),
+				});
+				continue;
+			}
 			entries.push(
 				Object.freeze({
 					fragmentId: raw.fragmentId,
 					...(record.metadata === undefined ? {} : { record: record.metadata }),
+					...(attribution.attribution === undefined
+						? {}
+						: { attribution: attribution.attribution }),
 				}) as AgenticMemoryContextEntry,
 			);
 		} catch (error) {
@@ -388,9 +407,7 @@ function validateContextText(
 			fragmentId: value.fragmentId as string,
 			text: value.text as string,
 			...(value.cost === undefined ? {} : { cost: value.cost as number }),
-			...(value.metadata === undefined
-				? {}
-				: { metadata: Object.freeze({ ...(value.metadata as Record<string, StrictJsonValue>) }) }),
+			...(value.metadata === undefined ? {} : { metadata: cloneStrictJsonObject(value.metadata) }),
 		}),
 	};
 }

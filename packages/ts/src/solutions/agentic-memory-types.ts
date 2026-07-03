@@ -79,11 +79,45 @@ export interface AgenticMemoryFactRef {
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
 }
 
+/** Data-only truncation provenance for D573/D576 attribution material. */
+export interface AgenticMemoryContextTruncation {
+	readonly originalChars?: number;
+	readonly packedChars?: number;
+	readonly omittedChars?: number;
+	readonly originalCost?: number;
+	readonly packedCost?: number;
+	readonly omittedCost?: number;
+	readonly reason?: string;
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+/**
+ * D573/D576 typed provenance for context, packing, and candidate material.
+ *
+ * This is evaluation DATA only. It is not a storage key, provider/runtime
+ * handle, permission grant, graph/node handle, hydration authority, routing
+ * authority, or protocol metadata.
+ */
+export interface AgenticMemoryContextAttribution {
+	readonly kind?: "agentic-memory-context-attribution";
+	readonly fragmentId?: FactId;
+	readonly recordId?: FactId;
+	readonly queryId?: string;
+	readonly rank?: number;
+	readonly score?: number;
+	readonly truncated?: boolean;
+	readonly truncation?: AgenticMemoryContextTruncation;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
 /** D572 candidate material carried by proposal/admission facts, not record truth. */
 export interface AgenticMemoryRecordCandidateMaterial<T = unknown> {
 	readonly kind: "agentic-memory-record-candidate-material";
 	readonly record: AgenticMemoryRecord<T>;
 	readonly targetRecordId?: FactId;
+	readonly attribution?: AgenticMemoryContextAttribution;
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
 	readonly policyRefs?: readonly AgenticMemoryFactRef[];
 	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
@@ -305,6 +339,7 @@ export interface AgenticMemoryContextEntry<T = unknown> {
 	readonly tags: readonly string[];
 	readonly sources: readonly FactId[];
 	readonly record?: AgenticMemoryRecordMetadata;
+	readonly attribution?: AgenticMemoryContextAttribution;
 	readonly fragment: MemoryFragment<T>;
 }
 
@@ -550,6 +585,10 @@ export interface AgenticMemoryConsolidationRecordDraft<T = unknown> {
 	readonly requestId: FactId;
 	readonly outcomeId: FactId;
 	readonly record: AgenticMemoryRecord<T>;
+	/** D576 migration coordinate for the proposal-compatible candidate fact. */
+	readonly proposalId?: FactId;
+	/** D572/D576 proposal material only; not AgenticMemoryRecord truth. */
+	readonly candidateMaterial?: AgenticMemoryRecordCandidateMaterial<T>;
 }
 
 export interface AgenticMemoryConsolidationCommand {
@@ -558,6 +597,8 @@ export interface AgenticMemoryConsolidationCommand {
 	readonly requestId: FactId;
 	readonly outcomeId: FactId;
 	readonly draftIds?: readonly FactId[];
+	/** Proposal-compatible facts emitted for consolidation drafts; application remains separate. */
+	readonly proposalIds?: readonly FactId[];
 	readonly message?: string;
 }
 
@@ -568,6 +609,8 @@ export interface AgenticMemoryConsolidationResult {
 	readonly state: "proposed" | "failed";
 	readonly sourceRecordIds: readonly FactId[];
 	readonly proposedRecordIds: readonly FactId[];
+	/** Proposal ids corresponding to proposedRecordIds; these are admission inputs, not record truth. */
+	readonly proposalIds?: readonly FactId[];
 	readonly message?: string;
 	readonly provenance?: string;
 }
@@ -579,6 +622,8 @@ export interface AgenticMemoryConsolidationCursor {
 	readonly invalidOutcomes: number;
 	readonly results: number;
 	readonly proposedRecordDrafts: number;
+	/** Count of D572/D576 proposal-compatible facts emitted by consolidation. */
+	readonly recordProposals: number;
 }
 
 export interface AgenticMemoryConsolidationStatus {
@@ -609,6 +654,8 @@ export interface AgenticMemoryConsolidationError {
 export interface AgenticMemoryConsolidationSnapshot<T = unknown> {
 	readonly results: readonly AgenticMemoryConsolidationResult[];
 	readonly proposedRecordDrafts: readonly AgenticMemoryConsolidationRecordDraft<T>[];
+	/** D576 proposal-compatible facts for later admission/application slices. */
+	readonly recordProposals: readonly AgenticMemoryRecordProposal<T>[];
 	readonly commands: readonly AgenticMemoryConsolidationCommand[];
 	readonly status: AgenticMemoryConsolidationStatus;
 	readonly errors: readonly AgenticMemoryConsolidationError[];
@@ -624,6 +671,8 @@ export interface AgenticMemoryConsolidationBundle<T = unknown> {
 	readonly projection: Node<AgenticMemoryConsolidationSnapshot<T>>;
 	readonly results: Node<readonly AgenticMemoryConsolidationResult[]>;
 	readonly proposedRecordDrafts: Node<readonly AgenticMemoryConsolidationRecordDraft<T>[]>;
+	/** Projected AgenticMemoryRecordProposal facts; does not apply record truth. */
+	readonly recordProposals: Node<readonly AgenticMemoryRecordProposal<T>[]>;
 	readonly commands: Node<readonly AgenticMemoryConsolidationCommand[]>;
 	readonly status: Node<AgenticMemoryConsolidationStatus>;
 	readonly errors: Node<readonly AgenticMemoryConsolidationError[]>;
@@ -657,6 +706,7 @@ export interface AgenticMemoryPackedContextEntry {
 	readonly cost: number;
 	readonly chars: number;
 	readonly record?: AgenticMemoryRecordMetadata;
+	readonly attribution?: AgenticMemoryContextAttribution;
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
 }
 

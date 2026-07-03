@@ -6,10 +6,15 @@ import { strictJsonCodec } from "../json/codec.js";
 import type { FactId } from "../patterns/semantic-memory.js";
 import { solutionProjection } from "./agentic-memory-projection.js";
 import {
+	cloneStrictJsonObject,
 	errorMessage,
+	forbiddenAgenticMemoryDataFields,
 	isNonEmptyString,
 	isPlainRecord,
 	safeArrayLength,
+	snapshotAgenticMemoryFactRefs,
+	validateAgenticMemoryContextAttribution,
+	validateAgenticMemoryFactRefs,
 	validateAndProjectRecords,
 	validateAndSnapshotRecord,
 } from "./agentic-memory-shared.js";
@@ -27,7 +32,6 @@ import type {
 	AgenticMemoryRecordAdmissionBundleOptions,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordProposal,
-	StrictJsonValue,
 } from "./agentic-memory-types.js";
 
 export function agenticMemoryRecordAdmissionBundle<T = unknown>(
@@ -374,7 +378,7 @@ function validateProposal<T>(
 		};
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenRuntimeFields(value, "proposal"));
+	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "proposal"));
 	if (value.kind !== "agentic-memory-record-proposal") {
 		validationErrors.push("proposal.kind must be agentic-memory-record-proposal");
 	}
@@ -389,7 +393,7 @@ function validateProposal<T>(
 		["evidenceRefs", value.evidenceRefs],
 	] as const) {
 		if (refs !== undefined) {
-			const refErrors = validateFactRefs(refs);
+			const refErrors = validateAgenticMemoryFactRefs(refs);
 			if (refErrors.length > 0) {
 				validationErrors.push(...refErrors.map((error) => `proposal.${field}: ${error}`));
 			}
@@ -455,11 +459,15 @@ function validateProposal<T>(
 			...(value.proposalStatus === undefined
 				? {}
 				: { proposalStatus: value.proposalStatus as string }),
-			...(value.sourceRefs === undefined ? {} : { sourceRefs: snapshotFactRefs(value.sourceRefs) }),
-			...(value.policyRefs === undefined ? {} : { policyRefs: snapshotFactRefs(value.policyRefs) }),
+			...(value.sourceRefs === undefined
+				? {}
+				: { sourceRefs: snapshotAgenticMemoryFactRefs(value.sourceRefs) }),
+			...(value.policyRefs === undefined
+				? {}
+				: { policyRefs: snapshotAgenticMemoryFactRefs(value.policyRefs) }),
 			...(value.evidenceRefs === undefined
 				? {}
-				: { evidenceRefs: snapshotFactRefs(value.evidenceRefs) }),
+				: { evidenceRefs: snapshotAgenticMemoryFactRefs(value.evidenceRefs) }),
 			...(value.idempotencyKey === undefined
 				? {}
 				: { idempotencyKey: value.idempotencyKey as string }),
@@ -467,9 +475,7 @@ function validateProposal<T>(
 				? {}
 				: { correlationId: value.correlationId as string }),
 			...(value.causationId === undefined ? {} : { causationId: value.causationId as string }),
-			...(value.metadata === undefined
-				? {}
-				: { metadata: value.metadata as Readonly<Record<string, StrictJsonValue>> }),
+			...(value.metadata === undefined ? {} : { metadata: cloneStrictJsonObject(value.metadata) }),
 		}),
 		issues: [],
 	};
@@ -558,7 +564,7 @@ function validateCandidateMaterial<T>(
 		};
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenRuntimeFields(value, "candidateMaterial"));
+	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "candidateMaterial"));
 	if (value.kind !== "agentic-memory-record-candidate-material") {
 		validationErrors.push(
 			"candidateMaterial.kind must be agentic-memory-record-candidate-material",
@@ -573,7 +579,7 @@ function validateCandidateMaterial<T>(
 		["evidenceRefs", value.evidenceRefs],
 	] as const) {
 		if (refs !== undefined) {
-			const refErrors = validateFactRefs(refs);
+			const refErrors = validateAgenticMemoryFactRefs(refs);
 			if (refErrors.length > 0) {
 				validationErrors.push(...refErrors.map((error) => `candidateMaterial.${field}: ${error}`));
 			}
@@ -591,6 +597,13 @@ function validateCandidateMaterial<T>(
 				),
 			),
 		);
+	}
+	const attribution = validateAgenticMemoryContextAttribution(value.attribution, {
+		fragmentId: candidate.record?.fragment.id,
+		recordId: candidate.record?.id,
+	});
+	if (!attribution.ok) {
+		validationErrors.push(...attribution.errors.map((error) => `candidateMaterial.${error}`));
 	}
 	if (validationErrors.length > 0 || candidate.record === undefined) {
 		return {
@@ -610,11 +623,16 @@ function validateCandidateMaterial<T>(
 			...(value.targetRecordId === undefined
 				? {}
 				: { targetRecordId: value.targetRecordId as FactId }),
-			...(value.sourceRefs === undefined ? {} : { sourceRefs: snapshotFactRefs(value.sourceRefs) }),
-			...(value.policyRefs === undefined ? {} : { policyRefs: snapshotFactRefs(value.policyRefs) }),
+			...(attribution.attribution === undefined ? {} : { attribution: attribution.attribution }),
+			...(value.sourceRefs === undefined
+				? {}
+				: { sourceRefs: snapshotAgenticMemoryFactRefs(value.sourceRefs) }),
+			...(value.policyRefs === undefined
+				? {}
+				: { policyRefs: snapshotAgenticMemoryFactRefs(value.policyRefs) }),
 			...(value.evidenceRefs === undefined
 				? {}
-				: { evidenceRefs: snapshotFactRefs(value.evidenceRefs) }),
+				: { evidenceRefs: snapshotAgenticMemoryFactRefs(value.evidenceRefs) }),
 			...(value.metadata === undefined ? {} : { metadata: cloneStrictJsonObject(value.metadata) }),
 		}),
 		issues: [],
@@ -678,7 +696,7 @@ function validateAdmissionPolicy(value: unknown): {
 		};
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenRuntimeFields(value, "policy"));
+	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "policy"));
 	if (value.kind !== "agentic-memory-record-admission-policy") {
 		validationErrors.push("policy.kind must be agentic-memory-record-admission-policy");
 	}
@@ -702,7 +720,9 @@ function validateAdmissionPolicy(value: unknown): {
 		["policyRefs", value.policyRefs],
 	] as const) {
 		if (refs !== undefined) {
-			validationErrors.push(...validateFactRefs(refs).map((error) => `policy.${field}: ${error}`));
+			validationErrors.push(
+				...validateAgenticMemoryFactRefs(refs).map((error) => `policy.${field}: ${error}`),
+			);
 		}
 	}
 	if (value.metadata !== undefined && !isStrictJsonObject(value.metadata)) {
@@ -734,95 +754,17 @@ function validateAdmissionPolicy(value: unknown): {
 			...(value.rejectDuplicateRecordIds === undefined
 				? {}
 				: { rejectDuplicateRecordIds: value.rejectDuplicateRecordIds as boolean }),
-			...(value.sourceRefs === undefined ? {} : { sourceRefs: snapshotFactRefs(value.sourceRefs) }),
-			...(value.policyRefs === undefined ? {} : { policyRefs: snapshotFactRefs(value.policyRefs) }),
-			...(value.metadata === undefined
+			...(value.sourceRefs === undefined
 				? {}
-				: { metadata: value.metadata as Readonly<Record<string, StrictJsonValue>> }),
+				: { sourceRefs: snapshotAgenticMemoryFactRefs(value.sourceRefs) }),
+			...(value.policyRefs === undefined
+				? {}
+				: { policyRefs: snapshotAgenticMemoryFactRefs(value.policyRefs) }),
+			...(value.metadata === undefined ? {} : { metadata: cloneStrictJsonObject(value.metadata) }),
 		}),
 		issues: [],
 		invalidPolicies: 0,
 	};
-}
-
-function validateFactRefs(value: unknown): readonly string[] {
-	if (!Array.isArray(value)) return ["must be an array"];
-	const length = safeArrayLength(value);
-	if (length === undefined) return ["length could not be read"];
-	const errors: string[] = [];
-	for (let i = 0; i < length; i += 1) {
-		if (!Object.hasOwn(value, i)) {
-			errors.push(`[${i}] must be present`);
-			continue;
-		}
-		const ref = value[i];
-		if (!isPlainRecord(ref)) {
-			errors.push(`[${i}] must be an object`);
-			continue;
-		}
-		const extraFields = unexpectedFields(ref, ["id", "kind", "metadata"]);
-		if (extraFields.length > 0) {
-			errors.push(`[${i}] has unexpected fields ${extraFields.join(",")}`);
-		}
-		if (!isNonEmptyString(ref.kind)) errors.push(`[${i}].kind must be non-empty`);
-		if (!isNonEmptyString(ref.id)) errors.push(`[${i}].id must be non-empty`);
-		const forbidden = forbiddenRuntimeFields(ref, `[${i}]`);
-		errors.push(...forbidden);
-		if (ref.metadata !== undefined && !isStrictJsonObject(ref.metadata)) {
-			errors.push(`[${i}].metadata must be a strict JSON object`);
-		}
-	}
-	return errors;
-}
-
-function snapshotFactRefs(value: unknown): readonly AgenticMemoryFactRef[] {
-	if (!Array.isArray(value)) return Object.freeze([]);
-	const refs: AgenticMemoryFactRef[] = [];
-	for (let i = 0; i < value.length; i += 1) {
-		const ref = value[i] as Record<string, unknown>;
-		refs.push(
-			Object.freeze({
-				kind: ref.kind as string,
-				id: ref.id as FactId,
-				...(ref.metadata === undefined
-					? {}
-					: {
-							metadata: cloneStrictJsonObject(ref.metadata),
-						}),
-			}),
-		);
-	}
-	return Object.freeze(refs);
-}
-
-function forbiddenRuntimeFields(value: Record<string, unknown>, label: string): readonly string[] {
-	const forbidden = [
-		"storage",
-		"storageTier",
-		"storageKey",
-		"provider",
-		"providerHandle",
-		"permission",
-		"permissions",
-		"graph",
-		"node",
-		"handle",
-		"adapter",
-		"hydrate",
-		"restore",
-		"timer",
-		"scheduler",
-		"llm",
-		"tool",
-		"runner",
-	] as const;
-	const errors: string[] = [];
-	for (const field of forbidden) {
-		if (Object.hasOwn(value, field)) {
-			errors.push(`${label}.${field} is not graph-visible DATA`);
-		}
-	}
-	return errors;
 }
 
 function isStrictJsonObject(value: unknown): boolean {
@@ -833,33 +775,6 @@ function isStrictJsonObject(value: unknown): boolean {
 	} catch {
 		return false;
 	}
-}
-
-function cloneStrictJsonObject(value: unknown): Readonly<Record<string, StrictJsonValue>> {
-	const decoded = strictJsonCodec.decode(strictJsonCodec.encode(value)) as StrictJsonValue;
-	return deepFreezeStrictJson(decoded) as Readonly<Record<string, StrictJsonValue>>;
-}
-
-function deepFreezeStrictJson(value: StrictJsonValue): StrictJsonValue {
-	if (value !== null && typeof value === "object") {
-		if (Array.isArray(value)) {
-			for (const item of value) deepFreezeStrictJson(item);
-		} else {
-			for (const item of Object.values(value)) deepFreezeStrictJson(item);
-		}
-		Object.freeze(value);
-	}
-	return value;
-}
-
-function unexpectedFields(
-	value: Record<string, unknown>,
-	expected: readonly string[],
-): readonly string[] {
-	const allowed = new Set(expected);
-	return Object.keys(value)
-		.filter((key) => !allowed.has(key))
-		.sort();
 }
 
 function defaultAdmissionPolicy(): AgenticMemoryProposalAdmissionPolicy {

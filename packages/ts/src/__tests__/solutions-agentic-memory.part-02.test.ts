@@ -10,6 +10,7 @@ import {
 	type AgenticMemoryConsolidationRequest,
 	type AgenticMemoryConsolidationStatus,
 	type AgenticMemoryContext,
+	type AgenticMemoryContextAttribution,
 	type AgenticMemoryContextPackingError,
 	type AgenticMemoryContextPackingPolicy,
 	type AgenticMemoryContextPackingStatus,
@@ -113,9 +114,26 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			outcomes,
 		});
 		const drafts = collect(bundle.proposedRecordDrafts);
+		const proposals = collect(bundle.recordProposals);
 		const commands = collect(bundle.commands);
+		const results = collect(bundle.results);
 		const status = collect(bundle.status);
 		const errors = collect(bundle.errors);
+		const draftId = compoundTupleKey("agentic-memory-record-draft", [
+			"request-1",
+			"outcome-1",
+			"record-merged",
+		]);
+		const proposalId = compoundTupleKey("agentic-memory-record-proposal", [
+			"request-1",
+			"outcome-1",
+			"record-merged",
+		]);
+		const consolidationRefs = [
+			{ kind: "agentic-memory-consolidation-request", id: "request-1" },
+			{ kind: "agentic-memory-consolidation-outcome", id: "outcome-1" },
+			{ kind: "agentic-memory-consolidation-record-draft", id: draftId },
+		];
 
 		expect(g.describe().edges).toEqual(
 			expect.arrayContaining([
@@ -124,24 +142,64 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				{ from: "outcomes", to: "consolidation/projection" },
 				{ from: "consolidation/projection", to: "consolidation/results" },
 				{ from: "consolidation/projection", to: "consolidation/proposedRecordDrafts" },
+				{ from: "consolidation/projection", to: "consolidation/recordProposals" },
 				{ from: "consolidation/projection", to: "consolidation/commands" },
 			]),
 		);
 		expect(data(errors.messages).at(-1)).toEqual([]);
 		expect(data(status.messages).at(-1)).toMatchObject({
 			state: "ready",
-			cursor: { validOutcomes: 1, invalidOutcomes: 0, proposedRecordDrafts: 1 },
+			cursor: {
+				validOutcomes: 1,
+				invalidOutcomes: 0,
+				proposedRecordDrafts: 1,
+				recordProposals: 1,
+			},
 		});
 		expect(data(drafts.messages).at(-1)).toEqual([
 			expect.objectContaining({
-				id: compoundTupleKey("agentic-memory-record-draft", [
-					"request-1",
-					"outcome-1",
-					"record-merged",
-				]),
+				id: draftId,
 				requestId: "request-1",
 				outcomeId: "outcome-1",
 				record: expect.objectContaining({ id: "record-merged" }),
+				proposalId,
+				candidateMaterial: expect.objectContaining({
+					kind: "agentic-memory-record-candidate-material",
+					record: expect.objectContaining({ id: "record-merged" }),
+					sourceRefs: consolidationRefs,
+					evidenceRefs: consolidationRefs,
+				}),
+			}),
+		]);
+		expect(data<readonly AgenticMemoryRecordProposal<string>[]>(proposals.messages).at(-1)).toEqual(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId,
+					candidateMaterial: expect.objectContaining({
+						kind: "agentic-memory-record-candidate-material",
+						record: expect.objectContaining({
+							id: "record-merged",
+							fragment: expect.objectContaining({ id: "merged", payload: "merged insight" }),
+						}),
+						sourceRefs: consolidationRefs,
+						evidenceRefs: consolidationRefs,
+					}),
+					reason: "merge",
+					proposalStatus: "consolidation-proposed",
+					sourceRefs: consolidationRefs,
+					evidenceRefs: consolidationRefs,
+					idempotencyKey: proposalId,
+					correlationId: "request-1",
+					causationId: "outcome-1",
+				},
+			],
+		);
+		expect(data(results.messages).at(-1)).toEqual([
+			expect.objectContaining({
+				state: "proposed",
+				proposedRecordIds: ["record-merged"],
+				proposalIds: [proposalId],
 			}),
 		]);
 		expect(data<readonly AgenticMemoryConsolidationCommand[]>(commands.messages).at(-1)).toEqual([
@@ -153,13 +211,8 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				kind: "proposeRecords",
 				requestId: "request-1",
 				outcomeId: "outcome-1",
-				draftIds: [
-					compoundTupleKey("agentic-memory-record-draft", [
-						"request-1",
-						"outcome-1",
-						"record-merged",
-					]),
-				],
+				draftIds: [draftId],
+				proposalIds: [proposalId],
 			},
 		]);
 	});
@@ -248,6 +301,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		});
 		const errors = collect(bundle.errors);
 		const status = collect(bundle.status);
+		const proposals = collect(bundle.recordProposals);
 
 		expect(
 			data<readonly AgenticMemoryConsolidationError[]>(errors.messages)
@@ -260,8 +314,9 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		).toEqual(["records[1]: duplicate proposed record id 'record-merged'"]);
 		expect(data<AgenticMemoryConsolidationStatus>(status.messages).at(-1)).toMatchObject({
 			state: "error",
-			cursor: { validOutcomes: 0, invalidOutcomes: 2, proposedRecordDrafts: 0 },
+			cursor: { validOutcomes: 0, invalidOutcomes: 2, proposedRecordDrafts: 0, recordProposals: 0 },
 		});
+		expect(data<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1)).toEqual([]);
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});
 });
@@ -464,6 +519,12 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 						id: "runtime-field",
 						fragment: fragment({ id: "runtime-field" }),
 					}),
+					attribution: {
+						fragmentId: "runtime-field",
+						recordId: "runtime-field",
+						permission: "nope",
+						graph: "nope",
+					},
 				},
 				sourceRefs: [
 					{
@@ -513,6 +574,8 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 			expect.arrayContaining([
 				"proposal.storageKey is not graph-visible DATA",
 				"proposal.sourceRefs: [0] has unexpected fields callback",
+				"candidateMaterial: candidateMaterial.attribution.permission is not graph-visible DATA",
+				"candidateMaterial: candidateMaterial.attribution.graph is not graph-visible DATA",
 			]),
 		);
 		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
@@ -887,6 +950,90 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 		);
 	});
 
+	it("preserves candidateMaterial attribution through bundle and pure admission", () => {
+		const attribution: AgenticMemoryContextAttribution = {
+			kind: "agentic-memory-context-attribution",
+			fragmentId: "new",
+			recordId: "record-new",
+			queryId: "query-1",
+			rank: 3,
+			score: 12.5,
+			truncated: true,
+			truncation: {
+				originalChars: 100,
+				packedChars: 40,
+				omittedChars: 60,
+				originalCost: 50,
+				packedCost: 20,
+				omittedCost: 30,
+				reason: "budget",
+				metadata: { mode: "fixture" },
+			},
+			sourceRefs: [{ kind: "context-entry", id: "context-1", metadata: { rank: 3 } }],
+			policyRefs: [{ kind: "context-policy", id: "policy-1" }],
+			metadata: { nested: { retained: true } },
+		};
+		const proposals: readonly AgenticMemoryRecordProposal<string>[] = [
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "proposal-1",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({
+						id: "record-new",
+						scope: { projectId: "project-1" },
+						fragment: fragment({ id: "new", payload: "new insight" }),
+					}),
+					attribution,
+					sourceRefs: [{ kind: "candidate-source", id: "candidate-source-1" }],
+					policyRefs: [{ kind: "candidate-policy", id: "candidate-policy-1" }],
+					evidenceRefs: [{ kind: "candidate-evidence", id: "candidate-evidence-1" }],
+					metadata: { candidate: { ok: true } },
+				},
+				sourceRefs: [{ kind: "proposal-source", id: "proposal-source-1" }],
+			},
+		];
+		const policy: AgenticMemoryProposalAdmissionPolicy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+		};
+		const helperSnapshot = admitAgenticMemoryRecordProposals(proposals, policy);
+		expect(helperSnapshot.admitted[0]?.candidateMaterial.attribution).toEqual(attribution);
+		expect(helperSnapshot.admitted[0]?.candidateMaterial.record.scope).toEqual({
+			projectId: "project-1",
+		});
+		expect(Object.isFrozen(helperSnapshot.admitted[0]?.candidateMaterial.attribution)).toBe(true);
+		expect(
+			Object.isFrozen(helperSnapshot.admitted[0]?.candidateMaterial.attribution?.metadata?.nested),
+		).toBe(true);
+
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const proposalNode = g.state(proposals, { name: "proposals" });
+		const policyNode = g.state(policy, { name: "policy" });
+		const bundle = agenticMemoryRecordAdmissionBundle(g, {
+			name: "admission",
+			records,
+			proposals: proposalNode,
+			policy: policyNode,
+		});
+		const admitted = collect(bundle.admitted);
+
+		expect(
+			data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1)?.[0]
+				?.candidateMaterial,
+		).toEqual(
+			expect.objectContaining({
+				attribution,
+				sourceRefs: [{ kind: "candidate-source", id: "candidate-source-1" }],
+				policyRefs: [{ kind: "candidate-policy", id: "candidate-policy-1" }],
+				evidenceRefs: [{ kind: "candidate-evidence", id: "candidate-evidence-1" }],
+				metadata: { candidate: { ok: true } },
+			}),
+		);
+	});
+
 	it("rejects duplicate candidate record ids within one proposal batch", () => {
 		const g = graph();
 		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
@@ -964,6 +1111,26 @@ describe("agentic memory context packing (D168)", () => {
 					kind: "semantic",
 					persistenceLevel: "project",
 					artifactKind: "insight",
+					scope: { projectId: "project-1" },
+				},
+				attribution: {
+					kind: "agentic-memory-context-attribution",
+					fragmentId: "f1",
+					recordId: "r1",
+					queryId: "query-1",
+					rank: 1,
+					score: 0.42,
+					truncated: true,
+					truncation: {
+						originalChars: 10,
+						packedChars: 3,
+						omittedChars: 7,
+						reason: "budget",
+						metadata: { lane: "fixture" },
+					},
+					sourceRefs: [{ kind: "retrieval", id: "retrieval-1", metadata: { rank: 1 } }],
+					policyRefs: [{ kind: "policy", id: "packing-policy" }],
+					metadata: { nested: { ok: true } },
 				},
 				fragment: fragment({ id: "f1", payload: "one" }),
 			},
@@ -973,6 +1140,7 @@ describe("agentic memory context packing (D168)", () => {
 				confidence: 0.8,
 				tags: ["a"],
 				sources: [],
+				attribution: { fragmentId: "f2", rank: 2 },
 				fragment: fragment({ id: "f2", payload: "two" }),
 			},
 			{
@@ -1031,10 +1199,44 @@ describe("agentic memory context packing (D168)", () => {
 			totalCost: 4,
 			truncated: true,
 			entries: [
-				{ fragmentId: "f1", metadata: { role: "evidence" }, record: { recordId: "r1" } },
-				{ fragmentId: "f2", metadata: { role: "procedure" } },
+				{
+					fragmentId: "f1",
+					metadata: { role: "evidence" },
+					record: { recordId: "r1", scope: { projectId: "project-1" } },
+					attribution: {
+						kind: "agentic-memory-context-attribution",
+						fragmentId: "f1",
+						recordId: "r1",
+						queryId: "query-1",
+						rank: 1,
+						score: 0.42,
+						truncated: true,
+						truncation: {
+							originalChars: 10,
+							packedChars: 3,
+							omittedChars: 7,
+							reason: "budget",
+							metadata: { lane: "fixture" },
+						},
+						sourceRefs: [{ kind: "retrieval", id: "retrieval-1", metadata: { rank: 1 } }],
+						policyRefs: [{ kind: "policy", id: "packing-policy" }],
+						metadata: { nested: { ok: true } },
+					},
+				},
+				{
+					fragmentId: "f2",
+					metadata: { role: "procedure" },
+					attribution: { fragmentId: "f2", rank: 2 },
+				},
 			],
 		});
+		const latestPacked = data<AgenticMemoryPackedContext>(packed.messages).at(-1);
+		expect(Object.isFrozen(latestPacked?.entries)).toBe(true);
+		expect(Object.isFrozen(latestPacked?.entries[0])).toBe(true);
+		expect(Object.isFrozen(latestPacked?.entries[0]?.attribution)).toBe(true);
+		expect(Object.isFrozen(latestPacked?.entries[0]?.attribution?.truncation)).toBe(true);
+		expect(Object.isFrozen(latestPacked?.entries[0]?.attribution?.metadata?.nested)).toBe(true);
+		expect(Object.isFrozen(latestPacked?.entries[0]?.metadata)).toBe(true);
 		expect(data<readonly AgenticMemoryContextPackingError[]>(errors.messages).at(-1)).toEqual([
 			expect.objectContaining({ code: "missing-text", fragmentId: "f3" }),
 		]);
@@ -1092,6 +1294,171 @@ describe("agentic memory context packing (D168)", () => {
 				.at(-1)
 				?.map((error) => error.code),
 		).toEqual(["invalid-context", "invalid-context", "invalid-context", "invalid-text"]);
+		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("rejects invalid context attribution as DATA errors", () => {
+		const g = graph();
+		const context = g.state(
+			{
+				...contextFact(),
+				entries: [
+					{
+						...contextFact().entries[0],
+						attribution: {
+							fragmentId: "wrong-fragment",
+							recordId: "wrong-record",
+							rank: 0,
+							score: Number.POSITIVE_INFINITY,
+							truncated: false,
+							truncation: new Date("2026-07-03T00:00:00.000Z"),
+							sourceRefs: [{ kind: "source", id: "source-1", providerHandle: "nope" }],
+							metadata: { bad: undefined },
+							graph: "nope",
+						},
+					},
+				],
+			} as never,
+			{ name: "context" },
+		);
+		const texts = g.state<readonly AgenticMemoryContextText[]>([{ fragmentId: "f1", text: "ok" }], {
+			name: "texts",
+		});
+		const policy = g.state({}, { name: "policy" });
+		const bundle = agenticMemoryContextPackingBundle(g, {
+			name: "packing",
+			context,
+			texts,
+			policy,
+		});
+		const packed = collect(bundle.packedContext);
+		const errors = collect(bundle.errors);
+
+		expect(data<AgenticMemoryPackedContext>(packed.messages).at(-1)?.entries).toEqual([]);
+		const validationErrors = data<readonly AgenticMemoryContextPackingError[]>(errors.messages).at(
+			-1,
+		)?.[0]?.validationErrors;
+		expect(
+			data<readonly AgenticMemoryContextPackingError[]>(errors.messages).at(-1)?.[0],
+		).not.toHaveProperty("value");
+		expect(validationErrors).toEqual(
+			expect.arrayContaining([
+				"attribution.graph is not graph-visible DATA",
+				"attribution.fragmentId must match the containing fragmentId",
+				"attribution.recordId must match the containing record.recordId",
+				"attribution.rank must be a 1-based safe integer when present",
+				"attribution.score must be a finite number when present",
+				"attribution.truncation must be a plain data object",
+				"attribution.truncation requires attribution.truncated to be true or omitted",
+				"attribution.sourceRefs: [0] has unexpected fields providerHandle",
+				"attribution.sourceRefs: [0].providerHandle is not graph-visible DATA",
+				"attribution.metadata must be a strict JSON object",
+			]),
+		);
+		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("rejects non-data attribution fact refs as DATA errors", () => {
+		const sourceRefs = [{ kind: "source", id: "source-1" }] as Array<Record<PropertyKey, unknown>>;
+		sourceRefs[Symbol("array-secret") as never] = true;
+		Object.defineProperty(sourceRefs, "graph", {
+			value: "nope",
+			enumerable: true,
+		});
+		const policyRef = { kind: "policy" } as Record<PropertyKey, unknown>;
+		policyRef[Symbol("ref-secret")] = true;
+		Object.defineProperty(policyRef, "id", {
+			get() {
+				throw new Error("id getter should not run");
+			},
+			enumerable: true,
+		});
+		const g = graph();
+		const context = g.state(
+			{
+				...contextFact(),
+				entries: [
+					{
+						...contextFact().entries[0],
+						attribution: {
+							fragmentId: "f1",
+							recordId: "r1",
+							sourceRefs,
+							policyRefs: [policyRef],
+						},
+					},
+				],
+			} as never,
+			{ name: "context" },
+		);
+		const texts = g.state<readonly AgenticMemoryContextText[]>([{ fragmentId: "f1", text: "ok" }], {
+			name: "texts",
+		});
+		const policy = g.state({}, { name: "policy" });
+		const bundle = agenticMemoryContextPackingBundle(g, {
+			name: "packing",
+			context,
+			texts,
+			policy,
+		});
+		const errors = collect(bundle.errors);
+
+		const validationErrors = data<readonly AgenticMemoryContextPackingError[]>(errors.messages).at(
+			-1,
+		)?.[0]?.validationErrors;
+		expect(validationErrors).toEqual(
+			expect.arrayContaining([
+				"attribution.sourceRefs: refs must not carry symbol keys",
+				"attribution.sourceRefs: refs.graph must be an indexed data property",
+				"attribution.policyRefs: [0] must not carry symbol keys",
+				"attribution.policyRefs: [0].id must be a data property",
+			]),
+		);
+		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("rejects non-data attribution containers as DATA errors", () => {
+		const symbolKey = Symbol("secret");
+		const attribution = { fragmentId: "f1" } as Record<PropertyKey, unknown>;
+		attribution[symbolKey] = true;
+		Object.defineProperty(attribution, "rank", {
+			get: () => 1,
+			enumerable: true,
+		});
+		const g = graph();
+		const context = g.state(
+			{
+				...contextFact(),
+				entries: [
+					{
+						...contextFact().entries[0],
+						attribution,
+					},
+				],
+			} as never,
+			{ name: "context" },
+		);
+		const texts = g.state<readonly AgenticMemoryContextText[]>([{ fragmentId: "f1", text: "ok" }], {
+			name: "texts",
+		});
+		const policy = g.state({}, { name: "policy" });
+		const bundle = agenticMemoryContextPackingBundle(g, {
+			name: "packing",
+			context,
+			texts,
+			policy,
+		});
+		const errors = collect(bundle.errors);
+
+		const validationErrors = data<readonly AgenticMemoryContextPackingError[]>(errors.messages).at(
+			-1,
+		)?.[0]?.validationErrors;
+		expect(validationErrors).toEqual(
+			expect.arrayContaining([
+				"attribution must not carry symbol keys",
+				"attribution.rank must be a data property",
+			]),
+		);
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});
 

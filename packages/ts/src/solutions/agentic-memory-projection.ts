@@ -92,19 +92,23 @@ export function contextFromSnapshot<T>(
 	projection: AgenticMemoryProjectionSnapshot<T>,
 	retrieval: MemoryRetrievalSnapshot<T>,
 ): AgenticMemoryContext<T> {
-	const entries = retrieval.ranked.results.map((fragment) =>
-		Object.freeze({
+	const entries = retrieval.ranked.results.map((fragment, index) => {
+		const record = projection.metadataByFragmentId[fragment.id];
+		return Object.freeze({
 			fragmentId: fragment.id,
 			payload: fragment.payload,
 			confidence: fragment.confidence,
 			tags: fragment.tags,
 			sources: fragment.sources,
-			...(projection.metadataByFragmentId[fragment.id] === undefined
-				? {}
-				: { record: projection.metadataByFragmentId[fragment.id] }),
+			...(record === undefined ? {} : { record }),
+			attribution: Object.freeze({
+				fragmentId: fragment.id,
+				...(record === undefined ? {} : { recordId: record.recordId }),
+				rank: index + 1,
+			}),
 			fragment,
-		}),
-	);
+		});
+	});
 	const hasContext = entries.length > 0;
 	const state = contextState(projection.status.state, retrieval.status.state);
 	return Object.freeze({
