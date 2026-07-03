@@ -3,6 +3,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { RetryPolicy } from "../graph/resilience.js";
 import { nextRetryDelayMs, shouldRetry } from "../graph/resilience.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import { requestToolProviderAdapterRun } from "./agent-runtime-adapter-run.js";
 import {
@@ -556,7 +557,7 @@ function sourceRefsContainAll(
 }
 
 function sourceRefKey(sourceRef: SourceRef): string {
-	return `${sourceRef.kind}:${sourceRef.id}`;
+	return canonicalTupleKey([sourceRef.kind, sourceRef.id]);
 }
 
 function sourceRefOrUndefined(value: unknown): SourceRef | undefined {
@@ -638,13 +639,13 @@ function retryProposal(
 	const sourceRefs = retrySourceRefs(input, outcome, choice.policy);
 	return Object.freeze({
 		kind: "tool-provider-run-retry-proposal",
-		proposalId: `${outcome.outcomeId}:retry-proposal`,
+		proposalId: compoundTupleKey("tool-provider-run-retry-proposal", [outcome.outcomeId]),
 		outcomeId: outcome.outcomeId,
 		fromRunId,
 		fromRequestId: outcome.requestId,
 		fromAttempt: outcome.attempt,
 		nextAttempt,
-		nextRunId: `${fromRunId}:retry-${nextAttempt}`,
+		nextRunId: compoundTupleKey("tool-provider-run-retry", [fromRunId, String(nextAttempt)]),
 		adapterInputId: input.adapterInputId,
 		requestId: input.requestId,
 		operationId: input.operationId,
@@ -666,8 +667,8 @@ function retryScheduled(
 ): ToolProviderRunRetryScheduled {
 	return Object.freeze({
 		kind: "tool-provider-run-retry-scheduled",
-		scheduleId: `${proposal.proposalId}:scheduled`,
-		readinessScheduleId: `${proposal.proposalId}:scheduled-readiness`,
+		scheduleId: retryScheduledId(proposal.proposalId),
+		readinessScheduleId: retryReadinessScheduleId(proposal.proposalId),
 		outcomeId: outcome.outcomeId,
 		proposalId: proposal.proposalId,
 		fromRunId: proposal.fromRunId,
@@ -681,6 +682,14 @@ function retryScheduled(
 			ref("tool-provider-adapter-input", input.adapterInputId),
 		]),
 	} satisfies ToolProviderRunRetryScheduled);
+}
+
+function retryScheduledId(proposalId: string): string {
+	return compoundTupleKey("tool-provider-run-retry-scheduled", [proposalId]);
+}
+
+function retryReadinessScheduleId(proposalId: string): string {
+	return compoundTupleKey("tool-provider-run-retry-readiness-schedule", [proposalId]);
 }
 
 function retryReadinessSchedule(
@@ -723,7 +732,7 @@ function emitRunRequest(
 	mode: "immediate" | "scheduled",
 	readiness?: ScheduledReadinessReady,
 ): void {
-	const key = `request:${proposal.outcomeId}:${proposal.nextRunId}`;
+	const key = compoundTupleKey("request", [proposal.outcomeId, proposal.nextRunId]);
 	if (state.requestKeys.has(key)) return;
 	state.requestKeys.add(key);
 	const request = requestToolProviderAdapterRun(input, {
@@ -736,7 +745,7 @@ function emitRunRequest(
 			...(proposal.sourceRefs ?? []),
 			ref("tool-provider-run-retry-proposal", proposal.proposalId),
 			...(mode === "scheduled"
-				? [ref("tool-provider-run-retry-scheduled", `${proposal.proposalId}:scheduled`)]
+				? [ref("tool-provider-run-retry-scheduled", retryScheduledId(proposal.proposalId))]
 				: []),
 			...(readiness === undefined
 				? []
@@ -773,7 +782,7 @@ function emitProposal(
 	state: ToolProviderRunRetryProjectorState,
 	proposal: ToolProviderRunRetryProposal,
 ): void {
-	const key = `proposal:${proposal.proposalId}`;
+	const key = compoundTupleKey("proposal", [proposal.proposalId]);
 	if (state.proposalKeys.has(key)) return;
 	state.proposalKeys.add(key);
 	emitAudit(ctx, state, "tool-provider-run-retry-proposed", {
@@ -794,7 +803,7 @@ function emitScheduled(
 	state: ToolProviderRunRetryProjectorState,
 	scheduled: ToolProviderRunRetryScheduled,
 ): void {
-	const key = `scheduled:${scheduled.scheduleId}`;
+	const key = compoundTupleKey("scheduled", [scheduled.scheduleId]);
 	if (state.scheduledKeys.has(key)) return;
 	state.scheduledKeys.add(key);
 	emitAudit(ctx, state, "tool-provider-run-retry-scheduled", {
@@ -814,7 +823,7 @@ function emitReadinessSchedule(
 	state: ToolProviderRunRetryProjectorState,
 	schedule: ScheduledReadinessRequested,
 ): void {
-	const key = `readiness-schedule:${schedule.scheduleId}`;
+	const key = compoundTupleKey("readiness-schedule", [schedule.scheduleId]);
 	if (state.readinessScheduleKeys.has(key)) return;
 	state.readinessScheduleKeys.add(key);
 	emitAudit(ctx, state, "tool-provider-run-retry-readiness-scheduled", {
@@ -832,7 +841,13 @@ function emitStatus(
 	state: ToolProviderRunRetryProjectorState,
 	status: ToolProviderRunRetryStatus,
 ): void {
-	const key = `${status.outcomeId}:${status.state}:${status.nextAttempt ?? ""}:${status.nextRetryAtMs ?? ""}:${(status.issueCodes ?? []).join(",")}`;
+	const key = canonicalTupleKey([
+		status.outcomeId,
+		status.state,
+		String(status.nextAttempt ?? ""),
+		String(status.nextRetryAtMs ?? ""),
+		canonicalTupleKey(status.issueCodes ?? []),
+	]);
 	if (state.statusKeys.has(key)) return;
 	state.statusKeys.add(key);
 	state.statusByOutcome.set(status.outcomeId, status);
@@ -845,7 +860,11 @@ function emitIssue(
 	issue: DataIssue,
 ): void {
 	const sanitized = sanitizeAdapterInputIssue(issue);
-	const key = `${sanitized.code}:${sanitized.subjectId ?? ""}:${JSON.stringify(sanitized.details ?? {})}`;
+	const key = canonicalTupleKey([
+		sanitized.code,
+		sanitized.subjectId ?? "",
+		JSON.stringify(sanitized.details ?? {}),
+	]);
 	if (state.issueKeys.has(key)) return;
 	state.issueKeys.add(key);
 	ctx.down([["DATA", { kind: "issue", issue: sanitized }]]);
@@ -899,9 +918,11 @@ function statusForOutcome(
 		proposal?.nextAttempt ?? (opts.choice === undefined ? undefined : outcome.attempt + 1);
 	return Object.freeze({
 		kind: "tool-provider-run-retry-status",
-		statusId: `${outcome.outcomeId}:retry-status:${state}`,
+		statusId: compoundTupleKey("tool-provider-run-retry-status", [outcome.outcomeId, state]),
 		outcomeId: outcome.outcomeId,
-		proposalId: proposal?.proposalId ?? `${outcome.outcomeId}:retry-proposal`,
+		proposalId:
+			proposal?.proposalId ??
+			compoundTupleKey("tool-provider-run-retry-proposal", [outcome.outcomeId]),
 		fromRunId: outcomeRunId(outcome),
 		adapterInputId: input.adapterInputId,
 		requestId: input.requestId,
@@ -930,7 +951,7 @@ function statusForProposal(
 ): ToolProviderRunRetryStatus {
 	return Object.freeze({
 		kind: "tool-provider-run-retry-status",
-		statusId: `${proposal.outcomeId}:retry-status:${state}`,
+		statusId: compoundTupleKey("tool-provider-run-retry-status", [proposal.outcomeId, state]),
 		outcomeId: proposal.outcomeId,
 		proposalId: proposal.proposalId,
 		fromRunId: proposal.fromRunId,
@@ -952,9 +973,9 @@ function statusForMissingInput(
 ): ToolProviderRunRetryStatus {
 	return Object.freeze({
 		kind: "tool-provider-run-retry-status",
-		statusId: `${outcome.outcomeId}:retry-status:${state}`,
+		statusId: compoundTupleKey("tool-provider-run-retry-status", [outcome.outcomeId, state]),
 		outcomeId: outcome.outcomeId,
-		proposalId: `${outcome.outcomeId}:retry-proposal`,
+		proposalId: compoundTupleKey("tool-provider-run-retry-proposal", [outcome.outcomeId]),
 		fromRunId: outcomeRunId(outcome),
 		adapterInputId: outcome.inputId ?? outcome.requestId,
 		requestId: outcome.requestId,
@@ -997,7 +1018,7 @@ function retrySourceRefs(
 function outcomeRunId(outcome: ExecutorOutcome): string {
 	const runId = isRecord(outcome.metadata) ? outcome.metadata.runId : undefined;
 	if (typeof runId === "string" && runId.length > 0) return runId;
-	return `${outcome.requestId}:attempt-${outcome.attempt}`;
+	return compoundTupleKey("attempt", [outcome.requestId, String(outcome.attempt)]);
 }
 
 function optionalMetadata(value: Record<string, unknown>): {

@@ -1,5 +1,6 @@
 import { depLatest } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { FactId } from "../patterns/semantic-memory.js";
 import { solutionProjection } from "./agentic-memory-projection.js";
 import {
@@ -377,7 +378,10 @@ function projectConsolidationOutcomes<T>(
 		seenOutcomes.add(validOutcome.id);
 		validOutcomes += 1;
 		if (validOutcome.kind === "failed") {
-			const resultId = `${validOutcome.requestId}:${validOutcome.id}`;
+			const resultId = compoundTupleKey("agentic-memory-consolidation-result", [
+				validOutcome.requestId,
+				validOutcome.id,
+			]);
 			results.push(
 				Object.freeze({
 					id: resultId,
@@ -392,7 +396,7 @@ function projectConsolidationOutcomes<T>(
 			);
 			commands.push(
 				Object.freeze({
-					id: `${resultId}:markFailed`,
+					id: compoundTupleKey("agentic-memory-consolidation-command", [resultId, "markFailed"]),
 					kind: "markFailed",
 					requestId: validOutcome.requestId,
 					outcomeId: validOutcome.id,
@@ -401,8 +405,12 @@ function projectConsolidationOutcomes<T>(
 			);
 			continue;
 		}
-		const draftIds = validOutcome.records.map(
-			(record) => `${validOutcome.requestId}:${validOutcome.id}:${record.id}`,
+		const draftIds = validOutcome.records.map((record) =>
+			compoundTupleKey("agentic-memory-record-draft", [
+				validOutcome.requestId,
+				validOutcome.id,
+				record.id,
+			]),
 		);
 		for (let recordIndex = 0; recordIndex < validOutcome.records.length; recordIndex += 1) {
 			proposedRecordDrafts.push(
@@ -414,7 +422,10 @@ function projectConsolidationOutcomes<T>(
 				}),
 			);
 		}
-		const resultId = `${validOutcome.requestId}:${validOutcome.id}`;
+		const resultId = compoundTupleKey("agentic-memory-consolidation-result", [
+			validOutcome.requestId,
+			validOutcome.id,
+		]);
 		results.push(
 			Object.freeze({
 				id: resultId,
@@ -428,7 +439,7 @@ function projectConsolidationOutcomes<T>(
 		);
 		commands.push(
 			Object.freeze({
-				id: `${resultId}:proposeRecords`,
+				id: compoundTupleKey("agentic-memory-consolidation-command", [resultId, "proposeRecords"]),
 				kind: "proposeRecords",
 				requestId: validOutcome.requestId,
 				outcomeId: validOutcome.id,

@@ -1,6 +1,7 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
 	dataIssue,
@@ -126,7 +127,10 @@ export function toolProviderAdapterInputProjector(
 						{
 							kind: "audit",
 							audit: {
-								id: `${name}:audit:${state.auditSeq}`,
+								id: compoundTupleKey("tool-provider-adapter-input-audit", [
+									name,
+									String(state.auditSeq),
+								]),
 								kind: "tool-provider-adapter-input",
 								subjectId: input.requestId,
 								sourceRefs: input.sourceRefs,
@@ -364,7 +368,11 @@ export function buildToolProviderAdapterInput(opts: {
 	const ready = status === "ready";
 	const candidate = {
 		kind: "tool-provider-adapter-input",
-		adapterInputId: `${resolution.requestId}:${resolution.operationId}:${resolution.routeId ?? resolution.resolutionId}:adapter-input`,
+		adapterInputId: compoundTupleKey("tool-provider-adapter-input", [
+			resolution.requestId,
+			resolution.operationId,
+			resolution.routeId ?? resolution.resolutionId,
+		]),
 		status,
 		requestId: resolution.requestId,
 		operationId: resolution.operationId,
@@ -566,7 +574,8 @@ export function stableToolProviderAdapterInputKey(input: ToolProviderAdapterInpu
 	return stableJsonStringify({
 		id: input.adapterInputId,
 		status: input.status,
-		policyRefs: input.policyRefs?.map((policyRef) => `${policyRef.kind}:${policyRef.id}`) ?? [],
+		policyRefs:
+			input.policyRefs?.map((policyRef) => canonicalTupleKey([policyRef.kind, policyRef.id])) ?? [],
 		issues: input.issues?.map((issue) => issue.code) ?? [],
 		input,
 	});

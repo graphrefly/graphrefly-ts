@@ -1,6 +1,7 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
 	dataIssue,
@@ -362,7 +363,11 @@ export function resolveToolProviderExecutionPolicies(opts: {
 		return Object.freeze([
 			Object.freeze({
 				kind: "tool-provider-policy-resolution",
-				resolutionId: `${request.requestId}:${request.operationId}:tool-policy:missing-tool-call`,
+				resolutionId: compoundTupleKey("tool-provider-policy-resolution", [
+					request.requestId,
+					request.operationId,
+					"missing-tool-call",
+				]),
 				status: "missing-tool-call",
 				requestId: request.requestId,
 				operationId: request.operationId,
@@ -384,7 +389,11 @@ export function resolveToolProviderExecutionPolicies(opts: {
 		return Object.freeze([
 			Object.freeze({
 				kind: "tool-provider-policy-resolution",
-				resolutionId: `${request.requestId}:${request.operationId}:tool-policy:pending-route`,
+				resolutionId: compoundTupleKey("tool-provider-policy-resolution", [
+					request.requestId,
+					request.operationId,
+					"pending-route",
+				]),
 				status: "pending-route",
 				requestId: request.requestId,
 				operationId: request.operationId,
@@ -466,7 +475,10 @@ export function toolProviderPolicyResolutionProjector(
 							{
 								kind: "audit",
 								audit: {
-									id: `${name}:audit:${state.auditSeq}`,
+									id: compoundTupleKey("tool-provider-policy-audit", [
+										name,
+										String(state.auditSeq),
+									]),
 									kind: "tool-provider-policy-resolution",
 									subjectId: request.requestId,
 									sourceRefs: resolution.sourceRefs,
@@ -720,7 +732,12 @@ export function resolveToolProviderPolicyForRoute(
 	const status = issues.length === 0 ? "resolved" : "invalid-policy";
 	return Object.freeze({
 		kind: "tool-provider-policy-resolution",
-		resolutionId: `${request.requestId}:${request.operationId}:${route.routeId}:tool-policy`,
+		resolutionId: compoundTupleKey("tool-provider-policy-resolution", [
+			request.requestId,
+			request.operationId,
+			route.routeId,
+			"resolved",
+		]),
 		status,
 		requestId: request.requestId,
 		operationId: request.operationId,
@@ -810,7 +827,12 @@ export function policyResolutionWithIssue(opts: {
 }): ToolProviderPolicyResolution {
 	return Object.freeze({
 		kind: "tool-provider-policy-resolution",
-		resolutionId: `${opts.request.requestId}:${opts.request.operationId}:${opts.route.routeId}:tool-policy:${opts.status}`,
+		resolutionId: compoundTupleKey("tool-provider-policy-resolution", [
+			opts.request.requestId,
+			opts.request.operationId,
+			opts.route.routeId,
+			opts.status,
+		]),
 		status: opts.status,
 		requestId: opts.request.requestId,
 		operationId: opts.request.operationId,
@@ -832,7 +854,9 @@ export function stableToolProviderPolicyResolutionKey(
 		id: resolution.resolutionId,
 		status: resolution.status,
 		policyRefs:
-			resolution.policyRefs?.map((policyRef) => `${policyRef.kind}:${policyRef.id}`) ?? [],
+			resolution.policyRefs?.map((policyRef) =>
+				canonicalTupleKey([policyRef.kind, policyRef.id]),
+			) ?? [],
 		issues: resolution.issues?.map((issue) => issue.code) ?? [],
 	});
 }

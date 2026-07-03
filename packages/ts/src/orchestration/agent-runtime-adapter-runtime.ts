@@ -1,6 +1,7 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { RetentionPolicy } from "../graph/policies/types.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type {
 	EffectiveRuntimeRetentionPolicy,
 	ReplayEvidenceClassification,
@@ -167,7 +168,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			[
 				"DATA",
 				{
-					id: `${name}:audit:${auditSeq}`,
+					id: compoundTupleKey("tool-provider-adapter-runtime-audit", [name, String(auditSeq)]),
 					kind,
 					...(auditOpts.subjectId === undefined ? {} : { subjectId: auditOpts.subjectId }),
 					...(auditOpts.sourceRefs === undefined
@@ -182,7 +183,8 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 
 	function trackRunIssue(issue: DataIssue, emittedKey?: string, dropKey?: () => void): void {
 		const sequence = nextRetentionSequence();
-		const key = emittedKey ?? `${sequence}:${issue.code}:${issue.subjectId ?? ""}`;
+		const key =
+			emittedKey ?? canonicalTupleKey([String(sequence), issue.code, issue.subjectId ?? ""]);
 		runIssues.set(key, runIssueRetentionEntry(key, sequence, issue, nowMs()), {
 			fact: issue,
 			dropKey,
@@ -231,7 +233,8 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		dropKey?: () => void,
 	): void {
 		const sequence = nextRetentionSequence();
-		const key = emittedKey ?? `${sequence}:${statusFact.runId}:${statusFact.status}`;
+		const key =
+			emittedKey ?? canonicalTupleKey([String(sequence), statusFact.runId, statusFact.status]);
 		runStatuses.set(key, runStatusRetentionEntry(key, sequence, statusFact, nowMs()), {
 			fact: statusFact,
 			dropKey,
@@ -658,7 +661,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			[
 				"DATA",
 				{
-					id: `${name}:audit:${auditSeq}`,
+					id: compoundTupleKey("tool-provider-adapter-runtime-audit", [name, String(auditSeq)]),
 					kind,
 					subjectId: input.requestId,
 					sourceRefs: defaultToolProviderAdapterEvidenceRefs(input),
@@ -713,12 +716,12 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		}
 		const publishedIssueKeys = new Set<string>();
 		for (const issue of outcome.issues ?? []) {
-			publishedIssueKeys.add(`${issue.code}:${issue.message}`);
+			publishedIssueKeys.add(canonicalTupleKey([issue.code, issue.message]));
 			publishIssue(issue);
 		}
 		if (
 			outcome.kind === "failure" &&
-			!publishedIssueKeys.has(`${outcome.error.code}:${outcome.error.message}`)
+			!publishedIssueKeys.has(canonicalTupleKey([outcome.error.code, outcome.error.message]))
 		) {
 			publishIssue(outcome.error);
 		}
@@ -762,7 +765,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 	}
 
 	function executionCoordinate(request: ToolProviderAdapterRunRequested): string {
-		return `${request.adapterInputId}:${request.attempt}`;
+		return canonicalTupleKey([request.adapterInputId, String(request.attempt)]);
 	}
 
 	function trackRunRequest(

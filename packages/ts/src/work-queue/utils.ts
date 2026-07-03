@@ -1,3 +1,4 @@
+import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { PullDemand } from "../protocol/messages.js";
 import type { QueueEvent, RuntimeState, WorkQueueRecordDraft, WorkState } from "./runtime-types.js";
@@ -224,7 +225,7 @@ export function publishQueueCommand<T>(
 let commandSeq = 0;
 export function nextCommandId(queueId: string, kind: string): string {
 	commandSeq += 1;
-	return `${queueId}:${kind}:${commandSeq}`;
+	return compoundTupleKey("work-queue-command", [queueId, kind, String(commandSeq)]);
 }
 
 export function isReady<T>(work: WorkState<T>, nowMs: number): boolean {

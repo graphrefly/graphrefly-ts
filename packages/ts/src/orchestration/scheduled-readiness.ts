@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
 	canonicalPublicSourceRefs,
@@ -140,7 +141,10 @@ export function scheduledReadinessProjector(
 						emitIssue(ctx, state, issue);
 						emitStatus(ctx, state, {
 							kind: "scheduled-readiness-status",
-							statusId: `${retained.schedule.scheduleId}:scheduled-readiness-status:issue`,
+							statusId: compoundTupleKey("scheduled-readiness-status", [
+								retained.schedule.scheduleId,
+								"issue",
+							]),
 							scheduleId: retained.schedule.scheduleId,
 							state: "issue",
 							subjectRefs: scheduleSubjectRefs(existing),
@@ -155,7 +159,10 @@ export function scheduledReadinessProjector(
 					emitIssue(ctx, state, retained.issue);
 					emitStatus(ctx, state, {
 						kind: "scheduled-readiness-status",
-						statusId: `${retained.scheduleId}:scheduled-readiness-status:issue`,
+						statusId: compoundTupleKey("scheduled-readiness-status", [
+							retained.scheduleId,
+							"issue",
+						]),
 						scheduleId: retained.scheduleId,
 						state: "issue",
 						sourceRefs: retained.sourceRefs,
@@ -537,7 +544,7 @@ function emitStatus(
 	status: ScheduledReadinessStatus,
 ): void {
 	state.statusById.set(status.scheduleId, status);
-	const key = `status:${stableJsonStringify(status)}`;
+	const key = compoundTupleKey("status", [stableJsonStringify(status)]);
 	if (state.emittedKeys.has(key)) return;
 	state.emittedKeys.add(key);
 	ctx.down([["DATA", { kind: "status", status }]]);
@@ -548,7 +555,11 @@ function emitIssue(
 	state: ScheduledReadinessProjectorState,
 	issue: DataIssue,
 ): void {
-	const key = `${issue.code}:${issue.subjectId ?? ""}:${JSON.stringify(issue.details ?? {})}`;
+	const key = canonicalTupleKey([
+		issue.code,
+		issue.subjectId ?? "",
+		JSON.stringify(issue.details ?? {}),
+	]);
 	if (state.issueKeys.has(key)) return;
 	state.issueKeys.add(key);
 	ctx.down([["DATA", { kind: "issue", issue }]]);
@@ -572,7 +583,7 @@ function emitAudit(
 			{
 				kind: "audit",
 				audit: Object.freeze({
-					id: `scheduled-readiness-audit-${state.auditSeq}`,
+					id: compoundTupleKey("scheduled-readiness-audit", [String(state.auditSeq)]),
 					kind,
 					...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
 					...(opts.sourceRefs === undefined
@@ -600,7 +611,7 @@ function statusFor(
 	});
 	return Object.freeze({
 		kind: "scheduled-readiness-status",
-		statusId: `${schedule.scheduleId}:scheduled-readiness-status:${state}`,
+		statusId: compoundTupleKey("scheduled-readiness-status", [schedule.scheduleId, state]),
 		scheduleId: schedule.scheduleId,
 		state,
 		subjectRefs: opts.subjectRefs,

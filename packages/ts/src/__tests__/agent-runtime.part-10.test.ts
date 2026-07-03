@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import {
 	type AgentRequestIssued,
 	buildToolProviderAdapterInputs,
@@ -842,7 +843,14 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 			proposedAtMs: 1100,
 		});
 		expect(emitted.at(-1)?.proposalId).toBe(
-			"wi-1:run-1:run-1:result:policy-propose-verification:0:mark-verification-ready",
+			compoundTupleKey("work-item-domain-action-proposal", [
+				"wi-1",
+				"run-1",
+				"run-1:result",
+				"policy-propose-verification",
+				"0",
+				"mark-verification-ready",
+			]),
 		);
 		expect(emitted.at(-1)?.sourceRefs).toEqual(
 			expect.arrayContaining([
@@ -865,8 +873,10 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 			proposalsByEvidence: Map<string, readonly WorkItemDomainActionProposal[]>;
 		};
 		expect(latestView.proposalsByWorkItem.get("wi-1")).toHaveLength(1);
-		expect(latestView.proposalsByEvidence.get("wi-1:run-1:run-1:result")?.[0].actionKind).toBe(
-			"mark-verification-ready",
-		);
+		expect(
+			latestView.proposalsByEvidence.get(
+				compoundTupleKey("work-item-evidence-recorded", ["wi-1", "run-1", "run-1:result"]),
+			)?.[0].actionKind,
+		).toBe("mark-verification-ready");
 	});
 });

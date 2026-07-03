@@ -15,6 +15,7 @@ import {
 	webStorageBackend,
 } from "../index.js";
 import { fileAppendLog, fileBackend, fileKv, sqliteBackend } from "../storage/node.js";
+import { storagePhysicalKey } from "../storage/physical-key.js";
 
 interface TestStorage {
 	entries: Record<string, string>;
@@ -298,12 +299,12 @@ describe("D82 storage substrate helpers — sub 2", () => {
 		backend.put("cache/key", raw);
 		raw[0] = 1;
 
-		expect(storage.entries["web\u0000cache/key"]).toBe("08090a");
+		expect(storage.entries[storagePhysicalKey("web", "cache/key")]).toBe("08090a");
 		expect([...(backend.get("cache/key") ?? new Uint8Array())]).toEqual([8, 9, 10]);
 		expect(backend.list("cache")).toEqual(["cache/key"]);
 		expect(backend.list("other")).toEqual([]);
 
-		storage.setItem("web\u0000bad", "not-hex");
+		storage.setItem(storagePhysicalKey("web", "bad"), "not-hex");
 		expect(() => backend.get("bad")).toThrow(/malformed stored bytes/);
 		expect(hasStorageVersioned(backend)).toBe(false);
 		expect(() => requireStorageVersioned(backend, "webStorageBackend")).toThrow(
@@ -311,21 +312,25 @@ describe("D82 storage substrate helpers — sub 2", () => {
 		);
 	});
 
-	it("webStorageBackend rejects ambiguous namespace separators and non-string runtime keys", () => {
+	it("webStorageBackend uses tuple namespace keys and accepts delimiter-like runtime keys", () => {
 		const storage = createStorage();
 
-		expect(() => webStorageBackend(storage, { namespace: "ns\u0000bad" })).toThrow(/namespace/);
 		expect(() => webStorageBackend(storage, { namespace: null as unknown as string })).toThrow(
 			/namespace/,
 		);
 
 		const backend = webStorageBackend(storage, { namespace: "ns" });
-		expect(() => backend.put("bad\u0000key", new Uint8Array([1]))).toThrow(/U\+0000/);
+		const root = webStorageBackend(storage);
+		root.put("root", new Uint8Array([9]));
+		backend.put("bad\u0000key", new Uint8Array([1]));
+		expect([...(backend.get("bad\u0000key") ?? new Uint8Array())]).toEqual([1]);
 		expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
-		expect(() => backend.list("bad\u0000prefix")).toThrow(/U\+0000/);
+		expect(backend.list("bad\u0000")).toEqual(["bad\u0000key"]);
+		expect(root.list()).toEqual(["root"]);
+		expect(backend.list()).toEqual(["bad\u0000key"]);
 		expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
 
-		storage.setItem("ns\u0000bad\u0000key", "01");
+		storage.setItem(`storage-namespace:${JSON.stringify(["ns", "bad", "key"])}`, "01");
 		expect(() => backend.list()).toThrow(/malformed stored key/);
 	});
 
@@ -333,6 +338,8 @@ describe("D82 storage substrate helpers — sub 2", () => {
 		const dir = makeTempDir();
 		try {
 			const backend = fileBackend(dir, { namespace: "ns" });
+			const root = fileBackend(dir);
+			await root.put("root", new Uint8Array([9]));
 			await backend.put("", new Uint8Array([0]));
 			await backend.put("a", new Uint8Array([1, 2, 3]));
 			await backend.put("ab", new Uint8Array([9, 8, 7]));
@@ -354,6 +361,7 @@ describe("D82 storage substrate helpers — sub 2", () => {
 			await backend.delete("ab");
 			expect(await backend.get("ab")).toBeUndefined();
 			expect(await backend.list()).toEqual(["", "a", "c"]);
+			expect(await root.list()).toEqual(["root"]);
 			expect(hasStorageVersioned(backend)).toBe(false);
 			expect(() => requireStorageVersioned(backend, "fileBackend")).toThrow(
 				/fileBackend: backend does not support versioned/,
@@ -363,16 +371,16 @@ describe("D82 storage substrate helpers — sub 2", () => {
 		}
 	});
 
-	it("fileBackend rejects ambiguous namespace separators and non-string runtime keys", async () => {
+	it("fileBackend uses tuple namespace keys and accepts delimiter-like runtime keys", async () => {
 		const dir = makeTempDir();
 		try {
-			expect(() => fileBackend(dir, { namespace: "ns\u0000bad" })).toThrow(/namespace/);
 			expect(() => fileBackend(dir, { namespace: null as unknown as string })).toThrow(/namespace/);
 
 			const backend = fileBackend(dir, { namespace: "ns" });
-			expect(() => backend.put("bad\u0000key", new Uint8Array([1]))).toThrow(/U\+0000/);
+			await backend.put("bad\u0000key", new Uint8Array([1]));
+			expect(await backend.get("bad\u0000key")).toEqual(new Uint8Array([1]));
 			expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
-			expect(() => backend.list("bad\u0000prefix")).toThrow(/U\+0000/);
+			expect(await backend.list("bad\u0000")).toEqual(["bad\u0000key"]);
 			expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
@@ -412,9 +420,6 @@ describe("D82 storage substrate helpers — sub 2", () => {
 	it("sqliteBackend validates table names before touching optional node:sqlite", () => {
 		expect(() => sqliteBackend(":memory:", { tableName: "bad-name" })).toThrow(/tableName/);
 		expect(() => sqliteBackend(":memory:", { tableName: "1bad" })).toThrow(/tableName/);
-		expect(() => sqliteBackend(":memory:", { namespace: "bad\u0000namespace" })).toThrow(
-			/namespace/,
-		);
 		expect(() => sqliteBackend(":memory:", { namespace: null as unknown as string })).toThrow(
 			/namespace/,
 		);

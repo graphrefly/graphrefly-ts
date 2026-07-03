@@ -2,15 +2,12 @@
  * Byte storage backends (D82): passive adapter-owned storage, no graph methods.
  */
 
+import { decodeStoragePhysicalKey, storagePhysicalKey } from "./physical-key.js";
+
 const HEX_TABLE = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
-const NAMESPACE_SEPARATOR = "\u0000";
 
 function cloneBytes(bytes: Uint8Array): Uint8Array {
 	return Uint8Array.from(bytes);
-}
-
-function encodeNamespacePrefix(namespace: string): string {
-	return namespace.length > 0 ? `${namespace}${NAMESPACE_SEPARATOR}` : "";
 }
 
 function encodeBytesToHex(bytes: Uint8Array): string {
@@ -36,9 +33,6 @@ function validateLogicalKey(label: string, key: string): string {
 	if (typeof key !== "string") {
 		throw new TypeError(`${label}: key must be a string`);
 	}
-	if (key.includes(NAMESPACE_SEPARATOR)) {
-		throw new TypeError(`${label}: key must not contain U+0000`);
-	}
 	return key;
 }
 
@@ -46,18 +40,12 @@ function validateListPrefix(label: string, prefix: string): string {
 	if (typeof prefix !== "string") {
 		throw new TypeError(`${label}: list prefix must be a string`);
 	}
-	if (prefix.includes(NAMESPACE_SEPARATOR)) {
-		throw new TypeError(`${label}: list prefix must not contain U+0000`);
-	}
 	return prefix;
 }
 
 function validateNamespace(label: string, namespace: string): string {
 	if (typeof namespace !== "string") {
 		throw new TypeError(`${label}: namespace must be a string`);
-	}
-	if (namespace.includes(NAMESPACE_SEPARATOR)) {
-		throw new TypeError(`${label}: namespace must not contain U+0000`);
 	}
 	return namespace;
 }
@@ -162,7 +150,7 @@ export interface StorageNamespaceOptions {
 }
 
 function toStorageKey(namespace: string, key: string): string {
-	return `${encodeNamespacePrefix(namespace)}${key}`;
+	return storagePhysicalKey(namespace, key);
 }
 
 function enumerateStorageKeys(storage: WebStorageLike): readonly unknown[] {
@@ -183,13 +171,7 @@ function decodeStorageListKey(namespace: string, rawKey: unknown): string | unde
 	if (typeof rawKey !== "string") {
 		throw new TypeError("webStorageBackend: stored key must be a string");
 	}
-	const prefix = encodeNamespacePrefix(namespace);
-	if (!rawKey.startsWith(prefix)) return undefined;
-	const logical = rawKey.slice(prefix.length);
-	if (logical.includes(NAMESPACE_SEPARATOR)) {
-		throw new TypeError("webStorageBackend: malformed stored key");
-	}
-	return logical;
+	return decodeStoragePhysicalKey(namespace, rawKey, "webStorageBackend: malformed stored key");
 }
 
 function listByPrefix(namespace: string, prefix: string, raw: readonly unknown[]): string[] {

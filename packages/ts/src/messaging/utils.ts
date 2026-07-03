@@ -1,3 +1,4 @@
+import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { PullDemand } from "../protocol/messages.js";
 import type { MessageBusCommand } from "./types.js";
@@ -72,5 +73,5 @@ export function commandIdOf(command: unknown): string | undefined {
 }
 
 export function idempotencyKey(topic: string, key: string): string {
-	return `${topic}\u0000${key}`;
+	return canonicalTupleKey([topic, key]);
 }

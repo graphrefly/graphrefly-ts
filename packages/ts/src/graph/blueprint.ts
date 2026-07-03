@@ -5,6 +5,7 @@
  * authoring spec, checkpoint, restore input, hash owner, or collaboration ownership artifact.
  */
 
+import { canonicalTupleKey } from "../identity.js";
 import {
 	assertStrictJsonObject,
 	type StrictJsonObject,
@@ -420,7 +421,7 @@ function deriveEdges(nodes: readonly NormalizedGraphTopologyNode[]): GraphTopolo
 	const edges: GraphTopologyEdge[] = [];
 	for (const node of nodes) {
 		for (const from of node.deps) {
-			const key = `${from}\0${node.id}`;
+			const key = canonicalTupleKey([from, node.id]);
 			if (seen.has(key)) continue;
 			seen.add(key);
 			edges.push({ from, to: node.id });

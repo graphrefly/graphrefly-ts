@@ -8,6 +8,7 @@
  */
 
 import type { Dispatcher } from "../dispatcher/index.js";
+import { canonicalTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { Node } from "../node/node.js";
 import { restoreStateOfNode, type Status } from "../node/node.js";
@@ -831,7 +832,7 @@ function prepareCheckpoint(
 	}
 	const edgeKeys = new Set<string>();
 	for (const edge of checkpoint.edges) {
-		const edgeKey = `${edge.from}\u0000${edge.to}`;
+		const edgeKey = canonicalTupleKey([edge.from, edge.to]);
 		if (edgeKeys.has(edgeKey)) {
 			throw new Error(`restoreGraph: duplicate edge '${edge.from}' -> '${edge.to}'`);
 		}
@@ -850,7 +851,7 @@ function prepareCheckpoint(
 	}
 	for (const prepared of nodes.values()) {
 		for (const dep of prepared.deps) {
-			if (!edgeKeys.has(`${dep}\u0000${prepared.checkpoint.id}`)) {
+			if (!edgeKeys.has(canonicalTupleKey([dep, prepared.checkpoint.id]))) {
 				throw new Error(
 					`restoreGraph: node '${prepared.checkpoint.id}' dep '${dep}' is missing its edge`,
 				);

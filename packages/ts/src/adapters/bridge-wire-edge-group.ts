@@ -1,5 +1,6 @@
 import { type Ctx, depBatch, depLiveWaves, depWaves } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import { SENTINEL } from "../protocol/messages.js";
 import type { CanonicalWireEdgeFrame } from "./bridge-protobuf.js";
@@ -420,7 +421,7 @@ function emitOutbound(
 			]);
 		return;
 	}
-	const causeId = `${name}:cause:${st.nextCause++}`;
+	const causeId = compoundTupleKey("wire-edge-group-cause", [name, String(st.nextCause++)]);
 	for (const edge of edges)
 		ctx.down([
 			[

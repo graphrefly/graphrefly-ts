@@ -8,6 +8,7 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRequestIssued,
@@ -438,7 +439,7 @@ function outcomeKey(
 	value: Pick<ExecutorQueuedDispatchPayload | ExecutorOutcome, "requestId" | "operationId">,
 	attempt: number,
 ): string {
-	return `${value.requestId}:${value.operationId}:${attempt}`;
+	return canonicalTupleKey([value.requestId, value.operationId, String(attempt)]);
 }
 
 function queueIssue(record: WorkQueueRecord, code: string): DataIssue {
@@ -456,5 +457,5 @@ function ref(kind: string, id: string): SourceRef {
 }
 
 function stringRefs(refs: readonly SourceRef[] | undefined): readonly string[] | undefined {
-	return refs?.map((sourceRef) => `${sourceRef.kind}:${sourceRef.id}`);
+	return refs?.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id]));
 }

@@ -1,5 +1,6 @@
 import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import { effectRun } from "./agent-runtime.js";
 import {
@@ -51,7 +52,10 @@ export function workItemEffectRunProjector(
 							kind: "status",
 							status: {
 								kind: "work-item-status",
-								statusId: `${request.workItemId}:effect-request-pending:${state.statusSeq}`,
+								statusId: compoundTupleKey("work-item-effect-request-pending-status", [
+									request.workItemId,
+									String(state.statusSeq),
+								]),
 								workItemId: request.workItemId,
 								effectRunId: request.effectRunId,
 								requestId: request.requestId,
@@ -66,7 +70,10 @@ export function workItemEffectRunProjector(
 						{
 							kind: "audit",
 							audit: {
-								id: `${request.workItemId}:effect-request-pending:${state.auditSeq}`,
+								id: compoundTupleKey("work-item-effect-request-pending-audit", [
+									request.workItemId,
+									String(state.auditSeq),
+								]),
 								kind: "work-item-effect-request-pending",
 								subjectId: request.workItemId,
 								sourceRefs: requestRefs,
@@ -80,7 +87,7 @@ export function workItemEffectRunProjector(
 					emitWorkItemEffectRunIssue(
 						ctx,
 						state,
-						`unknown-work-item:${request.requestId}`,
+						compoundTupleKey("unknown-work-item", [request.requestId]),
 						"unknown-work-item-effect-request",
 						`WorkItemEffectRequested '${request.requestId}' references unknown WorkItem '${request.workItemId}'`,
 						request.workItemId,
@@ -93,7 +100,7 @@ export function workItemEffectRunProjector(
 					emitWorkItemEffectRunIssue(
 						ctx,
 						state,
-						`duplicate-effect-request:${request.requestId}`,
+						compoundTupleKey("duplicate-effect-request", [request.requestId]),
 						"duplicate-work-item-effect-request",
 						`WorkItemEffectRequested '${request.requestId}' was already mapped to EffectRun '${existingEffectRunId}'`,
 						request.workItemId,
@@ -105,7 +112,7 @@ export function workItemEffectRunProjector(
 					emitWorkItemEffectRunIssue(
 						ctx,
 						state,
-						`duplicate-effect-run:${request.effectRunId}:${request.requestId}`,
+						compoundTupleKey("duplicate-effect-run", [request.effectRunId, request.requestId]),
 						"duplicate-work-item-effect-run",
 						`EffectRun '${request.effectRunId}' was already seeded from another WorkItemEffectRequested fact`,
 						request.workItemId,
@@ -145,7 +152,10 @@ export function workItemEffectRunProjector(
 							kind: "status",
 							status: {
 								kind: "work-item-status",
-								statusId: `${request.workItemId}:effect-run-seeded:${state.statusSeq}`,
+								statusId: compoundTupleKey("work-item-effect-run-seeded-status", [
+									request.workItemId,
+									String(state.statusSeq),
+								]),
 								workItemId: request.workItemId,
 								effectRunId: request.effectRunId,
 								requestId: request.requestId,
@@ -159,7 +169,10 @@ export function workItemEffectRunProjector(
 						{
 							kind: "audit",
 							audit: {
-								id: `${request.workItemId}:effect-run-seeded:${state.auditSeq}`,
+								id: compoundTupleKey("work-item-effect-run-seeded-audit", [
+									request.workItemId,
+									String(state.auditSeq),
+								]),
 								kind: "work-item-effect-run-seeded",
 								subjectId: request.workItemId,
 								sourceRefs: run.sourceRefs,

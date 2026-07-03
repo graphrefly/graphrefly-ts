@@ -15,6 +15,7 @@ import {
 	isTerminalError,
 	terminalErrorValue,
 } from "../ctx/types.js";
+import { canonicalTupleKey } from "../identity.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import type { DescribeEdge, DescribeNode, DescribeSnapshot } from "./describe.js";
 import type { Graph, StateNode, SugarOpts } from "./graph.js";
@@ -61,7 +62,7 @@ function metaEqual(a: unknown, b: unknown): boolean {
 }
 
 function edgeKey(e: DescribeEdge): string {
-	return `${e.from}\0${e.to}`;
+	return canonicalTupleKey([e.from, e.to]);
 }
 
 function cloneNode(n: DescribeNode): DescribeNode {

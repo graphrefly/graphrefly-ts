@@ -14,6 +14,7 @@ import {
 	retryPolicy,
 	shouldRetry,
 } from "../graph/resilience.js";
+import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import type {
@@ -160,7 +161,7 @@ const bridgeInboundSources = new WeakMap<
 
 /** Stable D134 idempotency key helper scoped to one bridge session and sequence. */
 export function wireBridgeIdempotencyKey(sessionId: string, seq: number): string {
-	return `${sessionId}:${seq}`;
+	return canonicalTupleKey([sessionId, String(seq)]);
 }
 
 /** Create a D134 wire bridge envelope with ordered metadata. */

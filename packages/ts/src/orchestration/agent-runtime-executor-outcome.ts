@@ -1,4 +1,5 @@
 import type { DataIssue } from "../data/index.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import {
 	boundedPublicText,
 	dataIssue,
@@ -105,9 +106,11 @@ export function buildToolProviderExecutorOutcome<T = unknown>(
 	const base = {
 		outcomeId:
 			opts.outcomeId ??
-			`${input.adapterInputId}:${toolProviderOutcomeRunSegment(opts.runId, attempt)}:${
-				result.kind
-			}`,
+			compoundTupleKey("tool-provider-executor-outcome", [
+				input.adapterInputId,
+				toolProviderOutcomeRunSegment(opts.runId, attempt),
+				result.kind,
+			]),
 		requestId: input.requestId,
 		operationId: input.operationId,
 		routeId: ids.routeId,
@@ -198,10 +201,11 @@ export function buildToolProviderExecutorOutcome<T = unknown>(
 	});
 	return Object.freeze({
 		kind: "failure",
-		outcomeId: `${input.adapterInputId}:${toolProviderOutcomeRunSegment(
-			opts.runId,
-			attempt,
-		)}:failure`,
+		outcomeId: compoundTupleKey("tool-provider-executor-outcome", [
+			input.adapterInputId,
+			toolProviderOutcomeRunSegment(opts.runId, attempt),
+			"failure",
+		]),
 		requestId: input.requestId,
 		operationId: input.operationId,
 		routeId: ids.routeId,
@@ -235,7 +239,9 @@ export function agentRequestStatusForExecutorOutcome(outcome: ExecutorOutcome): 
 }
 
 export function toolProviderOutcomeRunSegment(runId: string | undefined, attempt: number): string {
-	return runId === undefined ? `attempt-${attempt}` : `${runId}:attempt-${attempt}`;
+	return runId === undefined
+		? compoundTupleKey("attempt", [String(attempt)])
+		: canonicalTupleKey([runId, compoundTupleKey("attempt", [String(attempt)])]);
 }
 
 export function adapterRuntimeIssue(

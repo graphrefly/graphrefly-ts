@@ -1,3 +1,4 @@
+import { canonicalTupleKey } from "../identity.js";
 import type {
 	NormalizedScoreSignal,
 	ScoreBreakdown,
@@ -306,7 +307,7 @@ function mergeRefs(refs: readonly ScoreRef[]): readonly ScoreRef[] | undefined {
 	const seen = new Set<string>();
 	const out: ScoreRef[] = [];
 	for (const ref of refs) {
-		const key = `${ref.kind}:${ref.id}:${stableSafeStringify(ref.metadata ?? {})}`;
+		const key = canonicalTupleKey([ref.kind, ref.id, stableSafeStringify(ref.metadata ?? {})]);
 		if (seen.has(key)) continue;
 		seen.add(key);
 		out.push(ref);

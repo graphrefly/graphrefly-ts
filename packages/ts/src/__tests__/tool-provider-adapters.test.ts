@@ -14,6 +14,7 @@ import {
 	processToolProviderBinding,
 } from "../executors/tool-provider-adapters.js";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type {
 	AgentRequestFact,
 	AgentRequestIssued,
@@ -539,7 +540,9 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 						{
 							kind: "tool-provider-run-admission-decision",
 							decisionId: "http-approval-decision",
-							proposalId: "candidate-http-approval:admission-proposal",
+							proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [
+								"candidate-http-approval",
+							]),
 							admissionId: "http-approval-admission",
 							outcome: "admit",
 							approvedRunId: "approved-http-run",

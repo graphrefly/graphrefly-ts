@@ -3,6 +3,7 @@ import type { DataIssue } from "../data/index.js";
 import type { ToolProviderAdapterRuntimeStatus } from "../executors/tool-provider-runtime.js";
 import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
 import { graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import {
 	type AgentRequestIssued,
 	buildToolProviderAdapterInputs,
@@ -651,9 +652,22 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 3", () => {
 		expect(reasons[0]?.length).toBeLessThanOrEqual(32);
 		expect(reasons[1]).toBe("retry");
 		expect(outcomes.map((outcome) => outcome.attempt)).toEqual([1, 2]);
+		const explicitRunInputId = compoundTupleKey("tool-provider-adapter-input", [
+			"runtime-run-req",
+			"runtime-run-req-op",
+			"runtime-run-req-route",
+		]);
 		expect(outcomes.map((outcome) => outcome.outcomeId)).toEqual([
-			expect.stringContaining("run-shared:attempt-1"),
-			expect.stringContaining("run-shared:attempt-2"),
+			compoundTupleKey("tool-provider-executor-outcome", [
+				explicitRunInputId,
+				canonicalTupleKey(["run-shared", compoundTupleKey("attempt", ["1"])]),
+				"result",
+			]),
+			compoundTupleKey("tool-provider-executor-outcome", [
+				explicitRunInputId,
+				canonicalTupleKey(["run-shared", compoundTupleKey("attempt", ["2"])]),
+				"result",
+			]),
 		]);
 		expect(outcomes.map((outcome) => outcome.metadata)).toEqual([
 			expect.objectContaining({ runId: "run-shared" }),

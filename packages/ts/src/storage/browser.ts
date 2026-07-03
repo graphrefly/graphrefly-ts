@@ -23,8 +23,6 @@ export interface NamedIndexedDbBackend extends StorageBackend {
 
 type IndexedDbError = DOMException | Error;
 
-const KEY_SEPARATOR = "\u0000";
-
 function isConstraintError(error: unknown): error is DOMException {
 	return error instanceof DOMException && error.name === "ConstraintError";
 }
@@ -33,18 +31,12 @@ function validateKey(key: string): string {
 	if (typeof key !== "string") {
 		throw new TypeError("indexedDbBackend: key must be a string");
 	}
-	if (key.includes(KEY_SEPARATOR)) {
-		throw new TypeError("indexedDbBackend: key must not contain U+0000");
-	}
 	return key;
 }
 
 function validateListPrefix(prefix: string): string {
 	if (typeof prefix !== "string") {
 		throw new TypeError("indexedDbBackend: list prefix must be a string");
-	}
-	if (prefix.includes(KEY_SEPARATOR)) {
-		throw new TypeError("indexedDbBackend: list prefix must not contain U+0000");
 	}
 	return prefix;
 }
@@ -61,9 +53,6 @@ function normalizeKeys(prefix: string, raw: unknown[]): string[] {
 	for (const key of raw) {
 		if (typeof key !== "string") {
 			throw new TypeError("indexedDbBackend: stored key must be a string");
-		}
-		if (key.includes(KEY_SEPARATOR)) {
-			throw new TypeError("indexedDbBackend: malformed stored key");
 		}
 		if (key.startsWith(prefix)) out.push(key);
 	}

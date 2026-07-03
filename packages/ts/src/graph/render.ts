@@ -4,6 +4,7 @@
  * Render is graph-layer presentation: no Graph method, no topology mutation, no substrate behavior.
  */
 
+import { canonicalTupleKey } from "../identity.js";
 import type { DescribeEdge, DescribeNode, DescribeSnapshot } from "./describe.js";
 
 export type DiagramDirection = "TD" | "LR" | "BT" | "RL";
@@ -191,7 +192,7 @@ function sortedEdges(edges: readonly DescribeEdge[]): DescribeEdge[] {
 	const seen = new Set<string>();
 	const out: DescribeEdge[] = [];
 	for (const edge of edges) {
-		const key = `${edge.from}\0${edge.to}`;
+		const key = canonicalTupleKey([edge.from, edge.to]);
 		if (seen.has(key)) continue;
 		seen.add(key);
 		out.push(edge);

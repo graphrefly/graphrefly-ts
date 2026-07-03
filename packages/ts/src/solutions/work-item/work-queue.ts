@@ -9,6 +9,7 @@
 import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { Node } from "../../node/node.js";
 import type {
 	AgentOutputEnvelope,
@@ -127,7 +128,7 @@ export function workItemWorkQueueRecipe(
 					continue;
 				}
 				if (!evidenceKinds.has(record.kind)) continue;
-				const key = `${record.kind}:${record.recordSeq}`;
+				const key = canonicalTupleKey([record.kind, String(record.recordSeq)]);
 				if (state.terminalRecords.has(key)) continue;
 				state.terminalRecords.add(key);
 				const payload = "workId" in record ? state.payloads.get(record.workId ?? "") : undefined;
@@ -190,9 +191,11 @@ export function workItemSubmitCommand(
 	};
 	return {
 		kind: "submit",
-		commandId: `${request.requestId}:work-queue-submit`,
+		commandId: compoundTupleKey("work-item-work-queue-submit", [request.requestId]),
 		payload,
-		workId: submit.workId ?? `${request.workItemId}:${request.effectRunId}`,
+		workId:
+			submit.workId ??
+			compoundTupleKey("work-item-work", [request.workItemId, request.effectRunId]),
 		priority: submit.priority,
 		tags: submit.tags ?? ["work-item", request.effectKind],
 		requirements: submit.requirements,
@@ -211,11 +214,14 @@ function evidenceFromRecord(
 	const status = evidenceStatus(record);
 	const base = {
 		kind: "work-item-evidence-recorded" as const,
-		evidenceId: `work-queue:${record.recordSeq}`,
+		evidenceId: compoundTupleKey("work-queue-evidence", [String(record.recordSeq)]),
 		workItemId: payload.workItemId,
 		requestId: payload.requestId,
 		effectRunId: payload.effectRunId,
-		effectRunResultId: `work-queue:${record.workId ?? payload.effectRunId}:${record.recordSeq}`,
+		effectRunResultId: compoundTupleKey("work-queue-effect-run-result", [
+			record.workId ?? payload.effectRunId,
+			String(record.recordSeq),
+		]),
 		executionInputRevision: payload.executionInputRevision,
 		planId: payload.planId,
 		planMemberId: payload.planMemberId,
@@ -270,7 +276,7 @@ function emitStatus(
 		kind: "status",
 		status: {
 			kind: "work-item-status",
-			statusId: `work-item-work-queue-status:${state.statusSeq}`,
+			statusId: compoundTupleKey("work-item-work-queue-status", [String(state.statusSeq)]),
 			workItemId: payload.workItemId,
 			state: statusState,
 			effectRunId: payload.effectRunId,
@@ -301,7 +307,7 @@ function emitIssue(
 		kind: "status",
 		status: {
 			kind: "work-item-status",
-			statusId: `work-item-work-queue-status:${state.statusSeq}`,
+			statusId: compoundTupleKey("work-item-work-queue-status", [String(state.statusSeq)]),
 			workItemId: record.workId ?? "unknown",
 			state: "mapping-issue",
 			issues: [{ ...issue, code }],
@@ -382,5 +388,5 @@ function ref(kind: string, id: string): SourceRef {
 }
 
 function stringRefs(refs: readonly SourceRef[] | undefined): readonly string[] | undefined {
-	return refs?.map((sourceRef) => `${sourceRef.kind}:${sourceRef.id}`);
+	return refs?.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id]));
 }

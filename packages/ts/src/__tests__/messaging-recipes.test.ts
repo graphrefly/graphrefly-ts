@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CqrsStatus } from "../cqrs/index.js";
 import { cqrsMessagingRecipe } from "../cqrs/messaging.js";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type {
 	MessageBusAvailablePage,
 	MessageBusCommand,
@@ -140,7 +141,13 @@ describe("messaging recipes (D349-D351/D353)", () => {
 				topic: "commands",
 				subscriptionId: "sub-policy",
 				seq: 9,
-				commandId: "cqrs:commands:sub-policy:9:status-ack",
+				commandId: compoundTupleKey("cqrs-message-ack", [
+					"cqrs",
+					"commands",
+					"sub-policy",
+					"9",
+					"status",
+				]),
 			}),
 		);
 	});
@@ -194,7 +201,13 @@ describe("messaging recipes (D349-D351/D353)", () => {
 				topic: "commands",
 				subscriptionId: "sub-process-policy",
 				seq: 10,
-				commandId: "orchestration:commands:sub-process-policy:10:status-ack",
+				commandId: compoundTupleKey("orchestration-message-ack", [
+					"orchestration",
+					"commands",
+					"sub-process-policy",
+					"10",
+					"status",
+				]),
 			}),
 		);
 	});

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type {
 	ToolProviderAdapterInput,
 	ToolProviderAdapterRunRequested,
@@ -15,6 +16,12 @@ import {
 	requestToolProviderAdapterRun,
 	toolProviderRunAdmissionProjector,
 } from "../orchestration/agent-runtime.js";
+
+const admissionProposalId = (runId: string) =>
+	compoundTupleKey("tool-provider-run-admission-proposal", [runId]);
+const defaultAdmissionId = (proposalId: string) =>
+	compoundTupleKey("tool-provider-run-admission", [proposalId]);
+const admittedRunId = (runId: string) => compoundTupleKey("tool-provider-run-admitted", [runId]);
 
 function readyInput(
 	opts: {
@@ -114,7 +121,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 
 		expect(harness.seen.proposals).toEqual([
 			expect.objectContaining({
-				proposalId: "candidate-auto:admission-proposal",
+				proposalId: admissionProposalId("candidate-auto"),
 				approvalMode: "auto",
 				runId: "candidate-auto",
 			}),
@@ -123,15 +130,15 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			expect.objectContaining({
 				state: "admitted",
 				runId: "candidate-auto",
-				approvedRunId: "candidate-auto:admitted",
+				approvedRunId: admittedRunId("candidate-auto"),
 			}),
 		]);
 		expect(harness.seen.approved).toEqual([
 			expect.objectContaining({
-				runId: "candidate-auto:admitted",
+				runId: admittedRunId("candidate-auto"),
 				adapterInputId: input.adapterInputId,
 				metadata: expect.objectContaining({
-					admissionId: "candidate-auto:admission-proposal:admission",
+					admissionId: defaultAdmissionId(admissionProposalId("candidate-auto")),
 					approvedFromRunId: "candidate-auto",
 				}),
 			}),
@@ -152,7 +159,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 
 		expect(harness.seen.status).toEqual([
 			expect.objectContaining({
-				proposalId: "candidate-require:admission-proposal",
+				proposalId: admissionProposalId("candidate-require"),
 				state: "waiting",
 			}),
 		]);
@@ -164,7 +171,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 				{
 					kind: "tool-provider-run-admission-decision",
 					decisionId: "decision-approve",
-					proposalId: "candidate-require:admission-proposal",
+					proposalId: admissionProposalId("candidate-require"),
 					admissionId: "admission-approve",
 					outcome: "admit",
 					approvedRunId: "approved-require-run",
@@ -256,7 +263,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 				{
 					kind: "tool-provider-run-admission-decision",
 					decisionId: "decision-first",
-					proposalId: "candidate-duplicate-decision:admission-proposal",
+					proposalId: admissionProposalId("candidate-duplicate-decision"),
 					admissionId: "admission-first",
 					outcome: "admit",
 					approvedRunId: "approved-first",
@@ -267,7 +274,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 				{
 					kind: "tool-provider-run-admission-decision",
 					decisionId: "decision-second",
-					proposalId: "candidate-duplicate-decision:admission-proposal",
+					proposalId: admissionProposalId("candidate-duplicate-decision"),
 					admissionId: "admission-second",
 					outcome: "admit",
 					approvedRunId: "approved-second",
@@ -284,7 +291,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 		expect(harness.seen.status).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					proposalId: "candidate-duplicate-decision:admission-proposal",
+					proposalId: admissionProposalId("candidate-duplicate-decision"),
 					state: "issue",
 				}),
 			]),
@@ -307,7 +314,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 		expect(latestView?.proposalsByRun.get("candidate-replay")).toHaveLength(1);
 		expect(latestView?.admissionsByRun.get("candidate-replay")).toHaveLength(1);
 		expect(harness.seen.approved).toEqual([
-			expect.objectContaining({ runId: "candidate-replay:admitted" }),
+			expect.objectContaining({ runId: admittedRunId("candidate-replay") }),
 		]);
 	});
 });

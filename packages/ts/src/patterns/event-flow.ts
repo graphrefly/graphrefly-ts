@@ -10,6 +10,7 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey } from "../identity.js";
 import type { EventMessage, MessageEnvelope } from "../messaging/index.js";
 import { eventMessageIssue } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
@@ -558,7 +559,7 @@ function projectionHighWater(
 }
 
 function sourceKey(source: EventFlowSourceRef): string {
-	return `${source.source}\u0000${source.topic ?? ""}`;
+	return canonicalTupleKey([source.source, source.topic ?? ""]);
 }
 
 function eventIdOf(value: unknown): string | undefined {

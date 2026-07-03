@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { cqrs, cqrsCommandHandler, cqrsProjection } from "../cqrs/index.js";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
+
+const cqrsEventId = (commandId: string, seq: string) =>
+	compoundTupleKey("cqrs-event", [commandId, seq]);
 
 describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 	it("dispatches commands as graph-owned command facts and emits audit/status facts", () => {
@@ -35,7 +39,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 				commandId: "cmd-1",
 				commandType: "PlaceOrder",
 				outcome: "success",
-				eventIds: ["cmd-1:1"],
+				eventIds: [cqrsEventId("cmd-1", "1")],
 				eventTypes: ["OrderPlaced"],
 				cursor: { eventSeq: 1, commandCount: 1, errorCount: 0, auditSeq: 1 },
 			},
@@ -79,7 +83,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		expect(events.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({
-				id: "cmd-1:1",
+				id: cqrsEventId("cmd-1", "1"),
 				type: "OrderPlaced",
 				commandId: "cmd-1",
 				timestampMs: 15,
@@ -123,7 +127,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			[
 				"DATA",
 				{
-					id: "cmd-1:1",
+					id: cqrsEventId("cmd-1", "1"),
 					type: "OrderPlaced",
 					seq: 1,
 					cursor: 1,
@@ -137,7 +141,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			[
 				"DATA",
 				{
-					id: "cmd-1:2",
+					id: cqrsEventId("cmd-1", "2"),
 					type: "OrderConfirmed",
 					seq: 2,
 					cursor: 2,
@@ -423,7 +427,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			expect.objectContaining({
 				code: "projection-threw",
 				message: "projection failed",
-				eventId: "cmd-2:1",
+				eventId: cqrsEventId("cmd-2", "1"),
 				eventType: "OrderFailed",
 			}),
 		]);
@@ -466,7 +470,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			"DATA",
 			expect.objectContaining({
 				code: "projection-threw",
-				eventId: "cmd-1:2",
+				eventId: cqrsEventId("cmd-1", "2"),
 				eventType: "OrderFailed",
 			}),
 		]);

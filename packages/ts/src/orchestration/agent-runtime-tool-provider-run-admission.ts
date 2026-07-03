@@ -1,6 +1,7 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
 	requestToolProviderAdapterRun,
@@ -86,7 +87,7 @@ export function toolProviderRunAdmissionProjector(
 					);
 					emitAdmissionStatus(ctx, state, {
 						kind: "tool-provider-run-admission-status",
-						proposalId: `${request.runId}:admission-proposal`,
+						proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [request.runId]),
 						runId: request.runId,
 						adapterInputId: request.adapterInputId,
 						requestId: request.requestId,
@@ -217,7 +218,7 @@ function handleRunRequest(
 		for (const issue of issues) emitAdmissionIssue(ctx, state, issue);
 		emitAdmissionStatus(ctx, state, {
 			kind: "tool-provider-run-admission-status",
-			proposalId: `${request.runId}:admission-proposal`,
+			proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [request.runId]),
 			runId: request.runId,
 			adapterInputId: request.adapterInputId,
 			requestId: request.requestId,
@@ -331,8 +332,11 @@ function admit(
 	const approvedRunId =
 		decision?.approvedRunId ??
 		(decision === undefined
-			? `${internal.request.runId}:admitted`
-			: `${internal.request.runId}:admitted:${decision.decisionId}`);
+			? compoundTupleKey("tool-provider-run-admitted", [internal.request.runId])
+			: compoundTupleKey("tool-provider-run-admitted", [
+					internal.request.runId,
+					decision.decisionId,
+				]));
 	const admission = recordAdmission(ctx, state, internal, "admitted", {
 		decision,
 		approvedRunId,
@@ -393,7 +397,9 @@ function recordAdmission(
 		readonly now?: (() => number) | undefined;
 	},
 ): ToolProviderRunAdmission {
-	const admissionId = opts.decision?.admissionId ?? `${internal.proposal.proposalId}:admission`;
+	const admissionId =
+		opts.decision?.admissionId ??
+		compoundTupleKey("tool-provider-run-admission", [internal.proposal.proposalId]);
 	const sourceRefs = admissionSourceRefs(internal, opts.decision);
 	const admission: ToolProviderRunAdmission = Object.freeze({
 		kind: "tool-provider-run-admission",
@@ -466,7 +472,7 @@ function admissionProposal(
 	]);
 	return Object.freeze({
 		kind: "tool-provider-run-admission-proposal",
-		proposalId: `${request.runId}:admission-proposal`,
+		proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [request.runId]),
 		runId: request.runId,
 		adapterInputId: input.adapterInputId,
 		requestId: input.requestId,
@@ -599,7 +605,12 @@ function emitAdmission(
 	state: ToolProviderRunAdmissionProjectorState,
 	admission: ToolProviderRunAdmission,
 ): void {
-	const key = `admission:${admission.admissionId}:${admission.state}:${admission.decisionId ?? ""}:${admission.approvedRunId ?? ""}`;
+	const key = compoundTupleKey("admission", [
+		admission.admissionId,
+		admission.state,
+		admission.decisionId ?? "",
+		admission.approvedRunId ?? "",
+	]);
 	if (state.admissionKeys.has(key)) return;
 	state.admissionKeys.add(key);
 	ctx.down([["DATA", { kind: "admission", admission }]]);
@@ -610,7 +621,7 @@ function emitApprovedRunRequest(
 	state: ToolProviderRunAdmissionProjectorState,
 	request: ToolProviderAdapterRunRequested,
 ): void {
-	const key = `approved-run:${request.runId}`;
+	const key = compoundTupleKey("approved-run", [request.runId]);
 	if (state.approvedRunKeys.has(key)) return;
 	state.approvedRunKeys.add(key);
 	ctx.down([["DATA", { kind: "approved-run-request", request }]]);
@@ -621,7 +632,13 @@ function emitAdmissionStatus(
 	state: ToolProviderRunAdmissionProjectorState,
 	status: ToolProviderRunAdmissionStatus,
 ): void {
-	const key = `status:${status.proposalId}:${status.state}:${status.admissionId ?? ""}:${status.decisionId ?? ""}:${status.approvedRunId ?? ""}`;
+	const key = compoundTupleKey("status", [
+		status.proposalId,
+		status.state,
+		status.admissionId ?? "",
+		status.decisionId ?? "",
+		status.approvedRunId ?? "",
+	]);
 	if (state.statusKeys.has(key)) return;
 	state.statusKeys.add(key);
 	ctx.down([["DATA", { kind: "status", status }]]);
@@ -632,7 +649,11 @@ function emitAdmissionIssue(
 	state: ToolProviderRunAdmissionProjectorState,
 	issue: DataIssue,
 ): void {
-	const key = `issue:${issue.code}:${issue.subjectId ?? ""}:${JSON.stringify(issue.details ?? {})}`;
+	const key = compoundTupleKey("issue", [
+		issue.code,
+		issue.subjectId ?? "",
+		JSON.stringify(issue.details ?? {}),
+	]);
 	if (state.issueKeys.has(key)) return;
 	state.issueKeys.add(key);
 	ctx.down([["DATA", { kind: "issue", issue }]]);

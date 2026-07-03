@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
+import { canonicalTupleKey } from "../identity.js";
 import type { BoundaryCapabilityKind } from "../inspection/boundary.js";
 import type {
 	CapabilityAdmission,
@@ -286,7 +287,10 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		expect(decisions).toEqual([expect.objectContaining({ outcome: "admit" })]);
 		expect(decisions.at(-1)?.sourceRefs).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ kind: "boundary-capability", id: "auth:boundary-auth" }),
+				expect.objectContaining({
+					kind: "boundary-capability",
+					id: canonicalTupleKey(["auth", "boundary-auth"]),
+				}),
 			]),
 		);
 		expect(decisions.at(-1)?.sourceRefs).not.toEqual(
@@ -409,7 +413,7 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		expect(decisions).toEqual([]);
 		expect(status.at(-1)).toMatchObject({
 			state: "deferred",
-			metadata: { missingCapabilityRefs: ["auth:shared-id"] },
+			metadata: { missingCapabilityRefs: [canonicalTupleKey(["auth", "shared-id"])] },
 		});
 
 		capabilityAdmissions.down([

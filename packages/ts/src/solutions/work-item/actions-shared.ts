@@ -1,6 +1,7 @@
 import { depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { Node } from "../../node/node.js";
 import type { AgentRuntimeAuditRecord, SourceRef } from "../../orchestration/agent-runtime.js";
 import type { WorkItemDomainActionStatus } from "./actions-types.js";
@@ -11,7 +12,7 @@ export function auditRecord(
 	status: WorkItemDomainActionStatus,
 ): AgentRuntimeAuditRecord {
 	return {
-		id: `${kind}:${seq}`,
+		id: compoundTupleKey(kind, [String(seq)]),
 		kind,
 		subjectId: status.workItemId,
 		message: status.message,
@@ -63,7 +64,7 @@ export function dataIssue(
 		severity: "error",
 		source: "work-item-actions",
 		subjectId: opts.subjectId,
-		refs: opts.refs?.map((sourceRef) => `${sourceRef.kind}:${sourceRef.id}`),
+		refs: opts.refs?.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id])),
 		metadata: opts.metadata,
 	};
 }
@@ -72,7 +73,11 @@ export function uniqueSourceRefs(sourceRefs: readonly SourceRef[]): readonly Sou
 	const seen = new Set<string>();
 	const out: SourceRef[] = [];
 	for (const sourceRef of sourceRefs) {
-		const key = `${sourceRef.kind}:${sourceRef.id}:${JSON.stringify(sourceRef.metadata ?? {})}`;
+		const key = canonicalTupleKey([
+			sourceRef.kind,
+			sourceRef.id,
+			JSON.stringify(sourceRef.metadata ?? {}),
+		]);
 		if (seen.has(key)) continue;
 		seen.add(key);
 		out.push(sourceRef);

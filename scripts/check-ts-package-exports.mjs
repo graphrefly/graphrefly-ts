@@ -166,7 +166,12 @@ const expectedSubpaths = {
 		absent: ["memoryRetrievalBundle", "agenticMemoryBundle", "workItemAuthoringProjector"],
 	},
 	"./solutions/agentic-memory": {
-		present: ["agenticMemoryBundle", "agenticMemoryRecordFrame", "agenticMemoryRetentionBundle"],
+		present: [
+			"agenticMemoryBundle",
+			"agenticMemoryRecordFrame",
+			"agenticMemoryRetentionBundle",
+			"agenticMemoryRecordAdmissionBundle",
+		],
 		absent: [
 			"workItemAuthoringProjector",
 			"workItemEffectRunProjector",
@@ -540,6 +545,8 @@ import {
 	agenticMemoryBundle,
 	type AgenticMemoryBundleOptions as FocusedAgenticMemoryBundleOptions,
 	type AgenticMemoryRecord as FocusedAgenticMemoryRecord,
+	agenticMemoryRecordAdmissionBundle,
+	type AgenticMemoryRecordAdmissionPolicy,
 } from "@graphrefly/ts/solutions/agentic-memory";
 import * as agenticWorkItemMemory from "@graphrefly/ts/solutions/agentic-work-item-memory";
 import {
@@ -595,6 +602,7 @@ void normalizeScoreSignal;
 void rankScoredSubjects;
 void scoreSubjects;
 void agenticMemoryBundle;
+void agenticMemoryRecordAdmissionBundle;
 void agenticWorkItemMemory;
 void workItemAuthoringProjector;
 void isWorkspaceProposalProjectionReleaseMaterial;
@@ -613,6 +621,7 @@ declare const scoreSubject: ScoreSubject;
 declare const scoredSubject: ScoredSubject;
 declare const focusedAgenticMemoryBundleOptions: FocusedAgenticMemoryBundleOptions;
 declare const focusedAgenticMemoryRecord: FocusedAgenticMemoryRecord;
+declare const agenticMemoryRecordAdmissionPolicy: AgenticMemoryRecordAdmissionPolicy;
 declare const workItemProjection: WorkItemProjection;
 declare const recipeBundle: ToolProviderExecutionRecipeBundle;
 declare const recipeOptions: ToolProviderExecutionRecipeOptions;
@@ -661,6 +670,7 @@ void scoreSubject;
 void scoredSubject;
 void focusedAgenticMemoryBundleOptions;
 void focusedAgenticMemoryRecord;
+void agenticMemoryRecordAdmissionPolicy;
 void workItemProjection;
 void recipeBundle;
 void recipeOptions;

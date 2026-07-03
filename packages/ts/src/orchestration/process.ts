@@ -4,6 +4,7 @@
 
 import { depBatch, type NodeFn } from "../ctx/types.js";
 import type { Graph, TopologyGroup } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
 	ProcessAuditRecord,
@@ -541,7 +542,9 @@ function processEffectOutcomeCommand<TResult>(
 ): ProcessCommand<ProcessEffectCommandPayload<TResult>> {
 	const commandType = processEffectCommandType(outcome.kind);
 	return {
-		id: outcome.commandId ?? `${outcome.effectId}:${commandType}`,
+		id:
+			outcome.commandId ??
+			compoundTupleKey("process-effect-command", [outcome.effectId, commandType]),
 		type: commandType,
 		payload: processEffectCommandPayload(outcome),
 		processId: outcome.processId,
@@ -843,7 +846,7 @@ function prepareProcessEvents(
 		const id =
 			typeof draft.id === "string" && draft.id.length > 0
 				? draft.id
-				: `${command.id}:event:${state.eventSeq + i + 1}`;
+				: compoundTupleKey("process-event", [command.id, String(state.eventSeq + i + 1)]);
 		if (seen.has(id)) return `processBundle: duplicate event '${id}'`;
 		if (state.seenEventIds.includes(id)) return `processBundle: duplicate event '${id}'`;
 		seen.add(id);
@@ -876,7 +879,7 @@ function prepareProcessEffects(
 		const id =
 			typeof draft.id === "string" && draft.id.length > 0
 				? draft.id
-				: `${command.id}:effect:${state.effectSeq + i + 1}`;
+				: compoundTupleKey("process-effect", [command.id, String(state.effectSeq + i + 1)]);
 		if (seen.has(id)) return `processBundle: duplicate effect '${id}'`;
 		if (state.seenEffectIds.includes(id)) return `processBundle: duplicate effect '${id}'`;
 		seen.add(id);

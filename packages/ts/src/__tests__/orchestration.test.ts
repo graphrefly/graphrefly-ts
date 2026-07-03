@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import {
 	backoffDelayMs,
 	breakerBundle,
@@ -127,7 +128,7 @@ describe("ProcessBundle — graph-visible facts-plus-reducer orchestration (D136
 
 		expect(process.state.cache).toEqual({ total: 7 });
 		expect(process.events.cache).toMatchObject({
-			id: "cmd-1:event:1",
+			id: compoundTupleKey("process-event", ["cmd-1", "1"]),
 			type: "amount-added",
 			seq: 1,
 			cursor: 1,
@@ -137,7 +138,7 @@ describe("ProcessBundle — graph-visible facts-plus-reducer orchestration (D136
 			timestampMs: 123,
 		});
 		expect(process.effectRequests.cache).toMatchObject({
-			id: "cmd-1:effect:1",
+			id: compoundTupleKey("process-effect", ["cmd-1", "1"]),
 			type: "notify",
 			seq: 1,
 			cursor: 1,
@@ -159,9 +160,9 @@ describe("ProcessBundle — graph-visible facts-plus-reducer orchestration (D136
 			commandId: "cmd-1",
 			commandType: "add",
 			outcome: "success",
-			eventIds: ["cmd-1:event:1"],
+			eventIds: [compoundTupleKey("process-event", ["cmd-1", "1"])],
 			eventTypes: ["amount-added"],
-			effectIds: ["cmd-1:effect:1"],
+			effectIds: [compoundTupleKey("process-effect", ["cmd-1", "1"])],
 			effectTypes: ["notify"],
 			cursor: { eventSeq: 1, effectSeq: 1, commandCount: 1, errorCount: 0, auditSeq: 1 },
 		});
@@ -508,7 +509,7 @@ describe("ProcessBundle effect runner — visible outcome-command adapter (D156)
 			correlationId: "corr-1",
 		});
 		expect(runner.requests.cache).toMatchObject({
-			id: "cmd-1:effect:1",
+			id: compoundTupleKey("process-effect", ["cmd-1", "1"]),
 			type: "notify",
 			processId: "p-1",
 			correlationId: "corr-1",
@@ -528,7 +529,7 @@ describe("ProcessBundle effect runner — visible outcome-command adapter (D156)
 		]);
 
 		expect(runner.commands.cache).toEqual({
-			id: "cmd-1:effect:1:effect.result",
+			id: compoundTupleKey("process-effect-command", ["cmd-1:effect:1", "effect.result"]),
 			type: "effect.result",
 			payload: {
 				kind: "result",

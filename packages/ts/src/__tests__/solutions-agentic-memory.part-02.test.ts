@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
 import type { Message } from "../protocol/messages.js";
 import {
@@ -17,6 +18,10 @@ import {
 	type AgenticMemoryKgProjectionError,
 	type AgenticMemoryPackedContext,
 	type AgenticMemoryRecord,
+	type AgenticMemoryRecordAdmission,
+	type AgenticMemoryRecordAdmissionPolicy,
+	type AgenticMemoryRecordAdmissionStatus,
+	type AgenticMemoryRecordProposal,
 	type AgenticMemoryRetentionCommand,
 	type AgenticMemoryRetentionError,
 	type AgenticMemorySourceProjection,
@@ -24,6 +29,7 @@ import {
 	agenticMemoryConsolidationBundle,
 	agenticMemoryContextPackingBundle,
 	agenticMemoryKgProjectionBundle,
+	agenticMemoryRecordAdmissionBundle,
 	agenticMemoryRetentionBundle,
 } from "../solutions/index.js";
 
@@ -125,7 +131,11 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		});
 		expect(data(drafts.messages).at(-1)).toEqual([
 			expect.objectContaining({
-				id: "request-1:outcome-1:record-merged",
+				id: compoundTupleKey("agentic-memory-record-draft", [
+					"request-1",
+					"outcome-1",
+					"record-merged",
+				]),
 				requestId: "request-1",
 				outcomeId: "outcome-1",
 				record: expect.objectContaining({ id: "record-merged" }),
@@ -133,11 +143,20 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		]);
 		expect(data<readonly AgenticMemoryConsolidationCommand[]>(commands.messages).at(-1)).toEqual([
 			{
-				id: "request-1:outcome-1:proposeRecords",
+				id: compoundTupleKey("agentic-memory-consolidation-command", [
+					compoundTupleKey("agentic-memory-consolidation-result", ["request-1", "outcome-1"]),
+					"proposeRecords",
+				]),
 				kind: "proposeRecords",
 				requestId: "request-1",
 				outcomeId: "outcome-1",
-				draftIds: ["request-1:outcome-1:record-merged"],
+				draftIds: [
+					compoundTupleKey("agentic-memory-record-draft", [
+						"request-1",
+						"outcome-1",
+						"record-merged",
+					]),
+				],
 			},
 		]);
 	});
@@ -241,6 +260,400 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			cursor: { validOutcomes: 0, invalidOutcomes: 2, proposedRecordDrafts: 0 },
 		});
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+});
+
+describe("agentic memory record proposal admission (D572/D573)", () => {
+	it("admits proposal facts without applying AgenticMemoryRecord truth", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
+			[record({ id: "record-existing", fragment: fragment({ id: "existing" }) })],
+			{ name: "records" },
+		);
+		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "proposal-1",
+					candidateRecord: record({
+						id: "record-new",
+						fragment: fragment({ id: "new", payload: "new insight" }),
+					}),
+					reason: "human-approved import",
+					sourceRefs: [{ kind: "review", id: "review-1" }],
+					policyRefs: [{ kind: "policy", id: "mapper-1" }],
+					idempotencyKey: "idem-1",
+					correlationId: "corr-1",
+				},
+			],
+			{ name: "proposals" },
+		);
+		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+			{
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "admission-policy",
+				defaultState: "admitted",
+				requireSourceRefs: true,
+				policyRefs: [{ kind: "policy", id: "admission-policy" }],
+			},
+			{ name: "policy" },
+		);
+		const bundle = agenticMemoryRecordAdmissionBundle(g, {
+			name: "admission",
+			records,
+			proposals,
+			policy,
+		});
+		const admitted = collect(bundle.admitted);
+		const status = collect(bundle.status);
+		const audit = collect(bundle.audit);
+
+		expect(g.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "records", to: "admission/projection" },
+				{ from: "proposals", to: "admission/projection" },
+				{ from: "policy", to: "admission/projection" },
+				{ from: "admission/projection", to: "admission/admitted" },
+				{ from: "admission/projection", to: "admission/audit" },
+			]),
+		);
+		expect(Object.hasOwn(bundle, "records")).toBe(false);
+		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+			state: "ready",
+			cursor: { admitted: 1, rejected: 0, needsReview: 0, invalidProposals: 0 },
+		});
+		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1)).toEqual(
+			[
+				expect.objectContaining({
+					kind: "agentic-memory-record-admission",
+					admissionId: 'admission:["admission-policy","proposal-1"]',
+					proposalId: "proposal-1",
+					state: "admitted",
+					candidateRecord: expect.objectContaining({ id: "record-new" }),
+					sourceRefs: expect.arrayContaining([{ kind: "review", id: "review-1" }]),
+					policyRefs: expect.arrayContaining([
+						{ kind: "agentic-memory-record-admission-policy", id: "admission-policy" },
+					]),
+					idempotencyKey: "idem-1",
+					correlationId: "corr-1",
+				}),
+			],
+		);
+		expect(data(audit.messages).at(-1)).toEqual([
+			expect.objectContaining({
+				kind: "agentic-memory-record-admission-audit",
+				proposalId: "proposal-1",
+				state: "admitted",
+			}),
+		]);
+		expect(records.cache?.map((item) => item.id)).toEqual(["record-existing"]);
+	});
+
+	it("rejects duplicate candidate ids and routes missing provenance to needs-review", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
+			[record({ id: "record-existing", fragment: fragment({ id: "existing" }) })],
+			{ name: "records" },
+		);
+		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "duplicate",
+					candidateRecord: record({
+						id: "record-existing",
+						fragment: fragment({ id: "replacement" }),
+					}),
+					sourceRefs: [{ kind: "import", id: "import-1" }],
+				},
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "missing-source",
+					candidateRecord: record({
+						id: "record-new",
+						fragment: fragment({ id: "new" }),
+					}),
+				},
+			],
+			{ name: "proposals" },
+		);
+		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+			{
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "admission-policy",
+				defaultState: "admitted",
+				requireSourceRefs: true,
+			},
+			{ name: "policy" },
+		);
+		const bundle = agenticMemoryRecordAdmissionBundle(g, {
+			name: "admission",
+			records,
+			proposals,
+			policy,
+		});
+		const rejected = collect(bundle.rejected);
+		const needsReview = collect(bundle.needsReview);
+		const status = collect(bundle.status);
+
+		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(rejected.messages).at(-1)).toEqual(
+			[
+				expect.objectContaining({
+					proposalId: "duplicate",
+					state: "rejected",
+					reason: "candidate record id already exists",
+				}),
+			],
+		);
+		expect(
+			data<readonly AgenticMemoryRecordAdmission<string>[]>(needsReview.messages).at(-1),
+		).toEqual([
+			expect.objectContaining({
+				proposalId: "missing-source",
+				state: "needs-review",
+				reason: "policy requires sourceRefs",
+			}),
+		]);
+		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+			state: "blocked",
+			cursor: { admitted: 0, rejected: 1, needsReview: 1 },
+		});
+	});
+
+	it("keeps malformed proposals on the DATA issue path", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const proposals = [
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "bad-candidate",
+				candidateRecord: record({ id: "", fragment: fragment({ id: "" }) }),
+				sourceRefs: [{ kind: "import", id: "import-1" }],
+			},
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "unreadable",
+				candidateRecord: record({ id: "unreadable", fragment: fragment({ id: "unreadable" }) }),
+			},
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "runtime-field",
+				candidateRecord: record({
+					id: "runtime-field",
+					fragment: fragment({ id: "runtime-field" }),
+				}),
+				sourceRefs: [
+					{
+						kind: "import",
+						id: "import-1",
+						callback: () => undefined,
+						metadata: { note: "invalid ref field" },
+					},
+				],
+				storageKey: "private-storage-key",
+				metadata: { ok: true },
+			},
+		] as unknown[];
+		Object.defineProperty(proposals, "1", {
+			get() {
+				throw new Error("proposal getter exploded");
+			},
+		});
+		const proposalNode = g.state(proposals as never, { name: "proposals" });
+		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+			{ kind: "agentic-memory-record-admission-policy", policyId: "admission-policy" },
+			{ name: "policy" },
+		);
+		const bundle = agenticMemoryRecordAdmissionBundle(g, {
+			name: "admission",
+			records,
+			proposals: proposalNode,
+			policy,
+		});
+		const issues = collect(bundle.issues);
+		const status = collect(bundle.status);
+
+		const latestIssues = data<
+			readonly {
+				readonly code: string;
+				readonly details?: unknown;
+				readonly refs?: readonly string[];
+			}[]
+		>(issues.messages).at(-1);
+		expect(latestIssues?.map((issue) => issue.code)).toEqual([
+			"agentic-memory.proposal.invalid",
+			"agentic-memory.proposal.invalid",
+			"agentic-memory.proposal.invalid",
+		]);
+		expect(latestIssues?.every((issue) => !Object.hasOwn(issue, "details"))).toBe(true);
+		expect(latestIssues?.[2]?.refs).toEqual(
+			expect.arrayContaining([
+				"proposal.storageKey is not graph-visible DATA",
+				"proposal.sourceRefs: [0] has unexpected fields callback",
+			]),
+		);
+		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+			state: "error",
+			cursor: { validProposals: 0, invalidProposals: 3 },
+		});
+		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("keeps malformed admission policies on the DATA issue path", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "proposal-1",
+					candidateRecord: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+					sourceRefs: [{ kind: "import", id: "import-1" }],
+				},
+			],
+			{ name: "proposals" },
+		);
+		const hostilePolicy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "hostile-policy",
+		};
+		Object.defineProperty(hostilePolicy, "sourceRefs", {
+			get() {
+				throw new Error("policy getter exploded");
+			},
+			enumerable: true,
+		});
+		const policy = g.state(hostilePolicy as never, { name: "policy" });
+		const bundle = agenticMemoryRecordAdmissionBundle(g, {
+			name: "admission",
+			records,
+			proposals,
+			policy,
+		});
+		const needsReview = collect(bundle.needsReview);
+		const issues = collect(bundle.issues);
+		const status = collect(bundle.status);
+
+		expect(
+			data<readonly AgenticMemoryRecordAdmission<string>[]>(needsReview.messages).at(-1),
+		).toEqual([expect.objectContaining({ proposalId: "proposal-1", state: "needs-review" })]);
+		const latestIssues = data<readonly { readonly code: string; readonly details?: unknown }[]>(
+			issues.messages,
+		).at(-1);
+		expect(latestIssues).toEqual([
+			expect.objectContaining({ code: "agentic-memory.admission-policy.invalid" }),
+		]);
+		expect(latestIssues?.every((issue) => !Object.hasOwn(issue, "details"))).toBe(true);
+		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+			state: "partial",
+			cursor: { validProposals: 1, invalidProposals: 0, invalidPolicies: 1 },
+		});
+		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("snapshots refs and preserves colon-distinct policy refs", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const sourceRef = { kind: "review", id: "review-1", metadata: { rank: 1 } };
+		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "proposal-1",
+					candidateRecord: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+					sourceRefs: [sourceRef],
+					policyRefs: [
+						{ kind: "a:b", id: "c" },
+						{ kind: "a", id: "b:c" },
+					],
+				},
+			],
+			{ name: "proposals" },
+		);
+		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+			{
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "admission-policy",
+				defaultState: "admitted",
+			},
+			{ name: "policy" },
+		);
+		const bundle = agenticMemoryRecordAdmissionBundle(g, {
+			name: "admission",
+			records,
+			proposals,
+			policy,
+		});
+		const admitted = collect(bundle.admitted);
+		sourceRef.metadata.rank = 99;
+
+		const admission = data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(
+			-1,
+		)?.[0];
+		expect(admission?.sourceRefs).toEqual([
+			{ kind: "review", id: "review-1", metadata: { rank: 1 } },
+		]);
+		expect(admission?.policyRefs).toEqual(
+			expect.arrayContaining([
+				{ kind: "a:b", id: "c" },
+				{ kind: "a", id: "b:c" },
+				{ kind: "agentic-memory-record-admission-policy", id: "admission-policy" },
+			]),
+		);
+	});
+
+	it("rejects duplicate candidate record ids within one proposal batch", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
+			[
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "first",
+					candidateRecord: record({ id: "record-dupe", fragment: fragment({ id: "dupe-a" }) }),
+					sourceRefs: [{ kind: "import", id: "import-a" }],
+				},
+				{
+					kind: "agentic-memory-record-proposal",
+					proposalId: "second",
+					candidateRecord: record({ id: "record-dupe", fragment: fragment({ id: "dupe-b" }) }),
+					sourceRefs: [{ kind: "import", id: "import-b" }],
+				},
+			],
+			{ name: "proposals" },
+		);
+		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+			{
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "admission-policy",
+				defaultState: "admitted",
+				requireSourceRefs: true,
+			},
+			{ name: "policy" },
+		);
+		const bundle = agenticMemoryRecordAdmissionBundle(g, {
+			name: "admission",
+			records,
+			proposals,
+			policy,
+		});
+		const admitted = collect(bundle.admitted);
+		const issues = collect(bundle.issues);
+		const status = collect(bundle.status);
+
+		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1)).toEqual(
+			[expect.objectContaining({ proposalId: "first", state: "admitted" })],
+		);
+		expect(
+			data<readonly { readonly code: string }[]>(issues.messages)
+				.at(-1)
+				?.map((issue) => issue.code),
+		).toEqual(["agentic-memory.proposal.duplicate-candidate-record-id"]);
+		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+			state: "partial",
+			cursor: { validProposals: 1, invalidProposals: 1, admitted: 1 },
+		});
+		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});
 });
 

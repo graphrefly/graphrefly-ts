@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import { messageBus } from "../messaging/index.js";
 import { workQueue } from "../work-queue/index.js";
+
+const defaultWorkId = compoundTupleKey("work-queue-work", ["q", "work", "1"]);
+const defaultLeaseId = (seq: string) => compoundTupleKey("work-queue-lease", [defaultWorkId, seq]);
 
 describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 	it("admits submitted work through messageBus and advances ingestion ack after durable record", () => {
@@ -29,7 +33,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			expect.objectContaining({
 				kind: "work-admitted",
 				queueId: "q",
-				workId: "q:work:1",
+				workId: defaultWorkId,
 				payload: { id: "a" },
 				messageBus: { topic: "work", seq: 1, subscriptionId: "q-admit" },
 			}),
@@ -68,7 +72,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			"DATA",
 			expect.objectContaining({
 				kind: "work-admitted",
-				workId: "q:work:1",
+				workId: defaultWorkId,
 				payload: { id: "before" },
 			}),
 		]);
@@ -119,12 +123,12 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.issues.subscribe((msg) => issues.push(msg));
 
 		queue.submit({ id: "a" });
-		queue.claim({ workerId: "w1", requestedWorkIds: ["q:work:1"], commandId: "claim-1" });
-		queue.claim({ workerId: "w2", requestedWorkIds: ["q:work:1"], commandId: "claim-2" });
+		queue.claim({ workerId: "w1", requestedWorkIds: [defaultWorkId], commandId: "claim-1" });
+		queue.claim({ workerId: "w2", requestedWorkIds: [defaultWorkId], commandId: "claim-2" });
 
 		expect(records).toContainEqual([
 			"DATA",
-			expect.objectContaining({ kind: "work-claimed", workId: "q:work:1", workerId: "w1" }),
+			expect.objectContaining({ kind: "work-claimed", workId: defaultWorkId, workerId: "w1" }),
 		]);
 		expect(issues.at(-1)).toEqual([
 			"DATA",
@@ -150,13 +154,13 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.submit({ id: "a" });
 		queue.claim({
 			workerId: "w1",
-			requestedWorkIds: ["q:work:1", "missing"],
+			requestedWorkIds: [defaultWorkId, "missing"],
 			commandId: "claim-partial",
 		});
 
 		expect(records).toContainEqual([
 			"DATA",
-			expect.objectContaining({ kind: "work-claimed", workId: "q:work:1" }),
+			expect.objectContaining({ kind: "work-claimed", workId: defaultWorkId }),
 		]);
 		expect(issues).toContainEqual([
 			"DATA",
@@ -184,32 +188,32 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", commandId: "claim-1" });
 		queue.renewLease({
-			workId: "q:work:1",
-			leaseId: "q:work:1:lease:1",
+			workId: defaultWorkId,
+			leaseId: defaultLeaseId("1"),
 			attempt: 1,
 			workerId: "w1",
 			commandId: "renew-1",
 			leaseDurationMs: 20,
 		});
 		queue.release({
-			workId: "q:work:1",
-			leaseId: "q:work:1:lease:1",
+			workId: defaultWorkId,
+			leaseId: defaultLeaseId("1"),
 			attempt: 1,
 			workerId: "w1",
 			commandId: "release-1",
 		});
 		queue.claim({ workerId: "w2", commandId: "claim-2" });
 		queue.complete({
-			workId: "q:work:1",
-			leaseId: "q:work:1:lease:2",
+			workId: defaultWorkId,
+			leaseId: defaultLeaseId("2"),
 			attempt: 2,
 			workerId: "w2",
 			commandId: "complete-1",
 			result: { ok: true },
 		});
 		queue.fail({
-			workId: "q:work:1",
-			leaseId: "q:work:1:lease:2",
+			workId: defaultWorkId,
+			leaseId: defaultLeaseId("2"),
 			attempt: 2,
 			workerId: "w2",
 			commandId: "fail-stale",
@@ -221,7 +225,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		]);
 		expect(records).toContainEqual([
 			"DATA",
-			expect.objectContaining({ kind: "work-released", workId: "q:work:1" }),
+			expect.objectContaining({ kind: "work-released", workId: defaultWorkId }),
 		]);
 		expect(records).toContainEqual([
 			"DATA",
@@ -283,13 +287,13 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 
 		expect(records).toContainEqual([
 			"DATA",
-			expect.objectContaining({ kind: "lease-expired", leaseId: "q:work:1:lease:1" }),
+			expect.objectContaining({ kind: "lease-expired", leaseId: defaultLeaseId("1") }),
 		]);
 		expect(records).toContainEqual([
 			"DATA",
 			expect.objectContaining({
 				kind: "work-claimed",
-				leaseId: "q:work:1:lease:2",
+				leaseId: defaultLeaseId("2"),
 				workerId: "w2",
 			}),
 		]);
@@ -316,8 +320,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.claim({ workerId: "w1", commandId: "claim-1" });
 		now = 6;
 		queue.complete({
-			workId: "q:work:1",
-			leaseId: "q:work:1:lease:1",
+			workId: defaultWorkId,
+			leaseId: defaultLeaseId("1"),
 			attempt: 1,
 			workerId: "w1",
 			commandId: "complete-expired",
@@ -353,8 +357,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", commandId: "claim-1" });
 		queue.fail({
-			workId: "q:work:1",
-			leaseId: "q:work:1:lease:1",
+			workId: defaultWorkId,
+			leaseId: defaultLeaseId("1"),
 			attempt: 1,
 			workerId: "w1",
 			commandId: "fail-1",
@@ -362,8 +366,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		now = 6;
 		queue.claim({ workerId: "w2", commandId: "claim-2" });
 		queue.fail({
-			workId: "q:work:1",
-			leaseId: "q:work:1:lease:2",
+			workId: defaultWorkId,
+			leaseId: defaultLeaseId("2"),
 			attempt: 2,
 			workerId: "w2",
 			commandId: "fail-2",
@@ -393,13 +397,13 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", commandId: "claim-1" });
 		queue.complete({
-			workId: "q:work:1",
-			leaseId: "q:work:1:lease:1",
+			workId: defaultWorkId,
+			leaseId: defaultLeaseId("1"),
 			attempt: 1,
 			workerId: "w1",
 			commandId: "complete-1",
 		});
-		const work = queue.work("q:work:1");
+		const work = queue.work(defaultWorkId);
 		work.snapshot.up([["PULL", { pullId: work.snapshotPullId }]]);
 
 		expect(work.snapshot.cache).toEqual(expect.objectContaining({ state: "completed" }));
@@ -418,9 +422,9 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			now: () => now,
 		});
 		queue.submit({ id: "a" });
-		queue.schedule({ workId: "q:work:1", notBeforeMs: 10, commandId: "schedule-1" });
+		queue.schedule({ workId: defaultWorkId, notBeforeMs: 10, commandId: "schedule-1" });
 		const available = queue.available();
-		const work = queue.work("q:work:1");
+		const work = queue.work(defaultWorkId);
 		const dead = queue.deadLetter();
 
 		available.available.up([["PULL", { pullId: available.availablePullId, params: { nowMs: 0 } }]]);
@@ -431,11 +435,11 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			expect.objectContaining({ items: [], asOfRecordSeq: 2 }),
 		);
 		expect(work.snapshot.cache).toEqual(
-			expect.objectContaining({ workId: "q:work:1", state: "scheduled" }),
+			expect.objectContaining({ workId: defaultWorkId, state: "scheduled" }),
 		);
 		expect(dead.snapshot.cache).toEqual(expect.objectContaining({ entries: [] }));
 
-		queue.cancel({ workId: "q:work:1", commandId: "cancel-1", reason: "user" });
+		queue.cancel({ workId: defaultWorkId, commandId: "cancel-1", reason: "user" });
 		expect(work.snapshot.cache?.state).toBe("scheduled");
 		work.snapshot.up([["PULL", { pullId: work.snapshotPullId }]]);
 		expect(work.snapshot.cache?.state).toBe("canceled");
@@ -466,7 +470,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		available.available.up([
 			["PULL", { pullId: available.availablePullId, params: { nowMs: 10 } }],
 		]);
-		expect(available.available.cache?.items.map((item) => item.workId)).toEqual(["q:work:1"]);
+		expect(available.available.cache?.items.map((item) => item.workId)).toEqual([defaultWorkId]);
 		queue.claim({ workerId: "on-time", commandId: "claim-on-time", nowMs: 10 });
 
 		expect(records).toContainEqual([

@@ -1,6 +1,7 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { ToolProviderAdapterRunProjectorPrivateRetentionHooks } from "./agent-runtime-adapter-retention.js";
 import {
@@ -365,8 +366,9 @@ export function defaultToolProviderAdapterRunId(
 	attempt: number,
 	input?: ToolProviderAdapterInput,
 ): string {
-	const suffix = input === undefined ? "" : `:${stableStringHash(stableJsonStringify(input))}`;
-	return `${adapterInputId}:run-${attempt}${suffix}`;
+	const parts = [adapterInputId, String(attempt)];
+	if (input !== undefined) parts.push(stableStringHash(stableJsonStringify(input)));
+	return compoundTupleKey("tool-provider-adapter-run", parts);
 }
 
 export function sanitizeToolProviderAdapterRunReason(
@@ -629,7 +631,7 @@ export function emitRunRequested(
 	request: ToolProviderAdapterRunRequested,
 	privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks,
 ): void {
-	const key = `${request.runId}:${request.adapterInputId}:${request.attempt}`;
+	const key = canonicalTupleKey([request.runId, request.adapterInputId, String(request.attempt)]);
 	if (state.emittedKeys.has(key)) return;
 	state.emittedKeys.add(key);
 	ctx.down([["DATA", { kind: "request", request } satisfies ToolProviderAdapterRunFact]]);
@@ -760,7 +762,10 @@ export function emitRunAudit(
 			{
 				kind: "audit",
 				audit: {
-					id: `${request.runId}:audit:${state.auditSeq}`,
+					id: compoundTupleKey("tool-provider-adapter-run-audit", [
+						request.runId,
+						String(state.auditSeq),
+					]),
 					kind,
 					subjectId: request.requestId,
 					sourceRefs: sanitizeAdapterInputSourceRefs(request.sourceRefs ?? []),

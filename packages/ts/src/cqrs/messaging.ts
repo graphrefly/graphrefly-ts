@@ -9,6 +9,7 @@ import type { CqrsCommand, CqrsError, CqrsEvent, CqrsStatus } from "../cqrs/inde
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type {
 	MessageBusAvailablePage,
 	MessageBusCommand,
@@ -211,7 +212,7 @@ export function cqrsEventOutboxCommands<TEvent>(
 							topic,
 							payload: typed,
 							key: typed.aggregateId,
-							commandId: `${typed.id}:cqrs-outbox`,
+							commandId: compoundTupleKey("cqrs-outbox", [typed.id]),
 							idempotencyKey: typed.id,
 						} satisfies MessageBusCommand,
 					],
@@ -276,7 +277,13 @@ function ackCommand(delivery: MessageBusDelivery, commandId: string): MessageBus
 }
 
 function ackCommandId(namespace: string, delivery: MessageBusDelivery, reason: string): string {
-	return `${namespace}:${delivery.topic}:${delivery.subscriptionId}:${delivery.seq}:${reason}-ack`;
+	return compoundTupleKey("cqrs-message-ack", [
+		namespace,
+		delivery.topic,
+		delivery.subscriptionId,
+		String(delivery.seq),
+		reason,
+	]);
 }
 
 function commandWithDelivery<TCommand>(
@@ -303,7 +310,7 @@ function messageDelivery(
 		commandId:
 			isObjectRecord(message.payload) && typeof message.payload.id === "string"
 				? message.payload.id
-				: (message.commandId ?? `${page.topic}:${message.seq}`),
+				: (message.commandId ?? canonicalTupleKey([page.topic, String(message.seq)])),
 	};
 }
 

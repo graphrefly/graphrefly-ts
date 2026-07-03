@@ -1,5 +1,6 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { AgentRuntimeAuditRecord, EffectRunResult } from "./agent-runtime.js";
 import {
@@ -167,7 +168,10 @@ function evaluateWorkItemDomainActionProposals(
 			emitWorkItemActionProposalIssue(
 				ctx,
 				state,
-				`missing-action-proposal-result:${evidence.evidenceId}:${evidence.effectRunResultId}`,
+				compoundTupleKey("missing-action-proposal-result", [
+					evidence.evidenceId,
+					evidence.effectRunResultId,
+				]),
 				"missing-work-item-action-proposal-result",
 				`WorkItemEvidenceRecorded '${evidence.evidenceId}' references missing EffectRunResult '${evidence.effectRunResultId}'`,
 				evidence.workItemId,
@@ -179,7 +183,7 @@ function evaluateWorkItemDomainActionProposals(
 			emitWorkItemActionProposalIssue(
 				ctx,
 				state,
-				`stale-action-proposal-result:${evidence.evidenceId}:${result.resultId}`,
+				compoundTupleKey("stale-action-proposal-result", [evidence.evidenceId, result.resultId]),
 				"stale-work-item-action-proposal-result",
 				`WorkItemEvidenceRecorded '${evidence.evidenceId}' does not match EffectRunResult '${result.resultId}'`,
 				evidence.workItemId,
@@ -191,7 +195,7 @@ function evaluateWorkItemDomainActionProposals(
 			emitWorkItemActionProposalIssue(
 				ctx,
 				state,
-				`unknown-action-proposal-work-item:${evidence.evidenceId}`,
+				compoundTupleKey("unknown-action-proposal-work-item", [evidence.evidenceId]),
 				"unknown-work-item-action-proposal-target",
 				`WorkItemEvidenceRecorded '${evidence.evidenceId}' references unseeded WorkItem '${evidence.workItemId}'`,
 				evidence.workItemId,
@@ -206,7 +210,7 @@ function evaluateWorkItemDomainActionProposals(
 				emitWorkItemActionProposalIssue(
 					ctx,
 					state,
-					`missing-action-proposal-policy:${evidence.evidenceId}:${policyId}`,
+					compoundTupleKey("missing-action-proposal-policy", [evidence.evidenceId, policyId]),
 					"missing-work-item-action-proposal-policy",
 					`WorkItemEffectMappingPolicy '${policyId}' was referenced for WorkItem action proposals but not present`,
 					evidence.workItemId,
@@ -220,7 +224,10 @@ function evaluateWorkItemDomainActionProposals(
 				emitWorkItemActionProposalIssue(
 					ctx,
 					state,
-					`action-proposal-policy-mismatch:${evidence.evidenceId}:${policy.policyId}`,
+					compoundTupleKey("action-proposal-policy-mismatch", [
+						evidence.evidenceId,
+						policy.policyId,
+					]),
 					"work-item-action-proposal-policy-mismatch",
 					`WorkItemEffectMappingPolicy '${policy.policyId}' does not apply to effectKind '${effectKind ?? "unknown"}'`,
 					evidence.workItemId,
@@ -254,13 +261,18 @@ function emitWorkItemDomainActionProposal(
 	index: number,
 	proposedAtMs: number,
 ): void {
-	const key = `${evidence.evidenceId}:${policy.policyId}:${index}:${spec.actionKind}`;
+	const key = canonicalTupleKey([
+		evidence.evidenceId,
+		policy.policyId,
+		String(index),
+		spec.actionKind,
+	]);
 	if (state.proposedKeys.has(key)) return;
 	if (spec.behavior !== undefined && spec.behavior !== "propose") {
 		emitWorkItemActionProposalIssue(
 			ctx,
 			state,
-			`unsupported-action-proposal-behavior:${key}`,
+			compoundTupleKey("unsupported-action-proposal-behavior", [key]),
 			"unsupported-work-item-action-proposal-behavior",
 			`WorkItemEffectMappingPolicy '${policy.policyId}' uses unsupported action proposal behavior '${spec.behavior}'`,
 			evidence.workItemId,
@@ -272,7 +284,7 @@ function emitWorkItemDomainActionProposal(
 		emitWorkItemActionProposalIssue(
 			ctx,
 			state,
-			`malformed-action-proposal:${key}`,
+			compoundTupleKey("malformed-action-proposal", [key]),
 			"malformed-work-item-action-proposal",
 			`WorkItemEffectMappingPolicy '${policy.policyId}' has an empty actionKind`,
 			evidence.workItemId,
@@ -292,7 +304,14 @@ function emitWorkItemDomainActionProposal(
 	state.auditSeq += 1;
 	const proposal: WorkItemDomainActionProposal = {
 		kind: "work-item-domain-action-proposal",
-		proposalId: `${evidence.workItemId}:${evidence.effectRunId}:${evidence.effectRunResultId}:${policy.policyId}:${index}:${spec.actionKind}`,
+		proposalId: compoundTupleKey("work-item-domain-action-proposal", [
+			evidence.workItemId,
+			evidence.effectRunId,
+			evidence.effectRunResultId,
+			policy.policyId,
+			String(index),
+			spec.actionKind,
+		]),
 		workItemId: evidence.workItemId,
 		actionKind: spec.actionKind,
 		effectRunId: evidence.effectRunId,
@@ -311,7 +330,10 @@ function emitWorkItemDomainActionProposal(
 	};
 	const status: WorkItemStatusRecord = {
 		kind: "work-item-status",
-		statusId: `${evidence.workItemId}:domain-action-proposed:${state.statusSeq}`,
+		statusId: compoundTupleKey("work-item-domain-action-proposed-status", [
+			evidence.workItemId,
+			String(state.statusSeq),
+		]),
 		workItemId: evidence.workItemId,
 		state: "domain-action-proposed",
 		sourceRefs: proposal.sourceRefs,
@@ -321,7 +343,10 @@ function emitWorkItemDomainActionProposal(
 		metadata: { actionKind: spec.actionKind, policyId: policy.policyId },
 	};
 	const audit: AgentRuntimeAuditRecord = {
-		id: `${evidence.workItemId}:domain-action-proposed:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-domain-action-proposed-audit", [
+			evidence.workItemId,
+			String(state.auditSeq),
+		]),
 		kind: "work-item-domain-action-proposed",
 		subjectId: evidence.workItemId,
 		sourceRefs: proposal.sourceRefs,

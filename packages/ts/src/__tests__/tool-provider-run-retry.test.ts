@@ -3,6 +3,7 @@ import type { DataIssue } from "../data/index.js";
 import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
+import { compoundTupleKey } from "../identity.js";
 import type {
 	ExecutorOutcome,
 	ScheduledReadinessReady,
@@ -22,6 +23,17 @@ import {
 	toolProviderRunRetryProjector,
 } from "../orchestration/index.js";
 
+const retryRunId = (runId: string, attempt: number) =>
+	compoundTupleKey("tool-provider-run-retry", [runId, String(attempt)]);
+const retryProposalId = (outcomeId: string) =>
+	compoundTupleKey("tool-provider-run-retry-proposal", [outcomeId]);
+const retryScheduledId = (proposalId: string) =>
+	compoundTupleKey("tool-provider-run-retry-scheduled", [proposalId]);
+const retryReadinessScheduleId = (proposalId: string) =>
+	compoundTupleKey("tool-provider-run-retry-readiness-schedule", [proposalId]);
+const admissionProposalId = (runId: string) =>
+	compoundTupleKey("tool-provider-run-admission-proposal", [runId]);
+
 describe("toolProviderRunRetryProjector (D422)", () => {
 	it("emits one immediate retry run request with attempt provenance", () => {
 		const harness = createRetryHarness();
@@ -38,12 +50,12 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 				fromRunId: "run-1",
 				fromAttempt: 1,
 				nextAttempt: 2,
-				nextRunId: "run-1:retry-2",
+				nextRunId: retryRunId("run-1", 2),
 			}),
 		]);
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({
-				runId: "run-1:retry-2",
+				runId: retryRunId("run-1", 2),
 				adapterInputId: input.adapterInputId,
 				attempt: 2,
 				reason: "retry",
@@ -53,13 +65,17 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 				]),
 				sourceRefs: expect.arrayContaining([
 					{ kind: "executor-outcome", id: outcome.outcomeId },
-					{ kind: "tool-provider-run-retry-proposal", id: `${outcome.outcomeId}:retry-proposal` },
+					{ kind: "tool-provider-run-retry-proposal", id: retryProposalId(outcome.outcomeId) },
 				]),
 			}),
 		]);
 		expect(harness.seen.status).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ state: "ready", nextAttempt: 2, nextRunId: "run-1:retry-2" }),
+				expect.objectContaining({
+					state: "ready",
+					nextAttempt: 2,
+					nextRunId: retryRunId("run-1", 2),
+				}),
 			]),
 		);
 	});
@@ -99,7 +115,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		expect(harness.seen.proposals).toHaveLength(1);
 		expect(harness.seen.runRequests).toHaveLength(1);
 		expect(harness.seen.views.at(-1)?.nextRunRequestsByOutcome.get(outcome.outcomeId)).toEqual(
-			expect.objectContaining({ runId: "run-replay:retry-2" }),
+			expect.objectContaining({ runId: retryRunId("run-replay", 2) }),
 		);
 	});
 
@@ -122,7 +138,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 			expect.objectContaining({
 				adapterInputId: secondInput.adapterInputId,
 				requestId: firstInput.requestId,
-				runId: "run-exact-second:retry-2",
+				runId: retryRunId("run-exact-second", 2),
 			}),
 		]);
 	});
@@ -175,7 +191,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({
-				runId: "run-out-of-order:retry-2",
+				runId: retryRunId("run-out-of-order", 2),
 				attempt: 2,
 				retryOfOutcomeId: outcome.outcomeId,
 			}),
@@ -198,7 +214,8 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 			expect.objectContaining({
 				outcomeId: outcome.outcomeId,
 				nextAttempt: 2,
-				readinessScheduleId: `${outcome.outcomeId}:retry-proposal:scheduled-readiness`,
+				scheduleId: retryScheduledId(retryProposalId(outcome.outcomeId)),
+				readinessScheduleId: retryReadinessScheduleId(retryProposalId(outcome.outcomeId)),
 				retryAtMs: 1_050,
 				retryAfterMs: 50,
 			}),
@@ -206,7 +223,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		expect(harness.seen.readinessSchedules).toEqual([
 			expect.objectContaining({
 				kind: "scheduled-readiness-requested",
-				scheduleId: `${outcome.outcomeId}:retry-proposal:scheduled-readiness`,
+				scheduleId: retryReadinessScheduleId(retryProposalId(outcome.outcomeId)),
 				readyAtMs: 1_050,
 				reason: "tool-provider-retry",
 			}),
@@ -219,7 +236,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		harness.nowMs?.down([["DATA", 1_050]]);
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({
-				runId: "run-delayed:retry-2",
+				runId: retryRunId("run-delayed", 2),
 				attempt: 2,
 				retryOfOutcomeId: outcome.outcomeId,
 			}),
@@ -242,7 +259,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const schedule = harness.seen.readinessSchedules[0];
 		expect(schedule).toEqual(
 			expect.objectContaining({
-				scheduleId: `${outcome.outcomeId}:retry-proposal:scheduled-readiness`,
+				scheduleId: retryReadinessScheduleId(retryProposalId(outcome.outcomeId)),
 				readyAtMs: 1_050,
 			}),
 		);
@@ -269,7 +286,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({
-				runId: "run-shared-ready:retry-2",
+				runId: retryRunId("run-shared-ready", 2),
 				attempt: 2,
 				retryOfOutcomeId: outcome.outcomeId,
 				sourceRefs: expect.arrayContaining([
@@ -389,7 +406,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 
 		harness.nowMs?.down([["DATA", 2_025]]);
 		expect(harness.seen.runRequests).toEqual([
-			expect.objectContaining({ runId: "run-clock-late:retry-2", attempt: 2 }),
+			expect.objectContaining({ runId: retryRunId("run-clock-late", 2), attempt: 2 }),
 		]);
 	});
 
@@ -446,7 +463,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 				{
 					kind: "tool-provider-run-admission-decision",
 					decisionId: "retry-admission-decision",
-					proposalId: "candidate-before-retry:retry-2:admission-proposal",
+					proposalId: admissionProposalId(retryRunId("candidate-before-retry", 2)),
 					admissionId: "retry-admission",
 					outcome: "admit",
 					approvedRunId: "retry-approved-run",

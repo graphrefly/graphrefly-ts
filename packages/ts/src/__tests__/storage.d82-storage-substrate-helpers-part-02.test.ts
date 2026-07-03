@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -100,13 +100,14 @@ describe("D82 storage substrate helpers — part 2", () => {
 		try {
 			const versioned = requireStorageVersioned(backend, "sqliteBackend");
 			expect(hasStorageVersioned(backend)).toBe(true);
-			expect(() => backend.put("bad\u0000key", new Uint8Array([1]))).toThrow(/U\+0000/);
+			await backend.put("bad\u0000key", new Uint8Array([1]));
+			expect(await backend.get("bad\u0000key")).toEqual(new Uint8Array([1]));
 			expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
-			expect(() => backend.list("bad\u0000prefix")).toThrow(/U\+0000/);
+			expect(await backend.list("bad\u0000")).toEqual(["bad\u0000key"]);
 			expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
-			expect(() =>
-				versioned.setIfMatch("bad\u0000key", new Uint8Array([1]), Object.freeze({})),
-			).toThrow(/U\+0000/);
+			expect(
+				await versioned.setIfMatch("bad\u0000key", new Uint8Array([2]), Object.freeze({})),
+			).toBe(false);
 
 			const absent = await versioned.getVersioned("k");
 			expect(absent.kind).toBe("miss");
@@ -126,6 +127,24 @@ describe("D82 storage substrate helpers — part 2", () => {
 				expect(await otherBackend.get("k")).toBeUndefined();
 			} finally {
 				otherBackend.close();
+			}
+
+			const dir = mkdtempSync(join(tmpdir(), "graphrefly-ts-sqlite-namespace-"));
+			try {
+				const path = join(dir, "store.sqlite");
+				const root = sqliteBackend(path);
+				const namespaced = sqliteBackend(path, { namespace: "d108" });
+				try {
+					await root.put("root", new Uint8Array([9]));
+					await namespaced.put("scoped", new Uint8Array([8]));
+					expect(await root.list()).toEqual(["root"]);
+					expect(await namespaced.list()).toEqual(["scoped"]);
+				} finally {
+					root.close();
+					namespaced.close();
+				}
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
 			}
 
 			const present = await versioned.getVersioned("k");

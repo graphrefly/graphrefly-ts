@@ -1,6 +1,7 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { AgentRuntimeAuditRecord, EffectRunResult, SourceRef } from "./agent-runtime.js";
 import type {
@@ -59,14 +60,21 @@ export function emitWorkItemEffectRunIssue(
 	const issue = dataIssue(code, message, { subjectId, refs: sourceRefs });
 	const status: WorkItemStatusRecord = {
 		kind: "work-item-status",
-		statusId: `${subjectId ?? "work-item"}:mapping-issue:${state.statusSeq}`,
+		statusId: compoundTupleKey("work-item-mapping-issue", [
+			subjectId ?? "work-item",
+			String(state.statusSeq),
+		]),
 		workItemId: subjectId ?? "unknown",
 		state: "mapping-issue",
 		sourceRefs,
 		issues: [issue],
 	};
 	const audit: AgentRuntimeAuditRecord = {
-		id: `${subjectId ?? "work-item"}:${code}:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-effect-run-issue-audit", [
+			subjectId ?? "work-item",
+			code,
+			String(state.auditSeq),
+		]),
 		kind: "work-item-effect-run-issue",
 		subjectId,
 		issueCode: code,
@@ -99,14 +107,21 @@ export function emitWorkItemEvidenceIssue(
 	const issue = dataIssue(code, message, { subjectId, refs: sourceRefs });
 	const status: WorkItemStatusRecord = {
 		kind: "work-item-status",
-		statusId: `${subjectId ?? "work-item"}:mapping-issue:${state.statusSeq}`,
+		statusId: compoundTupleKey("work-item-mapping-issue", [
+			subjectId ?? "work-item",
+			String(state.statusSeq),
+		]),
 		workItemId: subjectId ?? "unknown",
 		state: "mapping-issue",
 		sourceRefs,
 		issues: [issue],
 	};
 	const audit: AgentRuntimeAuditRecord = {
-		id: `${subjectId ?? "work-item"}:${code}:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-evidence-mapping-issue-audit", [
+			subjectId ?? "work-item",
+			code,
+			String(state.auditSeq),
+		]),
 		kind: "work-item-evidence-mapping-issue",
 		subjectId,
 		issueCode: code,
@@ -139,14 +154,21 @@ export function emitWorkItemActionProposalIssue(
 	const issue = dataIssue(code, message, { subjectId, refs: sourceRefs });
 	const status: WorkItemStatusRecord = {
 		kind: "work-item-status",
-		statusId: `${subjectId ?? "work-item"}:mapping-issue:${state.statusSeq}`,
+		statusId: compoundTupleKey("work-item-mapping-issue", [
+			subjectId ?? "work-item",
+			String(state.statusSeq),
+		]),
 		workItemId: subjectId ?? "unknown",
 		state: "mapping-issue",
 		sourceRefs,
 		issues: [issue],
 	};
 	const audit: AgentRuntimeAuditRecord = {
-		id: `${subjectId ?? "work-item"}:${code}:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-action-proposal-issue-audit", [
+			subjectId ?? "work-item",
+			code,
+			String(state.auditSeq),
+		]),
 		kind: "work-item-action-proposal-issue",
 		subjectId,
 		issueCode: code,
@@ -177,14 +199,21 @@ export function emitWorkItemAdmissionIssue(
 	const issue = dataIssue(code, message, { subjectId, refs: sourceRefs });
 	const status: WorkItemStatusRecord = {
 		kind: "work-item-status",
-		statusId: `${subjectId ?? "work-item"}:mapping-issue:${state.statusSeq}`,
+		statusId: compoundTupleKey("work-item-mapping-issue", [
+			subjectId ?? "work-item",
+			String(state.statusSeq),
+		]),
 		workItemId: subjectId ?? "unknown",
 		state: "mapping-issue",
 		sourceRefs,
 		issues: [issue],
 	};
 	const audit: AgentRuntimeAuditRecord = {
-		id: `${subjectId ?? "work-item"}:${code}:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-domain-action-admission-issue-audit", [
+			subjectId ?? "work-item",
+			code,
+			String(state.auditSeq),
+		]),
 		kind: "work-item-domain-action-admission-issue",
 		subjectId,
 		issueCode: code,
@@ -321,9 +350,15 @@ export function deletePendingWorkItemEffectRequest(
 	>,
 	refs: readonly string[] | undefined,
 ): void {
-	for (const requestRef of refs?.filter((value) => value.startsWith("work-item-effect-request:")) ??
-		[]) {
-		const requestId = requestRef.slice("work-item-effect-request:".length);
+	for (const requestRef of refs ?? []) {
+		const tuple = parseCanonicalTupleKey(requestRef);
+		const requestId =
+			tuple?.length === 2 && tuple[0] === "work-item-effect-request"
+				? tuple[1]
+				: requestRef.startsWith("work-item-effect-request:")
+					? requestRef.slice("work-item-effect-request:".length)
+					: undefined;
+		if (requestId === undefined) continue;
 		state.pendingEffectRequests.delete(requestId);
 		state.settledRequestIds.add(requestId);
 	}
@@ -475,7 +510,11 @@ export function uniqueSourceRefs(sourceRefs: readonly SourceRef[]): readonly Sou
 }
 
 export function sourceRefKey(sourceRef: SourceRef): string {
-	return `${sourceRef.kind}:${sourceRef.id}:${JSON.stringify(sourceRef.metadata ?? {})}`;
+	return canonicalTupleKey([
+		sourceRef.kind,
+		sourceRef.id,
+		JSON.stringify(sourceRef.metadata ?? {}),
+	]);
 }
 
 export function distinctWorkItemRefs(
@@ -542,7 +581,7 @@ export function dataIssue(
 		message,
 		severity: opts.severity ?? "error",
 		subjectId: opts.subjectId,
-		refs: opts.refs?.map((r) => `${r.kind}:${r.id}`),
+		refs: opts.refs?.map((r) => canonicalTupleKey([r.kind, r.id])),
 		details: opts.details,
 	};
 }

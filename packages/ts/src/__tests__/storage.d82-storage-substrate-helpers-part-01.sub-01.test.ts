@@ -33,6 +33,7 @@ import {
 	strictJsonCodecFor,
 	tieredReadThrough,
 } from "../index.js";
+import { contentAddressedStorageKey } from "../storage/physical-key.js";
 
 interface TestStorage {
 	entries: Record<string, string>;
@@ -298,10 +299,8 @@ describe("D82 storage substrate helpers — sub 1", () => {
 		const b = await cache.keyFor({ request: { a: { c: 3, d: 4 }, b: 2 } });
 
 		expect(a).toBe(b);
-		expect(a).toMatch(/^calc:[0-9a-f]{64}$/);
-		expect(a).toBe(
-			`calc:${await sha256Hex(strictCanonicalJsonBytes({ a: { c: 3, d: 4 }, b: 2 }))}`,
-		);
+		const hash = await sha256Hex(strictCanonicalJsonBytes({ a: { c: 3, d: 4 }, b: 2 }));
+		expect(a).toBe(contentAddressedStorageKey("calc", hash));
 	});
 
 	it("content-addressed KV snapshots canonical key bytes before async hashing", async () => {
@@ -316,7 +315,7 @@ describe("D82 storage substrate helpers — sub 1", () => {
 		ctx.request.value = 2;
 
 		await expect(key).resolves.toBe(
-			`calc:${await sha256Hex(strictCanonicalJsonBytes({ value: 1 }))}`,
+			contentAddressedStorageKey("calc", await sha256Hex(strictCanonicalJsonBytes({ value: 1 }))),
 		);
 	});
 

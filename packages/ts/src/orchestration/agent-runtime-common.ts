@@ -1,6 +1,7 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { AgentNeed } from "./agent-runtime-types-agent.js";
 import type {
@@ -19,7 +20,11 @@ export function uniqueSourceRefs(sourceRefs: readonly SourceRef[]): readonly Sou
 	const seen = new Set<string>();
 	const unique: SourceRef[] = [];
 	for (const sourceRef of sourceRefs) {
-		const key = `${sourceRef.kind}:${sourceRef.id}:${JSON.stringify(sourceRef.metadata ?? {})}`;
+		const key = canonicalTupleKey([
+			sourceRef.kind,
+			sourceRef.id,
+			JSON.stringify(sourceRef.metadata ?? {}),
+		]);
 		if (seen.has(key)) continue;
 		seen.add(key);
 		unique.push(sourceRef);
@@ -838,7 +843,7 @@ export function dataIssue(
 		message,
 		severity: opts.severity ?? "error",
 		subjectId: opts.subjectId,
-		refs: opts.refs?.map((r) => `${r.kind}:${r.id}`),
+		refs: opts.refs?.map((r) => canonicalTupleKey([r.kind, r.id])),
 		details: opts.details,
 	};
 }

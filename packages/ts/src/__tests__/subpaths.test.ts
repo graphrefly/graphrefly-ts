@@ -947,6 +947,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.agenticMemoryRetentionBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryConsolidationBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryContextPackingBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordAdmissionBundle).toBe("function");
 		expect(Object.hasOwn(agenticMemory, "workItemAuthoringProjector")).toBe(false);
 		expect(Object.keys(agenticWorkItemMemory)).toEqual([]);
 		expect(typeof solutions.capabilityAdmissionProjector).toBe("function");

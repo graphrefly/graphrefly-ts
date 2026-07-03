@@ -78,7 +78,8 @@ export interface HandleStat {
 	lastDurationNs: number;
 }
 
-const statKey = (h: Handle): string => `${h.poolId}:${h.handleId}`;
+const dispatcherHandleStatKey = (h: Handle): string =>
+	JSON.stringify([String(h.poolId), String(h.handleId)]);
 
 /**
  * First-class dispatcher (D21). Owns pools; graph binds to one (default = process-global,
@@ -118,7 +119,7 @@ export class Dispatcher {
 	}
 	/** Read a handle's accumulated counters (undefined if it never ran while recording). */
 	statFor(handle: Handle): HandleStat | undefined {
-		return this._stats.get(statKey(handle));
+		return this._stats.get(dispatcherHandleStatKey(handle));
 	}
 	/** Total fn invocations recorded across the dispatcher. */
 	get totalInvokes(): number {
@@ -151,7 +152,7 @@ export class Dispatcher {
 		// OFF at unregister time the key would linger, and a later register reusing this id (the
 		// free-list) would inherit the prior tenant's counters once recording resumes. delete of
 		// an absent key is a cheap no-op; unregister is off the hot invoke path (F-PERF intact).
-		this._stats.delete(statKey(handle));
+		this._stats.delete(dispatcherHandleStatKey(handle));
 	}
 
 	/** Uniform sync-void invoke (R-sync-core / R-dispatch-all). */
@@ -166,7 +167,7 @@ export class Dispatcher {
 			this.pools[handle.poolId].invoke(handle.handleId, ctx);
 		} finally {
 			const dur = (performance.now() - t0) * 1e6; // ms → ns
-			const key = statKey(handle);
+			const key = dispatcherHandleStatKey(handle);
 			const s = this._stats.get(key) ?? {
 				invokes: 0,
 				totalDurationNs: 0,

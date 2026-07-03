@@ -1,6 +1,7 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
 	WorkQueueCommand,
@@ -162,7 +163,10 @@ export function workQueueScheduledReadinessProjector<T = unknown>(
 					continue;
 				}
 				const identity = scheduleIdentity(translated.schedule);
-				const recordKey = `${translated.record.queueId}:${translated.record.recordSeq}`;
+				const recordKey = canonicalTupleKey([
+					translated.record.queueId,
+					String(translated.record.recordSeq),
+				]);
 				const existingRecordIdentity = state.recordScheduleIdentityByKey.get(recordKey);
 				if (existingRecordIdentity !== undefined) {
 					if (existingRecordIdentity !== identity) emitScheduleConflict(ctx, state, translated);
@@ -353,7 +357,7 @@ export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 				if (state.commandByCandidateId.has(candidate.candidateId)) continue;
 				const command = Object.freeze({
 					kind: "expire-leases",
-					commandId: `${candidate.candidateId}:expire-leases`,
+					commandId: compoundTupleKey("work-queue-expire-leases", [candidate.candidateId]),
 					queueId: candidate.queueId,
 					workIds: [candidate.workId],
 					limit: 1,
@@ -821,7 +825,10 @@ function candidateFor(
 	});
 	return Object.freeze({
 		kind: "work-queue-readiness-candidate",
-		candidateId: `${ready.scheduleId}:work-queue:${candidateKind}`,
+		candidateId: compoundTupleKey("work-queue-readiness-candidate", [
+			ready.scheduleId,
+			candidateKind,
+		]),
 		candidateKind,
 		queueId: origin.record.queueId,
 		workId: origin.record.workId,
@@ -928,7 +935,7 @@ function handoffStatus(
 	const metadata = sanitizeGraphVisibleRecord(opts.metadata);
 	return Object.freeze({
 		kind: "work-queue-readiness-handoff-status",
-		statusId: `${subject}:work-queue-readiness-handoff-status:${state}`,
+		statusId: compoundTupleKey("work-queue-readiness-handoff-status", [subject, state]),
 		state,
 		...(opts.queueId === undefined ? {} : { queueId: opts.queueId }),
 		...(opts.workId === undefined ? {} : { workId: opts.workId }),
@@ -952,7 +959,7 @@ function emitHandoffStatus(
 	status: WorkQueueReadinessHandoffStatus,
 ): void {
 	state.statusById.set(status.statusId, status);
-	const key = `handoff-status:${status.statusId}:${stableJsonStringify(status)}`;
+	const key = compoundTupleKey("handoff-status", [status.statusId, stableJsonStringify(status)]);
 	if (state.emittedKeys.has(key)) return;
 	state.emittedKeys.add(key);
 	ctx.down([["DATA", { kind: "status", status }]]);
@@ -963,7 +970,11 @@ function emitHandoffIssue(
 	state: WorkQueueReadinessHandoffProjectorState,
 	issue: DataIssue,
 ): void {
-	const key = `${issue.code}:${issue.subjectId ?? ""}:${JSON.stringify(issue.details ?? {})}`;
+	const key = canonicalTupleKey([
+		issue.code,
+		issue.subjectId ?? "",
+		JSON.stringify(issue.details ?? {}),
+	]);
 	if (state.issueKeys.has(key)) return;
 	state.issueKeys.add(key);
 	ctx.down([["DATA", { kind: "issue", issue }]]);
@@ -1058,10 +1069,12 @@ function sourceRefStrings(
 	sourceRefs: readonly SourceRef[] | undefined,
 ): readonly string[] | undefined {
 	if (sourceRefs === undefined || sourceRefs.length === 0) return undefined;
-	return sourceRefs.map((sourceRef) => `${sourceRef.kind}:${sourceRef.id}`);
+	return sourceRefs.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id]));
 }
 
 function sourceRefFromIssueRef(issueRef: string): SourceRef {
+	const tuple = parseCanonicalTupleKey(issueRef);
+	if (tuple?.length === 2) return ref(tuple[0]!, tuple[1]!);
 	const [kind, ...rest] = issueRef.split(":");
 	return ref(kind || "issue-ref", rest.join(":") || issueRef);
 }
@@ -1307,7 +1320,10 @@ function scheduleFromRecord(
 		schedule,
 		status: Object.freeze({
 			kind: "work-queue-scheduled-readiness-status",
-			statusId: `${opts.scheduleId}:work-queue-scheduled-readiness-status:translated`,
+			statusId: compoundTupleKey("work-queue-scheduled-readiness-status", [
+				opts.scheduleId,
+				"translated",
+			]),
 			queueId: publicCoordinateId(record.queueId),
 			workId: publicCoordinateId(record.workId),
 			recordSeq: record.recordSeq,
@@ -1369,7 +1385,12 @@ function workQueueScheduleId<T>(
 	part: "admission" | "retry" | "schedule",
 	id: string | number,
 ): string {
-	return `workQueue:${publicCoordinateId(record.queueId)}:${publicCoordinateId(record.workId)}:${part}:${publicCoordinateId(String(id))}`;
+	return compoundTupleKey("workQueue", [
+		publicCoordinateId(record.queueId),
+		publicCoordinateId(record.workId),
+		part,
+		publicCoordinateId(String(id)),
+	]);
 }
 
 function workQueueLeaseScheduleId<T>(
@@ -1379,13 +1400,24 @@ function workQueueLeaseScheduleId<T>(
 		readonly recordSeq: number;
 	},
 ): string {
-	return `workQueue:${publicCoordinateId(record.queueId)}:${publicCoordinateId(record.workId)}:lease:${publicCoordinateId(record.leaseId)}:expires:${record.recordSeq}`;
+	return compoundTupleKey("workQueue", [
+		publicCoordinateId(record.queueId),
+		publicCoordinateId(record.workId),
+		"lease",
+		publicCoordinateId(record.leaseId),
+		"expires",
+		String(record.recordSeq),
+	]);
 }
 
 function workQueueRecordSubjectId<T>(
 	record: WorkQueueRecord<T> & { readonly workId: string },
 ): string {
-	return `${publicCoordinateId(record.queueId)}:${publicCoordinateId(record.workId)}:${record.recordSeq}`;
+	return canonicalTupleKey([
+		publicCoordinateId(record.queueId),
+		publicCoordinateId(record.workId),
+		String(record.recordSeq),
+	]);
 }
 
 function copiedPublicRefs(ids: readonly string[] | undefined, kind: string): readonly SourceRef[] {
@@ -1398,7 +1430,11 @@ function copiedPublicRefs(ids: readonly string[] | undefined, kind: string): rea
 		...copied,
 		ref(
 			`${kind}-overflow`,
-			`count:${ids.length}:hash:${stableStringHash(stableJsonStringify(ids))}`,
+			compoundTupleKey("count", [
+				String(ids.length),
+				"hash",
+				stableStringHash(stableJsonStringify(ids)),
+			]),
 		),
 	];
 }
@@ -1407,7 +1443,7 @@ function publicCoordinateId(id: string): string {
 	if (id.length <= MAX_PUBLIC_COORDINATE_ID_CHARS && !PRIVATE_COORDINATE_PATTERN.test(id)) {
 		return id;
 	}
-	return `bounded:${stableStringHash(id)}:${id.length}`;
+	return compoundTupleKey("bounded", [stableStringHash(id), String(id.length)]);
 }
 
 function issueStatus<T>(
@@ -1418,7 +1454,7 @@ function issueStatus<T>(
 ): WorkQueueScheduledReadinessStatus {
 	return Object.freeze({
 		kind: "work-queue-scheduled-readiness-status",
-		statusId: `${statusId}:work-queue-scheduled-readiness-status:issue`,
+		statusId: compoundTupleKey("work-queue-scheduled-readiness-status", [statusId, "issue"]),
 		...(record?.queueId === undefined ? {} : { queueId: publicCoordinateId(record.queueId) }),
 		...(record?.workId === undefined ? {} : { workId: publicCoordinateId(record.workId) }),
 		...(record?.recordSeq === undefined ? {} : { recordSeq: record.recordSeq }),
@@ -1472,7 +1508,10 @@ function emitScheduleConflict(
 		ctx,
 		state,
 		issueStatus(
-			`${translated.schedule.scheduleId}:conflict:${translated.record.recordSeq}`,
+			compoundTupleKey("conflict", [
+				translated.schedule.scheduleId,
+				String(translated.record.recordSeq),
+			]),
 			[issue],
 			translated.record,
 			translated.schedule.sourceRefs,
@@ -1485,7 +1524,7 @@ function emitSchedule(
 	state: WorkQueueScheduledReadinessProjectorState,
 	schedule: ScheduledReadinessRequested,
 ): void {
-	const key = `schedule:${schedule.scheduleId}`;
+	const key = compoundTupleKey("schedule", [schedule.scheduleId]);
 	if (state.emittedKeys.has(key)) return;
 	state.emittedKeys.add(key);
 	ctx.down([["DATA", { kind: "readiness-schedule", schedule }]]);
@@ -1497,7 +1536,7 @@ function emitStatus(
 	status: WorkQueueScheduledReadinessStatus,
 ): void {
 	state.statusById.set(status.statusId, status);
-	const key = `status:${status.statusId}:${(status.issueCodes ?? []).join(",")}`;
+	const key = compoundTupleKey("status", [status.statusId, ...(status.issueCodes ?? [])]);
 	if (state.emittedKeys.has(key)) return;
 	state.emittedKeys.add(key);
 	ctx.down([["DATA", { kind: "status", status }]]);
@@ -1508,7 +1547,11 @@ function emitIssue(
 	state: WorkQueueScheduledReadinessProjectorState,
 	issue: DataIssue,
 ): void {
-	const key = `${issue.code}:${issue.subjectId ?? ""}:${JSON.stringify(issue.details ?? {})}`;
+	const key = canonicalTupleKey([
+		issue.code,
+		issue.subjectId ?? "",
+		JSON.stringify(issue.details ?? {}),
+	]);
 	if (state.issueKeys.has(key)) return;
 	state.issueKeys.add(key);
 	ctx.down([["DATA", { kind: "issue", issue }]]);

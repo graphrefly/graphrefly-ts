@@ -9,6 +9,7 @@
 
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { Message } from "../protocol/messages.js";
 
@@ -536,7 +537,7 @@ export function toNestHttp<TPayload = unknown>(
 		}
 	};
 	const keyOf = (requestId: string, requestBindingId?: string) =>
-		requestBindingId === undefined ? requestId : `${requestBindingId}\u0000${requestId}`;
+		requestBindingId === undefined ? requestId : canonicalTupleKey([requestBindingId, requestId]);
 	const rejectEntry = (
 		entry: NestHttpPendingEntry<TPayload>,
 		error: unknown,

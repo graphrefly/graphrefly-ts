@@ -8,6 +8,7 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type {
 	MessageBusAvailablePage,
 	MessageBusCommand,
@@ -422,7 +423,12 @@ function admissionAckCommand<T>(record: WorkQueueRecord<T>): MessageBusCommand |
 		topic: messageBus.topic,
 		subscriptionId: messageBus.subscriptionId,
 		seq: messageBus.seq,
-		commandId: `${record.queueId}:admission-ack:${messageBus.topic}:${messageBus.subscriptionId}:${messageBus.seq}`,
+		commandId: compoundTupleKey("work-queue-admission-ack", [
+			record.queueId,
+			messageBus.topic,
+			messageBus.subscriptionId,
+			String(messageBus.seq),
+		]),
 	};
 }
 
@@ -438,7 +444,7 @@ function admitMessage<T>(
 	message: MessageBusMessage<T>,
 	nowMs: number,
 ): QueueEvent<T>[] {
-	const source = `${message.topic}:${message.seq}`;
+	const source = canonicalTupleKey([message.topic, String(message.seq)]);
 	if (state.sourceSeqs.has(source)) return [];
 	state.sourceSeqs.add(source);
 	const submitted = decodeSubmittedPayload(message.payload);
@@ -447,7 +453,7 @@ function admitMessage<T>(
 	const workId =
 		typeof payloadRecord.workId === "string"
 			? payloadRecord.workId
-			: `${opts.queueId}:${message.topic}:${message.seq}`;
+			: compoundTupleKey("work-queue-work", [opts.queueId, message.topic, String(message.seq)]);
 	if (state.works.has(workId)) {
 		const record = appendRecord(state, opts.queueId, {
 			kind: "admission-deduped",
@@ -590,7 +596,7 @@ function claimWork<T>(
 		claimed.add(work.workId);
 		work.state = "leased";
 		work.attempt += 1;
-		work.leaseId = `${work.workId}:lease:${++state.leaseSeq}`;
+		work.leaseId = compoundTupleKey("work-queue-lease", [work.workId, String(++state.leaseSeq)]);
 		work.workerId = command.workerId;
 		work.leaseExpiresAtMs = nowMs + (command.leaseDurationMs ?? defaultLeaseDurationMs);
 		const record = appendRecord(state, queueId, {

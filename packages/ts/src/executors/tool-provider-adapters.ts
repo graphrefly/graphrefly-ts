@@ -12,6 +12,7 @@ import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
 	type AgentRequestStatusChanged,
@@ -547,7 +548,7 @@ export function httpToolProviderRuntime(
 			[
 				"DATA",
 				{
-					id: `${name}:audit:${auditSeq}`,
+					id: compoundTupleKey("tool-provider-adapter-audit", [name, String(auditSeq)]),
 					kind,
 					subjectId,
 					...(issueCode === undefined ? {} : { issueCode }),
@@ -563,7 +564,7 @@ export function httpToolProviderRuntime(
 		statusIssues?: readonly DataIssue[],
 		outcomeId?: string,
 	): void {
-		forwardedRunStatusKeys.add(`${request.runId}:${nextStatus}`);
+		forwardedRunStatusKeys.add(canonicalTupleKey([request.runId, nextStatus]));
 		runStatus.down([
 			[
 				"DATA",
@@ -639,7 +640,11 @@ export function httpToolProviderRuntime(
 		if (disposed || (request.providerId !== undefined && request.providerId !== providerId)) return;
 		const input = inputs.get(request.adapterInputId);
 		if (input === undefined || input.providerId !== providerId) return;
-		const coordinate = `${request.runId}:${request.adapterInputId}:${request.attempt}`;
+		const coordinate = canonicalTupleKey([
+			request.runId,
+			request.adapterInputId,
+			String(request.attempt),
+		]);
 		if (executions.has(coordinate)) return;
 		executions.add(coordinate);
 		publishRunStatus(request, "requested");
@@ -757,7 +762,7 @@ export function httpToolProviderRuntime(
 	const unsubscribeRunStatus = runProjector.status.subscribe((msg) => {
 		if (msg[0] !== "DATA") return;
 		const nextStatus = msg[1] as ToolProviderAdapterRunStatus;
-		const statusKey = `${nextStatus.runId}:${nextStatus.status}`;
+		const statusKey = canonicalTupleKey([nextStatus.runId, nextStatus.status]);
 		if (forwardedRunStatusKeys.has(statusKey)) return;
 		forwardedRunStatusKeys.add(statusKey);
 		runStatus.down([["DATA", nextStatus]]);

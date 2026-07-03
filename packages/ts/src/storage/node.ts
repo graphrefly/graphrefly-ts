@@ -21,6 +21,7 @@ import { type AppendLogStorageTier, appendLogStorage } from "./append-log.js";
 import type { StorageBackend, StorageGeneration, StorageNamespaceOptions } from "./backend.js";
 import type { Codec } from "./codec.js";
 import { type KvStorageTier, kvStorage } from "./kv.js";
+import { decodeStoragePhysicalKey, storagePhysicalKey } from "./physical-key.js";
 
 export interface FileBackendOptions extends StorageNamespaceOptions {
 	/** File suffix used for stored byte blobs. Defaults to `.bin`. */
@@ -70,7 +71,6 @@ interface SqliteStatement {
 }
 
 const FILE_STEM_PREFIX = "k-";
-const NAMESPACE_SEPARATOR = "\u0000";
 const SQLITE_GENERATION = Symbol("graphrefly.sqliteBackend.generation");
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -148,9 +148,6 @@ function validateNamespace(label: string, namespace: string): string {
 	if (typeof namespace !== "string") {
 		throw new TypeError(`${label}: namespace must be a string`);
 	}
-	if (namespace.includes(NAMESPACE_SEPARATOR)) {
-		throw new TypeError(`${label}: namespace must not contain U+0000`);
-	}
 	return namespace;
 }
 
@@ -158,18 +155,12 @@ function validateLogicalKey(label: string, key: string): string {
 	if (typeof key !== "string") {
 		throw new TypeError(`${label}: key must be a string`);
 	}
-	if (key.includes(NAMESPACE_SEPARATOR)) {
-		throw new TypeError(`${label}: key must not contain U+0000`);
-	}
 	return key;
 }
 
 function validateListPrefix(label: string, prefix: string): string {
 	if (typeof prefix !== "string") {
 		throw new TypeError(`${label}: list prefix must be a string`);
-	}
-	if (prefix.includes(NAMESPACE_SEPARATOR)) {
-		throw new TypeError(`${label}: list prefix must not contain U+0000`);
 	}
 	return prefix;
 }
@@ -246,8 +237,10 @@ export function fileBackend(dir: string, opts: FileBackendOptions = {}): Storage
 	const extension = validateExtension(opts.extension ?? ".bin");
 	const namespace =
 		opts.namespace === undefined ? "" : validateNamespace("fileBackend", opts.namespace);
-	const namespacePrefix = namespace.length > 0 ? `${namespace}${NAMESPACE_SEPARATOR}` : "";
-	const storageKey = (key: string) => `${namespacePrefix}${validateLogicalKey("fileBackend", key)}`;
+	const storageKey = (key: string) => {
+		const logical = validateLogicalKey("fileBackend", key);
+		return storagePhysicalKey(namespace, logical);
+	};
 	const pathFor = (key: string) =>
 		join(dir, `${FILE_STEM_PREFIX}${keyToStem(storageKey(key))}${extension}`);
 	const keyFromFilename = (filename: string): string | null => {
@@ -255,12 +248,8 @@ export function fileBackend(dir: string, opts: FileBackendOptions = {}): Storage
 		const stem = filename.slice(0, -extension.length);
 		if (!stem.startsWith(FILE_STEM_PREFIX)) return null;
 		const key = stemToKey(stem.slice(FILE_STEM_PREFIX.length));
-		if (key === null || !key.startsWith(namespacePrefix)) return null;
-		const logical = key.slice(namespacePrefix.length);
-		if (logical.includes(NAMESPACE_SEPARATOR)) {
-			throw new TypeError("fileBackend: malformed stored key");
-		}
-		return logical;
+		if (key === null) return null;
+		return decodeStoragePhysicalKey(namespace, key, "fileBackend: malformed stored key") ?? null;
 	};
 
 	return {
@@ -377,20 +366,16 @@ export function sqliteBackend(
 	const namespace =
 		opts.namespace === undefined ? "" : validateNamespace("sqliteBackend", opts.namespace);
 	const DatabaseSync = loadSqliteDatabaseSync();
-	const namespacePrefix = namespace.length > 0 ? `${namespace}${NAMESPACE_SEPARATOR}` : "";
-	const storageKey = (key: string) =>
-		`${namespacePrefix}${validateLogicalKey("sqliteBackend", key)}`;
+	const storageKey = (key: string) => {
+		const logical = validateLogicalKey("sqliteBackend", key);
+		return storagePhysicalKey(namespace, logical);
+	};
 	const storageId = Object.freeze({});
 	const logicalKey = (key: string): string | undefined => {
 		if (typeof key !== "string") {
 			throw new TypeError("sqliteBackend: stored key is corrupt");
 		}
-		if (!key.startsWith(namespacePrefix)) return undefined;
-		const logical = key.slice(namespacePrefix.length);
-		if (logical.includes(NAMESPACE_SEPARATOR)) {
-			throw new TypeError("sqliteBackend: malformed stored key");
-		}
-		return logical;
+		return decodeStoragePhysicalKey(namespace, key, "sqliteBackend: malformed stored key");
 	};
 	const db = new DatabaseSync(path);
 	db.exec(

@@ -4,6 +4,7 @@ import {
 	executorWorkQueueRecipe,
 } from "../executors/work-queue.js";
 import { graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { AgentRequestIssued, ExecutorOutcome } from "../orchestration/agent-runtime.js";
 import type {
 	WorkItemEffectRequested,
@@ -64,9 +65,10 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 		expect(submits.at(-1)).toEqual(
 			expect.objectContaining({
 				kind: "submit",
-				commandId: "req-1:work-queue-submit",
-				workId: "wi-1:run-1",
+				commandId: compoundTupleKey("work-item-work-queue-submit", ["req-1"]),
+				workId: compoundTupleKey("work-item-work", ["wi-1", "run-1"]),
 				idempotencyKey: "idem-1",
+				sourceRefs: [canonicalTupleKey(["work-item", "wi-1"])],
 				payload: expect.objectContaining({
 					kind: "work-item-queued-work",
 					workItemId: "wi-1",
@@ -273,7 +275,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 					planMemberId: "A",
 					requestId: submit.payload.requestId,
 					effectRunId: submit.payload.effectRunId,
-					evidenceId: "work-queue:2",
+					evidenceId: compoundTupleKey("work-queue-evidence", ["2"]),
 				}),
 			],
 		});

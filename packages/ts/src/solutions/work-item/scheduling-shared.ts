@@ -1,6 +1,7 @@
 import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { compoundTupleKey } from "../../identity.js";
 import type { Node } from "../../node/node.js";
 import type { EffectRunGoal, SourceRef } from "../../orchestration/agent-runtime.js";
 import type {
@@ -20,7 +21,7 @@ export function emitAudit(
 ): void {
 	state.auditSeq += 1;
 	emit(ctx, "audit", {
-		id: `${kind}:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-validation-audit", [kind, String(state.auditSeq)]),
 		kind,
 		subjectId: status.workItemId,
 		message: status.message,

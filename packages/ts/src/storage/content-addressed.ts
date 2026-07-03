@@ -1,5 +1,6 @@
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { KvStorageTier } from "./kv.js";
+import { contentAddressedStorageKey } from "./physical-key.js";
 
 /** Content-addressed KV access mode for D82 passive storage helpers. */
 export type ContentAddressedMode = "read" | "write" | "read-write" | "read-strict";
@@ -74,7 +75,7 @@ export function contentAddressedKv<Ctx, V>(
 		}
 		return Promise.resolve()
 			.then(() => sha256Hex(bytes))
-			.then((hex) => (keyPrefix ? `${keyPrefix}:${hex}` : hex));
+			.then((hex) => (keyPrefix ? contentAddressedStorageKey(keyPrefix, hex) : hex));
 	}
 
 	return {

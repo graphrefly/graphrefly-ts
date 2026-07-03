@@ -1,6 +1,7 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentNeed,
@@ -106,7 +107,10 @@ export function workItemEffectResultMapper(
 						emitWorkItemEvidenceIssue(
 							ctx,
 							state,
-							`duplicate-effect-request:${request.effectRunId}:${request.requestId}`,
+							compoundTupleKey("duplicate-effect-request", [
+								request.effectRunId,
+								request.requestId,
+							]),
 							"duplicate-work-item-effect-request",
 							`EffectRun '${request.effectRunId}' has multiple WorkItemEffectRequested facts`,
 							request.workItemId,
@@ -309,7 +313,7 @@ function mapEffectRunResultToWorkItemEvidence(
 		emitWorkItemEvidenceIssue(
 			ctx,
 			state,
-			`ambiguous-effect-request:${result.effectRunId}:${result.resultId}`,
+			compoundTupleKey("ambiguous-effect-request", [result.effectRunId, result.resultId]),
 			"duplicate-work-item-effect-request",
 			`EffectRun '${result.effectRunId}' has ambiguous WorkItemEffectRequested facts`,
 			workItemId,
@@ -323,7 +327,7 @@ function mapEffectRunResultToWorkItemEvidence(
 		emitWorkItemEvidenceIssue(
 			ctx,
 			state,
-			`${policyIssue.code}:${result.resultId}`,
+			compoundTupleKey(policyIssue.code, [result.resultId]),
 			policyIssue.code,
 			policyIssue.message,
 			workItemId,
@@ -336,7 +340,7 @@ function mapEffectRunResultToWorkItemEvidence(
 		emitWorkItemEvidenceIssue(
 			ctx,
 			state,
-			`duplicate-evidence:${result.effectRunId}:${result.resultId}`,
+			compoundTupleKey("duplicate-evidence", [result.effectRunId, result.resultId]),
 			"duplicate-work-item-evidence",
 			`EffectRun '${result.effectRunId}' already recorded WorkItem evidence`,
 			workItemId,
@@ -355,7 +359,10 @@ function mapEffectRunResultToWorkItemEvidence(
 	const refs = evidence.sourceRefs;
 	const status: WorkItemStatusRecord = {
 		kind: "work-item-status",
-		statusId: `${workItemId}:evidence-recorded:${state.statusSeq}`,
+		statusId: compoundTupleKey("work-item-evidence-recorded-status", [
+			workItemId,
+			String(state.statusSeq),
+		]),
 		workItemId,
 		state: "evidence-recorded",
 		sourceRefs: refs,
@@ -365,7 +372,7 @@ function mapEffectRunResultToWorkItemEvidence(
 		metadata: { resultStatus: result.status },
 	};
 	const audit: AgentRuntimeAuditRecord = {
-		id: `${workItemId}:evidence-recorded:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-evidence-recorded-audit", [workItemId, String(state.auditSeq)]),
 		kind: "work-item-evidence-recorded",
 		subjectId: workItemId,
 		sourceRefs: refs,
@@ -393,7 +400,11 @@ function workItemEvidenceFromResult(
 	const materialIssues: DataIssue[] = [];
 	const base = {
 		kind: "work-item-evidence-recorded",
-		evidenceId: `${workItemId}:${result.effectRunId}:${result.resultId}`,
+		evidenceId: compoundTupleKey("work-item-evidence-recorded", [
+			workItemId,
+			result.effectRunId,
+			result.resultId,
+		]),
 		workItemId,
 		requestId: request?.requestId,
 		effectRunId: result.effectRunId,

@@ -1,5 +1,6 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { AgentRuntimeAuditRecord } from "./agent-runtime.js";
 import {
@@ -175,7 +176,7 @@ function evaluateWorkItemDomainActionAdmission(
 		emitWorkItemAdmissionIssue(
 			ctx,
 			state,
-			`missing-admission-proposal:${decision.decisionId}:${decision.proposalId}`,
+			compoundTupleKey("missing-admission-proposal", [decision.decisionId, decision.proposalId]),
 			"missing-work-item-domain-action-admission-proposal",
 			`WorkItemDomainActionAdmissionDecision '${decision.decisionId}' references missing proposal '${decision.proposalId}'`,
 			subjectId,
@@ -193,7 +194,7 @@ function evaluateWorkItemDomainActionAdmission(
 		emitWorkItemAdmissionIssue(
 			ctx,
 			state,
-			`stale-admission-proposal-ref:${decision.decisionId}:${staleProposalRef.id}`,
+			compoundTupleKey("stale-admission-proposal-ref", [decision.decisionId, staleProposalRef.id]),
 			"stale-work-item-domain-action-admission-proposal-ref",
 			`WorkItemDomainActionAdmissionDecision '${decision.decisionId}' carries stale proposal ref '${staleProposalRef.id}'`,
 			proposal.workItemId,
@@ -207,7 +208,7 @@ function evaluateWorkItemDomainActionAdmission(
 		emitWorkItemAdmissionIssue(
 			ctx,
 			state,
-			`${policy}:${decision.decisionId}:${decision.policyId ?? "missing"}`,
+			compoundTupleKey(policy, [decision.decisionId, decision.policyId ?? "missing"]),
 			policy,
 			admissionPolicyIssueMessage(policy, decision),
 			proposal.workItemId,
@@ -223,7 +224,7 @@ function evaluateWorkItemDomainActionAdmission(
 			emitWorkItemAdmissionIssue(
 				ctx,
 				state,
-				`${policyIssue.code}:${decision.decisionId}:${policy.policyId}`,
+				compoundTupleKey(policyIssue.code, [decision.decisionId, policy.policyId]),
 				policyIssue.code,
 				policyIssue.message,
 				proposal.workItemId,
@@ -237,7 +238,11 @@ function evaluateWorkItemDomainActionAdmission(
 		emitWorkItemAdmissionIssue(
 			ctx,
 			state,
-			`${mergeIssue.code}:${decision.decisionId}:${decision.targetProposalId ?? ""}:${decision.targetAdmissionId ?? ""}`,
+			compoundTupleKey(mergeIssue.code, [
+				decision.decisionId,
+				decision.targetProposalId ?? "",
+				decision.targetAdmissionId ?? "",
+			]),
 			mergeIssue.code,
 			mergeIssue.message,
 			proposal.workItemId,
@@ -251,7 +256,7 @@ function evaluateWorkItemDomainActionAdmission(
 		emitWorkItemAdmissionIssue(
 			ctx,
 			state,
-			`duplicate-admission-id:${decision.admissionId}`,
+			compoundTupleKey("duplicate-admission-id", [decision.admissionId]),
 			"duplicate-work-item-domain-action-admission",
 			`WorkItemDomainActionAdmission '${decision.admissionId}' was already emitted`,
 			proposal.workItemId,
@@ -264,7 +269,10 @@ function evaluateWorkItemDomainActionAdmission(
 		emitWorkItemAdmissionIssue(
 			ctx,
 			state,
-			`duplicate-admission-proposal-decision:${decision.proposalId}:${decision.decisionId}`,
+			compoundTupleKey("duplicate-admission-proposal-decision", [
+				decision.proposalId,
+				decision.decisionId,
+			]),
 			"duplicate-work-item-domain-action-admission-proposal",
 			`WorkItemDomainActionProposal '${decision.proposalId}' already has an admission decision`,
 			proposal.workItemId,
@@ -278,7 +286,10 @@ function evaluateWorkItemDomainActionAdmission(
 		emitWorkItemAdmissionIssue(
 			ctx,
 			state,
-			`unsupported-admission-outcome:${decision.decisionId}:${String(decision.outcome)}`,
+			compoundTupleKey("unsupported-admission-outcome", [
+				decision.decisionId,
+				String(decision.outcome),
+			]),
 			"unsupported-work-item-domain-action-admission-outcome",
 			`WorkItemDomainActionAdmissionDecision '${decision.decisionId}' uses unsupported outcome '${String(decision.outcome)}'`,
 			proposal.workItemId,
@@ -315,7 +326,11 @@ function evaluateWorkItemDomainActionAdmission(
 	const statusState = workItemAdmissionStatusState(admission.state);
 	const status: WorkItemStatusRecord = {
 		kind: "work-item-status",
-		statusId: `${proposal.workItemId}:${statusState}:${state.statusSeq}`,
+		statusId: compoundTupleKey("work-item-domain-action-admission-status", [
+			proposal.workItemId,
+			statusState,
+			String(state.statusSeq),
+		]),
 		workItemId: proposal.workItemId,
 		state: statusState,
 		sourceRefs: admission.sourceRefs,
@@ -330,7 +345,11 @@ function evaluateWorkItemDomainActionAdmission(
 		},
 	};
 	const audit: AgentRuntimeAuditRecord = {
-		id: `${proposal.workItemId}:${statusState}:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-domain-action-admission-audit", [
+			proposal.workItemId,
+			statusState,
+			String(state.auditSeq),
+		]),
 		kind: `work-item-domain-action-${admission.state}`,
 		subjectId: proposal.workItemId,
 		sourceRefs: admission.sourceRefs,

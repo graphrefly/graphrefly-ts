@@ -10,6 +10,7 @@
 
 import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 
 /** Command fact accepted by a CQRS bundle. */
@@ -641,7 +642,9 @@ function prepareEvents(
 			return `cqrs: unknown event '${draft.type}'`;
 		}
 		const id =
-			typeof draft.id === "string" && draft.id.length > 0 ? draft.id : `${command.id}:${i + 1}`;
+			typeof draft.id === "string" && draft.id.length > 0
+				? draft.id
+				: compoundTupleKey("cqrs-event", [command.id, String(i + 1)]);
 		if (state.seenEventIds.includes(id) || seenInCommand.has(id)) {
 			return `cqrs: duplicate event '${id}'`;
 		}

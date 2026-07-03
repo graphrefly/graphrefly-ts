@@ -1,6 +1,7 @@
 import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { BoundaryCapabilityKind, BoundaryCapabilityRef } from "../../inspection/boundary.js";
 import type { SourceRef } from "../../orchestration/agent-runtime.js";
 import type {
@@ -200,7 +201,7 @@ function evaluateCapabilityGuardProposal(
 		emitCapabilityGuardIssue(
 			ctx,
 			state,
-			`policy:${proposal.proposalId}:${policy}`,
+			compoundTupleKey("policy", [proposal.proposalId, policy]),
 			dataIssue(policy, capabilityGuardPolicyMessage(policy, proposal), {
 				subjectId: proposal.workItemId,
 				refs: [ref("work-item-domain-action-proposal", proposal.proposalId)],
@@ -230,7 +231,12 @@ function evaluateCapabilityGuardProposal(
 		emitCapabilityGuardStatusOnce(
 			ctx,
 			state,
-			`deferred:${proposal.proposalId}:${policy.policyId}:missing=${missingCapabilityRefs.map(capabilityBoundaryRefId).join(",")}:deferred=${deferredCapabilityRefs.join(",")}`,
+			compoundTupleKey("deferred", [
+				proposal.proposalId,
+				policy.policyId,
+				canonicalTupleKey(missingCapabilityRefs.map(capabilityBoundaryRefId)),
+				canonicalTupleKey(deferredCapabilityRefs),
+			]),
 			{
 				state: "deferred",
 				workItemId: proposal.workItemId,
@@ -257,8 +263,8 @@ function evaluateCapabilityGuardProposal(
 		blocked.length === 0 ? "admit" : "reject";
 	const decision: WorkItemDomainActionAdmissionDecision = {
 		kind: "work-item-domain-action-admission-decision",
-		decisionId: `capability-guard:${proposal.proposalId}:decision`,
-		admissionId: `capability-guard:${proposal.proposalId}:admission`,
+		decisionId: compoundTupleKey("capability-guard-decision", [proposal.proposalId]),
+		admissionId: compoundTupleKey("capability-guard-admission", [proposal.proposalId]),
 		proposalId: proposal.proposalId,
 		outcome,
 		reason:
@@ -528,7 +534,7 @@ function emitCapabilityStatusIssueForProposal(
 	emitCapabilityGuardIssue(
 		ctx,
 		state,
-		`capability-status:${proposal.proposalId}:${status.statusId}`,
+		compoundTupleKey("capability-status", [proposal.proposalId, status.statusId]),
 		dataIssue(issue.code, issue.message, {
 			subjectId: proposal.workItemId,
 			refs: uniqueSourceRefs([
@@ -579,7 +585,7 @@ function capabilityGuardRefs(
 }
 
 function capabilityBoundaryRefId(capability: Pick<BoundaryCapabilityRef, "id" | "kind">): string {
-	return `${capability.kind}:${capability.id}`;
+	return canonicalTupleKey([capability.kind, capability.id]);
 }
 
 function emitCapabilityGuardStatus(
@@ -590,13 +596,17 @@ function emitCapabilityGuardStatus(
 	state.statusSeq += 1;
 	const statusFact: WorkItemDomainActionCapabilityGuardStatus = {
 		kind: "work-item-domain-action-capability-guard-status",
-		statusId: `work-item-domain-action-capability-guard-status:${state.statusSeq}`,
+		statusId: compoundTupleKey("work-item-domain-action-capability-guard-status", [
+			String(state.statusSeq),
+		]),
 		...status,
 	};
 	emitCapabilityGuard(ctx, "status", statusFact);
 	state.auditSeq += 1;
 	emitCapabilityGuard(ctx, "audit", {
-		id: `work-item-domain-action-capability-guard-status:${state.auditSeq}`,
+		id: compoundTupleKey("work-item-domain-action-capability-guard-status-audit", [
+			String(state.auditSeq),
+		]),
 		kind: "work-item-domain-action-capability-guard-status",
 		subjectId: status.workItemId,
 		message: status.message,

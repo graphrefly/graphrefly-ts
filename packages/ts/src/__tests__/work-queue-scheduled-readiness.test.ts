@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type {
 	ScheduledReadinessClock,
 	ScheduledReadinessOverdue,
@@ -19,6 +20,24 @@ import {
 	workQueueScheduledReadinessProjector,
 } from "../orchestration/work-queue.js";
 import type { WorkQueueCommand, WorkQueueRecord } from "../work-queue/index.js";
+
+function workQueueScheduleId(
+	queueId: string,
+	workId: string,
+	part: "admission" | "retry" | "schedule",
+	id: string,
+): string {
+	return compoundTupleKey("workQueue", [queueId, workId, part, id]);
+}
+
+function workQueueLeaseScheduleId(
+	queueId: string,
+	workId: string,
+	leaseId: string,
+	recordSeq: string,
+): string {
+	return compoundTupleKey("workQueue", [queueId, workId, "lease", leaseId, "expires", recordSeq]);
+}
 
 describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("lowers work-scheduled notBeforeMs to shared readyAtMs without shared notBeforeMs", () => {
@@ -40,7 +59,7 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 		expect(harness.seen.schedules).toEqual([
 			expect.objectContaining({
 				kind: "scheduled-readiness-requested",
-				scheduleId: "workQueue:q:w1:schedule:user-schedule",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "user-schedule"),
 				readyAtMs: 1_000,
 				deadlineMs: 1_500,
 				reason: "work-queue-schedule",
@@ -82,13 +101,13 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 
 		expect(harness.seen.schedules).toEqual([
 			expect.objectContaining({
-				scheduleId: "workQueue:q:w1:admission:1",
+				scheduleId: workQueueScheduleId("q", "w1", "admission", "1"),
 				readyAtMs: 250,
 				deadlineMs: 300,
 				reason: "work-queue-delayed-admission",
 			}),
 			expect.objectContaining({
-				scheduleId: "workQueue:q:w1:retry:fail-1",
+				scheduleId: workQueueScheduleId("q", "w1", "retry", "fail-1"),
 				readyAtMs: 500,
 				reason: "work-queue-retry",
 			}),
@@ -139,7 +158,7 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 		expect(harness.seen.schedules).toHaveLength(1);
 		expect(harness.seen.schedules[0]).toEqual(
 			expect.objectContaining({
-				scheduleId: "workQueue:q:w1:schedule:same-schedule",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "same-schedule"),
 				readyAtMs: 100,
 			}),
 		);
@@ -157,8 +176,9 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 			]),
 		);
 		expect(
-			harness.seen.views.at(-1)?.schedulesById.get("workQueue:q:w1:schedule:same-schedule")
-				?.readyAtMs,
+			harness.seen.views
+				.at(-1)
+				?.schedulesById.get(workQueueScheduleId("q", "w1", "schedule", "same-schedule"))?.readyAtMs,
 		).toBe(100);
 	});
 
@@ -187,7 +207,7 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 		expect(harness.seen.schedules).toHaveLength(1);
 		expect(harness.seen.schedules[0]).toEqual(
 			expect.objectContaining({
-				scheduleId: "workQueue:q:w1:schedule:5",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "5"),
 				readyAtMs: 100,
 			}),
 		);
@@ -253,12 +273,12 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 
 		expect(harness.seen.schedules).toEqual([
 			expect.objectContaining({
-				scheduleId: "workQueue:q:w1:lease:lease-1:expires:3",
+				scheduleId: workQueueLeaseScheduleId("q", "w1", "lease-1", "3"),
 				readyAtMs: 1_200,
 				reason: "work-queue-lease-expiration",
 			}),
 			expect.objectContaining({
-				scheduleId: "workQueue:q:w1:lease:lease-1:expires:4",
+				scheduleId: workQueueLeaseScheduleId("q", "w1", "lease-1", "4"),
 				readyAtMs: 1_600,
 				reason: "work-queue-lease-expiration",
 			}),
@@ -291,14 +311,14 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 
 		expect(harness.seen.ready).toEqual([
 			expect.objectContaining({
-				scheduleId: "workQueue:q:w1:schedule:11",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "11"),
 				readyAtMs: 1_000,
 				nowMs: 1_000,
 			}),
 		]);
 		expect(harness.seen.overdue).toEqual([
 			expect.objectContaining({
-				scheduleId: "workQueue:q:w1:schedule:11",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "11"),
 				deadlineMs: 900,
 				nowMs: 1_000,
 			}),
@@ -389,21 +409,21 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 			["DATA", workScheduled({ recordSeq: 1, notBeforeMs: 100 })],
 			["DATA", retryScheduled({ workId: "w2", recordSeq: 2, commandId: "fail-1", retryAtMs: 200 })],
 		]);
-		harness.ready.down([["DATA", ready("workQueue:q:w1:schedule:1", 100)]]);
-		harness.ready.down([["DATA", ready("workQueue:q:w2:retry:fail-1", 200)]]);
+		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100)]]);
+		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w2", "retry", "fail-1"), 200)]]);
 
 		expect(harness.seen.candidates).toEqual([
 			expect.objectContaining({
 				kind: "work-queue-readiness-candidate",
 				candidateKind: "claim-eligible",
 				workId: "w1",
-				scheduleId: "workQueue:q:w1:schedule:1",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "1"),
 				readyAtMs: 100,
 			}),
 			expect.objectContaining({
 				candidateKind: "claim-eligible",
 				workId: "w2",
-				scheduleId: "workQueue:q:w2:retry:fail-1",
+				scheduleId: workQueueScheduleId("q", "w2", "retry", "fail-1"),
 				readyAtMs: 200,
 			}),
 		]);
@@ -422,14 +442,16 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 			],
 			["DATA", terminalRecord("work-completed", 2, { queueId: "q2", workId: "same-work" })],
 		]);
-		harness.ready.down([["DATA", ready("workQueue:q1:same-work:schedule:1", 100)]]);
+		harness.ready.down([
+			["DATA", ready(workQueueScheduleId("q1", "same-work", "schedule", "1"), 100)],
+		]);
 
 		expect(harness.seen.candidates).toEqual([
 			expect.objectContaining({
 				candidateKind: "claim-eligible",
 				queueId: "q1",
 				workId: "same-work",
-				scheduleId: "workQueue:q1:same-work:schedule:1",
+				scheduleId: workQueueScheduleId("q1", "same-work", "schedule", "1"),
 			}),
 		]);
 		expect(harness.seen.handoffStatus).not.toEqual(
@@ -450,14 +472,14 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 			["DATA", workScheduled({ recordSeq: 1, notBeforeMs: 100 })],
 			["DATA", workScheduled({ recordSeq: 2, notBeforeMs: 200 })],
 		]);
-		harness.ready.down([["DATA", ready("workQueue:q:w1:schedule:1", 100)]]);
+		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100)]]);
 
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.handoffStatus).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					state: "ignored-superseded",
-					scheduleId: "workQueue:q:w1:schedule:1",
+					scheduleId: workQueueScheduleId("q", "w1", "schedule", "1"),
 					metadata: expect.objectContaining({
 						originRecordSeq: 1,
 						latestRecordSeq: 2,
@@ -474,7 +496,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 			["DATA", terminalRecord("work-completed", 10)],
 			["DATA", workScheduled({ recordSeq: 1, notBeforeMs: 100 })],
 		]);
-		harness.ready.down([["DATA", ready("workQueue:q:w1:schedule:1", 100)]]);
+		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100)]]);
 
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.handoffStatus).toEqual(
@@ -482,7 +504,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 				expect.objectContaining({
 					state: "ignored-superseded",
 					currentState: "completed",
-					scheduleId: "workQueue:q:w1:schedule:1",
+					scheduleId: workQueueScheduleId("q", "w1", "schedule", "1"),
 					metadata: expect.objectContaining({ latestRecordSeq: 10 }),
 				}),
 			]),
@@ -504,7 +526,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 				}),
 			],
 		]);
-		harness.ready.down([["DATA", ready("workQueue:q:w1:lease:lease-1:expires:3", 300)]]);
+		harness.ready.down([["DATA", ready(workQueueLeaseScheduleId("q", "w1", "lease-1", "3"), 300)]]);
 
 		expect(harness.seen.candidates).toEqual([
 			expect.objectContaining({
@@ -522,7 +544,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 				workIds: ["w1"],
 				limit: 1,
 				nowMs: 300,
-				causationId: "workQueue:q:w1:lease:lease-1:expires:3",
+				causationId: workQueueLeaseScheduleId("q", "w1", "lease-1", "3"),
 			}),
 		]);
 		expect(JSON.stringify(harness.seen.commands)).not.toContain("lease-expired");
@@ -552,7 +574,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 				}),
 			],
 		]);
-		harness.ready.down([["DATA", ready("workQueue:q:w1:lease:lease-1:expires:3", 300)]]);
+		harness.ready.down([["DATA", ready(workQueueLeaseScheduleId("q", "w1", "lease-1", "3"), 300)]]);
 
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.commands).toEqual([]);
@@ -560,7 +582,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					state: "ignored-superseded",
-					scheduleId: "workQueue:q:w1:lease:lease-1:expires:3",
+					scheduleId: workQueueLeaseScheduleId("q", "w1", "lease-1", "3"),
 					currentState: "leased",
 				}),
 			]),
@@ -574,8 +596,10 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 			["DATA", workScheduled({ recordSeq: 6, notBeforeMs: 100 })],
 			["DATA", terminalRecord("work-completed", 7)],
 		]);
-		harness.ready.down([["DATA", ready("workQueue:q:w1:schedule:6", 100)]]);
-		harness.overdue.down([["DATA", overdue("workQueue:q:w1:schedule:6", 100, 90)]]);
+		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "6"), 100)]]);
+		harness.overdue.down([
+			["DATA", overdue(workQueueScheduleId("q", "w1", "schedule", "6"), 100, 90)],
+		]);
 
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.commands).toEqual([]);
@@ -588,7 +612,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 				}),
 				expect.objectContaining({
 					state: "overdue",
-					scheduleId: "workQueue:q:w1:schedule:6",
+					scheduleId: workQueueScheduleId("q", "w1", "schedule", "6"),
 				}),
 			]),
 		);
@@ -599,12 +623,12 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("handles out-of-order ready before origin records deterministically", () => {
 		const harness = createHandoffHarness();
 
-		harness.ready.down([["DATA", ready("workQueue:q:w1:schedule:8", 800)]]);
+		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "8"), 800)]]);
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.handoffStatus).toEqual([
 			expect.objectContaining({
 				state: "pending-origin",
-				scheduleId: "workQueue:q:w1:schedule:8",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "8"),
 			}),
 		]);
 
@@ -613,7 +637,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 		expect(harness.seen.candidates).toEqual([
 			expect.objectContaining({
 				candidateKind: "claim-eligible",
-				scheduleId: "workQueue:q:w1:schedule:8",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "8"),
 			}),
 		]);
 	});
@@ -621,14 +645,18 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("re-emits overdue status with origin coordinates after late origin material", () => {
 		const harness = createHandoffHarness();
 
-		harness.overdue.down([["DATA", overdue("workQueue:q:w1:schedule:9", 100, 90)]]);
+		harness.overdue.down([
+			["DATA", overdue(workQueueScheduleId("q", "w1", "schedule", "9"), 100, 90)],
+		]);
 		harness.records.down([["DATA", workScheduled({ recordSeq: 9, notBeforeMs: 100 })]]);
-		harness.overdue.down([["DATA", overdue("workQueue:q:w1:schedule:9", 100, 90)]]);
+		harness.overdue.down([
+			["DATA", overdue(workQueueScheduleId("q", "w1", "schedule", "9"), 100, 90)],
+		]);
 
 		expect(harness.seen.handoffStatus[0]).toEqual(
 			expect.objectContaining({
 				state: "overdue",
-				scheduleId: "workQueue:q:w1:schedule:9",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "9"),
 			}),
 		);
 		expect(Object.hasOwn(harness.seen.handoffStatus[0] ?? {}, "queueId")).toBe(false);
@@ -636,7 +664,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 		expect(harness.seen.handoffStatus[1]).toEqual(
 			expect.objectContaining({
 				state: "overdue",
-				scheduleId: "workQueue:q:w1:schedule:9",
+				scheduleId: workQueueScheduleId("q", "w1", "schedule", "9"),
 				queueId: "q",
 				workId: "w1",
 			}),

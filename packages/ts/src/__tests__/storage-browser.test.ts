@@ -150,16 +150,14 @@ describe("storage/browser (D103/D106)", () => {
 		expect(opens).toBe(2);
 	});
 
-	it("fails fast on non-string or ambiguous IndexedDB runtime keys", () => {
+	it("fails fast on non-string IndexedDB runtime keys", () => {
 		const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
 
 		expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
-		expect(() => backend.put("bad\u0000key", new Uint8Array([1]))).toThrow(/U\+0000/);
 		expect(() => backend.putIfAbsent?.(1 as unknown as string, new Uint8Array([1]))).toThrow(
 			/key must be a string/,
 		);
 		expect(() => backend.delete(1 as unknown as string)).toThrow(/key must be a string/);
-		expect(() => backend.list("bad\u0000prefix")).toThrow(/U\+0000/);
 		expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
 	});
 

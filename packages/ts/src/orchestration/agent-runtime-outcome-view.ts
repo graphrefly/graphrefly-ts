@@ -1,6 +1,7 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
 	dataIssue,
@@ -47,7 +48,10 @@ export function executorOutcomeViewProjector(
 						{
 							kind: "audit",
 							audit: {
-								id: `${outcome.outcomeId}:outcome-view:${policy.audience}`,
+								id: compoundTupleKey("executor-outcome-view-audit", [
+									outcome.outcomeId,
+									policy.audience,
+								]),
 								kind: "executor-outcome-view-projected",
 								subjectId: outcome.requestId,
 								sourceRefs: [ref("executor-outcome", outcome.outcomeId)],
@@ -119,7 +123,7 @@ export function executorOutcomeViewProjectionFromOutcome(
 		: undefined;
 	const view = Object.freeze({
 		kind: "executor-outcome-view",
-		viewId: `${outcome.outcomeId}:${policy.audience}`,
+		viewId: canonicalTupleKey([outcome.outcomeId, policy.audience]),
 		audience: policy.audience,
 		outcomeId: outcome.outcomeId,
 		requestId: outcome.requestId,

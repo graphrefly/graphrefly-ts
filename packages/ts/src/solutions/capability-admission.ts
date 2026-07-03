@@ -9,6 +9,7 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { BoundaryCapabilityRef, BoundaryRole } from "../inspection/boundary.js";
 import type { Node } from "../node/node.js";
 import type { AgentRuntimeAuditRecord, SourceRef } from "../orchestration/agent-runtime.js";
@@ -294,7 +295,7 @@ function evaluateCapabilityAdmission(
 		emitIssue(
 			ctx,
 			state,
-			`missing-proposal:${decision.decisionId}:${decision.proposalId}`,
+			compoundTupleKey("missing-proposal", [decision.decisionId, decision.proposalId]),
 			dataIssue(
 				"missing-capability-admission-proposal",
 				`CapabilityAdmissionDecision '${decision.decisionId}' references missing proposal '${decision.proposalId}'`,
@@ -308,7 +309,7 @@ function evaluateCapabilityAdmission(
 		emitIssue(
 			ctx,
 			state,
-			`${policy}:${decision.decisionId}:${decision.policyId ?? "missing"}`,
+			compoundTupleKey(policy, [decision.decisionId, decision.policyId ?? "missing"]),
 			dataIssue(policy, capabilityPolicyIssueMessage(policy, decision), {
 				subjectId: proposal.subjectId,
 				refs: capabilityDecisionRefs(decision, proposal),
@@ -324,7 +325,7 @@ function evaluateCapabilityAdmission(
 			emitIssue(
 				ctx,
 				state,
-				`${policyIssue.code}:${decision.decisionId}:${policy.policyId}`,
+				compoundTupleKey(policyIssue.code, [decision.decisionId, policy.policyId]),
 				dataIssue(policyIssue.code, policyIssue.message, {
 					subjectId: proposal.subjectId,
 					refs: capabilityDecisionRefs(decision, proposal, policy),
@@ -337,7 +338,7 @@ function evaluateCapabilityAdmission(
 		emitIssue(
 			ctx,
 			state,
-			`duplicate-admission-id:${decision.admissionId}`,
+			compoundTupleKey("duplicate-admission-id", [decision.admissionId]),
 			dataIssue(
 				"duplicate-capability-admission",
 				`CapabilityAdmission '${decision.admissionId}' was already emitted`,
@@ -351,7 +352,7 @@ function evaluateCapabilityAdmission(
 		emitIssue(
 			ctx,
 			state,
-			`duplicate-admission-proposal:${decision.proposalId}:${decision.decisionId}`,
+			compoundTupleKey("duplicate-admission-proposal", [decision.proposalId, decision.decisionId]),
 			dataIssue(
 				"duplicate-capability-admission-proposal",
 				`CapabilityAdmissionProposal '${decision.proposalId}' already has an admission decision`,
@@ -366,7 +367,7 @@ function evaluateCapabilityAdmission(
 		emitIssue(
 			ctx,
 			state,
-			`unsupported-outcome:${decision.decisionId}:${String(decision.outcome)}`,
+			compoundTupleKey("unsupported-outcome", [decision.decisionId, String(decision.outcome)]),
 			dataIssue(
 				"unsupported-capability-admission-outcome",
 				`CapabilityAdmissionDecision '${decision.decisionId}' uses unsupported outcome '${String(decision.outcome)}'`,
@@ -446,7 +447,11 @@ function emitAdmission(
 	const statusState = capabilityAdmissionStatusState(admission.state);
 	const status: CapabilityAdmissionStatus = {
 		kind: "capability-admission-status",
-		statusId: `${admission.subjectId}:${statusState}:${state.statusSeq}`,
+		statusId: compoundTupleKey("capability-admission-status", [
+			admission.subjectId,
+			statusState,
+			String(state.statusSeq),
+		]),
 		state: statusState,
 		proposalId: admission.proposalId,
 		admissionId: admission.admissionId,
@@ -457,7 +462,11 @@ function emitAdmission(
 		sourceRefs: admission.sourceRefs,
 	};
 	const audit: AgentRuntimeAuditRecord = {
-		id: `${admission.subjectId}:${statusState}:${state.auditSeq}`,
+		id: compoundTupleKey("capability-admission-audit", [
+			admission.subjectId,
+			statusState,
+			String(state.auditSeq),
+		]),
 		kind: `capability-admission-${admission.state}`,
 		subjectId: admission.subjectId,
 		sourceRefs: admission.sourceRefs,
@@ -488,7 +497,7 @@ function emitIssue(
 	state.auditSeq += 1;
 	const status: CapabilityAdmissionStatus = {
 		kind: "capability-admission-status",
-		statusId: `capability-admission-issue:${state.statusSeq}`,
+		statusId: compoundTupleKey("capability-admission-issue", [String(state.statusSeq)]),
 		state: "capability-admission-issue",
 		subjectId: issue.subjectId,
 		issues: [issue],
@@ -692,7 +701,10 @@ function isCapabilityAdmissionOutcome(value: unknown): value is CapabilityAdmiss
 function proposalKeyFallback(proposal: CapabilityAdmissionProposal): string {
 	return typeof proposal.proposalId === "string" && proposal.proposalId.length > 0
 		? proposal.proposalId
-		: `${stringValue(proposal.subjectId) ?? "unknown"}:${capabilityKeyFallback(proposal.capability)}`;
+		: canonicalTupleKey([
+				stringValue(proposal.subjectId) ?? "unknown",
+				capabilityKeyFallback(proposal.capability),
+			]);
 }
 
 function policyKeyFallback(policy: CapabilityAdmissionPolicy): string {
@@ -704,12 +716,15 @@ function policyKeyFallback(policy: CapabilityAdmissionPolicy): string {
 function decisionKeyFallback(decision: CapabilityAdmissionDecision): string {
 	return typeof decision.decisionId === "string" && decision.decisionId.length > 0
 		? decision.decisionId
-		: `${stringValue(decision.proposalId) ?? "unknown"}:${stringValue(decision.admissionId) ?? "unknown"}`;
+		: canonicalTupleKey([
+				stringValue(decision.proposalId) ?? "unknown",
+				stringValue(decision.admissionId) ?? "unknown",
+			]);
 }
 
 function capabilityKeyFallback(value: unknown): string {
 	if (!isBoundaryCapabilityRef(value)) return "unknown-capability";
-	return `${value.kind}:${value.id}`;
+	return canonicalTupleKey([value.kind, value.id]);
 }
 
 function nextMalformedIssueKey(
@@ -718,7 +733,7 @@ function nextMalformedIssueKey(
 	fallback: string,
 ): string {
 	state.issueSeq += 1;
-	return `malformed-${kind}:${state.issueSeq}:${fallback}`;
+	return compoundTupleKey(`malformed-${kind}`, [String(state.issueSeq), fallback]);
 }
 
 function stringValue(value: unknown): string | undefined {
@@ -728,7 +743,10 @@ function stringValue(value: unknown): string | undefined {
 function capabilityProposalRefs(proposal: CapabilityAdmissionProposal): readonly SourceRef[] {
 	return uniqueSourceRefs([
 		ref("capability-admission-proposal", proposal.proposalId),
-		ref("boundary-capability", `${proposal.capability.kind}:${proposal.capability.id}`),
+		ref(
+			"boundary-capability",
+			canonicalTupleKey([proposal.capability.kind, proposal.capability.id]),
+		),
 		...(proposal.sourceRefs ?? []),
 	]);
 }
@@ -825,7 +843,7 @@ function dataIssue(
 		message,
 		severity: "error",
 		subjectId: opts.subjectId,
-		refs: opts.refs?.map((sourceRef) => `${sourceRef.kind}:${sourceRef.id}`),
+		refs: opts.refs?.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id])),
 		details: opts.details,
 	};
 }
@@ -834,7 +852,11 @@ function uniqueSourceRefs(sourceRefs: readonly SourceRef[]): readonly SourceRef[
 	const seen = new Set<string>();
 	const out: SourceRef[] = [];
 	for (const sourceRef of sourceRefs) {
-		const key = `${sourceRef.kind}:${sourceRef.id}:${JSON.stringify(sourceRef.metadata ?? {})}`;
+		const key = canonicalTupleKey([
+			sourceRef.kind,
+			sourceRef.id,
+			JSON.stringify(sourceRef.metadata ?? {}),
+		]);
 		if (seen.has(key)) continue;
 		seen.add(key);
 		out.push(sourceRef);

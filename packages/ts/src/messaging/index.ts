@@ -8,6 +8,7 @@
 import { depBatch, type NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
 	attachMessageBusCommandSource,
@@ -949,7 +950,7 @@ function ensureSubscription(
 	state: MessageBusState,
 	opts: { topic: string; subscriptionId: string; from: "earliest" | "latest" | number },
 ): SubscriptionState {
-	const key = `${opts.topic}\u0000${opts.subscriptionId}`;
+	const key = canonicalTupleKey([opts.topic, opts.subscriptionId]);
 	const existing = state.subscriptions.get(key);
 	if (existing !== undefined) return existing;
 	const topic = state.topics.get(opts.topic);
@@ -975,5 +976,5 @@ function getSubscription(
 	topic: string,
 	subscriptionId: string,
 ): SubscriptionState | undefined {
-	return state.subscriptions.get(`${topic}\u0000${subscriptionId}`);
+	return state.subscriptions.get(canonicalTupleKey([topic, subscriptionId]));
 }

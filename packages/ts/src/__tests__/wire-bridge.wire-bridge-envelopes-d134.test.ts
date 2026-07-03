@@ -10,10 +10,14 @@ import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
+import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
+
+const wireCauseId = (name: string, seq: number) =>
+	compoundTupleKey("wire-edge-group-cause", [name, String(seq)]);
 
 describe("wire bridge envelopes (D134)", () => {
 	it("creates ordered, idempotent envelope metadata", () => {
-		expect(wireBridgeIdempotencyKey("session-a", 7)).toBe("session-a:7");
+		expect(wireBridgeIdempotencyKey("session-a", 7)).toBe(canonicalTupleKey(["session-a", "7"]));
 		expect(
 			wireBridgeEnvelope({
 				sessionId: "session-a",
@@ -32,7 +36,7 @@ describe("wire bridge envelopes (D134)", () => {
 			metadata: {
 				seq: 7,
 				cursor: 3,
-				idempotencyKey: "session-a:7",
+				idempotencyKey: canonicalTupleKey(["session-a", "7"]),
 				attempt: 2,
 				maxAttempts: 4,
 				timestampMs: undefined,
@@ -261,7 +265,7 @@ describe("wire bridge envelopes (D134)", () => {
 				metadata: {
 					seq: 1,
 					cursor: 0,
-					idempotencyKey: "session-a:1",
+					idempotencyKey: canonicalTupleKey(["session-a", "1"]),
 					attempt: 1,
 					maxAttempts: 1,
 					timestampMs: expect.any(Number),
@@ -1115,7 +1119,7 @@ describe("wire bridge envelopes (D134)", () => {
 					metadata: {
 						seq: 1,
 						cursor: 0,
-						idempotencyKey: "session-a:1",
+						idempotencyKey: canonicalTupleKey(["session-a", "1"]),
 						attempt: 1,
 						maxAttempts: 1,
 						timestampMs: expect.any(Number),
@@ -1154,10 +1158,10 @@ describe("wire bridge envelopes (D134)", () => {
 					(envelope as { payload?: { value?: { frame?: unknown } } }).payload?.value?.frame,
 			),
 		).toEqual([
-			{ kind: "dirty", edgeId: "a", causeId: "group:cause:1" },
-			{ kind: "dirty", edgeId: "b", causeId: "group:cause:1" },
-			{ kind: "data", edgeId: "a", causeId: "group:cause:1", value: bytes(1) },
-			{ kind: "data", edgeId: "b", causeId: "group:cause:1", value: bytes(2) },
+			{ kind: "dirty", edgeId: "a", causeId: wireCauseId("group", 1) },
+			{ kind: "dirty", edgeId: "b", causeId: wireCauseId("group", 1) },
+			{ kind: "data", edgeId: "a", causeId: wireCauseId("group", 1), value: bytes(1) },
+			{ kind: "data", edgeId: "b", causeId: wireCauseId("group", 1), value: bytes(2) },
 		]);
 		const inboundA = group.inbound.get("a");
 		const inbound: unknown[][] = [];
@@ -1318,10 +1322,10 @@ describe("wire bridge envelopes (D134)", () => {
 
 		sourceB.down([["DATA", bytes(2)]]);
 		expect(frames(outbound)).toEqual([
-			{ kind: "dirty", edgeId: "a", causeId: "freshGroup:cause:1" },
-			{ kind: "dirty", edgeId: "b", causeId: "freshGroup:cause:1" },
-			{ kind: "data", edgeId: "a", causeId: "freshGroup:cause:1", value: bytes(1) },
-			{ kind: "data", edgeId: "b", causeId: "freshGroup:cause:1", value: bytes(2) },
+			{ kind: "dirty", edgeId: "a", causeId: wireCauseId("freshGroup", 1) },
+			{ kind: "dirty", edgeId: "b", causeId: wireCauseId("freshGroup", 1) },
+			{ kind: "data", edgeId: "a", causeId: wireCauseId("freshGroup", 1), value: bytes(1) },
+			{ kind: "data", edgeId: "b", causeId: wireCauseId("freshGroup", 1), value: bytes(2) },
 		]);
 
 		outbound.length = 0;
@@ -1330,10 +1334,10 @@ describe("wire bridge envelopes (D134)", () => {
 			sourceB.down([["DATA", bytes(2)]]);
 		});
 		expect(frames(outbound)).toEqual([
-			{ kind: "dirty", edgeId: "a", causeId: "freshGroup:cause:2" },
-			{ kind: "dirty", edgeId: "b", causeId: "freshGroup:cause:2" },
-			{ kind: "data", edgeId: "a", causeId: "freshGroup:cause:2", value: bytes(1) },
-			{ kind: "data", edgeId: "b", causeId: "freshGroup:cause:2", value: bytes(2) },
+			{ kind: "dirty", edgeId: "a", causeId: wireCauseId("freshGroup", 2) },
+			{ kind: "dirty", edgeId: "b", causeId: wireCauseId("freshGroup", 2) },
+			{ kind: "data", edgeId: "a", causeId: wireCauseId("freshGroup", 2), value: bytes(1) },
+			{ kind: "data", edgeId: "b", causeId: wireCauseId("freshGroup", 2), value: bytes(2) },
 		]);
 
 		outbound.length = 0;
@@ -1343,10 +1347,10 @@ describe("wire bridge envelopes (D134)", () => {
 			sourceB.down([["DATA", bytes(6)]]);
 		});
 		expect(frames(outbound)).toEqual([
-			{ kind: "dirty", edgeId: "a", causeId: "freshGroup:cause:3" },
-			{ kind: "dirty", edgeId: "b", causeId: "freshGroup:cause:3" },
-			{ kind: "data", edgeId: "a", causeId: "freshGroup:cause:3", value: bytes(5) },
-			{ kind: "data", edgeId: "b", causeId: "freshGroup:cause:3", value: bytes(6) },
+			{ kind: "dirty", edgeId: "a", causeId: wireCauseId("freshGroup", 3) },
+			{ kind: "dirty", edgeId: "b", causeId: wireCauseId("freshGroup", 3) },
+			{ kind: "data", edgeId: "a", causeId: wireCauseId("freshGroup", 3), value: bytes(5) },
+			{ kind: "data", edgeId: "b", causeId: wireCauseId("freshGroup", 3), value: bytes(6) },
 		]);
 
 		outbound.length = 0;
@@ -1386,13 +1390,13 @@ describe("wire bridge envelopes (D134)", () => {
 			sourceA.down([["DATA", bytes(1)]]);
 			sourceB.down([["DATA", bytes(2)]]);
 		});
-		expect(frameCauseIds(first)).toContain("replayFreshGroup:cause:1");
+		expect(frameCauseIds(first)).toContain(wireCauseId("replayFreshGroup", 1));
 
 		unsubscribe();
 		const replayOnly: unknown[][] = [];
 		bridge.outbound.subscribe((msg) => replayOnly.push(msg as unknown[]));
 
-		expect(frameCauseIds(replayOnly)).not.toContain("replayFreshGroup:cause:2");
+		expect(frameCauseIds(replayOnly)).not.toContain(wireCauseId("replayFreshGroup", 2));
 	});
 
 	it("wireEdgeGroup D562 isolates partial inbound progress from edge projectors and releases one cohort", () => {
