@@ -340,6 +340,19 @@ const FAMILY_FACT_KINDS: Readonly<Record<string, readonly string[]>> = {
 		"verification-plan-changed",
 	],
 };
+
+/**
+ * Records workspace proposal.
+ *
+ * @param input - Input value to project or validate.
+ * @param options - Options that configure the helper.
+ * @returns The record workspace proposal result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { recordWorkspaceProposal } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function recordWorkspaceProposal<TDraft = unknown>(
 	input: WorkspaceProposalReadyRequest<TDraft> | unknown,
 	options: WorkspaceProposalProjectorOptions = {},
@@ -393,6 +406,19 @@ export function recordWorkspaceProposal<TDraft = unknown>(
 	};
 }
 
+/**
+ * Creates a decide workspace proposal admission.
+ *
+ * @param record - Record to encode, validate, or project.
+ * @param material - Audit or decision material used by the projector.
+ * @param options - Options that configure the helper.
+ * @returns The decide workspace proposal admission result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { decideWorkspaceProposalAdmission } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function decideWorkspaceProposalAdmission(
 	record: WorkspaceProposalRecorded,
 	material: WorkspaceProposalAdmissionMaterial,
@@ -644,6 +670,19 @@ export function decideWorkspaceProposalAdmission(
 	return { decision, issues };
 }
 
+/**
+ * Projects workspace proposal application status.
+ *
+ * @param record - Record to encode, validate, or project.
+ * @param decision - Admission decision or interpreter output to project.
+ * @param options - Options that configure the helper.
+ * @returns The project workspace proposal application status result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalApplicationStatus } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalApplicationStatus(
 	record: WorkspaceProposalRecorded,
 	decision: WorkspaceProposalAdmissionDecision,
@@ -791,6 +830,19 @@ function resolveApplicationState(
 	return requestedState ?? (pendingFamilyRefs ? "pending" : "applied");
 }
 
+/**
+ * Validates workspace proposal application envelope input.
+ *
+ * @param record - Record to encode, validate, or project.
+ * @param decision - Admission decision or interpreter output to project.
+ * @param options - Options that configure the helper.
+ * @returns Validation diagnostics or the validated projection.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { validateWorkspaceProposalApplicationEnvelope } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function validateWorkspaceProposalApplicationEnvelope(
 	record: WorkspaceProposalRecorded,
 	decision: WorkspaceProposalAdmissionDecision,
@@ -867,6 +919,19 @@ export function validateWorkspaceProposalApplicationEnvelope(
 	return issues;
 }
 
+/**
+ * Creates a workspace proposal application family ref.
+ *
+ * @param proposalFamily - proposal family value used by the helper.
+ * @param emitted - emitted value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns The stable key or reference string.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalApplicationFamilyRef } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalApplicationFamilyRef(
 	proposalFamily: WorkspaceProposalFamily,
 	emitted: WorkspaceProposalEmittedFactRefSource,
@@ -886,6 +951,18 @@ export function workspaceProposalApplicationFamilyRef(
 	});
 }
 
+/**
+ * Creates a workspace proposal data only issues.
+ *
+ * @param value - Unknown value to check or decode.
+ * @param label - label value used by the helper.
+ * @returns The workspace proposal data only issues result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalDataOnlyIssues } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalDataOnlyIssues(
 	value: unknown,
 	label = "value",
@@ -893,6 +970,18 @@ export function workspaceProposalDataOnlyIssues(
 	return dataOnlyIssues(value, label);
 }
 
+/**
+ * Asserts that a value is a workspace proposal data only.
+ *
+ * @param value - Unknown value to check or decode.
+ * @param label - label value used by the helper.
+ * @returns The narrowed, validated value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { assertWorkspaceProposalDataOnly } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function assertWorkspaceProposalDataOnly(value: unknown, label = "value"): void {
 	const issues = dataOnlyIssues(value, label);
 	if (issues.length > 0) throw new TypeError(issues[0]?.message ?? `${label} is not data-only`);

@@ -76,6 +76,19 @@ export interface TimeoutBundle<T> {
 	readonly errors: Node<unknown>;
 }
 
+/**
+ * Creates a retry status bundle.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param events - Event node or event collection to consume.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { retryStatusBundle } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function retryStatusBundle(
 	graph: Graph,
 	events: Node<ResilienceEvent>,
@@ -142,6 +155,19 @@ export function retryStatusBundle(
 	return { status, errors };
 }
 
+/**
+ * Creates a breaker bundle.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param events - Event node or event collection to consume.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { breakerBundle } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function breakerBundle(
 	graph: Graph,
 	events: Node<ResilienceEvent>,
@@ -196,6 +222,19 @@ export function breakerBundle(
 	return { status, allowed };
 }
 
+/**
+ * Creates a rate limit bundle.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param source - Source node that provides graph-visible input.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { rateLimitBundle } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function rateLimitBundle<T>(
 	graph: Graph,
 	source: Node<T>,
@@ -276,6 +315,20 @@ export function rateLimitBundle<T>(
 	return { allowed, dropped, status };
 }
 
+/**
+ * Creates a timeout bundle.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param source - Source node that provides graph-visible input.
+ * @param ms - MS value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { timeoutBundle } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function timeoutBundle<T>(
 	graph: Graph,
 	source: Node<T>,
@@ -307,6 +360,17 @@ export function timeoutBundle<T>(
 	return { node, status, errors };
 }
 
+/**
+ * Creates a constant backoff.
+ *
+ * @param delayMs - delay MS value used by the helper.
+ * @returns The constant backoff result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { constantBackoff } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function constantBackoff(delayMs: number): BackoffPolicy {
 	return { kind: "constant", delayMs };
 }

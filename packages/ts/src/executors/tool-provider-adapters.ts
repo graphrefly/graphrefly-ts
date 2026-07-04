@@ -220,6 +220,17 @@ const LOCAL_BUILTIN_TOOLS = Object.freeze([
 	"kind" | "providerId" | "inputKind" | "profileId" | "executorId"
 >[]);
 
+/**
+ * Creates a local builtin tool provider binding.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The local builtin tool provider binding result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { localBuiltinToolProviderBinding } from "@graphrefly/ts/executors/tool-provider-adapters";
+ * ```
+ */
 export function localBuiltinToolProviderBinding(
 	opts: LocalBuiltinToolProviderBindingOptions = {},
 ): ToolProviderAdapterBinding<LocalBuiltinToolArguments, LocalBuiltinToolResult> {
@@ -247,6 +258,17 @@ export function localBuiltinToolProviderBinding(
 	} satisfies ToolProviderAdapterBinding<LocalBuiltinToolArguments, LocalBuiltinToolResult>);
 }
 
+/**
+ * Creates a local builtin tool provider adapter pack.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The local builtin tool provider adapter pack result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { localBuiltinToolProviderAdapterPack } from "@graphrefly/ts/executors/tool-provider-adapters";
+ * ```
+ */
 export function localBuiltinToolProviderAdapterPack(
 	opts: LocalBuiltinToolProviderAdapterPackOptions = {},
 ): ToolProviderAdapterPack<LocalBuiltinToolArguments, LocalBuiltinToolResult> {
@@ -277,6 +299,17 @@ export function localBuiltinToolProviderAdapterPack(
 	});
 }
 
+/**
+ * Creates a process tool provider binding.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The process tool provider binding result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { processToolProviderBinding } from "@graphrefly/ts/executors/tool-provider-adapters";
+ * ```
+ */
 export function processToolProviderBinding(
 	opts: ProcessToolProviderBindingOptions = {},
 ): ToolProviderAdapterBinding<ProcessToolArguments, ProcessToolResult> {
@@ -331,6 +364,17 @@ export function processToolProviderBinding(
 	} satisfies ToolProviderAdapterBinding<ProcessToolArguments, ProcessToolResult>);
 }
 
+/**
+ * Creates a process tool provider adapter pack.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The process tool provider adapter pack result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { processToolProviderAdapterPack } from "@graphrefly/ts/executors/tool-provider-adapters";
+ * ```
+ */
 export function processToolProviderAdapterPack(
 	opts: ProcessToolProviderAdapterPackOptions = {},
 ): ToolProviderAdapterPack<ProcessToolArguments, ProcessToolResult> {
@@ -345,6 +389,17 @@ export function processToolProviderAdapterPack(
 	});
 }
 
+/**
+ * Creates a process tool provider catalog.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The process tool provider catalog result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { processToolProviderCatalog } from "@graphrefly/ts/executors/tool-provider-adapters";
+ * ```
+ */
 export function processToolProviderCatalog(
 	opts: ProcessToolProviderAdapterPackOptions = {},
 ): ToolProviderCatalog {
@@ -429,6 +484,17 @@ export function processToolProviderCatalog(
 	} satisfies ToolProviderCatalog);
 }
 
+/**
+ * Creates a HTTP tool provider catalog.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The HTTP tool provider catalog result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { httpToolProviderCatalog } from "@graphrefly/ts/executors/tool-provider-adapters";
+ * ```
+ */
 export function httpToolProviderCatalog(
 	opts: Omit<HttpToolProviderRuntimeOptions, "inputs" | "runRequests" | "driver"> = {},
 ): ToolProviderCatalog {
@@ -504,6 +570,18 @@ export function httpToolProviderCatalog(
 	} satisfies ToolProviderCatalog);
 }
 
+/**
+ * Creates a HTTP tool provider runtime.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The HTTP tool provider runtime result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { httpToolProviderRuntime } from "@graphrefly/ts/executors/tool-provider-adapters";
+ * ```
+ */
 export function httpToolProviderRuntime(
 	graph: Graph,
 	opts: HttpToolProviderRuntimeOptions,

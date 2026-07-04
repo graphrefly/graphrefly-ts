@@ -67,6 +67,18 @@ export function normalizeToolProviderAdapterBindings<TArguments, TResult>(
 	return result;
 }
 
+/**
+ * Creates a request tool provider adapter run.
+ *
+ * @param input - Input value to project or validate.
+ * @param opts - Options that configure the helper.
+ * @returns The request tool provider adapter run result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { requestToolProviderAdapterRun } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function requestToolProviderAdapterRun(
 	input: ToolProviderAdapterInput,
 	opts: {
@@ -105,6 +117,18 @@ export function requestToolProviderAdapterRun(
 	} satisfies ToolProviderAdapterRunRequested);
 }
 
+/**
+ * Creates a tool provider adapter run projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { toolProviderAdapterRunProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function toolProviderAdapterRunProjector(
 	graph: Graph,
 	opts: {

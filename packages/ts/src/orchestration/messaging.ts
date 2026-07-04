@@ -124,6 +124,19 @@ export function orchestrationMessagingRecipe<
 	};
 }
 
+/**
+ * Creates an orchestration message command.
+ *
+ * @param message - message value used by the helper.
+ * @param delivery - delivery value used by the helper.
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @returns The orchestration message command result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { orchestrationMessageCommand } from "@graphrefly/ts/orchestration/messaging";
+ * ```
+ */
 export function orchestrationMessageCommand<TPayload = unknown, TCommand = unknown>(
 	message: MessageBusMessage<TPayload>,
 	delivery: MessageBusDelivery,
@@ -151,6 +164,18 @@ export function orchestrationMessageCommand<TPayload = unknown, TCommand = unkno
 	);
 }
 
+/**
+ * Creates an orchestration message ack commands.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The orchestration message ack commands result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { orchestrationMessageAckCommands } from "@graphrefly/ts/orchestration/messaging";
+ * ```
+ */
 export function orchestrationMessageAckCommands(
 	graph: Graph,
 	opts: {
@@ -206,6 +231,20 @@ export function orchestrationMessageAckCommands(
 	);
 }
 
+/**
+ * Creates a process event outbox commands.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param events - Event node or event collection to consume.
+ * @param topic - topic value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The process event outbox commands result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { processEventOutboxCommands } from "@graphrefly/ts/orchestration/messaging";
+ * ```
+ */
 export function processEventOutboxCommands<TEvent>(
 	graph: Graph,
 	events: Node<ProcessEvent<TEvent>>,

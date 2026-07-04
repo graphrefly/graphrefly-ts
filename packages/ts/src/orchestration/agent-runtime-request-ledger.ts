@@ -29,6 +29,18 @@ import type {
 	SourceRef,
 } from "./agent-runtime-types-core.js";
 
+/**
+ * Creates an agent request proposal from decision.
+ *
+ * @param decision - Admission decision or interpreter output to project.
+ * @param proposal - Proposal to admit, issue, or project.
+ * @returns The agent request proposal from decision result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { agentRequestProposalFromDecision } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function agentRequestProposalFromDecision(
 	decision: AgentDecisionContinue,
 	proposal: Omit<AgentRequestProposal, "kind" | "effectRunId" | "agentRunId" | "sourceDecisionId">,
@@ -43,6 +55,18 @@ export function agentRequestProposalFromDecision(
 	};
 }
 
+/**
+ * Admits agent request proposal.
+ *
+ * @param proposal - Proposal to admit, issue, or project.
+ * @param opts - Options that configure the helper.
+ * @returns The admit agent request proposal result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { admitAgentRequestProposal } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function admitAgentRequestProposal(
 	proposal: AgentRequestProposal,
 	opts: {
@@ -73,6 +97,19 @@ export function admitAgentRequestProposal(
 	};
 }
 
+/**
+ * Checks whether a value is an issue agent request.
+ *
+ * @param proposal - Proposal to admit, issue, or project.
+ * @param admission - Admission decision paired with the proposal.
+ * @param opts - Options that configure the helper.
+ * @returns `true` when the value matches the expected shape.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { issueAgentRequest } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function issueAgentRequest(
 	proposal: AgentRequestProposal,
 	admission: AgentRequestAdmitted,
@@ -154,6 +191,19 @@ export function sanitizeAgentRequestIssued(request: AgentRequestIssued): AgentRe
 	} satisfies AgentRequestIssued);
 }
 
+/**
+ * Creates an agent request ledger views.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param facts - facts value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The agent request ledger views result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { agentRequestLedgerViews } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function agentRequestLedgerViews(
 	graph: Graph,
 	facts: Node<AgentRequestFact>,

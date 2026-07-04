@@ -121,11 +121,34 @@ interface QueueItem {
 	run(): void | PromiseLike<void>;
 }
 
+/**
+ * Creates an agentic memory records snapshot key.
+ *
+ * @param storagePrefix - Prefix used to derive storage keys.
+ * @returns The stable key or reference string.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { agenticMemoryRecordsSnapshotKey } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function agenticMemoryRecordsSnapshotKey(storagePrefix = "agentic-memory"): string {
 	if (storagePrefix.length === 0) throw new TypeError("storagePrefix must be non-empty");
 	return `${storagePrefix}/records.snapshot`;
 }
 
+/**
+ * Creates an agentic memory record snapshot frame.
+ *
+ * @param records - Records to encode, persist, or project.
+ * @param opts - Options that configure the helper.
+ * @returns The agentic memory record snapshot frame result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { agenticMemoryRecordSnapshotFrame } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function agenticMemoryRecordSnapshotFrame<
 	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
 >(
@@ -141,6 +164,17 @@ export function agenticMemoryRecordSnapshotFrame<
 	});
 }
 
+/**
+ * Creates an agentic memory record change frame.
+ *
+ * @param records - Records to encode, persist, or project.
+ * @returns The agentic memory record change frame result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { agenticMemoryRecordChangeFrame } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function agenticMemoryRecordChangeFrame<
 	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
 >(records: readonly AgenticMemoryRecord<TJson>[]): AgenticMemoryRecordChangeFrame<TJson> {
@@ -154,6 +188,17 @@ export function agenticMemoryRecordChangeFrame<
 	});
 }
 
+/**
+ * Asserts that a value is an agentic memory record snapshot frame.
+ *
+ * @param value - Unknown value to check or decode.
+ * @returns The narrowed, validated value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { assertAgenticMemoryRecordSnapshotFrame } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function assertAgenticMemoryRecordSnapshotFrame<
 	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
 >(value: unknown): AgenticMemoryRecordSnapshotFrame<TJson> {
@@ -185,6 +230,17 @@ export function assertAgenticMemoryRecordSnapshotFrame<
 	});
 }
 
+/**
+ * Asserts that a value is an agentic memory record change frame.
+ *
+ * @param value - Unknown value to check or decode.
+ * @returns The narrowed, validated value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { assertAgenticMemoryRecordChangeFrame } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function assertAgenticMemoryRecordChangeFrame<
 	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
 >(value: unknown): AgenticMemoryRecordChangeFrame<TJson> {
@@ -220,6 +276,17 @@ export function assertAgenticMemoryRecordChangeFrame<
 	});
 }
 
+/**
+ * Loads agentic memory records state.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The load agentic memory records state result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { loadAgenticMemoryRecordsState } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function loadAgenticMemoryRecordsState<
 	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
 >(opts: LoadAgenticMemoryRecordsStateOptions): Promise<AgenticMemoryRecordsRestoreState<TJson>> {
@@ -272,6 +339,19 @@ export function loadAgenticMemoryRecordsState<
 	});
 }
 
+/**
+ * Persists agentic memory records.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param records - Records to encode, persist, or project.
+ * @param opts - Options that configure the helper.
+ * @returns The persist agentic memory records result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { persistAgenticMemoryRecords } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function persistAgenticMemoryRecords<
 	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
 >(
@@ -516,6 +596,17 @@ export function persistAgenticMemoryRecords<
 	};
 }
 
+/**
+ * Opens persistent agentic memory records.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The open persistent agentic memory records result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { openPersistentAgenticMemoryRecords } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function openPersistentAgenticMemoryRecords<
 	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
 >(

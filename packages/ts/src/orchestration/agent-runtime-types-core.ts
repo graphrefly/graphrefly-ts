@@ -64,6 +64,17 @@ export interface EffectRunOptions<TInput = unknown> {
 	readonly metadata?: Record<string, unknown>;
 }
 
+/**
+ * Creates an effect run.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The effect run result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { effectRun } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function effectRun<TInput = unknown>(opts: EffectRunOptions<TInput>): EffectRun<TInput> {
 	return {
 		kind: "effect-run",

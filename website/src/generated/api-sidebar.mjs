@@ -901,8 +901,64 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
+				"label": "agenticMemoryRecordsSnapshotKey()",
+				"link": "/api/agenticmemoryrecordssnapshotkey"
+			},
+			{
+				"label": "agenticMemoryRecordSnapshotFrame()",
+				"link": "/api/agenticmemoryrecordsnapshotframe"
+			},
+			{
+				"label": "agenticMemoryRecordChangeFrame()",
+				"link": "/api/agenticmemoryrecordchangeframe"
+			},
+			{
+				"label": "assertAgenticMemoryRecordSnapshotFrame()",
+				"link": "/api/assertagenticmemoryrecordsnapshotframe"
+			},
+			{
+				"label": "assertAgenticMemoryRecordChangeFrame()",
+				"link": "/api/assertagenticmemoryrecordchangeframe"
+			},
+			{
+				"label": "loadAgenticMemoryRecordsState()",
+				"link": "/api/loadagenticmemoryrecordsstate"
+			},
+			{
+				"label": "persistAgenticMemoryRecords()",
+				"link": "/api/persistagenticmemoryrecords"
+			},
+			{
+				"label": "openPersistentAgenticMemoryRecords()",
+				"link": "/api/openpersistentagenticmemoryrecords"
+			},
+			{
+				"label": "CanonicalProtobufError",
+				"link": "/api/canonicalprotobuferror"
+			},
+			{
+				"label": "decodeCanonicalWireBridgeEnvelope()",
+				"link": "/api/decodecanonicalwirebridgeenvelope"
+			},
+			{
+				"label": "decodeCanonicalWireEdgeFrame()",
+				"link": "/api/decodecanonicalwireedgeframe"
+			},
+			{
+				"label": "encodeCanonicalWireEdgeFrame()",
+				"link": "/api/encodecanonicalwireedgeframe"
+			},
+			{
+				"label": "encodeCanonicalWireBridgeEnvelope()",
+				"link": "/api/encodecanonicalwirebridgeenvelope"
+			},
+			{
 				"label": "remoteCall()",
 				"link": "/api/remotecall"
+			},
+			{
+				"label": "wireEdgeGroup()",
+				"link": "/api/wireedgegroup"
 			},
 			{
 				"label": "wireBridgeIdempotencyKey()",
@@ -913,6 +969,10 @@ export const apiSidebar = [
 				"link": "/api/wirebridgeenvelope"
 			},
 			{
+				"label": "wireBridge()",
+				"link": "/api/wirebridge"
+			},
+			{
 				"label": "wireBridgeAckDriver()",
 				"link": "/api/wirebridgeackdriver"
 			},
@@ -921,8 +981,24 @@ export const apiSidebar = [
 				"link": "/api/wirebridgeprotobuf"
 			},
 			{
+				"label": "remoteResponderHandler()",
+				"link": "/api/remoteresponderhandler"
+			},
+			{
 				"label": "remoteResponder()",
 				"link": "/api/remoteresponder"
+			},
+			{
+				"label": "toHttp()",
+				"link": "/api/tohttp"
+			},
+			{
+				"label": "toProcess()",
+				"link": "/api/toprocess"
+			},
+			{
+				"label": "toWebSocket()",
+				"link": "/api/towebsocket"
 			},
 			{
 				"label": "webSocketSession()",
@@ -1041,6 +1117,58 @@ export const apiSidebar = [
 				"link": "/api/graphmessagereply"
 			},
 			{
+				"label": "createNestGraphBoundaryRunner()",
+				"link": "/api/createnestgraphboundaryrunner"
+			},
+			{
+				"label": "createNestGraphBoundaryInterceptor()",
+				"link": "/api/createnestgraphboundaryinterceptor"
+			},
+			{
+				"label": "getNestBoundaryBindings()",
+				"link": "/api/getnestboundarybindings"
+			},
+			{
+				"label": "resolveNestMethodKey()",
+				"link": "/api/resolvenestmethodkey"
+			},
+			{
+				"label": "bindingRequestId()",
+				"link": "/api/bindingrequestid"
+			},
+			{
+				"label": "bindingEmitOptions()",
+				"link": "/api/bindingemitoptions"
+			},
+			{
+				"label": "isDataIssue()",
+				"link": "/api/isdataissue"
+			},
+			{
+				"label": "isHttpDataIssue()",
+				"link": "/api/ishttpdataissue"
+			},
+			{
+				"label": "issueResponse()",
+				"link": "/api/issueresponse"
+			},
+			{
+				"label": "protocolError()",
+				"link": "/api/protocolerror"
+			},
+			{
+				"label": "lowerHttpReplyPayload()",
+				"link": "/api/lowerhttpreplypayload"
+			},
+			{
+				"label": "lowerProtocolError()",
+				"link": "/api/lowerprotocolerror"
+			},
+			{
+				"label": "sanitizeNestDiagnostic()",
+				"link": "/api/sanitizenestdiagnostic"
+			},
+			{
 				"label": "OnGraphEvent()",
 				"link": "/api/ongraphevent"
 			},
@@ -1059,6 +1187,74 @@ export const apiSidebar = [
 			{
 				"label": "createGraphMessageBridge()",
 				"link": "/api/creategraphmessagebridge"
+			},
+			{
+				"label": "provideGraphBoundaryInterceptor()",
+				"link": "/api/providegraphboundaryinterceptor"
+			},
+			{
+				"label": "provideGraphGuard()",
+				"link": "/api/providegraphguard"
+			},
+			{
+				"label": "provideGraphExceptionFilter()",
+				"link": "/api/providegraphexceptionfilter"
+			},
+			{
+				"label": "createGraphExceptionFilter()",
+				"link": "/api/creategraphexceptionfilter"
+			},
+			{
+				"label": "provideGraphGuardDeniedFilter()",
+				"link": "/api/providegraphguarddeniedfilter"
+			},
+			{
+				"label": "createGraphGuardDeniedFilter()",
+				"link": "/api/creategraphguarddeniedfilter"
+			},
+			{
+				"label": "provideGraphCronScheduler()",
+				"link": "/api/providegraphcronscheduler"
+			},
+			{
+				"label": "provideGraphLifecycleHooks()",
+				"link": "/api/providegraphlifecyclehooks"
+			},
+			{
+				"label": "provideGraphNativeHttpProviders()",
+				"link": "/api/providegraphnativehttpproviders"
+			},
+			{
+				"label": "provideGraphNativeProviders()",
+				"link": "/api/providegraphnativeproviders"
+			},
+			{
+				"label": "graphCronTarget()",
+				"link": "/api/graphcrontarget"
+			},
+			{
+				"label": "graphLifecycleTarget()",
+				"link": "/api/graphlifecycletarget"
+			},
+			{
+				"label": "createGraphCronController()",
+				"link": "/api/creategraphcroncontroller"
+			},
+			{
+				"label": "GraphExceptionFilterBridge",
+				"link": "/api/graphexceptionfilterbridge"
+			},
+			{
+				"label": "GraphGuardDeniedException",
+				"link": "/api/graphguarddeniedexception"
+			},
+			{
+				"label": "isGraphGuardDeniedException()",
+				"link": "/api/isgraphguarddeniedexception"
+			},
+			{
+				"label": "GraphGuardDeniedFilter",
+				"link": "/api/graphguarddeniedfilter"
 			},
 			{
 				"label": "provideGraphWsBridge()",
@@ -1137,12 +1333,32 @@ export const apiSidebar = [
 				"link": "/api/readablestore"
 			},
 			{
+				"label": "writableStore()",
+				"link": "/api/writablestore"
+			},
+			{
 				"label": "externalStore()",
 				"link": "/api/externalstore"
 			},
 			{
 				"label": "recordReadableStore()",
 				"link": "/api/recordreadablestore"
+			},
+			{
+				"label": "zustandStore()",
+				"link": "/api/zustandstore"
+			},
+			{
+				"label": "jotaiAtom()",
+				"link": "/api/jotaiatom"
+			},
+			{
+				"label": "nanoAtom()",
+				"link": "/api/nanoatom"
+			},
+			{
+				"label": "signalFromNode()",
+				"link": "/api/signalfromnode"
 			},
 			{
 				"label": "nodeReadable()",
@@ -1177,6 +1393,36 @@ export const apiSidebar = [
 		]
 	},
 	{
+		"label": "Messaging",
+		"collapsed": true,
+		"items": [
+			{
+				"label": "eventMessage()",
+				"link": "/api/eventmessage"
+			},
+			{
+				"label": "isEventMessage()",
+				"link": "/api/iseventmessage"
+			},
+			{
+				"label": "eventMessageIssue()",
+				"link": "/api/eventmessageissue"
+			},
+			{
+				"label": "messageBus()",
+				"link": "/api/messagebus"
+			},
+			{
+				"label": "fromTopic()",
+				"link": "/api/fromtopic"
+			},
+			{
+				"label": "toTopic()",
+				"link": "/api/totopic"
+			}
+		]
+	},
+	{
 		"label": "Cqrs",
 		"collapsed": true,
 		"items": [
@@ -1197,8 +1443,28 @@ export const apiSidebar = [
 				"link": "/api/cqrsmessagingrecipe"
 			},
 			{
+				"label": "cqrsMessageCommand()",
+				"link": "/api/cqrsmessagecommand"
+			},
+			{
+				"label": "cqrsMessageAckCommands()",
+				"link": "/api/cqrsmessageackcommands"
+			},
+			{
+				"label": "cqrsEventOutboxCommands()",
+				"link": "/api/cqrseventoutboxcommands"
+			},
+			{
 				"label": "cqrsWorkQueueRecipe()",
 				"link": "/api/cqrsworkqueuerecipe"
+			},
+			{
+				"label": "cqrsSubmitCommand()",
+				"link": "/api/cqrssubmitcommand"
+			},
+			{
+				"label": "cqrsWorkQueueDispositionCommand()",
+				"link": "/api/cqrsworkqueuedispositioncommand"
 			}
 		]
 	},
@@ -1207,8 +1473,120 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
+				"label": "requestToolProviderAdapterRun()",
+				"link": "/api/requesttoolprovideradapterrun"
+			},
+			{
+				"label": "toolProviderAdapterRunProjector()",
+				"link": "/api/toolprovideradapterrunprojector"
+			},
+			{
+				"label": "structuredAgentDecisionInterpreter()",
+				"link": "/api/structuredagentdecisioninterpreter"
+			},
+			{
+				"label": "effectRunCompletionProjector()",
+				"link": "/api/effectruncompletionprojector"
+			},
+			{
+				"label": "buildToolProviderExecutorOutcome()",
+				"link": "/api/buildtoolproviderexecutoroutcome"
+			},
+			{
+				"label": "fakeExecutorResult()",
+				"link": "/api/fakeexecutorresult"
+			},
+			{
+				"label": "fakeExecutorFailure()",
+				"link": "/api/fakeexecutorfailure"
+			},
+			{
+				"label": "fakeExecutorBlocked()",
+				"link": "/api/fakeexecutorblocked"
+			},
+			{
+				"label": "fakeExecutorTimeout()",
+				"link": "/api/fakeexecutortimeout"
+			},
+			{
+				"label": "fakeExecutorCanceled()",
+				"link": "/api/fakeexecutorcanceled"
+			},
+			{
+				"label": "executorOutcomeViewProjector()",
+				"link": "/api/executoroutcomeviewprojector"
+			},
+			{
+				"label": "agentRequestProposalFromDecision()",
+				"link": "/api/agentrequestproposalfromdecision"
+			},
+			{
+				"label": "admitAgentRequestProposal()",
+				"link": "/api/admitagentrequestproposal"
+			},
+			{
+				"label": "issueAgentRequest()",
+				"link": "/api/issueagentrequest"
+			},
+			{
+				"label": "agentRequestLedgerViews()",
+				"link": "/api/agentrequestledgerviews"
+			},
+			{
+				"label": "requestSatisfactionProjector()",
+				"link": "/api/requestsatisfactionprojector"
+			},
+			{
+				"label": "buildToolProviderAdapterInputs()",
+				"link": "/api/buildtoolprovideradapterinputs"
+			},
+			{
+				"label": "toolProviderAdapterInputProjector()",
+				"link": "/api/toolprovideradapterinputprojector"
+			},
+			{
+				"label": "localBuiltinToolProviderCatalog()",
+				"link": "/api/localbuiltintoolprovidercatalog"
+			},
+			{
+				"label": "validateToolProviderExecutionPolicy()",
+				"link": "/api/validatetoolproviderexecutionpolicy"
+			},
+			{
+				"label": "resolveToolProviderExecutionPolicies()",
+				"link": "/api/resolvetoolproviderexecutionpolicies"
+			},
+			{
+				"label": "toolProviderPolicyResolutionProjector()",
+				"link": "/api/toolproviderpolicyresolutionprojector"
+			},
+			{
+				"label": "toolProviderRunAdmissionProjector()",
+				"link": "/api/toolproviderrunadmissionprojector"
+			},
+			{
+				"label": "toolProviderRunRetryProjector()",
+				"link": "/api/toolproviderrunretryprojector"
+			},
+			{
+				"label": "effectRun()",
+				"link": "/api/effectrun"
+			},
+			{
 				"label": "orchestrationMessagingRecipe()",
 				"link": "/api/orchestrationmessagingrecipe"
+			},
+			{
+				"label": "orchestrationMessageCommand()",
+				"link": "/api/orchestrationmessagecommand"
+			},
+			{
+				"label": "orchestrationMessageAckCommands()",
+				"link": "/api/orchestrationmessageackcommands"
+			},
+			{
+				"label": "processEventOutboxCommands()",
+				"link": "/api/processeventoutboxcommands"
 			},
 			{
 				"label": "processBundle()",
@@ -1217,6 +1595,30 @@ export const apiSidebar = [
 			{
 				"label": "processEffectRunner()",
 				"link": "/api/processeffectrunner"
+			},
+			{
+				"label": "retryStatusBundle()",
+				"link": "/api/retrystatusbundle"
+			},
+			{
+				"label": "breakerBundle()",
+				"link": "/api/breakerbundle"
+			},
+			{
+				"label": "rateLimitBundle()",
+				"link": "/api/ratelimitbundle"
+			},
+			{
+				"label": "timeoutBundle()",
+				"link": "/api/timeoutbundle"
+			},
+			{
+				"label": "constantBackoff()",
+				"link": "/api/constantbackoff"
+			},
+			{
+				"label": "scheduledReadinessProjector()",
+				"link": "/api/scheduledreadinessprojector"
 			},
 			{
 				"label": "workQueueScheduledReadinessProjector()",
@@ -1233,6 +1635,10 @@ export const apiSidebar = [
 			{
 				"label": "orchestrationWorkQueueRecipe()",
 				"link": "/api/orchestrationworkqueuerecipe"
+			},
+			{
+				"label": "processEffectSubmitCommand()",
+				"link": "/api/processeffectsubmitcommand"
 			}
 		]
 	},
@@ -1240,6 +1646,14 @@ export const apiSidebar = [
 		"label": "Patterns",
 		"collapsed": true,
 		"items": [
+			{
+				"label": "eventFlow()",
+				"link": "/api/eventflow"
+			},
+			{
+				"label": "eventFlowProjection()",
+				"link": "/api/eventflowprojection"
+			},
 			{
 				"label": "profileSummary()",
 				"link": "/api/profilesummary"
@@ -1291,8 +1705,28 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
+				"label": "workItemDomainActionAdmissionProjector()",
+				"link": "/api/workitemdomainactionadmissionprojector"
+			},
+			{
+				"label": "agenticMemoryBundle()",
+				"link": "/api/agenticmemorybundle"
+			},
+			{
 				"label": "agenticMemoryConsolidationApplicationBundle()",
 				"link": "/api/agenticmemoryconsolidationapplicationbundle"
+			},
+			{
+				"label": "agenticMemoryConsolidationBundle()",
+				"link": "/api/agenticmemoryconsolidationbundle"
+			},
+			{
+				"label": "agenticMemoryContextPackingBundle()",
+				"link": "/api/agenticmemorycontextpackingbundle"
+			},
+			{
+				"label": "agenticMemoryRecordFrame()",
+				"link": "/api/agenticmemoryrecordframe"
 			},
 			{
 				"label": "assertAgenticMemoryRecordFrame()",
@@ -1305,6 +1739,38 @@ export const apiSidebar = [
 			{
 				"label": "agenticMemoryRecordCodec()",
 				"link": "/api/agenticmemoryrecordcodec"
+			},
+			{
+				"label": "agenticMemoryKgProjectionBundle()",
+				"link": "/api/agenticmemorykgprojectionbundle"
+			},
+			{
+				"label": "agenticMemoryRecordAdmissionBundle()",
+				"link": "/api/agenticmemoryrecordadmissionbundle"
+			},
+			{
+				"label": "admitAgenticMemoryRecordProposals()",
+				"link": "/api/admitagenticmemoryrecordproposals"
+			},
+			{
+				"label": "agenticMemoryRecordApplicationBundle()",
+				"link": "/api/agenticmemoryrecordapplicationbundle"
+			},
+			{
+				"label": "applyAgenticMemoryRecordAdmissions()",
+				"link": "/api/applyagenticmemoryrecordadmissions"
+			},
+			{
+				"label": "agenticMemoryRetentionBundle()",
+				"link": "/api/agenticmemoryretentionbundle"
+			},
+			{
+				"label": "capabilityAdmissionProposal()",
+				"link": "/api/capabilityadmissionproposal"
+			},
+			{
+				"label": "capabilityAdmissionProjector()",
+				"link": "/api/capabilityadmissionprojector"
 			},
 			{
 				"label": "InjectedMeasureAdapter",
@@ -1475,8 +1941,124 @@ export const apiSidebar = [
 				"link": "/api/skiareadytextmeasurements"
 			},
 			{
+				"label": "workItemDomainActionApplicationProjector()",
+				"link": "/api/workitemdomainactionapplicationprojector"
+			},
+			{
+				"label": "workItemDomainActionProposal()",
+				"link": "/api/workitemdomainactionproposal"
+			},
+			{
+				"label": "workItemDomainActionProposalIntake()",
+				"link": "/api/workitemdomainactionproposalintake"
+			},
+			{
+				"label": "workItemDomainActionApplyPolicy()",
+				"link": "/api/workitemdomainactionapplypolicy"
+			},
+			{
 				"label": "workItemDomainActionCapabilityGuardProjector()",
 				"link": "/api/workitemdomainactioncapabilityguardprojector"
+			},
+			{
+				"label": "workItemDomainActionProposalIntakeProjector()",
+				"link": "/api/workitemdomainactionproposalintakeprojector"
+			},
+			{
+				"label": "workItemAuthoringProjector()",
+				"link": "/api/workitemauthoringprojector"
+			},
+			{
+				"label": "workItemCreatedFromDraft()",
+				"link": "/api/workitemcreatedfromdraft"
+			},
+			{
+				"label": "workItemSpawnProposed()",
+				"link": "/api/workitemspawnproposed"
+			},
+			{
+				"label": "acceptanceCriteriaChanged()",
+				"link": "/api/acceptancecriteriachanged"
+			},
+			{
+				"label": "verificationPlanChanged()",
+				"link": "/api/verificationplanchanged"
+			},
+			{
+				"label": "validateWorkItemEffectPlan()",
+				"link": "/api/validateworkitemeffectplan"
+			},
+			{
+				"label": "workItemEffectPlanProjector()",
+				"link": "/api/workitemeffectplanprojector"
+			},
+			{
+				"label": "validateWorkItemDraft()",
+				"link": "/api/validateworkitemdraft"
+			},
+			{
+				"label": "validateAcceptanceCriteria()",
+				"link": "/api/validateacceptancecriteria"
+			},
+			{
+				"label": "validateVerificationPlan()",
+				"link": "/api/validateverificationplan"
+			},
+			{
+				"label": "workItemVerificationRequestLowerer()",
+				"link": "/api/workitemverificationrequestlowerer"
+			},
+			{
+				"label": "workItemVerificationResultMapper()",
+				"link": "/api/workitemverificationresultmapper"
+			},
+			{
+				"label": "workItemWorkQueueRecipe()",
+				"link": "/api/workitemworkqueuerecipe"
+			},
+			{
+				"label": "workItemSubmitCommand()",
+				"link": "/api/workitemsubmitcommand"
+			},
+			{
+				"label": "workspaceProposalRequiredInputResponseApplicationProjector()",
+				"link": "/api/workspaceproposalrequiredinputresponseapplicationprojector"
+			},
+			{
+				"label": "workspaceProposalWorkItemSpawnApplicationProjector()",
+				"link": "/api/workspaceproposalworkitemspawnapplicationprojector"
+			},
+			{
+				"label": "workspaceProposalWorkItemLinkApplicationProjector()",
+				"link": "/api/workspaceproposalworkitemlinkapplicationprojector"
+			},
+			{
+				"label": "workspaceProposalDomainActionApplicationProjector()",
+				"link": "/api/workspaceproposaldomainactionapplicationprojector"
+			},
+			{
+				"label": "recordWorkspaceProposalRequiredInputResponseOutcome()",
+				"link": "/api/recordworkspaceproposalrequiredinputresponseoutcome"
+			},
+			{
+				"label": "recordWorkspaceProposalWorkItemSpawnOutcome()",
+				"link": "/api/recordworkspaceproposalworkitemspawnoutcome"
+			},
+			{
+				"label": "recordWorkspaceProposalWorkItemLinkOutcome()",
+				"link": "/api/recordworkspaceproposalworkitemlinkoutcome"
+			},
+			{
+				"label": "recordWorkspaceProposalDomainActionOutcome()",
+				"link": "/api/recordworkspaceproposaldomainactionoutcome"
+			},
+			{
+				"label": "workspaceProposalFamilyOutcomeRef()",
+				"link": "/api/workspaceproposalfamilyoutcomeref"
+			},
+			{
+				"label": "projectWorkspaceProposalFamilyOutcomeIndex()",
+				"link": "/api/projectworkspaceproposalfamilyoutcomeindex"
 			},
 			{
 				"label": "projectWorkspaceProposalFamilyApplicationDiagnostics()",
@@ -1495,12 +2077,36 @@ export const apiSidebar = [
 				"link": "/api/workspaceproposalrepairreviewprojector"
 			},
 			{
+				"label": "projectWorkspaceProposalRepairReviewStatuses()",
+				"link": "/api/projectworkspaceproposalrepairreviewstatuses"
+			},
+			{
+				"label": "recordWorkspaceProposalRepairReviewDecision()",
+				"link": "/api/recordworkspaceproposalrepairreviewdecision"
+			},
+			{
+				"label": "projectWorkspaceProposalRepairReviewDecisionRecordings()",
+				"link": "/api/projectworkspaceproposalrepairreviewdecisionrecordings"
+			},
+			{
 				"label": "workspaceProposalRepairReviewDecisionRecordingProjector()",
 				"link": "/api/workspaceproposalrepairreviewdecisionrecordingprojector"
 			},
 			{
 				"label": "workspaceProposalRepairReviewStatusProjector()",
 				"link": "/api/workspaceproposalrepairreviewstatusprojector"
+			},
+			{
+				"label": "projectWorkspaceProposalFamilyApplicationReadModel()",
+				"link": "/api/projectworkspaceproposalfamilyapplicationreadmodel"
+			},
+			{
+				"label": "projectWorkspaceProposalFamilyApplicationReadModels()",
+				"link": "/api/projectworkspaceproposalfamilyapplicationreadmodels"
+			},
+			{
+				"label": "workspaceProposalProjectionReleaseDiagnosticProjector()",
+				"link": "/api/workspaceproposalprojectionreleasediagnosticprojector"
 			},
 			{
 				"label": "workspaceProposalFamilyApplicationReadModelProjector()",
@@ -1511,12 +2117,120 @@ export const apiSidebar = [
 				"link": "/api/workspaceproposalfamilyapplicationreadmodelsprojector"
 			},
 			{
+				"label": "projectWorkspaceProposalFamilyOutcomeDetailSupplyResults()",
+				"link": "/api/projectworkspaceproposalfamilyoutcomedetailsupplyresults"
+			},
+			{
+				"label": "projectWorkspaceProposalFamilyOutcomeDetailSupplyResult()",
+				"link": "/api/projectworkspaceproposalfamilyoutcomedetailsupplyresult"
+			},
+			{
+				"label": "workspaceProposalFamilyOutcomeDetailSupplyProjector()",
+				"link": "/api/workspaceproposalfamilyoutcomedetailsupplyprojector"
+			},
+			{
+				"label": "projectWorkspaceProposalRepairActionDescriptors()",
+				"link": "/api/projectworkspaceproposalrepairactiondescriptors"
+			},
+			{
+				"label": "workspaceProposalRepairActionDescriptorProjector()",
+				"link": "/api/workspaceproposalrepairactiondescriptorprojector"
+			},
+			{
+				"label": "validateWorkspaceProposalRepairActionIntent()",
+				"link": "/api/validateworkspaceproposalrepairactionintent"
+			},
+			{
+				"label": "prepareWorkspaceProposalRepairReviewDecisionRecordingInput()",
+				"link": "/api/prepareworkspaceproposalrepairreviewdecisionrecordinginput"
+			},
+			{
+				"label": "projectWorkspaceProposalRepairSuccessorProposalIntakePreview()",
+				"link": "/api/projectworkspaceproposalrepairsuccessorproposalintakepreview"
+			},
+			{
+				"label": "previewWorkspaceProposalRepairSuccessorProposalIntake()",
+				"link": "/api/previewworkspaceproposalrepairsuccessorproposalintake"
+			},
+			{
+				"label": "validateWorkspaceProposalRepairActionDisplayPolicyAdvisory()",
+				"link": "/api/validateworkspaceproposalrepairactiondisplaypolicyadvisory"
+			},
+			{
+				"label": "projectWorkspaceProposalRepairActionDisplayPolicyAdvisory()",
+				"link": "/api/projectworkspaceproposalrepairactiondisplaypolicyadvisory"
+			},
+			{
+				"label": "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector()",
+				"link": "/api/workspaceproposalrepairactiondisplaypolicyadvisoryprojector"
+			},
+			{
+				"label": "prepareWorkspaceProposalRepairSuccessorProposalReadyRequest()",
+				"link": "/api/prepareworkspaceproposalrepairsuccessorproposalreadyrequest"
+			},
+			{
+				"label": "workspaceProposalRepairActionIntentProjector()",
+				"link": "/api/workspaceproposalrepairactionintentprojector"
+			},
+			{
+				"label": "workspaceProposalRepairSuccessorProposalIntakePreviewProjector()",
+				"link": "/api/workspaceproposalrepairsuccessorproposalintakepreviewprojector"
+			},
+			{
+				"label": "workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector()",
+				"link": "/api/workspaceproposalrepairsuccessorproposalreadyrequestpreparationprojector"
+			},
+			{
 				"label": "isWorkspaceProposalProjectionReleaseMaterial()",
 				"link": "/api/isworkspaceproposalprojectionreleasematerial"
 			},
 			{
 				"label": "validateWorkspaceProposalProjectionReleaseMaterial()",
 				"link": "/api/validateworkspaceproposalprojectionreleasematerial"
+			},
+			{
+				"label": "projectWorkspaceProposalRequiredInputResponseApplication()",
+				"link": "/api/projectworkspaceproposalrequiredinputresponseapplication"
+			},
+			{
+				"label": "projectWorkspaceProposalWorkItemSpawnApplication()",
+				"link": "/api/projectworkspaceproposalworkitemspawnapplication"
+			},
+			{
+				"label": "projectWorkspaceProposalWorkItemLinkApplication()",
+				"link": "/api/projectworkspaceproposalworkitemlinkapplication"
+			},
+			{
+				"label": "projectWorkspaceProposalDomainActionApplicationStatus()",
+				"link": "/api/projectworkspaceproposaldomainactionapplicationstatus"
+			},
+			{
+				"label": "recordWorkspaceProposal()",
+				"link": "/api/recordworkspaceproposal"
+			},
+			{
+				"label": "decideWorkspaceProposalAdmission()",
+				"link": "/api/decideworkspaceproposaladmission"
+			},
+			{
+				"label": "projectWorkspaceProposalApplicationStatus()",
+				"link": "/api/projectworkspaceproposalapplicationstatus"
+			},
+			{
+				"label": "validateWorkspaceProposalApplicationEnvelope()",
+				"link": "/api/validateworkspaceproposalapplicationenvelope"
+			},
+			{
+				"label": "workspaceProposalApplicationFamilyRef()",
+				"link": "/api/workspaceproposalapplicationfamilyref"
+			},
+			{
+				"label": "workspaceProposalDataOnlyIssues()",
+				"link": "/api/workspaceproposaldataonlyissues"
+			},
+			{
+				"label": "assertWorkspaceProposalDataOnly()",
+				"link": "/api/assertworkspaceproposaldataonly"
 			}
 		]
 	},
@@ -1551,6 +2265,56 @@ export const apiSidebar = [
 		]
 	},
 	{
+		"label": "Executors",
+		"collapsed": true,
+		"items": [
+			{
+				"label": "localBuiltinToolProviderBinding()",
+				"link": "/api/localbuiltintoolproviderbinding"
+			},
+			{
+				"label": "localBuiltinToolProviderAdapterPack()",
+				"link": "/api/localbuiltintoolprovideradapterpack"
+			},
+			{
+				"label": "processToolProviderBinding()",
+				"link": "/api/processtoolproviderbinding"
+			},
+			{
+				"label": "processToolProviderAdapterPack()",
+				"link": "/api/processtoolprovideradapterpack"
+			},
+			{
+				"label": "processToolProviderCatalog()",
+				"link": "/api/processtoolprovidercatalog"
+			},
+			{
+				"label": "httpToolProviderCatalog()",
+				"link": "/api/httptoolprovidercatalog"
+			},
+			{
+				"label": "httpToolProviderRuntime()",
+				"link": "/api/httptoolproviderruntime"
+			},
+			{
+				"label": "toolProviderExecutionRecipe()",
+				"link": "/api/toolproviderexecutionrecipe"
+			},
+			{
+				"label": "executorWorkQueueRecipe()",
+				"link": "/api/executorworkqueuerecipe"
+			},
+			{
+				"label": "executorSubmitCommand()",
+				"link": "/api/executorsubmitcommand"
+			},
+			{
+				"label": "attachToolProviderAdapterRuntime()",
+				"link": "/api/attachtoolprovideradapterruntime"
+			}
+		]
+	},
+	{
 		"label": "Json",
 		"collapsed": true,
 		"items": [
@@ -1577,6 +2341,16 @@ export const apiSidebar = [
 			{
 				"label": "assertStrictJsonObject()",
 				"link": "/api/assertstrictjsonobject"
+			}
+		]
+	},
+	{
+		"label": "Memory",
+		"collapsed": true,
+		"items": [
+			{
+				"label": "isMemoryFragment()",
+				"link": "/api/ismemoryfragment"
 			}
 		]
 	},

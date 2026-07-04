@@ -75,6 +75,18 @@ import type {
 	ToolProviderAdapterRuntimeStatus,
 } from "./agent-runtime-types-tool.js";
 
+/**
+ * Creates an attach tool provider adapter runtime.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The attach tool provider adapter runtime result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { attachToolProviderAdapterRuntime } from "@graphrefly/ts/executors/tool-provider-runtime";
+ * ```
+ */
 export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult = unknown>(
 	graph: Graph,
 	opts: ToolProviderAdapterRuntimeOptions<TArguments, TResult>,

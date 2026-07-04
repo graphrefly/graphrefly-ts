@@ -133,7 +133,7 @@ export {
 	type KnowledgeAssertion,
 	type KnowledgeAssertionObject,
 	type KnowledgeAssertionSubject,
-} from "./agentic-memory.js";
+} from "./agentic-memory/index.js";
 
 export {
 	type CapabilityAdmission,

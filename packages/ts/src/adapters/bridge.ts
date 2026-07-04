@@ -233,6 +233,18 @@ export function wireBridgeEnvelope<TData = unknown>(input: {
 	};
 }
 
+/**
+ * Creates a wire bridge.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The wire bridge result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { wireBridge } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 	graph: Graph,
 	opts: WireBridgeOptions,
@@ -902,6 +914,18 @@ export function wireBridgeProtobuf(
 	};
 }
 
+/**
+ * Creates a remote responder handler.
+ *
+ * @param operation - Remote operation descriptor.
+ * @param handle - Handle for the remote responder operation.
+ * @returns The remote responder handler result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { remoteResponderHandler } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function remoteResponderHandler<TRequest = unknown, TResponse = unknown>(
 	operation: string,
 	handle: RemoteResponderHandler<TRequest, TResponse>,

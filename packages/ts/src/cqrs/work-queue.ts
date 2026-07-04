@@ -152,6 +152,18 @@ export function cqrsWorkQueueRecipe<TCommand = unknown>(
 	};
 }
 
+/**
+ * Creates a CQRS submit command.
+ *
+ * @param command - command value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The CQRS submit command result.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsSubmitCommand } from "@graphrefly/ts/cqrs/work-queue";
+ * ```
+ */
 export function cqrsSubmitCommand<TCommand>(
 	command: CqrsCommand<TCommand>,
 	opts: {
@@ -188,6 +200,19 @@ export function cqrsSubmitCommand<TCommand>(
 	};
 }
 
+/**
+ * Creates a CQRS work queue disposition command.
+ *
+ * @param attempt - attempt value used by the helper.
+ * @param outcome - Outcome value to record or index.
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @returns The CQRS work queue disposition command result.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsWorkQueueDispositionCommand } from "@graphrefly/ts/cqrs/work-queue";
+ * ```
+ */
 export function cqrsWorkQueueDispositionCommand<TCommand>(
 	attempt: CqrsWorkQueueAttempt<TCommand>,
 	outcome: CqrsWorkQueueOutcome,

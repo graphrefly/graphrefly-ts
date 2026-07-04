@@ -103,6 +103,18 @@ export interface ScheduledReadinessBundle {
 	readonly views: Node<ScheduledReadinessViews>;
 }
 
+/**
+ * Creates a scheduled readiness projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { scheduledReadinessProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function scheduledReadinessProjector(
 	graph: Graph,
 	opts: {

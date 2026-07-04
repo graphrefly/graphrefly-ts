@@ -137,6 +137,18 @@ interface EventFlowRuntimeState {
 	highWater: Map<string, EventFlowSourceHighWater>;
 }
 
+/**
+ * Creates an event flow.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The event flow result.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { eventFlow } from "@graphrefly/ts/patterns/event-flow";
+ * ```
+ */
 export function eventFlow<T = unknown>(
 	graph: Graph,
 	opts: EventFlowOptions<T>,
@@ -190,6 +202,19 @@ export function eventFlow<T = unknown>(
 	};
 }
 
+/**
+ * Creates an event flow projection.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param flowOrRecords - flow or records value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The event flow projection result.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { eventFlowProjection } from "@graphrefly/ts/patterns/event-flow";
+ * ```
+ */
 export function eventFlowProjection<TState, TPayload = unknown>(
 	graph: Graph,
 	flowOrRecords: EventFlowBundle<TPayload> | Node<EventFlowRecord<TPayload>>,

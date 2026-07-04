@@ -101,6 +101,18 @@ const DEFAULT_EVIDENCE_RECORDS: readonly WorkQueueRecord["kind"][] = [
 	"work-dead-lettered",
 ];
 
+/**
+ * Creates a work item work queue recipe.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemWorkQueueRecipe } from "@graphrefly/ts/solutions/work-item/work-queue";
+ * ```
+ */
 export function workItemWorkQueueRecipe(
 	graph: Graph,
 	opts: WorkItemWorkQueueRecipeOptions,
@@ -168,6 +180,18 @@ export function workItemWorkQueueRecipe(
 	};
 }
 
+/**
+ * Creates a work item submit command.
+ *
+ * @param request - Request value to lower, route, or record.
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @returns The work item submit command result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemSubmitCommand } from "@graphrefly/ts/solutions/work-item/work-queue";
+ * ```
+ */
 export function workItemSubmitCommand(
 	request: WorkItemEffectRequested,
 	policy?: WorkItemWorkQueuePolicy,

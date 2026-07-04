@@ -39,6 +39,18 @@ import {
 	type WorkItemProjection,
 } from "./scheduling.js";
 
+/**
+ * Creates a work item domain action application projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemDomainActionApplicationProjector } from "@graphrefly/ts/solutions/work-item/actions";
+ * ```
+ */
 export function workItemDomainActionApplicationProjector<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemDomainActionApplicationOptions<TInput>,

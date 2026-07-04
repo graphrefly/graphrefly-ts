@@ -125,42 +125,128 @@ export interface GraphNativeProviderBundleOptions<THost = unknown> {
 	readonly lifecycleHooks?: GraphLifecycleHooksProviderOptions;
 }
 
+/**
+ * Creates Nest provider bindings for graph boundary interceptor.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns Nest provider definitions for the requested boundary.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphBoundaryInterceptor } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function provideGraphBoundaryInterceptor<THost = unknown>(
 	opts: GraphNativeHttpOptions<THost> = {},
 ): Provider {
 	return { provide: APP_INTERCEPTOR, useValue: new GraphBoundaryInterceptorBridge(opts) };
 }
 
+/**
+ * Creates Nest provider bindings for graph guard.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns Nest provider definitions for the requested boundary.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphGuard } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function provideGraphGuard<THost = unknown>(
 	opts: GraphNativeHttpOptions<THost> = {},
 ): Provider {
 	return { provide: APP_GUARD, useValue: new GraphGuardBridge(opts) };
 }
 
+/**
+ * Creates Nest provider bindings for graph exception filter.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns Nest provider definitions for the requested boundary.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphExceptionFilter } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function provideGraphExceptionFilter<THost = unknown>(
 	opts: GraphExceptionFilterProviderOptions<THost>,
 ): Provider {
 	return { provide: GRAPHREFLY_NEST_EXCEPTION_FILTER, useValue: createGraphExceptionFilter(opts) };
 }
 
+/**
+ * Creates a graph exception filter.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The create graph exception filter result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { createGraphExceptionFilter } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function createGraphExceptionFilter<THost = unknown>(
 	opts: GraphExceptionFilterProviderOptions<THost>,
 ): ExceptionFilter & OnModuleDestroy {
 	return new GraphExceptionFilterBridge(opts);
 }
 
+/**
+ * Creates Nest provider bindings for graph guard denied filter.
+ *
+ * @returns Nest provider definitions for the requested boundary.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphGuardDeniedFilter } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function provideGraphGuardDeniedFilter(): Provider {
 	return GraphGuardDeniedFilter;
 }
 
+/**
+ * Creates a graph guard denied filter.
+ *
+ * @returns The create graph guard denied filter result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { createGraphGuardDeniedFilter } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function createGraphGuardDeniedFilter(): ExceptionFilter {
 	return new GraphGuardDeniedFilter();
 }
 
+/**
+ * Creates Nest provider bindings for graph cron scheduler.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns Nest provider definitions for the requested boundary.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphCronScheduler } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function provideGraphCronScheduler(opts: GraphCronSchedulerProviderOptions): Provider {
 	return { provide: GRAPHREFLY_NEST_CRON_SCHEDULER, useValue: new GraphCronSchedulerBridge(opts) };
 }
 
+/**
+ * Creates Nest provider bindings for graph lifecycle hooks.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns Nest provider definitions for the requested boundary.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphLifecycleHooks } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function provideGraphLifecycleHooks(opts: GraphLifecycleHooksProviderOptions): Provider {
 	return {
 		provide: GRAPHREFLY_NEST_LIFECYCLE_HOOKS,
@@ -168,6 +254,17 @@ export function provideGraphLifecycleHooks(opts: GraphLifecycleHooksProviderOpti
 	};
 }
 
+/**
+ * Creates Nest provider bindings for graph native HTTP providers.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns Nest provider definitions for the requested boundary.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphNativeHttpProviders } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function provideGraphNativeHttpProviders<THost = unknown>(
 	opts: GraphNativeHttpProviderBundleOptions<THost> = {},
 ): Provider[] {
@@ -181,6 +278,17 @@ export function provideGraphNativeHttpProviders<THost = unknown>(
 	return providers;
 }
 
+/**
+ * Creates Nest provider bindings for graph native providers.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns Nest provider definitions for the requested boundary.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphNativeProviders } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function provideGraphNativeProviders<THost = unknown>(
 	opts: GraphNativeProviderBundleOptions<THost> = {},
 ): Provider[] {
@@ -193,6 +301,19 @@ export function provideGraphNativeProviders<THost = unknown>(
 	return providers;
 }
 
+/**
+ * Creates a graph cron target.
+ *
+ * @param target - Class or instance that owns the decorated method.
+ * @param methodKey - Method key on the decorated target.
+ * @param opts - Options that configure the helper.
+ * @returns The graph cron target result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { graphCronTarget } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function graphCronTarget<THost = unknown>(
 	target: DecoratorHostConstructor | object,
 	methodKey: string | symbol,
@@ -201,6 +322,19 @@ export function graphCronTarget<THost = unknown>(
 	return { ...opts, target, methodKey };
 }
 
+/**
+ * Creates a graph lifecycle target.
+ *
+ * @param target - Class or instance that owns the decorated method.
+ * @param methodKey - Method key on the decorated target.
+ * @param opts - Options that configure the helper.
+ * @returns The graph lifecycle target result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { graphLifecycleTarget } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function graphLifecycleTarget<THost = unknown>(
 	target: DecoratorHostConstructor | object,
 	methodKey: string | symbol,
@@ -209,6 +343,17 @@ export function graphLifecycleTarget<THost = unknown>(
 	return { ...opts, target, methodKey };
 }
 
+/**
+ * Creates a graph cron controller.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The create graph cron controller result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { createGraphCronController } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function createGraphCronController(opts: GraphCronControllerOptions): GraphCronController {
 	return new GraphCronControllerImpl(opts);
 }
@@ -373,6 +518,15 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 	}
 }
 
+/**
+ * Represents a graph exception filter bridge.
+ *
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphExceptionFilterBridge } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export class GraphExceptionFilterBridge<THost> implements ExceptionFilter, OnModuleDestroy {
 	private readonly replies = new WeakMap<
 		object,
@@ -765,6 +919,15 @@ function guardDecisionResponse<THost>(
 	};
 }
 
+/**
+ * Represents a graph guard denied exception.
+ *
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphGuardDeniedException } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export class GraphGuardDeniedException extends HttpException {
 	readonly payload: NestHttpResponsePayload;
 
@@ -780,10 +943,30 @@ class GraphGuardProtocolErrorException extends HttpException {
 	}
 }
 
+/**
+ * Checks whether a value is a graph guard denied exception.
+ *
+ * @param value - Unknown value to check or decode.
+ * @returns `true` when the value matches the expected shape.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { isGraphGuardDeniedException } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export function isGraphGuardDeniedException(value: unknown): value is GraphGuardDeniedException {
 	return value instanceof GraphGuardDeniedException;
 }
 
+/**
+ * Represents a graph guard denied filter.
+ *
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphGuardDeniedFilter } from "@graphrefly/ts/adapters/nestjs/native";
+ * ```
+ */
 export class GraphGuardDeniedFilter implements ExceptionFilter {
 	catch(exception: unknown, host: ArgumentsHost): unknown {
 		if (!isGraphGuardDeniedException(exception)) throw exception;

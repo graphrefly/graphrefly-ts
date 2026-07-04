@@ -8,6 +8,19 @@ import type {
 	WorkItemSpawnProposed,
 } from "./scheduling-types.js";
 
+/**
+ * Creates a work item created from draft.
+ *
+ * @param workItemId - Stable identifier used by the emitted record.
+ * @param draft - draft value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The work item created from draft result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemCreatedFromDraft } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workItemCreatedFromDraft<TInput = unknown>(
 	workItemId: string,
 	draft: WorkItemDraft<TInput>,
@@ -27,6 +40,19 @@ export function workItemCreatedFromDraft<TInput = unknown>(
 	};
 }
 
+/**
+ * Creates a work item spawn proposed.
+ *
+ * @param proposalId - Stable identifier used by the emitted record.
+ * @param draft - draft value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The work item spawn proposed result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemSpawnProposed } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workItemSpawnProposed<TInput = unknown>(
 	proposalId: string,
 	draft: WorkItemDraft<TInput>,
@@ -45,6 +71,19 @@ export function workItemSpawnProposed<TInput = unknown>(
 	};
 }
 
+/**
+ * Creates an acceptance criteria changed.
+ *
+ * @param workItemId - Stable identifier used by the emitted record.
+ * @param acceptanceCriteria - acceptance criteria value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The acceptance criteria changed result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { acceptanceCriteriaChanged } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function acceptanceCriteriaChanged(
 	workItemId: string,
 	acceptanceCriteria: readonly AcceptanceCriterion[],
@@ -66,6 +105,19 @@ export function acceptanceCriteriaChanged(
 	};
 }
 
+/**
+ * Creates a verification plan changed.
+ *
+ * @param workItemId - Stable identifier used by the emitted record.
+ * @param verificationPlan - verification plan value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The verification plan changed result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { verificationPlanChanged } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function verificationPlanChanged<TInput = unknown>(
 	workItemId: string,
 	verificationPlan: VerificationPlan<TInput>,

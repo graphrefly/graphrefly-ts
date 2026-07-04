@@ -130,12 +130,35 @@ interface CapabilityAdmissionViewsState {
 	audit: AgentRuntimeAuditRecord[];
 }
 
+/**
+ * Creates a capability admission proposal.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The capability admission proposal result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { capabilityAdmissionProposal } from "@graphrefly/ts/solutions";
+ * ```
+ */
 export function capabilityAdmissionProposal(
 	opts: Omit<CapabilityAdmissionProposal, "kind">,
 ): CapabilityAdmissionProposal {
 	return { kind: "capability-admission-proposal", ...opts };
 }
 
+/**
+ * Creates a capability admission projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { capabilityAdmissionProjector } from "@graphrefly/ts/solutions";
+ * ```
+ */
 export function capabilityAdmissionProjector(
 	graph: Graph,
 	opts: {

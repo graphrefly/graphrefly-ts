@@ -2,6 +2,19 @@ import type { DataIssue } from "../data/index.js";
 import type { EventMessage, EventMessageOptions } from "./types.js";
 import { assertNonEmpty, isObjectRecord } from "./utils.js";
 
+/**
+ * Creates an event message.
+ *
+ * @param type - type value used by the helper.
+ * @param payload - Payload to lower or wrap.
+ * @param opts - Options that configure the helper.
+ * @returns The event message result.
+ * @category messaging
+ * @example
+ * ```ts
+ * import { eventMessage } from "@graphrefly/ts/messaging";
+ * ```
+ */
 export function eventMessage<T>(
 	type: string,
 	payload: T,
@@ -25,10 +38,32 @@ export function eventMessage<T>(
 	};
 }
 
+/**
+ * Checks whether a value is an event message.
+ *
+ * @param value - Unknown value to check or decode.
+ * @returns `true` when the value matches the expected shape.
+ * @category messaging
+ * @example
+ * ```ts
+ * import { isEventMessage } from "@graphrefly/ts/messaging";
+ * ```
+ */
 export function isEventMessage(value: unknown): value is EventMessage {
 	return eventMessageIssue(value) === undefined;
 }
 
+/**
+ * Creates an event message issue.
+ *
+ * @param value - Unknown value to check or decode.
+ * @returns The event message issue result.
+ * @category messaging
+ * @example
+ * ```ts
+ * import { eventMessageIssue } from "@graphrefly/ts/messaging";
+ * ```
+ */
 export function eventMessageIssue(value: unknown): DataIssue | undefined {
 	if (!isObjectRecord(value)) {
 		return eventIssue("event message must be an object");

@@ -75,6 +75,18 @@ export interface ToolProviderExecutionRecipeBundle {
 	dispose(): void;
 }
 
+/**
+ * Creates a tool provider execution recipe.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category executors
+ * @example
+ * ```ts
+ * import { toolProviderExecutionRecipe } from "@graphrefly/ts/executors/tool-provider";
+ * ```
+ */
 export function toolProviderExecutionRecipe<TArguments = unknown, TResult = unknown>(
 	graph: Graph,
 	opts: ToolProviderExecutionRecipeOptions<TArguments, TResult>,

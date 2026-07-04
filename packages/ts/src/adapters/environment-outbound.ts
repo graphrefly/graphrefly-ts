@@ -299,6 +299,20 @@ function outboundNode<TValue, TResult>(
 	);
 }
 
+/**
+ * Creates a to HTTP.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param source - Source node that provides graph-visible input.
+ * @param requestOf - request of value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The to HTTP result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { toHttp } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function toHttp<T>(
 	graph: Graph,
 	source: Node<T>,
@@ -319,6 +333,20 @@ export function toHttp<T>(
 	return outboundNodes(graph, events, name);
 }
 
+/**
+ * Creates a to process.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param source - Source node that provides graph-visible input.
+ * @param commandOf - command of value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The to process result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { toProcess } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function toProcess<T>(
 	graph: Graph,
 	source: Node<T>,
@@ -339,6 +367,21 @@ export function toProcess<T>(
 	return outboundNodes(graph, events, name);
 }
 
+/**
+ * Creates a to web socket.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param source - Source node that provides graph-visible input.
+ * @param request - Request value to lower, route, or record.
+ * @param sendOf - send of value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The to web socket result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { toWebSocket } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function toWebSocket<T>(
 	graph: Graph,
 	source: Node<T>,

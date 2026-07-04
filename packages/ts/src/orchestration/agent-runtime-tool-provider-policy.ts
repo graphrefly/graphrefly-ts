@@ -43,6 +43,17 @@ import type {
 	ToolProviderTimeoutPolicy,
 } from "./agent-runtime-types-tool.js";
 
+/**
+ * Creates a local builtin tool provider catalog.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The local builtin tool provider catalog result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { localBuiltinToolProviderCatalog } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function localBuiltinToolProviderCatalog(
 	opts: LocalBuiltinToolProviderCatalogOptions = {},
 ): ToolProviderCatalog {
@@ -170,6 +181,17 @@ export function localBuiltinToolProviderCatalog(
 	});
 }
 
+/**
+ * Validates tool provider execution policy input.
+ *
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @returns Validation diagnostics or the validated projection.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { validateToolProviderExecutionPolicy } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function validateToolProviderExecutionPolicy(policy: unknown): readonly DataIssue[] {
 	const issues: DataIssue[] = [];
 	if (!isRecord(policy)) {
@@ -351,6 +373,17 @@ export function validateToolProviderExecutionPolicy(policy: unknown): readonly D
 	return Object.freeze(issues);
 }
 
+/**
+ * Resolves tool provider execution policies.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The resolve tool provider execution policies result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { resolveToolProviderExecutionPolicies } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function resolveToolProviderExecutionPolicies(opts: {
 	readonly request: AgentRequestIssued;
 	readonly routes?: readonly ExecutorRoute[];
@@ -412,6 +445,18 @@ export function resolveToolProviderExecutionPolicies(opts: {
 	);
 }
 
+/**
+ * Creates a tool provider policy resolution projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { toolProviderPolicyResolutionProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function toolProviderPolicyResolutionProjector(
 	graph: Graph,
 	opts: {

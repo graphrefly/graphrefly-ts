@@ -10,6 +10,15 @@ export type CanonicalProtobufErrorCategory =
 	| "default_emission"
 	| "malformed";
 
+/**
+ * Represents a canonical protobuf error.
+ *
+ * @category adapters
+ * @example
+ * ```ts
+ * import { CanonicalProtobufError } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export class CanonicalProtobufError extends Error {
 	readonly category: CanonicalProtobufErrorCategory;
 
@@ -67,6 +76,17 @@ const maxUint64 = (1n << 64n) - 1n;
 const textDecoder = new TextDecoder("utf-8", { fatal: true });
 const textEncoder = new TextEncoder();
 
+/**
+ * Decodes canonical wire bridge envelope bytes.
+ *
+ * @param bytes - Canonical bytes to decode.
+ * @returns The decoded canonical frame or envelope.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { decodeCanonicalWireBridgeEnvelope } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function decodeCanonicalWireBridgeEnvelope(bytes: Uint8Array): CanonicalWireBridgeEnvelope {
 	const input = Uint8Array.from(bytes);
 	const envelope = parseWireBridgeEnvelope(input);
@@ -81,6 +101,17 @@ export function decodeCanonicalWireBridgeEnvelope(bytes: Uint8Array): CanonicalW
 	return envelope;
 }
 
+/**
+ * Decodes canonical wire edge frame bytes.
+ *
+ * @param bytes - Canonical bytes to decode.
+ * @returns The decoded canonical frame or envelope.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { decodeCanonicalWireEdgeFrame } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function decodeCanonicalWireEdgeFrame(bytes: Uint8Array): CanonicalWireEdgeFrame {
 	const input = Uint8Array.from(bytes);
 	const frame = parseWireEdgeFrame(input);
@@ -95,11 +126,33 @@ export function decodeCanonicalWireEdgeFrame(bytes: Uint8Array): CanonicalWireEd
 	return frame;
 }
 
+/**
+ * Encodes canonical wire edge frame data.
+ *
+ * @param frame - Frame to encode.
+ * @returns Canonical encoded bytes.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { encodeCanonicalWireEdgeFrame } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function encodeCanonicalWireEdgeFrame(frame: CanonicalWireEdgeFrame): Uint8Array {
 	validateWireEdgeFrame(frame);
 	return encodeWireEdgeFrame(frame);
 }
 
+/**
+ * Encodes canonical wire bridge envelope data.
+ *
+ * @param envelope - Envelope to encode.
+ * @returns Canonical encoded bytes.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { encodeCanonicalWireBridgeEnvelope } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function encodeCanonicalWireBridgeEnvelope(
 	envelope: CanonicalWireBridgeEnvelope,
 ): Uint8Array {

@@ -35,6 +35,18 @@ import type {
 	ScheduledReadinessRequested,
 } from "./scheduled-readiness.js";
 
+/**
+ * Creates a tool provider run retry projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { toolProviderRunRetryProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function toolProviderRunRetryProjector(
 	graph: Graph,
 	opts: {

@@ -8,6 +8,19 @@ import type {
 	WorkItemProjection,
 } from "./scheduling-types.js";
 
+/**
+ * Validates work item effect plan input.
+ *
+ * @param proposal - Proposal to admit, issue, or project.
+ * @param workItem - work item value used by the helper.
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @returns Validation diagnostics or the validated projection.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { validateWorkItemEffectPlan } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function validateWorkItemEffectPlan<TInput>(
 	proposal: WorkItemEffectPlanProposed<TInput> | unknown,
 	workItem: WorkItemProjection<TInput> | undefined,

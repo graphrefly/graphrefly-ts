@@ -2,4 +2,18 @@
  * AgenticMemory focused solution subpath (D571/D572).
  */
 
-export * from "../agentic-memory.js";
+export type {
+	KnowledgeAssertion,
+	KnowledgeAssertionObject,
+	KnowledgeAssertionSubject,
+} from "../../patterns/semantic-memory.js";
+export * from "./bundle.js";
+export * from "./consolidation.js";
+export * from "./consolidation-application.js";
+export * from "./context-packing.js";
+export * from "./frame.js";
+export * from "./kg.js";
+export * from "./proposal-admission.js";
+export * from "./record-application.js";
+export * from "./retention.js";
+export * from "./types.js";

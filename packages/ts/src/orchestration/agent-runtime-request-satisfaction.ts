@@ -42,6 +42,18 @@ export interface RequestSatisfactionState {
 	auditSeq: number;
 }
 
+/**
+ * Creates a request satisfaction projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { requestSatisfactionProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function requestSatisfactionProjector(
 	graph: Graph,
 	opts: {

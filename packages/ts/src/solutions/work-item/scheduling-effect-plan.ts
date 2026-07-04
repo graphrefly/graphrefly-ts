@@ -42,6 +42,18 @@ import type {
 	WorkItemProjection,
 } from "./scheduling-types.js";
 
+/**
+ * Creates a work item effect plan projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemEffectPlanProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workItemEffectPlanProjector<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemEffectPlanProjectorOptions<TInput>,

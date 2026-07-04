@@ -13,6 +13,18 @@ import type {
 	WorkItemDraft,
 } from "./scheduling-types.js";
 
+/**
+ * Validates work item draft input.
+ *
+ * @param draft - draft value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns Validation diagnostics or the validated projection.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { validateWorkItemDraft } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function validateWorkItemDraft<TInput>(
 	draft: WorkItemDraft<TInput> | unknown,
 	opts: { readonly workItemId?: string } = {},
@@ -57,6 +69,18 @@ export function validateWorkItemDraft<TInput>(
 	return out;
 }
 
+/**
+ * Validates acceptance criteria input.
+ *
+ * @param criteria - criteria value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns Validation diagnostics or the validated projection.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { validateAcceptanceCriteria } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function validateAcceptanceCriteria(
 	criteria: readonly AcceptanceCriterion[],
 	opts: { readonly workItemId?: string } = {},
@@ -103,6 +127,19 @@ export function validateAcceptanceCriteria(
 	return out;
 }
 
+/**
+ * Validates verification plan input.
+ *
+ * @param plan - plan value used by the helper.
+ * @param criteria - criteria value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns Validation diagnostics or the validated projection.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { validateVerificationPlan } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function validateVerificationPlan<TInput>(
 	plan: VerificationPlan<TInput>,
 	criteria: readonly AcceptanceCriterion[] = [],

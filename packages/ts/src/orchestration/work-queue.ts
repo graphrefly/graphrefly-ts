@@ -169,6 +169,18 @@ export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 	};
 }
 
+/**
+ * Creates a process effect submit command.
+ *
+ * @param effect - effect value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The process effect submit command result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { processEffectSubmitCommand } from "@graphrefly/ts/orchestration/work-queue";
+ * ```
+ */
 export function processEffectSubmitCommand<TEffect>(
 	effect: ProcessEffectRequest<TEffect>,
 	opts: {

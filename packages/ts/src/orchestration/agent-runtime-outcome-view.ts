@@ -19,6 +19,18 @@ import type {
 	ExecutorOutcomeViewPolicy,
 } from "./agent-runtime-types-tool.js";
 
+/**
+ * Creates an executor outcome view projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { executorOutcomeViewProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function executorOutcomeViewProjector(
 	graph: Graph,
 	opts: {

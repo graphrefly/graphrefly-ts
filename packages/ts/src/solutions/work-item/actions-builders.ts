@@ -5,6 +5,20 @@ import type {
 	WorkItemDomainActionProposalIntake,
 } from "./actions-types.js";
 
+/**
+ * Creates a work item domain action proposal.
+ *
+ * @param proposalId - Stable identifier used by the emitted record.
+ * @param workItemId - Stable identifier used by the emitted record.
+ * @param actionKind - action kind value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The work item domain action proposal result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemDomainActionProposal } from "@graphrefly/ts/solutions/work-item/actions";
+ * ```
+ */
 export function workItemDomainActionProposal(
 	proposalId: string,
 	workItemId: string,
@@ -31,6 +45,20 @@ export function workItemDomainActionProposal(
 	};
 }
 
+/**
+ * Creates a work item domain action proposal intake.
+ *
+ * @param proposalId - Stable identifier used by the emitted record.
+ * @param workItemId - Stable identifier used by the emitted record.
+ * @param actionKind - action kind value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The work item domain action proposal intake result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemDomainActionProposalIntake } from "@graphrefly/ts/solutions/work-item/actions";
+ * ```
+ */
 export function workItemDomainActionProposalIntake<TPayload = unknown>(
 	proposalId: string,
 	workItemId: string,
@@ -57,6 +85,18 @@ export function workItemDomainActionProposalIntake<TPayload = unknown>(
 	};
 }
 
+/**
+ * Creates a work item domain action apply policy.
+ *
+ * @param policyId - Stable identifier used by the emitted record.
+ * @param opts - Options that configure the helper.
+ * @returns The work item domain action apply policy result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemDomainActionApplyPolicy } from "@graphrefly/ts/solutions/work-item/actions";
+ * ```
+ */
 export function workItemDomainActionApplyPolicy(
 	policyId: string,
 	opts: Omit<Partial<WorkItemDomainActionApplyPolicy>, "kind" | "policyId"> = {},

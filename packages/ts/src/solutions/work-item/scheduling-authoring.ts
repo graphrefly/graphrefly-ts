@@ -30,6 +30,18 @@ import {
 	validateWorkItemDraft,
 } from "./scheduling-validation.js";
 
+/**
+ * Creates a work item authoring projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemAuthoringProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workItemAuthoringProjector<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemAuthoringProjectorOptions<TInput>,

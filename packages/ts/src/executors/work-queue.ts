@@ -107,6 +107,18 @@ interface ExecutorQueueState {
 	readonly seenOutcomes: Set<string>;
 }
 
+/**
+ * Creates an executor work queue recipe.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category executors
+ * @example
+ * ```ts
+ * import { executorWorkQueueRecipe } from "@graphrefly/ts/executors/work-queue";
+ * ```
+ */
 export function executorWorkQueueRecipe(
 	graph: Graph,
 	opts: ExecutorWorkQueueRecipeOptions,
@@ -159,6 +171,18 @@ export function executorWorkQueueRecipe(
 	};
 }
 
+/**
+ * Creates an executor submit command.
+ *
+ * @param request - Request value to lower, route, or record.
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @returns The executor submit command result.
+ * @category executors
+ * @example
+ * ```ts
+ * import { executorSubmitCommand } from "@graphrefly/ts/executors/work-queue";
+ * ```
+ */
 export function executorSubmitCommand(
 	request: AgentRequestIssued,
 	policy?: ExecutorWorkQueuePolicy,

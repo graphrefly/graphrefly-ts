@@ -37,6 +37,17 @@ import type {
 	ToolProviderPolicyResolution,
 } from "./agent-runtime-types-tool.js";
 
+/**
+ * Builds a tool provider adapter inputs.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The build tool provider adapter inputs result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { buildToolProviderAdapterInputs } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function buildToolProviderAdapterInputs(opts: {
 	readonly requests: readonly AgentRequestIssued[];
 	readonly routes?: readonly ExecutorRoute[];
@@ -61,6 +72,18 @@ export function buildToolProviderAdapterInputs(opts: {
 	);
 }
 
+/**
+ * Creates a tool provider adapter input projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { toolProviderAdapterInputProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function toolProviderAdapterInputProjector(
 	graph: Graph,
 	opts: {

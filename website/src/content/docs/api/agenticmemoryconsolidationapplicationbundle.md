@@ -48,4 +48,4 @@ This page was generated from source JSDoc, but the structured API tags are incom
 
 ## Source
 
-`packages/ts/src/solutions/agentic-memory-consolidation-application.ts`
+`packages/ts/src/solutions/agentic-memory/consolidation-application.ts`

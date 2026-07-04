@@ -20,6 +20,18 @@ import type {
 	SourceRef,
 } from "./agent-runtime-types-core.js";
 
+/**
+ * Creates an effect run completion projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { effectRunCompletionProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function effectRunCompletionProjector(
 	graph: Graph,
 	opts: {

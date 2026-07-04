@@ -40,6 +40,18 @@ import type {
 } from "./scheduling-types.js";
 import { validateVerificationPlan } from "./scheduling-validation.js";
 
+/**
+ * Creates a work item verification request lowerer.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The work item verification request lowerer result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemVerificationRequestLowerer } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workItemVerificationRequestLowerer<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemVerificationRequestLowererOptions<TInput>,
@@ -111,6 +123,18 @@ export function workItemVerificationRequestLowerer<TInput = unknown>(
 	};
 }
 
+/**
+ * Creates a work item verification result mapper.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The work item verification result mapper result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemVerificationResultMapper } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workItemVerificationResultMapper<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemVerificationResultMapperOptions<TInput>,

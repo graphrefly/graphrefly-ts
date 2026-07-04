@@ -105,6 +105,18 @@ export {
 	TODOS_TOPIC,
 } from "./types.js";
 
+/**
+ * Creates a message bus.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The message bus result.
+ * @category messaging
+ * @example
+ * ```ts
+ * import { messageBus } from "@graphrefly/ts/messaging";
+ * ```
+ */
 export function messageBus<TTopic extends string>(
 	graph: Graph,
 	opts: MessageBusOptions<TTopic> = {},
@@ -394,6 +406,18 @@ export function messageBus<TTopic extends string>(
 	return bus;
 }
 
+/**
+ * Creates a from topic.
+ *
+ * @param bus - bus value used by the helper.
+ * @param topic - topic value used by the helper.
+ * @returns The from topic result.
+ * @category messaging
+ * @example
+ * ```ts
+ * import { fromTopic } from "@graphrefly/ts/messaging";
+ * ```
+ */
 export function fromTopic<T = unknown, TTopic extends string = string>(
 	bus: MessageBus<TTopic>,
 	topic: TTopic | string,
@@ -401,6 +425,21 @@ export function fromTopic<T = unknown, TTopic extends string = string>(
 	return bus.topic<T>(topic).snapshot;
 }
 
+/**
+ * Creates a to topic.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param source - Source node that provides graph-visible input.
+ * @param bus - bus value used by the helper.
+ * @param topic - topic value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The to topic result.
+ * @category messaging
+ * @example
+ * ```ts
+ * import { toTopic } from "@graphrefly/ts/messaging";
+ * ```
+ */
 export function toTopic<T, TTopic extends string>(
 	graph: Graph,
 	source: Node<T>,

@@ -33,6 +33,18 @@ import type {
 	ToolProviderRunAdmissionViews,
 } from "./agent-runtime-types-tool.js";
 
+/**
+ * Creates a tool provider run admission projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { toolProviderRunAdmissionProjector } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function toolProviderRunAdmissionProjector(
 	graph: Graph,
 	opts: {

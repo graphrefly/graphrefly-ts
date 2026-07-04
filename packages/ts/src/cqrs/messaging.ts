@@ -114,6 +114,19 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 	};
 }
 
+/**
+ * Creates a CQRS message command.
+ *
+ * @param message - message value used by the helper.
+ * @param delivery - delivery value used by the helper.
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @returns The CQRS message command result.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsMessageCommand } from "@graphrefly/ts/cqrs/messaging";
+ * ```
+ */
 export function cqrsMessageCommand<TPayload = unknown, TCommand = unknown>(
 	message: MessageBusMessage<TPayload>,
 	delivery: MessageBusDelivery,
@@ -141,6 +154,18 @@ export function cqrsMessageCommand<TPayload = unknown, TCommand = unknown>(
 	);
 }
 
+/**
+ * Creates a CQRS message ack commands.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns The CQRS message ack commands result.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsMessageAckCommands } from "@graphrefly/ts/cqrs/messaging";
+ * ```
+ */
 export function cqrsMessageAckCommands(
 	graph: Graph,
 	opts: {
@@ -193,6 +218,20 @@ export function cqrsMessageAckCommands(
 	);
 }
 
+/**
+ * Creates a CQRS event outbox commands.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param events - Event node or event collection to consume.
+ * @param topic - topic value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The CQRS event outbox commands result.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsEventOutboxCommands } from "@graphrefly/ts/cqrs/messaging";
+ * ```
+ */
 export function cqrsEventOutboxCommands<TEvent>(
 	graph: Graph,
 	events: Node<CqrsEvent<TEvent>>,

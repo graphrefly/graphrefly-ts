@@ -30,6 +30,19 @@ import type {
 	ExecutorOutcome,
 } from "./agent-runtime-types-core.js";
 
+/**
+ * Creates a structured agent decision interpreter.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param outcomes - outcomes value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The structured agent decision interpreter result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { structuredAgentDecisionInterpreter } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function structuredAgentDecisionInterpreter(
 	graph: Graph,
 	outcomes: Node<ExecutorOutcome>,

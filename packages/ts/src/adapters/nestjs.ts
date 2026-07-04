@@ -856,6 +856,17 @@ export function GraphMessageReply<TPayload = unknown>(
 	return graphReplyBinding("message-reply", replyNode, opts, "GraphMessageReply");
 }
 
+/**
+ * Creates a nest graph boundary runner.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The create nest graph boundary runner result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { createNestGraphBoundaryRunner } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function createNestGraphBoundaryRunner(
 	opts: NestGraphBoundaryRunnerOptions = {},
 ): NestGraphBoundaryRunner {
@@ -958,6 +969,17 @@ export function createNestGraphBoundaryRunner(
 	};
 }
 
+/**
+ * Creates a nest graph boundary interceptor.
+ *
+ * @param opts - Options that configure the helper.
+ * @returns The create nest graph boundary interceptor result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { createNestGraphBoundaryInterceptor } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function createNestGraphBoundaryInterceptor<THost = unknown>(
 	opts: NestGraphBoundaryInterceptorOptions<THost> = {},
 ): NestGraphBoundaryInterceptor {
@@ -988,6 +1010,18 @@ export function createNestGraphBoundaryInterceptor<THost = unknown>(
 	};
 }
 
+/**
+ * Creates a get nest boundary bindings.
+ *
+ * @param target - Class or instance that owns the decorated method.
+ * @param methodKey - Method key on the decorated target.
+ * @returns The get nest boundary bindings result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { getNestBoundaryBindings } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function getNestBoundaryBindings(
 	target: DecoratorHostConstructor | object,
 	methodKey?: string | symbol,
@@ -1005,6 +1039,18 @@ export function getNestBoundaryBindings(
 	);
 }
 
+/**
+ * Resolves nest method key.
+ *
+ * @param ctor - Constructor that may own the decorated handler.
+ * @param handler - Handler function to match against metadata.
+ * @returns The stable key or reference string.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { resolveNestMethodKey } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function resolveNestMethodKey(
 	ctor: DecoratorHostConstructor,
 	handler: DecoratorBoundMethod,
@@ -1012,6 +1058,19 @@ export function resolveNestMethodKey(
 	return methodKeyForHandler(ctor, handler);
 }
 
+/**
+ * Creates a binding request ID.
+ *
+ * @param host - Host object from the framework boundary.
+ * @param binding - Nest boundary binding metadata.
+ * @param fallback - fallback value used by the helper.
+ * @returns The binding request ID result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { bindingRequestId } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function bindingRequestId<THost>(
 	host: THost,
 	binding: NestBoundaryBindingMeta,
@@ -1033,6 +1092,19 @@ export function bindingRequestId<THost>(
 	return requestIdOf(host, {}, {});
 }
 
+/**
+ * Creates a binding emit options.
+ *
+ * @param host - Host object from the framework boundary.
+ * @param binding - Nest boundary binding metadata.
+ * @param requestId - Host request correlation id.
+ * @returns The binding emit options result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { bindingEmitOptions } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function bindingEmitOptions<THost>(
 	host: THost,
 	binding: NestIngressBindingMeta,
@@ -1046,6 +1118,17 @@ export function bindingEmitOptions<THost>(
 	};
 }
 
+/**
+ * Checks whether a value is a data issue.
+ *
+ * @param value - Unknown value to check or decode.
+ * @returns `true` when the value matches the expected shape.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { isDataIssue } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function isDataIssue(value: unknown): value is DataIssue {
 	return (
 		value !== null &&
@@ -1056,10 +1139,33 @@ export function isDataIssue(value: unknown): value is DataIssue {
 	);
 }
 
+/**
+ * Checks whether a value is a HTTP data issue.
+ *
+ * @param value - Unknown value to check or decode.
+ * @returns `true` when the value matches the expected shape.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { isHttpDataIssue } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function isHttpDataIssue(value: unknown): value is HttpDataIssue {
 	return isDataIssue(value) && Number.isInteger((value as { status?: unknown }).status);
 }
 
+/**
+ * Checks whether a value is an issue response.
+ *
+ * @param issue - Data issue to lower into a response.
+ * @param _host - Host object from the framework boundary.
+ * @returns `true` when the value matches the expected shape.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { issueResponse } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function issueResponse<THost = unknown>(
 	issue: DataIssue,
 	_host?: THost,
@@ -1077,6 +1183,18 @@ export function issueResponse<THost = unknown>(
 	};
 }
 
+/**
+ * Creates a protocol error.
+ *
+ * @param _errorPayload - Protocol error payload to lower into a response.
+ * @param _host - Host object from the framework boundary.
+ * @returns The protocol error result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { protocolError } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function protocolError<THost = unknown>(
 	_errorPayload: unknown,
 	_host?: THost,
@@ -1087,6 +1205,19 @@ export function protocolError<THost = unknown>(
 	};
 }
 
+/**
+ * Lowers HTTP reply payload.
+ *
+ * @param payload - Payload to lower or wrap.
+ * @param host - Host object from the framework boundary.
+ * @param opts - Options that configure the helper.
+ * @returns The lower HTTP reply payload result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { lowerHttpReplyPayload } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function lowerHttpReplyPayload<THost = unknown>(
 	payload: unknown,
 	host: THost,
@@ -1097,6 +1228,19 @@ export function lowerHttpReplyPayload<THost = unknown>(
 	return { status: 200, body: payload };
 }
 
+/**
+ * Lowers protocol error.
+ *
+ * @param errorPayload - Protocol error payload to lower into a response.
+ * @param host - Host object from the framework boundary.
+ * @param opts - Options that configure the helper.
+ * @returns The lower protocol error result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { lowerProtocolError } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function lowerProtocolError<THost = unknown>(
 	errorPayload: unknown,
 	host: THost,
@@ -1105,6 +1249,18 @@ export function lowerProtocolError<THost = unknown>(
 	return (opts.protocolError ?? protocolError)(errorPayload, host);
 }
 
+/**
+ * Sanitizes nest diagnostic.
+ *
+ * @param diagnostic - Diagnostic input to sanitize.
+ * @param defaultPhase - Phase to use when the diagnostic does not provide one.
+ * @returns The sanitize nest diagnostic result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { sanitizeNestDiagnostic } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function sanitizeNestDiagnostic(
 	diagnostic: NestDiagnosticInput,
 	defaultPhase: NestDiagnosticPhase = "adapter",

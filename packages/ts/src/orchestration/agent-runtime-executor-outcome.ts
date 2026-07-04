@@ -52,6 +52,19 @@ export function defaultToolProviderAdapterEvidenceRefs(
 	]);
 }
 
+/**
+ * Builds a tool provider executor outcome.
+ *
+ * @param input - Input value to project or validate.
+ * @param result - result value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The build tool provider executor outcome result.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { buildToolProviderExecutorOutcome } from "@graphrefly/ts/orchestration";
+ * ```
+ */
 export function buildToolProviderExecutorOutcome<T = unknown>(
 	input: ToolProviderAdapterInput,
 	result: ToolProviderAdapterRunResult<T>,

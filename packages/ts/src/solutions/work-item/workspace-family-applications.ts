@@ -1503,6 +1503,18 @@ interface WorkspaceProposalApplicationReplayEntry {
 	readonly emittedFactRefs: readonly WorkspaceProposalApplicationFamilyRef[];
 }
 
+/**
+ * Creates a workspace proposal required input response application projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRequiredInputResponseApplicationProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalRequiredInputResponseApplicationProjector<TValue = unknown>(
 	graph: Graph,
 	opts: WorkspaceProposalRequiredInputResponseApplicationProjectorOptions<TValue>,
@@ -1600,6 +1612,18 @@ export function workspaceProposalRequiredInputResponseApplicationProjector<TValu
 	}) as unknown as WorkspaceProposalRequiredInputResponseApplicationProjectorBundle<TValue>;
 }
 
+/**
+ * Creates a workspace proposal work item spawn application projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalWorkItemSpawnApplicationProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalWorkItemSpawnApplicationProjector<TInput = unknown>(
 	graph: Graph,
 	opts: WorkspaceProposalWorkItemSpawnApplicationProjectorOptions<TInput>,
@@ -1663,6 +1687,18 @@ export function workspaceProposalWorkItemSpawnApplicationProjector<TInput = unkn
 	}) as unknown as WorkspaceProposalWorkItemSpawnApplicationProjectorBundle<TInput>;
 }
 
+/**
+ * Creates a workspace proposal work item link application projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalWorkItemLinkApplicationProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalWorkItemLinkApplicationProjector<TInput = unknown>(
 	graph: Graph,
 	opts: WorkspaceProposalWorkItemLinkApplicationProjectorOptions<TInput>,
@@ -1725,6 +1761,18 @@ export function workspaceProposalWorkItemLinkApplicationProjector<TInput = unkno
 	}) as unknown as WorkspaceProposalWorkItemLinkApplicationProjectorBundle;
 }
 
+/**
+ * Creates a workspace proposal domain action application projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalDomainActionApplicationProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalDomainActionApplicationProjector(
 	graph: Graph,
 	opts: WorkspaceProposalDomainActionApplicationProjectorOptions,
@@ -1797,6 +1845,18 @@ export function workspaceProposalDomainActionApplicationProjector(
 	) as unknown as WorkspaceProposalDomainActionApplicationProjectorBundle;
 }
 
+/**
+ * Records workspace proposal required input response outcome.
+ *
+ * @param status - Status value to record.
+ * @param options - Options that configure the helper.
+ * @returns The record workspace proposal required input response outcome result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { recordWorkspaceProposalRequiredInputResponseOutcome } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function recordWorkspaceProposalRequiredInputResponseOutcome(
 	status: WorkspaceProposalApplicationStatus,
 	options: WorkspaceProposalRequiredInputResponseOutcomeOptions,
@@ -1828,6 +1888,18 @@ export function recordWorkspaceProposalRequiredInputResponseOutcome(
 	});
 }
 
+/**
+ * Records workspace proposal work item spawn outcome.
+ *
+ * @param status - Status value to record.
+ * @param options - Options that configure the helper.
+ * @returns The record workspace proposal work item spawn outcome result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { recordWorkspaceProposalWorkItemSpawnOutcome } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function recordWorkspaceProposalWorkItemSpawnOutcome(
 	status: WorkspaceProposalApplicationStatus,
 	options: WorkspaceProposalWorkItemSpawnOutcomeOptions,
@@ -1848,6 +1920,18 @@ export function recordWorkspaceProposalWorkItemSpawnOutcome(
 	});
 }
 
+/**
+ * Records workspace proposal work item link outcome.
+ *
+ * @param status - Status value to record.
+ * @param options - Options that configure the helper.
+ * @returns The record workspace proposal work item link outcome result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { recordWorkspaceProposalWorkItemLinkOutcome } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function recordWorkspaceProposalWorkItemLinkOutcome(
 	status: WorkspaceProposalApplicationStatus,
 	options: WorkspaceProposalWorkItemLinkOutcomeOptions,
@@ -1868,6 +1952,18 @@ export function recordWorkspaceProposalWorkItemLinkOutcome(
 	});
 }
 
+/**
+ * Records workspace proposal domain action outcome.
+ *
+ * @param status - Status value to record.
+ * @param options - Options that configure the helper.
+ * @returns The record workspace proposal domain action outcome result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { recordWorkspaceProposalDomainActionOutcome } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function recordWorkspaceProposalDomainActionOutcome(
 	status: WorkspaceProposalApplicationStatus,
 	options: WorkspaceProposalDomainActionOutcomeOptions,
@@ -1894,6 +1990,17 @@ export function recordWorkspaceProposalDomainActionOutcome(
 	});
 }
 
+/**
+ * Creates a workspace proposal family outcome ref.
+ *
+ * @param outcome - Outcome value to record or index.
+ * @returns The stable key or reference string.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalFamilyOutcomeRef } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalFamilyOutcomeRef(
 	outcome: WorkspaceProposalFamilyOutcomeRecord,
 ): WorkspaceProposalFamilyOutcomeRef {
@@ -1910,6 +2017,17 @@ export function workspaceProposalFamilyOutcomeRef(
 	};
 }
 
+/**
+ * Projects workspace proposal family outcome index.
+ *
+ * @param outcomes - outcomes value used by the helper.
+ * @returns The project workspace proposal family outcome index result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalFamilyOutcomeIndex } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalFamilyOutcomeIndex(
 	outcomes: readonly WorkspaceProposalFamilyOutcomeRecord[],
 ): readonly WorkspaceProposalFamilyOutcomeIndexEntry[] {
@@ -2099,6 +2217,17 @@ export function workspaceProposalRepairReviewProjector(
 	};
 }
 
+/**
+ * Projects workspace proposal repair review statuses.
+ *
+ * @param input - Input value to project or validate.
+ * @returns The project workspace proposal repair review statuses result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalRepairReviewStatuses } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalRepairReviewStatuses(
 	input: WorkspaceProposalRepairReviewStatusProjectionInput,
 ): readonly WorkspaceProposalRepairReviewStatus[] {
@@ -2113,6 +2242,18 @@ export function projectWorkspaceProposalRepairReviewStatuses(
 	);
 }
 
+/**
+ * Records workspace proposal repair review decision.
+ *
+ * @param request - Request value to lower, route, or record.
+ * @param options - Options that configure the helper.
+ * @returns The record workspace proposal repair review decision result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { recordWorkspaceProposalRepairReviewDecision } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function recordWorkspaceProposalRepairReviewDecision(
 	request: WorkspaceProposalRepairReviewRequest,
 	options: WorkspaceProposalRepairReviewDecisionRecordingOptions,
@@ -2180,6 +2321,17 @@ export function recordWorkspaceProposalRepairReviewDecision(
 	};
 }
 
+/**
+ * Projects workspace proposal repair review decision recordings.
+ *
+ * @param input - Input value to project or validate.
+ * @returns The project workspace proposal repair review decision recordings result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalRepairReviewDecisionRecordings } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalRepairReviewDecisionRecordings(
 	input: WorkspaceProposalRepairReviewDecisionRecordingProjectionInput,
 ): readonly WorkspaceProposalRepairReviewDecisionRecordingResult[] {
@@ -2374,6 +2526,17 @@ export function workspaceProposalRepairReviewStatusProjector(
 	};
 }
 
+/**
+ * Projects workspace proposal family application read model.
+ *
+ * @param input - Input value to project or validate.
+ * @returns The project workspace proposal family application read model result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalFamilyApplicationReadModel } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalFamilyApplicationReadModel(
 	input: WorkspaceProposalFamilyApplicationReadModelProjectionInput,
 ): WorkspaceProposalFamilyApplicationReadModel {
@@ -2488,6 +2651,17 @@ export function projectWorkspaceProposalFamilyApplicationReadModel(
 	};
 }
 
+/**
+ * Projects workspace proposal family application read models.
+ *
+ * @param input - Input value to project or validate.
+ * @returns The project workspace proposal family application read models result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalFamilyApplicationReadModels } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalFamilyApplicationReadModels(
 	input: WorkspaceProposalFamilyApplicationReadModelsProjectionInput,
 ): readonly WorkspaceProposalFamilyApplicationReadModel[] {
@@ -2538,6 +2712,18 @@ export function projectWorkspaceProposalFamilyApplicationReadModels(
 	});
 }
 
+/**
+ * Creates a workspace proposal projection release diagnostic projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalProjectionReleaseDiagnosticProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalProjectionReleaseDiagnosticProjector(
 	graph: Graph,
 	opts: WorkspaceProposalProjectionReleaseDiagnosticProjectorOptions,
@@ -2663,6 +2849,17 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 	};
 }
 
+/**
+ * Projects workspace proposal family outcome detail supply results.
+ *
+ * @param input - Input value to project or validate.
+ * @returns The project workspace proposal family outcome detail supply results result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalFamilyOutcomeDetailSupplyResults } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalFamilyOutcomeDetailSupplyResults(
 	input: WorkspaceProposalFamilyOutcomeDetailSupplyProjectionInput,
 ): readonly WorkspaceProposalFamilyOutcomeDetailSupplyResult[] {
@@ -2672,6 +2869,18 @@ export function projectWorkspaceProposalFamilyOutcomeDetailSupplyResults(
 	);
 }
 
+/**
+ * Projects workspace proposal family outcome detail supply result.
+ *
+ * @param request - Request value to lower, route, or record.
+ * @param suppliedOutcomes - supplied outcomes value used by the helper.
+ * @returns The project workspace proposal family outcome detail supply result result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalFamilyOutcomeDetailSupplyResult } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalFamilyOutcomeDetailSupplyResult(
 	request: WorkspaceProposalFamilyOutcomeDetailSupplyRequest | unknown,
 	suppliedOutcomes:
@@ -2840,6 +3049,18 @@ export function projectWorkspaceProposalFamilyOutcomeDetailSupplyResult(
 	};
 }
 
+/**
+ * Creates a workspace proposal family outcome detail supply projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalFamilyOutcomeDetailSupplyProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 	graph: Graph,
 	opts: WorkspaceProposalFamilyOutcomeDetailSupplyProjectorOptions,
@@ -2902,6 +3123,17 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 	};
 }
 
+/**
+ * Projects workspace proposal repair action descriptors.
+ *
+ * @param input - Input value to project or validate.
+ * @returns The project workspace proposal repair action descriptors result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalRepairActionDescriptors } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalRepairActionDescriptors(
 	input: WorkspaceProposalRepairActionDescriptorProjectionInput,
 ): readonly WorkspaceProposalRepairActionDescriptor[] {
@@ -2916,6 +3148,18 @@ export function projectWorkspaceProposalRepairActionDescriptors(
 	return descriptors;
 }
 
+/**
+ * Creates a workspace proposal repair action descriptor projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRepairActionDescriptorProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalRepairActionDescriptorProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairActionDescriptorProjectorOptions,
@@ -2958,6 +3202,20 @@ export function workspaceProposalRepairActionDescriptorProjector(
 	};
 }
 
+/**
+ * Validates workspace proposal repair action intent input.
+ *
+ * @param intent - intent value used by the helper.
+ * @param optionsOrDescriptor - options or descriptor value used by the helper.
+ * @param request - Request value to lower, route, or record.
+ * @param currentStatus - current status value used by the helper.
+ * @returns Validation diagnostics or the validated projection.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { validateWorkspaceProposalRepairActionIntent } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function validateWorkspaceProposalRepairActionIntent(
 	intent: WorkspaceProposalRepairActionIntent | unknown,
 	optionsOrDescriptor:
@@ -3022,6 +3280,21 @@ export function validateWorkspaceProposalRepairActionIntent(
 	};
 }
 
+/**
+ * Prepares workspace proposal repair review decision recording input.
+ *
+ * @param intent - intent value used by the helper.
+ * @param optionsOrDescriptor - options or descriptor value used by the helper.
+ * @param request - Request value to lower, route, or record.
+ * @param currentStatus - current status value used by the helper.
+ * @param preparationOptions - preparation options value used by the helper.
+ * @returns The prepare workspace proposal repair review decision recording input result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { prepareWorkspaceProposalRepairReviewDecisionRecordingInput } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function prepareWorkspaceProposalRepairReviewDecisionRecordingInput(
 	intent: WorkspaceProposalRepairActionIntent | unknown,
 	optionsOrDescriptor:
@@ -3149,6 +3422,18 @@ export function prepareWorkspaceProposalRepairReviewDecisionRecordingInput(
 	};
 }
 
+/**
+ * Projects workspace proposal repair successor proposal intake preview.
+ *
+ * @param intent - intent value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns The project workspace proposal repair successor proposal intake preview result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalRepairSuccessorProposalIntakePreview } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalRepairSuccessorProposalIntakePreview(
 	intent: WorkspaceProposalRepairActionIntent | unknown,
 	options: WorkspaceProposalRepairActionIntentValidationOptions &
@@ -3244,6 +3529,20 @@ export function projectWorkspaceProposalRepairSuccessorProposalIntakePreview(
 	};
 }
 
+/**
+ * Previews workspace proposal repair successor proposal intake.
+ *
+ * @param intentOrRequest - intent or request value used by the helper.
+ * @param optionsOrStatus - options or status value used by the helper.
+ * @param intent - intent value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns The preview workspace proposal repair successor proposal intake result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { previewWorkspaceProposalRepairSuccessorProposalIntake } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function previewWorkspaceProposalRepairSuccessorProposalIntake(
 	intentOrRequest:
 		| WorkspaceProposalRepairActionIntent
@@ -3281,6 +3580,18 @@ export function previewWorkspaceProposalRepairSuccessorProposalIntake(
 	});
 }
 
+/**
+ * Validates workspace proposal repair action display policy advisory input.
+ *
+ * @param advisory - advisory value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns Validation diagnostics or the validated projection.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { validateWorkspaceProposalRepairActionDisplayPolicyAdvisory } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function validateWorkspaceProposalRepairActionDisplayPolicyAdvisory(
 	advisory: WorkspaceProposalRepairActionDisplayPolicyAdvisory | unknown,
 	options: WorkspaceProposalRepairActionDisplayPolicyAdvisoryValidationOptions = {},
@@ -3427,6 +3738,19 @@ export function validateWorkspaceProposalRepairActionDisplayPolicyAdvisory(
 	};
 }
 
+/**
+ * Projects workspace proposal repair action display policy advisory.
+ *
+ * @param descriptor - descriptor value used by the helper.
+ * @param request - Request value to lower, route, or record.
+ * @param options - Options that configure the helper.
+ * @returns The project workspace proposal repair action display policy advisory result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalRepairActionDisplayPolicyAdvisory } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalRepairActionDisplayPolicyAdvisory(
 	descriptor: WorkspaceProposalRepairActionDescriptor,
 	request: WorkspaceProposalRepairReviewRequest,
@@ -3471,6 +3795,18 @@ export function projectWorkspaceProposalRepairActionDisplayPolicyAdvisory(
 	};
 }
 
+/**
+ * Creates a workspace proposal repair action display policy advisory projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRepairActionDisplayPolicyAdvisoryProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorOptions,
@@ -3569,6 +3905,18 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 	};
 }
 
+/**
+ * Prepares workspace proposal repair successor proposal ready request.
+ *
+ * @param preview - preview value used by the helper.
+ * @param input - Input value to project or validate.
+ * @returns The prepare workspace proposal repair successor proposal ready request result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { prepareWorkspaceProposalRepairSuccessorProposalReadyRequest } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function prepareWorkspaceProposalRepairSuccessorProposalReadyRequest<TDraft = unknown>(
 	preview: WorkspaceProposalRepairSuccessorProposalIntakePreview | unknown,
 	input: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft> | unknown,
@@ -3808,6 +4156,18 @@ export function prepareWorkspaceProposalRepairSuccessorProposalReadyRequest<TDra
 	};
 }
 
+/**
+ * Creates a workspace proposal repair action intent projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRepairActionIntentProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalRepairActionIntentProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairActionIntentProjectorOptions,
@@ -3870,6 +4230,18 @@ export function workspaceProposalRepairActionIntentProjector(
 	};
 }
 
+/**
+ * Creates a workspace proposal repair successor proposal intake preview projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRepairSuccessorProposalIntakePreviewProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorOptions,
@@ -3940,6 +4312,18 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 	};
 }
 
+/**
+ * Creates a workspace proposal repair successor proposal ready request preparation projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector<
 	TDraft = unknown,
 >(
@@ -8596,6 +8980,19 @@ function stringField(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
+/**
+ * Projects workspace proposal required input response application.
+ *
+ * @param record - Record to encode, validate, or project.
+ * @param decision - Admission decision or interpreter output to project.
+ * @param options - Options that configure the helper.
+ * @returns The project workspace proposal required input response application result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalRequiredInputResponseApplication } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalRequiredInputResponseApplication<TValue = unknown>(
 	record: WorkspaceProposalRecorded<RequiredInputResponseProposed<TValue>>,
 	decision: WorkspaceProposalAdmissionDecision,
@@ -8653,6 +9050,19 @@ export function projectWorkspaceProposalRequiredInputResponseApplication<TValue 
 	return { ...result, applied };
 }
 
+/**
+ * Projects workspace proposal work item spawn application.
+ *
+ * @param record - Record to encode, validate, or project.
+ * @param decision - Admission decision or interpreter output to project.
+ * @param options - Options that configure the helper.
+ * @returns The project workspace proposal work item spawn application result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalWorkItemSpawnApplication } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalWorkItemSpawnApplication<TInput = unknown>(
 	record: WorkspaceProposalRecorded<{
 		readonly kind: "work-item-spawn-proposed";
@@ -8748,6 +9158,19 @@ export function projectWorkspaceProposalWorkItemSpawnApplication<TInput = unknow
 	return { ...result, created, linked };
 }
 
+/**
+ * Projects workspace proposal work item link application.
+ *
+ * @param record - Record to encode, validate, or project.
+ * @param decision - Admission decision or interpreter output to project.
+ * @param options - Options that configure the helper.
+ * @returns The project workspace proposal work item link application result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalWorkItemLinkApplication } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalWorkItemLinkApplication<TInput = unknown>(
 	record: WorkspaceProposalRecorded<WorkItemLinkProposalDraft>,
 	decision: WorkspaceProposalAdmissionDecision,
@@ -8829,6 +9252,19 @@ export function projectWorkspaceProposalWorkItemLinkApplication<TInput = unknown
 	return { ...result, linked, unlinked };
 }
 
+/**
+ * Projects workspace proposal domain action application status.
+ *
+ * @param record - Record to encode, validate, or project.
+ * @param decision - Admission decision or interpreter output to project.
+ * @param options - Options that configure the helper.
+ * @returns The project workspace proposal domain action application status result.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalDomainActionApplicationStatus } from "@graphrefly/ts/solutions/work-item/scheduling";
+ * ```
+ */
 export function projectWorkspaceProposalDomainActionApplicationStatus(
 	record: WorkspaceProposalRecorded,
 	decision: WorkspaceProposalAdmissionDecision,

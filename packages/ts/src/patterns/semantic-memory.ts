@@ -309,6 +309,17 @@ export function validateMemoryFragment(value: unknown): MemoryFragmentValidation
 	return { ok: errors.length === 0, errors };
 }
 
+/**
+ * Checks whether a value is a memory fragment.
+ *
+ * @param value - Unknown value to check or decode.
+ * @returns `true` when the value matches the expected shape.
+ * @category memory
+ * @example
+ * ```ts
+ * import { isMemoryFragment } from "@graphrefly/ts/memory/semantic";
+ * ```
+ */
 export function isMemoryFragment(value: unknown): value is MemoryFragment {
 	return validateMemoryFragment(value).ok;
 }

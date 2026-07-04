@@ -166,10 +166,36 @@ export function writableStore<T>(
 	node: WritableNode<T>,
 	opts?: WritableStoreOptions<T>,
 ): WritableStore<T>;
+
+/**
+ * Creates a writable store.
+ *
+ * @param node - node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The writable store result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { writableStore } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function writableStore<T>(
 	node: Node<T>,
 	opts: WritableStoreOptions<T> & { write: (node: WritableNode<T>, value: T) => void },
 ): WritableStore<T>;
+
+/**
+ * Creates a writable store.
+ *
+ * @param node - node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The writable store result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { writableStore } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function writableStore<T>(
 	node: Node<T>,
 	opts: WritableStoreOptions<T> = {},
@@ -269,11 +295,39 @@ export function zustandStore<T extends object>(
 	initialState?: T,
 	opts?: WritableStoreOptions<T>,
 ): ZustandStoreApi<T>;
+
+/**
+ * Creates a zustand store.
+ *
+ * @param node - node value used by the helper.
+ * @param initialState - initial state value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The zustand store result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { zustandStore } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function zustandStore<T extends object>(
 	node: Node<T>,
 	initialState: T | undefined,
 	opts: WritableStoreOptions<T> & { write: (node: WritableNode<T>, value: T) => void },
 ): ZustandStoreApi<T>;
+
+/**
+ * Creates a zustand store.
+ *
+ * @param node - node value used by the helper.
+ * @param initialState - initial state value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The zustand store result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { zustandStore } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function zustandStore<T extends object>(
 	node: Node<T>,
 	initialState: T = nodeSnapshot(node) as T,
@@ -326,7 +380,33 @@ export function jotaiAtom<T>(
 	node: WritableNode<T>,
 	opts?: WritableStoreOptions<T>,
 ): WritableJotaiAtom<T>;
+
+/**
+ * Creates a jotai atom.
+ *
+ * @param node - node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The jotai atom result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { jotaiAtom } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function jotaiAtom<T>(node: Node<T>, opts?: SubscribeValuesOptions<T>): JotaiAtom<T>;
+
+/**
+ * Creates a jotai atom.
+ *
+ * @param node - node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The jotai atom result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { jotaiAtom } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function jotaiAtom<T>(
 	node: Node<T> | WritableNode<T>,
 	opts: SubscribeValuesOptions<T> | WritableStoreOptions<T> = {},
@@ -353,7 +433,33 @@ export function nanoAtom<T>(
 	node: WritableNode<T>,
 	opts?: WritableStoreOptions<T>,
 ): WritableNanoAtom<T>;
+
+/**
+ * Creates a nano atom.
+ *
+ * @param node - node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The nano atom result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { nanoAtom } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function nanoAtom<T>(node: Node<T>, opts?: SubscribeValuesOptions<T>): NanoAtom<T>;
+
+/**
+ * Creates a nano atom.
+ *
+ * @param node - node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The nano atom result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { nanoAtom } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function nanoAtom<T>(
 	node: Node<T> | WritableNode<T>,
 	opts: SubscribeValuesOptions<T> | WritableStoreOptions<T> = {},
@@ -381,7 +487,33 @@ export function signalFromNode<T>(
 	node: WritableNode<T>,
 	opts?: WritableStoreOptions<T>,
 ): WritableSignalLike<T>;
+
+/**
+ * Creates a signal from node.
+ *
+ * @param node - node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The signal from node result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { signalFromNode } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function signalFromNode<T>(node: Node<T>, opts?: SubscribeValuesOptions<T>): SignalLike<T>;
+
+/**
+ * Creates a signal from node.
+ *
+ * @param node - node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The signal from node result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { signalFromNode } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function signalFromNode<T>(
 	node: Node<T> | WritableNode<T>,
 	opts: SubscribeValuesOptions<T> | WritableStoreOptions<T> = {},

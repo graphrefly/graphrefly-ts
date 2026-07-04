@@ -117,6 +117,19 @@ function releaseDrain(expectedIds: readonly string[]): ReleaseDrain {
 	};
 }
 
+/**
+ * Creates a wire edge group.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param bridge - bridge value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns The wire edge group result.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { wireEdgeGroup } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function wireEdgeGroup(
 	graph: Graph,
 	bridge: WireBridgeBundle<WireBridgeProtobufData, WireBridgeProtobufData>,

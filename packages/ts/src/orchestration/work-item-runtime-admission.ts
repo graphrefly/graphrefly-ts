@@ -27,6 +27,18 @@ import type {
 	WorkItemStatusRecord,
 } from "./work-item-runtime-types.js";
 
+/**
+ * Creates a work item domain action admission projector.
+ *
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemDomainActionAdmissionProjector } from "@graphrefly/ts/solutions/work-item/actions";
+ * ```
+ */
 export function workItemDomainActionAdmissionProjector(
 	graph: Graph,
 	opts: {
