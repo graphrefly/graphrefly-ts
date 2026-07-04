@@ -265,14 +265,27 @@ export function depLiveBatch(ctx: Ctx, depIndex: number): readonly unknown[] | n
 	return flattened.length === 0 ? [] : flattened;
 }
 
-/** Latest cached DATA for a dep, derived from implementation-owned dep cache.
+/**
+ * Read the most recent DATA value from one upstream dependency during a node run.
+ *
+ * `depIndex` is positional: `0` reads the first dependency in `node([first, ...])`, `1` reads the
+ * second dependency, and so on. If that dependency has not produced DATA in the current graph
+ * lifecycle, the value is `undefined`.
+ *
  * @param ctx - Node execution context supplied by the dispatcher.
- * @param depIndex - dep index value used by the helper.
- * @returns The dep latest result.
+ * @param depIndex - Zero-based dependency position in the node's dependency list.
+ * @returns The latest DATA value for that dependency, or `undefined` when no DATA is available yet.
  * @category core
  * @example
  * ```ts
- * import { depLatest } from "@graphrefly/ts/core";
+ * import { depLatest, node } from "@graphrefly/ts/core";
+ *
+ * const count = node<number>([], null, { initial: 1 });
+ * const doubled = node<number>([count], (ctx) => {
+ *   const latest = depLatest(ctx, 0);
+ *   if (latest === undefined) return;
+ *   ctx.down([["DATA", Number(latest) * 2]]);
+ * });
  * ```
  */
 export function depLatest(ctx: Ctx, depIndex: number): unknown {
