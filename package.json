@@ -16,9 +16,9 @@
 	"type": "module",
 	"scripts": {
 		"docs:dev": "pnpm run docs:gen",
-		"docs:build": "pnpm run docs:gen",
+		"docs:build": "pnpm --dir website build:ts-artifact",
 		"docs:legacy-site:dev": "pnpm --dir website dev",
-		"docs:legacy-site:build": "pnpm build && pnpm --dir website build",
+		"docs:legacy-site:build": "pnpm build && pnpm --dir website build:legacy",
 		"docs:legacy-site:preview": "pnpm --dir website preview",
 		"docs:gen": "pnpm --dir website docs:gen",
 		"docs:gen:check": "pnpm --dir website docs:gen:check",

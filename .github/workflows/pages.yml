@@ -1,5 +1,5 @@
-# Deploy Starlight docs to GitHub Pages (custom domain: graphrefly.dev).
-# Repo → Settings → Pages → Build: GitHub Actions (first run may require approval).
+# Build the package-local /ts API docs artifact for GitHub Pages.
+# The shared graphrefly.dev shell delegates TypeScript API docs to this route.
 
 name: Deploy docs to GitHub Pages
 
@@ -10,6 +10,8 @@ on:
       - "website/**"
       - "docs/**"
       - "demos/**"
+      - "packages/ts/src/**"
+      - "packages/ts/package.json"
       - "package.json"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -44,13 +46,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Build the current docs site; historical/archive pages are explicit
-      # non-guidance content.
-      - name: Build docs
+      # Build only the package-local /ts artifact. The shared public website
+      # shell is owned by graphrefly under D563.
+      - name: Build TypeScript docs artifact
         run: pnpm run docs:build
-        env:
-          ASTRO_SITE_URL: https://graphrefly.dev
-          ASTRO_BASE_PATH: /
 
       - uses: actions/upload-pages-artifact@v3
         with:
