@@ -26,22 +26,18 @@ function requireKvVersioned(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `tier` | `KvStorageTier<T>` | Missing @param tier JSDoc. |
-| `label` | `unknown` | Missing @param label JSDoc. |
+| `tier` | `KvStorageTier<T>` | tier value used by the helper. |
+| `label` | `unknown` | label value used by the helper. |
 
 ## Returns
 
-`VersionedKvStorageTier<T>`
+A `VersionedKvStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param tier`.
-- Missing `@param label`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { requireKvVersioned } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

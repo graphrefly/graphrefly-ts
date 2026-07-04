@@ -289,6 +289,13 @@ function mapOperator<TIn, TOut>(
  * switchMap: project each source value to an inner; on a new source value, CANCEL the in-flight
  * inner (its source `_deactivate`s — abortInFlight) and switch to the new one. Only the current
  * inner's emissions are forwarded.
+ * @param project - project value used by the helper.
+ * @returns A `Operator<TIn, TOut>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { switchMap } from "@graphrefly/ts";
+ * ```
  */
 export function switchMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
 	return mapOperator("switchMap", project, "switch");
@@ -298,6 +305,14 @@ export function switchMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn,
  * mergeMap (a.k.a. flatMap): project each source value to an inner and keep ALL inners live,
  * interleaving their emissions. A completed inner is removed (memory bounding). On source/inner
  * ERROR or projector failure, every live inner is removed before the operator emits ERROR (D81).
+ * @param project - project value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `Operator<TIn, TOut>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { mergeMap } from "@graphrefly/ts";
+ * ```
  */
 export function mergeMap<TIn, TOut>(
 	project: Project<TIn, TOut>,
@@ -306,7 +321,16 @@ export function mergeMap<TIn, TOut>(
 	return mapOperator("mergeMap", project, "merge", opts);
 }
 
-/** flatMap: alias of {@link mergeMap} (RxJS naming parity). */
+/** flatMap: alias of {@link mergeMap} (RxJS naming parity).
+ * @param project - project value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `Operator<TIn, TOut>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { flatMap } from "@graphrefly/ts";
+ * ```
+ */
 export function flatMap<TIn, TOut>(
 	project: Project<TIn, TOut>,
 	opts: MergeMapOptions = {},
@@ -318,6 +342,13 @@ export function flatMap<TIn, TOut>(
  * concatMap: project each source value to an inner, but run AT MOST ONE inner at a time — queue
  * later source values (lazy projection) and activate the next only when the active inner COMPLETEs.
  * Preserves source order.
+ * @param project - project value used by the helper.
+ * @returns A `Operator<TIn, TOut>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { concatMap } from "@graphrefly/ts";
+ * ```
  */
 export function concatMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
 	return mapOperator("concatMap", project, "concat");
@@ -326,6 +357,13 @@ export function concatMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn,
 /**
  * exhaustMap: while an inner is active, DROP new source values; project the next source value only
  * after the active inner COMPLETEs.
+ * @param project - project value used by the helper.
+ * @returns A `Operator<TIn, TOut>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { exhaustMap } from "@graphrefly/ts";
+ * ```
  */
 export function exhaustMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
 	return mapOperator("exhaustMap", project, "exhaust");
@@ -358,6 +396,14 @@ interface RepeatState {
  * COMPLETE. An inner ERROR auto-forwards (errorWhenDepsError default → repeat errors). The body is
  * SELF-CATCHING (D30) and re-supplied on every rewire. The factory MUST mint a FRESH node per call
  * (a factory returning the same Node makes unsubscribeDep+subscribeDep a net-zero no-op → repeat wedges).
+ * @param factory - factory value used by the helper.
+ * @param count - count value used by the helper.
+ * @returns A `Operator<never, S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { repeat } from "@graphrefly/ts";
+ * ```
  */
 export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<never, S> {
 	if (!Number.isInteger(count) || count < 1) {

@@ -23,20 +23,17 @@ function validateNoIslands(snapshot: DescribeSnapshot): ValidateNoIslandsResult
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `DescribeSnapshot` | Missing @param snapshot JSDoc. |
+| `snapshot` | `DescribeSnapshot` | snapshot value used by the helper. |
 
 ## Returns
 
-`ValidateNoIslandsResult`
+Validation diagnostics or the validated projection.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param snapshot`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { validateNoIslands } from "@graphrefly/ts/graph";
+```
 
 ## Source
 

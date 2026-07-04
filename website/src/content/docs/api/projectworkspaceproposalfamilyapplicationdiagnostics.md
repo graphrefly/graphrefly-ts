@@ -26,20 +26,17 @@ function projectWorkspaceProposalFamilyApplicationDiagnostics(input: WorkspacePr
 
 | Parameter | Type | Description |
 |---|---|---|
-| `input` | `WorkspaceProposalFamilyApplicationDiagnosticProjectionInput` | Missing @param input JSDoc. |
+| `input` | `WorkspaceProposalFamilyApplicationDiagnosticProjectionInput` | Input value to project or validate. |
 
 ## Returns
 
-`readonly WorkspaceProposalFamilyApplicationDiagnostic[]`
+A `readonly WorkspaceProposalFamilyApplicationDiagnostic[]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param input`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { projectWorkspaceProposalFamilyApplicationDiagnostics } from "@graphrefly/ts/solutions/work-item";
+```
 
 ## Source
 

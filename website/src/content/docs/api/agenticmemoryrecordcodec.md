@@ -23,17 +23,13 @@ function agenticMemoryRecordCodec(): Codec<
 
 ## Returns
 
-`Codec<
-	AgenticMemoryRecord<TJson>
->`
+A `Codec<` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { agenticMemoryRecordCodec } from "@graphrefly/ts/solutions";
+```
 
 ## Source
 

@@ -27,22 +27,18 @@ function profileSummary(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `{ limit?: number }` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `{ limit?: number }` | Options that configure the helper. |
 
 ## Returns
 
-`ProfileSummary`
+A `ProfileSummary` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { profileSummary } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

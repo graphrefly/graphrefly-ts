@@ -23,20 +23,17 @@ function createGraphMessageBridge(opts: GraphMessageBridgeOptions<THost> = {}): 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `GraphMessageBridgeOptions<THost>` | Missing @param opts JSDoc. |
+| `opts` | `GraphMessageBridgeOptions<THost>` | Options that configure the helper. |
 
 ## Returns
 
-`GraphMessageBridge<THost>`
+A `GraphMessageBridge<THost>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { createGraphMessageBridge } from "@graphrefly/ts/adapters/nestjs/microservices";
+```
 
 ## Source
 

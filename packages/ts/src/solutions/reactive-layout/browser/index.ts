@@ -41,6 +41,11 @@ export interface CanvasTextMeasurementsOptions extends CanvasMeasureAdapterOptio
  * Browser measurement adapter using OffscreenCanvas.
  *
  * Lazily creates one OffscreenCanvas + 2D context when first measured.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { CanvasMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout/browser";
+ * ```
  */
 export class CanvasMeasureAdapter implements MeasurementAdapter {
 	private ctx: CanvasTextContextLike | null = null;
@@ -84,7 +89,15 @@ export class CanvasMeasureAdapter implements MeasurementAdapter {
 	}
 }
 
-/** Browser provider helper that emits graph-visible Canvas text measurement facts. */
+/** Browser provider helper that emits graph-visible Canvas text measurement facts.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { canvasTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/browser";
+ * ```
+ */
 export function canvasTextMeasurements(opts: CanvasTextMeasurementsOptions): Node<Measurements> {
 	const targetId = opts.targetId ?? "text";
 	const adapter = opts.graph.state<MeasurementAdapter>(

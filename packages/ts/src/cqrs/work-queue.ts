@@ -100,7 +100,16 @@ interface CqrsQueueState<TCommand> {
 	readonly terminalClaims: Set<string>;
 }
 
-/** Build the optional D350/D352 CQRS workQueue recipe. */
+/** Build the optional D350/D352 CQRS workQueue recipe.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsWorkQueueRecipe } from "@graphrefly/ts/cqrs/work-queue";
+ * ```
+ */
 export function cqrsWorkQueueRecipe<TCommand = unknown>(
 	graph: Graph,
 	opts: CqrsWorkQueueRecipeOptions<TCommand>,

@@ -28,24 +28,19 @@ function subscribeNodeValues(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `Node<T>` | Missing @param node JSDoc. |
-| `run` | `(value: T \| undefined) => void` | Missing @param run JSDoc. |
-| `opts` | `SubscribeValuesOptions<T>` | Missing @param opts JSDoc. |
+| `node` | `Node<T>` | Node to observe, adapt, or connect. |
+| `run` | `(value: T \| undefined) => void` | run value used by the helper. |
+| `opts` | `SubscribeValuesOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`() => void`
+A `() => void` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@param run`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { subscribeNodeValues } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

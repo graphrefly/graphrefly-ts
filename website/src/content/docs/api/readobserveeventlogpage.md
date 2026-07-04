@@ -26,22 +26,18 @@ function readObserveEventLogPage(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `log` | `AppendLogStorageTier<ObserveEventFrame<T>>` | Missing @param log JSDoc. |
-| `opts` | `AppendLogReadOptions` | Missing @param opts JSDoc. |
+| `log` | `AppendLogStorageTier<ObserveEventFrame<T>>` | log value used by the helper. |
+| `opts` | `AppendLogReadOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<ObserveEventLogPage<T>>`
+A `Promise<ObserveEventLogPage<T>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param log`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { readObserveEventLogPage } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

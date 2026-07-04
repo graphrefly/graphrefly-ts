@@ -23,20 +23,17 @@ function loadReactiveMapState(opts: LoadReactiveCollectionStateOptions): Promise
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `LoadReactiveCollectionStateOptions` | Missing @param opts JSDoc. |
+| `opts` | `LoadReactiveCollectionStateOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<ReactiveMapRestoreState<K, V>>`
+A `Promise<ReactiveMapRestoreState<K, V>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { loadReactiveMapState } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

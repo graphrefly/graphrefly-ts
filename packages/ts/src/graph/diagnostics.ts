@@ -391,6 +391,16 @@ function materializePath(idx: SnapshotIndex, path: readonly string[]): readonly 
  *
  * This is the rich companion to `Graph.describe({ explain })`: it reports found/no-path
  * status and per-hop metadata, but remains a pure helper over the snapshot.
+ * @param snapshot - snapshot value used by the helper.
+ * @param from - from value used by the helper.
+ * @param to - to value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns A `CausalChain` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { explainPath } from "@graphrefly/ts/graph";
+ * ```
  */
 export function explainPath(
 	snapshot: DescribeSnapshot,
@@ -422,7 +432,15 @@ export function explainPath(
 	return makeChain(from, to, found?.truncated ? "max-depth-exceeded" : "no-path", []);
 }
 
-/** Detect nodes with zero deps and zero dependents in a describe snapshot. */
+/** Detect nodes with zero deps and zero dependents in a describe snapshot.
+ * @param snapshot - snapshot value used by the helper.
+ * @returns Validation diagnostics or the validated projection.
+ * @category graph
+ * @example
+ * ```ts
+ * import { validateNoIslands } from "@graphrefly/ts/graph";
+ * ```
+ */
 export function validateNoIslands(snapshot: DescribeSnapshot): ValidateNoIslandsResult {
 	const idx = indexSnapshot(snapshot);
 	const orphans: IslandReport[] = [];

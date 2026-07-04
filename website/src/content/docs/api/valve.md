@@ -28,20 +28,17 @@ function valve(opts?: ValveOpts): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `ValveOpts` | Missing @param opts JSDoc. |
+| `opts` | `ValveOpts` | Options that configure the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { valve } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

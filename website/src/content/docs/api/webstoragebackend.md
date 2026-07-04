@@ -26,22 +26,18 @@ function webStorageBackend(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `storage` | `WebStorageLike` | Missing @param storage JSDoc. |
-| `opts` | `StorageNamespaceOptions` | Missing @param opts JSDoc. |
+| `storage` | `WebStorageLike` | storage value used by the helper. |
+| `opts` | `StorageNamespaceOptions` | Options that configure the helper. |
 
 ## Returns
 
-`StorageBackend`
+A `StorageBackend` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param storage`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { webStorageBackend } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

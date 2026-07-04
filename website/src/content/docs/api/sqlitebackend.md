@@ -29,22 +29,18 @@ function sqliteBackend(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `path` | `string` | Missing @param path JSDoc. |
-| `opts` | `SqliteBackendOptions` | Missing @param opts JSDoc. |
+| `path` | `string` | path value used by the helper. |
+| `opts` | `SqliteBackendOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ClosableStorageBackend`
+A `ClosableStorageBackend` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param path`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { sqliteBackend } from "@graphrefly/ts/storage/node";
+```
 
 ## Source
 

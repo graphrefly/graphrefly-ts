@@ -23,20 +23,17 @@ function walFrame(opts: WalFrameOptions<T>): Promise<WalFrame<T>>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `WalFrameOptions<T>` | Missing @param opts JSDoc. |
+| `opts` | `WalFrameOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<WalFrame<T>>`
+A `Promise<WalFrame<T>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { walFrame } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

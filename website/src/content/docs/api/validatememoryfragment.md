@@ -23,20 +23,17 @@ function validateMemoryFragment(value: unknown): MemoryFragmentValidation
 
 | Parameter | Type | Description |
 |---|---|---|
-| `value` | `unknown` | Missing @param value JSDoc. |
+| `value` | `unknown` | Unknown value to check or decode. |
 
 ## Returns
 
-`MemoryFragmentValidation`
+Validation diagnostics or the validated projection.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param value`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { validateMemoryFragment } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

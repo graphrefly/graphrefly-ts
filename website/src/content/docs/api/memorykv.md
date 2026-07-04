@@ -23,20 +23,17 @@ function memoryKv(codec: Codec<T> = jsonCodecFor<T>()): KvStorageTier<T>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `codec` | `Codec<T>` | Missing @param codec JSDoc. |
+| `codec` | `Codec<T>` | Codec used to encode and decode stored values. |
 
 ## Returns
 
-`KvStorageTier<T>`
+A `KvStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param codec`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { memoryKv } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

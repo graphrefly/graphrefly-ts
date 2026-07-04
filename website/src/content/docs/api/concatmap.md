@@ -25,20 +25,17 @@ function concatMap(project: Project<TIn, TOut>): Operator<TIn, TOut>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `project` | `Project<TIn, TOut>` | Missing @param project JSDoc. |
+| `project` | `Project<TIn, TOut>` | project value used by the helper. |
 
 ## Returns
 
-`Operator<TIn, TOut>`
+A `Operator<TIn, TOut>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param project`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { concatMap } from "@graphrefly/ts";
+```
 
 ## Source
 

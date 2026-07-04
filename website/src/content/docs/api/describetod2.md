@@ -26,22 +26,18 @@ function describeToD2(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `DescribeSnapshot` | Missing @param snapshot JSDoc. |
-| `opts` | `DescribeToD2Options` | Missing @param opts JSDoc. |
+| `snapshot` | `DescribeSnapshot` | snapshot value used by the helper. |
+| `opts` | `DescribeToD2Options` | Options that configure the helper. |
 
 ## Returns
 
-`string`
+A `string` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param snapshot`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { describeToD2 } from "@graphrefly/ts/graph";
+```
 
 ## Source
 

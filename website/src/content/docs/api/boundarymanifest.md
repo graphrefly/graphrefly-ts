@@ -27,20 +27,17 @@ function boundaryManifest(graph: Graph): BoundaryManifest
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
 
 ## Returns
 
-`BoundaryManifest`
+A `BoundaryManifest` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { boundaryManifest } from "@graphrefly/ts/inspection/boundary";
+```
 
 ## Source
 

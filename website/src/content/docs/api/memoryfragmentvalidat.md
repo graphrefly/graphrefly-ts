@@ -29,22 +29,18 @@ function memoryFragmentValidAt(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `fragment` | `MemoryFragment` | Missing @param fragment JSDoc. |
-| `asOf` | `bigint` | Missing @param asOf JSDoc. |
+| `fragment` | `MemoryFragment` | fragment value used by the helper. |
+| `asOf` | `bigint` | as of value used by the helper. |
 
 ## Returns
 
-`boolean`
+A `boolean` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param fragment`.
-- Missing `@param asOf`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { memoryFragmentValidAt } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

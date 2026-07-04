@@ -35,12 +35,28 @@ export interface ChangeEnvelopeOptions {
 	seq?: number;
 }
 
-/** Wall-clock nanoseconds for storage metadata. */
+/** Wall-clock nanoseconds for storage metadata.
+ * @returns A `StorageTimestampNs` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { nowNs } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function nowNs(): StorageTimestampNs {
 	return bigIntToNonNegativeDecimalString(BigInt(Date.now()) * 1_000_000n);
 }
 
-/** Wrap a raw change payload in a D82 storage envelope. */
+/** Wrap a raw change payload in a D82 storage envelope.
+ * @param change - change value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ChangeEnvelope<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { envelopeChange } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function envelopeChange<T>(change: T, opts: ChangeEnvelopeOptions): ChangeEnvelope<T> {
 	const envelope = {
 		lifecycle: opts.lifecycle ?? "data",
@@ -61,7 +77,15 @@ function isLifecycle(value: unknown): value is ChangeLifecycle {
 	return value === "spec" || value === "data" || value === "ownership";
 }
 
-/** Validate a decoded D82 change envelope and return it with typed payload. */
+/** Validate a decoded D82 change envelope and return it with typed payload.
+ * @param value - Unknown value to check or decode.
+ * @returns The narrowed, validated value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { assertChangeEnvelope } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function assertChangeEnvelope<T = unknown>(value: unknown): ChangeEnvelope<T> {
 	if (!isRecord(value)) throw new TypeError("changeEnvelopeCodec: frame must be an object");
 	if (!isLifecycle(value.lifecycle)) {
@@ -88,7 +112,14 @@ export function assertChangeEnvelope<T = unknown>(value: unknown): ChangeEnvelop
 	return value as unknown as ChangeEnvelope<T>;
 }
 
-/** Stable JSON codec for D82 change envelopes, with strict framing checks. */
+/** Stable JSON codec for D82 change envelopes, with strict framing checks.
+ * @returns A `Codec<ChangeEnvelope<T>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { changeEnvelopeCodec } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function changeEnvelopeCodec<T = unknown>(): Codec<ChangeEnvelope<T>> {
 	const codec = strictJsonCodecFor<unknown>();
 	return {

@@ -100,6 +100,14 @@ function flattenSnapshot(snap: DescribeSnapshot): {
 /**
  * Pure topology delta from one D39 `describe()` snapshot to another. No node refs, no clocks, no
  * old-core deps (D56). Values/status changes are not topology events; use `observe()` for data.
+ * @param prev - prev value used by the helper.
+ * @param next - next value used by the helper.
+ * @returns A DescribeChangeset value for the boundary or adapter.
+ * @category composition
+ * @example
+ * ```ts
+ * import { topologyDiff } from "@graphrefly/ts/composition";
+ * ```
  */
 export function topologyDiff(prev: DescribeSnapshot, next: DescribeSnapshot): DescribeChangeset {
 	const p = flattenSnapshot(prev);
@@ -237,7 +245,18 @@ export interface StratifyRule<R> {
 
 export interface StratifyBranchOptions<T> extends Omit<NodeOptions<T>, "dispatcher"> {}
 
-/** D56 branch node body: declared deps `[source, rules]`, no internal subscribe island. */
+/** D56 branch node body: declared deps `[source, rules]`, no internal subscribe island.
+ * @param source - Source node that provides graph-visible input.
+ * @param rules - rules value used by the helper.
+ * @param classifier - classifier value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<T>` value.
+ * @category composition
+ * @example
+ * ```ts
+ * import { stratifyBranch } from "@graphrefly/ts/composition";
+ * ```
+ */
 export function stratifyBranch<T, R>(
 	source: Node<T>,
 	rules: Node<R>,
@@ -293,6 +312,17 @@ export interface Stratified<T, R> {
 /**
  * Build static stratification branches in `g` (D56 first cut). Rules are a state node so future
  * classifier data changes affect future source items, but branch count is fixed at construction.
+ * @param g - Graph that owns the created nodes or projector.
+ * @param source - Source node that provides graph-visible input.
+ * @param rules - rules value used by the helper.
+ * @param classifier - classifier value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `Stratified<T, R>` value.
+ * @category composition
+ * @example
+ * ```ts
+ * import { stratify } from "@graphrefly/ts/composition";
+ * ```
  */
 export function stratify<T, R>(
 	g: Graph,

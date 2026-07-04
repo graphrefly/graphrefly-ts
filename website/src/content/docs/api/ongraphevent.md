@@ -23,20 +23,17 @@ function OnGraphEvent(nodeName: string): GraphMethodDecorator
 
 | Parameter | Type | Description |
 |---|---|---|
-| `nodeName` | `string` | Missing @param nodeName JSDoc. |
+| `nodeName` | `string` | node name value used by the helper. |
 
 ## Returns
 
-`GraphMethodDecorator`
+A `GraphMethodDecorator` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param nodeName`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { OnGraphEvent } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

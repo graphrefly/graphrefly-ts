@@ -23,20 +23,17 @@ function openPersistentReactiveMap(opts: OpenPersistentReactiveMapOptions<K, V>)
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `OpenPersistentReactiveMapOptions<K, V>` | Missing @param opts JSDoc. |
+| `opts` | `OpenPersistentReactiveMapOptions<K, V>` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<PersistentReactiveMap<K, V>>`
+A `Promise<PersistentReactiveMap<K, V>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { openPersistentReactiveMap } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

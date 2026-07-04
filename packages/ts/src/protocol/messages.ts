@@ -43,12 +43,29 @@ export type MessageType = Message[0];
  */
 export const SENTINEL = undefined;
 
-/** R-data-payload: ERROR payloads must not collide with terminal metadata shorthand. */
+/** R-data-payload: ERROR payloads must not collide with terminal metadata shorthand.
+ * @param v - v value used by the helper.
+ * @returns `true` when the value matches the expected shape.
+ * @category core
+ * @example
+ * ```ts
+ * import { isInvalidErrorPayload } from "@graphrefly/ts/core";
+ * ```
+ */
 export function isInvalidErrorPayload(v: unknown): boolean {
 	return v === SENTINEL || typeof v === "boolean";
 }
 
-/** R-data-payload / D78: host-language failures that collide with ctx.terminal shorthand become diagnostics. */
+/** R-data-payload / D78: host-language failures that collide with ctx.terminal shorthand become diagnostics.
+ * @param reason - reason value used by the helper.
+ * @param fallback - fallback value used by the helper.
+ * @returns The error payload result.
+ * @category core
+ * @example
+ * ```ts
+ * import { errorPayload } from "@graphrefly/ts/core";
+ * ```
+ */
 export function errorPayload(reason: unknown, fallback = "error without a valid payload"): unknown {
 	return isInvalidErrorPayload(reason) ? new Error(fallback) : reason;
 }
@@ -94,17 +111,41 @@ export function messageTier(t: MessageType): number {
 	return TIER[t];
 }
 
-/** Value and above are deferred inside a batch (DATA/RESOLVED/INVALIDATE/terminal/teardown). */
+/** Value and above are deferred inside a batch (DATA/RESOLVED/INVALIDATE/terminal/teardown).
+ * @param t - t value used by the helper.
+ * @returns `true` when the value matches the expected shape.
+ * @category core
+ * @example
+ * ```ts
+ * import { isDeferredTier } from "@graphrefly/ts/core";
+ * ```
+ */
 export function isDeferredTier(t: MessageType): boolean {
 	return TIER[t] >= TIER_VALUE;
 }
 
-/** Value-tier messages (DATA/RESOLVED) occupy the tier-3 slot. */
+/** Value-tier messages (DATA/RESOLVED) occupy the tier-3 slot.
+ * @param t - t value used by the helper.
+ * @returns `true` when the value matches the expected shape.
+ * @category core
+ * @example
+ * ```ts
+ * import { isValueTier } from "@graphrefly/ts/core";
+ * ```
+ */
 export function isValueTier(t: MessageType): boolean {
 	return TIER[t] === TIER_VALUE;
 }
 
-/** The pause buffer holds the settle slice only: value-tier DATA/RESOLVED plus INVALIDATE. */
+/** The pause buffer holds the settle slice only: value-tier DATA/RESOLVED plus INVALIDATE.
+ * @param t - t value used by the helper.
+ * @returns `true` when the value matches the expected shape.
+ * @category core
+ * @example
+ * ```ts
+ * import { isPauseBufferedTier } from "@graphrefly/ts/core";
+ * ```
+ */
 export function isPauseBufferedTier(t: MessageType): boolean {
 	const tier = TIER[t];
 	return tier === TIER_VALUE || tier === TIER_SETTLE;
@@ -115,6 +156,13 @@ export function isPauseBufferedTier(t: MessageType): boolean {
  * table, NOT a per-variant `=== "COMPLETE" || === "ERROR"` check — so terminal routing stays
  * driven by the one const table (feedback_use_tier_for_signal_routing); discriminate COMPLETE vs
  * ERROR within the tier by the message type only where the handling actually differs.
+ * @param t - t value used by the helper.
+ * @returns `true` when the value matches the expected shape.
+ * @category core
+ * @example
+ * ```ts
+ * import { isTerminal } from "@graphrefly/ts/core";
+ * ```
  */
 export function isTerminal(t: MessageType): boolean {
 	return TIER[t] === TIER_TERMINAL;
@@ -124,6 +172,13 @@ export function isTerminal(t: MessageType): boolean {
  * ctx.up carries control/demand tiers only (R-ctx-up / D269): DIRTY, PAUSE, RESUME, PULL,
  * INVALIDATE, TEARDOWN. DATA/RESOLVED (tier 3) and COMPLETE/ERROR (tier 5) are
  * down-only.
+ * @param t - t value used by the helper.
+ * @returns `true` when the value matches the expected shape.
+ * @category core
+ * @example
+ * ```ts
+ * import { isUpAllowed } from "@graphrefly/ts/core";
+ * ```
  */
 export function isUpAllowed(t: MessageType): boolean {
 	const tier = TIER[t];

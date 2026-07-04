@@ -23,20 +23,17 @@ function admissionFilter3D(opts: AdmissionScore3DOptions): (raw: unknown) => boo
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `AdmissionScore3DOptions` | Missing @param opts JSDoc. |
+| `opts` | `AdmissionScore3DOptions` | Options that configure the helper. |
 
 ## Returns
 
-`(raw: unknown) => boolean`
+A `(raw: unknown) => boolean` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { admissionFilter3D } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

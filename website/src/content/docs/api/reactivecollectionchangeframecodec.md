@@ -23,20 +23,17 @@ function reactiveCollectionChangeFrameCodec(kind: K): Codec<ReactiveCollectionCh
 
 | Parameter | Type | Description |
 |---|---|---|
-| `kind` | `K` | Missing @param kind JSDoc. |
+| `kind` | `K` | kind value used by the helper. |
 
 ## Returns
 
-`Codec<ReactiveCollectionChangeFrame<K, C>>`
+A `Codec<ReactiveCollectionChangeFrame<K, C>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param kind`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveCollectionChangeFrameCodec } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

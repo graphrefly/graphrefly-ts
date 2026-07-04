@@ -23,20 +23,17 @@ function contentAddressedKv(opts: ContentAddressedKvOptions<Ctx, V>): ContentAdd
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `ContentAddressedKvOptions<Ctx, V>` | Missing @param opts JSDoc. |
+| `opts` | `ContentAddressedKvOptions<Ctx, V>` | Options that configure the helper. |
 
 ## Returns
 
-`ContentAddressedKv<Ctx, V>`
+A `ContentAddressedKv<Ctx, V>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { contentAddressedKv } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

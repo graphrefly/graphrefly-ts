@@ -25,20 +25,17 @@ function skiaTextMeasurements(opts: SkiaTextMeasurementsOptions): Node<Measureme
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `SkiaTextMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `SkiaTextMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { skiaTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/skia";
+```
 
 ## Source
 

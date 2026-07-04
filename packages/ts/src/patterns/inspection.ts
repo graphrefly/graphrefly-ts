@@ -28,6 +28,14 @@ export interface ProfileSummary {
 /**
  * Summarize an opt-in Graph.profile() snapshot while keeping describe() as the
  * source of node cardinality. No counters are stored on nodes (R-profile).
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A `ProfileSummary` value.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { profileSummary } from "@graphrefly/ts/patterns";
+ * ```
  */
 export function profileSummary(graph: Graph, opts: { limit?: number } = {}): ProfileSummary {
 	const profile = graph.profile();

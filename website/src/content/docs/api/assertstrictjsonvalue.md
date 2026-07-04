@@ -26,22 +26,18 @@ function assertStrictJsonValue(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `value` | `unknown` | Missing @param value JSDoc. |
-| `label` | `unknown` | Missing @param label JSDoc. |
+| `value` | `unknown` | Unknown value to check or decode. |
+| `label` | `unknown` | label value used by the helper. |
 
 ## Returns
 
-`StrictJsonValue`
+The narrowed, validated value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param value`.
-- Missing `@param label`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { assertStrictJsonValue } from "@graphrefly/ts";
+```
 
 ## Source
 

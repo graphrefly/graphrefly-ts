@@ -313,6 +313,13 @@ class MapBackend<K, V> {
 /**
  * Create a reactive map (D54/D60). DELTA stream of {@link MapChange} + lazy pull SNAPSHOT (a
  * `ReadonlyMap`) + pullId via {@link collectionCore}; this layer adds the typed map surface.
+ * @param options - Options that configure the helper.
+ * @returns A `ReactiveMap<K, V>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { reactiveMap } from "@graphrefly/ts/data-structures";
+ * ```
  */
 export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMap<K, V> {
 	return createReactiveMap(options);

@@ -26,22 +26,18 @@ function measureBlocks(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `blocks` | `readonly ContentBlock[]` | Missing @param blocks JSDoc. |
-| `opts` | `MeasureBlockOptions` | Missing @param opts JSDoc. |
+| `blocks` | `readonly ContentBlock[]` | blocks value used by the helper. |
+| `opts` | `MeasureBlockOptions` | Options that configure the helper. |
 
 ## Returns
 
-`readonly MeasuredBlock[]`
+A `readonly MeasuredBlock[]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param blocks`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { measureBlocks } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

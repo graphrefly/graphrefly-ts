@@ -27,20 +27,17 @@ function assertDirtyPrecedesTerminalData(messages: MessageSequence): void
 
 | Parameter | Type | Description |
 |---|---|---|
-| `messages` | `MessageSequence` | Missing @param messages JSDoc. |
+| `messages` | `MessageSequence` | messages value used by the helper. |
 
 ## Returns
 
-`void`
+The narrowed, validated value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param messages`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { assertDirtyPrecedesTerminalData } from "@graphrefly/ts/testing";
+```
 
 ## Source
 

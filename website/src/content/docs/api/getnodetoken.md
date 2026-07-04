@@ -23,20 +23,17 @@ function getNodeToken(path: string): symbol
 
 | Parameter | Type | Description |
 |---|---|---|
-| `path` | `string` | Missing @param path JSDoc. |
+| `path` | `string` | path value used by the helper. |
 
 ## Returns
 
-`symbol`
+A `symbol` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param path`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { getNodeToken } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

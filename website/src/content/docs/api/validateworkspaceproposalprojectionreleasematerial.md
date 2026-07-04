@@ -26,20 +26,17 @@ function validateWorkspaceProposalProjectionReleaseMaterial(value: unknown): Wor
 
 | Parameter | Type | Description |
 |---|---|---|
-| `value` | `unknown` | Missing @param value JSDoc. |
+| `value` | `unknown` | Unknown value to check or decode. |
 
 ## Returns
 
-`WorkspaceProposalProjectionReleaseValidationResult`
+Validation diagnostics or the validated projection.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param value`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { validateWorkspaceProposalProjectionReleaseMaterial } from "@graphrefly/ts/solutions/work-item";
+```
 
 ## Source
 

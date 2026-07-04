@@ -56,7 +56,16 @@ export interface MessageBusDelivery {
 	readonly commandId: string;
 }
 
-/** Build the optional D349/D351 orchestration messaging recipe. */
+/** Build the optional D349/D351 orchestration messaging recipe.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { orchestrationMessagingRecipe } from "@graphrefly/ts/orchestration/messaging";
+ * ```
+ */
 export function orchestrationMessagingRecipe<
 	TPayload = unknown,
 	TCommand = unknown,

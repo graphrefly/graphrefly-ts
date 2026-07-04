@@ -26,22 +26,18 @@ function assertReactiveCollectionSnapshotFrame(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `value` | `unknown` | Missing @param value JSDoc. |
-| `expectedKind` | `K` | Missing @param expectedKind JSDoc. |
+| `value` | `unknown` | Unknown value to check or decode. |
+| `expectedKind` | `K` | expected kind value used by the helper. |
 
 ## Returns
 
-`ReactiveCollectionSnapshotFrame<K, S>`
+The narrowed, validated value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param value`.
-- Missing `@param expectedKind`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { assertReactiveCollectionSnapshotFrame } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

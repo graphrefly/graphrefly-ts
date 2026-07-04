@@ -45,12 +45,29 @@ export interface VersionedKvStorageTier<T = unknown> extends KvStorageTier<T> {
 	setIfMatch(key: string, value: T, generation: KvGeneration): Promise<boolean>;
 }
 
-/** Runtime guard for typed KV tiers that expose D85 conditional create. */
+/** Runtime guard for typed KV tiers that expose D85 conditional create.
+ * @param tier - tier value used by the helper.
+ * @returns A `tier is PutIfAbsentKvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { hasKvPutIfAbsent } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function hasKvPutIfAbsent<T>(tier: KvStorageTier<T>): tier is PutIfAbsentKvStorageTier<T> {
 	return typeof tier.putIfAbsent === "function";
 }
 
-/** Require D85 conditional-create support and produce a clear adapter error when absent. */
+/** Require D85 conditional-create support and produce a clear adapter error when absent.
+ * @param tier - tier value used by the helper.
+ * @param label - label value used by the helper.
+ * @returns A `PutIfAbsentKvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { requireKvPutIfAbsent } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function requireKvPutIfAbsent<T>(
 	tier: KvStorageTier<T>,
 	label = "kvStorage",
@@ -61,12 +78,29 @@ export function requireKvPutIfAbsent<T>(
 	return tier;
 }
 
-/** Runtime guard for typed KV tiers that expose D108 versioned read/set-if-match. */
+/** Runtime guard for typed KV tiers that expose D108 versioned read/set-if-match.
+ * @param tier - tier value used by the helper.
+ * @returns A `tier is VersionedKvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { hasKvVersioned } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function hasKvVersioned<T>(tier: KvStorageTier<T>): tier is VersionedKvStorageTier<T> {
 	return typeof tier.getVersioned === "function" && typeof tier.setIfMatch === "function";
 }
 
-/** Require D108 versioned KV support and produce a clear adapter error when absent. */
+/** Require D108 versioned KV support and produce a clear adapter error when absent.
+ * @param tier - tier value used by the helper.
+ * @param label - label value used by the helper.
+ * @returns A `VersionedKvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { requireKvVersioned } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function requireKvVersioned<T>(
 	tier: KvStorageTier<T>,
 	label = "kvStorage",
@@ -87,7 +121,15 @@ function defer<T>(fn: () => T | PromiseLike<T>): Promise<T> {
 	return Promise.resolve().then(fn);
 }
 
-/** Build a typed KV tier from a byte backend and codec. */
+/** Build a typed KV tier from a byte backend and codec.
+ * @param opts - Options that configure the helper.
+ * @returns A `KvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { kvStorage } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function kvStorage<T = unknown>(opts: KvStorageOptions<T>): KvStorageTier<T> {
 	const codec = opts.codec ?? jsonCodecFor<T>();
 	const { backend } = opts;
@@ -140,12 +182,29 @@ export function kvStorage<T = unknown>(opts: KvStorageOptions<T>): KvStorageTier
 	return out;
 }
 
-/** Create an in-memory typed KV tier. */
+/** Create an in-memory typed KV tier.
+ * @param codec - Codec used to encode and decode stored values.
+ * @returns A `KvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { memoryKv } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function memoryKv<T = unknown>(codec: Codec<T> = jsonCodecFor<T>()): KvStorageTier<T> {
 	return kvStorage({ backend: memoryBackend(), codec });
 }
 
-/** Create an in-memory typed KV tier preloaded from a record. */
+/** Create an in-memory typed KV tier preloaded from a record.
+ * @param entries - entries value used by the helper.
+ * @param codec - Codec used to encode and decode stored values.
+ * @returns A `KvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { dictKv } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function dictKv<T = unknown>(
 	entries: Record<string, T> = {},
 	codec: Codec<T> = jsonCodecFor<T>(),
@@ -158,7 +217,16 @@ export function dictKv<T = unknown>(
 	return kv;
 }
 
-/** Convenience wrapper for deterministic prefix listing. */
+/** Convenience wrapper for deterministic prefix listing.
+ * @param tier - tier value used by the helper.
+ * @param prefix - prefix value used by the helper.
+ * @returns A `Promise<readonly string[]>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { listByPrefix } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function listByPrefix<T>(tier: KvStorageTier<T>, prefix = ""): Promise<readonly string[]> {
 	return tier.list(prefix);
 }

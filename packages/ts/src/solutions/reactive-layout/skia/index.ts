@@ -57,6 +57,13 @@ export interface SkiaReadyTextMeasurementsOptions extends SkiaTextMeasurementsOp
  * Skia provider helper for caller-injected synchronous text measurement.
  *
  * This subpath does not import a Skia package; hosts expose the capability as graph data.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { skiaTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/skia";
+ * ```
  */
 export function skiaTextMeasurements(opts: SkiaTextMeasurementsOptions): Node<Measurements> {
 	return capabilityTextMeasurements({
@@ -70,6 +77,13 @@ export function skiaTextMeasurements(opts: SkiaTextMeasurementsOptions): Node<Me
  *
  * Hosts should load fonts first (for example with React Native Skia `useFonts`, which returns
  * null until ready) and pass explicit readiness facts to `skiaReadyTextMeasurements`.
+ * @param opts - Options that configure the helper.
+ * @returns A `SkiaTextMeasureCapability` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { skiaParagraphTextMeasureCapability } from "@graphrefly/ts/solutions/reactive-layout/skia";
+ * ```
  */
 export function skiaParagraphTextMeasureCapability(
 	opts: SkiaParagraphTextCapabilityOptions,
@@ -97,6 +111,13 @@ export function skiaParagraphTextMeasureCapability(
  * Skia provider helper that refuses to measure until caller-supplied font/runtime readiness is DATA.
  *
  * This does not load fonts or create a Skia runtime; readiness is an explicit graph input.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { skiaReadyTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/skia";
+ * ```
  */
 export function skiaReadyTextMeasurements(
 	opts: SkiaReadyTextMeasurementsOptions,

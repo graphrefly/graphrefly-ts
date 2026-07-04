@@ -19,12 +19,11 @@ import { ImageSizeAdapter } from "@graphrefly/ts/solutions/reactive-layout";
 class ImageSizeAdapter
 ```
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { ImageSizeAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

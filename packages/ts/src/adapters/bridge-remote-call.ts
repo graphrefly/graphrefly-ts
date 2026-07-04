@@ -29,7 +29,17 @@ import {
 	validateRemoteCallResponse,
 } from "./bridge-validation.js";
 
-/** D147 remote dispatcher call helper over explicit wireBridge request/response facts. */
+/** D147 remote dispatcher call helper over explicit wireBridge request/response facts.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param bridge - bridge value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `RemoteCallBundle<TRequest, TResponse>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { remoteCall } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function remoteCall<TRequest = unknown, TResponse = unknown>(
 	graph: Graph,
 	bridge: WireBridgeBundle<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>,

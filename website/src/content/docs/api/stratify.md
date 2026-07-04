@@ -30,28 +30,21 @@ function stratify(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `g` | `Graph` | Missing @param g JSDoc. |
-| `source` | `Node<T>` | Missing @param source JSDoc. |
-| `rules` | `readonly StratifyRule<R>[]` | Missing @param rules JSDoc. |
-| `classifier` | `(rule: R, value: T) => boolean` | Missing @param classifier JSDoc. |
-| `opts` | `StratifyOptions<R>` | Missing @param opts JSDoc. |
+| `g` | `Graph` | Graph that owns the created nodes or projector. |
+| `source` | `Node<T>` | Source node that provides graph-visible input. |
+| `rules` | `readonly StratifyRule<R>[]` | rules value used by the helper. |
+| `classifier` | `(rule: R, value: T) => boolean` | classifier value used by the helper. |
+| `opts` | `StratifyOptions<R>` | Options that configure the helper. |
 
 ## Returns
 
-`Stratified<T, R>`
+A `Stratified<T, R>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param g`.
-- Missing `@param source`.
-- Missing `@param rules`.
-- Missing `@param classifier`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { stratify } from "@graphrefly/ts/composition";
+```
 
 ## Source
 

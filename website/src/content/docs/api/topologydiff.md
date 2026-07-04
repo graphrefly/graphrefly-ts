@@ -27,22 +27,18 @@ function topologyDiff(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `prev` | `DescribeSnapshot` | Missing @param prev JSDoc. |
-| `next` | `DescribeSnapshot` | Missing @param next JSDoc. |
+| `prev` | `DescribeSnapshot` | prev value used by the helper. |
+| `next` | `DescribeSnapshot` | next value used by the helper. |
 
 ## Returns
 
-`DescribeChangeset`
+A DescribeChangeset value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param prev`.
-- Missing `@param next`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { topologyDiff } from "@graphrefly/ts/composition";
+```
 
 ## Source
 

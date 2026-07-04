@@ -403,30 +403,72 @@ export type NestProviderBinding<T = unknown> =
 	| { readonly provide: string | symbol; readonly useValue: T }
 	| { readonly provide: string | symbol; readonly useFactory: (...args: unknown[]) => T };
 
-/** Get the injection token for a named feature graph. */
+/** Get the injection token for a named feature graph.
+ * @param name - Stable name for the created node or helper.
+ * @returns A `symbol` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { getGraphToken } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function getGraphToken(name: string): symbol {
 	assertNonEmptyString(name, "getGraphToken(name)");
 	return Symbol.for(`graphrefly:graph:${name}`);
 }
 
-/** Get the injection token for a node at a qualified path. */
+/** Get the injection token for a node at a qualified path.
+ * @param path - path value used by the helper.
+ * @returns A `symbol` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { getNodeToken } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function getNodeToken(path: string): symbol {
 	assertNonEmptyString(path, "getNodeToken(path)");
 	return Symbol.for(`graphrefly:node:${path}`);
 }
 
-/** Get the injection token for a named Nest boundary binding. */
+/** Get the injection token for a named Nest boundary binding.
+ * @param bindingId - Stable identifier used by the emitted record.
+ * @returns A `symbol` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { getNestBoundaryToken } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function getNestBoundaryToken(bindingId: string): symbol {
 	assertNonEmptyString(bindingId, "getNestBoundaryToken(bindingId)");
 	return Symbol.for(`graphrefly:nest-boundary:${bindingId}`);
 }
 
-/** Build a dependency-free provider binding shape for user-land Nest modules. */
+/** Build a dependency-free provider binding shape for user-land Nest modules.
+ * @param provide - provide value used by the helper.
+ * @param useValue - use value value used by the helper.
+ * @returns A `NestProviderBinding<T>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { nestProvider } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function nestProvider<T>(provide: string | symbol, useValue: T): NestProviderBinding<T> {
 	return { provide, useValue };
 }
 
-/** D474 P0 HTTP request ingress. */
+/** D474 P0 HTTP request ingress.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestReq } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestReq<THost = unknown, TPayload = THost>(
 	graph: Graph,
 	opts: NestIngressOptions<THost, TPayload> = {},
@@ -434,7 +476,16 @@ export function fromNestReq<THost = unknown, TPayload = THost>(
 	return nestIngress(graph, "request", opts);
 }
 
-/** D474 P0 guard/admission ingress. */
+/** D474 P0 guard/admission ingress.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestGuard } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestGuard<THost = unknown, TPayload = THost>(
 	graph: Graph,
 	opts: NestIngressOptions<THost, TPayload> = {},
@@ -442,7 +493,16 @@ export function fromNestGuard<THost = unknown, TPayload = THost>(
 	return nestIngress(graph, "guard", opts);
 }
 
-/** D474 P1 interceptor ingress. */
+/** D474 P1 interceptor ingress.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestIntercept } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestIntercept<THost = unknown, TPayload = THost>(
 	graph: Graph,
 	opts: NestIngressOptions<THost, TPayload> = {},
@@ -450,7 +510,16 @@ export function fromNestIntercept<THost = unknown, TPayload = THost>(
 	return nestIngress(graph, "interceptor", opts);
 }
 
-/** D474 P0 error/filter ingress. */
+/** D474 P0 error/filter ingress.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestError } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestError<THost = unknown, TPayload = THost>(
 	graph: Graph,
 	opts: NestIngressOptions<THost, TPayload> = {},
@@ -458,7 +527,16 @@ export function fromNestError<THost = unknown, TPayload = THost>(
 	return nestIngress(graph, "error", opts);
 }
 
-/** D474 P1 Nest lifecycle hook ingress. */
+/** D474 P1 Nest lifecycle hook ingress.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestLifecycle } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestLifecycle<THost = unknown, TPayload = THost>(
 	graph: Graph,
 	opts: NestIngressOptions<THost, TPayload> = {},
@@ -466,7 +544,16 @@ export function fromNestLifecycle<THost = unknown, TPayload = THost>(
 	return nestIngress(graph, "lifecycle", opts);
 }
 
-/** D474 P1 schedule/cron ingress. */
+/** D474 P1 schedule/cron ingress.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestCron } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestCron<THost = unknown, TPayload = THost>(
 	graph: Graph,
 	opts: NestIngressOptions<THost, TPayload> = {},
@@ -474,7 +561,16 @@ export function fromNestCron<THost = unknown, TPayload = THost>(
 	return nestIngress(graph, "cron", opts);
 }
 
-/** D494 explicit graph-visible diagnostics ingress. Emits sanitized data-only payloads. */
+/** D494 explicit graph-visible diagnostics ingress. Emits sanitized data-only payloads.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestDiagnosticIngressBoundary value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestDiagnostics } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestDiagnostics(
 	graph: Graph,
 	opts: NestDiagnosticsOptions = {},
@@ -485,7 +581,16 @@ export function fromNestDiagnostics(
 	});
 }
 
-/** D474 later/optional WebSocket ingress. Kept thin for first-slice experiments. */
+/** D474 later/optional WebSocket ingress. Kept thin for first-slice experiments.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestWs } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestWs<THost = unknown, TPayload = THost>(
 	graph: Graph,
 	opts: NestIngressOptions<THost, TPayload> = {},
@@ -493,7 +598,16 @@ export function fromNestWs<THost = unknown, TPayload = THost>(
 	return nestIngress(graph, "ws", opts);
 }
 
-/** D474 later/optional microservice/message ingress. */
+/** D474 later/optional microservice/message ingress.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { fromNestMessage } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function fromNestMessage<THost = unknown, TPayload = THost>(
 	graph: Graph,
 	opts: NestIngressOptions<THost, TPayload> = {},
@@ -507,6 +621,14 @@ export function fromNestMessage<THost = unknown, TPayload = THost>(
  * The returned boundary owns only a host-private pending map. It never stores
  * response/socket/ack handles in graph DATA and only resolves handles whose
  * requestId (and optional bindingId) match an egress envelope.
+ * @param egress - egress value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A NestHttpBoundary<TPayload> value for the boundary or adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { toNestHttp } from "@graphrefly/ts/adapters/nestjs";
+ * ```
  */
 export function toNestHttp<TPayload = unknown>(
 	egress: Node<NestReplyEnvelope<TPayload>>,
@@ -718,7 +840,16 @@ export function toNestHttp<TPayload = unknown>(
 	};
 }
 
-/** D478 route-request decorator over an existing ingress boundary. */
+/** D478 route-request decorator over an existing ingress boundary.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphReq } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphReq<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
@@ -726,7 +857,16 @@ export function GraphReq<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("request", boundary, opts);
 }
 
-/** D478 route-guard decorator over an existing ingress boundary. */
+/** D478 route-guard decorator over an existing ingress boundary.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphGuard } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphGuard<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
@@ -734,7 +874,16 @@ export function GraphGuard<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("guard", boundary, opts);
 }
 
-/** D478 route-interceptor decorator over an existing ingress boundary. */
+/** D478 route-interceptor decorator over an existing ingress boundary.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphIntercept } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphIntercept<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
@@ -742,7 +891,16 @@ export function GraphIntercept<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("interceptor", boundary, opts);
 }
 
-/** D484 generic filter decorator over an existing ingress boundary. */
+/** D484 generic filter decorator over an existing ingress boundary.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphFilter } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphFilter<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestFilterDecoratorOptions<THost, TPayload> = {},
@@ -750,7 +908,16 @@ export function GraphFilter<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("error", boundary, opts);
 }
 
-/** D484 exception-oriented sugar over GraphFilter. */
+/** D484 exception-oriented sugar over GraphFilter.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphError } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphError<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestFilterDecoratorOptions<THost, TPayload> = {},
@@ -758,7 +925,16 @@ export function GraphError<THost = unknown, TPayload = unknown>(
 	return GraphFilter(boundary, opts);
 }
 
-/** D478 lifecycle decorator over an existing ingress boundary. */
+/** D478 lifecycle decorator over an existing ingress boundary.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphLifecycle } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphLifecycle<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
@@ -766,7 +942,16 @@ export function GraphLifecycle<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("lifecycle", boundary, opts);
 }
 
-/** D478 cron/schedule decorator over an existing ingress boundary. */
+/** D478 cron/schedule decorator over an existing ingress boundary.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphCron } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphCron<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
@@ -774,7 +959,16 @@ export function GraphCron<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("cron", boundary, opts);
 }
 
-/** D488 WebSocket message ingress decorator over an existing boundary. */
+/** D488 WebSocket message ingress decorator over an existing boundary.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphWs } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphWs<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
@@ -782,7 +976,16 @@ export function GraphWs<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("ws", boundary, opts);
 }
 
-/** D488 microservice/message ingress decorator over an existing boundary. */
+/** D488 microservice/message ingress decorator over an existing boundary.
+ * @param boundary - boundary value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphMessage } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphMessage<THost = unknown, TPayload = unknown>(
 	boundary: NestIngressBoundary<THost, TPayload>,
 	opts: NestBoundaryDecoratorOptions<THost, TPayload> = {},
@@ -790,7 +993,16 @@ export function GraphMessage<THost = unknown, TPayload = unknown>(
 	return graphIngressBinding("message", boundary, opts);
 }
 
-/** D478 HTTP reply decorator over an existing reply node. */
+/** D478 HTTP reply decorator over an existing reply node.
+ * @param replyNode - reply node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphHttpReply } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphHttpReply<THost = unknown, TPayload = unknown>(
 	replyNode: Node<NestReplyEnvelope<TPayload>>,
 	opts: NestHttpReplyDecoratorOptions<THost>,
@@ -811,7 +1023,16 @@ export function GraphHttpReply<THost = unknown, TPayload = unknown>(
 	}));
 }
 
-/** D484 guard decision egress decorator over an existing reply-correlated decision node. */
+/** D484 guard decision egress decorator over an existing reply-correlated decision node.
+ * @param decisionNode - decision node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphGuardDecision } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphGuardDecision<THost = unknown>(
 	decisionNode: Node<NestReplyEnvelope<GraphGuardDecision>>,
 	opts: NestGuardDecisionDecoratorOptions<THost>,
@@ -832,7 +1053,16 @@ export function GraphGuardDecision<THost = unknown>(
 	}));
 }
 
-/** D488 WebSocket acknowledgement egress decorator over an existing reply-correlated node. */
+/** D488 WebSocket acknowledgement egress decorator over an existing reply-correlated node.
+ * @param ackNode - ack node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphWsAck } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphWsAck<TPayload = unknown>(
 	ackNode: Node<NestReplyEnvelope<TPayload>>,
 	opts: { readonly bindingId: string; readonly order?: number },
@@ -840,7 +1070,16 @@ export function GraphWsAck<TPayload = unknown>(
 	return graphReplyBinding("ws-ack", ackNode, opts, "GraphWsAck");
 }
 
-/** D488 WebSocket reply egress decorator over an existing reply-correlated node. */
+/** D488 WebSocket reply egress decorator over an existing reply-correlated node.
+ * @param replyNode - reply node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphWsReply } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphWsReply<TPayload = unknown>(
 	replyNode: Node<NestReplyEnvelope<TPayload>>,
 	opts: { readonly bindingId: string; readonly order?: number },
@@ -848,7 +1087,16 @@ export function GraphWsReply<TPayload = unknown>(
 	return graphReplyBinding("ws-reply", replyNode, opts, "GraphWsReply");
 }
 
-/** D488 microservice/message reply egress decorator over an existing reply-correlated node. */
+/** D488 microservice/message reply egress decorator over an existing reply-correlated node.
+ * @param replyNode - reply node value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphMessageReply } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphMessageReply<TPayload = unknown>(
 	replyNode: Node<NestReplyEnvelope<TPayload>>,
 	opts: { readonly bindingId: string; readonly order?: number },
@@ -1843,12 +2091,28 @@ function registerMeta<T>(
 	}) as GraphMethodDecorator;
 }
 
-/** Register a method as a DATA-event handler for a graph observe path. */
+/** Register a method as a DATA-event handler for a graph observe path.
+ * @param nodeName - node name value used by the helper.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { OnGraphEvent } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function OnGraphEvent(nodeName: string): GraphMethodDecorator {
 	return registerMeta(EVENT_HANDLERS, (methodKey) => ({ nodeName, methodKey }));
 }
 
-/** Register fixed-interval metadata for a user-land NestJS scheduler bridge. */
+/** Register fixed-interval metadata for a user-land NestJS scheduler bridge.
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `GraphMethodDecorator` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { GraphInterval } from "@graphrefly/ts/adapters/nestjs";
+ * ```
+ */
 export function GraphInterval(ms: number): GraphMethodDecorator {
 	return registerMeta(INTERVAL_HANDLERS, (methodKey) => ({ ms, methodKey }));
 }

@@ -31,20 +31,17 @@ function reactiveCascadingCache(opts: ReactiveCascadingCacheOptions<K, V>): Reac
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `ReactiveCascadingCacheOptions<K, V>` | Missing @param opts JSDoc. |
+| `opts` | `ReactiveCascadingCacheOptions<K, V>` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveCascadingCache<K, V>`
+A `ReactiveCascadingCache<K, V>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveCascadingCache } from "@graphrefly/ts/graph";
+```
 
 ## Source
 

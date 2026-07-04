@@ -875,6 +875,15 @@ export function node<T = unknown>(
  * deps participate in wave tracking; an unread dep's change re-runs the fn, which re-emits
  * its current value as DATA (D49 removed equals-absorption — dedup is opt-in via
  * distinctUntilChanged). Intra-graph only (D22).
+ * @param deps - Declared dependency node or nodes.
+ * @param fn - Synchronous function invoked by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<T>` value.
+ * @category core
+ * @example
+ * ```ts
+ * import { dynamicNode } from "@graphrefly/ts/core";
+ * ```
  */
 export function dynamicNode<T = unknown>(
 	deps: Node<unknown>[],

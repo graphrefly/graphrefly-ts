@@ -1186,6 +1186,13 @@ export function fromEvent<T = unknown>(
 /**
  * Wrap a host push transport. The host owns network/native setup; this factory owns reactive
  * delivery and teardown only, preserving async-at-source-boundary discipline.
+ * @param register - register value used by the helper.
+ * @returns A Operator<never, T> value for the boundary or adapter.
+ * @category sources
+ * @example
+ * ```ts
+ * import { fromPushNotification } from "@graphrefly/ts/sources";
+ * ```
  */
 export function fromPushNotification<T = unknown>(register: PushRegister<T>): Operator<never, T> {
 	if (typeof register !== "function") {
@@ -1214,6 +1221,14 @@ export function fromPushNotification<T = unknown>(register: PushRegister<T>): Op
  * an async iterable → {@link fromAsyncIter}; with `{iter:true}` a sync iterable →
  * {@link fromIter}; everything else → {@link of}. Coerced nodes are bare (use
  * `opts.dispatcher` to bind one, default = process-global D26).
+ * @param input - Input value to project or validate.
+ * @param opts - Options that configure the helper.
+ * @returns A Node<T> value for the boundary or adapter.
+ * @category sources
+ * @example
+ * ```ts
+ * import { fromAny } from "@graphrefly/ts/sources";
+ * ```
  */
 export function fromAny<T>(
 	input: NodeInput<T>,

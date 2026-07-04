@@ -30,22 +30,18 @@ function fromAny(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `input` | `NodeInput<T>` | Missing @param input JSDoc. |
-| `opts` | `NodeOptions<T> & { iter?: boolean }` | Missing @param opts JSDoc. |
+| `input` | `NodeInput<T>` | Input value to project or validate. |
+| `opts` | `NodeOptions<T> & { iter?: boolean }` | Options that configure the helper. |
 
 ## Returns
 
-`Node<T>`
+A Node<T> value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param input`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fromAny } from "@graphrefly/ts/sources";
+```
 
 ## Source
 

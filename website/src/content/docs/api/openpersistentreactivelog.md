@@ -23,20 +23,17 @@ function openPersistentReactiveLog(opts: OpenPersistentReactiveLogOptions<T>): P
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `OpenPersistentReactiveLogOptions<T>` | Missing @param opts JSDoc. |
+| `opts` | `OpenPersistentReactiveLogOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<PersistentReactiveLog<T>>`
+A `Promise<PersistentReactiveLog<T>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { openPersistentReactiveLog } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

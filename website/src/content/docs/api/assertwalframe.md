@@ -23,20 +23,17 @@ function assertWalFrame(value: unknown): WalFrame<T>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `value` | `unknown` | Missing @param value JSDoc. |
+| `value` | `unknown` | Unknown value to check or decode. |
 
 ## Returns
 
-`WalFrame<T>`
+The narrowed, validated value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param value`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { assertWalFrame } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

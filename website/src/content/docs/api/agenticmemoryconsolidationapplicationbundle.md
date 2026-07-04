@@ -29,22 +29,18 @@ function agenticMemoryConsolidationApplicationBundle(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `AgenticMemoryConsolidationApplicationBundleOptions<T>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `AgenticMemoryConsolidationApplicationBundleOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`AgenticMemoryConsolidationApplicationBundle<T>`
+A bundle of graph-visible nodes for the recipe.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { agenticMemoryConsolidationApplicationBundle } from "@graphrefly/ts/solutions";
+```
 
 ## Source
 

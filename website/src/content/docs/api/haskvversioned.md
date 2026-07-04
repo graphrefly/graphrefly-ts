@@ -23,20 +23,17 @@ function hasKvVersioned(tier: KvStorageTier<T>): tier is VersionedKvStorageTier<
 
 | Parameter | Type | Description |
 |---|---|---|
-| `tier` | `KvStorageTier<T>` | Missing @param tier JSDoc. |
+| `tier` | `KvStorageTier<T>` | tier value used by the helper. |
 
 ## Returns
 
-`tier is VersionedKvStorageTier<T>`
+A `tier is VersionedKvStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param tier`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { hasKvVersioned } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

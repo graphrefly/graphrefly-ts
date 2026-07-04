@@ -28,24 +28,19 @@ function cqrsProjection(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `source` | `Pick<CqrsBundle<unknown, TEvent>, "events">` | Missing @param source JSDoc. |
-| `opts` | `CqrsProjectionOptions<TState, TEvent>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `source` | `Pick<CqrsBundle<unknown, TEvent>, "events">` | Source node that provides graph-visible input. |
+| `opts` | `CqrsProjectionOptions<TState, TEvent>` | Options that configure the helper. |
 
 ## Returns
 
-`CqrsProjection<TState>`
+A `CqrsProjection<TState>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param source`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { cqrsProjection } from "@graphrefly/ts/cqrs";
+```
 
 ## Source
 

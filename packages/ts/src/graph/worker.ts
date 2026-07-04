@@ -41,6 +41,15 @@ export interface WorkerDerivedOptions<TInput, TResult> {
 /**
  * D148 backend-required graph helper. No public submit API is exposed; the
  * backend starts work only after this helper installs the graph-local fence.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param deps - Declared dependency node or nodes.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<TResult>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { workerDerived } from "@graphrefly/ts/graph";
+ * ```
  */
 export function workerDerived<TInput, TResult>(
 	graph: Graph,

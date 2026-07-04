@@ -23,20 +23,17 @@ function capabilityTextMeasurements(opts: CapabilityTextMeasurementsOptions): No
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `CapabilityTextMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `CapabilityTextMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { capabilityTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

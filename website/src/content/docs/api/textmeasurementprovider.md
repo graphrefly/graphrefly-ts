@@ -23,20 +23,17 @@ function textMeasurementProvider(opts: TextMeasurementProviderOptions): Node<Mea
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `TextMeasurementProviderOptions` | Missing @param opts JSDoc. |
+| `opts` | `TextMeasurementProviderOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { textMeasurementProvider } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

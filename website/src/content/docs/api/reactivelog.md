@@ -27,22 +27,18 @@ function reactiveLog(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `initial` | `readonly T[]` | Missing @param initial JSDoc. |
-| `options` | `ReactiveLogOptions` | Missing @param options JSDoc. |
+| `initial` | `readonly T[]` | initial value used by the helper. |
+| `options` | `ReactiveLogOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveLog<T>`
+A `ReactiveLog<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param initial`.
-- Missing `@param options`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveLog } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

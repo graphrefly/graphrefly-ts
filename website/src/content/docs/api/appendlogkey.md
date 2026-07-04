@@ -26,22 +26,18 @@ function appendLogKey(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `prefix` | `string` | Missing @param prefix JSDoc. |
-| `seq` | `number` | Missing @param seq JSDoc. |
+| `prefix` | `string` | prefix value used by the helper. |
+| `seq` | `number` | seq value used by the helper. |
 
 ## Returns
 
-`string`
+The stable key or reference string.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param prefix`.
-- Missing `@param seq`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { appendLogKey } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

@@ -171,6 +171,15 @@ export function define<S, T>(
  * `g.initNode` is the same call PLUS graph registration; graph inspection
  * (describe/observe/profile) requires that path — a node built bare here is not registered in
  * any graph's index.
+ * @param op - op value used by the helper.
+ * @param deps - Declared dependency node or nodes.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<TOut>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { initNode } from "@graphrefly/ts/operators";
+ * ```
  */
 export function initNode<TIn, TOut>(
 	op: Operator<TIn, TOut>,
@@ -460,6 +469,12 @@ export function reduce<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S,
 /**
  * pairwise: emit `[previous, current]` for each consecutive pair; the very first value produces no
  * pair (quiet → undirty RESOLVED). Previous value is kept in `ctx.state`.
+ * @returns A `Operator<S, readonly [S, S]>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { pairwise } from "@graphrefly/ts/operators";
+ * ```
  */
 export function pairwise<S>(): Operator<S, readonly [S, S]> {
 	return {
@@ -480,7 +495,15 @@ export function pairwise<S>(): Operator<S, readonly [S, S]> {
 	};
 }
 
-/** skip: drop the first `n` DATA values, then pass the rest through. */
+/** skip: drop the first `n` DATA values, then pass the rest through.
+ * @param n - n value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { skip } from "@graphrefly/ts/operators";
+ * ```
+ */
 export function skip<S>(n: number): Operator<S, S> {
 	return {
 		factory: "skip",
@@ -503,6 +526,13 @@ export function skip<S>(n: number): Operator<S, S> {
 /**
  * takeWhile: emit values while `pred` holds; on the first value that fails `pred`, COMPLETE
  * WITHOUT emitting it (RxJS default, non-inclusive). Terminal-is-forever once it completes.
+ * @param pred - pred value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { takeWhile } from "@graphrefly/ts/operators";
+ * ```
  */
 export function takeWhile<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
@@ -526,6 +556,13 @@ export function takeWhile<S>(pred: (v: S) => boolean): Operator<S, S> {
  * (RxJS divergence, flagged — same class as last/find/elementAt): if the source COMPLETEs with no
  * matching value, the substrate auto-cascades a bare COMPLETE (no value); RxJS `first()` throws
  * EmptyError. Could align to `[[ERROR, EmptyError]]` (expressible) if strict RxJS parity is wanted.
+ * @param pred - pred value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { first } from "@graphrefly/ts/operators";
+ * ```
  */
 export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
 	return {
@@ -550,6 +587,13 @@ export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
  * RxJS `last()` throws EmptyError when no value matched; we COMPLETE without a value (no throw) —
  * the clean-slate substrate has no "complete-or-throw" terminal and SENTINEL forbids emitting a
  * placeholder.
+ * @param pred - pred value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { last } from "@graphrefly/ts/operators";
+ * ```
  */
 export function last<S>(pred?: (v: S) => boolean): Operator<S, S> {
 	return {
@@ -570,6 +614,13 @@ export function last<S>(pred?: (v: S) => boolean): Operator<S, S> {
  * find: emit the first value matching `pred`, then COMPLETE. EDGE (RxJS divergence, flagged): RxJS
  * `find` emits `undefined` then COMPLETE when nothing matched — but `undefined` IS the SENTINEL
  * (R-sentinel), so a not-found source COMPLETE here emits a bare COMPLETE (no value).
+ * @param pred - pred value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { find } from "@graphrefly/ts/operators";
+ * ```
  */
 export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
@@ -594,6 +645,13 @@ export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
  * elementAt: emit the value at zero-based `index`, then COMPLETE. EDGE (RxJS divergence, flagged):
  * RxJS throws ArgumentOutOfRangeError if the source completes before `index`; we COMPLETE without
  * a value (no throw), consistent with last/find.
+ * @param index - index value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { elementAt } from "@graphrefly/ts/operators";
+ * ```
  */
 export function elementAt<S>(index: number): Operator<S, S> {
 	return {
@@ -630,6 +688,13 @@ export interface TapObserver<T> {
  * (`completeWhenDepsComplete:false + errorWhenDepsError:false + terminalAsRealInput:true`) so it can
  * call `error`/`complete` then forward the terminal; the function form lets the substrate
  * auto-cascade terminals.
+ * @param fnOrObserver - fn or observer value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { tap } from "@graphrefly/ts/operators";
+ * ```
  */
 export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operator<S, S> {
 	if (typeof fnOrObserver === "function") {
@@ -682,6 +747,14 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
  * `where: v => v != null` — null/undefined pass through without counting as "first"), then pass all
  * values through unchanged. The one-shot guard is per-node `ctx.state` (NOT a factory closure, so a
  * second instantiation of the same factory re-arms — R-ctx-state).
+ * @param fn - Synchronous function invoked by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { onFirstData } from "@graphrefly/ts/operators";
+ * ```
  */
 export function onFirstData<S>(
 	fn: (v: S) => void,
@@ -734,6 +807,13 @@ interface SettleState<S> {
  * (a DATA batch OR a bare undirty RESOLVED end-of-wave). No polling (R-no-polling) — the counter
  * advances only on real upstream waves. `settle`'s own `equals` is a body comparator, NOT the
  * removed substrate `equals` (D49).
+ * @param opts - Options that configure the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { settle } from "@graphrefly/ts/operators";
+ * ```
  */
 export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 	const { quietWaves, maxWaves, equals } = opts;
@@ -796,6 +876,13 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
  * ERROR); on source COMPLETE → COMPLETE. After recovery the source is terminal-errored (dead) so no
  * further values flow — the recovered value is the final cached value (matches the frozen pure-ts
  * reference; it does NOT auto-COMPLETE, RxJS-`catchError(()=>of(x))` divergence, flagged).
+ * @param recover - recover value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { rescue } from "@graphrefly/ts/operators";
+ * ```
  */
 export function rescue<S>(recover: (err: unknown) => S): Operator<S, S> {
 	return {
@@ -844,6 +931,13 @@ export interface ValveOpts {
  * terminating) does NOT complete the valve; only the SOURCE's terminal (read via
  * `terminalAsRealInput`) is forwarded. The `state`-verb control input is a legitimate external
  * boundary (D4 / D54), not a forbidden imperative trigger.
+ * @param opts - Options that configure the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category operators
+ * @example
+ * ```ts
+ * import { valve } from "@graphrefly/ts/operators";
+ * ```
  */
 export function valve<S>(opts?: ValveOpts): Operator<S, S> {
 	const abortInFlight = opts?.abortInFlight;

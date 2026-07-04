@@ -26,22 +26,18 @@ function fileAppendLog(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `dir` | `string` | Missing @param dir JSDoc. |
-| `opts` | `FileAppendLogOptions<T>` | Missing @param opts JSDoc. |
+| `dir` | `string` | dir value used by the helper. |
+| `opts` | `FileAppendLogOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`AppendLogStorageTier<T>`
+A `AppendLogStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param dir`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fileAppendLog } from "@graphrefly/ts/storage/node";
+```
 
 ## Source
 

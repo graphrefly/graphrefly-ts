@@ -318,7 +318,15 @@ export function scopedName(scope: string, local: string): string {
 	return scope === local ? local : `${scope}:${local}`;
 }
 
-/** Generic sync text measurement provider that emits graph-visible measurement facts. */
+/** Generic sync text measurement provider that emits graph-visible measurement facts.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { textMeasurementProvider } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function textMeasurementProvider(opts: TextMeasurementProviderOptions): Node<Measurements> {
 	const targetId = opts.targetId ?? "text";
 	const name = opts.name ?? `${targetId}-measurements`;
@@ -358,7 +366,15 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 	);
 }
 
-/** Provider helper for caller-injected synchronous text measurement. */
+/** Provider helper for caller-injected synchronous text measurement.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { injectedTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function injectedTextMeasurements(
 	opts: InjectedTextMeasurementsOptions,
 ): Node<Measurements> {
@@ -378,7 +394,15 @@ export function injectedTextMeasurements(
 	});
 }
 
-/** Provider helper for deterministic precomputed text metrics. */
+/** Provider helper for deterministic precomputed text metrics.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { precomputedTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function precomputedTextMeasurements(
 	opts: PrecomputedTextMeasurementsOptions,
 ): Node<Measurements> {
@@ -395,7 +419,15 @@ export function precomputedTextMeasurements(
 	});
 }
 
-/** Provider helper for fixed-cell terminal/snapshot text measurement. */
+/** Provider helper for fixed-cell terminal/snapshot text measurement.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { cellTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function cellTextMeasurements(opts: CellTextMeasurementsOptions): Node<Measurements> {
 	const targetId = opts.targetId ?? "text";
 	const adapter = opts.graph.state<MeasurementAdapter>(new CellMeasureAdapter(opts), {
@@ -410,7 +442,15 @@ export function cellTextMeasurements(opts: CellTextMeasurementsOptions): Node<Me
 	});
 }
 
-/** Provider helper for caller-injected platform text capability nodes. */
+/** Provider helper for caller-injected platform text capability nodes.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { capabilityTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function capabilityTextMeasurements(
 	opts: CapabilityTextMeasurementsOptions,
 ): Node<Measurements> {
@@ -435,7 +475,15 @@ export function capabilityTextMeasurements(
 	});
 }
 
-/** Provider helper that makes readiness facts an explicit measurement dependency. */
+/** Provider helper that makes readiness facts an explicit measurement dependency.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { readinessTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function readinessTextMeasurements(
 	opts: ReadinessTextMeasurementsOptions,
 ): Node<Measurements> {
@@ -506,7 +554,15 @@ export function readinessTextMeasurements(
 	);
 }
 
-/** Provider helper that emits graph-visible readiness facts without measuring layout. */
+/** Provider helper that emits graph-visible readiness facts without measuring layout.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { readinessMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function readinessMeasurements(opts: ReadinessMeasurementsOptions): Node<Measurements> {
 	const targetId = opts.targetId ?? "measurement-readiness";
 	const measurementKind = opts.measurementKind ?? READINESS_MEASUREMENT_KIND;
@@ -554,7 +610,15 @@ export function readinessMeasurements(opts: ReadinessMeasurementsOptions): Node<
 	);
 }
 
-/** Provider helper for image-size facts from caller-owned synchronous image measurers. */
+/** Provider helper for image-size facts from caller-owned synchronous image measurers.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { imageSizeMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<Measurements> {
 	const measurementKind = opts.measurementKind ?? IMAGE_SIZE_MEASUREMENT_KIND;
 	const name = opts.name ?? "image-size-measurements";
@@ -604,7 +668,15 @@ export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<
 	);
 }
 
-/** Provider helper for SVG bounds facts from caller-owned synchronous SVG measurers. */
+/** Provider helper for SVG bounds facts from caller-owned synchronous SVG measurers.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { svgBoundsMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<Measurements> {
 	const measurementKind = opts.measurementKind ?? SVG_BOUNDS_MEASUREMENT_KIND;
 	const name = opts.name ?? "svg-bounds-measurements";
@@ -654,7 +726,15 @@ export function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<
 	);
 }
 
-/** Merge provider fact nodes into the single measurements node consumed by layout bundles. */
+/** Merge provider fact nodes into the single measurements node consumed by layout bundles.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { mergeMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function mergeMeasurements(opts: MergeMeasurementsOptions): Node<Measurements> {
 	const sources = [...opts.sources];
 	return opts.graph.node<Measurements>(
@@ -670,7 +750,15 @@ export function mergeMeasurements(opts: MergeMeasurementsOptions): Node<Measurem
 	);
 }
 
-/** Compose optional block measurement capability nodes into one graph-visible adapter node. */
+/** Compose optional block measurement capability nodes into one graph-visible adapter node.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<BlockAdapters>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { blockAdaptersProvider } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function blockAdaptersProvider(opts: BlockAdaptersProviderOptions): Node<BlockAdapters> {
 	const deps: Node<unknown>[] = [];
 	const positions: { text?: number; svg?: number; image?: number } = {};
@@ -707,7 +795,15 @@ export function blockAdaptersProvider(opts: BlockAdaptersProviderOptions): Node<
 	);
 }
 
-/** Provider helper for block measurement facts over declared block/max-width deps. */
+/** Provider helper for block measurement facts over declared block/max-width deps.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { blockMeasurementProvider } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function blockMeasurementProvider(
 	opts: BlockMeasurementProviderOptions,
 ): Node<Measurements> {

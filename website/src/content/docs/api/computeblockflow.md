@@ -26,22 +26,18 @@ function computeBlockFlow(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `blocks` | `readonly MeasuredBlock[]` | Missing @param blocks JSDoc. |
-| `gap` | `unknown` | Missing @param gap JSDoc. |
+| `blocks` | `readonly MeasuredBlock[]` | blocks value used by the helper. |
+| `gap` | `unknown` | gap value used by the helper. |
 
 ## Returns
 
-`readonly PositionedBlock[]`
+A `readonly PositionedBlock[]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param blocks`.
-- Missing `@param gap`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { computeBlockFlow } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

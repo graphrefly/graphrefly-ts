@@ -300,7 +300,18 @@ function resolveHyphenWidth(ctx: LayoutNextLineContext | undefined): number {
 	return ctx.adapter.measureSegment("-", ctx.font).width;
 }
 
-/** Lay out one line from a cursor, returning the next cursor for continuation. */
+/** Lay out one line from a cursor, returning the next cursor for continuation.
+ * @param segments - segments value used by the helper.
+ * @param cursor - cursor value used by the helper.
+ * @param slotWidth - slot width value used by the helper.
+ * @param ctx - Node execution context supplied by the dispatcher.
+ * @returns A `LayoutNextLineResult | null` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { layoutNextLine } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function layoutNextLine(
 	segments: readonly PreparedSegment[],
 	cursor: LayoutCursor,
@@ -560,7 +571,17 @@ export function layoutNextLine(
 	};
 }
 
-/** Subtract obstacle intervals from a horizontal text band. */
+/** Subtract obstacle intervals from a horizontal text band.
+ * @param base - base value used by the helper.
+ * @param blocked - blocked value used by the helper.
+ * @param minSlotWidth - min slot width value used by the helper.
+ * @returns A `Interval[]` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { carveTextLineSlots } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function carveTextLineSlots(
 	base: Interval,
 	blocked: readonly Interval[],

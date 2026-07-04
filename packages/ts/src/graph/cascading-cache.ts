@@ -117,6 +117,13 @@ interface SeqState {
  * ignore them. Storage promotion defaults to `false` here because passive tier writes have no
  * generation/CAS contract; callers may opt in with `promoteTo` when best-effort promotion is
  * acceptable.
+ * @param opts - Options that configure the helper.
+ * @returns A `ReactiveCascadingCache<K, V>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { reactiveCascadingCache } from "@graphrefly/ts/graph";
+ * ```
  */
 export function reactiveCascadingCache<K extends string, V>(
 	opts: ReactiveCascadingCacheOptions<K, V>,

@@ -27,24 +27,19 @@ function reactiveCollectionSnapshotFrame(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `kind` | `K` | Missing @param kind JSDoc. |
-| `snapshot` | `S` | Missing @param snapshot JSDoc. |
-| `opts` | `{ readonly changeCursor?: number }` | Missing @param opts JSDoc. |
+| `kind` | `K` | kind value used by the helper. |
+| `snapshot` | `S` | snapshot value used by the helper. |
+| `opts` | `{ readonly changeCursor?: number }` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveCollectionSnapshotFrame<K, S>`
+A `ReactiveCollectionSnapshotFrame<K, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param kind`.
-- Missing `@param snapshot`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveCollectionSnapshotFrame } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

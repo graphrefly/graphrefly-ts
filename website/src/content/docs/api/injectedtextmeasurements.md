@@ -23,20 +23,17 @@ function injectedTextMeasurements(opts: InjectedTextMeasurementsOptions): Node<M
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `InjectedTextMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `InjectedTextMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { injectedTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

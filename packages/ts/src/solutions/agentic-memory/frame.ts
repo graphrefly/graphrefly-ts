@@ -66,7 +66,15 @@ export function agenticMemoryRecordFrame<TJson extends StrictJsonValue>(
 	});
 }
 
-/** Assert and snapshot a decoded D166 record frame. Unknown fields fail honestly. */
+/** Assert and snapshot a decoded D166 record frame. Unknown fields fail honestly.
+ * @param value - Unknown value to check or decode.
+ * @returns The narrowed, validated value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { assertAgenticMemoryRecordFrame } from "@graphrefly/ts/solutions";
+ * ```
+ */
 export function assertAgenticMemoryRecordFrame<TJson extends StrictJsonValue = StrictJsonValue>(
 	value: unknown,
 ): AgenticMemoryRecordFrame<TJson> {
@@ -119,7 +127,14 @@ export function assertAgenticMemoryRecordFrame<TJson extends StrictJsonValue = S
 	return roundtrip as AgenticMemoryRecordFrame<TJson>;
 }
 
-/** Strict canonical JSON codec for D166 AgenticMemoryRecordFrame values. */
+/** Strict canonical JSON codec for D166 AgenticMemoryRecordFrame values.
+ * @returns A `Codec<AgenticMemoryRecordFrame<TJson>>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { agenticMemoryRecordFrameCodec } from "@graphrefly/ts/solutions";
+ * ```
+ */
 export function agenticMemoryRecordFrameCodec<
 	TJson extends StrictJsonValue = StrictJsonValue,
 >(): Codec<AgenticMemoryRecordFrame<TJson>> {
@@ -133,7 +148,14 @@ export function agenticMemoryRecordFrameCodec<
 	};
 }
 
-/** Strict canonical JSON codec that persists records and decodes bigint fields back to bigint. */
+/** Strict canonical JSON codec that persists records and decodes bigint fields back to bigint.
+ * @returns A `Codec<` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { agenticMemoryRecordCodec } from "@graphrefly/ts/solutions";
+ * ```
+ */
 export function agenticMemoryRecordCodec<TJson extends StrictJsonValue = StrictJsonValue>(): Codec<
 	AgenticMemoryRecord<TJson>
 > {

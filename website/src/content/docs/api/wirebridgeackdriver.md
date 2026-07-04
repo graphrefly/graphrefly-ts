@@ -27,24 +27,19 @@ function wireBridgeAckDriver(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `bridge` | `WireBridgeBundle<TOutbound, TInbound>` | Missing @param bridge JSDoc. |
-| `opts` | `WireBridgeAckDriverOptions` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `bridge` | `WireBridgeBundle<TOutbound, TInbound>` | bridge value used by the helper. |
+| `opts` | `WireBridgeAckDriverOptions` | Options that configure the helper. |
 
 ## Returns
 
-`WireBridgeAckDriverBundle`
+A `WireBridgeAckDriverBundle` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param bridge`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { wireBridgeAckDriver } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

@@ -27,20 +27,17 @@ function multiWriterAppendLogStorage(opts: MultiWriterAppendLogOptions<T>): Mult
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `MultiWriterAppendLogOptions<T>` | Missing @param opts JSDoc. |
+| `opts` | `MultiWriterAppendLogOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`MultiWriterAppendLogStorageTier<T>`
+A `MultiWriterAppendLogStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { multiWriterAppendLogStorage } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

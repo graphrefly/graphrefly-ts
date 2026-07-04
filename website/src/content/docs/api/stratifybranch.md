@@ -28,26 +28,20 @@ function stratifyBranch(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `source` | `Node<T>` | Missing @param source JSDoc. |
-| `rules` | `Node<R>` | Missing @param rules JSDoc. |
-| `classifier` | `(rules: R, value: T) => boolean` | Missing @param classifier JSDoc. |
-| `opts` | `StratifyBranchOptions<T>` | Missing @param opts JSDoc. |
+| `source` | `Node<T>` | Source node that provides graph-visible input. |
+| `rules` | `Node<R>` | rules value used by the helper. |
+| `classifier` | `(rules: R, value: T) => boolean` | classifier value used by the helper. |
+| `opts` | `StratifyBranchOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`Node<T>`
+A `Node<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param source`.
-- Missing `@param rules`.
-- Missing `@param classifier`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { stratifyBranch } from "@graphrefly/ts/composition";
+```
 
 ## Source
 

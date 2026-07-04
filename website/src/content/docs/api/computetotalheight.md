@@ -23,20 +23,17 @@ function computeTotalHeight(blocks: readonly PositionedBlock[]): number
 
 | Parameter | Type | Description |
 |---|---|---|
-| `blocks` | `readonly PositionedBlock[]` | Missing @param blocks JSDoc. |
+| `blocks` | `readonly PositionedBlock[]` | blocks value used by the helper. |
 
 ## Returns
 
-`number`
+A `number` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param blocks`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { computeTotalHeight } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

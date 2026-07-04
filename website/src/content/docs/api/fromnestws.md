@@ -26,22 +26,18 @@ function fromNestWs(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `NestIngressOptions<THost, TPayload>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `NestIngressOptions<THost, TPayload>` | Options that configure the helper. |
 
 ## Returns
 
-`NestIngressBoundary<THost, TPayload>`
+A NestIngressBoundary<THost, TPayload> value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fromNestWs } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

@@ -26,22 +26,18 @@ function mermaidLiveUrl(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `mermaidSource` | `string` | Missing @param mermaidSource JSDoc. |
-| `opts` | `MermaidLiveUrlOptions` | Missing @param opts JSDoc. |
+| `mermaidSource` | `string` | mermaid source value used by the helper. |
+| `opts` | `MermaidLiveUrlOptions` | Options that configure the helper. |
 
 ## Returns
 
-`string`
+A `string` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param mermaidSource`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { mermaidLiveUrl } from "@graphrefly/ts/graph";
+```
 
 ## Source
 

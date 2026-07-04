@@ -155,6 +155,14 @@ function rejectUndefined<T>(value: T, ctx: string): void {
 /**
  * Create an append-only reactive log (D54/D60). DELTA + lazy pull SNAPSHOT + pullId via
  * {@link collectionCore}; this layer adds the typed append surface + incremental view/scan.
+ * @param initial - initial value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns A `ReactiveLog<T>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { reactiveLog } from "@graphrefly/ts/data-structures";
+ * ```
  */
 export function reactiveLog<T>(
 	initial?: readonly T[],
@@ -345,6 +353,13 @@ export function reactiveLog<T>(
  * and re-emits every change it sees — describe shows `log[i].delta → merged` truthfully (D45).
  * For the merged SNAPSHOT, fold the merged delta with {@link ReactiveLog.scan}-style logic, or
  * demand each source's snapshot independently.
+ * @param logs - logs value used by the helper.
+ * @returns A `Node<LogChange<T>>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { mergeReactiveLogs } from "@graphrefly/ts/data-structures";
+ * ```
  */
 export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogChange<T>> {
 	const deps = logs.map((l) => l.delta as Node<unknown>);
@@ -363,6 +378,15 @@ export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogC
 /**
  * Standalone incremental scan over a reactive log. Equivalent to `log.scan(initial, step)`;
  * provided for pipe-builder and helper-composition call sites.
+ * @param log - log value used by the helper.
+ * @param initial - initial value used by the helper.
+ * @param step - step value used by the helper.
+ * @returns A `Node<A>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { scanLog } from "@graphrefly/ts/data-structures";
+ * ```
  */
 export function scanLog<T, A>(
 	log: ReactiveLog<T>,

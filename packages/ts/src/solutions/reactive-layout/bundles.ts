@@ -270,7 +270,15 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 	};
 }
 
-/** Create a graph-visible multi-column flow layout bundle with rectangle/circle obstacles. */
+/** Create a graph-visible multi-column flow layout bundle with rectangle/circle obstacles.
+ * @param opts - Options that configure the helper.
+ * @returns A `ReactiveFlowLayoutBundle` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { reactiveFlowLayout } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlowLayoutBundle {
 	const { measurements, segmentAdapter: segmentAdapterOpt, name = "reactive-flow-layout" } = opts;
 	const targetId = opts.targetId ?? "text";

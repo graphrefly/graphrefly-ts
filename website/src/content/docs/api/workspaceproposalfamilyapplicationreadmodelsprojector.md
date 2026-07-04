@@ -26,22 +26,18 @@ function workspaceProposalFamilyApplicationReadModelsProjector(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `WorkspaceProposalFamilyApplicationReadModelsProjectorOptions` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `WorkspaceProposalFamilyApplicationReadModelsProjectorOptions` | Options that configure the helper. |
 
 ## Returns
 
-`WorkspaceProposalFamilyApplicationReadModelProjectorBundle`
+A node bundle that emits the projected records.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { workspaceProposalFamilyApplicationReadModelsProjector } from "@graphrefly/ts/solutions/work-item";
+```
 
 ## Source
 

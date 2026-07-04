@@ -23,20 +23,17 @@ function blockAdaptersProvider(opts: BlockAdaptersProviderOptions): Node<BlockAd
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `BlockAdaptersProviderOptions` | Missing @param opts JSDoc. |
+| `opts` | `BlockAdaptersProviderOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<BlockAdapters>`
+A `Node<BlockAdapters>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { blockAdaptersProvider } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

@@ -26,22 +26,18 @@ function readAppendLogPage(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `log` | `AppendLogStorageTier<T>` | Missing @param log JSDoc. |
-| `opts` | `AppendLogReadOptions` | Missing @param opts JSDoc. |
+| `log` | `AppendLogStorageTier<T>` | log value used by the helper. |
+| `opts` | `AppendLogReadOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<AppendLogPage<T>>`
+A `Promise<AppendLogPage<T>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param log`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { readAppendLogPage } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

@@ -30,24 +30,19 @@ function wireBridgeProtobuf(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `bridge` | `WireBridgeBundle<WireBridgeProtobufData, WireBridgeProtobufData>` | Missing @param bridge JSDoc. |
-| `opts` | `WireBridgeProtobufOptions` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `bridge` | `WireBridgeBundle<WireBridgeProtobufData, WireBridgeProtobufData>` | bridge value used by the helper. |
+| `opts` | `WireBridgeProtobufOptions` | Options that configure the helper. |
 
 ## Returns
 
-`WireBridgeProtobufBundle`
+A `WireBridgeProtobufBundle` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param bridge`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { wireBridgeProtobuf } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

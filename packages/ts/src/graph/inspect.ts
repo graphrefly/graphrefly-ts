@@ -63,6 +63,14 @@ export type ObserveEventEquals = (prev: ObserveEvent, next: ObserveEvent) => boo
  *
  * The source stream owns ordering and lifecycle; this helper only decides whether to forward each
  * ObserveEvent and returns the source unsubscribe unchanged.
+ * @param stream - stream value used by the helper.
+ * @param predicate - predicate value used by the helper.
+ * @returns A `ObserveStream` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { filterObserve } from "@graphrefly/ts/graph";
+ * ```
  */
 export function filterObserve(stream: ObserveStream, predicate: ObservePredicate): ObserveStream {
 	return {
@@ -95,6 +103,14 @@ function messagePayload(msg: Message): unknown {
  * This is egress-side coalescing only: it does not batch, delay, reorder, alter seq values, or add
  * topology to describe(). Pass a custom equality when the caller wants a narrower or wider
  * definition of "duplicate".
+ * @param stream - stream value used by the helper.
+ * @param equals - equals value used by the helper.
+ * @returns A `ObserveStream` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { coalesceObserve } from "@graphrefly/ts/graph";
+ * ```
  */
 export function coalesceObserve(
 	stream: ObserveStream,

@@ -23,20 +23,17 @@ function depCount(ctx: Ctx): number
 
 | Parameter | Type | Description |
 |---|---|---|
-| `ctx` | `Ctx` | Missing @param ctx JSDoc. |
+| `ctx` | `Ctx` | Node execution context supplied by the dispatcher. |
 
 ## Returns
 
-`number`
+A `number` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param ctx`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { depCount } from "@graphrefly/ts/core";
+```
 
 ## Source
 

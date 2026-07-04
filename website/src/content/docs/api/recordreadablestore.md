@@ -27,24 +27,19 @@ function recordReadableStore(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `keysNode` | `Node<readonly K[]>` | Missing @param keysNode JSDoc. |
-| `factory` | `NodeRecordFactory<K, R>` | Missing @param factory JSDoc. |
-| `opts` | `SubscribeValuesOptions<Record<K, R>>` | Missing @param opts JSDoc. |
+| `keysNode` | `Node<readonly K[]>` | keys node value used by the helper. |
+| `factory` | `NodeRecordFactory<K, R>` | factory value used by the helper. |
+| `opts` | `SubscribeValuesOptions<Record<K, R>>` | Options that configure the helper. |
 
 ## Returns
 
-`ReadableStore<Record<K, R>>`
+A `ReadableStore<Record<K, R>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param keysNode`.
-- Missing `@param factory`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { recordReadableStore } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

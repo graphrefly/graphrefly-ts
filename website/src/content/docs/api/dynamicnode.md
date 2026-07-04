@@ -31,24 +31,19 @@ function dynamicNode(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `deps` | `Node<unknown>[]` | Missing @param deps JSDoc. |
-| `fn` | `NodeFn` | Missing @param fn JSDoc. |
-| `opts` | `NodeOptions<T>` | Missing @param opts JSDoc. |
+| `deps` | `Node<unknown>[]` | Declared dependency node or nodes. |
+| `fn` | `NodeFn` | Synchronous function invoked by the helper. |
+| `opts` | `NodeOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`Node<T>`
+A `Node<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param deps`.
-- Missing `@param fn`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { dynamicNode } from "@graphrefly/ts/core";
+```
 
 ## Source
 

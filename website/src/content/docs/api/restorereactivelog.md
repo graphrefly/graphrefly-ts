@@ -26,22 +26,18 @@ function restoreReactiveLog(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `state` | `ReactiveLogRestoreState<T> \| readonly T[]` | Missing @param state JSDoc. |
-| `options` | `ReactiveLogOptions` | Missing @param options JSDoc. |
+| `state` | `ReactiveLogRestoreState<T> \| readonly T[]` | state value used by the helper. |
+| `options` | `ReactiveLogOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveLog<T>`
+A `ReactiveLog<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param state`.
-- Missing `@param options`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { restoreReactiveLog } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

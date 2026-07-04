@@ -26,22 +26,18 @@ function walFrameKey(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `prefix` | `string` | Missing @param prefix JSDoc. |
-| `frameSeq` | `number` | Missing @param frameSeq JSDoc. |
+| `prefix` | `string` | prefix value used by the helper. |
+| `frameSeq` | `number` | frame seq value used by the helper. |
 
 ## Returns
 
-`string`
+The stable key or reference string.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param prefix`.
-- Missing `@param frameSeq`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { walFrameKey } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

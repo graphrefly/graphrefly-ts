@@ -26,22 +26,18 @@ function cosineSimilarity(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `a` | `readonly number[]` | Missing @param a JSDoc. |
-| `b` | `readonly number[]` | Missing @param b JSDoc. |
+| `a` | `readonly number[]` | a value used by the helper. |
+| `b` | `readonly number[]` | b value used by the helper. |
 
 ## Returns
 
-`number`
+A `number` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param a`.
-- Missing `@param b`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { cosineSimilarity } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

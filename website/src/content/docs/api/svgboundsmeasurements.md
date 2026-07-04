@@ -23,20 +23,17 @@ function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<Measure
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `SvgBoundsMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `SvgBoundsMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { svgBoundsMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

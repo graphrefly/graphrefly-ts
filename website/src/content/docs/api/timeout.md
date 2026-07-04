@@ -38,22 +38,18 @@ function timeout(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `source` | `Node<S>` | Missing @param source JSDoc. |
-| `ms` | `number` | Missing @param ms JSDoc. |
+| `source` | `Node<S>` | Source node that provides graph-visible input. |
+| `ms` | `number` | Duration or timestamp in milliseconds. |
 
 ## Returns
 
-`Node<S>`
+A `Node<S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param source`.
-- Missing `@param ms`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { timeout } from "@graphrefly/ts";
+```
 
 ## Source
 

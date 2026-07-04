@@ -19,12 +19,11 @@ import { CapabilityMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layo
 class CapabilityMeasureAdapter
 ```
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { CapabilityMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

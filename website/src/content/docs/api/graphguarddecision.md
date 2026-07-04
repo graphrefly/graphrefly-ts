@@ -26,22 +26,18 @@ function GraphGuardDecision(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `decisionNode` | `Node<NestReplyEnvelope<GraphGuardDecision>>` | Missing @param decisionNode JSDoc. |
-| `opts` | `NestGuardDecisionDecoratorOptions<THost>` | Missing @param opts JSDoc. |
+| `decisionNode` | `Node<NestReplyEnvelope<GraphGuardDecision>>` | decision node value used by the helper. |
+| `opts` | `NestGuardDecisionDecoratorOptions<THost>` | Options that configure the helper. |
 
 ## Returns
 
-`GraphMethodDecorator`
+A `GraphMethodDecorator` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param decisionNode`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { GraphGuardDecision } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

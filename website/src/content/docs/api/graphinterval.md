@@ -23,20 +23,17 @@ function GraphInterval(ms: number): GraphMethodDecorator
 
 | Parameter | Type | Description |
 |---|---|---|
-| `ms` | `number` | Missing @param ms JSDoc. |
+| `ms` | `number` | Duration or timestamp in milliseconds. |
 
 ## Returns
 
-`GraphMethodDecorator`
+A `GraphMethodDecorator` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param ms`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { GraphInterval } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

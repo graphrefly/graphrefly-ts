@@ -26,22 +26,18 @@ function filterMemoryFragments(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `fragments` | `Iterable<MemoryFragment<T>>` | Missing @param fragments JSDoc. |
-| `query` | `MemoryQuery` | Missing @param query JSDoc. |
+| `fragments` | `Iterable<MemoryFragment<T>>` | fragments value used by the helper. |
+| `query` | `MemoryQuery` | query value used by the helper. |
 
 ## Returns
 
-`readonly MemoryFragment<T>[]`
+A `readonly MemoryFragment<T>[]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param fragments`.
-- Missing `@param query`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { filterMemoryFragments } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

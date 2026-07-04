@@ -121,7 +121,15 @@ function sortedJsonValue(
 	}
 }
 
-/** Stable JSON string: object keys sort by code-unit order for deterministic storage/checkpoint bytes. */
+/** Stable JSON string: object keys sort by code-unit order for deterministic storage/checkpoint bytes.
+ * @param value - Unknown value to check or decode.
+ * @returns A `string` value.
+ * @category json
+ * @example
+ * ```ts
+ * import { stableJsonString } from "@graphrefly/ts";
+ * ```
+ */
 export function stableJsonString(value: unknown): string {
 	return JSON.stringify(sortedJsonValue(value));
 }
@@ -130,7 +138,14 @@ function strictStableJsonString(value: unknown): string {
 	return JSON.stringify(sortedJsonValue(value, new Set<object>(), "$", true));
 }
 
-/** Build a JSON codec using stable object-key ordering. */
+/** Build a JSON codec using stable object-key ordering.
+ * @returns A `Codec<T>` value.
+ * @category json
+ * @example
+ * ```ts
+ * import { jsonCodecFor } from "@graphrefly/ts";
+ * ```
+ */
 export function jsonCodecFor<T>(): Codec<T> {
 	const encoder = new TextEncoder();
 	const decoder = new TextDecoder();
@@ -349,6 +364,12 @@ function assertNoDuplicateJsonObjectKeys(text: string): void {
  * Build a strict canonical JSON codec (D84/D87/D96).
  * The strict surface rejects malformed UTF-8, duplicate object keys, non-canonical bytes,
  * unpaired surrogates, and values that cannot round-trip through stable JSON.
+ * @returns A `Codec<T>` value.
+ * @category json
+ * @example
+ * ```ts
+ * import { strictJsonCodecFor } from "@graphrefly/ts";
+ * ```
  */
 export function strictJsonCodecFor<T>(): Codec<T> {
 	const encoder = new TextEncoder();
@@ -375,12 +396,29 @@ export function strictJsonCodecFor<T>(): Codec<T> {
 /** Default strict canonical JSON codec for unknown values. */
 export const strictJsonCodec: Codec<unknown> = strictJsonCodecFor<unknown>();
 
-/** D113 neutral helper for strict canonical JSON UTF-8 bytes. */
+/** D113 neutral helper for strict canonical JSON UTF-8 bytes.
+ * @param value - Unknown value to check or decode.
+ * @returns A `Uint8Array` value.
+ * @category json
+ * @example
+ * ```ts
+ * import { strictCanonicalJsonBytes } from "@graphrefly/ts";
+ * ```
+ */
 export function strictCanonicalJsonBytes(value: unknown): Uint8Array {
 	return strictJsonCodec.encode(value);
 }
 
-/** Validate and normalize a host value into strict canonical JSON data. */
+/** Validate and normalize a host value into strict canonical JSON data.
+ * @param value - Unknown value to check or decode.
+ * @param label - label value used by the helper.
+ * @returns The narrowed, validated value.
+ * @category json
+ * @example
+ * ```ts
+ * import { assertStrictJsonValue } from "@graphrefly/ts";
+ * ```
+ */
 export function assertStrictJsonValue(value: unknown, label = "strictJsonValue"): StrictJsonValue {
 	try {
 		return strictJsonCodec.decode(strictJsonCodec.encode(value)) as StrictJsonValue;
@@ -390,7 +428,16 @@ export function assertStrictJsonValue(value: unknown, label = "strictJsonValue")
 	}
 }
 
-/** Validate and normalize a host value into a strict canonical JSON object. */
+/** Validate and normalize a host value into a strict canonical JSON object.
+ * @param value - Unknown value to check or decode.
+ * @param label - label value used by the helper.
+ * @returns The narrowed, validated value.
+ * @category json
+ * @example
+ * ```ts
+ * import { assertStrictJsonObject } from "@graphrefly/ts";
+ * ```
+ */
 export function assertStrictJsonObject(
 	value: unknown,
 	label = "strictJsonObject",

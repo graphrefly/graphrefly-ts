@@ -5,7 +5,13 @@ import { contentAddressedStorageKey } from "./physical-key.js";
 /** Content-addressed KV access mode for D82 passive storage helpers. */
 export type ContentAddressedMode = "read" | "write" | "read-write" | "read-strict";
 
-/** Error thrown when a read-strict content-addressed lookup misses. */
+/** Error thrown when a read-strict content-addressed lookup misses.
+ * @category storage
+ * @example
+ * ```ts
+ * import { ContentAddressedMissError } from "@graphrefly/ts/storage";
+ * ```
+ */
 export class ContentAddressedMissError extends Error {
 	readonly key: string;
 	readonly context: unknown;
@@ -57,7 +63,15 @@ function sha256Hex(data: Uint8Array): Promise<string> {
 		.then((buf) => bytesToHex(new Uint8Array(buf)));
 }
 
-/** Build a content-addressed helper over a D82 KV tier. */
+/** Build a content-addressed helper over a D82 KV tier.
+ * @param opts - Options that configure the helper.
+ * @returns A `ContentAddressedKv<Ctx, V>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { contentAddressedKv } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function contentAddressedKv<Ctx, V>(
 	opts: ContentAddressedKvOptions<Ctx, V>,
 ): ContentAddressedKv<Ctx, V> {
@@ -102,7 +116,15 @@ export function contentAddressedKv<Ctx, V>(
 	};
 }
 
-/** Alias for consumers that name the same D82 helper by storage role rather than KV tier. */
+/** Alias for consumers that name the same D82 helper by storage role rather than KV tier.
+ * @param opts - Options that configure the helper.
+ * @returns A `ContentAddressedStorage<Ctx, V>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { contentAddressedStorage } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function contentAddressedStorage<Ctx, V>(
 	opts: ContentAddressedStorageOptions<Ctx, V>,
 ): ContentAddressedStorage<Ctx, V> {

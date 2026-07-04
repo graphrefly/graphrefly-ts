@@ -26,22 +26,18 @@ function assertReactiveCollectionChangeFrame(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `value` | `unknown` | Missing @param value JSDoc. |
-| `expectedKind` | `K` | Missing @param expectedKind JSDoc. |
+| `value` | `unknown` | Unknown value to check or decode. |
+| `expectedKind` | `K` | expected kind value used by the helper. |
 
 ## Returns
 
-`ReactiveCollectionChangeFrame<K, C>`
+The narrowed, validated value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param value`.
-- Missing `@param expectedKind`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { assertReactiveCollectionChangeFrame } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

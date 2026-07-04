@@ -26,20 +26,17 @@ function nodeCanvasPackageTextMeasurements(opts: NodeCanvasPackageTextMeasuremen
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `NodeCanvasPackageTextMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `NodeCanvasPackageTextMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { nodeCanvasPackageTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/node-canvas";
+```
 
 ## Source
 

@@ -23,20 +23,17 @@ function useNodeValue(node: Node<T>): T | undefined
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `Node<T>` | Missing @param node JSDoc. |
+| `node` | `Node<T>` | Node to observe, adapt, or connect. |
 
 ## Returns
 
-`T | undefined`
+A `T | undefined` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { useNodeValue } from "@graphrefly/ts/adapters/react";
+```
 
 ## Source
 

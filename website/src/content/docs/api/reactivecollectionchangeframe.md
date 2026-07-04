@@ -26,22 +26,18 @@ function reactiveCollectionChangeFrame(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `kind` | `K` | Missing @param kind JSDoc. |
-| `change` | `C` | Missing @param change JSDoc. |
+| `kind` | `K` | kind value used by the helper. |
+| `change` | `C` | change value used by the helper. |
 
 ## Returns
 
-`ReactiveCollectionChangeFrame<K, C>`
+A `ReactiveCollectionChangeFrame<K, C>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param kind`.
-- Missing `@param change`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveCollectionChangeFrame } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

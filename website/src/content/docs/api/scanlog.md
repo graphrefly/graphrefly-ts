@@ -28,24 +28,19 @@ function scanLog(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `log` | `ReactiveLog<T>` | Missing @param log JSDoc. |
-| `initial` | `A` | Missing @param initial JSDoc. |
-| `step` | `(acc: A, value: T) => A` | Missing @param step JSDoc. |
+| `log` | `ReactiveLog<T>` | log value used by the helper. |
+| `initial` | `A` | initial value used by the helper. |
+| `step` | `(acc: A, value: T) => A` | step value used by the helper. |
 
 ## Returns
 
-`Node<A>`
+A `Node<A>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param log`.
-- Missing `@param initial`.
-- Missing `@param step`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { scanLog } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

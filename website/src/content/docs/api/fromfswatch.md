@@ -29,22 +29,18 @@ function fromFSWatch(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `paths` | `string \| readonly string[]` | Missing @param paths JSDoc. |
-| `opts` | `FromFSWatchOptions` | Missing @param opts JSDoc. |
+| `paths` | `string \| readonly string[]` | paths value used by the helper. |
+| `opts` | `FromFSWatchOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Operator<never, FSEvent>`
+A Operator<never, FSEvent> value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param paths`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fromFSWatch } from "@graphrefly/ts/sources/node";
+```
 
 ## Source
 

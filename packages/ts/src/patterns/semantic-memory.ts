@@ -190,7 +190,16 @@ export interface MemoryFragmentValidation {
 	readonly errors: readonly string[];
 }
 
-/** Cosine similarity over zero-padded vectors. Non-finite results normalize to 0. */
+/** Cosine similarity over zero-padded vectors. Non-finite results normalize to 0.
+ * @param a - a value used by the helper.
+ * @param b - b value used by the helper.
+ * @returns A `number` value.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { cosineSimilarity } from "@graphrefly/ts/patterns";
+ * ```
+ */
 export function cosineSimilarity(a: readonly number[], b: readonly number[]): number {
 	const n = Math.max(a.length, b.length);
 	let dot = 0;
@@ -213,6 +222,14 @@ export function cosineSimilarity(a: readonly number[], b: readonly number[]): nu
  *
  * Omitted `asOf` has no clock to compare against, so it admits only fragments
  * that are live and not valid-time delayed.
+ * @param fragment - fragment value used by the helper.
+ * @param asOf - as of value used by the helper.
+ * @returns A `boolean` value.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { memoryFragmentValidAt } from "@graphrefly/ts/patterns";
+ * ```
  */
 export function memoryFragmentValidAt(fragment: MemoryFragment, asOf?: bigint): boolean {
 	if (asOf === undefined) return fragment.validTo === undefined && fragment.validFrom === undefined;
@@ -221,7 +238,16 @@ export function memoryFragmentValidAt(fragment: MemoryFragment, asOf?: bigint): 
 	return true;
 }
 
-/** Pure structured-query predicate over a single fragment. */
+/** Pure structured-query predicate over a single fragment.
+ * @param fragment - fragment value used by the helper.
+ * @param query - query value used by the helper.
+ * @returns A `boolean` value.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { memoryFragmentMatchesQuery } from "@graphrefly/ts/patterns";
+ * ```
+ */
 export function memoryFragmentMatchesQuery(
 	fragment: MemoryFragment,
 	query: MemoryQuery = {},
@@ -238,7 +264,16 @@ export function memoryFragmentMatchesQuery(
 	return true;
 }
 
-/** Filter and rank fragments by confidence desc, then transaction time desc. */
+/** Filter and rank fragments by confidence desc, then transaction time desc.
+ * @param fragments - fragments value used by the helper.
+ * @param query - query value used by the helper.
+ * @returns A `readonly MemoryFragment<T>[]` value.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { filterMemoryFragments } from "@graphrefly/ts/patterns";
+ * ```
+ */
 export function filterMemoryFragments<T>(
 	fragments: Iterable<MemoryFragment<T>>,
 	query: MemoryQuery = {},
@@ -248,7 +283,15 @@ export function filterMemoryFragments<T>(
 	return query.limit === undefined ? results : results.slice(0, Math.max(0, query.limit));
 }
 
-/** Validate the passive MemoryFragment shape without throwing. */
+/** Validate the passive MemoryFragment shape without throwing.
+ * @param value - Unknown value to check or decode.
+ * @returns Validation diagnostics or the validated projection.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { validateMemoryFragment } from "@graphrefly/ts/patterns";
+ * ```
+ */
 export function validateMemoryFragment(value: unknown): MemoryFragmentValidation {
 	const errors: string[] = [];
 	if (typeof value !== "object" || value === null) {
@@ -326,6 +369,13 @@ export function isMemoryFragment(value: unknown): value is MemoryFragment {
 
 /**
  * Generic N-dimension admission filter. Missing or non-finite thresholded scores reject.
+ * @param opts - Options that configure the helper.
+ * @returns A `(raw: TRaw) => boolean` value.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { admissionScored } from "@graphrefly/ts/patterns";
+ * ```
  */
 export function admissionScored<Dims extends string, TRaw = unknown>(
 	opts: AdmissionScoredOptions<Dims, TRaw>,
@@ -344,7 +394,15 @@ export function admissionScored<Dims extends string, TRaw = unknown>(
 	};
 }
 
-/** Three-axis admission sugar for persistence / structure / personal-value scoring. */
+/** Three-axis admission sugar for persistence / structure / personal-value scoring.
+ * @param opts - Options that configure the helper.
+ * @returns A `(raw: unknown) => boolean` value.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { admissionFilter3D } from "@graphrefly/ts/patterns";
+ * ```
+ */
 export function admissionFilter3D(opts: AdmissionScore3DOptions): (raw: unknown) => boolean {
 	return (raw: unknown): boolean => {
 		const scores = opts.scoreFn(raw);
@@ -355,7 +413,16 @@ export function admissionFilter3D(opts: AdmissionScore3DOptions): (raw: unknown)
 	};
 }
 
-/** Build a passive `{ shardBy, shardCount }` pair for tenant-isolated sharding. */
+/** Build a passive `{ shardBy, shardCount }` pair for tenant-isolated sharding.
+ * @param tenantOf - tenant of value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ShardByTenantConfig<T>` value.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { shardByTenant } from "@graphrefly/ts/patterns";
+ * ```
+ */
 export function shardByTenant<T>(
 	tenantOf: (fragment: MemoryFragment<T>) => string,
 	opts: ShardByTenantOptions = {},

@@ -23,20 +23,17 @@ function readinessMeasurements(opts: ReadinessMeasurementsOptions): Node<Measure
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `ReadinessMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `ReadinessMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { readinessMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

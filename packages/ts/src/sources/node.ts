@@ -205,6 +205,14 @@ function scanFiles(
  *
  * External fs callbacks are a source boundary (R-no-raw-async): events enter the graph only via
  * `ctx.down`, and cleanup is tied to node deactivation through `ctx.onDeactivation`.
+ * @param paths - paths value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A Operator<never, FSEvent> value for the boundary or adapter.
+ * @category sources
+ * @example
+ * ```ts
+ * import { fromFSWatch } from "@graphrefly/ts/sources/node";
+ * ```
  */
 export function fromFSWatch(
 	paths: string | readonly string[],
@@ -479,6 +487,13 @@ export function fromSpawn(
  * Import this from `@graphrefly/ts/sources/node` and install it with
  * `EnvironmentDrivers.empty().withProcess(nodeProcessDriver())`. The child process is an
  * adapter-boundary side effect; graph nodes only observe ordinary ProcessResult DATA or ERROR.
+ * @param opts - Options that configure the helper.
+ * @returns A `LocalProcessDriver` value.
+ * @category sources
+ * @example
+ * ```ts
+ * import { nodeProcessDriver } from "@graphrefly/ts/sources/node";
+ * ```
  */
 export function nodeProcessDriver(opts: NodeProcessDriverOptions = {}): LocalProcessDriver {
 	const killGraceMs = opts.killGraceMs ?? 1000;

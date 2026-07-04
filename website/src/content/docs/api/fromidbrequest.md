@@ -23,20 +23,17 @@ function fromIDBRequest(request: IDBRequestLike<T>): Operator<never, T>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `request` | `IDBRequestLike<T>` | Missing @param request JSDoc. |
+| `request` | `IDBRequestLike<T>` | Request value to lower, route, or record. |
 
 ## Returns
 
-`Operator<never, T>`
+A Operator<never, T> value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param request`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fromIDBRequest } from "@graphrefly/ts/sources/browser";
+```
 
 ## Source
 

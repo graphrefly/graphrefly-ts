@@ -26,22 +26,18 @@ function externalStore(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `Node<T>` | Missing @param node JSDoc. |
-| `opts` | `Pick<SubscribeValuesOptions<T>, "getSnapshot" \| "onError" \| "onComplete">` | Missing @param opts JSDoc. |
+| `node` | `Node<T>` | Node to observe, adapt, or connect. |
+| `opts` | `Pick<SubscribeValuesOptions<T>, "getSnapshot" \| "onError" \| "onComplete">` | Options that configure the helper. |
 
 ## Returns
 
-`ExternalStore<T>`
+A `ExternalStore<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { externalStore } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

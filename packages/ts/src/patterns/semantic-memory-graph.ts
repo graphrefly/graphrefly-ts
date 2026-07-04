@@ -74,6 +74,14 @@ interface MemoryRetrievalRuntimeState {
  * Invalid fragments and ranking status are emitted as ordinary DATA facts. The
  * bundle never owns storage restore or hidden mutation; callers that need
  * persistence compose D161 collection/storage sidecars outside this pattern.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { memoryRetrievalBundle } from "@graphrefly/ts/patterns";
+ * ```
  */
 export function memoryRetrievalBundle<T = unknown>(
 	graph: Graph,
@@ -246,6 +254,14 @@ export function memoryRetrievalBundle<T = unknown>(
  * Assertion, entity, relation, and topic ids remain DATA keys. The bundle has
  * static describe-visible topology and owns no storage, LLM extraction,
  * scheduler, agent runtime, or dynamic graph node lifecycle.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category patterns
+ * @example
+ * ```ts
+ * import { knowledgeGraphReducerBundle } from "@graphrefly/ts/patterns";
+ * ```
  */
 export function knowledgeGraphReducerBundle(
 	graph: Graph,

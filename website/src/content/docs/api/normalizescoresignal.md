@@ -25,20 +25,17 @@ function normalizeScoreSignal(signal: ScoreSignal): NormalizedScoreSignal
 
 | Parameter | Type | Description |
 |---|---|---|
-| `signal` | `ScoreSignal` | Missing @param signal JSDoc. |
+| `signal` | `ScoreSignal` | signal value used by the helper. |
 
 ## Returns
 
-`NormalizedScoreSignal`
+A `NormalizedScoreSignal` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param signal`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { normalizeScoreSignal } from "@graphrefly/ts/scoring";
+```
 
 ## Source
 

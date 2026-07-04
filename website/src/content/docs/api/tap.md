@@ -27,20 +27,17 @@ function tap(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `fnOrObserver` | `((v: S) => void) \| TapObserver<S>` | Missing @param fnOrObserver JSDoc. |
+| `fnOrObserver` | `((v: S) => void) \| TapObserver<S>` | fn or observer value used by the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param fnOrObserver`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { tap } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

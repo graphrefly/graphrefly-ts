@@ -124,13 +124,30 @@ function assertWalFrameBody<T = unknown>(
 	};
 }
 
-/** Build the namespace prefix for passive WAL frame keys. */
+/** Build the namespace prefix for passive WAL frame keys.
+ * @param namespace - namespace value used by the helper.
+ * @returns A `string` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { walFramePrefix } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function walFramePrefix(namespace: string): string {
 	if (namespace.length === 0) return WAL_KEY_SEGMENT;
 	return `${namespace}/${WAL_KEY_SEGMENT}`;
 }
 
-/** Build the deterministic storage key for a WAL frame sequence number. */
+/** Build the deterministic storage key for a WAL frame sequence number.
+ * @param prefix - prefix value used by the helper.
+ * @param frameSeq - frame seq value used by the helper.
+ * @returns The stable key or reference string.
+ * @category storage
+ * @example
+ * ```ts
+ * import { walFrameKey } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function walFrameKey(prefix: string, frameSeq: number): string {
 	if (!Number.isSafeInteger(frameSeq) || frameSeq < 0) {
 		throw new RangeError(
@@ -140,7 +157,15 @@ export function walFrameKey(prefix: string, frameSeq: number): string {
 	return `${prefix}/${frameSeq.toString().padStart(WAL_FRAME_SEQ_PAD, "0")}`;
 }
 
-/** Hash the canonical WAL frame body, excluding the checksum field itself. */
+/** Hash the canonical WAL frame body, excluding the checksum field itself.
+ * @param body - body value used by the helper.
+ * @returns A `Promise<string>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { walFrameChecksum } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function walFrameChecksum<T = unknown>(body: WalFrameBody<T>): Promise<string> {
 	let bytes: Uint8Array;
 	try {
@@ -153,7 +178,15 @@ export function walFrameChecksum<T = unknown>(body: WalFrameBody<T>): Promise<st
 	return sha256Hex(bytes);
 }
 
-/** Construct a passive WAL frame with a canonical checksum. */
+/** Construct a passive WAL frame with a canonical checksum.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<WalFrame<T>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { walFrame } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function walFrame<T = unknown>(opts: WalFrameOptions<T>): Promise<WalFrame<T>> {
 	const body: WalFrameBody<T> = {
 		t: "c",
@@ -167,7 +200,15 @@ export function walFrame<T = unknown>(opts: WalFrameOptions<T>): Promise<WalFram
 	return walFrameChecksum(body).then((checksum) => ({ ...body, checksum }));
 }
 
-/** Validate a decoded passive WAL frame without verifying its checksum bytes. */
+/** Validate a decoded passive WAL frame without verifying its checksum bytes.
+ * @param value - Unknown value to check or decode.
+ * @returns The narrowed, validated value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { assertWalFrame } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function assertWalFrame<T = unknown>(value: unknown): WalFrame<T> {
 	if (!isRecord(value)) throw new TypeError("walFrameCodec: frame must be an object");
 	assertOnlyKeys(value, WAL_FRAME_KEYS);
@@ -179,7 +220,15 @@ export function assertWalFrame<T = unknown>(value: unknown): WalFrame<T> {
 	return { ...body, checksum } as WalFrame<T>;
 }
 
-/** Verify that a passive WAL frame checksum matches its body. */
+/** Verify that a passive WAL frame checksum matches its body.
+ * @param frame - Frame to encode or validate.
+ * @returns A `Promise<boolean>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { verifyWalFrameChecksum } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function verifyWalFrameChecksum<T = unknown>(frame: WalFrame<T>): Promise<boolean> {
 	let checked: WalFrame<T>;
 	try {
@@ -193,7 +242,14 @@ export function verifyWalFrameChecksum<T = unknown>(frame: WalFrame<T>): Promise
 	return walFrameChecksum(body).then((expected) => expected === checksum);
 }
 
-/** Strict canonical JSON codec for passive WAL frames; this is not a restore codec. */
+/** Strict canonical JSON codec for passive WAL frames; this is not a restore codec.
+ * @returns A `Codec<WalFrame<T>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { walFrameCodec } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function walFrameCodec<T = unknown>(): Codec<WalFrame<T>> {
 	const codec = strictJsonCodecFor<unknown>();
 	return {

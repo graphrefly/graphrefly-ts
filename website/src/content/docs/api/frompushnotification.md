@@ -24,20 +24,17 @@ function fromPushNotification(register: PushRegister<T>): Operator<never, T>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `register` | `PushRegister<T>` | Missing @param register JSDoc. |
+| `register` | `PushRegister<T>` | register value used by the helper. |
 
 ## Returns
 
-`Operator<never, T>`
+A Operator<never, T> value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param register`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fromPushNotification } from "@graphrefly/ts/sources";
+```
 
 ## Source
 

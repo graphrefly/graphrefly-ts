@@ -28,15 +28,13 @@ function withLatestFrom(): Operator<unknown, readonly [A, B]>
 
 ## Returns
 
-`Operator<unknown, readonly [A, B]>`
+A `Operator<unknown, readonly [A, B]>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { withLatestFrom } from "@graphrefly/ts";
+```
 
 ## Source
 

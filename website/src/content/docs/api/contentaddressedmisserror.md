@@ -19,12 +19,11 @@ import { ContentAddressedMissError } from "@graphrefly/ts/storage";
 class ContentAddressedMissError
 ```
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { ContentAddressedMissError } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

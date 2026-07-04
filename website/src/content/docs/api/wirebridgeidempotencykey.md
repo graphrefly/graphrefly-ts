@@ -26,22 +26,18 @@ function wireBridgeIdempotencyKey(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `sessionId` | `string` | Missing @param sessionId JSDoc. |
-| `seq` | `number` | Missing @param seq JSDoc. |
+| `sessionId` | `string` | Stable identifier used by the emitted record. |
+| `seq` | `number` | seq value used by the helper. |
 
 ## Returns
 
-`string`
+The stable key or reference string.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param sessionId`.
-- Missing `@param seq`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { wireBridgeIdempotencyKey } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

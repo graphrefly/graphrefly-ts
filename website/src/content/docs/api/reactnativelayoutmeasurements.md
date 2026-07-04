@@ -26,20 +26,17 @@ function reactNativeLayoutMeasurements(opts: ReactNativeLayoutMeasurementsOption
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `ReactNativeLayoutMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `ReactNativeLayoutMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactNativeLayoutMeasurements } from "@graphrefly/ts/solutions/reactive-layout/react-native";
+```
 
 ## Source
 

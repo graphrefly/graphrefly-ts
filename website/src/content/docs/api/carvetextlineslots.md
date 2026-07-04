@@ -27,24 +27,19 @@ function carveTextLineSlots(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `base` | `Interval` | Missing @param base JSDoc. |
-| `blocked` | `readonly Interval[]` | Missing @param blocked JSDoc. |
-| `minSlotWidth` | `unknown` | Missing @param minSlotWidth JSDoc. |
+| `base` | `Interval` | base value used by the helper. |
+| `blocked` | `readonly Interval[]` | blocked value used by the helper. |
+| `minSlotWidth` | `unknown` | min slot width value used by the helper. |
 
 ## Returns
 
-`Interval[]`
+A `Interval[]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param base`.
-- Missing `@param blocked`.
-- Missing `@param minSlotWidth`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { carveTextLineSlots } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

@@ -102,7 +102,15 @@ export interface WritableStoreOptions<T> extends SubscribeValuesOptions<T> {
 	write?: (node: WritableNode<T>, value: T) => void;
 }
 
-/** Read a node cache without activating it. */
+/** Read a node cache without activating it.
+ * @param node - Node to observe, adapt, or connect.
+ * @returns A `T | undefined` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { nodeSnapshot } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function nodeSnapshot<T>(node: Node<T>): T | undefined {
 	return node.cache as T | undefined;
 }
@@ -110,6 +118,15 @@ export function nodeSnapshot<T>(node: Node<T>): T | undefined {
 /**
  * Subscribe to DATA values from a Node. Protocol internals stay below the adapter boundary:
  * DATA drives value listeners, ERROR/COMPLETE route to optional lifecycle callbacks.
+ * @param node - Node to observe, adapt, or connect.
+ * @param run - run value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `() => void` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { subscribeNodeValues } from "@graphrefly/ts/adapters";
+ * ```
  */
 export function subscribeNodeValues<T>(
 	node: Node<T>,
@@ -142,7 +159,16 @@ export function subscribeNodeValues<T>(
 	return unsubscribe;
 }
 
-/** Build a Svelte/Nanostores-style readable store from a clean-slate Node. */
+/** Build a Svelte/Nanostores-style readable store from a clean-slate Node.
+ * @param node - Node to observe, adapt, or connect.
+ * @param opts - Options that configure the helper.
+ * @returns A `ReadableStore<T>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { readableStore } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function readableStore<T>(
 	node: Node<T>,
 	opts: SubscribeValuesOptions<T> = {},
@@ -214,7 +240,16 @@ export function writableStore<T>(
 	};
 }
 
-/** Build the tiny shape React's `useSyncExternalStore` expects, without importing React. */
+/** Build the tiny shape React's `useSyncExternalStore` expects, without importing React.
+ * @param node - Node to observe, adapt, or connect.
+ * @param opts - Options that configure the helper.
+ * @returns A `ExternalStore<T>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { externalStore } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function externalStore<T>(
 	node: Node<T>,
 	opts: Pick<SubscribeValuesOptions<T>, "getSnapshot" | "onError" | "onComplete"> = {},
@@ -232,7 +267,17 @@ export function externalStore<T>(
 	};
 }
 
-/** Build a framework-neutral keyed record store for focused framework record bindings. */
+/** Build a framework-neutral keyed record store for focused framework record bindings.
+ * @param keysNode - keys node value used by the helper.
+ * @param factory - factory value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ReadableStore<Record<K, R>>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { recordReadableStore } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function recordReadableStore<K extends string, R extends Record<string, unknown>>(
 	keysNode: Node<readonly K[]>,
 	factory: NodeRecordFactory<K, R>,

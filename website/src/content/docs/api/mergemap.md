@@ -28,22 +28,18 @@ function mergeMap(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `project` | `Project<TIn, TOut>` | Missing @param project JSDoc. |
-| `opts` | `MergeMapOptions` | Missing @param opts JSDoc. |
+| `project` | `Project<TIn, TOut>` | project value used by the helper. |
+| `opts` | `MergeMapOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Operator<TIn, TOut>`
+A `Operator<TIn, TOut>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param project`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { mergeMap } from "@graphrefly/ts";
+```
 
 ## Source
 

@@ -23,20 +23,17 @@ function memoryBackend(initial: Iterable<readonly [string, Uint8Array]> = []): M
 
 | Parameter | Type | Description |
 |---|---|---|
-| `initial` | `Iterable<readonly [string, Uint8Array]>` | Missing @param initial JSDoc. |
+| `initial` | `Iterable<readonly [string, Uint8Array]>` | initial value used by the helper. |
 
 ## Returns
 
-`MemoryBackend`
+A `MemoryBackend` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param initial`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { memoryBackend } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

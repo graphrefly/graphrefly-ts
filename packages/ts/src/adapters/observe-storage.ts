@@ -79,6 +79,15 @@ export type { ObserveEventFrame, ObserveEventLogPage };
 /**
  * Attach adapter-owned storage to `Graph.observe()` read-only egress (D57/D74/D125). Writes are
  * serialized in observe order; lifecycle barriers drain the queue without mutating graph topology.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param sink - sink value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ObserveSinkHandle` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { attachObserveSink } from "@graphrefly/ts/adapters/observe-storage";
+ * ```
  */
 export function attachObserveSink<T = ObserveEvent>(
 	graph: Graph,
@@ -236,6 +245,15 @@ export function attachObserveSink<T = ObserveEvent>(
 /**
  * Persist Graph.observe() events to an append log. This is a graph-bound
  * adapter over passive storage frames, not graph restore or projection.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param log - log value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ObserveEventLogHandle` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { attachObserveEventLog } from "@graphrefly/ts/adapters/observe-storage";
+ * ```
  */
 export function attachObserveEventLog<T = ObserveEvent>(
 	graph: Graph,

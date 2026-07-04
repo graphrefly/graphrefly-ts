@@ -25,15 +25,13 @@ function sample(): Operator<unknown, S>
 
 ## Returns
 
-`Operator<unknown, S>`
+A `Operator<unknown, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { sample } from "@graphrefly/ts";
+```
 
 ## Source
 

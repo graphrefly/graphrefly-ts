@@ -26,22 +26,18 @@ function GraphHttpReply(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `replyNode` | `Node<NestReplyEnvelope<TPayload>>` | Missing @param replyNode JSDoc. |
-| `opts` | `NestHttpReplyDecoratorOptions<THost>` | Missing @param opts JSDoc. |
+| `replyNode` | `Node<NestReplyEnvelope<TPayload>>` | reply node value used by the helper. |
+| `opts` | `NestHttpReplyDecoratorOptions<THost>` | Options that configure the helper. |
 
 ## Returns
 
-`GraphMethodDecorator`
+A `GraphMethodDecorator` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param replyNode`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { GraphHttpReply } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

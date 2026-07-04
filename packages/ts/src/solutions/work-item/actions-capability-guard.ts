@@ -31,6 +31,14 @@ import type {
  * Connects CapabilityAdmission facts to WorkItem domain-action admission as a
  * product-owned guard (D357), without adding protocol/boundary vocabulary or
  * treating AutoPanel display affordances as hard security enforcement.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workItemDomainActionCapabilityGuardProjector } from "@graphrefly/ts/solutions/work-item/actions";
+ * ```
  */
 export function workItemDomainActionCapabilityGuardProjector(
 	graph: Graph,

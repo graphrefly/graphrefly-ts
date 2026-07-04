@@ -174,13 +174,31 @@ function assertIndexRows<K = unknown, V = unknown>(
 	return rows as readonly IndexRow<K, V>[];
 }
 
-/** Build the default D161 snapshot key for a storage prefix. */
+/** Build the default D161 snapshot key for a storage prefix.
+ * @param storagePrefix - storage prefix value used by the helper.
+ * @returns The stable key or reference string.
+ * @category storage
+ * @example
+ * ```ts
+ * import { collectionSnapshotKey } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function collectionSnapshotKey(storagePrefix = "reactive-collection"): string {
 	if (storagePrefix.length === 0) throw new TypeError("storagePrefix must be non-empty");
 	return `${storagePrefix}/snapshot`;
 }
 
-/** Build a D161 strict-JSON snapshot frame before validation/encoding. */
+/** Build a D161 strict-JSON snapshot frame before validation/encoding.
+ * @param kind - kind value used by the helper.
+ * @param snapshot - snapshot value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ReactiveCollectionSnapshotFrame<K, S>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { reactiveCollectionSnapshotFrame } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function reactiveCollectionSnapshotFrame<K extends ReactiveCollectionStorageKind, S>(
 	kind: K,
 	snapshot: S,
@@ -199,7 +217,16 @@ export function reactiveCollectionSnapshotFrame<K extends ReactiveCollectionStor
 	};
 }
 
-/** Build a D161 strict-JSON change frame before validation/encoding. */
+/** Build a D161 strict-JSON change frame before validation/encoding.
+ * @param kind - kind value used by the helper.
+ * @param change - change value used by the helper.
+ * @returns A `ReactiveCollectionChangeFrame<K, C>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { reactiveCollectionChangeFrame } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function reactiveCollectionChangeFrame<K extends ReactiveCollectionStorageKind, C>(
 	kind: K,
 	change: C,
@@ -212,7 +239,16 @@ export function reactiveCollectionChangeFrame<K extends ReactiveCollectionStorag
 	};
 }
 
-/** Validate a D161 snapshot frame and reject non-strict-JSON payloads honestly. */
+/** Validate a D161 snapshot frame and reject non-strict-JSON payloads honestly.
+ * @param value - Unknown value to check or decode.
+ * @param expectedKind - expected kind value used by the helper.
+ * @returns The narrowed, validated value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { assertReactiveCollectionSnapshotFrame } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function assertReactiveCollectionSnapshotFrame<
 	K extends ReactiveCollectionStorageKind,
 	S = unknown,
@@ -231,7 +267,16 @@ export function assertReactiveCollectionSnapshotFrame<
 	return value as unknown as ReactiveCollectionSnapshotFrame<K, S>;
 }
 
-/** Validate a D161 change frame and reject non-strict-JSON payloads honestly. */
+/** Validate a D161 change frame and reject non-strict-JSON payloads honestly.
+ * @param value - Unknown value to check or decode.
+ * @param expectedKind - expected kind value used by the helper.
+ * @returns The narrowed, validated value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { assertReactiveCollectionChangeFrame } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function assertReactiveCollectionChangeFrame<
 	K extends ReactiveCollectionStorageKind,
 	C = unknown,
@@ -250,7 +295,15 @@ export function assertReactiveCollectionChangeFrame<
 	return value as unknown as ReactiveCollectionChangeFrame<K, C>;
 }
 
-/** Codec for D161 snapshot frames with strict JSON validation on both encode and decode. */
+/** Codec for D161 snapshot frames with strict JSON validation on both encode and decode.
+ * @param kind - kind value used by the helper.
+ * @returns A `Codec<ReactiveCollectionSnapshotFrame<K, S>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { reactiveCollectionSnapshotFrameCodec } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function reactiveCollectionSnapshotFrameCodec<
 	K extends ReactiveCollectionStorageKind,
 	S = unknown,
@@ -266,7 +319,15 @@ export function reactiveCollectionSnapshotFrameCodec<
 	};
 }
 
-/** Codec for D161 change frames with strict JSON validation on both encode and decode. */
+/** Codec for D161 change frames with strict JSON validation on both encode and decode.
+ * @param kind - kind value used by the helper.
+ * @returns A `Codec<ReactiveCollectionChangeFrame<K, C>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { reactiveCollectionChangeFrameCodec } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function reactiveCollectionChangeFrameCodec<
 	K extends ReactiveCollectionStorageKind,
 	C = unknown,
@@ -654,7 +715,15 @@ function loadState<K extends ReactiveCollectionStorageKind, T, C>(
 	});
 }
 
-/** D161 passive load/fold for reactiveList; reads storage but never mutates graph topology. */
+/** D161 passive load/fold for reactiveList; reads storage but never mutates graph topology.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<ReactiveListRestoreState<T>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { loadReactiveListState } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function loadReactiveListState<T = unknown>(
 	opts: LoadReactiveCollectionStateOptions,
 ): Promise<ReactiveListRestoreState<T>> {
@@ -667,7 +736,15 @@ export function loadReactiveListState<T = unknown>(
 	);
 }
 
-/** D161 passive load/fold for reactiveLog; reads storage but never mutates graph topology. */
+/** D161 passive load/fold for reactiveLog; reads storage but never mutates graph topology.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<ReactiveLogRestoreState<T>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { loadReactiveLogState } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function loadReactiveLogState<T = unknown>(
 	opts: LoadReactiveCollectionStateOptions,
 ): Promise<ReactiveLogRestoreState<T>> {
@@ -680,7 +757,15 @@ export function loadReactiveLogState<T = unknown>(
 	);
 }
 
-/** D161 passive load/fold scaffold for reactiveMap; synchronous policy restore is deferred. */
+/** D161 passive load/fold scaffold for reactiveMap; synchronous policy restore is deferred.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<ReactiveMapRestoreState<K, V>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { loadReactiveMapState } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function loadReactiveMapState<K = unknown, V = unknown>(
 	opts: LoadReactiveCollectionStateOptions,
 ): Promise<ReactiveMapRestoreState<K, V>> {
@@ -693,7 +778,15 @@ export function loadReactiveMapState<K = unknown, V = unknown>(
 	);
 }
 
-/** D161 passive load/fold scaffold for reactiveIndex; key-codec restore is deferred. */
+/** D161 passive load/fold scaffold for reactiveIndex; key-codec restore is deferred.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<ReactiveIndexRestoreState<K, V>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { loadReactiveIndexState } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function loadReactiveIndexState<K = unknown, V = unknown>(
 	opts: LoadReactiveCollectionStateOptions,
 ): Promise<ReactiveIndexRestoreState<K, V>> {

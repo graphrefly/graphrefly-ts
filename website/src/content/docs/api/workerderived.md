@@ -28,24 +28,19 @@ function workerDerived(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `deps` | `readonly Node<unknown>[]` | Missing @param deps JSDoc. |
-| `opts` | `WorkerDerivedOptions<TInput, TResult>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `deps` | `readonly Node<unknown>[]` | Declared dependency node or nodes. |
+| `opts` | `WorkerDerivedOptions<TInput, TResult>` | Options that configure the helper. |
 
 ## Returns
 
-`Node<TResult>`
+A `Node<TResult>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param deps`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { workerDerived } from "@graphrefly/ts/graph";
+```
 
 ## Source
 

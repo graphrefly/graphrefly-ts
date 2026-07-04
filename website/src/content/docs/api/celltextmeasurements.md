@@ -23,20 +23,17 @@ function cellTextMeasurements(opts: CellTextMeasurementsOptions): Node<Measureme
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `CellTextMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `CellTextMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { cellTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

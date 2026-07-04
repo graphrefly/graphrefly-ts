@@ -111,6 +111,13 @@ class NodeCanvasPackageTextCapability implements TextMeasureCapability {
  * NodeCanvas provider helper for caller-injected 2D contexts.
  *
  * This subpath does not import `canvas`; hosts create and own the native context.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { nodeCanvasTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/node-canvas";
+ * ```
  */
 export function nodeCanvasTextMeasurements(
 	opts: NodeCanvasTextMeasurementsOptions,
@@ -156,6 +163,13 @@ export function nodeCanvasTextMeasurements(
  *
  * The native package is loaded only when the graph measures; the universal layout core and
  * caller-injected `nodeCanvasTextMeasurements` helper remain dependency-free.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { nodeCanvasPackageTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/node-canvas";
+ * ```
  */
 export function nodeCanvasPackageTextMeasurements(
 	opts: NodeCanvasPackageTextMeasurementsOptions,

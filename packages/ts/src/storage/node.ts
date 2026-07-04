@@ -232,7 +232,16 @@ function loadSqliteDatabaseSync(): SqliteDatabaseConstructor {
 	}
 }
 
-/** Node filesystem byte backend with atomic replace writes and D85 conditional create. */
+/** Node filesystem byte backend with atomic replace writes and D85 conditional create.
+ * @param dir - dir value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `StorageBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { fileBackend } from "@graphrefly/ts/storage/node";
+ * ```
+ */
 export function fileBackend(dir: string, opts: FileBackendOptions = {}): StorageBackend {
 	const extension = validateExtension(opts.extension ?? ".bin");
 	const namespace =
@@ -330,6 +339,14 @@ export function fileBackend(dir: string, opts: FileBackendOptions = {}): Storage
 
 /**
  * Create a typed KV tier over a Node filesystem backend (D106 passive storage).
+ * @param dir - dir value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `KvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { fileKv } from "@graphrefly/ts/storage/node";
+ * ```
  */
 export function fileKv<T>(dir: string, opts: FileKvOptions<T> = {}): KvStorageTier<T> {
 	return kvStorage<T>({
@@ -340,6 +357,14 @@ export function fileKv<T>(dir: string, opts: FileKvOptions<T> = {}): KvStorageTi
 
 /**
  * Create an append-log tier over a Node filesystem backend (D106 passive storage).
+ * @param dir - dir value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `AppendLogStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { fileAppendLog } from "@graphrefly/ts/storage/node";
+ * ```
  */
 export function fileAppendLog<T>(
 	dir: string,
@@ -356,6 +381,14 @@ export function fileAppendLog<T>(
  *
  * Uses `node:sqlite` when the current Node runtime provides it; otherwise throws a clear
  * runtime error at construction time. The caller owns `close()`.
+ * @param path - path value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ClosableStorageBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { sqliteBackend } from "@graphrefly/ts/storage/node";
+ * ```
  */
 export function sqliteBackend(
 	path: string,
@@ -523,6 +556,14 @@ export function sqliteBackend(
 
 /**
  * Create a typed KV tier over an optional Node SQLite backend.
+ * @param path - path value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `KvStorageTier<T> & { close(): void }` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { sqliteKv } from "@graphrefly/ts/storage/node";
+ * ```
  */
 export function sqliteKv<T>(
 	path: string,
@@ -538,6 +579,14 @@ export function sqliteKv<T>(
 
 /**
  * Create an append-log tier over an optional Node SQLite backend.
+ * @param path - path value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `AppendLogStorageTier<T> & { close(): void }` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { sqliteAppendLog } from "@graphrefly/ts/storage/node";
+ * ```
  */
 export function sqliteAppendLog<T>(
 	path: string,

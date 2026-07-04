@@ -26,20 +26,17 @@ function projectWorkspaceProposalRepairReviewRequests(input: WorkspaceProposalRe
 
 | Parameter | Type | Description |
 |---|---|---|
-| `input` | `WorkspaceProposalRepairReviewProjectionInput` | Missing @param input JSDoc. |
+| `input` | `WorkspaceProposalRepairReviewProjectionInput` | Input value to project or validate. |
 
 ## Returns
 
-`readonly WorkspaceProposalRepairReviewRequest[]`
+A `readonly WorkspaceProposalRepairReviewRequest[]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param input`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { projectWorkspaceProposalRepairReviewRequests } from "@graphrefly/ts/solutions/work-item";
+```
 
 ## Source
 

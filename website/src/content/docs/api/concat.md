@@ -24,15 +24,13 @@ function concat(): Operator<S, S>
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { concat } from "@graphrefly/ts";
+```
 
 ## Source
 

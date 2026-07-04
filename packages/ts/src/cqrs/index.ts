@@ -184,7 +184,16 @@ interface NormalizedCqrsDedupePolicy {
 	readonly bounded: boolean;
 }
 
-/** Convenience helper for declaring typed command handlers in a CQRS bundle. */
+/** Convenience helper for declaring typed command handlers in a CQRS bundle.
+ * @param type - type value used by the helper.
+ * @param handle - handle value used by the helper.
+ * @returns A `CqrsCommandHandlerDefinition<TCommand, TEvent>` value.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsCommandHandler } from "@graphrefly/ts/cqrs";
+ * ```
+ */
 export function cqrsCommandHandler<TCommand = unknown, TEvent = unknown>(
 	type: string,
 	handle: CqrsCommandHandler<TCommand, TEvent>,
@@ -196,6 +205,14 @@ export function cqrsCommandHandler<TCommand = unknown, TEvent = unknown>(
 /**
  * Create a graph-visible CQRS bundle. Command dispatch is only DATA on the
  * returned `command` node; all derived facts flow through declared graph deps.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A `CqrsBundle<TCommand, TEvent>` value.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrs } from "@graphrefly/ts/cqrs";
+ * ```
  */
 export function cqrs<TCommand = unknown, TEvent = unknown>(
 	graph: Graph,
@@ -348,6 +365,15 @@ export interface CqrsProjection<TState> {
 /**
  * Derive a projection from declared CQRS event deps. Reducer failures become
  * graph-visible error DATA facts on the returned `errors` node.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param source - Source node that provides graph-visible input.
+ * @param opts - Options that configure the helper.
+ * @returns A `CqrsProjection<TState>` value.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsProjection } from "@graphrefly/ts/cqrs";
+ * ```
  */
 export function cqrsProjection<TState, TEvent = unknown>(
 	graph: Graph,

@@ -15,6 +15,13 @@ export type MessageSequence = readonly Wave[];
  * This encodes R-dirty-before-data for wave-framed subscriber traces. The leading
  * START push-on-subscribe/replay handshake wave is exempt because cached/replay DATA is
  * advertised to a new subscriber without opening a propagation wave.
+ * @param messages - messages value used by the helper.
+ * @returns The narrowed, validated value.
+ * @category testing
+ * @example
+ * ```ts
+ * import { assertDirtyPrecedesTerminalData } from "@graphrefly/ts/testing";
+ * ```
  */
 export function assertDirtyPrecedesTerminalData(messages: MessageSequence): void {
 	for (let waveIndex = 0; waveIndex < messages.length; waveIndex += 1) {

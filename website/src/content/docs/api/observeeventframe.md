@@ -27,24 +27,19 @@ function observeEventFrame(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `event` | `ObserveEventLike` | Missing @param event JSDoc. |
-| `value` | `T` | Missing @param value JSDoc. |
-| `opts` | `{ stream?: string }` | Missing @param opts JSDoc. |
+| `event` | `ObserveEventLike` | event value used by the helper. |
+| `value` | `T` | Unknown value to check or decode. |
+| `opts` | `{ stream?: string }` | Options that configure the helper. |
 
 ## Returns
 
-`ObserveEventFrame<T>`
+A `ObserveEventFrame<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param event`.
-- Missing `@param value`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { observeEventFrame } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

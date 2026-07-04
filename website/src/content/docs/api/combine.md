@@ -25,15 +25,13 @@ function combine(): Operator<unknown, T>
 
 ## Returns
 
-`Operator<unknown, T>`
+A `Operator<unknown, T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { combine } from "@graphrefly/ts";
+```
 
 ## Source
 

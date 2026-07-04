@@ -26,22 +26,18 @@ function listByPrefix(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `tier` | `KvStorageTier<T>` | Missing @param tier JSDoc. |
-| `prefix` | `unknown` | Missing @param prefix JSDoc. |
+| `tier` | `KvStorageTier<T>` | tier value used by the helper. |
+| `prefix` | `unknown` | prefix value used by the helper. |
 
 ## Returns
 
-`Promise<readonly string[]>`
+A `Promise<readonly string[]>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param tier`.
-- Missing `@param prefix`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { listByPrefix } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

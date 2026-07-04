@@ -73,21 +73,45 @@ interface WsPending {
 	settled: boolean;
 }
 
-/** Build a dependency-light Nest provider for the focused WebSocket bridge token. */
+/** Build a dependency-light Nest provider for the focused WebSocket bridge token.
+ * @param opts - Options that configure the helper.
+ * @returns A `NestProviderBinding<GraphWsBridge<THost>>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphWsBridge } from "@graphrefly/ts/adapters/nestjs/websockets";
+ * ```
+ */
 export function provideGraphWsBridge<THost = unknown>(
 	opts: GraphWsBridgeOptions<THost> = {},
 ): NestProviderBinding<GraphWsBridge<THost>> {
 	return { provide: GRAPHREFLY_NEST_WS_BRIDGE, useValue: createGraphWsBridge(opts) };
 }
 
-/** Build the D495 focused WebSocket provider bundle without scanning or creating graphs. */
+/** Build the D495 focused WebSocket provider bundle without scanning or creating graphs.
+ * @param opts - Options that configure the helper.
+ * @returns A `NestProviderBinding<GraphWsBridge<THost>>[]` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphWsProviders } from "@graphrefly/ts/adapters/nestjs/websockets";
+ * ```
+ */
 export function provideGraphWsProviders<THost = unknown>(
 	opts: GraphWsProviderBundleOptions<THost> = {},
 ): NestProviderBinding<GraphWsBridge<THost>>[] {
 	return opts.bridge === false ? [] : [provideGraphWsBridge(opts.bridge ?? {})];
 }
 
-/** Create a host-private WebSocket bridge instance without scanning the Nest container. */
+/** Create a host-private WebSocket bridge instance without scanning the Nest container.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphWsBridge<THost>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { createGraphWsBridge } from "@graphrefly/ts/adapters/nestjs/websockets";
+ * ```
+ */
 export function createGraphWsBridge<THost = unknown>(
 	opts: GraphWsBridgeOptions<THost> = {},
 ): GraphWsBridge<THost> {

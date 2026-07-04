@@ -23,20 +23,17 @@ function canvasTextMeasurements(opts: CanvasTextMeasurementsOptions): Node<Measu
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `CanvasTextMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `CanvasTextMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { canvasTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/browser";
+```
 
 ## Source
 

@@ -141,6 +141,14 @@ const PRIVATE_COORDINATE_PATTERN =
  * The projector is intentionally visibility-only: it never claims work, expires leases, cancels,
  * completes, fails, mutates queue records, or starts timers. D433 consumption/materialization stays
  * owned by later workQueue domain projectors.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { workQueueScheduledReadinessProjector } from "@graphrefly/ts/orchestration/work-queue";
+ * ```
  */
 export function workQueueScheduledReadinessProjector<T = unknown>(
 	graph: Graph,
@@ -251,6 +259,14 @@ export function workQueueScheduledReadinessProjector<T = unknown>(
  * Ready facts only produce queue-domain candidates/status. They do not claim work, expire leases,
  * cancel, complete, fail, or append workQueue records. Lease expiration candidates can be lowered
  * separately into the existing mutation-bearing expire-leases command path.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { workQueueReadinessHandoffProjector } from "@graphrefly/ts/orchestration/work-queue";
+ * ```
  */
 export function workQueueReadinessHandoffProjector<T = unknown>(
 	graph: Graph,
@@ -336,6 +352,14 @@ export function workQueueReadinessHandoffProjector<T = unknown>(
 
 /**
  * Lower only lease-expiration readiness candidates into existing workQueue expire-leases commands.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { workQueueLeaseExpirationCommandProjector } from "@graphrefly/ts/orchestration/work-queue";
+ * ```
  */
 export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 	graph: Graph,

@@ -10,7 +10,16 @@ import {
 	resolveTextAdapter,
 } from "./utils.js";
 
-/** Measure one text/image/SVG block using only explicit or injected synchronous adapters. */
+/** Measure one text/image/SVG block using only explicit or injected synchronous adapters.
+ * @param block - block value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `MeasuredBlock` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { measureBlock } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function measureBlock(block: ContentBlock, opts: MeasureBlockOptions): MeasuredBlock {
 	const maxWidth = nonNegativeFinite(opts.maxWidth ?? 800, 800);
 	const marginTop = nonNegativeFinite(block.marginTop ?? 0, 0);
@@ -89,7 +98,16 @@ export function measureBlock(block: ContentBlock, opts: MeasureBlockOptions): Me
 	};
 }
 
-/** Measure a block list while sharing a measurement cache across text blocks. */
+/** Measure a block list while sharing a measurement cache across text blocks.
+ * @param blocks - blocks value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `readonly MeasuredBlock[]` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { measureBlocks } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function measureBlocks(
 	blocks: readonly ContentBlock[],
 	opts: MeasureBlockOptions,
@@ -98,7 +116,16 @@ export function measureBlocks(
 	return blocks.map((block) => measureBlock(block, { ...opts, cache }));
 }
 
-/** Stack measured blocks vertically with margins and a fixed gap. */
+/** Stack measured blocks vertically with margins and a fixed gap.
+ * @param blocks - blocks value used by the helper.
+ * @param gap - gap value used by the helper.
+ * @returns A `readonly PositionedBlock[]` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { computeBlockFlow } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function computeBlockFlow(
 	blocks: readonly MeasuredBlock[],
 	gap = 0,
@@ -113,7 +140,15 @@ export function computeBlockFlow(
 	});
 }
 
-/** Compute the bottom edge of a positioned block flow. */
+/** Compute the bottom edge of a positioned block flow.
+ * @param blocks - blocks value used by the helper.
+ * @returns A `number` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { computeTotalHeight } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function computeTotalHeight(blocks: readonly PositionedBlock[]): number {
 	if (blocks.length === 0) return 0;
 	let bottom = 0;

@@ -26,22 +26,18 @@ function dictKv(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `entries` | `Record<string, T>` | Missing @param entries JSDoc. |
-| `codec` | `Codec<T>` | Missing @param codec JSDoc. |
+| `entries` | `Record<string, T>` | entries value used by the helper. |
+| `codec` | `Codec<T>` | Codec used to encode and decode stored values. |
 
 ## Returns
 
-`KvStorageTier<T>`
+A `KvStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param entries`.
-- Missing `@param codec`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { dictKv } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

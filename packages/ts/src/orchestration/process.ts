@@ -93,6 +93,14 @@ const processCommandSources = new WeakMap<
  * The bundle retains its runtime/projection nodes until `release()` is called.
  * Reducer and validation failures are emitted as DATA error/status/audit facts;
  * they do not mint protocol ERROR messages or own restore/hydration behavior.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { processBundle } from "@graphrefly/ts/orchestration";
+ * ```
  */
 export function processBundle<
 	TCommand = unknown,
@@ -258,6 +266,15 @@ export function processBundle<
  * ordinary ProcessCommand DATA facts back through process.command via a declared
  * graph edge. Async handlers, timers, and process state ownership stay outside
  * this helper.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param process - process value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ProcessEffectRunnerBundle<TEffect, TResult>` value.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { processEffectRunner } from "@graphrefly/ts/orchestration";
+ * ```
  */
 export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 	graph: Graph,

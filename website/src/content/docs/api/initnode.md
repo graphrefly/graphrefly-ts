@@ -34,24 +34,19 @@ function initNode(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `op` | `Operator<TIn, TOut>` | Missing @param op JSDoc. |
-| `deps` | `readonly Node<unknown>[]` | Missing @param deps JSDoc. |
-| `opts` | `NodeOptions<TOut>` | Missing @param opts JSDoc. |
+| `op` | `Operator<TIn, TOut>` | op value used by the helper. |
+| `deps` | `readonly Node<unknown>[]` | Declared dependency node or nodes. |
+| `opts` | `NodeOptions<TOut>` | Options that configure the helper. |
 
 ## Returns
 
-`Node<TOut>`
+A `Node<TOut>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param op`.
-- Missing `@param deps`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { initNode } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

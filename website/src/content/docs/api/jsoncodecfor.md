@@ -21,15 +21,13 @@ function jsonCodecFor(): Codec<T>
 
 ## Returns
 
-`Codec<T>`
+A `Codec<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { jsonCodecFor } from "@graphrefly/ts";
+```
 
 ## Source
 

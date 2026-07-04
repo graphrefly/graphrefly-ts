@@ -30,22 +30,18 @@ function coalesceObserve(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `stream` | `ObserveStream` | Missing @param stream JSDoc. |
-| `equals` | `ObserveEventEquals` | Missing @param equals JSDoc. |
+| `stream` | `ObserveStream` | stream value used by the helper. |
+| `equals` | `ObserveEventEquals` | equals value used by the helper. |
 
 ## Returns
 
-`ObserveStream`
+A `ObserveStream` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param stream`.
-- Missing `@param equals`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { coalesceObserve } from "@graphrefly/ts/graph";
+```
 
 ## Source
 

@@ -23,20 +23,17 @@ function getNestBoundaryToken(bindingId: string): symbol
 
 | Parameter | Type | Description |
 |---|---|---|
-| `bindingId` | `string` | Missing @param bindingId JSDoc. |
+| `bindingId` | `string` | Stable identifier used by the emitted record. |
 
 ## Returns
 
-`symbol`
+A `symbol` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param bindingId`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { getNestBoundaryToken } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

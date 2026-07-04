@@ -2072,6 +2072,13 @@ export function projectWorkspaceProposalFamilyOutcomeIndex(
  *
  * Missing durable handoff issues remain diagnostic-only and never synthesize
  * application status, family truth, outcome, or repair review authority.
+ * @param input - Input value to project or validate.
+ * @returns A `readonly WorkspaceProposalFamilyApplicationDiagnostic[]` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalFamilyApplicationDiagnostics } from "@graphrefly/ts/solutions/work-item";
+ * ```
  */
 export function projectWorkspaceProposalFamilyApplicationDiagnostics(
 	input: WorkspaceProposalFamilyApplicationDiagnosticProjectionInput,
@@ -2104,7 +2111,16 @@ export function projectWorkspaceProposalFamilyApplicationDiagnostics(
 	return [...diagnostics.values()];
 }
 
-/** Graph-visible variant of `projectWorkspaceProposalFamilyApplicationDiagnostics`. */
+/** Graph-visible variant of `projectWorkspaceProposalFamilyApplicationDiagnostics`.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalFamilyApplicationDiagnosticProjector } from "@graphrefly/ts/solutions/work-item";
+ * ```
+ */
 export function workspaceProposalFamilyApplicationDiagnosticProjector(
 	graph: Graph,
 	opts: WorkspaceProposalFamilyApplicationDiagnosticProjectorOptions,
@@ -2147,6 +2163,13 @@ export function workspaceProposalFamilyApplicationDiagnosticProjector(
  *
  * The lowerer requires durable application coordinates and never emits retry,
  * remutation, family facts, or proposal/admission/application truth.
+ * @param input - Input value to project or validate.
+ * @returns A `readonly WorkspaceProposalRepairReviewRequest[]` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { projectWorkspaceProposalRepairReviewRequests } from "@graphrefly/ts/solutions/work-item";
+ * ```
  */
 export function projectWorkspaceProposalRepairReviewRequests(
 	input: WorkspaceProposalRepairReviewProjectionInput,
@@ -2178,7 +2201,16 @@ export function projectWorkspaceProposalRepairReviewRequests(
 	return [...requests.values()];
 }
 
-/** Graph-visible variant of `projectWorkspaceProposalRepairReviewRequests`. */
+/** Graph-visible variant of `projectWorkspaceProposalRepairReviewRequests`.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRepairReviewProjector } from "@graphrefly/ts/solutions/work-item";
+ * ```
+ */
 export function workspaceProposalRepairReviewProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairReviewProjectorOptions,
@@ -2427,7 +2459,16 @@ export function projectWorkspaceProposalRepairReviewDecisionRecordings(
 	return results;
 }
 
-/** Graph-visible variant of `projectWorkspaceProposalRepairReviewDecisionRecordings`. */
+/** Graph-visible variant of `projectWorkspaceProposalRepairReviewDecisionRecordings`.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRepairReviewDecisionRecordingProjector } from "@graphrefly/ts/solutions/work-item";
+ * ```
+ */
 export function workspaceProposalRepairReviewDecisionRecordingProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairReviewDecisionRecordingProjectorOptions,
@@ -2484,7 +2525,16 @@ export function workspaceProposalRepairReviewDecisionRecordingProjector(
 	};
 }
 
-/** Graph-visible variant of `projectWorkspaceProposalRepairReviewStatuses`. */
+/** Graph-visible variant of `projectWorkspaceProposalRepairReviewStatuses`.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalRepairReviewStatusProjector } from "@graphrefly/ts/solutions/work-item";
+ * ```
+ */
 export function workspaceProposalRepairReviewStatusProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairReviewStatusProjectorOptions,
@@ -2754,7 +2804,16 @@ export function workspaceProposalProjectionReleaseDiagnosticProjector(
 	};
 }
 
-/** Graph-visible variant of `projectWorkspaceProposalFamilyApplicationReadModel`. */
+/** Graph-visible variant of `projectWorkspaceProposalFamilyApplicationReadModel`.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalFamilyApplicationReadModelProjector } from "@graphrefly/ts/solutions/work-item";
+ * ```
+ */
 export function workspaceProposalFamilyApplicationReadModelProjector(
 	graph: Graph,
 	opts: WorkspaceProposalFamilyApplicationReadModelProjectorOptions,
@@ -2805,7 +2864,16 @@ export function workspaceProposalFamilyApplicationReadModelProjector(
 	};
 }
 
-/** Graph-visible query-driven variant of `projectWorkspaceProposalFamilyApplicationReadModels`. */
+/** Graph-visible query-driven variant of `projectWorkspaceProposalFamilyApplicationReadModels`.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A node bundle that emits the projected records.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { workspaceProposalFamilyApplicationReadModelsProjector } from "@graphrefly/ts/solutions/work-item";
+ * ```
+ */
 export function workspaceProposalFamilyApplicationReadModelsProjector(
 	graph: Graph,
 	opts: WorkspaceProposalFamilyApplicationReadModelsProjectorOptions,
@@ -8035,6 +8103,13 @@ function workspaceProjectionReleaseTargetIdIsWildcard(targetId: string | undefin
 /**
  * Validate D472 projection release material before a projector treats it as a
  * bounded current-view retention hint.
+ * @param value - Unknown value to check or decode.
+ * @returns `true` when the value matches the expected shape.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { isWorkspaceProposalProjectionReleaseMaterial } from "@graphrefly/ts/solutions/work-item";
+ * ```
  */
 export function isWorkspaceProposalProjectionReleaseMaterial(
 	value: unknown,
@@ -8047,6 +8122,13 @@ export function isWorkspaceProposalProjectionReleaseMaterial(
  *
  * Validation is fail-closed: malformed material is reportable through D473
  * diagnostics but cannot prune current-view state or satisfy policy checks.
+ * @param value - Unknown value to check or decode.
+ * @returns Validation diagnostics or the validated projection.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { validateWorkspaceProposalProjectionReleaseMaterial } from "@graphrefly/ts/solutions/work-item";
+ * ```
  */
 export function validateWorkspaceProposalProjectionReleaseMaterial(
 	value: unknown,

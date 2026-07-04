@@ -26,20 +26,17 @@ function fromIDBTransaction(transaction: IDBTransactionLike): Operator<never, ne
 
 | Parameter | Type | Description |
 |---|---|---|
-| `transaction` | `IDBTransactionLike` | Missing @param transaction JSDoc. |
+| `transaction` | `IDBTransactionLike` | transaction value used by the helper. |
 
 ## Returns
 
-`Operator<never, never>`
+A Operator<never, never> value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param transaction`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fromIDBTransaction } from "@graphrefly/ts/sources/browser";
+```
 
 ## Source
 

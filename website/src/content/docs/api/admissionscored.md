@@ -23,20 +23,17 @@ function admissionScored(opts: AdmissionScoredOptions<Dims, TRaw>): (raw: TRaw) 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `AdmissionScoredOptions<Dims, TRaw>` | Missing @param opts JSDoc. |
+| `opts` | `AdmissionScoredOptions<Dims, TRaw>` | Options that configure the helper. |
 
 ## Returns
 
-`(raw: TRaw) => boolean`
+A `(raw: TRaw) => boolean` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { admissionScored } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

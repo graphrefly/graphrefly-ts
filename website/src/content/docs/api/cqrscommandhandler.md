@@ -26,22 +26,18 @@ function cqrsCommandHandler(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `type` | `string` | Missing @param type JSDoc. |
-| `handle` | `CqrsCommandHandler<TCommand, TEvent>` | Missing @param handle JSDoc. |
+| `type` | `string` | type value used by the helper. |
+| `handle` | `CqrsCommandHandler<TCommand, TEvent>` | handle value used by the helper. |
 
 ## Returns
 
-`CqrsCommandHandlerDefinition<TCommand, TEvent>`
+A `CqrsCommandHandlerDefinition<TCommand, TEvent>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param type`.
-- Missing `@param handle`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { cqrsCommandHandler } from "@graphrefly/ts/cqrs";
+```
 
 ## Source
 

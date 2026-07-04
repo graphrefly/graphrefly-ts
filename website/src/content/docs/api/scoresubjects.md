@@ -28,26 +28,20 @@ function scoreSubjects(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `subjects` | `readonly ScoreSubject<T>[]` | Missing @param subjects JSDoc. |
-| `signals` | `readonly ScoreSignal[]` | Missing @param signals JSDoc. |
-| `policy` | `ScorePolicy` | Missing @param policy JSDoc. |
-| `opts` | `ScoreSubjectsOptions` | Missing @param opts JSDoc. |
+| `subjects` | `readonly ScoreSubject<T>[]` | subjects value used by the helper. |
+| `signals` | `readonly ScoreSignal[]` | signals value used by the helper. |
+| `policy` | `ScorePolicy` | Policy object used to admit, retry, or route work. |
+| `opts` | `ScoreSubjectsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ScoredView<T>`
+A `ScoredView<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param subjects`.
-- Missing `@param signals`.
-- Missing `@param policy`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { scoreSubjects } from "@graphrefly/ts/scoring";
+```
 
 ## Source
 

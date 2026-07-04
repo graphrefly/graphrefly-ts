@@ -23,20 +23,17 @@ function nonNegativeDecimalStringToBigInt(value: NonNegativeDecimalIntegerString
 
 | Parameter | Type | Description |
 |---|---|---|
-| `value` | `NonNegativeDecimalIntegerString` | Missing @param value JSDoc. |
+| `value` | `NonNegativeDecimalIntegerString` | Unknown value to check or decode. |
 
 ## Returns
 
-`bigint`
+A `bigint` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param value`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { nonNegativeDecimalStringToBigInt } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

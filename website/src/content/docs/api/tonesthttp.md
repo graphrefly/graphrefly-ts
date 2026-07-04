@@ -30,22 +30,18 @@ function toNestHttp(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `egress` | `Node<NestReplyEnvelope<TPayload>>` | Missing @param egress JSDoc. |
-| `opts` | `ToNestHttpOptions<TPayload>` | Missing @param opts JSDoc. |
+| `egress` | `Node<NestReplyEnvelope<TPayload>>` | egress value used by the helper. |
+| `opts` | `ToNestHttpOptions<TPayload>` | Options that configure the helper. |
 
 ## Returns
 
-`NestHttpBoundary<TPayload>`
+A NestHttpBoundary<TPayload> value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param egress`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { toNestHttp } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

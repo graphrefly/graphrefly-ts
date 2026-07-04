@@ -26,20 +26,17 @@ function useNodeInput(node: WritableNode<T>): readonly [T | undefined, (value: T
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `WritableNode<T>` | Missing @param node JSDoc. |
+| `node` | `WritableNode<T>` | Node to observe, adapt, or connect. |
 
 ## Returns
 
-`readonly [T | undefined, (value: T) => void]`
+A `readonly [T | undefined, (value: T) => void]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { useNodeInput } from "@graphrefly/ts/adapters/react";
+```
 
 ## Source
 

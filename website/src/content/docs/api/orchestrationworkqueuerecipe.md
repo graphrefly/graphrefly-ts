@@ -26,22 +26,18 @@ function orchestrationWorkQueueRecipe(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `OrchestrationWorkQueueRecipeOptions<TEffect>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `OrchestrationWorkQueueRecipeOptions<TEffect>` | Options that configure the helper. |
 
 ## Returns
 
-`OrchestrationWorkQueueRecipeBundle<TEffect>`
+A bundle of graph-visible nodes for the recipe.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { orchestrationWorkQueueRecipe } from "@graphrefly/ts/orchestration/work-queue";
+```
 
 ## Source
 

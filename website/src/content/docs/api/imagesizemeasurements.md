@@ -23,20 +23,17 @@ function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<Measure
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `ImageSizeMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `ImageSizeMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { imageSizeMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

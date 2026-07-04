@@ -23,20 +23,17 @@ function nodeReadable(node: Node<T>): Readable<T | undefined>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `Node<T>` | Missing @param node JSDoc. |
+| `node` | `Node<T>` | Node to observe, adapt, or connect. |
 
 ## Returns
 
-`Readable<T | undefined>`
+A `Readable<T | undefined>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { nodeReadable } from "@graphrefly/ts/adapters/svelte";
+```
 
 ## Source
 

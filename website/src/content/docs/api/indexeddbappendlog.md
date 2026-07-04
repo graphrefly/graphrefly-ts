@@ -26,22 +26,18 @@ function indexedDbAppendLog(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `spec` | `IndexedDbBackendSpec` | Missing @param spec JSDoc. |
-| `opts` | `IndexedDbAppendLogOptions<T>` | Missing @param opts JSDoc. |
+| `spec` | `IndexedDbBackendSpec` | spec value used by the helper. |
+| `opts` | `IndexedDbAppendLogOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`AppendLogStorageTier<T>`
+A `AppendLogStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param spec`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { indexedDbAppendLog } from "@graphrefly/ts/storage/browser";
+```
 
 ## Source
 

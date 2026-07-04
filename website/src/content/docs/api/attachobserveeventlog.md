@@ -28,24 +28,19 @@ function attachObserveEventLog(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `log` | `AppendLogStorageTier<ObserveEventFrame<T>>` | Missing @param log JSDoc. |
-| `opts` | `AttachObserveEventLogOptions<T>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `log` | `AppendLogStorageTier<ObserveEventFrame<T>>` | log value used by the helper. |
+| `opts` | `AttachObserveEventLogOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`ObserveEventLogHandle`
+A `ObserveEventLogHandle` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param log`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { attachObserveEventLog } from "@graphrefly/ts/adapters/observe-storage";
+```
 
 ## Source
 

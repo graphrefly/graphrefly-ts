@@ -29,22 +29,18 @@ function nodeRecord(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `keysNode` | `Node<readonly K[]>` | Missing @param keysNode JSDoc. |
-| `factory` | `(key: K) => { [P in keyof R]: Node<R[P]> }` | Missing @param factory JSDoc. |
+| `keysNode` | `Node<readonly K[]>` | keys node value used by the helper. |
+| `factory` | `(key: K) => { [P in keyof R]: Node<R[P]> }` | factory value used by the helper. |
 
 ## Returns
 
-`Readable<Record<K, R>>`
+A `Readable<Record<K, R>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param keysNode`.
-- Missing `@param factory`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { nodeRecord } from "@graphrefly/ts/adapters/svelte";
+```
 
 ## Source
 

@@ -26,22 +26,18 @@ function GraphMessage(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `boundary` | `NestIngressBoundary<THost, TPayload>` | Missing @param boundary JSDoc. |
-| `opts` | `NestBoundaryDecoratorOptions<THost, TPayload>` | Missing @param opts JSDoc. |
+| `boundary` | `NestIngressBoundary<THost, TPayload>` | boundary value used by the helper. |
+| `opts` | `NestBoundaryDecoratorOptions<THost, TPayload>` | Options that configure the helper. |
 
 ## Returns
 
-`GraphMethodDecorator`
+A `GraphMethodDecorator` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param boundary`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { GraphMessage } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

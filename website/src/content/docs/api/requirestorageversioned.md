@@ -26,22 +26,18 @@ function requireStorageVersioned(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `backend` | `StorageBackend` | Missing @param backend JSDoc. |
-| `label` | `unknown` | Missing @param label JSDoc. |
+| `backend` | `StorageBackend` | backend value used by the helper. |
+| `label` | `unknown` | label value used by the helper. |
 
 ## Returns
 
-`VersionedStorageBackend`
+A `VersionedStorageBackend` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param backend`.
-- Missing `@param label`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { requireStorageVersioned } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

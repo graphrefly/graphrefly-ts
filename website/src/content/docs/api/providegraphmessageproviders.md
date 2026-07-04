@@ -23,20 +23,17 @@ function provideGraphMessageProviders(opts: GraphMessageProviderBundleOptions<TH
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `GraphMessageProviderBundleOptions<THost>` | Missing @param opts JSDoc. |
+| `opts` | `GraphMessageProviderBundleOptions<THost>` | Options that configure the helper. |
 
 ## Returns
 
-`NestProviderBinding<GraphMessageBridge<THost>>[]`
+A `NestProviderBinding<GraphMessageBridge<THost>>[]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { provideGraphMessageProviders } from "@graphrefly/ts/adapters/nestjs/microservices";
+```
 
 ## Source
 

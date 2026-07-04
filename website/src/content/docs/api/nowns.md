@@ -21,15 +21,13 @@ function nowNs(): StorageTimestampNs
 
 ## Returns
 
-`StorageTimestampNs`
+A `StorageTimestampNs` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { nowNs } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

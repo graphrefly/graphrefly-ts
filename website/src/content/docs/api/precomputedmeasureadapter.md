@@ -19,12 +19,11 @@ import { PrecomputedMeasureAdapter } from "@graphrefly/ts/solutions/reactive-lay
 class PrecomputedMeasureAdapter
 ```
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { PrecomputedMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

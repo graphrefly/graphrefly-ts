@@ -26,22 +26,18 @@ function orchestrationMessagingRecipe(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `OrchestrationMessagingRecipeOptions<TPayload, TCommand, TEvent>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `OrchestrationMessagingRecipeOptions<TPayload, TCommand, TEvent>` | Options that configure the helper. |
 
 ## Returns
 
-`OrchestrationMessagingRecipeBundle<TCommand>`
+A bundle of graph-visible nodes for the recipe.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { orchestrationMessagingRecipe } from "@graphrefly/ts/orchestration/messaging";
+```
 
 ## Source
 

@@ -24,20 +24,17 @@ function reactiveIndex(options: ReactiveIndexOptions = {}): ReactiveIndex<K, V>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `options` | `ReactiveIndexOptions` | Missing @param options JSDoc. |
+| `options` | `ReactiveIndexOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveIndex<K, V>`
+A `ReactiveIndex<K, V>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param options`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveIndex } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

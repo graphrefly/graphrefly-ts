@@ -27,24 +27,19 @@ function rectIntervalForBand(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `obstacle` | `RectObstacle` | Missing @param obstacle JSDoc. |
-| `bandTop` | `number` | Missing @param bandTop JSDoc. |
-| `bandBottom` | `number` | Missing @param bandBottom JSDoc. |
+| `obstacle` | `RectObstacle` | obstacle value used by the helper. |
+| `bandTop` | `number` | band top value used by the helper. |
+| `bandBottom` | `number` | band bottom value used by the helper. |
 
 ## Returns
 
-`Interval | null`
+A `Interval | null` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param obstacle`.
-- Missing `@param bandTop`.
-- Missing `@param bandBottom`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { rectIntervalForBand } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

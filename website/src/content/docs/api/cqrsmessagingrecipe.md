@@ -26,22 +26,18 @@ function cqrsMessagingRecipe(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `CqrsMessagingRecipeOptions<TPayload, TCommand, TEvent>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `CqrsMessagingRecipeOptions<TPayload, TCommand, TEvent>` | Options that configure the helper. |
 
 ## Returns
 
-`CqrsMessagingRecipeBundle<TCommand>`
+A bundle of graph-visible nodes for the recipe.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { cqrsMessagingRecipe } from "@graphrefly/ts/cqrs/messaging";
+```
 
 ## Source
 

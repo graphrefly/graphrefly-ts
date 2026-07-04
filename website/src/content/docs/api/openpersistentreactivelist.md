@@ -23,20 +23,17 @@ function openPersistentReactiveList(opts: OpenPersistentReactiveListOptions<T>):
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `OpenPersistentReactiveListOptions<T>` | Missing @param opts JSDoc. |
+| `opts` | `OpenPersistentReactiveListOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<PersistentReactiveList<T>>`
+A `Promise<PersistentReactiveList<T>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { openPersistentReactiveList } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

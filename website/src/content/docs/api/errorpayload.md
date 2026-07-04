@@ -26,22 +26,18 @@ function errorPayload(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `reason` | `unknown` | Missing @param reason JSDoc. |
-| `fallback` | `unknown` | Missing @param fallback JSDoc. |
+| `reason` | `unknown` | reason value used by the helper. |
+| `fallback` | `unknown` | fallback value used by the helper. |
 
 ## Returns
 
-`unknown`
+The error payload result.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param reason`.
-- Missing `@param fallback`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { errorPayload } from "@graphrefly/ts/core";
+```
 
 ## Source
 

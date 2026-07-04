@@ -26,22 +26,18 @@ function memoryFragmentMatchesQuery(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `fragment` | `MemoryFragment` | Missing @param fragment JSDoc. |
-| `query` | `MemoryQuery` | Missing @param query JSDoc. |
+| `fragment` | `MemoryFragment` | fragment value used by the helper. |
+| `query` | `MemoryQuery` | query value used by the helper. |
 
 ## Returns
 
-`boolean`
+A `boolean` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param fragment`.
-- Missing `@param query`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { memoryFragmentMatchesQuery } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

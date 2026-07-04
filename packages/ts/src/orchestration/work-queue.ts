@@ -102,7 +102,16 @@ interface QueueState<TEffect> {
 	auditSeq: number;
 }
 
-/** Build the optional D349 orchestration workQueue recipe. */
+/** Build the optional D349 orchestration workQueue recipe.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { orchestrationWorkQueueRecipe } from "@graphrefly/ts/orchestration/work-queue";
+ * ```
+ */
 export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 	graph: Graph,
 	opts: OrchestrationWorkQueueRecipeOptions<TEffect>,

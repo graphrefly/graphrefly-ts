@@ -26,22 +26,18 @@ function fromNestDiagnostics(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `NestDiagnosticsOptions` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `NestDiagnosticsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`NestDiagnosticIngressBoundary`
+A NestDiagnosticIngressBoundary value for the boundary or adapter.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fromNestDiagnostics } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

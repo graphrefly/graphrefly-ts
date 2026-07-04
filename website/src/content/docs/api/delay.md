@@ -24,20 +24,17 @@ function delay(ms: number): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `ms` | `number` | Missing @param ms JSDoc. |
+| `ms` | `number` | Duration or timestamp in milliseconds. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param ms`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { delay } from "@graphrefly/ts";
+```
 
 ## Source
 

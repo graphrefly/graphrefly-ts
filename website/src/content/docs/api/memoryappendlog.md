@@ -23,20 +23,17 @@ function memoryAppendLog(prefix?: string): AppendLogStorageTier<T>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `prefix` | `string` | Missing @param prefix JSDoc. |
+| `prefix` | `string` | prefix value used by the helper. |
 
 ## Returns
 
-`AppendLogStorageTier<T>`
+A `AppendLogStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param prefix`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { memoryAppendLog } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

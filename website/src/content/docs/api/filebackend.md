@@ -26,22 +26,18 @@ function fileBackend(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `dir` | `string` | Missing @param dir JSDoc. |
-| `opts` | `FileBackendOptions` | Missing @param opts JSDoc. |
+| `dir` | `string` | dir value used by the helper. |
+| `opts` | `FileBackendOptions` | Options that configure the helper. |
 
 ## Returns
 
-`StorageBackend`
+A `StorageBackend` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param dir`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { fileBackend } from "@graphrefly/ts/storage/node";
+```
 
 ## Source
 

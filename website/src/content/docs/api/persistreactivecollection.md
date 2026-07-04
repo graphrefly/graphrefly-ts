@@ -28,24 +28,19 @@ function persistReactiveCollection(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `collection` | `PersistableCollection<T, K>` | Missing @param collection JSDoc. |
-| `opts` | `PersistReactiveCollectionOptions<K>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `collection` | `PersistableCollection<T, K>` | collection value used by the helper. |
+| `opts` | `PersistReactiveCollectionOptions<K>` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveCollectionPersistenceHandle`
+A `ReactiveCollectionPersistenceHandle` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param collection`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { persistReactiveCollection } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

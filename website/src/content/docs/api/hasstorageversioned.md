@@ -23,20 +23,17 @@ function hasStorageVersioned(backend: StorageBackend): backend is VersionedStora
 
 | Parameter | Type | Description |
 |---|---|---|
-| `backend` | `StorageBackend` | Missing @param backend JSDoc. |
+| `backend` | `StorageBackend` | backend value used by the helper. |
 
 ## Returns
 
-`backend is VersionedStorageBackend`
+A `backend is VersionedStorageBackend` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param backend`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { hasStorageVersioned } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

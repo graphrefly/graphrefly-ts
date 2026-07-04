@@ -27,20 +27,17 @@ function rescue(recover: (err: unknown) => S): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `recover` | `(err: unknown) => S` | Missing @param recover JSDoc. |
+| `recover` | `(err: unknown) => S` | recover value used by the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param recover`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { rescue } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

@@ -23,20 +23,17 @@ function getGraphToken(name: string): symbol
 
 | Parameter | Type | Description |
 |---|---|---|
-| `name` | `string` | Missing @param name JSDoc. |
+| `name` | `string` | Stable name for the created node or helper. |
 
 ## Returns
 
-`symbol`
+A `symbol` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param name`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { getGraphToken } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

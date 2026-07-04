@@ -25,20 +25,17 @@ function bufferCount(count: number): Operator<S, S[]>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `count` | `number` | Missing @param count JSDoc. |
+| `count` | `number` | count value used by the helper. |
 
 ## Returns
 
-`Operator<S, S[]>`
+A `Operator<S, S[]>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param count`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { bufferCount } from "@graphrefly/ts";
+```
 
 ## Source
 

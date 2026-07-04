@@ -292,6 +292,13 @@ function assertCheckpointableIndexRows(rows: readonly IndexRow<unknown, unknown>
 /**
  * Create a reactive dual-key index (D54/D60). DELTA + lazy pull SNAPSHOT + pullId via
  * {@link collectionCore}; this layer adds the sorted backend + Z reverse-lookup surface.
+ * @param options - Options that configure the helper.
+ * @returns A `ReactiveIndex<K, V>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { reactiveIndex } from "@graphrefly/ts/data-structures";
+ * ```
  */
 export function reactiveIndex<K, V = unknown>(
 	options: ReactiveIndexOptions = {},

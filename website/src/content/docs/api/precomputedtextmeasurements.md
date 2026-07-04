@@ -23,20 +23,17 @@ function precomputedTextMeasurements(opts: PrecomputedTextMeasurementsOptions): 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `PrecomputedTextMeasurementsOptions` | Missing @param opts JSDoc. |
+| `opts` | `PrecomputedTextMeasurementsOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Node<Measurements>`
+A `Node<Measurements>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { precomputedTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

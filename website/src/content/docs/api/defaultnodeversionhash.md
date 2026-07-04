@@ -26,20 +26,17 @@ function defaultNodeVersionHash(bytes: Uint8Array): string
 
 | Parameter | Type | Description |
 |---|---|---|
-| `bytes` | `Uint8Array` | Missing @param bytes JSDoc. |
+| `bytes` | `Uint8Array` | Canonical bytes to decode. |
 
 ## Returns
 
-`string`
+A `string` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param bytes`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { defaultNodeVersionHash } from "@graphrefly/ts/core";
+```
 
 ## Source
 

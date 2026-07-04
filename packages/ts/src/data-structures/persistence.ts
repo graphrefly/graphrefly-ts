@@ -71,7 +71,16 @@ function restoreIndexRows<K, V>(
 	return state.state;
 }
 
-/** D161 synchronous collection-owned restore. This helper never reads storage. */
+/** D161 synchronous collection-owned restore. This helper never reads storage.
+ * @param state - state value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns A `ReactiveList<T>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { restoreReactiveList } from "@graphrefly/ts/data-structures";
+ * ```
+ */
 export function restoreReactiveList<T = unknown>(
 	state: ReactiveListRestoreState<T> | readonly T[],
 	options: ReactiveListOptions = {},
@@ -80,7 +89,16 @@ export function restoreReactiveList<T = unknown>(
 	return reactiveList<T>(values, options);
 }
 
-/** D161 synchronous collection-owned restore. This helper never reads storage. */
+/** D161 synchronous collection-owned restore. This helper never reads storage.
+ * @param state - state value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns A `ReactiveLog<T>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { restoreReactiveLog } from "@graphrefly/ts/data-structures";
+ * ```
+ */
 export function restoreReactiveLog<T = unknown>(
 	state: ReactiveLogRestoreState<T> | readonly T[],
 	options: ReactiveLogOptions = {},
@@ -89,7 +107,16 @@ export function restoreReactiveLog<T = unknown>(
 	return reactiveLog<T>(values, options);
 }
 
-/** D161 synchronous collection-owned restore for map entries; policy config still comes from options. */
+/** D161 synchronous collection-owned restore for map entries; policy config still comes from options.
+ * @param state - state value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns A `ReactiveMap<K, V>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { restoreReactiveMap } from "@graphrefly/ts/data-structures";
+ * ```
+ */
 export function restoreReactiveMap<K = unknown, V = unknown>(
 	state: ReactiveMapRestoreState<K, V> | readonly (readonly [K, V])[],
 	options: ReactiveMapOptions<K, V> = {},
@@ -98,7 +125,16 @@ export function restoreReactiveMap<K = unknown, V = unknown>(
 	return restoreReactiveMapFromBackendState<K, V>(entries, options);
 }
 
-/** D161 synchronous collection-owned restore for sorted index rows; key-codec I/O stays outside. */
+/** D161 synchronous collection-owned restore for sorted index rows; key-codec I/O stays outside.
+ * @param state - state value used by the helper.
+ * @param options - Options that configure the helper.
+ * @returns A `ReactiveIndex<K, V>` value.
+ * @category data-structures
+ * @example
+ * ```ts
+ * import { restoreReactiveIndex } from "@graphrefly/ts/data-structures";
+ * ```
+ */
 export function restoreReactiveIndex<K = unknown, V = unknown>(
 	state: ReactiveIndexRestoreState<K, V> | readonly IndexRow<K, V>[],
 	options: ReactiveIndexOptions = {},

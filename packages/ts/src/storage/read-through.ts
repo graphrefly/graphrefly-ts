@@ -81,7 +81,15 @@ function defer<T>(fn: () => T | PromiseLike<T>): Promise<T> {
 	return Promise.resolve().then(fn);
 }
 
-/** Alias for callers that prefer loader-oriented naming. */
+/** Alias for callers that prefer loader-oriented naming.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<TieredReadThroughResult<T>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { readThroughKv } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function readThroughKv<T>(
 	opts: TieredReadThroughOptions<T>,
 ): Promise<TieredReadThroughResult<T>> {
@@ -93,6 +101,13 @@ export function readThroughKv<T>(
  *
  * This is a passive storage/domain helper: it creates no graph nodes, performs no hydration or
  * restore, and treats promotion writes as facts rather than a graph commit barrier.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<TieredReadThroughResult<T>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { tieredReadThrough } from "@graphrefly/ts/storage";
+ * ```
  */
 export function tieredReadThrough<T>(
 	opts: TieredReadThroughOptions<T>,

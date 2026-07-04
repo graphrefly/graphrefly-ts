@@ -23,20 +23,17 @@ function hasKvPutIfAbsent(tier: KvStorageTier<T>): tier is PutIfAbsentKvStorageT
 
 | Parameter | Type | Description |
 |---|---|---|
-| `tier` | `KvStorageTier<T>` | Missing @param tier JSDoc. |
+| `tier` | `KvStorageTier<T>` | tier value used by the helper. |
 
 ## Returns
 
-`tier is PutIfAbsentKvStorageTier<T>`
+A `tier is PutIfAbsentKvStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param tier`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { hasKvPutIfAbsent } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

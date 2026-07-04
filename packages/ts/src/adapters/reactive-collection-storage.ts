@@ -168,6 +168,15 @@ function dataOf<C>(msg: Message): C | undefined {
 /**
  * D161 graph-bound sidecar over an existing collection. It writes passive storage frames and
  * exposes adapter progress as graph-visible DATA facts; it never restores or mutates the collection.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param collection - collection value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `ReactiveCollectionPersistenceHandle` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { persistReactiveCollection } from "@graphrefly/ts/adapters";
+ * ```
  */
 export function persistReactiveCollection<T, K extends PersistableKind>(
 	graph: Graph,
@@ -520,7 +529,15 @@ export interface PersistentReactiveIndex<K, V> {
 	readonly loaded: ReactiveIndexRestoreState<K, V>;
 }
 
-/** D161 convenience wrapper: passive load, sync restoreReactiveList, then sidecar persist. */
+/** D161 convenience wrapper: passive load, sync restoreReactiveList, then sidecar persist.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<PersistentReactiveList<T>>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { openPersistentReactiveList } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function openPersistentReactiveList<T = unknown>(
 	opts: OpenPersistentReactiveListOptions<T>,
 ): Promise<PersistentReactiveList<T>> {
@@ -549,7 +566,15 @@ export function openPersistentReactiveList<T = unknown>(
 	});
 }
 
-/** D161 convenience wrapper: passive load, sync restoreReactiveLog, then sidecar persist. */
+/** D161 convenience wrapper: passive load, sync restoreReactiveLog, then sidecar persist.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<PersistentReactiveLog<T>>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { openPersistentReactiveLog } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function openPersistentReactiveLog<T = unknown>(
 	opts: OpenPersistentReactiveLogOptions<T>,
 ): Promise<PersistentReactiveLog<T>> {
@@ -578,7 +603,15 @@ export function openPersistentReactiveLog<T = unknown>(
 	});
 }
 
-/** D161 convenience wrapper: passive load, sync restoreReactiveMap, then sidecar persist. */
+/** D161 convenience wrapper: passive load, sync restoreReactiveMap, then sidecar persist.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<PersistentReactiveMap<K, V>>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { openPersistentReactiveMap } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function openPersistentReactiveMap<K = unknown, V = unknown>(
 	opts: OpenPersistentReactiveMapOptions<K, V>,
 ): Promise<PersistentReactiveMap<K, V>> {
@@ -607,7 +640,15 @@ export function openPersistentReactiveMap<K = unknown, V = unknown>(
 	});
 }
 
-/** D161 convenience wrapper: passive load, sync restoreReactiveIndex, then sidecar persist. */
+/** D161 convenience wrapper: passive load, sync restoreReactiveIndex, then sidecar persist.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<PersistentReactiveIndex<K, V>>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { openPersistentReactiveIndex } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function openPersistentReactiveIndex<K = unknown, V = unknown>(
 	opts: OpenPersistentReactiveIndexOptions<K, V>,
 ): Promise<PersistentReactiveIndex<K, V>> {

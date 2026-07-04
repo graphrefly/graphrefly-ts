@@ -27,24 +27,19 @@ function remoteResponder(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `bridge` | `WireBridgeBundle<RemoteCallResponse<TResponse>, RemoteCallRequest<TRequest>>` | Missing @param bridge JSDoc. |
-| `opts` | `RemoteResponderOptions<TRequest, TResponse>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `bridge` | `WireBridgeBundle<RemoteCallResponse<TResponse>, RemoteCallRequest<TRequest>>` | bridge value used by the helper. |
+| `opts` | `RemoteResponderOptions<TRequest, TResponse>` | Options that configure the helper. |
 
 ## Returns
 
-`RemoteResponderBundle<TRequest, TResponse>`
+A `RemoteResponderBundle<TRequest, TResponse>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param bridge`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { remoteResponder } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

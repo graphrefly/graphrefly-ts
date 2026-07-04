@@ -23,20 +23,17 @@ function createNodeValue(node: Node<T>): Accessor<T | undefined>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `Node<T>` | Missing @param node JSDoc. |
+| `node` | `Node<T>` | Node to observe, adapt, or connect. |
 
 ## Returns
 
-`Accessor<T | undefined>`
+A `Accessor<T | undefined>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { createNodeValue } from "@graphrefly/ts/adapters/solid";
+```
 
 ## Source
 

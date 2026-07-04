@@ -35,20 +35,17 @@ function wireBridgeEnvelope(input: {
 
 | Parameter | Type | Description |
 |---|---|---|
-| `input` | `{ 	readonly sessionId: string; 	readonly type: WireBridgeEnvelopeType; 	readonly seq: number; 	readonly cursor?: number; 	readonly payload?: WireBridgePayload<TData>; 	readonly idempotencyKey?: string; 	readonly attempt?: number; 	readonly maxAttempts?: number; 	readonly timestampMs?: number; 	readonly ackForSeq?: number; 	readonly requestId?: string; }` | Missing @param input JSDoc. |
+| `input` | `{ 	readonly sessionId: string; 	readonly type: WireBridgeEnvelopeType; 	readonly seq: number; 	readonly cursor?: number; 	readonly payload?: WireBridgePayload<TData>; 	readonly idempotencyKey?: string; 	readonly attempt?: number; 	readonly maxAttempts?: number; 	readonly timestampMs?: number; 	readonly ackForSeq?: number; 	readonly requestId?: string; }` | Input value to project or validate. |
 
 ## Returns
 
-`WireBridgeEnvelope<TData>`
+A `WireBridgeEnvelope<TData>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param input`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { wireBridgeEnvelope } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

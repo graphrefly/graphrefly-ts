@@ -23,20 +23,17 @@ function skip(n: number): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `n` | `number` | Missing @param n JSDoc. |
+| `n` | `number` | n value used by the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param n`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { skip } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

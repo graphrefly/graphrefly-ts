@@ -26,22 +26,18 @@ function GraphWsReply(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `replyNode` | `Node<NestReplyEnvelope<TPayload>>` | Missing @param replyNode JSDoc. |
-| `opts` | `{ readonly bindingId: string; readonly order?: number }` | Missing @param opts JSDoc. |
+| `replyNode` | `Node<NestReplyEnvelope<TPayload>>` | reply node value used by the helper. |
+| `opts` | `{ readonly bindingId: string; readonly order?: number }` | Options that configure the helper. |
 
 ## Returns
 
-`GraphMethodDecorator`
+A `GraphMethodDecorator` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param replyNode`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { GraphWsReply } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

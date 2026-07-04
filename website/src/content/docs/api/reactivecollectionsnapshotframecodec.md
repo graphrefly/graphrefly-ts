@@ -23,20 +23,17 @@ function reactiveCollectionSnapshotFrameCodec(kind: K): Codec<ReactiveCollection
 
 | Parameter | Type | Description |
 |---|---|---|
-| `kind` | `K` | Missing @param kind JSDoc. |
+| `kind` | `K` | kind value used by the helper. |
 
 ## Returns
 
-`Codec<ReactiveCollectionSnapshotFrame<K, S>>`
+A `Codec<ReactiveCollectionSnapshotFrame<K, S>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param kind`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveCollectionSnapshotFrameCodec } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

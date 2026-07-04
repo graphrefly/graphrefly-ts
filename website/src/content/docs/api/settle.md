@@ -27,20 +27,17 @@ function settle(opts: SettleOpts<S>): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `SettleOpts<S>` | Missing @param opts JSDoc. |
+| `opts` | `SettleOpts<S>` | Options that configure the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { settle } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

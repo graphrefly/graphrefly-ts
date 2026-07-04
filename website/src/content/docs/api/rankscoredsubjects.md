@@ -26,22 +26,18 @@ function rankScoredSubjects(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `scored` | `readonly ScoredSubject<T>[]` | Missing @param scored JSDoc. |
-| `policy` | `Pick<ScorePolicy, "tieBreakers">` | Missing @param policy JSDoc. |
+| `scored` | `readonly ScoredSubject<T>[]` | scored value used by the helper. |
+| `policy` | `Pick<ScorePolicy, "tieBreakers">` | Policy object used to admit, retry, or route work. |
 
 ## Returns
 
-`readonly ScoredSubject<T>[]`
+A `readonly ScoredSubject<T>[]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param scored`.
-- Missing `@param policy`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { rankScoredSubjects } from "@graphrefly/ts/scoring";
+```
 
 ## Source
 

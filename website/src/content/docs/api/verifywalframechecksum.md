@@ -23,20 +23,17 @@ function verifyWalFrameChecksum(frame: WalFrame<T>): Promise<boolean>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `frame` | `WalFrame<T>` | Missing @param frame JSDoc. |
+| `frame` | `WalFrame<T>` | Frame to encode or validate. |
 
 ## Returns
 
-`Promise<boolean>`
+A `Promise<boolean>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param frame`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { verifyWalFrameChecksum } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

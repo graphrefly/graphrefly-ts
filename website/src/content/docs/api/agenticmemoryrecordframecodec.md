@@ -21,15 +21,13 @@ function agenticMemoryRecordFrameCodec(): Codec<AgenticMemoryRecordFrame<TJson>>
 
 ## Returns
 
-`Codec<AgenticMemoryRecordFrame<TJson>>`
+A `Codec<AgenticMemoryRecordFrame<TJson>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { agenticMemoryRecordFrameCodec } from "@graphrefly/ts/solutions";
+```
 
 ## Source
 

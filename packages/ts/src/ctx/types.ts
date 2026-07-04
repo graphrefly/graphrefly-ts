@@ -191,7 +191,15 @@ export interface Ctx {
 /** A node fn (R-fn-contract). Registered in a dispatcher pool, indexed by Handle. */
 export type NodeFn = (ctx: Ctx) => void;
 
-/** Number of declared dep slots visible in this invocation. */
+/** Number of declared dep slots visible in this invocation.
+ * @param ctx - Node execution context supplied by the dispatcher.
+ * @returns A `number` value.
+ * @category core
+ * @example
+ * ```ts
+ * import { depCount } from "@graphrefly/ts/core";
+ * ```
+ */
 export function depCount(ctx: Ctx): number {
 	return ctx.waveData.length;
 }
@@ -211,12 +219,30 @@ export function isTerminalNone(t: unknown): boolean {
 	return t === false || t === undefined;
 }
 
-/** DATA/SENTINEL projection batches delivered by one dep in this invocation. */
+/** DATA/SENTINEL projection batches delivered by one dep in this invocation.
+ * @param ctx - Node execution context supplied by the dispatcher.
+ * @param depIndex - dep index value used by the helper.
+ * @returns A `readonly (readonly unknown[])[]` value.
+ * @category core
+ * @example
+ * ```ts
+ * import { depWaves } from "@graphrefly/ts/core";
+ * ```
+ */
 export function depWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown[])[] {
 	return ctx.waveData[depIndex] ?? [];
 }
 
-/** Flattened DATA projection for old event-counting operator bodies; null = no wave. */
+/** Flattened DATA projection for old event-counting operator bodies; null = no wave.
+ * @param ctx - Node execution context supplied by the dispatcher.
+ * @param depIndex - dep index value used by the helper.
+ * @returns A `readonly unknown[] | null` value.
+ * @category core
+ * @example
+ * ```ts
+ * import { depBatch } from "@graphrefly/ts/core";
+ * ```
+ */
 export function depBatch(ctx: Ctx, depIndex: number): readonly unknown[] | null {
 	const waves = depWaves(ctx, depIndex);
 	if (waves.length === 0) return null;
@@ -239,12 +265,30 @@ export function depLiveBatch(ctx: Ctx, depIndex: number): readonly unknown[] | n
 	return flattened.length === 0 ? [] : flattened;
 }
 
-/** Latest cached DATA for a dep, derived from implementation-owned dep cache. */
+/** Latest cached DATA for a dep, derived from implementation-owned dep cache.
+ * @param ctx - Node execution context supplied by the dispatcher.
+ * @param depIndex - dep index value used by the helper.
+ * @returns The dep latest result.
+ * @category core
+ * @example
+ * ```ts
+ * import { depLatest } from "@graphrefly/ts/core";
+ * ```
+ */
 export function depLatest(ctx: Ctx, depIndex: number): unknown {
 	return ctx[CTX_DEP_CACHE]?.latest[depIndex];
 }
 
-/** Terminal metadata for one dep: false = none, true = COMPLETE, otherwise ERROR payload. */
+/** Terminal metadata for one dep: false = none, true = COMPLETE, otherwise ERROR payload.
+ * @param ctx - Node execution context supplied by the dispatcher.
+ * @param depIndex - dep index value used by the helper.
+ * @returns The dep terminal result.
+ * @category core
+ * @example
+ * ```ts
+ * import { depTerminal } from "@graphrefly/ts/core";
+ * ```
+ */
 export function depTerminal(ctx: Ctx, depIndex: number): unknown {
 	const t = ctx.terminal[depIndex];
 	return t === undefined ? false : t;

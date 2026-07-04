@@ -23,20 +23,17 @@ function nodeWritable(node: WritableNode<T>): NodeWritable<T>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `WritableNode<T>` | Missing @param node JSDoc. |
+| `node` | `WritableNode<T>` | Node to observe, adapt, or connect. |
 
 ## Returns
 
-`NodeWritable<T>`
+A `NodeWritable<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { nodeWritable } from "@graphrefly/ts/adapters/svelte";
+```
 
 ## Source
 

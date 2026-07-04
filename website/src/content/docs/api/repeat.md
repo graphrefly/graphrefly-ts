@@ -44,22 +44,18 @@ function repeat(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `factory` | `() => NodeInput<S>` | Missing @param factory JSDoc. |
-| `count` | `number` | Missing @param count JSDoc. |
+| `factory` | `() => NodeInput<S>` | factory value used by the helper. |
+| `count` | `number` | count value used by the helper. |
 
 ## Returns
 
-`Operator<never, S>`
+A `Operator<never, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param factory`.
-- Missing `@param count`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { repeat } from "@graphrefly/ts";
+```
 
 ## Source
 

@@ -55,7 +55,16 @@ interface FlatSnapshot {
 	edges: DescribeEdge[];
 }
 
-/** Render a D39 describe snapshot as Mermaid flowchart text. */
+/** Render a D39 describe snapshot as Mermaid flowchart text.
+ * @param snapshot - snapshot value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `string` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { describeToMermaid } from "@graphrefly/ts/graph";
+ * ```
+ */
 export function describeToMermaid(
 	snapshot: DescribeSnapshot,
 	opts: DescribeToMermaidOptions = {},
@@ -79,7 +88,16 @@ export function describeToMermaid(
 	return lines.join("\n");
 }
 
-/** Encode arbitrary Mermaid source as a mermaid.live deep link. */
+/** Encode arbitrary Mermaid source as a mermaid.live deep link.
+ * @param mermaidSource - mermaid source value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `string` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { mermaidLiveUrl } from "@graphrefly/ts/graph";
+ * ```
+ */
 export function mermaidLiveUrl(mermaidSource: string, opts: MermaidLiveUrlOptions = {}): string {
 	const payload = {
 		code: mermaidSource,
@@ -89,7 +107,16 @@ export function mermaidLiveUrl(mermaidSource: string, opts: MermaidLiveUrlOption
 	return `https://mermaid.live/edit#base64:${base64UrlEncode(JSON.stringify(payload))}`;
 }
 
-/** Render a D39 describe snapshot as a mermaid.live deep link. */
+/** Render a D39 describe snapshot as a mermaid.live deep link.
+ * @param snapshot - snapshot value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `string` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { describeToMermaidUrl } from "@graphrefly/ts/graph";
+ * ```
+ */
 export function describeToMermaidUrl(
 	snapshot: DescribeSnapshot,
 	opts: DescribeToMermaidUrlOptions = {},
@@ -97,7 +124,16 @@ export function describeToMermaidUrl(
 	return mermaidLiveUrl(describeToMermaid(snapshot, opts), opts);
 }
 
-/** Render a D39 describe snapshot as D2 diagram text. */
+/** Render a D39 describe snapshot as D2 diagram text.
+ * @param snapshot - snapshot value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `string` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { describeToD2 } from "@graphrefly/ts/graph";
+ * ```
+ */
 export function describeToD2(snapshot: DescribeSnapshot, opts: DescribeToD2Options = {}): string {
 	const direction = normalizeDirection(opts.direction);
 	const flat = flattenDescribe(snapshot);
@@ -118,7 +154,16 @@ export function describeToD2(snapshot: DescribeSnapshot, opts: DescribeToD2Optio
 	return lines.join("\n");
 }
 
-/** Render a D39 describe snapshot as compact human-readable plaintext. */
+/** Render a D39 describe snapshot as compact human-readable plaintext.
+ * @param snapshot - snapshot value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `string` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { describeToPretty } from "@graphrefly/ts/graph";
+ * ```
+ */
 export function describeToPretty(
 	snapshot: DescribeSnapshot,
 	opts: DescribeToPrettyOptions = {},
@@ -136,7 +181,16 @@ export function describeToPretty(
 	return lines.join("\n");
 }
 
-/** Render a D39 describe snapshot as a compact ASCII adjacency diagram. */
+/** Render a D39 describe snapshot as a compact ASCII adjacency diagram.
+ * @param snapshot - snapshot value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `string` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { describeToAscii } from "@graphrefly/ts/graph";
+ * ```
+ */
 export function describeToAscii(
 	snapshot: DescribeSnapshot,
 	opts: DescribeToAsciiOptions = {},
@@ -157,7 +211,16 @@ export function describeToAscii(
 	return lines.join("\n");
 }
 
-/** Render a D39 describe snapshot as deterministic JSON text. */
+/** Render a D39 describe snapshot as deterministic JSON text.
+ * @param snapshot - snapshot value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `string` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { describeToJson } from "@graphrefly/ts/graph";
+ * ```
+ */
 export function describeToJson(
 	snapshot: DescribeSnapshot,
 	opts: DescribeToJsonOptions = {},

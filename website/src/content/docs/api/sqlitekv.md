@@ -26,22 +26,18 @@ function sqliteKv(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `path` | `string` | Missing @param path JSDoc. |
-| `opts` | `SqliteKvOptions<T>` | Missing @param opts JSDoc. |
+| `path` | `string` | path value used by the helper. |
+| `opts` | `SqliteKvOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`KvStorageTier<T> & { close(): void }`
+A `KvStorageTier<T> & { close(): void }` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param path`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { sqliteKv } from "@graphrefly/ts/storage/node";
+```
 
 ## Source
 

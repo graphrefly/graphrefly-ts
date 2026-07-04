@@ -25,20 +25,17 @@ function isUpAllowed(t: MessageType): boolean
 
 | Parameter | Type | Description |
 |---|---|---|
-| `t` | `MessageType` | Missing @param t JSDoc. |
+| `t` | `MessageType` | t value used by the helper. |
 
 ## Returns
 
-`boolean`
+`true` when the value matches the expected shape.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param t`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { isUpAllowed } from "@graphrefly/ts/core";
+```
 
 ## Source
 

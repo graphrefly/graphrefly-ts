@@ -22,15 +22,13 @@ function pairwise(): Operator<S, readonly [S, S]>
 
 ## Returns
 
-`Operator<S, readonly [S, S]>`
+A `Operator<S, readonly [S, S]>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { pairwise } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

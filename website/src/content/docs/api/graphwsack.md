@@ -26,22 +26,18 @@ function GraphWsAck(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `ackNode` | `Node<NestReplyEnvelope<TPayload>>` | Missing @param ackNode JSDoc. |
-| `opts` | `{ readonly bindingId: string; readonly order?: number }` | Missing @param opts JSDoc. |
+| `ackNode` | `Node<NestReplyEnvelope<TPayload>>` | ack node value used by the helper. |
+| `opts` | `{ readonly bindingId: string; readonly order?: number }` | Options that configure the helper. |
 
 ## Returns
 
-`GraphMethodDecorator`
+A `GraphMethodDecorator` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param ackNode`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { GraphWsAck } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

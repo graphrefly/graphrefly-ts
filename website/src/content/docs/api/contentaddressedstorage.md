@@ -23,20 +23,17 @@ function contentAddressedStorage(opts: ContentAddressedStorageOptions<Ctx, V>): 
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `ContentAddressedStorageOptions<Ctx, V>` | Missing @param opts JSDoc. |
+| `opts` | `ContentAddressedStorageOptions<Ctx, V>` | Options that configure the helper. |
 
 ## Returns
 
-`ContentAddressedStorage<Ctx, V>`
+A `ContentAddressedStorage<Ctx, V>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { contentAddressedStorage } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

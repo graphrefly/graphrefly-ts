@@ -15,7 +15,15 @@ function assertDataValue(value: unknown): void {
 	}
 }
 
-/** Read a GraphReFly node through React's useSyncExternalStore contract. */
+/** Read a GraphReFly node through React's useSyncExternalStore contract.
+ * @param node - Node to observe, adapt, or connect.
+ * @returns A `T | undefined` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { useNodeValue } from "@graphrefly/ts/adapters/react";
+ * ```
+ */
 export function useNodeValue<T>(node: Node<T>): T | undefined {
 	const store = useMemo(() => externalStore(node), [node]);
 	return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
@@ -26,6 +34,13 @@ export function useNodeValue<T>(node: Node<T>): T | undefined {
  *
  * The setter identity is stable for a stable node identity, and writes through
  * the node's reactive DATA boundary rather than a presentation-owned trigger.
+ * @param node - Node to observe, adapt, or connect.
+ * @returns A `readonly [T | undefined, (value: T) => void]` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { useNodeInput } from "@graphrefly/ts/adapters/react";
+ * ```
  */
 export function useNodeInput<T>(
 	node: WritableNode<T>,
@@ -46,6 +61,14 @@ export function useNodeInput<T>(
  *
  * `factory` must have stable identity. Recreating it on every render forces the
  * record subscription graph to rebuild on every render.
+ * @param keysNode - keys node value used by the helper.
+ * @param factory - factory value used by the helper.
+ * @returns A `Record<K, R>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { useNodeRecord } from "@graphrefly/ts/adapters/react";
+ * ```
  */
 export function useNodeRecord<K extends string, R extends Record<string, unknown>>(
 	keysNode: Node<readonly K[]>,

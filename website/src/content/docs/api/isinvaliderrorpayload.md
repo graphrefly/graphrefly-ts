@@ -23,20 +23,17 @@ function isInvalidErrorPayload(v: unknown): boolean
 
 | Parameter | Type | Description |
 |---|---|---|
-| `v` | `unknown` | Missing @param v JSDoc. |
+| `v` | `unknown` | v value used by the helper. |
 
 ## Returns
 
-`boolean`
+`true` when the value matches the expected shape.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param v`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { isInvalidErrorPayload } from "@graphrefly/ts/core";
+```
 
 ## Source
 

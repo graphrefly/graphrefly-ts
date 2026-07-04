@@ -23,20 +23,17 @@ function walFramePrefix(namespace: string): string
 
 | Parameter | Type | Description |
 |---|---|---|
-| `namespace` | `string` | Missing @param namespace JSDoc. |
+| `namespace` | `string` | namespace value used by the helper. |
 
 ## Returns
 
-`string`
+A `string` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param namespace`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { walFramePrefix } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

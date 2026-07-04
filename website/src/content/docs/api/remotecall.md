@@ -27,24 +27,19 @@ function remoteCall(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `bridge` | `WireBridgeBundle<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>` | Missing @param bridge JSDoc. |
-| `opts` | `RemoteCallOptions` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `bridge` | `WireBridgeBundle<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>` | bridge value used by the helper. |
+| `opts` | `RemoteCallOptions` | Options that configure the helper. |
 
 ## Returns
 
-`RemoteCallBundle<TRequest, TResponse>`
+A `RemoteCallBundle<TRequest, TResponse>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param bridge`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { remoteCall } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

@@ -26,22 +26,18 @@ function shardByTenant(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `tenantOf` | `(fragment: MemoryFragment<T>) => string` | Missing @param tenantOf JSDoc. |
-| `opts` | `ShardByTenantOptions` | Missing @param opts JSDoc. |
+| `tenantOf` | `(fragment: MemoryFragment<T>) => string` | tenant of value used by the helper. |
+| `opts` | `ShardByTenantOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ShardByTenantConfig<T>`
+A `ShardByTenantConfig<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param tenantOf`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { shardByTenant } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

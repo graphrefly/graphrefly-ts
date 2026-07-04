@@ -30,24 +30,19 @@ function webSocketSession(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `request` | `WebSocketRequest` | Missing @param request JSDoc. |
-| `opts` | `WebSocketSessionOptions` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `request` | `WebSocketRequest` | Request value to lower, route, or record. |
+| `opts` | `WebSocketSessionOptions` | Options that configure the helper. |
 
 ## Returns
 
-`WebSocketSessionBundle`
+A `WebSocketSessionBundle` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param request`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { webSocketSession } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

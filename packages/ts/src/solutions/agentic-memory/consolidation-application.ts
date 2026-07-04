@@ -12,6 +12,14 @@ import type {
  *
  * Consolidation remains proposal-only; admission and application are explicit
  * graph-visible boundaries before any AgenticMemoryRecord snapshot changes.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param opts - Options that configure the helper.
+ * @returns A bundle of graph-visible nodes for the recipe.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { agenticMemoryConsolidationApplicationBundle } from "@graphrefly/ts/solutions";
+ * ```
  */
 export function agenticMemoryConsolidationApplicationBundle<T = unknown>(
 	graph: Graph,

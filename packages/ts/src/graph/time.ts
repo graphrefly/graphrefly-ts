@@ -82,6 +82,13 @@ function throttleWindow<S>(v: S, ms: number): Node<S> {
 /**
  * delay: shift every value by `ms`, preserving all values + order. `mergeMap` keeps every inner
  * timer live (equal `ms`, so they fire in arrival order).
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `Operator<S, S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { delay } from "@graphrefly/ts";
+ * ```
  */
 export function delay<S>(ms: number): Operator<S, S> {
 	return { ...mergeMap<S, S>((v) => delayedValue(v, ms)), factory: "delay" };
@@ -98,12 +105,27 @@ export function delay<S>(ms: number): Operator<S, S> {
  * fires — i.e. at `(last-value-time + ms)` — so if the source completes mid-window the trailing
  * value arrives up to `ms` later than RxJS. Inherent to the `*Map`+`timer` form (the composition
  * cannot flush early without detecting COMPLETE inside the switchMap inner); accepted, not a bug.
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `Operator<S, S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { debounce } from "@graphrefly/ts";
+ * ```
  */
 export function debounce<S>(ms: number): Operator<S, S> {
 	return { ...switchMap<S, S>((v) => delayedValue(v, ms)), factory: "debounce" };
 }
 
-/** debounceTime: RxJS-named alias of {@link debounce}. */
+/** debounceTime: RxJS-named alias of {@link debounce}.
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `Operator<S, S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { debounceTime } from "@graphrefly/ts";
+ * ```
+ */
 export function debounceTime<S>(ms: number): Operator<S, S> {
 	return { ...switchMap<S, S>((v) => delayedValue(v, ms)), factory: "debounceTime" };
 }
@@ -116,12 +138,27 @@ export function debounceTime<S>(ms: number): Operator<S, S> {
  * Matches the RxJS-7 `throttleTime` DEFAULT (leading:true, trailing:false). The leading/trailing
  * OPTIONS RxJS exposes are NOT provided (a capability gap, not a behavior divergence; B44) — add a
  * trailing-window form if a consumer needs it.
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `Operator<S, S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { throttle } from "@graphrefly/ts";
+ * ```
  */
 export function throttle<S>(ms: number): Operator<S, S> {
 	return { ...exhaustMap<S, S>((v) => throttleWindow(v, ms)), factory: "throttle" };
 }
 
-/** throttleTime: RxJS-named alias of {@link throttle}. */
+/** throttleTime: RxJS-named alias of {@link throttle}.
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `Operator<S, S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { throttleTime } from "@graphrefly/ts";
+ * ```
+ */
 export function throttleTime<S>(ms: number): Operator<S, S> {
 	return { ...exhaustMap<S, S>((v) => throttleWindow(v, ms)), factory: "throttleTime" };
 }
@@ -148,6 +185,13 @@ interface AuditState<S> {
  * COMPLETE (RxJS-7 audit flush-on-complete, B44). A source/notifier ERROR is read as a real terminal
  * input so the live notifier can be removed before ERROR. Self-catching (D30); re-supplies its body on
  * every rewire.
+ * @param durationSelector - duration selector value used by the helper.
+ * @returns A `Operator<S, S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { audit } from "@graphrefly/ts";
+ * ```
  */
 export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operator<S, S> {
 	const body: NodeFn = (ctx: Ctx) => {
@@ -225,7 +269,15 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 	};
 }
 
-/** auditTime: the `ms`-specialization of {@link audit} — the window is a `timer(ms)`. */
+/** auditTime: the `ms`-specialization of {@link audit} — the window is a `timer(ms)`.
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `Operator<S, S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { auditTime } from "@graphrefly/ts";
+ * ```
+ */
 export function auditTime<S>(ms: number): Operator<S, S> {
 	return { ...audit<S>(() => initNode(timer(ms), [])), factory: "auditTime" };
 }
@@ -249,6 +301,14 @@ interface TimeoutState {
  * error) and removes the idle timer during the terminal wave (D62 terminal-drains-queued-rewire);
  * a source ERROR forwards likewise. The idle timer is also torn down when the consumer unsubscribes
  * (timeout deactivates → dep unsub → timer onDeactivation). Self-catching (D30).
+ * @param source - Source node that provides graph-visible input.
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `Node<S>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { timeout } from "@graphrefly/ts";
+ * ```
  */
 export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 	const makeTimer = (): Node<unknown> => initNode(timer(ms), []);
@@ -321,6 +381,14 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
  * (which flushes on every notifier signal). On source COMPLETE the remainder flushes then COMPLETE
  * (B44), and D62 lets the terminal wave still drain `unsubscribeDep(interval)` so the helper-owned
  * interval source deactivates instead of ticking forever.
+ * @param source - Source node that provides graph-visible input.
+ * @param ms - Duration or timestamp in milliseconds.
+ * @returns A `Node<S[]>` value.
+ * @category graph
+ * @example
+ * ```ts
+ * import { bufferTime } from "@graphrefly/ts";
+ * ```
  */
 export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 	const iv: Node<unknown> = initNode(interval(ms), []);

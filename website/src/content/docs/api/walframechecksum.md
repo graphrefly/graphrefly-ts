@@ -23,20 +23,17 @@ function walFrameChecksum(body: WalFrameBody<T>): Promise<string>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `body` | `WalFrameBody<T>` | Missing @param body JSDoc. |
+| `body` | `WalFrameBody<T>` | body value used by the helper. |
 
 ## Returns
 
-`Promise<string>`
+A `Promise<string>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param body`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { walFrameChecksum } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

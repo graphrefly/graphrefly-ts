@@ -168,7 +168,15 @@ export function fromRaf(opts: FromRafOptions = {}): Operator<never, number> {
 	};
 }
 
-/** Wrap an IndexedDB request as a one-shot source. */
+/** Wrap an IndexedDB request as a one-shot source.
+ * @param request - Request value to lower, route, or record.
+ * @returns A Operator<never, T> value for the boundary or adapter.
+ * @category sources
+ * @example
+ * ```ts
+ * import { fromIDBRequest } from "@graphrefly/ts/sources/browser";
+ * ```
+ */
 export function fromIDBRequest<T>(request: IDBRequestLike<T>): Operator<never, T> {
 	return source<T>("fromIDBRequest", (ctx) => {
 		let done = false;
@@ -206,6 +214,13 @@ export function fromIDBRequest<T>(request: IDBRequestLike<T>): Operator<never, T
  *
  * Success emits COMPLETE without DATA: undefined is the TypeScript SENTINEL and cannot be a DATA
  * payload under R-data-payload.
+ * @param transaction - transaction value used by the helper.
+ * @returns A Operator<never, never> value for the boundary or adapter.
+ * @category sources
+ * @example
+ * ```ts
+ * import { fromIDBTransaction } from "@graphrefly/ts/sources/browser";
+ * ```
  */
 export function fromIDBTransaction(transaction: IDBTransactionLike): Operator<never, never> {
 	return source<never>("fromIDBTransaction", (ctx) => {

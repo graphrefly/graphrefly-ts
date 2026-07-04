@@ -26,22 +26,18 @@ function restoreReactiveMap(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `state` | `ReactiveMapRestoreState<K, V> \| readonly (readonly [K, V])[]` | Missing @param state JSDoc. |
-| `options` | `ReactiveMapOptions<K, V>` | Missing @param options JSDoc. |
+| `state` | `ReactiveMapRestoreState<K, V> \| readonly (readonly [K, V])[]` | state value used by the helper. |
+| `options` | `ReactiveMapOptions<K, V>` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveMap<K, V>`
+A `ReactiveMap<K, V>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param state`.
-- Missing `@param options`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { restoreReactiveMap } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

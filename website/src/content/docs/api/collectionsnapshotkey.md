@@ -23,20 +23,17 @@ function collectionSnapshotKey(storagePrefix = "reactive-collection"): string
 
 | Parameter | Type | Description |
 |---|---|---|
-| `storagePrefix` | `unknown` | Missing @param storagePrefix JSDoc. |
+| `storagePrefix` | `unknown` | storage prefix value used by the helper. |
 
 ## Returns
 
-`string`
+The stable key or reference string.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param storagePrefix`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { collectionSnapshotKey } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

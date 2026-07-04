@@ -26,22 +26,18 @@ function depLatest(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `ctx` | `Ctx` | Missing @param ctx JSDoc. |
-| `depIndex` | `number` | Missing @param depIndex JSDoc. |
+| `ctx` | `Ctx` | Node execution context supplied by the dispatcher. |
+| `depIndex` | `number` | dep index value used by the helper. |
 
 ## Returns
 
-`unknown`
+The dep latest result.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param ctx`.
-- Missing `@param depIndex`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { depLatest } from "@graphrefly/ts/core";
+```
 
 ## Source
 

@@ -24,20 +24,17 @@ function appendLogStorage(opts: AppendLogOptions<T>): AppendLogStorageTier<T>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `AppendLogOptions<T>` | Missing @param opts JSDoc. |
+| `opts` | `AppendLogOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`AppendLogStorageTier<T>`
+A `AppendLogStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { appendLogStorage } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

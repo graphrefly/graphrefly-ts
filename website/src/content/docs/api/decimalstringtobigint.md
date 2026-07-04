@@ -23,20 +23,17 @@ function decimalStringToBigInt(value: DecimalIntegerString): bigint
 
 | Parameter | Type | Description |
 |---|---|---|
-| `value` | `DecimalIntegerString` | Missing @param value JSDoc. |
+| `value` | `DecimalIntegerString` | Unknown value to check or decode. |
 
 ## Returns
 
-`bigint`
+A `bigint` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param value`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { decimalStringToBigInt } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

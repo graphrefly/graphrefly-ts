@@ -24,20 +24,17 @@ function reactiveMap(options: ReactiveMapOptions<K, V> = {}): ReactiveMap<K, V>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `options` | `ReactiveMapOptions<K, V>` | Missing @param options JSDoc. |
+| `options` | `ReactiveMapOptions<K, V>` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveMap<K, V>`
+A `ReactiveMap<K, V>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param options`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveMap } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

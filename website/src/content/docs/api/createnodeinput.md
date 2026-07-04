@@ -23,20 +23,17 @@ function createNodeInput(node: WritableNode<T>): readonly [Accessor<T | undefine
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `WritableNode<T>` | Missing @param node JSDoc. |
+| `node` | `WritableNode<T>` | Node to observe, adapt, or connect. |
 
 ## Returns
 
-`readonly [Accessor<T | undefined>, (value: T) => void]`
+A `readonly [Accessor<T | undefined>, (value: T) => void]` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { createNodeInput } from "@graphrefly/ts/adapters/solid";
+```
 
 ## Source
 

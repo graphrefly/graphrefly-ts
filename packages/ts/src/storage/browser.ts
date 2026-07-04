@@ -115,6 +115,13 @@ export interface IndexedDbAppendLogOptions<T> {
  * Creates an IndexedDB backend for browser environments.
  *
  * All methods are async (`Promise`) and do not cross graph layer boundaries.
+ * @param spec - spec value used by the helper.
+ * @returns A `NamedIndexedDbBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { indexedDbBackend } from "@graphrefly/ts/storage/browser";
+ * ```
  */
 export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBackend {
 	let dbCache: Promise<IDBDatabase> | undefined;
@@ -307,6 +314,14 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): NamedIndexedDbBack
 
 /**
  * Creates an IndexedDB-backed KV storage tier.
+ * @param spec - spec value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `KvStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { indexedDbKv } from "@graphrefly/ts/storage/browser";
+ * ```
  */
 export function indexedDbKv<T>(
 	spec: IndexedDbBackendSpec,
@@ -317,6 +332,14 @@ export function indexedDbKv<T>(
 
 /**
  * Creates an IndexedDB-backed append-log storage tier.
+ * @param spec - spec value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `AppendLogStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { indexedDbAppendLog } from "@graphrefly/ts/storage/browser";
+ * ```
  */
 export function indexedDbAppendLog<T>(
 	spec: IndexedDbBackendSpec,

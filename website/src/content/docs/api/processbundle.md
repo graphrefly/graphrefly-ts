@@ -30,22 +30,18 @@ function processBundle(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `ProcessBundleOptions<TCommand, TState, TEvent, TEffect>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `ProcessBundleOptions<TCommand, TState, TEvent, TEffect>` | Options that configure the helper. |
 
 ## Returns
 
-`ProcessBundle<TCommand, TState, TEvent, TEffect>`
+A bundle of graph-visible nodes for the recipe.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { processBundle } from "@graphrefly/ts/orchestration";
+```
 
 ## Source
 

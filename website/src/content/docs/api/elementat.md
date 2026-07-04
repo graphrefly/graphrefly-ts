@@ -25,20 +25,17 @@ function elementAt(index: number): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `index` | `number` | Missing @param index JSDoc. |
+| `index` | `number` | index value used by the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param index`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { elementAt } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

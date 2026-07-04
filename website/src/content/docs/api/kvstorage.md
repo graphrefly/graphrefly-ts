@@ -23,20 +23,17 @@ function kvStorage(opts: KvStorageOptions<T>): KvStorageTier<T>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `KvStorageOptions<T>` | Missing @param opts JSDoc. |
+| `opts` | `KvStorageOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`KvStorageTier<T>`
+A `KvStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { kvStorage } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

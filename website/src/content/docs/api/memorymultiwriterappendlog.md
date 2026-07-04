@@ -23,20 +23,17 @@ function memoryMultiWriterAppendLog(prefix?: string): MultiWriterAppendLogStorag
 
 | Parameter | Type | Description |
 |---|---|---|
-| `prefix` | `string` | Missing @param prefix JSDoc. |
+| `prefix` | `string` | prefix value used by the helper. |
 
 ## Returns
 
-`MultiWriterAppendLogStorageTier<T>`
+A `MultiWriterAppendLogStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param prefix`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { memoryMultiWriterAppendLog } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

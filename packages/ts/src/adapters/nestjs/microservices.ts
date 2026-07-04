@@ -62,21 +62,45 @@ export interface GraphMessageBridge<THost = unknown>
 
 type MessageBoundary = ReturnType<typeof toNestHttp<unknown>>;
 
-/** Build a dependency-light Nest provider for the focused message bridge token. */
+/** Build a dependency-light Nest provider for the focused message bridge token.
+ * @param opts - Options that configure the helper.
+ * @returns A `NestProviderBinding<GraphMessageBridge<THost>>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphMessageBridge } from "@graphrefly/ts/adapters/nestjs/microservices";
+ * ```
+ */
 export function provideGraphMessageBridge<THost = unknown>(
 	opts: GraphMessageBridgeOptions<THost> = {},
 ): NestProviderBinding<GraphMessageBridge<THost>> {
 	return { provide: GRAPHREFLY_NEST_MESSAGE_BRIDGE, useValue: createGraphMessageBridge(opts) };
 }
 
-/** Build the D495 focused message provider bundle without adding a router or event bus. */
+/** Build the D495 focused message provider bundle without adding a router or event bus.
+ * @param opts - Options that configure the helper.
+ * @returns A `NestProviderBinding<GraphMessageBridge<THost>>[]` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { provideGraphMessageProviders } from "@graphrefly/ts/adapters/nestjs/microservices";
+ * ```
+ */
 export function provideGraphMessageProviders<THost = unknown>(
 	opts: GraphMessageProviderBundleOptions<THost> = {},
 ): NestProviderBinding<GraphMessageBridge<THost>>[] {
 	return opts.bridge === false ? [] : [provideGraphMessageBridge(opts.bridge ?? {})];
 }
 
-/** Create a host-private message bridge instance without adding a router or event bus. */
+/** Create a host-private message bridge instance without adding a router or event bus.
+ * @param opts - Options that configure the helper.
+ * @returns A `GraphMessageBridge<THost>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { createGraphMessageBridge } from "@graphrefly/ts/adapters/nestjs/microservices";
+ * ```
+ */
 export function createGraphMessageBridge<THost = unknown>(
 	opts: GraphMessageBridgeOptions<THost> = {},
 ): GraphMessageBridge<THost> {

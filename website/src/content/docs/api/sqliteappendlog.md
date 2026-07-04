@@ -26,22 +26,18 @@ function sqliteAppendLog(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `path` | `string` | Missing @param path JSDoc. |
-| `opts` | `SqliteAppendLogOptions<T>` | Missing @param opts JSDoc. |
+| `path` | `string` | path value used by the helper. |
+| `opts` | `SqliteAppendLogOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`AppendLogStorageTier<T> & { close(): void }`
+A `AppendLogStorageTier<T> & { close(): void }` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param path`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { sqliteAppendLog } from "@graphrefly/ts/storage/node";
+```
 
 ## Source
 

@@ -29,22 +29,18 @@ function filterObserve(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `stream` | `ObserveStream` | Missing @param stream JSDoc. |
-| `predicate` | `ObservePredicate` | Missing @param predicate JSDoc. |
+| `stream` | `ObserveStream` | stream value used by the helper. |
+| `predicate` | `ObservePredicate` | predicate value used by the helper. |
 
 ## Returns
 
-`ObserveStream`
+A `ObserveStream` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param stream`.
-- Missing `@param predicate`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { filterObserve } from "@graphrefly/ts/graph";
+```
 
 ## Source
 

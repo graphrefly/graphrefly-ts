@@ -24,20 +24,17 @@ function takeWhile(pred: (v: S) => boolean): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `pred` | `(v: S) => boolean` | Missing @param pred JSDoc. |
+| `pred` | `(v: S) => boolean` | pred value used by the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param pred`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { takeWhile } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

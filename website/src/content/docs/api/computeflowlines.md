@@ -26,22 +26,18 @@ function computeFlowLines(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `segments` | `readonly PreparedSegment[]` | Missing @param segments JSDoc. |
-| `opts` | `ComputeFlowLinesOptions` | Missing @param opts JSDoc. |
+| `segments` | `readonly PreparedSegment[]` | segments value used by the helper. |
+| `opts` | `ComputeFlowLinesOptions` | Options that configure the helper. |
 
 ## Returns
 
-`FlowLinesResult`
+A `FlowLinesResult` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param segments`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { computeFlowLines } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

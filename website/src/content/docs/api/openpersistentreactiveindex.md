@@ -23,20 +23,17 @@ function openPersistentReactiveIndex(opts: OpenPersistentReactiveIndexOptions<K,
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `OpenPersistentReactiveIndexOptions<K, V>` | Missing @param opts JSDoc. |
+| `opts` | `OpenPersistentReactiveIndexOptions<K, V>` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<PersistentReactiveIndex<K, V>>`
+A `Promise<PersistentReactiveIndex<K, V>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { openPersistentReactiveIndex } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

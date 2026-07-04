@@ -95,14 +95,31 @@ export interface VersionedStorageBackend extends StorageBackend {
 	): boolean | PromiseLike<boolean>;
 }
 
-/** Runtime guard for D85 conditional-create capable byte backends. */
+/** Runtime guard for D85 conditional-create capable byte backends.
+ * @param backend - backend value used by the helper.
+ * @returns A `backend is PutIfAbsentStorageBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { hasStoragePutIfAbsent } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function hasStoragePutIfAbsent(
 	backend: StorageBackend,
 ): backend is PutIfAbsentStorageBackend {
 	return typeof backend.putIfAbsent === "function";
 }
 
-/** Require D85 conditional-create support and produce a clear adapter error when absent. */
+/** Require D85 conditional-create support and produce a clear adapter error when absent.
+ * @param backend - backend value used by the helper.
+ * @param label - label value used by the helper.
+ * @returns A `PutIfAbsentStorageBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { requireStoragePutIfAbsent } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function requireStoragePutIfAbsent(
 	backend: StorageBackend,
 	label = "storage backend",
@@ -113,12 +130,29 @@ export function requireStoragePutIfAbsent(
 	return backend;
 }
 
-/** Runtime guard for D108 versioned byte backends. */
+/** Runtime guard for D108 versioned byte backends.
+ * @param backend - backend value used by the helper.
+ * @returns A `backend is VersionedStorageBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { hasStorageVersioned } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function hasStorageVersioned(backend: StorageBackend): backend is VersionedStorageBackend {
 	return typeof backend.getVersioned === "function" && typeof backend.setIfMatch === "function";
 }
 
-/** Require D108 versioned support and produce a clear adapter error when absent. */
+/** Require D108 versioned support and produce a clear adapter error when absent.
+ * @param backend - backend value used by the helper.
+ * @param label - label value used by the helper.
+ * @returns A `VersionedStorageBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { requireStorageVersioned } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function requireStorageVersioned(
 	backend: StorageBackend,
 	label = "storage backend",
@@ -186,7 +220,16 @@ function listByPrefix(namespace: string, prefix: string, raw: readonly unknown[]
 	return out;
 }
 
-/** Build a deterministic byte backend backed by a browser-like key/value store (D103/D82). */
+/** Build a deterministic byte backend backed by a browser-like key/value store (D103/D82).
+ * @param storage - storage value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `StorageBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { webStorageBackend } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function webStorageBackend(
 	storage: WebStorageLike,
 	opts: StorageNamespaceOptions = {},
@@ -254,7 +297,15 @@ function readMemoryGeneration(
 	return undefined;
 }
 
-/** Create a byte-cloning in-memory backend. */
+/** Create a byte-cloning in-memory backend.
+ * @param initial - initial value used by the helper.
+ * @returns A `MemoryBackend` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { memoryBackend } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function memoryBackend(
 	initial: Iterable<readonly [string, Uint8Array]> = [],
 ): MemoryBackend {

@@ -26,22 +26,18 @@ function nestProvider(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `provide` | `string \| symbol` | Missing @param provide JSDoc. |
-| `useValue` | `T` | Missing @param useValue JSDoc. |
+| `provide` | `string \| symbol` | provide value used by the helper. |
+| `useValue` | `T` | use value value used by the helper. |
 
 ## Returns
 
-`NestProviderBinding<T>`
+A `NestProviderBinding<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param provide`.
-- Missing `@param useValue`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { nestProvider } from "@graphrefly/ts/adapters/nestjs";
+```
 
 ## Source
 

@@ -29,22 +29,18 @@ function onFirstData(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `fn` | `(v: S) => void` | Missing @param fn JSDoc. |
-| `opts` | `{ where?: (v: S) => boolean }` | Missing @param opts JSDoc. |
+| `fn` | `(v: S) => void` | Synchronous function invoked by the helper. |
+| `opts` | `{ where?: (v: S) => boolean }` | Options that configure the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param fn`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { onFirstData } from "@graphrefly/ts/operators";
+```
 
 ## Source
 

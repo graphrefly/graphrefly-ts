@@ -27,20 +27,17 @@ function nodeProcessDriver(opts: NodeProcessDriverOptions = {}): LocalProcessDri
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `NodeProcessDriverOptions` | Missing @param opts JSDoc. |
+| `opts` | `NodeProcessDriverOptions` | Options that configure the helper. |
 
 ## Returns
 
-`LocalProcessDriver`
+A `LocalProcessDriver` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { nodeProcessDriver } from "@graphrefly/ts/sources/node";
+```
 
 ## Source
 

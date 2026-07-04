@@ -159,12 +159,29 @@ const bridgeInboundSources = new WeakMap<
 	{ sources: Node<WireBridgeEnvelope<unknown> | WireBridgeInvalidIngress>[] }
 >();
 
-/** Stable D134 idempotency key helper scoped to one bridge session and sequence. */
+/** Stable D134 idempotency key helper scoped to one bridge session and sequence.
+ * @param sessionId - Stable identifier used by the emitted record.
+ * @param seq - seq value used by the helper.
+ * @returns The stable key or reference string.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { wireBridgeIdempotencyKey } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function wireBridgeIdempotencyKey(sessionId: string, seq: number): string {
 	return canonicalTupleKey([sessionId, String(seq)]);
 }
 
-/** Create a D134 wire bridge envelope with ordered metadata. */
+/** Create a D134 wire bridge envelope with ordered metadata.
+ * @param input - Input value to project or validate.
+ * @returns A `WireBridgeEnvelope<TData>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { wireBridgeEnvelope } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function wireBridgeEnvelope<TData = unknown>(input: {
 	readonly sessionId: string;
 	readonly type: WireBridgeEnvelopeType;
@@ -375,7 +392,17 @@ interface AckDriverState {
 	pending: Map<number, AckDriverPendingAttempt>;
 }
 
-/** D502 explicit graph-visible ack-timeout command driver for a wireBridge. */
+/** D502 explicit graph-visible ack-timeout command driver for a wireBridge.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param bridge - bridge value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `WireBridgeAckDriverBundle` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { wireBridgeAckDriver } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function wireBridgeAckDriver<TOutbound = unknown, TInbound = unknown>(
 	graph: Graph,
 	bridge: WireBridgeBundle<TOutbound, TInbound>,
@@ -686,6 +713,15 @@ type WireBridgeProtobufOutboundEvent = Extract<
  *
  * This helper owns no transport/session/retry policy and does not add wireBridge core options.
  * Malformed bytes become graph-visible issue/invalid facts, never local protocol terminals.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param bridge - bridge value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `WireBridgeProtobufBundle` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { wireBridgeProtobuf } from "@graphrefly/ts/adapters";
+ * ```
  */
 export function wireBridgeProtobuf(
 	graph: Graph,
@@ -939,7 +975,17 @@ export function remoteResponderHandler<TRequest = unknown, TResponse = unknown>(
 	return { operation, handle };
 }
 
-/** D147 remote responder over inbound wireBridge request facts and outbound command facts. */
+/** D147 remote responder over inbound wireBridge request facts and outbound command facts.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param bridge - bridge value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `RemoteResponderBundle<TRequest, TResponse>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { remoteResponder } from "@graphrefly/ts/adapters";
+ * ```
+ */
 export function remoteResponder<TRequest = unknown, TResponse = unknown>(
 	graph: Graph,
 	bridge: WireBridgeBundle<RemoteCallResponse<TResponse>, RemoteCallRequest<TRequest>>,

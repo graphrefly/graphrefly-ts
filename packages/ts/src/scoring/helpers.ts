@@ -16,7 +16,15 @@ import type {
 	ScoringStatus,
 } from "./types.js";
 
-/** Returns true only for finite numeric score material. */
+/** Returns true only for finite numeric score material.
+ * @param value - Unknown value to check or decode.
+ * @returns `true` when the value matches the expected shape.
+ * @category scoring
+ * @example
+ * ```ts
+ * import { isFiniteScore } from "@graphrefly/ts/scoring";
+ * ```
+ */
 export function isFiniteScore(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value);
 }
@@ -25,6 +33,13 @@ export function isFiniteScore(value: unknown): value is number {
  * Normalizes a ScoreSignal for deterministic pure helpers.
  *
  * Non-finite value/confidence/weight or an empty dimension returns a DATA-style issue.
+ * @param signal - signal value used by the helper.
+ * @returns A `NormalizedScoreSignal` value.
+ * @category scoring
+ * @example
+ * ```ts
+ * import { normalizeScoreSignal } from "@graphrefly/ts/scoring";
+ * ```
  */
 export function normalizeScoreSignal(signal: ScoreSignal): NormalizedScoreSignal {
 	if (!isFiniteScore(signal.value)) return invalidSignalResult(signal);
@@ -44,7 +59,18 @@ export function normalizeScoreSignal(signal: ScoreSignal): NormalizedScoreSignal
 	});
 }
 
-/** Scores subjects from explicit ScoreSignal facts and ranks the resulting view (D573). */
+/** Scores subjects from explicit ScoreSignal facts and ranks the resulting view (D573).
+ * @param subjects - subjects value used by the helper.
+ * @param signals - signals value used by the helper.
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @param opts - Options that configure the helper.
+ * @returns A `ScoredView<T>` value.
+ * @category scoring
+ * @example
+ * ```ts
+ * import { scoreSubjects } from "@graphrefly/ts/scoring";
+ * ```
+ */
 export function scoreSubjects<T = unknown>(
 	subjects: readonly ScoreSubject<T>[],
 	signals: readonly ScoreSignal[],
@@ -81,7 +107,16 @@ export function scoreSubjects<T = unknown>(
 	} satisfies ScoredView<T>);
 }
 
-/** Ranks scored subjects by score desc, then policy tie-breakers, then stable order and subjectId. */
+/** Ranks scored subjects by score desc, then policy tie-breakers, then stable order and subjectId.
+ * @param scored - scored value used by the helper.
+ * @param policy - Policy object used to admit, retry, or route work.
+ * @returns A `readonly ScoredSubject<T>[]` value.
+ * @category scoring
+ * @example
+ * ```ts
+ * import { rankScoredSubjects } from "@graphrefly/ts/scoring";
+ * ```
+ */
 export function rankScoredSubjects<T = unknown>(
 	scored: readonly ScoredSubject<T>[],
 	policy?: Pick<ScorePolicy, "tieBreakers">,

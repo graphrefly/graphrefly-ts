@@ -26,22 +26,18 @@ function envelopeChange(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `change` | `T` | Missing @param change JSDoc. |
-| `opts` | `ChangeEnvelopeOptions` | Missing @param opts JSDoc. |
+| `change` | `T` | change value used by the helper. |
+| `opts` | `ChangeEnvelopeOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ChangeEnvelope<T>`
+A `ChangeEnvelope<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param change`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { envelopeChange } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

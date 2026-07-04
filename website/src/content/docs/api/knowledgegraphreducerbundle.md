@@ -30,22 +30,18 @@ function knowledgeGraphReducerBundle(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `KnowledgeGraphReducerBundleOptions` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `KnowledgeGraphReducerBundleOptions` | Options that configure the helper. |
 
 ## Returns
 
-`KnowledgeGraphReducerBundle`
+A bundle of graph-visible nodes for the recipe.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { knowledgeGraphReducerBundle } from "@graphrefly/ts/patterns";
+```
 
 ## Source
 

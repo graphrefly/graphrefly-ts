@@ -27,20 +27,17 @@ function mergeReactiveLogs(logs: readonly ReactiveLog<T>[]): Node<LogChange<T>>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `logs` | `readonly ReactiveLog<T>[]` | Missing @param logs JSDoc. |
+| `logs` | `readonly ReactiveLog<T>[]` | logs value used by the helper. |
 
 ## Returns
 
-`Node<LogChange<T>>`
+A `Node<LogChange<T>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param logs`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { mergeReactiveLogs } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

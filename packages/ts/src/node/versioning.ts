@@ -59,6 +59,13 @@ function fnv1a64(input: Uint8Array): string {
  *
  * When hashing a host value directly, encode first:
  * `defaultNodeVersionHash(strictCanonicalJsonBytes(value))`.
+ * @param bytes - Canonical bytes to decode.
+ * @returns A `string` value.
+ * @category core
+ * @example
+ * ```ts
+ * import { defaultNodeVersionHash } from "@graphrefly/ts/core";
+ * ```
  */
 export function defaultNodeVersionHash(bytes: Uint8Array): string {
 	return `fnv1a64:${fnv1a64(bytes)}`;

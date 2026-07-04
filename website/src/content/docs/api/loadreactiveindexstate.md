@@ -23,20 +23,17 @@ function loadReactiveIndexState(opts: LoadReactiveCollectionStateOptions): Promi
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `LoadReactiveCollectionStateOptions` | Missing @param opts JSDoc. |
+| `opts` | `LoadReactiveCollectionStateOptions` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<ReactiveIndexRestoreState<K, V>>`
+A `Promise<ReactiveIndexRestoreState<K, V>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { loadReactiveIndexState } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

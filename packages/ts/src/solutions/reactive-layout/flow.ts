@@ -124,7 +124,17 @@ export function sanitizeObstacles(obstacles: readonly Obstacle[]): readonly Obst
 	});
 }
 
-/** Intersect a circle obstacle with a horizontal line band. */
+/** Intersect a circle obstacle with a horizontal line band.
+ * @param obstacle - obstacle value used by the helper.
+ * @param bandTop - band top value used by the helper.
+ * @param bandBottom - band bottom value used by the helper.
+ * @returns A `Interval | null` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { circleIntervalForBand } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function circleIntervalForBand(
 	obstacle: CircleObstacle,
 	bandTop: number,
@@ -139,7 +149,17 @@ export function circleIntervalForBand(
 	return { left: obstacle.cx - dx, right: obstacle.cx + dx };
 }
 
-/** Intersect a rectangle obstacle with a horizontal line band. */
+/** Intersect a rectangle obstacle with a horizontal line band.
+ * @param obstacle - obstacle value used by the helper.
+ * @param bandTop - band top value used by the helper.
+ * @param bandBottom - band bottom value used by the helper.
+ * @returns A `Interval | null` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { rectIntervalForBand } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function rectIntervalForBand(
 	obstacle: RectObstacle,
 	bandTop: number,
@@ -182,7 +202,16 @@ export function blockedIntervalsForBand(
 	return intervals.sort((a, b) => a.left - b.left);
 }
 
-/** Flow prepared text through columns and carved obstacle slots. */
+/** Flow prepared text through columns and carved obstacle slots.
+ * @param segments - segments value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `FlowLinesResult` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { computeFlowLines } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export function computeFlowLines(
 	segments: readonly PreparedSegment[],
 	opts: ComputeFlowLinesOptions,

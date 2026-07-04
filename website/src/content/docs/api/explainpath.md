@@ -31,26 +31,20 @@ function explainPath(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `DescribeSnapshot` | Missing @param snapshot JSDoc. |
-| `from` | `string` | Missing @param from JSDoc. |
-| `to` | `string` | Missing @param to JSDoc. |
-| `options` | `ExplainPathOptions` | Missing @param options JSDoc. |
+| `snapshot` | `DescribeSnapshot` | snapshot value used by the helper. |
+| `from` | `string` | from value used by the helper. |
+| `to` | `string` | to value used by the helper. |
+| `options` | `ExplainPathOptions` | Options that configure the helper. |
 
 ## Returns
 
-`CausalChain`
+A `CausalChain` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param snapshot`.
-- Missing `@param from`.
-- Missing `@param to`.
-- Missing `@param options`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { explainPath } from "@graphrefly/ts/graph";
+```
 
 ## Source
 

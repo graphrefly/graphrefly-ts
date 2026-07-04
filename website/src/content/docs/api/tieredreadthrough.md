@@ -26,20 +26,17 @@ function tieredReadThrough(opts: TieredReadThroughOptions<T>): Promise<TieredRea
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `TieredReadThroughOptions<T>` | Missing @param opts JSDoc. |
+| `opts` | `TieredReadThroughOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`Promise<TieredReadThroughResult<T>>`
+A `Promise<TieredReadThroughResult<T>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { tieredReadThrough } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

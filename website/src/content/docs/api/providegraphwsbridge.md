@@ -23,20 +23,17 @@ function provideGraphWsBridge(opts: GraphWsBridgeOptions<THost> = {}): NestProvi
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `GraphWsBridgeOptions<THost>` | Missing @param opts JSDoc. |
+| `opts` | `GraphWsBridgeOptions<THost>` | Options that configure the helper. |
 
 ## Returns
 
-`NestProviderBinding<GraphWsBridge<THost>>`
+A `NestProviderBinding<GraphWsBridge<THost>>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { provideGraphWsBridge } from "@graphrefly/ts/adapters/nestjs/websockets";
+```
 
 ## Source
 

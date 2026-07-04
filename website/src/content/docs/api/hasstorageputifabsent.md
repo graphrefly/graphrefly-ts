@@ -23,20 +23,17 @@ function hasStoragePutIfAbsent(backend: StorageBackend): backend is PutIfAbsentS
 
 | Parameter | Type | Description |
 |---|---|---|
-| `backend` | `StorageBackend` | Missing @param backend JSDoc. |
+| `backend` | `StorageBackend` | backend value used by the helper. |
 
 ## Returns
 
-`backend is PutIfAbsentStorageBackend`
+A `backend is PutIfAbsentStorageBackend` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param backend`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { hasStoragePutIfAbsent } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

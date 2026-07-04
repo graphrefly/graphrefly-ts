@@ -28,24 +28,19 @@ function attachObserveSink(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `sink` | `ObserveSink<T>` | Missing @param sink JSDoc. |
-| `opts` | `AttachObserveSinkOptions<T>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `sink` | `ObserveSink<T>` | sink value used by the helper. |
+| `opts` | `AttachObserveSinkOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`ObserveSinkHandle`
+A `ObserveSinkHandle` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param sink`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { attachObserveSink } from "@graphrefly/ts/adapters/observe-storage";
+```
 
 ## Source
 

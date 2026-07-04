@@ -13,7 +13,13 @@ import type {
 } from "./types.js";
 import { nonNegativeFinite } from "./utils.js";
 
-/** Adapter that wraps a caller-owned synchronous measurement function. */
+/** Adapter that wraps a caller-owned synchronous measurement function.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { InjectedMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export class InjectedMeasureAdapter implements MeasurementAdapter {
 	private readonly measure: MeasureFn;
 	private readonly shouldCache: boolean;
@@ -40,7 +46,13 @@ export class InjectedMeasureAdapter implements MeasurementAdapter {
 	}
 }
 
-/** Deterministic adapter backed by caller-supplied width metrics. */
+/** Deterministic adapter backed by caller-supplied width metrics.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { PrecomputedMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export class PrecomputedMeasureAdapter implements MeasurementAdapter {
 	private readonly metrics: ReadonlyMap<string, number>;
 	private readonly fallback: "per-char" | "error";
@@ -65,7 +77,13 @@ export class PrecomputedMeasureAdapter implements MeasurementAdapter {
 	}
 }
 
-/** Fixed-cell adapter for CLI, snapshots, and tests. */
+/** Fixed-cell adapter for CLI, snapshots, and tests.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { CellMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export class CellMeasureAdapter implements MeasurementAdapter {
 	private readonly cellWidth: number;
 	private readonly wideCellWidth: number;
@@ -90,7 +108,13 @@ export class CellMeasureAdapter implements MeasurementAdapter {
 	}
 }
 
-/** Adapter over a caller-owned platform capability such as NodeCanvas, Skia, or RN text APIs. */
+/** Adapter over a caller-owned platform capability such as NodeCanvas, Skia, or RN text APIs.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { CapabilityMeasureAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export class CapabilityMeasureAdapter implements MeasurementAdapter {
 	private readonly capability: TextMeasureCapability;
 
@@ -141,6 +165,11 @@ function readViewBox(tag: string): Size | null {
  * Minimal string-based SVG bounds reader for explicit width/height or viewBox.
  *
  * This is not a DOM SVG parser and does not resolve external resources.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { SvgBoundsAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
  */
 export class SvgBoundsAdapter implements SvgMeasurer {
 	measureSvg(svg: string): Size {
@@ -156,7 +185,13 @@ export class SvgBoundsAdapter implements SvgMeasurer {
 	}
 }
 
-/** Image measurer backed by explicit caller-provided dimensions; it never loads images. */
+/** Image measurer backed by explicit caller-provided dimensions; it never loads images.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { ImageSizeAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+ * ```
+ */
 export class ImageSizeAdapter implements ImageMeasurer {
 	private readonly sizes: ImageSizeLookup;
 

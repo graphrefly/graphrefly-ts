@@ -26,22 +26,18 @@ function restoreReactiveIndex(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `state` | `ReactiveIndexRestoreState<K, V> \| readonly IndexRow<K, V>[]` | Missing @param state JSDoc. |
-| `options` | `ReactiveIndexOptions` | Missing @param options JSDoc. |
+| `state` | `ReactiveIndexRestoreState<K, V> \| readonly IndexRow<K, V>[]` | state value used by the helper. |
+| `options` | `ReactiveIndexOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveIndex<K, V>`
+A `ReactiveIndex<K, V>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param state`.
-- Missing `@param options`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { restoreReactiveIndex } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

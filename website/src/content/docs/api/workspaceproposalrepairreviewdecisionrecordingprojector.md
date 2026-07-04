@@ -26,22 +26,18 @@ function workspaceProposalRepairReviewDecisionRecordingProjector(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `WorkspaceProposalRepairReviewDecisionRecordingProjectorOptions` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `WorkspaceProposalRepairReviewDecisionRecordingProjectorOptions` | Options that configure the helper. |
 
 ## Returns
 
-`WorkspaceProposalRepairReviewDecisionRecordingProjectorBundle`
+A node bundle that emits the projected records.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { workspaceProposalRepairReviewDecisionRecordingProjector } from "@graphrefly/ts/solutions/work-item";
+```
 
 ## Source
 

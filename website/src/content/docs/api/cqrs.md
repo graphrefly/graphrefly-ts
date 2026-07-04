@@ -27,22 +27,18 @@ function cqrs(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `opts` | `CqrsOptions<TCommand, TEvent>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `opts` | `CqrsOptions<TCommand, TEvent>` | Options that configure the helper. |
 
 ## Returns
 
-`CqrsBundle<TCommand, TEvent>`
+A `CqrsBundle<TCommand, TEvent>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { cqrs } from "@graphrefly/ts/cqrs";
+```
 
 ## Source
 

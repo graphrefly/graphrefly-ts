@@ -21,12 +21,11 @@ import { SvgBoundsAdapter } from "@graphrefly/ts/solutions/reactive-layout";
 class SvgBoundsAdapter
 ```
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { SvgBoundsAdapter } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

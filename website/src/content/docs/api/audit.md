@@ -34,20 +34,17 @@ function audit(durationSelector: (v: S) => NodeInput<unknown>): Operator<S, S>
 
 | Parameter | Type | Description |
 |---|---|---|
-| `durationSelector` | `(v: S) => NodeInput<unknown>` | Missing @param durationSelector JSDoc. |
+| `durationSelector` | `(v: S) => NodeInput<unknown>` | duration selector value used by the helper. |
 
 ## Returns
 
-`Operator<S, S>`
+A `Operator<S, S>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param durationSelector`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { audit } from "@graphrefly/ts";
+```
 
 ## Source
 

@@ -32,24 +32,19 @@ function processEffectRunner(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
-| `process` | `ProcessBundle<unknown, unknown, unknown, TEffect>` | Missing @param process JSDoc. |
-| `opts` | `ProcessEffectRunnerOptions<TResult>` | Missing @param opts JSDoc. |
+| `graph` | `Graph` | Graph that owns the created nodes or projector. |
+| `process` | `ProcessBundle<unknown, unknown, unknown, TEffect>` | process value used by the helper. |
+| `opts` | `ProcessEffectRunnerOptions<TResult>` | Options that configure the helper. |
 
 ## Returns
 
-`ProcessEffectRunnerBundle<TEffect, TResult>`
+A `ProcessEffectRunnerBundle<TEffect, TResult>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
-- Missing `@param process`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { processEffectRunner } from "@graphrefly/ts/orchestration";
+```
 
 ## Source
 

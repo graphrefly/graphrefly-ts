@@ -19,7 +19,15 @@ export interface NodeWritable<T> extends Readable<T | undefined> {
 	update(fn: (value: T | undefined) => T): void;
 }
 
-/** Read a GraphReFly node as a Svelte readable store. */
+/** Read a GraphReFly node as a Svelte readable store.
+ * @param node - Node to observe, adapt, or connect.
+ * @returns A `Readable<T | undefined>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { nodeReadable } from "@graphrefly/ts/adapters/svelte";
+ * ```
+ */
 export function nodeReadable<T>(node: Node<T>): Readable<T | undefined> {
 	return readable<T | undefined>(nodeSnapshot(node), (set) =>
 		subscribeNodeValues(node, set, { immediate: true }),
@@ -32,7 +40,15 @@ function assertDataValue(value: unknown): void {
 	}
 }
 
-/** Bind a writable GraphReFly node as a Svelte store. */
+/** Bind a writable GraphReFly node as a Svelte store.
+ * @param node - Node to observe, adapt, or connect.
+ * @returns A `NodeWritable<T>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { nodeWritable } from "@graphrefly/ts/adapters/svelte";
+ * ```
+ */
 export function nodeWritable<T>(node: WritableNode<T>): NodeWritable<T> {
 	const store = nodeReadable(node);
 	return {
@@ -54,6 +70,14 @@ export function nodeWritable<T>(node: WritableNode<T>): NodeWritable<T> {
  *
  * `factory` must have stable identity. Recreating it during component churn
  * rebuilds the record subscriptions.
+ * @param keysNode - keys node value used by the helper.
+ * @param factory - factory value used by the helper.
+ * @returns A `Readable<Record<K, R>>` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { nodeRecord } from "@graphrefly/ts/adapters/svelte";
+ * ```
  */
 export function nodeRecord<K extends string, R extends Record<string, unknown>>(
 	keysNode: Node<readonly K[]>,

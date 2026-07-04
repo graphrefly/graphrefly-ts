@@ -59,6 +59,13 @@ export interface BoundaryManifest {
  * Writable source nodes are inputs; unconsumed sink nodes are outputs; interior
  * nodes are omitted. Auto-discovered graphless describe entries are skipped
  * because widgets need live graph handles.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @returns A `BoundaryManifest` value.
+ * @category inspection
+ * @example
+ * ```ts
+ * import { boundaryManifest } from "@graphrefly/ts/inspection/boundary";
+ * ```
  */
 export function boundaryManifest(graph: Graph): BoundaryManifest {
 	const described = graph.describe();

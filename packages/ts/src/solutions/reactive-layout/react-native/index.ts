@@ -48,6 +48,13 @@ export interface ReactNativeLayoutMeasurementsOptions {
  * React Native provider helper for caller-injected synchronous text measurement.
  *
  * Async native readiness or layout probes should enter the graph as explicit facts upstream.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { reactNativeTextMeasurements } from "@graphrefly/ts/solutions/reactive-layout/react-native";
+ * ```
  */
 export function reactNativeTextMeasurements(
 	opts: ReactNativeTextMeasurementsOptions,
@@ -99,6 +106,13 @@ function reactNativeMeasurementIssue(
  *
  * The async probe mechanism lives outside GraphReFly; this helper only consumes the latest probe
  * facts as declared graph data and never pretends RN core measurement is synchronous.
+ * @param opts - Options that configure the helper.
+ * @returns A `Node<Measurements>` value.
+ * @category solutions
+ * @example
+ * ```ts
+ * import { reactNativeLayoutMeasurements } from "@graphrefly/ts/solutions/reactive-layout/react-native";
+ * ```
  */
 export function reactNativeLayoutMeasurements(
 	opts: ReactNativeLayoutMeasurementsOptions,

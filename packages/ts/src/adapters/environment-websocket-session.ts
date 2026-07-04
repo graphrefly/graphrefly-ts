@@ -706,6 +706,15 @@ function webSocketSessionNodes(
  *
  * The convenience start/send/close methods publish command facts only; hidden
  * session state is driven by the command node and graph-local EnvironmentDrivers.
+ * @param graph - Graph that owns the created nodes or projector.
+ * @param request - Request value to lower, route, or record.
+ * @param opts - Options that configure the helper.
+ * @returns A `WebSocketSessionBundle` value.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { webSocketSession } from "@graphrefly/ts/adapters";
+ * ```
  */
 export function webSocketSession(
 	graph: Graph,

@@ -28,26 +28,20 @@ function layoutNextLine(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `segments` | `readonly PreparedSegment[]` | Missing @param segments JSDoc. |
-| `cursor` | `LayoutCursor` | Missing @param cursor JSDoc. |
-| `slotWidth` | `number` | Missing @param slotWidth JSDoc. |
-| `ctx` | `LayoutNextLineContext` | Missing @param ctx JSDoc. |
+| `segments` | `readonly PreparedSegment[]` | segments value used by the helper. |
+| `cursor` | `LayoutCursor` | cursor value used by the helper. |
+| `slotWidth` | `number` | slot width value used by the helper. |
+| `ctx` | `LayoutNextLineContext` | Node execution context supplied by the dispatcher. |
 
 ## Returns
 
-`LayoutNextLineResult | null`
+A `LayoutNextLineResult | null` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param segments`.
-- Missing `@param cursor`.
-- Missing `@param slotWidth`.
-- Missing `@param ctx`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { layoutNextLine } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

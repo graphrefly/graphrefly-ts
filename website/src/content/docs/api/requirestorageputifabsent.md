@@ -26,22 +26,18 @@ function requireStoragePutIfAbsent(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `backend` | `StorageBackend` | Missing @param backend JSDoc. |
-| `label` | `unknown` | Missing @param label JSDoc. |
+| `backend` | `StorageBackend` | backend value used by the helper. |
+| `label` | `unknown` | label value used by the helper. |
 
 ## Returns
 
-`PutIfAbsentStorageBackend`
+A `PutIfAbsentStorageBackend` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param backend`.
-- Missing `@param label`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { requireStoragePutIfAbsent } from "@graphrefly/ts/storage";
+```
 
 ## Source
 

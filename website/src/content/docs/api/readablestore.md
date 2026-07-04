@@ -26,22 +26,18 @@ function readableStore(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `node` | `Node<T>` | Missing @param node JSDoc. |
-| `opts` | `SubscribeValuesOptions<T>` | Missing @param opts JSDoc. |
+| `node` | `Node<T>` | Node to observe, adapt, or connect. |
+| `opts` | `SubscribeValuesOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`ReadableStore<T>`
+A `ReadableStore<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param node`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { readableStore } from "@graphrefly/ts/adapters";
+```
 
 ## Source
 

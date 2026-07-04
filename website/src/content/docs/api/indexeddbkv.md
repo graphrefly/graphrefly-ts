@@ -26,22 +26,18 @@ function indexedDbKv(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `spec` | `IndexedDbBackendSpec` | Missing @param spec JSDoc. |
-| `opts` | `IndexedDbKvOptions<T>` | Missing @param opts JSDoc. |
+| `spec` | `IndexedDbBackendSpec` | spec value used by the helper. |
+| `opts` | `IndexedDbKvOptions<T>` | Options that configure the helper. |
 
 ## Returns
 
-`KvStorageTier<T>`
+A `KvStorageTier<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param spec`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { indexedDbKv } from "@graphrefly/ts/storage/browser";
+```
 
 ## Source
 

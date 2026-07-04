@@ -23,20 +23,17 @@ function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlowLayout
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `ReactiveFlowLayoutOptions` | Missing @param opts JSDoc. |
+| `opts` | `ReactiveFlowLayoutOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveFlowLayoutBundle`
+A `ReactiveFlowLayoutBundle` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param opts`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { reactiveFlowLayout } from "@graphrefly/ts/solutions/reactive-layout";
+```
 
 ## Source
 

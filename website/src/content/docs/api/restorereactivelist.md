@@ -26,22 +26,18 @@ function restoreReactiveList(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `state` | `ReactiveListRestoreState<T> \| readonly T[]` | Missing @param state JSDoc. |
-| `options` | `ReactiveListOptions` | Missing @param options JSDoc. |
+| `state` | `ReactiveListRestoreState<T> \| readonly T[]` | state value used by the helper. |
+| `options` | `ReactiveListOptions` | Options that configure the helper. |
 
 ## Returns
 
-`ReactiveList<T>`
+A `ReactiveList<T>` value.
 
-## Documentation Status
+## Example
 
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param state`.
-- Missing `@param options`.
-- Missing `@category`.
-- Missing `@example`.
+```ts
+import { restoreReactiveList } from "@graphrefly/ts/data-structures";
+```
 
 ## Source
 

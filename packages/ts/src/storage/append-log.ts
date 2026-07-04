@@ -40,7 +40,16 @@ export interface AppendLogStorageTier<T = unknown> {
 /** D85 multi-writer append log; requires a passive conditional-create KV capability. */
 export type MultiWriterAppendLogStorageTier<T = unknown> = AppendLogStorageTier<T>;
 
-/** Build the deterministic storage key for an append-log sequence number. */
+/** Build the deterministic storage key for an append-log sequence number.
+ * @param prefix - prefix value used by the helper.
+ * @param seq - seq value used by the helper.
+ * @returns The stable key or reference string.
+ * @category storage
+ * @example
+ * ```ts
+ * import { appendLogKey } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function appendLogKey(prefix: string, seq: number): string {
 	if (!Number.isSafeInteger(seq) || seq < 0) {
 		throw new RangeError(`appendLogKey: seq must be a non-negative safe integer, got ${seq}`);
@@ -138,7 +147,16 @@ function readAppendLogEntries<T>(
 	});
 }
 
-/** Read one ordered append-log page without assigning replay or restore semantics. */
+/** Read one ordered append-log page without assigning replay or restore semantics.
+ * @param log - log value used by the helper.
+ * @param opts - Options that configure the helper.
+ * @returns A `Promise<AppendLogPage<T>>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { readAppendLogPage } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function readAppendLogPage<T>(
 	log: AppendLogStorageTier<T>,
 	opts: AppendLogReadOptions = {},
@@ -185,6 +203,13 @@ export interface MultiWriterAppendLogOptions<T> extends AppendLogOptions<T> {
 /**
  * Build a single-writer append-only log over a KV tier, serializing all operations in call order
  * for this handle. D85 multi-handle concurrent appends require multiWriterAppendLogStorage.
+ * @param opts - Options that configure the helper.
+ * @returns A `AppendLogStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { appendLogStorage } from "@graphrefly/ts/storage";
+ * ```
  */
 export function appendLogStorage<T = unknown>(opts: AppendLogOptions<T>): AppendLogStorageTier<T> {
 	const { kv, prefix = "event-log" } = opts;
@@ -234,6 +259,13 @@ export function appendLogStorage<T = unknown>(opts: AppendLogOptions<T>): Append
  * Sequence allocation is passive storage work: each writer proposes a padded key and retries the
  * next key when another writer already created that slot. This does not provide general CAS,
  * locks, leases, transactions, unsafe truncation, WAL replay, or graph restore semantics.
+ * @param opts - Options that configure the helper.
+ * @returns A `MultiWriterAppendLogStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { multiWriterAppendLogStorage } from "@graphrefly/ts/storage";
+ * ```
  */
 export function multiWriterAppendLogStorage<T = unknown>(
 	opts: MultiWriterAppendLogOptions<T>,
@@ -313,12 +345,28 @@ export function multiWriterAppendLogStorage<T = unknown>(
 	};
 }
 
-/** Create an in-memory append log. */
+/** Create an in-memory append log.
+ * @param prefix - prefix value used by the helper.
+ * @returns A `AppendLogStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { memoryAppendLog } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function memoryAppendLog<T = unknown>(prefix?: string): AppendLogStorageTier<T> {
 	return appendLogStorage({ kv: memoryKv<T>(), prefix });
 }
 
-/** Create an in-memory D85 multi-writer append log. */
+/** Create an in-memory D85 multi-writer append log.
+ * @param prefix - prefix value used by the helper.
+ * @returns A `MultiWriterAppendLogStorageTier<T>` value.
+ * @category storage
+ * @example
+ * ```ts
+ * import { memoryMultiWriterAppendLog } from "@graphrefly/ts/storage";
+ * ```
+ */
 export function memoryMultiWriterAppendLog<T = unknown>(
 	prefix?: string,
 ): MultiWriterAppendLogStorageTier<T> {
