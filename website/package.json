@@ -8,13 +8,15 @@
 		"docs:gen": "node scripts/gen-api-docs.mjs",
 		"docs:gen:check": "node scripts/gen-api-docs.mjs --check",
 		"docs:gen:missing": "node scripts/gen-api-docs.mjs --report-missing",
-		"build:ts-artifact": "pnpm docs:gen && node scripts/build-ts-docs-artifact.mjs",
+		"build:static-artifact": "pnpm docs:gen && node scripts/build-ts-docs-artifact.mjs",
+		"build:starlight-artifact": "pnpm sync-docs && pnpm docs:gen && astro build && node scripts/postbuild-ts-starlight-artifact.mjs",
+		"build:ts-artifact": "pnpm build:starlight-artifact",
 		"build:legacy": "astro build",
 		"predev": "pnpm sync-docs && pnpm docs:gen",
 		"prebuild:legacy": "pnpm sync-docs && pnpm docs:gen",
 		"dev": "astro dev",
 		"start": "astro dev",
-		"build": "pnpm build:ts-artifact",
+		"build": "pnpm build:starlight-artifact",
 		"preview": "astro preview"
 	},
 	"dependencies": {

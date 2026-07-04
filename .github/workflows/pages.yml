@@ -18,6 +18,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  ASTRO_SITE_URL: "https://ts.graphrefly.dev"
+  ASTRO_BASE_PATH: "/"
   TS_DOCS_BASE_PATH: "/"
   TS_DOCS_CUSTOM_DOMAIN: "ts.graphrefly.dev"
 

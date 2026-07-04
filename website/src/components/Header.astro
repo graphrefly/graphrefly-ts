@@ -10,17 +10,15 @@ const shouldRenderSearch =
 	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
 
 const base = import.meta.env.BASE_URL;
-const apiHref = `${base}api/reactivelayout/`;
 
 const navLinks = [
-	{ href: `${base}spec/`, label: 'SPEC' },
+	{ href: `${base}api/`, label: 'API' },
 	{ href: `${base}solutions/`, label: 'SOLUTIONS' },
-	{ href: apiHref, label: 'API' },
-	{ href: `${base}comparisons/pretext/`, label: 'COMPARE' },
-	{ href: `${base}integrations/`, label: 'INTEGRATIONS' },
-	{ href: `${base}recipes/nestjs-integration/`, label: 'RECIPES' },
-	{ href: `${base}blog/welcome/`, label: 'BLOG' },
+	{ href: `${base}examples/`, label: 'EXAMPLES' },
 	{ href: `${base}demos/`, label: 'DEMOS' },
+	{ href: `${base}recipes/`, label: 'RECIPES' },
+	{ href: `${base}integrations/`, label: 'INTEGRATIONS' },
+	{ href: `${base}compare/`, label: 'COMPARE' },
 ];
 ---
 

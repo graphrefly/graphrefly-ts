@@ -1,6 +1,5 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
-import starlightBlog from "starlight-blog";
 import { apiSidebar } from "./src/generated/api-sidebar.mjs";
 
 /** GitHub Project Pages: set to `/repo-name/` (trailing slash). Root site: `'/'`. */
@@ -33,19 +32,8 @@ export default defineConfig({
 	},
 	integrations: [
 		starlight({
-			plugins: [
-				starlightBlog({
-					title: "Blog",
-					authors: {
-						david: {
-							name: "David Chen",
-							title: "GraphReFly creator",
-						},
-					},
-				}),
-			],
 			title: "GraphReFly",
-			description: "Reactive harness layer for agent workflows. Describe automations in plain language, trace every decision, enforce policies, persist checkpoints. Zero dependencies.",
+			description: "Package-local TypeScript documentation for @graphrefly/ts.",
 			components: {
 				Header: "./src/components/Header.astro",
 				Footer: "./src/components/Footer.astro",
@@ -79,10 +67,6 @@ export default defineConfig({
 			],
 			sidebar: [
 				{
-					label: "Protocol",
-					items: [{ label: "Specification", link: "/spec" }],
-				},
-				{
 					label: "Solutions",
 					items: [
 						{ label: "Overview", link: "/solutions" },
@@ -92,17 +76,25 @@ export default defineConfig({
 				{
 					label: "API Reference",
 					collapsed: true,
-					items: apiSidebar,
+					items: [{ label: "Overview", link: "/api" }, ...apiSidebar],
 				},
 				{
-					label: "Comparisons",
+					label: "Examples",
+					items: [{ label: "Overview", link: "/examples" }],
+				},
+				{
+					label: "Demos",
 					items: [
-						{ label: "Reactive Layout vs Pretext", link: "/comparisons/pretext" },
+						{ label: "Overview", link: "/demos" },
+						{ label: "Reactive layout", link: "/demos/reactive-layout/" },
+						{ label: "Compat matrix", link: "/demos/compat-matrix/" },
+						{ label: "Spending alerts", link: "/demos/spending-alerts/" },
 					],
 				},
 				{
 					label: "Recipes",
 					items: [
+						{ label: "Overview", link: "/recipes" },
 						{ label: "NestJS Integration", link: "/recipes/nestjs-integration" },
 					],
 				},
@@ -115,11 +107,10 @@ export default defineConfig({
 					],
 				},
 				{
-					label: "Demos",
+					label: "Compare",
 					items: [
-						{ label: "Overview", link: "/demos" },
-						{ label: "Reactive layout", link: "/demos/reactive-layout/" },
-						{ label: "Spending alerts", link: "/demos/spending-alerts/" },
+						{ label: "Overview", link: "/compare" },
+						{ label: "Reactive Layout vs Pretext", link: "/comparisons/pretext" },
 					],
 				},
 			],
