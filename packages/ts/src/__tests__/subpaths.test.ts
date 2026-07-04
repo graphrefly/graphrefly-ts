@@ -131,7 +131,10 @@ import * as render from "../render/index.js";
 import * as scoring from "../scoring/index.js";
 import * as agenticMemory from "../solutions/agentic-memory/index.js";
 import * as agenticWorkItemMemory from "../solutions/agentic-work-item-memory/index.js";
-import type { ImageSizeLookup } from "../solutions/index.js";
+import type {
+	ImageSizeLookup,
+	AgenticMemoryRecordApplicationOperation as SolutionsAgenticMemoryRecordApplicationOperation,
+} from "../solutions/index.js";
 import * as solutions from "../solutions/index.js";
 import * as reactiveLayoutBrowser from "../solutions/reactive-layout/browser/index.js";
 import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
@@ -990,7 +993,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		);
 		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
 		expectTypeOf<AgenticMemoryRecordApplicationPolicy>().toHaveProperty("policyId");
-		expectTypeOf<AgenticMemoryRecordApplicationOperation>().toEqualTypeOf<"create" | "replace">();
+		expectTypeOf<AgenticMemoryRecordApplicationOperation>().toEqualTypeOf<
+			"create" | "replace" | "update"
+		>();
+		expectTypeOf<SolutionsAgenticMemoryRecordApplicationOperation>().toEqualTypeOf<AgenticMemoryRecordApplicationOperation>();
 		expectTypeOf<AgenticMemoryRecordApplicationMaterialIdentityAlgorithm>().toEqualTypeOf<"graphrefly.agenticMemoryRecordApplicationMaterial.v1">();
 		expectTypeOf<AgenticMemoryRecordApplicationMaterialIdentity>().toHaveProperty("key");
 		expectTypeOf<AgenticMemoryRecordApplicationOperationStatus>().toHaveProperty(

@@ -108,7 +108,7 @@ const applicationPolicy = (
 });
 
 const applicationMaterialIdentity = <T = string>(
-	operation: "create" | "replace",
+	operation: "create" | "replace" | "update",
 	recordValue: AgenticMemoryRecord<T>,
 	targetRecordId = recordValue.id,
 ): AgenticMemoryRecordApplicationMaterialIdentity => ({
@@ -481,6 +481,109 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		expect(data(issues.messages).at(-1)).toEqual([]);
 	});
 
+	it("composes consolidation update proposals through D580 application", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
+			[
+				record({ id: "record-a", fragment: fragment({ id: "a", payload: "old insight" }) }),
+				record({ id: "record-b", fragment: fragment({ id: "b", payload: "kept" }) }),
+			],
+			{ name: "records" },
+		);
+		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
+			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }],
+			{ name: "requests" },
+		);
+		const outcomes = g.state<readonly AgenticMemoryConsolidationOutcome<string>[]>(
+			[
+				{
+					id: "outcome-1",
+					requestId: "request-1",
+					kind: "proposedRecords",
+					applicationOperation: "update",
+					operationVersion: 1,
+					targetRecordIds: ["record-a"],
+					records: [
+						record({
+							id: "record-a",
+							fragment: fragment({ id: "a-next", payload: "updated insight" }),
+						}),
+					],
+				},
+			],
+			{ name: "outcomes" },
+		);
+		const admissionPolicy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+			{
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "admission-policy",
+				defaultState: "admitted",
+				requireSourceRefs: true,
+			},
+			{ name: "admissionPolicy" },
+		);
+		const applicationPolicyNode = g.state<AgenticMemoryRecordApplicationPolicy>(
+			applicationPolicy(),
+			{ name: "applicationPolicy" },
+		);
+		const bundle = agenticMemoryConsolidationApplicationBundle(g, {
+			name: "consolidationApplication",
+			records,
+			requests,
+			outcomes,
+			admissionPolicy,
+			applicationPolicy: applicationPolicyNode,
+		});
+		const drafts = collect(bundle.consolidation.proposedRecordDrafts);
+		const proposals = collect(bundle.consolidation.recordProposals);
+		const nextRecords = collect(bundle.records);
+		const decisions = collect(bundle.applicationDecisions);
+		const issues = collect(bundle.applicationIssues);
+
+		expect(
+			data<readonly AgenticMemoryConsolidationRecordDraft<string>[]>(drafts.messages).at(-1),
+		).toEqual([
+			expect.objectContaining({
+				applicationOperation: "update",
+				operationVersion: 1,
+				targetRecordId: "record-a",
+				candidateMaterial: expect.objectContaining({
+					operation: "update",
+					operationVersion: 1,
+					targetRecordId: "record-a",
+				}),
+			}),
+		]);
+		expect(data<readonly AgenticMemoryRecordProposal<string>[]>(proposals.messages).at(-1)).toEqual(
+			[
+				expect.objectContaining({
+					operation: "update",
+					operationVersion: 1,
+					targetRecordId: "record-a",
+				}),
+			],
+		);
+		expect(
+			data<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
+				.at(-1)
+				?.map((r) => [r.id, r.fragment.id, r.fragment.payload]),
+		).toEqual([
+			["record-a", "a-next", "updated insight"],
+			["record-b", "b", "kept"],
+		]);
+		expect(
+			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages).at(-1),
+		).toEqual([
+			expect.objectContaining({
+				operation: "update",
+				reasonCode: "applied-update",
+				state: "applied",
+				targetRecordId: "record-a",
+			}),
+		]);
+		expect(data(issues.messages).at(-1)).toEqual([]);
+	});
+
 	it("does not apply consolidation proposals that admission rejects", () => {
 		const g = graph();
 		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
@@ -619,6 +722,13 @@ describe("agentic memory consolidation bundle (D171)", () => {
 					kind: "proposedRecords",
 					records: [record({ id: "record-b", fragment: fragment({ id: "b" }) })],
 				},
+				{
+					id: "outcome-2",
+					requestId: "request-1",
+					kind: "proposedRecords",
+					applicationOperation: "update",
+					records: [record({ id: "record-a", fragment: fragment({ id: "a-next" }) })],
+				},
 			],
 			{ name: "outcomes" },
 		);
@@ -635,11 +745,16 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			data<readonly AgenticMemoryConsolidationError[]>(errors.messages)
 				.at(-1)
 				?.map((error) => error.code),
-		).toEqual(["invalid-proposed-record", "duplicate-outcome-id"]);
+		).toEqual(["invalid-proposed-record", "duplicate-outcome-id", "invalid-proposed-record"]);
 		expect(
-			data<readonly AgenticMemoryConsolidationError[]>(errors.messages).at(-1)?.[0]
-				?.validationErrors,
-		).toEqual(["replace outcome.targetRecordIds must align with records"]);
+			data<readonly AgenticMemoryConsolidationError[]>(errors.messages)
+				.at(-1)
+				?.map((error) => error.validationErrors),
+		).toEqual([
+			["replace outcome.targetRecordIds must align with records"],
+			["duplicate outcome id 'outcome-1'"],
+			["update outcome.targetRecordIds must align with records"],
+		]);
 		expect(data<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1)).toEqual([]);
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});
@@ -1631,6 +1746,90 @@ describe("agentic memory record application projector (D577)", () => {
 		]);
 	});
 
+	it("applies D580 admitted complete-next-record update candidates in-place", () => {
+		const current = [
+			record({
+				id: "record-a",
+				fragment: fragment({ id: "fragment-a", payload: "old", tags: ["old"] }),
+			}),
+			record({ id: "record-b", fragment: fragment({ id: "fragment-b" }) }),
+		];
+		const next = record({
+			id: "record-a",
+			kind: "procedural",
+			artifactKind: "procedure",
+			fragment: fragment({
+				id: "fragment-a-v2",
+				payload: "updated",
+				tags: ["updated"],
+				parentFragmentId: "fragment-a",
+			}),
+		});
+
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "admission-update",
+					proposalId: "proposal-update",
+					operation: "update",
+					targetRecordId: "record-a",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						operation: "update",
+						operationVersion: 1,
+						record: next,
+					},
+				}),
+			],
+			applicationPolicy(),
+			{ records: current, evaluation: 13 },
+		);
+
+		expect(
+			snapshot.records.map((item) => [item.id, item.fragment.id, item.fragment.payload]),
+		).toEqual([
+			["record-a", "fragment-a-v2", "updated"],
+			["record-b", "fragment-b", "payload"],
+		]);
+		expect(snapshot.appliedRecords).toEqual([expect.objectContaining({ id: "record-a" })]);
+		expect(snapshot.applicationDecisions).toEqual([
+			expect.objectContaining<Partial<AgenticMemoryRecordApplicationDecision<string>>>({
+				state: "applied",
+				operation: "update",
+				operationVersion: 1,
+				reasonCode: "applied-update",
+				targetRecordId: "record-a",
+				record: expect.objectContaining({
+					fragment: expect.objectContaining({ id: "fragment-a-v2" }),
+				}),
+			}),
+		]);
+		const updateIdentity = snapshot.applicationDecisions[0]?.materialIdentity;
+		expect(JSON.parse(updateIdentity?.key ?? "{}")).toMatchObject({
+			operation: "update",
+			operationVersion: 1,
+			targetRecordId: "record-a",
+			record: { record: { id: "record-a", fragment: { id: "fragment-a-v2" } } },
+		});
+		expect(snapshot.audit).toEqual([
+			expect.objectContaining({
+				operation: "update",
+				operationVersion: 1,
+				reasonCode: "applied-update",
+				targetRecordId: "record-a",
+				materialIdentity: updateIdentity,
+			}),
+		]);
+		expect(snapshot.operationStatuses).toEqual([
+			expect.objectContaining({
+				operation: "update",
+				state: "ready",
+				cursor: expect.objectContaining({ evaluation: 13, applied: 1, decisions: 1 }),
+			}),
+		]);
+		expect(snapshot.issues).toEqual([]);
+	});
+
 	it("rejects invalid replace targets as DATA issues without protocol ERROR", () => {
 		const current = [
 			record({ id: "record-existing", fragment: fragment({ id: "fragment-existing" }) }),
@@ -1687,6 +1886,67 @@ describe("agentic memory record application projector (D577)", () => {
 			"agentic-memory.application.target-record-missing",
 			"agentic-memory.application.candidate-record-id-mismatch",
 		]);
+		expect(snapshot.status).toMatchObject({ state: "partial", cursor: { rejected: 3, issues: 3 } });
+	});
+
+	it("rejects invalid D580 update targets as DATA issues without protocol ERROR", () => {
+		const current = [
+			record({ id: "record-existing", fragment: fragment({ id: "fragment-existing" }) }),
+		];
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "update-missing-target-id",
+					proposalId: "update-missing-target-id",
+					operation: "update",
+				}),
+				admitted({
+					admissionId: "update-missing-target",
+					proposalId: "update-missing-target",
+					operation: "update",
+					targetRecordId: "record-missing",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-missing",
+							fragment: fragment({ id: "fragment-missing", parentFragmentId: "fragment-existing" }),
+						}),
+					},
+				}),
+				admitted({
+					admissionId: "update-id-mismatch",
+					proposalId: "update-id-mismatch",
+					operation: "update",
+					targetRecordId: "record-existing",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-other", fragment: fragment({ id: "fragment-other" }) }),
+					},
+				}),
+			],
+			applicationPolicy(),
+			{ records: current },
+		);
+
+		expect(snapshot.records.map((item) => item.id)).toEqual(["record-existing"]);
+		expect(
+			snapshot.applicationDecisions.map((decision) => [
+				decision.proposalId,
+				decision.operation,
+				decision.state,
+				decision.reasonCode,
+			]),
+		).toEqual([
+			["update-missing-target-id", "update", "rejected", "target-record-id-required"],
+			["update-missing-target", "update", "rejected", "target-record-missing"],
+			["update-id-mismatch", "update", "rejected", "candidate-record-id-mismatch"],
+		]);
+		expect(snapshot.issues.map((issue) => issue.code)).toEqual([
+			"agentic-memory.application.target-record-id-required",
+			"agentic-memory.application.target-record-missing",
+			"agentic-memory.application.candidate-record-id-mismatch",
+		]);
+		expect(snapshot.issues.every((issue) => issue.details?.operation === "update")).toBe(true);
 		expect(snapshot.status).toMatchObject({ state: "partial", cursor: { rejected: 3, issues: 3 } });
 	});
 
@@ -1791,6 +2051,70 @@ describe("agentic memory record application projector (D577)", () => {
 			"agentic-memory.application.replace-lineage-missing",
 		]);
 		expect(acceptedWithRefs.records.map((item) => [item.id, item.fragment.id])).toEqual([
+			["record-a", "fragment-a-v2"],
+			["record-b", "fragment-b"],
+		]);
+	});
+
+	it("enforces D580 update lineage and prior-fragment material rules", () => {
+		const current = [
+			record({ id: "record-a", fragment: fragment({ id: "fragment-a", payload: "same" }) }),
+			record({ id: "record-b", fragment: fragment({ id: "fragment-b", payload: "other" }) }),
+		];
+		const sameFragmentChanged = admitted({
+			admissionId: "update-same-fragment-changed",
+			proposalId: "update-same-fragment-changed",
+			operation: "update",
+			targetRecordId: "record-a",
+			candidateMaterial: {
+				kind: "agentic-memory-record-candidate-material",
+				record: record({
+					id: "record-a",
+					fragment: fragment({ id: "fragment-a", payload: "changed" }),
+				}),
+				evidenceRefs: [{ kind: "memory-fragment", id: "fragment-a" }],
+			},
+		});
+		const missingLineage = admitted({
+			admissionId: "update-missing-lineage",
+			proposalId: "update-missing-lineage",
+			operation: "update",
+			targetRecordId: "record-a",
+			candidateMaterial: {
+				kind: "agentic-memory-record-candidate-material",
+				record: record({ id: "record-a", fragment: fragment({ id: "fragment-a-v2" }) }),
+			},
+		});
+		const sourceRefLineage = admitted({
+			admissionId: "update-source-ref-lineage",
+			proposalId: "update-source-ref-lineage",
+			operation: "update",
+			targetRecordId: "record-a",
+			candidateMaterial: {
+				kind: "agentic-memory-record-candidate-material",
+				record: record({ id: "record-a", fragment: fragment({ id: "fragment-a-v2" }) }),
+				sourceRefs: [{ kind: "agentic-memory-record", id: "record-a" }],
+			},
+		});
+
+		const rejected = applyAgenticMemoryRecordAdmissions(
+			[sameFragmentChanged, missingLineage],
+			applicationPolicy(),
+			{ records: current },
+		);
+		const accepted = applyAgenticMemoryRecordAdmissions([sourceRefLineage], applicationPolicy(), {
+			records: current,
+		});
+
+		expect(rejected.applicationDecisions.map((decision) => decision.reasonCode)).toEqual([
+			"fragment-id-reused-with-different-material",
+			"update-lineage-missing",
+		]);
+		expect(rejected.issues.map((issue) => issue.code)).toEqual([
+			"agentic-memory.application.fragment-id-reused-with-different-material",
+			"agentic-memory.application.update-lineage-missing",
+		]);
+		expect(accepted.records.map((item) => [item.id, item.fragment.id])).toEqual([
 			["record-a", "fragment-a-v2"],
 			["record-b", "fragment-b"],
 		]);
@@ -1958,6 +2282,215 @@ describe("agentic memory record application projector (D577)", () => {
 		expect(snapshot.issues).toEqual([]);
 	});
 
+	it("keeps D580 update idempotency evidence operation-versioned", () => {
+		const current = [
+			record({ id: "record-existing", fragment: fragment({ id: "fragment-existing" }) }),
+		];
+		const updateAdmission = admitted({
+			admissionId: "update-replay",
+			proposalId: "update-replay",
+			operation: "update",
+			targetRecordId: "record-existing",
+			idempotencyKey: "idem-update",
+			candidateMaterial: {
+				kind: "agentic-memory-record-candidate-material",
+				record: record({
+					id: "record-existing",
+					fragment: fragment({ id: "fragment-existing-v2", parentFragmentId: "fragment-existing" }),
+				}),
+			},
+		});
+		const updateRecord = updateAdmission.candidateMaterial.record;
+		const matchingUpdatePriorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
+			{
+				kind: "agentic-memory-record-application-evidence",
+				admissionId: "update-replay",
+				proposalId: "update-replay",
+				operation: "update",
+				operationVersion: 1,
+				idempotencyKey: "idem-update",
+				recordId: "record-existing",
+				fragmentId: "fragment-existing-v2",
+				targetRecordId: "record-existing",
+				materialIdentity: applicationMaterialIdentity("update", updateRecord, "record-existing"),
+			},
+		];
+		const conflictingUpdatePriorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
+			{
+				kind: "agentic-memory-record-application-evidence",
+				admissionId: "update-conflict",
+				proposalId: "update-conflict",
+				operation: "update",
+				operationVersion: 1,
+				idempotencyKey: "idem-update-conflict",
+				recordId: "record-existing",
+				fragmentId: "fragment-existing-v2",
+				targetRecordId: "record-existing",
+				materialIdentity: applicationMaterialIdentity(
+					"update",
+					record({
+						id: "record-existing",
+						fragment: fragment({ id: "fragment-existing-v2", payload: "different" }),
+					}),
+					"record-existing",
+				),
+			},
+		];
+		const replacePriorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
+			{
+				kind: "agentic-memory-record-application-evidence",
+				admissionId: "update-replace-priorEvidence",
+				proposalId: "update-replace-priorEvidence",
+				operation: "replace",
+				operationVersion: 1,
+				idempotencyKey: "idem-cross-operation-update",
+				recordId: "record-existing",
+				fragmentId: "fragment-existing-v2",
+				targetRecordId: "record-existing",
+				materialIdentity: applicationMaterialIdentity("replace", updateRecord, "record-existing"),
+			},
+		];
+
+		const matching = applyAgenticMemoryRecordAdmissions([updateAdmission], applicationPolicy(), {
+			records: current,
+			priorEvidence: matchingUpdatePriorEvidence,
+		});
+		const conflict = applyAgenticMemoryRecordAdmissions(
+			[
+				{
+					...updateAdmission,
+					admissionId: "update-conflict",
+					proposalId: "update-conflict",
+					idempotencyKey: "idem-update-conflict",
+				},
+			],
+			applicationPolicy(),
+			{ records: current, priorEvidence: conflictingUpdatePriorEvidence },
+		);
+		const crossOperation = applyAgenticMemoryRecordAdmissions(
+			[
+				{
+					...updateAdmission,
+					admissionId: "update-replace-priorEvidence",
+					proposalId: "update-replace-priorEvidence",
+					idempotencyKey: "idem-cross-operation-update",
+				},
+			],
+			applicationPolicy(),
+			{ records: current, priorEvidence: replacePriorEvidence },
+		);
+
+		expect(matching.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "skipped", reasonCode: "already-applied" }),
+		]);
+		expect(conflict.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "rejected", reasonCode: "idempotency-conflict" }),
+		]);
+		expect(crossOperation.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "rejected", reasonCode: "idempotency-conflict" }),
+		]);
+		expect(crossOperation.applicationDecisions[0]).toMatchObject({
+			operation: "update",
+			operationVersion: 1,
+		});
+	});
+
+	it("skips D580 update replay when current truth already equals candidate", () => {
+		const current = [
+			record({
+				id: "record-updated",
+				fragment: fragment({ id: "fragment-updated-v2", payload: "updated truth" }),
+			}),
+		];
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "update-replay-advanced",
+					proposalId: "update-replay-advanced",
+					operation: "update",
+					operationVersion: 1,
+					targetRecordId: "record-updated",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: current[0] as AgenticMemoryRecord<string>,
+						sourceRefs: [{ kind: "agentic-memory-fragment", id: "fragment-updated-v1" }],
+					},
+				}),
+			],
+			applicationPolicy(),
+			{
+				records: current,
+				priorEvidence: [
+					{
+						kind: "agentic-memory-record-application-evidence",
+						admissionId: "update-replay-advanced",
+						proposalId: "update-replay-advanced",
+						operation: "update",
+						operationVersion: 1,
+						recordId: "record-updated",
+						fragmentId: "fragment-updated-v2",
+						targetRecordId: "record-updated",
+						materialIdentity: applicationMaterialIdentity(
+							"update",
+							current[0] as AgenticMemoryRecord<string>,
+							"record-updated",
+						),
+					},
+				],
+			},
+		);
+
+		expect(snapshot.records).toEqual(current);
+		expect(snapshot.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "skipped", reasonCode: "already-applied" }),
+		]);
+		expect(snapshot.issues).toEqual([]);
+	});
+
+	it("skips same-evaluation duplicate D580 update application evidence", () => {
+		const current = [record({ id: "record-a", fragment: fragment({ id: "fragment-a" }) })];
+		const updateAdmission = admitted({
+			admissionId: "update-current",
+			proposalId: "update-current",
+			operation: "update",
+			targetRecordId: "record-a",
+			idempotencyKey: "idem-update-current",
+			candidateMaterial: {
+				kind: "agentic-memory-record-candidate-material",
+				record: record({
+					id: "record-a",
+					fragment: fragment({ id: "fragment-a-v2", parentFragmentId: "fragment-a" }),
+				}),
+			},
+		});
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				updateAdmission,
+				{
+					...updateAdmission,
+					proposalId: "update-current-repeat",
+				},
+			],
+			applicationPolicy(),
+			{ records: current },
+		);
+
+		expect(snapshot.records.map((item) => [item.id, item.fragment.id])).toEqual([
+			["record-a", "fragment-a-v2"],
+		]);
+		expect(
+			snapshot.applicationDecisions.map((decision) => [
+				decision.proposalId,
+				decision.state,
+				decision.reasonCode,
+			]),
+		).toEqual([
+			["update-current", "applied", "applied-update"],
+			["update-current-repeat", "skipped", "already-applied"],
+		]);
+		expect(snapshot.issues).toEqual([]);
+	});
+
 	it("rejects unsupported operations as application DATA issues", () => {
 		const snapshot = applyAgenticMemoryRecordAdmissions(
 			[
@@ -2025,6 +2558,50 @@ describe("agentic memory record application projector (D577)", () => {
 		]);
 		expect(snapshot.issues).toEqual([
 			expect.objectContaining({ code: "agentic-memory.application.replace-lineage-missing" }),
+		]);
+	});
+
+	it("validates update invariants before matching idempotency replay", () => {
+		const current = [record({ id: "record-a", fragment: fragment({ id: "fragment-a" }) })];
+		const priorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
+			{
+				kind: "agentic-memory-record-application-evidence",
+				admissionId: "update-replay-invalid",
+				proposalId: "update-replay-invalid",
+				operation: "update",
+				operationVersion: 1,
+				recordId: "record-a",
+				fragmentId: "fragment-a-v2",
+				targetRecordId: "record-a",
+				materialIdentity: applicationMaterialIdentity(
+					"update",
+					record({ id: "record-a", fragment: fragment({ id: "fragment-a-v2" }) }),
+					"record-a",
+				),
+			},
+		];
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "update-replay-invalid",
+					proposalId: "update-replay-invalid",
+					operation: "update",
+					targetRecordId: "record-a",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-a", fragment: fragment({ id: "fragment-a-v2" }) }),
+					},
+				}),
+			],
+			applicationPolicy(),
+			{ records: current, priorEvidence },
+		);
+
+		expect(snapshot.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "rejected", reasonCode: "update-lineage-missing" }),
+		]);
+		expect(snapshot.issues).toEqual([
+			expect.objectContaining({ code: "agentic-memory.application.update-lineage-missing" }),
 		]);
 	});
 
@@ -2548,7 +3125,7 @@ describe("agentic memory record application projector (D577)", () => {
 		});
 	});
 
-	it("rejects unsupported update targets and duplicate record or fragment ids as DATA issues", () => {
+	it("rejects create target mismatches and duplicate record or fragment ids as DATA issues", () => {
 		const current = [
 			record({ id: "record-existing", fragment: fragment({ id: "fragment-existing" }) }),
 		];
@@ -2909,7 +3486,7 @@ describe("agentic memory record application projector (D577)", () => {
 		]);
 	});
 
-	it("keeps create and replace material identities distinct and reports operation statuses", () => {
+	it("keeps create, replace, and update material identities distinct and reports operation statuses", () => {
 		const current = [record({ id: "record-a", fragment: fragment({ id: "fragment-a" }) })];
 		const createSnapshot = applyAgenticMemoryRecordAdmissions(
 			[
@@ -2943,6 +3520,22 @@ describe("agentic memory record application projector (D577)", () => {
 					},
 				}),
 				admitted({
+					admissionId: "update-a",
+					proposalId: "update-a",
+					operation: "update",
+					targetRecordId: "record-a",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-a",
+							fragment: fragment({
+								id: "fragment-a-v3",
+								parentFragmentId: "fragment-a-v2",
+							}),
+						}),
+					},
+				}),
+				admitted({
 					admissionId: "create-b",
 					proposalId: "create-b",
 					candidateMaterial: {
@@ -2962,6 +3555,13 @@ describe("agentic memory record application projector (D577)", () => {
 				"record-x",
 			).key,
 		);
+		expect(createSnapshot.applicationDecisions[0]?.materialIdentity?.key).not.toEqual(
+			applicationMaterialIdentity(
+				"update",
+				record({ id: "record-x", fragment: fragment({ id: "fragment-x" }) }),
+				"record-x",
+			).key,
+		);
 		expect(mixedSnapshot.operationStatuses).toEqual([
 			expect.objectContaining({
 				operation: "create",
@@ -2973,8 +3573,13 @@ describe("agentic memory record application projector (D577)", () => {
 				state: "ready",
 				cursor: expect.objectContaining({ evaluation: 12, applied: 1, decisions: 1 }),
 			}),
+			expect.objectContaining({
+				operation: "update",
+				state: "ready",
+				cursor: expect.objectContaining({ evaluation: 12, applied: 1, decisions: 1 }),
+			}),
 		]);
-		expect(mixedSnapshot.status).toMatchObject({ state: "ready", cursor: { applied: 2 } });
+		expect(mixedSnapshot.status).toMatchObject({ state: "ready", cursor: { applied: 3 } });
 	});
 
 	it("does not index skipped decisions as same-evaluation application evidence", () => {

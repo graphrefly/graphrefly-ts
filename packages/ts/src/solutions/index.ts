@@ -90,6 +90,7 @@ export {
 	type AgenticMemoryRecordApplicationMaterialFrame,
 	type AgenticMemoryRecordApplicationMaterialIdentity,
 	type AgenticMemoryRecordApplicationMaterialIdentityAlgorithm,
+	type AgenticMemoryRecordApplicationOperation,
 	type AgenticMemoryRecordApplicationOperationCursor,
 	type AgenticMemoryRecordApplicationOperationStatus,
 	type AgenticMemoryRecordApplicationOptions,

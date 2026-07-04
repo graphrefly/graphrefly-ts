@@ -75,6 +75,7 @@ const AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_FRAME_FORMAT =
 	"graphrefly.agenticMemoryRecordApplicationMaterial";
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
+const AGENTIC_MEMORY_RECORD_APPLICATION_OPERATIONS = ["create", "replace", "update"] as const;
 
 /**
  * Creates an agentic memory record application bundle.
@@ -334,8 +335,9 @@ function decideApplication<T>(
 		admission.operationVersion ??
 		candidate.operationVersion ??
 		AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION;
-	const operation: AgenticMemoryRecordApplicationOperation =
-		rawOperation === "replace" ? "replace" : "create";
+	const operation: AgenticMemoryRecordApplicationOperation = isApplicationOperation(rawOperation)
+		? rawOperation
+		: "create";
 	const operationVersion = AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION;
 	const targetRecordId = admission.targetRecordId ?? candidate.targetRecordId;
 	const effectiveTargetRecordId = targetRecordId ?? record.id;
@@ -379,7 +381,7 @@ function decideApplication<T>(
 			issues: [],
 		};
 	}
-	if (rawOperation !== "create" && rawOperation !== "replace") {
+	if (!isApplicationOperation(rawOperation)) {
 		return rejectedDecision(
 			common,
 			"unsupported-operation",
@@ -405,17 +407,23 @@ function decideApplication<T>(
 			},
 		);
 	}
-	const replaceTarget =
-		operation === "replace"
-			? validateReplaceTargetApplication(common, admission, index, nextRecords, targetRecordId)
-			: undefined;
-	if (replaceTarget?.decision !== undefined) {
-		return { decision: replaceTarget.decision, issues: replaceTarget.issues };
+	const existingTarget = isExistingTargetOperation(operation)
+		? validateExistingTargetApplication(
+				common,
+				admission,
+				index,
+				nextRecords,
+				targetRecordId,
+				operation,
+			)
+		: undefined;
+	if (existingTarget?.decision !== undefined) {
+		return { decision: existingTarget.decision, issues: existingTarget.issues };
 	}
 	const materialIdentityResult = applicationMaterialIdentity({
 		operation,
 		operationVersion,
-		targetRecordId: replaceTarget?.targetRecordId ?? effectiveTargetRecordId,
+		targetRecordId: existingTarget?.targetRecordId ?? effectiveTargetRecordId,
 		record,
 	});
 	if (materialIdentityResult.issue !== undefined) {
@@ -450,7 +458,7 @@ function decideApplication<T>(
 		operationVersion,
 		recordId: record.id,
 		fragmentId: record.fragment.id,
-		targetRecordId: replaceTarget?.targetRecordId ?? effectiveTargetRecordId,
+		targetRecordId: existingTarget?.targetRecordId ?? effectiveTargetRecordId,
 	});
 	const admissionEvidence = [
 		...scopedEvidence(priorEvidenceIndex.byAdmissionId.get(admission.admissionId), applicationId),
@@ -493,36 +501,36 @@ function decideApplication<T>(
 	);
 	if (
 		matchingEvidence !== undefined &&
-		operation === "replace" &&
-		replaceTarget?.targetRecord !== undefined &&
-		deepEqualValue(record, replaceTarget.targetRecord)
+		isExistingTargetOperation(operation) &&
+		existingTarget?.targetRecord !== undefined &&
+		deepEqualValue(record, existingTarget.targetRecord)
 	) {
 		return skippedAlreadyApplied(materialCommon);
 	}
-	const replaceValidation =
-		operation === "replace"
-			? validateReplaceApplication(
-					materialCommon,
-					materialAdmission,
-					index,
-					nextRecords,
-					currentFragmentIds,
-					replaceTarget?.targetRecordId,
-					replaceTarget?.targetRecord,
-				)
-			: undefined;
-	if (replaceValidation?.decision !== undefined) {
-		return { decision: replaceValidation.decision, issues: replaceValidation.issues };
+	const existingTargetValidation = isExistingTargetOperation(operation)
+		? validateExistingTargetFullRecordApplication(
+				materialCommon,
+				materialAdmission,
+				index,
+				nextRecords,
+				currentFragmentIds,
+				existingTarget?.targetRecordId,
+				operation,
+				existingTarget?.targetRecord,
+			)
+		: undefined;
+	if (existingTargetValidation?.decision !== undefined) {
+		return { decision: existingTargetValidation.decision, issues: existingTargetValidation.issues };
 	}
 	if (matchingEvidence !== undefined) {
 		return skippedAlreadyApplied(materialCommon);
 	}
-	if (operation === "replace") {
-		if (replaceValidation?.targetRecordId === undefined) {
+	if (isExistingTargetOperation(operation)) {
+		if (existingTargetValidation?.targetRecordId === undefined) {
 			return rejectedDecision(
 				materialCommon,
 				"target-record-missing",
-				"replace target record is missing",
+				`${operation} target record is missing`,
 				{
 					severity: "error",
 					subjectId: admission.admissionId,
@@ -530,10 +538,11 @@ function decideApplication<T>(
 				},
 			);
 		}
-		return applyReplaceApplication(
+		return applyExistingTargetApplication(
 			materialCommon,
 			materialAdmission,
-			replaceValidation.targetRecordId,
+			existingTargetValidation.targetRecordId,
+			operation,
 		);
 	}
 	return decideCreateApplication(
@@ -620,12 +629,13 @@ function decideCreateApplication<T>(
 	};
 }
 
-function validateReplaceTargetApplication<T>(
+function validateExistingTargetApplication<T>(
 	common: ApplicationDecisionCommon<T>,
 	admission: AgenticMemoryRecordAdmission<T>,
 	index: number,
 	nextRecords: readonly AgenticMemoryRecord<T>[],
 	targetRecordId: FactId | undefined,
+	operation: Extract<AgenticMemoryRecordApplicationOperation, "replace" | "update">,
 ): {
 	readonly decision?: AgenticMemoryRecordApplicationDecision<T>;
 	readonly issues: readonly DataIssue[];
@@ -637,7 +647,7 @@ function validateReplaceTargetApplication<T>(
 		return rejectedDecision(
 			common,
 			"target-record-id-required",
-			"replace requires targetRecordId",
+			`${operation} requires targetRecordId`,
 			{
 				severity: "error",
 				subjectId: admission.admissionId,
@@ -647,18 +657,23 @@ function validateReplaceTargetApplication<T>(
 	}
 	const targetIndex = nextRecords.findIndex((item) => item.id === targetRecordId);
 	if (targetIndex < 0) {
-		return rejectedDecision(common, "target-record-missing", "replace target record is missing", {
-			severity: "error",
-			subjectId: admission.admissionId,
-			path: [index, "targetRecordId"],
-			refs: [targetRecordId],
-		});
+		return rejectedDecision(
+			common,
+			"target-record-missing",
+			`${operation} target record is missing`,
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "targetRecordId"],
+				refs: [targetRecordId],
+			},
+		);
 	}
 	if (record.id !== targetRecordId) {
 		return rejectedDecision(
 			common,
 			"candidate-record-id-mismatch",
-			"replace candidate record id must equal targetRecordId",
+			`${operation} candidate record id must equal targetRecordId`,
 			{
 				severity: "error",
 				subjectId: admission.admissionId,
@@ -674,13 +689,14 @@ function validateReplaceTargetApplication<T>(
 	};
 }
 
-function validateReplaceApplication<T>(
+function validateExistingTargetFullRecordApplication<T>(
 	common: ApplicationDecisionCommon<T>,
 	admission: AgenticMemoryRecordAdmission<T>,
 	index: number,
 	nextRecords: readonly AgenticMemoryRecord<T>[],
 	currentFragmentIds: ReadonlySet<FactId>,
 	targetRecordId: FactId | undefined,
+	operation: Extract<AgenticMemoryRecordApplicationOperation, "replace" | "update">,
 	targetRecord?: AgenticMemoryRecord<T>,
 ): {
 	readonly decision?: AgenticMemoryRecordApplicationDecision<T>;
@@ -691,24 +707,38 @@ function validateReplaceApplication<T>(
 	const record = candidate.record;
 	const target =
 		targetRecord === undefined
-			? validateReplaceTargetApplication(common, admission, index, nextRecords, targetRecordId)
+			? validateExistingTargetApplication(
+					common,
+					admission,
+					index,
+					nextRecords,
+					targetRecordId,
+					operation,
+				)
 			: { issues: [], targetRecordId, targetRecord };
 	if (target.decision !== undefined) {
 		return { decision: target.decision, issues: target.issues };
 	}
 	if (target.targetRecordId === undefined || target.targetRecord === undefined) {
-		return rejectedDecision(common, "target-record-missing", "replace target record is missing", {
-			severity: "error",
-			subjectId: admission.admissionId,
-			path: [index, "targetRecordId"],
-		});
-	}
-	const prior = target.targetRecord;
-	if (!hasReplaceLineage(candidate, admission, prior)) {
 		return rejectedDecision(
 			common,
-			"replace-lineage-missing",
-			"replace requires explicit lineage to the prior record or fragment",
+			"target-record-missing",
+			`${operation} target record is missing`,
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "targetRecordId"],
+			},
+		);
+	}
+	const prior = target.targetRecord;
+	if (!hasExistingTargetLineage(candidate, admission, prior)) {
+		const reasonCode =
+			operation === "replace" ? "replace-lineage-missing" : "update-lineage-missing";
+		return rejectedDecision(
+			common,
+			reasonCode,
+			`${operation} requires explicit lineage to the prior record or fragment`,
 			{
 				severity: "error",
 				subjectId: admission.admissionId,
@@ -724,7 +754,7 @@ function validateReplaceApplication<T>(
 		return rejectedDecision(
 			common,
 			"fragment-id-reused-with-different-material",
-			"replace changed fragment material while reusing the prior fragment id",
+			`${operation} changed fragment material while reusing the prior fragment id`,
 			{
 				severity: "error",
 				subjectId: admission.admissionId,
@@ -737,7 +767,7 @@ function validateReplaceApplication<T>(
 		return rejectedDecision(
 			common,
 			"fragment-id-conflict",
-			"replace candidate fragment id conflicts with current records",
+			`${operation} candidate fragment id conflicts with current records`,
 			{
 				severity: "error",
 				subjectId: admission.admissionId,
@@ -749,20 +779,24 @@ function validateReplaceApplication<T>(
 	return { issues: [], targetRecordId: target.targetRecordId };
 }
 
-function applyReplaceApplication<T>(
+function applyExistingTargetApplication<T>(
 	common: ApplicationDecisionCommon<T>,
 	admission: AgenticMemoryRecordAdmission<T>,
 	targetRecordId: FactId,
+	operation: Extract<AgenticMemoryRecordApplicationOperation, "replace" | "update">,
 ): {
 	readonly decision: AgenticMemoryRecordApplicationDecision<T>;
 	readonly issues: readonly DataIssue[];
 } {
+	const reasonCode = operation === "replace" ? "applied-replace" : "applied-update";
 	return {
 		decision: freezeDecision({
 			...common,
 			state: "applied",
-			reasonCode: "applied-replace",
-			reason: admission.reason ?? "replace full record",
+			reasonCode,
+			reason:
+				admission.reason ??
+				(operation === "replace" ? "replace full record" : "update complete next record"),
 			targetRecordId,
 			record: admission.candidateMaterial.record,
 		}),
@@ -777,7 +811,7 @@ function applyDecisionRecord<T>(
 	decision: AgenticMemoryRecordApplicationDecision<T>,
 ): void {
 	if (decision.record === undefined) return;
-	if (decision.operation === "replace") {
+	if (isExistingTargetOperation(decision.operation)) {
 		const targetRecordId = decision.targetRecordId ?? decision.record.id;
 		const index = nextRecords.findIndex((record) => record.id === targetRecordId);
 		if (index >= 0) {
@@ -792,7 +826,7 @@ function applyDecisionRecord<T>(
 	currentFragmentIds.add(decision.record.fragment.id);
 }
 
-function hasReplaceLineage<T>(
+function hasExistingTargetLineage<T>(
 	candidate: AgenticMemoryRecordCandidateMaterial<T>,
 	admission: AgenticMemoryRecordAdmission<T>,
 	prior: AgenticMemoryRecord<T>,
@@ -1485,8 +1519,8 @@ function validateApplicationEvidence(
 	if (value.kind !== "agentic-memory-record-application-evidence") {
 		validationErrors.push("evidence.kind must be agentic-memory-record-application-evidence");
 	}
-	if (value.operation !== "create" && value.operation !== "replace") {
-		validationErrors.push("evidence.operation must be create or replace");
+	if (!isApplicationOperation(value.operation)) {
+		validationErrors.push("evidence.operation must be create, replace, or update");
 	}
 	if (value.operationVersion !== AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION) {
 		validationErrors.push("evidence.operationVersion must be 1");
@@ -1520,8 +1554,11 @@ function validateApplicationEvidence(
 	if (!isNonEmptyString(value.fragmentId)) {
 		validationErrors.push("evidence.fragmentId must be non-empty");
 	}
-	if (value.operation === "replace" && value.targetRecordId === undefined) {
-		validationErrors.push("replace evidence.targetRecordId must be present");
+	if (
+		(value.operation === "replace" || value.operation === "update") &&
+		value.targetRecordId === undefined
+	) {
+		validationErrors.push(`${value.operation} evidence.targetRecordId must be present`);
 	}
 	if (
 		isNonEmptyString(value.recordId) &&
@@ -1535,8 +1572,7 @@ function validateApplicationEvidence(
 		"evidence.materialIdentity",
 		validationErrors,
 		{
-			operation:
-				value.operation === "create" || value.operation === "replace" ? value.operation : undefined,
+			operation: isApplicationOperation(value.operation) ? value.operation : undefined,
 			operationVersion: value.operationVersion === 1 ? 1 : undefined,
 			recordId: isNonEmptyString(value.recordId) ? value.recordId : undefined,
 			fragmentId: isNonEmptyString(value.fragmentId) ? value.fragmentId : undefined,
@@ -1569,7 +1605,7 @@ function validateApplicationEvidence(
 						severity: "error",
 						path: [index],
 						refs: validationErrors,
-						...(value.operation === "create" || value.operation === "replace"
+						...(isApplicationOperation(value.operation)
 							? {
 									details: {
 										operation: value.operation,
@@ -1708,8 +1744,8 @@ function validateApplicationMaterialIdentityKey(
 	if (frame.version !== 1) {
 		validationErrors.push(`${label}.key frame version must be 1`);
 	}
-	if (frame.operation !== "create" && frame.operation !== "replace") {
-		validationErrors.push(`${label}.key frame operation must be create or replace`);
+	if (!isApplicationOperation(frame.operation)) {
+		validationErrors.push(`${label}.key frame operation must be create, replace, or update`);
 	} else if (context.operation !== undefined && frame.operation !== context.operation) {
 		validationErrors.push(`${label}.key frame operation must match evidence.operation`);
 	}
@@ -1891,7 +1927,7 @@ function applicationOperationStatuses<T>(
 	evaluation: number,
 ): readonly AgenticMemoryRecordApplicationOperationStatus[] {
 	const rows: AgenticMemoryRecordApplicationOperationStatus[] = [];
-	for (const operation of ["create", "replace"] as const) {
+	for (const operation of AGENTIC_MEMORY_RECORD_APPLICATION_OPERATIONS) {
 		const scopedDecisions = decisions.filter(
 			(decision) =>
 				decision.operation === operation &&
@@ -1923,13 +1959,20 @@ function applicationOperationStatuses<T>(
 
 function issueOperation(issue: DataIssue): AgenticMemoryRecordApplicationOperation | undefined {
 	const details = issue.details;
-	if (
-		isPlainRecord(details) &&
-		(details.operation === "create" || details.operation === "replace")
-	) {
+	if (isPlainRecord(details) && isApplicationOperation(details.operation)) {
 		return details.operation;
 	}
 	return undefined;
+}
+
+function isApplicationOperation(value: unknown): value is AgenticMemoryRecordApplicationOperation {
+	return value === "create" || value === "replace" || value === "update";
+}
+
+function isExistingTargetOperation(
+	operation: AgenticMemoryRecordApplicationOperation,
+): operation is Extract<AgenticMemoryRecordApplicationOperation, "replace" | "update"> {
+	return operation === "replace" || operation === "update";
 }
 
 function operationApplicationStatus(

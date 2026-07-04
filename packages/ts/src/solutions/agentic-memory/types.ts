@@ -112,8 +112,8 @@ export interface AgenticMemoryContextAttribution {
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
 }
 
-/** D572 candidate material carried by proposal/admission facts, not record truth. */
-export type AgenticMemoryRecordApplicationOperation = "create" | "replace";
+/** D572/D580 candidate material carried by proposal/admission facts, not record truth. */
+export type AgenticMemoryRecordApplicationOperation = "create" | "replace" | "update";
 
 export interface AgenticMemoryRecordCandidateMaterial<T = unknown> {
 	readonly kind: "agentic-memory-record-candidate-material";
@@ -346,6 +346,7 @@ export type AgenticMemoryRecordApplicationDecisionState = "applied" | "skipped" 
 export type AgenticMemoryRecordApplicationReasonCode =
 	| "applied-create"
 	| "applied-replace"
+	| "applied-update"
 	| "already-applied"
 	| "skipped-non-admitted"
 	| "blocked-admission-issues"
@@ -357,6 +358,7 @@ export type AgenticMemoryRecordApplicationReasonCode =
 	| "target-record-missing"
 	| "candidate-record-id-mismatch"
 	| "replace-lineage-missing"
+	| "update-lineage-missing"
 	| "fragment-id-reused-with-different-material"
 	| "idempotency-conflict"
 	| "material-identity-invalid"

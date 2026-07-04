@@ -443,10 +443,10 @@ function projectConsolidationOutcomes<T>(
 		const operationVersion =
 			validOutcome.operationVersion ?? AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION;
 		const targetRecordIds = validOutcome.targetRecordIds;
-		if (operation === "replace") {
+		if (operation === "replace" || operation === "update") {
 			const validationErrors: string[] = [];
 			if (targetRecordIds === undefined || targetRecordIds.length !== validOutcome.records.length) {
-				validationErrors.push("replace outcome.targetRecordIds must align with records");
+				validationErrors.push(`${operation} outcome.targetRecordIds must align with records`);
 			}
 			for (let recordIndex = 0; recordIndex < validOutcome.records.length; recordIndex += 1) {
 				const record = validOutcome.records[recordIndex] as AgenticMemoryRecord<T>;
@@ -464,7 +464,7 @@ function projectConsolidationOutcomes<T>(
 				}
 				if (record.id !== targetRecordId) {
 					validationErrors.push(
-						`records[${recordIndex}]: replace record id '${record.id}' must equal target record id '${targetRecordId}'`,
+						`records[${recordIndex}]: ${operation} record id '${record.id}' must equal target record id '${targetRecordId}'`,
 					);
 				}
 			}
@@ -472,7 +472,7 @@ function projectConsolidationOutcomes<T>(
 				invalidOutcomes += 1;
 				errors.push({
 					code: "invalid-proposed-record",
-					message: "agenticMemoryConsolidationBundle: replace outcome is invalid",
+					message: `agenticMemoryConsolidationBundle: ${operation} outcome is invalid`,
 					index: i,
 					outcomeId: validOutcome.id,
 					requestId: validOutcome.requestId,
@@ -636,9 +636,10 @@ function validateConsolidationOutcome<T>(
 	if (
 		value.applicationOperation !== undefined &&
 		value.applicationOperation !== "create" &&
-		value.applicationOperation !== "replace"
+		value.applicationOperation !== "replace" &&
+		value.applicationOperation !== "update"
 	) {
-		errors.push("outcome.applicationOperation must be create or replace when present");
+		errors.push("outcome.applicationOperation must be create, replace, or update when present");
 	}
 	if (
 		value.operationVersion !== undefined &&
