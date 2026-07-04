@@ -3,6 +3,12 @@ title: "Adapters"
 description: "System-level connectors for ingesting and emitting reactive graph messages."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 Adapters are where GraphReFly meets external systems. They convert events, streams, and transport payloads into graph-native message flow.
 
 ## Typical use cases

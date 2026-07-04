@@ -546,6 +546,7 @@ import {
 	type ScoreSubject,
 } from "@graphrefly/ts/scoring";
 import {
+	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
 	admitAgenticMemoryRecordProposals,
 	agenticMemoryBundle,
 	agenticMemoryConsolidationApplicationBundle,
@@ -555,6 +556,8 @@ import {
 	agenticMemoryRecordAdmissionBundle,
 	type AgenticMemoryRecordAdmissionPolicy,
 	agenticMemoryRecordApplicationBundle,
+	type AgenticMemoryRecordApplicationMaterialIdentity,
+	type AgenticMemoryRecordApplicationOperationStatus,
 	type AgenticMemoryRecordApplicationPolicy,
 	applyAgenticMemoryRecordAdmissions,
 } from "@graphrefly/ts/solutions/agentic-memory";
@@ -611,6 +614,7 @@ void isFiniteScore;
 void normalizeScoreSignal;
 void rankScoredSubjects;
 void scoreSubjects;
+void AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM;
 void admitAgenticMemoryRecordProposals;
 void agenticMemoryBundle;
 void agenticMemoryConsolidationApplicationBundle;
@@ -638,6 +642,8 @@ declare const focusedConsolidationApplicationBundle: AgenticMemoryConsolidationA
 declare const focusedAgenticMemoryRecord: FocusedAgenticMemoryRecord;
 declare const agenticMemoryRecordAdmissionPolicy: AgenticMemoryRecordAdmissionPolicy;
 declare const agenticMemoryRecordApplicationPolicy: AgenticMemoryRecordApplicationPolicy;
+declare const agenticMemoryRecordApplicationMaterialIdentity: AgenticMemoryRecordApplicationMaterialIdentity;
+declare const agenticMemoryRecordApplicationOperationStatus: AgenticMemoryRecordApplicationOperationStatus;
 declare const workItemProjection: WorkItemProjection;
 declare const recipeBundle: ToolProviderExecutionRecipeBundle;
 declare const recipeOptions: ToolProviderExecutionRecipeOptions;
@@ -689,6 +695,8 @@ void focusedConsolidationApplicationBundle;
 void focusedAgenticMemoryRecord;
 void agenticMemoryRecordAdmissionPolicy;
 void agenticMemoryRecordApplicationPolicy;
+void agenticMemoryRecordApplicationMaterialIdentity;
+void agenticMemoryRecordApplicationOperationStatus;
 void workItemProjection;
 void recipeBundle;
 void recipeOptions;

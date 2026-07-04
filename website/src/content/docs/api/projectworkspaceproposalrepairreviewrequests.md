@@ -13,7 +13,7 @@ remutation, family facts, or proposal/admission/application truth.
 ## Import
 
 ```ts
-import { projectWorkspaceProposalRepairReviewRequests } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { projectWorkspaceProposalRepairReviewRequests } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature

@@ -5,6 +5,12 @@ draft: true
 pagefind: false
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 Both orchestrate data pipelines with DAG semantics. GraphReFly is lightweight, reactive, runs anywhere, and requires no infrastructure.
 
 > Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package imports from this historical page.

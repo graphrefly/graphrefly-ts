@@ -2,7 +2,12 @@ import { depLatest } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
+import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
 import type { FactId } from "../patterns/semantic-memory.js";
+import {
+	agenticMemoryRecordFrame,
+	assertAgenticMemoryRecordFrame,
+} from "./agentic-memory-frame.js";
 import { solutionProjection } from "./agentic-memory-projection.js";
 import {
 	cloneStrictJsonObject,
@@ -27,7 +32,11 @@ import type {
 	AgenticMemoryRecordApplicationCursor,
 	AgenticMemoryRecordApplicationDecision,
 	AgenticMemoryRecordApplicationEvidence,
+	AgenticMemoryRecordApplicationMaterialFrame,
+	AgenticMemoryRecordApplicationMaterialIdentity,
 	AgenticMemoryRecordApplicationOperation,
+	AgenticMemoryRecordApplicationOperationCursor,
+	AgenticMemoryRecordApplicationOperationStatus,
 	AgenticMemoryRecordApplicationOptions,
 	AgenticMemoryRecordApplicationPolicy,
 	AgenticMemoryRecordApplicationReasonCode,
@@ -63,6 +72,12 @@ interface EvidenceIndex {
 }
 
 const AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION = 1 as const;
+export const AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM =
+	"graphrefly.agenticMemoryRecordApplicationMaterial.v1";
+const AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_FRAME_FORMAT =
+	"graphrefly.agenticMemoryRecordApplicationMaterial";
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 export function agenticMemoryRecordApplicationBundle<T = unknown>(
 	graph: Graph,
@@ -133,6 +148,13 @@ export function agenticMemoryRecordApplicationBundle<T = unknown>(
 			`${name}/status`,
 			"agenticMemoryRecordApplicationStatus",
 			(fact) => fact.status,
+		),
+		operationStatuses: solutionProjection(
+			graph,
+			projection,
+			`${name}/operationStatuses`,
+			"agenticMemoryRecordApplicationOperationStatuses",
+			(fact) => fact.operationStatuses,
 		),
 		issues: solutionProjection(
 			graph,
@@ -242,11 +264,17 @@ export function applyAgenticMemoryRecordAdmissions<T = unknown>(
 		state: applicationStatus(cursor),
 		cursor,
 	});
+	const operationStatuses = applicationOperationStatuses(
+		applicationDecisions,
+		frozenIssues,
+		opts.evaluation ?? 0,
+	);
 	return Object.freeze({
 		records: Object.freeze(nextRecords),
 		appliedRecords: Object.freeze(appliedRecords),
 		applicationDecisions: Object.freeze(applicationDecisions),
 		status,
+		operationStatuses,
 		issues: frozenIssues,
 		audit: Object.freeze(audit),
 		cursor,
@@ -361,7 +389,40 @@ function decideApplication<T>(
 	if (replaceTarget?.decision !== undefined) {
 		return { decision: replaceTarget.decision, issues: replaceTarget.issues };
 	}
-	const materialKey = applicationMaterialKey({
+	const materialIdentityResult = applicationMaterialIdentity({
+		operation,
+		operationVersion,
+		targetRecordId: replaceTarget?.targetRecordId ?? effectiveTargetRecordId,
+		record,
+	});
+	if (materialIdentityResult.issue !== undefined) {
+		return rejectedDecision(
+			common,
+			"material-identity-invalid",
+			"application material identity is invalid",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "candidateMaterial", "record"],
+				refs: [materialIdentityResult.issue],
+			},
+		);
+	}
+	const materialIdentity = materialIdentityResult.materialIdentity;
+	const materialCandidate: AgenticMemoryRecordCandidateMaterial<T> = Object.freeze({
+		...candidate,
+		record: materialIdentityResult.record,
+	});
+	const materialAdmission: AgenticMemoryRecordAdmission<T> = Object.freeze({
+		...admission,
+		candidateMaterial: materialCandidate,
+	});
+	const materialCommon: ApplicationDecisionCommon<T> = {
+		...common,
+		candidateMaterial: materialCandidate,
+		materialIdentity,
+	};
+	const coordinateKey = applicationCoordinateKey({
 		operation,
 		operationVersion,
 		recordId: record.id,
@@ -382,22 +443,30 @@ function decideApplication<T>(
 					),
 					evaluationEvidenceByIdempotencyKey.get(admission.idempotencyKey),
 				].filter((evidence) => evidence !== undefined);
-	const conflictingEvidence = [...admissionEvidence, ...idempotencyEvidence].find(
-		(evidence) => evidenceMaterialKey(evidence) !== materialKey,
-	);
+	const conflictingEvidence = [...admissionEvidence, ...idempotencyEvidence].find((evidence) => {
+		if (evidenceApplicationCoordinateKey(evidence) !== coordinateKey) return true;
+		return evidence.materialIdentity.key !== materialIdentity.key;
+	});
 	if (conflictingEvidence !== undefined) {
-		return rejectedDecision(common, "idempotency-conflict", "application evidence conflicts", {
-			severity: "error",
-			subjectId: admission.admissionId,
-			path: [index],
-			refs: [
-				...(admission.idempotencyKey === undefined ? [] : [admission.idempotencyKey]),
-				conflictingEvidence.admissionId,
-			],
-		});
+		return rejectedDecision(
+			materialCommon,
+			"idempotency-conflict",
+			"application evidence conflicts",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index],
+				refs: [
+					...(admission.idempotencyKey === undefined ? [] : [admission.idempotencyKey]),
+					conflictingEvidence.admissionId,
+				],
+			},
+		);
 	}
 	const matchingEvidence = [...admissionEvidence, ...idempotencyEvidence].find(
-		(evidence) => evidenceMaterialKey(evidence) === materialKey,
+		(evidence) =>
+			evidenceApplicationCoordinateKey(evidence) === coordinateKey &&
+			evidence.materialIdentity.key === materialIdentity.key,
 	);
 	if (
 		matchingEvidence !== undefined &&
@@ -405,13 +474,13 @@ function decideApplication<T>(
 		replaceTarget?.targetRecord !== undefined &&
 		deepEqualValue(record, replaceTarget.targetRecord)
 	) {
-		return skippedAlreadyApplied(common);
+		return skippedAlreadyApplied(materialCommon);
 	}
 	const replaceValidation =
 		operation === "replace"
 			? validateReplaceApplication(
-					common,
-					admission,
+					materialCommon,
+					materialAdmission,
 					index,
 					nextRecords,
 					currentFragmentIds,
@@ -423,21 +492,30 @@ function decideApplication<T>(
 		return { decision: replaceValidation.decision, issues: replaceValidation.issues };
 	}
 	if (matchingEvidence !== undefined) {
-		return skippedAlreadyApplied(common);
+		return skippedAlreadyApplied(materialCommon);
 	}
 	if (operation === "replace") {
 		if (replaceValidation?.targetRecordId === undefined) {
-			return rejectedDecision(common, "target-record-missing", "replace target record is missing", {
-				severity: "error",
-				subjectId: admission.admissionId,
-				path: [index, "targetRecordId"],
-			});
+			return rejectedDecision(
+				materialCommon,
+				"target-record-missing",
+				"replace target record is missing",
+				{
+					severity: "error",
+					subjectId: admission.admissionId,
+					path: [index, "targetRecordId"],
+				},
+			);
 		}
-		return applyReplaceApplication(common, admission, replaceValidation.targetRecordId);
+		return applyReplaceApplication(
+			materialCommon,
+			materialAdmission,
+			replaceValidation.targetRecordId,
+		);
 	}
 	return decideCreateApplication(
-		common,
-		admission,
+		materialCommon,
+		materialAdmission,
 		policy,
 		index,
 		currentRecordIds,
@@ -785,6 +863,10 @@ function rejectedDecision<T>(
 		issues: [
 			dataIssue(`agentic-memory.application.${reasonCode}`, reason, {
 				...issue,
+				details: {
+					operation: common.operation,
+					operationVersion: common.operationVersion,
+				},
 			}),
 		],
 	};
@@ -1413,6 +1495,23 @@ function validateApplicationEvidence(
 	) {
 		validationErrors.push("evidence.targetRecordId must equal recordId when present");
 	}
+	const materialIdentity = validateApplicationMaterialIdentity(
+		value.materialIdentity,
+		"evidence.materialIdentity",
+		validationErrors,
+		{
+			operation:
+				value.operation === "create" || value.operation === "replace" ? value.operation : undefined,
+			operationVersion: value.operationVersion === 1 ? 1 : undefined,
+			recordId: isNonEmptyString(value.recordId) ? value.recordId : undefined,
+			fragmentId: isNonEmptyString(value.fragmentId) ? value.fragmentId : undefined,
+			targetRecordId: isNonEmptyString(value.targetRecordId)
+				? value.targetRecordId
+				: isNonEmptyString(value.recordId)
+					? value.recordId
+					: undefined,
+		},
+	);
 	for (const [field, refs] of [
 		["sourceRefs", value.sourceRefs],
 		["policyRefs", value.policyRefs],
@@ -1432,6 +1531,17 @@ function validateApplicationEvidence(
 					severity: "error",
 					path: [index],
 					refs: validationErrors,
+					...(value.operation === "create" || value.operation === "replace"
+						? {
+								details: {
+									operation: value.operation,
+									operationVersion:
+										value.operationVersion === 1
+											? AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION
+											: value.operationVersion,
+								},
+							}
+						: {}),
 				}),
 			],
 		};
@@ -1454,6 +1564,7 @@ function validateApplicationEvidence(
 			...(value.targetRecordId === undefined
 				? {}
 				: { targetRecordId: value.targetRecordId as FactId }),
+			materialIdentity: materialIdentity as AgenticMemoryRecordApplicationMaterialIdentity,
 			...(value.sourceRefs === undefined
 				? {}
 				: { sourceRefs: snapshotAgenticMemoryFactRefs(value.sourceRefs) }),
@@ -1469,6 +1580,131 @@ function validateApplicationEvidence(
 	};
 }
 
+function validateApplicationMaterialIdentity(
+	value: unknown,
+	label: string,
+	validationErrors: string[],
+	context: {
+		readonly operation?: AgenticMemoryRecordApplicationOperation;
+		readonly operationVersion?: 1;
+		readonly recordId?: FactId;
+		readonly fragmentId?: FactId;
+		readonly targetRecordId?: FactId;
+	},
+): AgenticMemoryRecordApplicationMaterialIdentity | undefined {
+	if (!isPlainRecord(value)) {
+		validationErrors.push(`${label} must be an object`);
+		return undefined;
+	}
+	validationErrors.push(
+		...dataRecordContainerErrors(value, label),
+		...forbiddenAgenticMemoryDataFields(value, label),
+	);
+	const extraFields = unexpectedFields(value, ["algorithm", "key"]);
+	if (extraFields.length > 0) {
+		validationErrors.push(`${label} has unexpected fields: ${extraFields.join(", ")}`);
+	}
+	if (value.algorithm !== AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM) {
+		validationErrors.push(
+			`${label}.algorithm must be ${AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM}`,
+		);
+	}
+	if (!isNonEmptyString(value.key)) {
+		validationErrors.push(`${label}.key must be a non-empty string`);
+	}
+	if (isNonEmptyString(value.key)) {
+		validateApplicationMaterialIdentityKey(value.key, label, context, validationErrors);
+	}
+	if (
+		value.algorithm !== AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM ||
+		!isNonEmptyString(value.key) ||
+		extraFields.length > 0
+	) {
+		return undefined;
+	}
+	return Object.freeze({
+		algorithm: AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+		key: value.key,
+	});
+}
+
+function validateApplicationMaterialIdentityKey(
+	key: string,
+	label: string,
+	context: {
+		readonly operation?: AgenticMemoryRecordApplicationOperation;
+		readonly operationVersion?: 1;
+		readonly recordId?: FactId;
+		readonly fragmentId?: FactId;
+		readonly targetRecordId?: FactId;
+	},
+	validationErrors: string[],
+): void {
+	let decoded: unknown;
+	try {
+		decoded = strictJsonCodec.decode(textEncoder.encode(key));
+	} catch (error) {
+		validationErrors.push(`${label}.key must be canonical strict JSON: ${errorMessage(error)}`);
+		return;
+	}
+	if (!isPlainRecord(decoded)) {
+		validationErrors.push(`${label}.key frame must be an object`);
+		return;
+	}
+	const frame = decoded as Record<string, unknown>;
+	const extraFields = unexpectedFields(frame, [
+		"format",
+		"operation",
+		"operationVersion",
+		"record",
+		"targetRecordId",
+		"version",
+	]);
+	if (extraFields.length > 0) {
+		validationErrors.push(`${label}.key frame has unexpected fields: ${extraFields.join(", ")}`);
+	}
+	if (frame.format !== AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_FRAME_FORMAT) {
+		validationErrors.push(`${label}.key frame format is invalid`);
+	}
+	if (frame.version !== 1) {
+		validationErrors.push(`${label}.key frame version must be 1`);
+	}
+	if (frame.operation !== "create" && frame.operation !== "replace") {
+		validationErrors.push(`${label}.key frame operation must be create or replace`);
+	} else if (context.operation !== undefined && frame.operation !== context.operation) {
+		validationErrors.push(`${label}.key frame operation must match evidence.operation`);
+	}
+	if (frame.operationVersion !== 1) {
+		validationErrors.push(`${label}.key frame operationVersion must be 1`);
+	} else if (
+		context.operationVersion !== undefined &&
+		frame.operationVersion !== context.operationVersion
+	) {
+		validationErrors.push(
+			`${label}.key frame operationVersion must match evidence.operationVersion`,
+		);
+	}
+	if (!isNonEmptyString(frame.targetRecordId)) {
+		validationErrors.push(`${label}.key frame targetRecordId must be non-empty`);
+	} else if (
+		context.targetRecordId !== undefined &&
+		frame.targetRecordId !== context.targetRecordId
+	) {
+		validationErrors.push(`${label}.key frame targetRecordId must match evidence target`);
+	}
+	try {
+		const recordFrame = assertAgenticMemoryRecordFrame(frame.record);
+		if (context.recordId !== undefined && recordFrame.record.id !== context.recordId) {
+			validationErrors.push(`${label}.key frame record.id must match evidence.recordId`);
+		}
+		if (context.fragmentId !== undefined && recordFrame.record.fragment.id !== context.fragmentId) {
+			validationErrors.push(`${label}.key frame record.fragment.id must match evidence.fragmentId`);
+		}
+	} catch (error) {
+		validationErrors.push(`${label}.key frame record is invalid: ${errorMessage(error)}`);
+	}
+}
+
 function buildEvidenceIndex(
 	entries: readonly AgenticMemoryRecordApplicationEvidence[],
 ): EvidenceIndex {
@@ -1482,7 +1718,9 @@ function buildEvidenceIndex(
 		);
 		if (
 			existingAdmission !== undefined &&
-			evidenceMaterialKey(existingAdmission) !== evidenceMaterialKey(entry)
+			(evidenceApplicationCoordinateKey(existingAdmission) !==
+				evidenceApplicationCoordinateKey(entry) ||
+				existingAdmission.materialIdentity.key !== entry.materialIdentity.key)
 		) {
 			issues.push(
 				dataIssue(
@@ -1502,7 +1740,9 @@ function buildEvidenceIndex(
 		);
 		if (
 			existingIdempotency !== undefined &&
-			evidenceMaterialKey(existingIdempotency) !== evidenceMaterialKey(entry)
+			(evidenceApplicationCoordinateKey(existingIdempotency) !==
+				evidenceApplicationCoordinateKey(entry) ||
+				existingIdempotency.materialIdentity.key !== entry.materialIdentity.key)
 		) {
 			issues.push(
 				dataIssue(
@@ -1568,6 +1808,9 @@ function applicationAudit<T>(
 		fragmentId: decision.candidateMaterial.record.fragment.id,
 		...(decision.targetRecordId === undefined ? {} : { targetRecordId: decision.targetRecordId }),
 		...(decision.idempotencyKey === undefined ? {} : { idempotencyKey: decision.idempotencyKey }),
+		...(decision.materialIdentity === undefined
+			? {}
+			: { materialIdentity: decision.materialIdentity }),
 		...(decision.sourceRefs === undefined ? {} : { sourceRefs: decision.sourceRefs }),
 		...(decision.policyRefs === undefined ? {} : { policyRefs: decision.policyRefs }),
 		...(decision.evidenceRefs === undefined ? {} : { evidenceRefs: decision.evidenceRefs }),
@@ -1577,6 +1820,17 @@ function applicationAudit<T>(
 function evidenceFromDecision<T>(
 	decision: AgenticMemoryRecordApplicationDecision<T>,
 ): AgenticMemoryRecordApplicationEvidence {
+	const materialIdentity =
+		decision.materialIdentity ??
+		applicationMaterialIdentity({
+			operation: decision.operation,
+			operationVersion: decision.operationVersion,
+			targetRecordId: decision.targetRecordId ?? decision.candidateMaterial.record.id,
+			record: decision.candidateMaterial.record,
+		}).materialIdentity;
+	if (materialIdentity === undefined) {
+		throw new TypeError("application decision is missing valid material identity");
+	}
 	return Object.freeze({
 		kind: "agentic-memory-record-application-evidence",
 		applicationId: decision.applicationId,
@@ -1588,7 +1842,65 @@ function evidenceFromDecision<T>(
 		recordId: decision.candidateMaterial.record.id,
 		fragmentId: decision.candidateMaterial.record.fragment.id,
 		targetRecordId: decision.targetRecordId ?? decision.candidateMaterial.record.id,
+		materialIdentity,
 	});
+}
+
+function applicationOperationStatuses<T>(
+	decisions: readonly AgenticMemoryRecordApplicationDecision<T>[],
+	issues: readonly DataIssue[],
+	evaluation: number,
+): readonly AgenticMemoryRecordApplicationOperationStatus[] {
+	const rows: AgenticMemoryRecordApplicationOperationStatus[] = [];
+	for (const operation of ["create", "replace"] as const) {
+		const scopedDecisions = decisions.filter(
+			(decision) =>
+				decision.operation === operation &&
+				decision.operationVersion === AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION,
+		);
+		const scopedIssues = issues.filter((issue) => issueOperation(issue) === operation);
+		if (scopedDecisions.length === 0 && scopedIssues.length === 0) continue;
+		const cursor: AgenticMemoryRecordApplicationOperationCursor = Object.freeze({
+			evaluation,
+			operation,
+			operationVersion: AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION,
+			decisions: scopedDecisions.length,
+			applied: scopedDecisions.filter((decision) => decision.state === "applied").length,
+			skipped: scopedDecisions.filter((decision) => decision.state === "skipped").length,
+			rejected: scopedDecisions.filter((decision) => decision.state === "rejected").length,
+			issues: scopedIssues.length,
+		});
+		rows.push(
+			Object.freeze({
+				operation,
+				operationVersion: AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION,
+				state: operationApplicationStatus(cursor),
+				cursor,
+			}),
+		);
+	}
+	return Object.freeze(rows);
+}
+
+function issueOperation(issue: DataIssue): AgenticMemoryRecordApplicationOperation | undefined {
+	const details = issue.details;
+	if (
+		isPlainRecord(details) &&
+		(details.operation === "create" || details.operation === "replace")
+	) {
+		return details.operation;
+	}
+	return undefined;
+}
+
+function operationApplicationStatus(
+	cursor: AgenticMemoryRecordApplicationOperationStatus["cursor"],
+): AgenticMemoryRecordApplicationStatusState {
+	if (cursor.decisions === 0 && cursor.issues === 0) return "empty";
+	if (cursor.issues > 0 && cursor.applied + cursor.skipped + cursor.rejected === 0) return "error";
+	if (cursor.issues > 0) return "partial";
+	if (cursor.applied === 0 && cursor.skipped > 0) return "blocked";
+	return "ready";
 }
 
 function applicationStatus(
@@ -1616,7 +1928,7 @@ function safeInputLength(value: unknown): number {
 	return safeArrayLength(value) ?? 0;
 }
 
-function applicationMaterialKey(input: {
+function applicationCoordinateKey(input: {
 	readonly operation: AgenticMemoryRecordApplicationOperation | string;
 	readonly operationVersion: number;
 	readonly recordId: FactId;
@@ -1632,14 +1944,96 @@ function applicationMaterialKey(input: {
 	]);
 }
 
-function evidenceMaterialKey(evidence: AgenticMemoryRecordApplicationEvidence): string {
-	return applicationMaterialKey({
+function evidenceApplicationCoordinateKey(
+	evidence: AgenticMemoryRecordApplicationEvidence,
+): string {
+	return applicationCoordinateKey({
 		operation: evidence.operation,
 		operationVersion: evidence.operationVersion,
 		recordId: evidence.recordId,
 		fragmentId: evidence.fragmentId,
 		targetRecordId: evidence.targetRecordId,
 	});
+}
+
+function applicationMaterialIdentity<T>(input: {
+	readonly operation: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion: 1;
+	readonly targetRecordId: FactId;
+	readonly record: AgenticMemoryRecord<T>;
+}):
+	| {
+			readonly materialIdentity: AgenticMemoryRecordApplicationMaterialIdentity;
+			readonly record: AgenticMemoryRecord<T>;
+			readonly issue?: undefined;
+	  }
+	| { readonly materialIdentity?: undefined; readonly issue: string } {
+	try {
+		const record = snapshotApplicationRecord(input.record);
+		const frame: AgenticMemoryRecordApplicationMaterialFrame = Object.freeze({
+			format: AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_FRAME_FORMAT,
+			version: 1,
+			operation: input.operation,
+			operationVersion: input.operationVersion,
+			targetRecordId: input.targetRecordId,
+			record: agenticMemoryRecordFrame(record as AgenticMemoryRecord<StrictJsonValue>),
+		});
+		return {
+			record,
+			materialIdentity: Object.freeze({
+				algorithm: AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+				key: textDecoder.decode(strictCanonicalJsonBytes(frame)),
+			}),
+		};
+	} catch (error) {
+		return { issue: errorMessage(error) };
+	}
+}
+
+function snapshotApplicationRecord<T>(record: AgenticMemoryRecord<T>): AgenticMemoryRecord<T> {
+	const fragment = record.fragment;
+	return Object.freeze({
+		id: record.id,
+		kind: record.kind,
+		persistenceLevel: record.persistenceLevel,
+		artifactKind: record.artifactKind,
+		...(record.scope === undefined ? {} : { scope: Object.freeze({ ...record.scope }) }),
+		fragment: Object.freeze({
+			id: fragment.id,
+			payload: cloneStrictJsonValue(fragment.payload) as T,
+			tNs: fragment.tNs,
+			...(fragment.validFrom === undefined ? {} : { validFrom: fragment.validFrom }),
+			...(fragment.validTo === undefined ? {} : { validTo: fragment.validTo }),
+			confidence: fragment.confidence,
+			tags: Object.freeze([...fragment.tags]),
+			sources: Object.freeze([...fragment.sources]),
+			...(fragment.embedding === undefined
+				? {}
+				: { embedding: Object.freeze([...fragment.embedding]) }),
+			...(fragment.parentFragmentId === undefined
+				? {}
+				: { parentFragmentId: fragment.parentFragmentId }),
+			...(fragment.provenance === undefined ? {} : { provenance: fragment.provenance }),
+		}),
+	});
+}
+
+function cloneStrictJsonValue(value: unknown): StrictJsonValue {
+	return deepFreezeStrictJson(
+		strictJsonCodec.decode(strictJsonCodec.encode(value)) as StrictJsonValue,
+	);
+}
+
+function deepFreezeStrictJson(value: StrictJsonValue): StrictJsonValue {
+	if (value !== null && typeof value === "object") {
+		if (Array.isArray(value)) {
+			for (const item of value) deepFreezeStrictJson(item);
+		} else {
+			for (const item of Object.values(value)) deepFreezeStrictJson(item);
+		}
+		Object.freeze(value);
+	}
+	return value;
 }
 
 function freezeDecision<T>(
@@ -1681,6 +2075,16 @@ function snapshotMetadata(
 	}
 }
 
+function unexpectedFields(
+	value: Record<string, unknown>,
+	expected: readonly string[],
+): readonly string[] {
+	const allowed = new Set(expected);
+	return Object.keys(value)
+		.filter((key) => !allowed.has(key))
+		.sort();
+}
+
 function dataRecordContainerErrors(value: unknown, label: string): readonly string[] {
 	if (!isPlainRecord(value)) return [`${label} must be an object when present`];
 	const errors: string[] = [];
@@ -1712,6 +2116,7 @@ function dataIssue(
 		readonly subjectId?: string;
 		readonly path?: readonly (string | number)[];
 		readonly refs?: readonly string[];
+		readonly details?: DataIssue["details"];
 	} = {},
 ): DataIssue {
 	return Object.freeze({

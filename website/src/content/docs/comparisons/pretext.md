@@ -3,6 +3,12 @@ title: "Reactive Layout vs Pretext"
 description: "When to use GraphReFly's reactive layout graph vs Cheng Lou's pretext — bundle size, i18n fidelity, primitive mapping, and how each fits your stack."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 [Pretext](https://github.com/chenglou/pretext) solved text measurement without DOM thrash — canvas-based width cache and a cursor-driven line walker. **Reactive Layout** ports that class of measurement into a **GraphReFly graph**: `state` → `derived` pipelines, heterogeneous blocks, multi-column flow around obstacles, and first-class observability.
 
 This page is the **consideration-stage** comparison. For setup, APIs, and composition with the rest of GraphReFly, see **[Reactive Layout](/solutions/reactive-layout/)**.

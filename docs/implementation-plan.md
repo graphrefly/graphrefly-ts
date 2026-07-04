@@ -1,5 +1,11 @@
 # Unified Implementation Plan — pre-1.0
 
+> **Historical prose plan.** Current clean-slate sequencing lives in
+> `~/src/graphrefly/plan/*.jsonl`, and current decisions live in
+> `~/src/graphrefly/decisions/decisions.jsonl`. This file may mention retired
+> root/pure-ts packages, the old port model, structural `Impl` parity, and
+> TS-owned website plans; treat those as history, not current guidance.
+
 **Date:** 2026-04-27 · **Last updated:** 2026-04-28 (post Tier 9.1 /qa retrospective)
 **Sources:** `archive/docs/SESSION-ai-harness-module-review.md`, `archive/docs/SESSION-public-face-blocks-review.md`, `archive/docs/SESSION-patterns-extras-consolidation-plan.md`, `docs/optimizations.md`, this-chat Session A + Session B 9-question design rounds
 **Excludes:** eval creation/refactoring, Python parity, explicit post-1.0 items

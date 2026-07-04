@@ -294,6 +294,25 @@ export interface AgenticMemoryRecordApplicationPolicy {
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
 }
 
+export type AgenticMemoryRecordApplicationMaterialIdentityAlgorithm =
+	"graphrefly.agenticMemoryRecordApplicationMaterial.v1";
+
+export interface AgenticMemoryRecordApplicationMaterialFrame<
+	TJson extends StrictJsonValue = StrictJsonValue,
+> {
+	readonly format: "graphrefly.agenticMemoryRecordApplicationMaterial";
+	readonly version: 1;
+	readonly operation: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion: 1;
+	readonly targetRecordId: FactId;
+	readonly record: AgenticMemoryRecordFrame<TJson>;
+}
+
+export interface AgenticMemoryRecordApplicationMaterialIdentity {
+	readonly algorithm: AgenticMemoryRecordApplicationMaterialIdentityAlgorithm;
+	readonly key: string;
+}
+
 /** Graph-visible evidence that an admission/material coordinate was already applied. */
 export interface AgenticMemoryRecordApplicationEvidence {
 	readonly kind: "agentic-memory-record-application-evidence";
@@ -306,6 +325,7 @@ export interface AgenticMemoryRecordApplicationEvidence {
 	readonly recordId: FactId;
 	readonly fragmentId: FactId;
 	readonly targetRecordId?: FactId;
+	readonly materialIdentity: AgenticMemoryRecordApplicationMaterialIdentity;
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
 	readonly policyRefs?: readonly AgenticMemoryFactRef[];
 	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
@@ -339,6 +359,7 @@ export type AgenticMemoryRecordApplicationReasonCode =
 	| "replace-lineage-missing"
 	| "fragment-id-reused-with-different-material"
 	| "idempotency-conflict"
+	| "material-identity-invalid"
 	| "invalid-history"
 	| "invalid-policy"
 	| (string & {});
@@ -358,6 +379,7 @@ export interface AgenticMemoryRecordApplicationDecision<T = unknown> {
 	readonly record?: AgenticMemoryRecord<T>;
 	readonly targetRecordId?: FactId;
 	readonly idempotencyKey?: string;
+	readonly materialIdentity?: AgenticMemoryRecordApplicationMaterialIdentity;
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
 	readonly policyRefs?: readonly AgenticMemoryFactRef[];
 	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
@@ -377,6 +399,7 @@ export interface AgenticMemoryRecordApplicationAuditEntry {
 	readonly fragmentId: FactId;
 	readonly targetRecordId?: FactId;
 	readonly idempotencyKey?: string;
+	readonly materialIdentity?: AgenticMemoryRecordApplicationMaterialIdentity;
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
 	readonly policyRefs?: readonly AgenticMemoryFactRef[];
 	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
@@ -398,6 +421,17 @@ export interface AgenticMemoryRecordApplicationCursor {
 	readonly issues: number;
 }
 
+export interface AgenticMemoryRecordApplicationOperationCursor {
+	readonly evaluation: number;
+	readonly operation: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion: 1;
+	readonly decisions: number;
+	readonly applied: number;
+	readonly skipped: number;
+	readonly rejected: number;
+	readonly issues: number;
+}
+
 export type AgenticMemoryRecordApplicationStatusState =
 	| "ready"
 	| "empty"
@@ -410,11 +444,19 @@ export interface AgenticMemoryRecordApplicationStatus {
 	readonly cursor: AgenticMemoryRecordApplicationCursor;
 }
 
+export interface AgenticMemoryRecordApplicationOperationStatus {
+	readonly operation: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion: 1;
+	readonly state: AgenticMemoryRecordApplicationStatusState;
+	readonly cursor: AgenticMemoryRecordApplicationOperationCursor;
+}
+
 export interface AgenticMemoryRecordApplicationSnapshot<T = unknown> {
 	readonly records: readonly AgenticMemoryRecord<T>[];
 	readonly appliedRecords: readonly AgenticMemoryRecord<T>[];
 	readonly applicationDecisions: readonly AgenticMemoryRecordApplicationDecision<T>[];
 	readonly status: AgenticMemoryRecordApplicationStatus;
+	readonly operationStatuses: readonly AgenticMemoryRecordApplicationOperationStatus[];
 	readonly issues: readonly DataIssue[];
 	readonly audit: readonly AgenticMemoryRecordApplicationAuditEntry[];
 	readonly cursor: AgenticMemoryRecordApplicationCursor;
@@ -442,6 +484,7 @@ export interface AgenticMemoryRecordApplicationBundle<T = unknown> {
 	readonly appliedRecords: Node<readonly AgenticMemoryRecord<T>[]>;
 	readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
 	readonly status: Node<AgenticMemoryRecordApplicationStatus>;
+	readonly operationStatuses: Node<readonly AgenticMemoryRecordApplicationOperationStatus[]>;
 	readonly issues: Node<readonly DataIssue[]>;
 	readonly audit: Node<readonly AgenticMemoryRecordApplicationAuditEntry[]>;
 	readonly cursor: Node<AgenticMemoryRecordApplicationCursor>;
@@ -904,6 +947,9 @@ export interface AgenticMemoryConsolidationApplicationBundle<T = unknown> {
 	readonly appliedRecords: Node<readonly AgenticMemoryRecord<T>[]>;
 	readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
 	readonly applicationStatus: Node<AgenticMemoryRecordApplicationStatus>;
+	readonly applicationOperationStatuses: Node<
+		readonly AgenticMemoryRecordApplicationOperationStatus[]
+	>;
 	readonly applicationIssues: Node<readonly DataIssue[]>;
 }
 

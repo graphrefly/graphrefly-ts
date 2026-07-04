@@ -24,6 +24,19 @@ Read `~/src/graphrefly/CLAUDE.md` first — it is the single-source index for th
 | **Guides (composition / docs / test / contribute)** | `~/src/graphrefly/guide/guide.jsonl` |
 | **Rendered view** (progress / structure / gaps / search) | `~/src/graphrefly/dashboard/` (`node dashboard/build.mjs`) |
 
+## Local documentation boundary (`docs/docs.jsonl`)
+
+This repo's package-local docs policy lives in `docs/docs.jsonl`.
+
+- `~/src/graphrefly` owns the shared `graphrefly.dev` public website shell, shared public
+  documentation architecture, blog, guide records, protocol/rules views, and dashboard/control views
+  (D563).
+- `~/src/graphrefly-ts` owns only TypeScript package docs: `@graphrefly/ts` install and release
+  notes, package README material, JSDoc on exported TS APIs, generated TS API reference artifacts,
+  examples, demos, and package-local docs automation.
+- `website/` is legacy/migration material plus the current TS API-doc generator host until that
+  generator moves. Do not treat it as canonical ownership of the public site.
+
 Sibling implementations (each self-contained, cross-language = wire bridge, not in-process):
 `@graphrefly/rust` (`~/src/graphrefly-rs`), `@graphrefly/py` (`~/src/graphrefly-py`).
 
@@ -72,7 +85,7 @@ pnpm bench         # vitest bench (informational, not a CI gate — L5-Q1)
 
 ## Skills (clean-slate)
 
-Project-local skills under `.claude/skills/`:
+Project-local skills under `.agents/skills/`:
 
 - **decision-guard** — recall locked D#/values/floor before any decision question.
 - **spec-amend** — spec-first protocol amendment (rules + TLA+ + conformance, then code).

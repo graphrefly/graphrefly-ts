@@ -5,6 +5,12 @@ draft: true
 pagefind: false
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Migrating from callbag-recharge
 
 > Historical note (CSP-9): this migration guide is retained as an old callbag/root-package note, not active clean-slate import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy `@graphrefly/graphrefly`, `/extra`, or `compat/*` imports from this historical page.

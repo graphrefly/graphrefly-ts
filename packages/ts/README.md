@@ -204,6 +204,17 @@ This is the current TypeScript package. The old `@graphrefly/graphrefly` and
 `@graphrefly/ts` is pre-1.0. The package favors clean-slate correctness over
 backward compatibility with retired APIs.
 
+## Documentation Boundary
+
+This package owns TypeScript-local documentation only: install notes, package
+usage examples, public API JSDoc, generated TypeScript API reference artifacts,
+examples, demos, and release-facing package guidance.
+
+The shared `graphrefly.dev` website shell, public docs architecture, blog,
+protocol/rules views, shared guides, conformance records, and dashboard live in
+the sibling `~/src/graphrefly` authority repo. See the repo-level
+`docs/docs.jsonl` for the package-local docs policy.
+
 ## Development
 
 ```bash

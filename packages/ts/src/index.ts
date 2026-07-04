@@ -462,6 +462,7 @@ export {
 } from "./patterns/index.js";
 export * from "./protocol/messages.js";
 export {
+	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
 	AGENTIC_MEMORY_RECORD_FRAME_FORMAT,
 	AGENTIC_MEMORY_RECORD_FRAME_VERSION,
 	type AgenticMemoryArtifactKind,
@@ -543,6 +544,11 @@ export {
 	type AgenticMemoryRecordApplicationDecisionState,
 	type AgenticMemoryRecordApplicationEvidence,
 	type AgenticMemoryRecordApplicationHistory,
+	type AgenticMemoryRecordApplicationMaterialFrame,
+	type AgenticMemoryRecordApplicationMaterialIdentity,
+	type AgenticMemoryRecordApplicationMaterialIdentityAlgorithm,
+	type AgenticMemoryRecordApplicationOperationCursor,
+	type AgenticMemoryRecordApplicationOperationStatus,
 	type AgenticMemoryRecordApplicationOptions,
 	type AgenticMemoryRecordApplicationPolicy,
 	type AgenticMemoryRecordApplicationReasonCode,

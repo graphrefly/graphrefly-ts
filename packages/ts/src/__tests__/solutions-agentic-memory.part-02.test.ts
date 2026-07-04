@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
 import type { Message } from "../protocol/messages.js";
 import {
+	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
 	type AgenticMemoryConsolidationCommand,
 	type AgenticMemoryConsolidationError,
 	type AgenticMemoryConsolidationOutcome,
@@ -27,6 +29,7 @@ import {
 	type AgenticMemoryRecordAdmissionStatus,
 	type AgenticMemoryRecordApplicationDecision,
 	type AgenticMemoryRecordApplicationEvidence,
+	type AgenticMemoryRecordApplicationMaterialIdentity,
 	type AgenticMemoryRecordApplicationPolicy,
 	type AgenticMemoryRecordApplicationStatus,
 	type AgenticMemoryRecordProposal,
@@ -41,9 +44,12 @@ import {
 	agenticMemoryKgProjectionBundle,
 	agenticMemoryRecordAdmissionBundle,
 	agenticMemoryRecordApplicationBundle,
+	agenticMemoryRecordFrame,
 	agenticMemoryRetentionBundle,
 	applyAgenticMemoryRecordAdmissions,
 } from "../solutions/index.js";
+
+const textDecoder = new TextDecoder();
 
 const fragment = <T = string>(patch: Partial<MemoryFragment<T>> = {}): MemoryFragment<T> => ({
 	id: "fact-1",
@@ -99,6 +105,24 @@ const applicationPolicy = (
 	kind: "agentic-memory-record-application-policy",
 	policyId: "application-policy",
 	...patch,
+});
+
+const applicationMaterialIdentity = <T = string>(
+	operation: "create" | "replace",
+	recordValue: AgenticMemoryRecord<T>,
+	targetRecordId = recordValue.id,
+): AgenticMemoryRecordApplicationMaterialIdentity => ({
+	algorithm: AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+	key: textDecoder.decode(
+		strictCanonicalJsonBytes({
+			format: "graphrefly.agenticMemoryRecordApplicationMaterial",
+			version: 1,
+			operation,
+			operationVersion: 1,
+			targetRecordId,
+			record: agenticMemoryRecordFrame(recordValue as AgenticMemoryRecord<string>),
+		}),
+	),
 });
 
 describe("agentic memory consolidation bundle (D171)", () => {
@@ -1505,10 +1529,26 @@ describe("agentic memory record application projector (D577)", () => {
 				reasonCode: "applied-create",
 			}),
 		]);
+		const createIdentity = snapshot.applicationDecisions[0]?.materialIdentity;
+		expect(createIdentity).toMatchObject({
+			algorithm: AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+		});
+		expect(JSON.parse(createIdentity?.key ?? "{}")).toMatchObject({
+			format: "graphrefly.agenticMemoryRecordApplicationMaterial",
+			version: 1,
+			operation: "create",
+			operationVersion: 1,
+			targetRecordId: "record-created",
+			record: { record: { id: "record-created", fragment: { tNs: "10" } } },
+		});
+		expect(snapshot.audit[0]?.materialIdentity).toEqual(createIdentity);
 		expect(Object.isFrozen(snapshot.records)).toBe(true);
 		expect(Object.isFrozen(snapshot.appliedRecords)).toBe(true);
 		expect(Object.isFrozen(snapshot.applicationDecisions)).toBe(true);
 		expect(Object.isFrozen(snapshot.applicationDecisions[0]?.candidateMaterial)).toBe(true);
+		expect(Object.isFrozen(snapshot.applicationDecisions[0]?.materialIdentity)).toBe(true);
+		expect(Object.isFrozen(snapshot.operationStatuses)).toBe(true);
+		expect(Object.isFrozen(snapshot.operationStatuses[0]?.cursor)).toBe(true);
 		expect(Object.isFrozen(snapshot.audit[0])).toBe(true);
 		expect(current.map((item) => item.id)).toEqual(["record-existing"]);
 	});
@@ -1577,6 +1617,13 @@ describe("agentic memory record application projector (D577)", () => {
 				targetRecordId: "record-a",
 			}),
 		]);
+		const replaceIdentity = snapshot.applicationDecisions[0]?.materialIdentity;
+		expect(JSON.parse(replaceIdentity?.key ?? "{}")).toMatchObject({
+			operation: "replace",
+			targetRecordId: "record-a",
+			record: { record: { id: "record-a", fragment: { id: "fragment-a-v2" } } },
+		});
+		expect(snapshot.audit[0]?.materialIdentity).toEqual(replaceIdentity);
 		expect(snapshot.issues).toEqual([]);
 		expect(current.map((item) => [item.id, item.fragment.id])).toEqual([
 			["record-a", "fragment-a"],
@@ -1767,6 +1814,7 @@ describe("agentic memory record application projector (D577)", () => {
 				}),
 			},
 		});
+		const replaceRecord = replaceAdmission.candidateMaterial.record;
 		const matchingReplaceHistory: readonly AgenticMemoryRecordApplicationEvidence[] = [
 			{
 				kind: "agentic-memory-record-application-evidence",
@@ -1778,6 +1826,7 @@ describe("agentic memory record application projector (D577)", () => {
 				recordId: "record-existing",
 				fragmentId: "fragment-existing-v2",
 				targetRecordId: "record-existing",
+				materialIdentity: applicationMaterialIdentity("replace", replaceRecord, "record-existing"),
 			},
 		];
 		const conflictingReplaceHistory: readonly AgenticMemoryRecordApplicationEvidence[] = [
@@ -1791,6 +1840,11 @@ describe("agentic memory record application projector (D577)", () => {
 				recordId: "record-existing",
 				fragmentId: "fragment-other",
 				targetRecordId: "record-existing",
+				materialIdentity: applicationMaterialIdentity(
+					"replace",
+					record({ id: "record-existing", fragment: fragment({ id: "fragment-other" }) }),
+					"record-existing",
+				),
 			},
 		];
 		const createHistory: readonly AgenticMemoryRecordApplicationEvidence[] = [
@@ -1804,6 +1858,7 @@ describe("agentic memory record application projector (D577)", () => {
 				recordId: "record-existing",
 				fragmentId: "fragment-existing-v2",
 				targetRecordId: "record-existing",
+				materialIdentity: applicationMaterialIdentity("create", replaceRecord, "record-existing"),
 			},
 		];
 
@@ -1886,6 +1941,11 @@ describe("agentic memory record application projector (D577)", () => {
 						recordId: "record-advanced",
 						fragmentId: "fragment-advanced-v2",
 						targetRecordId: "record-advanced",
+						materialIdentity: applicationMaterialIdentity(
+							"replace",
+							current[0] as AgenticMemoryRecord<string>,
+							"record-advanced",
+						),
 					},
 				],
 			},
@@ -1936,6 +1996,11 @@ describe("agentic memory record application projector (D577)", () => {
 				recordId: "record-a",
 				fragmentId: "fragment-a-v2",
 				targetRecordId: "record-a",
+				materialIdentity: applicationMaterialIdentity(
+					"replace",
+					record({ id: "record-a", fragment: fragment({ id: "fragment-a-v2" }) }),
+					"record-a",
+				),
 			},
 		];
 		const snapshot = applyAgenticMemoryRecordAdmissions(
@@ -2025,6 +2090,7 @@ describe("agentic memory record application projector (D577)", () => {
 		const nextRecords = collect(bundle.records);
 		const appliedRecords = collect(bundle.appliedRecords);
 		const status = collect(bundle.status);
+		const operationStatuses = collect(bundle.operationStatuses);
 		const decisions = collect(bundle.applicationDecisions);
 
 		expect(g.describe().edges).toEqual(
@@ -2037,6 +2103,7 @@ describe("agentic memory record application projector (D577)", () => {
 				{ from: "application/projection", to: "application/appliedRecords" },
 				{ from: "application/projection", to: "application/applicationDecisions" },
 				{ from: "application/projection", to: "application/status" },
+				{ from: "application/projection", to: "application/operationStatuses" },
 			]),
 		);
 		expect(data<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages).at(-1)).toEqual([
@@ -2052,6 +2119,9 @@ describe("agentic memory record application projector (D577)", () => {
 			state: "ready",
 			cursor: { applied: 1 },
 		});
+		expect(data(operationStatuses.messages).at(-1)).toEqual([
+			expect.objectContaining({ operation: "create", state: "ready" }),
+		]);
 	});
 
 	it("keeps admission as proposal-only until the application projector consumes it", () => {
@@ -2225,6 +2295,11 @@ describe("agentic memory record application projector (D577)", () => {
 					operationVersion: 1,
 					recordId: "record-a",
 					fragmentId: "fragment-a",
+					materialIdentity: applicationMaterialIdentity(
+						"replace",
+						record({ id: "record-a", fragment: fragment({ id: "fragment-a" }) }),
+						"record-a",
+					),
 				},
 				{
 					kind: "agentic-memory-record-application-evidence",
@@ -2234,6 +2309,11 @@ describe("agentic memory record application projector (D577)", () => {
 					recordId: "record-a",
 					fragmentId: "fragment-a",
 					targetRecordId: "record-b",
+					materialIdentity: applicationMaterialIdentity(
+						"replace",
+						record({ id: "record-a", fragment: fragment({ id: "fragment-a" }) }),
+						"record-b",
+					),
 				},
 			],
 		});
@@ -2246,6 +2326,149 @@ describe("agentic memory record application projector (D577)", () => {
 			["replace evidence.targetRecordId must be present"],
 			["evidence.targetRecordId must equal recordId when present"],
 		]);
+	});
+
+	it("rejects missing, unsupported, or empty history material identity as DATA issues", () => {
+		const baseEvidence = {
+			kind: "agentic-memory-record-application-evidence",
+			admissionId: "history-material",
+			proposalId: "history-material",
+			operation: "create",
+			operationVersion: 1,
+			recordId: "record-history-material",
+			fragmentId: "fragment-history-material",
+			targetRecordId: "record-history-material",
+		} as const;
+		const snapshot = applyAgenticMemoryRecordAdmissions([], applicationPolicy(), {
+			history: [
+				baseEvidence,
+				{
+					...baseEvidence,
+					admissionId: "history-material-algorithm",
+					materialIdentity: { algorithm: "unsupported", key: "non-empty" },
+				},
+				{
+					...baseEvidence,
+					admissionId: "history-material-empty",
+					materialIdentity: {
+						algorithm: AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+						key: "",
+					},
+				},
+				{
+					...baseEvidence,
+					admissionId: "history-material-extra",
+					materialIdentity: {
+						...applicationMaterialIdentity(
+							"create",
+							record({
+								id: "record-history-material",
+								fragment: fragment({ id: "fragment-history-material" }),
+							}),
+						),
+						patch: "nope",
+					},
+				},
+				{
+					...baseEvidence,
+					admissionId: "history-material-mismatch",
+					materialIdentity: applicationMaterialIdentity(
+						"create",
+						record({
+							id: "record-other",
+							fragment: fragment({ id: "fragment-history-material" }),
+						}),
+					),
+				},
+			],
+		});
+
+		expect(snapshot.issues.map((issue) => issue.code)).toEqual([
+			"agentic-memory.application-history.invalid-entry",
+			"agentic-memory.application-history.invalid-entry",
+			"agentic-memory.application-history.invalid-entry",
+			"agentic-memory.application-history.invalid-entry",
+			"agentic-memory.application-history.invalid-entry",
+		]);
+		expect(snapshot.issues.flatMap((issue) => issue.refs ?? [])).toEqual(
+			expect.arrayContaining([
+				"evidence.materialIdentity must be an object",
+				`evidence.materialIdentity.algorithm must be ${AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM}`,
+				"evidence.materialIdentity.key must be a non-empty string",
+				"evidence.materialIdentity has unexpected fields: patch",
+				"evidence.materialIdentity.patch is not graph-visible DATA",
+				"evidence.materialIdentity.key frame record.id must match evidence.recordId",
+			]),
+		);
+	});
+
+	it("rejects non-strict JSON candidate payload while keeping it on the DATA issue path", () => {
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "non-strict-payload",
+					proposalId: "non-strict-payload",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-non-strict",
+							fragment: fragment({
+								id: "fragment-non-strict",
+								payload: 1n as never,
+							}),
+						}),
+					},
+				}),
+			],
+			applicationPolicy(),
+		);
+
+		expect(snapshot.applicationDecisions).toEqual([
+			expect.objectContaining({
+				state: "rejected",
+				reasonCode: "material-identity-invalid",
+			}),
+		]);
+		expect(snapshot.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.application.material-identity-invalid",
+			}),
+		]);
+	});
+
+	it("snapshots strict JSON candidate payloads before exposing material identity-backed facts", () => {
+		const payload = { nested: { value: "before" } };
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "object-payload",
+					proposalId: "object-payload",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-object-payload",
+							fragment: fragment({
+								id: "fragment-object-payload",
+								payload,
+							}),
+						}),
+					},
+				}),
+			],
+			applicationPolicy(),
+		);
+
+		payload.nested.value = "after";
+		const appliedPayload = snapshot.records[0]?.fragment.payload as
+			| { readonly nested: { readonly value: string } }
+			| undefined;
+		expect(appliedPayload).toEqual({ nested: { value: "before" } });
+		expect(Object.isFrozen(appliedPayload)).toBe(true);
+		expect(Object.isFrozen(appliedPayload?.nested)).toBe(true);
+		expect(
+			JSON.parse(snapshot.applicationDecisions[0]?.materialIdentity?.key ?? "{}").record.record
+				.fragment.payload,
+		).toEqual({ nested: { value: "before" } });
 	});
 
 	it("keeps hostile history getters and unsafe input lengths on the DATA issue path", () => {
@@ -2430,6 +2653,10 @@ describe("agentic memory record application projector (D577)", () => {
 				recordId: "record-mixed",
 				fragmentId: "fragment-mixed",
 				targetRecordId: "record-mixed",
+				materialIdentity: applicationMaterialIdentity(
+					"create",
+					record({ id: "record-mixed", fragment: fragment({ id: "fragment-mixed" }) }),
+				),
 			},
 			{
 				kind: "agentic-memory-record-application-evidence",
@@ -2441,6 +2668,13 @@ describe("agentic memory record application projector (D577)", () => {
 				recordId: "record-mixed-conflict",
 				fragmentId: "fragment-mixed-conflict",
 				targetRecordId: "record-mixed-conflict",
+				materialIdentity: applicationMaterialIdentity(
+					"create",
+					record({
+						id: "record-mixed-conflict",
+						fragment: fragment({ id: "fragment-mixed-conflict" }),
+					}),
+				),
 			},
 			{
 				kind: "agentic-memory-record-application-evidence",
@@ -2452,6 +2686,10 @@ describe("agentic memory record application projector (D577)", () => {
 				recordId: "record-history",
 				fragmentId: "fragment-history",
 				targetRecordId: "record-history",
+				materialIdentity: applicationMaterialIdentity(
+					"create",
+					record({ id: "record-history", fragment: fragment({ id: "fragment-history" }) }),
+				),
 			},
 		];
 		const snapshot = applyAgenticMemoryRecordAdmissions(
@@ -2543,6 +2781,162 @@ describe("agentic memory record application projector (D577)", () => {
 		]);
 	});
 
+	it("rejects same-coordinate idempotency evidence when full candidate material differs", () => {
+		const sameIdsDifferentPayload = admitted({
+			admissionId: "same-coordinate-payload",
+			proposalId: "same-coordinate-payload",
+			idempotencyKey: "idem-same-coordinate-payload",
+			candidateMaterial: {
+				kind: "agentic-memory-record-candidate-material",
+				record: record({
+					id: "record-same-coordinate",
+					fragment: fragment({ id: "fragment-same-coordinate", payload: "new payload" }),
+				}),
+			},
+		});
+		const sameIdsDifferentKind = admitted({
+			admissionId: "same-coordinate-kind",
+			proposalId: "same-coordinate-kind",
+			idempotencyKey: "idem-same-coordinate-kind",
+			candidateMaterial: {
+				kind: "agentic-memory-record-candidate-material",
+				record: record({
+					id: "record-kind-coordinate",
+					kind: "procedural",
+					artifactKind: "procedure",
+					fragment: fragment({ id: "fragment-kind-coordinate" }),
+				}),
+			},
+		});
+
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[sameIdsDifferentPayload, sameIdsDifferentKind],
+			applicationPolicy(),
+			{
+				history: [
+					{
+						kind: "agentic-memory-record-application-evidence",
+						admissionId: "same-coordinate-payload",
+						proposalId: "same-coordinate-payload",
+						operation: "create",
+						operationVersion: 1,
+						idempotencyKey: "idem-same-coordinate-payload",
+						recordId: "record-same-coordinate",
+						fragmentId: "fragment-same-coordinate",
+						targetRecordId: "record-same-coordinate",
+						materialIdentity: applicationMaterialIdentity(
+							"create",
+							record({
+								id: "record-same-coordinate",
+								fragment: fragment({
+									id: "fragment-same-coordinate",
+									payload: "old payload",
+								}),
+							}),
+						),
+					},
+					{
+						kind: "agentic-memory-record-application-evidence",
+						admissionId: "same-coordinate-kind",
+						proposalId: "same-coordinate-kind",
+						operation: "create",
+						operationVersion: 1,
+						idempotencyKey: "idem-same-coordinate-kind",
+						recordId: "record-kind-coordinate",
+						fragmentId: "fragment-kind-coordinate",
+						targetRecordId: "record-kind-coordinate",
+						materialIdentity: applicationMaterialIdentity(
+							"create",
+							record({
+								id: "record-kind-coordinate",
+								kind: "semantic",
+								artifactKind: "insight",
+								fragment: fragment({ id: "fragment-kind-coordinate" }),
+							}),
+						),
+					},
+				],
+			},
+		);
+
+		expect(snapshot.applicationDecisions.map((decision) => decision.reasonCode)).toEqual([
+			"idempotency-conflict",
+			"idempotency-conflict",
+		]);
+		expect(snapshot.issues.map((issue) => issue.code)).toEqual([
+			"agentic-memory.application.idempotency-conflict",
+			"agentic-memory.application.idempotency-conflict",
+		]);
+	});
+
+	it("keeps create and replace material identities distinct and reports operation statuses", () => {
+		const current = [record({ id: "record-a", fragment: fragment({ id: "fragment-a" }) })];
+		const createSnapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "create-same-ids",
+					proposalId: "create-same-ids",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-x", fragment: fragment({ id: "fragment-x" }) }),
+					},
+				}),
+			],
+			applicationPolicy(),
+		);
+		const mixedSnapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "replace-a",
+					proposalId: "replace-a",
+					operation: "replace",
+					targetRecordId: "record-a",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-a",
+							fragment: fragment({
+								id: "fragment-a-v2",
+								parentFragmentId: "fragment-a",
+							}),
+						}),
+					},
+				}),
+				admitted({
+					admissionId: "create-b",
+					proposalId: "create-b",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({ id: "record-b", fragment: fragment({ id: "fragment-b" }) }),
+					},
+				}),
+			],
+			applicationPolicy(),
+			{ records: current, evaluation: 12 },
+		);
+
+		expect(createSnapshot.applicationDecisions[0]?.materialIdentity?.key).not.toEqual(
+			applicationMaterialIdentity(
+				"replace",
+				record({ id: "record-x", fragment: fragment({ id: "fragment-x" }) }),
+				"record-x",
+			).key,
+		);
+		expect(mixedSnapshot.operationStatuses).toEqual([
+			expect.objectContaining({
+				operation: "create",
+				state: "ready",
+				cursor: expect.objectContaining({ evaluation: 12, applied: 1, decisions: 1 }),
+			}),
+			expect.objectContaining({
+				operation: "replace",
+				state: "ready",
+				cursor: expect.objectContaining({ evaluation: 12, applied: 1, decisions: 1 }),
+			}),
+		]);
+		expect(mixedSnapshot.status).toMatchObject({ state: "ready", cursor: { applied: 2 } });
+	});
+
 	it("does not index skipped decisions as same-evaluation application evidence", () => {
 		const snapshot = applyAgenticMemoryRecordAdmissions(
 			[
@@ -2606,6 +3000,10 @@ describe("agentic memory record application projector (D577)", () => {
 					recordId: "record-other",
 					fragmentId: "fragment-other",
 					targetRecordId: "record-other",
+					materialIdentity: applicationMaterialIdentity(
+						"create",
+						record({ id: "record-other", fragment: fragment({ id: "fragment-other" }) }),
+					),
 				},
 			],
 		});

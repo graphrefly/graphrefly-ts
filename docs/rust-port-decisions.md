@@ -1,5 +1,11 @@
 # Rust Port Decision Log
 
+> **Historical old-port decision log.** Do not use this for clean-slate
+> authority. Structural `Impl` parity, `BindingBoundary`-centered porting, and
+> the old root/pure-ts/native package model are retired. Current decisions live
+> in `~/src/graphrefly/decisions/decisions.jsonl`; current parity is behavioral
+> conformance in `~/src/graphrefly/spec/conformance.jsonl`.
+
 Decisions made during the Rust port, recorded after inline discussion.
 
 ---

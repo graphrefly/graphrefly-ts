@@ -1,6 +1,10 @@
 # Optimizations — Active Items (TS + PY)
 
-> **This file is the single source of truth** for optimization tracking across both graphrefly-ts and graphrefly-py.
+> **Historical/local optimization log.** This file predates D563/D32 cleanup and
+> includes old port-model and structural parity history. Current shared
+> sequencing and decisions live in `~/src/graphrefly/plan/*.jsonl` and
+> `~/src/graphrefly/decisions/decisions.jsonl`; current TypeScript docs policy
+> lives in `docs/docs.jsonl`.
 >
 > **Resolved decisions, cross-language notes, built-in optimization docs, QA design decisions, and parity fixes have been archived to `archive/optimizations/*.jsonl`.** See `docs/docs.jsonl` § "Optimization decision log" for the archive workflow.
 >

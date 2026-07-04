@@ -5,6 +5,12 @@ authors: [david]
 tags: [architecture, two-phase-push, design-philosophy]
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Data Should Flow Through the Graph, Not Around It
 
 *Arc 3, Post 7 — Architecture Evolution: The Great Unification*

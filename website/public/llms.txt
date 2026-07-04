@@ -23,6 +23,18 @@ The language-neutral authority lives in `~/src/graphrefly`:
 
 When this repo and the authority repo disagree, the authority repo wins.
 
+## Documentation Boundary
+
+- `docs/docs.jsonl` is the package-local docs policy for this TypeScript repo.
+- This repo owns `@graphrefly/ts` install/release notes, README material, JSDoc,
+  generated TS API reference artifacts, examples, demos, and docs automation.
+- The shared `graphrefly.dev` website shell, public docs architecture, blog,
+  shared guides, protocol/rules views, conformance views, and maintainer
+  dashboard live in `~/src/graphrefly` under D563.
+- `website/` is legacy/migration material plus the current TS API-doc generator
+  host until the generator moves. Do not treat it as canonical public-site
+  ownership.
+
 ## Useful Entry Points
 
 - Package source: `packages/ts/src`
@@ -33,6 +45,8 @@ When this repo and the authority repo disagree, the authority repo wins.
 - Storage: `@graphrefly/ts/storage`, `@graphrefly/ts/storage/browser`, `@graphrefly/ts/storage/node`
 - Render helpers: `@graphrefly/ts/render`
 - Reactive layout solution: `@graphrefly/ts/solutions/reactive-layout`
+- Package docs policy: `docs/docs.jsonl`
+- Generated TS API docs source: JSDoc in `packages/ts/src/**/*.ts`
 
 ## Commands
 

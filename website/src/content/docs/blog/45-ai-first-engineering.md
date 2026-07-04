@@ -11,6 +11,12 @@ tags:
   - engineering-culture
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # From AI-Assisted to AI-First Engineering: The Harness Your Team Actually Needs
 
 *Arc 7, Post 45 — The Harness Infrastructure for AI-First Teams*

@@ -1,5 +1,10 @@
 # Rust Port Quality Strategy
 
+> **Historical old-port strategy.** The old structural `Impl` parity suite and
+> pure-ts/native port model are retired. Current cross-runtime checks are
+> behavioral conformance scenarios in `~/src/graphrefly/spec/conformance.jsonl`.
+> Keep this file only as provenance for old port work.
+
 How we ensure correctness, spec-fidelity, and idiomatic Rust without requiring David to read Rust.
 
 ---

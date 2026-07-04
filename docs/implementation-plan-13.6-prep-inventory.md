@@ -1,5 +1,10 @@
 # Phase 13.6.A — Rules / invariants inventory (precursor)
 
+> **Historical pre-jsonl inventory.** Current protocol authority lives in
+> `~/src/graphrefly/spec/rules.jsonl`, formal models in `~/src/graphrefly/formal`,
+> and conformance scenarios in `~/src/graphrefly/spec/conformance.jsonl`.
+> Do not treat this file as current protocol or docs authority.
+
 *Compiled 2026-05-01 by inventory subagent during DS-13.5 lock-down session. This is **inventory only**; contradictions, overlaps, and gaps are flagged in soft annotations but NOT resolved here. Phase 13.6.A picks up cold from this list.*
 
 **Sources catalogued:**

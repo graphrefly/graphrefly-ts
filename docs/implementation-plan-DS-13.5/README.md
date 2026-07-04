@@ -1,5 +1,10 @@
 # DS-13.5 implementation sub-plans
 
+> **Historical sub-plans.** These files predate the clean-slate JSONL authority
+> split. Current sequencing lives in `~/src/graphrefly/plan/*.jsonl`; current
+> protocol rules live in `~/src/graphrefly/spec/rules.jsonl`; current
+> TypeScript docs policy lives in `../docs.jsonl`.
+
 Per-DS implementation guides for the design sessions locked during the **DS-13.5 lock-down session 2026-05-01**. Each file is self-contained for handoff to an unfamiliar implementer.
 
 **Parent doc:** [docs/implementation-plan.md, "Phase 13.5 — Locked design sessions awaiting implementation"](../implementation-plan.md)

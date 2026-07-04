@@ -170,13 +170,28 @@ const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
 | `packages/ts/src/` | TypeScript source for core, graph, operators, storage, adapters, and solutions. |
 | `examples/` | Runnable clean-slate examples that consume `@graphrefly/ts`. |
 | `demos/` | Current demo surfaces. Retired demos live under `archive/`. |
+| `docs/docs.jsonl` | Package-local docs policy for this TypeScript repo. |
 | `archive/` | Historical code and retired examples kept out of active workspace ownership. |
-| `website/` | Astro/Starlight documentation site. |
+| `website/` | Legacy/migration site plus the current TS API docs generator host until the generator moves. |
 
 The language-neutral protocol, decisions, conformance scenarios, and formal
 model live in the sibling `graphrefly` authority repository. Sibling runtime
 implementations are self-contained packages; cross-language compatibility is
 behavioral conformance, not symbol-set parity.
+
+## Documentation Ownership
+
+This repo owns package-local TypeScript docs: install notes, package README
+material, examples, demos, JSDoc on exported `@graphrefly/ts` APIs, generated
+TypeScript API reference artifacts, and the automation that produces those
+artifacts.
+
+The shared `graphrefly.dev` website shell, public docs architecture, blog,
+language-neutral guides, protocol/rules views, conformance views, and
+maintainer dashboard live in `~/src/graphrefly` under D563. Do not hand-maintain
+mirrors of those shared docs here. The current `website/` directory remains only
+as legacy/migration material and as the temporary host for TypeScript API docs
+generation.
 
 ## Development
 
@@ -185,7 +200,7 @@ pnpm install
 pnpm test
 pnpm run lint
 pnpm run build
-pnpm run docs:build
+pnpm run docs:gen:check
 ```
 
 Useful package-local commands:
@@ -194,6 +209,8 @@ Useful package-local commands:
 pnpm --filter @graphrefly/ts test
 pnpm --filter @graphrefly/ts build
 pnpm --filter @graphrefly/ts pack --pack-destination /tmp
+pnpm run docs:gen
+pnpm run docs:gen:missing
 ```
 
 ## Release Notes

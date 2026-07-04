@@ -10,7 +10,7 @@ Graph-visible query-driven variant of `projectWorkspaceProposalFamilyApplication
 ## Import
 
 ```ts
-import { workspaceProposalFamilyApplicationReadModelsProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { workspaceProposalFamilyApplicationReadModelsProjector } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature

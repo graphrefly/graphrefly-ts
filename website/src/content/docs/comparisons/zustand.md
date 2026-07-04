@@ -5,6 +5,12 @@ draft: true
 pagefind: false
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 Both GraphReFly and Zustand are simple, ergonomic state management libraries that prize small APIs and minimal boilerplate. GraphReFly adds diamond-safe computed values, streaming operators, and runtime graph inspectability while preserving a familiar API shape.
 
 > Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package or retired compat-path imports from this historical page.

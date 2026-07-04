@@ -10,6 +10,12 @@ tags:
   - spec-v0.4
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # GraphReFly v0.4: The Foundation Your Agent Stack Will Stand On
 
 *Arc 7, Post 36 — The v0.4 Foundation*

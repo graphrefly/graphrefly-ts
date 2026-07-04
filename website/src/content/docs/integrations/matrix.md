@@ -3,6 +3,12 @@ title: "Integration Matrix"
 description: "Current package, adapter, application, and framework surfaces across focused clean-slate subpaths."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 This matrix is the fast inventory view. Use it to find what exists today, where to look next, and which package or doc path to start from.
 
 ## Focused Package Surfaces

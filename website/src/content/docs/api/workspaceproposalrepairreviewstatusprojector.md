@@ -10,7 +10,7 @@ Graph-visible variant of `projectWorkspaceProposalRepairReviewStatuses`.
 ## Import
 
 ```ts
-import { workspaceProposalRepairReviewStatusProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { workspaceProposalRepairReviewStatusProjector } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature

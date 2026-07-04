@@ -12,6 +12,12 @@ tags:
   - ai-collaboration
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # The Audit Trail Your Compliance Team Will Ask For: SENTINEL, Equals, and Causal Trace by Design
 
 *Arc 7, Post 43 — SENTINEL, Equals Substitution, and Observable Causality*

@@ -55,6 +55,7 @@ export function agenticMemoryConsolidationApplicationBundle<T = unknown>(
 		appliedRecords: application.appliedRecords,
 		applicationDecisions: application.applicationDecisions,
 		applicationStatus: application.status,
+		applicationOperationStatuses: application.operationStatuses,
 		applicationIssues: application.issues,
 	};
 }

@@ -5,6 +5,12 @@ draft: true
 pagefind: false
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 Both handle LLM streaming. Vercel AI SDK provides React hooks for chat UIs; GraphReFly provides a full reactive graph for streaming state, orchestration, and multi-model coordination.
 
 > Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package imports or old AI utility paths from this historical page.

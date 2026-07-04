@@ -1,17 +1,21 @@
-# Test guidance (cross-language)
+# Test guidance (TypeScript package-local)
 
-Guidelines for writing, organizing, and maintaining tests in both **graphrefly-ts** and **graphrefly-py**. Read this before adding tests. **Behavioral authority:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (and `docs/roadmap.md` for scope).
+Guidelines for writing, organizing, and maintaining tests in **graphrefly-ts**.
+This file is local guidance, not cross-language authority. Behavioral authority
+lives in `~/src/graphrefly/spec/rules.jsonl` and conformance scenarios live in
+`~/src/graphrefly/spec/conformance.jsonl`; this repo owns TypeScript package
+tests and package-local examples per `docs/docs.jsonl`.
 
 ---
 
 ## Guiding principles
 
 1. **Verify before fixing.** Every "bug" is a hypothesis until a test fails. Write the test first when possible.
-2. **Source + spec over old tests.** If a test disagrees with `~/src/graphrefly/GRAPHREFLY-SPEC.md` or the implementation’s intended semantics, fix the test or the code — the spec wins for GraphReFly.
+2. **Source + spec over old tests.** If a test disagrees with `~/src/graphrefly/spec/rules.jsonl` or the implementation’s intended semantics, fix the test or the code — the spec wins for GraphReFly.
 3. **Test what the code should do.** Express correct semantics; failures are real bugs or spec gaps.
 4. **One concern per test.** Each `it()` / `test_*` should assert one behavior; avoid bundling unrelated scenarios.
 5. **Protocol-level assertions.** Prefer helpers that record **`[[Type, Data?], ...]`** sequences (and, when implemented, **`Graph.observe()`**) over ad-hoc sinks. See §Observation below.
-6. **Authority hierarchy:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` → `docs/roadmap.md` → implementation when spec is silent.
+6. **Authority hierarchy:** `~/src/graphrefly/spec/rules.jsonl` → `~/src/graphrefly/spec/conformance.jsonl` → current `@graphrefly/ts` source/tests when spec is silent.
 
 ---
 

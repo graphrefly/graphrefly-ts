@@ -1291,6 +1291,10 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
+				"label": "agenticMemoryConsolidationApplicationBundle()",
+				"link": "/api/agenticmemoryconsolidationapplicationbundle"
+			},
+			{
 				"label": "assertAgenticMemoryRecordFrame()",
 				"link": "/api/assertagenticmemoryrecordframe"
 			},
@@ -1691,6 +1695,28 @@ export const apiSidebar = [
 			{
 				"label": "resolveTextAdapter()",
 				"link": "/api/resolvetextadapter"
+			}
+		]
+	},
+	{
+		"label": "Scoring",
+		"collapsed": true,
+		"items": [
+			{
+				"label": "isFiniteScore()",
+				"link": "/api/isfinitescore"
+			},
+			{
+				"label": "normalizeScoreSignal()",
+				"link": "/api/normalizescoresignal"
+			},
+			{
+				"label": "scoreSubjects()",
+				"link": "/api/scoresubjects"
+			},
+			{
+				"label": "rankScoredSubjects()",
+				"link": "/api/rankscoredsubjects"
 			}
 		]
 	}

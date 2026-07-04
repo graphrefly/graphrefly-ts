@@ -5,6 +5,12 @@ authors: [david]
 tags: [architecture, design-philosophy, primitives]
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # One Primitive, Two Tiers, Zero Schedulers
 
 *Arc 4, Post 13 — Architecture v3: The Type 3 Breakthrough*

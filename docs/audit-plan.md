@@ -1,5 +1,10 @@
 # GraphReFly Cross-Repo Audit Plan
 
+> **Historical audit prompt bank.** This predates D563/D32 cleanup and is not
+> current cross-language docs authority. Current behavioral conformance lives in
+> `~/src/graphrefly/spec/conformance.jsonl`; current TypeScript docs policy lives
+> in `docs/docs.jsonl`.
+>
 > 16 batches, 7 phases, covering both `graphrefly-ts` and `graphrefly-py`.
 > Each batch is a self-contained prompt for a fresh Claude Code session.
 

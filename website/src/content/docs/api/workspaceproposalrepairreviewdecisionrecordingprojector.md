@@ -10,7 +10,7 @@ Graph-visible variant of `projectWorkspaceProposalRepairReviewDecisionRecordings
 ## Import
 
 ```ts
-import { workspaceProposalRepairReviewDecisionRecordingProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { workspaceProposalRepairReviewDecisionRecordingProjector } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature

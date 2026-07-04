@@ -6,6 +6,12 @@ authors: [david]
 tags: [performance, architecture]
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Bitmask Flag Packing in TypeScript
 
 *Chronicle 17 - Arc 5: Architecture v4 - Performance Without Compromise*

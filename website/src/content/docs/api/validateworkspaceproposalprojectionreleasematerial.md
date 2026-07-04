@@ -13,7 +13,7 @@ diagnostics but cannot prune current-view state or satisfy policy checks.
 ## Import
 
 ```ts
-import { validateWorkspaceProposalProjectionReleaseMaterial } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { validateWorkspaceProposalProjectionReleaseMaterial } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature

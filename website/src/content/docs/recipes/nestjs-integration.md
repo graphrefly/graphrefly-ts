@@ -3,6 +3,12 @@ title: "NestJS Integration"
 description: "Clean-slate NestJS integration with D495 focused provider ergonomics and explicit diagnostics."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # NestJS Integration
 
 Install GraphReFly plus the Nest peers for the phases you use:

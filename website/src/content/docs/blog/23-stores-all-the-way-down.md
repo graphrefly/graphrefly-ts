@@ -5,6 +5,12 @@ authors: [david]
 tags: [architecture, design-philosophy, state]
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Stores All the Way Down: Adding State to Reactive Programming
 
 *Chronicle 23 — Arc 7: From Library to Platform*

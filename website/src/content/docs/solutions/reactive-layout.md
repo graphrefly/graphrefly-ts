@@ -3,6 +3,12 @@ title: Reactive Layout
 description: "D203 reactive-layout solution: DOM-free layout core, graph-visible measurement facts, and focused provider helpers."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 ## What it is
 
 Reactive Layout is a clean-slate `@graphrefly/ts` solution kit for text and simple document layout.

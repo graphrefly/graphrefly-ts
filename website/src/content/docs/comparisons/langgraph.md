@@ -5,6 +5,12 @@ draft: true
 pagefind: false
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 Both GraphReFly and LangGraph.js orchestrate AI agent workflows with graph semantics. GraphReFly uses reactive nodes with automatic dependency resolution; LangGraph uses state dictionaries and channel-based message passing with explicit edge definitions.
 
 > Historical note (CSP-9): this comparison describes the pre-clean-slate/root-package era and is no longer active import or API guidance. Current TypeScript guidance uses `@graphrefly/ts` and focused subpaths; do not copy retired root-package or retired extra-path imports from this historical page.

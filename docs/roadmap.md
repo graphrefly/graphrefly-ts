@@ -1,6 +1,15 @@
 # Roadmap — Active Items (TS + PY)
 
-> **⚠️ Canonical source has moved (2026-04-30):** Active pre-1.0 work is now sequenced in **[`docs/implementation-plan.md`](implementation-plan.md)** (Phases 11–16 + Parked table + Open design sessions). This roadmap is retained as the **vision / wave context document** — useful for the strategic frame (Wave 0/1/2/3 announcement structure, harness engineering positioning, eval-story narrative) but **not authoritative for what's NEXT**. New items go to `implementation-plan.md`; this roadmap is amended only when waves complete and the high-level frame shifts.
+> **Historical roadmap.** Current sequencing lives in
+> `~/src/graphrefly/plan/*.jsonl`; current docs ownership lives in
+> `docs/docs.jsonl` for this repo and D563 in `~/src/graphrefly` for the shared
+> public website/docs/blog. Do not treat this file as authority for public site
+> ownership, cross-language docs ownership, or protocol scope.
+>
+> **⚠️ Historical note:** active pre-1.0 work was moved out of this roadmap on
+> 2026-04-30. Under the clean-slate JSONL system, current sequencing lives in
+> `~/src/graphrefly/plan/*.jsonl`; old prose plans here are retained only for
+> vision and provenance.
 >
 > **PY parity (TS-paired items, PY Wave 2/3 sections, all `[py-parity-*]` tags):** parked until 1.0 ship per re-prioritization 2026-04-30. See `implementation-plan.md` § Parked.
 
@@ -8,9 +17,9 @@
 >
 > **Completed phases and items have been archived to `archive/roadmap/*.jsonl`.** See `docs/docs.jsonl` § "Roadmap archive" for the archive structure and workflow.
 >
-> **Spec:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical)
+> **Historical spec reference:** old prose `~/src/graphrefly/GRAPHREFLY-SPEC.md`; current protocol authority is `~/src/graphrefly/spec/rules.jsonl`.
 >
-> **Guidance:** [docs.jsonl](docs.jsonl) (documentation), [test-guidance.md](test-guidance.md) (tests). Agent context: repo root `CLAUDE.md`; skills under `.claude/skills/`.
+> **Guidance:** [docs.jsonl](docs.jsonl) (TypeScript package-local docs), [test-guidance.md](test-guidance.md) (local tests). Agent context: repo root `CLAUDE.md`; skills under `.agents/skills/`.
 >
 > **Predecessors:** callbag-recharge (TS, 170+ modules), callbag-recharge-py (PY, Phase 0–1). Key patterns and lessons carried forward — see `archive/docs/design-archive-index.jsonl` for lineage. Clone paths: `~/src/callbag-recharge` (TS), `~/src/callbag-recharge-py` (PY).
 

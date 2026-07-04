@@ -3,6 +3,12 @@ title: "Spending alerts — structural causal tracing"
 description: "A 5-hop reactive pipeline that flags anomalous transactions. Ask 'why was this flagged?' and get a walkable causal chain — structure is the trace."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 Homepage pain point 02 says: _your agent flagged something. Why? Logs are a wall of text; state is a snapshot, not a story._ This demo is the short answer. A small reactive graph flags an unusual transaction; one call — `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` — returns a step-by-step causal chain from raw input to final conclusion. No log parsing, no ad-hoc tracing code. **The graph topology is the trace.**
 
 [Node-runnable source →](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/spending-alerts) · `pnpm --filter @graphrefly-examples/spending-alerts start`
@@ -108,4 +114,4 @@ pre-CSP-9 `promptNode` / AI adapter examples are not current package guidance.
 
 ## Source
 
-Runnable Node-only pipeline: [`examples/spending-alerts/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/spending-alerts). Related: homepage pain point 02, [`explainPath`](https://github.com/graphrefly/graphrefly-ts/blob/main/src/graph/explain.ts), [§9.3e in the roadmap](/roadmap/). This page stays the canonical clean-slate walkthrough until an agent-backed browser version is designed separately.
+Runnable Node-only pipeline: [`examples/spending-alerts/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/spending-alerts). Related: homepage pain point 02, [`explainPath`](https://github.com/graphrefly/graphrefly-ts/blob/main/src/graph/explain.ts), [§9.3e in the roadmap](/roadmap/). This page is a legacy website walkthrough for the package-local example; shared public docs ownership now lives in `~/src/graphrefly` under D563.

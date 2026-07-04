@@ -6,6 +6,12 @@ authors: [david]
 tags: [architecture, performance]
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # The Inspector Pattern: Observability as a First-Class Citizen
 
 *Arc 2, Post 6 — Architecture v1: The Naive First Attempt*

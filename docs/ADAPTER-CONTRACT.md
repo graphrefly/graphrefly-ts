@@ -1,7 +1,12 @@
 # Adapter Behavior Contract
 
-> Canonical cross-language contract for GraphReFly I/O adapters (`fromWebhook`, `fromWebSocket`, `toWebSocket`, `fromFSWatch`, `fromHTTP`, etc.).
-> Resolved as **decision K** in `docs/optimizations.md`. Keep this document in sync across both `graphrefly-ts` and `graphrefly-py`.
+> **Historical local reference.** This predates D563 and the clean-slate JSONL
+> authority split. Current protocol and cross-runtime contracts live in
+> `~/src/graphrefly`; this repo owns only package-local TypeScript API docs and
+> examples per `docs/docs.jsonl`.
+>
+> Treat the rules below as TypeScript adapter history unless a current
+> `~/src/graphrefly` rule/decision or `@graphrefly/ts` API doc points back here.
 
 ---
 

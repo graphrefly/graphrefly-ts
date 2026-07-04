@@ -3,6 +3,12 @@ title: "Integrations"
 description: "Connect GraphReFly to frameworks and infrastructure systems."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 GraphReFly integrations are organized by role so teams can quickly choose the right entry point:
 
 - **Adapters**: Connect external systems and host runtimes to graph nodes through focused subpaths.

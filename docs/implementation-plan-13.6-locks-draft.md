@@ -1,5 +1,10 @@
 # Phase 13.6.A — Locked rules (draft)
 
+> **Historical pre-jsonl audit draft.** Current protocol authority lives in
+> `~/src/graphrefly/spec/rules.jsonl`, formal models in `~/src/graphrefly/formal`,
+> and conformance scenarios in `~/src/graphrefly/spec/conformance.jsonl`.
+> Do not treat this file as current protocol or docs authority.
+
 *Draft output of the rules/invariants audit (Phase 13.6.A). Working file — NOT yet applied to spec / COMPOSITION-GUIDE / memory files. Review pass before finalize → handoff to Rust port agent.*
 
 *Scope: TS only. PY parity dropped from this pass per user direction (2026-05-01).*
@@ -1181,4 +1186,3 @@ Notation: `X.Y′` = amendment to existing lock; `(NEW: X.Y)` = brand-new lock a
 - **Lock 7.A** confirms the locked invariants are **pure code rules**. Agent-process noise (M.7 / M.14 / M.18 etc) does not enter the Rust spec.
 - **Lock 1.A** abort criteria for `T | Node<T>` widening assumes "imperative" means a synchronous mutation method. Rust's `&mut self` mutation is the analog; the abort criteria translate directly.
 - **Implementation Delta #18 (sugars on Graph in TS):** Rust port should put `state` / `producer` / `derived` / `effect` BACK into core alongside `dynamic_node` / `auto_track_node` (per user directive 2026-05-03). Standalone returns `Node<T>`; Graph methods become thin wrappers (`graph.state(name, ...) → graph.add(name, state(...))`). Aligns with the JSDoc-example mental model and reduces the surface-area split.
-

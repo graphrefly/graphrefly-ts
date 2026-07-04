@@ -12,6 +12,12 @@ tags:
   - enterprise
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Proof Before Promises: TLA+, Property-Based Tests, and a TS↔PY Contract for Agent Runtimes
 
 *Arc 7, Post 44 — Rigor Infrastructure*

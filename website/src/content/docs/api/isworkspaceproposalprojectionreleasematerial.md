@@ -11,7 +11,7 @@ bounded current-view retention hint.
 ## Import
 
 ```ts
-import { isWorkspaceProposalProjectionReleaseMaterial } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { isWorkspaceProposalProjectionReleaseMaterial } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature

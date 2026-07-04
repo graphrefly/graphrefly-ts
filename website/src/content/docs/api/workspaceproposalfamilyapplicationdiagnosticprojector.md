@@ -10,7 +10,7 @@ Graph-visible variant of `projectWorkspaceProposalFamilyApplicationDiagnostics`.
 ## Import
 
 ```ts
-import { workspaceProposalFamilyApplicationDiagnosticProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { workspaceProposalFamilyApplicationDiagnosticProjector } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature

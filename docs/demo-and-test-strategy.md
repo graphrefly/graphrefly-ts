@@ -1,5 +1,10 @@
 # Demo & Test Strategy — Domain Layers
 
+> **Historical demo strategy.** Current `graphrefly-ts` ownership is
+> package-local examples/demos only. Shared public website, blog, shared guides,
+> and language-neutral docs architecture live in `~/src/graphrefly` under D563.
+> Use `docs/docs.jsonl` for the current TypeScript docs boundary.
+>
 > **Context:** Phase 4 domain layers (4.1 orchestration done, 4.2–4.5 in progress). This document defines demos that stress-test, showcase, and visualize GraphReFly's domain layer composition — and the testing philosophy that feeds back into the library itself.
 >
 > **Predecessor lessons:** callbag-recharge demos (H1–H4, D1–D6) established the pattern: `store.ts` = pure library code, component = framework rendering, no mocks. The caveat: AI implementors descoped demos to toys. This plan counters that with explicit acceptance criteria per demo.

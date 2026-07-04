@@ -1,5 +1,10 @@
 # Known issues
 
+> Package-local tombstones only. Current docs ownership is defined by
+> `docs/docs.jsonl`: this repo owns `@graphrefly/ts` docs/API/examples/demos,
+> while shared website/blog/protocol/guide/conformance authority lives in
+> `~/src/graphrefly`.
+
 ## HISTORICAL — pre-CSP-9 browser demos retired from active workspace
 
 **Symptom:** `demos/knowledge-graph/` and `demos/pagerduty-triage/`

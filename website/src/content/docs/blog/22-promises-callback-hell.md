@@ -6,6 +6,12 @@ authors: [david]
 tags: [design-philosophy, correctness, architecture]
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Promises Are the New Callback Hell
 
 *Chronicle 22 - Arc 8: Engineering Deep Cuts (Companion)*

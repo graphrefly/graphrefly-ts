@@ -1,6 +1,12 @@
 # Cross-track ledger — presentation ↔ Rust-port coordination
 
-> **Single source of truth** for any change that couples the two parallel tracks:
+> **Retired clean-slate history.** Structural `Impl` parity, the old
+> cross-track-ledger workflow, and the old port model are retired by D24/D32/D563.
+> Current parity means behavioral conformance scenarios in
+> `~/src/graphrefly/spec/conformance.jsonl`; current decisions live in
+> `~/src/graphrefly/decisions/decisions.jsonl`.
+>
+> **Historical single source of truth** for old-main changes that coupled two parallel tracks:
 > the **presentation track** (`@graphrefly/graphrefly`, this repo, `src/`) and the
 > **Rust-port track** (`@graphrefly/native`, `~/src/graphrefly-rs`).
 >
@@ -15,9 +21,13 @@
 
 ---
 
-## When to add a row here
+## Do not add new rows
 
-Add a row to the relevant section below **before** landing the change, whenever:
+Do not add new clean-slate rows here. For current work, route behavioral parity
+through `~/src/graphrefly/spec/conformance.jsonl` and architectural decisions
+through `~/src/graphrefly/decisions/decisions.jsonl`.
+
+Historical rows below were added before landing a change when:
 
 1. **`Impl`-contract widening** — presentation starts importing a NEW symbol from a
    `@graphrefly/pure-ts` public barrel (`core`, `extra`, …). This widens the contract

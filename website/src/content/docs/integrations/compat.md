@@ -3,6 +3,12 @@ title: "Retired Compat"
 description: "Historical note for the retired pre-clean-slate compatibility layers."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 The old `@graphrefly/graphrefly/compat/*` runtime model is retired. Clean-slate framework and host bindings now live under focused `@graphrefly/ts/adapters/*` subpaths.
 
 ## Current replacements

@@ -11,6 +11,12 @@ tags:
   - spec-v0.2
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Pure Push: How GraphReFly Eliminated the Pull Phase
 
 *Arc 6, Post 34 — GraphReFly SPEC v0.2: The Pure Push Model*

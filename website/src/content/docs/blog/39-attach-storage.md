@@ -11,6 +11,12 @@ tags:
   - durability
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Durable, Attachable, Vendor-Neutral: How attachStorage Ends Checkpoint Sprawl
 
 *Arc 7, Post 39 — Persistence Unification*

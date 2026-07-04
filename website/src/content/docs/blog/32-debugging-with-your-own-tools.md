@@ -10,6 +10,12 @@ tags:
   - harness
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 # Why AI Can't Debug What It Can't See — And How We Fixed That
 
 *An AI-assisted debugging session that proved a simple thesis: give AI the right inspection tools, and it finds the problem in seconds — not hours.*

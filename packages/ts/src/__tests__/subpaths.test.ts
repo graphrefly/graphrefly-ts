@@ -44,7 +44,10 @@ import type {
 	AgenticMemoryRecord,
 	AgenticMemoryRecordApplicationDecision,
 	AgenticMemoryRecordApplicationHistory,
+	AgenticMemoryRecordApplicationMaterialIdentity,
+	AgenticMemoryRecordApplicationMaterialIdentityAlgorithm,
 	AgenticMemoryRecordApplicationOperation,
+	AgenticMemoryRecordApplicationOperationStatus,
 	AgenticMemoryRecordApplicationPolicy,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
@@ -956,10 +959,16 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof rootPackage.agenticMemoryRecordApplicationBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof rootPackage.applyAgenticMemoryRecordAdmissions).toBe("function");
+		expect(rootPackage.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
+			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
+		);
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordApplicationBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof solutions.applyAgenticMemoryRecordAdmissions).toBe("function");
+		expect(solutions.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
+			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
+		);
 		expect(typeof agenticMemory.agenticMemoryBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryKgProjectionBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordFrame).toBe("function");
@@ -973,17 +982,29 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.admitAgenticMemoryRecordProposals).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordApplicationBundle).toBe("function");
 		expect(typeof agenticMemory.applyAgenticMemoryRecordAdmissions).toBe("function");
+		expect(agenticMemory.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
+			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
+		);
 		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
 		expectTypeOf<AgenticMemoryRecordApplicationPolicy>().toHaveProperty("policyId");
 		expectTypeOf<AgenticMemoryRecordApplicationOperation>().toEqualTypeOf<"create" | "replace">();
+		expectTypeOf<AgenticMemoryRecordApplicationMaterialIdentityAlgorithm>().toEqualTypeOf<"graphrefly.agenticMemoryRecordApplicationMaterial.v1">();
+		expectTypeOf<AgenticMemoryRecordApplicationMaterialIdentity>().toHaveProperty("key");
+		expectTypeOf<AgenticMemoryRecordApplicationOperationStatus>().toHaveProperty(
+			"operationVersion",
+		);
 		expectTypeOf<AgenticMemoryRecordApplicationDecision>()
 			.toHaveProperty("reasonCode")
 			.toEqualTypeOf<string>();
+		expectTypeOf<AgenticMemoryRecordApplicationDecision>().toHaveProperty("materialIdentity");
 		expectTypeOf<AgenticMemoryRecordApplicationDecision>()
 			.toHaveProperty("operation")
 			.toEqualTypeOf<AgenticMemoryRecordApplicationOperation>();
 		expectTypeOf<AgenticMemoryRecordApplicationHistory>().toHaveProperty("entries");
 		expectTypeOf<AgenticMemoryConsolidationApplicationBundle>().toHaveProperty("application");
+		expectTypeOf<AgenticMemoryConsolidationApplicationBundle>().toHaveProperty(
+			"applicationOperationStatuses",
+		);
 		expectTypeOf<AgenticMemoryRecordCandidateMaterial>().toHaveProperty("record");
 		expectTypeOf<AgenticMemoryRecordCandidateMaterial>().toHaveProperty("attribution");
 		expectTypeOf<AgenticMemoryContextAttribution>()

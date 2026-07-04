@@ -13,7 +13,7 @@ application status, family truth, outcome, or repair review authority.
 ## Import
 
 ```ts
-import { projectWorkspaceProposalFamilyApplicationDiagnostics } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { projectWorkspaceProposalFamilyApplicationDiagnostics } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature

@@ -3,6 +3,12 @@ title: "Historical knowledge graph extraction demo"
 description: "Historical pre-CSP-9 browser demo notes. The active clean-slate successor is examples/knowledge-graph."
 ---
 
+> **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
+> language-neutral docs ownership now lives in `~/src/graphrefly` under D563.
+> This page is retained here only as migration/reference material while the TS
+> API generator still lives in `website/`.
+
+
 These notes describe the historical pre-CSP-9 browser demo for knowledge-graph
 extraction. Its source was retired from the active tree during CSP-9/B66
 closeout because it depended on retired root/pure-ts demo surfaces such as old

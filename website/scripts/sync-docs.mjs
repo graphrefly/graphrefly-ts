@@ -1,123 +1,42 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const websiteRoot = join(__dirname, "..");
 const repoRoot = join(websiteRoot, "..");
-const repoDocs = join(repoRoot, "docs");
-const specRepo = join(repoRoot, "..", "graphrefly");
-const outDir = join(websiteRoot, "src", "content", "docs");
 const publicDir = join(websiteRoot, "public");
 
 const checkMode = process.argv.includes("--check");
-const SPEC_RAW_URL =
-	"https://raw.githubusercontent.com/graphrefly/graphrefly/main/GRAPHREFLY-SPEC.md";
+const legacyDocsRoot = join(websiteRoot, "src", "content", "docs");
+const legacyMarker = "Legacy TypeScript website content";
 
 /**
- * Sources:
- *   - SHARED: `GRAPHREFLY-SPEC.md` from ~/src/graphrefly only (sibling `graphrefly` repo)
- *   - LOCAL: other markdown from this repo's docs/
- *
- * Format: [sourceDir, srcName, destName, title]
+ * D563 boundary:
+ *   - Shared public website/docs/blog/protocol pages are owned by ~/src/graphrefly.
+ *   - This legacy website tree remains only as a migration reference and the current
+ *     TypeScript API-doc generator host until that generator moves.
+ *   - Do not mirror shared docs or package-local prose pages into this tree by hand.
  */
-const SHARED_FILES = [
-	["GRAPHREFLY-SPEC.md", "spec.md", "Specification"],
-];
 
-const LOCAL_FILES = [
-	["roadmap.md", "roadmap.md", "Roadmap"],
-	["benchmark.md", "benchmark.md", "Benchmark"],
-];
-
-function titleFromBody(src) {
-	const line = src.split(/\r?\n/).find((l) => l.startsWith("# "));
-	if (!line) return "Untitled";
-	return line.replace(/^#\s+/, "").trim();
-}
-
-function withFrontmatter(body, title, description) {
-	return `---
-title: ${JSON.stringify(title)}
-description: ${JSON.stringify(description)}
----
-
-${body.replace(/^\ufeff/, "")}
-`;
-}
-
-async function readBodyWithFallback(srcPath, destName) {
-	try {
-		return readFileSync(srcPath, "utf8");
-	} catch {
-		if (destName !== "spec.md") {
-			console.warn(`[sync-docs] skip (missing): ${srcPath}`);
-			return null;
-		}
-		console.warn(`[sync-docs] missing local spec at: ${srcPath}`);
-		console.log(`[sync-docs] fetching shared spec: ${SPEC_RAW_URL}`);
-		try {
-			const res = await fetch(SPEC_RAW_URL);
-			if (!res.ok) {
-				console.warn(`[sync-docs] skip (fetch failed ${res.status}): ${SPEC_RAW_URL}`);
-				return null;
-			}
-			return await res.text();
-		} catch {
-			console.warn(`[sync-docs] skip (fetch error): ${SPEC_RAW_URL}`);
-			return null;
-		}
-	}
-}
-
-async function syncFile(srcPath, destName, defaultTitle) {
-	const body = await readBodyWithFallback(srcPath, destName);
-	if (body === null) return false;
-	const title = defaultTitle || titleFromBody(body);
-	const desc =
-		destName === "spec.md"
-			? "Behavior spec for graphrefly-ts and graphrefly-py."
-			: `GraphReFly — ${title}.`;
-	const destPath = join(outDir, destName);
-	const content = withFrontmatter(body, title, desc);
-
-	if (checkMode) {
-		if (existsSync(destPath)) {
-			const existing = readFileSync(destPath, "utf8");
-			if (existing !== content) {
-				console.log(`  ⚠ ${destName} is stale`);
-				return true; // stale
-			}
-			console.log(`  ✓ ${destName} is up to date`);
-		} else {
-			console.log(`  ⚠ ${destName} does not exist`);
-			return true; // stale
-		}
-		return false;
-	}
-
-	writeFileSync(destPath, content, "utf8");
-	console.log(`[sync-docs] ${destName}`);
-	return false;
-}
-
-mkdirSync(outDir, { recursive: true });
+mkdirSync(publicDir, { recursive: true });
 
 let stale = 0;
 
-// Shared spec from canonical repo (no in-repo docs/ copy)
-for (const [srcName, destName, defaultTitle] of SHARED_FILES) {
-	const srcPath = join(specRepo, srcName);
-	if (await syncFile(srcPath, destName, defaultTitle)) stale++;
+function legacyMarkdownFiles(dir) {
+	const files = [];
+	for (const name of readdirSync(dir)) {
+		const filePath = join(dir, name);
+		if (filePath.includes("/api/")) continue;
+		const stat = statSync(filePath);
+		if (stat.isDirectory()) {
+			files.push(...legacyMarkdownFiles(filePath));
+			continue;
+		}
+		if (name.endsWith(".md")) files.push(filePath);
+	}
+	return files;
 }
-
-// Local docs from this repo
-for (const [srcName, destName, defaultTitle] of LOCAL_FILES) {
-	const srcPath = join(repoDocs, srcName);
-	if (await syncFile(srcPath, destName, defaultTitle)) stale++;
-}
-
-// ── Public assets: copy repo-root files into website/public/ ───────────────
 
 const PUBLIC_FILES = ["robots.txt", "llms.txt"];
 
@@ -145,6 +64,17 @@ for (const name of PUBLIC_FILES) {
 	} else {
 		writeFileSync(dest, content, "utf8");
 		console.log(`[sync-docs] public/${name}`);
+	}
+}
+
+if (checkMode) {
+	for (const filePath of legacyMarkdownFiles(legacyDocsRoot)) {
+		const content = readFileSync(filePath, "utf8");
+		if (content.includes(legacyMarker)) continue;
+		console.log(
+			`  ⚠ ${filePath.replace(`${websiteRoot}/`, "")} is missing the D563 legacy marker`,
+		);
+		stale++;
 	}
 }
 

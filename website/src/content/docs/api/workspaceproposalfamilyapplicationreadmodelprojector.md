@@ -10,7 +10,7 @@ Graph-visible variant of `projectWorkspaceProposalFamilyApplicationReadModel`.
 ## Import
 
 ```ts
-import { workspaceProposalFamilyApplicationReadModelProjector } from "@graphrefly/ts/solutions/work-item/scheduling";
+import { workspaceProposalFamilyApplicationReadModelProjector } from "@graphrefly/ts/solutions/work-item";
 ```
 
 ## Signature
