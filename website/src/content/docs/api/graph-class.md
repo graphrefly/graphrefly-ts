@@ -22,7 +22,7 @@ class Graph
 ## Example
 
 ```ts
-import { graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 
 const g = graph({ name: "counter" });
 const count = g.state(0, { name: "count" });

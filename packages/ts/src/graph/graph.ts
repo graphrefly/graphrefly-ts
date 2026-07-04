@@ -135,7 +135,7 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
  *
  * @example
  * ```ts
- * import { graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  *
  * const count = graph().state(0);
  * count.set(1);
@@ -153,7 +153,7 @@ export class StateNode<T> extends Node<T> {
  *
  * @example
  * ```ts
- * import { graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  *
  * const g = graph({ name: "counter" });
  * const count = g.state(0, { name: "count" });
@@ -969,7 +969,7 @@ export class Graph {
  * @returns A `Graph` instance whose sugar methods create graph-registered nodes.
  * @example
  * ```ts
- * import { graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  *
  * const g = graph({ name: "counter" });
  * const count = g.state(0, { name: "count" });

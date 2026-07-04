@@ -12,7 +12,7 @@ inner's emissions are forwarded.
 ## Import
 
 ```ts
-import { switchMap } from "@graphrefly/ts";
+import { switchMap } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -34,7 +34,7 @@ A `Operator<TIn, TOut>` value.
 ## Example
 
 ```ts
-import { switchMap } from "@graphrefly/ts";
+import { switchMap } from "@graphrefly/ts/operators";
 ```
 
 ## Source

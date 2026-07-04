@@ -32,7 +32,7 @@ A `ReactiveBlockLayoutBundle` containing the gap input, measured block output, p
 ## Example
 
 ```ts
-import { graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 import {
   blockAdaptersProvider,
   blockMeasurementProvider,

@@ -42,10 +42,10 @@ import type { Operator } from "./operators.js";
  * completeWhenDepsComplete); any dep ERROR propagates (default errorWhenDepsError). Emits a fresh
  * tuple per wave (D49 — no dedup; compose `distinctUntilChanged` to suppress unchanged tuples).
  * @returns A `Operator<unknown, T>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { combine } from "@graphrefly/ts";
+ * import { combine } from "@graphrefly/ts/operators";
  * ```
  */
 export function combine<T extends readonly unknown[]>(): Operator<unknown, T> {
@@ -73,10 +73,10 @@ export const combineLatest = combine;
  * completes (not the secondary) — `completeWhenDepsComplete:false + terminalAsRealInput:true` with a
  * primary-terminal check; a secondary terminal is ignored (its last value persists).
  * @returns A `Operator<unknown, readonly [A, B]>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { withLatestFrom } from "@graphrefly/ts";
+ * import { withLatestFrom } from "@graphrefly/ts/operators";
  * ```
  */
 export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
@@ -110,10 +110,10 @@ interface ZipState {
  * tuple can form) — `completeWhenDepsComplete:false + terminalAsRealInput:true`. Any dep ERROR
  * propagates (default errorWhenDepsError).
  * @returns A `Operator<unknown, T>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { zip } from "@graphrefly/ts";
+ * import { zip } from "@graphrefly/ts/operators";
  * ```
  */
 export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
@@ -163,10 +163,10 @@ interface ConcatState<S> {
  * completes (or when dep 0 completes and dep 1 already had). `completeWhenDepsComplete:false +
  * terminalAsRealInput:true`; any dep ERROR propagates (default errorWhenDepsError).
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { concat } from "@graphrefly/ts";
+ * import { concat } from "@graphrefly/ts/operators";
  * ```
  */
 export function concat<S>(): Operator<S, S> {
@@ -214,10 +214,10 @@ interface RaceState {
  * (a LOSER's error must not error the race — only the winner's) + `completeWhenDepsComplete:false +
  * terminalAsRealInput:true`. If every dep terminates before any DATA, COMPLETE.
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { race } from "@graphrefly/ts";
+ * import { race } from "@graphrefly/ts/operators";
  * ```
  */
 export function race<S>(): Operator<S, S> {
@@ -285,10 +285,10 @@ export function race<S>(): Operator<S, S> {
  * COMPLETE (`completeWhenDepsComplete:false + terminalAsRealInput:true`; a notifier terminal is
  * ignored). Source/notifier ERROR propagates (default errorWhenDepsError).
  * @returns A `Operator<unknown, S[]>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { buffer } from "@graphrefly/ts";
+ * import { buffer } from "@graphrefly/ts/operators";
  * ```
  */
 export function buffer<S>(): Operator<unknown, S[]> {
@@ -322,10 +322,10 @@ export function buffer<S>(): Operator<unknown, S[]> {
  * terminalAsRealInput:true`.
  * @param count - count value used by the helper.
  * @returns A `Operator<S, S[]>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { bufferCount } from "@graphrefly/ts";
+ * import { bufferCount } from "@graphrefly/ts/operators";
  * ```
  */
 export function bufferCount<S>(count: number): Operator<S, S[]> {
@@ -368,10 +368,10 @@ interface SampleState<S> {
  * `completeWhenDepsComplete:false + errorWhenDepsError:false + terminalAsRealInput:true` (manual
  * terminal handling). No flush of the held value on source COMPLETE (RxJS sample semantics).
  * @returns A `Operator<unknown, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { sample } from "@graphrefly/ts";
+ * import { sample } from "@graphrefly/ts/operators";
  * ```
  */
 export function sample<S>(): Operator<unknown, S> {
@@ -425,10 +425,10 @@ export function sample<S>(): Operator<unknown, S> {
  * COMPLETE forwards COMPLETE; a notifier DATA triggers COMPLETE. Source/notifier ERROR propagates
  * (default errorWhenDepsError).
  * @returns A `Operator<unknown, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { takeUntil } from "@graphrefly/ts";
+ * import { takeUntil } from "@graphrefly/ts/operators";
  * ```
  */
 export function takeUntil<S>(): Operator<unknown, S> {

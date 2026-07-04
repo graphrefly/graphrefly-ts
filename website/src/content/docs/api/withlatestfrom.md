@@ -17,7 +17,7 @@ primary-terminal check; a secondary terminal is ignored (its last value persists
 ## Import
 
 ```ts
-import { withLatestFrom } from "@graphrefly/ts";
+import { withLatestFrom } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -33,7 +33,7 @@ A `Operator<unknown, readonly [A, B]>` value.
 ## Example
 
 ```ts
-import { withLatestFrom } from "@graphrefly/ts";
+import { withLatestFrom } from "@graphrefly/ts/operators";
 ```
 
 ## Source

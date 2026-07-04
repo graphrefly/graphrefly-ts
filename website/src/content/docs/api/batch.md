@@ -10,7 +10,7 @@ Run updates as one coalesced batch.
 ## Import
 
 ```ts
-import { batch } from "@graphrefly/ts";
+import { batch } from "@graphrefly/ts/core";
 ```
 
 ## Signature
@@ -32,7 +32,8 @@ The callback return value when the batch commits.
 ## Example
 
 ```ts
-import { batch, graph } from "@graphrefly/ts";
+import { batch } from "@graphrefly/ts/core";
+import { graph } from "@graphrefly/ts/graph";
 
 const g = graph();
 const left = g.state(0);

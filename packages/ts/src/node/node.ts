@@ -142,7 +142,7 @@ export type { NodeCheckpointState, NodeOptions, NodeRestoreState, Status } from 
  *
  * @example
  * ```ts
- * import { node } from "@graphrefly/ts";
+ * import { node } from "@graphrefly/ts/core";
  *
  * const source = node<number>([], null);
  * source.subscribe((value) => console.log(value));
@@ -852,7 +852,7 @@ export class Node<T = unknown> {
  * @returns A graph-agnostic `Node`.
  * @example
  * ```ts
- * import { depLatest, node } from "@graphrefly/ts";
+ * import { depLatest, node } from "@graphrefly/ts/core";
  *
  * const source = node<number>([], null, { initial: 1 });
  * const doubled = node<number>([source], (ctx) => {

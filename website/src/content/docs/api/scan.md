@@ -36,7 +36,8 @@ An operator that emits the accumulator after every input value.
 ## Example
 
 ```ts
-import { graph, scan } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { scan } from "@graphrefly/ts/operators";
 
 const g = graph();
 const values = g.state(1);

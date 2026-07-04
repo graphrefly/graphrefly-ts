@@ -32,7 +32,7 @@ A driver that can connect, send, and optionally stream live sessions.
 ## Example
 
 ```ts
-import { domWebSocketDriver } from "@graphrefly/ts";
+import { domWebSocketDriver } from "@graphrefly/ts/graph";
 
 const ws = domWebSocketDriver(WebSocket);
 ```

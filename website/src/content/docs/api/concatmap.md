@@ -12,7 +12,7 @@ Preserves source order.
 ## Import
 
 ```ts
-import { concatMap } from "@graphrefly/ts";
+import { concatMap } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -34,7 +34,7 @@ A `Operator<TIn, TOut>` value.
 ## Example
 
 ```ts
-import { concatMap } from "@graphrefly/ts";
+import { concatMap } from "@graphrefly/ts/operators";
 ```
 
 ## Source

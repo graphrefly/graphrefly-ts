@@ -14,7 +14,7 @@ propagates (default errorWhenDepsError).
 ## Import
 
 ```ts
-import { zip } from "@graphrefly/ts";
+import { zip } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -30,7 +30,7 @@ A `Operator<unknown, T>` value.
 ## Example
 
 ```ts
-import { zip } from "@graphrefly/ts";
+import { zip } from "@graphrefly/ts/operators";
 ```
 
 ## Source

@@ -13,7 +13,7 @@ ignored). Source/notifier ERROR propagates (default errorWhenDepsError).
 ## Import
 
 ```ts
-import { buffer } from "@graphrefly/ts";
+import { buffer } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -29,7 +29,7 @@ A `Operator<unknown, S[]>` value.
 ## Example
 
 ```ts
-import { buffer } from "@graphrefly/ts";
+import { buffer } from "@graphrefly/ts/operators";
 ```
 
 ## Source

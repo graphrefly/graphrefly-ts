@@ -12,7 +12,7 @@ ERROR or projector failure, every live inner is removed before the operator emit
 ## Import
 
 ```ts
-import { mergeMap } from "@graphrefly/ts";
+import { mergeMap } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -38,7 +38,7 @@ A `Operator<TIn, TOut>` value.
 ## Example
 
 ```ts
-import { mergeMap } from "@graphrefly/ts";
+import { mergeMap } from "@graphrefly/ts/operators";
 ```
 
 ## Source

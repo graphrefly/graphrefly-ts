@@ -42,7 +42,7 @@ A graph-agnostic `Node`.
 ## Example
 
 ```ts
-import { depLatest, node } from "@graphrefly/ts";
+import { depLatest, node } from "@graphrefly/ts/core";
 
 const source = node<number>([], null, { initial: 1 });
 const doubled = node<number>([source], (ctx) => {

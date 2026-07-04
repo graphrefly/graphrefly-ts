@@ -14,7 +14,7 @@ terminal handling). No flush of the held value on source COMPLETE (RxJS sample s
 ## Import
 
 ```ts
-import { sample } from "@graphrefly/ts";
+import { sample } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -30,7 +30,7 @@ A `Operator<unknown, S>` value.
 ## Example
 
 ```ts
-import { sample } from "@graphrefly/ts";
+import { sample } from "@graphrefly/ts/operators";
 ```
 
 ## Source

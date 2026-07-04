@@ -102,7 +102,7 @@ function defaultVisibilityDocument(): VisibilityDocumentLike | undefined {
  * @returns An open-ended source operator that emits animation-frame timestamps as `DATA`.
  * @example
  * ```ts
- * import { graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  * import { fromRaf } from "@graphrefly/ts/sources/browser";
  *
  * const frames = graph().initNode(fromRaf({ pauseWhenHidden: true }), [], { name: "frames" });

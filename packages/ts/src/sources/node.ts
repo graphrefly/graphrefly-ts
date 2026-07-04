@@ -391,11 +391,11 @@ export function fromFSWatch(
  * @returns A node-only source operator that emits `SpawnEvent` DATA values and terminal ERROR/COMPLETE events.
  * @example
  * ```ts
- * import { graph, node } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  * import { fromSpawn } from "@graphrefly/ts/sources/node";
  *
  * const g = graph();
- * const ls = node(g, fromSpawn("git", ["status", "--short"], { cwd: process.cwd() }));
+ * const ls = g.initNode(fromSpawn("git", ["status", "--short"], { cwd: process.cwd() }), []);
  * ```
  * @category sources
  */
@@ -520,7 +520,7 @@ export function nodeProcessDriver(opts: NodeProcessDriverOptions = {}): LocalPro
  * @returns A source operator that emits one process result and then COMPLETE.
  * @example
  * ```ts
- * import { graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  * import { runProcess } from "@graphrefly/ts/sources/node";
  *
  * const status = graph().initNode(runProcess("git", ["status"]), []);
@@ -803,11 +803,11 @@ function readGitHead(
  * @returns A node-only source operator that emits `GitEvent` values after the initial baseline commit.
  * @example
  * ```ts
- * import { graph, node } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  * import { fromGitHook } from "@graphrefly/ts/sources/node";
  *
  * const g = graph();
- * const commits = node(g, fromGitHook(process.cwd(), { include: ["packages/**"] }));
+ * const commits = g.initNode(fromGitHook(process.cwd(), { include: ["packages/**"] }), []);
  * ```
  * @category sources
  */

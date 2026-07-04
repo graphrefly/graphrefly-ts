@@ -15,7 +15,7 @@ interval source deactivates instead of ticking forever.
 ## Import
 
 ```ts
-import { bufferTime } from "@graphrefly/ts";
+import { bufferTime } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -41,7 +41,7 @@ A `Node<S[]>` value.
 ## Example
 
 ```ts
-import { bufferTime } from "@graphrefly/ts";
+import { bufferTime } from "@graphrefly/ts/operators";
 ```
 
 ## Source

@@ -27,7 +27,8 @@ An operator that forwards DATA from any dependency.
 ## Example
 
 ```ts
-import { graph, merge } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { merge } from "@graphrefly/ts/operators";
 
 const merged = graph().initNode(merge<number>(), [left, right]);
 ```

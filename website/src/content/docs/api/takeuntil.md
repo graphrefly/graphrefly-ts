@@ -13,7 +13,7 @@ COMPLETE forwards COMPLETE; a notifier DATA triggers COMPLETE. Source/notifier E
 ## Import
 
 ```ts
-import { takeUntil } from "@graphrefly/ts";
+import { takeUntil } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -29,7 +29,7 @@ A `Operator<unknown, S>` value.
 ## Example
 
 ```ts
-import { takeUntil } from "@graphrefly/ts";
+import { takeUntil } from "@graphrefly/ts/operators";
 ```
 
 ## Source

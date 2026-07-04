@@ -36,7 +36,8 @@ A source operator that emits the current time when the schedule matches.
 ## Example
 
 ```ts
-import { graph, fromCron } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { fromCron } from "@graphrefly/ts/sources";
 
 const everyMinute = graph().initNode(fromCron("0 * * * *"), []);
 ```

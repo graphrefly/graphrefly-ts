@@ -274,6 +274,7 @@ function canonicalSubpathForSource(filePath) {
 		.join("/");
 	if (sourcePath === "index.ts") return ".";
 	if (
+		sourcePath.startsWith("batch/") ||
 		sourcePath.startsWith("ctx/") ||
 		sourcePath.startsWith("dispatcher/") ||
 		sourcePath.startsWith("node/") ||
@@ -281,7 +282,14 @@ function canonicalSubpathForSource(filePath) {
 	) {
 		return "./core";
 	}
-	if (sourcePath === "graph/operators.ts") return "./operators";
+	if (
+		sourcePath === "graph/operators.ts" ||
+		sourcePath === "graph/combinators.ts" ||
+		sourcePath === "graph/higher-order.ts" ||
+		sourcePath === "graph/time.ts"
+	) {
+		return "./operators";
+	}
 	if (sourcePath === "graph/sources.ts") return "./sources";
 	if (sourcePath === "graph/composition.ts") return "./composition";
 	if (sourcePath.startsWith("graph/data-structures/")) return "./data-structures";

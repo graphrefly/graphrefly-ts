@@ -32,7 +32,8 @@ A source operator that emits each value and then COMPLETE.
 ## Example
 
 ```ts
-import { graph, of } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { of } from "@graphrefly/ts/sources";
 
 const values = graph().initNode(of(1, 2, 3), []);
 ```

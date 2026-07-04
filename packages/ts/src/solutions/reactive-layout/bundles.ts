@@ -42,7 +42,7 @@ import { emitLayoutError, nonNegativeFinite } from "./utils.js";
  *   nodes for segments, line breaks, height, and character positions.
  * @example
  * ```ts
- * import { graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  * import {
  *   cellTextMeasurements,
  *   reactiveLayout,
@@ -175,7 +175,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
  *   positioned block flow, and total height node.
  * @example
  * ```ts
- * import { graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  * import {
  *   blockAdaptersProvider,
  *   blockMeasurementProvider,

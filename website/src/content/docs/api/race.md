@@ -13,7 +13,7 @@ terminalAsRealInput:true`. If every dep terminates before any DATA, COMPLETE.
 ## Import
 
 ```ts
-import { race } from "@graphrefly/ts";
+import { race } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -29,7 +29,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { race } from "@graphrefly/ts";
+import { race } from "@graphrefly/ts/operators";
 ```
 
 ## Source

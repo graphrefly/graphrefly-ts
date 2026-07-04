@@ -291,10 +291,10 @@ function mapOperator<TIn, TOut>(
  * inner's emissions are forwarded.
  * @param project - project value used by the helper.
  * @returns A `Operator<TIn, TOut>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { switchMap } from "@graphrefly/ts";
+ * import { switchMap } from "@graphrefly/ts/operators";
  * ```
  */
 export function switchMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
@@ -308,10 +308,10 @@ export function switchMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn,
  * @param project - project value used by the helper.
  * @param opts - Options that configure the helper.
  * @returns A `Operator<TIn, TOut>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { mergeMap } from "@graphrefly/ts";
+ * import { mergeMap } from "@graphrefly/ts/operators";
  * ```
  */
 export function mergeMap<TIn, TOut>(
@@ -325,10 +325,10 @@ export function mergeMap<TIn, TOut>(
  * @param project - project value used by the helper.
  * @param opts - Options that configure the helper.
  * @returns A `Operator<TIn, TOut>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { flatMap } from "@graphrefly/ts";
+ * import { flatMap } from "@graphrefly/ts/operators";
  * ```
  */
 export function flatMap<TIn, TOut>(
@@ -344,10 +344,10 @@ export function flatMap<TIn, TOut>(
  * Preserves source order.
  * @param project - project value used by the helper.
  * @returns A `Operator<TIn, TOut>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { concatMap } from "@graphrefly/ts";
+ * import { concatMap } from "@graphrefly/ts/operators";
  * ```
  */
 export function concatMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
@@ -359,10 +359,10 @@ export function concatMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn,
  * after the active inner COMPLETEs.
  * @param project - project value used by the helper.
  * @returns A `Operator<TIn, TOut>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { exhaustMap } from "@graphrefly/ts";
+ * import { exhaustMap } from "@graphrefly/ts/operators";
  * ```
  */
 export function exhaustMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn, TOut> {
@@ -399,10 +399,10 @@ interface RepeatState {
  * @param factory - factory value used by the helper.
  * @param count - count value used by the helper.
  * @returns A `Operator<never, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { repeat } from "@graphrefly/ts";
+ * import { repeat } from "@graphrefly/ts/operators";
  * ```
  */
 export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<never, S> {

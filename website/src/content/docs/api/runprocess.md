@@ -38,7 +38,7 @@ A source operator that emits one process result and then COMPLETE.
 ## Example
 
 ```ts
-import { graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 import { runProcess } from "@graphrefly/ts/sources/node";
 
 const status = graph().initNode(runProcess("git", ["status"]), []);

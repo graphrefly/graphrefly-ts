@@ -32,7 +32,8 @@ An operator that emits `fn(value)` for each upstream value.
 ## Example
 
 ```ts
-import { graph, map } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { map } from "@graphrefly/ts/operators";
 
 const g = graph();
 const count = g.state(1);

@@ -32,7 +32,8 @@ An operator that forwards at most `n` values and then emits COMPLETE.
 ## Example
 
 ```ts
-import { graph, take } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { take } from "@graphrefly/ts/operators";
 
 const firstThree = graph().initNode(take<number>(3), [source]);
 ```

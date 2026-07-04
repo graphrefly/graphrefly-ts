@@ -22,7 +22,7 @@ class Node
 ## Example
 
 ```ts
-import { node } from "@graphrefly/ts";
+import { node } from "@graphrefly/ts/core";
 
 const source = node<number>([], null);
 source.subscribe((value) => console.log(value));

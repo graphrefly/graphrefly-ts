@@ -10,7 +10,7 @@ auditTime: the `ms`-specialization of {@link audit} — the window is a `timer(m
 ## Import
 
 ```ts
-import { auditTime } from "@graphrefly/ts";
+import { auditTime } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -32,7 +32,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { auditTime } from "@graphrefly/ts";
+import { auditTime } from "@graphrefly/ts/operators";
 ```
 
 ## Source

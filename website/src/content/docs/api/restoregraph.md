@@ -36,7 +36,7 @@ A live graph rebuilt from the checkpoint.
 ## Example
 
 ```ts
-import { defaultRestoreRegistry, graph, restoreGraph } from "@graphrefly/ts";
+import { defaultRestoreRegistry, graph, restoreGraph } from "@graphrefly/ts/graph";
 
 const original = graph();
 const restored = restoreGraph(original.checkpoint(), { registry: defaultRestoreRegistry });

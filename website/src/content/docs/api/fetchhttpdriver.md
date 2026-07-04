@@ -32,7 +32,7 @@ A driver that performs one-shot HTTP requests and reports a single result.
 ## Example
 
 ```ts
-import { fetchHttpDriver } from "@graphrefly/ts";
+import { fetchHttpDriver } from "@graphrefly/ts/graph";
 
 const http = fetchHttpDriver(fetch);
 ```

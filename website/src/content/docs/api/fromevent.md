@@ -39,7 +39,8 @@ A source operator that emits each event as DATA.
 ## Example
 
 ```ts
-import { fromEvent, graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { fromEvent } from "@graphrefly/ts/sources";
 
 const clicks = graph().initNode(fromEvent<MouseEvent>(button, "click"), []);
 ```

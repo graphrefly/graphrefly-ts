@@ -84,10 +84,10 @@ function throttleWindow<S>(v: S, ms: number): Node<S> {
  * timer live (equal `ms`, so they fire in arrival order).
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { delay } from "@graphrefly/ts";
+ * import { delay } from "@graphrefly/ts/operators";
  * ```
  */
 export function delay<S>(ms: number): Operator<S, S> {
@@ -107,10 +107,10 @@ export function delay<S>(ms: number): Operator<S, S> {
  * cannot flush early without detecting COMPLETE inside the switchMap inner); accepted, not a bug.
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { debounce } from "@graphrefly/ts";
+ * import { debounce } from "@graphrefly/ts/operators";
  * ```
  */
 export function debounce<S>(ms: number): Operator<S, S> {
@@ -120,10 +120,10 @@ export function debounce<S>(ms: number): Operator<S, S> {
 /** debounceTime: RxJS-named alias of {@link debounce}.
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { debounceTime } from "@graphrefly/ts";
+ * import { debounceTime } from "@graphrefly/ts/operators";
  * ```
  */
 export function debounceTime<S>(ms: number): Operator<S, S> {
@@ -140,10 +140,10 @@ export function debounceTime<S>(ms: number): Operator<S, S> {
  * trailing-window form if a consumer needs it.
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { throttle } from "@graphrefly/ts";
+ * import { throttle } from "@graphrefly/ts/operators";
  * ```
  */
 export function throttle<S>(ms: number): Operator<S, S> {
@@ -153,10 +153,10 @@ export function throttle<S>(ms: number): Operator<S, S> {
 /** throttleTime: RxJS-named alias of {@link throttle}.
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { throttleTime } from "@graphrefly/ts";
+ * import { throttleTime } from "@graphrefly/ts/operators";
  * ```
  */
 export function throttleTime<S>(ms: number): Operator<S, S> {
@@ -187,10 +187,10 @@ interface AuditState<S> {
  * every rewire.
  * @param durationSelector - duration selector value used by the helper.
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { audit } from "@graphrefly/ts";
+ * import { audit } from "@graphrefly/ts/operators";
  * ```
  */
 export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operator<S, S> {
@@ -272,10 +272,10 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 /** auditTime: the `ms`-specialization of {@link audit} — the window is a `timer(ms)`.
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Operator<S, S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { auditTime } from "@graphrefly/ts";
+ * import { auditTime } from "@graphrefly/ts/operators";
  * ```
  */
 export function auditTime<S>(ms: number): Operator<S, S> {
@@ -304,10 +304,10 @@ interface TimeoutState {
  * @param source - Source node that provides graph-visible input.
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Node<S>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { timeout } from "@graphrefly/ts";
+ * import { timeout } from "@graphrefly/ts/operators";
  * ```
  */
 export function timeout<S>(source: Node<S>, ms: number): Node<S> {
@@ -384,10 +384,10 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
  * @param source - Source node that provides graph-visible input.
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Node<S[]>` value.
- * @category graph
+ * @category operators
  * @example
  * ```ts
- * import { bufferTime } from "@graphrefly/ts";
+ * import { bufferTime } from "@graphrefly/ts/operators";
  * ```
  */
 export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {

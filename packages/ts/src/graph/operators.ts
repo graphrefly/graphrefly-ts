@@ -240,7 +240,8 @@ export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
  * @returns An operator that emits `fn(value)` for each upstream value.
  * @example
  * ```ts
- * import { graph, map } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { map } from "@graphrefly/ts/operators";
  *
  * const g = graph();
  * const count = g.state(1);
@@ -285,7 +286,8 @@ function mapFromFunction<S, T>(
  * @returns An operator that emits matching values and stays quiet for non-matches.
  * @example
  * ```ts
- * import { filter, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { filter } from "@graphrefly/ts/operators";
  *
  * const g = graph();
  * const count = g.state(0);
@@ -312,7 +314,8 @@ export function filter<S>(pred: (v: S) => boolean): Operator<S, S> {
  * @returns An operator that emits the accumulator after every input value.
  * @example
  * ```ts
- * import { graph, scan } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { scan } from "@graphrefly/ts/operators";
  *
  * const g = graph();
  * const values = g.state(1);
@@ -343,7 +346,8 @@ export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T
  * @returns An operator that forwards at most `n` values and then emits COMPLETE.
  * @example
  * ```ts
- * import { graph, take } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { take } from "@graphrefly/ts/operators";
  *
  * const firstThree = graph().initNode(take<number>(3), [source]);
  * ```
@@ -379,7 +383,8 @@ export function take<S>(n: number): Operator<S, S> {
  * @returns An operator that emits only when the next value differs from the previous emitted value.
  * @example
  * ```ts
- * import { distinctUntilChanged, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { distinctUntilChanged } from "@graphrefly/ts/operators";
  *
  * const stable = graph().initNode(distinctUntilChanged<number>(), [source]);
  * ```
@@ -412,7 +417,8 @@ export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is)
  * @returns An operator that forwards DATA from any dependency.
  * @example
  * ```ts
- * import { graph, merge } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { merge } from "@graphrefly/ts/operators";
  *
  * const merged = graph().initNode(merge<number>(), [left, right]);
  * ```
@@ -445,7 +451,8 @@ export function merge<T>(): Operator<T, T> {
  * @returns An operator that emits one accumulated value when the source completes.
  * @example
  * ```ts
- * import { graph, reduce } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { reduce } from "@graphrefly/ts/operators";
  *
  * const total = graph().initNode(reduce((sum: number, value: number) => sum + value, 0), [source]);
  * ```

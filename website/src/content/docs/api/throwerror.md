@@ -32,7 +32,8 @@ A source operator that emits ERROR.
 ## Example
 
 ```ts
-import { graph, throwError } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { throwError } from "@graphrefly/ts/sources";
 
 const failed = graph().initNode(throwError(new Error("boom")), []);
 ```

@@ -98,7 +98,8 @@ function rollback(b: ActiveBatch): void {
  * @returns The callback return value when the batch commits.
  * @example
  * ```ts
- * import { batch, graph } from "@graphrefly/ts";
+ * import { batch } from "@graphrefly/ts/core";
+ * import { graph } from "@graphrefly/ts/graph";
  *
  * const g = graph();
  * const left = g.state(0);

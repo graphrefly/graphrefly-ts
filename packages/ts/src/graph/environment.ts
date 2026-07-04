@@ -195,7 +195,7 @@ export interface EnvironmentDriversInit {
  *
  * @example
  * ```ts
- * import { EnvironmentDrivers, fetchHttpDriver } from "@graphrefly/ts";
+ * import { EnvironmentDrivers, fetchHttpDriver } from "@graphrefly/ts/graph";
  *
  * const drivers = new EnvironmentDrivers().withHttp(fetchHttpDriver());
  * ```
@@ -271,7 +271,7 @@ const EMPTY_ENVIRONMENT = new EnvironmentDrivers();
  * @returns A driver that performs one-shot HTTP requests and reports a single result.
  * @example
  * ```ts
- * import { fetchHttpDriver } from "@graphrefly/ts";
+ * import { fetchHttpDriver } from "@graphrefly/ts/graph";
  *
  * const http = fetchHttpDriver(fetch);
  * ```
@@ -311,7 +311,7 @@ export function fetchHttpDriver(fetchFn: FetchLike = requireGlobalFetch()): Loca
  * @returns A driver that can connect, send, and optionally stream live sessions.
  * @example
  * ```ts
- * import { domWebSocketDriver } from "@graphrefly/ts";
+ * import { domWebSocketDriver } from "@graphrefly/ts/graph";
  *
  * const ws = domWebSocketDriver(WebSocket);
  * ```

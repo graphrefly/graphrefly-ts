@@ -10,7 +10,7 @@ debounceTime: RxJS-named alias of {@link debounce}.
 ## Import
 
 ```ts
-import { debounceTime } from "@graphrefly/ts";
+import { debounceTime } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -32,7 +32,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { debounceTime } from "@graphrefly/ts";
+import { debounceTime } from "@graphrefly/ts/operators";
 ```
 
 ## Source

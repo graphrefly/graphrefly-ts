@@ -23,7 +23,7 @@ class StateNode
 ## Example
 
 ```ts
-import { graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 
 const count = graph().state(0);
 count.set(1);

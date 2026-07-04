@@ -32,7 +32,7 @@ A `ReactiveLayoutBundle` containing input nodes, setters, and graph-visible outp
 ## Example
 
 ```ts
-import { graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 import {
   cellTextMeasurements,
   reactiveLayout,

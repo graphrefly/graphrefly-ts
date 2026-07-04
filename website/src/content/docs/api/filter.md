@@ -32,7 +32,8 @@ An operator that emits matching values and stays quiet for non-matches.
 ## Example
 
 ```ts
-import { filter, graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { filter } from "@graphrefly/ts/operators";
 
 const g = graph();
 const count = g.state(0);

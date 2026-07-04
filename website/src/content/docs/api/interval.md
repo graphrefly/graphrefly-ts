@@ -32,7 +32,8 @@ A source operator that emits `0`, `1`, `2`, and so on.
 ## Example
 
 ```ts
-import { graph, interval } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { interval } from "@graphrefly/ts/sources";
 
 const ticks = graph().initNode(interval(1000), []);
 ```

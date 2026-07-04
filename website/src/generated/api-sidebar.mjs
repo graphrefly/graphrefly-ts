@@ -131,42 +131,6 @@ export const apiSidebar = [
 				"link": "/api/reactivecascadingcache"
 			},
 			{
-				"label": "combine()",
-				"link": "/api/combine"
-			},
-			{
-				"label": "withLatestFrom()",
-				"link": "/api/withlatestfrom"
-			},
-			{
-				"label": "zip()",
-				"link": "/api/zip"
-			},
-			{
-				"label": "concat()",
-				"link": "/api/concat"
-			},
-			{
-				"label": "race()",
-				"link": "/api/race"
-			},
-			{
-				"label": "buffer()",
-				"link": "/api/buffer"
-			},
-			{
-				"label": "bufferCount()",
-				"link": "/api/buffercount"
-			},
-			{
-				"label": "sample()",
-				"link": "/api/sample"
-			},
-			{
-				"label": "takeUntil()",
-				"link": "/api/takeuntil"
-			},
-			{
 				"label": "pipe()",
 				"link": "/api/pipe"
 			},
@@ -205,30 +169,6 @@ export const apiSidebar = [
 			{
 				"label": "graph()",
 				"link": "/api/graph"
-			},
-			{
-				"label": "switchMap()",
-				"link": "/api/switchmap"
-			},
-			{
-				"label": "mergeMap()",
-				"link": "/api/mergemap"
-			},
-			{
-				"label": "flatMap()",
-				"link": "/api/flatmap"
-			},
-			{
-				"label": "concatMap()",
-				"link": "/api/concatmap"
-			},
-			{
-				"label": "exhaustMap()",
-				"link": "/api/exhaustmap"
-			},
-			{
-				"label": "repeat()",
-				"link": "/api/repeat"
 			},
 			{
 				"label": "filterObserve()",
@@ -287,42 +227,6 @@ export const apiSidebar = [
 				"link": "/api/restoregraph"
 			},
 			{
-				"label": "delay()",
-				"link": "/api/delay"
-			},
-			{
-				"label": "debounce()",
-				"link": "/api/debounce"
-			},
-			{
-				"label": "debounceTime()",
-				"link": "/api/debouncetime"
-			},
-			{
-				"label": "throttle()",
-				"link": "/api/throttle"
-			},
-			{
-				"label": "throttleTime()",
-				"link": "/api/throttletime"
-			},
-			{
-				"label": "audit()",
-				"link": "/api/audit"
-			},
-			{
-				"label": "auditTime()",
-				"link": "/api/audittime"
-			},
-			{
-				"label": "timeout()",
-				"link": "/api/timeout"
-			},
-			{
-				"label": "bufferTime()",
-				"link": "/api/buffertime"
-			},
-			{
 				"label": "workerDerived()",
 				"link": "/api/workerderived"
 			}
@@ -332,6 +236,66 @@ export const apiSidebar = [
 		"label": "Operators",
 		"collapsed": true,
 		"items": [
+			{
+				"label": "combine()",
+				"link": "/api/combine"
+			},
+			{
+				"label": "withLatestFrom()",
+				"link": "/api/withlatestfrom"
+			},
+			{
+				"label": "zip()",
+				"link": "/api/zip"
+			},
+			{
+				"label": "concat()",
+				"link": "/api/concat"
+			},
+			{
+				"label": "race()",
+				"link": "/api/race"
+			},
+			{
+				"label": "buffer()",
+				"link": "/api/buffer"
+			},
+			{
+				"label": "bufferCount()",
+				"link": "/api/buffercount"
+			},
+			{
+				"label": "sample()",
+				"link": "/api/sample"
+			},
+			{
+				"label": "takeUntil()",
+				"link": "/api/takeuntil"
+			},
+			{
+				"label": "switchMap()",
+				"link": "/api/switchmap"
+			},
+			{
+				"label": "mergeMap()",
+				"link": "/api/mergemap"
+			},
+			{
+				"label": "flatMap()",
+				"link": "/api/flatmap"
+			},
+			{
+				"label": "concatMap()",
+				"link": "/api/concatmap"
+			},
+			{
+				"label": "exhaustMap()",
+				"link": "/api/exhaustmap"
+			},
+			{
+				"label": "repeat()",
+				"link": "/api/repeat"
+			},
 			{
 				"label": "restoreRegistry()",
 				"link": "/api/restoreregistry"
@@ -419,6 +383,42 @@ export const apiSidebar = [
 			{
 				"label": "valve()",
 				"link": "/api/valve"
+			},
+			{
+				"label": "delay()",
+				"link": "/api/delay"
+			},
+			{
+				"label": "debounce()",
+				"link": "/api/debounce"
+			},
+			{
+				"label": "debounceTime()",
+				"link": "/api/debouncetime"
+			},
+			{
+				"label": "throttle()",
+				"link": "/api/throttle"
+			},
+			{
+				"label": "throttleTime()",
+				"link": "/api/throttletime"
+			},
+			{
+				"label": "audit()",
+				"link": "/api/audit"
+			},
+			{
+				"label": "auditTime()",
+				"link": "/api/audittime"
+			},
+			{
+				"label": "timeout()",
+				"link": "/api/timeout"
+			},
+			{
+				"label": "bufferTime()",
+				"link": "/api/buffertime"
 			}
 		]
 	},

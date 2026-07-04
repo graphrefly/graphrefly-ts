@@ -87,7 +87,7 @@ const dispatcherHandleStatKey = (h: Handle): string =>
  *
  * @example
  * ```ts
- * import { Dispatcher } from "@graphrefly/ts";
+ * import { Dispatcher } from "@graphrefly/ts/core";
  *
  * const dispatcher = new Dispatcher();
  * ```

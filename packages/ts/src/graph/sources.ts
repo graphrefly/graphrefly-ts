@@ -518,7 +518,8 @@ export function fromCron(
  * @returns A source operator that emits the current time when the schedule matches.
  * @example
  * ```ts
- * import { graph, fromCron } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { fromCron } from "@graphrefly/ts/sources";
  *
  * const everyMinute = graph().initNode(fromCron("0 * * * *"), []);
  * ```
@@ -616,7 +617,7 @@ export function runProcess(
 }
 
 /**
- * Emit a process result using the legacy `fromProcess` factory name.
+ * Emit a process result with the `fromProcess` source factory.
  *
  * @param program - Executable name or path.
  * @param args - Command-line arguments.
@@ -641,7 +642,8 @@ export function fromProcess(
  * @returns A source operator that emits one `ProcessResult`.
  * @example
  * ```ts
- * import { graph, runProcessWithOptions } from "@graphrefly/ts";
+ * import { runProcessWithOptions } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
  *
  * const status = graph().initNode(runProcessWithOptions({ program: "git", args: ["status"] }), []);
  * ```
@@ -872,7 +874,8 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
  * @returns A source operator that emits tick counters.
  * @example
  * ```ts
- * import { graph, timer } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { timer } from "@graphrefly/ts/sources";
  *
  * const tick = graph().initNode(timer(100), []);
  * ```
@@ -883,14 +886,15 @@ export function timer(ms: number, opts?: TimerSourceOpts): Operator<never, numbe
 }
 
 /**
- * Create a timer source with the legacy `fromTimer` factory name.
+ * Create a timer source with the `fromTimer` source factory.
  *
  * @param ms - Delay before the first tick in milliseconds.
  * @param opts - Optional period and source options.
  * @returns A source operator that emits tick counters.
  * @example
  * ```ts
- * import { fromTimer, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { fromTimer } from "@graphrefly/ts/sources";
  *
  * const tick = graph().initNode(fromTimer(100), []);
  * ```
@@ -908,7 +912,8 @@ export function fromTimer(ms: number, opts?: TimerSourceOpts): Operator<never, n
  * @returns A source operator that emits `0`, `1`, `2`, and so on.
  * @example
  * ```ts
- * import { graph, interval } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { interval } from "@graphrefly/ts/sources";
  *
  * const ticks = graph().initNode(interval(1000), []);
  * ```
@@ -928,7 +933,8 @@ export function interval(ms: number): Operator<never, number> {
  * @returns A source operator that emits one DATA value and COMPLETE, or ERROR on rejection/abort.
  * @example
  * ```ts
- * import { fromPromise, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { fromPromise } from "@graphrefly/ts/sources";
  *
  * const user = graph().initNode(fromPromise(fetch("/user").then((res) => res.json())), []);
  * ```
@@ -986,7 +992,8 @@ export function fromPromise<T>(
  * @returns A source operator that emits every iterable value and then COMPLETE.
  * @example
  * ```ts
- * import { fromAsyncIter, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { fromAsyncIter } from "@graphrefly/ts/sources";
  *
  * const stream = graph().initNode(fromAsyncIter(events()), []);
  * ```
@@ -1034,7 +1041,8 @@ export function fromAsyncIter<T>(
  * @returns A source operator that emits each value and then COMPLETE.
  * @example
  * ```ts
- * import { graph, of } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { of } from "@graphrefly/ts/sources";
  *
  * const values = graph().initNode(of(1, 2, 3), []);
  * ```
@@ -1058,7 +1066,8 @@ export function of<T = never>(...values: T[]): Operator<never, T> {
  * @returns A source operator that emits every iterable value and then COMPLETE.
  * @example
  * ```ts
- * import { fromIter, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { fromIter } from "@graphrefly/ts/sources";
  *
  * const values = graph().initNode(fromIter([1, 2, 3]), []);
  * ```
@@ -1081,7 +1090,8 @@ export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
  * @returns A source operator that emits COMPLETE on activation.
  * @example
  * ```ts
- * import { empty, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { empty } from "@graphrefly/ts/sources";
  *
  * const done = graph().initNode(empty(), []);
  * ```
@@ -1103,7 +1113,8 @@ export function empty<T = never>(): Operator<never, T> {
  * @returns A source operator that never emits DATA or terminal messages by itself.
  * @example
  * ```ts
- * import { graph, never } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { never } from "@graphrefly/ts/sources";
  *
  * const quiet = graph().initNode(never(), []);
  * ```
@@ -1120,7 +1131,8 @@ export function never<T = never>(): Operator<never, T> {
  * @returns A source operator that emits ERROR.
  * @example
  * ```ts
- * import { graph, throwError } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { throwError } from "@graphrefly/ts/sources";
  *
  * const failed = graph().initNode(throwError(new Error("boom")), []);
  * ```
@@ -1146,7 +1158,8 @@ export function throwError(err: unknown): Operator<never, never> {
  * @returns A source operator that emits each event as DATA.
  * @example
  * ```ts
- * import { fromEvent, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { fromEvent } from "@graphrefly/ts/sources";
  *
  * const clicks = graph().initNode(fromEvent<MouseEvent>(button, "click"), []);
  * ```
@@ -1261,7 +1274,8 @@ export function fromAny<T>(
  * @returns A Promise for the first DATA value, or a rejection on ERROR/early completion.
  * @example
  * ```ts
- * import { firstValueFrom, graph } from "@graphrefly/ts";
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { firstValueFrom } from "@graphrefly/ts/sources";
  *
  * const g = graph();
  * await firstValueFrom(g.state(1));

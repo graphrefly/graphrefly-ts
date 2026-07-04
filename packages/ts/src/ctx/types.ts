@@ -233,7 +233,7 @@ export function depWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown
 	return ctx.waveData[depIndex] ?? [];
 }
 
-/** Flattened DATA projection for old event-counting operator bodies; null = no wave.
+/** Flattened DATA projection for event-counting operator bodies; null = no wave.
  * @param ctx - Node execution context supplied by the dispatcher.
  * @param depIndex - dep index value used by the helper.
  * @returns A `readonly unknown[] | null` value.

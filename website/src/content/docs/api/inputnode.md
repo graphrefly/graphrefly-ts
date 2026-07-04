@@ -40,7 +40,7 @@ The node plus a setter that updates the backing state.
 ## Example
 
 ```ts
-import { graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 import { inputNode } from "@graphrefly/ts/solutions/reactive-layout";
 
 const g = graph();

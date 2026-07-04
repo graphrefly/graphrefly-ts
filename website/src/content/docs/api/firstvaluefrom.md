@@ -32,7 +32,8 @@ A Promise for the first DATA value, or a rejection on ERROR/early completion.
 ## Example
 
 ```ts
-import { firstValueFrom, graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { firstValueFrom } from "@graphrefly/ts/sources";
 
 const g = graph();
 await firstValueFrom(g.state(1));

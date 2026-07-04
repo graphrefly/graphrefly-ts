@@ -25,7 +25,7 @@ class EnvironmentDrivers
 ## Example
 
 ```ts
-import { EnvironmentDrivers, fetchHttpDriver } from "@graphrefly/ts";
+import { EnvironmentDrivers, fetchHttpDriver } from "@graphrefly/ts/graph";
 
 const drivers = new EnvironmentDrivers().withHttp(fetchHttpDriver());
 ```

@@ -21,7 +21,7 @@ every rewire.
 ## Import
 
 ```ts
-import { audit } from "@graphrefly/ts";
+import { audit } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -43,7 +43,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { audit } from "@graphrefly/ts";
+import { audit } from "@graphrefly/ts/operators";
 ```
 
 ## Source

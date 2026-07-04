@@ -11,7 +11,7 @@ after the active inner COMPLETEs.
 ## Import
 
 ```ts
-import { exhaustMap } from "@graphrefly/ts";
+import { exhaustMap } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -33,7 +33,7 @@ A `Operator<TIn, TOut>` value.
 ## Example
 
 ```ts
-import { exhaustMap } from "@graphrefly/ts";
+import { exhaustMap } from "@graphrefly/ts/operators";
 ```
 
 ## Source

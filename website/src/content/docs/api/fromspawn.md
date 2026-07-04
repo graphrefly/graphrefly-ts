@@ -38,11 +38,11 @@ A node-only source operator that emits `SpawnEvent` DATA values and terminal ERR
 ## Example
 
 ```ts
-import { graph, node } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 import { fromSpawn } from "@graphrefly/ts/sources/node";
 
 const g = graph();
-const ls = node(g, fromSpawn("git", ["status", "--short"], { cwd: process.cwd() }));
+const ls = g.initNode(fromSpawn("git", ["status", "--short"], { cwd: process.cwd() }), []);
 ```
 
 ## Source

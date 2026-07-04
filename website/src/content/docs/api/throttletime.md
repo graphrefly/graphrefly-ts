@@ -10,7 +10,7 @@ throttleTime: RxJS-named alias of {@link throttle}.
 ## Import
 
 ```ts
-import { throttleTime } from "@graphrefly/ts";
+import { throttleTime } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -32,7 +32,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { throttleTime } from "@graphrefly/ts";
+import { throttleTime } from "@graphrefly/ts/operators";
 ```
 
 ## Source

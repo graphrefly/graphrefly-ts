@@ -16,7 +16,7 @@ trailing-window form if a consumer needs it.
 ## Import
 
 ```ts
-import { throttle } from "@graphrefly/ts";
+import { throttle } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -38,7 +38,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { throttle } from "@graphrefly/ts";
+import { throttle } from "@graphrefly/ts/operators";
 ```
 
 ## Source

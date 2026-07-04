@@ -38,7 +38,8 @@ A source operator that emits tick counters.
 ## Example
 
 ```ts
-import { graph, timer } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { timer } from "@graphrefly/ts/sources";
 
 const tick = graph().initNode(timer(100), []);
 ```

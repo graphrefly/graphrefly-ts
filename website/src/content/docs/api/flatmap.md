@@ -10,7 +10,7 @@ flatMap: alias of {@link mergeMap} (RxJS naming parity).
 ## Import
 
 ```ts
-import { flatMap } from "@graphrefly/ts";
+import { flatMap } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -36,7 +36,7 @@ A `Operator<TIn, TOut>` value.
 ## Example
 
 ```ts
-import { flatMap } from "@graphrefly/ts";
+import { flatMap } from "@graphrefly/ts/operators";
 ```
 
 ## Source

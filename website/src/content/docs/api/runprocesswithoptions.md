@@ -32,7 +32,8 @@ A source operator that emits one `ProcessResult`.
 ## Example
 
 ```ts
-import { graph, runProcessWithOptions } from "@graphrefly/ts";
+import { runProcessWithOptions } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 
 const status = graph().initNode(runProcessWithOptions({ program: "git", args: ["status"] }), []);
 ```

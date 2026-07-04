@@ -22,7 +22,7 @@ a source ERROR forwards likewise. The idle timer is also torn down when the cons
 ## Import
 
 ```ts
-import { timeout } from "@graphrefly/ts";
+import { timeout } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -48,7 +48,7 @@ A `Node<S>` value.
 ## Example
 
 ```ts
-import { timeout } from "@graphrefly/ts";
+import { timeout } from "@graphrefly/ts/operators";
 ```
 
 ## Source

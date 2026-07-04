@@ -32,7 +32,8 @@ An operator that emits only when the next value differs from the previous emitte
 ## Example
 
 ```ts
-import { distinctUntilChanged, graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { distinctUntilChanged } from "@graphrefly/ts/operators";
 
 const stable = graph().initNode(distinctUntilChanged<number>(), [source]);
 ```

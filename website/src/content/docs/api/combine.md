@@ -14,7 +14,7 @@ tuple per wave (D49 — no dedup; compose `distinctUntilChanged` to suppress unc
 ## Import
 
 ```ts
-import { combine } from "@graphrefly/ts";
+import { combine } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -30,7 +30,7 @@ A `Operator<unknown, T>` value.
 ## Example
 
 ```ts
-import { combine } from "@graphrefly/ts";
+import { combine } from "@graphrefly/ts/operators";
 ```
 
 ## Source

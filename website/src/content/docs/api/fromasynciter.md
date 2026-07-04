@@ -37,7 +37,8 @@ A source operator that emits every iterable value and then COMPLETE.
 ## Example
 
 ```ts
-import { fromAsyncIter, graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { fromAsyncIter } from "@graphrefly/ts/sources";
 
 const stream = graph().initNode(fromAsyncIter(events()), []);
 ```

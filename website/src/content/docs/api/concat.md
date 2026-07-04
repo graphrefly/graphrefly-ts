@@ -13,7 +13,7 @@ terminalAsRealInput:true`; any dep ERROR propagates (default errorWhenDepsError)
 ## Import
 
 ```ts
-import { concat } from "@graphrefly/ts";
+import { concat } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -29,7 +29,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { concat } from "@graphrefly/ts";
+import { concat } from "@graphrefly/ts/operators";
 ```
 
 ## Source

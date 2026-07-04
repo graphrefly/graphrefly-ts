@@ -40,7 +40,8 @@ An operator that emits one accumulated value when the source completes.
 ## Example
 
 ```ts
-import { graph, reduce } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { reduce } from "@graphrefly/ts/operators";
 
 const total = graph().initNode(reduce((sum: number, value: number) => sum + value, 0), [source]);
 ```

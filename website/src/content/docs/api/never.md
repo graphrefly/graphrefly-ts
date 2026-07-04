@@ -26,7 +26,8 @@ A source operator that never emits DATA or terminal messages by itself.
 ## Example
 
 ```ts
-import { graph, never } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { never } from "@graphrefly/ts/sources";
 
 const quiet = graph().initNode(never(), []);
 ```

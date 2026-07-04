@@ -38,7 +38,8 @@ A source operator that emits one DATA value and COMPLETE, or ERROR on rejection/
 ## Example
 
 ```ts
-import { fromPromise, graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { fromPromise } from "@graphrefly/ts/sources";
 
 const user = graph().initNode(fromPromise(fetch("/user").then((res) => res.json())), []);
 ```

@@ -12,7 +12,7 @@ terminalAsRealInput:true`.
 ## Import
 
 ```ts
-import { bufferCount } from "@graphrefly/ts";
+import { bufferCount } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -34,7 +34,7 @@ A `Operator<S, S[]>` value.
 ## Example
 
 ```ts
-import { bufferCount } from "@graphrefly/ts";
+import { bufferCount } from "@graphrefly/ts/operators";
 ```
 
 ## Source

@@ -19,7 +19,7 @@ cannot flush early without detecting COMPLETE inside the switchMap inner); accep
 ## Import
 
 ```ts
-import { debounce } from "@graphrefly/ts";
+import { debounce } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -41,7 +41,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { debounce } from "@graphrefly/ts";
+import { debounce } from "@graphrefly/ts/operators";
 ```
 
 ## Source

@@ -26,7 +26,8 @@ A source operator that emits COMPLETE on activation.
 ## Example
 
 ```ts
-import { empty, graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
+import { empty } from "@graphrefly/ts/sources";
 
 const done = graph().initNode(empty(), []);
 ```

@@ -28,7 +28,7 @@ SELF-CATCHING (D30) and re-supplied on every rewire. The factory MUST mint a FRE
 ## Import
 
 ```ts
-import { repeat } from "@graphrefly/ts";
+import { repeat } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -54,7 +54,7 @@ A `Operator<never, S>` value.
 ## Example
 
 ```ts
-import { repeat } from "@graphrefly/ts";
+import { repeat } from "@graphrefly/ts/operators";
 ```
 
 ## Source

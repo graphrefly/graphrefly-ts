@@ -11,7 +11,7 @@ timer live (equal `ms`, so they fire in arrival order).
 ## Import
 
 ```ts
-import { delay } from "@graphrefly/ts";
+import { delay } from "@graphrefly/ts/operators";
 ```
 
 ## Signature
@@ -33,7 +33,7 @@ A `Operator<S, S>` value.
 ## Example
 
 ```ts
-import { delay } from "@graphrefly/ts";
+import { delay } from "@graphrefly/ts/operators";
 ```
 
 ## Source

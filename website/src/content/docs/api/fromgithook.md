@@ -36,11 +36,11 @@ A node-only source operator that emits `GitEvent` values after the initial basel
 ## Example
 
 ```ts
-import { graph, node } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 import { fromGitHook } from "@graphrefly/ts/sources/node";
 
 const g = graph();
-const commits = node(g, fromGitHook(process.cwd(), { include: ["packages/**"] }));
+const commits = g.initNode(fromGitHook(process.cwd(), { include: ["packages/**"] }), []);
 ```
 
 ## Source

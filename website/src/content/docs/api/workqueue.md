@@ -36,7 +36,7 @@ A `WorkQueue` handle with graph nodes plus command helpers for submit, claim, co
 ## Example
 
 ```ts
-import { graph } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts/graph";
 import { messageBus } from "@graphrefly/ts/messaging";
 import { workQueue } from "@graphrefly/ts/work-queue";
 

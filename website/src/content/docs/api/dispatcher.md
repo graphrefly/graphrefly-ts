@@ -23,7 +23,7 @@ class Dispatcher
 ## Example
 
 ```ts
-import { Dispatcher } from "@graphrefly/ts";
+import { Dispatcher } from "@graphrefly/ts/core";
 
 const dispatcher = new Dispatcher();
 ```
