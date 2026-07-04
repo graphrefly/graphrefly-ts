@@ -10,7 +10,7 @@ Build a JSON codec using stable object-key ordering.
 ## Import
 
 ```ts
-import { jsonCodecFor } from "@graphrefly/ts";
+import { jsonCodecFor } from "@graphrefly/ts/storage";
 ```
 
 ## Signature
@@ -26,7 +26,7 @@ A `Codec<T>` value.
 ## Example
 
 ```ts
-import { jsonCodecFor } from "@graphrefly/ts";
+import { jsonCodecFor } from "@graphrefly/ts/storage";
 ```
 
 ## Source

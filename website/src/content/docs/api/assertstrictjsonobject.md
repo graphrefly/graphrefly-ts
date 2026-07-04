@@ -10,7 +10,7 @@ Validate and normalize a host value into a strict canonical JSON object.
 ## Import
 
 ```ts
-import { assertStrictJsonObject } from "@graphrefly/ts";
+import { assertStrictJsonObject } from "@graphrefly/ts/storage";
 ```
 
 ## Signature
@@ -36,7 +36,7 @@ The narrowed, validated value.
 ## Example
 
 ```ts
-import { assertStrictJsonObject } from "@graphrefly/ts";
+import { assertStrictJsonObject } from "@graphrefly/ts/storage";
 ```
 
 ## Source

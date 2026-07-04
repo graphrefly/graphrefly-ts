@@ -338,6 +338,7 @@ function canonicalSubpathForSource(filePath) {
 	if (sourcePath.startsWith("orchestration/")) return "./orchestration";
 	if (sourcePath.startsWith("patterns/event-flow")) return "./patterns/event-flow";
 	if (sourcePath.startsWith("patterns/")) return "./patterns";
+	if (sourcePath === "json/codec.ts") return "./storage";
 	if (sourcePath.startsWith("storage/browser")) return "./storage/browser";
 	if (sourcePath.startsWith("storage/node")) return "./storage/node";
 	if (sourcePath.startsWith("storage/")) return "./storage";

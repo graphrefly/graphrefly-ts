@@ -12,7 +12,7 @@ unpaired surrogates, and values that cannot round-trip through stable JSON.
 ## Import
 
 ```ts
-import { strictJsonCodecFor } from "@graphrefly/ts";
+import { strictJsonCodecFor } from "@graphrefly/ts/storage";
 ```
 
 ## Signature
@@ -28,7 +28,7 @@ A `Codec<T>` value.
 ## Example
 
 ```ts
-import { strictJsonCodecFor } from "@graphrefly/ts";
+import { strictJsonCodecFor } from "@graphrefly/ts/storage";
 ```
 
 ## Source

@@ -127,7 +127,7 @@ function sortedJsonValue(
  * @category json
  * @example
  * ```ts
- * import { stableJsonString } from "@graphrefly/ts";
+ * import { stableJsonString } from "@graphrefly/ts/storage";
  * ```
  */
 export function stableJsonString(value: unknown): string {
@@ -143,7 +143,7 @@ function strictStableJsonString(value: unknown): string {
  * @category json
  * @example
  * ```ts
- * import { jsonCodecFor } from "@graphrefly/ts";
+ * import { jsonCodecFor } from "@graphrefly/ts/storage";
  * ```
  */
 export function jsonCodecFor<T>(): Codec<T> {
@@ -368,7 +368,7 @@ function assertNoDuplicateJsonObjectKeys(text: string): void {
  * @category json
  * @example
  * ```ts
- * import { strictJsonCodecFor } from "@graphrefly/ts";
+ * import { strictJsonCodecFor } from "@graphrefly/ts/storage";
  * ```
  */
 export function strictJsonCodecFor<T>(): Codec<T> {
@@ -416,7 +416,7 @@ export function strictCanonicalJsonBytes(value: unknown): Uint8Array {
  * @category json
  * @example
  * ```ts
- * import { assertStrictJsonValue } from "@graphrefly/ts";
+ * import { assertStrictJsonValue } from "@graphrefly/ts/storage";
  * ```
  */
 export function assertStrictJsonValue(value: unknown, label = "strictJsonValue"): StrictJsonValue {
@@ -435,7 +435,7 @@ export function assertStrictJsonValue(value: unknown, label = "strictJsonValue")
  * @category json
  * @example
  * ```ts
- * import { assertStrictJsonObject } from "@graphrefly/ts";
+ * import { assertStrictJsonObject } from "@graphrefly/ts/storage";
  * ```
  */
 export function assertStrictJsonObject(

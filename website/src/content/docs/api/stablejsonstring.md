@@ -10,7 +10,7 @@ Stable JSON string: object keys sort by code-unit order for deterministic storag
 ## Import
 
 ```ts
-import { stableJsonString } from "@graphrefly/ts";
+import { stableJsonString } from "@graphrefly/ts/storage";
 ```
 
 ## Signature
@@ -32,7 +32,7 @@ A `string` value.
 ## Example
 
 ```ts
-import { stableJsonString } from "@graphrefly/ts";
+import { stableJsonString } from "@graphrefly/ts/storage";
 ```
 
 ## Source
