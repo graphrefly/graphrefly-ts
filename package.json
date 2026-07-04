@@ -16,7 +16,8 @@
 	"type": "module",
 	"scripts": {
 		"docs:dev": "pnpm run docs:gen",
-		"docs:build": "pnpm --dir website build:ts-artifact",
+		"docs:build": "pnpm run docs:build:demos && pnpm --dir website build:ts-artifact",
+		"docs:build:demos": "pnpm --dir demos/reactive-layout build && pnpm --dir demos/compat-matrix build",
 		"docs:legacy-site:dev": "pnpm --dir website dev",
 		"docs:legacy-site:build": "pnpm build && pnpm --dir website build:legacy",
 		"docs:legacy-site:preview": "pnpm --dir website preview",
