@@ -58,6 +58,11 @@ import type {
 	AgenticMemoryRetentionBundleOptions,
 	AgenticMemoryScope,
 	AgenticMemoryStatus,
+	AgenticWorkItemMemoryBridgeCursor,
+	AgenticWorkItemMemoryBridgeResult,
+	AgenticWorkItemMemoryBridgeStatus,
+	AgenticWorkItemMemoryMappingPolicy,
+	AgenticWorkItemMemoryRecordCandidate,
 	CapacityPolicy,
 	GraphCheckpoint,
 	KnowledgeAssertion,
@@ -965,6 +970,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof rootPackage.agenticMemoryRecordApplicationBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof rootPackage.applyAgenticMemoryRecordAdmissions).toBe("function");
+		expect(typeof rootPackage.mapAgenticWorkItemMemoryBridge).toBe("function");
+		expect(typeof rootPackage.agenticWorkItemMemoryBridgeBundle).toBe("function");
 		expect(rootPackage.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
 		);
@@ -972,6 +979,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.agenticMemoryRecordApplicationBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof solutions.applyAgenticMemoryRecordAdmissions).toBe("function");
+		expect(typeof solutions.mapAgenticWorkItemMemoryBridge).toBe("function");
+		expect(typeof solutions.agenticWorkItemMemoryBridgeBundle).toBe("function");
 		expect(solutions.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
 		);
@@ -1032,8 +1041,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			.toEqualTypeOf<number | undefined>();
 		expectTypeOf<AgenticMemoryProposalAdmissionPolicy>().toHaveProperty("policyId");
 		expectTypeOf<AgenticMemoryProposalAdmissionDecision>().toHaveProperty("admissionId");
+		expectTypeOf<AgenticWorkItemMemoryMappingPolicy>().toHaveProperty("policyId");
+		expectTypeOf<AgenticWorkItemMemoryRecordCandidate>().toHaveProperty("candidateId");
+		expectTypeOf<AgenticWorkItemMemoryBridgeResult>().toHaveProperty("proposals");
+		expectTypeOf<AgenticWorkItemMemoryBridgeStatus>().toHaveProperty("cursor");
+		expectTypeOf<AgenticWorkItemMemoryBridgeCursor>().toHaveProperty("candidateConflicts");
 		expect(Object.hasOwn(agenticMemory, "workItemAuthoringProjector")).toBe(false);
-		expect(Object.keys(agenticWorkItemMemory)).toEqual([]);
+		expect(typeof agenticWorkItemMemory.mapAgenticWorkItemMemoryBridge).toBe("function");
+		expect(typeof agenticWorkItemMemory.agenticWorkItemMemoryBridgeBundle).toBe("function");
+		expect(Object.hasOwn(agenticWorkItemMemory, "agenticMemoryBundle")).toBe(false);
+		expect(Object.hasOwn(agenticWorkItemMemory, "workItemAuthoringProjector")).toBe(false);
+		expect(Object.hasOwn(agenticWorkItemMemory, "persistAgenticMemoryRecords")).toBe(false);
 		expect(typeof solutions.capabilityAdmissionProjector).toBe("function");
 		expect(typeof solutions.capabilityAdmissionProposal).toBe("function");
 		expect(Object.hasOwn(solutions, "workItemWorkQueueRecipe")).toBe(false);

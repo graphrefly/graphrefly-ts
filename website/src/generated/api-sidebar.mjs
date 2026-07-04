@@ -1765,6 +1765,14 @@ export const apiSidebar = [
 				"link": "/api/agenticmemoryretentionbundle"
 			},
 			{
+				"label": "agenticWorkItemMemoryBridgeBundle()",
+				"link": "/api/agenticworkitemmemorybridgebundle"
+			},
+			{
+				"label": "mapAgenticWorkItemMemoryBridge()",
+				"link": "/api/mapagenticworkitemmemorybridge"
+			},
+			{
 				"label": "capabilityAdmissionProposal()",
 				"link": "/api/capabilityadmissionproposal"
 			},

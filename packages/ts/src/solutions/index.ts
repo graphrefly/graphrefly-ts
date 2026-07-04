@@ -137,6 +137,28 @@ export {
 } from "./agentic-memory/index.js";
 
 export {
+	type AgenticWorkItemMemoryBridgeAuditEntry,
+	type AgenticWorkItemMemoryBridgeBundle,
+	type AgenticWorkItemMemoryBridgeBundleOptions,
+	type AgenticWorkItemMemoryBridgeCursor,
+	type AgenticWorkItemMemoryBridgeInput,
+	type AgenticWorkItemMemoryBridgeIssue,
+	type AgenticWorkItemMemoryBridgeResult,
+	type AgenticWorkItemMemoryBridgeStatus,
+	type AgenticWorkItemMemoryBridgeStatusState,
+	type AgenticWorkItemMemoryContextFact,
+	type AgenticWorkItemMemoryDataSelector,
+	type AgenticWorkItemMemoryFieldPath,
+	type AgenticWorkItemMemoryInputLane,
+	type AgenticWorkItemMemoryMappingPolicy,
+	type AgenticWorkItemMemoryRecordCandidate,
+	type AgenticWorkItemMemoryRecordMappingRule,
+	type AgenticWorkItemMemoryScoreMappingRule,
+	agenticWorkItemMemoryBridgeBundle,
+	mapAgenticWorkItemMemoryBridge,
+} from "./agentic-work-item-memory/index.js";
+
+export {
 	type CapabilityAdmission,
 	type CapabilityAdmissionBundle,
 	type CapabilityAdmissionDecision,

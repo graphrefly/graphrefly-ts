@@ -1,9 +1,11 @@
 /**
- * AgenticMemory x WorkItem bridge recipe namespace (D571/D572).
+ * AgenticMemory x WorkItem mapper bridge recipe namespace (D581/D582).
  *
- * The first slice publishes the independent namespace only. Concrete mapper,
- * context-source, scoring, and admission recipe exports will land here after
- * AgenticMemoryRecordProposal is implemented in the AgenticMemory solution.
+ * The bridge is DATA-only and mapper-only: it emits generic ScoreSignal and
+ * AgenticMemoryRecordProposal facts plus bridge-local read models. It does not
+ * admit/apply proposals, mutate WorkItems or AgenticMemoryRecord truth, own
+ * scoring semantics, or carry provider/runtime/storage/hydration authority.
  */
 
-export {};
+export * from "./bridge.js";
+export * from "./types.js";

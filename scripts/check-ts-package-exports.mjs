@@ -183,7 +183,7 @@ const expectedSubpaths = {
 		],
 	},
 	"./solutions/agentic-work-item-memory": {
-		present: [],
+		present: ["mapAgenticWorkItemMemoryBridge", "agenticWorkItemMemoryBridgeBundle"],
 		absent: [
 			"agenticMemoryBundle",
 			"workItemAuthoringProjector",
@@ -565,7 +565,14 @@ import {
 	type AgenticMemoryRecordApplicationPriorEvidence,
 	applyAgenticMemoryRecordAdmissions,
 } from "@graphrefly/ts/solutions/agentic-memory";
-import * as agenticWorkItemMemory from "@graphrefly/ts/solutions/agentic-work-item-memory";
+import {
+	agenticWorkItemMemoryBridgeBundle,
+	mapAgenticWorkItemMemoryBridge,
+	type AgenticWorkItemMemoryBridgeResult,
+	type AgenticWorkItemMemoryBridgeStatus,
+	type AgenticWorkItemMemoryMappingPolicy,
+	type AgenticWorkItemMemoryRecordCandidate,
+} from "@graphrefly/ts/solutions/agentic-work-item-memory";
 import {
 	workItemAuthoringProjector,
 	type WorkItemProjection,
@@ -625,7 +632,8 @@ void agenticMemoryConsolidationApplicationBundle;
 void agenticMemoryRecordAdmissionBundle;
 void agenticMemoryRecordApplicationBundle;
 void applyAgenticMemoryRecordAdmissions;
-void agenticWorkItemMemory;
+void agenticWorkItemMemoryBridgeBundle;
+void mapAgenticWorkItemMemoryBridge;
 void workItemAuthoringProjector;
 void isWorkspaceProposalProjectionReleaseMaterial;
 void validateWorkspaceProposalProjectionReleaseMaterial;
@@ -652,6 +660,10 @@ declare const agenticMemoryRecordApplicationBundleOptions: AgenticMemoryRecordAp
 declare const agenticMemoryRecordApplicationMaterialIdentity: AgenticMemoryRecordApplicationMaterialIdentity;
 declare const agenticMemoryRecordApplicationOperationStatus: AgenticMemoryRecordApplicationOperationStatus;
 declare const agenticMemoryRecordApplicationPriorEvidence: AgenticMemoryRecordApplicationPriorEvidence;
+declare const agenticWorkItemMemoryBridgeResult: AgenticWorkItemMemoryBridgeResult;
+declare const agenticWorkItemMemoryBridgeStatus: AgenticWorkItemMemoryBridgeStatus;
+declare const agenticWorkItemMemoryMappingPolicy: AgenticWorkItemMemoryMappingPolicy;
+declare const agenticWorkItemMemoryRecordCandidate: AgenticWorkItemMemoryRecordCandidate;
 declare const workItemProjection: WorkItemProjection;
 declare const recipeBundle: ToolProviderExecutionRecipeBundle;
 declare const recipeOptions: ToolProviderExecutionRecipeOptions;
@@ -709,6 +721,10 @@ void agenticMemoryRecordApplicationBundleOptions;
 void agenticMemoryRecordApplicationMaterialIdentity;
 void agenticMemoryRecordApplicationOperationStatus;
 void agenticMemoryRecordApplicationPriorEvidence;
+void agenticWorkItemMemoryBridgeResult;
+void agenticWorkItemMemoryBridgeStatus;
+void agenticWorkItemMemoryMappingPolicy;
+void agenticWorkItemMemoryRecordCandidate;
 void workItemProjection;
 void recipeBundle;
 void recipeOptions;
