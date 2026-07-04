@@ -10,8 +10,9 @@ const repoRoot = path.resolve(websiteRoot, "..");
 const apiDir = path.join(websiteRoot, "src", "content", "docs", "api");
 const sidebarPath = path.join(websiteRoot, "src", "generated", "api-sidebar.mjs");
 const distRoot = path.join(websiteRoot, "dist");
-const routeRoot = path.join(distRoot, "ts");
-const basePath = normalizeBasePath(process.env.TS_DOCS_BASE_PATH ?? "/ts/");
+const basePath = normalizeBasePath(process.env.TS_DOCS_BASE_PATH ?? "/");
+const routeRoot = basePath === "/" ? distRoot : path.join(distRoot, basePath.replace(/^\/|\/$/g, ""));
+const customDomain = process.env.TS_DOCS_CUSTOM_DOMAIN ?? "ts.graphrefly.dev";
 
 function normalizeBasePath(value) {
 	const withLeading = value.startsWith("/") ? value : `/${value}`;
@@ -229,6 +230,9 @@ if (!existsSync(apiDir)) {
 
 rmSync(distRoot, { force: true, recursive: true });
 mkdirSync(path.join(routeRoot, "assets"), { recursive: true });
+if (customDomain.trim().length > 0) {
+	writeFileSync(path.join(distRoot, "CNAME"), `${customDomain.trim()}\n`);
+}
 
 const { apiSidebar } = await import(`${pathToFileURL(sidebarPath).href}?t=${Date.now()}`);
 const sidebarHtml = renderSidebar(apiSidebar);
@@ -293,9 +297,11 @@ writeFileSync(
 	)}\n`,
 );
 
-writeFileSync(
-	path.join(distRoot, "index.html"),
-	`<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=${basePath}"><link rel="canonical" href="${basePath}"><a href="${basePath}">TypeScript docs</a>\n`,
-);
+if (routeRoot !== distRoot) {
+	writeFileSync(
+		path.join(distRoot, "index.html"),
+		`<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=${basePath}"><link rel="canonical" href="${basePath}"><a href="${basePath}">TypeScript docs</a>\n`,
+	);
+}
 
 console.log(`built ${pages.length} @graphrefly/ts API pages at ${path.relative(repoRoot, routeRoot)}`);

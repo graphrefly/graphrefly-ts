@@ -1,5 +1,5 @@
-# Build the package-local /ts API docs artifact for GitHub Pages.
-# The shared graphrefly.dev shell delegates TypeScript API docs to this route.
+# Build the package-local TypeScript API docs artifact for GitHub Pages.
+# The shared graphrefly.dev shell links out to https://ts.graphrefly.dev/.
 
 name: Deploy docs to GitHub Pages
 
@@ -18,6 +18,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  TS_DOCS_BASE_PATH: "/"
+  TS_DOCS_CUSTOM_DOMAIN: "ts.graphrefly.dev"
 
 permissions:
   contents: read
@@ -46,7 +48,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Build only the package-local /ts artifact. The shared public website
+      # Build only the package-local TypeScript docs artifact. The shared public website
       # shell is owned by graphrefly under D563.
       - name: Build TypeScript docs artifact
         run: pnpm run docs:build

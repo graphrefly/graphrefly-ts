@@ -11,7 +11,7 @@ dashboard/control views live in `~/src/graphrefly`, not this repo.
 pnpm install
 pnpm sync-docs    # syncs root public assets such as llms.txt
 pnpm docs:gen     # generates API markdown + sidebar from current TS exports and JSDoc
-pnpm build        # builds the package-local /ts API artifact into website/dist
+pnpm build        # builds the package-local ts.graphrefly.dev API artifact into website/dist
 pnpm build:legacy # builds the legacy Starlight migration/reference site
 pnpm dev          # predev runs sync-docs + docs:gen
 pnpm preview
@@ -26,10 +26,10 @@ package exports, or the generator, then run `pnpm docs:gen`.
 
 ## Package Artifact
 
-`pnpm build` writes a static `website/dist/ts/` artifact from the generated API
-markdown and sidebar. This is the package-local route that the shared
-`graphrefly.dev` shell can delegate to or ingest without copying TypeScript API
-content into the authority repo.
+`pnpm build` writes a static `website/dist/` artifact from the generated API
+markdown and sidebar. The artifact is designed to be served at
+`https://ts.graphrefly.dev/`, keeping TypeScript API content package-local while
+the shared `graphrefly.dev` shell links out to it.
 
 ## Legacy Preview
 
