@@ -113,8 +113,12 @@ export interface AgenticMemoryContextAttribution {
 }
 
 /** D572 candidate material carried by proposal/admission facts, not record truth. */
+export type AgenticMemoryRecordApplicationOperation = "create" | "replace";
+
 export interface AgenticMemoryRecordCandidateMaterial<T = unknown> {
 	readonly kind: "agentic-memory-record-candidate-material";
+	readonly operation?: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion?: 1;
 	readonly record: AgenticMemoryRecord<T>;
 	readonly targetRecordId?: FactId;
 	readonly attribution?: AgenticMemoryContextAttribution;
@@ -133,6 +137,8 @@ export interface AgenticMemoryRecordCandidateMaterial<T = unknown> {
 export interface AgenticMemoryRecordProposal<T = unknown> {
 	readonly kind: "agentic-memory-record-proposal";
 	readonly proposalId: FactId;
+	readonly operation?: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion?: 1;
 	readonly candidateMaterial: AgenticMemoryRecordCandidateMaterial<T>;
 	readonly targetRecordId?: FactId;
 	readonly reason?: string;
@@ -169,6 +175,8 @@ export interface AgenticMemoryProposalAdmissionDecision<T = unknown> {
 	readonly admissionId: FactId;
 	readonly proposalId: FactId;
 	readonly state: AgenticMemoryProposalAdmissionDecisionState;
+	readonly operation?: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion?: 1;
 	readonly candidateMaterial: AgenticMemoryRecordCandidateMaterial<T>;
 	readonly targetRecordId?: FactId;
 	readonly reason?: string;
@@ -270,7 +278,7 @@ export interface AgenticMemoryRecordAdmissionBundleOptions<T = unknown> {
 }
 
 /**
- * D577 policy for the AgenticMemory-owned application stage after admission.
+ * D577/D578 policy for the AgenticMemory-owned application stage after admission.
  *
  * This policy is DATA only. It owns no storage, hydration, provider/runtime,
  * permission, graph/node handle, or protocol authority.
@@ -292,6 +300,8 @@ export interface AgenticMemoryRecordApplicationEvidence {
 	readonly applicationId?: FactId;
 	readonly admissionId: FactId;
 	readonly proposalId?: FactId;
+	readonly operation: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion: 1;
 	readonly idempotencyKey?: string;
 	readonly recordId: FactId;
 	readonly fragmentId: FactId;
@@ -315,23 +325,32 @@ export type AgenticMemoryRecordApplicationDecisionState = "applied" | "skipped" 
 
 export type AgenticMemoryRecordApplicationReasonCode =
 	| "applied-create"
+	| "applied-replace"
 	| "already-applied"
 	| "skipped-non-admitted"
 	| "blocked-admission-issues"
+	| "unsupported-operation"
 	| "record-id-conflict"
 	| "fragment-id-conflict"
 	| "target-record-id-mismatch"
+	| "target-record-id-required"
+	| "target-record-missing"
+	| "candidate-record-id-mismatch"
+	| "replace-lineage-missing"
+	| "fragment-id-reused-with-different-material"
 	| "idempotency-conflict"
 	| "invalid-history"
 	| "invalid-policy"
 	| (string & {});
 
-/** D577 application decision fact. Rejected decisions are DATA decisions, not protocol ERRORs. */
+/** D577/D578 application decision fact. Rejected decisions are DATA decisions, not protocol ERRORs. */
 export interface AgenticMemoryRecordApplicationDecision<T = unknown> {
 	readonly kind: "agentic-memory-record-application-decision";
 	readonly applicationId: FactId;
 	readonly admissionId: FactId;
 	readonly proposalId: FactId;
+	readonly operation: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion: 1;
 	readonly state: AgenticMemoryRecordApplicationDecisionState;
 	readonly reasonCode: AgenticMemoryRecordApplicationReasonCode;
 	readonly reason?: string;
@@ -349,6 +368,8 @@ export interface AgenticMemoryRecordApplicationAuditEntry {
 	readonly applicationId: FactId;
 	readonly admissionId: FactId;
 	readonly proposalId: FactId;
+	readonly operation: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion: 1;
 	readonly state: AgenticMemoryRecordApplicationDecisionState;
 	readonly reasonCode: AgenticMemoryRecordApplicationReasonCode;
 	readonly reason?: string;
@@ -736,7 +757,10 @@ export type AgenticMemoryConsolidationOutcome<T = unknown> =
 			readonly id: FactId;
 			readonly requestId: FactId;
 			readonly kind: "proposedRecords";
+			readonly applicationOperation?: AgenticMemoryRecordApplicationOperation;
+			readonly operationVersion?: 1;
 			readonly records: readonly AgenticMemoryRecord<T>[];
+			readonly targetRecordIds?: readonly FactId[];
 			readonly provenance?: string;
 	  }
 	| {
@@ -752,6 +776,9 @@ export interface AgenticMemoryConsolidationRecordDraft<T = unknown> {
 	readonly requestId: FactId;
 	readonly outcomeId: FactId;
 	readonly record: AgenticMemoryRecord<T>;
+	readonly applicationOperation?: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion?: 1;
+	readonly targetRecordId?: FactId;
 	/** D576 migration coordinate for the proposal-compatible candidate fact. */
 	readonly proposalId?: FactId;
 	/** D572/D576 proposal material only; not AgenticMemoryRecord truth. */
@@ -776,6 +803,8 @@ export interface AgenticMemoryConsolidationResult {
 	readonly state: "proposed" | "failed";
 	readonly sourceRecordIds: readonly FactId[];
 	readonly proposedRecordIds: readonly FactId[];
+	readonly applicationOperation?: AgenticMemoryRecordApplicationOperation;
+	readonly targetRecordIds?: readonly FactId[];
 	/** Proposal ids corresponding to proposedRecordIds; these are admission inputs, not record truth. */
 	readonly proposalIds?: readonly FactId[];
 	readonly message?: string;

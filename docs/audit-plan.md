@@ -511,10 +511,10 @@ IMPORTANT: Write your complete findings to ~/src/graphrefly-ts/docs/batch-review
 **Directory:** `~/src/graphrefly-ts`
 
 ```
-You are auditing the TypeScript GraphReFly documentation for correctness and completeness per docs-guidance.md.
+You are auditing the TypeScript GraphReFly documentation for correctness and completeness per docs.jsonl.
 
 READ FIRST:
-- docs/docs-guidance.md (the standard)
+- docs/docs.jsonl (the standard)
 - docs/roadmap.md (to verify implementation state matches checkboxes)
 
 THEN AUDIT:
@@ -556,7 +556,7 @@ THEN AUDIT:
    - Does it exist? Is it current?
 
 OUTPUT FORMAT:
-- COMPLETE — meets docs-guidance.md standard
+- COMPLETE — meets docs.jsonl standard
 - MISSING (file:export) — what's missing
 - STALE (file) — needs regeneration or update
 - DIVERGENCE — implementation vs `~/src/graphrefly/GRAPHREFLY-SPEC.md`
@@ -574,7 +574,7 @@ IMPORTANT: Write your complete findings to ~/src/graphrefly-ts/docs/batch-review
 You are auditing the Python GraphReFly documentation for correctness and completeness.
 
 READ FIRST:
-- docs/docs-guidance.md (the Python-specific standard)
+- docs/docs.jsonl (the Python-specific standard)
 - docs/roadmap.md (to verify implementation state)
 
 THEN AUDIT:
@@ -614,7 +614,7 @@ THEN AUDIT:
    - Install instructions correct?
 
 OUTPUT FORMAT:
-- COMPLETE — meets docs-guidance.md standard
+- COMPLETE — meets docs.jsonl standard
 - MISSING (file:export) — what's missing
 - STALE (file) — needs regeneration or update
 - DIVERGENCE — implementation vs `~/src/graphrefly/GRAPHREFLY-SPEC.md`
@@ -1175,10 +1175,10 @@ Run Phase D(10)+E(12)+G(16) ──→ Hand in ──→ Py docs + Py tests + int
 **Directory:** `~/src/graphrefly-ts`
 
 ```
-You are performing a full TypeScript documentation sweep aligned with docs/docs-guidance.md and prior Batch 9 methodology, with one change: apply critical fixes now.
+You are performing a full TypeScript documentation sweep aligned with docs/docs.jsonl and prior Batch 9 methodology, with one change: apply critical fixes now.
 
 READ FIRST:
-- docs/docs-guidance.md (single source of truth for docs conventions)
+- docs/docs.jsonl (single source of truth for docs conventions)
 - docs/roadmap.md (implementation state)
 - docs/batch-review/batch-9.md (prior TS docs audit baseline)
 
@@ -1218,7 +1218,7 @@ REMEDIATION RULE:
 - Defer non-critical polish to follow-up.
 
 OUTPUT FORMAT:
-- COMPLETE — meets docs-guidance standard
+- COMPLETE — meets docs.jsonl standard
 - FIXED (file:path#symbol) — critical fix applied
 - MISSING (file:export) — deferred non-critical gap
 - STALE (file) — regenerated/updated
@@ -1236,10 +1236,10 @@ IMPORTANT:
 **Directory:** `~/src/graphrefly-py`
 
 ```
-You are performing a full Python documentation sweep aligned with docs/docs-guidance.md and prior Batch 10 methodology, with one change: apply critical fixes now.
+You are performing a full Python documentation sweep aligned with docs/docs.jsonl and prior Batch 10 methodology, with one change: apply critical fixes now.
 
 READ FIRST:
-- ~/src/graphrefly-ts/docs/docs-guidance.md (cross-language docs standard)
+- ~/src/graphrefly-ts/docs/docs.jsonl (cross-language docs standard)
 - ~/src/graphrefly-ts/docs/roadmap.md (implementation state)
 - ~/src/graphrefly-ts/docs/batch-review/batch-10.md (prior PY docs audit baseline)
 
@@ -1281,7 +1281,7 @@ REMEDIATION RULE:
 - Defer non-critical polish to follow-up.
 
 OUTPUT FORMAT:
-- COMPLETE — meets docs-guidance standard
+- COMPLETE — meets docs.jsonl standard
 - FIXED (file:path#symbol) — critical fix applied
 - MISSING (file:export) — deferred non-critical gap
 - STALE (file) — regenerated/updated

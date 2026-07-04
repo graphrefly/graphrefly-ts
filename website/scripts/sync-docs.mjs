@@ -28,7 +28,6 @@ const SHARED_FILES = [
 const LOCAL_FILES = [
 	["roadmap.md", "roadmap.md", "Roadmap"],
 	["benchmark.md", "benchmark.md", "Benchmark"],
-	["docs-guidance.md", "docs-guidance.md", "Docs guidance"],
 ];
 
 function titleFromBody(src) {

@@ -2,7 +2,7 @@
 
 > **This file is the single source of truth** for optimization tracking across both graphrefly-ts and graphrefly-py.
 >
-> **Resolved decisions, cross-language notes, built-in optimization docs, QA design decisions, and parity fixes have been archived to `archive/optimizations/*.jsonl`.** See `docs/docs-guidance.md` § "Optimization decision log" for the archive workflow.
+> **Resolved decisions, cross-language notes, built-in optimization docs, QA design decisions, and parity fixes have been archived to `archive/optimizations/*.jsonl`.** See `docs/docs.jsonl` § "Optimization decision log" for the archive workflow.
 >
 > **PY parity deferral (2026-04-17):** Per `archive/docs/SESSION-rigor-infrastructure-plan.md`, PY parity work is **deprioritized** until rigor infrastructure (Projects 1–3: fast-check protocol harness, TLA+ core spec, TS↔PY executable contract traces) lands. Items tagged `[py-parity-…]` below stay tracked but are intentionally held. The trace-format approach (Project 2) replaces quarterly parity audits as the mechanism for catching divergence.
 

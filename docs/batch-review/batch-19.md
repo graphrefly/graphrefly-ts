@@ -2,7 +2,7 @@
 
 Date: 2026-04-10
 Scope: `graphrefly-py` full docs sweep with critical fixes only.
-Baseline: `docs/docs-guidance.md`, `docs/roadmap.md`, `docs/batch-review/batch-10.md`
+Baseline: `docs/docs.jsonl`, `docs/roadmap.md`, `docs/batch-review/batch-10.md`
 
 ## Audit summary
 

@@ -10,4 +10,4 @@ If you add mixed-case or symbolic export names to generated API markdown filenam
 
 ## Suggested full Batch 10 execution
 
-When running the full audit prompt from `docs/audit-plan.md`, work in `~/src/graphrefly-py`: verify docstrings on `core/`, `graph/`, and `extra/` per `docs/docs-guidance.md`, `__all__` accuracy, roadmap checkboxes, `examples/basic_counter.py`, and README install instructions.
+When running the full audit prompt from `docs/audit-plan.md`, work in `~/src/graphrefly-py`: verify docstrings on `core/`, `graph/`, and `extra/` per `docs/docs.jsonl`, `__all__` accuracy, roadmap checkboxes, `examples/basic_counter.py`, and README install instructions.

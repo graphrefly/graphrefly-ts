@@ -387,6 +387,15 @@ function validateProposal<T>(
 	if (value.targetRecordId !== undefined && !isNonEmptyString(value.targetRecordId)) {
 		validationErrors.push("proposal.targetRecordId must be non-empty when present");
 	}
+	if (value.operation !== undefined && typeof value.operation !== "string") {
+		validationErrors.push("proposal.operation must be a string when present");
+	}
+	if (
+		value.operationVersion !== undefined &&
+		(typeof value.operationVersion !== "number" || !Number.isInteger(value.operationVersion))
+	) {
+		validationErrors.push("proposal.operationVersion must be an integer when present");
+	}
 	for (const [field, refs] of [
 		["sourceRefs", value.sourceRefs],
 		["policyRefs", value.policyRefs],
@@ -414,6 +423,22 @@ function validateProposal<T>(
 	) {
 		validationErrors.push(
 			"proposal.targetRecordId conflicts with candidateMaterial.targetRecordId",
+		);
+	}
+	if (
+		typeof value.operation === "string" &&
+		candidateMaterial.material?.operation !== undefined &&
+		value.operation !== candidateMaterial.material.operation
+	) {
+		validationErrors.push("proposal.operation conflicts with candidateMaterial.operation");
+	}
+	if (
+		typeof value.operationVersion === "number" &&
+		candidateMaterial.material?.operationVersion !== undefined &&
+		value.operationVersion !== candidateMaterial.material.operationVersion
+	) {
+		validationErrors.push(
+			"proposal.operationVersion conflicts with candidateMaterial.operationVersion",
 		);
 	}
 	if (value.metadata !== undefined && !isStrictJsonObject(value.metadata)) {
@@ -451,6 +476,15 @@ function validateProposal<T>(
 		proposal: Object.freeze({
 			kind: "agentic-memory-record-proposal",
 			proposalId,
+			...(value.operation === undefined
+				? {}
+				: { operation: value.operation as AgenticMemoryRecordProposal<T>["operation"] }),
+			...(value.operationVersion === undefined
+				? {}
+				: {
+						operationVersion:
+							value.operationVersion as AgenticMemoryRecordProposal<T>["operationVersion"],
+					}),
 			candidateMaterial: candidateMaterial.material,
 			...(value.targetRecordId === undefined
 				? {}
@@ -525,6 +559,10 @@ function admitProposal<T>(
 		admissionId: compoundTupleKey("admission", [policy.policyId, proposal.proposalId]),
 		proposalId: proposal.proposalId,
 		state,
+		...(proposal.operation === undefined ? {} : { operation: proposal.operation }),
+		...(proposal.operationVersion === undefined
+			? {}
+			: { operationVersion: proposal.operationVersion }),
 		candidateMaterial: proposal.candidateMaterial,
 		...(targetRecordId === undefined ? {} : { targetRecordId }),
 		reason,
@@ -573,6 +611,15 @@ function validateCandidateMaterial<T>(
 	if (value.targetRecordId !== undefined && !isNonEmptyString(value.targetRecordId)) {
 		validationErrors.push("candidateMaterial.targetRecordId must be non-empty when present");
 	}
+	if (value.operation !== undefined && typeof value.operation !== "string") {
+		validationErrors.push("candidateMaterial.operation must be a string when present");
+	}
+	if (
+		value.operationVersion !== undefined &&
+		(typeof value.operationVersion !== "number" || !Number.isInteger(value.operationVersion))
+	) {
+		validationErrors.push("candidateMaterial.operationVersion must be an integer when present");
+	}
 	for (const [field, refs] of [
 		["sourceRefs", value.sourceRefs],
 		["policyRefs", value.policyRefs],
@@ -619,6 +666,15 @@ function validateCandidateMaterial<T>(
 	return {
 		material: Object.freeze({
 			kind: "agentic-memory-record-candidate-material",
+			...(value.operation === undefined
+				? {}
+				: { operation: value.operation as AgenticMemoryRecordCandidateMaterial<T>["operation"] }),
+			...(value.operationVersion === undefined
+				? {}
+				: {
+						operationVersion:
+							value.operationVersion as AgenticMemoryRecordCandidateMaterial<T>["operationVersion"],
+					}),
 			record: candidate.record,
 			...(value.targetRecordId === undefined
 				? {}

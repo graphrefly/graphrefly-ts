@@ -2,7 +2,7 @@
 
 Date: 2026-04-10
 Scope: `graphrefly-ts` full docs sweep with critical fixes only.
-Baseline: `docs/docs-guidance.md`, `docs/roadmap.md`, `docs/batch-review/batch-9.md`
+Baseline: `docs/docs.jsonl`, `docs/roadmap.md`, `docs/batch-review/batch-9.md`
 
 ## Audit summary
 

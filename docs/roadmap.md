@@ -6,11 +6,11 @@
 
 > **This file was originally the single source of truth** for roadmap tracking across both graphrefly-ts and graphrefly-py. Per the canonical-source migration above, item-level state is no longer maintained here — the residuals have been folded into `implementation-plan.md` Phase 14.5 (refineLoop tail, mockLLM promotion, demo deck, etc.) or the Parked table (post-1.0 distributed, content-addressing depth, memory optimization).
 >
-> **Completed phases and items have been archived to `archive/roadmap/*.jsonl`.** See `docs/docs-guidance.md` § "Roadmap archive" for the archive structure and workflow.
+> **Completed phases and items have been archived to `archive/roadmap/*.jsonl`.** See `docs/docs.jsonl` § "Roadmap archive" for the archive structure and workflow.
 >
 > **Spec:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical)
 >
-> **Guidance:** [docs-guidance.md](docs-guidance.md) (documentation), [test-guidance.md](test-guidance.md) (tests). Agent context: repo root `CLAUDE.md`; skills under `.claude/skills/`.
+> **Guidance:** [docs.jsonl](docs.jsonl) (documentation), [test-guidance.md](test-guidance.md) (tests). Agent context: repo root `CLAUDE.md`; skills under `.claude/skills/`.
 >
 > **Predecessors:** callbag-recharge (TS, 170+ modules), callbag-recharge-py (PY, Phase 0–1). Key patterns and lessons carried forward — see `archive/docs/design-archive-index.jsonl` for lineage. Clone paths: `~/src/callbag-recharge` (TS), `~/src/callbag-recharge-py` (PY).
 

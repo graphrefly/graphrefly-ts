@@ -27,6 +27,7 @@ import type {
 	AgenticMemoryRecordApplicationCursor,
 	AgenticMemoryRecordApplicationDecision,
 	AgenticMemoryRecordApplicationEvidence,
+	AgenticMemoryRecordApplicationOperation,
 	AgenticMemoryRecordApplicationOptions,
 	AgenticMemoryRecordApplicationPolicy,
 	AgenticMemoryRecordApplicationReasonCode,
@@ -60,6 +61,8 @@ interface EvidenceIndex {
 	readonly byIdempotencyKey: ReadonlyMap<string, readonly AgenticMemoryRecordApplicationEvidence[]>;
 	readonly issues: readonly DataIssue[];
 }
+
+const AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION = 1 as const;
 
 export function agenticMemoryRecordApplicationBundle<T = unknown>(
 	graph: Graph,
@@ -191,6 +194,7 @@ export function applyAgenticMemoryRecordAdmissions<T = unknown>(
 				admission,
 				validatedPolicy.policy,
 				index,
+				nextRecords,
 				currentRecordIds,
 				currentFragmentIds,
 				historyIndex,
@@ -214,9 +218,7 @@ export function applyAgenticMemoryRecordAdmissions<T = unknown>(
 				evaluationEvidenceByIdempotencyKey.set(evidence.idempotencyKey, evidence);
 			}
 			appliedRecords.push(decision.decision.record);
-			nextRecords.push(decision.decision.record);
-			currentRecordIds.add(decision.decision.record.id);
-			currentFragmentIds.add(decision.decision.record.fragment.id);
+			applyDecisionRecord(nextRecords, currentRecordIds, currentFragmentIds, decision.decision);
 		}
 	}
 
@@ -251,10 +253,16 @@ export function applyAgenticMemoryRecordAdmissions<T = unknown>(
 	});
 }
 
+type ApplicationDecisionCommon<T> = Omit<
+	AgenticMemoryRecordApplicationDecision<T>,
+	"kind" | "state" | "reasonCode" | "reason" | "record"
+> & { readonly kind: "agentic-memory-record-application-decision" };
+
 function decideApplication<T>(
 	admission: AgenticMemoryRecordAdmission<T>,
 	policy: AgenticMemoryRecordApplicationPolicy,
 	index: number,
+	nextRecords: readonly AgenticMemoryRecord<T>[],
 	currentRecordIds: ReadonlySet<FactId>,
 	currentFragmentIds: ReadonlySet<FactId>,
 	historyIndex: EvidenceIndex,
@@ -270,6 +278,14 @@ function decideApplication<T>(
 	]);
 	const candidate = admission.candidateMaterial;
 	const record = candidate.record;
+	const rawOperation = admission.operation ?? candidate.operation ?? "create";
+	const rawOperationVersion =
+		admission.operationVersion ??
+		candidate.operationVersion ??
+		AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION;
+	const operation: AgenticMemoryRecordApplicationOperation =
+		rawOperation === "replace" ? "replace" : "create";
+	const operationVersion = AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION;
 	const targetRecordId = admission.targetRecordId ?? candidate.targetRecordId;
 	const effectiveTargetRecordId = targetRecordId ?? record.id;
 	const sourceRefs = mergeRefs([
@@ -287,11 +303,13 @@ function decideApplication<T>(
 		...(candidate.evidenceRefs ?? []),
 		...(admission.evidenceRefs ?? []),
 	]);
-	const common = {
-		kind: "agentic-memory-record-application-decision" as const,
+	const common: ApplicationDecisionCommon<T> = {
+		kind: "agentic-memory-record-application-decision",
 		applicationId,
 		admissionId: admission.admissionId,
 		proposalId: admission.proposalId,
+		operation: operation as AgenticMemoryRecordApplicationOperation,
+		operationVersion: operationVersion as 1,
 		candidateMaterial: candidate,
 		...(targetRecordId === undefined ? {} : { targetRecordId }),
 		...(admission.idempotencyKey === undefined ? {} : { idempotencyKey: admission.idempotencyKey }),
@@ -310,10 +328,45 @@ function decideApplication<T>(
 			issues: [],
 		};
 	}
+	if (rawOperation !== "create" && rawOperation !== "replace") {
+		return rejectedDecision(
+			common,
+			"unsupported-operation",
+			"application operation is unsupported",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "operation"],
+				refs: [rawOperation],
+			},
+		);
+	}
+	if (rawOperationVersion !== AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION) {
+		return rejectedDecision(
+			common,
+			"unsupported-operation",
+			"application operationVersion is unsupported",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "operationVersion"],
+				refs: [String(rawOperationVersion)],
+			},
+		);
+	}
+	const replaceTarget =
+		operation === "replace"
+			? validateReplaceTargetApplication(common, admission, index, nextRecords, targetRecordId)
+			: undefined;
+	if (replaceTarget?.decision !== undefined) {
+		return { decision: replaceTarget.decision, issues: replaceTarget.issues };
+	}
 	const materialKey = applicationMaterialKey({
+		operation,
+		operationVersion,
 		recordId: record.id,
 		fragmentId: record.fragment.id,
-		targetRecordId: effectiveTargetRecordId,
+		targetRecordId: replaceTarget?.targetRecordId ?? effectiveTargetRecordId,
 	});
 	const admissionEvidence = [
 		...scopedEvidence(historyIndex.byAdmissionId.get(admission.admissionId), applicationId),
@@ -346,22 +399,85 @@ function decideApplication<T>(
 	const matchingEvidence = [...admissionEvidence, ...idempotencyEvidence].find(
 		(evidence) => evidenceMaterialKey(evidence) === materialKey,
 	);
-	if (matchingEvidence !== undefined) {
-		return {
-			decision: freezeDecision({
-				...common,
-				state: "skipped",
-				reasonCode: "already-applied",
-				reason: "matching graph-visible application evidence already exists",
-			}),
-			issues: [],
-		};
+	if (
+		matchingEvidence !== undefined &&
+		operation === "replace" &&
+		replaceTarget?.targetRecord !== undefined &&
+		deepEqualValue(record, replaceTarget.targetRecord)
+	) {
+		return skippedAlreadyApplied(common);
 	}
+	const replaceValidation =
+		operation === "replace"
+			? validateReplaceApplication(
+					common,
+					admission,
+					index,
+					nextRecords,
+					currentFragmentIds,
+					replaceTarget?.targetRecordId,
+					replaceTarget?.targetRecord,
+				)
+			: undefined;
+	if (replaceValidation?.decision !== undefined) {
+		return { decision: replaceValidation.decision, issues: replaceValidation.issues };
+	}
+	if (matchingEvidence !== undefined) {
+		return skippedAlreadyApplied(common);
+	}
+	if (operation === "replace") {
+		if (replaceValidation?.targetRecordId === undefined) {
+			return rejectedDecision(common, "target-record-missing", "replace target record is missing", {
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "targetRecordId"],
+			});
+		}
+		return applyReplaceApplication(common, admission, replaceValidation.targetRecordId);
+	}
+	return decideCreateApplication(
+		common,
+		admission,
+		policy,
+		index,
+		currentRecordIds,
+		currentFragmentIds,
+	);
+}
+
+function skippedAlreadyApplied<T>(common: ApplicationDecisionCommon<T>): {
+	readonly decision: AgenticMemoryRecordApplicationDecision<T>;
+	readonly issues: readonly DataIssue[];
+} {
+	return {
+		decision: freezeDecision({
+			...common,
+			state: "skipped",
+			reasonCode: "already-applied",
+			reason: "matching application evidence already exists",
+		}),
+		issues: [],
+	};
+}
+
+function decideCreateApplication<T>(
+	common: ApplicationDecisionCommon<T>,
+	admission: AgenticMemoryRecordAdmission<T>,
+	policy: AgenticMemoryRecordApplicationPolicy,
+	index: number,
+	currentRecordIds: ReadonlySet<FactId>,
+	currentFragmentIds: ReadonlySet<FactId>,
+): {
+	readonly decision: AgenticMemoryRecordApplicationDecision<T>;
+	readonly issues: readonly DataIssue[];
+} {
+	const record = admission.candidateMaterial.record;
+	const targetRecordId = admission.targetRecordId ?? admission.candidateMaterial.targetRecordId;
 	if (targetRecordId !== undefined && targetRecordId !== record.id) {
 		return rejectedDecision(
 			common,
 			"target-record-id-mismatch",
-			"create-only application does not support update/replace targetRecordId",
+			"create targetRecordId is invalid",
 			{
 				severity: "error",
 				subjectId: admission.admissionId,
@@ -403,11 +519,255 @@ function decideApplication<T>(
 	};
 }
 
+function validateReplaceTargetApplication<T>(
+	common: ApplicationDecisionCommon<T>,
+	admission: AgenticMemoryRecordAdmission<T>,
+	index: number,
+	nextRecords: readonly AgenticMemoryRecord<T>[],
+	targetRecordId: FactId | undefined,
+): {
+	readonly decision?: AgenticMemoryRecordApplicationDecision<T>;
+	readonly issues: readonly DataIssue[];
+	readonly targetRecordId?: FactId;
+	readonly targetRecord?: AgenticMemoryRecord<T>;
+} {
+	const record = admission.candidateMaterial.record;
+	if (targetRecordId === undefined) {
+		return rejectedDecision(
+			common,
+			"target-record-id-required",
+			"replace requires targetRecordId",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "targetRecordId"],
+			},
+		);
+	}
+	const targetIndex = nextRecords.findIndex((item) => item.id === targetRecordId);
+	if (targetIndex < 0) {
+		return rejectedDecision(common, "target-record-missing", "replace target record is missing", {
+			severity: "error",
+			subjectId: admission.admissionId,
+			path: [index, "targetRecordId"],
+			refs: [targetRecordId],
+		});
+	}
+	if (record.id !== targetRecordId) {
+		return rejectedDecision(
+			common,
+			"candidate-record-id-mismatch",
+			"replace candidate record id must equal targetRecordId",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "candidateMaterial", "record", "id"],
+				refs: [record.id, targetRecordId],
+			},
+		);
+	}
+	return {
+		issues: [],
+		targetRecordId,
+		targetRecord: nextRecords[targetIndex] as AgenticMemoryRecord<T>,
+	};
+}
+
+function validateReplaceApplication<T>(
+	common: ApplicationDecisionCommon<T>,
+	admission: AgenticMemoryRecordAdmission<T>,
+	index: number,
+	nextRecords: readonly AgenticMemoryRecord<T>[],
+	currentFragmentIds: ReadonlySet<FactId>,
+	targetRecordId: FactId | undefined,
+	targetRecord?: AgenticMemoryRecord<T>,
+): {
+	readonly decision?: AgenticMemoryRecordApplicationDecision<T>;
+	readonly issues: readonly DataIssue[];
+	readonly targetRecordId?: FactId;
+} {
+	const candidate = admission.candidateMaterial;
+	const record = candidate.record;
+	const target =
+		targetRecord === undefined
+			? validateReplaceTargetApplication(common, admission, index, nextRecords, targetRecordId)
+			: { issues: [], targetRecordId, targetRecord };
+	if (target.decision !== undefined) {
+		return { decision: target.decision, issues: target.issues };
+	}
+	if (target.targetRecordId === undefined || target.targetRecord === undefined) {
+		return rejectedDecision(common, "target-record-missing", "replace target record is missing", {
+			severity: "error",
+			subjectId: admission.admissionId,
+			path: [index, "targetRecordId"],
+		});
+	}
+	const prior = target.targetRecord;
+	if (!hasReplaceLineage(candidate, admission, prior)) {
+		return rejectedDecision(
+			common,
+			"replace-lineage-missing",
+			"replace requires explicit lineage to the prior record or fragment",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "candidateMaterial"],
+				refs: [prior.id, prior.fragment.id],
+			},
+		);
+	}
+	if (
+		record.fragment.id === prior.fragment.id &&
+		!deepEqualValue(record.fragment, prior.fragment)
+	) {
+		return rejectedDecision(
+			common,
+			"fragment-id-reused-with-different-material",
+			"replace changed fragment material while reusing the prior fragment id",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "candidateMaterial", "record", "fragment", "id"],
+				refs: [record.fragment.id],
+			},
+		);
+	}
+	if (record.fragment.id !== prior.fragment.id && currentFragmentIds.has(record.fragment.id)) {
+		return rejectedDecision(
+			common,
+			"fragment-id-conflict",
+			"replace candidate fragment id conflicts with current records",
+			{
+				severity: "error",
+				subjectId: admission.admissionId,
+				path: [index, "candidateMaterial", "record", "fragment", "id"],
+				refs: [record.fragment.id],
+			},
+		);
+	}
+	return { issues: [], targetRecordId: target.targetRecordId };
+}
+
+function applyReplaceApplication<T>(
+	common: ApplicationDecisionCommon<T>,
+	admission: AgenticMemoryRecordAdmission<T>,
+	targetRecordId: FactId,
+): {
+	readonly decision: AgenticMemoryRecordApplicationDecision<T>;
+	readonly issues: readonly DataIssue[];
+} {
+	return {
+		decision: freezeDecision({
+			...common,
+			state: "applied",
+			reasonCode: "applied-replace",
+			reason: admission.reason ?? "replace full record",
+			targetRecordId,
+			record: admission.candidateMaterial.record,
+		}),
+		issues: [],
+	};
+}
+
+function applyDecisionRecord<T>(
+	nextRecords: AgenticMemoryRecord<T>[],
+	currentRecordIds: Set<FactId>,
+	currentFragmentIds: Set<FactId>,
+	decision: AgenticMemoryRecordApplicationDecision<T>,
+): void {
+	if (decision.record === undefined) return;
+	if (decision.operation === "replace") {
+		const targetRecordId = decision.targetRecordId ?? decision.record.id;
+		const index = nextRecords.findIndex((record) => record.id === targetRecordId);
+		if (index >= 0) {
+			nextRecords[index] = decision.record;
+			currentFragmentIds.add(decision.record.fragment.id);
+			currentRecordIds.add(decision.record.id);
+			return;
+		}
+	}
+	nextRecords.push(decision.record);
+	currentRecordIds.add(decision.record.id);
+	currentFragmentIds.add(decision.record.fragment.id);
+}
+
+function hasReplaceLineage<T>(
+	candidate: AgenticMemoryRecordCandidateMaterial<T>,
+	admission: AgenticMemoryRecordAdmission<T>,
+	prior: AgenticMemoryRecord<T>,
+): boolean {
+	const fragment = candidate.record.fragment;
+	if (fragment.parentFragmentId === prior.fragment.id) return true;
+	if (fragment.sources.some((source) => source === prior.id || source === prior.fragment.id)) {
+		return true;
+	}
+	return refsMentionRecordOrFragment(
+		[
+			...(candidate.sourceRefs ?? []),
+			...(candidate.evidenceRefs ?? []),
+			...(admission.sourceRefs ?? []),
+			...(admission.evidenceRefs ?? []),
+		],
+		prior,
+	);
+}
+
+function refsMentionRecordOrFragment<T>(
+	refs: readonly AgenticMemoryFactRef[],
+	prior: AgenticMemoryRecord<T>,
+): boolean {
+	return refs.some((ref) => {
+		const kind = ref.kind.toLowerCase();
+		return (
+			(ref.id === prior.id && kind.includes("record")) ||
+			(ref.id === prior.fragment.id && kind.includes("fragment"))
+		);
+	});
+}
+
+function deepEqualValue(a: unknown, b: unknown): boolean {
+	return deepEqualValueInner(a, b, new WeakMap<object, WeakSet<object>>());
+}
+
+function deepEqualValueInner(
+	a: unknown,
+	b: unknown,
+	seen: WeakMap<object, WeakSet<object>>,
+): boolean {
+	if (Object.is(a, b)) return true;
+	if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) {
+		return false;
+	}
+	let seenForA = seen.get(a);
+	if (seenForA?.has(b)) return true;
+	if (seenForA === undefined) {
+		seenForA = new WeakSet<object>();
+		seen.set(a, seenForA);
+	}
+	seenForA.add(b);
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+		for (let index = 0; index < a.length; index += 1) {
+			if (!deepEqualValueInner(a[index], b[index], seen)) return false;
+		}
+		return true;
+	}
+	if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
+	const aRecord = a as Record<string, unknown>;
+	const bRecord = b as Record<string, unknown>;
+	const aKeys = Object.keys(aRecord).sort();
+	const bKeys = Object.keys(bRecord).sort();
+	if (aKeys.length !== bKeys.length) return false;
+	for (let index = 0; index < aKeys.length; index += 1) {
+		const key = aKeys[index] as string;
+		if (key !== bKeys[index]) return false;
+		if (!deepEqualValueInner(aRecord[key], bRecord[key], seen)) return false;
+	}
+	return true;
+}
+
 function rejectedDecision<T>(
-	common: Omit<
-		AgenticMemoryRecordApplicationDecision<T>,
-		"kind" | "state" | "reasonCode" | "reason"
-	> & { readonly kind: "agentic-memory-record-application-decision" },
+	common: ApplicationDecisionCommon<T>,
 	reasonCode: AgenticMemoryRecordApplicationReasonCode,
 	reason: string,
 	issue: Omit<DataIssue, "kind" | "code" | "message" | "source">,
@@ -525,6 +885,15 @@ function validateApplicationAdmission<T>(
 	if (value.targetRecordId !== undefined && !isNonEmptyString(value.targetRecordId)) {
 		validationErrors.push("admission.targetRecordId must be non-empty when present");
 	}
+	if (value.operation !== undefined && typeof value.operation !== "string") {
+		validationErrors.push("admission.operation must be a string when present");
+	}
+	if (
+		value.operationVersion !== undefined &&
+		(typeof value.operationVersion !== "number" || !Number.isInteger(value.operationVersion))
+	) {
+		validationErrors.push("admission.operationVersion must be an integer when present");
+	}
 	if (value.reason !== undefined && typeof value.reason !== "string") {
 		validationErrors.push("admission.reason must be a string when present");
 	}
@@ -562,6 +931,22 @@ function validateApplicationAdmission<T>(
 		);
 	}
 	if (
+		typeof value.operation === "string" &&
+		candidate.material?.operation !== undefined &&
+		value.operation !== candidate.material.operation
+	) {
+		validationErrors.push("admission.operation conflicts with candidateMaterial.operation");
+	}
+	if (
+		typeof value.operationVersion === "number" &&
+		candidate.material?.operationVersion !== undefined &&
+		value.operationVersion !== candidate.material.operationVersion
+	) {
+		validationErrors.push(
+			"admission.operationVersion conflicts with candidateMaterial.operationVersion",
+		);
+	}
+	if (
 		validationErrors.length > 0 ||
 		admissionId === undefined ||
 		proposalId === undefined ||
@@ -584,6 +969,15 @@ function validateApplicationAdmission<T>(
 			admissionId,
 			proposalId,
 			state: value.state as AgenticMemoryRecordAdmission<T>["state"],
+			...(value.operation === undefined
+				? {}
+				: { operation: value.operation as AgenticMemoryRecordAdmission<T>["operation"] }),
+			...(value.operationVersion === undefined
+				? {}
+				: {
+						operationVersion:
+							value.operationVersion as AgenticMemoryRecordAdmission<T>["operationVersion"],
+					}),
 			candidateMaterial: candidate.material,
 			...(value.targetRecordId === undefined
 				? {}
@@ -643,6 +1037,15 @@ function validateCandidateMaterial<T>(
 	if (value.targetRecordId !== undefined && !isNonEmptyString(value.targetRecordId)) {
 		validationErrors.push("candidateMaterial.targetRecordId must be non-empty when present");
 	}
+	if (value.operation !== undefined && typeof value.operation !== "string") {
+		validationErrors.push("candidateMaterial.operation must be a string when present");
+	}
+	if (
+		value.operationVersion !== undefined &&
+		(typeof value.operationVersion !== "number" || !Number.isInteger(value.operationVersion))
+	) {
+		validationErrors.push("candidateMaterial.operationVersion must be an integer when present");
+	}
 	for (const [field, refs] of [
 		["sourceRefs", value.sourceRefs],
 		["policyRefs", value.policyRefs],
@@ -688,6 +1091,15 @@ function validateCandidateMaterial<T>(
 	return {
 		material: Object.freeze({
 			kind: "agentic-memory-record-candidate-material",
+			...(value.operation === undefined
+				? {}
+				: { operation: value.operation as AgenticMemoryRecordCandidateMaterial<T>["operation"] }),
+			...(value.operationVersion === undefined
+				? {}
+				: {
+						operationVersion:
+							value.operationVersion as AgenticMemoryRecordCandidateMaterial<T>["operationVersion"],
+					}),
 			record: candidate.record,
 			...(value.targetRecordId === undefined
 				? {}
@@ -956,10 +1368,17 @@ function validateApplicationEvidence(
 	if (value.kind !== "agentic-memory-record-application-evidence") {
 		validationErrors.push("evidence.kind must be agentic-memory-record-application-evidence");
 	}
+	if (value.operation !== "create" && value.operation !== "replace") {
+		validationErrors.push("evidence.operation must be create or replace");
+	}
+	if (value.operationVersion !== AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION) {
+		validationErrors.push("evidence.operationVersion must be 1");
+	}
 	for (const field of [
 		"applicationId",
 		"admissionId",
 		"proposalId",
+		"operation",
 		"idempotencyKey",
 		"recordId",
 		"fragmentId",
@@ -969,6 +1388,12 @@ function validateApplicationEvidence(
 			validationErrors.push(`evidence.${field} must be non-empty when present`);
 		}
 	}
+	if (
+		value.operationVersion !== undefined &&
+		(typeof value.operationVersion !== "number" || !Number.isInteger(value.operationVersion))
+	) {
+		validationErrors.push("evidence.operationVersion must be an integer when present");
+	}
 	if (!isNonEmptyString(value.admissionId)) {
 		validationErrors.push("evidence.admissionId must be non-empty");
 	}
@@ -977,6 +1402,16 @@ function validateApplicationEvidence(
 	}
 	if (!isNonEmptyString(value.fragmentId)) {
 		validationErrors.push("evidence.fragmentId must be non-empty");
+	}
+	if (value.operation === "replace" && value.targetRecordId === undefined) {
+		validationErrors.push("replace evidence.targetRecordId must be present");
+	}
+	if (
+		isNonEmptyString(value.recordId) &&
+		isNonEmptyString(value.targetRecordId) &&
+		value.targetRecordId !== value.recordId
+	) {
+		validationErrors.push("evidence.targetRecordId must equal recordId when present");
 	}
 	for (const [field, refs] of [
 		["sourceRefs", value.sourceRefs],
@@ -1009,6 +1444,8 @@ function validateApplicationEvidence(
 				: { applicationId: value.applicationId as FactId }),
 			admissionId: value.admissionId as FactId,
 			...(value.proposalId === undefined ? {} : { proposalId: value.proposalId as FactId }),
+			operation: value.operation as AgenticMemoryRecordApplicationOperation,
+			operationVersion: value.operationVersion as 1,
 			...(value.idempotencyKey === undefined
 				? {}
 				: { idempotencyKey: value.idempotencyKey as string }),
@@ -1122,6 +1559,8 @@ function applicationAudit<T>(
 		applicationId: decision.applicationId,
 		admissionId: decision.admissionId,
 		proposalId: decision.proposalId,
+		operation: decision.operation,
+		operationVersion: decision.operationVersion,
 		state: decision.state,
 		reasonCode: decision.reasonCode,
 		...(decision.reason === undefined ? {} : { reason: decision.reason }),
@@ -1143,6 +1582,8 @@ function evidenceFromDecision<T>(
 		applicationId: decision.applicationId,
 		admissionId: decision.admissionId,
 		proposalId: decision.proposalId,
+		operation: decision.operation,
+		operationVersion: decision.operationVersion,
 		...(decision.idempotencyKey === undefined ? {} : { idempotencyKey: decision.idempotencyKey }),
 		recordId: decision.candidateMaterial.record.id,
 		fragmentId: decision.candidateMaterial.record.fragment.id,
@@ -1176,11 +1617,15 @@ function safeInputLength(value: unknown): number {
 }
 
 function applicationMaterialKey(input: {
+	readonly operation: AgenticMemoryRecordApplicationOperation | string;
+	readonly operationVersion: number;
 	readonly recordId: FactId;
 	readonly fragmentId: FactId;
 	readonly targetRecordId?: FactId;
 }): string {
 	return canonicalTupleKey([
+		input.operation,
+		String(input.operationVersion),
 		input.recordId,
 		input.fragmentId,
 		input.targetRecordId ?? input.recordId,
@@ -1189,6 +1634,8 @@ function applicationMaterialKey(input: {
 
 function evidenceMaterialKey(evidence: AgenticMemoryRecordApplicationEvidence): string {
 	return applicationMaterialKey({
+		operation: evidence.operation,
+		operationVersion: evidence.operationVersion,
 		recordId: evidence.recordId,
 		fragmentId: evidence.fragmentId,
 		targetRecordId: evidence.targetRecordId,

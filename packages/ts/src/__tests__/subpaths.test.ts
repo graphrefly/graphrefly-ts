@@ -44,6 +44,7 @@ import type {
 	AgenticMemoryRecord,
 	AgenticMemoryRecordApplicationDecision,
 	AgenticMemoryRecordApplicationHistory,
+	AgenticMemoryRecordApplicationOperation,
 	AgenticMemoryRecordApplicationPolicy,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
@@ -974,9 +975,13 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
 		expectTypeOf<AgenticMemoryRecordApplicationPolicy>().toHaveProperty("policyId");
+		expectTypeOf<AgenticMemoryRecordApplicationOperation>().toEqualTypeOf<"create" | "replace">();
 		expectTypeOf<AgenticMemoryRecordApplicationDecision>()
 			.toHaveProperty("reasonCode")
 			.toEqualTypeOf<string>();
+		expectTypeOf<AgenticMemoryRecordApplicationDecision>()
+			.toHaveProperty("operation")
+			.toEqualTypeOf<AgenticMemoryRecordApplicationOperation>();
 		expectTypeOf<AgenticMemoryRecordApplicationHistory>().toHaveProperty("entries");
 		expectTypeOf<AgenticMemoryConsolidationApplicationBundle>().toHaveProperty("application");
 		expectTypeOf<AgenticMemoryRecordCandidateMaterial>().toHaveProperty("record");

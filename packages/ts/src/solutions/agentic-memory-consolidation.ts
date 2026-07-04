@@ -29,10 +29,13 @@ import type {
 	AgenticMemoryError,
 	AgenticMemoryFactRef,
 	AgenticMemoryRecord,
+	AgenticMemoryRecordApplicationOperation,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordProposal,
 	AgenticMemoryRetentionError,
 } from "./agentic-memory-types.js";
+
+const AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION = 1 as const;
 
 export function agenticMemoryConsolidationBundle<T = unknown>(
 	graph: Graph,
@@ -51,6 +54,7 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 			const outcomes = projectConsolidationOutcomes<T>(
 				depLatest(ctx, 2),
 				requests.requests,
+				recordProjection.records,
 				state.evaluation,
 			);
 			const cursor: AgenticMemoryConsolidationCursor = Object.freeze({
@@ -281,6 +285,7 @@ function validateConsolidationRequests<T>(
 function projectConsolidationOutcomes<T>(
 	value: unknown,
 	requests: readonly AgenticMemoryConsolidationRequest[],
+	records: readonly AgenticMemoryRecord<T>[],
 	evaluation: number,
 ): {
 	readonly results: readonly AgenticMemoryConsolidationResult[];
@@ -292,6 +297,7 @@ function projectConsolidationOutcomes<T>(
 	readonly invalidOutcomes: number;
 } {
 	const byRequest = new Map(requests.map((request) => [request.id, request]));
+	const recordsById = new Map(records.map((record) => [record.id, record]));
 	const results: AgenticMemoryConsolidationResult[] = [];
 	const proposedRecordDrafts: AgenticMemoryConsolidationRecordDraft<T>[] = [];
 	const recordProposals: AgenticMemoryRecordProposal<T>[] = [];
@@ -392,8 +398,8 @@ function projectConsolidationOutcomes<T>(
 			continue;
 		}
 		seenOutcomes.add(validOutcome.id);
-		validOutcomes += 1;
 		if (validOutcome.kind === "failed") {
+			validOutcomes += 1;
 			const resultId = compoundTupleKey("agentic-memory-consolidation-result", [
 				validOutcome.requestId,
 				validOutcome.id,
@@ -421,6 +427,50 @@ function projectConsolidationOutcomes<T>(
 			);
 			continue;
 		}
+		const operation = validOutcome.applicationOperation ?? "create";
+		const operationVersion =
+			validOutcome.operationVersion ?? AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION;
+		const targetRecordIds = validOutcome.targetRecordIds;
+		if (operation === "replace") {
+			const validationErrors: string[] = [];
+			if (targetRecordIds === undefined || targetRecordIds.length !== validOutcome.records.length) {
+				validationErrors.push("replace outcome.targetRecordIds must align with records");
+			}
+			for (let recordIndex = 0; recordIndex < validOutcome.records.length; recordIndex += 1) {
+				const record = validOutcome.records[recordIndex] as AgenticMemoryRecord<T>;
+				const targetRecordId = targetRecordIds?.[recordIndex];
+				if (targetRecordId === undefined) continue;
+				if (!request.recordIds.includes(targetRecordId)) {
+					validationErrors.push(
+						`targetRecordIds[${recordIndex}]: target record '${targetRecordId}' is not in the request`,
+					);
+				}
+				if (!recordsById.has(targetRecordId)) {
+					validationErrors.push(
+						`targetRecordIds[${recordIndex}]: target record '${targetRecordId}' is not projected`,
+					);
+				}
+				if (record.id !== targetRecordId) {
+					validationErrors.push(
+						`records[${recordIndex}]: replace record id '${record.id}' must equal target record id '${targetRecordId}'`,
+					);
+				}
+			}
+			if (validationErrors.length > 0) {
+				invalidOutcomes += 1;
+				errors.push({
+					code: "invalid-proposed-record",
+					message: "agenticMemoryConsolidationBundle: replace outcome is invalid",
+					index: i,
+					outcomeId: validOutcome.id,
+					requestId: validOutcome.requestId,
+					outcome: raw,
+					validationErrors: Object.freeze(validationErrors),
+				});
+				continue;
+			}
+		}
+		validOutcomes += 1;
 		const draftIds = validOutcome.records.map((record) =>
 			compoundTupleKey("agentic-memory-record-draft", [
 				validOutcome.requestId,
@@ -439,10 +489,16 @@ function projectConsolidationOutcomes<T>(
 			const record = validOutcome.records[recordIndex] as AgenticMemoryRecord<T>;
 			const draftId = draftIds[recordIndex] as FactId;
 			const proposalId = proposalIds[recordIndex] as FactId;
-			const refs = consolidationProposalRefs(request, validOutcome.id, draftId);
+			const targetRecordId = targetRecordIds?.[recordIndex];
+			const targetRecord =
+				targetRecordId === undefined ? undefined : recordsById.get(targetRecordId);
+			const refs = consolidationProposalRefs(request, validOutcome.id, draftId, targetRecord);
 			const candidateMaterial: AgenticMemoryRecordCandidateMaterial<T> = Object.freeze({
 				kind: "agentic-memory-record-candidate-material",
+				operation,
+				operationVersion,
 				record,
+				...(targetRecordId === undefined ? {} : { targetRecordId }),
 				sourceRefs: refs,
 				evidenceRefs: refs,
 			});
@@ -452,6 +508,9 @@ function projectConsolidationOutcomes<T>(
 					requestId: validOutcome.requestId,
 					outcomeId: validOutcome.id,
 					record,
+					applicationOperation: operation,
+					operationVersion,
+					...(targetRecordId === undefined ? {} : { targetRecordId }),
 					proposalId,
 					candidateMaterial,
 				}),
@@ -460,7 +519,10 @@ function projectConsolidationOutcomes<T>(
 				Object.freeze({
 					kind: "agentic-memory-record-proposal",
 					proposalId,
+					operation,
+					operationVersion,
 					candidateMaterial,
+					...(targetRecordId === undefined ? {} : { targetRecordId }),
 					reason: request.reason ?? validOutcome.provenance ?? "consolidation",
 					proposalStatus: "consolidation-proposed",
 					sourceRefs: refs,
@@ -483,6 +545,8 @@ function projectConsolidationOutcomes<T>(
 				state: "proposed",
 				sourceRecordIds: request.recordIds,
 				proposedRecordIds: Object.freeze(validOutcome.records.map((record) => record.id)),
+				applicationOperation: operation,
+				...(targetRecordIds === undefined ? {} : { targetRecordIds }),
 				proposalIds: Object.freeze(proposalIds),
 				...(validOutcome.provenance === undefined ? {} : { provenance: validOutcome.provenance }),
 			}),
@@ -514,11 +578,18 @@ function consolidationProposalRefs(
 	request: AgenticMemoryConsolidationRequest,
 	outcomeId: FactId,
 	draftId: FactId,
+	targetRecord?: AgenticMemoryRecord<unknown>,
 ): readonly AgenticMemoryFactRef[] {
 	return Object.freeze([
 		Object.freeze({ kind: "agentic-memory-consolidation-request", id: request.id }),
 		Object.freeze({ kind: "agentic-memory-consolidation-outcome", id: outcomeId }),
 		Object.freeze({ kind: "agentic-memory-consolidation-record-draft", id: draftId }),
+		...(targetRecord === undefined
+			? []
+			: [
+					Object.freeze({ kind: "agentic-memory-record", id: targetRecord.id }),
+					Object.freeze({ kind: "agentic-memory-fragment", id: targetRecord.fragment.id }),
+				]),
 	]);
 }
 
@@ -550,11 +621,32 @@ function validateConsolidationOutcome<T>(
 	if (value.provenance !== undefined && typeof value.provenance !== "string") {
 		errors.push("outcome.provenance must be a string when present");
 	}
+	if (
+		value.applicationOperation !== undefined &&
+		value.applicationOperation !== "create" &&
+		value.applicationOperation !== "replace"
+	) {
+		errors.push("outcome.applicationOperation must be create or replace when present");
+	}
+	if (
+		value.operationVersion !== undefined &&
+		value.operationVersion !== AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION
+	) {
+		errors.push("outcome.operationVersion must be 1 when present");
+	}
 	if (value.kind === "failed" && !isNonEmptyString(value.message)) {
 		errors.push("failed outcome.message must be a non-empty string");
 	}
 	const records: AgenticMemoryRecord<T>[] = [];
+	let targetRecordIds: readonly FactId[] | undefined;
 	if (value.kind === "proposedRecords") {
+		if (value.targetRecordIds !== undefined) {
+			if (!isDenseArrayOf(value.targetRecordIds, isNonEmptyString)) {
+				errors.push("proposedRecords.targetRecordIds must be a dense non-empty string array");
+			} else {
+				targetRecordIds = Object.freeze([...value.targetRecordIds]);
+			}
+		}
 		if (!Array.isArray(value.records)) {
 			errors.push("proposedRecords.records must be a non-empty array");
 		} else {
@@ -621,7 +713,17 @@ function validateConsolidationOutcome<T>(
 			id,
 			requestId,
 			kind: "proposedRecords",
+			...(value.applicationOperation === undefined
+				? {}
+				: {
+						applicationOperation:
+							value.applicationOperation as AgenticMemoryRecordApplicationOperation,
+					}),
+			...(value.operationVersion === undefined
+				? {}
+				: { operationVersion: value.operationVersion as 1 }),
 			records: Object.freeze(records),
+			...(targetRecordIds === undefined ? {} : { targetRecordIds }),
 			...(value.provenance === undefined ? {} : { provenance: value.provenance as string }),
 		}),
 	};

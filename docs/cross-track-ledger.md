@@ -39,7 +39,7 @@ Mark a row ✅ when the native side has shipped the symbol/behavior AND the pari
 arm is tight (`packages/parity-tests/impls/rust.ts` casts `as Impl`, not
 `as unknown as Impl`). On the next docs sweep, move closed rows to
 `archive/optimizations/resolved-decisions.jsonl` per
-[`docs/docs-guidance.md`](docs-guidance.md) § "Optimization decision log".
+[`docs/docs.jsonl`](docs.jsonl) § "Optimization decision log".
 
 ---
 
