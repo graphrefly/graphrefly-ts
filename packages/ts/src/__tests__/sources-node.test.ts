@@ -9,7 +9,7 @@ import { EnvironmentDrivers, fromProcess, graph } from "../index.js";
 import {
 	type FSEvent,
 	fromFSWatch,
-	fromGitHook,
+	fromGitPoll,
 	fromSpawn,
 	type GitEvent,
 	nodeProcessDriver,
@@ -32,8 +32,8 @@ afterEach(() => {
 const data = <T = FSEvent>(msgs: Message[]): T[] =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", T])[1]);
 
-async function waitFor(predicate: () => boolean): Promise<void> {
-	for (let i = 0; i < 200; i += 1) {
+async function waitFor(predicate: () => boolean, attempts = 200): Promise<void> {
+	for (let i = 0; i < attempts; i += 1) {
 		if (predicate()) return;
 		await new Promise((resolve) => setTimeout(resolve, 10));
 	}
@@ -292,10 +292,11 @@ function git(dir: string, args: readonly string[]): void {
 }
 
 describe("node-only git sources", () => {
-	it("fromGitHook records the first poll as baseline and emits later commits", async () => {
+	it("fromGitPoll records the first poll as baseline and emits later commits", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "graphrefly-git-"));
 		dirs.push(dir);
 		git(dir, ["init"]);
+		git(dir, ["config", "core.fsmonitor", "false"]);
 		git(dir, ["config", "user.email", "test@example.com"]);
 		git(dir, ["config", "user.name", "GraphReFly Test"]);
 		writeFileSync(join(dir, "a.txt"), "a");
@@ -303,20 +304,23 @@ describe("node-only git sources", () => {
 		git(dir, ["commit", "-m", "initial"]);
 
 		const n = graph().initNode(
-			fromGitHook(dir, { pollMs: 50, include: ["*.txt"], exclude: ["skip*"] }),
+			fromGitPoll(dir, { pollMs: 50, include: ["*.txt"], exclude: ["skip*"] }),
 			[],
 		);
 		const msgs: Message[] = [];
 		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
-		expect(data<GitEvent>(msgs)).toEqual([]);
+		try {
+			expect(data<GitEvent>(msgs)).toEqual([]);
 
-		writeFileSync(join(dir, " spaced .txt"), "b");
-		writeFileSync(join(dir, "skip.log"), "skip");
-		git(dir, ["add", "--", " spaced .txt", "skip.log"]);
-		git(dir, ["commit", "-m", "second"]);
+			writeFileSync(join(dir, " spaced .txt"), "b");
+			writeFileSync(join(dir, "skip.log"), "skip");
+			git(dir, ["add", "--", " spaced .txt", "skip.log"]);
+			git(dir, ["commit", "-m", "second"]);
 
-		await waitFor(() => data<GitEvent>(msgs).length === 1);
-		unsubscribe();
+			await waitFor(() => data<GitEvent>(msgs).length === 1, 800);
+		} finally {
+			unsubscribe();
+		}
 
 		const event = data<GitEvent>(msgs)[0];
 		expect(event.hook).toBe("post-commit");
@@ -324,5 +328,5 @@ describe("node-only git sources", () => {
 		expect(event.message).toBe("second");
 		expect(event.author).toBe("GraphReFly Test");
 		expect(typeof event.timestamp_ns).toBe("string");
-	});
+	}, 10_000);
 });

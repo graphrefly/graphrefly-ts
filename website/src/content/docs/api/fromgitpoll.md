@@ -1,5 +1,5 @@
 ---
-title: "fromGitHook()"
+title: "fromGitPoll()"
 description: "Poll a Git repository for new commits and emit commit-shaped graph events."
 ---
 
@@ -10,15 +10,15 @@ Poll a Git repository for new commits and emit commit-shaped graph events.
 ## Import
 
 ```ts
-import { fromGitHook } from "@graphrefly/ts/sources/node";
+import { fromGitPoll } from "@graphrefly/ts/sources/node";
 ```
 
 ## Signature
 
 ```ts
-function fromGitHook(
+function fromGitPoll(
 	repoPath: string,
-	opts: FromGitHookOptions = {},
+	opts: FromGitPollOptions = {},
 ): Operator<never, GitEvent>
 ```
 
@@ -27,7 +27,7 @@ function fromGitHook(
 | Parameter | Type | Description |
 |---|---|---|
 | `repoPath` | `string` | Path to the Git repository to poll. |
-| `opts` | `FromGitHookOptions` | Poll interval, include/exclude file filters, error tolerance, and cancellation signal. |
+| `opts` | `FromGitPollOptions` | Poll interval, include/exclude file filters, error tolerance, and cancellation signal. |
 
 ## Returns
 
@@ -37,10 +37,10 @@ A node-only source operator that emits `GitEvent` values after the initial basel
 
 ```ts
 import { graph } from "@graphrefly/ts/graph";
-import { fromGitHook } from "@graphrefly/ts/sources/node";
+import { fromGitPoll } from "@graphrefly/ts/sources/node";
 
 const g = graph();
-const commits = g.initNode(fromGitHook(process.cwd(), { include: ["packages/**"] }), []);
+const commits = g.initNode(fromGitPoll(process.cwd(), { include: ["packages/**"] }), []);
 ```
 
 ## Source

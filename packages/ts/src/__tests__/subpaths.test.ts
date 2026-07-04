@@ -1243,12 +1243,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 	it("exports node-only sources as a package subpath without polluting universal sources", () => {
 		expect(exportsJson.exports?.["./sources/node"]).toBeDefined();
 		expect(typeof sourcesNode.fromFSWatch).toBe("function");
-		expect(typeof sourcesNode.fromGitHook).toBe("function");
+		expect(typeof sourcesNode.fromGitPoll).toBe("function");
 		expect(typeof sourcesNode.fromSpawn).toBe("function");
 		expect(typeof sourcesNode.nodeProcessDriver).toBe("function");
 		expect(typeof sourcesNode.runProcess).toBe("function");
 		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
-		expect(Object.hasOwn(sources, "fromGitHook")).toBe(false);
+		expect(Object.hasOwn(sources, "fromGitPoll")).toBe(false);
 		expect(Object.hasOwn(sources, "fromSpawn")).toBe(false);
 		expect(Object.hasOwn(sources, "nodeProcessDriver")).toBe(false);
 		expect(Object.hasOwn(sources, "runProcess")).toBe(false);
@@ -1262,7 +1262,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof sourcesBrowser.fromIDBRequest).toBe("function");
 		expect(typeof sourcesBrowser.fromIDBTransaction).toBe("function");
 		expect(Object.hasOwn(sourcesBrowser, "fromFSWatch")).toBe(false);
-		expect(Object.hasOwn(sourcesBrowser, "fromGitHook")).toBe(false);
+		expect(Object.hasOwn(sourcesBrowser, "fromGitPoll")).toBe(false);
 		expect(Object.hasOwn(sourcesBrowser, "fromSpawn")).toBe(false);
 		expect(Object.hasOwn(sourcesBrowser, "nodeProcessDriver")).toBe(false);
 		expect(Object.hasOwn(sourcesBrowser, "runProcess")).toBe(false);

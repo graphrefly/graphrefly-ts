@@ -88,7 +88,7 @@ export interface GitEvent {
 	readonly timestamp_ns: string;
 }
 
-export interface FromGitHookOptions {
+export interface FromGitPollOptions {
 	readonly pollMs?: number;
 	readonly include?: readonly string[];
 	readonly exclude?: readonly string[];
@@ -804,24 +804,24 @@ function readGitHead(
  * @example
  * ```ts
  * import { graph } from "@graphrefly/ts/graph";
- * import { fromGitHook } from "@graphrefly/ts/sources/node";
+ * import { fromGitPoll } from "@graphrefly/ts/sources/node";
  *
  * const g = graph();
- * const commits = g.initNode(fromGitHook(process.cwd(), { include: ["packages/**"] }), []);
+ * const commits = g.initNode(fromGitPoll(process.cwd(), { include: ["packages/**"] }), []);
  * ```
  * @category sources
  */
-export function fromGitHook(
+export function fromGitPoll(
 	repoPath: string,
-	opts: FromGitHookOptions = {},
+	opts: FromGitPollOptions = {},
 ): Operator<never, GitEvent> {
 	const { pollMs = 5000, include, exclude, maxConsecutiveErrors = 1, signal } = opts;
-	validatePositiveFinite("fromGitHook: pollMs", pollMs);
+	validatePositiveFinite("fromGitPoll: pollMs", pollMs);
 	if (!Number.isFinite(maxConsecutiveErrors) && maxConsecutiveErrors !== Infinity) {
-		throw new RangeError("fromGitHook: maxConsecutiveErrors must be finite or Infinity");
+		throw new RangeError("fromGitPoll: maxConsecutiveErrors must be finite or Infinity");
 	}
 	if (maxConsecutiveErrors <= 0) {
-		throw new RangeError("fromGitHook: maxConsecutiveErrors must be positive");
+		throw new RangeError("fromGitPoll: maxConsecutiveErrors must be positive");
 	}
 	const resolvedRepoPath = resolvePath(repoPath);
 	const includePatterns = (include ?? []).map(globToRegExp);
@@ -832,7 +832,7 @@ export function fromGitHook(
 		return included && !matchesAny(normalized, excludePatterns);
 	};
 
-	return source<GitEvent>("fromGitHook", (ctx) => {
+	return source<GitEvent>("fromGitPoll", (ctx) => {
 		let done = false;
 		let lastSeen: string | undefined;
 		let consecutiveErrors = 0;

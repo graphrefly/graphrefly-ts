@@ -567,8 +567,8 @@ export const apiSidebar = [
 				"link": "/api/runprocess"
 			},
 			{
-				"label": "fromGitHook()",
-				"link": "/api/fromgithook"
+				"label": "fromGitPoll()",
+				"link": "/api/fromgitpoll"
 			}
 		]
 	},
