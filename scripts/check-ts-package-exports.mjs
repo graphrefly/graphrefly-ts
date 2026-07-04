@@ -552,13 +552,17 @@ import {
 	agenticMemoryConsolidationApplicationBundle,
 	type AgenticMemoryBundleOptions as FocusedAgenticMemoryBundleOptions,
 	type AgenticMemoryConsolidationApplicationBundle,
+	type AgenticMemoryConsolidationApplicationBundleOptions,
 	type AgenticMemoryRecord as FocusedAgenticMemoryRecord,
 	agenticMemoryRecordAdmissionBundle,
 	type AgenticMemoryRecordAdmissionPolicy,
 	agenticMemoryRecordApplicationBundle,
+	type AgenticMemoryRecordApplicationBundleOptions,
 	type AgenticMemoryRecordApplicationMaterialIdentity,
 	type AgenticMemoryRecordApplicationOperationStatus,
+	type AgenticMemoryRecordApplicationOptions,
 	type AgenticMemoryRecordApplicationPolicy,
+	type AgenticMemoryRecordApplicationPriorEvidence,
 	applyAgenticMemoryRecordAdmissions,
 } from "@graphrefly/ts/solutions/agentic-memory";
 import * as agenticWorkItemMemory from "@graphrefly/ts/solutions/agentic-work-item-memory";
@@ -639,11 +643,15 @@ declare const scoreSubject: ScoreSubject;
 declare const scoredSubject: ScoredSubject;
 declare const focusedAgenticMemoryBundleOptions: FocusedAgenticMemoryBundleOptions;
 declare const focusedConsolidationApplicationBundle: AgenticMemoryConsolidationApplicationBundle;
+declare const focusedConsolidationApplicationBundleOptions: AgenticMemoryConsolidationApplicationBundleOptions;
 declare const focusedAgenticMemoryRecord: FocusedAgenticMemoryRecord;
 declare const agenticMemoryRecordAdmissionPolicy: AgenticMemoryRecordAdmissionPolicy;
 declare const agenticMemoryRecordApplicationPolicy: AgenticMemoryRecordApplicationPolicy;
+declare const agenticMemoryRecordApplicationOptions: AgenticMemoryRecordApplicationOptions;
+declare const agenticMemoryRecordApplicationBundleOptions: AgenticMemoryRecordApplicationBundleOptions;
 declare const agenticMemoryRecordApplicationMaterialIdentity: AgenticMemoryRecordApplicationMaterialIdentity;
 declare const agenticMemoryRecordApplicationOperationStatus: AgenticMemoryRecordApplicationOperationStatus;
+declare const agenticMemoryRecordApplicationPriorEvidence: AgenticMemoryRecordApplicationPriorEvidence;
 declare const workItemProjection: WorkItemProjection;
 declare const recipeBundle: ToolProviderExecutionRecipeBundle;
 declare const recipeOptions: ToolProviderExecutionRecipeOptions;
@@ -692,11 +700,15 @@ void scoreSubject;
 void scoredSubject;
 void focusedAgenticMemoryBundleOptions;
 void focusedConsolidationApplicationBundle;
+void focusedConsolidationApplicationBundleOptions;
 void focusedAgenticMemoryRecord;
 void agenticMemoryRecordAdmissionPolicy;
 void agenticMemoryRecordApplicationPolicy;
+void agenticMemoryRecordApplicationOptions;
+void agenticMemoryRecordApplicationBundleOptions;
 void agenticMemoryRecordApplicationMaterialIdentity;
 void agenticMemoryRecordApplicationOperationStatus;
+void agenticMemoryRecordApplicationPriorEvidence;
 void workItemProjection;
 void recipeBundle;
 void recipeOptions;

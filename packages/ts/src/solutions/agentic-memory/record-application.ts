@@ -56,7 +56,7 @@ interface ValidatedAdmissions<T> {
 	readonly issues: readonly DataIssue[];
 }
 
-interface ValidatedHistory {
+interface ValidatedPriorEvidence {
 	readonly entries: readonly AgenticMemoryRecordApplicationEvidence[];
 	readonly invalidEntries: number;
 	readonly issues: readonly DataIssue[];
@@ -94,9 +94,9 @@ export function agenticMemoryRecordApplicationBundle<T = unknown>(
 ): AgenticMemoryRecordApplicationBundle<T> {
 	const name = opts.name ?? "agenticMemoryRecordApplication";
 	const deps =
-		opts.history === undefined
+		opts.priorEvidence === undefined
 			? [opts.records, opts.admissions, opts.policy]
-			: [opts.records, opts.admissions, opts.policy, opts.history];
+			: [opts.records, opts.admissions, opts.policy, opts.priorEvidence];
 	const projection = graph.node<AgenticMemoryRecordApplicationSnapshot<T>>(
 		deps,
 		(ctx) => {
@@ -106,10 +106,10 @@ export function agenticMemoryRecordApplicationBundle<T = unknown>(
 			state.evaluation += 1;
 			const snapshot = applyAgenticMemoryRecordAdmissions<T>(depLatest(ctx, 1), depLatest(ctx, 2), {
 				records: depLatest(ctx, 0) as readonly AgenticMemoryRecord<T>[] | undefined,
-				history:
-					opts.history === undefined
+				priorEvidence:
+					opts.priorEvidence === undefined
 						? undefined
-						: (depLatest(ctx, 3) as AgenticMemoryRecordApplicationOptions<T>["history"]),
+						: (depLatest(ctx, 3) as AgenticMemoryRecordApplicationOptions<T>["priorEvidence"]),
 				evaluation: state.evaluation,
 			});
 			ctx.state.set(state);
@@ -127,7 +127,7 @@ export function agenticMemoryRecordApplicationBundle<T = unknown>(
 			records: opts.records,
 			admissions: opts.admissions,
 			policy: opts.policy,
-			...(opts.history === undefined ? {} : { history: opts.history }),
+			...(opts.priorEvidence === undefined ? {} : { priorEvidence: opts.priorEvidence }),
 		},
 		projection,
 		records: solutionProjection(
@@ -209,16 +209,16 @@ export function applyAgenticMemoryRecordAdmissions<T = unknown>(
 ): AgenticMemoryRecordApplicationSnapshot<T> {
 	const recordProjection = validateAndProjectRecords<T>(opts.records ?? []);
 	const validatedPolicy = safeValidateApplicationPolicy(policy);
-	const validatedHistory = validateApplicationHistory(opts.history);
+	const validatedPriorEvidence = validateApplicationPriorEvidence(opts.priorEvidence);
 	const validatedAdmissions = validateApplicationAdmissions<T>(admissions);
 	const baseIssues = [
 		...recordProjection.errors.map(recordProjectionIssue),
 		...validatedPolicy.issues,
-		...validatedHistory.issues,
+		...validatedPriorEvidence.issues,
 		...validatedAdmissions.issues,
 	];
-	const historyIndex = buildEvidenceIndex(validatedHistory.entries);
-	const issues: DataIssue[] = [...baseIssues, ...historyIndex.issues];
+	const priorEvidenceIndex = buildEvidenceIndex(validatedPriorEvidence.entries);
+	const issues: DataIssue[] = [...baseIssues, ...priorEvidenceIndex.issues];
 	const appliedRecords: AgenticMemoryRecord<T>[] = [];
 	const applicationDecisions: AgenticMemoryRecordApplicationDecision<T>[] = [];
 	const audit: AgenticMemoryRecordApplicationAuditEntry[] = [];
@@ -241,7 +241,7 @@ export function applyAgenticMemoryRecordAdmissions<T = unknown>(
 				nextRecords,
 				currentRecordIds,
 				currentFragmentIds,
-				historyIndex,
+				priorEvidenceIndex,
 				evaluationEvidenceByAdmissionId,
 				evaluationEvidenceByIdempotencyKey,
 			);
@@ -274,8 +274,9 @@ export function applyAgenticMemoryRecordAdmissions<T = unknown>(
 		admissions: safeInputLength(admissions),
 		validAdmissions: validatedAdmissions.admissions.length,
 		invalidAdmissions: validatedAdmissions.invalidAdmissions,
-		historyEntries: validatedHistory.entries.length + validatedHistory.invalidEntries,
-		invalidHistoryEntries: validatedHistory.invalidEntries,
+		priorEvidenceEntries:
+			validatedPriorEvidence.entries.length + validatedPriorEvidence.invalidEntries,
+		invalidPriorEvidenceEntries: validatedPriorEvidence.invalidEntries,
 		applied: appliedRecords.length,
 		skipped: applicationDecisions.filter((decision) => decision.state === "skipped").length,
 		rejected: applicationDecisions.filter((decision) => decision.state === "rejected").length,
@@ -315,7 +316,7 @@ function decideApplication<T>(
 	nextRecords: readonly AgenticMemoryRecord<T>[],
 	currentRecordIds: ReadonlySet<FactId>,
 	currentFragmentIds: ReadonlySet<FactId>,
-	historyIndex: EvidenceIndex,
+	priorEvidenceIndex: EvidenceIndex,
 	evaluationEvidenceByAdmissionId: ReadonlyMap<FactId, AgenticMemoryRecordApplicationEvidence>,
 	evaluationEvidenceByIdempotencyKey: ReadonlyMap<string, AgenticMemoryRecordApplicationEvidence>,
 ): {
@@ -452,7 +453,7 @@ function decideApplication<T>(
 		targetRecordId: replaceTarget?.targetRecordId ?? effectiveTargetRecordId,
 	});
 	const admissionEvidence = [
-		...scopedEvidence(historyIndex.byAdmissionId.get(admission.admissionId), applicationId),
+		...scopedEvidence(priorEvidenceIndex.byAdmissionId.get(admission.admissionId), applicationId),
 		evaluationEvidenceByAdmissionId.get(admission.admissionId),
 	].filter((evidence) => evidence !== undefined);
 	const idempotencyEvidence =
@@ -460,7 +461,7 @@ function decideApplication<T>(
 			? []
 			: [
 					...scopedEvidence(
-						historyIndex.byIdempotencyKey.get(admission.idempotencyKey),
+						priorEvidenceIndex.byIdempotencyKey.get(admission.idempotencyKey),
 						applicationId,
 					),
 					evaluationEvidenceByIdempotencyKey.get(admission.idempotencyKey),
@@ -1320,17 +1321,17 @@ function validateApplicationPolicy(value: unknown): ValidatedPolicy {
 	};
 }
 
-function validateApplicationHistory(value: unknown): ValidatedHistory {
+function validateApplicationPriorEvidence(value: unknown): ValidatedPriorEvidence {
 	try {
-		return validateApplicationHistoryInner(value);
+		return validateApplicationPriorEvidenceInner(value);
 	} catch (error) {
 		return {
 			entries: Object.freeze([]),
 			invalidEntries: 1,
 			issues: [
 				dataIssue(
-					"agentic-memory.application-history.invalid",
-					`application history access failed: ${errorMessage(error)}`,
+					"agentic-memory.application-prior-evidence.invalid",
+					`application prior evidence access failed: ${errorMessage(error)}`,
 					{ severity: "error" },
 				),
 			],
@@ -1338,7 +1339,7 @@ function validateApplicationHistory(value: unknown): ValidatedHistory {
 	}
 }
 
-function validateApplicationHistoryInner(value: unknown): ValidatedHistory {
+function validateApplicationPriorEvidenceInner(value: unknown): ValidatedPriorEvidence {
 	if (value === undefined) return { entries: Object.freeze([]), invalidEntries: 0, issues: [] };
 	let rawEntries: unknown;
 	const issues: DataIssue[] = [];
@@ -1346,11 +1347,13 @@ function validateApplicationHistoryInner(value: unknown): ValidatedHistory {
 		rawEntries = value;
 	} else if (isPlainRecord(value)) {
 		const validationErrors = [
-			...dataRecordContainerErrors(value, "history"),
-			...forbiddenAgenticMemoryDataFields(value, "history"),
+			...dataRecordContainerErrors(value, "priorEvidence"),
+			...forbiddenAgenticMemoryDataFields(value, "priorEvidence"),
 		];
-		if (value.kind !== "agentic-memory-record-application-history") {
-			validationErrors.push("history.kind must be agentic-memory-record-application-history");
+		if (value.kind !== "agentic-memory-record-application-prior-evidence") {
+			validationErrors.push(
+				"priorEvidence.kind must be agentic-memory-record-application-prior-evidence",
+			);
 		}
 		for (const [field, refs] of [
 			["sourceRefs", value.sourceRefs],
@@ -1358,28 +1361,36 @@ function validateApplicationHistoryInner(value: unknown): ValidatedHistory {
 		] as const) {
 			if (refs !== undefined) {
 				validationErrors.push(
-					...validateAgenticMemoryFactRefs(refs).map((error) => `history.${field}: ${error}`),
+					...validateAgenticMemoryFactRefs(refs).map((error) => `priorEvidence.${field}: ${error}`),
 				);
 			}
 		}
-		snapshotMetadata(value.metadata, "history.metadata", validationErrors);
-		rawEntries = value.entries;
+		snapshotMetadata(value.metadata, "priorEvidence.metadata", validationErrors);
 		if (validationErrors.length > 0) {
-			issues.push(
-				dataIssue("agentic-memory.application-history.invalid", "application history is invalid", {
-					severity: "error",
-					refs: validationErrors,
-				}),
-			);
+			return {
+				entries: Object.freeze([]),
+				invalidEntries: 1,
+				issues: Object.freeze([
+					dataIssue(
+						"agentic-memory.application-prior-evidence.invalid",
+						"application prior evidence is invalid",
+						{
+							severity: "error",
+							refs: validationErrors,
+						},
+					),
+				]),
+			};
 		}
+		rawEntries = value.entries;
 	} else {
 		return {
 			entries: Object.freeze([]),
 			invalidEntries: 1,
 			issues: [
 				dataIssue(
-					"agentic-memory.application-history.invalid",
-					"application history must be an object or array",
+					"agentic-memory.application-prior-evidence.invalid",
+					"application prior evidence must be an object or array",
 					{ severity: "error" },
 				),
 			],
@@ -1392,8 +1403,8 @@ function validateApplicationHistoryInner(value: unknown): ValidatedHistory {
 			issues: Object.freeze([
 				...issues,
 				dataIssue(
-					"agentic-memory.application-history.invalid",
-					"application history entries must be an array",
+					"agentic-memory.application-prior-evidence.invalid",
+					"application prior evidence entries must be an array",
 					{ severity: "error" },
 				),
 			]),
@@ -1407,8 +1418,8 @@ function validateApplicationHistoryInner(value: unknown): ValidatedHistory {
 			issues: Object.freeze([
 				...issues,
 				dataIssue(
-					"agentic-memory.application-history.invalid",
-					"application history entries length could not be read",
+					"agentic-memory.application-prior-evidence.invalid",
+					"application prior evidence entries length could not be read",
 					{ severity: "error" },
 				),
 			]),
@@ -1418,7 +1429,9 @@ function validateApplicationHistoryInner(value: unknown): ValidatedHistory {
 	let invalidEntries = 0;
 	for (let index = 0; index < length; index += 1) {
 		try {
-			if (!Object.hasOwn(rawEntries, index)) throw new TypeError("history entries must be dense");
+			if (!Object.hasOwn(rawEntries, index)) {
+				throw new TypeError("prior evidence entries must be dense");
+			}
 			const validation = validateApplicationEvidence(rawEntries[index], index);
 			if (validation.evidence === undefined) {
 				invalidEntries += 1;
@@ -1430,8 +1443,8 @@ function validateApplicationHistoryInner(value: unknown): ValidatedHistory {
 			invalidEntries += 1;
 			issues.push(
 				dataIssue(
-					"agentic-memory.application-history.invalid-entry",
-					`application history entry access failed: ${errorMessage(error)}`,
+					"agentic-memory.application-prior-evidence.invalid-entry",
+					`application prior evidence entry access failed: ${errorMessage(error)}`,
 					{ severity: "error", path: [index] },
 				),
 			);
@@ -1455,7 +1468,7 @@ function validateApplicationEvidence(
 		return {
 			issues: [
 				dataIssue(
-					"agentic-memory.application-history.invalid-entry",
+					"agentic-memory.application-prior-evidence.invalid-entry",
 					"evidence must be an object",
 					{
 						severity: "error",
@@ -1549,22 +1562,26 @@ function validateApplicationEvidence(
 	if (validationErrors.length > 0) {
 		return {
 			issues: [
-				dataIssue("agentic-memory.application-history.invalid-entry", "evidence is invalid", {
-					severity: "error",
-					path: [index],
-					refs: validationErrors,
-					...(value.operation === "create" || value.operation === "replace"
-						? {
-								details: {
-									operation: value.operation,
-									operationVersion:
-										value.operationVersion === 1
-											? AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION
-											: value.operationVersion,
-								},
-							}
-						: {}),
-				}),
+				dataIssue(
+					"agentic-memory.application-prior-evidence.invalid-entry",
+					"evidence is invalid",
+					{
+						severity: "error",
+						path: [index],
+						refs: validationErrors,
+						...(value.operation === "create" || value.operation === "replace"
+							? {
+									details: {
+										operation: value.operation,
+										operationVersion:
+											value.operationVersion === 1
+												? AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION
+												: value.operationVersion,
+									},
+								}
+							: {}),
+					},
+				),
 			],
 		};
 	}
@@ -1746,8 +1763,8 @@ function buildEvidenceIndex(
 		) {
 			issues.push(
 				dataIssue(
-					"agentic-memory.application-history.conflicting-admission-evidence",
-					"application history reuses admissionId with conflicting material",
+					"agentic-memory.application-prior-evidence.conflicting-admission-evidence",
+					"application prior evidence reuses admissionId with conflicting material",
 					{ severity: "error", subjectId: entry.admissionId },
 				),
 			);
@@ -1768,8 +1785,8 @@ function buildEvidenceIndex(
 		) {
 			issues.push(
 				dataIssue(
-					"agentic-memory.application-history.conflicting-idempotency-evidence",
-					"application history reuses idempotencyKey with conflicting material",
+					"agentic-memory.application-prior-evidence.conflicting-idempotency-evidence",
+					"application prior evidence reuses idempotencyKey with conflicting material",
 					{ severity: "error", subjectId: entry.idempotencyKey, refs: [entry.admissionId] },
 				),
 			);

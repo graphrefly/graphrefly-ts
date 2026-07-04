@@ -1815,7 +1815,7 @@ describe("agentic memory record application projector (D577)", () => {
 			},
 		});
 		const replaceRecord = replaceAdmission.candidateMaterial.record;
-		const matchingReplaceHistory: readonly AgenticMemoryRecordApplicationEvidence[] = [
+		const matchingReplacePriorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
 			{
 				kind: "agentic-memory-record-application-evidence",
 				admissionId: "replace-replay",
@@ -1829,7 +1829,7 @@ describe("agentic memory record application projector (D577)", () => {
 				materialIdentity: applicationMaterialIdentity("replace", replaceRecord, "record-existing"),
 			},
 		];
-		const conflictingReplaceHistory: readonly AgenticMemoryRecordApplicationEvidence[] = [
+		const conflictingReplacePriorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
 			{
 				kind: "agentic-memory-record-application-evidence",
 				admissionId: "replace-conflict",
@@ -1847,11 +1847,11 @@ describe("agentic memory record application projector (D577)", () => {
 				),
 			},
 		];
-		const createHistory: readonly AgenticMemoryRecordApplicationEvidence[] = [
+		const createPriorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
 			{
 				kind: "agentic-memory-record-application-evidence",
-				admissionId: "replace-create-history",
-				proposalId: "replace-create-history",
+				admissionId: "replace-create-priorEvidence",
+				proposalId: "replace-create-priorEvidence",
 				operation: "create",
 				operationVersion: 1,
 				idempotencyKey: "idem-cross-operation",
@@ -1864,7 +1864,7 @@ describe("agentic memory record application projector (D577)", () => {
 
 		const matching = applyAgenticMemoryRecordAdmissions([replaceAdmission], applicationPolicy(), {
 			records: current,
-			history: matchingReplaceHistory,
+			priorEvidence: matchingReplacePriorEvidence,
 		});
 		const conflict = applyAgenticMemoryRecordAdmissions(
 			[
@@ -1876,19 +1876,19 @@ describe("agentic memory record application projector (D577)", () => {
 				},
 			],
 			applicationPolicy(),
-			{ records: current, history: conflictingReplaceHistory },
+			{ records: current, priorEvidence: conflictingReplacePriorEvidence },
 		);
 		const crossOperation = applyAgenticMemoryRecordAdmissions(
 			[
 				{
 					...replaceAdmission,
-					admissionId: "replace-create-history",
-					proposalId: "replace-create-history",
+					admissionId: "replace-create-priorEvidence",
+					proposalId: "replace-create-priorEvidence",
 					idempotencyKey: "idem-cross-operation",
 				},
 			],
 			applicationPolicy(),
-			{ records: current, history: createHistory },
+			{ records: current, priorEvidence: createPriorEvidence },
 		);
 
 		expect(matching.applicationDecisions).toEqual([
@@ -1931,7 +1931,7 @@ describe("agentic memory record application projector (D577)", () => {
 			applicationPolicy(),
 			{
 				records: current,
-				history: [
+				priorEvidence: [
 					{
 						kind: "agentic-memory-record-application-evidence",
 						admissionId: "replace-replay-advanced",
@@ -1986,7 +1986,7 @@ describe("agentic memory record application projector (D577)", () => {
 
 	it("validates replace invariants before matching idempotency replay", () => {
 		const current = [record({ id: "record-a", fragment: fragment({ id: "fragment-a" }) })];
-		const history: readonly AgenticMemoryRecordApplicationEvidence[] = [
+		const priorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
 			{
 				kind: "agentic-memory-record-application-evidence",
 				admissionId: "replace-replay-invalid",
@@ -2017,7 +2017,7 @@ describe("agentic memory record application projector (D577)", () => {
 				}),
 			],
 			applicationPolicy(),
-			{ records: current, history },
+			{ records: current, priorEvidence },
 		);
 
 		expect(snapshot.applicationDecisions).toEqual([
@@ -2077,15 +2077,15 @@ describe("agentic memory record application projector (D577)", () => {
 		const policy = g.state<AgenticMemoryRecordApplicationPolicy>(applicationPolicy(), {
 			name: "policy",
 		});
-		const history = g.state<readonly AgenticMemoryRecordApplicationEvidence[]>([], {
-			name: "history",
+		const priorEvidence = g.state<readonly AgenticMemoryRecordApplicationEvidence[]>([], {
+			name: "priorEvidence",
 		});
 		const bundle = agenticMemoryRecordApplicationBundle(g, {
 			name: "application",
 			records,
 			admissions,
 			policy,
-			history,
+			priorEvidence,
 		});
 		const nextRecords = collect(bundle.records);
 		const appliedRecords = collect(bundle.appliedRecords);
@@ -2098,7 +2098,7 @@ describe("agentic memory record application projector (D577)", () => {
 				{ from: "records", to: "application/projection" },
 				{ from: "admissions", to: "application/projection" },
 				{ from: "policy", to: "application/projection" },
-				{ from: "history", to: "application/projection" },
+				{ from: "priorEvidence", to: "application/projection" },
 				{ from: "application/projection", to: "application/records" },
 				{ from: "application/projection", to: "application/appliedRecords" },
 				{ from: "application/projection", to: "application/applicationDecisions" },
@@ -2231,9 +2231,9 @@ describe("agentic memory record application projector (D577)", () => {
 		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});
 
-	it("reports invalid policy, history, admission, and candidate material as DATA issues", () => {
-		const hostileHistory = {
-			kind: "agentic-memory-record-application-history",
+	it("reports invalid policy, priorEvidence, admission, and candidate material as DATA issues", () => {
+		const hostilePriorEvidence = {
+			kind: "agentic-memory-record-application-prior-evidence",
 			entries: [
 				{
 					kind: "agentic-memory-record-application-evidence",
@@ -2267,7 +2267,7 @@ describe("agentic memory record application projector (D577)", () => {
 				rejectDuplicateFragmentIds: false,
 				storageKey: "nope",
 			},
-			{ history: hostileHistory as never },
+			{ priorEvidence: hostilePriorEvidence as never },
 		);
 
 		expect(snapshot.records).toEqual([]);
@@ -2275,8 +2275,7 @@ describe("agentic memory record application projector (D577)", () => {
 		expect(snapshot.applicationDecisions).toEqual([]);
 		expect(snapshot.issues.map((issue) => issue.code)).toEqual([
 			"agentic-memory.application-policy.invalid",
-			"agentic-memory.application-history.invalid",
-			"agentic-memory.application-history.invalid-entry",
+			"agentic-memory.application-prior-evidence.invalid",
 			"agentic-memory.application.invalid-admission",
 		]);
 		expect(snapshot.status).toMatchObject({
@@ -2285,12 +2284,12 @@ describe("agentic memory record application projector (D577)", () => {
 		});
 	});
 
-	it("rejects malformed replace application history evidence as DATA issues", () => {
+	it("rejects malformed replace application prior evidence as DATA issues", () => {
 		const snapshot = applyAgenticMemoryRecordAdmissions([], applicationPolicy(), {
-			history: [
+			priorEvidence: [
 				{
 					kind: "agentic-memory-record-application-evidence",
-					admissionId: "replace-history-missing-target",
+					admissionId: "replace-priorEvidence-missing-target",
 					operation: "replace",
 					operationVersion: 1,
 					recordId: "record-a",
@@ -2303,7 +2302,7 @@ describe("agentic memory record application projector (D577)", () => {
 				},
 				{
 					kind: "agentic-memory-record-application-evidence",
-					admissionId: "replace-history-target-mismatch",
+					admissionId: "replace-priorEvidence-target-mismatch",
 					operation: "replace",
 					operationVersion: 1,
 					recordId: "record-a",
@@ -2319,8 +2318,8 @@ describe("agentic memory record application projector (D577)", () => {
 		});
 
 		expect(snapshot.issues.map((issue) => issue.code)).toEqual([
-			"agentic-memory.application-history.invalid-entry",
-			"agentic-memory.application-history.invalid-entry",
+			"agentic-memory.application-prior-evidence.invalid-entry",
+			"agentic-memory.application-prior-evidence.invalid-entry",
 		]);
 		expect(snapshot.issues.map((issue) => issue.refs)).toEqual([
 			["replace evidence.targetRecordId must be present"],
@@ -2328,28 +2327,28 @@ describe("agentic memory record application projector (D577)", () => {
 		]);
 	});
 
-	it("rejects missing, unsupported, or empty history material identity as DATA issues", () => {
+	it("rejects missing, unsupported, or empty priorEvidence material identity as DATA issues", () => {
 		const baseEvidence = {
 			kind: "agentic-memory-record-application-evidence",
-			admissionId: "history-material",
-			proposalId: "history-material",
+			admissionId: "priorEvidence-material",
+			proposalId: "priorEvidence-material",
 			operation: "create",
 			operationVersion: 1,
-			recordId: "record-history-material",
-			fragmentId: "fragment-history-material",
-			targetRecordId: "record-history-material",
+			recordId: "record-priorEvidence-material",
+			fragmentId: "fragment-priorEvidence-material",
+			targetRecordId: "record-priorEvidence-material",
 		} as const;
 		const snapshot = applyAgenticMemoryRecordAdmissions([], applicationPolicy(), {
-			history: [
+			priorEvidence: [
 				baseEvidence,
 				{
 					...baseEvidence,
-					admissionId: "history-material-algorithm",
+					admissionId: "priorEvidence-material-algorithm",
 					materialIdentity: { algorithm: "unsupported", key: "non-empty" },
 				},
 				{
 					...baseEvidence,
-					admissionId: "history-material-empty",
+					admissionId: "priorEvidence-material-empty",
 					materialIdentity: {
 						algorithm: AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
 						key: "",
@@ -2357,13 +2356,13 @@ describe("agentic memory record application projector (D577)", () => {
 				},
 				{
 					...baseEvidence,
-					admissionId: "history-material-extra",
+					admissionId: "priorEvidence-material-extra",
 					materialIdentity: {
 						...applicationMaterialIdentity(
 							"create",
 							record({
-								id: "record-history-material",
-								fragment: fragment({ id: "fragment-history-material" }),
+								id: "record-priorEvidence-material",
+								fragment: fragment({ id: "fragment-priorEvidence-material" }),
 							}),
 						),
 						patch: "nope",
@@ -2371,12 +2370,12 @@ describe("agentic memory record application projector (D577)", () => {
 				},
 				{
 					...baseEvidence,
-					admissionId: "history-material-mismatch",
+					admissionId: "priorEvidence-material-mismatch",
 					materialIdentity: applicationMaterialIdentity(
 						"create",
 						record({
 							id: "record-other",
-							fragment: fragment({ id: "fragment-history-material" }),
+							fragment: fragment({ id: "fragment-priorEvidence-material" }),
 						}),
 					),
 				},
@@ -2384,11 +2383,11 @@ describe("agentic memory record application projector (D577)", () => {
 		});
 
 		expect(snapshot.issues.map((issue) => issue.code)).toEqual([
-			"agentic-memory.application-history.invalid-entry",
-			"agentic-memory.application-history.invalid-entry",
-			"agentic-memory.application-history.invalid-entry",
-			"agentic-memory.application-history.invalid-entry",
-			"agentic-memory.application-history.invalid-entry",
+			"agentic-memory.application-prior-evidence.invalid-entry",
+			"agentic-memory.application-prior-evidence.invalid-entry",
+			"agentic-memory.application-prior-evidence.invalid-entry",
+			"agentic-memory.application-prior-evidence.invalid-entry",
+			"agentic-memory.application-prior-evidence.invalid-entry",
 		]);
 		expect(snapshot.issues.flatMap((issue) => issue.refs ?? [])).toEqual(
 			expect.arrayContaining([
@@ -2400,6 +2399,44 @@ describe("agentic memory record application projector (D577)", () => {
 				"evidence.materialIdentity.key frame record.id must match evidence.recordId",
 			]),
 		);
+	});
+
+	it("does not let stale application history wrappers drive prior evidence replay", () => {
+		const admission = admitted({ admissionId: "stale-wrapper", proposalId: "stale-wrapper" });
+		const candidate = admission.candidateMaterial.record;
+		const snapshot = applyAgenticMemoryRecordAdmissions([admission], applicationPolicy(), {
+			priorEvidence: {
+				kind: "agentic-memory-record-application-history",
+				entries: [
+					{
+						kind: "agentic-memory-record-application-evidence",
+						admissionId: "stale-wrapper",
+						proposalId: "stale-wrapper",
+						operation: "create",
+						operationVersion: 1,
+						recordId: candidate.id,
+						fragmentId: candidate.fragment.id,
+						targetRecordId: candidate.id,
+						materialIdentity: applicationMaterialIdentity("create", candidate),
+					},
+				],
+			} as never,
+		});
+
+		expect(snapshot.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "applied", reasonCode: "applied-create" }),
+		]);
+		expect(snapshot.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.application-prior-evidence.invalid",
+				refs: ["priorEvidence.kind must be agentic-memory-record-application-prior-evidence"],
+			}),
+		]);
+		expect(snapshot.cursor).toMatchObject({
+			applied: 1,
+			priorEvidenceEntries: 1,
+			invalidPriorEvidenceEntries: 1,
+		});
 	});
 
 	it("rejects non-strict JSON candidate payload while keeping it on the DATA issue path", () => {
@@ -2471,14 +2508,14 @@ describe("agentic memory record application projector (D577)", () => {
 		).toEqual({ nested: { value: "before" } });
 	});
 
-	it("keeps hostile history getters and unsafe input lengths on the DATA issue path", () => {
-		const hostileHistory = {
-			kind: "agentic-memory-record-application-history",
+	it("keeps hostile priorEvidence getters and unsafe input lengths on the DATA issue path", () => {
+		const hostilePriorEvidence = {
+			kind: "agentic-memory-record-application-prior-evidence",
 			entries: [],
 		};
-		Object.defineProperty(hostileHistory, "entries", {
+		Object.defineProperty(hostilePriorEvidence, "entries", {
 			get() {
-				throw new Error("history getter exploded");
+				throw new Error("priorEvidence getter exploded");
 			},
 			enumerable: true,
 		});
@@ -2497,17 +2534,17 @@ describe("agentic memory record application projector (D577)", () => {
 
 		const snapshot = applyAgenticMemoryRecordAdmissions(hostileAdmissions, applicationPolicy(), {
 			records: hostileRecords,
-			history: hostileHistory,
+			priorEvidence: hostilePriorEvidence,
 		});
 
 		expect(snapshot.issues.map((issue) => issue.code)).toEqual([
 			"agentic-memory.record.invalid",
-			"agentic-memory.application-history.invalid",
+			"agentic-memory.application-prior-evidence.invalid",
 			"agentic-memory.application.invalid-admissions-input",
 		]);
 		expect(snapshot.status).toMatchObject({
 			state: "error",
-			cursor: { records: 0, admissions: 0, invalidAdmissions: 1, invalidHistoryEntries: 1 },
+			cursor: { records: 0, admissions: 0, invalidAdmissions: 1, invalidPriorEvidenceEntries: 1 },
 		});
 	});
 
@@ -2643,7 +2680,7 @@ describe("agentic memory record application projector (D577)", () => {
 	});
 
 	it("skips matching idempotency replay and rejects conflicting reuse", () => {
-		const history: readonly AgenticMemoryRecordApplicationEvidence[] = [
+		const priorEvidence: readonly AgenticMemoryRecordApplicationEvidence[] = [
 			{
 				kind: "agentic-memory-record-application-evidence",
 				admissionId: "admission-mixed",
@@ -2678,17 +2715,20 @@ describe("agentic memory record application projector (D577)", () => {
 			},
 			{
 				kind: "agentic-memory-record-application-evidence",
-				admissionId: "admission-history",
-				proposalId: "proposal-history",
+				admissionId: "admission-priorEvidence",
+				proposalId: "proposal-priorEvidence",
 				operation: "create",
 				operationVersion: 1,
-				idempotencyKey: "idem-history",
-				recordId: "record-history",
-				fragmentId: "fragment-history",
-				targetRecordId: "record-history",
+				idempotencyKey: "idem-priorEvidence",
+				recordId: "record-priorEvidence",
+				fragmentId: "fragment-priorEvidence",
+				targetRecordId: "record-priorEvidence",
 				materialIdentity: applicationMaterialIdentity(
 					"create",
-					record({ id: "record-history", fragment: fragment({ id: "fragment-history" }) }),
+					record({
+						id: "record-priorEvidence",
+						fragment: fragment({ id: "fragment-priorEvidence" }),
+					}),
 				),
 			},
 		];
@@ -2704,23 +2744,23 @@ describe("agentic memory record application projector (D577)", () => {
 					},
 				}),
 				admitted({
-					admissionId: "admission-history",
-					proposalId: "proposal-history",
+					admissionId: "admission-priorEvidence",
+					proposalId: "proposal-priorEvidence",
 					operation: "create",
 					operationVersion: 1,
-					idempotencyKey: "idem-history",
+					idempotencyKey: "idem-priorEvidence",
 					candidateMaterial: {
 						kind: "agentic-memory-record-candidate-material",
 						record: record({
-							id: "record-history",
-							fragment: fragment({ id: "fragment-history" }),
+							id: "record-priorEvidence",
+							fragment: fragment({ id: "fragment-priorEvidence" }),
 						}),
 					},
 				}),
 				admitted({
 					admissionId: "admission-conflict",
 					proposalId: "proposal-conflict",
-					idempotencyKey: "idem-history",
+					idempotencyKey: "idem-priorEvidence",
 					candidateMaterial: {
 						kind: "agentic-memory-record-candidate-material",
 						record: record({ id: "record-other", fragment: fragment({ id: "fragment-other" }) }),
@@ -2752,7 +2792,7 @@ describe("agentic memory record application projector (D577)", () => {
 				}),
 			],
 			applicationPolicy(),
-			{ history },
+			{ priorEvidence },
 		);
 
 		expect(snapshot.records.map((item) => item.id)).toEqual(["record-current"]);
@@ -2764,7 +2804,7 @@ describe("agentic memory record application projector (D577)", () => {
 			]),
 		).toEqual([
 			["proposal-mixed", "rejected", "idempotency-conflict"],
-			["proposal-history", "skipped", "already-applied"],
+			["proposal-priorEvidence", "skipped", "already-applied"],
 			["proposal-conflict", "rejected", "idempotency-conflict"],
 			["proposal-current", "applied", "applied-create"],
 			["proposal-current-repeat", "skipped", "already-applied"],
@@ -2813,7 +2853,7 @@ describe("agentic memory record application projector (D577)", () => {
 			[sameIdsDifferentPayload, sameIdsDifferentKind],
 			applicationPolicy(),
 			{
-				history: [
+				priorEvidence: [
 					{
 						kind: "agentic-memory-record-application-evidence",
 						admissionId: "same-coordinate-payload",
@@ -2977,7 +3017,7 @@ describe("agentic memory record application projector (D577)", () => {
 		expect(snapshot.issues).toEqual([]);
 	});
 
-	it("scopes application history evidence by applicationId when present", () => {
+	it("scopes application prior evidence by applicationId when present", () => {
 		const admission = admitted({
 			admissionId: "admission-scoped",
 			proposalId: "proposal-scoped",
@@ -2988,7 +3028,7 @@ describe("agentic memory record application projector (D577)", () => {
 			},
 		});
 		const snapshot = applyAgenticMemoryRecordAdmissions([admission], applicationPolicy(), {
-			history: [
+			priorEvidence: [
 				{
 					kind: "agentic-memory-record-application-evidence",
 					applicationId: "other-application",

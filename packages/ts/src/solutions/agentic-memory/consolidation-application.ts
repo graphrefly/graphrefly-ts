@@ -43,7 +43,9 @@ export function agenticMemoryConsolidationApplicationBundle<T = unknown>(
 		records: opts.records,
 		admissions: admission.admissions,
 		policy: opts.applicationPolicy,
-		...(opts.applicationHistory === undefined ? {} : { history: opts.applicationHistory }),
+		...(opts.applicationPriorEvidence === undefined
+			? {}
+			: { priorEvidence: opts.applicationPriorEvidence }),
 	});
 	return {
 		input: {
@@ -52,9 +54,9 @@ export function agenticMemoryConsolidationApplicationBundle<T = unknown>(
 			outcomes: opts.outcomes,
 			admissionPolicy: opts.admissionPolicy,
 			applicationPolicy: opts.applicationPolicy,
-			...(opts.applicationHistory === undefined
+			...(opts.applicationPriorEvidence === undefined
 				? {}
-				: { applicationHistory: opts.applicationHistory }),
+				: { applicationPriorEvidence: opts.applicationPriorEvidence }),
 		},
 		consolidation,
 		admission,

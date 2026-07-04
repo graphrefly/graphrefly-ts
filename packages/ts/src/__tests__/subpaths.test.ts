@@ -33,6 +33,7 @@ import * as graphLayer from "../graph/index.js";
 import type {
 	AgenticMemoryBundleOptions,
 	AgenticMemoryConsolidationApplicationBundle,
+	AgenticMemoryConsolidationApplicationBundleOptions,
 	AgenticMemoryConsolidationBundle,
 	AgenticMemoryConsolidationBundleOptions,
 	AgenticMemoryContextAttribution,
@@ -42,13 +43,15 @@ import type {
 	AgenticMemoryProposalAdmissionDecision,
 	AgenticMemoryProposalAdmissionPolicy,
 	AgenticMemoryRecord,
+	AgenticMemoryRecordApplicationBundleOptions,
 	AgenticMemoryRecordApplicationDecision,
-	AgenticMemoryRecordApplicationHistory,
 	AgenticMemoryRecordApplicationMaterialIdentity,
 	AgenticMemoryRecordApplicationMaterialIdentityAlgorithm,
 	AgenticMemoryRecordApplicationOperation,
 	AgenticMemoryRecordApplicationOperationStatus,
+	AgenticMemoryRecordApplicationOptions,
 	AgenticMemoryRecordApplicationPolicy,
+	AgenticMemoryRecordApplicationPriorEvidence,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
 	AgenticMemoryRecordsPersistenceHandle,
@@ -1000,7 +1003,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticMemoryRecordApplicationDecision>()
 			.toHaveProperty("operation")
 			.toEqualTypeOf<AgenticMemoryRecordApplicationOperation>();
-		expectTypeOf<AgenticMemoryRecordApplicationHistory>().toHaveProperty("entries");
+		expectTypeOf<AgenticMemoryRecordApplicationPriorEvidence>().toHaveProperty("entries");
+		expectTypeOf<AgenticMemoryRecordApplicationOptions>().toHaveProperty("priorEvidence");
+		expectTypeOf<AgenticMemoryRecordApplicationBundleOptions>().toHaveProperty("priorEvidence");
+		expectTypeOf<AgenticMemoryConsolidationApplicationBundleOptions>().toHaveProperty(
+			"applicationPriorEvidence",
+		);
 		expectTypeOf<AgenticMemoryConsolidationApplicationBundle>().toHaveProperty("application");
 		expectTypeOf<AgenticMemoryConsolidationApplicationBundle>().toHaveProperty(
 			"applicationOperationStatuses",

@@ -332,9 +332,9 @@ export interface AgenticMemoryRecordApplicationEvidence {
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
 }
 
-/** Optional DATA-only application/idempotency history supplied by the graph. */
-export interface AgenticMemoryRecordApplicationHistory {
-	readonly kind: "agentic-memory-record-application-history";
+/** Optional DATA-only prior application evidence supplied by the graph. */
+export interface AgenticMemoryRecordApplicationPriorEvidence {
+	readonly kind: "agentic-memory-record-application-prior-evidence";
 	readonly entries: readonly AgenticMemoryRecordApplicationEvidence[];
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
 	readonly policyRefs?: readonly AgenticMemoryFactRef[];
@@ -360,7 +360,7 @@ export type AgenticMemoryRecordApplicationReasonCode =
 	| "fragment-id-reused-with-different-material"
 	| "idempotency-conflict"
 	| "material-identity-invalid"
-	| "invalid-history"
+	| "invalid-prior-evidence"
 	| "invalid-policy"
 	| (string & {});
 
@@ -413,8 +413,8 @@ export interface AgenticMemoryRecordApplicationCursor {
 	readonly admissions: number;
 	readonly validAdmissions: number;
 	readonly invalidAdmissions: number;
-	readonly historyEntries: number;
-	readonly invalidHistoryEntries: number;
+	readonly priorEvidenceEntries: number;
+	readonly invalidPriorEvidenceEntries: number;
 	readonly applied: number;
 	readonly skipped: number;
 	readonly rejected: number;
@@ -464,8 +464,8 @@ export interface AgenticMemoryRecordApplicationSnapshot<T = unknown> {
 
 export interface AgenticMemoryRecordApplicationOptions<T = unknown> {
 	readonly records?: readonly AgenticMemoryRecord<T>[];
-	readonly history?:
-		| AgenticMemoryRecordApplicationHistory
+	readonly priorEvidence?:
+		| AgenticMemoryRecordApplicationPriorEvidence
 		| readonly AgenticMemoryRecordApplicationEvidence[];
 	readonly evaluation?: number;
 }
@@ -475,8 +475,8 @@ export interface AgenticMemoryRecordApplicationBundle<T = unknown> {
 		readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
 		readonly admissions: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
 		readonly policy: Node<AgenticMemoryRecordApplicationPolicy>;
-		readonly history?:
-			| Node<AgenticMemoryRecordApplicationHistory>
+		readonly priorEvidence?:
+			| Node<AgenticMemoryRecordApplicationPriorEvidence>
 			| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
 	};
 	readonly projection: Node<AgenticMemoryRecordApplicationSnapshot<T>>;
@@ -495,8 +495,8 @@ export interface AgenticMemoryRecordApplicationBundleOptions<T = unknown> {
 	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
 	readonly admissions: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
 	readonly policy: Node<AgenticMemoryRecordApplicationPolicy>;
-	readonly history?:
-		| Node<AgenticMemoryRecordApplicationHistory>
+	readonly priorEvidence?:
+		| Node<AgenticMemoryRecordApplicationPriorEvidence>
 		| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
 }
 
@@ -932,8 +932,8 @@ export interface AgenticMemoryConsolidationApplicationBundle<T = unknown> {
 		readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
 		readonly admissionPolicy: Node<AgenticMemoryRecordAdmissionPolicy>;
 		readonly applicationPolicy: Node<AgenticMemoryRecordApplicationPolicy>;
-		readonly applicationHistory?:
-			| Node<AgenticMemoryRecordApplicationHistory>
+		readonly applicationPriorEvidence?:
+			| Node<AgenticMemoryRecordApplicationPriorEvidence>
 			| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
 	};
 	/** D171 consolidation projection: emits proposal-compatible DATA, not record truth. */
@@ -942,7 +942,7 @@ export interface AgenticMemoryConsolidationApplicationBundle<T = unknown> {
 	readonly admission: AgenticMemoryRecordAdmissionBundle<T>;
 	/** D577 AgenticMemory-owned record application boundary. */
 	readonly application: AgenticMemoryRecordApplicationBundle<T>;
-	/** Full next AgenticMemoryRecord snapshot after admitted create-only application. */
+	/** Full next AgenticMemoryRecord snapshot after admitted create/replace application. */
 	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
 	readonly appliedRecords: Node<readonly AgenticMemoryRecord<T>[]>;
 	readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
@@ -960,8 +960,8 @@ export interface AgenticMemoryConsolidationApplicationBundleOptions<T = unknown>
 	readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
 	readonly admissionPolicy: Node<AgenticMemoryRecordAdmissionPolicy>;
 	readonly applicationPolicy: Node<AgenticMemoryRecordApplicationPolicy>;
-	readonly applicationHistory?:
-		| Node<AgenticMemoryRecordApplicationHistory>
+	readonly applicationPriorEvidence?:
+		| Node<AgenticMemoryRecordApplicationPriorEvidence>
 		| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
 }
 
