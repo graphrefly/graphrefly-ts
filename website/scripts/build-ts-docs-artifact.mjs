@@ -215,14 +215,6 @@ function packageSidebar(activeSection) {
 	return `<section class="sidebar-panel">
   <p class="sidebar-kicker">Package Docs</p>
   <nav class="sidebar-nav" aria-label="Package docs sections">${nav}</nav>
-</section>
-<section class="sidebar-panel sidebar-facts">
-  <p class="sidebar-kicker">Artifact</p>
-  <dl>
-    <div><dt>Package</dt><dd>@graphrefly/ts</dd></div>
-    <div><dt>Boundary</dt><dd>TypeScript local docs</dd></div>
-    <div><dt>Source</dt><dd>exports + JSDoc</dd></div>
-  </dl>
 </section>`;
 }
 
@@ -267,10 +259,39 @@ function renderApiSidebar(sidebar) {
 				.map((item) => `<li><a href="${sidebarLink(item.link)}">${escapeHtml(item.label)}</a></li>`)
 				.join("");
 			const open = index < 4 ? " open" : "";
-			return `<details${open}><summary>${escapeHtml(group.label)} <span>${group.items.length}</span></summary><ul>${items}</ul></details>`;
+			return `<details${open}><summary>${escapeHtml(group.label)}</summary><ul>${items}</ul></details>`;
 		})
 		.join("\n");
 	return `${packageSidebar("api")}<section class="sidebar-panel api-tree"><p class="sidebar-kicker">API Reference</p>${apiNav}</section>`;
+}
+
+function apiGroupDescription(label) {
+	const descriptions = new Map([
+		["Core", "Build graph nodes, state, batching, and runtime primitives."],
+		["Graph", "Create, inspect, restore, and describe graph topology."],
+		["Operators", "Compose reactive values with mapping, filtering, merging, buffering, and timing helpers."],
+		["Sources", "Connect events, timers, HTTP, sockets, processes, and host signals to graph inputs."],
+		["Storage", "Use codecs, key-value tiers, append logs, content addressing, and persistence helpers."],
+		["Adapters", "Bind GraphReFly to framework and host runtime edges."],
+		["Solutions", "Use package-level bundles for layout, memory, work items, and orchestration."],
+		["Patterns", "Start from higher-level composition patterns built from package primitives."],
+		["Testing", "Exercise graph behavior with package test helpers."],
+		["Scoring", "Normalize and compare score signals."],
+		["Render", "Turn graph state into renderable views and text layouts."],
+		["Messaging", "Work with graph-visible message and event surfaces."],
+		["Memory", "Store, retrieve, and project graph-visible memory records."],
+		["Orchestration", "Coordinate work queues, scheduling, and execution surfaces."],
+		["CQRS", "Build command, event, projection, and work-queue flows."],
+		["Cqrs", "Build command, event, projection, and work-queue flows."],
+		["Data Structures", "Use graph-aware maps, collections, and supporting containers."],
+		["Composition", "Package small graph units into reusable compositions."],
+		["Executors", "Run tool providers, adapters, and execution queues."],
+		["Inspection", "Inspect package boundaries and graph-visible runtime metadata."],
+		["Json", "Encode, validate, and canonicalize strict JSON data."],
+		["Reactive Layout", "Measure text, break lines, and arrange blocks through graph-visible layout helpers."],
+		["Work Queue", "Submit, schedule, and settle graph-visible work."],
+	]);
+	return descriptions.get(label) ?? "Browse APIs in this package area.";
 }
 
 function renderIndexGroups(sidebar) {
@@ -284,9 +305,9 @@ function renderIndexGroups(sidebar) {
 				.join("");
 			const more =
 				group.items.length > sample.length
-					? `<a class="text-link" href="${siteLink(`/api/category/${groupSlug}/`)}">View all ${group.items.length}</a>`
+					? `<a class="text-link" href="${siteLink(`/api/category/${groupSlug}/`)}">View all</a>`
 					: "";
-			return `<section class="index-group"><div><h2>${escapeHtml(group.label)}</h2><p>${group.items.length} exports</p></div><ul>${items}</ul>${more}</section>`;
+			return `<section class="index-group"><div><h2>${escapeHtml(group.label)}</h2><p>${escapeHtml(apiGroupDescription(group.label))}</p></div><ul>${items}</ul>${more}</section>`;
 		})
 		.join("\n");
 }
@@ -355,10 +376,10 @@ for (const group of apiSidebar) {
 		path.join("api", "category", groupSlug),
 		pageShell({
 			title: `${group.label} API`,
-			description: `Generated @graphrefly/ts ${group.label} API exports.`,
+			description: apiGroupDescription(group.label),
 			sidebarHtml: apiSidebarHtml,
 			activeSection: "api",
-			body: `<article><p class="eyebrow">API Category</p><h1>${escapeHtml(group.label)}</h1><p>${group.items.length} generated exports from the TypeScript package surface.</p><ul class="symbol-list">${items}</ul></article>`,
+			body: `<article><p class="eyebrow">API Category</p><h1>${escapeHtml(group.label)}</h1><p class="lede">${escapeHtml(apiGroupDescription(group.label))}</p><ul class="symbol-list">${items}</ul></article>`,
 		}),
 	);
 }
@@ -369,14 +390,14 @@ const sectionCards = [
 	{
 		kicker: "Reference",
 		title: "API",
-		body: `${pages.length} generated exports grouped by package area, with signatures, params, returns, examples, and import guidance.`,
+		body: "Find package APIs by area, then open a symbol for its signature, parameters, return value, and examples.",
 		href: "/api/",
 		action: "Open API",
 	},
 	{
 		kicker: "Use cases",
 		title: "Solutions",
-		body: "Package-owned higher-level bundles such as reactive layout, agentic memory, work-item orchestration, and capability admission.",
+		body: "Higher-level bundles for reactive layout, agentic memory, work-item orchestration, and capability admission.",
 		href: "/solutions/",
 		action: "Browse solutions",
 	},
@@ -411,7 +432,7 @@ const sectionCards = [
 	{
 		kicker: "Migration",
 		title: "Compare",
-		body: "How the TypeScript package differs from RxJS, framework stores, transports, and shared protocol docs.",
+		body: "How the TypeScript package differs from RxJS, framework stores, transports, and queue runtimes.",
 		href: "/compare/",
 		action: "Compare options",
 	},
@@ -421,14 +442,14 @@ writePage(
 	".",
 	pageShell({
 		title: "TypeScript Package Docs",
-		description: "@graphrefly/ts package-local docs, API reference, examples, demos, recipes, integrations, and comparisons.",
+		description: "@graphrefly/ts API reference, examples, demos, recipes, integrations, and comparisons.",
 		sidebarHtml: packageSidebar(""),
 		body: `<article class="home">
   <section class="hero">
     <div class="hero-copy">
       <p class="eyebrow">TypeScript Runtime</p>
       <h1 class="package-title"><span>@graphrefly</span><span>/ts</span></h1>
-      <p class="lede">The package-local documentation site for the TypeScript implementation: generated API reference, runnable demos, recipes, solutions, integrations, and migration notes.</p>
+      <p class="lede">TypeScript APIs, runnable demos, recipes, integrations, and comparisons for building graph-driven reactive systems.</p>
       <div class="hero-actions">
         <a class="button primary" href="${siteLink("/api/")}">API reference</a>
         <a class="button" href="https://www.npmjs.com/package/@graphrefly/ts">npm package</a>
@@ -440,15 +461,15 @@ writePage(
 import { graph } from "@graphrefly/ts/graph";
 import { map } from "@graphrefly/ts/operators";</code></pre>
       <dl>
-        <div><dt>Generated API pages</dt><dd>${pages.length}</dd></div>
-        <div><dt>Route</dt><dd>${basePath}</dd></div>
-        <div><dt>Source</dt><dd>exports + JSDoc</dd></div>
+        <div><dt>Install</dt><dd>npm</dd></div>
+        <div><dt>Graph</dt><dd>graph</dd></div>
+        <div><dt>Operators</dt><dd>map</dd></div>
       </dl>
     </div>
   </section>
   <section class="section-band">
     <p class="eyebrow">Docs map</p>
-    <h2>Language docs should be complete, but package-local.</h2>
+    <h2>Everything you need for the TypeScript package.</h2>
     ${renderCardGrid(sectionCards)}
   </section>
 </article>`,
@@ -459,10 +480,10 @@ writePage(
 	"api",
 	pageShell({
 		title: "API Reference",
-		description: "Generated @graphrefly/ts API reference grouped by package area.",
+		description: "@graphrefly/ts API reference grouped by package area.",
 		sidebarHtml: apiSidebarHtml,
 		activeSection: "api",
-		body: `<article><p class="eyebrow">Generated Reference</p><h1>API Reference</h1><p class="lede">Generated from <code>packages/ts</code> exports and source JSDoc. Choose a package area first; symbol pages keep signatures, parameters, returns, examples, remarks, and source paths together.</p><div class="index-grid">${apiIndexGroups}</div></article>`,
+		body: `<article><p class="eyebrow">Reference</p><h1>API Reference</h1><p class="lede">Choose a package area first, then open a symbol for its signature, parameters, return value, and examples.</p><div class="index-grid">${apiIndexGroups}</div></article>`,
 	}),
 );
 
@@ -473,7 +494,7 @@ writePage(
 		description: "@graphrefly/ts solution bundles and higher-level package surfaces.",
 		sidebarHtml: packageSidebar("solutions"),
 		activeSection: "solutions",
-		body: `<article><p class="eyebrow">Solutions</p><h1>Package-owned solution surfaces.</h1><p class="lede">These are TypeScript package surfaces, not shared protocol docs. They show where the runtime has opinionated bundles for real product workflows.</p>${renderCardGrid([
+		body: `<article><p class="eyebrow">Solutions</p><h1>Solution surfaces for product workflows.</h1><p class="lede">Start here when you want a ready-made TypeScript bundle instead of wiring every primitive by hand.</p>${renderCardGrid([
 			{
 				kicker: "Layout",
 				title: "Reactive Layout",
@@ -513,7 +534,7 @@ writePage(
 		description: "@graphrefly/ts examples and first-use paths.",
 		sidebarHtml: packageSidebar("examples"),
 		activeSection: "examples",
-		body: `<article><p class="eyebrow">Examples</p><h1>Small, inspectable starts.</h1><p class="lede">Examples should teach the package from actual TypeScript imports and graph behavior, not from shared marketing copy.</p><div class="example-grid">
+		body: `<article><p class="eyebrow">Examples</p><h1>Small, inspectable starts.</h1><p class="lede">Start with short TypeScript snippets for graph state, operators, sources, and topology inspection.</p><div class="example-grid">
 <section><h2>State and derived values</h2><pre><code>import { graph } from "@graphrefly/ts/graph";
 
 const g = graph();
@@ -539,7 +560,7 @@ writePage(
 		description: "@graphrefly/ts demos and runnable package examples.",
 		sidebarHtml: packageSidebar("demos"),
 		activeSection: "demos",
-		body: `<article><p class="eyebrow">Demos</p><h1>Runnable TypeScript package demos.</h1><p class="lede">These demos are package-local assets. They can be embedded under this subdomain while the shared website stays the public shell.</p>${renderCardGrid([
+		body: `<article><p class="eyebrow">Demos</p><h1>Runnable TypeScript package demos.</h1><p class="lede">Open a demo to see the package running inside a real UI or framework context.</p>${renderCardGrid([
 			{
 				kicker: "Layout",
 				title: "Reactive Layout",
@@ -565,7 +586,7 @@ writePage(
 		description: "@graphrefly/ts recipes for composing package primitives.",
 		sidebarHtml: packageSidebar("recipes"),
 		activeSection: "recipes",
-		body: `<article><p class="eyebrow">Recipes</p><h1>Composition recipes, not new protocol.</h1><p class="lede">Recipes describe package-level compositions of existing primitives. They do not change the wave protocol or shared specification.</p>${renderCardGrid([
+		body: `<article><p class="eyebrow">Recipes</p><h1>Composition recipes for common flows.</h1><p class="lede">Use these patterns when you need command handling, durable queues, resilience, memory, or persistence.</p>${renderCardGrid([
 			{
 				kicker: "Messaging",
 				title: "CQRS over message bus",
@@ -645,7 +666,7 @@ writePage(
 		description: "@graphrefly/ts comparisons and migration notes.",
 		sidebarHtml: packageSidebar("compare"),
 		activeSection: "compare",
-		body: `<article><p class="eyebrow">Compare</p><h1>Where @graphrefly/ts fits.</h1><p class="lede">Comparison pages should help TypeScript users decide when this package is the right tool, and when a framework store, RxJS stream, queue, or shared protocol page is the better reference.</p>${renderCardGrid([
+		body: `<article><p class="eyebrow">Compare</p><h1>Where @graphrefly/ts fits.</h1><p class="lede">Use these notes to choose between GraphReFly, RxJS, framework stores, queue runtimes, and transport libraries.</p>${renderCardGrid([
 			{
 				kicker: "Migration",
 				title: "Coming from RxJS",
@@ -655,10 +676,10 @@ writePage(
 			},
 			{
 				kicker: "Scope",
-				title: "Package docs vs shared docs",
-				body: "TypeScript APIs live here. Language-neutral protocol rules, decisions, and shared public pages stay on graphrefly.dev.",
-				href: "https://graphrefly.dev/protocol/",
-				action: "Open protocol",
+				title: "API surface",
+				body: "Use this section to decide whether you need a TypeScript API, a runtime pattern, or the broader GraphReFly model.",
+				href: "/api/",
+				action: "Open API",
 			},
 			{
 				kicker: "Framework stores",
