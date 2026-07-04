@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -32,7 +32,16 @@ function escapeAttr(value) {
 }
 
 function inlineMarkdown(value) {
-	return escapeHtml(value).replace(/`([^`]+)`/g, "<code>$1</code>");
+	return escapeHtml(value)
+		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+		.replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function slugify(value) {
+	return String(value)
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "");
 }
 
 function parseFrontmatter(markdown) {
@@ -174,7 +183,54 @@ function renderMarkdown(markdown) {
 	return lines.join("\n");
 }
 
-function pageShell({ title, description, body, sidebarHtml }) {
+const primaryNav = [
+	{ id: "api", label: "API", href: "/api/" },
+	{ id: "solutions", label: "Solutions", href: "/solutions/" },
+	{ id: "examples", label: "Examples", href: "/examples/" },
+	{ id: "demos", label: "Demos", href: "/demos/" },
+	{ id: "recipes", label: "Recipes", href: "/recipes/" },
+	{ id: "integrations", label: "Integrations", href: "/integrations/" },
+	{ id: "compare", label: "Compare", href: "/compare/" },
+];
+
+const externalNav = [
+	{ label: "GitHub", href: "https://github.com/graphrefly/graphrefly-ts" },
+	{ label: "npm", href: "https://www.npmjs.com/package/@graphrefly/ts" },
+	{ label: "Packages", href: "https://graphrefly.dev/packages/" },
+];
+
+function siteLink(href) {
+	if (/^https?:\/\//.test(href)) return href;
+	if (href === "/") return basePath;
+	return `${basePath}${href.replace(/^\//, "")}`;
+}
+
+function navLink(item, activeSection) {
+	const className = item.id === activeSection ? ` class="active"` : "";
+	return `<a${className} href="${siteLink(item.href)}">${escapeHtml(item.label)}</a>`;
+}
+
+function packageSidebar(activeSection) {
+	const nav = primaryNav.map((item) => navLink(item, activeSection)).join("");
+	return `<section class="sidebar-panel">
+  <p class="sidebar-kicker">Package Docs</p>
+  <nav class="sidebar-nav" aria-label="Package docs sections">${nav}</nav>
+</section>
+<section class="sidebar-panel sidebar-facts">
+  <p class="sidebar-kicker">Artifact</p>
+  <dl>
+    <div><dt>Package</dt><dd>@graphrefly/ts</dd></div>
+    <div><dt>Boundary</dt><dd>TypeScript local docs</dd></div>
+    <div><dt>Source</dt><dd>exports + JSDoc</dd></div>
+  </dl>
+</section>`;
+}
+
+function pageShell({ title, description, body, sidebarHtml, activeSection = "" }) {
+	const packageNav = primaryNav.map((item) => navLink(item, activeSection)).join("");
+	const utilityNav = externalNav
+		.map((item) => `<a href="${escapeAttr(item.href)}">${escapeHtml(item.label)}</a>`)
+		.join("");
 	return `<!doctype html>
 <html lang="en">
 <head>
@@ -186,15 +242,12 @@ function pageShell({ title, description, body, sidebarHtml }) {
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="${basePath}">@graphrefly/ts</a>
-    <nav aria-label="Package links">
-      <a href="https://github.com/graphrefly/graphrefly-ts">GitHub</a>
-      <a href="https://www.npmjs.com/package/@graphrefly/ts">npm</a>
-      <a href="https://graphrefly.dev/packages/">Packages</a>
-    </nav>
+    <a class="brand" href="${basePath}"><span>GraphReFly</span><strong>TS</strong></a>
+    <nav class="topbar-primary" aria-label="TypeScript docs">${packageNav}</nav>
+    <nav class="topbar-utility" aria-label="Package links">${utilityNav}</nav>
   </header>
   <div class="layout">
-    <aside class="sidebar" aria-label="API reference">${sidebarHtml}</aside>
+    <aside class="sidebar" aria-label="Documentation navigation">${sidebarHtml}</aside>
     <main class="content">${body}</main>
   </div>
 </body>
@@ -207,15 +260,48 @@ function sidebarLink(link) {
 	return `${basePath}${normalized}/`;
 }
 
-function renderSidebar(sidebar) {
-	return sidebar
-		.map((group) => {
+function renderApiSidebar(sidebar) {
+	const apiNav = sidebar
+		.map((group, index) => {
 			const items = group.items
 				.map((item) => `<li><a href="${sidebarLink(item.link)}">${escapeHtml(item.label)}</a></li>`)
 				.join("");
-			return `<section><h2>${escapeHtml(group.label)}</h2><ul>${items}</ul></section>`;
+			const open = index < 4 ? " open" : "";
+			return `<details${open}><summary>${escapeHtml(group.label)} <span>${group.items.length}</span></summary><ul>${items}</ul></details>`;
 		})
 		.join("\n");
+	return `${packageSidebar("api")}<section class="sidebar-panel api-tree"><p class="sidebar-kicker">API Reference</p>${apiNav}</section>`;
+}
+
+function renderIndexGroups(sidebar) {
+	return sidebar
+		.map((group) => {
+			const groupSlug = slugify(group.label);
+			const sample = group.items.slice(0, 8);
+			const items = group.items
+				.slice(0, 12)
+				.map((item) => `<li><a href="${sidebarLink(item.link)}">${escapeHtml(item.label)}</a></li>`)
+				.join("");
+			const more =
+				group.items.length > sample.length
+					? `<a class="text-link" href="${siteLink(`/api/category/${groupSlug}/`)}">View all ${group.items.length}</a>`
+					: "";
+			return `<section class="index-group"><div><h2>${escapeHtml(group.label)}</h2><p>${group.items.length} exports</p></div><ul>${items}</ul>${more}</section>`;
+		})
+		.join("\n");
+}
+
+function renderCardGrid(cards) {
+	return `<div class="card-grid">${cards
+		.map(
+			(card) => `<article class="doc-card">
+  <p class="card-kicker">${escapeHtml(card.kicker)}</p>
+  <h2>${escapeHtml(card.title)}</h2>
+  <p>${escapeHtml(card.body)}</p>
+  <a href="${siteLink(card.href)}">${escapeHtml(card.action)} <span aria-hidden="true">-&gt;</span></a>
+</article>`,
+		)
+		.join("")}</div>`;
 }
 
 function writePage(relativePath, html) {
@@ -235,7 +321,7 @@ if (customDomain.trim().length > 0) {
 }
 
 const { apiSidebar } = await import(`${pathToFileURL(sidebarPath).href}?t=${Date.now()}`);
-const sidebarHtml = renderSidebar(apiSidebar);
+const apiSidebarHtml = renderApiSidebar(apiSidebar);
 const apiFiles = [...new Set(apiSidebar.flatMap((group) => group.items.map((item) => item.link)))]
 	.map((link) => link.replace(/^\/api\//, ""))
 	.sort();
@@ -253,34 +339,350 @@ for (const slug of apiFiles) {
 		pageShell({
 			title,
 			description,
-			sidebarHtml,
+			sidebarHtml: apiSidebarHtml,
+			activeSection: "api",
 			body: `<article><p class="eyebrow">API Reference</p><h1>${escapeHtml(title)}</h1>${renderMarkdown(body)}</article>`,
 		}),
 	);
 }
 
-const indexGroups = apiSidebar
-	.map((group) => {
-		const items = group.items
-			.map((item) => `<li><a href="${sidebarLink(item.link)}">${escapeHtml(item.label)}</a></li>`)
-			.join("");
-		return `<section class="index-group"><h2>${escapeHtml(group.label)}</h2><ul>${items}</ul></section>`;
-	})
-	.join("\n");
+for (const group of apiSidebar) {
+	const groupSlug = slugify(group.label);
+	const items = group.items
+		.map((item) => `<li><a href="${sidebarLink(item.link)}">${escapeHtml(item.label)}</a></li>`)
+		.join("");
+	writePage(
+		path.join("api", "category", groupSlug),
+		pageShell({
+			title: `${group.label} API`,
+			description: `Generated @graphrefly/ts ${group.label} API exports.`,
+			sidebarHtml: apiSidebarHtml,
+			activeSection: "api",
+			body: `<article><p class="eyebrow">API Category</p><h1>${escapeHtml(group.label)}</h1><p>${group.items.length} generated exports from the TypeScript package surface.</p><ul class="symbol-list">${items}</ul></article>`,
+		}),
+	);
+}
+
+const apiIndexGroups = renderIndexGroups(apiSidebar);
+
+const sectionCards = [
+	{
+		kicker: "Reference",
+		title: "API",
+		body: `${pages.length} generated exports grouped by package area, with signatures, params, returns, examples, and import guidance.`,
+		href: "/api/",
+		action: "Open API",
+	},
+	{
+		kicker: "Use cases",
+		title: "Solutions",
+		body: "Package-owned higher-level bundles such as reactive layout, agentic memory, work-item orchestration, and capability admission.",
+		href: "/solutions/",
+		action: "Browse solutions",
+	},
+	{
+		kicker: "Learning path",
+		title: "Examples",
+		body: "Small TypeScript entry points for state, derived values, effects, topology inspection, and source adapters.",
+		href: "/examples/",
+		action: "Start with examples",
+	},
+	{
+		kicker: "Interactive",
+		title: "Demos",
+		body: "Runnable TypeScript demos that show the package in UI and framework contexts.",
+		href: "/demos/",
+		action: "Open demos",
+	},
+	{
+		kicker: "Composition",
+		title: "Recipes",
+		body: "Reusable graph patterns for CQRS, executor queues, resilience, memory, and durable state.",
+		href: "/recipes/",
+		action: "Read recipes",
+	},
+	{
+		kicker: "Boundaries",
+		title: "Integrations",
+		body: "HTTP, WebSocket, SSE, Cron, process, NestJS, storage, and framework adapter surfaces.",
+		href: "/integrations/",
+		action: "Review integrations",
+	},
+	{
+		kicker: "Migration",
+		title: "Compare",
+		body: "How the TypeScript package differs from RxJS, framework stores, transports, and shared protocol docs.",
+		href: "/compare/",
+		action: "Compare options",
+	},
+];
 
 writePage(
 	".",
 	pageShell({
-		title: "TypeScript API Reference",
-		description: "Generated @graphrefly/ts API reference.",
-		sidebarHtml,
-		body: `<article><p class="eyebrow">Package Docs</p><h1>TypeScript API Reference</h1><p>This package-local artifact is generated from <code>packages/ts</code> exports and source JSDoc. The shared graphrefly.dev shell delegates TypeScript API details to this route.</p><div class="index-grid">${indexGroups}</div></article>`,
+		title: "TypeScript Package Docs",
+		description: "@graphrefly/ts package-local docs, API reference, examples, demos, recipes, integrations, and comparisons.",
+		sidebarHtml: packageSidebar(""),
+		body: `<article class="home">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">TypeScript Runtime</p>
+      <h1 class="package-title"><span>@graphrefly</span><span>/ts</span></h1>
+      <p class="lede">The package-local documentation site for the TypeScript implementation: generated API reference, runnable demos, recipes, solutions, integrations, and migration notes.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="${siteLink("/api/")}">API reference</a>
+        <a class="button" href="https://www.npmjs.com/package/@graphrefly/ts">npm package</a>
+      </div>
+    </div>
+    <div class="console-card" aria-label="Package artifact summary">
+      <div class="console-head"><span></span><span></span><span></span></div>
+      <pre><code>$ npm i @graphrefly/ts
+import { graph } from "@graphrefly/ts/graph";
+import { map } from "@graphrefly/ts/operators";</code></pre>
+      <dl>
+        <div><dt>Generated API pages</dt><dd>${pages.length}</dd></div>
+        <div><dt>Route</dt><dd>${basePath}</dd></div>
+        <div><dt>Source</dt><dd>exports + JSDoc</dd></div>
+      </dl>
+    </div>
+  </section>
+  <section class="section-band">
+    <p class="eyebrow">Docs map</p>
+    <h2>Language docs should be complete, but package-local.</h2>
+    ${renderCardGrid(sectionCards)}
+  </section>
+</article>`,
 	}),
 );
 
+writePage(
+	"api",
+	pageShell({
+		title: "API Reference",
+		description: "Generated @graphrefly/ts API reference grouped by package area.",
+		sidebarHtml: apiSidebarHtml,
+		activeSection: "api",
+		body: `<article><p class="eyebrow">Generated Reference</p><h1>API Reference</h1><p class="lede">Generated from <code>packages/ts</code> exports and source JSDoc. Choose a package area first; symbol pages keep signatures, parameters, returns, examples, remarks, and source paths together.</p><div class="index-grid">${apiIndexGroups}</div></article>`,
+	}),
+);
+
+writePage(
+	"solutions",
+	pageShell({
+		title: "Solutions",
+		description: "@graphrefly/ts solution bundles and higher-level package surfaces.",
+		sidebarHtml: packageSidebar("solutions"),
+		activeSection: "solutions",
+		body: `<article><p class="eyebrow">Solutions</p><h1>Package-owned solution surfaces.</h1><p class="lede">These are TypeScript package surfaces, not shared protocol docs. They show where the runtime has opinionated bundles for real product workflows.</p>${renderCardGrid([
+			{
+				kicker: "Layout",
+				title: "Reactive Layout",
+				body: "Graph-visible block flow, line breaking, measurement adapters, and platform-specific browser, Node canvas, React Native, and Skia entry points.",
+				href: "/api/category/reactive-layout/",
+				action: "Open API group",
+			},
+			{
+				kicker: "Memory",
+				title: "Agentic Memory",
+				body: "Retention, consolidation, context packing, record admission, and KG projection bundles for auditable agent memory flows.",
+				href: "/api/category/agentic-memory/",
+				action: "Open API group",
+			},
+			{
+				kicker: "Operations",
+				title: "Work Item",
+				body: "Workspace proposals, scheduling, work queues, action plans, and runtime surfaces for coordinated work execution.",
+				href: "/api/category/work-item/",
+				action: "Open API group",
+			},
+			{
+				kicker: "Policy",
+				title: "Capability Admission",
+				body: "Typed admission projectors and proposal helpers for deciding which graph-visible capabilities may enter a workflow.",
+				href: "/api/capabilityadmissionprojector/",
+				action: "Open API",
+			},
+		])}</article>`,
+	}),
+);
+
+writePage(
+	"examples",
+	pageShell({
+		title: "Examples",
+		description: "@graphrefly/ts examples and first-use paths.",
+		sidebarHtml: packageSidebar("examples"),
+		activeSection: "examples",
+		body: `<article><p class="eyebrow">Examples</p><h1>Small, inspectable starts.</h1><p class="lede">Examples should teach the package from actual TypeScript imports and graph behavior, not from shared marketing copy.</p><div class="example-grid">
+<section><h2>State and derived values</h2><pre><code>import { graph } from "@graphrefly/ts/graph";
+
+const g = graph();
+const count = g.state(0);
+const doubled = g.derived([count], ([n]) => n * 2);</code></pre><a class="text-link" href="${siteLink("/api/graph/")}">Graph API</a></section>
+<section><h2>Operators</h2><pre><code>import { map, distinctUntilChanged } from "@graphrefly/ts/operators";
+
+const normalized = source.pipe(
+  map((value) => value.trim()),
+  distinctUntilChanged(),
+);</code></pre><a class="text-link" href="${siteLink("/api/category/operators/")}">Operator API</a></section>
+<section><h2>Sources</h2><pre><code>import { fromWebSocket } from "@graphrefly/ts/sources";
+
+const events = fromWebSocket("wss://example.test/events");</code></pre><a class="text-link" href="${siteLink("/api/category/sources/")}">Sources API</a></section>
+</div></article>`,
+	}),
+);
+
+writePage(
+	"demos",
+	pageShell({
+		title: "Demos",
+		description: "@graphrefly/ts demos and runnable package examples.",
+		sidebarHtml: packageSidebar("demos"),
+		activeSection: "demos",
+		body: `<article><p class="eyebrow">Demos</p><h1>Runnable TypeScript package demos.</h1><p class="lede">These demos are package-local assets. They can be embedded under this subdomain while the shared website stays the public shell.</p>${renderCardGrid([
+			{
+				kicker: "Layout",
+				title: "Reactive Layout",
+				body: "Interactive layout demo driven by the TypeScript reactive-layout solution surface.",
+				href: "/demos/reactive-layout/",
+				action: "Open demo",
+			},
+			{
+				kicker: "Frameworks",
+				title: "Compat Matrix",
+				body: "React, Vue, Solid, and Svelte bindings over the same underlying graph shape.",
+				href: "/demos/compat-matrix/",
+				action: "Open demo",
+			},
+		])}</article>`,
+	}),
+);
+
+writePage(
+	"recipes",
+	pageShell({
+		title: "Recipes",
+		description: "@graphrefly/ts recipes for composing package primitives.",
+		sidebarHtml: packageSidebar("recipes"),
+		activeSection: "recipes",
+		body: `<article><p class="eyebrow">Recipes</p><h1>Composition recipes, not new protocol.</h1><p class="lede">Recipes describe package-level compositions of existing primitives. They do not change the wave protocol or shared specification.</p>${renderCardGrid([
+			{
+				kicker: "Messaging",
+				title: "CQRS over message bus",
+				body: "Command submission, event outbox, message acknowledgement, and work queue recipe surfaces.",
+				href: "/api/cqrsmessagingrecipe/",
+				action: "Open recipe API",
+			},
+			{
+				kicker: "Execution",
+				title: "Executor work queue",
+				body: "Durable executor dispatch recipe over graph-visible work queue lifecycle commands.",
+				href: "/api/executorworkqueuerecipe/",
+				action: "Open recipe API",
+			},
+			{
+				kicker: "Memory",
+				title: "Semantic memory graph",
+				body: "Patterns for fact storage, KG projection, context packing, and memory consolidation.",
+				href: "/api/category/patterns/",
+				action: "Open patterns",
+			},
+			{
+				kicker: "Resilience",
+				title: "Retry and breaker bundles",
+				body: "Backoff, retry policy, breaker state, and operational recovery helpers.",
+				href: "/api/breakerbundle/",
+				action: "Open API",
+			},
+		])}</article>`,
+	}),
+);
+
+writePage(
+	"integrations",
+	pageShell({
+		title: "Integrations",
+		description: "@graphrefly/ts integration surfaces for runtime edges and frameworks.",
+		sidebarHtml: packageSidebar("integrations"),
+		activeSection: "integrations",
+		body: `<article><p class="eyebrow">Integrations</p><h1>Runtime edges and host frameworks.</h1><p class="lede">Integration docs belong here when they are TypeScript package surfaces: adapters, sources, sinks, framework bindings, and storage boundaries.</p>${renderCardGrid([
+			{
+				kicker: "Network",
+				title: "HTTP, SSE, WebSocket",
+				body: "Source and driver surfaces for request, stream, and socket-driven graphs.",
+				href: "/api/category/sources/",
+				action: "Open sources",
+			},
+			{
+				kicker: "NestJS",
+				title: "Nest boundary adapters",
+				body: "Guards, interceptors, exception filters, message bridges, lifecycle events, and WebSocket bindings.",
+				href: "/api/createnestgraphboundaryrunner/",
+				action: "Open Nest API",
+			},
+			{
+				kicker: "Storage",
+				title: "Append logs and key-value backends",
+				body: "Content-addressed storage, file backends, append log frames, and persistence-oriented package APIs.",
+				href: "/api/category/storage/",
+				action: "Open storage",
+			},
+			{
+				kicker: "UI",
+				title: "Framework compatibility",
+				body: "React, Vue, Solid, and Svelte demo surfaces connected to shared graph state.",
+				href: "/demos/compat-matrix/",
+				action: "Open demo",
+			},
+		])}</article>`,
+	}),
+);
+
+writePage(
+	"compare",
+	pageShell({
+		title: "Compare",
+		description: "@graphrefly/ts comparisons and migration notes.",
+		sidebarHtml: packageSidebar("compare"),
+		activeSection: "compare",
+		body: `<article><p class="eyebrow">Compare</p><h1>Where @graphrefly/ts fits.</h1><p class="lede">Comparison pages should help TypeScript users decide when this package is the right tool, and when a framework store, RxJS stream, queue, or shared protocol page is the better reference.</p>${renderCardGrid([
+			{
+				kicker: "Migration",
+				title: "Coming from RxJS",
+				body: "Operator names may look familiar, but GraphReFly centers inspectable graph topology and wave behavior.",
+				href: "https://github.com/graphrefly/graphrefly-ts/blob/main/docs/coming-from-rxjs.md",
+				action: "Read migration note",
+			},
+			{
+				kicker: "Scope",
+				title: "Package docs vs shared docs",
+				body: "TypeScript APIs live here. Language-neutral protocol rules, decisions, and shared public pages stay on graphrefly.dev.",
+				href: "https://graphrefly.dev/protocol/",
+				action: "Open protocol",
+			},
+			{
+				kicker: "Framework stores",
+				title: "Compat matrix",
+				body: "A live comparison against React, Vue, Solid, Svelte, Jotai, Nanostores, and Zustand binding shapes.",
+				href: "/demos/compat-matrix/",
+				action: "Open demo",
+			},
+		])}</article>`,
+	}),
+);
+
+for (const demo of ["reactive-layout", "compat-matrix"]) {
+	const source = path.join(repoRoot, "demos", demo, "dist");
+	if (existsSync(source)) {
+		cpSync(source, path.join(routeRoot, "demos", demo), { recursive: true });
+	}
+}
+
 writeFileSync(
 	path.join(routeRoot, "assets", "ts-docs.css"),
-	`html{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#172018;background:#fbfdf7}body{margin:0}.topbar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:14px 24px;border-bottom:1px solid #dfe8d7;background:#fbfdf7ee;backdrop-filter:blur(12px)}.brand{font-weight:800;color:#17321f;text-decoration:none}.topbar nav{display:flex;gap:16px;flex-wrap:wrap}.topbar a{color:#245b32}.layout{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);min-height:calc(100vh - 58px)}.sidebar{border-right:1px solid #dfe8d7;padding:20px;overflow:auto;max-height:calc(100vh - 58px);position:sticky;top:58px}.sidebar h2{font-size:.8rem;text-transform:uppercase;color:#5b6f5f;margin:18px 0 8px}.sidebar ul,.index-group ul{list-style:none;padding:0;margin:0}.sidebar li{margin:4px 0}.sidebar a,.index-group a{color:#1d5d34;text-decoration:none}.sidebar a:hover,.index-group a:hover{text-decoration:underline}.content{padding:40px min(7vw,88px);max-width:980px}.eyebrow{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:#5d715d;font-weight:700}h1{font-size:clamp(2rem,4vw,4rem);line-height:1;margin:0 0 24px;color:#142517}h2{margin-top:36px;color:#18331d}p{line-height:1.7}pre{background:#112015;color:#e8f7de;border-radius:8px;padding:16px;overflow:auto}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em}p code,td code{background:#eaf2e5;border-radius:4px;padding:2px 5px;color:#17321f}table{border-collapse:collapse;width:100%;margin:16px 0;display:block;overflow:auto}th,td{border:1px solid #dce7d6;padding:10px;text-align:left;vertical-align:top}th{background:#eef5e9}.index-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}.index-group{border:1px solid #dfe8d7;border-radius:8px;padding:16px;background:#fff}.index-group h2{margin-top:0;font-size:1rem}@media(max-width:820px){.layout{display:block}.sidebar{position:static;max-height:none;border-right:0;border-bottom:1px solid #dfe8d7}.content{padding:28px 20px}.topbar{align-items:flex-start;flex-direction:column}}\n`,
+	`@import url("https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700;800&display=swap");
+:root{--ice:#f4f7f9;--ice-warm:#eceff2;--paper:#fff;--navy:#0a1628;--navy-deep:#050e1a;--ink:#07121e;--ink-mute:#5c6675;--ink-faint:#98a0ac;--rule:rgba(7,18,30,.1);--rule-deep:rgba(7,18,30,.22);--lime:#c8ff00;--lime-deep:#9bc400;--magenta:#ff2d75;--display:"Big Shoulders Display",system-ui,sans-serif;--sans:"Sora",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace}
+*{box-sizing:border-box}html{font-family:var(--sans);color:var(--ink);background:var(--ice);scroll-behavior:smooth}body{margin:0}a{color:inherit}.topbar{position:sticky;top:0;z-index:10;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:22px;padding:12px 24px;border-bottom:1px solid var(--rule);background:rgba(244,247,249,.92);backdrop-filter:blur(14px)}.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none}.brand span{font-family:var(--display);font-size:1.42rem;font-weight:900;letter-spacing:.01em;text-transform:uppercase}.brand strong{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:6px;background:var(--lime);font-family:var(--mono);font-size:.78rem;color:var(--ink)}.topbar nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.topbar a{text-decoration:none}.topbar-primary{justify-content:center}.topbar-primary a,.topbar-utility a{border-radius:999px;padding:7px 10px;font-family:var(--mono);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-mute)}.topbar-primary a:hover,.topbar-utility a:hover,.topbar-primary a.active{background:var(--navy);color:#fff}.topbar-utility{justify-content:flex-end}.layout{display:grid;grid-template-columns:minmax(250px,320px) minmax(0,1fr);min-height:calc(100vh - 57px)}.sidebar{position:sticky;top:57px;align-self:start;max-height:calc(100vh - 57px);overflow:auto;border-right:1px solid var(--rule);background:rgba(236,239,242,.58);padding:18px}.sidebar-panel{border-bottom:1px solid var(--rule);padding:0 0 18px;margin-bottom:18px}.sidebar-panel:last-child{border-bottom:0}.sidebar-kicker,.eyebrow,.card-kicker{margin:0 0 12px;font-family:var(--mono);font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-mute)}.sidebar-nav{display:grid;gap:4px}.sidebar-nav a{display:flex;align-items:center;min-height:32px;border-radius:6px;padding:7px 9px;text-decoration:none;font-size:.9rem;font-weight:650;color:var(--ink)}.sidebar-nav a:hover,.sidebar-nav a.active{background:var(--paper)}.sidebar-facts dl{margin:0;display:grid;gap:10px}.sidebar-facts div{display:grid;gap:2px}.sidebar-facts dt{font-family:var(--mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-faint)}.sidebar-facts dd{margin:0;font-size:.86rem;color:var(--ink)}.api-tree details{border-radius:6px}.api-tree details[open]{background:rgba(255,255,255,.66)}.api-tree summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px;border-radius:6px;cursor:pointer;font-weight:800;color:var(--ink)}.api-tree summary span{font-family:var(--mono);font-size:.68rem;color:var(--ink-faint)}.api-tree ul,.index-group ul,.symbol-list{list-style:none;margin:0;padding:0}.api-tree li{margin:1px 0}.api-tree a,.index-group a,.symbol-list a{display:block;border-radius:5px;padding:5px 9px;text-decoration:none;color:#2b7956}.api-tree a:hover,.index-group a:hover,.symbol-list a:hover{background:rgba(200,255,0,.18);color:var(--ink)}.content{min-width:0;padding:56px min(6vw,84px) 96px}.content>article{max-width:1120px}h1{font-family:var(--display);font-size:clamp(3.5rem,9vw,8rem);line-height:.86;margin:0 0 24px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:var(--ink);overflow-wrap:anywhere}.package-title span{display:block}.package-title span+span{margin-top:-.08em}h2{font-size:clamp(1.35rem,2vw,2rem);line-height:1.08;margin:38px 0 14px;color:var(--ink)}h3{margin:28px 0 10px}p{line-height:1.72}.lede{max-width:760px;font-size:1.1rem;color:var(--ink-mute)}.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);align-items:end;gap:min(6vw,72px);padding:28px 0 54px;border-bottom:1px solid var(--rule)}.hero-copy,.console-card{min-width:0}.hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--rule-deep);border-radius:999px;padding:0 18px;text-decoration:none;font-weight:800;color:var(--ink);background:var(--paper)}.button.primary{border-color:var(--navy);background:var(--navy);color:#fff}.button:hover{transform:translateY(-1px)}.console-card{border-radius:8px;background:var(--navy-deep);color:#dfe9f7;box-shadow:0 24px 80px rgba(7,18,30,.18);overflow:hidden}.console-head{display:flex;gap:7px;padding:14px;border-bottom:1px solid rgba(255,255,255,.1)}.console-head span{width:9px;height:9px;border-radius:50%;background:var(--lime)}.console-head span:nth-child(2){background:#64d2ff}.console-head span:nth-child(3){background:var(--magenta)}.console-card pre{margin:0;padding:22px;background:transparent;color:#f3f8ff}.console-card dl{display:grid;grid-template-columns:repeat(3,1fr);margin:0;border-top:1px solid rgba(255,255,255,.1)}.console-card div{padding:14px}.console-card dt{font-family:var(--mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:#92a3ba}.console-card dd{margin:4px 0 0;font-family:var(--display);font-size:1.4rem;font-weight:800;color:var(--lime)}.section-band{padding:46px 0}.card-grid,.index-grid,.example-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:22px}.doc-card,.index-group,.example-grid section{display:flex;flex-direction:column;min-height:220px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);padding:20px}.doc-card h2,.index-group h2,.example-grid h2{margin:0 0 10px;font-size:1.18rem}.doc-card p,.index-group p{color:var(--ink-mute)}.doc-card a,.text-link{margin-top:auto;font-weight:800;text-decoration:none;color:var(--ink)}.doc-card a:hover,.text-link:hover{text-decoration:underline}.index-group ul{columns:1}.index-group li{break-inside:avoid}.symbol-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px;margin-top:24px}pre{background:var(--navy-deep);color:#e8f7de;border-radius:8px;padding:16px;overflow:auto}code{font-family:var(--mono);font-size:.92em}p code,td code{background:#e7ecef;border-radius:4px;padding:2px 5px;color:var(--ink)}table{border-collapse:collapse;width:100%;margin:18px 0;display:block;overflow:auto}th,td{border:1px solid var(--rule);padding:10px;text-align:left;vertical-align:top}th{background:var(--ice-warm)}article>ul:not(.symbol-list){padding-left:1.2rem}article>ul:not(.symbol-list) li{margin:8px 0;line-height:1.6}@media(max-width:1100px){.topbar{grid-template-columns:1fr}.topbar-primary{justify-content:flex-start}.topbar-utility{justify-content:flex-start}.hero{grid-template-columns:1fr}.console-card{max-width:560px}}@media(max-width:860px){.layout{display:flex;flex-direction:column}.content{order:1;padding:36px 20px 72px}.sidebar{order:2;position:static;max-height:none;border-right:0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}h1{font-size:clamp(2.65rem,15vw,4.4rem);line-height:.9}.console-card dl{grid-template-columns:1fr}.topbar{padding:12px 16px}.topbar-primary a,.topbar-utility a{font-size:.68rem;padding:7px 8px}}@media(max-width:560px){.topbar{gap:12px}.topbar .topbar-utility{display:none}}\n`,
 );
 
 writeFileSync(
@@ -291,6 +693,7 @@ writeFileSync(
 			route: basePath,
 			source: path.relative(repoRoot, apiDir),
 			pages: pages.length,
+			sections: primaryNav.map((item) => item.id),
 		},
 		null,
 		2,
