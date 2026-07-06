@@ -43,8 +43,12 @@ import type {
 	AgenticMemoryProposalAdmissionDecision,
 	AgenticMemoryProposalAdmissionPolicy,
 	AgenticMemoryRecord,
+	AgenticMemoryRecordAdmissionPolicySourceBundleOptions,
+	AgenticMemoryRecordAdmissionPolicySourceProjection,
 	AgenticMemoryRecordApplicationBundleOptions,
 	AgenticMemoryRecordApplicationDecision,
+	AgenticMemoryRecordApplicationEvidenceFactsBundleOptions,
+	AgenticMemoryRecordApplicationEvidenceFactsProjection,
 	AgenticMemoryRecordApplicationMaterialIdentity,
 	AgenticMemoryRecordApplicationMaterialIdentityAlgorithm,
 	AgenticMemoryRecordApplicationOperation,
@@ -52,12 +56,16 @@ import type {
 	AgenticMemoryRecordApplicationOptions,
 	AgenticMemoryRecordApplicationPolicy,
 	AgenticMemoryRecordApplicationPriorEvidence,
+	AgenticMemoryRecordApplicationPriorEvidenceBundleOptions,
+	AgenticMemoryRecordApplicationPriorEvidenceProjection,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
 	AgenticMemoryRecordsPersistenceHandle,
 	AgenticMemoryRetentionBundleOptions,
 	AgenticMemoryScope,
 	AgenticMemoryStatus,
+	AgenticWorkItemMemoryApplicationRecipeBundleOptions,
+	AgenticWorkItemMemoryApplicationRecipeResult,
 	AgenticWorkItemMemoryBridgeCursor,
 	AgenticWorkItemMemoryBridgeResult,
 	AgenticWorkItemMemoryBridgeStatus,
@@ -136,6 +144,7 @@ import * as render from "../render/index.js";
 import * as scoring from "../scoring/index.js";
 import * as agenticMemory from "../solutions/agentic-memory/index.js";
 import * as agenticWorkItemMemory from "../solutions/agentic-work-item-memory/index.js";
+import * as agenticWorkItemMemoryApplication from "../solutions/agentic-work-item-memory-application/index.js";
 import type {
 	ImageSizeLookup,
 	AgenticMemoryRecordApplicationOperation as SolutionsAgenticMemoryRecordApplicationOperation,
@@ -237,6 +246,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./solutions",
 			"./solutions/agentic-memory",
 			"./solutions/agentic-work-item-memory",
+			"./solutions/agentic-work-item-memory-application",
 			"./solutions/reactive-layout",
 			"./solutions/reactive-layout/browser",
 			"./solutions/reactive-layout/node-canvas",
@@ -966,21 +976,37 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof rootPackage.agenticMemoryBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryContextPackingBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryRecordAdmissionBundle).toBe("function");
+		expect(typeof rootPackage.projectAgenticMemoryRecordAdmissionPolicySource).toBe("function");
+		expect(typeof rootPackage.agenticMemoryRecordAdmissionPolicySourceBundle).toBe("function");
 		expect(typeof rootPackage.admitAgenticMemoryRecordProposals).toBe("function");
 		expect(typeof rootPackage.agenticMemoryRecordApplicationBundle).toBe("function");
+		expect(typeof rootPackage.projectAgenticMemoryRecordApplicationPriorEvidence).toBe("function");
+		expect(typeof rootPackage.projectAgenticMemoryRecordApplicationEvidenceFacts).toBe("function");
+		expect(typeof rootPackage.agenticMemoryRecordApplicationPriorEvidenceBundle).toBe("function");
+		expect(typeof rootPackage.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof rootPackage.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof rootPackage.mapAgenticWorkItemMemoryBridge).toBe("function");
 		expect(typeof rootPackage.agenticWorkItemMemoryBridgeBundle).toBe("function");
+		expect(typeof rootPackage.mapAgenticWorkItemMemoryApplicationRecipe).toBe("function");
+		expect(typeof rootPackage.agenticWorkItemMemoryApplicationRecipeBundle).toBe("function");
 		expect(rootPackage.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
 		);
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
+		expect(typeof solutions.projectAgenticMemoryRecordAdmissionPolicySource).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordAdmissionPolicySourceBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordApplicationBundle).toBe("function");
+		expect(typeof solutions.projectAgenticMemoryRecordApplicationPriorEvidence).toBe("function");
+		expect(typeof solutions.projectAgenticMemoryRecordApplicationEvidenceFacts).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordApplicationPriorEvidenceBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof solutions.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof solutions.mapAgenticWorkItemMemoryBridge).toBe("function");
 		expect(typeof solutions.agenticWorkItemMemoryBridgeBundle).toBe("function");
+		expect(typeof solutions.mapAgenticWorkItemMemoryApplicationRecipe).toBe("function");
+		expect(typeof solutions.agenticWorkItemMemoryApplicationRecipeBundle).toBe("function");
 		expect(solutions.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
 		);
@@ -994,8 +1020,18 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryContextPackingBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordAdmissionBundle).toBe("function");
+		expect(typeof agenticMemory.projectAgenticMemoryRecordAdmissionPolicySource).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordAdmissionPolicySourceBundle).toBe("function");
 		expect(typeof agenticMemory.admitAgenticMemoryRecordProposals).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordApplicationBundle).toBe("function");
+		expect(typeof agenticMemory.projectAgenticMemoryRecordApplicationPriorEvidence).toBe(
+			"function",
+		);
+		expect(typeof agenticMemory.projectAgenticMemoryRecordApplicationEvidenceFacts).toBe(
+			"function",
+		);
+		expect(typeof agenticMemory.agenticMemoryRecordApplicationPriorEvidenceBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
 		expect(typeof agenticMemory.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(agenticMemory.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
@@ -1019,8 +1055,26 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			.toHaveProperty("operation")
 			.toEqualTypeOf<AgenticMemoryRecordApplicationOperation>();
 		expectTypeOf<AgenticMemoryRecordApplicationPriorEvidence>().toHaveProperty("entries");
+		expectTypeOf<AgenticMemoryRecordApplicationPriorEvidenceProjection>().toHaveProperty(
+			"priorEvidence",
+		);
+		expectTypeOf<AgenticMemoryRecordApplicationEvidenceFactsProjection>().toHaveProperty(
+			"evidenceFacts",
+		);
+		expectTypeOf<AgenticMemoryRecordApplicationPriorEvidenceBundleOptions>().toHaveProperty(
+			"evidenceFacts",
+		);
+		expectTypeOf<AgenticMemoryRecordApplicationEvidenceFactsBundleOptions>().toHaveProperty(
+			"applicationDecisions",
+		);
 		expectTypeOf<AgenticMemoryRecordApplicationOptions>().toHaveProperty("priorEvidence");
 		expectTypeOf<AgenticMemoryRecordApplicationBundleOptions>().toHaveProperty("priorEvidence");
+		expectTypeOf<AgenticMemoryRecordAdmissionPolicySourceProjection>().toHaveProperty(
+			"admissionPolicy",
+		);
+		expectTypeOf<AgenticMemoryRecordAdmissionPolicySourceBundleOptions>().toHaveProperty(
+			"policySources",
+		);
 		expectTypeOf<AgenticMemoryConsolidationApplicationBundleOptions>().toHaveProperty(
 			"applicationPriorEvidence",
 		);
@@ -1046,12 +1100,44 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticWorkItemMemoryBridgeResult>().toHaveProperty("proposals");
 		expectTypeOf<AgenticWorkItemMemoryBridgeStatus>().toHaveProperty("cursor");
 		expectTypeOf<AgenticWorkItemMemoryBridgeCursor>().toHaveProperty("candidateConflicts");
+		expectTypeOf<AgenticWorkItemMemoryApplicationRecipeResult>().toHaveProperty("bridge");
+		expectTypeOf<AgenticWorkItemMemoryApplicationRecipeBundleOptions>().toHaveProperty(
+			"applicationPolicy",
+		);
 		expect(Object.hasOwn(agenticMemory, "workItemAuthoringProjector")).toBe(false);
 		expect(typeof agenticWorkItemMemory.mapAgenticWorkItemMemoryBridge).toBe("function");
 		expect(typeof agenticWorkItemMemory.agenticWorkItemMemoryBridgeBundle).toBe("function");
+		expect(Object.hasOwn(agenticWorkItemMemory, "mapAgenticWorkItemMemoryApplicationRecipe")).toBe(
+			false,
+		);
+		expect(
+			Object.hasOwn(agenticWorkItemMemory, "agenticWorkItemMemoryApplicationRecipeBundle"),
+		).toBe(false);
 		expect(Object.hasOwn(agenticWorkItemMemory, "agenticMemoryBundle")).toBe(false);
+		expect(
+			Object.hasOwn(agenticWorkItemMemory, "agenticMemoryRecordAdmissionPolicySourceBundle"),
+		).toBe(false);
 		expect(Object.hasOwn(agenticWorkItemMemory, "workItemAuthoringProjector")).toBe(false);
 		expect(Object.hasOwn(agenticWorkItemMemory, "persistAgenticMemoryRecords")).toBe(false);
+		expect(typeof agenticWorkItemMemoryApplication.mapAgenticWorkItemMemoryApplicationRecipe).toBe(
+			"function",
+		);
+		expect(
+			Object.hasOwn(
+				agenticWorkItemMemoryApplication,
+				"agenticMemoryRecordAdmissionPolicySourceBundle",
+			),
+		).toBe(false);
+		expect(
+			typeof agenticWorkItemMemoryApplication.agenticWorkItemMemoryApplicationRecipeBundle,
+		).toBe("function");
+		expect(Object.hasOwn(agenticWorkItemMemoryApplication, "mapAgenticWorkItemMemoryBridge")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(agenticWorkItemMemoryApplication, "agenticMemoryBundle")).toBe(false);
+		expect(Object.hasOwn(agenticWorkItemMemoryApplication, "workItemAuthoringProjector")).toBe(
+			false,
+		);
 		expect(typeof solutions.capabilityAdmissionProjector).toBe("function");
 		expect(typeof solutions.capabilityAdmissionProposal).toBe("function");
 		expect(Object.hasOwn(solutions, "workItemWorkQueueRecipe")).toBe(false);

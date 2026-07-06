@@ -26,11 +26,13 @@ import {
 	type AgenticMemoryRecord,
 	type AgenticMemoryRecordAdmission,
 	type AgenticMemoryRecordAdmissionPolicy,
+	type AgenticMemoryRecordAdmissionPolicySourceProjection,
 	type AgenticMemoryRecordAdmissionStatus,
 	type AgenticMemoryRecordApplicationDecision,
 	type AgenticMemoryRecordApplicationEvidence,
 	type AgenticMemoryRecordApplicationMaterialIdentity,
 	type AgenticMemoryRecordApplicationPolicy,
+	type AgenticMemoryRecordApplicationPriorEvidenceProjection,
 	type AgenticMemoryRecordApplicationStatus,
 	type AgenticMemoryRecordProposal,
 	type AgenticMemoryRetentionCommand,
@@ -43,10 +45,16 @@ import {
 	agenticMemoryContextPackingBundle,
 	agenticMemoryKgProjectionBundle,
 	agenticMemoryRecordAdmissionBundle,
+	agenticMemoryRecordAdmissionPolicySourceBundle,
 	agenticMemoryRecordApplicationBundle,
+	agenticMemoryRecordApplicationEvidenceFactsBundle,
+	agenticMemoryRecordApplicationPriorEvidenceBundle,
 	agenticMemoryRecordFrame,
 	agenticMemoryRetentionBundle,
 	applyAgenticMemoryRecordAdmissions,
+	projectAgenticMemoryRecordAdmissionPolicySource,
+	projectAgenticMemoryRecordApplicationEvidenceFacts,
+	projectAgenticMemoryRecordApplicationPriorEvidence,
 } from "../solutions/index.js";
 
 const textDecoder = new TextDecoder();
@@ -817,6 +825,482 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		});
 		expect(data<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1)).toEqual([]);
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+});
+
+describe("agentic memory admission policy source projection (D583)", () => {
+	it("projects static policy DATA while preserving sourceRefs, policyRefs, and metadata", () => {
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource({
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "static-policy",
+			defaultState: "admitted",
+			requireSourceRefs: true,
+			sourceRefs: [{ kind: "workspace-policy", id: "workspace-1" }],
+			policyRefs: [{ kind: "human-review", id: "review-1" }],
+			metadata: { revision: 2, owner: "memory" },
+		});
+
+		expect(projection).toMatchObject<Partial<AgenticMemoryRecordAdmissionPolicySourceProjection>>({
+			kind: "agentic-memory-record-admission-policy-source-projection",
+			admissionPolicy: {
+				kind: "agentic-memory-record-admission-policy",
+				policyId: "static-policy",
+				defaultState: "admitted",
+				requireSourceRefs: true,
+				metadata: { revision: 2, owner: "memory" },
+			},
+			status: { state: "ready" },
+			issues: [],
+			cursor: { validCandidates: 1, selectedCandidates: 1 },
+		});
+		expect(projection.admissionPolicy.sourceRefs).toEqual(
+			expect.arrayContaining([{ kind: "workspace-policy", id: "workspace-1" }]),
+		);
+		expect(projection.admissionPolicy.policyRefs).toEqual(
+			expect.arrayContaining([
+				{ kind: "human-review", id: "review-1" },
+				{ kind: "agentic-memory-record-admission-policy", id: "static-policy" },
+			]),
+		);
+	});
+
+	it("turns malformed policy source material into DATA issues, not protocol errors", () => {
+		const g = graph();
+		const policySources = g.state(
+			[
+				{
+					kind: "agentic-memory-record-admission-policy-source",
+					sourceId: "workspace-source",
+					sourceKind: "workspace",
+					priority: 0,
+					material: {
+						kind: "agentic-memory-record-admission-policy-material",
+						admissionPolicy: {
+							kind: "agentic-memory-record-admission-policy",
+							policyId: "",
+							defaultState: "maybe",
+							storageHandle: "nope",
+						},
+					},
+				},
+			],
+			{ name: "policySources" },
+		);
+		const bundle = agenticMemoryRecordAdmissionPolicySourceBundle(g, {
+			name: "policySource",
+			policySources,
+		});
+		const issues = collect(bundle.issues);
+		const status = collect(bundle.status);
+		const selectedPolicy = collect(bundle.admissionPolicy);
+
+		expect(
+			data<readonly { readonly code: string; readonly refs?: readonly string[] }[]>(
+				issues.messages,
+			).at(-1),
+		).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.admission-policy-source.candidate-invalid",
+				refs: expect.arrayContaining([
+					"admissionPolicy.storageHandle is not graph-visible DATA",
+					"admissionPolicy.policyId must be non-empty",
+					"admissionPolicy.defaultState must be admitted, rejected, or needs-review",
+				]),
+			}),
+		]);
+		expect(data(status.messages).at(-1)).toMatchObject({
+			state: "error",
+			cursor: { validCandidates: 0, invalidCandidates: 1, selectedCandidates: 0 },
+		});
+		expect(data<AgenticMemoryRecordAdmissionPolicy>(selectedPolicy.messages).at(-1)).toEqual({
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "invalid-admission-policy-source",
+			defaultState: "rejected",
+			policyRefs: [{ kind: "agentic-memory-record-admission-policy-source", id: "invalid" }],
+		});
+		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("rejects accessor-backed metadata without executing getters", () => {
+		let executed = false;
+		const metadata = {};
+		Object.defineProperty(metadata, "secret", {
+			get() {
+				executed = true;
+				throw new Error("metadata getter should not execute");
+			},
+			enumerable: true,
+		});
+
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource({
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "hostile-metadata-policy",
+			metadata,
+		});
+
+		expect(executed).toBe(false);
+		expect(projection.status.state).toBe("error");
+		expect(projection.admissionPolicy.policyId).toBe("invalid-admission-policy-source");
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.admission-policy-source.candidate-invalid",
+				refs: expect.arrayContaining(["admissionPolicy.metadata.secret must be a data property"]),
+			}),
+		]);
+	});
+
+	it("rejects unsafe priority integers before selection and audit output", () => {
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource([
+			{
+				kind: "agentic-memory-record-admission-policy-source",
+				sourceId: "unsafe-priority",
+				sourceKind: "workspace",
+				priority: Number.MAX_SAFE_INTEGER + 1,
+				material: {
+					kind: "agentic-memory-record-admission-policy",
+					policyId: "unsafe-priority-policy",
+				},
+			},
+		]);
+
+		expect(projection.status.state).toBe("error");
+		expect(projection.admissionPolicy.policyId).toBe("invalid-admission-policy-source");
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.admission-policy-source.candidate-invalid",
+				refs: expect.arrayContaining([
+					"policySource.priority must be a finite safe integer when present",
+				]),
+			}),
+		]);
+	});
+
+	it("selects by explicit priority deterministically and records inspectable audit", () => {
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource({
+			kind: "agentic-memory-record-admission-policy-selection-input",
+			sourceRefs: [{ kind: "workspace-policy-selection", id: "selection-source" }],
+			policyRefs: [{ kind: "workspace-policy-selection-policy", id: "selection-policy" }],
+			metadata: { selector: "workspace-order" },
+			sources: [
+				{
+					kind: "agentic-memory-record-admission-policy-source",
+					sourceId: "workspace",
+					sourceKind: "workspace",
+					priority: 20,
+					material: {
+						kind: "agentic-memory-record-admission-policy",
+						policyId: "workspace-policy",
+						defaultState: "needs-review",
+					},
+				},
+				{
+					kind: "agentic-memory-record-admission-policy-source",
+					sourceId: "planner",
+					sourceKind: "planner",
+					priority: 10,
+					material: {
+						kind: "agentic-memory-record-admission-policy-material",
+						admissionPolicy: {
+							kind: "agentic-memory-record-admission-policy",
+							policyId: "planner-policy",
+							defaultState: "admitted",
+						},
+						policyRefs: [{ kind: "planner-policy-material", id: "planner-material" }],
+					},
+					sourceRefs: [{ kind: "planner", id: "plan-1" }],
+				},
+			],
+		});
+
+		expect(projection.admissionPolicy.policyId).toBe("planner-policy");
+		expect(projection.admissionPolicy.defaultState).toBe("admitted");
+		expect(projection.admissionPolicy.sourceRefs).toEqual(
+			expect.arrayContaining([
+				{ kind: "planner", id: "plan-1" },
+				{ kind: "workspace-policy-selection", id: "selection-source" },
+			]),
+		);
+		expect(projection.admissionPolicy.policyRefs).toEqual(
+			expect.arrayContaining([
+				{ kind: "planner-policy-material", id: "planner-material" },
+				{ kind: "workspace-policy-selection-policy", id: "selection-policy" },
+			]),
+		);
+		expect(projection.audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					action: "candidate-selected",
+					sourceId: "planner",
+					policyId: "planner-policy",
+					priority: 10,
+					reason: "lowest-priority",
+					metadata: { selector: "workspace-order" },
+				}),
+			]),
+		);
+		expect(projection.cursor).toMatchObject({
+			sources: 2,
+			candidates: 2,
+			validCandidates: 2,
+			selectedCandidates: 1,
+		});
+	});
+
+	it("keeps NUL-containing refs distinct while deduping provenance", () => {
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource({
+			kind: "agentic-memory-record-admission-policy-selection-input",
+			sourceRefs: [
+				{ kind: "a\u0000b", id: "c" },
+				{ kind: "a", id: "b\u0000c" },
+				{ kind: "a\u0000b", id: "c" },
+			],
+			sources: [
+				{
+					kind: "agentic-memory-record-admission-policy-source",
+					sourceId: "nul-source",
+					sourceKind: "workspace",
+					priority: 0,
+					material: {
+						kind: "agentic-memory-record-admission-policy",
+						policyId: "nul-policy",
+					},
+				},
+			],
+		});
+
+		expect(projection.admissionPolicy.sourceRefs).toEqual([
+			{ kind: "a\u0000b", id: "c" },
+			{ kind: "a", id: "b\u0000c" },
+		]);
+	});
+
+	it("blocks duplicate candidate ids instead of selecting a hidden winner", () => {
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource({
+			kind: "agentic-memory-record-admission-policy-selection-input",
+			candidates: [
+				{
+					kind: "agentic-memory-record-admission-policy-candidate",
+					candidateId: "same-candidate",
+					sourceId: "source-a",
+					sourceKind: "workspace",
+					priority: 0,
+					admissionPolicy: {
+						kind: "agentic-memory-record-admission-policy",
+						policyId: "policy-a",
+					},
+				},
+				{
+					kind: "agentic-memory-record-admission-policy-candidate",
+					candidateId: "same-candidate",
+					sourceId: "source-b",
+					sourceKind: "planner",
+					priority: 10,
+					admissionPolicy: {
+						kind: "agentic-memory-record-admission-policy",
+						policyId: "policy-b",
+					},
+				},
+			],
+		});
+
+		expect(projection.status.state).toBe("blocked");
+		expect(projection.admissionPolicy.policyId).toBe("invalid-admission-policy-source");
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.admission-policy-source.duplicate-candidate",
+				refs: expect.arrayContaining(["same-candidate", "source-a", "source-b"]),
+			}),
+		]);
+		expect(projection.audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					action: "selection-blocked",
+					candidateId: "same-candidate",
+					reason: "duplicate-candidate",
+				}),
+			]),
+		);
+	});
+
+	it("does not count candidate-only arrays as policy sources", () => {
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource([
+			{
+				kind: "agentic-memory-record-admission-policy-candidate",
+				candidateId: "candidate-only",
+				sourceId: "planner",
+				sourceKind: "planner",
+				priority: 0,
+				admissionPolicy: {
+					kind: "agentic-memory-record-admission-policy",
+					policyId: "candidate-only-policy",
+				},
+			},
+		]);
+
+		expect(projection.status.state).toBe("ready");
+		expect(projection.cursor).toMatchObject({
+			sources: 0,
+			candidates: 1,
+			validCandidates: 1,
+			selectedCandidates: 1,
+		});
+		expect(projection.admissionPolicy.policyId).toBe("candidate-only-policy");
+	});
+
+	it("keeps accessor-backed source entries isolated as DATA issues", () => {
+		const sources = [
+			{
+				kind: "agentic-memory-record-admission-policy-source",
+				sourceId: "good-source",
+				sourceKind: "workspace",
+				priority: 1,
+				material: {
+					kind: "agentic-memory-record-admission-policy",
+					policyId: "good-policy",
+					defaultState: "admitted",
+				},
+			},
+		] as unknown[];
+		Object.defineProperty(sources, "1", {
+			get() {
+				throw new Error("source getter should not execute");
+			},
+			enumerable: true,
+		});
+		sources.length = 2;
+
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource(sources);
+
+		expect(projection.admissionPolicy.policyId).toBe("good-policy");
+		expect(projection.status.state).toBe("partial");
+		expect(projection.cursor).toMatchObject({
+			candidates: 2,
+			validCandidates: 1,
+			invalidCandidates: 1,
+			selectedCandidates: 1,
+		});
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.admission-policy-source.candidate-invalid",
+				message: "policySource[1] must be a data property",
+			}),
+		]);
+	});
+
+	it("rejects accessor-backed nested policy material before selecting it", () => {
+		const hostilePolicy = {
+			kind: "agentic-memory-record-admission-policy",
+		};
+		Object.defineProperty(hostilePolicy, "policyId", {
+			get() {
+				throw new Error("policy getter should not execute");
+			},
+			enumerable: true,
+		});
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource([
+			{
+				kind: "agentic-memory-record-admission-policy-source",
+				sourceId: "hostile-source",
+				sourceKind: "planner",
+				priority: 0,
+				material: hostilePolicy,
+			},
+		]);
+
+		expect(projection.status.state).toBe("error");
+		expect(projection.admissionPolicy.policyId).toBe("invalid-admission-policy-source");
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.admission-policy-source.candidate-invalid",
+				refs: expect.arrayContaining(["policyMaterial.policyId must be a data property"]),
+			}),
+		]);
+	});
+
+	it("blocks ambiguous same-priority selection without choosing a hidden winner", () => {
+		const projection = projectAgenticMemoryRecordAdmissionPolicySource({
+			kind: "agentic-memory-record-admission-policy-selection-input",
+			sources: [
+				{
+					kind: "agentic-memory-record-admission-policy-source",
+					sourceId: "workspace",
+					sourceKind: "workspace",
+					priority: 1,
+					material: {
+						kind: "agentic-memory-record-admission-policy",
+						policyId: "workspace-policy",
+					},
+				},
+				{
+					kind: "agentic-memory-record-admission-policy-source",
+					sourceId: "review",
+					sourceKind: "human-review",
+					priority: 1,
+					material: {
+						kind: "agentic-memory-record-admission-policy",
+						policyId: "review-policy",
+					},
+				},
+			],
+		});
+
+		expect(projection.status.state).toBe("blocked");
+		expect(projection.admissionPolicy.policyId).toBe("invalid-admission-policy-source");
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.admission-policy-source.ambiguous-selection",
+			}),
+		]);
+		expect(projection.audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					action: "selection-blocked",
+					reason: "ambiguous-priority",
+				}),
+			]),
+		);
+	});
+
+	it("creates an inspectable graph bundle without emitting proposal admissions", () => {
+		const g = graph();
+		const policySources = g.state(
+			[
+				{
+					kind: "agentic-memory-record-admission-policy-source",
+					sourceId: "static-source",
+					sourceKind: "static",
+					priority: 0,
+					material: {
+						kind: "agentic-memory-record-admission-policy",
+						policyId: "static-policy",
+						defaultState: "admitted",
+					},
+				},
+			] as const,
+			{ name: "policySources" },
+		);
+		const bundle = agenticMemoryRecordAdmissionPolicySourceBundle(g, {
+			name: "policySource",
+			policySources,
+		});
+		const selectedPolicy = collect(bundle.admissionPolicy);
+
+		expect(g.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "policySources", to: "policySource/projection" },
+				{ from: "policySource/projection", to: "policySource/admissionPolicy" },
+				{ from: "policySource/projection", to: "policySource/status" },
+				{ from: "policySource/projection", to: "policySource/issues" },
+				{ from: "policySource/projection", to: "policySource/audit" },
+				{ from: "policySource/projection", to: "policySource/cursor" },
+			]),
+		);
+		expect(Object.hasOwn(bundle, "admissions")).toBe(false);
+		expect(Object.hasOwn(bundle, "records")).toBe(false);
+		expect(data<AgenticMemoryRecordAdmissionPolicy>(selectedPolicy.messages).at(-1)).toMatchObject({
+			policyId: "static-policy",
+			defaultState: "admitted",
+		});
 	});
 });
 
@@ -2699,6 +3183,440 @@ describe("agentic memory record application projector (D577)", () => {
 		expect(data(operationStatuses.messages).at(-1)).toEqual([
 			expect.objectContaining({ operation: "create", state: "ready" }),
 		]);
+	});
+
+	it("projects applied application decisions into appendable evidence with coordinates preserved", () => {
+		const sourceRefs = [{ kind: "review", id: "review-application" }];
+		const policyRefs = [{ kind: "application-policy", id: "application-policy" }];
+		const evidenceRefs = [{ kind: "prior-fact", id: "prior-fact" }];
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "admission-evidence",
+					proposalId: "proposal-evidence",
+					idempotencyKey: "idem-evidence",
+					targetRecordId: "record-new",
+					sourceRefs,
+					policyRefs,
+					evidenceRefs,
+				}),
+			],
+			applicationPolicy({ sourceRefs, policyRefs }),
+		);
+
+		const projection = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			snapshot.applicationDecisions,
+		);
+
+		expect(projection.evidenceFacts).toEqual([
+			expect.objectContaining<Partial<AgenticMemoryRecordApplicationEvidence>>({
+				kind: "agentic-memory-record-application-evidence",
+				applicationId: snapshot.applicationDecisions[0]?.applicationId,
+				admissionId: "admission-evidence",
+				proposalId: "proposal-evidence",
+				operation: "create",
+				operationVersion: 1,
+				idempotencyKey: "idem-evidence",
+				recordId: "record-new",
+				fragmentId: "fragment-new",
+				targetRecordId: "record-new",
+				materialIdentity: snapshot.applicationDecisions[0]?.materialIdentity,
+				sourceRefs: expect.arrayContaining(sourceRefs),
+				policyRefs: expect.arrayContaining(policyRefs),
+				evidenceRefs,
+			}),
+		]);
+		expect(projection.priorEvidence).toMatchObject({
+			kind: "agentic-memory-record-application-prior-evidence",
+			entries: projection.evidenceFacts,
+		});
+		expect(projection.status).toMatchObject({
+			state: "ready",
+			cursor: {
+				applicationDecisions: 1,
+				appliedDecisions: 1,
+				evidenceFacts: 1,
+				validEvidenceFacts: 1,
+			},
+		});
+	});
+
+	it("keeps skipped and rejected application decisions out of evidence truth", () => {
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "decision-skipped",
+					proposalId: "decision-skipped",
+					state: "rejected",
+				}),
+				admitted({
+					admissionId: "decision-rejected",
+					proposalId: "decision-rejected",
+					targetRecordId: "different-target",
+				}),
+			],
+			applicationPolicy(),
+		);
+
+		const projection = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			snapshot.applicationDecisions,
+		);
+
+		expect(snapshot.applicationDecisions.map((decision) => decision.state)).toEqual([
+			"skipped",
+			"rejected",
+		]);
+		expect(projection.evidenceFacts).toEqual([]);
+		expect(projection.audit.map((entry) => entry.action)).toEqual([
+			"decision-skipped",
+			"decision-skipped",
+		]);
+		expect(projection.status).toMatchObject({
+			state: "blocked",
+			cursor: { skippedDecisions: 1, rejectedDecisions: 1, validEvidenceFacts: 0 },
+		});
+	});
+
+	it("rejects malformed skipped or rejected decisions before audit projection", () => {
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[
+				admitted({
+					admissionId: "malformed-skipped",
+					proposalId: "malformed-skipped",
+					state: "rejected",
+				}),
+				admitted({
+					admissionId: "malformed-rejected",
+					proposalId: "malformed-rejected",
+					targetRecordId: "different-target",
+				}),
+			],
+			applicationPolicy(),
+		);
+		const [skipped, rejected] = snapshot.applicationDecisions;
+		const projection = projectAgenticMemoryRecordApplicationEvidenceFacts([
+			{ ...skipped, candidateMaterial: undefined },
+			{ ...rejected, operationVersion: 2 },
+		] as unknown as readonly AgenticMemoryRecordApplicationDecision[]);
+
+		expect(projection.evidenceFacts).toEqual([]);
+		expect(projection.audit.map((entry) => entry.action)).toEqual([
+			"issue-recorded",
+			"issue-recorded",
+		]);
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.application-evidence-facts.invalid-decision",
+				refs: expect.arrayContaining(["decision.candidateMaterial must be an object"]),
+			}),
+			expect.objectContaining({
+				code: "agentic-memory.application-evidence-facts.invalid-decision",
+				refs: expect.arrayContaining(["decision.operationVersion must be 1"]),
+			}),
+		]);
+		expect(projection.status).toMatchObject({
+			state: "error",
+			cursor: {
+				applicationDecisions: 2,
+				skippedDecisions: 0,
+				rejectedDecisions: 0,
+				validEvidenceFacts: 0,
+				invalidEvidenceFacts: 2,
+			},
+		});
+	});
+
+	it("rejects malformed applied decisions before projecting evidence facts", () => {
+		const snapshot = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "malformed-decision", proposalId: "malformed-decision" })],
+			applicationPolicy(),
+		);
+		const applied = snapshot.applicationDecisions[0] as AgenticMemoryRecordApplicationDecision;
+		const projection = projectAgenticMemoryRecordApplicationEvidenceFacts([
+			{ ...applied, record: undefined },
+			{
+				...applied,
+				admissionId: "malformed-decision-divergent-record",
+				record: record({
+					id: "record-new",
+					fragment: fragment({ id: "fragment-new", payload: "divergent" }),
+				}),
+			},
+		]);
+
+		expect(projection.evidenceFacts).toEqual([]);
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.application-evidence-facts.invalid-decision",
+				refs: expect.arrayContaining(["decision.record must be present for applied decisions"]),
+			}),
+			expect.objectContaining({
+				code: "agentic-memory.application-evidence-facts.invalid-decision",
+				refs: expect.arrayContaining(["decision.record must match decision.materialIdentity"]),
+			}),
+		]);
+		expect(projection.status).toMatchObject({
+			state: "error",
+			cursor: { appliedDecisions: 2, validEvidenceFacts: 0, invalidEvidenceFacts: 2 },
+		});
+	});
+
+	it("projects prior evidence facts for application helper consumption and future idempotency", () => {
+		const first = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "future-admission", proposalId: "future-proposal" })],
+			applicationPolicy(),
+		);
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(first.applicationDecisions);
+		const prior = projectAgenticMemoryRecordApplicationPriorEvidence(evidence.evidenceFacts);
+		const second = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "future-admission", proposalId: "future-proposal" })],
+			applicationPolicy(),
+			{ priorEvidence: prior.priorEvidence },
+		);
+
+		expect(prior.priorEvidence.entries).toHaveLength(1);
+		expect(second.records).toEqual([]);
+		expect(second.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "skipped", reasonCode: "already-applied" }),
+		]);
+		expect(second.issues).toEqual([]);
+	});
+
+	it("snapshots prior evidence and wrapper metadata as strict DATA", () => {
+		const evidenceMetadata = { nested: { value: "before" } };
+		const wrapperMetadata = { wrapper: { value: "before" } };
+		const projection = projectAgenticMemoryRecordApplicationPriorEvidence(
+			[
+				{
+					kind: "agentic-memory-record-application-evidence",
+					admissionId: "metadata-evidence",
+					proposalId: "metadata-evidence",
+					operation: "create",
+					operationVersion: 1,
+					recordId: "record-metadata",
+					fragmentId: "fragment-metadata",
+					targetRecordId: "record-metadata",
+					materialIdentity: applicationMaterialIdentity(
+						"create",
+						record({ id: "record-metadata", fragment: fragment({ id: "fragment-metadata" }) }),
+					),
+					metadata: evidenceMetadata,
+				},
+			],
+			{ metadata: wrapperMetadata },
+		);
+
+		evidenceMetadata.nested.value = "after";
+		wrapperMetadata.wrapper.value = "after";
+		expect(projection.priorEvidence.entries[0]?.metadata).toEqual({
+			nested: { value: "before" },
+		});
+		expect(projection.priorEvidence.metadata).toEqual({
+			wrapper: { value: "before" },
+		});
+		expect(Object.isFrozen(projection.priorEvidence.entries[0]?.metadata)).toBe(true);
+		expect(Object.isFrozen(projection.priorEvidence.entries[0]?.metadata?.nested)).toBe(true);
+		expect(Object.isFrozen(projection.priorEvidence.metadata)).toBe(true);
+		expect(Object.isFrozen(projection.priorEvidence.metadata?.wrapper)).toBe(true);
+	});
+
+	it("preserves prior evidence wrapper provenance unless options override it", () => {
+		const sourceRefs = [{ kind: "history-source", id: "history-source" }];
+		const policyRefs = [{ kind: "history-policy", id: "history-policy" }];
+		const wrapperMetadata = { wrapper: { value: "from-wrapper" } };
+		const evidenceFact: AgenticMemoryRecordApplicationEvidence = {
+			kind: "agentic-memory-record-application-evidence",
+			admissionId: "wrapper-evidence",
+			proposalId: "wrapper-evidence",
+			operation: "create",
+			operationVersion: 1,
+			recordId: "record-wrapper",
+			fragmentId: "fragment-wrapper",
+			targetRecordId: "record-wrapper",
+			materialIdentity: applicationMaterialIdentity(
+				"create",
+				record({ id: "record-wrapper", fragment: fragment({ id: "fragment-wrapper" }) }),
+			),
+		};
+		const projection = projectAgenticMemoryRecordApplicationPriorEvidence({
+			kind: "agentic-memory-record-application-prior-evidence",
+			entries: [evidenceFact],
+			sourceRefs,
+			policyRefs,
+			metadata: wrapperMetadata,
+		});
+		const overridden = projectAgenticMemoryRecordApplicationPriorEvidence(
+			{
+				kind: "agentic-memory-record-application-prior-evidence",
+				entries: [evidenceFact],
+				sourceRefs,
+				policyRefs,
+				metadata: wrapperMetadata,
+			},
+			{
+				sourceRefs: [{ kind: "override-source", id: "override-source" }],
+				metadata: { wrapper: { value: "from-options" } },
+			},
+		);
+
+		wrapperMetadata.wrapper.value = "mutated";
+		expect(projection.priorEvidence).toMatchObject({
+			sourceRefs,
+			policyRefs,
+			metadata: { wrapper: { value: "from-wrapper" } },
+		});
+		expect(Object.isFrozen(projection.priorEvidence.metadata?.wrapper)).toBe(true);
+		expect(overridden.priorEvidence).toMatchObject({
+			sourceRefs: [{ kind: "override-source", id: "override-source" }],
+			policyRefs,
+			metadata: { wrapper: { value: "from-options" } },
+		});
+	});
+
+	it("reports malformed prior evidence projection as DATA issues without protocol ERROR", () => {
+		const g = graph();
+		const evidenceFacts = g.state<readonly AgenticMemoryRecordApplicationEvidence[]>(
+			[
+				{
+					kind: "agentic-memory-record-application-evidence",
+					admissionId: "bad-evidence",
+					operation: "create",
+					operationVersion: 1,
+					recordId: "record-bad",
+					fragmentId: "fragment-bad",
+					targetRecordId: "record-bad",
+					materialIdentity: { algorithm: "unsupported", key: "not-json" } as never,
+				},
+			],
+			{ name: "history/evidenceFacts" },
+		);
+		const bundle = agenticMemoryRecordApplicationPriorEvidenceBundle(g, {
+			name: "history/prior",
+			evidenceFacts,
+		});
+		const projection = collect(bundle.projection);
+		const issues = collect(bundle.issues);
+		const status = collect(bundle.status);
+
+		expect(
+			data<AgenticMemoryRecordApplicationPriorEvidenceProjection>(projection.messages).at(-1),
+		).toMatchObject({
+			kind: "agentic-memory-record-application-prior-evidence-projection",
+			priorEvidence: { entries: [] },
+		});
+		expect(data(status.messages).at(-1)).toMatchObject({ state: "error" });
+		expect(data(issues.messages).at(-1)).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.application-prior-evidence.invalid-entry",
+			}),
+		]);
+		expect(projection.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		expect(status.messages.some((message) => message[0] === "ERROR")).toBe(false);
+	});
+
+	it("keeps current application decisions out of same-evaluation prior evidence wiring", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const admissions = g.state<readonly AgenticMemoryRecordAdmission<string>[]>(
+			[admitted({ admissionId: "same-evaluation", proposalId: "same-evaluation" })],
+			{ name: "admissions" },
+		);
+		const policy = g.state<AgenticMemoryRecordApplicationPolicy>(applicationPolicy(), {
+			name: "policy",
+		});
+		const application = agenticMemoryRecordApplicationBundle(g, {
+			name: "application",
+			records,
+			admissions,
+			policy,
+		});
+		const evidence = agenticMemoryRecordApplicationEvidenceFactsBundle(g, {
+			name: "history/evidenceFacts",
+			applicationDecisions: application.applicationDecisions,
+		});
+		const evidenceFacts = collect(evidence.evidenceFacts);
+		const decisions = collect(application.applicationDecisions);
+
+		const edges = g.describe().edges;
+		expect(edges).toEqual(
+			expect.arrayContaining([
+				{ from: "application/projection", to: "application/applicationDecisions" },
+				{
+					from: "application/applicationDecisions",
+					to: "history/evidenceFacts/projection",
+				},
+				{ from: "history/evidenceFacts/projection", to: "history/evidenceFacts/evidenceFacts" },
+				{ from: "history/evidenceFacts/projection", to: "history/evidenceFacts/priorEvidence" },
+			]),
+		);
+		expect(edges).not.toEqual(
+			expect.arrayContaining([
+				{ from: "history/evidenceFacts/priorEvidence", to: "application/projection" },
+				{ from: "history/evidenceFacts/evidenceFacts", to: "application/projection" },
+			]),
+		);
+		expect(
+			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages).at(-1),
+		).toEqual([expect.objectContaining({ state: "applied" })]);
+		expect(
+			data<readonly AgenticMemoryRecordApplicationEvidence[]>(evidenceFacts.messages).at(-1),
+		).toEqual([expect.objectContaining({ admissionId: "same-evaluation" })]);
+	});
+
+	it("exposes explicit prior-evidence projection edges for later application inputs", () => {
+		const g = graph();
+		const evidenceFacts = g.state<readonly AgenticMemoryRecordApplicationEvidence[]>(
+			[
+				{
+					kind: "agentic-memory-record-application-evidence",
+					admissionId: "prior-edge",
+					proposalId: "prior-edge",
+					operation: "create",
+					operationVersion: 1,
+					recordId: "record-new",
+					fragmentId: "fragment-new",
+					targetRecordId: "record-new",
+					materialIdentity: applicationMaterialIdentity(
+						"create",
+						record({ id: "record-new", fragment: fragment({ id: "fragment-new" }) }),
+					),
+				},
+			],
+			{ name: "persisted/evidenceFacts" },
+		);
+		const prior = agenticMemoryRecordApplicationPriorEvidenceBundle(g, {
+			name: "history/prior",
+			evidenceFacts,
+		});
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const admissions = g.state<readonly AgenticMemoryRecordAdmission<string>[]>(
+			[admitted({ admissionId: "prior-edge", proposalId: "prior-edge" })],
+			{ name: "admissions" },
+		);
+		const policy = g.state<AgenticMemoryRecordApplicationPolicy>(applicationPolicy(), {
+			name: "policy",
+		});
+		const application = agenticMemoryRecordApplicationBundle(g, {
+			name: "later/application",
+			records,
+			admissions,
+			policy,
+			priorEvidence: prior.priorEvidence,
+		});
+		const decisions = collect(application.applicationDecisions);
+
+		expect(g.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "persisted/evidenceFacts", to: "history/prior/projection" },
+				{ from: "history/prior/projection", to: "history/prior/priorEvidence" },
+				{ from: "history/prior/priorEvidence", to: "later/application/projection" },
+			]),
+		);
+		expect(application.input.priorEvidence).toBe(prior.priorEvidence);
+		expect(
+			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages).at(-1),
+		).toEqual([expect.objectContaining({ state: "skipped", reasonCode: "already-applied" })]);
 	});
 
 	it("keeps admission as proposal-only until the application projector consumes it", () => {

@@ -39,6 +39,7 @@ export default defineConfig({
 		"src/scoring/index.ts",
 		"src/solutions/agentic-memory/index.ts",
 		"src/solutions/agentic-work-item-memory/index.ts",
+		"src/solutions/agentic-work-item-memory-application/index.ts",
 		"src/solutions/index.ts",
 		"src/solutions/work-item/index.ts",
 		"src/solutions/work-item/actions.ts",

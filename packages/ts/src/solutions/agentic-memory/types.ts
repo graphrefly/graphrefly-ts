@@ -170,6 +170,146 @@ export interface AgenticMemoryProposalAdmissionPolicy {
 
 export type AgenticMemoryRecordAdmissionPolicy = AgenticMemoryProposalAdmissionPolicy;
 
+export type AgenticMemoryRecordAdmissionPolicySourceKind =
+	| "static"
+	| "workspace"
+	| "human-review"
+	| "planner"
+	| "producer"
+	| (string & {});
+
+/**
+ * D583 DATA-only material for an AgenticMemory admission policy source.
+ *
+ * This material normalizes into AgenticMemoryRecordAdmissionPolicy DATA. It is
+ * not an admission decision, policy engine, provider/runtime handle, storage or
+ * hydration authority, permission grant, graph handle, or WorkItem bridge input.
+ */
+export interface AgenticMemoryRecordAdmissionPolicyMaterial {
+	readonly kind: "agentic-memory-record-admission-policy-material";
+	readonly admissionPolicy: AgenticMemoryRecordAdmissionPolicy;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+/**
+ * D583 policy source fact supplied by static config, workspace policy facts,
+ * human-review/planner material, or other explicit producer DATA.
+ */
+export interface AgenticMemoryRecordAdmissionPolicySource {
+	readonly kind: "agentic-memory-record-admission-policy-source";
+	readonly sourceId: FactId;
+	readonly sourceKind: AgenticMemoryRecordAdmissionPolicySourceKind;
+	readonly priority?: number;
+	readonly material:
+		| AgenticMemoryRecordAdmissionPolicyMaterial
+		| AgenticMemoryRecordAdmissionPolicy;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+/** Normalized D583 candidate considered by the policy source projection. */
+export interface AgenticMemoryRecordAdmissionPolicyCandidate {
+	readonly kind: "agentic-memory-record-admission-policy-candidate";
+	readonly candidateId: FactId;
+	readonly sourceId: FactId;
+	readonly sourceKind: AgenticMemoryRecordAdmissionPolicySourceKind;
+	readonly priority?: number;
+	readonly admissionPolicy: AgenticMemoryRecordAdmissionPolicy;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+/** D583 explicit selection input for admission policy source projection. */
+export interface AgenticMemoryRecordAdmissionPolicySelectionInput {
+	readonly kind: "agentic-memory-record-admission-policy-selection-input";
+	readonly sources?: readonly AgenticMemoryRecordAdmissionPolicySource[];
+	readonly candidates?: readonly AgenticMemoryRecordAdmissionPolicyCandidate[];
+	readonly selectedSourceId?: FactId;
+	readonly selectedCandidateId?: FactId;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+export interface AgenticMemoryRecordAdmissionPolicySourceCursor {
+	readonly evaluation: number;
+	readonly sources: number;
+	readonly candidates: number;
+	readonly validCandidates: number;
+	readonly invalidCandidates: number;
+	readonly selectedCandidates: number;
+	readonly issues: number;
+}
+
+export type AgenticMemoryRecordAdmissionPolicySourceStatusState =
+	| "ready"
+	| "empty"
+	| "blocked"
+	| "partial"
+	| "error";
+
+export interface AgenticMemoryRecordAdmissionPolicySourceStatus {
+	readonly state: AgenticMemoryRecordAdmissionPolicySourceStatusState;
+	readonly cursor: AgenticMemoryRecordAdmissionPolicySourceCursor;
+}
+
+export interface AgenticMemoryRecordAdmissionPolicySourceAuditEntry {
+	readonly kind: "agentic-memory-record-admission-policy-source-audit";
+	readonly action:
+		| "candidate-selected"
+		| "candidate-invalid"
+		| "source-skipped"
+		| "selection-blocked"
+		| "issue-recorded";
+	readonly sourceId?: FactId;
+	readonly candidateId?: FactId;
+	readonly policyId?: FactId;
+	readonly priority?: number;
+	readonly reason?: string;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+/** D583 projection result: selected policy DATA plus read-model facts only. */
+export interface AgenticMemoryRecordAdmissionPolicySourceProjection {
+	readonly kind: "agentic-memory-record-admission-policy-source-projection";
+	readonly admissionPolicy: AgenticMemoryRecordAdmissionPolicy;
+	readonly status: AgenticMemoryRecordAdmissionPolicySourceStatus;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgenticMemoryRecordAdmissionPolicySourceAuditEntry[];
+	readonly cursor: AgenticMemoryRecordAdmissionPolicySourceCursor;
+}
+
+export interface AgenticMemoryRecordAdmissionPolicySourceBundle {
+	readonly input: {
+		readonly policySources:
+			| Node<AgenticMemoryRecordAdmissionPolicy>
+			| Node<readonly AgenticMemoryRecordAdmissionPolicySource[]>
+			| Node<readonly AgenticMemoryRecordAdmissionPolicyCandidate[]>
+			| Node<AgenticMemoryRecordAdmissionPolicySelectionInput>;
+	};
+	readonly projection: Node<AgenticMemoryRecordAdmissionPolicySourceProjection>;
+	readonly admissionPolicy: Node<AgenticMemoryRecordAdmissionPolicy>;
+	readonly status: Node<AgenticMemoryRecordAdmissionPolicySourceStatus>;
+	readonly issues: Node<readonly DataIssue[]>;
+	readonly audit: Node<readonly AgenticMemoryRecordAdmissionPolicySourceAuditEntry[]>;
+	readonly cursor: Node<AgenticMemoryRecordAdmissionPolicySourceCursor>;
+}
+
+export interface AgenticMemoryRecordAdmissionPolicySourceBundleOptions {
+	readonly name?: string;
+	readonly policySources:
+		| Node<AgenticMemoryRecordAdmissionPolicy>
+		| Node<readonly AgenticMemoryRecordAdmissionPolicySource[]>
+		| Node<readonly AgenticMemoryRecordAdmissionPolicyCandidate[]>
+		| Node<AgenticMemoryRecordAdmissionPolicySelectionInput>;
+}
+
 export interface AgenticMemoryProposalAdmissionDecision<T = unknown> {
 	readonly kind: "agentic-memory-record-admission";
 	readonly admissionId: FactId;
@@ -339,6 +479,105 @@ export interface AgenticMemoryRecordApplicationPriorEvidence {
 	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
 	readonly policyRefs?: readonly AgenticMemoryFactRef[];
 	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+export interface AgenticMemoryRecordApplicationPriorEvidenceCursor {
+	readonly evaluation: number;
+	readonly applicationDecisions: number;
+	readonly appliedDecisions: number;
+	readonly skippedDecisions: number;
+	readonly rejectedDecisions: number;
+	readonly evidenceFacts: number;
+	readonly validEvidenceFacts: number;
+	readonly invalidEvidenceFacts: number;
+	readonly duplicateEvidenceFacts: number;
+	readonly issues: number;
+}
+
+export type AgenticMemoryRecordApplicationEvidenceProjectionStatusState =
+	| "ready"
+	| "empty"
+	| "partial"
+	| "blocked"
+	| "error";
+
+export interface AgenticMemoryRecordApplicationEvidenceProjectionStatus {
+	readonly state: AgenticMemoryRecordApplicationEvidenceProjectionStatusState;
+	readonly cursor: AgenticMemoryRecordApplicationPriorEvidenceCursor;
+}
+
+export interface AgenticMemoryRecordApplicationEvidenceProjectionAuditEntry {
+	readonly kind: "agentic-memory-record-application-evidence-projection-audit";
+	readonly action:
+		| "prior-evidence-projected"
+		| "evidence-fact-projected"
+		| "duplicate-suppressed"
+		| "decision-skipped"
+		| "issue-recorded";
+	readonly admissionId?: FactId;
+	readonly proposalId?: FactId;
+	readonly applicationId?: FactId;
+	readonly reason?: string;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+}
+
+export interface AgenticMemoryRecordApplicationPriorEvidenceProjection {
+	readonly kind: "agentic-memory-record-application-prior-evidence-projection";
+	readonly priorEvidence: AgenticMemoryRecordApplicationPriorEvidence;
+	readonly status: AgenticMemoryRecordApplicationEvidenceProjectionStatus;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgenticMemoryRecordApplicationEvidenceProjectionAuditEntry[];
+	readonly cursor: AgenticMemoryRecordApplicationPriorEvidenceCursor;
+}
+
+export interface AgenticMemoryRecordApplicationEvidenceFactsProjection {
+	readonly kind: "agentic-memory-record-application-evidence-facts-projection";
+	readonly evidenceFacts: readonly AgenticMemoryRecordApplicationEvidence[];
+	readonly priorEvidence: AgenticMemoryRecordApplicationPriorEvidence;
+	readonly status: AgenticMemoryRecordApplicationEvidenceProjectionStatus;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgenticMemoryRecordApplicationEvidenceProjectionAuditEntry[];
+	readonly cursor: AgenticMemoryRecordApplicationPriorEvidenceCursor;
+}
+
+export interface AgenticMemoryRecordApplicationPriorEvidenceBundle {
+	readonly input: {
+		readonly evidenceFacts:
+			| Node<readonly AgenticMemoryRecordApplicationEvidence[]>
+			| Node<AgenticMemoryRecordApplicationPriorEvidence>;
+	};
+	readonly projection: Node<AgenticMemoryRecordApplicationPriorEvidenceProjection>;
+	readonly priorEvidence: Node<AgenticMemoryRecordApplicationPriorEvidence>;
+	readonly status: Node<AgenticMemoryRecordApplicationEvidenceProjectionStatus>;
+	readonly issues: Node<readonly DataIssue[]>;
+	readonly audit: Node<readonly AgenticMemoryRecordApplicationEvidenceProjectionAuditEntry[]>;
+	readonly cursor: Node<AgenticMemoryRecordApplicationPriorEvidenceCursor>;
+}
+
+export interface AgenticMemoryRecordApplicationPriorEvidenceBundleOptions {
+	readonly name?: string;
+	readonly evidenceFacts:
+		| Node<readonly AgenticMemoryRecordApplicationEvidence[]>
+		| Node<AgenticMemoryRecordApplicationPriorEvidence>;
+}
+
+export interface AgenticMemoryRecordApplicationEvidenceFactsBundle<T = unknown> {
+	readonly input: {
+		readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
+	};
+	readonly projection: Node<AgenticMemoryRecordApplicationEvidenceFactsProjection>;
+	readonly evidenceFacts: Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
+	readonly priorEvidence: Node<AgenticMemoryRecordApplicationPriorEvidence>;
+	readonly status: Node<AgenticMemoryRecordApplicationEvidenceProjectionStatus>;
+	readonly issues: Node<readonly DataIssue[]>;
+	readonly audit: Node<readonly AgenticMemoryRecordApplicationEvidenceProjectionAuditEntry[]>;
+	readonly cursor: Node<AgenticMemoryRecordApplicationPriorEvidenceCursor>;
+}
+
+export interface AgenticMemoryRecordApplicationEvidenceFactsBundleOptions<T = unknown> {
+	readonly name?: string;
+	readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
 }
 
 export type AgenticMemoryRecordApplicationDecisionState = "applied" | "skipped" | "rejected";

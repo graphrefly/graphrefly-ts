@@ -1709,6 +1709,30 @@ export const apiSidebar = [
 				"link": "/api/workitemdomainactionadmissionprojector"
 			},
 			{
+				"label": "projectAgenticMemoryRecordAdmissionPolicySource()",
+				"link": "/api/projectagenticmemoryrecordadmissionpolicysource"
+			},
+			{
+				"label": "agenticMemoryRecordAdmissionPolicySourceBundle()",
+				"link": "/api/agenticmemoryrecordadmissionpolicysourcebundle"
+			},
+			{
+				"label": "projectAgenticMemoryRecordApplicationPriorEvidence()",
+				"link": "/api/projectagenticmemoryrecordapplicationpriorevidence"
+			},
+			{
+				"label": "projectAgenticMemoryRecordApplicationEvidenceFacts()",
+				"link": "/api/projectagenticmemoryrecordapplicationevidencefacts"
+			},
+			{
+				"label": "agenticMemoryRecordApplicationPriorEvidenceBundle()",
+				"link": "/api/agenticmemoryrecordapplicationpriorevidencebundle"
+			},
+			{
+				"label": "agenticMemoryRecordApplicationEvidenceFactsBundle()",
+				"link": "/api/agenticmemoryrecordapplicationevidencefactsbundle"
+			},
+			{
 				"label": "agenticMemoryBundle()",
 				"link": "/api/agenticmemorybundle"
 			},
@@ -1763,6 +1787,14 @@ export const apiSidebar = [
 			{
 				"label": "agenticMemoryRetentionBundle()",
 				"link": "/api/agenticmemoryretentionbundle"
+			},
+			{
+				"label": "mapAgenticWorkItemMemoryApplicationRecipe()",
+				"link": "/api/mapagenticworkitemmemoryapplicationrecipe"
+			},
+			{
+				"label": "agenticWorkItemMemoryApplicationRecipeBundle()",
+				"link": "/api/agenticworkitemmemoryapplicationrecipebundle"
 			},
 			{
 				"label": "agenticWorkItemMemoryBridgeBundle()",

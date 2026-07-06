@@ -476,6 +476,16 @@
 				"default": "./dist/solutions/agentic-work-item-memory/index.cjs"
 			}
 		},
+		"./solutions/agentic-work-item-memory-application": {
+			"import": {
+				"types": "./dist/solutions/agentic-work-item-memory-application/index.d.ts",
+				"default": "./dist/solutions/agentic-work-item-memory-application/index.js"
+			},
+			"require": {
+				"types": "./dist/solutions/agentic-work-item-memory-application/index.d.cts",
+				"default": "./dist/solutions/agentic-work-item-memory-application/index.cjs"
+			}
+		},
 		"./solutions/work-item": {
 			"import": {
 				"types": "./dist/solutions/work-item/index.d.ts",

@@ -59,7 +59,8 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Scoring | Reusable subjects/signals/policy scoring helpers | `@graphrefly/ts/scoring` |
 | Solutions | Vertical solution kits | `@graphrefly/ts/solutions` |
 | Agentic memory | Focused agentic memory solution | `@graphrefly/ts/solutions/agentic-memory` |
-| Agentic WorkItem memory bridge | Replaceable bridge recipe namespace | `@graphrefly/ts/solutions/agentic-work-item-memory` |
+| Agentic WorkItem memory bridge | Mapper-only bridge namespace | `@graphrefly/ts/solutions/agentic-work-item-memory` |
+| Agentic WorkItem memory application | Cross-family application composition recipe | `@graphrefly/ts/solutions/agentic-work-item-memory-application` |
 | Reactive layout | DOM-free reactive layout solution core | `@graphrefly/ts/solutions/reactive-layout` |
 | Reactive layout browser | Browser measurement helpers | `@graphrefly/ts/solutions/reactive-layout/browser` |
 | Reactive layout node-canvas | Node canvas measurement helpers | `@graphrefly/ts/solutions/reactive-layout/node-canvas` |

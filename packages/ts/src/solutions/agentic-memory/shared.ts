@@ -614,14 +614,18 @@ export function forbiddenAgenticMemoryDataFields(
 ): readonly string[] {
 	const forbidden = [
 		"storage",
+		"storageHandle",
 		"storageTier",
 		"storageKey",
 		"provider",
 		"providerHandle",
 		"permission",
+		"permissionHandle",
 		"permissions",
 		"graph",
+		"graphHandle",
 		"node",
+		"nodeHandle",
 		"handle",
 		"adapter",
 		"hydrate",
@@ -950,7 +954,7 @@ function unexpectedFields(
 		.sort();
 }
 
-function dataRecordContainerErrors(value: unknown, label: string): readonly string[] {
+export function dataRecordContainerErrors(value: unknown, label: string): readonly string[] {
 	if (!isPlainRecord(value)) return [`${label} must be an object when present`];
 	const errors: string[] = [];
 	const proto = Object.getPrototypeOf(value);
@@ -973,7 +977,7 @@ function dataRecordContainerErrors(value: unknown, label: string): readonly stri
 	return errors;
 }
 
-function dataArrayContainerErrors(
+export function dataArrayContainerErrors(
 	value: readonly unknown[],
 	label: string,
 	length: number,

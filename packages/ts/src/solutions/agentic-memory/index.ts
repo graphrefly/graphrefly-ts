@@ -7,6 +7,8 @@ export type {
 	KnowledgeAssertionObject,
 	KnowledgeAssertionSubject,
 } from "../../patterns/semantic-memory.js";
+export * from "./admission-policy-source.js";
+export * from "./application-history.js";
 export * from "./bundle.js";
 export * from "./consolidation.js";
 export * from "./consolidation-application.js";

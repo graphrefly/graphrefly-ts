@@ -172,8 +172,14 @@ const expectedSubpaths = {
 			"agenticMemoryRetentionBundle",
 			"admitAgenticMemoryRecordProposals",
 			"agenticMemoryRecordAdmissionBundle",
+			"projectAgenticMemoryRecordAdmissionPolicySource",
+			"agenticMemoryRecordAdmissionPolicySourceBundle",
 			"applyAgenticMemoryRecordAdmissions",
 			"agenticMemoryRecordApplicationBundle",
+			"projectAgenticMemoryRecordApplicationPriorEvidence",
+			"projectAgenticMemoryRecordApplicationEvidenceFacts",
+			"agenticMemoryRecordApplicationPriorEvidenceBundle",
+			"agenticMemoryRecordApplicationEvidenceFactsBundle",
 			"agenticMemoryConsolidationApplicationBundle",
 		],
 		absent: [
@@ -186,8 +192,22 @@ const expectedSubpaths = {
 		present: ["mapAgenticWorkItemMemoryBridge", "agenticWorkItemMemoryBridgeBundle"],
 		absent: [
 			"agenticMemoryBundle",
+			"mapAgenticWorkItemMemoryApplicationRecipe",
+			"agenticWorkItemMemoryApplicationRecipeBundle",
 			"workItemAuthoringProjector",
 			"workItemEffectRunProjector",
+			"persistAgenticMemoryRecords",
+		],
+	},
+	"./solutions/agentic-work-item-memory-application": {
+		present: [
+			"mapAgenticWorkItemMemoryApplicationRecipe",
+			"agenticWorkItemMemoryApplicationRecipeBundle",
+		],
+		absent: [
+			"agenticMemoryBundle",
+			"mapAgenticWorkItemMemoryBridge",
+			"workItemAuthoringProjector",
 			"persistAgenticMemoryRecords",
 		],
 	},
@@ -556,6 +576,8 @@ import {
 	type AgenticMemoryRecord as FocusedAgenticMemoryRecord,
 	agenticMemoryRecordAdmissionBundle,
 	type AgenticMemoryRecordAdmissionPolicy,
+	agenticMemoryRecordAdmissionPolicySourceBundle,
+	projectAgenticMemoryRecordAdmissionPolicySource,
 	agenticMemoryRecordApplicationBundle,
 	type AgenticMemoryRecordApplicationBundleOptions,
 	type AgenticMemoryRecordApplicationMaterialIdentity,
@@ -565,6 +587,12 @@ import {
 	type AgenticMemoryRecordApplicationPriorEvidence,
 	applyAgenticMemoryRecordAdmissions,
 } from "@graphrefly/ts/solutions/agentic-memory";
+import {
+	agenticWorkItemMemoryApplicationRecipeBundle,
+	mapAgenticWorkItemMemoryApplicationRecipe,
+	type AgenticWorkItemMemoryApplicationRecipeBundleOptions,
+	type AgenticWorkItemMemoryApplicationRecipeResult,
+} from "@graphrefly/ts/solutions/agentic-work-item-memory-application";
 import {
 	agenticWorkItemMemoryBridgeBundle,
 	mapAgenticWorkItemMemoryBridge,
@@ -630,9 +658,13 @@ void admitAgenticMemoryRecordProposals;
 void agenticMemoryBundle;
 void agenticMemoryConsolidationApplicationBundle;
 void agenticMemoryRecordAdmissionBundle;
+void agenticMemoryRecordAdmissionPolicySourceBundle;
 void agenticMemoryRecordApplicationBundle;
 void applyAgenticMemoryRecordAdmissions;
+void projectAgenticMemoryRecordAdmissionPolicySource;
+void agenticWorkItemMemoryApplicationRecipeBundle;
 void agenticWorkItemMemoryBridgeBundle;
+void mapAgenticWorkItemMemoryApplicationRecipe;
 void mapAgenticWorkItemMemoryBridge;
 void workItemAuthoringProjector;
 void isWorkspaceProposalProjectionReleaseMaterial;
@@ -660,6 +692,8 @@ declare const agenticMemoryRecordApplicationBundleOptions: AgenticMemoryRecordAp
 declare const agenticMemoryRecordApplicationMaterialIdentity: AgenticMemoryRecordApplicationMaterialIdentity;
 declare const agenticMemoryRecordApplicationOperationStatus: AgenticMemoryRecordApplicationOperationStatus;
 declare const agenticMemoryRecordApplicationPriorEvidence: AgenticMemoryRecordApplicationPriorEvidence;
+declare const agenticWorkItemMemoryApplicationRecipeBundleOptions: AgenticWorkItemMemoryApplicationRecipeBundleOptions;
+declare const agenticWorkItemMemoryApplicationRecipeResult: AgenticWorkItemMemoryApplicationRecipeResult;
 declare const agenticWorkItemMemoryBridgeResult: AgenticWorkItemMemoryBridgeResult;
 declare const agenticWorkItemMemoryBridgeStatus: AgenticWorkItemMemoryBridgeStatus;
 declare const agenticWorkItemMemoryMappingPolicy: AgenticWorkItemMemoryMappingPolicy;
@@ -721,6 +755,8 @@ void agenticMemoryRecordApplicationBundleOptions;
 void agenticMemoryRecordApplicationMaterialIdentity;
 void agenticMemoryRecordApplicationOperationStatus;
 void agenticMemoryRecordApplicationPriorEvidence;
+void agenticWorkItemMemoryApplicationRecipeBundleOptions;
+void agenticWorkItemMemoryApplicationRecipeResult;
 void agenticWorkItemMemoryBridgeResult;
 void agenticWorkItemMemoryBridgeStatus;
 void agenticWorkItemMemoryMappingPolicy;
