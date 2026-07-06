@@ -35,10 +35,14 @@ import {
 	type AgenticMemoryRecordApplicationPriorEvidenceProjection,
 	type AgenticMemoryRecordApplicationStatus,
 	type AgenticMemoryRecordProposal,
+	type AgenticMemoryRecordStoreFrameProjection,
 	type AgenticMemoryRetentionCommand,
 	type AgenticMemoryRetentionError,
 	type AgenticMemorySourceProjection,
 	admitAgenticMemoryRecordProposals,
+	agenticMemoryApplicationDecisionStoreFrameCodec,
+	agenticMemoryApplicationEvidenceStoreFrameBundle,
+	agenticMemoryApplicationEvidenceStoreFrameCodec,
 	agenticMemoryBundle,
 	agenticMemoryConsolidationApplicationBundle,
 	agenticMemoryConsolidationBundle,
@@ -50,8 +54,16 @@ import {
 	agenticMemoryRecordApplicationEvidenceFactsBundle,
 	agenticMemoryRecordApplicationPriorEvidenceBundle,
 	agenticMemoryRecordFrame,
+	agenticMemoryRecordStoreFrameBundle,
+	agenticMemoryRecordStoreFrameCodec,
 	agenticMemoryRetentionBundle,
 	applyAgenticMemoryRecordAdmissions,
+	decodeAgenticMemoryApplicationDecisionStoreFrame,
+	decodeAgenticMemoryApplicationEvidenceStoreFrame,
+	decodeAgenticMemoryRecordStoreFrame,
+	frameAgenticMemoryApplicationDecisions,
+	frameAgenticMemoryApplicationEvidence,
+	frameAgenticMemoryRecords,
 	projectAgenticMemoryRecordAdmissionPolicySource,
 	projectAgenticMemoryRecordApplicationEvidenceFacts,
 	projectAgenticMemoryRecordApplicationPriorEvidence,
@@ -67,6 +79,318 @@ const fragment = <T = string>(patch: Partial<MemoryFragment<T>> = {}): MemoryFra
 	tags: ["project", "policy"],
 	sources: [],
 	...patch,
+});
+
+describe("AgenticMemory D585 passive store-frame helpers", () => {
+	it("frames and decodes AgenticMemoryRecord arrays with strict DATA provenance preserved", () => {
+		const sourceRefs = [{ kind: "agentic-memory-record", id: "record-store" }];
+		const policyRefs = [{ kind: "agentic-memory-store-frame-policy", id: "policy-store" }];
+		const stored = record({
+			id: "record-store",
+			fragment: fragment({
+				id: "fragment-store",
+				payload: { nested: ["strict", 1, true] },
+				sources: ["source-a"],
+			}),
+		});
+
+		const frame = frameAgenticMemoryRecords([stored], {
+			sourceRefs,
+			policyRefs,
+			metadata: { batch: "import-1" },
+		});
+		const decoded = decodeAgenticMemoryRecordStoreFrame(frame);
+		const codec = agenticMemoryRecordStoreFrameCodec();
+		const roundTrip = codec.decode(codec.encode(frame));
+
+		expect(frame).toMatchObject({
+			format: "graphrefly.agenticMemoryRecordStoreFrame",
+			version: 1,
+			kind: "agentic-memory-record-store-frame",
+			sourceRefs,
+			policyRefs,
+			metadata: { batch: "import-1" },
+		});
+		expect(frame.records[0]?.record.fragment.tNs).toBe("10");
+		expect(decoded).toEqual([stored]);
+		expect(roundTrip).toEqual(frame);
+		expect(Object.isFrozen(frame.records)).toBe(true);
+		expect(Object.isFrozen(frame.metadata)).toBe(true);
+	});
+
+	it("rejects accessor-backed store frames without executing getters", () => {
+		let getterExecuted = false;
+		const hostile: Record<string, unknown> = {
+			version: 1,
+			kind: "agentic-memory-record-store-frame",
+			records: [],
+		};
+		Object.defineProperty(hostile, "format", {
+			enumerable: true,
+			get() {
+				getterExecuted = true;
+				return "graphrefly.agenticMemoryRecordStoreFrame";
+			},
+		});
+
+		expect(() => decodeAgenticMemoryRecordStoreFrame(hostile)).toThrow(/data property/);
+		expect(getterExecuted).toBe(false);
+
+		for (const [field, decode, format, kind] of [
+			[
+				"records",
+				decodeAgenticMemoryRecordStoreFrame,
+				"graphrefly.agenticMemoryRecordStoreFrame",
+				"agentic-memory-record-store-frame",
+			],
+			[
+				"priorEvidence",
+				decodeAgenticMemoryApplicationEvidenceStoreFrame,
+				"graphrefly.agenticMemoryApplicationEvidenceStoreFrame",
+				"agentic-memory-application-evidence-store-frame",
+			],
+			[
+				"applicationDecisions",
+				decodeAgenticMemoryApplicationDecisionStoreFrame,
+				"graphrefly.agenticMemoryApplicationDecisionStoreFrame",
+				"agentic-memory-application-decision-store-frame",
+			],
+		] as const) {
+			let payloadGetterExecuted = false;
+			const payloadHostile: Record<string, unknown> = { format, version: 1, kind };
+			Object.defineProperty(payloadHostile, field, {
+				enumerable: true,
+				get() {
+					payloadGetterExecuted = true;
+					return [];
+				},
+			});
+
+			expect(() => decode(payloadHostile)).toThrow(/data property/);
+			expect(payloadGetterExecuted).toBe(false);
+		}
+	});
+
+	it("frames and decodes application evidence, priorEvidence, and application decisions", () => {
+		const snapshot = applyAgenticMemoryRecordAdmissions([admitted()], applicationPolicy());
+		const decisions = snapshot.applicationDecisions;
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(decisions);
+		const evidenceFrame = frameAgenticMemoryApplicationEvidence(evidence.priorEvidence, {
+			metadata: { phase: "later-evaluation-input" },
+		});
+		const decisionFrame = frameAgenticMemoryApplicationDecisions(decisions, {
+			sourceRefs: [{ kind: "agentic-memory-record-application", id: "application-1" }],
+		});
+		const evidenceCodec = agenticMemoryApplicationEvidenceStoreFrameCodec();
+		const decisionCodec = agenticMemoryApplicationDecisionStoreFrameCodec();
+
+		expect(decodeAgenticMemoryApplicationEvidenceStoreFrame(evidenceFrame)).toEqual(
+			evidence.priorEvidence,
+		);
+		expect(evidenceCodec.decode(evidenceCodec.encode(evidenceFrame))).toEqual(evidenceFrame);
+		expect(decodeAgenticMemoryApplicationDecisionStoreFrame(decisionFrame)).toEqual(decisions);
+		expect(decisionCodec.decode(decisionCodec.encode(decisionFrame))).toEqual(decisionFrame);
+		expect(decisionFrame.applicationDecisions[0]).toHaveProperty("candidateMaterial.record.format");
+		expect(evidenceFrame.priorEvidence.entries).toEqual(evidence.evidenceFacts);
+	});
+
+	it("rejects semantically malformed decision frames through the decision frame codec", () => {
+		const codec = agenticMemoryApplicationDecisionStoreFrameCodec();
+		const malformed = {
+			format: "graphrefly.agenticMemoryApplicationDecisionStoreFrame",
+			version: 1,
+			kind: "agentic-memory-application-decision-store-frame",
+			applicationDecisions: [{}],
+		};
+
+		expect(() => codec.decode(strictCanonicalJsonBytes(malformed))).toThrow(
+			/decision\.applicationId must be non-empty/,
+		);
+	});
+
+	it("rejects malformed skipped/rejected decisions and optional decision fields in decision frames", () => {
+		const codec = agenticMemoryApplicationDecisionStoreFrameCodec();
+		const snapshot = applyAgenticMemoryRecordAdmissions([admitted()], applicationPolicy());
+		const frame = frameAgenticMemoryApplicationDecisions(snapshot.applicationDecisions);
+		const decision = frame.applicationDecisions[0];
+		if (decision === undefined) throw new Error("expected application decision fixture");
+
+		const malformedSkipped = {
+			...frame,
+			applicationDecisions: [
+				{
+					...decision,
+					state: "skipped",
+					candidateMaterial: {
+						...decision?.candidateMaterial,
+						kind: "wrong",
+					},
+				},
+			],
+		};
+		const malformedOptional = {
+			...frame,
+			applicationDecisions: [{ ...decision, idempotencyKey: 123 }],
+		};
+
+		expect(() => codec.decode(strictCanonicalJsonBytes(malformedSkipped))).toThrow(
+			/candidateMaterial\.kind/,
+		);
+		expect(() => codec.decode(strictCanonicalJsonBytes(malformedOptional))).toThrow(
+			/idempotencyKey/,
+		);
+	});
+
+	it("rejects unknown top-level fields and forbidden metadata in store frames", () => {
+		const snapshot = applyAgenticMemoryRecordAdmissions([admitted()], applicationPolicy());
+		const decisions = snapshot.applicationDecisions;
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(decisions);
+		const recordsFrame = frameAgenticMemoryRecords([record()]);
+		const evidenceFrame = frameAgenticMemoryApplicationEvidence(evidence.priorEvidence);
+		const decisionFrame = frameAgenticMemoryApplicationDecisions(decisions);
+
+		expect(() =>
+			decodeAgenticMemoryRecordStoreFrame({ ...recordsFrame, storageHandle: "hidden" }),
+		).toThrow(/unexpected fields/);
+		expect(() =>
+			decodeAgenticMemoryApplicationEvidenceStoreFrame({ ...evidenceFrame, commitAck: true }),
+		).toThrow(/unexpected fields/);
+		expect(() =>
+			decodeAgenticMemoryApplicationDecisionStoreFrame({ ...decisionFrame, backend: "x" }),
+		).toThrow(/unexpected fields/);
+		expect(() =>
+			frameAgenticMemoryRecords([record()], { metadata: { storageHandle: "hidden" } }),
+		).toThrow(/not graph-visible DATA/);
+		expect(() =>
+			frameAgenticMemoryApplicationEvidence(evidence.priorEvidence, {
+				metadata: { hydrate: true },
+			}),
+		).toThrow(/not graph-visible DATA/);
+		expect(() =>
+			frameAgenticMemoryApplicationDecisions(decisions, { metadata: { commit: "ack" } }),
+		).toThrow(/not graph-visible DATA/);
+	});
+
+	it("keeps malformed frames on the DATA issue path in graph bundles", () => {
+		const g = graph();
+		const malformed = g.state(
+			{
+				format: "graphrefly.agenticMemoryRecordStoreFrame",
+				version: 1,
+				kind: "agentic-memory-record-store-frame",
+				records: [{ nope: true }],
+			},
+			{ name: "storeFrame" },
+		);
+		const bundle = agenticMemoryRecordStoreFrameBundle(g, {
+			name: "d585RecordFrame",
+			storeFrame: malformed,
+		});
+		const projection = collect(bundle.projection);
+		const issues = collect(bundle.issues);
+		const status = collect(bundle.status);
+
+		malformed.set(malformed.cache);
+
+		expect(projection.messages.map((message) => message[0])).not.toContain("ERROR");
+		expect(data<AgenticMemoryRecordStoreFrameProjection>(projection.messages).at(-1)).toMatchObject(
+			{
+				kind: "agentic-memory-record-store-frame-projection",
+				records: [],
+			},
+		);
+		expect(data(status.messages).at(-1)).toMatchObject({ state: "error" });
+		expect(data<readonly { code: string }[]>(issues.messages).at(-1)?.[0]?.code).toBe(
+			"agentic-memory.record-store-frame.invalid",
+		);
+		expect(g.describe().edges).toContainEqual({
+			from: "storeFrame",
+			to: "d585RecordFrame/projection",
+		});
+		expect(g.describe().edges).toContainEqual({
+			from: "d585RecordFrame/projection",
+			to: "d585RecordFrame/records",
+		});
+	});
+
+	it("keeps malformed evidence frames on the DATA issue path in graph bundles", () => {
+		const g = graph();
+		const malformed = g.state(
+			{
+				format: "graphrefly.agenticMemoryApplicationEvidenceStoreFrame",
+				version: 1,
+				kind: "agentic-memory-application-evidence-store-frame",
+				priorEvidence: { kind: "wrong", entries: [] },
+			},
+			{ name: "evidenceStoreFrame" },
+		);
+		const bundle = agenticMemoryApplicationEvidenceStoreFrameBundle(g, {
+			name: "d585EvidenceFrameInvalid",
+			storeFrame: malformed,
+		});
+		const projection = collect(bundle.projection);
+		const issues = collect(bundle.issues);
+		const status = collect(bundle.status);
+
+		malformed.set(malformed.cache);
+
+		expect(projection.messages.map((message) => message[0])).not.toContain("ERROR");
+		expect(data(status.messages).at(-1)).toMatchObject({ state: "error" });
+		expect(data<readonly { code: string }[]>(issues.messages).at(-1)?.[0]?.code).toBe(
+			"agentic-memory.application-evidence-store-frame.invalid",
+		);
+		expect(data(projection.messages).at(-1)).toMatchObject({
+			kind: "agentic-memory-application-evidence-store-frame-projection",
+			evidenceFacts: [],
+		});
+	});
+
+	it("decodes application evidence frames as ordinary DATA without storage or application authority", () => {
+		const snapshot = applyAgenticMemoryRecordAdmissions([admitted()], applicationPolicy());
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			snapshot.applicationDecisions,
+		);
+		const frame = frameAgenticMemoryApplicationEvidence(evidence.evidenceFacts);
+		const g = graph();
+		const frameNode = g.state(frame, { name: "evidenceStoreFrame" });
+		const bundle = agenticMemoryApplicationEvidenceStoreFrameBundle(g, {
+			name: "d585EvidenceFrame",
+			storeFrame: frameNode,
+		});
+		const priorEvidence = collect(bundle.priorEvidence);
+		const evidenceFacts = collect(bundle.evidenceFacts);
+
+		frameNode.set(frame);
+
+		expect(data(priorEvidence.messages).at(-1)).toEqual(evidence.priorEvidence);
+		expect(data(evidenceFacts.messages).at(-1)).toEqual(evidence.evidenceFacts);
+		const dtoText = JSON.stringify({
+			recordFrame: frameAgenticMemoryRecords([record()]),
+			evidenceFrame: frame,
+		});
+		expect(dtoText).not.toMatch(
+			/storageHandle|graphHandle|nodeHandle|providerHandle|runtimeHandle|"hydrate"|"restore"|"persist"|"commit"|"ack"|"adapter"|"backend"|"loader"|"writer"|"engine"/,
+		);
+		expect(dtoText).not.toMatch(/application-decision/);
+	});
+
+	it("does not mutate records while framing", () => {
+		const original = record({
+			id: "record-mutability",
+			fragment: fragment({ id: "fragment-mutability", payload: { value: "before" } }),
+		});
+		const before = structuredClone({
+			...original,
+			fragment: { ...original.fragment, tNs: original.fragment.tNs.toString() },
+		});
+
+		frameAgenticMemoryRecords([original]);
+
+		expect({
+			...original,
+			fragment: { ...original.fragment, tNs: original.fragment.tNs.toString() },
+		}).toEqual(before);
+	});
 });
 
 const record = <T = string>(

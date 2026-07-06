@@ -31,6 +31,9 @@ import * as executorToolProviderRuntime from "../executors/tool-provider-runtime
 import * as executorWorkQueueRecipe from "../executors/work-queue.js";
 import * as graphLayer from "../graph/index.js";
 import type {
+	AgenticMemoryApplicationDecisionStoreFrame,
+	AgenticMemoryApplicationEvidenceStoreFrame,
+	AgenticMemoryApplicationEvidenceStoreFrameBundleOptions,
 	AgenticMemoryBundleOptions,
 	AgenticMemoryConsolidationApplicationBundle,
 	AgenticMemoryConsolidationApplicationBundleOptions,
@@ -60,6 +63,8 @@ import type {
 	AgenticMemoryRecordApplicationPriorEvidenceProjection,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
+	AgenticMemoryRecordStoreFrame,
+	AgenticMemoryRecordStoreFrameBundleOptions,
 	AgenticMemoryRecordsPersistenceHandle,
 	AgenticMemoryRetentionBundleOptions,
 	AgenticMemoryScope,
@@ -986,6 +991,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof rootPackage.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof rootPackage.applyAgenticMemoryRecordAdmissions).toBe("function");
+		expect(typeof rootPackage.frameAgenticMemoryRecords).toBe("function");
+		expect(typeof rootPackage.decodeAgenticMemoryRecordStoreFrame).toBe("function");
+		expect(typeof rootPackage.agenticMemoryRecordStoreFrameCodec).toBe("function");
+		expect(typeof rootPackage.agenticMemoryRecordStoreFrameBundle).toBe("function");
+		expect(typeof rootPackage.frameAgenticMemoryApplicationEvidence).toBe("function");
+		expect(typeof rootPackage.decodeAgenticMemoryApplicationEvidenceStoreFrame).toBe("function");
+		expect(typeof rootPackage.agenticMemoryApplicationEvidenceStoreFrameCodec).toBe("function");
+		expect(typeof rootPackage.agenticMemoryApplicationEvidenceStoreFrameBundle).toBe("function");
+		expect(typeof rootPackage.frameAgenticMemoryApplicationDecisions).toBe("function");
+		expect(typeof rootPackage.decodeAgenticMemoryApplicationDecisionStoreFrame).toBe("function");
+		expect(typeof rootPackage.agenticMemoryApplicationDecisionStoreFrameCodec).toBe("function");
 		expect(typeof rootPackage.mapAgenticWorkItemMemoryBridge).toBe("function");
 		expect(typeof rootPackage.agenticWorkItemMemoryBridgeBundle).toBe("function");
 		expect(typeof rootPackage.mapAgenticWorkItemMemoryApplicationRecipe).toBe("function");
@@ -1003,6 +1019,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof solutions.applyAgenticMemoryRecordAdmissions).toBe("function");
+		expect(typeof solutions.frameAgenticMemoryRecords).toBe("function");
+		expect(typeof solutions.decodeAgenticMemoryRecordStoreFrame).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordStoreFrameCodec).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordStoreFrameBundle).toBe("function");
+		expect(typeof solutions.frameAgenticMemoryApplicationEvidence).toBe("function");
+		expect(typeof solutions.decodeAgenticMemoryApplicationEvidenceStoreFrame).toBe("function");
+		expect(typeof solutions.agenticMemoryApplicationEvidenceStoreFrameCodec).toBe("function");
+		expect(typeof solutions.agenticMemoryApplicationEvidenceStoreFrameBundle).toBe("function");
+		expect(typeof solutions.frameAgenticMemoryApplicationDecisions).toBe("function");
+		expect(typeof solutions.decodeAgenticMemoryApplicationDecisionStoreFrame).toBe("function");
+		expect(typeof solutions.agenticMemoryApplicationDecisionStoreFrameCodec).toBe("function");
 		expect(typeof solutions.mapAgenticWorkItemMemoryBridge).toBe("function");
 		expect(typeof solutions.agenticWorkItemMemoryBridgeBundle).toBe("function");
 		expect(typeof solutions.mapAgenticWorkItemMemoryApplicationRecipe).toBe("function");
@@ -1033,6 +1060,17 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.agenticMemoryRecordApplicationPriorEvidenceBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
 		expect(typeof agenticMemory.applyAgenticMemoryRecordAdmissions).toBe("function");
+		expect(typeof agenticMemory.frameAgenticMemoryRecords).toBe("function");
+		expect(typeof agenticMemory.decodeAgenticMemoryRecordStoreFrame).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordStoreFrameCodec).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordStoreFrameBundle).toBe("function");
+		expect(typeof agenticMemory.frameAgenticMemoryApplicationEvidence).toBe("function");
+		expect(typeof agenticMemory.decodeAgenticMemoryApplicationEvidenceStoreFrame).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryApplicationEvidenceStoreFrameCodec).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryApplicationEvidenceStoreFrameBundle).toBe("function");
+		expect(typeof agenticMemory.frameAgenticMemoryApplicationDecisions).toBe("function");
+		expect(typeof agenticMemory.decodeAgenticMemoryApplicationDecisionStoreFrame).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryApplicationDecisionStoreFrameCodec).toBe("function");
 		expect(agenticMemory.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
 		);
@@ -1069,6 +1107,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		);
 		expectTypeOf<AgenticMemoryRecordApplicationOptions>().toHaveProperty("priorEvidence");
 		expectTypeOf<AgenticMemoryRecordApplicationBundleOptions>().toHaveProperty("priorEvidence");
+		expectTypeOf<AgenticMemoryRecordStoreFrame>().toHaveProperty("records");
+		expectTypeOf<AgenticMemoryRecordStoreFrameBundleOptions>().toHaveProperty("storeFrame");
+		expectTypeOf<AgenticMemoryApplicationEvidenceStoreFrame>().toHaveProperty("priorEvidence");
+		expectTypeOf<AgenticMemoryApplicationEvidenceStoreFrameBundleOptions>().toHaveProperty(
+			"storeFrame",
+		);
+		expectTypeOf<AgenticMemoryApplicationDecisionStoreFrame>().toHaveProperty(
+			"applicationDecisions",
+		);
 		expectTypeOf<AgenticMemoryRecordAdmissionPolicySourceProjection>().toHaveProperty(
 			"admissionPolicy",
 		);

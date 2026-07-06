@@ -22,6 +22,18 @@ type JsonValue = StrictJsonValue;
 
 const JS_MIN_NORMAL_NUMBER = 2 ** -1022;
 
+function deepFreezeStrictJson<T extends StrictJsonValue>(value: T): T {
+	if (value !== null && typeof value === "object") {
+		if (Array.isArray(value)) {
+			for (const item of value) deepFreezeStrictJson(item);
+		} else {
+			for (const item of Object.values(value)) deepFreezeStrictJson(item);
+		}
+		Object.freeze(value);
+	}
+	return value;
+}
+
 function assertStableJsonNumber(value: number, path: string): void {
 	if (!Number.isFinite(value)) {
 		throw new TypeError(`stableJsonString: non-finite number at ${path}`);
@@ -135,7 +147,7 @@ export function stableJsonString(value: unknown): string {
 }
 
 function strictStableJsonString(value: unknown): string {
-	return JSON.stringify(sortedJsonValue(value, new Set<object>(), "$", true));
+	return JSON.stringify(cloneStrictJsonValue(value));
 }
 
 /** Build a JSON codec using stable object-key ordering.
@@ -199,7 +211,9 @@ function assertNoUnpairedSurrogates(value: unknown, seen = new Set<object>(), pa
 	try {
 		if (Array.isArray(value)) {
 			for (let i = 0; i < value.length; i += 1) {
-				assertNoUnpairedSurrogates(value[i], seen, `${path}[${i}]`);
+				const descriptor = Object.getOwnPropertyDescriptor(value, String(i));
+				if (descriptor === undefined || "get" in descriptor || "set" in descriptor) continue;
+				assertNoUnpairedSurrogates(descriptor.value, seen, `${path}[${i}]`);
 			}
 			return;
 		}
@@ -207,11 +221,178 @@ function assertNoUnpairedSurrogates(value: unknown, seen = new Set<object>(), pa
 			if (hasUnpairedSurrogate(key)) {
 				throw new TypeError(`strictJsonCodec: unpaired surrogate at ${path}.${key}`);
 			}
-			assertNoUnpairedSurrogates((value as Record<string, unknown>)[key], seen, `${path}.${key}`);
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (descriptor === undefined || "get" in descriptor || "set" in descriptor) continue;
+			assertNoUnpairedSurrogates(descriptor.value, seen, `${path}.${key}`);
 		}
 	} finally {
 		seen.delete(value);
 	}
+}
+
+function strictJsonDataErrorsInner(
+	value: unknown,
+	label: string,
+	seen: Set<object>,
+): { readonly errors: readonly string[]; readonly value?: StrictJsonValue } {
+	if (value === null || typeof value === "string" || typeof value === "boolean") {
+		if (typeof value === "string" && hasUnpairedSurrogate(value)) {
+			return { errors: [`${label} must not contain unpaired surrogate strings`] };
+		}
+		return { errors: [], value };
+	}
+	if (typeof value === "number") {
+		try {
+			assertStrictJsonNumber(value, label);
+		} catch (error) {
+			return { errors: [error instanceof Error ? error.message : String(error)] };
+		}
+		return { errors: [], value };
+	}
+	if (typeof value !== "object") {
+		return { errors: [`${label} is not JSON-encodable`] };
+	}
+	if (seen.has(value)) return { errors: [`${label} must not contain circular references`] };
+	const proto = Object.getPrototypeOf(value);
+	if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) {
+		return { errors: [`stableJsonString: non-plain object at ${label}`] };
+	}
+	seen.add(value);
+	try {
+		if (Array.isArray(value)) {
+			const errors: string[] = [];
+			if (Object.getOwnPropertySymbols(value).length > 0) {
+				errors.push(`${label} must not carry symbol keys`);
+			}
+			for (const key of Object.getOwnPropertyNames(value)) {
+				const descriptor = Object.getOwnPropertyDescriptor(value, key);
+				if (descriptor === undefined) continue;
+				const isIndex =
+					/^(0|[1-9]\d*)$/.test(key) &&
+					Number.isSafeInteger(Number(key)) &&
+					Number(key) < value.length;
+				if ("get" in descriptor || "set" in descriptor) {
+					errors.push(`${label}.${key} must be a data property`);
+				}
+				if (key !== "length" && !isIndex) {
+					errors.push(`${label}.${key} must be an indexed data property`);
+				}
+				if (key !== "length" && isIndex && !descriptor.enumerable) {
+					errors.push(`${label}.${key} must be enumerable`);
+				}
+			}
+			const out: StrictJsonValue[] = [];
+			for (let index = 0; index < value.length; index += 1) {
+				const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+				if (descriptor === undefined) {
+					errors.push(`stableJsonString: sparse array hole at ${label}[${index}]`);
+					continue;
+				}
+				if ("get" in descriptor || "set" in descriptor) {
+					errors.push(`${label}[${index}] must be a data property`);
+					continue;
+				}
+				if (!descriptor.enumerable) {
+					errors.push(`${label}[${index}] must be enumerable`);
+					continue;
+				}
+				const nested = strictJsonDataErrorsInner(descriptor.value, `${label}[${index}]`, seen);
+				errors.push(...nested.errors);
+				if (nested.errors.length === 0 && nested.value !== undefined) out.push(nested.value);
+			}
+			if (errors.length > 0) return { errors };
+			return { errors: [], value: Object.freeze(out) };
+		}
+		const errors: string[] = [];
+		if (Object.getOwnPropertySymbols(value).length > 0) {
+			errors.push(`${label} must not carry symbol keys`);
+		}
+		for (const key of Object.getOwnPropertyNames(value)) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (descriptor === undefined) continue;
+			if ("get" in descriptor || "set" in descriptor) {
+				errors.push(`${label}.${key} must be a data property`);
+			}
+			if (!descriptor.enumerable) {
+				errors.push(`${label}.${key} must be enumerable`);
+			}
+			if (hasUnpairedSurrogate(key)) {
+				errors.push(`${label}.${key} must not contain unpaired surrogate keys`);
+			}
+		}
+		const out: Record<string, StrictJsonValue> = {};
+		for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (descriptor === undefined || "get" in descriptor || "set" in descriptor) continue;
+			const nested = strictJsonDataErrorsInner(descriptor.value, `${label}.${key}`, seen);
+			errors.push(...nested.errors);
+			if (nested.errors.length === 0 && nested.value !== undefined) {
+				Object.defineProperty(out, key, {
+					value: nested.value,
+					enumerable: true,
+					configurable: true,
+					writable: true,
+				});
+			}
+		}
+		if (errors.length > 0) return { errors };
+		return { errors: [], value: Object.freeze(out) };
+	} finally {
+		seen.delete(value);
+	}
+}
+
+/** Descriptor-safe strict JSON validation errors.
+ *
+ * The scanner checks property descriptors before reading values, so accessor-backed
+ * host objects are rejected without executing getters. It is shared by D585
+ * passive store frames and metadata validators that must accept only ordinary DATA.
+ * @param value - Unknown value to validate.
+ * @param label - Human-readable label for returned issue paths.
+ * @returns Validation errors; empty means the value can be cloned as strict JSON.
+ * @category json
+ */
+export function strictJsonDataErrors(value: unknown, label = "strictJsonValue"): readonly string[] {
+	try {
+		return strictJsonDataErrorsInner(value, label, new Set<object>()).errors;
+	} catch (error) {
+		return [error instanceof Error ? error.message : String(error)];
+	}
+}
+
+/** Clone a host value into deep-frozen strict canonical JSON DATA.
+ *
+ * The clone is descriptor-safe: accessors, sparse arrays, symbols, non-enumerable
+ * fields, circular references, and non-portable JSON numbers are rejected before
+ * values are read through normal property access.
+ * @param value - Unknown value to clone.
+ * @param label - Human-readable label for errors.
+ * @returns A deep-frozen strict JSON value with deterministically sorted object keys.
+ * @category json
+ */
+export function cloneStrictJsonValue(value: unknown, label = "strictJsonValue"): StrictJsonValue {
+	const result = strictJsonDataErrorsInner(value, label, new Set<object>());
+	if (result.errors.length > 0 || result.value === undefined) {
+		throw new TypeError(`${label}: ${result.errors.join("; ")}`);
+	}
+	return deepFreezeStrictJson(result.value);
+}
+
+/** Clone a host object into a deep-frozen strict canonical JSON object.
+ * @param value - Unknown value to clone.
+ * @param label - Human-readable label for errors.
+ * @returns A deep-frozen strict JSON object.
+ * @category json
+ */
+export function cloneStrictJsonObject(
+	value: unknown,
+	label = "strictJsonObject",
+): StrictJsonObject {
+	const cloned = cloneStrictJsonValue(value, label);
+	if (cloned === null || typeof cloned !== "object" || Array.isArray(cloned)) {
+		throw new TypeError(`${label}: value must be a strict JSON object`);
+	}
+	return cloned as StrictJsonObject;
 }
 
 function assertNoDuplicateJsonObjectKeys(text: string): void {
@@ -421,7 +602,7 @@ export function strictCanonicalJsonBytes(value: unknown): Uint8Array {
  */
 export function assertStrictJsonValue(value: unknown, label = "strictJsonValue"): StrictJsonValue {
 	try {
-		return strictJsonCodec.decode(strictJsonCodec.encode(value)) as StrictJsonValue;
+		return cloneStrictJsonValue(value, label);
 	} catch (cause) {
 		const message = cause instanceof Error ? cause.message : String(cause);
 		throw new TypeError(`${label}: value is not strict JSON compatible: ${message}`, { cause });
@@ -442,9 +623,5 @@ export function assertStrictJsonObject(
 	value: unknown,
 	label = "strictJsonObject",
 ): StrictJsonObject {
-	const normalized = assertStrictJsonValue(value, label);
-	if (normalized === null || typeof normalized !== "object" || Array.isArray(normalized)) {
-		throw new TypeError(`${label}: value must be a strict JSON object`);
-	}
-	return normalized as StrictJsonObject;
+	return cloneStrictJsonObject(value, label);
 }

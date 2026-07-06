@@ -18,4 +18,5 @@ export * from "./kg.js";
 export * from "./proposal-admission.js";
 export * from "./record-application.js";
 export * from "./retention.js";
+export * from "./store-frame.js";
 export * from "./types.js";

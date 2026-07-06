@@ -1,4 +1,8 @@
-import { strictJsonCodec } from "../../json/codec.js";
+import {
+	cloneStrictJsonObject as cloneJsonStrictJsonObject,
+	cloneStrictJsonValue,
+	strictJsonDataErrors,
+} from "../../json/codec.js";
 import type { FactId, MemoryFragment } from "../../patterns/semantic-memory.js";
 import { validateMemoryFragment } from "../../patterns/semantic-memory.js";
 import type {
@@ -15,6 +19,8 @@ import type {
 	AgenticMemoryStatusState,
 	StrictJsonValue,
 } from "./types.js";
+
+export { strictJsonDataErrors } from "../../json/codec.js";
 
 export function validateAndProjectRecords<T>(value: unknown): {
 	readonly records: AgenticMemoryRecord<T>[];
@@ -734,8 +740,7 @@ export function parseDecimalBigInt(value: unknown, label: string): bigint {
 
 export function assertStrictJsonValue(value: unknown, label: string): StrictJsonValue {
 	try {
-		strictJsonCodec.encode(value);
-		return value as StrictJsonValue;
+		return cloneStrictJsonValue(value, label);
 	} catch (error) {
 		throw new TypeError(`${label} must be strict JSON: ${errorMessage(error)}`);
 	}
@@ -917,31 +922,13 @@ function validateContextTruncation(value: unknown): {
 	};
 }
 
-function isStrictJsonObject(value: unknown): boolean {
-	if (!isPlainRecord(value)) return false;
-	try {
-		strictJsonCodec.encode(value);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
 export function cloneStrictJsonObject(value: unknown): Readonly<Record<string, StrictJsonValue>> {
-	const decoded = strictJsonCodec.decode(strictJsonCodec.encode(value)) as StrictJsonValue;
-	return deepFreezeStrictJson(decoded) as Readonly<Record<string, StrictJsonValue>>;
+	return cloneJsonStrictJsonObject(value);
 }
 
-function deepFreezeStrictJson(value: StrictJsonValue): StrictJsonValue {
-	if (value !== null && typeof value === "object") {
-		if (Array.isArray(value)) {
-			for (const item of value) deepFreezeStrictJson(item);
-		} else {
-			for (const item of Object.values(value)) deepFreezeStrictJson(item);
-		}
-		Object.freeze(value);
-	}
-	return value;
+export function isStrictJsonObject(value: unknown): boolean {
+	if (!isPlainRecord(value)) return false;
+	return strictJsonDataErrors(value).length === 0;
 }
 
 function unexpectedFields(

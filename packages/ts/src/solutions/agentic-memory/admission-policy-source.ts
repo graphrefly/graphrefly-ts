@@ -2,19 +2,19 @@ import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
-import { strictJsonCodec } from "../../json/codec.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionProjection } from "./projection.js";
 import {
 	cloneStrictJsonObject,
-	dataArrayContainerErrors,
 	dataRecordContainerErrors,
 	errorMessage,
 	forbiddenAgenticMemoryDataFields,
 	isNonEmptyString,
 	isPlainRecord,
+	isStrictJsonObject,
 	safeArrayLength,
 	snapshotAgenticMemoryFactRefs,
+	strictJsonDataErrors,
 	validateAgenticMemoryFactRefs,
 } from "./shared.js";
 import type {
@@ -31,8 +31,6 @@ import type {
 	AgenticMemoryRecordAdmissionPolicySourceStatus,
 	StrictJsonValue,
 } from "./types.js";
-
-const JS_MIN_NORMAL_NUMBER = 2 ** -1022;
 
 interface CandidateValidation {
 	readonly candidate?: AgenticMemoryRecordAdmissionPolicyCandidate;
@@ -1091,87 +1089,6 @@ function validatePriority(value: unknown, label: string, errors: string[]): numb
 		return undefined;
 	}
 	return value;
-}
-
-function isStrictJsonObject(value: unknown): boolean {
-	if (!isPlainRecord(value)) return false;
-	try {
-		strictJsonCodec.encode(value);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-function strictJsonDataErrors(
-	value: unknown,
-	label: string,
-	seen = new Set<object>(),
-): readonly string[] {
-	if (value === null || typeof value === "string" || typeof value === "boolean") {
-		return [];
-	}
-	if (typeof value === "number") {
-		if (!Number.isFinite(value)) return [`${label} must not contain non-finite numbers`];
-		if (Object.is(value, -0)) return [`${label} must not contain -0`];
-		const abs = Math.abs(value);
-		if (abs > 0 && abs < JS_MIN_NORMAL_NUMBER) {
-			return [`${label} must not contain subnormal numbers`];
-		}
-		if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
-			return [`${label} must not contain unsafe integers`];
-		}
-		return [];
-	}
-	if (typeof value !== "object") return [`${label} must contain only strict JSON values`];
-	if (seen.has(value)) return [`${label} must not contain circular references`];
-	seen.add(value);
-	try {
-		if (Array.isArray(value)) return strictJsonArrayErrors(value, label, seen);
-		const containerErrors = dataRecordContainerErrors(value, label);
-		if (containerErrors.length > 0) return containerErrors;
-		const errors: string[] = [];
-		for (const key of Object.keys(value)) {
-			const descriptor = Object.getOwnPropertyDescriptor(value, key);
-			if (descriptor === undefined || "get" in descriptor || "set" in descriptor) {
-				errors.push(`${label}.${key} must be a data property`);
-				continue;
-			}
-			errors.push(...strictJsonDataErrors(descriptor.value, `${label}.${key}`, seen));
-		}
-		return errors;
-	} finally {
-		seen.delete(value);
-	}
-}
-
-function strictJsonArrayErrors(
-	value: readonly unknown[],
-	label: string,
-	seen: Set<object>,
-): readonly string[] {
-	const length = safeArrayLength(value);
-	if (length === undefined) return [`${label} length could not be read`];
-	const containerErrors = dataArrayContainerErrors(value, label, length);
-	if (containerErrors.length > 0) return containerErrors;
-	const errors: string[] = [];
-	for (let index = 0; index < length; index += 1) {
-		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-		if (descriptor === undefined) {
-			errors.push(`${label}[${index}] must be present`);
-			continue;
-		}
-		if ("get" in descriptor || "set" in descriptor) {
-			errors.push(`${label}[${index}] must be a data property`);
-			continue;
-		}
-		if (!descriptor.enumerable) {
-			errors.push(`${label}[${index}] must be enumerable`);
-			continue;
-		}
-		errors.push(...strictJsonDataErrors(descriptor.value, `${label}[${index}]`, seen));
-	}
-	return errors;
 }
 
 function recordKind(value: unknown): string | undefined {

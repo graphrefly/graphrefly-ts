@@ -1789,6 +1789,50 @@ export const apiSidebar = [
 				"link": "/api/agenticmemoryretentionbundle"
 			},
 			{
+				"label": "frameAgenticMemoryRecords()",
+				"link": "/api/frameagenticmemoryrecords"
+			},
+			{
+				"label": "decodeAgenticMemoryRecordStoreFrame()",
+				"link": "/api/decodeagenticmemoryrecordstoreframe"
+			},
+			{
+				"label": "agenticMemoryRecordStoreFrameCodec()",
+				"link": "/api/agenticmemoryrecordstoreframecodec"
+			},
+			{
+				"label": "frameAgenticMemoryApplicationEvidence()",
+				"link": "/api/frameagenticmemoryapplicationevidence"
+			},
+			{
+				"label": "decodeAgenticMemoryApplicationEvidenceStoreFrame()",
+				"link": "/api/decodeagenticmemoryapplicationevidencestoreframe"
+			},
+			{
+				"label": "agenticMemoryApplicationEvidenceStoreFrameCodec()",
+				"link": "/api/agenticmemoryapplicationevidencestoreframecodec"
+			},
+			{
+				"label": "frameAgenticMemoryApplicationDecisions()",
+				"link": "/api/frameagenticmemoryapplicationdecisions"
+			},
+			{
+				"label": "decodeAgenticMemoryApplicationDecisionStoreFrame()",
+				"link": "/api/decodeagenticmemoryapplicationdecisionstoreframe"
+			},
+			{
+				"label": "agenticMemoryApplicationDecisionStoreFrameCodec()",
+				"link": "/api/agenticmemoryapplicationdecisionstoreframecodec"
+			},
+			{
+				"label": "agenticMemoryRecordStoreFrameBundle()",
+				"link": "/api/agenticmemoryrecordstoreframebundle"
+			},
+			{
+				"label": "agenticMemoryApplicationEvidenceStoreFrameBundle()",
+				"link": "/api/agenticmemoryapplicationevidencestoreframebundle"
+			},
+			{
 				"label": "mapAgenticWorkItemMemoryApplicationRecipe()",
 				"link": "/api/mapagenticworkitemmemoryapplicationrecipe"
 			},

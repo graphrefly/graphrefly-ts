@@ -33,6 +33,7 @@ import {
 	strictJsonCodecFor,
 	tieredReadThrough,
 } from "../index.js";
+import { strictJsonDataErrors } from "../json/codec.js";
 import { contentAddressedStorageKey } from "../storage/physical-key.js";
 
 interface TestStorage {
@@ -278,6 +279,82 @@ describe("D82 storage substrate helpers — sub 1", () => {
 		expect(() => strictJsonCodec.encode({ nested: undefined })).toThrow(/not JSON-encodable/);
 		expect(() => strictJsonCodec.encode({ nested: 1n })).toThrow(/not JSON-encodable/);
 		expect(() => strictJsonCodec.encode(Number.NaN)).toThrow(/non-finite/);
+	});
+
+	it("strict JSON descriptor scanner rejects accessors without executing getters", () => {
+		const hostile: Record<string, unknown> = {};
+		const getter = vi.fn(() => {
+			throw new Error("getter executed");
+		});
+		Object.defineProperty(hostile, "metadata", {
+			enumerable: true,
+			get: getter,
+		});
+		const array: unknown[] = [];
+		Object.defineProperty(array, "0", {
+			enumerable: true,
+			get: getter,
+		});
+
+		expect(strictJsonDataErrors(hostile, "metadata")).toContain(
+			"metadata.metadata must be a data property",
+		);
+		expect(strictJsonDataErrors(array, "items")).toContain("items.0 must be a data property");
+		expect(() => strictJsonCodec.encode(hostile)).toThrow(/data property/);
+		expect(getter).not.toHaveBeenCalled();
+	});
+
+	it("strict JSON descriptor scanner rejects symbol keys, non-enumerables, sparse arrays, and cycles", () => {
+		const symbolKey = { ok: true } as Record<PropertyKey, unknown>;
+		symbolKey[Symbol("s")] = "hidden";
+		const nonEnumerable = { ok: true };
+		Object.defineProperty(nonEnumerable, "hidden", { value: true, enumerable: false });
+		const sparse: unknown[] = [];
+		sparse[1] = "hole";
+		const cyclic: Record<string, unknown> = {};
+		cyclic.self = cyclic;
+
+		expect(strictJsonDataErrors(symbolKey, "value").join(";")).toMatch(/symbol keys/);
+		expect(strictJsonDataErrors(nonEnumerable, "value").join(";")).toMatch(/enumerable/);
+		expect(strictJsonDataErrors(sparse, "value").join(";")).toMatch(/sparse array hole/);
+		expect(strictJsonDataErrors(cyclic, "value").join(";")).toMatch(/circular/);
+	});
+
+	it("strict JSON descriptor scanner rejects unsafe values and deep-freezes valid clones", () => {
+		const badValues = [
+			{ label: "bigint", value: { x: 1n }, pattern: /not JSON-encodable/ },
+			{ label: "function", value: { x: () => undefined }, pattern: /not JSON-encodable/ },
+			{ label: "undefined", value: { x: undefined }, pattern: /not JSON-encodable/ },
+			{ label: "symbol", value: { x: Symbol("x") }, pattern: /not JSON-encodable/ },
+			{ label: "nan", value: { x: Number.NaN }, pattern: /non-finite/ },
+			{ label: "infinity", value: { x: Number.POSITIVE_INFINITY }, pattern: /non-finite/ },
+			{ label: "negative-zero", value: { x: -0 }, pattern: /non-canonical/ },
+			{ label: "unsafe", value: { x: Number.MAX_SAFE_INTEGER + 1 }, pattern: /safe range/ },
+			{ label: "subnormal", value: { x: Number.MIN_VALUE }, pattern: /subnormal/ },
+			{ label: "surrogate", value: { x: "\uD800" }, pattern: /unpaired surrogate/ },
+		];
+
+		for (const bad of badValues) {
+			expect(strictJsonDataErrors(bad.value, bad.label).join(";")).toMatch(bad.pattern);
+		}
+
+		const clone = assertStrictJsonObject({ z: [{ b: true, a: null }], a: "ok" });
+		expect(clone).toEqual({ a: "ok", z: [{ a: null, b: true }] });
+		expect(Object.isFrozen(clone)).toBe(true);
+		expect(Object.isFrozen(clone.z)).toBe(true);
+		expect(Object.isFrozen(clone.z[0])).toBe(true);
+
+		const protoKey = {};
+		Object.defineProperty(protoKey, "__proto__", {
+			value: { x: 1 },
+			enumerable: true,
+			configurable: true,
+			writable: true,
+		});
+		const protoClone = assertStrictJsonObject(protoKey);
+		expect(Object.hasOwn(protoClone, "__proto__")).toBe(true);
+		expect((protoClone as Record<string, StrictJsonValue>).__proto__).toEqual({ x: 1 });
+		expect(Object.getPrototypeOf(protoClone)).toBe(Object.prototype);
 	});
 
 	it("jsonCodecFor still decodes ordinary non-canonical JSON permissively", () => {

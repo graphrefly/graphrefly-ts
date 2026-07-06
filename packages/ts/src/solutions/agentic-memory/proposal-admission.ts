@@ -2,7 +2,6 @@ import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
-import { strictJsonCodec } from "../../json/codec.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionProjection } from "./projection.js";
 import {
@@ -11,6 +10,7 @@ import {
 	forbiddenAgenticMemoryDataFields,
 	isNonEmptyString,
 	isPlainRecord,
+	isStrictJsonObject,
 	safeArrayLength,
 	snapshotAgenticMemoryFactRefs,
 	validateAgenticMemoryContextAttribution,
@@ -846,16 +846,6 @@ function validateAdmissionPolicy(value: unknown): {
 		issues: [],
 		invalidPolicies: 0,
 	};
-}
-
-function isStrictJsonObject(value: unknown): boolean {
-	if (!isPlainRecord(value)) return false;
-	try {
-		strictJsonCodec.encode(value);
-		return true;
-	} catch {
-		return false;
-	}
 }
 
 function defaultAdmissionPolicy(): AgenticMemoryProposalAdmissionPolicy {
