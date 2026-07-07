@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
@@ -34,6 +34,9 @@ import {
 	type AgenticMemoryRecordApplicationPolicy,
 	type AgenticMemoryRecordApplicationPriorEvidenceProjection,
 	type AgenticMemoryRecordApplicationStatus,
+	type AgenticMemoryRecordMaterializationProjection,
+	type AgenticMemoryRecordMaterializationStatus,
+	type AgenticMemoryRecordMaterializerBundle,
 	type AgenticMemoryRecordProposal,
 	type AgenticMemoryRecordStoreFrameProjection,
 	type AgenticMemoryRetentionCommand,
@@ -54,6 +57,7 @@ import {
 	agenticMemoryRecordApplicationEvidenceFactsBundle,
 	agenticMemoryRecordApplicationPriorEvidenceBundle,
 	agenticMemoryRecordFrame,
+	agenticMemoryRecordMaterializerBundle,
 	agenticMemoryRecordStoreFrameBundle,
 	agenticMemoryRecordStoreFrameCodec,
 	agenticMemoryRetentionBundle,
@@ -64,6 +68,7 @@ import {
 	frameAgenticMemoryApplicationDecisions,
 	frameAgenticMemoryApplicationEvidence,
 	frameAgenticMemoryRecords,
+	materializeAgenticMemoryRecordChanges,
 	projectAgenticMemoryRecordAdmissionPolicySource,
 	projectAgenticMemoryRecordApplicationEvidenceFacts,
 	projectAgenticMemoryRecordApplicationPriorEvidence,
@@ -455,6 +460,505 @@ const applicationMaterialIdentity = <T = string>(
 			record: agenticMemoryRecordFrame(recordValue as AgenticMemoryRecord<string>),
 		}),
 	),
+});
+
+describe("AgenticMemory D586 complete-next-record materializer", () => {
+	it("materializes create intents into proposal-compatible DATA with refs and coordinates preserved", () => {
+		const sourceRefs = [{ kind: "planner", id: "planner-1" }];
+		const policyRefs = [{ kind: "materializer-policy", id: "policy-1" }];
+		const evidenceRefs = [{ kind: "retrieval-feedback", id: "feedback-1" }];
+		const nextRecord = record({
+			id: "record-created",
+			fragment: fragment({ id: "fragment-created", sources: ["planner-1"] }),
+		});
+		const projection = materializeAgenticMemoryRecordChanges(
+			[
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "intent-create",
+					operation: "create",
+					operationVersion: 1,
+					record: nextRecord,
+					reason: "complete next record from planner",
+					idempotencyKey: "idem-create",
+					correlationId: "corr-create",
+					sourceRefs,
+					policyRefs,
+					evidenceRefs,
+					metadata: { stage: "materializer" },
+				},
+			],
+			{
+				materializerId: "materializer-1",
+				sourceRefs: [{ kind: "host-event", id: "event-1" }],
+				policyRefs: [{ kind: "workspace-policy", id: "workspace-policy-1" }],
+				evaluation: 7,
+			},
+		);
+		const proposal = projection.proposals[0];
+
+		expect(projection).toMatchObject<Partial<AgenticMemoryRecordMaterializationProjection>>({
+			kind: "agentic-memory-record-materialization-projection",
+			status: { state: "ready" },
+			cursor: { evaluation: 7, proposals: 1, candidateMaterials: 1, issues: 0 },
+			issues: [],
+		});
+		expect(projection.candidateMaterials).toEqual([
+			expect.objectContaining({
+				kind: "agentic-memory-record-candidate-material",
+				operation: "create",
+				operationVersion: 1,
+				record: nextRecord,
+				sourceRefs: [
+					{ kind: "host-event", id: "event-1" },
+					{ kind: "planner", id: "planner-1" },
+				],
+				policyRefs: [
+					{ kind: "workspace-policy", id: "workspace-policy-1" },
+					{ kind: "materializer-policy", id: "policy-1" },
+				],
+				evidenceRefs,
+				metadata: { stage: "materializer" },
+			}),
+		]);
+		expect(proposal).toEqual(
+			expect.objectContaining({
+				kind: "agentic-memory-record-proposal",
+				proposalId: compoundTupleKey("agentic-memory-record-proposal", [
+					"materializer-1",
+					"intent-create",
+					"create",
+					"record-created",
+					"record-created",
+				]),
+				operation: "create",
+				operationVersion: 1,
+				reason: "complete next record from planner",
+				proposalStatus: "materialized",
+				idempotencyKey: "idem-create",
+				correlationId: "corr-create",
+				causationId: "intent-create",
+			}),
+		);
+		expect(proposal?.candidateMaterial).toBe(projection.candidateMaterials[0]);
+		expect(proposal?.evidenceRefs).toEqual(evidenceRefs);
+	});
+
+	it("keeps D574 materializer proposal ids collision-safe for open-string coordinates", () => {
+		const leftRecord = record({
+			id: "record:open::same",
+			fragment: fragment({ id: "fragment:left" }),
+		});
+		const rightRecord = record({
+			id: "record:open::same",
+			fragment: fragment({ id: "fragment:right" }),
+		});
+		const left = materializeAgenticMemoryRecordChanges(
+			[
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "intent::b",
+					operation: "create",
+					operationVersion: 1,
+					record: leftRecord,
+				},
+			],
+			{ materializerId: "materializer:a" },
+		);
+		const right = materializeAgenticMemoryRecordChanges(
+			[
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "a::intent",
+					operation: "create",
+					operationVersion: 1,
+					record: rightRecord,
+				},
+			],
+			{ materializerId: "materializer" },
+		);
+
+		expect(left.proposals[0]?.proposalId).toBe(
+			compoundTupleKey("agentic-memory-record-proposal", [
+				"materializer:a",
+				"intent::b",
+				"create",
+				"record:open::same",
+				"record:open::same",
+			]),
+		);
+		expect(right.proposals[0]?.proposalId).toBe(
+			compoundTupleKey("agentic-memory-record-proposal", [
+				"materializer",
+				"a::intent",
+				"create",
+				"record:open::same",
+				"record:open::same",
+			]),
+		);
+		expect(left.proposals[0]?.proposalId).not.toBe(right.proposals[0]?.proposalId);
+	});
+
+	it("requires existing full-record replace and update targets before emitting proposals", () => {
+		const current = [record({ id: "record-existing", fragment: fragment({ id: "fragment-old" }) })];
+		const replacement = record({
+			id: "record-existing",
+			fragment: fragment({
+				id: "fragment-replacement",
+				parentFragmentId: "fragment-old",
+				payload: "replacement",
+			}),
+		});
+		const update = record({
+			id: "record-existing",
+			fragment: fragment({
+				id: "fragment-update",
+				parentFragmentId: "fragment-replacement",
+				payload: "update",
+			}),
+		});
+		const projection = materializeAgenticMemoryRecordChanges(
+			[
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "intent-replace",
+					operation: "replace",
+					operationVersion: 1,
+					targetRecordId: "record-existing",
+					record: replacement,
+				},
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "intent-update-missing",
+					operation: "update",
+					operationVersion: 1,
+					record: update,
+				},
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "intent-update-mismatch",
+					operation: "update",
+					operationVersion: 1,
+					targetRecordId: "record-existing",
+					record: record({ id: "record-other", fragment: fragment({ id: "fragment-other" }) }),
+				},
+			],
+			{ records: current },
+		);
+
+		expect(projection.proposals).toEqual([
+			expect.objectContaining({
+				operation: "replace",
+				targetRecordId: "record-existing",
+				candidateMaterial: expect.objectContaining({
+					operation: "replace",
+					operationVersion: 1,
+					targetRecordId: "record-existing",
+					record: replacement,
+				}),
+			}),
+		]);
+		expect(projection.issues.map((issue) => issue.refs)).toEqual([
+			["update targetRecordId is required"],
+			expect.arrayContaining(["update record.id must equal targetRecordId"]),
+		]);
+		expect(projection.status).toMatchObject({ state: "partial" });
+	});
+
+	it("uses sanitized helper-level refs for lineage and never leaks malformed option refs", () => {
+		const current = [record({ id: "record-existing", fragment: fragment({ id: "fragment-old" }) })];
+		const update = record({
+			id: "record-existing",
+			fragment: fragment({ id: "fragment-new", payload: "updated" }),
+		});
+		const lineageFromOptions = materializeAgenticMemoryRecordChanges(
+			[
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "intent-shared-lineage",
+					operation: "update",
+					operationVersion: 1,
+					targetRecordId: "record-existing",
+					record: update,
+				},
+			],
+			{
+				records: current,
+				sourceRefs: [{ kind: "agentic-memory-fragment", id: "fragment-old" }],
+			},
+		);
+		const malformedOptions = materializeAgenticMemoryRecordChanges(
+			[
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "intent-bad-option-refs",
+					operation: "create",
+					operationVersion: 1,
+					record: record({ id: "record-option", fragment: fragment({ id: "fragment-option" }) }),
+				},
+			],
+			{ sourceRefs: [null] as never },
+		);
+
+		expect(lineageFromOptions.issues).toEqual([]);
+		expect(lineageFromOptions.proposals).toEqual([
+			expect.objectContaining({
+				operation: "update",
+				sourceRefs: [{ kind: "agentic-memory-fragment", id: "fragment-old" }],
+			}),
+		]);
+		expect(malformedOptions.issues).toEqual([
+			expect.objectContaining({ code: "agentic-memory.materializer.invalid-options" }),
+		]);
+		expect(malformedOptions.proposals).toEqual([
+			expect.not.objectContaining({ sourceRefs: expect.anything() }),
+		]);
+	});
+
+	it("suppresses duplicate identical intents and rejects divergent duplicates without a winner", () => {
+		const nextRecord = record({ id: "record-dupe", fragment: fragment({ id: "fragment-dupe" }) });
+		const divergentRecord = record({
+			id: "record-divergent",
+			fragment: fragment({ id: "fragment-divergent" }),
+		});
+		const projection = materializeAgenticMemoryRecordChanges([
+			{
+				kind: "agentic-memory-record-materialization-intent",
+				intentId: "intent-identical",
+				operation: "create",
+				operationVersion: 1,
+				record: nextRecord,
+			},
+			{
+				kind: "agentic-memory-record-materialization-intent",
+				intentId: "intent-identical",
+				operation: "create",
+				operationVersion: 1,
+				record: nextRecord,
+			},
+			{
+				kind: "agentic-memory-record-materialization-intent",
+				intentId: "intent-divergent",
+				operation: "create",
+				operationVersion: 1,
+				record: nextRecord,
+			},
+			{
+				kind: "agentic-memory-record-materialization-intent",
+				intentId: "intent-divergent",
+				operation: "create",
+				operationVersion: 1,
+				record: divergentRecord,
+			},
+		]);
+
+		expect(projection.proposals.map((item) => item.proposalId)).toEqual([
+			compoundTupleKey("agentic-memory-record-proposal", [
+				"agentic-memory-record-complete-next-record-materializer",
+				"intent-identical",
+				"create",
+				"record-dupe",
+				"record-dupe",
+			]),
+		]);
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.materializer.duplicate-intent-divergent",
+				subjectId: "intent-divergent",
+			}),
+		]);
+		expect(projection.cursor).toMatchObject({
+			intents: 4,
+			validIntents: 4,
+			duplicateIntents: 1,
+			divergentIntents: 1,
+			proposals: 1,
+		});
+		expect(projection.audit.map((entry) => entry.action)).toEqual([
+			"duplicate-suppressed",
+			"divergent-intent",
+			"proposal-materialized",
+			"issue-recorded",
+		]);
+	});
+
+	it("fails closed when different intents produce divergent material for one application coordinate", () => {
+		const first = record({
+			id: "record-coordinate",
+			fragment: fragment({ id: "fragment-coordinate-a", payload: "first" }),
+		});
+		const second = record({
+			id: "record-coordinate",
+			fragment: fragment({ id: "fragment-coordinate-b", payload: "second" }),
+		});
+		const projection = materializeAgenticMemoryRecordChanges([
+			{
+				kind: "agentic-memory-record-materialization-intent",
+				intentId: "intent-coordinate-a",
+				operation: "create",
+				operationVersion: 1,
+				record: first,
+			},
+			{
+				kind: "agentic-memory-record-materialization-intent",
+				intentId: "intent-coordinate-b",
+				operation: "create",
+				operationVersion: 1,
+				record: second,
+			},
+		]);
+
+		expect(projection.proposals).toEqual([]);
+		expect(projection.candidateMaterials).toEqual([]);
+		expect(projection.status).toMatchObject({
+			state: "error",
+			cursor: { coordinateConflicts: 1, proposals: 0, issues: 1 },
+		});
+		expect(projection.issues).toEqual([
+			expect.objectContaining({
+				code: "agentic-memory.materializer.coordinate-conflict",
+				subjectId: "record-coordinate",
+				refs: [
+					compoundTupleKey("agentic-memory-record-proposal", [
+						"agentic-memory-record-complete-next-record-materializer",
+						"intent-coordinate-a",
+						"create",
+						"record-coordinate",
+						"record-coordinate",
+					]),
+					compoundTupleKey("agentic-memory-record-proposal", [
+						"agentic-memory-record-complete-next-record-materializer",
+						"intent-coordinate-b",
+						"create",
+						"record-coordinate",
+						"record-coordinate",
+					]),
+				],
+			}),
+		]);
+		expect(projection.audit.map((entry) => entry.action)).toEqual([
+			"coordinate-conflict",
+			"issue-recorded",
+		]);
+	});
+
+	it("keeps malformed intents on the DATA issue path in graph bundles", () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const intents = g.state(
+			[
+				{
+					kind: "agentic-memory-record-materialization-intent",
+					intentId: "bad-intent",
+					operation: "patch",
+					operationVersion: 1,
+					record: record({ id: "record-bad", fragment: fragment({ id: "fragment-bad" }) }),
+					patch: [{ op: "replace" }],
+				},
+			] as never,
+			{ name: "intents" },
+		);
+		const bundle = agenticMemoryRecordMaterializerBundle(g, {
+			name: "materializer",
+			records,
+			intents,
+		});
+		const projection = collect(bundle.projection);
+		const proposals = collect(bundle.proposals);
+		const candidateMaterials = collect(bundle.candidateMaterials);
+		const issues = collect(bundle.issues);
+		const status = collect(bundle.status);
+
+		expectTypeOf(bundle).toMatchTypeOf<AgenticMemoryRecordMaterializerBundle<string>>();
+		intents.set(intents.cache);
+
+		expect(projection.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		expect(data<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1)).toEqual([]);
+		expect(data(candidateMaterials.messages).at(-1)).toEqual([]);
+		expect(data<AgenticMemoryRecordMaterializationStatus>(status.messages).at(-1)).toMatchObject({
+			state: "error",
+			cursor: { proposals: 0, issues: 1 },
+		});
+		expect(
+			data<readonly { refs?: readonly string[] }[]>(issues.messages).at(-1)?.[0]?.refs,
+		).toEqual(
+			expect.arrayContaining([
+				"intent.patch is not graph-visible DATA",
+				"intent.patch is not part of materialization intent",
+				"intent.operation must be create, replace, or update",
+			]),
+		);
+		expect(g.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "records", to: "materializer/projection" },
+				{ from: "intents", to: "materializer/projection" },
+				{ from: "materializer/projection", to: "materializer/proposals" },
+				{ from: "materializer/projection", to: "materializer/candidateMaterials" },
+				{ from: "materializer/projection", to: "materializer/status" },
+				{ from: "materializer/projection", to: "materializer/issues" },
+				{ from: "materializer/projection", to: "materializer/audit" },
+				{ from: "materializer/projection", to: "materializer/cursor" },
+			]),
+		);
+	});
+
+	it("does not mutate inputs or expose storage, hydration, patch, merge, or commit handles", () => {
+		const current = [record({ id: "record-existing", fragment: fragment({ id: "fragment-old" }) })];
+		const intent = {
+			kind: "agentic-memory-record-materialization-intent" as const,
+			intentId: "intent-update",
+			operation: "update" as const,
+			operationVersion: 1 as const,
+			targetRecordId: "record-existing",
+			record: record({
+				id: "record-existing",
+				fragment: fragment({ id: "fragment-new", parentFragmentId: "fragment-old" }),
+			}),
+		};
+		const before = structuredClone({
+			current: current.map((item) => ({
+				...item,
+				fragment: { ...item.fragment, tNs: item.fragment.tNs.toString() },
+			})),
+			intent: {
+				...intent,
+				record: {
+					...intent.record,
+					fragment: { ...intent.record.fragment, tNs: intent.record.fragment.tNs.toString() },
+				},
+			},
+		});
+		const projection = materializeAgenticMemoryRecordChanges([intent], { records: current });
+		const dtoText = JSON.stringify(projection, (_key, value: unknown) =>
+			typeof value === "bigint" ? value.toString() : value,
+		);
+
+		expect({
+			current: current.map((item) => ({
+				...item,
+				fragment: { ...item.fragment, tNs: item.fragment.tNs.toString() },
+			})),
+			intent: {
+				...intent,
+				record: {
+					...intent.record,
+					fragment: { ...intent.record.fragment, tNs: intent.record.fragment.tNs.toString() },
+				},
+			},
+		}).toEqual(before);
+		expect(dtoText).not.toMatch(
+			/"(?:storage|storageHandle|storageKey|hydrate|hydration|restore|persist|commit|commitAck|ack|backend|adapter|patch|merge)"/i,
+		);
+		expect(projection.proposals[0]).toEqual(
+			expect.objectContaining({
+				operation: "update",
+				targetRecordId: "record-existing",
+				candidateMaterial: expect.objectContaining({
+					record: expect.objectContaining({ id: "record-existing" }),
+				}),
+			}),
+		);
+	});
 });
 
 describe("agentic memory consolidation bundle (D171)", () => {
@@ -3886,6 +4390,46 @@ describe("agentic memory record application projector (D577)", () => {
 		expect(
 			data<readonly AgenticMemoryRecordApplicationEvidence[]>(evidenceFacts.messages).at(-1),
 		).toEqual([expect.objectContaining({ admissionId: "same-evaluation" })]);
+	});
+
+	it("names current evidence facts as future-only and feeds restored evidence into a later evaluation", () => {
+		const firstApplication = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "boundary-1", proposalId: "boundary-1" })],
+			applicationPolicy(),
+		);
+		const currentEvaluationEvidenceFacts = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			firstApplication.applicationDecisions,
+			{ metadata: { boundary: "current-evaluation-append-material" } },
+		).evidenceFacts;
+		const evidenceFrame = frameAgenticMemoryApplicationEvidence(currentEvaluationEvidenceFacts, {
+			metadata: { boundary: "explicit-host-storage-event" },
+		});
+		const restoredPriorEvidence = decodeAgenticMemoryApplicationEvidenceStoreFrame(evidenceFrame);
+		const nextEvaluationPriorEvidence = projectAgenticMemoryRecordApplicationPriorEvidence(
+			restoredPriorEvidence,
+			{ evaluation: 2 },
+		).priorEvidence;
+		const laterApplication = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "boundary-1", proposalId: "boundary-1" })],
+			applicationPolicy(),
+			{ priorEvidence: nextEvaluationPriorEvidence },
+		);
+
+		expect(currentEvaluationEvidenceFacts).toEqual([
+			expect.objectContaining({
+				kind: "agentic-memory-record-application-evidence",
+				admissionId: "boundary-1",
+			}),
+		]);
+		expect(restoredPriorEvidence.entries).toEqual(currentEvaluationEvidenceFacts);
+		expect(nextEvaluationPriorEvidence.entries).toEqual(currentEvaluationEvidenceFacts);
+		expect(firstApplication.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "applied", reasonCode: "applied-create" }),
+		]);
+		expect(laterApplication.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "skipped", reasonCode: "already-applied" }),
+		]);
+		expect(firstApplication.cursor.priorEvidenceEntries).toBe(0);
 	});
 
 	it("exposes explicit prior-evidence projection edges for later application inputs", () => {

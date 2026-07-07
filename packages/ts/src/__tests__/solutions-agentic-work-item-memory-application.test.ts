@@ -148,6 +148,10 @@ const importsAgenticMemoryStoreFrameHelper = (source: string): boolean =>
 	/AGENTIC_MEMORY_.*STORE_FRAME|AgenticMemory.*StoreFrame|agenticMemory.*StoreFrame|frameAgenticMemoryRecords|frameAgenticMemoryApplicationEvidence|frameAgenticMemoryApplicationDecisions|decodeAgenticMemoryRecordStoreFrame|decodeAgenticMemoryApplicationEvidenceStoreFrame|decodeAgenticMemoryApplicationDecisionStoreFrame/.test(
 		source,
 	);
+const importsAgenticMemoryMaterializerHelper = (source: string): boolean =>
+	/AgenticMemoryRecordMaterialization|AgenticMemoryRecordMaterializer|materializeAgenticMemoryRecordChanges|agenticMemoryRecordMaterializerBundle/.test(
+		source,
+	);
 
 describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581/D582/D587)", () => {
 	it("maps evidence through the bridge, then admits and applies only through AgenticMemory helpers", () => {
@@ -439,6 +443,7 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 			expect(importsAgenticWorkItemMemory(source)).toBe(false);
 			expect(importsAgenticMemoryApplicationHistoryHelper(source)).toBe(false);
 			expect(importsAgenticMemoryStoreFrameHelper(source)).toBe(false);
+			expect(importsAgenticMemoryMaterializerHelper(source)).toBe(false);
 		}
 		for (const file of sourceFiles(join(srcRoot, "solutions/agentic-memory"))) {
 			expect(importsAgenticWorkItemMemory(readFileSync(file, "utf8"))).toBe(false);
@@ -447,6 +452,7 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 			const source = readFileSync(file, "utf8");
 			expect(importsAgenticMemoryApplicationHistoryHelper(source)).toBe(false);
 			expect(importsAgenticMemoryStoreFrameHelper(source)).toBe(false);
+			expect(importsAgenticMemoryMaterializerHelper(source)).toBe(false);
 		}
 	});
 });

@@ -1769,6 +1769,14 @@ export const apiSidebar = [
 				"link": "/api/agenticmemorykgprojectionbundle"
 			},
 			{
+				"label": "materializeAgenticMemoryRecordChanges()",
+				"link": "/api/materializeagenticmemoryrecordchanges"
+			},
+			{
+				"label": "agenticMemoryRecordMaterializerBundle()",
+				"link": "/api/agenticmemoryrecordmaterializerbundle"
+			},
+			{
 				"label": "agenticMemoryRecordAdmissionBundle()",
 				"link": "/api/agenticmemoryrecordadmissionbundle"
 			},

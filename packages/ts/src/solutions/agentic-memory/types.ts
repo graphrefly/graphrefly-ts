@@ -741,6 +741,110 @@ export interface AgenticMemoryRecordApplicationBundleOptions<T = unknown> {
 		| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
 }
 
+/**
+ * D586 complete-next-record materialization intent.
+ *
+ * This is upstream DATA for converting domain-specific change intent into
+ * proposal-compatible full-record material. It is not admission, application,
+ * storage, hydration, commit acknowledgement, patch, merge, or live record
+ * mutation authority.
+ */
+export interface AgenticMemoryRecordMaterializationIntent<T = unknown> {
+	readonly kind: "agentic-memory-record-materialization-intent";
+	readonly intentId: FactId;
+	readonly operation: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion: 1;
+	readonly record: AgenticMemoryRecord<T>;
+	readonly targetRecordId?: FactId;
+	readonly reason?: string;
+	readonly idempotencyKey?: string;
+	readonly correlationId?: string;
+	readonly causationId?: string;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
+	readonly metadata?: Readonly<Record<string, StrictJsonValue>>;
+}
+
+export interface AgenticMemoryRecordMaterializationCursor {
+	readonly evaluation: number;
+	readonly records: number;
+	readonly validRecords: number;
+	readonly invalidRecords: number;
+	readonly intents: number;
+	readonly validIntents: number;
+	readonly invalidIntents: number;
+	readonly duplicateIntents: number;
+	readonly divergentIntents: number;
+	readonly coordinateConflicts: number;
+	readonly candidateMaterials: number;
+	readonly proposals: number;
+	readonly issues: number;
+}
+
+export type AgenticMemoryRecordMaterializationStatusState =
+	| "ready"
+	| "empty"
+	| "partial"
+	| "blocked"
+	| "error";
+
+export interface AgenticMemoryRecordMaterializationStatus {
+	readonly state: AgenticMemoryRecordMaterializationStatusState;
+	readonly cursor: AgenticMemoryRecordMaterializationCursor;
+}
+
+export interface AgenticMemoryRecordMaterializationAuditEntry {
+	readonly kind: "agentic-memory-record-materialization-audit";
+	readonly action:
+		| "proposal-materialized"
+		| "duplicate-suppressed"
+		| "divergent-intent"
+		| "coordinate-conflict"
+		| "issue-recorded";
+	readonly intentId?: FactId;
+	readonly proposalId?: FactId;
+	readonly operation?: AgenticMemoryRecordApplicationOperation;
+	readonly operationVersion?: 1;
+	readonly targetRecordId?: FactId;
+	readonly recordId?: FactId;
+	readonly reason?: string;
+	readonly sourceRefs?: readonly AgenticMemoryFactRef[];
+	readonly policyRefs?: readonly AgenticMemoryFactRef[];
+	readonly evidenceRefs?: readonly AgenticMemoryFactRef[];
+}
+
+export interface AgenticMemoryRecordMaterializationProjection<T = unknown> {
+	readonly kind: "agentic-memory-record-materialization-projection";
+	readonly candidateMaterials: readonly AgenticMemoryRecordCandidateMaterial<T>[];
+	readonly proposals: readonly AgenticMemoryRecordProposal<T>[];
+	readonly status: AgenticMemoryRecordMaterializationStatus;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgenticMemoryRecordMaterializationAuditEntry[];
+	readonly cursor: AgenticMemoryRecordMaterializationCursor;
+}
+
+export interface AgenticMemoryRecordMaterializerBundle<T = unknown> {
+	readonly input: {
+		readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
+		readonly intents: Node<readonly AgenticMemoryRecordMaterializationIntent<T>[]>;
+	};
+	readonly projection: Node<AgenticMemoryRecordMaterializationProjection<T>>;
+	readonly proposals: Node<readonly AgenticMemoryRecordProposal<T>[]>;
+	readonly candidateMaterials: Node<readonly AgenticMemoryRecordCandidateMaterial<T>[]>;
+	readonly status: Node<AgenticMemoryRecordMaterializationStatus>;
+	readonly issues: Node<readonly DataIssue[]>;
+	readonly audit: Node<readonly AgenticMemoryRecordMaterializationAuditEntry[]>;
+	readonly cursor: Node<AgenticMemoryRecordMaterializationCursor>;
+}
+
+export interface AgenticMemoryRecordMaterializerBundleOptions<T = unknown> {
+	readonly name?: string;
+	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
+	readonly intents: Node<readonly AgenticMemoryRecordMaterializationIntent<T>[]>;
+	readonly materializerId?: FactId;
+}
+
 export interface AgenticMemoryRecordMetadata {
 	readonly recordId: FactId;
 	readonly kind: AgenticMemoryKind;

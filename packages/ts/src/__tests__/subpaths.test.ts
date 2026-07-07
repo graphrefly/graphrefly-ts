@@ -63,6 +63,10 @@ import type {
 	AgenticMemoryRecordApplicationPriorEvidenceProjection,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
+	AgenticMemoryRecordMaterializationIntent,
+	AgenticMemoryRecordMaterializationProjection,
+	AgenticMemoryRecordMaterializationStatus,
+	AgenticMemoryRecordMaterializerBundleOptions,
 	AgenticMemoryRecordStoreFrame,
 	AgenticMemoryRecordStoreFrameBundleOptions,
 	AgenticMemoryRecordsPersistenceHandle,
@@ -989,6 +993,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof rootPackage.projectAgenticMemoryRecordApplicationEvidenceFacts).toBe("function");
 		expect(typeof rootPackage.agenticMemoryRecordApplicationPriorEvidenceBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
+		expect(typeof rootPackage.materializeAgenticMemoryRecordChanges).toBe("function");
+		expect(typeof rootPackage.agenticMemoryRecordMaterializerBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof rootPackage.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof rootPackage.frameAgenticMemoryRecords).toBe("function");
@@ -1017,6 +1023,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.projectAgenticMemoryRecordApplicationEvidenceFacts).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordApplicationPriorEvidenceBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
+		expect(typeof solutions.materializeAgenticMemoryRecordChanges).toBe("function");
+		expect(typeof solutions.agenticMemoryRecordMaterializerBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryConsolidationApplicationBundle).toBe("function");
 		expect(typeof solutions.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof solutions.frameAgenticMemoryRecords).toBe("function");
@@ -1059,6 +1067,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		);
 		expect(typeof agenticMemory.agenticMemoryRecordApplicationPriorEvidenceBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordApplicationEvidenceFactsBundle).toBe("function");
+		expect(typeof agenticMemory.materializeAgenticMemoryRecordChanges).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryRecordMaterializerBundle).toBe("function");
 		expect(typeof agenticMemory.applyAgenticMemoryRecordAdmissions).toBe("function");
 		expect(typeof agenticMemory.frameAgenticMemoryRecords).toBe("function");
 		expect(typeof agenticMemory.decodeAgenticMemoryRecordStoreFrame).toBe("function");
@@ -1107,6 +1117,13 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		);
 		expectTypeOf<AgenticMemoryRecordApplicationOptions>().toHaveProperty("priorEvidence");
 		expectTypeOf<AgenticMemoryRecordApplicationBundleOptions>().toHaveProperty("priorEvidence");
+		expectTypeOf<AgenticMemoryRecordMaterializationIntent>().toHaveProperty("intentId");
+		expectTypeOf<AgenticMemoryRecordMaterializationIntent>()
+			.toHaveProperty("operation")
+			.toEqualTypeOf<AgenticMemoryRecordApplicationOperation>();
+		expectTypeOf<AgenticMemoryRecordMaterializationProjection>().toHaveProperty("proposals");
+		expectTypeOf<AgenticMemoryRecordMaterializationStatus>().toHaveProperty("cursor");
+		expectTypeOf<AgenticMemoryRecordMaterializerBundleOptions>().toHaveProperty("intents");
 		expectTypeOf<AgenticMemoryRecordStoreFrame>().toHaveProperty("records");
 		expectTypeOf<AgenticMemoryRecordStoreFrameBundleOptions>().toHaveProperty("storeFrame");
 		expectTypeOf<AgenticMemoryApplicationEvidenceStoreFrame>().toHaveProperty("priorEvidence");
@@ -1161,6 +1178,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			Object.hasOwn(agenticWorkItemMemory, "agenticWorkItemMemoryApplicationRecipeBundle"),
 		).toBe(false);
 		expect(Object.hasOwn(agenticWorkItemMemory, "agenticMemoryBundle")).toBe(false);
+		expect(Object.hasOwn(agenticWorkItemMemory, "agenticMemoryRecordMaterializerBundle")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(agenticWorkItemMemory, "materializeAgenticMemoryRecordChanges")).toBe(
+			false,
+		);
 		expect(
 			Object.hasOwn(agenticWorkItemMemory, "agenticMemoryRecordAdmissionPolicySourceBundle"),
 		).toBe(false);

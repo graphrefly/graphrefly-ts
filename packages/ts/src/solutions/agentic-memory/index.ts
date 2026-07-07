@@ -15,6 +15,7 @@ export * from "./consolidation-application.js";
 export * from "./context-packing.js";
 export * from "./frame.js";
 export * from "./kg.js";
+export * from "./materializer.js";
 export * from "./proposal-admission.js";
 export * from "./record-application.js";
 export * from "./retention.js";
