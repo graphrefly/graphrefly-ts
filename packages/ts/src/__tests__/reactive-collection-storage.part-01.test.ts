@@ -1,21 +1,26 @@
 import { describe, expect, it } from "vitest";
+import {
+	agenticMemoryRecordChangeFrame,
+	agenticMemoryRecordSnapshotFrame,
+	agenticMemoryRecordsSnapshotKey,
+	loadAgenticMemoryRecordsState,
+	memoryAgenticMemoryPassiveStoreFrameAdapter,
+	openPersistentAgenticMemoryRecords,
+	persistAgenticMemoryRecords,
+} from "../adapters/index.js";
 import type { IndexChange, ListChange, MapChange } from "../graph/data-structures/change.js";
 import type { IndexRow } from "../graph/data-structures/reactive-index.js";
 import {
 	type AgenticMemoryRecord,
-	agenticMemoryRecordChangeFrame,
-	agenticMemoryRecordSnapshotFrame,
-	agenticMemoryRecordsSnapshotKey,
+	agenticMemoryRecordStoreFrameCodec,
+	frameAgenticMemoryRecords,
 	graph,
-	loadAgenticMemoryRecordsState,
 	loadReactiveIndexState,
 	loadReactiveListState,
 	loadReactiveLogState,
 	loadReactiveMapState,
 	memoryAppendLog,
 	memoryKv,
-	openPersistentAgenticMemoryRecords,
-	persistAgenticMemoryRecords,
 	type ReactiveCollectionChangeFrame,
 	reactiveCollectionChangeFrame,
 	reactiveCollectionSnapshotFrame,
@@ -367,6 +372,31 @@ describe("D172 agentic memory record persistence sidecar", () => {
 				} as never,
 			}),
 		).rejects.toThrow(/sparse array hole/);
+	});
+
+	it("stores encoded AgenticMemory store frames opaquely without decode or commit authority", async () => {
+		const adapter = memoryAgenticMemoryPassiveStoreFrameAdapter();
+		const codec = agenticMemoryRecordStoreFrameCodec();
+		const frame = frameAgenticMemoryRecords([memoryRecord("encoded", "encoded")]);
+		const bytes = codec.encode(frame);
+
+		const write = await adapter.write(bytes);
+		bytes[0] = 0;
+		const malformedWrite = await adapter.write(new Uint8Array([123, 34, 98, 97, 100, 34]));
+		const read = await adapter.read({ after: -1 });
+		const decoded = codec.decode(read.frames[0]!);
+
+		expect(write.status.state).toBe("ready");
+		expect(malformedWrite.status.state).toBe("ready");
+		expect(read.status).toMatchObject({
+			state: "ready",
+			cursor: { writes: 2, reads: 1, storedFrames: 2, lastFrameIndex: 1 },
+		});
+		expect(decoded).toEqual(frame);
+		expect(() => codec.decode(read.frames[1]!)).toThrow();
+		expect(JSON.stringify({ write, malformedWrite, read })).not.toMatch(
+			/commit|commitAck|hydrate|hydration|restore|truth/i,
+		);
 	});
 
 	it("persists records as passive frames and exposes persistence.cursor facts", async () => {

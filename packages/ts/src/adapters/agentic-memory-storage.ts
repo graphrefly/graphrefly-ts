@@ -1,4 +1,5 @@
 import type { DeliveryMeta } from "../ctx/types.js";
+import type { DataIssue } from "../data/index.js";
 import { assertGraphLocalNode, type Graph, type StateNode } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import type { Message } from "../protocol/messages.js";
@@ -11,13 +12,20 @@ import {
 	agenticMemoryRecordFrameCodec,
 	assertAgenticMemoryRecordFrame,
 } from "../solutions/index.js";
-import type { AppendLogEntry, AppendLogStorageTier, KvStorageTier } from "../storage/index.js";
+import {
+	type AppendLogEntry,
+	type AppendLogStorageTier,
+	type KvStorageTier,
+	memoryAppendLog,
+} from "../storage/index.js";
 
 export const AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT =
 	"graphrefly.agenticMemory.records.snapshot" as const;
 export const AGENTIC_MEMORY_RECORD_CHANGE_FORMAT =
 	"graphrefly.agenticMemory.records.change" as const;
 export const AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION = 1 as const;
+export const AGENTIC_MEMORY_PASSIVE_STORE_FRAME_CURSOR_KIND =
+	"agentic-memory-passive-store-frame.cursor" as const;
 
 export interface AgenticMemoryRecordSnapshotFrame<
 	TJson extends AgenticMemoryStrictJsonValue = AgenticMemoryStrictJsonValue,
@@ -53,6 +61,56 @@ export interface LoadAgenticMemoryRecordsStateOptions {
 	readonly snapshotKey?: string;
 	readonly storagePrefix?: string;
 	readonly changeLog?: AppendLogStorageTier<unknown>;
+}
+
+export type AgenticMemoryPassiveStoreFrameStatusState = "ready" | "empty" | "error";
+
+export interface AgenticMemoryPassiveStoreFrameCursor {
+	readonly kind: typeof AGENTIC_MEMORY_PASSIVE_STORE_FRAME_CURSOR_KIND;
+	readonly writes: number;
+	readonly reads: number;
+	readonly storedFrames: number;
+	readonly lastFrameIndex: number;
+	readonly issues: number;
+}
+
+export interface AgenticMemoryPassiveStoreFrameStatus {
+	readonly state: AgenticMemoryPassiveStoreFrameStatusState;
+	readonly cursor: AgenticMemoryPassiveStoreFrameCursor;
+}
+
+export interface AgenticMemoryPassiveStoreFrameAuditEntry {
+	readonly kind: "agentic-memory-passive-store-frame-audit";
+	readonly action: "frame-received" | "frames-read" | "issue-recorded";
+	readonly frameIndex?: number;
+	readonly reason?: string;
+}
+
+export interface AgenticMemoryPassiveStoreFrameWriteResult {
+	readonly status: AgenticMemoryPassiveStoreFrameStatus;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgenticMemoryPassiveStoreFrameAuditEntry[];
+	readonly cursor: AgenticMemoryPassiveStoreFrameCursor;
+}
+
+export interface AgenticMemoryPassiveStoreFrameReadOptions {
+	readonly after?: number;
+	readonly limit?: number;
+}
+
+export interface AgenticMemoryPassiveStoreFrameReadResult {
+	readonly frames: readonly Uint8Array[];
+	readonly status: AgenticMemoryPassiveStoreFrameStatus;
+	readonly issues: readonly DataIssue[];
+	readonly audit: readonly AgenticMemoryPassiveStoreFrameAuditEntry[];
+	readonly cursor: AgenticMemoryPassiveStoreFrameCursor;
+}
+
+export interface AgenticMemoryPassiveStoreFrameAdapter {
+	write(frame: Uint8Array): Promise<AgenticMemoryPassiveStoreFrameWriteResult>;
+	read(
+		opts?: AgenticMemoryPassiveStoreFrameReadOptions,
+	): Promise<AgenticMemoryPassiveStoreFrameReadResult>;
 }
 
 export interface AgenticMemoryRecordsPersistenceCursor {
@@ -277,8 +335,137 @@ export function assertAgenticMemoryRecordChangeFrame<
 }
 
 /**
+ * Creates a host-owned in-memory adapter for encoded D585 AgenticMemory store frames.
+ *
+ * The adapter stores opaque bytes only. It does not decode frames, mutate graph
+ * records, hydrate a live graph, or report a durable commit acknowledgement;
+ * status/cursor material describes this adapter's own read/write operations.
+ * @returns An in-memory passive store-frame adapter.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { memoryAgenticMemoryPassiveStoreFrameAdapter } from "@graphrefly/ts/adapters";
+ * ```
+ */
+export function memoryAgenticMemoryPassiveStoreFrameAdapter(): AgenticMemoryPassiveStoreFrameAdapter {
+	const log = memoryAppendLog<readonly number[]>("agentic-memory-passive-store-frame");
+	let writes = 0;
+	let reads = 0;
+	let issues = 0;
+
+	function cursor(lastFrameIndex = writes - 1): AgenticMemoryPassiveStoreFrameCursor {
+		return Object.freeze({
+			kind: AGENTIC_MEMORY_PASSIVE_STORE_FRAME_CURSOR_KIND,
+			writes,
+			reads,
+			storedFrames: writes,
+			lastFrameIndex,
+			issues,
+		});
+	}
+
+	function ok(
+		state: AgenticMemoryPassiveStoreFrameStatusState,
+		audit: readonly AgenticMemoryPassiveStoreFrameAuditEntry[],
+		lastFrameIndex?: number,
+	): {
+		readonly status: AgenticMemoryPassiveStoreFrameStatus;
+		readonly issues: readonly DataIssue[];
+		readonly audit: readonly AgenticMemoryPassiveStoreFrameAuditEntry[];
+		readonly cursor: AgenticMemoryPassiveStoreFrameCursor;
+	} {
+		const current = cursor(lastFrameIndex);
+		return Object.freeze({
+			status: Object.freeze({ state, cursor: current }),
+			issues: Object.freeze([]),
+			audit: Object.freeze(audit),
+			cursor: current,
+		});
+	}
+
+	function fail(
+		message: string,
+		lastFrameIndex?: number,
+	): {
+		readonly status: AgenticMemoryPassiveStoreFrameStatus;
+		readonly issues: readonly DataIssue[];
+		readonly audit: readonly AgenticMemoryPassiveStoreFrameAuditEntry[];
+		readonly cursor: AgenticMemoryPassiveStoreFrameCursor;
+	} {
+		issues += 1;
+		const issue = passiveFrameIssue(message);
+		const current = cursor(lastFrameIndex);
+		return Object.freeze({
+			status: Object.freeze({ state: "error", cursor: current }),
+			issues: Object.freeze([issue]),
+			audit: Object.freeze([
+				passiveFrameAudit("issue-recorded", {
+					reason: issue.code,
+					frameIndex: lastFrameIndex,
+				}),
+			]),
+			cursor: current,
+		});
+	}
+
+	return {
+		write(frame) {
+			if (!(frame instanceof Uint8Array)) {
+				return log.size().then(() => fail("frame must be encoded Uint8Array bytes"));
+			}
+			const storedFrame = Object.freeze([...frame]);
+			return log.append(storedFrame).then((entry) => {
+				writes += 1;
+				return ok(
+					"ready",
+					[passiveFrameAudit("frame-received", { frameIndex: entry.seq })],
+					entry.seq,
+				);
+			});
+		},
+		read(opts = {}) {
+			reads += 1;
+			const after = opts.after ?? -1;
+			const limit = opts.limit ?? Number.POSITIVE_INFINITY;
+			if (!Number.isSafeInteger(after) || after < -1) {
+				return log.size().then(() =>
+					Object.freeze({
+						...fail("after must be a safe integer >= -1", after),
+						frames: Object.freeze([]),
+					}),
+				);
+			}
+			if (limit !== Number.POSITIVE_INFINITY && (!Number.isSafeInteger(limit) || limit < 0)) {
+				return log.size().then(() =>
+					Object.freeze({
+						...fail("limit must be a non-negative safe integer"),
+						frames: Object.freeze([]),
+					}),
+				);
+			}
+			return log.read({ after, limit }).then((entries) => {
+				const visible = entries.map((entry) => new Uint8Array(entry.value));
+				const lastFrameIndex = entries.at(-1)?.seq ?? after;
+				const result = ok(
+					visible.length === 0 ? "empty" : "ready",
+					[passiveFrameAudit("frames-read", { frameIndex: lastFrameIndex })],
+					lastFrameIndex,
+				);
+				return Object.freeze({
+					...result,
+					frames: Object.freeze(visible),
+				});
+			});
+		},
+	};
+}
+
+/**
  * Loads agentic memory records state.
  *
+ * Loading decodes passive frames outside the sync core and returns ordinary
+ * record DATA for an explicit later graph/bootstrap input. It does not hydrate
+ * or mutate a live graph and does not make storage the source of record truth.
  * @param opts - Options that configure the helper.
  * @returns The load agentic memory records state result.
  * @category adapters
@@ -342,6 +529,10 @@ export function loadAgenticMemoryRecordsState<
 /**
  * Persists agentic memory records.
  *
+ * This graph-bound adapter observes record DATA and writes passive frames
+ * outside the sync core. The exposed ready/status/error/cursor nodes describe
+ * adapter queue progress only; they are not durable commit acknowledgements
+ * and they do not apply, admit, or mutate AgenticMemory records.
  * @param graph - Graph that owns the created nodes or projector.
  * @param records - Records to encode, persist, or project.
  * @param opts - Options that configure the helper.
@@ -599,6 +790,9 @@ export function persistAgenticMemoryRecords<
 /**
  * Opens persistent agentic memory records.
  *
+ * This composes an adapter-owned load with an explicit graph state node seeded
+ * from ordinary record DATA, then attaches the passive persistence sidecar. It
+ * is bootstrap wiring, not hot hydration, graph restore, or storage-owned truth.
  * @param opts - Options that configure the helper.
  * @returns The open persistent agentic memory records result.
  * @category adapters
@@ -653,6 +847,28 @@ function statusOf(
 
 function dataOf<C>(msg: Message): C | undefined {
 	return msg[0] === "DATA" ? (msg[1] as C) : undefined;
+}
+
+function passiveFrameIssue(message: string): DataIssue {
+	return Object.freeze({
+		kind: "issue",
+		source: "agentic-memory",
+		code: "agentic-memory.passive-store-frame-adapter.invalid",
+		message,
+		severity: "error",
+	});
+}
+
+function passiveFrameAudit(
+	action: AgenticMemoryPassiveStoreFrameAuditEntry["action"],
+	opts: { readonly frameIndex?: number; readonly reason?: string } = {},
+): AgenticMemoryPassiveStoreFrameAuditEntry {
+	return Object.freeze({
+		kind: "agentic-memory-passive-store-frame-audit",
+		action,
+		...(opts.frameIndex === undefined ? {} : { frameIndex: opts.frameIndex }),
+		...(opts.reason === undefined ? {} : { reason: opts.reason }),
+	});
 }
 
 function validateChangeCursor(value: unknown): number {

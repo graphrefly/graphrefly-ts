@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { memoryAgenticMemoryPassiveStoreFrameAdapter } from "../adapters/index.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
@@ -377,6 +378,55 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 			/storageHandle|graphHandle|nodeHandle|providerHandle|runtimeHandle|"hydrate"|"restore"|"persist"|"commit"|"ack"|"adapter"|"backend"|"loader"|"writer"|"engine"/,
 		);
 		expect(dtoText).not.toMatch(/application-decision/);
+	});
+
+	it("persists encoded frames outside the graph and re-enters decoded records only as explicit DATA", async () => {
+		const adapter = memoryAgenticMemoryPassiveStoreFrameAdapter();
+		const firstEvaluation = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "d585-boundary", proposalId: "d585-boundary" })],
+			applicationPolicy(),
+		);
+		const applicationRecords = firstEvaluation.records;
+		const frame = frameAgenticMemoryRecords(applicationRecords, {
+			metadata: { boundary: "explicit-host-storage-event" },
+		});
+		const codec = agenticMemoryRecordStoreFrameCodec();
+
+		const write = await adapter.write(codec.encode(frame));
+		const read = await adapter.read();
+		const decodedRecords = decodeAgenticMemoryRecordStoreFrame(codec.decode(read.frames[0]!));
+		const later = graph();
+		const records = later.state<readonly AgenticMemoryRecord<string>[]>([], {
+			name: "loadedRecords",
+		});
+		const query = later.state({ tags: ["policy"] }, { name: "query" });
+		const memory = agenticMemoryBundle(later, { name: "laterMemory", records, query });
+		const projected = collect(memory.records);
+
+		records.set(decodedRecords);
+
+		expect(write.status.state).toBe("ready");
+		expect(read.status.state).toBe("ready");
+		expect(write.audit).toEqual([
+			expect.objectContaining({ action: "frame-received", frameIndex: 0 }),
+		]);
+		expect(read.audit).toEqual([expect.objectContaining({ action: "frames-read" })]);
+		expect(decodedRecords).toEqual(applicationRecords);
+		expect(data<readonly AgenticMemoryRecord<string>[]>(projected.messages).at(-1)).toEqual(
+			applicationRecords,
+		);
+		expect(later.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "loadedRecords", to: "laterMemory/projection" },
+				{ from: "laterMemory/projection", to: "laterMemory/records" },
+			]),
+		);
+		expect(JSON.stringify({ write, read })).not.toMatch(
+			/commit|commitAck|hydrate|hydration|restore|truth/i,
+		);
+		expect(firstEvaluation.applicationDecisions).toEqual([
+			expect.objectContaining({ state: "applied", admissionId: "d585-boundary" }),
+		]);
 	});
 
 	it("does not mutate records while framing", () => {

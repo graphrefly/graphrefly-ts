@@ -7,30 +7,6 @@
  */
 
 export {
-	AGENTIC_MEMORY_RECORD_CHANGE_FORMAT,
-	AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT,
-	AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION,
-	type AgenticMemoryRecordChangeFrame,
-	type AgenticMemoryRecordSnapshotFrame,
-	type AgenticMemoryRecordsPersistenceCursor,
-	type AgenticMemoryRecordsPersistenceError,
-	type AgenticMemoryRecordsPersistenceHandle,
-	type AgenticMemoryRecordsPersistenceStatus,
-	type AgenticMemoryRecordsRestoreState,
-	agenticMemoryRecordChangeFrame,
-	agenticMemoryRecordSnapshotFrame,
-	agenticMemoryRecordsSnapshotKey,
-	assertAgenticMemoryRecordChangeFrame,
-	assertAgenticMemoryRecordSnapshotFrame,
-	type LoadAgenticMemoryRecordsStateOptions,
-	loadAgenticMemoryRecordsState,
-	type OpenPersistentAgenticMemoryRecordsOptions,
-	openPersistentAgenticMemoryRecords,
-	type PersistAgenticMemoryRecordsOptions,
-	type PersistentAgenticMemoryRecords,
-	persistAgenticMemoryRecords,
-} from "./adapters/agentic-memory-storage.js";
-export {
 	type OpenPersistentReactiveIndexOptions,
 	type OpenPersistentReactiveListOptions,
 	type OpenPersistentReactiveLogOptions,

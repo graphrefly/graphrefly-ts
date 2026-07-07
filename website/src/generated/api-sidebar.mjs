@@ -921,6 +921,10 @@ export const apiSidebar = [
 				"link": "/api/assertagenticmemoryrecordchangeframe"
 			},
 			{
+				"label": "memoryAgenticMemoryPassiveStoreFrameAdapter()",
+				"link": "/api/memoryagenticmemorypassivestoreframeadapter"
+			},
+			{
 				"label": "loadAgenticMemoryRecordsState()",
 				"link": "/api/loadagenticmemoryrecordsstate"
 			},

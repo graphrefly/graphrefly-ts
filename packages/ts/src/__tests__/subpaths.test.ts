@@ -2,6 +2,14 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
+import type {
+	AgenticMemoryPassiveStoreFrameAdapter,
+	AgenticMemoryPassiveStoreFrameCursor,
+	AgenticMemoryPassiveStoreFrameReadResult,
+	AgenticMemoryPassiveStoreFrameStatus,
+	AgenticMemoryPassiveStoreFrameWriteResult,
+	AgenticMemoryRecordsPersistenceHandle,
+} from "../adapters/index.js";
 import * as adapters from "../adapters/index.js";
 import * as nestjsMicroservicesAdapters from "../adapters/nestjs/microservices.js";
 import * as nestjsNativeAdapters from "../adapters/nestjs/native.js";
@@ -69,7 +77,6 @@ import type {
 	AgenticMemoryRecordMaterializerBundleOptions,
 	AgenticMemoryRecordStoreFrame,
 	AgenticMemoryRecordStoreFrameBundleOptions,
-	AgenticMemoryRecordsPersistenceHandle,
 	AgenticMemoryRetentionBundleOptions,
 	AgenticMemoryScope,
 	AgenticMemoryStatus,
@@ -469,6 +476,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof semanticMemory.filterMemoryFragments).toBe("function");
 		expect(typeof semanticMemory.memoryRetrievalBundle).toBe("function");
 		expect(typeof semanticMemory.knowledgeGraphReducerBundle).toBe("function");
+		expect(typeof adapters.memoryAgenticMemoryPassiveStoreFrameAdapter).toBe("function");
 		expect(typeof adapters.persistAgenticMemoryRecords).toBe("function");
 		expect(typeof adapters.openPersistentAgenticMemoryRecords).toBe("function");
 		expect(typeof adapters.loadAgenticMemoryRecordsState).toBe("function");
@@ -753,6 +761,23 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(rootPackage, "workspaceProposalFamilyOutcomeDetailSupplyProjector")).toBe(
 			false,
 		);
+		for (const name of [
+			"AGENTIC_MEMORY_RECORD_CHANGE_FORMAT",
+			"AGENTIC_MEMORY_RECORD_SNAPSHOT_FORMAT",
+			"AGENTIC_MEMORY_RECORD_STORAGE_FRAME_VERSION",
+			"AGENTIC_MEMORY_PASSIVE_STORE_FRAME_CURSOR_KIND",
+			"agenticMemoryRecordChangeFrame",
+			"agenticMemoryRecordSnapshotFrame",
+			"agenticMemoryRecordsSnapshotKey",
+			"assertAgenticMemoryRecordChangeFrame",
+			"assertAgenticMemoryRecordSnapshotFrame",
+			"loadAgenticMemoryRecordsState",
+			"memoryAgenticMemoryPassiveStoreFrameAdapter",
+			"openPersistentAgenticMemoryRecords",
+			"persistAgenticMemoryRecords",
+		] as const) {
+			expect(Object.hasOwn(rootPackage, name)).toBe(false);
+		}
 		expect(Object.hasOwn(rootPackage, "workspaceProposalRepairActionDescriptorProjector")).toBe(
 			false,
 		);
@@ -1557,6 +1582,18 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticMemoryRecordsPersistenceHandle>()
 			.toHaveProperty("cursor")
 			.toMatchTypeOf<unknown>();
+		expectTypeOf<AgenticMemoryPassiveStoreFrameAdapter>()
+			.toHaveProperty("write")
+			.toEqualTypeOf<(frame: Uint8Array) => Promise<AgenticMemoryPassiveStoreFrameWriteResult>>();
+		expectTypeOf<AgenticMemoryPassiveStoreFrameReadResult>()
+			.toHaveProperty("frames")
+			.toEqualTypeOf<readonly Uint8Array[]>();
+		expectTypeOf<AgenticMemoryPassiveStoreFrameStatus>()
+			.toHaveProperty("state")
+			.toEqualTypeOf<"ready" | "empty" | "error">();
+		expectTypeOf<AgenticMemoryPassiveStoreFrameCursor>()
+			.toHaveProperty("kind")
+			.toEqualTypeOf<"agentic-memory-passive-store-frame.cursor">();
 		expectTypeOf<AgenticMemoryContextPackingBundleOptions>()
 			.toHaveProperty("policy")
 			.toMatchTypeOf<unknown>();
