@@ -44,6 +44,9 @@ import type {
 	AgenticMemoryApplicationEvidenceStoreFrameBundleOptions,
 	AgenticMemoryBundleOptions,
 	AgenticMemoryCommittedFactLog,
+	AgenticMemoryCommittedFactReadMaterializationBundleOptions,
+	AgenticMemoryCommittedFactReadMaterializationProjection,
+	AgenticMemoryCommittedFactReadMaterializationStatus,
 	AgenticMemoryConsolidationApplicationBundle,
 	AgenticMemoryConsolidationApplicationBundleOptions,
 	AgenticMemoryConsolidationBundle,
@@ -1055,6 +1058,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof rootPackage.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof rootPackage.memoryAgenticMemoryCommittedFactLog).toBe("function");
 		expect(typeof rootPackage.materializeAgenticMemoryCommittedFacts).toBe("function");
+		expect(typeof rootPackage.projectAgenticMemoryCommittedFactReadMaterialization).toBe(
+			"function",
+		);
+		expect(typeof rootPackage.agenticMemoryCommittedFactReadMaterializationBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryDurabilityGateBundle).toBe("function");
 		expect(typeof rootPackage.agenticMemoryDurabilityGateInput).toBe("function");
 		expect(typeof rootPackage.projectAgenticMemoryDurabilityGate).toBe("function");
@@ -1102,6 +1109,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof solutions.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof solutions.memoryAgenticMemoryCommittedFactLog).toBe("function");
 		expect(typeof solutions.materializeAgenticMemoryCommittedFacts).toBe("function");
+		expect(typeof solutions.projectAgenticMemoryCommittedFactReadMaterialization).toBe("function");
+		expect(typeof solutions.agenticMemoryCommittedFactReadMaterializationBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryDurabilityGateBundle).toBe("function");
 		expect(typeof solutions.agenticMemoryDurabilityGateInput).toBe("function");
 		expect(typeof solutions.projectAgenticMemoryDurabilityGate).toBe("function");
@@ -1160,6 +1169,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof agenticMemory.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof agenticMemory.memoryAgenticMemoryCommittedFactLog).toBe("function");
 		expect(typeof agenticMemory.materializeAgenticMemoryCommittedFacts).toBe("function");
+		expect(typeof agenticMemory.projectAgenticMemoryCommittedFactReadMaterialization).toBe(
+			"function",
+		);
+		expect(typeof agenticMemory.agenticMemoryCommittedFactReadMaterializationBundle).toBe(
+			"function",
+		);
 		expect(typeof agenticMemory.agenticMemoryCommittedFactSnapshotTailEquivalent).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryDurabilityGateBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryDurabilityGateInput).toBe("function");
@@ -1217,6 +1232,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"committed" | "duplicate" | "conflict" | "rejected" | "uncertain"
 		>();
 		expectTypeOf<AgenticMemoryCommittedFactLog>().toHaveProperty("append");
+		expectTypeOf<AgenticMemoryCommittedFactReadMaterializationProjection>().toHaveProperty(
+			"priorEvidence",
+		);
+		expectTypeOf<AgenticMemoryCommittedFactReadMaterializationStatus>().toHaveProperty(
+			"factLogCursor",
+		);
+		expectTypeOf<AgenticMemoryCommittedFactReadMaterializationBundleOptions>().toHaveProperty(
+			"readResult",
+		);
 		expectTypeOf<AgenticMemoryRecordStoreFrame>().toHaveProperty("records");
 		expectTypeOf<AgenticMemoryRecordStoreFrameBundleOptions>().toHaveProperty("storeFrame");
 		expectTypeOf<AgenticMemoryApplicationEvidenceStoreFrame>().toHaveProperty("priorEvidence");

@@ -31,7 +31,7 @@ function agenticMemoryCommittedFactSnapshotTailEquivalent(
 
 ## Returns
 
-Whether snapshot+tail materializes identically to prefix+tail replay.
+Whether snapshot+tail materializes identically to prefix plus tail facts.
 
 ## Documentation Status
 

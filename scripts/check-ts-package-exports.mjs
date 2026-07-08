@@ -185,6 +185,8 @@ const expectedSubpaths = {
 			"agenticMemoryRecordApplicationPriorEvidenceBundle",
 			"agenticMemoryRecordApplicationEvidenceFactsBundle",
 			"agenticMemoryConsolidationApplicationBundle",
+			"agenticMemoryCommittedFactReadMaterializationBundle",
+			"projectAgenticMemoryCommittedFactReadMaterialization",
 			"agenticMemoryDurabilityGateBundle",
 			"agenticMemoryDurabilityGateInput",
 			"projectAgenticMemoryDurabilityGate",

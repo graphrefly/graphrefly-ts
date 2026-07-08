@@ -7,6 +7,8 @@ import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+	type AgenticMemoryCommittedFactReadMaterializationProjection,
+	type AgenticMemoryCommittedFactReadMaterializationStatus,
 	type AgenticMemoryConsolidationCommand,
 	type AgenticMemoryConsolidationError,
 	type AgenticMemoryConsolidationOutcome,
@@ -55,6 +57,7 @@ import {
 	agenticMemoryCommittedFact,
 	agenticMemoryCommittedFactBatch,
 	agenticMemoryCommittedFactBatchCodec,
+	agenticMemoryCommittedFactReadMaterializationBundle,
 	agenticMemoryCommittedFactSnapshot,
 	agenticMemoryCommittedFactSnapshotTailEquivalent,
 	agenticMemoryCommittedPriorEvidenceFact,
@@ -92,6 +95,7 @@ import {
 	materializeAgenticMemoryCommittedFacts,
 	materializeAgenticMemoryRecordChanges,
 	memoryAgenticMemoryCommittedFactLog,
+	projectAgenticMemoryCommittedFactReadMaterialization,
 	projectAgenticMemoryDurabilityGate,
 	projectAgenticMemoryRecordAdmissionPolicySource,
 	projectAgenticMemoryRecordApplicationEvidenceFacts,
@@ -742,7 +746,7 @@ describe("AgenticMemory D589 committed fact-log contract", () => {
 		expect(materializeAgenticMemoryCommittedFacts(read.facts).records).toEqual([committedRecord]);
 	});
 
-	it("materializes records/priorEvidence by library replay and preserves snapshot+tail equivalence", async () => {
+	it("materializes records/priorEvidence by library materialization and preserves snapshot+tail equivalence", async () => {
 		const applied = applyAgenticMemoryRecordAdmissions(
 			[admitted({ admissionId: "d589-evidence", proposalId: "d589-evidence" })],
 			applicationPolicy(),
@@ -1056,6 +1060,277 @@ describe("AgenticMemory D590 durable-result gate boundary", () => {
 			expect.arrayContaining([
 				expect.objectContaining({ batchIdentity: secondBatch.batchIdentity }),
 			]),
+		);
+	});
+});
+
+describe("AgenticMemory D591 fact-log read materialization re-entry boundary", () => {
+	it("projects explicit read-result DATA into deterministic records/priorEvidence/evidence", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const firstRecord = record({
+			id: "record-d591-stream-order",
+			fragment: fragment({ id: "fragment-d591-first", payload: "first" }),
+		});
+		const laterRecord = record({
+			id: "record-d591-stream-order",
+			fragment: fragment({ id: "fragment-d591-later", payload: "later" }),
+		});
+		const application = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "d591-evidence", proposalId: "d591-evidence" })],
+			applicationPolicy(),
+		);
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			application.applicationDecisions,
+		);
+		const facts = [
+			agenticMemoryCommittedRecordMaterialFact(firstRecord, {
+				operation: "create",
+				correlationId: "d591-first",
+			}),
+			agenticMemoryCommittedApplicationEvidenceFact(evidence.evidenceFacts[0]!),
+			agenticMemoryCommittedRecordMaterialFact(laterRecord, {
+				operation: "replace",
+				correlationId: "d591-later",
+			}),
+		];
+		await log.append(agenticMemoryCommittedFactBatch(facts));
+		const read = await log.read();
+		const page = await log.read({ limit: 1 });
+
+		const projection = projectAgenticMemoryCommittedFactReadMaterialization(read);
+		const pageProjection = projectAgenticMemoryCommittedFactReadMaterialization(page);
+
+		expect(read).toHaveProperty("facts");
+		expect(read).toHaveProperty("cursor");
+		expect(read).toHaveProperty("done");
+		expect(read).toHaveProperty("issues");
+		expect(read).toHaveProperty("audit");
+		expect(read).not.toHaveProperty("records");
+		expect(read).not.toHaveProperty("priorEvidence");
+		expect(projection).toMatchObject<
+			Partial<AgenticMemoryCommittedFactReadMaterializationProjection<string>>
+		>({
+			kind: "agentic-memory-committed-fact-read-materialization-projection",
+			status: {
+				state: "ready",
+				factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 3 },
+				done: true,
+				completePrefix: true,
+			},
+		});
+		expect(projection.records).toEqual([laterRecord]);
+		expect(projection.priorEvidence.entries).toEqual(evidence.evidenceFacts);
+		expect(projection.evidence).toEqual(evidence.evidenceFacts);
+		expect(projection.cursor).toMatchObject({
+			readFacts: 3,
+			materializedRecords: 1,
+			evidenceFacts: 1,
+			invalidFacts: 0,
+			factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 3 },
+			completePrefix: true,
+		});
+		expect(pageProjection.status).toMatchObject({
+			state: "partial",
+			done: false,
+			completePrefix: false,
+			factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+		});
+		expect(pageProjection.records).toEqual([firstRecord]);
+		expect(
+			JSON.stringify({
+				read: { cursor: read.cursor, done: read.done, issues: read.issues, audit: read.audit },
+				projection: {
+					status: projection.status,
+					issues: projection.issues,
+					audit: projection.audit,
+					cursor: projection.cursor,
+				},
+			}),
+		).not.toMatch(
+			/applicationAck|acknowledgement|liveGraphTruth|recordMutation|hydrate|hydration|restore|commitBarrier|backendRow|graphClock|applicationVersion|policyClock/i,
+		);
+	});
+
+	it("creates graph-visible ordinary DATA nodes without reading storage or mutating live records", async () => {
+		const g = graph();
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const committedRecord = record({
+			id: "record-d591-graph",
+			fragment: fragment({ id: "fragment-d591-graph" }),
+		});
+		const fact = agenticMemoryCommittedRecordMaterialFact(committedRecord, {
+			operation: "create",
+			correlationId: "d591-graph",
+		});
+		await log.append(agenticMemoryCommittedFactBatch([fact]));
+		const read = await log.read();
+		const readResult = g.state(read, { name: "readResult" });
+		const liveRecords = g.state<readonly AgenticMemoryRecord<string>[]>([], {
+			name: "callerRecords",
+		});
+		const laterAdmissionRecord = record({
+			id: "record-d591-later-application",
+			fragment: fragment({ id: "fragment-d591-later-application" }),
+		});
+		const admissions = g.state(
+			[
+				admitted({
+					admissionId: "d591-later-application",
+					proposalId: "d591-later-application",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: laterAdmissionRecord,
+						sourceRefs: [{ kind: "import", id: "import-d591-later" }],
+					},
+				}),
+			],
+			{ name: "laterAdmissions" },
+		);
+		const policy = g.state(applicationPolicy(), { name: "laterPolicy" });
+		const application = agenticMemoryRecordApplicationBundle(g, {
+			name: "laterApplication",
+			records: liveRecords,
+			admissions,
+			policy,
+		});
+		const bundle = agenticMemoryCommittedFactReadMaterializationBundle(g, {
+			name: "readMaterialization",
+			readResult,
+		});
+		const records = collect(bundle.records);
+		const priorEvidence = collect(bundle.priorEvidence);
+		const evidence = collect(bundle.evidence);
+		const status = collect(bundle.status);
+		const issues = collect(bundle.issues);
+		const audit = collect(bundle.audit);
+		const cursor = collect(bundle.cursor);
+		const applied = collect(application.records);
+
+		readResult.set(read);
+
+		expect(g.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "readResult", to: "readMaterialization/projection" },
+				{ from: "readMaterialization/projection", to: "readMaterialization/records" },
+				{ from: "readMaterialization/projection", to: "readMaterialization/priorEvidence" },
+				{ from: "readMaterialization/projection", to: "readMaterialization/evidence" },
+				{ from: "readMaterialization/projection", to: "readMaterialization/status" },
+				{ from: "readMaterialization/projection", to: "readMaterialization/issues" },
+				{ from: "readMaterialization/projection", to: "readMaterialization/audit" },
+				{ from: "readMaterialization/projection", to: "readMaterialization/cursor" },
+			]),
+		);
+		expect(g.describe().edges).not.toContainEqual({
+			from: "readMaterialization/records",
+			to: "callerRecords",
+		});
+		expect(data<readonly AgenticMemoryRecord<string>[]>(records.messages).at(-1)).toEqual([
+			committedRecord,
+		]);
+		expect(data(priorEvidence.messages).at(-1)).toMatchObject({
+			kind: "agentic-memory-record-application-prior-evidence",
+			entries: [],
+		});
+		expect(data(evidence.messages).at(-1)).toEqual([]);
+		expect(
+			data<AgenticMemoryCommittedFactReadMaterializationStatus>(status.messages).at(-1),
+		).toMatchObject({
+			state: "ready",
+			factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			completePrefix: true,
+		});
+		expect(data(issues.messages).at(-1)).toEqual([]);
+		expect(data(audit.messages).at(-1)).toEqual(
+			expect.arrayContaining([expect.objectContaining({ action: "read-result-materialized" })]),
+		);
+		expect(data(cursor.messages).at(-1)).toMatchObject({
+			readFacts: 1,
+			materializedRecords: 1,
+			done: true,
+			completePrefix: true,
+		});
+		expect(liveRecords.cache).toEqual([]);
+		expect(data(applied.messages).at(-1)).toEqual([
+			expect.objectContaining({ id: "record-d591-later-application" }),
+		]);
+
+		liveRecords.set(data<readonly AgenticMemoryRecord<string>[]>(records.messages).at(-1)!);
+		admissions.set(admissions.cache);
+
+		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
+			committedRecord,
+			expect.objectContaining({ id: "record-d591-later-application" }),
+		]);
+	});
+
+	it("reports malformed read material through status/issues/audit, not backend-owned application", () => {
+		const malformedFact = {
+			format: "graphrefly.agenticMemoryCommittedFact",
+			version: 1,
+			kind: "agentic-memory-committed-fact",
+			family: "record-material",
+			coordinates: { subjectId: "bad" },
+			identity: { algorithm: "backend-row-id", key: "bad" },
+			materialIdentity: { algorithm: "backend-row-id", key: "bad" },
+			material: { kind: "agentic-memory-committed-record-material", record: {} },
+		};
+		const projection = projectAgenticMemoryCommittedFactReadMaterialization({
+			facts: [malformedFact],
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			done: true,
+			issues: [],
+			audit: [],
+		});
+		const badCursor = projectAgenticMemoryCommittedFactReadMaterialization({
+			facts: [],
+			cursor: { kind: "backend-row-id", position: 0 },
+			done: true,
+			issues: [],
+			audit: [],
+		});
+		const badDiagnostics = projectAgenticMemoryCommittedFactReadMaterialization({
+			facts: [],
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+			done: true,
+			issues: [null],
+			audit: [
+				{
+					kind: "agentic-memory-fact-log-audit",
+					action: "facts-read",
+					cursor: { kind: "backend-row-id", position: 0 },
+				},
+			],
+		});
+
+		expect(projection.status.state).toBe("partial");
+		expect(projection.records).toEqual([]);
+		expect(projection.priorEvidence.entries).toEqual([]);
+		expect(projection.issues[0]?.code).toBe(
+			"agentic-memory.committed-fact-materialization.invalid-fact",
+		);
+		expect(projection.audit).toEqual(
+			expect.arrayContaining([expect.objectContaining({ action: "issue-recorded" })]),
+		);
+		expect(badCursor.status.state).toBe("error");
+		expect(badCursor.issues[0]?.code).toBe(
+			"agentic-memory.committed-fact-read-materialization.invalid-read-result",
+		);
+		expect(badCursor.audit).toEqual(
+			expect.arrayContaining([expect.objectContaining({ action: "read-result-invalid" })]),
+		);
+		expect(badDiagnostics.status.state).toBe("error");
+		expect(badDiagnostics.issues[0]).toMatchObject({
+			code: "agentic-memory.committed-fact-read-materialization.invalid-read-result",
+			refs: expect.arrayContaining([
+				"issues[0] must be an issue object",
+				"audit[0].cursor must be a fact-stream cursor",
+			]),
+		});
+		expect(badDiagnostics.audit).toEqual(
+			expect.arrayContaining([expect.objectContaining({ action: "read-result-invalid" })]),
+		);
+		expect(JSON.stringify({ projection, badCursor, badDiagnostics })).not.toMatch(
+			/applicationAck|liveGraphTruth|recordMutation|hydrate|hydration|restore|commitBarrier/i,
 		);
 	});
 });

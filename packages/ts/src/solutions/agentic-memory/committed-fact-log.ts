@@ -587,8 +587,10 @@ export function assertAgenticMemoryCommittedFactBatch<
 /** Create an in-memory D589 reference fact-log adapter.
  *
  * This adapter is an executable reference for fact-log persistence semantics. It
- * does not provide production durability, application acknowledgement, live
- * graph truth, hot hydration, or record mutation authority.
+ * supplies committed fact read results only; library materialization remains a
+ * separate explicit DATA boundary. It does not provide production durability,
+ * application acknowledgement, live graph truth, hot hydration, or record
+ * mutation authority.
  * @returns A D589 committed fact-log reference adapter.
  * @category solutions
  */
@@ -690,10 +692,16 @@ export function agenticMemoryFactCommitStatusIsTerminalFailure(
 	return status === "conflict" || status === "rejected";
 }
 
-/** Deterministically materialize current AgenticMemory records and prior evidence from committed facts.
+/** Deterministically materialize AgenticMemory re-entry DATA from committed facts.
+ *
+ * The input order is the committed fact stream order supplied by an explicit
+ * read/materialization boundary. This helper does not read storage, apply or
+ * admit records, mutate live graph truth, refresh subscribers, or create a
+ * graph commit barrier.
+ *
  * @param facts - Committed facts in stream order.
- * @param opts - Optional prefix materialization seed used by snapshot+tail replay.
- * @returns Records/priorEvidence derived by library-owned replay rules.
+ * @param opts - Optional prefix materialization seed used by snapshot+tail equivalence.
+ * @returns Records/priorEvidence derived by library-owned materialization rules.
  * @category solutions
  */
 export function materializeAgenticMemoryCommittedFacts<
@@ -844,9 +852,13 @@ export function agenticMemoryCommittedFactSnapshot<TJson extends StrictJsonValue
 }
 
 /** Materialize a D589 compaction snapshot plus committed tail facts.
+ *
+ * Snapshot+tail materialization is an equivalence check over committed facts,
+ * not backend-owned restore, hot hydration, or live graph mutation.
+ *
  * @param snapshot - Prefix compaction artifact.
  * @param tail - Committed facts after the snapshot cursor.
- * @returns Materialization equivalent to replaying prefix plus tail.
+ * @returns Materialization equivalent to the covered prefix plus tail facts.
  * @category solutions
  */
 export function materializeAgenticMemoryCommittedFactSnapshotTail<
@@ -868,7 +880,7 @@ export function materializeAgenticMemoryCommittedFactSnapshotTail<
 /** Check D589 snapshot+tail equivalence for a committed prefix and tail.
  * @param prefix - Committed prefix facts.
  * @param tail - Committed tail facts.
- * @returns Whether snapshot+tail materializes identically to prefix+tail replay.
+ * @returns Whether snapshot+tail materializes identically to prefix plus tail facts.
  * @category solutions
  */
 export function agenticMemoryCommittedFactSnapshotTailEquivalent<
