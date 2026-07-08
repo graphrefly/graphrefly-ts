@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/knowledge-graph",
 	"private": true,
-	"version": "0.0.9",
+	"version": "0.0.10",
 	"type": "module",
 	"description": "Reactive knowledge-graph reducer over graph-visible semantic-memory assertion facts.",
 	"scripts": {
