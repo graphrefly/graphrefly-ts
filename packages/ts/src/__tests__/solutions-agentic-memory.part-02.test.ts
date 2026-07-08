@@ -7,8 +7,11 @@ import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+	type AgenticMemoryCommittedFactLog,
+	type AgenticMemoryCommittedFactLogAppendAttemptResult,
 	type AgenticMemoryCommittedFactLogBackend,
 	type AgenticMemoryCommittedFactLogBackendStatus,
+	type AgenticMemoryCommittedFactLogStartupReadResult,
 	type AgenticMemoryCommittedFactReadMaterializationProjection,
 	type AgenticMemoryCommittedFactReadMaterializationStatus,
 	type AgenticMemoryConsolidationCommand,
@@ -60,9 +63,11 @@ import {
 	agenticMemoryCommittedFact,
 	agenticMemoryCommittedFactBatch,
 	agenticMemoryCommittedFactBatchCodec,
+	agenticMemoryCommittedFactLogAppendAttempt,
 	agenticMemoryCommittedFactLogBackendAdapter,
 	agenticMemoryCommittedFactLogBackendCursor,
 	agenticMemoryCommittedFactLogBackendStatus,
+	agenticMemoryCommittedFactLogStartupRead,
 	agenticMemoryCommittedFactReadMaterializationBundle,
 	agenticMemoryCommittedFactSnapshot,
 	agenticMemoryCommittedFactSnapshotTailEquivalent,
@@ -2241,6 +2246,314 @@ describe("AgenticMemory D593 materialized fact-log bootstrap/re-entry boundary",
 	});
 });
 
+describe("AgenticMemory D588-D593 runtime fact-log persistence composition", () => {
+	it("startup read materializes committed history as ordinary caller-wirable DATA", async () => {
+		const committed = record({
+			id: "record-runtime-startup",
+			fragment: fragment({ id: "fragment-runtime-startup" }),
+		});
+		const applied = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "runtime-startup", proposalId: "runtime-startup" })],
+			applicationPolicy(),
+		);
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			applied.applicationDecisions,
+		);
+		const log = memoryAgenticMemoryCommittedFactLog();
+		await log.append(
+			agenticMemoryCommittedFactBatch([
+				agenticMemoryCommittedRecordMaterialFact(committed),
+				agenticMemoryCommittedApplicationEvidenceFact(evidence.evidenceFacts[0]!),
+			]),
+		);
+
+		const startup = await agenticMemoryCommittedFactLogStartupRead(log, { evaluation: 7 });
+
+		expect(startup).toMatchObject<Partial<AgenticMemoryCommittedFactLogStartupReadResult<string>>>({
+			kind: "agentic-memory-committed-fact-log-startup-read-result",
+			records: [committed],
+			priorEvidence: evidence.priorEvidence,
+			evidence: evidence.evidenceFacts,
+			bootstrapStatus: {
+				state: "ready",
+				readyForCallerWiring: true,
+				factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			},
+			cursor: {
+				evaluation: 7,
+				factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			},
+		});
+		expect(startup.readResult.facts).toHaveLength(2);
+		expect(startup.materialization.kind).toBe(
+			"agentic-memory-committed-fact-read-materialization-projection",
+		);
+		expect(startup.bootstrap.kind).toBe(
+			"agentic-memory-materialized-fact-log-bootstrap-projection",
+		);
+		expect(startup.audit.map((entry) => entry.action)).toEqual(
+			expect.arrayContaining(["read-result-linked", "materialization-linked", "bootstrap-linked"]),
+		);
+		expect(jsonForBoundaryText(startup)).not.toMatch(
+			/applicationAck|liveGraphTruth|recordMutation|hotHydration|hydrate|hydration|restore|liveRefresh|commitBarrier/i,
+		);
+	});
+
+	it("running append persists canonical batches and surfaces D589/D590 durability DATA only", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-runtime-append",
+				fragment: fragment({ id: "fragment-runtime-append" }),
+			}),
+		);
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+
+		const append = await agenticMemoryCommittedFactLogAppendAttempt(log, batch, {
+			evaluation: 3,
+			downstreamAdvancePolicy:
+				agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy("runtime-policy"),
+		});
+		const read = await log.read();
+
+		expect(append).toMatchObject<Partial<AgenticMemoryCommittedFactLogAppendAttemptResult<string>>>(
+			{
+				kind: "agentic-memory-committed-fact-log-append-attempt-result",
+				batch,
+				commitResult: {
+					status: "committed",
+					facts: 1,
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+				},
+				durabilityStatus: {
+					state: "durable",
+					commitStatus: "committed",
+					downstreamAdvance: {
+						allowed: true,
+						policyId: "runtime-policy",
+						reason: "fact-log-committed",
+					},
+				},
+				cursor: {
+					evaluation: 3,
+					factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+				},
+			},
+		);
+		expect(read.facts).toEqual([fact]);
+		expect(append).not.toHaveProperty("records");
+		expect(append).not.toHaveProperty("priorEvidence");
+		expect(append).not.toHaveProperty("applicationAck");
+		expect(JSON.stringify(append)).not.toMatch(
+			/applicationAck|liveGraphTruth|recordMutation|hotHydration|hydrate|hydration|restore|liveRefresh|commitBarrier/i,
+		);
+	});
+
+	it("does not mutate live records unless caller explicitly wires startup records into app inputs", async () => {
+		const committed = record({
+			id: "record-runtime-caller-wired",
+			fragment: fragment({ id: "fragment-runtime-caller-wired" }),
+		});
+		const log = memoryAgenticMemoryCommittedFactLog();
+		await log.append(
+			agenticMemoryCommittedFactBatch([agenticMemoryCommittedRecordMaterialFact(committed)]),
+		);
+		const startup = await agenticMemoryCommittedFactLogStartupRead(log);
+		const g = graph();
+		const liveRecords = g.state<readonly AgenticMemoryRecord<string>[]>([], {
+			name: "liveRecords",
+		});
+		const admissions = g.state(
+			[admitted({ admissionId: "runtime-live", proposalId: "runtime-live" })],
+			{ name: "admissions" },
+		);
+		const policy = g.state(applicationPolicy(), { name: "policy" });
+		const application = agenticMemoryRecordApplicationBundle(g, {
+			name: "runtimeApplication",
+			records: liveRecords,
+			admissions,
+			policy,
+		});
+		const applied = collect(application.records);
+
+		admissions.set(admissions.cache);
+
+		expect(liveRecords.cache).toEqual([]);
+		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
+			expect.objectContaining({ id: "record-new" }),
+		]);
+
+		liveRecords.set(startup.records);
+		admissions.set(admissions.cache);
+
+		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
+			committed,
+			expect.objectContaining({ id: "record-new" }),
+		]);
+	});
+
+	it("keeps backend cursors diagnostic and uncertain append unresolved until explicit read", async () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-runtime-uncertain",
+				fragment: fragment({ id: "fragment-runtime-uncertain" }),
+			}),
+		);
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+		const backendCursor = agenticMemoryCommittedFactLogBackendCursor("sqlite-runtime", {
+			rowid: "row-1",
+		});
+		const log = agenticMemoryCommittedFactLogBackendAdapter({
+			append() {
+				return {
+					status: "uncertain",
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+					facts: 0,
+					issues: [],
+					audit: [],
+					backendCursor,
+				};
+			},
+			read() {
+				return {
+					facts: [fact],
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+					done: true,
+					issues: [],
+					audit: [],
+					backendCursor,
+				};
+			},
+		});
+
+		const append = await agenticMemoryCommittedFactLogAppendAttempt(log, batch, {
+			downstreamAdvancePolicy: agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy(),
+		});
+		const resolution = agenticMemoryDurabilityUncertainResolutionStatus(append.durability.result);
+		const startup = await agenticMemoryCommittedFactLogStartupRead(log);
+
+		expect(append.commitResult.status).toBe("uncertain");
+		expect(append.durabilityStatus.state).toBe("uncertain");
+		expect(append.durabilityStatus.downstreamAdvance).toMatchObject({
+			allowed: false,
+			reason: "uncertain-requires-read-resolution",
+		});
+		expect(resolution).toMatchObject({
+			state: "requires-fact-log-read",
+			reason: "uncertain-requires-read-idempotency-resolution",
+		});
+		expect(startup.records).toEqual([
+			record({
+				id: "record-runtime-uncertain",
+				fragment: fragment({ id: "fragment-runtime-uncertain" }),
+			}),
+		]);
+		expect(JSON.stringify(append.cursor.factLogCursor)).not.toContain("row-1");
+		expect(JSON.stringify(startup.cursor.factLogCursor)).not.toContain("row-1");
+		expect(jsonForBoundaryText({ append, startup })).not.toMatch(
+			/applicationAck|liveGraphTruth|recordMutation|hotHydration|hydrate|hydration|restore|liveRefresh|commitBarrier/i,
+		);
+	});
+
+	it("supports async fact-log adapters only through explicit helper boundaries", async () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-runtime-async", fragment: fragment({ id: "fragment-runtime-async" }) }),
+		);
+		const syncLog = memoryAgenticMemoryCommittedFactLog();
+		const asyncLog = {
+			append(batch) {
+				return Promise.resolve(syncLog.append(batch));
+			},
+			read(opts) {
+				return Promise.resolve(syncLog.read(opts));
+			},
+		} satisfies AgenticMemoryCommittedFactLog<string>;
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+
+		const append = await agenticMemoryCommittedFactLogAppendAttempt(asyncLog, batch);
+		const startup = await agenticMemoryCommittedFactLogStartupRead(asyncLog);
+
+		expect(append.commitResult.status).toBe("committed");
+		expect(startup.records).toEqual([
+			record({ id: "record-runtime-async", fragment: fragment({ id: "fragment-runtime-async" }) }),
+		]);
+		expect(startup.bootstrapStatus.readyForCallerWiring).toBe(true);
+		expect(startup.audit.map((entry) => entry.action)).toContain("startup-read-projected");
+	});
+
+	it("normalizes async malformed and mutable fact-log outputs before projection", async () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-runtime-normalized",
+				fragment: fragment({ id: "fragment-runtime-normalized" }),
+			}),
+		);
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+		const rawRead = {
+			facts: [fact],
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			done: true,
+			issues: [],
+			audit: [],
+			backendCursor: { rowid: "must-not-leak" },
+		};
+		const rawCommit = {
+			status: "committed",
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			facts: 1,
+			issues: [],
+			audit: [],
+			backendCursor: { rowid: "must-not-leak" },
+			applicationAck: true,
+		};
+		const log = {
+			append() {
+				return Promise.resolve(rawCommit);
+			},
+			read() {
+				return Promise.resolve(rawRead);
+			},
+		} as AgenticMemoryCommittedFactLog<string>;
+
+		const startup = await agenticMemoryCommittedFactLogStartupRead(log);
+		const append = await agenticMemoryCommittedFactLogAppendAttempt(log, batch);
+		rawRead.facts = [];
+		rawCommit.status = "rejected";
+		rawCommit.facts = 0;
+
+		expect(startup.records).toEqual([
+			record({
+				id: "record-runtime-normalized",
+				fragment: fragment({ id: "fragment-runtime-normalized" }),
+			}),
+		]);
+		expect(startup.readResult).not.toHaveProperty("backendCursor");
+		expect(append.commitResult).not.toHaveProperty("backendCursor");
+		expect(append.commitResult).not.toHaveProperty("applicationAck");
+		expect(append.commitResult.status).toBe("committed");
+		expect(append.durabilityStatus.state).toBe("durable");
+		expect(jsonForBoundaryText({ startup, append })).not.toContain("must-not-leak");
+
+		const malformedLog = {
+			append() {
+				return Promise.resolve({ status: "committed", cursor: "backend-row", facts: 1 });
+			},
+			read() {
+				return Promise.resolve({ facts: "not-an-array", done: true });
+			},
+		} as AgenticMemoryCommittedFactLog<string>;
+		const malformedStartup = await agenticMemoryCommittedFactLogStartupRead(malformedLog);
+		const malformedAppend = await agenticMemoryCommittedFactLogAppendAttempt(malformedLog, batch);
+
+		expect(malformedStartup.readResult.issues.map((issue) => issue.code)).toEqual(
+			expect.arrayContaining(["agentic-memory.fact-log-backend.invalid-read-facts"]),
+		);
+		expect(malformedStartup.bootstrapStatus.state).toBe("partial");
+		expect(malformedAppend.commitResult.status).toBe("uncertain");
+		expect(malformedAppend.durabilityStatus.state).toBe("uncertain");
+	});
+});
+
 const record = <T = string>(
 	patch: Partial<AgenticMemoryRecord<T>> = {},
 ): AgenticMemoryRecord<T> => ({
@@ -2255,6 +2568,9 @@ const record = <T = string>(
 
 const data = <T>(messages: Message[]): T[] =>
 	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);
+
+const jsonForBoundaryText = (value: unknown): string =>
+	JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
 
 function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
 	const messages: Message[] = [];

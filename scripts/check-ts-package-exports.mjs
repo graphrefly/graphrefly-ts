@@ -193,6 +193,8 @@ const expectedSubpaths = {
 			"agenticMemoryDurabilityResultMayAdvance",
 			"agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy",
 			"agenticMemoryDurabilityUncertainResolutionStatus",
+			"agenticMemoryCommittedFactLogStartupRead",
+			"agenticMemoryCommittedFactLogAppendAttempt",
 		],
 		absent: [
 			"workItemAuthoringProjector",
@@ -621,6 +623,12 @@ import {
 	projectAgenticMemoryDurabilityGate,
 	agenticMemoryDurabilityResultMayAdvance,
 	agenticMemoryDurabilityUncertainResolutionStatus,
+	agenticMemoryCommittedFactLogAppendAttempt,
+	agenticMemoryCommittedFactLogStartupRead,
+	type AgenticMemoryCommittedFactLogAppendAttemptOptions,
+	type AgenticMemoryCommittedFactLogAppendAttemptResult,
+	type AgenticMemoryCommittedFactLogStartupReadOptions,
+	type AgenticMemoryCommittedFactLogStartupReadResult,
 	type AgenticMemoryDurabilityGateBundleOptions,
 	type AgenticMemoryDurabilityGateInput,
 	type AgenticMemoryBundleOptions as FocusedAgenticMemoryBundleOptions,
@@ -716,6 +724,8 @@ void agenticMemoryDurabilityGateBundle;
 void agenticMemoryDurabilityGateInput;
 void agenticMemoryDurabilityResultMayAdvance;
 void agenticMemoryDurabilityUncertainResolutionStatus;
+void agenticMemoryCommittedFactLogAppendAttempt;
+void agenticMemoryCommittedFactLogStartupRead;
 void agenticMemoryRecordAdmissionBundle;
 void agenticMemoryRecordAdmissionPolicySourceBundle;
 void agenticMemoryRecordApplicationBundle;
@@ -744,6 +754,10 @@ declare const scoredSubject: ScoredSubject;
 declare const focusedAgenticMemoryBundleOptions: FocusedAgenticMemoryBundleOptions;
 declare const focusedConsolidationApplicationBundle: AgenticMemoryConsolidationApplicationBundle;
 declare const focusedConsolidationApplicationBundleOptions: AgenticMemoryConsolidationApplicationBundleOptions;
+declare const factLogAppendAttemptOptions: AgenticMemoryCommittedFactLogAppendAttemptOptions;
+declare const factLogAppendAttemptResult: AgenticMemoryCommittedFactLogAppendAttemptResult;
+declare const factLogStartupReadOptions: AgenticMemoryCommittedFactLogStartupReadOptions;
+declare const factLogStartupReadResult: AgenticMemoryCommittedFactLogStartupReadResult;
 declare const durabilityGateBundleOptions: AgenticMemoryDurabilityGateBundleOptions;
 declare const durabilityGateInput: AgenticMemoryDurabilityGateInput;
 declare const focusedAgenticMemoryRecord: FocusedAgenticMemoryRecord;
@@ -814,6 +828,10 @@ void scoredSubject;
 void focusedAgenticMemoryBundleOptions;
 void focusedConsolidationApplicationBundle;
 void focusedConsolidationApplicationBundleOptions;
+void factLogAppendAttemptOptions;
+void factLogAppendAttemptResult;
+void factLogStartupReadOptions;
+void factLogStartupReadResult;
 void durabilityGateBundleOptions;
 void durabilityGateInput;
 void focusedAgenticMemoryRecord;

@@ -18,6 +18,7 @@ export * from "./context-packing.js";
 export * from "./durable-result.js";
 export * from "./fact-log-bootstrap.js";
 export * from "./fact-log-read-materialization.js";
+export * from "./fact-log-runtime-persistence.js";
 export * from "./frame.js";
 export * from "./kg.js";
 export * from "./materializer.js";

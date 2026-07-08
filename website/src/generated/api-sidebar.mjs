@@ -1889,6 +1889,14 @@ export const apiSidebar = [
 				"link": "/api/agenticmemorycommittedfactreadmaterializationbundle"
 			},
 			{
+				"label": "agenticMemoryCommittedFactLogStartupRead()",
+				"link": "/api/agenticmemorycommittedfactlogstartupread"
+			},
+			{
+				"label": "agenticMemoryCommittedFactLogAppendAttempt()",
+				"link": "/api/agenticmemorycommittedfactlogappendattempt"
+			},
+			{
 				"label": "agenticMemoryRecordFrame()",
 				"link": "/api/agenticmemoryrecordframe"
 			},
