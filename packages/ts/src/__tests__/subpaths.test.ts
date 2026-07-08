@@ -44,6 +44,9 @@ import type {
 	AgenticMemoryApplicationEvidenceStoreFrameBundleOptions,
 	AgenticMemoryBundleOptions,
 	AgenticMemoryCommittedFactLog,
+	AgenticMemoryCommittedFactLogBackend,
+	AgenticMemoryCommittedFactLogBackendAppendResult,
+	AgenticMemoryCommittedFactLogBackendStatus,
 	AgenticMemoryCommittedFactReadMaterializationBundleOptions,
 	AgenticMemoryCommittedFactReadMaterializationProjection,
 	AgenticMemoryCommittedFactReadMaterializationStatus,
@@ -1055,8 +1058,20 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(rootPackage.AGENTIC_MEMORY_DURABILITY_ADVANCE_ON_COMMITTED_OR_DUPLICATE_POLICY).toBe(
 			"agentic-memory-durability-advance-on-committed-or-duplicate",
 		);
+		expect(rootPackage.AGENTIC_MEMORY_COMMITTED_FACT_LOG_BACKEND_CURSOR_KIND).toBe(
+			"agentic-memory-committed-fact-log-backend.cursor",
+		);
 		expect(typeof rootPackage.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof rootPackage.memoryAgenticMemoryCommittedFactLog).toBe("function");
+		expect(typeof rootPackage.agenticMemoryCommittedFactLogBackendAdapter).toBe("function");
+		expect(typeof rootPackage.agenticMemoryCommittedFactLogBackendCursor).toBe("function");
+		expect(typeof rootPackage.agenticMemoryCommittedFactLogBackendStatus).toBe("function");
+		expect(typeof rootPackage.normalizeAgenticMemoryCommittedFactLogBackendAppendResult).toBe(
+			"function",
+		);
+		expect(typeof rootPackage.normalizeAgenticMemoryCommittedFactLogBackendReadResult).toBe(
+			"function",
+		);
 		expect(typeof rootPackage.materializeAgenticMemoryCommittedFacts).toBe("function");
 		expect(typeof rootPackage.projectAgenticMemoryCommittedFactReadMaterialization).toBe(
 			"function",
@@ -1106,8 +1121,20 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(solutions.AGENTIC_MEMORY_DURABILITY_ADVANCE_ON_COMMITTED_OR_DUPLICATE_POLICY).toBe(
 			"agentic-memory-durability-advance-on-committed-or-duplicate",
 		);
+		expect(solutions.AGENTIC_MEMORY_COMMITTED_FACT_LOG_BACKEND_CURSOR_KIND).toBe(
+			"agentic-memory-committed-fact-log-backend.cursor",
+		);
 		expect(typeof solutions.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof solutions.memoryAgenticMemoryCommittedFactLog).toBe("function");
+		expect(typeof solutions.agenticMemoryCommittedFactLogBackendAdapter).toBe("function");
+		expect(typeof solutions.agenticMemoryCommittedFactLogBackendCursor).toBe("function");
+		expect(typeof solutions.agenticMemoryCommittedFactLogBackendStatus).toBe("function");
+		expect(typeof solutions.normalizeAgenticMemoryCommittedFactLogBackendAppendResult).toBe(
+			"function",
+		);
+		expect(typeof solutions.normalizeAgenticMemoryCommittedFactLogBackendReadResult).toBe(
+			"function",
+		);
 		expect(typeof solutions.materializeAgenticMemoryCommittedFacts).toBe("function");
 		expect(typeof solutions.projectAgenticMemoryCommittedFactReadMaterialization).toBe("function");
 		expect(typeof solutions.agenticMemoryCommittedFactReadMaterializationBundle).toBe("function");
@@ -1164,10 +1191,22 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(agenticMemory.AGENTIC_MEMORY_DURABILITY_ADVANCE_ON_COMMITTED_OR_DUPLICATE_POLICY).toBe(
 			"agentic-memory-durability-advance-on-committed-or-duplicate",
 		);
+		expect(agenticMemory.AGENTIC_MEMORY_COMMITTED_FACT_LOG_BACKEND_CURSOR_KIND).toBe(
+			"agentic-memory-committed-fact-log-backend.cursor",
+		);
 		expect(typeof agenticMemory.agenticMemoryCommittedRecordMaterialFact).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryCommittedApplicationDecisionFact).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof agenticMemory.memoryAgenticMemoryCommittedFactLog).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryCommittedFactLogBackendAdapter).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryCommittedFactLogBackendCursor).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryCommittedFactLogBackendStatus).toBe("function");
+		expect(typeof agenticMemory.normalizeAgenticMemoryCommittedFactLogBackendAppendResult).toBe(
+			"function",
+		);
+		expect(typeof agenticMemory.normalizeAgenticMemoryCommittedFactLogBackendReadResult).toBe(
+			"function",
+		);
 		expect(typeof agenticMemory.materializeAgenticMemoryCommittedFacts).toBe("function");
 		expect(typeof agenticMemory.projectAgenticMemoryCommittedFactReadMaterialization).toBe(
 			"function",
@@ -1232,6 +1271,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"committed" | "duplicate" | "conflict" | "rejected" | "uncertain"
 		>();
 		expectTypeOf<AgenticMemoryCommittedFactLog>().toHaveProperty("append");
+		expectTypeOf<AgenticMemoryCommittedFactLogBackend>().toHaveProperty("append");
+		expectTypeOf<AgenticMemoryCommittedFactLogBackendAppendResult>().toHaveProperty("status");
+		expectTypeOf<AgenticMemoryCommittedFactLogBackendStatus>().toHaveProperty("capabilities");
+		expectTypeOf<AgenticMemoryCommittedFactLogBackendStatus>()
+			.toHaveProperty("state")
+			.toEqualTypeOf<"available" | "degraded" | "unavailable" | "unknown">();
 		expectTypeOf<AgenticMemoryCommittedFactReadMaterializationProjection>().toHaveProperty(
 			"priorEvidence",
 		);

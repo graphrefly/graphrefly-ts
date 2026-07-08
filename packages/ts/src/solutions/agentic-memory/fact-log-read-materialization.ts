@@ -548,6 +548,11 @@ function isFactLogAuditAction(value: unknown): value is AgenticMemoryFactLogAudi
 		value === "batch-rejected" ||
 		value === "batch-uncertain" ||
 		value === "facts-read" ||
+		value === "backend-append-normalized" ||
+		value === "backend-read-normalized" ||
+		value === "backend-status-linked" ||
+		value === "backend-capability-linked" ||
+		value === "backend-cursor-linked" ||
 		value === "issue-recorded"
 	);
 }

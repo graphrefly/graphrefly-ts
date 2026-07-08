@@ -7,6 +7,8 @@ import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+	type AgenticMemoryCommittedFactLogBackend,
+	type AgenticMemoryCommittedFactLogBackendStatus,
 	type AgenticMemoryCommittedFactReadMaterializationProjection,
 	type AgenticMemoryCommittedFactReadMaterializationStatus,
 	type AgenticMemoryConsolidationCommand,
@@ -57,6 +59,9 @@ import {
 	agenticMemoryCommittedFact,
 	agenticMemoryCommittedFactBatch,
 	agenticMemoryCommittedFactBatchCodec,
+	agenticMemoryCommittedFactLogBackendAdapter,
+	agenticMemoryCommittedFactLogBackendCursor,
+	agenticMemoryCommittedFactLogBackendStatus,
 	agenticMemoryCommittedFactReadMaterializationBundle,
 	agenticMemoryCommittedFactSnapshot,
 	agenticMemoryCommittedFactSnapshotTailEquivalent,
@@ -95,6 +100,8 @@ import {
 	materializeAgenticMemoryCommittedFacts,
 	materializeAgenticMemoryRecordChanges,
 	memoryAgenticMemoryCommittedFactLog,
+	normalizeAgenticMemoryCommittedFactLogBackendAppendResult,
+	normalizeAgenticMemoryCommittedFactLogBackendReadResult,
 	projectAgenticMemoryCommittedFactReadMaterialization,
 	projectAgenticMemoryDurabilityGate,
 	projectAgenticMemoryRecordAdmissionPolicySource,
@@ -780,6 +787,527 @@ describe("AgenticMemory D589 committed fact-log contract", () => {
 		expect(compacted.records).toEqual(direct.records);
 		expect(compacted.priorEvidence).toEqual(direct.priorEvidence);
 		expect(agenticMemoryCommittedFactSnapshotTailEquivalent(prefix, tail)).toBe(true);
+	});
+});
+
+describe("AgenticMemory D592 committed fact-log backend adapter contract", () => {
+	it("normalizes backend append results to D589 commit result DATA with diagnostics only", () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d592-append", fragment: fragment({ id: "fragment-d592-append" }) }),
+			{ operation: "create", correlationId: "d592-append" },
+		);
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+		const backendCursor = agenticMemoryCommittedFactLogBackendCursor("sqlite-test", {
+			rowid: "backend-row-10",
+		});
+		const backendStatus = agenticMemoryCommittedFactLogBackendStatus("degraded", {
+			backend: "sqlite-test",
+			capabilities: [
+				{
+					kind: "agentic-memory-committed-fact-log-backend-capability",
+					name: "physical-transactions",
+					supported: true,
+					status: "available",
+				},
+			],
+			issues: [
+				{
+					kind: "issue",
+					code: "backend.fsync.best-effort",
+					message: "fsync is host policy",
+					severity: "warning",
+				},
+			],
+		});
+
+		const normalized = normalizeAgenticMemoryCommittedFactLogBackendAppendResult({
+			status: "committed",
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			facts: batch.facts.length,
+			issues: [
+				{
+					kind: "issue",
+					code: "backend.transaction.retried",
+					message: "physical transaction retried",
+					severity: "info",
+				},
+			],
+			audit: [
+				{
+					kind: "agentic-memory-fact-log-audit",
+					action: "batch-committed",
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+				},
+			],
+			backendCursor,
+			backendStatus,
+		});
+
+		expect(normalized).toMatchObject({
+			status: "committed",
+			facts: 1,
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+		});
+		expect(normalized).not.toHaveProperty("backendCursor");
+		expect(normalized).not.toHaveProperty("backendStatus");
+		expect(normalized).not.toHaveProperty("records");
+		expect(normalized.issues.map((item) => item.code)).toEqual(
+			expect.arrayContaining([
+				"backend.transaction.retried",
+				"backend.fsync.best-effort",
+				"agentic-memory.fact-log-backend.status",
+			]),
+		);
+		expect(normalized.audit.map((entry) => entry.action)).toEqual(
+			expect.arrayContaining([
+				"batch-committed",
+				"backend-append-normalized",
+				"backend-status-linked",
+				"backend-capability-linked",
+				"backend-cursor-linked",
+			]),
+		);
+		expect(JSON.stringify(normalized.cursor)).not.toContain("backend-row-10");
+		expect(JSON.stringify(normalized)).not.toMatch(
+			/applicationAck|acknowledgement|liveGraphTruth|recordMutation|hydrate|hydration|restore|commitBarrier/i,
+		);
+	});
+
+	it("keeps duplicate, conflict, rejected, and uncertain D589-shaped without app ack semantics", () => {
+		const statuses: readonly AgenticMemoryFactCommitStatus[] = [
+			"duplicate",
+			"conflict",
+			"rejected",
+			"uncertain",
+		];
+		const normalized = statuses.map((status, index) =>
+			normalizeAgenticMemoryCommittedFactLogBackendAppendResult({
+				status,
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: index },
+				facts: 0,
+				issues: [],
+				audit: [],
+			}),
+		);
+
+		expect(normalized.map((item) => item.status)).toEqual(statuses);
+		expect(normalized.map((item) => item.cursor.kind)).toEqual([
+			"agentic-memory-fact-stream.cursor",
+			"agentic-memory-fact-stream.cursor",
+			"agentic-memory-fact-stream.cursor",
+			"agentic-memory-fact-stream.cursor",
+		]);
+		expect(agenticMemoryFactCommitStatusIsDurable(normalized[0]!.status)).toBe(true);
+		expect(agenticMemoryFactCommitStatusIsTerminalFailure(normalized[1]!.status)).toBe(true);
+		expect(agenticMemoryFactCommitStatusIsTerminalFailure(normalized[2]!.status)).toBe(true);
+		expect(agenticMemoryFactCommitStatusIsDurable(normalized[3]!.status)).toBe(false);
+		expect(agenticMemoryFactCommitStatusIsTerminalFailure(normalized[3]!.status)).toBe(false);
+		expect(JSON.stringify(normalized)).not.toMatch(
+			/applicationAck|acknowledgement|liveGraphTruth|recordMutation|hydrate|hydration|restore|commitBarrier/i,
+		);
+	});
+
+	it("normalizes backend read results to stream-ordered committed facts with fact-stream cursor only", () => {
+		const first = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d592-read-a", fragment: fragment({ id: "fragment-d592-read-a" }) }),
+			{ operation: "create", correlationId: "d592-read-a" },
+		);
+		const second = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d592-read-b", fragment: fragment({ id: "fragment-d592-read-b" }) }),
+			{ operation: "create", correlationId: "d592-read-b" },
+		);
+		const backendCursor = agenticMemoryCommittedFactLogBackendCursor("indexeddb-test", {
+			store: "facts",
+			key: "backend-key-2",
+		});
+
+		const read = normalizeAgenticMemoryCommittedFactLogBackendReadResult({
+			facts: [first, second],
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			done: true,
+			issues: [],
+			audit: [],
+			backendCursor,
+			backendStatus: agenticMemoryCommittedFactLogBackendStatus("available", {
+				backend: "indexeddb-test",
+			}),
+		});
+
+		expect(read.facts).toEqual([first, second]);
+		expect(read.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 2 });
+		expect(read.done).toBe(true);
+		expect(read).not.toHaveProperty("backendCursor");
+		expect(read).not.toHaveProperty("records");
+		expect(read.audit.map((entry) => entry.action)).toEqual(
+			expect.arrayContaining(["facts-read", "backend-read-normalized", "backend-cursor-linked"]),
+		);
+		expect(JSON.stringify(read.cursor)).not.toMatch(/indexeddb|backend-key|row/i);
+	});
+
+	it("rejects backend row ids/storage cursors as fact-log cursors and reports issues", () => {
+		const append = normalizeAgenticMemoryCommittedFactLogBackendAppendResult({
+			status: "committed",
+			cursor: { kind: "backend-row-id", position: 10 },
+			facts: 1,
+			issues: [],
+			audit: [],
+		});
+		const read = normalizeAgenticMemoryCommittedFactLogBackendReadResult({
+			facts: [],
+			cursor: { kind: "backend-row-id", position: 10 },
+			done: true,
+			issues: [],
+			audit: [],
+		});
+
+		expect(append.status).toBe("uncertain");
+		expect(append.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 0 });
+		expect(append.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "agentic-memory.fact-log-backend.invalid-fact-cursor",
+				}),
+			]),
+		);
+		expect(read.facts).toEqual([]);
+		expect(read.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 0 });
+		expect(read.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "agentic-memory.fact-log-backend.invalid-fact-cursor",
+				}),
+			]),
+		);
+	});
+
+	it("keeps malformed backend diagnostics on the D589 DATA issue path", async () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d592-malformed-diagnostics",
+				fragment: fragment({ id: "fragment-d592-malformed-diagnostics" }),
+			}),
+			{ operation: "create", correlationId: "d592-malformed-diagnostics" },
+		);
+		const malformedAppend = normalizeAgenticMemoryCommittedFactLogBackendAppendResult({
+			status: "committed",
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+			facts: 0,
+			issues: [{ kind: "not-issue", code: "bad", message: "bad" }],
+			audit: [{ kind: "agentic-memory-fact-log-audit", action: "not-audit-action" }],
+			backendStatus: {
+				kind: "agentic-memory-committed-fact-log-backend-status",
+				state: "not-a-status",
+				capabilities: [],
+				issues: [],
+				audit: [],
+			},
+		});
+		const asyncLog = agenticMemoryCommittedFactLogBackendAdapter({
+			append() {
+				return Promise.resolve({
+					status: "committed",
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+					facts: 0,
+					issues: [
+						{
+							kind: "issue",
+							code: "backend.bad-details",
+							message: "bad diagnostic details",
+							details: undefined,
+						},
+					],
+					audit: [],
+				});
+			},
+			read() {
+				return Promise.resolve({
+					facts: [],
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+					done: true,
+					issues: [{ kind: "nope", code: "bad", message: "bad" }],
+					audit: [{ kind: "agentic-memory-fact-log-audit", action: "nope" }],
+				});
+			},
+		});
+
+		const append = await asyncLog.append(agenticMemoryCommittedFactBatch([fact]));
+		const read = await asyncLog.read();
+
+		expect(malformedAppend.issues.map((item) => item.code)).toEqual(
+			expect.arrayContaining([
+				"agentic-memory.fact-log-backend.invalid-issues",
+				"agentic-memory.fact-log-backend.invalid-audit",
+				"agentic-memory.fact-log-backend.invalid-status",
+			]),
+		);
+		expect(append.status).not.toBe("committed");
+		expect(append.issues.map((item) => item.code)).toContain(
+			"agentic-memory.fact-log-backend.invalid-append-result",
+		);
+		expect(read.issues.map((item) => item.code)).toEqual(
+			expect.arrayContaining([
+				"agentic-memory.fact-log-backend.invalid-issues",
+				"agentic-memory.fact-log-backend.invalid-audit",
+			]),
+		);
+	});
+
+	it("downgrades partial committed append results instead of exposing durable success", async () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d592-partial-commit",
+				fragment: fragment({ id: "fragment-d592-partial-commit" }),
+			}),
+			{ operation: "create", correlationId: "d592-partial-commit" },
+		);
+		const log = agenticMemoryCommittedFactLogBackendAdapter({
+			append() {
+				return {
+					status: "committed",
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+					facts: 0,
+					issues: [],
+					audit: [],
+				};
+			},
+			read() {
+				return {
+					facts: [],
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+					done: true,
+					issues: [],
+					audit: [],
+				};
+			},
+		});
+
+		const append = await log.append(agenticMemoryCommittedFactBatch([fact]));
+
+		expect(append).toMatchObject({
+			status: "uncertain",
+			facts: 0,
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+		});
+		expect(append.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "agentic-memory.fact-log-backend.committed-facts-mismatch",
+				}),
+			]),
+		);
+	});
+
+	it("drops read facts when the fact-stream cursor does not cover them", () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d592-read-cursor-coverage",
+				fragment: fragment({ id: "fragment-d592-read-cursor-coverage" }),
+			}),
+			{ operation: "create", correlationId: "d592-read-cursor-coverage" },
+		);
+
+		const read = normalizeAgenticMemoryCommittedFactLogBackendReadResult({
+			facts: [fact],
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+			done: true,
+			issues: [],
+			audit: [],
+		});
+
+		expect(read.facts).toEqual([]);
+		expect(read.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 0 });
+		expect(read.done).toBe(false);
+		expect(read.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "agentic-memory.fact-log-backend.invalid-read-cursor-coverage",
+				}),
+			]),
+		);
+	});
+
+	it("preserves caller read checkpoints on backend read failure", async () => {
+		const log = agenticMemoryCommittedFactLogBackendAdapter({
+			append() {
+				return {
+					status: "duplicate",
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 3 },
+					facts: 0,
+					issues: [],
+					audit: [],
+				};
+			},
+			read() {
+				throw new Error("backend unavailable");
+			},
+		});
+
+		const read = await log.read({
+			after: { kind: "agentic-memory-fact-stream.cursor", position: 3 },
+		});
+
+		expect(read.facts).toEqual([]);
+		expect(read.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 3 });
+		expect(read.done).toBe(false);
+		expect(read.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "agentic-memory.fact-log-backend.read-threw" }),
+			]),
+		);
+	});
+
+	it("wraps a backend as a fact-log adapter without materialization, restore, or live refresh", async () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d592-wrapper", fragment: fragment({ id: "fragment-d592-wrapper" }) }),
+			{ operation: "create", correlationId: "d592-wrapper" },
+		);
+		const appended: (typeof fact)[] = [];
+		const backend: AgenticMemoryCommittedFactLogBackend = {
+			append(batch) {
+				appended.push(...batch.facts);
+				return {
+					status: "committed",
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: appended.length },
+					facts: batch.facts.length,
+					issues: [],
+					audit: [],
+				};
+			},
+			read(opts = {}) {
+				const after = opts.after?.position ?? 0;
+				const visible = appended.slice(after);
+				return {
+					facts: visible,
+					cursor: { kind: "agentic-memory-fact-stream.cursor", position: appended.length },
+					done: true,
+					issues: [],
+					audit: [],
+				};
+			},
+		};
+		const log = agenticMemoryCommittedFactLogBackendAdapter(backend);
+
+		const append = await log.append(agenticMemoryCommittedFactBatch([fact]));
+		const read = await log.read();
+		const materialized = materializeAgenticMemoryCommittedFacts(read.facts);
+
+		expect(append.status).toBe("committed");
+		expect(read.facts).toEqual([fact]);
+		expect(read).not.toHaveProperty("records");
+		expect(read).not.toHaveProperty("priorEvidence");
+		expect(materialized.records).toEqual([
+			record({ id: "record-d592-wrapper", fragment: fragment({ id: "fragment-d592-wrapper" }) }),
+		]);
+		expect(JSON.stringify({ append, read })).not.toMatch(
+			/applicationAck|acknowledgement|liveGraphTruth|recordMutation|hydrate|hydration|restore|commitBarrier|replay|apply|admit/i,
+		);
+	});
+
+	it("turns backend append uncertainty into explicit read/idempotency resolution work", async () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d592-uncertain",
+				fragment: fragment({ id: "fragment-d592-uncertain" }),
+			}),
+			{ operation: "create", correlationId: "d592-uncertain" },
+		);
+		const committed = memoryAgenticMemoryCommittedFactLog();
+		await committed.append(agenticMemoryCommittedFactBatch([fact]));
+		const uncertain = normalizeAgenticMemoryCommittedFactLogBackendAppendResult({
+			status: "uncertain",
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+			facts: 0,
+			issues: [
+				{
+					kind: "issue",
+					code: "backend.connection.lost-after-write",
+					message: "backend cannot prove whether the append committed",
+					retryable: true,
+				},
+			],
+			audit: [],
+		});
+		const projection = projectAgenticMemoryDurabilityGate(
+			agenticMemoryCommittedFactBatch([fact]),
+			uncertain,
+			{ downstreamAdvancePolicy: agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy() },
+		);
+		const read = await committed.read();
+
+		expect(uncertain.status).toBe("uncertain");
+		expect(projection.status).toMatchObject({
+			state: "uncertain",
+			downstreamAdvance: { allowed: false, reason: "uncertain-requires-read-resolution" },
+		});
+		expect(materializeAgenticMemoryCommittedFacts(read.facts).records).toEqual([
+			record({
+				id: "record-d592-uncertain",
+				fragment: fragment({ id: "fragment-d592-uncertain" }),
+			}),
+		]);
+	});
+
+	it("keeps D591 materialization library-owned and caller-wired after normalized reads", () => {
+		const committedRecord = record({
+			id: "record-d592-d591",
+			fragment: fragment({ id: "fragment-d592-d591" }),
+		});
+		const fact = agenticMemoryCommittedRecordMaterialFact(committedRecord, {
+			operation: "create",
+			correlationId: "d592-d591",
+		});
+		const read = normalizeAgenticMemoryCommittedFactLogBackendReadResult({
+			facts: [fact],
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			done: true,
+			issues: [],
+			audit: [],
+		});
+		const projection = projectAgenticMemoryCommittedFactReadMaterialization(read);
+
+		expect(read).not.toHaveProperty("records");
+		expect(read).not.toHaveProperty("priorEvidence");
+		expect(projection.records).toEqual([committedRecord]);
+		expect(projection.status).toMatchObject({
+			state: "ready",
+			factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+		});
+	});
+
+	it("exposes backend status/capability DTOs as diagnostic DATA only", () => {
+		const status: AgenticMemoryCommittedFactLogBackendStatus =
+			agenticMemoryCommittedFactLogBackendStatus("available", {
+				backend: "memory-test",
+				capabilities: [
+					{
+						kind: "agentic-memory-committed-fact-log-backend-capability",
+						name: "storage-cursors",
+						supported: true,
+						status: "available",
+						details: { cursor: "opaque" },
+					},
+				],
+				audit: [
+					{
+						kind: "agentic-memory-committed-fact-log-backend-audit",
+						action: "backend-status-reported",
+						backend: "memory-test",
+					},
+				],
+			});
+
+		expect(status.kind).toBe("agentic-memory-committed-fact-log-backend-status");
+		expect(status.capabilities[0]).toMatchObject({
+			kind: "agentic-memory-committed-fact-log-backend-capability",
+			name: "storage-cursors",
+			supported: true,
+		});
+		expect(status).not.toHaveProperty("append");
+		expect(status).not.toHaveProperty("read");
+		expect(status).not.toHaveProperty("records");
+		expect(status).not.toHaveProperty("restore");
+		expect(status).not.toHaveProperty("hydrate");
+		expect(Object.isFrozen(status.capabilities[0]?.details)).toBe(true);
 	});
 });
 

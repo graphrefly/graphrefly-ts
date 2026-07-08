@@ -1741,6 +1741,26 @@ export const apiSidebar = [
 				"link": "/api/agenticmemorybundle"
 			},
 			{
+				"label": "agenticMemoryCommittedFactLogBackendStatus()",
+				"link": "/api/agenticmemorycommittedfactlogbackendstatus"
+			},
+			{
+				"label": "agenticMemoryCommittedFactLogBackendCursor()",
+				"link": "/api/agenticmemorycommittedfactlogbackendcursor"
+			},
+			{
+				"label": "normalizeAgenticMemoryCommittedFactLogBackendAppendResult()",
+				"link": "/api/normalizeagenticmemorycommittedfactlogbackendappendresult"
+			},
+			{
+				"label": "normalizeAgenticMemoryCommittedFactLogBackendReadResult()",
+				"link": "/api/normalizeagenticmemorycommittedfactlogbackendreadresult"
+			},
+			{
+				"label": "agenticMemoryCommittedFactLogBackendAdapter()",
+				"link": "/api/agenticmemorycommittedfactlogbackendadapter"
+			},
+			{
 				"label": "agenticMemoryCommittedFactIdentity()",
 				"link": "/api/agenticmemorycommittedfactidentity"
 			},

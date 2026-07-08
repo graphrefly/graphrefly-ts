@@ -144,6 +144,11 @@ export interface AgenticMemoryFactLogAuditEntry {
 		| "batch-rejected"
 		| "batch-uncertain"
 		| "facts-read"
+		| "backend-append-normalized"
+		| "backend-read-normalized"
+		| "backend-status-linked"
+		| "backend-capability-linked"
+		| "backend-cursor-linked"
 		| "issue-recorded";
 	readonly reason?: string;
 	readonly factId?: string;
