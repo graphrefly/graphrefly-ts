@@ -223,6 +223,26 @@ pnpm --filter @graphrefly/ts build
 pnpm run lint
 ```
 
+AgenticMemory committed fact-log runtime confidence checks are opt-in:
+
+```bash
+pnpm --filter @graphrefly/ts test -- agentic-memory
+pnpm --filter @graphrefly/ts test:browser:agentic-memory
+```
+
+The focused Vitest command includes the Node file-backed single-writer backend
+smoke against the real filesystem. The browser command bundles and runs the real
+browser IndexedDB smoke in Chrome/Chromium; set `CHROME_BIN` if Chrome is not on
+one of the usual executable paths. These checks exercise append/read
+normalization, fact-stream cursors versus backend diagnostic cursors,
+single-writer reference-backend status, duplicate/conflict outcomes, and
+`uncertain` append handling. They remain smoke/runtime-confidence checks only:
+IndexedDB transaction completion and file write completion are physical adapter
+attempts, not fsync or permanent durability guarantees, multi-writer correctness,
+hydration, restore, replay, live refresh, backend materialization, application
+acknowledgement, live graph truth, record mutation, same-evaluation feedback, or
+graph commit barriers.
+
 Before publishing:
 
 ```bash
