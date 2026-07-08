@@ -3,7 +3,12 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import type { AgentRuntimeAuditRecord, EffectRunResult, SourceRef } from "./agent-runtime.js";
+import type {
+	AgentRuntimeAuditRecord,
+	EffectRun,
+	EffectRunResult,
+	SourceRef,
+} from "./agent-runtime.js";
 import type {
 	WorkItemDomainActionAdmission,
 	WorkItemDomainActionAdmissionDecision,

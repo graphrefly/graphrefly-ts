@@ -17,6 +17,7 @@ import type { UpRouteState } from "./types.js";
 import {
 	advanceNodeVersion,
 	assertNodeVersionDataCompatible,
+	type NodeVersion,
 	snapshotNodeVersionData,
 } from "./versioning.js";
 

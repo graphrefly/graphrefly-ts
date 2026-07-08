@@ -1869,6 +1869,18 @@ export const apiSidebar = [
 				"link": "/api/agenticmemorydurabilitygatebundle"
 			},
 			{
+				"label": "agenticMemoryMaterializedFactLogBootstrapInput()",
+				"link": "/api/agenticmemorymaterializedfactlogbootstrapinput"
+			},
+			{
+				"label": "projectAgenticMemoryMaterializedFactLogBootstrap()",
+				"link": "/api/projectagenticmemorymaterializedfactlogbootstrap"
+			},
+			{
+				"label": "agenticMemoryMaterializedFactLogBootstrapBundle()",
+				"link": "/api/agenticmemorymaterializedfactlogbootstrapbundle"
+			},
+			{
 				"label": "projectAgenticMemoryCommittedFactReadMaterialization()",
 				"link": "/api/projectagenticmemorycommittedfactreadmaterialization"
 			},

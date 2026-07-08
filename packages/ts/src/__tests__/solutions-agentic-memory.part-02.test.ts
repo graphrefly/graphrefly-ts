@@ -27,6 +27,7 @@ import {
 	type AgenticMemoryFactCommitStatus,
 	type AgenticMemoryKgAssertionDraft,
 	type AgenticMemoryKgProjectionError,
+	type AgenticMemoryMaterializedFactLogBootstrapStatus,
 	type AgenticMemoryPackedContext,
 	type AgenticMemoryProposalAdmissionDecision,
 	type AgenticMemoryProposalAdmissionPolicy,
@@ -78,6 +79,8 @@ import {
 	agenticMemoryFactCommitStatusIsDurable,
 	agenticMemoryFactCommitStatusIsTerminalFailure,
 	agenticMemoryKgProjectionBundle,
+	agenticMemoryMaterializedFactLogBootstrapBundle,
+	agenticMemoryMaterializedFactLogBootstrapInput,
 	agenticMemoryRecordAdmissionBundle,
 	agenticMemoryRecordAdmissionPolicySourceBundle,
 	agenticMemoryRecordApplicationBundle,
@@ -104,6 +107,7 @@ import {
 	normalizeAgenticMemoryCommittedFactLogBackendReadResult,
 	projectAgenticMemoryCommittedFactReadMaterialization,
 	projectAgenticMemoryDurabilityGate,
+	projectAgenticMemoryMaterializedFactLogBootstrap,
 	projectAgenticMemoryRecordAdmissionPolicySource,
 	projectAgenticMemoryRecordApplicationEvidenceFacts,
 	projectAgenticMemoryRecordApplicationPriorEvidence,
@@ -1860,6 +1864,380 @@ describe("AgenticMemory D591 fact-log read materialization re-entry boundary", (
 		expect(JSON.stringify({ projection, badCursor, badDiagnostics })).not.toMatch(
 			/applicationAck|liveGraphTruth|recordMutation|hydrate|hydration|restore|commitBarrier/i,
 		);
+	});
+});
+
+describe("AgenticMemory D593 materialized fact-log bootstrap/re-entry boundary", () => {
+	it("projects ready D591 materialization into caller-wirable bootstrap input DATA", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const committedRecord = record({
+			id: "record-d593-ready",
+			fragment: fragment({ id: "fragment-d593-ready" }),
+		});
+		const application = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "d593-evidence", proposalId: "d593-evidence" })],
+			applicationPolicy(),
+		);
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			application.applicationDecisions,
+		);
+		await log.append(
+			agenticMemoryCommittedFactBatch([
+				agenticMemoryCommittedRecordMaterialFact(committedRecord, {
+					operation: "create",
+					correlationId: "d593-ready",
+				}),
+				agenticMemoryCommittedApplicationEvidenceFact(evidence.evidenceFacts[0]!),
+			]),
+		);
+		const materialization = projectAgenticMemoryCommittedFactReadMaterialization(await log.read());
+
+		const input = agenticMemoryMaterializedFactLogBootstrapInput(materialization);
+		const projection = projectAgenticMemoryMaterializedFactLogBootstrap(materialization);
+
+		expect(input).toMatchObject({
+			kind: "agentic-memory-materialized-fact-log-bootstrap-input",
+			records: [committedRecord],
+			priorEvidence: { entries: evidence.evidenceFacts },
+			evidence: evidence.evidenceFacts,
+		});
+		expect(projection).toMatchObject({
+			kind: "agentic-memory-materialized-fact-log-bootstrap-projection",
+			status: {
+				state: "ready",
+				readyForCallerWiring: true,
+				sourceState: "ready",
+				sourceDone: true,
+				sourceCompletePrefix: true,
+				factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			},
+		});
+		expect(projection.records).toEqual([committedRecord]);
+		expect(projection.priorEvidence.entries).toEqual(evidence.evidenceFacts);
+		expect(projection.evidence).toEqual(evidence.evidenceFacts);
+		expect(projection.issues).toEqual([]);
+		expect(projection.audit.map((entry) => entry.action)).toEqual(
+			expect.arrayContaining([
+				"bootstrap-input-projected",
+				"caller-wiring-required",
+				"source-materialization-linked",
+			]),
+		);
+		expect(projection).not.toHaveProperty("applicationDecisions");
+		expect(projection).not.toHaveProperty("admissions");
+		expect(
+			JSON.stringify({
+				status: projection.status,
+				issues: projection.issues,
+				audit: projection.audit,
+				cursor: projection.cursor,
+			}),
+		).not.toMatch(
+			/applicationAck|acknowledgement|liveGraphTruth|recordMutation|hydrate|hydration|commitBarrier|backend|adapter|sameEvaluationFeedback/i,
+		);
+	});
+
+	it("treats a complete empty D591 materialization as ready empty bootstrap DATA", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const materialization = projectAgenticMemoryCommittedFactReadMaterialization(await log.read());
+
+		const projection = projectAgenticMemoryMaterializedFactLogBootstrap(materialization);
+
+		expect(materialization.status).toMatchObject({
+			state: "empty",
+			done: true,
+			completePrefix: true,
+		});
+		expect(projection).toMatchObject({
+			records: [],
+			evidence: [],
+			priorEvidence: { entries: [] },
+			status: {
+				state: "empty",
+				readyForCallerWiring: true,
+				sourceState: "empty",
+				sourceDone: true,
+				sourceCompletePrefix: true,
+			},
+		});
+		expect(projection.issues).toEqual([]);
+	});
+
+	it("marks partial D591 materialization as not ready without hiding caller-wirable DATA", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const firstRecord = record({
+			id: "record-d593-partial-a",
+			fragment: fragment({ id: "fragment-d593-partial-a" }),
+		});
+		const secondRecord = record({
+			id: "record-d593-partial-b",
+			fragment: fragment({ id: "fragment-d593-partial-b" }),
+		});
+		await log.append(
+			agenticMemoryCommittedFactBatch([
+				agenticMemoryCommittedRecordMaterialFact(firstRecord, {
+					operation: "create",
+					correlationId: "d593-partial-a",
+				}),
+				agenticMemoryCommittedRecordMaterialFact(secondRecord, {
+					operation: "create",
+					correlationId: "d593-partial-b",
+				}),
+			]),
+		);
+		const materialization = projectAgenticMemoryCommittedFactReadMaterialization(
+			await log.read({ limit: 1 }),
+		);
+
+		const projection = projectAgenticMemoryMaterializedFactLogBootstrap(materialization);
+
+		expect(materialization.status).toMatchObject({
+			state: "partial",
+			done: false,
+			completePrefix: false,
+		});
+		expect(projection.records).toEqual([firstRecord]);
+		expect(projection.status).toMatchObject({
+			state: "partial",
+			readyForCallerWiring: false,
+			sourceDone: false,
+			sourceCompletePrefix: false,
+		});
+		expect(projection.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "agentic-memory.materialized-fact-log-bootstrap.partial-read",
+					severity: "warning",
+				}),
+			]),
+		);
+		expect(projection.audit).toEqual(
+			expect.arrayContaining([expect.objectContaining({ action: "partial-read-recorded" })]),
+		);
+	});
+
+	it("keeps malformed D591 materialization on the DATA error path", () => {
+		const projection = projectAgenticMemoryMaterializedFactLogBootstrap({
+			kind: "not-d591",
+			records: [{ id: "", fragment: {} }],
+			priorEvidence: { kind: "wrong", entries: [] },
+			evidence: [{ kind: "not-evidence" }],
+			status: {
+				state: "ready",
+				factLogCursor: { kind: "backend-row-id", position: 10 },
+				done: true,
+				completePrefix: true,
+				cursor: {},
+			},
+			issues: [null],
+			audit: [{ kind: "not-audit", action: "nope" }],
+			cursor: {},
+		});
+
+		expect(projection.status.state).toBe("error");
+		expect(projection.status.readyForCallerWiring).toBe(false);
+		expect(projection.records).toEqual([]);
+		expect(projection.priorEvidence.entries).toEqual([]);
+		expect(projection.evidence).toEqual([]);
+		expect(projection.issues.map((item) => item.code)).toEqual(
+			expect.arrayContaining([
+				"agentic-memory.materialized-fact-log-bootstrap.invalid-input",
+				"agentic-memory.materialized-fact-log-bootstrap.invalid-records",
+				"agentic-memory.materialized-fact-log-bootstrap.invalid-status",
+				"agentic-memory.materialized-fact-log-bootstrap.invalid-cursor",
+				"agentic-memory.materialized-fact-log-bootstrap.invalid-issues",
+				"agentic-memory.materialized-fact-log-bootstrap.invalid-audit",
+			]),
+		);
+		expect(projection.audit).toEqual(
+			expect.arrayContaining([expect.objectContaining({ action: "issue-recorded" })]),
+		);
+	});
+
+	it("keeps malformed but shaped D591 materialization consistency on the DATA error path", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const firstApplication = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "d593-consistency-a", proposalId: "d593-consistency-a" })],
+			applicationPolicy(),
+		);
+		const secondApplication = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "d593-consistency-b", proposalId: "d593-consistency-b" })],
+			applicationPolicy(),
+		);
+		const [firstEvidence] = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			firstApplication.applicationDecisions,
+		).evidenceFacts;
+		const [secondEvidence] = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			secondApplication.applicationDecisions,
+		).evidenceFacts;
+		const base = projectAgenticMemoryCommittedFactReadMaterialization(await log.read());
+		const malformed = {
+			...base,
+			priorEvidence: {
+				kind: "agentic-memory-record-application-prior-evidence",
+				entries: [firstEvidence!],
+			},
+			evidence: [secondEvidence!],
+			status: {
+				...base.status,
+				state: "ready",
+				done: true,
+				completePrefix: true,
+				cursor: {
+					...base.status.cursor,
+					factLogCursor: { ...base.status.factLogCursor, position: 7 },
+				},
+			},
+			cursor: {
+				...base.cursor,
+				evidenceFacts: 1,
+				materialization: {
+					...base.cursor.materialization,
+					facts: -1,
+					issues: "bad",
+				},
+			},
+			audit: [
+				{
+					kind: "agentic-memory-committed-fact-read-materialization-audit",
+					action: "read-result-materialized",
+					reason: { not: "a string" },
+					factLogCursor: { kind: "backend-row-id", position: 1 },
+				},
+			],
+		};
+
+		const projection = projectAgenticMemoryMaterializedFactLogBootstrap(malformed);
+
+		expect(projection.status.state).toBe("error");
+		expect(projection.status.readyForCallerWiring).toBe(false);
+		expect(projection.issues.map((item) => item.code)).toEqual(
+			expect.arrayContaining([
+				"agentic-memory.materialized-fact-log-bootstrap.invalid-cursor",
+				"agentic-memory.materialized-fact-log-bootstrap.invalid-audit",
+				"agentic-memory.materialized-fact-log-bootstrap.inconsistent-materialization",
+			]),
+		);
+		expect(projection.input.sourceCursor.materialization).toMatchObject({
+			facts: 0,
+			issues: 0,
+		});
+		expect(projection.input.sourceAudit[0]).toMatchObject({
+			kind: "agentic-memory-committed-fact-read-materialization-audit",
+			action: "read-result-materialized",
+		});
+		expect(projection.input.sourceAudit[0]).not.toHaveProperty("reason");
+		expect(projection.input.sourceAudit[0]).not.toHaveProperty("factLogCursor");
+	});
+
+	it("creates graph-visible ordinary DATA nodes and requires explicit downstream wiring", async () => {
+		const g = graph();
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const committedRecord = record({
+			id: "record-d593-graph",
+			fragment: fragment({ id: "fragment-d593-graph" }),
+		});
+		await log.append(
+			agenticMemoryCommittedFactBatch([
+				agenticMemoryCommittedRecordMaterialFact(committedRecord, {
+					operation: "create",
+					correlationId: "d593-graph",
+				}),
+			]),
+		);
+		const materializationValue = projectAgenticMemoryCommittedFactReadMaterialization(
+			await log.read(),
+		);
+		const materialization = g.state(materializationValue, { name: "materialization" });
+		const liveRecords = g.state<readonly AgenticMemoryRecord<string>[]>([], {
+			name: "callerRecords",
+		});
+		const admissions = g.state(
+			[
+				admitted({
+					admissionId: "d593-later-application",
+					proposalId: "d593-later-application",
+					candidateMaterial: {
+						kind: "agentic-memory-record-candidate-material",
+						record: record({
+							id: "record-d593-later-application",
+							fragment: fragment({ id: "fragment-d593-later-application" }),
+						}),
+					},
+				}),
+			],
+			{ name: "laterAdmissions" },
+		);
+		const policy = g.state(applicationPolicy(), { name: "laterPolicy" });
+		const application = agenticMemoryRecordApplicationBundle(g, {
+			name: "laterApplication",
+			records: liveRecords,
+			admissions,
+			policy,
+		});
+		const bundle = agenticMemoryMaterializedFactLogBootstrapBundle(g, {
+			name: "bootstrap",
+			materialization,
+		});
+		const bootstrapInput = collect(bundle.bootstrapInput);
+		const records = collect(bundle.records);
+		const status = collect(bundle.status);
+		const issues = collect(bundle.issues);
+		const audit = collect(bundle.audit);
+		const cursor = collect(bundle.cursor);
+		const applied = collect(application.records);
+
+		materialization.set(materializationValue);
+
+		expect(g.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "materialization", to: "bootstrap/projection" },
+				{ from: "bootstrap/projection", to: "bootstrap/bootstrapInput" },
+				{ from: "bootstrap/projection", to: "bootstrap/records" },
+				{ from: "bootstrap/projection", to: "bootstrap/priorEvidence" },
+				{ from: "bootstrap/projection", to: "bootstrap/evidence" },
+				{ from: "bootstrap/projection", to: "bootstrap/status" },
+				{ from: "bootstrap/projection", to: "bootstrap/issues" },
+				{ from: "bootstrap/projection", to: "bootstrap/audit" },
+				{ from: "bootstrap/projection", to: "bootstrap/cursor" },
+			]),
+		);
+		expect(g.describe().edges).not.toContainEqual({
+			from: "bootstrap/records",
+			to: "callerRecords",
+		});
+		expect(data(records.messages).at(-1)).toEqual([committedRecord]);
+		expect(data(bootstrapInput.messages).at(-1)).toMatchObject({
+			kind: "agentic-memory-materialized-fact-log-bootstrap-input",
+			records: [committedRecord],
+		});
+		expect(
+			data<AgenticMemoryMaterializedFactLogBootstrapStatus>(status.messages).at(-1),
+		).toMatchObject({
+			state: "ready",
+			readyForCallerWiring: true,
+		});
+		expect(data(issues.messages).at(-1)).toEqual([]);
+		expect(data(audit.messages).at(-1)).toEqual(
+			expect.arrayContaining([expect.objectContaining({ action: "caller-wiring-required" })]),
+		);
+		expect(data(cursor.messages).at(-1)).toMatchObject({
+			records: 1,
+			sourceDone: true,
+			sourceCompletePrefix: true,
+		});
+		expect(liveRecords.cache).toEqual([]);
+		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
+			expect.objectContaining({ id: "record-d593-later-application" }),
+		]);
+
+		liveRecords.set(data<readonly AgenticMemoryRecord<string>[]>(records.messages).at(-1)!);
+		admissions.set(admissions.cache);
+
+		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
+			committedRecord,
+			expect.objectContaining({ id: "record-d593-later-application" }),
+		]);
 	});
 });
 

@@ -5,9 +5,11 @@ import {
 } from "../../json/codec.js";
 import type { FactId, MemoryFragment } from "../../patterns/semantic-memory.js";
 import { validateMemoryFragment } from "../../patterns/semantic-memory.js";
+import type { MemoryRetrievalStatus } from "../../patterns/semantic-memory-graph.js";
 import type {
 	AgenticMemoryArtifactKind,
 	AgenticMemoryContextAttribution,
+	AgenticMemoryContextState,
 	AgenticMemoryContextTruncation,
 	AgenticMemoryError,
 	AgenticMemoryFactRef,
@@ -457,9 +459,10 @@ export function validateAgenticMemoryContextAttribution(
 	if (value === undefined) return { ok: true, errors: [] };
 	const containerErrors = dataRecordContainerErrors(value, "attribution");
 	if (containerErrors.length > 0) return { ok: false, errors: containerErrors };
+	const recordValue = value as Record<string, unknown>;
 	const errors: string[] = [];
-	errors.push(...forbiddenAgenticMemoryDataFields(value, "attribution"));
-	const extra = unexpectedFields(value, [
+	errors.push(...forbiddenAgenticMemoryDataFields(recordValue, "attribution"));
+	const extra = unexpectedFields(recordValue, [
 		"kind",
 		"fragmentId",
 		"recordId",
@@ -473,43 +476,45 @@ export function validateAgenticMemoryContextAttribution(
 		"metadata",
 	]);
 	errors.push(...extra.map((field) => `attribution.${field} is not part of attribution`));
-	if (value.kind !== undefined && value.kind !== "agentic-memory-context-attribution") {
+	if (recordValue.kind !== undefined && recordValue.kind !== "agentic-memory-context-attribution") {
 		errors.push("attribution.kind must be agentic-memory-context-attribution when present");
 	}
-	if (value.fragmentId !== undefined && !isNonEmptyString(value.fragmentId)) {
+	if (recordValue.fragmentId !== undefined && !isNonEmptyString(recordValue.fragmentId)) {
 		errors.push("attribution.fragmentId must be a non-empty string when present");
 	}
-	if (value.recordId !== undefined && !isNonEmptyString(value.recordId)) {
+	if (recordValue.recordId !== undefined && !isNonEmptyString(recordValue.recordId)) {
 		errors.push("attribution.recordId must be a non-empty string when present");
 	}
-	if (value.queryId !== undefined && !isNonEmptyString(value.queryId)) {
+	if (recordValue.queryId !== undefined && !isNonEmptyString(recordValue.queryId)) {
 		errors.push("attribution.queryId must be a non-empty string when present");
 	}
 	if (
-		value.rank !== undefined &&
-		(typeof value.rank !== "number" || !Number.isSafeInteger(value.rank) || value.rank < 1)
+		recordValue.rank !== undefined &&
+		(typeof recordValue.rank !== "number" ||
+			!Number.isSafeInteger(recordValue.rank) ||
+			recordValue.rank < 1)
 	) {
 		errors.push("attribution.rank must be a 1-based safe integer when present");
 	}
 	if (
-		value.score !== undefined &&
-		(typeof value.score !== "number" || !Number.isFinite(value.score))
+		recordValue.score !== undefined &&
+		(typeof recordValue.score !== "number" || !Number.isFinite(recordValue.score))
 	) {
 		errors.push("attribution.score must be a finite number when present");
 	}
-	if (value.truncated !== undefined && typeof value.truncated !== "boolean") {
+	if (recordValue.truncated !== undefined && typeof recordValue.truncated !== "boolean") {
 		errors.push("attribution.truncated must be a boolean when present");
 	}
-	const truncation = validateContextTruncation(value.truncation);
+	const truncation = validateContextTruncation(recordValue.truncation);
 	if (!truncation.ok) {
 		errors.push(...truncation.errors.map((error) => `attribution.${error}`));
 	}
-	if (value.truncation !== undefined && value.truncated === false) {
+	if (recordValue.truncation !== undefined && recordValue.truncated === false) {
 		errors.push("attribution.truncation requires attribution.truncated to be true or omitted");
 	}
 	for (const [field, refs] of [
-		["sourceRefs", value.sourceRefs],
-		["policyRefs", value.policyRefs],
+		["sourceRefs", recordValue.sourceRefs],
+		["policyRefs", recordValue.policyRefs],
 	] as const) {
 		if (refs !== undefined) {
 			errors.push(
@@ -517,20 +522,20 @@ export function validateAgenticMemoryContextAttribution(
 			);
 		}
 	}
-	if (value.metadata !== undefined && !isStrictJsonObject(value.metadata)) {
+	if (recordValue.metadata !== undefined && !isStrictJsonObject(recordValue.metadata)) {
 		errors.push("attribution.metadata must be a strict JSON object");
 	}
 	if (
 		opts.fragmentId !== undefined &&
-		value.fragmentId !== undefined &&
-		value.fragmentId !== opts.fragmentId
+		recordValue.fragmentId !== undefined &&
+		recordValue.fragmentId !== opts.fragmentId
 	) {
 		errors.push("attribution.fragmentId must match the containing fragmentId");
 	}
 	if (
 		opts.recordId !== undefined &&
-		value.recordId !== undefined &&
-		value.recordId !== opts.recordId
+		recordValue.recordId !== undefined &&
+		recordValue.recordId !== opts.recordId
 	) {
 		errors.push("attribution.recordId must match the containing record.recordId");
 	}
@@ -539,21 +544,29 @@ export function validateAgenticMemoryContextAttribution(
 		ok: true,
 		errors,
 		attribution: Object.freeze({
-			...(value.kind === undefined ? {} : { kind: "agentic-memory-context-attribution" as const }),
-			...(value.fragmentId === undefined ? {} : { fragmentId: value.fragmentId as FactId }),
-			...(value.recordId === undefined ? {} : { recordId: value.recordId as FactId }),
-			...(value.queryId === undefined ? {} : { queryId: value.queryId as string }),
-			...(value.rank === undefined ? {} : { rank: value.rank as number }),
-			...(value.score === undefined ? {} : { score: value.score as number }),
-			...(value.truncated === undefined ? {} : { truncated: value.truncated as boolean }),
+			...(recordValue.kind === undefined
+				? {}
+				: { kind: "agentic-memory-context-attribution" as const }),
+			...(recordValue.fragmentId === undefined
+				? {}
+				: { fragmentId: recordValue.fragmentId as FactId }),
+			...(recordValue.recordId === undefined ? {} : { recordId: recordValue.recordId as FactId }),
+			...(recordValue.queryId === undefined ? {} : { queryId: recordValue.queryId as string }),
+			...(recordValue.rank === undefined ? {} : { rank: recordValue.rank as number }),
+			...(recordValue.score === undefined ? {} : { score: recordValue.score as number }),
+			...(recordValue.truncated === undefined
+				? {}
+				: { truncated: recordValue.truncated as boolean }),
 			...(truncation.truncation === undefined ? {} : { truncation: truncation.truncation }),
-			...(value.sourceRefs === undefined
+			...(recordValue.sourceRefs === undefined
 				? {}
-				: { sourceRefs: snapshotAgenticMemoryFactRefs(value.sourceRefs) }),
-			...(value.policyRefs === undefined
+				: { sourceRefs: snapshotAgenticMemoryFactRefs(recordValue.sourceRefs) }),
+			...(recordValue.policyRefs === undefined
 				? {}
-				: { policyRefs: snapshotAgenticMemoryFactRefs(value.policyRefs) }),
-			...(value.metadata === undefined ? {} : { metadata: cloneStrictJsonObject(value.metadata) }),
+				: { policyRefs: snapshotAgenticMemoryFactRefs(recordValue.policyRefs) }),
+			...(recordValue.metadata === undefined
+				? {}
+				: { metadata: cloneStrictJsonObject(recordValue.metadata) }),
 		}),
 	};
 }
@@ -866,9 +879,10 @@ function validateContextTruncation(value: unknown): {
 	if (value === undefined) return { ok: true, errors: [] };
 	const containerErrors = dataRecordContainerErrors(value, "truncation");
 	if (containerErrors.length > 0) return { ok: false, errors: containerErrors };
+	const recordValue = value as Record<string, unknown>;
 	const errors: string[] = [];
-	errors.push(...forbiddenAgenticMemoryDataFields(value, "truncation"));
-	const extra = unexpectedFields(value, [
+	errors.push(...forbiddenAgenticMemoryDataFields(recordValue, "truncation"));
+	const extra = unexpectedFields(recordValue, [
 		"originalChars",
 		"packedChars",
 		"omittedChars",
@@ -880,7 +894,7 @@ function validateContextTruncation(value: unknown): {
 	]);
 	errors.push(...extra.map((field) => `truncation.${field} is not part of truncation`));
 	for (const field of ["originalChars", "packedChars", "omittedChars"] as const) {
-		const current = value[field];
+		const current = recordValue[field];
 		if (
 			current !== undefined &&
 			(typeof current !== "number" || !Number.isSafeInteger(current) || current < 0)
@@ -889,7 +903,7 @@ function validateContextTruncation(value: unknown): {
 		}
 	}
 	for (const field of ["originalCost", "packedCost", "omittedCost"] as const) {
-		const current = value[field];
+		const current = recordValue[field];
 		if (
 			current !== undefined &&
 			(typeof current !== "number" || !Number.isFinite(current) || current < 0)
@@ -897,10 +911,10 @@ function validateContextTruncation(value: unknown): {
 			errors.push(`truncation.${field} must be a finite number >= 0 when present`);
 		}
 	}
-	if (value.reason !== undefined && typeof value.reason !== "string") {
+	if (recordValue.reason !== undefined && typeof recordValue.reason !== "string") {
 		errors.push("truncation.reason must be a string when present");
 	}
-	if (value.metadata !== undefined && !isStrictJsonObject(value.metadata)) {
+	if (recordValue.metadata !== undefined && !isStrictJsonObject(recordValue.metadata)) {
 		errors.push("truncation.metadata must be a strict JSON object");
 	}
 	if (errors.length > 0) return { ok: false, errors };
@@ -908,16 +922,28 @@ function validateContextTruncation(value: unknown): {
 		ok: true,
 		errors,
 		truncation: Object.freeze({
-			...(value.originalChars === undefined
+			...(recordValue.originalChars === undefined
 				? {}
-				: { originalChars: value.originalChars as number }),
-			...(value.packedChars === undefined ? {} : { packedChars: value.packedChars as number }),
-			...(value.omittedChars === undefined ? {} : { omittedChars: value.omittedChars as number }),
-			...(value.originalCost === undefined ? {} : { originalCost: value.originalCost as number }),
-			...(value.packedCost === undefined ? {} : { packedCost: value.packedCost as number }),
-			...(value.omittedCost === undefined ? {} : { omittedCost: value.omittedCost as number }),
-			...(value.reason === undefined ? {} : { reason: value.reason as string }),
-			...(value.metadata === undefined ? {} : { metadata: cloneStrictJsonObject(value.metadata) }),
+				: { originalChars: recordValue.originalChars as number }),
+			...(recordValue.packedChars === undefined
+				? {}
+				: { packedChars: recordValue.packedChars as number }),
+			...(recordValue.omittedChars === undefined
+				? {}
+				: { omittedChars: recordValue.omittedChars as number }),
+			...(recordValue.originalCost === undefined
+				? {}
+				: { originalCost: recordValue.originalCost as number }),
+			...(recordValue.packedCost === undefined
+				? {}
+				: { packedCost: recordValue.packedCost as number }),
+			...(recordValue.omittedCost === undefined
+				? {}
+				: { omittedCost: recordValue.omittedCost as number }),
+			...(recordValue.reason === undefined ? {} : { reason: recordValue.reason as string }),
+			...(recordValue.metadata === undefined
+				? {}
+				: { metadata: cloneStrictJsonObject(recordValue.metadata) }),
 		}),
 	};
 }
