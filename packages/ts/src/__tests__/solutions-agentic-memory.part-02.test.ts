@@ -19,6 +19,7 @@ import {
 	type AgenticMemoryContextPackingPolicy,
 	type AgenticMemoryContextPackingStatus,
 	type AgenticMemoryContextText,
+	type AgenticMemoryFactCommitStatus,
 	type AgenticMemoryKgAssertionDraft,
 	type AgenticMemoryKgProjectionError,
 	type AgenticMemoryPackedContext,
@@ -48,9 +49,20 @@ import {
 	agenticMemoryApplicationEvidenceStoreFrameBundle,
 	agenticMemoryApplicationEvidenceStoreFrameCodec,
 	agenticMemoryBundle,
+	agenticMemoryCommittedApplicationDecisionFact,
+	agenticMemoryCommittedApplicationEvidenceFact,
+	agenticMemoryCommittedFact,
+	agenticMemoryCommittedFactBatch,
+	agenticMemoryCommittedFactBatchCodec,
+	agenticMemoryCommittedFactSnapshot,
+	agenticMemoryCommittedFactSnapshotTailEquivalent,
+	agenticMemoryCommittedPriorEvidenceFact,
+	agenticMemoryCommittedRecordMaterialFact,
 	agenticMemoryConsolidationApplicationBundle,
 	agenticMemoryConsolidationBundle,
 	agenticMemoryContextPackingBundle,
+	agenticMemoryFactCommitStatusIsDurable,
+	agenticMemoryFactCommitStatusIsTerminalFailure,
 	agenticMemoryKgProjectionBundle,
 	agenticMemoryRecordAdmissionBundle,
 	agenticMemoryRecordAdmissionPolicySourceBundle,
@@ -63,13 +75,17 @@ import {
 	agenticMemoryRecordStoreFrameCodec,
 	agenticMemoryRetentionBundle,
 	applyAgenticMemoryRecordAdmissions,
+	assertAgenticMemoryCommittedFact,
 	decodeAgenticMemoryApplicationDecisionStoreFrame,
 	decodeAgenticMemoryApplicationEvidenceStoreFrame,
 	decodeAgenticMemoryRecordStoreFrame,
 	frameAgenticMemoryApplicationDecisions,
 	frameAgenticMemoryApplicationEvidence,
 	frameAgenticMemoryRecords,
+	materializeAgenticMemoryCommittedFactSnapshotTail,
+	materializeAgenticMemoryCommittedFacts,
 	materializeAgenticMemoryRecordChanges,
+	memoryAgenticMemoryCommittedFactLog,
 	projectAgenticMemoryRecordAdmissionPolicySource,
 	projectAgenticMemoryRecordApplicationEvidenceFacts,
 	projectAgenticMemoryRecordApplicationPriorEvidence,
@@ -445,6 +461,314 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 			...original,
 			fragment: { ...original.fragment, tNs: original.fragment.tNs.toString() },
 		}).toEqual(before);
+	});
+});
+
+describe("AgenticMemory D589 committed fact-log contract", () => {
+	it("commits canonical facts as whole batches and reads them by fact-stream cursor only", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const first = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d589-a", fragment: fragment({ id: "fragment-d589-a" }) }),
+			{ operation: "create", sourceRefs: [{ kind: "application", id: "application-1" }] },
+		);
+		const second = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d589-b", fragment: fragment({ id: "fragment-d589-b" }) }),
+			{ operation: "create", sourceRefs: [{ kind: "application", id: "application-1" }] },
+		);
+		const batch = agenticMemoryCommittedFactBatch([first, second]);
+		const codec = agenticMemoryCommittedFactBatchCodec();
+
+		const committed = await log.append(codec.decode(codec.encode(batch)));
+		const page0 = await log.read();
+		const page1 = await log.read({
+			after: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+		});
+
+		expect(committed).toMatchObject({
+			status: "committed",
+			facts: 2,
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			issues: [],
+		});
+		expect(page0.facts).toEqual([first, second]);
+		expect(page0.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 2 });
+		expect(page1.facts).toEqual([second]);
+		expect(page1.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 2 });
+		expect(JSON.stringify(committed.cursor)).not.toMatch(
+			/graph|wave|application|backend|row|policy/i,
+		);
+	});
+
+	it("treats duplicate identity+material as idempotent duplicate", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d589-duplicate",
+				fragment: fragment({ id: "fragment-d589-duplicate" }),
+			}),
+			{ operation: "create" },
+		);
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+
+		const first = await log.append(batch);
+		const duplicate = await log.append(batch);
+		const read = await log.read();
+
+		expect(first.status).toBe("committed");
+		expect(duplicate.status).toBe("duplicate");
+		expect(agenticMemoryFactCommitStatusIsDurable(duplicate.status)).toBe(true);
+		expect(read.facts).toEqual([fact]);
+	});
+
+	it("reports same identity with different material as conflict and chooses no winner", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const original = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d589-conflict", fragment: fragment({ id: "fragment-d589-original" }) }),
+			{ operation: "create", correlationId: "same-coordinate" },
+		);
+		const conflicting = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d589-conflict",
+				fragment: fragment({ id: "fragment-d589-conflicting", payload: "different" }),
+			}),
+			{ operation: "create", correlationId: "same-coordinate" },
+		);
+
+		await log.append(agenticMemoryCommittedFactBatch([original]));
+		const conflict = await log.append(agenticMemoryCommittedFactBatch([conflicting]));
+		const read = await log.read();
+
+		expect(original.identity).toEqual(conflicting.identity);
+		expect(original.materialIdentity).not.toEqual(conflicting.materialIdentity);
+		expect(conflict.status).toBe("conflict");
+		expect(agenticMemoryFactCommitStatusIsTerminalFailure(conflict.status)).toBe(true);
+		expect(read.facts).toEqual([original]);
+		expect(materializeAgenticMemoryCommittedFacts(read.facts).records).toEqual([
+			record({ id: "record-d589-conflict", fragment: fragment({ id: "fragment-d589-original" }) }),
+		]);
+	});
+
+	it("rejects validation/precondition failures without committing any fact", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d589-rejected", fragment: fragment({ id: "fragment-d589-rejected" }) }),
+		);
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+		const malformed = {
+			...batch,
+			batchIdentity: { ...batch.batchIdentity, key: "not-the-canonical-batch-identity" },
+		};
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			applyAgenticMemoryRecordAdmissions(
+				[admitted({ admissionId: "d589-invalid-evidence", proposalId: "d589-invalid-evidence" })],
+				applicationPolicy(),
+			).applicationDecisions,
+		).evidenceFacts[0]!;
+		const evidenceFact = agenticMemoryCommittedApplicationEvidenceFact(evidence);
+		const malformedEvidence = {
+			...agenticMemoryCommittedFactBatch([evidenceFact]),
+			facts: [
+				{
+					...evidenceFact,
+					material: {
+						...evidenceFact.material,
+						evidence: { ...evidence, admissionId: "" },
+					},
+				},
+			],
+		};
+		const priorFact = agenticMemoryCommittedPriorEvidenceFact(
+			{ kind: "agentic-memory-record-application-prior-evidence", entries: [evidence] },
+			{ subjectId: "prior-d589-invalid" },
+		);
+		const malformedPriorEvidence = {
+			...agenticMemoryCommittedFactBatch([priorFact]),
+			facts: [
+				{
+					...priorFact,
+					material: {
+						...priorFact.material,
+						priorEvidence: {
+							kind: "agentic-memory-record-application-prior-evidence",
+							entries: [{ ...evidence, proposalId: "" }],
+						},
+					},
+				},
+			],
+		};
+
+		const result = await log.append(malformed as never);
+		const evidenceResult = await log.append(malformedEvidence as never);
+		const priorResult = await log.append(malformedPriorEvidence as never);
+		const read = await log.read();
+
+		expect(result.status).toBe("rejected");
+		expect(evidenceResult.status).toBe("rejected");
+		expect(priorResult.status).toBe("rejected");
+		expect(result.issues[0]?.code).toBe("agentic-memory.fact-log.batch-rejected");
+		expect(read.facts).toEqual([]);
+	});
+
+	it("rejects non-canonical identity algorithms, coordinate fields, and family/material mismatches", () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d589-canonical",
+				fragment: fragment({ id: "fragment-d589-canonical" }),
+			}),
+		);
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			applyAgenticMemoryRecordAdmissions(
+				[admitted({ admissionId: "d589-family", proposalId: "d589-family" })],
+				applicationPolicy(),
+			).applicationDecisions,
+		).evidenceFacts[0]!;
+
+		expect(() =>
+			assertAgenticMemoryCommittedFact({
+				...fact,
+				identity: { ...fact.identity, algorithm: "backend-row-id" },
+			}),
+		).toThrow(/identity/);
+		expect(() =>
+			agenticMemoryCommittedFact(
+				"record-material",
+				{ subjectId: "bad-scope", scope: "x" } as never,
+				{
+					kind: "agentic-memory-committed-record-material",
+					record: fact.material.record,
+				},
+			),
+		).toThrow(/scope/);
+		expect(() =>
+			agenticMemoryCommittedFact(
+				"record-material",
+				{ subjectId: "family-mismatch" },
+				{ kind: "agentic-memory-committed-application-evidence-material", evidence },
+			),
+		).toThrow(/material kind/);
+	});
+
+	it("rejects cursors that are not AgenticMemory fact-stream cursors", () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+
+		expect(() => log.read({ after: 0 as never })).toThrow(/cursor must be an object/);
+		expect(() =>
+			log.read({ after: { kind: "application-version", position: 0 } as never }),
+		).toThrow(/fact-stream cursor/);
+	});
+
+	it("keeps uncertain distinct from durable success and terminal failure", () => {
+		const statuses: readonly AgenticMemoryFactCommitStatus[] = [
+			"committed",
+			"duplicate",
+			"conflict",
+			"rejected",
+			"uncertain",
+		];
+
+		expect(statuses.filter(agenticMemoryFactCommitStatusIsDurable)).toEqual([
+			"committed",
+			"duplicate",
+		]);
+		expect(statuses.filter(agenticMemoryFactCommitStatusIsTerminalFailure)).toEqual([
+			"conflict",
+			"rejected",
+		]);
+		expect(agenticMemoryFactCommitStatusIsDurable("uncertain")).toBe(false);
+		expect(agenticMemoryFactCommitStatusIsTerminalFailure("uncertain")).toBe(false);
+	});
+
+	it("commits application-emitted graph DATA only as canonical facts, not application acks", async () => {
+		const g = graph();
+		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const admissions = g.state([admitted({ admissionId: "d589-app", proposalId: "d589-app" })], {
+			name: "admissions",
+		});
+		const policy = g.state(applicationPolicy(), { name: "policy" });
+		const application = agenticMemoryRecordApplicationBundle(g, {
+			name: "d589Application",
+			records,
+			admissions,
+			policy,
+		});
+		const decisions = collect(application.applicationDecisions);
+		admissions.set(admissions.cache);
+		const emittedDecisions = data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(
+			decisions.messages,
+		).at(-1);
+		if (emittedDecisions === undefined) throw new Error("expected graph-visible decisions");
+		const evidenceProjection = projectAgenticMemoryRecordApplicationEvidenceFacts(emittedDecisions);
+		const facts = [
+			agenticMemoryCommittedApplicationDecisionFact(emittedDecisions[0]!),
+			agenticMemoryCommittedApplicationEvidenceFact(evidenceProjection.evidenceFacts[0]!),
+		];
+		const log = memoryAgenticMemoryCommittedFactLog();
+
+		const result = await log.append(agenticMemoryCommittedFactBatch(facts));
+		const read = await log.read();
+		const materialized = materializeAgenticMemoryCommittedFacts(read.facts);
+
+		expect(decisions.messages.map((message) => message[0])).toContain("DATA");
+		expect(result.status).toBe("committed");
+		expect(JSON.stringify(result)).not.toMatch(
+			/applicationAck|liveGraphTruth|recordMutation|hydrate/i,
+		);
+		expect(read.facts).toEqual(facts);
+		expect(materialized.priorEvidence.entries).toEqual(evidenceProjection.evidenceFacts);
+		expect(materialized.records).toEqual([]);
+	});
+
+	it("keeps the reference adapter from decoding, applying, admitting, or mutating records", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const committedRecord = record({
+			id: "record-d589-materialized",
+			fragment: fragment({ id: "fragment-d589-materialized" }),
+		});
+		const fact = agenticMemoryCommittedRecordMaterialFact(committedRecord);
+
+		await log.append(agenticMemoryCommittedFactBatch([fact]));
+		const read = await log.read();
+
+		expect(read).not.toHaveProperty("records");
+		expect(read).not.toHaveProperty("priorEvidence");
+		expect(read.facts).toEqual([fact]);
+		expect(materializeAgenticMemoryCommittedFacts(read.facts).records).toEqual([committedRecord]);
+	});
+
+	it("materializes records/priorEvidence by library replay and preserves snapshot+tail equivalence", async () => {
+		const applied = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "d589-evidence", proposalId: "d589-evidence" })],
+			applicationPolicy(),
+		);
+		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(
+			applied.applicationDecisions,
+		);
+		const prefix = [
+			agenticMemoryCommittedRecordMaterialFact(
+				record({ id: "record-d589-prefix", fragment: fragment({ id: "fragment-d589-prefix" }) }),
+			),
+			agenticMemoryCommittedApplicationEvidenceFact(evidence.evidenceFacts[0]!),
+		];
+		const tail = [
+			agenticMemoryCommittedRecordMaterialFact(
+				record({ id: "record-d589-tail", fragment: fragment({ id: "fragment-d589-tail" }) }),
+			),
+		];
+
+		const direct = materializeAgenticMemoryCommittedFacts([...prefix, ...tail]);
+		const compacted = materializeAgenticMemoryCommittedFactSnapshotTail(
+			agenticMemoryCommittedFactSnapshot(prefix),
+			tail,
+		);
+
+		expect(direct.records.map((item) => item.id)).toEqual([
+			"record-d589-prefix",
+			"record-d589-tail",
+		]);
+		expect(direct.priorEvidence.entries).toEqual(evidence.evidenceFacts);
+		expect(compacted.records).toEqual(direct.records);
+		expect(compacted.priorEvidence).toEqual(direct.priorEvidence);
+		expect(agenticMemoryCommittedFactSnapshotTailEquivalent(prefix, tail)).toBe(true);
 	});
 });
 

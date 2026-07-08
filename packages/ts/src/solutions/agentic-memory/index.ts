@@ -10,6 +10,7 @@ export type {
 export * from "./admission-policy-source.js";
 export * from "./application-history.js";
 export * from "./bundle.js";
+export * from "./committed-fact-log.js";
 export * from "./consolidation.js";
 export * from "./consolidation-application.js";
 export * from "./context-packing.js";

@@ -43,6 +43,7 @@ import type {
 	AgenticMemoryApplicationEvidenceStoreFrame,
 	AgenticMemoryApplicationEvidenceStoreFrameBundleOptions,
 	AgenticMemoryBundleOptions,
+	AgenticMemoryCommittedFactLog,
 	AgenticMemoryConsolidationApplicationBundle,
 	AgenticMemoryConsolidationApplicationBundleOptions,
 	AgenticMemoryConsolidationBundle,
@@ -50,6 +51,7 @@ import type {
 	AgenticMemoryContextAttribution,
 	AgenticMemoryContextPackingBundleOptions,
 	AgenticMemoryContextTruncation,
+	AgenticMemoryFactCommitStatus,
 	AgenticMemoryKgProjectionBundleOptions,
 	AgenticMemoryProposalAdmissionDecision,
 	AgenticMemoryProposalAdmissionPolicy,
@@ -1040,6 +1042,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(rootPackage.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
 		);
+		expect(rootPackage.AGENTIC_MEMORY_COMMITTED_FACT_FORMAT).toBe(
+			"graphrefly.agenticMemoryCommittedFact",
+		);
+		expect(typeof rootPackage.agenticMemoryCommittedFactBatch).toBe("function");
+		expect(typeof rootPackage.memoryAgenticMemoryCommittedFactLog).toBe("function");
+		expect(typeof rootPackage.materializeAgenticMemoryCommittedFacts).toBe("function");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
 		expect(typeof solutions.projectAgenticMemoryRecordAdmissionPolicySource).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordAdmissionPolicySourceBundle).toBe("function");
@@ -1070,6 +1078,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(solutions.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
 		);
+		expect(solutions.AGENTIC_MEMORY_COMMITTED_FACT_FORMAT).toBe(
+			"graphrefly.agenticMemoryCommittedFact",
+		);
+		expect(typeof solutions.agenticMemoryCommittedFactBatch).toBe("function");
+		expect(typeof solutions.memoryAgenticMemoryCommittedFactLog).toBe("function");
+		expect(typeof solutions.materializeAgenticMemoryCommittedFacts).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryKgProjectionBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordFrame).toBe("function");
@@ -1109,6 +1123,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(agenticMemory.AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM).toBe(
 			"graphrefly.agenticMemoryRecordApplicationMaterial.v1",
 		);
+		expect(agenticMemory.AGENTIC_MEMORY_COMMITTED_FACT_FORMAT).toBe(
+			"graphrefly.agenticMemoryCommittedFact",
+		);
+		expect(typeof agenticMemory.agenticMemoryCommittedRecordMaterialFact).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryCommittedApplicationDecisionFact).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryCommittedFactBatch).toBe("function");
+		expect(typeof agenticMemory.memoryAgenticMemoryCommittedFactLog).toBe("function");
+		expect(typeof agenticMemory.materializeAgenticMemoryCommittedFacts).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryCommittedFactSnapshotTailEquivalent).toBe("function");
 		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
 		expectTypeOf<AgenticMemoryRecordApplicationPolicy>().toHaveProperty("policyId");
 		expectTypeOf<AgenticMemoryRecordApplicationOperation>().toEqualTypeOf<
@@ -1149,6 +1172,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticMemoryRecordMaterializationProjection>().toHaveProperty("proposals");
 		expectTypeOf<AgenticMemoryRecordMaterializationStatus>().toHaveProperty("cursor");
 		expectTypeOf<AgenticMemoryRecordMaterializerBundleOptions>().toHaveProperty("intents");
+		expectTypeOf<AgenticMemoryFactCommitStatus>().toEqualTypeOf<
+			"committed" | "duplicate" | "conflict" | "rejected" | "uncertain"
+		>();
+		expectTypeOf<AgenticMemoryCommittedFactLog>().toHaveProperty("append");
 		expectTypeOf<AgenticMemoryRecordStoreFrame>().toHaveProperty("records");
 		expectTypeOf<AgenticMemoryRecordStoreFrameBundleOptions>().toHaveProperty("storeFrame");
 		expectTypeOf<AgenticMemoryApplicationEvidenceStoreFrame>().toHaveProperty("priorEvidence");

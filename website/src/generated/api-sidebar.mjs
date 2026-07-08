@@ -1741,6 +1741,78 @@ export const apiSidebar = [
 				"link": "/api/agenticmemorybundle"
 			},
 			{
+				"label": "agenticMemoryCommittedFactIdentity()",
+				"link": "/api/agenticmemorycommittedfactidentity"
+			},
+			{
+				"label": "agenticMemoryCommittedFactMaterialIdentity()",
+				"link": "/api/agenticmemorycommittedfactmaterialidentity"
+			},
+			{
+				"label": "agenticMemoryCommittedFact()",
+				"link": "/api/agenticmemorycommittedfact"
+			},
+			{
+				"label": "agenticMemoryCommittedRecordMaterialFact()",
+				"link": "/api/agenticmemorycommittedrecordmaterialfact"
+			},
+			{
+				"label": "agenticMemoryCommittedApplicationDecisionFact()",
+				"link": "/api/agenticmemorycommittedapplicationdecisionfact"
+			},
+			{
+				"label": "agenticMemoryCommittedApplicationEvidenceFact()",
+				"link": "/api/agenticmemorycommittedapplicationevidencefact"
+			},
+			{
+				"label": "agenticMemoryCommittedPriorEvidenceFact()",
+				"link": "/api/agenticmemorycommittedpriorevidencefact"
+			},
+			{
+				"label": "agenticMemoryCommittedFactBatch()",
+				"link": "/api/agenticmemorycommittedfactbatch"
+			},
+			{
+				"label": "assertAgenticMemoryCommittedFact()",
+				"link": "/api/assertagenticmemorycommittedfact"
+			},
+			{
+				"label": "agenticMemoryCommittedFactBatchCodec()",
+				"link": "/api/agenticmemorycommittedfactbatchcodec"
+			},
+			{
+				"label": "assertAgenticMemoryCommittedFactBatch()",
+				"link": "/api/assertagenticmemorycommittedfactbatch"
+			},
+			{
+				"label": "memoryAgenticMemoryCommittedFactLog()",
+				"link": "/api/memoryagenticmemorycommittedfactlog"
+			},
+			{
+				"label": "agenticMemoryFactCommitStatusIsDurable()",
+				"link": "/api/agenticmemoryfactcommitstatusisdurable"
+			},
+			{
+				"label": "agenticMemoryFactCommitStatusIsTerminalFailure()",
+				"link": "/api/agenticmemoryfactcommitstatusisterminalfailure"
+			},
+			{
+				"label": "materializeAgenticMemoryCommittedFacts()",
+				"link": "/api/materializeagenticmemorycommittedfacts"
+			},
+			{
+				"label": "agenticMemoryCommittedFactSnapshot()",
+				"link": "/api/agenticmemorycommittedfactsnapshot"
+			},
+			{
+				"label": "materializeAgenticMemoryCommittedFactSnapshotTail()",
+				"link": "/api/materializeagenticmemorycommittedfactsnapshottail"
+			},
+			{
+				"label": "agenticMemoryCommittedFactSnapshotTailEquivalent()",
+				"link": "/api/agenticmemorycommittedfactsnapshottailequivalent"
+			},
+			{
 				"label": "agenticMemoryConsolidationApplicationBundle()",
 				"link": "/api/agenticmemoryconsolidationapplicationbundle"
 			},
