@@ -1737,6 +1737,10 @@ export const apiSidebar = [
 				"link": "/api/agenticmemoryrecordapplicationevidencefactsbundle"
 			},
 			{
+				"label": "indexedDbAgenticMemoryCommittedFactLogBackend()",
+				"link": "/api/indexeddbagenticmemorycommittedfactlogbackend"
+			},
+			{
 				"label": "agenticMemoryBundle()",
 				"link": "/api/agenticmemorybundle"
 			},

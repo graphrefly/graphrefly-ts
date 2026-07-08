@@ -8,6 +8,7 @@ import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
 import type { Message } from "../protocol/messages.js";
+import { indexedDbAgenticMemoryCommittedFactLogBackend } from "../solutions/agentic-memory/browser.js";
 import { nodeFileAgenticMemoryCommittedFactLogBackend } from "../solutions/agentic-memory/node.js";
 import {
 	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
@@ -1577,6 +1578,308 @@ describe("AgenticMemory D594 Node file committed fact-log reference backend", ()
 	});
 });
 
+describe("AgenticMemory D594 browser IndexedDB committed fact-log reference backend", () => {
+	it("persists canonical committed fact batches and reads them in fact-stream order", async () => {
+		await withIndexedDbMock(createMemoryIndexedDb(), async () => {
+			const spec = indexedDbSpec("order");
+			const first = agenticMemoryCommittedRecordMaterialFact(
+				record({ id: "record-d594-idb-a", fragment: fragment({ id: "fragment-d594-idb-a" }) }),
+				{ operation: "create", correlationId: "d594-idb-a" },
+			);
+			const second = agenticMemoryCommittedRecordMaterialFact(
+				record({ id: "record-d594-idb-b", fragment: fragment({ id: "fragment-d594-idb-b" }) }),
+				{ operation: "create", correlationId: "d594-idb-b" },
+			);
+			const batch = agenticMemoryCommittedFactBatch([first, second]);
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				indexedDbAgenticMemoryCommittedFactLogBackend<string>(spec),
+			);
+
+			const append = await log.append(batch);
+			const reopened = agenticMemoryCommittedFactLogBackendAdapter(
+				indexedDbAgenticMemoryCommittedFactLogBackend<string>(spec),
+			);
+			const readAll = await reopened.read();
+			const readAfterFirst = await reopened.read({
+				after: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			});
+
+			expect(append).toMatchObject({
+				status: "committed",
+				facts: 2,
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			});
+			expect(readAll.facts).toEqual([first, second]);
+			expect(readAll.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 2 });
+			expect(readAfterFirst.facts).toEqual([second]);
+			expect(readAfterFirst.cursor).toEqual({
+				kind: "agentic-memory-fact-stream.cursor",
+				position: 2,
+			});
+			expect(
+				JSON.stringify({ appendCursor: append.cursor, readCursor: readAll.cursor }),
+			).not.toMatch(/indexedDb|idb|storage|appendLog|seq|row|backend|key/i);
+		});
+	});
+
+	it("uses D589 identity/material rules for duplicate and conflict without choosing a winner", async () => {
+		await withIndexedDbMock(createMemoryIndexedDb(), async () => {
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				indexedDbAgenticMemoryCommittedFactLogBackend<string>(indexedDbSpec("conflict")),
+			);
+			const original = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-idb-conflict",
+					fragment: fragment({ id: "fragment-d594-idb-conflict-original" }),
+				}),
+				{ operation: "create", correlationId: "d594-idb-conflict" },
+			);
+			const conflicting = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-idb-conflict",
+					fragment: fragment({ id: "fragment-d594-idb-conflict-other", payload: "other" }),
+				}),
+				{ operation: "create", correlationId: "d594-idb-conflict" },
+			);
+			const batch = agenticMemoryCommittedFactBatch([original]);
+
+			const committed = await log.append(batch);
+			const duplicate = await log.append(batch);
+			const conflict = await log.append(agenticMemoryCommittedFactBatch([conflicting]));
+			const read = await log.read();
+
+			expect(committed.status).toBe("committed");
+			expect(duplicate.status).toBe("duplicate");
+			expect(conflict.status).toBe("conflict");
+			expect(original.identity).toEqual(conflicting.identity);
+			expect(original.materialIdentity).not.toEqual(conflicting.materialIdentity);
+			expect(read.facts).toEqual([original]);
+			expect(materializeAgenticMemoryCommittedFacts(read.facts).records).toEqual([
+				record({
+					id: "record-d594-idb-conflict",
+					fragment: fragment({ id: "fragment-d594-idb-conflict-original" }),
+				}),
+			]);
+		});
+	});
+
+	it("keeps batch visibility whole by rejecting partial-overlap appends", async () => {
+		await withIndexedDbMock(createMemoryIndexedDb(), async () => {
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				indexedDbAgenticMemoryCommittedFactLogBackend<string>(indexedDbSpec("overlap")),
+			);
+			const existing = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-idb-overlap-a",
+					fragment: fragment({ id: "fragment-d594-idb-overlap-a" }),
+				}),
+				{ operation: "create", correlationId: "d594-idb-overlap-a" },
+			);
+			const newFact = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-idb-overlap-b",
+					fragment: fragment({ id: "fragment-d594-idb-overlap-b" }),
+				}),
+				{ operation: "create", correlationId: "d594-idb-overlap-b" },
+			);
+
+			await log.append(agenticMemoryCommittedFactBatch([existing]));
+			const overlap = await log.append(agenticMemoryCommittedFactBatch([existing, newFact]));
+			const read = await log.read();
+
+			expect(overlap.status).toBe("rejected");
+			expect(overlap.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						code: "agentic-memory.fact-log-backend.indexeddb.batch-overlaps-committed-log",
+					}),
+				]),
+			);
+			expect(read.facts).toEqual([existing]);
+			expect(read.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 1 });
+		});
+	});
+
+	it("keeps backend diagnostics and IndexedDB storage cursors as issue/audit DATA only", async () => {
+		await withIndexedDbMock(createMemoryIndexedDb(), async () => {
+			const backend = indexedDbAgenticMemoryCommittedFactLogBackend<string>(indexedDbSpec("diag"), {
+				backendName: "indexeddb-d594-diagnostics",
+			});
+			const log = agenticMemoryCommittedFactLogBackendAdapter(backend);
+			const fact = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-idb-diagnostics",
+					fragment: fragment({ id: "fragment-d594-idb-diagnostics" }),
+				}),
+				{ operation: "create", correlationId: "d594-idb-diagnostics" },
+			);
+
+			const directStatus =
+				typeof backend.status === "function" ? await backend.status() : backend.status;
+			const append = await log.append(agenticMemoryCommittedFactBatch([fact]));
+			const read = await log.read();
+
+			expect(directStatus).toMatchObject({
+				kind: "agentic-memory-committed-fact-log-backend-status",
+				backend: "indexeddb-d594-diagnostics",
+			});
+			expect(directStatus?.capabilities.map((capability) => capability.name)).toEqual(
+				expect.arrayContaining([
+					"single-writer",
+					"whole-batch-visibility",
+					"browser-transaction-attempt",
+					"multi-writer-correctness",
+					"fsync-guarantee",
+				]),
+			);
+			expect(append).not.toHaveProperty("backendCursor");
+			expect(append).not.toHaveProperty("backendStatus");
+			expect(read).not.toHaveProperty("backendCursor");
+			expect(read).not.toHaveProperty("backendStatus");
+			expect(append.audit.map((entry) => entry.action)).toEqual(
+				expect.arrayContaining(["backend-cursor-linked", "backend-status-linked"]),
+			);
+			expect(read.audit.map((entry) => entry.action)).toContain("backend-cursor-linked");
+			expect(JSON.stringify({ appendCursor: append.cursor, readCursor: read.cursor })).not.toMatch(
+				/indexeddb|appendLogSeq|storageKey|backend|key/i,
+			);
+			expect(jsonForBoundaryText({ directStatus })).not.toMatch(
+				/applicationAck|liveGraphTruth|recordMutation|hotHydration|hydrate|hydration|restore|liveRefresh|commitBarrier|sameEvaluationFeedback/i,
+			);
+		});
+	});
+
+	it("normalizes an empty diagnostic backend name before reporting backend cursors", async () => {
+		await withIndexedDbMock(createMemoryIndexedDb(), async () => {
+			const backend = indexedDbAgenticMemoryCommittedFactLogBackend<string>(
+				indexedDbSpec("empty-backend-name"),
+				{ backendName: "" },
+			);
+			const log = agenticMemoryCommittedFactLogBackendAdapter(backend);
+			const fact = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-idb-empty-backend-name",
+					fragment: fragment({ id: "fragment-d594-idb-empty-backend-name" }),
+				}),
+				{ operation: "create", correlationId: "d594-idb-empty-backend-name" },
+			);
+
+			const append = await log.append(agenticMemoryCommittedFactBatch([fact]));
+			const read = await log.read();
+
+			expect(append.status).toBe("committed");
+			expect(read.facts).toEqual([fact]);
+			expect(append.audit.map((entry) => entry.action)).toContain("backend-cursor-linked");
+			expect(read.audit.map((entry) => entry.action)).toContain("backend-cursor-linked");
+		});
+	});
+
+	it("keeps malformed direct read cursors on the issue DATA path", async () => {
+		await withIndexedDbMock(createMemoryIndexedDb(), async () => {
+			const backend = indexedDbAgenticMemoryCommittedFactLogBackend<string>(
+				indexedDbSpec("malformed-direct-cursor"),
+			);
+			const invalidReadOpts = { after: null } as unknown as Parameters<typeof backend.read>[0];
+
+			const read = await backend.read(invalidReadOpts);
+
+			expect(read).toMatchObject({
+				facts: [],
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+				done: false,
+			});
+			expect(read.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						code: "agentic-memory.fact-log-backend.indexeddb.invalid-fact-cursor",
+					}),
+				]),
+			);
+		});
+	});
+
+	it("reports uncertain physical append outcomes without implying success or failure", async () => {
+		await withIndexedDbMock(createMemoryIndexedDb({ failPut: true }), async () => {
+			const fact = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-idb-uncertain",
+					fragment: fragment({ id: "fragment-d594-idb-uncertain" }),
+				}),
+				{ operation: "create", correlationId: "d594-idb-uncertain" },
+			);
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				indexedDbAgenticMemoryCommittedFactLogBackend<string>(indexedDbSpec("uncertain")),
+			);
+
+			const append = await log.append(agenticMemoryCommittedFactBatch([fact]));
+			const projection = projectAgenticMemoryDurabilityGate(
+				agenticMemoryCommittedFactBatch([fact]),
+				append,
+				{
+					downstreamAdvancePolicy: agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy(),
+				},
+			);
+			const read = await log.read();
+
+			expect(append.status).toBe("uncertain");
+			expect(read.facts).toEqual([]);
+			expect(agenticMemoryFactCommitStatusIsDurable(append.status)).toBe(false);
+			expect(agenticMemoryFactCommitStatusIsTerminalFailure(append.status)).toBe(false);
+			expect(projection.status).toMatchObject({
+				state: "uncertain",
+				downstreamAdvance: { allowed: false, reason: "uncertain-requires-read-resolution" },
+			});
+		});
+	});
+
+	it("integrates with runtime startup read and append attempt helpers as explicit DATA boundaries", async () => {
+		await withIndexedDbMock(createMemoryIndexedDb(), async () => {
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				indexedDbAgenticMemoryCommittedFactLogBackend<string>(indexedDbSpec("runtime")),
+			);
+			const committed = record({
+				id: "record-d594-idb-runtime",
+				fragment: fragment({ id: "fragment-d594-idb-runtime" }),
+			});
+			const batch = agenticMemoryCommittedFactBatch([
+				agenticMemoryCommittedRecordMaterialFact(committed, {
+					operation: "create",
+					correlationId: "d594-idb-runtime",
+				}),
+			]);
+
+			const append = await agenticMemoryCommittedFactLogAppendAttempt(log, batch, {
+				evaluation: 21,
+				downstreamAdvancePolicy:
+					agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy("d594-idb-runtime-policy"),
+			});
+			const startup = await agenticMemoryCommittedFactLogStartupRead(log, { evaluation: 22 });
+
+			expect(append.commitResult).toMatchObject({
+				status: "committed",
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			});
+			expect(append.durabilityStatus).toMatchObject({
+				state: "durable",
+				downstreamAdvance: {
+					allowed: true,
+					policyId: "d594-idb-runtime-policy",
+					reason: "fact-log-committed",
+				},
+			});
+			expect(startup.records).toEqual([committed]);
+			expect(startup.bootstrapStatus).toMatchObject({
+				state: "ready",
+				readyForCallerWiring: true,
+				factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			});
+			expect(jsonForBoundaryText({ append, startup })).not.toMatch(
+				/applicationAck|liveGraphTruth|recordMutation|hotHydration|hydrate|hydration|restore|liveRefresh|commitBarrier|sameEvaluationFeedback/i,
+			);
+		});
+	});
+});
+
 describe("AgenticMemory D590 durable-result gate boundary", () => {
 	it("projects fact-log durability result DATA without implicit downstream advance", async () => {
 		const log = memoryAgenticMemoryCommittedFactLog();
@@ -2822,6 +3125,171 @@ const record = <T = string>(
 	fragment: fragment<T>(),
 	...patch,
 });
+
+let indexedDbSpecCounter = 0;
+
+function indexedDbSpec(label: string) {
+	indexedDbSpecCounter += 1;
+	return {
+		dbName: `graphrefly-agentic-memory-d594-${label}-${indexedDbSpecCounter}`,
+		storeName: "fact-log",
+	};
+}
+
+async function withIndexedDbMock(indexedDb: IDBFactory, fn: () => Promise<void>): Promise<void> {
+	const descriptor = Reflect.getOwnPropertyDescriptor(globalThis, "indexedDB");
+	Object.defineProperty(globalThis, "indexedDB", {
+		configurable: true,
+		value: indexedDb,
+	});
+	try {
+		await fn();
+	} finally {
+		if (descriptor) {
+			Object.defineProperty(globalThis, "indexedDB", descriptor);
+		} else {
+			delete (globalThis as { indexedDB?: unknown }).indexedDB;
+		}
+	}
+}
+
+function createMemoryIndexedDb(opts: { readonly failPut?: boolean } = {}): IDBFactory {
+	type StoredDb = {
+		readonly stores: Map<string, Map<string, Uint8Array>>;
+		version: number;
+	};
+	const dbs = new Map<string, StoredDb>();
+
+	function requestEvent(type: string): Event {
+		return new Event(type);
+	}
+
+	function makeRequest<T = unknown>(): IDBRequest<T> {
+		return {} as IDBRequest<T>;
+	}
+
+	function completeTransaction(tx: Partial<IDBTransaction>): void {
+		tx.oncomplete?.call(tx as IDBTransaction, requestEvent("complete"));
+	}
+
+	function failTransaction(
+		tx: Partial<IDBTransaction>,
+		req: Partial<IDBRequest>,
+		message: string,
+	): void {
+		const error = new Error(message) as DOMException;
+		req.error = error;
+		tx.error = error;
+		req.onerror?.call(req as IDBRequest, requestEvent("error"));
+		tx.onabort?.call(tx as IDBTransaction, requestEvent("abort"));
+	}
+
+	function fakeDb(name: string, stored: StoredDb): IDBDatabase {
+		const db = {
+			get version() {
+				return stored.version;
+			},
+			objectStoreNames: {
+				contains(storeName: string) {
+					return stored.stores.has(storeName);
+				},
+			},
+			createObjectStore(storeName: string) {
+				if (!stored.stores.has(storeName)) stored.stores.set(storeName, new Map());
+				return {} as IDBObjectStore;
+			},
+			transaction(storeName: string, mode: IDBTransactionMode = "readonly") {
+				const store = stored.stores.get(storeName);
+				if (store === undefined) {
+					throw new Error(`missing object store: ${storeName}`);
+				}
+				const tx: Partial<IDBTransaction> = {};
+				const objectStore = {
+					get(key: IDBValidKey) {
+						const req = makeRequest<Uint8Array | undefined>();
+						queueMicrotask(() => {
+							req.result = store.get(String(key));
+							req.onsuccess?.call(req, requestEvent("success"));
+						});
+						return req;
+					},
+					put(value: Uint8Array, key?: IDBValidKey) {
+						if (mode === "readonly") {
+							throw new Error("mock IndexedDB readonly transaction cannot write");
+						}
+						const req = makeRequest<IDBValidKey>();
+						queueMicrotask(() => {
+							if (opts.failPut) {
+								failTransaction(tx, req, "mock IndexedDB put failed");
+								return;
+							}
+							const normalizedKey = String(key);
+							store.set(normalizedKey, Uint8Array.from(value));
+							req.result = normalizedKey;
+							req.onsuccess?.call(req, requestEvent("success"));
+							completeTransaction(tx);
+						});
+						return req;
+					},
+					getAllKeys() {
+						const req = makeRequest<IDBValidKey[]>();
+						queueMicrotask(() => {
+							req.result = Array.from(store.keys());
+							req.onsuccess?.call(req, requestEvent("success"));
+						});
+						return req;
+					},
+					delete(key: IDBValidKey) {
+						if (mode === "readonly") {
+							throw new Error("mock IndexedDB readonly transaction cannot delete");
+						}
+						const req = makeRequest<undefined>();
+						queueMicrotask(() => {
+							store.delete(String(key));
+							req.onsuccess?.call(req, requestEvent("success"));
+							completeTransaction(tx);
+						});
+						return req;
+					},
+				};
+				tx.objectStore = () => objectStore as unknown as IDBObjectStore;
+				return tx as IDBTransaction;
+			},
+			close() {
+				/* no-op */
+			},
+		};
+		Object.defineProperty(db, "name", { value: name });
+		return db as IDBDatabase;
+	}
+
+	return {
+		open(name: string, version?: number) {
+			const req = {} as IDBOpenDBRequest;
+			queueMicrotask(() => {
+				let stored = dbs.get(name);
+				if (stored === undefined) {
+					stored = { stores: new Map(), version: version ?? 1 };
+					dbs.set(name, stored);
+					req.result = fakeDb(name, stored);
+					req.onupgradeneeded?.call(req, requestEvent("upgradeneeded") as IDBVersionChangeEvent);
+					req.onsuccess?.call(req, requestEvent("success"));
+					return;
+				}
+				if (version !== undefined && version > stored.version) {
+					stored.version = version;
+					req.result = fakeDb(name, stored);
+					req.onupgradeneeded?.call(req, requestEvent("upgradeneeded") as IDBVersionChangeEvent);
+					req.onsuccess?.call(req, requestEvent("success"));
+					return;
+				}
+				req.result = fakeDb(name, stored);
+				req.onsuccess?.call(req, requestEvent("success"));
+			});
+			return req;
+		},
+	} as IDBFactory;
+}
 
 const data = <T>(messages: Message[]): T[] =>
 	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);

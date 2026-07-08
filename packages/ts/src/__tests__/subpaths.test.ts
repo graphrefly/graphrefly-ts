@@ -177,6 +177,7 @@ import * as eventFlowPatterns from "../patterns/event-flow.js";
 import * as patterns from "../patterns/index.js";
 import * as render from "../render/index.js";
 import * as scoring from "../scoring/index.js";
+import * as agenticMemoryBrowser from "../solutions/agentic-memory/browser.js";
 import * as agenticMemory from "../solutions/agentic-memory/index.js";
 import * as agenticMemoryNode from "../solutions/agentic-memory/node.js";
 import * as agenticWorkItemMemory from "../solutions/agentic-work-item-memory/index.js";
@@ -281,6 +282,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./scoring",
 			"./solutions",
 			"./solutions/agentic-memory",
+			"./solutions/agentic-memory/browser",
 			"./solutions/agentic-memory/node",
 			"./solutions/agentic-work-item-memory",
 			"./solutions/agentic-work-item-memory-application",
@@ -1247,7 +1249,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"function",
 		);
 		expect(typeof agenticMemory.agenticMemoryDurabilityUncertainResolutionStatus).toBe("function");
+		expect(typeof agenticMemoryBrowser.indexedDbAgenticMemoryCommittedFactLogBackend).toBe(
+			"function",
+		);
 		expect(typeof agenticMemoryNode.nodeFileAgenticMemoryCommittedFactLogBackend).toBe("function");
+		expect(Object.hasOwn(agenticMemory, "indexedDbAgenticMemoryCommittedFactLogBackend")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(solutions, "indexedDbAgenticMemoryCommittedFactLogBackend")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "indexedDbAgenticMemoryCommittedFactLogBackend")).toBe(false);
 		expect(Object.hasOwn(agenticMemory, "nodeFileAgenticMemoryCommittedFactLogBackend")).toBe(
 			false,
 		);

@@ -466,6 +466,26 @@
 				"default": "./dist/solutions/agentic-memory/index.cjs"
 			}
 		},
+		"./solutions/agentic-memory/browser": {
+			"browser": {
+				"import": {
+					"types": "./dist/solutions/agentic-memory/browser.d.ts",
+					"default": "./dist/solutions/agentic-memory/browser.js"
+				},
+				"require": {
+					"types": "./dist/solutions/agentic-memory/browser.d.cts",
+					"default": "./dist/solutions/agentic-memory/browser.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/solutions/agentic-memory/browser.d.ts",
+				"default": "./dist/solutions/agentic-memory/browser.js"
+			},
+			"require": {
+				"types": "./dist/solutions/agentic-memory/browser.d.cts",
+				"default": "./dist/solutions/agentic-memory/browser.cjs"
+			}
+		},
 		"./solutions/agentic-memory/node": {
 			"node": {
 				"import": {
