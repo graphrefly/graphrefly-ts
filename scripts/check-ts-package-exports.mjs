@@ -185,6 +185,12 @@ const expectedSubpaths = {
 			"agenticMemoryRecordApplicationPriorEvidenceBundle",
 			"agenticMemoryRecordApplicationEvidenceFactsBundle",
 			"agenticMemoryConsolidationApplicationBundle",
+			"agenticMemoryDurabilityGateBundle",
+			"agenticMemoryDurabilityGateInput",
+			"projectAgenticMemoryDurabilityGate",
+			"agenticMemoryDurabilityResultMayAdvance",
+			"agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy",
+			"agenticMemoryDurabilityUncertainResolutionStatus",
 		],
 		absent: [
 			"workItemAuthoringProjector",
@@ -603,9 +609,18 @@ import {
 } from "@graphrefly/ts/scoring";
 import {
 	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
+	AGENTIC_MEMORY_DURABILITY_ADVANCE_ON_COMMITTED_OR_DUPLICATE_POLICY,
 	admitAgenticMemoryRecordProposals,
 	agenticMemoryBundle,
 	agenticMemoryConsolidationApplicationBundle,
+	agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy,
+	agenticMemoryDurabilityGateBundle,
+	agenticMemoryDurabilityGateInput,
+	projectAgenticMemoryDurabilityGate,
+	agenticMemoryDurabilityResultMayAdvance,
+	agenticMemoryDurabilityUncertainResolutionStatus,
+	type AgenticMemoryDurabilityGateBundleOptions,
+	type AgenticMemoryDurabilityGateInput,
 	type AgenticMemoryBundleOptions as FocusedAgenticMemoryBundleOptions,
 	type AgenticMemoryConsolidationApplicationBundle,
 	type AgenticMemoryConsolidationApplicationBundleOptions,
@@ -690,13 +705,20 @@ void normalizeScoreSignal;
 void rankScoredSubjects;
 void scoreSubjects;
 void AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM;
+void AGENTIC_MEMORY_DURABILITY_ADVANCE_ON_COMMITTED_OR_DUPLICATE_POLICY;
 void admitAgenticMemoryRecordProposals;
 void agenticMemoryBundle;
 void agenticMemoryConsolidationApplicationBundle;
+void agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy;
+void agenticMemoryDurabilityGateBundle;
+void agenticMemoryDurabilityGateInput;
+void agenticMemoryDurabilityResultMayAdvance;
+void agenticMemoryDurabilityUncertainResolutionStatus;
 void agenticMemoryRecordAdmissionBundle;
 void agenticMemoryRecordAdmissionPolicySourceBundle;
 void agenticMemoryRecordApplicationBundle;
 void applyAgenticMemoryRecordAdmissions;
+void projectAgenticMemoryDurabilityGate;
 void projectAgenticMemoryRecordAdmissionPolicySource;
 void agenticWorkItemMemoryApplicationRecipeBundle;
 void agenticWorkItemMemoryBridgeBundle;
@@ -720,6 +742,8 @@ declare const scoredSubject: ScoredSubject;
 declare const focusedAgenticMemoryBundleOptions: FocusedAgenticMemoryBundleOptions;
 declare const focusedConsolidationApplicationBundle: AgenticMemoryConsolidationApplicationBundle;
 declare const focusedConsolidationApplicationBundleOptions: AgenticMemoryConsolidationApplicationBundleOptions;
+declare const durabilityGateBundleOptions: AgenticMemoryDurabilityGateBundleOptions;
+declare const durabilityGateInput: AgenticMemoryDurabilityGateInput;
 declare const focusedAgenticMemoryRecord: FocusedAgenticMemoryRecord;
 declare const agenticMemoryRecordAdmissionPolicy: AgenticMemoryRecordAdmissionPolicy;
 declare const agenticMemoryRecordApplicationPolicy: AgenticMemoryRecordApplicationPolicy;
@@ -788,6 +812,8 @@ void scoredSubject;
 void focusedAgenticMemoryBundleOptions;
 void focusedConsolidationApplicationBundle;
 void focusedConsolidationApplicationBundleOptions;
+void durabilityGateBundleOptions;
+void durabilityGateInput;
 void focusedAgenticMemoryRecord;
 void agenticMemoryRecordAdmissionPolicy;
 void agenticMemoryRecordApplicationPolicy;

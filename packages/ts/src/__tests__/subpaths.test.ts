@@ -51,6 +51,10 @@ import type {
 	AgenticMemoryContextAttribution,
 	AgenticMemoryContextPackingBundleOptions,
 	AgenticMemoryContextTruncation,
+	AgenticMemoryDurabilityDownstreamAdvancePolicy,
+	AgenticMemoryDurabilityGateBundleOptions,
+	AgenticMemoryDurabilityGateInput,
+	AgenticMemoryDurabilityGateStatus,
 	AgenticMemoryFactCommitStatus,
 	AgenticMemoryKgProjectionBundleOptions,
 	AgenticMemoryProposalAdmissionDecision,
@@ -1045,9 +1049,20 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(rootPackage.AGENTIC_MEMORY_COMMITTED_FACT_FORMAT).toBe(
 			"graphrefly.agenticMemoryCommittedFact",
 		);
+		expect(rootPackage.AGENTIC_MEMORY_DURABILITY_ADVANCE_ON_COMMITTED_OR_DUPLICATE_POLICY).toBe(
+			"agentic-memory-durability-advance-on-committed-or-duplicate",
+		);
 		expect(typeof rootPackage.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof rootPackage.memoryAgenticMemoryCommittedFactLog).toBe("function");
 		expect(typeof rootPackage.materializeAgenticMemoryCommittedFacts).toBe("function");
+		expect(typeof rootPackage.agenticMemoryDurabilityGateBundle).toBe("function");
+		expect(typeof rootPackage.agenticMemoryDurabilityGateInput).toBe("function");
+		expect(typeof rootPackage.projectAgenticMemoryDurabilityGate).toBe("function");
+		expect(typeof rootPackage.agenticMemoryDurabilityResultMayAdvance).toBe("function");
+		expect(typeof rootPackage.agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy).toBe(
+			"function",
+		);
+		expect(typeof rootPackage.agenticMemoryDurabilityUncertainResolutionStatus).toBe("function");
 		expect(typeof solutions.agenticMemoryBundle).toBe("function");
 		expect(typeof solutions.projectAgenticMemoryRecordAdmissionPolicySource).toBe("function");
 		expect(typeof solutions.agenticMemoryRecordAdmissionPolicySourceBundle).toBe("function");
@@ -1081,9 +1096,20 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(solutions.AGENTIC_MEMORY_COMMITTED_FACT_FORMAT).toBe(
 			"graphrefly.agenticMemoryCommittedFact",
 		);
+		expect(solutions.AGENTIC_MEMORY_DURABILITY_ADVANCE_ON_COMMITTED_OR_DUPLICATE_POLICY).toBe(
+			"agentic-memory-durability-advance-on-committed-or-duplicate",
+		);
 		expect(typeof solutions.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof solutions.memoryAgenticMemoryCommittedFactLog).toBe("function");
 		expect(typeof solutions.materializeAgenticMemoryCommittedFacts).toBe("function");
+		expect(typeof solutions.agenticMemoryDurabilityGateBundle).toBe("function");
+		expect(typeof solutions.agenticMemoryDurabilityGateInput).toBe("function");
+		expect(typeof solutions.projectAgenticMemoryDurabilityGate).toBe("function");
+		expect(typeof solutions.agenticMemoryDurabilityResultMayAdvance).toBe("function");
+		expect(typeof solutions.agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy).toBe(
+			"function",
+		);
+		expect(typeof solutions.agenticMemoryDurabilityUncertainResolutionStatus).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryKgProjectionBundle).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryRecordFrame).toBe("function");
@@ -1126,13 +1152,28 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(agenticMemory.AGENTIC_MEMORY_COMMITTED_FACT_FORMAT).toBe(
 			"graphrefly.agenticMemoryCommittedFact",
 		);
+		expect(agenticMemory.AGENTIC_MEMORY_DURABILITY_ADVANCE_ON_COMMITTED_OR_DUPLICATE_POLICY).toBe(
+			"agentic-memory-durability-advance-on-committed-or-duplicate",
+		);
 		expect(typeof agenticMemory.agenticMemoryCommittedRecordMaterialFact).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryCommittedApplicationDecisionFact).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryCommittedFactBatch).toBe("function");
 		expect(typeof agenticMemory.memoryAgenticMemoryCommittedFactLog).toBe("function");
 		expect(typeof agenticMemory.materializeAgenticMemoryCommittedFacts).toBe("function");
 		expect(typeof agenticMemory.agenticMemoryCommittedFactSnapshotTailEquivalent).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryDurabilityGateBundle).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryDurabilityGateInput).toBe("function");
+		expect(typeof agenticMemory.projectAgenticMemoryDurabilityGate).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryDurabilityResultMayAdvance).toBe("function");
+		expect(typeof agenticMemory.agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy).toBe(
+			"function",
+		);
+		expect(typeof agenticMemory.agenticMemoryDurabilityUncertainResolutionStatus).toBe("function");
 		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
+		expectTypeOf<AgenticMemoryDurabilityDownstreamAdvancePolicy>().toHaveProperty("policyId");
+		expectTypeOf<AgenticMemoryDurabilityGateBundleOptions>().toHaveProperty("attemptResult");
+		expectTypeOf<AgenticMemoryDurabilityGateInput>().toHaveProperty("commitResult");
+		expectTypeOf<AgenticMemoryDurabilityGateStatus>().toHaveProperty("commitStatus");
 		expectTypeOf<AgenticMemoryRecordApplicationPolicy>().toHaveProperty("policyId");
 		expectTypeOf<AgenticMemoryRecordApplicationOperation>().toEqualTypeOf<
 			"create" | "replace" | "update"

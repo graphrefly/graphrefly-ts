@@ -14,6 +14,7 @@ export * from "./committed-fact-log.js";
 export * from "./consolidation.js";
 export * from "./consolidation-application.js";
 export * from "./context-packing.js";
+export * from "./durable-result.js";
 export * from "./frame.js";
 export * from "./kg.js";
 export * from "./materializer.js";

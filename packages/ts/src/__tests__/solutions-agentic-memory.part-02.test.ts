@@ -19,6 +19,7 @@ import {
 	type AgenticMemoryContextPackingPolicy,
 	type AgenticMemoryContextPackingStatus,
 	type AgenticMemoryContextText,
+	type AgenticMemoryDurabilityGateStatus,
 	type AgenticMemoryFactCommitStatus,
 	type AgenticMemoryKgAssertionDraft,
 	type AgenticMemoryKgProjectionError,
@@ -61,6 +62,11 @@ import {
 	agenticMemoryConsolidationApplicationBundle,
 	agenticMemoryConsolidationBundle,
 	agenticMemoryContextPackingBundle,
+	agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy,
+	agenticMemoryDurabilityGateBundle,
+	agenticMemoryDurabilityGateInput,
+	agenticMemoryDurabilityResultMayAdvance,
+	agenticMemoryDurabilityUncertainResolutionStatus,
 	agenticMemoryFactCommitStatusIsDurable,
 	agenticMemoryFactCommitStatusIsTerminalFailure,
 	agenticMemoryKgProjectionBundle,
@@ -86,6 +92,7 @@ import {
 	materializeAgenticMemoryCommittedFacts,
 	materializeAgenticMemoryRecordChanges,
 	memoryAgenticMemoryCommittedFactLog,
+	projectAgenticMemoryDurabilityGate,
 	projectAgenticMemoryRecordAdmissionPolicySource,
 	projectAgenticMemoryRecordApplicationEvidenceFacts,
 	projectAgenticMemoryRecordApplicationPriorEvidence,
@@ -769,6 +776,287 @@ describe("AgenticMemory D589 committed fact-log contract", () => {
 		expect(compacted.records).toEqual(direct.records);
 		expect(compacted.priorEvidence).toEqual(direct.priorEvidence);
 		expect(agenticMemoryCommittedFactSnapshotTailEquivalent(prefix, tail)).toBe(true);
+	});
+});
+
+describe("AgenticMemory D590 durable-result gate boundary", () => {
+	it("projects fact-log durability result DATA without implicit downstream advance", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d590-result", fragment: fragment({ id: "fragment-d590-result" }) }),
+			{ operation: "create", correlationId: "d590-result" },
+		);
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+		const commitResult = await log.append(batch);
+
+		const projection = projectAgenticMemoryDurabilityGate(batch, commitResult);
+
+		expect(projection.kind).toBe("agentic-memory-durability-gate-projection");
+		expect(projection.result).toMatchObject({
+			kind: "agentic-memory-durability-result",
+			batchIdentity: batch.batchIdentity,
+			commitStatus: "committed",
+			state: "durable",
+			factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+		});
+		expect(projection.status).toMatchObject<Partial<AgenticMemoryDurabilityGateStatus>>({
+			state: "durable",
+			commitStatus: "committed",
+			downstreamAdvance: {
+				kind: "agentic-memory-durability-downstream-advance",
+				allowed: false,
+				commitStatus: "committed",
+				reason: "no-explicit-policy",
+			},
+		});
+		expect(projection.cursor).toMatchObject({
+			batchFacts: 1,
+			resultFacts: 1,
+			committed: 1,
+			duplicate: 0,
+			terminalFailures: 0,
+			uncertain: 0,
+		});
+		expect(JSON.stringify(projection)).not.toMatch(
+			/applicationAck|acknowledgement|liveGraphTruth|recordMutation|hydration|restore|commitBarrier/i,
+		);
+	});
+
+	it("allows downstream advance only through the explicit committed-or-duplicate policy helper", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d590-policy", fragment: fragment({ id: "fragment-d590-policy" }) }),
+			{ operation: "create", correlationId: "d590-policy" },
+		);
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+		const committed = await log.append(batch);
+		const duplicate = await log.append(batch);
+		const policy = agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy("policy-d590");
+
+		const committedProjection = projectAgenticMemoryDurabilityGate(batch, committed, {
+			downstreamAdvancePolicy: policy,
+		});
+		const duplicateProjection = projectAgenticMemoryDurabilityGate(batch, duplicate, {
+			downstreamAdvancePolicy: policy,
+		});
+
+		expect(agenticMemoryDurabilityResultMayAdvance("committed", policy)).toBe(true);
+		expect(agenticMemoryDurabilityResultMayAdvance("duplicate", policy)).toBe(true);
+		expect(agenticMemoryDurabilityResultMayAdvance("conflict", policy)).toBe(false);
+		expect(agenticMemoryDurabilityResultMayAdvance("rejected", policy)).toBe(false);
+		expect(agenticMemoryDurabilityResultMayAdvance("uncertain", policy)).toBe(false);
+		expect(committedProjection.status.downstreamAdvance).toMatchObject({
+			allowed: true,
+			policyId: "policy-d590",
+			reason: "fact-log-committed",
+		});
+		expect(duplicateProjection.status.downstreamAdvance).toMatchObject({
+			allowed: true,
+			policyId: "policy-d590",
+			reason: "fact-log-duplicate",
+		});
+		expect((await log.read()).facts).toEqual([fact]);
+	});
+
+	it("classifies conflict and rejected as terminal durability-attempt failures without rollback", async () => {
+		const applicationSnapshot = applyAgenticMemoryRecordAdmissions(
+			[admitted({ admissionId: "d590-terminal", proposalId: "d590-terminal" })],
+			applicationPolicy(),
+		);
+		const appliedRecordIdsBeforeStorageFailure = applicationSnapshot.records.map((item) => item.id);
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const original = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d590-conflict", fragment: fragment({ id: "fragment-d590-original" }) }),
+			{ operation: "create", correlationId: "d590-terminal" },
+		);
+		const conflicting = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d590-conflict",
+				fragment: fragment({ id: "fragment-d590-conflicting", payload: "different" }),
+			}),
+			{ operation: "create", correlationId: "d590-terminal" },
+		);
+		const batch = agenticMemoryCommittedFactBatch([conflicting]);
+		const policy = agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy();
+
+		await log.append(agenticMemoryCommittedFactBatch([original]));
+		const conflict = await log.append(batch);
+		const rejected = await log.append({ ...batch, facts: [] } as never);
+		const conflictProjection = projectAgenticMemoryDurabilityGate(batch, conflict, {
+			downstreamAdvancePolicy: policy,
+		});
+		const rejectedProjection = projectAgenticMemoryDurabilityGate(batch, rejected, {
+			downstreamAdvancePolicy: policy,
+		});
+		const conflictWithoutPolicy = projectAgenticMemoryDurabilityGate(batch, conflict);
+		const read = await log.read();
+
+		expect(conflictProjection.status).toMatchObject({
+			state: "terminal-failure",
+			commitStatus: "conflict",
+			downstreamAdvance: { allowed: false, reason: "terminal-durability-attempt-failure" },
+		});
+		expect(rejectedProjection.status).toMatchObject({
+			state: "terminal-failure",
+			commitStatus: "rejected",
+			downstreamAdvance: { allowed: false, reason: "terminal-durability-attempt-failure" },
+		});
+		expect(conflictWithoutPolicy.status.downstreamAdvance).toMatchObject({
+			allowed: false,
+			reason: "terminal-durability-attempt-failure",
+		});
+		expect(Object.isFrozen(rejectedProjection.status.factLogCursor)).toBe(true);
+		expect(Object.isFrozen(rejectedProjection.issues[0])).toBe(true);
+		expect(Object.isFrozen(rejectedProjection.audit[0])).toBe(true);
+		expect(read.facts).toEqual([original]);
+		expect(applicationSnapshot.records.map((item) => item.id)).toEqual(
+			appliedRecordIdsBeforeStorageFailure,
+		);
+		expect(conflictProjection).not.toHaveProperty("records");
+		expect(conflictProjection).not.toHaveProperty("applicationDecisions");
+	});
+
+	it("keeps uncertain unresolved until explicit fact-log read and library materialization", async () => {
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const committedRecord = record({
+			id: "record-d590-uncertain",
+			fragment: fragment({ id: "fragment-d590-uncertain" }),
+		});
+		const fact = agenticMemoryCommittedRecordMaterialFact(committedRecord, {
+			operation: "create",
+			correlationId: "d590-uncertain",
+		});
+		const batch = agenticMemoryCommittedFactBatch([fact]);
+		const uncertain = {
+			status: "uncertain",
+			cursor: { kind: "agentic-memory-fact-stream.cursor", position: 0 },
+			facts: 0,
+			issues: [],
+			audit: [],
+		} as const;
+
+		const projection = projectAgenticMemoryDurabilityGate(batch, uncertain, {
+			downstreamAdvancePolicy: agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy(),
+		});
+		const projectionWithoutPolicy = projectAgenticMemoryDurabilityGate(batch, uncertain);
+		const resolution = agenticMemoryDurabilityUncertainResolutionStatus(projection.result);
+		await log.append(batch);
+		const explicitRead = await log.read();
+		const materialized = materializeAgenticMemoryCommittedFacts(explicitRead.facts);
+
+		expect(projection.status).toMatchObject({
+			state: "uncertain",
+			commitStatus: "uncertain",
+			downstreamAdvance: { allowed: false, reason: "uncertain-requires-read-resolution" },
+		});
+		expect(projectionWithoutPolicy.status.downstreamAdvance).toMatchObject({
+			allowed: false,
+			reason: "uncertain-requires-read-resolution",
+		});
+		expect(resolution).toMatchObject({
+			state: "requires-fact-log-read",
+			reason: "uncertain-requires-read-idempotency-resolution",
+			batchIdentity: batch.batchIdentity,
+		});
+		expect(projection.result).not.toHaveProperty("records");
+		expect(materialized.records).toEqual([committedRecord]);
+	});
+
+	it("creates graph-visible ordinary DATA read-model nodes and no append/hydration side channel", async () => {
+		const g = graph();
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d590-graph", fragment: fragment({ id: "fragment-d590-graph" }) }),
+			{ operation: "create", correlationId: "d590-graph" },
+		);
+		const batchValue = agenticMemoryCommittedFactBatch([fact]);
+		const resultValue = await log.append(batchValue);
+		const attemptResult = g.state(agenticMemoryDurabilityGateInput(batchValue, resultValue), {
+			name: "attemptResult",
+		});
+		const bundle = agenticMemoryDurabilityGateBundle(g, {
+			name: "durability",
+			attemptResult,
+			downstreamAdvancePolicy: agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy(),
+		});
+		const result = collect(bundle.result);
+		const status = collect(bundle.status);
+		const advance = collect(bundle.downstreamAdvance);
+		const issues = collect(bundle.issues);
+		const audit = collect(bundle.audit);
+		const cursor = collect(bundle.cursor);
+
+		attemptResult.set(attemptResult.cache);
+
+		expect(g.describe().edges).toEqual(
+			expect.arrayContaining([
+				{ from: "attemptResult", to: "durability/projection" },
+				{ from: "durability/projection", to: "durability/result" },
+				{ from: "durability/projection", to: "durability/status" },
+				{ from: "durability/projection", to: "durability/downstreamAdvance" },
+				{ from: "durability/projection", to: "durability/issues" },
+				{ from: "durability/projection", to: "durability/audit" },
+				{ from: "durability/projection", to: "durability/cursor" },
+			]),
+		);
+		expect(result.messages.map((message) => message[0])).toContain("DATA");
+		expect(status.messages.map((message) => message[0])).toContain("DATA");
+		expect(data(status.messages).at(-1)).toMatchObject({
+			state: "durable",
+			commitStatus: "committed",
+		});
+		expect(data(advance.messages).at(-1)).toMatchObject({ allowed: true });
+		expect(data(issues.messages).at(-1)).toEqual([]);
+		expect(data(audit.messages).at(-1)).toEqual(
+			expect.arrayContaining([expect.objectContaining({ action: "durability-result-projected" })]),
+		);
+		expect(data(cursor.messages).at(-1)).toMatchObject({ committed: 1, terminalFailures: 0 });
+		expect((await log.read()).facts).toEqual([fact]);
+	});
+
+	it("does not correlate independent latest batch and commit-result nodes inside the gate", async () => {
+		const g = graph();
+		const log = memoryAgenticMemoryCommittedFactLog();
+		const firstFact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d590-first", fragment: fragment({ id: "fragment-d590-first" }) }),
+			{ operation: "create", correlationId: "d590-first" },
+		);
+		const secondFact = agenticMemoryCommittedRecordMaterialFact(
+			record({ id: "record-d590-second", fragment: fragment({ id: "fragment-d590-second" }) }),
+			{ operation: "create", correlationId: "d590-second" },
+		);
+		const firstBatch = agenticMemoryCommittedFactBatch([firstFact]);
+		const secondBatch = agenticMemoryCommittedFactBatch([secondFact]);
+		const firstResult = await log.append(firstBatch);
+		const attemptResult = g.state(agenticMemoryDurabilityGateInput(firstBatch, firstResult), {
+			name: "attemptResult",
+		});
+		const unrelatedBatch = g.state(secondBatch, { name: "unrelatedBatch" });
+		const unrelatedCommitResult = g.state(firstResult, { name: "unrelatedCommitResult" });
+		const bundle = agenticMemoryDurabilityGateBundle(g, {
+			name: "durability",
+			attemptResult,
+			downstreamAdvancePolicy: agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy(),
+		});
+		const result = collect(bundle.result);
+
+		unrelatedBatch.set(secondBatch);
+		unrelatedCommitResult.set(firstResult);
+
+		expect(g.describe().edges).not.toEqual(
+			expect.arrayContaining([
+				{ from: "unrelatedBatch", to: "durability/projection" },
+				{ from: "unrelatedCommitResult", to: "durability/projection" },
+			]),
+		);
+		expect(data(result.messages).map((item) => item.batchIdentity)).toEqual([
+			firstBatch.batchIdentity,
+		]);
+		expect(data(result.messages)).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ batchIdentity: secondBatch.batchIdentity }),
+			]),
+		);
 	});
 });
 

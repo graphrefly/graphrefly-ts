@@ -1825,6 +1825,30 @@ export const apiSidebar = [
 				"link": "/api/agenticmemorycontextpackingbundle"
 			},
 			{
+				"label": "agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy()",
+				"link": "/api/agenticmemorydurabilityadvanceoncommittedorduplicatepolicy"
+			},
+			{
+				"label": "agenticMemoryDurabilityResultMayAdvance()",
+				"link": "/api/agenticmemorydurabilityresultmayadvance"
+			},
+			{
+				"label": "agenticMemoryDurabilityGateInput()",
+				"link": "/api/agenticmemorydurabilitygateinput"
+			},
+			{
+				"label": "projectAgenticMemoryDurabilityGate()",
+				"link": "/api/projectagenticmemorydurabilitygate"
+			},
+			{
+				"label": "agenticMemoryDurabilityUncertainResolutionStatus()",
+				"link": "/api/agenticmemorydurabilityuncertainresolutionstatus"
+			},
+			{
+				"label": "agenticMemoryDurabilityGateBundle()",
+				"link": "/api/agenticmemorydurabilitygatebundle"
+			},
+			{
 				"label": "agenticMemoryRecordFrame()",
 				"link": "/api/agenticmemoryrecordframe"
 			},
