@@ -178,6 +178,7 @@ import * as patterns from "../patterns/index.js";
 import * as render from "../render/index.js";
 import * as scoring from "../scoring/index.js";
 import * as agenticMemory from "../solutions/agentic-memory/index.js";
+import * as agenticMemoryNode from "../solutions/agentic-memory/node.js";
 import * as agenticWorkItemMemory from "../solutions/agentic-work-item-memory/index.js";
 import * as agenticWorkItemMemoryApplication from "../solutions/agentic-work-item-memory-application/index.js";
 import type {
@@ -280,6 +281,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./scoring",
 			"./solutions",
 			"./solutions/agentic-memory",
+			"./solutions/agentic-memory/node",
 			"./solutions/agentic-work-item-memory",
 			"./solutions/agentic-work-item-memory-application",
 			"./solutions/reactive-layout",
@@ -1245,6 +1247,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"function",
 		);
 		expect(typeof agenticMemory.agenticMemoryDurabilityUncertainResolutionStatus).toBe("function");
+		expect(typeof agenticMemoryNode.nodeFileAgenticMemoryCommittedFactLogBackend).toBe("function");
+		expect(Object.hasOwn(agenticMemory, "nodeFileAgenticMemoryCommittedFactLogBackend")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(solutions, "nodeFileAgenticMemoryCommittedFactLogBackend")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "nodeFileAgenticMemoryCommittedFactLogBackend")).toBe(false);
 		expect(typeof solutions.admitAgenticMemoryRecordProposals).toBe("function");
 		expectTypeOf<AgenticMemoryDurabilityDownstreamAdvancePolicy>().toHaveProperty("policyId");
 		expectTypeOf<AgenticMemoryDurabilityGateBundleOptions>().toHaveProperty("attemptResult");

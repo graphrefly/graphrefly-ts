@@ -308,6 +308,9 @@ function canonicalSubpathForSource(filePath) {
 	if (sourcePath.startsWith("solutions/reactive-layout/skia/")) {
 		return "./solutions/reactive-layout/skia";
 	}
+	if (sourcePath.startsWith("solutions/agentic-memory/node")) {
+		return "./solutions/agentic-memory/node";
+	}
 	if (sourcePath.startsWith("solutions/reactive-layout/")) return "./solutions/reactive-layout";
 	if (sourcePath.startsWith("solutions/work-item/actions")) return "./solutions/work-item/actions";
 	if (sourcePath.startsWith("solutions/work-item/scheduling")) return "./solutions/work-item/scheduling";

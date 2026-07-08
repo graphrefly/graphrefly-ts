@@ -1925,6 +1925,10 @@ export const apiSidebar = [
 				"link": "/api/agenticmemoryrecordmaterializerbundle"
 			},
 			{
+				"label": "nodeFileAgenticMemoryCommittedFactLogBackend()",
+				"link": "/api/nodefileagenticmemorycommittedfactlogbackend"
+			},
+			{
 				"label": "agenticMemoryRecordAdmissionBundle()",
 				"link": "/api/agenticmemoryrecordadmissionbundle"
 			},

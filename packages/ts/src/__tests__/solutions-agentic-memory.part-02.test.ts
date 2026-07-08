@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { memoryAgenticMemoryPassiveStoreFrameAdapter } from "../adapters/index.js";
 import { graph } from "../graph/graph.js";
@@ -5,6 +8,7 @@ import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
 import type { Message } from "../protocol/messages.js";
+import { nodeFileAgenticMemoryCommittedFactLogBackend } from "../solutions/agentic-memory/node.js";
 import {
 	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
 	type AgenticMemoryCommittedFactLog,
@@ -119,6 +123,15 @@ import {
 } from "../solutions/index.js";
 
 const textDecoder = new TextDecoder();
+
+async function withTempDir<T>(label: string, fn: (dir: string) => Promise<T>): Promise<T> {
+	const dir = await mkdtemp(join(tmpdir(), `${label}-`));
+	try {
+		return await fn(dir);
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+}
 
 const fragment = <T = string>(patch: Partial<MemoryFragment<T>> = {}): MemoryFragment<T> => ({
 	id: "fact-1",
@@ -1317,6 +1330,250 @@ describe("AgenticMemory D592 committed fact-log backend adapter contract", () =>
 		expect(status).not.toHaveProperty("restore");
 		expect(status).not.toHaveProperty("hydrate");
 		expect(Object.isFrozen(status.capabilities[0]?.details)).toBe(true);
+	});
+});
+
+describe("AgenticMemory D594 Node file committed fact-log reference backend", () => {
+	it("persists canonical committed fact batches and reads them in fact-stream order", async () => {
+		await withTempDir("graphrefly-agentic-memory-d594", async (dir) => {
+			const first = agenticMemoryCommittedRecordMaterialFact(
+				record({ id: "record-d594-file-a", fragment: fragment({ id: "fragment-d594-file-a" }) }),
+				{ operation: "create", correlationId: "d594-file-a" },
+			);
+			const second = agenticMemoryCommittedRecordMaterialFact(
+				record({ id: "record-d594-file-b", fragment: fragment({ id: "fragment-d594-file-b" }) }),
+				{ operation: "create", correlationId: "d594-file-b" },
+			);
+			const batch = agenticMemoryCommittedFactBatch([first, second]);
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir),
+			);
+
+			const append = await log.append(batch);
+			const reopened = agenticMemoryCommittedFactLogBackendAdapter(
+				nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir),
+			);
+			const readAll = await reopened.read();
+			const readAfterFirst = await reopened.read({
+				after: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			});
+
+			expect(append).toMatchObject({
+				status: "committed",
+				facts: 2,
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			});
+			expect(readAll.facts).toEqual([first, second]);
+			expect(readAll.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 2 });
+			expect(readAfterFirst.facts).toEqual([second]);
+			expect(readAfterFirst.cursor).toEqual({
+				kind: "agentic-memory-fact-stream.cursor",
+				position: 2,
+			});
+			expect(
+				JSON.stringify({ appendCursor: append.cursor, readCursor: readAll.cursor }),
+			).not.toMatch(/file|path|storage|appendLog|seq|row|backend/i);
+		});
+	});
+
+	it("uses D589 identity/material rules for duplicate and conflict without choosing a winner", async () => {
+		await withTempDir("graphrefly-agentic-memory-d594", async (dir) => {
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir),
+			);
+			const original = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-conflict",
+					fragment: fragment({ id: "fragment-d594-conflict-original" }),
+				}),
+				{ operation: "create", correlationId: "d594-conflict" },
+			);
+			const conflicting = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-conflict",
+					fragment: fragment({ id: "fragment-d594-conflict-other", payload: "other" }),
+				}),
+				{ operation: "create", correlationId: "d594-conflict" },
+			);
+			const batch = agenticMemoryCommittedFactBatch([original]);
+
+			const committed = await log.append(batch);
+			const duplicate = await log.append(batch);
+			const conflict = await log.append(agenticMemoryCommittedFactBatch([conflicting]));
+			const read = await log.read();
+
+			expect(committed.status).toBe("committed");
+			expect(duplicate.status).toBe("duplicate");
+			expect(conflict.status).toBe("conflict");
+			expect(original.identity).toEqual(conflicting.identity);
+			expect(original.materialIdentity).not.toEqual(conflicting.materialIdentity);
+			expect(read.facts).toEqual([original]);
+			expect(materializeAgenticMemoryCommittedFacts(read.facts).records).toEqual([
+				record({
+					id: "record-d594-conflict",
+					fragment: fragment({ id: "fragment-d594-conflict-original" }),
+				}),
+			]);
+		});
+	});
+
+	it("keeps batch visibility whole by rejecting partial-overlap appends", async () => {
+		await withTempDir("graphrefly-agentic-memory-d594", async (dir) => {
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir),
+			);
+			const existing = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-overlap-a",
+					fragment: fragment({ id: "fragment-d594-overlap-a" }),
+				}),
+				{ operation: "create", correlationId: "d594-overlap-a" },
+			);
+			const newFact = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-overlap-b",
+					fragment: fragment({ id: "fragment-d594-overlap-b" }),
+				}),
+				{ operation: "create", correlationId: "d594-overlap-b" },
+			);
+
+			await log.append(agenticMemoryCommittedFactBatch([existing]));
+			const overlap = await log.append(agenticMemoryCommittedFactBatch([existing, newFact]));
+			const read = await log.read();
+
+			expect(overlap.status).toBe("rejected");
+			expect(overlap.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						code: "agentic-memory.fact-log-backend.node-file.batch-overlaps-committed-log",
+					}),
+				]),
+			);
+			expect(read.facts).toEqual([existing]);
+			expect(read.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 1 });
+		});
+	});
+
+	it("keeps backend diagnostics and storage cursors as issue/audit DATA only", async () => {
+		await withTempDir("graphrefly-agentic-memory-d594", async (dir) => {
+			const backend = nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir, {
+				backendName: "node-file-d594-diagnostics",
+			});
+			const log = agenticMemoryCommittedFactLogBackendAdapter(backend);
+			const fact = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-diagnostics",
+					fragment: fragment({ id: "fragment-d594-diagnostics" }),
+				}),
+				{ operation: "create", correlationId: "d594-diagnostics" },
+			);
+
+			const directStatus =
+				typeof backend.status === "function" ? await backend.status() : backend.status;
+			const append = await log.append(agenticMemoryCommittedFactBatch([fact]));
+			const read = await log.read();
+
+			expect(directStatus).toMatchObject({
+				kind: "agentic-memory-committed-fact-log-backend-status",
+				backend: "node-file-d594-diagnostics",
+			});
+			expect(directStatus?.capabilities.map((capability) => capability.name)).toEqual(
+				expect.arrayContaining([
+					"single-writer",
+					"whole-batch-visibility",
+					"multi-writer-correctness",
+					"fsync-guarantee",
+				]),
+			);
+			expect(append).not.toHaveProperty("backendCursor");
+			expect(append).not.toHaveProperty("backendStatus");
+			expect(read).not.toHaveProperty("backendCursor");
+			expect(read).not.toHaveProperty("backendStatus");
+			expect(append.audit.map((entry) => entry.action)).toEqual(
+				expect.arrayContaining(["backend-cursor-linked", "backend-status-linked"]),
+			);
+			expect(read.audit.map((entry) => entry.action)).toContain("backend-cursor-linked");
+			expect(JSON.stringify({ appendCursor: append.cursor, readCursor: read.cursor })).not.toMatch(
+				/node-file|appendLogSeq|storageKey|backend/i,
+			);
+		});
+	});
+
+	it("reports uncertain physical append outcomes without implying success or failure", async () => {
+		const fact = agenticMemoryCommittedRecordMaterialFact(
+			record({
+				id: "record-d594-uncertain",
+				fragment: fragment({ id: "fragment-d594-uncertain" }),
+			}),
+			{ operation: "create", correlationId: "d594-uncertain" },
+		);
+		const log = agenticMemoryCommittedFactLogBackendAdapter(
+			nodeFileAgenticMemoryCommittedFactLogBackend<string>(join(tmpdir(), "bad\0fact-log")),
+		);
+
+		const append = await log.append(agenticMemoryCommittedFactBatch([fact]));
+		const projection = projectAgenticMemoryDurabilityGate(
+			agenticMemoryCommittedFactBatch([fact]),
+			append,
+			{
+				downstreamAdvancePolicy: agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy(),
+			},
+		);
+
+		expect(append.status).toBe("uncertain");
+		expect(agenticMemoryFactCommitStatusIsDurable(append.status)).toBe(false);
+		expect(agenticMemoryFactCommitStatusIsTerminalFailure(append.status)).toBe(false);
+		expect(projection.status).toMatchObject({
+			state: "uncertain",
+			downstreamAdvance: { allowed: false, reason: "uncertain-requires-read-resolution" },
+		});
+	});
+
+	it("integrates with runtime startup read and append attempt helpers as explicit DATA boundaries", async () => {
+		await withTempDir("graphrefly-agentic-memory-d594", async (dir) => {
+			const log = agenticMemoryCommittedFactLogBackendAdapter(
+				nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir),
+			);
+			const committed = record({
+				id: "record-d594-runtime",
+				fragment: fragment({ id: "fragment-d594-runtime" }),
+			});
+			const batch = agenticMemoryCommittedFactBatch([
+				agenticMemoryCommittedRecordMaterialFact(committed, {
+					operation: "create",
+					correlationId: "d594-runtime",
+				}),
+			]);
+
+			const append = await agenticMemoryCommittedFactLogAppendAttempt(log, batch, {
+				evaluation: 11,
+				downstreamAdvancePolicy:
+					agenticMemoryDurabilityAdvanceOnCommittedOrDuplicatePolicy("d594-runtime-policy"),
+			});
+			const startup = await agenticMemoryCommittedFactLogStartupRead(log, { evaluation: 12 });
+
+			expect(append.commitResult).toMatchObject({
+				status: "committed",
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			});
+			expect(append.durabilityStatus).toMatchObject({
+				state: "durable",
+				downstreamAdvance: {
+					allowed: true,
+					policyId: "d594-runtime-policy",
+					reason: "fact-log-committed",
+				},
+			});
+			expect(startup.records).toEqual([committed]);
+			expect(startup.bootstrapStatus).toMatchObject({
+				state: "ready",
+				readyForCallerWiring: true,
+				factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			});
+			expect(jsonForBoundaryText({ append, startup })).not.toMatch(
+				/applicationAck|liveGraphTruth|recordMutation|hotHydration|hydrate|hydration|restore|liveRefresh|commitBarrier|sameEvaluationFeedback/i,
+			);
+		});
 	});
 });
 
