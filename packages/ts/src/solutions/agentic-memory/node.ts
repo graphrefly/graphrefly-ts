@@ -43,6 +43,8 @@ export interface NodeFileAgenticMemoryCommittedFactLogBackendOptions<
  * append-log sequence keys, writer mode, and durability limits are reported only
  * through backend diagnostic DATA; fact-log cursors are computed from committed
  * fact-stream positions and never from file names, storage keys, or row ids.
+ * Write completion means the storage promise settled; this backend does not
+ * claim host fsync or permanent durability guarantees.
  *
  * This helper does not materialize records, replay facts into application state,
  * hydrate/restore graphs, refresh subscribers, acknowledge applications, mutate

@@ -116,7 +116,7 @@ export function indexedDbAgenticMemoryCommittedFactLogBackend<
 				}),
 				capability("browser-transaction-attempt", true, {
 					reason:
-						"IndexedDB transaction completion is a physical adapter durability attempt, not GraphReFly protocol durability",
+						"IndexedDB transaction completion is a physical adapter durability attempt, not a graph commit barrier or fsync guarantee",
 				}),
 				capability("multi-writer-correctness", false, {
 					reason: "D594 IndexedDB reference backend is single-writer",

@@ -592,10 +592,10 @@ export function assertAgenticMemoryCommittedFactBatch<
 /** Create an in-memory D589 reference fact-log adapter.
  *
  * This adapter is an executable reference for fact-log persistence semantics. It
- * supplies committed fact read results only; library materialization remains a
- * separate explicit DATA boundary. It does not provide production durability,
- * application acknowledgement, live graph truth, hot hydration, or record
- * mutation authority.
+ * implements append/read behavior for canonical committed fact batches only;
+ * library materialization remains a separate explicit DATA boundary. It does
+ * not provide production durability, application acknowledgement, live graph
+ * truth, hot hydration, or record mutation authority.
  * @returns A D589 committed fact-log reference adapter.
  * @category solutions
  */

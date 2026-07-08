@@ -667,6 +667,7 @@
 	"scripts": {
 		"build": "tsup && node ../../scripts/check-ts-package-exports.mjs",
 		"test": "vitest run",
+		"test:browser:agentic-memory": "node ../../scripts/run-agentic-memory-indexeddb-smoke.mjs",
 		"test:watch": "vitest"
 	},
 	"license": "MIT",

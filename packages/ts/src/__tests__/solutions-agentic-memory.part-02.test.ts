@@ -11,6 +11,7 @@ import type { Message } from "../protocol/messages.js";
 import { indexedDbAgenticMemoryCommittedFactLogBackend } from "../solutions/agentic-memory/browser.js";
 import { nodeFileAgenticMemoryCommittedFactLogBackend } from "../solutions/agentic-memory/node.js";
 import {
+	AGENTIC_MEMORY_COMMITTED_FACT_LOG_BACKEND_CURSOR_KIND,
 	AGENTIC_MEMORY_RECORD_APPLICATION_MATERIAL_IDENTITY_ALGORITHM,
 	type AgenticMemoryCommittedFactLog,
 	type AgenticMemoryCommittedFactLogAppendAttemptResult,
@@ -1335,6 +1336,77 @@ describe("AgenticMemory D592 committed fact-log backend adapter contract", () =>
 });
 
 describe("AgenticMemory D594 Node file committed fact-log reference backend", () => {
+	it("exposes direct backend storage diagnostics without changing fact cursors", async () => {
+		await withTempDir("graphrefly-agentic-memory-d594", async (dir) => {
+			const first = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-file-direct-a",
+					fragment: fragment({ id: "fragment-d594-file-direct-a" }),
+				}),
+				{ operation: "create", correlationId: "d594-file-direct-a" },
+			);
+			const second = agenticMemoryCommittedRecordMaterialFact(
+				record({
+					id: "record-d594-file-direct-b",
+					fragment: fragment({ id: "fragment-d594-file-direct-b" }),
+				}),
+				{ operation: "create", correlationId: "d594-file-direct-b" },
+			);
+			const backend = nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir, {
+				backendName: "node-file-d594-direct-smoke",
+			});
+			const status = typeof backend.status === "function" ? await backend.status() : backend.status;
+
+			const append = await backend.append(agenticMemoryCommittedFactBatch([first, second]));
+			const reopened = nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir, {
+				backendName: "node-file-d594-direct-smoke",
+			});
+			const readAll = await reopened.read();
+			const readAfterFirst = await reopened.read({
+				after: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			});
+
+			expect(append).toMatchObject({
+				status: "committed",
+				facts: 2,
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+				backendCursor: {
+					kind: AGENTIC_MEMORY_COMMITTED_FACT_LOG_BACKEND_CURSOR_KIND,
+					backend: "node-file-d594-direct-smoke",
+				},
+			});
+			expect(append.backendCursor?.value).toMatchObject({
+				appendLogSeq: expect.any(Number),
+				storageKey: expect.any(String),
+			});
+			expect(status?.capabilities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ name: "single-writer", supported: true }),
+					expect.objectContaining({ name: "whole-batch-visibility", supported: true }),
+					expect.objectContaining({ name: "multi-writer-correctness", supported: false }),
+					expect.objectContaining({ name: "fsync-guarantee", supported: false }),
+				]),
+			);
+			expect(readAll.facts).toEqual([first, second]);
+			expect(readAll.cursor).toEqual({ kind: "agentic-memory-fact-stream.cursor", position: 2 });
+			expect(readAll.backendCursor?.kind).toBe(
+				AGENTIC_MEMORY_COMMITTED_FACT_LOG_BACKEND_CURSOR_KIND,
+			);
+			expect(readAfterFirst.facts).toEqual([second]);
+			expect(readAfterFirst.cursor).toEqual({
+				kind: "agentic-memory-fact-stream.cursor",
+				position: 2,
+			});
+			expect(
+				JSON.stringify({
+					appendCursor: append.cursor,
+					readCursor: readAll.cursor,
+					readAfterFirstCursor: readAfterFirst.cursor,
+				}),
+			).not.toMatch(/node-file|appendLogSeq|storageKey|backend|file|path|row|key/i);
+		});
+	});
+
 	it("persists canonical committed fact batches and reads them in fact-stream order", async () => {
 		await withTempDir("graphrefly-agentic-memory-d594", async (dir) => {
 			const first = agenticMemoryCommittedRecordMaterialFact(
