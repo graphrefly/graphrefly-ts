@@ -1,6 +1,6 @@
 ---
 title: "Integration Matrix"
-description: "Current package, adapter, application, and framework surfaces across focused clean-slate subpaths."
+description: "Current package, adapter, application, and framework surfaces across focused subpaths."
 ---
 
 > **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and

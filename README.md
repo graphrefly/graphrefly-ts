@@ -47,9 +47,9 @@ CQRS, renderers, testing helpers, and solution modules live in one package.
 | `@graphrefly/graphrefly` | Retired root package name. Deprecated on npm; use `@graphrefly/ts`. |
 | `@graphrefly/pure-ts` | Retired old TypeScript implementation. Deprecated on npm; use `@graphrefly/ts`. |
 
-There is no compatibility layer for the retired packages. The clean-slate
-package uses focused subpaths instead of the old root, `utils`, `base`,
-`compat`, and `presets` surfaces.
+There is no compatibility layer for the retired packages. The current package
+uses focused subpaths instead of the old root, `utils`, `base`, `compat`, and
+`presets` surfaces.
 
 ## What It Gives You
 
@@ -168,7 +168,7 @@ const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
 | --- | --- |
 | `packages/ts/` | The published `@graphrefly/ts` package. |
 | `packages/ts/src/` | TypeScript source for core, graph, operators, storage, adapters, and solutions. |
-| `examples/` | Runnable clean-slate examples that consume `@graphrefly/ts`. |
+| `examples/` | Runnable examples that consume `@graphrefly/ts`. |
 | `demos/` | Current demo surfaces. Retired demos live under `archive/`. |
 | `docs/docs.jsonl` | Package-local docs policy for this TypeScript repo. |
 | `archive/` | Historical code and retired examples kept out of active workspace ownership. |

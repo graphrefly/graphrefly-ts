@@ -1,10 +1,8 @@
 # @graphrefly/ts
 
-Clean-slate TypeScript implementation of GraphReFly.
-
-GraphReFly is a synchronous reactive graph runtime. You compose nodes, push data
-through explicit messages, inspect the live graph, and keep async work at clear
-source/adapter/executor boundaries.
+GraphReFly is a synchronous reactive graph runtime for TypeScript. You compose
+nodes, push data through explicit messages, inspect the live graph, and keep
+async work at clear source/adapter/executor boundaries.
 
 ```bash
 npm install @graphrefly/ts
@@ -201,8 +199,8 @@ This is the current TypeScript package. The old `@graphrefly/graphrefly` and
 `@graphrefly/pure-ts` packages are retired and deprecated. New code should use
 `@graphrefly/ts` and its focused subpaths.
 
-`@graphrefly/ts` is pre-1.0. The package favors clean-slate correctness over
-backward compatibility with retired APIs.
+`@graphrefly/ts` is pre-1.0. The package prioritizes the current API surface
+over backward compatibility with retired APIs.
 
 ## Documentation Boundary
 

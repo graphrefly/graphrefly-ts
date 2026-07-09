@@ -592,7 +592,7 @@ export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
  * last: emit the last value matching `pred` (or the last value) on the source's COMPLETE.
  * `completeWhenDepsComplete:false + terminalAsRealInput:true`. EDGE (RxJS divergence, flagged):
  * RxJS `last()` throws EmptyError when no value matched; we COMPLETE without a value (no throw) —
- * the clean-slate substrate has no "complete-or-throw" terminal and SENTINEL forbids emitting a
+ * GraphReFly has no "complete-or-throw" terminal and SENTINEL forbids emitting a
  * placeholder.
  * @param pred - pred value used by the helper.
  * @returns A `Operator<S, S>` value.

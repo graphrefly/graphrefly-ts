@@ -1,4 +1,4 @@
-# GraphReFly — TypeScript clean-slate implementation
+# GraphReFly - TypeScript package
 
 GraphReFly is a reactive universal reduction layer: high fan-in/out data becomes explicit graph facts, reductions, effects, and inspectable topology. This repo is the TypeScript implementation, published as `@graphrefly/ts`.
 

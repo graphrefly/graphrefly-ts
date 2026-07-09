@@ -1,6 +1,6 @@
 ---
 title: "Historical knowledge graph extraction demo"
-description: "Historical pre-CSP-9 browser demo notes. The active clean-slate successor is examples/knowledge-graph."
+description: "Historical pre-CSP-9 browser demo notes. The active successor is examples/knowledge-graph."
 ---
 
 > **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
@@ -13,10 +13,10 @@ These notes describe the historical pre-CSP-9 browser demo for knowledge-graph
 extraction. Its source was retired from the active tree during CSP-9/B66
 closeout because it depended on retired root/pure-ts demo surfaces such as old
 AI utilities, policy helpers, and `utils/demo-shell`, so it is not an active
-clean-slate demo.
+demo.
 
 Use [`examples/knowledge-graph/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/knowledge-graph)
-for the active clean-slate version. That example is Node-runnable, deterministic,
+for the active version. That example is Node-runnable, deterministic,
 and built on current `@graphrefly/ts` public subpaths.
 
 The historical page extracted entities and relations from a long paper one
@@ -76,5 +76,5 @@ surface.
 ## Source
 
 The historical browser source was removed from the active workspace rather than
-migrated through compatibility shims. The Node-runnable clean-slate successor is
+migrated through compatibility shims. The Node-runnable successor is
 [`examples/knowledge-graph/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/knowledge-graph).

@@ -1,9 +1,8 @@
 /**
- * @graphrefly/ts — clean-slate TypeScript package.
+ * @graphrefly/ts public TypeScript package.
  *
- * Canonical authority: ~/src/graphrefly/spec/rules.jsonl + decisions.jsonl.
- * CSP-1 substrate: node / dispatcher / pool / wave protocol.
- * CSP-2 graph layer: Graph + 8-verb sugar + describe/observe/profile inspection.
+ * Exports the graph runtime, operators, sources, storage helpers, adapters,
+ * renderers, testing helpers, and focused solution modules.
  */
 
 export {

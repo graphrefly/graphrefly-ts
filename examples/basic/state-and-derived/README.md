@@ -1,7 +1,7 @@
 # basic / state-and-derived
 
-The simplest possible clean-slate GraphReFly TS example: a graph-owned
-`state()` node feeding a `derived()` node, observed through `subscribe()`.
+The simplest possible GraphReFly TS example: a graph-owned `state()` node
+feeding a `derived()` node, observed through `subscribe()`.
 
 ## Run
 

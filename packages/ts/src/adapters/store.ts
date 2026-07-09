@@ -15,7 +15,7 @@ export interface ReadableStore<T> {
 	subscribe(run: (value: T | undefined) => void): () => void;
 }
 
-/** A minimal writable store contract over a clean-slate writable node. */
+/** A minimal writable store contract over a GraphReFly writable node. */
 export interface WritableStore<T> extends ReadableStore<T> {
 	set(value: T): void;
 	update(fn: (value: T | undefined) => T): void;
@@ -33,7 +33,7 @@ export type NodeRecordFactory<K extends string, R extends Record<string, unknown
 	[P in keyof R]: Node<R[P]>;
 };
 
-/** Zustand-compatible store API over a caller-owned clean-slate state node. */
+/** Zustand-compatible store API over a caller-owned GraphReFly state node. */
 export interface ZustandStoreApi<T extends object> {
 	getState(): T;
 	setState(partial: T | Partial<T> | ((state: T) => T | Partial<T>), replace?: boolean): void;
@@ -159,7 +159,7 @@ export function subscribeNodeValues<T>(
 	return unsubscribe;
 }
 
-/** Build a Svelte/Nanostores-style readable store from a clean-slate Node.
+/** Build a Svelte/Nanostores-style readable store from a GraphReFly Node.
  * @param node - Node to observe, adapt, or connect.
  * @param opts - Options that configure the helper.
  * @returns A `ReadableStore<T>` value.
@@ -187,7 +187,7 @@ function defaultWrite<T>(node: WritableNode<T>, value: T): void {
 	node.set(value);
 }
 
-/** Build a writable store over a StateNode or compatible clean-slate writable Node. */
+/** Build a writable store over a StateNode or compatible GraphReFly writable Node. */
 export function writableStore<T>(
 	node: WritableNode<T>,
 	opts?: WritableStoreOptions<T>,
@@ -334,7 +334,7 @@ export function recordReadableStore<K extends string, R extends Record<string, u
 	};
 }
 
-/** Build a Zustand-compatible StoreApi over a caller-owned clean-slate state node. */
+/** Build a Zustand-compatible StoreApi over a caller-owned GraphReFly state node. */
 export function zustandStore<T extends object>(
 	node: WritableNode<T>,
 	initialState?: T,

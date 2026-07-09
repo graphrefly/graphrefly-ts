@@ -1,6 +1,6 @@
 ---
 title: "NestJS Integration"
-description: "Clean-slate NestJS integration with D495 focused provider ergonomics and explicit diagnostics."
+description: "NestJS integration with focused provider ergonomics and explicit diagnostics."
 ---
 
 > **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
@@ -19,7 +19,7 @@ pnpm add @nestjs/websockets @nestjs/platform-ws      # only for the WebSocket br
 pnpm add @nestjs/microservices                       # only for the message bridge
 ```
 
-The clean-slate NestJS adapter has focused subpaths:
+The NestJS adapter has focused subpaths:
 
 | Import path | Use |
 |---|---|

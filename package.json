@@ -2,9 +2,9 @@
 	"name": "@graphrefly/graphrefly",
 	"version": "0.49.0",
 	"private": true,
-	"deprecated": "CSP-9/B65: root @graphrefly/graphrefly is retired; use @graphrefly/ts and its D125 subpaths.",
+	"deprecated": "Root @graphrefly/graphrefly is retired; use @graphrefly/ts and its focused subpaths.",
 	"packageManager": "pnpm@11.7.0+sha512.19cc852c120c7125760f2443ee6be0ca5b40f9f50598de1a09a1f177503e010e57c23c77646e01e761de59bf874fb22a3398c33ab9691fc13eb946b6f0f4d620",
-	"description": "Retired GraphReFly root package. Use @graphrefly/ts for the clean-slate TypeScript implementation.",
+	"description": "Retired GraphReFly root package. Use @graphrefly/ts for the current TypeScript package.",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/graphrefly/graphrefly-ts"

@@ -14,7 +14,7 @@ boundary, or one package surface at a time.
 
 - **Spending alerts** — deterministic causal tracing over a transaction stream.
   Source: `examples/spending-alerts/`.
-- **Knowledge graph** — clean-slate Node-runnable knowledge-graph extraction example.
+- **Knowledge graph** — Node-runnable knowledge-graph extraction example.
   Source: `examples/knowledge-graph/`.
 - **Reactive layout recipes** — text measurement, line breaking, and flow layout examples.
   Source: `examples/reactive-layout/recipes/`.

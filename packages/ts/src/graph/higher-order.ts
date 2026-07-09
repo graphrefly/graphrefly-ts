@@ -380,10 +380,10 @@ interface RepeatState {
  * repeat: play a source `count` times in sequence (RxJS `repeat`). A DEPLESS self-driving operator
  * (Operator<never, S>, instantiate via `g.initNode(repeat(factory, count), [])`) — NOT a dep-operator.
  *
- * It takes a `factory: () => NodeInput<S>` (a RECIPE), not a source Node, because clean-slate Nodes
+ * It takes a `factory: () => NodeInput<S>` (a RECIPE), not a source Node, because GraphReFly Nodes
  * are HOT/shared (multicast + cache): re-subscribing the SAME node replays its cache, it does not
  * re-RUN the source. RxJS `repeat` re-subscribes the COLD source = a fresh subscription each round;
- * the clean-slate analogue is a fresh node per round → a factory. (A `repeat(count)`-over-a-Node
+ * the GraphReFly analogue is a fresh node per round → a factory. (A `repeat(count)`-over-a-Node
  * shape remains deferred: D47's no-net-change-is-a-no-op makes
  * `unsubscribeDep(S)+subscribeDep(S)` on the SAME boundary cancel out. D115 keeps the model to
  * ordinary unsubscribe plus a later subscribe, so same-node repeat needs a separate future design.)

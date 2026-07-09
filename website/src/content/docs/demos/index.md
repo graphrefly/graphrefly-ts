@@ -1,6 +1,6 @@
 ---
 title: "Demos"
-description: "Interactive demos showing clean-slate GraphReFly compositions."
+description: "Interactive demos showing GraphReFly compositions."
 ---
 
 > **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
@@ -9,12 +9,12 @@ description: "Interactive demos showing clean-slate GraphReFly compositions."
 > API generator still lives in `website/`.
 
 
-Live demos and runnable walkthroughs that show GraphReFly clean-slate graph
-composition, inspection, and host boundaries.
+Live demos and runnable walkthroughs that show GraphReFly graph composition,
+inspection, and host boundaries.
 
 ## Reactive layout
 
-Text measurement and line-breaking as a reactive graph — five chapters walk through incremental recomputation, `batch()` coalescing, pluggable measurement backends, and mixed-content block flow. The demo uses the shared clean-slate demo shell, so the topology mermaid and the source code driving each chapter are always visible to the right of the main canvas.
+Text measurement and line-breaking as a reactive graph — five chapters walk through incremental recomputation, `batch()` coalescing, pluggable measurement backends, and mixed-content block flow. The demo uses the shared demo shell, so the topology mermaid and the source code driving each chapter are always visible to the right of the main canvas.
 
 [Read the reactive layout solution →](/solutions/reactive-layout/)
 
@@ -22,8 +22,8 @@ Text measurement and line-breaking as a reactive graph — five chapters walk th
 
 Node-runnable causal tracing walkthrough for a deterministic spending-alert
 pipeline. It uses current `@graphrefly/ts` graph APIs and keeps the source at
-`examples/spending-alerts/`, so it is buildable as part of the clean-slate
-examples set.
+`examples/spending-alerts/`, so it is buildable as part of the current examples
+set.
 
 [Read the spending-alerts walkthrough →](/demos/spending-alerts/)
 
@@ -44,4 +44,5 @@ public subpaths, not compatibility shims.
 Active demo/walkthrough source lives at `demos/reactive-layout/` and
 `examples/spending-alerts/` in the repo. The compat matrix remains a
 package-surface showcase, while the knowledge-graph and PagerDuty browser demo
-concepts are historical references until redesigned over clean-slate surfaces.
+concepts are historical references until redesigned over current package
+surfaces.

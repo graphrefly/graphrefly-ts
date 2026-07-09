@@ -4,10 +4,10 @@ Runnable, self-contained examples that show how to compose GraphReFly in
 different environments. Each example lives in its own package so you can
 `cd` into one, `pnpm install`, and run it without touching the others.
 
-Clean-slate examples reference `@graphrefly/ts` via `workspace:*` so they
-exercise the clean-slate package surface directly. **To copy any example out
-as a starter for your own project, replace `workspace:*` with a published
-version** (see `examples/basic/state-and-derived/README.md`).
+Examples reference `@graphrefly/ts` via `workspace:*` so they exercise the
+current package surface directly. **To copy any example out as a starter for
+your own project, replace `workspace:*` with a published version** (see
+`examples/basic/state-and-derived/README.md`).
 
 ## Layout
 
@@ -53,7 +53,7 @@ package commands.
 
 `examples/inbox-reducer/` was retired from the active tree during CSP-9/B66
 closeout. It depended on the retired root package and old AI pattern surfaces,
-so it is not an active clean-slate starter. Re-activating the concept needs a
+so it is not an active starter. Re-activating the concept needs a
 separate design slice over current `@graphrefly/ts` public subpaths, not
 compatibility shims.
 

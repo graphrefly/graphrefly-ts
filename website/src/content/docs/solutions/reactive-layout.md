@@ -11,7 +11,7 @@ description: "D203 reactive-layout solution: DOM-free layout core, graph-visible
 
 ## What it is
 
-Reactive Layout is a clean-slate `@graphrefly/ts` solution kit for text and simple document layout.
+Reactive Layout is a `@graphrefly/ts` solution kit for text and simple document layout.
 The universal core lives at `@graphrefly/ts/solutions/reactive-layout`; browser measurement lives at
 `@graphrefly/ts/solutions/reactive-layout/browser`.
 

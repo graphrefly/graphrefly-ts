@@ -1,7 +1,7 @@
 /**
  * Horizontal inspection patterns re-derived from old presets (B62 / D125).
  *
- * These helpers compose the clean-slate graph inspection egresses. They do not
+ * These helpers compose GraphReFly graph inspection egresses. They do not
  * add graph nodes, hidden subscriptions, policy gates, or storage ownership.
  */
 

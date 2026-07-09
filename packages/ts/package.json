@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly/ts",
 	"version": "0.1.0",
-	"description": "GraphReFly clean-slate TypeScript package — substrate, graph, operators, sources, storage, render, and testing.",
+	"description": "GraphReFly TypeScript package: synchronous reactive graphs, operators, sources, storage, renderers, adapters, and testing helpers.",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/graphrefly/graphrefly-ts"

@@ -1,5 +1,5 @@
 /**
- * Public testing assertions for clean-slate GraphReFly message streams.
+ * Public testing assertions for GraphReFly message streams.
  *
  * These helpers validate captured protocol output; they do not participate in propagation.
  */

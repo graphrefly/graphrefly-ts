@@ -1,6 +1,6 @@
 ---
 title: "Retired Compat"
-description: "Historical note for the retired pre-clean-slate compatibility layers."
+description: "Historical note for the retired compatibility layers."
 ---
 
 > **Legacy TypeScript website content.** Shared public website, blog, protocol, guide, and
@@ -9,7 +9,7 @@ description: "Historical note for the retired pre-clean-slate compatibility laye
 > API generator still lives in `website/`.
 
 
-The old `@graphrefly/graphrefly/compat/*` runtime model is retired. Clean-slate framework and host bindings now live under focused `@graphrefly/ts/adapters/*` subpaths.
+The old `@graphrefly/graphrefly/compat/*` runtime model is retired. Framework and host bindings now live under focused `@graphrefly/ts/adapters/*` subpaths.
 
 ## Current replacements
 
@@ -23,6 +23,6 @@ See the full walkthrough in [NestJS Integration](/recipes/nestjs-integration/).
 
 ## What stayed retired
 
-Do not use `compat/nestjs`, `GraphReflyModule`, `GraphReflyGuard`, `Actor`, `CqrsGraph`, hidden event buses, root `@graphrefly/graphrefly` imports, container scanning, hidden graph creation, or transport retry/session/reconnect ownership for clean-slate work.
+Do not use `compat/nestjs`, `GraphReflyModule`, `GraphReflyGuard`, `Actor`, `CqrsGraph`, hidden event buses, root `@graphrefly/graphrefly` imports, container scanning, hidden graph creation, or transport retry/session/reconnect ownership for current work.
 
 Adapter diagnostics are not a callback or logging API. Use host-side `diagnostics()` snapshots for local bridge state, or wire `fromNestDiagnostics(...)` explicitly when diagnostics should become sanitized graph DATA.
