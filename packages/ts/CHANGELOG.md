@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.1.1
+
+### Patch Changes
+
+- d8a9650: update readme
+
 ## 0.1.0
 
 ### Minor Changes

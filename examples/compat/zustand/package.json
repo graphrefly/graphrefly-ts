@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/compat-zustand",
 	"private": true,
-	"version": "0.0.10",
+	"version": "0.0.11",
 	"type": "module",
 	"description": "Zustand-compatible store API over GraphReFly nodes.",
 	"scripts": {
