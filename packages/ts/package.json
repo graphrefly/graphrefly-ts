@@ -1,6 +1,6 @@
 {
 	"name": "@graphrefly/ts",
-	"version": "0.0.3",
+	"version": "0.1.0",
 	"description": "GraphReFly clean-slate TypeScript package — substrate, graph, operators, sources, storage, render, and testing.",
 	"repository": {
 		"type": "git",
