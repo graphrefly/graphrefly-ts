@@ -338,15 +338,46 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 		admitted.down([
 			["DATA", run()],
 			["DATA", run({ requestId: "request:conflict" })],
+			[
+				"DATA",
+				run({
+					runId: "run:environment-conflict",
+					metadata: {
+						executionEnvironmentId: "environment:local",
+						executionEnvironmentRevision: "revision:1",
+						executionEnvironmentLocality: "local",
+						executionEnvironmentBindingKind: "local-host-process",
+						executionSessionEpoch: "session:1",
+					},
+				}),
+			],
+			[
+				"DATA",
+				run({
+					runId: "run:environment-conflict",
+					metadata: {
+						executionEnvironmentId: "environment:local",
+						executionEnvironmentRevision: "revision:2",
+						executionEnvironmentLocality: "local",
+						executionEnvironmentBindingKind: "local-host-process",
+						executionSessionEpoch: "session:2",
+					},
+				}),
+			],
 		]);
 		await settle();
-		expect(issues.map((entry) => entry.code)).toContain("postgresql-run-coordinate-conflict");
-		expect(outcomes).toEqual([
-			expect.objectContaining({
-				kind: "failure",
-				error: expect.objectContaining({ code: "postgresql-result-limit" }),
-			}),
-		]);
+		expect(
+			issues.filter((entry) => entry.code === "postgresql-run-coordinate-conflict"),
+		).toHaveLength(2);
+		expect(outcomes).toHaveLength(2);
+		expect(outcomes).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "failure",
+					error: expect.objectContaining({ code: "postgresql-result-limit" }),
+				}),
+			]),
+		);
 
 		const sqlBearing = input({
 			adapterInputId: "adapter-input:sql",

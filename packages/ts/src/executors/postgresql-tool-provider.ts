@@ -184,6 +184,9 @@ export interface PostgresqlRunCancellationRequested {
 	readonly requestId: string;
 	readonly operationId: string;
 	readonly attempt: number;
+	readonly executionEnvironmentId?: string;
+	readonly executionEnvironmentRevision?: string;
+	readonly sessionEpoch?: string;
 	readonly sourceRefs?: readonly SourceRef[];
 }
 
@@ -538,6 +541,13 @@ export function postgresqlToolProviderRuntime(
 			publishIssue(issue("postgresql-run-invalid-evidence", "Admitted run refs are invalid."));
 			return;
 		}
+		const environmentMetadata = snapshotExecutionEnvironmentPin(rawRequest.metadata);
+		if (environmentMetadata === null) {
+			publishIssue(
+				issue("postgresql-run-invalid-environment", "Environment pin metadata is incomplete."),
+			);
+			return;
+		}
 		const request: ToolProviderAdapterRunRequested = Object.freeze({
 			kind: rawRequest.kind,
 			runId: rawRequest.runId,
@@ -551,6 +561,7 @@ export function postgresqlToolProviderRuntime(
 			attempt: rawRequest.attempt,
 			reason: rawRequest.reason,
 			sourceRefs,
+			...(environmentMetadata === undefined ? {} : { metadata: environmentMetadata }),
 		});
 		if (request.providerId !== undefined && request.providerId !== providerId) return;
 		const fingerprint = runFingerprint(request);
@@ -681,6 +692,9 @@ export function postgresqlToolProviderRuntime(
 					"requestId",
 					"operationId",
 					"attempt",
+					"executionEnvironmentId",
+					"executionEnvironmentRevision",
+					"sessionEpoch",
 					"sourceRefs",
 				].includes(key),
 			) ||
@@ -692,6 +706,11 @@ export function postgresqlToolProviderRuntime(
 				request.requestId,
 				request.operationId,
 			].every(boundedIdentity) ||
+			![
+				request.executionEnvironmentId,
+				request.executionEnvironmentRevision,
+				request.sessionEpoch,
+			].every((value) => value === undefined || boundedIdentity(value)) ||
 			!Number.isSafeInteger(request.attempt) ||
 			request.attempt < 1
 		) {
@@ -723,6 +742,9 @@ export function postgresqlToolProviderRuntime(
 			requestId: request.requestId,
 			operationId: request.operationId,
 			attempt: request.attempt,
+			executionEnvironmentId: request.executionEnvironmentId,
+			executionEnvironmentRevision: request.executionEnvironmentRevision,
+			sessionEpoch: request.sessionEpoch,
 			sourceRefs: requestSourceRefs,
 			proposalId: compoundTupleKey("postgresql-run-cancellation-proposal", [
 				request.cancellationId,
@@ -1175,6 +1197,7 @@ function issue(code: string, message: string, retryable = false): DataIssue {
 	return Object.freeze({ kind: "issue", code, message, severity: "error", retryable });
 }
 function runFingerprint(run: ToolProviderAdapterRunRequested): string {
+	const environment = snapshotExecutionEnvironmentPin(run.metadata);
 	return canonicalTupleKey([
 		run.runId,
 		run.adapterInputId,
@@ -1186,7 +1209,30 @@ function runFingerprint(run: ToolProviderAdapterRunRequested): string {
 		run.profileId ?? "",
 		String(run.attempt),
 		run.reason,
+		environment === null ? "invalid-environment-pin" : JSON.stringify(environment ?? null),
 	]);
+}
+
+function snapshotExecutionEnvironmentPin(
+	metadata: Readonly<Record<string, unknown>> | undefined,
+): Readonly<Record<string, unknown>> | undefined | null {
+	if (metadata === undefined) return undefined;
+	const values = [
+		metadata.executionEnvironmentId,
+		metadata.executionEnvironmentRevision,
+		metadata.executionEnvironmentLocality,
+		metadata.executionEnvironmentBindingKind,
+		metadata.executionSessionEpoch,
+	];
+	if (values.every((value) => value === undefined)) return undefined;
+	if (!values.every(boundedIdentity)) return null;
+	return Object.freeze({
+		executionEnvironmentId: values[0],
+		executionEnvironmentRevision: values[1],
+		executionEnvironmentLocality: values[2],
+		executionEnvironmentBindingKind: values[3],
+		executionSessionEpoch: values[4],
+	});
 }
 function requestMatchesInput(
 	request: ToolProviderAdapterRunRequested,
@@ -1215,7 +1261,33 @@ function cancellationMatchesRun(
 		request.adapterInputId === run.request.adapterInputId &&
 		request.requestId === run.request.requestId &&
 		request.operationId === run.request.operationId &&
-		request.attempt === run.request.attempt
+		request.attempt === run.request.attempt &&
+		environmentCancellationMatchesRun(request, run.request)
+	);
+}
+
+function environmentCancellationMatchesRun(
+	request: Omit<PostgresqlRunCancellationRequested, "kind">,
+	run: ToolProviderAdapterRunRequested,
+): boolean {
+	const metadata = run.metadata;
+	const environmentId = metadata?.executionEnvironmentId;
+	const environmentRevision = metadata?.executionEnvironmentRevision;
+	const sessionEpoch = metadata?.executionSessionEpoch;
+	if (
+		environmentId === undefined &&
+		environmentRevision === undefined &&
+		sessionEpoch === undefined
+	)
+		return (
+			request.executionEnvironmentId === undefined &&
+			request.executionEnvironmentRevision === undefined &&
+			request.sessionEpoch === undefined
+		);
+	return (
+		request.executionEnvironmentId === environmentId &&
+		request.executionEnvironmentRevision === environmentRevision &&
+		request.sessionEpoch === sessionEpoch
 	);
 }
 function validateArguments(value: unknown, limits: Limits): string | undefined {

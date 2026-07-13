@@ -216,6 +216,16 @@
 				"default": "./dist/executors/work-queue.cjs"
 			}
 		},
+		"./executors/execution-environment": {
+			"import": {
+				"types": "./dist/executors/execution-environment.d.ts",
+				"default": "./dist/executors/execution-environment.js"
+			},
+			"require": {
+				"types": "./dist/executors/execution-environment.d.cts",
+				"default": "./dist/executors/execution-environment.cjs"
+			}
+		},
 		"./executors/tool-provider-runtime": {
 			"import": {
 				"types": "./dist/executors/tool-provider-runtime.d.ts",

@@ -130,6 +130,20 @@ const expectedSubpaths = {
 		present: ["toolProviderExecutionRecipe"],
 		absent: [],
 	},
+	"./executors/execution-environment": {
+		present: [
+			"executionEnvironmentTarget",
+			"environmentPinnedExecutorProfile",
+			"environmentPinnedExecutorRoute",
+			"requestEnvironmentPinnedToolProviderRun",
+			"localHostExecutionGate",
+		],
+		absent: [
+			"nodeProcessDriver",
+			"postgresqlToolProviderRuntime",
+			"toolProviderRunAdmissionProjector",
+		],
+	},
 	"./executors/tool-provider-adapters": {
 		present: [
 			"localBuiltinToolProviderBinding",
