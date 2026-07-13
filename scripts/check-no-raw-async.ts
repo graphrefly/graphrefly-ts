@@ -36,6 +36,7 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/graph/environment.ts",
 	"packages/ts/src/graph/sources.ts",
 	"packages/ts/src/graph/worker.ts",
+	"packages/ts/src/executors/postgresql-tool-provider.ts",
 	"packages/ts/src/sources/browser.ts",
 	"packages/ts/src/sources/node.ts",
 ]);

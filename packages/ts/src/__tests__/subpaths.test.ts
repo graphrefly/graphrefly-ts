@@ -33,6 +33,7 @@ import type {
 	ViewCachePolicy as DataStructuresViewCachePolicy,
 } from "../data-structures/index.js";
 import * as dataStructures from "../data-structures/index.js";
+import * as executorPostgresqlToolProvider from "../executors/postgresql-tool-provider.js";
 import * as executorToolProviderRecipe from "../executors/tool-provider.js";
 import * as executorToolProviderAdapters from "../executors/tool-provider-adapters.js";
 import * as executorToolProviderRuntime from "../executors/tool-provider-runtime.js";
@@ -263,6 +264,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./cqrs/work-queue",
 			"./data",
 			"./data-structures",
+			"./executors/postgresql-tool-provider",
 			"./executors/tool-provider",
 			"./executors/tool-provider-adapters",
 			"./executors/tool-provider-runtime",
@@ -903,6 +905,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof executorToolProviderAdapters.processToolProviderCatalog).toBe("function");
 		expect(typeof executorToolProviderAdapters.httpToolProviderCatalog).toBe("function");
 		expect(typeof executorToolProviderAdapters.httpToolProviderRuntime).toBe("function");
+		expect(typeof executorPostgresqlToolProvider.postgresqlToolProviderCatalog).toBe("function");
+		expect(typeof executorPostgresqlToolProvider.postgresqlToolProviderRuntime).toBe("function");
+		expect(Object.hasOwn(executorPostgresqlToolProvider, "attachToolProviderAdapterRuntime")).toBe(
+			false,
+		);
 		expect(Object.hasOwn(executorToolProviderAdapters, "attachToolProviderAdapterRuntime")).toBe(
 			false,
 		);

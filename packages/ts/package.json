@@ -246,6 +246,16 @@
 				"default": "./dist/executors/tool-provider-adapters.cjs"
 			}
 		},
+		"./executors/postgresql-tool-provider": {
+			"import": {
+				"types": "./dist/executors/postgresql-tool-provider.d.ts",
+				"default": "./dist/executors/postgresql-tool-provider.js"
+			},
+			"require": {
+				"types": "./dist/executors/postgresql-tool-provider.d.cts",
+				"default": "./dist/executors/postgresql-tool-provider.cjs"
+			}
+		},
 		"./inspection/boundary": {
 			"import": {
 				"types": "./dist/inspection/boundary.d.ts",

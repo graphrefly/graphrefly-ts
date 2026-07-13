@@ -142,6 +142,14 @@ const expectedSubpaths = {
 		],
 		absent: ["attachToolProviderAdapterRuntime", "toolProviderExecutionRecipe"],
 	},
+	"./executors/postgresql-tool-provider": {
+		present: ["postgresqlToolProviderCatalog", "postgresqlToolProviderRuntime"],
+		absent: [
+			"attachToolProviderAdapterRuntime",
+			"toolProviderExecutionRecipe",
+			"httpToolProviderRuntime",
+		],
+	},
 	"./executors/tool-provider-runtime": {
 		present: ["attachToolProviderAdapterRuntime"],
 		absent: [],

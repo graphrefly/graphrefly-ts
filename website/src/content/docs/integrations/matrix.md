@@ -51,6 +51,7 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Tool-provider execution recipe | Focused tool-provider execution recipe | `@graphrefly/ts/executors/tool-provider` |
 | Tool-provider runtime | Explicit low-level adapter runtime attach boundary; runtime handles stay private data | `@graphrefly/ts/executors/tool-provider-runtime` |
 | Tool-provider adapter pack | Local builtin, process, and HTTP adapter helpers | `@graphrefly/ts/executors/tool-provider-adapters` |
+| PostgreSQL tool-provider adapter | Version-pinned PostgreSQL-compatible read-only async runtime with private driver lifecycle | `@graphrefly/ts/executors/postgresql-tool-provider` |
 | Boundary inspection | Boundary manifest inspection helpers | `@graphrefly/ts/inspection/boundary` |
 | Memory | Horizontal memory and fact-fragment families | `@graphrefly/ts/memory` |
 | Semantic memory | Focused semantic memory fact-fragment helpers | `@graphrefly/ts/memory/semantic` |
