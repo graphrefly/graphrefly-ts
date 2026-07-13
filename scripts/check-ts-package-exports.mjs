@@ -144,6 +144,15 @@ const expectedSubpaths = {
 			"toolProviderRunAdmissionProjector",
 		],
 	},
+	"./executors/local-container-postgresql": {
+		present: [
+			"LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY",
+			"localContainerPostgresqlManifest",
+			"localContainerPostgresqlReadiness",
+			"localContainerPostgresqlRuntime",
+		],
+		absent: ["toolProviderRunAdmissionProjector", "postgresqlToolProviderRuntime"],
+	},
 	"./executors/tool-provider-adapters": {
 		present: [
 			"localBuiltinToolProviderBinding",
@@ -296,6 +305,10 @@ const forbiddenFrameworkSpecifiers = [
 ];
 
 const rootAbsentExports = [
+	"LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY",
+	"localContainerPostgresqlManifest",
+	"localContainerPostgresqlReadiness",
+	"localContainerPostgresqlRuntime",
 	"attachToolProviderAdapterRuntime",
 	"toolProviderExecutionRecipe",
 	"localBuiltinToolProviderBinding",
@@ -529,9 +542,10 @@ ${Object.entries(expectedSubpaths)
 	.map(([subpath, { present, absent }]) => {
 		const specifier = `@graphrefly/ts${subpath.slice(1)}`;
 		const presentChecks = present
-			.map(
-				(name) =>
-					`assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
+			.map((name) =>
+				name === "LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY"
+					? `assert(mod[${JSON.stringify(name)}] === "graphrefly-local-container-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+					: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
 			)
 			.join("\n");
 		const absentChecks = absent

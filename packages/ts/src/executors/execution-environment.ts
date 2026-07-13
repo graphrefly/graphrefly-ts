@@ -67,6 +67,7 @@ export interface ExecutionEnvironmentPinnedRunMetadata {
 	readonly executionEnvironmentLocality: ExecutionEnvironmentLocality;
 	readonly executionEnvironmentBindingKind: ExecutionEnvironmentBindingKind;
 	readonly executionSessionEpoch: string;
+	readonly executionManifestFingerprint?: string;
 }
 
 export type LocalHostExecutionGateState = "admitted" | "waiting" | "blocked";
@@ -230,6 +231,7 @@ export function requestEnvironmentPinnedToolProviderRun(
 		readonly sourceRefs?: readonly SourceRef[];
 		readonly requestedAtMs?: number;
 		readonly sessionEpoch?: string;
+		readonly manifestFingerprint?: string;
 	} = {},
 ): ToolProviderAdapterRunRequested {
 	const safeProfile = environmentPinnedExecutorProfile(profile);
@@ -244,6 +246,9 @@ export function requestEnvironmentPinnedToolProviderRun(
 		executionEnvironmentLocality: safeProfile.executionEnvironment.locality,
 		executionEnvironmentBindingKind: safeProfile.executionEnvironment.bindingKind,
 		executionSessionEpoch: opts.sessionEpoch ?? "session:local-host-process",
+		...(opts.manifestFingerprint === undefined
+			? {}
+			: { executionManifestFingerprint: opts.manifestFingerprint }),
 	});
 	return requestToolProviderAdapterRun(input, { ...opts, metadata: { ...metadata } });
 }
@@ -608,6 +613,7 @@ function runMetadata(
 		executionEnvironmentLocality: metadata.executionEnvironmentLocality,
 		executionEnvironmentBindingKind: metadata.executionEnvironmentBindingKind,
 		executionSessionEpoch: metadata.executionSessionEpoch,
+		executionManifestFingerprint: metadata.executionManifestFingerprint,
 	};
 	if (
 		!boundedIdentity(candidate.executionEnvironmentId) ||
@@ -618,7 +624,9 @@ function runMetadata(
 		!["local-host-process", "local-container", "remote-session"].includes(
 			String(candidate.executionEnvironmentBindingKind),
 		) ||
-		!boundedIdentity(candidate.executionSessionEpoch)
+		!boundedIdentity(candidate.executionSessionEpoch) ||
+		(candidate.executionManifestFingerprint !== undefined &&
+			!boundedIdentity(candidate.executionManifestFingerprint))
 	)
 		return undefined;
 	return candidate as ExecutionEnvironmentPinnedRunMetadata;
@@ -641,6 +649,7 @@ function requestFingerprint(request: ToolProviderAdapterRunRequested): string {
 		metadata?.executionEnvironmentLocality,
 		metadata?.executionEnvironmentBindingKind,
 		metadata?.executionSessionEpoch,
+		metadata?.executionManifestFingerprint,
 	]);
 }
 

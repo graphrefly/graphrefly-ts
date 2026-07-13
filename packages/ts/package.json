@@ -226,6 +226,16 @@
 				"default": "./dist/executors/execution-environment.cjs"
 			}
 		},
+		"./executors/local-container-postgresql": {
+			"import": {
+				"types": "./dist/executors/local-container-postgresql.d.ts",
+				"default": "./dist/executors/local-container-postgresql.js"
+			},
+			"require": {
+				"types": "./dist/executors/local-container-postgresql.d.cts",
+				"default": "./dist/executors/local-container-postgresql.cjs"
+			}
+		},
 		"./executors/tool-provider-runtime": {
 			"import": {
 				"types": "./dist/executors/tool-provider-runtime.d.ts",

@@ -37,6 +37,8 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/graph/sources.ts",
 	"packages/ts/src/graph/worker.ts",
 	"packages/ts/src/executors/postgresql-tool-provider.ts",
+	// D604 concrete injected container-driver runtime boundary; never part of the sync wave core.
+	"packages/ts/src/executors/local-container-postgresql.ts",
 	"packages/ts/src/sources/browser.ts",
 	"packages/ts/src/sources/node.ts",
 ]);

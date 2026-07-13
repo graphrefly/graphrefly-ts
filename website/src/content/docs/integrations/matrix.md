@@ -49,6 +49,7 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Orchestration work-queue recipe | Focused orchestration work-queue recipe | `@graphrefly/ts/orchestration/work-queue` |
 | Executor work-queue recipe | Focused executor work-queue recipe | `@graphrefly/ts/executors/work-queue` |
 | Execution-environment targeting | Strict environment-pinned profile/route/run contracts and D419-admitted local-host gate; remote/container bindings are not implied | `@graphrefly/ts/executors/execution-environment` |
+| Local-container PostgreSQL binding | Digest-pinned, host-injected PostgreSQL container lifecycle with exact cancellation and independently visible cleanup | `@graphrefly/ts/executors/local-container-postgresql` |
 | Tool-provider execution recipe | Focused tool-provider execution recipe | `@graphrefly/ts/executors/tool-provider` |
 | Tool-provider runtime | Explicit low-level adapter runtime attach boundary; runtime handles stay private data | `@graphrefly/ts/executors/tool-provider-runtime` |
 | Tool-provider adapter pack | Local builtin, process, and HTTP adapter helpers | `@graphrefly/ts/executors/tool-provider-adapters` |

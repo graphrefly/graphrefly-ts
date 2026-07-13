@@ -34,6 +34,7 @@ import type {
 } from "../data-structures/index.js";
 import * as dataStructures from "../data-structures/index.js";
 import * as executorExecutionEnvironment from "../executors/execution-environment.js";
+import * as executorLocalContainerPostgresql from "../executors/local-container-postgresql.js";
 import * as executorPostgresqlToolProvider from "../executors/postgresql-tool-provider.js";
 import * as executorToolProviderRecipe from "../executors/tool-provider.js";
 import * as executorToolProviderAdapters from "../executors/tool-provider-adapters.js";
@@ -266,6 +267,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./data",
 			"./data-structures",
 			"./executors/execution-environment",
+			"./executors/local-container-postgresql",
 			"./executors/postgresql-tool-provider",
 			"./executors/tool-provider",
 			"./executors/tool-provider-adapters",
@@ -904,6 +906,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"function",
 		);
 		expect(typeof executorExecutionEnvironment.localHostExecutionGate).toBe("function");
+		expect(typeof executorLocalContainerPostgresql.localContainerPostgresqlRuntime).toBe(
+			"function",
+		);
+		expect(
+			Object.hasOwn(executorLocalContainerPostgresql, "toolProviderRunAdmissionProjector"),
+		).toBe(false);
 		expect(typeof executorToolProviderRecipe.toolProviderExecutionRecipe).toBe("function");
 		expect(typeof executorToolProviderAdapters.localBuiltinToolProviderBinding).toBe("function");
 		expect(typeof executorToolProviderAdapters.localBuiltinToolProviderAdapterPack).toBe(
