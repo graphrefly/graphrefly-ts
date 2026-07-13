@@ -256,6 +256,16 @@
 				"default": "./dist/executors/customer-hosted-postgresql.cjs"
 			}
 		},
+		"./executors/postgresql-run-operations": {
+			"import": {
+				"types": "./dist/executors/postgresql-run-operations.d.ts",
+				"default": "./dist/executors/postgresql-run-operations.js"
+			},
+			"require": {
+				"types": "./dist/executors/postgresql-run-operations.d.cts",
+				"default": "./dist/executors/postgresql-run-operations.cjs"
+			}
+		},
 		"./executors/tool-provider-runtime": {
 			"import": {
 				"types": "./dist/executors/tool-provider-runtime.d.ts",

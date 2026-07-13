@@ -43,6 +43,8 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/executors/managed-cloud-postgresql.ts",
 	// D606 concrete customer endpoint, CAS store, outbound transport, and worker boundary.
 	"packages/ts/src/executors/customer-hosted-postgresql.ts",
+	// D607 concrete host-owned PostgreSQL run-operations ledger boundary.
+	"packages/ts/src/executors/postgresql-run-operations.ts",
 	"packages/ts/src/sources/browser.ts",
 	"packages/ts/src/sources/node.ts",
 ]);

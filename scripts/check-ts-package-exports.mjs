@@ -177,6 +177,15 @@ const expectedSubpaths = {
 		],
 		absent: ["toolProviderRunAdmissionProjector", "postgresqlToolProviderRuntime"],
 	},
+	"./executors/postgresql-run-operations": {
+		present: [
+			"POSTGRESQL_RUN_OPERATIONS_COMPATIBILITY",
+			"postgresql16RunOperationsStore",
+			"postgresqlRunOperationEligibility",
+			"postgresqlRunOperationMaterialization",
+		],
+		absent: ["postgresqlToolProviderRuntime", "customerHostedPostgresqlRuntime"],
+	},
 	"./executors/tool-provider-adapters": {
 		present: [
 			"localBuiltinToolProviderBinding",
@@ -340,6 +349,10 @@ const rootAbsentExports = [
 	"executeManagedCloudPostgresqlClaim",
 	"postgresql16ManagedCloudControlStore",
 	"authenticatedWssManagedCloudTransport",
+	"POSTGRESQL_RUN_OPERATIONS_COMPATIBILITY",
+	"postgresql16RunOperationsStore",
+	"postgresqlRunOperationEligibility",
+	"postgresqlRunOperationMaterialization",
 	"attachToolProviderAdapterRuntime",
 	"toolProviderExecutionRecipe",
 	"localBuiltinToolProviderBinding",
@@ -580,7 +593,9 @@ ${Object.entries(expectedSubpaths)
 						? `assert(mod[${JSON.stringify(name)}] === "graphrefly-managed-cloud-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
 						: name === "CUSTOMER_HOSTED_POSTGRESQL_COMPATIBILITY"
 							? `assert(mod[${JSON.stringify(name)}] === "customer-hosted-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-							: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
+							: name === "POSTGRESQL_RUN_OPERATIONS_COMPATIBILITY"
+								? `assert(mod[${JSON.stringify(name)}] === "postgresql-run-operations-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+								: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
 			)
 			.join("\n");
 		const absentChecks = absent
