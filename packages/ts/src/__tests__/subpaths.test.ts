@@ -33,6 +33,7 @@ import type {
 	ViewCachePolicy as DataStructuresViewCachePolicy,
 } from "../data-structures/index.js";
 import * as dataStructures from "../data-structures/index.js";
+import * as executorCustomerHostedPostgresql from "../executors/customer-hosted-postgresql.js";
 import * as executorExecutionEnvironment from "../executors/execution-environment.js";
 import * as executorLocalContainerPostgresql from "../executors/local-container-postgresql.js";
 import * as executorManagedCloudPostgresql from "../executors/managed-cloud-postgresql.js";
@@ -267,6 +268,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./cqrs/work-queue",
 			"./data",
 			"./data-structures",
+			"./executors/customer-hosted-postgresql",
 			"./executors/execution-environment",
 			"./executors/local-container-postgresql",
 			"./executors/managed-cloud-postgresql",
@@ -912,6 +914,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"function",
 		);
 		expect(typeof executorManagedCloudPostgresql.managedCloudPostgresqlRuntime).toBe("function");
+		expect(typeof executorCustomerHostedPostgresql.customerHostedPostgresqlRuntime).toBe(
+			"function",
+		);
+		expect(
+			Object.hasOwn(executorCustomerHostedPostgresql, "toolProviderRunAdmissionProjector"),
+		).toBe(false);
 		expect(Object.hasOwn(executorManagedCloudPostgresql, "toolProviderRunAdmissionProjector")).toBe(
 			false,
 		);

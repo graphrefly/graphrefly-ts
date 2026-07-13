@@ -246,6 +246,16 @@
 				"default": "./dist/executors/managed-cloud-postgresql.cjs"
 			}
 		},
+		"./executors/customer-hosted-postgresql": {
+			"import": {
+				"types": "./dist/executors/customer-hosted-postgresql.d.ts",
+				"default": "./dist/executors/customer-hosted-postgresql.js"
+			},
+			"require": {
+				"types": "./dist/executors/customer-hosted-postgresql.d.cts",
+				"default": "./dist/executors/customer-hosted-postgresql.cjs"
+			}
+		},
 		"./executors/tool-provider-runtime": {
 			"import": {
 				"types": "./dist/executors/tool-provider-runtime.d.ts",

@@ -41,6 +41,8 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/executors/local-container-postgresql.ts",
 	// D605 concrete managed control-store, WSS transport, and worker runtime boundary.
 	"packages/ts/src/executors/managed-cloud-postgresql.ts",
+	// D606 concrete customer endpoint, CAS store, outbound transport, and worker boundary.
+	"packages/ts/src/executors/customer-hosted-postgresql.ts",
 	"packages/ts/src/sources/browser.ts",
 	"packages/ts/src/sources/node.ts",
 ]);
