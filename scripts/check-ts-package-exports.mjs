@@ -153,6 +153,17 @@ const expectedSubpaths = {
 		],
 		absent: ["toolProviderRunAdmissionProjector", "postgresqlToolProviderRuntime"],
 	},
+	"./executors/managed-cloud-postgresql": {
+		present: [
+			"MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY",
+			"managedCloudPostgresqlManifest",
+			"managedCloudPostgresqlReadiness",
+			"managedCloudPostgresqlRuntime",
+			"postgresql16ManagedCloudControlStore",
+			"authenticatedWssManagedCloudTransport",
+		],
+		absent: ["toolProviderRunAdmissionProjector", "postgresqlToolProviderRuntime"],
+	},
 	"./executors/tool-provider-adapters": {
 		present: [
 			"localBuiltinToolProviderBinding",
@@ -309,6 +320,13 @@ const rootAbsentExports = [
 	"localContainerPostgresqlManifest",
 	"localContainerPostgresqlReadiness",
 	"localContainerPostgresqlRuntime",
+	"MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY",
+	"managedCloudPostgresqlManifest",
+	"managedCloudPostgresqlReadiness",
+	"managedCloudPostgresqlRuntime",
+	"executeManagedCloudPostgresqlClaim",
+	"postgresql16ManagedCloudControlStore",
+	"authenticatedWssManagedCloudTransport",
 	"attachToolProviderAdapterRuntime",
 	"toolProviderExecutionRecipe",
 	"localBuiltinToolProviderBinding",
@@ -545,7 +563,9 @@ ${Object.entries(expectedSubpaths)
 			.map((name) =>
 				name === "LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY"
 					? `assert(mod[${JSON.stringify(name)}] === "graphrefly-local-container-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-					: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
+					: name === "MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY"
+						? `assert(mod[${JSON.stringify(name)}] === "graphrefly-managed-cloud-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+						: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
 			)
 			.join("\n");
 		const absentChecks = absent

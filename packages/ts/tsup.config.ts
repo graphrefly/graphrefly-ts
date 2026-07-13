@@ -25,6 +25,7 @@ export default defineConfig({
 		"src/executors/tool-provider.ts",
 		"src/executors/execution-environment.ts",
 		"src/executors/local-container-postgresql.ts",
+		"src/executors/managed-cloud-postgresql.ts",
 		"src/executors/tool-provider-adapters.ts",
 		"src/executors/postgresql-tool-provider.ts",
 		"src/executors/tool-provider-runtime.ts",

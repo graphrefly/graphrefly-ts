@@ -236,6 +236,16 @@
 				"default": "./dist/executors/local-container-postgresql.cjs"
 			}
 		},
+		"./executors/managed-cloud-postgresql": {
+			"import": {
+				"types": "./dist/executors/managed-cloud-postgresql.d.ts",
+				"default": "./dist/executors/managed-cloud-postgresql.js"
+			},
+			"require": {
+				"types": "./dist/executors/managed-cloud-postgresql.d.cts",
+				"default": "./dist/executors/managed-cloud-postgresql.cjs"
+			}
+		},
 		"./executors/tool-provider-runtime": {
 			"import": {
 				"types": "./dist/executors/tool-provider-runtime.d.ts",
