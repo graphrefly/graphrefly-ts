@@ -55,6 +55,8 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | PostgreSQL governed run operations | Host-owned PostgreSQL-16 CAS recovery ledger, action-specific eligibility, new D419 candidate handoff, and proposal-only D358 repair | `@graphrefly/ts/executors/postgresql-run-operations` |
 | Shared control-panel authority | Database-neutral panel, capability admission, subscription, occurrence, alert, suppression, and inbox delivery contracts over a host-supplied feature persistence port | `@graphrefly/ts/solutions/shared-control-panel-authority` |
 | Shared control-panel reference persistence | Testing-only in-memory backend for persistence conformance; never a production default | `@graphrefly/ts/testing/shared-control-panel-memory-persistence` |
+| Production evaluation authority | D610 campaign/result/attestation/migration/packet contracts over host-private evidence authorities and a narrow persistence port | `@graphrefly/ts/solutions/production-evaluation-authority` |
+| Production evaluation reference persistence | Testing-only atomic in-memory backend for D610 persistence conformance; never a production default | `@graphrefly/ts/testing/production-evaluation-memory-persistence` |
 | Tool-provider execution recipe | Focused tool-provider execution recipe | `@graphrefly/ts/executors/tool-provider` |
 | Tool-provider runtime | Explicit low-level adapter runtime attach boundary; runtime handles stay private data | `@graphrefly/ts/executors/tool-provider-runtime` |
 | Tool-provider adapter pack | Local builtin, process, and HTTP adapter helpers | `@graphrefly/ts/executors/tool-provider-adapters` |

@@ -30,6 +30,8 @@ export default defineConfig({
 		"src/executors/postgresql-run-operations.ts",
 		"src/solutions/shared-control-panel-authority.ts",
 		"src/testing/shared-control-panel-memory-persistence.ts",
+		"src/solutions/production-evaluation-authority.ts",
+		"src/testing/production-evaluation-memory-persistence.ts",
 		"src/executors/tool-provider-adapters.ts",
 		"src/executors/postgresql-tool-provider.ts",
 		"src/executors/tool-provider-runtime.ts",

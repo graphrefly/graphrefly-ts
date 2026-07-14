@@ -10,7 +10,11 @@
 		"src/solutions/shared-control-panel-authority.ts",
 		"src/testing/shared-control-panel-memory-persistence.ts",
 		"src/__tests__/shared-control-panel-authority.test.ts",
-		"src/__tests__/shared-control-panel-memory-persistence.test.ts"
+		"src/__tests__/shared-control-panel-memory-persistence.test.ts",
+		"src/solutions/production-evaluation-contracts.ts",
+		"src/solutions/production-evaluation-authority.ts",
+		"src/testing/production-evaluation-memory-persistence.ts",
+		"src/__tests__/production-evaluation-authority.test.ts"
 	],
 	"exclude": ["node_modules", "dist"]
 }

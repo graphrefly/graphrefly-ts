@@ -536,6 +536,16 @@
 				"default": "./dist/solutions/shared-control-panel-authority.cjs"
 			}
 		},
+		"./solutions/production-evaluation-authority": {
+			"import": {
+				"types": "./dist/solutions/production-evaluation-authority.d.ts",
+				"default": "./dist/solutions/production-evaluation-authority.js"
+			},
+			"require": {
+				"types": "./dist/solutions/production-evaluation-authority.d.cts",
+				"default": "./dist/solutions/production-evaluation-authority.cjs"
+			}
+		},
 		"./solutions/agentic-memory/browser": {
 			"browser": {
 				"import": {
@@ -734,6 +744,16 @@
 			"require": {
 				"types": "./dist/testing/shared-control-panel-memory-persistence.d.cts",
 				"default": "./dist/testing/shared-control-panel-memory-persistence.cjs"
+			}
+		},
+		"./testing/production-evaluation-memory-persistence": {
+			"import": {
+				"types": "./dist/testing/production-evaluation-memory-persistence.d.ts",
+				"default": "./dist/testing/production-evaluation-memory-persistence.js"
+			},
+			"require": {
+				"types": "./dist/testing/production-evaluation-memory-persistence.d.cts",
+				"default": "./dist/testing/production-evaluation-memory-persistence.cjs"
 			}
 		}
 	},

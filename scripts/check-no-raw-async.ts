@@ -48,6 +48,8 @@ const ALLOW_ALL = new Set<string>([
 	// D609 database-neutral host authority facade and testing-only conformance backend.
 	"packages/ts/src/solutions/shared-control-panel-authority.ts",
 	"packages/ts/src/testing/shared-control-panel-memory-persistence.ts",
+	"packages/ts/src/solutions/production-evaluation-authority.ts",
+	"packages/ts/src/testing/production-evaluation-memory-persistence.ts",
 	"packages/ts/src/sources/browser.ts",
 	"packages/ts/src/sources/node.ts",
 ]);

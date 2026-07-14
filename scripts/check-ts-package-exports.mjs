@@ -210,6 +210,22 @@ const expectedSubpaths = {
 		present: ["createSharedControlPanelMemoryPersistence"],
 		absent: ["createSharedControlPanelAuthority", "postgresql16SharedControlPanelStore"],
 	},
+	"./solutions/production-evaluation-authority": {
+		present: [
+			"PRODUCTION_EVALUATION_AUTHORITY_COMPATIBILITY",
+			"createProductionEvaluationAuthority",
+			"sameProductionCandidate",
+		],
+		absent: [
+			"createProductionEvaluationMemoryPersistence",
+			"productionEvaluationCanonical",
+			"productionEvaluationSnapshot",
+		],
+	},
+	"./testing/production-evaluation-memory-persistence": {
+		present: ["createProductionEvaluationMemoryPersistence"],
+		absent: ["createProductionEvaluationAuthority"],
+	},
 	"./executors/tool-provider-adapters": {
 		present: [
 			"localBuiltinToolProviderBinding",
@@ -362,6 +378,10 @@ const forbiddenFrameworkSpecifiers = [
 ];
 
 const rootAbsentExports = [
+	"PRODUCTION_EVALUATION_AUTHORITY_COMPATIBILITY",
+	"createProductionEvaluationAuthority",
+	"createProductionEvaluationMemoryPersistence",
+	"sameProductionCandidate",
 	"LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY",
 	"localContainerPostgresqlManifest",
 	"localContainerPostgresqlReadiness",
@@ -412,6 +432,10 @@ const rootAbsentExports = [
 ];
 
 const rootAbsentTypeExports = [
+	"ProductionEvaluationAuthority",
+	"ProductionEvaluationPersistencePort",
+	"ProductionEvaluationCampaignRevision",
+	"ProductionMigrationActionProposal",
 	"BoundaryManifest",
 	"BoundaryNode",
 	"BoundaryRole",
@@ -621,7 +645,9 @@ ${Object.entries(expectedSubpaths)
 								? `assert(mod[${JSON.stringify(name)}] === "postgresql-run-operations-v1", ${JSON.stringify(`${specifier}.${name}`)});`
 								: name === "SHARED_CONTROL_PANEL_AUTHORITY_COMPATIBILITY"
 									? `assert(mod[${JSON.stringify(name)}] === "shared-control-panel-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-									: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
+									: name === "PRODUCTION_EVALUATION_AUTHORITY_COMPATIBILITY"
+										? `assert(mod[${JSON.stringify(name)}] === "production-evaluation-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+										: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
 			)
 			.join("\n");
 		const absentChecks = absent

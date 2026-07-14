@@ -193,6 +193,7 @@ import type {
 	AgenticMemoryRecordApplicationOperation as SolutionsAgenticMemoryRecordApplicationOperation,
 } from "../solutions/index.js";
 import * as solutions from "../solutions/index.js";
+import * as productionEvaluationAuthority from "../solutions/production-evaluation-authority.js";
 import * as reactiveLayoutBrowser from "../solutions/reactive-layout/browser/index.js";
 import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
 import * as reactiveLayoutNodeCanvas from "../solutions/reactive-layout/node-canvas/index.js";
@@ -216,6 +217,7 @@ import * as storageBrowser from "../storage/browser.js";
 import * as storage from "../storage/index.js";
 import * as storageNode from "../storage/node.js";
 import * as testing from "../testing/index.js";
+import * as productionEvaluationMemoryPersistence from "../testing/production-evaluation-memory-persistence.js";
 import * as sharedControlPanelMemoryPersistence from "../testing/shared-control-panel-memory-persistence.js";
 import * as workQueueModule from "../work-queue/index.js";
 
@@ -300,6 +302,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./solutions/agentic-memory/node",
 			"./solutions/agentic-work-item-memory",
 			"./solutions/agentic-work-item-memory-application",
+			"./solutions/production-evaluation-authority",
 			"./solutions/reactive-layout",
 			"./solutions/reactive-layout/browser",
 			"./solutions/reactive-layout/node-canvas",
@@ -317,6 +320,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./storage/browser",
 			"./storage/node",
 			"./testing",
+			"./testing/production-evaluation-memory-persistence",
 			"./testing/shared-control-panel-memory-persistence",
 			"./work-queue",
 		]);
@@ -926,8 +930,14 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		);
 		expect(typeof executorPostgresqlRunOperations.postgresql16RunOperationsStore).toBe("function");
 		expect(typeof sharedControlPanelAuthority.createSharedControlPanelAuthority).toBe("function");
+		expect(typeof productionEvaluationAuthority.createProductionEvaluationAuthority).toBe(
+			"function",
+		);
 		expect(
 			typeof sharedControlPanelMemoryPersistence.createSharedControlPanelMemoryPersistence,
+		).toBe("function");
+		expect(
+			typeof productionEvaluationMemoryPersistence.createProductionEvaluationMemoryPersistence,
 		).toBe("function");
 		expect(Object.hasOwn(executorPostgresqlRunOperations, "postgresqlToolProviderRuntime")).toBe(
 			false,
