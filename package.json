@@ -34,7 +34,7 @@
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"release": "pnpm run build && changeset publish",
-		"lint": "biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts",
+		"lint": "biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck",
 		"lint:no-raw-async": "tsx scripts/check-no-raw-async.ts",
 		"lint:typecheck": "tsx scripts/check-typecheck.ts",
 		"lint:fix": "biome check --write .",

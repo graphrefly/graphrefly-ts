@@ -45,8 +45,9 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/executors/customer-hosted-postgresql.ts",
 	// D607 concrete host-owned PostgreSQL run-operations ledger boundary.
 	"packages/ts/src/executors/postgresql-run-operations.ts",
-	// D608 concrete host-owned PostgreSQL panel/subscription/inbox authority boundary.
-	"packages/ts/src/executors/postgresql-shared-control-panel.ts",
+	// D609 database-neutral host authority facade and testing-only conformance backend.
+	"packages/ts/src/solutions/shared-control-panel-authority.ts",
+	"packages/ts/src/testing/shared-control-panel-memory-persistence.ts",
 	"packages/ts/src/sources/browser.ts",
 	"packages/ts/src/sources/node.ts",
 ]);

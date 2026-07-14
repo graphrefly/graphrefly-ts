@@ -266,16 +266,6 @@
 				"default": "./dist/executors/postgresql-run-operations.cjs"
 			}
 		},
-		"./executors/postgresql-shared-control-panel": {
-			"import": {
-				"types": "./dist/executors/postgresql-shared-control-panel.d.ts",
-				"default": "./dist/executors/postgresql-shared-control-panel.js"
-			},
-			"require": {
-				"types": "./dist/executors/postgresql-shared-control-panel.d.cts",
-				"default": "./dist/executors/postgresql-shared-control-panel.cjs"
-			}
-		},
 		"./executors/tool-provider-runtime": {
 			"import": {
 				"types": "./dist/executors/tool-provider-runtime.d.ts",
@@ -536,6 +526,16 @@
 				"default": "./dist/solutions/agentic-memory/index.cjs"
 			}
 		},
+		"./solutions/shared-control-panel-authority": {
+			"import": {
+				"types": "./dist/solutions/shared-control-panel-authority.d.ts",
+				"default": "./dist/solutions/shared-control-panel-authority.js"
+			},
+			"require": {
+				"types": "./dist/solutions/shared-control-panel-authority.d.cts",
+				"default": "./dist/solutions/shared-control-panel-authority.cjs"
+			}
+		},
 		"./solutions/agentic-memory/browser": {
 			"browser": {
 				"import": {
@@ -725,6 +725,16 @@
 				"types": "./dist/testing/index.d.cts",
 				"default": "./dist/testing/index.cjs"
 			}
+		},
+		"./testing/shared-control-panel-memory-persistence": {
+			"import": {
+				"types": "./dist/testing/shared-control-panel-memory-persistence.d.ts",
+				"default": "./dist/testing/shared-control-panel-memory-persistence.js"
+			},
+			"require": {
+				"types": "./dist/testing/shared-control-panel-memory-persistence.d.cts",
+				"default": "./dist/testing/shared-control-panel-memory-persistence.cjs"
+			}
 		}
 	},
 	"files": [
@@ -737,6 +747,7 @@
 	"scripts": {
 		"build": "tsup && node ../../scripts/check-ts-package-exports.mjs",
 		"test": "vitest run",
+		"test:typecheck": "tsc --noEmit -p tsconfig.tests.json",
 		"test:browser:agentic-memory": "node ../../scripts/run-agentic-memory-indexeddb-smoke.mjs",
 		"test:watch": "vitest"
 	},

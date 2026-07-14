@@ -53,7 +53,8 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Managed-cloud PostgreSQL binding | PostgreSQL-16 atomic control-store and worker-initiated WSS session lifecycle with exact fenced leases, cancellation, and settlement | `@graphrefly/ts/executors/managed-cloud-postgresql` |
 | Customer-hosted PostgreSQL binding | Signed digest-pinned endpoint agent, outbound authenticated WSS, customer-resident credentials, exact cross-domain fences, and encrypted evidence-only offline outbox | `@graphrefly/ts/executors/customer-hosted-postgresql` |
 | PostgreSQL governed run operations | Host-owned PostgreSQL-16 CAS recovery ledger, action-specific eligibility, new D419 candidate handoff, and proposal-only D358 repair | `@graphrefly/ts/executors/postgresql-run-operations` |
-| PostgreSQL shared control panel | Host-owned PostgreSQL-16 panel, capability admission, subscription, occurrence, alert, suppression, and inbox delivery authority | `@graphrefly/ts/executors/postgresql-shared-control-panel` |
+| Shared control-panel authority | Database-neutral panel, capability admission, subscription, occurrence, alert, suppression, and inbox delivery contracts over a host-supplied feature persistence port | `@graphrefly/ts/solutions/shared-control-panel-authority` |
+| Shared control-panel reference persistence | Testing-only in-memory backend for persistence conformance; never a production default | `@graphrefly/ts/testing/shared-control-panel-memory-persistence` |
 | Tool-provider execution recipe | Focused tool-provider execution recipe | `@graphrefly/ts/executors/tool-provider` |
 | Tool-provider runtime | Explicit low-level adapter runtime attach boundary; runtime handles stay private data | `@graphrefly/ts/executors/tool-provider-runtime` |
 | Tool-provider adapter pack | Local builtin, process, and HTTP adapter helpers | `@graphrefly/ts/executors/tool-provider-adapters` |

@@ -1,0 +1,16 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"declaration": false,
+		"noEmit": true,
+		"types": ["vitest/globals"]
+	},
+	"include": [
+		"src/solutions/shared-control-panel-contracts.ts",
+		"src/solutions/shared-control-panel-authority.ts",
+		"src/testing/shared-control-panel-memory-persistence.ts",
+		"src/__tests__/shared-control-panel-authority.test.ts",
+		"src/__tests__/shared-control-panel-memory-persistence.test.ts"
+	],
+	"exclude": ["node_modules", "dist"]
+}

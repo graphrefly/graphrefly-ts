@@ -38,7 +38,6 @@ import * as executorExecutionEnvironment from "../executors/execution-environmen
 import * as executorLocalContainerPostgresql from "../executors/local-container-postgresql.js";
 import * as executorManagedCloudPostgresql from "../executors/managed-cloud-postgresql.js";
 import * as executorPostgresqlRunOperations from "../executors/postgresql-run-operations.js";
-import * as executorPostgresqlSharedControlPanel from "../executors/postgresql-shared-control-panel.js";
 import * as executorPostgresqlToolProvider from "../executors/postgresql-tool-provider.js";
 import * as executorToolProviderRecipe from "../executors/tool-provider.js";
 import * as executorToolProviderAdapters from "../executors/tool-provider-adapters.js";
@@ -199,6 +198,7 @@ import * as reactiveLayoutCore from "../solutions/reactive-layout/index.js";
 import * as reactiveLayoutNodeCanvas from "../solutions/reactive-layout/node-canvas/index.js";
 import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-native/index.js";
 import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
+import * as sharedControlPanelAuthority from "../solutions/shared-control-panel-authority.js";
 import * as workItemActions from "../solutions/work-item/actions.js";
 import * as workItemSolution from "../solutions/work-item/index.js";
 import type {
@@ -216,6 +216,7 @@ import * as storageBrowser from "../storage/browser.js";
 import * as storage from "../storage/index.js";
 import * as storageNode from "../storage/node.js";
 import * as testing from "../testing/index.js";
+import * as sharedControlPanelMemoryPersistence from "../testing/shared-control-panel-memory-persistence.js";
 import * as workQueueModule from "../work-queue/index.js";
 
 const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
@@ -275,7 +276,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./executors/local-container-postgresql",
 			"./executors/managed-cloud-postgresql",
 			"./executors/postgresql-run-operations",
-			"./executors/postgresql-shared-control-panel",
 			"./executors/postgresql-tool-provider",
 			"./executors/tool-provider",
 			"./executors/tool-provider-adapters",
@@ -305,6 +305,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./solutions/reactive-layout/node-canvas",
 			"./solutions/reactive-layout/react-native",
 			"./solutions/reactive-layout/skia",
+			"./solutions/shared-control-panel-authority",
 			"./solutions/work-item",
 			"./solutions/work-item/actions",
 			"./solutions/work-item/scheduling",
@@ -316,12 +317,14 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./storage/browser",
 			"./storage/node",
 			"./testing",
+			"./testing/shared-control-panel-memory-persistence",
 			"./work-queue",
 		]);
 		expect(exportsJson.exports?.["./base"]).toBeUndefined();
 		expect(exportsJson.exports?.["./compat"]).toBeUndefined();
 		expect(exportsJson.exports?.["./canvas"]).toBeUndefined();
 		expect(exportsJson.exports?.["./solutions/canvas"]).toBeUndefined();
+		expect(exportsJson.exports?.["./executors/postgresql-shared-control-panel"]).toBeUndefined();
 		expect(exportsJson.exports?.["./workspace-intents"]).toBeUndefined();
 		expect(exportsJson.exports?.["./solutions/workspace-intents"]).toBeUndefined();
 		expect(exportsJson.exports?.["./presets"]).toBeUndefined();
@@ -922,9 +925,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"function",
 		);
 		expect(typeof executorPostgresqlRunOperations.postgresql16RunOperationsStore).toBe("function");
-		expect(typeof executorPostgresqlSharedControlPanel.postgresql16SharedControlPanelStore).toBe(
-			"function",
-		);
+		expect(typeof sharedControlPanelAuthority.createSharedControlPanelAuthority).toBe("function");
+		expect(
+			typeof sharedControlPanelMemoryPersistence.createSharedControlPanelMemoryPersistence,
+		).toBe("function");
 		expect(Object.hasOwn(executorPostgresqlRunOperations, "postgresqlToolProviderRuntime")).toBe(
 			false,
 		);
