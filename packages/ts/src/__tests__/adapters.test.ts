@@ -25,6 +25,7 @@ import {
 	createGraphCronController,
 	createGraphExceptionFilter,
 	createGraphGuardDeniedFilter,
+	createNestGraphGuardAwaitScope,
 	GraphGuardDeniedException,
 	GraphGuardDeniedFilter,
 	graphCronTarget,
@@ -1709,6 +1710,126 @@ describe("framework-neutral store adapters (B61)", () => {
 		}
 		bridge.onModuleDestroy();
 		denyBridge.onModuleDestroy();
+	});
+
+	it("native guard await mode correlates a later decision with adapter-owned identity", async () => {
+		const g = graph({ name: "nestjs-guard-await-test" });
+		const scope = createNestGraphGuardAwaitScope();
+		const guard = fromNestGuard<{ readonly traceId: string }, { readonly traceId: string }>(g, {
+			bindingId: "node.native.guard.await.in",
+		});
+		const decision = g.state<NestReplyEnvelope<GraphGuardDecisionPayload>>({
+			requestId: "initial-unused",
+			bindingId: "native.guard.await.out",
+			version: 1,
+			payload: { kind: "deny" },
+		});
+		let invocationId: string | undefined;
+		guard.node.subscribe((msg) => {
+			if (msg[0] !== "DATA") return;
+			const envelope = msg[1] as NestBoundaryEnvelope<{ readonly traceId: string }>;
+			invocationId = envelope.requestId;
+			expect(envelope.payload.traceId).toBe("caller-trace-id");
+			expect(envelope.requestId).not.toBe(envelope.payload.traceId);
+			expect(scope.lookupAbortSignal(envelope.requestId ?? "")?.aborted).toBe(false);
+			queueMicrotask(() => {
+				decision.set({
+					requestId: envelope.requestId ?? "missing",
+					bindingId: "native.guard.await.out",
+					version: 1,
+					payload: { kind: "allow" },
+				});
+			});
+		});
+		class Controller {
+			guarded() {}
+		}
+		GraphGuard(guard, {
+			bindingId: "native.guard.await.in",
+			payload: (host) => ({ traceId: host.traceId }),
+			requestId: (host) => host.traceId,
+		})(Controller.prototype, "guarded", { value: Controller.prototype.guarded });
+		GraphGuardDecision(decision, { bindingId: "native.guard.await.out" })(
+			Controller.prototype,
+			"guarded",
+			{ value: Controller.prototype.guarded },
+		);
+		const bridge = provideGraphGuard({
+			host: () => ({ traceId: "caller-trace-id" }),
+			decisionWait: { mode: "await", timeoutMs: 100, maxPending: 1, scope },
+		}).useValue as { canActivate(context: unknown): Promise<boolean>; onModuleDestroy(): void };
+		const context = {
+			getClass: () => Controller,
+			getHandler: () => Controller.prototype.guarded,
+			switchToHttp: () => ({ getRequest: () => ({}) }),
+		};
+
+		await expect(bridge.canActivate(context)).resolves.toBe(true);
+		expect(invocationId).toMatch(/^graphrefly:nest-guard:/);
+		expect(scope.lookupAbortSignal(invocationId ?? "missing")).toBeUndefined();
+		expect(g.topology().nodes).toHaveLength(2);
+		bridge.onModuleDestroy();
+		scope.dispose();
+	});
+
+	it("native guard await mode bounds timeout, overload, host abort, and disposal", async () => {
+		vi.useFakeTimers();
+		try {
+			const g = graph();
+			const scope = createNestGraphGuardAwaitScope();
+			const guard = fromNestGuard(g, { bindingId: "node.native.guard.pending.in" });
+			const decision = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>([], null);
+			class Controller {
+				guarded() {}
+			}
+			GraphGuard(guard, { bindingId: "native.guard.pending.in" })(Controller.prototype, "guarded", {
+				value: Controller.prototype.guarded,
+			});
+			GraphGuardDecision(decision, { bindingId: "native.guard.pending.out" })(
+				Controller.prototype,
+				"guarded",
+				{ value: Controller.prototype.guarded },
+			);
+			const abortController = new AbortController();
+			const bridge = provideGraphGuard({
+				decisionWait: {
+					mode: "await",
+					timeoutMs: 20,
+					maxPending: 1,
+					scope,
+					hostAbortSignal: () => abortController.signal,
+				},
+			}).useValue as { canActivate(context: unknown): Promise<boolean>; onModuleDestroy(): void };
+			const context = {
+				getClass: () => Controller,
+				getHandler: () => Controller.prototype.guarded,
+				switchToHttp: () => ({ getRequest: () => ({}) }),
+			};
+
+			const pending = bridge.canActivate(context);
+			await expect(bridge.canActivate(context)).rejects.toMatchObject({
+				getStatus: expect.any(Function),
+			});
+			abortController.abort();
+			await expect(pending).resolves.toBe(false);
+
+			const timeoutBridge = provideGraphGuard({
+				decisionWait: { mode: "await", timeoutMs: 20, maxPending: 1, scope },
+			}).useValue as typeof bridge;
+			const timedOut = timeoutBridge.canActivate(context);
+			vi.advanceTimersByTime(20);
+			await expect(timedOut).resolves.toBe(false);
+
+			const disposedPending = timeoutBridge.canActivate(context);
+			timeoutBridge.onModuleDestroy();
+			await expect(disposedPending).resolves.toBe(false);
+			await expect(timeoutBridge.canActivate(context)).resolves.toBe(false);
+			timeoutBridge.onModuleDestroy();
+			bridge.onModuleDestroy();
+			scope.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("native guard provider correlates each guard binding with its own request id", async () => {

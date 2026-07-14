@@ -470,6 +470,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof nestjsAdapters.getGraphToken).toBe("function");
 		expect(typeof nestjsAdapters.getNestBoundaryToken).toBe("function");
 		expect(typeof nestjsNativeAdapters.createGraphCronController).toBe("function");
+		expect(typeof nestjsNativeAdapters.createNestGraphGuardAwaitScope).toBe("function");
 		expect(typeof nestjsNativeAdapters.graphCronTarget).toBe("function");
 		expect(typeof nestjsNativeAdapters.graphLifecycleTarget).toBe("function");
 		expect(typeof nestjsNativeAdapters.provideGraphBoundaryInterceptor).toBe("function");

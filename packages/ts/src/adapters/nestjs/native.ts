@@ -62,6 +62,57 @@ export interface GraphNativeHttpOptions<THost = unknown> extends GraphNativeHost
 	readonly protocolError?: NestProtocolErrorResponse<THost>;
 }
 
+export type GraphGuardDecisionWait<THost = unknown> =
+	| { readonly mode?: "same-wave" }
+	| {
+			readonly mode: "await";
+			readonly timeoutMs: number;
+			readonly maxPending: number;
+			readonly scope: NestGraphGuardAwaitScope;
+			readonly hostAbortSignal?: (
+				context: ExecutionContext,
+				host: THost,
+			) => AbortSignal | undefined;
+	  };
+
+export interface GraphNativeGuardOptions<THost = unknown> extends GraphNativeHttpOptions<THost> {
+	readonly decisionWait?: GraphGuardDecisionWait<THost>;
+}
+
+/** Host-private cancellation lookup for an explicitly asynchronous guard projector. */
+export interface NestGraphGuardAwaitScope {
+	lookupAbortSignal(invocationId: string): AbortSignal | undefined;
+	dispose(): void;
+}
+
+interface NestGraphGuardAwaitScopeState {
+	active: boolean;
+	readonly entries: Map<string, AbortController>;
+}
+
+const graphGuardAwaitScopeStates = new WeakMap<
+	NestGraphGuardAwaitScope,
+	NestGraphGuardAwaitScopeState
+>();
+
+/** Creates the host-private bounded cancellation scope used by await-mode GraphGuard adapters. */
+export function createNestGraphGuardAwaitScope(): NestGraphGuardAwaitScope {
+	const state: NestGraphGuardAwaitScopeState = { active: true, entries: new Map() };
+	const scope: NestGraphGuardAwaitScope = {
+		lookupAbortSignal(invocationId) {
+			return state.entries.get(invocationId)?.signal;
+		},
+		dispose() {
+			if (!state.active) return;
+			state.active = false;
+			for (const controller of state.entries.values()) controller.abort();
+			state.entries.clear();
+		},
+	};
+	graphGuardAwaitScopeStates.set(scope, state);
+	return scope;
+}
+
 export interface GraphExceptionFilterTarget {
 	readonly target: DecoratorHostConstructor | object;
 	readonly methodKey: string | symbol;
@@ -114,7 +165,7 @@ export interface GraphLifecycleHooksProviderOptions {
 
 export interface GraphNativeHttpProviderBundleOptions<THost = unknown> {
 	readonly boundaryInterceptor?: GraphNativeHttpOptions<THost> | false;
-	readonly guard?: GraphNativeHttpOptions<THost> | false;
+	readonly guard?: GraphNativeGuardOptions<THost> | false;
 	readonly guardDeniedFilter?: boolean;
 	readonly exceptionFilter?: GraphExceptionFilterProviderOptions<THost>;
 }
@@ -154,7 +205,7 @@ export function provideGraphBoundaryInterceptor<THost = unknown>(
  * ```
  */
 export function provideGraphGuard<THost = unknown>(
-	opts: GraphNativeHttpOptions<THost> = {},
+	opts: GraphNativeGuardOptions<THost> = {},
 ): Provider {
 	return { provide: APP_GUARD, useValue: new GraphGuardBridge(opts) };
 }
@@ -404,6 +455,8 @@ class GraphBoundaryInterceptorBridge<THost> implements NestInterceptor, OnModule
 	}
 }
 
+let nextGraphGuardBridgeId = 0;
+
 class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 	private readonly decisions = new WeakMap<
 		object,
@@ -412,10 +465,17 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 	private readonly disposableDecisions = new Set<
 		ReturnType<typeof toNestHttp<GraphGuardDecision>>
 	>();
+	private readonly bridgeId = ++nextGraphGuardBridgeId;
+	private nextInvocationId = 0;
+	private disposed = false;
+	private readonly activeAwaitSettlements = new Set<() => void>();
 
-	constructor(private readonly opts: GraphNativeHttpOptions<THost>) {}
+	constructor(private readonly opts: GraphNativeGuardOptions<THost>) {
+		validateGraphGuardDecisionWait(opts.decisionWait);
+	}
 
 	async canActivate(context: ExecutionContext): Promise<boolean> {
+		if (this.disposed) return false;
 		const methodKey = methodKeyForContext(context);
 		const bindings = getNestBoundaryBindings(context.getClass(), methodKey);
 		const guards = bindings.filter(isGuardIngress);
@@ -423,6 +483,9 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 		const decisions = bindings.filter(isGuardDecision);
 		if (decisions.length === 0) return false;
 		const host = this.opts.host?.(context) ?? (defaultHttpHost(context) as THost);
+		if (this.opts.decisionWait?.mode === "await") {
+			return this.canActivateAwait(context, host, guards, decisions);
+		}
 		const guardEmits = guards.map((guard) => ({
 			guard,
 			requestId: bindingRequestId(host, guard, this.opts.requestId),
@@ -492,8 +555,137 @@ class GraphGuardBridge<THost> implements CanActivate, OnModuleDestroy {
 	}
 
 	onModuleDestroy(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		for (const settle of [...this.activeAwaitSettlements]) settle();
+		this.activeAwaitSettlements.clear();
 		for (const boundary of this.disposableDecisions) boundary.dispose();
 		this.disposableDecisions.clear();
+	}
+
+	private async canActivateAwait(
+		context: ExecutionContext,
+		host: THost,
+		guards: readonly NestIngressBindingMeta[],
+		decisions: readonly NestGuardDecisionBindingMeta[],
+	): Promise<boolean> {
+		const wait = this.opts.decisionWait;
+		if (wait?.mode !== "await") return false;
+		const scopeState = graphGuardAwaitScopeStates.get(wait.scope);
+		if (scopeState === undefined || !scopeState.active || this.disposed) return false;
+		if (scopeState.entries.size >= wait.maxPending) {
+			throw new GraphGuardDeniedException({
+				status: 503,
+				body: { code: "graphrefly.guard.overloaded" },
+			});
+		}
+
+		const invocationId = `graphrefly:nest-guard:${this.bridgeId}:${++this.nextInvocationId}`;
+		const controller = new AbortController();
+		scopeState.entries.set(invocationId, controller);
+		const cleanups: Array<() => boolean> = [];
+		const pending: GuardDecisionState[] = [];
+		let emittedGuardCount = 0;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let hostSignal: AbortSignal | undefined;
+		let settled = false;
+		let settleWait: (() => void) | undefined;
+		const waitForSettlement = new Promise<void>((resolve) => {
+			settleWait = resolve;
+		});
+		const settle = () => {
+			if (settled) return;
+			settled = true;
+			settleWait?.();
+		};
+		const maybeSettle = () => {
+			if (pending.length > 0 && pending.every((state) => state.status !== "pending")) settle();
+		};
+		const abort = () => {
+			controller.abort();
+			settle();
+		};
+
+		this.activeAwaitSettlements.add(abort);
+		controller.signal.addEventListener("abort", settle, { once: true });
+		try {
+			for (const decision of decisions) {
+				const state: GuardDecisionState = { status: "pending", binding: decision };
+				pending.push(state);
+				cleanups.push(
+					this.decisionBoundary(decision).attach({
+						requestId: invocationId,
+						bindingId: decision.bindingId,
+						handle: {
+							resolve(payload) {
+								if (state.status !== "pending") return;
+								state.premature = emittedGuardCount < guards.length;
+								state.status = "resolved";
+								state.payload = payload;
+								maybeSettle();
+							},
+							reject(error) {
+								if (state.status !== "pending") return;
+								state.status = "rejected";
+								state.error = error;
+								maybeSettle();
+							},
+						},
+					}),
+				);
+			}
+			hostSignal = wait.hostAbortSignal?.(context, host);
+			if (hostSignal?.aborted) abort();
+			else hostSignal?.addEventListener("abort", abort, { once: true });
+			timer = setTimeout(abort, wait.timeoutMs);
+			if (!controller.signal.aborted) {
+				for (const guard of guards) {
+					emittedGuardCount += 1;
+					guard.boundary.emit(host, bindingEmitOptions(host, guard, invocationId));
+				}
+			}
+			maybeSettle();
+			await waitForSettlement;
+			if (controller.signal.aborted || this.disposed) return false;
+			if (pending.some((state) => state.premature)) return false;
+			const rejected = pending.find((state) => state.status === "rejected");
+			if (rejected !== undefined) {
+				throw new GraphGuardProtocolErrorException(
+					lowerProtocolError(rejected.error, host, {
+						protocolError: rejected.binding.protocolError ?? this.opts.protocolError,
+					}),
+				);
+			}
+			const denied = pending.find(
+				(
+					state,
+				): state is GuardDecisionState & {
+					readonly status: "resolved";
+					readonly payload: Extract<GraphGuardDecision, { readonly kind: "deny" }>;
+				} => state.status === "resolved" && state.payload?.kind === "deny",
+			);
+			if (denied !== undefined) {
+				throw new GraphGuardDeniedException(
+					guardDecisionResponse(denied.payload, host, {
+						issueResponse: denied.binding.issueResponse ?? this.opts.issueResponse,
+					}),
+				);
+			}
+			return pending.every((state) => state.payload?.kind === "allow");
+		} catch (error) {
+			if (isGraphGuardDeniedException(error) || error instanceof GraphGuardProtocolErrorException) {
+				throw error;
+			}
+			return false;
+		} finally {
+			if (timer !== undefined) clearTimeout(timer);
+			hostSignal?.removeEventListener("abort", abort);
+			controller.signal.removeEventListener("abort", settle);
+			for (const cleanup of cleanups) cleanup();
+			controller.abort();
+			scopeState.entries.delete(invocationId);
+			this.activeAwaitSettlements.delete(abort);
+		}
 	}
 
 	private decisionBoundary(
@@ -755,6 +947,7 @@ type NestGuardDecisionBindingMeta = Extract<NestBoundaryBindingMeta, { kind: "gu
 interface GuardDecisionState {
 	status: "pending" | "resolved" | "rejected";
 	binding: NestGuardDecisionBindingMeta;
+	premature?: boolean;
 	payload?: GraphGuardDecision;
 	error?: unknown;
 }
@@ -764,6 +957,26 @@ interface FilterReplyState {
 	reply: NestHttpReplyBindingMeta;
 	payload?: NestHttpReplyPayloadUnknown;
 	error?: unknown;
+}
+
+function validateGraphGuardDecisionWait<THost>(
+	wait: GraphGuardDecisionWait<THost> | undefined,
+): void {
+	if (wait?.mode !== "await") return;
+	if (!Number.isFinite(wait.timeoutMs) || wait.timeoutMs <= 0) {
+		throw new RangeError("provideGraphGuard: await timeoutMs must be a positive finite number");
+	}
+	if (!Number.isFinite(wait.maxPending) || wait.maxPending < 1) {
+		throw new RangeError("provideGraphGuard: await maxPending must be a positive finite number");
+	}
+	if (Math.floor(wait.maxPending) !== wait.maxPending) {
+		throw new RangeError("provideGraphGuard: await maxPending must be an integer");
+	}
+	if (!graphGuardAwaitScopeStates.has(wait.scope)) {
+		throw new TypeError(
+			"provideGraphGuard: await scope must be created by createNestGraphGuardAwaitScope",
+		);
+	}
 }
 
 function methodKeyForContext(context: ExecutionContext): string | symbol {
