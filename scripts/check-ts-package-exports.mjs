@@ -186,6 +186,19 @@ const expectedSubpaths = {
 		],
 		absent: ["postgresqlToolProviderRuntime", "customerHostedPostgresqlRuntime"],
 	},
+	"./executors/postgresql-shared-control-panel": {
+		present: [
+			"POSTGRESQL_SHARED_CONTROL_PANEL_COMPATIBILITY",
+			"postgresql16SharedControlPanelStore",
+			"sharedControlPanelCapabilitySupported",
+			"sharedControlPanelCompletedOccurrenceCorrelates",
+			"sharedControlPanelAdmissionFingerprint",
+			"sharedControlPanelAdmitCanvasSubscriptionIntent",
+			"sharedControlPanelRecordedOutcomeMatchesCompleted",
+			"sharedControlPanelConditionMatches",
+		],
+		absent: ["postgresqlToolProviderRuntime", "postgresql16RunOperationsStore"],
+	},
 	"./executors/tool-provider-adapters": {
 		present: [
 			"localBuiltinToolProviderBinding",
@@ -595,7 +608,9 @@ ${Object.entries(expectedSubpaths)
 							? `assert(mod[${JSON.stringify(name)}] === "customer-hosted-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
 							: name === "POSTGRESQL_RUN_OPERATIONS_COMPATIBILITY"
 								? `assert(mod[${JSON.stringify(name)}] === "postgresql-run-operations-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-								: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
+								: name === "POSTGRESQL_SHARED_CONTROL_PANEL_COMPATIBILITY"
+									? `assert(mod[${JSON.stringify(name)}] === "postgresql-shared-control-panel-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+									: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
 			)
 			.join("\n");
 		const absentChecks = absent

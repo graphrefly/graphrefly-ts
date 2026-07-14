@@ -266,6 +266,16 @@
 				"default": "./dist/executors/postgresql-run-operations.cjs"
 			}
 		},
+		"./executors/postgresql-shared-control-panel": {
+			"import": {
+				"types": "./dist/executors/postgresql-shared-control-panel.d.ts",
+				"default": "./dist/executors/postgresql-shared-control-panel.js"
+			},
+			"require": {
+				"types": "./dist/executors/postgresql-shared-control-panel.d.cts",
+				"default": "./dist/executors/postgresql-shared-control-panel.cjs"
+			}
+		},
 		"./executors/tool-provider-runtime": {
 			"import": {
 				"types": "./dist/executors/tool-provider-runtime.d.ts",

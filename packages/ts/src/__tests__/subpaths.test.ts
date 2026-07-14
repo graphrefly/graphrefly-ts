@@ -38,6 +38,7 @@ import * as executorExecutionEnvironment from "../executors/execution-environmen
 import * as executorLocalContainerPostgresql from "../executors/local-container-postgresql.js";
 import * as executorManagedCloudPostgresql from "../executors/managed-cloud-postgresql.js";
 import * as executorPostgresqlRunOperations from "../executors/postgresql-run-operations.js";
+import * as executorPostgresqlSharedControlPanel from "../executors/postgresql-shared-control-panel.js";
 import * as executorPostgresqlToolProvider from "../executors/postgresql-tool-provider.js";
 import * as executorToolProviderRecipe from "../executors/tool-provider.js";
 import * as executorToolProviderAdapters from "../executors/tool-provider-adapters.js";
@@ -274,6 +275,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./executors/local-container-postgresql",
 			"./executors/managed-cloud-postgresql",
 			"./executors/postgresql-run-operations",
+			"./executors/postgresql-shared-control-panel",
 			"./executors/postgresql-tool-provider",
 			"./executors/tool-provider",
 			"./executors/tool-provider-adapters",
@@ -920,6 +922,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"function",
 		);
 		expect(typeof executorPostgresqlRunOperations.postgresql16RunOperationsStore).toBe("function");
+		expect(typeof executorPostgresqlSharedControlPanel.postgresql16SharedControlPanelStore).toBe(
+			"function",
+		);
 		expect(Object.hasOwn(executorPostgresqlRunOperations, "postgresqlToolProviderRuntime")).toBe(
 			false,
 		);
