@@ -172,6 +172,7 @@ const expectedSubpaths = {
 	"./executors/managed-cloud-postgresql": {
 		present: [
 			"MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY",
+			"MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE",
 			"managedCloudPostgresqlManifest",
 			"managedCloudPostgresqlReadiness",
 			"managedCloudPostgresqlRuntime",
@@ -404,6 +405,7 @@ const rootAbsentExports = [
 	"localContainerPostgresqlReadiness",
 	"localContainerPostgresqlRuntime",
 	"MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY",
+	"MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE",
 	"managedCloudPostgresqlManifest",
 	"managedCloudPostgresqlReadiness",
 	"managedCloudPostgresqlRuntime",
@@ -656,15 +658,17 @@ ${Object.entries(expectedSubpaths)
 					? `assert(mod[${JSON.stringify(name)}] === "graphrefly-local-container-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
 					: name === "MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY"
 						? `assert(mod[${JSON.stringify(name)}] === "graphrefly-managed-cloud-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-						: name === "CUSTOMER_HOSTED_POSTGRESQL_COMPATIBILITY"
-							? `assert(mod[${JSON.stringify(name)}] === "customer-hosted-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-							: name === "POSTGRESQL_RUN_OPERATIONS_COMPATIBILITY"
-								? `assert(mod[${JSON.stringify(name)}] === "postgresql-run-operations-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-								: name === "SHARED_CONTROL_PANEL_AUTHORITY_COMPATIBILITY"
-									? `assert(mod[${JSON.stringify(name)}] === "shared-control-panel-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-									: name === "PRODUCTION_EVALUATION_AUTHORITY_COMPATIBILITY"
-										? `assert(mod[${JSON.stringify(name)}] === "production-evaluation-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-										: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
+						: name === "MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE"
+							? `assert(mod[${JSON.stringify(name)}] === "control-plane-managed-kubernetes", ${JSON.stringify(`${specifier}.${name}`)});`
+							: name === "CUSTOMER_HOSTED_POSTGRESQL_COMPATIBILITY"
+								? `assert(mod[${JSON.stringify(name)}] === "customer-hosted-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+								: name === "POSTGRESQL_RUN_OPERATIONS_COMPATIBILITY"
+									? `assert(mod[${JSON.stringify(name)}] === "postgresql-run-operations-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+									: name === "SHARED_CONTROL_PANEL_AUTHORITY_COMPATIBILITY"
+										? `assert(mod[${JSON.stringify(name)}] === "shared-control-panel-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+										: name === "PRODUCTION_EVALUATION_AUTHORITY_COMPATIBILITY"
+											? `assert(mod[${JSON.stringify(name)}] === "production-evaluation-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+											: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
 			)
 			.join("\n");
 		const absentChecks = absent

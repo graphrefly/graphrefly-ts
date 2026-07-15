@@ -5,6 +5,7 @@ import {
 	executeManagedCloudPostgresqlClaimWithAttemptCredential,
 	MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
 	MANAGED_CLOUD_POSTGRESQL_CONTROL_STORE,
+	MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE,
 	MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 	MANAGED_CLOUD_POSTGRESQL_SCHEMA_REVISION,
 	type ManagedCloudPostgresqlAttemptCredentialDriver,
@@ -27,7 +28,9 @@ import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-t
 import { graph } from "../graph/graph.js";
 import type { ExecutorOutcome, ToolProviderAdapterRunRequested } from "../orchestration/index.js";
 
-const manifest = (): ManagedCloudPostgresqlManifest =>
+const manifest = (
+	patch: Partial<ManagedCloudPostgresqlManifest> = {},
+): ManagedCloudPostgresqlManifest =>
 	managedCloudPostgresqlManifest({
 		kind: "managed-cloud-postgresql-manifest",
 		manifestId: "manifest:cloud:pg",
@@ -42,10 +45,12 @@ const manifest = (): ManagedCloudPostgresqlManifest =>
 		leasePolicyRevision: "lease:1",
 		credentialBindingRevision: "credential-binding:1",
 		deploymentRevision: "deployment:1",
+		deploymentProfile: MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE,
 		workerRevision: "worker-runtime:1",
 		leaseDurationMs: 1000,
 		heartbeatDurationMs: 500,
 		attestationRefs: [{ kind: "attestation", id: "attestation:cloud:1" }],
+		...patch,
 	});
 const readiness = (
 	patch: Partial<ManagedCloudPostgresqlReadiness> = {},
@@ -56,6 +61,7 @@ const readiness = (
 		state: "ready",
 		observedAtMs: 1,
 		expiresAtMs: 1000,
+		deploymentProfile: MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE,
 		controlStoreReachable: true,
 		schemaVerified: true,
 		transportReady: true,
@@ -304,7 +310,19 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				controlStoreSchemaRevision: "latest",
 			} as never),
 		).toThrow(/compatibility/);
+		expect(() =>
+			managedCloudPostgresqlManifest({
+				...manifest(),
+				deploymentProfile: "laptop-compose-prod",
+			} as never),
+		).toThrow(/deployment profile/);
 		expect(() => managedCloudPostgresqlReadiness({ ...readiness(), expiresAtMs: 0 })).toThrow();
+		expect(() =>
+			managedCloudPostgresqlReadiness({
+				...readiness(),
+				deploymentProfile: "docker-compose-development",
+			}),
+		).toThrow(/readiness/);
 		expect(() =>
 			managedCloudPostgresqlReadiness({ ...readiness(), token: "secret" } as never),
 		).toThrow(/unsupported/);
@@ -363,6 +381,47 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		expect(
 			JSON.stringify({ envelopes, facts, sent: transport.sent, topology: g.topology() }),
 		).not.toMatch(/connectionString|password|secret-value|socketHandle/);
+		await runtime.dispose();
+	});
+
+	it("fails closed before admission when the deployment profile is development-only", async () => {
+		const g = graph();
+		const inputs = g.node([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedCloudPostgresqlManifest>([], null);
+		const postures = g.node<ManagedCloudPostgresqlReadiness>([], null);
+		const store = new Store();
+		const transport = new Transport();
+		const runtime = managedCloudPostgresqlRuntime(g, {
+			inputs: inputs as never,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			store,
+			transport,
+			now: () => 10,
+		});
+		const envelopes = collect(runtime.admittedEnvelopes);
+		const issues = collect<{ code: string }>(runtime.issues);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest({ deploymentProfile: "docker-compose-development" })]]);
+		postures.down([
+			[
+				"DATA",
+				readiness({
+					state: "unavailable",
+					deploymentProfile: "docker-compose-development",
+				}),
+			],
+		]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		expect(envelopes).toHaveLength(0);
+		expect(store.calls).toHaveLength(0);
+		expect(transport.sent).toHaveLength(0);
+		expect(issues).toContainEqual(
+			expect.objectContaining({ code: "managed-cloud-admission-not-ready" }),
+		);
 		await runtime.dispose();
 	});
 
@@ -1127,6 +1186,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			readiness({ state: "stale" }),
 			readiness({ schemaVerified: false }),
 			readiness({ credentialResolverReady: false }),
+			readiness({
+				state: "unavailable",
+				deploymentProfile: "docker-compose-development",
+			}),
 		]) {
 			const g = graph();
 			const inputs = g.node([], null);

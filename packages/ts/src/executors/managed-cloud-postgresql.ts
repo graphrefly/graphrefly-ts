@@ -22,6 +22,14 @@ export const MANAGED_CLOUD_POSTGRESQL_CONTROL_STORE =
 export const MANAGED_CLOUD_POSTGRESQL_PROTOCOL = "graphrefly-managed-cloud-wss-json-v1" as const;
 export const MANAGED_CLOUD_POSTGRESQL_SCHEMA_REVISION =
 	"managed-cloud-postgresql-control-schema-v1" as const;
+export const MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE =
+	"control-plane-managed-kubernetes" as const;
+
+export type ManagedCloudPostgresqlDeploymentProfile =
+	| typeof MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE
+	| "single-vm-development"
+	| "docker-compose-development"
+	| "unverifiable";
 
 export interface ManagedCloudPostgresqlManifest {
 	readonly kind: "managed-cloud-postgresql-manifest";
@@ -37,6 +45,7 @@ export interface ManagedCloudPostgresqlManifest {
 	readonly leasePolicyRevision: string;
 	readonly credentialBindingRevision: string;
 	readonly deploymentRevision: string;
+	readonly deploymentProfile: ManagedCloudPostgresqlDeploymentProfile;
 	readonly workerRevision: string;
 	readonly leaseDurationMs: number;
 	readonly heartbeatDurationMs: number;
@@ -49,6 +58,7 @@ export interface ManagedCloudPostgresqlReadiness {
 	readonly state: "ready" | "stale" | "unavailable";
 	readonly observedAtMs: number;
 	readonly expiresAtMs: number;
+	readonly deploymentProfile: ManagedCloudPostgresqlDeploymentProfile;
 	readonly controlStoreReachable: boolean;
 	readonly schemaVerified: boolean;
 	readonly transportReady: boolean;
@@ -784,6 +794,7 @@ const manifestKeys = new Set([
 	"leasePolicyRevision",
 	"credentialBindingRevision",
 	"deploymentRevision",
+	"deploymentProfile",
 	"workerRevision",
 	"leaseDurationMs",
 	"heartbeatDurationMs",
@@ -795,6 +806,7 @@ const readinessKeys = new Set([
 	"state",
 	"observedAtMs",
 	"expiresAtMs",
+	"deploymentProfile",
 	"controlStoreReachable",
 	"schemaVerified",
 	"transportReady",
@@ -804,6 +816,21 @@ const readinessKeys = new Set([
 	"credentialResolverReady",
 	"attestationRefs",
 ]);
+const managedCloudPostgresqlDeploymentProfiles = new Set<ManagedCloudPostgresqlDeploymentProfile>([
+	MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE,
+	"single-vm-development",
+	"docker-compose-development",
+	"unverifiable",
+]);
+
+function isManagedCloudPostgresqlDeploymentProfile(
+	value: unknown,
+): value is ManagedCloudPostgresqlDeploymentProfile {
+	return (
+		typeof value === "string" &&
+		managedCloudPostgresqlDeploymentProfiles.has(value as ManagedCloudPostgresqlDeploymentProfile)
+	);
+}
 
 export function managedCloudPostgresqlManifest(
 	value: ManagedCloudPostgresqlManifest,
@@ -814,6 +841,8 @@ export function managedCloudPostgresqlManifest(
 		!Object.keys(value).every((key) => manifestKeys.has(key))
 	)
 		throw new TypeError("Invalid or unsupported managed-cloud manifest material.");
+	if (!isManagedCloudPostgresqlDeploymentProfile(value.deploymentProfile))
+		throw new TypeError("Managed-cloud deployment profile is not recognized.");
 	for (const item of [
 		value.manifestId,
 		value.revision,
@@ -853,6 +882,9 @@ export function managedCloudPostgresqlReadiness(
 	assertSafe(value.manifestFingerprint, "manifest fingerprint");
 	if (
 		!["ready", "stale", "unavailable"].includes(value.state) ||
+		!isManagedCloudPostgresqlDeploymentProfile(value.deploymentProfile) ||
+		(value.state === "ready" &&
+			value.deploymentProfile !== MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE) ||
 		!Number.isSafeInteger(value.observedAtMs) ||
 		!Number.isSafeInteger(value.expiresAtMs) ||
 		value.expiresAtMs < value.observedAtMs
@@ -1474,6 +1506,8 @@ function ready(
 ) {
 	return (
 		posture.manifestFingerprint === manifest.fingerprint &&
+		manifest.deploymentProfile === MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE &&
+		posture.deploymentProfile === manifest.deploymentProfile &&
 		posture.state === "ready" &&
 		posture.observedAtMs <= nowMs &&
 		posture.expiresAtMs > nowMs &&
