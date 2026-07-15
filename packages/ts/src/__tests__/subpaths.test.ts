@@ -37,6 +37,7 @@ import * as executorCustomerHostedPostgresql from "../executors/customer-hosted-
 import * as executorExecutionEnvironment from "../executors/execution-environment.js";
 import * as executorLocalContainerPostgresql from "../executors/local-container-postgresql.js";
 import * as executorManagedCloudPostgresql from "../executors/managed-cloud-postgresql.js";
+import * as executorManagedUntrustedJsCompute from "../executors/managed-untrusted-js-compute.js";
 import * as executorPostgresqlRunOperations from "../executors/postgresql-run-operations.js";
 import * as executorPostgresqlToolProvider from "../executors/postgresql-tool-provider.js";
 import * as executorToolProviderRecipe from "../executors/tool-provider.js";
@@ -277,6 +278,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./executors/execution-environment",
 			"./executors/local-container-postgresql",
 			"./executors/managed-cloud-postgresql",
+			"./executors/managed-untrusted-js-compute",
 			"./executors/postgresql-run-operations",
 			"./executors/postgresql-tool-provider",
 			"./executors/tool-provider",
@@ -926,6 +928,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"function",
 		);
 		expect(typeof executorManagedCloudPostgresql.managedCloudPostgresqlRuntime).toBe("function");
+		expect(typeof executorManagedUntrustedJsCompute.managedUntrustedJsComputeRuntime).toBe(
+			"function",
+		);
 		expect(typeof executorCustomerHostedPostgresql.customerHostedPostgresqlRuntime).toBe(
 			"function",
 		);
@@ -949,6 +954,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(executorManagedCloudPostgresql, "toolProviderRunAdmissionProjector")).toBe(
 			false,
 		);
+		expect(
+			Object.hasOwn(executorManagedUntrustedJsCompute, "toolProviderRunAdmissionProjector"),
+		).toBe(false);
 		expect(
 			Object.hasOwn(executorLocalContainerPostgresql, "toolProviderRunAdmissionProjector"),
 		).toBe(false);

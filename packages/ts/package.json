@@ -246,6 +246,16 @@
 				"default": "./dist/executors/managed-cloud-postgresql.cjs"
 			}
 		},
+		"./executors/managed-untrusted-js-compute": {
+			"import": {
+				"types": "./dist/executors/managed-untrusted-js-compute.d.ts",
+				"default": "./dist/executors/managed-untrusted-js-compute.js"
+			},
+			"require": {
+				"types": "./dist/executors/managed-untrusted-js-compute.d.cts",
+				"default": "./dist/executors/managed-untrusted-js-compute.cjs"
+			}
+		},
 		"./executors/customer-hosted-postgresql": {
 			"import": {
 				"types": "./dist/executors/customer-hosted-postgresql.d.ts",
