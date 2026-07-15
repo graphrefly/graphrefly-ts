@@ -4,9 +4,11 @@ import {
 	LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY,
 	type LocalContainerPostgresqlCancellationDecision,
 	type LocalContainerPostgresqlCancellationRequested,
+	type LocalContainerPostgresqlDockerEngineApiV0Preflight,
 	type LocalContainerPostgresqlDriver,
 	type LocalContainerPostgresqlManifest,
 	type LocalContainerPostgresqlReadiness,
+	localContainerPostgresqlDockerEngineApiV0PreflightReadiness,
 	localContainerPostgresqlManifest,
 	localContainerPostgresqlReadiness,
 	localContainerPostgresqlRuntime,
@@ -77,6 +79,47 @@ const readiness = (
 	attestationRefs: [{ kind: "attestation", id: "attestation:ready:1" }],
 	...patch,
 });
+const dockerPreflight = (
+	patch: Partial<LocalContainerPostgresqlDockerEngineApiV0Preflight> = {},
+): LocalContainerPostgresqlDockerEngineApiV0Preflight => ({
+	kind: "local-container-postgresql-docker-engine-api-v0-preflight",
+	manifestFingerprint: "fingerprint:pg:1",
+	backendCertificationRevision: "docker-certification:linux-desktop:v0",
+	detectedBackend: "docker-engine",
+	observedAtMs: 1,
+	expiresAtMs: 1000,
+	hostPlatform: "darwin/arm64",
+	engineApiRevision: "docker-api:1.44",
+	engineRevision: "docker-engine:24.0",
+	runtimeRevision: "docker-desktop:4.27",
+	guestPlatform: "linux/arm64",
+	vmRuntimeRevision: "docker-desktop-vm:linuxkit:1",
+	engineReachable: true,
+	compatibilityVerified: true,
+	hostPlatformVerified: true,
+	imageDigestPresent: true,
+	imageDigestVerified: true,
+	recipeVerified: true,
+	isolationVerified: true,
+	noEngineSocketMountVerified: true,
+	noHostNetworkVerified: true,
+	noHostBindMountVerified: true,
+	destinationPinnedEgressDenyVerified: true,
+	metadataEgressDenyVerified: true,
+	dnsRebindingResistanceVerified: true,
+	quotaReady: true,
+	cancellationVerified: true,
+	cleanupVerified: true,
+	artifactResolverReady: true,
+	credentialResolverReady: true,
+	secretDestructionVerified: true,
+	limitationRefs: [
+		{ kind: "limitation", id: "docker-engine-api-v0-only" },
+		{ kind: "limitation", id: "docker-desktop-vm-backed" },
+	],
+	attestationRefs: [{ kind: "attestation", id: "attestation:docker-preflight:1" }],
+	...patch,
+});
 const input = () =>
 	postgresqlToolProviderInputFromIntent(
 		{
@@ -135,6 +178,48 @@ const settle = async () => {
 };
 
 describe("local-container PostgreSQL runtime (D604)", () => {
+	it("derives Docker Engine API v0 readiness from preflight and rejects Podman masquerade", () => {
+		expect(
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness(dockerPreflight()),
+		).toMatchObject({
+			state: "ready",
+			backendFamilyVerified: true,
+			engineReachable: true,
+		});
+		const podman = localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+			dockerPreflight({ detectedBackend: "podman" }),
+		);
+		expect(podman).toMatchObject({
+			state: "unavailable",
+			backendFamilyVerified: false,
+			engineReachable: false,
+		});
+		expect(podman.limitationRefs).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: "unsupported-podman-backend" })]),
+		);
+		expect(
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+				dockerPreflight({ noHostNetworkVerified: false }),
+			),
+		).toMatchObject({
+			state: "unavailable",
+			backendFamilyVerified: true,
+			noHostNetworkVerified: false,
+		});
+		expect(() =>
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness({
+				...dockerPreflight(),
+				detectedBackend: "containerd" as never,
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness({
+				...dockerPreflight(),
+				engineReachable: "yes" as never,
+			}),
+		).toThrow(/preflight proof/);
+	});
+
 	it("rejects mutable image identity and private manifest/readiness material", () => {
 		expect(() =>
 			localContainerPostgresqlManifest({ ...manifest(), imageDigest: "postgres:latest" }),
@@ -335,6 +420,41 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
 			await runtime.dispose();
 		}
+	});
+
+	it("fails closed before driver preparation when preflight detects Podman", async () => {
+		const g = graph();
+		const inputs = g.node([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<LocalContainerPostgresqlManifest>([], null);
+		const postures = g.node<LocalContainerPostgresqlReadiness>([], null);
+		let prepared = 0;
+		const runtime = localContainerPostgresqlRuntime(g, {
+			inputs: inputs as never,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: inertDriver(() => {
+				prepared++;
+			}),
+			now: () => 10,
+		});
+		const issues = collect<{ code: string }>(runtime.issues);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([
+			[
+				"DATA",
+				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+					dockerPreflight({ detectedBackend: "podman" }),
+				),
+			],
+		]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		expect(prepared).toBe(0);
+		expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
+		await runtime.dispose();
 	});
 
 	it("fails closed before driver preparation when admitted metadata contains private Docker material", async () => {

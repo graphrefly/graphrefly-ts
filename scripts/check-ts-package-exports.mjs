@@ -147,11 +147,27 @@ const expectedSubpaths = {
 	"./executors/local-container-postgresql": {
 		present: [
 			"LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY",
+			"localContainerPostgresqlDockerEngineApiV0PreflightReadiness",
 			"localContainerPostgresqlManifest",
 			"localContainerPostgresqlReadiness",
 			"localContainerPostgresqlRuntime",
 		],
-		absent: ["toolProviderRunAdmissionProjector", "postgresqlToolProviderRuntime"],
+		absent: [
+			"DockerClient",
+			"LocalSandboxDriver",
+			"PodmanDriver",
+			"containerId",
+			"dockerClient",
+			"dockerSocket",
+			"engineClient",
+			"hostPath",
+			"mountSource",
+			"postgresqlToolProviderRuntime",
+			"providerRegistry",
+			"secretHandle",
+			"selectLocalSandbox",
+			"toolProviderRunAdmissionProjector",
+		],
 	},
 	"./executors/managed-cloud-postgresql": {
 		present: [
@@ -383,6 +399,7 @@ const rootAbsentExports = [
 	"createProductionEvaluationMemoryPersistence",
 	"sameProductionCandidate",
 	"LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY",
+	"localContainerPostgresqlDockerEngineApiV0PreflightReadiness",
 	"localContainerPostgresqlManifest",
 	"localContainerPostgresqlReadiness",
 	"localContainerPostgresqlRuntime",

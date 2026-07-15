@@ -78,6 +78,42 @@ export interface LocalContainerPostgresqlReadiness {
 	readonly attestationRefs: readonly SourceRef[];
 }
 
+export interface LocalContainerPostgresqlDockerEngineApiV0Preflight {
+	readonly kind: "local-container-postgresql-docker-engine-api-v0-preflight";
+	readonly manifestFingerprint: string;
+	readonly backendCertificationRevision: string;
+	readonly detectedBackend: "docker-engine" | "podman" | "unknown" | "unavailable";
+	readonly observedAtMs: number;
+	readonly expiresAtMs: number;
+	readonly hostPlatform: string;
+	readonly engineApiRevision: string;
+	readonly engineRevision: string;
+	readonly runtimeRevision: string;
+	readonly guestPlatform: string;
+	readonly vmRuntimeRevision?: string;
+	readonly engineReachable: boolean;
+	readonly compatibilityVerified: boolean;
+	readonly hostPlatformVerified: boolean;
+	readonly imageDigestPresent: boolean;
+	readonly imageDigestVerified: boolean;
+	readonly recipeVerified: boolean;
+	readonly isolationVerified: boolean;
+	readonly noEngineSocketMountVerified: boolean;
+	readonly noHostNetworkVerified: boolean;
+	readonly noHostBindMountVerified: boolean;
+	readonly destinationPinnedEgressDenyVerified: boolean;
+	readonly metadataEgressDenyVerified: boolean;
+	readonly dnsRebindingResistanceVerified: boolean;
+	readonly quotaReady: boolean;
+	readonly cancellationVerified: boolean;
+	readonly cleanupVerified: boolean;
+	readonly artifactResolverReady: boolean;
+	readonly credentialResolverReady: boolean;
+	readonly secretDestructionVerified: boolean;
+	readonly limitationRefs: readonly SourceRef[];
+	readonly attestationRefs: readonly SourceRef[];
+}
+
 export type LocalContainerPostgresqlPhase =
 	| "preparing"
 	| "creating"
@@ -449,6 +485,149 @@ export function localContainerPostgresqlReadiness(
 		secretDestructionVerified: value.secretDestructionVerified,
 		limitationRefs: refs(value.limitationRefs),
 		attestationRefs: refs(value.attestationRefs),
+	});
+}
+
+export function localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+	value: LocalContainerPostgresqlDockerEngineApiV0Preflight,
+): LocalContainerPostgresqlReadiness {
+	if (
+		!plain(value) ||
+		value.kind !== "local-container-postgresql-docker-engine-api-v0-preflight" ||
+		!["docker-engine", "podman", "unknown", "unavailable"].includes(value.detectedBackend) ||
+		!Object.keys(value).every((key) =>
+			[
+				"kind",
+				"manifestFingerprint",
+				"backendCertificationRevision",
+				"detectedBackend",
+				"observedAtMs",
+				"expiresAtMs",
+				"hostPlatform",
+				"engineApiRevision",
+				"engineRevision",
+				"runtimeRevision",
+				"guestPlatform",
+				"vmRuntimeRevision",
+				"engineReachable",
+				"compatibilityVerified",
+				"hostPlatformVerified",
+				"imageDigestPresent",
+				"imageDigestVerified",
+				"recipeVerified",
+				"isolationVerified",
+				"noEngineSocketMountVerified",
+				"noHostNetworkVerified",
+				"noHostBindMountVerified",
+				"destinationPinnedEgressDenyVerified",
+				"metadataEgressDenyVerified",
+				"dnsRebindingResistanceVerified",
+				"quotaReady",
+				"cancellationVerified",
+				"cleanupVerified",
+				"artifactResolverReady",
+				"credentialResolverReady",
+				"secretDestructionVerified",
+				"limitationRefs",
+				"attestationRefs",
+			].includes(key),
+		)
+	)
+		throw new TypeError("Invalid Docker Engine API v0 preflight.");
+	for (const field of [
+		"engineReachable",
+		"compatibilityVerified",
+		"hostPlatformVerified",
+		"imageDigestPresent",
+		"imageDigestVerified",
+		"recipeVerified",
+		"isolationVerified",
+		"noEngineSocketMountVerified",
+		"noHostNetworkVerified",
+		"noHostBindMountVerified",
+		"destinationPinnedEgressDenyVerified",
+		"metadataEgressDenyVerified",
+		"dnsRebindingResistanceVerified",
+		"quotaReady",
+		"cancellationVerified",
+		"cleanupVerified",
+		"artifactResolverReady",
+		"credentialResolverReady",
+		"secretDestructionVerified",
+	] as const)
+		if (typeof value[field] !== "boolean")
+			throw new TypeError("Invalid Docker Engine API v0 preflight proof.");
+	const backendVerified = value.detectedBackend === "docker-engine";
+	const allRequiredProofsVerified =
+		value.engineReachable &&
+		value.compatibilityVerified &&
+		value.hostPlatformVerified &&
+		value.imageDigestPresent &&
+		value.imageDigestVerified &&
+		value.recipeVerified &&
+		value.isolationVerified &&
+		value.noEngineSocketMountVerified &&
+		value.noHostNetworkVerified &&
+		value.noHostBindMountVerified &&
+		value.destinationPinnedEgressDenyVerified &&
+		value.metadataEgressDenyVerified &&
+		value.dnsRebindingResistanceVerified &&
+		value.quotaReady &&
+		value.cancellationVerified &&
+		value.cleanupVerified &&
+		value.artifactResolverReady &&
+		value.credentialResolverReady &&
+		value.secretDestructionVerified;
+	const ready = backendVerified && allRequiredProofsVerified;
+	const limitationRefs =
+		value.detectedBackend === "docker-engine"
+			? value.limitationRefs
+			: [
+					...value.limitationRefs,
+					{
+						kind: "limitation",
+						id: `unsupported-${value.detectedBackend}-backend`,
+					} satisfies SourceRef,
+				];
+	return localContainerPostgresqlReadiness({
+		kind: "local-container-postgresql-readiness",
+		manifestFingerprint: value.manifestFingerprint,
+		backendCertificationRevision: value.backendCertificationRevision,
+		state: ready ? "ready" : "unavailable",
+		observedAtMs: value.observedAtMs,
+		expiresAtMs: value.expiresAtMs,
+		backendFamily: LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY,
+		hostPlatform: value.hostPlatform,
+		engineApiRevision: value.engineApiRevision,
+		engineRevision: value.engineRevision,
+		runtimeRevision: value.runtimeRevision,
+		guestPlatform: value.guestPlatform,
+		...(value.vmRuntimeRevision === undefined
+			? {}
+			: { vmRuntimeRevision: value.vmRuntimeRevision }),
+		engineReachable: value.engineReachable && backendVerified,
+		compatibilityVerified: value.compatibilityVerified && backendVerified,
+		backendFamilyVerified: backendVerified,
+		hostPlatformVerified: value.hostPlatformVerified && backendVerified,
+		imageDigestPresent: value.imageDigestPresent && backendVerified,
+		imageDigestVerified: value.imageDigestVerified && backendVerified,
+		recipeVerified: value.recipeVerified && backendVerified,
+		isolationVerified: value.isolationVerified && backendVerified,
+		noEngineSocketMountVerified: value.noEngineSocketMountVerified && backendVerified,
+		noHostNetworkVerified: value.noHostNetworkVerified && backendVerified,
+		noHostBindMountVerified: value.noHostBindMountVerified && backendVerified,
+		destinationPinnedEgressDenyVerified:
+			value.destinationPinnedEgressDenyVerified && backendVerified,
+		metadataEgressDenyVerified: value.metadataEgressDenyVerified && backendVerified,
+		dnsRebindingResistanceVerified: value.dnsRebindingResistanceVerified && backendVerified,
+		quotaReady: value.quotaReady && backendVerified,
+		cancellationVerified: value.cancellationVerified && backendVerified,
+		cleanupVerified: value.cleanupVerified && backendVerified,
+		artifactResolverReady: value.artifactResolverReady && backendVerified,
+		credentialResolverReady: value.credentialResolverReady && backendVerified,
+		secretDestructionVerified: value.secretDestructionVerified && backendVerified,
+		limitationRefs,
+		attestationRefs: value.attestationRefs,
 	});
 }
 
