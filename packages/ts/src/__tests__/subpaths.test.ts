@@ -36,6 +36,7 @@ import * as dataStructures from "../data-structures/index.js";
 import * as executorCustomerHostedPostgresql from "../executors/customer-hosted-postgresql.js";
 import * as executorExecutionEnvironment from "../executors/execution-environment.js";
 import * as executorLocalContainerPostgresql from "../executors/local-container-postgresql.js";
+import * as executorLocalContainerPostgresqlDockerEngineApiV0 from "../executors/local-container-postgresql-docker-engine-api-v0.js";
 import * as executorManagedCloudPostgresql from "../executors/managed-cloud-postgresql.js";
 import * as executorManagedUntrustedJsCompute from "../executors/managed-untrusted-js-compute.js";
 import * as executorPostgresqlRunOperations from "../executors/postgresql-run-operations.js";
@@ -277,6 +278,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./executors/customer-hosted-postgresql",
 			"./executors/execution-environment",
 			"./executors/local-container-postgresql",
+			"./executors/local-container-postgresql-docker-engine-api-v0",
 			"./executors/managed-cloud-postgresql",
 			"./executors/managed-untrusted-js-compute",
 			"./executors/postgresql-run-operations",
@@ -927,6 +929,19 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof executorLocalContainerPostgresql.localContainerPostgresqlRuntime).toBe(
 			"function",
 		);
+		expect(
+			typeof executorLocalContainerPostgresqlDockerEngineApiV0.certifyDockerEngineApiV0LocalContainerPostgresql,
+		).toBe("function");
+		expect(
+			typeof executorLocalContainerPostgresqlDockerEngineApiV0.dockerEngineApiV0LocalContainerPostgresqlDriver,
+		).toBe("function");
+		expect(Object.hasOwn(rootPackage, "certifyDockerEngineApiV0LocalContainerPostgresql")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(rootPackage, "dockerEngineApiV0LocalContainerPostgresqlDriver")).toBe(
+			false,
+		);
+		expect(Object.hasOwn(rootPackage, "LocalSandboxDriver")).toBe(false);
 		expect(typeof executorManagedCloudPostgresql.managedCloudPostgresqlRuntime).toBe("function");
 		expect(typeof executorManagedUntrustedJsCompute.managedUntrustedJsComputeRuntime).toBe(
 			"function",

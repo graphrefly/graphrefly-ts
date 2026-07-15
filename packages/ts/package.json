@@ -236,6 +236,16 @@
 				"default": "./dist/executors/local-container-postgresql.cjs"
 			}
 		},
+		"./executors/local-container-postgresql-docker-engine-api-v0": {
+			"import": {
+				"types": "./dist/executors/local-container-postgresql-docker-engine-api-v0.d.ts",
+				"default": "./dist/executors/local-container-postgresql-docker-engine-api-v0.js"
+			},
+			"require": {
+				"types": "./dist/executors/local-container-postgresql-docker-engine-api-v0.d.cts",
+				"default": "./dist/executors/local-container-postgresql-docker-engine-api-v0.cjs"
+			}
+		},
 		"./executors/managed-cloud-postgresql": {
 			"import": {
 				"types": "./dist/executors/managed-cloud-postgresql.d.ts",
