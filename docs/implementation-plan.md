@@ -1,10 +1,14 @@
 # Unified Implementation Plan — pre-1.0
 
-> **Historical prose plan.** Current clean-slate sequencing lives in
-> `~/src/graphrefly/plan/*.jsonl`, and current decisions live in
+> **Historical / non-canonical after clean-slate.** Current clean-slate
+> sequencing lives in `~/src/graphrefly/plan/phases.jsonl` and
+> `~/src/graphrefly/plan/backlog.jsonl`; current decisions live in
 > `~/src/graphrefly/decisions/decisions.jsonl`. This file may mention retired
 > root/pure-ts packages, the old port model, structural `Impl` parity, and
 > TS-owned website plans; treat those as history, not current guidance.
+> Retainable Phase 15/16/Parked items were migrated on 2026-07-09 to
+> clean-slate `CSP-11` plus backlog `B104`-`B110`; do not add new roadmap
+> authority here.
 
 **Date:** 2026-04-27 · **Last updated:** 2026-04-28 (post Tier 9.1 /qa retrospective)
 **Sources:** `archive/docs/SESSION-ai-harness-module-review.md`, `archive/docs/SESSION-public-face-blocks-review.md`, `archive/docs/SESSION-patterns-extras-consolidation-plan.md`, `docs/optimizations.md`, this-chat Session A + Session B 9-question design rounds
@@ -1740,6 +1744,7 @@ Captured here so Phase 16 doesn't underbid scope:
 **DESIGN-SESSION-NEEDED (DS-15):** opens Phase 15. Walks:
 - Two-tier eval shape (fast synthetic + slow human-graded; reference: `archive/docs/SESSION-eval-blog-materials.md`, `SESSION-eval-story-reframe.md`).
 - Catalog automation (§9.1b) — `autoSolidify(verifyResult, reflectOutput, catalog)` in REFLECT stage; ties Phase 13 agent + multi-agent verifiers to catalog growth.
+- **Memory-rerun avoidance eval family** — canonical scorecard scenario for the agentic-memory + work-item + harness solution seam. Shape: cold run of the same WorkItem fails; VERIFY/REFLECT emits failure evidence/outcome; WorkItem-memory bridge maps evidence/outcome/context into an AgenticMemory procedural record; admission/application applies it; warm rerun retrieves/ packs that memory and avoids the prior failure. Start deterministic (no real LLM; planner fixture changes route only when memory is present), then add mock-LLM and real-model variants after the substrate signal is proven. Minimum machine-readable pass predicate: `cold_run_failed && memory_record_applied && warm_run_passed && warm_decision_trace_includes_memory`. This is Phase-15 eval design, not demo design; Demo 6 consumes one polished fixture from this family.
 - Harness scorecard (roadmap §9.4).
 - Eval adapter stack migration (retire `evals/lib/llm-client.ts` + eval-specific rate-limiter / replay-cache / budget-gate in favor of library adapter layer; Wave A Unit 12 cross-cutting).
 
@@ -1764,7 +1769,7 @@ Lands when Phase 15 ships. Major items, each potentially its own session:
 **Demos:**
 - **§9.3e Spending Alerts demo** (mostly DONE 2026-04-21; interactive 3-pane Astro shell remaining).
 - **§9.5 Demo 0** Personal email triage (NL → GraphSpec → flow → run → persist → explain). Video/GIF required to gate Show HN.
-- **§9.7 Demo 6** AI Agent Observatory — harness engineering showcase + self-improving loop. `agentLoop` failure → `explainPath` causal chain → REFLECT distill into `agentMemory` → strategy model update → re-run avoids failure route.
+- **§9.7 Demo 6** AI Agent Observatory — harness engineering showcase + self-improving loop. `agentLoop` failure → `explainPath` causal chain → REFLECT distill into `agentMemory` → strategy model update → re-run avoids failure route. Demo 6 should reuse a polished Phase-15 memory-rerun avoidance fixture rather than inventing its own success criterion; the eval owns reproducibility, the demo owns presentation.
 - **Demo 2 Multi-Agent Task Board** (per Phase 14.5.6) — React + WebLLM + Gemma 4 E2B; showcases Phase 13 `agent()` + `spawnable()` primitives.
 - **Inbox-stream demo** (per Phase 14.5.6) — per-email classify topology that genuinely shows reactive-savings + `graph.explain`. Pairs with the existing `inbox-reducer` baseline.
 - Optional **stream extractor showcase** appendix to Demo 6 (mount multiple extractors on a single `streamingPromptNode`; visible-in-real-time inspection demo).
