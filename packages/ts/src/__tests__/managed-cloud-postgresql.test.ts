@@ -3,15 +3,19 @@ import {
 	authenticatedWssManagedCloudTransport,
 	executeManagedCloudPostgresqlClaim,
 	executeManagedCloudPostgresqlClaimWithAttemptCredential,
+	executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential,
 	MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
 	MANAGED_CLOUD_POSTGRESQL_CONTROL_STORE,
 	MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE,
 	MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 	MANAGED_CLOUD_POSTGRESQL_SCHEMA_REVISION,
 	type ManagedCloudPostgresqlAttemptCredentialDriver,
+	type ManagedCloudPostgresqlAuthorizationRecheckDriver,
+	type ManagedCloudPostgresqlAuthorizationRecheckResult,
 	type ManagedCloudPostgresqlControlMessage,
 	type ManagedCloudPostgresqlControlStoreDriver,
 	type ManagedCloudPostgresqlCredentialLifecycleFact,
+	type ManagedCloudPostgresqlLeaseCoordinates,
 	type ManagedCloudPostgresqlLifecycleFact,
 	type ManagedCloudPostgresqlManifest,
 	type ManagedCloudPostgresqlReadiness,
@@ -163,6 +167,72 @@ const credentialLifecycleSequence = () => [
 	credentialFact("revoking"),
 	credentialFact("revoked"),
 ];
+const authorizationRecheck = (
+	stage: ManagedCloudPostgresqlAuthorizationRecheckResult["stage"],
+	patch: Partial<ManagedCloudPostgresqlAuthorizationRecheckResult> = {},
+): ManagedCloudPostgresqlAuthorizationRecheckResult => ({
+	kind: "managed-cloud-postgresql-authorization-recheck-result",
+	stage,
+	state: "allowed",
+	runId: "run:1",
+	attempt: 1,
+	environmentRevision: "environment-revision:1",
+	manifestFingerprint: "fingerprint:cloud:pg:1",
+	leaseId: "lease:1",
+	fencingToken: 1,
+	workerId: "worker:1",
+	sessionEpoch: "epoch:worker:1",
+	deploymentRevision: "deployment:1",
+	workerRevision: "worker-runtime:1",
+	decisionRef: `authorization-decision:${stage}:1`,
+	authorizationRevisionRef: "authorization-revision:31",
+	authorizationExpiresAtMs: 10_100,
+	grantGeneration: 11,
+	grantHighWater: 31,
+	observedAtMs: 10,
+	issueRefs: [],
+	auditRefs: [{ kind: "audit", id: `authorization-audit:${stage}:1` }],
+	...(stage === "credential-issuance" ? { credentialBindingRevision: "credential-binding:1" } : {}),
+	...patch,
+});
+const allowAuthorizationRecheckDriver = (): ManagedCloudPostgresqlAuthorizationRecheckDriver => ({
+	compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+	async authorizeClaim(request) {
+		return authorizationRecheck("claim", leaseCoordinatesPatch(request.lease));
+	},
+	async authorizeCredentialIssuance(context) {
+		return authorizationRecheck("credential-issuance", {
+			...leaseCoordinatesPatch(context),
+			credentialBindingRevision: context.credentialBindingRevision,
+		});
+	},
+});
+const leaseCoordinatesPatch = (
+	value: ManagedCloudPostgresqlLeaseCoordinates,
+): Pick<
+	ManagedCloudPostgresqlAuthorizationRecheckResult,
+	| "runId"
+	| "attempt"
+	| "environmentRevision"
+	| "manifestFingerprint"
+	| "leaseId"
+	| "fencingToken"
+	| "workerId"
+	| "sessionEpoch"
+	| "deploymentRevision"
+	| "workerRevision"
+> => ({
+	runId: value.runId,
+	attempt: value.attempt,
+	environmentRevision: value.environmentRevision,
+	manifestFingerprint: value.manifestFingerprint,
+	leaseId: value.leaseId,
+	fencingToken: value.fencingToken,
+	workerId: value.workerId,
+	sessionEpoch: value.sessionEpoch,
+	deploymentRevision: value.deploymentRevision,
+	workerRevision: value.workerRevision,
+});
 
 class Store implements ManagedCloudPostgresqlControlStoreDriver {
 	readonly compatibility = MANAGED_CLOUD_POSTGRESQL_CONTROL_STORE;
@@ -186,6 +256,20 @@ class Store implements ManagedCloudPostgresqlControlStoreDriver {
 				leaseExpiresAtMs: 1010,
 				heartbeatExpiresAtMs: 510,
 			},
+		};
+	}
+	async rejectClaim(lease: NonNullable<ManagedCloudPostgresqlStoreResult["lease"]>, code: string) {
+		this.calls.push(`reject-claim:${code}`);
+		const {
+			envelope: _envelope,
+			heartbeatExpiresAtMs: _heartbeat,
+			leaseExpiresAtMs: _lease,
+			...coordinates
+		} = lease;
+		return {
+			accepted: true,
+			code,
+			lifecycle: { ...lifecycle("rejected"), ...coordinates, code },
 		};
 	}
 	async heartbeat(input: Parameters<ManagedCloudPostgresqlControlStoreDriver["heartbeat"]>[0]) {
@@ -343,6 +427,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			readiness: [postures],
 			store,
 			transport,
+			authorizationRecheck: allowAuthorizationRecheckDriver(),
 			now: () => 10,
 		});
 		const envelopes = collect(runtime.admittedEnvelopes);
@@ -384,6 +469,126 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		await runtime.dispose();
 	});
 
+	it("rechecks current authorization after claim CAS and before dispatch", async () => {
+		const g = graph();
+		const inputs = g.node([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedCloudPostgresqlManifest>([], null);
+		const postures = g.node<ManagedCloudPostgresqlReadiness>([], null);
+		const store = new Store();
+		const transport = new Transport();
+		let claimRequests = 0;
+		const authorizationRecheckDriver: ManagedCloudPostgresqlAuthorizationRecheckDriver = {
+			compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+			async authorizeClaim(request) {
+				claimRequests += 1;
+				expect(request.lease.envelope.runId).toBe("run:1");
+				return authorizationRecheck("claim", {
+					state: "revoked",
+					authorizationRevisionRef: undefined,
+					authorizationExpiresAtMs: undefined,
+					issueRefs: [{ kind: "issue", id: "authorization-revoked" }],
+				});
+			},
+			async authorizeCredentialIssuance() {
+				throw new Error("credential issuance is not reached by claim recheck");
+			},
+		};
+		const runtime = managedCloudPostgresqlRuntime(g, {
+			inputs: inputs as never,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			store,
+			transport,
+			authorizationRecheck: authorizationRecheckDriver,
+			now: () => 10,
+		});
+		const facts = collect<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
+		const issues = collect<{ code: string }>(runtime.issues);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		transport.onMessage?.({
+			kind: "claim",
+			messageId: "message:claim:recheck",
+			protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
+			workerId: "worker:1",
+			sessionEpoch: "epoch:worker:1",
+			environmentRevision: "environment-revision:1",
+			deploymentRevision: "deployment:1",
+			workerRevision: "worker-runtime:1",
+			authAttestationRef: { kind: "attestation", id: "auth:1" },
+		});
+		await settle();
+		for (let i = 0; i < 5 && transport.sent.length === 0; i++) await settle();
+		expect(claimRequests).toBe(1);
+		expect(store.calls).toEqual(["admit", "claim", "reject-claim:authorization-revoked"]);
+		expect(transport.sent).toContainEqual(
+			expect.objectContaining({ kind: "rejected", code: "authorization-revoked" }),
+		);
+		expect(transport.sent).not.toContainEqual(expect.objectContaining({ kind: "claim-granted" }));
+		expect(facts.map((fact) => fact.state)).toEqual(["queued", "rejected"]);
+		expect(issues).toContainEqual(expect.objectContaining({ code: "authorization-revoked" }));
+		await runtime.dispose();
+	});
+
+	it("rejects a claimed lease when claim authorization recheck is unavailable", async () => {
+		const g = graph();
+		const inputs = g.node([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedCloudPostgresqlManifest>([], null);
+		const postures = g.node<ManagedCloudPostgresqlReadiness>([], null);
+		const store = new Store();
+		const transport = new Transport();
+		const runtime = managedCloudPostgresqlRuntime(g, {
+			inputs: inputs as never,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			store,
+			transport,
+			authorizationRecheck: {
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async authorizeClaim() {
+					throw new Error("authorization provider unavailable");
+				},
+				async authorizeCredentialIssuance() {
+					throw new Error("credential issuance is not reached by unavailable claim recheck");
+				},
+			},
+			now: () => 10,
+		});
+		const issues = collect<{ code: string }>(runtime.issues);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		transport.onMessage?.({
+			kind: "claim",
+			messageId: "message:claim:recheck-unavailable",
+			protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
+			workerId: "worker:1",
+			sessionEpoch: "epoch:worker:1",
+			environmentRevision: "environment-revision:1",
+			deploymentRevision: "deployment:1",
+			workerRevision: "worker-runtime:1",
+			authAttestationRef: { kind: "attestation", id: "auth:1" },
+		});
+		await settle();
+		for (let i = 0; i < 5 && transport.sent.length === 0; i++) await settle();
+		expect(store.calls).toEqual(["admit", "claim", "reject-claim:authorization-unavailable"]);
+		expect(transport.sent).toContainEqual(
+			expect.objectContaining({ kind: "rejected", code: "authorization-unavailable" }),
+		);
+		expect(transport.sent).not.toContainEqual(expect.objectContaining({ kind: "claim-granted" }));
+		expect(issues).toContainEqual(expect.objectContaining({ code: "authorization-unavailable" }));
+		await runtime.dispose();
+	});
+
 	it("fails closed before admission when the deployment profile is development-only", async () => {
 		const g = graph();
 		const inputs = g.node([], null);
@@ -399,6 +604,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			readiness: [postures],
 			store,
 			transport,
+			authorizationRecheck: allowAuthorizationRecheckDriver(),
 			now: () => 10,
 		});
 		const envelopes = collect(runtime.admittedEnvelopes);
@@ -627,6 +833,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			cancellationRequests: [cancels as never],
 			store,
 			transport,
+			authorizationRecheck: allowAuthorizationRecheckDriver(),
 			now: () => 10,
 		});
 		const states = collect<{ state: string }>(runtime.cancellations);
@@ -845,6 +1052,168 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		);
 	});
 
+	it("rechecks authorization before issuing attempt credentials", async () => {
+		const store = new Store();
+		await store.admit(
+			{
+				...(store.envelope ?? {}),
+				kind: "managed-cloud-postgresql-admitted-envelope",
+				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
+				runId: "run:1",
+				attempt: 1,
+				environmentRevision: "environment-revision:1",
+				manifestFingerprint: "fingerprint:cloud:pg:1",
+				requestId: "request:1",
+				operationId: "operation:1",
+				routeId: "route:1",
+				executorId: "executor:pg",
+				profileId: "profile:pg",
+				adapterInputId: input().adapterInputId,
+				credentialBindingRevision: "credential-binding:1",
+				deploymentRevision: "deployment:1",
+				workerRevision: "worker-runtime:1",
+				workload: input().toolCall!.arguments,
+				sourceRefs: [],
+			},
+			10,
+		);
+		const claim = (await store.claim()) as ManagedCloudPostgresqlStoreResult;
+		const calls: string[] = [];
+		const credentialDriver: ManagedCloudPostgresqlAttemptCredentialDriver = {
+			compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+			async runWithAttemptCredential() {
+				calls.push("credential-driver");
+				return {
+					lifecycle: [credentialFact("unavailable")],
+				};
+			},
+		};
+		const authorizationDriver: ManagedCloudPostgresqlAuthorizationRecheckDriver = {
+			compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+			async authorizeClaim() {
+				throw new Error("claim recheck is not used by worker helper");
+			},
+			async authorizeCredentialIssuance(context) {
+				expect(context.credentialBindingRevision).toBe("credential-binding:1");
+				return authorizationRecheck("credential-issuance", {
+					state: "expired",
+					authorizationRevisionRef: undefined,
+					authorizationExpiresAtMs: undefined,
+					grantGeneration: 0,
+					grantHighWater: 0,
+					issueRefs: [{ kind: "issue", id: "authorization-expired" }],
+					observedAtMs: 22,
+				});
+			},
+		};
+		const settlement = await executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
+			{ kind: "claim-granted", messageId: "claim:1", ...claim.lease! },
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					calls.push("execute");
+					return { outcome: "succeeded", outcomeRefs: [] };
+				},
+			},
+			"settlement:worker:authorization-expired",
+			"message:worker:settle:authorization-expired",
+			new AbortController().signal,
+			credentialDriver,
+			authorizationDriver,
+		);
+		expect(calls).toEqual([]);
+		expect(settlement).toMatchObject({
+			outcome: "failed",
+			issueRefs: [{ kind: "issue", id: "authorization-expired" }],
+			credentialLifecycle: [{ state: "unavailable", occurredAtMs: 22 }],
+		});
+		expect(JSON.stringify(settlement)).not.toMatch(
+			/openbao|spiffe|svid|vault|private-key|private-client|private-socket|bearer|refresh/i,
+		);
+	});
+
+	it("returns a failed settlement when credential authorization recheck throws or mismatches", async () => {
+		for (const [name, authorizeCredentialIssuance] of [
+			[
+				"throws",
+				async () => {
+					throw new Error("authorization provider unavailable");
+				},
+			],
+			[
+				"mismatches",
+				async () =>
+					authorizationRecheck("credential-issuance", {
+						leaseId: "lease:other",
+						credentialBindingRevision: "credential-binding:1",
+					}),
+			],
+		] satisfies readonly [
+			string,
+			ManagedCloudPostgresqlAuthorizationRecheckDriver["authorizeCredentialIssuance"],
+		][]) {
+			const store = new Store();
+			await store.admit(
+				{
+					...(store.envelope ?? {}),
+					kind: "managed-cloud-postgresql-admitted-envelope",
+					protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
+					runId: "run:1",
+					attempt: 1,
+					environmentRevision: "environment-revision:1",
+					manifestFingerprint: "fingerprint:cloud:pg:1",
+					requestId: "request:1",
+					operationId: "operation:1",
+					routeId: "route:1",
+					executorId: "executor:pg",
+					profileId: "profile:pg",
+					adapterInputId: input().adapterInputId,
+					credentialBindingRevision: "credential-binding:1",
+					deploymentRevision: "deployment:1",
+					workerRevision: "worker-runtime:1",
+					workload: input().toolCall!.arguments,
+					sourceRefs: [],
+				},
+				10,
+			);
+			const claim = (await store.claim()) as ManagedCloudPostgresqlStoreResult;
+			const calls: string[] = [];
+			const settlement = await executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
+				{ kind: "claim-granted", messageId: `claim:${name}`, ...claim.lease! },
+				{
+					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+					async execute() {
+						calls.push("execute");
+						return { outcome: "succeeded", outcomeRefs: [] };
+					},
+				},
+				`settlement:worker:${name}`,
+				`message:worker:settle:${name}`,
+				new AbortController().signal,
+				{
+					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+					async runWithAttemptCredential() {
+						calls.push("credential-driver");
+						return { lifecycle: [credentialFact("unavailable")] };
+					},
+				},
+				{
+					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+					async authorizeClaim() {
+						throw new Error("claim recheck is not used by worker helper");
+					},
+					authorizeCredentialIssuance,
+				},
+			);
+			expect(calls).toEqual([]);
+			expect(settlement).toMatchObject({
+				outcome: "failed",
+				issueRefs: [{ kind: "issue", id: "authorization-unavailable" }],
+				credentialLifecycle: [{ state: "unavailable" }],
+			});
+		}
+	});
+
 	it("requires an attempt credential lifecycle driver on the canonical worker entry", async () => {
 		const store = new Store();
 		await store.admit(
@@ -887,8 +1256,11 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				"message:worker:settle:missing-credential-driver",
 				new AbortController().signal,
 				undefined as never,
+				allowAuthorizationRecheckDriver(),
 			),
-		).rejects.toThrow("attempt credential lifecycle driver is required");
+		).rejects.toThrow(
+			"attempt credential lifecycle and authorization recheck drivers are required",
+		);
 		expect(executed).toBe(false);
 	});
 
@@ -939,6 +1311,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 						throw new Error("must not run");
 					},
 				},
+				allowAuthorizationRecheckDriver(),
 			),
 		).rejects.toThrow("credential lifecycle compatibility mismatch");
 		expect(executed).toBe(false);
@@ -998,6 +1371,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 						};
 					},
 				},
+				allowAuthorizationRecheckDriver(),
 			),
 		).rejects.toThrow("lacks terminal cleanup posture");
 		expect(executed).toBe(true);
@@ -1058,6 +1432,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 						};
 					},
 				},
+				allowAuthorizationRecheckDriver(),
 			),
 		).rejects.toThrow("requires injected posture before workload result");
 		expect(executed).toBe(true);
@@ -1116,6 +1491,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 					};
 				},
 			},
+			allowAuthorizationRecheckDriver(),
 		);
 		expect(executed).toBe(false);
 		expect(settlement).toMatchObject({
@@ -1165,6 +1541,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 					};
 				},
 			},
+			allowAuthorizationRecheckDriver(),
 		);
 		transport.onMessage?.(settlement);
 		await settle();
@@ -1205,6 +1582,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				readiness: [postures],
 				store,
 				transport,
+				authorizationRecheck: allowAuthorizationRecheckDriver(),
 				now: () => 10,
 			});
 			const issues = collect<{ code: string }>(runtime.issues);
@@ -1641,6 +2019,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			cancellationRequests: [cancels as never],
 			store,
 			transport,
+			authorizationRecheck: allowAuthorizationRecheckDriver(),
 			now: () => 10,
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
@@ -1780,6 +2159,7 @@ async function activeRuntime(store = new Store()) {
 		readiness: [postures],
 		store,
 		transport,
+		authorizationRecheck: allowAuthorizationRecheckDriver(),
 		now: () => 10,
 	});
 	inputs.down([["DATA", input()]]);

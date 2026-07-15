@@ -235,6 +235,49 @@ export interface ManagedCloudPostgresqlStoreResult {
 	readonly outcome?: ExecutorOutcome;
 }
 
+export type ManagedCloudPostgresqlAuthorizationRecheckStage = "claim" | "credential-issuance";
+
+export type ManagedCloudPostgresqlAuthorizationRecheckState =
+	| "allowed"
+	| "denied"
+	| "unavailable"
+	| "revoked"
+	| "expired";
+
+export interface ManagedCloudPostgresqlAuthorizationRecheckResult
+	extends ManagedCloudPostgresqlLeaseCoordinates {
+	readonly kind: "managed-cloud-postgresql-authorization-recheck-result";
+	readonly stage: ManagedCloudPostgresqlAuthorizationRecheckStage;
+	readonly state: ManagedCloudPostgresqlAuthorizationRecheckState;
+	readonly decisionRef: string;
+	readonly authorizationRevisionRef?: string;
+	readonly authorizationExpiresAtMs?: number;
+	readonly grantGeneration: number;
+	readonly grantHighWater: number;
+	readonly observedAtMs: number;
+	readonly issueRefs: readonly SourceRef[];
+	readonly auditRefs: readonly SourceRef[];
+	readonly credentialBindingRevision?: string;
+}
+
+export interface ManagedCloudPostgresqlClaimAuthorizationRequest {
+	readonly kind: "managed-cloud-postgresql-claim-authorization-request";
+	readonly message: Extract<ManagedCloudPostgresqlWorkerMessage, { kind: "claim" }>;
+	readonly lease: NonNullable<ManagedCloudPostgresqlStoreResult["lease"]>;
+	readonly manifest: ManagedCloudPostgresqlManifest;
+	readonly nowMs: number;
+}
+
+export interface ManagedCloudPostgresqlAuthorizationRecheckDriver {
+	readonly compatibility: typeof MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY;
+	authorizeClaim(
+		request: ManagedCloudPostgresqlClaimAuthorizationRequest,
+	): PromiseLike<ManagedCloudPostgresqlAuthorizationRecheckResult>;
+	authorizeCredentialIssuance(
+		context: ManagedCloudPostgresqlAttemptCredentialContext,
+	): PromiseLike<ManagedCloudPostgresqlAuthorizationRecheckResult>;
+}
+
 /** Runtime-private atomic PostgreSQL control-store seam. Implementations must transact each call. */
 export interface ManagedCloudPostgresqlControlStoreDriver {
 	readonly compatibility: typeof MANAGED_CLOUD_POSTGRESQL_CONTROL_STORE;
@@ -246,6 +289,11 @@ export interface ManagedCloudPostgresqlControlStoreDriver {
 	claim(
 		input: Extract<ManagedCloudPostgresqlWorkerMessage, { kind: "claim" }>,
 		manifest: ManagedCloudPostgresqlManifest,
+		nowMs: number,
+	): PromiseLike<ManagedCloudPostgresqlStoreResult>;
+	rejectClaim?(
+		lease: NonNullable<ManagedCloudPostgresqlStoreResult["lease"]>,
+		code: string,
 		nowMs: number,
 	): PromiseLike<ManagedCloudPostgresqlStoreResult>;
 	heartbeat(
@@ -360,6 +408,31 @@ export function postgresql16ManagedCloudControlStore(
 			);
 			return result.accepted && result.lease !== undefined
 				? { ...result, lifecycle: leaseLifecycle("claimed", result.lease, nowMs) }
+				: result;
+		},
+		async rejectClaim(lease, code, nowMs) {
+			const result = await one(
+				`UPDATE graphrefly_managed_cloud_v1 SET state='rejected', fencing_token=fencing_token+1 WHERE run_id=$1 AND attempt=$2 AND lease_id=$3 AND fencing_token=$4 AND worker_id=$5 AND session_epoch=$6 AND deployment_revision=$7 AND worker_revision=$8 AND state='claimed' AND envelope->>'environmentRevision'=$9 AND envelope->>'manifestFingerprint'=$10 RETURNING jsonb_build_object('accepted',true,'code',$11,'lifecycle',jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','rejected','runId',run_id,'attempt',attempt,'leaseId',lease_id,'fencingToken',fencing_token,'workerId',worker_id,'sessionEpoch',session_epoch,'environmentRevision',envelope->>'environmentRevision','manifestFingerprint',envelope->>'manifestFingerprint','deploymentRevision',deployment_revision,'workerRevision',worker_revision,'occurredAtMs',$12,'code',$11)) AS result`,
+				[
+					lease.runId,
+					lease.attempt,
+					lease.leaseId,
+					lease.fencingToken,
+					lease.workerId,
+					lease.sessionEpoch,
+					lease.deploymentRevision,
+					lease.workerRevision,
+					lease.environmentRevision,
+					lease.manifestFingerprint,
+					code,
+					nowMs,
+				],
+			);
+			return result.accepted
+				? {
+						...result,
+						lifecycle: result.lifecycle ?? { ...leaseLifecycle("rejected", lease, nowMs), code },
+					}
 				: result;
 		},
 		async heartbeat(input, expiresAtMs, nowMs) {
@@ -639,6 +712,10 @@ export async function executeManagedCloudPostgresqlClaim(
 	messageId: string,
 	signal: AbortSignal,
 	credentialDriver?: ManagedCloudPostgresqlAttemptCredentialDriver,
+	authorizationDriver?: Pick<
+		ManagedCloudPostgresqlAuthorizationRecheckDriver,
+		"compatibility" | "authorizeCredentialIssuance"
+	>,
 ): Promise<Extract<ManagedCloudPostgresqlWorkerMessage, { kind: "settle" }>> {
 	if (driver.compatibility !== MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY)
 		throw new TypeError("Managed-cloud worker compatibility mismatch.");
@@ -647,6 +724,11 @@ export async function executeManagedCloudPostgresqlClaim(
 		credentialDriver.compatibility !== MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY
 	)
 		throw new TypeError("Managed-cloud credential lifecycle compatibility mismatch.");
+	if (
+		authorizationDriver !== undefined &&
+		authorizationDriver.compatibility !== MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY
+	)
+		throw new TypeError("Managed-cloud authorization recheck compatibility mismatch.");
 	assertSafe(settlementId, "settlementId");
 	assertSafe(messageId, "messageId");
 	for (const value of [
@@ -680,6 +762,29 @@ export async function executeManagedCloudPostgresqlClaim(
 		heartbeatExpiresAtMs: claim.heartbeatExpiresAtMs,
 		signal,
 	};
+	if (authorizationDriver !== undefined) {
+		const authorization =
+			(await attemptAuthorizationRecheck(authorizationDriver, context, "credential-issuance")) ??
+			authorizationUnavailableForClaim(claim, "credential-issuance");
+		const correlated =
+			authorizationMatchesLease(authorization, claim) &&
+			authorization.credentialBindingRevision === claim.envelope.credentialBindingRevision;
+		if (!correlated || !authorizationAllowsAttempt(authorization, claim.leaseExpiresAtMs)) {
+			const failureAuthorization = correlated
+				? authorization
+				: authorizationUnavailableForClaim(claim, "credential-issuance");
+			return Object.freeze({
+				kind: "settle",
+				messageId,
+				settlementId,
+				outcome: "failed",
+				outcomeRefs: [],
+				issueRefs: authorizationIssueRefs(failureAuthorization),
+				credentialLifecycle: [authorizationCredentialUnavailableFact(claim, failureAuthorization)],
+				...leaseCoordinates(claim),
+			});
+		}
+	}
 	const execute = () => driver.execute(workload, context);
 	const credentialResult =
 		credentialDriver === undefined
@@ -739,9 +844,15 @@ export async function executeManagedCloudPostgresqlClaimWithAttemptCredential(
 	messageId: string,
 	signal: AbortSignal,
 	credentialDriver: ManagedCloudPostgresqlAttemptCredentialDriver,
+	authorizationDriver: Pick<
+		ManagedCloudPostgresqlAuthorizationRecheckDriver,
+		"compatibility" | "authorizeCredentialIssuance"
+	>,
 ): Promise<Extract<ManagedCloudPostgresqlWorkerMessage, { kind: "settle" }>> {
-	if (credentialDriver === undefined)
-		throw new TypeError("Managed-cloud attempt credential lifecycle driver is required.");
+	if (credentialDriver === undefined || authorizationDriver === undefined)
+		throw new TypeError(
+			"Managed-cloud attempt credential lifecycle and authorization recheck drivers are required.",
+		);
 	return executeManagedCloudPostgresqlClaim(
 		claim,
 		driver,
@@ -749,6 +860,38 @@ export async function executeManagedCloudPostgresqlClaimWithAttemptCredential(
 		messageId,
 		signal,
 		credentialDriver,
+		authorizationDriver,
+	);
+}
+
+/**
+ * D618 managed-cloud worker entry: current authorization/revocation is checked
+ * immediately before the host-private SPIRE/OpenBao attempt credential lifecycle.
+ */
+export async function executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
+	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
+	driver: ManagedCloudPostgresqlWorkerDriver,
+	settlementId: string,
+	messageId: string,
+	signal: AbortSignal,
+	credentialDriver: ManagedCloudPostgresqlAttemptCredentialDriver,
+	authorizationDriver: Pick<
+		ManagedCloudPostgresqlAuthorizationRecheckDriver,
+		"compatibility" | "authorizeCredentialIssuance"
+	>,
+): Promise<Extract<ManagedCloudPostgresqlWorkerMessage, { kind: "settle" }>> {
+	if (credentialDriver === undefined || authorizationDriver === undefined)
+		throw new TypeError(
+			"Managed-cloud attempt credential lifecycle and authorization recheck drivers are required.",
+		);
+	return executeManagedCloudPostgresqlClaim(
+		claim,
+		driver,
+		settlementId,
+		messageId,
+		signal,
+		credentialDriver,
+		authorizationDriver,
 	);
 }
 
@@ -761,6 +904,7 @@ export interface ManagedCloudPostgresqlRuntimeOptions {
 	readonly cancellationRequests?: readonly Node<ManagedCloudPostgresqlCancellationRequested>[];
 	readonly store: ManagedCloudPostgresqlControlStoreDriver;
 	readonly transport: ManagedCloudPostgresqlTransportDriver;
+	readonly authorizationRecheck: ManagedCloudPostgresqlAuthorizationRecheckDriver;
 	readonly now?: () => number;
 }
 
@@ -904,6 +1048,8 @@ export function managedCloudPostgresqlRuntime(
 		throw new TypeError("Managed-cloud control-store compatibility mismatch.");
 	if (opts.transport.protocolRevision !== MANAGED_CLOUD_POSTGRESQL_PROTOCOL)
 		throw new TypeError("Managed-cloud worker protocol mismatch.");
+	if (opts.authorizationRecheck.compatibility !== MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY)
+		throw new TypeError("Managed-cloud authorization recheck compatibility mismatch.");
 	const now = opts.now ?? Date.now;
 	const name = opts.name ?? "managedCloudPostgresql";
 	const group = graph.topologyGroup({ name });
@@ -1226,6 +1372,48 @@ export function managedCloudPostgresqlRuntime(
 				result = snapshotStoreResult(await opts.store.claim(message, claimManifest, now()));
 				if (result.accepted && result.lease !== undefined) {
 					const lease = snapshotClaimLease(result.lease, message, claimManifest);
+					{
+						let authorization: ManagedCloudPostgresqlAuthorizationRecheckResult;
+						try {
+							authorization = snapshotAuthorizationRecheckResult(
+								await opts.authorizationRecheck.authorizeClaim({
+									kind: "managed-cloud-postgresql-claim-authorization-request",
+									message,
+									lease,
+									manifest: claimManifest,
+									nowMs: now(),
+								}),
+								"claim",
+							);
+						} catch {
+							authorization = authorizationUnavailableForLease(lease, "claim", now());
+						}
+						if (
+							!authorizationMatchesLease(authorization, lease) ||
+							!authorizationAllowsAttempt(authorization, lease.leaseExpiresAtMs)
+						) {
+							if (opts.store.rejectClaim === undefined)
+								throw new TypeError(
+									"Managed-cloud authorization recheck requires rejectClaim support.",
+								);
+							const failureAuthorization = authorizationMatchesLease(authorization, lease)
+								? authorization
+								: authorizationUnavailableForLease(lease, "claim", now());
+							const rejectCode = authorizationRejectCode(failureAuthorization);
+							const rejected = snapshotStoreResult(
+								await opts.store.rejectClaim(lease, rejectCode, now()),
+							);
+							if (!rejected.accepted) {
+								await rejectMessage(opts.transport, message, rejected.code);
+								issue(rejected.code, "Managed-cloud claim authorization rejection failed.");
+								return;
+							}
+							if (rejected.lifecycle !== undefined) emitLifecycle(rejected.lifecycle);
+							await rejectMessage(opts.transport, message, rejectCode);
+							issue(rejectCode, "Managed-cloud claim authorization failed closed.");
+							return;
+						}
+					}
 					result = { ...result, lease };
 				}
 			} else if (message.kind === "heartbeat")
@@ -1598,6 +1786,218 @@ function credentialLifecycleIssueRefs(
 		? collected
 		: [{ kind: "issue", id: "managed-cloud-attempt-unavailable" }];
 }
+function snapshotAuthorizationRecheckResult(
+	raw: ManagedCloudPostgresqlAuthorizationRecheckResult,
+	stage: ManagedCloudPostgresqlAuthorizationRecheckStage,
+): ManagedCloudPostgresqlAuthorizationRecheckResult {
+	assertPlainRecord(raw, "authorization recheck result");
+	if (
+		!exactKeysOptional(
+			raw,
+			[
+				"kind",
+				"stage",
+				"state",
+				"runId",
+				"attempt",
+				"environmentRevision",
+				"manifestFingerprint",
+				"leaseId",
+				"fencingToken",
+				"workerId",
+				"sessionEpoch",
+				"deploymentRevision",
+				"workerRevision",
+				"decisionRef",
+				"grantGeneration",
+				"grantHighWater",
+				"observedAtMs",
+				"issueRefs",
+				"auditRefs",
+			],
+			["authorizationRevisionRef", "authorizationExpiresAtMs", "credentialBindingRevision"],
+		) ||
+		raw.kind !== "managed-cloud-postgresql-authorization-recheck-result" ||
+		raw.stage !== stage ||
+		!["allowed", "denied", "unavailable", "revoked", "expired"].includes(String(raw.state)) ||
+		!positive(raw.attempt) ||
+		!positive(raw.fencingToken) ||
+		!Number.isSafeInteger(raw.grantGeneration) ||
+		raw.grantGeneration < 0 ||
+		!Number.isSafeInteger(raw.grantHighWater) ||
+		raw.grantHighWater < raw.grantGeneration ||
+		!Number.isSafeInteger(raw.observedAtMs)
+	)
+		throw new TypeError("Invalid managed-cloud authorization recheck material.");
+	for (const value of [
+		raw.runId,
+		raw.environmentRevision,
+		raw.manifestFingerprint,
+		raw.leaseId,
+		raw.workerId,
+		raw.sessionEpoch,
+		raw.deploymentRevision,
+		raw.workerRevision,
+	])
+		assertAuthorizationRef(value, "authorization coordinate");
+	if (raw.credentialBindingRevision !== undefined)
+		assertAuthorizationRef(raw.credentialBindingRevision, "authorization credential binding");
+	assertAuthorizationRef(raw.decisionRef, "authorization decision ref");
+	if (raw.authorizationRevisionRef !== undefined)
+		assertAuthorizationRef(raw.authorizationRevisionRef, "authorization revision ref");
+	if (
+		raw.authorizationExpiresAtMs !== undefined &&
+		(!Number.isSafeInteger(raw.authorizationExpiresAtMs) ||
+			raw.authorizationExpiresAtMs <= raw.observedAtMs)
+	)
+		throw new TypeError("Invalid managed-cloud authorization expiry.");
+	if (
+		raw.state === "allowed" &&
+		(raw.authorizationRevisionRef === undefined || raw.authorizationExpiresAtMs === undefined)
+	)
+		throw new TypeError("Allowed managed-cloud authorization requires revision and expiry.");
+	return Object.freeze({
+		kind: "managed-cloud-postgresql-authorization-recheck-result",
+		stage,
+		state: raw.state,
+		runId: raw.runId,
+		attempt: raw.attempt,
+		environmentRevision: raw.environmentRevision,
+		manifestFingerprint: raw.manifestFingerprint,
+		leaseId: raw.leaseId,
+		fencingToken: raw.fencingToken,
+		workerId: raw.workerId,
+		sessionEpoch: raw.sessionEpoch,
+		deploymentRevision: raw.deploymentRevision,
+		workerRevision: raw.workerRevision,
+		decisionRef: raw.decisionRef,
+		...(raw.authorizationRevisionRef === undefined
+			? {}
+			: { authorizationRevisionRef: raw.authorizationRevisionRef }),
+		...(raw.authorizationExpiresAtMs === undefined
+			? {}
+			: { authorizationExpiresAtMs: raw.authorizationExpiresAtMs }),
+		grantGeneration: raw.grantGeneration,
+		grantHighWater: raw.grantHighWater,
+		observedAtMs: raw.observedAtMs,
+		issueRefs: credentialRefs(raw.issueRefs),
+		auditRefs: credentialRefs(raw.auditRefs),
+		...(raw.credentialBindingRevision === undefined
+			? {}
+			: { credentialBindingRevision: raw.credentialBindingRevision }),
+	});
+}
+function authorizationAllowsAttempt(
+	authorization: ManagedCloudPostgresqlAuthorizationRecheckResult,
+	leaseExpiresAtMs: number,
+): boolean {
+	return (
+		authorization.state === "allowed" &&
+		authorization.authorizationRevisionRef !== undefined &&
+		authorization.authorizationExpiresAtMs !== undefined &&
+		authorization.authorizationExpiresAtMs >= leaseExpiresAtMs
+	);
+}
+function authorizationMatchesLease(
+	authorization: ManagedCloudPostgresqlAuthorizationRecheckResult,
+	lease: ManagedCloudPostgresqlLeaseCoordinates,
+): boolean {
+	return (
+		authorization.runId === lease.runId &&
+		authorization.attempt === lease.attempt &&
+		authorization.environmentRevision === lease.environmentRevision &&
+		authorization.manifestFingerprint === lease.manifestFingerprint &&
+		authorization.leaseId === lease.leaseId &&
+		authorization.fencingToken === lease.fencingToken &&
+		authorization.workerId === lease.workerId &&
+		authorization.sessionEpoch === lease.sessionEpoch &&
+		authorization.deploymentRevision === lease.deploymentRevision &&
+		authorization.workerRevision === lease.workerRevision
+	);
+}
+async function attemptAuthorizationRecheck(
+	authorizationDriver: Pick<
+		ManagedCloudPostgresqlAuthorizationRecheckDriver,
+		"authorizeCredentialIssuance"
+	>,
+	context: Parameters<
+		ManagedCloudPostgresqlAuthorizationRecheckDriver["authorizeCredentialIssuance"]
+	>[0],
+	stage: "credential-issuance",
+): Promise<ManagedCloudPostgresqlAuthorizationRecheckResult | undefined> {
+	try {
+		return snapshotAuthorizationRecheckResult(
+			await authorizationDriver.authorizeCredentialIssuance(context),
+			stage,
+		);
+	} catch {
+		return undefined;
+	}
+}
+function authorizationUnavailableForClaim(
+	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
+	stage: ManagedCloudPostgresqlAuthorizationRecheckStage,
+): ManagedCloudPostgresqlAuthorizationRecheckResult {
+	return authorizationUnavailableForLease(
+		claim,
+		stage,
+		0,
+		stage === "credential-issuance" ? claim.envelope.credentialBindingRevision : undefined,
+	);
+}
+function authorizationUnavailableForLease(
+	lease: ManagedCloudPostgresqlLeaseCoordinates,
+	stage: ManagedCloudPostgresqlAuthorizationRecheckStage,
+	observedAtMs: number,
+	credentialBindingRevision?: string,
+): ManagedCloudPostgresqlAuthorizationRecheckResult {
+	return Object.freeze({
+		kind: "managed-cloud-postgresql-authorization-recheck-result",
+		stage,
+		state: "unavailable",
+		...leaseCoordinates(lease),
+		decisionRef: "authorization-decision:unavailable",
+		grantGeneration: 0,
+		grantHighWater: 0,
+		observedAtMs,
+		issueRefs: [{ kind: "issue", id: "authorization-unavailable" }],
+		auditRefs: [],
+		...(credentialBindingRevision === undefined ? {} : { credentialBindingRevision }),
+	});
+}
+function authorizationRejectCode(
+	authorization: ManagedCloudPostgresqlAuthorizationRecheckResult,
+): string {
+	return authorization.state === "expired"
+		? "authorization-expired"
+		: authorization.state === "revoked"
+			? "authorization-revoked"
+			: authorization.state === "denied"
+				? "authorization-denied"
+				: "authorization-unavailable";
+}
+function authorizationIssueRefs(
+	authorization: ManagedCloudPostgresqlAuthorizationRecheckResult,
+): readonly SourceRef[] {
+	const collected = refs(authorization.issueRefs);
+	return collected.length > 0
+		? collected
+		: [{ kind: "issue", id: authorizationRejectCode(authorization) }];
+}
+function authorizationCredentialUnavailableFact(
+	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
+	authorization: ManagedCloudPostgresqlAuthorizationRecheckResult,
+): ManagedCloudPostgresqlCredentialLifecycleFact {
+	return Object.freeze({
+		kind: "managed-cloud-postgresql-credential-lifecycle-fact",
+		state: "unavailable",
+		...leaseCoordinates(claim),
+		credentialBindingRevision: claim.envelope.credentialBindingRevision,
+		occurredAtMs: authorization.observedAtMs,
+		evidenceRefs: [{ kind: "decision", id: authorization.decisionRef }],
+		issueRefs: authorizationIssueRefs(authorization),
+	});
+}
 function snapshotCredentialLifecycleSequence(
 	raw: readonly ManagedCloudPostgresqlCredentialLifecycleFact[],
 	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
@@ -1885,6 +2285,12 @@ function credentialRefs(raw: unknown): readonly SourceRef[] {
 			throw new TypeError("Credential lifecycle ref contains private material.");
 	}
 	return value;
+}
+function assertAuthorizationRef(value: unknown, name: string) {
+	assertSafe(value, name);
+	const text = value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+	if (credentialPrivateTerms.some((term) => text.includes(term)))
+		throw new TypeError("Authorization recheck ref contains private material.");
 }
 function snapshotStoreResult(
 	raw: ManagedCloudPostgresqlStoreResult,
