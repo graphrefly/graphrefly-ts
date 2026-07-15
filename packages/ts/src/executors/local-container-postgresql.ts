@@ -20,6 +20,7 @@ import { postgresqlQueryToolArgumentsFromIntent } from "./postgresql-tool-provid
 
 export const LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY =
 	"graphrefly-local-container-postgresql-v1" as const;
+export const LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY = "docker-engine-api-v0" as const;
 
 export interface LocalContainerPostgresqlManifest {
 	readonly kind: "local-container-postgresql-manifest";
@@ -28,6 +29,8 @@ export interface LocalContainerPostgresqlManifest {
 	readonly fingerprint: string;
 	readonly imageDigest: string;
 	readonly engineCompatibilityRevision: typeof LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY;
+	readonly backendFamily: typeof LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY;
+	readonly backendCertificationRevision: string;
 	readonly recipeRevision: "postgresql-read-only-query-v1";
 	readonly sandboxRevision: string;
 	readonly mountPolicyRevision: string;
@@ -40,18 +43,38 @@ export interface LocalContainerPostgresqlManifest {
 export interface LocalContainerPostgresqlReadiness {
 	readonly kind: "local-container-postgresql-readiness";
 	readonly manifestFingerprint: string;
+	readonly backendCertificationRevision: string;
 	readonly state: "ready" | "stale" | "unavailable";
 	readonly observedAtMs: number;
 	readonly expiresAtMs: number;
+	readonly backendFamily: typeof LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY;
+	readonly hostPlatform: string;
+	readonly engineApiRevision: string;
+	readonly engineRevision: string;
+	readonly runtimeRevision: string;
+	readonly guestPlatform: string;
+	readonly vmRuntimeRevision?: string;
 	readonly engineReachable: boolean;
 	readonly compatibilityVerified: boolean;
+	readonly backendFamilyVerified: boolean;
+	readonly hostPlatformVerified: boolean;
 	readonly imageDigestPresent: boolean;
 	readonly imageDigestVerified: boolean;
 	readonly recipeVerified: boolean;
 	readonly isolationVerified: boolean;
+	readonly noEngineSocketMountVerified: boolean;
+	readonly noHostNetworkVerified: boolean;
+	readonly noHostBindMountVerified: boolean;
+	readonly destinationPinnedEgressDenyVerified: boolean;
+	readonly metadataEgressDenyVerified: boolean;
+	readonly dnsRebindingResistanceVerified: boolean;
 	readonly quotaReady: boolean;
+	readonly cancellationVerified: boolean;
+	readonly cleanupVerified: boolean;
 	readonly artifactResolverReady: boolean;
 	readonly credentialResolverReady: boolean;
+	readonly secretDestructionVerified: boolean;
+	readonly limitationRefs: readonly SourceRef[];
 	readonly attestationRefs: readonly SourceRef[];
 }
 
@@ -207,6 +230,26 @@ interface Active {
 
 const SAFE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$/;
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
+const PRIVATE_COMPACT_MATERIAL = [
+	"containerid",
+	"engineclient",
+	"hostpath",
+	"mountsource",
+	"secrethandle",
+	"vmid",
+];
+const PRIVATE_TOKEN_MATERIAL = [
+	"client",
+	"credential",
+	"daemon",
+	"endpoint",
+	"handle",
+	"password",
+	"private",
+	"secret",
+	"socket",
+	"token",
+];
 
 export function localContainerPostgresqlManifest(
 	value: LocalContainerPostgresqlManifest,
@@ -222,6 +265,8 @@ export function localContainerPostgresqlManifest(
 				"fingerprint",
 				"imageDigest",
 				"engineCompatibilityRevision",
+				"backendFamily",
+				"backendCertificationRevision",
 				"recipeRevision",
 				"sandboxRevision",
 				"mountPolicyRevision",
@@ -242,10 +287,13 @@ export function localContainerPostgresqlManifest(
 		value.networkPolicyRevision,
 		value.resourcePolicyRevision,
 	])
-		if (!SAFE.test(coordinate)) throw new TypeError("Invalid local-container manifest coordinate.");
+		if (!publicCoordinate(coordinate))
+			throw new TypeError("Invalid local-container manifest coordinate.");
 	if (
 		!DIGEST.test(value.imageDigest) ||
 		value.engineCompatibilityRevision !== LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY ||
+		value.backendFamily !== LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY ||
+		!publicCoordinate(value.backendCertificationRevision) ||
 		value.recipeRevision !== "postgresql-read-only-query-v1" ||
 		!Number.isSafeInteger(value.stopGraceMs) ||
 		value.stopGraceMs < 1 ||
@@ -259,6 +307,8 @@ export function localContainerPostgresqlManifest(
 		fingerprint: value.fingerprint,
 		imageDigest: value.imageDigest,
 		engineCompatibilityRevision: value.engineCompatibilityRevision,
+		backendFamily: value.backendFamily,
+		backendCertificationRevision: value.backendCertificationRevision,
 		recipeRevision: value.recipeRevision,
 		sandboxRevision: value.sandboxRevision,
 		mountPolicyRevision: value.mountPolicyRevision,
@@ -275,12 +325,24 @@ export function localContainerPostgresqlReadiness(
 	if (
 		!plain(value) ||
 		value.kind !== "local-container-postgresql-readiness" ||
-		!SAFE.test(value.manifestFingerprint) ||
+		!publicCoordinate(value.manifestFingerprint) ||
+		!publicCoordinate(value.backendCertificationRevision) ||
 		!["ready", "stale", "unavailable"].includes(value.state) ||
 		!Number.isSafeInteger(value.observedAtMs) ||
 		!Number.isSafeInteger(value.expiresAtMs) ||
 		value.observedAtMs < 0 ||
-		value.expiresAtMs <= value.observedAtMs
+		value.expiresAtMs <= value.observedAtMs ||
+		value.backendFamily !== LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY ||
+		!publicCoordinate(value.hostPlatform) ||
+		!publicCoordinate(value.engineApiRevision) ||
+		!publicCoordinate(value.engineRevision) ||
+		!publicCoordinate(value.runtimeRevision) ||
+		!publicCoordinate(value.guestPlatform) ||
+		!value.guestPlatform.startsWith("linux/") ||
+		!["linux/", "darwin/", "windows/"].some((prefix) => value.hostPlatform.startsWith(prefix)) ||
+		["darwin/", "windows/"].some((prefix) => value.hostPlatform.startsWith(prefix)) !==
+			(value.vmRuntimeRevision !== undefined) ||
+		(value.vmRuntimeRevision !== undefined && !publicCoordinate(value.vmRuntimeRevision))
 	)
 		throw new TypeError("Invalid local-container readiness.");
 	if (
@@ -288,18 +350,38 @@ export function localContainerPostgresqlReadiness(
 			[
 				"kind",
 				"manifestFingerprint",
+				"backendCertificationRevision",
 				"state",
 				"observedAtMs",
 				"expiresAtMs",
+				"backendFamily",
+				"hostPlatform",
+				"engineApiRevision",
+				"engineRevision",
+				"runtimeRevision",
+				"guestPlatform",
+				"vmRuntimeRevision",
 				"engineReachable",
 				"compatibilityVerified",
+				"backendFamilyVerified",
+				"hostPlatformVerified",
 				"imageDigestPresent",
 				"imageDigestVerified",
 				"recipeVerified",
 				"isolationVerified",
+				"noEngineSocketMountVerified",
+				"noHostNetworkVerified",
+				"noHostBindMountVerified",
+				"destinationPinnedEgressDenyVerified",
+				"metadataEgressDenyVerified",
+				"dnsRebindingResistanceVerified",
 				"quotaReady",
+				"cancellationVerified",
+				"cleanupVerified",
 				"artifactResolverReady",
 				"credentialResolverReady",
+				"secretDestructionVerified",
+				"limitationRefs",
 				"attestationRefs",
 			].includes(key),
 		)
@@ -308,31 +390,64 @@ export function localContainerPostgresqlReadiness(
 	for (const field of [
 		"engineReachable",
 		"compatibilityVerified",
+		"backendFamilyVerified",
+		"hostPlatformVerified",
 		"imageDigestPresent",
 		"imageDigestVerified",
 		"recipeVerified",
 		"isolationVerified",
+		"noEngineSocketMountVerified",
+		"noHostNetworkVerified",
+		"noHostBindMountVerified",
+		"destinationPinnedEgressDenyVerified",
+		"metadataEgressDenyVerified",
+		"dnsRebindingResistanceVerified",
 		"quotaReady",
+		"cancellationVerified",
+		"cleanupVerified",
 		"artifactResolverReady",
 		"credentialResolverReady",
+		"secretDestructionVerified",
 	] as const)
 		if (typeof value[field] !== "boolean")
 			throw new TypeError("Invalid local-container readiness proof.");
 	return Object.freeze({
 		kind: value.kind,
 		manifestFingerprint: value.manifestFingerprint,
+		backendCertificationRevision: value.backendCertificationRevision,
 		state: value.state,
 		observedAtMs: value.observedAtMs,
 		expiresAtMs: value.expiresAtMs,
+		backendFamily: value.backendFamily,
+		hostPlatform: value.hostPlatform,
+		engineApiRevision: value.engineApiRevision,
+		engineRevision: value.engineRevision,
+		runtimeRevision: value.runtimeRevision,
+		guestPlatform: value.guestPlatform,
+		...(value.vmRuntimeRevision === undefined
+			? {}
+			: { vmRuntimeRevision: value.vmRuntimeRevision }),
 		engineReachable: value.engineReachable,
 		compatibilityVerified: value.compatibilityVerified,
+		backendFamilyVerified: value.backendFamilyVerified,
+		hostPlatformVerified: value.hostPlatformVerified,
 		imageDigestPresent: value.imageDigestPresent,
 		imageDigestVerified: value.imageDigestVerified,
 		recipeVerified: value.recipeVerified,
 		isolationVerified: value.isolationVerified,
+		noEngineSocketMountVerified: value.noEngineSocketMountVerified,
+		noHostNetworkVerified: value.noHostNetworkVerified,
+		noHostBindMountVerified: value.noHostBindMountVerified,
+		destinationPinnedEgressDenyVerified: value.destinationPinnedEgressDenyVerified,
+		metadataEgressDenyVerified: value.metadataEgressDenyVerified,
+		dnsRebindingResistanceVerified: value.dnsRebindingResistanceVerified,
 		quotaReady: value.quotaReady,
+		cancellationVerified: value.cancellationVerified,
+		cleanupVerified: value.cleanupVerified,
 		artifactResolverReady: value.artifactResolverReady,
 		credentialResolverReady: value.credentialResolverReady,
+		secretDestructionVerified: value.secretDestructionVerified,
+		limitationRefs: refs(value.limitationRefs),
 		attestationRefs: refs(value.attestationRefs),
 	});
 }
@@ -580,22 +695,36 @@ export function localContainerPostgresqlRuntime(
 			!posture ||
 			metadata?.executionEnvironmentLocality !== "local" ||
 			metadata?.executionEnvironmentBindingKind !== "local-container" ||
-			!boundedText(environmentId) ||
-			!boundedText(sessionEpoch) ||
-			!boundedText(environmentRevision) ||
+			!publicCoordinate(environmentId) ||
+			!publicCoordinate(sessionEpoch) ||
+			!publicCoordinate(environmentRevision) ||
+			manifest.backendFamily !== LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY ||
+			posture.backendFamily !== LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY ||
+			posture.backendCertificationRevision !== manifest.backendCertificationRevision ||
 			posture.state !== "ready" ||
 			posture.observedAtMs > (opts.now?.() ?? Date.now()) ||
 			posture.expiresAtMs <= (opts.now?.() ?? Date.now()) ||
 			![
 				posture.engineReachable,
 				posture.compatibilityVerified,
+				posture.backendFamilyVerified,
+				posture.hostPlatformVerified,
 				posture.imageDigestPresent,
 				posture.imageDigestVerified,
 				posture.recipeVerified,
 				posture.isolationVerified,
+				posture.noEngineSocketMountVerified,
+				posture.noHostNetworkVerified,
+				posture.noHostBindMountVerified,
+				posture.destinationPinnedEgressDenyVerified,
+				posture.metadataEgressDenyVerified,
+				posture.dnsRebindingResistanceVerified,
 				posture.quotaReady,
+				posture.cancellationVerified,
+				posture.cleanupVerified,
 				posture.artifactResolverReady,
 				posture.credentialResolverReady,
+				posture.secretDestructionVerified,
 			].every(Boolean)
 		) {
 			emitIssue(
@@ -1044,10 +1173,26 @@ function refs(value: readonly SourceRef[]): readonly SourceRef[] {
 		throw new TypeError("Invalid attestation refs.");
 	return Object.freeze(
 		value.map((ref) => {
-			if (!plain(ref) || !SAFE.test(ref.kind) || !SAFE.test(ref.id) || ref.metadata !== undefined)
+			if (
+				!plain(ref) ||
+				!publicCoordinate(ref.kind) ||
+				!publicCoordinate(ref.id) ||
+				ref.metadata !== undefined
+			)
 				throw new TypeError("Invalid attestation ref.");
 			return Object.freeze({ kind: ref.kind, id: ref.id });
 		}),
+	);
+}
+
+function publicCoordinate(value: unknown): value is string {
+	if (typeof value !== "string" || !SAFE.test(value)) return false;
+	const lower = value.toLowerCase();
+	const compact = lower.replace(/[^a-z0-9]+/g, "");
+	const tokens = lower.split(/[^a-z0-9]+/u).filter(Boolean);
+	return (
+		!PRIVATE_COMPACT_MATERIAL.some((term) => compact.includes(term)) &&
+		!tokens.some((token) => PRIVATE_TOKEN_MATERIAL.includes(token))
 	);
 }
 function plain(value: unknown, seen = new Set<object>()): boolean {

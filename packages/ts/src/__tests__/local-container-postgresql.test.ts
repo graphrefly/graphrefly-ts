@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY,
 	LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY,
 	type LocalContainerPostgresqlCancellationDecision,
 	type LocalContainerPostgresqlCancellationRequested,
@@ -23,6 +24,8 @@ const manifest = (): LocalContainerPostgresqlManifest =>
 		fingerprint: "fingerprint:pg:1",
 		imageDigest: digest,
 		engineCompatibilityRevision: LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY,
+		backendFamily: LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY,
+		backendCertificationRevision: "docker-certification:linux-desktop:v0",
 		recipeRevision: "postgresql-read-only-query-v1",
 		sandboxRevision: "sandbox:1",
 		mountPolicyRevision: "mount:1",
@@ -36,18 +39,41 @@ const readiness = (
 ): LocalContainerPostgresqlReadiness => ({
 	kind: "local-container-postgresql-readiness",
 	manifestFingerprint: "fingerprint:pg:1",
+	backendCertificationRevision: "docker-certification:linux-desktop:v0",
 	state: "ready",
 	observedAtMs: 1,
 	expiresAtMs: 1000,
+	backendFamily: LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY,
+	hostPlatform: "darwin/arm64",
+	engineApiRevision: "docker-api:1.44",
+	engineRevision: "docker-engine:24.0",
+	runtimeRevision: "docker-desktop:4.27",
+	guestPlatform: "linux/arm64",
+	vmRuntimeRevision: "docker-desktop-vm:linuxkit:1",
 	engineReachable: true,
 	compatibilityVerified: true,
+	backendFamilyVerified: true,
+	hostPlatformVerified: true,
 	imageDigestPresent: true,
 	imageDigestVerified: true,
 	recipeVerified: true,
 	isolationVerified: true,
+	noEngineSocketMountVerified: true,
+	noHostNetworkVerified: true,
+	noHostBindMountVerified: true,
+	destinationPinnedEgressDenyVerified: true,
+	metadataEgressDenyVerified: true,
+	dnsRebindingResistanceVerified: true,
 	quotaReady: true,
+	cancellationVerified: true,
+	cleanupVerified: true,
 	artifactResolverReady: true,
 	credentialResolverReady: true,
+	secretDestructionVerified: true,
+	limitationRefs: [
+		{ kind: "limitation", id: "docker-engine-api-v0-only" },
+		{ kind: "limitation", id: "docker-desktop-vm-backed" },
+	],
 	attestationRefs: [{ kind: "attestation", id: "attestation:ready:1" }],
 	...patch,
 });
@@ -114,11 +140,83 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			localContainerPostgresqlManifest({ ...manifest(), imageDigest: "postgres:latest" }),
 		).toThrow();
 		expect(() =>
+			localContainerPostgresqlManifest({ ...manifest(), backendFamily: "podman" } as never),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlManifest({
+				...manifest(),
+				backendCertificationRevision: "docker-socket-/var/run/docker.sock",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlManifest({
+				...manifest(),
+				backendCertificationRevision: "secretHandle:abc",
+			}),
+		).toThrow();
+		expect(() =>
 			localContainerPostgresqlManifest({ ...manifest(), argv: ["private"] } as never),
 		).toThrow(/private|unsupported/);
 		expect(() =>
 			localContainerPostgresqlReadiness({ ...readiness(), credential: "private" } as never),
 		).toThrow(/private|unsupported/);
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				backendFamily: "podman" as never,
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				hostPlatform: "docker-socket-/var/run/docker.sock",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				hostPlatform: "darwin/arm64",
+				vmRuntimeRevision: undefined,
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				hostPlatform: "linux/amd64",
+				vmRuntimeRevision: "docker-desktop-vm:linuxkit:1",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				hostPlatform: "freebsd/amd64",
+				vmRuntimeRevision: "docker-desktop-vm:linuxkit:1",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				guestPlatform: "windows/amd64",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				limitationRefs: [{ kind: "limitation", id: "host-path-var-run-docker-sock" }],
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				limitationRefs: [{ kind: "limitation", id: "handle:abc" }],
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				limitationRefs: [{ kind: "limitation", id: "vm-id:abc" }],
+			}),
+		).toThrow();
 	});
 	it("runs ordered fresh lifecycle, settles only after exactly-once cleanup, and leaks no private material", async () => {
 		const g = graph({ name: "container-success" });
@@ -188,13 +286,24 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		for (const patch of [
 			{ engineReachable: false },
 			{ compatibilityVerified: false },
+			{ backendFamilyVerified: false },
+			{ hostPlatformVerified: false },
 			{ imageDigestPresent: false },
 			{ imageDigestVerified: false },
 			{ recipeVerified: false },
 			{ isolationVerified: false },
+			{ noEngineSocketMountVerified: false },
+			{ noHostNetworkVerified: false },
+			{ noHostBindMountVerified: false },
+			{ destinationPinnedEgressDenyVerified: false },
+			{ metadataEgressDenyVerified: false },
+			{ dnsRebindingResistanceVerified: false },
 			{ quotaReady: false },
+			{ cancellationVerified: false },
+			{ cleanupVerified: false },
 			{ artifactResolverReady: false },
 			{ credentialResolverReady: false },
+			{ secretDestructionVerified: false },
 			{ state: "stale" as const },
 			{ expiresAtMs: 10 },
 			{ observedAtMs: 11 },
@@ -226,6 +335,75 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
 			await runtime.dispose();
 		}
+	});
+
+	it("fails closed before driver preparation when admitted metadata contains private Docker material", async () => {
+		const g = graph();
+		const inputs = g.node([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<LocalContainerPostgresqlManifest>([], null);
+		const postures = g.node<LocalContainerPostgresqlReadiness>([], null);
+		let prepared = 0;
+		const runtime = localContainerPostgresqlRuntime(g, {
+			inputs: inputs as never,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: inertDriver(() => {
+				prepared++;
+			}),
+			now: () => 10,
+		});
+		const issues = collect<{ code: string }>(runtime.issues);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([
+			[
+				"DATA",
+				{
+					...run(),
+					metadata: {
+						...run().metadata,
+						executionEnvironmentId: "docker-socket-var-run",
+					},
+				},
+			],
+		]);
+		await settle();
+		expect(prepared).toBe(0);
+		expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
+		await runtime.dispose();
+	});
+
+	it("fails closed when readiness belongs to a different certified backend revision", async () => {
+		const g = graph();
+		const inputs = g.node([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<LocalContainerPostgresqlManifest>([], null);
+		const postures = g.node<LocalContainerPostgresqlReadiness>([], null);
+		let prepared = 0;
+		const runtime = localContainerPostgresqlRuntime(g, {
+			inputs: inputs as never,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: inertDriver(() => {
+				prepared++;
+			}),
+			now: () => 10,
+		});
+		const issues = collect<{ code: string }>(runtime.issues);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([
+			["DATA", readiness({ backendCertificationRevision: "docker-certification:other:v0" })],
+		]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		expect(prepared).toBe(0);
+		expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
+		await runtime.dispose();
 	});
 
 	it("requires exact cancellation admission and distinguishes acknowledgement from settlement", async () => {
