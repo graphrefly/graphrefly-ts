@@ -18,6 +18,31 @@ import { graph } from "../graph/graph.js";
 import type { ToolProviderAdapterRunRequested } from "../orchestration/index.js";
 
 const digest = `sha256:${"a".repeat(64)}`;
+const d613DockerEngineApiV0ProofRefs = [
+	{ kind: "limitation", id: "docker-engine-api-v0-only" },
+	{ kind: "limitation", id: "digest-pinned-image" },
+	{ kind: "limitation", id: "host-injected-runtime-driver" },
+	{ kind: "limitation", id: "non-root-no-new-privileges" },
+	{ kind: "limitation", id: "read-only-bounded-filesystem" },
+	{ kind: "limitation", id: "cpu-memory-pids-time-bounds" },
+	{ kind: "policy", id: "deny-by-default-isolation" },
+	{ kind: "policy", id: "destination-pinned-egress" },
+	{ kind: "policy", id: "runtime-ephemeral-auth-material-mount" },
+	{ kind: "policy", id: "remove-on-terminal-cleanup" },
+	{ kind: "policy", id: "engine-api-not-mounted" },
+	{ kind: "policy", id: "host-mounts-denied" },
+	{ kind: "policy", id: "metadata-link-local-loopback-host-gateway-denied" },
+	{ kind: "policy", id: "dns-rebinding-resistance" },
+	{ kind: "readiness", id: "local-container-cleanup-removal-verified" },
+	{ kind: "readiness", id: "local-container-cancellation-verified" },
+	{ kind: "readiness", id: "ephemeral-auth-material-destruction-verified" },
+] as const;
+const d613DockerEngineApiV0AttestationRefs = [
+	{ kind: "attestation", id: "docker-engine-api-v0:readiness:1" },
+	{ kind: "attestation", id: "docker-engine-api-v0:containment:1" },
+	{ kind: "attestation", id: "docker-engine-api-v0:network:1" },
+	{ kind: "attestation", id: "docker-engine-api-v0:cancellation-cleanup:1" },
+] as const;
 const manifest = (): LocalContainerPostgresqlManifest =>
 	localContainerPostgresqlManifest({
 		kind: "local-container-postgresql-manifest",
@@ -60,23 +85,27 @@ const readiness = (
 	imageDigestVerified: true,
 	recipeVerified: true,
 	isolationVerified: true,
+	nonRootUserVerified: true,
+	noNewPrivilegesVerified: true,
+	readOnlyRootFilesystemVerified: true,
+	boundedFilesystemImportVerified: true,
 	noEngineSocketMountVerified: true,
 	noHostNetworkVerified: true,
 	noHostBindMountVerified: true,
 	destinationPinnedEgressDenyVerified: true,
 	metadataEgressDenyVerified: true,
+	linkLocalEgressDenyVerified: true,
+	loopbackEgressDenyVerified: true,
+	hostGatewayEgressDenyVerified: true,
 	dnsRebindingResistanceVerified: true,
-	quotaReady: true,
+	cpuMemoryPidsTimeBoundsVerified: true,
 	cancellationVerified: true,
 	cleanupVerified: true,
 	artifactResolverReady: true,
 	credentialResolverReady: true,
 	secretDestructionVerified: true,
-	limitationRefs: [
-		{ kind: "limitation", id: "docker-engine-api-v0-only" },
-		{ kind: "limitation", id: "docker-desktop-vm-backed" },
-	],
-	attestationRefs: [{ kind: "attestation", id: "attestation:ready:1" }],
+	limitationRefs: d613DockerEngineApiV0ProofRefs,
+	attestationRefs: d613DockerEngineApiV0AttestationRefs,
 	...patch,
 });
 const dockerPreflight = (
@@ -101,23 +130,27 @@ const dockerPreflight = (
 	imageDigestVerified: true,
 	recipeVerified: true,
 	isolationVerified: true,
+	nonRootUserVerified: true,
+	noNewPrivilegesVerified: true,
+	readOnlyRootFilesystemVerified: true,
+	boundedFilesystemImportVerified: true,
 	noEngineSocketMountVerified: true,
 	noHostNetworkVerified: true,
 	noHostBindMountVerified: true,
 	destinationPinnedEgressDenyVerified: true,
 	metadataEgressDenyVerified: true,
+	linkLocalEgressDenyVerified: true,
+	loopbackEgressDenyVerified: true,
+	hostGatewayEgressDenyVerified: true,
 	dnsRebindingResistanceVerified: true,
-	quotaReady: true,
+	cpuMemoryPidsTimeBoundsVerified: true,
 	cancellationVerified: true,
 	cleanupVerified: true,
 	artifactResolverReady: true,
 	credentialResolverReady: true,
 	secretDestructionVerified: true,
-	limitationRefs: [
-		{ kind: "limitation", id: "docker-engine-api-v0-only" },
-		{ kind: "limitation", id: "docker-desktop-vm-backed" },
-	],
-	attestationRefs: [{ kind: "attestation", id: "attestation:docker-preflight:1" }],
+	limitationRefs: d613DockerEngineApiV0ProofRefs,
+	attestationRefs: d613DockerEngineApiV0AttestationRefs,
 	...patch,
 });
 const input = () =>
@@ -220,6 +253,73 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		).toThrow(/preflight proof/);
 	});
 
+	it("requires D613 proof refs before Docker Engine API v0 preflight or readiness can be ready", () => {
+		for (const missingRef of d613DockerEngineApiV0ProofRefs) {
+			const limitationRefs = d613DockerEngineApiV0ProofRefs.filter(
+				(ref) => !(ref.kind === missingRef.kind && ref.id === missingRef.id),
+			);
+			expect(
+				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+					dockerPreflight({ limitationRefs }),
+				),
+				`${missingRef.kind}:${missingRef.id}`,
+			).toMatchObject({ state: "unavailable" });
+			expect(() => localContainerPostgresqlReadiness(readiness({ limitationRefs }))).toThrow(
+				/D613 proof refs/,
+			);
+		}
+		for (const missingPrefix of [
+			"docker-engine-api-v0:readiness",
+			"docker-engine-api-v0:containment",
+			"docker-engine-api-v0:network",
+			"docker-engine-api-v0:cancellation-cleanup",
+		]) {
+			const attestationRefs = d613DockerEngineApiV0AttestationRefs.filter(
+				(ref) => !ref.id.startsWith(missingPrefix),
+			);
+			expect(
+				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+					dockerPreflight({ attestationRefs }),
+				),
+				missingPrefix,
+			).toMatchObject({ state: "unavailable" });
+			expect(() => localContainerPostgresqlReadiness(readiness({ attestationRefs }))).toThrow(
+				/D613 proof refs/,
+			);
+		}
+		for (const invalidReadinessAttestation of [
+			"docker-engine-api-v0:readiness:",
+			"docker-engine-api-v0:readiness:   ",
+			"docker-engine-api-v0:readiness:claim with spaces",
+			"docker-engine-api-v0:readiness:claim:extra",
+		]) {
+			const attestationRefs = [
+				{ kind: "attestation", id: invalidReadinessAttestation },
+				{ kind: "attestation", id: "docker-engine-api-v0:containment:1" },
+				{ kind: "attestation", id: "docker-engine-api-v0:network:1" },
+				{ kind: "attestation", id: "docker-engine-api-v0:cancellation-cleanup:1" },
+			] as const;
+			expect(() =>
+				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+					dockerPreflight({ attestationRefs }),
+				),
+			).toThrow(/attestation ref/);
+			expect(() => localContainerPostgresqlReadiness(readiness({ attestationRefs }))).toThrow(
+				/attestation ref/,
+			);
+		}
+		expect(
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+				dockerPreflight({
+					limitationRefs: [
+						...d613DockerEngineApiV0ProofRefs,
+						{ kind: "limitation", id: "docker-desktop-vm-backed" },
+					],
+				}),
+			),
+		).toMatchObject({ state: "ready" });
+	});
+
 	it("rejects mutable image identity and private manifest/readiness material", () => {
 		expect(() =>
 			localContainerPostgresqlManifest({ ...manifest(), imageDigest: "postgres:latest" }),
@@ -231,6 +331,18 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			localContainerPostgresqlManifest({
 				...manifest(),
 				backendCertificationRevision: "docker-socket-/var/run/docker.sock",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlManifest({
+				...manifest(),
+				backendCertificationRevision: "var/run/docker.sock",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlManifest({
+				...manifest(),
+				backendCertificationRevision: "docker.sock",
 			}),
 		).toThrow();
 		expect(() =>
@@ -255,6 +367,24 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			localContainerPostgresqlReadiness({
 				...readiness(),
 				hostPlatform: "docker-socket-/var/run/docker.sock",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				hostPlatform: "linux/var/run/docker.sock",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				engineRevision: "docker.sock",
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness({
+				...dockerPreflight(),
+				hostPlatform: "linux/var/run/docker.sock",
 			}),
 		).toThrow();
 		expect(() =>
@@ -288,6 +418,29 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			localContainerPostgresqlReadiness({
 				...readiness(),
 				limitationRefs: [{ kind: "limitation", id: "host-path-var-run-docker-sock" }],
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				limitationRefs: [{ kind: "limitation", id: "var/run/docker.sock" }],
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				limitationRefs: [{ kind: "limitation", id: "docker.sock" }],
+			}),
+		).toThrow();
+		expect(() =>
+			localContainerPostgresqlReadiness({
+				...readiness(),
+				attestationRefs: [
+					{ kind: "attestation", id: "docker-engine-api-v0:readiness:docker.sock" },
+					{ kind: "attestation", id: "docker-engine-api-v0:containment:1" },
+					{ kind: "attestation", id: "docker-engine-api-v0:network:1" },
+					{ kind: "attestation", id: "docker-engine-api-v0:cancellation-cleanup:1" },
+				],
 			}),
 		).toThrow();
 		expect(() =>
@@ -367,6 +520,48 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		expect(calls.filter((v) => v === "remove")).toHaveLength(1);
 	});
 
+	it("rejects private Docker socket material in driver result refs before visible movement", async () => {
+		const g = graph({ name: "container-private-result-ref" });
+		const inputs = g.node([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<LocalContainerPostgresqlManifest>([], null);
+		const postures = g.node<LocalContainerPostgresqlReadiness>([], null);
+		const driver: LocalContainerPostgresqlDriver = {
+			...inertDriver(),
+			wait() {
+				return {
+					columns: ["id"],
+					rows: [[1]],
+					resultRef: { kind: "artifact", id: "var/run/docker.sock" },
+				};
+			},
+		};
+		const runtime = localContainerPostgresqlRuntime(g, {
+			inputs: inputs as never,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver,
+			now: () => 10,
+		});
+		const outcomes = collect<{ kind: string; error?: { code: string } }>(runtime.outcomes);
+		const movement = collect<{ artifactRefs?: readonly unknown[] }>(runtime.movement);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "failure",
+				error: expect.objectContaining({ code: "local-container-execution-failed" }),
+			}),
+		]);
+		expect(movement).toEqual([expect.not.objectContaining({ artifactRefs: expect.anything() })]);
+		expect(JSON.stringify({ outcomes, movement })).not.toContain("docker.sock");
+		await runtime.dispose();
+	});
+
 	it("fails closed before driver preparation when digest readiness is missing or stale", async () => {
 		for (const patch of [
 			{ engineReachable: false },
@@ -377,13 +572,20 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			{ imageDigestVerified: false },
 			{ recipeVerified: false },
 			{ isolationVerified: false },
+			{ nonRootUserVerified: false },
+			{ noNewPrivilegesVerified: false },
+			{ readOnlyRootFilesystemVerified: false },
+			{ boundedFilesystemImportVerified: false },
 			{ noEngineSocketMountVerified: false },
 			{ noHostNetworkVerified: false },
 			{ noHostBindMountVerified: false },
 			{ destinationPinnedEgressDenyVerified: false },
 			{ metadataEgressDenyVerified: false },
+			{ linkLocalEgressDenyVerified: false },
+			{ loopbackEgressDenyVerified: false },
+			{ hostGatewayEgressDenyVerified: false },
 			{ dnsRebindingResistanceVerified: false },
-			{ quotaReady: false },
+			{ cpuMemoryPidsTimeBoundsVerified: false },
 			{ cancellationVerified: false },
 			{ cleanupVerified: false },
 			{ artifactResolverReady: false },

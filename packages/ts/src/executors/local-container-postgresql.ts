@@ -62,13 +62,20 @@ export interface LocalContainerPostgresqlReadiness {
 	readonly imageDigestVerified: boolean;
 	readonly recipeVerified: boolean;
 	readonly isolationVerified: boolean;
+	readonly nonRootUserVerified: boolean;
+	readonly noNewPrivilegesVerified: boolean;
+	readonly readOnlyRootFilesystemVerified: boolean;
+	readonly boundedFilesystemImportVerified: boolean;
 	readonly noEngineSocketMountVerified: boolean;
 	readonly noHostNetworkVerified: boolean;
 	readonly noHostBindMountVerified: boolean;
 	readonly destinationPinnedEgressDenyVerified: boolean;
 	readonly metadataEgressDenyVerified: boolean;
+	readonly linkLocalEgressDenyVerified: boolean;
+	readonly loopbackEgressDenyVerified: boolean;
+	readonly hostGatewayEgressDenyVerified: boolean;
 	readonly dnsRebindingResistanceVerified: boolean;
-	readonly quotaReady: boolean;
+	readonly cpuMemoryPidsTimeBoundsVerified: boolean;
 	readonly cancellationVerified: boolean;
 	readonly cleanupVerified: boolean;
 	readonly artifactResolverReady: boolean;
@@ -98,13 +105,20 @@ export interface LocalContainerPostgresqlDockerEngineApiV0Preflight {
 	readonly imageDigestVerified: boolean;
 	readonly recipeVerified: boolean;
 	readonly isolationVerified: boolean;
+	readonly nonRootUserVerified: boolean;
+	readonly noNewPrivilegesVerified: boolean;
+	readonly readOnlyRootFilesystemVerified: boolean;
+	readonly boundedFilesystemImportVerified: boolean;
 	readonly noEngineSocketMountVerified: boolean;
 	readonly noHostNetworkVerified: boolean;
 	readonly noHostBindMountVerified: boolean;
 	readonly destinationPinnedEgressDenyVerified: boolean;
 	readonly metadataEgressDenyVerified: boolean;
+	readonly linkLocalEgressDenyVerified: boolean;
+	readonly loopbackEgressDenyVerified: boolean;
+	readonly hostGatewayEgressDenyVerified: boolean;
 	readonly dnsRebindingResistanceVerified: boolean;
-	readonly quotaReady: boolean;
+	readonly cpuMemoryPidsTimeBoundsVerified: boolean;
 	readonly cancellationVerified: boolean;
 	readonly cleanupVerified: boolean;
 	readonly artifactResolverReady: boolean;
@@ -268,6 +282,7 @@ const SAFE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$/;
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
 const PRIVATE_COMPACT_MATERIAL = [
 	"containerid",
+	"dockersock",
 	"engineclient",
 	"hostpath",
 	"mountsource",
@@ -283,9 +298,36 @@ const PRIVATE_TOKEN_MATERIAL = [
 	"password",
 	"private",
 	"secret",
+	"sock",
 	"socket",
 	"token",
 ];
+const D613_DOCKER_ENGINE_API_V0_PROOF_REFS = Object.freeze([
+	{ kind: "limitation", id: "docker-engine-api-v0-only" },
+	{ kind: "limitation", id: "digest-pinned-image" },
+	{ kind: "limitation", id: "host-injected-runtime-driver" },
+	{ kind: "limitation", id: "non-root-no-new-privileges" },
+	{ kind: "limitation", id: "read-only-bounded-filesystem" },
+	{ kind: "limitation", id: "cpu-memory-pids-time-bounds" },
+	{ kind: "policy", id: "deny-by-default-isolation" },
+	{ kind: "policy", id: "destination-pinned-egress" },
+	{ kind: "policy", id: "runtime-ephemeral-auth-material-mount" },
+	{ kind: "policy", id: "remove-on-terminal-cleanup" },
+	{ kind: "policy", id: "engine-api-not-mounted" },
+	{ kind: "policy", id: "host-mounts-denied" },
+	{ kind: "policy", id: "metadata-link-local-loopback-host-gateway-denied" },
+	{ kind: "policy", id: "dns-rebinding-resistance" },
+	{ kind: "readiness", id: "local-container-cleanup-removal-verified" },
+	{ kind: "readiness", id: "local-container-cancellation-verified" },
+	{ kind: "readiness", id: "ephemeral-auth-material-destruction-verified" },
+]);
+const D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES = Object.freeze([
+	"docker-engine-api-v0:readiness",
+	"docker-engine-api-v0:containment",
+	"docker-engine-api-v0:network",
+	"docker-engine-api-v0:cancellation-cleanup",
+]);
+const BOUNDED_ATTESTATION_EVIDENCE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export function localContainerPostgresqlManifest(
 	value: LocalContainerPostgresqlManifest,
@@ -405,13 +447,20 @@ export function localContainerPostgresqlReadiness(
 				"imageDigestVerified",
 				"recipeVerified",
 				"isolationVerified",
+				"nonRootUserVerified",
+				"noNewPrivilegesVerified",
+				"readOnlyRootFilesystemVerified",
+				"boundedFilesystemImportVerified",
 				"noEngineSocketMountVerified",
 				"noHostNetworkVerified",
 				"noHostBindMountVerified",
 				"destinationPinnedEgressDenyVerified",
 				"metadataEgressDenyVerified",
+				"linkLocalEgressDenyVerified",
+				"loopbackEgressDenyVerified",
+				"hostGatewayEgressDenyVerified",
 				"dnsRebindingResistanceVerified",
-				"quotaReady",
+				"cpuMemoryPidsTimeBoundsVerified",
 				"cancellationVerified",
 				"cleanupVerified",
 				"artifactResolverReady",
@@ -432,13 +481,20 @@ export function localContainerPostgresqlReadiness(
 		"imageDigestVerified",
 		"recipeVerified",
 		"isolationVerified",
+		"nonRootUserVerified",
+		"noNewPrivilegesVerified",
+		"readOnlyRootFilesystemVerified",
+		"boundedFilesystemImportVerified",
 		"noEngineSocketMountVerified",
 		"noHostNetworkVerified",
 		"noHostBindMountVerified",
 		"destinationPinnedEgressDenyVerified",
 		"metadataEgressDenyVerified",
+		"linkLocalEgressDenyVerified",
+		"loopbackEgressDenyVerified",
+		"hostGatewayEgressDenyVerified",
 		"dnsRebindingResistanceVerified",
-		"quotaReady",
+		"cpuMemoryPidsTimeBoundsVerified",
 		"cancellationVerified",
 		"cleanupVerified",
 		"artifactResolverReady",
@@ -447,6 +503,47 @@ export function localContainerPostgresqlReadiness(
 	] as const)
 		if (typeof value[field] !== "boolean")
 			throw new TypeError("Invalid local-container readiness proof.");
+	const allReadyProofsVerified =
+		value.engineReachable &&
+		value.compatibilityVerified &&
+		value.backendFamilyVerified &&
+		value.hostPlatformVerified &&
+		value.imageDigestPresent &&
+		value.imageDigestVerified &&
+		value.recipeVerified &&
+		value.isolationVerified &&
+		value.nonRootUserVerified &&
+		value.noNewPrivilegesVerified &&
+		value.readOnlyRootFilesystemVerified &&
+		value.boundedFilesystemImportVerified &&
+		value.noEngineSocketMountVerified &&
+		value.noHostNetworkVerified &&
+		value.noHostBindMountVerified &&
+		value.destinationPinnedEgressDenyVerified &&
+		value.metadataEgressDenyVerified &&
+		value.linkLocalEgressDenyVerified &&
+		value.loopbackEgressDenyVerified &&
+		value.hostGatewayEgressDenyVerified &&
+		value.dnsRebindingResistanceVerified &&
+		value.cpuMemoryPidsTimeBoundsVerified &&
+		value.cancellationVerified &&
+		value.cleanupVerified &&
+		value.artifactResolverReady &&
+		value.credentialResolverReady &&
+		value.secretDestructionVerified;
+	if (value.state === "ready" && !allReadyProofsVerified)
+		throw new TypeError("Ready local-container readiness lacks D613 proof booleans.");
+	const limitationRefs = refs(value.limitationRefs);
+	const attestationRefs = refs(value.attestationRefs);
+	if (
+		value.state === "ready" &&
+		(!includesEveryRef(limitationRefs, D613_DOCKER_ENGINE_API_V0_PROOF_REFS) ||
+			!includesEveryAttestationPrefix(
+				attestationRefs,
+				D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES,
+			))
+	)
+		throw new TypeError("Ready local-container readiness lacks D613 proof refs.");
 	return Object.freeze({
 		kind: value.kind,
 		manifestFingerprint: value.manifestFingerprint,
@@ -471,20 +568,27 @@ export function localContainerPostgresqlReadiness(
 		imageDigestVerified: value.imageDigestVerified,
 		recipeVerified: value.recipeVerified,
 		isolationVerified: value.isolationVerified,
+		nonRootUserVerified: value.nonRootUserVerified,
+		noNewPrivilegesVerified: value.noNewPrivilegesVerified,
+		readOnlyRootFilesystemVerified: value.readOnlyRootFilesystemVerified,
+		boundedFilesystemImportVerified: value.boundedFilesystemImportVerified,
 		noEngineSocketMountVerified: value.noEngineSocketMountVerified,
 		noHostNetworkVerified: value.noHostNetworkVerified,
 		noHostBindMountVerified: value.noHostBindMountVerified,
 		destinationPinnedEgressDenyVerified: value.destinationPinnedEgressDenyVerified,
 		metadataEgressDenyVerified: value.metadataEgressDenyVerified,
+		linkLocalEgressDenyVerified: value.linkLocalEgressDenyVerified,
+		loopbackEgressDenyVerified: value.loopbackEgressDenyVerified,
+		hostGatewayEgressDenyVerified: value.hostGatewayEgressDenyVerified,
 		dnsRebindingResistanceVerified: value.dnsRebindingResistanceVerified,
-		quotaReady: value.quotaReady,
+		cpuMemoryPidsTimeBoundsVerified: value.cpuMemoryPidsTimeBoundsVerified,
 		cancellationVerified: value.cancellationVerified,
 		cleanupVerified: value.cleanupVerified,
 		artifactResolverReady: value.artifactResolverReady,
 		credentialResolverReady: value.credentialResolverReady,
 		secretDestructionVerified: value.secretDestructionVerified,
-		limitationRefs: refs(value.limitationRefs),
-		attestationRefs: refs(value.attestationRefs),
+		limitationRefs,
+		attestationRefs,
 	});
 }
 
@@ -516,13 +620,20 @@ export function localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
 				"imageDigestVerified",
 				"recipeVerified",
 				"isolationVerified",
+				"nonRootUserVerified",
+				"noNewPrivilegesVerified",
+				"readOnlyRootFilesystemVerified",
+				"boundedFilesystemImportVerified",
 				"noEngineSocketMountVerified",
 				"noHostNetworkVerified",
 				"noHostBindMountVerified",
 				"destinationPinnedEgressDenyVerified",
 				"metadataEgressDenyVerified",
+				"linkLocalEgressDenyVerified",
+				"loopbackEgressDenyVerified",
+				"hostGatewayEgressDenyVerified",
 				"dnsRebindingResistanceVerified",
-				"quotaReady",
+				"cpuMemoryPidsTimeBoundsVerified",
 				"cancellationVerified",
 				"cleanupVerified",
 				"artifactResolverReady",
@@ -542,13 +653,20 @@ export function localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
 		"imageDigestVerified",
 		"recipeVerified",
 		"isolationVerified",
+		"nonRootUserVerified",
+		"noNewPrivilegesVerified",
+		"readOnlyRootFilesystemVerified",
+		"boundedFilesystemImportVerified",
 		"noEngineSocketMountVerified",
 		"noHostNetworkVerified",
 		"noHostBindMountVerified",
 		"destinationPinnedEgressDenyVerified",
 		"metadataEgressDenyVerified",
+		"linkLocalEgressDenyVerified",
+		"loopbackEgressDenyVerified",
+		"hostGatewayEgressDenyVerified",
 		"dnsRebindingResistanceVerified",
-		"quotaReady",
+		"cpuMemoryPidsTimeBoundsVerified",
 		"cancellationVerified",
 		"cleanupVerified",
 		"artifactResolverReady",
@@ -558,6 +676,14 @@ export function localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
 		if (typeof value[field] !== "boolean")
 			throw new TypeError("Invalid Docker Engine API v0 preflight proof.");
 	const backendVerified = value.detectedBackend === "docker-engine";
+	const preflightRefs = refs(value.limitationRefs);
+	const preflightAttestationRefs = refs(value.attestationRefs);
+	const allRequiredProofRefsPresent =
+		includesEveryRef(preflightRefs, D613_DOCKER_ENGINE_API_V0_PROOF_REFS) &&
+		includesEveryAttestationPrefix(
+			preflightAttestationRefs,
+			D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES,
+		);
 	const allRequiredProofsVerified =
 		value.engineReachable &&
 		value.compatibilityVerified &&
@@ -566,24 +692,31 @@ export function localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
 		value.imageDigestVerified &&
 		value.recipeVerified &&
 		value.isolationVerified &&
+		value.nonRootUserVerified &&
+		value.noNewPrivilegesVerified &&
+		value.readOnlyRootFilesystemVerified &&
+		value.boundedFilesystemImportVerified &&
 		value.noEngineSocketMountVerified &&
 		value.noHostNetworkVerified &&
 		value.noHostBindMountVerified &&
 		value.destinationPinnedEgressDenyVerified &&
 		value.metadataEgressDenyVerified &&
+		value.linkLocalEgressDenyVerified &&
+		value.loopbackEgressDenyVerified &&
+		value.hostGatewayEgressDenyVerified &&
 		value.dnsRebindingResistanceVerified &&
-		value.quotaReady &&
+		value.cpuMemoryPidsTimeBoundsVerified &&
 		value.cancellationVerified &&
 		value.cleanupVerified &&
 		value.artifactResolverReady &&
 		value.credentialResolverReady &&
 		value.secretDestructionVerified;
-	const ready = backendVerified && allRequiredProofsVerified;
+	const ready = backendVerified && allRequiredProofsVerified && allRequiredProofRefsPresent;
 	const limitationRefs =
 		value.detectedBackend === "docker-engine"
-			? value.limitationRefs
+			? preflightRefs
 			: [
-					...value.limitationRefs,
+					...preflightRefs,
 					{
 						kind: "limitation",
 						id: `unsupported-${value.detectedBackend}-backend`,
@@ -613,21 +746,28 @@ export function localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
 		imageDigestVerified: value.imageDigestVerified && backendVerified,
 		recipeVerified: value.recipeVerified && backendVerified,
 		isolationVerified: value.isolationVerified && backendVerified,
+		nonRootUserVerified: value.nonRootUserVerified && backendVerified,
+		noNewPrivilegesVerified: value.noNewPrivilegesVerified && backendVerified,
+		readOnlyRootFilesystemVerified: value.readOnlyRootFilesystemVerified && backendVerified,
+		boundedFilesystemImportVerified: value.boundedFilesystemImportVerified && backendVerified,
 		noEngineSocketMountVerified: value.noEngineSocketMountVerified && backendVerified,
 		noHostNetworkVerified: value.noHostNetworkVerified && backendVerified,
 		noHostBindMountVerified: value.noHostBindMountVerified && backendVerified,
 		destinationPinnedEgressDenyVerified:
 			value.destinationPinnedEgressDenyVerified && backendVerified,
 		metadataEgressDenyVerified: value.metadataEgressDenyVerified && backendVerified,
+		linkLocalEgressDenyVerified: value.linkLocalEgressDenyVerified && backendVerified,
+		loopbackEgressDenyVerified: value.loopbackEgressDenyVerified && backendVerified,
+		hostGatewayEgressDenyVerified: value.hostGatewayEgressDenyVerified && backendVerified,
 		dnsRebindingResistanceVerified: value.dnsRebindingResistanceVerified && backendVerified,
-		quotaReady: value.quotaReady && backendVerified,
+		cpuMemoryPidsTimeBoundsVerified: value.cpuMemoryPidsTimeBoundsVerified && backendVerified,
 		cancellationVerified: value.cancellationVerified && backendVerified,
 		cleanupVerified: value.cleanupVerified && backendVerified,
 		artifactResolverReady: value.artifactResolverReady && backendVerified,
 		credentialResolverReady: value.credentialResolverReady && backendVerified,
 		secretDestructionVerified: value.secretDestructionVerified && backendVerified,
 		limitationRefs,
-		attestationRefs: value.attestationRefs,
+		attestationRefs: preflightAttestationRefs,
 	});
 }
 
@@ -892,13 +1032,20 @@ export function localContainerPostgresqlRuntime(
 				posture.imageDigestVerified,
 				posture.recipeVerified,
 				posture.isolationVerified,
+				posture.nonRootUserVerified,
+				posture.noNewPrivilegesVerified,
+				posture.readOnlyRootFilesystemVerified,
+				posture.boundedFilesystemImportVerified,
 				posture.noEngineSocketMountVerified,
 				posture.noHostNetworkVerified,
 				posture.noHostBindMountVerified,
 				posture.destinationPinnedEgressDenyVerified,
 				posture.metadataEgressDenyVerified,
+				posture.linkLocalEgressDenyVerified,
+				posture.loopbackEgressDenyVerified,
+				posture.hostGatewayEgressDenyVerified,
 				posture.dnsRebindingResistanceVerified,
-				posture.quotaReady,
+				posture.cpuMemoryPidsTimeBoundsVerified,
 				posture.cancellationVerified,
 				posture.cleanupVerified,
 				posture.artifactResolverReady,
@@ -1355,12 +1502,52 @@ function refs(value: readonly SourceRef[]): readonly SourceRef[] {
 			if (
 				!plain(ref) ||
 				!publicCoordinate(ref.kind) ||
-				!publicCoordinate(ref.id) ||
+				!publicSourceRefId(ref) ||
 				ref.metadata !== undefined
 			)
 				throw new TypeError("Invalid attestation ref.");
 			return Object.freeze({ kind: ref.kind, id: ref.id });
 		}),
+	);
+}
+
+function includesEveryRef(refs: readonly SourceRef[], required: readonly SourceRef[]): boolean {
+	return required.every((requiredRef) =>
+		refs.some((ref) => ref.kind === requiredRef.kind && ref.id === requiredRef.id),
+	);
+}
+
+function includesEveryAttestationPrefix(
+	refs: readonly SourceRef[],
+	required: readonly string[],
+): boolean {
+	return required.every((prefix) =>
+		refs.some((ref) => {
+			const refPrefix = `${prefix}:`;
+			if (ref.kind !== "attestation" || !ref.id.startsWith(refPrefix)) return false;
+			return BOUNDED_ATTESTATION_EVIDENCE_SEGMENT.test(ref.id.slice(refPrefix.length));
+		}),
+	);
+}
+
+function publicSourceRefId(ref: SourceRef): boolean {
+	if (ref.kind === "attestation" && typeof ref.id === "string") {
+		for (const prefix of D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES) {
+			const refPrefix = `${prefix}:`;
+			if (ref.id.startsWith(refPrefix)) {
+				return (
+					BOUNDED_ATTESTATION_EVIDENCE_SEGMENT.test(ref.id.slice(refPrefix.length)) &&
+					publicCoordinate(ref.id)
+				);
+			}
+		}
+		return publicCoordinate(ref.id);
+	}
+	return (
+		publicCoordinate(ref.id) ||
+		D613_DOCKER_ENGINE_API_V0_PROOF_REFS.some(
+			(required) => ref.kind === required.kind && ref.id === required.id,
+		)
 	);
 }
 
