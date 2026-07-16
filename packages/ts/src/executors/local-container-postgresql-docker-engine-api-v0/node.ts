@@ -686,8 +686,15 @@ function dockerRequest(
 ): Promise<
 	{ readonly ok: true; readonly statusCode: number; readonly body: string } | { readonly ok: false }
 > {
+	if (signal?.aborted) return Promise.resolve({ ok: false });
 	return new Promise((resolve) => {
 		let settled = false;
+		let req: ReturnType<typeof httpRequest>;
+		let timer: ReturnType<typeof setTimeout>;
+		const onAbort = () => {
+			req.destroy();
+			finish({ ok: false });
+		};
 		const finish = (
 			value:
 				| { readonly ok: true; readonly statusCode: number; readonly body: string }
@@ -696,10 +703,11 @@ function dockerRequest(
 			if (settled) return;
 			settled = true;
 			clearTimeout(timer);
+			signal?.removeEventListener("abort", onAbort);
 			resolve(value);
 		};
 		const payload = body === undefined ? undefined : JSON.stringify(body);
-		const req = httpRequest(
+		req = httpRequest(
 			{
 				method,
 				path,
@@ -735,10 +743,11 @@ function dockerRequest(
 				);
 			},
 		);
-		const timer = setTimeout(() => {
+		timer = setTimeout(() => {
 			req.destroy();
 			finish({ ok: false });
 		}, http.requestTimeoutMs);
+		signal?.addEventListener("abort", onAbort, { once: true });
 		req.on("error", () => finish({ ok: false }));
 		if (payload !== undefined) req.write(payload);
 		req.end();

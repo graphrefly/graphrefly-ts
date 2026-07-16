@@ -190,6 +190,62 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("padding");
 	});
 
+	it("fails closed without a Docker request when the signal is already aborted", async () => {
+		const docker = installDockerApiMock();
+		const controller = new AbortController();
+		controller.abort();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				signal: controller.signal,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			engineReachable: false,
+		});
+		expect(docker.calls).toEqual([]);
+	});
+
+	it("fails closed when the Docker version request times out", async () => {
+		const docker = installDockerApiMock({ hangPath: "/version" });
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				requestTimeoutMs: 1,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			engineReachable: false,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /version"]);
+	});
+
 	it("fails closed and removes allocated network when Docker create returns non-object JSON", async () => {
 		const docker = installDockerApiMock({ rawCreateContainerBody: '"/var/run/docker.sock"' });
 		const mod = await import(
@@ -257,6 +313,78 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 			]),
 		);
 		expect(JSON.stringify(preflight)).not.toContain("padding");
+	});
+
+	it("cleans allocated probe resources when Docker wait request times out", async () => {
+		const docker = installDockerApiMock({ hangPath: `/containers/${containerId}/wait` });
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				requestTimeoutMs: 1,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`POST /containers/${containerId}/wait`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+	});
+
+	it("cleans allocated probe resources when the signal aborts during Docker wait", async () => {
+		const controller = new AbortController();
+		const docker = installDockerApiMock({
+			abortPath: `POST /containers/${containerId}/wait`,
+			abortController: controller,
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				signal: controller.signal,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`POST /containers/${containerId}/wait`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		const cleanupCalls = docker.calls.filter((c) => c.method === "DELETE");
+		expect(cleanupCalls.map((c) => c.hasSignal)).toEqual([false, false]);
 	});
 
 	it("fails closed without substituting invalid cleanup targets when Docker returns unsafe IDs", async () => {
@@ -664,6 +792,9 @@ function installDockerApiMock(
 		readonly rawVersionBody?: string;
 		readonly rawCreateContainerBody?: string;
 		readonly rawWaitBody?: string;
+		readonly hangPath?: string;
+		readonly abortPath?: string;
+		readonly abortController?: AbortController;
 		readonly startStatus?: number;
 		readonly waitStatusCode?: number;
 		readonly deleteContainerStatus?: number;
@@ -675,16 +806,24 @@ function installDockerApiMock(
 		readonly method: string;
 		readonly path: string;
 		readonly socketPath?: string;
+		readonly hasSignal: boolean;
 		readonly body: string;
 	}>;
 } {
-	const calls: Array<{ method: string; path: string; socketPath?: string; body: string }> = [];
+	const calls: Array<{
+		method: string;
+		path: string;
+		socketPath?: string;
+		hasSignal: boolean;
+		body: string;
+	}> = [];
 	vi.doMock("node:http", () => ({
 		request(
 			requestOptions: {
 				readonly method?: string;
 				readonly path?: string;
 				readonly socketPath?: string;
+				readonly signal?: AbortSignal;
 			},
 			callback: (res: EventEmitter & { statusCode?: number }) => void,
 		) {
@@ -701,7 +840,19 @@ function installDockerApiMock(
 			req.end = () => {
 				const method = requestOptions.method ?? "GET";
 				const path = requestOptions.path ?? "/";
-				calls.push({ method, path, socketPath: requestOptions.socketPath, body });
+				calls.push({
+					method,
+					path,
+					socketPath: requestOptions.socketPath,
+					hasSignal: requestOptions.signal !== undefined,
+					body,
+				});
+				if (opts.abortPath === `${method} ${path}`) {
+					opts.abortController?.abort();
+					req.emit("error", new Error("aborted"));
+					return;
+				}
+				if (opts.hangPath === path) return;
 				const response = route(method, path, opts);
 				const res = new EventEmitter() as EventEmitter & { statusCode?: number };
 				res.statusCode = response.status;
@@ -725,6 +876,9 @@ function route(
 		readonly rawVersionBody?: string;
 		readonly rawCreateContainerBody?: string;
 		readonly rawWaitBody?: string;
+		readonly hangPath?: string;
+		readonly abortPath?: string;
+		readonly abortController?: AbortController;
 		readonly startStatus?: number;
 		readonly waitStatusCode?: number;
 		readonly deleteContainerStatus?: number;
