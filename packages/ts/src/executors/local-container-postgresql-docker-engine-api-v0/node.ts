@@ -74,6 +74,9 @@ interface DockerProbeNetworkRequest {
 
 interface DockerProbeNetworkRequestPolicy {
 	readonly internalNetworkRequested: boolean;
+	readonly noAttachableNetworkRequested: boolean;
+	readonly noIngressNetworkRequested: boolean;
+	readonly noIpv6NetworkRequested: boolean;
 }
 
 interface DockerProbeContainerPublicHandle {
@@ -405,6 +408,9 @@ function probeNetworkCreateRequest(
 		body,
 		policy: Object.freeze({
 			internalNetworkRequested: body.Internal === true,
+			noAttachableNetworkRequested: body.Attachable === false,
+			noIngressNetworkRequested: body.Ingress === false,
+			noIpv6NetworkRequested: body.EnableIPv6 === false,
 		}),
 	};
 }
@@ -535,6 +541,7 @@ if (process.env.VITEST !== undefined) {
 		{
 			value: Object.freeze({
 				boundContainmentEvidenceToProbeRequest,
+				boundNetworkEvidenceToProbeRequest,
 			}),
 		},
 	);
@@ -562,14 +569,21 @@ function boundNetworkEvidenceToProbeRequest(
 	value: DockerEngineApiV0NetworkDenialEvidence,
 	policy: DockerProbeNetworkRequestPolicy,
 ): DockerEngineApiV0NetworkDenialEvidence {
+	const denyByDefaultNetworkRequested =
+		policy.internalNetworkRequested &&
+		policy.noAttachableNetworkRequested &&
+		policy.noIngressNetworkRequested &&
+		policy.noIpv6NetworkRequested;
 	return {
 		destinationPinnedEgressDenyVerified:
-			value.destinationPinnedEgressDenyVerified && policy.internalNetworkRequested,
-		metadataEgressDenyVerified: value.metadataEgressDenyVerified,
-		linkLocalEgressDenyVerified: value.linkLocalEgressDenyVerified,
-		loopbackEgressDenyVerified: value.loopbackEgressDenyVerified,
-		hostGatewayEgressDenyVerified: value.hostGatewayEgressDenyVerified,
-		dnsRebindingResistanceVerified: value.dnsRebindingResistanceVerified,
+			value.destinationPinnedEgressDenyVerified && denyByDefaultNetworkRequested,
+		metadataEgressDenyVerified: value.metadataEgressDenyVerified && denyByDefaultNetworkRequested,
+		linkLocalEgressDenyVerified: value.linkLocalEgressDenyVerified && denyByDefaultNetworkRequested,
+		loopbackEgressDenyVerified: value.loopbackEgressDenyVerified && denyByDefaultNetworkRequested,
+		hostGatewayEgressDenyVerified:
+			value.hostGatewayEgressDenyVerified && denyByDefaultNetworkRequested,
+		dnsRebindingResistanceVerified:
+			value.dnsRebindingResistanceVerified && denyByDefaultNetworkRequested,
 	};
 }
 

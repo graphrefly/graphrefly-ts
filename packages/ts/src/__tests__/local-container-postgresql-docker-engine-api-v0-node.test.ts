@@ -26,8 +26,19 @@ interface NodeLocalDockerTestHooksModule {
 				value: DockerEngineApiV0ContainmentEvidence,
 				policy: DockerProbeContainerRequestPolicyForTest,
 			) => DockerEngineApiV0ContainmentEvidence;
+			readonly boundNetworkEvidenceToProbeRequest: (
+				value: DockerEngineApiV0NetworkDenialEvidence,
+				policy: DockerProbeNetworkRequestPolicyForTest,
+			) => DockerEngineApiV0NetworkDenialEvidence;
 		};
 	};
+}
+
+interface DockerProbeNetworkRequestPolicyForTest {
+	readonly internalNetworkRequested: boolean;
+	readonly noAttachableNetworkRequested: boolean;
+	readonly noIngressNetworkRequested: boolean;
+	readonly noIpv6NetworkRequested: boolean;
 }
 
 interface DockerProbeContainerRequestPolicyForTest {
@@ -150,6 +161,34 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 				noPortPublicationRequested: false,
 			}).isolationVerified,
 		).toBe(false);
+	});
+
+	it("binds network request policy into every network-denial evidence field", async () => {
+		const mod = (await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		)) as unknown as NodeLocalDockerTestHooksModule;
+		const bind =
+			mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker.__graphreflyTestHooks
+				.boundNetworkEvidenceToProbeRequest;
+		const policy = fullNetworkRequestPolicyForTest();
+
+		expect(bind(networkDenialEvidence(), policy)).toEqual(networkDenialEvidence());
+		for (const [policyField, evidenceField] of [
+			["internalNetworkRequested", "destinationPinnedEgressDenyVerified"],
+			["noAttachableNetworkRequested", "metadataEgressDenyVerified"],
+			["noIngressNetworkRequested", "linkLocalEgressDenyVerified"],
+			["noIpv6NetworkRequested", "dnsRebindingResistanceVerified"],
+		] as const) {
+			const bounded = bind(networkDenialEvidence(), {
+				...policy,
+				[policyField]: false,
+			});
+			expect(bounded[evidenceField], policyField).toBe(false);
+			expect(
+				Object.values(bounded).every((value) => value === false),
+				policyField,
+			).toBe(true);
+		}
 	});
 
 	it("fails closed and removes allocated network when Docker create is not accepted", async () => {
@@ -1147,6 +1186,15 @@ function containmentEvidence(
 		cpuMemoryPidsTimeBoundsVerified: true,
 		...patch,
 	} as DockerEngineApiV0ContainmentEvidence;
+}
+
+function fullNetworkRequestPolicyForTest(): DockerProbeNetworkRequestPolicyForTest {
+	return {
+		internalNetworkRequested: true,
+		noAttachableNetworkRequested: true,
+		noIngressNetworkRequested: true,
+		noIpv6NetworkRequested: true,
+	};
 }
 
 function fullContainerRequestPolicyForTest(): DockerProbeContainerRequestPolicyForTest {
