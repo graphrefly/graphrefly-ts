@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.2.1
+
+### Patch Changes
+
+- Add the focused ClickHouse trusted-query evaluation subpath for D610-aligned campaign and scenario result contracts.
+
 ## 0.2.0
 
 ### Minor Changes
