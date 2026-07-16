@@ -974,8 +974,24 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			typeof clickHouseTrustedQueryEvaluation.createClickHouseTrustedQueryCampaignRevision,
 		).toBe("function");
+		expect(typeof clickHouseTrustedQueryEvaluation.createClickHouseTrustedQueryAdapterInput).toBe(
+			"function",
+		);
+		expect(typeof clickHouseTrustedQueryEvaluation.clickHouseTrustedQueryRuntime).toBe("function");
+		expect(
+			typeof clickHouseTrustedQueryEvaluation.createClickHouseTrustedQueryScenarioResultFromOutcome,
+		).toBe("function");
 		expect(Object.hasOwn(rootPackage, "createClickHouseTrustedQueryCampaignRevision")).toBe(false);
 		expect(Object.hasOwn(solutions, "createClickHouseTrustedQueryCampaignRevision")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "createClickHouseTrustedQueryAdapterInput")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "clickHouseTrustedQueryRuntime")).toBe(false);
+		expect(Object.hasOwn(solutions, "clickHouseTrustedQueryRuntime")).toBe(false);
+		expect(
+			Object.hasOwn(rootPackage, "createClickHouseTrustedQueryScenarioResultFromOutcome"),
+		).toBe(false);
+		expect(Object.hasOwn(solutions, "createClickHouseTrustedQueryScenarioResultFromOutcome")).toBe(
+			false,
+		);
 		expect(
 			typeof sharedControlPanelMemoryPersistence.createSharedControlPanelMemoryPersistence,
 		).toBe("function");
