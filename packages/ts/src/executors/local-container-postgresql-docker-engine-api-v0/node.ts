@@ -197,11 +197,13 @@ function nodeLocalCertificationHost(
 				`/containers/create?name=${dockerQueryValue(name)}`,
 				{
 					Image: opts.imageRef,
-					Cmd: ["sh", "-ec", "id -u >/dev/null"],
+					User: "65532:65532",
+					Cmd: ["sh", "-ec", 'test "$(id -u)" != "0"'],
 					AttachStdout: false,
 					AttachStderr: false,
 					OpenStdin: false,
 					Tty: false,
+					StopTimeout: 5,
 					HostConfig: {
 						NetworkMode: network.name,
 						ReadonlyRootfs: true,
@@ -209,6 +211,8 @@ function nodeLocalCertificationHost(
 						CapDrop: ["ALL"],
 						AutoRemove: false,
 						Memory: 128 * 1024 * 1024,
+						CpuPeriod: 100_000,
+						CpuQuota: 50_000,
 						PidsLimit: 64,
 					},
 					NetworkingConfig: {

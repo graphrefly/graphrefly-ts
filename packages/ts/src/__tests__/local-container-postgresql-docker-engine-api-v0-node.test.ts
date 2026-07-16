@@ -69,6 +69,26 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain(networkId);
 		expect(JSON.stringify(preflight)).not.toContain("socketPath");
 		expect(docker.calls[2]?.body).not.toContain("/var/run/docker.sock");
+		const createBody = JSON.parse(
+			docker.calls.find((c) => c.method === "POST" && c.path.startsWith("/containers/create"))
+				?.body ?? "{}",
+		);
+		expect(createBody).toMatchObject({
+			Image: imageRef,
+			User: "65532:65532",
+			Cmd: ["sh", "-ec", 'test "$(id -u)" != "0"'],
+			StopTimeout: 5,
+			HostConfig: {
+				ReadonlyRootfs: true,
+				SecurityOpt: ["no-new-privileges"],
+				CapDrop: ["ALL"],
+				Memory: 128 * 1024 * 1024,
+				CpuPeriod: 100_000,
+				CpuQuota: 50_000,
+				PidsLimit: 64,
+			},
+		});
+		expect(JSON.stringify(createBody)).not.toContain("/var/run/docker.sock");
 	});
 
 	it("fails closed and removes allocated network when Docker create is not accepted", async () => {
