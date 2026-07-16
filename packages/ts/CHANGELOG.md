@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.2.0
+
+### Minor Changes
+
+- 9a67c58: new focused executor/runtime/certification surface
+
 ## 0.1.1
 
 ### Patch Changes
