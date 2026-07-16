@@ -46,6 +46,7 @@ interface DockerProbeNetworkRequestPolicyForTest {
 }
 
 interface DockerProbeContainerRequestPolicyForTest {
+	readonly imageRefRequested: boolean;
 	readonly nonRootUserRequested: boolean;
 	readonly rootUserProbeFails: boolean;
 	readonly noPrivilegedModeRequested: boolean;
@@ -180,6 +181,12 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(
 			bind(containmentEvidence(), {
 				...policy,
+				imageRefRequested: false,
+			}).isolationVerified,
+		).toBe(false);
+		expect(
+			bind(containmentEvidence(), {
+				...policy,
 				noPrivilegedModeRequested: false,
 			}).isolationVerified,
 		).toBe(false);
@@ -230,6 +237,7 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 
 		expect(bind(cancellationSecretEvidence(), policy)).toEqual(cancellationSecretEvidence());
 		for (const [policyField, evidenceFields] of [
+			["imageRefRequested", ["cancellationVerified", "credentialResolverReady"]],
 			["noPrivilegedModeRequested", ["cancellationVerified", "credentialResolverReady"]],
 			["noNewPrivilegesRequested", ["cancellationVerified", "secretDestructionVerified"]],
 			["capabilitiesDroppedRequested", ["cancellationVerified", "credentialResolverReady"]],
@@ -971,6 +979,102 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain(containerId);
 	});
 
+	it("accepts Docker inspect image when it is digest-equivalent to the requested probe image", async () => {
+		const docker = installDockerApiMock({
+			rawInspectContainerBody: JSON.stringify(
+				safeInspectContainerBody(
+					"__GRAPHREFLY_PROBE_NETWORK_NAME__",
+					"__GRAPHREFLY_PROBE_CONTAINER_NAME__",
+					digest,
+				),
+			),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "ready",
+			imageDigestVerified: true,
+			isolationVerified: true,
+			cleanupVerified: true,
+		});
+		expect(
+			docker.calls.filter((c) => `${c.method} ${c.path}` === `GET /containers/${containerId}/json`),
+		).toHaveLength(2);
+		expect(JSON.stringify(preflight)).not.toContain(containerId);
+		expect(JSON.stringify(preflight)).not.toContain(networkId);
+	});
+
+	it("fails closed when Docker inspect body does not match the requested probe image", async () => {
+		const wrongImageRef = `registry.example.test/private-token/postgresql@sha256:${"d".repeat(64)}`;
+		const inspected = safeInspectContainerBody(
+			"__GRAPHREFLY_PROBE_NETWORK_NAME__",
+			"__GRAPHREFLY_PROBE_CONTAINER_NAME__",
+		);
+		const inspectedConfig = inspected.Config as Record<string, unknown>;
+		const docker = installDockerApiMock({
+			rawInspectContainerBody: JSON.stringify({
+				...inspected,
+				Config: {
+					...inspectedConfig,
+					Image: wrongImageRef,
+				},
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			imageDigestVerified: true,
+			isolationVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`GET /containers/${containerId}/json`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).not.toContain(
+			`POST /containers/${containerId}/start`,
+		);
+		expect(JSON.stringify(preflight)).not.toContain(wrongImageRef);
+		expect(JSON.stringify(preflight)).not.toContain("private-token");
+		expect(JSON.stringify(preflight)).not.toContain("Config");
+		expect(JSON.stringify(preflight)).not.toContain("Image");
+		expect(JSON.stringify(preflight)).not.toContain(containerId);
+	});
+
 	it("fails closed when Docker wait response carries private material", async () => {
 		const docker = installDockerApiMock({
 			rawWaitBody: JSON.stringify({
@@ -1628,6 +1732,63 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain(containerId);
 	});
 
+	it("fails closed when Docker post-wait inspect body does not match the requested probe image", async () => {
+		const wrongImageRef = `registry.example.test/private-token/postgresql@sha256:${"d".repeat(64)}`;
+		const inspected = safeInspectContainerBody(
+			"__GRAPHREFLY_PROBE_NETWORK_NAME__",
+			"__GRAPHREFLY_PROBE_CONTAINER_NAME__",
+		);
+		const inspectedConfig = inspected.Config as Record<string, unknown>;
+		const docker = installDockerApiMock({
+			rawPostWaitInspectContainerBody: JSON.stringify({
+				...inspected,
+				Config: {
+					...inspectedConfig,
+					Image: wrongImageRef,
+				},
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cancellationVerified: false,
+			credentialResolverReady: false,
+			secretDestructionVerified: false,
+			cleanupVerified: true,
+		});
+		expect(
+			docker.calls.filter((c) => `${c.method} ${c.path}` === `GET /containers/${containerId}/json`),
+		).toHaveLength(2);
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`POST /containers/${containerId}/wait`,
+				`GET /containers/${containerId}/json`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(JSON.stringify(preflight)).not.toContain(wrongImageRef);
+		expect(JSON.stringify(preflight)).not.toContain("private-token");
+		expect(JSON.stringify(preflight)).not.toContain("Config");
+		expect(JSON.stringify(preflight)).not.toContain("Image");
+	});
+
 	it("fails closed when cancellation and secret proof is not ready for the private probe request", async () => {
 		const docker = installDockerApiMock();
 		const mod = await import(
@@ -2043,11 +2204,13 @@ function json(
 function safeInspectContainerBody(
 	networkName: string,
 	containerName = "__GRAPHREFLY_PROBE_CONTAINER_NAME__",
+	containerImageRef = imageRef,
 ): Record<string, unknown> {
 	return {
 		Id: containerId,
 		Name: `/${containerName}`,
 		Config: {
+			Image: containerImageRef,
 			User: "65532:65532",
 			OpenStdin: false,
 			Env: ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
@@ -2165,6 +2328,7 @@ function fullNetworkRequestPolicyForTest(): DockerProbeNetworkRequestPolicyForTe
 
 function fullContainerRequestPolicyForTest(): DockerProbeContainerRequestPolicyForTest {
 	return {
+		imageRefRequested: true,
 		nonRootUserRequested: true,
 		rootUserProbeFails: true,
 		noPrivilegedModeRequested: true,

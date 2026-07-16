@@ -89,6 +89,7 @@ interface DockerProbeContainerPrivateHandle {
 	readonly id: string;
 	readonly name: string;
 	readonly network: DockerProbeNetworkPrivateHandle;
+	readonly requestedImageRef: string;
 	readonly requestPolicy: DockerProbeContainerRequestPolicy;
 	readonly createEnvelopeVerified: boolean;
 }
@@ -99,6 +100,7 @@ interface DockerProbeContainerRequest {
 }
 
 interface DockerProbeContainerRequestPolicy {
+	readonly imageRefRequested: boolean;
 	readonly nonRootUserRequested: boolean;
 	readonly rootUserProbeFails: boolean;
 	readonly noPrivilegedModeRequested: boolean;
@@ -127,6 +129,8 @@ const PROBE_CONTAINER_CPU_QUOTA = 50_000;
 const PROBE_CONTAINER_PIDS_LIMIT = 64;
 const DOCKER_PATH_SAFE = /^[A-Za-z0-9._~:/@+-]+$/;
 const DOCKER_ID_SAFE = /^[a-f0-9]{12,64}$/i;
+const DOCKER_IMAGE_DIGEST = /^sha256:[a-f0-9]{64}$/i;
+const DOCKER_IMAGE_DIGEST_SUFFIX = /@(?<digest>sha256:[a-f0-9]{64})$/i;
 const DOCKER_PUBLIC_REVISION_SAFE = /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$/;
 const PRIVATE_COMPACT_MATERIAL = [
 	"containerid",
@@ -280,6 +284,7 @@ function nodeLocalCertificationHost(
 					id: resource.ok ? resource.id : resource.cleanupId,
 					name,
 					network,
+					requestedImageRef: opts.imageRef,
 					requestPolicy: request.policy,
 					createEnvelopeVerified: resource.ok,
 				}),
@@ -533,13 +538,14 @@ function probeContainerCreateRequest(
 	} as const satisfies Record<string, unknown>;
 	return {
 		body,
-		policy: Object.freeze(probeContainerRequestPolicy(body, networkName)),
+		policy: Object.freeze(probeContainerRequestPolicy(body, networkName, imageRef)),
 	};
 }
 
 function probeContainerRequestPolicy(
 	body: Record<string, unknown>,
 	networkName: string,
+	imageRef: string,
 ): DockerProbeContainerRequestPolicy {
 	const hostConfig = plainObject(body.HostConfig);
 	const cmd = Array.isArray(body.Cmd) ? body.Cmd : [];
@@ -547,6 +553,7 @@ function probeContainerRequestPolicy(
 	const capDrop = Array.isArray(hostConfig?.CapDrop) ? hostConfig.CapDrop : [];
 	const bodyJson = JSON.stringify(body);
 	return {
+		imageRefRequested: body.Image === imageRef,
 		nonRootUserRequested: body.User === PROBE_CONTAINER_USER,
 		rootUserProbeFails:
 			cmd.length === 3 &&
@@ -586,7 +593,8 @@ function boundContainmentEvidenceToProbeRequest(
 	value: DockerEngineApiV0ContainmentEvidence,
 	policy: DockerProbeContainerRequestPolicy,
 ): DockerEngineApiV0ContainmentEvidence {
-	const nonRootRequestBounded = policy.nonRootUserRequested && policy.rootUserProbeFails;
+	const nonRootRequestBounded =
+		policy.imageRefRequested && policy.nonRootUserRequested && policy.rootUserProbeFails;
 	const isolationVerified =
 		value.isolationVerified &&
 		nonRootRequestBounded &&
@@ -671,6 +679,7 @@ function boundCancellationSecretEvidenceToProbeRequest(
 	policy: DockerProbeContainerRequestPolicy,
 ): DockerEngineApiV0CancellationSecretEvidence {
 	const cancellationRequestBounded =
+		policy.imageRefRequested &&
 		policy.nonRootUserRequested &&
 		policy.noPrivilegedModeRequested &&
 		policy.noNewPrivilegesRequested &&
@@ -933,12 +942,32 @@ function dockerInspectContainerIdentityVerified(
 ): boolean {
 	const inspectedId = stringValue(record.Id);
 	const inspectedName = stringValue(record.Name);
+	const inspectedImageRef = stringValue(config.Image);
 	const labels = plainObject(config.Labels);
 	return (
 		inspectedId === privateContainer.id &&
 		(inspectedName === privateContainer.name || inspectedName === `/${privateContainer.name}`) &&
+		dockerInspectImageRefMatchesRequested(inspectedImageRef, privateContainer.requestedImageRef) &&
 		labels?.["dev.graphrefly.boundary"] === "d624-docker-engine-api-v0-certifier"
 	);
+}
+
+function dockerInspectImageRefMatchesRequested(
+	inspectedImageRef: string | undefined,
+	requestedImageRef: string,
+): boolean {
+	if (inspectedImageRef === undefined || containsPrivateMaterial(inspectedImageRef)) return false;
+	if (inspectedImageRef === requestedImageRef) return true;
+	const requestedDigest = dockerImageDigestFromRef(requestedImageRef);
+	return (
+		requestedDigest !== undefined &&
+		(inspectedImageRef === requestedDigest || inspectedImageRef.endsWith(`@${requestedDigest}`))
+	);
+}
+
+function dockerImageDigestFromRef(value: string): string | undefined {
+	if (DOCKER_IMAGE_DIGEST.test(value)) return value;
+	return DOCKER_IMAGE_DIGEST_SUFFIX.exec(value)?.groups?.digest;
 }
 
 function dockerInspectNetworkRequestPolicy(
