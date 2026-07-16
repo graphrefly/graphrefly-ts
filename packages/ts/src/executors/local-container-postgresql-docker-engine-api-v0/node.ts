@@ -543,6 +543,7 @@ if (process.env.VITEST !== undefined) {
 		{
 			value: Object.freeze({
 				boundContainmentEvidenceToProbeRequest,
+				boundCancellationSecretEvidenceToProbeRequest,
 				boundNetworkEvidenceToProbeRequest,
 			}),
 		},
@@ -553,15 +554,30 @@ function boundCancellationSecretEvidenceToProbeRequest(
 	value: DockerEngineApiV0CancellationSecretEvidence,
 	policy: DockerProbeContainerRequestPolicy,
 ): DockerEngineApiV0CancellationSecretEvidence {
+	const cancellationRequestBounded =
+		policy.nonRootUserRequested &&
+		policy.noPrivilegedModeRequested &&
+		policy.noNewPrivilegesRequested &&
+		policy.capabilitiesDroppedRequested &&
+		policy.cpuMemoryPidsTimeBoundsRequested;
+	const artifactResolverRequestBounded =
+		policy.boundedFilesystemImportRequested &&
+		policy.readOnlyRootFilesystemRequested &&
+		policy.noEngineSocketMountRequested &&
+		policy.noHostBindMountRequested;
 	const secretMaterialRequestBounded =
+		cancellationRequestBounded &&
+		artifactResolverRequestBounded &&
 		policy.boundedFilesystemImportRequested &&
 		policy.noEngineSocketMountRequested &&
 		policy.noHostBindMountRequested &&
+		policy.noHostNetworkRequested &&
+		policy.noPortPublicationRequested &&
 		policy.cpuMemoryPidsTimeBoundsRequested;
 	return {
-		cancellationVerified: value.cancellationVerified && policy.cpuMemoryPidsTimeBoundsRequested,
+		cancellationVerified: value.cancellationVerified && cancellationRequestBounded,
 		cleanupVerified: value.cleanupVerified,
-		artifactResolverReady: value.artifactResolverReady && policy.boundedFilesystemImportRequested,
+		artifactResolverReady: value.artifactResolverReady && artifactResolverRequestBounded,
 		credentialResolverReady: value.credentialResolverReady && secretMaterialRequestBounded,
 		secretDestructionVerified: value.secretDestructionVerified && secretMaterialRequestBounded,
 	};

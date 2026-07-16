@@ -26,6 +26,10 @@ interface NodeLocalDockerTestHooksModule {
 				value: DockerEngineApiV0ContainmentEvidence,
 				policy: DockerProbeContainerRequestPolicyForTest,
 			) => DockerEngineApiV0ContainmentEvidence;
+			readonly boundCancellationSecretEvidenceToProbeRequest: (
+				value: DockerEngineApiV0CancellationSecretEvidence,
+				policy: DockerProbeContainerRequestPolicyForTest,
+			) => DockerEngineApiV0CancellationSecretEvidence;
 			readonly boundNetworkEvidenceToProbeRequest: (
 				value: DockerEngineApiV0NetworkDenialEvidence,
 				policy: DockerProbeNetworkRequestPolicyForTest,
@@ -188,6 +192,33 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 				Object.values(bounded).every((value) => value === false),
 				policyField,
 			).toBe(true);
+		}
+	});
+
+	it("binds cancellation and secret proof readiness to bounded probe request policy", async () => {
+		const mod = (await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		)) as unknown as NodeLocalDockerTestHooksModule;
+		const bind =
+			mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker.__graphreflyTestHooks
+				.boundCancellationSecretEvidenceToProbeRequest;
+		const policy = fullContainerRequestPolicyForTest();
+
+		expect(bind(cancellationSecretEvidence(), policy)).toEqual(cancellationSecretEvidence());
+		for (const [policyField, evidenceFields] of [
+			["noPrivilegedModeRequested", ["cancellationVerified", "credentialResolverReady"]],
+			["noNewPrivilegesRequested", ["cancellationVerified", "secretDestructionVerified"]],
+			["capabilitiesDroppedRequested", ["cancellationVerified", "credentialResolverReady"]],
+			["readOnlyRootFilesystemRequested", ["artifactResolverReady", "secretDestructionVerified"]],
+			["noHostNetworkRequested", ["credentialResolverReady", "secretDestructionVerified"]],
+			["noPortPublicationRequested", ["credentialResolverReady", "secretDestructionVerified"]],
+		] as const) {
+			const bounded = bind(cancellationSecretEvidence(), {
+				...policy,
+				[policyField]: false,
+			});
+			for (const evidenceField of evidenceFields)
+				expect(bounded[evidenceField], `${policyField}:${evidenceField}`).toBe(false);
 		}
 	});
 
