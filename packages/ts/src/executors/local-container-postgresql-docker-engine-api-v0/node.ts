@@ -119,6 +119,7 @@ const PROBE_CONTAINER_CPU_QUOTA = 50_000;
 const PROBE_CONTAINER_PIDS_LIMIT = 64;
 const DOCKER_PATH_SAFE = /^[A-Za-z0-9._~:/@+-]+$/;
 const DOCKER_ID_SAFE = /^[a-f0-9]{12,64}$/i;
+const DOCKER_PUBLIC_REVISION_SAFE = /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$/;
 const PRIVATE_COMPACT_MATERIAL = [
 	"containerid",
 	"dockersock",
@@ -361,18 +362,14 @@ function nodeLocalCertificationHost(
 }
 
 function versionEvidence(value: Record<string, unknown>): DockerEngineApiV0VersionEvidence {
-	const engineRevision = stringValue(value.Version) ?? "docker-engine:unavailable";
-	const engineApiRevision = stringValue(value.ApiVersion) ?? "docker-api:unavailable";
-	const detectedBackend = backendName(value);
+	const engineVersion = publicDockerRevisionValue(value.Version);
+	const engineApiVersion = publicDockerRevisionValue(value.ApiVersion);
+	const detectedBackend = backendName(value, engineApiVersion !== undefined);
 	return {
 		detectedBackend,
-		engineReachable: detectedBackend !== "unavailable",
-		engineApiRevision: engineApiRevision.startsWith("docker-api:")
-			? engineApiRevision
-			: `docker-api:${engineApiRevision}`,
-		engineRevision: engineRevision.startsWith("docker-engine:")
-			? engineRevision
-			: `${detectedBackend}:${engineRevision}`,
+		engineReachable: engineApiVersion !== undefined && detectedBackend !== "unavailable",
+		engineApiRevision: prefixedDockerRevision("docker-api", engineApiVersion),
+		engineRevision: prefixedDockerRevision(detectedBackend, engineVersion),
 	};
 }
 
@@ -641,10 +638,47 @@ function booleanFields<const T extends readonly string[]>(
 
 function backendName(
 	value: Record<string, unknown>,
+	hasPublicApiVersion: boolean,
 ): DockerEngineApiV0VersionEvidence["detectedBackend"] {
-	const text = JSON.stringify(value).toLowerCase();
-	if (text.includes("podman")) return "podman";
-	return typeof value.ApiVersion === "string" ? "docker-engine" : "unknown";
+	if (dockerVersionBackendTexts(value).some((text) => text.includes("podman"))) return "podman";
+	return hasPublicApiVersion ? "docker-engine" : "unknown";
+}
+
+function publicDockerRevisionValue(value: unknown): string | undefined {
+	const raw = stringValue(value);
+	if (raw === undefined) return undefined;
+	const revision = raw.trim();
+	if (
+		revision.length === 0 ||
+		!DOCKER_PUBLIC_REVISION_SAFE.test(revision) ||
+		containsPrivateMaterial(revision)
+	)
+		return undefined;
+	const lower = revision.toLowerCase();
+	return lower.includes("unavailable") || lower.includes("unknown") ? undefined : revision;
+}
+
+function prefixedDockerRevision(
+	prefix: DockerEngineApiV0VersionEvidence["detectedBackend"] | "docker-api",
+	value: string | undefined,
+): string {
+	if (value === undefined) return `${prefix}:unavailable`;
+	return value.startsWith(`${prefix}:`) ? value : `${prefix}:${value}`;
+}
+
+function dockerVersionBackendTexts(value: Record<string, unknown>): readonly string[] {
+	const components = Array.isArray(value.Components) ? value.Components : [];
+	return [
+		publicDockerBackendText(value.Version),
+		publicDockerBackendText(plainObject(value.Platform)?.Name),
+		...components.map((component) => publicDockerBackendText(plainObject(component)?.Name)),
+	].filter((text): text is string => text !== undefined);
+}
+
+function publicDockerBackendText(value: unknown): string | undefined {
+	const text = stringValue(value)?.trim();
+	if (text === undefined || text.length === 0 || text.length > 128) return undefined;
+	return containsPrivateMaterial(text) ? undefined : text.toLowerCase();
 }
 
 async function dockerAcceptedRequest(
@@ -788,15 +822,17 @@ function probeDockerLabels(probeLabel: string | undefined): Record<string, strin
 
 function publicProbeLabel(value: string | undefined): string | undefined {
 	if (value === undefined || value.length > 96 || !DOCKER_PATH_SAFE.test(value)) return undefined;
+	return containsPrivateMaterial(value) ? undefined : value;
+}
+
+function containsPrivateMaterial(value: string): boolean {
 	const lower = value.toLowerCase();
 	const compact = lower.replace(/[^a-z0-9]+/g, "");
 	const tokens = lower.split(/[^a-z0-9]+/u).filter(Boolean);
-	if (
+	return (
 		PRIVATE_COMPACT_MATERIAL.some((term) => compact.includes(term)) ||
 		tokens.some((token) => PRIVATE_TOKEN_MATERIAL.includes(token))
-	)
-		return undefined;
-	return value;
+	);
 }
 
 function dockerIdSafe(value: string | undefined): value is string {

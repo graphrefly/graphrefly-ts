@@ -156,6 +156,117 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
 	});
 
+	it("fails closed when Docker version coordinates contain private material", async () => {
+		for (const scenario of [
+			{
+				name: "private engine version",
+				body: { Version: "/var/run/docker.sock", ApiVersion: "1.44" },
+				privateText: "docker.sock",
+			},
+			{
+				name: "private API version",
+				body: { Version: "24.0.7", ApiVersion: "private-token" },
+				privateText: "private-token",
+			},
+		] as const) {
+			vi.resetModules();
+			vi.doUnmock("node:http");
+			const docker = installDockerApiMock({ rawVersionBody: JSON.stringify(scenario.body) });
+			const mod = await import(
+				"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+			);
+			const preflight =
+				await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker({
+					manifest: manifest(),
+					imageRef,
+					hostPlatform: "linux/amd64",
+					guestPlatform: "linux/amd64",
+					runtimeRevision: "docker-engine:24.0.7",
+					certifiedHostMatrix: certifiedHostMatrix(),
+					observedAtMs: 20,
+					ttlMs: 100,
+					proofs: proofAdapter(),
+				});
+
+			expect(
+				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight).state,
+				scenario.name,
+			).toBe("unavailable");
+			expect(
+				docker.calls.map((c) => `${c.method} ${c.path}`),
+				scenario.name,
+			).toEqual(["GET /version"]);
+			expect(JSON.stringify(preflight), scenario.name).not.toContain(scenario.privateText);
+		}
+	});
+
+	it("does not let unrelated Docker version fields decide backend identity", async () => {
+		const docker = installDockerApiMock({
+			rawVersionBody: JSON.stringify({
+				Version: "24.0.7",
+				ApiVersion: "1.44",
+				Notes: "podman socket private-token",
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "ready",
+			engineReachable: true,
+			backendFamilyVerified: true,
+		});
+		expect(JSON.stringify(preflight)).not.toContain("private-token");
+		expect(docker.calls[0]).toMatchObject({ method: "GET", path: "/version" });
+	});
+
+	it("detects Podman only from bounded Docker version identity fields", async () => {
+		const docker = installDockerApiMock({
+			rawVersionBody: JSON.stringify({
+				Version: "4.9.0",
+				ApiVersion: "1.41",
+				Components: [{ Name: "Podman Engine" }],
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			engineReachable: false,
+			backendFamilyVerified: false,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /version"]);
+	});
+
 	it("fails closed when Docker version response exceeds the byte budget", async () => {
 		const docker = installDockerApiMock({
 			rawVersionBody: JSON.stringify({
