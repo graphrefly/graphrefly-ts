@@ -1039,7 +1039,9 @@ async function dockerAcceptedRequest(
 	signal?: AbortSignal,
 ): Promise<DockerEngineApiV0HostResult<void>> {
 	const result = await dockerRequest(method, path, body, http, signal);
-	return result.ok && accepted.includes(result.statusCode) ? ok(undefined) : { ok: false };
+	return result.ok && accepted.includes(result.statusCode) && result.body === ""
+		? ok(undefined)
+		: { ok: false };
 }
 
 async function dockerJsonObjectRequest(

@@ -1578,6 +1578,48 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		}
 	});
 
+	it("fails closed when Docker accepted-status responses carry raw body material", async () => {
+		for (const scenario of [
+			{
+				name: "start accepted body",
+				docker: { startBody: "private-start-body" },
+				expectCleanupFalse: false,
+			},
+			{
+				name: "delete accepted body",
+				docker: { deleteContainerBody: "private-delete-body" },
+				expectCleanupFalse: true,
+			},
+		] as const) {
+			vi.resetModules();
+			const docker = installDockerApiMock(scenario.docker);
+			const mod = await import(
+				"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+			);
+			const preflight =
+				await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker({
+					manifest: manifest(),
+					imageRef,
+					hostPlatform: "linux/amd64",
+					guestPlatform: "linux/amd64",
+					runtimeRevision: "docker-engine:24.0.7",
+					certifiedHostMatrix: certifiedHostMatrix(),
+					observedAtMs: 20,
+					ttlMs: 100,
+					proofs: proofAdapter(),
+				});
+
+			const readiness = localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight);
+			expect(readiness.state, scenario.name).toBe("unavailable");
+			if (scenario.expectCleanupFalse) expect(readiness.cleanupVerified).toBe(false);
+			expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toContain(
+				`DELETE /containers/${containerId}?force=true&v=true`,
+			);
+			expect(JSON.stringify(preflight)).not.toContain("private-start-body");
+			expect(JSON.stringify(preflight)).not.toContain("private-delete-body");
+		}
+	});
+
 	it("fails closed at the certified host-matrix gate before creating Docker probe resources", async () => {
 		const docker = installDockerApiMock();
 		const mod = await import(
@@ -1622,10 +1664,14 @@ function installDockerApiMock(
 		readonly abortPath?: string;
 		readonly abortController?: AbortController;
 		readonly startStatus?: number;
+		readonly startBody?: string;
 		readonly waitStatusCode?: number;
 		readonly deleteContainerStatus?: number;
+		readonly deleteContainerBody?: string;
 		readonly deleteGeneratedContainerStatus?: number;
+		readonly deleteGeneratedContainerBody?: string;
 		readonly deleteGeneratedNetworkStatus?: number;
+		readonly deleteGeneratedNetworkBody?: string;
 	} = {},
 ): {
 	readonly calls: Array<{
@@ -1733,10 +1779,14 @@ function route(
 		readonly abortPath?: string;
 		readonly abortController?: AbortController;
 		readonly startStatus?: number;
+		readonly startBody?: string;
 		readonly waitStatusCode?: number;
 		readonly deleteContainerStatus?: number;
+		readonly deleteContainerBody?: string;
 		readonly deleteGeneratedContainerStatus?: number;
+		readonly deleteGeneratedContainerBody?: string;
 		readonly deleteGeneratedNetworkStatus?: number;
+		readonly deleteGeneratedNetworkBody?: string;
 	},
 	probeNetworkName: string,
 	probeContainerName: string,
@@ -1810,7 +1860,7 @@ function route(
 	if (method === "GET" && path.startsWith("/networks/graphrefly-d624-"))
 		return json(200, safeInspectNetworkBody(probeNetworkName));
 	if (method === "POST" && path === `/containers/${containerId}/start`)
-		return { status: opts.startStatus ?? 204, body: "" };
+		return { status: opts.startStatus ?? 204, body: opts.startBody ?? "" };
 	if (
 		method === "POST" &&
 		path === `/containers/${containerId}/wait` &&
@@ -1820,12 +1870,18 @@ function route(
 	if (method === "POST" && path === `/containers/${containerId}/wait`)
 		return json(200, { StatusCode: opts.waitStatusCode ?? 0 });
 	if (method === "DELETE" && path === `/containers/${containerId}?force=true&v=true`)
-		return { status: opts.deleteContainerStatus ?? 204, body: "" };
+		return { status: opts.deleteContainerStatus ?? 204, body: opts.deleteContainerBody ?? "" };
 	if (method === "DELETE" && path.startsWith("/containers/graphrefly-d624-"))
-		return { status: opts.deleteGeneratedContainerStatus ?? 204, body: "" };
+		return {
+			status: opts.deleteGeneratedContainerStatus ?? 204,
+			body: opts.deleteGeneratedContainerBody ?? "",
+		};
 	if (method === "DELETE" && path === `/networks/${networkId}`) return { status: 204, body: "" };
 	if (method === "DELETE" && path.startsWith("/networks/graphrefly-d624-"))
-		return { status: opts.deleteGeneratedNetworkStatus ?? 204, body: "" };
+		return {
+			status: opts.deleteGeneratedNetworkStatus ?? 204,
+			body: opts.deleteGeneratedNetworkBody ?? "",
+		};
 	return json(404, { message: "not-found" });
 }
 
