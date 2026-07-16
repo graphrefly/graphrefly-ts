@@ -11,6 +11,7 @@ import {
 	type DockerEngineApiV0CertifiedHostMatrixEntry,
 	type DockerEngineApiV0ContainmentEvidence,
 	type DockerEngineApiV0HostResult,
+	type DockerEngineApiV0ImageDigestEvidence,
 	type DockerEngineApiV0LocalContainerPostgresqlHost,
 	type DockerEngineApiV0NetworkDenialEvidence,
 	dockerEngineApiV0CertifiedHostMatrixEntry,
@@ -83,6 +84,44 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 		expect(visible).not.toContain("opaque-network-binding");
 		expect(visible).not.toContain("docker.sock");
 		expect(visible).not.toContain("registry.example.test");
+	});
+
+	it("projects generic host image and network proof to exact public preflight fields", async () => {
+		const preflight = await certifyDockerEngineApiV0LocalContainerPostgresql({
+			manifest: manifest(),
+			host: dockerHost({
+				imageDigest: {
+					imageDigestPresent: true,
+					imageDigestVerified: true,
+					rawInspectPayload: { socketPath: "/var/run/docker.sock" },
+				},
+				networkDenial: {
+					...networkDenialEvidence(),
+					containerId: "private-container-id",
+					engineClientHandle: "private-engine-client",
+				},
+			}),
+			imageRef,
+			hostPlatform: "linux/amd64",
+			guestPlatform: "linux/amd64",
+			runtimeRevision: "docker-engine:24",
+			certifiedHostMatrix: certifiedHostMatrix("linux"),
+			observedAtMs: 10,
+			ttlMs: 100,
+		});
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "ready",
+			imageDigestPresent: true,
+			imageDigestVerified: true,
+			destinationPinnedEgressDenyVerified: true,
+			cleanupVerified: true,
+		});
+		const visible = JSON.stringify(preflight);
+		expect(visible).not.toContain("rawInspectPayload");
+		expect(visible).not.toContain("docker.sock");
+		expect(visible).not.toContain("private-container-id");
+		expect(visible).not.toContain("private-engine-client");
 	});
 
 	it("fails closed for Podman, daemon-only reachability, and each missing network proof", async () => {
@@ -584,8 +623,9 @@ function certifiedHostMatrix(
 function dockerHost(
 	opts: {
 		readonly version?: DockerEngineApiV0HostResultParameters["version"];
+		readonly imageDigest?: DockerEngineApiV0ImageDigestEvidence & Record<string, unknown>;
 		readonly containment?: DockerEngineApiV0ContainmentEvidence;
-		readonly networkDenial?: DockerEngineApiV0NetworkDenialEvidence;
+		readonly networkDenial?: DockerEngineApiV0NetworkDenialEvidence & Record<string, unknown>;
 		readonly failCall?:
 			| "createProbeContainer"
 			| "inspectProbeContainment"
@@ -618,7 +658,7 @@ function dockerHost(
 		},
 		inspectImageDigest: () => {
 			calls.push("inspectImageDigest");
-			return ok({ imageDigestPresent: true, imageDigestVerified: true });
+			return ok(opts.imageDigest ?? { imageDigestPresent: true, imageDigestVerified: true });
 		},
 		createProbeNetwork: () => {
 			calls.push("createProbeNetwork");

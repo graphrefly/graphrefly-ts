@@ -361,10 +361,13 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 	const failAndCleanup = async (
 		patch: Partial<LocalContainerPostgresqlDockerEngineApiV0Preflight> = {},
 	): Promise<LocalContainerPostgresqlDockerEngineApiV0Preflight> => {
-		await cleanupProbeResources(opts.host, probeContainer, probeNetwork);
+		const cleanupVerified = await cleanupProbeResources(opts.host, probeContainer, probeNetwork);
 		probeContainer = undefined;
 		probeNetwork = undefined;
-		return fail(patch);
+		return fail({
+			...patch,
+			cleanupVerified: cleanupVerified && patch.cleanupVerified !== false,
+		});
 	};
 	try {
 		const version = await opts.host.readVersion({ signal: opts.signal });
@@ -380,7 +383,10 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 			signal: opts.signal,
 		});
 		if (!image.ok || !image.value.imageDigestPresent || !image.value.imageDigestVerified)
-			return fail({ ...versionPatch(version.value), ...(image.ok ? image.value : {}) });
+			return fail({
+				...versionPatch(version.value),
+				...(image.ok ? imageDigestEvidencePatch(image.value) : {}),
+			});
 		const network = await opts.host.createProbeNetwork({
 			probeLabel: opts.probeLabel,
 			signal: opts.signal,
@@ -415,13 +421,15 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 		const cleanupVerified = await cleanupProbeResources(opts.host, probeContainer, probeNetwork);
 		probeContainer = undefined;
 		probeNetwork = undefined;
+		const imagePatch = imageDigestEvidencePatch(image.value);
 		const containmentPatch = containmentEvidencePatch(containment.value);
+		const networkDenialPatch = networkDenialEvidencePatch(networkDenial.value);
 		const cancellationSecretPatch = cancellationSecretEvidencePatch(cancellationSecret.value);
 		const readyPatch = {
 			...versionPatch(version.value),
-			...image.value,
+			...imagePatch,
 			...containmentPatch,
-			...networkDenial.value,
+			...networkDenialPatch,
 			...cancellationSecretPatch,
 			cleanupVerified: cleanupVerified && cancellationSecretPatch.cleanupVerified,
 			compatibilityVerified: true,
@@ -518,6 +526,18 @@ function versionPatch(
 	};
 }
 
+function imageDigestEvidencePatch(
+	value: DockerEngineApiV0ImageDigestEvidence,
+): Pick<
+	LocalContainerPostgresqlDockerEngineApiV0Preflight,
+	"imageDigestPresent" | "imageDigestVerified"
+> {
+	return {
+		imageDigestPresent: value.imageDigestPresent === true,
+		imageDigestVerified: value.imageDigestVerified === true,
+	};
+}
+
 function containmentEvidencePatch(
 	value: DockerEngineApiV0ContainmentEvidence,
 ): Pick<
@@ -542,6 +562,27 @@ function containmentEvidencePatch(
 		noHostNetworkVerified: value.noHostNetworkVerified,
 		noHostBindMountVerified: value.noHostBindMountVerified,
 		cpuMemoryPidsTimeBoundsVerified: value.cpuMemoryPidsTimeBoundsVerified,
+	};
+}
+
+function networkDenialEvidencePatch(
+	value: DockerEngineApiV0NetworkDenialEvidence,
+): Pick<
+	LocalContainerPostgresqlDockerEngineApiV0Preflight,
+	| "destinationPinnedEgressDenyVerified"
+	| "metadataEgressDenyVerified"
+	| "linkLocalEgressDenyVerified"
+	| "loopbackEgressDenyVerified"
+	| "hostGatewayEgressDenyVerified"
+	| "dnsRebindingResistanceVerified"
+> {
+	return {
+		destinationPinnedEgressDenyVerified: value.destinationPinnedEgressDenyVerified === true,
+		metadataEgressDenyVerified: value.metadataEgressDenyVerified === true,
+		linkLocalEgressDenyVerified: value.linkLocalEgressDenyVerified === true,
+		loopbackEgressDenyVerified: value.loopbackEgressDenyVerified === true,
+		hostGatewayEgressDenyVerified: value.hostGatewayEgressDenyVerified === true,
+		dnsRebindingResistanceVerified: value.dnsRebindingResistanceVerified === true,
 	};
 }
 

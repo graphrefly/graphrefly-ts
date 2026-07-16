@@ -210,7 +210,7 @@ function nodeLocalCertificationHost(
 ): DockerEngineApiV0LocalContainerPostgresqlCertificationHost {
 	return {
 		readVersion: async (opts) => {
-			const response = await dockerJsonRequest<Record<string, unknown>>(
+			const response = await dockerJsonObjectRequest(
 				"GET",
 				"/version",
 				undefined,
@@ -221,7 +221,7 @@ function nodeLocalCertificationHost(
 			return ok(versionEvidence(response.value));
 		},
 		inspectImageDigest: async (opts) => {
-			const response = await dockerJsonRequest<Record<string, unknown>>(
+			const response = await dockerJsonObjectRequest(
 				"GET",
 				`/images/${dockerPathSegment(opts.imageRef)}/json`,
 				undefined,
@@ -234,7 +234,7 @@ function nodeLocalCertificationHost(
 		createProbeNetwork: async (opts) => {
 			const name = `graphrefly-d624-${randomUUID()}`;
 			const request = probeNetworkCreateRequest(name, opts.probeLabel);
-			const response = await dockerJsonRequest<Record<string, unknown>>(
+			const response = await dockerJsonObjectRequest(
 				"POST",
 				"/networks/create",
 				request.body,
@@ -256,7 +256,7 @@ function nodeLocalCertificationHost(
 			if (network === undefined) return { ok: false };
 			const name = `graphrefly-d624-${randomUUID()}`;
 			const request = probeContainerCreateRequest(opts.imageRef, network.name, opts.probeLabel);
-			const response = await dockerJsonRequest<Record<string, unknown>>(
+			const response = await dockerJsonObjectRequest(
 				"POST",
 				`/containers/create?name=${dockerQueryValue(name)}`,
 				request.body,
@@ -300,7 +300,7 @@ function nodeLocalCertificationHost(
 		waitProbeContainer: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
 			if (privateContainer === undefined) return { ok: false };
-			const response = await dockerJsonRequest<Record<string, unknown>>(
+			const response = await dockerJsonObjectRequest(
 				"POST",
 				`/containers/${dockerPathSegment(privateContainer.id)}/wait`,
 				undefined,
@@ -659,18 +659,19 @@ async function dockerAcceptedRequest(
 	return result.ok && accepted.includes(result.statusCode) ? ok(undefined) : { ok: false };
 }
 
-async function dockerJsonRequest<T>(
+async function dockerJsonObjectRequest(
 	method: "GET" | "POST",
 	path: string,
 	body: Record<string, unknown> | undefined,
 	http: DockerHttpOptions,
 	signal?: AbortSignal,
-): Promise<DockerEngineApiV0HostResult<T>> {
+): Promise<DockerEngineApiV0HostResult<Record<string, unknown>>> {
 	const result = await dockerRequest(method, path, body, http, signal);
 	if (!result.ok || result.statusCode < 200 || result.statusCode >= 300) return { ok: false };
-	if (result.body === "") return { ok: true, value: {} as T };
+	if (result.body === "") return ok(Object.freeze({}));
 	try {
-		return { ok: true, value: JSON.parse(result.body) as T };
+		const value = plainObject(JSON.parse(result.body));
+		return value === undefined ? { ok: false } : ok(value);
 	} catch {
 		return { ok: false };
 	}
