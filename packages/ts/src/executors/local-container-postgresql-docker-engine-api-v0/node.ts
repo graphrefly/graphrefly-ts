@@ -385,6 +385,8 @@ function imageDigestEvidence(
 	const repoDigests = Array.isArray(value.RepoDigests)
 		? value.RepoDigests.filter((v): v is string => typeof v === "string")
 		: [];
+	if (repoDigests.some((ref) => containsPrivateMaterial(ref)))
+		return { imageDigestPresent: false, imageDigestVerified: false };
 	const imageDigestPresent = repoDigests.some(
 		(ref) => ref === imageDigest || ref.endsWith(`@${imageDigest}`),
 	);

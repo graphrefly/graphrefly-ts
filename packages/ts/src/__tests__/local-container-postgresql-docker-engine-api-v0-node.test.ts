@@ -249,6 +249,42 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
 	});
 
+	it("fails closed when image digest response carries private repository material", async () => {
+		const docker = installDockerApiMock({
+			rawImageBody: JSON.stringify({
+				RepoDigests: [`registry.example.test/private-socket@${digest}`],
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			imageDigestPresent: false,
+			imageDigestVerified: false,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+			"GET /version",
+			`GET /images/${encodeURIComponent(imageRef)}/json`,
+		]);
+		expect(JSON.stringify(preflight)).not.toContain("private-socket");
+		expect(JSON.stringify(preflight)).not.toContain("registry.example.test");
+	});
+
 	it("fails closed when Docker version coordinates contain private material", async () => {
 		for (const scenario of [
 			{
@@ -994,6 +1030,7 @@ function installDockerApiMock(
 		readonly containerId?: string;
 		readonly networkId?: string;
 		readonly rawVersionBody?: string;
+		readonly rawImageBody?: string;
 		readonly rawCreateContainerBody?: string;
 		readonly rawWaitBody?: string;
 		readonly hangPath?: string;
@@ -1078,6 +1115,7 @@ function route(
 		readonly containerId?: string;
 		readonly networkId?: string;
 		readonly rawVersionBody?: string;
+		readonly rawImageBody?: string;
 		readonly rawCreateContainerBody?: string;
 		readonly rawWaitBody?: string;
 		readonly hangPath?: string;
@@ -1094,6 +1132,12 @@ function route(
 		return { status: 200, body: opts.rawVersionBody };
 	if (method === "GET" && path === "/version")
 		return json(200, { Version: "24.0.7", ApiVersion: "1.44" });
+	if (
+		method === "GET" &&
+		path === `/images/${encodeURIComponent(imageRef)}/json` &&
+		opts.rawImageBody !== undefined
+	)
+		return { status: 200, body: opts.rawImageBody };
 	if (method === "GET" && path === `/images/${encodeURIComponent(imageRef)}/json`)
 		return json(200, { RepoDigests: [imageRef] });
 	if (method === "POST" && path === "/networks/create")
