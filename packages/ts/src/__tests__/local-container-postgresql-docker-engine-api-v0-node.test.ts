@@ -1992,6 +1992,138 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		}
 	});
 
+	it("fails closed when Docker JSON endpoints return unexpected successful statuses", async () => {
+		for (const scenario of [
+			{
+				name: "version accepted",
+				docker: { versionStatus: 202 },
+				expectedCalls: ["GET /version"],
+				expectedReadiness: {
+					engineReachable: false,
+					cleanupVerified: false,
+				},
+			},
+			{
+				name: "image accepted",
+				docker: { imageStatus: 202 },
+				expectedCalls: ["GET /version", `GET /images/${encodeURIComponent(imageRef)}/json`],
+				expectedReadiness: {
+					imageDigestVerified: false,
+					cleanupVerified: false,
+				},
+			},
+			{
+				name: "network create accepted",
+				docker: { createNetworkStatus: 202 },
+				expectedCalls: [
+					"GET /version",
+					`GET /images/${encodeURIComponent(imageRef)}/json`,
+					"POST /networks/create",
+				],
+				expectedReadiness: {
+					cleanupVerified: false,
+				},
+			},
+			{
+				name: "container create accepted",
+				docker: { createContainerStatus: 202 },
+				expectedCalls: [
+					"GET /version",
+					`GET /images/${encodeURIComponent(imageRef)}/json`,
+					"POST /networks/create",
+					expect.stringMatching(/^POST \/containers\/create\?name=graphrefly-d624-/),
+					`DELETE /networks/${networkId}`,
+				],
+				expectedReadiness: {
+					cleanupVerified: true,
+				},
+			},
+			{
+				name: "pre-start inspect accepted",
+				docker: { inspectContainerStatus: 202 },
+				expectedCalls: expect.arrayContaining([
+					`GET /containers/${containerId}/json`,
+					`DELETE /containers/${containerId}?force=true&v=true`,
+					`DELETE /networks/${networkId}`,
+				]),
+				expectedReadiness: {
+					isolationVerified: false,
+					cleanupVerified: true,
+				},
+			},
+			{
+				name: "wait accepted",
+				docker: { waitHttpStatus: 202 },
+				expectedCalls: expect.arrayContaining([
+					`POST /containers/${containerId}/wait`,
+					`DELETE /containers/${containerId}?force=true&v=true`,
+					`DELETE /networks/${networkId}`,
+				]),
+				expectedReadiness: {
+					cancellationVerified: false,
+					cleanupVerified: true,
+				},
+			},
+			{
+				name: "network inspect accepted",
+				docker: { inspectNetworkStatus: 202 },
+				expectedCalls: expect.arrayContaining([
+					`GET /networks/${networkId}`,
+					`DELETE /containers/${containerId}?force=true&v=true`,
+					`DELETE /networks/${networkId}`,
+				]),
+				expectedReadiness: {
+					destinationPinnedEgressDenyVerified: false,
+					cleanupVerified: true,
+				},
+			},
+			{
+				name: "post-wait inspect accepted",
+				docker: { postWaitInspectContainerStatus: 202 },
+				expectedCalls: expect.arrayContaining([
+					`GET /networks/${networkId}`,
+					`GET /containers/${containerId}/json`,
+					`DELETE /containers/${containerId}?force=true&v=true`,
+					`DELETE /networks/${networkId}`,
+				]),
+				expectedReadiness: {
+					credentialResolverReady: false,
+					secretDestructionVerified: false,
+					cleanupVerified: true,
+				},
+			},
+		] as const) {
+			vi.resetModules();
+			const docker = installDockerApiMock(scenario.docker);
+			const mod = await import(
+				"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+			);
+			const preflight =
+				await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker({
+					manifest: manifest(),
+					imageRef,
+					hostPlatform: "linux/amd64",
+					guestPlatform: "linux/amd64",
+					runtimeRevision: "docker-engine:24.0.7",
+					certifiedHostMatrix: certifiedHostMatrix(),
+					observedAtMs: 20,
+					ttlMs: 100,
+					proofs: proofAdapter(),
+				});
+
+			const readiness = localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight);
+			expect(readiness.state, scenario.name).toBe("unavailable");
+			expect(readiness, scenario.name).toMatchObject(scenario.expectedReadiness);
+			expect(
+				docker.calls.map((c) => `${c.method} ${c.path}`),
+				scenario.name,
+			).toEqual(scenario.expectedCalls);
+			expect(JSON.stringify(preflight), scenario.name).not.toContain(containerId);
+			expect(JSON.stringify(preflight), scenario.name).not.toContain(networkId);
+			expect(JSON.stringify(preflight), scenario.name).not.toContain("registry.example.test");
+		}
+	});
+
 	it("fails closed at the certified host-matrix gate before creating Docker probe resources", async () => {
 		const docker = installDockerApiMock();
 		const mod = await import(
@@ -2021,7 +2153,14 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 
 function installDockerApiMock(
 	opts: {
+		readonly versionStatus?: number;
+		readonly imageStatus?: number;
+		readonly createNetworkStatus?: number;
 		readonly createContainerStatus?: number;
+		readonly inspectContainerStatus?: number;
+		readonly postWaitInspectContainerStatus?: number;
+		readonly inspectNetworkStatus?: number;
+		readonly waitHttpStatus?: number;
 		readonly containerId?: string;
 		readonly networkId?: string;
 		readonly rawVersionBody?: string;
@@ -2136,7 +2275,14 @@ function route(
 	method: string,
 	path: string,
 	opts: {
+		readonly versionStatus?: number;
+		readonly imageStatus?: number;
+		readonly createNetworkStatus?: number;
 		readonly createContainerStatus?: number;
+		readonly inspectContainerStatus?: number;
+		readonly postWaitInspectContainerStatus?: number;
+		readonly inspectNetworkStatus?: number;
+		readonly waitHttpStatus?: number;
 		readonly containerId?: string;
 		readonly networkId?: string;
 		readonly rawVersionBody?: string;
@@ -2165,30 +2311,33 @@ function route(
 	containerInspectRead: number,
 ): { readonly status: number; readonly body: string } {
 	if (method === "GET" && path === "/version" && opts.rawVersionBody !== undefined)
-		return { status: 200, body: opts.rawVersionBody };
+		return { status: opts.versionStatus ?? 200, body: opts.rawVersionBody };
 	if (method === "GET" && path === "/version")
-		return json(200, { Version: "24.0.7", ApiVersion: "1.44" });
+		return json(opts.versionStatus ?? 200, { Version: "24.0.7", ApiVersion: "1.44" });
 	if (
 		method === "GET" &&
 		path === `/images/${encodeURIComponent(imageRef)}/json` &&
 		opts.rawImageBody !== undefined
 	)
-		return { status: 200, body: opts.rawImageBody };
+		return { status: opts.imageStatus ?? 200, body: opts.rawImageBody };
 	if (method === "GET" && path === `/images/${encodeURIComponent(imageRef)}/json`)
-		return json(200, { RepoDigests: [imageRef] });
+		return json(opts.imageStatus ?? 200, { RepoDigests: [imageRef] });
 	if (method === "POST" && path === "/networks/create" && opts.rawCreateNetworkBody !== undefined)
-		return { status: 201, body: opts.rawCreateNetworkBody };
+		return { status: opts.createNetworkStatus ?? 201, body: opts.rawCreateNetworkBody };
 	if (method === "POST" && path === "/networks/create")
-		return json(201, { Id: opts.networkId ?? networkId });
+		return json(opts.createNetworkStatus ?? 201, { Id: opts.networkId ?? networkId });
 	if (
 		method === "POST" &&
 		path.startsWith("/containers/create?name=") &&
 		opts.rawCreateContainerBody !== undefined
 	)
-		return { status: 201, body: opts.rawCreateContainerBody };
+		return { status: opts.createContainerStatus ?? 201, body: opts.rawCreateContainerBody };
 	if (method === "POST" && path.startsWith("/containers/create?name="))
-		return (opts.createContainerStatus ?? 201) === 201
-			? json(201, { Id: opts.containerId ?? containerId, Warnings: [] })
+		return (opts.createContainerStatus ?? 201) >= 200 && (opts.createContainerStatus ?? 201) < 300
+			? json(opts.createContainerStatus ?? 201, {
+					Id: opts.containerId ?? containerId,
+					Warnings: [],
+				})
 			: json(opts.createContainerStatus ?? 500, { message: "failed" });
 	if (
 		method === "GET" &&
@@ -2197,7 +2346,7 @@ function route(
 		opts.rawPostWaitInspectContainerBody !== undefined
 	)
 		return {
-			status: 200,
+			status: opts.postWaitInspectContainerStatus ?? 200,
 			body: inspectContainerBody(
 				opts.rawPostWaitInspectContainerBody,
 				probeNetworkName,
@@ -2210,7 +2359,7 @@ function route(
 		opts.rawInspectContainerBody !== undefined
 	)
 		return {
-			status: 200,
+			status: opts.inspectContainerStatus ?? 200,
 			body: inspectContainerBody(
 				opts.rawInspectContainerBody,
 				probeNetworkName,
@@ -2218,19 +2367,30 @@ function route(
 			),
 		};
 	if (method === "GET" && path === `/containers/${containerId}/json`)
-		return json(200, safeInspectContainerBody(probeNetworkName, probeContainerName));
+		return json(
+			containerInspectRead >= 2
+				? (opts.postWaitInspectContainerStatus ?? 200)
+				: (opts.inspectContainerStatus ?? 200),
+			safeInspectContainerBody(probeNetworkName, probeContainerName),
+		);
 	if (
 		method === "GET" &&
 		path === `/networks/${networkId}` &&
 		opts.rawInspectNetworkBody !== undefined
 	)
-		return { status: 200, body: inspectNetworkBody(opts.rawInspectNetworkBody, probeNetworkName) };
+		return {
+			status: opts.inspectNetworkStatus ?? 200,
+			body: inspectNetworkBody(opts.rawInspectNetworkBody, probeNetworkName),
+		};
 	if (method === "GET" && path.startsWith("/networks/") && opts.rawInspectNetworkBody !== undefined)
-		return { status: 200, body: inspectNetworkBody(opts.rawInspectNetworkBody, probeNetworkName) };
+		return {
+			status: opts.inspectNetworkStatus ?? 200,
+			body: inspectNetworkBody(opts.rawInspectNetworkBody, probeNetworkName),
+		};
 	if (method === "GET" && path === `/networks/${networkId}`)
-		return json(200, safeInspectNetworkBody(probeNetworkName));
+		return json(opts.inspectNetworkStatus ?? 200, safeInspectNetworkBody(probeNetworkName));
 	if (method === "GET" && path.startsWith("/networks/graphrefly-d624-"))
-		return json(200, safeInspectNetworkBody(probeNetworkName));
+		return json(opts.inspectNetworkStatus ?? 200, safeInspectNetworkBody(probeNetworkName));
 	if (method === "POST" && path === `/containers/${containerId}/start`)
 		return { status: opts.startStatus ?? 204, body: opts.startBody ?? "" };
 	if (
@@ -2238,9 +2398,9 @@ function route(
 		path === `/containers/${containerId}/wait` &&
 		opts.rawWaitBody !== undefined
 	)
-		return { status: 200, body: opts.rawWaitBody };
+		return { status: opts.waitHttpStatus ?? 200, body: opts.rawWaitBody };
 	if (method === "POST" && path === `/containers/${containerId}/wait`)
-		return json(200, { StatusCode: opts.waitStatusCode ?? 0 });
+		return json(opts.waitHttpStatus ?? 200, { StatusCode: opts.waitStatusCode ?? 0 });
 	if (method === "DELETE" && path === `/containers/${containerId}?force=true&v=true`)
 		return { status: opts.deleteContainerStatus ?? 204, body: opts.deleteContainerBody ?? "" };
 	if (method === "DELETE" && path.startsWith("/containers/graphrefly-d624-"))

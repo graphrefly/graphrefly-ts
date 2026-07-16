@@ -121,6 +121,8 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 128 * 1024;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+const DOCKER_JSON_OK_STATUS_CODES = Object.freeze([200] as const);
+const DOCKER_JSON_CREATED_STATUS_CODES = Object.freeze([201] as const);
 const PROBE_CONTAINER_USER = "65532:65532";
 const PROBE_CONTAINER_STOP_TIMEOUT_SECONDS = 5;
 const PROBE_CONTAINER_MEMORY_BYTES = 128 * 1024 * 1024;
@@ -229,6 +231,7 @@ function nodeLocalCertificationHost(
 				undefined,
 				http,
 				opts.signal,
+				DOCKER_JSON_OK_STATUS_CODES,
 			);
 			if (!response.ok) return { ok: false, detectedBackend: "unavailable" };
 			return ok(versionEvidence(response.value));
@@ -240,6 +243,7 @@ function nodeLocalCertificationHost(
 				undefined,
 				http,
 				opts.signal,
+				DOCKER_JSON_OK_STATUS_CODES,
 			);
 			if (!response.ok) return { ok: false };
 			return ok(imageDigestEvidence(response.value, opts.imageDigest));
@@ -253,6 +257,7 @@ function nodeLocalCertificationHost(
 				request.body,
 				http,
 				opts.signal,
+				DOCKER_JSON_CREATED_STATUS_CODES,
 			);
 			if (!response.ok) return { ok: false };
 			const resource = dockerCreateResourceResponse(response.value, name);
@@ -276,6 +281,7 @@ function nodeLocalCertificationHost(
 				request.body,
 				http,
 				opts.signal,
+				DOCKER_JSON_CREATED_STATUS_CODES,
 			);
 			if (!response.ok) return { ok: false };
 			const resource = dockerCreateResourceResponse(response.value, name);
@@ -300,6 +306,7 @@ function nodeLocalCertificationHost(
 				undefined,
 				http,
 				opts.signal,
+				DOCKER_JSON_OK_STATUS_CODES,
 			);
 			const inspectedEvidence = inspected.ok
 				? dockerInspectContainmentEvidence(inspected.value, privateContainer)
@@ -339,6 +346,7 @@ function nodeLocalCertificationHost(
 				undefined,
 				http,
 				opts.signal,
+				DOCKER_JSON_OK_STATUS_CODES,
 			);
 			return response.ok && waitProbeContainerSucceeded(response.value)
 				? ok(undefined)
@@ -353,6 +361,7 @@ function nodeLocalCertificationHost(
 				undefined,
 				http,
 				opts.signal,
+				DOCKER_JSON_OK_STATUS_CODES,
 			);
 			const inspectedPolicy = inspected.ok
 				? dockerInspectNetworkRequestPolicy(inspected.value, privateContainer.network)
@@ -379,6 +388,7 @@ function nodeLocalCertificationHost(
 				undefined,
 				http,
 				opts.signal,
+				DOCKER_JSON_OK_STATUS_CODES,
 			);
 			const inspectedEvidence = inspected.ok
 				? dockerInspectCancellationSecretEvidence(inspected.value, privateContainer)
@@ -1098,9 +1108,10 @@ async function dockerJsonObjectRequest(
 	body: Record<string, unknown> | undefined,
 	http: DockerHttpOptions,
 	signal?: AbortSignal,
+	acceptedStatuses: readonly number[] = DOCKER_JSON_OK_STATUS_CODES,
 ): Promise<DockerEngineApiV0HostResult<Record<string, unknown>>> {
 	const result = await dockerRequest(method, path, body, http, signal);
-	if (!result.ok || result.statusCode < 200 || result.statusCode >= 300) return { ok: false };
+	if (!result.ok || !acceptedStatuses.includes(result.statusCode)) return { ok: false };
 	if (result.body === "") return ok(Object.freeze({}));
 	try {
 		const value = plainObject(JSON.parse(result.body));
