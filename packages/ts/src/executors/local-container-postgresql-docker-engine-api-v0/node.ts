@@ -760,6 +760,7 @@ function dockerInspectContainmentEvidence(
 		record === undefined ||
 		config === undefined ||
 		hostConfig === undefined ||
+		!dockerInspectContainerIdentityVerified(record, config, privateContainer) ||
 		mounts === undefined ||
 		!mounts.every((mount) => plainObject(mount) !== undefined) ||
 		securityOpt === undefined ||
@@ -835,6 +836,7 @@ function dockerInspectCancellationSecretEvidence(
 		config === undefined ||
 		hostConfig === undefined ||
 		state === undefined ||
+		!dockerInspectContainerIdentityVerified(record, config, privateContainer) ||
 		mounts === undefined ||
 		!mounts.every((mount) => plainObject(mount) !== undefined) ||
 		binds === undefined ||
@@ -894,6 +896,19 @@ function dockerEngineApiV0NetworkDenialEvidence(
 		hostGatewayEgressDenyVerified: record.hostGatewayEgressDenyVerified,
 		dnsRebindingResistanceVerified: record.dnsRebindingResistanceVerified,
 	});
+}
+
+function dockerInspectContainerIdentityVerified(
+	record: Record<string, unknown>,
+	config: Record<string, unknown>,
+	privateContainer: DockerProbeContainerPrivateHandle,
+): boolean {
+	const inspectedName = stringValue(record.Name);
+	const labels = plainObject(config.Labels);
+	return (
+		(inspectedName === privateContainer.name || inspectedName === `/${privateContainer.name}`) &&
+		labels?.["dev.graphrefly.boundary"] === "d624-docker-engine-api-v0-certifier"
+	);
 }
 
 function dockerInspectNetworkRequestPolicy(

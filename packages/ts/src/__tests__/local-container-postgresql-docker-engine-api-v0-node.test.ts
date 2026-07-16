@@ -647,9 +647,13 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 	it("fails closed when Docker inspect cannot corroborate containment policy", async () => {
 		const docker = installDockerApiMock({
 			rawInspectContainerBody: JSON.stringify({
+				Name: "/__GRAPHREFLY_PROBE_CONTAINER_NAME__",
 				Config: {
 					User: "65532:65532",
 					OpenStdin: false,
+					Labels: {
+						"dev.graphrefly.boundary": "d624-docker-engine-api-v0-certifier",
+					},
 					Tty: false,
 					Volumes: null,
 				},
@@ -704,6 +708,60 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		);
 		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
 		expect(JSON.stringify(preflight)).not.toContain("Mounts");
+	});
+
+	it("fails closed when Docker inspect cannot corroborate the private probe container identity", async () => {
+		const inspected = safeInspectContainerBody(
+			"__GRAPHREFLY_PROBE_NETWORK_NAME__",
+			"__GRAPHREFLY_PROBE_CONTAINER_NAME__",
+		);
+		const inspectedConfig = inspected.Config as Record<string, unknown>;
+		const docker = installDockerApiMock({
+			rawInspectContainerBody: JSON.stringify({
+				...inspected,
+				Name: "/graphrefly-d624-unrelated",
+				Config: {
+					...inspectedConfig,
+					Labels: {
+						"dev.graphrefly.boundary": "unexpected-boundary",
+					},
+				},
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			isolationVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`GET /containers/${containerId}/json`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).not.toContain(
+			`POST /containers/${containerId}/start`,
+		);
+		expect(JSON.stringify(preflight)).not.toContain("graphrefly-d624-unrelated");
+		expect(JSON.stringify(preflight)).not.toContain("unexpected-boundary");
 	});
 
 	it("fails closed when Docker wait response carries private material", async () => {
@@ -1427,6 +1485,7 @@ function installDockerApiMock(
 		body: string;
 	}> = [];
 	let probeNetworkName = "graphrefly-d624-mock-network";
+	let probeContainerName = "graphrefly-d624-mock-container";
 	let containerInspectReads = 0;
 	vi.doMock("node:http", () => ({
 		request(
@@ -1462,6 +1521,10 @@ function installDockerApiMock(
 					const parsed = JSON.parse(body) as { readonly Name?: unknown };
 					if (typeof parsed.Name === "string") probeNetworkName = parsed.Name;
 				}
+				if (method === "POST" && path.startsWith("/containers/create?name=")) {
+					const [, rawName] = path.match(/^\/containers\/create\?name=([^&]+)$/) ?? [];
+					if (rawName !== undefined) probeContainerName = decodeURIComponent(rawName);
+				}
 				if (opts.abortPath === `${method} ${path}`) {
 					opts.abortController?.abort();
 					req.emit("error", new Error("aborted"));
@@ -1472,7 +1535,14 @@ function installDockerApiMock(
 					method === "GET" && path === `/containers/${containerId}/json`
 						? ++containerInspectReads
 						: containerInspectReads;
-				const response = route(method, path, opts, probeNetworkName, containerInspectRead);
+				const response = route(
+					method,
+					path,
+					opts,
+					probeNetworkName,
+					probeContainerName,
+					containerInspectRead,
+				);
 				const res = new EventEmitter() as EventEmitter & { statusCode?: number };
 				res.statusCode = response.status;
 				callback(res);
@@ -1509,6 +1579,7 @@ function route(
 		readonly deleteGeneratedNetworkStatus?: number;
 	},
 	probeNetworkName: string,
+	probeContainerName: string,
 	containerInspectRead: number,
 ): { readonly status: number; readonly body: string } {
 	if (method === "GET" && path === "/version" && opts.rawVersionBody !== undefined)
@@ -1543,7 +1614,11 @@ function route(
 	)
 		return {
 			status: 200,
-			body: inspectContainerBody(opts.rawPostWaitInspectContainerBody, probeNetworkName),
+			body: inspectContainerBody(
+				opts.rawPostWaitInspectContainerBody,
+				probeNetworkName,
+				probeContainerName,
+			),
 		};
 	if (
 		method === "GET" &&
@@ -1552,10 +1627,14 @@ function route(
 	)
 		return {
 			status: 200,
-			body: inspectContainerBody(opts.rawInspectContainerBody, probeNetworkName),
+			body: inspectContainerBody(
+				opts.rawInspectContainerBody,
+				probeNetworkName,
+				probeContainerName,
+			),
 		};
 	if (method === "GET" && path === `/containers/${containerId}/json`)
-		return json(200, safeInspectContainerBody(probeNetworkName));
+		return json(200, safeInspectContainerBody(probeNetworkName, probeContainerName));
 	if (
 		method === "GET" &&
 		path === `/networks/${networkId}` &&
@@ -1595,12 +1674,19 @@ function json(
 	return { status, body: JSON.stringify(body) };
 }
 
-function safeInspectContainerBody(networkName: string): Record<string, unknown> {
+function safeInspectContainerBody(
+	networkName: string,
+	containerName = "__GRAPHREFLY_PROBE_CONTAINER_NAME__",
+): Record<string, unknown> {
 	return {
+		Name: `/${containerName}`,
 		Config: {
 			User: "65532:65532",
 			OpenStdin: false,
 			Env: ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
+			Labels: {
+				"dev.graphrefly.boundary": "d624-docker-engine-api-v0-certifier",
+			},
 			Volumes: null,
 		},
 		HostConfig: {
@@ -1641,8 +1727,10 @@ function inspectNetworkBody(body: string, networkName: string): string {
 	return body.replaceAll("__GRAPHREFLY_PROBE_NETWORK_NAME__", networkName);
 }
 
-function inspectContainerBody(body: string, networkName: string): string {
-	return body.replaceAll("__GRAPHREFLY_PROBE_NETWORK_NAME__", networkName);
+function inspectContainerBody(body: string, networkName: string, containerName: string): string {
+	return body
+		.replaceAll("__GRAPHREFLY_PROBE_NETWORK_NAME__", networkName)
+		.replaceAll("__GRAPHREFLY_PROBE_CONTAINER_NAME__", containerName);
 }
 
 function proofAdapter(
