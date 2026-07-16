@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY,
@@ -87,6 +88,8 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 			StopTimeout: 5,
 			HostConfig: {
 				ReadonlyRootfs: true,
+				Privileged: false,
+				PublishAllPorts: false,
 				SecurityOpt: ["no-new-privileges"],
 				CapDrop: ["ALL"],
 				Memory: 128 * 1024 * 1024,
@@ -95,7 +98,21 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 				PidsLimit: 64,
 			},
 		});
+		expect(createBody.HostConfig).not.toHaveProperty("PortBindings");
+		expect(createBody).not.toHaveProperty("ExposedPorts");
 		expect(JSON.stringify(createBody)).not.toContain("/var/run/docker.sock");
+	});
+
+	it("binds privileged and port-publication request policy into isolation evidence", () => {
+		const source = readFileSync(
+			new URL(
+				"../executors/local-container-postgresql-docker-engine-api-v0/node.ts",
+				import.meta.url,
+			),
+			"utf8",
+		);
+		expect(source).toContain("policy.noPrivilegedModeRequested &&");
+		expect(source).toContain("policy.noPortPublicationRequested &&");
 	});
 
 	it("fails closed and removes allocated network when Docker create is not accepted", async () => {

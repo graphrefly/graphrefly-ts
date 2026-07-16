@@ -1,0 +1,1237 @@
+{
+	"schemaVersion": "graphrefly.private-solution-eval.family-scorecard.v1",
+	"familyRef": "[\"b105\",\"family\",\"memory-rerun-avoidance\",\"v1\"]",
+	"lane": "deterministic",
+	"requiredCaseRefs": [
+		"[\"b105\",\"case\",\"relevant-applied\",\"v1\"]",
+		"[\"b105\",\"case\",\"proposal-only\",\"v1\"]",
+		"[\"b105\",\"case\",\"admission-rejected\",\"v1\"]",
+		"[\"b105\",\"case\",\"irrelevant-applied\",\"v1\"]",
+		"[\"b105\",\"case\",\"wrong-scope-applied\",\"v1\"]"
+	],
+	"cases": [
+		{
+			"schemaVersion": "graphrefly.private-solution-eval.case-observation.v1",
+			"familyRef": "[\"b105\",\"family\",\"memory-rerun-avoidance\",\"v1\"]",
+			"caseRef": "[\"b105\",\"case\",\"relevant-applied\",\"v1\"]",
+			"caseKind": "relevant-applied",
+			"lane": "deterministic",
+			"required": true,
+			"input": {
+				"cold": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				},
+				"warm": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				}
+			},
+			"cold": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"relevant-applied\",\"cold\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"relevant-applied\",\"cold\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"reflection": {
+				"candidateCount": 3,
+				"candidateRecordRefs": [
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+					}
+				],
+				"evidenceRefs": [
+					{
+						"kind": "work-item-evidence",
+						"id": "[\"b105\",\"work-item-evidence\",\"relevant-applied\",\"cold-failure\"]"
+					}
+				]
+			},
+			"memory": {
+				"proposal": {
+					"state": "emitted",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						}
+					]
+				},
+				"admission": {
+					"state": "admitted",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						}
+					]
+				},
+				"application": {
+					"state": "applied",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						}
+					]
+				},
+				"retrieval": {
+					"state": "retrieved",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						}
+					]
+				},
+				"mapperExplicitCandidates": 0
+			},
+			"warm": {
+				"route": "memory-guided-verify-first",
+				"outcomeStatus": "completed",
+				"verifierSatisfied": true,
+				"issueCodes": [],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"relevant-applied\",\"warm\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"relevant-applied\",\"warm\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "memory-considered",
+						"recordRef": {
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						},
+						"reasonCode": "packed-context-entry"
+					},
+					{
+						"event": "memory-used",
+						"recordRef": {
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						},
+						"reasonCode": "applicable-rerun-avoidance"
+					},
+					{
+						"event": "route-selected",
+						"route": "memory-guided-verify-first",
+						"reasonCode": "memory-applied"
+					}
+				]
+			},
+			"stagePredicates": {
+				"cold_run_failed": true,
+				"memory_record_proposed": true,
+				"memory_record_admitted": true,
+				"memory_record_applied": true,
+				"memory_record_retrieved": true,
+				"warm_run_passed": true,
+				"warm_decision_trace_includes_memory": true,
+				"same_work_item_input": true,
+				"prior_failure_route_avoided": true
+			},
+			"canonicalGatePassed": true,
+			"expectation": {
+				"coldRunPassed": false,
+				"sameWorkItemInput": true,
+				"mapperExplicitCandidates": 0,
+				"proposalState": "emitted",
+				"admissionState": "admitted",
+				"applicationState": "applied",
+				"retrievalState": "retrieved",
+				"warmRunPassed": true,
+				"warmRoute": "memory-guided-verify-first",
+				"traceMemoryDisposition": "used",
+				"priorFailureRouteAvoided": true
+			},
+			"caseConforms": true,
+			"issueCodes": [
+				"b105.verify.acceptance-criterion-unsatisfied",
+				"b105.verify.execution-failed",
+				"b105.verify.verification-required-before-edit"
+			],
+			"resultRefs": [
+				{
+					"kind": "agentic-memory-record",
+					"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+				},
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"relevant-applied\",\"cold\"]"
+				},
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"relevant-applied\",\"warm\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"relevant-applied\",\"cold\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"relevant-applied\",\"warm\"]"
+				},
+				{
+					"kind": "work-item-evidence",
+					"id": "[\"b105\",\"work-item-evidence\",\"relevant-applied\",\"cold-failure\"]"
+				}
+			]
+		},
+		{
+			"schemaVersion": "graphrefly.private-solution-eval.case-observation.v1",
+			"familyRef": "[\"b105\",\"family\",\"memory-rerun-avoidance\",\"v1\"]",
+			"caseRef": "[\"b105\",\"case\",\"proposal-only\",\"v1\"]",
+			"caseKind": "proposal-only",
+			"lane": "deterministic",
+			"required": true,
+			"input": {
+				"cold": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				},
+				"warm": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				}
+			},
+			"cold": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"proposal-only\",\"cold\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"proposal-only\",\"cold\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"reflection": {
+				"candidateCount": 3,
+				"candidateRecordRefs": [
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+					}
+				],
+				"evidenceRefs": [
+					{
+						"kind": "work-item-evidence",
+						"id": "[\"b105\",\"work-item-evidence\",\"proposal-only\",\"cold-failure\"]"
+					}
+				]
+			},
+			"memory": {
+				"proposal": {
+					"state": "emitted",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						}
+					]
+				},
+				"admission": {
+					"state": "not-run",
+					"recordRefs": []
+				},
+				"application": {
+					"state": "not-run",
+					"recordRefs": []
+				},
+				"retrieval": {
+					"state": "not-retrieved",
+					"recordRefs": []
+				},
+				"mapperExplicitCandidates": 0
+			},
+			"warm": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"proposal-only\",\"warm\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"proposal-only\",\"warm\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"stagePredicates": {
+				"cold_run_failed": true,
+				"memory_record_proposed": true,
+				"memory_record_admitted": false,
+				"memory_record_applied": false,
+				"memory_record_retrieved": false,
+				"warm_run_passed": false,
+				"warm_decision_trace_includes_memory": false,
+				"same_work_item_input": true,
+				"prior_failure_route_avoided": false
+			},
+			"canonicalGatePassed": false,
+			"expectation": {
+				"coldRunPassed": false,
+				"sameWorkItemInput": true,
+				"mapperExplicitCandidates": 0,
+				"proposalState": "emitted",
+				"admissionState": "not-run",
+				"applicationState": "not-run",
+				"retrievalState": "not-retrieved",
+				"warmRunPassed": false,
+				"warmRoute": "unsafe-direct-edit",
+				"traceMemoryDisposition": "none",
+				"priorFailureRouteAvoided": false
+			},
+			"caseConforms": true,
+			"issueCodes": [
+				"b105.verify.acceptance-criterion-unsatisfied",
+				"b105.verify.execution-failed",
+				"b105.verify.verification-required-before-edit"
+			],
+			"resultRefs": [
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"proposal-only\",\"cold\"]"
+				},
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"proposal-only\",\"warm\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"proposal-only\",\"cold\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"proposal-only\",\"warm\"]"
+				},
+				{
+					"kind": "work-item-evidence",
+					"id": "[\"b105\",\"work-item-evidence\",\"proposal-only\",\"cold-failure\"]"
+				}
+			]
+		},
+		{
+			"schemaVersion": "graphrefly.private-solution-eval.case-observation.v1",
+			"familyRef": "[\"b105\",\"family\",\"memory-rerun-avoidance\",\"v1\"]",
+			"caseRef": "[\"b105\",\"case\",\"admission-rejected\",\"v1\"]",
+			"caseKind": "admission-rejected",
+			"lane": "deterministic",
+			"required": true,
+			"input": {
+				"cold": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				},
+				"warm": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				}
+			},
+			"cold": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"admission-rejected\",\"cold\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"admission-rejected\",\"cold\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"reflection": {
+				"candidateCount": 3,
+				"candidateRecordRefs": [
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+					}
+				],
+				"evidenceRefs": [
+					{
+						"kind": "work-item-evidence",
+						"id": "[\"b105\",\"work-item-evidence\",\"admission-rejected\",\"cold-failure\"]"
+					}
+				]
+			},
+			"memory": {
+				"proposal": {
+					"state": "emitted",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						}
+					]
+				},
+				"admission": {
+					"state": "rejected",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+						}
+					]
+				},
+				"application": {
+					"state": "not-applied",
+					"recordRefs": []
+				},
+				"retrieval": {
+					"state": "not-retrieved",
+					"recordRefs": []
+				},
+				"mapperExplicitCandidates": 0
+			},
+			"warm": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"admission-rejected\",\"warm\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"admission-rejected\",\"warm\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"stagePredicates": {
+				"cold_run_failed": true,
+				"memory_record_proposed": true,
+				"memory_record_admitted": false,
+				"memory_record_applied": false,
+				"memory_record_retrieved": false,
+				"warm_run_passed": false,
+				"warm_decision_trace_includes_memory": false,
+				"same_work_item_input": true,
+				"prior_failure_route_avoided": false
+			},
+			"canonicalGatePassed": false,
+			"expectation": {
+				"coldRunPassed": false,
+				"sameWorkItemInput": true,
+				"mapperExplicitCandidates": 0,
+				"proposalState": "emitted",
+				"admissionState": "rejected",
+				"applicationState": "not-applied",
+				"retrievalState": "not-retrieved",
+				"warmRunPassed": false,
+				"warmRoute": "unsafe-direct-edit",
+				"traceMemoryDisposition": "none",
+				"priorFailureRouteAvoided": false
+			},
+			"caseConforms": true,
+			"issueCodes": [
+				"b105.verify.acceptance-criterion-unsatisfied",
+				"b105.verify.execution-failed",
+				"b105.verify.verification-required-before-edit"
+			],
+			"resultRefs": [
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"admission-rejected\",\"cold\"]"
+				},
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"admission-rejected\",\"warm\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"admission-rejected\",\"cold\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"admission-rejected\",\"warm\"]"
+				},
+				{
+					"kind": "work-item-evidence",
+					"id": "[\"b105\",\"work-item-evidence\",\"admission-rejected\",\"cold-failure\"]"
+				}
+			]
+		},
+		{
+			"schemaVersion": "graphrefly.private-solution-eval.case-observation.v1",
+			"familyRef": "[\"b105\",\"family\",\"memory-rerun-avoidance\",\"v1\"]",
+			"caseRef": "[\"b105\",\"case\",\"irrelevant-applied\",\"v1\"]",
+			"caseKind": "irrelevant-applied",
+			"lane": "deterministic",
+			"required": true,
+			"input": {
+				"cold": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				},
+				"warm": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				}
+			},
+			"cold": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"irrelevant-applied\",\"cold\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"irrelevant-applied\",\"cold\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"reflection": {
+				"candidateCount": 3,
+				"candidateRecordRefs": [
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+					}
+				],
+				"evidenceRefs": [
+					{
+						"kind": "work-item-evidence",
+						"id": "[\"b105\",\"work-item-evidence\",\"irrelevant-applied\",\"cold-failure\"]"
+					}
+				]
+			},
+			"memory": {
+				"proposal": {
+					"state": "emitted",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+						}
+					]
+				},
+				"admission": {
+					"state": "admitted",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+						}
+					]
+				},
+				"application": {
+					"state": "applied",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+						}
+					]
+				},
+				"retrieval": {
+					"state": "retrieved",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+						}
+					]
+				},
+				"mapperExplicitCandidates": 0
+			},
+			"warm": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"irrelevant-applied\",\"warm\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"irrelevant-applied\",\"warm\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "memory-considered",
+						"recordRef": {
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+						},
+						"reasonCode": "packed-context-entry"
+					},
+					{
+						"event": "memory-rejected",
+						"recordRef": {
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+						},
+						"reasonCode": "irrelevant-procedure"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"stagePredicates": {
+				"cold_run_failed": true,
+				"memory_record_proposed": true,
+				"memory_record_admitted": true,
+				"memory_record_applied": true,
+				"memory_record_retrieved": true,
+				"warm_run_passed": false,
+				"warm_decision_trace_includes_memory": true,
+				"same_work_item_input": true,
+				"prior_failure_route_avoided": false
+			},
+			"canonicalGatePassed": false,
+			"expectation": {
+				"coldRunPassed": false,
+				"sameWorkItemInput": true,
+				"mapperExplicitCandidates": 0,
+				"proposalState": "emitted",
+				"admissionState": "admitted",
+				"applicationState": "applied",
+				"retrievalState": "retrieved",
+				"warmRunPassed": false,
+				"warmRoute": "unsafe-direct-edit",
+				"traceMemoryDisposition": "rejected-irrelevant",
+				"priorFailureRouteAvoided": false
+			},
+			"caseConforms": true,
+			"issueCodes": [
+				"b105.verify.acceptance-criterion-unsatisfied",
+				"b105.verify.execution-failed",
+				"b105.verify.verification-required-before-edit"
+			],
+			"resultRefs": [
+				{
+					"kind": "agentic-memory-record",
+					"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+				},
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"irrelevant-applied\",\"cold\"]"
+				},
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"irrelevant-applied\",\"warm\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"irrelevant-applied\",\"cold\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"irrelevant-applied\",\"warm\"]"
+				},
+				{
+					"kind": "work-item-evidence",
+					"id": "[\"b105\",\"work-item-evidence\",\"irrelevant-applied\",\"cold-failure\"]"
+				}
+			]
+		},
+		{
+			"schemaVersion": "graphrefly.private-solution-eval.case-observation.v1",
+			"familyRef": "[\"b105\",\"family\",\"memory-rerun-avoidance\",\"v1\"]",
+			"caseRef": "[\"b105\",\"case\",\"wrong-scope-applied\",\"v1\"]",
+			"caseKind": "wrong-scope-applied",
+			"lane": "deterministic",
+			"required": true,
+			"input": {
+				"cold": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				},
+				"warm": {
+					"workItemDigest": "sha256:a3ffb91d6e8520e634114351abcb24481cc0f5ea4bb2f2f1bbe93386bac02b59",
+					"worldDigest": "sha256:010d765ee9fea1c1d8573efe6fb4739e6a47bb9a73e2271e15872c8c340158e1",
+					"worldRevision": "b105-world.v1",
+					"plannerRevision": "b105-planner.v1",
+					"executorRevision": "b105-executor.v1",
+					"verifierRevision": "b105-verifier.v1",
+					"reflectorRevision": "b105-reflector.v1",
+					"mapperRevision": "b105-mapper.v1"
+				}
+			},
+			"cold": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"wrong-scope-applied\",\"cold\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"wrong-scope-applied\",\"cold\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"reflection": {
+				"candidateCount": 3,
+				"candidateRecordRefs": [
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+					},
+					{
+						"kind": "agentic-memory-record",
+						"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+					}
+				],
+				"evidenceRefs": [
+					{
+						"kind": "work-item-evidence",
+						"id": "[\"b105\",\"work-item-evidence\",\"wrong-scope-applied\",\"cold-failure\"]"
+					}
+				]
+			},
+			"memory": {
+				"proposal": {
+					"state": "emitted",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+						}
+					]
+				},
+				"admission": {
+					"state": "admitted",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+						}
+					]
+				},
+				"application": {
+					"state": "applied",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+						}
+					]
+				},
+				"retrieval": {
+					"state": "retrieved",
+					"recordRefs": [
+						{
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+						}
+					]
+				},
+				"mapperExplicitCandidates": 0
+			},
+			"warm": {
+				"route": "unsafe-direct-edit",
+				"outcomeStatus": "failed",
+				"verifierSatisfied": false,
+				"issueCodes": [
+					"b105.verify.acceptance-criterion-unsatisfied",
+					"b105.verify.execution-failed",
+					"b105.verify.verification-required-before-edit"
+				],
+				"resultRefs": [
+					{
+						"kind": "b105-verification",
+						"id": "[\"b105\",\"verification\",\"wrong-scope-applied\",\"warm\"]"
+					},
+					{
+						"kind": "effect-run-result",
+						"id": "[\"b105\",\"effect-run-result\",\"wrong-scope-applied\",\"warm\"]"
+					}
+				],
+				"decisionTrace": [
+					{
+						"event": "planner-start",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					},
+					{
+						"event": "memory-considered",
+						"recordRef": {
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+						},
+						"reasonCode": "packed-context-entry"
+					},
+					{
+						"event": "memory-rejected",
+						"recordRef": {
+							"kind": "agentic-memory-record",
+							"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+						},
+						"reasonCode": "scope-mismatch"
+					},
+					{
+						"event": "route-selected",
+						"route": "unsafe-direct-edit",
+						"reasonCode": "no-applicable-memory"
+					}
+				]
+			},
+			"stagePredicates": {
+				"cold_run_failed": true,
+				"memory_record_proposed": true,
+				"memory_record_admitted": true,
+				"memory_record_applied": true,
+				"memory_record_retrieved": true,
+				"warm_run_passed": false,
+				"warm_decision_trace_includes_memory": true,
+				"same_work_item_input": true,
+				"prior_failure_route_avoided": false
+			},
+			"canonicalGatePassed": false,
+			"expectation": {
+				"coldRunPassed": false,
+				"sameWorkItemInput": true,
+				"mapperExplicitCandidates": 0,
+				"proposalState": "emitted",
+				"admissionState": "admitted",
+				"applicationState": "applied",
+				"retrievalState": "retrieved",
+				"warmRunPassed": false,
+				"warmRoute": "unsafe-direct-edit",
+				"traceMemoryDisposition": "rejected-scope",
+				"priorFailureRouteAvoided": false
+			},
+			"caseConforms": true,
+			"issueCodes": [
+				"b105.verify.acceptance-criterion-unsatisfied",
+				"b105.verify.execution-failed",
+				"b105.verify.verification-required-before-edit"
+			],
+			"resultRefs": [
+				{
+					"kind": "agentic-memory-record",
+					"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+				},
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"wrong-scope-applied\",\"cold\"]"
+				},
+				{
+					"kind": "b105-verification",
+					"id": "[\"b105\",\"verification\",\"wrong-scope-applied\",\"warm\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"wrong-scope-applied\",\"cold\"]"
+				},
+				{
+					"kind": "effect-run-result",
+					"id": "[\"b105\",\"effect-run-result\",\"wrong-scope-applied\",\"warm\"]"
+				},
+				{
+					"kind": "work-item-evidence",
+					"id": "[\"b105\",\"work-item-evidence\",\"wrong-scope-applied\",\"cold-failure\"]"
+				}
+			]
+		}
+	],
+	"metrics": {
+		"relevantMemoryLift": {
+			"coldPassRate": 0,
+			"warmPassRate": 1,
+			"lift": 1
+		},
+		"negativeControlFalsePositiveRate": {
+			"falsePositives": 0,
+			"controls": 4,
+			"rate": 0
+		},
+		"traceAttribution": {
+			"attributedRetrievedRecords": 3,
+			"retrievedRecords": 3,
+			"rate": 1
+		},
+		"stageCounts": {
+			"proposed": 5,
+			"admitted": 3,
+			"admissionRejected": 1,
+			"admissionNotRun": 1,
+			"applied": 3,
+			"applicationNotApplied": 1,
+			"applicationNotRun": 1,
+			"retrieved": 3
+		}
+	},
+	"familyPassed": true,
+	"issueCodes": [
+		"b105.verify.acceptance-criterion-unsatisfied",
+		"b105.verify.execution-failed",
+		"b105.verify.verification-required-before-edit"
+	],
+	"resultRefs": [
+		{
+			"kind": "agentic-memory-record",
+			"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"irrelevant\"]"
+		},
+		{
+			"kind": "agentic-memory-record",
+			"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"relevant\"]"
+		},
+		{
+			"kind": "agentic-memory-record",
+			"id": "[\"b105\",\"procedural-record\",\"wi-b105-rerun\",\"wrong-scope\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"admission-rejected\",\"cold\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"admission-rejected\",\"warm\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"irrelevant-applied\",\"cold\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"irrelevant-applied\",\"warm\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"proposal-only\",\"cold\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"proposal-only\",\"warm\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"relevant-applied\",\"cold\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"relevant-applied\",\"warm\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"wrong-scope-applied\",\"cold\"]"
+		},
+		{
+			"kind": "b105-verification",
+			"id": "[\"b105\",\"verification\",\"wrong-scope-applied\",\"warm\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"admission-rejected\",\"cold\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"admission-rejected\",\"warm\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"irrelevant-applied\",\"cold\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"irrelevant-applied\",\"warm\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"proposal-only\",\"cold\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"proposal-only\",\"warm\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"relevant-applied\",\"cold\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"relevant-applied\",\"warm\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"wrong-scope-applied\",\"cold\"]"
+		},
+		{
+			"kind": "effect-run-result",
+			"id": "[\"b105\",\"effect-run-result\",\"wrong-scope-applied\",\"warm\"]"
+		},
+		{
+			"kind": "work-item-evidence",
+			"id": "[\"b105\",\"work-item-evidence\",\"admission-rejected\",\"cold-failure\"]"
+		},
+		{
+			"kind": "work-item-evidence",
+			"id": "[\"b105\",\"work-item-evidence\",\"irrelevant-applied\",\"cold-failure\"]"
+		},
+		{
+			"kind": "work-item-evidence",
+			"id": "[\"b105\",\"work-item-evidence\",\"proposal-only\",\"cold-failure\"]"
+		},
+		{
+			"kind": "work-item-evidence",
+			"id": "[\"b105\",\"work-item-evidence\",\"relevant-applied\",\"cold-failure\"]"
+		},
+		{
+			"kind": "work-item-evidence",
+			"id": "[\"b105\",\"work-item-evidence\",\"wrong-scope-applied\",\"cold-failure\"]"
+		}
+	]
+}

@@ -1,330 +1,307 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { DataIssue } from "../data/index.js";
-import { graph } from "../graph/graph.js";
-import { canonicalTupleKey, parseCanonicalTupleKey } from "../identity.js";
-import type { EffectRunResult } from "../orchestration/agent-runtime.js";
-import type { WorkItemEvidenceRecorded } from "../orchestration/work-item-runtime.js";
-import type { MemoryRetrievalQuery } from "../patterns/semantic-memory-graph.js";
-import type { Message } from "../protocol/messages.js";
+import { strictJsonCodec } from "../json/codec.js";
 import {
-	type AgenticMemoryContextPackingPolicy,
-	type AgenticMemoryContextText,
-	type AgenticMemoryPackedContext,
-	type AgenticMemoryRecord,
-	type AgenticMemoryRecordAdmissionPolicy,
-	type AgenticMemoryRecordApplicationPolicy,
-	type AgenticMemoryRecordCandidateMaterial,
-	agenticMemoryBundle,
-	agenticMemoryContextPackingBundle,
-} from "../solutions/agentic-memory/index.js";
-import type { AgenticWorkItemMemoryMappingPolicy } from "../solutions/agentic-work-item-memory/index.js";
-import { mapAgenticWorkItemMemoryApplicationRecipe } from "../solutions/agentic-work-item-memory-application/index.js";
-import type { WorkItemProjection } from "../solutions/work-item/index.js";
+	buildEvalScope,
+	buildWorkItem,
+	canonicalGate,
+	evalId,
+	hasExactTraceAttribution,
+	runMemoryRerunAvoidanceFamily,
+	scorecardBytes,
+	workItemDigest,
+} from "./eval-support/memory-rerun-avoidance/family.js";
+import {
+	buildWorld,
+	executeRoute,
+	planRoute,
+	reflectFailure,
+	verifyOutcome,
+} from "./eval-support/memory-rerun-avoidance/stages.js";
 
-type EvalRoute = "unsafe-direct-edit" | "memory-guided-verify-first";
+const GOLDEN_URL = new URL(
+	"./eval-support/memory-rerun-avoidance/memory-rerun-avoidance.scorecard.v1.json",
+	import.meta.url,
+);
 
-interface PlannerDecision {
-	readonly route: EvalRoute;
-	readonly passed: boolean;
-	readonly trace: readonly string[];
-}
-
-const data = <T>(messages: Message[]): T[] =>
-	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);
-
-function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
-	const messages: Message[] = [];
-	const unsubscribe = node.subscribe((message) => messages.push(message));
-	return { messages, unsubscribe };
-}
-
-const id = (...parts: readonly string[]) => canonicalTupleKey(["b105", ...parts]);
-
-const workItem = (): WorkItemProjection => ({
-	workItemId: "wi-b105-rerun",
-	authoringRevision: 1,
-	executionInputRevision: 1,
-	lastEventId: "event-b105-1",
-	summary: "Avoid repeating the unsafe WorkItem route after verification failure",
-	sourceRefs: [{ kind: "issue", id: "issue-b105" }],
-});
-
-const admissionPolicy = (): AgenticMemoryRecordAdmissionPolicy => ({
-	kind: "agentic-memory-record-admission-policy",
-	policyId: id("admission-policy"),
-	defaultState: "admitted",
-});
-
-const applicationPolicy = (): AgenticMemoryRecordApplicationPolicy => ({
-	kind: "agentic-memory-record-application-policy",
-	policyId: id("application-policy"),
-});
-
-const mappingPolicy = (): AgenticWorkItemMemoryMappingPolicy<string> => ({
-	kind: "agentic-work-item-memory-mapping-policy",
-	policyId: id("bridge-policy"),
-	recordRules: [
-		{
-			ruleId: id("record-rule", "reflect-cold-failure"),
-			candidateMaterialFrom: {
-				input: "evidence",
-				refId: id("work-item-evidence", "cold-failure"),
-				path: ["metadata", "reflectedCandidateMaterial"],
-			},
-			reason: "cold VERIFY/REFLECT failure emitted procedural rerun avoidance material",
-			evidenceRefs: [{ kind: "work-item-evidence", id: id("work-item-evidence", "cold-failure") }],
-		},
-	],
-	scoreRules: [],
-});
-
-function deterministicPlanner(
-	item: WorkItemProjection,
-	packedContext?: AgenticMemoryPackedContext,
-): PlannerDecision {
-	const memoryRecordIds = (packedContext?.entries ?? [])
-		.map((entry) => entry.record?.recordId)
-		.filter((recordId): recordId is string => recordId !== undefined);
-	const hasAvoidanceMemory =
-		memoryRecordIds.length > 0 &&
-		(packedContext?.text.includes("avoid unsafe-direct-edit") ?? false);
-	const route: EvalRoute = hasAvoidanceMemory ? "memory-guided-verify-first" : "unsafe-direct-edit";
-	return {
-		route,
-		passed: route === "memory-guided-verify-first",
-		trace: [
-			`workItem:${item.workItemId}`,
-			`route:${route}`,
-			hasAvoidanceMemory ? `memory:${memoryRecordIds.join(",")}` : "memory:none",
-		],
-	};
-}
-
-function coldFailureOutcome(decision: PlannerDecision): EffectRunResult {
-	const issue: DataIssue = {
-		kind: "issue",
-		code: "b105.verify.failed-route",
-		message: "VERIFY failed because the cold run chose unsafe-direct-edit",
-		severity: "error",
-		metadata: { route: decision.route },
-	};
-	return {
-		kind: "effect-run-result",
-		resultId: id("effect-run-result", "cold"),
-		effectRunId: id("effect-run", "cold"),
-		status: "failed",
-		error: issue,
-		sourceRefs: [{ kind: "deterministic-planner", id: id("planner", "cold") }],
-		issues: [issue],
-		metadata: { route: decision.route, trace: [...decision.trace] },
-	};
-}
-
-function failureEvidence(outcome: EffectRunResult): WorkItemEvidenceRecorded {
-	if (outcome.status !== "failed") {
-		throw new Error("B105 cold fixture expects a failed outcome");
-	}
-	return {
-		kind: "work-item-evidence-recorded",
-		evidenceId: id("work-item-evidence", "cold-failure"),
-		workItemId: "wi-b105-rerun",
-		effectRunId: outcome.effectRunId,
-		effectRunResultId: outcome.resultId,
-		executionInputRevision: 1,
-		status: "failed",
-		sourceRefs: [
-			{ kind: "effect-run", id: outcome.effectRunId },
-			{ kind: "effect-run-result", id: outcome.resultId },
-		],
-		error: outcome.error,
-		reason: "VERIFY/REFLECT recorded the cold route as a reusable avoidance memory",
-		metadata: outcome.metadata,
-	};
-}
-
-function withReflectedMaterial(
-	evidence: WorkItemEvidenceRecorded,
-	material: AgenticMemoryRecordCandidateMaterial<string>,
-): WorkItemEvidenceRecorded {
-	return {
-		...evidence,
-		metadata: {
-			...evidence.metadata,
-			reflectedCandidateMaterial: material,
-		},
-	};
-}
-
-function proceduralAvoidanceRecord(
-	item: WorkItemProjection,
-	evidence: WorkItemEvidenceRecorded,
-	outcome: EffectRunResult,
-): AgenticMemoryRecord<string> {
-	return {
-		id: id("procedural-record", item.workItemId),
-		kind: "procedural",
-		persistenceLevel: "project",
-		artifactKind: "procedure",
-		fragment: {
-			id: id("procedural-fragment", item.workItemId),
-			payload:
-				"For wi-b105-rerun, avoid unsafe-direct-edit after VERIFY failure; use memory-guided-verify-first.",
-			tNs: 105n,
-			confidence: 1,
-			tags: ["work-item-rerun-avoidance", item.workItemId],
-			sources: [evidence.evidenceId, outcome.resultId],
-			provenance: "B105 deterministic VERIFY/REFLECT fixture",
-		},
-		scope: { projectId: "project-b105" },
-	};
-}
-
-function candidateMaterial(
-	record: AgenticMemoryRecord<string>,
-	evidence: WorkItemEvidenceRecorded,
-	outcome: EffectRunResult,
-): AgenticMemoryRecordCandidateMaterial<string> {
-	return {
-		kind: "agentic-memory-record-candidate-material",
-		operation: "create",
-		operationVersion: 1,
-		record,
-		sourceRefs: [
-			{ kind: "work-item-evidence", id: evidence.evidenceId },
-			{ kind: "effect-run-result", id: outcome.resultId },
-		],
-		evidenceRefs: [{ kind: "work-item-evidence", id: evidence.evidenceId }],
-		metadata: { fixture: "B105" },
-	};
-}
-
-function packAppliedMemory(
-	recordsToPack: readonly AgenticMemoryRecord<string>[],
-): AgenticMemoryPackedContext | undefined {
-	const g = graph();
-	const records = g.state<readonly AgenticMemoryRecord<string>[]>([], {
-		name: "b105/appliedMemoryRecords",
-	});
-	const query = g.state<MemoryRetrievalQuery>(
-		{ tags: ["work-item-rerun-avoidance"], limit: 1 },
-		{ name: "b105/memoryQuery" },
-	);
-	const memory = agenticMemoryBundle<string>(g, {
-		name: "b105/memory",
-		records,
-		query,
-	});
-	const texts = g.state<readonly AgenticMemoryContextText[]>([], {
-		name: "b105/contextTexts",
-	});
-	const policy = g.state<AgenticMemoryContextPackingPolicy>(
-		{ maxEntries: 1, includeMetadata: true },
-		{ name: "b105/packingPolicy" },
-	);
-	const packed = agenticMemoryContextPackingBundle(g, {
-		name: "b105/contextPacking",
-		context: memory.context,
-		texts,
-		policy,
-	});
-	const observed = collect(packed.packedContext);
-	try {
-		records.set(recordsToPack);
-		texts.set(
-			recordsToPack.map((record) => ({
-				fragmentId: record.fragment.id,
-				text: record.fragment.payload,
-				metadata: { recordId: record.id },
-			})),
-		);
-		return data<AgenticMemoryPackedContext>(observed.messages).at(-1);
-	} finally {
-		observed.unsubscribe();
-	}
-}
-
-describe("B105 deterministic memory rerun avoidance eval fixture", () => {
-	it("proves the same WorkItem rerun avoids a prior failure through applied AgenticMemory", () => {
-		const item = workItem();
-		const coldDecision = deterministicPlanner(item);
-		const coldOutcome = coldFailureOutcome(coldDecision);
-		const coldEvidence = failureEvidence(coldOutcome);
-		const learnedRecord = proceduralAvoidanceRecord(item, coldEvidence, coldOutcome);
-		const reflectedEvidence = withReflectedMaterial(
-			coldEvidence,
-			candidateMaterial(learnedRecord, coldEvidence, coldOutcome),
-		);
-
-		const memoryApplication = mapAgenticWorkItemMemoryApplicationRecipe({
-			workItem: item,
-			policy: mappingPolicy(),
-			evidence: [reflectedEvidence],
-			outcomes: [coldOutcome],
-			records: [],
-			admissionPolicy: admissionPolicy(),
-			applicationPolicy: applicationPolicy(),
-			evaluation: 105,
-		});
-		const packedContext = packAppliedMemory(memoryApplication.application?.records ?? []);
-		const warmDecision = deterministicPlanner(item, packedContext);
-
-		const cold_run_failed = !coldDecision.passed && coldOutcome.status === "failed";
-		const memory_record_applied =
-			memoryApplication.application?.applicationDecisions.some(
-				(decision) => decision.state === "applied" && decision.record?.id === learnedRecord.id,
-			) ?? false;
-		const warm_run_passed = warmDecision.passed;
-		const warm_decision_trace_includes_memory = warmDecision.trace.some((entry) =>
-			entry.includes(learnedRecord.id),
-		);
-		const proposal = memoryApplication.bridge.proposals[0];
-		const idempotencyKeyParts =
-			proposal?.idempotencyKey === undefined
-				? undefined
-				: parseCanonicalTupleKey(proposal.idempotencyKey);
-
-		expect(coldDecision.route).toBe("unsafe-direct-edit");
-		expect(coldDecision.trace).toContain("memory:none");
-		expect(memoryApplication.bridge.proposals).toHaveLength(1);
-		expect(memoryApplication.bridge.cursor).toMatchObject({
-			recordRules: 1,
-			explicitCandidates: 0,
-			proposals: 1,
-			issues: 0,
-		});
-		expect(proposal?.sourceRefs?.map((ref) => `${ref.kind}:${ref.id}`)).toEqual(
-			expect.arrayContaining([
-				`work-item-evidence:${reflectedEvidence.evidenceId}`,
-				`effect-run-result:${coldOutcome.resultId}`,
+describe("B105 deterministic memory rerun avoidance eval family", () => {
+	it("separates stage predicates, case conformance, and family verdict across five cases", () => {
+		const scorecard = runMemoryRerunAvoidanceFamily();
+		const matrix = Object.fromEntries(
+			scorecard.cases.map((observation) => [
+				observation.caseKind,
+				{
+					proposal: observation.memory.proposal.state,
+					admission: observation.memory.admission.state,
+					application: observation.memory.application.state,
+					retrieval: observation.memory.retrieval.state,
+					warmPassed: observation.stagePredicates.warm_run_passed,
+					canonicalGate: observation.canonicalGatePassed,
+					caseConforms: observation.caseConforms,
+				},
 			]),
 		);
-		expect(idempotencyKeyParts?.slice(0, 3)).toEqual([
-			"agentic-work-item-memory",
-			mappingPolicy().policyId,
-			item.workItemId,
-		]);
-		expect(memoryApplication.admission?.admitted).toHaveLength(1);
-		expect(memoryApplication.application?.appliedRecords.map((record) => record.id)).toEqual([
-			learnedRecord.id,
-		]);
-		expect(packedContext?.entries[0]?.record?.recordId).toBe(learnedRecord.id);
-		expect(warmDecision.route).toBe("memory-guided-verify-first");
-		expect({
-			cold_run_failed,
-			memory_record_applied,
-			warm_run_passed,
-			warm_decision_trace_includes_memory,
-			passed:
-				cold_run_failed &&
-				memory_record_applied &&
-				warm_run_passed &&
-				warm_decision_trace_includes_memory,
-		}).toEqual({
-			cold_run_failed: true,
-			memory_record_applied: true,
-			warm_run_passed: true,
-			warm_decision_trace_includes_memory: true,
-			passed: true,
+
+		expect(matrix).toEqual({
+			"relevant-applied": {
+				proposal: "emitted",
+				admission: "admitted",
+				application: "applied",
+				retrieval: "retrieved",
+				warmPassed: true,
+				canonicalGate: true,
+				caseConforms: true,
+			},
+			"proposal-only": {
+				proposal: "emitted",
+				admission: "not-run",
+				application: "not-run",
+				retrieval: "not-retrieved",
+				warmPassed: false,
+				canonicalGate: false,
+				caseConforms: true,
+			},
+			"admission-rejected": {
+				proposal: "emitted",
+				admission: "rejected",
+				application: "not-applied",
+				retrieval: "not-retrieved",
+				warmPassed: false,
+				canonicalGate: false,
+				caseConforms: true,
+			},
+			"irrelevant-applied": {
+				proposal: "emitted",
+				admission: "admitted",
+				application: "applied",
+				retrieval: "retrieved",
+				warmPassed: false,
+				canonicalGate: false,
+				caseConforms: true,
+			},
+			"wrong-scope-applied": {
+				proposal: "emitted",
+				admission: "admitted",
+				application: "applied",
+				retrieval: "retrieved",
+				warmPassed: false,
+				canonicalGate: false,
+				caseConforms: true,
+			},
 		});
+		expect(scorecard.requiredCaseRefs).toHaveLength(5);
+		expect(new Set(scorecard.requiredCaseRefs).size).toBe(5);
+		expect(scorecard.cases.every((observation) => observation.required)).toBe(true);
+		expect(scorecard.familyPassed).toBe(true);
+		expect(scorecard.familyPassed).toBe(
+			scorecard.cases.every((observation) => observation.caseConforms),
+		);
+		expect(
+			scorecard.cases.every((observation) => observation.memory.mapperExplicitCandidates === 0),
+		).toBe(true);
+		expect(
+			scorecard.cases.every(
+				(observation) => canonicalGate(observation) === observation.canonicalGatePassed,
+			),
+		).toBe(true);
+	});
+
+	it("keeps planner verdict-free and attributes used, irrelevant, and wrong-scope memory exactly", () => {
+		const scorecard = runMemoryRerunAvoidanceFamily();
+		const plannerDecision = planRoute(buildWorkItem(), buildEvalScope());
+		expect(plannerDecision).not.toHaveProperty("passed");
+		expect(plannerDecision).not.toHaveProperty("success");
+		expect(plannerDecision).not.toHaveProperty("satisfied");
+		expect(plannerDecision).toEqual({
+			route: "unsafe-direct-edit",
+			trace: expect.any(Array),
+		});
+		expect(buildWorld()).toEqual({
+			worldRevision: "b105-world.v1",
+			projectId: "project-b105",
+			requiresVerificationBeforeEdit: true,
+		});
+		for (const observation of scorecard.cases) {
+			expect(observation.cold.decisionTrace).toBeDefined();
+			expect(observation.warm.decisionTrace).toBeDefined();
+			expect(observation.cold).not.toHaveProperty("plannerPassed");
+			expect(observation.warm).not.toHaveProperty("plannerPassed");
+			expect(observation.stagePredicates.same_work_item_input).toBe(true);
+		}
+		const relevant = scorecard.cases.find((entry) => entry.caseKind === "relevant-applied");
+		const irrelevant = scorecard.cases.find((entry) => entry.caseKind === "irrelevant-applied");
+		const wrongScope = scorecard.cases.find((entry) => entry.caseKind === "wrong-scope-applied");
+		expect(relevant?.warm.decisionTrace).toEqual(
+			expect.arrayContaining([expect.objectContaining({ event: "memory-used" })]),
+		);
+		expect(irrelevant?.warm.decisionTrace).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					event: "memory-rejected",
+					reasonCode: "irrelevant-procedure",
+				}),
+			]),
+		);
+		expect(wrongScope?.warm.decisionTrace).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ event: "memory-rejected", reasonCode: "scope-mismatch" }),
+			]),
+		);
+
+		const item = buildWorkItem();
+		const scope = buildEvalScope();
+		const world = buildWorld();
+		const coldOutcome = executeRoute(
+			item,
+			world,
+			planRoute(item, scope),
+			"cross-work-item-check",
+			"cold",
+		);
+		const mismatchedOutcome = Object.freeze({ ...coldOutcome, workItemId: "wi-other" });
+		const mismatchVerification = verifyOutcome(item, mismatchedOutcome);
+		expect(mismatchVerification.satisfied).toBe(false);
+		expect(mismatchVerification.issueCodes).toContain("b105.verify.work-item-mismatch");
+		expect(() => reflectFailure(verifyOutcome(item, coldOutcome), mismatchedOutcome)).toThrow(
+			/cross-WorkItem/,
+		);
+
+		const failedAfterVerification = Object.freeze({
+			...coldOutcome,
+			status: "failed" as const,
+			facts: Object.freeze({ verificationPerformedBeforeEdit: true, editPerformed: true }),
+		});
+		const failedVerification = verifyOutcome(item, failedAfterVerification);
+		expect(failedVerification.satisfied).toBe(false);
+		expect(failedVerification.issueCodes).toContain("b105.verify.execution-failed");
+
+		const revisionTwoItem = buildWorkItem({ executionInputRevision: 2 });
+		const revisionTwoOutcome = executeRoute(
+			revisionTwoItem,
+			world,
+			planRoute(revisionTwoItem, scope),
+			"revision-two-check",
+			"cold",
+		);
+		expect(
+			reflectFailure(verifyOutcome(revisionTwoItem, revisionTwoOutcome), revisionTwoOutcome)
+				.evidence,
+		).toHaveProperty("executionInputRevision", 2);
+	});
+
+	it("reports lift, negative-control false positives, trace attribution, and lifecycle stages", () => {
+		const scorecard = runMemoryRerunAvoidanceFamily();
+		expect(scorecard.metrics).toEqual({
+			relevantMemoryLift: { coldPassRate: 0, warmPassRate: 1, lift: 1 },
+			negativeControlFalsePositiveRate: { falsePositives: 0, controls: 4, rate: 0 },
+			traceAttribution: { attributedRetrievedRecords: 3, retrievedRecords: 3, rate: 1 },
+			stageCounts: {
+				proposed: 5,
+				admitted: 3,
+				admissionRejected: 1,
+				admissionNotRun: 1,
+				applied: 3,
+				applicationNotApplied: 1,
+				applicationNotRun: 1,
+				retrieved: 3,
+			},
+		});
+		expect(
+			scorecard.cases
+				.filter((observation) => observation.caseKind !== "relevant-applied")
+				.every((observation) => !observation.stagePredicates.prior_failure_route_avoided),
+		).toBe(true);
+
+		const recordRef = Object.freeze({ kind: "agentic-memory-record", id: "record-1" });
+		const considered = Object.freeze({
+			event: "memory-considered" as const,
+			recordRef,
+			reasonCode: "packed-context-entry",
+		});
+		const rejected = Object.freeze({
+			event: "memory-rejected" as const,
+			recordRef,
+			reasonCode: "irrelevant-procedure",
+		});
+		expect(hasExactTraceAttribution([considered], recordRef)).toBe(false);
+		expect(hasExactTraceAttribution([considered, rejected], recordRef)).toBe(true);
+		expect(hasExactTraceAttribution([considered, rejected, rejected], recordRef)).toBe(false);
+	});
+
+	it("uses strict canonical WorkItem sha256 boundaries and D574 tuple identities", () => {
+		const scope = buildEvalScope();
+		const item = buildWorkItem();
+		const digest = workItemDigest(item, scope);
+		expect(digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+		for (const changed of [
+			buildWorkItem({ workItemId: "wi-b105-changed" }),
+			buildWorkItem({ authoringRevision: 2 }),
+			buildWorkItem({ executionInputRevision: 2 }),
+			buildWorkItem({
+				sourceRefs: [{ kind: "changed-kind", id: "issue-b105", metadata: { revision: 1 } }],
+			}),
+			buildWorkItem({
+				sourceRefs: [{ kind: "issue", id: "changed-id", metadata: { revision: 1 } }],
+			}),
+			buildWorkItem({
+				sourceRefs: [{ kind: "issue", id: "issue-b105", metadata: { revision: 2 } }],
+			}),
+		]) {
+			expect(workItemDigest(changed, scope)).not.toBe(digest);
+		}
+		expect(workItemDigest(buildWorkItem({ lastEventId: "excluded-run-event" }), scope)).toBe(
+			digest,
+		);
+		expect(
+			workItemDigest(
+				buildWorkItem({
+					createdAtMs: 1,
+					updatedAtMs: 2,
+					metadata: {
+						runId: "excluded",
+						memory: "excluded",
+						evidence: "excluded",
+						trace: "excluded",
+					},
+				}),
+				scope,
+			),
+		).toBe(digest);
+		const orderedSourceRefs = Object.freeze([
+			Object.freeze({ kind: "issue", id: "issue-b", metadata: { revision: 2 } }),
+			Object.freeze({ kind: "artifact", id: "artifact-a", metadata: { revision: 1 } }),
+		]);
+		expect(workItemDigest(buildWorkItem({ sourceRefs: orderedSourceRefs }), scope)).toBe(
+			workItemDigest(buildWorkItem({ sourceRefs: [...orderedSourceRefs].reverse() }), scope),
+		);
+		expect(workItemDigest(buildWorkItem({ summary: `${item.summary}!` }), scope)).not.toBe(digest);
+		expect(workItemDigest(item, buildEvalScope("another-project"))).not.toBe(digest);
+		const orderedMetadataDigest = workItemDigest(
+			buildWorkItem({
+				sourceRefs: [{ kind: "issue", id: "issue-ordered", metadata: { a: 1, b: 2 } }],
+			}),
+			scope,
+		);
+		expect(
+			workItemDigest(
+				buildWorkItem({
+					sourceRefs: [{ kind: "issue", id: "issue-ordered", metadata: { b: 2, a: 1 } }],
+				}),
+				scope,
+			),
+		).toBe(orderedMetadataDigest);
+		expect(evalId("open:a", "b::c")).not.toBe(evalId("open", "a:b::c"));
+	});
+
+	it("emits the same strict-JSON v1 scorecard bytes on consecutive runs and matches golden", () => {
+		const first = scorecardBytes(runMemoryRerunAvoidanceFamily());
+		const second = scorecardBytes(runMemoryRerunAvoidanceFamily());
+		const golden = JSON.parse(readFileSync(GOLDEN_URL, "utf8")) as unknown;
+		const goldenCanonicalBytes = strictJsonCodec.encode(golden);
+		expect(first).toEqual(second);
+		expect(first).toEqual(goldenCanonicalBytes);
+		expect(strictJsonCodec.decode(goldenCanonicalBytes)).toEqual(runMemoryRerunAvoidanceFamily());
+		expect(strictJsonCodec.decode(first)).toEqual(runMemoryRerunAvoidanceFamily());
+		expect(() => JSON.stringify(strictJsonCodec.decode(first))).not.toThrow();
 	});
 });

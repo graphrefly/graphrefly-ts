@@ -3,7 +3,7 @@
 	"compilerOptions": {
 		"declaration": false,
 		"noEmit": true,
-		"types": ["vitest/globals"]
+		"types": ["vitest/globals", "node"]
 	},
 	"include": [
 		"src/solutions/shared-control-panel-contracts.ts",
@@ -14,7 +14,9 @@
 		"src/solutions/production-evaluation-contracts.ts",
 		"src/solutions/production-evaluation-authority.ts",
 		"src/testing/production-evaluation-memory-persistence.ts",
-		"src/__tests__/production-evaluation-authority.test.ts"
+		"src/__tests__/production-evaluation-authority.test.ts",
+		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.eval.test.ts",
+		"src/__tests__/eval-support/memory-rerun-avoidance/**/*.ts"
 	],
 	"exclude": ["node_modules", "dist"]
 }

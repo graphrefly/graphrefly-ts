@@ -96,6 +96,7 @@ interface DockerProbeContainerRequest {
 interface DockerProbeContainerRequestPolicy {
 	readonly nonRootUserRequested: boolean;
 	readonly rootUserProbeFails: boolean;
+	readonly noPrivilegedModeRequested: boolean;
 	readonly noNewPrivilegesRequested: boolean;
 	readonly capabilitiesDroppedRequested: boolean;
 	readonly readOnlyRootFilesystemRequested: boolean;
@@ -103,6 +104,7 @@ interface DockerProbeContainerRequestPolicy {
 	readonly noEngineSocketMountRequested: boolean;
 	readonly noHostNetworkRequested: boolean;
 	readonly noHostBindMountRequested: boolean;
+	readonly noPortPublicationRequested: boolean;
 	readonly cpuMemoryPidsTimeBoundsRequested: boolean;
 }
 
@@ -423,10 +425,12 @@ function probeContainerCreateRequest(
 		StopTimeout: PROBE_CONTAINER_STOP_TIMEOUT_SECONDS,
 		HostConfig: {
 			NetworkMode: networkName,
+			Privileged: false,
 			ReadonlyRootfs: true,
 			SecurityOpt: ["no-new-privileges"],
 			CapDrop: ["ALL"],
 			AutoRemove: false,
+			PublishAllPorts: false,
 			Memory: PROBE_CONTAINER_MEMORY_BYTES,
 			CpuPeriod: PROBE_CONTAINER_CPU_PERIOD,
 			CpuQuota: PROBE_CONTAINER_CPU_QUOTA,
@@ -463,6 +467,7 @@ function probeContainerRequestPolicy(
 			cmd[2] === 'test "$(id -u)" != "0"',
 		noNewPrivilegesRequested: securityOpt.includes("no-new-privileges"),
 		capabilitiesDroppedRequested: capDrop.length === 1 && capDrop[0] === "ALL",
+		noPrivilegedModeRequested: hostConfig?.Privileged === false,
 		readOnlyRootFilesystemRequested: hostConfig?.ReadonlyRootfs === true,
 		boundedFilesystemImportRequested:
 			body.OpenStdin === false &&
@@ -475,6 +480,10 @@ function probeContainerRequestPolicy(
 			hostConfig !== undefined &&
 			!("Binds" in hostConfig) &&
 			!bodyJson.includes(DOCKER_ENGINE_SOCKET_PATH),
+		noPortPublicationRequested:
+			hostConfig?.PublishAllPorts === false &&
+			!("PortBindings" in hostConfig) &&
+			!("ExposedPorts" in body),
 		cpuMemoryPidsTimeBoundsRequested:
 			hostConfig?.Memory === PROBE_CONTAINER_MEMORY_BYTES &&
 			hostConfig?.CpuPeriod === PROBE_CONTAINER_CPU_PERIOD &&
@@ -492,6 +501,7 @@ function boundContainmentEvidenceToProbeRequest(
 		value.isolationVerified &&
 		policy.nonRootUserRequested &&
 		policy.rootUserProbeFails &&
+		policy.noPrivilegedModeRequested &&
 		policy.noNewPrivilegesRequested &&
 		policy.capabilitiesDroppedRequested &&
 		policy.readOnlyRootFilesystemRequested &&
@@ -499,6 +509,7 @@ function boundContainmentEvidenceToProbeRequest(
 		policy.noEngineSocketMountRequested &&
 		policy.noHostNetworkRequested &&
 		policy.noHostBindMountRequested &&
+		policy.noPortPublicationRequested &&
 		policy.cpuMemoryPidsTimeBoundsRequested;
 	return {
 		isolationVerified,
