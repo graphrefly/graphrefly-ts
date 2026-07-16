@@ -84,6 +84,45 @@ export interface DockerEngineApiV0CertifiedHostMatrixEntry {
 	readonly proofRefs: readonly SourceRef[];
 }
 
+export function dockerEngineApiV0CertifiedHostMatrixEntry(
+	value: unknown,
+): DockerEngineApiV0CertifiedHostMatrixEntry | undefined {
+	if (typeof value !== "object" || value === null) return undefined;
+	const entry = value as Partial<DockerEngineApiV0CertifiedHostMatrixEntry>;
+	const hostPlatform = certifiablePlatform(entry.hostPlatform);
+	const guestPlatform = certifiablePlatform(entry.guestPlatform);
+	const runtimeRevision = certifiablePublicCoordinate(entry.runtimeRevision);
+	const engineApiRevision = certifiablePublicCoordinate(entry.engineApiRevision);
+	const engineRevision = certifiablePublicCoordinate(entry.engineRevision);
+	const proofRefs = publicMatrixProofRefs(entry.proofRefs);
+	if (
+		hostPlatform === undefined ||
+		guestPlatform === undefined ||
+		!guestPlatform.startsWith("linux/") ||
+		runtimeRevision === undefined ||
+		engineApiRevision === undefined ||
+		engineRevision === undefined ||
+		proofRefs === undefined
+	)
+		return undefined;
+	const vmRequired = hostPlatform.startsWith("darwin/") || hostPlatform.startsWith("windows/");
+	const vmRuntimeRevision =
+		entry.vmRuntimeRevision === undefined
+			? undefined
+			: certifiablePublicCoordinate(entry.vmRuntimeRevision);
+	if (vmRequired && vmRuntimeRevision === undefined) return undefined;
+	if (!vmRequired && entry.vmRuntimeRevision !== undefined) return undefined;
+	return Object.freeze({
+		hostPlatform,
+		guestPlatform,
+		runtimeRevision,
+		engineApiRevision,
+		engineRevision,
+		...(vmRuntimeRevision === undefined ? {} : { vmRuntimeRevision }),
+		proofRefs,
+	});
+}
+
 export interface DockerEngineApiV0CertificationProbeOptions {
 	readonly imageRef: string;
 	readonly hostPlatform: string;
@@ -557,22 +596,26 @@ function certifiedHostMatrixProofRefs(
 	if (vmRequired && vmRuntimeRevision === undefined) return undefined;
 	if (!vmRequired && opts.vmRuntimeRevision !== undefined) return undefined;
 	for (const entry of opts.certifiedHostMatrix) {
+		const matrixEntry = dockerEngineApiV0CertifiedHostMatrixEntry(entry);
+		if (matrixEntry === undefined) continue;
 		if (
-			entry.hostPlatform !== hostPlatform ||
-			entry.guestPlatform !== guestPlatform ||
-			entry.runtimeRevision !== runtimeRevision ||
-			entry.engineApiRevision !== engineApiRevision ||
-			entry.engineRevision !== engineRevision
+			matrixEntry.hostPlatform !== hostPlatform ||
+			matrixEntry.guestPlatform !== guestPlatform ||
+			matrixEntry.runtimeRevision !== runtimeRevision ||
+			matrixEntry.engineApiRevision !== engineApiRevision ||
+			matrixEntry.engineRevision !== engineRevision
 		)
 			continue;
 		if (vmRequired) {
-			if (entry.vmRuntimeRevision === undefined || entry.vmRuntimeRevision !== vmRuntimeRevision)
+			if (
+				matrixEntry.vmRuntimeRevision === undefined ||
+				matrixEntry.vmRuntimeRevision !== vmRuntimeRevision
+			)
 				continue;
-		} else if (entry.vmRuntimeRevision !== undefined) {
+		} else if (matrixEntry.vmRuntimeRevision !== undefined) {
 			continue;
 		}
-		const refs = publicMatrixProofRefs(entry.proofRefs);
-		if (refs !== undefined) return refs;
+		return matrixEntry.proofRefs;
 	}
 	return undefined;
 }
@@ -598,9 +641,10 @@ function certifiablePlatform(value: unknown): string | undefined {
 	return coordinate;
 }
 
-function publicMatrixProofRefs(value: readonly SourceRef[]): readonly SourceRef[] | undefined {
+function publicMatrixProofRefs(value: unknown): readonly SourceRef[] | undefined {
 	if (!Array.isArray(value) || value.length === 0 || value.length > 8) return undefined;
 	const refs: SourceRef[] = [];
+	const seen = new Set<string>();
 	for (const ref of value) {
 		if (
 			!plainPublicRef(ref) ||
@@ -608,6 +652,9 @@ function publicMatrixProofRefs(value: readonly SourceRef[]): readonly SourceRef[
 			!ref.id.startsWith("docker-engine-api-v0:host-matrix:")
 		)
 			return undefined;
+		const key = `${ref.kind}:${ref.id}`;
+		if (seen.has(key)) return undefined;
+		seen.add(key);
 		refs.push(Object.freeze({ kind: ref.kind, id: ref.id }));
 	}
 	return Object.freeze(refs);

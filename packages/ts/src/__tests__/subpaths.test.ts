@@ -935,6 +935,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			typeof executorLocalContainerPostgresqlDockerEngineApiV0.certifyDockerEngineApiV0LocalContainerPostgresql,
 		).toBe("function");
 		expect(
+			typeof executorLocalContainerPostgresqlDockerEngineApiV0.dockerEngineApiV0CertifiedHostMatrixEntry,
+		).toBe("function");
+		expect(
 			typeof executorLocalContainerPostgresqlDockerEngineApiV0.dockerEngineApiV0LocalContainerPostgresqlDriver,
 		).toBe("function");
 		expect(
@@ -943,6 +946,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(rootPackage, "certifyDockerEngineApiV0LocalContainerPostgresql")).toBe(
 			false,
 		);
+		expect(Object.hasOwn(rootPackage, "dockerEngineApiV0CertifiedHostMatrixEntry")).toBe(false);
 		expect(
 			Object.hasOwn(
 				rootPackage,

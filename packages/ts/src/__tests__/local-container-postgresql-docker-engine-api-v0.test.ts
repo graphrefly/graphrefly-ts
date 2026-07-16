@@ -13,6 +13,7 @@ import {
 	type DockerEngineApiV0HostResult,
 	type DockerEngineApiV0LocalContainerPostgresqlHost,
 	type DockerEngineApiV0NetworkDenialEvidence,
+	dockerEngineApiV0CertifiedHostMatrixEntry,
 	dockerEngineApiV0LocalContainerPostgresqlDriver,
 } from "../executors/local-container-postgresql-docker-engine-api-v0.js";
 
@@ -317,6 +318,92 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 		});
 		expect(JSON.stringify(privateMatrixRef)).not.toContain("private-socket");
 		expect(hostWithPrivateMatrixRef.calls).toEqual(["readVersion"]);
+
+		const hostWithDuplicateMatrixRef = dockerHost();
+		const duplicateMatrixRef = await certifyDockerEngineApiV0LocalContainerPostgresql({
+			manifest: manifest(),
+			host: hostWithDuplicateMatrixRef,
+			imageRef,
+			hostPlatform: "linux/amd64",
+			guestPlatform: "linux/amd64",
+			runtimeRevision: "docker-engine:24",
+			certifiedHostMatrix: [
+				{
+					...certifiedHostMatrix("linux")[0],
+					proofRefs: [
+						{ kind: "attestation", id: "docker-engine-api-v0:host-matrix:linux-amd64-v1" },
+						{ kind: "attestation", id: "docker-engine-api-v0:host-matrix:linux-amd64-v1" },
+					],
+				},
+			],
+			observedAtMs: 10,
+			ttlMs: 100,
+		});
+		expect(
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness(duplicateMatrixRef),
+		).toMatchObject({
+			state: "unavailable",
+			hostPlatformVerified: false,
+		});
+		expect(hostWithDuplicateMatrixRef.calls).toEqual(["readVersion"]);
+	});
+
+	it("normalizes certified host matrix entries through the focused D624 helper", () => {
+		const linux = dockerEngineApiV0CertifiedHostMatrixEntry(certifiedHostMatrix("linux")[0]);
+		const desktop = dockerEngineApiV0CertifiedHostMatrixEntry(certifiedHostMatrix("desktop")[0]);
+
+		expect(linux).toEqual(certifiedHostMatrix("linux")[0]);
+		expect(desktop).toEqual(certifiedHostMatrix("desktop")[0]);
+		expect(Object.isFrozen(linux)).toBe(true);
+		expect(Object.isFrozen(linux?.proofRefs)).toBe(true);
+		expect(JSON.stringify(linux)).not.toMatch(/socket|client|handle|private/u);
+		expect(JSON.stringify(desktop)).not.toMatch(/socket|client|handle|private/u);
+	});
+
+	it("rejects invalid certified host matrix entries without leaking private material", () => {
+		for (const entry of [
+			{ ...certifiedHostMatrix("linux")[0], hostPlatform: "linux/docker.sock" },
+			{ ...certifiedHostMatrix("linux")[0], guestPlatform: "darwin/arm64" },
+			{ ...certifiedHostMatrix("linux")[0], runtimeRevision: "runtime:unavailable" },
+			{ ...certifiedHostMatrix("linux")[0], engineApiRevision: "docker-api:socket" },
+			{ ...certifiedHostMatrix("linux")[0], engineRevision: "docker-engine:unknown" },
+			{
+				...certifiedHostMatrix("linux")[0],
+				vmRuntimeRevision: "docker-desktop-vm:linuxkit:1",
+			},
+			{
+				...certifiedHostMatrix("desktop")[0],
+				vmRuntimeRevision: undefined,
+			},
+			{
+				...certifiedHostMatrix("desktop")[0],
+				vmRuntimeRevision: "docker-desktop-vm:private-socket",
+			},
+			{
+				...certifiedHostMatrix("linux")[0],
+				proofRefs: [
+					{ kind: "attestation", id: "docker-engine-api-v0:host-matrix:linux-amd64-v1" },
+					{ kind: "attestation", id: "docker-engine-api-v0:host-matrix:linux-amd64-v1" },
+				],
+			},
+			{
+				...certifiedHostMatrix("linux")[0],
+				proofRefs: [
+					{
+						kind: "attestation",
+						id: "docker-engine-api-v0:host-matrix:linux-amd64-v1",
+						metadata: { socketPath: "/var/run/docker.sock" },
+					},
+				],
+			},
+			{
+				...certifiedHostMatrix("linux")[0],
+				proofRefs: [{ kind: "policy", id: "docker-engine-api-v0:host-matrix:linux-amd64-v1" }],
+			},
+		] as const) {
+			const normalized = dockerEngineApiV0CertifiedHostMatrixEntry(entry);
+			expect(normalized, JSON.stringify(entry)).toBeUndefined();
+		}
 	});
 
 	it("rejects fallback matrix matches when observed coordinates are private or unavailable", async () => {
