@@ -1,5 +1,13 @@
 # @graphrefly/rn-hermes-fixture
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [11c52f6]
+- Updated dependencies [d003d0f]
+  - @graphrefly/ts@0.2.1
+
 ## 0.0.11
 
 ### Patch Changes
