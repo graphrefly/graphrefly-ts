@@ -48,7 +48,6 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 				}),
 			},
 		);
-
 		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
 			state: "ready",
 			backendFamilyVerified: true,
@@ -285,6 +284,164 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("requestPolicy");
 	});
 
+	it("fails closed when containment proof carries private fields", async () => {
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter({
+					containment: {
+						socketPath: "/var/run/docker.sock",
+						requestPolicy: "private-policy",
+					},
+				}),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			isolationVerified: false,
+		});
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+		expect(JSON.stringify(preflight)).not.toContain("requestPolicy");
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+	});
+
+	it("fails closed when network proof carries private fields", async () => {
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter({
+					network: {
+						containerId,
+						socketPath: "/var/run/docker.sock",
+					},
+				}),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			destinationPinnedEgressDenyVerified: false,
+		});
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+		expect(JSON.stringify(preflight)).not.toContain(containerId);
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+	});
+
+	it("fails closed when proof-adapter cancellation material carries private fields", async () => {
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter({
+					cancellation: {
+						socketPath: "/var/run/docker.sock",
+						privateCleanupHandle: "private-cleanup-handle",
+					},
+				}),
+			},
+		);
+
+		const readiness = localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight);
+		expect(readiness).toMatchObject({
+			state: "unavailable",
+			cancellationVerified: false,
+			secretDestructionVerified: false,
+		});
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+		expect(JSON.stringify(preflight)).not.toContain("private-cleanup-handle");
+		expect(JSON.stringify(preflight)).not.toContain("socketPath");
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+	});
+
+	it("fails closed when cancellation and secret proof is not ready for the private probe request", async () => {
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter({
+					cancellation: {
+						credentialResolverReady: false,
+						secretDestructionVerified: false,
+					},
+				}),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			credentialResolverReady: false,
+			secretDestructionVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(JSON.stringify(preflight)).not.toContain("requestPolicy");
+		expect(JSON.stringify(preflight)).not.toContain(containerId);
+		expect(JSON.stringify(preflight)).not.toContain(networkId);
+	});
+
 	it("cleans container and network after post-create Docker or proof failures", async () => {
 		for (const scenario of [
 			{
@@ -474,8 +631,10 @@ function proofAdapter(
 	opts: {
 		readonly expectedProbeJson?: string;
 		readonly fail?: boolean;
-		readonly containment?: Partial<DockerEngineApiV0ContainmentEvidence>;
-		readonly network?: Partial<DockerEngineApiV0NetworkDenialEvidence>;
+		readonly containment?: Partial<DockerEngineApiV0ContainmentEvidence> & Record<string, unknown>;
+		readonly network?: Partial<DockerEngineApiV0NetworkDenialEvidence> & Record<string, unknown>;
+		readonly cancellation?: Partial<DockerEngineApiV0CancellationSecretEvidence> &
+			Record<string, unknown>;
 	} = {},
 ) {
 	return {
@@ -486,7 +645,9 @@ function proofAdapter(
 		verifyProbeNetworkDenials: (probe: unknown) =>
 			acceptProbe(probe, opts) ? ok(networkDenialEvidence(opts.network)) : ({ ok: false } as const),
 		verifyProbeCancellationAndSecretDestruction: (probe: unknown) =>
-			acceptProbe(probe, opts) ? ok(cancellationSecretEvidence()) : ({ ok: false } as const),
+			acceptProbe(probe, opts)
+				? ok(cancellationSecretEvidence(opts.cancellation))
+				: ({ ok: false } as const),
 	};
 }
 
@@ -503,7 +664,7 @@ function acceptProbe(
 }
 
 function containmentEvidence(
-	patch: Partial<DockerEngineApiV0ContainmentEvidence> = {},
+	patch: Partial<DockerEngineApiV0ContainmentEvidence> & Record<string, unknown> = {},
 ): DockerEngineApiV0ContainmentEvidence {
 	return {
 		isolationVerified: true,
@@ -516,11 +677,11 @@ function containmentEvidence(
 		noHostBindMountVerified: true,
 		cpuMemoryPidsTimeBoundsVerified: true,
 		...patch,
-	};
+	} as DockerEngineApiV0ContainmentEvidence;
 }
 
 function networkDenialEvidence(
-	patch: Partial<DockerEngineApiV0NetworkDenialEvidence> = {},
+	patch: Partial<DockerEngineApiV0NetworkDenialEvidence> & Record<string, unknown> = {},
 ): DockerEngineApiV0NetworkDenialEvidence {
 	return {
 		destinationPinnedEgressDenyVerified: true,
@@ -530,17 +691,20 @@ function networkDenialEvidence(
 		hostGatewayEgressDenyVerified: true,
 		dnsRebindingResistanceVerified: true,
 		...patch,
-	};
+	} as DockerEngineApiV0NetworkDenialEvidence;
 }
 
-function cancellationSecretEvidence(): DockerEngineApiV0CancellationSecretEvidence {
+function cancellationSecretEvidence(
+	patch: Partial<DockerEngineApiV0CancellationSecretEvidence> & Record<string, unknown> = {},
+): DockerEngineApiV0CancellationSecretEvidence {
 	return {
 		cancellationVerified: true,
 		cleanupVerified: true,
 		artifactResolverReady: true,
 		credentialResolverReady: true,
 		secretDestructionVerified: true,
-	};
+		...patch,
+	} as DockerEngineApiV0CancellationSecretEvidence;
 }
 
 function manifest(): LocalContainerPostgresqlManifest {

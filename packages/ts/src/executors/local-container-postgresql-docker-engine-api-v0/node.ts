@@ -143,6 +143,32 @@ const PRIVATE_TOKEN_MATERIAL = [
 ];
 const probeNetworks = new WeakMap<object, DockerProbeNetworkPrivateHandle>();
 const probeContainers = new WeakMap<object, DockerProbeContainerPrivateHandle>();
+const CONTAINMENT_EVIDENCE_KEYS = [
+	"isolationVerified",
+	"containerUser",
+	"noNewPrivilegesVerified",
+	"readOnlyRootFilesystemVerified",
+	"boundedFilesystemImportVerified",
+	"noEngineSocketMountVerified",
+	"noHostNetworkVerified",
+	"noHostBindMountVerified",
+	"cpuMemoryPidsTimeBoundsVerified",
+] as const;
+const NETWORK_DENIAL_EVIDENCE_KEYS = [
+	"destinationPinnedEgressDenyVerified",
+	"metadataEgressDenyVerified",
+	"linkLocalEgressDenyVerified",
+	"loopbackEgressDenyVerified",
+	"hostGatewayEgressDenyVerified",
+	"dnsRebindingResistanceVerified",
+] as const;
+const CANCELLATION_SECRET_EVIDENCE_KEYS = [
+	"cancellationVerified",
+	"cleanupVerified",
+	"artifactResolverReady",
+	"credentialResolverReady",
+	"secretDestructionVerified",
+] as const;
 
 export async function certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
 	opts: DockerEngineApiV0NodeLocalCertificationOptions,
@@ -252,9 +278,11 @@ function nodeLocalCertificationHost(
 			const privateContainer = probeContainerPrivate(container);
 			if (privateContainer === undefined) return { ok: false };
 			const proof = await proofs.inspectProbeContainment(container, opts);
-			return proof.ok
-				? ok(boundContainmentEvidenceToProbeRequest(proof.value, privateContainer.requestPolicy))
-				: proof;
+			if (!proof.ok) return proof;
+			const evidence = dockerEngineApiV0ContainmentEvidence(proof.value);
+			return evidence === undefined
+				? { ok: false }
+				: ok(boundContainmentEvidenceToProbeRequest(evidence, privateContainer.requestPolicy));
 		},
 		startProbeContainer: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
@@ -285,16 +313,24 @@ function nodeLocalCertificationHost(
 			const privateContainer = probeContainerPrivate(container);
 			if (privateContainer === undefined) return { ok: false };
 			const proof = await proofs.verifyProbeNetworkDenials(container, opts);
-			return proof.ok
-				? ok(
-						boundNetworkEvidenceToProbeRequest(proof.value, privateContainer.network.requestPolicy),
-					)
-				: proof;
+			if (!proof.ok) return proof;
+			const evidence = dockerEngineApiV0NetworkDenialEvidence(proof.value);
+			return evidence === undefined
+				? { ok: false }
+				: ok(boundNetworkEvidenceToProbeRequest(evidence, privateContainer.network.requestPolicy));
 		},
-		verifyProbeCancellationAndSecretDestruction: (container, opts) =>
-			isProbeContainer(container)
-				? proofs.verifyProbeCancellationAndSecretDestruction(container, opts)
-				: { ok: false },
+		verifyProbeCancellationAndSecretDestruction: async (container, opts) => {
+			const privateContainer = probeContainerPrivate(container);
+			if (privateContainer === undefined) return { ok: false };
+			const proof = await proofs.verifyProbeCancellationAndSecretDestruction(container, opts);
+			if (!proof.ok) return proof;
+			const evidence = dockerEngineApiV0CancellationSecretEvidence(proof.value);
+			return evidence === undefined
+				? { ok: false }
+				: ok(
+						boundCancellationSecretEvidenceToProbeRequest(evidence, privateContainer.requestPolicy),
+					);
+		},
 		removeProbeContainer: (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
 			return privateContainer !== undefined
@@ -484,6 +520,24 @@ function boundContainmentEvidenceToProbeRequest(
 	};
 }
 
+function boundCancellationSecretEvidenceToProbeRequest(
+	value: DockerEngineApiV0CancellationSecretEvidence,
+	policy: DockerProbeContainerRequestPolicy,
+): DockerEngineApiV0CancellationSecretEvidence {
+	const secretMaterialRequestBounded =
+		policy.boundedFilesystemImportRequested &&
+		policy.noEngineSocketMountRequested &&
+		policy.noHostBindMountRequested &&
+		policy.cpuMemoryPidsTimeBoundsRequested;
+	return {
+		cancellationVerified: value.cancellationVerified && policy.cpuMemoryPidsTimeBoundsRequested,
+		cleanupVerified: value.cleanupVerified,
+		artifactResolverReady: value.artifactResolverReady && policy.boundedFilesystemImportRequested,
+		credentialResolverReady: value.credentialResolverReady && secretMaterialRequestBounded,
+		secretDestructionVerified: value.secretDestructionVerified && secretMaterialRequestBounded,
+	};
+}
+
 function boundNetworkEvidenceToProbeRequest(
 	value: DockerEngineApiV0NetworkDenialEvidence,
 	policy: DockerProbeNetworkRequestPolicy,
@@ -497,6 +551,92 @@ function boundNetworkEvidenceToProbeRequest(
 		hostGatewayEgressDenyVerified: value.hostGatewayEgressDenyVerified,
 		dnsRebindingResistanceVerified: value.dnsRebindingResistanceVerified,
 	};
+}
+
+function dockerEngineApiV0ContainmentEvidence(
+	value: unknown,
+): DockerEngineApiV0ContainmentEvidence | undefined {
+	const record = plainObject(value);
+	if (record === undefined || !onlyKeys(record, CONTAINMENT_EVIDENCE_KEYS)) return undefined;
+	if (
+		!booleanFields(record, [
+			"isolationVerified",
+			"noNewPrivilegesVerified",
+			"readOnlyRootFilesystemVerified",
+			"boundedFilesystemImportVerified",
+			"noEngineSocketMountVerified",
+			"noHostNetworkVerified",
+			"noHostBindMountVerified",
+			"cpuMemoryPidsTimeBoundsVerified",
+		] as const) ||
+		typeof record.containerUser !== "string" ||
+		record.containerUser.length === 0 ||
+		record.containerUser.length > 64 ||
+		!DOCKER_PATH_SAFE.test(record.containerUser) ||
+		publicProbeLabel(record.containerUser) !== record.containerUser
+	)
+		return undefined;
+	return Object.freeze({
+		isolationVerified: record.isolationVerified,
+		containerUser: record.containerUser,
+		noNewPrivilegesVerified: record.noNewPrivilegesVerified,
+		readOnlyRootFilesystemVerified: record.readOnlyRootFilesystemVerified,
+		boundedFilesystemImportVerified: record.boundedFilesystemImportVerified,
+		noEngineSocketMountVerified: record.noEngineSocketMountVerified,
+		noHostNetworkVerified: record.noHostNetworkVerified,
+		noHostBindMountVerified: record.noHostBindMountVerified,
+		cpuMemoryPidsTimeBoundsVerified: record.cpuMemoryPidsTimeBoundsVerified,
+	});
+}
+
+function dockerEngineApiV0NetworkDenialEvidence(
+	value: unknown,
+): DockerEngineApiV0NetworkDenialEvidence | undefined {
+	const record = plainObject(value);
+	if (
+		record === undefined ||
+		!onlyKeys(record, NETWORK_DENIAL_EVIDENCE_KEYS) ||
+		!booleanFields(record, NETWORK_DENIAL_EVIDENCE_KEYS)
+	)
+		return undefined;
+	return Object.freeze({
+		destinationPinnedEgressDenyVerified: record.destinationPinnedEgressDenyVerified,
+		metadataEgressDenyVerified: record.metadataEgressDenyVerified,
+		linkLocalEgressDenyVerified: record.linkLocalEgressDenyVerified,
+		loopbackEgressDenyVerified: record.loopbackEgressDenyVerified,
+		hostGatewayEgressDenyVerified: record.hostGatewayEgressDenyVerified,
+		dnsRebindingResistanceVerified: record.dnsRebindingResistanceVerified,
+	});
+}
+
+function dockerEngineApiV0CancellationSecretEvidence(
+	value: unknown,
+): DockerEngineApiV0CancellationSecretEvidence | undefined {
+	const record = plainObject(value);
+	if (
+		record === undefined ||
+		!onlyKeys(record, CANCELLATION_SECRET_EVIDENCE_KEYS) ||
+		!booleanFields(record, CANCELLATION_SECRET_EVIDENCE_KEYS)
+	)
+		return undefined;
+	return Object.freeze({
+		cancellationVerified: record.cancellationVerified,
+		cleanupVerified: record.cleanupVerified,
+		artifactResolverReady: record.artifactResolverReady,
+		credentialResolverReady: record.credentialResolverReady,
+		secretDestructionVerified: record.secretDestructionVerified,
+	});
+}
+
+function onlyKeys(record: Record<string, unknown>, keys: readonly string[]): boolean {
+	return Object.keys(record).every((key) => keys.includes(key));
+}
+
+function booleanFields<const T extends readonly string[]>(
+	record: Record<string, unknown>,
+	keys: T,
+): record is Record<T[number], boolean> & Record<string, unknown> {
+	return keys.every((key) => typeof record[key] === "boolean");
 }
 
 function backendName(

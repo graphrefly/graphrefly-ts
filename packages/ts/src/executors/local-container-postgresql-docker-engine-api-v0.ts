@@ -416,13 +416,14 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 		probeContainer = undefined;
 		probeNetwork = undefined;
 		const containmentPatch = containmentEvidencePatch(containment.value);
+		const cancellationSecretPatch = cancellationSecretEvidencePatch(cancellationSecret.value);
 		const readyPatch = {
 			...versionPatch(version.value),
 			...image.value,
 			...containmentPatch,
 			...networkDenial.value,
-			...cancellationSecret.value,
-			cleanupVerified: cleanupVerified && cancellationSecret.value.cleanupVerified,
+			...cancellationSecretPatch,
+			cleanupVerified: cleanupVerified && cancellationSecretPatch.cleanupVerified,
 			compatibilityVerified: true,
 			hostPlatformVerified: true,
 			recipeVerified: opts.manifest.recipeRevision === "postgresql-read-only-query-v1",
@@ -541,6 +542,25 @@ function containmentEvidencePatch(
 		noHostNetworkVerified: value.noHostNetworkVerified,
 		noHostBindMountVerified: value.noHostBindMountVerified,
 		cpuMemoryPidsTimeBoundsVerified: value.cpuMemoryPidsTimeBoundsVerified,
+	};
+}
+
+function cancellationSecretEvidencePatch(
+	value: DockerEngineApiV0CancellationSecretEvidence,
+): Pick<
+	LocalContainerPostgresqlDockerEngineApiV0Preflight,
+	| "cancellationVerified"
+	| "cleanupVerified"
+	| "artifactResolverReady"
+	| "credentialResolverReady"
+	| "secretDestructionVerified"
+> {
+	return {
+		cancellationVerified: value.cancellationVerified === true,
+		cleanupVerified: value.cleanupVerified === true,
+		artifactResolverReady: value.artifactResolverReady === true,
+		credentialResolverReady: value.credentialResolverReady === true,
+		secretDestructionVerified: value.secretDestructionVerified === true,
 	};
 }
 
