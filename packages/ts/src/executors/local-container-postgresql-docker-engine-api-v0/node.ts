@@ -947,8 +947,10 @@ function dockerInspectNetworkRequestPolicy(
 ): DockerProbeNetworkRequestPolicy | undefined {
 	const record = plainObject(value);
 	const labels = plainObject(record?.Labels);
+	const inspectedId = stringValue(record?.Id);
 	if (
 		record === undefined ||
+		inspectedId !== privateNetwork.id ||
 		stringValue(record.Name) !== privateNetwork.name ||
 		labels?.["dev.graphrefly.boundary"] !== "d624-docker-engine-api-v0-certifier"
 	)

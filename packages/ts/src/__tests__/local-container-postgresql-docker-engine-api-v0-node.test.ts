@@ -1068,6 +1068,56 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("Containers");
 	});
 
+	it("fails closed when Docker network inspect id does not match the private probe network", async () => {
+		const unrelatedNetworkId = "d".repeat(64);
+		const docker = installDockerApiMock({
+			rawInspectNetworkBody: JSON.stringify({
+				Id: unrelatedNetworkId,
+				Name: "__GRAPHREFLY_PROBE_NETWORK_NAME__",
+				Internal: true,
+				Attachable: false,
+				Ingress: false,
+				EnableIPv6: false,
+				Labels: {
+					"dev.graphrefly.boundary": "d624-docker-engine-api-v0-certifier",
+				},
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			destinationPinnedEgressDenyVerified: false,
+			metadataEgressDenyVerified: false,
+			dnsRebindingResistanceVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`GET /networks/${networkId}`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(JSON.stringify(preflight)).not.toContain(unrelatedNetworkId);
+		expect(JSON.stringify(preflight)).not.toContain(networkId);
+	});
+
 	it("fails closed when Docker post-wait inspect carries private credential material", async () => {
 		const docker = installDockerApiMock({
 			rawPostWaitInspectContainerBody: JSON.stringify({
@@ -2029,6 +2079,7 @@ function safeInspectContainerBody(
 
 function safeInspectNetworkBody(networkName: string): Record<string, unknown> {
 	return {
+		Id: networkId,
 		Name: networkName,
 		Internal: true,
 		Attachable: false,
