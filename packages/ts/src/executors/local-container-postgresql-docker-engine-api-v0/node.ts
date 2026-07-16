@@ -444,12 +444,23 @@ function imageDigestEvidence(
 	const repoDigests = Array.isArray(value.RepoDigests) ? value.RepoDigests : [];
 	if (!repoDigests.every((v): v is string => typeof v === "string"))
 		return { imageDigestPresent: false, imageDigestVerified: false };
-	if (repoDigests.some((ref) => containsPrivateMaterial(ref)))
+	if (!repoDigests.every(publicDockerRepoDigestRef))
 		return { imageDigestPresent: false, imageDigestVerified: false };
 	const imageDigestPresent = repoDigests.some(
 		(ref) => ref === imageDigest || ref.endsWith(`@${imageDigest}`),
 	);
 	return { imageDigestPresent, imageDigestVerified: imageDigestPresent };
+}
+
+function publicDockerRepoDigestRef(value: string): boolean {
+	return (
+		value.length <= 256 &&
+		value.trim() === value &&
+		!value.includes("://") &&
+		DOCKER_PATH_SAFE.test(value) &&
+		!containsPrivateMaterial(value) &&
+		(DOCKER_IMAGE_DIGEST.test(value) || DOCKER_IMAGE_DIGEST_SUFFIX.test(value))
+	);
 }
 
 function waitProbeContainerSucceeded(value: Record<string, unknown>): boolean {

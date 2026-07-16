@@ -385,6 +385,69 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("socketPath");
 	});
 
+	it("fails closed when image digest response includes unbounded public-looking repo refs", async () => {
+		for (const scenario of [
+			{
+				name: "url",
+				ref: `https://registry.example.test/graphrefly/postgresql@${digest}`,
+				hidden: "https://registry.example.test",
+			},
+			{
+				name: "control character",
+				ref: `registry.example.test/graphrefly/postgresql\n@${digest}`,
+				hidden: "postgresql\n",
+			},
+			{
+				name: "oversized",
+				ref: `registry.example.test/${"a".repeat(260)}@${digest}`,
+				hidden: "a".repeat(120),
+			},
+			{
+				name: "tag without digest",
+				ref: "registry.example.test/graphrefly/postgresql:latest",
+				hidden: "postgresql:latest",
+			},
+		]) {
+			vi.resetModules();
+			vi.doUnmock("node:http");
+			const docker = installDockerApiMock({
+				rawImageBody: JSON.stringify({
+					RepoDigests: [imageRef, scenario.ref],
+				}),
+			});
+			const mod = await import(
+				"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+			);
+			const preflight =
+				await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker({
+					manifest: manifest(),
+					imageRef,
+					hostPlatform: "linux/amd64",
+					guestPlatform: "linux/amd64",
+					runtimeRevision: "docker-engine:24.0.7",
+					certifiedHostMatrix: certifiedHostMatrix(),
+					observedAtMs: 20,
+					ttlMs: 100,
+					proofs: proofAdapter(),
+				});
+
+			expect(
+				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight),
+				scenario.name,
+			).toMatchObject({
+				state: "unavailable",
+				imageDigestPresent: false,
+				imageDigestVerified: false,
+			});
+			expect(
+				docker.calls.map((c) => `${c.method} ${c.path}`),
+				scenario.name,
+			).toEqual(["GET /version", `GET /images/${encodeURIComponent(imageRef)}/json`]);
+			expect(JSON.stringify(preflight), scenario.name).not.toContain(scenario.hidden);
+			expect(JSON.stringify(preflight), scenario.name).not.toContain("registry.example.test");
+		}
+	});
+
 	it("fails closed when Docker version coordinates contain private material", async () => {
 		for (const scenario of [
 			{
