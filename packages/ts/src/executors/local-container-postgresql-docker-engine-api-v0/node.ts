@@ -382,9 +382,9 @@ function imageDigestEvidence(
 	value: Record<string, unknown>,
 	imageDigest: string,
 ): DockerEngineApiV0ImageDigestEvidence {
-	const repoDigests = Array.isArray(value.RepoDigests)
-		? value.RepoDigests.filter((v): v is string => typeof v === "string")
-		: [];
+	const repoDigests = Array.isArray(value.RepoDigests) ? value.RepoDigests : [];
+	if (!repoDigests.every((v): v is string => typeof v === "string"))
+		return { imageDigestPresent: false, imageDigestVerified: false };
 	if (repoDigests.some((ref) => containsPrivateMaterial(ref)))
 		return { imageDigestPresent: false, imageDigestVerified: false };
 	const imageDigestPresent = repoDigests.some(

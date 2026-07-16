@@ -316,6 +316,42 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("registry.example.test");
 	});
 
+	it("fails closed when image digest response mixes valid digest with malformed private material", async () => {
+		const docker = installDockerApiMock({
+			rawImageBody: JSON.stringify({
+				RepoDigests: [imageRef, { socketPath: "/var/run/docker.sock" }],
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			imageDigestPresent: false,
+			imageDigestVerified: false,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+			"GET /version",
+			`GET /images/${encodeURIComponent(imageRef)}/json`,
+		]);
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+		expect(JSON.stringify(preflight)).not.toContain("socketPath");
+	});
+
 	it("fails closed when Docker version coordinates contain private material", async () => {
 		for (const scenario of [
 			{
