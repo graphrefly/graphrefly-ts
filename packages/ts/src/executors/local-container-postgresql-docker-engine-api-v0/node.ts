@@ -283,12 +283,28 @@ function nodeLocalCertificationHost(
 		inspectProbeContainment: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
 			if (privateContainer === undefined) return { ok: false };
+			const inspected = await dockerJsonObjectRequest(
+				"GET",
+				`/containers/${dockerPathSegment(privateContainer.id)}/json`,
+				undefined,
+				http,
+				opts.signal,
+			);
+			const inspectedEvidence = inspected.ok
+				? dockerInspectContainmentEvidence(inspected.value, privateContainer)
+				: undefined;
+			if (inspectedEvidence === undefined) return { ok: false };
 			const proof = await proofs.inspectProbeContainment(container, opts);
 			if (!proof.ok) return proof;
 			const evidence = dockerEngineApiV0ContainmentEvidence(proof.value);
 			return evidence === undefined
 				? { ok: false }
-				: ok(boundContainmentEvidenceToProbeRequest(evidence, privateContainer.requestPolicy));
+				: ok(
+						boundContainmentEvidenceToProbeRequest(
+							combineContainmentEvidence(evidence, inspectedEvidence),
+							privateContainer.requestPolicy,
+						),
+					);
 		},
 		startProbeContainer: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
@@ -313,7 +329,9 @@ function nodeLocalCertificationHost(
 				http,
 				opts.signal,
 			);
-			return response.ok && response.value.StatusCode === 0 ? ok(undefined) : { ok: false };
+			return response.ok && waitProbeContainerSucceeded(response.value)
+				? ok(undefined)
+				: { ok: false };
 		},
 		verifyProbeNetworkDenials: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
@@ -391,6 +409,12 @@ function imageDigestEvidence(
 		(ref) => ref === imageDigest || ref.endsWith(`@${imageDigest}`),
 	);
 	return { imageDigestPresent, imageDigestVerified: imageDigestPresent };
+}
+
+function waitProbeContainerSucceeded(value: Record<string, unknown>): boolean {
+	if (!Object.keys(value).every((key) => key === "StatusCode" || key === "Error")) return false;
+	if (value.StatusCode !== 0) return false;
+	return !("Error" in value) || value.Error === null;
 }
 
 function probeNetworkCreateRequest(
@@ -505,10 +529,10 @@ function boundContainmentEvidenceToProbeRequest(
 	value: DockerEngineApiV0ContainmentEvidence,
 	policy: DockerProbeContainerRequestPolicy,
 ): DockerEngineApiV0ContainmentEvidence {
+	const nonRootRequestBounded = policy.nonRootUserRequested && policy.rootUserProbeFails;
 	const isolationVerified =
 		value.isolationVerified &&
-		policy.nonRootUserRequested &&
-		policy.rootUserProbeFails &&
+		nonRootRequestBounded &&
 		policy.noPrivilegedModeRequested &&
 		policy.noNewPrivilegesRequested &&
 		policy.capabilitiesDroppedRequested &&
@@ -521,7 +545,7 @@ function boundContainmentEvidenceToProbeRequest(
 		policy.cpuMemoryPidsTimeBoundsRequested;
 	return {
 		isolationVerified,
-		containerUser: value.containerUser,
+		containerUser: nonRootRequestBounded ? value.containerUser : "0",
 		noNewPrivilegesVerified: value.noNewPrivilegesVerified && policy.noNewPrivilegesRequested,
 		readOnlyRootFilesystemVerified:
 			value.readOnlyRootFilesystemVerified && policy.readOnlyRootFilesystemRequested,
@@ -533,6 +557,27 @@ function boundContainmentEvidenceToProbeRequest(
 		noHostBindMountVerified: value.noHostBindMountVerified && policy.noHostBindMountRequested,
 		cpuMemoryPidsTimeBoundsVerified:
 			value.cpuMemoryPidsTimeBoundsVerified && policy.cpuMemoryPidsTimeBoundsRequested,
+	};
+}
+
+function combineContainmentEvidence(
+	proof: DockerEngineApiV0ContainmentEvidence,
+	inspected: DockerEngineApiV0ContainmentEvidence,
+): DockerEngineApiV0ContainmentEvidence {
+	return {
+		isolationVerified: proof.isolationVerified && inspected.isolationVerified,
+		containerUser: proof.containerUser,
+		noNewPrivilegesVerified: proof.noNewPrivilegesVerified && inspected.noNewPrivilegesVerified,
+		readOnlyRootFilesystemVerified:
+			proof.readOnlyRootFilesystemVerified && inspected.readOnlyRootFilesystemVerified,
+		boundedFilesystemImportVerified:
+			proof.boundedFilesystemImportVerified && inspected.boundedFilesystemImportVerified,
+		noEngineSocketMountVerified:
+			proof.noEngineSocketMountVerified && inspected.noEngineSocketMountVerified,
+		noHostNetworkVerified: proof.noHostNetworkVerified && inspected.noHostNetworkVerified,
+		noHostBindMountVerified: proof.noHostBindMountVerified && inspected.noHostBindMountVerified,
+		cpuMemoryPidsTimeBoundsVerified:
+			proof.cpuMemoryPidsTimeBoundsVerified && inspected.cpuMemoryPidsTimeBoundsVerified,
 	};
 }
 
@@ -638,6 +683,80 @@ function dockerEngineApiV0ContainmentEvidence(
 		noHostNetworkVerified: record.noHostNetworkVerified,
 		noHostBindMountVerified: record.noHostBindMountVerified,
 		cpuMemoryPidsTimeBoundsVerified: record.cpuMemoryPidsTimeBoundsVerified,
+	});
+}
+
+function dockerInspectContainmentEvidence(
+	value: unknown,
+	privateContainer: DockerProbeContainerPrivateHandle,
+): DockerEngineApiV0ContainmentEvidence | undefined {
+	const record = plainObject(value);
+	const config = plainObject(record?.Config);
+	const hostConfig = plainObject(record?.HostConfig);
+	const mounts = Array.isArray(record?.Mounts) ? record.Mounts : undefined;
+	const securityOpt = stringArray(hostConfig?.SecurityOpt);
+	const capDrop = stringArray(hostConfig?.CapDrop);
+	const binds = optionalStringArray(hostConfig?.Binds);
+	if (
+		record === undefined ||
+		config === undefined ||
+		hostConfig === undefined ||
+		mounts === undefined ||
+		!mounts.every((mount) => plainObject(mount) !== undefined) ||
+		securityOpt === undefined ||
+		capDrop === undefined ||
+		binds === undefined
+	)
+		return undefined;
+	const inspectedJson = JSON.stringify({
+		Config: config,
+		HostConfig: hostConfig,
+		Mounts: mounts,
+	});
+	if (inspectedJson.includes(DOCKER_ENGINE_SOCKET_PATH)) return undefined;
+	const user = stringValue(config.User);
+	if (user === undefined || publicProbeLabel(user) !== user) return undefined;
+	const noHostBindMountVerified =
+		binds.length === 0 && mounts.length === 0 && !("Mounts" in hostConfig);
+	const boundedFilesystemImportVerified =
+		config.OpenStdin === false &&
+		hostConfig.AutoRemove === false &&
+		(config.Volumes === undefined || config.Volumes === null) &&
+		noHostBindMountVerified;
+	const noEngineSocketMountVerified =
+		!inspectedJson.includes(DOCKER_ENGINE_SOCKET_PATH) && noHostBindMountVerified;
+	const noHostNetworkVerified =
+		hostConfig.NetworkMode === privateContainer.network.name &&
+		privateContainer.network.name !== "host";
+	const noNewPrivilegesVerified = securityOpt.includes("no-new-privileges");
+	const readOnlyRootFilesystemVerified = hostConfig.ReadonlyRootfs === true;
+	const cpuMemoryPidsTimeBoundsVerified =
+		hostConfig.Memory === PROBE_CONTAINER_MEMORY_BYTES &&
+		hostConfig.CpuPeriod === PROBE_CONTAINER_CPU_PERIOD &&
+		hostConfig.CpuQuota === PROBE_CONTAINER_CPU_QUOTA &&
+		hostConfig.PidsLimit === PROBE_CONTAINER_PIDS_LIMIT;
+	const isolationVerified =
+		user === PROBE_CONTAINER_USER &&
+		hostConfig.Privileged === false &&
+		noNewPrivilegesVerified &&
+		capDrop.length === 1 &&
+		capDrop[0] === "ALL" &&
+		readOnlyRootFilesystemVerified &&
+		boundedFilesystemImportVerified &&
+		noEngineSocketMountVerified &&
+		noHostNetworkVerified &&
+		noHostBindMountVerified &&
+		cpuMemoryPidsTimeBoundsVerified;
+	return Object.freeze({
+		isolationVerified,
+		containerUser: user,
+		noNewPrivilegesVerified,
+		readOnlyRootFilesystemVerified,
+		boundedFilesystemImportVerified,
+		noEngineSocketMountVerified,
+		noHostNetworkVerified,
+		noHostBindMountVerified,
+		cpuMemoryPidsTimeBoundsVerified,
 	});
 }
 
@@ -853,6 +972,16 @@ function dockerQueryValue(value: string): string {
 
 function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function stringArray(value: unknown): readonly string[] | undefined {
+	return Array.isArray(value) && value.every((entry) => typeof entry === "string")
+		? value
+		: undefined;
+}
+
+function optionalStringArray(value: unknown): readonly string[] | undefined {
+	return value === undefined || value === null ? [] : stringArray(value);
 }
 
 function plainObject(value: unknown): Record<string, unknown> | undefined {

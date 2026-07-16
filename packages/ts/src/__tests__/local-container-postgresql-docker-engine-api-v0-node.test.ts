@@ -100,6 +100,7 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 			`GET /images/${encodeURIComponent(imageRef)}/json`,
 			"POST /networks/create",
 			expect.stringMatching(/^POST \/containers\/create\?name=graphrefly-d624-/),
+			`GET /containers/${containerId}/json`,
 			`POST /containers/${containerId}/start`,
 			`POST /containers/${containerId}/wait`,
 			`DELETE /containers/${containerId}?force=true&v=true`,
@@ -153,6 +154,25 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		const policy = fullContainerRequestPolicyForTest();
 
 		expect(bind(containmentEvidence(), policy).isolationVerified).toBe(true);
+		expect(bind(containmentEvidence(), policy).containerUser).toBe("999");
+		expect(
+			bind(containmentEvidence(), {
+				...policy,
+				nonRootUserRequested: false,
+			}),
+		).toMatchObject({
+			isolationVerified: false,
+			containerUser: "0",
+		});
+		expect(
+			bind(containmentEvidence(), {
+				...policy,
+				rootUserProbeFails: false,
+			}),
+		).toMatchObject({
+			isolationVerified: false,
+			containerUser: "0",
+		});
 		expect(
 			bind(containmentEvidence(), {
 				...policy,
@@ -588,7 +608,7 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 
 	it("cleans allocated probe resources when Docker wait response exceeds the byte budget", async () => {
 		const docker = installDockerApiMock({
-			rawWaitBody: JSON.stringify({ StatusCode: 0, padding: "x".repeat(512) }),
+			rawWaitBody: JSON.stringify({ StatusCode: 0, padding: "x".repeat(4096) }),
 		});
 		const mod = await import(
 			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
@@ -603,7 +623,7 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 				certifiedHostMatrix: certifiedHostMatrix(),
 				observedAtMs: 20,
 				ttlMs: 100,
-				maxResponseBytes: 256,
+				maxResponseBytes: 1024,
 				proofs: proofAdapter(),
 			},
 		);
@@ -620,6 +640,111 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 			]),
 		);
 		expect(JSON.stringify(preflight)).not.toContain("padding");
+	});
+
+	it("fails closed when Docker inspect cannot corroborate containment policy", async () => {
+		const docker = installDockerApiMock({
+			rawInspectContainerBody: JSON.stringify({
+				Config: {
+					User: "65532:65532",
+					OpenStdin: false,
+					Tty: false,
+					Volumes: null,
+				},
+				HostConfig: {
+					NetworkMode: "host",
+					Privileged: true,
+					ReadonlyRootfs: false,
+					SecurityOpt: [],
+					CapDrop: [],
+					AutoRemove: false,
+					PublishAllPorts: true,
+					Memory: 128 * 1024 * 1024,
+					CpuPeriod: 100_000,
+					CpuQuota: 50_000,
+					PidsLimit: 64,
+					Binds: ["/var/run/docker.sock:/var/run/docker.sock"],
+				},
+				Mounts: [{ Source: "/var/run/docker.sock", Destination: "/var/run/docker.sock" }],
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			isolationVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`GET /containers/${containerId}/json`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).not.toContain(
+			`POST /containers/${containerId}/start`,
+		);
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+		expect(JSON.stringify(preflight)).not.toContain("Mounts");
+	});
+
+	it("fails closed when Docker wait response carries private material", async () => {
+		const docker = installDockerApiMock({
+			rawWaitBody: JSON.stringify({
+				StatusCode: 0,
+				socketPath: "/var/run/docker.sock",
+				probeContainerId: containerId,
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+			destinationPinnedEgressDenyVerified: false,
+			credentialResolverReady: false,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`POST /containers/${containerId}/wait`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+		expect(JSON.stringify(preflight)).not.toContain("probeContainerId");
+		expect(JSON.stringify(preflight)).not.toContain(containerId);
 	});
 
 	it("cleans allocated probe resources when Docker wait request times out", async () => {
@@ -1099,6 +1224,7 @@ function installDockerApiMock(
 		readonly rawVersionBody?: string;
 		readonly rawImageBody?: string;
 		readonly rawCreateContainerBody?: string;
+		readonly rawInspectContainerBody?: string;
 		readonly rawWaitBody?: string;
 		readonly hangPath?: string;
 		readonly abortPath?: string;
@@ -1125,6 +1251,7 @@ function installDockerApiMock(
 		hasSignal: boolean;
 		body: string;
 	}> = [];
+	let probeNetworkName = "graphrefly-d624-mock-network";
 	vi.doMock("node:http", () => ({
 		request(
 			requestOptions: {
@@ -1155,13 +1282,17 @@ function installDockerApiMock(
 					hasSignal: requestOptions.signal !== undefined,
 					body,
 				});
+				if (method === "POST" && path === "/networks/create") {
+					const parsed = JSON.parse(body) as { readonly Name?: unknown };
+					if (typeof parsed.Name === "string") probeNetworkName = parsed.Name;
+				}
 				if (opts.abortPath === `${method} ${path}`) {
 					opts.abortController?.abort();
 					req.emit("error", new Error("aborted"));
 					return;
 				}
 				if (opts.hangPath === path) return;
-				const response = route(method, path, opts);
+				const response = route(method, path, opts, probeNetworkName);
 				const res = new EventEmitter() as EventEmitter & { statusCode?: number };
 				res.statusCode = response.status;
 				callback(res);
@@ -1184,6 +1315,7 @@ function route(
 		readonly rawVersionBody?: string;
 		readonly rawImageBody?: string;
 		readonly rawCreateContainerBody?: string;
+		readonly rawInspectContainerBody?: string;
 		readonly rawWaitBody?: string;
 		readonly hangPath?: string;
 		readonly abortPath?: string;
@@ -1194,6 +1326,7 @@ function route(
 		readonly deleteGeneratedContainerStatus?: number;
 		readonly deleteGeneratedNetworkStatus?: number;
 	},
+	probeNetworkName: string,
 ): { readonly status: number; readonly body: string } {
 	if (method === "GET" && path === "/version" && opts.rawVersionBody !== undefined)
 		return { status: 200, body: opts.rawVersionBody };
@@ -1219,6 +1352,14 @@ function route(
 		return (opts.createContainerStatus ?? 201) === 201
 			? json(201, { Id: opts.containerId ?? containerId })
 			: json(opts.createContainerStatus ?? 500, { message: "failed" });
+	if (
+		method === "GET" &&
+		path === `/containers/${containerId}/json` &&
+		opts.rawInspectContainerBody !== undefined
+	)
+		return { status: 200, body: opts.rawInspectContainerBody };
+	if (method === "GET" && path === `/containers/${containerId}/json`)
+		return json(200, safeInspectContainerBody(probeNetworkName));
 	if (method === "POST" && path === `/containers/${containerId}/start`)
 		return { status: opts.startStatus ?? 204, body: "" };
 	if (
@@ -1244,6 +1385,30 @@ function json(
 	body: Record<string, unknown>,
 ): { readonly status: number; readonly body: string } {
 	return { status, body: JSON.stringify(body) };
+}
+
+function safeInspectContainerBody(networkName: string): Record<string, unknown> {
+	return {
+		Config: {
+			User: "65532:65532",
+			OpenStdin: false,
+			Volumes: null,
+		},
+		HostConfig: {
+			NetworkMode: networkName,
+			Privileged: false,
+			ReadonlyRootfs: true,
+			SecurityOpt: ["no-new-privileges"],
+			CapDrop: ["ALL"],
+			AutoRemove: false,
+			Binds: [],
+			Memory: 128 * 1024 * 1024,
+			CpuPeriod: 100_000,
+			CpuQuota: 50_000,
+			PidsLimit: 64,
+		},
+		Mounts: [],
+	};
 }
 
 function proofAdapter(
