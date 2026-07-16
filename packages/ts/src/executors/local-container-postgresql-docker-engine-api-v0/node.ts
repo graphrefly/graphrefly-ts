@@ -110,6 +110,7 @@ interface DockerProbeContainerRequestPolicy {
 	readonly noHostNetworkRequested: boolean;
 	readonly noHostBindMountRequested: boolean;
 	readonly noPortPublicationRequested: boolean;
+	readonly noEnvironmentMaterialRequested: boolean;
 	readonly cpuMemoryPidsTimeBoundsRequested: boolean;
 }
 
@@ -504,6 +505,7 @@ function probeContainerCreateRequest(
 		Image: imageRef,
 		User: PROBE_CONTAINER_USER,
 		Cmd: ["sh", "-ec", 'test "$(id -u)" != "0"'],
+		Env: [],
 		AttachStdout: false,
 		AttachStderr: false,
 		OpenStdin: false,
@@ -570,6 +572,7 @@ function probeContainerRequestPolicy(
 			hostConfig?.PublishAllPorts === false &&
 			!("PortBindings" in hostConfig) &&
 			!("ExposedPorts" in body),
+		noEnvironmentMaterialRequested: Array.isArray(body.Env) && body.Env.length === 0,
 		cpuMemoryPidsTimeBoundsRequested:
 			hostConfig?.Memory === PROBE_CONTAINER_MEMORY_BYTES &&
 			hostConfig?.CpuPeriod === PROBE_CONTAINER_CPU_PERIOD &&
@@ -686,6 +689,7 @@ function boundCancellationSecretEvidenceToProbeRequest(
 		policy.noHostBindMountRequested &&
 		policy.noHostNetworkRequested &&
 		policy.noPortPublicationRequested &&
+		policy.noEnvironmentMaterialRequested &&
 		policy.cpuMemoryPidsTimeBoundsRequested;
 	return {
 		cancellationVerified: value.cancellationVerified && cancellationRequestBounded,
@@ -927,9 +931,11 @@ function dockerInspectContainerIdentityVerified(
 	config: Record<string, unknown>,
 	privateContainer: DockerProbeContainerPrivateHandle,
 ): boolean {
+	const inspectedId = stringValue(record.Id);
 	const inspectedName = stringValue(record.Name);
 	const labels = plainObject(config.Labels);
 	return (
+		inspectedId === privateContainer.id &&
 		(inspectedName === privateContainer.name || inspectedName === `/${privateContainer.name}`) &&
 		labels?.["dev.graphrefly.boundary"] === "d624-docker-engine-api-v0-certifier"
 	);
