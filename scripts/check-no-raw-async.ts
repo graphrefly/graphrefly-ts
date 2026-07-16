@@ -69,6 +69,18 @@ const ALLOW_ALL = new Set<string>([
  * unless explicitly listed for a sanctioned boundary file.
  */
 const ALLOW_LABELS = new Map<string, ReadonlySet<string>>([
+	// D628 focused ClickHouse adapter glue is the host-injected async runtime boundary.
+	// Keep the exception pattern-scoped so the surrounding DTO/validation surface stays synchronous.
+	[
+		"packages/ts/src/solutions/clickhouse-trusted-query-evaluation.ts",
+		new Set<string>([
+			"new Promise",
+			"Promise.<other>()",
+			"async function/method/arrow",
+			"setTimeout(",
+			"await",
+		]),
+	],
 	[
 		"packages/ts/src/executors/tool-provider-adapters.ts",
 		new Set<string>(["Promise.resolve()", "setTimeout("]),
