@@ -254,6 +254,11 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 ): Promise<LocalContainerPostgresqlDockerEngineApiV0Preflight> {
 	const observedAtMs = opts.observedAtMs ?? Date.now();
 	const expiresAtMs = observedAtMs + (opts.ttlMs ?? D624_DEFAULT_TTL_MS);
+	const baseHostPlatform = boundedPlatform(opts.hostPlatform, "linux/unknown");
+	const baseVmRuntimeRevision =
+		baseHostPlatform.startsWith("darwin/") || baseHostPlatform.startsWith("windows/")
+			? boundedPublicCoordinate(opts.vmRuntimeRevision, "vm:unavailable")
+			: undefined;
 	const base = (): LocalContainerPostgresqlDockerEngineApiV0Preflight => ({
 		kind: "local-container-postgresql-docker-engine-api-v0-preflight",
 		manifestFingerprint: opts.manifest.fingerprint,
@@ -261,14 +266,12 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 		detectedBackend: "unavailable",
 		observedAtMs,
 		expiresAtMs,
-		hostPlatform: boundedPlatform(opts.hostPlatform, "linux/unknown"),
+		hostPlatform: baseHostPlatform,
 		engineApiRevision: "docker-api:unavailable",
 		engineRevision: "docker-engine:unavailable",
 		runtimeRevision: boundedPublicCoordinate(opts.runtimeRevision, "runtime:unavailable"),
 		guestPlatform: boundedPlatform(opts.guestPlatform, "linux/unknown"),
-		...(opts.vmRuntimeRevision === undefined
-			? {}
-			: { vmRuntimeRevision: boundedPublicCoordinate(opts.vmRuntimeRevision, "vm:unavailable") }),
+		...(baseVmRuntimeRevision === undefined ? {} : { vmRuntimeRevision: baseVmRuntimeRevision }),
 		engineReachable: false,
 		compatibilityVerified: false,
 		hostPlatformVerified: false,
@@ -509,7 +512,9 @@ function imageRefPinsDigest(imageRef: string, digest?: string): boolean {
 }
 
 function boundedPublicCoordinate(value: unknown, fallback: string): string {
-	return typeof value === "string" && SAFE.test(value) ? value : fallback;
+	return typeof value === "string" && SAFE.test(value) && publicMaterialCoordinate(value)
+		? value
+		: fallback;
 }
 
 function boundedPlatform(value: unknown, fallback: string): string {
@@ -531,22 +536,26 @@ function certifiedHostMatrixProofRefs(
 		opts.certifiedHostMatrix.length > 32
 	)
 		return undefined;
-	const hostPlatform = boundedPlatform(opts.hostPlatform, "linux/unknown");
-	const guestPlatform = boundedPlatform(opts.guestPlatform, "linux/unknown");
-	const runtimeRevision = boundedPublicCoordinate(opts.runtimeRevision, "runtime:unavailable");
-	const engineApiRevision = boundedPublicCoordinate(
-		version.engineApiRevision,
-		"docker-api:unavailable",
-	);
-	const engineRevision = boundedPublicCoordinate(
-		version.engineRevision,
-		"docker-engine:unavailable",
-	);
+	const hostPlatform = certifiablePlatform(opts.hostPlatform);
+	const guestPlatform = certifiablePlatform(opts.guestPlatform);
+	const runtimeRevision = certifiablePublicCoordinate(opts.runtimeRevision);
+	const engineApiRevision = certifiablePublicCoordinate(version.engineApiRevision);
+	const engineRevision = certifiablePublicCoordinate(version.engineRevision);
+	if (
+		hostPlatform === undefined ||
+		guestPlatform === undefined ||
+		runtimeRevision === undefined ||
+		engineApiRevision === undefined ||
+		engineRevision === undefined
+	)
+		return undefined;
 	const vmRequired = hostPlatform.startsWith("darwin/") || hostPlatform.startsWith("windows/");
 	const vmRuntimeRevision =
 		opts.vmRuntimeRevision === undefined
 			? undefined
-			: boundedPublicCoordinate(opts.vmRuntimeRevision, "vm:unavailable");
+			: certifiablePublicCoordinate(opts.vmRuntimeRevision);
+	if (vmRequired && vmRuntimeRevision === undefined) return undefined;
+	if (!vmRequired && opts.vmRuntimeRevision !== undefined) return undefined;
 	for (const entry of opts.certifiedHostMatrix) {
 		if (
 			entry.hostPlatform !== hostPlatform ||
@@ -566,6 +575,27 @@ function certifiedHostMatrixProofRefs(
 		if (refs !== undefined) return refs;
 	}
 	return undefined;
+}
+
+function certifiablePublicCoordinate(value: unknown): string | undefined {
+	if (typeof value !== "string" || !SAFE.test(value) || !publicMaterialCoordinate(value))
+		return undefined;
+	const lower = value.toLowerCase();
+	return lower.includes("unavailable") || lower.includes("unknown") ? undefined : value;
+}
+
+function certifiablePlatform(value: unknown): string | undefined {
+	const coordinate = certifiablePublicCoordinate(value);
+	if (
+		coordinate === undefined ||
+		!(
+			coordinate.startsWith("linux/") ||
+			coordinate.startsWith("darwin/") ||
+			coordinate.startsWith("windows/")
+		)
+	)
+		return undefined;
+	return coordinate;
 }
 
 function publicMatrixProofRefs(value: readonly SourceRef[]): readonly SourceRef[] | undefined {

@@ -318,6 +318,151 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 		expect(JSON.stringify(privateMatrixRef)).not.toContain("private-socket");
 		expect(hostWithPrivateMatrixRef.calls).toEqual(["readVersion"]);
 	});
+
+	it("rejects fallback matrix matches when observed coordinates are private or unavailable", async () => {
+		for (const scenario of [
+			{
+				name: "private host platform",
+				hostPlatform: "linux/docker.sock",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24",
+				version: undefined,
+				matrix: [
+					{
+						...certifiedHostMatrix("linux")[0],
+						hostPlatform: "linux/unknown",
+					},
+				],
+			},
+			{
+				name: "private runtime revision",
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "runtime:docker.sock",
+				version: undefined,
+				matrix: [
+					{
+						...certifiedHostMatrix("linux")[0],
+						runtimeRevision: "runtime:unavailable",
+					},
+				],
+			},
+			{
+				name: "private engine api revision",
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24",
+				version: {
+					detectedBackend: "docker-engine",
+					engineReachable: true,
+					engineApiRevision: "docker-api:socket",
+					engineRevision: "docker-engine:24.0.7",
+				},
+				matrix: [
+					{
+						...certifiedHostMatrix("linux")[0],
+						engineApiRevision: "docker-api:unavailable",
+					},
+				],
+			},
+			{
+				name: "private engine revision",
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24",
+				version: {
+					detectedBackend: "docker-engine",
+					engineReachable: true,
+					engineApiRevision: "docker-api:1.44",
+					engineRevision: "docker-engine:docker.sock",
+				},
+				matrix: [
+					{
+						...certifiedHostMatrix("linux")[0],
+						engineRevision: "docker-engine:unavailable",
+					},
+				],
+			},
+		] as const) {
+			const host = dockerHost({ version: scenario.version });
+			const preflight = await certifyDockerEngineApiV0LocalContainerPostgresql({
+				manifest: manifest(),
+				host,
+				imageRef,
+				hostPlatform: scenario.hostPlatform,
+				guestPlatform: scenario.guestPlatform,
+				runtimeRevision: scenario.runtimeRevision,
+				certifiedHostMatrix: scenario.matrix,
+				observedAtMs: 10,
+				ttlMs: 100,
+			});
+
+			expect(
+				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight).state,
+				scenario.name,
+			).toBe("unavailable");
+			expect(host.calls, scenario.name).toEqual(["readVersion"]);
+			expect(JSON.stringify(preflight), scenario.name).not.toMatch(/docker\.sock|socket/u);
+		}
+	});
+
+	it("rejects Linux host matrix matches when callers supply a VM runtime revision", async () => {
+		const host = dockerHost();
+		const preflight = await certifyDockerEngineApiV0LocalContainerPostgresql({
+			manifest: manifest(),
+			host,
+			imageRef,
+			hostPlatform: "linux/amd64",
+			guestPlatform: "linux/amd64",
+			runtimeRevision: "docker-engine:24",
+			certifiedHostMatrix: certifiedHostMatrix("linux"),
+			vmRuntimeRevision: "docker-desktop-vm:linuxkit:1",
+			observedAtMs: 10,
+			ttlMs: 100,
+		});
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			hostPlatformVerified: false,
+		});
+		expect(host.calls).toEqual(["readVersion"]);
+	});
+
+	it("rejects desktop host matrix matches when the required VM runtime coordinate is missing or private", async () => {
+		for (const scenario of [
+			{
+				name: "missing vm runtime revision",
+				vmRuntimeRevision: undefined,
+			},
+			{
+				name: "private vm runtime revision",
+				vmRuntimeRevision: "docker-desktop-vm:private-socket",
+			},
+		] as const) {
+			const host = dockerHost();
+			const preflight = await certifyDockerEngineApiV0LocalContainerPostgresql({
+				manifest: manifest(),
+				host,
+				imageRef,
+				hostPlatform: "darwin/arm64",
+				guestPlatform: "linux/arm64",
+				runtimeRevision: "docker-desktop:4.27",
+				certifiedHostMatrix: certifiedHostMatrix("desktop"),
+				...(scenario.vmRuntimeRevision === undefined
+					? {}
+					: { vmRuntimeRevision: scenario.vmRuntimeRevision }),
+				observedAtMs: 10,
+				ttlMs: 100,
+			});
+
+			expect(
+				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight).state,
+				scenario.name,
+			).toBe("unavailable");
+			expect(host.calls, scenario.name).toEqual(["readVersion"]);
+			expect(JSON.stringify(preflight), scenario.name).not.toMatch(/private-socket/u);
+		}
+	});
 });
 
 function certifiedHostMatrix(
