@@ -8,6 +8,7 @@ import {
 } from "../executors/local-container-postgresql.js";
 import {
 	certifyDockerEngineApiV0LocalContainerPostgresql,
+	type DockerEngineApiV0CertifiedHostMatrixEntry,
 	type DockerEngineApiV0ContainmentEvidence,
 	type DockerEngineApiV0HostResult,
 	type DockerEngineApiV0LocalContainerPostgresqlHost,
@@ -47,10 +48,11 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 			hostPlatform: "darwin/arm64",
 			guestPlatform: "linux/arm64",
 			runtimeRevision: "docker-desktop:4.27",
+			certifiedHostMatrix: certifiedHostMatrix("desktop"),
 			vmRuntimeRevision: "docker-desktop-vm:linuxkit:1",
 			observedAtMs: 10,
 			ttlMs: 100,
-			probeLabel: "private-container-id",
+			probeLabel: "opaque-probe-label",
 		});
 		const readiness = localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight);
 
@@ -76,8 +78,8 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 			"removeProbeNetwork",
 		]);
 		const visible = JSON.stringify(preflight);
-		expect(visible).not.toContain("private-container-id");
-		expect(visible).not.toContain("private-network-id");
+		expect(visible).not.toContain("opaque-probe-binding");
+		expect(visible).not.toContain("opaque-network-binding");
 		expect(visible).not.toContain("docker.sock");
 		expect(visible).not.toContain("registry.example.test");
 	});
@@ -97,6 +99,7 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 			hostPlatform: "linux/amd64",
 			guestPlatform: "linux/amd64",
 			runtimeRevision: "podman:4.9",
+			certifiedHostMatrix: certifiedHostMatrix("linux"),
 			observedAtMs: 10,
 			ttlMs: 100,
 		});
@@ -113,6 +116,7 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 			hostPlatform: "linux/amd64",
 			guestPlatform: "linux/amd64",
 			runtimeRevision: "docker-engine:24",
+			certifiedHostMatrix: certifiedHostMatrix("linux"),
 			observedAtMs: 10,
 			ttlMs: 100,
 		});
@@ -138,6 +142,7 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 				hostPlatform: "linux/amd64",
 				guestPlatform: "linux/amd64",
 				runtimeRevision: "docker-engine:24",
+				certifiedHostMatrix: certifiedHostMatrix("linux"),
 				observedAtMs: 10,
 				ttlMs: 100,
 			});
@@ -164,6 +169,7 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 				hostPlatform: "linux/amd64",
 				guestPlatform: "linux/amd64",
 				runtimeRevision: "docker-engine:24",
+				certifiedHostMatrix: certifiedHostMatrix("linux"),
 				observedAtMs: 10,
 				ttlMs: 100,
 			});
@@ -187,6 +193,7 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 				hostPlatform: "linux/amd64",
 				guestPlatform: "linux/amd64",
 				runtimeRevision: "docker-engine:24",
+				certifiedHostMatrix: certifiedHostMatrix("linux"),
 				observedAtMs: 10,
 				ttlMs: 100,
 			});
@@ -203,6 +210,7 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 			hostPlatform: "linux/amd64",
 			guestPlatform: "linux/amd64",
 			runtimeRevision: "docker-engine:24",
+			certifiedHostMatrix: certifiedHostMatrix("linux"),
 			observedAtMs: 10,
 			ttlMs: 100,
 		});
@@ -257,10 +265,89 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 			"killRunContainer",
 			"removeRunContainer",
 		]);
-		expect(JSON.stringify(result)).not.toContain("private-container-id");
+		expect(JSON.stringify(result)).not.toContain("opaque-run-binding");
 		expect(host.runCreateImageRefs).toEqual([imageRef]);
 	});
+
+	it("requires an explicit public certified host matrix before reporting ready", async () => {
+		const hostWithoutMatrix = dockerHost();
+		const withoutMatrix = await certifyDockerEngineApiV0LocalContainerPostgresql({
+			manifest: manifest(),
+			host: hostWithoutMatrix,
+			imageRef,
+			hostPlatform: "linux/amd64",
+			guestPlatform: "linux/amd64",
+			runtimeRevision: "docker-engine:24",
+			certifiedHostMatrix: [],
+			observedAtMs: 10,
+			ttlMs: 100,
+		});
+		expect(
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness(withoutMatrix),
+		).toMatchObject({
+			state: "unavailable",
+			hostPlatformVerified: false,
+		});
+		expect(hostWithoutMatrix.calls).toEqual(["readVersion"]);
+
+		const hostWithPrivateMatrixRef = dockerHost();
+		const privateMatrixRef = await certifyDockerEngineApiV0LocalContainerPostgresql({
+			manifest: manifest(),
+			host: hostWithPrivateMatrixRef,
+			imageRef,
+			hostPlatform: "linux/amd64",
+			guestPlatform: "linux/amd64",
+			runtimeRevision: "docker-engine:24",
+			certifiedHostMatrix: [
+				{
+					...certifiedHostMatrix("linux")[0],
+					proofRefs: [
+						{ kind: "attestation", id: "docker-engine-api-v0:host-matrix:private-socket" },
+					],
+				},
+			],
+			observedAtMs: 10,
+			ttlMs: 100,
+		});
+		expect(
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness(privateMatrixRef),
+		).toMatchObject({
+			state: "unavailable",
+			hostPlatformVerified: false,
+		});
+		expect(JSON.stringify(privateMatrixRef)).not.toContain("private-socket");
+		expect(hostWithPrivateMatrixRef.calls).toEqual(["readVersion"]);
+	});
 });
+
+function certifiedHostMatrix(
+	kind: "desktop" | "linux",
+): readonly DockerEngineApiV0CertifiedHostMatrixEntry[] {
+	return [
+		kind === "desktop"
+			? {
+					hostPlatform: "darwin/arm64",
+					guestPlatform: "linux/arm64",
+					runtimeRevision: "docker-desktop:4.27",
+					engineApiRevision: "docker-api:1.44",
+					engineRevision: "docker-engine:24.0.7",
+					vmRuntimeRevision: "docker-desktop-vm:linuxkit:1",
+					proofRefs: [
+						{ kind: "attestation", id: "docker-engine-api-v0:host-matrix:desktop-arm64-v1" },
+					],
+				}
+			: {
+					hostPlatform: "linux/amd64",
+					guestPlatform: "linux/amd64",
+					runtimeRevision: "docker-engine:24",
+					engineApiRevision: "docker-api:1.44",
+					engineRevision: "docker-engine:24.0.7",
+					proofRefs: [
+						{ kind: "attestation", id: "docker-engine-api-v0:host-matrix:linux-amd64-v1" },
+					],
+				},
+	];
+}
 
 function dockerHost(
 	opts: {
@@ -303,13 +390,13 @@ function dockerHost(
 		},
 		createProbeNetwork: () => {
 			calls.push("createProbeNetwork");
-			return ok({ privateNetwork: "private-network-id" });
+			return ok({ opaqueNetworkBinding: "opaque-network-binding" });
 		},
 		createProbeContainer: () => {
 			calls.push("createProbeContainer");
 			return opts.failCall === "createProbeContainer"
 				? ({ ok: false } as const)
-				: ok({ privateContainer: "private-container-id" });
+				: ok({ opaqueProbeBinding: "opaque-probe-binding" });
 		},
 		inspectProbeContainment: () => {
 			calls.push("inspectProbeContainment");
@@ -354,7 +441,7 @@ function dockerHost(
 		createRunContainer: ({ imageRef: nextImageRef }) => {
 			calls.push("createRunContainer");
 			runCreateImageRefs.push(nextImageRef);
-			return ok({ privateContainer: "private-container-id" });
+			return ok({ opaqueRunBinding: "opaque-run-binding" });
 		},
 		startRunContainer: () => {
 			calls.push("startRunContainer");

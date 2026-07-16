@@ -25,6 +25,7 @@ export default defineConfig({
 		"src/executors/tool-provider.ts",
 		"src/executors/execution-environment.ts",
 		"src/executors/local-container-postgresql-docker-engine-api-v0.ts",
+		"src/executors/local-container-postgresql-docker-engine-api-v0/node.ts",
 		"src/executors/local-container-postgresql.ts",
 		"src/executors/managed-cloud-postgresql.ts",
 		"src/executors/managed-untrusted-js-compute.ts",

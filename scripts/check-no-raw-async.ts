@@ -41,6 +41,8 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/executors/local-container-postgresql.ts",
 	// D624 concrete Docker Engine API host-runtime broker/certifier; never part of the sync wave core.
 	"packages/ts/src/executors/local-container-postgresql-docker-engine-api-v0.ts",
+	// D624 Node-local Docker Engine API transport entry; sockets/IDs stay implementation-private.
+	"packages/ts/src/executors/local-container-postgresql-docker-engine-api-v0/node.ts",
 	// D605 concrete managed control-store, WSS transport, and worker runtime boundary.
 	"packages/ts/src/executors/managed-cloud-postgresql.ts",
 	// D606 concrete customer endpoint, CAS store, outbound transport, and worker boundary.

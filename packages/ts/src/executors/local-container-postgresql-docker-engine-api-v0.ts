@@ -74,11 +74,22 @@ export interface DockerEngineApiV0CancellationSecretEvidence {
 	readonly secretDestructionVerified: boolean;
 }
 
+export interface DockerEngineApiV0CertifiedHostMatrixEntry {
+	readonly hostPlatform: string;
+	readonly guestPlatform: string;
+	readonly runtimeRevision: string;
+	readonly engineApiRevision: string;
+	readonly engineRevision: string;
+	readonly vmRuntimeRevision?: string;
+	readonly proofRefs: readonly SourceRef[];
+}
+
 export interface DockerEngineApiV0CertificationProbeOptions {
 	readonly imageRef: string;
 	readonly hostPlatform: string;
 	readonly guestPlatform: string;
 	readonly runtimeRevision: string;
+	readonly certifiedHostMatrix: readonly DockerEngineApiV0CertifiedHostMatrixEntry[];
 	readonly vmRuntimeRevision?: string;
 	readonly observedAtMs?: number;
 	readonly ttlMs?: number;
@@ -88,7 +99,7 @@ export interface DockerEngineApiV0CertificationProbeOptions {
 
 export interface DockerEngineApiV0BrokerOptions extends DockerEngineApiV0CertificationProbeOptions {
 	readonly manifest: LocalContainerPostgresqlManifest;
-	readonly host: DockerEngineApiV0LocalContainerPostgresqlHost;
+	readonly host: DockerEngineApiV0LocalContainerPostgresqlCertificationHost;
 }
 
 export interface DockerEngineApiV0LocalContainerPostgresqlDriverOptions {
@@ -96,7 +107,7 @@ export interface DockerEngineApiV0LocalContainerPostgresqlDriverOptions {
 	readonly imageRef: string;
 }
 
-export interface DockerEngineApiV0LocalContainerPostgresqlHost {
+export interface DockerEngineApiV0LocalContainerPostgresqlCertificationHost {
 	readVersion(opts: {
 		readonly signal?: AbortSignal;
 	}):
@@ -153,6 +164,10 @@ export interface DockerEngineApiV0LocalContainerPostgresqlHost {
 		network: unknown,
 		opts?: { readonly signal?: AbortSignal },
 	): DockerEngineApiV0HostResult<void> | PromiseLike<DockerEngineApiV0HostResult<void>>;
+}
+
+export interface DockerEngineApiV0LocalContainerPostgresqlHost
+	extends DockerEngineApiV0LocalContainerPostgresqlCertificationHost {
 	createRunContainer(opts: {
 		readonly imageRef: string;
 		readonly args: PostgresqlQueryToolArguments;
@@ -186,6 +201,28 @@ export interface DockerEngineApiV0LocalContainerPostgresqlHost {
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
 const SAFE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$/;
 const D624_DEFAULT_TTL_MS = 5 * 60 * 1000;
+const PRIVATE_COMPACT_MATERIAL = [
+	"containerid",
+	"dockersock",
+	"engineclient",
+	"hostpath",
+	"mountsource",
+	"secrethandle",
+	"vmid",
+];
+const PRIVATE_TOKEN_MATERIAL = [
+	"client",
+	"credential",
+	"daemon",
+	"endpoint",
+	"handle",
+	"password",
+	"private",
+	"secret",
+	"sock",
+	"socket",
+	"token",
+];
 const D613_DOCKER_ENGINE_API_V0_PROOF_REFS = Object.freeze([
 	{ kind: "limitation", id: "docker-engine-api-v0-only" },
 	{ kind: "limitation", id: "digest-pinned-image" },
@@ -293,6 +330,8 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 			return fail(
 				version.ok ? versionPatch(version.value) : { detectedBackend: version.detectedBackend },
 			);
+		const matrixProofRefs = certifiedHostMatrixProofRefs(opts, version.value);
+		if (matrixProofRefs === undefined) return fail(versionPatch(version.value));
 		const image = await opts.host.inspectImageDigest({
 			imageRef: opts.imageRef,
 			imageDigest: opts.manifest.imageDigest,
@@ -343,8 +382,9 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 			...cancellationSecret.value,
 			cleanupVerified: cleanupVerified && cancellationSecret.value.cleanupVerified,
 			compatibilityVerified: true,
-			hostPlatformVerified: platformSupported(opts),
+			hostPlatformVerified: true,
 			recipeVerified: opts.manifest.recipeRevision === "postgresql-read-only-query-v1",
+			attestationRefs: Object.freeze([...D624_ATTESTATION_REFS, ...matrixProofRefs]),
 		};
 		return preflight(readyPatch);
 	} catch {
@@ -481,18 +521,88 @@ function boundedPlatform(value: unknown, fallback: string): string {
 		: fallback;
 }
 
-function platformSupported(opts: DockerEngineApiV0CertificationProbeOptions): boolean {
-	const hostSupported =
-		opts.hostPlatform.startsWith("linux/") ||
-		opts.hostPlatform.startsWith("darwin/") ||
-		opts.hostPlatform.startsWith("windows/");
-	const guestSupported = opts.guestPlatform.startsWith("linux/");
-	const vmRequired =
-		opts.hostPlatform.startsWith("darwin/") || opts.hostPlatform.startsWith("windows/");
+function certifiedHostMatrixProofRefs(
+	opts: DockerEngineApiV0CertificationProbeOptions,
+	version: DockerEngineApiV0VersionEvidence,
+): readonly SourceRef[] | undefined {
+	if (
+		!Array.isArray(opts.certifiedHostMatrix) ||
+		opts.certifiedHostMatrix.length === 0 ||
+		opts.certifiedHostMatrix.length > 32
+	)
+		return undefined;
+	const hostPlatform = boundedPlatform(opts.hostPlatform, "linux/unknown");
+	const guestPlatform = boundedPlatform(opts.guestPlatform, "linux/unknown");
+	const runtimeRevision = boundedPublicCoordinate(opts.runtimeRevision, "runtime:unavailable");
+	const engineApiRevision = boundedPublicCoordinate(
+		version.engineApiRevision,
+		"docker-api:unavailable",
+	);
+	const engineRevision = boundedPublicCoordinate(
+		version.engineRevision,
+		"docker-engine:unavailable",
+	);
+	const vmRequired = hostPlatform.startsWith("darwin/") || hostPlatform.startsWith("windows/");
+	const vmRuntimeRevision =
+		opts.vmRuntimeRevision === undefined
+			? undefined
+			: boundedPublicCoordinate(opts.vmRuntimeRevision, "vm:unavailable");
+	for (const entry of opts.certifiedHostMatrix) {
+		if (
+			entry.hostPlatform !== hostPlatform ||
+			entry.guestPlatform !== guestPlatform ||
+			entry.runtimeRevision !== runtimeRevision ||
+			entry.engineApiRevision !== engineApiRevision ||
+			entry.engineRevision !== engineRevision
+		)
+			continue;
+		if (vmRequired) {
+			if (entry.vmRuntimeRevision === undefined || entry.vmRuntimeRevision !== vmRuntimeRevision)
+				continue;
+		} else if (entry.vmRuntimeRevision !== undefined) {
+			continue;
+		}
+		const refs = publicMatrixProofRefs(entry.proofRefs);
+		if (refs !== undefined) return refs;
+	}
+	return undefined;
+}
+
+function publicMatrixProofRefs(value: readonly SourceRef[]): readonly SourceRef[] | undefined {
+	if (!Array.isArray(value) || value.length === 0 || value.length > 8) return undefined;
+	const refs: SourceRef[] = [];
+	for (const ref of value) {
+		if (
+			!plainPublicRef(ref) ||
+			ref.kind !== "attestation" ||
+			!ref.id.startsWith("docker-engine-api-v0:host-matrix:")
+		)
+			return undefined;
+		refs.push(Object.freeze({ kind: ref.kind, id: ref.id }));
+	}
+	return Object.freeze(refs);
+}
+
+function plainPublicRef(value: SourceRef): boolean {
 	return (
-		hostSupported &&
-		guestSupported &&
-		(!vmRequired || boundedPublicCoordinate(opts.vmRuntimeRevision, "") !== "")
+		typeof value === "object" &&
+		value !== null &&
+		typeof value.kind === "string" &&
+		typeof value.id === "string" &&
+		!("metadata" in value) &&
+		publicMaterialCoordinate(value.kind) &&
+		publicMaterialCoordinate(value.id)
+	);
+}
+
+function publicMaterialCoordinate(value: unknown): value is string {
+	if (typeof value !== "string" || !SAFE.test(value)) return false;
+	const lower = value.toLowerCase();
+	const compact = lower.replace(/[^a-z0-9]+/g, "");
+	const tokens = lower.split(/[^a-z0-9]+/u).filter(Boolean);
+	return (
+		!PRIVATE_COMPACT_MATERIAL.some((term) => compact.includes(term)) &&
+		!tokens.some((token) => PRIVATE_TOKEN_MATERIAL.includes(token))
 	);
 }
 
@@ -504,7 +614,7 @@ function nonRootUser(value: string): boolean {
 }
 
 async function cleanupProbeResources(
-	host: DockerEngineApiV0LocalContainerPostgresqlHost,
+	host: DockerEngineApiV0LocalContainerPostgresqlCertificationHost,
 	container: unknown,
 	network: unknown,
 ): Promise<boolean> {
