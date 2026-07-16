@@ -34,6 +34,7 @@ export default defineConfig({
 		"src/solutions/shared-control-panel-authority.ts",
 		"src/testing/shared-control-panel-memory-persistence.ts",
 		"src/solutions/production-evaluation-authority.ts",
+		"src/solutions/clickhouse-trusted-query-evaluation.ts",
 		"src/testing/production-evaluation-memory-persistence.ts",
 		"src/executors/tool-provider-adapters.ts",
 		"src/executors/postgresql-tool-provider.ts",

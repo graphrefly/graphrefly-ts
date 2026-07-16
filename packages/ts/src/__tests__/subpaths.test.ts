@@ -191,6 +191,7 @@ import * as agenticMemory from "../solutions/agentic-memory/index.js";
 import * as agenticMemoryNode from "../solutions/agentic-memory/node.js";
 import * as agenticWorkItemMemory from "../solutions/agentic-work-item-memory/index.js";
 import * as agenticWorkItemMemoryApplication from "../solutions/agentic-work-item-memory-application/index.js";
+import * as clickHouseTrustedQueryEvaluation from "../solutions/clickhouse-trusted-query-evaluation.js";
 import type {
 	ImageSizeLookup,
 	AgenticMemoryRecordApplicationOperation as SolutionsAgenticMemoryRecordApplicationOperation,
@@ -308,6 +309,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./solutions/agentic-memory/node",
 			"./solutions/agentic-work-item-memory",
 			"./solutions/agentic-work-item-memory-application",
+			"./solutions/clickhouse-trusted-query-evaluation",
 			"./solutions/production-evaluation-authority",
 			"./solutions/reactive-layout",
 			"./solutions/reactive-layout/browser",
@@ -969,6 +971,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof productionEvaluationAuthority.createProductionEvaluationAuthority).toBe(
 			"function",
 		);
+		expect(
+			typeof clickHouseTrustedQueryEvaluation.createClickHouseTrustedQueryCampaignRevision,
+		).toBe("function");
+		expect(Object.hasOwn(rootPackage, "createClickHouseTrustedQueryCampaignRevision")).toBe(false);
+		expect(Object.hasOwn(solutions, "createClickHouseTrustedQueryCampaignRevision")).toBe(false);
 		expect(
 			typeof sharedControlPanelMemoryPersistence.createSharedControlPanelMemoryPersistence,
 		).toBe("function");

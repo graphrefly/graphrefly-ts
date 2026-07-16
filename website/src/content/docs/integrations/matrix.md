@@ -59,6 +59,7 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Shared control-panel authority | Database-neutral panel, capability admission, subscription, occurrence, alert, suppression, and inbox delivery contracts over a host-supplied feature persistence port | `@graphrefly/ts/solutions/shared-control-panel-authority` |
 | Shared control-panel reference persistence | Testing-only in-memory backend for persistence conformance; never a production default | `@graphrefly/ts/testing/shared-control-panel-memory-persistence` |
 | Production evaluation authority | D610 campaign/result/attestation/migration/packet contracts over host-private evidence authorities and a narrow persistence port | `@graphrefly/ts/solutions/production-evaluation-authority` |
+| ClickHouse trusted-query evaluation | D628 focused ClickHouse candidate/profile/scenario/evidence contracts that lower to D610 without owning clients, credentials, SQL execution, raw rows, or registries | `@graphrefly/ts/solutions/clickhouse-trusted-query-evaluation` |
 | Production evaluation reference persistence | Testing-only atomic in-memory backend for D610 persistence conformance; never a production default | `@graphrefly/ts/testing/production-evaluation-memory-persistence` |
 | Tool-provider execution recipe | Focused tool-provider execution recipe | `@graphrefly/ts/executors/tool-provider` |
 | Tool-provider runtime | Explicit low-level adapter runtime attach boundary; runtime handles stay private data | `@graphrefly/ts/executors/tool-provider-runtime` |

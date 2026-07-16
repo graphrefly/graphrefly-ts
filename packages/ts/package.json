@@ -586,6 +586,16 @@
 				"default": "./dist/solutions/production-evaluation-authority.cjs"
 			}
 		},
+		"./solutions/clickhouse-trusted-query-evaluation": {
+			"import": {
+				"types": "./dist/solutions/clickhouse-trusted-query-evaluation.d.ts",
+				"default": "./dist/solutions/clickhouse-trusted-query-evaluation.js"
+			},
+			"require": {
+				"types": "./dist/solutions/clickhouse-trusted-query-evaluation.d.cts",
+				"default": "./dist/solutions/clickhouse-trusted-query-evaluation.cjs"
+			}
+		},
 		"./solutions/agentic-memory/browser": {
 			"browser": {
 				"import": {
