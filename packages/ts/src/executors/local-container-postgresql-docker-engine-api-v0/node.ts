@@ -336,23 +336,53 @@ function nodeLocalCertificationHost(
 		verifyProbeNetworkDenials: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
 			if (privateContainer === undefined) return { ok: false };
+			const inspected = await dockerJsonObjectRequest(
+				"GET",
+				`/networks/${dockerPathSegment(privateContainer.network.id)}`,
+				undefined,
+				http,
+				opts.signal,
+			);
+			const inspectedPolicy = inspected.ok
+				? dockerInspectNetworkRequestPolicy(inspected.value, privateContainer.network)
+				: undefined;
+			if (inspectedPolicy === undefined) return { ok: false };
 			const proof = await proofs.verifyProbeNetworkDenials(container, opts);
 			if (!proof.ok) return proof;
 			const evidence = dockerEngineApiV0NetworkDenialEvidence(proof.value);
 			return evidence === undefined
 				? { ok: false }
-				: ok(boundNetworkEvidenceToProbeRequest(evidence, privateContainer.network.requestPolicy));
+				: ok(
+						boundNetworkEvidenceToProbeRequest(
+							evidence,
+							combineNetworkRequestPolicy(privateContainer.network.requestPolicy, inspectedPolicy),
+						),
+					);
 		},
 		verifyProbeCancellationAndSecretDestruction: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
 			if (privateContainer === undefined) return { ok: false };
+			const inspected = await dockerJsonObjectRequest(
+				"GET",
+				`/containers/${dockerPathSegment(privateContainer.id)}/json`,
+				undefined,
+				http,
+				opts.signal,
+			);
+			const inspectedEvidence = inspected.ok
+				? dockerInspectCancellationSecretEvidence(inspected.value, privateContainer)
+				: undefined;
+			if (inspectedEvidence === undefined) return { ok: false };
 			const proof = await proofs.verifyProbeCancellationAndSecretDestruction(container, opts);
 			if (!proof.ok) return proof;
 			const evidence = dockerEngineApiV0CancellationSecretEvidence(proof.value);
 			return evidence === undefined
 				? { ok: false }
 				: ok(
-						boundCancellationSecretEvidenceToProbeRequest(evidence, privateContainer.requestPolicy),
+						boundCancellationSecretEvidenceToProbeRequest(
+							combineCancellationSecretEvidence(evidence, inspectedEvidence),
+							privateContainer.requestPolicy,
+						),
 					);
 		},
 		removeProbeContainer: (container, opts) => {
@@ -581,6 +611,20 @@ function combineContainmentEvidence(
 	};
 }
 
+function combineCancellationSecretEvidence(
+	proof: DockerEngineApiV0CancellationSecretEvidence,
+	inspected: DockerEngineApiV0CancellationSecretEvidence,
+): DockerEngineApiV0CancellationSecretEvidence {
+	return {
+		cancellationVerified: proof.cancellationVerified && inspected.cancellationVerified,
+		cleanupVerified: proof.cleanupVerified,
+		artifactResolverReady: proof.artifactResolverReady && inspected.artifactResolverReady,
+		credentialResolverReady: proof.credentialResolverReady && inspected.credentialResolverReady,
+		secretDestructionVerified:
+			proof.secretDestructionVerified && inspected.secretDestructionVerified,
+	};
+}
+
 if (process.env.VITEST !== undefined) {
 	Object.defineProperty(
 		certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker,
@@ -648,6 +692,21 @@ function boundNetworkEvidenceToProbeRequest(
 		dnsRebindingResistanceVerified:
 			value.dnsRebindingResistanceVerified && denyByDefaultNetworkRequested,
 	};
+}
+
+function combineNetworkRequestPolicy(
+	requested: DockerProbeNetworkRequestPolicy,
+	inspected: DockerProbeNetworkRequestPolicy,
+): DockerProbeNetworkRequestPolicy {
+	return Object.freeze({
+		internalNetworkRequested:
+			requested.internalNetworkRequested && inspected.internalNetworkRequested,
+		noAttachableNetworkRequested:
+			requested.noAttachableNetworkRequested && inspected.noAttachableNetworkRequested,
+		noIngressNetworkRequested:
+			requested.noIngressNetworkRequested && inspected.noIngressNetworkRequested,
+		noIpv6NetworkRequested: requested.noIpv6NetworkRequested && inspected.noIpv6NetworkRequested,
+	});
 }
 
 function dockerEngineApiV0ContainmentEvidence(
@@ -760,6 +819,63 @@ function dockerInspectContainmentEvidence(
 	});
 }
 
+function dockerInspectCancellationSecretEvidence(
+	value: unknown,
+	privateContainer: DockerProbeContainerPrivateHandle,
+): DockerEngineApiV0CancellationSecretEvidence | undefined {
+	const record = plainObject(value);
+	const config = plainObject(record?.Config);
+	const hostConfig = plainObject(record?.HostConfig);
+	const state = plainObject(record?.State);
+	const mounts = Array.isArray(record?.Mounts) ? record.Mounts : undefined;
+	const binds = optionalStringArray(hostConfig?.Binds);
+	const env = optionalStringArray(config?.Env);
+	if (
+		record === undefined ||
+		config === undefined ||
+		hostConfig === undefined ||
+		state === undefined ||
+		mounts === undefined ||
+		!mounts.every((mount) => plainObject(mount) !== undefined) ||
+		binds === undefined ||
+		env === undefined
+	)
+		return undefined;
+	const inspectedJson = JSON.stringify({
+		Config: config,
+		HostConfig: hostConfig,
+		Mounts: mounts,
+		State: state,
+	});
+	if (inspectedJson.includes(DOCKER_ENGINE_SOCKET_PATH)) return undefined;
+	const noHostBindMountVerified =
+		binds.length === 0 && mounts.length === 0 && !("Mounts" in hostConfig);
+	const boundedArtifactMaterial =
+		config.OpenStdin === false &&
+		hostConfig.AutoRemove === false &&
+		(config.Volumes === undefined || config.Volumes === null) &&
+		noHostBindMountVerified;
+	const noPrivateEnvMaterial = env.every((entry) => !containsPrivateMaterial(entry));
+	const boundedCredentialMaterial =
+		noPrivateEnvMaterial &&
+		boundedArtifactMaterial &&
+		hostConfig.NetworkMode === privateContainer.network.name &&
+		privateContainer.network.name !== "host";
+	const stoppedSuccessfully = state.Running === false && state.ExitCode === 0;
+	return Object.freeze({
+		cancellationVerified:
+			stoppedSuccessfully &&
+			hostConfig.Memory === PROBE_CONTAINER_MEMORY_BYTES &&
+			hostConfig.CpuPeriod === PROBE_CONTAINER_CPU_PERIOD &&
+			hostConfig.CpuQuota === PROBE_CONTAINER_CPU_QUOTA &&
+			hostConfig.PidsLimit === PROBE_CONTAINER_PIDS_LIMIT,
+		cleanupVerified: true,
+		artifactResolverReady: boundedArtifactMaterial,
+		credentialResolverReady: boundedCredentialMaterial,
+		secretDestructionVerified: boundedCredentialMaterial && stoppedSuccessfully,
+	});
+}
+
 function dockerEngineApiV0NetworkDenialEvidence(
 	value: unknown,
 ): DockerEngineApiV0NetworkDenialEvidence | undefined {
@@ -777,6 +893,26 @@ function dockerEngineApiV0NetworkDenialEvidence(
 		loopbackEgressDenyVerified: record.loopbackEgressDenyVerified,
 		hostGatewayEgressDenyVerified: record.hostGatewayEgressDenyVerified,
 		dnsRebindingResistanceVerified: record.dnsRebindingResistanceVerified,
+	});
+}
+
+function dockerInspectNetworkRequestPolicy(
+	value: unknown,
+	privateNetwork: DockerProbeNetworkPrivateHandle,
+): DockerProbeNetworkRequestPolicy | undefined {
+	const record = plainObject(value);
+	const labels = plainObject(record?.Labels);
+	if (
+		record === undefined ||
+		stringValue(record.Name) !== privateNetwork.name ||
+		labels?.["dev.graphrefly.boundary"] !== "d624-docker-engine-api-v0-certifier"
+	)
+		return undefined;
+	return Object.freeze({
+		internalNetworkRequested: record.Internal === true,
+		noAttachableNetworkRequested: record.Attachable === false,
+		noIngressNetworkRequested: record.Ingress === false,
+		noIpv6NetworkRequested: record.EnableIPv6 === false,
 	});
 }
 
