@@ -64,6 +64,16 @@ interface DockerProbeNetworkPrivateHandle {
 	/** Docker resource id when it is safely bounded; otherwise the generated private resource name. */
 	readonly id: string;
 	readonly name: string;
+	readonly requestPolicy: DockerProbeNetworkRequestPolicy;
+}
+
+interface DockerProbeNetworkRequest {
+	readonly body: Record<string, unknown>;
+	readonly policy: DockerProbeNetworkRequestPolicy;
+}
+
+interface DockerProbeNetworkRequestPolicy {
+	readonly internalNetworkRequested: boolean;
 }
 
 interface DockerProbeContainerPublicHandle {
@@ -75,6 +85,25 @@ interface DockerProbeContainerPrivateHandle {
 	readonly id: string;
 	readonly name: string;
 	readonly network: DockerProbeNetworkPrivateHandle;
+	readonly requestPolicy: DockerProbeContainerRequestPolicy;
+}
+
+interface DockerProbeContainerRequest {
+	readonly body: Record<string, unknown>;
+	readonly policy: DockerProbeContainerRequestPolicy;
+}
+
+interface DockerProbeContainerRequestPolicy {
+	readonly nonRootUserRequested: boolean;
+	readonly rootUserProbeFails: boolean;
+	readonly noNewPrivilegesRequested: boolean;
+	readonly capabilitiesDroppedRequested: boolean;
+	readonly readOnlyRootFilesystemRequested: boolean;
+	readonly boundedFilesystemImportRequested: boolean;
+	readonly noEngineSocketMountRequested: boolean;
+	readonly noHostNetworkRequested: boolean;
+	readonly noHostBindMountRequested: boolean;
+	readonly cpuMemoryPidsTimeBoundsRequested: boolean;
 }
 
 const DOCKER_ENGINE_SOCKET_PATH = "/var/run/docker.sock";
@@ -82,6 +111,12 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 128 * 1024;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+const PROBE_CONTAINER_USER = "65532:65532";
+const PROBE_CONTAINER_STOP_TIMEOUT_SECONDS = 5;
+const PROBE_CONTAINER_MEMORY_BYTES = 128 * 1024 * 1024;
+const PROBE_CONTAINER_CPU_PERIOD = 100_000;
+const PROBE_CONTAINER_CPU_QUOTA = 50_000;
+const PROBE_CONTAINER_PIDS_LIMIT = 64;
 const DOCKER_PATH_SAFE = /^[A-Za-z0-9._~:/@+-]+$/;
 const DOCKER_ID_SAFE = /^[a-f0-9]{12,64}$/i;
 const PRIVATE_COMPACT_MATERIAL = [
@@ -172,65 +207,55 @@ function nodeLocalCertificationHost(
 		},
 		createProbeNetwork: async (opts) => {
 			const name = `graphrefly-d624-${randomUUID()}`;
+			const request = probeNetworkCreateRequest(name, opts.probeLabel);
 			const response = await dockerJsonRequest<Record<string, unknown>>(
 				"POST",
 				"/networks/create",
-				{
-					Name: name,
-					CheckDuplicate: false,
-					Internal: true,
-					Labels: probeDockerLabels(opts.probeLabel),
-				},
+				request.body,
 				http,
 				opts.signal,
 			);
 			const id = response.ok ? stringValue(response.value.Id) : undefined;
 			if (!response.ok) return { ok: false };
-			return ok(probeNetworkToken({ id: dockerIdSafe(id) ? id : name, name }));
+			return ok(
+				probeNetworkToken({
+					id: dockerIdSafe(id) ? id : name,
+					name,
+					requestPolicy: request.policy,
+				}),
+			);
 		},
 		createProbeContainer: async (opts) => {
 			const network = probeNetworkPrivate(opts.network);
 			if (network === undefined) return { ok: false };
 			const name = `graphrefly-d624-${randomUUID()}`;
+			const request = probeContainerCreateRequest(opts.imageRef, network.name, opts.probeLabel);
 			const response = await dockerJsonRequest<Record<string, unknown>>(
 				"POST",
 				`/containers/create?name=${dockerQueryValue(name)}`,
-				{
-					Image: opts.imageRef,
-					User: "65532:65532",
-					Cmd: ["sh", "-ec", 'test "$(id -u)" != "0"'],
-					AttachStdout: false,
-					AttachStderr: false,
-					OpenStdin: false,
-					Tty: false,
-					StopTimeout: 5,
-					HostConfig: {
-						NetworkMode: network.name,
-						ReadonlyRootfs: true,
-						SecurityOpt: ["no-new-privileges"],
-						CapDrop: ["ALL"],
-						AutoRemove: false,
-						Memory: 128 * 1024 * 1024,
-						CpuPeriod: 100_000,
-						CpuQuota: 50_000,
-						PidsLimit: 64,
-					},
-					NetworkingConfig: {
-						EndpointsConfig: {
-							[network.name]: {},
-						},
-					},
-					Labels: probeDockerLabels(opts.probeLabel),
-				},
+				request.body,
 				http,
 				opts.signal,
 			);
 			const id = response.ok ? stringValue(response.value.Id) : undefined;
 			if (!response.ok) return { ok: false };
-			return ok(probeContainerToken({ id: dockerIdSafe(id) ? id : name, name, network }));
+			return ok(
+				probeContainerToken({
+					id: dockerIdSafe(id) ? id : name,
+					name,
+					network,
+					requestPolicy: request.policy,
+				}),
+			);
 		},
-		inspectProbeContainment: (container, opts) =>
-			isProbeContainer(container) ? proofs.inspectProbeContainment(container, opts) : { ok: false },
+		inspectProbeContainment: async (container, opts) => {
+			const privateContainer = probeContainerPrivate(container);
+			if (privateContainer === undefined) return { ok: false };
+			const proof = await proofs.inspectProbeContainment(container, opts);
+			return proof.ok
+				? ok(boundContainmentEvidenceToProbeRequest(proof.value, privateContainer.requestPolicy))
+				: proof;
+		},
 		startProbeContainer: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
 			return privateContainer !== undefined
@@ -256,10 +281,16 @@ function nodeLocalCertificationHost(
 			);
 			return response.ok && response.value.StatusCode === 0 ? ok(undefined) : { ok: false };
 		},
-		verifyProbeNetworkDenials: (container, opts) =>
-			isProbeContainer(container)
-				? proofs.verifyProbeNetworkDenials(container, opts)
-				: { ok: false },
+		verifyProbeNetworkDenials: async (container, opts) => {
+			const privateContainer = probeContainerPrivate(container);
+			if (privateContainer === undefined) return { ok: false };
+			const proof = await proofs.verifyProbeNetworkDenials(container, opts);
+			return proof.ok
+				? ok(
+						boundNetworkEvidenceToProbeRequest(proof.value, privateContainer.network.requestPolicy),
+					)
+				: proof;
+		},
 		verifyProbeCancellationAndSecretDestruction: (container, opts) =>
 			isProbeContainer(container)
 				? proofs.verifyProbeCancellationAndSecretDestruction(container, opts)
@@ -320,6 +351,152 @@ function imageDigestEvidence(
 		(ref) => ref === imageDigest || ref.endsWith(`@${imageDigest}`),
 	);
 	return { imageDigestPresent, imageDigestVerified: imageDigestPresent };
+}
+
+function probeNetworkCreateRequest(
+	name: string,
+	probeLabel: string | undefined,
+): DockerProbeNetworkRequest {
+	const body = {
+		Name: name,
+		CheckDuplicate: false,
+		Internal: true,
+		Attachable: false,
+		Ingress: false,
+		EnableIPv6: false,
+		Labels: probeDockerLabels(probeLabel),
+	} as const satisfies Record<string, unknown>;
+	return {
+		body,
+		policy: Object.freeze({
+			internalNetworkRequested: body.Internal === true,
+		}),
+	};
+}
+
+function probeContainerCreateRequest(
+	imageRef: string,
+	networkName: string,
+	probeLabel: string | undefined,
+): DockerProbeContainerRequest {
+	const body = {
+		Image: imageRef,
+		User: PROBE_CONTAINER_USER,
+		Cmd: ["sh", "-ec", 'test "$(id -u)" != "0"'],
+		AttachStdout: false,
+		AttachStderr: false,
+		OpenStdin: false,
+		Tty: false,
+		StopTimeout: PROBE_CONTAINER_STOP_TIMEOUT_SECONDS,
+		HostConfig: {
+			NetworkMode: networkName,
+			ReadonlyRootfs: true,
+			SecurityOpt: ["no-new-privileges"],
+			CapDrop: ["ALL"],
+			AutoRemove: false,
+			Memory: PROBE_CONTAINER_MEMORY_BYTES,
+			CpuPeriod: PROBE_CONTAINER_CPU_PERIOD,
+			CpuQuota: PROBE_CONTAINER_CPU_QUOTA,
+			PidsLimit: PROBE_CONTAINER_PIDS_LIMIT,
+		},
+		NetworkingConfig: {
+			EndpointsConfig: {
+				[networkName]: {},
+			},
+		},
+		Labels: probeDockerLabels(probeLabel),
+	} as const satisfies Record<string, unknown>;
+	return {
+		body,
+		policy: Object.freeze(probeContainerRequestPolicy(body, networkName)),
+	};
+}
+
+function probeContainerRequestPolicy(
+	body: Record<string, unknown>,
+	networkName: string,
+): DockerProbeContainerRequestPolicy {
+	const hostConfig = plainObject(body.HostConfig);
+	const cmd = Array.isArray(body.Cmd) ? body.Cmd : [];
+	const securityOpt = Array.isArray(hostConfig?.SecurityOpt) ? hostConfig.SecurityOpt : [];
+	const capDrop = Array.isArray(hostConfig?.CapDrop) ? hostConfig.CapDrop : [];
+	const bodyJson = JSON.stringify(body);
+	return {
+		nonRootUserRequested: body.User === PROBE_CONTAINER_USER,
+		rootUserProbeFails:
+			cmd.length === 3 &&
+			cmd[0] === "sh" &&
+			cmd[1] === "-ec" &&
+			cmd[2] === 'test "$(id -u)" != "0"',
+		noNewPrivilegesRequested: securityOpt.includes("no-new-privileges"),
+		capabilitiesDroppedRequested: capDrop.length === 1 && capDrop[0] === "ALL",
+		readOnlyRootFilesystemRequested: hostConfig?.ReadonlyRootfs === true,
+		boundedFilesystemImportRequested:
+			body.OpenStdin === false &&
+			hostConfig?.AutoRemove === false &&
+			!("Volumes" in body) &&
+			!("Mounts" in body),
+		noEngineSocketMountRequested: !bodyJson.includes(DOCKER_ENGINE_SOCKET_PATH),
+		noHostNetworkRequested: hostConfig?.NetworkMode === networkName && networkName !== "host",
+		noHostBindMountRequested:
+			hostConfig !== undefined &&
+			!("Binds" in hostConfig) &&
+			!bodyJson.includes(DOCKER_ENGINE_SOCKET_PATH),
+		cpuMemoryPidsTimeBoundsRequested:
+			hostConfig?.Memory === PROBE_CONTAINER_MEMORY_BYTES &&
+			hostConfig?.CpuPeriod === PROBE_CONTAINER_CPU_PERIOD &&
+			hostConfig?.CpuQuota === PROBE_CONTAINER_CPU_QUOTA &&
+			hostConfig?.PidsLimit === PROBE_CONTAINER_PIDS_LIMIT &&
+			body.StopTimeout === PROBE_CONTAINER_STOP_TIMEOUT_SECONDS,
+	};
+}
+
+function boundContainmentEvidenceToProbeRequest(
+	value: DockerEngineApiV0ContainmentEvidence,
+	policy: DockerProbeContainerRequestPolicy,
+): DockerEngineApiV0ContainmentEvidence {
+	const isolationVerified =
+		value.isolationVerified &&
+		policy.nonRootUserRequested &&
+		policy.rootUserProbeFails &&
+		policy.noNewPrivilegesRequested &&
+		policy.capabilitiesDroppedRequested &&
+		policy.readOnlyRootFilesystemRequested &&
+		policy.boundedFilesystemImportRequested &&
+		policy.noEngineSocketMountRequested &&
+		policy.noHostNetworkRequested &&
+		policy.noHostBindMountRequested &&
+		policy.cpuMemoryPidsTimeBoundsRequested;
+	return {
+		isolationVerified,
+		containerUser: value.containerUser,
+		noNewPrivilegesVerified: value.noNewPrivilegesVerified && policy.noNewPrivilegesRequested,
+		readOnlyRootFilesystemVerified:
+			value.readOnlyRootFilesystemVerified && policy.readOnlyRootFilesystemRequested,
+		boundedFilesystemImportVerified:
+			value.boundedFilesystemImportVerified && policy.boundedFilesystemImportRequested,
+		noEngineSocketMountVerified:
+			value.noEngineSocketMountVerified && policy.noEngineSocketMountRequested,
+		noHostNetworkVerified: value.noHostNetworkVerified && policy.noHostNetworkRequested,
+		noHostBindMountVerified: value.noHostBindMountVerified && policy.noHostBindMountRequested,
+		cpuMemoryPidsTimeBoundsVerified:
+			value.cpuMemoryPidsTimeBoundsVerified && policy.cpuMemoryPidsTimeBoundsRequested,
+	};
+}
+
+function boundNetworkEvidenceToProbeRequest(
+	value: DockerEngineApiV0NetworkDenialEvidence,
+	policy: DockerProbeNetworkRequestPolicy,
+): DockerEngineApiV0NetworkDenialEvidence {
+	return {
+		destinationPinnedEgressDenyVerified:
+			value.destinationPinnedEgressDenyVerified && policy.internalNetworkRequested,
+		metadataEgressDenyVerified: value.metadataEgressDenyVerified,
+		linkLocalEgressDenyVerified: value.linkLocalEgressDenyVerified,
+		loopbackEgressDenyVerified: value.loopbackEgressDenyVerified,
+		hostGatewayEgressDenyVerified: value.hostGatewayEgressDenyVerified,
+		dnsRebindingResistanceVerified: value.dnsRebindingResistanceVerified,
+	};
 }
 
 function backendName(
@@ -437,6 +614,12 @@ function dockerQueryValue(value: string): string {
 
 function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function plainObject(value: unknown): Record<string, unknown> | undefined {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
 }
 
 function boundedIntegerRange(value: unknown, fallback: number, min: number, max: number): number {

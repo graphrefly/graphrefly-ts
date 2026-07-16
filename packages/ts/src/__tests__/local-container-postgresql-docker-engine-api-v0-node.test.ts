@@ -69,6 +69,14 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain(networkId);
 		expect(JSON.stringify(preflight)).not.toContain("socketPath");
 		expect(docker.calls[2]?.body).not.toContain("/var/run/docker.sock");
+		const networkBody = JSON.parse(docker.calls[2]?.body ?? "{}");
+		expect(networkBody).toMatchObject({
+			CheckDuplicate: false,
+			Internal: true,
+			Attachable: false,
+			Ingress: false,
+			EnableIPv6: false,
+		});
 		const createBody = JSON.parse(
 			docker.calls.find((c) => c.method === "POST" && c.path.startsWith("/containers/create"))
 				?.body ?? "{}",
@@ -201,6 +209,80 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 				expect.arrayContaining([expect.stringMatching(scenario.expectedCleanup)]),
 			);
 		}
+	});
+
+	it("fails closed when containment proof does not corroborate the private probe request policy", async () => {
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter({
+					containment: {
+						noNewPrivilegesVerified: false,
+					},
+				}),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			noNewPrivilegesVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(JSON.stringify(preflight)).not.toContain("requestPolicy");
+	});
+
+	it("fails closed when network proof does not corroborate the private probe network policy", async () => {
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter({
+					network: {
+						destinationPinnedEgressDenyVerified: false,
+					},
+				}),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			destinationPinnedEgressDenyVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(JSON.stringify(preflight)).not.toContain("requestPolicy");
 	});
 
 	it("cleans container and network after post-create Docker or proof failures", async () => {
@@ -388,12 +470,21 @@ function json(
 	return { status, body: JSON.stringify(body) };
 }
 
-function proofAdapter(opts: { readonly expectedProbeJson?: string; readonly fail?: boolean } = {}) {
+function proofAdapter(
+	opts: {
+		readonly expectedProbeJson?: string;
+		readonly fail?: boolean;
+		readonly containment?: Partial<DockerEngineApiV0ContainmentEvidence>;
+		readonly network?: Partial<DockerEngineApiV0NetworkDenialEvidence>;
+	} = {},
+) {
 	return {
 		inspectProbeContainment: (probe: unknown) =>
-			acceptProbe(probe, opts) ? ok(containmentEvidence()) : ({ ok: false } as const),
+			acceptProbe(probe, opts)
+				? ok(containmentEvidence(opts.containment))
+				: ({ ok: false } as const),
 		verifyProbeNetworkDenials: (probe: unknown) =>
-			acceptProbe(probe, opts) ? ok(networkDenialEvidence()) : ({ ok: false } as const),
+			acceptProbe(probe, opts) ? ok(networkDenialEvidence(opts.network)) : ({ ok: false } as const),
 		verifyProbeCancellationAndSecretDestruction: (probe: unknown) =>
 			acceptProbe(probe, opts) ? ok(cancellationSecretEvidence()) : ({ ok: false } as const),
 	};
@@ -411,7 +502,9 @@ function acceptProbe(
 	return visible === '{"kind":"docker-engine-api-v0-node-local-probe-container"}';
 }
 
-function containmentEvidence(): DockerEngineApiV0ContainmentEvidence {
+function containmentEvidence(
+	patch: Partial<DockerEngineApiV0ContainmentEvidence> = {},
+): DockerEngineApiV0ContainmentEvidence {
 	return {
 		isolationVerified: true,
 		containerUser: "999",
@@ -422,10 +515,13 @@ function containmentEvidence(): DockerEngineApiV0ContainmentEvidence {
 		noHostNetworkVerified: true,
 		noHostBindMountVerified: true,
 		cpuMemoryPidsTimeBoundsVerified: true,
+		...patch,
 	};
 }
 
-function networkDenialEvidence(): DockerEngineApiV0NetworkDenialEvidence {
+function networkDenialEvidence(
+	patch: Partial<DockerEngineApiV0NetworkDenialEvidence> = {},
+): DockerEngineApiV0NetworkDenialEvidence {
 	return {
 		destinationPinnedEgressDenyVerified: true,
 		metadataEgressDenyVerified: true,
@@ -433,6 +529,7 @@ function networkDenialEvidence(): DockerEngineApiV0NetworkDenialEvidence {
 		loopbackEgressDenyVerified: true,
 		hostGatewayEgressDenyVerified: true,
 		dnsRebindingResistanceVerified: true,
+		...patch,
 	};
 }
 
