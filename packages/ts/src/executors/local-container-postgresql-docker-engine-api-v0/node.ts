@@ -65,6 +65,7 @@ interface DockerProbeNetworkPrivateHandle {
 	readonly id: string;
 	readonly name: string;
 	readonly requestPolicy: DockerProbeNetworkRequestPolicy;
+	readonly createEnvelopeVerified: boolean;
 }
 
 interface DockerProbeNetworkRequest {
@@ -89,6 +90,7 @@ interface DockerProbeContainerPrivateHandle {
 	readonly name: string;
 	readonly network: DockerProbeNetworkPrivateHandle;
 	readonly requestPolicy: DockerProbeContainerRequestPolicy;
+	readonly createEnvelopeVerified: boolean;
 }
 
 interface DockerProbeContainerRequest {
@@ -247,19 +249,20 @@ function nodeLocalCertificationHost(
 				http,
 				opts.signal,
 			);
-			const id = response.ok ? stringValue(response.value.Id) : undefined;
 			if (!response.ok) return { ok: false };
+			const resource = dockerCreateResourceResponse(response.value, name);
 			return ok(
 				probeNetworkToken({
-					id: dockerIdSafe(id) ? id : name,
+					id: resource.ok ? resource.id : resource.cleanupId,
 					name,
 					requestPolicy: request.policy,
+					createEnvelopeVerified: resource.ok,
 				}),
 			);
 		},
 		createProbeContainer: async (opts) => {
 			const network = probeNetworkPrivate(opts.network);
-			if (network === undefined) return { ok: false };
+			if (network === undefined || !network.createEnvelopeVerified) return { ok: false };
 			const name = `graphrefly-d624-${randomUUID()}`;
 			const request = probeContainerCreateRequest(opts.imageRef, network.name, opts.probeLabel);
 			const response = await dockerJsonObjectRequest(
@@ -269,20 +272,22 @@ function nodeLocalCertificationHost(
 				http,
 				opts.signal,
 			);
-			const id = response.ok ? stringValue(response.value.Id) : undefined;
 			if (!response.ok) return { ok: false };
+			const resource = dockerCreateResourceResponse(response.value, name);
 			return ok(
 				probeContainerToken({
-					id: dockerIdSafe(id) ? id : name,
+					id: resource.ok ? resource.id : resource.cleanupId,
 					name,
 					network,
 					requestPolicy: request.policy,
+					createEnvelopeVerified: resource.ok,
 				}),
 			);
 		},
 		inspectProbeContainment: async (container, opts) => {
 			const privateContainer = probeContainerPrivate(container);
-			if (privateContainer === undefined) return { ok: false };
+			if (privateContainer === undefined || !privateContainer.createEnvelopeVerified)
+				return { ok: false };
 			const inspected = await dockerJsonObjectRequest(
 				"GET",
 				`/containers/${dockerPathSegment(privateContainer.id)}/json`,
@@ -445,6 +450,25 @@ function waitProbeContainerSucceeded(value: Record<string, unknown>): boolean {
 	if (!Object.keys(value).every((key) => key === "StatusCode" || key === "Error")) return false;
 	if (value.StatusCode !== 0) return false;
 	return !("Error" in value) || value.Error === null;
+}
+
+function dockerCreateResourceResponse(
+	value: Record<string, unknown>,
+	fallbackName: string,
+): { readonly ok: true; readonly id: string } | { readonly ok: false; readonly cleanupId: string } {
+	const rawId = stringValue(value.Id);
+	const id = dockerIdSafe(rawId) ? rawId : undefined;
+	const cleanupId = id ?? fallbackName;
+	const warnings = value.Warnings;
+	const warningsAccepted =
+		warnings === undefined ||
+		warnings === null ||
+		(Array.isArray(warnings) && warnings.length === 0);
+	const envelopeAccepted =
+		id !== undefined &&
+		Object.keys(value).every((key) => key === "Id" || key === "Warnings") &&
+		warningsAccepted;
+	return envelopeAccepted ? { ok: true, id } : { ok: false, cleanupId };
 }
 
 function probeNetworkCreateRequest(

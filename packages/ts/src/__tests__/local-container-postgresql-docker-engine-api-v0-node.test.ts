@@ -608,6 +608,164 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
 	});
 
+	it("fails closed and removes an allocated network when Docker network create returns warnings", async () => {
+		const docker = installDockerApiMock({
+			rawCreateNetworkBody: JSON.stringify({
+				Id: networkId,
+				Warnings: ["private-token ignored network option"],
+				socketPath: "/var/run/docker.sock",
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+			"GET /version",
+			`GET /images/${encodeURIComponent(imageRef)}/json`,
+			"POST /networks/create",
+			`DELETE /networks/${networkId}`,
+		]);
+		expect(JSON.stringify(preflight)).not.toContain("private-token");
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+	});
+
+	it("fails closed when Docker network create returns extra fields despite empty warnings", async () => {
+		const docker = installDockerApiMock({
+			rawCreateNetworkBody: JSON.stringify({
+				Id: networkId,
+				Warnings: [],
+				socketPath: "/var/run/docker.sock",
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+			"GET /version",
+			`GET /images/${encodeURIComponent(imageRef)}/json`,
+			"POST /networks/create",
+			`DELETE /networks/${networkId}`,
+		]);
+		expect(JSON.stringify(preflight)).not.toContain("socketPath");
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+	});
+
+	it("fails closed and removes allocated resources when Docker container create returns warnings", async () => {
+		const docker = installDockerApiMock({
+			rawCreateContainerBody: JSON.stringify({
+				Id: containerId,
+				Warnings: ["private-token ignored container option"],
+				socketPath: "/var/run/docker.sock",
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+			"GET /version",
+			`GET /images/${encodeURIComponent(imageRef)}/json`,
+			"POST /networks/create",
+			expect.stringMatching(/^POST \/containers\/create\?name=graphrefly-d624-/),
+			`DELETE /containers/${containerId}?force=true&v=true`,
+			`DELETE /networks/${networkId}`,
+		]);
+		expect(JSON.stringify(preflight)).not.toContain("private-token");
+		expect(JSON.stringify(preflight)).not.toContain("docker.sock");
+	});
+
+	it("fails closed and removes allocated resources when Docker container create warnings are malformed", async () => {
+		const docker = installDockerApiMock({
+			rawCreateContainerBody: JSON.stringify({
+				Id: containerId,
+				Warnings: "private-token",
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+			"GET /version",
+			`GET /images/${encodeURIComponent(imageRef)}/json`,
+			"POST /networks/create",
+			expect.stringMatching(/^POST \/containers\/create\?name=graphrefly-d624-/),
+			`DELETE /containers/${containerId}?force=true&v=true`,
+			`DELETE /networks/${networkId}`,
+		]);
+		expect(JSON.stringify(preflight)).not.toContain("private-token");
+	});
+
 	it("cleans allocated probe resources when Docker wait response exceeds the byte budget", async () => {
 		const docker = installDockerApiMock({
 			rawWaitBody: JSON.stringify({ StatusCode: 0, padding: "x".repeat(4096) }),
@@ -1454,6 +1612,7 @@ function installDockerApiMock(
 		readonly networkId?: string;
 		readonly rawVersionBody?: string;
 		readonly rawImageBody?: string;
+		readonly rawCreateNetworkBody?: string;
 		readonly rawCreateContainerBody?: string;
 		readonly rawInspectContainerBody?: string;
 		readonly rawPostWaitInspectContainerBody?: string;
@@ -1564,6 +1723,7 @@ function route(
 		readonly networkId?: string;
 		readonly rawVersionBody?: string;
 		readonly rawImageBody?: string;
+		readonly rawCreateNetworkBody?: string;
 		readonly rawCreateContainerBody?: string;
 		readonly rawInspectContainerBody?: string;
 		readonly rawPostWaitInspectContainerBody?: string;
@@ -1594,6 +1754,8 @@ function route(
 		return { status: 200, body: opts.rawImageBody };
 	if (method === "GET" && path === `/images/${encodeURIComponent(imageRef)}/json`)
 		return json(200, { RepoDigests: [imageRef] });
+	if (method === "POST" && path === "/networks/create" && opts.rawCreateNetworkBody !== undefined)
+		return { status: 201, body: opts.rawCreateNetworkBody };
 	if (method === "POST" && path === "/networks/create")
 		return json(201, { Id: opts.networkId ?? networkId });
 	if (
@@ -1604,7 +1766,7 @@ function route(
 		return { status: 201, body: opts.rawCreateContainerBody };
 	if (method === "POST" && path.startsWith("/containers/create?name="))
 		return (opts.createContainerStatus ?? 201) === 201
-			? json(201, { Id: opts.containerId ?? containerId })
+			? json(201, { Id: opts.containerId ?? containerId, Warnings: [] })
 			: json(opts.createContainerStatus ?? 500, { message: "failed" });
 	if (
 		method === "GET" &&
