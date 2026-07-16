@@ -528,6 +528,18 @@ function boundContainmentEvidenceToProbeRequest(
 	};
 }
 
+if (process.env.VITEST !== undefined) {
+	Object.defineProperty(
+		certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker,
+		"__graphreflyTestHooks",
+		{
+			value: Object.freeze({
+				boundContainmentEvidenceToProbeRequest,
+			}),
+		},
+	);
+}
+
 function boundCancellationSecretEvidenceToProbeRequest(
 	value: DockerEngineApiV0CancellationSecretEvidence,
 	policy: DockerProbeContainerRequestPolicy,

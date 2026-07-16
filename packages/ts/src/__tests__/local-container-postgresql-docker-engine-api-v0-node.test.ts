@@ -1,5 +1,4 @@
 import { EventEmitter } from "node:events";
-import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY,
@@ -19,6 +18,32 @@ const digest = `sha256:${"c".repeat(64)}`;
 const imageRef = `registry.example.test/graphrefly/postgresql@${digest}`;
 const containerId = "a".repeat(64);
 const networkId = "b".repeat(64);
+
+interface NodeLocalDockerTestHooksModule {
+	readonly certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker: {
+		readonly __graphreflyTestHooks: {
+			readonly boundContainmentEvidenceToProbeRequest: (
+				value: DockerEngineApiV0ContainmentEvidence,
+				policy: DockerProbeContainerRequestPolicyForTest,
+			) => DockerEngineApiV0ContainmentEvidence;
+		};
+	};
+}
+
+interface DockerProbeContainerRequestPolicyForTest {
+	readonly nonRootUserRequested: boolean;
+	readonly rootUserProbeFails: boolean;
+	readonly noPrivilegedModeRequested: boolean;
+	readonly noNewPrivilegesRequested: boolean;
+	readonly capabilitiesDroppedRequested: boolean;
+	readonly readOnlyRootFilesystemRequested: boolean;
+	readonly boundedFilesystemImportRequested: boolean;
+	readonly noEngineSocketMountRequested: boolean;
+	readonly noHostNetworkRequested: boolean;
+	readonly noHostBindMountRequested: boolean;
+	readonly noPortPublicationRequested: boolean;
+	readonly cpuMemoryPidsTimeBoundsRequested: boolean;
+}
 
 describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 	beforeEach(() => {
@@ -103,16 +128,28 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(createBody)).not.toContain("/var/run/docker.sock");
 	});
 
-	it("binds privileged and port-publication request policy into isolation evidence", () => {
-		const source = readFileSync(
-			new URL(
-				"../executors/local-container-postgresql-docker-engine-api-v0/node.ts",
-				import.meta.url,
-			),
-			"utf8",
-		);
-		expect(source).toContain("policy.noPrivilegedModeRequested &&");
-		expect(source).toContain("policy.noPortPublicationRequested &&");
+	it("binds privileged and port-publication request policy into isolation evidence", async () => {
+		const mod = (await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		)) as unknown as NodeLocalDockerTestHooksModule;
+		const bind =
+			mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker.__graphreflyTestHooks
+				.boundContainmentEvidenceToProbeRequest;
+		const policy = fullContainerRequestPolicyForTest();
+
+		expect(bind(containmentEvidence(), policy).isolationVerified).toBe(true);
+		expect(
+			bind(containmentEvidence(), {
+				...policy,
+				noPrivilegedModeRequested: false,
+			}).isolationVerified,
+		).toBe(false);
+		expect(
+			bind(containmentEvidence(), {
+				...policy,
+				noPortPublicationRequested: false,
+			}).isolationVerified,
+		).toBe(false);
 	});
 
 	it("fails closed and removes allocated network when Docker create is not accepted", async () => {
@@ -1110,6 +1147,23 @@ function containmentEvidence(
 		cpuMemoryPidsTimeBoundsVerified: true,
 		...patch,
 	} as DockerEngineApiV0ContainmentEvidence;
+}
+
+function fullContainerRequestPolicyForTest(): DockerProbeContainerRequestPolicyForTest {
+	return {
+		nonRootUserRequested: true,
+		rootUserProbeFails: true,
+		noPrivilegedModeRequested: true,
+		noNewPrivilegesRequested: true,
+		capabilitiesDroppedRequested: true,
+		readOnlyRootFilesystemRequested: true,
+		boundedFilesystemImportRequested: true,
+		noEngineSocketMountRequested: true,
+		noHostNetworkRequested: true,
+		noHostBindMountRequested: true,
+		noPortPublicationRequested: true,
+		cpuMemoryPidsTimeBoundsRequested: true,
+	};
 }
 
 function networkDenialEvidence(
