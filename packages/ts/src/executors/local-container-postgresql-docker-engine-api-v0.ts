@@ -358,6 +358,7 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 
 	let probeContainer: unknown;
 	let probeNetwork: unknown;
+	let lastFailurePatch: Partial<LocalContainerPostgresqlDockerEngineApiV0Preflight> | undefined;
 	const failAndCleanup = async (
 		patch: Partial<LocalContainerPostgresqlDockerEngineApiV0Preflight> = {},
 	): Promise<LocalContainerPostgresqlDockerEngineApiV0Preflight> => {
@@ -365,6 +366,7 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 		probeContainer = undefined;
 		probeNetwork = undefined;
 		return fail({
+			...(lastFailurePatch ?? {}),
 			...patch,
 			cleanupVerified: cleanupVerified && patch.cleanupVerified !== false,
 		});
@@ -375,6 +377,7 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 			return fail(
 				version.ok ? versionPatch(version.value) : { detectedBackend: version.detectedBackend },
 			);
+		lastFailurePatch = versionPatch(version.value);
 		const matrixProofRefs = certifiedHostMatrixProofRefs(opts, version.value);
 		if (matrixProofRefs === undefined) return fail(versionPatch(version.value));
 		const image = await opts.host.inspectImageDigest({
@@ -387,6 +390,8 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 				...versionPatch(version.value),
 				...(image.ok ? imageDigestEvidencePatch(image.value) : {}),
 			});
+		const imagePatch = imageDigestEvidencePatch(image.value);
+		lastFailurePatch = { ...lastFailurePatch, ...imagePatch };
 		const network = await opts.host.createProbeNetwork({
 			probeLabel: opts.probeLabel,
 			signal: opts.signal,
@@ -405,6 +410,8 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 			signal: opts.signal,
 		});
 		if (!containment.ok) return failAndCleanup(versionPatch(version.value));
+		const containmentPatch = containmentEvidencePatch(containment.value);
+		lastFailurePatch = { ...lastFailurePatch, ...containmentPatch };
 		const start = await opts.host.startProbeContainer(probeContainer, { signal: opts.signal });
 		if (!start.ok) return failAndCleanup(versionPatch(version.value));
 		const wait = await opts.host.waitProbeContainer(probeContainer, { signal: opts.signal });
@@ -413,6 +420,8 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 			signal: opts.signal,
 		});
 		if (!networkDenial.ok) return failAndCleanup(versionPatch(version.value));
+		const networkDenialPatch = networkDenialEvidencePatch(networkDenial.value);
+		lastFailurePatch = { ...lastFailurePatch, ...networkDenialPatch };
 		const cancellationSecret = await opts.host.verifyProbeCancellationAndSecretDestruction(
 			probeContainer,
 			{ signal: opts.signal },
@@ -421,9 +430,6 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 		const cleanupVerified = await cleanupProbeResources(opts.host, probeContainer, probeNetwork);
 		probeContainer = undefined;
 		probeNetwork = undefined;
-		const imagePatch = imageDigestEvidencePatch(image.value);
-		const containmentPatch = containmentEvidencePatch(containment.value);
-		const networkDenialPatch = networkDenialEvidencePatch(networkDenial.value);
 		const cancellationSecretPatch = cancellationSecretEvidencePatch(cancellationSecret.value);
 		const readyPatch = {
 			...versionPatch(version.value),
@@ -439,8 +445,12 @@ export async function certifyDockerEngineApiV0LocalContainerPostgresql(
 		};
 		return preflight(readyPatch);
 	} catch {
-		await cleanupProbeResources(opts.host, probeContainer, probeNetwork);
-		return fail({ detectedBackend: "unavailable" });
+		const cleanupAttempted = probeContainer !== undefined || probeNetwork !== undefined;
+		const cleanupVerified = await cleanupProbeResources(opts.host, probeContainer, probeNetwork);
+		return fail({
+			...(lastFailurePatch ?? { detectedBackend: "unavailable" }),
+			...(cleanupAttempted ? { cleanupVerified } : {}),
+		});
 	}
 }
 

@@ -222,6 +222,77 @@ describe("Docker Engine API v0 local-container PostgreSQL broker (D624)", () => 
 		}
 	});
 
+	it("records cleanup evidence when host proof methods throw after allocation", async () => {
+		for (const throwCall of [
+			"createProbeContainer",
+			"inspectProbeContainment",
+			"startProbeContainer",
+			"waitProbeContainer",
+			"verifyProbeNetworkDenials",
+			"verifyProbeCancellationAndSecretDestruction",
+		] as const) {
+			const host = dockerHost({ throwCall });
+			const preflight = await certifyDockerEngineApiV0LocalContainerPostgresql({
+				manifest: manifest(),
+				host,
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24",
+				certifiedHostMatrix: certifiedHostMatrix("linux"),
+				observedAtMs: 10,
+				ttlMs: 100,
+			});
+
+			const readiness = localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight);
+			expect(readiness.state, throwCall).toBe("unavailable");
+			expect(readiness.cleanupVerified, throwCall).toBe(true);
+			expect(readiness.engineReachable, throwCall).toBe(true);
+			expect(readiness.imageDigestPresent, throwCall).toBe(true);
+			expect(readiness.imageDigestVerified, throwCall).toBe(true);
+			if (
+				throwCall === "startProbeContainer" ||
+				throwCall === "waitProbeContainer" ||
+				throwCall === "verifyProbeNetworkDenials" ||
+				throwCall === "verifyProbeCancellationAndSecretDestruction"
+			) {
+				expect(readiness.noEngineSocketMountVerified, throwCall).toBe(true);
+				expect(readiness.noHostBindMountVerified, throwCall).toBe(true);
+			}
+			if (throwCall === "verifyProbeCancellationAndSecretDestruction")
+				expect(readiness.destinationPinnedEgressDenyVerified, throwCall).toBe(true);
+			expect(host.calls, throwCall).toContain("removeProbeNetwork");
+			if (throwCall !== "createProbeContainer")
+				expect(host.calls).toContain("removeProbeContainer");
+			expect(JSON.stringify(preflight), throwCall).not.toContain("opaque-probe-binding");
+			expect(JSON.stringify(preflight), throwCall).not.toContain("opaque-network-binding");
+		}
+	});
+
+	it("records thrown cleanup as unverifiable after host exception", async () => {
+		const host = dockerHost({
+			throwCall: "waitProbeContainer",
+			throwCleanupCall: "removeProbeContainer",
+		});
+		const preflight = await certifyDockerEngineApiV0LocalContainerPostgresql({
+			manifest: manifest(),
+			host,
+			imageRef,
+			hostPlatform: "linux/amd64",
+			guestPlatform: "linux/amd64",
+			runtimeRevision: "docker-engine:24",
+			certifiedHostMatrix: certifiedHostMatrix("linux"),
+			observedAtMs: 10,
+			ttlMs: 100,
+		});
+
+		const readiness = localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight);
+		expect(readiness.state).toBe("unavailable");
+		expect(readiness.cleanupVerified).toBe(false);
+		expect(host.calls).toContain("removeProbeContainer");
+		expect(host.calls).toContain("removeProbeNetwork");
+	});
+
 	it("rejects root user aliases and records cleanup failure as unavailable", async () => {
 		for (const containerUser of ["0", "0:0", "0:65532", "root"]) {
 			const preflight = await certifyDockerEngineApiV0LocalContainerPostgresql({
@@ -633,6 +704,14 @@ function dockerHost(
 			| "waitProbeContainer"
 			| "verifyProbeNetworkDenials"
 			| "verifyProbeCancellationAndSecretDestruction";
+		readonly throwCall?:
+			| "createProbeContainer"
+			| "inspectProbeContainment"
+			| "startProbeContainer"
+			| "waitProbeContainer"
+			| "verifyProbeNetworkDenials"
+			| "verifyProbeCancellationAndSecretDestruction";
+		readonly throwCleanupCall?: "removeProbeContainer" | "removeProbeNetwork";
 		readonly removeProbeContainer?: DockerEngineApiV0HostResult<void>;
 		readonly failOnAbortedRunCleanupContext?: boolean;
 	} = {},
@@ -666,32 +745,44 @@ function dockerHost(
 		},
 		createProbeContainer: () => {
 			calls.push("createProbeContainer");
+			if (opts.throwCall === "createProbeContainer")
+				throw new Error("D624 create probe container threw");
 			return opts.failCall === "createProbeContainer"
 				? ({ ok: false } as const)
 				: ok({ opaqueProbeBinding: "opaque-probe-binding" });
 		},
 		inspectProbeContainment: () => {
 			calls.push("inspectProbeContainment");
+			if (opts.throwCall === "inspectProbeContainment")
+				throw new Error("D624 inspect probe containment threw");
 			return opts.failCall === "inspectProbeContainment"
 				? ({ ok: false } as const)
 				: ok(opts.containment ?? containmentEvidence());
 		},
 		startProbeContainer: () => {
 			calls.push("startProbeContainer");
+			if (opts.throwCall === "startProbeContainer")
+				throw new Error("D624 start probe container threw");
 			return opts.failCall === "startProbeContainer" ? ({ ok: false } as const) : ok(undefined);
 		},
 		waitProbeContainer: () => {
 			calls.push("waitProbeContainer");
+			if (opts.throwCall === "waitProbeContainer")
+				throw new Error("D624 wait probe container threw");
 			return opts.failCall === "waitProbeContainer" ? ({ ok: false } as const) : ok(undefined);
 		},
 		verifyProbeNetworkDenials: () => {
 			calls.push("verifyProbeNetworkDenials");
+			if (opts.throwCall === "verifyProbeNetworkDenials")
+				throw new Error("D624 verify probe network denials threw");
 			return opts.failCall === "verifyProbeNetworkDenials"
 				? ({ ok: false } as const)
 				: ok(opts.networkDenial ?? networkDenialEvidence());
 		},
 		verifyProbeCancellationAndSecretDestruction: () => {
 			calls.push("verifyProbeCancellationAndSecretDestruction");
+			if (opts.throwCall === "verifyProbeCancellationAndSecretDestruction")
+				throw new Error("D624 verify probe cancellation and secret destruction threw");
 			if (opts.failCall === "verifyProbeCancellationAndSecretDestruction")
 				return { ok: false } as const;
 			return ok({
@@ -704,10 +795,14 @@ function dockerHost(
 		},
 		removeProbeContainer: () => {
 			calls.push("removeProbeContainer");
+			if (opts.throwCleanupCall === "removeProbeContainer")
+				throw new Error("D624 remove probe container threw");
 			return opts.removeProbeContainer ?? ok(undefined);
 		},
 		removeProbeNetwork: () => {
 			calls.push("removeProbeNetwork");
+			if (opts.throwCleanupCall === "removeProbeNetwork")
+				throw new Error("D624 remove probe network threw");
 			return ok(undefined);
 		},
 		createRunContainer: ({ imageRef: nextImageRef }) => {
