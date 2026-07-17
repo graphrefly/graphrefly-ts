@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.2.2
+
+### Patch Changes
+
+- 7e3646f: Add the focused ClickHouse trusted-query evaluation subpath with D610-aligned contracts and a host-injected ordinary-D419 execution, outcome, timeout, and admitted-cancellation runtime.
+
 ## 0.2.1
 
 ### Patch Changes

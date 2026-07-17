@@ -1,5 +1,12 @@
 # @graphrefly-examples/framework-svelte
 
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies [7e3646f]
+  - @graphrefly/ts@0.2.2
+
 ## 0.0.13
 
 ### Patch Changes
