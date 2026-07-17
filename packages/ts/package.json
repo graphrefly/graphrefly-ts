@@ -1,6 +1,6 @@
 {
 	"name": "@graphrefly/ts",
-	"version": "0.2.2",
+	"version": "0.3.0",
 	"description": "GraphReFly TypeScript package: synchronous reactive graphs, operators, sources, storage, renderers, adapters, and testing helpers.",
 	"repository": {
 		"type": "git",

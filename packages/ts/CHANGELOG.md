@@ -1,5 +1,12 @@
 # @graphrefly/ts
 
+## 0.3.0
+
+### Minor Changes
+
+- 5f980a7: update blueprint to v2
+- 6bb2f1b: Emit GraphBlueprint v2 with stable graph-owned subgraph mount identities, retain strict v1 evidence reads, and add portable parsing, caller-owned hash verification, Blueprint-direct Mermaid rendering, and deterministic fail-closed structural deltas for repository review tools.
+
 ## 0.2.2
 
 ### Patch Changes
