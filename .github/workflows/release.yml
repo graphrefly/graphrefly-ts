@@ -127,3 +127,6 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          # `pnpm release` rebuilds the package inside this action step, so it
+          # needs the same declaration-worker heap budget as the preflight.
+          NODE_OPTIONS: --max-old-space-size=6144

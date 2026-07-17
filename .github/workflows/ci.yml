@@ -46,6 +46,10 @@ jobs:
       - run: pnpm run lint
 
       - run: pnpm run build
+        env:
+          # tsup's declaration worker needs the same heap budget as the proven
+          # release build once every focused package entry is emitted together.
+          NODE_OPTIONS: --max-old-space-size=6144
 
       # The docs build runs against the clean-slate @graphrefly/ts package and
       # explicitly historical/archive pages.
@@ -54,6 +58,7 @@ jobs:
         env:
           ASTRO_SITE_URL: https://graphrefly.dev
           ASTRO_BASE_PATH: /
+          NODE_OPTIONS: --max-old-space-size=6144
 
       # Clean-slate TS B49 probe.
       - name: Benchmark smoke

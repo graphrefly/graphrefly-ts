@@ -54,6 +54,10 @@ jobs:
       # shell is owned by graphrefly under D563.
       - name: Build TypeScript docs artifact
         run: pnpm run docs:build
+        env:
+          # Keep the package declaration worker on the release workflow's
+          # already-proven heap budget.
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - uses: actions/upload-pages-artifact@v5
         with:
