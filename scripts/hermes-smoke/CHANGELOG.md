@@ -1,5 +1,12 @@
 # @graphrefly/hermes-smoke
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [7e3646f]
+  - @graphrefly/ts@0.2.2
+
 ## 0.0.5
 
 ### Patch Changes
