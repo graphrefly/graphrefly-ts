@@ -1042,6 +1042,80 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain(containerId);
 	});
 
+	it.each([
+		{
+			name: "the reported network id does not match the allocated private network",
+			mutate: (inspected: Record<string, unknown>) => ({
+				...inspected,
+				NetworkSettings: {
+					Networks: {
+						__GRAPHREFLY_PROBE_NETWORK_NAME__: { NetworkID: "d".repeat(64) },
+					},
+				},
+			}),
+		},
+		{
+			name: "the probe is also attached to an unrelated network",
+			mutate: (inspected: Record<string, unknown>) => {
+				const networkSettings = inspected.NetworkSettings as Record<string, unknown>;
+				const networks = networkSettings.Networks as Record<string, unknown>;
+				return {
+					...inspected,
+					NetworkSettings: {
+						Networks: {
+							...networks,
+							bridge: { NetworkID: "d".repeat(64) },
+						},
+					},
+				};
+			},
+		},
+	])("fails closed before start when $name", async ({ mutate }) => {
+		const docker = installDockerApiMock({
+			rawInspectContainerBody: JSON.stringify(
+				mutate(
+					safeInspectContainerBody(
+						"__GRAPHREFLY_PROBE_NETWORK_NAME__",
+						"__GRAPHREFLY_PROBE_CONTAINER_NAME__",
+					),
+				),
+			),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			isolationVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((call) => `${call.method} ${call.path}`)).not.toContain(
+			`POST /containers/${containerId}/start`,
+		);
+		expect(docker.calls.map((call) => `${call.method} ${call.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(JSON.stringify(preflight)).not.toContain("bridge");
+		expect(JSON.stringify(preflight)).not.toContain("d".repeat(64));
+	});
+
 	it("accepts Docker inspect image when it is digest-equivalent to the requested probe image", async () => {
 		const docker = installDockerApiMock({
 			rawInspectContainerBody: JSON.stringify(
@@ -1335,6 +1409,59 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(JSON.stringify(preflight)).not.toContain("private-token");
 	});
 
+	it("fails closed when the probe gains another network attachment after execution", async () => {
+		const inspected = safeInspectContainerBody("__GRAPHREFLY_PROBE_NETWORK_NAME__");
+		const networkSettings = inspected.NetworkSettings as Record<string, unknown>;
+		const networks = networkSettings.Networks as Record<string, unknown>;
+		const docker = installDockerApiMock({
+			rawPostWaitInspectContainerBody: JSON.stringify({
+				...inspected,
+				NetworkSettings: {
+					Networks: {
+						...networks,
+						bridge: { NetworkID: "d".repeat(64) },
+					},
+				},
+			}),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cancellationVerified: false,
+			secretDestructionVerified: false,
+			cleanupVerified: true,
+		});
+		expect(
+			docker.calls.filter(
+				(call) => `${call.method} ${call.path}` === `GET /containers/${containerId}/json`,
+			),
+		).toHaveLength(2);
+		expect(docker.calls.map((call) => `${call.method} ${call.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(JSON.stringify(preflight)).not.toContain("bridge");
+		expect(JSON.stringify(preflight)).not.toContain("d".repeat(64));
+	});
+
 	it("cleans allocated probe resources when Docker wait request times out", async () => {
 		const docker = installDockerApiMock({ hangPath: `/containers/${containerId}/wait` });
 		const mod = await import(
@@ -1405,6 +1532,162 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		);
 		const cleanupCalls = docker.calls.filter((c) => c.method === "DELETE");
 		expect(cleanupCalls.map((c) => c.hasSignal)).toEqual([false, false]);
+	});
+
+	it.each([
+		"containment",
+		"network",
+		"cancellation",
+	] as const)("bounds a hanging %s proof, aborts its private signal, and cleans allocated resources", async (stage) => {
+		let proofSignal: AbortSignal | undefined;
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				requestTimeoutMs: 1,
+				proofs: proofAdapter({
+					hangAt: stage,
+					onProofSignal: (proofStage, signal) => {
+						if (proofStage === stage) proofSignal = signal;
+					},
+				}),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(proofSignal?.aborted).toBe(true);
+		expect(docker.calls.map((call) => `${call.method} ${call.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		const cleanupCalls = docker.calls.filter((call) => call.method === "DELETE");
+		expect(cleanupCalls.map((call) => call.hasSignal)).toEqual([false, false]);
+	});
+
+	it("fails closed on caller abort during a proof and recovers through a fresh preflight", async () => {
+		const controller = new AbortController();
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const first = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker({
+			manifest: manifest(),
+			imageRef,
+			hostPlatform: "linux/amd64",
+			guestPlatform: "linux/amd64",
+			runtimeRevision: "docker-engine:24.0.7",
+			certifiedHostMatrix: certifiedHostMatrix(),
+			observedAtMs: 20,
+			ttlMs: 100,
+			signal: controller.signal,
+			proofs: proofAdapter({
+				hangAt: "containment",
+				onProofSignal: (stage) => {
+					if (stage === "containment") controller.abort();
+				},
+			}),
+		});
+		const second = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker({
+			manifest: manifest(),
+			imageRef,
+			hostPlatform: "linux/amd64",
+			guestPlatform: "linux/amd64",
+			runtimeRevision: "docker-engine:24.0.7",
+			certifiedHostMatrix: certifiedHostMatrix(),
+			observedAtMs: 120,
+			ttlMs: 100,
+			proofs: proofAdapter(),
+		});
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(first)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(second)).toMatchObject({
+			state: "ready",
+			cleanupVerified: true,
+		});
+		expect(
+			docker.calls.filter(
+				(call) =>
+					`${call.method} ${call.path}` === `DELETE /containers/${containerId}?force=true&v=true`,
+			),
+		).toHaveLength(2);
+		expect(
+			docker.calls.filter(
+				(call) => `${call.method} ${call.path}` === `DELETE /networks/${networkId}`,
+			),
+		).toHaveLength(2);
+	});
+
+	it("does not start a queued proof after caller cancellation has already won", async () => {
+		const controller = new AbortController();
+		let proofCalls = 0;
+		let abortListenerRegistrations = 0;
+		const addEventListener = controller.signal.addEventListener.bind(controller.signal);
+		vi.spyOn(controller.signal, "addEventListener").mockImplementation(
+			(
+				type: string,
+				listener: EventListenerOrEventListenerObject | null,
+				options?: boolean | AddEventListenerOptions,
+			) => {
+				addEventListener(type, listener, options);
+				if (type === "abort" && ++abortListenerRegistrations === 6)
+					queueMicrotask(() => controller.abort());
+			},
+		);
+		const docker = installDockerApiMock();
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				signal: controller.signal,
+				proofs: proofAdapter({
+					onProofSignal: () => {
+						proofCalls += 1;
+					},
+				}),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			cleanupVerified: true,
+		});
+		expect(abortListenerRegistrations).toBe(6);
+		expect(proofCalls).toBe(0);
+		expect(docker.calls.map((call) => `${call.method} ${call.path}`)).toEqual(
+			expect.arrayContaining([
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		const cleanupCalls = docker.calls.filter((call) => call.method === "DELETE");
+		expect(cleanupCalls.map((call) => call.hasSignal)).toEqual([false, false]);
 	});
 
 	it("fails closed without substituting invalid cleanup targets when Docker returns unsafe IDs", async () => {
@@ -2455,6 +2738,11 @@ function safeInspectContainerBody(
 			CpuQuota: 50_000,
 			PidsLimit: 64,
 		},
+		NetworkSettings: {
+			Networks: {
+				[networkName]: { NetworkID: networkId },
+			},
+		},
 		Mounts: [],
 		State: {
 			Running: false,
@@ -2491,6 +2779,11 @@ function proofAdapter(
 	opts: {
 		readonly expectedProbeJson?: string;
 		readonly fail?: boolean;
+		readonly hangAt?: "containment" | "network" | "cancellation";
+		readonly onProofSignal?: (
+			stage: "containment" | "network" | "cancellation",
+			signal: AbortSignal | undefined,
+		) => void;
 		readonly containment?: Partial<DockerEngineApiV0ContainmentEvidence> & Record<string, unknown>;
 		readonly network?: Partial<DockerEngineApiV0NetworkDenialEvidence> & Record<string, unknown>;
 		readonly cancellation?: Partial<DockerEngineApiV0CancellationSecretEvidence> &
@@ -2498,16 +2791,30 @@ function proofAdapter(
 	} = {},
 ) {
 	return {
-		inspectProbeContainment: (probe: unknown) =>
-			acceptProbe(probe, opts)
+		inspectProbeContainment: (probe: unknown, callOpts: { readonly signal?: AbortSignal }) => {
+			opts.onProofSignal?.("containment", callOpts.signal);
+			if (opts.hangAt === "containment") return new Promise<never>(() => {});
+			return acceptProbe(probe, opts)
 				? ok(containmentEvidence(opts.containment))
-				: ({ ok: false } as const),
-		verifyProbeNetworkDenials: (probe: unknown) =>
-			acceptProbe(probe, opts) ? ok(networkDenialEvidence(opts.network)) : ({ ok: false } as const),
-		verifyProbeCancellationAndSecretDestruction: (probe: unknown) =>
-			acceptProbe(probe, opts)
+				: ({ ok: false } as const);
+		},
+		verifyProbeNetworkDenials: (probe: unknown, callOpts: { readonly signal?: AbortSignal }) => {
+			opts.onProofSignal?.("network", callOpts.signal);
+			if (opts.hangAt === "network") return new Promise<never>(() => {});
+			return acceptProbe(probe, opts)
+				? ok(networkDenialEvidence(opts.network))
+				: ({ ok: false } as const);
+		},
+		verifyProbeCancellationAndSecretDestruction: (
+			probe: unknown,
+			callOpts: { readonly signal?: AbortSignal },
+		) => {
+			opts.onProofSignal?.("cancellation", callOpts.signal);
+			if (opts.hangAt === "cancellation") return new Promise<never>(() => {});
+			return acceptProbe(probe, opts)
 				? ok(cancellationSecretEvidence(opts.cancellation))
-				: ({ ok: false } as const),
+				: ({ ok: false } as const);
+		},
 	};
 }
 

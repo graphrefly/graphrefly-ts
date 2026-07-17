@@ -312,7 +312,11 @@ function nodeLocalCertificationHost(
 				? dockerInspectContainmentEvidence(inspected.value, privateContainer)
 				: undefined;
 			if (inspectedEvidence === undefined) return { ok: false };
-			const proof = await proofs.inspectProbeContainment(container, opts);
+			const proof = await boundedProofCall(
+				(proofOpts) => proofs.inspectProbeContainment(container, proofOpts),
+				http.requestTimeoutMs,
+				opts.signal,
+			);
 			if (!proof.ok) return proof;
 			const evidence = dockerEngineApiV0ContainmentEvidence(proof.value);
 			return evidence === undefined
@@ -367,7 +371,11 @@ function nodeLocalCertificationHost(
 				? dockerInspectNetworkRequestPolicy(inspected.value, privateContainer.network)
 				: undefined;
 			if (inspectedPolicy === undefined) return { ok: false };
-			const proof = await proofs.verifyProbeNetworkDenials(container, opts);
+			const proof = await boundedProofCall(
+				(proofOpts) => proofs.verifyProbeNetworkDenials(container, proofOpts),
+				http.requestTimeoutMs,
+				opts.signal,
+			);
 			if (!proof.ok) return proof;
 			const evidence = dockerEngineApiV0NetworkDenialEvidence(proof.value);
 			return evidence === undefined
@@ -394,7 +402,11 @@ function nodeLocalCertificationHost(
 				? dockerInspectCancellationSecretEvidence(inspected.value, privateContainer)
 				: undefined;
 			if (inspectedEvidence === undefined) return { ok: false };
-			const proof = await proofs.verifyProbeCancellationAndSecretDestruction(container, opts);
+			const proof = await boundedProofCall(
+				(proofOpts) => proofs.verifyProbeCancellationAndSecretDestruction(container, proofOpts),
+				http.requestTimeoutMs,
+				opts.signal,
+			);
 			if (!proof.ok) return proof;
 			const evidence = dockerEngineApiV0CancellationSecretEvidence(proof.value);
 			return evidence === undefined
@@ -969,8 +981,26 @@ function dockerInspectContainerIdentityVerified(
 		inspectedId === privateContainer.id &&
 		(inspectedName === privateContainer.name || inspectedName === `/${privateContainer.name}`) &&
 		dockerInspectImageRefMatchesRequested(inspectedImageRef, privateContainer.requestedImageRef) &&
-		labels?.["dev.graphrefly.boundary"] === "d624-docker-engine-api-v0-certifier"
+		labels?.["dev.graphrefly.boundary"] === "d624-docker-engine-api-v0-certifier" &&
+		dockerInspectContainerNetworkIdentityVerified(record, privateContainer)
 	);
+}
+
+function dockerInspectContainerNetworkIdentityVerified(
+	record: Record<string, unknown>,
+	privateContainer: DockerProbeContainerPrivateHandle,
+): boolean {
+	const networkSettings = plainObject(record.NetworkSettings);
+	const networks = plainObject(networkSettings?.Networks);
+	if (networks === undefined) return false;
+	const attachedNetworkNames = Object.keys(networks);
+	if (
+		attachedNetworkNames.length !== 1 ||
+		attachedNetworkNames[0] !== privateContainer.network.name
+	)
+		return false;
+	const endpoint = plainObject(networks[privateContainer.network.name]);
+	return stringValue(endpoint?.NetworkID) === privateContainer.network.id;
 }
 
 function dockerInspectImageRefMatchesRequested(
@@ -1195,6 +1225,41 @@ function dockerRequest(
 		req.on("error", () => finish({ ok: false }));
 		if (payload !== undefined) req.write(payload);
 		req.end();
+	});
+}
+
+function boundedProofCall<T>(
+	invoke: (opts: {
+		readonly signal: AbortSignal;
+	}) => DockerEngineApiV0HostResult<T> | PromiseLike<DockerEngineApiV0HostResult<T>>,
+	timeoutMs: number,
+	signal?: AbortSignal,
+): Promise<DockerEngineApiV0HostResult<T>> {
+	if (signal?.aborted) return Promise.resolve({ ok: false });
+	return new Promise((resolve) => {
+		const controller = new AbortController();
+		let settled = false;
+		let timer: ReturnType<typeof setTimeout>;
+		const finish = (value: DockerEngineApiV0HostResult<T>) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			signal?.removeEventListener("abort", onAbort);
+			resolve(value);
+		};
+		const onAbort = () => {
+			controller.abort();
+			finish({ ok: false });
+		};
+		timer = setTimeout(onAbort, timeoutMs);
+		signal?.addEventListener("abort", onAbort, { once: true });
+		Promise.resolve()
+			.then(() =>
+				settled || controller.signal.aborted
+					? ({ ok: false } as const)
+					: invoke({ signal: controller.signal }),
+			)
+			.then(finish, () => finish({ ok: false }));
 	});
 }
 
