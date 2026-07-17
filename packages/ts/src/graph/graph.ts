@@ -458,6 +458,12 @@ export class Graph {
 
 	/** Embed a child graph addressable under `at` (R-mount; mount has no deps). */
 	mount(child: Graph, opts: { at: string }): void {
+		if (typeof opts.at !== "string" || opts.at.length === 0) {
+			throw new TypeError("graph.mount: at must be a non-empty string");
+		}
+		if (this._mounts.some((mounted) => mounted.at === opts.at)) {
+			throw new Error(`graph.mount: duplicate sibling mount id '${opts.at}'`);
+		}
 		const mount = { at: opts.at, graph: child };
 		this._mounts.push(mount);
 		if (this._topologyObservers.size > 0) this._ensureMountedTopologyForwarders();
@@ -590,7 +596,11 @@ export class Graph {
 		const snap: DescribeSnapshot = { nodes, edges };
 		if (this.name !== undefined) snap.name = this.name;
 		if (this._mounts.length > 0) {
-			snap.subgraphs = this._mounts.map((m) => m.graph.describe({}, `${_prefix}${m.at}::`));
+			snap.subgraphs = this._mounts.map((m) => {
+				const child = m.graph.describe({}, `${_prefix}${m.at}::`);
+				child.mountId = m.at;
+				return child;
+			});
 		}
 		return opts.explain ? explainSubset(snap, opts.explain) : snap;
 	}

@@ -5,6 +5,12 @@
  */
 
 import { canonicalTupleKey } from "../identity.js";
+import {
+	type GraphBlueprintEvidence,
+	graphBlueprintDiagnostics,
+	type NormalizedGraphTopologySnapshot,
+} from "./blueprint.js";
+import { parseGraphBlueprint } from "./blueprint-evidence.js";
 import type { DescribeEdge, DescribeNode, DescribeSnapshot } from "./describe.js";
 
 export type DiagramDirection = "TD" | "LR" | "BT" | "RL";
@@ -13,6 +19,9 @@ export interface DescribeToMermaidOptions {
 	/** Diagram direction; default "LR". */
 	direction?: DiagramDirection;
 }
+
+/** Diagram options for Blueprint-direct Mermaid rendering. */
+export type GraphBlueprintToMermaidOptions = DescribeToMermaidOptions;
 
 export type MermaidLiveTheme = "default" | "dark" | "forest" | "neutral" | "base";
 
@@ -85,6 +94,66 @@ export function describeToMermaid(
 		if (from === undefined || to === undefined) continue;
 		lines.push(`  ${from} --> ${to}`);
 	}
+	return lines.join("\n");
+}
+
+/** Render a portable D629/D630 GraphBlueprint directly as deterministic Mermaid source.
+ *
+ * Unlike {@link describeToMermaid}, this helper consumes only the versioned Blueprint evidence
+ * envelope. It never reads runtime values, status, or a live Graph.
+ *
+ * @param blueprint - Portable GraphBlueprint evidence.
+ * @param opts - Diagram direction.
+ * @returns Deterministic Mermaid flowchart source preserving subgraph groups.
+ * @category graph
+ */
+export function blueprintToMermaid(
+	blueprint: GraphBlueprintEvidence,
+	opts: GraphBlueprintToMermaidOptions = {},
+): string {
+	const parsed = parseGraphBlueprint(blueprint);
+	const diagnostics = graphBlueprintDiagnostics(parsed.topology);
+	if (!diagnostics.ok) {
+		throw new TypeError("blueprintToMermaid: cannot render a topology with error diagnostics");
+	}
+	const direction = normalizeDirection(opts.direction);
+	const lines = [`flowchart ${direction}`];
+	let nodeIndex = 0;
+	let subgraphIndex = 0;
+
+	const visit = (
+		topology: NormalizedGraphTopologySnapshot,
+		indent: string,
+		root: boolean,
+	): void => {
+		let childIndent = indent;
+		if (!root) {
+			const alias = `sg${subgraphIndex++}`;
+			const label = topology.name ?? topology.mountId ?? alias;
+			lines.push(`${indent}subgraph ${alias}["${escapeMermaidLabel(label)}"]`);
+			childIndent = `${indent}  `;
+		}
+		const aliases = new Map<string, string>();
+		for (const node of topology.nodes) {
+			const alias = `n${nodeIndex++}`;
+			aliases.set(node.id, alias);
+			lines.push(`${childIndent}${alias}["${escapeMermaidLabel(node.id)}"]`);
+		}
+		for (const edge of topology.edges) {
+			const from = aliases.get(edge.from);
+			const to = aliases.get(edge.to);
+			if (from === undefined || to === undefined) {
+				throw new TypeError(
+					`blueprintToMermaid: edge '${edge.from}' -> '${edge.to}' cannot be resolved locally`,
+				);
+			}
+			lines.push(`${childIndent}${from} --> ${to}`);
+		}
+		for (const child of topology.subgraphs ?? []) visit(child, childIndent, false);
+		if (!root) lines.push(`${indent}end`);
+	};
+
+	visit(parsed.topology, "  ", true);
 	return lines.join("\n");
 }
 

@@ -155,7 +155,15 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 		parent.mount(child, { at: "sub" });
 
 		const snap = parent.describe();
+		expect(snap.subgraphs?.[0].mountId).toBe("sub");
 		expect(snap.subgraphs?.[0].nodes.some((n) => n.id === "sub::leaf")).toBe(true);
+	});
+
+	it("rejects empty and duplicate sibling mount identities (D630)", () => {
+		const parent = graph();
+		expect(() => parent.mount(graph(), { at: "" })).toThrow(/non-empty string/);
+		parent.mount(graph(), { at: "child" });
+		expect(() => parent.mount(graph(), { at: "child" })).toThrow(/duplicate sibling mount id/);
 	});
 });
 
@@ -214,6 +222,7 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 		parent.mount(child, { at: "sub" });
 
 		const topology = parent.topology();
+		expect(topology.subgraphs?.[0]?.mountId).toBe("sub");
 		const leaf = topology.subgraphs?.[0]?.nodes.find((node) => node.id === "sub::leaf");
 		expect(leaf).toEqual({
 			id: "sub::leaf",
@@ -271,6 +280,7 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 		expect(countNode && "value" in countNode).toBe(false);
 		expect(countNode && "version" in countNode).toBe(false);
 		const leaf = blueprint.topology.subgraphs?.[0]?.nodes.find((node) => node.id === "sub::leaf");
+		expect(blueprint.topology.subgraphs?.[0]?.mountId).toBe("sub");
 		expect(leaf).toEqual({
 			id: "sub::leaf",
 			name: "leaf",

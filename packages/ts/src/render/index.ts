@@ -1,4 +1,5 @@
 export {
+	blueprintToMermaid,
 	type DescribeToAsciiOptions,
 	type DescribeToD2Options,
 	type DescribeToJsonOptions,
@@ -12,6 +13,7 @@ export {
 	describeToMermaid,
 	describeToMermaidUrl,
 	describeToPretty,
+	type GraphBlueprintToMermaidOptions,
 	type MermaidLiveTheme,
 	type MermaidLiveUrlOptions,
 	mermaidLiveUrl,

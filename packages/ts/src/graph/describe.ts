@@ -28,6 +28,8 @@ export interface GraphTopologyEdge {
 }
 
 export interface GraphTopologySnapshot {
+	/** Graph-owned identity of this snapshot at its parent mount; absent on the root. */
+	mountId?: string;
 	name?: string;
 	nodes: GraphTopologyNode[];
 	edges: GraphTopologyEdge[];
@@ -73,6 +75,7 @@ export function topologyFromDescribe(snapshot: DescribeSnapshot): GraphTopologyS
 		nodes,
 		edges: snapshot.edges.map((edge) => ({ from: edge.from, to: edge.to })),
 	};
+	if (snapshot.mountId !== undefined) out.mountId = snapshot.mountId;
 	if (snapshot.name !== undefined) out.name = snapshot.name;
 	if (snapshot.subgraphs !== undefined)
 		out.subgraphs = snapshot.subgraphs.map(topologyFromDescribe);

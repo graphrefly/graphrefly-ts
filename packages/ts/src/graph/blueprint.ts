@@ -15,7 +15,16 @@ import {
 } from "../json/codec.js";
 import type { GraphTopologyEdge, GraphTopologySnapshot } from "./describe.js";
 
-export const GRAPH_BLUEPRINT_VERSION = "graphrefly.blueprint.v1" as const;
+/** Historical Blueprint envelope accepted for read compatibility (D630). */
+export const GRAPH_BLUEPRINT_VERSION_V1 = "graphrefly.blueprint.v1" as const;
+
+/** Current Graph-emitted Blueprint envelope with stable subgraph mount identity (D630). */
+export const GRAPH_BLUEPRINT_VERSION = "graphrefly.blueprint.v2" as const;
+
+/** Blueprint envelope versions understood by portable evidence helpers. */
+export type GraphBlueprintVersion =
+	| typeof GRAPH_BLUEPRINT_VERSION_V1
+	| typeof GRAPH_BLUEPRINT_VERSION;
 
 export type GraphBlueprintJson = StrictJsonValue;
 
@@ -30,6 +39,8 @@ export interface NormalizedGraphTopologyNode {
 }
 
 export interface NormalizedGraphTopologySnapshot {
+	/** Stable graph-owned coordinate at the parent mount; required on v2 non-root subgraphs. */
+	readonly mountId?: string;
 	readonly name?: string;
 	readonly nodes: readonly NormalizedGraphTopologyNode[];
 	readonly edges: readonly GraphTopologyEdge[];
@@ -73,6 +84,18 @@ export interface GraphBlueprint {
 	readonly provenance?: GraphBlueprintProvenance;
 	readonly hash?: GraphBlueprintHash;
 }
+
+/** Strict historical v1 envelope retained for parsing, rendering, and verification. */
+export interface LegacyGraphBlueprint {
+	readonly version: typeof GRAPH_BLUEPRINT_VERSION_V1;
+	readonly topology: NormalizedGraphTopologySnapshot;
+	readonly diagnostics?: GraphBlueprintDiagnostics;
+	readonly provenance?: GraphBlueprintProvenance;
+	readonly hash?: GraphBlueprintHash;
+}
+
+/** Any versioned Blueprint envelope accepted by portable evidence helpers. */
+export type GraphBlueprintEvidence = GraphBlueprint | LegacyGraphBlueprint;
 
 export interface GraphBlueprintOptions {
 	/** Include graph-local structural diagnostics over the normalized topology. */
@@ -154,6 +177,9 @@ function normalizeTopologySnapshot(
 			nodes,
 			edges: deriveEdges(nodes),
 		};
+		if (snapshot.mountId !== undefined) {
+			(out as { mountId?: string }).mountId = topologyString(snapshot.mountId, `${path}.mountId`);
+		}
 		if (snapshot.name !== undefined) {
 			(out as { name?: string }).name = topologyString(snapshot.name, `${path}.name`);
 		}
@@ -450,7 +476,10 @@ function compareTopologies(
 	a: NormalizedGraphTopologySnapshot,
 	b: NormalizedGraphTopologySnapshot,
 ): number {
-	return compareText(stableJsonString(a), stableJsonString(b));
+	return (
+		compareText(a.mountId ?? "", b.mountId ?? "") ||
+		compareText(stableJsonString(a), stableJsonString(b))
+	);
 }
 
 function compareIssues(a: GraphBlueprintDiagnosticIssue, b: GraphBlueprintDiagnosticIssue): number {
