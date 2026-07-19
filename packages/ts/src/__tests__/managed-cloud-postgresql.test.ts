@@ -1298,7 +1298,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		await expired.runtime.dispose();
 	});
 
-	it("derives settlement only from the private worker driver over the claimed immutable workload", async () => {
+	it("derives canceled settlement only from the private worker driver over the claimed immutable workload", async () => {
 		const store = new Store();
 		await store.admit(
 			{
@@ -1332,7 +1332,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				async execute(workload, context) {
 					expect(workload.schemaRef).toBe("schema:1");
 					expect(context.credentialBindingRevision).toBe("credential-binding:1");
-					return { outcome: "succeeded", outcomeRefs: [{ kind: "artifact", id: "artifact:1" }] };
+					return { outcome: "canceled", outcomeRefs: [] };
 				},
 			},
 			"settlement:worker:1",
@@ -1344,9 +1344,9 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		);
 		expect(settlement).toMatchObject({
 			kind: "settle",
-			outcome: "succeeded",
+			outcome: "canceled",
 			fencingToken: 1,
-			outcomeRefs: [{ id: "artifact:1" }],
+			outcomeRefs: [],
 		});
 	});
 
