@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.4.1
+
+### Patch Changes
+
+- 058bf08: Accept bounded canonical tuple identifiers produced by GraphReFly admission authority when validating managed PostgreSQL proposal source references and exact authorization coordinates.
+
 ## 0.4.0
 
 ### Minor Changes
