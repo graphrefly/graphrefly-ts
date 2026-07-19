@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.4.2
+
+### Patch Changes
+
+- 2091b3b: Allow managed-cloud PostgreSQL worker drivers to return the protocol-native canceled outcome so hosts can settle admitted cancellation after terminal attempt-credential cleanup without rewriting a completed result.
+
 ## 0.4.1
 
 ### Patch Changes
