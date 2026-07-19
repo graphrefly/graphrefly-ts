@@ -1,5 +1,15 @@
 # @graphrefly/ts
 
+## 0.5.0
+
+### Minor Changes
+
+- a35d654: Revise the managed untrusted JavaScript compatibility contract to v2 with a validated cleanup timeout and an exact-context allocation fence, then serialize cancellation, timeout, allocation, kill, destroy, fencing, and concurrent disposal so each attempt has one bounded cleanup owner, retries topology release, and publishes terminal and cleanup lifecycle truth in canonical order.
+
+### Patch Changes
+
+- 94a5dfc: fix executor
+
 ## 0.4.2
 
 ### Patch Changes
