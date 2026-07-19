@@ -703,7 +703,7 @@ export interface ManagedCloudPostgresqlWorkerDriver {
 			readonly signal: AbortSignal;
 		},
 	): PromiseLike<{
-		readonly outcome: "succeeded" | "failed";
+		readonly outcome: "succeeded" | "failed" | "canceled";
 		readonly outcomeRefs: readonly SourceRef[];
 		readonly issueRefs?: readonly SourceRef[];
 	}>;
