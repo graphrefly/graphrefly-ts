@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	MANAGED_UNTRUSTED_JS_COMPUTE_BACKEND,
 	MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
@@ -62,6 +62,7 @@ const manifest = (
 		cleanupPolicyRevision: "cleanup-policy:js:1",
 		executionTimeoutMs: 30_000,
 		killGraceMs: 1,
+		cleanupTimeoutMs: 100,
 		attestationRefs: [ref("attestation", "js-compute:1")],
 		...patch,
 	});
@@ -157,6 +158,12 @@ const settle = async () => {
 	await new Promise((resolve) => setTimeout(resolve, 0));
 };
 
+const defaultDriverFence = {
+	fenceAllocation(): "succeeded" {
+		return "succeeded";
+	},
+} as const;
+
 describe("managed untrusted JS compute runtime (D612)", () => {
 	it("rejects non-deny-all network and private material before runtime execution", () => {
 		expect(() =>
@@ -190,6 +197,19 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			}),
 		).toThrow();
 		expect(() =>
+			managedUntrustedJsComputeManifest({
+				...manifest(),
+				killGraceMs: 101,
+				cleanupTimeoutMs: 100,
+			}),
+		).toThrow();
+		expect(() =>
+			managedUntrustedJsComputeManifest({
+				...manifest(),
+				cleanupTimeoutMs: 300_001,
+			}),
+		).toThrow();
+		expect(() =>
 			managedUntrustedJsComputeReadiness({
 				...readiness(),
 				manifestFingerprint: "fingerprint:private-sandbox-id",
@@ -212,6 +232,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		};
 		const driver: ManagedUntrustedJsComputeDriver = {
 			compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+			...defaultDriverFence,
 			createSandbox(context, computeArgs) {
 				expect(computeArgs.networkPolicyRevision).toBe("deny-all-external-v1");
 				expect(context.epoch).toBe("epoch:js-compute:1");
@@ -302,6 +323,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -352,6 +374,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -393,6 +416,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				readiness: [postures],
 				driver: {
 					compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+					...defaultDriverFence,
 					createSandbox() {
 						events.push("create");
 						return {};
@@ -481,6 +505,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				readiness: [postures],
 				driver: {
 					compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+					...defaultDriverFence,
 					createSandbox() {
 						created++;
 						return {};
@@ -521,6 +546,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return { sandboxId: "private-sandbox" };
 				},
@@ -593,6 +619,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				readiness: [postures],
 				driver: {
 					compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+					...defaultDriverFence,
 					createSandbox() {
 						return {};
 					},
@@ -636,6 +663,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					created++;
 					return {};
@@ -696,6 +724,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -744,6 +773,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				async createSandbox() {
 					await new Promise<void>((resolve) => {
 						releaseCreate = resolve;
@@ -806,6 +836,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				readiness: [postures],
 				driver: {
 					compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+					...defaultDriverFence,
 					createSandbox() {
 						return {};
 					},
@@ -847,6 +878,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			cancellationRequests: [cancellations],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -934,6 +966,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			cancellationRequests: [cancellations],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					events.push("create");
 					return {};
@@ -1032,6 +1065,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			cancellationRequests: [cancellations],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -1102,6 +1136,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -1120,8 +1155,9 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 					events.push("destroy");
 					return "succeeded";
 				},
-				close() {
-					events.push("close");
+				fenceAllocation() {
+					events.push("fence");
+					return "succeeded";
 				},
 			},
 			now: () => 10,
@@ -1136,10 +1172,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		admitted.down([["DATA", run()]]);
 		await settle();
 		await reentrantDispose;
-		expect(events).toEqual(["destroy", "close"]);
+		expect(events).toEqual(["destroy"]);
 	});
 
-	it("waits for a late sandbox allocation before kill, destroy, close, and dispose settlement", async () => {
+	it("transfers a late sandbox allocation to its exact driver fence without runtime cleanup", async () => {
 		const g = graph({ name: "managed-js-compute-late-allocation-dispose" });
 		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
 		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
@@ -1147,6 +1183,8 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
 		const events: string[] = [];
 		let releaseCreate: (() => void) | undefined;
+		let releaseFence: (() => void) | undefined;
+		let fencedEpoch: string | undefined;
 		const runtime = managedUntrustedJsComputeRuntime(g, {
 			inputs,
 			admittedRunRequests: [admitted],
@@ -1154,6 +1192,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				async createSandbox() {
 					events.push("create-start");
 					await new Promise<void>((resolve) => {
@@ -1175,8 +1214,14 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 					events.push("destroy");
 					return "succeeded";
 				},
-				close() {
-					events.push("close");
+				async fenceAllocation(context) {
+					events.push("fence-start");
+					fencedEpoch = context.epoch;
+					await new Promise<void>((resolve) => {
+						releaseFence = resolve;
+					});
+					events.push("fence-end");
+					return "succeeded" as const;
 				},
 			},
 			now: () => 10,
@@ -1186,19 +1231,27 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		postures.down([["DATA", readiness()]]);
 		admitted.down([["DATA", run()]]);
 		await settle();
+		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		let disposeSettled = false;
 		const disposed = runtime.dispose().then(() => {
 			disposeSettled = true;
 		});
-		await new Promise((resolve) => setTimeout(resolve, 25));
-		expect(disposeSettled).toBe(false);
-		expect(events).toEqual(["create-start"]);
+		await settle();
+		expect(events).toEqual(["create-start", "fence-start"]);
+		expect(fencedEpoch).toBe("epoch:js-compute:1");
 		releaseCreate?.();
+		await settle();
+		expect(disposeSettled).toBe(false);
+		expect(events).toEqual(["create-start", "fence-start", "create-end"]);
+		releaseFence?.();
 		await disposed;
-		expect(events).toEqual(["create-start", "create-end", "kill", "destroy", "close"]);
+		expect(events).toEqual(["create-start", "fence-start", "create-end", "fence-end"]);
+		expect(cleanups).toEqual([expect.objectContaining({ state: "succeeded" })]);
+		expect(events).not.toContain("kill");
+		expect(events).not.toContain("destroy");
 	});
 
-	it("bounds disposal when sandbox allocation never settles and closes as its allocation fence", async () => {
+	it("bounds disposal when sandbox allocation never settles and invokes its allocation fence", async () => {
 		const g = graph({ name: "managed-js-compute-never-allocation-dispose" });
 		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
 		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
@@ -1212,6 +1265,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				async createSandbox() {
 					events.push("create-start");
 					await new Promise(() => {});
@@ -1230,8 +1284,9 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 					events.push("destroy-unexpected");
 					return "succeeded";
 				},
-				close() {
-					events.push("close");
+				fenceAllocation() {
+					events.push("fence");
+					return "succeeded";
 				},
 			},
 			now: () => 10,
@@ -1242,15 +1297,13 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		postures.down([["DATA", readiness()]]);
 		admitted.down([["DATA", run()]]);
 		await settle();
-		const startedAt = Date.now();
 		await runtime.dispose();
-		expect(Date.now() - startedAt).toBeLessThan(500);
-		expect(events).toEqual(["create-start", "close"]);
-		expect(cleanups).toEqual([expect.objectContaining({ state: "unverifiable" })]);
+		expect(events).toEqual(["create-start", "fence"]);
+		expect(cleanups).toEqual([expect.objectContaining({ state: "succeeded" })]);
 	});
 
 	it("bounds hanging kill, destroy, and allocation-fence provider work as unverifiable", async () => {
-		for (const phase of ["kill", "destroy", "close"] as const) {
+		for (const phase of ["kill", "destroy", "fence"] as const) {
 			const g = graph({ name: `managed-js-compute-hanging-${phase}-dispose` });
 			const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
 			const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
@@ -1264,8 +1317,9 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				readiness: [postures],
 				driver: {
 					compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+					...defaultDriverFence,
 					async createSandbox() {
-						if (phase === "close") {
+						if (phase === "fence") {
 							events.push("create-start");
 							await new Promise(() => {});
 						}
@@ -1291,9 +1345,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 						if (phase === "destroy") await new Promise(() => {});
 						return "succeeded";
 					},
-					async close() {
-						events.push("close-start");
-						if (phase === "close") await new Promise(() => {});
+					async fenceAllocation() {
+						events.push("fence-start");
+						if (phase === "fence") await new Promise(() => {});
+						return "succeeded" as const;
 					},
 				},
 				now: () => 10,
@@ -1304,12 +1359,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			postures.down([["DATA", readiness()]]);
 			admitted.down([["DATA", run()]]);
 			await settle();
-			const startedAt = Date.now();
 			await runtime.dispose();
-			expect(Date.now() - startedAt).toBeLessThan(500);
 			expect(cleanups).toEqual([expect.objectContaining({ state: "unverifiable" })]);
 			expect(events).toContain(
-				phase === "kill" ? "kill-start" : phase === "destroy" ? "destroy-start" : "close-start",
+				phase === "kill" ? "kill-start" : phase === "destroy" ? "destroy-start" : "fence-start",
 			);
 			if (phase === "kill") expect(events).not.toContain("destroy-start");
 		}
@@ -1330,6 +1383,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -1366,6 +1420,67 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		expect(events).toEqual(["kill-start", "kill-end", "destroy"]);
 	});
 
+	it("uses the admitted cleanup policy instead of the retired fixed 100ms provider bound", async () => {
+		const g = graph({ name: "managed-js-compute-cleanup-policy-bound" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseKill: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				run() {
+					return new Promise(() => {});
+				},
+				async kill() {
+					events.push("kill-start");
+					await new Promise<void>((resolve) => {
+						releaseKill = resolve;
+					});
+					events.push("kill-end");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest({ cleanupTimeoutMs: 250 })]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		vi.useFakeTimers();
+		try {
+			let disposeSettled = false;
+			const disposed = runtime.dispose().then(() => {
+				disposeSettled = true;
+			});
+			await vi.advanceTimersByTimeAsync(125);
+			expect(disposeSettled).toBe(false);
+			expect(events).toEqual(["kill-start"]);
+			releaseKill?.();
+			await disposed;
+			expect(events).toEqual(["kill-start", "kill-end", "destroy"]);
+			expect(cleanups).toEqual([expect.objectContaining({ state: "succeeded" })]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("retains exactly-once late cleanup after an allocation fence times out", async () => {
 		const g = graph({ name: "managed-js-compute-late-allocation-fence-timeout" });
 		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
@@ -1374,7 +1489,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
 		const events: string[] = [];
 		let releaseCreate: (() => void) | undefined;
-		let releaseClose: (() => void) | undefined;
+		let releaseFence: (() => void) | undefined;
 		const runtime = managedUntrustedJsComputeRuntime(g, {
 			inputs,
 			admittedRunRequests: [admitted],
@@ -1382,6 +1497,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				async createSandbox() {
 					events.push("create-start");
 					await new Promise<void>((resolve) => {
@@ -1403,12 +1519,13 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 					events.push("destroy");
 					return "succeeded";
 				},
-				async close() {
-					events.push("close-start");
+				async fenceAllocation() {
+					events.push("fence-start");
 					await new Promise<void>((resolve) => {
-						releaseClose = resolve;
+						releaseFence = resolve;
 					});
-					events.push("close-end");
+					events.push("fence-end");
+					return "succeeded" as const;
 				},
 			},
 			now: () => 10,
@@ -1420,24 +1537,86 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		admitted.down([["DATA", run()]]);
 		await settle();
 		await runtime.dispose();
-		expect(events).toEqual(["create-start", "close-start"]);
+		expect(events).toEqual(["create-start", "fence-start"]);
 		expect(issues).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					code: "managed-untrusted-js-compute-allocation-fence-unavailable",
-				}),
-				expect.objectContaining({
-					code: "managed-untrusted-js-compute-driver-close-unverifiable",
+					code: "managed-untrusted-js-compute-cleanup-unverifiable",
 				}),
 			]),
 		);
 		releaseCreate?.();
 		await settle();
-		expect(events).toEqual(["create-start", "close-start", "create-end", "kill", "destroy"]);
-		expect(events.filter((event) => event === "kill")).toHaveLength(1);
-		expect(events.filter((event) => event === "destroy")).toHaveLength(1);
-		releaseClose?.();
+		expect(events).toEqual(["create-start", "fence-start", "create-end"]);
+		releaseFence?.();
 		await settle();
+		expect(events).toEqual(["create-start", "fence-start", "create-end", "fence-end"]);
+		expect(events).not.toContain("kill");
+		expect(events).not.toContain("destroy");
+	});
+
+	it("keeps pending allocation ownership with the exact driver fence when evidence rejects", async () => {
+		const g = graph({ name: "managed-js-compute-allocation-fence-rejected" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseCreate: (() => void) | undefined;
+		let rejectFence: ((reason?: unknown) => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
+				async createSandbox() {
+					events.push("create-start");
+					await new Promise<void>((resolve) => {
+						releaseCreate = resolve;
+					});
+					events.push("create-end");
+					return {};
+				},
+				upload() {},
+				run() {
+					return { outcome: "canceled" };
+				},
+				kill() {
+					events.push("kill");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+				async fenceAllocation() {
+					events.push("fence-start");
+					await new Promise<void>((_resolve, reject) => {
+						rejectFence = reject;
+					});
+					return "succeeded" as const;
+				},
+			},
+			now: () => 10,
+		});
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest({ cleanupTimeoutMs: 250 })]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		const disposed = runtime.dispose();
+		await settle();
+		releaseCreate?.();
+		await settle();
+		expect(events).toEqual(["create-start", "fence-start", "create-end"]);
+		rejectFence?.(new Error("fence rejected"));
+		await disposed;
+		await settle();
+		expect(events).toEqual(["create-start", "fence-start", "create-end"]);
+		expect(events).not.toContain("kill");
+		expect(events).not.toContain("destroy");
 	});
 
 	it("shares one concurrent dispose lifecycle through cleanup and topology release", async () => {
@@ -1455,6 +1634,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -1473,8 +1653,9 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 					events.push("destroy");
 					return "succeeded";
 				},
-				close() {
-					events.push("close");
+				fenceAllocation() {
+					events.push("fence");
+					return "succeeded";
 				},
 			},
 			now: () => 10,
@@ -1491,7 +1672,73 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		expect(events).toEqual(["kill-start"]);
 		releaseKill?.();
 		await Promise.all([first, second]);
-		expect(events).toEqual(["kill-start", "kill-end", "destroy", "close"]);
+		expect(events).toEqual(["kill-start", "kill-end", "destroy"]);
+	});
+
+	it("starts per-attempt cleanup concurrently under independent policy deadlines", async () => {
+		const g = graph({ name: "managed-js-compute-parallel-dispose" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				run() {
+					return new Promise(() => {});
+				},
+				async kill(_sandbox, context) {
+					events.push(`kill:${context.runId}`);
+					await new Promise(() => {});
+				},
+				destroy() {
+					events.push("destroy-unexpected");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const secondInput = input({
+			adapterInputId: "adapter-input:js-compute:2",
+			requestId: "request:js-compute:2",
+			operationId: "operation:js-compute:2",
+		});
+		const secondRun = run({
+			runId: "run:js-compute:2",
+			adapterInputId: secondInput.adapterInputId,
+			requestId: secondInput.requestId,
+			operationId: secondInput.operationId,
+		});
+		inputs.down([["DATA", input()]]);
+		inputs.down([["DATA", secondInput]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		admitted.down([["DATA", secondRun]]);
+		await settle();
+		vi.useFakeTimers();
+		try {
+			const disposed = runtime.dispose();
+			await vi.advanceTimersByTimeAsync(0);
+			expect(events).toEqual(
+				expect.arrayContaining(["kill:run:js-compute:1", "kill:run:js-compute:2"]),
+			);
+			await vi.advanceTimersByTimeAsync(100);
+			await disposed;
+			expect(events).not.toContain("destroy-unexpected");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("deduplicates timeout kill against dispose and suppresses late timeout truth", async () => {
@@ -1509,6 +1756,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -1564,6 +1812,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -1627,6 +1876,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -1685,6 +1935,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			cancellationRequests: [cancellations],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},
@@ -1757,6 +2008,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			readiness: [postures],
 			driver: {
 				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
 				createSandbox() {
 					return {};
 				},

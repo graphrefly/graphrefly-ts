@@ -1,5 +1,5 @@
 ---
-"@graphrefly/ts": patch
+"@graphrefly/ts": minor
 ---
 
-Serialize and bound managed untrusted JavaScript cancellation, timeout, allocation, kill, destroy, driver close, and concurrent disposal so one attempt issues at most one runtime-private kill, fences late sandbox allocation, retries topology release, and publishes terminal and cleanup lifecycle truth in canonical order.
+Revise the managed untrusted JavaScript compatibility contract to v2 with a validated cleanup timeout and an exact-context allocation fence, then serialize cancellation, timeout, allocation, kill, destroy, fencing, and concurrent disposal so each attempt has one bounded cleanup owner, retries topology release, and publishes terminal and cleanup lifecycle truth in canonical order.

@@ -17,7 +17,7 @@ import {
 import type { ExecutionEnvironmentPinnedRunMetadata } from "./execution-environment.js";
 
 export const MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY =
-	"graphrefly-managed-untrusted-js-compute-v1" as const;
+	"graphrefly-managed-untrusted-js-compute-v2" as const;
 export const MANAGED_UNTRUSTED_JS_COMPUTE_BACKEND = "e2b-cloud-v0" as const;
 
 export interface ManagedUntrustedJsComputeArguments {
@@ -49,6 +49,7 @@ export interface ManagedUntrustedJsComputeManifest {
 	readonly cleanupPolicyRevision: string;
 	readonly executionTimeoutMs: number;
 	readonly killGraceMs: number;
+	readonly cleanupTimeoutMs: number;
 	readonly attestationRefs: readonly SourceRef[];
 }
 
@@ -140,6 +141,11 @@ export interface ManagedUntrustedJsComputeDriverContext {
 	readonly signal: AbortSignal;
 }
 
+export type ManagedUntrustedJsComputeAllocationFenceContext = Omit<
+	ManagedUntrustedJsComputeDriverContext,
+	"signal"
+>;
+
 export type ManagedUntrustedJsComputeDriverResult =
 	| {
 			readonly outcome: "succeeded";
@@ -191,10 +197,15 @@ export interface ManagedUntrustedJsComputeDriver {
 		context: ManagedUntrustedJsComputeDriverContext,
 	): "succeeded" | "failed" | "unverifiable" | PromiseLike<"succeeded" | "failed" | "unverifiable">;
 	/**
-	 * Fences every in-flight createSandbox call. Once this settles, an unresolved createSandbox
-	 * must not later expose a live sandbox; the driver owns provider cleanup for that allocation.
+	 * Synchronously accepts ownership of the exact in-flight createSandbox call identified by
+	 * context. The returned value reports cleanup evidence; execution cancellation cannot revoke the
+	 * ownership transfer.
 	 */
-	close?(): void | PromiseLike<void>;
+	fenceAllocation(
+		context: ManagedUntrustedJsComputeAllocationFenceContext,
+	):
+		| ManagedUntrustedJsComputeCleanupStatus["state"]
+		| PromiseLike<ManagedUntrustedJsComputeCleanupStatus["state"]>;
 }
 
 export interface ManagedUntrustedJsComputeRuntimeOptions {
@@ -241,12 +252,14 @@ interface Active {
 	allocationPromise?: Promise<void>;
 	allocationSettled: boolean;
 	allocationFenced: boolean;
+	allocationFencePromise?: Promise<ManagedUntrustedJsComputeCleanupStatus["state"]>;
 	killPromise?: Promise<boolean>;
 	killCompletion?: Promise<boolean>;
 	killState?: boolean;
 	destroyPromise?: Promise<void>;
 	postKillDestroyScheduled: boolean;
 	destroyState?: ManagedUntrustedJsComputeCleanupStatus["state"];
+	cleanupDeadlineAtMs?: number;
 }
 
 const SAFE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$/;
@@ -255,7 +268,7 @@ const DIGEST = /^sha256:[a-f0-9]{64}$/;
 const MAX_REFS = 32;
 const MAX_MOVEMENT = 16;
 const MAX_MOVEMENT_BYTES = 64 * 1024 * 1024;
-const DISPOSE_DRAIN_TIMEOUT_MS = 100;
+const MAX_CLEANUP_TIMEOUT_MS = 5 * 60_000;
 const PRIVATE_REF_TERMS = [
 	"apikey",
 	"client",
@@ -301,13 +314,17 @@ export function managedUntrustedJsComputeManifest(
 			"cleanupPolicyRevision",
 			"executionTimeoutMs",
 			"killGraceMs",
+			"cleanupTimeoutMs",
 			"attestationRefs",
 		]) ||
 		value.compatibilityRevision !== MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY ||
 		value.backend !== MANAGED_UNTRUSTED_JS_COMPUTE_BACKEND ||
 		value.networkPolicyRevision !== "deny-all-external-v1" ||
 		!positive(value.executionTimeoutMs) ||
-		!positive(value.killGraceMs)
+		!positive(value.killGraceMs) ||
+		!positive(value.cleanupTimeoutMs) ||
+		value.cleanupTimeoutMs <= value.killGraceMs ||
+		value.cleanupTimeoutMs > MAX_CLEANUP_TIMEOUT_MS
 	)
 		throw new TypeError("Invalid managed untrusted JS compute manifest.");
 	for (const id of [
@@ -480,6 +497,10 @@ export function managedUntrustedJsComputeRuntime(
 	let disposeComplete = false;
 	let releasePending = true;
 	const now = opts.now ?? Date.now;
+	const ensureCleanupDeadline = (record: Active) =>
+		(record.cleanupDeadlineAtMs ??= Date.now() + record.manifest.cleanupTimeoutMs);
+	const remainingCleanupTime = (record: Active) =>
+		Math.max(1, ensureCleanupDeadline(record) - Date.now());
 	const emit = <T>(node: Node<T>, value: T) => node.down([["DATA", value]]);
 	const issue = (code: string, message: string, refs?: readonly string[]) =>
 		emit(issues, {
@@ -801,6 +822,7 @@ export function managedUntrustedJsComputeRuntime(
 	};
 	const boundedProviderWork = <T>(
 		work: Promise<T>,
+		timeoutMs: number,
 	): Promise<
 		{ readonly state: "fulfilled"; readonly value: T } | { readonly state: "rejected" | "timeout" }
 	> =>
@@ -816,12 +838,47 @@ export function managedUntrustedJsComputeRuntime(
 				clearTimeout(timeout);
 				resolve(result);
 			};
-			const timeout = setTimeout(() => finish({ state: "timeout" }), DISPOSE_DRAIN_TIMEOUT_MS);
+			const timeout = setTimeout(() => finish({ state: "timeout" }), timeoutMs);
 			void work.then(
 				(value) => finish({ state: "fulfilled", value }),
 				() => finish({ state: "rejected" }),
 			);
 		});
+	const fenceAllocationOnce = (
+		record: Active,
+	): Promise<ManagedUntrustedJsComputeCleanupStatus["state"]> | undefined => {
+		if (record.allocationFencePromise !== undefined) return record.allocationFencePromise;
+		let evidence:
+			| ManagedUntrustedJsComputeCleanupStatus["state"]
+			| PromiseLike<ManagedUntrustedJsComputeCleanupStatus["state"]>;
+		try {
+			evidence = opts.driver.fenceAllocation(
+				Object.freeze({
+					runId: record.context.runId,
+					attempt: record.context.attempt,
+					environmentRevision: record.context.environmentRevision,
+					manifestFingerprint: record.context.manifestFingerprint,
+					epoch: record.context.epoch,
+				}),
+			);
+		} catch {
+			return undefined;
+		}
+		record.allocationFenced = true;
+		record.allocationFencePromise = boundedProviderWork(
+			Promise.resolve(evidence),
+			remainingCleanupTime(record),
+		).then((result) => {
+			const state =
+				result.state === "fulfilled" &&
+				(["succeeded", "failed", "unverifiable"] as const).includes(result.value)
+					? result.value
+					: "unverifiable";
+			record.destroyState = state;
+			return state;
+		});
+		return record.allocationFencePromise;
+	};
 	const killOnce = (record: Active): Promise<boolean> => {
 		if (record.killPromise !== undefined) return record.killPromise;
 		if (record.sandbox === undefined) return Promise.resolve(false);
@@ -832,7 +889,10 @@ export function managedUntrustedJsComputeRuntime(
 				() => false,
 			);
 		record.killPromise = (async () => {
-			const result = await boundedProviderWork(record.killCompletion as Promise<boolean>);
+			const result = await boundedProviderWork(
+				record.killCompletion as Promise<boolean>,
+				remainingCleanupTime(record),
+			);
 			record.killState = result.state === "fulfilled" && result.value;
 			if (record.killState) record.cancelled = record.cancelRequested;
 			return record.killState;
@@ -846,6 +906,7 @@ export function managedUntrustedJsComputeRuntime(
 				if (record.publishCleanupRequested && releasePending) publishDestroying(record);
 				const result = await boundedProviderWork(
 					Promise.resolve().then(() => opts.driver.destroy(record.sandbox, record.context)),
+					remainingCleanupTime(record),
 				);
 				record.destroyState = result.state === "fulfilled" ? result.value : "unverifiable";
 				if (record.publishCleanupRequested) publishCleanup(record, record.destroyState);
@@ -856,7 +917,13 @@ export function managedUntrustedJsComputeRuntime(
 	const destroy = async (record: Active, publish = true) => {
 		if (publish) record.publishCleanupRequested = true;
 		if (record.sandbox === undefined) {
-			if (record.publishCleanupRequested) publishCleanup(record, "unverifiable");
+			if (record.publishCleanupRequested)
+				publishCleanup(
+					record,
+					record.allocationFenced && record.destroyState !== undefined
+						? record.destroyState
+						: "unverifiable",
+				);
 			return;
 		}
 		if (record.killPromise !== undefined) await record.killPromise;
@@ -929,8 +996,11 @@ export function managedUntrustedJsComputeRuntime(
 				disposePromise = Promise.resolve()
 					.then(async () => {
 						for (const unsubscribe of unsubscribes) unsubscribe();
-						const records = new Set([...active.values(), ...allocating]);
+						const records = [...new Set([...active.values(), ...allocating])];
 						for (const record of records) {
+							ensureCleanupDeadline(record);
+							if (record.allocationPromise !== undefined && !record.allocationSettled)
+								void fenceAllocationOnce(record);
 							if (!record.settled || allocating.has(record)) {
 								record.killRequired = true;
 								record.cancelled = true;
@@ -939,40 +1009,45 @@ export function managedUntrustedJsComputeRuntime(
 								record.abortController.abort();
 							}
 						}
-						const allocationWork = [...records]
-							.map((record) => record.allocationPromise)
-							.filter((work): work is Promise<void> => work !== undefined);
-						await Promise.race([
-							Promise.allSettled(allocationWork),
-							new Promise<void>((resolve) => setTimeout(resolve, DISPOSE_DRAIN_TIMEOUT_MS)),
-						]);
+						await Promise.allSettled(
+							records.map(async (record) => {
+								if (record.allocationPromise === undefined || record.allocationSettled) return;
+								await Promise.race([
+									record.allocationPromise,
+									record.allocationFencePromise,
+									new Promise<void>((resolve) => setTimeout(resolve, remainingCleanupTime(record))),
+								]);
+							}),
+						);
+						await Promise.allSettled(
+							records
+								.map((record) => record.allocationFencePromise)
+								.filter(
+									(work): work is Promise<ManagedUntrustedJsComputeCleanupStatus["state"]> =>
+										work !== undefined,
+								),
+						);
 						const unresolvedAllocations = [...records].filter(
 							(record) => record.allocationPromise !== undefined && !record.allocationSettled,
 						);
-						for (const record of records) {
-							if (record.killRequired && record.sandbox !== undefined) void killOnce(record);
-							if (record.killPromise !== undefined) await record.killPromise;
-							await destroy(record).catch(() => undefined);
+						await Promise.allSettled(
+							records.map(async (record) => {
+								if (record.killRequired && record.sandbox !== undefined) void killOnce(record);
+								if (record.killPromise !== undefined) await record.killPromise;
+								await destroy(record).catch(() => undefined);
+							}),
+						);
+						for (const record of unresolvedAllocations) {
+							if (record.allocationFencePromise === undefined)
+								issue(
+									"managed-untrusted-js-compute-allocation-fence-unavailable",
+									"Managed untrusted JS compute allocation could not be fenced before disposal.",
+								);
 						}
-						const closeResult =
-							opts.driver.close === undefined
-								? undefined
-								: await boundedProviderWork(Promise.resolve().then(() => opts.driver.close?.()));
-						if (unresolvedAllocations.length > 0 && closeResult?.state === "fulfilled")
-							for (const record of unresolvedAllocations) record.allocationFenced = true;
-						if (unresolvedAllocations.length > 0 && closeResult?.state !== "fulfilled")
-							issue(
-								"managed-untrusted-js-compute-allocation-fence-unavailable",
-								"Managed untrusted JS compute allocation could not be fenced before disposal.",
-							);
-						if (closeResult !== undefined && closeResult.state !== "fulfilled")
-							issue(
-								"managed-untrusted-js-compute-driver-close-unverifiable",
-								"Managed untrusted JS compute driver close did not settle successfully.",
-							);
+						const pendingTimeoutMs = Math.max(1, ...records.map(remainingCleanupTime));
 						await Promise.race([
 							Promise.allSettled([...pending]),
-							new Promise<void>((resolve) => setTimeout(resolve, DISPOSE_DRAIN_TIMEOUT_MS)),
+							new Promise<void>((resolve) => setTimeout(resolve, pendingTimeoutMs)),
 						]);
 						active.clear();
 						allocating.clear();
