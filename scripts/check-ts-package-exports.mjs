@@ -179,7 +179,11 @@ const expectedSubpaths = {
 			"postgresql16ManagedCloudControlStore",
 			"authenticatedWssManagedCloudTransport",
 		],
-		absent: ["toolProviderRunAdmissionProjector", "postgresqlToolProviderRuntime"],
+		absent: [
+			"executeManagedCloudPostgresqlClaim",
+			"toolProviderRunAdmissionProjector",
+			"postgresqlToolProviderRuntime",
+		],
 	},
 	"./executors/customer-hosted-postgresql": {
 		present: [
@@ -657,7 +661,7 @@ ${Object.entries(expectedSubpaths)
 				name === "LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY"
 					? `assert(mod[${JSON.stringify(name)}] === "graphrefly-local-container-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
 					: name === "MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY"
-						? `assert(mod[${JSON.stringify(name)}] === "graphrefly-managed-cloud-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+						? `assert(mod[${JSON.stringify(name)}] === "graphrefly-managed-cloud-postgresql-v2", ${JSON.stringify(`${specifier}.${name}`)});`
 						: name === "MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE"
 							? `assert(mod[${JSON.stringify(name)}] === "control-plane-managed-kubernetes", ${JSON.stringify(`${specifier}.${name}`)});`
 							: name === "CUSTOMER_HOSTED_POSTGRESQL_COMPATIBILITY"

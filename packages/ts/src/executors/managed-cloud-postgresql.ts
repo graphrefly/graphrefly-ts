@@ -16,12 +16,12 @@ import {
 } from "./postgresql-tool-provider.js";
 
 export const MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY =
-	"graphrefly-managed-cloud-postgresql-v1" as const;
+	"graphrefly-managed-cloud-postgresql-v2" as const;
 export const MANAGED_CLOUD_POSTGRESQL_CONTROL_STORE =
 	"postgresql-16-atomic-control-store-v1" as const;
-export const MANAGED_CLOUD_POSTGRESQL_PROTOCOL = "graphrefly-managed-cloud-wss-json-v1" as const;
+export const MANAGED_CLOUD_POSTGRESQL_PROTOCOL = "graphrefly-managed-cloud-wss-json-v2" as const;
 export const MANAGED_CLOUD_POSTGRESQL_SCHEMA_REVISION =
-	"managed-cloud-postgresql-control-schema-v1" as const;
+	"managed-cloud-postgresql-control-schema-v2" as const;
 export const MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE =
 	"control-plane-managed-kubernetes" as const;
 
@@ -94,6 +94,18 @@ export interface ManagedCloudPostgresqlAdmittedEnvelope extends ManagedCloudPost
 	readonly executorId: string;
 	readonly profileId: string;
 	readonly adapterInputId: string;
+	readonly principalId: string;
+	readonly principalSessionRevision: string;
+	readonly tenantId: string;
+	readonly workspaceId: string;
+	readonly resourceKind: string;
+	readonly resourceId: string;
+	readonly resourceRevision: string;
+	readonly policyRevision: string;
+	readonly modelRevision: string;
+	readonly admissionId: string;
+	readonly admissionProposalId: string;
+	readonly admissionDecisionId?: string;
 	readonly credentialBindingRevision: string;
 	readonly deploymentRevision: string;
 	readonly workerRevision: string;
@@ -128,6 +140,7 @@ export type ManagedCloudPostgresqlWorkerMessage =
 			readonly credentialBindingRevision: string;
 			readonly state: ManagedCloudPostgresqlCredentialLifecycleState;
 			readonly occurredAtMs: number;
+			readonly expiresAtMs?: number;
 			readonly evidenceRefs: readonly SourceRef[];
 			readonly issueRefs: readonly SourceRef[];
 	  } & ManagedCloudPostgresqlLeaseCoordinates)
@@ -204,6 +217,8 @@ export interface ManagedCloudPostgresqlCredentialLifecycleFact
 	readonly state: ManagedCloudPostgresqlCredentialLifecycleState;
 	readonly credentialBindingRevision: string;
 	readonly occurredAtMs: number;
+	/** Host-enforced effective-use cutoff; for active facts this equals the admitted lease deadline. */
+	readonly expiresAtMs?: number;
 	readonly evidenceRefs: readonly SourceRef[];
 	readonly issueRefs: readonly SourceRef[];
 }
@@ -249,6 +264,24 @@ export interface ManagedCloudPostgresqlAuthorizationRecheckResult
 	readonly kind: "managed-cloud-postgresql-authorization-recheck-result";
 	readonly stage: ManagedCloudPostgresqlAuthorizationRecheckStage;
 	readonly state: ManagedCloudPostgresqlAuthorizationRecheckState;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId: string;
+	readonly executorId: string;
+	readonly profileId: string;
+	readonly adapterInputId: string;
+	readonly principalId: string;
+	readonly principalSessionRevision: string;
+	readonly tenantId: string;
+	readonly workspaceId: string;
+	readonly resourceKind: string;
+	readonly resourceId: string;
+	readonly resourceRevision: string;
+	readonly policyRevision: string;
+	readonly modelRevision: string;
+	readonly admissionId: string;
+	readonly admissionProposalId: string;
+	readonly admissionDecisionId?: string;
 	readonly decisionRef: string;
 	readonly authorizationRevisionRef?: string;
 	readonly authorizationExpiresAtMs?: number;
@@ -274,7 +307,7 @@ export interface ManagedCloudPostgresqlAuthorizationRecheckDriver {
 		request: ManagedCloudPostgresqlClaimAuthorizationRequest,
 	): PromiseLike<ManagedCloudPostgresqlAuthorizationRecheckResult>;
 	authorizeCredentialIssuance(
-		context: ManagedCloudPostgresqlAttemptCredentialContext,
+		context: ManagedCloudPostgresqlCredentialAuthorizationContext,
 	): PromiseLike<ManagedCloudPostgresqlAuthorizationRecheckResult>;
 }
 
@@ -349,7 +382,7 @@ export interface ManagedCloudPostgresqlSqlClient {
 	close(): void | PromiseLike<void>;
 }
 
-const CONTROL_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS graphrefly_managed_cloud_v1 (admission_seq bigserial UNIQUE NOT NULL, run_id text NOT NULL, attempt integer NOT NULL, state text NOT NULL, envelope jsonb NOT NULL, lease_id text, fencing_token bigint NOT NULL DEFAULT 0, worker_id text, session_epoch text, deployment_revision text NOT NULL, worker_revision text NOT NULL, lease_expires_at_ms bigint, heartbeat_expires_at_ms bigint, cancellation jsonb, outcome jsonb, PRIMARY KEY (run_id, attempt))`;
+const CONTROL_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS graphrefly_managed_cloud_v2 (admission_seq bigserial UNIQUE NOT NULL, run_id text NOT NULL, attempt integer NOT NULL, state text NOT NULL, envelope jsonb NOT NULL CHECK (envelope->>'protocolRevision' = 'graphrefly-managed-cloud-wss-json-v2'), lease_id text, fencing_token bigint NOT NULL DEFAULT 0, worker_id text, session_epoch text, deployment_revision text NOT NULL, worker_revision text NOT NULL, lease_expires_at_ms bigint, heartbeat_expires_at_ms bigint, cancellation jsonb, outcome jsonb, PRIMARY KEY (run_id, attempt))`;
 
 /** Concrete PostgreSQL-16 adapter: every lifecycle mutation is one parameterized transaction/CAS. */
 export function postgresql16ManagedCloudControlStore(
@@ -381,7 +414,7 @@ export function postgresql16ManagedCloudControlStore(
 		},
 		admit(envelope, _nowMs) {
 			return one(
-				`INSERT INTO graphrefly_managed_cloud_v1 (run_id,attempt,state,envelope,deployment_revision,worker_revision) VALUES ($1,$2,'queued',$3::jsonb,$4,$5) ON CONFLICT DO NOTHING RETURNING jsonb_build_object('accepted',true,'code','admitted') AS result`,
+				`INSERT INTO graphrefly_managed_cloud_v2 (run_id,attempt,state,envelope,deployment_revision,worker_revision) VALUES ($1,$2,'queued',$3::jsonb,$4,$5) ON CONFLICT DO NOTHING RETURNING jsonb_build_object('accepted',true,'code','admitted') AS result`,
 				[
 					envelope.runId,
 					envelope.attempt,
@@ -393,7 +426,7 @@ export function postgresql16ManagedCloudControlStore(
 		},
 		async claim(input, manifest, nowMs) {
 			const result = await one(
-				`WITH candidate AS (SELECT run_id,attempt FROM graphrefly_managed_cloud_v1 WHERE state='queued' AND deployment_revision=$6 AND worker_revision=$7 AND envelope->>'environmentRevision'=$8 AND envelope->>'manifestFingerprint'=$9 ORDER BY admission_seq FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE graphrefly_managed_cloud_v1 q SET state='claimed', lease_id=$1, fencing_token=q.fencing_token+1, worker_id=$2, session_epoch=$3, lease_expires_at_ms=$4, heartbeat_expires_at_ms=$5 FROM candidate c WHERE q.run_id=c.run_id AND q.attempt=c.attempt RETURNING jsonb_build_object('accepted',true,'code','claimed','lease',jsonb_build_object('runId',q.run_id,'attempt',q.attempt,'environmentRevision',$8,'manifestFingerprint',$9,'leaseId',q.lease_id,'fencingToken',q.fencing_token,'workerId',q.worker_id,'sessionEpoch',q.session_epoch,'deploymentRevision',q.deployment_revision,'workerRevision',q.worker_revision,'envelope',q.envelope,'leaseExpiresAtMs',q.lease_expires_at_ms,'heartbeatExpiresAtMs',q.heartbeat_expires_at_ms),'lifecycle',jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','claimed','runId',q.run_id,'attempt',q.attempt,'leaseId',q.lease_id,'fencingToken',q.fencing_token,'workerId',q.worker_id,'sessionEpoch',q.session_epoch,'environmentRevision',$8,'manifestFingerprint',$9,'deploymentRevision',q.deployment_revision,'workerRevision',q.worker_revision,'occurredAtMs',$4)) AS result`,
+				`WITH candidate AS (SELECT run_id,attempt FROM graphrefly_managed_cloud_v2 WHERE state='queued' AND envelope->>'protocolRevision'='graphrefly-managed-cloud-wss-json-v2' AND deployment_revision=$6 AND worker_revision=$7 AND envelope->>'environmentRevision'=$8 AND envelope->>'manifestFingerprint'=$9 ORDER BY admission_seq FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE graphrefly_managed_cloud_v2 q SET state='claimed', lease_id=$1, fencing_token=q.fencing_token+1, worker_id=$2, session_epoch=$3, lease_expires_at_ms=$4, heartbeat_expires_at_ms=$5 FROM candidate c WHERE q.run_id=c.run_id AND q.attempt=c.attempt RETURNING jsonb_build_object('accepted',true,'code','claimed','lease',jsonb_build_object('runId',q.run_id,'attempt',q.attempt,'environmentRevision',$8,'manifestFingerprint',$9,'leaseId',q.lease_id,'fencingToken',q.fencing_token,'workerId',q.worker_id,'sessionEpoch',q.session_epoch,'deploymentRevision',q.deployment_revision,'workerRevision',q.worker_revision,'envelope',q.envelope,'leaseExpiresAtMs',q.lease_expires_at_ms,'heartbeatExpiresAtMs',q.heartbeat_expires_at_ms),'lifecycle',jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','claimed','runId',q.run_id,'attempt',q.attempt,'leaseId',q.lease_id,'fencingToken',q.fencing_token,'workerId',q.worker_id,'sessionEpoch',q.session_epoch,'environmentRevision',$8,'manifestFingerprint',$9,'deploymentRevision',q.deployment_revision,'workerRevision',q.worker_revision,'occurredAtMs',$4)) AS result`,
 				[
 					`lease:${input.messageId}`,
 					input.workerId,
@@ -412,7 +445,7 @@ export function postgresql16ManagedCloudControlStore(
 		},
 		async rejectClaim(lease, code, nowMs) {
 			const result = await one(
-				`UPDATE graphrefly_managed_cloud_v1 SET state='rejected', fencing_token=fencing_token+1 WHERE run_id=$1 AND attempt=$2 AND lease_id=$3 AND fencing_token=$4 AND worker_id=$5 AND session_epoch=$6 AND deployment_revision=$7 AND worker_revision=$8 AND state='claimed' AND envelope->>'environmentRevision'=$9 AND envelope->>'manifestFingerprint'=$10 RETURNING jsonb_build_object('accepted',true,'code',$11,'lifecycle',jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','rejected','runId',run_id,'attempt',attempt,'leaseId',lease_id,'fencingToken',fencing_token,'workerId',worker_id,'sessionEpoch',session_epoch,'environmentRevision',envelope->>'environmentRevision','manifestFingerprint',envelope->>'manifestFingerprint','deploymentRevision',deployment_revision,'workerRevision',worker_revision,'occurredAtMs',$12,'code',$11)) AS result`,
+				`UPDATE graphrefly_managed_cloud_v2 SET state='rejected', fencing_token=fencing_token+1 WHERE run_id=$1 AND attempt=$2 AND lease_id=$3 AND fencing_token=$4 AND worker_id=$5 AND session_epoch=$6 AND deployment_revision=$7 AND worker_revision=$8 AND state='claimed' AND envelope->>'environmentRevision'=$9 AND envelope->>'manifestFingerprint'=$10 RETURNING jsonb_build_object('accepted',true,'code',$11,'lifecycle',jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','rejected','runId',run_id,'attempt',attempt,'leaseId',lease_id,'fencingToken',fencing_token,'workerId',worker_id,'sessionEpoch',session_epoch,'environmentRevision',envelope->>'environmentRevision','manifestFingerprint',envelope->>'manifestFingerprint','deploymentRevision',deployment_revision,'workerRevision',worker_revision,'occurredAtMs',$12,'code',$11)) AS result`,
 				[
 					lease.runId,
 					lease.attempt,
@@ -437,7 +470,7 @@ export function postgresql16ManagedCloudControlStore(
 		},
 		async heartbeat(input, expiresAtMs, nowMs) {
 			const result = await one(
-				`UPDATE graphrefly_managed_cloud_v1 SET heartbeat_expires_at_ms=$1, lease_expires_at_ms=GREATEST(lease_expires_at_ms,$1) WHERE run_id=$2 AND attempt=$3 AND lease_id=$4 AND fencing_token=$5 AND worker_id=$6 AND session_epoch=$7 AND deployment_revision=$8 AND worker_revision=$9 AND state='claimed' AND lease_expires_at_ms>$10 AND envelope->>'environmentRevision'=$11 AND envelope->>'manifestFingerprint'=$12 RETURNING jsonb_build_object('accepted',true,'code','renewed') AS result`,
+				`UPDATE graphrefly_managed_cloud_v2 SET heartbeat_expires_at_ms=$1, lease_expires_at_ms=GREATEST(lease_expires_at_ms,$1) WHERE run_id=$2 AND attempt=$3 AND lease_id=$4 AND fencing_token=$5 AND worker_id=$6 AND session_epoch=$7 AND deployment_revision=$8 AND worker_revision=$9 AND state='claimed' AND lease_expires_at_ms>$10 AND envelope->>'environmentRevision'=$11 AND envelope->>'manifestFingerprint'=$12 RETURNING jsonb_build_object('accepted',true,'code','renewed') AS result`,
 				[
 					expiresAtMs,
 					input.runId,
@@ -459,7 +492,7 @@ export function postgresql16ManagedCloudControlStore(
 		},
 		async persistCancellation(input, nowMs) {
 			const result = await one(
-				`UPDATE graphrefly_managed_cloud_v1 SET cancellation=$1::jsonb WHERE run_id=$2 AND attempt=$3 AND lease_id=$4 AND fencing_token=$5 AND session_epoch=$6 AND deployment_revision=$7 AND worker_revision=$8 AND state='claimed' AND lease_expires_at_ms>$9 AND envelope->>'environmentRevision'=$10 AND envelope->>'manifestFingerprint'=$11 AND worker_id=$12 RETURNING jsonb_build_object('accepted',true,'code','cancel-persisted') AS result`,
+				`UPDATE graphrefly_managed_cloud_v2 SET cancellation=$1::jsonb WHERE run_id=$2 AND attempt=$3 AND lease_id=$4 AND fencing_token=$5 AND session_epoch=$6 AND deployment_revision=$7 AND worker_revision=$8 AND state='claimed' AND lease_expires_at_ms>$9 AND envelope->>'environmentRevision'=$10 AND envelope->>'manifestFingerprint'=$11 AND worker_id=$12 RETURNING jsonb_build_object('accepted',true,'code','cancel-persisted') AS result`,
 				[
 					JSON.stringify(input),
 					input.runId,
@@ -481,7 +514,7 @@ export function postgresql16ManagedCloudControlStore(
 		},
 		async acknowledgeCancellation(input, nowMs) {
 			const result = await one(
-				`UPDATE graphrefly_managed_cloud_v1 SET cancellation=cancellation||'{"acknowledged":true}'::jsonb WHERE run_id=$1 AND attempt=$2 AND lease_id=$3 AND fencing_token=$4 AND session_epoch=$5 AND deployment_revision=$6 AND worker_revision=$7 AND cancellation->>'cancellationId'=$8 AND state='claimed' AND lease_expires_at_ms>$9 AND envelope->>'environmentRevision'=$10 AND envelope->>'manifestFingerprint'=$11 AND worker_id=$12 RETURNING jsonb_build_object('accepted',true,'code','cancel-ack') AS result`,
+				`UPDATE graphrefly_managed_cloud_v2 SET cancellation=cancellation||'{"acknowledged":true}'::jsonb WHERE run_id=$1 AND attempt=$2 AND lease_id=$3 AND fencing_token=$4 AND session_epoch=$5 AND deployment_revision=$6 AND worker_revision=$7 AND cancellation->>'cancellationId'=$8 AND state='claimed' AND lease_expires_at_ms>$9 AND envelope->>'environmentRevision'=$10 AND envelope->>'manifestFingerprint'=$11 AND worker_id=$12 RETURNING jsonb_build_object('accepted',true,'code','cancel-ack') AS result`,
 				[
 					input.runId,
 					input.attempt,
@@ -503,7 +536,7 @@ export function postgresql16ManagedCloudControlStore(
 		},
 		async settle(input, nowMs) {
 			const result = await one(
-				`UPDATE graphrefly_managed_cloud_v1 SET state='settled', outcome=jsonb_build_object('kind',CASE $1 WHEN 'succeeded' THEN 'result' WHEN 'failed' THEN 'failure' ELSE 'canceled' END,'outcomeId',$2,'requestId',envelope->>'requestId','operationId',envelope->>'operationId','routeId',envelope->>'routeId','executorId',envelope->>'executorId','profileId',envelope->>'profileId','attempt',attempt,'inputId',envelope->>'adapterInputId','inputKind','tool-call','metadata',jsonb_build_object('runId',run_id,'sessionEpoch',session_epoch,'fencingToken',fencing_token)) || CASE $1 WHEN 'succeeded' THEN jsonb_build_object('result',jsonb_build_object('kind','managed-cloud-result-refs','value',jsonb_build_object('outcomeRefs',$3::jsonb))) WHEN 'failed' THEN jsonb_build_object('error',jsonb_build_object('kind','issue','code','managed-cloud-worker-failure','message','Managed-cloud worker reported failure.','severity','error'),'retryable',false) ELSE jsonb_build_object('reason','admitted-managed-cloud-cancellation') END WHERE run_id=$4 AND attempt=$5 AND lease_id=$6 AND fencing_token=$7 AND session_epoch=$8 AND deployment_revision=$9 AND worker_revision=$10 AND state='claimed' AND lease_expires_at_ms>$11 AND envelope->>'environmentRevision'=$12 AND envelope->>'manifestFingerprint'=$13 AND worker_id=$14 RETURNING jsonb_build_object('accepted',true,'code','settled','outcome',outcome) AS result`,
+				`UPDATE graphrefly_managed_cloud_v2 SET state='settled', outcome=jsonb_build_object('kind',CASE $1 WHEN 'succeeded' THEN 'result' WHEN 'failed' THEN 'failure' ELSE 'canceled' END,'outcomeId',$2,'requestId',envelope->>'requestId','operationId',envelope->>'operationId','routeId',envelope->>'routeId','executorId',envelope->>'executorId','profileId',envelope->>'profileId','attempt',attempt,'inputId',envelope->>'adapterInputId','inputKind','tool-call','metadata',jsonb_build_object('runId',run_id,'sessionEpoch',session_epoch,'fencingToken',fencing_token)) || CASE $1 WHEN 'succeeded' THEN jsonb_build_object('result',jsonb_build_object('kind','managed-cloud-result-refs','value',jsonb_build_object('outcomeRefs',$3::jsonb))) WHEN 'failed' THEN jsonb_build_object('error',jsonb_build_object('kind','issue','code','managed-cloud-worker-failure','message','Managed-cloud worker reported failure.','severity','error'),'retryable',false) ELSE jsonb_build_object('reason','admitted-managed-cloud-cancellation') END WHERE run_id=$4 AND attempt=$5 AND lease_id=$6 AND fencing_token=$7 AND session_epoch=$8 AND deployment_revision=$9 AND worker_revision=$10 AND state='claimed' AND lease_expires_at_ms>$11 AND envelope->>'environmentRevision'=$12 AND envelope->>'manifestFingerprint'=$13 AND worker_id=$14 RETURNING jsonb_build_object('accepted',true,'code','settled','outcome',outcome) AS result`,
 				[
 					input.outcome,
 					input.settlementId,
@@ -533,13 +566,13 @@ export function postgresql16ManagedCloudControlStore(
 		},
 		async expire(nowMs) {
 			return lifecycleRows(
-				`UPDATE graphrefly_managed_cloud_v1 SET state='expired', fencing_token=fencing_token+1 WHERE state='claimed' AND lease_expires_at_ms <= $1 RETURNING jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','expired','runId',run_id,'attempt',attempt,'leaseId',lease_id,'fencingToken',fencing_token,'workerId',worker_id,'sessionEpoch',session_epoch,'environmentRevision',envelope->>'environmentRevision','manifestFingerprint',envelope->>'manifestFingerprint','deploymentRevision',deployment_revision,'workerRevision',worker_revision,'occurredAtMs',$1) AS lifecycle`,
+				`UPDATE graphrefly_managed_cloud_v2 SET state='expired', fencing_token=fencing_token+1 WHERE state='claimed' AND lease_expires_at_ms <= $1 RETURNING jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','expired','runId',run_id,'attempt',attempt,'leaseId',lease_id,'fencingToken',fencing_token,'workerId',worker_id,'sessionEpoch',session_epoch,'environmentRevision',envelope->>'environmentRevision','manifestFingerprint',envelope->>'manifestFingerprint','deploymentRevision',deployment_revision,'workerRevision',worker_revision,'occurredAtMs',$1) AS lifecycle`,
 				[nowMs],
 			);
 		},
 		async disconnect(workerId, sessionEpoch, nowMs) {
 			return lifecycleRows(
-				`UPDATE graphrefly_managed_cloud_v1 SET state='lost', fencing_token=fencing_token+1 WHERE worker_id=$1 AND session_epoch=$2 AND state='claimed' AND lease_expires_at_ms>$3 RETURNING jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','lost','runId',run_id,'attempt',attempt,'leaseId',lease_id,'fencingToken',fencing_token,'workerId',worker_id,'sessionEpoch',session_epoch,'environmentRevision',envelope->>'environmentRevision','manifestFingerprint',envelope->>'manifestFingerprint','deploymentRevision',deployment_revision,'workerRevision',worker_revision,'occurredAtMs',$3) AS lifecycle`,
+				`UPDATE graphrefly_managed_cloud_v2 SET state='lost', fencing_token=fencing_token+1 WHERE worker_id=$1 AND session_epoch=$2 AND state='claimed' AND lease_expires_at_ms>$3 RETURNING jsonb_build_object('kind','managed-cloud-postgresql-lifecycle-fact','state','lost','runId',run_id,'attempt',attempt,'leaseId',lease_id,'fencingToken',fencing_token,'workerId',worker_id,'sessionEpoch',session_epoch,'environmentRevision',envelope->>'environmentRevision','manifestFingerprint',envelope->>'manifestFingerprint','deploymentRevision',deployment_revision,'workerRevision',worker_revision,'occurredAtMs',$3) AS lifecycle`,
 				[workerId, sessionEpoch, nowMs],
 			);
 		},
@@ -675,26 +708,40 @@ export interface ManagedCloudPostgresqlWorkerDriver {
 	}>;
 }
 
-export interface ManagedCloudPostgresqlAttemptCredentialContext
+export interface ManagedCloudPostgresqlCredentialAuthorizationContext
 	extends ManagedCloudPostgresqlLeaseCoordinates {
 	readonly credentialBindingRevision: string;
 	readonly leaseExpiresAtMs: number;
 	readonly heartbeatExpiresAtMs: number;
+	readonly envelope: ManagedCloudPostgresqlAdmittedEnvelope;
 	readonly signal: AbortSignal;
 }
 
-export interface ManagedCloudPostgresqlAttemptCredentialResult<T> {
-	readonly result?: T;
+export interface ManagedCloudPostgresqlAttemptCredentialContext
+	extends ManagedCloudPostgresqlCredentialAuthorizationContext {
+	readonly authorization: ManagedCloudPostgresqlAuthorizationRecheckResult;
+}
+
+export interface ManagedCloudPostgresqlAttemptCredentialPreparation {
+	readonly ready: boolean;
+	readonly lifecycle: readonly ManagedCloudPostgresqlCredentialLifecycleFact[];
+	readonly issueRefs?: readonly SourceRef[];
+}
+
+export interface ManagedCloudPostgresqlAttemptCredentialCleanup {
+	/** Full terminal lifecycle sequence, including the preparation prefix. */
 	readonly lifecycle: readonly ManagedCloudPostgresqlCredentialLifecycleFact[];
 	readonly issueRefs?: readonly SourceRef[];
 }
 
 export interface ManagedCloudPostgresqlAttemptCredentialDriver {
 	readonly compatibility: typeof MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY;
-	runWithAttemptCredential<T>(
+	prepareAttemptCredential(
 		context: ManagedCloudPostgresqlAttemptCredentialContext,
-		work: () => PromiseLike<T>,
-	): PromiseLike<ManagedCloudPostgresqlAttemptCredentialResult<T>>;
+	): PromiseLike<ManagedCloudPostgresqlAttemptCredentialPreparation>;
+	cleanupAttemptCredential(
+		context: ManagedCloudPostgresqlAttemptCredentialContext,
+	): PromiseLike<ManagedCloudPostgresqlAttemptCredentialCleanup>;
 }
 
 /**
@@ -705,12 +752,13 @@ export interface ManagedCloudPostgresqlAttemptCredentialDriver {
  * `executeManagedCloudPostgresqlClaimWithAttemptCredential` so a host-private attempt credential
  * lifecycle driver is mandatory and the workload cannot run through the bare driver path.
  */
-export async function executeManagedCloudPostgresqlClaim(
+async function executeManagedCloudPostgresqlClaim(
 	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
 	driver: ManagedCloudPostgresqlWorkerDriver,
 	settlementId: string,
 	messageId: string,
 	signal: AbortSignal,
+	now: () => number,
 	credentialDriver?: ManagedCloudPostgresqlAttemptCredentialDriver,
 	authorizationDriver?: Pick<
 		ManagedCloudPostgresqlAuthorizationRecheckDriver,
@@ -731,6 +779,7 @@ export async function executeManagedCloudPostgresqlClaim(
 		throw new TypeError("Managed-cloud authorization recheck compatibility mismatch.");
 	assertSafe(settlementId, "settlementId");
 	assertSafe(messageId, "messageId");
+	if (typeof now !== "function") throw new TypeError("Managed-cloud authority clock is required.");
 	for (const value of [
 		claim.runId,
 		claim.environmentRevision,
@@ -754,24 +803,41 @@ export async function executeManagedCloudPostgresqlClaim(
 		claim.envelope.protocolRevision !== MANAGED_CLOUD_POSTGRESQL_PROTOCOL
 	)
 		throw new TypeError("Invalid managed-cloud worker claim.");
-	const workload = postgresqlQueryToolArgumentsFromIntent(claim.envelope.workload);
-	const context = {
+	const envelope = snapshotAdmittedEnvelope(claim.envelope);
+	const workload = envelope.workload;
+	const authorizationContext: ManagedCloudPostgresqlCredentialAuthorizationContext = {
 		...leaseCoordinates(claim),
-		credentialBindingRevision: claim.envelope.credentialBindingRevision,
+		credentialBindingRevision: envelope.credentialBindingRevision,
 		leaseExpiresAtMs: claim.leaseExpiresAtMs,
 		heartbeatExpiresAtMs: claim.heartbeatExpiresAtMs,
+		envelope,
 		signal,
 	};
+	let authorization: ManagedCloudPostgresqlAuthorizationRecheckResult | undefined;
+	let authorizationValidatedAtMs: number | undefined;
 	if (authorizationDriver !== undefined) {
-		const authorization =
-			(await attemptAuthorizationRecheck(authorizationDriver, context, "credential-issuance")) ??
-			authorizationUnavailableForClaim(claim, "credential-issuance");
+		const authorizationRequestedAtMs = authorityNow(now);
+		const verifiedAuthorization =
+			(await attemptAuthorizationRecheck(
+				authorizationDriver,
+				authorizationContext,
+				"credential-issuance",
+			)) ?? authorizationUnavailableForClaim(claim, "credential-issuance");
+		authorizationValidatedAtMs = authorityNow(now);
 		const correlated =
-			authorizationMatchesLease(authorization, claim) &&
-			authorization.credentialBindingRevision === claim.envelope.credentialBindingRevision;
-		if (!correlated || !authorizationAllowsAttempt(authorization, claim.leaseExpiresAtMs)) {
+			authorizationMatchesLease(verifiedAuthorization, claim, envelope) &&
+			verifiedAuthorization.credentialBindingRevision === envelope.credentialBindingRevision;
+		if (
+			!correlated ||
+			!authorizationAllowsAttempt(
+				verifiedAuthorization,
+				claim.leaseExpiresAtMs,
+				authorizationRequestedAtMs,
+				authorizationValidatedAtMs,
+			)
+		) {
 			const failureAuthorization = correlated
-				? authorization
+				? verifiedAuthorization
 				: authorizationUnavailableForClaim(claim, "credential-issuance");
 			return Object.freeze({
 				kind: "settle",
@@ -780,51 +846,125 @@ export async function executeManagedCloudPostgresqlClaim(
 				outcome: "failed",
 				outcomeRefs: [],
 				issueRefs: authorizationIssueRefs(failureAuthorization),
-				credentialLifecycle: [authorizationCredentialUnavailableFact(claim, failureAuthorization)],
+				credentialLifecycle: authorizationCredentialUnavailableLifecycle(
+					claim,
+					failureAuthorization,
+				),
 				...leaseCoordinates(claim),
 			});
 		}
+		authorization = verifiedAuthorization;
 	}
-	const execute = () => driver.execute(workload, context);
-	const credentialResult =
-		credentialDriver === undefined
-			? undefined
-			: await credentialDriver.runWithAttemptCredential(context, execute);
-	const result = credentialResult === undefined ? await execute() : credentialResult.result;
-	const credentialLifecycle =
-		credentialResult === undefined
-			? undefined
-			: snapshotCredentialLifecycleSequence(credentialResult.lifecycle, claim);
-	if (
-		credentialDriver !== undefined &&
-		result !== undefined &&
-		credentialLifecycle?.some((fact) => fact.state === "injected") !== true
-	)
+	if (credentialDriver !== undefined && authorization === undefined) {
 		throw new TypeError(
-			"Managed-cloud credential lifecycle requires injected posture before workload result.",
+			"Managed-cloud attempt credential execution requires authorization evidence.",
 		);
-	if (credentialDriver !== undefined && result === undefined)
+	}
+	const context: ManagedCloudPostgresqlAttemptCredentialContext | undefined =
+		authorization === undefined ? undefined : { ...authorizationContext, authorization };
+	if (credentialDriver === undefined) {
+		const result = await driver.execute(workload, authorizationContext);
+		if (result === undefined) throw new TypeError("Managed-cloud worker returned no result.");
 		return Object.freeze({
 			kind: "settle",
 			messageId,
 			settlementId,
-			outcome: "failed",
-			outcomeRefs: [],
-			issueRefs: credentialRefs(
-				credentialResult?.issueRefs ?? credentialLifecycleIssueRefs(credentialLifecycle),
-			),
-			...(credentialLifecycle === undefined ? {} : { credentialLifecycle }),
+			outcome: result.outcome,
+			outcomeRefs: refs(result.outcomeRefs),
+			issueRefs: refs(result.issueRefs ?? []),
 			...leaseCoordinates(claim),
 		});
-	if (result === undefined) throw new TypeError("Managed-cloud worker returned no result.");
+	}
+	let preparation: ManagedCloudPostgresqlAttemptCredentialPreparation;
+	let preparedLifecycle: readonly ManagedCloudPostgresqlCredentialLifecycleFact[];
+	try {
+		preparation = await credentialDriver.prepareAttemptCredential(context!);
+		preparedLifecycle = snapshotCredentialLifecyclePreparation(
+			preparation.lifecycle,
+			claim,
+			preparation.ready,
+		);
+	} catch {
+		const cleanup = await terminalCredentialCleanup(
+			credentialDriver,
+			context!,
+			claim,
+			undefined,
+			now,
+		);
+		return failedCredentialSettlement(claim, settlementId, messageId, cleanup.lifecycle, [
+			{ kind: "issue", id: "credential-preparation-unverifiable" },
+		]);
+	}
+	if (!preparation.ready)
+		return failedCredentialSettlement(
+			claim,
+			settlementId,
+			messageId,
+			preparedLifecycle,
+			credentialRefs(preparation.issueRefs ?? credentialLifecycleIssueRefs(preparedLifecycle)),
+		);
+	const beforeWorkloadAtMs = authorityNow(now);
+	const authorityClockRegressed =
+		authorizationValidatedAtMs !== undefined && beforeWorkloadAtMs < authorizationValidatedAtMs;
+	if (
+		authorizationValidatedAtMs === undefined ||
+		authorityClockRegressed ||
+		beforeWorkloadAtMs >= claim.leaseExpiresAtMs ||
+		authorization!.authorizationExpiresAtMs === undefined ||
+		beforeWorkloadAtMs >= authorization!.authorizationExpiresAtMs
+	) {
+		const cleanup = await terminalCredentialCleanup(
+			credentialDriver,
+			context!,
+			claim,
+			preparedLifecycle,
+			now,
+		);
+		return failedCredentialSettlement(claim, settlementId, messageId, cleanup.lifecycle, [
+			{
+				kind: "issue",
+				id: authorityClockRegressed
+					? "authority-clock-regressed-before-workload"
+					: "authorization-expired-before-workload",
+			},
+		]);
+	}
+	let result: Awaited<ReturnType<ManagedCloudPostgresqlWorkerDriver["execute"]>> | undefined;
+	let executionError: unknown;
+	try {
+		result = await driver.execute(workload, authorizationContext);
+	} catch (caught) {
+		executionError = caught;
+	}
+	const cleanup = await terminalCredentialCleanup(
+		credentialDriver,
+		context!,
+		claim,
+		preparedLifecycle,
+		now,
+	);
+	if (executionError !== undefined || result === undefined)
+		return failedCredentialSettlement(claim, settlementId, messageId, cleanup.lifecycle, [
+			{ kind: "issue", id: "managed-cloud-workload-execution-failed" },
+			...cleanup.issueRefs,
+		]);
+	if (cleanup.issueRefs.length > 0)
+		return failedCredentialSettlement(
+			claim,
+			settlementId,
+			messageId,
+			cleanup.lifecycle,
+			cleanup.issueRefs,
+		);
 	return Object.freeze({
 		kind: "settle",
 		messageId,
 		settlementId,
 		outcome: result.outcome,
 		outcomeRefs: refs(result.outcomeRefs),
-		issueRefs: refs(result.issueRefs ?? []),
-		...(credentialLifecycle === undefined ? {} : { credentialLifecycle }),
+		issueRefs: refs(result.issueRefs ?? cleanup.issueRefs),
+		credentialLifecycle: cleanup.lifecycle,
 		...leaseCoordinates(claim),
 	});
 }
@@ -843,6 +983,7 @@ export async function executeManagedCloudPostgresqlClaimWithAttemptCredential(
 	settlementId: string,
 	messageId: string,
 	signal: AbortSignal,
+	now: () => number,
 	credentialDriver: ManagedCloudPostgresqlAttemptCredentialDriver,
 	authorizationDriver: Pick<
 		ManagedCloudPostgresqlAuthorizationRecheckDriver,
@@ -859,6 +1000,7 @@ export async function executeManagedCloudPostgresqlClaimWithAttemptCredential(
 		settlementId,
 		messageId,
 		signal,
+		now,
 		credentialDriver,
 		authorizationDriver,
 	);
@@ -874,6 +1016,7 @@ export async function executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCre
 	settlementId: string,
 	messageId: string,
 	signal: AbortSignal,
+	now: () => number,
 	credentialDriver: ManagedCloudPostgresqlAttemptCredentialDriver,
 	authorizationDriver: Pick<
 		ManagedCloudPostgresqlAuthorizationRecheckDriver,
@@ -890,6 +1033,7 @@ export async function executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCre
 		settlementId,
 		messageId,
 		signal,
+		now,
 		credentialDriver,
 		authorizationDriver,
 	);
@@ -1104,12 +1248,13 @@ export function managedCloudPostgresqlRuntime(
 	let manifest: ManagedCloudPostgresqlManifest | undefined;
 	let posture: ManagedCloudPostgresqlReadiness | undefined;
 	const inputs = new Map<string, ToolProviderAdapterInput<PostgresqlQueryToolArguments>>();
-	const activeLeases = new Map<string, ManagedCloudPostgresqlLeaseCoordinates>();
+	const activeLeases = new Map<string, NonNullable<ManagedCloudPostgresqlStoreResult["lease"]>>();
 	const activeEnvelopes = new Map<string, ManagedCloudPostgresqlAdmittedEnvelope>();
-	const activeCredentialTerminal = new Map<
+	const activeCredentialLifecycle = new Map<
 		string,
-		ManagedCloudPostgresqlCredentialLifecycleState
+		readonly ManagedCloudPostgresqlCredentialLifecycleFact[]
 	>();
+	const settlingLeases = new Map<string, symbol>();
 	const pendingCancellations = new Map<string, ManagedCloudPostgresqlCancellationRequested>();
 	let disposed = false;
 	const pending = new Set<Promise<unknown>>();
@@ -1145,18 +1290,14 @@ export function managedCloudPostgresqlRuntime(
 			const key = leaseKey({ runId: fact.runId, attempt: fact.attempt });
 			activeLeases.delete(key);
 			activeEnvelopes.delete(key);
-			activeCredentialTerminal.delete(key);
+			activeCredentialLifecycle.delete(key);
+			settlingLeases.delete(key);
 			for (const [id, request] of pendingCancellations)
 				if (leaseKey(request) === key) pendingCancellations.delete(id);
 		}
 	};
-	const emitCredentialLifecycle = (
-		raw: ManagedCloudPostgresqlCredentialLifecycleFact,
-		active: ManagedCloudPostgresqlLeaseCoordinates,
-		envelope: ManagedCloudPostgresqlAdmittedEnvelope,
-	) => {
+	const publishCredentialLifecycle = (raw: ManagedCloudPostgresqlCredentialLifecycleFact) => {
 		const fact = snapshotCredentialLifecycle(raw);
-		assertCredentialLifecycleForLease(fact, active, envelope);
 		emit(credentialLifecycle, fact);
 		emit(audit, {
 			id: `managed-cloud-postgresql-credential-audit:${fact.runId}:${fact.attempt}:${fact.state}:${fact.occurredAtMs}`,
@@ -1167,15 +1308,22 @@ export function managedCloudPostgresqlRuntime(
 				fencingToken: fact.fencingToken,
 				sessionEpoch: fact.sessionEpoch,
 				bindingRevision: fact.credentialBindingRevision,
+				...(fact.expiresAtMs === undefined ? {} : { expiresAtMs: fact.expiresAtMs }),
 				issueRefs: fact.issueRefs,
 			},
 		});
-		if (
-			fact.state === "revoked" ||
-			fact.state === "cleanup-unverifiable" ||
-			fact.state === "unavailable"
-		)
-			activeCredentialTerminal.set(leaseKey(fact), fact.state);
+	};
+	const acceptCredentialLifecycle = (
+		raw: ManagedCloudPostgresqlCredentialLifecycleFact,
+		active: NonNullable<ManagedCloudPostgresqlStoreResult["lease"]>,
+		envelope: ManagedCloudPostgresqlAdmittedEnvelope,
+	) => {
+		const fact = snapshotCredentialLifecycle(raw);
+		const key = leaseKey(fact);
+		const next = [...(activeCredentialLifecycle.get(key) ?? []), fact];
+		assertCredentialLifecyclePrefix(next, active, envelope, active.leaseExpiresAtMs);
+		activeCredentialLifecycle.set(key, Object.freeze(next));
+		publishCredentialLifecycle(fact);
 	};
 	const track = (work: Promise<unknown>) => {
 		pending.add(work);
@@ -1338,6 +1486,16 @@ export function managedCloudPostgresqlRuntime(
 			let settlementCredentialLifecycle:
 				| readonly ManagedCloudPostgresqlCredentialLifecycleFact[]
 				| undefined;
+			let settlementCredentialPrefixLength = 0;
+			let settlementFenceToken: symbol | undefined;
+			const releaseSettlementFence = () => {
+				if (
+					message.kind === "settle" &&
+					settlementFenceToken !== undefined &&
+					settlingLeases.get(leaseKey(message)) === settlementFenceToken
+				)
+					settlingLeases.delete(leaseKey(message));
+			};
 			if (message.kind === "credential-lifecycle") {
 				const active = activeLeases.get(leaseKey(message));
 				const envelope = activeEnvelopes.get(leaseKey(message));
@@ -1349,7 +1507,24 @@ export function managedCloudPostgresqlRuntime(
 					);
 					return;
 				}
-				emitCredentialLifecycle(credentialLifecycleFactFromMessage(message), active, envelope);
+				if (settlingLeases.has(leaseKey(message))) {
+					await rejectMessage(opts.transport, message, "credential-lifecycle-settling");
+					issue(
+						"credential-lifecycle-settling",
+						"Managed-cloud credential lifecycle cannot advance during settlement.",
+					);
+					return;
+				}
+				try {
+					acceptCredentialLifecycle(credentialLifecycleFactFromMessage(message), active, envelope);
+				} catch {
+					await rejectMessage(opts.transport, message, "credential-lifecycle-transition-invalid");
+					issue(
+						"credential-lifecycle-transition-invalid",
+						"Managed-cloud credential lifecycle transition was invalid.",
+					);
+					return;
+				}
 				await opts.transport.send(message.workerId, message.sessionEpoch, {
 					kind: "accepted",
 					messageId: message.messageId,
@@ -1373,6 +1548,7 @@ export function managedCloudPostgresqlRuntime(
 				if (result.accepted && result.lease !== undefined) {
 					const lease = snapshotClaimLease(result.lease, message, claimManifest);
 					{
+						const authorizationRequestedAtMs = authorityNow(now);
 						let authorization: ManagedCloudPostgresqlAuthorizationRecheckResult;
 						try {
 							authorization = snapshotAuthorizationRecheckResult(
@@ -1386,19 +1562,34 @@ export function managedCloudPostgresqlRuntime(
 								"claim",
 							);
 						} catch {
-							authorization = authorizationUnavailableForLease(lease, "claim", now());
+							authorization = authorizationUnavailableForLease(
+								lease,
+								lease.envelope,
+								"claim",
+								now(),
+							);
 						}
+						const authorizationValidatedAtMs = authorityNow(now);
 						if (
-							!authorizationMatchesLease(authorization, lease) ||
-							!authorizationAllowsAttempt(authorization, lease.leaseExpiresAtMs)
+							!authorizationMatchesLease(authorization, lease, lease.envelope) ||
+							!authorizationAllowsAttempt(
+								authorization,
+								lease.leaseExpiresAtMs,
+								authorizationRequestedAtMs,
+								authorizationValidatedAtMs,
+							)
 						) {
 							if (opts.store.rejectClaim === undefined)
 								throw new TypeError(
 									"Managed-cloud authorization recheck requires rejectClaim support.",
 								);
-							const failureAuthorization = authorizationMatchesLease(authorization, lease)
+							const failureAuthorization = authorizationMatchesLease(
+								authorization,
+								lease,
+								lease.envelope,
+							)
 								? authorization
-								: authorizationUnavailableForLease(lease, "claim", now());
+								: authorizationUnavailableForLease(lease, lease.envelope, "claim", now());
 							const rejectCode = authorizationRejectCode(failureAuthorization);
 							const rejected = snapshotStoreResult(
 								await opts.store.rejectClaim(lease, rejectCode, now()),
@@ -1441,11 +1632,9 @@ export function managedCloudPostgresqlRuntime(
 					);
 					return;
 				}
-				settlementCredentialLifecycle = message.credentialLifecycle.map((fact) => {
-					const snapshot = snapshotCredentialLifecycle(fact);
-					assertCredentialLifecycleForLease(snapshot, active, envelope);
-					return snapshot;
-				});
+				settlementCredentialLifecycle = message.credentialLifecycle.map(
+					snapshotCredentialLifecycle,
+				);
 				const terminal = settlementCredentialLifecycle.at(-1)?.state;
 				if (
 					terminal !== "revoked" &&
@@ -1459,6 +1648,12 @@ export function managedCloudPostgresqlRuntime(
 					);
 					return;
 				}
+				assertCredentialLifecycleSequence(
+					settlementCredentialLifecycle,
+					active,
+					envelope,
+					active.leaseExpiresAtMs,
+				);
 				if (terminal === "unavailable" && message.outcome !== "failed") {
 					await rejectMessage(opts.transport, message, "credential-unavailable-outcome-mismatch");
 					issue(
@@ -1468,27 +1663,74 @@ export function managedCloudPostgresqlRuntime(
 					return;
 				}
 				if (
-					terminal !== "unavailable" &&
-					!settlementCredentialLifecycle.some((fact) => fact.state === "injected")
+					!settlementCredentialLifecycle.some((fact) => fact.state === "injected") &&
+					message.outcome !== "failed"
 				) {
 					await rejectMessage(opts.transport, message, "credential-injection-required");
 					issue(
 						"credential-injection-required",
-						"Managed-cloud settlement cleanup requires prior credential injection evidence.",
+						"Managed-cloud settlement without credential injection must fail before workload execution.",
 					);
 					return;
 				}
-				result = snapshotStoreResult(await opts.store.settle(message, now()));
+				const settlementLeaseKey = leaseKey(message);
+				if (settlingLeases.has(settlementLeaseKey)) {
+					await rejectMessage(opts.transport, message, "settlement-in-progress");
+					issue(
+						"settlement-in-progress",
+						"Managed-cloud lease already has an in-progress or reconciliation-required settlement.",
+					);
+					return;
+				}
+				settlementFenceToken = Symbol(settlementLeaseKey);
+				settlingLeases.set(settlementLeaseKey, settlementFenceToken);
+				const streamedCredentialLifecycle = activeCredentialLifecycle.get(settlementLeaseKey) ?? [];
+				try {
+					assertCredentialLifecycleSettlementPrefix(
+						streamedCredentialLifecycle,
+						settlementCredentialLifecycle,
+					);
+				} catch (caught) {
+					releaseSettlementFence();
+					throw caught;
+				}
+				settlementCredentialPrefixLength = streamedCredentialLifecycle.length;
+				try {
+					result = snapshotStoreResult(await opts.store.settle(message, now()));
+				} catch {
+					issue(
+						"managed-cloud-settlement-reconciliation-required",
+						"Settlement dispatch did not return trustworthy commit evidence; the lease remains fenced for reconciliation.",
+					);
+					return;
+				}
 			}
 			if (!result.accepted) {
+				releaseSettlementFence();
 				await rejectMessage(opts.transport, message, result.code);
 				issue(result.code, "Managed-cloud worker mutation was rejected.");
 				return;
 			}
+			let validatedSettlementOutcome: ExecutorOutcome | undefined;
+			if (message.kind === "settle") {
+				try {
+					if (result.outcome === undefined || result.lifecycle === undefined)
+						throw new TypeError("Accepted settlement requires outcome and lifecycle evidence.");
+					assertLifecycleForLease(result.lifecycle, message, "settled");
+					const envelope = activeEnvelopes.get(leaseKey(message));
+					if (envelope === undefined || settlementCredentialLifecycle === undefined)
+						throw new TypeError("Accepted settlement has no current admitted evidence.");
+					validatedSettlementOutcome = snapshotOutcome(result.outcome, message, envelope);
+				} catch {
+					issue(
+						"managed-cloud-settlement-reconciliation-required",
+						"The control store committed settlement but returned invalid projection evidence; the lease remains fenced for reconciliation.",
+					);
+					return;
+				}
+			}
 			if (message.kind === "claim" && result.lease === undefined)
 				throw new TypeError("Accepted claim requires a lease.");
-			if (message.kind === "settle" && result.outcome === undefined)
-				throw new TypeError("Accepted settlement requires an outcome.");
 			if (message.kind !== "claim") {
 				if (result.lifecycle === undefined)
 					throw new TypeError("Accepted worker mutation requires lifecycle evidence.");
@@ -1520,8 +1762,8 @@ export function managedCloudPostgresqlRuntime(
 				const envelope = activeEnvelopes.get(leaseKey(message));
 				if (active === undefined || envelope === undefined)
 					throw new TypeError("Settlement credential lifecycle has no current claim.");
-				for (const fact of settlementCredentialLifecycle)
-					emitCredentialLifecycle(fact, active, envelope);
+				for (const fact of settlementCredentialLifecycle.slice(settlementCredentialPrefixLength))
+					acceptCredentialLifecycle(fact, active, envelope);
 			}
 			if (result.lifecycle !== undefined) emitLifecycle(result.lifecycle);
 			if (message.kind === "cancel-ack") {
@@ -1534,15 +1776,13 @@ export function managedCloudPostgresqlRuntime(
 					state: "acknowledged",
 				});
 			}
-			if (message.kind === "settle" && result.outcome !== undefined) {
-				const envelope = activeEnvelopes.get(leaseKey(message));
-				if (envelope === undefined)
-					throw new TypeError("Settlement has no current admitted envelope.");
-				emit(outcomes, snapshotOutcome(result.outcome, message, envelope));
+			if (message.kind === "settle" && validatedSettlementOutcome !== undefined) {
+				emit(outcomes, validatedSettlementOutcome);
 				const key = leaseKey(message);
 				activeLeases.delete(key);
 				activeEnvelopes.delete(key);
-				activeCredentialTerminal.delete(key);
+				activeCredentialLifecycle.delete(key);
+				releaseSettlementFence();
 				for (const [id, request] of pendingCancellations)
 					if (leaseKey(request) === key) pendingCancellations.delete(id);
 			}
@@ -1615,7 +1855,8 @@ export function managedCloudPostgresqlRuntime(
 				await Promise.resolve(opts.store.close()).catch(() => undefined);
 				activeLeases.clear();
 				activeEnvelopes.clear();
-				activeCredentialTerminal.clear();
+				activeCredentialLifecycle.clear();
+				settlingLeases.clear();
 				pendingCancellations.clear();
 			}
 			try {
@@ -1632,6 +1873,18 @@ function admittedEnvelope(
 ): ManagedCloudPostgresqlAdmittedEnvelope {
 	const metadata = request.metadata as Record<string, unknown> | undefined;
 	const environmentRevision = metadata?.executionEnvironmentRevision;
+	const admissionId = metadata?.admissionId;
+	const admissionProposalId = metadata?.proposalId;
+	const admissionDecisionId = metadata?.decisionId;
+	const principalId = metadata?.principalId;
+	const principalSessionRevision = metadata?.principalSessionRevision;
+	const tenantId = metadata?.tenantId;
+	const workspaceId = metadata?.workspaceId;
+	const resourceKind = metadata?.resourceKind;
+	const resourceId = metadata?.resourceId;
+	const resourceRevision = metadata?.resourceRevision;
+	const policyRevision = metadata?.policyRevision;
+	const modelRevision = metadata?.modelRevision;
 	for (const value of [
 		request.runId,
 		request.requestId,
@@ -1640,8 +1893,39 @@ function admittedEnvelope(
 		request.executorId,
 		request.profileId,
 		environmentRevision,
+		admissionId,
+		admissionProposalId,
+		principalId,
+		principalSessionRevision,
+		tenantId,
+		workspaceId,
+		resourceKind,
+		resourceId,
+		resourceRevision,
+		policyRevision,
+		modelRevision,
 	])
 		assertSafe(value, "admitted coordinate");
+	if (admissionDecisionId !== undefined) {
+		assertSafe(admissionDecisionId, "admission decision coordinate");
+	}
+	const requestRefs = refs(request.sourceRefs ?? []);
+	if (
+		!requestRefs.some(
+			(ref) => ref.kind === "tool-provider-run-admission" && ref.id === admissionId,
+		) ||
+		!requestRefs.some(
+			(ref) =>
+				ref.kind === "tool-provider-run-admission-proposal" && ref.id === admissionProposalId,
+		) ||
+		(admissionDecisionId !== undefined &&
+			!requestRefs.some(
+				(ref) =>
+					ref.kind === "tool-provider-run-admission-decision" && ref.id === admissionDecisionId,
+			))
+	) {
+		throw new TypeError("Managed-cloud admission evidence does not match its exact coordinates.");
+	}
 	if (typeof request.adapterInputId !== "string" || request.adapterInputId.length > 512)
 		throw new TypeError("Invalid adapter input coordinate.");
 	if (!Number.isSafeInteger(request.attempt) || request.attempt < 1)
@@ -1649,7 +1933,7 @@ function admittedEnvelope(
 	const workload = postgresqlQueryToolArgumentsFromIntent(
 		input.toolCall?.arguments as PostgresqlQueryToolArguments,
 	);
-	return Object.freeze({
+	return snapshotAdmittedEnvelope({
 		kind: "managed-cloud-postgresql-admitted-envelope",
 		protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 		runId: request.runId,
@@ -1662,11 +1946,28 @@ function admittedEnvelope(
 		executorId: request.executorId as string,
 		profileId: request.profileId as string,
 		adapterInputId: request.adapterInputId,
+		principalId: principalId as string,
+		principalSessionRevision: principalSessionRevision as string,
+		tenantId: tenantId as string,
+		workspaceId: workspaceId as string,
+		resourceKind: resourceKind as string,
+		resourceId: resourceId as string,
+		resourceRevision: resourceRevision as string,
+		policyRevision: policyRevision as string,
+		modelRevision: modelRevision as string,
+		admissionId: admissionId as string,
+		admissionProposalId: admissionProposalId as string,
+		...(admissionDecisionId === undefined
+			? {}
+			: { admissionDecisionId: admissionDecisionId as string }),
 		credentialBindingRevision: manifest.credentialBindingRevision,
 		deploymentRevision: manifest.deploymentRevision,
 		workerRevision: manifest.workerRevision,
 		workload,
-		sourceRefs: refs((input.sourceRefs ?? []).map((ref) => ({ kind: ref.kind, id: ref.id }))),
+		sourceRefs: refs([
+			...requestRefs,
+			...(input.sourceRefs ?? []).map((ref) => ({ kind: ref.kind, id: ref.id })),
+		]),
 	});
 }
 function readyManifest(
@@ -1773,6 +2074,7 @@ function credentialLifecycleFactFromMessage(
 		state: message.state,
 		credentialBindingRevision: message.credentialBindingRevision,
 		occurredAtMs: message.occurredAtMs,
+		...(message.expiresAtMs === undefined ? {} : { expiresAtMs: message.expiresAtMs }),
 		evidenceRefs: message.evidenceRefs,
 		issueRefs: message.issueRefs,
 		...leaseCoordinates(message),
@@ -1808,6 +2110,23 @@ function snapshotAuthorizationRecheckResult(
 				"sessionEpoch",
 				"deploymentRevision",
 				"workerRevision",
+				"requestId",
+				"operationId",
+				"routeId",
+				"executorId",
+				"profileId",
+				"adapterInputId",
+				"principalId",
+				"principalSessionRevision",
+				"tenantId",
+				"workspaceId",
+				"resourceKind",
+				"resourceId",
+				"resourceRevision",
+				"policyRevision",
+				"modelRevision",
+				"admissionId",
+				"admissionProposalId",
 				"decisionRef",
 				"grantGeneration",
 				"grantHighWater",
@@ -1815,7 +2134,12 @@ function snapshotAuthorizationRecheckResult(
 				"issueRefs",
 				"auditRefs",
 			],
-			["authorizationRevisionRef", "authorizationExpiresAtMs", "credentialBindingRevision"],
+			[
+				"admissionDecisionId",
+				"authorizationRevisionRef",
+				"authorizationExpiresAtMs",
+				"credentialBindingRevision",
+			],
 		) ||
 		raw.kind !== "managed-cloud-postgresql-authorization-recheck-result" ||
 		raw.stage !== stage ||
@@ -1838,8 +2162,28 @@ function snapshotAuthorizationRecheckResult(
 		raw.sessionEpoch,
 		raw.deploymentRevision,
 		raw.workerRevision,
+		raw.requestId,
+		raw.operationId,
+		raw.routeId,
+		raw.executorId,
+		raw.profileId,
+		raw.principalId,
+		raw.principalSessionRevision,
+		raw.tenantId,
+		raw.workspaceId,
+		raw.resourceKind,
+		raw.resourceId,
+		raw.resourceRevision,
+		raw.policyRevision,
+		raw.modelRevision,
+		raw.admissionId,
+		raw.admissionProposalId,
 	])
 		assertAuthorizationRef(value, "authorization coordinate");
+	if (!boundedIdentity(raw.adapterInputId))
+		throw new TypeError("Invalid authorization adapter input coordinate.");
+	if (raw.admissionDecisionId !== undefined)
+		assertAuthorizationRef(raw.admissionDecisionId, "authorization admission decision");
 	if (raw.credentialBindingRevision !== undefined)
 		assertAuthorizationRef(raw.credentialBindingRevision, "authorization credential binding");
 	assertAuthorizationRef(raw.decisionRef, "authorization decision ref");
@@ -1870,6 +2214,26 @@ function snapshotAuthorizationRecheckResult(
 		sessionEpoch: raw.sessionEpoch,
 		deploymentRevision: raw.deploymentRevision,
 		workerRevision: raw.workerRevision,
+		requestId: raw.requestId,
+		operationId: raw.operationId,
+		routeId: raw.routeId,
+		executorId: raw.executorId,
+		profileId: raw.profileId,
+		adapterInputId: raw.adapterInputId,
+		principalId: raw.principalId,
+		principalSessionRevision: raw.principalSessionRevision,
+		tenantId: raw.tenantId,
+		workspaceId: raw.workspaceId,
+		resourceKind: raw.resourceKind,
+		resourceId: raw.resourceId,
+		resourceRevision: raw.resourceRevision,
+		policyRevision: raw.policyRevision,
+		modelRevision: raw.modelRevision,
+		admissionId: raw.admissionId,
+		admissionProposalId: raw.admissionProposalId,
+		...(raw.admissionDecisionId === undefined
+			? {}
+			: { admissionDecisionId: raw.admissionDecisionId }),
 		decisionRef: raw.decisionRef,
 		...(raw.authorizationRevisionRef === undefined
 			? {}
@@ -1890,17 +2254,29 @@ function snapshotAuthorizationRecheckResult(
 function authorizationAllowsAttempt(
 	authorization: ManagedCloudPostgresqlAuthorizationRecheckResult,
 	leaseExpiresAtMs: number,
+	requestedAtMs: number,
+	validatedAtMs: number,
 ): boolean {
 	return (
 		authorization.state === "allowed" &&
 		authorization.authorizationRevisionRef !== undefined &&
 		authorization.authorizationExpiresAtMs !== undefined &&
+		authorization.observedAtMs >= requestedAtMs &&
+		authorization.observedAtMs <= validatedAtMs &&
+		validatedAtMs < leaseExpiresAtMs &&
 		authorization.authorizationExpiresAtMs >= leaseExpiresAtMs
 	);
+}
+function authorityNow(now: () => number): number {
+	const value = now();
+	if (!Number.isSafeInteger(value) || value < 0)
+		throw new TypeError("Invalid managed-cloud authority clock value.");
+	return value;
 }
 function authorizationMatchesLease(
 	authorization: ManagedCloudPostgresqlAuthorizationRecheckResult,
 	lease: ManagedCloudPostgresqlLeaseCoordinates,
+	envelope: ManagedCloudPostgresqlAdmittedEnvelope,
 ): boolean {
 	return (
 		authorization.runId === lease.runId &&
@@ -1912,7 +2288,25 @@ function authorizationMatchesLease(
 		authorization.workerId === lease.workerId &&
 		authorization.sessionEpoch === lease.sessionEpoch &&
 		authorization.deploymentRevision === lease.deploymentRevision &&
-		authorization.workerRevision === lease.workerRevision
+		authorization.workerRevision === lease.workerRevision &&
+		authorization.requestId === envelope.requestId &&
+		authorization.operationId === envelope.operationId &&
+		authorization.routeId === envelope.routeId &&
+		authorization.executorId === envelope.executorId &&
+		authorization.profileId === envelope.profileId &&
+		authorization.adapterInputId === envelope.adapterInputId &&
+		authorization.principalId === envelope.principalId &&
+		authorization.principalSessionRevision === envelope.principalSessionRevision &&
+		authorization.tenantId === envelope.tenantId &&
+		authorization.workspaceId === envelope.workspaceId &&
+		authorization.resourceKind === envelope.resourceKind &&
+		authorization.resourceId === envelope.resourceId &&
+		authorization.resourceRevision === envelope.resourceRevision &&
+		authorization.policyRevision === envelope.policyRevision &&
+		authorization.modelRevision === envelope.modelRevision &&
+		authorization.admissionId === envelope.admissionId &&
+		authorization.admissionProposalId === envelope.admissionProposalId &&
+		authorization.admissionDecisionId === envelope.admissionDecisionId
 	);
 }
 async function attemptAuthorizationRecheck(
@@ -1940,6 +2334,7 @@ function authorizationUnavailableForClaim(
 ): ManagedCloudPostgresqlAuthorizationRecheckResult {
 	return authorizationUnavailableForLease(
 		claim,
+		claim.envelope,
 		stage,
 		0,
 		stage === "credential-issuance" ? claim.envelope.credentialBindingRevision : undefined,
@@ -1947,6 +2342,7 @@ function authorizationUnavailableForClaim(
 }
 function authorizationUnavailableForLease(
 	lease: ManagedCloudPostgresqlLeaseCoordinates,
+	envelope: ManagedCloudPostgresqlAdmittedEnvelope,
 	stage: ManagedCloudPostgresqlAuthorizationRecheckStage,
 	observedAtMs: number,
 	credentialBindingRevision?: string,
@@ -1956,6 +2352,26 @@ function authorizationUnavailableForLease(
 		stage,
 		state: "unavailable",
 		...leaseCoordinates(lease),
+		requestId: envelope.requestId,
+		operationId: envelope.operationId,
+		routeId: envelope.routeId,
+		executorId: envelope.executorId,
+		profileId: envelope.profileId,
+		adapterInputId: envelope.adapterInputId,
+		principalId: envelope.principalId,
+		principalSessionRevision: envelope.principalSessionRevision,
+		tenantId: envelope.tenantId,
+		workspaceId: envelope.workspaceId,
+		resourceKind: envelope.resourceKind,
+		resourceId: envelope.resourceId,
+		resourceRevision: envelope.resourceRevision,
+		policyRevision: envelope.policyRevision,
+		modelRevision: envelope.modelRevision,
+		admissionId: envelope.admissionId,
+		admissionProposalId: envelope.admissionProposalId,
+		...(envelope.admissionDecisionId === undefined
+			? {}
+			: { admissionDecisionId: envelope.admissionDecisionId }),
 		decisionRef: "authorization-decision:unavailable",
 		grantGeneration: 0,
 		grantHighWater: 0,
@@ -1984,19 +2400,29 @@ function authorizationIssueRefs(
 		? collected
 		: [{ kind: "issue", id: authorizationRejectCode(authorization) }];
 }
-function authorizationCredentialUnavailableFact(
+function authorizationCredentialUnavailableLifecycle(
 	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
 	authorization: ManagedCloudPostgresqlAuthorizationRecheckResult,
-): ManagedCloudPostgresqlCredentialLifecycleFact {
-	return Object.freeze({
+): readonly ManagedCloudPostgresqlCredentialLifecycleFact[] {
+	const issueRequested = Object.freeze({
+		kind: "managed-cloud-postgresql-credential-lifecycle-fact" as const,
+		state: "issue-requested" as const,
+		...leaseCoordinates(claim),
+		credentialBindingRevision: claim.envelope.credentialBindingRevision,
+		occurredAtMs: authorization.observedAtMs,
+		evidenceRefs: [{ kind: "decision", id: authorization.decisionRef }],
+		issueRefs: [],
+	});
+	const unavailable = Object.freeze({
 		kind: "managed-cloud-postgresql-credential-lifecycle-fact",
-		state: "unavailable",
+		state: "unavailable" as const,
 		...leaseCoordinates(claim),
 		credentialBindingRevision: claim.envelope.credentialBindingRevision,
 		occurredAtMs: authorization.observedAtMs,
 		evidenceRefs: [{ kind: "decision", id: authorization.decisionRef }],
 		issueRefs: authorizationIssueRefs(authorization),
 	});
+	return Object.freeze([issueRequested, unavailable]);
 }
 function snapshotCredentialLifecycleSequence(
 	raw: readonly ManagedCloudPostgresqlCredentialLifecycleFact[],
@@ -2005,17 +2431,111 @@ function snapshotCredentialLifecycleSequence(
 	if (!Array.isArray(raw) || raw.length === 0 || raw.length > 16)
 		throw new TypeError("Invalid managed-cloud credential lifecycle sequence.");
 	const lifecycle = raw.map(snapshotCredentialLifecycle);
-	for (const fact of lifecycle) assertCredentialLifecycleForLease(fact, claim, claim.envelope);
 	const terminal = lifecycle.at(-1)?.state;
 	if (terminal !== "revoked" && terminal !== "cleanup-unverifiable" && terminal !== "unavailable")
 		throw new TypeError("Managed-cloud credential lifecycle lacks terminal cleanup posture.");
-	const injectedAt = lifecycle.findIndex((fact) => fact.state === "injected");
-	const revokedAt = lifecycle.findIndex(
-		(fact) => fact.state === "revoked" || fact.state === "cleanup-unverifiable",
-	);
-	if (revokedAt >= 0 && injectedAt > revokedAt)
-		throw new TypeError("Managed-cloud credential lifecycle cleanup preceded injection.");
+	assertCredentialLifecycleSequence(lifecycle, claim, claim.envelope, claim.leaseExpiresAtMs);
 	return Object.freeze(lifecycle);
+}
+function snapshotCredentialLifecyclePreparation(
+	raw: readonly ManagedCloudPostgresqlCredentialLifecycleFact[],
+	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
+	ready: boolean,
+): readonly ManagedCloudPostgresqlCredentialLifecycleFact[] {
+	if (!Array.isArray(raw) || raw.length === 0 || raw.length > 16)
+		throw new TypeError("Invalid managed-cloud credential preparation sequence.");
+	const lifecycle = raw.map(snapshotCredentialLifecycle);
+	for (let index = 0; index < lifecycle.length; index += 1) {
+		const fact = lifecycle[index]!;
+		assertCredentialLifecycleForLease(fact, claim, claim.envelope, claim.leaseExpiresAtMs);
+		if (index > 0 && fact.occurredAtMs < lifecycle[index - 1]!.occurredAtMs)
+			throw new TypeError("Credential preparation timestamps are not monotonic.");
+	}
+	const states = lifecycle.map((fact) => fact.state).join(">");
+	const valid = ready
+		? states === "issue-requested>issued>injected"
+		: new Set([
+				"issue-requested>unavailable",
+				"issue-requested>cleanup-unverifiable",
+				"issue-requested>issued>revoking>revoked",
+				"issue-requested>issued>revoking>cleanup-unverifiable",
+			]).has(states);
+	if (!valid) throw new TypeError("Invalid managed-cloud credential preparation posture.");
+	return Object.freeze(lifecycle);
+}
+async function terminalCredentialCleanup(
+	driver: ManagedCloudPostgresqlAttemptCredentialDriver,
+	context: ManagedCloudPostgresqlAttemptCredentialContext,
+	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
+	prepared: readonly ManagedCloudPostgresqlCredentialLifecycleFact[] | undefined,
+	now: () => number,
+): Promise<{
+	readonly lifecycle: readonly ManagedCloudPostgresqlCredentialLifecycleFact[];
+	readonly issueRefs: readonly SourceRef[];
+}> {
+	try {
+		const cleanup = await driver.cleanupAttemptCredential(context);
+		const lifecycle = snapshotCredentialLifecycleSequence(cleanup.lifecycle, claim);
+		if (prepared !== undefined) assertCredentialLifecycleSettlementPrefix(prepared, lifecycle);
+		return {
+			lifecycle,
+			issueRefs: credentialRefs(cleanup.issueRefs ?? []),
+		};
+	} catch {
+		const preparedAtMs = prepared?.at(-1)?.occurredAtMs ?? 0;
+		let observedAtMs = preparedAtMs;
+		try {
+			observedAtMs = authorityNow(now);
+		} catch {
+			// Cleanup evidence must still terminate fail-closed when the authority clock is unavailable.
+		}
+		const occurredAtMs = Math.max(observedAtMs, preparedAtMs);
+		const issueRefs = [{ kind: "issue", id: "credential-cleanup-unverifiable" }] as const;
+		const prefix =
+			prepared === undefined
+				? [credentialCleanupFact(claim, "issue-requested", occurredAtMs, [])]
+				: [...prepared, credentialCleanupFact(claim, "revoking", occurredAtMs, [])];
+		const lifecycle = snapshotCredentialLifecycleSequence(
+			[...prefix, credentialCleanupFact(claim, "cleanup-unverifiable", occurredAtMs, issueRefs)],
+			claim,
+		);
+		return { lifecycle, issueRefs };
+	}
+}
+function credentialCleanupFact(
+	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
+	state: "issue-requested" | "revoking" | "cleanup-unverifiable",
+	occurredAtMs: number,
+	issueRefs: readonly SourceRef[],
+): ManagedCloudPostgresqlCredentialLifecycleFact {
+	return {
+		kind: "managed-cloud-postgresql-credential-lifecycle-fact",
+		state,
+		...leaseCoordinates(claim),
+		credentialBindingRevision: claim.envelope.credentialBindingRevision,
+		occurredAtMs,
+		...(state === "revoking" ? { expiresAtMs: claim.leaseExpiresAtMs } : {}),
+		evidenceRefs: [{ kind: "evidence", id: `host-${state}` }],
+		issueRefs,
+	};
+}
+function failedCredentialSettlement(
+	claim: Extract<ManagedCloudPostgresqlControlMessage, { kind: "claim-granted" }>,
+	settlementId: string,
+	messageId: string,
+	credentialLifecycle: readonly ManagedCloudPostgresqlCredentialLifecycleFact[],
+	issueRefs: readonly SourceRef[],
+): Extract<ManagedCloudPostgresqlWorkerMessage, { kind: "settle" }> {
+	return Object.freeze({
+		kind: "settle",
+		messageId,
+		settlementId,
+		outcome: "failed",
+		outcomeRefs: [],
+		issueRefs: credentialRefs(issueRefs),
+		credentialLifecycle,
+		...leaseCoordinates(claim),
+	});
 }
 async function rejectMessage(
 	transport: ManagedCloudPostgresqlTransportDriver,
@@ -2034,20 +2554,24 @@ function snapshotCancellation(
 	if (
 		!isRecord(raw) ||
 		raw.kind !== "managed-cloud-postgresql-cancellation-requested" ||
-		!exactKeys(raw, [
-			"kind",
-			"cancellationId",
-			"runId",
-			"attempt",
-			"environmentRevision",
-			"manifestFingerprint",
-			"leaseId",
-			"fencingToken",
-			"workerId",
-			"sessionEpoch",
-			"deploymentRevision",
-			"workerRevision",
-		])
+		!exactKeysOptional(
+			raw,
+			[
+				"kind",
+				"cancellationId",
+				"runId",
+				"attempt",
+				"environmentRevision",
+				"manifestFingerprint",
+				"leaseId",
+				"fencingToken",
+				"workerId",
+				"sessionEpoch",
+				"deploymentRevision",
+				"workerRevision",
+			],
+			[],
+		)
 	)
 		return undefined;
 	try {
@@ -2154,25 +2678,29 @@ function snapshotWorkerMessage(raw: unknown): ManagedCloudPostgresqlWorkerMessag
 		}
 		if (
 			raw.kind === "credential-lifecycle" &&
-			exactKeys(raw, [
-				"kind",
-				"messageId",
-				"credentialBindingRevision",
-				"state",
-				"occurredAtMs",
-				"evidenceRefs",
-				"issueRefs",
-				"runId",
-				"attempt",
-				"environmentRevision",
-				"manifestFingerprint",
-				"leaseId",
-				"fencingToken",
-				"workerId",
-				"sessionEpoch",
-				"deploymentRevision",
-				"workerRevision",
-			]) &&
+			exactKeysOptional(
+				raw,
+				[
+					"kind",
+					"messageId",
+					"credentialBindingRevision",
+					"state",
+					"occurredAtMs",
+					"evidenceRefs",
+					"issueRefs",
+					"runId",
+					"attempt",
+					"environmentRevision",
+					"manifestFingerprint",
+					"leaseId",
+					"fencingToken",
+					"workerId",
+					"sessionEpoch",
+					"deploymentRevision",
+					"workerRevision",
+				],
+				["expiresAtMs"],
+			) &&
 			[
 				"issue-requested",
 				"issued",
@@ -2181,7 +2709,10 @@ function snapshotWorkerMessage(raw: unknown): ManagedCloudPostgresqlWorkerMessag
 				"revoked",
 				"cleanup-unverifiable",
 				"unavailable",
-			].includes(String(raw.state))
+			].includes(String(raw.state)) &&
+			(["issued", "injected", "revoking"].includes(String(raw.state))
+				? Number.isSafeInteger(raw.expiresAtMs) && (raw.expiresAtMs as number) > 0
+				: raw.expiresAtMs === undefined)
 		) {
 			assertSafe(raw.credentialBindingRevision, "credentialBindingRevision");
 			return Object.freeze({
@@ -2310,6 +2841,127 @@ function snapshotStoreResult(
 		...(raw.outcome === undefined ? {} : { outcome: raw.outcome }),
 	};
 }
+function snapshotAdmittedEnvelope(raw: unknown): ManagedCloudPostgresqlAdmittedEnvelope {
+	assertPlainRecord(raw, "admitted envelope");
+	if (
+		!exactKeysOptional(
+			raw,
+			[
+				"kind",
+				"protocolRevision",
+				"runId",
+				"attempt",
+				"environmentRevision",
+				"manifestFingerprint",
+				"requestId",
+				"operationId",
+				"routeId",
+				"executorId",
+				"profileId",
+				"adapterInputId",
+				"principalId",
+				"principalSessionRevision",
+				"tenantId",
+				"workspaceId",
+				"resourceKind",
+				"resourceId",
+				"resourceRevision",
+				"policyRevision",
+				"modelRevision",
+				"admissionId",
+				"admissionProposalId",
+				"credentialBindingRevision",
+				"deploymentRevision",
+				"workerRevision",
+				"workload",
+				"sourceRefs",
+			],
+			["admissionDecisionId"],
+		) ||
+		raw.kind !== "managed-cloud-postgresql-admitted-envelope" ||
+		raw.protocolRevision !== MANAGED_CLOUD_POSTGRESQL_PROTOCOL ||
+		!positive(raw.attempt)
+	)
+		throw new TypeError("Invalid admitted envelope.");
+	for (const key of [
+		"runId",
+		"environmentRevision",
+		"manifestFingerprint",
+		"requestId",
+		"operationId",
+		"routeId",
+		"executorId",
+		"profileId",
+		"principalId",
+		"principalSessionRevision",
+		"tenantId",
+		"workspaceId",
+		"resourceKind",
+		"resourceId",
+		"resourceRevision",
+		"policyRevision",
+		"modelRevision",
+		"admissionId",
+		"admissionProposalId",
+		"credentialBindingRevision",
+		"deploymentRevision",
+		"workerRevision",
+	] as const)
+		assertSafe(raw[key], `admitted envelope ${key}`);
+	if (!boundedIdentity(raw.adapterInputId))
+		throw new TypeError("Invalid admitted envelope adapter input coordinate.");
+	if (raw.admissionDecisionId !== undefined)
+		assertSafe(raw.admissionDecisionId, "admitted envelope admissionDecisionId");
+	const sourceRefs = refs(raw.sourceRefs);
+	if (
+		!sourceRefs.some(
+			(ref) => ref.kind === "tool-provider-run-admission" && ref.id === raw.admissionId,
+		) ||
+		!sourceRefs.some(
+			(ref) =>
+				ref.kind === "tool-provider-run-admission-proposal" && ref.id === raw.admissionProposalId,
+		) ||
+		(raw.admissionDecisionId !== undefined &&
+			!sourceRefs.some(
+				(ref) =>
+					ref.kind === "tool-provider-run-admission-decision" && ref.id === raw.admissionDecisionId,
+			))
+	)
+		throw new TypeError("Admitted envelope evidence correlation mismatch.");
+	return Object.freeze({
+		kind: "managed-cloud-postgresql-admitted-envelope",
+		protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
+		runId: raw.runId as string,
+		attempt: raw.attempt as number,
+		environmentRevision: raw.environmentRevision as string,
+		manifestFingerprint: raw.manifestFingerprint as string,
+		requestId: raw.requestId as string,
+		operationId: raw.operationId as string,
+		routeId: raw.routeId as string,
+		executorId: raw.executorId as string,
+		profileId: raw.profileId as string,
+		adapterInputId: raw.adapterInputId as string,
+		principalId: raw.principalId as string,
+		principalSessionRevision: raw.principalSessionRevision as string,
+		tenantId: raw.tenantId as string,
+		workspaceId: raw.workspaceId as string,
+		resourceKind: raw.resourceKind as string,
+		resourceId: raw.resourceId as string,
+		resourceRevision: raw.resourceRevision as string,
+		policyRevision: raw.policyRevision as string,
+		modelRevision: raw.modelRevision as string,
+		admissionId: raw.admissionId as string,
+		admissionProposalId: raw.admissionProposalId as string,
+		...(raw.admissionDecisionId === undefined
+			? {}
+			: { admissionDecisionId: raw.admissionDecisionId as string }),
+		credentialBindingRevision: raw.credentialBindingRevision as string,
+		deploymentRevision: raw.deploymentRevision as string,
+		workerRevision: raw.workerRevision as string,
+		workload: postgresqlQueryToolArgumentsFromIntent(raw.workload as PostgresqlQueryToolArguments),
+		sourceRefs,
+	});
+}
 function snapshotClaimLease(
 	raw: NonNullable<ManagedCloudPostgresqlStoreResult["lease"]>,
 	claim: Extract<ManagedCloudPostgresqlWorkerMessage, { kind: "claim" }>,
@@ -2334,20 +2986,17 @@ function snapshotClaimLease(
 		throw new TypeError("Control-store lease correlation mismatch.");
 	for (const value of [raw.runId, raw.leaseId, raw.workerId, raw.sessionEpoch])
 		assertSafe(value, "lease coordinate");
-	assertPlainRecord(raw.envelope, "admitted envelope");
+	const envelope = snapshotAdmittedEnvelope(raw.envelope);
 	if (
-		raw.envelope.runId !== raw.runId ||
-		raw.envelope.attempt !== raw.attempt ||
-		raw.envelope.environmentRevision !== raw.environmentRevision ||
-		raw.envelope.manifestFingerprint !== raw.manifestFingerprint ||
-		raw.envelope.protocolRevision !== MANAGED_CLOUD_POSTGRESQL_PROTOCOL
+		envelope.runId !== raw.runId ||
+		envelope.attempt !== raw.attempt ||
+		envelope.environmentRevision !== raw.environmentRevision ||
+		envelope.manifestFingerprint !== raw.manifestFingerprint ||
+		envelope.deploymentRevision !== raw.deploymentRevision ||
+		envelope.workerRevision !== raw.workerRevision ||
+		envelope.credentialBindingRevision !== manifest.credentialBindingRevision
 	)
 		throw new TypeError("Control-store envelope correlation mismatch.");
-	const envelope = Object.freeze({
-		...raw.envelope,
-		workload: postgresqlQueryToolArgumentsFromIntent(raw.envelope.workload),
-		sourceRefs: refs(raw.envelope.sourceRefs),
-	});
 	return Object.freeze({
 		...leaseCoordinates(raw),
 		envelope,
@@ -2511,24 +3160,28 @@ function snapshotCredentialLifecycle(
 ): ManagedCloudPostgresqlCredentialLifecycleFact {
 	assertPlainRecord(raw, "credential lifecycle fact");
 	if (
-		!exactKeys(raw, [
-			"kind",
-			"state",
-			"runId",
-			"attempt",
-			"environmentRevision",
-			"manifestFingerprint",
-			"leaseId",
-			"fencingToken",
-			"workerId",
-			"sessionEpoch",
-			"deploymentRevision",
-			"workerRevision",
-			"credentialBindingRevision",
-			"occurredAtMs",
-			"evidenceRefs",
-			"issueRefs",
-		]) ||
+		!exactKeysOptional(
+			raw,
+			[
+				"kind",
+				"state",
+				"runId",
+				"attempt",
+				"environmentRevision",
+				"manifestFingerprint",
+				"leaseId",
+				"fencingToken",
+				"workerId",
+				"sessionEpoch",
+				"deploymentRevision",
+				"workerRevision",
+				"credentialBindingRevision",
+				"occurredAtMs",
+				"evidenceRefs",
+				"issueRefs",
+			],
+			["expiresAtMs"],
+		) ||
 		raw.kind !== "managed-cloud-postgresql-credential-lifecycle-fact" ||
 		![
 			"issue-requested",
@@ -2542,7 +3195,11 @@ function snapshotCredentialLifecycle(
 		!positive(raw.attempt) ||
 		!positive(raw.fencingToken) ||
 		!Number.isSafeInteger(raw.occurredAtMs) ||
-		raw.occurredAtMs < 0
+		raw.occurredAtMs < 0 ||
+		(raw.expiresAtMs !== undefined &&
+			(!Number.isSafeInteger(raw.expiresAtMs) || raw.expiresAtMs <= 0)) ||
+		(["issued", "injected", "revoking"].includes(raw.state) && raw.expiresAtMs === undefined) ||
+		(!["issued", "injected", "revoking"].includes(raw.state) && raw.expiresAtMs !== undefined)
 	)
 		throw new TypeError("Invalid managed-cloud credential lifecycle fact.");
 	for (const value of [
@@ -2563,6 +3220,7 @@ function snapshotCredentialLifecycle(
 		...leaseCoordinates(raw),
 		credentialBindingRevision: raw.credentialBindingRevision,
 		occurredAtMs: raw.occurredAtMs,
+		...(raw.expiresAtMs === undefined ? {} : { expiresAtMs: raw.expiresAtMs }),
 		evidenceRefs: credentialRefs(raw.evidenceRefs),
 		issueRefs: credentialRefs(raw.issueRefs),
 	});
@@ -2668,6 +3326,7 @@ function assertCredentialLifecycleForLease(
 	fact: ManagedCloudPostgresqlCredentialLifecycleFact,
 	coordinates: ManagedCloudPostgresqlLeaseCoordinates,
 	envelope: ManagedCloudPostgresqlAdmittedEnvelope,
+	leaseExpiresAtMs: number,
 ): void {
 	if (
 		fact.runId !== coordinates.runId ||
@@ -2683,6 +3342,81 @@ function assertCredentialLifecycleForLease(
 		fact.credentialBindingRevision !== envelope.credentialBindingRevision
 	)
 		throw new TypeError("Credential lifecycle correlation mismatch.");
+	if (
+		["issued", "injected", "revoking"].includes(fact.state) &&
+		fact.expiresAtMs !== leaseExpiresAtMs
+	)
+		throw new TypeError("Credential effective-use expiry does not match the attempt deadline.");
+	if (["issued", "injected"].includes(fact.state) && fact.occurredAtMs >= leaseExpiresAtMs)
+		throw new TypeError("Credential became usable after the admitted attempt deadline.");
+}
+
+function assertCredentialLifecycleSequence(
+	lifecycle: readonly ManagedCloudPostgresqlCredentialLifecycleFact[],
+	coordinates: ManagedCloudPostgresqlLeaseCoordinates,
+	envelope: ManagedCloudPostgresqlAdmittedEnvelope,
+	leaseExpiresAtMs: number,
+): void {
+	for (let index = 0; index < lifecycle.length; index += 1) {
+		const fact = lifecycle[index]!;
+		assertCredentialLifecycleForLease(fact, coordinates, envelope, leaseExpiresAtMs);
+		if (index > 0 && fact.occurredAtMs < lifecycle[index - 1]!.occurredAtMs)
+			throw new TypeError("Credential lifecycle timestamps are not monotonic.");
+	}
+	const states = lifecycle.map((fact) => fact.state).join(">");
+	if (
+		!new Set([
+			"issue-requested>unavailable",
+			"issue-requested>cleanup-unverifiable",
+			"issue-requested>issued>revoking>revoked",
+			"issue-requested>issued>revoking>cleanup-unverifiable",
+			"issue-requested>issued>injected>revoking>revoked",
+			"issue-requested>issued>injected>revoking>cleanup-unverifiable",
+		]).has(states)
+	)
+		throw new TypeError("Illegal managed-cloud credential lifecycle transition sequence.");
+}
+
+function assertCredentialLifecyclePrefix(
+	lifecycle: readonly ManagedCloudPostgresqlCredentialLifecycleFact[],
+	coordinates: ManagedCloudPostgresqlLeaseCoordinates,
+	envelope: ManagedCloudPostgresqlAdmittedEnvelope,
+	leaseExpiresAtMs: number,
+): void {
+	for (let index = 0; index < lifecycle.length; index += 1) {
+		const fact = lifecycle[index]!;
+		assertCredentialLifecycleForLease(fact, coordinates, envelope, leaseExpiresAtMs);
+		if (index > 0 && fact.occurredAtMs < lifecycle[index - 1]!.occurredAtMs)
+			throw new TypeError("Credential lifecycle timestamps are not monotonic.");
+	}
+	const states = lifecycle.map((fact) => fact.state).join(">");
+	if (
+		!new Set([
+			"issue-requested",
+			"issue-requested>unavailable",
+			"issue-requested>cleanup-unverifiable",
+			"issue-requested>issued",
+			"issue-requested>issued>injected",
+			"issue-requested>issued>revoking",
+			"issue-requested>issued>revoking>revoked",
+			"issue-requested>issued>revoking>cleanup-unverifiable",
+			"issue-requested>issued>injected>revoking",
+			"issue-requested>issued>injected>revoking>revoked",
+			"issue-requested>issued>injected>revoking>cleanup-unverifiable",
+		]).has(states)
+	)
+		throw new TypeError("Illegal managed-cloud credential lifecycle prefix.");
+}
+
+function assertCredentialLifecycleSettlementPrefix(
+	streamed: readonly ManagedCloudPostgresqlCredentialLifecycleFact[],
+	settled: readonly ManagedCloudPostgresqlCredentialLifecycleFact[],
+): void {
+	if (streamed.length > settled.length)
+		throw new TypeError("Credential settlement omitted streamed lifecycle evidence.");
+	for (let index = 0; index < streamed.length; index += 1)
+		if (JSON.stringify(streamed[index]) !== JSON.stringify(settled[index]))
+			throw new TypeError("Credential settlement rewrote streamed lifecycle evidence.");
 }
 
 function assertTerminalLifecycle(

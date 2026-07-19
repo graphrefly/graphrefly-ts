@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	authenticatedWssManagedCloudTransport,
-	executeManagedCloudPostgresqlClaim,
 	executeManagedCloudPostgresqlClaimWithAttemptCredential,
 	executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential,
 	MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
@@ -88,7 +87,24 @@ const run = (): ToolProviderAdapterRunRequested => ({
 	profileId: "profile:pg",
 	attempt: 1,
 	reason: "manual",
+	sourceRefs: [
+		{ kind: "tool-provider-run-admission-proposal", id: "proposal:1" },
+		{ kind: "tool-provider-run-admission", id: "admission:1" },
+		{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
+	],
 	metadata: {
+		principalId: "principal:1",
+		principalSessionRevision: "principal-session:1",
+		tenantId: "tenant:1",
+		workspaceId: "workspace:1",
+		resourceKind: "managed-postgresql-connection",
+		resourceId: "connection:1",
+		resourceRevision: "connection-revision:1",
+		policyRevision: "policy:1",
+		modelRevision: "model:1",
+		admissionId: "admission:1",
+		proposalId: "proposal:1",
+		decisionId: "admission-decision:1",
 		executionEnvironmentId: "environment:managed",
 		executionEnvironmentRevision: "environment-revision:1",
 		executionEnvironmentLocality: "managed-cloud",
@@ -130,6 +146,28 @@ const lease = {
 	deploymentRevision: "deployment:1",
 	workerRevision: "worker-runtime:1",
 } as const;
+const exactAuthorityCoordinates = {
+	principalId: "principal:1",
+	principalSessionRevision: "principal-session:1",
+	tenantId: "tenant:1",
+	workspaceId: "workspace:1",
+	resourceKind: "managed-postgresql-connection",
+	resourceId: "connection:1",
+	resourceRevision: "connection-revision:1",
+	policyRevision: "policy:1",
+	modelRevision: "model:1",
+} as const;
+const admissionEnvelope = {
+	...exactAuthorityCoordinates,
+	admissionId: "admission:1",
+	admissionProposalId: "proposal:1",
+	admissionDecisionId: "admission-decision:1",
+} as const;
+const admissionSourceRefs = [
+	{ kind: "tool-provider-run-admission-proposal", id: "proposal:1" },
+	{ kind: "tool-provider-run-admission", id: "admission:1" },
+	{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
+] as const;
 const lifecycle = (
 	state: ManagedCloudPostgresqlLifecycleFact["state"],
 ): ManagedCloudPostgresqlLifecycleFact => ({
@@ -156,6 +194,7 @@ const credentialFact = (
 	...lease,
 	credentialBindingRevision: "credential-binding:1",
 	occurredAtMs: 20,
+	...(["issued", "injected", "revoking"].includes(state) ? { expiresAtMs: 1010 } : {}),
 	evidenceRefs: [{ kind: "evidence", id: `managed-cloud-attempt-${state}` }],
 	issueRefs: [],
 	...patch,
@@ -167,6 +206,24 @@ const credentialLifecycleSequence = () => [
 	credentialFact("revoking"),
 	credentialFact("revoked"),
 ];
+const readyCredentialDriver = (
+	onPrepare?: (
+		context: Parameters<
+			ManagedCloudPostgresqlAttemptCredentialDriver["prepareAttemptCredential"]
+		>[0],
+	) => void,
+	onCleanup?: () => void,
+): ManagedCloudPostgresqlAttemptCredentialDriver => ({
+	compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+	async prepareAttemptCredential(context) {
+		onPrepare?.(context);
+		return { ready: true, lifecycle: credentialLifecycleSequence().slice(0, 3) };
+	},
+	async cleanupAttemptCredential() {
+		onCleanup?.();
+		return { lifecycle: credentialLifecycleSequence() };
+	},
+});
 const authorizationRecheck = (
 	stage: ManagedCloudPostgresqlAuthorizationRecheckResult["stage"],
 	patch: Partial<ManagedCloudPostgresqlAuthorizationRecheckResult> = {},
@@ -184,6 +241,13 @@ const authorizationRecheck = (
 	sessionEpoch: "epoch:worker:1",
 	deploymentRevision: "deployment:1",
 	workerRevision: "worker-runtime:1",
+	requestId: "request:1",
+	operationId: "operation:1",
+	routeId: "route:1",
+	executorId: "executor:pg",
+	profileId: "profile:pg",
+	adapterInputId: input().adapterInputId,
+	...admissionEnvelope,
 	decisionRef: `authorization-decision:${stage}:1`,
 	authorizationRevisionRef: "authorization-revision:31",
 	authorizationExpiresAtMs: 10_100,
@@ -441,11 +505,30 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		expect(envelopes, JSON.stringify(admissionIssues)).toEqual([
 			expect.objectContaining({
 				runId: "run:1",
+				admissionId: "admission:1",
+				admissionProposalId: "proposal:1",
+				admissionDecisionId: "admission-decision:1",
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 			}),
 		]);
+		admitted.down([
+			[
+				"DATA",
+				{
+					...run(),
+					runId: "run:forged-admission",
+					metadata: { ...run().metadata, admissionId: "admission:forged" },
+				},
+			],
+		]);
+		await settle();
+		expect(envelopes).toHaveLength(1);
+		expect(store.calls).toEqual(["admit"]);
+		expect(admissionIssues).toContainEqual(
+			expect.objectContaining({ code: "managed-cloud-admission-driver-failed" }),
+		);
 		transport.onMessage?.({
 			kind: "claim",
 			messageId: "message:claim:1",
@@ -654,24 +737,29 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		await runtime.dispose();
 	});
 
-	it("accepts only bounded current credential lifecycle evidence for the active claim", async () => {
+	it("accepts only a legal current credential lifecycle prefix for the active claim", async () => {
 		const { runtime, transport } = await activeRuntime();
 		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
 			runtime.credentialLifecycle,
 		);
 		const issues = collect<{ code: string }>(runtime.issues);
-		transport.onMessage?.({
-			kind: "credential-lifecycle",
-			messageId: "message:credential:injected",
-			...lease,
-			credentialBindingRevision: "credential-binding:1",
-			state: "injected",
-			occurredAtMs: 20,
-			evidenceRefs: [{ kind: "evidence", id: "managed-cloud-attempt-injected" }],
-			issueRefs: [],
-		});
-		await settle();
+		for (const [index, state] of ["issue-requested", "issued", "injected"].entries()) {
+			transport.onMessage?.({
+				kind: "credential-lifecycle",
+				messageId: `message:credential:${state}`,
+				...lease,
+				credentialBindingRevision: "credential-binding:1",
+				state,
+				occurredAtMs: 20 + index,
+				...(["issued", "injected"].includes(state) ? { expiresAtMs: 1010 } : {}),
+				evidenceRefs: [{ kind: "evidence", id: `managed-cloud-attempt-${state}` }],
+				issueRefs: [],
+			});
+			await settle();
+		}
 		expect(facts).toMatchObject([
+			{ state: "issue-requested" },
+			{ state: "issued" },
 			{ state: "injected", credentialBindingRevision: "credential-binding:1" },
 		]);
 		expect(transport.sent).toContainEqual(
@@ -684,12 +772,42 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			credentialBindingRevision: "credential-binding:other",
 			state: "issued",
 			occurredAtMs: 21,
+			expiresAtMs: 1010,
 			evidenceRefs: [],
 			issueRefs: [],
 		});
 		await settle();
 		expect(issues).toContainEqual(
-			expect.objectContaining({ code: "managed-cloud-worker-driver-failed" }),
+			expect.objectContaining({ code: "credential-lifecycle-transition-invalid" }),
+		);
+		transport.onMessage?.({
+			kind: "credential-lifecycle",
+			messageId: "message:credential:missing-expiry",
+			...lease,
+			credentialBindingRevision: "credential-binding:1",
+			state: "issued",
+			occurredAtMs: 21,
+			evidenceRefs: [],
+			issueRefs: [],
+		});
+		await settle();
+		expect(issues).toContainEqual(
+			expect.objectContaining({ code: "managed-cloud-envelope-invalid" }),
+		);
+		transport.onMessage?.({
+			kind: "credential-lifecycle",
+			messageId: "message:credential:duplicate-injected",
+			...lease,
+			credentialBindingRevision: "credential-binding:1",
+			state: "injected",
+			occurredAtMs: 23,
+			expiresAtMs: 1010,
+			evidenceRefs: [{ kind: "evidence", id: "managed-cloud-attempt-injected" }],
+			issueRefs: [],
+		});
+		await settle();
+		expect(issues).toContainEqual(
+			expect.objectContaining({ code: "credential-lifecycle-transition-invalid" }),
 		);
 		transport.onMessage?.({
 			kind: "credential-lifecycle",
@@ -698,6 +816,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			credentialBindingRevision: "credential-binding:1",
 			state: "issued",
 			occurredAtMs: 22,
+			expiresAtMs: 900,
 			evidenceRefs: [{ kind: "evidence", id: "openbao-vault-path" }],
 			issueRefs: [],
 		});
@@ -708,6 +827,30 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		expect(JSON.stringify({ facts, issues })).not.toMatch(
 			/openbao-vault-path|spiffe:\/\/|jwt-svid|private-token|private-secret/i,
 		);
+		transport.onMessage?.({
+			kind: "settle",
+			messageId: "message:settle:streamed-prefix",
+			settlementId: "settlement:streamed-prefix",
+			outcome: "succeeded",
+			outcomeRefs: [{ kind: "artifact", id: "artifact:streamed-prefix" }],
+			issueRefs: [],
+			credentialLifecycle: [
+				credentialFact("issue-requested", { occurredAtMs: 20 }),
+				credentialFact("issued", { occurredAtMs: 21 }),
+				credentialFact("injected", { occurredAtMs: 22 }),
+				credentialFact("revoking", { occurredAtMs: 23 }),
+				credentialFact("revoked", { occurredAtMs: 24 }),
+			],
+			...lease,
+		});
+		await settle();
+		expect(facts.map((fact) => fact.state)).toEqual([
+			"issue-requested",
+			"issued",
+			"injected",
+			"revoking",
+			"revoked",
+		]);
 		await runtime.dispose();
 	});
 
@@ -754,6 +897,192 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		);
 		await runtime.dispose();
 		await missingTerminal.runtime.dispose();
+	});
+
+	it("fences standalone credential transitions while settlement is committing", async () => {
+		let enterSettlement!: () => void;
+		let releaseSettlement!: () => void;
+		const settlementEntered = new Promise<void>((resolve) => {
+			enterSettlement = resolve;
+		});
+		const settlementRelease = new Promise<void>((resolve) => {
+			releaseSettlement = resolve;
+		});
+		class DelayedSettlementStore extends Store {
+			override async settle(
+				input: Parameters<ManagedCloudPostgresqlControlStoreDriver["settle"]>[0],
+			): Promise<ManagedCloudPostgresqlStoreResult> {
+				enterSettlement();
+				await settlementRelease;
+				return super.settle(input);
+			}
+		}
+		const { runtime, transport } = await activeRuntime(new DelayedSettlementStore());
+		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+			runtime.credentialLifecycle,
+		);
+		const outcomes = collect(runtime.outcomes);
+		const issues = collect<{ code: string }>(runtime.issues);
+		transport.onMessage?.({
+			kind: "settle",
+			messageId: "message:settle:delayed",
+			settlementId: "settlement:delayed",
+			outcome: "succeeded",
+			outcomeRefs: [{ kind: "artifact", id: "artifact:delayed" }],
+			issueRefs: [],
+			credentialLifecycle: credentialLifecycleSequence(),
+			...lease,
+		});
+		await settlementEntered;
+		transport.onMessage?.({
+			kind: "settle",
+			messageId: "message:settle:concurrent",
+			settlementId: "settlement:concurrent",
+			outcome: "succeeded",
+			outcomeRefs: [{ kind: "artifact", id: "artifact:concurrent" }],
+			issueRefs: [],
+			credentialLifecycle: credentialLifecycleSequence(),
+			...lease,
+		});
+		await settle();
+		expect(transport.sent).toContainEqual(
+			expect.objectContaining({
+				kind: "rejected",
+				messageId: "message:settle:concurrent",
+				code: "settlement-in-progress",
+			}),
+		);
+		transport.onMessage?.({
+			kind: "credential-lifecycle",
+			messageId: "message:credential:during-settlement",
+			...lease,
+			credentialBindingRevision: "credential-binding:1",
+			state: "issue-requested",
+			occurredAtMs: 20,
+			evidenceRefs: [{ kind: "evidence", id: "managed-cloud-attempt-issue-requested" }],
+			issueRefs: [],
+		});
+		await settle();
+		expect(transport.sent).toContainEqual(
+			expect.objectContaining({
+				kind: "rejected",
+				messageId: "message:credential:during-settlement",
+				code: "credential-lifecycle-settling",
+			}),
+		);
+		expect(issues).toContainEqual(
+			expect.objectContaining({ code: "credential-lifecycle-settling" }),
+		);
+		releaseSettlement();
+		await settle();
+		expect(facts.map((fact) => fact.state)).toEqual([
+			"issue-requested",
+			"issued",
+			"injected",
+			"revoking",
+			"revoked",
+		]);
+		expect(outcomes).toHaveLength(1);
+		expect(transport.sent).toContainEqual(
+			expect.objectContaining({
+				kind: "accepted",
+				messageId: "message:settle:delayed",
+				operation: "settle",
+			}),
+		);
+		await runtime.dispose();
+	});
+
+	it("keeps a committed settlement fenced when store projection evidence is malformed", async () => {
+		class MalformedSettlementStore extends Store {
+			override async settle(): Promise<ManagedCloudPostgresqlStoreResult> {
+				this.calls.push("settle:malformed");
+				return { accepted: true, code: "settled", lifecycle: lifecycle("settled") };
+			}
+		}
+		const { runtime, transport } = await activeRuntime(new MalformedSettlementStore());
+		const issues = collect<{ code: string }>(runtime.issues);
+		const outcomes = collect(runtime.outcomes);
+		transport.onMessage?.({
+			kind: "settle",
+			messageId: "message:settle:malformed-store-result",
+			settlementId: "settlement:malformed-store-result",
+			outcome: "succeeded",
+			outcomeRefs: [{ kind: "artifact", id: "artifact:malformed" }],
+			issueRefs: [],
+			credentialLifecycle: credentialLifecycleSequence(),
+			...lease,
+		});
+		await settle();
+		expect(outcomes).toHaveLength(0);
+		expect(issues).toContainEqual(
+			expect.objectContaining({ code: "managed-cloud-settlement-reconciliation-required" }),
+		);
+		transport.onMessage?.({
+			kind: "credential-lifecycle",
+			messageId: "message:credential:after-malformed-settlement",
+			...lease,
+			credentialBindingRevision: "credential-binding:1",
+			state: "issue-requested",
+			occurredAtMs: 20,
+			evidenceRefs: [{ kind: "evidence", id: "managed-cloud-attempt-issue-requested" }],
+			issueRefs: [],
+		});
+		await settle();
+		expect(transport.sent).toContainEqual(
+			expect.objectContaining({
+				kind: "rejected",
+				messageId: "message:credential:after-malformed-settlement",
+				code: "credential-lifecycle-settling",
+			}),
+		);
+		await runtime.dispose();
+	});
+
+	it("keeps settlement fenced when commit evidence is lost after store dispatch", async () => {
+		class CommitResponseLostStore extends Store {
+			override async settle(
+				input: Parameters<ManagedCloudPostgresqlControlStoreDriver["settle"]>[0],
+			): Promise<ManagedCloudPostgresqlStoreResult> {
+				await super.settle(input);
+				throw new Error("commit response lost");
+			}
+		}
+		const { runtime, transport } = await activeRuntime(new CommitResponseLostStore());
+		const issues = collect<{ code: string }>(runtime.issues);
+		transport.onMessage?.({
+			kind: "settle",
+			messageId: "message:settle:response-lost",
+			settlementId: "settlement:response-lost",
+			outcome: "succeeded",
+			outcomeRefs: [{ kind: "artifact", id: "artifact:response-lost" }],
+			issueRefs: [],
+			credentialLifecycle: credentialLifecycleSequence(),
+			...lease,
+		});
+		await settle();
+		expect(issues).toContainEqual(
+			expect.objectContaining({ code: "managed-cloud-settlement-reconciliation-required" }),
+		);
+		transport.onMessage?.({
+			kind: "settle",
+			messageId: "message:settle:retry-after-response-lost",
+			settlementId: "settlement:retry-after-response-lost",
+			outcome: "succeeded",
+			outcomeRefs: [],
+			issueRefs: [],
+			credentialLifecycle: credentialLifecycleSequence(),
+			...lease,
+		});
+		await settle();
+		expect(transport.sent).toContainEqual(
+			expect.objectContaining({
+				kind: "rejected",
+				messageId: "message:settle:retry-after-response-lost",
+				code: "settlement-in-progress",
+			}),
+		);
+		await runtime.dispose();
 	});
 
 	it("rejects bare settlements before store mutation and graph credential facts", async () => {
@@ -932,6 +1261,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			{
 				...(store.envelope ?? {}),
 				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
 				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 				runId: "run:1",
 				attempt: 1,
@@ -947,12 +1277,12 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 				workload: input().toolCall!.arguments,
-				sourceRefs: [],
+				sourceRefs: admissionSourceRefs,
 			},
 			10,
 		);
 		const claim = (await store.claim()) as ManagedCloudPostgresqlStoreResult;
-		const settlement = await executeManagedCloudPostgresqlClaim(
+		const settlement = await executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
 			{ kind: "claim-granted", messageId: "claim:1", ...claim.lease! },
 			{
 				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
@@ -965,6 +1295,9 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			"settlement:worker:1",
 			"message:worker:settle:1",
 			new AbortController().signal,
+			() => 10,
+			readyCredentialDriver(),
+			allowAuthorizationRecheckDriver(),
 		);
 		expect(settlement).toMatchObject({
 			kind: "settle",
@@ -980,6 +1313,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			{
 				...(store.envelope ?? {}),
 				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
 				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 				runId: "run:1",
 				attempt: 1,
@@ -995,7 +1329,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 				workload: input().toolCall!.arguments,
-				sourceRefs: [],
+				sourceRefs: admissionSourceRefs,
 			},
 			10,
 		);
@@ -1003,26 +1337,31 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		const calls: string[] = [];
 		const credentialDriver: ManagedCloudPostgresqlAttemptCredentialDriver = {
 			compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-			async runWithAttemptCredential(context, work) {
+			async prepareAttemptCredential(context) {
 				expect(context.credentialBindingRevision).toBe("credential-binding:1");
 				expect(context.leaseExpiresAtMs).toBe(1010);
+				expect(context.envelope).toMatchObject({
+					requestId: "request:1",
+					routeId: "route:1",
+					admissionId: "admission:1",
+				});
+				expect(context.authorization).toMatchObject({
+					state: "allowed",
+					authorizationRevisionRef: "authorization-revision:31",
+				});
 				calls.push("issue");
 				calls.push("inject");
-				const result = await work();
-				calls.push("revoke");
 				return {
-					result,
-					lifecycle: [
-						credentialFact("issue-requested"),
-						credentialFact("issued"),
-						credentialFact("injected"),
-						credentialFact("revoking"),
-						credentialFact("revoked"),
-					],
+					ready: true,
+					lifecycle: credentialLifecycleSequence().slice(0, 3),
 				};
 			},
+			async cleanupAttemptCredential() {
+				calls.push("revoke");
+				return { lifecycle: credentialLifecycleSequence() };
+			},
 		};
-		const settlement = await executeManagedCloudPostgresqlClaim(
+		const settlement = await executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
 			{ kind: "claim-granted", messageId: "claim:1", ...claim.lease! },
 			{
 				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
@@ -1034,7 +1373,9 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			"settlement:worker:1",
 			"message:worker:settle:1",
 			new AbortController().signal,
+			() => 10,
 			credentialDriver,
+			allowAuthorizationRecheckDriver(),
 		);
 		expect(calls).toEqual(["issue", "inject", "execute:credential-binding:1", "revoke"]);
 		expect(settlement).toMatchObject({
@@ -1058,6 +1399,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			{
 				...(store.envelope ?? {}),
 				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
 				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 				runId: "run:1",
 				attempt: 1,
@@ -1073,7 +1415,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 				workload: input().toolCall!.arguments,
-				sourceRefs: [],
+				sourceRefs: admissionSourceRefs,
 			},
 			10,
 		);
@@ -1081,11 +1423,15 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		const calls: string[] = [];
 		const credentialDriver: ManagedCloudPostgresqlAttemptCredentialDriver = {
 			compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-			async runWithAttemptCredential() {
+			async prepareAttemptCredential() {
 				calls.push("credential-driver");
 				return {
-					lifecycle: [credentialFact("unavailable")],
+					ready: false,
+					lifecycle: [credentialFact("issue-requested"), credentialFact("unavailable")],
 				};
+			},
+			async cleanupAttemptCredential() {
+				throw new Error("cleanup must not run");
 			},
 		};
 		const authorizationDriver: ManagedCloudPostgresqlAuthorizationRecheckDriver = {
@@ -1118,6 +1464,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			"settlement:worker:authorization-expired",
 			"message:worker:settle:authorization-expired",
 			new AbortController().signal,
+			() => 22,
 			credentialDriver,
 			authorizationDriver,
 		);
@@ -1125,7 +1472,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		expect(settlement).toMatchObject({
 			outcome: "failed",
 			issueRefs: [{ kind: "issue", id: "authorization-expired" }],
-			credentialLifecycle: [{ state: "unavailable", occurredAtMs: 22 }],
+			credentialLifecycle: [
+				{ state: "issue-requested", occurredAtMs: 22 },
+				{ state: "unavailable", occurredAtMs: 22 },
+			],
 		});
 		expect(JSON.stringify(settlement)).not.toMatch(
 			/openbao|spiffe|svid|vault|private-key|private-client|private-socket|bearer|refresh/i,
@@ -1157,6 +1507,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				{
 					...(store.envelope ?? {}),
 					kind: "managed-cloud-postgresql-admitted-envelope",
+					...admissionEnvelope,
 					protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 					runId: "run:1",
 					attempt: 1,
@@ -1172,7 +1523,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 					deploymentRevision: "deployment:1",
 					workerRevision: "worker-runtime:1",
 					workload: input().toolCall!.arguments,
-					sourceRefs: [],
+					sourceRefs: admissionSourceRefs,
 				},
 				10,
 			);
@@ -1190,13 +1541,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				`settlement:worker:${name}`,
 				`message:worker:settle:${name}`,
 				new AbortController().signal,
-				{
-					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-					async runWithAttemptCredential() {
-						calls.push("credential-driver");
-						return { lifecycle: [credentialFact("unavailable")] };
-					},
-				},
+				() => 10,
+				readyCredentialDriver(() => calls.push("credential-driver")),
 				{
 					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
 					async authorizeClaim() {
@@ -1209,9 +1555,59 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			expect(settlement).toMatchObject({
 				outcome: "failed",
 				issueRefs: [{ kind: "issue", id: "authorization-unavailable" }],
-				credentialLifecycle: [{ state: "unavailable" }],
+				credentialLifecycle: [{ state: "issue-requested" }, { state: "unavailable" }],
 			});
 		}
+	});
+
+	it("projects helper-produced authorization failure through the runtime", async () => {
+		const { runtime, transport, store } = await activeRuntime();
+		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+			runtime.credentialLifecycle,
+		);
+		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const settlement = await executeManagedCloudPostgresqlClaimWithAttemptCredential(
+			{
+				kind: "claim-granted",
+				messageId: "message:claim:authorization-unavailable",
+				...lease,
+				envelope: store.envelope!,
+				leaseExpiresAtMs: 1010,
+				heartbeatExpiresAtMs: 510,
+			},
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					throw new Error("workload must not execute");
+				},
+			},
+			"settlement:authorization-unavailable",
+			"message:settle:authorization-unavailable",
+			new AbortController().signal,
+			() => 10,
+			readyCredentialDriver(),
+			{
+				...allowAuthorizationRecheckDriver(),
+				async authorizeCredentialIssuance() {
+					throw new Error("authorization provider unavailable");
+				},
+			},
+		);
+		transport.onMessage?.(settlement);
+		await settle();
+		expect(facts.map((fact) => fact.state)).toEqual(["issue-requested", "unavailable"]);
+		expect(outcomes.at(-1)).toMatchObject({
+			kind: "failure",
+			error: { sourceRefs: [{ id: "authorization-unavailable" }] },
+		});
+		expect(transport.sent).toContainEqual(
+			expect.objectContaining({
+				kind: "accepted",
+				messageId: "message:settle:authorization-unavailable",
+				operation: "settle",
+			}),
+		);
+		await runtime.dispose();
 	});
 
 	it("requires an attempt credential lifecycle driver on the canonical worker entry", async () => {
@@ -1220,6 +1616,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			{
 				...(store.envelope ?? {}),
 				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
 				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 				runId: "run:1",
 				attempt: 1,
@@ -1235,7 +1632,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 				workload: input().toolCall!.arguments,
-				sourceRefs: [],
+				sourceRefs: admissionSourceRefs,
 			},
 			10,
 		);
@@ -1255,6 +1652,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				"settlement:worker:missing-credential-driver",
 				"message:worker:settle:missing-credential-driver",
 				new AbortController().signal,
+				() => 10,
 				undefined as never,
 				allowAuthorizationRecheckDriver(),
 			),
@@ -1270,6 +1668,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			{
 				...(store.envelope ?? {}),
 				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
 				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 				runId: "run:1",
 				attempt: 1,
@@ -1285,7 +1684,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 				workload: input().toolCall!.arguments,
-				sourceRefs: [],
+				sourceRefs: admissionSourceRefs,
 			},
 			10,
 		);
@@ -1304,10 +1703,14 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				"settlement:worker:credential-mismatch",
 				"message:worker:settle:credential-mismatch",
 				new AbortController().signal,
+				() => 10,
 				{
 					compatibility:
 						"wrong-managed-cloud-credential-family" as typeof MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-					async runWithAttemptCredential() {
+					async prepareAttemptCredential() {
+						throw new Error("must not run");
+					},
+					async cleanupAttemptCredential() {
 						throw new Error("must not run");
 					},
 				},
@@ -1323,6 +1726,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			{
 				...(store.envelope ?? {}),
 				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
 				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 				runId: "run:1",
 				attempt: 1,
@@ -1338,43 +1742,44 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 				workload: input().toolCall!.arguments,
-				sourceRefs: [],
+				sourceRefs: admissionSourceRefs,
 			},
 			10,
 		);
 		const claim = (await store.claim()) as ManagedCloudPostgresqlStoreResult;
 		let executed = false;
-		await expect(
-			executeManagedCloudPostgresqlClaimWithAttemptCredential(
-				{ kind: "claim-granted", messageId: "claim:1", ...claim.lease! },
-				{
-					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-					async execute() {
-						executed = true;
-						return { outcome: "succeeded", outcomeRefs: [{ kind: "artifact", id: "artifact:1" }] };
-					},
+		const settlement = await executeManagedCloudPostgresqlClaimWithAttemptCredential(
+			{ kind: "claim-granted", messageId: "claim:1", ...claim.lease! },
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					executed = true;
+					return { outcome: "succeeded", outcomeRefs: [{ kind: "artifact", id: "artifact:1" }] };
 				},
-				"settlement:worker:credential-not-cleaned",
-				"message:worker:settle:credential-not-cleaned",
-				new AbortController().signal,
-				{
-					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-					async runWithAttemptCredential(_context, work) {
-						const result = await work();
-						return {
-							result,
-							lifecycle: [
-								credentialFact("issue-requested"),
-								credentialFact("issued"),
-								credentialFact("injected"),
-							],
-						};
-					},
+			},
+			"settlement:worker:credential-not-cleaned",
+			"message:worker:settle:credential-not-cleaned",
+			new AbortController().signal,
+			() => 10,
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async prepareAttemptCredential() {
+					return { ready: true, lifecycle: credentialLifecycleSequence().slice(0, 3) };
 				},
-				allowAuthorizationRecheckDriver(),
-			),
-		).rejects.toThrow("lacks terminal cleanup posture");
+				async cleanupAttemptCredential() {
+					return { lifecycle: [] };
+				},
+			},
+			allowAuthorizationRecheckDriver(),
+		);
 		expect(executed).toBe(true);
+		expect(settlement).toMatchObject({
+			outcome: "failed",
+			issueRefs: [{ kind: "issue", id: "credential-cleanup-unverifiable" }],
+		});
+		expect(settlement.credentialLifecycle?.at(-1)).toMatchObject({
+			state: "cleanup-unverifiable",
+		});
 	});
 
 	it("rejects workload results that lack injected credential lifecycle posture", async () => {
@@ -1383,6 +1788,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			{
 				...(store.envelope ?? {}),
 				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
 				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 				runId: "run:1",
 				attempt: 1,
@@ -1398,44 +1804,197 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 				workload: input().toolCall!.arguments,
-				sourceRefs: [],
+				sourceRefs: admissionSourceRefs,
 			},
 			10,
 		);
 		const claim = (await store.claim()) as ManagedCloudPostgresqlStoreResult;
 		let executed = false;
-		await expect(
-			executeManagedCloudPostgresqlClaimWithAttemptCredential(
-				{ kind: "claim-granted", messageId: "claim:1", ...claim.lease! },
-				{
-					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-					async execute() {
-						executed = true;
-						return { outcome: "succeeded", outcomeRefs: [{ kind: "artifact", id: "artifact:1" }] };
-					},
+		const settlement = await executeManagedCloudPostgresqlClaimWithAttemptCredential(
+			{ kind: "claim-granted", messageId: "claim:1", ...claim.lease! },
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					executed = true;
+					return { outcome: "succeeded", outcomeRefs: [{ kind: "artifact", id: "artifact:1" }] };
 				},
-				"settlement:worker:credential-not-injected",
-				"message:worker:settle:credential-not-injected",
-				new AbortController().signal,
-				{
-					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-					async runWithAttemptCredential(_context, work) {
-						const result = await work();
-						return {
-							result,
-							lifecycle: [
-								credentialFact("issue-requested"),
-								credentialFact("issued"),
-								credentialFact("revoking"),
-								credentialFact("revoked"),
-							],
-						};
-					},
+			},
+			"settlement:worker:credential-not-injected",
+			"message:worker:settle:credential-not-injected",
+			new AbortController().signal,
+			() => 10,
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async prepareAttemptCredential() {
+					return {
+						ready: true,
+						lifecycle: [credentialFact("issue-requested"), credentialFact("issued")],
+					};
 				},
-				allowAuthorizationRecheckDriver(),
-			),
-		).rejects.toThrow("requires injected posture before workload result");
-		expect(executed).toBe(true);
+				async cleanupAttemptCredential() {
+					throw new Error("cleanup must not run");
+				},
+			},
+			allowAuthorizationRecheckDriver(),
+		);
+		expect(executed).toBe(false);
+		expect(settlement).toMatchObject({
+			outcome: "failed",
+			issueRefs: [{ id: "credential-preparation-unverifiable" }],
+			credentialLifecycle: [{ state: "issue-requested" }, { state: "cleanup-unverifiable" }],
+		});
+	});
+
+	it("terminates credential ownership when prepare, workload, or cleanup promises reject", async () => {
+		const { runtime, store } = await activeRuntime();
+		const claim = {
+			kind: "claim-granted" as const,
+			messageId: "message:claim:promise-failures",
+			...lease,
+			envelope: store.envelope!,
+			leaseExpiresAtMs: 1010,
+			heartbeatExpiresAtMs: 510,
+		};
+		let executed = false;
+		let prepareCleanupCalled = false;
+		const prepareFailure = await executeManagedCloudPostgresqlClaimWithAttemptCredential(
+			claim,
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					executed = true;
+					return { outcome: "succeeded", outcomeRefs: [] };
+				},
+			},
+			"settlement:prepare-rejected",
+			"message:settle:prepare-rejected",
+			new AbortController().signal,
+			() => 10,
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async prepareAttemptCredential() {
+					throw new Error("prepare rejected");
+				},
+				async cleanupAttemptCredential() {
+					prepareCleanupCalled = true;
+					throw new Error("ownership is uncertain");
+				},
+			},
+			allowAuthorizationRecheckDriver(),
+		);
+		expect(executed).toBe(false);
+		expect(prepareCleanupCalled).toBe(true);
+		expect(prepareFailure).toMatchObject({
+			outcome: "failed",
+			issueRefs: [{ id: "credential-preparation-unverifiable" }],
+			credentialLifecycle: [{ state: "issue-requested" }, { state: "cleanup-unverifiable" }],
+		});
+
+		const cleanupFailure = await executeManagedCloudPostgresqlClaimWithAttemptCredential(
+			claim,
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					return { outcome: "succeeded", outcomeRefs: [] };
+				},
+			},
+			"settlement:cleanup-rejected",
+			"message:settle:cleanup-rejected",
+			new AbortController().signal,
+			() => 10,
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async prepareAttemptCredential() {
+					return { ready: true, lifecycle: credentialLifecycleSequence().slice(0, 3) };
+				},
+				async cleanupAttemptCredential() {
+					throw new Error("cleanup rejected");
+				},
+			},
+			allowAuthorizationRecheckDriver(),
+		);
+		expect(cleanupFailure).toMatchObject({
+			outcome: "failed",
+			issueRefs: [{ kind: "issue", id: "credential-cleanup-unverifiable" }],
+		});
+		expect(cleanupFailure.credentialLifecycle?.at(-1)).toMatchObject({
+			state: "cleanup-unverifiable",
+		});
+
+		let workloadCleanupCalled = false;
+		const workloadFailure = await executeManagedCloudPostgresqlClaimWithAttemptCredential(
+			claim,
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					throw new Error("workload rejected");
+				},
+			},
+			"settlement:workload-rejected",
+			"message:settle:workload-rejected",
+			new AbortController().signal,
+			() => 10,
+			readyCredentialDriver(undefined, () => {
+				workloadCleanupCalled = true;
+			}),
+			allowAuthorizationRecheckDriver(),
+		);
+		expect(workloadCleanupCalled).toBe(true);
+		expect(workloadFailure).toMatchObject({
+			outcome: "failed",
+			issueRefs: [{ id: "managed-cloud-workload-execution-failed" }],
+		});
+		expect(workloadFailure.credentialLifecycle?.at(-1)).toMatchObject({ state: "revoked" });
+		await runtime.dispose();
+	});
+
+	it("fails closed and cleans up when the authority clock regresses before workload use", async () => {
+		const { runtime, store } = await activeRuntime();
+		const times = [100, 101, 0, 102];
+		let executed = false;
+		let cleaned = false;
+		const settlement = await executeManagedCloudPostgresqlClaimWithAttemptCredential(
+			{
+				kind: "claim-granted",
+				messageId: "message:claim:clock-regression",
+				...lease,
+				envelope: store.envelope!,
+				leaseExpiresAtMs: 1010,
+				heartbeatExpiresAtMs: 510,
+			},
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					executed = true;
+					return { outcome: "succeeded", outcomeRefs: [] };
+				},
+			},
+			"settlement:clock-regression",
+			"message:settle:clock-regression",
+			new AbortController().signal,
+			() => times.shift() ?? 102,
+			readyCredentialDriver(undefined, () => {
+				cleaned = true;
+			}),
+			{
+				...allowAuthorizationRecheckDriver(),
+				async authorizeCredentialIssuance(context) {
+					return authorizationRecheck("credential-issuance", {
+						...leaseCoordinatesPatch(context),
+						credentialBindingRevision: context.credentialBindingRevision,
+						observedAtMs: 100,
+					});
+				},
+			},
+		);
+		expect(executed).toBe(false);
+		expect(cleaned).toBe(true);
+		expect(settlement).toMatchObject({
+			outcome: "failed",
+			issueRefs: [{ id: "authority-clock-regressed-before-workload" }],
+		});
+		expect(settlement.credentialLifecycle?.at(-1)).toMatchObject({ state: "revoked" });
+		await runtime.dispose();
 	});
 
 	it("fails closed without executing workload when attempt credential issuance fails", async () => {
@@ -1444,6 +2003,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			{
 				...(store.envelope ?? {}),
 				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
 				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 				runId: "run:1",
 				attempt: 1,
@@ -1459,7 +2019,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
 				workload: input().toolCall!.arguments,
-				sourceRefs: [],
+				sourceRefs: admissionSourceRefs,
 			},
 			10,
 		);
@@ -1477,10 +2037,12 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			"settlement:worker:credential-unavailable",
 			"message:worker:settle:credential-unavailable",
 			new AbortController().signal,
+			() => 10,
 			{
 				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-				async runWithAttemptCredential() {
+				async prepareAttemptCredential() {
 					return {
+						ready: false,
 						lifecycle: [
 							credentialFact("issue-requested"),
 							credentialFact("unavailable", {
@@ -1489,6 +2051,9 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 						],
 						issueRefs: [{ kind: "issue", id: "managed-cloud-attempt-unavailable" }],
 					};
+				},
+				async cleanupAttemptCredential() {
+					throw new Error("cleanup must not run");
 				},
 			},
 			allowAuthorizationRecheckDriver(),
@@ -1527,10 +2092,12 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			"settlement:runtime:credential-unavailable",
 			"message:runtime:settle:credential-unavailable",
 			new AbortController().signal,
+			() => 10,
 			{
 				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-				async runWithAttemptCredential() {
+				async prepareAttemptCredential() {
 					return {
+						ready: false,
 						lifecycle: [
 							credentialFact("issue-requested"),
 							credentialFact("unavailable", {
@@ -1539,6 +2106,9 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 						],
 						issueRefs: [{ kind: "issue", id: "managed-cloud-attempt-unavailable" }],
 					};
+				},
+				async cleanupAttemptCredential() {
+					throw new Error("cleanup must not run");
 				},
 			},
 			allowAuthorizationRecheckDriver(),
@@ -1556,6 +2126,200 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			expect.objectContaining({ kind: "accepted", operation: "settle" }),
 		);
 		await runtime.dispose();
+	});
+
+	it("rejects short, drifting, or stale-authorized attempt credentials before workload use", async () => {
+		const store = new Store();
+		await store.admit(
+			{
+				...(store.envelope ?? {}),
+				kind: "managed-cloud-postgresql-admitted-envelope",
+				...admissionEnvelope,
+				protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
+				runId: "run:1",
+				attempt: 1,
+				environmentRevision: "environment-revision:1",
+				manifestFingerprint: "fingerprint:cloud:pg:1",
+				requestId: "request:1",
+				operationId: "operation:1",
+				routeId: "route:1",
+				executorId: "executor:pg",
+				profileId: "profile:pg",
+				adapterInputId: input().adapterInputId,
+				credentialBindingRevision: "credential-binding:1",
+				deploymentRevision: "deployment:1",
+				workerRevision: "worker-runtime:1",
+				workload: input().toolCall!.arguments,
+				sourceRefs: admissionSourceRefs,
+			},
+			10,
+		);
+		const claim = (await store.claim()) as ManagedCloudPostgresqlStoreResult;
+		let executed = false;
+		for (const lifecycleFacts of [
+			[
+				credentialFact("issue-requested"),
+				credentialFact("issued", { expiresAtMs: 1009 }),
+				credentialFact("injected", { expiresAtMs: 1009 }),
+			],
+			[
+				credentialFact("issue-requested"),
+				credentialFact("issued"),
+				credentialFact("injected", { expiresAtMs: 1009 }),
+			],
+		]) {
+			const invalidSettlement =
+				await executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
+					{ kind: "claim-granted", messageId: "claim:expiry", ...claim.lease! },
+					{
+						compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+						async execute() {
+							executed = true;
+							return { outcome: "succeeded", outcomeRefs: [] };
+						},
+					},
+					"settlement:expiry",
+					"message:expiry",
+					new AbortController().signal,
+					() => 10,
+					{
+						compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+						async prepareAttemptCredential() {
+							return { ready: true, lifecycle: lifecycleFacts };
+						},
+						async cleanupAttemptCredential() {
+							throw new Error("cleanup must not run");
+						},
+					},
+					allowAuthorizationRecheckDriver(),
+				);
+			expect(invalidSettlement).toMatchObject({
+				outcome: "failed",
+				issueRefs: [{ id: "credential-preparation-unverifiable" }],
+				credentialLifecycle: [{ state: "issue-requested" }, { state: "cleanup-unverifiable" }],
+			});
+		}
+		expect(executed).toBe(false);
+
+		executed = false;
+		const staleAuthorization = allowAuthorizationRecheckDriver();
+		staleAuthorization.authorizeCredentialIssuance = async (context) =>
+			authorizationRecheck("credential-issuance", {
+				...leaseCoordinatesPatch(context),
+				credentialBindingRevision: context.credentialBindingRevision,
+				observedAtMs: 1010,
+				authorizationExpiresAtMs: 10_100,
+			});
+		const settlement = await executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
+			{ kind: "claim-granted", messageId: "claim:stale-auth", ...claim.lease! },
+			{
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async execute() {
+					executed = true;
+					return { outcome: "succeeded", outcomeRefs: [] };
+				},
+			},
+			"settlement:stale-auth",
+			"message:stale-auth",
+			new AbortController().signal,
+			() => 10,
+			readyCredentialDriver(),
+			staleAuthorization,
+		);
+		expect(executed).toBe(false);
+		expect(settlement).toMatchObject({ outcome: "failed" });
+	});
+
+	it("accepts failed pre-injection cleanup and rejects the retired v1 wire protocol", async () => {
+		const { runtime, transport } = await activeRuntime();
+		const outcomes = collect(runtime.outcomes);
+		const issues = collect<{ code: string }>(runtime.issues);
+		transport.onMessage?.({
+			kind: "settle",
+			messageId: "message:settle:pre-injection",
+			settlementId: "settlement:pre-injection",
+			outcome: "failed",
+			outcomeRefs: [],
+			issueRefs: [{ kind: "issue", id: "credential-injection-failed" }],
+			credentialLifecycle: [
+				credentialFact("issue-requested"),
+				credentialFact("issued"),
+				credentialFact("revoking"),
+				credentialFact("revoked"),
+			],
+			...lease,
+		});
+		await settle();
+		expect(outcomes.at(-1)?.kind).toBe("failure");
+		transport.onMessage?.({
+			kind: "claim",
+			messageId: "message:retired-v1",
+			protocolRevision: "graphrefly-managed-cloud-wss-json-v1",
+			workerId: "worker:1",
+			sessionEpoch: "epoch:worker:1",
+			environmentRevision: "environment-revision:1",
+			deploymentRevision: "deployment:1",
+			workerRevision: "worker-runtime:1",
+			authAttestationRef: { kind: "attestation", id: "auth:retired-v1" },
+		});
+		await settle();
+		expect(issues).toContainEqual(
+			expect.objectContaining({ code: "managed-cloud-envelope-invalid" }),
+		);
+		await runtime.dispose();
+
+		const uncertain = await activeRuntime();
+		const uncertainOutcomes = collect(uncertain.runtime.outcomes);
+		let uncertainExecuted = false;
+		const uncertainSettlement =
+			await executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
+				{
+					kind: "claim-granted",
+					messageId: "message:claim:issuance-response-lost",
+					...lease,
+					envelope: uncertain.store.envelope!,
+					leaseExpiresAtMs: 1010,
+					heartbeatExpiresAtMs: 510,
+				},
+				{
+					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+					async execute() {
+						uncertainExecuted = true;
+						return { outcome: "succeeded", outcomeRefs: [] };
+					},
+				},
+				"settlement:issuance-response-lost",
+				"message:settle:issuance-response-lost",
+				new AbortController().signal,
+				() => 10,
+				{
+					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+					async prepareAttemptCredential() {
+						return {
+							ready: false,
+							lifecycle: [
+								credentialFact("issue-requested"),
+								credentialFact("cleanup-unverifiable", {
+									issueRefs: [{ kind: "issue", id: "credential-cleanup-unverifiable" }],
+								}),
+							],
+						};
+					},
+					async cleanupAttemptCredential() {
+						throw new Error("cleanup posture is already terminal");
+					},
+				},
+				allowAuthorizationRecheckDriver(),
+			);
+		uncertain.transport.onMessage?.(uncertainSettlement);
+		await settle();
+		expect(uncertainExecuted).toBe(false);
+		expect(uncertainSettlement).toMatchObject({
+			outcome: "failed",
+			credentialLifecycle: [{ state: "issue-requested" }, { state: "cleanup-unverifiable" }],
+		});
+		expect(uncertainOutcomes.at(-1)?.kind).toBe("failure");
+		await uncertain.runtime.dispose();
 	});
 
 	it("fails closed before durable admission for stale readiness or wrong locality", async () => {
@@ -1599,15 +2363,14 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		}
 	});
 
-	it("rejects malicious store lease material before graph DATA and releases its topology", async () => {
+	it("rejects forged admitted-envelope material returned by the store boundary", async () => {
 		const store = new Store();
 		store.claim = async () => ({
 			accepted: true,
 			code: "claimed",
 			lease: {
 				...lease,
-				sessionEpoch: "epoch:attacker",
-				envelope: store.envelope!,
+				envelope: { ...store.envelope!, admissionId: "admission:attacker" },
 				leaseExpiresAtMs: 1010,
 				heartbeatExpiresAtMs: 510,
 			},
@@ -1658,6 +2421,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		await adapter.install();
 		const envelope = {
 			kind: "managed-cloud-postgresql-admitted-envelope",
+			...admissionEnvelope,
 			protocolRevision: MANAGED_CLOUD_POSTGRESQL_PROTOCOL,
 			runId: "run:1",
 			attempt: 1,
@@ -1673,7 +2437,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			deploymentRevision: "deployment:1",
 			workerRevision: "worker-runtime:1",
 			workload: input().toolCall!.arguments,
-			sourceRefs: [],
+			sourceRefs: admissionSourceRefs,
 		} as const;
 		await adapter.admit(envelope, 10);
 		await adapter.claim(
@@ -1692,11 +2456,18 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			10,
 		);
 		expect(queries[0]?.sql).toMatch(/CREATE TABLE IF NOT EXISTS/);
+		expect(queries[0]?.sql).toContain("graphrefly_managed_cloud_v2");
+		expect(queries[0]?.sql).not.toContain("graphrefly_managed_cloud_v1");
+		expect(queries[0]?.sql).toContain("protocolRevision");
 		expect(queries[1]?.sql).toMatch(/ON CONFLICT DO NOTHING/);
+		expect(queries[1]?.sql).toContain("graphrefly_managed_cloud_v2");
 		expect(queries[1]?.sql).toContain("$1");
 		expect(queries[1]?.sql).not.toContain(envelope.runId);
 		expect(queries[1]?.values[0]).toBe(envelope.runId);
 		expect(queries[2]?.sql).toMatch(/FOR UPDATE SKIP LOCKED/);
+		expect(queries[2]?.sql).toContain(
+			"envelope->>'protocolRevision'='graphrefly-managed-cloud-wss-json-v2'",
+		);
 		let accept: ((socket: never, text: string) => void | PromiseLike<void>) | undefined;
 		let disconnect: ((socket: never) => void) | undefined;
 		const sent: string[] = [];
@@ -1893,7 +2664,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		await settle();
 		expect(outcomes).toHaveLength(0);
 		expect(issues).toContainEqual(
-			expect.objectContaining({ code: "managed-cloud-worker-driver-failed" }),
+			expect.objectContaining({ code: "managed-cloud-settlement-reconciliation-required" }),
 		);
 		await runtime.dispose();
 	});
