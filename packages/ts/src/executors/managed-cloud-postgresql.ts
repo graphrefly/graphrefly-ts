@@ -1,6 +1,7 @@
 /** Concrete PostgreSQL-backed managed-cloud PostgreSQL control-plane binding (D605). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { canonicalTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -1894,7 +1895,6 @@ function admittedEnvelope(
 		request.profileId,
 		environmentRevision,
 		admissionId,
-		admissionProposalId,
 		principalId,
 		principalSessionRevision,
 		tenantId,
@@ -1906,6 +1906,7 @@ function admittedEnvelope(
 		modelRevision,
 	])
 		assertSafe(value, "admitted coordinate");
+	assertBoundedAuthorityId(admissionProposalId, "admission proposal coordinate");
 	if (admissionDecisionId !== undefined) {
 		assertSafe(admissionDecisionId, "admission decision coordinate");
 	}
@@ -2177,9 +2178,9 @@ function snapshotAuthorizationRecheckResult(
 		raw.policyRevision,
 		raw.modelRevision,
 		raw.admissionId,
-		raw.admissionProposalId,
 	])
 		assertAuthorizationRef(value, "authorization coordinate");
+	assertAuthorizationAuthorityId(raw.admissionProposalId, "authorization admission proposal");
 	if (!boundedIdentity(raw.adapterInputId))
 		throw new TypeError("Invalid authorization adapter input coordinate.");
 	if (raw.admissionDecisionId !== undefined)
@@ -2781,13 +2782,32 @@ function refs(raw: unknown): readonly SourceRef[] {
 				typeof v.kind !== "string" ||
 				typeof v.id !== "string" ||
 				!SAFE.test(v.kind) ||
-				!SAFE.test(v.id),
+				!safeSourceRefId(v.id),
 		)
 	)
 		throw new TypeError("Invalid bounded source refs.");
 	return Object.freeze(
 		raw.map((v) => Object.freeze({ kind: v.kind as string, id: v.id as string })),
 	);
+}
+function safeSourceRefId(value: string, depth = 0): boolean {
+	if (SAFE.test(value)) return true;
+	if (depth >= 4 || value.length === 0 || value.length > 512) return false;
+	const separator = value.indexOf(":");
+	if (separator < 1 || !SAFE.test(value.slice(0, separator))) return false;
+	const encodedTuple = value.slice(separator + 1);
+	const tuple = parseCanonicalTupleKey(encodedTuple);
+	return (
+		tuple !== undefined &&
+		canonicalTupleKey(tuple) === encodedTuple &&
+		tuple.length > 0 &&
+		tuple.length <= 16 &&
+		tuple.every((part) => safeSourceRefId(part, depth + 1))
+	);
+}
+function assertBoundedAuthorityId(value: unknown, label: string): asserts value is string {
+	if (typeof value !== "string" || !safeSourceRefId(value))
+		throw new TypeError(`Invalid ${label}.`);
 }
 const credentialPrivateTerms = [
 	"apikey",
@@ -2819,6 +2839,13 @@ function credentialRefs(raw: unknown): readonly SourceRef[] {
 }
 function assertAuthorizationRef(value: unknown, name: string) {
 	assertSafe(value, name);
+	assertNoPrivateAuthorizationTerm(value);
+}
+function assertAuthorizationAuthorityId(value: unknown, name: string) {
+	assertBoundedAuthorityId(value, name);
+	assertNoPrivateAuthorizationTerm(value);
+}
+function assertNoPrivateAuthorizationTerm(value: string) {
 	const text = value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 	if (credentialPrivateTerms.some((term) => text.includes(term)))
 		throw new TypeError("Authorization recheck ref contains private material.");
@@ -2902,12 +2929,12 @@ function snapshotAdmittedEnvelope(raw: unknown): ManagedCloudPostgresqlAdmittedE
 		"policyRevision",
 		"modelRevision",
 		"admissionId",
-		"admissionProposalId",
 		"credentialBindingRevision",
 		"deploymentRevision",
 		"workerRevision",
 	] as const)
 		assertSafe(raw[key], `admitted envelope ${key}`);
+	assertBoundedAuthorityId(raw.admissionProposalId, "admitted envelope admissionProposalId");
 	if (!boundedIdentity(raw.adapterInputId))
 		throw new TypeError("Invalid admitted envelope adapter input coordinate.");
 	if (raw.admissionDecisionId !== undefined)

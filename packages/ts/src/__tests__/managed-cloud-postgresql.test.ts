@@ -29,6 +29,7 @@ import {
 } from "../executors/managed-cloud-postgresql.js";
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
+import { compoundTupleKey } from "../identity.js";
 import type { ExecutorOutcome, ToolProviderAdapterRunRequested } from "../orchestration/index.js";
 
 const manifest = (
@@ -75,6 +76,9 @@ const readiness = (
 		attestationRefs: [{ kind: "attestation", id: "attestation:ready:1" }],
 		...patch,
 	});
+const canonicalAdmissionProposalId = compoundTupleKey("tool-provider-run-admission-proposal", [
+	"candidate:run:1",
+]);
 const run = (): ToolProviderAdapterRunRequested => ({
 	kind: "tool-provider-adapter-run-requested",
 	runId: "run:1",
@@ -88,7 +92,7 @@ const run = (): ToolProviderAdapterRunRequested => ({
 	attempt: 1,
 	reason: "manual",
 	sourceRefs: [
-		{ kind: "tool-provider-run-admission-proposal", id: "proposal:1" },
+		{ kind: "tool-provider-run-admission-proposal", id: canonicalAdmissionProposalId },
 		{ kind: "tool-provider-run-admission", id: "admission:1" },
 		{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
 	],
@@ -103,7 +107,7 @@ const run = (): ToolProviderAdapterRunRequested => ({
 		policyRevision: "policy:1",
 		modelRevision: "model:1",
 		admissionId: "admission:1",
-		proposalId: "proposal:1",
+		proposalId: canonicalAdmissionProposalId,
 		decisionId: "admission-decision:1",
 		executionEnvironmentId: "environment:managed",
 		executionEnvironmentRevision: "environment-revision:1",
@@ -160,11 +164,11 @@ const exactAuthorityCoordinates = {
 const admissionEnvelope = {
 	...exactAuthorityCoordinates,
 	admissionId: "admission:1",
-	admissionProposalId: "proposal:1",
+	admissionProposalId: canonicalAdmissionProposalId,
 	admissionDecisionId: "admission-decision:1",
 } as const;
 const admissionSourceRefs = [
-	{ kind: "tool-provider-run-admission-proposal", id: "proposal:1" },
+	{ kind: "tool-provider-run-admission-proposal", id: canonicalAdmissionProposalId },
 	{ kind: "tool-provider-run-admission", id: "admission:1" },
 	{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
 ] as const;
@@ -506,7 +510,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			expect.objectContaining({
 				runId: "run:1",
 				admissionId: "admission:1",
-				admissionProposalId: "proposal:1",
+				admissionProposalId: canonicalAdmissionProposalId,
 				admissionDecisionId: "admission-decision:1",
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
@@ -529,6 +533,45 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		expect(admissionIssues).toContainEqual(
 			expect.objectContaining({ code: "managed-cloud-admission-driver-failed" }),
 		);
+		const malformedProposalId =
+			'tool-provider-run-admission-proposal:["candidate:run:1",{"private":"value"}]';
+		admitted.down([
+			[
+				"DATA",
+				{
+					...run(),
+					runId: "run:malformed-proposal",
+					sourceRefs: [
+						{ kind: "tool-provider-run-admission-proposal", id: malformedProposalId },
+						{ kind: "tool-provider-run-admission", id: "admission:1" },
+						{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
+					],
+					metadata: { ...run().metadata, proposalId: malformedProposalId },
+				},
+			],
+		]);
+		await settle();
+		expect(envelopes).toHaveLength(1);
+		expect(store.calls).toEqual(["admit"]);
+		const noncanonicalProposalId = 'tool-provider-run-admission-proposal:[ "candidate:run:1" ]';
+		admitted.down([
+			[
+				"DATA",
+				{
+					...run(),
+					runId: "run:noncanonical-proposal",
+					sourceRefs: [
+						{ kind: "tool-provider-run-admission-proposal", id: noncanonicalProposalId },
+						{ kind: "tool-provider-run-admission", id: "admission:1" },
+						{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
+					],
+					metadata: { ...run().metadata, proposalId: noncanonicalProposalId },
+				},
+			],
+		]);
+		await settle();
+		expect(envelopes).toHaveLength(1);
+		expect(store.calls).toEqual(["admit"]);
 		transport.onMessage?.({
 			kind: "claim",
 			messageId: "message:claim:1",
@@ -1495,6 +1538,16 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				async () =>
 					authorizationRecheck("credential-issuance", {
 						leaseId: "lease:other",
+						credentialBindingRevision: "credential-binding:1",
+					}),
+			],
+			[
+				"private-proposal-coordinate",
+				async () =>
+					authorizationRecheck("credential-issuance", {
+						admissionProposalId: compoundTupleKey("tool-provider-run-admission-proposal", [
+							"private-token",
+						]),
 						credentialBindingRevision: "credential-binding:1",
 					}),
 			],
