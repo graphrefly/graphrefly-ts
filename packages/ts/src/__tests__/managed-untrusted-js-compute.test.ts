@@ -339,6 +339,101 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		);
 	});
 
+	it("retries topology release after a live inspection consumer unsubscribes", async () => {
+		const g = graph({ name: "managed-js-compute-release-retry" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				run() {
+					return { outcome: "canceled" };
+				},
+				kill() {},
+				destroy() {
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const unsubscribe = runtime.outcomes.subscribe(() => {});
+		await runtime.dispose();
+		expect(g.describe().nodes.map((node) => node.id)).toContain(
+			"managedUntrustedJsCompute/outcomes",
+		);
+		unsubscribe();
+		await runtime.dispose();
+		expect(g.describe().nodes.map((node) => node.id)).not.toContain(
+			"managedUntrustedJsCompute/outcomes",
+		);
+	});
+
+	it("rechecks dispose authority after uploading and running lifecycle publication", async () => {
+		for (const state of ["uploading", "running"] as const) {
+			const g = graph({ name: `managed-js-compute-${state}-dispose-reentrancy` });
+			const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+			const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+			const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+			const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+			const events: string[] = [];
+			const runtime = managedUntrustedJsComputeRuntime(g, {
+				inputs,
+				admittedRunRequests: [admitted],
+				manifests: [manifests],
+				readiness: [postures],
+				driver: {
+					compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+					createSandbox() {
+						events.push("create");
+						return {};
+					},
+					upload() {
+						events.push("upload");
+					},
+					run() {
+						events.push("run-unexpected");
+						return { outcome: "canceled" };
+					},
+					kill() {
+						events.push("kill");
+					},
+					destroy() {
+						events.push("destroy");
+						return "succeeded";
+					},
+				},
+				now: () => 10,
+			});
+			let disposed: Promise<void> | undefined;
+			const unsubscribe = runtime.lifecycle.subscribe((message) => {
+				if (message[0] === "DATA" && message[1].state === state) disposed = runtime.dispose();
+			});
+			inputs.down([["DATA", input()]]);
+			manifests.down([["DATA", manifest()]]);
+			postures.down([["DATA", readiness()]]);
+			admitted.down([["DATA", run()]]);
+			await settle();
+			await disposed;
+			expect(events).toEqual(
+				state === "uploading"
+					? ["create", "kill", "destroy"]
+					: ["create", "upload", "kill", "destroy"],
+			);
+			unsubscribe();
+			await runtime.dispose();
+		}
+	});
+
 	it("fails closed before sandbox creation when readiness or exact execution coordinates drift", async () => {
 		for (const [label, posture, request] of [
 			["network", readiness({ denyNetworkVerified: false }), run()],
@@ -683,7 +778,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		expect(cleanup).toEqual([expect.objectContaining({ state: "unverifiable" })]);
 		releaseCreate?.();
 		await settle();
-		expect(calls).toEqual(["create-resolved", "destroy-late"]);
+		expect(calls).toEqual(["create-resolved", "kill", "destroy-late"]);
 		await runtime.dispose();
 	});
 
@@ -819,6 +914,758 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		release?.();
 		await settle();
 		expect(outcomes).toEqual([expect.objectContaining({ kind: "canceled" })]);
+		await runtime.dispose();
+	});
+
+	it("serializes cooperative abort, one kill, canceled outcome, and destroy", async () => {
+		const g = graph({ name: "managed-js-compute-cooperative-cancel" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const cancellations = g.node<ManagedUntrustedJsComputeCancellationRequested>([], null);
+		const events: string[] = [];
+		let releaseKill: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			cancellationRequests: [cancellations],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					events.push("create");
+					return {};
+				},
+				upload() {
+					events.push("upload");
+				},
+				run(_sandbox, context) {
+					events.push("run");
+					return new Promise((_, reject) => {
+						context.signal.addEventListener(
+							"abort",
+							() => {
+								events.push("run-aborted");
+								reject(new Error("cooperative abort"));
+							},
+							{ once: true },
+						);
+					});
+				},
+				async kill() {
+					events.push("kill-start");
+					await new Promise<void>((resolve) => {
+						releaseKill = resolve;
+					});
+					events.push("kill-end");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const acknowledgements = collect(runtime.cancellations);
+		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		cancellations.down([
+			[
+				"DATA",
+				{
+					kind: "managed-untrusted-js-compute-cancellation-requested",
+					cancellationId: "cancel:js-compute:cooperative",
+					runId: "run:js-compute:1",
+					attempt: 1,
+					environmentRevision: "environment-revision:js-compute:1",
+					manifestFingerprint: "fingerprint:js-compute:1",
+					epoch: "epoch:js-compute:1",
+				},
+			],
+		]);
+		await settle();
+		expect(events).toEqual(["create", "upload", "run", "run-aborted", "kill-start"]);
+		expect(acknowledgements).toHaveLength(0);
+		expect(outcomes).toHaveLength(0);
+		expect(cleanups).toHaveLength(0);
+		releaseKill?.();
+		await settle();
+		expect(events).toEqual([
+			"create",
+			"upload",
+			"run",
+			"run-aborted",
+			"kill-start",
+			"kill-end",
+			"destroy",
+		]);
+		expect(events.filter((event) => event === "kill-start")).toHaveLength(1);
+		expect(acknowledgements).toEqual([expect.objectContaining({ state: "kill-requested" })]);
+		expect(outcomes).toEqual([expect.objectContaining({ kind: "canceled" })]);
+		expect(cleanups).toEqual([expect.objectContaining({ state: "succeeded" })]);
+		expect(lifecycle.filter((fact) => fact.state === "destroying")).toHaveLength(1);
+		await runtime.dispose();
+	});
+
+	it("deduplicates kill and destroy when cancel races dispose", async () => {
+		const g = graph({ name: "managed-js-compute-cancel-dispose-race" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const cancellations = g.node<ManagedUntrustedJsComputeCancellationRequested>([], null);
+		const events: string[] = [];
+		let releaseKill: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			cancellationRequests: [cancellations],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				run(_sandbox, context) {
+					return new Promise((_, reject) =>
+						context.signal.addEventListener("abort", () => reject(new Error("abort")), {
+							once: true,
+						}),
+					);
+				},
+				async kill() {
+					events.push("kill-start");
+					await new Promise<void>((resolve) => {
+						releaseKill = resolve;
+					});
+					events.push("kill-end");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		cancellations.down([
+			[
+				"DATA",
+				{
+					kind: "managed-untrusted-js-compute-cancellation-requested",
+					cancellationId: "cancel:js-compute:dispose-race",
+					runId: "run:js-compute:1",
+					attempt: 1,
+					environmentRevision: "environment-revision:js-compute:1",
+					manifestFingerprint: "fingerprint:js-compute:1",
+					epoch: "epoch:js-compute:1",
+				},
+			],
+		]);
+		await settle();
+		const disposed = runtime.dispose();
+		await settle();
+		expect(events).toEqual(["kill-start"]);
+		releaseKill?.();
+		await disposed;
+		expect(events).toEqual(["kill-start", "kill-end", "destroy"]);
+		expect(events.filter((event) => event === "kill-start")).toHaveLength(1);
+		expect(events.filter((event) => event === "destroy")).toHaveLength(1);
+		await runtime.dispose();
+	});
+
+	it("settles before synchronous outcome reentrancy can dispose the runtime", async () => {
+		const g = graph({ name: "managed-js-compute-outcome-dispose-reentrancy" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				run() {
+					return {
+						outcome: "succeeded",
+						resultRefs: [ref("artifact", "compute-result-1")],
+						movement: [movement()],
+					};
+				},
+				kill() {
+					events.push("kill-unexpected");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+				close() {
+					events.push("close");
+				},
+			},
+			now: () => 10,
+		});
+		let reentrantDispose: Promise<void> | undefined;
+		runtime.outcomes.subscribe((message) => {
+			if (message[0] === "DATA") reentrantDispose = runtime.dispose();
+		});
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		await reentrantDispose;
+		expect(events).toEqual(["destroy", "close"]);
+	});
+
+	it("waits for a late sandbox allocation before kill, destroy, close, and dispose settlement", async () => {
+		const g = graph({ name: "managed-js-compute-late-allocation-dispose" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseCreate: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				async createSandbox() {
+					events.push("create-start");
+					await new Promise<void>((resolve) => {
+						releaseCreate = resolve;
+					});
+					events.push("create-end");
+					return {};
+				},
+				upload() {
+					events.push("upload-unexpected");
+				},
+				run() {
+					return { outcome: "canceled" };
+				},
+				kill() {
+					events.push("kill");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+				close() {
+					events.push("close");
+				},
+			},
+			now: () => 10,
+		});
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		let disposeSettled = false;
+		const disposed = runtime.dispose().then(() => {
+			disposeSettled = true;
+		});
+		await new Promise((resolve) => setTimeout(resolve, 25));
+		expect(disposeSettled).toBe(false);
+		expect(events).toEqual(["create-start"]);
+		releaseCreate?.();
+		await disposed;
+		expect(events).toEqual(["create-start", "create-end", "kill", "destroy", "close"]);
+	});
+
+	it("bounds disposal when sandbox allocation never settles and closes as its allocation fence", async () => {
+		const g = graph({ name: "managed-js-compute-never-allocation-dispose" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				async createSandbox() {
+					events.push("create-start");
+					await new Promise(() => {});
+					return {};
+				},
+				upload() {
+					events.push("upload-unexpected");
+				},
+				run() {
+					return { outcome: "canceled" };
+				},
+				kill() {
+					events.push("kill-unexpected");
+				},
+				destroy() {
+					events.push("destroy-unexpected");
+					return "succeeded";
+				},
+				close() {
+					events.push("close");
+				},
+			},
+			now: () => 10,
+		});
+		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		const startedAt = Date.now();
+		await runtime.dispose();
+		expect(Date.now() - startedAt).toBeLessThan(500);
+		expect(events).toEqual(["create-start", "close"]);
+		expect(cleanups).toEqual([expect.objectContaining({ state: "unverifiable" })]);
+	});
+
+	it("bounds hanging kill, destroy, and allocation-fence provider work as unverifiable", async () => {
+		for (const phase of ["kill", "destroy", "close"] as const) {
+			const g = graph({ name: `managed-js-compute-hanging-${phase}-dispose` });
+			const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+			const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+			const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+			const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+			const events: string[] = [];
+			const runtime = managedUntrustedJsComputeRuntime(g, {
+				inputs,
+				admittedRunRequests: [admitted],
+				manifests: [manifests],
+				readiness: [postures],
+				driver: {
+					compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+					async createSandbox() {
+						if (phase === "close") {
+							events.push("create-start");
+							await new Promise(() => {});
+						}
+						return {};
+					},
+					upload() {},
+					async run() {
+						if (phase === "destroy")
+							return {
+								outcome: "succeeded",
+								resultRefs: [ref("artifact", "compute-result-1")],
+								movement: [movement()],
+							};
+						await new Promise(() => {});
+						return { outcome: "canceled" };
+					},
+					async kill() {
+						events.push("kill-start");
+						if (phase === "kill") await new Promise(() => {});
+					},
+					async destroy() {
+						events.push("destroy-start");
+						if (phase === "destroy") await new Promise(() => {});
+						return "succeeded";
+					},
+					async close() {
+						events.push("close-start");
+						if (phase === "close") await new Promise(() => {});
+					},
+				},
+				now: () => 10,
+			});
+			const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+			inputs.down([["DATA", input()]]);
+			manifests.down([["DATA", manifest()]]);
+			postures.down([["DATA", readiness()]]);
+			admitted.down([["DATA", run()]]);
+			await settle();
+			const startedAt = Date.now();
+			await runtime.dispose();
+			expect(Date.now() - startedAt).toBeLessThan(500);
+			expect(cleanups).toEqual([expect.objectContaining({ state: "unverifiable" })]);
+			expect(events).toContain(
+				phase === "kill" ? "kill-start" : phase === "destroy" ? "destroy-start" : "close-start",
+			);
+			if (phase === "kill") expect(events).not.toContain("destroy-start");
+		}
+	});
+
+	it("starts detached destroy only after a timed-out kill actually settles", async () => {
+		const g = graph({ name: "managed-js-compute-late-kill-settlement" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseKill: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				async run() {
+					await new Promise(() => {});
+					return { outcome: "canceled" };
+				},
+				async kill() {
+					events.push("kill-start");
+					await new Promise<void>((resolve) => {
+						releaseKill = resolve;
+					});
+					events.push("kill-end");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		await runtime.dispose();
+		expect(events).toEqual(["kill-start"]);
+		expect(cleanups).toEqual([expect.objectContaining({ state: "unverifiable" })]);
+		releaseKill?.();
+		await settle();
+		expect(events).toEqual(["kill-start", "kill-end", "destroy"]);
+	});
+
+	it("retains exactly-once late cleanup after an allocation fence times out", async () => {
+		const g = graph({ name: "managed-js-compute-late-allocation-fence-timeout" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseCreate: (() => void) | undefined;
+		let releaseClose: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				async createSandbox() {
+					events.push("create-start");
+					await new Promise<void>((resolve) => {
+						releaseCreate = resolve;
+					});
+					events.push("create-end");
+					return {};
+				},
+				upload() {
+					events.push("upload-unexpected");
+				},
+				run() {
+					return { outcome: "canceled" };
+				},
+				kill() {
+					events.push("kill");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+				async close() {
+					events.push("close-start");
+					await new Promise<void>((resolve) => {
+						releaseClose = resolve;
+					});
+					events.push("close-end");
+				},
+			},
+			now: () => 10,
+		});
+		const issues = collect<{ code: string }>(runtime.issues);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		await runtime.dispose();
+		expect(events).toEqual(["create-start", "close-start"]);
+		expect(issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "managed-untrusted-js-compute-allocation-fence-unavailable",
+				}),
+				expect.objectContaining({
+					code: "managed-untrusted-js-compute-driver-close-unverifiable",
+				}),
+			]),
+		);
+		releaseCreate?.();
+		await settle();
+		expect(events).toEqual(["create-start", "close-start", "create-end", "kill", "destroy"]);
+		expect(events.filter((event) => event === "kill")).toHaveLength(1);
+		expect(events.filter((event) => event === "destroy")).toHaveLength(1);
+		releaseClose?.();
+		await settle();
+	});
+
+	it("shares one concurrent dispose lifecycle through cleanup and topology release", async () => {
+		const g = graph({ name: "managed-js-compute-concurrent-dispose" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseKill: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				run() {
+					return new Promise(() => {});
+				},
+				async kill() {
+					events.push("kill-start");
+					await new Promise<void>((resolve) => {
+						releaseKill = resolve;
+					});
+					events.push("kill-end");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+				close() {
+					events.push("close");
+				},
+			},
+			now: () => 10,
+		});
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		const first = runtime.dispose();
+		const second = runtime.dispose();
+		expect(second).toBe(first);
+		await settle();
+		expect(events).toEqual(["kill-start"]);
+		releaseKill?.();
+		await Promise.all([first, second]);
+		expect(events).toEqual(["kill-start", "kill-end", "destroy", "close"]);
+	});
+
+	it("deduplicates timeout kill against dispose and suppresses late timeout truth", async () => {
+		const g = graph({ name: "managed-js-compute-timeout-dispose-race" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseKill: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				async run() {
+					await new Promise(() => {});
+					return { outcome: "canceled" };
+				},
+				async kill() {
+					events.push("kill-start");
+					await new Promise<void>((resolve) => {
+						releaseKill = resolve;
+					});
+					events.push("kill-end");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest({ executionTimeoutMs: 10 })]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(events).toEqual(["kill-start"]);
+		const disposed = runtime.dispose();
+		await settle();
+		releaseKill?.();
+		await disposed;
+		expect(events).toEqual(["kill-start", "kill-end", "destroy"]);
+		expect(events.filter((event) => event === "kill-start")).toHaveLength(1);
+		expect(events.filter((event) => event === "destroy")).toHaveLength(1);
+		expect(outcomes).toHaveLength(0);
+		await runtime.dispose();
+	});
+
+	it("keeps cooperative timeout canonical and publishes cleanup after the same kill", async () => {
+		const g = graph({ name: "managed-js-compute-cooperative-timeout" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseKill: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				run(_sandbox, context) {
+					return new Promise((_, reject) =>
+						context.signal.addEventListener("abort", () => reject(new Error("timeout abort")), {
+							once: true,
+						}),
+					);
+				},
+				async kill() {
+					events.push("kill-start");
+					await new Promise<void>((resolve) => {
+						releaseKill = resolve;
+					});
+					events.push("kill-end");
+				},
+				destroy() {
+					events.push("destroy");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest({ executionTimeoutMs: 10 })]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		await settle();
+		expect(events).toEqual(["kill-start"]);
+		expect(outcomes).toHaveLength(0);
+		expect(cleanups).toHaveLength(0);
+		releaseKill?.();
+		await settle();
+		expect(events).toEqual(["kill-start", "kill-end", "destroy"]);
+		expect(events.filter((event) => event === "kill-start")).toHaveLength(1);
+		expect(outcomes).toEqual([expect.objectContaining({ kind: "timeout" })]);
+		expect(JSON.stringify(outcomes)).toContain("managed-untrusted-js-compute-timeout");
+		expect(cleanups).toEqual([expect.objectContaining({ state: "succeeded" })]);
+		expect(lifecycle.filter((fact) => fact.state === "destroying")).toHaveLength(1);
+		await runtime.dispose();
+	});
+
+	it("does not start a dispose kill after terminal settlement has started destroy", async () => {
+		const g = graph({ name: "managed-js-compute-terminal-dispose-race" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const events: string[] = [];
+		let releaseDestroy: (() => void) | undefined;
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				createSandbox() {
+					return {};
+				},
+				upload() {},
+				run() {
+					return {
+						outcome: "succeeded",
+						resultRefs: [ref("artifact", "compute-result-1")],
+						movement: [movement()],
+					};
+				},
+				kill() {
+					events.push("kill-unexpected");
+				},
+				async destroy() {
+					events.push("destroy-start");
+					await new Promise<void>((resolve) => {
+						releaseDestroy = resolve;
+					});
+					events.push("destroy-end");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		inputs.down([["DATA", input()]]);
+		manifests.down([["DATA", manifest()]]);
+		postures.down([["DATA", readiness()]]);
+		admitted.down([["DATA", run()]]);
+		await settle();
+		expect(outcomes).toEqual([expect.objectContaining({ kind: "result" })]);
+		expect(events).toEqual(["destroy-start"]);
+		const disposed = runtime.dispose();
+		await settle();
+		expect(events).toEqual(["destroy-start"]);
+		releaseDestroy?.();
+		await disposed;
+		expect(events).toEqual(["destroy-start", "destroy-end"]);
 		await runtime.dispose();
 	});
 
