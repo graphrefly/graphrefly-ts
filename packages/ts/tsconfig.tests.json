@@ -3,6 +3,7 @@
 	"compilerOptions": {
 		"declaration": false,
 		"noEmit": true,
+		"rootDir": ".",
 		"types": ["vitest/globals", "node"]
 	},
 	"include": [
@@ -16,7 +17,8 @@
 		"src/testing/production-evaluation-memory-persistence.ts",
 		"src/__tests__/production-evaluation-authority.test.ts",
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.eval.test.ts",
-		"src/__tests__/eval-support/memory-rerun-avoidance/**/*.ts"
+		"src/__tests__/eval-support/memory-rerun-avoidance/**/*.ts",
+		"evals/memory-rerun-avoidance/**/*.ts"
 	],
 	"exclude": ["node_modules", "dist"]
 }

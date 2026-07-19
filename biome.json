@@ -45,6 +45,12 @@
 	},
 	"overrides": [
 		{
+			"includes": ["packages/ts/evals/artifacts/memory-rerun-avoidance/v1/*.json"],
+			"formatter": {
+				"enabled": false
+			}
+		},
+		{
 			"includes": ["scripts/**"],
 			"linter": {
 				"rules": {

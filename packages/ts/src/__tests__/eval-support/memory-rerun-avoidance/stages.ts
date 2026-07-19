@@ -17,16 +17,15 @@ import type {
 	PlannerDecision,
 	PlannerTraceEvent,
 } from "./contracts.js";
+import {
+	MEMORY_RERUN_AVOIDANCE_FAMILY_REF,
+	MEMORY_RERUN_AVOIDANCE_REVISIONS,
+	MEMORY_RERUN_AVOIDANCE_WORLD_REVISION,
+} from "./identity.js";
 
-export const REVISIONS = Object.freeze({
-	planner: "b105-planner.v1",
-	executor: "b105-executor.v1",
-	verifier: "b105-verifier.v1",
-	reflector: "b105-reflector.v1",
-	mapper: "b105-mapper.v1",
-});
+export const REVISIONS = MEMORY_RERUN_AVOIDANCE_REVISIONS;
 
-export const FAMILY_REF = evalId("family", "memory-rerun-avoidance", "v1");
+export const FAMILY_REF = MEMORY_RERUN_AVOIDANCE_FAMILY_REF;
 export const REQUIRED_CRITERION_ID = evalId("criterion", "verify-before-edit");
 export const RETRIEVAL_TAG = evalId("retrieval", "work-item-rerun-avoidance");
 
@@ -65,7 +64,7 @@ export function buildWorkItem(overrides: Partial<WorkItemProjection> = {}): Work
 
 export function buildWorld(projectId = "project-b105"): EvalWorld {
 	return Object.freeze({
-		worldRevision: "b105-world.v1",
+		worldRevision: MEMORY_RERUN_AVOIDANCE_WORLD_REVISION,
 		projectId,
 		requiresVerificationBeforeEdit: true,
 	});

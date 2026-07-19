@@ -1,6 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { MEMORY_RERUN_AVOIDANCE_PUBLICATION } from "../../evals/memory-rerun-avoidance/constants.js";
+import { projectMemoryRerunAvoidancePresentation } from "../../evals/memory-rerun-avoidance/presentation.js";
+import type { MemoryRerunAvoidancePublicationManifestV1 } from "../../evals/memory-rerun-avoidance/publication.js";
+import {
+	createMemoryRerunAvoidancePublicationManifest,
+	publicationSha256,
+	validateMemoryRerunAvoidancePublication,
+	validateMemoryRerunAvoidanceScorecardBytes,
+} from "../../evals/memory-rerun-avoidance/publication.js";
 import { strictJsonCodec } from "../json/codec.js";
+import type { EvalFamilyScorecardV1 } from "./eval-support/memory-rerun-avoidance/contracts.js";
 import {
 	buildEvalScope,
 	buildWorkItem,
@@ -19,10 +29,34 @@ import {
 	verifyOutcome,
 } from "./eval-support/memory-rerun-avoidance/stages.js";
 
-const GOLDEN_URL = new URL(
-	"./eval-support/memory-rerun-avoidance/memory-rerun-avoidance.scorecard.v1.json",
+const SCORECARD_ARTIFACT_URL = new URL(
+	"../../evals/artifacts/memory-rerun-avoidance/v1/scorecard.v1.json",
 	import.meta.url,
 );
+
+const PUBLICATION_MANIFEST_URL = new URL(
+	"../../evals/artifacts/memory-rerun-avoidance/v1/publication-manifest.v1.json",
+	import.meta.url,
+);
+
+const PACKAGE_JSON_URL = new URL("../../package.json", import.meta.url);
+const TSUP_CONFIG_URL = new URL("../../tsup.config.ts", import.meta.url);
+const PUBLIC_BARREL_URLS = [
+	new URL("../index.ts", import.meta.url),
+	new URL("../solutions/index.ts", import.meta.url),
+	new URL("../testing/index.ts", import.meta.url),
+];
+
+function matchingManifestBytes(scorecard: Uint8Array): Uint8Array {
+	const current = strictJsonCodec.decode(
+		readFileSync(PUBLICATION_MANIFEST_URL),
+	) as MemoryRerunAvoidancePublicationManifestV1;
+	return strictJsonCodec.encode({
+		...current,
+		scorecardSha256: publicationSha256(scorecard),
+		canonicalByteLength: scorecard.byteLength,
+	});
+}
 
 describe("B105 deterministic memory rerun avoidance eval family", () => {
 	it("separates stage predicates, case conformance, and family verdict across five cases", () => {
@@ -293,15 +327,178 @@ describe("B105 deterministic memory rerun avoidance eval family", () => {
 		expect(evalId("open:a", "b::c")).not.toBe(evalId("open", "a:b::c"));
 	});
 
-	it("emits the same strict-JSON v1 scorecard bytes on consecutive runs and matches golden", () => {
+	it("publishes one deterministic strict-JSON scorecard and matching bounded manifest", () => {
 		const first = scorecardBytes(runMemoryRerunAvoidanceFamily());
 		const second = scorecardBytes(runMemoryRerunAvoidanceFamily());
-		const golden = JSON.parse(readFileSync(GOLDEN_URL, "utf8")) as unknown;
-		const goldenCanonicalBytes = strictJsonCodec.encode(golden);
+		const artifactBytes = readFileSync(SCORECARD_ARTIFACT_URL);
+		const manifestBytes = readFileSync(PUBLICATION_MANIFEST_URL);
+		const expectedManifestBytes = strictJsonCodec.encode(
+			createMemoryRerunAvoidancePublicationManifest(artifactBytes),
+		);
 		expect(first).toEqual(second);
-		expect(first).toEqual(goldenCanonicalBytes);
-		expect(strictJsonCodec.decode(goldenCanonicalBytes)).toEqual(runMemoryRerunAvoidanceFamily());
+		expect(Buffer.from(first)).toEqual(artifactBytes);
+		expect(manifestBytes).toEqual(Buffer.from(expectedManifestBytes));
+		expect(validateMemoryRerunAvoidanceScorecardBytes(artifactBytes)).toEqual(
+			runMemoryRerunAvoidanceFamily(),
+		);
 		expect(strictJsonCodec.decode(first)).toEqual(runMemoryRerunAvoidanceFamily());
 		expect(() => JSON.stringify(strictJsonCodec.decode(first))).not.toThrow();
+
+		const publication = validateMemoryRerunAvoidancePublication(artifactBytes, manifestBytes);
+		expect(publication.manifest).toEqual({
+			schemaVersion: MEMORY_RERUN_AVOIDANCE_PUBLICATION.manifestSchemaVersion,
+			artifactRef: MEMORY_RERUN_AVOIDANCE_PUBLICATION.artifactRef,
+			familyRef: MEMORY_RERUN_AVOIDANCE_PUBLICATION.familyRef,
+			lane: "deterministic",
+			scorecardSchemaVersion: MEMORY_RERUN_AVOIDANCE_PUBLICATION.scorecardSchemaVersion,
+			scorecardSha256: publicationSha256(artifactBytes),
+			canonicalByteLength: artifactBytes.byteLength,
+			generatorRevision: MEMORY_RERUN_AVOIDANCE_PUBLICATION.generatorRevision,
+			sourceRefs: MEMORY_RERUN_AVOIDANCE_PUBLICATION.sourceRefs,
+		});
+	});
+
+	it("projects a read-only presentation DTO without becoming a second verdict authority", () => {
+		const artifactBytes = readFileSync(SCORECARD_ARTIFACT_URL);
+		const manifestBytes = readFileSync(PUBLICATION_MANIFEST_URL);
+		const publication = validateMemoryRerunAvoidancePublication(artifactBytes, manifestBytes);
+		const presentation = projectMemoryRerunAvoidancePresentation(artifactBytes, manifestBytes);
+
+		expect(presentation.familyPassed).toBe(true);
+		expect(presentation.cases).toHaveLength(5);
+		expect(presentation.metrics.negativeControlFalsePositiveRate.rate).toBe(0);
+		expect(presentation.provenance.scorecardSha256).toBe(publicationSha256(artifactBytes));
+		expect(presentation.familyPassed).toBe(publication.scorecard.familyPassed);
+		expect(() => JSON.stringify(presentation)).not.toThrow();
+		expect(JSON.stringify(presentation)).not.toContain("provider");
+		expect(Object.isFrozen(presentation.metrics.relevantMemoryLift)).toBe(true);
+		expect(Object.isFrozen(presentation.resultRefs)).toBe(true);
+		expect(Object.isFrozen(publication.scorecard.cases[0]?.input)).toBe(true);
+		expect(() =>
+			projectMemoryRerunAvoidancePresentation(
+				artifactBytes,
+				strictJsonCodec.encode({
+					...publication.manifest,
+					scorecardSha256: `sha256:${"0".repeat(64)}`,
+				}),
+			),
+		).toThrow(/scorecardSha256.*does not match/);
+	});
+
+	it("fails closed on stale, non-canonical, incomplete, revision-skewed, or expanded publication", () => {
+		const artifactBytes = readFileSync(SCORECARD_ARTIFACT_URL);
+		const manifestBytes = readFileSync(PUBLICATION_MANIFEST_URL);
+		const scorecard = strictJsonCodec.decode(artifactBytes) as EvalFamilyScorecardV1;
+		const manifest = strictJsonCodec.decode(
+			manifestBytes,
+		) as MemoryRerunAvoidancePublicationManifestV1;
+
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				artifactBytes,
+				strictJsonCodec.encode({ ...manifest, scorecardSha256: `sha256:${"0".repeat(64)}` }),
+			),
+		).toThrow(/scorecardSha256.*does not match/);
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				artifactBytes,
+				strictJsonCodec.encode({
+					...manifest,
+					canonicalByteLength: artifactBytes.byteLength + 1,
+				}),
+			),
+		).toThrow(/canonicalByteLength.*does not match/);
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				artifactBytes,
+				strictJsonCodec.encode({ ...manifest, schemaVersion: "publication.v2" }),
+			),
+		).toThrow(/schemaVersion/);
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				artifactBytes,
+				strictJsonCodec.encode({ ...manifest, generatorRevision: "generator.v2" }),
+			),
+		).toThrow(/generatorRevision/);
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				artifactBytes,
+				strictJsonCodec.encode({ ...manifest, sourceRefs: manifest.sourceRefs.slice(0, -1) }),
+			),
+		).toThrow(/sourceRefs.*canonical publication sources/);
+		expect(() =>
+			validateMemoryRerunAvoidanceScorecardBytes(
+				new TextEncoder().encode(`${new TextDecoder().decode(artifactBytes)}\n`),
+			),
+		).toThrow(/not canonical/);
+
+		const incompleteBytes = strictJsonCodec.encode({
+			...scorecard,
+			requiredCaseRefs: scorecard.requiredCaseRefs.slice(0, -1),
+		});
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				incompleteBytes,
+				matchingManifestBytes(incompleteBytes),
+			),
+		).toThrow(/requiredCaseRefs/);
+
+		const revisionSkewBytes = strictJsonCodec.encode({
+			...scorecard,
+			cases: scorecard.cases.map((observation, index) =>
+				index === 0
+					? {
+							...observation,
+							input: {
+								...observation.input,
+								cold: { ...observation.input.cold, plannerRevision: "b105-planner.v2" },
+							},
+						}
+					: observation,
+			),
+		});
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				revisionSkewBytes,
+				matchingManifestBytes(revisionSkewBytes),
+			),
+		).toThrow(/plannerRevision/);
+
+		const expandedScorecardBytes = strictJsonCodec.encode({ ...scorecard, provider: {} });
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				expandedScorecardBytes,
+				matchingManifestBytes(expandedScorecardBytes),
+			),
+		).toThrow(/unexpected keys/);
+		const inconsistentVerdictBytes = strictJsonCodec.encode({ ...scorecard, familyPassed: false });
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				inconsistentVerdictBytes,
+				matchingManifestBytes(inconsistentVerdictBytes),
+			),
+		).toThrow(/familyPassed.*every/);
+		expect(() =>
+			validateMemoryRerunAvoidancePublication(
+				artifactBytes,
+				strictJsonCodec.encode({ ...manifest, familyPassed: true }),
+			),
+		).toThrow(/manifest.*unexpected keys/);
+	});
+
+	it("keeps B106.1 artifacts and consumers outside package exports and build entries", () => {
+		const packageJson = JSON.parse(readFileSync(PACKAGE_JSON_URL, "utf8")) as {
+			exports?: Record<string, unknown>;
+			files?: string[];
+		};
+		const forbiddenSurface = /memory-rerun-avoidance|(?:^|\/)evals(?:\/|$)/;
+		expect(Object.keys(packageJson.exports ?? {}).some((key) => forbiddenSurface.test(key))).toBe(
+			false,
+		);
+		expect((packageJson.files ?? []).some((path) => forbiddenSurface.test(path))).toBe(false);
+		expect(forbiddenSurface.test(readFileSync(TSUP_CONFIG_URL, "utf8"))).toBe(false);
+		for (const barrelUrl of PUBLIC_BARREL_URLS) {
+			expect(forbiddenSurface.test(readFileSync(barrelUrl, "utf8"))).toBe(false);
+		}
 	});
 });

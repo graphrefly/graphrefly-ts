@@ -40,6 +40,7 @@ import type {
 	RetrievalStageState,
 	TraceMemoryDisposition,
 } from "./contracts.js";
+import { MEMORY_RERUN_AVOIDANCE_CASE_REFS, MEMORY_RERUN_AVOIDANCE_SCHEMAS } from "./identity.js";
 import {
 	buildEvalScope,
 	buildWorkItem,
@@ -83,7 +84,7 @@ const expected = (
 export const CASE_DEFINITIONS: readonly EvalCaseDefinition[] = Object.freeze([
 	Object.freeze({
 		caseKind: "relevant-applied",
-		caseRef: evalId("case", "relevant-applied", "v1"),
+		caseRef: MEMORY_RERUN_AVOIDANCE_CASE_REFS.relevantApplied,
 		variant: "relevant",
 		admissionMode: "admit",
 		expectation: expected({
@@ -99,7 +100,7 @@ export const CASE_DEFINITIONS: readonly EvalCaseDefinition[] = Object.freeze([
 	}),
 	Object.freeze({
 		caseKind: "proposal-only",
-		caseRef: evalId("case", "proposal-only", "v1"),
+		caseRef: MEMORY_RERUN_AVOIDANCE_CASE_REFS.proposalOnly,
 		variant: "relevant",
 		admissionMode: "proposal-only",
 		expectation: expected({
@@ -115,7 +116,7 @@ export const CASE_DEFINITIONS: readonly EvalCaseDefinition[] = Object.freeze([
 	}),
 	Object.freeze({
 		caseKind: "admission-rejected",
-		caseRef: evalId("case", "admission-rejected", "v1"),
+		caseRef: MEMORY_RERUN_AVOIDANCE_CASE_REFS.admissionRejected,
 		variant: "relevant",
 		admissionMode: "reject",
 		expectation: expected({
@@ -131,7 +132,7 @@ export const CASE_DEFINITIONS: readonly EvalCaseDefinition[] = Object.freeze([
 	}),
 	Object.freeze({
 		caseKind: "irrelevant-applied",
-		caseRef: evalId("case", "irrelevant-applied", "v1"),
+		caseRef: MEMORY_RERUN_AVOIDANCE_CASE_REFS.irrelevantApplied,
 		variant: "irrelevant",
 		admissionMode: "admit",
 		expectation: expected({
@@ -147,7 +148,7 @@ export const CASE_DEFINITIONS: readonly EvalCaseDefinition[] = Object.freeze([
 	}),
 	Object.freeze({
 		caseKind: "wrong-scope-applied",
-		caseRef: evalId("case", "wrong-scope-applied", "v1"),
+		caseRef: MEMORY_RERUN_AVOIDANCE_CASE_REFS.wrongScopeApplied,
 		variant: "wrongScope",
 		admissionMode: "admit",
 		expectation: expected({
@@ -524,7 +525,7 @@ function runCase(definition: EvalCaseDefinition): EvalCaseObservationV1 {
 		resultRef("b105-verification", warmVerification.verificationId),
 	]);
 	return Object.freeze({
-		schemaVersion: "graphrefly.private-solution-eval.case-observation.v1",
+		schemaVersion: MEMORY_RERUN_AVOIDANCE_SCHEMAS.caseObservation,
 		familyRef: FAMILY_REF,
 		caseRef: definition.caseRef,
 		caseKind: definition.caseKind,
@@ -632,7 +633,7 @@ export function runMemoryRerunAvoidanceFamily(): EvalFamilyScorecardV1 {
 	});
 	const familyPassed = cases.every((observation) => observation.caseConforms);
 	return Object.freeze({
-		schemaVersion: "graphrefly.private-solution-eval.family-scorecard.v1",
+		schemaVersion: MEMORY_RERUN_AVOIDANCE_SCHEMAS.familyScorecard,
 		familyRef: FAMILY_REF,
 		lane: "deterministic",
 		requiredCaseRefs: Object.freeze(cases.map((observation) => observation.caseRef)),
